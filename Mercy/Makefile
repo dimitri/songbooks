@@ -1,19 +1,31 @@
-SRC = Mercy.tex $(wildcard *.ly)
-PDF = Mercy.pdf
+SRC = $(wildcard *.tex) $(wildcard */*.ly)
 
-IDXSCRIPT = /usr/local/texlive//2024/texmf-dist/doc/latex/songs/songidx/songidx.lua
+PDF_A4 = Mercy-SongBook-A4.pdf
+PDF_PHONE = Mercy-SongBook-Phone.pdf
+PDF_TABLET = Mercy-SongBook-Tablet.pdf
 
-all: pdf
-	open $(PDF)
+PDFs = $(PDF_A4) $(PDF_PHONE) $(PDF_TABLET)  
 
-pdf: $(PDF) ;
+all: pdfs ;
 
-$(PDF): $(SRC)
-	lualatex --shell-escape $^
+a4: $(PDF_A4)
+	open $^	
+
+phone: $(PDF_PHONE)
+	open $^	
+
+tablet: $(PDF_TABLET)
+	open $^	
+
+pdfs: $(PDFs) ;
 
 clean: aux-clean
-	rm -f $(PDF)
+	rm -f $(PDFs)
 
 aux-clean:
 	rm -f *.{aux,log,sxc} idxfile.sxd idxfile.sbx
 	rm -rf tmp-ly
+
+%.pdf: %.tex
+	lualatex --shell-escape $^
+
