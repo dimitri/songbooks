@@ -14,7 +14,3 @@
   indent = 0\cm
   between-system-padding = 0\cm
 }
-
-\layout {
-  \override Score.SystemStartBar.collapse-height = 0
-}
