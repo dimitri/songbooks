@@ -1,17 +1,20 @@
-SRC = OtherLies-Songbook.tex $(wildcard *.ly)
-PDF = OtherLies-Songbook.pdf
+SRC = $(wildcard *.tex) $(wildcard */*.ly)
+
+PDF_A4 = OtherLies-SongBook-A4.pdf
+PDF_PHONE = OtherLies-SongBook-Phone.pdf
+PDF_TABLET = OtherLies-SongBook-Tablet.pdf
+
+PDFs = $(PDF_A4) $(PDF_PHONE) $(PDF_TABLET)  
 
 IDXSCRIPT = /usr/local/texlive//2024/texmf-dist/doc/latex/songs/songidx/songidx.lua
 
-all: pdf
+all: pdfs
 	open $(PDF)
 
-pdf: $(PDF) ;
+a4: $(PDF_A4)
+	open $^
 
-$(PDF): $(SRC)
-	lualatex --shell-escape $^
-	texlua $(IDXSCRIPT) idxfile.sxd idxfile.sbx
-	lualatex --shell-escape $^
+pdfs: $(PDFs) ;
 
 clean: aux-clean
 	rm -f $(PDF)
@@ -19,3 +22,9 @@ clean: aux-clean
 aux-clean:
 	rm -f *.{aux,log,sxc} idxfile.sxd idxfile.sbx
 	rm -rf tmp-ly
+
+%.pdf: %.tex
+	lualatex --shell-escape $^
+	texlua $(IDXSCRIPT) idxfile.sxd idxfile.sbx
+	lualatex --shell-escape $^
+
