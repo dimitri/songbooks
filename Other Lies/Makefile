@@ -1,4 +1,4 @@
-SRC = $(wildcard *.tex) $(wildcard */*/*.tex) $(wildcard */*/*.ly)
+SRC = $(wildcard *.tex) $(wildcard */*/*.tex) $(wildcard */*/*.ly) $(wildcard *.ly)
 
 PDF_A4 = OtherLies-SongBook-A4.pdf
 PDF_PHONE = OtherLies-SongBook-Phone.pdf

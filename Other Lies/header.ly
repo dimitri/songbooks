@@ -3,7 +3,7 @@
   make-footer=##f
   
   line-width = 7\cm
-  
+
   head-separation = 0\cm
   foot-separation = 0\cm
   

@@ -8,7 +8,7 @@
 \chordmode {
    \repeat volta 3 { \bar ".|:"
      \alternative {
-       \volta 1,2 { d1 b:m fis:m e }
+       \volta 1,2 { d1 b:m fis:m e } \break
        \volta 3 { d1 b:m fis:m fis:m }
      }
    }
