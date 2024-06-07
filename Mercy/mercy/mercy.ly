@@ -1,5 +1,7 @@
 \include "header.ly"
 
+<<
+
 \new Voice \with { \omit StringNumber} {
   \key bes \major
   \clef "treble_8"
@@ -20,3 +22,5 @@
     <f f'>2
   }
 }
+
+>>
