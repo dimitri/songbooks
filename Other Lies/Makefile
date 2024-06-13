@@ -1,4 +1,5 @@
-SRC = $(wildcard *.tex) $(wildcard */*/*.tex) $(wildcard */*/*.ly) $(wildcard *.ly)
+SRC  = $(wildcard *.tex) $(wildcard */*.tex) $(wildcard */*/*.tex)
+SRC += $(wildcard */*/*.ly) $(wildcard *.ly)
 
 PDF_A4 = OtherLies-SongBook-A4.pdf
 PDF_PHONE = OtherLies-SongBook-Phone.pdf
@@ -25,6 +26,6 @@ aux-clean:
 
 %.pdf: %.tex $(SRC)
 	lualatex --shell-escape $<
-	texlua $(IDXSCRIPT) idxfile.sxd idxfile.sbx
-	lualatex --shell-escape $<
+	# texlua $(IDXSCRIPT) idxfile.sxd idxfile.sbx
+	# lualatex --shell-escape $<
 

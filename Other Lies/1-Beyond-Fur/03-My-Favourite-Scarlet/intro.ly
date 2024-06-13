@@ -7,9 +7,10 @@
 
 \chordmode {
   \tempo 4 = 140
-   \repeat volta 3 { \bar ".|:"
+   \repeat volta 6 { \bar ".|:"
      \alternative {
-       \volta 1,2,3 { fis:m1 fis:m a e }
+       \volta 1,2,3 { fis1:m fis:m a e }
+       \volta 4,5,6 { fis1:m fis:m a e }
      }
    }
 }
