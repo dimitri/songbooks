@@ -6,7 +6,6 @@
 }
 
 \chordmode {
-     fis:m b:m fis:m b:m \break
-     fis:m b:m fis:m b:m 
-  }
+  fis:m b:m fis:m b:m \break
+  fis:m b:m fis:m b:m 
 }
