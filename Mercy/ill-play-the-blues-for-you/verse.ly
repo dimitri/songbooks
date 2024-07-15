@@ -10,7 +10,7 @@
   \repeat volta 4 {  \bar ".|:"
     g1:m g:m g:m g:m \break
     c:m c:m g:m g:m \break
-    bes d c:m g:m \break
+    bes d c:m c:m \break
     g:m g:m
   }
 }
