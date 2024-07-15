@@ -30,7 +30,7 @@
 }
 
 \chordmode {
-  c1 c c c \break
-  f f c c \break
-  ees f c c
+  c1:m c:m c:m c:m \break
+  f:9 f:9 c:m c:m \break
+  ees f c:m c:m
 }
