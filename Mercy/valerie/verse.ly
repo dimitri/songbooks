@@ -8,6 +8,6 @@
 \chordmode {
  \tempo 4 = 94
  \repeat volta 2 { \bar ".|:"
-   c1 c d:m d:m
+   ees1 ees f:m f:m
  }
 }
