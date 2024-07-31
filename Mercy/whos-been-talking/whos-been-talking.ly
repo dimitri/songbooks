@@ -9,8 +9,8 @@
  \tempo 4 = 120
  \set noChordSymbol = \markup { \beam #3 #0 #1 } 
  \repeat volta 2 { \bar ".|:"
-   a1:m a:m a:m a:m \break
-   d:m d:m a:m a:m \break
-   e:m d:m a:m r1
+   c1:m c:m c:m c:m \break
+   f:m f:m c:m c:m \break
+   g:m f:m c:m r1
  }
 }
