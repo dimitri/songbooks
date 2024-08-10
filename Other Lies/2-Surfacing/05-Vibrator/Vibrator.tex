@@ -1,30 +1,61 @@
 \beginsong{Vibrator}[by={Other Lies}]
 
-  \chordsoff
-  \beginverse
-  Hearing laughers in the dark 
-  Seeing unusual moves in the corner of the room
-  Instead of wider skies
-  This haunting call in my head 
-  Still fuels my days away
-  \endverse
+  \chordson
+  \lilypondfile[nofragment]{intro.ly}
+  \textnote{Intro}
+
+  \lilypondfile[nofragment]{verse.ly}
 
   \beginverse
-  My desire for empty spaces is real or is just gasoline
-  My desire is a drunken blackout through and through and through 
-  My desire takes me away from you
+  \[Dm] Hearing laughers in the dark 
+  \[F]Seeing unusual moves
+  \[F]In the corner of the room
+  \[F]Instead of wider skies
+  \[F]This haunting call in my head 
+  \[Dm] Still fuels my days away
   \endverse
 
-  \beginverse  
-  But staring in the eyes of the highway girls and at the distant stars at night
-  This awkward feeling slowly deteriorating
-  And the fear of the places around starts to take hold
+  \beginchorus
+  \lilypondfile[nofragment]{chorus-1.ly}
+  
+  \[Bb] My desire \[Gm]for empty spaces is real \[Dm]
+  Or is just gaso\[F]line
+  \[Bb] My desire \[Gm]is a drunken blackout \[Dm]
+  And \[F]through and through and through 
+  \[Bb] My desire \[Gm]takes me away from you \[Dm]
+  \endchorus
+
+  \textnote{Bridge}
+  \lilypondfile[nofragment]{bridge.ly}
+  \beginverse
+  \[Em]But staring in the eyes of the highway girls
+  \[Gm]And at the distant stars at night
+  \[Em]This awkward feeling slowly deteriorating
+  \[Gm]And the fear of the places around
+  Starts to take hold
+  \endverse
+  
+  \textnote{Solo} 
+  \lilypondfile[nofragment]{solo.ly}
+  \beginverse
+  Starts to take hold
   \endverse
 
-  \beginverse  
-  And if this desire for loneliness disappears or rolls back
-  And if someday I find my way home
-  Will this still wring my heart? 
-  Will you be there, too?  
+  \beginchorus  
+  \lilypondfile[nofragment]{chorus-2.ly}
+
+  \[Gm] And if this desire for loneliness disappears
+  \[Bb] Or rolls back
+  \[Gm] And if someday I find my way home
+  \[Bb] Will this still wring my heart? 
+  \endchorus
+
+  \textnote{Outro}
+
+  \beginverse
+  Will you be there, too?
   \endverse
+
+  \lilypondfile[nofragment]{outro.ly}
+
 \endsong

@@ -6,8 +6,6 @@
 }
 
 \chordmode {
-   c1:maj7 c:maj7 a:m9 a:m9 \break
-   c:maj7 c:maj7 a:m9 a:m9 \break
-   c:maj7 c:maj7 d d
-   d d
+  \tempo 4 = 113
+  \repeat volta 2 { \bar ".|:" d1:m d:m d:m d:m }
 }

@@ -6,8 +6,6 @@
 }
 
 \chordmode {
-   c1:maj7 c:maj7 a:m9 a:m9 \break
-   c:maj7 c:maj7 a:m9 a:m9 \break
-   c:maj7 c:maj7 d d
-   d d
+  d1:m d1:m d1:m d1:m \break
+  d1:m d1:m d1:m d1:m
 }
