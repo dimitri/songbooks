@@ -20,6 +20,9 @@ pdfs: $(PDFs) ;
 clean: aux-clean
 	rm -f $(PDF)
 
+setlist: OtherLies-Vasarely-2024-09-27.pdf
+	open $^
+
 aux-clean:
 	rm -f *.{aux,log,sxc} idxfile.sxd idxfile.sbx
 	rm -rf tmp-ly
