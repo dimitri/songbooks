@@ -4,5 +4,6 @@
 *.sxc
 *.sbx
 *.sxd
+.DS_Store
 
 tmp-ly/
