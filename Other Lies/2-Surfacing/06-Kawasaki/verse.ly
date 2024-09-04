@@ -6,6 +6,5 @@
 }
 
 \chordmode {
-  \tempo 4 = 90
   cis1:m cis:m cis:m cis:m
 }
