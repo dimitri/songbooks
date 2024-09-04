@@ -2,6 +2,7 @@ SRC  = $(wildcard *.tex) $(wildcard */*.tex) $(wildcard */*/*.tex)
 SRC += $(wildcard */*/*.ly) $(wildcard *.ly)
 
 PDF_A4 = OtherLies-SongBook-A4.pdf
+PDF_L4 = OtherLies-SongBook-L4.pdf
 PDF_PHONE = OtherLies-SongBook-Phone.pdf
 PDF_TABLET = OtherLies-SongBook-Tablet.pdf
 
@@ -13,6 +14,9 @@ all: pdfs
 	open $(PDF)
 
 a4: $(PDF_A4)
+	open $^
+
+l4: $(PDF_L4)
 	open $^
 
 pdfs: $(PDFs) ;
