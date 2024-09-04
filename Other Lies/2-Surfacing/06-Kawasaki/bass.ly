@@ -9,6 +9,6 @@
   \tempo 4 = 90
   
   \relative {
-    fis,8. e16 fis8 \tuplet 3/2 { e16 fis a } b8 d8 e4
+    fis,8 e16 fis16 r16 e16 fis a b8 d8 e4
   }
 }
