@@ -8,20 +8,27 @@
 
 \begin{document}
 
-\import{./}{titlepage.tex}
+\import{./}{titlepage-l4.tex}
+
+\newpage
+
+\includegraphics[width=0.9\linewidth]{band.jpg}
+
+\newpage
 
 \begin{center}
-  \begin{minipage}[t][0.2\textheight][t]{0.8\textwidth}
-    \centering
-    \textbf{\sffamily \LARGE Beyond Fur, 2020\hfill}%
-    \includegraphics[height=0.2\textheight,valign=t]{1-Beyond-Fur/beyond-fur.jpg}
-  \end{minipage}
-
-  \vspace{1em}
+  \textbf{\sffamily \LARGE Beyond Fur, 2020}
+  \vspace{3em}
   
-  \begin{minipage}[t][0.5\textheight][t]{\textwidth}
+  \begin{minipage}[t]{0.5\textwidth}
+    \vspace{0px}
     \centering
-    \resizebox{0.8\textwidth}{!}{% use resizebox with line width
+    \includegraphics[width=0.9\linewidth]{1-Beyond-Fur/beyond-fur.jpg}
+  \end{minipage}%
+  \begin{minipage}[t]{0.5\textwidth}
+    \vspace{0px}
+    \centering
+    \resizebox{\linewidth}{!}{% use resizebox with line width
       \rowcolors{2}{gray!10}{white}
       \begin{tabular}{>{\sffamily}r>{\bfseries \sffamily}l>{\sffamily}l>{\sffamily}r}
         %%\rowcolor{gray!15}
@@ -38,27 +45,28 @@
         9  & Tattooed Indian Robber      & C           & 113   \\
         10 & Of Human Bondage            & A           & 120   \\
       \end{tabular}%
-    }
-  \end{minipage}
+    }%
+  \end{minipage}%
 \end{center}
 
-\pagebreak
+\newpage
 \import{./1-Beyond-Fur/}{songs.tex}
 
-\pagebreak
+\newpage
 
 \begin{center}
-  \begin{minipage}[t][0.2\textheight][t]{0.8\textwidth}
-    \centering
-    \textbf{\sffamily \LARGE Surfacing, 2022\hfill}%
-    \includegraphics[height=0.2\textheight,valign=t]{2-Surfacing/surfacing.jpg}
-  \end{minipage}
-
-  \vspace{1em}
+  \textbf{\sffamily \LARGE Surfacing, 2022}
+  \vspace{3em}
   
-  \begin{minipage}[t][0.5\textheight][t]{\textwidth}
+  \begin{minipage}[t]{0.5\textwidth}
+    \vspace{0px}
     \centering
-    \resizebox{0.8\textwidth}{!}{% use resizebox with line width
+    \includegraphics[width=0.9\linewidth]{2-Surfacing/surfacing.jpg}
+  \end{minipage}%
+  \begin{minipage}[t]{0.5\textwidth}
+    \vspace{0px}
+    \centering
+    \resizebox{\linewidth}{!}{% use resizebox with line width
     \rowcolors{2}{gray!10}{white}
     \begin{tabular}{>{\sffamily}r>{\bfseries \sffamily}l>{\sffamily}l>{\sffamily}r}
       %%\rowcolor{gray!15}
@@ -79,23 +87,24 @@
   \end{minipage}
 \end{center}
 
-\pagebreak
+\newpage
 \import{./2-Surfacing/}{songs.tex}
 
-\pagebreak
+\newpage
 
 \begin{center}
-  \begin{minipage}[t][0.2\textheight][t]{0.8\textwidth}
-    \centering
-    \textbf{\sffamily \LARGE Ultrablanc, 2025\hfill}%
-    \includegraphics[height=0.2\textheight,valign=t]{3-Ultrablanc/ultrablanc.png}
-  \end{minipage}
-
-  \vspace{1em}
+    \textbf{\sffamily \LARGE Ultrablanc, 2025}
+  \vspace{3em}
   
-  \begin{minipage}[t][0.5\textheight][t]{\textwidth}
+  \begin{minipage}[t]{0.5\textwidth}
+    \vspace{0px}
     \centering
-    \resizebox{0.8\textwidth}{!}{% use resizebox with line width
+    \includegraphics[width=0.9\linewidth]{3-Ultrablanc/ultrablanc.png}
+  \end{minipage}%
+  \begin{minipage}[t]{0.5\textwidth}
+    \vspace{0px}
+    \centering
+    \resizebox{\linewidth}{!}{% use resizebox with line width
     \rowcolors{2}{gray!10}{white}
     \begin{tabular}{>{\sffamily}r>{\bfseries \sffamily}l>{\sffamily}l>{\sffamily}r}
       %%\rowcolor{gray!15}
@@ -115,7 +124,8 @@
     }
   \end{minipage}
 \end{center}
-\pagebreak
+
+\newpage
 \import{./3-Ultrablanc/}{songs.tex}
 
 \end{document}
