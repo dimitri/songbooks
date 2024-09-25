@@ -6,7 +6,7 @@
 }
 
 \chordmode {
-  \tempo 4 = 100
+  \tempo 4 = 110
   \repeat volta 3 {
     \alternative {
       \volta 1,2 { d1:m g:m a:7 d:m } 
