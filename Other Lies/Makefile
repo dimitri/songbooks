@@ -3,15 +3,12 @@ SRC += $(wildcard */*/*.ly) $(wildcard *.ly)
 
 PDF_A4 = OtherLies-SongBook-A4.pdf
 PDF_L4 = OtherLies-SongBook-L4.pdf
-PDF_PHONE = OtherLies-SongBook-Phone.pdf
-PDF_TABLET = OtherLies-SongBook-Tablet.pdf
 
-PDFs = $(PDF_A4) $(PDF_PHONE) $(PDF_TABLET)  
+PDFs = $(PDF_A4) $(PDF_L4)
 
 IDXSCRIPT = /usr/local/texlive//2024/texmf-dist/doc/latex/songs/songidx/songidx.lua
 
-all: pdfs
-	open $(PDF)
+all: pdfs ;
 
 a4: $(PDF_A4)
 	open $^
