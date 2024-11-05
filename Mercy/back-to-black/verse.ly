@@ -7,5 +7,7 @@
 
 \chordmode {
   \tempo 4 = 64
-  d1:m g:m bes a
+  \repeat volta 2 { \bar ".|:"
+    d1:m d:m g:m g:m bes bes a a
+  }
 }
