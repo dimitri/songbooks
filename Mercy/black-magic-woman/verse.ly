@@ -6,7 +6,12 @@
 }
 
 \chordmode {
-  \repeat volta 4 { \bar ".|:" d1:m f g:m a:7 }
+  \tempo 4 = 130
+  \repeat volta 4 {  \bar ".|:"
+    d1:m d:m a:m a:m \break
+    d:m d:m g:m g:m \break
+    d2:m g:m7 c a d1:m d1:m
+  }
 }
 
 \markup \vspace #1

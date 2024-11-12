@@ -6,7 +6,6 @@
 }
 
 \chordmode {
-  \repeat volta 4 { \bar ".|:" d1:m f g:m a:7 }
+  cis1:7 gis:7 cis:7 fis:7 \break
+  cis:7 dis:7 cis:7
 }
-
-\markup \vspace #1
