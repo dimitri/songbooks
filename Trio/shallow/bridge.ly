@@ -6,7 +6,6 @@
 }
 
 \chordmode {
-  \repeat volta 2 { \bar ".|:"
-    a1:m d g2 d2 e1:m    
-  }
+  b1:m d a e:m \break
+  b:m d a
 }

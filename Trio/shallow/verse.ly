@@ -7,10 +7,10 @@
 
 \chordmode {
   \tempo 4 = 96
+  \set noChordSymbol = \markup { \beam #3 #0 #1 } 
   \repeat volta 2 { \bar ".|:"
-    e2:m d2 g1 \break
-    c1 g2 d2 \break
-    e2:m g2 d1    
+    e2:m d4. g8 r1 \break
+    c1 g2 d2
   }
 }
 
