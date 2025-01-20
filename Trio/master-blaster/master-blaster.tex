@@ -1,24 +1,31 @@
 \beginsong{Master Blaster}[by={Stevie Wonder}]
 
-  \beginverse
-  Everyone's feelin' pretty
-  It's hotter than July
-  Though the world's full of problems
-  They couldn't touch us even if they tried
-  From the park I hear rhythms
-  Marley's hot on the box
-  Tonight there will be a party
-  On the corner at the end of the block
-  \endverse
+  \lilypondfile[nofragment]{verse.ly}
 
   \beginverse
+  \[Am]Everyone's feelin' pret\[G]ty
+  \[F]It's hotter than July\[E]
+  \[D]Though the world's full of problems
+  They couldn't \[Am]touch us even if they \[G]tried
+  \[Am]From the park I hear rhythms\[G],
+  \[F]Marley's hot on the box\[E],
+  \[D]Tonight there will be a party
+  On \[Am]the corner at the end of \[G]the block
+  \endverse
+
+  \chordsoff
+  \lilypondfile[nofragment]{chorus.ly}
+  
+  \beginchorus
   Didn't know you would be jammin' until the break of dawn
   See, nobody ever told you
   That you would be jammin' until the break of dawn
   You would be jammin' and jammin' and jammin' jam oh
   Ha, ha, oh
-  \endverse
+  \endchorus
 
+  \lilypondfile[nofragment]{bridge.ly}
+  
   \beginverse
   They want us to join their fighting
   But our answer today
