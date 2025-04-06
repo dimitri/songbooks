@@ -6,7 +6,7 @@
 }
 
 \chordmode {
- \tempo 4 = 94
+ \tempo 4 = 100
  \repeat volta 2 { \bar ".|:"
    ees1 ees f:m f:m
  }

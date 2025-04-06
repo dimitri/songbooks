@@ -6,7 +6,7 @@
 }
 
 \chordmode {
-  \tempo 4 = 88
+  \tempo 4 = 90
   \repeat volta 4 {  \bar ".|:" fis1:m fis:m a a \break e cis:m fis:m fis:m }
 }
 

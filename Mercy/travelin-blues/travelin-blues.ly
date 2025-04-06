@@ -6,7 +6,7 @@
 }
 
 \chordmode {
-  \tempo 4 = 100
+ \tempo 4 = 108
  \repeat volta 2 { \bar ".|:"
    a1:m a:m a:m a:m \break
    d:m d:m a:m a:m \break
