@@ -1,14 +1,14 @@
 \beginsong{Every Breath You Take}[by={The Police}]
 
   \capo{1}
-  \transpose{1}
+  \lilypondfile[nofragment]{verse.ly}
 
   \beginverse
   \[G]Every breath you take
   And every move you \[Em]make
   Every bond you \[C]break
   Every step you \[D]take
-  I'll be watching \[G]you
+  I'll be watching \[Em]you
   Every single \[G]day
   And every word you \[Em]say
   Every game you \[C]play
@@ -17,12 +17,15 @@
   \endverse
 
   \beginchorus
+  \lilypondfile[nofragment]{chorus.ly}
+  
   Oh, can't you \[C]see
   You belong to \[G]me?
   How my poor heart \[A7]aches
   With every step you \[D]take?
   \endchorus
 
+  \chordsoff
   \beginverse
   Every move you \[G]make
   And every vow you \[Em]break
@@ -32,6 +35,7 @@
   \endverse
 
   \textnote{Bridge}
+  \chordson
   \beginverse
   \[Eb]Since you've gone, I've been lost without a \[F]trace
   I dream at night, I can only see your \[Eb]face
@@ -41,13 +45,11 @@
   \endverse
 
   \textnote{Instrumental}
-  \beginverse
-  \[Em] \[C] \[D] \[Em] \[G] \[Em] \[C] \[D] \[G]
-  \endverse
+  \lilypondfile[nofragment]{bridge.ly}
 
   \chordsoff
-
   \beginchorus
+  \lilypondfile[nofragment]{chorus.ly}
   Oh, can't you see
   You belong to me?
   How my poor heart aches
@@ -60,16 +62,19 @@
   Every smile you fake
   Every claim you stake
   I'll be watching you
+  \endverse
+
+  \textnote{Outro}
+  \lilypondfile[nofragment]{outro.ly}
+  \beginverse
   Every move you make
   Every step you take
   I'll be watching you
-  \endverse
-
-  \beginverse
   I'll be watching you
-  (Every breath you take)
-  (Every move you make)
-  (Every bond you break)
-  (Every step you take) I'll be watching you
+  \echo{Every breath you take}
+  \echo{Every move you make}
+  \echo{Every bond you break}
+  \echo{Every step you take}
+  I'll be watching you
   \endverse
 \endsong
