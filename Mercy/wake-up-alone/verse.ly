@@ -8,9 +8,7 @@
 \chordmode {
  \tempo 4 = 72
  \repeat volta 2 { \bar ".|:"
-  a1 a aes aes \break
-  cis:m cis:m c c \break
-  e:maj7 e:maj7 cis:m cis:m \break
-  c c fis:m f
+  a1 aes cis:m c \break
+  e:maj7 cis:m c fis2:m f2
  }
 }

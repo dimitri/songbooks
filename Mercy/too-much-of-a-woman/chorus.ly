@@ -12,9 +12,6 @@
       \volta 4 { g1 a1 }
     }
   }
-  \repeat volta 2 {
-    \alternative {
-      \volta 1,2 { \bar ".|:" b1 a2 e2 }
-    }
-  }
+  \break
+  b1 a2 e2 b1 a2 e2
 }
