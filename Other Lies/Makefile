@@ -21,7 +21,10 @@ pdfs: $(PDFs) ;
 clean: aux-clean
 	rm -f $(PDF)
 
-setlist: OtherLies-Vasarely-2024-09-27.pdf
+setlist: OtherLies-2025.pdf
+	open $^
+
+vasarely: OtherLies-Vasarely-2024-09-27.pdf
 	open $^
 
 aux-clean:
