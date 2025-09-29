@@ -9,9 +9,9 @@
   \tempo 4 = 130
   \repeat volta 2 { \bar ".|:"
     b1:m b2:m e:m \break
-    e2:m fis:7 b1:m \break
-    b1:m e2:m fis:7 \break
-    g:7 fis:7 b1:m \break
+    e2:m fis b1:m \break
+    b1:m e2:m fis \break
+    g:7 fis b1:m \break
   }
 }
 
