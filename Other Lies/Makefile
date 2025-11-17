@@ -24,6 +24,9 @@ clean: aux-clean
 setlist: OtherLies-2025.pdf
 	open $^
 
+supersonic: OtherLies-SuperSonic-2026.pdf
+	open $^
+
 vasarely: OtherLies-Vasarely-2024-09-27.pdf
 	open $^
 
