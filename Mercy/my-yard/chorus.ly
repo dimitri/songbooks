@@ -6,12 +6,7 @@
 }
 
 \chordmode {
-  \tempo 4 = 83
   \repeat volta 4 {  \bar ".|:"
-    d1:m7 g2:m7 f2:m7 g2:m7 f2:m7
-    \alternative {
-      \volta 1 { a1:7 }
-      \volta 2 { c1 c1 }
-    }
+    d1:maj7 d:maj7 fis:m9 gis:m7
   }
 }
