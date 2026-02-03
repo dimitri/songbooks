@@ -1,5 +1,8 @@
 \beginsong{It's Too Late}[by={Carole King}]
 
+  \chordsoff
+  \lilypondfile[nofragment]{verse.ly}
+
   \beginverse
   \[Am7]Stayed in bed all morning
   Just to \[D6]pass the time
@@ -10,6 +13,8 @@
   \endverse
 
   \beginchorus
+  \lilypondfile[nofragment]{chorus1.ly}
+  
   And it's \[BbM7]too late, baby, now \[FM7]it's too late
   Though we \[BbM7]really did try to \[FM7]make it
   \[BbM7]Something inside has \[FM7]died and I can't \[Dm7]hide
@@ -26,18 +31,19 @@
   \endverse
 
   \beginchorus
+  \lilypondfile[nofragment]{chorus2.ly}
+
   And it's too late, baby, now it's too late
   Though we really did try to make it
   Something inside has died and I can't hide
   And I just can't fake it, oh no no
   \endchorus
 
-  \beginverse
-  \textnote{Instrumental}
-  \[CM7] \[FM7] \[BbM7] \[Am7]
-  \[Gm7] \[FM7] \[Dm7] \[E7]
-  \endverse
-  
+  \newpage
+
+  \textnote{Instrumental \& Solo}
+  \lilypondfile[nofragment]{instru.ly}
+
   \beginverse
   There'll be good times again for me and you
   But we just can't stay together,
@@ -47,12 +53,17 @@
   \endverse
 
   \beginchorus
+  \lilypondfile[nofragment]{chorus2.ly}
+  
   But it's too late, baby, now it's too late
   Though we really did try to make it
   Something inside has died and I can't hide
   And I just can't fake it, Oh no no no no no
   \endchorus
 
+  \textnote{Outro}
+  \lilypondfile[nofragment]{outro.ly}
+  
   \beginverse
   It's too late
   Baby
