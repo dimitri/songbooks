@@ -7,6 +7,5 @@
 
 \chordmode {
   bes1:maj7 f:maj7 bes1:maj7 f:maj7 \break
-  bes1:maj7 f:maj7 d:m7 e2:sus4 e:7 \break
-  a1:m7 d:6 a:m7 d:6
+  bes1:maj7 f:maj7 d:m7 e2:sus4 e:7
 }
