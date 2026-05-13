@@ -7,5 +7,7 @@
 
 \chordmode {
   \set noChordSymbol = \markup { \typewriter "4/4" }
-  { \bar "|" f1 aes f aes r }
+  \transpose c d {
+    { \bar "|" f1 aes f aes r }
+  }  
 }

@@ -7,5 +7,7 @@
 
 \chordmode {
   \tempo 4 = 78
-  \repeat volta 2 { \bar ".|:" c1 c g g }
+  \transpose c d {
+    \repeat volta 2 { \bar ".|:" c1 c g g }
+  }
 }
