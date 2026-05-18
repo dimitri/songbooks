@@ -7,8 +7,11 @@
 
 \chordmode {
   \tempo 4 = 65
-  \repeat volta 2 { \bar ".|:"
+  \repeat volta 4 { \bar ".|:"
     g1:m bes d:m c \break
     g:m bes f c
+    \alternative { \volta 1,2,3 { }
+                   \volta 4 { c }
+    }
   }
 }
