@@ -6,6 +6,6 @@
 }
 
 \chordmode {
-  f1:maj7 f:maj7 f1:maj7 f:maj7
-  f1:maj7 f:maj7 g:m7 c:479
+  d1:m7 f:maj7 bes:maj7 ees:79
+  d2:m7 aes:maj7 g:m7 c:47
 }

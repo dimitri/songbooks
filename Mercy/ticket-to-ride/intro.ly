@@ -6,6 +6,8 @@
 }
 
 \chordmode {
+  \tempo 4 = 106
   f1:maj7 f:maj7 f1:maj7 f:maj7
-  f1:maj7 f:maj7 g:m7 c:479
 }
+
+\markup \vspace #1
