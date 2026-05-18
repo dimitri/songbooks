@@ -7,6 +7,6 @@
 
 \chordmode {
   \repeat volta 4 { \bar ".|:"
-    bes1:11 bes:11 ees:maj7 ees2:maj7 e:7.5-
+    bes1:11 bes:11 ees:maj7 ees2:maj7 e:m7.5-
   }
 }
