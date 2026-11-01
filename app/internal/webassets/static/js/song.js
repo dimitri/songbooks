@@ -1150,6 +1150,26 @@ const ICONS = {
     if (end < m.tokens.length) focusSlot(sec, mi, end);
     else if (sec.measures[mi + 1]) focusSlot(sec, mi + 1, 0);
   }
+  // ---- Bar split count ("how many chords can this bar hold") — iReal Pro
+  // has no per-bar form control for this at all: you simply tap a bar and
+  // keep typing, and the bar's own internal subdivision follows from where
+  // you tapped. This app's data model still needs an explicit slot count
+  // per measure, but that choice belongs on the TOOLBAR (acting on
+  // whichever bar is selected), not as a <select> dropdown sitting inside
+  // the bar cell itself — a dropdown-in-a-box is exactly the "numbered
+  // box list" look this phase removes. Tapping a bar first, then a split
+  // button here, mirrors the duration buttons' "act on the selection"
+  // model exactly.
+  function setBarSplit(sec, mi, n) {
+    const m = sec.measures[mi];
+    if (!m) return;
+    const old = m.tokens.filter(t => t !== '' && t !== '.');
+    const next = new Array(n).fill('.');
+    for (let k = 0; k < n; k++) next[k] = old[k] || (k === 0 ? '' : '.');
+    m.tokens = next;
+    renderMatrix(sec, secIndexOf(sec));
+    focusSlot(sec, mi, 0);
+  }
   function focusSlot(sec, mi, ti) {
     const i = secIndexOf(sec);
     sec._sel = { mi, ti };
@@ -1226,6 +1246,31 @@ const ICONS = {
     sec._sel = { mi, ti };
     highlightSelection(sec, i);
     refreshToolbarHighlight(sec, i);
+    dockToolbar(i);
+  }
+  // ---- Mobile keyboard docking — iReal Pro's own phone editor docks its
+  // chord keyboard to the real BOTTOM of the viewport, with the chart
+  // staying put and scrollable above it; it is never a floating popup and
+  // never covers the whole chart. Below the drawer's own mobile
+  // breakpoint (see .edit-drawer:not([hidden]) in app.css), whichever
+  // section's toolbar was most recently built or interacted with gets
+  // docked; every other section's toolbar (if more than one happens to be
+  // expanded at once) drops back to the plain inline position so only one
+  // toolbar is ever fixed on screen at a time. On desktop this is a no-op
+  // — the toolbar stays sticky-above-the-grid as before. ---------------
+  function isMobileEditWidth() {
+    return window.matchMedia('(max-width: 760px)').matches;
+  }
+  function dockToolbar(i) {
+    document.querySelectorAll('.chord-toolbar.toolbar-docked').forEach(el => el.classList.remove('toolbar-docked'));
+    document.querySelectorAll('.edit-drawer-body.has-docked-toolbar').forEach(el => el.classList.remove('has-docked-toolbar'));
+    if (!isMobileEditWidth()) return;
+    const host = document.getElementById('matrix-host-' + i);
+    const toolbar = host && host.querySelector('.chord-toolbar');
+    if (!toolbar) return;
+    toolbar.classList.add('toolbar-docked');
+    const drawerBody = document.querySelector('.edit-drawer-body');
+    if (drawerBody) drawerBody.classList.add('has-docked-toolbar');
   }
   // Visual selection state on the grid itself — a clear outline/background
   // change on the selected slot AND its parent bar, so it's unambiguous on
@@ -1259,6 +1304,8 @@ const ICONS = {
     toolbar.querySelectorAll('[data-acc]').forEach(b => b.classList.toggle('active', !!sel && !!parts.accidental && b.dataset.acc === parts.accidental));
     const bassBtn = toolbar.querySelector('.toolbar-bass-btn');
     if (bassBtn) bassBtn.classList.toggle('active', !!sel && !!parts.bass);
+    const barSlotCount = sel && sec.measures[sel.mi] ? sec.measures[sel.mi].tokens.length : 0;
+    toolbar.querySelectorAll('[data-split]').forEach(b => b.classList.toggle('active', !!sel && parseInt(b.dataset.split, 10) === barSlotCount));
     const slotLabel = toolbar.querySelector('.toolbar-slot-label');
     if (slotLabel) slotLabel.textContent = sel ? `editing bar ${sel.mi + 1}, slot ${sel.ti + 1}${tok ? ' — ' + tok : ''}` : 'tap a bar slot below to select it';
     toolbar.classList.toggle('no-selection', !sel);
@@ -1275,6 +1322,17 @@ const ICONS = {
     const cur = sec.measures[sel.mi].tokens[sel.ti] || '';
     const parts = parseChordDisplay(cur);
     parts[part] = value;
+    // Tapping a root button always means "replace the root AND whatever
+    // accidental was tapped alongside it" (r + acc from the root-button
+    // handler) — if a 'root' write here left the OLD chord's own
+    // accidental in place, re-rooting an existing chord that had one
+    // (e.g. retapping "Ab" to "D") silently kept composing it back in
+    // ("Db" instead of "D") even with no flat/sharp pending. The root
+    // button handler already folds the pending accidental into `value`
+    // (e.g. "Bb"), so a plain 'root' write here must clear parts.accidental
+    // outright — parseChordDisplay re-splits whatever was just composed if
+    // `value` itself carried one.
+    if (part === 'root') { const split = parseChordDisplay(value); parts.root = split.root; parts.accidental = split.accidental; }
     const text = composeChord(parts);
     const input = getSlotInput(i, sel.mi, sel.ti);
     if (input) { input.value = text; input.dispatchEvent(new Event('input')); }
@@ -1382,6 +1440,23 @@ const ICONS = {
     utilRow.append(bassBtn, oneBeat, twoBeat, wholeBar, sustainBtn, repeatBarBtn, clearBtn);
     bar.appendChild(utilRow);
 
+    // Bar-split row: "how many chords does the SELECTED bar hold" — acts
+    // on sec._sel.mi, replacing the old per-cell "N chord(s)" dropdown
+    // that used to sit inside every bar box (see setBarSplit above).
+    const splitRow = document.createElement('div'); splitRow.className = 'toolbar-row toolbar-split';
+    const splitLabel = document.createElement('span'); splitLabel.className = 'hint toolbar-split-label'; splitLabel.textContent = 'split bar:';
+    splitRow.appendChild(splitLabel);
+    const bpb = editorBeatsPerBar();
+    const splitOptions = bpb >= 3 ? [1, 2, 3, bpb] : [1, bpb];
+    [...new Set(splitOptions)].forEach(n => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'toolbar-btn toolbar-split-btn'; b.dataset.split = String(n);
+      b.textContent = n === 1 ? '1' : String(n);
+      b.title = n === 1 ? 'one chord for the whole bar' : `split into ${n} chords`;
+      b.addEventListener('click', () => { if (sec._sel) setBarSplit(sec, sec._sel.mi, n); });
+      splitRow.appendChild(b);
+    });
+    bar.appendChild(splitRow);
+
     return bar;
   }
 
@@ -1431,26 +1506,12 @@ const ICONS = {
     barNo.textContent = mi + 1;
     top.appendChild(barNo);
 
-    // Beat-density selector: 1 (whole bar), 2 (beats 1 & 3), 3, 4 (every
-    // beat) — a single bar hosting several chords in series (e.g. a I
-    // chord on beat 1 moving to IV on beat 3) is exactly what this
-    // controls; the beat label under each slot (below) says which beat
-    // each one actually lands on, so that move reads unambiguously.
-    const density = document.createElement('select');
-    density.className = 'density-select';
-    const bpb = editorBeatsPerBar();
-    const densityOptions = bpb >= 3 ? [1, 2, 3, bpb] : [1, bpb];
-    [...new Set(densityOptions)].forEach(n => density.add(new Option(n + (n === 1 ? ' chord' : ' chords'), n)));
-    density.value = densityOptions.includes(m.tokens.length) ? m.tokens.length : (m.tokens.length <= 1 ? 1 : densityOptions[densityOptions.length - 1]);
-    density.addEventListener('change', () => {
-      const n = parseInt(density.value, 10);
-      const old = m.tokens.filter(t => t !== '' && t !== '.');
-      const next = new Array(n).fill('.');
-      for (let i = 0; i < n; i++) next[i] = old[i] || (i === 0 ? '' : '.');
-      m.tokens = next;
-      renderMatrix(sec, secIndexOf(sec));
-    });
-    top.appendChild(density);
+    // No per-bar "N chord(s)" dropdown here any more — that control now
+    // lives once, on the persistent toolbar's "split bar" row, and acts on
+    // whichever bar is selected (see setBarSplit/buildChordToolbar). A
+    // <select> inside every single cell was exactly the "numbered box
+    // with a dropdown" look this phase removes: the bar itself should
+    // read as a real measure on a staff, not a form control.
 
     // Bar-fullness feedback (Guitar Pro's "does this measure balance?"):
     // green/solid once every slot holds something (a chord or a "."
@@ -1686,6 +1747,7 @@ const ICONS = {
     }
     highlightSelection(sec, i);
     refreshToolbarHighlight(sec, i);
+    dockToolbar(i);
   }
 
   // ---- Alternative endings — LilyPond's \alternative { \volta "1,2,3" {…}

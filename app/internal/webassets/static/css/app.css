@@ -1335,6 +1335,17 @@ body.drawer-open { overflow: hidden; }
   display: flex; flex-direction: column; border-radius: var(--radius); overflow: hidden;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
 }
+/* On a phone, the editor is a real in-place full-screen VIEW, not a
+   dialog floating over a dimmed page — iReal Pro's own editor is a mode
+   the chart switches into, never a popup. The backdrop stays in the DOM
+   (closing logic/ARIA are unchanged) but is fully covered and invisible
+   once the drawer itself fills the viewport, so nothing reads as "a card
+   over a dimmed background" any more. */
+@media (max-width: 760px) {
+  .edit-drawer:not([hidden]) {
+    inset: 0; border-radius: 0; box-shadow: none;
+  }
+}
 .edit-drawer-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .edit-drawer-head #edit-drawer-close { margin-left: auto; }
 .edit-drawer-body { padding: 1rem; flex: 1; overflow: auto; display: flex; flex-direction: column; min-height: 0; }
@@ -1431,17 +1442,43 @@ textarea {
 .bar-matrix { border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; padding: 0.75rem; background: var(--bg-sunken); }
 .matrix-toolbar { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.75rem; font-size: 0.85rem; }
 .matrix-toolbar input { padding: 0.25rem 0.4rem; }
-.matrix-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
-.matrix-cell {
-  flex: 1 1 7rem; min-width: 7rem; border: 1px solid var(--border); border-radius: 6px;
-  background: var(--bg-raised); padding: 0.4rem; display: flex; flex-direction: column; gap: 0.3rem;
+/* The actual editable chart — a real 5-line staff runs behind every row
+   of bars (the same gradient trick play.html's own read-only chart uses
+   for .staff-line::before: one shared background per row, not per bar,
+   so the lines read as continuous across barlines instead of a strip of
+   disconnected boxes). This directly answers "I see no staff line where
+   to write the chords" — the bars sit ON a staff now, the same staff the
+   printed/played chart uses, instead of floating in blank bordered cards. */
+.matrix-row {
+  display: flex; gap: 0; margin-bottom: 1.1rem; flex-wrap: wrap;
+  align-items: flex-end; padding-top: 1.1em; position: relative;
 }
+.matrix-row::before {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0.55em; height: 1.7em;
+  background-image:
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border));
+  background-size: 100% 1px;
+  background-position: 0 0%, 0 25%, 0 50%, 0 75%, 0 100%;
+  background-repeat: no-repeat;
+}
+/* Bars are measures ON the staff, not bordered cards floating above it —
+   a plain divider between consecutive bars (like the real chart's own
+   `.bar + .bar`), no per-cell background/border/radius. */
+.matrix-cell {
+  flex: 1 1 7rem; min-width: 7rem; padding: 0.4rem 0.5rem 0.3rem; position: relative;
+  display: flex; flex-direction: column; gap: 0.3rem; z-index: 1;
+}
+.matrix-cell + .matrix-cell { border-left: 1px solid var(--border); }
 /* Repeat barlines — a double rule plus two "dots", the same visual
    convention iReal Pro/real charts use for |: and :| so the grid reads as
    an actual chart at a glance, not a bordered form field with a checkbox
    explaining what it means. */
-.matrix-cell.cell-open { border-left: 5px double var(--border-strong); position: relative; }
-.matrix-cell.cell-close { border-right: 5px double var(--border-strong); position: relative; }
+.matrix-cell.cell-open { border-left: 5px double var(--border-strong) !important; }
+.matrix-cell.cell-close { border-right: 5px double var(--border-strong); }
 .matrix-cell.cell-open::before, .matrix-cell.cell-open::after,
 .matrix-cell.cell-close::before, .matrix-cell.cell-close::after {
   content: ''; position: absolute; width: 0.3rem; height: 0.3rem; border-radius: 50%;
@@ -1478,9 +1515,25 @@ textarea {
    unreadable sliver, which is what a plain nowrap row did here before. */
 .matrix-slots { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .matrix-slots > div { flex: 1 1 5rem; min-width: 5rem; }
-.matrix-slot {
+/* Transparent by default — the chord is typed straight onto the staff
+   itself (the .matrix-row::before lines show through), the same way a
+   chord symbol sits directly over the music in a real chart rather than
+   inside an opaque form field. A visible box only appears on hover/focus
+   (so it's still discoverable as a tappable field) or once selected
+   (.slot-selected below), never as permanent chrome sitting over the
+   staff lines. */
+/* input.matrix-slot (not just .matrix-slot) — needs to out-specificity
+   the global input[type="text"] rule above (an attribute selector, same
+   specificity weight as a class, but it would otherwise win on being an
+   element+attribute match), which is what was silently forcing this
+   back to an opaque white box regardless of the transparent background
+   below. */
+input.matrix-slot {
   width: 100%; min-width: 0; text-align: center; font-family: var(--font-chart); font-weight: 700;
-  padding: 0.3rem 0.1rem; border-radius: 4px;
+  padding: 0.3rem 0.1rem; border-radius: 4px; background: transparent; border: 1px solid transparent;
+}
+input.matrix-slot:hover, input.matrix-slot:focus {
+  background: var(--bg-raised); border-color: var(--border);
 }
 .matrix-cell-bottom { display: flex; gap: 0.3rem; align-items: center; justify-content: flex-end; }
 .matrix-cell-bottom button { padding: 0.1rem 0.4rem; font-size: 0.75rem; }
@@ -1689,16 +1742,41 @@ textarea {
    is actually selected. */
 .chord-toolbar.no-selection .toolbar-row .toolbar-btn:not(.toolbar-acc) { opacity: 0.55; }
 
-@media (max-width: 480px) {
+.toolbar-split-label { white-space: nowrap; margin-right: 0.2rem; }
+.toolbar-split-btn { flex: 0 1 2.4rem; }
+
+@media (max-width: 760px) {
   /* Phone width: the toolbar can't rely on desktop's roomy flex-wrap —
-     force the duration/util row to two tighter columns and drop the
-     sticky pin (the Blocks tab's own drawer scroll container plus a
-     sticky toolbar fighting for the same scroll region is exactly the
-     kind of overlap the brief calls out to re-test) in favor of simply
-     scrolling with the grid, so it can never cover content below it. */
+     force the duration/util row to tighter columns. When this section's
+     grid is the one actually being edited (dockToolbar, song.js), the
+     toolbar is DOCKED to the real bottom of the viewport instead of
+     sitting inline above the grid — iReal Pro's own on-screen keyboard
+     stays fixed below the chart rather than scrolling away with it, and
+     the chart stays scrollable and visible above it the whole time. A
+     plain inline toolbar (not yet docked — nothing selected, or docking
+     hasn't run) still just scrolls with the grid, same as before. */
   .chord-toolbar { position: static; margin: 0 0 0.6rem; border-radius: 6px; border: 1px solid var(--border); }
+  .chord-toolbar.toolbar-docked {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto; margin: 0; z-index: 150;
+    border: none; border-top: 1px solid var(--border); border-radius: 0;
+    max-height: 46vh; overflow-y: auto; box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.3);
+  }
   .toolbar-btn { flex: 1 1 2.6rem; font-size: 0.8rem; padding: 0.4rem 0.2rem; }
   .toolbar-roots .toolbar-root { flex: 1 1 2.2rem; }
+  /* Leaves real scroll room above the docked keyboard so the last bar(s)
+     of the chart aren't permanently hidden behind it. */
+  .edit-drawer-body.has-docked-toolbar { padding-bottom: 46vh; }
+
+  /* Smaller, phone-adjusted bars — iReal Pro's own phone layout runs
+     noticeably more compact measures than its iPad one; the desktop
+     7rem/4.6rem-per-slot floor (buildMatrixCell, song.js) was sized for a
+     mouse-width drawer and left room for only 2-3 bars per row on an
+     actual phone. */
+  .matrix-cell { min-width: 4.4rem !important; flex-basis: 4.4rem !important; padding: 0.3rem 0.35rem 0.2rem; }
+  .matrix-slots > div { flex: 1 1 3.4rem; min-width: 3.4rem; }
+  .matrix-slot { font-size: 0.85rem; padding: 0.25rem 0.1rem; }
+  .matrix-row { gap: 0; margin-bottom: 0.9rem; }
+  .matrix-bar-no, .matrix-fullness, .matrix-beat-label { font-size: 0.62rem; }
 }
 
 .advanced-syntax-notice { padding: 0.5rem 0.65rem; border: 1px dashed var(--border); border-radius: 6px; background: var(--bg-sunken); }
