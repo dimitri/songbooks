@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"app/internal/store"
 )
@@ -224,7 +225,60 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.render(w, "band_catalog", map[string]any{"Me": person, "Band": band, "Entries": entries})
+	books, err := s.store.ListBooks()
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.render(w, "band_catalog", map[string]any{"Me": person, "Band": band, "Entries": entries, "Books": books})
+}
+
+// handleCreateBandVariant creates a brand-new, from-scratch variant
+// owned by this band (visibility='band') via store.CreateBandVariant —
+// the band repertoire page's "new original song" form, for a band that
+// wants a private composition it never had to fork from anything else.
+// Gated by requireBandMember, same as every other band-repertoire
+// mutation; store.CreateBandVariant itself double-checks current
+// membership too (it also accepts a direct API caller, same defense in
+// depth as ForkVariant's scope="band" branch).
+func (s *Server) handleCreateBandVariant(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		Title   string `json:"title"`
+		Artist  string `json:"artist"`
+		Project string `json:"project"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Title) == "" || strings.TrimSpace(req.Project) == "" {
+		httpError(w, http.StatusBadRequest, "title and project are required")
+		return
+	}
+	projectID, err := s.store.ProjectID(r.Context(), req.Project)
+	if errors.Is(err, store.ErrNotFound) {
+		httpError(w, http.StatusNotFound, "no such project: "+req.Project)
+		return
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	actor := personFromContext(r)
+	newID, err := s.store.CreateBandVariant(r.Context(), bandID, projectID, req.Title, req.Artist, actor.ID)
+	if errors.Is(err, store.ErrForbidden) {
+		httpError(w, http.StatusForbidden, err.Error())
+		return
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	v, err := s.store.GetVariant(r.Context(), newID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"variantId": newID, "book": v.Book, "stem": v.Stem,
+	})
 }
 
 // handleAddBandCatalogEntry points the band's repertoire at an existing

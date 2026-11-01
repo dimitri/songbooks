@@ -16,6 +16,20 @@
   <p class="hint">Pointers into the catalog, same as a personal songbook — adding here doesn't copy a song; forking does, and makes it this band's own "band"-visibility variant that any current member (core or guest) can edit in place.</p>
 
   <div class="card" style="max-width:520px">
+    <h2>Write a new original song</h2>
+    <p class="hint">Starts from scratch — no existing variant to fork from — straight into this band's own private ("band"-visibility) repertoire. Only current members can see or edit it.</p>
+    <label>Title <input type="text" id="new-variant-title"></label>
+    <label>Artist <input type="text" id="new-variant-artist"></label>
+    <label>Project
+      <select id="new-variant-project">
+        {{range .Books}}<option value="{{.}}">{{.}}</option>{{end}}
+      </select>
+    </label>
+    <button type="button" id="new-variant-btn">+ create</button>
+    <p id="new-variant-result" class="hint"></p>
+  </div>
+
+  <div class="card" style="max-width:520px">
     <h2>Add a variant by id</h2>
     <p class="hint">Find a variant's id from the <a href="/catalog">catalog</a> (it's shown next to each song's actions there, or in the URL of its "all versions" page).</p>
     <label>Variant id <input type="number" id="variant-id-input"></label>
@@ -48,6 +62,22 @@
 </main>
 <script>
 const bandId = {{.Band.ID}};
+document.getElementById('new-variant-btn').addEventListener('click', async () => {
+  const title = document.getElementById('new-variant-title').value.trim();
+  const artist = document.getElementById('new-variant-artist').value.trim();
+  const project = document.getElementById('new-variant-project').value;
+  if (!title || !project) return;
+  const res = await fetch(`/api/bands/${bandId}/variants`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({title, artist, project}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) {
+    location.href = `/b/${data.book}/${data.stem}`;
+  } else {
+    document.getElementById('new-variant-result').textContent = data.error || 'failed to create';
+  }
+});
 document.getElementById('add-existing-btn').addEventListener('click', async () => {
   const variantId = Number(document.getElementById('variant-id-input').value);
   if (!variantId) return;

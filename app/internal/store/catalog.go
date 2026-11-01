@@ -135,14 +135,34 @@ func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter Catalog
 }
 
 // ListVariantsForWork lists every variant of one work that viewerID may
-// see — every global variant, plus the viewer's own private ones — for
-// the work's "all versions of this song" page. Excludes visibility='jam'
-// rows — see ListCatalog's doc comment.
+// see — every global variant, plus the viewer's own private ('user')
+// ones, plus any 'band'-scoped one owned by a band viewerID is CURRENTLY
+// a member of — for the work's "all versions of this song" page.
+// Excludes visibility='jam' rows — see ListCatalog's doc comment.
+//
+// Unlike ListCatalog (which deliberately leaves 'band' rows out entirely
+// — a band's repertoire has its own page, ListBandCatalog, and mixing it
+// into the general browse page isn't what that page is for), THIS page
+// is "every version of this one song, as far as I can see it," so a
+// band's own private arrangement of a song needs to actually show up
+// here for that band's own members — otherwise a band that privately
+// forked (or wrote from scratch) its own arrangement of a work that also
+// has a global variant would never be able to find/open its own version
+// from the work's "all versions" page at all. Before this fix, 'band'
+// rows were excluded unconditionally here too (same filter as
+// ListCatalog), which was never a leak to outsiders (nobody saw them),
+// just an under-inclusion bug for the band's own members.
 func (st *Store) ListVariantsForWork(ctx context.Context, workID, viewerID int64) ([]CatalogVariant, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT s.id, s.work_id, s.title, s.artist, p.slug, s.stem, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_jam_event_id, s.forked_from_id
 		FROM songs s JOIN projects p ON p.id = s.project_id
-		WHERE s.work_id = $1 AND (s.visibility = 'global' OR s.owner_person_id = $2)
+		WHERE s.work_id = $1 AND (
+		  s.visibility = 'global'
+		  OR (s.visibility = 'user' AND s.owner_person_id = $2)
+		  OR (s.visibility = 'band' AND EXISTS (
+		        SELECT 1 FROM band_members bm
+		        WHERE bm.band_id = s.owner_band_id AND bm.person_id = $2 AND bm.left_at IS NULL))
+		)
 		ORDER BY s.visibility, p.slug, s.stem`, workID, viewerID)
 	if err != nil {
 		return nil, err
@@ -469,6 +489,93 @@ func (st *Store) CreateJamVariant(ctx context.Context, jamEventID, projectID int
 	}
 
 	if err := st.addJamSongTx(ctx, tx, jamEventID, newID, DefaultInstrumentLimits()); err != nil {
+		return 0, err
+	}
+
+	return newID, tx.Commit(ctx)
+}
+
+// CreateBandVariant creates a brand-new, from-scratch variant owned by
+// bandID (visibility='band', owner_band_id = bandID) — the band-scoped
+// sibling of store.CreateSong and store.CreateJamVariant: same creation
+// shape (title/artist header plus one empty [Verse] section to start
+// from), just visibility='band'/owner_band_id instead of 'global'/no
+// owner or 'jam'/owner_jam_event_id. Before this method existed, the
+// only way a band acquired band-owned material was ForkVariant with
+// scope="band" — which requires an existing source variant to fork
+// from. A band that wants to write a brand-new original composition
+// straight into its own private repertoire, without first creating (or
+// finding) some other variant to fork, had no path to do that at all.
+//
+// Mirrors CreateJamVariant's "create + auto-add to the owner's own list,
+// atomically" shape: here, the new variant is pointed at from the
+// band's own band_catalog_entries repertoire in the SAME transaction —
+// "a band variant that isn't in the band's own repertoire doesn't make
+// sense," same rule as a jam-scoped variant always being on its event's
+// jam_songs list.
+//
+// creatorPersonID must be a CURRENT member of bandID — checked inside
+// this transaction (returning ErrForbidden if not), same gate
+// ForkVariant's scope="band" branch uses, since this call also writes
+// owner_band_id.
+//
+// The variant still needs some projectID to live under (songs.project_id
+// is NOT NULL and FK'd, and band-owned variants aren't project material
+// in their own right any more than a fork is — see ForkVariant's doc
+// comment on why forks stay attached to their source's project). There's
+// no "band's own project" concept in this data model, so the caller
+// picks an existing project (the band repertoire page's "new original
+// song" form offers a project dropdown, the same store.ListBooks list
+// CreateSong's own form draws from).
+func (st *Store) CreateBandVariant(ctx context.Context, bandID, projectID int64, title, artist string, creatorPersonID int64) (int64, error) {
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
+	isMember, err := st.IsCurrentBandMember(ctx, bandID, creatorPersonID)
+	if err != nil {
+		return 0, err
+	}
+	if !isMember {
+		return 0, fmt.Errorf("person %d is not a current member of band %d: %w", creatorPersonID, bandID, ErrForbidden)
+	}
+
+	workID, err := st.findOrCreateWork(ctx, tx, title, artist)
+	if err != nil {
+		return 0, fmt.Errorf("resolving work for %q/%q: %w", title, artist, err)
+	}
+
+	stem := fmt.Sprintf("band-%d-%d", bandID, time.Now().UnixNano())
+	var b strings.Builder
+	b.WriteString("title: " + title + "\n")
+	if artist != "" {
+		b.WriteString("artist: " + artist + "\n")
+	}
+	b.WriteString("\n[Verse]\n")
+
+	var creator *int64
+	if creatorPersonID != 0 {
+		creator = &creatorPersonID
+	}
+	var newID int64
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO songs (project_id, stem, title, artist, body, work_id,
+		                    visibility, owner_band_id, created_by_person_id)
+		VALUES ($1, $2, $3, $4, $5, $6, 'band', $7, $8)
+		RETURNING id`,
+		projectID, stem, title, artist, b.String(), workID, bandID, creator).Scan(&newID); err != nil {
+		return 0, err
+	}
+
+	var entryID int64
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO band_catalog_entries (band_id, variant_id, added_by_person_id)
+		VALUES ($1, $2, $3) RETURNING id`, bandID, newID, creator).Scan(&entryID); err != nil {
+		return 0, err
+	}
+	if err := st.RecordRevision(ctx, tx, "band_catalog_entry", fmt.Sprint(entryID), creator, BandCatalogEntrySnapshot{Exists: false}); err != nil {
 		return 0, err
 	}
 

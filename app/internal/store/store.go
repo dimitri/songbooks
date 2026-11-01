@@ -116,6 +116,16 @@ func (st *Store) DeleteBook(book string) error {
 	return err
 }
 
+// ProjectID resolves a project (book) slug to its row id, or ErrNotFound.
+// Exported wrapper around projectID for callers outside this package
+// that need to resolve a book slug to attach new material to (e.g. the
+// band repertoire page's "new original song" form, which lets a band
+// pick an existing project for a from-scratch band variant to live
+// under — see CreateBandVariant's doc comment).
+func (st *Store) ProjectID(ctx context.Context, book string) (int64, error) {
+	return st.projectID(ctx, book)
+}
+
 func (st *Store) projectID(ctx context.Context, book string) (int64, error) {
 	var id int64
 	err := st.db.QueryRow(ctx, `SELECT id FROM projects WHERE slug = $1`, book).Scan(&id)
