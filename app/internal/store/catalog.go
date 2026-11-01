@@ -92,6 +92,7 @@ type CatalogVariant struct {
 	Visibility      string
 	OwnerID         *int64
 	OwnerBandID     *int64
+	OwnerSchoolID   *int64
 	OwnerJamEventID *int64
 	ForkedFromID    *int64
 }
@@ -122,7 +123,7 @@ func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter Catalog
 		order = "s.artist, s.title"
 	}
 	rows, err := st.db.Query(ctx, `
-		SELECT s.id, s.work_id, s.title, s.artist, p.slug, s.stem, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_jam_event_id, s.forked_from_id
+		SELECT s.id, s.work_id, s.title, s.artist, p.slug, s.stem, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_school_id, s.owner_jam_event_id, s.forked_from_id
 		FROM songs s JOIN projects p ON p.id = s.project_id
 		WHERE (s.visibility = 'global' OR s.owner_person_id = $1)
 		  AND ($2 = '' OR s.artist = $2)
@@ -154,7 +155,7 @@ func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter Catalog
 // just an under-inclusion bug for the band's own members.
 func (st *Store) ListVariantsForWork(ctx context.Context, workID, viewerID int64) ([]CatalogVariant, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT s.id, s.work_id, s.title, s.artist, p.slug, s.stem, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_jam_event_id, s.forked_from_id
+		SELECT s.id, s.work_id, s.title, s.artist, p.slug, s.stem, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_school_id, s.owner_jam_event_id, s.forked_from_id
 		FROM songs s JOIN projects p ON p.id = s.project_id
 		WHERE s.work_id = $1 AND (
 		  s.visibility = 'global'
@@ -162,6 +163,9 @@ func (st *Store) ListVariantsForWork(ctx context.Context, workID, viewerID int64
 		  OR (s.visibility = 'band' AND EXISTS (
 		        SELECT 1 FROM band_members bm
 		        WHERE bm.band_id = s.owner_band_id AND bm.person_id = $2 AND bm.left_at IS NULL))
+		  OR (s.visibility = 'school' AND EXISTS (
+		        SELECT 1 FROM school_members sm
+		        WHERE sm.school_id = s.owner_school_id AND sm.person_id = $2 AND sm.left_at IS NULL))
 		)
 		ORDER BY s.visibility, p.slug, s.stem`, workID, viewerID)
 	if err != nil {
@@ -175,7 +179,7 @@ func scanCatalogVariants(rows pgx.Rows) ([]CatalogVariant, error) {
 	var out []CatalogVariant
 	for rows.Next() {
 		var v CatalogVariant
-		if err := rows.Scan(&v.VariantID, &v.WorkID, &v.Title, &v.Artist, &v.Book, &v.Stem, &v.Visibility, &v.OwnerID, &v.OwnerBandID, &v.OwnerJamEventID, &v.ForkedFromID); err != nil {
+		if err := rows.Scan(&v.VariantID, &v.WorkID, &v.Title, &v.Artist, &v.Book, &v.Stem, &v.Visibility, &v.OwnerID, &v.OwnerBandID, &v.OwnerSchoolID, &v.OwnerJamEventID, &v.ForkedFromID); err != nil {
 			return nil, err
 		}
 		out = append(out, v)
@@ -204,6 +208,12 @@ func (st *Store) VariantLookup(ctx context.Context, book, stem string) (variantI
 //     IsCurrentBandMember) of the owning band. This is this phase's actual
 //     tightening of the placeholder below: band material is no longer
 //     editable by "any logged-in person," only by the band.
+//   - visibility='school': only a CURRENT INSTRUCTOR of the owning
+//     school — the key asymmetry school mode adds over band mode. A
+//     current STUDENT may view the school's material (see
+//     ListVariantsForWork) but never edit it directly here; a student's
+//     only path to changing school material is a reviewed submission
+//     (see school_submissions.go) that an instructor then accepts.
 //   - visibility='jam': a logged-in person has no automatic edit rights
 //     here (a jam participant typically ISN'T a logged-in person at all —
 //     see jam_profiles) — always false. Jam-session-authenticated edit
@@ -218,9 +228,9 @@ func (st *Store) VariantLookup(ctx context.Context, book, stem string) (variantI
 //     above, not solve that one too.
 func (st *Store) CanEditVariant(ctx context.Context, personID, variantID int64) (bool, error) {
 	var visibility string
-	var ownerID, ownerBandID *int64
-	err := st.db.QueryRow(ctx, `SELECT visibility::text, owner_person_id, owner_band_id FROM songs WHERE id = $1`, variantID).
-		Scan(&visibility, &ownerID, &ownerBandID)
+	var ownerID, ownerBandID, ownerSchoolID *int64
+	err := st.db.QueryRow(ctx, `SELECT visibility::text, owner_person_id, owner_band_id, owner_school_id FROM songs WHERE id = $1`, variantID).
+		Scan(&visibility, &ownerID, &ownerBandID, &ownerSchoolID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, fmt.Errorf("no such variant %d: %w", variantID, ErrNotFound)
 	}
@@ -235,6 +245,11 @@ func (st *Store) CanEditVariant(ctx context.Context, personID, variantID int64) 
 			return false, nil
 		}
 		return st.IsCurrentBandMember(ctx, *ownerBandID, personID)
+	case "school":
+		if ownerSchoolID == nil {
+			return false, nil
+		}
+		return st.IsCurrentSchoolInstructor(ctx, *ownerSchoolID, personID)
 	case "jam":
 		return false, nil
 	default: // "user"
@@ -271,10 +286,10 @@ func (st *Store) CanEditVariantAsJamParticipant(ctx context.Context, jamEventID,
 func (st *Store) GetVariant(ctx context.Context, variantID int64) (*CatalogVariant, error) {
 	var v CatalogVariant
 	err := st.db.QueryRow(ctx, `
-		SELECT s.id, s.work_id, s.title, s.artist, p.slug, s.stem, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_jam_event_id, s.forked_from_id
+		SELECT s.id, s.work_id, s.title, s.artist, p.slug, s.stem, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_school_id, s.owner_jam_event_id, s.forked_from_id
 		FROM songs s JOIN projects p ON p.id = s.project_id
 		WHERE s.id = $1`, variantID).
-		Scan(&v.VariantID, &v.WorkID, &v.Title, &v.Artist, &v.Book, &v.Stem, &v.Visibility, &v.OwnerID, &v.OwnerBandID, &v.OwnerJamEventID, &v.ForkedFromID)
+		Scan(&v.VariantID, &v.WorkID, &v.Title, &v.Artist, &v.Book, &v.Stem, &v.Visibility, &v.OwnerID, &v.OwnerBandID, &v.OwnerSchoolID, &v.OwnerJamEventID, &v.ForkedFromID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such variant %d: %w", variantID, ErrNotFound)
 	}
@@ -282,6 +297,20 @@ func (st *Store) GetVariant(ctx context.Context, variantID int64) (*CatalogVaria
 		return nil, err
 	}
 	return &v, nil
+}
+
+// VariantContent loads one variant's full editable-fields content
+// (title/artist/reference_url/body) by id — GetVariant's catalog-browse
+// shape doesn't carry body, and this is the one other place that needs
+// it: applying an accepted school_submissions 'edit' onto its source
+// variant (see AcceptSchoolSubmission).
+func (st *Store) VariantContent(ctx context.Context, variantID int64) (title, artist, referenceURL, body string, err error) {
+	err = st.db.QueryRow(ctx, `SELECT title, artist, reference_url, body FROM songs WHERE id = $1`, variantID).
+		Scan(&title, &artist, &referenceURL, &body)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", "", "", fmt.Errorf("no such variant %d: %w", variantID, ErrNotFound)
+	}
+	return title, artist, referenceURL, body, err
 }
 
 // ForkVariant creates a new variant row that's a full copy of src's
@@ -293,8 +322,12 @@ func (st *Store) GetVariant(ctx context.Context, variantID int64) (*CatalogVaria
 // scope is "user" (personal fork: visibility='user', owner_person_id =
 // forkerID, personal catalog_entries pointer swapped), "band" (fork into
 // a band's repertoire: visibility='band', owner_band_id = bandID, that
-// band's band_catalog_entries pointer swapped instead), or "jam" (fork
-// into one jam event's pickable list only: visibility='jam',
+// band's band_catalog_entries pointer swapped instead), "school" (fork
+// into a school's repertoire: visibility='school', owner_school_id =
+// bandID, that school's school_catalog_entries pointer swapped instead
+// — instructor-only, same shape as "band" but gated on
+// IsCurrentSchoolInstructor rather than IsCurrentBandMember), or "jam"
+// (fork into one jam event's pickable list only: visibility='jam',
 // owner_jam_event_id = bandID — reusing the same int64 parameter as the
 // event id, see the doc note below — then auto-added to that event's
 // jam_songs via AddJamSong with the default instrument limits, since "a
@@ -321,7 +354,7 @@ func (st *Store) GetVariant(ctx context.Context, variantID int64) (*CatalogVaria
 // this phase) under a generated, collision-free stem; later phases that
 // decouple personal/band variants from any one project can revisit this.
 func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, scope string, bandID int64) (int64, error) {
-	if scope != "user" && scope != "band" && scope != "jam" {
+	if scope != "user" && scope != "band" && scope != "school" && scope != "jam" {
 		return 0, fmt.Errorf("invalid fork scope %q", scope)
 	}
 	tx, err := st.db.Begin(ctx)
@@ -331,12 +364,26 @@ func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, sco
 	defer tx.Rollback(ctx)
 
 	if scope == "band" {
-		isMember, err := st.IsCurrentBandMember(ctx, bandID, forkerID)
+		// isCurrentBandMember(ctx, tx, ...), not st.IsCurrentBandMember —
+		// tx is already open, so this check must run on that same
+		// connection rather than reach back out to the pool (see
+		// isCurrentBandMember's doc comment in bands.go).
+		isMember, err := isCurrentBandMember(ctx, tx, bandID, forkerID)
 		if err != nil {
 			return 0, err
 		}
 		if !isMember {
 			return 0, fmt.Errorf("person %d is not a current member of band %d: %w", forkerID, bandID, ErrForbidden)
+		}
+	} else if scope == "school" {
+		// Instructor-only — same tx-scoped check reasoning as "band"
+		// above. bandID doubles as "the school id" for this scope.
+		isInstructor, err := isCurrentSchoolMember(ctx, tx, bandID, forkerID, "instructor")
+		if err != nil {
+			return 0, err
+		}
+		if !isInstructor {
+			return 0, fmt.Errorf("person %d is not a current instructor of school %d: %w", forkerID, bandID, ErrForbidden)
 		}
 	}
 
@@ -374,6 +421,13 @@ func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, sco
 			VALUES ($1, $2, $3, $4, $5, $6, $7, 'band', $8, $9, $10)
 			RETURNING id`,
 			projectID, forkStem, title, artist, referenceURL, body, workID, bandID, variantID, forkerID).Scan(&newID)
+	case "school":
+		err = tx.QueryRow(ctx, `
+			INSERT INTO songs (project_id, stem, title, artist, reference_url, body, work_id,
+			                    visibility, owner_school_id, forked_from_id, created_by_person_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, 'school', $8, $9, $10)
+			RETURNING id`,
+			projectID, forkStem, title, artist, referenceURL, body, workID, bandID, variantID, forkerID).Scan(&newID)
 	case "jam":
 		err = tx.QueryRow(ctx, `
 			INSERT INTO songs (project_id, stem, title, artist, reference_url, body, work_id,
@@ -400,7 +454,7 @@ func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, sco
 			ON CONFLICT (person_id, variant_id) DO NOTHING`, forkerID, newID); err != nil {
 			return 0, err
 		}
-	} else {
+	} else if scope == "band" {
 		var oldEntryID int64
 		var oldAddedAt time.Time
 		var oldAddedBy *int64
@@ -428,6 +482,15 @@ func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, sco
 			return 0, err
 		}
 		if err := st.RecordRevision(ctx, tx, "band_catalog_entry", fmt.Sprint(newEntryID), &forkerID, BandCatalogEntrySnapshot{Exists: false}); err != nil {
+			return 0, err
+		}
+	} else { // scope == "school": same pointer-swap shape as "band", school_catalog_entries table, no revision logging (schools don't use the revert mechanism in this phase — see school_catalog.go).
+		if _, err := tx.Exec(ctx, `DELETE FROM school_catalog_entries WHERE school_id = $1 AND variant_id = $2`, bandID, variantID); err != nil {
+			return 0, err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO school_catalog_entries (school_id, variant_id, added_by_person_id)
+			VALUES ($1, $2, $3)`, bandID, newID, forkerID); err != nil {
 			return 0, err
 		}
 	}
@@ -534,7 +597,9 @@ func (st *Store) CreateBandVariant(ctx context.Context, bandID, projectID int64,
 	}
 	defer tx.Rollback(ctx)
 
-	isMember, err := st.IsCurrentBandMember(ctx, bandID, creatorPersonID)
+	// isCurrentBandMember(ctx, tx, ...), not st.IsCurrentBandMember — tx is
+	// already open (see isCurrentBandMember's doc comment in bands.go).
+	isMember, err := isCurrentBandMember(ctx, tx, bandID, creatorPersonID)
 	if err != nil {
 		return 0, err
 	}
@@ -576,6 +641,66 @@ func (st *Store) CreateBandVariant(ctx context.Context, bandID, projectID int64,
 		return 0, err
 	}
 	if err := st.RecordRevision(ctx, tx, "band_catalog_entry", fmt.Sprint(entryID), creator, BandCatalogEntrySnapshot{Exists: false}); err != nil {
+		return 0, err
+	}
+
+	return newID, tx.Commit(ctx)
+}
+
+// CreateSchoolVariant creates a brand-new, from-scratch variant owned by
+// schoolID (visibility='school', owner_school_id = schoolID) — the
+// school-scoped sibling of CreateBandVariant, for an instructor who
+// wants to write a brand-new original straight into the school's
+// repertoire without first finding something to fork. Instructor-only
+// (creatorPersonID must be a CURRENT INSTRUCTOR of schoolID — checked
+// inside this same tx, same isCurrentSchoolMember(ctx, tx, ...) pattern
+// CreateBandVariant/ForkVariant use, never the pool-level
+// IsCurrentSchoolInstructor while this tx is open).
+func (st *Store) CreateSchoolVariant(ctx context.Context, schoolID, projectID int64, title, artist string, creatorPersonID int64) (int64, error) {
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
+	isInstructor, err := isCurrentSchoolMember(ctx, tx, schoolID, creatorPersonID, "instructor")
+	if err != nil {
+		return 0, err
+	}
+	if !isInstructor {
+		return 0, fmt.Errorf("person %d is not a current instructor of school %d: %w", creatorPersonID, schoolID, ErrForbidden)
+	}
+
+	workID, err := st.findOrCreateWork(ctx, tx, title, artist)
+	if err != nil {
+		return 0, fmt.Errorf("resolving work for %q/%q: %w", title, artist, err)
+	}
+
+	stem := fmt.Sprintf("school-%d-%d", schoolID, time.Now().UnixNano())
+	var b strings.Builder
+	b.WriteString("title: " + title + "\n")
+	if artist != "" {
+		b.WriteString("artist: " + artist + "\n")
+	}
+	b.WriteString("\n[Verse]\n")
+
+	var creator *int64
+	if creatorPersonID != 0 {
+		creator = &creatorPersonID
+	}
+	var newID int64
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO songs (project_id, stem, title, artist, body, work_id,
+		                    visibility, owner_school_id, created_by_person_id)
+		VALUES ($1, $2, $3, $4, $5, $6, 'school', $7, $8)
+		RETURNING id`,
+		projectID, stem, title, artist, b.String(), workID, schoolID, creator).Scan(&newID); err != nil {
+		return 0, err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO school_catalog_entries (school_id, variant_id, added_by_person_id)
+		VALUES ($1, $2, $3)`, schoolID, newID, creator); err != nil {
 		return 0, err
 	}
 
