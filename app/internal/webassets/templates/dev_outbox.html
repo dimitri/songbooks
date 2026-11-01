@@ -6,11 +6,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dev outbox — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
 </head>
 <body>
 <header class="app-header">
-  <a href="/">&larr; Songbooks</a>
+  {{template "home-link"}}
   <h1>Dev outbox</h1>
+  {{template "notif-bell"}}
 </header>
 <main class="index">
   <p class="hint">Local dev stand-in for an inbox — every email the console mailer has "sent", newest first. This page is admin-only because it contains live login links.</p>

@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Band.Name}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
 </head>
 <body>
 <header class="app-header">
@@ -15,6 +16,7 @@
     <a href="/bands/{{.Band.ID}}/catalog">repertoire</a>
     <a href="/bands/{{.Band.ID}}/proposals">proposals</a>
     <a href="/bands/{{.Band.ID}}/listening-party">listening party</a>
+    {{template "notif-bell"}}
   </nav>
 </header>
 <main class="index">
@@ -50,7 +52,7 @@
         </td>
         <td>{{.JoinedAt.Format "2006-01-02"}}</td>
         <td>{{if .LeftAt}}{{.LeftAt.Format "2006-01-02"}}{{end}}</td>
-        <td>{{if .IsCurrent}}<button type="button" class="remove-member-btn" data-person-id="{{.PersonID}}">remove</button>{{end}}</td>
+        <td>{{if .IsCurrent}}<button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}">remove</button>{{end}}</td>
       </tr>
     {{end}}
     </tbody>
@@ -90,7 +92,7 @@
 
   <div class="card" style="max-width:420px">
     <h2>Danger zone</h2>
-    <button type="button" id="delete-band-btn">Delete this band</button>
+    <button type="button" id="delete-band-btn" class="danger">Delete this band</button>
   </div>
 </main>
 <script>

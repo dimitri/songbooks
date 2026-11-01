@@ -6,10 +6,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Notifications — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
 </head>
 <body>
 <header class="app-header">
-  <a class="back-link" href="/">{{template "icon-back"}} Home</a>
+  {{template "home-link"}}
   <h1>Notifications</h1>
   <nav class="song-nav">
     <button type="button" id="mark-all-read-btn">Mark all read</button>

@@ -10,10 +10,11 @@
 </head>
 <body>
 <header class="app-header">
-  <a href="/setlists">&larr; Set lists</a>
+  <a class="back-link" href="/setlists">{{template "icon-back"}} Set lists</a>
   <h1>Setlist: {{.Stem}}</h1>
   <nav class="song-nav">
     <a href="/setlists/{{.Book}}/{{.Stem}}/gig">{{template "icon-presentation"}} Gig view</a>
+    {{template "notif-bell"}}
   </nav>
 </header>
 <main class="setlist-edit" id="setlist-edit" data-book="{{.Book}}" data-stem="{{.Stem}}">

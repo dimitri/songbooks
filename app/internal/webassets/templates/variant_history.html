@@ -6,11 +6,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Variant.Title}} — revision history</title>
 <link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
 </head>
 <body>
 <header class="app-header">
   <a class="back-link" href="/b/{{.Variant.Book}}/{{.Variant.Stem}}">{{template "icon-back"}} {{.Variant.Title}}</a>
   <h1>Revision history</h1>
+  {{template "notif-bell"}}
 </header>
 <main class="index">
   {{if not .CanEdit}}<p class="hint">You don't have edit rights on this variant, so reverting is disabled here.</p>{{end}}

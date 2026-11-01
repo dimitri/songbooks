@@ -6,11 +6,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.School.Name}} — instructor admin</title>
 <link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
 </head>
 <body>
 <header class="app-header">
   <a class="back-link" href="/schools/{{.School.ID}}">{{template "icon-back"}} {{.School.Name}}</a>
   <h1>{{.School.Name}} — instructor admin</h1>
+  {{template "notif-bell"}}
 </header>
 <main class="index">
   <div class="card" style="max-width:420px">
@@ -32,8 +34,8 @@
         <td>{{if .SourceVariantID}}{{.SourceTitle}} (#{{deref64 .SourceVariantID}}){{end}}</td>
         <td>{{.Note}}</td>
         <td>
-          <button type="button" class="accept-btn" data-id="{{.ID}}">accept</button>
-          <button type="button" class="reject-btn" data-id="{{.ID}}">reject</button>
+          <button type="button" class="accept-btn primary" data-id="{{.ID}}">accept</button>
+          <button type="button" class="reject-btn danger" data-id="{{.ID}}">reject</button>
         </td>
       </tr>
     {{else}}
@@ -78,7 +80,7 @@
         </td>
         <td>{{.JoinedAt.Format "2006-01-02"}}</td>
         <td>{{if .LeftAt}}{{.LeftAt.Format "2006-01-02"}}{{end}}</td>
-        <td>{{if .IsCurrent}}<button type="button" class="remove-member-btn" data-person-id="{{.PersonID}}">remove</button>{{end}}</td>
+        <td>{{if .IsCurrent}}<button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}">remove</button>{{end}}</td>
       </tr>
     {{end}}
     </tbody>
@@ -134,7 +136,7 @@
         <td>{{.AddedByUsername}}</td>
         <td>
           <a href="/variants/{{.VariantID}}/history">history</a>
-          <button type="button" class="remove-entry-btn" data-variant-id="{{.VariantID}}">remove</button>
+          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}">remove</button>
         </td>
       </tr>
     {{else}}

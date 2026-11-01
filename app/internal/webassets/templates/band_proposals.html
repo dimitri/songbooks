@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Band.Name}} — proposals</title>
 <link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
 </head>
 <body>
 <header class="app-header">
@@ -13,6 +14,7 @@
   <h1>{{.Band.Name}} — proposals</h1>
   <nav class="song-nav">
     <a href="/bands/{{.Band.ID}}/listening-party">listening party</a>
+    {{template "notif-bell"}}
   </nav>
 </header>
 <main class="index">
@@ -48,9 +50,9 @@
         <td>
         {{if eq .Status "open"}}
           <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="yes">vote yes</button>
-          <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="veto">veto</button>
-          <button type="button" class="accept-btn" data-proposal-id="{{.ID}}">accept</button>
-          <button type="button" class="reject-btn" data-proposal-id="{{.ID}}">reject</button>
+          <button type="button" class="vote-btn danger" data-proposal-id="{{.ID}}" data-vote="veto">veto</button>
+          <button type="button" class="accept-btn primary" data-proposal-id="{{.ID}}">accept</button>
+          <button type="button" class="reject-btn danger" data-proposal-id="{{.ID}}">reject</button>
         {{end}}
         </td>
       </tr>

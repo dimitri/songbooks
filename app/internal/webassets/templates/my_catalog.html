@@ -6,11 +6,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>My songbook — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
 </head>
 <body>
 <header class="app-header">
   <a class="back-link" href="/catalog">{{template "icon-back"}} Catalog</a>
   <h1>My songbook</h1>
+  {{template "notif-bell"}}
 </header>
 <main class="index">
   <p class="hint">Pointers into the catalog — adding a song here doesn't copy it; forking does (and swaps the pointer to your fork).</p>
@@ -26,7 +28,7 @@
         <td>
           <a href="/works/{{.WorkID}}">all versions</a>
           <a href="/variants/{{.VariantID}}/history">history</a>
-          <button type="button" class="remove-catalog-btn" data-variant-id="{{.VariantID}}">remove</button>
+          <button type="button" class="remove-catalog-btn danger" data-variant-id="{{.VariantID}}">remove</button>
         </td>
       </tr>
     {{end}}

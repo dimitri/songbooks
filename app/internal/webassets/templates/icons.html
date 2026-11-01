@@ -17,6 +17,16 @@
 
 {{define "icon-logo"}}<svg class="icon logo-mark" viewBox="0 0 48 48" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="2.4" stroke-linecap="round" opacity="0.55"><line x1="6" y1="16" x2="42" y2="16"/><line x1="6" y1="24" x2="42" y2="24"/><line x1="6" y1="32" x2="42" y2="32"/></g><g fill="currentColor"><circle cx="17" cy="33" r="4.4"/><rect x="20.5" y="10" width="2.3" height="23" rx="1.1"/><path d="M22.8 10 C29 10 31.5 15.5 31.5 19 C28 16.8 24.8 16.2 22.8 16.8 Z"/></g></svg>{{end}}
 
+{{/* home-link: the one piece of header markup nearly every page template
+     duplicated with drift (plain "&larr; Songbooks", "&larr; Books", a
+     styled "back-link" reading "Home" — three spellings of the same
+     link). A single shared partial so the brand mark + label are
+     identical everywhere a page's header links back to "/". Pages whose
+     header instead backs up to a parent resource (a band, a school, a
+     project) keep their own back-link — this only replaces the
+     link-to-home case. */}}
+{{define "home-link"}}<a class="back-link" href="/">{{template "icon-logo"}} Songbooks</a>{{end}}
+
 {{define "icon-play"}}<svg class="icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M6 4.5v11l9-5.5-9-5.5z"/></svg>{{end}}
 
 {{define "icon-pause"}}<svg class="icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="3.4" height="12" rx="1"/><rect x="11.6" y="4" width="3.4" height="12" rx="1"/></svg>{{end}}

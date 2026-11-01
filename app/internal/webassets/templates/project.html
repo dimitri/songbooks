@@ -10,14 +10,15 @@
 </head>
 <body>
 <header class="app-header">
-  <a class="back-link" href="/">{{template "icon-back"}} Projects</a>
+  {{template "home-link"}}
   <h1>{{.Book}}</h1>
   <nav class="song-nav">
     {{if .Playlist}}<a href="{{.Playlist}}" target="_blank" rel="noopener">playlist &#8599;</a>{{end}}
     <a href="/setlists">set lists</a>
     <a href="/catalog">catalog</a>
     <a href="/api/books/{{.Book}}/export" download>{{template "icon-download"}} Export</a>
-    <button id="remove-project-btn" type="button" data-book="{{.Book}}">{{template "icon-trash"}} Remove project</button>
+    <button id="remove-project-btn" class="danger" type="button" data-book="{{.Book}}">{{template "icon-trash"}} Remove project</button>
+    {{template "notif-bell"}}
   </nav>
 </header>
 <main>
@@ -44,7 +45,7 @@
             <span class="song-title">{{.Title}}</span>
             <span class="song-meta">{{if .Tempo}}{{.Tempo}} bpm{{end}}{{if and .Tempo .Key}} &middot; {{end}}{{.Key}}</span>
           </a>
-          <button type="button" class="remove-song-btn icon-btn" data-book="{{$.Book}}" data-stem="{{.Stem}}" title="remove song">{{template "icon-trash"}}</button>
+          <button type="button" class="remove-song-btn icon-btn danger" data-book="{{$.Book}}" data-stem="{{.Stem}}" title="remove song">{{template "icon-trash"}}</button>
         </li>
         {{end}}
       </ul>

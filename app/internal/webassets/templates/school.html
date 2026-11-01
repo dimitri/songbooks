@@ -6,12 +6,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.School.Name}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
 </head>
 <body>
 <header class="app-header">
   <a class="back-link" href="/schools">{{template "icon-back"}} My schools</a>
   <h1>{{.School.Name}}</h1>
-  {{if .IsInstructor}}<nav class="song-nav"><a href="/schools/{{.School.ID}}/admin">instructor admin</a></nav>{{end}}
+  <nav class="song-nav">
+    {{if .IsInstructor}}<a href="/schools/{{.School.ID}}/admin">instructor admin</a>{{end}}
+    {{template "notif-bell"}}
+  </nav>
 </header>
 <main class="index">
   <p class="hint">Read-only repertoire — only an instructor can edit this school's material directly. Submit your own work below for an instructor to review instead.</p>

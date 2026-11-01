@@ -6,10 +6,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Book}} members — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
 </head>
 <body>
 <header class="app-header">
-  <h1><a href="/b/{{.Book}}">{{.Book}}</a> — members</h1>
+  <a class="back-link" href="/b/{{.Book}}">{{template "icon-back"}} {{.Book}}</a>
+  <h1>Members</h1>
+  {{template "notif-bell"}}
 </header>
 <main class="index">
   <table class="card" style="width:100%">
@@ -26,7 +29,7 @@
             <option value="owner" {{if eq .Role "owner"}}selected{{end}}>owner</option>
           </select>
         </td>
-        <td><button type="button" class="remove-member-btn" data-person-id="{{.PersonID}}">remove</button></td>
+        <td><button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}">remove</button></td>
       </tr>
     {{end}}
     </tbody>

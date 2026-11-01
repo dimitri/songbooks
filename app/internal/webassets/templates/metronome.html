@@ -10,10 +10,11 @@
 </head>
 <body>
 <header class="app-header">
-  <a href="/">&larr; Books</a>
+  {{template "home-link"}}
   <h1>Metronome</h1>
   <nav class="song-nav">
     <button id="theme-toggle" class="icon-btn" type="button" title="toggle light/dark">{{template "icon-theme"}}</button>
+    {{template "notif-bell"}}
   </nav>
 </header>
 <main>

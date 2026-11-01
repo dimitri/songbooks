@@ -6,11 +6,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Admin — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
 </head>
 <body>
 <header class="app-header">
-  <a href="/">&larr; Songbooks</a>
+  {{template "home-link"}}
   <h1>Admin</h1>
+  {{template "notif-bell"}}
 </header>
 <main class="index">
   <div class="card">
@@ -31,7 +33,7 @@
               <button type="submit">{{if .IsAdmin}}revoke admin{{else}}make admin{{end}}</button>
             </form>
             <form method="post" action="/admin/people/{{.ID}}/remove" style="display:inline" onsubmit="return confirm('Remove {{.Username}}? (not implemented yet)')">
-              <button type="submit">remove</button>
+              <button type="submit" class="danger">remove</button>
             </form>
             {{else}}
             <em>you</em>

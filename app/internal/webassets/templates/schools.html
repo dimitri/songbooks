@@ -6,11 +6,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>My schools — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
 </head>
 <body>
 <header class="app-header">
-  <a class="back-link" href="/">{{template "icon-back"}} Home</a>
+  {{template "home-link"}}
   <h1>My schools</h1>
+  {{template "notif-bell"}}
 </header>
 <main class="index">
   <table class="card" style="width:100%">
