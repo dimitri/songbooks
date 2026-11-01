@@ -77,7 +77,15 @@ func (s *Server) handleCreateBand(w http.ResponseWriter, r *http.Request) {
 
 // handleBandPage is one band's detail page: current + past members (the
 // member list has a "show past members" toggle driven client-side off
-// IncludePast), plus a link to the band's repertoire.
+// IncludePast), a link to the band's repertoire, and a "changes since
+// your last visit" digest (phase 7).
+//
+// The digest is computed against the OLD last-seen timestamp, then
+// MarkBandSeen updates it to now — in that order, deliberately, so the
+// digest reflects "since you last looked," not "since right now" (a
+// digest computed after the update would always be empty). A person who
+// has never viewed this band's page before gets since=nil, i.e. "every
+// change ever."
 func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	person := personFromContext(r)
@@ -95,7 +103,25 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.render(w, "band", map[string]any{"Me": person, "Band": band, "Members": members})
+
+	since, err := s.store.GetBandLastSeen(r.Context(), bandID, person.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	changes, err := s.store.ListBandChanges(r.Context(), bandID, since)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := s.store.MarkBandSeen(r.Context(), bandID, person.ID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	s.render(w, "band", map[string]any{
+		"Me": person, "Band": band, "Members": members, "Changes": changes, "HasLastSeen": since != nil,
+	})
 }
 
 // handleAddBandMember adds an existing person (by username — this is a

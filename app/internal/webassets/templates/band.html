@@ -13,10 +13,23 @@
   <h1>{{.Band.Name}}</h1>
   <nav class="song-nav">
     <a href="/bands/{{.Band.ID}}/catalog">repertoire</a>
+    <a href="/bands/{{.Band.ID}}/proposals">proposals</a>
+    <a href="/bands/{{.Band.ID}}/listening-party">listening party</a>
   </nav>
 </header>
 <main class="index">
   <p class="hint">No "owner"/"admin" role here — any current member (core or guest) can add or remove members, promote/demote, or delete the whole band.</p>
+
+  <div class="card" style="max-width:640px">
+    <h2>{{if .HasLastSeen}}Since your last visit{{else}}Recent activity{{end}}</h2>
+    <ul>
+    {{range .Changes}}
+      <li>{{.CreatedAt.Format "2006-01-02 15:04"}} — {{if .ActorName}}{{.ActorName}}{{else}}someone{{end}} {{.Summary}}</li>
+    {{else}}
+      <li class="hint">Nothing new{{if .HasLastSeen}} since your last visit{{end}}.</li>
+    {{end}}
+    </ul>
+  </div>
 
   <label><input type="checkbox" id="show-past-toggle"> Show past members</label>
 
