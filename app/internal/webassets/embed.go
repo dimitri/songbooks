@@ -7,6 +7,7 @@ import (
 	"embed"
 	"html/template"
 	"io/fs"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -89,7 +90,18 @@ var funcMap = template.FuncMap{
 		}
 		return false
 	},
+	// autolink turns bare http(s) URLs in server-generated text (e.g. a
+	// mailer.ConsoleMailer outbox body, which embeds the magic-link
+	// URL) into clickable anchors, for GET /dev/outbox. The body is
+	// always ours (never user-submitted), so this is safe to mark HTML.
+	"autolink": func(s string) template.HTML {
+		escaped := template.HTMLEscapeString(s)
+		linked := outboxURLPattern.ReplaceAllString(escaped, `<a href="$1">$1</a>`)
+		return template.HTML(linked)
+	},
 }
+
+var outboxURLPattern = regexp.MustCompile(`(https?://[^\s<]+)`)
 
 var typstEscapes = strings.NewReplacer(`\&`, "&", `\%`, "%", `\#`, "#", `\_`, "_", `\*`, "*")
 

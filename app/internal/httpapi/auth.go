@@ -2,9 +2,11 @@ package httpapi
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log"
 	"net/http"
-
-	"golang.org/x/crypto/bcrypt"
+	"strings"
 
 	"app/internal/store"
 )
@@ -163,31 +165,78 @@ func (s *Server) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "login", map[string]any{"Error": r.URL.Query().Get("error") != ""})
 }
 
+// handleLogin is magic-link login's request step: look up the email, and
+// if it belongs to an account, email ("send" — see internal/mailer) a
+// single-use login link that expires in 15 minutes. The response is the
+// exact same "check your email" page whether or not the email matched a
+// real account — not leaking account existence is a real security
+// property here, not polish, so every path through this handler (lookup
+// miss, store error, mailer error, success) renders the same template
+// with no per-case data baked into it.
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Redirect(w, r, "/login?error=1", http.StatusFound)
+		s.render(w, "login_sent", nil)
 		return
 	}
-	username := r.FormValue("username")
-	password := r.FormValue("password")
+	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
 
-	p, err := s.store.GetPersonByUsername(r.Context(), username)
-	if err != nil || p.PasswordHash == "" {
-		http.Redirect(w, r, "/login?error=1", http.StatusFound)
+	if email != "" {
+		if p, err := s.store.GetPersonByEmail(r.Context(), email); err == nil {
+			if token, err := s.store.CreateLoginToken(r.Context(), p.ID); err == nil {
+				link := s.loginLinkURL(r, token)
+				subject := "Your Songbooks login link"
+				body := fmt.Sprintf("Hi %s,\n\nClick this link to log in to Songbooks (expires in 15 minutes):\n\n%s\n\nIf you didn't request this, you can ignore this email.", p.DisplayName, link)
+				if err := s.mailer.Send(r.Context(), p.Email, subject, body); err != nil {
+					log.Printf("sending login email: %v", err)
+				}
+			} else {
+				log.Printf("creating login token: %v", err)
+			}
+		}
+		// A lookup miss (err != nil) falls straight through to the same
+		// response below — deliberately no branch on "found or not".
+	}
+
+	s.render(w, "login_sent", nil)
+}
+
+// loginLinkURL builds the magic-link URL embedded in the login email,
+// from the incoming request's own scheme/host — this app has no
+// separate "public base URL" config yet.
+func (s *Server) loginLinkURL(r *http.Request, token string) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	return fmt.Sprintf("%s://%s/login/confirm?token=%s", scheme, r.Host, token)
+}
+
+// handleLoginConfirm validates a magic-link token (unused, unexpired),
+// starts a normal session, and redirects to the dashboard. An
+// invalid/expired/already-used token gets a clear error page, not a
+// crash or a generic 500.
+func (s *Server) handleLoginConfirm(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		s.render(w, "login_confirm_error", nil)
 		return
 	}
-	if bcrypt.CompareHashAndPassword([]byte(p.PasswordHash), []byte(password)) != nil {
-		http.Redirect(w, r, "/login?error=1", http.StatusFound)
+	p, err := s.store.ConsumeLoginToken(r.Context(), token)
+	if err != nil {
+		if !errors.Is(err, store.ErrNotFound) {
+			log.Printf("consuming login token: %v", err)
+		}
+		s.render(w, "login_confirm_error", nil)
 		return
 	}
 
-	token, err := s.store.CreateSession(r.Context(), p.ID)
+	sessToken, err := s.store.CreateSession(r.Context(), p.ID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name: sessionCookie, Value: token, Path: "/",
+		Name: sessionCookie, Value: sessToken, Path: "/",
 		HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode,
 		MaxAge: 30 * 24 * 60 * 60,
 	})

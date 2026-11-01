@@ -1,0 +1,31 @@
+{{define "dev_outbox"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dev outbox — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="app-header">
+  <a href="/">&larr; Songbooks</a>
+  <h1>Dev outbox</h1>
+</header>
+<main class="index">
+  <p class="hint">Local dev stand-in for an inbox — every email the console mailer has "sent", newest first. This page is admin-only because it contains live login links.</p>
+  <div class="card">
+    {{if not .Entries}}<p>No outbox entries yet.</p>{{end}}
+    {{range .Entries}}
+      <div class="card" style="margin-bottom:1em">
+        <p><strong>To:</strong> {{.To}}</p>
+        <p><strong>Subject:</strong> {{.Subject}}</p>
+        <p><strong>Sent:</strong> {{.CreatedAt.Format "2006-01-02 15:04:05"}}</p>
+        <pre style="white-space:pre-wrap">{{.Body | autolink}}</pre>
+      </div>
+    {{end}}
+  </div>
+</main>
+</body>
+</html>
+{{end}}

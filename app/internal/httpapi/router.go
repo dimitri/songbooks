@@ -3,33 +3,47 @@ package httpapi
 import (
 	"net/http"
 
+	"app/internal/mailer"
 	"app/internal/pdf"
 	"app/internal/store"
 	"app/internal/webassets"
 )
 
 type Server struct {
-	store *store.Store
-	pdf   *pdf.Bridge // nil when v2Root is unset — PDF export routes 503 in that case
+	store  *store.Store
+	pdf    *pdf.Bridge // nil when v2Root is unset — PDF export routes 503 in that case
+	mailer mailer.Mailer
 }
 
 // NewServer wires the HTTP handler. v2Root is the path to the v2/ Typst
 // pipeline (lib/, render.typ, render-book.typ) that PDF export shells out
 // to; pass "" to disable PDF export (e.g. a deployment with no v2/ checkout
-// available).
-func NewServer(st *store.Store, v2Root string) http.Handler {
-	s := &Server{store: st}
+// available). m is the mailer magic-link login uses to "send" its emails —
+// see internal/mailer and cmd/songbooks/main.go, which constructs a
+// mailer.ConsoleMailer by default.
+func NewServer(st *store.Store, v2Root string, m mailer.Mailer) http.Handler {
+	s := &Server{store: st, mailer: m}
 	if v2Root != "" {
 		s.pdf = pdf.New(v2Root)
 	}
 	mux := http.NewServeMux()
 
 	// Auth itself: reachable without a session (that's the point).
+	// Magic-link login (no password): GET /login asks for an email,
+	// POST /login "sends" the link, GET /login/confirm validates it and
+	// starts the session. See internal/httpapi/auth.go.
 	mux.HandleFunc("GET /login", s.handleLoginPage)
 	mux.HandleFunc("POST /login", s.handleLogin)
+	mux.HandleFunc("GET /login/confirm", s.handleLoginConfirm)
 	mux.HandleFunc("POST /logout", s.handleLogout)
 	mux.HandleFunc("GET /invite/{token}", s.handleInvitePage)
 	mux.HandleFunc("POST /invite/{token}", s.handlePostInvite)
+
+	// Dev-only: a local stand-in for an inbox, listing every email the
+	// console mailer has "sent" (see internal/mailer.ConsoleMailer) with
+	// clickable links. Admin-gated, not publicly reachable — it contains
+	// live login links.
+	mux.HandleFunc("GET /dev/outbox", s.requireAdmin(s.handleDevOutbox))
 
 	mux.HandleFunc("GET /", s.requireAuth(s.handleIndex))
 	mux.HandleFunc("GET /b/{book}", s.requireRole("viewer", s.handleProject))

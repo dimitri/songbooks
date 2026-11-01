@@ -12,15 +12,15 @@
   <div class="hero">
     <div>
       <h2>Log in</h2>
-      <p>Songbooks is shared — sign in to see your own projects.</p>
+      <p>Enter your email and we'll send you a link to log in — no password needed.</p>
     </div>
   </div>
   <form class="card" method="post" action="/login" style="max-width:360px">
-    {{if .Error}}<p style="color:#b33">Wrong username or password.</p>{{end}}
-    <p><label>Username<br><input type="text" name="username" autocomplete="username" required autofocus></label></p>
-    <p><label>Password<br><input type="password" name="password" autocomplete="current-password" required></label></p>
-    <button type="submit">Log in</button>
+    {{if .Error}}<p style="color:#b33">Something went wrong — please try again.</p>{{end}}
+    <p><label>Email<br><input type="email" name="email" autocomplete="email" required autofocus></label></p>
+    <button type="submit">Send me a login link</button>
   </form>
+  <p class="hint">New here? You'll need an invite link to create an account.</p>
 </main>
 </body>
 </html>
