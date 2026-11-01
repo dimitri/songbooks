@@ -1,0 +1,107 @@
+{{define "school"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.School.Name}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="app-header">
+  <a class="back-link" href="/schools">{{template "icon-back"}} My schools</a>
+  <h1>{{.School.Name}}</h1>
+  {{if .IsInstructor}}<nav class="song-nav"><a href="/schools/{{.School.ID}}/admin">instructor admin</a></nav>{{end}}
+</header>
+<main class="index">
+  <p class="hint">Read-only repertoire — only an instructor can edit this school's material directly. Submit your own work below for an instructor to review instead.</p>
+
+  <table class="card" style="width:100%">
+    <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th></th></tr></thead>
+    <tbody>
+    {{range .Entries}}
+      <tr data-variant-id="{{.VariantID}}">
+        <td><a href="/b/{{.Book}}/{{.Stem}}">{{.Title}}</a></td>
+        <td>{{.Artist}}</td>
+        <td>{{.Book}}</td>
+        <td><a href="/works/{{.WorkID}}">all versions</a> <a href="/variants/{{.VariantID}}/history">history</a></td>
+      </tr>
+    {{else}}
+      <tr><td colspan="4" class="hint">No repertoire yet.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+
+  <div class="card" style="max-width:560px">
+    <h2>Submit your work</h2>
+    <p class="hint">Pick one of your own personal catalog items (fork or create it first from the <a href="/catalog">catalog</a> page if it isn't there yet), then submit it here for an instructor to accept or reject.</p>
+    <p>
+      <label>Kind
+        <select id="submit-kind">
+          <option value="new_song">new song (add to the school's repertoire)</option>
+          <option value="edit">edit (apply onto an existing variant)</option>
+        </select>
+      </label>
+    </p>
+    <p>
+      <label>Your variant
+        <select id="submit-variant">
+          {{range .MyCatalog}}<option value="{{.VariantID}}">{{.Title}} ({{.Book}}/{{.Stem}})</option>{{end}}
+        </select>
+      </label>
+    </p>
+    <p id="source-variant-row" hidden>
+      <label>Source variant id being edited <input type="number" id="submit-source-variant"></label>
+    </p>
+    <p>
+      <label>Note <input type="text" id="submit-note" placeholder="optional"></label>
+    </p>
+    <button type="button" id="submit-btn">Submit for review</button>
+    <p id="submit-result" class="hint"></p>
+  </div>
+
+  <div class="card" style="max-width:560px">
+    <h2>Your submission history</h2>
+    <table style="width:100%">
+      <thead><tr><th>Kind</th><th>Submitted</th><th>Status</th><th>Decided</th></tr></thead>
+      <tbody>
+      {{range .MySubmissions}}
+        <tr>
+          <td>{{.Kind}}</td>
+          <td>{{.SubmittedTitle}} ({{.SubmittedBook}}/{{.SubmittedStem}})</td>
+          <td>{{.Status}}</td>
+          <td>{{if .DecidedAt}}{{.DecidedAt.Format "2006-01-02"}}{{end}}</td>
+        </tr>
+      {{else}}
+        <tr><td colspan="4" class="hint">No submissions yet.</td></tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+</main>
+<script>
+const schoolId = {{.School.ID}};
+document.getElementById('submit-kind').addEventListener('change', (e) => {
+  document.getElementById('source-variant-row').hidden = e.target.value !== 'edit';
+});
+document.getElementById('submit-btn').addEventListener('click', async () => {
+  const kind = document.getElementById('submit-kind').value;
+  const submittedVariantId = Number(document.getElementById('submit-variant').value);
+  const sourceVariantId = Number(document.getElementById('submit-source-variant').value) || 0;
+  const note = document.getElementById('submit-note').value;
+  if (!submittedVariantId) return;
+  const res = await fetch(`/api/schools/${schoolId}/submissions`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({kind, submittedVariantId, sourceVariantId, note}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) {
+    location.reload();
+  } else {
+    document.getElementById('submit-result').textContent = data.error || 'failed to submit';
+  }
+});
+</script>
+</body>
+</html>
+{{end}}

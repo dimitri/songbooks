@@ -1,0 +1,262 @@
+{{define "school_admin"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.School.Name}} — instructor admin</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="app-header">
+  <a class="back-link" href="/schools/{{.School.ID}}">{{template "icon-back"}} {{.School.Name}}</a>
+  <h1>{{.School.Name}} — instructor admin</h1>
+</header>
+<main class="index">
+  <div class="card" style="max-width:420px">
+    <h2>School name</h2>
+    <label>Name <input type="text" id="rename-input" value="{{.School.Name}}"></label>
+    <button type="button" id="rename-btn">Save</button>
+    <p id="rename-result" class="hint"></p>
+  </div>
+
+  <h2>Pending submissions</h2>
+  <table class="card" style="width:100%">
+    <thead><tr><th>Student</th><th>Kind</th><th>Submitted</th><th>Source</th><th>Note</th><th></th></tr></thead>
+    <tbody id="pending-body">
+    {{range .PendingSubmissions}}
+      <tr data-submission-id="{{.ID}}">
+        <td>{{.StudentUsername}}</td>
+        <td>{{.Kind}}</td>
+        <td>{{.SubmittedTitle}} ({{.SubmittedBook}}/{{.SubmittedStem}})</td>
+        <td>{{if .SourceVariantID}}{{.SourceTitle}} (#{{deref64 .SourceVariantID}}){{end}}</td>
+        <td>{{.Note}}</td>
+        <td>
+          <button type="button" class="accept-btn" data-id="{{.ID}}">accept</button>
+          <button type="button" class="reject-btn" data-id="{{.ID}}">reject</button>
+        </td>
+      </tr>
+    {{else}}
+      <tr><td colspan="6" class="hint">No pending submissions.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+
+  <h2>All submissions</h2>
+  <table class="card" style="width:100%">
+    <thead><tr><th>Student</th><th>Kind</th><th>Submitted</th><th>Status</th><th>Decided by</th></tr></thead>
+    <tbody>
+    {{range .AllSubmissions}}
+      <tr>
+        <td>{{.StudentUsername}}</td>
+        <td>{{.Kind}}</td>
+        <td>{{.SubmittedTitle}}</td>
+        <td>{{.Status}}</td>
+        <td>{{.DecidedByUsername}}</td>
+      </tr>
+    {{else}}
+      <tr><td colspan="5" class="hint">No submissions yet.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+
+  <label><input type="checkbox" id="show-past-toggle"> Show past members</label>
+  <table class="card" style="width:100%">
+    <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Joined</th><th>Left</th><th></th></tr></thead>
+    <tbody id="members-body">
+    {{range .Members}}
+      <tr data-person-id="{{.PersonID}}" data-current="{{if .IsCurrent}}1{{else}}0{{end}}" {{if not .IsCurrent}}class="past-member" style="display:none"{{end}}>
+        <td>{{.Username}}</td>
+        <td>{{.DisplayName}}</td>
+        <td>
+          {{if .IsCurrent}}
+          <select class="role-select" data-person-id="{{.PersonID}}">
+            <option value="instructor" {{if eq .Role "instructor"}}selected{{end}}>instructor</option>
+            <option value="student" {{if eq .Role "student"}}selected{{end}}>student</option>
+          </select>
+          {{else}}{{.Role}}{{end}}
+        </td>
+        <td>{{.JoinedAt.Format "2006-01-02"}}</td>
+        <td>{{if .LeftAt}}{{.LeftAt.Format "2006-01-02"}}{{end}}</td>
+        <td>{{if .IsCurrent}}<button type="button" class="remove-member-btn" data-person-id="{{.PersonID}}">remove</button>{{end}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+
+  <div class="card" style="max-width:420px">
+    <h2>Add a member</h2>
+    <p>
+      <label>Username <input type="text" id="add-username" placeholder="existing account"></label>
+    </p>
+    <p>
+      <label>Role
+        <select id="add-role">
+          <option value="student" selected>student</option>
+          <option value="instructor">instructor</option>
+        </select>
+      </label>
+    </p>
+    <button type="button" id="add-member-btn">Add to school</button>
+    <p id="add-member-result" class="hint"></p>
+  </div>
+
+  <h2>School repertoire</h2>
+  <div class="card" style="max-width:520px">
+    <h3>Write a new original song</h3>
+    <label>Title <input type="text" id="new-variant-title"></label>
+    <label>Artist <input type="text" id="new-variant-artist"></label>
+    <label>Project
+      <select id="new-variant-project">
+        {{range .Books}}<option value="{{.}}">{{.}}</option>{{end}}
+      </select>
+    </label>
+    <button type="button" id="new-variant-btn">+ create</button>
+    <p id="new-variant-result" class="hint"></p>
+  </div>
+
+  <div class="card" style="max-width:520px">
+    <h3>Add a variant by id</h3>
+    <label>Variant id <input type="number" id="variant-id-input"></label>
+    <button type="button" id="add-existing-btn">+ add to repertoire</button>
+    <button type="button" id="fork-into-school-btn">fork into this school</button>
+    <p id="add-result" class="hint"></p>
+  </div>
+
+  <table class="card" style="width:100%">
+    <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th>Added by</th><th></th></tr></thead>
+    <tbody>
+    {{range .Entries}}
+      <tr data-variant-id="{{.VariantID}}">
+        <td><a href="/b/{{.Book}}/{{.Stem}}">{{.Title}}</a></td>
+        <td>{{.Artist}}</td>
+        <td>{{.Book}}</td>
+        <td>{{.AddedByUsername}}</td>
+        <td>
+          <a href="/variants/{{.VariantID}}/history">history</a>
+          <button type="button" class="remove-entry-btn" data-variant-id="{{.VariantID}}">remove</button>
+        </td>
+      </tr>
+    {{else}}
+      <tr><td colspan="5" class="hint">No repertoire yet.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+</main>
+<script>
+const schoolId = {{.School.ID}};
+document.getElementById('rename-btn').addEventListener('click', async () => {
+  const name = document.getElementById('rename-input').value.trim();
+  if (!name) return;
+  const res = await fetch(`/api/schools/${schoolId}/rename`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name}),
+  });
+  const data = await res.json().catch(() => ({}));
+  document.getElementById('rename-result').textContent = res.ok ? 'saved' : (data.error || 'failed');
+  if (res.ok) document.title = name + ' — instructor admin';
+});
+document.querySelectorAll('.accept-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.dataset.id;
+    const res = await fetch(`/api/schools/${schoolId}/submissions/${id}/accept`, {method: 'POST'});
+    if (res.ok) location.reload();
+  });
+});
+document.querySelectorAll('.reject-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.dataset.id;
+    const res = await fetch(`/api/schools/${schoolId}/submissions/${id}/reject`, {method: 'POST'});
+    if (res.ok) location.reload();
+  });
+});
+document.getElementById('show-past-toggle').addEventListener('change', (e) => {
+  document.querySelectorAll('.past-member').forEach(tr => {
+    tr.style.display = e.target.checked ? '' : 'none';
+  });
+});
+document.getElementById('add-member-btn').addEventListener('click', async () => {
+  const username = document.getElementById('add-username').value.trim();
+  const role = document.getElementById('add-role').value;
+  if (!username) return;
+  const res = await fetch(`/api/schools/${schoolId}/members`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({username, role}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) {
+    location.reload();
+  } else {
+    document.getElementById('add-member-result').textContent = data.error || 'failed to add member';
+  }
+});
+document.querySelectorAll('.role-select').forEach(sel => {
+  sel.addEventListener('change', async () => {
+    const personID = sel.dataset.personId;
+    const res = await fetch(`/api/schools/${schoolId}/members/${personID}/role`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({role: sel.value}),
+    });
+    if (!res.ok) location.reload();
+  });
+});
+document.querySelectorAll('.remove-member-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm('Remove this member from the school?')) return;
+    const personID = btn.dataset.personId;
+    await fetch(`/api/schools/${schoolId}/members/${personID}`, {method: 'DELETE'});
+    location.reload();
+  });
+});
+document.getElementById('new-variant-btn').addEventListener('click', async () => {
+  const title = document.getElementById('new-variant-title').value.trim();
+  const artist = document.getElementById('new-variant-artist').value.trim();
+  const project = document.getElementById('new-variant-project').value;
+  if (!title || !project) return;
+  const res = await fetch(`/api/schools/${schoolId}/variants`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({title, artist, project}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) {
+    location.href = `/b/${data.book}/${data.stem}`;
+  } else {
+    document.getElementById('new-variant-result').textContent = data.error || 'failed to create';
+  }
+});
+document.getElementById('add-existing-btn').addEventListener('click', async () => {
+  const variantId = Number(document.getElementById('variant-id-input').value);
+  if (!variantId) return;
+  const res = await fetch(`/api/schools/${schoolId}/catalog`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({variantId}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) {
+    location.reload();
+  } else {
+    document.getElementById('add-result').textContent = data.error || 'failed to add';
+  }
+});
+document.getElementById('fork-into-school-btn').addEventListener('click', async () => {
+  const variantId = Number(document.getElementById('variant-id-input').value);
+  if (!variantId) return;
+  const res = await fetch(`/api/schools/${schoolId}/catalog/fork/${variantId}`, {method: 'POST'});
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) {
+    location.reload();
+  } else {
+    document.getElementById('add-result').textContent = data.error || 'failed to fork';
+  }
+});
+document.querySelectorAll('.remove-entry-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const variantId = btn.dataset.variantId;
+    await fetch(`/api/schools/${schoolId}/catalog/${variantId}`, {method: 'DELETE'});
+    btn.closest('tr').remove();
+  });
+});
+</script>
+</body>
+</html>
+{{end}}

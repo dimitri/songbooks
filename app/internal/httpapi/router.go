@@ -145,6 +145,29 @@ func NewServer(st *store.Store, v2Root string) http.Handler {
 	mux.HandleFunc("POST /api/bands/{id}/proposals/{proposalID}/votes", s.requireBandMember(s.handleCastVote))
 	mux.HandleFunc("GET /bands/{id}/listening-party", s.requireBandMember(s.handleListeningPartyPage))
 
+	// School mode: a close structural cousin of bands (same history-
+	// preserving membership shape, same catalog pointer mechanism), but
+	// with a REAL two-tier role (instructor/student) instead of bands'
+	// deliberately flat membership. requireSchoolMember gates "may see
+	// this school's material" (either role); requireSchoolInstructor
+	// gates every instructor-only action (membership/catalog management,
+	// rename, submission review). See internal/httpapi/schools.go.
+	mux.HandleFunc("GET /schools", s.requireAuth(s.handleSchoolsPage))
+	mux.HandleFunc("POST /api/schools", s.requireAuth(s.handleCreateSchool))
+	mux.HandleFunc("GET /schools/{id}", s.requireSchoolMember(s.handleSchoolPage))
+	mux.HandleFunc("GET /schools/{id}/admin", s.requireSchoolInstructor(s.handleSchoolAdminPage))
+	mux.HandleFunc("POST /api/schools/{id}/rename", s.requireSchoolInstructor(s.handleRenameSchool))
+	mux.HandleFunc("POST /api/schools/{id}/members", s.requireSchoolInstructor(s.handleAddSchoolMember))
+	mux.HandleFunc("POST /api/schools/{id}/members/{personID}/role", s.requireSchoolInstructor(s.handleSetSchoolMemberRole))
+	mux.HandleFunc("DELETE /api/schools/{id}/members/{personID}", s.requireSchoolInstructor(s.handleRemoveSchoolMember))
+	mux.HandleFunc("POST /api/schools/{id}/catalog", s.requireSchoolInstructor(s.handleAddSchoolCatalogEntry))
+	mux.HandleFunc("DELETE /api/schools/{id}/catalog/{variantID}", s.requireSchoolInstructor(s.handleRemoveSchoolCatalogEntry))
+	mux.HandleFunc("POST /api/schools/{id}/catalog/fork/{variantID}", s.requireSchoolInstructor(s.handleForkVariantIntoSchool))
+	mux.HandleFunc("POST /api/schools/{id}/variants", s.requireSchoolInstructor(s.handleCreateSchoolVariant))
+	mux.HandleFunc("POST /api/schools/{id}/submissions", s.requireSchoolMember(s.handleCreateSchoolSubmission))
+	mux.HandleFunc("POST /api/schools/{id}/submissions/{submissionID}/accept", s.requireSchoolInstructor(s.handleAcceptSchoolSubmission))
+	mux.HandleFunc("POST /api/schools/{id}/submissions/{submissionID}/reject", s.requireSchoolInstructor(s.handleRejectSchoolSubmission))
+
 	// Site-wide admin panel — gated by requireAdmin (is_admin on the
 	// person), not requireRole (per-project role): see auth.go.
 	mux.HandleFunc("GET /admin", s.requireAdmin(s.handleAdminPage))
