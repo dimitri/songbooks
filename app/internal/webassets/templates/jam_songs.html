@@ -41,6 +41,23 @@
         {{end}}
       {{end}}
       <tr>
+        <td colspan="3">
+          {{/* Icon-based quick pick for the common instruments — a pure
+               front-end convenience over the exact same POST
+               /jam/{code}/picks the text-row below and the configured-
+               instrument buttons above use; still just an instrument
+               string underneath, nothing new stored. */}}
+          <div class="instrument-icon-row">
+            {{range $.CommonInstruments}}
+            <button type="button" class="instrument-icon-btn jam-pick-icon" data-song-id="{{$.ID}}" data-instrument="{{.}}">
+              <span aria-hidden="true">{{instrumentIcon .}}</span>
+              <span class="instrument-icon-label">{{.}}</span>
+            </button>
+            {{end}}
+          </div>
+        </td>
+      </tr>
+      <tr>
         <td><input type="text" class="jam-instrument" placeholder="other instrument" list="instruments"></td>
         <td></td>
         <td><button type="button" class="jam-pick-btn jam-pick-custom" data-song-id="{{.ID}}">I'm in</button></td>
@@ -85,6 +102,18 @@ async function pick(songId, instrument, btn) {
 document.querySelectorAll('.jam-pick-btn:not(.jam-pick-custom)').forEach(btn => {
   btn.addEventListener('click', () => pick(btn.dataset.songId, btn.dataset.instrument, btn));
 });
+document.querySelectorAll('.jam-pick-icon').forEach(btn => {
+  btn.addEventListener('click', () => pick(btn.dataset.songId, btn.dataset.instrument, btn));
+});
+// Highlight the participant's preferred instrument (set at jam signup,
+// remembered client-side only — see jam_landing.html) on every song's
+// icon row, as a convenience, not a pre-submitted pick.
+try {
+  const preferred = localStorage.getItem(`jam-${code}-preferred-instrument`);
+  if (preferred) {
+    document.querySelectorAll(`.jam-pick-icon[data-instrument="${preferred}"]`).forEach(btn => btn.classList.add('active'));
+  }
+} catch (e) {}
 document.querySelectorAll('.jam-pick-custom').forEach(btn => {
   btn.addEventListener('click', () => {
     const row = btn.closest('tr');
@@ -101,7 +130,9 @@ document.querySelectorAll('.jam-annotate-form').forEach(form => {
     const sectionIndex = form.dataset.sectionIndex;
     const res = await fetch(`/api/variants/${variantId}/sections/${sectionIndex}/annotations`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({body}),
+      // Jam annotations ("solo: sax") are meant for the whole jam to see,
+      // not just their own author — shared, not the private default.
+      body: JSON.stringify({body, visibility: 'shared'}),
     });
     if (res.ok) { location.reload(); }
     else { alert(await res.text() || "couldn't save that note"); }

@@ -120,13 +120,18 @@ func (s *Server) handleCreateSectionAnnotation(w http.ResponseWriter, r *http.Re
 	}
 
 	var req struct {
-		Body string `json:"body"`
+		Body       string `json:"body"`
+		Visibility string `json:"visibility"` // "private" (default) or "shared"
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Body == "" {
 		httpError(w, http.StatusBadRequest, "missing body")
 		return
 	}
-	id, err := s.store.CreateSectionAnnotation(r.Context(), variantID, sectionIndex, personID, jamEventID, jamProfileID, req.Body)
+	if req.Visibility != "" && req.Visibility != "private" && req.Visibility != "shared" {
+		httpError(w, http.StatusBadRequest, `visibility must be "private" or "shared"`)
+		return
+	}
+	id, err := s.store.CreateSectionAnnotation(r.Context(), variantID, sectionIndex, personID, jamEventID, jamProfileID, req.Body, req.Visibility)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -149,11 +154,12 @@ func (s *Server) handleListSectionAnnotations(w http.ResponseWriter, r *http.Req
 		httpError(w, http.StatusBadRequest, "invalid section index")
 		return
 	}
-	if _, _, _, ok := s.annotationActor(r); !ok {
+	personID, _, jamProfileID, ok := s.annotationActor(r)
+	if !ok {
 		httpError(w, http.StatusUnauthorized, "login, or a jam session, required")
 		return
 	}
-	notes, err := s.store.ListSectionAnnotations(r.Context(), variantID, sectionIndex)
+	notes, err := s.store.ListSectionAnnotations(r.Context(), variantID, sectionIndex, personID, jamProfileID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -172,11 +178,12 @@ func (s *Server) handleListAllSectionAnnotations(w http.ResponseWriter, r *http.
 		httpError(w, http.StatusBadRequest, "invalid variant id")
 		return
 	}
-	if _, _, _, ok := s.annotationActor(r); !ok {
+	personID, _, jamProfileID, ok := s.annotationActor(r)
+	if !ok {
 		httpError(w, http.StatusUnauthorized, "login, or a jam session, required")
 		return
 	}
-	notes, err := s.store.ListAllSectionAnnotations(r.Context(), variantID)
+	notes, err := s.store.ListAllSectionAnnotations(r.Context(), variantID, personID, jamProfileID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return

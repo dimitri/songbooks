@@ -196,7 +196,8 @@
     <a class="icon-btn" href="/b/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF" download>PDF</a>
     {{if .WorkID}}<a class="icon-btn" href="/works/{{.WorkID}}" title="all versions of this song">versions</a>{{end}}
     {{if .VariantID}}<a class="icon-btn" href="/variants/{{.VariantID}}/history" title="revision history">history</a>
-    <button id="fork-variant-btn" class="icon-btn" type="button" data-variant-id="{{.VariantID}}" title="fork: make your own editable copy">fork</button>{{end}}
+    <button id="fork-variant-btn" class="icon-btn" type="button" data-variant-id="{{.VariantID}}" title="fork: make your own editable copy">fork</button>
+    <button id="notes-toggle" class="icon-btn" type="button" title="notes: personal or shared, per section">notes</button>{{end}}
     <button id="theme-toggle" class="icon-btn" type="button" title="theme: auto">{{template "icon-theme"}}</button>
   </div>
   {{if .Prev}}
@@ -300,6 +301,36 @@
         <span id="save-status"></span>
       </div>
     </section>
+  </div>
+</div>
+
+{{/* Notes editor (not gated on edit rights the way the edit-drawer above
+     is — any identified viewer may annotate a section: see
+     httpapi.canAnnotateVariant's doc comment). Per-section personal or
+     shared notes, independent of jam mode — the "build annotation editor
+     (take notes) with personal or shared notes" brief item. Rendered for
+     any book/stem/practice/listening use of this same "song" template, not
+     just the plain /b/{book}/{stem} page. */}}
+<div class="edit-drawer-backdrop" id="notes-drawer-backdrop" hidden></div>
+<div class="edit-drawer card" id="notes-drawer" role="dialog" aria-modal="true" aria-label="Notes on {{.Title}}" hidden>
+  <div class="edit-drawer-head">
+    <h2 style="margin:0">Notes</h2>
+    <button id="notes-drawer-close" class="icon-btn" type="button" title="close">{{template "icon-close"}}</button>
+  </div>
+  <div class="edit-drawer-body" id="notes-drawer-body" data-variant-id="{{.VariantID}}">
+    <p class="hint">Private notes are visible only to you; shared notes are visible to anyone who can view this song.</p>
+    {{range .Sections}}
+    <section class="prep-panel notes-section" data-section-index="{{.Index}}" style="display:block;padding:.75em 0;border-bottom:1px solid var(--border, #ccc)">
+      <h3 style="margin:.25em 0">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}</h3>
+      <ul class="notes-list" data-section-index="{{.Index}}"></ul>
+      <form class="note-add-form" data-section-index="{{.Index}}">
+        <textarea class="note-body" rows="2" placeholder="e.g. watch the key change here" style="width:100%"></textarea>
+        <label><input type="radio" name="visibility-{{.Index}}" value="private" checked> private</label>
+        <label><input type="radio" name="visibility-{{.Index}}" value="shared"> shared</label>
+        <button type="submit">add note</button>
+      </form>
+    </section>
+    {{end}}
   </div>
 </div>
 
@@ -446,6 +477,70 @@ if (forkBtn) {
     }
   });
 }
+</script>
+<script>
+// Notes editor: per-section personal/shared annotations, independent of
+// jam mode — usable on any variant this page's viewer can already view.
+(function() {
+  const toggle = document.getElementById('notes-toggle');
+  const drawer = document.getElementById('notes-drawer');
+  const backdrop = document.getElementById('notes-drawer-backdrop');
+  if (!toggle || !drawer) return;
+  const body = document.getElementById('notes-drawer-body');
+  const variantId = Number(body.dataset.variantId);
+  let loaded = false;
+
+  function openDrawer() {
+    drawer.hidden = false;
+    backdrop.hidden = false;
+    if (!loaded) { loaded = true; loadNotes(); }
+  }
+  function closeDrawer() { drawer.hidden = true; backdrop.hidden = true; }
+  toggle.addEventListener('click', openDrawer);
+  document.getElementById('notes-drawer-close').addEventListener('click', closeDrawer);
+  backdrop.addEventListener('click', closeDrawer);
+
+  function renderNote(n) {
+    const li = document.createElement('li');
+    const who = n.Nickname || n.PersonName || 'someone';
+    const vis = n.Visibility === 'shared' ? 'shared' : 'private (only you)';
+    li.textContent = `${n.Body} — ${who} (${vis})`;
+    return li;
+  }
+
+  async function loadNotes() {
+    if (!variantId) return;
+    const res = await fetch(`/api/variants/${variantId}/annotations`);
+    if (!res.ok) return;
+    const bySection = await res.json();
+    document.querySelectorAll('.notes-list').forEach(ul => {
+      ul.innerHTML = '';
+      const notes = bySection[ul.dataset.sectionIndex] || [];
+      notes.forEach(n => ul.appendChild(renderNote(n)));
+    });
+  }
+
+  document.querySelectorAll('.note-add-form').forEach(form => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!variantId) return;
+      const sectionIndex = form.dataset.sectionIndex;
+      const bodyText = form.querySelector('.note-body').value.trim();
+      if (!bodyText) return;
+      const visibility = form.querySelector('input[type=radio]:checked').value;
+      const res = await fetch(`/api/variants/${variantId}/sections/${sectionIndex}/annotations`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({body: bodyText, visibility}),
+      });
+      if (res.ok) {
+        form.querySelector('.note-body').value = '';
+        loadNotes();
+      } else {
+        alert((await res.json().catch(() => ({}))).error || "couldn't save that note");
+      }
+    });
+  });
+})();
 </script>
 {{template "pwa-register"}}
 </body>
