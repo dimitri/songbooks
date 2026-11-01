@@ -154,6 +154,39 @@ or env var, and only bring it back up once confirmed absent.
 This deployment's `docker-compose.yml` does not set it, and nothing in this
 directory should ever be changed to do so.
 
+## Passkeys (WebAuthn) — `--webauthn-rp-id` / `SONGBOOKS_WEBAUTHN_RP_ID`
+
+Passkey login (added alongside password and magic-link — see
+`internal/httpapi/webauthn.go`) needs a stable Relying Party ID (RPID): the
+bare hostname a passkey is cryptographically bound to. **This MUST be set
+explicitly for this deployment**, to exactly:
+
+```
+SONGBOOKS_WEBAUTHN_RP_ID=songbooks.tapoueh.org
+```
+
+— add that to `docker-compose.yml`'s `app.environment:` (or `deploy/.env`
+plus an `${SONGBOOKS_WEBAUTHN_RP_ID}` reference) before passkeys are used on
+this deployment. It is **not** set there as of this phase — adding it is a
+deliberate, separate operational step, not something this phase pushes live
+silently.
+
+If left unset, the app instead derives the RPID from each request's own
+`Host` header — a dev-only convenience for bouncing a local server between
+`localhost:8080` and a LAN IP while developing, never appropriate for a
+real deployment sitting behind a fixed hostname.
+
+**A passkey is bound to the exact origin it was registered under, by
+design — not a bug, not something to route around.** A passkey someone
+registers locally against `localhost` will NOT work against
+`songbooks.tapoueh.org`, and one registered against
+`songbooks.tapoueh.org` will NOT work against `localhost` or any other
+hostname — this is WebAuthn's origin-binding security property working
+exactly as intended. Password and magic-link login are unaffected by any
+of this (they're plain per-account credentials, not origin-bound) — a
+passkey is purely an additional, optional third way in for whoever sets
+one up on a given origin.
+
 ## Caddy
 
 The host's `/etc/caddy/Caddyfile` has a `songbooks.tapoueh.org` block
