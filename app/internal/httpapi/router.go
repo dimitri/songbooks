@@ -3,6 +3,7 @@ package httpapi
 import (
 	"net/http"
 
+	"app/internal/lilypond"
 	"app/internal/mailer"
 	"app/internal/pdf"
 	"app/internal/store"
@@ -11,7 +12,8 @@ import (
 
 type Server struct {
 	store  *store.Store
-	pdf    *pdf.Bridge // nil when v2Root is unset — PDF export routes 503 in that case
+	pdf    *pdf.Bridge      // nil when v2Root is unset — PDF export routes 503 in that case
+	ly     *lilypond.Bridge // the LilyPond export pipeline — needs no external template tree, so always non-nil; a missing `lilypond` binary only surfaces as a request-time 500
 	mailer mailer.Mailer
 }
 
@@ -22,7 +24,7 @@ type Server struct {
 // see internal/mailer and cmd/songbooks/main.go, which constructs a
 // mailer.ConsoleMailer by default.
 func NewServer(st *store.Store, v2Root string, m mailer.Mailer) http.Handler {
-	s := &Server{store: st, mailer: m}
+	s := &Server{store: st, mailer: m, ly: lilypond.NewBridge()}
 	if v2Root != "" {
 		s.pdf = pdf.New(v2Root)
 	}
@@ -216,6 +218,16 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer) http.Handler {
 
 	mux.HandleFunc("GET /b/{book}/{stem}/export.pdf", s.requireRole("viewer", s.handleExportSongPDF))
 	mux.HandleFunc("GET /setlists/{book}/{stem}/export.pdf", s.requireRole("viewer", s.handleExportSetlistPDF))
+
+	// LilyPond export: a second, independent PDF pipeline (real engraved
+	// chords-over-a-staff notation + lyrics, see internal/lilypond) next
+	// to the Typst "chart" export above — same route scoping/role checks,
+	// distinct paths so both stay independently reachable. Band
+	// repertoire export is new in this pipeline (the Typst bridge never
+	// had one); requireBandMember matches every other band-scoped route.
+	mux.HandleFunc("GET /b/{book}/{stem}/export-ly.pdf", s.requireRole("viewer", s.handleExportSongLilyPDF))
+	mux.HandleFunc("GET /setlists/{book}/{stem}/export-ly.pdf", s.requireRole("viewer", s.handleExportSetlistLilyPDF))
+	mux.HandleFunc("GET /bands/{id}/export-ly.pdf", s.requireBandMember(s.handleExportBandRepertoireLilyPDF))
 
 	// Jam mode: organiser routes are normal {book}-scoped, role-gated
 	// routes. /jam/{code}/* is reachable WITHOUT a login — a nickname-only
