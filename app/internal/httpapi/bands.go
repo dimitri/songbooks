@@ -252,6 +252,60 @@ func (s *Server) handleCreateBandInvite(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]string{"url": "/invite/" + token})
 }
 
+// handleCreateBandGroupInvite makes a brand-new, reusable group invite
+// for this band — the "type a roster, get one shareable link" action
+// (see internal/store/group_invites.go). Any current band member may
+// create one, same as any other band-scoped mutation; every claimed
+// slot grants the claiming person band status "guest" (see
+// store.grantGroupInviteMembershipTx's doc comment for why guest, not
+// core, is the default here).
+func (s *Server) handleCreateBandGroupInvite(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		Slots []struct {
+			DisplayName string `json:"displayName"`
+			Instrument  string `json:"instrument"`
+		} `json:"slots"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	slots := make([]store.GroupInviteSlotInput, 0, len(req.Slots))
+	for _, sl := range req.Slots {
+		slots = append(slots, store.GroupInviteSlotInput{DisplayName: sl.DisplayName, Instrument: sl.Instrument})
+	}
+	actor := personFromContext(r)
+	groupInviteID, token, err := s.store.CreateGroupInvite(r.Context(), "band", bandID, actor.ID, slots)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": groupInviteID, "url": "/join/" + token})
+}
+
+// handleCloseBandGroupInvite explicitly closes a still-open band group
+// invite (see this phase's lifecycle note: slot-exhaustion alone never
+// auto-closes one, only this action does). Any current band member may
+// close it, same "no hierarchy" rule as every other band-scoped action.
+func (s *Server) handleCloseBandGroupInvite(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	groupInviteID, err := strconv.ParseInt(r.PathValue("groupInviteID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid group invite id")
+		return
+	}
+	if err := s.store.CloseGroupInvite(r.Context(), groupInviteID, "band", bandID); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			httpError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"closed": true})
+}
+
 // handleBandCatalogPage is a band's repertoire page — same lineage
 // display (forked from X, revision history link) as the personal catalog
 // view, reusing the band_catalog template.

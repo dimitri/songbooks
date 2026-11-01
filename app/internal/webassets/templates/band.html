@@ -90,6 +90,21 @@
     <p id="band-invite-result" class="hint"></p>
   </div>
 
+  <div class="card" style="max-width:480px">
+    <h2>Create a group invite link</h2>
+    <p class="hint">Type the names you expect (and optionally their instrument), then get ONE link to share — on WhatsApp, say. Each person who opens it picks their own name (or "someone else"), then creates an account or logs in. Everyone joins as a <strong>guest</strong> member; promote them to core afterwards if you like.</p>
+    <div id="group-invite-rows">
+      <p class="group-invite-row">
+        <input type="text" class="group-invite-name" placeholder="name">
+        <input type="text" class="group-invite-instrument" placeholder="instrument (optional)">
+      </p>
+    </div>
+    <button type="button" id="group-invite-add-row-btn">+ add another name</button>
+    <p><button type="button" id="create-group-invite-btn">Create group invite link</button></p>
+    <p id="group-invite-result" class="hint"></p>
+    <p><button type="button" id="close-group-invite-btn" hidden>Close this invite link</button></p>
+  </div>
+
   <div class="card" style="max-width:420px">
     <h2>Danger zone</h2>
     <button type="button" id="delete-band-btn" class="danger">Delete this band</button>
@@ -149,6 +164,44 @@ document.getElementById('create-band-invite-btn').addEventListener('click', asyn
   } else {
     out.textContent = data.error || 'failed to create invite';
     copyBtn.hidden = true;
+  }
+});
+document.getElementById('group-invite-add-row-btn').addEventListener('click', () => {
+  const p = document.createElement('p');
+  p.className = 'group-invite-row';
+  p.innerHTML = '<input type="text" class="group-invite-name" placeholder="name"> <input type="text" class="group-invite-instrument" placeholder="instrument (optional)">';
+  document.getElementById('group-invite-rows').appendChild(p);
+});
+document.getElementById('create-group-invite-btn').addEventListener('click', async () => {
+  const slots = [];
+  document.querySelectorAll('.group-invite-row').forEach(row => {
+    const displayName = row.querySelector('.group-invite-name').value.trim();
+    const instrument = row.querySelector('.group-invite-instrument').value.trim();
+    if (displayName) slots.push({displayName, instrument});
+  });
+  const res = await fetch(`/api/bands/${bandId}/group-invites`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({slots}),
+  });
+  const data = await res.json().catch(() => ({}));
+  const out = document.getElementById('group-invite-result');
+  const closeBtn = document.getElementById('close-group-invite-btn');
+  if (res.ok) {
+    const url = location.origin + data.url;
+    out.innerHTML = `Share this link: <a href="${url}">${url}</a>`;
+    navigator.clipboard.writeText(url).catch(() => {});
+    closeBtn.hidden = false;
+    closeBtn.onclick = async () => {
+      if (!confirm('Close this invite link? No further claims will be possible.')) return;
+      const r = await fetch(`/api/bands/${bandId}/group-invites/${data.id}/close`, {method: 'POST'});
+      if (r.ok) {
+        out.textContent = 'Closed.';
+        closeBtn.hidden = true;
+      }
+    };
+  } else {
+    out.textContent = data.error || 'failed to create group invite';
+    closeBtn.hidden = true;
   }
 });
 document.getElementById('delete-band-btn').addEventListener('click', async () => {
