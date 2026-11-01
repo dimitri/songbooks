@@ -241,16 +241,18 @@ func (st *Store) RemoveJamPick(ctx context.Context, jamEventID, jamProfileID, so
 
 // JamSong is the lightweight shape ListJamSongs returns — just enough for
 // the song-picker list, not a fully parsed song.Song. Instruments carries
-// each configured instrument's current pick count against its cap, so the
+// each configured instrument's current pick count against its cap (so the
 // picker page can grey out a full instrument instead of only finding out
-// on submit.
+// on submit) and the nicknames who've already picked it — this song's own
+// "who's in" roster, rendered as its own block on the picker page
+// (jam_songs.html), isolated from any other song's picks.
 type JamSong struct {
 	ID          int64
 	Book        string // project slug the variant lives under — needed to LoadSong/buildSections it for inline section-annotation rendering
 	Stem        string
 	Title       string
 	PlayOrder   int
-	Instruments []RosterRow // Instrument/Count/MinCount/MaxCount/Unmet/Full populated; Players/SongID/SongStem/SongTitle left zero here
+	Instruments []RosterRow // Instrument/Players/Count/MinCount/MaxCount/Unmet/Full populated; SongID/SongStem/SongTitle left zero here (redundant with the JamSong they're nested under)
 }
 
 // ListJamSongs lists jamCode's event's pickable song list — i.e. the
@@ -297,11 +299,16 @@ func (st *Store) ListJamSongs(ctx context.Context, jamCode string) ([]JamSong, e
 	if err != nil {
 		return nil, err
 	}
+	players, err := st.jamPlayers(ctx, eventID)
+	if err != nil {
+		return nil, err
+	}
 	for i := range out {
 		for _, lim := range limits[out[i].ID] {
-			cnt := counts[songInstrumentKey{out[i].ID, lim.Instrument}]
+			k := songInstrumentKey{out[i].ID, lim.Instrument}
+			cnt := counts[k]
 			out[i].Instruments = append(out[i].Instruments, RosterRow{
-				Instrument: lim.Instrument, Count: cnt, MinCount: lim.MinCount, MaxCount: lim.MaxCount,
+				Instrument: lim.Instrument, Players: players[k], Count: cnt, MinCount: lim.MinCount, MaxCount: lim.MaxCount,
 				Unmet: cnt < lim.MinCount, Full: lim.MaxCount != nil && cnt >= *lim.MaxCount,
 			})
 		}
@@ -359,6 +366,33 @@ func (st *Store) jamLimitsAndCounts(ctx context.Context, jamEventID int64) (limi
 	}
 	crows.Close()
 	return limits, counts, crows.Err()
+}
+
+// jamPlayers loads every (song, instrument) -> picked nicknames mapping
+// for jamEventID — shared by ListJamSongs (so the participant-facing
+// picker page can show each song's own little "who's in" roster, not
+// just a bare count) and JamRoster (organizer page), so both ever only
+// have one query that answers "who picked what for song X."
+func (st *Store) jamPlayers(ctx context.Context, jamEventID int64) (map[songInstrumentKey][]JamPlayer, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT jp.song_id, jp.instrument, pr.id, pr.nickname
+		FROM jam_picks jp JOIN jam_profiles pr ON pr.id = jp.jam_profile_id
+		WHERE jp.jam_event_id = $1
+		ORDER BY jp.song_id, jp.instrument, pr.nickname`, jamEventID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	players := map[songInstrumentKey][]JamPlayer{}
+	for rows.Next() {
+		var k songInstrumentKey
+		var jp JamPlayer
+		if err := rows.Scan(&k.songID, &k.instrument, &jp.ProfileID, &jp.Nickname); err != nil {
+			return nil, err
+		}
+		players[k] = append(players[k], jp)
+	}
+	return players, rows.Err()
 }
 
 // AddJamSong adds songID to jamEventID's pickable song list, at the end of
@@ -479,26 +513,8 @@ func (st *Store) JamRoster(ctx context.Context, jamEventID int64) ([]RosterRow, 
 		return nil, err
 	}
 
-	playerRows, err := st.db.Query(ctx, `
-		SELECT jp.song_id, jp.instrument, pr.id, pr.nickname
-		FROM jam_picks jp JOIN jam_profiles pr ON pr.id = jp.jam_profile_id
-		WHERE jp.jam_event_id = $1
-		ORDER BY jp.song_id, jp.instrument, pr.nickname`, jamEventID)
+	players, err := st.jamPlayers(ctx, jamEventID)
 	if err != nil {
-		return nil, err
-	}
-	players := map[songInstrumentKey][]JamPlayer{}
-	for playerRows.Next() {
-		var k songInstrumentKey
-		var jp JamPlayer
-		if err := playerRows.Scan(&k.songID, &k.instrument, &jp.ProfileID, &jp.Nickname); err != nil {
-			playerRows.Close()
-			return nil, err
-		}
-		players[k] = append(players[k], jp)
-	}
-	playerRows.Close()
-	if err := playerRows.Err(); err != nil {
 		return nil, err
 	}
 

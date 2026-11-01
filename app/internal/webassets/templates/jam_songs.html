@@ -27,9 +27,19 @@
       <tbody>
       {{if .Instruments}}
         {{range .Instruments}}
+          {{$instrument := .Instrument}}
           <tr data-song-id="{{$.ID}}" data-instrument="{{.Instrument}}">
             <td>{{.Instrument}} <small>({{.Count}}/{{maxcap .MaxCount}})</small></td>
-            <td></td>
+            <td>
+              {{/* This song's own little "band" for this instrument —
+                   who's already picked it for THIS song specifically,
+                   not jam-wide. */}}
+              {{if .Players}}
+                {{range $i, $p := .Players}}{{if $i}}, {{end}}<span class="jam-roster-pick"><span aria-hidden="true">{{instrumentIcon $instrument}}</span> {{$p.Nickname}}</span>{{end}}
+              {{else}}
+                <em>nobody yet</em>
+              {{end}}
+            </td>
             <td>
               {{if .Full}}
                 <button type="button" class="jam-pick-btn" disabled>full</button>
