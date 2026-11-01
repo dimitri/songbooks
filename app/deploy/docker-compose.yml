@@ -1,0 +1,46 @@
+name: songbooks
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-songbooks}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-songbooks}
+    volumes:
+      - songbooks_db_data:/var/lib/postgresql/data
+    # No host port published — only the app container talks to Postgres,
+    # over the compose-internal network, same shape as gites' db service.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-songbooks} -d ${POSTGRES_DB:-songbooks}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build:
+      context: ../..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-songbooks}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-songbooks}?sslmode=disable
+      SONGBOOKS_V2_ROOT: /v2
+    command: ["--addr", "0.0.0.0:8080"]
+    volumes:
+      # Read-write: internal/pdf/pdf.go writes .export-tmp-* scratch dirs
+      # physically under v2Root (Typst's --root sandboxes reads to that
+      # tree, so the scratch files must live inside it too). A read-only
+      # bind mount would make every PDF export 500.
+      - ${V2_HOST_PATH:-./v2}:/v2
+    ports:
+      # 8102: chosen after checking `ss -tlnp` + `docker ps` on the host —
+      # 8090-8094/8099-8101 and the 18000s are already taken by the gites
+      # and pr0 stacks, prlobby and docs-reader; 8102 was free.
+      - "127.0.0.1:8102:8080"
+
+volumes:
+  songbooks_db_data:
