@@ -16,7 +16,7 @@
 </header>
 <main class="index">
   <p class="hint">Pointers into the catalog — adding a song here doesn't copy it; forking does (and swaps the pointer to your fork).</p>
-  <table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th>Visibility</th><th></th></tr></thead>
     <tbody>
     {{range .Entries}}
@@ -33,7 +33,7 @@
       </tr>
     {{end}}
     </tbody>
-  </table>
+  </table></div>
 </main>
 <script>
 document.querySelectorAll('.remove-catalog-btn').forEach(btn => {

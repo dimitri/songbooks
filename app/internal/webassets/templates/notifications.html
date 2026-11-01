@@ -17,7 +17,7 @@
   </nav>
 </header>
 <main class="index">
-  <table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>When</th><th>Kind</th><th>Message</th><th></th></tr></thead>
     <tbody id="notifications-body">
     {{range .Notifications}}
@@ -37,7 +37,7 @@
       <tr><td colspan="4" class="hint">No notifications yet.</td></tr>
     {{end}}
     </tbody>
-  </table>
+  </table></div>
 </main>
 <script>
 async function markRead(id) {

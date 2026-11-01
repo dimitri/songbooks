@@ -36,7 +36,7 @@
   </div>
   {{end}}
 
-  <table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>Who</th><th>Vote</th><th>When</th></tr></thead>
     <tbody>
     {{range .Votes}}
@@ -45,7 +45,7 @@
       <tr><td colspan="3" class="hint">No votes yet.</td></tr>
     {{end}}
     </tbody>
-  </table>
+  </table></div>
 </main>
 <script>
 const bandId = {{.Band.ID}};

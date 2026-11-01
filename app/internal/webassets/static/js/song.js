@@ -1230,9 +1230,21 @@ const ICONS = {
     // Widen the cell for a higher beat-density so its extra slots have
     // somewhere to sit instead of being squeezed to near-zero width —
     // the 7rem single-slot basis only ever assumed one chord per bar.
+    // Wrapped in min(…, 100%): plain `20.8rem` is a HARD floor — CSS
+    // resolves a conflicting min-width/max-width in min-width's favor
+    // every time, so on a phone-width drawer (this editor was built and
+    // verified mostly at desktop width) a busy 4-slot bar forced itself
+    // wider than the viewport itself, overflowing uncontrollably with no
+    // way for .matrix-slots' own flex-wrap (below) to ever kick in and
+    // catch it. min() makes 100% of the matrix row's own available width
+    // a real ceiling instead: once that's the smaller side, the cell
+    // shrinks to actually fit, and .matrix-slots wraps its slots onto
+    // more internal rows to compensate — taller, not wider than the
+    // screen. Desktop is unaffected (plenty of room, the rem side stays
+    // smaller).
     const cellWidth = 7 + Math.max(0, m.tokens.length - 1) * 4.6;
-    cell.style.flexBasis = cellWidth + 'rem';
-    cell.style.minWidth = cellWidth + 'rem';
+    cell.style.flexBasis = `min(${cellWidth}rem, 100%)`;
+    cell.style.minWidth = `min(${cellWidth}rem, 100%)`;
 
     const top = document.createElement('div');
     top.className = 'matrix-cell-top';

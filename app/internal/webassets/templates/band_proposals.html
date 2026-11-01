@@ -37,7 +37,7 @@
     <p id="create-proposal-result" class="hint"></p>
   </div>
 
-  <table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>Kind</th><th>Variant</th><th>Proposer</th><th>Status</th><th>Votes</th><th></th></tr></thead>
     <tbody>
     {{range .Proposals}}
@@ -60,7 +60,7 @@
       <tr><td colspan="6" class="hint">No proposals yet.</td></tr>
     {{end}}
     </tbody>
-  </table>
+  </table></div>
 </main>
 <script>
 const bandId = {{.Band.ID}};

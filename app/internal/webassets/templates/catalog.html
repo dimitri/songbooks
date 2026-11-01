@@ -31,7 +31,7 @@
   </form>
   <p class="hint">No "by album" filter — nothing in this app's song data carries an album field, so there's nothing to group by. "By project" above is the closest grouping that actually exists.</p>
 
-  <table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th>Visibility</th><th></th></tr></thead>
     <tbody>
     {{range .Variants}}
@@ -48,7 +48,7 @@
       </tr>
     {{end}}
     </tbody>
-  </table>
+  </table></div>
 </main>
 <script>
 document.querySelectorAll('.add-catalog-btn').forEach(btn => {

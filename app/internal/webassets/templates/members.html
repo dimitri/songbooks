@@ -15,7 +15,7 @@
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  <table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>Username</th><th>Name</th><th>Role</th><th></th></tr></thead>
     <tbody>
     {{range .Members}}
@@ -33,7 +33,7 @@
       </tr>
     {{end}}
     </tbody>
-  </table>
+  </table></div>
 
   <div class="card" style="max-width:420px">
     <h2>Invite someone</h2>

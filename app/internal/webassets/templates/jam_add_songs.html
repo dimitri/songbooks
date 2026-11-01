@@ -22,7 +22,7 @@
       <summary>{{.Title}}</summary>
       <form method="post" action="/b/{{$.Book}}/jam/{{$.Code}}/songs">
         <input type="hidden" name="song_id" value="{{.ID}}">
-        <table style="width:100%">
+        <div class="table-scroll"><table style="width:100%">
           <thead><tr><th>Instrument</th><th>Min</th><th>Max (blank = no cap)</th></tr></thead>
           <tbody>
           {{$i := 0}}
@@ -49,7 +49,7 @@
             </tr>
           {{end}}
           </tbody>
-        </table>
+        </table></div>
         <p class="hint">Blank the instrument field to drop a row (e.g. no keyboard in this band). Add more rows by duplicating one and renaming it — any instrument name is fine, not just the four defaults.</p>
         <button type="submit" class="primary">Add to jam</button>
       </form>

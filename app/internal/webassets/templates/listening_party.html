@@ -29,7 +29,7 @@
     <p id="submit-result" class="hint"></p>
   </div>
 
-  <table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>Song</th><th>Submitted by</th><th>Votes</th><th></th></tr></thead>
     <tbody>
     {{range .Proposals}}
@@ -46,7 +46,7 @@
       <tr><td colspan="4" class="hint">Nothing in the queue yet — throw in a song above.</td></tr>
     {{end}}
     </tbody>
-  </table>
+  </table></div>
 </main>
 <script>
 const bandId = {{.Band.ID}};

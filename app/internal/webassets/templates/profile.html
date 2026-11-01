@@ -58,7 +58,7 @@
     <h3>Passkeys</h3>
     <p class="hint">Touch ID, Face ID, Windows Hello, or a security key — a third way to log in, alongside your password and login links. A passkey registered here only works on the site/origin you registered it on (a passkey made on your laptop at a local dev address won't work on the live site, and vice versa — that's WebAuthn working as designed, not a bug).</p>
     {{if .Passkeys}}
-    <table class="card" style="width:100%">
+    <div class="table-scroll"><table class="card" style="width:100%">
       <thead><tr><th>Name</th><th>Added</th><th>Last used</th><th></th></tr></thead>
       <tbody>
       {{range .Passkeys}}
@@ -79,7 +79,7 @@
         </tr>
       {{end}}
       </tbody>
-    </table>
+    </table></div>
     {{else}}
     <p class="hint">No passkeys registered yet.</p>
     {{end}}

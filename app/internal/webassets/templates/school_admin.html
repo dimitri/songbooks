@@ -23,7 +23,7 @@
   </div>
 
   <h2>Pending submissions</h2>
-  <table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>Student</th><th>Kind</th><th>Submitted</th><th>Source</th><th>Note</th><th></th></tr></thead>
     <tbody id="pending-body">
     {{range .PendingSubmissions}}
@@ -42,10 +42,10 @@
       <tr><td colspan="6" class="hint">No pending submissions.</td></tr>
     {{end}}
     </tbody>
-  </table>
+  </table></div>
 
   <h2>All submissions</h2>
-  <table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>Student</th><th>Kind</th><th>Submitted</th><th>Status</th><th>Decided by</th></tr></thead>
     <tbody>
     {{range .AllSubmissions}}
@@ -60,10 +60,10 @@
       <tr><td colspan="5" class="hint">No submissions yet.</td></tr>
     {{end}}
     </tbody>
-  </table>
+  </table></div>
 
   <label><input type="checkbox" id="show-past-toggle"> Show past members</label>
-  <table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Joined</th><th>Left</th><th></th></tr></thead>
     <tbody id="members-body">
     {{range .Members}}
@@ -84,7 +84,7 @@
       </tr>
     {{end}}
     </tbody>
-  </table>
+  </table></div>
 
   <div class="card" style="max-width:420px">
     <h2>Add a member</h2>
@@ -137,7 +137,7 @@
     <p id="add-result" class="hint"></p>
   </div>
 
-  <table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th>Added by</th><th></th></tr></thead>
     <tbody>
     {{range .Entries}}
@@ -155,7 +155,7 @@
       <tr><td colspan="5" class="hint">No repertoire yet.</td></tr>
     {{end}}
     </tbody>
-  </table>
+  </table></div>
 </main>
 <script>
 const schoolId = {{.School.ID}};

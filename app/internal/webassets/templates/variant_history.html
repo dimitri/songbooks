@@ -16,7 +16,7 @@
 </header>
 <main class="index">
   {{if not .CanEdit}}<p class="hint">You don't have edit rights on this variant, so reverting is disabled here.</p>{{end}}
-  <table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>When</th><th>By</th><th>Change</th><th></th></tr></thead>
     <tbody>
     {{range .Revisions}}
@@ -30,7 +30,7 @@
       <tr><td colspan="4" class="hint">No edits recorded yet.</td></tr>
     {{end}}
     </tbody>
-  </table>
+  </table></div>
 </main>
 <script>
 document.querySelectorAll('.revert-btn').forEach(btn => {

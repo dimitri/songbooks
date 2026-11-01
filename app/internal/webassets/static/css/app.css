@@ -95,6 +95,17 @@ body {
   background: var(--bg);
   color: var(--fg);
   -webkit-font-smoothing: antialiased;
+  /* Defense in depth, not the actual fix: every known source of
+     horizontal page overflow found in this pass (the chart's own bar
+     grid, .content-row's cross-axis sizing, auto-layout data tables) was
+     fixed at its own root cause — see their own CSS comments — so this
+     should never actually trigger. It's here as a backstop against the
+     NEXT one: a clipped few px of page-level horizontal scroll (and the
+     rubber-band sideways pan it invites on a touch device) reads as a
+     much worse bug than a locally clipped element, so if some future
+     addition reintroduces a stray overflow source, this keeps it from
+     taking the whole page down with it. */
+  overflow-x: hidden;
 }
 
 a { color: var(--accent); text-decoration: none; }
@@ -133,10 +144,20 @@ button.icon-btn .icon { margin-right: 0; width: 1.15em; height: 1.15em; }
 select {
   background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border);
   border-radius: 8px; padding: 0.4rem 0.6rem;
+  /* A native <select> sizes to its LONGEST <option> text by default, with
+     no wrapping possible — a verbose option ("new song (add an existing
+     variant to the repertoire)", the band-proposal kind picker) can be
+     wider than an entire phone viewport on its own, pushing the whole
+     page into horizontal overflow with nothing else involved. max-width
+     caps it at its container's width instead; the select's own closed
+     state still shows as much of the text as fits (native truncation),
+     and the full option text is always there once it's opened. */
+  max-width: 100%;
 }
 input[type="text"], input[type="url"], input[type="date"] {
   background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border);
   border-radius: 8px; padding: 0.4rem 0.6rem;
+  max-width: 100%; /* same reasoning as select's own max-width, above */
 }
 
 .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; background: var(--bg-raised); gap: 2px; }
@@ -163,6 +184,21 @@ input[type="text"], input[type="url"], input[type="date"] {
 #mode-segmented .icon { width: 1.05rem; height: 1.05rem; }
 
 .card { background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+/* Every data table in the app (catalog, band/school rosters and
+   repertoire, admin, notifications, submissions...) is `width:100%` with
+   ordinary (auto) table layout — on a phone, a handful of columns (even
+   just Title/Artist/Project/Visibility) easily need more min-content
+   width than that, and auto table layout treats width:100% as a floor,
+   not a cap: it grows PAST its container to fit that content instead of
+   wrapping or shrinking, pushing the whole page wider than the viewport
+   (the same class of bug as the chart's own bar grid, just for a table
+   instead of bars). Wrapping each table in this scoped scroll container
+   — not a page-wide overflow guard — keeps the table's own real layout
+   (columns still line up) while confining the overflow to a horizontal
+   scroll of just that table, the same move the song-structure-strip
+   ticker already makes for its own nowrap row. */
+.table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 /* ---- App chrome ---------------------------------------------------------- */
 .app-header {

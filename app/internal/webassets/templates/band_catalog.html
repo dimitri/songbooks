@@ -43,7 +43,7 @@
     <p id="add-result" class="hint"></p>
   </div>
 
-  <table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th>Visibility</th><th>Added by</th><th></th></tr></thead>
     <tbody>
     {{range .Entries}}
@@ -63,7 +63,7 @@
       <tr><td colspan="6" class="hint">No repertoire yet — add or fork a variant above.</td></tr>
     {{end}}
     </tbody>
-  </table>
+  </table></div>
 </main>
 <script>
 const bandId = {{.Band.ID}};

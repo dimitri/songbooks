@@ -23,7 +23,7 @@
     <p class="card">Nothing to pick yet — ask the organizer, or add one yourself above.</p>
   {{end}}
   {{range .Songs}}
-    <table class="card" style="width:100%" data-song-id="{{.ID}}">
+    <div class="table-scroll"><table class="card" style="width:100%" data-song-id="{{.ID}}">
       <thead><tr><th colspan="3">{{.Title}}</th></tr></thead>
       <tbody>
       {{if .Instruments}}
@@ -74,7 +74,7 @@
         <td><button type="button" class="jam-pick-btn jam-pick-custom" data-song-id="{{.ID}}">I'm in</button></td>
       </tr>
       </tbody>
-    </table>
+    </table></div>
     {{if .Sections}}
     {{$song := .}}
     <div class="card jam-sections" data-variant-id="{{$song.ID}}">
