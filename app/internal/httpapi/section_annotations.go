@@ -23,6 +23,12 @@ import (
 // used only here.
 func (s *Server) optionalPerson(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Dev-only escape hatch — see Server.devAutoLogin and requireAuth's
+		// matching branch. nil (and this branch dead) unless explicitly set.
+		if s.devAutoLogin != nil {
+			next(w, r.WithContext(context.WithValue(r.Context(), personCtxKey, s.devAutoLogin)))
+			return
+		}
 		if cookie, err := r.Cookie(sessionCookie); err == nil {
 			if p, err := s.store.GetSession(r.Context(), cookie.Value); err == nil {
 				r = r.WithContext(context.WithValue(r.Context(), personCtxKey, p))

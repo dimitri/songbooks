@@ -43,6 +43,17 @@ func actorID(r *http.Request) int64 {
 // one, not a change to this one; don't fold jam access into this check.
 func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Dev-only escape hatch (see Server.devAutoLogin's doc comment):
+		// when set, skip the session-cookie check entirely and act as
+		// already logged in as that person. s.devAutoLogin is nil unless
+		// --dev-auto-login/SONGBOOKS_DEV_AUTO_LOGIN was explicitly passed,
+		// so this branch is dead code — never taken — on every deployment
+		// that didn't deliberately opt in, including production.
+		if s.devAutoLogin != nil {
+			ctx := context.WithValue(r.Context(), personCtxKey, s.devAutoLogin)
+			next(w, r.WithContext(ctx))
+			return
+		}
 		cookie, err := r.Cookie(sessionCookie)
 		if err != nil {
 			s.denyUnauthenticated(w, r)

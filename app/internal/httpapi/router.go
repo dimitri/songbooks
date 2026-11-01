@@ -15,6 +15,18 @@ type Server struct {
 	pdf    *pdf.Bridge      // nil when v2Root is unset — PDF export routes 503 in that case
 	ly     *lilypond.Bridge // the LilyPond export pipeline — needs no external template tree, so always non-nil; a missing `lilypond` binary only surfaces as a request-time 500
 	mailer mailer.Mailer
+
+	// devAutoLogin, when non-nil, makes requireAuth (and everything built
+	// on it: requireRole/requireAdmin/requireBandMember/.../optionalPerson)
+	// treat EVERY request as already authenticated as this person, with no
+	// session cookie needed at all. Wired from --dev-auto-login /
+	// SONGBOOKS_DEV_AUTO_LOGIN (see cmd/songbooks/main.go), which defaults
+	// to unset/off and must be deliberately set — this field is nil, and
+	// the normal cookie-checking path in requireAuth runs completely
+	// unchanged, unless that flag was explicitly given. NEVER set on the
+	// production deployment: it disables authentication for anyone who can
+	// reach the server at all. See main.go's loud startup banner.
+	devAutoLogin *store.Person
 }
 
 // NewServer wires the HTTP handler. v2Root is the path to the v2/ Typst
@@ -22,9 +34,12 @@ type Server struct {
 // to; pass "" to disable PDF export (e.g. a deployment with no v2/ checkout
 // available). m is the mailer magic-link login uses to "send" its emails —
 // see internal/mailer and cmd/songbooks/main.go, which constructs a
-// mailer.ConsoleMailer by default.
-func NewServer(st *store.Store, v2Root string, m mailer.Mailer) http.Handler {
-	s := &Server{store: st, mailer: m, ly: lilypond.NewBridge()}
+// mailer.ConsoleMailer by default. devAutoLogin is nil in every normal
+// (including production) deployment — see the Server.devAutoLogin doc
+// comment above for what setting it does and why that must never happen
+// in production.
+func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *store.Person) http.Handler {
+	s := &Server{store: st, mailer: m, ly: lilypond.NewBridge(), devAutoLogin: devAutoLogin}
 	if v2Root != "" {
 		s.pdf = pdf.New(v2Root)
 	}

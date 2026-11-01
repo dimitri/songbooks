@@ -31,6 +31,7 @@ func main() {
 	grantAdminUser := flag.String("grant-admin", "", "one-time bootstrap: grant this username site-wide admin (is_admin), then exit — the only way to create the first admin, since there's no self-serve path")
 	setEmailUser := flag.String("set-email", "", "one-time bootstrap: set a pre-existing account's email so it can use magic-link login — pass the username here and the email as the one remaining positional argument, e.g. songbooks --set-email tapoueh me@example.com")
 	smtpURL := flag.String("smtp-url", "", "real SMTP endpoint for outbound mail — NOT YET IMPLEMENTED; if set, this is logged and the server falls back to the console/outbox mailer. Swapping in a real mailer.Mailer implementation here is the contained follow-up change this flag is a placeholder for.")
+	devAutoLoginUser := flag.String("dev-auto-login", envOr("SONGBOOKS_DEV_AUTO_LOGIN", ""), "DEV/TESTING ONLY, DEFAULT OFF: if set to a username, every single HTTP request is automatically authenticated as that person — /login is skipped entirely, no cookie, no session. This completely disables authentication for anyone who can reach the server. NEVER set this (as a flag or as the SONGBOOKS_DEV_AUTO_LOGIN env var) on a production or otherwise publicly-reachable deployment. Leave it unset (the default) everywhere except your own local dev loop.")
 	flag.Parse()
 
 	ctx := context.Background()
@@ -116,7 +117,24 @@ func main() {
 	}
 	m := mailer.NewConsoleMailer(st)
 
-	handler := httpapi.NewServer(st, *v2Root, m)
+	var devAutoLogin *store.Person
+	if *devAutoLoginUser != "" {
+		p, err := st.GetPersonByUsername(ctx, *devAutoLoginUser)
+		if err != nil {
+			log.Fatalf("--dev-auto-login %q: %v", *devAutoLoginUser, err)
+		}
+		devAutoLogin = p
+		log.Printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+		log.Printf("!!! DEV AUTO-LOGIN IS ACTIVE: every request is auto-authenticated as %-20q !!!", p.Username)
+		log.Printf("!!! ALL AUTHENTICATION IS DISABLED. /login is bypassed for every visitor.      !!!")
+		log.Printf("!!! THIS MUST NEVER RUN ON A PRODUCTION OR PUBLICLY-REACHABLE DEPLOYMENT.      !!!")
+		log.Printf("!!! If you are seeing this banner on songbooks.tapoueh.org (or any other live  !!!")
+		log.Printf("!!! deployment), stop the server NOW: unset --dev-auto-login /                 !!!")
+		log.Printf("!!! SONGBOOKS_DEV_AUTO_LOGIN and restart.                                       !!!")
+		log.Printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	}
+
+	handler := httpapi.NewServer(st, *v2Root, m, devAutoLogin)
 
 	log.Printf("songbooks serving %s on http://%s", *dbURL, *addr)
 	log.Fatal(http.ListenAndServe(*addr, handler))
