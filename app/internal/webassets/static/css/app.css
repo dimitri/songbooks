@@ -1474,7 +1474,12 @@ textarea {
    same way) and the body-level "+" (add chords or lyrics to a section that
    doesn't have them yet). */
 .insert-menu {
-  position: fixed; z-index: 60; background: var(--bg-raised); border: 1px solid var(--border);
+  /* Above .edit-drawer's z-index: 100 — this menu (the section-insert
+     picker and the iReal-style chord quick-pick) is only ever opened from
+     inside that drawer, and at the old z-index: 60 it rendered invisibly
+     behind it: a real, pre-existing bug that made the chord palette
+     unusable from its only call site. */
+  position: fixed; z-index: 110; background: var(--bg-raised); border: 1px solid var(--border);
   border-radius: 8px; box-shadow: var(--shadow-lg, var(--shadow)); padding: 0.3rem;
   min-width: 11rem; max-height: 70vh; overflow-y: auto;
 }
