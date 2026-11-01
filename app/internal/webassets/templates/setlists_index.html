@@ -49,7 +49,7 @@
     <ul class="song-list">
       {{range .MySetlists}}
       <li>
-        <strong>{{.Title}}</strong> <span class="song-link-sub">{{.Kind}}</span>
+        <strong>{{.Title}}</strong>
         <a class="gig-link" href="/setlists/{{.ID}}/practice">practice</a>
         <a class="gig-link" href="/setlists/{{.ID}}/listening">listening</a>
       </li>
@@ -59,7 +59,6 @@
     <p class="hint">No personal set lists yet.</p>
     {{end}}
     <div class="structure-actions">
-      <select id="my-setlist-kind"><option value="practice">practice</option><option value="themed">themed</option><option value="performance">performance</option></select>
       <input type="text" id="my-setlist-title" placeholder="title">
       <button id="new-my-setlist-btn" type="button" class="primary">{{template "icon-plus"}} Create personal set list</button>
     </div>
@@ -72,7 +71,7 @@
     <ul class="song-list">
       {{range .Setlists}}
       <li>
-        <strong>{{.Title}}</strong> <span class="song-link-sub">{{.Kind}}</span>
+        <strong>{{.Title}}</strong>
         <a class="gig-link" href="/setlists/{{.ID}}/practice">practice</a>
         <a class="gig-link" href="/setlists/{{.ID}}/listening">listening</a>
       </li>
@@ -82,7 +81,6 @@
     <p class="hint">No set lists yet for this band.</p>
     {{end}}
     <div class="structure-actions">
-      <select class="band-setlist-kind" data-band-id="{{.Band.ID}}"><option value="performance">performance</option><option value="themed">themed</option><option value="practice">practice</option></select>
       <input type="text" class="band-setlist-title" placeholder="title">
       <button type="button" class="primary new-band-setlist-btn" data-band-id="{{.Band.ID}}">{{template "icon-plus"}} Create band set list</button>
     </div>
@@ -97,12 +95,12 @@ document.getElementById('new-setlist-btn').addEventListener('click', () => {
   window.location.href = `/setlists/${book}/${stem}`;
 });
 
-async function createScopedSetlist(scope, kind, title, bandID) {
+async function createScopedSetlist(scope, title, bandID) {
   if (!title) return;
   const res = await fetch('/api/setlists', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({scope, kind, title, band_id: bandID || 0}),
+    body: JSON.stringify({scope, title, band_id: bandID || 0}),
   });
   const data = await res.json();
   if (res.ok) {
@@ -113,18 +111,16 @@ async function createScopedSetlist(scope, kind, title, bandID) {
 }
 
 document.getElementById('new-my-setlist-btn').addEventListener('click', () => {
-  const kind = document.getElementById('my-setlist-kind').value;
   const title = document.getElementById('my-setlist-title').value.trim();
-  createScopedSetlist('person', kind, title, 0);
+  createScopedSetlist('person', title, 0);
 });
 
 document.querySelectorAll('.new-band-setlist-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const bandID = Number(btn.dataset.bandId);
     const card = btn.closest('.book-card');
-    const kind = card.querySelector('.band-setlist-kind').value;
     const title = card.querySelector('.band-setlist-title').value.trim();
-    createScopedSetlist('band', kind, title, bandID);
+    createScopedSetlist('band', title, bandID);
   });
 });
 </script>

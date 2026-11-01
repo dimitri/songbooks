@@ -241,8 +241,6 @@ func (s *Server) handlePutSetlist(w http.ResponseWriter, r *http.Request) {
 type jsonSetlistMeta struct {
 	ID            int64  `json:"id"`
 	Scope         string `json:"scope"`
-	Kind          string `json:"kind"`
-	Reusable      bool   `json:"reusable"`
 	Notes         string `json:"notes"`
 	Title         string `json:"title"`
 	Book          string `json:"book,omitempty"`
@@ -254,7 +252,7 @@ type jsonSetlistMeta struct {
 
 func setlistMetaToJSON(m *store.SetlistMeta) jsonSetlistMeta {
 	return jsonSetlistMeta{
-		ID: m.ID, Scope: m.Scope, Kind: m.Kind, Reusable: m.Reusable, Notes: m.Notes, Title: m.Title,
+		ID: m.ID, Scope: m.Scope, Notes: m.Notes, Title: m.Title,
 		Book: m.Book, Stem: m.Stem, OwnerPersonID: m.OwnerPersonID, OwnerBandID: m.OwnerBandID,
 		Version: strconv.Itoa(m.Version),
 	}
@@ -269,22 +267,16 @@ func setlistMetaToJSON(m *store.SetlistMeta) jsonSetlistMeta {
 // on someone else's behalf").
 func (s *Server) handleCreateSetlist(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Scope    string `json:"scope"`
-		Kind     string `json:"kind"`
-		Title    string `json:"title"`
-		Notes    string `json:"notes"`
-		Reusable *bool  `json:"reusable"`
-		BandID   int64  `json:"band_id"`
+		Scope  string `json:"scope"`
+		Title  string `json:"title"`
+		Notes  string `json:"notes"`
+		BandID int64  `json:"band_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
 	person := personFromContext(r)
-	reusable := true
-	if req.Reusable != nil {
-		reusable = *req.Reusable
-	}
 
 	var ownerPersonID, ownerBandID *int64
 	switch req.Scope {
@@ -310,7 +302,7 @@ func (s *Server) handleCreateSetlist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := s.store.CreateSetlist(r.Context(), req.Scope, req.Kind, req.Title, req.Notes, reusable, ownerPersonID, ownerBandID, person.ID)
+	id, err := s.store.CreateSetlist(r.Context(), req.Scope, req.Title, req.Notes, ownerPersonID, ownerBandID, person.ID)
 	if err != nil {
 		httpError(w, http.StatusBadRequest, err.Error())
 		return
@@ -351,8 +343,8 @@ func (s *Server) handleGetSetlistByID(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePutSetlistByID is PUT /api/setlists/{id} — edits a person- or
-// band-scoped setlist's title/notes/kind/reusable fields and entries.
-// Also works, deliberately, on a project-scoped setlist's id (an
+// band-scoped setlist's title/notes fields and entries. Also works,
+// deliberately, on a project-scoped setlist's id (an
 // equivalent, id-addressed alternative to the existing book/stem PUT
 // route) — CanEditSetlistByID enforces the same editor-role rule as
 // requireRole("editor") does for that route, so this doesn't loosen
@@ -379,23 +371,17 @@ func (s *Server) handlePutSetlistByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Version  string      `json:"version"`
-		Title    string      `json:"title"`
-		Notes    string      `json:"notes"`
-		Kind     string      `json:"kind"`
-		Reusable *bool       `json:"reusable"`
-		Setlist  jsonSetlist `json:"setlist"`
+		Version string      `json:"version"`
+		Title   string      `json:"title"`
+		Notes   string      `json:"notes"`
+		Setlist jsonSetlist `json:"setlist"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	reusable := true
-	if req.Reusable != nil {
-		reusable = *req.Reusable
-	}
 	l := setlistFromJSON(req.Setlist)
-	newVersion, err := s.store.SaveSetlistByID(r.Context(), id, l, req.Title, req.Notes, req.Kind, reusable, req.Version, person.ID)
+	newVersion, err := s.store.SaveSetlistByID(r.Context(), id, l, req.Title, req.Notes, req.Version, person.ID)
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			httpError(w, http.StatusConflict, err.Error())

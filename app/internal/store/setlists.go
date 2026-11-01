@@ -92,15 +92,18 @@ func (st *Store) ImportSetlist(book, stem, body string) error {
 // --- Phase 3: setlist scope (person/band-owned setlists, addressed by
 // id rather than book/stem) and gigs -----------------------------------
 
-// SetlistMeta is a setlist's scope/kind/ownership metadata — everything
+// SetlistMeta is a setlist's scope/ownership metadata — everything
 // about a setlist other than its parsed entries, as the id-addressed
 // routes (practice/listening, and person/band CRUD) need it. Book is ""
 // for a person/band-scoped setlist (project_id is NULL for those).
+//
+// kind/reusable (performance/themed/practice) were removed per the user's
+// own call: they were only explanatory scaffolding for scope
+// (project/person/band), which is the distinction that actually matters
+// and is the only one kept — see migration 0016.
 type SetlistMeta struct {
 	ID            int64
 	Scope         string // "project", "person", "band"
-	Kind          string // "performance", "themed", "practice"
-	Reusable      bool
 	Notes         string
 	Title         string
 	Book          string
@@ -122,26 +125,24 @@ type SetlistMeta struct {
 type SetlistSnapshot struct {
 	Exists        bool   `json:"exists"`
 	Scope         string `json:"scope"`
-	Kind          string `json:"kind"`
 	Title         string `json:"title"`
 	Notes         string `json:"notes"`
-	Reusable      bool   `json:"reusable"`
 	Body          string `json:"body"`
 	OwnerPersonID *int64 `json:"person_id"`
 	OwnerBandID   *int64 `json:"band_id"`
 }
 
-// GetSetlistMeta loads one setlist's scope/kind/ownership metadata by id
-// — works for any scope, project-scoped setlists included.
+// GetSetlistMeta loads one setlist's scope/ownership metadata by id —
+// works for any scope, project-scoped setlists included.
 func (st *Store) GetSetlistMeta(ctx context.Context, id int64) (*SetlistMeta, error) {
 	var m SetlistMeta
 	var book *string
 	err := st.db.QueryRow(ctx, `
-		SELECT sl.id, sl.scope::text, sl.kind::text, sl.reusable, sl.notes, sl.title,
+		SELECT sl.id, sl.scope::text, sl.notes, sl.title,
 		       p.slug, sl.stem, sl.owner_person_id, sl.owner_band_id, sl.version, sl.created_at
 		FROM setlists sl LEFT JOIN projects p ON p.id = sl.project_id
 		WHERE sl.id = $1`, id).
-		Scan(&m.ID, &m.Scope, &m.Kind, &m.Reusable, &m.Notes, &m.Title,
+		Scan(&m.ID, &m.Scope, &m.Notes, &m.Title,
 			&book, &m.Stem, &m.OwnerPersonID, &m.OwnerBandID, &m.Version, &m.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such setlist %d: %w", id, ErrNotFound)
@@ -226,12 +227,9 @@ func (st *Store) CanEditSetlistByID(ctx context.Context, personID, setlistID int
 // scoped setlists are still created via SaveSetlist's upsert-on-book/stem
 // path — unchanged). Exactly one of ownerPersonID/ownerBandID must be
 // set, matching scope. Returns the new setlist's id.
-func (st *Store) CreateSetlist(ctx context.Context, scope, kind, title, notes string, reusable bool, ownerPersonID, ownerBandID *int64, actorPersonID int64) (int64, error) {
+func (st *Store) CreateSetlist(ctx context.Context, scope, title, notes string, ownerPersonID, ownerBandID *int64, actorPersonID int64) (int64, error) {
 	if scope != "person" && scope != "band" {
 		return 0, fmt.Errorf("invalid setlist scope %q for CreateSetlist (project-scoped setlists are created via the existing book/stem path)", scope)
-	}
-	if kind != "performance" && kind != "themed" && kind != "practice" {
-		return 0, fmt.Errorf("invalid setlist kind %q", kind)
 	}
 	if scope == "person" && ownerPersonID == nil {
 		return 0, fmt.Errorf("owner_person_id is required for a person-scoped setlist")
@@ -248,10 +246,10 @@ func (st *Store) CreateSetlist(ctx context.Context, scope, kind, title, notes st
 
 	var id int64
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO setlists (project_id, stem, title, body, scope, owner_person_id, owner_band_id, kind, reusable, notes)
-		VALUES (NULL, '', $1, '', $2, $3, $4, $5, $6, $7)
+		INSERT INTO setlists (project_id, stem, title, body, scope, owner_person_id, owner_band_id, notes)
+		VALUES (NULL, '', $1, '', $2, $3, $4, $5)
 		RETURNING id`,
-		title, scope, ownerPersonID, ownerBandID, kind, reusable, notes).Scan(&id); err != nil {
+		title, scope, ownerPersonID, ownerBandID, notes).Scan(&id); err != nil {
 		return 0, err
 	}
 
@@ -266,26 +264,25 @@ func (st *Store) CreateSetlist(ctx context.Context, scope, kind, title, notes st
 	return id, nil
 }
 
-// SaveSetlistByID edits a setlist's title/notes/kind/reusable fields and
-// its entries, by id — the path person/band-scoped setlists are edited
-// through (project-scoped setlists keep using SaveSetlist's book/stem
-// path unchanged). If expectVersion is non-empty, the save is rejected
-// with ErrConflict when the row's current version doesn't match.
-func (st *Store) SaveSetlistByID(ctx context.Context, id int64, l *setlist.Setlist, title, notes, kind string, reusable bool, expectVersion string, actorPersonID int64) (string, error) {
+// SaveSetlistByID edits a setlist's title/notes fields and its entries,
+// by id — the path person/band-scoped setlists are edited through
+// (project-scoped setlists keep using SaveSetlist's book/stem path
+// unchanged). If expectVersion is non-empty, the save is rejected with
+// ErrConflict when the row's current version doesn't match.
+func (st *Store) SaveSetlistByID(ctx context.Context, id int64, l *setlist.Setlist, title, notes string, expectVersion string, actorPersonID int64) (string, error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return "", err
 	}
 	defer tx.Rollback(ctx)
 
-	var curScope, curKind, curTitle, curNotes, curBody string
-	var curReusable bool
+	var curScope, curTitle, curNotes, curBody string
 	var curOwnerPerson, curOwnerBand *int64
 	var curVersion int
 	err = tx.QueryRow(ctx, `
-		SELECT scope::text, kind::text, title, notes, reusable, body, owner_person_id, owner_band_id, version
+		SELECT scope::text, title, notes, body, owner_person_id, owner_band_id, version
 		FROM setlists WHERE id = $1 FOR UPDATE`, id).
-		Scan(&curScope, &curKind, &curTitle, &curNotes, &curReusable, &curBody, &curOwnerPerson, &curOwnerBand, &curVersion)
+		Scan(&curScope, &curTitle, &curNotes, &curBody, &curOwnerPerson, &curOwnerBand, &curVersion)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", fmt.Errorf("no such setlist %d: %w", id, ErrNotFound)
 	}
@@ -301,8 +298,8 @@ func (st *Store) SaveSetlistByID(ctx context.Context, id int64, l *setlist.Setli
 		actor = &actorPersonID
 	}
 	if err := st.RecordRevision(ctx, tx, "setlist", strconv.FormatInt(id, 10), actor, SetlistSnapshot{
-		Exists: true, Scope: curScope, Kind: curKind, Title: curTitle, Notes: curNotes,
-		Reusable: curReusable, Body: curBody, OwnerPersonID: curOwnerPerson, OwnerBandID: curOwnerBand,
+		Exists: true, Scope: curScope, Title: curTitle, Notes: curNotes,
+		Body: curBody, OwnerPersonID: curOwnerPerson, OwnerBandID: curOwnerBand,
 	}); err != nil {
 		return "", err
 	}
@@ -310,10 +307,10 @@ func (st *Store) SaveSetlistByID(ctx context.Context, id int64, l *setlist.Setli
 	body := setlist.Write(l)
 	var newVersion int
 	if err := tx.QueryRow(ctx, `
-		UPDATE setlists SET title = $1, notes = $2, kind = $3, reusable = $4, body = $5, version = version + 1
-		WHERE id = $6
+		UPDATE setlists SET title = $1, notes = $2, body = $3, version = version + 1
+		WHERE id = $4
 		RETURNING version`,
-		title, notes, kind, reusable, body, id).Scan(&newVersion); err != nil {
+		title, notes, body, id).Scan(&newVersion); err != nil {
 		return "", err
 	}
 
@@ -350,7 +347,7 @@ func (st *Store) ListSetlistsForBand(ctx context.Context, bandID int64) ([]Setli
 
 func (st *Store) listSetlistsByOwner(ctx context.Context, whereClause string, ownerID int64) ([]SetlistMeta, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT id, scope::text, kind::text, reusable, notes, title, stem, owner_person_id, owner_band_id, version, created_at
+		SELECT id, scope::text, notes, title, stem, owner_person_id, owner_band_id, version, created_at
 		FROM setlists WHERE `+whereClause+` ORDER BY created_at DESC`, ownerID)
 	if err != nil {
 		return nil, err
@@ -359,7 +356,7 @@ func (st *Store) listSetlistsByOwner(ctx context.Context, whereClause string, ow
 	var out []SetlistMeta
 	for rows.Next() {
 		var m SetlistMeta
-		if err := rows.Scan(&m.ID, &m.Scope, &m.Kind, &m.Reusable, &m.Notes, &m.Title, &m.Stem,
+		if err := rows.Scan(&m.ID, &m.Scope, &m.Notes, &m.Title, &m.Stem,
 			&m.OwnerPersonID, &m.OwnerBandID, &m.Version, &m.CreatedAt); err != nil {
 			return nil, err
 		}
