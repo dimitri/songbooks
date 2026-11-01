@@ -59,6 +59,36 @@ var funcMap = template.FuncMap{
 		}
 		return strconv.FormatInt(*n, 10)
 	},
+	// instrumentIcon renders the shared icon-picker glyph for a common
+	// instrument name — plain Unicode/emoji, not an icon font or SVG
+	// sprite, so no new build step/asset pipeline is needed for it (see
+	// jam_landing.html/jam_songs.html/jam_add_songs.html's icon pickers).
+	// Anything outside this small set has no icon — those stay text input
+	// ("other").
+	"instrumentIcon": func(instrument string) string {
+		switch instrument {
+		case "drummer":
+			return "\U0001F941" // 🥁
+		case "bassist":
+			return "\U0001FA95" // 🪕 (stands in for bass — distinguishable from guitarist's 🎸 at a glance)
+		case "guitarist":
+			return "\U0001F3B8" // 🎸
+		case "singer":
+			return "\U0001F3A4" // 🎤
+		default:
+			return ""
+		}
+	},
+	// contains reports whether a string slice holds v — e.g. "is this
+	// instrument already checked on the person's profile."
+	"contains": func(list []string, v string) bool {
+		for _, s := range list {
+			if s == v {
+				return true
+			}
+		}
+		return false
+	},
 }
 
 var typstEscapes = strings.NewReplacer(`\&`, "&", `\%`, "%", `\#`, "#", `\_`, "_", `\*`, "*")

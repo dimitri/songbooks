@@ -21,6 +21,11 @@ type Person struct {
 	DisplayName  string
 	PasswordHash string
 	IsAdmin      bool
+	// Instruments is the set of instruments this person plays, as
+	// free-form strings (reusing the jam-signup vocabulary — see
+	// DefaultInstrumentLimits — plus anything else they type). Used to
+	// pre-fill jam signup rather than to gate anything.
+	Instruments []string
 }
 
 // ProjectSummary is one project plus the asking person's own role in it —
@@ -60,17 +65,17 @@ func randomToken() (string, error) {
 
 // GetPersonByUsername looks up a person by their login name.
 func (st *Store) GetPersonByUsername(ctx context.Context, username string) (*Person, error) {
-	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(password_hash, ''), is_admin FROM people WHERE username = $1`, username)
+	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(password_hash, ''), is_admin, instruments FROM people WHERE username = $1`, username)
 }
 
 // GetPersonByID looks up a person by id.
 func (st *Store) GetPersonByID(ctx context.Context, id int64) (*Person, error) {
-	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(password_hash, ''), is_admin FROM people WHERE id = $1`, id)
+	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(password_hash, ''), is_admin, instruments FROM people WHERE id = $1`, id)
 }
 
 func (st *Store) scanPerson(ctx context.Context, query string, arg any) (*Person, error) {
 	var p Person
-	err := st.db.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.PasswordHash, &p.IsAdmin)
+	err := st.db.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.PasswordHash, &p.IsAdmin, &p.Instruments)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such person: %w", ErrNotFound)
 	}
@@ -78,6 +83,18 @@ func (st *Store) scanPerson(ctx context.Context, query string, arg any) (*Person
 		return nil, err
 	}
 	return &p, nil
+}
+
+// SetInstruments replaces personID's set of instruments (see Person.Instruments).
+func (st *Store) SetInstruments(ctx context.Context, personID int64, instruments []string) error {
+	tag, err := st.db.Exec(ctx, `UPDATE people SET instruments = $1 WHERE id = $2`, instruments, personID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no such person id %d: %w", personID, ErrNotFound)
+	}
+	return nil
 }
 
 // SetAdmin grants or revokes site-wide admin status for personID.
@@ -200,10 +217,10 @@ func (st *Store) CreateSession(ctx context.Context, personID int64) (string, err
 func (st *Store) GetSession(ctx context.Context, token string) (*Person, error) {
 	var p Person
 	err := st.db.QueryRow(ctx, `
-		SELECT p.id, p.username, p.display_name, coalesce(p.password_hash, ''), p.is_admin
+		SELECT p.id, p.username, p.display_name, coalesce(p.password_hash, ''), p.is_admin, p.instruments
 		FROM sessions s JOIN people p ON p.id = s.person_id
 		WHERE s.token = $1 AND s.expires_at > now()`, token).
-		Scan(&p.ID, &p.Username, &p.DisplayName, &p.PasswordHash, &p.IsAdmin)
+		Scan(&p.ID, &p.Username, &p.DisplayName, &p.PasswordHash, &p.IsAdmin, &p.Instruments)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such session: %w", ErrNotFound)
 	}

@@ -62,6 +62,12 @@ func NewServer(st *store.Store, v2Root string) http.Handler {
 
 	mux.HandleFunc("GET /metronome", s.requireAuth(s.handleMetronomePage))
 
+	// Profile (phase 6: instrument choice): a logged-in person's own
+	// account settings — currently just "which instruments do you play",
+	// used to pre-fill jam signup. See internal/httpapi/profile.go.
+	mux.HandleFunc("GET /profile", s.requireAuth(s.handleProfilePage))
+	mux.HandleFunc("POST /profile/instruments", s.requireAuth(s.handleUpdateInstruments))
+
 	// Catalog (phase 1 of the data-model rewrite): works/variants browsing,
 	// personal catalog, forking, annotations, and the generic
 	// revision/undo mechanism. All auth-gated only (requireAuth), not
@@ -168,7 +174,7 @@ func NewServer(st *store.Store, v2Root string) http.Handler {
 	// route above — handleJamCallStatus checks it itself.
 	mux.HandleFunc("GET /b/{book}/jam/{code}/call-status", s.requireAuth(s.handleJamCallStatus))
 	mux.HandleFunc("POST /b/{book}/jam/{code}/organizers", s.requireRole("editor", s.handleAddJamOrganizer))
-	mux.HandleFunc("GET /jam/{code}", s.handleJamLandingPage)
+	mux.HandleFunc("GET /jam/{code}", s.optionalPerson(s.handleJamLandingPage))
 	mux.HandleFunc("POST /jam/{code}/join", s.handleJamJoin)
 	mux.HandleFunc("GET /jam/{code}/songs", s.handleJamSongsPage)
 	mux.HandleFunc("POST /jam/{code}/picks", s.handleJamPick)

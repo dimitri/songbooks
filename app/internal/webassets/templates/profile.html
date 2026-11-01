@@ -1,0 +1,50 @@
+{{define "profile"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Profile — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
+</head>
+<body>
+<header class="app-header">
+  <a href="/">&larr; Songbooks</a>
+  <h1>Profile</h1>
+</header>
+<main>
+  <section class="card book-card">
+    <h2>{{.Me.DisplayName}} <span class="song-link-sub">@{{.Me.Username}}</span></h2>
+    <h3>Instruments you play</h3>
+    <p class="hint">Picked here pre-fill your instrument choice when you join a jam.</p>
+    <form method="post" action="/profile/instruments">
+      <div class="instrument-icon-row">
+        {{range .CommonInstruments}}
+        <label class="instrument-icon-btn{{if index $.Checked .}} active{{end}}">
+          <input type="checkbox" name="instrument" value="{{.}}"{{if index $.Checked .}} checked{{end}} style="display:none">
+          <span aria-hidden="true">{{instrumentIcon .}}</span>
+          <span class="instrument-icon-label">{{.}}</span>
+        </label>
+        {{end}}
+      </div>
+      <p><label>Other instruments (comma separated)<br>
+        <input type="text" name="other" value="{{.Other}}" placeholder="e.g. keyboard, sax">
+      </label></p>
+      <button type="submit" class="primary">Save</button>
+    </form>
+  </section>
+</main>
+<script>
+// A checkbox styled as an icon button — toggle the "active" look when
+// its (visually hidden) checkbox is clicked, same idea as the segmented
+// mode-switcher elsewhere in the app, just backed by real checkboxes so
+// the form still works with JS disabled.
+document.querySelectorAll('.instrument-icon-btn input[type=checkbox]').forEach(cb => {
+  cb.addEventListener('change', () => cb.closest('.instrument-icon-btn').classList.toggle('active', cb.checked));
+});
+</script>
+{{template "pwa-register"}}
+</body>
+</html>
+{{end}}

@@ -35,7 +35,13 @@ func (s *Server) handleCreateJamEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleJamLandingPage is the public (no login) page a jam code's link
-// opens: event name plus a nickname+instrument signup form.
+// opens: event name plus a nickname+instrument signup form. Reached via
+// optionalPerson (router.go), not requireAuth — jam signup itself stays
+// unlogged-nickname-only (see handleJamJoin), but a person who HAPPENS
+// to also be logged in in this same browser gets their own saved
+// instruments (Person.Instruments, set on /profile) passed through so
+// the form can pre-select their usual instrument rather than starting
+// blank — see jam_landing.html's icon picker.
 func (s *Server) handleJamLandingPage(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	ev, err := s.store.GetJamEvent(r.Context(), code)
@@ -43,7 +49,14 @@ func (s *Server) handleJamLandingPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "this jam link is invalid or has expired", http.StatusNotFound)
 		return
 	}
-	s.render(w, "jam_landing", map[string]any{"Code": code, "Name": ev.Name})
+	var myInstruments []string
+	if p := personFromContext(r); p != nil {
+		myInstruments = p.Instruments
+	}
+	s.render(w, "jam_landing", map[string]any{
+		"Code": code, "Name": ev.Name,
+		"CommonInstruments": commonInstruments, "MyInstruments": myInstruments,
+	})
 }
 
 // handleJamJoin creates a jam profile (no password — a nickname is the
@@ -219,6 +232,7 @@ func (s *Server) handleJamAddSongsPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "jam_add_songs", map[string]any{
 		"Book": book, "Code": code, "Name": ev.Name,
 		"Candidates": candidates, "DefaultRows": defaultInstrumentFormRows(),
+		"CommonInstruments": commonInstruments,
 	})
 }
 
@@ -337,7 +351,7 @@ func (s *Server) handleJamSongsPage(w http.ResponseWriter, r *http.Request) {
 	for _, js := range songs {
 		v := jamSongView{JamSong: js}
 		if sg, _, err := s.store.LoadSong(js.Book, js.Stem); err == nil {
-			notes, _ := s.store.ListAllSectionAnnotations(r.Context(), js.ID)
+			notes, _ := s.store.ListAllSectionAnnotations(r.Context(), js.ID, nil, &profile.ID)
 			byIndex := map[int][]store.SectionAnnotation{}
 			for _, n := range notes {
 				byIndex[n.SectionIndex] = append(byIndex[n.SectionIndex], n)
@@ -351,6 +365,7 @@ func (s *Server) handleJamSongsPage(w http.ResponseWriter, r *http.Request) {
 
 	s.render(w, "jam_songs", map[string]any{
 		"Code": code, "Name": ev.Name, "Nickname": profile.Nickname, "Songs": views,
+		"CommonInstruments": commonInstruments,
 	})
 }
 

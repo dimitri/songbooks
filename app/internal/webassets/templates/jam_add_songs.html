@@ -24,9 +24,25 @@
         <table style="width:100%">
           <thead><tr><th>Instrument</th><th>Min</th><th>Max (blank = no cap)</th></tr></thead>
           <tbody>
+          {{$i := 0}}
           {{range $.DefaultRows}}
+            {{$i = add1 $i}}
             <tr>
-              <td><input type="text" name="instrument" value="{{.Instrument}}" placeholder="instrument"></td>
+              <td>
+                {{/* Icon quick-fill for the common instruments — sets
+                     this row's own text input rather than replacing it
+                     outright, since min/max caps still ride along with
+                     whatever's typed there (any instrument name is
+                     valid, not just these four). */}}
+                <div class="instrument-icon-row">
+                  {{range $.CommonInstruments}}
+                  <button type="button" class="instrument-icon-btn instrument-icon-fill" data-target="instrument-row-{{$i}}" data-instrument="{{.}}" title="{{.}}">
+                    <span aria-hidden="true">{{instrumentIcon .}}</span>
+                  </button>
+                  {{end}}
+                </div>
+                <input type="text" id="instrument-row-{{$i}}" name="instrument" value="{{.Instrument}}" placeholder="instrument">
+              </td>
               <td><input type="number" name="min" min="0" value="{{.Min}}" style="width:4em"></td>
               <td><input type="number" name="max" min="0" value="{{.Max}}" style="width:4em" placeholder="unlimited"></td>
             </tr>
@@ -39,6 +55,14 @@
     </details>
   {{end}}
 </main>
+<script>
+document.querySelectorAll('.instrument-icon-fill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const input = document.getElementById(btn.dataset.target);
+    if (input) input.value = btn.dataset.instrument;
+  });
+});
+</script>
 </body>
 </html>
 {{end}}
