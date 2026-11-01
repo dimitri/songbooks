@@ -1342,6 +1342,12 @@ textarea {
 }
 .row-remove:hover { opacity: 1 !important; color: var(--danger); background: var(--bg-sunken); }
 
+/* ---- Song header fields (time signature / tempo), editable inline, same
+   row as the structure hint — see song.js's renderHeaderFields. --------- */
+.song-header-fields { display: flex; gap: 1rem; margin-bottom: 0.75rem; font-size: 0.85rem; flex-wrap: wrap; }
+.header-field { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--fg-muted); }
+.header-field-input { width: 4.5rem; padding: 0.25rem 0.4rem; text-align: center; }
+
 /* ---- Bar-matrix chord grid editor (iReal-Pro-inspired) ------------------- */
 .chip-wrap { margin-bottom: 0.5rem; }
 .bar-matrix { border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; padding: 0.75rem; background: var(--bg-sunken); }
@@ -1354,12 +1360,25 @@ textarea {
 }
 .matrix-cell.cell-open { border-left: 4px double var(--border-strong); }
 .matrix-cell.cell-close { border-right: 4px double var(--border-strong); }
+/* Bar-fullness feedback (Guitar Pro-style "does this measure balance?") —
+   solid green border once every slot holds a chord or a sustain, dashed
+   amber while something's still blank. */
+.matrix-cell.bar-complete { border-color: var(--ok, #2a8f4e); }
+.matrix-cell.bar-underfull { border-style: dashed; border-color: var(--warn, #c98a1f); }
 .matrix-cell-top { display: flex; align-items: center; justify-content: space-between; gap: 0.3rem; }
 .matrix-bar-no { font-size: 0.7rem; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.matrix-fullness { font-size: 0.7rem; font-variant-numeric: tabular-nums; color: var(--fg-muted); }
+.matrix-cell.bar-complete .matrix-fullness { color: var(--ok, #2a8f4e); }
+.matrix-cell.bar-underfull .matrix-fullness { color: var(--warn, #c98a1f); }
 .density-select { font-size: 0.7rem; padding: 0.1rem 0.2rem; border-radius: 4px; }
-.matrix-slots { display: flex; gap: 0.25rem; }
+/* flex-wrap: wrap — a bar split into several beat-slots (density > 1) needs
+   real room per slot for its chord text and ♪ button; wrapping onto a
+   second line inside the cell beats squeezing every slot down to an
+   unreadable sliver, which is what a plain nowrap row did here before. */
+.matrix-slots { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.matrix-slots > div { flex: 1 1 5rem; min-width: 5rem; }
 .matrix-slot {
-  flex: 1; min-width: 0; text-align: center; font-family: var(--font-chart); font-weight: 700;
+  width: 100%; min-width: 0; text-align: center; font-family: var(--font-chart); font-weight: 700;
   padding: 0.3rem 0.1rem; border-radius: 4px;
 }
 .matrix-cell-bottom { display: flex; gap: 0.3rem; align-items: center; justify-content: flex-end; }
@@ -1530,6 +1549,10 @@ textarea {
 }
 .chord-pick-row button:hover { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
 .chord-pick-row.quality button { font-weight: 400; font-size: 0.76rem; }
+.chord-pick-duration { align-items: center; border-top: 1px dashed var(--border); padding-top: 0.3rem; margin-top: 0.1rem; }
+.chord-pick-duration .hint { white-space: nowrap; }
+
+.advanced-syntax-notice { padding: 0.5rem 0.65rem; border: 1px dashed var(--border); border-radius: 6px; background: var(--bg-sunken); }
 
 .setlist-meta { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
 .setlist-meta label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; color: var(--fg-muted); }

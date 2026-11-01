@@ -794,6 +794,61 @@ const ICONS = {
   const structureEl = document.getElementById('structure');
   let structVersion = null, structMeta = [], structSections = [];
 
+  // ---- Header fields (time signature / tempo), editable inline ------------
+  // Previously the only way to change these was the raw "time: 4/4" /
+  // "tempo: 120" header lines in Source — fine as the advanced-syntax
+  // escape hatch, but everyday tempo/meter tweaks shouldn't require
+  // switching tabs. These write into the same structMeta array the Blocks
+  // "Save" button already round-trips through song.Write, so there is no
+  // separate save path or serializer to keep in sync.
+  function metaGet(key) {
+    const f = structMeta.find(f => f.key === key);
+    return f ? f.value : '';
+  }
+  function metaSet(key, value) {
+    const f = structMeta.find(f => f.key === key);
+    if (f) f.value = value;
+    else structMeta.push({ key, value });
+  }
+  function renderHeaderFields() {
+    const host = document.getElementById('song-header-fields');
+    if (!host) return;
+    host.innerHTML = '';
+
+    const timeField = document.createElement('label');
+    timeField.className = 'header-field';
+    timeField.append('time signature ');
+    const timeInput = document.createElement('input');
+    timeInput.type = 'text'; timeInput.inputMode = 'numeric'; timeInput.className = 'header-field-input';
+    timeInput.placeholder = '4/4';
+    timeInput.value = metaGet('time');
+    timeInput.title = 'e.g. 4/4, 3/4, 6/8 — affects beat slots and bar-fullness below';
+    timeInput.addEventListener('input', () => { metaSet('time', timeInput.value.trim()); renderBlocks(); });
+    timeField.appendChild(timeInput);
+
+    const tempoField = document.createElement('label');
+    tempoField.className = 'header-field';
+    tempoField.append('tempo ');
+    const tempoInput = document.createElement('input');
+    tempoInput.type = 'text'; tempoInput.inputMode = 'numeric'; tempoInput.className = 'header-field-input';
+    tempoInput.placeholder = '120';
+    tempoInput.value = metaGet('tempo');
+    tempoInput.title = 'beats per minute, saved to the song header';
+    tempoInput.addEventListener('input', () => { metaSet('tempo', tempoInput.value.trim()); });
+    tempoField.append(tempoInput, ' bpm');
+
+    host.append(timeField, tempoField);
+  }
+
+  // The song's own beatsPerBar as edited here, read fresh from structMeta
+  // every time (not the page-load `beatsPerBar` const above, which is
+  // baked from the server-rendered chart and would go stale the moment
+  // the time-signature field above is touched).
+  function editorBeatsPerBar() {
+    const n = parseInt((metaGet('time') || '').split('/')[0], 10);
+    return n > 0 ? n : beatsPerBar;
+  }
+
   function emptySection(label, repeat) {
     return { label, repeat, time: '', score: '', measures: [], lyrics: [], endings: [], notes: [] };
   }
@@ -822,6 +877,25 @@ const ICONS = {
   }
   function emptyMeasure() { return { tokens: [''], open: false, close: false, volta: '', meter: '' }; }
 
+  // ---- Raw-text fallback — the original design's "advanced syntax" guard:
+  // a section whose grid uses something the bar-matrix widget doesn't
+  // visually model (a per-bar meter override, a duration-tagged token like
+  // "Gm:2", or more open/close repeat barlines than the matrix's single
+  // "repeats" toggle can represent) still loads and saves correctly — its
+  // fields all survive untouched through joinVoltaGroups/the structured
+  // save — but the visual builder is disabled for it so editing it here
+  // can't silently misrepresent what's actually in the file. Edit it in
+  // Source instead, same as the original plan's "disable the widget,
+  // keep advanced-syntax sections in raw text" rule.
+  function sectionHasAdvancedSyntax(sec) {
+    const measures = sec.measures || [];
+    if (measures.some(m => m.meter)) return true;
+    if (measures.some(m => (m.tokens || []).some(t => /:/.test(t)))) return true;
+    if (measures.filter(m => m.open).length > 1) return true;
+    if (measures.filter(m => m.close).length > 1) return true;
+    return false;
+  }
+
   const expanded = new Set(); // section indices currently showing their bar matrix
   const expandedNotes = new Set(); // section indices currently showing their notes textarea
 
@@ -848,8 +922,34 @@ const ICONS = {
   function slotBeatLabel(slotIndex, slotCount, token) {
     if (slotCount <= 1) return null;
     if (slotIndex > 0 && (token === '.' || token === '')) return null;
-    const pulse = Math.round((slotIndex * beatsPerBar) / slotCount);
+    const pulse = Math.round((slotIndex * editorBeatsPerBar()) / slotCount);
     return pulseLabel(pulse);
+  }
+
+  // ---- Guitar-Pro-style duration placement: given a chord just typed or
+  // picked into slot ti of bar mi, "n" is how many consecutive slots it
+  // occupies ('bar' = the rest of the bar). The slots after the first are
+  // filled with "." (sustain) — never left blank — and the cursor
+  // auto-advances to the first slot past what was just filled, spilling
+  // into the next bar when this one is now full. This is also what a
+  // plain Enter/Tab keypress in a slot does (with n = 'bar'): "move on"
+  // always means "the bar I'm leaving balances", mirroring how Guitar Pro
+  // never lets you walk away from an underfull measure.
+  function applyDuration(sec, mi, ti, n) {
+    const m = sec.measures[mi];
+    const end = n === 'bar' ? m.tokens.length : Math.min(m.tokens.length, ti + n);
+    for (let k = ti + 1; k < end; k++) m.tokens[k] = '.';
+    renderMatrix(sec, secIndexOf(sec));
+    if (end < m.tokens.length) focusSlot(sec, mi, end);
+    else if (sec.measures[mi + 1]) focusSlot(sec, mi + 1, 0);
+  }
+  function focusSlot(sec, mi, ti) {
+    const i = secIndexOf(sec);
+    requestAnimationFrame(() => {
+      const host = document.getElementById('matrix-host-' + i);
+      const el = host && host.querySelector(`.matrix-slot[data-mi="${mi}"][data-ti="${ti}"]`);
+      if (el) el.focus();
+    });
   }
 
   // ---- Chord quick-pick: an iReal-Pro-style tap-assist popup next to each
@@ -859,7 +959,7 @@ const ICONS = {
   // allows (alt bass, odd extensions, "N.C.") still only needs typing. ---
   const ROOTS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
   const QUALITIES = ['', 'm', '7', 'maj7', 'm7', 'm7b5', 'dim', 'sus4', 'sus2', 'aug', '6', 'm6', '9'];
-  function openChordPicker(anchorBtn, input) {
+  function openChordPicker(anchorBtn, input, sec, mi, ti) {
     closeAnyMenu();
     const menu = document.createElement('div');
     menu.className = 'insert-menu chord-pick-menu';
@@ -900,6 +1000,25 @@ const ICONS = {
     utilRow.append(bassBtn, clearBtn);
     menu.appendChild(utilRow);
 
+    // Duration — how many beat-slots this chord occupies in the bar
+    // (Guitar Pro's "pick a duration, it auto-fills/advances"): the slots
+    // in between get the sustain mark, and the cursor jumps straight to
+    // where the next chord should go.
+    const durRow = document.createElement('div'); durRow.className = 'chord-pick-row chord-pick-duration';
+    const durLabel = document.createElement('span'); durLabel.className = 'hint'; durLabel.textContent = 'hold:';
+    durRow.appendChild(durLabel);
+    const slotCount = sec.measures[mi].tokens.length;
+    [1, 2].filter(n => n < slotCount).forEach(n => {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = n + ' slot' + (n > 1 ? 's' : '');
+      b.addEventListener('click', () => { closeAnyMenu(); applyDuration(sec, mi, ti, n); });
+      durRow.appendChild(b);
+    });
+    const barBtn = document.createElement('button'); barBtn.type = 'button'; barBtn.textContent = 'rest of bar';
+    barBtn.title = 'fill the remaining slots in this bar with a sustain and move to the next bar';
+    barBtn.addEventListener('click', () => { closeAnyMenu(); applyDuration(sec, mi, ti, 'bar'); });
+    durRow.appendChild(barBtn);
+    menu.appendChild(durRow);
+
     positionMenu(menu, anchorBtn);
   }
 
@@ -909,6 +1028,12 @@ const ICONS = {
     cell.className = 'matrix-cell';
     if (m.open) cell.classList.add('cell-open');
     if (m.close) cell.classList.add('cell-close');
+    // Widen the cell for a higher beat-density so its extra slots have
+    // somewhere to sit instead of being squeezed to near-zero width —
+    // the 7rem single-slot basis only ever assumed one chord per bar.
+    const cellWidth = 7 + Math.max(0, m.tokens.length - 1) * 4.6;
+    cell.style.flexBasis = cellWidth + 'rem';
+    cell.style.minWidth = cellWidth + 'rem';
 
     const top = document.createElement('div');
     top.className = 'matrix-cell-top';
@@ -924,7 +1049,8 @@ const ICONS = {
     // each one actually lands on, so that move reads unambiguously.
     const density = document.createElement('select');
     density.className = 'density-select';
-    const densityOptions = beatsPerBar >= 3 ? [1, 2, 3, beatsPerBar] : [1, beatsPerBar];
+    const bpb = editorBeatsPerBar();
+    const densityOptions = bpb >= 3 ? [1, 2, 3, bpb] : [1, bpb];
     [...new Set(densityOptions)].forEach(n => density.add(new Option(n + (n === 1 ? ' chord' : ' chords'), n)));
     density.value = densityOptions.includes(m.tokens.length) ? m.tokens.length : (m.tokens.length <= 1 ? 1 : densityOptions[densityOptions.length - 1]);
     density.addEventListener('change', () => {
@@ -936,6 +1062,21 @@ const ICONS = {
       renderMatrix(sec, secIndexOf(sec));
     });
     top.appendChild(density);
+
+    // Bar-fullness feedback (Guitar Pro's "does this measure balance?"):
+    // green/solid once every slot holds something (a chord or a "."
+    // sustain), amber/dashed while any slot is still blank. Recomputed
+    // after every edit to a slot in this bar, not just on load.
+    const fullness = document.createElement('span');
+    fullness.className = 'matrix-fullness';
+    function updateFullness() {
+      const complete = m.tokens.every(t => t !== '');
+      cell.classList.toggle('bar-complete', complete);
+      cell.classList.toggle('bar-underfull', !complete);
+      fullness.textContent = complete ? '✓' : `${m.tokens.filter(t => t !== '').length}/${m.tokens.length}`;
+      fullness.title = complete ? 'bar is filled' : 'bar is missing chords/sustains — pick a duration or press Enter to fill the rest';
+    }
+    top.appendChild(fullness);
     cell.appendChild(top);
 
     const slots = document.createElement('div');
@@ -952,16 +1093,31 @@ const ICONS = {
       const row = document.createElement('div'); row.className = 'matrix-slot-row';
       const input = document.createElement('input');
       input.type = 'text'; input.className = 'matrix-slot'; input.value = tok;
+      input.dataset.mi = String(mi); input.dataset.ti = String(ti);
       input.placeholder = ti === 0 ? '%' : '.';
-      input.addEventListener('input', () => { m.tokens[ti] = input.value; updateLabel(input.value); });
+      input.addEventListener('input', () => { m.tokens[ti] = input.value; updateLabel(input.value); updateFullness(); });
+      // Enter/Tab: the same "finish the bar" action a duration button's
+      // "rest of bar" gives you, reached straight from the keyboard —
+      // typing "Cm7" and hitting Enter sustains it through whatever's
+      // left of the bar and jumps to the next one, exactly like typing it
+      // via the chord-pick keyboard does. Both input paths land on the
+      // one applyDuration() call, so there is only ever one place that
+      // decides what "auto-complete this bar" means.
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === 'Tab') {
+          e.preventDefault();
+          applyDuration(sec, mi, ti, 'bar');
+        }
+      });
       const pick = document.createElement('button');
       pick.type = 'button'; pick.className = 'chord-pick-btn'; pick.textContent = '♪'; pick.title = 'pick a chord (root + quality)';
-      pick.addEventListener('click', () => openChordPicker(pick, input));
+      pick.addEventListener('click', () => openChordPicker(pick, input, sec, mi, ti));
       row.append(input, pick);
       slotWrap.appendChild(row);
       slots.appendChild(slotWrap);
     });
     cell.appendChild(slots);
+    updateFullness();
 
     // No per-bar freeform "ending" text field any more — alternate
     // endings are now their own dedicated panel below the common bars
@@ -1398,21 +1554,28 @@ const ICONS = {
         const body = document.createElement('div');
         body.className = 'block-body';
 
-        const chordToggle = document.createElement('button');
-        chordToggle.type = 'button'; chordToggle.className = 'block-chord-toggle';
-        chordToggle.textContent = (expanded.has(i) ? '▾ ' : '▸ ') + (bars_ ? `chords (${bars_} bars)` : '+ chord sequence');
-        chordToggle.addEventListener('click', () => {
-          if (!bars_ && !expanded.has(i)) { sec.measures = [emptyMeasure(), emptyMeasure(), emptyMeasure(), emptyMeasure()]; }
-          if (expanded.has(i)) expanded.delete(i); else expanded.add(i);
-          renderBlocks();
-        });
-        body.appendChild(chordToggle);
-        if (expanded.has(i)) {
-          const matrix = document.createElement('div');
-          matrix.className = 'bar-matrix';
-          matrix.id = 'matrix-host-' + i;
-          body.appendChild(matrix);
-          requestAnimationFrame(() => renderMatrix(sec, i));
+        if (sectionHasAdvancedSyntax(sec)) {
+          const notice = document.createElement('p');
+          notice.className = 'hint advanced-syntax-notice';
+          notice.textContent = `Advanced grid syntax (${bars_} bars) — a per-bar meter override, duration tag, or more than one repeat barline than this builder can show. Edit it precisely in the Source tab; nothing here will be changed or lost.`;
+          body.appendChild(notice);
+        } else {
+          const chordToggle = document.createElement('button');
+          chordToggle.type = 'button'; chordToggle.className = 'block-chord-toggle';
+          chordToggle.textContent = (expanded.has(i) ? '▾ ' : '▸ ') + (bars_ ? `chords (${bars_} bars)` : '+ chord sequence');
+          chordToggle.addEventListener('click', () => {
+            if (!bars_ && !expanded.has(i)) { sec.measures = [emptyMeasure(), emptyMeasure(), emptyMeasure(), emptyMeasure()]; }
+            if (expanded.has(i)) expanded.delete(i); else expanded.add(i);
+            renderBlocks();
+          });
+          body.appendChild(chordToggle);
+          if (expanded.has(i)) {
+            const matrix = document.createElement('div');
+            matrix.className = 'bar-matrix';
+            matrix.id = 'matrix-host-' + i;
+            body.appendChild(matrix);
+            requestAnimationFrame(() => renderMatrix(sec, i));
+          }
         }
 
         // Performance/arrangement notes — "GTR + claviers only", "Entree
@@ -1489,6 +1652,7 @@ const ICONS = {
       const { common, endings } = splitVoltaGroups(sec.measures || []);
       return { ...sec, measures: common, endings };
     });
+    renderHeaderFields();
     renderBlocks();
   })();
 
