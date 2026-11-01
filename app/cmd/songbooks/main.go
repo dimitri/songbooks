@@ -18,6 +18,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"app/internal/httpapi"
+	"app/internal/mailer"
 	"app/internal/store"
 )
 
@@ -26,8 +27,10 @@ func main() {
 	dbURL := flag.String("db-url", envOr("DATABASE_URL", "postgres://localhost:5432/songbooks_dev?sslmode=disable"), "Postgres connection string (or set DATABASE_URL)")
 	v2Root := flag.String("v2-root", envOr("SONGBOOKS_V2_ROOT", ""), "path to the v2/ Typst pipeline (lib/, render.typ, render-book.typ) — required for PDF export; export is disabled if unset")
 	importPath := flag.String("import", "", "one-time import: load every book (directory with a songs/ subdir) under this path into the database, then exit")
-	setPasswordUser := flag.String("set-password", "", "one-time admin bootstrap: read a password for this username from stdin, hash it, store it, then exit")
+	setPasswordUser := flag.String("set-password", "", "one-time bootstrap: read a password for this username from stdin, hash it, store it, then exit — secondary/legacy auth path now that /login is magic-link-only")
 	grantAdminUser := flag.String("grant-admin", "", "one-time bootstrap: grant this username site-wide admin (is_admin), then exit — the only way to create the first admin, since there's no self-serve path")
+	setEmailUser := flag.String("set-email", "", "one-time bootstrap: set a pre-existing account's email so it can use magic-link login — pass the username here and the email as the one remaining positional argument, e.g. songbooks --set-email tapoueh me@example.com")
+	smtpURL := flag.String("smtp-url", "", "real SMTP endpoint for outbound mail — NOT YET IMPLEMENTED; if set, this is logged and the server falls back to the console/outbox mailer. Swapping in a real mailer.Mailer implementation here is the contained follow-up change this flag is a placeholder for.")
 	flag.Parse()
 
 	ctx := context.Background()
@@ -81,7 +84,39 @@ func main() {
 		return
 	}
 
-	handler := httpapi.NewServer(st, *v2Root)
+	if *setEmailUser != "" {
+		args := flag.Args()
+		if len(args) != 1 {
+			log.Fatalf("--set-email %q needs exactly one positional argument (the email address), got %d", *setEmailUser, len(args))
+		}
+		email := strings.ToLower(strings.TrimSpace(args[0]))
+		if email == "" {
+			log.Fatal("empty email")
+		}
+		p, err := st.GetPersonByUsername(ctx, *setEmailUser)
+		if err != nil {
+			log.Fatalf("looking up %q: %v", *setEmailUser, err)
+		}
+		if err := st.SetEmail(ctx, p.ID, email); err != nil {
+			log.Fatalf("saving email: %v", err)
+		}
+		fmt.Printf("email set for %s: %s\n", *setEmailUser, email)
+		return
+	}
+
+	// SMTP isn't wired up yet (out of scope for this phase — no mail
+	// server exists in this environment); the console/outbox mailer
+	// below is the deliverable. Swapping in a real mailer.Mailer
+	// implementation when one is needed is meant to be a contained
+	// change: construct it here instead of mailer.NewConsoleMailer, gated
+	// on *smtpURL, and nothing else in the codebase (store, httpapi)
+	// should need to change.
+	if *smtpURL != "" {
+		log.Printf("--smtp-url %q given, but real SMTP is not yet implemented — falling back to the console mailer", *smtpURL)
+	}
+	m := mailer.NewConsoleMailer(st)
+
+	handler := httpapi.NewServer(st, *v2Root, m)
 
 	log.Printf("songbooks serving %s on http://%s", *dbURL, *addr)
 	log.Fatal(http.ListenAndServe(*addr, handler))

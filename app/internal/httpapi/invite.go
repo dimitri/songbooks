@@ -3,8 +3,6 @@ package httpapi
 import (
 	"net/http"
 	"strings"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 // handleInvitePage shows a pending invite: if the visitor is already
@@ -35,9 +33,10 @@ func (s *Server) handleInvitePage(w http.ResponseWriter, r *http.Request) {
 
 // handlePostInvite accepts an invite. A logged-in visitor just gets the
 // membership added to their existing account; an anonymous one must supply
-// a username/display name/password, which creates a brand-new account in
-// the same transaction as the membership grant — see
-// store.CreatePersonAndAcceptInvite. Either way, the visitor ends up
+// a username/display name/email, which creates a brand-new, passwordless
+// account in the same transaction as the membership grant — see
+// store.CreatePersonAndAcceptInvite. Accepting the invite IS this
+// account's first authentication: either way, the visitor ends up
 // logged in (a fresh session cookie) and redirected into the project.
 func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
@@ -60,17 +59,12 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 
 	username := strings.TrimSpace(r.FormValue("username"))
 	displayName := strings.TrimSpace(r.FormValue("display_name"))
-	password := r.FormValue("password")
-	if username == "" || displayName == "" || password == "" {
-		http.Error(w, "username, display name and password are all required", http.StatusBadRequest)
+	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
+	if username == "" || displayName == "" || email == "" {
+		http.Error(w, "username, display name and email are all required", http.StatusBadRequest)
 		return
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	personID, dest, err := s.store.CreatePersonAndAcceptInvite(r.Context(), token, username, displayName, string(hash))
+	personID, dest, err := s.store.CreatePersonAndAcceptInvite(r.Context(), token, username, displayName, email)
 	if err != nil {
 		http.Error(w, "couldn't accept this invite: "+err.Error(), http.StatusBadRequest)
 		return
