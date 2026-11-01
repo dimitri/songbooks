@@ -109,6 +109,16 @@ button {
 button:hover:not(:disabled) { border-color: var(--border-strong); }
 button:disabled { opacity: 0.4; cursor: default; }
 button.primary { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); font-weight: 700; }
+/* button.danger: the one other weighted button variant — destructive,
+   hard-to-undo actions (delete a band, reject a proposal/submission,
+   remove a member, veto a song) need to read as different from a plain
+   neutral button and from .primary's "go" accent at a glance, not just
+   be discoverable by reading the label. Outlined rather than solid-filled
+   by default so a row of actions doesn't turn into two competing "loud"
+   buttons — it still gets a solid fill on hover/focus, where the person
+   is already committing to the click. */
+button.danger { color: var(--danger); border-color: var(--danger); background: var(--bg-raised); }
+button.danger:hover:not(:disabled), button.danger:focus-visible { background: var(--danger); color: #fff; border-color: var(--danger); }
 button.icon-btn { width: 2.3rem; height: 2.3rem; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; font-size: 1.05rem; }
 
 /* In-house SVG icons (templates/icons.html + the JS-built-row duplicates in
@@ -272,8 +282,17 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
 }
 .topbar-utility {
   grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 0.35rem 0.5rem;
 }
 .topbar-utility .back-link { padding: 0.2rem 0; font-size: 0.78rem; }
+/* These utility links/buttons (PDF, LY, versions, history, fork, notes,
+   theme) reuse .icon-btn for its pill look, but most of them are a text
+   label, not a single icon glyph — .icon-btn's fixed circular width (set
+   for a lone icon) clipped and ran that text together with no gap on a
+   narrow screen. Widen to fit the label instead of forcing the circle,
+   here specifically (an icon-only control like the theme toggle still
+   renders fine at auto width). */
+.topbar-utility .icon-btn { width: auto; min-width: 2.1rem; padding: 0.35rem 0.6rem; border-radius: 8px; font-size: 0.82rem; }
 .topbar-cell { display: flex; align-items: center; gap: 0.5rem; min-width: 0; color: var(--fg); }
 .topbar-cell.empty { visibility: hidden; }
 a.topbar-cell { padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid var(--border); }
