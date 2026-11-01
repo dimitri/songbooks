@@ -43,7 +43,8 @@
       <p><label>Username<br><input type="text" name="username" autocomplete="username" required autofocus></label></p>
       <p><label>Your name<br><input type="text" name="display_name" required></label></p>
       <p><label>Email<br><input type="email" name="email" autocomplete="email" required></label></p>
-      <p class="hint">No password needed — we'll email you a login link next time.</p>
+      <p><label>Password (optional)<br><input type="password" name="password" autocomplete="new-password"></label></p>
+      <p class="hint">Set a password now to log in with it right away, or leave it blank and we'll email you a login link each time instead — you can always add a password later from your profile page.</p>
       <button type="submit">Create account{{if ne .Kind "plain"}} &amp; join{{end}}</button>
     {{end}}
   </form>

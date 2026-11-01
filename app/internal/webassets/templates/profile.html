@@ -35,6 +35,24 @@
       <button type="submit" class="primary">Save</button>
     </form>
   </section>
+
+  <section class="card book-card">
+    <h3>Password</h3>
+    {{if .HasPassword}}
+      <p class="hint">A password is set on this account — you can log in with it or with a magic link.</p>
+    {{else}}
+      <p class="hint">No password set — you're currently magic-link-only. Set one below to also be able to log in with a password.</p>
+    {{end}}
+    {{if .PwSaved}}<p style="color:#2a7">Password saved.</p>{{end}}
+    {{if .PwError}}<p style="color:#b33">{{.PwError}}</p>{{end}}
+    <form method="post" action="/profile/password">
+      <p><label>{{if .HasPassword}}New password{{else}}Password{{end}}<br>
+        <input type="password" name="password" autocomplete="new-password" required minlength="8"></label></p>
+      <p><label>Confirm password<br>
+        <input type="password" name="confirm" autocomplete="new-password" required minlength="8"></label></p>
+      <button type="submit" class="primary">{{if .HasPassword}}Change password{{else}}Set password{{end}}</button>
+    </form>
+  </section>
 </main>
 <script>
 // A checkbox styled as an icon button — toggle the "active" look when

@@ -1,8 +1,11 @@
 package httpapi
 
 import (
+	"log"
 	"net/http"
 	"strings"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // handleInvitePage shows a pending invite: if the visitor is already
@@ -33,11 +36,15 @@ func (s *Server) handleInvitePage(w http.ResponseWriter, r *http.Request) {
 
 // handlePostInvite accepts an invite. A logged-in visitor just gets the
 // membership added to their existing account; an anonymous one must supply
-// a username/display name/email, which creates a brand-new, passwordless
-// account in the same transaction as the membership grant — see
-// store.CreatePersonAndAcceptInvite. Accepting the invite IS this
-// account's first authentication: either way, the visitor ends up
-// logged in (a fresh session cookie) and redirected into the project.
+// a username/display name/email, which creates a brand-new account in the
+// same transaction as the membership grant — see
+// store.CreatePersonAndAcceptInvite. The form's password field is
+// optional: left blank, the new account has no password and falls back to
+// magic-link-only login, exactly like before password login was restored;
+// filled in, it's hashed here and the account can log in with it right
+// away. Accepting the invite IS this account's first authentication
+// either way: the visitor ends up logged in (a fresh session cookie) and
+// redirected into the project.
 func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
 	if err := r.ParseForm(); err != nil {
@@ -64,7 +71,19 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "username, display name and email are all required", http.StatusBadRequest)
 		return
 	}
-	personID, dest, err := s.store.CreatePersonAndAcceptInvite(r.Context(), token, username, displayName, email)
+
+	var bcryptHash string
+	if password := r.FormValue("password"); password != "" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		if err != nil {
+			log.Printf("hashing invite-accept password: %v", err)
+			http.Error(w, "couldn't accept this invite", http.StatusInternalServerError)
+			return
+		}
+		bcryptHash = string(hash)
+	}
+
+	personID, dest, err := s.store.CreatePersonAndAcceptInvite(r.Context(), token, username, displayName, email, bcryptHash)
 	if err != nil {
 		http.Error(w, "couldn't accept this invite: "+err.Error(), http.StatusBadRequest)
 		return

@@ -13,14 +13,31 @@
   <div class="hero">
     <div>
       <h2>Log in</h2>
-      <p>Enter your email and we'll send you a link to log in — no password needed.</p>
+      <p>Two ways in: log in with your password, or have us email you a one-time link — whichever you've got set up.</p>
     </div>
   </div>
-  <form class="card" method="post" action="/login" style="max-width:360px">
+
+  <section class="card" style="max-width:360px">
+    <h3>Log in with a password</h3>
+    {{if .InvalidCredentials}}<p style="color:#b33">Invalid username/email or password.</p>{{end}}
+    <form method="post" action="/login">
+      <input type="hidden" name="mode" value="password">
+      <p><label>Username or email<br><input type="text" name="identifier" autocomplete="username" required autofocus></label></p>
+      <p><label>Password<br><input type="password" name="password" autocomplete="current-password" required></label></p>
+      <button type="submit">Log in</button>
+    </form>
+    <p class="hint">No password set yet? Use "email me a link" below, then set one from your profile page.</p>
+  </section>
+
+  <section class="card" style="max-width:360px">
+    <h3>Email me a login link</h3>
     {{if .Error}}<p style="color:#b33">Something went wrong — please try again.</p>{{end}}
-    <p><label>Email<br><input type="email" name="email" autocomplete="email" required autofocus></label></p>
-    <button type="submit">Send me a login link</button>
-  </form>
+    <form method="post" action="/login">
+      <p><label>Email<br><input type="email" name="email" autocomplete="email" required></label></p>
+      <button type="submit">Send me a login link</button>
+    </form>
+  </section>
+
   <p class="hint">New here? You'll need an invite link to create an account.</p>
 </main>
 </body>

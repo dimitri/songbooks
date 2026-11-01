@@ -7,6 +7,9 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"app/internal/store"
 )
@@ -173,22 +176,37 @@ func (s *Server) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	s.render(w, "login", map[string]any{"Error": r.URL.Query().Get("error") != ""})
+	s.render(w, "login", map[string]any{
+		"Error":              r.URL.Query().Get("error") != "",
+		"InvalidCredentials": r.URL.Query().Get("badlogin") != "",
+	})
 }
 
-// handleLogin is magic-link login's request step: look up the email, and
-// if it belongs to an account, email ("send" — see internal/mailer) a
-// single-use login link that expires in 15 minutes. The response is the
-// exact same "check your email" page whether or not the email matched a
-// real account — not leaking account existence is a real security
-// property here, not polish, so every path through this handler (lookup
-// miss, store error, mailer error, success) renders the same template
-// with no per-case data baked into it.
+// handleLogin is POST /login, and branches cleanly on which of the two,
+// equally first-class login forms the visitor submitted (see login.html):
+// a password ("mode=password", handled by handlePasswordLogin) or the
+// magic-link "email me a link" request (handled inline below, unchanged
+// from before password login was restored). Both forms post to this same
+// route; the hidden "mode" field is the only thing that tells them apart.
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		s.render(w, "login_sent", nil)
 		return
 	}
+
+	if r.FormValue("mode") == "password" {
+		s.handlePasswordLogin(w, r)
+		return
+	}
+
+	// Magic-link login's request step: look up the email, and if it
+	// belongs to an account, email ("send" — see internal/mailer) a
+	// single-use login link that expires in 15 minutes. The response is
+	// the exact same "check your email" page whether or not the email
+	// matched a real account — not leaking account existence is a real
+	// security property here, not polish, so every path through this
+	// handler (lookup miss, store error, mailer error, success) renders
+	// the same template with no per-case data baked into it.
 	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
 
 	if email != "" {
@@ -209,6 +227,85 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, "login_sent", nil)
+}
+
+// dummyPasswordHash is a bcrypt hash of a random, never-revealed value,
+// computed once on first use. handlePasswordLogin compares against it
+// whenever the submitted identifier doesn't resolve to a real account (or
+// resolves to one with no password set) — so a lookup miss and a correct-
+// account-wrong-password both run one bcrypt comparison before failing,
+// rather than the former returning instantly. This doesn't make the two
+// cases indistinguishable in wall-clock time (bcrypt against a fixed hash
+// vs. a real one isn't guaranteed identical cost), but it closes the
+// obvious "lookup miss short-circuits before any hashing" gap; the
+// response body/status in both cases is already byte-identical, which is
+// the property that actually matters here.
+var (
+	dummyPasswordHashOnce sync.Once
+	dummyPasswordHash     string
+)
+
+func getDummyPasswordHash() string {
+	dummyPasswordHashOnce.Do(func() {
+		h, err := bcrypt.GenerateFromPassword([]byte("songbooks-dummy-hash-no-such-password"), bcrypt.DefaultCost)
+		if err != nil {
+			// GenerateFromPassword only fails on a bad cost constant, which
+			// bcrypt.DefaultCost never is — this is unreachable in practice.
+			panic("hashing dummy password: " + err.Error())
+		}
+		dummyPasswordHash = string(h)
+	})
+	return dummyPasswordHash
+}
+
+// handlePasswordLogin is POST /login's password branch (mode=password):
+// verify bcrypt against people.password_hash for the account identified
+// by "identifier" (username or email, either is accepted), and log in
+// directly on success. Any failure — no such account, account has no
+// password set yet (PasswordHash == ""), or wrong password — redirects
+// back to /login with the exact same generic "invalid credentials" error,
+// deliberately not distinguished further: this path has the same
+// non-enumeration requirement the magic-link path already honors.
+func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
+	identifier := strings.TrimSpace(r.FormValue("identifier"))
+	password := r.FormValue("password")
+
+	var p *store.Person
+	if identifier != "" {
+		var err error
+		if strings.Contains(identifier, "@") {
+			p, err = s.store.GetPersonByEmail(r.Context(), strings.ToLower(identifier))
+		} else {
+			p, err = s.store.GetPersonByUsername(r.Context(), identifier)
+		}
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			log.Printf("password login lookup for %q: %v", identifier, err)
+		}
+	}
+
+	hash := getDummyPasswordHash()
+	if p != nil && p.PasswordHash != "" {
+		hash = p.PasswordHash
+	}
+	// Always run the comparison, even against the dummy hash — see
+	// dummyPasswordHash's doc comment above.
+	credsOK := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
+	if p == nil || p.PasswordHash == "" || !credsOK {
+		http.Redirect(w, r, "/login?badlogin=1", http.StatusFound)
+		return
+	}
+
+	sessToken, err := s.store.CreateSession(r.Context(), p.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name: sessionCookie, Value: sessToken, Path: "/",
+		HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode,
+		MaxAge: 30 * 24 * 60 * 60,
+	})
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 // loginLinkURL builds the magic-link URL embedded in the login email,

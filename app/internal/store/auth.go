@@ -645,22 +645,31 @@ func (st *Store) AcceptInvite(ctx context.Context, token string, personID int64,
 
 // CreatePersonAndAcceptInvite is AcceptInvite's counterpart for a brand-new
 // visitor (not already logged in): it creates the person row — identified
-// by email, no password, consistent with invite acceptance being the
-// account's first (and only) authentication step — then accepts the
-// invite as them, in one transaction so a failed membership insert never
-// leaves an orphan account behind. username is kept only as a display
-// label distinct from login identity (see Member/PersonAdminRow and the
-// templates that show it).
-func (st *Store) CreatePersonAndAcceptInvite(ctx context.Context, token, username, displayName, email string) (personID int64, dest string, err error) {
+// by email, plus accepts the invite as them, in one transaction so a
+// failed membership insert never leaves an orphan account behind.
+// username is kept only as a display label distinct from login identity
+// (see Member/PersonAdminRow and the templates that show it).
+//
+// bcryptHash is optional: pass "" (the invite form's password field left
+// blank) for a passwordless account that can only log in via magic link,
+// exactly as this always worked before password login was restored as a
+// first-class option; pass an already-hashed password (handlePostInvite
+// hashes it before calling this) to let the new account log in with that
+// password immediately, same as any other account with a password set.
+func (st *Store) CreatePersonAndAcceptInvite(ctx context.Context, token, username, displayName, email, bcryptHash string) (personID int64, dest string, err error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, "", err
 	}
 	defer tx.Rollback(ctx)
 
+	var pwHash *string
+	if bcryptHash != "" {
+		pwHash = &bcryptHash
+	}
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO people (username, display_name, email) VALUES ($1, $2, $3) RETURNING id`,
-		username, displayName, email).Scan(&personID); err != nil {
+		`INSERT INTO people (username, display_name, email, password_hash) VALUES ($1, $2, $3, $4) RETURNING id`,
+		username, displayName, email, pwHash).Scan(&personID); err != nil {
 		return 0, "", err
 	}
 
