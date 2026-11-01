@@ -132,8 +132,26 @@ func (st *Store) ListBandsForPerson(ctx context.Context, personID int64) ([]Band
 // gate for every band-scoped mutation in this phase, and the "actor is a
 // current member of owner_band_id" half of CanEditVariant.
 func (st *Store) IsCurrentBandMember(ctx context.Context, bandID, personID int64) (bool, error) {
+	return isCurrentBandMember(ctx, st.db, bandID, personID)
+}
+
+// isCurrentBandMember is IsCurrentBandMember's implementation, taking a
+// dbtx (either the pool itself or an already-open tx) so callers that are
+// mid-transaction can run this check against THAT SAME tx handle instead
+// of reaching back out to the pool for a second connection while the first
+// one's transaction is still open. Mixing a pool-level query into an
+// open-transaction code path is exactly the connection-pool deadlock/
+// exhaustion risk documented on AddBandMember below: a tx holds one
+// connection for its whole lifetime, so issuing another query that needs
+// its OWN connection from the same pool — while already at the pool's
+// connection limit, or while that tx's connection is the only one and
+// something else is waiting on it — can hang or exhaust the pool under
+// real load. Every method in this package that checks membership while a
+// tx it opened is still open must call this with that tx, never
+// IsCurrentBandMember/st.db.
+func isCurrentBandMember(ctx context.Context, q dbtx, bandID, personID int64) (bool, error) {
 	var ok bool
-	err := st.db.QueryRow(ctx, `
+	err := q.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM band_members WHERE band_id = $1 AND person_id = $2 AND left_at IS NULL)`,
 		bandID, personID).Scan(&ok)
 	return ok, err
@@ -186,7 +204,7 @@ func (st *Store) AddBandMember(ctx context.Context, bandID, personID int64, stat
 	}
 	defer tx.Rollback(ctx)
 
-	already, err := st.IsCurrentBandMember(ctx, bandID, personID)
+	already, err := isCurrentBandMember(ctx, tx, bandID, personID)
 	if err != nil {
 		return 0, err
 	}
