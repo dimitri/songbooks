@@ -1152,80 +1152,250 @@ const ICONS = {
   }
   function focusSlot(sec, mi, ti) {
     const i = secIndexOf(sec);
+    sec._sel = { mi, ti };
     requestAnimationFrame(() => {
       const host = document.getElementById('matrix-host-' + i);
       const el = host && host.querySelector(`.matrix-slot[data-mi="${mi}"][data-ti="${ti}"]`);
       if (el) el.focus();
+      else { highlightSelection(sec, i); refreshToolbarHighlight(sec, i); }
     });
   }
 
-  // ---- Chord quick-pick: an iReal-Pro-style tap-assist popup next to each
-  // slot's free-text input — see the CSS comment for why this is additive,
-  // not a replacement for typing. Buttons insert/replace text in the
-  // field rather than owning the value outright, so anything the grammar
-  // allows (alt bass, odd extensions, "N.C.") still only needs typing. ---
+  // ---- Persistent chord toolbar — iReal Pro's always-on root/quality
+  // keyboard plus a Guitar-Pro-style duration/placement row, replacing the
+  // old design where this was all buried behind a tiny per-slot "♪" popup
+  // (openChordPicker, removed). It lives once per section, pinned above
+  // that section's bar grid, and always acts on whichever slot is
+  // currently SELECTED below (see selectSlot/highlightSelection) — tapping
+  // a bar slot selects it, the toolbar lights up to show what's already
+  // there, and every tap here edits that same slot in place. Typing
+  // directly into a slot (still supported) and tapping buttons up here
+  // are two paths into the exact same state: both just set
+  // sec.measures[mi].tokens[ti] and dispatch the slot's own 'input'
+  // listener, so nothing can get out of sync between them. ------------------
   const ROOTS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
-  const QUALITIES = ['', 'm', '7', 'maj7', 'm7', 'm7b5', 'dim', 'sus4', 'sus2', 'aug', '6', 'm6', '9'];
-  function openChordPicker(anchorBtn, input, sec, mi, ti) {
-    closeAnyMenu();
-    const menu = document.createElement('div');
-    menu.className = 'insert-menu chord-pick-menu';
-    let bassMode = false;
+  const QUALITIES_PRIMARY = ['', 'm', '7', 'm7', 'maj7', 'dim', 'aug', 'sus2', 'sus4', 'm7b5'];
+  const QUALITIES_MORE = ['6', 'm6', '9', 'maj9', 'm9', '11', '13', 'add9', '6/9'];
 
-    const rootRow = document.createElement('div'); rootRow.className = 'chord-pick-row';
+  // Splits a chord token into {root, accidental, quality, bass} for display
+  // and for editing one part of it without disturbing the others — mirrors
+  // internal/chordsym.Split (root = one letter + optional accidental,
+  // everything up to an optional "/bass" is quality) but keeps the
+  // accidental as its own glyph so a root button's active state can be
+  // compared directly against ROOTS. "%"/"."/"N.C." and blank all come
+  // back as {root:''}, same as chordsym treats them as non-root symbols.
+  // Accidentals are normalized to ASCII 'b'/'#' here — same convention
+  // chordsym.Split/rootPitchClass use everywhere else in this app — even
+  // though the matched token might already contain the printed ♭/♯ glyph
+  // (e.g. a chord typed with the glyph directly, or saved by an earlier,
+  // buggier version of this toolbar). composeChord below always writes
+  // the ASCII form back out, so re-editing a glyph-accidental chord
+  // through the toolbar also quietly fixes it forward.
+  function parseChordDisplay(tok) {
+    const blank = { root: '', accidental: '', quality: '', bass: '' };
+    if (!tok || tok === '.' || tok === '%' || tok === 'N.C.') return blank;
+    const m = /^([A-G])([b#♭♯]?)([^/]*)(?:\/([A-G])([b#♭♯]?))?$/.exec(tok);
+    if (!m) return { ...blank, quality: tok };
+    const toAscii = a => (a === '♭' ? 'b' : a === '♯' ? '#' : a || '');
+    const acc = toAscii(m[2]);
+    const bass = m[4] ? m[4] + toAscii(m[5]) : '';
+    return { root: m[1], accidental: acc, quality: m[3] || '', bass };
+  }
+  function composeChord(p) {
+    return (p.root || '') + (p.accidental || '') + (p.quality || '') + (p.bass ? '/' + p.bass : '');
+  }
+  function getSlotInput(i, mi, ti) {
+    const host = document.getElementById('matrix-host-' + i);
+    return host && host.querySelector(`.matrix-slot[data-mi="${mi}"][data-ti="${ti}"]`);
+  }
+  // All {mi, ti} slot coordinates in this section, in reading order — used
+  // for arrow-key/Tab navigation that has to cross bar boundaries.
+  function allSlots(sec) {
+    const out = [];
+    sec.measures.forEach((m, mi) => m.tokens.forEach((t, ti) => out.push({ mi, ti })));
+    return out;
+  }
+  function moveSelection(sec, i, delta) {
+    const slots = allSlots(sec);
+    if (!slots.length) return;
+    const cur = sec._sel ? slots.findIndex(s => s.mi === sec._sel.mi && s.ti === sec._sel.ti) : -1;
+    const next = Math.max(0, Math.min(slots.length - 1, cur + delta));
+    focusSlot(sec, slots[next].mi, slots[next].ti);
+  }
+  function selectSlot(sec, i, mi, ti) {
+    sec._sel = { mi, ti };
+    highlightSelection(sec, i);
+    refreshToolbarHighlight(sec, i);
+  }
+  // Visual selection state on the grid itself — a clear outline/background
+  // change on the selected slot AND its parent bar, so it's unambiguous on
+  // a phone screenshot which cell the toolbar above is about to edit.
+  function highlightSelection(sec, i) {
+    const host = document.getElementById('matrix-host-' + i);
+    if (!host) return;
+    const sel = sec._sel;
+    host.querySelectorAll('.matrix-slot-row.slot-selected').forEach(el => el.classList.remove('slot-selected'));
+    host.querySelectorAll('.matrix-cell.cell-selected').forEach(el => el.classList.remove('cell-selected'));
+    if (!sel) return;
+    const input = getSlotInput(i, sel.mi, sel.ti);
+    if (input) {
+      input.closest('.matrix-slot-row').classList.add('slot-selected');
+      input.closest('.matrix-cell').classList.add('cell-selected');
+    }
+  }
+  // Lights up the toolbar's own buttons to match the currently selected
+  // slot's content (iReal Pro's keyboard does the same when you tap an
+  // already-filled cell) — the toolbar reflects state, it doesn't just
+  // blindly emit taps.
+  function refreshToolbarHighlight(sec, i) {
+    const host = document.getElementById('matrix-host-' + i);
+    const toolbar = host && host.querySelector('.chord-toolbar');
+    if (!toolbar) return;
+    const sel = sec._sel;
+    const tok = sel && sec.measures[sel.mi] ? (sec.measures[sel.mi].tokens[sel.ti] || '') : '';
+    const parts = parseChordDisplay(tok);
+    toolbar.querySelectorAll('[data-root]').forEach(b => b.classList.toggle('active', !!sel && b.dataset.root === parts.root));
+    toolbar.querySelectorAll('[data-quality]').forEach(b => b.classList.toggle('active', !!sel && b.dataset.quality === parts.quality));
+    toolbar.querySelectorAll('[data-acc]').forEach(b => b.classList.toggle('active', !!sel && !!parts.accidental && b.dataset.acc === parts.accidental));
+    const bassBtn = toolbar.querySelector('.toolbar-bass-btn');
+    if (bassBtn) bassBtn.classList.toggle('active', !!sel && !!parts.bass);
+    const slotLabel = toolbar.querySelector('.toolbar-slot-label');
+    if (slotLabel) slotLabel.textContent = sel ? `editing bar ${sel.mi + 1}, slot ${sel.ti + 1}${tok ? ' — ' + tok : ''}` : 'tap a bar slot below to select it';
+    toolbar.classList.toggle('no-selection', !sel);
+  }
+  // Writes one part (root/accidental/quality/bass) of the SELECTED slot's
+  // chord, keeping the rest — tapping "m7" after tapping "C" gives "Cm7",
+  // not just "m7" (iReal Pro's own "build it up one tap at a time" model).
+  // Goes through the slot's real <input> and its existing 'input' listener
+  // so the fullness indicator and beat label update exactly the same way a
+  // keystroke would.
+  function setChordPart(sec, i, part, value) {
+    const sel = sec._sel;
+    if (!sel || !sec.measures[sel.mi]) return;
+    const cur = sec.measures[sel.mi].tokens[sel.ti] || '';
+    const parts = parseChordDisplay(cur);
+    parts[part] = value;
+    const text = composeChord(parts);
+    const input = getSlotInput(i, sel.mi, sel.ti);
+    if (input) { input.value = text; input.dispatchEvent(new Event('input')); }
+    else { sec.measures[sel.mi].tokens[sel.ti] = text; }
+    refreshToolbarHighlight(sec, i);
+  }
+  function setSlotToken(sec, i, token) {
+    const sel = sec._sel;
+    if (!sel || !sec.measures[sel.mi]) return;
+    const input = getSlotInput(i, sel.mi, sel.ti);
+    if (input) { input.value = token; input.dispatchEvent(new Event('input')); }
+    else { sec.measures[sel.mi].tokens[sel.ti] = token; }
+    refreshToolbarHighlight(sec, i);
+  }
+
+  function buildChordToolbar(sec, i) {
+    // Each full rebuild starts a fresh "staging" state — any in-progress
+    // flat/sharp or bass-mode tap that hadn't yet landed on a root tap is
+    // discarded rather than left silently applying to a different render.
+    sec._pendingAcc = '';
+    sec._bassMode = false;
+
+    const bar = document.createElement('div');
+    bar.className = 'chord-toolbar no-selection';
+
+    // Time signature / tempo, surfaced right here rather than only in the
+    // header fields above the Blocks list — this is "the top of the
+    // section being edited" the grid itself needs, not buried off-screen.
+    const meta = document.createElement('div');
+    meta.className = 'chord-toolbar-meta';
+    const timeSpan = document.createElement('span'); timeSpan.className = 'toolbar-meta-chip';
+    timeSpan.textContent = (metaGet('time') || '4/4');
+    const tempoSpan = document.createElement('span'); tempoSpan.className = 'toolbar-meta-chip toolbar-meta-tempo';
+    tempoSpan.textContent = metaGet('tempo') ? metaGet('tempo') + ' bpm' : '';
+    const slotLabel = document.createElement('span'); slotLabel.className = 'toolbar-slot-label hint';
+    slotLabel.textContent = 'tap a bar slot below to select it';
+    meta.append(timeSpan, tempoSpan, slotLabel);
+    bar.appendChild(meta);
+
+    const rootRow = document.createElement('div'); rootRow.className = 'toolbar-row toolbar-roots';
+    // Stored as ASCII 'b'/'#' — same convention as typing a chord directly
+    // and as rootPitchClass()/transpose above: internal/chordsym.Split only
+    // recognizes the ASCII accidental when splitting a root off a token
+    // (the ♭/♯ glyph is purely a RENDERING substitution chordsym.esc()
+    // applies afterward). Composing the glyph straight into the token here
+    // would silently break transpose/PitchClass for anything built via
+    // these buttons, so the button LABEL is the glyph but its stored value
+    // stays ASCII, same split used for displaying it back (parseChordDisplay
+    // below).
+    const flat = document.createElement('button'); flat.type = 'button'; flat.className = 'toolbar-btn toolbar-acc'; flat.dataset.acc = 'b'; flat.textContent = '♭';
+    flat.title = 'flat the next root tapped';
+    flat.addEventListener('click', () => { sec._pendingAcc = sec._pendingAcc === 'b' ? '' : 'b'; flat.classList.toggle('pending', sec._pendingAcc === 'b'); sharp.classList.remove('pending'); });
+    const sharp = document.createElement('button'); sharp.type = 'button'; sharp.className = 'toolbar-btn toolbar-acc'; sharp.dataset.acc = '#'; sharp.textContent = '♯';
+    sharp.title = 'sharp the next root tapped';
+    sharp.addEventListener('click', () => { sec._pendingAcc = sec._pendingAcc === '#' ? '' : '#'; sharp.classList.toggle('pending', sec._pendingAcc === '#'); flat.classList.remove('pending'); });
+    rootRow.append(flat);
     ROOTS.forEach(r => {
-      const b = document.createElement('button'); b.type = 'button'; b.textContent = r;
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'toolbar-btn toolbar-root'; b.dataset.root = r; b.textContent = r;
       b.addEventListener('click', () => {
-        input.value = bassMode ? input.value + r : r;
-        bassMode = false;
-        input.dispatchEvent(new Event('input'));
-        input.focus();
+        if (!sec._sel) return;
+        const acc = sec._pendingAcc || '';
+        if (sec._bassMode) { setChordPart(sec, i, 'bass', r + acc); sec._bassMode = false; bassBtn.classList.remove('pending'); }
+        else setChordPart(sec, i, 'root', r + acc);
+        sec._pendingAcc = ''; flat.classList.remove('pending'); sharp.classList.remove('pending');
       });
       rootRow.appendChild(b);
     });
-    const flat = document.createElement('button'); flat.type = 'button'; flat.textContent = '♭';
-    flat.addEventListener('click', () => { input.value += '♭'; input.dispatchEvent(new Event('input')); input.focus(); });
-    const sharp = document.createElement('button'); sharp.type = 'button'; sharp.textContent = '♯';
-    sharp.addEventListener('click', () => { input.value += '♯'; input.dispatchEvent(new Event('input')); input.focus(); });
-    rootRow.append(flat, sharp);
-    menu.appendChild(rootRow);
+    rootRow.append(sharp);
+    bar.appendChild(rootRow);
 
-    const qualRow = document.createElement('div'); qualRow.className = 'chord-pick-row quality';
-    QUALITIES.forEach(q => {
-      const b = document.createElement('button'); b.type = 'button'; b.textContent = q || 'maj';
-      b.addEventListener('click', () => { input.value += q; input.dispatchEvent(new Event('input')); input.focus(); });
+    const qualRow = document.createElement('div'); qualRow.className = 'toolbar-row toolbar-qualities';
+    QUALITIES_PRIMARY.forEach(q => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'toolbar-btn toolbar-quality'; b.dataset.quality = q; b.textContent = q || 'maj';
+      b.addEventListener('click', () => { if (sec._sel) setChordPart(sec, i, 'quality', q); });
       qualRow.appendChild(b);
     });
-    menu.appendChild(qualRow);
+    const moreBtn = document.createElement('button'); moreBtn.type = 'button'; moreBtn.className = 'toolbar-btn toolbar-more'; moreBtn.textContent = 'more…';
+    moreBtn.title = 'more chord qualities';
+    moreBtn.addEventListener('click', () => openMoreQualities(moreBtn, sec, i));
+    qualRow.appendChild(moreBtn);
+    bar.appendChild(qualRow);
 
-    const utilRow = document.createElement('div'); utilRow.className = 'chord-pick-row';
-    const bassBtn = document.createElement('button'); bassBtn.type = 'button'; bassBtn.textContent = '/ bass';
-    bassBtn.title = 'next root tapped is appended as the bass note, e.g. C/E';
-    bassBtn.addEventListener('click', () => { input.value += '/'; bassMode = true; input.dispatchEvent(new Event('input')); input.focus(); });
-    const clearBtn = document.createElement('button'); clearBtn.type = 'button'; clearBtn.textContent = 'clear';
-    clearBtn.addEventListener('click', () => { input.value = ''; input.dispatchEvent(new Event('input')); input.focus(); });
-    utilRow.append(bassBtn, clearBtn);
-    menu.appendChild(utilRow);
+    const utilRow = document.createElement('div'); utilRow.className = 'toolbar-row toolbar-util';
+    const bassBtn = document.createElement('button'); bassBtn.type = 'button'; bassBtn.className = 'toolbar-btn toolbar-bass-btn'; bassBtn.textContent = '/ bass';
+    bassBtn.title = 'next root tapped becomes the bass note, e.g. C/E';
+    bassBtn.addEventListener('click', () => { sec._bassMode = !sec._bassMode; bassBtn.classList.toggle('pending', sec._bassMode); });
+    const oneBeat = document.createElement('button'); oneBeat.type = 'button'; oneBeat.className = 'toolbar-btn'; oneBeat.textContent = '1 beat';
+    oneBeat.title = 'this chord holds for 1 beat-slot, then advance';
+    oneBeat.addEventListener('click', () => { if (sec._sel) applyDuration(sec, sec._sel.mi, sec._sel.ti, 1); });
+    const twoBeat = document.createElement('button'); twoBeat.type = 'button'; twoBeat.className = 'toolbar-btn'; twoBeat.textContent = '2 beats';
+    twoBeat.title = 'this chord holds for 2 beat-slots, then advance';
+    twoBeat.addEventListener('click', () => { if (sec._sel) applyDuration(sec, sec._sel.mi, sec._sel.ti, 2); });
+    const wholeBar = document.createElement('button'); wholeBar.type = 'button'; wholeBar.className = 'toolbar-btn'; wholeBar.textContent = 'whole bar';
+    wholeBar.title = 'this chord sustains through the rest of the bar, then advance to the next bar';
+    wholeBar.addEventListener('click', () => { if (sec._sel) applyDuration(sec, sec._sel.mi, sec._sel.ti, 'bar'); });
+    const sustainBtn = document.createElement('button'); sustainBtn.type = 'button'; sustainBtn.className = 'toolbar-btn'; sustainBtn.textContent = '.';
+    sustainBtn.title = 'sustain the previous chord into this slot';
+    sustainBtn.addEventListener('click', () => { if (sec._sel) { setSlotToken(sec, i, '.'); moveSelection(sec, i, 1); } });
+    const repeatBarBtn = document.createElement('button'); repeatBarBtn.type = 'button'; repeatBarBtn.className = 'toolbar-btn'; repeatBarBtn.textContent = '%';
+    repeatBarBtn.title = 'repeat the previous bar';
+    repeatBarBtn.addEventListener('click', () => { if (!sec._sel) return; sec.measures[sec._sel.mi].tokens = ['%']; renderMatrix(sec, i); focusSlot(sec, Math.min(sec._sel.mi + 1, sec.measures.length - 1), 0); });
+    const clearBtn = document.createElement('button'); clearBtn.type = 'button'; clearBtn.className = 'toolbar-btn toolbar-clear'; clearBtn.textContent = 'clear';
+    clearBtn.title = 'clear the selected slot';
+    clearBtn.addEventListener('click', () => { if (sec._sel) setSlotToken(sec, i, ''); });
+    utilRow.append(bassBtn, oneBeat, twoBeat, wholeBar, sustainBtn, repeatBarBtn, clearBtn);
+    bar.appendChild(utilRow);
 
-    // Duration — how many beat-slots this chord occupies in the bar
-    // (Guitar Pro's "pick a duration, it auto-fills/advances"): the slots
-    // in between get the sustain mark, and the cursor jumps straight to
-    // where the next chord should go.
-    const durRow = document.createElement('div'); durRow.className = 'chord-pick-row chord-pick-duration';
-    const durLabel = document.createElement('span'); durLabel.className = 'hint'; durLabel.textContent = 'hold:';
-    durRow.appendChild(durLabel);
-    const slotCount = sec.measures[mi].tokens.length;
-    [1, 2].filter(n => n < slotCount).forEach(n => {
-      const b = document.createElement('button'); b.type = 'button'; b.textContent = n + ' slot' + (n > 1 ? 's' : '');
-      b.addEventListener('click', () => { closeAnyMenu(); applyDuration(sec, mi, ti, n); });
-      durRow.appendChild(b);
+    return bar;
+  }
+
+  function openMoreQualities(anchorBtn, sec, i) {
+    closeAnyMenu();
+    const menu = document.createElement('div');
+    menu.className = 'insert-menu chord-pick-menu';
+    const row = document.createElement('div'); row.className = 'chord-pick-row quality';
+    QUALITIES_MORE.forEach(q => {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = q;
+      b.addEventListener('click', () => { closeAnyMenu(); if (sec._sel) setChordPart(sec, i, 'quality', q); });
+      row.appendChild(b);
     });
-    const barBtn = document.createElement('button'); barBtn.type = 'button'; barBtn.textContent = 'rest of bar';
-    barBtn.title = 'fill the remaining slots in this bar with a sustain and move to the next bar';
-    barBtn.addEventListener('click', () => { closeAnyMenu(); applyDuration(sec, mi, ti, 'bar'); });
-    durRow.appendChild(barBtn);
-    menu.appendChild(durRow);
-
+    menu.appendChild(row);
     positionMenu(menu, anchorBtn);
   }
 
@@ -1314,24 +1484,36 @@ const ICONS = {
       input.type = 'text'; input.className = 'matrix-slot'; input.value = tok;
       input.dataset.mi = String(mi); input.dataset.ti = String(ti);
       input.placeholder = ti === 0 ? '%' : '.';
-      input.addEventListener('input', () => { m.tokens[ti] = input.value; updateLabel(input.value); updateFullness(); });
-      // Enter/Tab: the same "finish the bar" action a duration button's
-      // "rest of bar" gives you, reached straight from the keyboard —
-      // typing "Cm7" and hitting Enter sustains it through whatever's
-      // left of the bar and jumps to the next one, exactly like typing it
-      // via the chord-pick keyboard does. Both input paths land on the
-      // one applyDuration() call, so there is only ever one place that
-      // decides what "auto-complete this bar" means.
+      input.addEventListener('input', () => { m.tokens[ti] = input.value; updateLabel(input.value); updateFullness(); refreshToolbarHighlight(sec, secIndexOf(sec)); });
+      // Tapping/focusing a slot selects it — the toolbar above reflects
+      // and acts on whichever slot was last focused, whether that focus
+      // came from a click, a Tab, or an arrow-key move (see below): one
+      // shared selection, not a separate "selected" idea per input method.
+      input.addEventListener('focus', () => selectSlot(sec, secIndexOf(sec), mi, ti));
+      input.addEventListener('click', () => selectSlot(sec, secIndexOf(sec), mi, ti));
+      // Enter/Tab: the same "finish the bar" action the toolbar's "whole
+      // bar" duration button gives you, reached straight from the
+      // keyboard — typing "Cm7" and hitting Enter sustains it through
+      // whatever's left of the bar and jumps to the next one, exactly
+      // like tapping it via the toolbar does. Both input paths land on
+      // the one applyDuration() call, so there is only ever one place
+      // that decides what "auto-complete this bar" means. Left/Right at
+      // the edge of the text move the selection to the previous/next
+      // slot instead of doing nothing, same shared selection state the
+      // toolbar reads — this is the "arrow-key navigation" keyboard path.
       input.addEventListener('keydown', e => {
         if (e.key === 'Enter' || e.key === 'Tab') {
           e.preventDefault();
           applyDuration(sec, mi, ti, 'bar');
+        } else if (e.key === 'ArrowRight' && input.selectionStart === input.value.length) {
+          e.preventDefault();
+          moveSelection(sec, secIndexOf(sec), 1);
+        } else if (e.key === 'ArrowLeft' && input.selectionStart === 0) {
+          e.preventDefault();
+          moveSelection(sec, secIndexOf(sec), -1);
         }
       });
-      const pick = document.createElement('button');
-      pick.type = 'button'; pick.className = 'chord-pick-btn'; pick.textContent = '♪'; pick.title = 'pick a chord (root + quality)';
-      pick.addEventListener('click', () => openChordPicker(pick, input, sec, mi, ti));
-      row.append(input, pick);
+      row.append(input);
       slotWrap.appendChild(row);
       slots.appendChild(slotWrap);
     });
@@ -1394,6 +1576,11 @@ const ICONS = {
     if (!host) return;
     host.innerHTML = '';
     if (!sec.measures) sec.measures = [];
+
+    // The persistent chord-entry toolbar — always visible above this
+    // section's grid, not a popup. Comes first so it reads as the primary
+    // input device, the grid below as the canvas it edits.
+    host.appendChild(buildChordToolbar(sec, i));
 
     const toolbar = document.createElement('div');
     toolbar.className = 'matrix-toolbar';
@@ -1489,6 +1676,16 @@ const ICONS = {
     }
 
     renderAlternatives(sec, i, host);
+
+    // Restore the selection highlight/toolbar state after a full rebuild
+    // (every edit re-renders this host) — clamp first in case the bar or
+    // slot that was selected no longer exists (bar deleted, density
+    // lowered the slot count).
+    if (sec._sel && (!sec.measures[sec._sel.mi] || sec._sel.ti >= sec.measures[sec._sel.mi].tokens.length)) {
+      sec._sel = null;
+    }
+    highlightSelection(sec, i);
+    refreshToolbarHighlight(sec, i);
   }
 
   // ---- Alternative endings — LilyPond's \alternative { \volta "1,2,3" {…}
