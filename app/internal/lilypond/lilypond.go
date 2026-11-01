@@ -41,50 +41,77 @@ type slot struct {
 }
 
 // Render converts s into a complete, standalone .ly source file: a
-// \header (title/composer/tempo), one \chordmode stream, one placeholder
-// melody \Voice, and (only if the song has any lyric text at all) one
-// \Lyrics context \lyricsto that voice. Single voice, single staff,
-// single song — no multi-instrument arrangement, no key-signature-aware
-// respelling beyond what the chord token text already says.
+// top-level \header (title/composer), one \chordmode stream, one
+// placeholder melody \Voice, and (only if the song has any lyric text at
+// all) one \Lyrics context \lyricsto that voice. Single voice, single
+// staff, single song — no multi-instrument arrangement, no
+// key-signature-aware respelling beyond what the chord token text
+// already says.
 func Render(s *song.Song) string {
-	slots, haveLyrics := buildSlots(s)
-
 	var b strings.Builder
 	b.WriteString("\\version \"2.24.0\"\n\n")
-	writeHeader(&b, s)
-
-	b.WriteString("songChords = \\chordmode {\n")
-	writeChords(&b, slots)
-	b.WriteString("}\n\n")
-
-	b.WriteString("songMelody = {\n")
-	b.WriteString("  \\override Staff.NoteHead.style = #'slash\n")
-	writeMelody(&b, slots)
-	b.WriteString("}\n\n")
-
-	if haveLyrics {
-		b.WriteString("songLyrics = \\lyricmode {\n")
-		writeLyrics(&b, slots)
-		b.WriteString("}\n\n")
-	}
-
-	b.WriteString("\\score {\n")
-	b.WriteString("  <<\n")
-	b.WriteString("    \\new ChordNames \\songChords\n")
-	b.WriteString("    \\new Staff \\new Voice = \"melody\" \\songMelody\n")
-	if haveLyrics {
-		b.WriteString("    \\new Lyrics \\lyricsto \"melody\" \\songLyrics\n")
-	}
-	b.WriteString("  >>\n")
-	b.WriteString("  \\layout {}\n")
-	b.WriteString("}\n")
-
+	writeTopHeader(&b, s.Get("title"), s.Get("artist"))
+	b.WriteString(scorePage(s, "song", false))
 	return b.String()
 }
 
-func writeHeader(b *strings.Builder, s *song.Song) {
-	title := s.Get("title")
-	artist := s.Get("artist")
+// BookEntry is one song placed into a multi-song export (a setlist or a
+// band's repertoire), alongside the group label it should be printed
+// under — the same Group concept internal/pdf.SongRef uses for setlist
+// exports (a Set's label, "" groups under no heading of its own).
+type BookEntry struct {
+	Group string
+	Song  *song.Song
+}
+
+// RenderBook concatenates every entry into one paginated .ly source: a
+// book-level \header carrying the overall title, a group-heading markup
+// page whenever Group changes, and each song as its own \score (with its
+// OWN title/artist as that movement's \header piece, since a book mixes
+// songs by different artists) — every lilypond identifier namespaced by
+// index (song0Chords, song1Chords, ...) so the concatenated definitions
+// don't collide. \pageBreak between every page keeps one song (or one
+// group heading) per page, the same shape internal/pdf.ExportSetlist's
+// Typst "one page per song" convention gives the other pipeline.
+func RenderBook(title string, entries []BookEntry) string {
+	var b strings.Builder
+	b.WriteString("\\version \"2.24.0\"\n\n")
+	writeTopHeader(&b, title, "")
+
+	var pages []string
+	lastGroup := ""
+	first := true
+	for i, e := range entries {
+		if e.Group != "" && (first || e.Group != lastGroup) {
+			pages = append(pages, fmt.Sprintf("\\markup \\fill-line { \\bold \\fontsize #4 %q }\n", e.Group))
+			lastGroup = e.Group
+		}
+		pages = append(pages, scorePage(e.Song, "song"+letterSuffix(i), true))
+		first = false
+	}
+	b.WriteString(strings.Join(pages, "\n\\pageBreak\n\n"))
+	return b.String()
+}
+
+// letterSuffix turns an index into a pure-alphabetic identifier suffix
+// (A, B, ..., Z, Aa, Ab, ...) — lilypond's own lexer only recognizes
+// "\someIdentifier" references when the name is all letters, so a
+// digit-bearing suffix like "song1" silently breaks parsing the moment
+// it's referenced as "\song1Chords" ("\song1" + "Chords" instead of one
+// token). Base-26, most significant "digit" first.
+func letterSuffix(i int) string {
+	if i == 0 {
+		return "A"
+	}
+	var out []byte
+	for i > 0 {
+		out = append([]byte{byte('A' + i%26)}, out...)
+		i /= 26
+	}
+	return string(out)
+}
+
+func writeTopHeader(b *strings.Builder, title, artist string) {
 	b.WriteString("\\header {\n")
 	b.WriteString("  tagline = ##f\n")
 	if title != "" {
@@ -94,11 +121,58 @@ func writeHeader(b *strings.Builder, s *song.Song) {
 		fmt.Fprintf(b, "  composer = %q\n", artist)
 	}
 	b.WriteString("}\n\n")
+}
+
+// scorePage renders one song's \chordmode/melody/\lyricmode variable
+// definitions plus its \score block, with every lilypond identifier
+// namespaced by id so several of these can be concatenated into one file
+// (RenderBook) without colliding. When withPieceHeader is set (RenderBook
+// only — Render's own top \header already carries the single song's
+// title/artist), the \score gets its own \header{piece=...} so a
+// multi-song book still shows each song's title over its system.
+func scorePage(s *song.Song, id string, withPieceHeader bool) string {
+	slots, haveLyrics := buildSlots(s)
+	chordsVar, melodyVar, lyricsVar := id+"Chords", id+"Melody", id+"Lyrics"
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s = \\chordmode {\n", chordsVar)
+	writeChords(&b, slots)
+	b.WriteString("}\n\n")
+
+	fmt.Fprintf(&b, "%s = {\n", melodyVar)
+	b.WriteString("  \\override Staff.NoteHead.style = #'slash\n")
 	if tempo := s.Get("tempo"); tempo != "" {
 		if bpm, err := strconv.Atoi(strings.TrimSpace(tempo)); err == nil && bpm > 0 {
-			fmt.Fprintf(b, "songTempo = { \\tempo 4 = %d }\n\n", bpm)
+			fmt.Fprintf(&b, "  \\tempo 4 = %d\n", bpm)
 		}
 	}
+	writeMelody(&b, slots)
+	b.WriteString("}\n\n")
+
+	if haveLyrics {
+		fmt.Fprintf(&b, "%s = \\lyricmode {\n", lyricsVar)
+		writeLyrics(&b, slots)
+		b.WriteString("}\n\n")
+	}
+
+	b.WriteString("\\score {\n")
+	if withPieceHeader {
+		piece := s.Get("title")
+		if artist := s.Get("artist"); artist != "" {
+			piece += " — " + artist
+		}
+		fmt.Fprintf(&b, "  \\header { piece = %q }\n", piece)
+	}
+	b.WriteString("  <<\n")
+	fmt.Fprintf(&b, "    \\new ChordNames \\%s\n", chordsVar)
+	fmt.Fprintf(&b, "    \\new Staff \\new Voice = %q \\%s\n", id, melodyVar)
+	if haveLyrics {
+		fmt.Fprintf(&b, "    \\new Lyrics \\lyricsto %q \\%s\n", id, lyricsVar)
+	}
+	b.WriteString("  >>\n")
+	b.WriteString("  \\layout {}\n")
+	b.WriteString("}\n")
+	return b.String()
 }
 
 // buildSlots walks every section of s in order and lays out one
