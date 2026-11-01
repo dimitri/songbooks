@@ -1,0 +1,90 @@
+{{define "join"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Join {{.TargetName}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
+</head>
+<body>
+<main class="index">
+  <div class="hero">
+    <div>
+      <h2>Join {{.TargetName}}</h2>
+      {{if eq .Kind "band"}}
+        <p>Pick your name below, or "someone else" if you're not on the list.</p>
+      {{else}}
+        <p>Pick your name below, or "someone else" if you're not on the list. You'll join as a student.</p>
+      {{end}}
+    </div>
+  </div>
+
+  {{if .Closed}}
+    <div class="card" style="max-width:420px">
+      <p>This invite link has been closed by {{if eq .Kind "band"}}the band{{else}}the school{{end}} — no further claims are possible. Ask for a fresh link.</p>
+    </div>
+  {{else}}
+  <div class="card" style="max-width:420px">
+    <p class="hint">Who are you?</p>
+    {{range .Slots}}
+      {{if not .ClaimedAt}}
+      <p>
+        <label>
+          <input type="radio" name="slot_choice" value="{{.ID}}">
+          {{.DisplayName}}{{if .Instrument}} ({{.Instrument}}){{end}}
+        </label>
+      </p>
+      {{else}}
+      <p class="hint" style="text-decoration:line-through">{{.DisplayName}}{{if .Instrument}} ({{.Instrument}}){{end}} — already joined</p>
+      {{end}}
+    {{end}}
+    <p><label><input type="radio" name="slot_choice" value="unlisted" checked> Someone else (not on this list)</label></p>
+  </div>
+
+  {{if .LoggedIn}}
+    <form class="card" method="post" action="/join/{{.Token}}" style="max-width:360px" id="claim-form">
+      <input type="hidden" name="slot_id" id="claim-slot-id" value="unlisted">
+      <p>Continue as <strong>{{.LoggedInAs}}</strong>?</p>
+      <button type="submit">Join</button>
+    </form>
+    <script>
+      const claimForm = document.getElementById('claim-form');
+      claimForm.addEventListener('submit', () => {
+        const checked = document.querySelector('input[name="slot_choice"]:checked');
+        document.getElementById('claim-slot-id').value = checked ? checked.value : 'unlisted';
+      });
+    </script>
+  {{else}}
+    <form class="card" method="post" action="/join/{{.Token}}" style="max-width:360px" id="create-account-form">
+      <input type="hidden" name="slot_id" id="create-slot-id" value="unlisted">
+      <p><label>Username<br><input type="text" name="username" autocomplete="username" required autofocus></label></p>
+      <p><label>Your name<br><input type="text" name="display_name" required></label></p>
+      <p><label>Email<br><input type="email" name="email" autocomplete="email" required></label></p>
+      <p class="hint">No password needed — we'll email you a login link next time.</p>
+      <button type="submit">Create account &amp; join</button>
+    </form>
+
+    <div class="card" style="max-width:360px">
+      <p class="hint">Already use Songbooks for something else? Log in instead — joining won't touch anything else in your account.</p>
+      <button type="button" id="login-instead-btn">Log in to claim this slot</button>
+    </div>
+    <script>
+      const createForm = document.getElementById('create-account-form');
+      createForm.addEventListener('submit', () => {
+        const checked = document.querySelector('input[name="slot_choice"]:checked');
+        document.getElementById('create-slot-id').value = checked ? checked.value : 'unlisted';
+      });
+      document.getElementById('login-instead-btn').addEventListener('click', () => {
+        const checked = document.querySelector('input[name="slot_choice"]:checked');
+        const slot = checked ? checked.value : 'unlisted';
+        location.href = `/join/{{.Token}}/login?slot=${encodeURIComponent(slot)}`;
+      });
+    </script>
+  {{end}}
+  {{end}}
+</main>
+</body>
+</html>
+{{end}}

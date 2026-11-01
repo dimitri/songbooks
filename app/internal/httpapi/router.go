@@ -56,6 +56,14 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("GET /invite/{token}", s.handleInvitePage)
 	mux.HandleFunc("POST /invite/{token}", s.handlePostInvite)
 
+	// Group invites: a band/school-wide reusable roster link (see
+	// internal/store/group_invites.go) — distinct from the single-use
+	// /invite/{token} above. Public, no auth required to view (same
+	// "must work from a bare WhatsApp link" requirement); see join.go.
+	mux.HandleFunc("GET /join/{token}", s.handleJoinPage)
+	mux.HandleFunc("POST /join/{token}", s.handlePostJoin)
+	mux.HandleFunc("GET /join/{token}/login", s.handleJoinLoginRedirect)
+
 	// Dev-only: a local stand-in for an inbox, listing every email the
 	// console mailer has "sent" (see internal/mailer.ConsoleMailer) with
 	// clickable links. Admin-gated, not publicly reachable — it contains
