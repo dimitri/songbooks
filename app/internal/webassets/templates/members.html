@@ -44,6 +44,7 @@
       </label>
     </p>
     <button type="button" id="create-invite-btn">Create invite link</button>
+    <button type="button" id="copy-invite-btn" hidden>Copy link</button>
     <p id="invite-result"></p>
   </div>
 </main>
@@ -55,10 +56,15 @@ document.getElementById('create-invite-btn').addEventListener('click', async () 
   const res = await fetch(`/b/${encodeURIComponent(book)}/invites`, {method: 'POST', body});
   const data = await res.json();
   const out = document.getElementById('invite-result');
+  const copyBtn = document.getElementById('copy-invite-btn');
   if (res.ok) {
-    out.textContent = location.origin + data.url;
+    const url = location.origin + data.url;
+    out.textContent = url;
+    copyBtn.hidden = false;
+    copyBtn.onclick = () => navigator.clipboard.writeText(url).catch(() => {});
   } else {
     out.textContent = data.error || 'failed to create invite';
+    copyBtn.hidden = true;
   }
 });
 document.querySelectorAll('.role-select').forEach(sel => {
