@@ -16,7 +16,7 @@ reverse-proxied by the host's existing Caddy under `songbooks.tapoueh.org`.
   deploy/.env     <- real secrets, not committed anywhere
 ```
 
-`docker-compose.yml`'s build context is `../..` relative to this `deploy/`
+`docker-compose.yml`'s build context is `..` relative to this `deploy/`
 directory, i.e. the `app/` directory itself — so `deploy/` must stay
 checked out as a subdirectory of `app/`, same as in this repo.
 

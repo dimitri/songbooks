@@ -20,7 +20,7 @@ services:
 
   app:
     build:
-      context: ../..
+      context: ..
       dockerfile: deploy/Dockerfile
     restart: unless-stopped
     depends_on:
