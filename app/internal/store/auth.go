@@ -14,12 +14,15 @@ import (
 
 // Person is one login-capable account. PasswordHash is empty until
 // SetPassword has been called for them (e.g. the accounts Phase 1's
-// --import tool creates, or a fresh invite acceptance before its own
-// SetPassword call lands).
+// --import tool creates). Email is empty for accounts that predate the
+// magic-link login phase and haven't been backfilled yet (see
+// SetEmail / the --set-email bootstrap flag) — such accounts can still
+// only log in via the legacy password path, if they have one.
 type Person struct {
 	ID           int64
 	Username     string
 	DisplayName  string
+	Email        string
 	PasswordHash string
 	IsAdmin      bool
 	// Instruments is the set of instruments this person plays, as
@@ -86,17 +89,25 @@ func randomToken() (string, error) {
 
 // GetPersonByUsername looks up a person by their login name.
 func (st *Store) GetPersonByUsername(ctx context.Context, username string) (*Person, error) {
-	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(password_hash, ''), is_admin, instruments FROM people WHERE username = $1`, username)
+	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments FROM people WHERE username = $1`, username)
 }
 
 // GetPersonByID looks up a person by id.
 func (st *Store) GetPersonByID(ctx context.Context, id int64) (*Person, error) {
-	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(password_hash, ''), is_admin, instruments FROM people WHERE id = $1`, id)
+	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments FROM people WHERE id = $1`, id)
+}
+
+// GetPersonByEmail looks up a person by their email address — the
+// magic-link login lookup. Case-sensitive exact match, matching how the
+// email was stored (emails are lowercased on input, see handleLogin/
+// SetEmail).
+func (st *Store) GetPersonByEmail(ctx context.Context, email string) (*Person, error) {
+	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments FROM people WHERE email = $1`, email)
 }
 
 func (st *Store) scanPerson(ctx context.Context, query string, arg any) (*Person, error) {
 	var p Person
-	err := st.db.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.PasswordHash, &p.IsAdmin, &p.Instruments)
+	err := st.db.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such person: %w", ErrNotFound)
 	}
@@ -194,18 +205,39 @@ func (st *Store) ListAllProjectsWithCounts(ctx context.Context) ([]ProjectAdminR
 	return out, rows.Err()
 }
 
-// CreatePerson inserts a brand-new account (used by invite acceptance).
-func (st *Store) CreatePerson(ctx context.Context, username, displayName, bcryptHash string) (int64, error) {
+// CreatePerson inserts a brand-new, passwordless account identified by
+// email (invite-only account creation — see CreatePersonAndAcceptInvite,
+// which is the one actually wired to the accept flow; this is kept as
+// the plain non-transactional equivalent for any future direct caller).
+func (st *Store) CreatePerson(ctx context.Context, username, displayName, email string) (int64, error) {
 	var id int64
 	err := st.db.QueryRow(ctx,
-		`INSERT INTO people (username, display_name, password_hash) VALUES ($1, $2, $3) RETURNING id`,
-		username, displayName, bcryptHash).Scan(&id)
+		`INSERT INTO people (username, display_name, email) VALUES ($1, $2, $3) RETURNING id`,
+		username, displayName, email).Scan(&id)
 	return id, err
 }
 
-// SetPassword sets (or replaces) a person's password hash.
+// SetPassword sets (or replaces) a person's password hash. Secondary/
+// bootstrap mechanism now that /login is magic-link-only — kept working
+// (the column isn't dropped) for the --set-password CLI flag and anyone
+// who already has a password set.
 func (st *Store) SetPassword(ctx context.Context, personID int64, bcryptHash string) error {
 	tag, err := st.db.Exec(ctx, `UPDATE people SET password_hash = $1 WHERE id = $2`, bcryptHash, personID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no such person id %d: %w", personID, ErrNotFound)
+	}
+	return nil
+}
+
+// SetEmail sets (or replaces) a person's email address — used by the
+// --set-email CLI flag to backfill pre-existing accounts (e.g. the
+// "tapoueh" bootstrap account) that predate magic-link login and have
+// no email on file, so they aren't locked out of /login.
+func (st *Store) SetEmail(ctx context.Context, personID int64, email string) error {
+	tag, err := st.db.Exec(ctx, `UPDATE people SET email = $1 WHERE id = $2`, email, personID)
 	if err != nil {
 		return err
 	}
@@ -238,10 +270,10 @@ func (st *Store) CreateSession(ctx context.Context, personID int64) (string, err
 func (st *Store) GetSession(ctx context.Context, token string) (*Person, error) {
 	var p Person
 	err := st.db.QueryRow(ctx, `
-		SELECT p.id, p.username, p.display_name, coalesce(p.password_hash, ''), p.is_admin, p.instruments
+		SELECT p.id, p.username, p.display_name, coalesce(p.email, ''), coalesce(p.password_hash, ''), p.is_admin, p.instruments
 		FROM sessions s JOIN people p ON p.id = s.person_id
 		WHERE s.token = $1 AND s.expires_at > now()`, token).
-		Scan(&p.ID, &p.Username, &p.DisplayName, &p.PasswordHash, &p.IsAdmin, &p.Instruments)
+		Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such session: %w", ErrNotFound)
 	}
@@ -256,6 +288,75 @@ func (st *Store) GetSession(ctx context.Context, token string) (*Person, error) 
 func (st *Store) DeleteSession(ctx context.Context, token string) error {
 	_, err := st.db.Exec(ctx, `DELETE FROM sessions WHERE token = $1`, token)
 	return err
+}
+
+// loginTokenTTL is how long a magic login link stays valid after it's
+// requested — short, since it's emailed/shown in plaintext.
+const loginTokenTTL = 15 * time.Minute
+
+// CreateLoginToken starts a fresh single-use magic-link login token for
+// personID, returning the token value to embed in the emailed URL.
+func (st *Store) CreateLoginToken(ctx context.Context, personID int64) (string, error) {
+	token, err := randomToken()
+	if err != nil {
+		return "", err
+	}
+	_, err = st.db.Exec(ctx,
+		`INSERT INTO login_tokens (token, person_id, expires_at) VALUES ($1, $2, $3)`,
+		token, personID, time.Now().Add(loginTokenTTL))
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// ConsumeLoginToken validates a magic-link token — unused and
+// unexpired — marks it used, and returns the person it belongs to.
+// Single-use by design: a reused or unknown or expired token is
+// ErrNotFound, deliberately not distinguished further (no information
+// for an attacker to learn from the difference).
+func (st *Store) ConsumeLoginToken(ctx context.Context, token string) (*Person, error) {
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	var personID int64
+	err = tx.QueryRow(ctx, `
+		SELECT person_id FROM login_tokens
+		WHERE token = $1 AND used_at IS NULL AND expires_at > now()`, token).
+		Scan(&personID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("invalid or expired login link: %w", ErrNotFound)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE login_tokens SET used_at = now() WHERE token = $1`, token); err != nil {
+		return nil, err
+	}
+
+	p, err := st.scanPersonTx(ctx, tx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments FROM people WHERE id = $1`, personID)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+func (st *Store) scanPersonTx(ctx context.Context, tx pgx.Tx, query string, arg any) (*Person, error) {
+	var p Person
+	err := tx.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("no such person: %w", ErrNotFound)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
 }
 
 // ListProjectsForPerson returns every project personID is a member of, with
@@ -543,10 +644,14 @@ func (st *Store) AcceptInvite(ctx context.Context, token string, personID int64,
 }
 
 // CreatePersonAndAcceptInvite is AcceptInvite's counterpart for a brand-new
-// visitor (not already logged in): it creates the person row, then accepts
-// the invite as them, in one transaction so a failed membership insert
-// never leaves a passwordless orphan account behind.
-func (st *Store) CreatePersonAndAcceptInvite(ctx context.Context, token, username, displayName, bcryptHash string) (personID int64, dest string, err error) {
+// visitor (not already logged in): it creates the person row — identified
+// by email, no password, consistent with invite acceptance being the
+// account's first (and only) authentication step — then accepts the
+// invite as them, in one transaction so a failed membership insert never
+// leaves an orphan account behind. username is kept only as a display
+// label distinct from login identity (see Member/PersonAdminRow and the
+// templates that show it).
+func (st *Store) CreatePersonAndAcceptInvite(ctx context.Context, token, username, displayName, email string) (personID int64, dest string, err error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, "", err
@@ -554,8 +659,8 @@ func (st *Store) CreatePersonAndAcceptInvite(ctx context.Context, token, usernam
 	defer tx.Rollback(ctx)
 
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO people (username, display_name, password_hash) VALUES ($1, $2, $3) RETURNING id`,
-		username, displayName, bcryptHash).Scan(&personID); err != nil {
+		`INSERT INTO people (username, display_name, email) VALUES ($1, $2, $3) RETURNING id`,
+		username, displayName, email).Scan(&personID); err != nil {
 		return 0, "", err
 	}
 
