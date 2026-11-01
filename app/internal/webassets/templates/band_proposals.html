@@ -1,0 +1,122 @@
+{{define "band_proposals"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Band.Name}} — proposals</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="app-header">
+  <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
+  <h1>{{.Band.Name}} — proposals</h1>
+  <nav class="song-nav">
+    <a href="/bands/{{.Band.ID}}/listening-party">listening party</a>
+  </nav>
+</header>
+<main class="index">
+  <p class="hint">Propose adding an existing catalog variant to the repertoire ("new song"), or a new reference URL for a variant already in it ("new reference"). Any current member may vote yes/veto, or just accept/reject directly — a single veto rejects immediately no matter how many yes votes exist; otherwise a proposal auto-accepts once more than half of the band's {{.MemberCount}} current members have voted yes.</p>
+
+  <div class="card" style="max-width:560px">
+    <h2>New proposal</h2>
+    <label>Kind
+      <select id="proposal-kind">
+        <option value="new_song">new song (add an existing variant to the repertoire)</option>
+        <option value="new_reference">new reference URL (for a variant already in the repertoire)</option>
+      </select>
+    </label>
+    <label>Variant id
+      <input type="number" id="proposal-variant-id" placeholder="from /catalog or a repertoire entry">
+    </label>
+    <label id="proposal-url-field">Proposed reference URL <input type="text" id="proposal-url" placeholder="https://..."></label>
+    <label>Note (optional) <input type="text" id="proposal-note"></label>
+    <button type="button" id="create-proposal-btn">Propose</button>
+    <p id="create-proposal-result" class="hint"></p>
+  </div>
+
+  <table class="card" style="width:100%">
+    <thead><tr><th>Kind</th><th>Variant</th><th>Proposer</th><th>Status</th><th>Votes</th><th></th></tr></thead>
+    <tbody>
+    {{range .Proposals}}
+      <tr data-proposal-id="{{.ID}}">
+        <td>{{.Kind}}</td>
+        <td><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}variant {{deref64 .TargetVariantID}}{{end}}</a></td>
+        <td>{{.ProposerUsername}}</td>
+        <td>{{.Status}}</td>
+        <td>{{.YesVotes}} yes / {{.VetoVotes}} veto</td>
+        <td>
+        {{if eq .Status "open"}}
+          <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="yes">vote yes</button>
+          <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="veto">veto</button>
+          <button type="button" class="accept-btn" data-proposal-id="{{.ID}}">accept</button>
+          <button type="button" class="reject-btn" data-proposal-id="{{.ID}}">reject</button>
+        {{end}}
+        </td>
+      </tr>
+    {{else}}
+      <tr><td colspan="6" class="hint">No proposals yet.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+</main>
+<script>
+const bandId = {{.Band.ID}};
+document.getElementById('proposal-kind').addEventListener('change', (e) => {
+  document.getElementById('proposal-url-field').style.display = e.target.value === 'new_reference' ? '' : 'none';
+});
+document.getElementById('proposal-url-field').style.display = 'none';
+
+document.getElementById('create-proposal-btn').addEventListener('click', async () => {
+  const kind = document.getElementById('proposal-kind').value;
+  const targetVariantId = Number(document.getElementById('proposal-variant-id').value);
+  const note = document.getElementById('proposal-note').value.trim();
+  const out = document.getElementById('create-proposal-result');
+  if (!targetVariantId) { out.textContent = 'variant id is required'; return; }
+  let payload = {note};
+  if (kind === 'new_reference') {
+    const url = document.getElementById('proposal-url').value.trim();
+    if (!url) { out.textContent = 'a proposed URL is required for a new-reference proposal'; return; }
+    payload = {url, note};
+  }
+  const res = await fetch(`/api/bands/${bandId}/proposals`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({kind, targetVariantId, payload}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) {
+    location.reload();
+  } else {
+    out.textContent = data.error || 'failed to propose';
+  }
+});
+
+async function vote(proposalId, voteValue) {
+  const res = await fetch(`/api/bands/${bandId}/proposals/${proposalId}/votes`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({vote: voteValue}),
+  });
+  if (res.ok) location.reload();
+  else { const data = await res.json().catch(() => ({})); alert(data.error || 'vote failed'); }
+}
+document.querySelectorAll('.vote-btn').forEach(btn => {
+  btn.addEventListener('click', () => vote(btn.dataset.proposalId, btn.dataset.vote));
+});
+document.querySelectorAll('.accept-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const res = await fetch(`/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/accept`, {method: 'POST'});
+    if (res.ok) location.reload();
+    else { const data = await res.json().catch(() => ({})); alert(data.error || 'accept failed'); }
+  });
+});
+document.querySelectorAll('.reject-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const res = await fetch(`/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/reject`, {method: 'POST'});
+    if (res.ok) location.reload();
+    else { const data = await res.json().catch(() => ({})); alert(data.error || 'reject failed'); }
+  });
+});
+</script>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,75 @@
+{{define "band_proposal"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proposal — {{.Band.Name}}</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="app-header">
+  <a class="back-link" href="/bands/{{.Band.ID}}/proposals">{{template "icon-back"}} {{.Band.Name}} proposals</a>
+  <h1>Proposal #{{.Proposal.ID}}</h1>
+</header>
+<main class="index">
+  <div class="card" style="max-width:560px">
+    <p><strong>Kind:</strong> {{.Proposal.Kind}}</p>
+    <p><strong>Variant:</strong> {{if .Proposal.TargetTitle}}<a href="/b/{{.Proposal.TargetBook}}/{{.Proposal.TargetStem}}">{{.Proposal.TargetTitle}}</a>{{else}}variant {{deref64 .Proposal.TargetVariantID}}{{end}}</p>
+    <p><strong>Proposed by:</strong> {{.Proposal.ProposerUsername}} on {{.Proposal.CreatedAt.Format "2006-01-02 15:04"}}</p>
+    <p><strong>Status:</strong> {{.Proposal.Status}}
+      {{if .Proposal.DecidedAt}} ({{.Proposal.DecidedAt.Format "2006-01-02 15:04"}}{{if .Proposal.DecidedByUsername}}, by {{.Proposal.DecidedByUsername}}{{else}}, by vote{{end}}){{end}}
+    </p>
+  </div>
+
+  {{if eq .Proposal.Status "open"}}
+  <div class="card" style="max-width:420px">
+    <h2>Cast your vote</h2>
+    <p class="hint">Auto-accepts once more than half of the band's {{.MemberCount}} current members vote yes. A single veto rejects immediately, no matter how many yes votes exist.</p>
+    <button type="button" id="vote-yes-btn">vote yes</button>
+    <button type="button" id="vote-veto-btn">veto</button>
+    <button type="button" id="accept-btn">accept now</button>
+    <button type="button" id="reject-btn">reject now</button>
+    <p id="vote-result" class="hint"></p>
+  </div>
+  {{end}}
+
+  <table class="card" style="width:100%">
+    <thead><tr><th>Who</th><th>Vote</th><th>When</th></tr></thead>
+    <tbody>
+    {{range .Votes}}
+      <tr><td>{{.Username}}</td><td>{{.Vote}}</td><td>{{.CastAt.Format "2006-01-02 15:04"}}</td></tr>
+    {{else}}
+      <tr><td colspan="3" class="hint">No votes yet.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+</main>
+<script>
+const bandId = {{.Band.ID}};
+const proposalId = {{.Proposal.ID}};
+async function vote(voteValue) {
+  const res = await fetch(`/api/bands/${bandId}/proposals/${proposalId}/votes`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({vote: voteValue}),
+  });
+  if (res.ok) { location.reload(); return; }
+  const data = await res.json().catch(() => ({}));
+  document.getElementById('vote-result').textContent = data.error || 'vote failed';
+}
+document.getElementById('vote-yes-btn') && document.getElementById('vote-yes-btn').addEventListener('click', () => vote('yes'));
+document.getElementById('vote-veto-btn') && document.getElementById('vote-veto-btn').addEventListener('click', () => vote('veto'));
+document.getElementById('accept-btn') && document.getElementById('accept-btn').addEventListener('click', async () => {
+  const res = await fetch(`/api/bands/${bandId}/proposals/${proposalId}/accept`, {method: 'POST'});
+  if (res.ok) location.reload();
+  else { const data = await res.json().catch(() => ({})); document.getElementById('vote-result').textContent = data.error || 'accept failed'; }
+});
+document.getElementById('reject-btn') && document.getElementById('reject-btn').addEventListener('click', async () => {
+  const res = await fetch(`/api/bands/${bandId}/proposals/${proposalId}/reject`, {method: 'POST'});
+  if (res.ok) location.reload();
+  else { const data = await res.json().catch(() => ({})); document.getElementById('vote-result').textContent = data.error || 'reject failed'; }
+});
+</script>
+</body>
+</html>
+{{end}}

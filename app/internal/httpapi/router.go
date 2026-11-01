@@ -129,6 +129,22 @@ func NewServer(st *store.Store, v2Root string) http.Handler {
 	mux.HandleFunc("POST /api/bands/{id}/catalog/fork/{variantID}", s.requireBandMember(s.handleForkVariantIntoBand))
 	mux.HandleFunc("POST /api/bands/{id}/variants", s.requireBandMember(s.handleCreateBandVariant))
 
+	// Band proposals + voting (phase 7): propose a new song (an existing
+	// catalog variant, for the band's repertoire) or a new reference URL
+	// for an existing band variant; any current member may vote
+	// yes/veto or manually accept/reject. See
+	// internal/store/band_proposals.go for the veto/threshold/
+	// notification judgment calls. The listening-party page is a focused
+	// UI over this same data (open 'new_song' proposals), not a separate
+	// system.
+	mux.HandleFunc("GET /bands/{id}/proposals", s.requireBandMember(s.handleBandProposalsPage))
+	mux.HandleFunc("POST /api/bands/{id}/proposals", s.requireBandMember(s.handleCreateProposal))
+	mux.HandleFunc("GET /bands/{id}/proposals/{proposalID}", s.requireBandMember(s.handleBandProposalDetailPage))
+	mux.HandleFunc("POST /api/bands/{id}/proposals/{proposalID}/accept", s.requireBandMember(s.handleAcceptProposal))
+	mux.HandleFunc("POST /api/bands/{id}/proposals/{proposalID}/reject", s.requireBandMember(s.handleRejectProposal))
+	mux.HandleFunc("POST /api/bands/{id}/proposals/{proposalID}/votes", s.requireBandMember(s.handleCastVote))
+	mux.HandleFunc("GET /bands/{id}/listening-party", s.requireBandMember(s.handleListeningPartyPage))
+
 	// Site-wide admin panel — gated by requireAdmin (is_admin on the
 	// person), not requireRole (per-project role): see auth.go.
 	mux.HandleFunc("GET /admin", s.requireAdmin(s.handleAdminPage))

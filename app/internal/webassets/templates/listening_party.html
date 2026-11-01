@@ -1,0 +1,80 @@
+{{define "listening_party"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Band.Name}} — listening party</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="app-header">
+  <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
+  <h1>{{.Band.Name}} — listening party</h1>
+  <nav class="song-nav">
+    <a href="/bands/{{.Band.ID}}/proposals">all proposals</a>
+  </nav>
+</header>
+<main class="index">
+  <p class="hint">Throw in songs to consider for the setlist, then vote right here — this is just a focused view over the band's normal proposal/vote mechanism (see <a href="/bands/{{.Band.ID}}/proposals">all proposals</a>), filtered to open "new song" proposals so a session doesn't get lost in the full list. A single veto rejects a song immediately; otherwise it auto-accepts into the repertoire once more than half of the band's {{.MemberCount}} current members vote yes.</p>
+
+  <div class="card" style="max-width:520px">
+    <h2>Throw in a song</h2>
+    <p class="hint">Pick a variant id from the <a href="/catalog">catalog</a> or the band's own <a href="/bands/{{.Band.ID}}/catalog">repertoire</a> page.</p>
+    <label>Variant id <input type="number" id="variant-id-input"></label>
+    <label>Note (optional) <input type="text" id="note-input"></label>
+    <button type="button" id="submit-btn">Add to the queue</button>
+    <p id="submit-result" class="hint"></p>
+  </div>
+
+  <table class="card" style="width:100%">
+    <thead><tr><th>Song</th><th>Submitted by</th><th>Votes</th><th></th></tr></thead>
+    <tbody>
+    {{range .Proposals}}
+      <tr data-proposal-id="{{.ID}}">
+        <td><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}variant {{deref64 .TargetVariantID}}{{end}}</a></td>
+        <td>{{.ProposerUsername}}</td>
+        <td class="vote-tally">{{.YesVotes}} yes / {{.VetoVotes}} veto</td>
+        <td>
+          <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="yes">yes</button>
+          <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="veto">veto</button>
+        </td>
+      </tr>
+    {{else}}
+      <tr><td colspan="4" class="hint">Nothing in the queue yet — throw in a song above.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+</main>
+<script>
+const bandId = {{.Band.ID}};
+document.getElementById('submit-btn').addEventListener('click', async () => {
+  const targetVariantId = Number(document.getElementById('variant-id-input').value);
+  const note = document.getElementById('note-input').value.trim();
+  const out = document.getElementById('submit-result');
+  if (!targetVariantId) { out.textContent = 'variant id is required'; return; }
+  const res = await fetch(`/api/bands/${bandId}/proposals`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({kind: 'new_song', targetVariantId, payload: {note}}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) {
+    location.reload();
+  } else {
+    out.textContent = data.error || 'failed to submit';
+  }
+});
+document.querySelectorAll('.vote-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const res = await fetch(`/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/votes`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({vote: btn.dataset.vote}),
+    });
+    if (res.ok) location.reload();
+    else { const data = await res.json().catch(() => ({})); alert(data.error || 'vote failed'); }
+  });
+});
+</script>
+</body>
+</html>
+{{end}}
