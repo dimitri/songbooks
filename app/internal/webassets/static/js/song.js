@@ -28,11 +28,193 @@ const ICONS = {
   let bars = [];
   let sections = [];
 
+  // ---- Chart reflow: real per-viewport line wrapping ------------------
+  // Each .staff-line is server-rendered at the section's own declared
+  // bars-per-line ("bars: N", default 4 — the same hint the PDF/print
+  // pipeline uses to decide its line breaks). That's a fine width for a
+  // print page or a wide screen, but it's a FIXED bar count, chosen with
+  // no idea what viewport will actually render it — on a phone it's
+  // routinely too wide. The row itself is a plain flex (nowrap) of
+  // fixed-width bars (each bar's width floored at a real minimum
+  // readable size, see .bar's own CSS comment), so once that floor pushes
+  // the row past the viewport it used to just run off the right edge —
+  // the "D bar clipped" bug. CSS alone can't reflow it: each bar needs
+  // its own 5-line staff drawn behind it (one shared ::before per ROW,
+  // not per bar — see .staff-line::before), so a plain flex-wrap would
+  // detach whichever bars wrapped onto a second visual line from any
+  // staff at all. Splitting the row into more, narrower *rows* — real
+  // siblings, each a proper .staff-line with its own staff background —
+  // is what actually reflows it, the same way the PDF pipeline already
+  // picks a bars-per-line that fits ITS page width, just recomputed here
+  // for the actual viewport instead of a print page.
+  //
+  // staffLineOriginals holds one pristine, NEVER-mutated clone per
+  // server-rendered .staff-line, captured fresh every time the sheet's
+  // own HTML changes (rebindSheet, below). Every reflow pass rebuilds
+  // from these clones rather than re-splitting whatever the previous
+  // pass left behind — so repeated resizes (narrower, then wider again,
+  // e.g. a phone rotation) never compound drift or lose bars, and always
+  // converge on the same layout a fresh load at that width would produce.
+  let staffLineOriginals = null;
+  function captureStaffLineOriginals() {
+    staffLineOriginals = [...sheet.querySelectorAll('.grid.spans-full')].map(grid => ({
+      grid,
+      lines: [...grid.querySelectorAll(':scope > .staff-line')].map(line => {
+        const barEls = [...line.querySelectorAll(':scope > .bar')];
+        // The densest bar in this row sets its own needed min-width — see
+        // the matching CSS comment on .bar's min-width formula, which this
+        // mirrors exactly (max(2.6em, slots * 0.9em)) so a busier bar (more
+        // mid-bar chord changes, more --slots) never gets squeezed by a
+        // budget sized for a plainer one.
+        const maxSlots = barEls.reduce((m, b) => Math.max(m, parseInt(b.style.getPropertyValue('--slots'), 10) || 3), 3);
+        return {
+          cap: parseInt(line.style.getPropertyValue('--cap'), 10) || 4,
+          hasClef: !!line.querySelector(':scope > .staff-timesig-cell'),
+          maxSlots,
+          template: line,
+        };
+      }),
+    }));
+  }
+  function reflowStaffLines() {
+    if (!staffLineOriginals) return;
+    // Resolved from the live em value at #sheet's CURRENT font-size —
+    // jazz mode's own fit search (applyPageBox, below) can still shrink
+    // that font further; this just runs first, at whatever size is
+    // current when it's called, which is good enough to keep every row
+    // on-screen even before that search adjusts anything. The clef/
+    // time-sig cell (only ever on the song's very first row) has a fixed
+    // 2.1em + 0.4em-margin footprint — see the matching CSS comment on
+    // .staff-line:has(.staff-timesig-cell) .bar — subtracted from that
+    // one row's own budget so it's never squeezed out by its neighbors.
+    const fontPx = parseFloat(getComputedStyle(sheet).fontSize) || 16;
+    const clefPx = 2.5 * fontPx;
+    for (const { grid, lines } of staffLineOriginals) {
+      if (!grid.isConnected) continue;
+      const availW = grid.clientWidth;
+      if (!availW) continue; // hidden in this mode (e.g. a compact section's unused grid) — nothing to reflow
+      const newLines = [];
+      for (const { cap, hasClef, maxSlots, template } of lines) {
+        const minBarPx = Math.max(2.6 * fontPx, maxSlots * 0.9 * fontPx);
+        const budget = hasClef ? availW - clefPx : availW;
+        const effCap = Math.max(1, Math.floor(budget / minBarPx));
+        // Never split a row that already fits — and never grow PAST the
+        // author's own intended capacity even when more would physically
+        // fit, so a wide desktop/tablet screen renders exactly what the
+        // "bars:" hint asked for, same as today.
+        const useCap = Math.min(cap, effCap);
+        const cells = [...template.children]; // clef cell (maybe) + .bar elements, in order
+        if (useCap >= cells.filter(el => el.classList.contains('bar')).length) {
+          const line = template.cloneNode(true);
+          line.style.setProperty('--cap', String(cap));
+          newLines.push(line);
+          continue;
+        }
+        // Split into chunks of useCap bars each (last chunk may be
+        // shorter — it keeps the SAME --cap as its siblings, not its own
+        // shorter count, so its bars stay the same width as every other
+        // bar in this reflowed group rather than stretching to fill the
+        // row, per the same reasoning the server's own short-trailing-row
+        // convention already uses for --cap). Only the very first chunk
+        // ever carries the clef cell, since it's only ever the first
+        // child of the very first original line.
+        const clefEl = hasClef ? cells.find(el => el.classList.contains('staff-timesig-cell')) : null;
+        const barEls = cells.filter(el => el.classList.contains('bar'));
+        for (let i = 0; i < barEls.length; i += useCap) {
+          const chunk = barEls.slice(i, i + useCap);
+          const line = document.createElement('div');
+          line.className = 'staff-line';
+          line.style.setProperty('--cap', String(useCap));
+          if (i === 0 && clefEl) line.appendChild(clefEl.cloneNode(true));
+          for (const bar of chunk) line.appendChild(bar.cloneNode(true));
+          newLines.push(line);
+        }
+      }
+      grid.replaceChildren(...newLines);
+      resolveLabelCollisions(grid);
+    }
+  }
+  // A .bar's own min-width (above) is a GEOMETRIC floor — wide enough for
+  // its beat-slots' slash marks — not a guarantee the actual CHORD TEXT
+  // sitting above them (position:absolute, so it never contributes to
+  // flex sizing — see .bar's own CSS comment) fits without touching its
+  // neighbor: a couple of two-letter labels ("Cm", "F#") on adjacent
+  // slots can still collide at a bar width the slot-count math alone says
+  // is fine. jazz mode already has to solve exactly this (applyPageBox's
+  // own labelsCollide, measuring real rendered label rects) — same check,
+  // reused here as a correctness backstop for every mode: find the first
+  // row whose labels actually touch, give it one fewer bar than it has
+  // now, and recheck, same "detect → shrink → recheck" shape as jazz
+  // mode's own search, until nothing collides (or a row is down to a
+  // single bar, the same place jazz mode gives up and falls back to
+  // letting content be what it is rather than looping forever).
+  function lineLabelsCollide(line) {
+    let prevRight = null;
+    for (const el of line.querySelectorAll('.chord-label')) {
+      const r = el.getBoundingClientRect();
+      if (prevRight != null && r.left < prevRight - 0.5) return true;
+      prevRight = r.right;
+    }
+    return false;
+  }
+  function resolveLabelCollisions(grid) {
+    let guard = 0;
+    while (guard++ < 40) {
+      const line = [...grid.querySelectorAll(':scope > .staff-line')].find(lineLabelsCollide);
+      if (!line) return;
+      const barEls = [...line.querySelectorAll(':scope > .bar')];
+      const curCap = parseInt(line.style.getPropertyValue('--cap'), 10) || barEls.length;
+      if (barEls.length <= 1) {
+        // A lone bar (already the shortest possible row — typically a
+        // short trailing/volta row) can't be split further, but it may
+        // still be rendered NARROWER than the row it's in: --cap usually
+        // still carries the section's full per-line bar count here (kept
+        // deliberately, elsewhere, so a short row's bar doesn't stretch
+        // wider than every other bar and read as a different-length
+        // measure — see .bar's own CSS comment). That tradeoff stops
+        // applying once this is the collision-of-last-resort case: a
+        // single bar genuinely needs its own full row width before
+        // there's truly nothing left to try. Only once --cap already
+        // matches its own bar count (full width, no narrowing left to
+        // undo) is this really the end of the line.
+        if (curCap > barEls.length) { line.style.setProperty('--cap', String(barEls.length)); continue; }
+        return;
+      }
+      const clefEl = line.querySelector(':scope > .staff-timesig-cell');
+      const newCap = barEls.length - 1;
+      const groups = [];
+      for (let i = 0; i < barEls.length; i += newCap) groups.push(barEls.slice(i, i + newCap));
+      // Moves the live bar nodes (not clones) into the replacement rows —
+      // `line` itself is discarded right after, so there's no need to
+      // leave its children intact.
+      const replacement = groups.map((g, gi) => {
+        const l = document.createElement('div');
+        l.className = 'staff-line';
+        l.style.setProperty('--cap', String(newCap));
+        if (gi === 0 && clefEl) l.appendChild(clefEl);
+        for (const b of g) l.appendChild(b);
+        return l;
+      });
+      line.replaceWith(...replacement);
+    }
+  }
+
+  // reflowStaffLines() clones and replaces every .bar element it touches
+  // (see its own comment), which leaves `bars` — the cache highlightTick()
+  // walks every tick to find/mark the currently-playing one — pointing at
+  // now-detached nodes. A plain resize (same content, new viewport) only
+  // needs this refreshed, not a full rebindSheet(): `sections` and
+  // everything rebindSheet() otherwise rebuilds live outside the bar grid
+  // itself (the .sheet-section wrapper, not its contents) and stay valid.
+  function refreshBarsCache() { bars = [...sheet.querySelectorAll('.bar')]; }
+
   // Rebind DOM references after #sheet's innerHTML changes (live preview
   // while editing, or restoring the saved view when closing the editor) —
   // a fresh innerHTML means fresh nodes, so cached references go stale.
   function rebindSheet() {
-    bars = [...sheet.querySelectorAll('.bar')];
+    captureStaffLineOriginals();
+    reflowStaffLines();
+    refreshBarsCache();
     // startBar/barCount come from the server (every section's real
     // position in the performed bar sequence — see StartBar's Go-side doc
     // comment), not from "does this section happen to have a rendered
@@ -404,10 +586,27 @@ const ICONS = {
       return;
     }
     sheet.dataset.renderMode = v;
+    // A grid hidden in the PREVIOUS mode reads clientWidth 0 while
+    // reflowStaffLines() skips it, so switching to a mode that shows it
+    // needs a fresh pass now that it's actually laid out and measurable.
+    reflowStaffLines();
+    refreshBarsCache();
     applyPageBox();
     try { localStorage.setItem('songbooks-default-mode', v); } catch (e) { /* ignore */ }
   });
-  window.addEventListener('resize', applyPageBox);
+  // Reflow before the jazz-mode fit search (applyPageBox): it decides how
+  // many bars fit per row at the CURRENT font-size, so it needs to run
+  // first, before that search starts shrinking the font under it. A
+  // resize is also the one case rebindSheet() never covers on its own
+  // (same DOM, same content, just a different viewport), so both need
+  // re-running here, not just applyPageBox. Debounced — resize fires
+  // continuously while dragging/rotating, and rebuilding every .staff-line
+  // from scratch on every single event is needless churn.
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { reflowStaffLines(); refreshBarsCache(); applyPageBox(); }, 100);
+  });
 
   // Open every song in the reader's own last-used view instead of always
   // "chords + lyrics" — a drummer who always wants the jazz chart, or a

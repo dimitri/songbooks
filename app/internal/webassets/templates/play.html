@@ -49,7 +49,15 @@
         <span class="tsden">{{.TimeDen}}</span>
       </span>
       {{end}}
-      <span class="bar{{if .Open}} bar-open{{end}}{{if .Close}} bar-close{{end}}{{if .IsRepeat}} bar-pct{{end}}{{if .Volta}} has-volta{{end}}{{if and .Volta (not .VoltaFirst)}} volta-continues{{end}}{{if .Placeholder}} bar-placeholder{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}">
+      {{/* --slots backs the bar's own min-width (see .bar's CSS comment):
+           a flat floor sized for a typical ~3-slot bar left a busier bar
+           (more beat-slots — e.g. a 4/4 "Gm . . Cm" with a mid-bar change,
+           every slot its own 0.9em floor) squeezed well below what its OWN
+           beat-slots need once a row is actually narrow enough to reach
+           that floor (reflowStaffLines(), song.js, only ever narrows rows
+           down TO it) — each one just collided with its neighbor instead
+           of the row ever being flagged as needing to wrap further. */}}
+      <span class="bar{{if .Open}} bar-open{{end}}{{if .Close}} bar-close{{end}}{{if .IsRepeat}} bar-pct{{end}}{{if .Volta}} has-volta{{end}}{{if and .Volta (not .VoltaFirst)}} volta-continues{{end}}{{if .Placeholder}} bar-placeholder{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}" style="--slots: {{len .Beats}}">
         {{if .Open}}<span class="repeat-dots" title="repeat starts"></span>{{end}}
         {{if .Volta}}<span class="volta">{{if .VoltaFirst}}<span class="volta-num">{{.Volta}}</span>{{end}}</span>{{end}}
         <span class="bar-body">

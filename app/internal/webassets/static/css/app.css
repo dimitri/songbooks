@@ -565,9 +565,35 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
      column could squeeze a bar to a few px while its absolutely-positioned
      chord text still rendered at full size, bleeding into neighboring
      bars with no overflow ever being detected. */
-  flex: 0 0 calc(100% / var(--cap, 4)); min-width: 2.6em;
+  /* The floor itself: max(a flat readable minimum, enough for every one
+     of this bar's OWN beat-slots at THEIR min-width — see .beat-slot
+     below, 0.9em each). --slots (template-side, per bar) is the real
+     rhythmic-slot count; a plain quarter-note 4/4 bar is 4, a 6/8 is 2 —
+     the flat 2.6em alone covers a typical ~3-slot bar but let a busier
+     one (more mid-bar chord changes, e.g. "Gm . . Cm") get squeezed
+     below what its own slots need once reflowStaffLines() (song.js)
+     narrows a row down TO this floor on a phone — not overflowing (the
+     floor still held) but colliding: slash/chord-label content from
+     neighboring slots crowded into less room than it needs. */
+  flex: 0 0 calc(100% / var(--cap, 4)); min-width: max(2.6em, calc(var(--slots, 3) * 0.9em));
   padding: 0 0.5em; position: relative; font-family: var(--font-chart);
   z-index: 1;
+}
+/* The very first row of the whole song also carries .staff-timesig-cell
+   (the clef/time-sig, --cap-independent fixed width: 2.1em + 0.4em
+   margin = 2.5em) as an extra flex sibling ahead of the bars — but each
+   bar's own basis above is computed as a share of the row's FULL width
+   (100%), with nothing held back for that cell. The two together always
+   summed to MORE than 100%, so the row overflowed by a constant ~2.5em
+   on every viewport, desktop included — just small enough there to go
+   unnoticed (or show as a sliver of horizontal scroll), but enough on a
+   phone-width column to push the last bar of that row off-screen (the
+   reported "D bar clipped" bug: the song's Intro/first row). Subtracting
+   the cell's own footprint from the 100% pool before dividing by --cap
+   on exactly the row that carries it fixes the sum at the root, instead
+   of papering over it with a narrower min-width or smaller font. */
+.staff-line:has(.staff-timesig-cell) .bar {
+  flex-basis: calc((100% - 2.5em) / var(--cap, 4));
 }
 .bar + .bar { border-left: 1px solid var(--border); }
 /* Repeat barline — LilyPond/Guitar Pro convention: a THIN line next to the
@@ -1166,7 +1192,23 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 }
 
 @media (max-width: 900px) {
-  .content-row { flex-direction: column; gap: 0; }
+  /* align-items: flex-start (the desktop row layout's own cross-axis
+     rule, needed there so the sticky .timeline rail doesn't stretch to
+     the chart's full height) carries over into this column layout too,
+     where "cross axis" is now WIDTH, not height — flex-start there means
+     each item sizes to its own content (shrink-to-fit) instead of
+     stretching to the container's width. .content-main's own min-width:0
+     only ever mattered for the ROW layout's horizontal main axis; here it
+     does nothing, so .content-main silently sized itself to its widest
+     nowrap descendant (the bar grid, the structure-strip ticker) instead
+     of the actual (narrow) viewport — the real root cause of the chart
+     and structure strip both running off the right edge on a phone,
+     underneath and independent of the bar-grid's own reflow fix (that
+     fix only controls overflow WITHIN a staff-line row at a given
+     container width; it can't help if the container itself never
+     shrinks to the viewport in the first place). stretch here is exactly
+     what a single stacked column needs: every child full width. */
+  .content-row { flex-direction: column; align-items: stretch; gap: 0; }
   /* The sidebar (transport + structure rail) used to sit ABOVE the chart
      in normal document flow on a phone — on a longer song that was 800+px
      of controls to scroll past before the chart itself even appeared (see
