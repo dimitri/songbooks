@@ -27,6 +27,17 @@ type Server struct {
 	// production deployment: it disables authentication for anyone who can
 	// reach the server at all. See main.go's loud startup banner.
 	devAutoLogin *store.Person
+
+	// webauthnRPID is the configured WebAuthn Relying Party ID
+	// (--webauthn-rp-id / SONGBOOKS_WEBAUTHN_RP_ID — see main.go). Empty
+	// means "derive it from each request's own Host header instead" — see
+	// webauthn.go's webauthnForRequest for what that means and why
+	// production must set this explicitly rather than rely on the default.
+	webauthnRPID string
+	// webauthn holds every in-flight (begun, not yet finished) passkey
+	// registration/login ceremony's challenge state — see webauthn.go's
+	// webauthnState doc comment.
+	webauthn *webauthnState
 }
 
 // NewServer wires the HTTP handler. v2Root is the path to the v2/ Typst
@@ -37,9 +48,11 @@ type Server struct {
 // mailer.ConsoleMailer by default. devAutoLogin is nil in every normal
 // (including production) deployment — see the Server.devAutoLogin doc
 // comment above for what setting it does and why that must never happen
-// in production.
-func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *store.Person) http.Handler {
-	s := &Server{store: st, mailer: m, ly: lilypond.NewBridge(), devAutoLogin: devAutoLogin}
+// in production. webauthnRPID is the configured passkey Relying Party ID
+// (empty = derive per-request from Host, dev-only default — see
+// webauthn.go's webauthnForRequest and main.go's --webauthn-rp-id flag).
+func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *store.Person, webauthnRPID string) http.Handler {
+	s := &Server{store: st, mailer: m, ly: lilypond.NewBridge(), devAutoLogin: devAutoLogin, webauthnRPID: webauthnRPID, webauthn: newWebAuthnState()}
 	if v2Root != "" {
 		s.pdf = pdf.New(v2Root)
 	}
@@ -53,6 +66,12 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("POST /login", s.handleLogin)
 	mux.HandleFunc("GET /login/confirm", s.handleLoginConfirm)
 	mux.HandleFunc("POST /logout", s.handleLogout)
+	// Passkey (WebAuthn) login, the third first-class /login option (see
+	// webauthn.go) — unauthenticated, same as the routes above: this is
+	// the "log in" side, not the "add a passkey to my account" side
+	// (that's requireAuth-gated, below with the rest of /profile).
+	mux.HandleFunc("POST /api/webauthn/login/begin", s.handleWebAuthnLoginBegin)
+	mux.HandleFunc("POST /api/webauthn/login/finish", s.handleWebAuthnLoginFinish)
 	mux.HandleFunc("GET /invite/{token}", s.handleInvitePage)
 	mux.HandleFunc("POST /invite/{token}", s.handlePostInvite)
 
@@ -117,6 +136,13 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// Set/change your own password — the "opt into password login later"
 	// path for a magic-link-only account. See profile.go.
 	mux.HandleFunc("POST /profile/password", s.requireAuth(s.handleSetPasswordProfile))
+	// Passkeys: add one to an already-logged-in account (requireAuth —
+	// account creation itself stays invite-only, see webauthn.go's package
+	// doc comment), rename, or remove.
+	mux.HandleFunc("POST /api/webauthn/register/begin", s.requireAuth(s.handleWebAuthnRegisterBegin))
+	mux.HandleFunc("POST /api/webauthn/register/finish", s.requireAuth(s.handleWebAuthnRegisterFinish))
+	mux.HandleFunc("POST /profile/passkeys/{id}/nickname", s.requireAuth(s.handleSetWebAuthnNickname))
+	mux.HandleFunc("POST /profile/passkeys/{id}/remove", s.requireAuth(s.handleRemoveWebAuthnCredential))
 
 	// Catalog (phase 1 of the data-model rewrite): works/variants browsing,
 	// personal catalog, forking, annotations, and the generic

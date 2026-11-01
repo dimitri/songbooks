@@ -30,12 +30,18 @@ func (s *Server) handleProfilePage(w http.ResponseWriter, r *http.Request) {
 			other = append(other, inst)
 		}
 	}
+	passkeys, err := s.store.ListWebAuthnCredentials(r.Context(), p.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "profile", map[string]any{
 		"Me": p, "CommonInstruments": commonInstruments, "Checked": checked,
 		"Other":       strings.Join(other, ", "),
 		"HasPassword": p.PasswordHash != "",
 		"PwError":     r.URL.Query().Get("pwerror"),
 		"PwSaved":     r.URL.Query().Get("pwsaved") != "",
+		"Passkeys":    passkeys,
 	})
 }
 

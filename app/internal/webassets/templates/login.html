@@ -13,9 +13,17 @@
   <div class="hero">
     <div>
       <h2>Log in</h2>
-      <p>Two ways in: log in with your password, or have us email you a one-time link — whichever you've got set up.</p>
+      <p>Three ways in: a passkey, a password, or a one-time emailed link — whichever you've got set up.</p>
     </div>
   </div>
+
+  <section class="card" style="max-width:360px">
+    <h3>Log in with a passkey</h3>
+    <p class="hint">Touch ID, Face ID, Windows Hello, or a security key — no password to remember or email to wait for.</p>
+    <p id="webauthn-login-error" style="color:#b33; display:none"></p>
+    <button type="button" id="webauthn-login-btn">Sign in with a passkey</button>
+    <p class="hint" id="webauthn-unsupported" style="display:none">Your browser doesn't support passkeys — use a password or a login link below instead.</p>
+  </section>
 
   <section class="card" style="max-width:360px">
     <h3>Log in with a password</h3>
@@ -40,6 +48,57 @@
 
   <p class="hint">New here? You'll need an invite link to create an account.</p>
 </main>
+<script>
+// Passkey ("sign in with a passkey") login: a fully passwordless,
+// discoverable-credential ceremony — no identifier typed anywhere on this
+// page, navigator.credentials.get() with no allowCredentials just asks the
+// platform to show its own picker over every passkey registered for this
+// origin. See internal/httpapi/webauthn.go's handleWebAuthnLoginBegin doc
+// comment for why this UX was chosen over identifier-then-passkey.
+(function() {
+  const btn = document.getElementById('webauthn-login-btn');
+  const errEl = document.getElementById('webauthn-login-error');
+  const unsupportedEl = document.getElementById('webauthn-unsupported');
+
+  if (!window.PublicKeyCredential || !window.PublicKeyCredential.parseRequestOptionsFromJSON) {
+    btn.disabled = true;
+    unsupportedEl.style.display = '';
+    return;
+  }
+
+  function showError(msg) {
+    errEl.textContent = msg;
+    errEl.style.display = '';
+  }
+
+  btn.addEventListener('click', async () => {
+    errEl.style.display = 'none';
+    btn.disabled = true;
+    try {
+      const beginRes = await fetch('/api/webauthn/login/begin', { method: 'POST' });
+      if (!beginRes.ok) throw new Error('could not start passkey login');
+      const options = await beginRes.json();
+      const cred = await navigator.credentials.get({
+        publicKey: PublicKeyCredential.parseRequestOptionsFromJSON(options.publicKey),
+      });
+      const finishRes = await fetch('/api/webauthn/login/finish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cred.toJSON()),
+      });
+      if (!finishRes.ok) {
+        const body = await finishRes.json().catch(() => ({}));
+        throw new Error(body.error || 'passkey login failed');
+      }
+      const body = await finishRes.json();
+      window.location.href = body.redirect || '/';
+    } catch (err) {
+      showError(err.message || 'passkey login failed — try a password or login link instead.');
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
 </body>
 </html>
 {{end}}

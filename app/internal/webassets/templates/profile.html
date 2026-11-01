@@ -53,6 +53,40 @@
       <button type="submit" class="primary">{{if .HasPassword}}Change password{{else}}Set password{{end}}</button>
     </form>
   </section>
+
+  <section class="card book-card">
+    <h3>Passkeys</h3>
+    <p class="hint">Touch ID, Face ID, Windows Hello, or a security key — a third way to log in, alongside your password and login links. A passkey registered here only works on the site/origin you registered it on (a passkey made on your laptop at a local dev address won't work on the live site, and vice versa — that's WebAuthn working as designed, not a bug).</p>
+    {{if .Passkeys}}
+    <table class="card" style="width:100%">
+      <thead><tr><th>Name</th><th>Added</th><th>Last used</th><th></th></tr></thead>
+      <tbody>
+      {{range .Passkeys}}
+        <tr>
+          <td>
+            <form method="post" action="/profile/passkeys/{{.ID}}/nickname" style="display:flex; gap:4px">
+              <input type="text" name="nickname" value="{{.Nickname}}" placeholder="e.g. MacBook, iPhone" size="18">
+              <button type="submit">Rename</button>
+            </form>
+          </td>
+          <td>{{.CreatedAt.Format "Jan 2, 2006"}}</td>
+          <td>{{if .LastUsedAt}}{{.LastUsedAt.Format "Jan 2, 2006"}}{{else}}never{{end}}</td>
+          <td>
+            <form method="post" action="/profile/passkeys/{{.ID}}/remove" onsubmit="return confirm('Remove this passkey? You will no longer be able to log in with it.')">
+              <button type="submit" class="danger">Remove</button>
+            </form>
+          </td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="hint">No passkeys registered yet.</p>
+    {{end}}
+    <p id="webauthn-register-error" style="color:#b33; display:none"></p>
+    <button type="button" id="webauthn-register-btn">Add a passkey</button>
+    <p class="hint" id="webauthn-register-unsupported" style="display:none">Your browser doesn't support passkeys.</p>
+  </section>
 </main>
 <script>
 // A checkbox styled as an icon button — toggle the "active" look when
@@ -62,6 +96,60 @@
 document.querySelectorAll('.instrument-icon-btn input[type=checkbox]').forEach(cb => {
   cb.addEventListener('change', () => cb.closest('.instrument-icon-btn').classList.toggle('active', cb.checked));
 });
+
+// Add a passkey: navigator.credentials.create() registers a new
+// discoverable credential (see internal/httpapi/webauthn.go's
+// handleWebAuthnRegisterBegin), then — right after that succeeds — the
+// person is prompted for a short nickname before the result is saved, so
+// the management list above reads "MacBook"/"iPhone" rather than a bare
+// creation date.
+(function() {
+  const btn = document.getElementById('webauthn-register-btn');
+  const errEl = document.getElementById('webauthn-register-error');
+  const unsupportedEl = document.getElementById('webauthn-register-unsupported');
+  if (!btn) return;
+
+  if (!window.PublicKeyCredential || !window.PublicKeyCredential.parseCreationOptionsFromJSON) {
+    btn.disabled = true;
+    unsupportedEl.style.display = '';
+    return;
+  }
+
+  function showError(msg) {
+    errEl.textContent = msg;
+    errEl.style.display = '';
+  }
+
+  btn.addEventListener('click', async () => {
+    errEl.style.display = 'none';
+    btn.disabled = true;
+    try {
+      const beginRes = await fetch('/api/webauthn/register/begin', { method: 'POST' });
+      if (!beginRes.ok) {
+        const body = await beginRes.json().catch(() => ({}));
+        throw new Error(body.error || 'could not start passkey registration');
+      }
+      const options = await beginRes.json();
+      const cred = await navigator.credentials.create({
+        publicKey: PublicKeyCredential.parseCreationOptionsFromJSON(options.publicKey),
+      });
+      const nickname = (window.prompt('Name this passkey (e.g. "MacBook" or "iPhone"):', '') || '').trim();
+      const finishRes = await fetch('/api/webauthn/register/finish?nickname=' + encodeURIComponent(nickname), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cred.toJSON()),
+      });
+      if (!finishRes.ok) {
+        const body = await finishRes.json().catch(() => ({}));
+        throw new Error(body.error || 'passkey registration failed');
+      }
+      window.location.reload();
+    } catch (err) {
+      showError(err.message || 'passkey registration failed.');
+      btn.disabled = false;
+    }
+  });
+})();
 </script>
 {{template "pwa-register"}}
 </body>
