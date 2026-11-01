@@ -295,6 +295,58 @@ func (s *Server) handleSetSchoolMemberRole(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
 }
 
+// handleCreateSchoolGroupInvite makes a brand-new, reusable group
+// invite for this school — the school equivalent of
+// handleCreateBandGroupInvite. Instructor-only (unlike bands' "any
+// current member," schools have a real instructor/student hierarchy —
+// see this phase's lifecycle note). Every claimed slot defaults to
+// school role "student" (see store.grantGroupInviteMembershipTx);
+// inviting someone AS an instructor stays the deliberate direct-add
+// flow (handleAddSchoolMember), not a casual roster link.
+func (s *Server) handleCreateSchoolGroupInvite(w http.ResponseWriter, r *http.Request) {
+	schoolID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		Slots []struct {
+			DisplayName string `json:"displayName"`
+		} `json:"slots"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	slots := make([]store.GroupInviteSlotInput, 0, len(req.Slots))
+	for _, sl := range req.Slots {
+		slots = append(slots, store.GroupInviteSlotInput{DisplayName: sl.DisplayName})
+	}
+	actor := personFromContext(r)
+	groupInviteID, token, err := s.store.CreateGroupInvite(r.Context(), "school", schoolID, actor.ID, slots)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": groupInviteID, "url": "/join/" + token})
+}
+
+// handleCloseSchoolGroupInvite explicitly closes a still-open school
+// group invite. Instructor-only, same hierarchy reasoning as creation.
+func (s *Server) handleCloseSchoolGroupInvite(w http.ResponseWriter, r *http.Request) {
+	schoolID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	groupInviteID, err := strconv.ParseInt(r.PathValue("groupInviteID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid group invite id")
+		return
+	}
+	if err := s.store.CloseGroupInvite(r.Context(), groupInviteID, "school", schoolID); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			httpError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"closed": true})
+}
+
 // handleAddSchoolCatalogEntry points the school's repertoire at an
 // existing (global, or anyone's visible) variant, by reference.
 // Instructor-only.
