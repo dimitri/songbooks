@@ -27,7 +27,8 @@ func (s *Server) handleCreateInvite(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "invalid role")
 		return
 	}
-	token, err := s.store.CreateInvite(r.Context(), book, role, 7*24*time.Hour)
+	actor := personFromContext(r)
+	token, err := s.store.CreateInvite(r.Context(), book, role, actor.ID, 7*24*time.Hour)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return

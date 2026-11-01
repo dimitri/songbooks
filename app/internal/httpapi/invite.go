@@ -26,7 +26,9 @@ func (s *Server) handleInvitePage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, "invite", map[string]any{
-		"Token": inv.Token, "ProjectName": inv.ProjectName, "Role": inv.Role,
+		"Token": inv.Token, "Kind": inv.Kind(),
+		"ProjectName": inv.ProjectName, "Role": inv.Role,
+		"BandName": inv.BandName, "BandStatus": inv.BandStatus,
 		"LoggedInAs": loggedInAs,
 	})
 }
@@ -46,12 +48,12 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 
 	if cookie, err := r.Cookie(sessionCookie); err == nil {
 		if p, err := s.store.GetSession(r.Context(), cookie.Value); err == nil {
-			slug, err := s.store.AcceptInvite(r.Context(), token, p.ID)
+			dest, err := s.store.AcceptInvite(r.Context(), token, p.ID, p.DisplayName)
 			if err != nil {
 				http.Error(w, "this invite link is invalid or has expired", http.StatusNotFound)
 				return
 			}
-			http.Redirect(w, r, "/b/"+slug, http.StatusFound)
+			http.Redirect(w, r, dest, http.StatusFound)
 			return
 		}
 	}
@@ -68,7 +70,7 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	personID, slug, err := s.store.CreatePersonAndAcceptInvite(r.Context(), token, username, displayName, string(hash))
+	personID, dest, err := s.store.CreatePersonAndAcceptInvite(r.Context(), token, username, displayName, string(hash))
 	if err != nil {
 		http.Error(w, "couldn't accept this invite: "+err.Error(), http.StatusBadRequest)
 		return
@@ -83,5 +85,5 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode,
 		MaxAge: 30 * 24 * 60 * 60,
 	})
-	http.Redirect(w, r, "/b/"+slug, http.StatusFound)
+	http.Redirect(w, r, dest, http.StatusFound)
 }

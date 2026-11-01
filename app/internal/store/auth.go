@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -46,13 +47,33 @@ type Member struct {
 	Role        string
 }
 
-// Invite is a pending, single-use invitation to join one project at a role.
+// Invite is a pending, single-use invitation. It targets exactly one of:
+// a project (ProjectSlug/Role set), a band (BandID/BandStatus set), or
+// neither — a "plain" invite that just lets its holder create an
+// account with no membership attached (see Kind).
 type Invite struct {
 	Token       string
 	ProjectSlug string
 	ProjectName string
 	Role        string
+	BandID      int64
+	BandName    string
+	BandStatus  string
+	CreatedBy   int64 // 0/unknown for invites predating this column
 	ExpiresAt   time.Time
+}
+
+// Kind reports which of the three invite shapes inv is, for templates
+// and handlers that need to branch on it.
+func (inv Invite) Kind() string {
+	switch {
+	case inv.ProjectSlug != "":
+		return "project"
+	case inv.BandID != 0:
+		return "band"
+	default:
+		return "plain"
+	}
 }
 
 func randomToken() (string, error) {
@@ -332,8 +353,8 @@ func (st *Store) RemoveMember(ctx context.Context, projectSlug string, personID 
 }
 
 // CreateInvite makes a single-use, time-limited invite to join a project at
-// role.
-func (st *Store) CreateInvite(ctx context.Context, projectSlug, role string, ttl time.Duration) (string, error) {
+// role. createdBy is the inviting person's id (0 if unknown).
+func (st *Store) CreateInvite(ctx context.Context, projectSlug, role string, createdBy int64, ttl time.Duration) (string, error) {
 	pid, err := st.projectID(ctx, projectSlug)
 	if err != nil {
 		return "", err
@@ -343,49 +364,109 @@ func (st *Store) CreateInvite(ctx context.Context, projectSlug, role string, ttl
 		return "", err
 	}
 	_, err = st.db.Exec(ctx,
-		`INSERT INTO invites (token, project_id, role, expires_at) VALUES ($1, $2, $3, $4)`,
-		token, pid, role, time.Now().Add(ttl))
+		`INSERT INTO invites (token, project_id, role, created_by_person_id, expires_at) VALUES ($1, $2, $3, $4, $5)`,
+		token, pid, role, nullableID(createdBy), time.Now().Add(ttl))
 	if err != nil {
 		return "", err
 	}
 	return token, nil
 }
 
+// CreateBandInvite makes a single-use, time-limited invite to join a band
+// at status ("core" or "guest") — the band equivalent of CreateInvite.
+func (st *Store) CreateBandInvite(ctx context.Context, bandID int64, status string, createdBy int64, ttl time.Duration) (string, error) {
+	if status != "core" && status != "guest" {
+		return "", fmt.Errorf("invalid band member status %q", status)
+	}
+	token, err := randomToken()
+	if err != nil {
+		return "", err
+	}
+	_, err = st.db.Exec(ctx,
+		`INSERT INTO invites (token, band_id, band_status, created_by_person_id, expires_at) VALUES ($1, $2, $3, $4, $5)`,
+		token, bandID, status, nullableID(createdBy), time.Now().Add(ttl))
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// CreatePlainInvite makes a single-use, time-limited invite that carries
+// no project/band attachment at all — just lets its holder create an
+// account, for use where there's otherwise no self-serve registration
+// path (e.g. the admin panel).
+func (st *Store) CreatePlainInvite(ctx context.Context, createdBy int64, ttl time.Duration) (string, error) {
+	token, err := randomToken()
+	if err != nil {
+		return "", err
+	}
+	_, err = st.db.Exec(ctx,
+		`INSERT INTO invites (token, created_by_person_id, expires_at) VALUES ($1, $2, $3)`,
+		token, nullableID(createdBy), time.Now().Add(ttl))
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// nullableID turns a 0 person/actor id (this codebase's "unknown" sentinel
+// elsewhere, e.g. actorID) into a genuine SQL NULL instead of a bogus FK
+// value.
+func nullableID(id int64) *int64 {
+	if id == 0 {
+		return nil
+	}
+	return &id
+}
+
 // GetInvite resolves a token to its still-valid invite, or ErrNotFound if
-// missing/expired.
+// missing/expired. Exactly one of (ProjectSlug, BandID) is set, or
+// neither for a plain invite — see Invite.Kind.
 func (st *Store) GetInvite(ctx context.Context, token string) (*Invite, error) {
 	var inv Invite
+	var projectSlug, projectName, role sql.NullString
+	var bandID sql.NullInt64
+	var bandName, bandStatus sql.NullString
+	var createdBy sql.NullInt64
 	err := st.db.QueryRow(ctx, `
-		SELECT i.token, p.slug, p.name, i.role::text, i.expires_at
-		FROM invites i JOIN projects p ON p.id = i.project_id
+		SELECT i.token, p.slug, p.name, i.role::text,
+		       i.band_id, b.name, i.band_status::text,
+		       i.created_by_person_id, i.expires_at
+		FROM invites i
+		LEFT JOIN projects p ON p.id = i.project_id
+		LEFT JOIN bands b ON b.id = i.band_id
 		WHERE i.token = $1 AND i.expires_at > now()`, token).
-		Scan(&inv.Token, &inv.ProjectSlug, &inv.ProjectName, &inv.Role, &inv.ExpiresAt)
+		Scan(&inv.Token, &projectSlug, &projectName, &role,
+			&bandID, &bandName, &bandStatus, &createdBy, &inv.ExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such invite: %w", ErrNotFound)
 	}
 	if err != nil {
 		return nil, err
 	}
+	inv.ProjectSlug, inv.ProjectName, inv.Role = projectSlug.String, projectName.String, role.String
+	inv.BandID, inv.BandName, inv.BandStatus = bandID.Int64, bandName.String, bandStatus.String
+	inv.CreatedBy = createdBy.Int64
 	return &inv, nil
 }
 
-// AcceptInvite grants an already-logged-in person (personID) the invite's
-// role on its project, and deletes the invite — single-use by design, so a
-// link can't be replayed to add an unbounded number of people (anyone
-// wanting more invitees gets a fresh invite instead).
-func (st *Store) AcceptInvite(ctx context.Context, token string, personID int64) (projectSlug string, err error) {
-	tx, err := st.db.Begin(ctx)
-	if err != nil {
-		return "", err
-	}
-	defer tx.Rollback(ctx)
-
-	var projectID int64
-	var role string
+// acceptInviteTx is the shared body of AcceptInvite/CreatePersonAndAcceptInvite:
+// given the invite row (already locked/read inside tx) and the person now
+// accepting it, grants the right membership (project, band, or none for a
+// plain invite), deletes the invite, and — for a band invite — notifies
+// whoever created it. dest is where the browser should be redirected
+// afterwards.
+func (st *Store) acceptInviteTx(ctx context.Context, tx pgx.Tx, token string, personID int64, accepterName string) (dest string, err error) {
+	var projectID, bandID, createdBy sql.NullInt64
+	var role sql.NullString
+	var projectSlug sql.NullString
+	var bandName sql.NullString
 	err = tx.QueryRow(ctx, `
-		SELECT project_id, role::text, (SELECT slug FROM projects WHERE id = project_id)
-		FROM invites WHERE token = $1 AND expires_at > now()`, token).
-		Scan(&projectID, &role, &projectSlug)
+		SELECT i.project_id, i.role::text, (SELECT slug FROM projects WHERE id = i.project_id),
+		       i.band_id, b.name, i.created_by_person_id
+		FROM invites i LEFT JOIN bands b ON b.id = i.band_id
+		WHERE i.token = $1 AND i.expires_at > now()`, token).
+		Scan(&projectID, &role, &projectSlug, &bandID, &bandName, &createdBy)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", fmt.Errorf("no such invite: %w", ErrNotFound)
 	}
@@ -393,54 +474,94 @@ func (st *Store) AcceptInvite(ctx context.Context, token string, personID int64)
 		return "", err
 	}
 
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO project_members (project_id, person_id, role) VALUES ($1, $2, $3)
-		ON CONFLICT (project_id, person_id) DO UPDATE SET role = EXCLUDED.role`,
-		projectID, personID, role); err != nil {
-		return "", err
+	switch {
+	case projectID.Valid:
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO project_members (project_id, person_id, role) VALUES ($1, $2, $3)
+			ON CONFLICT (project_id, person_id) DO UPDATE SET role = EXCLUDED.role`,
+			projectID.Int64, personID, role.String); err != nil {
+			return "", err
+		}
+		dest = "/b/" + projectSlug.String
+
+	case bandID.Valid:
+		var invitedBy *int64
+		if createdBy.Valid {
+			invitedBy = &createdBy.Int64
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO band_members (band_id, person_id, status, invited_by_person_id)
+			VALUES ($1, $2, (SELECT band_status FROM invites WHERE token = $3), $4)`,
+			bandID.Int64, personID, token, invitedBy); err != nil {
+			return "", err
+		}
+		dest = fmt.Sprintf("/bands/%d", bandID.Int64)
+
+		// First real use case for the notification plumbing: tell the
+		// inviter their invite was accepted. A plain invite has nothing to
+		// notify about (no inviter is even meaningfully "waiting" on it),
+		// and a project invite is unchanged existing behavior — this is
+		// deliberately band-invite-only for now.
+		if createdBy.Valid && createdBy.Int64 != personID {
+			body := fmt.Sprintf("%s accepted your invite to join %s", accepterName, bandName.String)
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO notifications (person_id, kind, body, link) VALUES ($1, $2, $3, $4)`,
+				createdBy.Int64, "band_invite_accepted", body, fmt.Sprintf("/bands/%d", bandID.Int64)); err != nil {
+				return "", err
+			}
+		}
+
+	default:
+		// Plain invite: no membership to grant, just the fresh account.
+		dest = "/"
 	}
+
 	if _, err := tx.Exec(ctx, `DELETE FROM invites WHERE token = $1`, token); err != nil {
 		return "", err
 	}
-	return projectSlug, tx.Commit(ctx)
+	return dest, nil
+}
+
+// AcceptInvite grants an already-logged-in person (personID, display name
+// accepterName — used in the accept notification) the invite's membership
+// (project role, band status, or nothing for a plain invite), and deletes
+// the invite — single-use by design, so a link can't be replayed to add an
+// unbounded number of people (anyone wanting more invitees gets a fresh
+// invite instead). dest is where the browser should land afterwards.
+func (st *Store) AcceptInvite(ctx context.Context, token string, personID int64, accepterName string) (dest string, err error) {
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback(ctx)
+
+	dest, err = st.acceptInviteTx(ctx, tx, token, personID, accepterName)
+	if err != nil {
+		return "", err
+	}
+	return dest, tx.Commit(ctx)
 }
 
 // CreatePersonAndAcceptInvite is AcceptInvite's counterpart for a brand-new
 // visitor (not already logged in): it creates the person row, then accepts
 // the invite as them, in one transaction so a failed membership insert
 // never leaves a passwordless orphan account behind.
-func (st *Store) CreatePersonAndAcceptInvite(ctx context.Context, token, username, displayName, bcryptHash string) (personID int64, projectSlug string, err error) {
+func (st *Store) CreatePersonAndAcceptInvite(ctx context.Context, token, username, displayName, bcryptHash string) (personID int64, dest string, err error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, "", err
 	}
 	defer tx.Rollback(ctx)
 
-	var projectID int64
-	var role string
-	err = tx.QueryRow(ctx, `
-		SELECT project_id, role::text, (SELECT slug FROM projects WHERE id = project_id)
-		FROM invites WHERE token = $1 AND expires_at > now()`, token).
-		Scan(&projectID, &role, &projectSlug)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, "", fmt.Errorf("no such invite: %w", ErrNotFound)
-	}
-	if err != nil {
-		return 0, "", err
-	}
-
 	if err := tx.QueryRow(ctx,
 		`INSERT INTO people (username, display_name, password_hash) VALUES ($1, $2, $3) RETURNING id`,
 		username, displayName, bcryptHash).Scan(&personID); err != nil {
 		return 0, "", err
 	}
-	if _, err := tx.Exec(ctx,
-		`INSERT INTO project_members (project_id, person_id, role) VALUES ($1, $2, $3)`,
-		projectID, personID, role); err != nil {
+
+	dest, err = st.acceptInviteTx(ctx, tx, token, personID, displayName)
+	if err != nil {
 		return 0, "", err
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM invites WHERE token = $1`, token); err != nil {
-		return 0, "", err
-	}
-	return personID, projectSlug, tx.Commit(ctx)
+	return personID, dest, tx.Commit(ctx)
 }

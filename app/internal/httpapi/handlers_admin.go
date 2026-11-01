@@ -3,6 +3,7 @@ package httpapi
 import (
 	"net/http"
 	"strconv"
+	"time"
 )
 
 // handleAdminPage is the site-wide admin panel: every person (username,
@@ -47,6 +48,20 @@ func (s *Server) handleSetAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/admin", http.StatusFound)
+}
+
+// handleCreatePlainInvite makes a single-use, project/band-less invite
+// link — a "just create an account" invite, valid for 7 days. Its natural
+// home is the admin panel: it isn't scoped to any project or band, and
+// there is otherwise no self-serve registration path into this instance.
+func (s *Server) handleCreatePlainInvite(w http.ResponseWriter, r *http.Request) {
+	actor := personFromContext(r)
+	token, err := s.store.CreatePlainInvite(r.Context(), actor.ID, 7*24*time.Hour)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"url": "/invite/" + token})
 }
 
 // handleAdminRemovePerson is a deliberate stub: removing a person touches

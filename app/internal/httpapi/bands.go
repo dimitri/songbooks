@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"app/internal/store"
 )
@@ -203,6 +204,26 @@ func (s *Server) handleDeleteBand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+}
+
+// handleCreateBandInvite makes a single-use band invite link, valid for 7
+// days — the band equivalent of handleCreateInvite (members.go). Any
+// current band member may generate one, same as any other band-scoped
+// mutation.
+func (s *Server) handleCreateBandInvite(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	status := r.FormValue("status")
+	if status != "core" && status != "guest" {
+		httpError(w, http.StatusBadRequest, "status must be \"core\" or \"guest\"")
+		return
+	}
+	actor := personFromContext(r)
+	token, err := s.store.CreateBandInvite(r.Context(), bandID, status, actor.ID, 7*24*time.Hour)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"url": "/invite/" + token})
 }
 
 // handleBandCatalogPage is a band's repertoire page — same lineage

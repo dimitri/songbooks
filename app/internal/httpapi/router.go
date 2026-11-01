@@ -62,6 +62,14 @@ func NewServer(st *store.Store, v2Root string) http.Handler {
 
 	mux.HandleFunc("GET /metronome", s.requireAuth(s.handleMetronomePage))
 
+	// In-app notifications: a lightweight inbox, not email/push — see
+	// internal/store/notifications.go. requireAuth only; every store call
+	// scopes by the logged-in person's own id.
+	mux.HandleFunc("GET /notifications", s.requireAuth(s.handleNotificationsPage))
+	mux.HandleFunc("GET /api/notifications/unread-count", s.requireAuth(s.handleUnreadNotificationCount))
+	mux.HandleFunc("POST /notifications/{id}/read", s.requireAuth(s.handleMarkNotificationRead))
+	mux.HandleFunc("POST /notifications/read-all", s.requireAuth(s.handleMarkAllNotificationsRead))
+
 	// Profile (phase 6: instrument choice): a logged-in person's own
 	// account settings — currently just "which instruments do you play",
 	// used to pre-fill jam signup. See internal/httpapi/profile.go.
@@ -114,6 +122,7 @@ func NewServer(st *store.Store, v2Root string) http.Handler {
 	mux.HandleFunc("POST /api/bands/{id}/members", s.requireBandMember(s.handleAddBandMember))
 	mux.HandleFunc("POST /api/bands/{id}/members/{personID}/status", s.requireBandMember(s.handleSetBandMemberStatus))
 	mux.HandleFunc("DELETE /api/bands/{id}/members/{personID}", s.requireBandMember(s.handleRemoveBandMember))
+	mux.HandleFunc("POST /api/bands/{id}/invites", s.requireBandMember(s.handleCreateBandInvite))
 	mux.HandleFunc("GET /bands/{id}/catalog", s.requireBandMember(s.handleBandCatalogPage))
 	mux.HandleFunc("POST /api/bands/{id}/catalog", s.requireBandMember(s.handleAddBandCatalogEntry))
 	mux.HandleFunc("DELETE /api/bands/{id}/catalog/{variantID}", s.requireBandMember(s.handleRemoveBandCatalogEntry))
@@ -123,6 +132,7 @@ func NewServer(st *store.Store, v2Root string) http.Handler {
 	// Site-wide admin panel — gated by requireAdmin (is_admin on the
 	// person), not requireRole (per-project role): see auth.go.
 	mux.HandleFunc("GET /admin", s.requireAdmin(s.handleAdminPage))
+	mux.HandleFunc("POST /admin/invites/plain", s.requireAdmin(s.handleCreatePlainInvite))
 	mux.HandleFunc("POST /admin/people/{personID}/admin", s.requireAdmin(s.handleSetAdmin))
 	mux.HandleFunc("POST /admin/people/{personID}/remove", s.requireAdmin(s.handleAdminRemovePerson))
 

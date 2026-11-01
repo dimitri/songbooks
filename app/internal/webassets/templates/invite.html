@@ -4,26 +4,45 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Join {{.ProjectName}} — Songbooks</title>
+<title>
+{{if eq .Kind "project"}}Join {{.ProjectName}}
+{{else if eq .Kind "band"}}Join {{.BandName}}
+{{else}}Create your account{{end}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
 <main class="index">
   <div class="hero">
     <div>
-      <h2>Join {{.ProjectName}}</h2>
-      <p>You've been invited as <strong>{{.Role}}</strong>.</p>
+      {{if eq .Kind "project"}}
+        <h2>Join {{.ProjectName}}</h2>
+        <p>You've been invited as <strong>{{.Role}}</strong>.</p>
+      {{else if eq .Kind "band"}}
+        <h2>Join {{.BandName}}</h2>
+        <p>You've been invited as a <strong>{{.BandStatus}}</strong> member.</p>
+      {{else}}
+        <h2>Create your account</h2>
+        <p>You've been invited to join Songbooks.</p>
+      {{end}}
     </div>
   </div>
   <form class="card" method="post" action="/invite/{{.Token}}" style="max-width:360px">
     {{if .LoggedInAs}}
-      <p>Join as <strong>{{.LoggedInAs}}</strong>?</p>
-      <button type="submit">Join {{.ProjectName}}</button>
+      <p>
+      {{if eq .Kind "project"}}Join {{.ProjectName}} as <strong>{{.LoggedInAs}}</strong>?
+      {{else if eq .Kind "band"}}Join {{.BandName}} as <strong>{{.LoggedInAs}}</strong>?
+      {{else}}Continue as <strong>{{.LoggedInAs}}</strong>?{{end}}
+      </p>
+      <button type="submit">
+      {{if eq .Kind "project"}}Join {{.ProjectName}}
+      {{else if eq .Kind "band"}}Join {{.BandName}}
+      {{else}}Continue{{end}}
+      </button>
     {{else}}
       <p><label>Username<br><input type="text" name="username" autocomplete="username" required autofocus></label></p>
       <p><label>Your name<br><input type="text" name="display_name" required></label></p>
       <p><label>Password<br><input type="password" name="password" autocomplete="new-password" required></label></p>
-      <button type="submit">Create account &amp; join</button>
+      <button type="submit">Create account{{if ne .Kind "plain"}} &amp; join{{end}}</button>
     {{end}}
   </form>
 </main>
