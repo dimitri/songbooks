@@ -13,7 +13,8 @@
   <a class="back-link" href="/setlists/{{.Book}}/{{.Stem}}">{{template "icon-back"}} edit</a>
   <h1>{{.Title}}</h1>
   <nav class="song-nav">
-    <a class="icon-btn" href="/setlists/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF" download>PDF</a>
+    <a class="icon-btn" href="/setlists/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF (chart)" download>PDF</a>
+    <a class="icon-btn" href="/setlists/{{.Book}}/{{.Stem}}/export-ly.pdf" title="export PDF (LilyPond notation: chords over a staff + lyrics)" download>LY</a>
     <button id="gig-theme-toggle" class="icon-btn" type="button" title="toggle light/dark">{{template "icon-theme"}}</button>
   </nav>
 </header>

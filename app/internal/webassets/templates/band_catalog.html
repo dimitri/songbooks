@@ -11,6 +11,7 @@
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
   <h1>{{.Band.Name}} — repertoire</h1>
+  <a class="icon-btn" href="/bands/{{.Band.ID}}/export-ly.pdf" title="export whole repertoire as PDF (LilyPond notation: chords over a staff + lyrics)" download>export (notation)</a>
 </header>
 <main class="index">
   <p class="hint">Pointers into the catalog, same as a personal songbook — adding here doesn't copy a song; forking does, and makes it this band's own "band"-visibility variant that any current member (core or guest) can edit in place.</p>

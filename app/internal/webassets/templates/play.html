@@ -193,7 +193,8 @@
     {{else}}
     <a class="back-link" href="/b/{{.Book}}">{{template "icon-back"}} {{.Book}}</a>
     {{end}}
-    <a class="icon-btn" href="/b/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF" download>PDF</a>
+    <a class="icon-btn" href="/b/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF (chart)" download>PDF</a>
+    <a class="icon-btn" href="/b/{{.Book}}/{{.Stem}}/export-ly.pdf" title="export PDF (LilyPond notation: chords over a staff + lyrics)" download>LY</a>
     {{if .WorkID}}<a class="icon-btn" href="/works/{{.WorkID}}" title="all versions of this song">versions</a>{{end}}
     {{if .VariantID}}<a class="icon-btn" href="/variants/{{.VariantID}}/history" title="revision history">history</a>
     <button id="fork-variant-btn" class="icon-btn" type="button" data-variant-id="{{.VariantID}}" title="fork: make your own editable copy">fork</button>
