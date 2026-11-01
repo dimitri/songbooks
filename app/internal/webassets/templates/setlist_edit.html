@@ -1,0 +1,39 @@
+{{define "setlist-edit"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setlist: {{.Stem}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
+</head>
+<body>
+<header class="app-header">
+  <a href="/setlists">&larr; Set lists</a>
+  <h1>Setlist: {{.Stem}}</h1>
+  <nav class="song-nav">
+    <a href="/setlists/{{.Book}}/{{.Stem}}/gig">{{template "icon-presentation"}} Gig view</a>
+  </nav>
+</header>
+<main class="setlist-edit" id="setlist-edit" data-book="{{.Book}}" data-stem="{{.Stem}}">
+  <script>window.SONGS_BY_BOOK = {{.SongsByBookJSON}};</script>
+  <section class="card book-card">
+    <div class="setlist-meta">
+      <label>Title <input type="text" id="meta-title"></label>
+      <label>Date <input type="date" id="meta-date"></label>
+      <label>Venue <input type="text" id="meta-venue"></label>
+    </div>
+    <div id="sets-list"></div>
+    <div class="structure-actions">
+      <button id="add-set" type="button">{{template "icon-plus"}} set</button>
+      <button id="save-setlist" type="button" class="primary">Save</button>
+      <span id="setlist-status"></span>
+    </div>
+  </section>
+</main>
+<script src="/static/js/setlist.js"></script>
+{{template "pwa-register"}}
+</body>
+</html>
+{{end}}

@@ -1,0 +1,56 @@
+title:  Sweet Home Alabama
+artist: Lynyrd Skynyrd
+key:    D
+tempo:  98
+time:   4/4
+map:    Intro · Verse · Chorus · Verse · Chorus · Solo · Verse · Chorus · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: |: D . C . | G :|
+
+[Verse]
+Big wheels keep on turnin'
+Carry me home to see my kin
+Singin' songs about the southland
+I miss Alabama once again
+And I think it's a sin, yes
+
+[Chorus]
+Sweet home Alabama
+Where the skies are so blue
+Sweet home Alabama
+Lord I'm comin' home to you
+
+[Verse]
+Big wheels keep on turnin'
+Carry me home to see my kin
+Singin' songs about the southland
+I miss Alabama once again
+And I think it's a sin, yes
+
+[Chorus]
+Sweet home Alabama
+Where the skies are so blue
+Sweet home Alabama
+Lord I'm comin' home to you
+
+[Solo]
+
+[Verse]
+Big wheels keep on turnin'
+Carry me home to see my kin
+Singin' songs about the southland
+I miss Alabama once again
+And I think it's a sin, yes
+
+[Chorus]
+Sweet home Alabama
+Where the skies are so blue
+Sweet home Alabama
+Lord I'm comin' home to you
+
+[Outro]

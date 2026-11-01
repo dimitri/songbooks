@@ -1,0 +1,47 @@
+title:  Let It Be
+artist: The Beatles
+key:    C
+tempo:  72
+time:   4/4
+map:    Intro · Verse · Chorus · Verse · Chorus · Solo · Chorus · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: | C | G | Am | F |
+
+[Verse]
+And in my hour of darkness
+She is standing right in front of me
+Speaking words of wisdom
+Let it be
+
+[Chorus]
+Let it be, let it be
+Let it be, let it be
+Whisper words of wisdom
+Let it be
+
+[Verse]
+And in my hour of darkness
+She is standing right in front of me
+Speaking words of wisdom
+Let it be
+
+[Chorus]
+Let it be, let it be
+Let it be, let it be
+Whisper words of wisdom
+Let it be
+
+[Solo]
+
+[Chorus]
+Let it be, let it be
+Let it be, let it be
+Whisper words of wisdom
+Let it be
+
+[Outro]

@@ -1,0 +1,25 @@
+title:  Toute la musique que j'aime
+artist: Johnny Hallyday
+key:    E
+tempo:  120
+time:   4/4
+map:    Intro · Verse · Chorus · Verse · Chorus · Solo · Chorus
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: |: E | A | E | B :|
+
+[Verse]
+
+[Chorus]
+
+[Verse]
+
+[Chorus]
+
+[Solo]
+
+[Chorus]

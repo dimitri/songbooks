@@ -1,0 +1,138 @@
+{{define "project"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Book}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
+</head>
+<body>
+<header class="app-header">
+  <a class="back-link" href="/">{{template "icon-back"}} Projects</a>
+  <h1>{{.Book}}</h1>
+  <nav class="song-nav">
+    {{if .Playlist}}<a href="{{.Playlist}}" target="_blank" rel="noopener">playlist &#8599;</a>{{end}}
+    <a href="/setlists">set lists</a>
+    <a href="/catalog">catalog</a>
+    <a href="/api/books/{{.Book}}/export" download>{{template "icon-download"}} Export</a>
+    <button id="remove-project-btn" type="button" data-book="{{.Book}}">{{template "icon-trash"}} Remove project</button>
+  </nav>
+</header>
+<main>
+  {{/* Read-only by default: a drag handle and a delete icon sitting on
+       every row invites an accidental drag or misclick on a page people
+       mostly just use to open a song. Edit mode is an explicit, deliberate
+       step — reveals the handle and trash icon, nothing else changes. */}}
+  <section class="book-card card" id="catalog-section" data-book="{{.Book}}">
+    <div class="catalog-head">
+      <button type="button" id="catalog-edit-toggle">{{template "icon-edit"}} Edit order</button>
+      <span id="catalog-save-status" class="hint"></span>
+    </div>
+    {{range .Groups}}
+    <div class="set-group">
+      <h3>{{.Label}}</h3>
+      <ul class="song-list" data-group-label="{{.Label}}">
+        {{$n := 0}}
+        {{range .Songs}}
+        {{$n = add1 $n}}
+        <li data-stem="{{.Stem}}">
+          <span class="catalog-drag-handle" title="drag to reorder" aria-hidden="true">{{template "icon-grip"}}</span>
+          <span class="song-num">{{$n}}.</span>
+          <a class="song-link" href="/b/{{$.Book}}/{{.Stem}}">
+            <span class="song-title">{{.Title}}</span>
+            <span class="song-meta">{{if .Tempo}}{{.Tempo}} bpm{{end}}{{if and .Tempo .Key}} &middot; {{end}}{{.Key}}</span>
+          </a>
+          <button type="button" class="remove-song-btn icon-btn" data-book="{{$.Book}}" data-stem="{{.Stem}}" title="remove song">{{template "icon-trash"}}</button>
+        </li>
+        {{end}}
+      </ul>
+    </div>
+    {{end}}
+    <div class="add-row">
+      <button type="button" id="open-wizard-btn" data-book="{{.Book}}" class="primary">{{template "icon-plus"}} song</button>
+    </div>
+  </section>
+</main>
+
+<dialog id="song-wizard" data-book="{{.Book}}">
+  <h2>New song</h2>
+  <div class="wizard-steps" id="wizard-steps">
+    <span class="wizard-step-dot active" data-step="0">1 &middot; title</span>
+    <span class="wizard-step-dot" data-step="1">2 &middot; key &amp; tempo</span>
+    <span class="wizard-step-dot" data-step="2">3 &middot; lyrics</span>
+    <span class="wizard-step-dot" data-step="3">4 &middot; chords</span>
+  </div>
+
+  {{/* Step 1: title/artist + an optional reference video — set first so
+       the embed can play in the background while filling in the rest
+       (tapping tempo along with it on step 2, in particular). */}}
+  <section class="wizard-panel" data-step="0">
+    <p class="hint">Start from a title. A reference video is optional but makes the rest of this easier — the whole band pulls up the same version, and you can tap tempo along with it on the next step.</p>
+    <div class="wizard-fields">
+      <label>Title <input type="text" id="wiz-title" required></label>
+      <label>Artist <input type="text" id="wiz-artist"></label>
+    </div>
+    <div class="import-row">
+      <input type="url" id="wiz-reference-url" placeholder="https://youtube.com/watch?v=... (optional)">
+    </div>
+    <div class="reference-embed" id="wiz-reference-embed"></div>
+  </section>
+
+  {{/* Step 2: key + tempo, tap-tempo reusing the same Clock used on the
+       play page — no new tempo-detection code, same tap logic. */}}
+  <section class="wizard-panel" data-step="1" hidden>
+    <p class="hint">Key and tempo — both optional, both editable later. Tap along with the reference video above if you set one.</p>
+    <div class="wizard-fields">
+      <label>Key
+        <select id="wiz-key">
+          <option value=""></option>
+          <option>C</option><option>G</option><option>D</option><option>A</option><option>E</option><option>B</option>
+          <option>F</option><option>Bb</option><option>Eb</option><option>Ab</option><option>Db</option>
+          <option>Am</option><option>Em</option><option>Bm</option><option>F#m</option><option>C#m</option>
+          <option>Dm</option><option>Gm</option><option>Cm</option><option>Fm</option><option>Bbm</option>
+        </select>
+      </label>
+      <label>Tempo (bpm) <input type="number" id="wiz-tempo" min="20" max="300"></label>
+      <button type="button" id="wiz-tap-btn">{{template "icon-tap"}} tap tempo</button>
+    </div>
+  </section>
+
+  {{/* Steps 3 & 4: the existing fetch-or-paste importers, unchanged, just
+       their own steps now instead of both sitting open at once. */}}
+  <section class="wizard-panel" data-step="2" hidden>
+    <p class="hint">Fetch lyrics from a URL, or just paste them below — either way, review/edit before creating.</p>
+    <div class="import-row">
+      <input type="url" id="wiz-lyrics-url" placeholder="https://genius.com/... (or any lyrics page)">
+      <button type="button" id="wiz-lyrics-fetch">Fetch</button>
+    </div>
+    <span id="wiz-lyrics-status" class="hint"></span>
+    <textarea id="wiz-lyrics-preview" class="wizard-preview" rows="8" placeholder="fetched lyrics will appear here, editable before you create the song"></textarea>
+  </section>
+
+  <section class="wizard-panel" data-step="3" hidden>
+    <p class="hint">Fetch a chord/lyric tab from Ultimate Guitar, or paste one below. Ultimate Guitar tabs are often wrong — treat this as a starting point to correct, not a finished chart.</p>
+    <div class="import-row">
+      <input type="url" id="wiz-chords-url" placeholder="https://tabs.ultimate-guitar.com/tab/...">
+      <button type="button" id="wiz-chords-fetch">Fetch</button>
+    </div>
+    <span id="wiz-chords-status" class="hint"></span>
+    <textarea id="wiz-chords-preview" class="wizard-preview" rows="8" placeholder="fetched chords + lyrics will appear here, editable before you create the song"></textarea>
+  </section>
+
+  <div class="wizard-actions">
+    <button type="button" id="wiz-cancel">Cancel</button>
+    <button type="button" id="wiz-back" hidden>Back</button>
+    <button type="button" id="wiz-next" class="primary">Next</button>
+    <button type="button" id="wiz-create" class="primary" hidden>Create song</button>
+    <span id="wiz-status" class="hint"></span>
+  </div>
+</dialog>
+
+<script src="/static/js/clock.js"></script>
+<script src="/static/js/project.js"></script>
+{{template "pwa-register"}}
+</body>
+</html>
+{{end}}

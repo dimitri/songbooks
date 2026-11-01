@@ -1,0 +1,16 @@
+# Songs that cannot fit one page above the 14pt legibility floor.
+# These need an editorial decision (collapse repeats, trim a verse), not a
+# layout change. The check step fails on songs NOT listed here, so this is
+# a regression baseline -- keep it short and shrink it over time.
+#
+# whiskey-beer-and-wine: accepted cost of the 4-bars-per-line policy (no
+# 8-bar fallback) -- a standard form that only fits one page when grouped
+# in a way we deliberately stopped allowing.
+#
+# its-too-late, something-got-a-hold-on-me, ticket-to-ride, valerie:
+# all land exactly at the 14pt floor; borderline either way.
+its-too-late
+something-got-a-hold-on-me
+ticket-to-ride
+valerie
+whiskey-beer-and-wine

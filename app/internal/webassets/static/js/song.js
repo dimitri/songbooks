@@ -1,0 +1,1543 @@
+// Unified song page: rendering/playback (formerly play.js) + structure
+// editor + raw editor/importers (formerly prep's scripts), merged behind a
+// single "Edit" toggle so editing happens in place, not on a separate page.
+// Same in-house icon set as templates/icons.html, duplicated here because
+// these particular buttons are built client-side (structure/matrix editor
+// rows) rather than server-rendered — kept visually identical on purpose.
+const ICONS = {
+  up: '<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5-5 5 5"/></svg>',
+  down: '<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5"/></svg>',
+  duplicate: '<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3.5" y="5.5" width="9" height="9" rx="1.2"/><path d="M7 5.5V4a1.2 1.2 0 0 1 1.2-1.2h6.3A1.2 1.2 0 0 1 15.7 4v6.3A1.2 1.2 0 0 1 14.5 11.5H13"/></svg>',
+  close: '<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"/></svg>',
+  grip: '<svg class="icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="7" cy="5" r="1.3"/><circle cx="13" cy="5" r="1.3"/><circle cx="7" cy="10" r="1.3"/><circle cx="13" cy="10" r="1.3"/><circle cx="7" cy="15" r="1.3"/><circle cx="13" cy="15" r="1.3"/></svg>',
+  plus: '<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>',
+};
+
+(function () {
+  const book = document.getElementById('structure')?.dataset.book || document.getElementById('editor')?.dataset.book;
+  const stem = document.getElementById('structure')?.dataset.stem || document.getElementById('editor')?.dataset.stem;
+
+  // ---- Clock / metronome ---------------------------------------------------
+  const transportEl = document.getElementById('transport');
+  const bpm = parseFloat(transportEl.dataset.bpm) || 120;
+  const beatsPerBar = parseInt(transportEl.dataset.beatsPerBar, 10) || 4;
+  const clock = new Clock(bpm, beatsPerBar);
+  const metronome = new Metronome(clock);
+
+  const sheet = document.getElementById('sheet');
+  let bars = [];
+  let sections = [];
+
+  // Rebind DOM references after #sheet's innerHTML changes (live preview
+  // while editing, or restoring the saved view when closing the editor) —
+  // a fresh innerHTML means fresh nodes, so cached references go stale.
+  function rebindSheet() {
+    bars = [...sheet.querySelectorAll('.bar')];
+    // startBar/barCount come from the server (every section's real
+    // position in the performed bar sequence — see StartBar's Go-side doc
+    // comment), not from "does this section happen to have a rendered
+    // .bar element" — a compact/reference section never has one (it's
+    // just a chip + multi-rest bar) but still really takes barCount bars
+    // to play, and used to be entirely invisible to the clock because of
+    // that: no jump target, and the metronome silently drifted out of
+    // sync with the chart the first time it played through one.
+    sections = [...sheet.querySelectorAll('.sheet-section')].map(el => {
+      const startBar = parseInt(el.dataset.startBar, 10);
+      const barCount = parseInt(el.dataset.barCount, 10) || 0;
+      return {
+        el, index: parseInt(el.dataset.sectionIndex, 10),
+        startBar: Number.isNaN(startBar) ? null : startBar,
+        barCount,
+      };
+    });
+    metronome.sectionStartBeats = new Set(
+      sections.filter(s => s.startBar != null).map(s => s.startBar * beatsPerBar)
+    );
+    sheet.querySelectorAll('.section-jump').forEach(btn => {
+      const sec = sections[parseInt(btn.dataset.sectionIndex, 10)];
+      btn.disabled = !sec || sec.startBar == null || sec.barCount === 0;
+      if (btn.disabled) btn.title = 'no chord grid in this section yet — jump unavailable';
+      btn.onclick = () => jumpToSection(parseInt(btn.dataset.sectionIndex, 10));
+    });
+    document.querySelectorAll('.structure-seg').forEach(btn => {
+      btn.onclick = () => jumpToSection(parseInt(btn.dataset.sectionIndex, 10));
+    });
+    // New DOM from a raw-text save/preview starts back at the untransposed
+    // pitch classes the server rendered — reapply whatever transpose was
+    // already dialed in (see the Transpose section below, which sets this
+    // hook once it's wired up).
+    reapplyTranspose();
+  }
+  let reapplyTranspose = () => {};
+
+  async function jumpToSection(i) {
+    const sec = sections[i];
+    if (!sec || sec.startBar == null) return;
+    // Respect the metronome mode here too — a "no click" reader clicking a
+    // section shouldn't suddenly hear a count-in the Play button itself
+    // wouldn't have played, and the un-asked-for ~4-beat wait before
+    // anything moved was exactly what made this feel broken.
+    if (metroModeEl.dataset.value !== 'off') {
+      metronome._ensureCtx();
+      await metronome.countIn(4, clock.bpm, clock.beatsPerBar);
+    }
+    clock.seekToBar(sec.startBar);
+    clock.start();
+    metronome.enabled = metroModeEl.dataset.value === 'full';
+    metronome.start();
+    playPauseBtn.innerHTML = iconPause;
+    playPauseBtn.title = 'pause';
+  }
+
+  let currentBarEl = null;
+  let currentSectionEl = null;
+  const structureFillEl = document.getElementById('structure-fill');
+  function highlightTick() {
+    const bar = clock.currentBar();
+    // Recomputed every tick, not cached at load — rebindSheet() (which
+    // populates `sections`) can run after this point (e.g. on first
+    // load, it's called at the very end of the script), so a one-time
+    // total captured before that would always be 0.
+    if (structureFillEl) {
+      const totalSongBars = sections.reduce((m, s) => s.startBar != null ? Math.max(m, s.startBar + s.barCount) : m, 0);
+      if (totalSongBars > 0) {
+        const pct = Math.max(0, Math.min(1, bar / totalSongBars));
+        structureFillEl.style.width = `calc((100% - 0.4rem) * ${pct})`;
+      }
+    }
+    const barEl = bars.find(b => parseInt(b.dataset.globalBar, 10) === bar) || null;
+    if (barEl !== currentBarEl) {
+      currentBarEl?.classList.remove('current');
+      barEl?.classList.add('current');
+      currentBarEl = barEl;
+    }
+    // Section lookup no longer rides on barEl existing — a compact/
+    // reference section has no .bar of its own (just a chip + multi-rest
+    // bar), so deriving "current section" from "current bar's closest
+    // .sheet-section" went blank for its whole duration: no highlight, no
+    // auto-scroll, no timeline progress, for however many bars it's
+    // actually being played. Found directly from each section's own
+    // [startBar, startBar+barCount) range instead, which every section
+    // has now regardless of whether it rendered any bars.
+    const curSec = sections.find(s => s.startBar != null && bar >= s.startBar && bar < s.startBar + s.barCount);
+    const sectionEl = curSec ? curSec.el : null;
+    if (sectionEl !== currentSectionEl) {
+      currentSectionEl?.classList.remove('current-section');
+      sectionEl?.classList.add('current-section');
+      const idx = sectionEl ? parseInt(sectionEl.dataset.sectionIndex, 10) : -1;
+      // Dim sections already played, not just mark the current one — the
+      // strip then reads as a progress bar through the song's structure,
+      // not just a static roadmap with one segment lit up.
+      document.querySelectorAll('.structure-seg').forEach(c => {
+        const i = parseInt(c.dataset.sectionIndex, 10);
+        c.classList.toggle('current', i === idx);
+        c.classList.toggle('done', idx >= 0 && i < idx);
+      });
+      if (sectionEl) sectionEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      currentSectionEl = sectionEl;
+    }
+    requestAnimationFrame(highlightTick);
+  }
+  requestAnimationFrame(highlightTick);
+
+  const playPauseBtn = document.getElementById('play-pause-btn');
+  function updateBpmDisplay() {
+    const input = document.getElementById('tempo-input');
+    if (input && document.activeElement !== input) input.value = Math.round(clock.bpm);
+  }
+  updateBpmDisplay();
+
+  const iconPlay = '<svg class="icon" viewBox="0 0 20 20" fill="currentColor"><path d="M6 4.5v11l9-5.5-9-5.5z"/></svg>';
+  const iconPause = '<svg class="icon" viewBox="0 0 20 20" fill="currentColor"><rect x="5" y="4" width="3.4" height="12" rx="1"/><rect x="11.6" y="4" width="3.4" height="12" rx="1"/></svg>';
+
+  // ---- View / layout controls ----------------------------------------------
+  // Shared by the mode switch (chords+lyrics/jazz/lyrics) and the metronome's
+  // sound/click-mode/intro-length pickers — an icon-button group instead of
+  // a <select>, so every option is visible and tappable at a glance rather
+  // than hidden behind a dropdown.
+  function wireSegmented(id, onChange) {
+    const el = document.getElementById(id);
+    el.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        el.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+        el.dataset.value = btn.dataset.value;
+        onChange(btn.dataset.value);
+      });
+    });
+  }
+
+  // Metronome mode: "no click" (pure visual beat, the default — nobody
+  // should be surprised by audio the moment they hit play), "intro only"
+  // (count the band in, then silence — play live from there), or "click
+  // track" (count in, then keep clicking through the whole song — tight
+  // sync with in-ears/a backing track). The intro length is the same
+  // count-in mechanism either way, just a drummer's choice of 1 or 2 bars.
+  const metroModeEl = document.getElementById('metro-mode');
+  const introBarsEl = document.getElementById('intro-bars');
+  metronome.enabled = metroModeEl.dataset.value !== 'off';
+  wireSegmented('metro-mode', v => { if (!clock.running) metronome.enabled = v !== 'off'; });
+  wireSegmented('intro-bars', () => {});
+  wireSegmented('sound-picker', v => { metronome.sound = v; });
+
+  function setPlaying(playing) {
+    if (!playing) {
+      clock.pause(); metronome.stop();
+      metronome.enabled = metroModeEl.dataset.value !== 'off';
+      playPauseBtn.innerHTML = iconPlay;
+      playPauseBtn.title = 'play';
+      return;
+    }
+    const mode = metroModeEl.dataset.value;
+    const bars = mode === 'off' ? 0 : parseInt(introBarsEl.dataset.value, 10);
+    const start = () => {
+      clock.start();
+      metronome.enabled = mode === 'full';
+      metronome.start();
+      playPauseBtn.innerHTML = iconPause;
+      playPauseBtn.title = 'pause';
+      playPauseBtn.disabled = false;
+    };
+    if (bars > 0) {
+      playPauseBtn.disabled = true;
+      metronome._ensureCtx();
+      metronome.countIn(bars * clock.beatsPerBar, clock.bpm, clock.beatsPerBar).then(start);
+    } else {
+      start();
+    }
+  }
+  function stopPlaying() {
+    clock.pause();
+    clock.seekToBar(0);
+    metronome.stop();
+    metronome.enabled = metroModeEl.dataset.value !== 'off';
+    playPauseBtn.innerHTML = iconPlay;
+    playPauseBtn.title = 'play';
+    playPauseBtn.disabled = false;
+  }
+  playPauseBtn.addEventListener('click', () => setPlaying(!clock.running));
+  document.getElementById('stop-btn').addEventListener('click', stopPlaying);
+  document.getElementById('tap-btn').addEventListener('click', () => {
+    if (!clock.running) { const g = clock.tapDetermine(); if (g) { clock.setBpm(g); updateBpmDisplay(); } }
+    else { clock.tapResync(); updateBpmDisplay(); }
+  });
+  document.getElementById('tempo-input').addEventListener('change', e => {
+    const v = parseFloat(e.target.value);
+    if (v > 0) { clock.setBpm(v); updateBpmDisplay(); }
+  });
+
+  // Beat dots: one per main pulse in the bar, lit as the clock ticks
+  // through it — visual timing feedback that works whether or not the
+  // click is audible. Compound meters (6/8, 9/8, 12/8) get a real
+  // engraving distinction here too: each main pulse IS a dotted quarter —
+  // three eighth notes — so each dot is drawn as a cluster of 3 sub-ticks,
+  // the middle one lighting up as the clock moves through that pulse's
+  // 2nd and 3rd eighth note, not just one flat "beat happened" light. 3/4
+  // and 4/4 are simple meters (each beat is one plain quarter, no
+  // sub-pulse to show) and keep the single-dot display.
+  const timeNum = parseInt(transportEl.dataset.timeNum, 10);
+  const timeDen = transportEl.dataset.timeDen;
+  const isCompound = timeDen === '8' && [6, 9, 12].includes(timeNum);
+  // The metronome should actually sound the subdivision this visual
+  // already shows — "1 . . 4 . ." should be heard, not just lit up —
+  // the 2nd/3rd eighth of each pulse clicking softer/duller than the
+  // main pulse, not silent. See Metronome._tick() in clock.js.
+  metronome.isCompound = isCompound;
+  const beatDotsEl = document.getElementById('beat-dots');
+  for (let i = 0; i < beatsPerBar; i++) {
+    const d = document.createElement('span');
+    d.className = 'beat-dot' + (i === 0 ? ' downbeat' : '') + (isCompound ? ' compound' : '');
+    if (isCompound) {
+      for (let j = 0; j < 3; j++) {
+        const sub = document.createElement('span');
+        sub.className = 'beat-subtick';
+        d.appendChild(sub);
+      }
+    }
+    beatDotsEl.appendChild(d);
+  }
+  const beatDotEls = [...beatDotsEl.children];
+  let lastLitBeat = -1;
+  let lastLitSub = -1;
+  function tickBeatDots() {
+    const cur = clock.currentBeat();
+    const beat = Math.floor(cur);
+    const idx = ((beat % beatsPerBar) + beatsPerBar) % beatsPerBar;
+    if (idx !== lastLitBeat) {
+      beatDotEls.forEach((d, i) => d.classList.toggle('lit', i === idx));
+      lastLitBeat = idx;
+    }
+    if (isCompound) {
+      const sub = Math.min(2, Math.max(0, Math.floor((cur - beat) * 3)));
+      if (sub !== lastLitSub || idx !== lastLitBeat) {
+        beatDotEls[idx]?.querySelectorAll('.beat-subtick').forEach((s, i) => s.classList.toggle('lit', i === sub));
+        lastLitSub = sub;
+      }
+    }
+    requestAnimationFrame(tickBeatDots);
+  }
+  requestAnimationFrame(tickBeatDots);
+  // Jazz is the one "must fit, never scroll" reading mode — hands are on an
+  // instrument, not a scrollbar. Rather than shrinking font size forever
+  // (unreadable) or forcing a single column (needless scrolling once a tune
+  // has more sections than one column can hold), this searches column count
+  // 1-3 and, within each, the largest font size that fits — the same move a
+  // real fake book makes for a longer tune: add a column, not a second page.
+  // Lyrics-only is a reading mode, not a performance one: scrolling while
+  // singing is fine, so it gets no page-box/fit search at all — see the
+  // CSS (#sheet[data-render-mode="lyrics"]) for its column-width approach.
+  const A4_RATIO = 210 / 297; // width / height, portrait
+  function applyPageBox() {
+    sheet.style.fontSize = '';
+    sheet.style.height = '';
+    sheet.style.margin = '';
+    sheet.style.maxWidth = '';
+    sheet.style.width = '';
+    sheet.style.columnCount = '';
+    const mode = sheet.dataset.renderMode;
+    const availW = sheet.parentElement.clientWidth;
+
+    if (mode === 'lyrics' || mode === 'map') {
+      // A reading mode: single column, A4-width proportioned and centered,
+      // but NOT height-constrained — scrolling is normal here (singing
+      // along, or scanning a long form), so the box just grows with its
+      // content instead of being fit/shrunk to one screen the way jazz
+      // mode's page-box is. The width is "what an A4 page would be if its
+      // height matched the visible viewport" — a deterministic, screen-
+      // proportional single-column width without needing to know the
+      // content's real height up front. Song map keeps its own flex-wrap
+      // packing of multi-rest rows inside this width (see the CSS) — this
+      // only sets the page-shaped column they pack within.
+      const availH = Math.max(200, window.innerHeight - sheet.getBoundingClientRect().top - 32);
+      sheet.style.width = Math.min(availW, availH * A4_RATIO) + 'px';
+      sheet.style.margin = '0 auto';
+      return;
+    }
+    if (mode !== 'jazz') return;
+
+    // Jazz: a real printed fake-book page, deliberately narrow (A4
+    // portrait proportions) even on a wide monitor — the point is to look
+    // like a page, not to fill the screen — AND it must never need
+    // scrolling, since hands are on an instrument, not a scrollbar. Fit
+    // the largest A4-ratio box inside the available height first, THEN,
+    // only inside that fixed shape, search column count (1-3) and font
+    // size so a longer tune fits without the page itself changing shape.
+    const bottomMargin = 24; // breathing room below the page box, same idea as the other modes
+    const availH = Math.max(200, window.innerHeight - sheet.getBoundingClientRect().top - bottomMargin);
+    let h = availH, w = h * A4_RATIO;
+    if (w > availW) { w = availW; h = w / A4_RATIO; }
+    sheet.style.height = h + 'px';
+    sheet.style.width = w + 'px';
+    sheet.style.margin = '0 auto';
+    const floor = 9;
+    const maxCols = 3;
+    // With an explicit column-count AND a fixed height, CSS multicol does
+    // NOT grow scrollHeight when content doesn't fit — it silently spills
+    // into extra implicit columns off the right edge instead (scrollWidth
+    // grows, scrollHeight doesn't). So "does it fit" has to check width,
+    // not height, once columns are in play.
+    //
+    // scrollWidth alone isn't enough, though: .chord-label is
+    // position:absolute (so it can float above the staff line), which
+    // means it never contributes to flex/scrollWidth sizing at all — bars
+    // could get squeezed arbitrarily narrow with no overflow ever being
+    // reported, while the absolutely-positioned chord text visibly
+    // collided with its neighbors. So also check real label-vs-label
+    // collisions directly, left-to-right within each staff line.
+    const labelsCollide = () => {
+      let prevRight = null, prevLine = null;
+      for (const el of sheet.querySelectorAll('.chord-label')) {
+        const line = el.closest('.staff-line');
+        const r = el.getBoundingClientRect();
+        if (line === prevLine && prevRight != null && r.left < prevRight - 0.5) return true;
+        prevLine = line; prevRight = r.right;
+      }
+      return false;
+    };
+    const overflows = () => sheet.scrollWidth > sheet.clientWidth + 1 || labelsCollide();
+    for (let cols = 1; cols <= maxCols; cols++) {
+      sheet.style.columnCount = String(cols);
+      let size = 22;
+      sheet.style.fontSize = size + 'px';
+      let guard = 0;
+      while (size > floor && overflows() && guard++ < 60) {
+        size -= 0.5;
+        sheet.style.fontSize = size + 'px';
+      }
+      if (!overflows() || cols === maxCols) break;
+    }
+    // Even at the font floor and max columns, a long enough tune still
+    // doesn't fit the fixed "one page" box — and forcing it anyway is
+    // exactly the bug this guards against: a fixed-height multicol box
+    // silently grows EXTRA implicit columns to hold the vertical overflow
+    // CSS can't show any other way, squeezing every bar/label far below
+    // readable width (what read as "jazz/lyrics mode is broken, chords
+    // all overlap"). Match the Typst pipeline's own one-page stance —
+    // report, don't paper over — by giving up on one page for this song
+    // and falling back to a normal scrollable single column instead.
+    if (overflows()) {
+      // Give up on fitting ONE page, but keep the page-shaped WIDTH — the
+      // narrow proportion is a deliberate print-page look, not an
+      // accident, so a long tune should scroll a tall page, not snap back
+      // to full browser width and stop looking like sheet music.
+      sheet.style.height = '';
+      sheet.style.columnCount = '1';
+      sheet.style.fontSize = '15px';
+    }
+  }
+  // Layout (single column vs. the two-page-column spread) is automatic —
+  // pure CSS media queries on viewport width, no toggle to get wrong or to
+  // leave in the "wrong" state. Jazz mode used to also force a full-screen
+  // "popup" layout (hidden header/sidebar, a floating exit button) on top
+  // of that — removed: jazz is a view mode like song map or lyrics-only,
+  // reusing the normal page chrome, not a separate full-screen app state.
+  wireSegmented('mode-segmented', v => {
+    // "edit" sits in this same segmented control (easiest place to find
+    // it, next to the other ways of looking at the song) but it's an
+    // action — open the drawer — not a persistent view state like the
+    // other four, so it never "wins" .active and is never saved as the
+    // reader's default mode. The drawer open/close itself is wired
+    // separately below (editToggle's own click listener), since this
+    // callback only needs to undo wireSegmented's own active-class toggle.
+    if (v === 'edit') {
+      const real = document.querySelector(`#mode-segmented button[data-value="${sheet.dataset.renderMode}"]`);
+      document.querySelectorAll('#mode-segmented button').forEach(b => b.classList.toggle('active', b === real));
+      return;
+    }
+    sheet.dataset.renderMode = v;
+    applyPageBox();
+    try { localStorage.setItem('songbooks-default-mode', v); } catch (e) { /* ignore */ }
+  });
+  window.addEventListener('resize', applyPageBox);
+
+  // Open every song in the reader's own last-used view instead of always
+  // "chords + lyrics" — a drummer who always wants the jazz chart, or a
+  // singer who always wants lyrics-only, shouldn't have to re-pick it on
+  // every song in a set. Per-device (localStorage), not song data.
+  try {
+    const saved = localStorage.getItem('songbooks-default-mode');
+    if (saved && saved !== 'normal') {
+      document.querySelector(`#mode-segmented button[data-value="${saved}"]`)?.click();
+    }
+  } catch (e) { /* ignore */ }
+
+  // ---- Reference video (YouTube) ----------------------------------------
+  // Extracts a video id from any common YouTube URL shape (watch?v=,
+  // youtu.be/, shorts/, embed/) so the band can all pull up the exact same
+  // version without needing to know or paste a special "embed" URL.
+  function youtubeId(url) {
+    try {
+      const u = new URL(url);
+      const host = u.hostname.replace(/^www\.|^m\./, '');
+      if (host === 'youtu.be') return u.pathname.slice(1).split('/')[0] || null;
+      if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+        if (u.pathname === '/watch') return u.searchParams.get('v');
+        const m = u.pathname.match(/^\/(shorts|embed|live)\/([^/?]+)/);
+        if (m) return m[2];
+      }
+    } catch (e) { /* not a URL */ }
+    return null;
+  }
+  (function initReference() {
+    const block = document.getElementById('reference-block');
+    if (!block) return;
+    const { book, stem } = block.dataset;
+    const embedEl = document.getElementById('reference-embed');
+    const linkEl = document.getElementById('reference-link');
+    const showBtn = document.getElementById('reference-show-btn');
+    const editBtn = document.getElementById('reference-edit-btn');
+    const editRow = document.getElementById('reference-edit-row');
+    const urlInput = document.getElementById('reference-url-input');
+    const saveBtn = document.getElementById('reference-save-btn');
+
+    // Lazily build the iframe only once shown, not on page load — loading
+    // it eagerly was the single biggest contributor to the page being
+    // taller than the viewport before the chart itself even appeared (see
+    // applyPageBox's own notes on jazz mode never needing to scroll).
+    function renderEmbed(url) {
+      embedEl.innerHTML = '';
+      const vid = url && youtubeId(url);
+      if (!vid) return;
+      const iframe = document.createElement('iframe');
+      iframe.src = `https://www.youtube-nocookie.com/embed/${vid}`;
+      iframe.title = 'reference video';
+      iframe.loading = 'lazy';
+      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+      iframe.allowFullscreen = true;
+      embedEl.appendChild(iframe);
+    }
+    if (showBtn) {
+      showBtn.addEventListener('click', () => {
+        const showing = embedEl.classList.toggle('shown');
+        if (showing) renderEmbed(block.dataset.url);
+        else embedEl.innerHTML = '';
+        showBtn.title = showing ? 'hide reference video' : 'show reference video';
+      });
+    }
+
+    editBtn.addEventListener('click', () => { editRow.hidden = !editRow.hidden; if (!editRow.hidden) urlInput.focus(); });
+    saveBtn.addEventListener('click', async () => {
+      const url = urlInput.value.trim();
+      saveBtn.disabled = true;
+      try {
+        const res = await fetch(`/api/songs/${book}/${stem}/meta`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'reference', value: url }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        block.dataset.url = url;
+        linkEl.href = url;
+        linkEl.hidden = !url;
+        editBtn.title = url ? 'change reference' : 'add a reference video';
+        if (showBtn) showBtn.hidden = !url;
+        if (embedEl.classList.contains('shown')) renderEmbed(url);
+        editRow.hidden = true;
+      } catch (e) {
+        alert('Could not save reference: ' + e.message);
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+  })();
+
+  // ---- Transpose (view only) -------------------------------------------
+  // Shifts every rendered chord's pitch class by a number of semitones and
+  // re-spells it — the song's own `key:`/grid text on disk never changes,
+  // which is the whole point: the ORIGINAL key stays visible (#key-original)
+  // at all times, with the transposed key shown next to it only when the
+  // offset is non-zero, so nobody loses track of what the chart actually
+  // says versus what's being played right now. Resets to 0 on reload —
+  // this is "capo math for tonight," not a saved preference.
+  const transposeUp = document.getElementById('transpose-up');
+  if (transposeUp) {
+    const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+    const SHARP_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+    const FLAT_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+    const flats = sheet.dataset.flats === '1';
+    const origKey = sheet.dataset.key || '';
+    let offset = 0;
+
+    function spell(pc) {
+      const arr = flats ? FLAT_NAMES : SHARP_NAMES;
+      return arr[((pc % 12) + 12) % 12];
+    }
+    function rootPitchClass(root) {
+      if (!root) return -1;
+      let pc = PC[root[0]];
+      if (pc === undefined) return -1;
+      if (root[1] === '#') pc++;
+      if (root[1] === 'b') pc--;
+      return ((pc % 12) + 12) % 12;
+    }
+
+    const transposeAmount = document.getElementById('transpose-amount');
+    const keyTransposed = document.getElementById('key-transposed');
+
+    function applyTranspose() {
+      transposeAmount.textContent = (offset > 0 ? '+' : '') + offset;
+      sheet.querySelectorAll('[data-pc]').forEach(el => {
+        const pc = parseInt(el.dataset.pc, 10);
+        if (pc < 0 || Number.isNaN(pc)) return;
+        el.textContent = spell(pc + offset);
+      });
+      if (offset === 0 || !origKey) {
+        keyTransposed.hidden = true;
+        keyTransposed.textContent = '';
+        return;
+      }
+      // The key string is "root + everything else" (e.g. "F#m" -> root
+      // "F#", suffix "m") — only the root needs transposing, the suffix
+      // (minor marker, anything else written after it) carries over as-is.
+      const m = origKey.match(/^([A-G][b#]?)(.*)$/);
+      if (!m) { keyTransposed.hidden = true; return; }
+      const pc = rootPitchClass(m[1]);
+      if (pc < 0) { keyTransposed.hidden = true; return; }
+      keyTransposed.textContent = spell(pc + offset) + m[2];
+      keyTransposed.hidden = false;
+    }
+    transposeUp.addEventListener('click', () => { offset++; applyTranspose(); });
+    document.getElementById('transpose-down').addEventListener('click', () => { offset--; applyTranspose(); });
+    reapplyTranspose = applyTranspose;
+  }
+
+  const themeBtn = document.getElementById('theme-toggle');
+  // Mirrors icons.html's icon-theme/-light/-dark — a 3-state toggle (auto,
+  // which reads as "half-filled circle", then light, then dark) needs a
+  // visibly different icon per state, or clicking it looks like nothing
+  // happened two times out of three.
+  const THEME_ICONS = {
+    '': '<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="6.5"/><path d="M10 3.5a6.5 6.5 0 0 1 0 13z" fill="currentColor" stroke="none"/></svg>',
+    light: '<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="3.6" fill="currentColor" stroke="none"/><path d="M10 2v1.8M10 16.2V18M18 10h-1.8M3.8 10H2M15.4 4.6l-1.3 1.3M5.9 14.1l-1.3 1.3M15.4 15.4l-1.3-1.3M5.9 5.9 4.6 4.6"/></svg>',
+    dark: '<svg class="icon" viewBox="0 0 20 20" fill="currentColor" stroke="none" aria-hidden="true"><path d="M16.5 12.8A7 7 0 0 1 7.2 3.5a7 7 0 1 0 9.3 9.3z"/></svg>',
+  };
+  const THEME_TITLES = { '': 'theme: auto (click for light)', light: 'theme: light (click for dark)', dark: 'theme: dark (click for auto)' };
+  function applyTheme(t) {
+    document.body.dataset.theme = t || '';
+    themeBtn.innerHTML = THEME_ICONS[t] || THEME_ICONS[''];
+    themeBtn.title = THEME_TITLES[t] || THEME_TITLES[''];
+  }
+  try { applyTheme(localStorage.getItem('songbooks-theme') || ''); } catch (e) { applyTheme(''); }
+  themeBtn.addEventListener('click', () => {
+    const order = ['', 'light', 'dark'];
+    const next = order[(order.indexOf(document.body.dataset.theme || '') + 1) % order.length];
+    applyTheme(next);
+    try { localStorage.setItem('songbooks-theme', next); } catch (e) { /* ignore */ }
+  });
+
+  // ---- Edit drawer: a near-fullscreen modal (source + structure) ------------
+  const drawer = document.getElementById('edit-drawer');
+  const drawerBackdrop = document.getElementById('edit-drawer-backdrop');
+  const editToggle = document.getElementById('edit-toggle');
+  const closeEditBtn = document.getElementById('edit-drawer-close');
+  let savedSheetHTML = sheet.innerHTML;
+
+  function setDrawerOpen(opening) {
+    drawer.hidden = !opening;
+    drawerBackdrop.hidden = !opening;
+    document.body.classList.toggle('drawer-open', opening);
+    // editToggle lives inside the mode-segmented pill now — reuse its own
+    // .active styling (so "edit" looks selected while the drawer is open)
+    // rather than a generic .primary that wouldn't match the pill's look.
+    if (opening) {
+      document.querySelectorAll('#mode-segmented button').forEach(b => b.classList.toggle('active', b === editToggle));
+    } else {
+      const real = document.querySelector(`#mode-segmented button[data-value="${sheet.dataset.renderMode}"]`);
+      document.querySelectorAll('#mode-segmented button').forEach(b => b.classList.toggle('active', b === real));
+    }
+    if (opening) {
+      document.getElementById('raw-text')?.focus();
+    } else {
+      // Closing without necessarily having saved — restore the last-known
+      // saved render so the chart never silently shows an unsaved draft.
+      sheet.innerHTML = savedSheetHTML;
+      rebindSheet();
+    }
+  }
+  editToggle.addEventListener('click', () => setDrawerOpen(drawer.hidden));
+  closeEditBtn.addEventListener('click', () => setDrawerOpen(false));
+  drawerBackdrop.addEventListener('click', () => setDrawerOpen(false));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !drawer.hidden) setDrawerOpen(false);
+  });
+
+  // ---- Mobile off-canvas controls sheet ---------------------------------
+  // See the max-width:900px CSS: below that width the sidebar (transport +
+  // structure rail) is pulled off-screen by default so the chart gets the
+  // full screen, and this button/backdrop bring it up on demand instead.
+  // Both are no-ops (hidden, never clicked) above that width.
+  (function initMobileControls() {
+    const fab = document.getElementById('mobile-controls-fab');
+    const backdrop = document.getElementById('timeline-backdrop');
+    const sheetEl = document.getElementById('structure-strip');
+    if (!fab || !backdrop || !sheetEl) return;
+    function setOpen(open) {
+      sheetEl.classList.toggle('open', open);
+      backdrop.classList.toggle('open', open);
+    }
+    fab.addEventListener('click', () => setOpen(!sheetEl.classList.contains('open')));
+    backdrop.addEventListener('click', () => setOpen(false));
+  })();
+
+  document.querySelectorAll('.prep-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.prep-tab').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.prep-panel').forEach(p => { p.hidden = p.dataset.panel !== btn.dataset.tab; });
+    });
+  });
+
+  // ---- Raw editor + live preview --------------------------------------------
+  const editorEl = document.getElementById('editor');
+  let rawVersion = editorEl.dataset.version;
+  const rawTextarea = document.getElementById('raw-text');
+
+  // ---- Syntax highlighting (textarea-over-<pre> overlay, no CDN deps) ------
+  const backdrop = document.getElementById('code-backdrop');
+  const highlightCode = document.getElementById('code-highlight');
+  function escapeHTML(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function highlightLine(line) {
+    let l = escapeHTML(line);
+    if (/^\s*#/.test(line)) return `<span class="tok-comment">${l}</span>`;
+    let m;
+    if ((m = line.match(/^(\[.*?\])(.*)$/))) {
+      return `<span class="tok-section">${escapeHTML(m[1])}</span>${escapeHTML(m[2])}`;
+    }
+    if ((m = line.match(/^(grid|bars|time|score):/))) {
+      l = l.replace(/^([a-z]+:)/, '<span class="tok-keyword">$1</span>');
+    } else if ((m = line.match(/^([a-z][a-z0-9_-]*):\s/i))) {
+      l = l.replace(/^([a-z][a-z0-9_-]*:)/i, '<span class="tok-header-key">$1</span>');
+    }
+    l = l.replace(/\[([^\]]*)\]/g, '[<span class="tok-chord">$1</span>]');
+    return l;
+  }
+  function renderHighlight() {
+    highlightCode.innerHTML = rawTextarea.value.split('\n').map(highlightLine).join('\n');
+  }
+  rawTextarea.addEventListener('input', renderHighlight);
+  rawTextarea.addEventListener('scroll', () => {
+    backdrop.scrollTop = rawTextarea.scrollTop;
+    backdrop.scrollLeft = rawTextarea.scrollLeft;
+  });
+  renderHighlight();
+
+  document.getElementById('code-toolbar').addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    rawTextarea.focus();
+    if (btn.dataset.insert === 'section') insertAtCursor('[Verse]\n');
+    else if (btn.dataset.insert === 'grid') insertAtCursor('grid: |  |  |  |  |\n');
+    else if (btn.dataset.insert === 'bars') insertAtCursor('bars: 4\n');
+    else if (btn.dataset.insert === 'comment') insertAtCursor('# ');
+    else if (btn.dataset.wrap === 'chord') {
+      const start = rawTextarea.selectionStart, end = rawTextarea.selectionEnd;
+      const sel = rawTextarea.value.slice(start, end) || 'G';
+      rawTextarea.value = rawTextarea.value.slice(0, start) + '[' + sel + ']' + rawTextarea.value.slice(end);
+      rawTextarea.dispatchEvent(new Event('input'));
+    }
+  });
+
+  let previewTimer = null;
+  async function renderPreview() {
+    try {
+      const res = await fetch('/api/preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: rawTextarea.value }),
+      });
+      sheet.innerHTML = await res.text();
+      rebindSheet();
+    } catch (e) { /* leave the last good render in place */ }
+  }
+  rawTextarea.addEventListener('input', () => { clearTimeout(previewTimer); previewTimer = setTimeout(renderPreview, 400); });
+
+  document.getElementById('save-btn').addEventListener('click', async () => {
+    const status = document.getElementById('save-status');
+    status.className = ''; status.textContent = 'saving…';
+    const res = await fetch(`/api/songs/${book}/${stem}/raw`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ version: rawVersion, text: rawTextarea.value }),
+    });
+    if (res.status === 409) { status.className = 'err'; status.textContent = 'conflict: this song changed on disk — reload before saving'; return; }
+    if (!res.ok) { status.className = 'err'; status.textContent = 'save failed'; return; }
+    const data = await res.json();
+    rawVersion = data.version;
+    status.className = 'ok'; status.textContent = 'saved';
+    await renderPreview();
+    savedSheetHTML = sheet.innerHTML; // this is now the saved state
+  });
+
+  // ---- Redo this song (destructive: erases body, keeps book/stem identity) --
+  document.getElementById('redo-song-btn')?.addEventListener('click', async () => {
+    const title = document.querySelector('.topbar-current h1')?.textContent?.trim() || stem;
+    if (!confirm(`This will erase the current lyrics/chords for ${title} — continue?`)) return;
+    const status = document.getElementById('save-status');
+    const res = await fetch(`/api/songs/${book}/${stem}/redo`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ version: rawVersion }),
+    });
+    if (res.status === 409) { alert('conflict: this song changed since it was loaded — reload before redoing it'); return; }
+    if (!res.ok) { alert("couldn't redo this song"); return; }
+    const data = await res.json();
+    rawVersion = data.version;
+    rawTextarea.value = data.text;
+    // Drop the user straight into the same raw/structure editing surface a
+    // brand-new song's creation flow uses — not back onto the (now blank)
+    // chart — since this is explicitly "start the wizard over for this
+    // song," not "go look at what you just erased."
+    document.querySelectorAll('.prep-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'raw'));
+    document.querySelectorAll('.prep-panel').forEach(p => { p.hidden = p.dataset.panel !== 'raw'; });
+    setDrawerOpen(true);
+    await renderPreview();
+    savedSheetHTML = sheet.innerHTML;
+    if (status) { status.className = 'ok'; status.textContent = 'redone — fill it back in'; }
+  });
+
+  // ---- Importers --------------------------------------------------------------
+  function titleArtist() {
+    const title = (rawTextarea.value.match(/^title:\s*(.+)$/m) || [, ''])[1].trim();
+    const artist = (rawTextarea.value.match(/^artist:\s*(.+)$/m) || [, ''])[1].trim();
+    return { title, artist };
+  }
+  const googleLink = document.getElementById('google-lyrics-link');
+  function refreshGoogleLink() {
+    const { title, artist } = titleArtist();
+    googleLink.href = `https://www.google.com/search?q=${encodeURIComponent(`${artist} ${title} lyrics`.trim())}`;
+  }
+  refreshGoogleLink();
+  rawTextarea.addEventListener('blur', refreshGoogleLink);
+
+  function insertAtCursor(text) {
+    const start = rawTextarea.selectionStart ?? rawTextarea.value.length;
+    const end = rawTextarea.selectionEnd ?? rawTextarea.value.length;
+    rawTextarea.value = rawTextarea.value.slice(0, start) + text + rawTextarea.value.slice(end);
+    rawTextarea.dispatchEvent(new Event('input'));
+  }
+  async function doImport(btn, statusEl, endpoint, urlInput) {
+    const url = urlInput.value.trim();
+    if (!url) return;
+    btn.disabled = true; statusEl.textContent = 'fetching…'; statusEl.className = 'hint';
+    try {
+      const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'fetch failed');
+      insertAtCursor('\n\n# imported from ' + url + '\n' + data.text + '\n');
+      statusEl.textContent = 'inserted below cursor — review and fold into sections';
+      statusEl.className = 'ok';
+    } catch (e) { statusEl.textContent = e.message; statusEl.className = 'err'; }
+    finally { btn.disabled = false; }
+  }
+  document.getElementById('import-lyrics-btn').addEventListener('click', () => doImport(
+    document.getElementById('import-lyrics-btn'), document.getElementById('import-lyrics-status'),
+    '/api/import/lyrics', document.getElementById('import-lyrics-url')));
+  document.getElementById('import-ug-btn').addEventListener('click', () => doImport(
+    document.getElementById('import-ug-btn'), document.getElementById('import-ug-status'),
+    '/api/import/chords', document.getElementById('import-ug-url')));
+
+  // ---- Structure editor -------------------------------------------------------
+  const structureEl = document.getElementById('structure');
+  let structVersion = null, structMeta = [], structSections = [];
+
+  function emptySection(label, repeat) {
+    return { label, repeat, time: '', score: '', measures: [], lyrics: [], endings: [], notes: [] };
+  }
+
+  // Splits a flat measures array (as loaded/saved — plain consecutive
+  // measures, a trailing run tagged with a Volta label) into the editor's
+  // own {common, endings} shape — see renderAlternatives/joinVoltaGroups.
+  // The split point is simply "the first measure with a volta label":
+  // LilyPond's \alternative block always follows the common repeated
+  // body, never interrupts it.
+  function splitVoltaGroups(measures) {
+    const firstVoltaIdx = measures.findIndex(m => m.volta);
+    if (firstVoltaIdx < 0) return { common: measures, endings: [] };
+    const common = measures.slice(0, firstVoltaIdx);
+    const tail = measures.slice(firstVoltaIdx);
+    const endings = [];
+    let cur = null;
+    for (const m of tail) {
+      if (!cur || cur.label !== m.volta) {
+        cur = { label: m.volta, measures: [] };
+        endings.push(cur);
+      }
+      cur.measures.push(m);
+    }
+    return { common, endings };
+  }
+  function emptyMeasure() { return { tokens: [''], open: false, close: false, volta: '', meter: '' }; }
+
+  const expanded = new Set(); // section indices currently showing their bar matrix
+  const expandedNotes = new Set(); // section indices currently showing their notes textarea
+
+  // Chunk measures into display rows of barsPerLine (mirrors the Go
+  // groupMeasures helper used for the real chart, so what you build here
+  // looks the same once saved).
+  function chunkRows(measures, barsPerLine) {
+    const n = Math.max(1, barsPerLine || 4);
+    const rows = [];
+    for (let i = 0; i < measures.length; i += n) rows.push(measures.slice(i, i + n));
+    return rows;
+  }
+
+  // The song's own beatsPerBar, in the same "pulse" unit used everywhere
+  // else in this app (a 6/8 bar counts as 2 pulses, not 6 raw eighths —
+  // see clock.js/isCompound) — so a bar split mid-way reads the same way
+  // the metronome and beat-dots already count it.
+  function pulseLabel(pulseIndex) { return isCompound ? 1 + pulseIndex * 3 : pulseIndex + 1; }
+  // A "." slot is a sustain, not a new event — labeling it "beat 3" reads
+  // as if a chord actually changes there, when the whole point is that it
+  // doesn't (Ain't No Love's "Gm . . Cm": Gm holds through beats 1-3, Cm
+  // is the one real change, landing on beat 4). Slot 0 always gets its
+  // label even when blank, since that's simply where the bar starts.
+  function slotBeatLabel(slotIndex, slotCount, token) {
+    if (slotCount <= 1) return null;
+    if (slotIndex > 0 && (token === '.' || token === '')) return null;
+    const pulse = Math.round((slotIndex * beatsPerBar) / slotCount);
+    return pulseLabel(pulse);
+  }
+
+  // ---- Chord quick-pick: an iReal-Pro-style tap-assist popup next to each
+  // slot's free-text input — see the CSS comment for why this is additive,
+  // not a replacement for typing. Buttons insert/replace text in the
+  // field rather than owning the value outright, so anything the grammar
+  // allows (alt bass, odd extensions, "N.C.") still only needs typing. ---
+  const ROOTS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+  const QUALITIES = ['', 'm', '7', 'maj7', 'm7', 'm7b5', 'dim', 'sus4', 'sus2', 'aug', '6', 'm6', '9'];
+  function openChordPicker(anchorBtn, input) {
+    closeAnyMenu();
+    const menu = document.createElement('div');
+    menu.className = 'insert-menu chord-pick-menu';
+    let bassMode = false;
+
+    const rootRow = document.createElement('div'); rootRow.className = 'chord-pick-row';
+    ROOTS.forEach(r => {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = r;
+      b.addEventListener('click', () => {
+        input.value = bassMode ? input.value + r : r;
+        bassMode = false;
+        input.dispatchEvent(new Event('input'));
+        input.focus();
+      });
+      rootRow.appendChild(b);
+    });
+    const flat = document.createElement('button'); flat.type = 'button'; flat.textContent = '♭';
+    flat.addEventListener('click', () => { input.value += '♭'; input.dispatchEvent(new Event('input')); input.focus(); });
+    const sharp = document.createElement('button'); sharp.type = 'button'; sharp.textContent = '♯';
+    sharp.addEventListener('click', () => { input.value += '♯'; input.dispatchEvent(new Event('input')); input.focus(); });
+    rootRow.append(flat, sharp);
+    menu.appendChild(rootRow);
+
+    const qualRow = document.createElement('div'); qualRow.className = 'chord-pick-row quality';
+    QUALITIES.forEach(q => {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = q || 'maj';
+      b.addEventListener('click', () => { input.value += q; input.dispatchEvent(new Event('input')); input.focus(); });
+      qualRow.appendChild(b);
+    });
+    menu.appendChild(qualRow);
+
+    const utilRow = document.createElement('div'); utilRow.className = 'chord-pick-row';
+    const bassBtn = document.createElement('button'); bassBtn.type = 'button'; bassBtn.textContent = '/ bass';
+    bassBtn.title = 'next root tapped is appended as the bass note, e.g. C/E';
+    bassBtn.addEventListener('click', () => { input.value += '/'; bassMode = true; input.dispatchEvent(new Event('input')); input.focus(); });
+    const clearBtn = document.createElement('button'); clearBtn.type = 'button'; clearBtn.textContent = 'clear';
+    clearBtn.addEventListener('click', () => { input.value = ''; input.dispatchEvent(new Event('input')); input.focus(); });
+    utilRow.append(bassBtn, clearBtn);
+    menu.appendChild(utilRow);
+
+    positionMenu(menu, anchorBtn);
+  }
+
+  function buildMatrixCell(sec, mi) {
+    const m = sec.measures[mi];
+    const cell = document.createElement('div');
+    cell.className = 'matrix-cell';
+    if (m.open) cell.classList.add('cell-open');
+    if (m.close) cell.classList.add('cell-close');
+
+    const top = document.createElement('div');
+    top.className = 'matrix-cell-top';
+    const barNo = document.createElement('span');
+    barNo.className = 'matrix-bar-no';
+    barNo.textContent = mi + 1;
+    top.appendChild(barNo);
+
+    // Beat-density selector: 1 (whole bar), 2 (beats 1 & 3), 3, 4 (every
+    // beat) — a single bar hosting several chords in series (e.g. a I
+    // chord on beat 1 moving to IV on beat 3) is exactly what this
+    // controls; the beat label under each slot (below) says which beat
+    // each one actually lands on, so that move reads unambiguously.
+    const density = document.createElement('select');
+    density.className = 'density-select';
+    const densityOptions = beatsPerBar >= 3 ? [1, 2, 3, beatsPerBar] : [1, beatsPerBar];
+    [...new Set(densityOptions)].forEach(n => density.add(new Option(n + (n === 1 ? ' chord' : ' chords'), n)));
+    density.value = densityOptions.includes(m.tokens.length) ? m.tokens.length : (m.tokens.length <= 1 ? 1 : densityOptions[densityOptions.length - 1]);
+    density.addEventListener('change', () => {
+      const n = parseInt(density.value, 10);
+      const old = m.tokens.filter(t => t !== '' && t !== '.');
+      const next = new Array(n).fill('.');
+      for (let i = 0; i < n; i++) next[i] = old[i] || (i === 0 ? '' : '.');
+      m.tokens = next;
+      renderMatrix(sec, secIndexOf(sec));
+    });
+    top.appendChild(density);
+    cell.appendChild(top);
+
+    const slots = document.createElement('div');
+    slots.className = 'matrix-slots';
+    m.tokens.forEach((tok, ti) => {
+      const slotWrap = document.createElement('div');
+      const lab = document.createElement('div'); lab.className = 'matrix-beat-label';
+      const updateLabel = t => {
+        const label = slotBeatLabel(ti, m.tokens.length, t);
+        lab.textContent = label != null ? 'beat ' + label : '';
+      };
+      updateLabel(tok);
+      slotWrap.appendChild(lab);
+      const row = document.createElement('div'); row.className = 'matrix-slot-row';
+      const input = document.createElement('input');
+      input.type = 'text'; input.className = 'matrix-slot'; input.value = tok;
+      input.placeholder = ti === 0 ? '%' : '.';
+      input.addEventListener('input', () => { m.tokens[ti] = input.value; updateLabel(input.value); });
+      const pick = document.createElement('button');
+      pick.type = 'button'; pick.className = 'chord-pick-btn'; pick.textContent = '♪'; pick.title = 'pick a chord (root + quality)';
+      pick.addEventListener('click', () => openChordPicker(pick, input));
+      row.append(input, pick);
+      slotWrap.appendChild(row);
+      slots.appendChild(slotWrap);
+    });
+    cell.appendChild(slots);
+
+    // No per-bar freeform "ending" text field any more — alternate
+    // endings are now their own dedicated panel below the common bars
+    // (see renderAlternatives), modeled on LilyPond's own \alternative:
+    // one or more SIBLING endings, each its own span of bars tagged with
+    // which repeat pass(es) it plays on, not a label typed onto an
+    // arbitrary bar in the middle of the common grid.
+    const row2 = document.createElement('div');
+    row2.className = 'matrix-cell-bottom';
+    const delBar = document.createElement('button');
+    delBar.type = 'button'; delBar.innerHTML = ICONS.close; delBar.title = 'remove this bar';
+    delBar.addEventListener('click', () => { sec.measures.splice(mi, 1); renderMatrix(sec, secIndexOf(sec)); });
+    row2.appendChild(delBar);
+    cell.appendChild(row2);
+
+    return cell;
+  }
+
+  function secIndexOf(sec) { return structSections.indexOf(sec); }
+
+  // ---- Lyric line <-> plain text, mirroring internal/song/parse.go's
+  // parseLyric exactly (chord segments as "[Chord]text" runs) so what's
+  // typed here round-trips through the same grammar the raw-text editor
+  // and the Typst pipeline both read. ------------------------------------
+  function lyricLineToText(line) {
+    return (line.segments || []).map(seg => (seg.hasChord ? `[${seg.chord}]` : '') + (seg.text || '')).join('');
+  }
+  function parseLyricLine(text) {
+    const segs = [];
+    let rest = text, pendingChord = null, havePending = false, buf = '';
+    const flush = () => { if (buf.length || havePending) segs.push({ hasChord: havePending, chord: pendingChord || '', text: buf }); };
+    while (rest.length) {
+      const o = rest.indexOf('[');
+      if (o < 0) { buf += rest; rest = ''; break; }
+      buf += rest.slice(0, o);
+      rest = rest.slice(o + 1);
+      const c = rest.indexOf(']');
+      if (c < 0) { buf += '[' + rest; rest = ''; break; }
+      const chord = rest.slice(0, c);
+      rest = rest.slice(c + 1);
+      flush();
+      pendingChord = chord; havePending = true; buf = '';
+    }
+    flush();
+    return segs.length ? segs : [{ hasChord: false, chord: '', text: '' }];
+  }
+  function lyricsToText(lyrics) { return (lyrics || []).map(lyricLineToText).join('\n'); }
+  function textToLyrics(text) {
+    if (!text) return [];
+    return text.split('\n').map(line => ({ segments: parseLyricLine(line) }));
+  }
+
+  function renderMatrix(sec, i) {
+    const host = document.getElementById('matrix-host-' + i);
+    if (!host) return;
+    host.innerHTML = '';
+    if (!sec.measures) sec.measures = [];
+
+    const toolbar = document.createElement('div');
+    toolbar.className = 'matrix-toolbar';
+    const perLine = document.createElement('label');
+    perLine.className = 'hint';
+    perLine.textContent = 'bars per line ';
+    const perLineInput = document.createElement('input');
+    perLineInput.type = 'text'; perLineInput.inputMode = 'numeric'; perLineInput.style.width = '3rem';
+    perLineInput.value = (sec.barsPerLine && sec.barsPerLine[0]) || 4;
+    perLineInput.addEventListener('change', () => {
+      const n = parseInt(perLineInput.value, 10);
+      sec.barsPerLine = n > 0 ? [n] : undefined;
+      renderMatrix(sec, i);
+    });
+    perLine.appendChild(perLineInput);
+    toolbar.appendChild(perLine);
+
+    const addBar = document.createElement('button');
+    addBar.type = 'button'; addBar.textContent = '+ bar';
+    addBar.addEventListener('click', () => { sec.measures.push(emptyMeasure()); renderMatrix(sec, i); });
+    toolbar.appendChild(addBar);
+
+    // Quick-fill: "N bars × M times" — the common 4/8/12-bar (blues) case.
+    const fillLabel = document.createElement('span'); fillLabel.className = 'hint'; fillLabel.textContent = 'fill:';
+    const phraseLen = document.createElement('input'); phraseLen.type = 'text'; phraseLen.inputMode = 'numeric'; phraseLen.style.width = '2.6rem'; phraseLen.value = '4'; phraseLen.title = 'phrase length (bars)';
+    const times = document.createElement('input'); times.type = 'text'; times.inputMode = 'numeric'; times.style.width = '2.6rem'; times.value = '3'; times.title = 'repeat count';
+    const fillBtn = document.createElement('button'); fillBtn.type = 'button'; fillBtn.textContent = 'apply';
+    fillBtn.addEventListener('click', () => {
+      const n = Math.max(1, parseInt(phraseLen.value, 10) || 4);
+      const count = Math.max(1, parseInt(times.value, 10) || 1);
+      const phrase = sec.measures.slice(0, n);
+      while (phrase.length < n) phrase.push(emptyMeasure());
+      const out = [];
+      for (let k = 0; k < count; k++) out.push(...phrase.map(m => JSON.parse(JSON.stringify(m))));
+      sec.measures = out;
+      renderMatrix(sec, i);
+    });
+    toolbar.append(fillLabel, phraseLen, document.createTextNode('×'), times, fillBtn);
+
+    // Repeat toggle — LilyPond's own \repeat volta N: the common bars play
+    // through, then repeat. Previously there was no way to set this at
+    // all from the Blocks editor (open/close were readable from loaded
+    // data but nothing ever wrote them). The actual close-repeat barline
+    // belongs at the end of the LAST alternative ending when there are
+    // any (see joinVoltaGroups) — a plain repeat with no endings closes
+    // on its own last common bar instead.
+    const repeatToggle = document.createElement('label');
+    repeatToggle.className = 'hint matrix-repeat-toggle';
+    const repeatCheckbox = document.createElement('input');
+    repeatCheckbox.type = 'checkbox';
+    // The open flag normally sits on the first COMMON bar — but a song
+    // can have alternative endings with no shared common bars at all
+    // (every bar belongs to some ending, e.g. Wake Up Alone's Chorus:
+    // "(1,2,3.) D | ... | (4.) C ..." has no plain prefix), in which case
+    // it landed on the first ending's first bar instead when loaded.
+    const openBar = sec.measures[0] || (sec.endings[0] && sec.endings[0].measures[0]);
+    repeatCheckbox.checked = !!(openBar && openBar.open);
+    if (sec.measures.length === 0 && repeatCheckbox.checked) {
+      // Already repeats, but entirely within the endings (no common
+      // prefix) — this control can only toggle the common bars, so leave
+      // it showing the true state but non-interactive rather than letting
+      // a click silently do nothing.
+      repeatCheckbox.disabled = true;
+      repeatToggle.title = 'this section has no common bars before its endings — edit the repeat bracket in Source';
+    }
+    repeatCheckbox.addEventListener('change', () => {
+      if (sec.measures.length === 0) { repeatCheckbox.checked = false; return; }
+      sec.measures.forEach(m => { m.open = false; m.close = false; });
+      if (repeatCheckbox.checked) {
+        sec.measures[0].open = true;
+        // The close flag always lands on the real last bar at save time
+        // (joinVoltaGroups), accounting for any alternative endings — set
+        // it here too so the grid reads correctly before a save happens.
+        if (!sec.endings || sec.endings.length === 0) sec.measures[sec.measures.length - 1].close = true;
+      }
+      renderMatrix(sec, i);
+    });
+    repeatToggle.append(repeatCheckbox, document.createTextNode(' repeats (|: :|)'));
+    toolbar.appendChild(repeatToggle);
+    host.appendChild(toolbar);
+
+    const rows = chunkRows(sec.measures, (sec.barsPerLine && sec.barsPerLine[0]) || 4);
+    let mi = 0;
+    rows.forEach(row => {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'matrix-row';
+      row.forEach(() => { rowEl.appendChild(buildMatrixCell(sec, mi)); mi++; });
+      host.appendChild(rowEl);
+    });
+    if (sec.measures.length === 0) {
+      const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = 'No bars yet — "+ bar" to start, or use fill for a repeating phrase.';
+      host.appendChild(hint);
+    }
+
+    renderAlternatives(sec, i, host);
+  }
+
+  // ---- Alternative endings — LilyPond's \alternative { \volta "1,2,3" {…}
+  // \volta "4" {…} }: one or more SIBLING endings after the common bars,
+  // each tagged with which repeat pass(es) it plays on (a comma-separated
+  // numberlist, not just "1st"/"2nd" — "1,2,3" then "4" is completely
+  // normal and exactly what Wake Up Alone's own Chorus grid already uses).
+  // Replaces the old per-bar freeform "ending (1.)" text field, which had
+  // no notion of a span of bars belonging together as one alternative, no
+  // bracket, and no "which passes" concept at all — just a label typed
+  // onto whichever single bar happened to be in front of you. -------------
+  function nextVoltaLabel(endings) {
+    const n = endings.length + 1;
+    return n + '.';
+  }
+  function renderAlternatives(sec, i, host) {
+    if (!sec.endings) sec.endings = [];
+    const panel = document.createElement('div');
+    panel.className = 'alt-endings-panel';
+    const head = document.createElement('div');
+    head.className = 'alt-endings-head';
+    const title = document.createElement('span'); title.className = 'hint'; title.textContent = 'alternative endings';
+    const addEnding = document.createElement('button');
+    addEnding.type = 'button'; addEnding.className = 'alt-add-btn';
+    addEnding.innerHTML = ICONS.plus + ' ending';
+    addEnding.addEventListener('click', () => {
+      const barCount = sec.endings.length ? sec.endings[0].measures.length : 1;
+      const measures = []; for (let b = 0; b < barCount; b++) measures.push(emptyMeasure());
+      sec.endings.push({ label: nextVoltaLabel(sec.endings), measures });
+      renderMatrix(sec, i);
+    });
+    head.append(title, addEnding);
+    panel.appendChild(head);
+
+    if (sec.endings.length === 0) {
+      const hint = document.createElement('p'); hint.className = 'hint';
+      hint.textContent = 'No alternative endings — the common bars above just repeat identically each time.';
+      panel.appendChild(hint);
+    }
+
+    const bracketRow = document.createElement('div');
+    bracketRow.className = 'alt-endings-row';
+    sec.endings.forEach((end, ei) => {
+      const box = document.createElement('div');
+      box.className = 'alt-ending';
+
+      const endHead = document.createElement('div');
+      endHead.className = 'alt-ending-head';
+      const playsOn = document.createElement('label'); playsOn.className = 'hint'; playsOn.textContent = 'plays on';
+      const labelInput = document.createElement('input');
+      labelInput.type = 'text'; labelInput.className = 'alt-label-input'; labelInput.value = end.label;
+      labelInput.title = 'which repeat pass(es) — e.g. "1." or "1,2,3." (LilyPond\'s own volta numberlist)';
+      labelInput.addEventListener('input', () => { end.label = labelInput.value; });
+      const removeEnding = document.createElement('button');
+      removeEnding.type = 'button'; removeEnding.className = 'icon-btn'; removeEnding.innerHTML = ICONS.close; removeEnding.title = 'remove this ending';
+      removeEnding.addEventListener('click', () => { sec.endings.splice(ei, 1); renderMatrix(sec, i); });
+      endHead.append(playsOn, labelInput, removeEnding);
+      box.appendChild(endHead);
+
+      const cells = document.createElement('div');
+      cells.className = 'alt-ending-cells';
+      end.measures.forEach((m, bi) => {
+        const cell = document.createElement('div'); cell.className = 'alt-ending-cell';
+        const input = document.createElement('input');
+        // Space-separated tokens, not just the first one — an ending bar
+        // can split beats same as any other bar (e.g. "Eb . Bb ." from
+        // Ain't No Love's own Verse volta). Showing/editing only tokens[0]
+        // would silently drop the rest the moment this field is touched;
+        // this keeps full round-trip fidelity without needing the full
+        // density-select sub-editor the common-bar grid has.
+        input.type = 'text'; input.value = (m.tokens || []).join(' '); input.placeholder = 'chord (space-separate for sub-beats, e.g. Eb . Bb .)';
+        input.addEventListener('input', () => { m.tokens = input.value.split(/\s+/).filter(Boolean); if (!m.tokens.length) m.tokens = ['']; });
+        cell.appendChild(input);
+        if (end.measures.length > 1) {
+          const rm = document.createElement('button'); rm.type = 'button'; rm.innerHTML = ICONS.close; rm.title = 'remove this bar';
+          rm.addEventListener('click', () => { end.measures.splice(bi, 1); renderMatrix(sec, i); });
+          cell.appendChild(rm);
+        }
+        cells.appendChild(cell);
+      });
+      const addBarBtn = document.createElement('button');
+      addBarBtn.type = 'button'; addBarBtn.className = 'alt-add-bar'; addBarBtn.textContent = '+ bar';
+      addBarBtn.addEventListener('click', () => { end.measures.push(emptyMeasure()); renderMatrix(sec, i); });
+      cells.appendChild(addBarBtn);
+      box.appendChild(cells);
+
+      bracketRow.appendChild(box);
+    });
+    if (sec.endings.length) panel.appendChild(bracketRow);
+
+    host.appendChild(panel);
+  }
+
+  // Converts {common bars, endings} back into one flat measures array for
+  // saving — the grammar (and the existing renderer) only ever see plain
+  // consecutive measures with a Volta label, same as parsing "(1.) Gm |
+  // (2.) Eb" from raw text; this is purely a nicer way to AUTHOR that,
+  // not a new file format. The close-repeat barline lands on the true
+  // last bar (the last ending's last bar, when there are any), matching
+  // where LilyPond's own repeat bracket actually ends.
+  function joinVoltaGroups(sec) {
+    const common = (sec.measures || []).map(m => ({ ...m, volta: '' }));
+    const endingMeasures = (sec.endings || []).flatMap(end =>
+      end.measures.map((m, bi) => ({ ...m, volta: end.label, open: false, close: false }))
+    );
+    const all = [...common, ...endingMeasures];
+    if (all.length && all.some(m => m.open)) {
+      // A repeat is in effect (first bar already marked open by the
+      // toggle) — make sure exactly the true last bar is marked close,
+      // regardless of where endings moved it to.
+      all.forEach(m => { m.close = false; });
+      all[all.length - 1].close = true;
+    }
+    return all;
+  }
+
+  // ---- Blocks editor — Kit (email editor) style: each section is a card
+  // in a vertical stack, dragged by its own handle rather than nudged with
+  // up/down buttons, with an "insert here" seam between every pair of
+  // cards instead of a single trailing "add section" action. Chords and
+  // lyrics both live in the card body — previously lyrics were invisible
+  // here and only reachable in the raw Source tab, which is exactly the
+  // split this editor exists to remove. -----------------------------------
+  // ---- Generic popup menu — reused for the insert "+" (section-type
+  // picker) and the chord quick-pick. Fixed-position so it isn't clipped
+  // by the drawer's own scrolling body, closes on an outside click or
+  // Escape, and never stacks more than one open menu at a time. ----------
+  let openMenuEl = null;
+  function closeAnyMenu() {
+    if (openMenuEl) { openMenuEl.remove(); openMenuEl = null; }
+    document.removeEventListener('mousedown', onOutsideMenuClick, true);
+    document.removeEventListener('keydown', onMenuEscape, true);
+  }
+  function onOutsideMenuClick(e) { if (openMenuEl && !openMenuEl.contains(e.target)) closeAnyMenu(); }
+  function onMenuEscape(e) { if (e.key === 'Escape') closeAnyMenu(); }
+  function positionMenu(menu, anchorEl) {
+    document.body.appendChild(menu);
+    const r = anchorEl.getBoundingClientRect();
+    const top = Math.min(r.bottom + 4, window.innerHeight - menu.offsetHeight - 8);
+    const left = Math.min(r.left, window.innerWidth - menu.offsetWidth - 8);
+    menu.style.top = Math.max(8, top) + 'px';
+    menu.style.left = Math.max(8, left) + 'px';
+    openMenuEl = menu;
+    setTimeout(() => {
+      document.addEventListener('mousedown', onOutsideMenuClick, true);
+      document.addEventListener('keydown', onMenuEscape, true);
+    }, 0);
+  }
+
+  const SECTION_QUICK_LABELS = ['Verse', 'Chorus', 'Pre-Chorus', 'Bridge', 'Intro', 'Outro', 'Solo'];
+
+  function insertSectionAt(i, label, openChords) {
+    const sec = emptySection(label, false);
+    if (openChords) { sec.measures = [emptyMeasure(), emptyMeasure(), emptyMeasure(), emptyMeasure()]; }
+    structSections.splice(i, 0, sec);
+    expanded.add(i);
+    renderBlocks();
+    requestAnimationFrame(() => {
+      const row = document.querySelector(`.block-row[data-index="${i}"] .block-label`);
+      if (row) { row.focus(); if (!openChords) row.select(); }
+    });
+  }
+
+  // The insert "+" menu — one spot for everything a new block in the flow
+  // could be: a labeled section (one tap for the common ones), a bare
+  // chord sequence with no label of its own (a turnaround/interlude that
+  // doesn't deserve a full Verse/Chorus name), or a custom-labeled one.
+  function openInsertMenu(anchorBtn, i) {
+    closeAnyMenu();
+    const menu = document.createElement('div');
+    menu.className = 'insert-menu';
+    const groupLabel = document.createElement('div'); groupLabel.className = 'insert-menu-group-label'; groupLabel.textContent = 'Section';
+    menu.appendChild(groupLabel);
+    SECTION_QUICK_LABELS.forEach(label => {
+      const item = document.createElement('button');
+      item.type = 'button'; item.className = 'insert-menu-item'; item.textContent = label;
+      item.addEventListener('click', () => { closeAnyMenu(); insertSectionAt(i, label, false); });
+      menu.appendChild(item);
+    });
+    const customItem = document.createElement('button');
+    customItem.type = 'button'; customItem.className = 'insert-menu-item'; customItem.textContent = 'Custom label…';
+    customItem.addEventListener('click', () => { closeAnyMenu(); insertSectionAt(i, 'New', false); });
+    menu.appendChild(customItem);
+
+    const sep = document.createElement('div'); sep.className = 'insert-menu-sep'; menu.appendChild(sep);
+    const contentLabel = document.createElement('div'); contentLabel.className = 'insert-menu-group-label'; contentLabel.textContent = 'Content';
+    menu.appendChild(contentLabel);
+    const chordItem = document.createElement('button');
+    chordItem.type = 'button'; chordItem.className = 'insert-menu-item';
+    chordItem.textContent = '▦ Chord sequence';
+    chordItem.title = 'a bar/beat grid with no label — a turnaround or interlude';
+    chordItem.addEventListener('click', () => { closeAnyMenu(); insertSectionAt(i, 'Chords', true); });
+    menu.appendChild(chordItem);
+
+    positionMenu(menu, anchorBtn);
+  }
+
+  function buildInsertSeam(i) {
+    const seam = document.createElement('div');
+    seam.className = 'block-seam';
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'block-seam-btn'; btn.innerHTML = ICONS.plus; btn.title = 'insert here';
+    btn.addEventListener('click', () => openInsertMenu(btn, i));
+    seam.appendChild(btn);
+    return seam;
+  }
+
+  let dragFrom = null;
+
+  function renderBlocks() {
+    const list = document.getElementById('chip-list');
+    list.innerHTML = '';
+    // A single seam at the very top only — Notion doesn't put a visible
+    // insertion affordance in every gap either; each row's own gutter "+"
+    // (below) covers "insert after this one", which is every other gap.
+    list.appendChild(buildInsertSeam(0));
+    structSections.forEach((sec, i) => {
+      const row = document.createElement('div');
+      row.className = 'block-row' + (sec.repeat ? ' block-repeat' : '');
+      row.draggable = true;
+      row.dataset.index = String(i);
+
+      row.addEventListener('dragstart', e => {
+        dragFrom = i;
+        row.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      row.addEventListener('dragend', () => { row.classList.remove('dragging'); dragFrom = null; });
+      row.addEventListener('dragover', e => { e.preventDefault(); row.classList.add('drag-over'); });
+      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+      row.addEventListener('drop', e => {
+        e.preventDefault();
+        row.classList.remove('drag-over');
+        if (dragFrom === null || dragFrom === i) return;
+        const [moved] = structSections.splice(dragFrom, 1);
+        // Re-inserting at the target's own original index i is correct in
+        // both directions without any further adjustment: dragging down
+        // (dragFrom < i), the removal already shifted the target left by
+        // one, so index i now lands just AFTER it; dragging up
+        // (dragFrom > i), the removal never touched indices before it, so
+        // index i lands right BEFORE it. Either way the dragged row ends
+        // up taking the target's old slot, which is what the row it's
+        // dropped onto visually expects.
+        structSections.splice(i, 0, moved);
+        renderBlocks();
+      });
+
+      // Left-margin gutter — hidden until this row is hovered/focused,
+      // same as Notion's own per-block "⠿ +" pair (see the CSS comment on
+      // .block-gutter). The gutter's own "+" inserts a new row right after
+      // this one, covering every gap except the very first.
+      const gutter = document.createElement('div'); gutter.className = 'block-gutter';
+      const handle = document.createElement('span'); handle.className = 'block-handle'; handle.innerHTML = ICONS.grip; handle.title = 'drag to reorder';
+      const addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.className = 'block-add-btn'; addBtn.innerHTML = ICONS.plus; addBtn.title = 'insert after this section';
+      addBtn.addEventListener('click', () => openInsertMenu(addBtn, i + 1));
+      gutter.append(handle, addBtn);
+      row.appendChild(gutter);
+
+      const head = document.createElement('div');
+      head.className = 'block-head';
+      const label = document.createElement('input'); label.type = 'text'; label.className = 'block-label'; label.value = sec.label;
+      label.addEventListener('input', () => { sec.label = label.value; });
+      const repeatToggle = document.createElement('button');
+      repeatToggle.type = 'button'; repeatToggle.className = 'block-repeat-toggle';
+      repeatToggle.textContent = sec.repeat ? 'repeat marker' : 'has content';
+      repeatToggle.title = sec.repeat ? 'make this its own section with real content' : 'turn into a bare repeat marker (no content of its own)';
+      repeatToggle.addEventListener('click', () => { sec.repeat = !sec.repeat; renderBlocks(); });
+      const bars_ = (sec.measures || []).length;
+      const barsBadge = document.createElement('span'); barsBadge.className = 'block-bars-badge';
+      barsBadge.textContent = bars_ ? `${bars_} bars` : '';
+      const actions = document.createElement('div'); actions.className = 'block-row-actions';
+      const dup = document.createElement('button'); dup.type = 'button'; dup.className = 'icon-btn'; dup.innerHTML = ICONS.duplicate; dup.title = 'duplicate as a repeat marker';
+      dup.addEventListener('click', () => { structSections.splice(i + 1, 0, emptySection(sec.label, true)); renderBlocks(); });
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'icon-btn'; del.title = 'delete this section';
+      del.innerHTML = ICONS.close;
+      del.addEventListener('click', () => { structSections.splice(i, 1); renderBlocks(); });
+      actions.append(dup, del);
+      head.append(label, repeatToggle, barsBadge, actions);
+      row.appendChild(head);
+
+      if (!sec.repeat) {
+        const body = document.createElement('div');
+        body.className = 'block-body';
+
+        const chordToggle = document.createElement('button');
+        chordToggle.type = 'button'; chordToggle.className = 'block-chord-toggle';
+        chordToggle.textContent = (expanded.has(i) ? '▾ ' : '▸ ') + (bars_ ? `chords (${bars_} bars)` : '+ chord sequence');
+        chordToggle.addEventListener('click', () => {
+          if (!bars_ && !expanded.has(i)) { sec.measures = [emptyMeasure(), emptyMeasure(), emptyMeasure(), emptyMeasure()]; }
+          if (expanded.has(i)) expanded.delete(i); else expanded.add(i);
+          renderBlocks();
+        });
+        body.appendChild(chordToggle);
+        if (expanded.has(i)) {
+          const matrix = document.createElement('div');
+          matrix.className = 'bar-matrix';
+          matrix.id = 'matrix-host-' + i;
+          body.appendChild(matrix);
+          requestAnimationFrame(() => renderMatrix(sec, i));
+        }
+
+        // Performance/arrangement notes — "GTR + claviers only", "Entree
+        // Basse (ronde)..." — free text about this section OCCURRENCE,
+        // not lyrics and not tied to a specific bar (see song.Section.Notes
+        // and the iReal Pro reference this was modeled on). Collapsed by
+        // default like the chord grid, since most sections never need one.
+        if (!sec.notes) sec.notes = [];
+        const notesToggle = document.createElement('button');
+        notesToggle.type = 'button'; notesToggle.className = 'block-chord-toggle';
+        notesToggle.textContent = (expandedNotes.has(i) ? '▾ ' : '▸ ') + (sec.notes.length ? `notes (${sec.notes.length})` : '+ note');
+        notesToggle.addEventListener('click', () => {
+          if (expandedNotes.has(i)) expandedNotes.delete(i); else expandedNotes.add(i);
+          renderBlocks();
+        });
+        body.appendChild(notesToggle);
+        if (expandedNotes.has(i) || sec.notes.length) {
+          const notesBox = document.createElement('textarea');
+          notesBox.className = 'block-notes';
+          notesBox.placeholder = 'performance directions — one per line, e.g. "GTR + claviers only"';
+          notesBox.value = sec.notes.join('\n');
+          notesBox.rows = Math.max(2, Math.min(6, sec.notes.length + 1));
+          notesBox.addEventListener('input', () => { sec.notes = notesBox.value.split('\n').map(s => s.trim()).filter(Boolean); });
+          body.appendChild(notesBox);
+        }
+
+        const lyricsBox = document.createElement('textarea');
+        lyricsBox.className = 'block-lyrics';
+        lyricsBox.placeholder = 'words for this section — [Chord] before a word attaches it there';
+        lyricsBox.value = lyricsToText(sec.lyrics);
+        lyricsBox.rows = Math.max(2, Math.min(10, (sec.lyrics || []).length + 1));
+        lyricsBox.addEventListener('input', () => { sec.lyrics = textToLyrics(lyricsBox.value); });
+        body.appendChild(lyricsBox);
+
+        row.appendChild(body);
+      }
+
+      list.appendChild(row);
+    });
+    if (structSections.length === 0) {
+      const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = 'No sections yet — use the + above to start.';
+      list.appendChild(hint);
+    }
+  }
+  document.getElementById('add-section').addEventListener('click', () => insertSectionAt(structSections.length, 'New', false));
+  document.getElementById('save-structure').addEventListener('click', async () => {
+    const status = document.getElementById('structure-status');
+    status.className = ''; status.textContent = 'saving…';
+    // joinVoltaGroups flattens each section's {common, endings} editing
+    // shape back into the plain measures array the API/grammar actually
+    // stores — built fresh for the request only, so the live sections
+    // being edited keep their split common/endings shape afterward.
+    const sectionsForSave = structSections.map(sec => ({ ...sec, measures: joinVoltaGroups(sec), endings: undefined }));
+    const res = await fetch(`/api/songs/${book}/${stem}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ version: structVersion, song: { meta: structMeta, sections: sectionsForSave } }),
+    });
+    if (res.status === 409) { status.className = 'err'; status.textContent = 'conflict: reload before saving'; return; }
+    if (!res.ok) { status.className = 'err'; status.textContent = 'save failed'; return; }
+    const data = await res.json();
+    structVersion = data.version;
+    status.className = 'ok'; status.textContent = 'saved — reloading chart…';
+    setTimeout(() => window.location.reload(), 600);
+  });
+  (async function loadStructure() {
+    const res = await fetch(`/api/songs/${book}/${stem}`);
+    const data = await res.json();
+    structVersion = data.version; structMeta = data.song.meta;
+    // Split each section's flat measures into {common, endings} once, up
+    // front — see splitVoltaGroups. Every editing function from here on
+    // (renderMatrix, the Alternatives panel) only ever deals with that
+    // split shape; joinVoltaGroups recombines it only at save time.
+    structSections = data.song.sections.map(sec => {
+      const { common, endings } = splitVoltaGroups(sec.measures || []);
+      return { ...sec, measures: common, endings };
+    });
+    renderBlocks();
+  })();
+
+  // ---- Keyboard & handheld-pedal navigation ---------------------------------
+  // Space = play/pause; Up/Down = previous/next section in this song;
+  // Left/Right and PageUp/PageDown = previous/next song in the setlist. A
+  // Bluetooth page-turn pedal is, to the browser, just a keyboard sending
+  // one of these — AirTurn's common defaults are Left/Right or
+  // PageUp/PageDown, both covered so a pedal works without reconfiguring it.
+  document.addEventListener('keydown', e => {
+    const t = document.activeElement;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    const drawer = document.getElementById('edit-drawer');
+    if (drawer && !drawer.hidden) return; // editing — never hijack keys here
+
+    switch (e.key) {
+      case ' ':
+      case 'Spacebar':
+        e.preventDefault();
+        setPlaying(!clock.running);
+        break;
+      case 'ArrowUp': {
+        if (!sections.length) break;
+        e.preventDefault();
+        const idx = currentSectionEl ? parseInt(currentSectionEl.dataset.sectionIndex, 10) : 0;
+        jumpToSection(Math.max(0, idx - 1));
+        break;
+      }
+      case 'ArrowDown': {
+        if (!sections.length) break;
+        e.preventDefault();
+        const idx = currentSectionEl ? parseInt(currentSectionEl.dataset.sectionIndex, 10) : -1;
+        jumpToSection(Math.min(sections.length - 1, idx + 1));
+        break;
+      }
+      case 'ArrowLeft':
+      case 'PageUp': {
+        const prev = document.querySelector('.setlist-nav-card.prev');
+        if (prev) { e.preventDefault(); window.location.href = prev.href; }
+        break;
+      }
+      case 'ArrowRight':
+      case 'PageDown': {
+        const next = document.querySelector('.setlist-nav-card.next');
+        if (next) { e.preventDefault(); window.location.href = next.href; }
+        break;
+      }
+    }
+  });
+
+  rebindSheet();
+})();

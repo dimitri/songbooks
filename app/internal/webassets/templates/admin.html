@@ -1,0 +1,67 @@
+{{define "admin"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="app-header">
+  <a href="/">&larr; Songbooks</a>
+  <h1>Admin</h1>
+</header>
+<main class="index">
+  <div class="card">
+    <h3>People</h3>
+    <table style="width:100%">
+      <thead><tr><th>Username</th><th>Display name</th><th>Created</th><th>Admin</th><th></th></tr></thead>
+      <tbody>
+      {{range .People}}
+        <tr>
+          <td>{{.Username}}</td>
+          <td>{{.DisplayName}}</td>
+          <td>{{.CreatedAt.Format "2006-01-02"}}</td>
+          <td>{{if .IsAdmin}}yes{{else}}no{{end}}</td>
+          <td>
+            {{if ne .ID $.Me.ID}}
+            <form method="post" action="/admin/people/{{.ID}}/admin" style="display:inline">
+              <input type="hidden" name="is_admin" value="{{if .IsAdmin}}0{{else}}1{{end}}">
+              <button type="submit">{{if .IsAdmin}}revoke admin{{else}}make admin{{end}}</button>
+            </form>
+            <form method="post" action="/admin/people/{{.ID}}/remove" style="display:inline" onsubmit="return confirm('Remove {{.Username}}? (not implemented yet)')">
+              <button type="submit">remove</button>
+            </form>
+            {{else}}
+            <em>you</em>
+            {{end}}
+          </td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>Projects</h3>
+    <table style="width:100%">
+      <thead><tr><th>Slug</th><th>Name</th><th>Owners</th><th>Editors</th><th>Viewers</th><th>Total members</th></tr></thead>
+      <tbody>
+      {{range .Projects}}
+        <tr>
+          <td><a href="/b/{{.Slug}}">{{.Slug}}</a></td>
+          <td>{{.Name}}</td>
+          <td>{{.Owners}}</td>
+          <td>{{.Editors}}</td>
+          <td>{{.Viewers}}</td>
+          <td>{{.MemberTotal}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+</main>
+</body>
+</html>
+{{end}}

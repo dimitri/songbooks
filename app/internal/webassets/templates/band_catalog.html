@@ -1,0 +1,86 @@
+{{define "band_catalog"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Band.Name}} — repertoire</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="app-header">
+  <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
+  <h1>{{.Band.Name}} — repertoire</h1>
+</header>
+<main class="index">
+  <p class="hint">Pointers into the catalog, same as a personal songbook — adding here doesn't copy a song; forking does, and makes it this band's own "band"-visibility variant that any current member (core or guest) can edit in place.</p>
+
+  <div class="card" style="max-width:520px">
+    <h2>Add a variant by id</h2>
+    <p class="hint">Find a variant's id from the <a href="/catalog">catalog</a> (it's shown next to each song's actions there, or in the URL of its "all versions" page).</p>
+    <label>Variant id <input type="number" id="variant-id-input"></label>
+    <button type="button" id="add-existing-btn">+ add to repertoire</button>
+    <button type="button" id="fork-into-band-btn">fork into this band</button>
+    <p id="add-result" class="hint"></p>
+  </div>
+
+  <table class="card" style="width:100%">
+    <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th>Visibility</th><th>Added by</th><th></th></tr></thead>
+    <tbody>
+    {{range .Entries}}
+      <tr data-variant-id="{{.VariantID}}">
+        <td><a href="/b/{{.Book}}/{{.Stem}}">{{.Title}}</a></td>
+        <td>{{.Artist}}</td>
+        <td>{{.Book}}</td>
+        <td>{{.Visibility}}{{if .ForkedFromID}} (<a href="/variants/{{deref64 .ForkedFromID}}/history">forked from</a>){{end}}</td>
+        <td>{{.AddedByUsername}}</td>
+        <td>
+          <a href="/works/{{.WorkID}}">all versions</a>
+          <a href="/variants/{{.VariantID}}/history">history</a>
+          <button type="button" class="remove-entry-btn" data-variant-id="{{.VariantID}}">remove</button>
+        </td>
+      </tr>
+    {{else}}
+      <tr><td colspan="6" class="hint">No repertoire yet — add or fork a variant above.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+</main>
+<script>
+const bandId = {{.Band.ID}};
+document.getElementById('add-existing-btn').addEventListener('click', async () => {
+  const variantId = Number(document.getElementById('variant-id-input').value);
+  if (!variantId) return;
+  const res = await fetch(`/api/bands/${bandId}/catalog`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({variantId}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) {
+    location.reload();
+  } else {
+    document.getElementById('add-result').textContent = data.error || 'failed to add';
+  }
+});
+document.getElementById('fork-into-band-btn').addEventListener('click', async () => {
+  const variantId = Number(document.getElementById('variant-id-input').value);
+  if (!variantId) return;
+  const res = await fetch(`/api/bands/${bandId}/catalog/fork/${variantId}`, {method: 'POST'});
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) {
+    location.reload();
+  } else {
+    document.getElementById('add-result').textContent = data.error || 'failed to fork';
+  }
+});
+document.querySelectorAll('.remove-entry-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const variantId = btn.dataset.variantId;
+    await fetch(`/api/bands/${bandId}/catalog/${variantId}`, {method: 'DELETE'});
+    btn.closest('tr').remove();
+  });
+});
+</script>
+</body>
+</html>
+{{end}}

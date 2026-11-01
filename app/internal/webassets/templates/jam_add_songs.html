@@ -1,0 +1,44 @@
+{{define "jam_add_songs"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Name}} — add songs</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="app-header">
+  <h1><a href="/b/{{.Book}}/jam/{{.Code}}/roster">&larr; {{.Name}}</a></h1>
+  <p>Add a song to this jam's pickable list, with min/max headcount caps per instrument.</p>
+</header>
+<main class="index">
+  {{if not .Candidates}}
+    <p class="card">Every song in this book is already on the jam's list.</p>
+  {{end}}
+  {{range .Candidates}}
+    <details class="card">
+      <summary>{{.Title}}</summary>
+      <form method="post" action="/b/{{$.Book}}/jam/{{$.Code}}/songs">
+        <input type="hidden" name="song_id" value="{{.ID}}">
+        <table style="width:100%">
+          <thead><tr><th>Instrument</th><th>Min</th><th>Max (blank = no cap)</th></tr></thead>
+          <tbody>
+          {{range $.DefaultRows}}
+            <tr>
+              <td><input type="text" name="instrument" value="{{.Instrument}}" placeholder="instrument"></td>
+              <td><input type="number" name="min" min="0" value="{{.Min}}" style="width:4em"></td>
+              <td><input type="number" name="max" min="0" value="{{.Max}}" style="width:4em" placeholder="unlimited"></td>
+            </tr>
+          {{end}}
+          </tbody>
+        </table>
+        <p class="hint">Blank the instrument field to drop a row (e.g. no keyboard in this band). Add more rows by duplicating one and renaming it — any instrument name is fine, not just the four defaults.</p>
+        <button type="submit" class="primary">Add to jam</button>
+      </form>
+    </details>
+  {{end}}
+</main>
+</body>
+</html>
+{{end}}

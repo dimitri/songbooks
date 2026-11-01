@@ -1,0 +1,11 @@
+# Songs that cannot fit one page above the 14pt legibility floor.
+# These need an editorial decision (collapse repeats, trim a verse), not a
+# layout change. The check step fails on songs NOT listed here, so this is
+# a regression baseline -- keep it short and shrink it over time.
+#
+# Of-Human-Bondage: accepted cost of the 4-bars-per-line policy (no 8-bar
+# fallback) -- a standard form that only fit one page when grouped in a way
+# we deliberately stopped allowing.
+In-Candesenza
+Of-Human-Bondage
+The-Last-Embrace

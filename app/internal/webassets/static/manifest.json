@@ -1,0 +1,14 @@
+{
+  "name": "Songbooks",
+  "short_name": "Songbooks",
+  "description": "Chord charts, lyrics and setlists for rehearsal and gigs — works offline.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b0c0e",
+  "theme_color": "#0b0c0e",
+  "icons": [
+    { "src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/apple-touch-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

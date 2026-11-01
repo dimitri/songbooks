@@ -1,0 +1,45 @@
+title:  Vibrator
+artist: Other Lies
+key:    Dm
+tempo:  113
+time:   4/4
+flats:  yes
+map:    Intro · Intro · Verse · Chorus · Bridge · Verse · Solo · Verse · Chorus · Outro
+
+[Intro]
+grid: |: Dm | % | % | Dm :|
+
+[Intro]
+grid: | Dm | % | % | % |
+grid: | F | % | % | % |
+grid: | % | % | Dm | % |
+
+[Verse]
+In the [F]corner of the room
+Instead of wider skies [F]
+This haunting call in my head
+
+[Chorus]
+grid: |: (1,2.) Bb | Gm | Dm | F |
+grid: | (3.) Bb | Gm | Dm | Dm :|
+Or is just gaso[F]line
+And [F]through and through and through
+
+[Bridge]
+grid: |: Em | % | Gm | Gm :|
+
+[Verse]
+Starts to take hold
+
+[Solo]
+grid: |: Dm | % | F | Bb :|
+
+[Verse] (repeat)
+
+[Chorus]
+grid: |: Gm | % | Bb | Bb :|
+
+[Outro]
+grid: | Dm | % | % | % |
+grid: | % | % | % | % |
+Will you be there, too?

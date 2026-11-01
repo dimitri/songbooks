@@ -1,0 +1,110 @@
+name: songbooks
+
+on:
+  push:
+    branches: [main]
+    paths: ['v2/**', '.github/workflows/songbooks.yml']
+  pull_request:
+    paths: ['v2/**', '.github/workflows/songbooks.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write          # needed to update the rolling release
+
+env:
+  # Typst is pre-1.0 and ships breaking changes in feature releases, so pin it
+  # rather than tracking latest: a silent layout shift would be invisible here.
+  TYPST_VERSION: '0.15.1'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: v2
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Typst ${{ env.TYPST_VERSION }}
+        run: |
+          curl -fsSL -o /tmp/typst.tar.xz \
+            "https://github.com/typst/typst/releases/download/v${TYPST_VERSION}/typst-x86_64-unknown-linux-musl.tar.xz"
+          tar -xJf /tmp/typst.tar.xz -C /tmp
+          sudo install -m755 /tmp/typst-x86_64-unknown-linux-musl/typst /usr/local/bin/typst
+          typst --version
+
+      - name: Install fonts and PDF tools
+        run: |
+          sudo apt-get update -qq
+          # PT Sans (libre) is the body face; poppler gives pdfinfo, which the
+          # one-page assertion uses.
+          sudo apt-get install -y -qq fonts-paratype poppler-utils
+          fc-cache -f >/dev/null
+          typst fonts | grep -ix 'pt sans' || { echo "PT Sans missing"; exit 1; }
+
+      # The LilyPond score fragments are committed as SVG, so the document
+      # build needs no LilyPond at all.
+      - name: Build every book and target
+        run: make everything SKIP_SCORES=1
+
+      - name: Assemble songbooks
+        run: |
+          for b in Mercy OtherLies; do
+            for t in a4 tablet13; do
+              make book BOOK=$b TARGET=$t SKIP_SCORES=1 || exit 1
+            done
+          done
+
+      # Fails only on songs that regressed, not on the known-overflow baseline
+      # recorded in each book's known-overflow.txt.
+      - name: Verify one page per sheet
+        run: |
+          fail=0
+          for b in Mercy OtherLies; do
+            for t in a4 tablet13 tablet11; do
+              make check BOOK=$b TARGET=$t SKIP_SCORES=1 || fail=1
+            done
+          done
+          exit $fail
+
+      - name: Collect PDFs
+        run: |
+          mkdir -p dist
+          cp build/*.pdf dist/ 2>/dev/null || true
+          for d in build/*/*/; do
+            b=$(basename "$(dirname "$d")"); v=$(basename "$d")
+            mkdir -p "dist/$b/$v"
+            cp "$d"*.pdf "dist/$b/$v/" 2>/dev/null || true
+          done
+          find dist -name '*.pdf' | wc -l
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: songbooks-pdf
+          path: v2/dist
+          if-no-files-found: error
+          retention-days: 30
+
+      # Evergreen release: one rolling tag, replaced on every push to main, so
+      # there is always a current set of PDFs at a stable URL.
+      - name: Package for release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          cd dist && zip -qr ../songbooks-pdf.zip . && cd ..
+          ls -la songbooks-pdf.zip
+
+      - name: Update rolling release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Songbooks (latest)
+          body: |
+            Automatically rebuilt from `main` (${{ github.sha }}).
+
+            One page per song. `a4` for print, `tablet13` / `tablet11` sized to
+            the device, `-dark` for stage use.
+          files: v2/songbooks-pdf.zip
+          prerelease: false
+          make_latest: true

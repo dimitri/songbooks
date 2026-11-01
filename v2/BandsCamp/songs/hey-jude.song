@@ -1,0 +1,55 @@
+title:  Hey Jude
+artist: The Beatles
+key:    F
+tempo:  74
+time:   4/4
+map:    Verse · Verse · Bridge · Verse · Bridge · Verse · Outro (Na-na-na)
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Verse]
+grid: | F | C | C7 | F |
+Hey Jude, don't make it bad
+Take a sad song and make it better
+Remember to let her into your heart
+Then you can start to make it better
+
+[Verse]
+Hey Jude, don't be afraid
+You were made to go out and get her
+The minute you let her under your skin
+Then you begin to make it better
+
+[Bridge]
+grid: | Bb | F | C7 | F |
+And anytime you feel the pain
+Hey Jude, refrain
+Don't carry the world upon your shoulders
+For well you know that it's a fool
+Who plays it cool
+By making his world a little colder
+
+[Verse]
+Hey Jude, don't be afraid
+You were made to go out and get her
+The minute you let her under your skin
+Then you begin to make it better
+
+[Bridge]
+So let it out and let it in
+Hey Jude, begin
+You're waiting for someone to perform with
+And don't you know that it's just you
+Hey Jude, you'll do
+The movement you need is on your shoulder
+
+[Verse]
+
+[Outro (Na-na-na)]
+grid: |: F | Eb | Bb | F :|
+Na na na na na na na
+Na na na na, Hey Jude
+Na na na na na na na
+Na na na na, Hey Jude

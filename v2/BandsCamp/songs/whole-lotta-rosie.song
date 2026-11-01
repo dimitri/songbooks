@@ -1,0 +1,25 @@
+title:  Whole Lotta Rosie
+artist: AC/DC
+key:    A
+tempo:  128
+time:   4/4
+map:    Intro · Verse · Chorus · Verse · Chorus · Solo · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: |: A | C . D . | A | C . D . :|
+
+[Verse]
+
+[Chorus]
+
+[Verse]
+
+[Chorus]
+
+[Solo]
+
+[Outro]

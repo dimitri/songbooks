@@ -1,0 +1,80 @@
+title: Ticket to Ride
+artist: Tiago Iorc
+tempo: 106
+time: 4/4
+flats: yes
+map: Intro · Verse · Chorus · Verse · Chorus · Bridge · Verse · Chorus · Bridge · Solo · Chorus · Outro
+reference: https://www.youtube.com/watch?v=QAdnXRYCBSU
+
+[Intro]
+grid: |Fmaj7 | % | % | %|
+
+[Verse]
+grid: |Fmaj7 | % | % | % | % | % | Gm7 | Csus49|
+I think I'm gonna be sad.
+I think it's today.
+Yeah.
+The girl
+That's drivin' me mad
+Is goin' away.
+
+[Chorus]
+grid: |Dm7 | Fmaj7 | Bbmaj7 | Eb79 | Dm7 . Abmaj7 . | Gm7 . Csus4 . | Fmaj7 | %|
+She's got a ticket to ride.
+She's got a ticket to ride.
+She's got a ticket to ride,
+But she don't care.
+
+[Verse]
+She said that livin' with me
+Was bringin' her down.
+Yeah.
+She would never be free
+When I was around.
+
+[Chorus] (repeat)
+
+[Bridge]
+grid: |Bbmaj7 | Dbmaj7 | Gm7 | Am7 | Bbmaj7 | Dbmaj7 | Gm7 | C | C7|
+I don't know why
+She's ridin' so high.
+She oughtta think twice.
+She oughtta do right by me.
+Before she gets to sayin' goodbye,
+She oughtta think twice.
+She oughtta do right by me.
+
+[Verse]
+I think I'm gonna be sad.
+I think it's today.
+Yeah.
+The girl that's drivin' me mad
+Is goin' away.
+Yeah.
+
+[Chorus]
+grid: |Dm7 | Fmaj7 | Bbmaj7 | Eb79 | Dm7 . Abmaj7 . | Gm7 . Csus4 . | Fmaj7 | %|
+Ah, she's got a ticket to ride.
+She's got a ticket to ride.
+She's got a ticket to ride,
+But she don't care.
+
+[Bridge]
+grid: |Bbmaj7 | Dbmaj7 | Gm7 | Am7 | Bbmaj7 | Dbmaj7 | Gm7 | C | C7|
+I don't know why she's ridin' so high.
+She oughtta think twice.
+She oughtta do right by me.
+Before she gets to sayin' goodbye,
+She oughtta think twice.
+She oughtta do right by me.
+
+[Solo]
+---
+
+[Chorus] (repeat)
+bars: 6
+grid: |Dm7 | Fmaj7 | Bbmaj7 | Eb79 | Dm7 . Abmaj7 . | Gm7 . Csus4 .|
+
+[Outro]
+bars: 6
+grid: |: Fmaj7 | Dm7 | Gm7 | C7 : | Gb | Fmaj7|

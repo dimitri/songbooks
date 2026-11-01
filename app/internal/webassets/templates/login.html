@@ -1,0 +1,27 @@
+{{define "login"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log in — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<main class="index">
+  <div class="hero">
+    <div>
+      <h2>Log in</h2>
+      <p>Songbooks is shared — sign in to see your own projects.</p>
+    </div>
+  </div>
+  <form class="card" method="post" action="/login" style="max-width:360px">
+    {{if .Error}}<p style="color:#b33">Wrong username or password.</p>{{end}}
+    <p><label>Username<br><input type="text" name="username" autocomplete="username" required autofocus></label></p>
+    <p><label>Password<br><input type="password" name="password" autocomplete="current-password" required></label></p>
+    <button type="submit">Log in</button>
+  </form>
+</main>
+</body>
+</html>
+{{end}}

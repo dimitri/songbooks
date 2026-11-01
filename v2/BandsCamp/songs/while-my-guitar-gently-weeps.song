@@ -1,0 +1,26 @@
+title:  While My Guitar Gently Weeps
+artist: The Beatles
+key:    Am
+tempo:  115
+time:   4/4
+map:    Intro · Verse · Chorus · Verse · Chorus · Solo · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: | Am | Am/G | D9/F# | F |
+
+[Verse]
+
+[Chorus]
+grid: | A | C#m | F#m | C#m |
+
+[Verse]
+
+[Chorus]
+
+[Solo]
+
+[Outro]

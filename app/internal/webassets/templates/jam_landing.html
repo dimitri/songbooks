@@ -1,0 +1,25 @@
+{{define "jam_landing"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Name}} — jam signup</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<main class="index">
+  <div class="hero">
+    <div>
+      <h2>{{.Name}}</h2>
+      <p>No account needed — just a nickname and what you're playing.</p>
+    </div>
+  </div>
+  <form class="card" method="post" action="/jam/{{.Code}}/join" style="max-width:360px">
+    <p><label>Nickname<br><input type="text" name="nickname" required autofocus></label></p>
+    <button type="submit">Join</button>
+  </form>
+</main>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,1565 @@
+/* EB Garamond (OFL, Google Fonts) — the "Engraved Serif" chart face
+   (chosen from the style proposal): an italic serif reads as a typeset,
+   hand-engraved fakebook page rather than a screen UI. Bundled and served
+   from this binary (static/fonts/EBGaramond*.ttf via go:embed) so the app
+   stays fully offline-capable, no CDN fetch. Used only for chord
+   symbols/section labels on the chart, not UI chrome — general UI text
+   stays on the neutral system stack per --font-ui. */
+@font-face {
+  font-family: "EB Garamond";
+  src: url("/static/fonts/EBGaramond.ttf") format("truetype-variations"), url("/static/fonts/EBGaramond.ttf") format("truetype");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "EB Garamond";
+  src: url("/static/fonts/EBGaramond-Italic.ttf") format("truetype-variations"), url("/static/fonts/EBGaramond-Italic.ttf") format("truetype");
+  font-weight: 400 800;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* ---- Design tokens -----------------------------------------------------
+   System font stacks for UI text — no network font loading, consistent
+   with a single-binary, works-offline app. Light/dark follows the OS by
+   default (`color-scheme` + `prefers-color-scheme`); `data-theme` on
+   <body> is an explicit per-viewer override set by the theme-toggle
+   button. */
+/* Palette: a cool-neutral surface (not the previous warm editorial cream)
+   with ONE vivid teal-green accent — the "one app-wide accent on a quiet
+   neutral" pattern real music apps (Spotify, Apple Music, Tidal) actually
+   use, rather than a multi-hue "creative" palette. Dark is the primary
+   mode (what those apps default to); light stays fully supported, just
+   with the same accent/relationships carried over. */
+:root {
+  color-scheme: light dark;
+  --gap: 1rem;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-chart: "EB Garamond", Georgia, "Times New Roman", serif;
+
+  --bg: #f5f6f8;
+  --bg-raised: #ffffff;
+  --bg-sunken: #eceef1;
+  --fg: #15171a;
+  --fg-muted: #686d75;
+  --border: #dfe1e6;
+  --border-strong: #15171a;
+  --accent: #0e9a74;
+  --accent-contrast: #ffffff;
+  --current-bg: #ffcf4a;
+  --current-fg: #22201c;
+  --danger: #c93f36;
+  --ok: #2e7d4f;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(10, 12, 16, 0.06), 0 4px 14px rgba(10, 12, 16, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0c0e;
+    --bg-raised: #16181b;
+    --bg-sunken: #07080a;
+    --fg: #f2f3f5;
+    --fg-muted: #9a9ea5;
+    --border: #26292e;
+    --border-strong: #f2f3f5;
+    --accent: #1ed9a3;
+    --accent-contrast: #06120d;
+    --current-bg: #e3a85c;
+    --current-fg: #191712;
+    --danger: #ff6b61;
+    --ok: #4fd38a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 18px rgba(0, 0, 0, 0.45);
+  }
+}
+
+body[data-theme="light"] {
+  --bg: #f5f6f8; --bg-raised: #fff; --bg-sunken: #eceef1; --fg: #15171a; --fg-muted: #686d75;
+  --border: #dfe1e6; --border-strong: #15171a; --accent: #0e9a74; --accent-contrast: #ffffff;
+  --current-bg: #ffcf4a; --current-fg: #22201c;
+}
+body[data-theme="dark"] {
+  --bg: #0b0c0e; --bg-raised: #16181b; --bg-sunken: #07080a; --fg: #f2f3f5; --fg-muted: #9a9ea5;
+  --border: #26292e; --border-strong: #f2f3f5; --accent: #1ed9a3; --accent-contrast: #06120d;
+  --current-bg: #e3a85c; --current-fg: #191712;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: var(--font-ui);
+  margin: 0;
+  line-height: 1.4;
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ---- Widgets: buttons, selects, segmented controls, cards --------------- */
+button, select, input { font-family: inherit; color: inherit; font-size: 0.9rem; }
+button {
+  cursor: pointer; background: var(--bg-raised); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.45rem 0.8rem; transition: background 0.1s, border-color 0.1s;
+}
+button:hover:not(:disabled) { border-color: var(--border-strong); }
+button:disabled { opacity: 0.4; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); font-weight: 700; }
+button.icon-btn { width: 2.3rem; height: 2.3rem; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; font-size: 1.05rem; }
+
+/* In-house SVG icons (templates/icons.html + the JS-built-row duplicates in
+   song.js/setlist.js) — sized to sit on the text baseline inside a button,
+   colored by the button's own text color so active/disabled states are
+   free. */
+.icon { width: 1em; height: 1em; display: inline-block; vertical-align: -0.15em; flex-shrink: 0; }
+button .icon { margin-right: 0.35em; }
+button.icon-btn .icon { margin-right: 0; width: 1.15em; height: 1.15em; }
+.back-link { display: inline-flex; align-items: center; gap: 0.3em; }
+.back-link .icon { margin-right: 0; }
+select {
+  background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.4rem 0.6rem;
+}
+input[type="text"], input[type="url"], input[type="date"] {
+  background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.4rem 0.6rem;
+}
+
+.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; background: var(--bg-raised); gap: 2px; }
+.segmented button {
+  border: none; background: none; border-radius: 999px; padding: 0.3rem 0.8rem;
+  font-size: 0.82rem; color: var(--fg-muted);
+}
+.segmented button.active { background: var(--fg); color: var(--bg); font-weight: 600; }
+
+/* Visually hidden but still in the accessibility tree — used on the
+   view-mode icons below, where the tooltip/title carries the sighted
+   label and this carries it for screen readers. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* #mode-segmented: icon-only, not text — see the template comment. Square
+   touch targets sized for a thumb, not a text button's loose padding. */
+#mode-segmented button {
+  display: flex; align-items: center; justify-content: center;
+  width: 2.1rem; height: 2.1rem; padding: 0;
+}
+#mode-segmented .icon { width: 1.05rem; height: 1.05rem; }
+
+.card { background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+/* ---- App chrome ---------------------------------------------------------- */
+.app-header {
+  display: flex; align-items: center; gap: var(--gap);
+  padding: 0.75rem 1.1rem; border-bottom: 1px solid var(--border); flex-wrap: wrap;
+  background: var(--bg-raised);
+}
+.app-header h1 { margin: 0; font-size: 1.25rem; font-weight: 700; }
+.song-nav { margin-left: auto; display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+
+main { padding: 1.1rem; max-width: 68rem; margin: 0 auto; }
+
+/* ---- Tempo / time-signature badge --------------------------------------- */
+.time-sig { display: flex; flex-direction: column; line-height: 0.85; font-weight: 700; font-size: 1.15rem; }
+
+/* ---- Index / book browser ------------------------------------------------ */
+.project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 1rem; }
+.project-card {
+  display: block; padding: 1.1rem 1.2rem; color: var(--fg); transition: transform 0.1s, box-shadow 0.1s;
+}
+.project-card:hover { text-decoration: none; transform: translateY(-2px); box-shadow: 0 2px 4px rgba(20,16,8,0.08), 0 8px 20px rgba(20,16,8,0.1); }
+.project-card h2 { margin: 0 0 0.4rem; font-size: 1.15rem; }
+.project-stats { display: flex; gap: 0.7rem; flex-wrap: wrap; font-size: 0.82rem; color: var(--fg-muted); }
+
+.book-card { margin-bottom: 1.5rem; padding: 1rem 1.2rem; }
+.book-card h2 { margin: 0 0 0.6rem; display: flex; align-items: center; gap: 0.6rem; }
+.new-setlist-form .structure-actions { margin-top: 0; flex-wrap: wrap; }
+.new-setlist-form label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: var(--fg-muted); }
+.set-group { margin-bottom: 0.7rem; }
+.set-group h3 { margin: 0 0 0.3rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); }
+.song-list { list-style: none; padding: 0; margin: 0; }
+/* Gig-mode-ready: alternating row backgrounds and a hover state, same
+   striping as the actual gig view (.gig-row) — this is a book's own
+   songbook, meant to be glanced down at speed, same as a setlist. */
+.song-list li {
+  display: flex; gap: 0.6rem; align-items: baseline; padding: 0.4rem 0.6rem; flex-wrap: wrap;
+  border-radius: 4px;
+}
+.song-list li:nth-child(odd) { background: var(--bg-sunken); }
+.song-list li:hover { background: color-mix(in srgb, var(--accent) 12%, var(--bg-sunken)); }
+/* Read-only by default: no drag handle, no delete icon — Edit order
+   reveals both. Hidden with display:none, not just opacity, so a
+   misclick/drag can't hit them while they're not meant to be there.
+   catalog-drag-handle, NOT the shared .drag-handle class used by the
+   Structure/setlist chip editors — those are meant to stay always-visible,
+   so hiding .drag-handle itself by default would have broken them.
+   button.remove-song-btn, not just .remove-song-btn: the button is also
+   .icon-btn, and button.icon-btn (element+class) outranks a plain single-
+   class selector regardless of source order — a plain .remove-song-btn
+   rule here was silently losing to it, which is why the trash icon
+   showed even outside edit mode. */
+button.remove-song-btn, .catalog-drag-handle { display: none; }
+.catalog-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.8rem; }
+#catalog-edit-toggle.active { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+#catalog-section.editing button.remove-song-btn {
+  display: flex; margin-left: auto; font-size: 0.7rem; padding: 0.3rem 0.5rem; color: var(--fg-muted);
+}
+#catalog-section.editing .catalog-drag-handle {
+  display: flex; align-items: center; color: var(--fg-muted); cursor: grab; touch-action: none;
+}
+#catalog-section.editing .song-list li.dragging { opacity: 0.4; }
+#catalog-section.editing .song-list li.drag-over { border-top: 2px solid var(--accent); }
+.song-num { color: var(--fg-muted); font-variant-numeric: tabular-nums; min-width: 1.6rem; text-align: right; font-size: 0.85rem; }
+.song-link { font-weight: 600; flex: 1; display: flex; align-items: baseline; gap: 0.6rem; min-width: 0; }
+.song-link .song-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.song-link .song-meta { font-weight: 400; font-size: 0.8rem; color: var(--fg-muted); white-space: nowrap; margin-left: auto; }
+.song-link-sub { font-size: 0.78rem; color: var(--fg-muted); }
+.add-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.6rem; flex-wrap: wrap; }
+
+/* ---- New-song wizard (native <dialog>) ------------------------------------ */
+#song-wizard {
+  width: min(560px, 92vw); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1.3rem 1.4rem; background: var(--bg-raised); color: var(--fg); box-shadow: var(--shadow);
+}
+#song-wizard::backdrop { background: rgba(10, 8, 4, 0.45); }
+#song-wizard h2 { margin: 0 0 0.3rem; }
+.wizard-fields { display: flex; gap: 0.8rem; margin: 0.8rem 0; flex-wrap: wrap; }
+.wizard-fields label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--fg-muted); flex: 1; min-width: 10rem; }
+.wizard-preview { width: 100%; margin-top: 0.4rem; font-family: var(--font-mono); font-size: 0.82rem; }
+.wizard-actions { display: flex; align-items: center; gap: 0.7rem; margin-top: 1rem; }
+.wizard-actions .hint { margin-left: 0.2rem; }
+.wizard-steps { display: flex; gap: 0.4rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
+.wizard-step-dot {
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+  color: var(--fg-muted); padding: 0.25rem 0.6rem; border-radius: 999px; background: var(--bg-sunken);
+}
+.wizard-step-dot.active { background: var(--accent); color: var(--accent-contrast); }
+.wizard-panel .reference-embed { margin-top: 0.6rem; }
+
+#key-transposed { color: var(--accent); font-weight: 600; }
+#key-transposed::before { content: "\2192"; margin: 0 0.3em; color: var(--fg-muted); font-weight: 400; }
+.transpose-control { display: flex; align-items: center; gap: 0.3rem; }
+.transpose-control button {
+  width: 1.6rem; height: 1.6rem; padding: 0; border-radius: 5px; font: inherit; line-height: 1;
+  background: var(--bg-sunken); border: none; color: var(--fg);
+}
+.transpose-control button:hover { color: var(--accent); }
+#transpose-amount { min-width: 1.4rem; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* Top bar: width split into 4 columns, given to prev/current/next as
+   1-2-1 — the current song (title, artist, key, tempo) gets the wide
+   center cell so it's the thing you actually see, with prev/next either
+   side of it rather than as a separate, easy-to-miss row underneath. */
+.song-topbar {
+  display: grid; grid-template-columns: 1fr 2fr 1fr; grid-template-rows: auto auto; gap: 0.3rem 0.6rem;
+  padding: 0.5rem 1.1rem 0.6rem; border-bottom: 1px solid var(--border); background: var(--bg-raised);
+}
+.topbar-utility {
+  grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between;
+}
+.topbar-utility .back-link { padding: 0.2rem 0; font-size: 0.78rem; }
+.topbar-cell { display: flex; align-items: center; gap: 0.5rem; min-width: 0; color: var(--fg); }
+.topbar-cell.empty { visibility: hidden; }
+a.topbar-cell { padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid var(--border); }
+a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none; }
+.topbar-next { justify-content: flex-end; text-align: right; }
+.topbar-nav-info { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.topbar-nav-info small { color: var(--fg-muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.topbar-nav-info strong { font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar-current {
+  flex-direction: column; align-items: center; justify-content: center; gap: 0.15rem;
+  text-align: center; padding: 0.3rem 0;
+}
+.topbar-current h1 { margin: 0; font-size: 1.3rem; font-weight: 700; line-height: 1.2; }
+.topbar-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem; font-size: 0.88rem; color: var(--fg-muted); }
+.topbar-artist { font-weight: 500; }
+/* A separator before every meta item except whichever one happens to be
+   first (artist, key or tempo can each be absent independently) — the
+   adjacent-sibling pattern handles that without caring which one it is. */
+.topbar-meta > * + *::before { content: "\00b7"; margin-right: 0.5rem; }
+.topbar-current .segmented { margin-top: 0.5rem; flex-wrap: wrap; justify-content: center; }
+@media (max-width: 640px) {
+  .song-topbar { grid-template-columns: 1fr; }
+  .topbar-prev, .topbar-next { display: none; }
+}
+
+/* ---- Song structure strip — a minimal tick timeline: one thin progress
+   line, one tick + label per section (weighted by its own bar count,
+   bar count printed small beside the name). Lives inside .content-main
+   (see the template), so it's scoped to the chart's own width, not the
+   full page — stretching edge-to-edge behind the sidebar too was the
+   "awful" complaint this replaces. Chosen over three other mocked
+   options (a narrowed version of the old shared-staff look, a chip/pill
+   row, and compact wrapping bricks) — lightest visual weight of the
+   four, reads as a scrubber rather than another staff. */
+.song-structure-strip {
+  position: relative; padding: 1.5rem 0.2rem 0.6rem; margin-bottom: 0.4rem;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.structure-line {
+  position: absolute; left: 0.2rem; right: 0.2rem; top: 1.65rem; height: 2px;
+  background: var(--border-strong); border-radius: 2px;
+}
+.structure-fill {
+  position: absolute; left: 0.2rem; top: 1.65rem; height: 2px; width: 0;
+  background: var(--accent); border-radius: 2px; z-index: 1; transition: width 0.2s linear;
+}
+.structure-row { display: flex; gap: 0; position: relative; z-index: 2; }
+.structure-seg {
+  flex: var(--bars, 1) 1 2.4rem; min-width: 2.4rem; display: flex; flex-direction: column;
+  align-items: flex-start; position: relative; background: none; border: none; text-align: left;
+  padding: 0 0.3rem 0 0;
+}
+.structure-seg-tick { width: 2px; height: 10px; background: var(--border-strong); margin-bottom: 0.3rem; border-radius: 1px; }
+.structure-seg-label {
+  font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em;
+  color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+.structure-seg-bars { font-weight: 400; opacity: 0.75; margin-left: 0.25em; }
+.structure-seg.is-reference .structure-seg-label { font-style: italic; font-weight: 400; opacity: 0.8; }
+.structure-seg.current .structure-seg-tick { background: var(--accent); }
+.structure-seg.current .structure-seg-label { color: var(--accent); font-weight: 700; }
+.structure-seg.done .structure-seg-label { opacity: 0.45; }
+.structure-seg:hover .structure-seg-label { color: var(--fg); }
+
+/* ---- Transport -------------------------------------------------------------
+   Lives inside the structure rail (.timeline), not floating above the chart
+   on its own, and carries the song's metadata (tempo/key/capo/reference)
+   too — playback controls, "what song is this" and "where am I in it" are
+   all the same concern, a narrow vertical panel rather than three separate
+   horizontal bars competing for space above the chart. Jazz fullscreen
+   pulls it back out with position:fixed (see its own block below). */
+.transport {
+  display: flex; flex-direction: column; gap: 0.55rem;
+  padding: 0.7rem 0.7rem; margin-bottom: 0.9rem; border-radius: var(--radius);
+  background: var(--bg-raised); border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.transport-controls { display: flex; gap: 0.4rem; }
+.transport-controls button { flex: 1; min-width: 0; }
+
+/* A small row of dots, one per beat, lit as the clock ticks through the bar
+   — visual feedback for the beat that doesn't depend on any audio being on
+   at all, which matters now that "no click" is the default. */
+.beat-dots { display: flex; gap: 0.35rem; justify-content: center; }
+.beat-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--border); transition: background 0.05s, transform 0.05s; }
+.beat-dot.lit { background: var(--accent); transform: scale(1.25); }
+.beat-dot.downbeat { width: 0.6rem; height: 0.6rem; }
+/* Compound meter (6/8, 9/8, 12/8): each dot IS a dotted-quarter pulse —
+   three eighth notes — so it's drawn as a tiny cluster of 3 sub-ticks
+   instead of one plain dot, and the active sub-tick within the current
+   pulse lights up as the clock moves through it. Not used for simple
+   meters (3/4, 4/4), where one beat is just one plain beat. */
+.beat-dot.compound {
+  width: auto; height: auto; background: none; border-radius: 0;
+  display: flex; align-items: flex-end; gap: 0.12rem; padding: 0.05rem;
+}
+.beat-dot.compound.lit { transform: none; }
+.beat-subtick { width: 0.24rem; height: 0.24rem; border-radius: 50%; background: var(--border); transition: background 0.05s, transform 0.05s; }
+.beat-dot.compound.downbeat .beat-subtick { width: 0.28rem; height: 0.28rem; }
+.beat-subtick.lit { background: var(--accent); transform: scale(1.3); }
+
+/* ---- Standalone practice metronome (/metronome) --------------------------
+   A self-contained practice tool, not tied to any song — big tempo
+   readout, tap tempo, and a per-beat accent picker so a backbeat (2 & 4)
+   or any custom groove pattern can be set directly, not just inferred
+   from a time signature. */
+.metronome-standalone { max-width: 26rem; margin: 1.5rem auto; padding: 1.6rem; display: flex; flex-direction: column; gap: 1.1rem; }
+.metro-bpm-row { display: flex; align-items: center; justify-content: center; gap: 1rem; }
+.metro-bpm-display { display: flex; flex-direction: column; align-items: center; }
+.metro-bpm-display #bpm-input { width: 5.5rem; font-size: 3rem; font-weight: 700; text-align: center; border: none; background: none; padding: 0; }
+.metro-bpm-display #bpm-input:focus { outline: none; background: var(--bg-sunken); border-radius: 6px; }
+.metro-bpm-display .bpm-unit { font-size: 0.8rem; color: var(--fg-muted); }
+.metro-bpm-row .icon-btn { width: 2.6rem; height: 2.6rem; font-size: 1.3rem; }
+.metro-beat-dots { gap: 0.6rem; padding: 0.3rem 0; }
+.metro-beat-dots .beat-dot { width: 0.8rem; height: 0.8rem; }
+.metro-beat-dots .beat-dot.downbeat { width: 0.95rem; height: 0.95rem; }
+.metro-transport-controls { display: flex; justify-content: center; gap: 0.8rem; }
+.metro-transport-controls .icon-btn { width: 3.4rem; height: 3.4rem; font-size: 1.4rem; }
+.metro-transport-controls #play-pause-btn { width: 4rem; height: 4rem; font-size: 1.6rem; }
+.metro-section h3 { margin: 0 0 0.4rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); }
+.metro-section .metro-icon-row { flex-wrap: wrap; }
+.metro-beat-picker { display: flex; gap: 0.4rem; margin-top: 0.5rem; flex-wrap: wrap; }
+.metro-beat-picker button {
+  width: 2.1rem; height: 2.1rem; border-radius: 50%; padding: 0; font-weight: 700;
+}
+.metro-beat-picker button.active { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+
+.tempo-row { display: flex; align-items: baseline; gap: 0.4rem; font-family: var(--font-chart); }
+.tempo-row input {
+  width: 3.2rem; border: none; background: none; font: inherit; font-size: 1.3rem; font-weight: 700; color: var(--fg);
+  border-bottom: 1px dashed var(--border); text-align: center; padding: 0 0.1rem;
+}
+.bpm-unit { font-size: 0.78rem; color: var(--fg-muted); }
+
+.meta-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.85rem; color: var(--fg-muted); }
+
+.reference-block { margin: 0.5rem 0; }
+.reference-row { display: flex; align-items: center; gap: 0.4rem; }
+.reference-row .meta-row { flex: 1; justify-content: flex-start; }
+.reference-edit-row { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
+.reference-edit-row input { flex: 1; min-width: 0; }
+.reference-embed { margin-top: 0.5rem; }
+.reference-embed:empty { display: none; }
+.reference-embed iframe {
+  width: 100%; aspect-ratio: 16 / 9; border: 1px solid var(--border);
+  border-radius: 6px; display: block;
+}
+
+/* A segmented row of equal-width icon buttons — the sound/mode/intro-length
+   pickers, replacing what used to be <select> dropdowns: a dropdown hides
+   the other options behind a click and a tiny icon-less label, where a
+   touring musician wants every choice visible and tappable at a glance. */
+.metro-icon-row { display: flex; gap: 0.25rem; background: var(--bg-sunken); border-radius: 8px; padding: 0.2rem; }
+.metro-icon-row button {
+  flex: 1; min-width: 0; padding: 0.35rem 0.3rem; border-radius: 6px; background: none; border: none;
+  color: var(--fg-muted); font-size: 0.72rem; display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
+}
+.metro-icon-row button .icon { margin: 0; }
+.metro-icon-row button.active { background: var(--bg-raised); color: var(--accent); box-shadow: var(--shadow); }
+.metro-icon-row button:hover:not(.active) { color: var(--fg); }
+/* Always visible, not a collapsed <details> — see the template comment:
+   count-in length and click sound are settings a drummer glances at and
+   sets before counting the band in, not an "advanced" afterthought. */
+.metro-advanced { margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.metro-advanced-label { font-size: 0.72rem; padding: 0; }
+
+/* ---- View/layout controls row -------------------------------------------- */
+
+/* ---- Sheet (chords + lyrics) ---------------------------------------------- */
+.sheet { display: block; }
+
+/* Layout is automatic, not a manual toggle: the viewport decides.
+   - Below 761px: single stacked column (chords above lyrics) — the only
+     thing that reads cleanly on a phone.
+   - 761px and up: each section shows chords-left/lyrics-right internally.
+   - 1150px and up: there's room for two full newspaper-style page columns
+     (like the printed songbook), so #sheet itself splits via CSS multicol.
+   Jazz mode overrides all of this to force single column (see its own
+   block below) — multicol needs a block container, not flex/grid, which
+   is why .sheet stays display:block throughout. */
+@media (min-width: 761px) {
+  .sheet-section { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 0.3rem 2.2rem; }
+  .sheet-section h3, .sheet-section .grid.spans-full, .sheet-section .multi-rest-row { grid-column: 1 / -1; }
+}
+@media (min-width: 1150px) {
+  #sheet { column-count: 2; column-gap: 2.4rem; }
+  #sheet .sheet-section { break-inside: avoid; }
+}
+
+.sheet-section { padding: 0.9rem 0; scroll-margin-top: 6rem; }
+.sheet-section h3 { margin: 0 0 0.6rem; display: flex; align-items: center; gap: 0.5rem; }
+.section-jump {
+  background: var(--bg-sunken); border: none; padding: 0.2rem 0.7rem; font: inherit;
+  font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em;
+  text-align: left; border-radius: 5px; color: var(--fg-muted);
+}
+.section-jump:not(:disabled):hover { color: var(--accent); }
+.sheet-section.current-section > h3 .section-jump { color: var(--accent-contrast); background: var(--accent); }
+
+/* Chart style: Engraved Serif — section labels on the chart itself (not
+   the sidebar timeline, which keeps its own plain nav look) read as a
+   typeset small-caps heading instead of a UI pill, matching a printed
+   fakebook page. */
+.sheet-section h3 .section-jump {
+  background: none; border-radius: 0; padding: 0.1rem 0;
+  font-family: var(--font-chart); font-style: italic; font-weight: 600;
+  font-variant: small-caps; letter-spacing: 0.05em; text-transform: none;
+  font-size: 0.95rem; border-bottom: 1px solid var(--border);
+}
+.sheet-section.current-section > h3 .section-jump {
+  color: var(--accent); background: none; border-bottom-color: var(--accent);
+}
+
+.sheet-section .grid { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.6rem; font-family: var(--font-chart); }
+.sheet-section .lyrics { font-size: 1.05rem; color: var(--fg); }
+
+/* A "staff line" is one chart system/row, engraved-notation style: a single
+   thin rhythm-staff line runs under each bar, crossed by a slash mark per
+   beat (LilyPond/Real Book rhythmic-slash convention) — a chord symbol sits
+   above only the beat where it actually starts; later beats of the same
+   chord are blank slashes (ties), never a repeated or dashed label. No
+   boxes, no fill — that reads as a spreadsheet, not a chart. */
+/* 3.3em clears the tallest thing that can float above a bar: a volta
+   bracket sits 2.3em above the bar's top plus its own 0.5em height —
+   independent of the time signature now, since the time-sig cell is a
+   plain sibling of the bars, not nested inside the first one anymore.
+   em, not rem: the whole staff's geometry (this, the staff lines, bar
+   height, time-sig cell...) scales off #sheet's own font-size, which is
+   the one thing applyPageBox()'s jazz-mode fit loop actually adjusts —
+   rem would hold the staff at a fixed real-world height no matter how far
+   the font shrank, so a long song could never fit however small the text
+   got (the loop could shrink chord labels but never the staff rows
+   themselves, which is why jazz mode kept falling back to scrolling even
+   with plenty of width available). */
+.staff-line { display: flex; align-items: flex-end; padding-top: 3.3em; position: relative; }
+/* The staff belongs to the ROW, not to each bar — this is the one thing
+   that actually makes it read as a staff instead of a strip of disconnected
+   hatch-boxes. Real engraving (LilyPond's Staff/BarLine split: the staff
+   context owns its five lines for the whole system, BarLine is a separate
+   grob that just strokes across them) never lets a barline interrupt the
+   lines it crosses. Drawing the gradient per-bar-body did exactly that:
+   every bar's padding/gap was a gap in the staff too, so each bar looked
+   like its own little isolated ladder instead of one continuous staff with
+   barlines through it. One shared background behind the whole row fixes
+   that; bars and the time-sig cell sit on top of it with no background of
+   their own and simply line up with it because both are anchored to the
+   row's bottom edge at the same 1.7em height. */
+.staff-line::before {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1.7em;
+  background-image:
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border));
+  background-size: 100% 1px;
+  background-position: 0 0%, 0 25%, 0 50%, 0 75%, 0 100%;
+  background-repeat: no-repeat;
+}
+.bar {
+  display: flex; align-items: flex-end;
+  /* Fixed per-bar width, from the ROW's intended capacity (--cap, set
+     server-side from BarsPerLine) — not the count of bars actually present
+     in this row. Without this, a short trailing row (e.g. 2 bars when
+     every other row holds 4) stretched its few bars to fill the row's
+     full width, each bar ending up visibly wider than every other bar in
+     the chart and reading as if it were a different, longer measure.
+     min-width is a real floor, not 0: .chord-label is position:absolute,
+     so it never contributes to flex sizing or to the overflow check
+     applyPageBox() uses (scrollWidth) — without a floor, a narrow jazz
+     column could squeeze a bar to a few px while its absolutely-positioned
+     chord text still rendered at full size, bleeding into neighboring
+     bars with no overflow ever being detected. */
+  flex: 0 0 calc(100% / var(--cap, 4)); min-width: 2.6em;
+  padding: 0 0.5em; position: relative; font-family: var(--font-chart);
+  z-index: 1;
+}
+.bar + .bar { border-left: 1px solid var(--border); }
+/* Repeat barline — LilyPond/Guitar Pro convention: a THIN line next to the
+   music and a THICK line outside it (away from the repeated material),
+   never two equal-weight lines (that's a plain section-divider double
+   bar, a different symbol). The thin line is the real CSS border, sitting
+   exactly at the bar's own edge, closest to the notes; the thick line is
+   a separate absolutely-positioned strip just outside it. Repeat dots
+   (below) sit further in still, between the thin line and the music. */
+/* Thin:thick ratio per LilyPond's own default (scm/define-grobs.scm,
+   BarLine: hair-thickness 1.9, thick-thickness 6.0 — a real ~3.2:1 ratio,
+   not the ~2:1 this was before, which read as barely different weights. */
+.bar-open {
+  border-left: 1.5px solid var(--border-strong) !important; padding-left: 0.7em;
+}
+.bar-open::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -0.35em; width: 0.3em;
+  background: var(--border-strong);
+}
+.bar-close {
+  border-right: 1.5px solid var(--border-strong) !important; padding-right: 0.7em;
+}
+.bar-close::after {
+  content: ""; position: absolute; top: 0; bottom: 0; right: -0.35em; width: 0.3em;
+  background: var(--border-strong);
+}
+.bar.current .chord-label { color: var(--current-fg); }
+.bar.current .simile-mark, .bar.current .simile-count { color: var(--current-fg); }
+.bar.current { background: color-mix(in srgb, var(--current-bg) 55%, transparent); border-radius: 3px; }
+
+/* A real 5-line staff, not a single rule — drawn per bar-body as five 1px
+   lines at 0/25/50/75/100% of a fixed height. Every bar-body shares the
+   same height, so the lines land at identical y-positions bar to bar and
+   read as one continuous staff across the row, the same way a Real Book
+   rhythm-slash chart actually looks (slashes centered on the middle
+   line), without needing to measure/position a single staff spanning the
+   whole row separately from the bars sitting on it. */
+.bar-body {
+  display: flex; flex: 1; min-width: 0; position: relative; height: 1.7em;
+}
+.beat-slot { flex: 1 1 0; min-width: 0.9em; text-align: center; position: relative; display: flex; align-items: center; justify-content: center; height: 100%; }
+.chord-label { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 0.35em; white-space: nowrap; font-style: italic; }
+.slash { display: inline-block; font-size: 1.3em; color: var(--fg); transform: rotate(10deg); }
+.beat-slot.tie .slash { color: var(--fg-muted); opacity: 0.55; }
+/* Simile ("bar repeat") sign — Real Book / LilyPond convention, ported
+   from v2/lib/staff.typ's own simile(): a hollow diagonal slash the full
+   height of the staff, flanked by two dots offset diagonally from its
+   ends (NOT stacked vertically — that's the different, repeat-BARLINE
+   dot pair below). Drawn as a real SVG (a true diagonal line + two round
+   circles, proper anti-aliased curves) rather than CSS div/border/
+   border-radius tricks, which never quite rendered the dots as circular
+   or the line as a clean stroke at small sizes — this is the "drawn
+   ugly" feedback, fixed by drawing the actual shapes instead of faking
+   them with box primitives. currentColor + inherited `color` lets the
+   current-bar and placeholder-bar states recolor it with one rule each,
+   same as any other text content. */
+/* NOT flex:1 — a repeat bar has no sibling beat-slots to share space
+   with, so flex:1 let it stretch to the bar's FULL width (confirmed: a
+   129x27px box, ~4.7:1). The slash+dot positions below assume a roughly
+   square glyph (LilyPond's own PercentRepeat is sized off one staff-
+   space, not a bar's whole width), so a wide box spread the dots far
+   from the slash instead of flanking it — this was the "% looks broken"
+   report, present in every mode, not something the jazz redesign
+   introduced. Fixed width (matching the bar's own height) + auto margins
+   keeps it a true square, centered in whatever the bar's real width is. */
+/* Box sized from the REAL glyph's own proportions this time, not a square
+   guess — LilyPond's x_percent() stencil (lily/percent-repeat-
+   interface.cc) assembles slash width (w) + its end-cap width
+   (x_width = hypot(thickness, thickness/slope)) for total width ≈2.68
+   staff-spaces against a height of only ≈2.0 — i.e. noticeably WIDER
+   than tall, not square. Centered in the bar on BOTH axes now (it no
+   longer fills the bar's own height) via align-self, since height:100%
+   was forcing the glyph to the full 4-staff-space staff height when the
+   real mark only spans about half that. */
+.simile-mark {
+  flex: 0 0 auto; width: 1.9em; height: 1.4em; margin: 0 auto; align-self: center;
+  position: relative; overflow: hidden; color: var(--fg-muted);
+}
+/* Plain CSS shapes — a rotated div for the slash, two border-radius:50%
+   divs for the dots. No replaced element, no intrinsic aspect ratio, no
+   viewBox: a div's box is exactly the width/height given, full stop, the
+   same in every engine — see the template comment for why this replaced
+   an SVG version.
+
+   Geometry re-derived from a REAL rendered reference, not hand-algebra
+   from the C++ source: compiled `\repeat percent 4 { d4 f a d }` with the
+   locally installed LilyPond 2.26.0 and measured the PNG pixel-for-pixel
+   (staff-space = 20.75px there). Two bugs in every earlier attempt this
+   round: (1) the slash was rotated the WRONG WAY — `rotate(-45deg)` draws
+   "\", but the real glyph is "/" (rises lower-left to upper-right); (2)
+   the slash was drawn far too SHORT relative to the dots' offset, so the
+   dots read as disconnected from it. Measured against the real PNG: the
+   dots sit symmetric about the glyph's center at ±0.82 staff-space
+   horizontally / ±0.51 staff-space vertically (i.e. in the stave spaces
+   immediately above/below the middle line), the slash's full diagonal
+   length is ≈2.59 staff-spaces (so each axis projects ≈1.83 staff-spaces
+   peak-to-peak), and its thickness is 0.48 staff-space — matching
+   scm/define-grobs.scm's thickness constant exactly, a good sanity check
+   on the measurement. Converted via this app's own 0.425em-per-staff-space
+   convention (see the .simile-mark comment above) so the ratio stays
+   pinned to something checkable, not a re-guessed percentage. */
+.simile-slash {
+  position: absolute; left: 50%; top: 50%; width: 0.2em; height: 1.1em;
+  background: currentColor; transform: translate(-50%, -50%) rotate(45deg);
+}
+.simile-dot {
+  position: absolute; width: 0.2em; height: 0.2em; border-radius: 50%;
+  background: currentColor; transform: translate(-50%, -50%);
+}
+/* Dot center offsets, in em, from the real-PNG measurement above:
+   ±0.82 staff-space horizontal ≈ ±0.35em, ±0.51 staff-space vertical ≈
+   ±0.22em. Dot-a sits upper-LEFT (same side the slash's lower end points
+   toward), dot-b sits lower-RIGHT (same side the slash's upper end points
+   toward) — the two dots flank the "/" on its open sides, same as the
+   real glyph. */
+.simile-dot-a { left: calc(50% - 0.35em); top: calc(50% - 0.22em); }
+.simile-dot-b { left: calc(50% + 0.35em); top: calc(50% + 0.22em); }
+.simile-count {
+  position: absolute; left: 50%; bottom: 100%; margin-bottom: 0.1em;
+  transform: translateX(-50%); font-weight: 700; font-size: 0.85em; color: var(--fg-muted);
+}
+.bar-placeholder .simile-mark { opacity: 0.3; }
+.simile-wide .simile-slash { width: 0.26em; }
+
+/* Whole-bar rest ("R") — standard notation: a filled block hanging BELOW
+   the staff's 2nd line (counting from the top), proportioned per
+   v2/lib/staff.typ's own rest(): width ~1.1 staff-spaces, height ~0.32
+   staff-space. The staff is 4 spaces tall (5 lines) at 1.7em, so one
+   space is 0.425em; width/height below are that ratio directly. */
+.rest-mark { flex: 1; position: relative; height: 100%; }
+.rest-mark::before {
+  content: ""; position: absolute; left: 50%; top: 25%; width: 0.47em; height: 0.14em;
+  background: var(--fg); transform: translateX(-50%);
+}
+.bar.current .rest-mark::before { background: var(--current-fg); }
+.bar-placeholder .rest-mark::before { opacity: 0.3; }
+
+/* A "Solo" section's inferred placeholder bars — real page space, not real
+   chord data. The staff itself is shared with every other bar in the row
+   now (see .staff-line::before), so placeholder-ness reads through the
+   slashes alone rather than by dimming a per-bar staff fragment. */
+.bar-placeholder .slash { opacity: 0.3; }
+
+/* Time signature, engraved on the staff — LilyPond/standard practice: it
+   lives in the space before the opening barline, not as a heading above
+   it. This cell shares the bar-body's own staff background so the 5
+   lines run unbroken from here into the first real bar, with the
+   numerator/denominator each centered in their own half of the staff
+   height (digits land near the 2nd/4th lines, the conventional spot). */
+.staff-timesig-cell {
+  display: flex; flex-direction: column; position: relative; z-index: 1;
+  height: 1.7em; width: 2.1em; margin-right: 0.4em;
+}
+/* Real engraving draws time-signature digits large — each numeral fills
+   close to its own half of the staff height (LilyPond's default glyphs
+   span roughly 2 staff-spaces each), not a small centered number. 1.05em
+   read as a timid afterthought next to the staff. 1.5em (tried next)
+   overcorrected: a font's own line-box (ascent+descent) runs noticeably
+   taller than its nominal font-size, so at 1.5em the digits actually
+   overflowed the 0.85em-tall half-cell they're centered in, top and
+   bottom. 1.1em leaves enough headroom for that overhead while still
+   reading as deliberately large, not timid. */
+/* flex:1 alone isn't a hard constraint: a child's line box (font-size ×
+   line-height) is its content-driven minimum height, and a flex column
+   lets that win over its 0.85em flex-basis share when the two disagree —
+   which is exactly what was happening at 1.1em (a 1.1em line box inside
+   an 0.85em half), pushing the second digit's line box past the cell's
+   own bottom edge even though the cell's OWN box (height: 1.7em) never
+   grew to show it. height + overflow:hidden on each half makes the
+   0.85em-per-half split a real hard clip instead of a target the flex
+   model can silently miss. */
+.staff-timesig-cell .tsnum, .staff-timesig-cell .tsden {
+  flex: 1 0 0.85em; height: 0.85em; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-family: var(--font-chart); font-size: 1em; line-height: 1;
+}
+/* The tempo mark is the one thing that genuinely belongs above the staff
+   — positioned over this cell specifically, so it no longer shares an
+   anchor (and a collision risk) with the first bar's own chord label. */
+/* Centered over the time-sig cell, not anchored to either edge: the cell
+   is the very first thing in its row, squeezed between the page's own
+   left margin and the first bar's chord label — anchoring right (grow
+   left) ran the tempo text into the page margin/section spine and got
+   it clipped there; the earlier anchor-left attempt ran it into the
+   chord label instead. Centered growth splits the overflow risk roughly
+   evenly instead of dumping all of it on one neighbor. */
+.tempo-mark-inline {
+  position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 0.3em;
+  font-size: 0.85em; color: var(--fg-muted); white-space: nowrap;
+}
+.tempo-mark-inline .note { font-size: 1em; position: relative; }
+.aug-dot { font-size: 0.55em; position: absolute; top: -0.1em; right: -0.55em; }
+
+/* The volta bracket gets its own clear row, well above the chord-label row
+   — previously it sat almost exactly where chord labels do and visibly
+   cut through them. The horizontal line is a plain border-top; the first
+   bar of a run additionally gets a short downstroke tick at its left edge
+   (the classic "1." ending bracket shape), via its own fixed height. */
+.volta { position: absolute; top: -2.3em; left: 0; right: 0; border-top: 1.5px solid var(--fg); height: 0.5em; }
+.volta-num {
+  position: absolute; top: -1.3em; left: 0.3em; font-size: 0.7em; font-weight: 700;
+  color: var(--fg-muted); background: var(--bg-raised); padding: 0 0.3em;
+}
+/* A multi-bar ending reads as one continuous bracket: only the first bar
+   draws the bracket's left downstroke, and the bar-divider between two
+   bars sharing the same ending is dropped so the bracket's top line isn't
+   visibly broken into segments. */
+.has-volta:not(.volta-continues) .volta { border-left: 1.5px solid var(--fg); left: -1px; }
+.volta-continues { border-left: none !important; }
+
+/* Repeat-barline dots — LilyPond/Guitar Pro convention: two dots stacked
+   VERTICALLY (same x), straddling the middle staff line, one in the space
+   above it and one in the space below (not centered-with-gap via flex,
+   which drifted off-center once the staff became a shared background —
+   positioned here directly against the bar's own box, which spans exactly
+   the staff height per .staff-line::before). Sits just inside the thin
+   barline, between it and the music, per convention. */
+.repeat-dots { position: absolute; top: 0; bottom: 0; width: 0.3em; pointer-events: none; }
+.bar-open .repeat-dots { left: 0.2em; }
+.bar-close .repeat-dots { right: 0.2em; }
+.repeat-dots::before, .repeat-dots::after {
+  content: ""; position: absolute; left: 50%; width: 0.28em; height: 0.28em;
+  border-radius: 50%; background: var(--fg); transform: translate(-50%, -50%);
+}
+.repeat-dots::before { top: 37.5%; }
+.repeat-dots::after { top: 62.5%; }
+.repeat-suffix { font-style: italic; font-weight: 400; text-transform: none; letter-spacing: normal; margin-left: 0.2em; }
+.inferred-note { font-size: 0.75rem; font-weight: 400; font-style: italic; color: var(--fg-muted); margin-left: 0.5rem; }
+
+/* ---- Section notes — free-text performance/arrangement directions (see
+   the template comment and song.Section.Notes). Deliberately NOT styled
+   like a lyric line (no chord parsing, no current-line highlight) — this
+   is instructions ABOUT the music, not words sung to it. */
+.section-notes { margin: 0.3em 0; }
+.section-note {
+  margin: 0.1em 0; font-size: 0.82em; font-style: italic; color: var(--fg-muted);
+}
+#sheet[data-render-mode="jazz"] .section-note { font-size: 0.8em; }
+#sheet[data-render-mode="map"] .section-notes,
+#sheet[data-render-mode="map"] .section-note { display: none; } /* an overview chart has no room for prose */
+
+.lyrics .lyric-line { margin: 0.25rem 0; }
+.lyric-line.current { background: var(--current-bg); color: var(--current-fg); border-radius: 3px; }
+.inline-chord { display: inline-block; vertical-align: top; margin-right: 0.15em; }
+
+/* ---- Shared structure/bar-count header ------------------------------------
+   The "Intro 4 / Couplet 8 / Refrain 2" road-map convention (per a real
+   cover-band chart: bold section name, big bold bar count underneath).
+   Hidden by default (normal reading view doesn't need it); jazz, song-map
+   and lyrics-only modes each turn it on below, since all three are read
+   "at a glance" rather than line-by-line. */
+.section-map-chip { display: none; }
+.chip-label {
+  font-family: var(--font-chart); font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; font-size: 0.8rem; color: var(--fg-muted); white-space: nowrap;
+}
+.chip-bars { font-size: 1.9rem; font-weight: 800; line-height: 1.15; margin-top: 0.15rem; }
+
+/* ---- View modes: jazz chart / lyrics-only / song map ---------------------- */
+#sheet[data-render-mode="jazz"] .lyrics,
+#sheet[data-render-mode="lyrics"] .grid,
+#sheet[data-render-mode="map"] .lyrics { display: none; }
+#sheet[data-render-mode="jazz"] .sheet-section,
+#sheet[data-render-mode="lyrics"] .sheet-section,
+#sheet[data-render-mode="map"] .sheet-section { display: block; }
+#sheet[data-render-mode="jazz"] .bar { padding: 0.25em 0.7em; }
+#sheet[data-render-mode="jazz"] .csym-root { font-size: 1.2em; }
+/* iReal Pro's own clearest visual signature: a solid-filled, rounded
+   section marker sitting right against the start of its line — not an
+   underlined small-caps heading (this chart's normal "engraved" style).
+   Real charts box a single letter (A/B/C); this app keeps the full
+   Verse/Chorus/Bridge vocabulary on purpose (an earlier, explicit call —
+   see the session notes), so the marker keeps the word but borrows the
+   same solid-chip treatment. */
+#sheet[data-render-mode="jazz"] .section-jump {
+  font-size: 0.72em; background: var(--accent); color: var(--accent-contrast);
+  border: none; border-radius: 3px; padding: 0.1em 0.45em; font-style: normal;
+  font-variant: normal; letter-spacing: 0.02em;
+}
+#sheet[data-render-mode="jazz"] .sheet-section.current-section > h3 .section-jump {
+  background: var(--accent); color: var(--accent-contrast); filter: brightness(1.15);
+}
+#sheet[data-render-mode="jazz"] .sheet-section.is-compact .section-jump {
+  background: var(--fg-muted);
+}
+/* Section chrome (padding, header margin) also needs to shrink with the
+   fit loop's font-size, same reasoning as the staff geometry above — these
+   repeat once per section and add up across a long song. Scoped to jazz
+   mode only; the normal reading view keeps its fixed rem spacing. */
+#sheet[data-render-mode="jazz"] .sheet-section { padding-top: 0.6em; padding-bottom: 0.6em; }
+#sheet[data-render-mode="jazz"] .sheet-section h3 { margin-bottom: 0.4em; }
+/* A section with no grid and nothing inferred about it (no repeat
+   reference, no Solo duration note) really is just noise on a chords-only
+   chart — hide it. A compact one (.is-compact: an inferred repeat
+   reference, or the Solo duration note) carries real structural
+   information instead, so it stays — see the compact-reference styling
+   below for how little room it actually takes. */
+#sheet[data-render-mode="jazz"] .sheet-section:not(.is-compact):not(:has(.grid)) { display: none; }
+/* is-compact now also covers a Solo whose grid is only inferred
+   placeholder bars (see the template comment) — it should read exactly
+   like any other "nothing new, N bars" section (the multi-rest bar
+   below), not get a whole expanded dimmed grid that reads as real
+   content — that dimmed 2-3-row grid was the "ugly" normal-mode Solo
+   rendering. Applies everywhere except lyrics mode, which already has
+   its own proportional-height treatment for a compact section and never
+   shows chords at all. */
+#sheet:not([data-render-mode="lyrics"]) .sheet-section.is-compact .grid { display: none; }
+
+/* Jazz chart: NO staff. A real printed "chords only" fake-book page never
+   draws a 5-line staff for a rhythm-slash-only chart — it's chord symbols
+   over a plain grid, exactly the swiss-jazz.ch / Real Book references this
+   mode is modeled on. Hiding the shared staff background (see
+   .staff-line::before) and giving each bar a single baseline instead
+   keeps the slash marks grounded without claiming to be notated rhythm. */
+#sheet[data-render-mode="jazz"] .staff-line::before { display: none; }
+#sheet[data-render-mode="jazz"] .staff-timesig-cell {
+  border: none; height: auto; width: auto; margin-right: 0.6em; align-self: center;
+}
+#sheet[data-render-mode="jazz"] .tsnum, #sheet[data-render-mode="jazz"] .tsden { font-size: 0.85em; }
+#sheet[data-render-mode="jazz"] .section-map-chip {
+  display: flex; align-items: baseline; gap: 0.4em; margin-bottom: 0.3em;
+}
+#sheet[data-render-mode="jazz"] .chip-bars { font-size: 1.1em; margin-top: 0; }
+#sheet[data-render-mode="jazz"] .sheet-section.is-compact .chip-bars { color: var(--fg-muted); }
+/* Normal mode's compact sections get the same "label + bar count" chip
+   as jazz/map — the multi-rest bar alone said "there are some bars here"
+   but not how many; non-compact sections keep just their plain heading,
+   no redundant second label. */
+#sheet[data-render-mode="normal"] .sheet-section.is-compact .section-map-chip {
+  display: flex; align-items: baseline; gap: 0.4em; margin-top: 0.1rem;
+}
+#sheet[data-render-mode="normal"] .sheet-section.is-compact .chip-label { display: none; }
+#sheet[data-render-mode="normal"] .sheet-section.is-compact .chip-bars { font-size: 1.1rem; margin-top: 0; color: var(--fg-muted); }
+/* A "compact" section that still carries its own real lyrics (chords
+   repeat an earlier section, but the words are new — e.g. a second
+   Verse) is real content to read, not a structural placeholder: the
+   multi-rest bar / bar-count chip is only useful when there's truly
+   nothing else on the page for that section (a Solo, an instrumental
+   Outro). Scoped to normal ("chords + lyrics") mode only — jazz/map stay
+   chords-only overviews where every section is chip+bar-count regardless
+   of lyrics. */
+#sheet[data-render-mode="normal"] .sheet-section.is-compact[data-has-lyrics="true"] {
+  padding: 0.9rem 0;
+}
+#sheet[data-render-mode="normal"] .sheet-section.is-compact[data-has-lyrics="true"] h3 {
+  margin: 0 0 0.6rem;
+}
+#sheet[data-render-mode="normal"] .sheet-section.is-compact[data-has-lyrics="true"] .section-map-chip,
+#sheet[data-render-mode="normal"] .sheet-section.is-compact[data-has-lyrics="true"] .multi-rest-row {
+  display: none;
+}
+
+/* ---- Jazz chart, iReal Pro style — thin vertical barlines between bars,
+   a thin rule above/below each ROW of bars, NOT a bordered box per bar.
+   The earlier version drew a full 4-sided border around every single bar
+   (border + border-radius), which reads as a spreadsheet/table of cells —
+   compare the real iReal Pro reference (swiss-jazz.ch-style: "All The
+   Things You Are"): bars are separated only by a plain "|" and the row
+   itself is bounded top/bottom by a single thin rule, no per-cell boxes
+   at all. Each bar still shows only the chord symbol(s) that actually
+   occur in it — a single centered chord fills the whole cell, two split
+   it evenly — matching how a musician actually reads it ("what do I play
+   in this bar"), not how long each chord lasts within it. */
+#sheet[data-render-mode="jazz"] .staff-line {
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+#sheet[data-render-mode="jazz"] .bar:first-of-type { border-left: 1px solid var(--border); }
+#sheet[data-render-mode="jazz"] .bar:last-of-type { border-right: 1px solid var(--border); }
+#sheet[data-render-mode="jazz"] .slash { display: none; }
+/* A tied (sustained) beat-slot carries no chord of its own — collapsing
+   it out of the flex row instead of just hiding its slash is what makes
+   the real chord(s) fill the cell evenly rather than being squeezed into
+   one of four fixed quarter-beat slots regardless of how many chords the
+   bar actually has. */
+#sheet[data-render-mode="jazz"] .beat-slot.tie { display: none; }
+/* flex: var(--span) not flex: 1 — a bar written "Gm . . Cm" (Gm held for
+   3 beats, Cm for 1) must read as a 3:1 split, not an even 50/50 one, or
+   the whole point of a mid-bar change (which beat does it land on) is
+   lost once the tied beats collapse out of the row. --span is set
+   server-side (handlers_pages.go's computeSpans) as 1 + however many
+   tied beats this attack absorbs. */
+#sheet[data-render-mode="jazz"] .beat-slot { flex: var(--span, 1); }
+#sheet[data-render-mode="jazz"] .chord-label {
+  position: static; transform: none; margin: 0; bottom: auto; left: auto;
+}
+/* Bigger, more dominant repeat sign — iReal's own "%" reads as the single
+   thing in the cell, not a small notation detail sharing space with a
+   staff that no longer exists here. */
+#sheet[data-render-mode="jazz"] .simile-mark { width: 2.3em; height: 1.7em; }
+#sheet[data-render-mode="jazz"] .simile-slash { width: 0.24em; height: 1.34em; }
+#sheet[data-render-mode="jazz"] .simile-dot { width: 0.24em; height: 0.24em; }
+/* Same ratios as the base .simile-dot-a/-b, scaled by the 1.7/1.4 mark
+   height bump above. */
+#sheet[data-render-mode="jazz"] .simile-dot-a { left: calc(50% - 0.42em); top: calc(50% - 0.27em); }
+#sheet[data-render-mode="jazz"] .simile-dot-b { left: calc(50% + 0.42em); top: calc(50% + 0.27em); }
+
+/* Jazz: a centered, print-page-proportioned "page" (short width, tall —
+   actual A4 proportions, not just whatever fills the window) that must
+   never need scrolling — hands are on an instrument, not a scrollbar.
+   JS (applyPageBox in song.js) fits that A4-ratio box into the available
+   height first, THEN, only inside that fixed shape, searches column count
+   (1-3) and font size so a longer tune fits without the page itself
+   changing shape — the same move a real fake book makes for a longer
+   tune: page columns, not a wider page. This is deliberately narrow even
+   on a wide monitor — the point is to look like a printed page, not to
+   fill the screen. */
+#sheet[data-render-mode="jazz"] {
+  overflow: auto; background: var(--bg-raised); border: 1px solid var(--border);
+  border-radius: 4px; box-shadow: var(--shadow); padding: 1.6rem 1.4rem;
+  column-gap: 1.6rem; column-count: 1; /* JS (applyPageBox) raises this as needed */
+}
+#sheet[data-render-mode="jazz"] .sheet-section { break-inside: avoid; }
+
+/* Lyrics-only: a reading mode, not a performance one — scrolling while
+   singing is normal, so no page-box/fit search here (see applyPageBox).
+   Structure headers + proportional section height (below) are what make
+   this useful on its own, not just a smaller font of the normal view. */
+#sheet[data-render-mode="lyrics"] {
+  background: var(--bg-raised); border: 1px solid var(--border);
+  border-radius: 4px; box-shadow: var(--shadow); padding: 2rem 1.8rem;
+  column-count: 1; /* overrides the generic wide-viewport #sheet{column-count:2} */
+}
+#sheet[data-render-mode="lyrics"] .section-map-chip {
+  display: flex; align-items: baseline; gap: 0.5em; margin-bottom: 0.4rem;
+}
+#sheet[data-render-mode="lyrics"] .chip-bars { font-size: 1.1em; margin-top: 0; }
+/* An instrumental section (Intro, Solo, Outro — anything with bars but no
+   words) used to get BLANK space proportional to its bar count, on the
+   theory that it should occupy roughly the room it takes to play. In
+   practice that's just an empty gap the singer stares at — no visual
+   content at all — and for a long instrumental it was the single biggest
+   reason this "avoid scrolling" reading mode scrolled anyway. A compact
+   multi-rest bar (same component the rest of the chart already uses for
+   "N bars, nothing new") says the same thing in a fraction of the
+   height, GRID is still hidden in favour of this (lyrics mode shows
+   words, not chords) — unaffected for a section that genuinely has
+   lyrics, which keeps its natural (content-driven) height. */
+#sheet[data-render-mode="lyrics"] .sheet-section[data-has-lyrics="false"] .multi-rest-row {
+  display: flex; align-items: center; height: 1.3em; margin: 0.4em 0; position: relative;
+}
+
+/* ---- Song map: chords + staff + structure, no lyrics — "what's the form
+   AND the changes," a rehearsal/overview chart. Same A4-proportioned page
+   width as jazz/lyrics-only (set by applyPageBox in song.js — width only,
+   not height-locked: this reads as an overview you scroll, not a page
+   that must fit one screen the way jazz's does). Multi-rest rows flex-
+   wrap and pack within that width. */
+#sheet[data-render-mode="map"] {
+  display: flex; flex-wrap: wrap; align-items: flex-end; column-count: 1;
+}
+/* A section with real content (its own staff/chords) always takes the
+   full line, same as a real chart. A compact/reference section — the
+   "nothing new, just N bars" case — packs onto a shared line with its
+   neighbors instead of claiming a full line to itself: that's the whole
+   point of the multi-rest bar (see the Bands-Camp reference: "Intro 4 /
+   Couplet 8 / Refrain 2 / Intro 2" sit side by side on ONE staff line,
+   not stacked one-per-line). flex-wrap packs however many fit before
+   wrapping; --bars (already set server-side) weights each one's share of
+   the row roughly by its own length. */
+#sheet[data-render-mode="map"] .sheet-section { flex: 1 1 100%; }
+#sheet[data-render-mode="map"] .sheet-section.is-compact {
+  flex: var(--bars, 1) 1 7rem; min-width: 6rem;
+  border-left: none; padding-left: 0.4rem;
+}
+#sheet[data-render-mode="map"] .section-map-chip {
+  display: flex; align-items: baseline; gap: 0.5em; margin-bottom: 0.3rem;
+}
+#sheet[data-render-mode="map"] .chip-bars { font-size: 1.3rem; margin-top: 0; }
+/* A compact/reference section (no new content stated — "same as before")
+   reads as part of the form at a glance, its bar count muted rather than
+   bold, instead of a full empty block. */
+#sheet[data-render-mode="map"] .sheet-section.is-compact .chip-bars { color: var(--fg-muted); font-weight: 700; }
+/* A plain repeat with nothing new to say ("Chorus · repeat", identical to
+   the one already shown) doesn't need its own bold multi-rest bar in the
+   overview — that's for a section carrying real information (right now,
+   only a Solo's inferred duration note; see InferredNote). Suppressing it
+   for the plain case keeps the roadmap's visual weight on the parts that
+   actually differ, instead of a "16 bars, nothing new" bar repeating for
+   every single verse/chorus recurrence in the song. */
+#sheet[data-render-mode="map"] .sheet-section.is-compact[data-has-note="false"] .multi-rest-row { display: none; }
+
+/* Multi-measure rest bar — LilyPond's own convention for "N bars, nothing
+   new to show" (checked against scm/define-grobs.scm's MultiMeasureRest:
+   thick-thickness 6.6 vs a barline's own 6.0 — essentially the same bold
+   weight — centered on the staff). Used here for a compact/reference
+   section in jazz/song-map mode: one bold bar spanning the row instead of
+   rendering nothing, with the bar count already shown by the chip above
+   doing the job LilyPond's MultiMeasureRestNumber does above its bar. */
+/* Now emitted for every section (see the template comment), so showing
+   it must be scoped to .is-compact specifically — a defining section
+   (real grid, real content) never shows its multi-rest-row, only a
+   compact/reference/inferred-placeholder one does. */
+.multi-rest-row { display: none; }
+#sheet:not([data-render-mode="lyrics"]) .sheet-section.is-compact .multi-rest-row {
+  display: flex; align-items: center; height: 1.7em; margin: 0.3em 0; position: relative;
+}
+/* Normal mode and song map keep the real staff under the rest bar (per
+   the "keep the staff, use the multi-bar visual on it" correction) —
+   jazz mode has no staff at all by design, so it gets none here either.
+   Same 5-line technique as .staff-line::before, duplicated rather than
+   shared since this row isn't a .staff-line (it has no bars to anchor
+   the background to). */
+
+#sheet[data-render-mode="normal"] .multi-rest-row::before,
+#sheet[data-render-mode="map"] .multi-rest-row::before {
+  /* --fg-muted, not the usual --border: against a bold black rest bar,
+     the hairline --border staff lines (fine everywhere else, next to
+     slash marks of similar faint weight) read as "one stray line" rather
+     than a staff — only the line right next to the bar had enough
+     contrast to actually be seen. A stronger, consistent color here
+     makes all 5 lines read as one staff the rest bar sits on, matching
+     the reference (an evenly-weighted TAB staff under its own rest bar),
+     not a bug in the position math, which was already correct. */
+  content: ""; position: absolute; inset: 0;
+  background-image:
+    linear-gradient(var(--fg-muted), var(--fg-muted)),
+    linear-gradient(var(--fg-muted), var(--fg-muted)),
+    linear-gradient(var(--fg-muted), var(--fg-muted)),
+    linear-gradient(var(--fg-muted), var(--fg-muted)),
+    linear-gradient(var(--fg-muted), var(--fg-muted));
+  background-size: 100% 1px;
+  background-position: 0 0%, 0 25%, 0 50%, 0 75%, 0 100%;
+  background-repeat: no-repeat;
+  opacity: 0.5;
+}
+/* End ticks — checked against the real stencil code, lily/multi-measure-
+   rest.cc's big_rest(): the main bar is the thick horizontal block
+   (thick-thickness, ~6.6 line-units tall), and at EACH end there's a
+   separate, TALLER vertical post — hair-thickness wide, 2 full
+   staff-spaces tall (Box (Interval(-0.5,0.5)*ythick, Interval(-ss,ss))) —
+   i.e. almost the full staff height, centered on the bar. Not just a bare
+   horizontal bar, which is what this had before. */
+.multi-rest-bar { flex: 1; height: 0.16em; background: var(--fg); border-radius: 1px; position: relative; z-index: 1; }
+.multi-rest-bar::before, .multi-rest-bar::after {
+  content: ""; position: absolute; top: 50%; width: 0.1em; height: 0.85em;
+  background: var(--fg); transform: translateY(-50%);
+}
+.multi-rest-bar::before { left: 0; }
+.multi-rest-bar::after { right: 0; }
+
+/* Repeat variant — a section that's wholly one "|: ... :|" bracket (see
+   RepeatSegmentBars): a compact, fixed-width mockup of the WRITTEN bars
+   (empty cells, no chord text — this isn't the real grid, just a shape
+   to count), bounded by real repeat-barline + dots at the ends (same
+   .bar-open/.bar-close/.repeat-dots convention the real chord grid
+   uses). Deliberately NOT a single bar stretched the full row width —
+   that read as an oversized, empty-looking block; a short row you can
+   actually count reads as "8 bars" on sight. */
+.multi-rest-repeat-cells { display: flex; width: fit-content; max-width: 100%; height: 1.6em; }
+.repeat-cell { width: 1.15em; border-left: 1px solid var(--border); position: relative; flex: none; }
+.repeat-cell:first-child { border-left: none; }
+.repeat-cell-open::before, .repeat-cell-close::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 0.22em; background: var(--border-strong);
+}
+.repeat-cell-open::before { left: -1px; }
+.repeat-cell-close::after { right: -1px; }
+.repeat-cell-open { border-left: 1.5px solid var(--border-strong); }
+.repeat-cell-close { border-right: 1.5px solid var(--border-strong); }
+.repeat-dots-open { left: 0.06em; }
+.repeat-dots-close { right: 0.06em; }
+
+/* Jazz chart: lean entirely on real repeat/structure notation (the chip's
+   own bar count, plus simile/repeat marks inside a grid) rather than ALSO
+   drawing a multi-rest bar for every compact/reference section — jazz
+   notation already treats the song's own structure as the repeat, so a
+   second "N bars, nothing new" bar is redundant weight that costs the
+   vertical space this mode most needs to stay on one page. */
+#sheet[data-render-mode="jazz"] .sheet-section.is-compact .multi-rest-row { display: none; }
+
+/* ---- Compact section reference — the "call site, not re-inlined" case:
+   a bare section whose content was already written out once earlier (an
+   inferred or explicit repeat) renders as a single slim line, not a
+   full-height empty block. This is what keeps "Verse Chorus Verse Chorus
+   Bridge Chorus" from costing 6 chart blocks when only 3 are ever actually
+   defined. */
+.sheet-section.is-compact { padding: 0.35rem 0 0.35rem 0.8rem; }
+.sheet-section.is-compact h3 { margin: 0; }
+.sheet-section.is-compact .section-jump { font-size: 0.72rem; padding: 0.15rem 0.6rem; }
+
+/* ---- Jazz mode: an inline view like any other, not a full-screen popup —
+   the header, sidebar/timeline and view-mode tabs all stay exactly where
+   they are; only #sheet itself changes (narrow print-page box, no staff —
+   see the data-render-mode="jazz" rules above). */
+
+/* ---- Structure timeline: a vertical rail, not an inline PDF-style strip -
+   this is a web app, so "where am I in the song" gets a persistent,
+   always-visible nav, not a row of pills competing with the toolbar. */
+.content-row { display: flex; align-items: flex-start; gap: 1.6rem; padding: 0.6rem 1.1rem 0; }
+.content-main { flex: 1; min-width: 0; }
+.mobile-controls-fab, .timeline-backdrop { display: none; }
+
+.timeline {
+  flex: 0 0 190px; position: sticky; top: 0.8rem; align-self: flex-start;
+  display: flex; flex-direction: column; padding: 0.4rem 0.2rem 0.4rem 0.2rem;
+  max-height: calc(100vh - 1.6rem); overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .content-row { flex-direction: column; gap: 0; }
+  /* The sidebar (transport + structure rail) used to sit ABOVE the chart
+     in normal document flow on a phone — on a longer song that was 800+px
+     of controls to scroll past before the chart itself even appeared (see
+     applyPageBox's own notes on jazz mode never fitting one screen
+     because of exactly this). It's now an off-canvas sheet instead: the
+     chart is full-screen by default, and a single floating button pulls
+     the controls up over it on demand. Lyrics mode keeps its own existing
+     always-visible compact rail (see the body:has() block below) — this
+     block is for every other mode. */
+  .timeline {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 55;
+    max-height: 75vh; width: auto; flex: none;
+    background: var(--bg); border-radius: 16px 16px 0 0; box-shadow: var(--shadow-lg, var(--shadow));
+    padding: 0.6rem 0.3rem calc(0.6rem + env(safe-area-inset-bottom, 0px));
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    transform: translateY(calc(100% - 2.6rem));
+    transition: transform 0.25s ease;
+  }
+  /* Collapsed, the sheet's own drag-handle strip still peeks above the
+     bottom edge — a visible affordance that something is there to pull
+     up, not a control that's vanished entirely. */
+  .timeline::before {
+    content: ""; display: block; width: 2.4rem; height: 0.3rem; border-radius: 999px;
+    background: var(--border-strong); margin: 0 auto 0.5rem;
+  }
+  .timeline.open { transform: translateY(0); }
+  .timeline .transport { margin: 0 0.3rem 0.5rem; }
+  .mobile-controls-fab {
+    display: flex; position: fixed; right: 1rem; bottom: 1rem; z-index: 56;
+    width: 3rem; height: 3rem; border-radius: 50%; background: var(--accent); color: var(--accent-contrast);
+    align-items: center; justify-content: center; box-shadow: var(--shadow-lg, var(--shadow));
+  }
+  .mobile-controls-fab .icon { width: 1.3rem; height: 1.3rem; }
+  .timeline-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); z-index: 54;
+  }
+  .timeline.open ~ .timeline-backdrop, .timeline-backdrop.open { display: block; }
+
+  /* Lyrics-only is a reading mode, and a reading mode wants "where am I"
+     beside the text, not above it eating vertical space — so it keeps the
+     desktop-style vertical rail even on a phone, just narrower, with the
+     lyrics filling the rest of the width next to it. The transport shrinks
+     to just play/pause + tap (same trim jazz fullscreen uses) — there's no
+     room for the bpm readout/sound picker/metronome checkbox at 72px. */
+  body:has(#sheet[data-render-mode="lyrics"]) .content-row { flex-direction: row; gap: 0.6rem; }
+  body:has(#sheet[data-render-mode="lyrics"]) .timeline {
+    flex: 0 0 72px; position: sticky; top: 0.6rem; align-self: flex-start;
+    max-height: calc(100vh - 1.2rem); width: auto;
+    overflow-x: hidden; overflow-y: auto; padding: 0.4rem 0 0.4rem 0.1rem;
+  }
+  body:has(#sheet[data-render-mode="lyrics"]) .timeline .transport {
+    padding: 0.4rem 0.3rem; margin: 0 0 0.6rem;
+  }
+  body:has(#sheet[data-render-mode="lyrics"]) .timeline .transport .tempo-row,
+  body:has(#sheet[data-render-mode="lyrics"]) .timeline .transport .meta-row,
+  body:has(#sheet[data-render-mode="lyrics"]) .timeline .transport .metro-icon-row,
+  body:has(#sheet[data-render-mode="lyrics"]) .timeline .transport .metro-advanced { display: none; }
+}
+
+/* Chord symbol typesetting — Brandt & Roemer style (see internal/chordsym):
+   bold root, small raised quality, triangle for maj7, minor below the
+   baseline, real flat/sharp glyphs. */
+.csym { font-weight: 400; white-space: nowrap; font-family: var(--font-chart); font-size: 1.4rem; }
+.csym-plain { font-style: italic; }
+.csym-root { font-weight: 700; }
+.csym-triangle { font-size: 0.62em; font-weight: 700; vertical-align: 0.5em; margin: 0 0.02em; }
+.csym-minor { font-size: 0.6em; font-weight: 700; vertical-align: -0.15em; margin: 0 0.02em; }
+.csym-ext { font-size: 0.62em; font-weight: 700; vertical-align: 0.5em; margin-left: 0.02em; }
+.csym-dim { font-size: 0.62em; font-weight: 700; vertical-align: 0.5em; margin: 0 0.02em; }
+.csym-bass { font-size: 0.9em; margin-left: 0.04em; }
+
+/* ---- Edit drawer (merged prep/play) --------------------------------------- */
+/* "Edit" opens the source/structure editor as a near-fullscreen modal, not
+   an inline drawer competing with the chart for page space — the user
+   asked for this explicitly ("almost full screen, with a textarea and a
+   toolbar"), matching the #song-wizard dialog already used elsewhere in
+   the app for a similar "big focused editing surface" moment. */
+.edit-drawer-backdrop {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 99;
+}
+body.drawer-open { overflow: hidden; }
+/* :not([hidden]) for the same reason as .prep-panel below — an author
+   class rule has the same specificity as the UA [hidden]{display:none}
+   rule and would otherwise win the tie, showing the modal on every page
+   load regardless of the hidden attribute. */
+.edit-drawer:not([hidden]) {
+  position: fixed; inset: 3vh 4vw; margin: 0; z-index: 100;
+  display: flex; flex-direction: column; border-radius: var(--radius); overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+}
+.edit-drawer-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.edit-drawer-head #edit-drawer-close { margin-left: auto; }
+.edit-drawer-body { padding: 1rem; flex: 1; overflow: auto; display: flex; flex-direction: column; min-height: 0; }
+/* :not([hidden]) — a bare class selector here would have the same
+   specificity as the UA stylesheet's own [hidden] { display: none }, and
+   as an AUTHOR rule it would win the tie, silently un-hiding whichever
+   prep-panel isn't the active tab (both panels rendering stacked at once
+   was the actual bug this caused). */
+.edit-drawer-body .prep-panel:not([hidden]) { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.edit-drawer-body .code-editor { flex: 1; min-height: 0; }
+.edit-drawer-body #raw-text, .edit-drawer-body .code-backdrop { height: 100%; }
+.prep-tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+.prep-tab { padding: 0.4rem 0.9rem; border-radius: 999px; }
+.prep-tab.active { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+
+.import-bar { margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.import-bar details { border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.75rem; background: var(--bg-sunken); }
+.import-bar summary { cursor: pointer; font-weight: 600; }
+.import-row { display: flex; gap: 0.5rem; margin: 0.5rem 0; flex-wrap: wrap; }
+.import-row input[type="url"] { flex: 1; min-width: 12rem; }
+
+textarea {
+  width: 100%; font-family: var(--font-mono); font-size: 0.95rem;
+  background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem;
+}
+
+/* ---- Syntax-highlighted raw editor (toolbar + textarea-over-<pre>) ------- */
+.code-toolbar { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.code-toolbar button { font-size: 0.78rem; padding: 0.3rem 0.6rem; font-family: var(--font-mono); }
+.code-editor { position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.code-editor textarea, .code-backdrop {
+  margin: 0; padding: 0.75rem; font-family: var(--font-mono); font-size: 0.95rem; line-height: 1.5;
+  white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;
+}
+.code-editor textarea {
+  position: relative; width: 100%; border: none; border-radius: 0; background: transparent;
+  color: transparent; caret-color: var(--fg); resize: vertical; z-index: 1;
+}
+.code-backdrop {
+  position: absolute; inset: 0; margin: 0; overflow: auto; background: var(--bg-raised);
+  color: var(--fg); pointer-events: none; z-index: 0;
+}
+.code-backdrop code { font-family: inherit; white-space: inherit; }
+.tok-header-key { color: var(--accent); font-weight: 700; }
+.tok-section { color: var(--accent); font-weight: 700; }
+.tok-keyword { color: var(--ok); font-weight: 700; }
+.tok-chord { color: var(--accent); font-weight: 700; }
+.tok-comment { color: var(--fg-muted); font-style: italic; }
+.editor-actions, .structure-actions { margin-top: 0.75rem; display: flex; gap: 1rem; align-items: center; }
+.hint { color: var(--fg-muted); font-size: 0.88rem; }
+
+.chip-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.chip {
+  display: flex; align-items: center; gap: 0.5rem;
+  border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.75rem;
+  background: var(--bg-raised);
+}
+.chip input[type="text"] { font-size: 1rem; flex: 1; min-width: 6rem; }
+.chip .chip-badge { font-size: 0.75rem; color: var(--fg-muted); }
+.chip button { font-size: 0.85rem; }
+.chip-badge-btn { background: var(--bg-sunken); border-radius: 999px; padding: 0.2rem 0.6rem; }
+
+/* ---- Setlist drag-to-reorder + soft remove -------------------------------
+   A hamburger handle is the one thing that starts a drag (not the row
+   itself — a note input or the song link would otherwise fight with it).
+   The remove button stays nearly invisible until the row is hovered or
+   focused, and is small/off to the side, so it's never the thing a stray
+   click lands on while reordering or editing a note. */
+.drag-handle {
+  display: flex; align-items: center; color: var(--fg-muted); cursor: grab;
+  padding: 0.2rem; flex: none; touch-action: none;
+}
+.drag-handle:active { cursor: grabbing; }
+.chip.dragging, .set-block.dragging { opacity: 0.4; }
+.row-remove {
+  margin-left: auto; flex: none; opacity: 0; transition: opacity 0.15s;
+  color: var(--fg-muted); padding: 0.3rem; border-radius: 6px; background: none;
+}
+.chip:hover .row-remove, .chip:focus-within .row-remove,
+.set-header:hover .row-remove, .set-header:focus-within .row-remove,
+.row-remove:focus-visible {
+  opacity: 0.7;
+}
+.row-remove:hover { opacity: 1 !important; color: var(--danger); background: var(--bg-sunken); }
+
+/* ---- Bar-matrix chord grid editor (iReal-Pro-inspired) ------------------- */
+.chip-wrap { margin-bottom: 0.5rem; }
+.bar-matrix { border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; padding: 0.75rem; background: var(--bg-sunken); }
+.matrix-toolbar { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.75rem; font-size: 0.85rem; }
+.matrix-toolbar input { padding: 0.25rem 0.4rem; }
+.matrix-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+.matrix-cell {
+  flex: 1 1 7rem; min-width: 7rem; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg-raised); padding: 0.4rem; display: flex; flex-direction: column; gap: 0.3rem;
+}
+.matrix-cell.cell-open { border-left: 4px double var(--border-strong); }
+.matrix-cell.cell-close { border-right: 4px double var(--border-strong); }
+.matrix-cell-top { display: flex; align-items: center; justify-content: space-between; gap: 0.3rem; }
+.matrix-bar-no { font-size: 0.7rem; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.density-select { font-size: 0.7rem; padding: 0.1rem 0.2rem; border-radius: 4px; }
+.matrix-slots { display: flex; gap: 0.25rem; }
+.matrix-slot {
+  flex: 1; min-width: 0; text-align: center; font-family: var(--font-chart); font-weight: 700;
+  padding: 0.3rem 0.1rem; border-radius: 4px;
+}
+.matrix-cell-bottom { display: flex; gap: 0.3rem; align-items: center; justify-content: flex-end; }
+.matrix-cell-bottom button { padding: 0.1rem 0.4rem; font-size: 0.75rem; }
+.matrix-repeat-toggle { display: inline-flex; align-items: center; gap: 0.3rem; }
+.matrix-repeat-toggle input[type="checkbox"] { margin: 0; }
+
+/* ---- Alternative endings — LilyPond's \alternative, see the JS comment
+   on renderAlternatives for the full model. Visually grouped as sibling
+   boxes under one shared top rule, echoing the real volta bracket (a
+   horizontal line over each ending, numbered at its left) without trying
+   to reproduce the engraved bracket glyph itself in a form editor. */
+.alt-endings-panel { margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px dashed var(--border); }
+.alt-endings-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; }
+.alt-add-btn { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; padding: 0.2rem 0.5rem; }
+.alt-add-btn .icon { width: 0.8em; height: 0.8em; }
+.alt-endings-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.alt-ending {
+  flex: 1 1 10rem; min-width: 9rem; border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.5rem; background: var(--bg-sunken);
+}
+.alt-ending-head { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem; }
+.alt-ending-head .hint { white-space: nowrap; }
+.alt-label-input { flex: 1; min-width: 0; font-size: 0.82rem; font-weight: 700; padding: 0.2rem 0.4rem; }
+.alt-ending-cells { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+.alt-ending-cell { display: flex; align-items: center; gap: 0.15rem; }
+.alt-ending-cell input {
+  width: 7rem; text-align: center; font-family: var(--font-chart); font-weight: 700;
+  padding: 0.3rem 0.2rem; border-radius: 4px;
+}
+.alt-ending-cell button { padding: 0.1rem 0.3rem; }
+.alt-add-bar { font-size: 0.75rem; padding: 0.2rem 0.5rem; }
+
+/* ---- Blocks editor (Notion/ProseMirror-style flowing document) -----------
+   Deliberately NOT a stack of bordered cards: sections flow continuously,
+   one after another, with no permanent border/shadow/background — exactly
+   like a Notion page where blocks are plain content and the only chrome is
+   a left-margin gutter (drag handle + "+") that appears when you hover
+   that specific row. A real ProseMirror/ContentEditable document wasn't
+   pulled in here — this app has no JS bundler/dependency story anywhere
+   else (hand-written CSS/JS, go:embed, single binary), so this hand-rolled
+   DOM version earns the same feel without a new build-time dependency. */
+.block-row {
+  position: relative; padding: 0.3rem 0 0.3rem 1.9rem; margin: 0;
+  border-radius: 6px; transition: background 0.1s;
+}
+.block-row:hover, .block-row:focus-within { background: var(--bg-sunken); }
+.block-row.dragging { opacity: 0.35; }
+.block-row.drag-over { box-shadow: inset 0 2px 0 var(--accent); }
+.block-gutter {
+  position: absolute; left: 0; top: 0.35rem; display: flex; align-items: center; gap: 0.1rem;
+  opacity: 0; transition: opacity 0.1s;
+}
+.block-row:hover .block-gutter, .block-row:focus-within .block-gutter { opacity: 1; }
+.block-handle, .block-add-btn {
+  display: flex; align-items: center; justify-content: center; width: 1.3rem; height: 1.3rem;
+  color: var(--fg-muted); border-radius: 4px; flex: none;
+}
+.block-handle { cursor: grab; touch-action: none; }
+.block-handle:active { cursor: grabbing; }
+.block-add-btn:hover, .block-handle:hover { background: var(--border); color: var(--fg); }
+.block-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+.block-label {
+  font-size: 1.15rem; font-weight: 700; flex: 1; min-width: 5rem; background: none;
+  border: none; padding: 0.1rem 0.2rem; border-radius: 4px;
+}
+.block-label:focus { background: var(--bg-raised); box-shadow: 0 0 0 1px var(--border); }
+.block-repeat-toggle {
+  font-size: 0.7rem; color: var(--fg-muted); background: var(--bg-raised);
+  border: 1px solid var(--border); border-radius: 999px; padding: 0.15rem 0.6rem; flex: none; white-space: nowrap;
+}
+.block-bars-badge { font-size: 0.75rem; color: var(--fg-muted); flex: none; }
+.block-row-actions { display: flex; gap: 0.1rem; opacity: 0; transition: opacity 0.1s; flex: none; }
+.block-row:hover .block-row-actions, .block-row:focus-within .block-row-actions { opacity: 1; }
+.block-row-actions .icon-btn { padding: 0.25rem; }
+.block-body { padding: 0.3rem 0 0.1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.block-chord-toggle {
+  align-self: flex-start; font-size: 0.82rem; color: var(--fg-muted); background: none;
+  padding: 0.1rem 0;
+}
+.block-chord-toggle:hover { color: var(--fg); }
+.block-body .bar-matrix { border: 1px solid var(--border); border-radius: 8px; background: var(--bg-raised); }
+.block-lyrics-label { margin-bottom: -0.25rem; }
+.block-lyrics {
+  width: 100%; resize: vertical; font-family: inherit; font-size: 0.95rem;
+  line-height: 1.5; padding: 0.4rem 0.5rem; border-radius: 6px;
+  border: 1px solid transparent; background: none;
+}
+.block-lyrics:hover, .block-lyrics:focus { border-color: var(--border); background: var(--bg-raised); }
+.block-notes {
+  width: 100%; resize: vertical; font-family: inherit; font-size: 0.85rem; font-style: italic;
+  line-height: 1.4; padding: 0.35rem 0.5rem; border-radius: 6px; color: var(--fg-muted);
+  border: 1px solid var(--border); background: var(--bg-sunken); margin-bottom: 0.2rem;
+}
+.block-notes:focus { color: var(--fg); background: var(--bg-raised); }
+/* The seam between two rows: a thin hover band, not its own visible block —
+   matches Notion's near-invisible-until-hovered insertion line rather than
+   a permanently visible button in every gap. */
+.block-seam { display: flex; justify-content: center; align-items: center; height: 0.7rem; position: relative; }
+.block-seam-btn {
+  display: flex; align-items: center; justify-content: center; width: 1.4rem; height: 1.4rem;
+  border-radius: 999px; background: var(--bg-sunken); color: var(--fg-muted); opacity: 0;
+  transition: opacity 0.12s; position: relative; z-index: 1;
+}
+.block-seam:hover .block-seam-btn, .block-seam-btn:focus-visible { opacity: 1; }
+.block-seam-btn:hover { background: var(--accent); color: var(--accent-contrast); }
+.block-seam-btn .icon { width: 0.85em; height: 0.85em; }
+
+/* ---- Insert / content-type popup menu ------------------------------------
+   One small menu reused for both the seam "+" (new section, with common
+   labels one tap away — Kit/Notion's own "+" opens a block-type picker the
+   same way) and the body-level "+" (add chords or lyrics to a section that
+   doesn't have them yet). */
+.insert-menu {
+  position: fixed; z-index: 60; background: var(--bg-raised); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: var(--shadow-lg, var(--shadow)); padding: 0.3rem;
+  min-width: 11rem; max-height: 70vh; overflow-y: auto;
+}
+.insert-menu-group-label {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted);
+  padding: 0.35rem 0.5rem 0.15rem;
+}
+.insert-menu-item {
+  display: flex; align-items: center; gap: 0.5rem; width: 100%; text-align: left;
+  padding: 0.4rem 0.5rem; border-radius: 5px; font-size: 0.88rem; background: none;
+}
+.insert-menu-item:hover, .insert-menu-item.active { background: var(--bg-sunken); }
+.insert-menu-item .icon { width: 1em; height: 1em; color: var(--fg-muted); flex: none; }
+.insert-menu-sep { height: 1px; background: var(--border); margin: 0.3rem 0.2rem; }
+
+/* ---- Bar-matrix beat labels -----------------------------------------------
+   A bar split into several chords (density > 1) needs to say WHICH beat
+   each one lands on, not just "chord N of the bar" — the whole point of a
+   mid-bar change (e.g. a I chord on beat 1 moving to IV on beat 3, the
+   classic soul/R&B move) is lost if the grid reads as two anonymous
+   slots. Computed from the song's own time signature (compound meters
+   label by pulse — "1"/"4" — matching the dotted-quarter convention used
+   everywhere else in this app, not the raw eighth-note count). */
+.matrix-beat-label {
+  font-size: 0.62rem; color: var(--fg-muted); text-align: center; font-variant-numeric: tabular-nums;
+}
+
+/* ---- Chord quick-pick (iReal Pro style tap-assist) ------------------------
+   Free typing stays the default input (it's the only way to express every
+   chord this grammar allows — alt bass, odd extensions, "N.C." — and
+   matches how chords are treated everywhere else in this app: never
+   hard-validated). On a touchscreen, typing means fighting the OS
+   keyboard just to enter "Bbmaj7" — so a small tap-assist button next to
+   each slot offers an iReal-Pro-style root+quality+bass picker that
+   INSERTS into the same text field rather than replacing it, giving the
+   fast common-case tap path without losing the escape hatch. */
+.matrix-slot-row { display: flex; gap: 0.2rem; align-items: center; }
+.chord-pick-btn {
+  flex: none; width: 1.5rem; height: 1.5rem; border-radius: 4px; color: var(--fg-muted);
+  display: flex; align-items: center; justify-content: center; font-size: 0.8rem;
+}
+.chord-pick-btn:hover { background: var(--border); color: var(--fg); }
+.chord-pick-menu { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.4rem; min-width: 13rem; }
+.chord-pick-row { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.chord-pick-row button {
+  flex: 1 1 2rem; min-width: 2rem; padding: 0.3rem 0.2rem; font-size: 0.82rem; font-weight: 700;
+  border-radius: 5px; background: var(--bg-sunken); border: 1px solid var(--border);
+}
+.chord-pick-row button:hover { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+.chord-pick-row.quality button { font-weight: 400; font-size: 0.76rem; }
+
+.setlist-meta { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.setlist-meta label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; color: var(--fg-muted); }
+.set-block { border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; background: var(--bg-raised); }
+.set-header { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+.set-header input { font-size: 1.1rem; font-weight: 700; flex: 1; }
+.song-picker { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.6rem; flex-wrap: wrap; }
+
+.ok { color: var(--ok); }
+.err { color: var(--danger); }
+
+/* ---- Home page hero -------------------------------------------------------
+   A confident neutral surface, no gradient/clipart, no "one colored border
+   on every card" tic — the accent earns its place on the logo mark and
+   interactive controls, not as decoration on static containers. */
+.hero {
+  border-radius: var(--radius); margin-bottom: 1.5rem; background: var(--bg-raised);
+  border: 1px solid var(--border); padding: 2.4rem 1.6rem;
+  display: flex; align-items: center; gap: 1.2rem;
+}
+.hero-mark { flex: none; color: var(--accent); font-size: 3.2rem; }
+.hero h2 { margin: 0; font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; }
+.hero p { margin: 0.4rem 0 0; color: var(--fg-muted); font-size: 0.98rem; }
+
+/* ---- Small screens: tighten padding, keep transport usable one-handed --- */
+@media (max-width: 480px) {
+  main { padding: 0.6rem; }
+  .timeline .transport { margin: 0 0.3rem 0.5rem; padding: 0.5rem; }
+  .app-header { padding: 0.6rem 0.75rem; }
+}
+
+/* ---- Gig view: the one page meant to be read from arm's length under
+   stage lighting, not edited. Modeled directly on the band's own LaTeX
+   titlepage set-list tables (big numbered rows, striped, key + tempo as
+   fixed columns) rather than anything web-app-shaped — no drag handles, no
+   note inputs, no delete buttons, just the running order. */
+.gig-link {
+  margin-left: auto; font-size: 0.8rem; color: var(--fg-muted); display: inline-flex;
+  align-items: center; gap: 0.3rem;
+}
+.gig-meta {
+  display: flex; gap: 1rem; justify-content: center; padding: 0 1.1rem 0.6rem;
+  color: var(--fg-muted); font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.gig-sets { max-width: 860px; margin: 0 auto; padding: 0.5rem 1.1rem 3rem; }
+.gig-set { margin-bottom: 2.2rem; }
+.gig-set h2 {
+  font-size: 1rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent);
+  border-bottom: 2px solid var(--border); padding-bottom: 0.4rem; margin: 0 0 0.3rem;
+}
+.gig-table { display: flex; flex-direction: column; }
+.gig-row {
+  display: grid; grid-template-columns: 2.6rem 1fr 4.5rem 4rem; align-items: center;
+  gap: 0.8rem; padding: 0.9rem 0.7rem; border-radius: 6px; color: var(--fg);
+}
+.gig-row:nth-child(odd) { background: var(--bg-sunken); }
+.gig-row:hover { background: color-mix(in srgb, var(--accent) 12%, var(--bg-sunken)); }
+.gig-num { font-variant-numeric: tabular-nums; color: var(--fg-muted); font-size: 1.1rem; text-align: right; }
+.gig-title { display: flex; flex-direction: column; gap: 0.1rem; font-size: 1.25rem; font-weight: 700; }
+.gig-note { font-size: 0.78rem; font-weight: 400; font-style: italic; color: var(--fg-muted); }
+.gig-key, .gig-tempo { font-variant-numeric: tabular-nums; color: var(--fg-muted); font-size: 1.05rem; text-align: right; }
+
+@media (max-width: 560px) {
+  .gig-row { grid-template-columns: 2rem 1fr 3.4rem; }
+  .gig-tempo { display: none; } /* key matters more than tempo at a glance on a phone */
+  .gig-title { font-size: 1.1rem; }
+}

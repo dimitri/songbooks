@@ -1,0 +1,28 @@
+title:  Should I Stay or Should I Go
+artist: The Clash
+key:    D
+tempo:  115
+time:   4/4
+map:    Intro · Verse · Chorus · Verse · Chorus · Solo · Verse · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: |: D | % | G | D :|
+
+[Verse]
+
+[Chorus]
+grid: | A | G | D | % |
+
+[Verse]
+
+[Chorus]
+
+[Solo]
+
+[Verse]
+
+[Outro]

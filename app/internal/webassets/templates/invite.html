@@ -1,0 +1,32 @@
+{{define "invite"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Join {{.ProjectName}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<main class="index">
+  <div class="hero">
+    <div>
+      <h2>Join {{.ProjectName}}</h2>
+      <p>You've been invited as <strong>{{.Role}}</strong>.</p>
+    </div>
+  </div>
+  <form class="card" method="post" action="/invite/{{.Token}}" style="max-width:360px">
+    {{if .LoggedInAs}}
+      <p>Join as <strong>{{.LoggedInAs}}</strong>?</p>
+      <button type="submit">Join {{.ProjectName}}</button>
+    {{else}}
+      <p><label>Username<br><input type="text" name="username" autocomplete="username" required autofocus></label></p>
+      <p><label>Your name<br><input type="text" name="display_name" required></label></p>
+      <p><label>Password<br><input type="password" name="password" autocomplete="new-password" required></label></p>
+      <button type="submit">Create account &amp; join</button>
+    {{end}}
+  </form>
+</main>
+</body>
+</html>
+{{end}}

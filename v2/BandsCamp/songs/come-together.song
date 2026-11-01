@@ -1,0 +1,46 @@
+title:  Come Together
+artist: The Beatles
+key:    Dm
+tempo:  82
+time:   4/4
+map:    Intro · Verse · Chorus · Verse · Chorus · Solo · Verse · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: |: Dm | % | % | % :|
+
+[Verse]
+Here come old flat top, he come groovin' up slowly
+He got joo joo eyeball, he one holy roller
+He got hair down to his knee
+Got to be a joker, he just do what he please
+
+[Chorus]
+grid: | A | % | G | % |
+Come together, right now
+Over me
+
+[Verse]
+Here come old flat top, he come groovin' up slowly
+He got joo joo eyeball, he one holy roller
+He got hair down to his knee
+Got to be a joker, he just do what he please
+
+[Chorus]
+
+[Solo]
+
+[Verse]
+He got monkey finger, he shoot Coca Cola
+He say I know you, you know me
+One thing I can tell you is
+You got to be free
+Come together, right now
+Over me
+
+[Outro]
+
+[Outro]

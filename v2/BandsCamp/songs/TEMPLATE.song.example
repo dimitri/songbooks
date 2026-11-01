@@ -1,0 +1,33 @@
+# Template for a new song. Copy to <slug>.song, drop the .example suffix,
+# and add it to ../order.txt.
+#
+# Metadata is absolute: the key written here is the key played. There is no
+# separate transposition for the grid and the lyrics.
+title:  Song Title
+artist: Artist
+key:    Gm
+tempo:  96
+time:   4/4
+# capo:   2          # annotates only; it does not transpose
+# flats:  yes        # force flat spelling; omitted uses the conventional table
+
+# Sections are [Label]. A grid is bars between | separators:
+#   | Gm |              one chord, the whole bar
+#   | Gm . . Cm |       beat grid: Gm for three beats, Cm on four
+#   |: Gm | Bb :|       repeat
+#   | (1.) Gm |         first-time ending
+#   | % |               play the previous bar again
+#   | %% |              play the previous two bars
+# Four bars per system is the default; `bars: 6` overrides for a 6-bar phrase.
+#
+# Lyric lines carry chords inline: Some [Gm]words here
+
+[Intro]
+grid: |: Gm | Bb | Dm | C :|
+
+[Verse]
+grid: | Gm | Bb | F | C |
+Lyrics go here, with [Gm]chords over the syllable they start on
+
+[Chorus]
+grid: | Eb . . F | Gm |

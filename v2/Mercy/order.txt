@@ -1,0 +1,51 @@
+# Mercy's own multi-set setlist order, from the original songs.tex.
+# SET: Set 1
+mercy
+you-might-need-somebody
+id-rather-go-blind
+the-thrill-is-gone
+ill-play-the-blues-for-you
+falling-in-love-again
+colors
+wake-up-alone
+its-too-late
+worried-life-blues
+the-sky-is-crying
+whos-been-talking
+# SET: Set 2
+back-to-black
+you-were-mine
+shine-a-light
+too-much-of-a-woman
+travelin-blues
+you-know-im-no-good
+kill-or-be-kind
+soulful-dress
+valerie
+the-best-youve-had
+whisper-in-a-hurricane
+black-magic-woman
+aint-no-love
+# SET: Set 3
+married-to-the-blues
+my-yard
+give-me-one-reason
+gone
+banshee
+ticket-to-ride
+still-got-the-blues
+so-easy
+bad-spell
+whiskey-beer-and-wine
+grandma-hands
+i-put-a-spell-on-you
+
+# Not in the active setlist (commented out in the original, or newer than it) --
+# appended here so nothing is silently dropped from the book.
+# SET: Unassigned
+always-free
+feeling-good
+little-wing
+sing-about-it
+something-got-a-hold-on-me
+who-knows

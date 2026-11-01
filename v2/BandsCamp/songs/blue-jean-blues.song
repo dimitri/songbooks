@@ -1,0 +1,22 @@
+title:  Blue Jean Blues
+artist: ZZ Top
+key:    Em
+tempo:  58
+time:   12/8
+map:    Head · Solo · Head · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Head]
+grid: |: Em7 | % | Am7 | Em7 |
+
+[ ]
+grid: | B7 | Am7 | Em7 | B7 :|
+
+[Solo]
+
+[Head]
+
+[Outro]

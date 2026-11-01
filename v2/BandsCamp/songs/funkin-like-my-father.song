@@ -1,0 +1,18 @@
+title:  Funkin' Like My Father
+artist: Brian Culbertson
+key:    Eb
+tempo:  104
+time:   4/4
+map:    Head · Solo · Head
+flats:  yes
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Head]
+grid: |: Eb7 | % | Ab7 | Eb7 :|
+
+[Solo]
+
+[Head]

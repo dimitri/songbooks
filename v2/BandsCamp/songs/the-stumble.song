@@ -1,0 +1,23 @@
+title:  The Stumble
+artist: Freddie King
+key:    C
+tempo:  132
+time:   4/4
+map:    Head · Solo · Head
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Head]
+grid: |: C7 | F7 | C7 | % |
+
+[ ]
+grid: | F7 | % | C7 | % |
+
+[ ]
+grid: | G7 | F7 | C7 | G7 :|
+
+[Solo]
+
+[Head]

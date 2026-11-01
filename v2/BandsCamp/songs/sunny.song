@@ -1,0 +1,24 @@
+title:  Sunny
+artist: Bobby Hebb
+key:    Am
+tempo:  104
+time:   4/4
+map:    Head · Turnaround · Head · Solo · Head (up a semitone) · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Head]
+grid: | Am | Am/G | C | F |
+
+[Turnaround]
+grid: | Dm7 | G7 | Cmaj7 | % |
+
+[Head]
+
+[Solo]
+
+[Head (up a semitone)]
+
+[Outro]

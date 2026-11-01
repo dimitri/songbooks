@@ -1,0 +1,53 @@
+title:  I Love Rock 'n' Roll
+artist: Joan Jett
+key:    E
+tempo:  92
+time:   4/4
+map:    Intro · Verse · Chorus · Verse · Chorus · Solo · Chorus · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: |: E | % | A . B . | E :|
+
+[Verse]
+I saw him dancin' there by the record machine
+I knew he must have been about seventeen
+The beat was goin' strong, playin' my favorite song
+And I could tell it wouldn't be long
+Till he was with me, yeah, me
+And I could tell it wouldn't be long
+Till he was with me, yeah, me, singin'
+
+[Chorus]
+I love rock n' roll
+So put another dime in the jukebox, baby
+I love rock n' roll
+So come and take your time and dance with me
+
+[Verse]
+I saw him dancin' there by the record machine
+I knew he must have been about seventeen
+The beat was goin' strong, playin' my favorite song
+And I could tell it wouldn't be long
+Till he was with me, yeah, me
+And I could tell it wouldn't be long
+Till he was with me, yeah, me, singin'
+
+[Chorus]
+I love rock n' roll
+So put another dime in the jukebox, baby
+I love rock n' roll
+So come and take your time and dance with me
+
+[Solo]
+
+[Chorus]
+I love rock n' roll
+So put another dime in the jukebox, baby
+I love rock n' roll
+So come and take your time and dance with me
+
+[Outro]

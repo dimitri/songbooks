@@ -1,0 +1,28 @@
+title:  Highway to Hell
+artist: AC/DC
+key:    A
+tempo:  116
+time:   4/4
+map:    Intro · Verse · Chorus · Verse · Chorus · Solo · Chorus · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: |: A | D . G . | A | D . G . :|
+
+[Verse]
+
+[Chorus]
+grid: | A | D . G . | A | % |
+
+[Verse]
+
+[Chorus]
+
+[Solo]
+
+[Chorus]
+
+[Outro]

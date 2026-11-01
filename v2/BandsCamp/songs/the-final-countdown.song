@@ -1,0 +1,43 @@
+title:  The Final Countdown
+artist: Europe
+key:    Bm
+tempo:  115
+time:   4/4
+map:    Intro · Verse · Pre-Chorus · Chorus · Verse · Pre-Chorus · Chorus · Solo · Chorus · Outro
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: |: Bm | A | G | F#m :|
+
+[Verse]
+We're leaving together,
+But still it's farewell
+And maybe we'll come back,
+To earth, who can tell ?
+I guess there is no one to blame
+We're leaving ground (leaving ground)
+Will things ever be the same again?
+
+It's the final countdown...
+It's the final countdown...
+
+We're heading for Venus and still we stand tall
+Cause maybe they've seen us and welcome us all
+With so many light years to go and things to be found (to be found)
+I'm sure that we'll all miss her so
+
+It's the final countdown...
+[Pre-Chorus]
+grid: | G | A | Bm | Bm |
+
+[Chorus]
+grid: | G | D | A | A |
+grid: | G | D | Em | F# |
+
+[Solo]
+grid: |: Bm | A | G | F#m :|
+
+[Outro]
+grid: |: Bm | A | G | F#m :|

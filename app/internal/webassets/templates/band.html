@@ -1,0 +1,115 @@
+{{define "band"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Band.Name}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="app-header">
+  <a class="back-link" href="/bands">{{template "icon-back"}} My bands</a>
+  <h1>{{.Band.Name}}</h1>
+  <nav class="song-nav">
+    <a href="/bands/{{.Band.ID}}/catalog">repertoire</a>
+  </nav>
+</header>
+<main class="index">
+  <p class="hint">No "owner"/"admin" role here — any current member (core or guest) can add or remove members, promote/demote, or delete the whole band.</p>
+
+  <label><input type="checkbox" id="show-past-toggle"> Show past members</label>
+
+  <table class="card" style="width:100%">
+    <thead><tr><th>Username</th><th>Name</th><th>Status</th><th>Joined</th><th>Left</th><th></th></tr></thead>
+    <tbody id="members-body">
+    {{range .Members}}
+      <tr data-person-id="{{.PersonID}}" data-current="{{if .IsCurrent}}1{{else}}0{{end}}" {{if not .IsCurrent}}class="past-member" style="display:none"{{end}}>
+        <td>{{.Username}}</td>
+        <td>{{.DisplayName}}</td>
+        <td>
+          {{if .IsCurrent}}
+          <select class="status-select" data-person-id="{{.PersonID}}">
+            <option value="core" {{if eq .Status "core"}}selected{{end}}>core</option>
+            <option value="guest" {{if eq .Status "guest"}}selected{{end}}>guest</option>
+          </select>
+          {{else}}{{.Status}}{{end}}
+        </td>
+        <td>{{.JoinedAt.Format "2006-01-02"}}</td>
+        <td>{{if .LeftAt}}{{.LeftAt.Format "2006-01-02"}}{{end}}</td>
+        <td>{{if .IsCurrent}}<button type="button" class="remove-member-btn" data-person-id="{{.PersonID}}">remove</button>{{end}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+
+  <div class="card" style="max-width:420px">
+    <h2>Add a member</h2>
+    <p>
+      <label>Username <input type="text" id="add-username" placeholder="existing account"></label>
+    </p>
+    <p>
+      <label>Status
+        <select id="add-status">
+          <option value="core" selected>core</option>
+          <option value="guest">guest</option>
+        </select>
+      </label>
+    </p>
+    <button type="button" id="add-member-btn">Add to band</button>
+    <p id="add-member-result" class="hint"></p>
+  </div>
+
+  <div class="card" style="max-width:420px">
+    <h2>Danger zone</h2>
+    <button type="button" id="delete-band-btn">Delete this band</button>
+  </div>
+</main>
+<script>
+const bandId = {{.Band.ID}};
+document.getElementById('show-past-toggle').addEventListener('change', (e) => {
+  document.querySelectorAll('.past-member').forEach(tr => {
+    tr.style.display = e.target.checked ? '' : 'none';
+  });
+});
+document.getElementById('add-member-btn').addEventListener('click', async () => {
+  const username = document.getElementById('add-username').value.trim();
+  const status = document.getElementById('add-status').value;
+  if (!username) return;
+  const res = await fetch(`/api/bands/${bandId}/members`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({username, status}),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    location.reload();
+  } else {
+    document.getElementById('add-member-result').textContent = data.error || 'failed to add member';
+  }
+});
+document.querySelectorAll('.status-select').forEach(sel => {
+  sel.addEventListener('change', async () => {
+    const personID = sel.dataset.personId;
+    await fetch(`/api/bands/${bandId}/members/${personID}/status`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({status: sel.value}),
+    });
+  });
+});
+document.querySelectorAll('.remove-member-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm('Remove this member from the band?')) return;
+    const personID = btn.dataset.personId;
+    await fetch(`/api/bands/${bandId}/members/${personID}`, {method: 'DELETE'});
+    location.reload();
+  });
+});
+document.getElementById('delete-band-btn').addEventListener('click', async () => {
+  if (!confirm('Delete this band and all of its repertoire? This cannot be undone.')) return;
+  const res = await fetch(`/api/bands/${bandId}`, {method: 'DELETE'});
+  if (res.ok) location.href = '/bands';
+});
+</script>
+</body>
+</html>
+{{end}}

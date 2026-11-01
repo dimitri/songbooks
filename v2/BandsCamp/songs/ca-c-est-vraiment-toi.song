@@ -1,0 +1,25 @@
+title:  Ca c'est vraiment toi
+artist: Telephone
+key:    E
+tempo:  138
+time:   4/4
+map:    Intro · Verse · Chorus · Verse · Chorus · Solo · Chorus
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: |: E | A | E | B :|
+
+[Verse]
+
+[Chorus]
+
+[Verse]
+
+[Chorus]
+
+[Solo]
+
+[Chorus]

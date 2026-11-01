@@ -1,0 +1,21 @@
+title:  Isn't She Lovely
+artist: Stevie Wonder
+key:    E
+tempo:  120
+time:   4/4
+map:    Head · Head · Solo (harmonica) · Head · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Head]
+grid: |: E | C#m7 | F#7 | B7 :|
+
+[Head]
+
+[Solo (harmonica)]
+
+[Head]
+
+[Outro]

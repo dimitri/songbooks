@@ -1,0 +1,28 @@
+title:  Long Train Running
+artist: The Doobie Brothers
+key:    Gm
+tempo:  108
+time:   4/4
+map:    Intro · Verse · Chorus · Verse · Chorus · Solo (harmonica) · Verse · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: |: Gm7 | % | % | % :|
+
+[Verse]
+
+[Chorus]
+grid: | Cm7 | Gm7 | D7 | Gm7 |
+
+[Verse]
+
+[Chorus]
+
+[Solo (harmonica)]
+
+[Verse]
+
+[Outro]

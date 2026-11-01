@@ -1,0 +1,19 @@
+title:  Red Baron
+artist: Billy Cobham
+key:    Em
+tempo:  104
+time:   4/4
+map:    Intro · Head · Solo · Head
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: |: Em7 | % | A7 | Em7 :|
+
+[Head]
+
+[Solo]
+
+[Head]

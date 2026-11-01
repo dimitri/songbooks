@@ -1,0 +1,20 @@
+title:  Spain
+artist: Chick Corea
+key:    G
+tempo:  132
+time:   4/4
+map:    Intro · Head · Solo · Head
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: | Gmaj7 | % | F#7 | % |
+
+[Head]
+grid: |: Gmaj7 | F#7 | Em7 | A7 :|
+
+[Solo]
+
+[Head]

@@ -1,0 +1,10 @@
+title:  Test
+artist: Test
+tempo:  72
+time:   4/4
+flats:  yes
+map:    Chorus
+
+[Chorus]
+grid: |: Gm . . Cm | Gm | Eb . . F | Gm |
+grid: | Gm . . Cm | Gm | Eb . Cm . | Gm :|

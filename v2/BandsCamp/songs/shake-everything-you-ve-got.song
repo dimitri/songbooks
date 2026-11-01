@@ -1,0 +1,17 @@
+title:  Shake Everything You've Got
+artist: Maceo Parker
+key:    F
+tempo:  112
+time:   4/4
+map:    Head · Solo · Head
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Head]
+grid: |: F7 | % | Bb7 | F7 :|
+
+[Solo]
+
+[Head]

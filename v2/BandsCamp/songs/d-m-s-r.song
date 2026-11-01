@@ -1,0 +1,21 @@
+title:  D.M.S.R.
+artist: Prince
+key:    Bm
+tempo:  118
+time:   4/4
+map:    Vamp · Verse · Chorus · Breakdown · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Vamp]
+grid: |: Bm7 | % | % | % :|
+
+[Verse]
+
+[Chorus]
+
+[Breakdown]
+
+[Outro]

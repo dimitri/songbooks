@@ -1,0 +1,50 @@
+{{define "variant_history"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Variant.Title}} — revision history</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="app-header">
+  <a class="back-link" href="/b/{{.Variant.Book}}/{{.Variant.Stem}}">{{template "icon-back"}} {{.Variant.Title}}</a>
+  <h1>Revision history</h1>
+</header>
+<main class="index">
+  {{if not .CanEdit}}<p class="hint">You don't have edit rights on this variant, so reverting is disabled here.</p>{{end}}
+  <table class="card" style="width:100%">
+    <thead><tr><th>When</th><th>By</th><th>Change</th><th></th></tr></thead>
+    <tbody>
+    {{range .Revisions}}
+      <tr data-revision-id="{{.ID}}">
+        <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+        <td>{{if .ActorName}}{{.ActorName}}{{else}}&mdash;{{end}}</td>
+        <td>~{{.LinesChanged}} line{{if ne .LinesChanged 1}}s{{end}} changed</td>
+        <td>{{if $.CanEdit}}<button type="button" class="revert-btn" data-revision-id="{{.ID}}">revert to this</button>{{end}}</td>
+      </tr>
+    {{else}}
+      <tr><td colspan="4" class="hint">No edits recorded yet.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+</main>
+<script>
+document.querySelectorAll('.revert-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm('Revert to this revision? This creates a new revision too, so it can itself be undone.')) return;
+    const id = btn.dataset.revisionId;
+    const res = await fetch(`/api/revisions/${id}/revert`, {method: 'POST'});
+    if (res.ok) {
+      location.reload();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || 'revert failed');
+    }
+  });
+});
+</script>
+</body>
+</html>
+{{end}}

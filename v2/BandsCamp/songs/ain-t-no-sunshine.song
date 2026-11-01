@@ -1,0 +1,37 @@
+title:  Ain't No Sunshine
+artist: Bill Withers
+key:    Am
+tempo:  78
+time:   4/4
+map:    Intro · Verse · Bridge (I know) · Verse · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: | Am | Em . G . | Am | % |
+
+[Verse]
+Ain't no sunshine when she's gone
+It's not warm when she's away
+Ain't no sunshine when she's gone
+And she's always gone too long
+Anytime she goes away
+
+[Bridge (I know)]
+grid: |: Am | % | % | % :|
+I know, I know, I know, I know
+I know, I know, I know, I know
+I know, I know, I know, I know
+I know, I know, I know, I know
+I know, I know, I know, I know
+
+[Verse]
+Ain't no sunshine when she's gone
+It's not warm when she's away
+Ain't no sunshine when she's gone
+And she's always gone too long
+Anytime she goes away
+
+[Outro]

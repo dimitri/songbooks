@@ -1,0 +1,134 @@
+{{define "setlists-index"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set lists — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
+</head>
+<body>
+<header class="app-header">
+  <a href="/">&larr; Books</a>
+  <h1>Set lists</h1>
+</header>
+<main>
+  <section class="card book-card">
+    {{if .Setlists}}
+    <ul class="song-list">
+      {{range .Setlists}}
+      <li>
+        <a class="song-link" href="/setlists/{{.Book}}/{{.Stem}}">{{.Stem}}</a> <span class="song-link-sub">{{.Book}}</span>
+        <a class="gig-link" href="/setlists/{{.Book}}/{{.Stem}}/gig">{{template "icon-presentation"}} gig view</a>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}
+    <p class="hint">No set lists yet — create one below to start building a running order for a gig.</p>
+    {{end}}
+  </section>
+
+  <section class="card book-card new-setlist-form">
+    <h2>New set list</h2>
+    <div class="structure-actions">
+      <label>in book
+        <select id="new-book">{{range .Books}}<option value="{{.}}">{{.}}</option>{{end}}</select>
+      </label>
+      <input type="text" id="new-stem" placeholder="filename, e.g. spring-rehearsal-2026">
+      <button id="new-setlist-btn" type="button" class="primary">{{template "icon-plus"}} Create</button>
+    </div>
+  </section>
+
+  {{/* Phase 3: person/band-scoped setlists — no book/stem, addressed by
+       id instead, so they're their own section with practice/listening
+       links rather than mixed into the book/stem list above. */}}
+  <section class="card book-card">
+    <h2>My set lists</h2>
+    {{if .MySetlists}}
+    <ul class="song-list">
+      {{range .MySetlists}}
+      <li>
+        <strong>{{.Title}}</strong> <span class="song-link-sub">{{.Kind}}</span>
+        <a class="gig-link" href="/setlists/{{.ID}}/practice">practice</a>
+        <a class="gig-link" href="/setlists/{{.ID}}/listening">listening</a>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}
+    <p class="hint">No personal set lists yet.</p>
+    {{end}}
+    <div class="structure-actions">
+      <select id="my-setlist-kind"><option value="practice">practice</option><option value="themed">themed</option><option value="performance">performance</option></select>
+      <input type="text" id="my-setlist-title" placeholder="title">
+      <button id="new-my-setlist-btn" type="button" class="primary">{{template "icon-plus"}} Create personal set list</button>
+    </div>
+  </section>
+
+  {{range .Bands}}
+  <section class="card book-card">
+    <h2>{{.Band.Name}} set lists</h2>
+    {{if .Setlists}}
+    <ul class="song-list">
+      {{range .Setlists}}
+      <li>
+        <strong>{{.Title}}</strong> <span class="song-link-sub">{{.Kind}}</span>
+        <a class="gig-link" href="/setlists/{{.ID}}/practice">practice</a>
+        <a class="gig-link" href="/setlists/{{.ID}}/listening">listening</a>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}
+    <p class="hint">No set lists yet for this band.</p>
+    {{end}}
+    <div class="structure-actions">
+      <select class="band-setlist-kind" data-band-id="{{.Band.ID}}"><option value="performance">performance</option><option value="themed">themed</option><option value="practice">practice</option></select>
+      <input type="text" class="band-setlist-title" placeholder="title">
+      <button type="button" class="primary new-band-setlist-btn" data-band-id="{{.Band.ID}}">{{template "icon-plus"}} Create band set list</button>
+    </div>
+  </section>
+  {{end}}
+</main>
+<script>
+document.getElementById('new-setlist-btn').addEventListener('click', () => {
+  const book = document.getElementById('new-book').value;
+  const stem = document.getElementById('new-stem').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+  if (!book || !stem) return;
+  window.location.href = `/setlists/${book}/${stem}`;
+});
+
+async function createScopedSetlist(scope, kind, title, bandID) {
+  if (!title) return;
+  const res = await fetch('/api/setlists', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({scope, kind, title, band_id: bandID || 0}),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    window.location.reload();
+  } else {
+    alert(data.error || 'create failed');
+  }
+}
+
+document.getElementById('new-my-setlist-btn').addEventListener('click', () => {
+  const kind = document.getElementById('my-setlist-kind').value;
+  const title = document.getElementById('my-setlist-title').value.trim();
+  createScopedSetlist('person', kind, title, 0);
+});
+
+document.querySelectorAll('.new-band-setlist-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const bandID = Number(btn.dataset.bandId);
+    const card = btn.closest('.book-card');
+    const kind = card.querySelector('.band-setlist-kind').value;
+    const title = card.querySelector('.band-setlist-title').value.trim();
+    createScopedSetlist('band', kind, title, bandID);
+  });
+});
+</script>
+{{template "pwa-register"}}
+</body>
+</html>
+{{end}}

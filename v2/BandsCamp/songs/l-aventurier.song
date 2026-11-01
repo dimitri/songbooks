@@ -1,0 +1,27 @@
+title:  L'aventurier
+artist: Indochine
+key:    Em
+tempo:  148
+time:   4/4
+map:    Intro · Verse · Chorus · Verse · Chorus · Solo · Chorus · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: |: Em | C | G | D :|
+
+[Verse]
+
+[Chorus]
+
+[Verse]
+
+[Chorus]
+
+[Solo]
+
+[Chorus]
+
+[Outro]

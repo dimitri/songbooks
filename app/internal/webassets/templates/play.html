@@ -1,0 +1,453 @@
+{{define "sheet-body"}}
+{{range .Sections}}
+{{/* is-compact: this section states nothing new of its own — a bare
+     repeat/reference, a plain "chords continue" section, or a Solo whose
+     only content is INFERRED placeholder bars (not real notated changes).
+     Previously a placeholder Solo was excluded from is-compact (it has
+     real .Lines, if dimmed ones) and always got the full expanded grid —
+     but in the overview modes (jazz/song map) that reads as "12 real
+     bars of something" when it's actually the same "just a label + bar
+     count" case a bare Verse repeat already is, inconsistent with how
+     every other non-defining section renders. Dropping the "(not .Lines)"
+     condition for the InferredNote case fixes that. */}}
+<section class="sheet-section{{if or .InferredNote .Repeat .IsReference .Compact}} is-compact{{end}}" data-section-index="{{.Index}}" data-label="{{label .Label}}" data-start-bar="{{.StartBar}}" data-bar-count="{{.BarCount}}" data-has-lyrics="{{if .Lyrics}}true{{else}}false{{end}}" data-has-note="{{if .InferredNote}}true{{else}}false{{end}}" style="--bars: {{.BarCount}}">
+  <h3>
+    <button class="section-jump" type="button" data-section-index="{{.Index}}" title="jump here">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if or .Repeat .IsReference}} <span class="repeat-suffix">&middot; repeat</span>{{end}}</button>
+    {{if .InferredNote}}<span class="inferred-note">{{.InferredNote}}</span>{{end}}
+  </h3>
+  <div class="section-map-chip">
+    <span class="chip-label">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}</span>
+    {{if .BarCount}}
+    {{/* Plain total ("16"), not "8 + 8" — the mockup of 8 bar cells below,
+         bounded by real repeat barlines, already shows the "twice"; the
+         chip's job is just the one number a musician actually asks for
+         ("how many bars is this"). */}}
+    <span class="chip-bars">{{.BarCount}}</span>
+    {{end}}
+  </div>
+  {{if .Lines}}
+  <div class="grid spans-full">
+    {{range .Lines}}
+    <div class="staff-line" style="--cap: {{.Capacity}}">
+      {{range .Measures}}
+      {{if .Clef}}
+      {{/* Engraving convention (LilyPond, standard notation practice): the
+           time signature sits ON the staff, in the space before the
+           opening barline — not as a floating heading above it. It gets
+           its own staff-cell here, continuous with the bars that follow,
+           with the tempo mark (the one thing that genuinely belongs above
+           the staff) positioned above this cell specifically — which also
+           keeps it well clear of the first bar's own chord label, now
+           that the two no longer share the same anchor point. */}}
+      <span class="staff-timesig-cell">
+        {{if and (eq .TimeDen "8") (or (eq .TimeNum "6") (eq .TimeNum "9") (eq .TimeNum "12"))}}
+        <span class="tempo-mark-inline"><span class="note">&#9833;<span class="aug-dot">.</span></span> = {{.Tempo}}</span>
+        {{else}}
+        <span class="tempo-mark-inline"><span class="note">&#9833;</span> = {{.Tempo}}</span>
+        {{end}}
+        <span class="tsnum">{{.TimeNum}}</span>
+        <span class="tsden">{{.TimeDen}}</span>
+      </span>
+      {{end}}
+      <span class="bar{{if .Open}} bar-open{{end}}{{if .Close}} bar-close{{end}}{{if .IsRepeat}} bar-pct{{end}}{{if .Volta}} has-volta{{end}}{{if and .Volta (not .VoltaFirst)}} volta-continues{{end}}{{if .Placeholder}} bar-placeholder{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}">
+        {{if .Open}}<span class="repeat-dots" title="repeat starts"></span>{{end}}
+        {{if .Volta}}<span class="volta">{{if .VoltaFirst}}<span class="volta-num">{{.Volta}}</span>{{end}}</span>{{end}}
+        <span class="bar-body">
+          {{if .IsRepeat}}
+            {{/* Engraving convention (Real Book / LilyPond "simile" sign,
+                 ported from v2/lib/staff.typ's own simile()): a hollow
+                 slash flanked diagonally by two dots, staff-height, drawn —
+                 not the literal "%" character, whose stroke weight and
+                 alignment never quite matches the rest of the hand-drawn
+                 staff. "%%" is the same glyph widened slightly with a bold
+                 "2" above it (repeat the previous TWO bars), not a second
+                 measure. Plain CSS divs, not an SVG: an SVG is a replaced
+                 element with its own intrinsic aspect ratio, and two
+                 separate incidents (a dense jazz layout, then a plain
+                 chords+lyrics chart in real Firefox — neither reproduced
+                 by this session's own Firefox-headless testing, which
+                 bundles a different Firefox build than the browser people
+                 actually run) showed browsers disagreeing enough about
+                 that sizing to let the glyph balloon across several bars.
+                 A div has no such intrinsic-ratio computation to disagree
+                 about — width/height are just width/height, everywhere. */}}
+            {{/* simile-count is a SIBLING of simile-mark, not a child: it's
+                 deliberately positioned above the mark's own box
+                 (bottom:100%), and simile-mark has overflow:hidden as a
+                 safety fence against a glyph-sizing regression two
+                 incidents already needed — that fence was clipping this
+                 label into invisibility, since anything positioned
+                 outside an overflow:hidden element's own box is clipped
+                 regardless of z-index. Siblings under .bar-body (plain
+                 overflow:visible) aren't subject to that fence. */}}
+            <span class="simile-mark{{if eq .RepeatCount 2}} simile-wide{{end}}" title="{{if eq .RepeatCount 2}}repeat previous 2 bars{{else}}repeat previous bar{{end}}">
+              <span class="simile-slash" aria-hidden="true"></span>
+              <span class="simile-dot simile-dot-a" aria-hidden="true"></span>
+              <span class="simile-dot simile-dot-b" aria-hidden="true"></span>
+            </span>
+            {{if eq .RepeatCount 2}}<span class="simile-count">2</span>{{end}}
+          {{else if .IsRest}}
+            {{/* Full-bar rest ("R" token): the standard whole-rest glyph —
+                 a filled block hanging below the staff's 2nd line
+                 (v2/lib/staff.typ's own rest()) — never a literal "R" with
+                 ordinary slashes under it, which reads as "play something
+                 called R" instead of "nothing is played here". */}}
+            <span class="rest-mark" title="full bar rest" aria-hidden="true"></span>
+          {{else}}
+            {{range .Beats}}<span class="beat-slot{{if .IsTie}} tie{{end}}" style="--span: {{.Span}}">{{if not .IsTie}}<span class="chord-label">{{chord .Text}}</span>{{end}}<span class="slash">&#8260;</span></span>{{end}}
+          {{end}}
+        </span>
+        {{if .Close}}<span class="repeat-dots" title="repeat ends"></span>{{end}}
+      </span>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+  {{if .BarCount}}
+  {{/* A compact/reference section — including a Solo whose "grid" above
+       is only inferred placeholder bars, not real content — in
+       jazz/song-map mode: LilyPond's own multi-measure-rest convention
+       for exactly this situation, one bold horizontal bar spanning the
+       span (the chip above already prints the bar count). Emitted
+       alongside the real grid when there is one; CSS (.is-compact,
+       .multi-rest-row) decides which one actually shows per mode — the
+       full/detailed modes keep the real grid, jazz/song-map swap to this
+       instead of showing both or showing nothing. */}}
+  {{if .RepeatSegmentBars}}
+  {{/* The section is wholly one "|: ... :|" bracket — e.g. an 8-bar
+       phrase played twice. A compact mockup of the WRITTEN 8 bars —
+       plain empty cells, no chord text — bounded by real repeat
+       barlines (thick-thin + dots, the same convention the real chord
+       grid uses), fixed-width rather than stretched full-page-wide: it
+       reads as "8 bars, play it twice" by counting the cells, not by
+       parsing a number. */}}
+  {{$sec := .}}
+  <div class="multi-rest-row">
+    <div class="multi-rest-repeat-cells">
+      {{range seq $sec.RepeatSegmentBars}}
+      <span class="repeat-cell{{if eq . 0}} repeat-cell-open{{end}}{{if eq (add1 .) $sec.RepeatSegmentBars}} repeat-cell-close{{end}}">
+        {{if eq . 0}}<span class="repeat-dots repeat-dots-open"></span>{{end}}
+        {{if eq (add1 .) $sec.RepeatSegmentBars}}<span class="repeat-dots repeat-dots-close"></span>{{end}}
+      </span>
+      {{end}}
+    </div>
+  </div>
+  {{else}}
+  <div class="multi-rest-row"><span class="multi-rest-bar"></span></div>
+  {{end}}
+  {{end}}
+  {{if .Notes}}
+  {{/* Performance/arrangement directions for this section occurrence —
+       "GTR + claviers only", "Entree Basse (ronde)..." — the kind of
+       inline annotation a real iReal Pro chart carries (see
+       song.Section.Notes). Rendered as small italic lines, clearly NOT
+       lyrics (different styling, no chord parsing), right where a
+       musician glancing at the chart would look for them: between the
+       chords and the words. */}}
+  <div class="section-notes">
+    {{range .Notes}}<p class="section-note">{{.}}</p>{{end}}
+  </div>
+  {{end}}
+  {{if .Lyrics}}
+  <div class="lyrics">
+    {{range .Lyrics}}
+    <p class="lyric-line" data-line="{{.Index}}">
+      {{range .Segments}}{{if .HasChord}}<span class="inline-chord">{{chord .Chord}}</span>{{end}}<span class="word">{{.Text}}</span>{{end}}
+    </p>
+    {{end}}
+  </div>
+  {{end}}
+</section>
+{{end}}
+{{end}}
+
+{{define "song"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
+</head>
+<body data-mode="view">
+{{/* Three-column top bar, width split into 4 and given as 1-2-1 (previous
+     / current / next, current spanning the two merged middle columns) —
+     the title/artist/key/tempo that used to sit in a plain header, easy
+     to miss, now lives in the widest, most central cell, with prev/next
+     navigation either side of it instead of as a separate row below.
+     The back-link and theme toggle used to be their own full-width
+     header row ABOVE this one — a whole extra bar of chrome just to hold
+     two small controls, pushing the chart down a full row on every
+     screen, worst on a phone where that space is scarce. They're now a
+     slim first row inside this same topbar surface instead of a second
+     bar of their own. */}}
+<div class="song-topbar">
+  <div class="topbar-utility">
+    {{if .PracticeMode}}
+    <a class="back-link" href="/setlists">{{template "icon-back"}} {{.PracticeStepMode}}: {{.PracticeTitle}}</a>
+    {{else if .GigMode}}
+    <a class="back-link" href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} set list</a>
+    {{else}}
+    <a class="back-link" href="/b/{{.Book}}">{{template "icon-back"}} {{.Book}}</a>
+    {{end}}
+    <a class="icon-btn" href="/b/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF" download>PDF</a>
+    {{if .WorkID}}<a class="icon-btn" href="/works/{{.WorkID}}" title="all versions of this song">versions</a>{{end}}
+    {{if .VariantID}}<a class="icon-btn" href="/variants/{{.VariantID}}/history" title="revision history">history</a>
+    <button id="fork-variant-btn" class="icon-btn" type="button" data-variant-id="{{.VariantID}}" title="fork: make your own editable copy">fork</button>{{end}}
+    <button id="theme-toggle" class="icon-btn" type="button" title="theme: auto">{{template "icon-theme"}}</button>
+  </div>
+  {{if .Prev}}
+  <a class="topbar-cell topbar-prev setlist-nav-card prev" href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.PrevIndex}}{{else}}/b/{{.Prev.Book}}/{{.Prev.Stem}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{end}}{{end}}">
+    {{template "icon-back"}}
+    <span class="topbar-nav-info"><small>previous</small><strong>{{.Prev.Title}}</strong><small>{{if .Prev.Tempo}}{{.Prev.Tempo}} bpm{{end}}{{if and .Prev.Tempo .Prev.Key}} &middot; {{end}}{{.Prev.Key}}</small></span>
+  </a>
+  {{else}}<span class="topbar-cell topbar-prev empty"></span>{{end}}
+
+  <div class="topbar-cell topbar-current">
+    <h1>{{.Title}}</h1>
+    <div class="topbar-meta">
+      {{if .Artist}}<span class="topbar-artist">{{.Artist}}</span>{{end}}
+      {{if .Key}}<span class="topbar-meta-item">key {{.Key}}</span>{{end}}
+      {{if .Tempo}}<span class="topbar-meta-item">{{.Tempo}} bpm</span>{{end}}
+    </div>
+    {{/* The view-mode switcher lives here, not as its own full-width row:
+         a segmented control reads as "which view of THIS", so it belongs
+         visually grouped with the title it governs — directly under it,
+         centered with it — the same pattern a reader/editor app uses for
+         a mode switcher tied to one document (e.g. a tab bar under a
+         document title, not a loose toolbar spanning the whole window).
+         Centering .topbar-current (the page's own middle column) also
+         centers this on the full page width without extra CSS. */}}
+    {{/* Icon-only, not text labels — a row of five text buttons ("chords
+         + lyrics", "jazz chart"...) was the widest thing in the whole top
+         bar and the first thing to wrap/crowd on a narrow screen. A title
+         tooltip plus a visually-hidden label keeps each one identifiable
+         without sighted space going to text at all. */}}
+    <div class="segmented" id="mode-segmented" data-value="normal">
+      <button type="button" data-value="normal" class="active" title="chords + lyrics">{{template "icon-mode-normal"}}<span class="sr-only">chords + lyrics</span></button>
+      <button type="button" data-value="jazz" title="jazz chart">{{template "icon-mode-jazz"}}<span class="sr-only">jazz chart</span></button>
+      <button type="button" data-value="lyrics" title="lyrics only">{{template "icon-mode-lyrics"}}<span class="sr-only">lyrics only</span></button>
+      <button type="button" data-value="map" title="song map">{{template "icon-mode-map"}}<span class="sr-only">song map</span></button>
+      <button type="button" data-value="edit" id="edit-toggle" title="edit">{{template "icon-edit"}}<span class="sr-only">edit</span></button>
+    </div>
+  </div>
+
+  {{if .Next}}
+  <a class="topbar-cell topbar-next setlist-nav-card next" href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.NextIndex}}{{else}}/b/{{.Next.Book}}/{{.Next.Stem}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{end}}{{end}}">
+    <span class="topbar-nav-info"><small>next</small><strong>{{.Next.Title}}</strong><small>{{if .Next.Tempo}}{{.Next.Tempo}} bpm{{end}}{{if and .Next.Tempo .Next.Key}} &middot; {{end}}{{.Next.Key}}</small></span>
+    {{template "icon-forward"}}
+  </a>
+  {{else}}<span class="topbar-cell topbar-next empty"></span>{{end}}
+</div>
+
+<div class="edit-drawer-backdrop" id="edit-drawer-backdrop" hidden></div>
+<div class="edit-drawer card" id="edit-drawer" role="dialog" aria-modal="true" aria-label="Edit {{.Title}}" hidden>
+  <div class="edit-drawer-head">
+    <div class="prep-tabs" role="tablist">
+      <button class="prep-tab active" data-tab="structure" type="button">Blocks</button>
+      <button class="prep-tab" data-tab="raw" type="button">Source</button>
+    </div>
+    <button id="redo-song-btn" class="icon-btn" type="button" title="redo this song from scratch — erases the current lyrics/chords">{{template "icon-trash"}}<span class="sr-only">redo this song from scratch</span></button>
+    <button id="edit-drawer-close" class="icon-btn" type="button" title="close">{{template "icon-close"}}</button>
+  </div>
+  <div class="edit-drawer-body">
+    <section class="prep-panel" data-panel="structure" id="structure" data-book="{{.Book}}" data-stem="{{.Stem}}">
+      <p class="hint">Hover a section for its handle (drag to reorder) and + (insert after it) — pick a label, a custom one, or a bare chord sequence. Each section holds its own chords and lyrics; a duplicated section starts as a bare "repeat marker" until you give it real content.</p>
+      <div id="chip-list" class="chip-list"></div>
+      <div class="structure-actions">
+        <button id="add-section" type="button">{{template "icon-plus"}} add section at the end</button>
+        <button id="save-structure" type="button" class="primary">Save</button>
+        <span id="structure-status"></span>
+      </div>
+    </section>
+
+    <section class="prep-panel" data-panel="raw" id="editor" data-book="{{.Book}}" data-stem="{{.Stem}}" data-version="{{.Version}}" hidden>
+      <div class="import-bar">
+        <details>
+          <summary>Import lyrics from a URL</summary>
+          <div class="import-row">
+            <input type="url" id="import-lyrics-url" placeholder="https://genius.com/... (or any lyrics page)">
+            <button id="import-lyrics-btn" type="button">Fetch</button>
+            <a id="google-lyrics-link" href="#" target="_blank" rel="noopener">search Google &#8599;</a>
+          </div>
+          <span id="import-lyrics-status" class="hint"></span>
+        </details>
+        <details>
+          <summary>Bootstrap chords from an Ultimate Guitar tab</summary>
+          <div class="import-row">
+            <input type="url" id="import-ug-url" placeholder="https://tabs.ultimate-guitar.com/tab/...">
+            <button id="import-ug-btn" type="button">Fetch</button>
+          </div>
+          <span id="import-ug-status" class="hint"></span>
+        </details>
+      </div>
+      <div class="code-toolbar" id="code-toolbar">
+        <button type="button" data-insert="section">[Section]</button>
+        <button type="button" data-insert="grid">grid:</button>
+        <button type="button" data-insert="bars">bars:</button>
+        <button type="button" data-wrap="chord">[Chord]</button>
+        <button type="button" data-insert="comment"># comment</button>
+      </div>
+      <div class="code-editor">
+        <pre class="code-backdrop" id="code-backdrop" aria-hidden="true"><code id="code-highlight"></code></pre>
+        <textarea id="raw-text" rows="22" spellcheck="false">{{.Text}}</textarea>
+      </div>
+      <div class="editor-actions">
+        <button id="save-btn" type="button" class="primary">Save</button>
+        <span id="save-status"></span>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="content-row">
+  <nav class="timeline" id="structure-strip" aria-label="song structure">
+    <div class="transport" id="transport" data-bpm="{{.Tempo}}" data-beats-per-bar="{{.TimeBeats}}" data-time-num="{{.TimeNum}}" data-time-den="{{.TimeDen}}">
+      <div class="transport-controls">
+        <button id="play-pause-btn" type="button" title="play" class="primary icon-btn">{{template "icon-play"}}</button>
+        <button id="stop-btn" type="button" title="stop (resets to the top)" class="icon-btn">{{template "icon-stop"}}</button>
+        <button id="tap-btn" type="button" title="tap tempo (determine, or re-sync while playing)" class="icon-btn">{{template "icon-tap"}}</button>
+      </div>
+      <div class="beat-dots" id="beat-dots" aria-hidden="true"></div>
+      <div class="tempo-row">
+        <span class="time-sig" id="time-sig-display"><span>{{.TimeNum}}</span><span>{{.TimeDen}}</span></span>
+        <input type="text" id="tempo-input" value="{{.Tempo}}" inputmode="numeric">
+        <span class="bpm-unit">bpm</span>
+      </div>
+      {{if .Key}}
+      <div class="meta-row">
+        <span id="key-display">key <span id="key-original">{{.Key}}</span><span id="key-transposed" hidden></span></span>
+        <div class="transpose-control" title="transpose this view — never changes the song's own saved key">
+          <button id="transpose-down" type="button" aria-label="transpose down a semitone">&minus;</button>
+          <span id="transpose-amount">0</span>
+          <button id="transpose-up" type="button" aria-label="transpose up a semitone">+</button>
+        </div>
+      </div>
+      {{end}}
+      {{if .Capo}}<div class="meta-row">capo {{.Capo}}</div>{{end}}
+      {{/* Reference: a YouTube link so the whole band is listening to the
+           same version — embedded inline (not just a link out) when it's
+           recognizably a YouTube URL, since the point is everyone pulling
+           up the same video with no extra click. The edit affordance is a
+           single URL field (handlePutMeta), not the raw-source editor —
+           this is a field every song has a reason to set, not an advanced
+           edit. */}}
+      <div class="reference-block" id="reference-block" data-url="{{.Reference}}" data-book="{{.Book}}" data-stem="{{.Stem}}">
+        <div class="reference-row">
+          <a id="reference-link" class="meta-row" href="{{.Reference}}" target="_blank" rel="noopener"{{if not .Reference}} hidden{{end}}>reference &#8599;</a>
+          {{/* The embedded video (reference-embed, below) starts collapsed —
+               it's a sizeable fixed block (a 16:9 iframe) that was eating
+               most of a phone screen's height before the chart itself even
+               appeared, on top of the transport controls already above it.
+               A reader who wants it can show it with one tap; a reader who
+               just wants to play from the chart never has to scroll past
+               it. */}}
+          <button id="reference-show-btn" type="button" class="icon-btn" title="show reference video"{{if not .Reference}} hidden{{end}}>{{template "icon-play"}}</button>
+          <button id="reference-edit-btn" type="button" class="icon-btn" title="{{if .Reference}}change reference{{else}}add a reference video{{end}}">{{template "icon-edit"}}</button>
+        </div>
+        <div class="reference-edit-row" id="reference-edit-row" hidden>
+          <input type="url" id="reference-url-input" placeholder="https://youtube.com/watch?v=..." value="{{.Reference}}">
+          <button id="reference-save-btn" type="button" class="primary">Save</button>
+        </div>
+        <div class="reference-embed" id="reference-embed"></div>
+      </div>
+
+      <div class="metro-icon-row" id="metro-mode" data-value="off">
+        <button type="button" data-value="off" class="active" title="No click — visual beat only">{{template "icon-metro-off"}}</button>
+        <button type="button" data-value="intro" title="Intro count-in only, then silent">{{template "icon-metro-intro"}}</button>
+        <button type="button" data-value="full" title="Click track — clicks through the whole song">{{template "icon-metro-full"}}</button>
+      </div>
+      {{/* Not a collapsed <details> any more — count-in length and click
+           sound are exactly what a drummer (or anyone practicing at home)
+           needs to glance at and set before counting the band in, not
+           something worth hiding behind an extra tap on a small disclosure
+           triangle. */}}
+      <div class="metro-advanced">
+        <div class="metro-advanced-label hint">count-in &amp; sound</div>
+        <div class="metro-icon-row" id="intro-bars" data-value="2" title="count-in length — the band comes in together, drummer's call">
+          <button type="button" data-value="1">1 bar</button>
+          <button type="button" data-value="2" class="active">2 bars</button>
+        </div>
+        <div class="metro-icon-row" id="sound-picker" data-value="click">
+          <button type="button" data-value="click" class="active" title="Click">{{template "icon-sound-click"}}</button>
+          <button type="button" data-value="beep" title="Beep">{{template "icon-sound-beep"}}</button>
+          <button type="button" data-value="wood" title="Wood block">{{template "icon-sound-wood"}}</button>
+          <button type="button" data-value="tick" title="Tick">{{template "icon-sound-tick"}}</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+  {{/* Mobile-only (see the max-width:900px CSS): the sidebar above becomes
+       an off-canvas sheet instead of sitting in-flow above the chart, so
+       the chart is full-screen by default — this button and backdrop are
+       what pull it up/dismiss it. Both are hidden outside that
+       breakpoint. */}}
+  <div class="timeline-backdrop" id="timeline-backdrop"></div>
+  <button class="mobile-controls-fab" id="mobile-controls-fab" type="button" title="playback controls &amp; structure">{{template "icon-play"}}</button>
+
+  <div class="content-main">
+    {{/* Single-line song structure overview — a thin progress line with
+         one tick + label per section, weighted by its own bar count.
+         Lives INSIDE the main pane (not the full page width) so it lines
+         up with the chart it's describing instead of stretching behind
+         the sidebar too. Always visible, every mode — replaces the old
+         vertical "timeline" list of section buttons that used to live
+         under the metronome/transport panel. */}}
+    <nav class="song-structure-strip" id="song-structure-strip" aria-label="song structure overview">
+      <div class="structure-line"></div>
+      <div class="structure-fill" id="structure-fill"></div>
+      <div class="structure-row">
+        {{range .Sections}}
+        <button class="structure-seg{{if or .Repeat .IsReference}} is-reference{{end}}" type="button"
+          data-section-index="{{.Index}}" style="--bars: {{if .BarCount}}{{.BarCount}}{{else}}1{{end}}"
+          title="{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if .BarCount}} — {{.BarCount}} bars{{end}}">
+          <span class="structure-seg-tick"></span>
+          <span class="structure-seg-label">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if .BarCount}}<span class="structure-seg-bars">{{.BarCount}}</span>{{end}}</span>
+        </button>
+        {{end}}
+      </div>
+    </nav>
+    <main class="sheet" id="sheet" data-render-mode="normal" data-key="{{.Key}}" data-flats="{{if .Flats}}1{{else}}0{{end}}">
+    {{template "sheet-body" .}}
+    </main>
+  </div>
+</div>
+
+<script src="/static/js/clock.js"></script>
+<script src="/static/js/song.js"></script>
+{{if .PracticeStepMode}}
+<script>
+// Practice/listening mode forces a specific view mode (full chart for
+// practice, the existing lyrics-only mode for listening) regardless of
+// the reader's own saved default-mode preference (song.js applies that
+// preference right before this script runs, since it's a later,
+// synchronous <script> tag in document order).
+(function() {
+  const target = {{if eq .PracticeStepMode "listening"}}'lyrics'{{else}}'normal'{{end}};
+  document.querySelector(`#mode-segmented button[data-value="${target}"]`)?.click();
+})();
+</script>
+{{end}}
+<script>
+const forkBtn = document.getElementById('fork-variant-btn');
+if (forkBtn) {
+  forkBtn.addEventListener('click', async () => {
+    const variantId = Number(forkBtn.dataset.variantId);
+    if (!variantId) return;
+    const res = await fetch(`/api/variants/${variantId}/fork`, {method: 'POST'});
+    const data = await res.json();
+    if (res.ok) {
+      location.href = `/b/${encodeURIComponent(data.book)}/${encodeURIComponent(data.stem)}`;
+    } else {
+      alert(data.error || 'fork failed');
+    }
+  });
+}
+</script>
+{{template "pwa-register"}}
+</body>
+</html>
+{{end}}

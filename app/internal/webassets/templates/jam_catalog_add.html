@@ -1,0 +1,34 @@
+{{define "jam_catalog_add"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Name}} — add a song</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="app-header">
+  <h1>{{.Name}}</h1>
+  <p>Playing as <strong>{{.Nickname}}</strong> &middot; <a href="/jam/{{.Code}}/songs">back to songs</a></p>
+</header>
+<main class="index">
+  <p class="card">Pick any song from the global catalog to add it to tonight's pickable list — or
+    <a href="/jam/{{.Code}}/new">write a brand-new one</a> instead.</p>
+  {{if not .Variants}}
+    <p class="card">The catalog is empty.</p>
+  {{end}}
+  {{range .Variants}}
+    <form class="card" method="POST" action="/jam/{{$.Code}}/catalog" style="display:flex; justify-content:space-between; align-items:center">
+      <div><strong>{{.Title}}</strong> <small>{{.Artist}}</small></div>
+      <div>
+        <input type="hidden" name="variant_id" value="{{.VariantID}}">
+        <button type="submit">add to jam</button>
+        <button type="submit" formaction="/jam/{{$.Code}}/fork">fork for jam</button>
+      </div>
+    </form>
+  {{end}}
+</main>
+</body>
+</html>
+{{end}}

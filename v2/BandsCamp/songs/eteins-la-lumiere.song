@@ -1,0 +1,25 @@
+title:  Eteins La Lumiere
+artist: Axel Bauer
+key:    Dm
+tempo:  96
+time:   4/4
+map:    Intro · Verse · Chorus · Verse · Chorus · Bridge · Chorus
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: |: Dm | Bb | F | C :|
+
+[Verse]
+
+[Chorus]
+
+[Verse]
+
+[Chorus]
+
+[Bridge]
+
+[Chorus]

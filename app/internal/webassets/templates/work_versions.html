@@ -1,0 +1,79 @@
+{{define "work_versions"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>All versions — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="app-header">
+  <a class="back-link" href="/catalog">{{template "icon-back"}} Catalog</a>
+  <h1>All versions</h1>
+</header>
+<main class="index">
+  {{range .Variants}}
+  <section class="card" data-variant-id="{{.VariantID}}">
+    <h2><a href="/b/{{.Book}}/{{.Stem}}">{{.Title}}</a> — {{.Artist}}</h2>
+    <p class="hint">{{.Book}}/{{.Stem}} &middot; {{.Visibility}}{{if .ForkedFromID}} &middot; forked from <a href="/variants/{{deref64 .ForkedFromID}}/history">variant {{deref64 .ForkedFromID}}</a>{{end}}</p>
+    <div class="variant-actions">
+      <button type="button" class="add-catalog-btn" data-variant-id="{{.VariantID}}">+ my songbook</button>
+      <button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">fork</button>
+      <a href="/variants/{{.VariantID}}/history">revision history</a>
+    </div>
+
+    <h3>Notes</h3>
+    <ul class="annotation-list">
+      {{range .Annotations}}
+      <li><strong>{{.PersonName}}</strong> <span class="hint">{{.CreatedAt.Format "2006-01-02 15:04"}}</span><br>{{.Body}}</li>
+      {{else}}
+      <li class="hint">No notes yet.</li>
+      {{end}}
+    </ul>
+    <form class="annotate-form" data-variant-id="{{.VariantID}}">
+      <textarea name="body" rows="2" placeholder="Leave a note on this version..." required></textarea>
+      <button type="submit">Add note</button>
+    </form>
+  </section>
+  {{end}}
+</main>
+<script>
+document.querySelectorAll('.add-catalog-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const variantId = Number(btn.dataset.variantId);
+    const res = await fetch('/api/catalog', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({variantId}),
+    });
+    btn.textContent = res.ok ? 'added' : 'failed';
+  });
+});
+document.querySelectorAll('.fork-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const variantId = Number(btn.dataset.variantId);
+    const res = await fetch(`/api/variants/${variantId}/fork`, {method: 'POST'});
+    const data = await res.json();
+    if (res.ok) {
+      location.href = `/b/${encodeURIComponent(data.book)}/${encodeURIComponent(data.stem)}`;
+    } else {
+      btn.textContent = data.error || 'fork failed';
+    }
+  });
+});
+document.querySelectorAll('.annotate-form').forEach(form => {
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const variantId = Number(form.dataset.variantId);
+    const body = form.elements.body.value;
+    const res = await fetch(`/api/variants/${variantId}/annotations`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({body}),
+    });
+    if (res.ok) location.reload();
+  });
+});
+</script>
+</body>
+</html>
+{{end}}

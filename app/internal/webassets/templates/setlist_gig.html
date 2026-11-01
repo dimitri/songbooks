@@ -1,0 +1,50 @@
+{{define "setlist-gig"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} — gig view — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
+</head>
+<body data-gig="1">
+<header class="app-header">
+  <a class="back-link" href="/setlists/{{.Book}}/{{.Stem}}">{{template "icon-back"}} edit</a>
+  <h1>{{.Title}}</h1>
+  <nav class="song-nav">
+    <a class="icon-btn" href="/setlists/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF" download>PDF</a>
+    <button id="gig-theme-toggle" class="icon-btn" type="button" title="toggle light/dark">{{template "icon-theme"}}</button>
+  </nav>
+</header>
+
+{{if or .Date .Venue}}
+<div class="gig-meta">
+  {{if .Date}}<span>{{.Date}}</span>{{end}}
+  {{if .Venue}}<span>{{.Venue}}</span>{{end}}
+</div>
+{{end}}
+
+<main class="gig-sets">
+  {{range .Sets}}
+  <section class="gig-set">
+    <h2>{{.Label}}</h2>
+    <div class="gig-table">
+      {{range .Rows}}
+      <a class="gig-row" href="/b/{{.Book}}/{{.Stem}}?setlist={{$.SetlistRef}}&amp;gig=1">
+        <span class="gig-num">{{.Num}}</span>
+        <span class="gig-title">{{.Title}}{{if .Note}}<small class="gig-note">{{.Note}}</small>{{end}}</span>
+        <span class="gig-key">{{.Key}}</span>
+        <span class="gig-tempo">{{if .Tempo}}{{.Tempo}}{{end}}</span>
+      </a>
+      {{end}}
+    </div>
+  </section>
+  {{end}}
+</main>
+
+<script src="/static/js/gig.js"></script>
+{{template "pwa-register"}}
+</body>
+</html>
+{{end}}

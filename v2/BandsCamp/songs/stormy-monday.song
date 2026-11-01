@@ -1,0 +1,25 @@
+title:  Stormy Monday
+artist: T-Bone Walker
+key:    G
+tempo:  62
+time:   12/8
+map:    Head · Solo · Head · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Head]
+grid: |: G7 | C9 | G7 | % |
+
+[ ]
+grid: | C9 | % | G7 | % |
+
+[ ]
+grid: | Am7 | Bbm7 | Am7 | D9 :|
+
+[Solo]
+
+[Head]
+
+[Outro]

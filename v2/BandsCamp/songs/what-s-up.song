@@ -1,0 +1,25 @@
+title:  What's Up
+artist: 4 Non Blondes
+key:    A
+tempo:  85
+time:   4/4
+map:    Intro · Verse · Pre-Chorus · Chorus · Verse · Chorus · Outro
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Intro]
+grid: |: A | Bm | D | A :|
+
+[Verse]
+
+[Pre-Chorus]
+
+[Chorus]
+
+[Verse]
+
+[Chorus]
+
+[Outro]

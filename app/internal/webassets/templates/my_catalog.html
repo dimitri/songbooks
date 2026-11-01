@@ -1,0 +1,47 @@
+{{define "my_catalog"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My songbook — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="app-header">
+  <a class="back-link" href="/catalog">{{template "icon-back"}} Catalog</a>
+  <h1>My songbook</h1>
+</header>
+<main class="index">
+  <p class="hint">Pointers into the catalog — adding a song here doesn't copy it; forking does (and swaps the pointer to your fork).</p>
+  <table class="card" style="width:100%">
+    <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th>Visibility</th><th></th></tr></thead>
+    <tbody>
+    {{range .Entries}}
+      <tr data-variant-id="{{.VariantID}}">
+        <td><a href="/b/{{.Book}}/{{.Stem}}">{{.Title}}</a></td>
+        <td>{{.Artist}}</td>
+        <td>{{.Book}}</td>
+        <td>{{.Visibility}}{{if .ForkedFromID}} (<a href="/variants/{{deref64 .ForkedFromID}}/history">forked from</a>){{end}}</td>
+        <td>
+          <a href="/works/{{.WorkID}}">all versions</a>
+          <a href="/variants/{{.VariantID}}/history">history</a>
+          <button type="button" class="remove-catalog-btn" data-variant-id="{{.VariantID}}">remove</button>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+</main>
+<script>
+document.querySelectorAll('.remove-catalog-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const variantId = btn.dataset.variantId;
+    await fetch(`/api/catalog/${variantId}`, {method: 'DELETE'});
+    btn.closest('tr').remove();
+  });
+});
+</script>
+</body>
+</html>
+{{end}}

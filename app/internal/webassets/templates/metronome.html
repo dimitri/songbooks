@@ -1,0 +1,78 @@
+{{define "metronome"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metronome — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
+</head>
+<body>
+<header class="app-header">
+  <a href="/">&larr; Books</a>
+  <h1>Metronome</h1>
+  <nav class="song-nav">
+    <button id="theme-toggle" class="icon-btn" type="button" title="toggle light/dark">{{template "icon-theme"}}</button>
+  </nav>
+</header>
+<main>
+  <section class="card book-card metronome-standalone" id="metronome">
+    <div class="metro-bpm-row">
+      <button id="bpm-down" type="button" class="icon-btn" aria-label="slower">&minus;</button>
+      <div class="metro-bpm-display">
+        <input type="text" id="bpm-input" value="100" inputmode="numeric">
+        <span class="bpm-unit">bpm</span>
+      </div>
+      <button id="bpm-up" type="button" class="icon-btn" aria-label="faster">+</button>
+    </div>
+
+    <div class="beat-dots metro-beat-dots" id="beat-dots" aria-hidden="true"></div>
+
+    <div class="metro-transport-controls">
+      <button id="play-pause-btn" type="button" title="start" class="primary icon-btn">{{template "icon-play"}}</button>
+      <button id="tap-btn" type="button" title="tap tempo" class="icon-btn">{{template "icon-tap"}}</button>
+    </div>
+
+    <div class="metro-section">
+      <h3>Time signature</h3>
+      <div class="metro-icon-row" id="time-sig-picker" data-value="4/4">
+        <button type="button" data-value="2/4">2/4</button>
+        <button type="button" data-value="3/4">3/4</button>
+        <button type="button" data-value="4/4" class="active">4/4</button>
+        <button type="button" data-value="5/4">5/4</button>
+        <button type="button" data-value="6/8">6/8</button>
+        <button type="button" data-value="9/8">9/8</button>
+        <button type="button" data-value="12/8">12/8</button>
+      </div>
+    </div>
+
+    <div class="metro-section">
+      <h3>Accent</h3>
+      <div class="metro-icon-row" id="accent-preset">
+        <button type="button" data-value="downbeat" class="active">downbeat</button>
+        <button type="button" data-value="backbeat">backbeat (2 &amp; 4)</button>
+        <button type="button" data-value="every">every beat</button>
+        <button type="button" data-value="none">none</button>
+      </div>
+      <p class="hint">Or tap individual beats below to build a custom accent pattern — handy for groove practice (e.g. just the "and" of 2).</p>
+      <div class="metro-beat-picker" id="beat-picker"></div>
+    </div>
+
+    <div class="metro-section">
+      <h3>Sound</h3>
+      <div class="metro-icon-row" id="sound-picker" data-value="click">
+        <button type="button" data-value="click" class="active" title="Click">{{template "icon-sound-click"}}</button>
+        <button type="button" data-value="beep" title="Beep">{{template "icon-sound-beep"}}</button>
+        <button type="button" data-value="wood" title="Wood block">{{template "icon-sound-wood"}}</button>
+        <button type="button" data-value="tick" title="Tick">{{template "icon-sound-tick"}}</button>
+      </div>
+    </div>
+  </section>
+</main>
+<script src="/static/js/clock.js"></script>
+<script src="/static/js/metronome-page.js"></script>
+{{template "pwa-register"}}
+</body>
+</html>
+{{end}}

@@ -1,0 +1,51 @@
+{{define "index"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
+</head>
+<body>
+<header class="app-header">
+  <h1>Songbooks</h1>
+  <nav class="song-nav">
+    <a href="/metronome">metronome</a>
+    <a href="/setlists">set lists</a>
+    <a href="/catalog">catalog</a>
+    <a href="/catalog/mine">my songbook</a>
+    <a href="/bands">bands</a>
+    <button id="import-project-btn" type="button">{{template "icon-download"}} Import</button>
+    <input type="file" id="import-project-file" accept=".zip" hidden>
+    <button id="add-project-btn" type="button">{{template "icon-plus"}} project</button>
+    {{if and .Me .Me.IsAdmin}}<a href="/admin">admin</a>{{end}}
+  </nav>
+</header>
+<main class="index">
+  <div class="hero">
+    <div class="hero-mark">{{template "icon-logo"}}</div>
+    <div>
+      <h2>Your songbooks</h2>
+      <p>Projects, sets, charts — pick one below.</p>
+    </div>
+  </div>
+  <div class="project-grid">
+  {{range .Books}}
+    <a class="project-card card" href="/b/{{.Name}}">
+      <h2>{{.Name}}</h2>
+      <div class="project-stats">
+        <span>{{.SongCount}} song{{if ne .SongCount 1}}s{{end}}</span>
+        {{if .HasOrder}}<span>{{.SetCount}} set{{if ne .SetCount 1}}s{{end}}</span>{{end}}
+        {{if .Setlists}}<span>{{.Setlists}} setlist{{if ne .Setlists 1}}s{{end}}</span>{{end}}
+      </div>
+    </a>
+  {{end}}
+  </div>
+</main>
+<script src="/static/js/index.js"></script>
+{{template "pwa-register"}}
+</body>
+</html>
+{{end}}

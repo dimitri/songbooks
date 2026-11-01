@@ -1,0 +1,21 @@
+title:  The Chicken
+artist: Jaco Pastorius
+key:    Bb
+tempo:  108
+time:   4/4
+map:    Head · B · Solo · Head
+flats:  yes
+
+
+# Chord changes only. Lyrics go under each section as
+#   Some [Gm]words here
+
+[Head]
+grid: |: Bb7 | % | Eb7 | Bb7 |
+
+[B]
+grid: | F7 | Eb7 | Bb7 | % :|
+
+[Solo]
+
+[Head]
