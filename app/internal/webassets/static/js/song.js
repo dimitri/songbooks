@@ -586,6 +586,14 @@ const ICONS = {
       return;
     }
     sheet.dataset.renderMode = v;
+    // Leaving jazz mode: its own fit search (applyPageBox) can leave
+    // #sheet's font-size shrunk from whatever it set last — reflow below
+    // measures bar widths at #sheet's CURRENT font-size, so switching
+    // straight to normal/lyrics/map without resetting it first would
+    // size this pass off jazz's leftover (often smaller) pixel value
+    // instead of the new mode's real one, under-splitting rows that then
+    // render too narrow once the browser repaints at the real size.
+    sheet.style.fontSize = '';
     // A grid hidden in the PREVIOUS mode reads clientWidth 0 while
     // reflowStaffLines() skips it, so switching to a mode that shows it
     // needs a fresh pass now that it's actually laid out and measurable.
