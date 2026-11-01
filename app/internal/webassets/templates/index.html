@@ -22,6 +22,7 @@
     <input type="file" id="import-project-file" accept=".zip" hidden>
     <button id="add-project-btn" type="button">{{template "icon-plus"}} project</button>
     {{if and .Me .Me.IsAdmin}}<a href="/admin">admin</a>{{end}}
+    {{template "notif-bell"}}
   </nav>
 </header>
 <main class="index">
@@ -46,6 +47,7 @@
   </div>
 </main>
 <script src="/static/js/index.js"></script>
+{{template "notif-bell-script"}}
 {{template "pwa-register"}}
 </body>
 </html>

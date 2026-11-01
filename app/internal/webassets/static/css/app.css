@@ -163,6 +163,16 @@ input[type="text"], input[type="url"], input[type="date"] {
 .app-header h1 { margin: 0; font-size: 1.25rem; font-weight: 700; }
 .song-nav { margin-left: auto; display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
 
+/* ---- Notification bell -------------------------------------------------- */
+.notif-bell { position: relative; display: inline-flex; align-items: center; color: inherit; }
+.notif-badge {
+  position: absolute; top: -0.4rem; right: -0.6rem;
+  background: #d64545; color: #fff; border-radius: 999px;
+  font-size: 0.65rem; font-weight: 700; line-height: 1;
+  padding: 0.15rem 0.4rem; min-width: 1.1rem; text-align: center;
+}
+tr.unread { font-weight: 600; }
+
 main { padding: 1.1rem; max-width: 68rem; margin: 0 auto; }
 
 /* ---- Tempo / time-signature badge --------------------------------------- */

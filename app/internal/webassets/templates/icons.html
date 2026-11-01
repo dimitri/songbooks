@@ -39,6 +39,25 @@
 {{define "icon-theme-light"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="3.6" fill="currentColor" stroke="none"/><path d="M10 2v1.8M10 16.2V18M18 10h-1.8M3.8 10H2M15.4 4.6l-1.3 1.3M5.9 14.1l-1.3 1.3M15.4 15.4l-1.3-1.3M5.9 5.9 4.6 4.6"/></svg>{{end}}
 {{define "icon-theme-dark"}}<svg class="icon" viewBox="0 0 20 20" fill="currentColor" stroke="none" aria-hidden="true"><path d="M16.5 12.8A7 7 0 0 1 7.2 3.5a7 7 0 1 0 9.3 9.3z"/></svg>{{end}}
 
+{{define "icon-bell"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8.5a5 5 0 0 1 10 0v2.8l1.3 2.2H3.7L5 11.3Z"/><path d="M8 15.8a2 2 0 0 0 4 0"/></svg>{{end}}
+
+{{/* notif-bell/notif-bell-script: the nav bell + unread-count badge,
+     shared across every page that includes it (currently just index.html
+     — see the phase brief's note that there's no single shared
+     base/layout template to hang this off of everywhere). Links to
+     /notifications; the script fills in the badge from
+     /api/notifications/unread-count after load. */}}
+{{define "notif-bell"}}<a href="/notifications" class="notif-bell" id="notif-bell-link" title="Notifications">{{template "icon-bell"}}<span id="notif-badge" class="notif-badge" hidden>0</span></a>{{end}}
+{{define "notif-bell-script"}}<script>
+(function () {
+  fetch('/api/notifications/unread-count').then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+    if (!data || !data.count) return;
+    var badge = document.getElementById('notif-badge');
+    if (badge) { badge.textContent = data.count; badge.hidden = false; }
+  }).catch(function () {});
+})();
+</script>{{end}}
+
 {{define "icon-plus"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>{{end}}
 
 {{define "icon-trash"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6h11M8 6V4.3h4V6M6 6l.7 9.2a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9L14 6"/></svg>{{end}}
