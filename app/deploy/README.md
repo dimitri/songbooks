@@ -133,6 +133,27 @@ instance today but is a real blocker for inviting band members to actually
 use their own accounts on this deployment; real SMTP should be the very
 next infra follow-up once someone besides the admin needs to log in.
 
+## `--dev-auto-login` / `SONGBOOKS_DEV_AUTO_LOGIN` — NEVER set this here
+
+The app binary supports a dev-only flag/env var, `--dev-auto-login <username>`
+/ `SONGBOOKS_DEV_AUTO_LOGIN=<username>`, that makes **every** request
+automatically authenticated as that person — no cookie, no session, `/login`
+skipped entirely. It exists purely for fast local iteration against
+`songbooks_dev` on a dev machine.
+
+**This must NEVER be set anywhere in this deployment** — not in
+`docker-compose.yml`'s `environment:`, not in `deploy/.env`, not passed as a
+`command:` arg. Doing so would disable authentication for every visitor to
+`songbooks.tapoueh.org`, i.e. anyone on the public internet gets to act as
+that person with no login step at all. If the app's startup logs
+(`docker compose logs app`) ever show the loud `!!! DEV AUTO-LOGIN IS
+ACTIVE !!!` banner on this host, treat it as a live incident: stop the
+container immediately (`docker compose down`), remove whatever set the flag
+or env var, and only bring it back up once confirmed absent.
+
+This deployment's `docker-compose.yml` does not set it, and nothing in this
+directory should ever be changed to do so.
+
 ## Caddy
 
 The host's `/etc/caddy/Caddyfile` has a `songbooks.tapoueh.org` block
