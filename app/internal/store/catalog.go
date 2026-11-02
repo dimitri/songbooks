@@ -30,6 +30,39 @@ type Work struct {
 	ID     int64
 	Title  string
 	Artist string
+	Genre  string
+}
+
+// GetWork fetches one work by id, genre included.
+func (st *Store) GetWork(ctx context.Context, workID int64) (*Work, error) {
+	var w Work
+	err := st.db.QueryRow(ctx, `SELECT id, title, artist, coalesce(genre, '') FROM works WHERE id = $1`, workID).
+		Scan(&w.ID, &w.Title, &w.Artist, &w.Genre)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("no such work %d: %w", workID, ErrNotFound)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &w, nil
+}
+
+// SetWorkGenre sets (or clears, with "") workID's free-text genre —
+// see migration 0030's comment for why this lives on works rather than
+// per-variant.
+func (st *Store) SetWorkGenre(ctx context.Context, workID int64, genre string) error {
+	var arg any
+	if genre != "" {
+		arg = genre
+	}
+	tag, err := st.db.Exec(ctx, `UPDATE works SET genre = $1 WHERE id = $2`, arg, workID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no such work %d: %w", workID, ErrNotFound)
+	}
+	return nil
 }
 
 // findOrCreateWork matches title/artist against works by simple
@@ -80,6 +113,27 @@ func (st *Store) ListWorks(ctx context.Context) ([]Work, error) {
 	return out, rows.Err()
 }
 
+// ListGenres returns every distinct non-empty genre value currently set
+// on a work, alphabetically — populates the catalog page's genre filter
+// dropdown. Free text (see migration 0030), so this is literally
+// "whatever strings people have typed," not a fixed vocabulary.
+func (st *Store) ListGenres(ctx context.Context) ([]string, error) {
+	rows, err := st.db.Query(ctx, `SELECT DISTINCT genre FROM works WHERE genre IS NOT NULL AND genre <> '' ORDER BY genre`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var g string
+		if err := rows.Scan(&g); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
 // CatalogVariant is one row of a catalog browse listing: a variant
 // (songs row) plus the work/project context a browse page shows it with.
 type CatalogVariant struct {
@@ -95,6 +149,7 @@ type CatalogVariant struct {
 	OwnerSchoolID   *int64
 	OwnerJamEventID *int64
 	ForkedFromID    *int64
+	Genre           string // from the parent work; "" means unset, not filtered out of an unfiltered listing
 }
 
 // CatalogFilter narrows ListCatalog's listing. Zero values mean "no
@@ -102,6 +157,7 @@ type CatalogVariant struct {
 type CatalogFilter struct {
 	Artist  string // exact match (case-sensitive on the stored value, as typed in the filter UI's dropdown)
 	Project string // project (book) slug
+	Genre   string // exact match against works.genre
 	Sort    string // "artist" sorts by artist then title; anything else (including "") sorts alphabetically by title
 }
 
@@ -123,12 +179,13 @@ func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter Catalog
 		order = "s.artist, s.title"
 	}
 	rows, err := st.db.Query(ctx, `
-		SELECT s.id, s.work_id, s.title, s.artist, p.slug, s.stem, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_school_id, s.owner_jam_event_id, s.forked_from_id
-		FROM songs s JOIN projects p ON p.id = s.project_id
+		SELECT s.id, s.work_id, s.title, s.artist, p.slug, s.stem, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_school_id, s.owner_jam_event_id, s.forked_from_id, coalesce(w.genre, '')
+		FROM songs s JOIN projects p ON p.id = s.project_id JOIN works w ON w.id = s.work_id
 		WHERE (s.visibility = 'global' OR s.owner_person_id = $1)
 		  AND ($2 = '' OR s.artist = $2)
 		  AND ($3 = '' OR p.slug = $3)
-		ORDER BY `+order, viewerID, filter.Artist, filter.Project)
+		  AND ($4 = '' OR w.genre = $4)
+		ORDER BY `+order, viewerID, filter.Artist, filter.Project, filter.Genre)
 	if err != nil {
 		return nil, err
 	}
@@ -155,8 +212,8 @@ func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter Catalog
 // just an under-inclusion bug for the band's own members.
 func (st *Store) ListVariantsForWork(ctx context.Context, workID, viewerID int64) ([]CatalogVariant, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT s.id, s.work_id, s.title, s.artist, p.slug, s.stem, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_school_id, s.owner_jam_event_id, s.forked_from_id
-		FROM songs s JOIN projects p ON p.id = s.project_id
+		SELECT s.id, s.work_id, s.title, s.artist, p.slug, s.stem, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_school_id, s.owner_jam_event_id, s.forked_from_id, coalesce(w.genre, '')
+		FROM songs s JOIN projects p ON p.id = s.project_id JOIN works w ON w.id = s.work_id
 		WHERE s.work_id = $1 AND (
 		  s.visibility = 'global'
 		  OR (s.visibility = 'user' AND s.owner_person_id = $2)
@@ -179,7 +236,7 @@ func scanCatalogVariants(rows pgx.Rows) ([]CatalogVariant, error) {
 	var out []CatalogVariant
 	for rows.Next() {
 		var v CatalogVariant
-		if err := rows.Scan(&v.VariantID, &v.WorkID, &v.Title, &v.Artist, &v.Book, &v.Stem, &v.Visibility, &v.OwnerID, &v.OwnerBandID, &v.OwnerSchoolID, &v.OwnerJamEventID, &v.ForkedFromID); err != nil {
+		if err := rows.Scan(&v.VariantID, &v.WorkID, &v.Title, &v.Artist, &v.Book, &v.Stem, &v.Visibility, &v.OwnerID, &v.OwnerBandID, &v.OwnerSchoolID, &v.OwnerJamEventID, &v.ForkedFromID, &v.Genre); err != nil {
 			return nil, err
 		}
 		out = append(out, v)

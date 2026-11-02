@@ -414,3 +414,52 @@ func (st *Store) RemoveSetlistGig(ctx context.Context, gigID int64) error {
 	_, err := st.db.Exec(ctx, `DELETE FROM setlist_gigs WHERE id = $1`, gigID)
 	return err
 }
+
+// UpcomingGig is one future gig row, flattened with enough of its
+// setlist's own context (title, which band if any) for a "coming up"
+// card to render without a second round trip.
+type UpcomingGig struct {
+	ID           int64
+	SetlistID    int64
+	Date         time.Time
+	Venue        string
+	Notes        string
+	SetlistTitle string
+	BandName     string // "" for a personal setlist
+}
+
+// ListUpcomingGigsForPerson finds the soonest (today or later) gigs
+// across every setlist personID can see — their own person-scoped
+// setlists, plus every band-scoped setlist belonging to a band they're
+// currently a member of. Used by the home page's "coming up" card, so
+// capped at a handful rather than every future gig ever entered.
+func (st *Store) ListUpcomingGigsForPerson(ctx context.Context, personID int64, limit int) ([]UpcomingGig, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT g.id, g.setlist_id, g.date, g.venue, g.notes,
+		       sl.title, coalesce(b.name, '')
+		FROM setlist_gigs g
+		JOIN setlists sl ON sl.id = g.setlist_id
+		LEFT JOIN bands b ON b.id = sl.owner_band_id
+		WHERE g.date >= current_date
+		  AND (
+		    sl.owner_person_id = $1
+		    OR sl.owner_band_id IN (
+		      SELECT band_id FROM band_members WHERE person_id = $1 AND left_at IS NULL
+		    )
+		  )
+		ORDER BY g.date ASC, g.id ASC
+		LIMIT $2`, personID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []UpcomingGig
+	for rows.Next() {
+		var g UpcomingGig
+		if err := rows.Scan(&g.ID, &g.SetlistID, &g.Date, &g.Venue, &g.Notes, &g.SetlistTitle, &g.BandName); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
