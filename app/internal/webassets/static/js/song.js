@@ -16,6 +16,9 @@ const ICONS = {
 (function () {
   const book = document.getElementById('structure')?.dataset.book || document.getElementById('editor')?.dataset.book;
   const stem = document.getElementById('structure')?.dataset.stem || document.getElementById('editor')?.dataset.stem;
+  const editorEl = document.getElementById('editor');
+  const pageVariantId = Number(editorEl?.dataset.variantId) || 0;
+  const pageCanEdit = editorEl?.dataset.canEdit !== 'false';
 
   // ---- Clock / metronome ---------------------------------------------------
   const transportEl = document.getElementById('transport');
@@ -393,7 +396,10 @@ const ICONS = {
   metronome.enabled = metroModeEl.dataset.value !== 'off';
   wireSegmented('metro-mode', v => { if (!clock.running) metronome.enabled = v !== 'off'; });
   wireSegmented('intro-bars', () => {});
-  wireSegmented('sound-picker', v => { metronome.sound = v; });
+  wireSegmented('sound-picker', v => {
+    if (v === 'kick-hihat' || v === 'backbeat') { metronome.pattern = v; }
+    else { metronome.sound = v; metronome.pattern = 'plain'; }
+  });
 
   function setPlaying(playing) {
     if (!playing) {
@@ -853,12 +859,37 @@ const ICONS = {
       rebindSheet();
     }
   }
-  editToggle.addEventListener('click', () => setDrawerOpen(drawer.hidden));
+  // Implicit fork: a viewer without edit rights on this variant never sees
+  // a separate "fork" button/step (the old explicit fork-variant-btn is
+  // gone — see play.html) — tapping Edit silently forks it for them first,
+  // then lands them on the fork's own page with the drawer already open.
+  // CanEdit viewers (the common case) skip straight to setDrawerOpen.
+  editToggle.addEventListener('click', async () => {
+    if (drawer.hidden && !pageCanEdit && pageVariantId) {
+      editToggle.disabled = true;
+      try {
+        const res = await fetch(`/api/variants/${pageVariantId}/fork`, {method: 'POST'});
+        const data = await res.json();
+        if (!res.ok) { alert(data.error || "couldn't create your own copy to edit"); return; }
+        location.href = `/b/${encodeURIComponent(data.book)}/${encodeURIComponent(data.stem)}?edit=1`;
+        return;
+      } finally {
+        editToggle.disabled = false;
+      }
+    }
+    setDrawerOpen(drawer.hidden);
+  });
   closeEditBtn.addEventListener('click', () => setDrawerOpen(false));
   drawerBackdrop.addEventListener('click', () => setDrawerOpen(false));
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && !drawer.hidden) setDrawerOpen(false);
   });
+  // Landed here straight from an implicit fork above — open the drawer
+  // immediately instead of making the reader tap Edit a second time.
+  if (new URLSearchParams(location.search).get('edit') === '1') {
+    setDrawerOpen(true);
+    history.replaceState(null, '', location.pathname + location.search.replace(/[?&]edit=1/, '').replace(/^&/, '?') + location.hash);
+  }
 
   // ---- Mobile off-canvas controls sheet ---------------------------------
   // See the max-width:900px CSS: below that width the sidebar (transport +

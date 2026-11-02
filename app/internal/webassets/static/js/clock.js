@@ -93,6 +93,12 @@ class Metronome {
   constructor(clock) {
     this.clock = clock;
     this.sound = 'click';
+    // pattern: 'plain' (default) uses the single-timbre `sound` above,
+    // accented per ACCENTS/customAccents. 'kick-hihat' and 'backbeat'
+    // assign a voice per main-pulse PARITY instead (see _patternClick) —
+    // independent of `sound`, which is ignored while one of these is
+    // active.
+    this.pattern = 'plain';
     this.enabled = true;
     this._ctx = null;
     this._timer = null;
@@ -127,6 +133,75 @@ class Metronome {
     osc.stop(atTime + dur);
   }
 
+  // Synthesized kick: a sine oscillator with a fast downward pitch sweep
+  // (the standard Web Audio "808 kick" technique) — needs its own pitch
+  // envelope, unlike the fixed-frequency tones _click uses for
+  // click/beep/wood/tick.
+  _kick(atTime, vol = 1) {
+    const ctx = this._ctx;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, atTime);
+    osc.frequency.exponentialRampToValueAtTime(45, atTime + 0.1);
+    gain.gain.setValueAtTime(vol, atTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, atTime + 0.12);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(atTime);
+    osc.stop(atTime + 0.13);
+  }
+
+  // Synthesized hi-hat: filtered white noise, not a tone — a short burst
+  // of random samples through a high-pass filter is the standard Web
+  // Audio hi-hat technique, and is what makes it read as noisy/bright
+  // rather than pitched.
+  _hihat(atTime, vol = 0.5) {
+    const ctx = this._ctx;
+    const n = Math.ceil(ctx.sampleRate * 0.05);
+    const buffer = ctx.createBuffer(1, n, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < n; i++) data[i] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 7000;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(vol, atTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, atTime + 0.018);
+    noise.connect(hp).connect(gain).connect(ctx.destination);
+    noise.start(atTime);
+    noise.stop(atTime + 0.03);
+  }
+
+  // Pattern voice selection for 'kick-hihat'/'backbeat', by main-pulse
+  // PARITY rather than a meter-specific lookup table. This generalizes
+  // correctly across time signatures for free, because beatsPerBar here
+  // is already normalized upstream to main-pulse count, not the raw
+  // numerator (see timeSigBeats in handlers_pages.go / beatsForSig in
+  // metronome-page.js: 6/8 -> 2 pulses, 12/8 -> 4 pulses, same as plain
+  // 4/4's 4 beats). So "kick on pulse 1 & 3, hi-hat on 2 & 4" in 4/4
+  // (0-indexed: kick on even pulses, hi-hat on odd) is literally the same
+  // rule as 12/8's "kick on dotted-quarter pulses 1 & 3, hi-hat on 2 & 4"
+  // (also 4 pulses) and 6/8's "kick on pulse 1, hi-hat on pulse 2" (2
+  // pulses) — no per-signature special case needed, and it falls back
+  // sensibly to any other beatsPerBar (3/4, 9/8, 5/4, ...) the same way.
+  // Backbeat mode is the same parity rule with the even (kick) slot
+  // silenced instead of voiced.
+  _patternClick(atTime, beatIndexInBar, accent) {
+    if (this.pattern === 'kick-hihat') {
+      if (beatIndexInBar % 2 === 0) this._kick(atTime);
+      else this._hihat(atTime);
+      return;
+    }
+    if (this.pattern === 'backbeat') {
+      if (beatIndexInBar % 2 === 1) this._hihat(atTime);
+      // Even pulses are silent by design — not quieter, absent.
+      return;
+    }
+    this._click(atTime, accent);
+  }
+
   // A "flam" (a quiet extra tick just before the real beat) — the
   // metronome equivalent of a drummer's pickup into a fill. A real fill
   // runs for a bar or two BEFORE the change and lands together with the
@@ -134,9 +209,13 @@ class Metronome {
   // to announce once you're already there, only before. So this is the
   // entire cue: no special sound on arrival, just an audibly busier last
   // bar leading into it, growing busier the closer it gets.
-  _pickup(atTime, accent, leadMs) {
-    this._click(atTime - leadMs / 1000, false);
-    this._click(atTime, accent);
+  _pickup(atTime, beatIndexInBar, accent, leadMs) {
+    // The lead-in tick is always a crisp, audible cue — even over an
+    // otherwise-silent backbeat pulse — since it's signaling "a section
+    // change is coming," not standing in for the beat's own voice.
+    if (this.pattern === 'kick-hihat' || this.pattern === 'backbeat') this._hihat(atTime - leadMs / 1000, 0.6);
+    else this._click(atTime - leadMs / 1000, false);
+    this._patternClick(atTime, beatIndexInBar, accent);
   }
 
   // One-off count-in clicks, independent of the running clock — used both
@@ -151,7 +230,8 @@ class Metronome {
     const beatDur = 60 / bpm;
     const accentBeats = ACCENTS[beatsPerBar] || [0];
     for (let i = 0; i < beats; i++) {
-      this._click(ctx.currentTime + 0.02, accentBeats.includes(i % beatsPerBar));
+      const idx = i % beatsPerBar;
+      this._patternClick(ctx.currentTime + 0.02, idx, accentBeats.includes(idx));
       await new Promise(r => setTimeout(r, beatDur * 1000));
     }
   }
@@ -198,9 +278,9 @@ class Metronome {
           if (starts.has(beat + d)) { toChange = d; break; }
         }
       }
-      if (toChange === 1) this._pickup(atTime, accent, 45);
-      else if (toChange === 2) this._pickup(atTime, accent, 80);
-      else this._click(atTime, accent);
+      if (toChange === 1) this._pickup(atTime, beatIndexInBar, accent, 45);
+      else if (toChange === 2) this._pickup(atTime, beatIndexInBar, accent, 80);
+      else this._patternClick(atTime, beatIndexInBar, accent);
       // Compound meter (6/8, 9/8, 12/8): each "beat" here is a dotted
       // quarter — three eighth notes — and the visual beat-dots already
       // show that subdivision as 3 sub-ticks. The audio should actually
