@@ -541,6 +541,51 @@ func (s *Server) handleAddBandCatalogEntry(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, map[string]bool{"added": true})
 }
 
+// handleImportProjectIntoBandCatalog bulk-adds every globally-visible
+// variant from one songbook project to the band's repertoire — the
+// "songs don't appear here automatically, even for a same-named project"
+// empty-state's real fix: one click instead of pasting each variant id
+// by hand. Reuses the exact same ListCatalog + AddBandCatalogEntry
+// primitives the single-id "add to repertoire" action already uses (a
+// pointer per song, same no-op-on-duplicate semantics), just looped.
+func (s *Server) handleImportProjectIntoBandCatalog(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		Project string `json:"project"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Project) == "" {
+		httpError(w, http.StatusBadRequest, "missing project")
+		return
+	}
+	actor := personFromContext(r)
+	variants, err := s.store.ListCatalog(r.Context(), actor.ID, store.CatalogFilter{Project: req.Project})
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	before, err := s.store.ListBandCatalog(r.Context(), bandID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	already := make(map[int64]bool, len(before))
+	for _, e := range before {
+		already[e.VariantID] = true
+	}
+	added := 0
+	for _, v := range variants {
+		if already[v.VariantID] {
+			continue
+		}
+		if err := s.store.AddBandCatalogEntry(r.Context(), bandID, v.VariantID, actor.ID); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		added++
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"added": added, "skipped": len(variants) - added})
+}
+
 // handleRemoveBandCatalogEntry drops the band's pointer to one variant.
 func (s *Server) handleRemoveBandCatalogEntry(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)

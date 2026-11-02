@@ -1753,13 +1753,14 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
     background: var(--bg-raised); border-top: 1px solid var(--border);
     box-shadow: var(--shadow);
   }
-  .song-context-bar button {
+  .song-context-bar button, .song-context-bar a {
     flex: 1 1 0; display: flex; align-items: center; justify-content: center; gap: 0.4rem;
     background: none; border: none; border-right: 1px solid var(--border);
     color: var(--fg-muted); font-size: 0.78rem; font-weight: 600;
+    text-decoration: none;
   }
-  .song-context-bar button:last-child { border-right: none; }
-  .song-context-bar button.active { color: var(--accent); }
+  .song-context-bar button:last-child, .song-context-bar a:last-child { border-right: none; }
+  .song-context-bar button.active, .song-context-bar a.active { color: var(--accent); }
   .song-context-bar .icon { width: 1.2rem; height: 1.2rem; }
 
   /* ---- View stack: a bottom sheet listing the 5 view modes ---------- */
@@ -1825,6 +1826,20 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
      .timeline sheet) is now the Metronome button in .song-context-bar,
      which sits in-flow in that bar rather than floating. */
   .mobile-controls-fab { display: none !important; }
+
+  /* The .song-context-bar's Metronome entry is now a plain link to the
+     dedicated /metronome page (see play.html), not a trigger for this
+     sheet -- nothing on mobile opens .timeline any more, so hide it
+     outright rather than relying on its "closed" translateY state. That
+     state was never fully off-screen anyway: .timeline sits at
+     `bottom: <tabbar-h + context-h>` (below), so translateY(100%) -- 100%
+     of its OWN height -- stops short by exactly that bottom offset,
+     leaving a real sliver of the play/stop/tap row visible above the
+     bottom bars even "closed". That's the actual root cause of the
+     peeking-panel bug reported earlier this session (misdiagnosed then
+     as a stale-cache artifact); real fix on mobile is to not render the
+     sheet at all, since it's unreachable now anyway. */
+  .timeline { display: none !important; }
 
   /* The .timeline sheet's resting position (and the view-stack's,
      above) must clear BOTH fixed bars now, not just one. */
@@ -1898,6 +1913,29 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   .song-nav a[href="/admin"] { display: none; }
 }
 
+/* Editor sidebar coexistence: while the desktop editor is open
+   (body.drawer-open, the same class the dirty-tracking/history logic
+   already toggles), the sidebar's global nav/"This song" group/account row
+   step aside for one "← Back to Play" row — Guitar Pro 8 hides its own
+   side panels to focus the toolbar+workspace at this 1/3+2/3 split, and a
+   full 5-item nav plus a 7-row "This song" group would be cramped and
+   redundant next to an editor that already has its own save/close
+   controls. The brand/logo link stays, so site identity doesn't vanish
+   mid-edit. Hidden by default (including on mobile, which has no
+   .desktop-sidebar to begin with); shown only under the condition below. */
+.sidebar-back-to-play { display: none; }
+@media (min-width: 901px) {
+  body.drawer-open .sidebar-primary,
+  body.drawer-open .sidebar-secondary,
+  body.drawer-open .sidebar-song-group,
+  body.drawer-open .sidebar-account { display: none; }
+  body.drawer-open .sidebar-back-to-play {
+    display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1rem;
+    margin: 0.4rem 0.6rem; border-radius: 6px; font-weight: 600;
+  }
+  body.drawer-open .sidebar-back-to-play:hover { background: var(--bg-sunken); }
+}
+
 /* Chord symbol typesetting — Brandt & Roemer style (see internal/chordsym):
    bold root, small raised quality, triangle for maj7, minor below the
    baseline, real flat/sharp glyphs. */
@@ -1941,18 +1979,32 @@ body.drawer-open { overflow: hidden; }
   }
 }
 /* Desktop (≥901px, the same threshold the sidebar/global-tab-bar split
-   already uses): editing is a true fullscreen VIEW too, not a JS popup
-   floating over a dimmed page — the same "edit is a mode, not a dialog"
-   rule the ≤760px mobile rule above already established, now extended to
-   desktop per the Guitar Pro-inspired editor rework. The 761–900px
-   tablet band keeps the original floating-card behavior — the user's own
-   spec only named "desktop" and "mobile", so that middle band is left as
-   a reasonable, non-breaking default rather than guessed at. */
+   already uses): editing used to be a fullscreen VIEW the same way mobile
+   is — but a `position:fixed;inset:0` overlay sits ABOVE the real
+   `.desktop-sidebar` (z-index 100 vs. the sidebar's own stacking context),
+   so opening the editor hid the site's nav chrome entirely and replaced it
+   with nothing, rather than the "editor fits in the nav bar design,
+   integrated back into the website" the user asked for. `.edit-drawer` is
+   already a sibling of `.song-topbar`/`.content-row` INSIDE `.app-content`
+   (see play.html) — `.app-content` itself already sits beside
+   `.desktop-sidebar` in the page's normal flex-row layout, so the fix is
+   simply to stop escaping that flow here: no `position:fixed`, fill
+   `.app-content`'s own box instead of the viewport. The real sidebar
+   stays exactly where it already was; only its CONTENT changes while
+   editing (see `.sidebar-back-to-play` below). The 761–900px tablet band
+   keeps the original floating-card behavior — the user's own spec only
+   named "desktop" and "mobile". */
 @media (min-width: 901px) {
   .edit-drawer:not([hidden]) {
-    inset: 0; border-radius: 0; box-shadow: none;
+    position: static; inset: auto; height: 100vh; border-radius: 0; box-shadow: none;
   }
   .edit-drawer-backdrop { display: none; }
+  /* The chart/topbar this editor replaces — hidden while editing so the
+     static-flow drawer above doesn't just stack on top of them (nothing
+     else here pulls them out of flow for us now that the drawer no longer
+     does via position:fixed). */
+  body.drawer-open .song-topbar,
+  body.drawer-open .content-row { display: none; }
 }
 .edit-drawer-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .edit-drawer-head #edit-drawer-close { margin-left: auto; }
@@ -2227,7 +2279,11 @@ input.matrix-slot:hover, input.matrix-slot:focus {
    child only declares grid-column:2, so they stack in source order
    within that column without needing an explicit grid-row each. */
 .bar-matrix.focus-mode {
-  display: grid; grid-template-columns: 260px 1fr; gap: 0 1.5rem; align-items: start;
+  /* 1/3 toolbar : 2/3 canvas, per the Guitar Pro-inspired editor spec —
+     minmax floors keep the toolbar from crushing below its own controls'
+     min-width on a narrower desktop window, and the canvas from vanishing
+     entirely on a very wide one. */
+  display: grid; grid-template-columns: minmax(260px, 1fr) minmax(0, 2fr); gap: 0 1.5rem; align-items: start;
   border: none; background: none; padding: 0;
 }
 .bar-matrix.focus-mode > .chord-toolbar {

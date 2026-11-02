@@ -1048,6 +1048,13 @@ const ICONS = {
   });
   closeEditBtn.addEventListener('click', () => setDrawerOpen(false));
   drawerBackdrop.addEventListener('click', () => setDrawerOpen(false));
+  // Desktop sidebar's "← Back to Play" row (only visible while the editor
+  // is open, see app.css body.drawer-open) — same close path as the X
+  // button, including the confirmDiscardIfDirty prompt.
+  document.getElementById('sidebar-back-to-play')?.addEventListener('click', e => {
+    e.preventDefault();
+    setDrawerOpen(false);
+  });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && !drawer.hidden) setDrawerOpen(false);
   });
@@ -1617,9 +1624,15 @@ const ICONS = {
     // they are. "bar 3 · 2/4" reads as a compact coordinate, not a caption.
     const slotLabel = toolbar.querySelector('.toolbar-slot-label');
     if (slotLabel) {
+      // Focus mode's status line is the "caret position" the research
+      // proposal asked for (section · bar · beat) — mobile's own toolbar
+      // already reads unambiguously without the section name repeated (one
+      // section is ever expanded/docked at a time there), so this prefix
+      // is focus-mode only.
+      const secPart = focusModeActive ? `${sec.label || (sec.repeat ? '(repeat)' : 'Untitled')} · ` : '';
       slotLabel.textContent = sel
-        ? `bar ${sel.mi + 1} · ${sel.ti + 1}/${sec.measures[sel.mi].tokens.length}${tok ? ' · ' + tok : ''}`
-        : 'no bar selected';
+        ? `${secPart}bar ${sel.mi + 1} · ${sel.ti + 1}/${sec.measures[sel.mi].tokens.length}${tok ? ' · ' + tok : ''}`
+        : (focusModeActive ? `${sec.label || 'Untitled'} · no bar selected` : 'no bar selected');
     }
     toolbar.classList.toggle('no-selection', !sel);
   }
@@ -1893,6 +1906,18 @@ const ICONS = {
         } else if (e.key === 'ArrowLeft' && input.selectionStart === 0) {
           e.preventDefault();
           moveSelection(sec, secIndexOf(sec), -1);
+        } else if (e.key === 'ArrowUp' && focusModeActive) {
+          // Desktop focus editor only: a section is one continuous
+          // horizontal staff line (no row above/below to move into), so
+          // Up/Down instead move the caret between SECTIONS — the
+          // TuxGuitar/Guitar Pro analogue of moving between tracks/the
+          // next structural unit, same prev/next the nav strip's own
+          // ‹/› buttons already do.
+          e.preventDefault();
+          if (focusIndex > 0) { focusIndex -= 1; renderFocusEditor(); }
+        } else if (e.key === 'ArrowDown' && focusModeActive) {
+          e.preventDefault();
+          if (focusIndex < structSections.length - 1) { focusIndex += 1; renderFocusEditor(); }
         }
       });
       row.append(input);

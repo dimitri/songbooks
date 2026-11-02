@@ -205,6 +205,13 @@
      completely untouched. */}}
 <nav class="desktop-sidebar" id="desktop-sidebar" aria-label="main navigation">
   <a class="sidebar-brand" href="/">{{template "icon-logo"}} Songbooks</a>
+  {{/* Phase 45: while the desktop editor is open, this single row replaces
+       the whole nav below (CSS, body.drawer-open) — "editor integrated
+       into the website" means it shares the sidebar's real estate, not a
+       second disconnected fullscreen takeover. Closes the editor the same
+       way the drawer's own X/Escape/backdrop do (confirmDiscardIfDirty
+       included), via song.js. */}}
+  <a class="sidebar-back-to-play" href="#" id="sidebar-back-to-play">{{template "icon-back"}} Back to Play</a>
   <div class="sidebar-primary">
     <a href="/" data-path="/" data-label="Home">{{template "icon-home"}} Home</a>
     <a href="/catalog" data-path="/catalog" data-label="Songbooks">{{template "icon-catalog"}} Songbooks</a>

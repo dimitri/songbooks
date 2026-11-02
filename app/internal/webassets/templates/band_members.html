@@ -21,7 +21,8 @@
     <a href="/bands/{{.Band.ID}}">Overview</a>
     <a href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
     <a href="/bands/{{.Band.ID}}/setlists">Setlists</a>
-    <a href="/bands/{{.Band.ID}}/proposals">Proposals &amp; Listening Party</a>
+    <a href="/bands/{{.Band.ID}}/proposals">Proposals</a>
+    <a href="/bands/{{.Band.ID}}/listening-party">Discover</a>
     <a href="/bands/{{.Band.ID}}/members" class="active">Members</a>
   </nav>
 
@@ -88,11 +89,10 @@
     </tbody>
   </table></div>
 
-  <div class="card">
-    <h2>Add people to this band</h2>
-
-    <div class="form-subsection">
-      <h3>Add an existing account</h3>
+  <div class="home-section-head" style="margin-top:0.4rem;"><h3>Add people to this band</h3></div>
+  <div class="card-grid">
+    <div class="card">
+      <h2>Add an existing account</h2>
       <div class="form-stack">
         <div class="field">
           <label for="add-username">Username</label>
@@ -106,14 +106,14 @@
           </select>
         </div>
         <div class="form-actions">
-          <button type="button" id="add-member-btn">Add to band</button>
+          <button type="button" id="add-member-btn" class="primary">Add to band</button>
         </div>
         <p id="add-member-result" class="hint"></p>
       </div>
     </div>
 
-    <div class="form-subsection">
-      <h3>Invite someone</h3>
+    <div class="card">
+      <h2>Invite someone</h2>
       <p class="hint">A single-use link — good for one person.</p>
       {{range .OpenInvites}}
       <div class="invite-link-row">
@@ -131,14 +131,14 @@
           </select>
         </div>
         <div class="form-actions">
-          <button type="button" id="create-band-invite-btn">Create a new invite link</button>
+          <button type="button" id="create-band-invite-btn" class="primary">Create a new invite link</button>
         </div>
         <p id="band-invite-result" class="hint"></p>
       </div>
     </div>
 
-    <div class="form-subsection">
-      <h3>Group invite link (roster)</h3>
+    <div class="card">
+      <h2>Group invite link (roster)</h2>
       <p class="hint">Type the names you expect (and optionally their instrument), then get ONE link to share — on WhatsApp, say. Each person who opens it picks their own name (or "someone else"), then creates an account or logs in. Everyone joins as a <strong>guest</strong> member; promote them to core afterwards if you like.</p>
       {{range .GroupInvites}}
         {{if not .ClosedAt}}
@@ -163,7 +163,7 @@
       </div>
       <div class="form-actions" style="margin-top:0.7rem">
         <button type="button" id="group-invite-add-row-btn">+ add another name</button>
-        <button type="button" id="create-group-invite-btn">Create a new group invite link</button>
+        <button type="button" id="create-group-invite-btn" class="primary">Create a new group invite link</button>
       </div>
       <p id="group-invite-result" class="hint"></p>
     </div>
@@ -171,6 +171,7 @@
 
   <div class="card" style="max-width:420px">
     <h2>Danger zone</h2>
+    <p class="hint">Deletes the band and its whole repertoire. This cannot be undone.</p>
     <button type="button" id="delete-band-btn" class="danger">Delete this band</button>
   </div>
 </main>

@@ -27,13 +27,14 @@
     <a href="/bands/{{.Band.ID}}" class="active">Overview</a>
     <a href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
     <a href="/bands/{{.Band.ID}}/setlists">Setlists</a>
-    <a href="/bands/{{.Band.ID}}/proposals">Proposals &amp; Listening Party</a>
+    <a href="/bands/{{.Band.ID}}/proposals">Proposals</a>
+    <a href="/bands/{{.Band.ID}}/listening-party">Discover</a>
     <a href="/bands/{{.Band.ID}}/members">Members</a>
   </nav>
 
   <div class="home-shortcuts">
     <a class="shortcut-btn" href="/bands/{{.Band.ID}}/proposals">{{template "icon-plus"}} Propose a song</a>
-    <a class="shortcut-btn" href="/bands/{{.Band.ID}}/listening-party">{{template "icon-play"}} Start a listening party</a>
+    <a class="shortcut-btn" href="/bands/{{.Band.ID}}/listening-party">{{template "icon-play"}} Discover a song</a>
     {{if .Repertoire}}<a class="shortcut-btn" href="/bands/{{.Band.ID}}/catalog">{{template "icon-edit"}} Edit a song</a>{{end}}
   </div>
 
@@ -52,7 +53,7 @@
     {{range .OpenProposals}}
       <a class="attention-row" href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">
         <div class="attention-title">
-          {{if eq .Kind "new_song"}}Listening party pick: {{.TargetTitle}}{{else}}Vote: new reference for {{.TargetTitle}}{{end}}
+          {{if eq .Kind "new_song"}}Discover pick: {{.TargetTitle}}{{else}}Vote: new reference for {{.TargetTitle}}{{end}}
         </div>
         <div class="attention-subtitle">proposed by {{.ProposerUsername}} &middot; {{.YesVotes}} yes, {{.VetoVotes}} veto so far</div>
       </a>
