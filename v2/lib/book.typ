@@ -20,6 +20,42 @@
     body
   })
 
+// A literal book cover: just the name, very large, nothing else — the
+// first thing a reader sees before the (more detailed) title page. Kept
+// deliberately plainer than title-plate so the two don't read as the same
+// page twice in a row.
+#let cover(name, t: none) = plate(t: t, {
+  v(1fr)
+  align(center, text(size: 54pt, weight: "bold", tracking: 0.1em, smallcaps(name)))
+  v(1fr)
+})
+
+// An event's own title page — a setlist tied to a real gig (date + venue
+// known). Distinct from the generic title-plate: event name is the lead,
+// band name secondary, date/venue as a small detail line below — the
+// "who, what, when, where" a musician actually wants before diving into
+// the setlist page. Callers with no date/venue (a setlist with no gig
+// attached, or a plain songbook export) should use title-plate instead —
+// this function always renders its date/venue line, so passing it blank
+// values reads as a mistake, not a graceful omission.
+#let event-title-plate(event, band, date, venue, t: none) = plate(t: t, {
+  v(1fr)
+  align(center, {
+    text(size: 38pt, weight: "bold", tracking: 0.06em, smallcaps(event))
+    if band != "" {
+      linebreak(); v(0.5em)
+      text(size: 20pt, fill: rgb("#c4c4c4"), tracking: 0.1em, smallcaps(band))
+    }
+  })
+  v(1fr)
+  align(center, {
+    if date != "" { text(size: 13pt, fill: rgb("#9a9a9a"), tracking: 0.1em, date) }
+    if date != "" and venue != "" { text(size: 13pt, fill: rgb("#6a6a6a"), "   \u{2022}   ") }
+    if venue != "" { text(size: 13pt, fill: rgb("#9a9a9a"), tracking: 0.1em, venue) }
+  })
+  v(0.6fr)
+})
+
 #let title-plate(title, subtitle: none, logo: none, t: none) = plate(t: t, {
   v(1fr)
   align(center, {
@@ -165,8 +201,20 @@
 
   set text(size: 9.5pt)
 
-  let group-header(name) = block(above: 0.3em, below: 0.3em, breakable: false,
-    text(size: 8.5pt, weight: "bold", tracking: 0.1em, fill: accent, upper(name)))
+  // A real "set break" — a blank gap plus a rule ABOVE the new group's
+  // label, not just a bold label row. A plain bold heading alone read as
+  // part of the previous set at a glance (the whole point of a break is
+  // that it's visually obvious even skimming fast before counting a song
+  // in); the old LaTeX setlist table got this right with a blank row +
+  // double rule between sets, so this mirrors that same clarity.
+  let group-header(name, first: false) = block(
+    above: if first { 0.3em } else { 1.1em }, below: 0.35em, breakable: false, {
+      if not first {
+        line(length: 100%, stroke: 0.7pt + th.rule)
+        v(0.4em)
+      }
+      text(size: 8.5pt, weight: "bold", tracking: 0.1em, fill: accent, upper(name))
+    })
 
   let body = {
     contents-head(th)
@@ -174,7 +222,7 @@
     line(length: 100%, stroke: 0.5pt + th.rule.lighten(55%))
     for (i, e) in entries.enumerate() {
       if e.group != none and (i == 0 or entries.at(i - 1).group != e.group) {
-        group-header(e.group)
+        group-header(e.group, first: i == 0)
       }
       contents-row(i, e, th, accent)
     }
@@ -182,10 +230,75 @@
   if cols > 1 { columns(cols, gutter: 28pt, body) } else { body }
 }
 
-#let book(order-file, songdir, target: "a4", dark: false, front: (),
-          fits: (:), title: "Contents", dividers: (:)) = {
-  let t = TARGETS.at(target)
-  let theme = if dark { DARK } else { LIGHT }
+// A standalone single-page setlist — just the #, Title, Key, Tempo table,
+// no song pages after it and no PAGE column (there's nothing to link to:
+// contents()'s PAGE column and link() wrapper both resolve a page-number
+// label that only exists once the actual song pages are placed in the
+// same document — this function never places them, by design, so it's a
+// deliberately separate, simpler row renderer rather than a thin wrapper
+// around contents()). For a music stand or a drummer's cheat sheet: the
+// running order and enough per-song info to count a song in, nothing more.
+#let setlist-page-row(i, e, th, accent) = {
+  let row = grid(
+    columns: (1.8em, 1fr, 3.2em, 3em), column-gutter: 0.5em,
+    align: (right + horizon, left + horizon, left + horizon, right + horizon),
+    inset: (y: 0.3em),
+    text(fill: th.meta, size: 10pt, str(i + 1)),
+    {
+      text(weight: "medium", size: 11.5pt, e.title)
+      if e.artist != "" { text(size: 9pt, fill: th.meta, "   " + e.artist) }
+    },
+    text(fill: accent, weight: "medium", size: 10pt, glyphs(e.key)),
+    text(fill: th.meta, size: 10pt, e.tempo),
+  )
+  block(below: 0pt, {
+    row
+    line(length: 100%, stroke: 0.4pt + th.rule.lighten(55%))
+  })
+}
+
+#let setlist-page(entries, t: none, dark: false, title: "Setlist", subtitle: none) = {
+  let th = if dark { DARK } else { LIGHT }
+  let accent = th.chord
+  set page(width: t.w, height: t.h, margin: t.margin, fill: th.bg)
+  set text(fill: th.ink, font: FONTS.lyric)
+
+  block(below: 0.8em, {
+    text(font: FONTS.title, size: 26pt, weight: "bold", tracking: 0.02em, title)
+    if subtitle != none {
+      linebreak(); v(0.15em)
+      text(size: 11pt, fill: th.meta, tracking: 0.08em, subtitle)
+    }
+    v(0.2em)
+    line(length: 100%, stroke: 1.4pt + th.rule)
+  })
+
+  set text(size: 11pt)
+
+  let group-header(name, first: false) = block(
+    above: if first { 0.2em } else { 1.3em }, below: 0.4em, breakable: false, {
+      if not first {
+        line(length: 100%, stroke: 0.8pt + th.rule)
+        v(0.5em)
+      }
+      text(size: 9.5pt, weight: "bold", tracking: 0.12em, fill: accent, upper(name))
+    })
+
+  for (i, e) in entries.enumerate() {
+    if e.group != none and (i == 0 or entries.at(i - 1).group != e.group) {
+      group-header(e.group, first: i == 0)
+    }
+    setlist-page-row(i, e, th, accent)
+  }
+}
+
+// Shared order-file + songdir parser: "# SET: Name" / "# --- Title (Year) ---"
+// marker parsing, song loading, and entries-list building, factored out so
+// both book() (full songbook, song pages included) and the standalone
+// setlist-page-only export (below) read the exact same order.txt shape and
+// produce the exact same per-song fields, rather than two parsers drifting
+// apart over time.
+#let parse-order(order-file, songdir) = {
   // A line "# --- Title (Year) ---" introduces the songs that follow, until
   // the next marker or the end of the file. `dividers` maps that exact Title
   // to the artwork to show; a marker with no matching entry is just a comment.
@@ -212,8 +325,6 @@
   }
   let songs = slugs.map(sl => parse-song(songdir + "/" + sl + ".song"))
 
-  for f in front { f(t) }
-
   let entries = songs.enumerate().map(((i, s)) => (
     title: s.title,
     artist: s.at("artist", default: ""),
@@ -223,6 +334,30 @@
     group: set-of.at(slugs.at(i), default: none),
     divider: divider-before.at(slugs.at(i), default: none),
   ))
+  (slugs: slugs, songs: songs, entries: entries)
+}
+
+// Renders JUST the setlist table — title/key/tempo per song, grouped by
+// set, no song pages after it. See setlist-page()'s own doc comment for
+// why this can't simply reuse contents() (page-number links to pages that
+// are never placed in this document).
+#let render-setlist-page(order-file, songdir, target: "a4", dark: false,
+                          title: "Setlist", subtitle: none) = {
+  let t = TARGETS.at(target)
+  let parsed = parse-order(order-file, songdir)
+  setlist-page(parsed.entries, t: t, dark: dark, title: title, subtitle: subtitle)
+}
+
+#let book(order-file, songdir, target: "a4", dark: false, front: (),
+          fits: (:), title: "Contents", dividers: (:)) = {
+  let t = TARGETS.at(target)
+  let theme = if dark { DARK } else { LIGHT }
+  let parsed = parse-order(order-file, songdir)
+  let slugs = parsed.slugs
+  let songs = parsed.songs
+  let entries = parsed.entries
+
+  for f in front { f(t) }
 
   let song-page(i, s) = page(width: t.w, height: t.h, margin: t.margin,
       fill: theme.bg, {
