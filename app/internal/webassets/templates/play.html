@@ -207,7 +207,7 @@
          plain href below (no query params) is what a bookmark/share
          link reproduces: pdf-export.js never mutates it, only the
          rendered `href` attribute. */}}
-    <span class="pdf-mode-row">
+    <span class="pdf-mode-row topbar-desktop-only">
       <a class="pdf-export-link icon-btn" href="/b/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF (chart)" download>PDF</a>
       <select class="pdf-mode-select" title="PDF view mode">
         <option value="">Chords + lyrics</option>
@@ -217,8 +217,8 @@
       </select>
       <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
     </span>
-    {{if .WorkID}}<a class="icon-btn" href="/works/{{.WorkID}}" title="all versions of this song">versions</a>{{end}}
-    {{if .VariantID}}<a class="icon-btn" href="/variants/{{.VariantID}}/history" title="revision history">history</a>
+    {{if .WorkID}}<a class="icon-btn topbar-desktop-only" href="/works/{{.WorkID}}" title="all versions of this song">versions</a>{{end}}
+    {{if .VariantID}}<a class="icon-btn topbar-desktop-only" href="/variants/{{.VariantID}}/history" title="revision history">history</a>
     {{/* Desktop only — on mobile this is reached via the View stack's
          Notes row instead (#notes-stack-row), see .topbar-notes-btn's
          mobile-breakpoint rule in app.css; there's no "view menu"
@@ -484,16 +484,25 @@
   <div class="timeline-backdrop" id="timeline-backdrop"></div>
   <button class="mobile-controls-fab" id="mobile-controls-fab" type="button" title="playback controls &amp; structure">{{template "icon-play"}}</button>
 
-  {{/* Mobile-only: the two "page tools" for this song, each opening its
-       own bottom sheet (a "stack") — View re-exposes the same 5 modes
-       #mode-segmented already models (hidden as a bar on mobile, see the
-       CSS), Metronome re-triggers the existing .timeline off-canvas
-       sheet. Docked in a slim strip just above the global tab bar (see
-       global-tabbar below) so that bar stays reachable the whole time —
-       the point of this layout. Hidden outside the mobile breakpoint. */}}
+  {{/* Mobile-only, Phase 41: FOUR "page tools" for this song, each opening
+       its own bottom sheet (a "stack") — View (5 modes), Metronome, Song
+       (export/versions/history, formerly stranded in the top bar where
+       the PDF mode-picker collided with the phone's own status bar — a
+       real reported bug, fixed by moving all of it down here), and "..."
+       (the site's general navigation — Home/Songbooks/Bands/Setlists/
+       Profile, today's .global-tabbar destinations — opened as a genuine
+       FULL-PAGE takeover, not another small sheet, since that's a
+       different kind of thing: leaving this song entirely, not a tool
+       about it). .global-tabbar itself no longer renders on THIS page at
+       mobile widths (see the body-scoped CSS rule) — "..." replaces it,
+       freeing a whole bar of permanent screen height. Hidden outside the
+       mobile breakpoint; every other page keeps .global-tabbar exactly
+       as it was, untouched. */}}
   <div class="song-context-bar">
     <button type="button" id="view-stack-btn">{{template "icon-view"}} View</button>
     <button type="button" id="metronome-stack-btn">{{template "icon-metro-full"}} Metronome</button>
+    <button type="button" id="song-stack-btn">{{template "icon-song-actions"}} Song</button>
+    <button type="button" id="site-nav-fullpage-btn">{{template "icon-more"}} More</button>
   </div>
   <div class="stack-backdrop" id="view-stack-backdrop"></div>
   <div class="stack-sheet" id="view-stack" role="dialog" aria-label="View">
@@ -504,6 +513,47 @@
     <button type="button" class="stack-sheet-row" data-forward="edit">{{template "icon-edit"}} Edit</button>
     {{if .VariantID}}<button type="button" class="stack-sheet-row" id="notes-stack-row">{{template "icon-notes"}} Notes</button>{{end}}
     <button type="button" class="stack-sheet-row" id="reference-stack-row">{{template "icon-reference"}} Reference</button>
+  </div>
+
+  {{/* Song-actions sheet: everything that used to crowd the mobile top
+       bar. Reuses the exact .pdf-mode-row markup/classes (pdf-export.js's
+       delegated `change` listener is wired on `document` and matches by
+       class, not by a single hardcoded element, so a second instance of
+       this row just works with no JS changes) alongside the versions/
+       history links, which lose their desktop-only hiding class here
+       since this IS their mobile home now. */}}
+  <div class="stack-backdrop" id="song-stack-backdrop"></div>
+  <div class="stack-sheet" id="song-stack" role="dialog" aria-label="Song">
+    <div class="stack-sheet-row pdf-mode-row" style="flex-wrap:wrap;gap:0.6rem 0.9rem;">
+      <a class="pdf-export-link" href="/b/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF (chart)" download>{{template "icon-download"}} Export PDF</a>
+      <select class="pdf-mode-select" title="PDF view mode">
+        <option value="">Chords + lyrics</option>
+        <option value="jazz">Jazz chart</option>
+        <option value="map">Song map</option>
+        <option value="lyrics">Lyrics only</option>
+      </select>
+      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
+    </div>
+    {{if .WorkID}}<a class="stack-sheet-row" href="/works/{{.WorkID}}">{{template "icon-mode-map"}} All versions of this song</a>{{end}}
+    {{if .VariantID}}<a class="stack-sheet-row" href="/variants/{{.VariantID}}/history">{{template "icon-notes"}} Revision history</a>{{end}}
+  </div>
+
+  {{/* "..." full-page site navigation — a genuine full-screen takeover
+       (no backdrop to tap through, no slide-up sheet height limit), same
+       spirit as Phase 40's editor becoming its own first-class surface
+       rather than another small popup. Same 5 destinations/icons as
+       .global-tabbar, just laid out as a real page of big, obvious rows
+       instead of five tiny bottom-bar icons. */}}
+  <div class="site-nav-fullpage" id="site-nav-fullpage" role="dialog" aria-label="Navigation">
+    <div class="site-nav-fullpage-header">
+      <h2>Songbooks</h2>
+      <button type="button" id="site-nav-fullpage-close" class="icon-btn" title="close">{{template "icon-close"}}</button>
+    </div>
+    <a class="site-nav-fullpage-row" href="/">{{template "icon-home"}} Home</a>
+    <a class="site-nav-fullpage-row" href="/catalog">{{template "icon-catalog"}} Songbooks</a>
+    <a class="site-nav-fullpage-row" href="/bands">{{template "icon-bands"}} Bands</a>
+    <a class="site-nav-fullpage-row" href="/setlists">{{template "icon-setlists"}} Setlists</a>
+    <a class="site-nav-fullpage-row" href="/profile">{{template "icon-profile"}} Profile</a>
   </div>
 
   <div class="content-main">
@@ -684,6 +734,41 @@
   if (metroBtn && metroFab) {
     metroBtn.addEventListener('click', function () { metroFab.click(); syncMetroActive(); });
     document.getElementById('timeline-backdrop')?.addEventListener('click', syncMetroActive);
+  }
+
+  // Song-actions sheet (PDF export/versions/history) -- same open/close
+  // shape as the View sheet above, its own button/backdrop.
+  var songBtn = document.getElementById('song-stack-btn');
+  var songSheet = document.getElementById('song-stack');
+  var songBackdrop = document.getElementById('song-stack-backdrop');
+  if (songBtn && songSheet) {
+    function setSongOpen(open) {
+      songSheet.classList.toggle('open', open);
+      songBackdrop.classList.toggle('open', open);
+      songBtn.classList.toggle('active', open);
+    }
+    songBtn.addEventListener('click', () => setSongOpen(!songSheet.classList.contains('open')));
+    songBackdrop.addEventListener('click', () => setSongOpen(false));
+    // A plain <a> row (versions/history) should just navigate, same as
+    // clicking it anywhere else -- no sheet-closing intercept needed.
+  }
+
+  // "..." full-page site navigation -- a genuine full-screen takeover,
+  // not a bottom sheet: toggled by a plain class, no height/transform
+  // math needed since it fills the viewport outright.
+  var navBtn = document.getElementById('site-nav-fullpage-btn');
+  var navPage = document.getElementById('site-nav-fullpage');
+  var navClose = document.getElementById('site-nav-fullpage-close');
+  if (navBtn && navPage) {
+    function setNavOpen(open) {
+      navPage.classList.toggle('open', open);
+      navBtn.classList.toggle('active', open);
+    }
+    navBtn.addEventListener('click', () => setNavOpen(true));
+    navClose?.addEventListener('click', () => setNavOpen(false));
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && navPage.classList.contains('open')) setNavOpen(false);
+    });
   }
 })();
 </script>

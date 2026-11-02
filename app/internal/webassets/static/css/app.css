@@ -1569,6 +1569,34 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
      (#reference-stack-row) -- same reasoning as Notes above. */
   button.topbar-reference-btn { display: none; }
 
+  /* Phase 41: the PDF export mode-picker row, "versions" and "history" --
+     all three used to render inline in the mobile top bar with no
+     treatment of their own, visually colliding with the phone's status
+     bar (a real reported bug, screenshot-confirmed: looked like
+     unstyled debug output dropped at the top of the page). They now
+     have a proper mobile home inside #song-stack (below); this one
+     class just removes their desktop-only top-bar instance from mobile
+     entirely, the same "hide, don't awkwardly reflow" treatment
+     .topbar-notes-btn/.topbar-reference-btn above already use. */
+  /* .song-topbar prefix, not a bare .topbar-desktop-only class selector:
+     .pdf-mode-row's own unconditional `display: inline-flex` rule lives
+     LATER in this file (it's shared with other pages' PDF-export links),
+     so a same-specificity single-class rule here lost the cascade at
+     this exact viewport despite the media query matching -- confirmed
+     live (computed display stayed "flex") before landing on this fix. */
+  .song-topbar .topbar-desktop-only { display: none; }
+
+  /* Phase 41: on the Play page specifically, .global-tabbar is replaced
+     by the new "..." full-page nav entry in .song-context-bar -- a
+     whole permanently-visible bar of site nav competed for screen height
+     against this page's own "song actions" bar, which the user asked to
+     consolidate. Scoped to pages that actually render .song-context-bar
+     (only play.html) via :has(), so every other page's .global-tabbar
+     (home, catalog, bands, etc.) is completely unaffected -- confirmed
+     by checking: nothing else in this codebase renders
+     .song-context-bar. */
+  body:has(.song-context-bar) .global-tabbar { display: none; }
+
   /* #mode-segmented: no longer a bar on mobile -- see the comment block
      above. The desktop pill (the default, non-mobile rule) is completely
      untouched; this only applies inside the 900px breakpoint. */
@@ -1616,6 +1644,39 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   }
   .stack-sheet-row.active { color: var(--accent); font-weight: 600; }
   .stack-sheet-row .icon { width: 1.25rem; height: 1.25rem; flex: none; }
+  /* #song-stack reuses .stack-sheet-row for its versions/history <a>
+     rows, but its PDF-export row is a <div> wrapper around three
+     different controls (link/select/checkbox), not one tappable row --
+     give it room to wrap instead of forcing everything onto one line. */
+  .stack-sheet-row.pdf-mode-row { flex-wrap: wrap; }
+  .stack-sheet-row.pdf-mode-row .pdf-export-link {
+    display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; color: var(--accent);
+  }
+  .stack-sheet-row.pdf-mode-row .icon { width: 1.1rem; height: 1.1rem; }
+
+  /* ---- "..." full-page site navigation (Phase 41) -------------------
+     A genuine full-screen takeover, not another bottom sheet -- it has
+     no "closed resting position" transform math (unlike .stack-sheet):
+     plain display:none/.open, since it fills the whole viewport outright
+     rather than sliding up from an edge. Sits above everything else on
+     the page (z-index higher than .stack-sheet's 62). */
+  .site-nav-fullpage {
+    display: none; position: fixed; inset: 0; z-index: 80;
+    flex-direction: column; background: var(--bg);
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+  }
+  .site-nav-fullpage.open { display: flex; }
+  .site-nav-fullpage-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.2rem; border-bottom: 1px solid var(--border);
+  }
+  .site-nav-fullpage-header h2 { margin: 0; font-size: 1.15rem; }
+  .site-nav-fullpage-row {
+    display: flex; align-items: center; gap: 1rem; width: 100%;
+    padding: 1.1rem 1.3rem; text-decoration: none; color: var(--fg);
+    font-size: 1.05rem; font-weight: 600; border-bottom: 1px solid var(--border);
+  }
+  .site-nav-fullpage-row .icon { width: 1.5rem; height: 1.5rem; flex: none; color: var(--accent); }
 
   /* The transport FAB is retired on mobile -- its old role (open the
      .timeline sheet) is now the Metronome button in .song-context-bar,
@@ -1650,7 +1711,14 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 }
 
 @media (min-width: 901px) {
-  .global-tabbar, .song-context-bar, .stack-sheet, .stack-backdrop { display: none; }
+  /* .site-nav-fullpage included here too: its only base rule is the
+     mobile-breakpoint display:none (it has no .open-only trigger on
+     desktop, since .song-context-bar/the "..." button that opens it are
+     already hidden here) -- without an explicit desktop rule it fell
+     back to the browser's default display:block and showed permanently
+     on every Play page at desktop width, confirmed live before writing
+     this fix. */
+  .global-tabbar, .song-context-bar, .stack-sheet, .stack-backdrop, .site-nav-fullpage { display: none; }
 
   /* ---- Desktop sidebar shell -------------------------------------------
      Every top-level authenticated page now renders {{template
@@ -2532,4 +2600,12 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .pdf-mode-row { display: inline-flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
 .pdf-mode-select { font-size: 0.8rem; padding: 0.2rem 0.4rem; border-radius: 6px; border: 1px solid var(--line, #ccc); background: var(--card, #fff); color: var(--ink, #222); }
 .pdf-notes-label { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--ink-soft, var(--text-muted, #666)); white-space: nowrap; }
-@media (max-width: 760px) { .pdf-mode-row { width: 100%; } }
+/* Phase 41: the old "wrap to full width at 760px" rule used to be this
+   row's only mobile treatment — it still rendered inline in the mobile
+   top bar, just as a wrapped second line, which collided with the
+   phone's own status bar (a real reported bug, screenshot-confirmed).
+   Fixed at the root: .pdf-mode-row now carries .topbar-desktop-only in
+   its one remaining top-bar instance (hidden below 901px, see that
+   class's rule) and gets a second, mobile-only instance inside the new
+   #song-stack sheet instead — this selector needs no width override any
+   more, inline-flex + flex-wrap already reads fine at a sheet's width. */
