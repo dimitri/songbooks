@@ -15,19 +15,31 @@
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  <div class="table-scroll"><table class="card" style="width:100%">
-    <thead><tr><th>Name</th><th></th></tr></thead>
-    <tbody>
-    {{range .Bands}}
-      <tr>
-        <td><a href="/bands/{{.ID}}">{{.Name}}</a></td>
-        <td><a href="/bands/{{.ID}}/catalog">repertoire</a></td>
-      </tr>
-    {{else}}
-      <tr><td colspan="2" class="hint">You're not in any bands yet.</td></tr>
-    {{end}}
-    </tbody>
-  </table></div>
+  {{/* Same card language and the same per-band digest/vote data as the
+       home page's "Your bands" section (Phase 26/27) — this listing is
+       the full roster, that one's a short preview, but both read as one
+       consistent picture of band activity rather than two different
+       UIs. */}}
+  <div class="band-grid">
+  {{range .Bands}}
+    <div class="band-card">
+      <div class="band-card-head">
+        <div>
+          <h4><a href="/bands/{{.ID}}">{{.Name}}</a></h4>
+          <div class="band-card-members">{{.Members}} member{{if ne .Members 1}}s{{end}}</div>
+        </div>
+      </div>
+      <div class="band-card-digest">{{.Digest}}</div>
+      <div class="band-card-actions">
+        <a href="/bands/{{.ID}}">overview</a>
+        <a href="/bands/{{.ID}}/catalog">repertoire</a>
+        {{if .OpenVotes}}<a class="votes" href="/bands/{{.ID}}/proposals">{{.OpenVotes}} to vote on</a>{{end}}
+      </div>
+    </div>
+  {{else}}
+    <p class="hint">You're not in any bands yet.</p>
+  {{end}}
+  </div>
 
   <div class="card" style="max-width:420px">
     <h2>Start a band</h2>

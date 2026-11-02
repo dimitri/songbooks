@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -132,51 +133,11 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	var bandCards []bandCardView
-	var attention []attentionItem
-	for _, b := range bands {
-		members, err := s.store.ListBandMembers(r.Context(), b.ID, false)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		lastSeen, err := s.store.GetBandLastSeen(r.Context(), b.ID, person.ID)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		changes, err := s.store.ListBandChanges(r.Context(), b.ID, lastSeen)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		digest := fmt.Sprintf("%d change%s since your last visit", len(changes), plural(len(changes)))
-		if lastSeen == nil {
-			digest = "you haven't visited yet"
-		}
-
-		proposals, err := s.store.ListProposals(r.Context(), b.ID, store.ProposalFilter{Status: "open"})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		bandCards = append(bandCards, bandCardView{
-			ID: b.ID, Name: b.Name, Members: len(members), Digest: digest, OpenVotes: len(proposals),
-		})
-		for _, p := range proposals {
-			title := fmt.Sprintf("Vote: add %q to %s's repertoire", p.TargetTitle, b.Name)
-			if p.Kind == "new_reference" {
-				title = fmt.Sprintf("Vote: new reference for %q", p.TargetTitle)
-			}
-			attention = append(attention, attentionItem{
-				Kind: "votes", Title: title,
-				Subtitle: fmt.Sprintf("Proposed by %s · %d yes, %d veto so far", p.ProposerUsername, p.YesVotes, p.VetoVotes),
-				When:     timeAgo(p.CreatedAt),
-				Link:     fmt.Sprintf("/bands/%d/proposals/%d", b.ID, p.ID),
-			})
-		}
+	bandCards, attention, err := s.buildBandCards(r.Context(), person.ID, bands)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	sort.Slice(bandCards, func(i, j int) bool { return bandCards[i].Name < bandCards[j].Name })
 
 	notifs, err := s.store.ListNotifications(r.Context(), person.ID, true)
 	if err != nil {
@@ -204,6 +165,58 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		"Books": views, "Me": person, "Greeting": homeGreeting(),
 		"Bands": bandCards, "Attention": attention, "NextGig": nextGig,
 	})
+}
+
+// buildBandCards computes the per-band "card" data (member count, a
+// digest of changes since personID's last visit, open-proposal count)
+// plus any open-proposal rows for the attention feed, for a given list
+// of bands personID currently belongs to. Shared by handleIndex (the
+// home page) and handleBandsPage (the bands listing, Phase 27) so both
+// pages show the exact same activity summary per band rather than two
+// versions that can drift.
+func (s *Server) buildBandCards(ctx context.Context, personID int64, bands []store.Band) ([]bandCardView, []attentionItem, error) {
+	var bandCards []bandCardView
+	var attention []attentionItem
+	for _, b := range bands {
+		members, err := s.store.ListBandMembers(ctx, b.ID, false)
+		if err != nil {
+			return nil, nil, err
+		}
+		lastSeen, err := s.store.GetBandLastSeen(ctx, b.ID, personID)
+		if err != nil {
+			return nil, nil, err
+		}
+		changes, err := s.store.ListBandChanges(ctx, b.ID, lastSeen)
+		if err != nil {
+			return nil, nil, err
+		}
+		digest := fmt.Sprintf("%d change%s since your last visit", len(changes), plural(len(changes)))
+		if lastSeen == nil {
+			digest = "you haven't visited yet"
+		}
+
+		proposals, err := s.store.ListProposals(ctx, b.ID, store.ProposalFilter{Status: "open"})
+		if err != nil {
+			return nil, nil, err
+		}
+		bandCards = append(bandCards, bandCardView{
+			ID: b.ID, Name: b.Name, Members: len(members), Digest: digest, OpenVotes: len(proposals),
+		})
+		for _, p := range proposals {
+			title := fmt.Sprintf("Vote: add %q to %s's repertoire", p.TargetTitle, b.Name)
+			if p.Kind == "new_reference" {
+				title = fmt.Sprintf("Vote: new reference for %q", p.TargetTitle)
+			}
+			attention = append(attention, attentionItem{
+				Kind: "votes", Title: title,
+				Subtitle: fmt.Sprintf("Proposed by %s · %d yes, %d veto so far", p.ProposerUsername, p.YesVotes, p.VetoVotes),
+				When:     timeAgo(p.CreatedAt),
+				Link:     fmt.Sprintf("/bands/%d/proposals/%d", b.ID, p.ID),
+			})
+		}
+	}
+	sort.Slice(bandCards, func(i, j int) bool { return bandCards[i].Name < bandCards[j].Name })
+	return bandCards, attention, nil
 }
 
 func plural(n int) string {

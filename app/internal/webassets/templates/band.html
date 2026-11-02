@@ -12,17 +12,18 @@
 <header class="app-header">
   <a class="back-link" href="/bands">{{template "icon-back"}} My bands</a>
   <h1>{{.Band.Name}}</h1>
-  <nav class="song-nav">
+  {{template "notif-bell"}}
+</header>
+<main class="index">
+  <nav class="band-subnav">
     <a href="/bands/{{.Band.ID}}/catalog">repertoire</a>
     <a href="/bands/{{.Band.ID}}/proposals">proposals</a>
     <a href="/bands/{{.Band.ID}}/listening-party">listening party</a>
-    {{template "notif-bell"}}
   </nav>
-</header>
-<main class="index">
+
   <p class="hint">No "owner"/"admin" role here — any current member (core or guest) can add or remove members, promote/demote, or delete the whole band.</p>
 
-  <div class="card" style="max-width:640px">
+  <div class="card band-digest-card">
     <h2>{{if .HasLastSeen}}Since your last visit{{else}}Recent activity{{end}}</h2>
     <ul>
     {{range .Changes}}
@@ -33,27 +34,64 @@
     </ul>
   </div>
 
-  <label><input type="checkbox" id="show-past-toggle"> Show past members</label>
-
-  <div class="table-scroll"><table class="card" style="width:100%">
-    <thead><tr><th>Username</th><th>Name</th><th>Status</th><th>Joined</th><th>Left</th><th></th></tr></thead>
-    <tbody id="members-body">
+  {{/* Phase 27: one roster — current members (with instrument) AND every
+       unclaimed group-invite slot ("hasn't joined yet"), instead of two
+       disconnected tables (a member list, and an invite-creation form
+       that only ever shows its link once). */}}
+  <section class="home-section">
+    <div class="home-section-head"><h3>Roster</h3></div>
+    <div class="roster-list">
     {{range .Members}}
-      <tr data-person-id="{{.PersonID}}" data-current="{{if .IsCurrent}}1{{else}}0{{end}}" {{if not .IsCurrent}}class="past-member" style="display:none"{{end}}>
+      {{if .IsCurrent}}
+      <div class="roster-row" data-person-id="{{.PersonID}}">
+        <div class="roster-row-main">
+          <div class="roster-name">{{.DisplayName}} <span class="hint">({{.Username}})</span></div>
+          <div class="roster-instruments">
+          {{range .Instruments}}<span class="roster-instrument-badge">{{template "instrument-icon" .}} {{.}}</span>{{else}}<span class="hint">no instrument set</span>{{end}}
+          </div>
+        </div>
+        <select class="status-select" data-person-id="{{.PersonID}}">
+          <option value="core" {{if eq .Status "core"}}selected{{end}}>core</option>
+          <option value="guest" {{if eq .Status "guest"}}selected{{end}}>guest</option>
+        </select>
+        <button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}">remove</button>
+      </div>
+      {{end}}
+    {{end}}
+    {{range .GroupInvites}}
+      {{if not .ClosedAt}}
+        {{range .Slots}}
+          {{if not .ClaimedByPersonID}}
+          <div class="roster-row roster-row-pending">
+            <div class="roster-row-main">
+              <div class="roster-name">{{.DisplayName}}</div>
+              <div class="roster-instruments">
+              {{if .Instrument}}<span class="roster-instrument-badge">{{template "instrument-icon" .Instrument}} {{.Instrument}}</span>{{end}}
+              </div>
+            </div>
+            <span class="roster-pending-badge">hasn't joined yet</span>
+          </div>
+          {{end}}
+        {{end}}
+      {{end}}
+    {{end}}
+    </div>
+  </section>
+
+  <label><input type="checkbox" id="show-past-toggle"> Show past members</label>
+  <div class="table-scroll" id="past-members-wrap" hidden><table class="card" style="width:100%">
+    <thead><tr><th>Username</th><th>Name</th><th>Status</th><th>Joined</th><th>Left</th></tr></thead>
+    <tbody>
+    {{range .Members}}
+      {{if not .IsCurrent}}
+      <tr>
         <td>{{.Username}}</td>
         <td>{{.DisplayName}}</td>
-        <td>
-          {{if .IsCurrent}}
-          <select class="status-select" data-person-id="{{.PersonID}}">
-            <option value="core" {{if eq .Status "core"}}selected{{end}}>core</option>
-            <option value="guest" {{if eq .Status "guest"}}selected{{end}}>guest</option>
-          </select>
-          {{else}}{{.Status}}{{end}}
-        </td>
+        <td>{{.Status}}</td>
         <td>{{.JoinedAt.Format "2006-01-02"}}</td>
         <td>{{if .LeftAt}}{{.LeftAt.Format "2006-01-02"}}{{end}}</td>
-        <td>{{if .IsCurrent}}<button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}">remove</button>{{end}}</td>
       </tr>
+      {{end}}
     {{end}}
     </tbody>
   </table></div>
@@ -75,8 +113,16 @@
     <p id="add-member-result" class="hint"></p>
   </div>
 
-  <div class="card" style="max-width:420px">
+  <div class="card" style="max-width:480px">
     <h2>Invite someone</h2>
+    <p class="hint">A single-use link — good for one person.</p>
+    {{range .OpenInvites}}
+    <div class="invite-link-row">
+      <code class="invite-link-url" data-url="/join/{{.Token}}">/join/{{.Token}}</code>
+      <button type="button" class="copy-link-btn" data-url="/join/{{.Token}}">copy</button>
+      <span class="hint">({{.Status}}, expires {{.ExpiresAt.Format "2006-01-02"}})</span>
+    </div>
+    {{end}}
     <p>
       <label>Status
         <select id="invite-status">
@@ -85,14 +131,22 @@
         </select>
       </label>
     </p>
-    <button type="button" id="create-band-invite-btn">Create invite link</button>
-    <button type="button" id="copy-band-invite-btn" hidden>Copy link</button>
+    <button type="button" id="create-band-invite-btn">Create a new invite link</button>
     <p id="band-invite-result" class="hint"></p>
   </div>
 
-  <div class="card" style="max-width:480px">
-    <h2>Create a group invite link</h2>
+  <div class="card" style="max-width:520px">
+    <h2>Group invite link (roster)</h2>
     <p class="hint">Type the names you expect (and optionally their instrument), then get ONE link to share — on WhatsApp, say. Each person who opens it picks their own name (or "someone else"), then creates an account or logs in. Everyone joins as a <strong>guest</strong> member; promote them to core afterwards if you like.</p>
+    {{range .GroupInvites}}
+      {{if not .ClosedAt}}
+      <div class="invite-link-row">
+        <code class="invite-link-url" data-url="/join/{{.Token}}">/join/{{.Token}}</code>
+        <button type="button" class="copy-link-btn" data-url="/join/{{.Token}}">copy</button>
+        <button type="button" class="close-group-invite-btn danger" data-invite-id="{{.ID}}">close</button>
+      </div>
+      {{end}}
+    {{end}}
     <div id="group-invite-rows">
       <p class="group-invite-row">
         <input type="text" class="group-invite-name" placeholder="name">
@@ -100,9 +154,8 @@
       </p>
     </div>
     <button type="button" id="group-invite-add-row-btn">+ add another name</button>
-    <p><button type="button" id="create-group-invite-btn">Create group invite link</button></p>
+    <p><button type="button" id="create-group-invite-btn">Create a new group invite link</button></p>
     <p id="group-invite-result" class="hint"></p>
-    <p><button type="button" id="close-group-invite-btn" hidden>Close this invite link</button></p>
   </div>
 
   <div class="card" style="max-width:420px">
@@ -113,9 +166,7 @@
 <script>
 const bandId = {{.Band.ID}};
 document.getElementById('show-past-toggle').addEventListener('change', (e) => {
-  document.querySelectorAll('.past-member').forEach(tr => {
-    tr.style.display = e.target.checked ? '' : 'none';
-  });
+  document.getElementById('past-members-wrap').hidden = !e.target.checked;
 });
 document.getElementById('add-member-btn').addEventListener('click', async () => {
   const username = document.getElementById('add-username').value.trim();
@@ -149,21 +200,26 @@ document.querySelectorAll('.remove-member-btn').forEach(btn => {
     location.reload();
   });
 });
+document.querySelectorAll('.copy-link-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const url = location.origin + btn.dataset.url;
+    navigator.clipboard.writeText(url).then(() => {
+      const was = btn.textContent;
+      btn.textContent = 'copied!';
+      setTimeout(() => { btn.textContent = was; }, 1500);
+    }).catch(() => {});
+  });
+});
 document.getElementById('create-band-invite-btn').addEventListener('click', async () => {
   const status = document.getElementById('invite-status').value;
   const body = new URLSearchParams({status});
   const res = await fetch(`/api/bands/${bandId}/invites`, {method: 'POST', body});
   const data = await res.json();
   const out = document.getElementById('band-invite-result');
-  const copyBtn = document.getElementById('copy-band-invite-btn');
   if (res.ok) {
-    const url = location.origin + data.url;
-    out.textContent = url;
-    copyBtn.hidden = false;
-    copyBtn.onclick = () => navigator.clipboard.writeText(url).catch(() => {});
+    location.reload();
   } else {
     out.textContent = data.error || 'failed to create invite';
-    copyBtn.hidden = true;
   }
 });
 document.getElementById('group-invite-add-row-btn').addEventListener('click', () => {
@@ -185,24 +241,19 @@ document.getElementById('create-group-invite-btn').addEventListener('click', asy
   });
   const data = await res.json().catch(() => ({}));
   const out = document.getElementById('group-invite-result');
-  const closeBtn = document.getElementById('close-group-invite-btn');
   if (res.ok) {
-    const url = location.origin + data.url;
-    out.innerHTML = `Share this link: <a href="${url}">${url}</a>`;
-    navigator.clipboard.writeText(url).catch(() => {});
-    closeBtn.hidden = false;
-    closeBtn.onclick = async () => {
-      if (!confirm('Close this invite link? No further claims will be possible.')) return;
-      const r = await fetch(`/api/bands/${bandId}/group-invites/${data.id}/close`, {method: 'POST'});
-      if (r.ok) {
-        out.textContent = 'Closed.';
-        closeBtn.hidden = true;
-      }
-    };
+    location.reload();
   } else {
     out.textContent = data.error || 'failed to create group invite';
-    closeBtn.hidden = true;
   }
+});
+document.querySelectorAll('.close-group-invite-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm('Close this invite link? No further claims will be possible.')) return;
+    const id = btn.dataset.inviteId;
+    const r = await fetch(`/api/bands/${bandId}/group-invites/${id}/close`, {method: 'POST'});
+    if (r.ok) location.reload();
+  });
 });
 document.getElementById('delete-band-btn').addEventListener('click', async () => {
   if (!confirm('Delete this band and all of its repertoire? This cannot be undone.')) return;

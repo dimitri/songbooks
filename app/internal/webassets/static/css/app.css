@@ -2145,3 +2145,35 @@ input.matrix-slot:hover, input.matrix-slot:focus {
   .catalog-card-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; font-size: 0.8rem; }
   .catalog-card-actions button { font-size: 0.78rem; padding: 0.3rem 0.55rem; }
 }
+
+/* ---- Phase 27: bands listing + per-band page redo -------------------- */
+
+/* Sub-nav row within the page body (repertoire/proposals/listening
+   party) — distinct from the global header, which this phase doesn't
+   touch (a separate desktop nav redesign is being proposed). */
+.band-subnav { display: flex; gap: 1.2rem; margin: 0 0 1.2rem; font-size: 0.92rem; }
+
+.band-digest-card { max-width: 640px; margin-bottom: 1.5rem; }
+.band-digest-card ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+
+/* One list for current members AND unclaimed roster slots — "who's in
+   this band" as a single coherent picture (the gap this phase fills:
+   previously a pending slot was invisible anywhere on the band page). */
+.roster-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; margin-bottom: 1.5rem; }
+.roster-row { display: flex; align-items: center; gap: 0.8rem; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); }
+.roster-row:last-child { border-bottom: none; }
+.roster-row-pending { background: var(--bg-sunken); }
+.roster-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.roster-name { font-weight: 500; }
+.roster-instruments { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.roster-instrument-badge { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--fg-muted); background: var(--bg-sunken); border-radius: 999px; padding: 0.15rem 0.55rem; }
+.roster-row-pending .roster-instrument-badge { background: var(--bg-raised); }
+.roster-pending-badge { font-size: 0.76rem; font-weight: 600; color: var(--fg-faint); background: var(--bg-raised); border: 1px dashed var(--border); border-radius: 999px; padding: 0.2rem 0.65rem; white-space: nowrap; flex: none; }
+.roster-row select.status-select { flex: none; }
+
+/* An already-created, still-shareable invite link, with its own copy
+   button — shown up front instead of only right after creation (the
+   other gap this phase fills). */
+.invite-link-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin: 0.5rem 0; padding: 0.5rem 0.7rem; background: var(--bg-sunken); border-radius: 8px; }
+.invite-link-url { font-size: 0.82rem; overflow-wrap: anywhere; flex: 1 1 auto; min-width: 0; }
+.copy-link-btn { flex: none; font-size: 0.8rem; padding: 0.3rem 0.65rem; }
