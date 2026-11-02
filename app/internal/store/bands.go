@@ -18,6 +18,15 @@ type Band struct {
 	ID        int64
 	Name      string
 	CreatedAt time.Time
+	// ProjectID/ProjectSlug: set when this band corresponds 1:1 to a
+	// legacy songbook project (e.g. the "Mercy" band and the v2/Mercy
+	// project) — when set, the band's Repertoire tab shows that
+	// project's own song list live instead of the separately
+	// maintained band_catalog_entries pointers. nil/"" for every other
+	// band (the normal case): repertoire stays band_catalog_entries,
+	// added/forked by hand.
+	ProjectID   *int64
+	ProjectSlug string
 }
 
 // BandMember is one row of band_members — one person's one stint of
@@ -94,8 +103,10 @@ func (st *Store) CreateBand(ctx context.Context, name string, creatorPersonID in
 // GetBand loads one band by id.
 func (st *Store) GetBand(ctx context.Context, bandID int64) (*Band, error) {
 	var b Band
-	err := st.db.QueryRow(ctx, `SELECT id, name, created_at FROM bands WHERE id = $1`, bandID).
-		Scan(&b.ID, &b.Name, &b.CreatedAt)
+	err := st.db.QueryRow(ctx, `
+		SELECT b.id, b.name, b.created_at, b.project_id, coalesce(p.slug, '')
+		FROM bands b LEFT JOIN projects p ON p.id = b.project_id WHERE b.id = $1`, bandID).
+		Scan(&b.ID, &b.Name, &b.CreatedAt, &b.ProjectID, &b.ProjectSlug)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such band %d: %w", bandID, ErrNotFound)
 	}

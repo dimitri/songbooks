@@ -38,32 +38,20 @@
     <a href="/bands/{{.Band.ID}}/members">Members</a>
   </nav>
 
+  {{if .Band.ProjectID}}
+  <div class="attention-empty" style="border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:1.2rem; font-size:0.95rem;">
+    This band is linked to the <a href="/b/{{.Band.ProjectSlug}}">{{.Band.ProjectSlug}}</a> songbook project — its repertoire below is that project's own song list, live, not a copy. Add a song by editing the project itself; it shows up here automatically.
+  </div>
+  {{else}}
   <p class="hint">Pointers into the catalog, same as a personal songbook — adding here doesn't copy a song; forking does, and makes it this band's own "band"-visibility variant that any current member (core or guest) can edit in place.</p>
 
   {{if not .Entries}}
   <div class="attention-empty" style="border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:1.2rem; font-size:0.95rem;">
-    This band's repertoire is empty — songs don't appear here automatically, even if a songbook project shares this band's name. Import every song from a project in one go below, write a new original, or add/fork a variant by id.
+    This band's repertoire is empty — songs don't appear here automatically, they have to be added or forked below. Write a new original, or paste a variant id from the <a href="/catalog">catalog</a> into "Add a variant by id."
   </div>
   {{end}}
 
   <div class="card-grid">
-    <div class="card">
-      <h2>Import songs from a project</h2>
-      <p class="hint">Adds every globally-visible song from one songbook project to this band's repertoire at once — a pointer per song, same as adding one by id below, just all of them in one step.</p>
-      <div class="form-stack">
-        <div class="field">
-          <label for="import-project-select">Project</label>
-          <select id="import-project-select">
-            {{range .Books}}<option value="{{.}}">{{.}}</option>{{end}}
-          </select>
-        </div>
-        <div class="form-actions">
-          <button type="button" id="import-project-btn" class="primary">Import all songs</button>
-        </div>
-        <p id="import-project-result" class="hint"></p>
-      </div>
-    </div>
-
     <div class="card">
       <h2>Write a new original song</h2>
       <p class="hint">Starts from scratch — no existing variant to fork from — straight into this band's own private ("band"-visibility) repertoire. Only current members can see or edit it.</p>
@@ -105,9 +93,10 @@
       </div>
     </div>
   </div>
+  {{end}}
 
   <div class="table-scroll"><table class="card" style="width:100%">
-    <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th>Visibility</th><th>Added by</th><th></th></tr></thead>
+    <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th>Visibility</th>{{if not .Band.ProjectID}}<th>Added by</th>{{end}}<th></th></tr></thead>
     <tbody>
     {{range .Entries}}
       <tr data-variant-id="{{.VariantID}}">
@@ -115,11 +104,11 @@
         <td>{{.Artist}}</td>
         <td>{{.Book}}</td>
         <td>{{.Visibility}}{{if .ForkedFromID}} (<a href="/variants/{{deref64 .ForkedFromID}}/history">forked from</a>){{end}}</td>
-        <td>{{.AddedByUsername}}</td>
+        {{if not $.Band.ProjectID}}<td>{{.AddedByUsername}}</td>{{end}}
         <td>
           <a href="/works/{{.WorkID}}">all versions</a>
           <a href="/variants/{{.VariantID}}/history">history</a>
-          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}">remove</button>
+          {{if not $.Band.ProjectID}}<button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}">remove</button>{{end}}
         </td>
       </tr>
     {{else}}
@@ -128,27 +117,9 @@
     </tbody>
   </table></div>
 </main>
+{{if not .Band.ProjectID}}
 <script>
 const bandId = {{.Band.ID}};
-document.getElementById('import-project-btn').addEventListener('click', async () => {
-  const project = document.getElementById('import-project-select').value;
-  const out = document.getElementById('import-project-result');
-  if (!project) return;
-  const btn = document.getElementById('import-project-btn');
-  btn.disabled = true;
-  const res = await fetch(`/api/bands/${bandId}/catalog/import-project`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({project}),
-  });
-  const data = await res.json().catch(() => ({}));
-  btn.disabled = false;
-  if (res.ok) {
-    out.textContent = `Imported ${data.added} song${data.added === 1 ? '' : 's'}${data.skipped ? ` (${data.skipped} already in the repertoire)` : ''}.`;
-    location.reload();
-  } else {
-    out.textContent = data.error || 'failed to import';
-  }
-});
 document.getElementById('new-variant-btn').addEventListener('click', async () => {
   const title = document.getElementById('new-variant-title').value.trim();
   const artist = document.getElementById('new-variant-artist').value.trim();
@@ -198,6 +169,7 @@ document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   });
 });
 </script>
+{{end}}
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 </div>
 {{template "global-tabbar"}}
