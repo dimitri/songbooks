@@ -492,6 +492,41 @@ func (st *Store) CreateBandInvite(ctx context.Context, bandID int64, status stri
 	return token, nil
 }
 
+// OpenBandInvite is one still-redeemable single-use band invite: just
+// enough for a page to show "here's a link you can still share" and let
+// it be copied again, without re-running the full Invite/project/band
+// join resolution GetInvite does for the /join landing page itself.
+type OpenBandInvite struct {
+	Token     string
+	Status    string
+	ExpiresAt time.Time
+}
+
+// ListOpenBandInvites lists bandID's still-redeemable single-use invites
+// — any row currently in `invites` for this band hasn't been accepted
+// yet (AcceptInvite deletes its row on accept, single-use by design; see
+// that doc comment), so "not expired" is the only filter needed. Fills
+// the same "show a link I already made, don't force a new one" gap
+// ListGroupInvitesForTarget fills for the reusable roster-link kind.
+func (st *Store) ListOpenBandInvites(ctx context.Context, bandID int64) ([]OpenBandInvite, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT token, band_status::text, expires_at FROM invites
+		WHERE band_id = $1 AND expires_at > now() ORDER BY expires_at DESC`, bandID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []OpenBandInvite
+	for rows.Next() {
+		var inv OpenBandInvite
+		if err := rows.Scan(&inv.Token, &inv.Status, &inv.ExpiresAt); err != nil {
+			return nil, err
+		}
+		out = append(out, inv)
+	}
+	return out, rows.Err()
+}
+
 // CreatePlainInvite makes a single-use, time-limited invite that carries
 // no project/band attachment at all — just lets its holder create an
 // account, for use where there's otherwise no self-serve registration

@@ -38,7 +38,7 @@
                 <div class="instrument-icon-row">
                   {{range $.CommonInstruments}}
                   <button type="button" class="instrument-icon-btn instrument-icon-fill" data-target="instrument-row-{{$i}}" data-instrument="{{.}}" title="{{.}}">
-                    <span aria-hidden="true">{{instrumentIcon .}}</span>
+                    {{template "instrument-icon" .}}
                   </button>
                   {{end}}
                 </div>

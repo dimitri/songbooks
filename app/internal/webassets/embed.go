@@ -60,24 +60,45 @@ var funcMap = template.FuncMap{
 		}
 		return strconv.FormatInt(*n, 10)
 	},
-	// instrumentIcon renders the shared icon-picker glyph for a common
-	// instrument name — plain Unicode/emoji, not an icon font or SVG
-	// sprite, so no new build step/asset pipeline is needed for it (see
-	// jam_landing.html/jam_songs.html/jam_add_songs.html's icon pickers).
-	// Anything outside this small set has no icon — those stay text input
-	// ("other").
+	// instrumentIcon classifies a free-text instrument string into one of
+	// a handful of short category keys ("drums"/"bass"/"guitar"/"vocals"/
+	// "keys"/"other"). It does NOT return a template name: Go's
+	// html/template "template" action only accepts a string LITERAL as
+	// its name, never a computed/variable one (confirmed — {{template $n
+	// .}} fails to parse with "unexpected $n in template clause"), so a
+	// dynamic-dispatch-by-name approach doesn't work here. Instead the
+	// shared "instrument-icon" template in icons.html takes this key and
+	// branches to a fixed {{template "icon-instrument-X"}} call per case
+	// — see that template for the actual icon selection.
+	//
+	// Replaces the earlier plain-Unicode/emoji glyphs (🥁🪕🎸🎤), which
+	// rendered inconsistently across platforms/fonts; self-hosted inline
+	// SVG keeps the "no new build step/asset pipeline, no network font"
+	// property emoji had, just drawn in this app's own icon style.
+	//
+	// Matching is by substring, case-insensitive, not an exact-value
+	// switch: instrument is genuinely free text (see migration 0018 — no
+	// fixed enum), and this app already has two different naming
+	// conventions in real use for the same instruments — the jam-signup
+	// vocabulary ("drummer"/"bassist"/"guitarist"/"singer") and plain
+	// band-roster nouns ("drums"/"bass"/"guitar"/"singer", "guitar &
+	// singer", "guitar/bass/singer") — a strict switch would silently
+	// fall through to "other" for most real band rosters.
 	"instrumentIcon": func(instrument string) string {
-		switch instrument {
-		case "drummer":
-			return "\U0001F941" // 🥁
-		case "bassist":
-			return "\U0001FA95" // 🪕 (stands in for bass — distinguishable from guitarist's 🎸 at a glance)
-		case "guitarist":
-			return "\U0001F3B8" // 🎸
-		case "singer":
-			return "\U0001F3A4" // 🎤
+		v := strings.ToLower(instrument)
+		switch {
+		case strings.Contains(v, "drum"):
+			return "drums"
+		case strings.Contains(v, "bass"):
+			return "bass"
+		case strings.Contains(v, "guitar"):
+			return "guitar"
+		case strings.Contains(v, "sing") || strings.Contains(v, "vocal") || strings.Contains(v, "chant"):
+			return "vocals"
+		case strings.Contains(v, "key") || strings.Contains(v, "piano"):
+			return "keys"
 		default:
-			return ""
+			return "other"
 		}
 	},
 	// contains reports whether a string slice holds v — e.g. "is this

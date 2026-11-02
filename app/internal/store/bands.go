@@ -35,6 +35,7 @@ type BandMember struct {
 	LeftAt            *time.Time
 	InvitedByPersonID *int64
 	InvitedByUsername string
+	Instruments       []string // p.instruments — see migration 0018
 }
 
 // IsCurrent reports whether m is an active (not left) membership row.
@@ -163,7 +164,7 @@ func isCurrentBandMember(ctx context.Context, q dbtx, bandID, personID int64) (b
 func (st *Store) ListBandMembers(ctx context.Context, bandID int64, includePast bool) ([]BandMember, error) {
 	q := `
 		SELECT m.id, m.band_id, m.person_id, p.username, p.display_name, m.status::text,
-		       m.joined_at, m.left_at, m.invited_by_person_id, coalesce(ip.username, '')
+		       m.joined_at, m.left_at, m.invited_by_person_id, coalesce(ip.username, ''), p.instruments
 		FROM band_members m
 		JOIN people p ON p.id = m.person_id
 		LEFT JOIN people ip ON ip.id = m.invited_by_person_id
@@ -181,7 +182,7 @@ func (st *Store) ListBandMembers(ctx context.Context, bandID int64, includePast 
 	for rows.Next() {
 		var m BandMember
 		if err := rows.Scan(&m.ID, &m.BandID, &m.PersonID, &m.Username, &m.DisplayName, &m.Status,
-			&m.JoinedAt, &m.LeftAt, &m.InvitedByPersonID, &m.InvitedByUsername); err != nil {
+			&m.JoinedAt, &m.LeftAt, &m.InvitedByPersonID, &m.InvitedByUsername, &m.Instruments); err != nil {
 			return nil, err
 		}
 		out = append(out, m)

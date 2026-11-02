@@ -24,7 +24,7 @@
         {{range .CommonInstruments}}
         <label class="instrument-icon-btn{{if index $.Checked .}} active{{end}}">
           <input type="checkbox" name="instrument" value="{{.}}"{{if index $.Checked .}} checked{{end}} style="display:none">
-          <span aria-hidden="true">{{instrumentIcon .}}</span>
+          {{template "instrument-icon" .}}
           <span class="instrument-icon-label">{{.}}</span>
         </label>
         {{end}}

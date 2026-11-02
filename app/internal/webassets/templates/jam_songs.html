@@ -36,7 +36,7 @@
                    who's already picked it for THIS song specifically,
                    not jam-wide. */}}
               {{if .Players}}
-                {{range $i, $p := .Players}}{{if $i}}, {{end}}<span class="jam-roster-pick"><span aria-hidden="true">{{instrumentIcon $instrument}}</span> {{$p.Nickname}}</span>{{end}}
+                {{range $i, $p := .Players}}{{if $i}}, {{end}}<span class="jam-roster-pick">{{template "instrument-icon" $instrument}} {{$p.Nickname}}</span>{{end}}
               {{else}}
                 <em>nobody yet</em>
               {{end}}
@@ -61,7 +61,7 @@
           <div class="instrument-icon-row">
             {{range $.CommonInstruments}}
             <button type="button" class="instrument-icon-btn jam-pick-icon" data-song-id="{{$.ID}}" data-instrument="{{.}}">
-              <span aria-hidden="true">{{instrumentIcon .}}</span>
+              {{template "instrument-icon" .}}
               <span class="instrument-icon-label">{{.}}</span>
             </button>
             {{end}}

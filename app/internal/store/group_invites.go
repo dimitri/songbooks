@@ -37,6 +37,7 @@ type GroupInviteSlot struct {
 	DisplayName       string
 	Instrument        string
 	ClaimedByPersonID *int64
+	ClaimedByName     string // the claiming person's display name, '' if unclaimed
 	ClaimedAt         *time.Time
 }
 
@@ -133,6 +134,55 @@ func (st *Store) GetGroupInviteByToken(ctx context.Context, token string) (*Grou
 	return &GroupInviteView{GroupInvite: *gi, TargetName: targetName, Slots: slots}, nil
 }
 
+// ListGroupInvitesForTarget lists every group invite ever created for
+// targetKind+targetID ("band" or "school"), open ones first then closed,
+// newest first within each, each with its full slot list (claimed and
+// unclaimed) — what a band/school's own page needs to show "here's the
+// roster link you already made, and who on it hasn't joined yet,"
+// instead of a link that's only ever visible once, right after creation
+// (see CreateGroupInvite's doc comment — the gap this fills).
+func (st *Store) ListGroupInvitesForTarget(ctx context.Context, targetKind string, targetID int64) ([]GroupInviteView, error) {
+	col := "band_id"
+	if targetKind == "school" {
+		col = "school_id"
+	}
+	rows, err := st.db.Query(ctx, `
+		SELECT id, token, target_kind, band_id, school_id, created_by_person_id, created_at, closed_at
+		FROM group_invites WHERE `+col+` = $1
+		ORDER BY (closed_at IS NULL) DESC, created_at DESC`, targetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var invites []GroupInvite
+	for rows.Next() {
+		var gi GroupInvite
+		var bandID, schoolID, createdBy sql.NullInt64
+		var closedAt sql.NullTime
+		if err := rows.Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &schoolID, &createdBy, &gi.CreatedAt, &closedAt); err != nil {
+			return nil, err
+		}
+		gi.BandID, gi.SchoolID, gi.CreatedBy = bandID.Int64, schoolID.Int64, createdBy.Int64
+		if closedAt.Valid {
+			gi.ClosedAt = &closedAt.Time
+		}
+		invites = append(invites, gi)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]GroupInviteView, 0, len(invites))
+	for _, gi := range invites {
+		slots, err := st.listGroupInviteSlots(ctx, st.db, gi.ID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, GroupInviteView{GroupInvite: gi, Slots: slots})
+	}
+	return out, nil
+}
+
 func (st *Store) scanGroupInvite(ctx context.Context, q dbtx, query string, arg any) (*GroupInvite, string, error) {
 	var gi GroupInvite
 	var bandID, schoolID, createdBy sql.NullInt64
@@ -155,8 +205,11 @@ func (st *Store) scanGroupInvite(ctx context.Context, q dbtx, query string, arg 
 
 func (st *Store) listGroupInviteSlots(ctx context.Context, q dbtx, groupInviteID int64) ([]GroupInviteSlot, error) {
 	rows, err := q.Query(ctx, `
-		SELECT id, group_invite_id, display_name, coalesce(instrument, ''), claimed_by_person_id, claimed_at
-		FROM group_invite_slots WHERE group_invite_id = $1 ORDER BY id`, groupInviteID)
+		SELECT s.id, s.group_invite_id, s.display_name, coalesce(s.instrument, ''), s.claimed_by_person_id, s.claimed_at,
+		       coalesce(p.display_name, '')
+		FROM group_invite_slots s
+		LEFT JOIN people p ON p.id = s.claimed_by_person_id
+		WHERE s.group_invite_id = $1 ORDER BY s.id`, groupInviteID)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +219,7 @@ func (st *Store) listGroupInviteSlots(ctx context.Context, q dbtx, groupInviteID
 		var sl GroupInviteSlot
 		var claimedBy sql.NullInt64
 		var claimedAt sql.NullTime
-		if err := rows.Scan(&sl.ID, &sl.GroupInviteID, &sl.DisplayName, &sl.Instrument, &claimedBy, &claimedAt); err != nil {
+		if err := rows.Scan(&sl.ID, &sl.GroupInviteID, &sl.DisplayName, &sl.Instrument, &claimedBy, &claimedAt, &sl.ClaimedByName); err != nil {
 			return nil, err
 		}
 		if claimedBy.Valid {
