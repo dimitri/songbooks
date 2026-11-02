@@ -28,14 +28,13 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-songbooks}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-songbooks}?sslmode=disable
-      SONGBOOKS_V2_ROOT: /v2
+      # SONGBOOKS_V2_ROOT intentionally unset: PDF export is pure Go and
+      # in-process now (internal/pdfnative) — no /v2 checkout, no `typst`
+      # binary, no bind mount needed. Setting this would switch PDF export
+      # back to the old Typst-shelling pdf.Bridge (kept as a rollback
+      # path), which this image no longer ships typst for — don't set it
+      # here without also restoring the Typst install step in Dockerfile.
     command: ["--addr", "0.0.0.0:8080"]
-    volumes:
-      # Read-write: internal/pdf/pdf.go writes .export-tmp-* scratch dirs
-      # physically under v2Root (Typst's --root sandboxes reads to that
-      # tree, so the scratch files must live inside it too). A read-only
-      # bind mount would make every PDF export 500.
-      - ${V2_HOST_PATH:-./v2}:/v2
     ports:
       # 8102: chosen after checking `ss -tlnp` + `docker ps` on the host —
       # 8090-8094/8099-8101 and the 18000s are already taken by the gites

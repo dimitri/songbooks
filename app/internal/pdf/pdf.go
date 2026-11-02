@@ -28,6 +28,22 @@ import (
 	"app/internal/song"
 )
 
+// Exporter is the PDF-rendering surface internal/httpapi depends on.
+// *Bridge (this file — shells out to Typst) and internal/pdfnative.Renderer
+// (pure Go, in-process, no external binary) both satisfy it; router.go
+// picks which one a Server actually uses. Kept here, next to Bridge,
+// rather than in internal/httpapi, so pdfnative can implement it without
+// an import cycle (pdfnative already imports this package for the
+// shared SongRef/FrontMatter/Options types below).
+type Exporter interface {
+	ExportSong(ctx context.Context, book, body string, opts Options) ([]byte, error)
+	ExportSongbook(ctx context.Context, title string, entries []SongRef, opts Options) ([]byte, error)
+	ExportSetlist(ctx context.Context, title string, front FrontMatter, entries []SongRef, opts Options) ([]byte, error)
+	ExportSetlistPageOnly(ctx context.Context, title, subtitle string, entries []SongRef, opts Options) ([]byte, error)
+}
+
+var _ Exporter = (*Bridge)(nil)
+
 // Options controls the page target/theme passed through to render.typ /
 // render-book.typ, same inputs the normal `make` pipeline uses.
 type Options struct {

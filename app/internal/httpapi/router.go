@@ -6,13 +6,20 @@ import (
 	"app/internal/lilypond"
 	"app/internal/mailer"
 	"app/internal/pdf"
+	"app/internal/pdfnative"
 	"app/internal/store"
 	"app/internal/webassets"
 )
 
 type Server struct {
-	store  *store.Store
-	pdf    *pdf.Bridge      // nil when v2Root is unset — PDF export routes 503 in that case
+	store *store.Store
+	// pdf defaults to pdfnative.Renderer — pure Go, in-process, no `typst`
+	// binary or /v2 mount required. Falls back to the Typst-shelling
+	// pdf.Bridge only when v2Root is explicitly given (kept as a rollback
+	// path, not the default — see NewServer). Never nil either way, so the
+	// handlers_pdf.go "s.pdf == nil" 503 guards are now dead in practice,
+	// left in place rather than ripped out in this same change.
+	pdf    pdf.Exporter
 	ly     *lilypond.Bridge // the LilyPond export pipeline — needs no external template tree, so always non-nil; a missing `lilypond` binary only surfaces as a request-time 500
 	mailer mailer.Mailer
 
@@ -40,21 +47,26 @@ type Server struct {
 	webauthn *webauthnState
 }
 
-// NewServer wires the HTTP handler. v2Root is the path to the v2/ Typst
-// pipeline (lib/, render.typ, render-book.typ) that PDF export shells out
-// to; pass "" to disable PDF export (e.g. a deployment with no v2/ checkout
-// available). m is the mailer magic-link login uses to "send" its emails —
-// see internal/mailer and cmd/songbooks/main.go, which constructs a
-// mailer.ConsoleMailer by default. devAutoLogin is nil in every normal
-// (including production) deployment — see the Server.devAutoLogin doc
-// comment above for what setting it does and why that must never happen
-// in production. webauthnRPID is the configured passkey Relying Party ID
-// (empty = derive per-request from Host, dev-only default — see
-// webauthn.go's webauthnForRequest and main.go's --webauthn-rp-id flag).
+// NewServer wires the HTTP handler. PDF export always uses pdfnative's
+// pure-Go in-process renderer; v2Root, now otherwise unused, keeps ONE
+// legacy meaning — a non-empty value switches PDF export back to the
+// Typst-shelling pdf.Bridge instead, a rollback path for a deployment
+// that still has the `typst` binary and a /v2 checkout and wants it,
+// rather than the normal default. m is the mailer magic-link login uses
+// to "send" its emails — see internal/mailer and cmd/songbooks/main.go,
+// which constructs a mailer.ConsoleMailer by default. devAutoLogin is nil
+// in every normal (including production) deployment — see the
+// Server.devAutoLogin doc comment above for what setting it does and why
+// that must never happen in production. webauthnRPID is the configured
+// passkey Relying Party ID (empty = derive per-request from Host, dev-only
+// default — see webauthn.go's webauthnForRequest and main.go's
+// --webauthn-rp-id flag).
 func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *store.Person, webauthnRPID string) http.Handler {
 	s := &Server{store: st, mailer: m, ly: lilypond.NewBridge(), devAutoLogin: devAutoLogin, webauthnRPID: webauthnRPID, webauthn: newWebAuthnState()}
 	if v2Root != "" {
 		s.pdf = pdf.New(v2Root)
+	} else {
+		s.pdf = pdfnative.New()
 	}
 	mux := http.NewServeMux()
 
