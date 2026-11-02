@@ -1052,6 +1052,15 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   border-radius: 4px; box-shadow: var(--shadow); padding: 2rem 1.8rem;
   column-count: 1; /* overrides the generic wide-viewport #sheet{column-count:2} */
 }
+/* Lyrics are the whole point of this mode — "phone propped on a stand,
+   read the words while singing" is the core mobile use case the app is
+   built around (see the play.html template's own design notes) — so the
+   words themselves get real emphasis here, not the same 1.05rem used
+   where lyrics are a secondary column next to a chord grid (.sheet-section
+   .lyrics above). Larger size + generous line-height for legibility at
+   arm's length, and a touch more weight for contrast against the page. */
+#sheet[data-render-mode="lyrics"] .lyrics { font-size: 1.35rem; line-height: 1.55; font-weight: 500; }
+#sheet[data-render-mode="lyrics"] .lyric-line { margin: 0.4rem 0; }
 #sheet[data-render-mode="lyrics"] .section-map-chip {
   display: flex; align-items: baseline; gap: 0.5em; margin-bottom: 0.4rem;
 }
@@ -1283,25 +1292,43 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   }
   .timeline.open ~ .timeline-backdrop, .timeline-backdrop.open { display: block; }
 
-  /* Lyrics-only is a reading mode, and a reading mode wants "where am I"
-     beside the text, not above it eating vertical space — so it keeps the
-     desktop-style vertical rail even on a phone, just narrower, with the
-     lyrics filling the rest of the width next to it. The transport shrinks
-     to just play/pause + tap (same trim jazz fullscreen uses) — there's no
-     room for the bpm readout/sound picker/metronome checkbox at 72px. */
-  body:has(#sheet[data-render-mode="lyrics"]) .content-row { flex-direction: row; gap: 0.6rem; }
-  body:has(#sheet[data-render-mode="lyrics"]) .timeline {
-    flex: 0 0 72px; position: sticky; top: 0.6rem; align-self: flex-start;
-    max-height: calc(100vh - 1.2rem); width: auto;
-    overflow-x: hidden; overflow-y: auto; padding: 0.4rem 0 0.4rem 0.1rem;
-  }
-  body:has(#sheet[data-render-mode="lyrics"]) .timeline .transport {
-    padding: 0.4rem 0.3rem; margin: 0 0 0.6rem;
-  }
-  body:has(#sheet[data-render-mode="lyrics"]) .timeline .transport .tempo-row,
-  body:has(#sheet[data-render-mode="lyrics"]) .timeline .transport .meta-row,
-  body:has(#sheet[data-render-mode="lyrics"]) .timeline .transport .metro-icon-row,
-  body:has(#sheet[data-render-mode="lyrics"]) .timeline .transport .metro-advanced { display: none; }
+  /* Lyrics-only on a phone used to keep its own always-visible 72px-wide
+     vertical rail instead of the off-canvas sheet every other mode gets
+     (see the removed body:has() block this comment replaces) — the idea
+     being "a reading mode wants where-am-I beside the text, not above
+     it". In practice the full transport (play/stop/tap, beat dots, tempo,
+     metronome row) does not fit in 72px: it wrapped/overflowed into a
+     garbled vertical strip that overlapped the lyrics text, and the
+     floating FAB below was ALSO still showing on top of it (the FAB was
+     only ever meant for the off-canvas mechanism, but nothing scoped it
+     OFF for lyrics mode) — two overlapping control surfaces, one of them
+     unreadable. Lyrics mode now gets the exact same off-canvas bottom
+     sheet + single FAB as jazz/normal/map: lyrics fill the full width by
+     default (this is THE core "phone on a stand, reading lyrics while
+     singing" use case the whole app is for), and the one FAB pulls up
+     the full transport on demand, same gesture as every other mode. The
+     song-structure-strip at the top of .content-main (not .timeline) is
+     unaffected by this and keeps doing its "where am I" job, now across
+     the full phone width instead of squeezed beside the old rail. */
+
+  /* The structure strip's per-segment text label ("INTRO", "VERSE 1"...)
+     has nowhere near enough room per segment on a phone to stay legible —
+     it was truncating to "INT…"/"VER…"/"VER…", indistinguishable from
+     each other. A singer glancing at it mid-performance needs "what
+     section am I in" at a glance, not a row of unreadable ellipses, and
+     lyrics mode already prints that same label TWICE, large and
+     unambiguous, right at the top of each section's own lyrics (the
+     italic section heading and the bold "VERSE 1 · 16 bars" chip right
+     below it) — so on a phone, in lyrics mode specifically, the strip
+     drops its text and keeps only the tick marks + progress fill: a
+     lightweight scrubber showing shape and position (how far into the
+     song, how many sections left) without repeating text that already
+     reads better inline with the lyrics themselves. Ticks stay tappable
+     (title attribute still carries the full label for anyone who taps
+     one). Unscoped to lyrics mode elsewhere (desktop, and normal/jazz/map
+     on a phone) — those keep the label text as before. */
+  body:has(#sheet[data-render-mode="lyrics"]) .structure-seg-label { display: none; }
+  body:has(#sheet[data-render-mode="lyrics"]) .song-structure-strip { padding-top: 0.6rem; }
 }
 
 /* Chord symbol typesetting — Brandt & Roemer style (see internal/chordsym):

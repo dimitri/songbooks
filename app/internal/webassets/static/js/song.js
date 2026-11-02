@@ -273,6 +273,7 @@ const ICONS = {
 
   let currentBarEl = null;
   let currentSectionEl = null;
+  let currentLineEl = null;
   const structureFillEl = document.getElementById('structure-fill');
   function highlightTick() {
     const bar = clock.currentBar();
@@ -317,6 +318,39 @@ const ICONS = {
       });
       if (sectionEl) sectionEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
       currentSectionEl = sectionEl;
+    }
+    // Lyrics mode's own finer-grained position indicator: which LINE
+    // within the current section, not just which section. The data model
+    // has no per-line bar/timing of its own (see song.LyricLine — a line
+    // is just chord/text segments, nothing ties it to a bar range), so
+    // this approximates by spreading a section's lines evenly across its
+    // own [startBar, startBar+barCount) span — not exact against the real
+    // phrasing, but close enough to keep the highlighted line moving
+    // roughly in time, which is the whole point for a singer who doesn't
+    // want to track position by hand while performing. (.lyric-line.current
+    // already existed in app.css but nothing ever set the class — this was
+    // a genuinely dead/disconnected rule, a second bug alongside the
+    // layout one.) Scoped to lyrics mode only: other modes already have
+    // their own finer position cue (the current .bar highlight inside the
+    // chord grid), so this isn't needed there.
+    if (sheet.dataset.renderMode === 'lyrics' && curSec && sectionEl) {
+      const lineEls = sectionEl.querySelectorAll('.lyric-line');
+      let lineEl = null;
+      if (lineEls.length) {
+        const span = Math.max(1, curSec.barCount);
+        const offset = Math.max(0, bar - curSec.startBar);
+        const fraction = Math.min(0.999, offset / span);
+        lineEl = lineEls[Math.floor(fraction * lineEls.length)] || null;
+      }
+      if (lineEl !== currentLineEl) {
+        currentLineEl?.classList.remove('current');
+        lineEl?.classList.add('current');
+        if (lineEl) lineEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        currentLineEl = lineEl;
+      }
+    } else if (currentLineEl) {
+      currentLineEl.classList.remove('current');
+      currentLineEl = null;
     }
     requestAnimationFrame(highlightTick);
   }
