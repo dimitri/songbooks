@@ -141,7 +141,14 @@ func renderContentsPage(doc *gopdf.GoPdf, title, subtitle string, entries []cont
 		doc.SetTextColor(th.ink.r, th.ink.g, th.ink.b)
 		doc.SetXY(c.curX()+18, baseline)
 		title := e.Title
-		maxTitleW := c.colW - 18 - 58
+		// The title/artist run starts at x=18 (from curX()) and must stay
+		// clear of the KEY column, which starts at c.colW-76 — so the
+		// available width is (colW-76) - 18, minus a small gap, not
+		// colW-58: that stale boundary sat 22pt too far right and let
+		// text run under the KEY/TEMPO/PAGE columns (confirmed against a
+		// real 66-song export: "While My Guitar Gently Weeps / The
+		// Beatles" ran straight into "115").
+		maxTitleW := c.colW - 18 - 76 - 4
 		tw, _ := doc.MeasureTextWidth(title)
 		for tw > maxTitleW && len(title) > 1 {
 			title = title[:len(title)-1]
@@ -155,8 +162,24 @@ func renderContentsPage(doc *gopdf.GoPdf, title, subtitle string, entries []cont
 			tw2, _ := doc.MeasureTextWidth(title + "  ")
 			doc.SetFont(faceSans, "", 7.5*fsz)
 			doc.SetTextColor(th.meta.r, th.meta.g, th.meta.b)
-			doc.SetXY(c.curX()+18+tw2, baseline)
-			doc.Text(e.Artist)
+			// Clip to the same right boundary the title itself is held to
+			// (maxTitleW, measured from the row's left edge) — unbounded,
+			// a long artist name ran straight into the KEY/TEMPO/PAGE
+			// columns (e.g. "While My Guitar Gently Weeps / The Beatles").
+			artist := e.Artist
+			maxArtistW := maxTitleW - tw2
+			if maxArtistW >= 8 {
+				aw, _ := doc.MeasureTextWidth(artist)
+				for aw > maxArtistW && len(artist) > 1 {
+					artist = artist[:len(artist)-1]
+					aw, _ = doc.MeasureTextWidth(artist + "…")
+				}
+				if artist != e.Artist {
+					artist += "…"
+				}
+				doc.SetXY(c.curX()+18+tw2, baseline)
+				doc.Text(artist)
+			}
 		}
 
 		if e.Key != "" {
