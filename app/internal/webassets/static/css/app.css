@@ -1440,8 +1440,14 @@ textarea {
 /* ---- Bar-matrix chord grid editor (iReal-Pro-inspired) ------------------- */
 .chip-wrap { margin-bottom: 0.5rem; }
 .bar-matrix { border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; padding: 0.75rem; background: var(--bg-sunken); }
-.matrix-toolbar { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.75rem; font-size: 0.85rem; }
+.matrix-tools { margin-bottom: 0.75rem; }
+.matrix-tools summary { cursor: pointer; font-size: 0.8rem; color: var(--text-muted, #666); padding: 0.3rem 0; list-style: none; }
+.matrix-tools summary::-webkit-details-marker { display: none; }
+.matrix-tools summary::before { content: '▸ '; }
+.matrix-tools[open] summary::before { content: '▾ '; }
+.matrix-toolbar { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin: 0.5rem 0 0.75rem; font-size: 0.85rem; }
 .matrix-toolbar input { padding: 0.25rem 0.4rem; }
+.matrix-fill { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
 /* The actual editable chart — a real 5-line staff runs behind every row
    of bars (the same gradient trick play.html's own read-only chart uses
    for .staff-line::before: one shared background per row, not per bar,

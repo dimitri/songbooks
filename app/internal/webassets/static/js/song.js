@@ -1643,6 +1643,16 @@ const ICONS = {
     // input device, the grid below as the canvas it edits.
     host.appendChild(buildChordToolbar(sec, i));
 
+    // Structural tools (line width, add bar, repeat-phrase fill, repeat
+    // barline) are collapsed by default: tap a bar to start editing its
+    // chords, and these rarer whole-section actions stay one tap away
+    // instead of pushing the actual chart below the fold.
+    const toolsDetails = document.createElement('details');
+    toolsDetails.className = 'matrix-tools';
+    const toolsSummary = document.createElement('summary');
+    toolsSummary.textContent = 'bar layout tools (add/repeat bars, line width)';
+    toolsDetails.appendChild(toolsSummary);
+
     const toolbar = document.createElement('div');
     toolbar.className = 'matrix-toolbar';
     const perLine = document.createElement('label');
@@ -1664,14 +1674,23 @@ const ICONS = {
     addBar.addEventListener('click', () => { sec.measures.push(emptyMeasure()); renderMatrix(sec, i); });
     toolbar.appendChild(addBar);
 
-    // Quick-fill: "N bars × M times" — the common 4/8/12-bar (blues) case.
-    const fillLabel = document.createElement('span'); fillLabel.className = 'hint'; fillLabel.textContent = 'fill:';
-    const phraseLen = document.createElement('input'); phraseLen.type = 'text'; phraseLen.inputMode = 'numeric'; phraseLen.style.width = '2.6rem'; phraseLen.value = '4'; phraseLen.title = 'phrase length (bars)';
-    const times = document.createElement('input'); times.type = 'text'; times.inputMode = 'numeric'; times.style.width = '2.6rem'; times.value = '3'; times.title = 'repeat count';
-    const fillBtn = document.createElement('button'); fillBtn.type = 'button'; fillBtn.textContent = 'apply';
+    // Quick-fill: "repeat my first N bars, M times" — the common 4/8/12-bar
+    // (blues) case. This REPLACES the whole section's bars with M copies
+    // of its current first N bars, so it's destructive past bar N —
+    // confirm before overwriting anything that isn't blank.
+    const fillWrap = document.createElement('div'); fillWrap.className = 'matrix-fill';
+    const fillLabel = document.createElement('span'); fillLabel.className = 'hint'; fillLabel.textContent = 'repeat my first';
+    const phraseLen = document.createElement('input'); phraseLen.type = 'text'; phraseLen.inputMode = 'numeric'; phraseLen.style.width = '2.6rem'; phraseLen.value = '4'; phraseLen.title = 'how many of the current bars form one phrase';
+    const barsWord = document.createElement('span'); barsWord.className = 'hint'; barsWord.textContent = 'bars,';
+    const times = document.createElement('input'); times.type = 'text'; times.inputMode = 'numeric'; times.style.width = '2.6rem'; times.value = '3'; times.title = 'how many times to lay that phrase out';
+    const timesWord = document.createElement('span'); timesWord.className = 'hint'; timesWord.textContent = 'times';
+    const fillBtn = document.createElement('button'); fillBtn.type = 'button'; fillBtn.textContent = 'replace bars with that';
+    fillBtn.title = 'overwrites every bar in this section with the repeated phrase';
     fillBtn.addEventListener('click', () => {
       const n = Math.max(1, parseInt(phraseLen.value, 10) || 4);
       const count = Math.max(1, parseInt(times.value, 10) || 1);
+      const hasOtherContent = sec.measures.slice(n).some(m => (m.tokens || []).some(t => t && t !== '%'));
+      if (hasOtherContent && !confirm('This replaces every bar in this section with ' + count + ' repeats of its first ' + n + ' bar(s). Bars beyond that will be lost. Continue?')) return;
       const phrase = sec.measures.slice(0, n);
       while (phrase.length < n) phrase.push(emptyMeasure());
       const out = [];
@@ -1679,7 +1698,8 @@ const ICONS = {
       sec.measures = out;
       renderMatrix(sec, i);
     });
-    toolbar.append(fillLabel, phraseLen, document.createTextNode('×'), times, fillBtn);
+    fillWrap.append(fillLabel, phraseLen, barsWord, times, timesWord, fillBtn);
+    toolbar.appendChild(fillWrap);
 
     // Repeat toggle — LilyPond's own \repeat volta N: the common bars play
     // through, then repeat. Previously there was no way to set this at
@@ -1721,7 +1741,8 @@ const ICONS = {
     });
     repeatToggle.append(repeatCheckbox, document.createTextNode(' repeats (|: :|)'));
     toolbar.appendChild(repeatToggle);
-    host.appendChild(toolbar);
+    toolsDetails.appendChild(toolbar);
+    host.appendChild(toolsDetails);
 
     const rows = chunkRows(sec.measures, (sec.barsPerLine && sec.barsPerLine[0]) || 4);
     let mi = 0;
