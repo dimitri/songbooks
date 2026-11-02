@@ -672,3 +672,96 @@ func (s *Server) handleSetlistStep(w http.ResponseWriter, r *http.Request, mode 
 	}
 	s.render(w, "song", data)
 }
+
+// clicktrackSong is one flattened row for the setlist click-track mode —
+// not the full chart (the point of this mode is the metronome, not the
+// chart), just what the metronome widget needs to load this song's own
+// tempo/time-signature and show where it sits in the running order.
+type clicktrackSong struct {
+	Index        int    `json:"index"`
+	SetLabel     string `json:"setLabel"`
+	SetIndex     int    `json:"setIndex"`
+	IsFirstInSet bool   `json:"isFirstInSet"`
+	Book         string `json:"book"`
+	Stem         string `json:"stem"`
+	Title        string `json:"title"`
+	Artist       string `json:"artist"`
+	Key          string `json:"key"`
+	Tempo        int    `json:"tempo"`
+	TimeSig      string `json:"timeSig"`
+	Note         string `json:"note"`
+}
+
+// handleSetlistClicktrack is GET /setlists/{id}/clicktrack — the
+// metronome (same widget/engine as the standalone page and Phase 30's
+// advanced controls), pre-loaded with this setlist's songs in order.
+// Unlike practice/listening (handleSetlistStep), this never renders a
+// song's chart — the click is the point, not the chart — so it flattens
+// every set's entries into a small JSON array (tempo/time-sig per song,
+// set boundaries marked) for the client to step through without a page
+// reload, the same way handleSetlistGigPage flattens a legacy book/stem
+// setlist into gigRow/gigSet.
+func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	person := personFromContext(r)
+	canView, err := s.store.CanViewSetlistByID(r.Context(), person.ID, id)
+	if err != nil || !canView {
+		http.NotFound(w, r)
+		return
+	}
+	l, meta, _, err := s.store.LoadSetlistByID(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	var songs []clicktrackSong
+	n := 0
+	for si, set := range l.Sets {
+		first := true
+		for _, e := range set.Entries {
+			book, stem := e.Book, e.Stem
+			if e.IsVariant() {
+				v, err := s.store.GetVariant(r.Context(), e.VariantID)
+				if err != nil {
+					continue
+				}
+				book, stem = v.Book, v.Stem
+			}
+			if book == "" || stem == "" {
+				continue
+			}
+			sg, _, err := s.store.LoadSong(book, stem)
+			if err != nil {
+				continue
+			}
+			tempo, _ := strconv.Atoi(orDefault(sg.Get("tempo"), "120"))
+			if tempo <= 0 {
+				tempo = 120
+			}
+			songs = append(songs, clicktrackSong{
+				Index: n, SetLabel: set.Label, SetIndex: si, IsFirstInSet: first,
+				Book: book, Stem: stem,
+				Title: orDefault(sg.Get("title"), stem), Artist: sg.Get("artist"),
+				Key: sg.Get("key"), Tempo: tempo, TimeSig: orDefault(sg.Get("time"), "4/4"),
+				Note: e.Note,
+			})
+			n++
+			first = false
+		}
+	}
+	if len(songs) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	songsJSON, _ := json.Marshal(songs)
+
+	s.render(w, "setlist-clicktrack", map[string]any{
+		"Me": person, "SetlistID": id, "Title": orDefault(meta.Title, "set list"),
+		"SongsJSON": template.JS(songsJSON),
+	})
+}

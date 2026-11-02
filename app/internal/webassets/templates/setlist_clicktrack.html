@@ -1,0 +1,57 @@
+{{define "setlist-clicktrack"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} — click track — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/setlists/{{.SetlistID}}/practice">{{template "icon-back"}} {{.Title}}</a>
+  <h1>Click track</h1>
+  <nav class="song-nav">
+    <button id="theme-toggle" class="icon-btn" type="button" title="toggle light/dark">{{template "icon-theme"}}</button>
+  </nav>
+</header>
+<main>
+  {{/* The metronome with the full set pre-loaded: each song's own
+       tempo/time-signature drives the SAME widget/engine the standalone
+       metronome page uses (metronome-widget, clock.js) — a performance/
+       rehearsal tool, not the chart viewer, so there's no song content
+       here, just the running order and the click. */}}
+  <section class="card book-card clicktrack-now-playing" id="clicktrack-now-playing">
+    <div class="clicktrack-position" id="clicktrack-position"></div>
+    <h2 id="clicktrack-title"></h2>
+    <div class="clicktrack-meta" id="clicktrack-meta"></div>
+    <div class="clicktrack-nav">
+      <button type="button" id="clicktrack-prev" class="icon-btn">{{template "icon-back"}} prev</button>
+      <button type="button" id="clicktrack-next" class="icon-btn">next {{template "icon-forward"}}</button>
+    </div>
+  </section>
+
+  <div id="clicktrack-break" class="card book-card clicktrack-break" hidden>
+    <h2>Break</h2>
+    <p class="hint" id="clicktrack-break-label"></p>
+    <button type="button" id="clicktrack-break-continue" class="primary">Start next set</button>
+  </div>
+
+  <div id="clicktrack-metronome-wrap">
+    {{template "metronome-widget" .}}
+  </div>
+</main>
+<script id="clicktrack-data" type="application/json">{{.SongsJSON}}</script>
+<script src="/static/js/clock.js"></script>
+<script src="/static/js/metronome-page.js"></script>
+<script src="/static/js/setlist-clicktrack.js"></script>
+{{template "pwa-register"}}
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

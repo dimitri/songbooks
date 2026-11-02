@@ -1,25 +1,9 @@
-{{define "metronome"}}
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Metronome — Songbooks</title>
-<link rel="stylesheet" href="/static/css/app.css">
-{{template "pwa-head"}}
-</head>
-<body>
-{{template "desktop-sidebar" .Me}}
-<div class="app-content">
-<header class="app-header">
-  {{template "home-link"}}
-  <h1>Metronome</h1>
-  <nav class="song-nav">
-    <button id="theme-toggle" class="icon-btn" type="button" title="toggle light/dark">{{template "icon-theme"}}</button>
-    {{template "notif-bell"}}
-  </nav>
-</header>
-<main>
+{{/* The metronome widget itself (bpm/transport/tabs), factored out of the
+     standalone page below so the setlist click-track mode (setlist_edit
+     "run this set" / setlist_gig) can embed the exact same control
+     surface — one engine (clock.js), one set of controls, reused rather
+     than re-markup'd, wired up by metronome-page.js in both places. */}}
+{{define "metronome-widget"}}
   <section class="card book-card metronome-standalone" id="metronome">
     <div class="metro-bpm-row">
       <button id="bpm-down" type="button" class="icon-btn" aria-label="slower">&minus;</button>
@@ -128,6 +112,31 @@
       </div>
     </div>
   </section>
+{{end}}
+
+{{define "metronome"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metronome — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
+<header class="app-header">
+  {{template "home-link"}}
+  <h1>Metronome</h1>
+  <nav class="song-nav">
+    <button id="theme-toggle" class="icon-btn" type="button" title="toggle light/dark">{{template "icon-theme"}}</button>
+    {{template "notif-bell"}}
+  </nav>
+</header>
+<main>
+  {{template "metronome-widget" .}}
 </main>
 <script src="/static/js/clock.js"></script>
 <script src="/static/js/metronome-page.js"></script>
