@@ -107,9 +107,21 @@ const ICONS = {
         // "bars:" hint asked for, same as today.
         const useCap = Math.min(cap, effCap);
         const cells = [...template.children]; // clef cell (maybe) + .bar elements, in order
-        if (useCap >= cells.filter(el => el.classList.contains('bar')).length) {
+        const actualBarCount = cells.filter(el => el.classList.contains('bar')).length;
+        if (useCap >= actualBarCount) {
           const line = template.cloneNode(true);
-          line.style.setProperty('--cap', String(cap));
+          // The ORIGINAL authored `cap` can itself already be larger than
+          // this particular line's actual bar count (the server's own
+          // short-trailing-row for a section whose bar count doesn't
+          // divide evenly by its bars-per-line — the exact same root
+          // pattern as the chunking loop below, just baked in server-side
+          // instead of produced by a client-side split). Blindly reusing
+          // `cap` here reproduced the unexplained-blank-gap bug even when
+          // no reflow was needed at all — confirmed with a real 7-bar
+          // test section. Only fall back to the line's own bar count when
+          // it's genuinely short; a full line (actualBarCount === cap)
+          // keeps rendering at exactly the declared "bars:" hint, unchanged.
+          line.style.setProperty('--cap', String(actualBarCount < cap ? actualBarCount : cap));
           newLines.push(line);
           continue;
         }
@@ -123,11 +135,30 @@ const ICONS = {
         // child of the very first original line.
         const clefEl = hasClef ? cells.find(el => el.classList.contains('staff-timesig-cell')) : null;
         const barEls = cells.filter(el => el.classList.contains('bar'));
-        for (let i = 0; i < barEls.length; i += useCap) {
-          const chunk = barEls.slice(i, i + useCap);
+        // Prefer a capacity that divides the bar count evenly, within
+        // budget. A short trailing chunk rendered at the SAME --cap as
+        // its full siblings leaves an unexplained blank gap: .bar's width
+        // is 100%/--cap, so fewer bars than --cap don't fill the row, but
+        // .staff-line::before still paints the 5-line staff background
+        // across the row's FULL width — a real user mistook the resulting
+        // empty, staff-lined gap for a rendering bug, not deliberate
+        // "every bar the same width" consistency. Search downward from
+        // useCap for the largest divisor >1; only when none exists (e.g.
+        // a 7-bar section) does the original short-last-row case still
+        // happen — and even then, that lone chunk gets its OWN --cap
+        // (its own bar count) below, so it fills its row instead of
+        // leaving blank staff behind it.
+        let effUseCap = useCap;
+        if (barEls.length % useCap !== 0) {
+          for (let d = useCap - 1; d > 1; d--) {
+            if (barEls.length % d === 0) { effUseCap = d; break; }
+          }
+        }
+        for (let i = 0; i < barEls.length; i += effUseCap) {
+          const chunk = barEls.slice(i, i + effUseCap);
           const line = document.createElement('div');
           line.className = 'staff-line';
-          line.style.setProperty('--cap', String(useCap));
+          line.style.setProperty('--cap', String(chunk.length < effUseCap ? chunk.length : effUseCap));
           if (i === 0 && clefEl) line.appendChild(clefEl.cloneNode(true));
           for (const bar of chunk) line.appendChild(bar.cloneNode(true));
           newLines.push(line);
@@ -193,7 +224,12 @@ const ICONS = {
       const replacement = groups.map((g, gi) => {
         const l = document.createElement('div');
         l.className = 'staff-line';
-        l.style.setProperty('--cap', String(newCap));
+        // Same fix as reflowStaffLines' own chunking loop: the trailing
+        // group here can be SHORTER than newCap too (e.g. 3 bars split at
+        // newCap=2 gives groups of [2,1]) — give it its own --cap (its
+        // own bar count) rather than newCap, or it leaves the exact same
+        // unexplained blank gap this whole pass exists to get rid of.
+        l.style.setProperty('--cap', String(g.length < newCap ? g.length : newCap));
         if (gi === 0 && clefEl) l.appendChild(clefEl);
         for (const b of g) l.appendChild(b);
         return l;
