@@ -1066,6 +1066,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	sections := buildSections(sg)
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
 	variantID, workID, _ := s.store.VariantLookup(r.Context(), book, stem)
+	// Me: the desktop sidebar (Phase 44) needs it for the admin-only Admin
+	// link and the account row, same as every other top-level page.
+	person := personFromContext(r)
 	// CanEdit drives the client-side implicit-fork-on-edit flow (see
 	// song.js's editToggle handler): a viewer without edit rights on this
 	// variant never sees a separate "fork" step — tapping Edit silently
@@ -1074,7 +1077,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	// legacy no-variant case, since there's nothing to fork there.
 	canEdit := true
 	if variantID != 0 {
-		if person := personFromContext(r); person != nil {
+		if person != nil {
 			canEdit, _ = s.store.CanEditVariant(r.Context(), person.ID, variantID)
 		} else {
 			canEdit = false
@@ -1087,7 +1090,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	data := map[string]any{
-		"Book": book, "Stem": stem,
+		"Book": book, "Stem": stem, "Me": person,
 		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "Genre": genre,
 		"Title": orDefault(sg.Get("title"), stem), "Artist": sg.Get("artist"),
 		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),

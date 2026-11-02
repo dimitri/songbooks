@@ -184,17 +184,94 @@
 {{template "pwa-head"}}
 </head>
 <body data-mode="view">
+{{/* Phase 44: the desktop sidebar (Home/Songbooks/Bands/Setlists/Profile,
+     plus a "This song" group) that every other top-level page already
+     renders — Play used to be the one page that opted out of it entirely
+     (no {{template "desktop-sidebar"}} call at all, not a CSS hide), so a
+     desktop reader lost the whole site nav the moment they opened a song,
+     and every song-level action (view mode, notes, PDF export, edit,
+     versions, history, reference) got crammed into two cluttered top
+     rows instead. This duplicates desktop-sidebar's own markup/CSS
+     classes (icons.html) rather than changing that shared partial's
+     signature — every other page that calls it passes a bare *Person, and
+     making it accept a "this song" extra-content slot would mean
+     threading a new argument shape through 25+ call sites for a feature
+     only this one page needs. Reuses the exact same #desktop-sidebar id
+     and data-path attributes, so {{template "desktop-sidebar-script"}}
+     (pure id/class based, no knowledge of which template produced the
+     markup) still drives the active-link highlighting unchanged. Hidden
+     below 901px exactly like the shared partial (same base .desktop-sidebar
+     CSS rule) — mobile keeps its own .song-context-bar/"..." nav below,
+     completely untouched. */}}
+<nav class="desktop-sidebar" id="desktop-sidebar" aria-label="main navigation">
+  <a class="sidebar-brand" href="/">{{template "icon-logo"}} Songbooks</a>
+  <div class="sidebar-primary">
+    <a href="/" data-path="/" data-label="Home">{{template "icon-home"}} Home</a>
+    <a href="/catalog" data-path="/catalog" data-label="Songbooks">{{template "icon-catalog"}} Songbooks</a>
+    <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}} Bands</a>
+    <a href="/setlists" data-path="/setlists" data-label="Setlists">{{template "icon-setlists"}} Setlists</a>
+    <a href="/profile" data-path="/profile" data-label="Profile">{{template "icon-profile"}} Profile</a>
+  </div>
+  {{/* This song: every control that used to crowd the top bar, moved here
+       — it's contextual to whichever song is open, the same pattern as a
+       settings group under a sidebar's global nav. The view-mode switcher
+       (#mode-segmented, including the Edit entry) and every button below
+       keep their exact ids — nothing in song.js is wired by DOM position,
+       only by id/class (confirmed before moving any of this), so
+       relocating them here needed no JS changes, only CSS to read as a
+       vertical sidebar list instead of a horizontal icon pill. */}}
+  <div class="sidebar-secondary sidebar-song-group">
+    <div class="sidebar-group-label">This song</div>
+    <div class="segmented" id="mode-segmented" data-value="normal">
+      <button type="button" data-value="normal" class="active" title="chords + lyrics">{{template "icon-mode-normal"}}<span class="sr-only">Chords + lyrics</span></button>
+      <button type="button" data-value="jazz" title="jazz chart">{{template "icon-mode-jazz"}}<span class="sr-only">Jazz chart</span></button>
+      <button type="button" data-value="lyrics" title="lyrics only">{{template "icon-mode-lyrics"}}<span class="sr-only">Lyrics only</span></button>
+      <button type="button" data-value="map" title="song map">{{template "icon-mode-map"}}<span class="sr-only">Song map</span></button>
+      <button type="button" data-value="edit" id="edit-toggle" title="edit">{{template "icon-edit"}}<span class="sr-only">Edit</span></button>
+    </div>
+    {{if .VariantID}}
+    <button id="notes-toggle" class="sidebar-song-row" type="button" title="notes: personal or shared, per section">{{template "icon-notes"}} Notes</button>
+    {{end}}
+    <span class="pdf-mode-row">
+      <a class="pdf-export-link sidebar-song-row" href="/b/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF (chart)" download>{{template "icon-download"}} Export PDF</a>
+      <select class="pdf-mode-select" title="PDF view mode">
+        <option value="">Chords + lyrics</option>
+        <option value="jazz">Jazz chart</option>
+        <option value="map">Song map</option>
+        <option value="lyrics">Lyrics only</option>
+      </select>
+      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
+    </span>
+    {{if .WorkID}}<a class="sidebar-song-row" href="/works/{{.WorkID}}" title="all versions of this song">{{template "icon-mode-map"}} Versions</a>{{end}}
+    {{if .VariantID}}<a class="sidebar-song-row" href="/variants/{{.VariantID}}/history" title="revision history">{{template "icon-notes"}} History</a>{{end}}
+    <button id="reference-toggle" class="sidebar-song-row" type="button" title="reference video">{{template "icon-reference"}} Reference</button>
+  </div>
+  <div class="sidebar-secondary">
+    {{if and .Me .Me.IsAdmin}}<a href="/admin" data-path="/admin">Admin</a>{{end}}
+    <a href="/metronome" data-path="/metronome">Metronome</a>
+    <a href="/catalog/mine" data-path="/catalog/mine">My songbook</a>
+  </div>
+  <div class="sidebar-song-group" style="border-top:none;padding-top:0;">
+    <button id="theme-toggle" class="sidebar-song-row" type="button" title="theme: auto">{{template "icon-theme"}} Theme</button>
+  </div>
+  {{if .Me}}
+  <a class="sidebar-account" href="/profile">
+    <span class="sidebar-account-avatar">{{slice .Me.DisplayName 0 1}}</span>
+    <span>{{.Me.DisplayName}}</span>
+  </a>
+  {{end}}
+</nav>
+<div class="app-content">
 {{/* Three-column top bar, width split into 4 and given as 1-2-1 (previous
      / current / next, current spanning the two merged middle columns) —
      the title/artist/key/tempo that used to sit in a plain header, easy
      to miss, now lives in the widest, most central cell, with prev/next
      navigation either side of it instead of as a separate row below.
-     The back-link and theme toggle used to be their own full-width
-     header row ABOVE this one — a whole extra bar of chrome just to hold
-     two small controls, pushing the chart down a full row on every
-     screen, worst on a phone where that space is scarce. They're now a
-     slim first row inside this same topbar surface instead of a second
-     bar of their own. */}}
+     Every song-level action that used to live in this bar (view mode,
+     notes, PDF export, edit, versions, history, reference, theme) now
+     lives in the desktop sidebar's "This song" group instead (Phase 44)
+     — what's left here is only what's about THIS moment: where you are
+     (breadcrumb, prev/next) and what you're about to do (play/tap). */}}
 <div class="song-topbar">
   <div class="topbar-utility">
     {{if .PracticeMode}}
@@ -204,35 +281,6 @@
     {{else}}
     <a class="back-link" href="/b/{{.Book}}">{{template "icon-back"}} {{.Book}}</a>
     {{end}}
-    {{/* Phase 38: mode/notes picker, wired by pdf-export.js (delegated
-         change listener, no per-link JS needed here) — rewrites this
-         link's query string client-side before the user clicks it. The
-         plain href below (no query params) is what a bookmark/share
-         link reproduces: pdf-export.js never mutates it, only the
-         rendered `href` attribute. */}}
-    <span class="pdf-mode-row topbar-desktop-only">
-      <a class="pdf-export-link icon-btn" href="/b/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF (chart)" download>PDF</a>
-      <select class="pdf-mode-select" title="PDF view mode">
-        <option value="">Chords + lyrics</option>
-        <option value="jazz">Jazz chart</option>
-        <option value="map">Song map</option>
-        <option value="lyrics">Lyrics only</option>
-      </select>
-      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
-    </span>
-    {{if .WorkID}}<a class="icon-btn topbar-desktop-only" href="/works/{{.WorkID}}" title="all versions of this song">versions</a>{{end}}
-    {{if .VariantID}}<a class="icon-btn topbar-desktop-only" href="/variants/{{.VariantID}}/history" title="revision history">history</a>
-    {{/* Desktop only — on mobile this is reached via the View stack's
-         Notes row instead (#notes-stack-row), see .topbar-notes-btn's
-         mobile-breakpoint rule in app.css; there's no "view menu"
-         concept on desktop to fold it into. */}}
-    <button id="notes-toggle" class="icon-btn topbar-notes-btn" type="button" title="notes: personal or shared, per section">notes</button>{{end}}
-    {{/* Desktop only — on mobile this is reached via the View stack's
-         Reference row instead (#reference-stack-row); same
-         .topbar-notes-btn-style mobile-hiding rule, see
-         .topbar-reference-btn in app.css. */}}
-    <button id="reference-toggle" class="icon-btn topbar-reference-btn" type="button" title="reference video">ref</button>
-    <button id="theme-toggle" class="icon-btn" type="button" title="theme: auto">{{template "icon-theme"}}</button>
   </div>
   {{if .Prev}}
   <a class="topbar-cell topbar-prev setlist-nav-card prev" href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.PrevIndex}}{{else}}/b/{{.Prev.Book}}/{{.Prev.Stem}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{end}}{{end}}">
@@ -259,26 +307,6 @@
       <button type="button" id="mini-metro-play" title="click track: play/stop">{{template "icon-play"}}</button>
       <button type="button" id="mini-metro-fade" title="play one bar, then fade out">{{template "icon-metro-intro"}}</button>
       <button type="button" id="mini-metro-tap" title="tap tempo">{{template "icon-tap"}}</button>
-    </div>
-    {{/* The view-mode switcher lives here, not as its own full-width row:
-         a segmented control reads as "which view of THIS", so it belongs
-         visually grouped with the title it governs — directly under it,
-         centered with it — the same pattern a reader/editor app uses for
-         a mode switcher tied to one document (e.g. a tab bar under a
-         document title, not a loose toolbar spanning the whole window).
-         Centering .topbar-current (the page's own middle column) also
-         centers this on the full page width without extra CSS. */}}
-    {{/* Icon-only, not text labels — a row of five text buttons ("chords
-         + lyrics", "jazz chart"...) was the widest thing in the whole top
-         bar and the first thing to wrap/crowd on a narrow screen. A title
-         tooltip plus a visually-hidden label keeps each one identifiable
-         without sighted space going to text at all. */}}
-    <div class="segmented" id="mode-segmented" data-value="normal">
-      <button type="button" data-value="normal" class="active" title="chords + lyrics">{{template "icon-mode-normal"}}<span class="sr-only">chords + lyrics</span></button>
-      <button type="button" data-value="jazz" title="jazz chart">{{template "icon-mode-jazz"}}<span class="sr-only">jazz chart</span></button>
-      <button type="button" data-value="lyrics" title="lyrics only">{{template "icon-mode-lyrics"}}<span class="sr-only">lyrics only</span></button>
-      <button type="button" data-value="map" title="song map">{{template "icon-mode-map"}}<span class="sr-only">song map</span></button>
-      <button type="button" data-value="edit" id="edit-toggle" title="edit">{{template "icon-edit"}}<span class="sr-only">edit</span></button>
     </div>
   </div>
 
@@ -586,6 +614,7 @@
     </main>
   </div>
 </div>
+</div><!-- /.app-content -->
 
 <script src="/static/js/clock.js?v={{staticVersion}}"></script>
 <script src="/static/js/song.js?v={{staticVersion}}"></script>
@@ -778,6 +807,7 @@
 {{template "pwa-register"}}
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
+{{template "desktop-sidebar-script"}}
 </body>
 </html>
 {{end}}

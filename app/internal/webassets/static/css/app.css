@@ -331,6 +331,65 @@ input[type="text"], input[type="url"], input[type="date"] {
   background: var(--accent-bg); color: var(--accent-ink); font-weight: 700; font-size: 0.8rem;
 }
 
+/* ---- Play page's own "This song" sidebar group (Phase 44) ---------------
+   Reuses .sidebar-secondary for the same divider/spacing/font-size as the
+   Admin/Metronome/My-songbook group below it, plus this group-specific
+   label and row styling — the view-mode switcher (#mode-segmented, shared
+   with the topbar's pre-Phase-44 pill) and the PDF/notes/versions/history/
+   reference buttons all move in here unchanged (see play.html), just
+   restyled from a horizontal icon row into a vertical labeled list to
+   match the rest of the sidebar. */
+.sidebar-group-label {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--sidebar-fg) 60%, transparent);
+  padding: 0 0.6rem; margin-bottom: 0.3rem;
+}
+.sidebar-song-group #mode-segmented {
+  display: flex; flex-direction: column; gap: 0.15rem;
+  border: none; background: none; padding: 0; border-radius: 0; margin-bottom: 0.3rem;
+}
+.sidebar-song-group #mode-segmented button {
+  /* #mode-segmented button's own base rule (shared with the old desktop
+     icon pill, still used by nothing now but kept in case this group ever
+     needs the compact form again) fixes a 2.1rem square width/height for
+     its icon-only design — override both explicitly, a stretch/auto width
+     alone won't beat a sibling rule that already names this exact
+     property. */
+  display: flex; align-items: center; gap: 0.55rem; justify-content: flex-start;
+  width: 100%; height: auto; padding: 0.5rem 0.6rem; border-radius: 10px;
+  color: var(--sidebar-fg); font-size: 0.82rem; font-weight: 500; background: none; line-height: 1.25;
+  text-align: left;
+}
+.sidebar-song-group #mode-segmented button .icon { width: 1.1rem; height: 1.1rem; flex: none; }
+/* The topbar pill carried these labels as screen-reader-only (icon tooltip
+   was enough in a horizontal row); here, in a vertical sidebar list, the
+   label is exactly what a reader scans for — make it visible instead of
+   overriding the generic .sr-only utility itself (used elsewhere for
+   genuinely icon-only controls). */
+.sidebar-song-group #mode-segmented button .sr-only {
+  position: static; width: auto; height: auto; padding: 0; margin: 0;
+  overflow: visible; clip: auto; white-space: normal;
+}
+.sidebar-song-group #mode-segmented button.active { background: var(--sidebar-active-bg); color: var(--sidebar-active-fg); font-weight: 600; }
+.sidebar-song-group #mode-segmented button:not(.active):hover { background: color-mix(in srgb, var(--sidebar-fg) 10%, transparent); }
+.sidebar-song-row {
+  display: flex; align-items: center; gap: 0.7rem; width: 100%;
+  padding: 0.55rem 0.6rem; border-radius: 10px; border: none; background: none;
+  color: var(--sidebar-fg); font-size: 0.88rem; font-weight: 500; text-decoration: none; text-align: left;
+}
+.sidebar-song-row:hover { background: color-mix(in srgb, var(--sidebar-fg) 10%, transparent); text-decoration: none; }
+.sidebar-song-row .icon { width: 1.1rem; height: 1.1rem; flex: none; }
+.sidebar-song-group .pdf-mode-row { display: flex; flex-direction: column; gap: 0.35rem; }
+.sidebar-song-group .pdf-mode-select {
+  margin: 0 0.6rem; background: color-mix(in srgb, var(--sidebar-fg) 10%, transparent);
+  color: var(--sidebar-fg); border: 1px solid var(--sidebar-border); border-radius: 6px;
+  padding: 0.3rem 0.4rem; font-size: 0.82rem;
+}
+.sidebar-song-group .pdf-notes-label {
+  display: flex; align-items: center; gap: 0.4rem; margin: 0 0.6rem;
+  color: color-mix(in srgb, var(--sidebar-fg) 85%, transparent); font-size: 0.82rem;
+}
+
 /* ---- Notification bell -------------------------------------------------- */
 .notif-bell { position: relative; display: inline-flex; align-items: center; color: inherit; }
 .notif-badge {
