@@ -1,0 +1,11 @@
+-- onboarded_at: when a person finished (or explicitly skipped) the
+-- multi-step "getting started" wizard — NULL means "hasn't been through
+-- it yet". Set once, at finish-or-skip time; re-entering the wizard
+-- voluntarily later (it's always re-enterable from /profile) never
+-- touches this column again — it's purely "should a brand-new account
+-- be offered this automatically," not an ongoing progress tracker, so
+-- there's no separate per-step state table: each step's own real data
+-- (instruments, band membership, songbook entries) already lives where
+-- it belongs and the wizard just reads it back to decide what to show
+-- as already-done.
+ALTER TABLE people ADD COLUMN onboarded_at timestamptz;

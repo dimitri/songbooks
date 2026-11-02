@@ -123,5 +123,12 @@ func (s *Server) handleUpdateInstruments(w http.ResponseWriter, r *http.Request)
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	http.Redirect(w, r, "/profile", http.StatusFound)
+	// "next" lets the getting-started wizard (wizard.go) reuse this same
+	// handler for its instrument step instead of a duplicate one —
+	// absent, this is just the plain /profile form.
+	dest := r.FormValue("next")
+	if dest == "" {
+		dest = "/profile"
+	}
+	http.Redirect(w, r, dest, http.StatusFound)
 }

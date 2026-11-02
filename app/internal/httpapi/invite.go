@@ -3,6 +3,7 @@ package httpapi
 import (
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
@@ -98,5 +99,9 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode,
 		MaxAge: 30 * 24 * 60 * 60,
 	})
-	http.Redirect(w, r, dest, http.StatusFound)
+	// This call only ever reaches a brand-new account (personID just came
+	// out of CreatePersonAndAcceptInvite above) — offer the
+	// getting-started wizard, carrying the real destination for its
+	// "Done"/"skip the rest" step so the invite's own target isn't lost.
+	http.Redirect(w, r, "/welcome?next="+url.QueryEscape(dest), http.StatusFound)
 }

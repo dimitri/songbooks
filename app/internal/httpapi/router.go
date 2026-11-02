@@ -146,6 +146,12 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// used to pre-fill jam signup. See internal/httpapi/profile.go.
 	mux.HandleFunc("GET /profile", s.requireAuth(s.handleProfilePage))
 	mux.HandleFunc("POST /profile/instruments", s.requireAuth(s.handleUpdateInstruments))
+
+	// Getting-started wizard (phase 36): re-enterable at any time from
+	// /profile's "Setup" link, auto-offered once right after account
+	// creation (see invite.go/join.go). See wizard.go.
+	mux.HandleFunc("GET /welcome", s.requireAuth(s.handleWelcomePage))
+	mux.HandleFunc("POST /welcome/finish", s.requireAuth(s.handlePostWelcomeFinish))
 	// Set/change your own password — the "opt into password login later"
 	// path for a magic-link-only account. See profile.go.
 	mux.HandleFunc("POST /profile/password", s.requireAuth(s.handleSetPasswordProfile))

@@ -2451,3 +2451,32 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .group-invite-row + .group-invite-row { margin-top: 0.7rem; padding-top: 0.7rem; border-top: 1px dashed var(--border); }
 .invite-link-url { font-size: 0.82rem; overflow-wrap: anywhere; flex: 1 1 auto; min-width: 0; }
 .copy-link-btn { flex: none; font-size: 0.8rem; padding: 0.3rem 0.65rem; }
+
+/* Getting-started wizard (phase 36). */
+.wizard-card { max-width: 560px; }
+.wizard-steps { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 1.1rem; }
+.wizard-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+.wizard-dot.done { background: var(--ok); }
+.wizard-dot.active { background: var(--accent); width: 10px; height: 10px; }
+.wizard-steps .hint { margin-left: 0.4rem; }
+.wizard-actions { display: flex; align-items: center; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
+.wizard-actions a.primary {
+  background: var(--accent); color: var(--accent-contrast); border: 1px solid var(--accent);
+  font-weight: 700; border-radius: 8px; padding: 0.45rem 0.9rem; display: inline-block;
+}
+.wizard-actions a.primary:hover { text-decoration: none; filter: brightness(1.05); }
+.link-btn, a.link-btn {
+  background: none; border: none; color: var(--fg-muted); text-decoration: underline;
+  cursor: pointer; padding: 0; font-size: 0.88rem;
+}
+.wizard-option-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.8rem; }
+.wizard-option { flex: 1 1 220px; background: var(--bg-sunken); border-radius: 10px; padding: 0.9rem 1rem; display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-start; }
+.wizard-option h3 { margin: 0; font-size: 0.95rem; }
+.wizard-option input[type=text] { width: 100%; }
+.wizard-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.7rem; margin-top: 0.8rem; }
+.wizard-pick { background: var(--bg-sunken); border-radius: 10px; padding: 0.7rem 0.8rem; display: flex; flex-direction: column; gap: 0.35rem; align-items: flex-start; }
+.wizard-pick-title { font-weight: 600; font-size: 0.88rem; }
+.wizard-pick-artist { font-size: 0.78rem; }
+.wizard-pick-add { font-size: 0.8rem; padding: 0.25rem 0.6rem; }
+.wizard-pick-added { opacity: 0.6; }
+@media (max-width: 760px) { .wizard-option-row { flex-direction: column; } }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -140,7 +141,10 @@ func (s *Server) handlePostJoin(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode,
 		MaxAge: 30 * 24 * 60 * 60,
 	})
-	http.Redirect(w, r, dest, http.StatusFound)
+	// personID was just created above (unlike the already-logged-in
+	// branch earlier in this function) — offer the getting-started
+	// wizard, carrying the real destination for its "Done" step.
+	http.Redirect(w, r, "/welcome?next="+url.QueryEscape(dest), http.StatusFound)
 }
 
 // claimGroupInviteForPerson is the shared "claim slot or unlisted join"

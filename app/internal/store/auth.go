@@ -129,6 +129,23 @@ func (st *Store) SetInstruments(ctx context.Context, personID int64, instruments
 	return nil
 }
 
+// GetOnboardedAt reports whether personID has finished (or explicitly
+// skipped) the getting-started wizard — see migration 0031's comment on
+// why this is a single timestamp, not a per-step state table.
+func (st *Store) GetOnboardedAt(ctx context.Context, personID int64) (*time.Time, error) {
+	var t *time.Time
+	err := st.db.QueryRow(ctx, `SELECT onboarded_at FROM people WHERE id = $1`, personID).Scan(&t)
+	return t, err
+}
+
+// MarkOnboarded sets onboarded_at to now, idempotently (a second call —
+// e.g. finishing after an earlier skip — just moves the timestamp, which
+// is harmless since nothing reads anything but "is it set").
+func (st *Store) MarkOnboarded(ctx context.Context, personID int64) error {
+	_, err := st.db.Exec(ctx, `UPDATE people SET onboarded_at = now() WHERE id = $1`, personID)
+	return err
+}
+
 // SetAdmin grants or revokes site-wide admin status for personID.
 func (st *Store) SetAdmin(ctx context.Context, personID int64, isAdmin bool) error {
 	tag, err := st.db.Exec(ctx, `UPDATE people SET is_admin = $1 WHERE id = $2`, isAdmin, personID)
