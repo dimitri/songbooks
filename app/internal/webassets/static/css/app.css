@@ -2527,16 +2527,22 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .create-row-cancel { background: none; border: none; color: var(--fg-faint); cursor: pointer; font-size: 0.85rem; }
 .create-row #create-band-result { margin: 0; flex-basis: 100%; }
 
-/* Pill tab-bar, same visual language as .catalog-view-tab / .attention-
-   filters — shared by the bands-list page (My bands / All bands) and
-   every band-detail sub-page (Overview / Repertoire / Setlists /
-   Proposals & Listening Party / Members). */
-.band-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-.band-tabs a {
-  padding: 0.5rem 1.1rem; border-radius: 999px; border: 1px solid var(--border);
-  background: var(--bg-raised); color: var(--fg-muted); font-weight: 600; font-size: 0.88rem;
+/* Segmented-pill tab bar — shared by the bands-list page (My bands /
+   All bands) and every band-detail sub-page (Overview / Repertoire /
+   Setlists / Proposals & Listening Party / Members). One rounded track
+   holding the tabs, the active one riding a raised pill inside it. */
+.band-tabs {
+  display: inline-flex; gap: 0.15rem; flex-wrap: wrap;
+  background: var(--bg-sunken); border-radius: 10px; padding: 0.2rem;
 }
-.band-tabs a.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast, #fff); }
+.band-tabs a {
+  padding: 0.45rem 0.9rem; border-radius: 7px; border: none;
+  background: transparent; color: var(--fg-muted); font-weight: 500; font-size: 0.82rem;
+}
+.band-tabs a.active {
+  background: var(--bg-raised); color: var(--fg); font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
 .band-tabs-row { margin-bottom: 1.2rem; }
 
 .coming-up-card {
