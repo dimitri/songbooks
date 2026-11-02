@@ -282,6 +282,20 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 
 	mux.HandleFunc("GET /b/{book}/{stem}/export.pdf", s.requireRole("viewer", s.handleExportSongPDF))
 	mux.HandleFunc("GET /setlists/{book}/{stem}/export.pdf", s.requireRole("viewer", s.handleExportSetlistPDF))
+	mux.HandleFunc("GET /setlists/{book}/{stem}/export-setlist-page.pdf", s.requireRole("viewer", s.handleExportSetlistPageOnlyPDF))
+	// Phase 3 (id-addressed person/band/project-scoped) setlists: same
+	// pair of exports, gated by CanViewSetlistByID inside the handler
+	// itself (requireAuth only here, same as every other /setlists/{id}/...
+	// route) rather than a role/band middleware, since the right check
+	// genuinely differs by scope.
+	mux.HandleFunc("GET /setlists/{id}/export.pdf", s.requireAuth(s.handleExportSetlistByIDPDF))
+	mux.HandleFunc("GET /setlists/{id}/export-setlist-page.pdf", s.requireAuth(s.handleExportSetlistPageOnlyByIDPDF))
+	// Whole-songbook export: a project's full song list, or a band's full
+	// repertoire — same Typst pipeline as a single song/setlist above, new
+	// in this phase (previously PDF export only covered one song or a
+	// curated setlist, never "every song this project/band has").
+	mux.HandleFunc("GET /b/{book}/export-songbook.pdf", s.requireRole("viewer", s.handleExportProjectSongbookPDF))
+	mux.HandleFunc("GET /bands/{id}/export-songbook.pdf", s.requireBandMember(s.handleExportBandSongbookPDF))
 
 	// LilyPond export: a second, independent PDF pipeline (real engraved
 	// chords-over-a-staff notation + lyrics, see internal/lilypond) next

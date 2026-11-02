@@ -15,7 +15,7 @@
   <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
   <h1>{{.Band.Name}} — repertoire</h1>
   <nav class="song-nav">
-    <a class="icon-btn" href="/bands/{{.Band.ID}}/export-ly.pdf" title="export whole repertoire as PDF (LilyPond notation: chords over a staff + lyrics)" download>export (notation)</a>
+    <a class="icon-btn" href="/bands/{{.Band.ID}}/export-songbook.pdf" title="export the whole repertoire as one PDF — cover, title page, contents, every song" download>export songbook (PDF)</a>
     {{template "notif-bell"}}
   </nav>
 </header>

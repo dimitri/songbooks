@@ -15,8 +15,8 @@
   <a class="back-link" href="/setlists/{{.Book}}/{{.Stem}}">{{template "icon-back"}} edit</a>
   <h1>{{.Title}}</h1>
   <nav class="song-nav">
-    <a class="icon-btn" href="/setlists/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF (chart)" download>PDF</a>
-    <a class="icon-btn" href="/setlists/{{.Book}}/{{.Stem}}/export-ly.pdf" title="export PDF (LilyPond notation: chords over a staff + lyrics)" download>LY</a>
+    <a class="icon-btn" href="/setlists/{{.Book}}/{{.Stem}}/export.pdf" title="export the whole setlist as one PDF — cover, title page, setlist, every song" download>PDF</a>
+    <a class="icon-btn" href="/setlists/{{.Book}}/{{.Stem}}/export-setlist-page.pdf" title="export just the running order as a single page — for a music stand" download>setlist page</a>
     <button id="gig-theme-toggle" class="icon-btn" type="button" title="toggle light/dark">{{template "icon-theme"}}</button>
   </nav>
 </header>

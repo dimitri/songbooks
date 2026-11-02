@@ -292,12 +292,27 @@ type SongRef struct {
 	Body  string
 }
 
+// FrontMatter controls the cover + title page rendered before the
+// contents/setlist table. CoverTitle defaults to Title when empty. An
+// EventTitle (or a non-empty Date/Venue) selects the event-aware title
+// page (event-title-plate); with all three empty, a plain title-plate is
+// used instead — see render-book.typ's own doc comment for the exact
+// selection rule.
+type FrontMatter struct {
+	CoverTitle string
+	EventTitle string
+	BandName   string
+	Date       string
+	Venue      string
+}
+
 var slugSanitizeRE = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
 
 // ExportSetlist renders every entry to a single concatenated PDF (a cover
-// contents page plus one page per song), grouped the same way
-// internal/store/order.go's SaveOrder writes "# SET: Label" groups.
-func (b *Bridge) ExportSetlist(ctx context.Context, title string, entries []SongRef, opts Options) ([]byte, error) {
+// page, a title page, a contents/setlist page, then one page per song),
+// grouped the same way internal/store/order.go's SaveOrder writes
+// "# SET: Label" groups.
+func (b *Bridge) ExportSetlist(ctx context.Context, title string, front FrontMatter, entries []SongRef, opts Options) ([]byte, error) {
 	abs, rel, cleanup, err := b.scratch()
 	if err != nil {
 		return nil, err
@@ -375,6 +390,11 @@ func (b *Bridge) ExportSetlist(ctx context.Context, title string, entries []Song
 	out.Close()
 	defer os.Remove(out.Name())
 
+	coverTitle := front.CoverTitle
+	if coverTitle == "" {
+		coverTitle = title
+	}
+
 	args := append([]string{"compile"}, b.typstFlags()...)
 	args = append(args,
 		"--input", "order-file="+rel+"/order.txt",
@@ -383,8 +403,93 @@ func (b *Bridge) ExportSetlist(ctx context.Context, title string, entries []Song
 		"--input", "target="+opts.target(),
 		"--input", "theme="+opts.theme(),
 		"--input", "title="+title,
+		"--input", "cover-title="+coverTitle,
+		"--input", "event-title="+front.EventTitle,
+		"--input", "band-name="+front.BandName,
+		"--input", "event-date="+front.Date,
+		"--input", "event-venue="+front.Venue,
 		"--diagnostic-format", "short",
 		filepath.Join(b.V2Root, "render-book.typ"), out.Name())
+
+	if err := runTypst(ctx, args); err != nil {
+		return nil, err
+	}
+	return os.ReadFile(out.Name())
+}
+
+// ExportSongbook renders an entire songbook — a project's full song list,
+// or a band's full repertoire — using the exact same cover/title/contents/
+// songs structure as ExportSetlist, just fed every song with no Set
+// grouping (SongRef.Group left "" throughout: a songbook isn't divided
+// into performance sets) and no event metadata (a songbook isn't tied to
+// one gig, so it always gets the plain title-plate, not an event page).
+func (b *Bridge) ExportSongbook(ctx context.Context, title string, entries []SongRef, opts Options) ([]byte, error) {
+	return b.ExportSetlist(ctx, title, FrontMatter{}, entries, opts)
+}
+
+// ExportSetlistPageOnly renders just the running-order table (#, Title,
+// Key, Tempo, grouped by set) as a single-page PDF — no song pages, far
+// cheaper than ExportSetlist since it never materializes/fits each song's
+// full chart. subtitle is typically the event's date/venue, or "" to omit
+// the subtitle line entirely.
+func (b *Bridge) ExportSetlistPageOnly(ctx context.Context, title, subtitle string, entries []SongRef, opts Options) ([]byte, error) {
+	abs, rel, cleanup, err := b.scratch()
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+
+	songsDir := filepath.Join(abs, "songs")
+	if err := os.MkdirAll(songsDir, 0o755); err != nil {
+		return nil, err
+	}
+
+	var orderTxt strings.Builder
+	var lastGroup string
+	first := true
+	for i, e := range entries {
+		slug := fmt.Sprintf("entry%02d-%s", i, slugSanitizeRE.ReplaceAllString(e.Book+"-"+e.Stem, "-"))
+		songPath := filepath.Join(songsDir, slug+".song")
+		if err := os.WriteFile(songPath, []byte(e.Body), 0o644); err != nil {
+			return nil, err
+		}
+		label := e.Group
+		if label == "" {
+			label = "Songs"
+		}
+		if first || label != lastGroup {
+			if !first {
+				orderTxt.WriteString("\n")
+			}
+			if label != "Songs" {
+				orderTxt.WriteString("# SET: " + label + "\n")
+			}
+			lastGroup = label
+			first = false
+		}
+		orderTxt.WriteString(slug + "\n")
+	}
+	if err := os.WriteFile(filepath.Join(abs, "order.txt"), []byte(orderTxt.String()), 0o644); err != nil {
+		return nil, err
+	}
+
+	out, err := os.CreateTemp("", "songbooks-setlist-page-*.pdf")
+	if err != nil {
+		return nil, err
+	}
+	out.Close()
+	defer os.Remove(out.Name())
+
+	args := append([]string{"compile"}, b.typstFlags()...)
+	args = append(args,
+		"--input", "order-file="+rel+"/order.txt",
+		"--input", "songdir="+rel+"/songs",
+		"--input", "target="+opts.target(),
+		"--input", "theme="+opts.theme(),
+		"--input", "title="+title,
+		"--input", "subtitle="+subtitle,
+		"--diagnostic-format", "short",
+		filepath.Join(b.V2Root, "render-setlist-page.typ"), out.Name())
 
 	if err := runTypst(ctx, args); err != nil {
 		return nil, err

@@ -19,6 +19,7 @@
     <a href="/setlists">set lists</a>
     <a href="/catalog">catalog</a>
     <a href="/api/books/{{.Book}}/export" download>{{template "icon-download"}} Export</a>
+    <a href="/b/{{.Book}}/export-songbook.pdf" title="export the whole songbook as one PDF — cover, title page, contents, every song" download>export songbook (PDF)</a>
     <button id="remove-project-btn" class="danger" type="button" data-book="{{.Book}}">{{template "icon-trash"}} Remove project</button>
     {{template "notif-bell"}}
   </nav>
