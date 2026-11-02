@@ -7,3 +7,8 @@
 .DS_Store
 
 tmp-ly/
+
+# Scratch review screenshots and local Claude Code settings — never
+# meant to be committed, swept in by an earlier blanket `git add -A`.
+.phase*.png
+.claude/launch.json
