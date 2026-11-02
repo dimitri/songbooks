@@ -1329,6 +1329,96 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
      on a phone) — those keep the label text as before. */
   body:has(#sheet[data-render-mode="lyrics"]) .structure-seg-label { display: none; }
   body:has(#sheet[data-render-mode="lyrics"]) .song-structure-strip { padding-top: 0.6rem; }
+
+  /* ---- Mode switcher: a native phone-app bottom tab bar, not the
+     desktop pill under the title ----------------------------------------
+     On a phone this is "which view of the song", asked for constantly
+     mid-performance (singer flips to lyrics, player flips to jazz chart)
+     -- a small pill centered under the title is easy to miss and asks a
+     thumb to reach up the screen for it every time. A full-width bar
+     pinned to the bottom, one tap per mode, is the standard native-app
+     tab-bar treatment. This restyles the SAME #mode-segmented element
+     used on desktop (no duplicate buttons) so every bit of existing JS
+     wiring -- wireSegmented's active-class toggling, the saved-default
+     localStorage logic, the edit-toggle special case -- keeps working
+     untouched; this block is pure CSS repositioning. --tabbar-h is also
+     read below (the FAB offset, the sheet's resting position, content
+     clearance) so all four stay in lock-step if this height ever
+     changes. */
+  :root { --tabbar-h: 3.4rem; }
+  #mode-segmented {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 57;
+    display: flex; flex-wrap: nowrap; margin: 0; width: auto; height: var(--tabbar-h);
+    border: none; border-top: 1px solid var(--border); border-radius: 0;
+    background: var(--bg-raised); padding: 0 0 env(safe-area-inset-bottom, 0px);
+    box-shadow: var(--shadow-lg, var(--shadow));
+  }
+  /* Icon-only on the desktop pill (see the template comment on
+     #mode-segmented); a bottom tab bar reads better with a short label
+     under each icon -- iOS/Android's own tab-bar convention -- so every
+     tab is unambiguous without a tooltip a thumb will never see. Checked
+     both: five text buttons wide enough not to wrap/truncate ("chords +
+     lyrics" etc., the sr-only/title text) don't fit five-across on a
+     320-375px phone, so these are short standalone words, generated
+     rather than duplicating markup the sr-only span already carries for
+     screen readers. */
+  #mode-segmented button {
+    flex: 1 1 0; width: auto; height: 100%; position: relative;
+    flex-direction: column; justify-content: center; gap: 0.2rem;
+    border-radius: 0; font-size: 0.62rem; color: var(--fg-muted);
+  }
+  #mode-segmented .icon { width: 1.35rem; height: 1.35rem; }
+  #mode-segmented button::after { display: block; line-height: 1; }
+  #mode-segmented button[data-value="normal"]::after { content: "Chart"; }
+  #mode-segmented button[data-value="jazz"]::after { content: "Jazz"; }
+  #mode-segmented button[data-value="lyrics"]::after { content: "Lyrics"; }
+  #mode-segmented button[data-value="map"]::after { content: "Map"; }
+  #mode-segmented button[data-value="edit"]::after { content: "Edit"; }
+  /* Active state: the desktop pill's solid fill-swap would paint one of
+     five equal-width tabs as a jarring full-height block here -- bottom
+     tab bars mark the current tab with color instead (icons are
+     stroke="currentColor", so this tints icon + label together) plus a
+     top indicator bar, the same "accent color + accent bar" convention
+     already used for the current section elsewhere (.structure-seg's own
+     tick+label, .sheet-section's current-section underline). */
+  #mode-segmented button.active { background: none; color: var(--accent); font-weight: 600; }
+  #mode-segmented button.active::before {
+    content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 1.6rem; height: 0.15rem; border-radius: 0 0 999px 999px; background: var(--accent);
+  }
+  /* "edit" is an action (opens the full-screen drawer) among four
+     persistent view-state tabs, not a mode the chart re-renders into --
+     see setDrawerOpen's own comment: it deliberately never gets the
+     .active treatment above, even while the drawer is open, so it
+     doesn't masquerade as a 5th view state. A thin divider sets it
+     visually apart instead, the same "action tab separated from state
+     tabs" pattern a native app uses for a trailing "+"/compose tab. */
+  #mode-segmented button[data-value="edit"] { border-left: 1px solid var(--border); }
+
+  /* Hidden while the transport bottom sheet is pulled open: with the
+     sheet open this is a modal-ish state (same reasoning as the backdrop
+     dimming everything else) and a second fixed full-width bar competing
+     with it at the same screen edge reads as two stacked toolbars, not
+     one. Reuses the same body:has() scoping as the lyrics-strip rule
+     above. */
+  body:has(.timeline.open) #mode-segmented { display: none; }
+
+  /* Coexistence with the transport FAB: it used to sit flush in the
+     corner (bottom: 1rem) when the tab bar didn't exist; now it must
+     float ABOVE the tab bar, never behind/overlapping it. */
+  .mobile-controls-fab { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 0.8rem); }
+  /* The sheet's own resting position (closed, just its drag-handle peek
+     showing) needs the same clearance, or that peek would sit behind/
+     under the new tab bar instead of visibly above it. */
+  .timeline { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); }
+
+  /* Content clearance: every mode's scrollable content (chart grid,
+     lyrics, song map) must never end up hidden behind the new fixed tab
+     bar -- the same class of overlap bug already flagged twice this
+     session (the chart overflow, the lyrics-mode sidebar), so checked
+     explicitly here for all four modes at 375px, scrolled to a song's
+     last line. */
+  .content-main { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 1rem); }
 }
 
 /* Chord symbol typesetting — Brandt & Roemer style (see internal/chordsym):
