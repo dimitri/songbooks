@@ -17,29 +17,116 @@
   {{template "notif-bell"}}
 </header>
 <main class="index">
+  {{/* Phase 39: the band home page — repertoire/setlist preview and a
+       merged activity feed (proposals, votes awaiting, listening-party
+       picks, score edits) plus shortcuts to create more of it, replacing
+       the old "roster page with a sub-nav out to everything else"
+       framing. The sub-nav stays (full repertoire/proposals/listening
+       party are still their own pages), just demoted to a quiet strip
+       rather than the first thing on the page. */}}
   <nav class="band-subnav">
     <a href="/bands/{{.Band.ID}}/catalog">repertoire</a>
     <a href="/bands/{{.Band.ID}}/proposals">proposals</a>
     <a href="/bands/{{.Band.ID}}/listening-party">listening party</a>
   </nav>
 
-  <p class="hint">No "owner"/"admin" role here — any current member (core or guest) can add or remove members, promote/demote, or delete the whole band.</p>
-
-  <div class="card band-digest-card">
-    <h2>{{if .HasLastSeen}}Since your last visit{{else}}Recent activity{{end}}</h2>
-    <ul>
-    {{range .Changes}}
-      <li>{{.CreatedAt.Format "2006-01-02 15:04"}} — {{if .ActorName}}{{.ActorName}}{{else}}someone{{end}} {{.Summary}}</li>
-    {{else}}
-      <li class="hint">Nothing new{{if .HasLastSeen}} since your last visit{{end}}.</li>
-    {{end}}
-    </ul>
+  <div class="home-shortcuts">
+    <a class="shortcut-btn" href="/bands/{{.Band.ID}}/proposals">{{template "icon-plus"}} Propose a song</a>
+    <a class="shortcut-btn" href="/bands/{{.Band.ID}}/listening-party">{{template "icon-play"}} Start a listening party</a>
+    {{if .Repertoire}}<a class="shortcut-btn" href="/bands/{{.Band.ID}}/catalog">{{template "icon-edit"}} Edit a song</a>{{end}}
   </div>
+
+  {{/* ---- Recent activity: band-change digest (edits, repertoire
+       adds/removes, member changes, proposal decisions — ListBandChanges)
+       merged with currently-OPEN proposals (votes awaiting; a 'new_song'
+       one is also a listening-party pick, labeled as such since that
+       feature reuses this same proposal/vote queue, not a separate
+       log). Same attention-row look the home page's own feed uses. ---- */}}
+  <section class="home-section">
+    <div class="home-section-head">
+      <h3>Recent activity</h3>
+      <span class="count">{{if .HasLastSeen}}since your last visit{{else}}all time{{end}}</span>
+    </div>
+    <div class="attention-list">
+    {{range .OpenProposals}}
+      <a class="attention-row" href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">
+        <div class="attention-title">
+          {{if eq .Kind "new_song"}}Listening party pick: {{.TargetTitle}}{{else}}Vote: new reference for {{.TargetTitle}}{{end}}
+        </div>
+        <div class="attention-subtitle">proposed by {{.ProposerUsername}} &middot; {{.YesVotes}} yes, {{.VetoVotes}} veto so far</div>
+      </a>
+    {{end}}
+    {{range .Changes}}
+      <div class="attention-row">
+        <div class="attention-title">{{if .ActorName}}{{.ActorName}}{{else}}someone{{end}} {{.Summary}}</div>
+        <span class="attention-when">{{.CreatedAt.Format "Jan 2, 15:04"}}</span>
+      </div>
+    {{end}}
+    {{if and (not .OpenProposals) (not .Changes)}}
+      <div class="attention-empty">Nothing new{{if .HasLastSeen}} since your last visit{{end}} — propose a song or start a listening party above to get things going.</div>
+    {{end}}
+    </div>
+  </section>
+
+  {{/* ---- Repertoire preview: a handful of the most recently added
+       songs, not the full list (that's still /bands/{id}/catalog). ---- */}}
+  <section class="home-section">
+    <div class="home-section-head">
+      <h3>Repertoire</h3>
+      <a href="/bands/{{.Band.ID}}/catalog">{{.RepertoireCount}} song{{if ne .RepertoireCount 1}}s{{end}} &rarr;</a>
+    </div>
+    <div class="attention-list">
+    {{range .Repertoire}}
+      <a class="attention-row" href="/b/{{.Book}}/{{.Stem}}">
+        <div class="attention-title">{{.Title}}</div>
+        {{if .Artist}}<div class="attention-subtitle">{{.Artist}}</div>{{end}}
+      </a>
+    {{else}}
+      <a class="attention-empty" href="/bands/{{.Band.ID}}/catalog">No songs yet — add one from the repertoire page &rarr;</a>
+    {{end}}
+    </div>
+  </section>
+
+  {{/* ---- Setlists preview: this band's own setlists, soonest gig
+       first if there is one. ---- */}}
+  <section class="home-section">
+    <div class="home-section-head">
+      <h3>Set lists</h3>
+      <a href="/setlists">all set lists &rarr;</a>
+    </div>
+    {{if .NextGig}}
+    <a class="coming-up-card" href="/setlists/{{.NextGig.SetlistID}}/practice">
+      <div class="coming-up-date">
+        <span class="month">{{.NextGig.Date.Format "Jan"}}</span>
+        <span class="day">{{.NextGig.Date.Format "2"}}</span>
+      </div>
+      <div>
+        <div style="font-weight:600;">{{.NextGig.SetlistTitle}}</div>
+        <div style="font-size:0.85rem;color:var(--fg-faint);">{{if .NextGig.Venue}}{{.NextGig.Venue}}{{else}}venue TBD{{end}}</div>
+      </div>
+    </a>
+    {{end}}
+    <div class="attention-list">
+    {{range .Setlists}}
+      {{if not (and $.NextGig (eq .ID $.NextGig.SetlistID))}}
+      <a class="attention-row" href="/setlists/{{.ID}}/practice">
+        <div class="attention-title">{{.Title}}</div>
+      </a>
+      {{end}}
+    {{else}}
+      <div class="attention-empty">No set lists yet.</div>
+    {{end}}
+    </div>
+  </section>
+
+  <p class="hint">No "owner"/"admin" role here — any current member (core or guest) can add or remove members, promote/demote, or delete the whole band.</p>
 
   {{/* Phase 27: one roster — current members (with instrument) AND every
        unclaimed group-invite slot ("hasn't joined yet"), instead of two
        disconnected tables (a member list, and an invite-creation form
-       that only ever shows its link once). */}}
+       that only ever shows its link once). Demoted below the activity/
+       repertoire/setlist content per Phase 39 — still real, just no
+       longer the dominant content on this page. */}}
   <section class="home-section">
     <div class="home-section-head"><h3>Roster</h3></div>
     <div class="roster-list">
