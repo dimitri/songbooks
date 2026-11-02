@@ -573,6 +573,36 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 }
 .metro-beat-picker button.active { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
 
+.metro-bpm-marking { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); }
+.metro-bpm-slider { width: 100%; accent-color: var(--accent); }
+
+/* Pulse / Practice / Forms — one tool, one engine underneath (clock.js),
+   three control surfaces. Pill tabs rather than the prep-editor's
+   rectangular ones, to read as "modes of the same dial" above it, not as
+   separate documents. */
+.metro-tabs { display: flex; gap: 0.4rem; justify-content: center; border-bottom: 1px solid var(--border); padding-bottom: 0.8rem; }
+.metro-tab { padding: 0.4rem 1rem; border-radius: 999px; background: none; border: 1px solid transparent; color: var(--fg-muted); font-weight: 600; font-size: 0.85rem; }
+.metro-tab.active { background: var(--accent-bg, var(--bg-sunken)); color: var(--accent); border-color: var(--accent); }
+.metro-tab-panel { display: flex; flex-direction: column; gap: 1.1rem; }
+.metro-tab-panel[hidden] { display: none; }
+
+.metro-field-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+.metro-field-row label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.8rem; color: var(--fg-muted); flex: 1; min-width: 8rem; }
+.metro-field-row input { font: inherit; font-size: 1rem; color: var(--fg); padding: 0.4rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+
+.metro-slider-row { display: grid; grid-template-columns: 7rem 1fr 3rem; align-items: center; gap: 0.6rem; font-size: 0.82rem; color: var(--fg-muted); }
+.metro-slider-row input[type="range"] { accent-color: var(--accent); }
+.metro-slider-row span { text-align: right; font-variant-numeric: tabular-nums; color: var(--fg); }
+
+/* Song page mini metronome — a very small always-visible complement to the
+   full transport/metronome sheet (reachable via the Metronome stack icon),
+   not a replacement: just "give me the tempo" without opening anything. */
+.mini-metro { display: flex; align-items: center; justify-content: center; gap: 0.4rem; margin-top: 0.3rem; }
+.mini-metro button { width: 1.9rem; height: 1.9rem; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--fg-muted); }
+.mini-metro button:hover { color: var(--accent); }
+.mini-metro button.active { color: var(--accent); background: var(--accent-bg, var(--bg-sunken)); }
+.mini-metro .icon { width: 0.95rem; height: 0.95rem; }
+
 .tempo-row { display: flex; align-items: baseline; gap: 0.4rem; font-family: var(--font-chart); }
 .tempo-row input {
   width: 3.2rem; border: none; background: none; font: inherit; font-size: 1.3rem; font-weight: 700; color: var(--fg);

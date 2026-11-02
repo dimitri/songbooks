@@ -231,6 +231,18 @@
       {{if .Key}}<span class="topbar-meta-item">key {{.Key}}</span>{{end}}
       {{if .Tempo}}<span class="topbar-meta-item">{{.Tempo}} bpm</span>{{end}}
     </div>
+    {{/* A very small, always-visible metronome — the lightweight
+         complement to the full transport/metronome sheet reachable via
+         the Metronome stack icon (Phases 23-25), which stays exactly as
+         it is. This is just "give me the tempo" without opening anything:
+         continuous click, one bar then fade (count-in, then get out of
+         the way), tap tempo. Reuses the SAME clock/metronome instances
+         song.js already drives the full sheet with — no second engine. */}}
+    <div class="mini-metro" id="mini-metro">
+      <button type="button" id="mini-metro-play" title="click track: play/stop">{{template "icon-play"}}</button>
+      <button type="button" id="mini-metro-fade" title="play one bar, then fade out">{{template "icon-metro-intro"}}</button>
+      <button type="button" id="mini-metro-tap" title="tap tempo">{{template "icon-tap"}}</button>
+    </div>
     {{/* The view-mode switcher lives here, not as its own full-width row:
          a segmented control reads as "which view of THIS", so it belongs
          visually grouped with the title it governs — directly under it,

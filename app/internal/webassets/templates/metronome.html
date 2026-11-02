@@ -24,11 +24,13 @@
     <div class="metro-bpm-row">
       <button id="bpm-down" type="button" class="icon-btn" aria-label="slower">&minus;</button>
       <div class="metro-bpm-display">
+        <div class="metro-bpm-marking" id="bpm-marking" aria-hidden="true"></div>
         <input type="text" id="bpm-input" value="100" inputmode="numeric">
         <span class="bpm-unit">bpm</span>
       </div>
       <button id="bpm-up" type="button" class="icon-btn" aria-label="faster">+</button>
     </div>
+    <input type="range" id="bpm-slider" class="metro-bpm-slider" min="20" max="300" value="100" aria-label="tempo">
 
     <div class="beat-dots metro-beat-dots" id="beat-dots" aria-hidden="true"></div>
 
@@ -37,38 +39,92 @@
       <button id="tap-btn" type="button" title="tap tempo" class="icon-btn">{{template "icon-tap"}}</button>
     </div>
 
-    <div class="metro-section">
-      <h3>Time signature</h3>
-      <div class="metro-icon-row" id="time-sig-picker" data-value="4/4">
-        <button type="button" data-value="2/4">2/4</button>
-        <button type="button" data-value="3/4">3/4</button>
-        <button type="button" data-value="4/4" class="active">4/4</button>
-        <button type="button" data-value="5/4">5/4</button>
-        <button type="button" data-value="6/8">6/8</button>
-        <button type="button" data-value="9/8">9/8</button>
-        <button type="button" data-value="12/8">12/8</button>
+    {{/* Three tabs, same tool, one underlying clock/metronome engine
+         (clock.js) throughout — Pulse is the plain click-track, Practice
+         holds two "train your internal clock" techniques (gap-click,
+         random-mute), Forms surfaces the same per-beat accent/sound
+         machinery the song player uses (including Phase 25's kick+hihat
+         and backbeat patterns), just as this standalone tool's own
+         control surface. */}}
+    <div class="metro-tabs" role="tablist">
+      <button type="button" class="metro-tab active" data-tab="pulse" role="tab" aria-selected="true">Pulse</button>
+      <button type="button" class="metro-tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+      <button type="button" class="metro-tab" data-tab="forms" role="tab" aria-selected="false">Forms</button>
+    </div>
+
+    <div class="metro-tab-panel" data-panel="pulse">
+      <div class="metro-section">
+        <h3>Time signature</h3>
+        <div class="metro-icon-row" id="time-sig-picker" data-value="4/4">
+          <button type="button" data-value="2/4">2/4</button>
+          <button type="button" data-value="3/4">3/4</button>
+          <button type="button" data-value="4/4" class="active">4/4</button>
+          <button type="button" data-value="5/4">5/4</button>
+          <button type="button" data-value="6/8">6/8</button>
+          <button type="button" data-value="9/8">9/8</button>
+          <button type="button" data-value="12/8">12/8</button>
+        </div>
       </div>
     </div>
 
-    <div class="metro-section">
-      <h3>Accent</h3>
-      <div class="metro-icon-row" id="accent-preset">
-        <button type="button" data-value="downbeat" class="active">downbeat</button>
-        <button type="button" data-value="backbeat">backbeat (2 &amp; 4)</button>
-        <button type="button" data-value="every">every beat</button>
-        <button type="button" data-value="none">none</button>
+    <div class="metro-tab-panel" data-panel="practice" hidden>
+      <p class="hint">Two ways to train your internal clock: practice keeping time through a planned silence, or against randomly dropped beats.</p>
+
+      <div class="metro-section">
+        <h3>Practice mode</h3>
+        <div class="metro-icon-row" id="practice-mode-picker" data-value="none">
+          <button type="button" data-value="none" class="active">off</button>
+          <button type="button" data-value="gap">gap click</button>
+          <button type="button" data-value="random">random mute</button>
+        </div>
       </div>
-      <p class="hint">Or tap individual beats below to build a custom accent pattern — handy for groove practice (e.g. just the "and" of 2).</p>
-      <div class="metro-beat-picker" id="beat-picker"></div>
+
+      <div class="metro-section" id="gap-click-controls" hidden>
+        <h3>Gap click</h3>
+        <p class="hint">Play for N beats, then go silent for M beats, repeating.</p>
+        <div class="metro-field-row">
+          <label for="gap-on">Play (beats) <input type="number" id="gap-on" min="1" max="32" value="4"></label>
+          <label for="gap-off">Silence (beats) <input type="number" id="gap-off" min="1" max="32" value="4"></label>
+        </div>
+      </div>
+
+      <div class="metro-section" id="random-mute-controls" hidden>
+        <h3>Random mute</h3>
+        <p class="hint">Each beat — and optionally each subdivision — has a chance of being silenced at random.</p>
+        <label class="metro-slider-row" for="random-mute-beats">Beats <input type="range" id="random-mute-beats" min="0" max="100" value="30"><span id="random-mute-beats-val">30%</span></label>
+        <label class="metro-slider-row" for="random-mute-subs">Subdivisions <input type="range" id="random-mute-subs" min="0" max="100" value="0"><span id="random-mute-subs-val">0%</span></label>
+      </div>
     </div>
 
-    <div class="metro-section">
-      <h3>Sound</h3>
-      <div class="metro-icon-row" id="sound-picker" data-value="click">
-        <button type="button" data-value="click" class="active" title="Click">{{template "icon-sound-click"}}</button>
-        <button type="button" data-value="beep" title="Beep">{{template "icon-sound-beep"}}</button>
-        <button type="button" data-value="wood" title="Wood block">{{template "icon-sound-wood"}}</button>
-        <button type="button" data-value="tick" title="Tick">{{template "icon-sound-tick"}}</button>
+    <div class="metro-tab-panel" data-panel="forms" hidden>
+      <div class="metro-section">
+        <h3>Accent</h3>
+        <div class="metro-icon-row" id="accent-preset">
+          <button type="button" data-value="downbeat" class="active">downbeat</button>
+          <button type="button" data-value="backbeat">backbeat (2 &amp; 4)</button>
+          <button type="button" data-value="every">every beat</button>
+          <button type="button" data-value="none">none</button>
+        </div>
+        <p class="hint">Or tap individual beats below to build a custom accent pattern — handy for groove practice (e.g. just the "and" of 2).</p>
+        <div class="metro-beat-picker" id="beat-picker"></div>
+      </div>
+
+      <div class="metro-section">
+        <h3>Sound</h3>
+        <div class="metro-icon-row" id="sound-picker" data-value="click">
+          <button type="button" data-value="click" class="active" title="Click">{{template "icon-sound-click"}}</button>
+          <button type="button" data-value="beep" title="Beep">{{template "icon-sound-beep"}}</button>
+          <button type="button" data-value="wood" title="Wood block">{{template "icon-sound-wood"}}</button>
+          <button type="button" data-value="tick" title="Tick">{{template "icon-sound-tick"}}</button>
+          {{/* Phase 25's synthesized patterns (kick+hihat, backbeat) —
+               same mechanism the song player's sound-picker uses (see
+               song.js); here they're just one more option in the same
+               row rather than the song player's separate accent system,
+               since this standalone tool has no song sections to key
+               pickups/accents off of. */}}
+          <button type="button" data-value="kick-hihat" title="Kick + hi-hat: kick on 1 &amp; 3, hi-hat on 2 &amp; 4 (or the 6/8 / 12/8 equivalent)">{{template "icon-sound-kick-hihat"}}</button>
+          <button type="button" data-value="backbeat" title="Backbeat: click only on 2 &amp; 4 (or the 6/8 / 12/8 equivalent), silent otherwise">{{template "icon-sound-backbeat"}}</button>
+        </div>
       </div>
     </div>
   </section>

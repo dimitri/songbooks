@@ -103,6 +103,42 @@ class Metronome {
     this._ctx = null;
     this._timer = null;
     this._nextBeat = 0;
+    // Practice modes (standalone metronome page only — see
+    // metronome-page.js): 'none' (default, every beat sounds per the
+    // normal accent/pattern rules above), 'gap' (play gapOnBeats, then
+    // silence gapOffBeats, repeating — trains keeping time through a
+    // silent stretch), 'random' (each beat independently has a
+    // randomMuteBeatPct% chance of being silenced that pass, and each
+    // compound-meter subdivision click independently has
+    // randomMuteSubPct% — a different, complementary technique to the
+    // fixed-pattern gap mode). Both leave accent/pattern/sound untouched;
+    // they only decide whether a given click plays at all.
+    this.practiceMode = 'none';
+    this.gapOnBeats = 4;
+    this.gapOffBeats = 4;
+    this.randomMuteBeatPct = 30;
+    this.randomMuteSubPct = 0;
+  }
+
+  // Whether the main click for this (absolute, continuous) beat index
+  // should be silenced under the current practice mode.
+  _muteMainBeat(beat) {
+    if (this.practiceMode === 'gap') {
+      const cycle = Math.max(1, this.gapOnBeats + this.gapOffBeats);
+      const pos = ((beat % cycle) + cycle) % cycle;
+      return pos >= this.gapOnBeats;
+    }
+    if (this.practiceMode === 'random') {
+      return Math.random() * 100 < (this.randomMuteBeatPct || 0);
+    }
+    return false;
+  }
+
+  // Independently decided per subdivision click — random-mute only
+  // (gap-click only ever silences whole main beats, not subdivisions).
+  _muteSub() {
+    if (this.practiceMode === 'random') return Math.random() * 100 < (this.randomMuteSubPct || 0);
+    return false;
   }
 
   _ensureCtx() {
@@ -116,12 +152,12 @@ class Metronome {
   // the main pulse: quieter AND duller (lower pitch), not just quieter.
   // "Brighter" in a click sound is mostly its pitch/harmonic content, so
   // "less bright" means pulling the frequency down, not only the gain.
-  _click(atTime, accent, soft) {
+  _click(atTime, accent, soft, volScale = 1) {
     const ctx = this._ctx;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     let freq = { click: accent ? 1600 : 1100, beep: accent ? 1800 : 1200, wood: accent ? 500 : 350, tick: accent ? 2400 : 1800 }[this.sound] || 1000;
-    let vol = accent ? 0.85 : 0.55;
+    let vol = (accent ? 0.85 : 0.55) * volScale;
     if (soft) { freq *= 0.62; vol *= 0.5; }
     const dur = this.sound === 'wood' ? 0.035 : 0.05;
     osc.type = this.sound === 'wood' ? 'triangle' : (this.sound === 'beep' ? 'sine' : 'square');
@@ -188,18 +224,18 @@ class Metronome {
   // sensibly to any other beatsPerBar (3/4, 9/8, 5/4, ...) the same way.
   // Backbeat mode is the same parity rule with the even (kick) slot
   // silenced instead of voiced.
-  _patternClick(atTime, beatIndexInBar, accent) {
+  _patternClick(atTime, beatIndexInBar, accent, volScale = 1) {
     if (this.pattern === 'kick-hihat') {
-      if (beatIndexInBar % 2 === 0) this._kick(atTime);
-      else this._hihat(atTime);
+      if (beatIndexInBar % 2 === 0) this._kick(atTime, volScale);
+      else this._hihat(atTime, 0.5 * volScale);
       return;
     }
     if (this.pattern === 'backbeat') {
-      if (beatIndexInBar % 2 === 1) this._hihat(atTime);
+      if (beatIndexInBar % 2 === 1) this._hihat(atTime, 0.5 * volScale);
       // Even pulses are silent by design — not quieter, absent.
       return;
     }
-    this._click(atTime, accent);
+    this._click(atTime, accent, false, volScale);
   }
 
   // A "flam" (a quiet extra tick just before the real beat) — the
@@ -232,6 +268,27 @@ class Metronome {
     for (let i = 0; i < beats; i++) {
       const idx = i % beatsPerBar;
       this._patternClick(ctx.currentTime + 0.02, idx, accentBeats.includes(idx));
+      await new Promise(r => setTimeout(r, beatDur * 1000));
+    }
+  }
+
+  // One-off "give me the tempo, then let me play" cue: one full bar of
+  // normal clicks, then a second bar fading linearly to silence — not a
+  // hard stop, so the last click or two doesn't land as a jarring full-
+  // volume note right before cutting out. Independent of the running
+  // clock/scheduler (like countIn) so it works from a dead stop without
+  // needing clock.start()/metronome.start() at all — used by the song
+  // page's mini metronome widget.
+  async playBarThenFade(bpm, beatsPerBar = 4) {
+    this._ensureCtx();
+    const ctx = this._ctx;
+    const beatDur = 60 / bpm;
+    const accentBeats = ACCENTS[beatsPerBar] || [0];
+    const totalBeats = beatsPerBar * 2;
+    for (let i = 0; i < totalBeats; i++) {
+      const idx = i % beatsPerBar;
+      const volScale = i < beatsPerBar ? 1 : Math.max(0, 1 - (i - beatsPerBar + 1) / beatsPerBar);
+      this._patternClick(ctx.currentTime + 0.02, idx, accentBeats.includes(idx), volScale);
       await new Promise(r => setTimeout(r, beatDur * 1000));
     }
   }
@@ -278,9 +335,14 @@ class Metronome {
           if (starts.has(beat + d)) { toChange = d; break; }
         }
       }
+      // Practice-mode muting (standalone metronome only — toChange/pickup
+      // never fires there since it has no song sections) always wins over
+      // a plain click; a pickup cue (section change coming) still plays
+      // even if this beat would otherwise be muted, since it's signaling
+      // something time-critical.
       if (toChange === 1) this._pickup(atTime, beatIndexInBar, accent, 45);
       else if (toChange === 2) this._pickup(atTime, beatIndexInBar, accent, 80);
-      else this._patternClick(atTime, beatIndexInBar, accent);
+      else if (!this._muteMainBeat(beat)) this._patternClick(atTime, beatIndexInBar, accent);
       // Compound meter (6/8, 9/8, 12/8): each "beat" here is a dotted
       // quarter — three eighth notes — and the visual beat-dots already
       // show that subdivision as 3 sub-ticks. The audio should actually
@@ -290,8 +352,8 @@ class Metronome {
       // click, the main pulse above is what carries the pickup cue.
       if (this.isCompound) {
         const subMs = this.clock.beatDurationMs() / 3;
-        this._click(atTime + subMs / 1000, false, true);
-        this._click(atTime + (2 * subMs) / 1000, false, true);
+        if (!this._muteSub()) this._click(atTime + subMs / 1000, false, true);
+        if (!this._muteSub()) this._click(atTime + (2 * subMs) / 1000, false, true);
       }
       this._nextBeat++;
     }

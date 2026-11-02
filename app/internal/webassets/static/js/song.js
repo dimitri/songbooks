@@ -447,6 +447,35 @@ const ICONS = {
     if (v > 0) { clock.setBpm(v); updateBpmDisplay(); }
   });
 
+  // ---- Mini metronome (song-page header) — a tiny always-visible
+  // complement to the full sheet above, not a second engine: reuses the
+  // exact same clock/metronome instances and setPlaying/tap-tempo logic,
+  // just a lighter control surface for "give me the tempo" without
+  // opening the Metronome stack. ----------------------------------------
+  const miniPlayBtn = document.getElementById('mini-metro-play');
+  if (miniPlayBtn) {
+    const miniIconPlay = miniPlayBtn.innerHTML;
+    const miniIconStop = '<svg class="icon" viewBox="0 0 20 20" fill="currentColor"><rect x="5" y="5" width="10" height="10" rx="1.5"/></svg>';
+    const syncMiniPlayIcon = () => {
+      miniPlayBtn.innerHTML = clock.running ? miniIconStop : miniIconPlay;
+      miniPlayBtn.classList.toggle('active', clock.running);
+    };
+    miniPlayBtn.addEventListener('click', () => { setPlaying(!clock.running); syncMiniPlayIcon(); });
+    // Keep in sync when playback is started/stopped from the full sheet
+    // instead (same clock, so either control must reflect the other).
+    playPauseBtn.addEventListener('click', syncMiniPlayIcon);
+    document.getElementById('stop-btn').addEventListener('click', syncMiniPlayIcon);
+
+    document.getElementById('mini-metro-fade').addEventListener('click', () => {
+      if (clock.running) return; // a one-off cue only makes sense from a stop
+      metronome.playBarThenFade(clock.bpm, clock.beatsPerBar);
+    });
+    document.getElementById('mini-metro-tap').addEventListener('click', () => {
+      if (!clock.running) { const g = clock.tapDetermine(); if (g) { clock.setBpm(g); updateBpmDisplay(); } }
+      else { clock.tapResync(); updateBpmDisplay(); }
+    });
+  }
+
   // Beat dots: one per main pulse in the bar, lit as the clock ticks
   // through it — visual timing feedback that works whether or not the
   // click is audible. Compound meters (6/8, 9/8, 12/8) get a real
