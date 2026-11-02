@@ -26,26 +26,130 @@
   </nav>
 </header>
 <main class="index">
-  <div class="hero">
-    <div class="hero-mark">{{template "icon-logo"}}</div>
-    <div>
-      <h2>Your songbooks</h2>
-      <p>Projects, sets, charts — pick one below.</p>
-    </div>
+  <div class="home-greeting">
+    <h2>{{.Greeting}}, {{.Me.DisplayName}}</h2>
+    <p>Here's where your bands and songs stand.</p>
   </div>
-  <div class="project-grid">
-  {{range .Books}}
-    <a class="project-card card" href="/b/{{.Name}}">
-      <h2>{{.Name}}</h2>
-      <div class="project-stats">
-        <span>{{.SongCount}} song{{if ne .SongCount 1}}s{{end}}</span>
-        {{if .HasOrder}}<span>{{.SetCount}} set{{if ne .SetCount 1}}s{{end}}</span>{{end}}
-        {{if .Setlists}}<span>{{.Setlists}} setlist{{if ne .Setlists 1}}s{{end}}</span>{{end}}
+
+  {{/* ---- Needs your attention: open band proposals + unread
+       notifications, merged. Group-invite slot claims and "N edits
+       since you last looked" are NOT duplicated in here — the former
+       doesn't fire a notification today, the latter already has its own
+       home in the "your bands" digest line just below — so this feed
+       only covers the two categories the real data actually supports
+       well, rather than faking a third. */}}
+  <section class="home-section">
+    <div class="home-section-head">
+      <h3>Needs your attention</h3>
+      <span class="count">{{len .Attention}} item{{if ne (len .Attention) 1}}s{{end}}</span>
+    </div>
+    <div class="attention-filters" id="attention-filters">
+      <button type="button" class="active" data-filter="all">All</button>
+      <button type="button" data-filter="votes">Votes</button>
+      <button type="button" data-filter="notifications">Notifications</button>
+    </div>
+    <div class="attention-list" id="attention-list">
+    {{range .Attention}}
+      <a class="attention-row" data-kind="{{.Kind}}" href="{{if .Link}}{{.Link}}{{else}}#{{end}}">
+        <div class="attention-title">{{.Title}}</div>
+        {{if .Subtitle}}<div class="attention-subtitle">{{.Subtitle}}</div>{{end}}
+        <span class="attention-when">{{.When}}</span>
+      </a>
+    {{else}}
+      <div class="attention-empty">Nothing needs your attention right now.</div>
+    {{end}}
+    </div>
+  </section>
+
+  {{/* ---- Your bands: activity, not just inventory. ---- */}}
+  {{if .Bands}}
+  <section class="home-section">
+    <div class="home-section-head">
+      <h3>Your bands</h3>
+      <a href="/bands">all bands &rarr;</a>
+    </div>
+    <div class="band-grid">
+    {{range .Bands}}
+      <div class="band-card">
+        <div class="band-card-head">
+          <div>
+            <h4>{{.Name}}</h4>
+            <div class="band-card-members">{{.Members}} member{{if ne .Members 1}}s{{end}}</div>
+          </div>
+        </div>
+        <div class="band-card-digest">{{.Digest}}</div>
+        <div class="band-card-actions">
+          <a href="/bands/{{.ID}}">repertoire</a>
+          {{if .OpenVotes}}<a class="votes" href="/bands/{{.ID}}/proposals">{{.OpenVotes}} to vote on</a>{{end}}
+        </div>
+      </div>
+    {{end}}
+    </div>
+  </section>
+  {{end}}
+
+  {{/* ---- Coming up: next gig, if any. ---- */}}
+  <section class="home-section">
+    <div class="home-section-head"><h3>Coming up</h3></div>
+    {{if .NextGig}}
+    <a class="coming-up-card" href="/setlists">
+      <div class="coming-up-date">
+        <span class="month">{{.NextGig.Date.Format "Jan"}}</span>
+        <span class="day">{{.NextGig.Date.Format "2"}}</span>
+      </div>
+      <div>
+        <div style="font-weight:600;">{{if .NextGig.BandName}}{{.NextGig.BandName}} &mdash; {{end}}{{.NextGig.SetlistTitle}}</div>
+        <div style="font-size:0.85rem;color:var(--fg-faint);">{{if .NextGig.Venue}}{{.NextGig.Venue}}{{else}}venue TBD{{end}}</div>
       </div>
     </a>
-  {{end}}
-  </div>
+    {{else}}
+    <a class="coming-up-card empty" href="/setlists">No gig scheduled — open set lists to plan one &rarr;</a>
+    {{end}}
+  </section>
+
+  {{/* ---- Your songbooks: the existing project-card inventory, kept as
+       data, restyled and demoted below the activity sections above. ---- */}}
+  <section class="home-section">
+    <div class="home-section-head"><h3>Your songbooks</h3></div>
+    <div class="project-grid">
+    {{range .Books}}
+      <a class="project-card card" href="/b/{{.Name}}">
+        <h2>{{.Name}}</h2>
+        <div class="project-stats">
+          <span>{{.SongCount}} song{{if ne .SongCount 1}}s{{end}}</span>
+          {{if .HasOrder}}<span>{{.SetCount}} set{{if ne .SetCount 1}}s{{end}}</span>{{end}}
+          {{if .Setlists}}<span>{{.Setlists}} setlist{{if ne .Setlists 1}}s{{end}}</span>{{end}}
+        </div>
+      </a>
+    {{end}}
+    </div>
+  </section>
+
+  <section class="home-section">
+    <div class="home-section-head"><h3>Browse</h3></div>
+    <div class="browse-row">
+      <a class="browse-card" href="/catalog">
+        <h4>Global catalog</h4>
+        <p>by artist, alphabetical, by project or genre — free to reuse in any jam</p>
+      </a>
+      <a class="browse-card" href="/catalog/mine">
+        <h4>My songbook</h4>
+        <p>songs you've forked or written, just for you</p>
+      </a>
+    </div>
+  </section>
 </main>
+<script>
+document.getElementById('attention-filters')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-filter]');
+  if (!btn) return;
+  document.querySelectorAll('#attention-filters button').forEach(b => b.classList.toggle('active', b === btn));
+  const filter = btn.dataset.filter;
+  document.querySelectorAll('#attention-list .attention-row').forEach(row => {
+    row.hidden = filter !== 'all' && row.dataset.kind !== filter;
+  });
+});
+</script>
 <script src="/static/js/index.js"></script>
 {{template "notif-bell-script"}}
 {{template "pwa-register"}}

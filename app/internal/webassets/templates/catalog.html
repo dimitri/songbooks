@@ -18,9 +18,15 @@
   </nav>
 </header>
 <main class="index">
-  <form class="card" method="get" action="/catalog" style="display:flex; gap:1em; align-items:end; flex-wrap:wrap">
+  <form class="card catalog-filters" method="get" action="/catalog">
     <label>Artist <input type="text" name="artist" value="{{.Filter.Artist}}" placeholder="any"></label>
     <label>Project <input type="text" name="project" value="{{.Filter.Project}}" placeholder="any"></label>
+    <label>Genre
+      <select name="genre">
+        <option value="" {{if eq .Filter.Genre ""}}selected{{end}}>all genres</option>
+        {{range .Genres}}<option value="{{.}}" {{if eq $.Filter.Genre .}}selected{{end}}>{{.}}</option>{{end}}
+      </select>
+    </label>
     <label>Sort
       <select name="sort">
         <option value="" {{if ne .Filter.Sort "artist"}}selected{{end}}>alphabetical (title)</option>
@@ -31,13 +37,14 @@
   </form>
   <p class="hint">No "by album" filter — nothing in this app's song data carries an album field, so there's nothing to group by. "By project" above is the closest grouping that actually exists.</p>
 
-  <div class="table-scroll"><table class="card" style="width:100%">
-    <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th>Visibility</th><th></th></tr></thead>
+  <div class="table-scroll catalog-table-wrap"><table class="card" style="width:100%">
+    <thead><tr><th>Title</th><th>Artist</th><th>Genre</th><th>Project</th><th>Visibility</th><th></th></tr></thead>
     <tbody>
     {{range .Variants}}
       <tr data-variant-id="{{.VariantID}}">
         <td><a href="/b/{{.Book}}/{{.Stem}}">{{.Title}}</a></td>
         <td>{{.Artist}}</td>
+        <td>{{.Genre}}</td>
         <td>{{.Book}}</td>
         <td>{{.Visibility}}{{if .ForkedFromID}} (fork){{end}}</td>
         <td>
@@ -49,6 +56,28 @@
     {{end}}
     </tbody>
   </table></div>
+
+  {{/* Mobile-only (see the breakpoint in app.css): a stacked card list
+       instead of the table above — sideways-scrolling to read a song
+       title is a bad browsing experience on a phone, not just visually
+       rough (see the "catalog doesn't work well on mobile" brief this
+       replaces the old .table-scroll stopgap for). Desktop keeps the
+       table; this list is hidden there. */}}
+  <div class="catalog-cards">
+  {{range .Variants}}
+    <div class="catalog-card" data-variant-id="{{.VariantID}}">
+      <a class="catalog-card-main" href="/b/{{.Book}}/{{.Stem}}">
+        <div class="catalog-card-title">{{.Title}}</div>
+        <div class="catalog-card-meta">{{.Artist}}{{if .Genre}} &middot; {{.Genre}}{{end}} &middot; {{.Book}}</div>
+      </a>
+      <div class="catalog-card-actions">
+        <a href="/works/{{.WorkID}}">all versions</a>
+        <button type="button" class="add-catalog-btn" data-variant-id="{{.VariantID}}">+ my songbook</button>
+        <button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">fork</button>
+      </div>
+    </div>
+  {{end}}
+  </div>
 </main>
 <script>
 document.querySelectorAll('.add-catalog-btn').forEach(btn => {

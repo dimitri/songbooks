@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"app/internal/store"
 )
@@ -21,6 +22,7 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 	filter := store.CatalogFilter{
 		Artist:  r.URL.Query().Get("artist"),
 		Project: r.URL.Query().Get("project"),
+		Genre:   r.URL.Query().Get("genre"),
 		Sort:    r.URL.Query().Get("sort"),
 	}
 	variants, err := s.store.ListCatalog(r.Context(), person.ID, filter)
@@ -28,8 +30,13 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	genres, err := s.store.ListGenres(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	s.render(w, "catalog", map[string]any{
-		"Me": person, "Variants": variants, "Filter": filter,
+		"Me": person, "Variants": variants, "Filter": filter, "Genres": genres,
 	})
 }
 
@@ -393,4 +400,50 @@ func (s *Server) handleUpdateVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"version": newVersion})
+}
+
+// handlePutVariantGenre sets the free-text genre on variantID's parent
+// WORK (see migration 0030 — genre is a property of the song, not of one
+// person's/band's particular arrangement of it), via Prep's compact
+// header-fields row alongside time signature/tempo. A standalone
+// endpoint rather than folded into handleUpdateVariant's body/title/
+// artist/reference save, since genre lives on a different table and
+// isn't part of the raw .song-format grammar.
+func (s *Server) handlePutVariantGenre(w http.ResponseWriter, r *http.Request) {
+	variantID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid variant id")
+		return
+	}
+	person := personFromContext(r)
+	canEdit, err := s.store.CanEditVariant(r.Context(), person.ID, variantID)
+	if errors.Is(err, store.ErrNotFound) {
+		httpError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !canEdit {
+		httpError(w, http.StatusForbidden, "no edit rights on this variant")
+		return
+	}
+	v, err := s.store.GetVariant(r.Context(), variantID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var req struct {
+		Genre string `json:"genre"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if err := s.store.SetWorkGenre(r.Context(), v.WorkID, strings.TrimSpace(req.Genre)); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"genre": req.Genre})
 }

@@ -1109,7 +1109,29 @@ const ICONS = {
     tempoInput.addEventListener('input', () => { metaSet('tempo', tempoInput.value.trim()); });
     tempoField.append(tempoInput, ' bpm');
 
-    host.append(timeField, tempoField);
+    // Genre lives on the song's parent WORK, not in the raw .song body
+    // (see migration 0030), so it saves independently via its own
+    // endpoint on blur rather than going through structMeta/the
+    // structure-tab "Save" button like time/tempo above.
+    const genreField = document.createElement('label');
+    genreField.className = 'header-field';
+    genreField.append('genre ');
+    const genreInput = document.createElement('input');
+    genreInput.type = 'text'; genreInput.className = 'header-field-input';
+    genreInput.placeholder = 'e.g. Rock, Soul, Jazz';
+    genreInput.value = structureEl?.dataset.genre || '';
+    genreInput.title = 'free text — saved as soon as you leave this field';
+    genreInput.addEventListener('change', async () => {
+      const variantId = structureEl?.dataset.variantId;
+      if (!variantId) return;
+      await fetch(`/api/variants/${variantId}/genre`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ genre: genreInput.value.trim() }),
+      });
+    });
+    genreField.appendChild(genreInput);
+
+    host.append(timeField, tempoField, genreField);
   }
 
   // The song's own beatsPerBar as edited here, read fresh from structMeta

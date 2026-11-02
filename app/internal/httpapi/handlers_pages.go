@@ -8,8 +8,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"app/internal/song"
+	"app/internal/store"
 	"app/internal/webassets"
 )
 
@@ -19,6 +21,62 @@ type bookStats struct {
 	SetCount  int // groups in order.txt (or 1 for the alphabetical fallback)
 	HasOrder  bool
 	Setlists  int
+}
+
+// attentionItem is one row of the home page's "needs your attention"
+// feed — band proposals the viewer can vote on, plus their own unread
+// notifications (proposal decisions, school submission decisions, ...).
+// Deliberately NOT a full activity log: band edits already have their
+// own home for this ("your bands" card's digest line below), and
+// group-invite slot claims don't fire a notification today (see
+// store.CreateNotification's callers), so that category is left out
+// rather than faked.
+type attentionItem struct {
+	Kind     string // "votes" or "notifications" — drives the filter chips
+	Title    string
+	Subtitle string
+	When     string
+	Link     string
+}
+
+type bandCardView struct {
+	ID        int64
+	Name      string
+	Members   int
+	Digest    string
+	OpenVotes int
+}
+
+// homeGreeting returns a time-of-day greeting line — purely cosmetic,
+// computed server-side so it's correct on first paint (no client flash).
+func homeGreeting() string {
+	switch h := time.Now().Hour(); {
+	case h < 5:
+		return "Good night"
+	case h < 12:
+		return "Good morning"
+	case h < 18:
+		return "Good afternoon"
+	default:
+		return "Good evening"
+	}
+}
+
+// timeAgo renders a short relative-time label ("2h ago", "3d ago") for
+// the attention feed — no need for anything fancier than day/hour/minute
+// granularity on a feed that's capped at a handful of recent items.
+func timeAgo(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
+	}
 }
 
 // handleIndex is just the project directory: name + a few stats per book,
@@ -68,7 +126,91 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	sort.Slice(views, func(i, j int) bool { return views[i].Name < views[j].Name })
-	s.render(w, "index", map[string]any{"Books": views, "Me": person})
+
+	bands, err := s.store.ListBandsForPerson(r.Context(), person.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var bandCards []bandCardView
+	var attention []attentionItem
+	for _, b := range bands {
+		members, err := s.store.ListBandMembers(r.Context(), b.ID, false)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		lastSeen, err := s.store.GetBandLastSeen(r.Context(), b.ID, person.ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		changes, err := s.store.ListBandChanges(r.Context(), b.ID, lastSeen)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		digest := fmt.Sprintf("%d change%s since your last visit", len(changes), plural(len(changes)))
+		if lastSeen == nil {
+			digest = "you haven't visited yet"
+		}
+
+		proposals, err := s.store.ListProposals(r.Context(), b.ID, store.ProposalFilter{Status: "open"})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		bandCards = append(bandCards, bandCardView{
+			ID: b.ID, Name: b.Name, Members: len(members), Digest: digest, OpenVotes: len(proposals),
+		})
+		for _, p := range proposals {
+			title := fmt.Sprintf("Vote: add %q to %s's repertoire", p.TargetTitle, b.Name)
+			if p.Kind == "new_reference" {
+				title = fmt.Sprintf("Vote: new reference for %q", p.TargetTitle)
+			}
+			attention = append(attention, attentionItem{
+				Kind: "votes", Title: title,
+				Subtitle: fmt.Sprintf("Proposed by %s · %d yes, %d veto so far", p.ProposerUsername, p.YesVotes, p.VetoVotes),
+				When:     timeAgo(p.CreatedAt),
+				Link:     fmt.Sprintf("/bands/%d/proposals/%d", b.ID, p.ID),
+			})
+		}
+	}
+	sort.Slice(bandCards, func(i, j int) bool { return bandCards[i].Name < bandCards[j].Name })
+
+	notifs, err := s.store.ListNotifications(r.Context(), person.ID, true)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	for _, n := range notifs {
+		attention = append(attention, attentionItem{
+			Kind: "notifications", Title: n.Body, When: timeAgo(n.CreatedAt), Link: n.Link,
+		})
+	}
+	sort.SliceStable(attention, func(i, j int) bool { return i < j }) // already newest-first per source; a true merge-sort by time isn't worth it for a handful of items
+
+	gigs, err := s.store.ListUpcomingGigsForPerson(r.Context(), person.ID, 1)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var nextGig *store.UpcomingGig
+	if len(gigs) > 0 {
+		nextGig = &gigs[0]
+	}
+
+	s.render(w, "index", map[string]any{
+		"Books": views, "Me": person, "Greeting": homeGreeting(),
+		"Bands": bandCards, "Attention": attention, "NextGig": nextGig,
+	})
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
 }
 
 // handleProject is one book's set list — the numbered Set 1/Set 2/... view
@@ -723,9 +865,15 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 			canEdit = false
 		}
 	}
+	var genre string
+	if workID != 0 {
+		if w, err := s.store.GetWork(r.Context(), workID); err == nil {
+			genre = w.Genre
+		}
+	}
 	data := map[string]any{
 		"Book": book, "Stem": stem,
-		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit,
+		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "Genre": genre,
 		"Title": orDefault(sg.Get("title"), stem), "Artist": sg.Get("artist"),
 		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
 		"TimeNum": num, "TimeDen": den,

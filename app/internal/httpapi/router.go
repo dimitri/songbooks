@@ -101,6 +101,7 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("GET /api/songs/{book}/{stem}", s.requireRole("viewer", s.handleGetSong))
 	mux.HandleFunc("PUT /api/songs/{book}/{stem}", s.requireRole("editor", s.handlePutSong))
 	mux.HandleFunc("PUT /api/songs/{book}/{stem}/meta", s.requireRole("editor", s.handlePutMeta))
+	mux.HandleFunc("PUT /api/variants/{id}/genre", s.requireAuth(s.handlePutVariantGenre))
 	mux.HandleFunc("GET /api/songs/{book}/{stem}/raw", s.requireRole("viewer", s.handleGetRaw))
 	mux.HandleFunc("PUT /api/songs/{book}/{stem}/raw", s.requireRole("editor", s.handlePutRaw))
 	mux.HandleFunc("PUT /api/songs/{book}/{stem}/redo", s.requireRole("editor", s.handleRedoSong))
