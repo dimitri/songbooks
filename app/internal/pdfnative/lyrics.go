@@ -46,7 +46,7 @@ func (c *canvas) lyricLine(ln song.LyricLine, size float64) {
 				newLine()
 			}
 			if wi == 0 && seg.HasChord {
-				c.textAt(x, baseline()-size*0.85, seg.Chord, faceSansBold, size*0.95, c.th.chord)
+				c.drawChordSymbol(x, baseline()-size*0.85, seg.Chord, size*0.95, c.th.chord)
 			}
 			c.textAt(x, baseline(), w, faceSans, size, c.th.ink)
 			x += ww + spaceW

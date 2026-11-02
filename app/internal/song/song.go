@@ -111,3 +111,21 @@ type LyricSeg struct {
 	Chord    string
 	Text     string
 }
+
+// TokenChord strips a ":duration" tag ("Gm:4.", "F:8") off a raw grid
+// token down to the bare chord/rest symbol a renderer should actually
+// show. Measure.Tokens are kept verbatim by design (see this type's own
+// doc comment above) — nothing in this app interprets the tag for layout
+// today, so showing it raw is a display bug, not a meaningful omission,
+// in every renderer that turns a token into on-page text (the native PDF
+// chart and the web Play view's beat-slot chord labels both hit this).
+// Only the FIRST ':' matters: a bass-note slash chord ("C/G") has no
+// colon, so this never touches a real chord symbol.
+func TokenChord(tok string) string {
+	for i := 0; i < len(tok); i++ {
+		if tok[i] == ':' {
+			return tok[:i]
+		}
+	}
+	return tok
+}

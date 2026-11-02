@@ -131,6 +131,55 @@ func esc(s string) string { return html.EscapeString(glyphs(s)) }
 // Render produces the chart-style HTML for one chord symbol:
 // <span class="csym">...</span>, safe to embed directly (all dynamic text
 // is HTML-escaped).
+// Marker identifies which special symbol (if any) a chord quality starts
+// with — the same classification Render (HTML/web) applies, exposed
+// separately so another renderer (e.g. internal/pdfnative, which can't
+// just emit HTML/CSS spans) can reuse the exact same rules instead of
+// re-deriving its own regex set.
+type Marker int
+
+const (
+	MarkerNone Marker = iota
+	MarkerMajor7
+	MarkerHalfDim
+	MarkerDim
+	MarkerAug
+	MarkerMinor
+)
+
+// QualityParts is a chord quality (the text after the root, before any
+// slash-bass — see Split) decomposed into its leading marker and
+// whatever extension text remains after it.
+type QualityParts struct {
+	Marker    Marker
+	MarkerRaw string // MarkerMinor only: the raw text actually typed ("m", "mi", "min", "-")
+	Ext       string
+}
+
+// DecomposeQuality applies the same half-diminished/diminished/augmented/
+// major-seventh/minor classification Render uses, without committing to
+// HTML output — the shared logic behind both Render and any other
+// renderer's own chord-symbol drawing.
+func DecomposeQuality(q string) QualityParts {
+	if strings.HasPrefix(q, "maj") {
+		return QualityParts{Marker: MarkerMajor7, Ext: q[len("maj"):]}
+	}
+	var rest string
+	if matchRest(halfDimRE, q, &rest) || matchRest(halfDimLiteralRE, q, &rest) {
+		return QualityParts{Marker: MarkerHalfDim, Ext: rest}
+	}
+	if matchRest(dimRE, q, &rest) || matchRest(dimOLetterRE, q, &rest) || matchRest(dimLiteralRE, q, &rest) {
+		return QualityParts{Marker: MarkerDim, Ext: rest}
+	}
+	if matchRest(augRE, q, &rest) {
+		return QualityParts{Marker: MarkerAug, Ext: rest}
+	}
+	if m := minorRE.FindString(q); m != "" {
+		return QualityParts{Marker: MarkerMinor, MarkerRaw: m, Ext: q[len(m):]}
+	}
+	return QualityParts{Ext: q}
+}
+
 func Render(sym string) string {
 	p := Split(sym)
 	if p.Root == "" {
@@ -144,32 +193,20 @@ func Render(sym string) string {
 	b.WriteString(`<span class="csym">`)
 	b.WriteString(`<span class="csym-root" data-pc="` + strconv.Itoa(PitchClass(p.Root)) + `">` + esc(p.Root) + `</span>`)
 
-	q := p.Quality
-	switch {
-	case strings.HasPrefix(q, "maj"):
+	dq := DecomposeQuality(p.Quality)
+	switch dq.Marker {
+	case MarkerMajor7:
 		b.WriteString(`<span class="csym-triangle">` + triangle + `</span>`)
-		q = q[len("maj"):]
-		writeExt(&b, q)
-
-	case matchRest(halfDimRE, q, &q) || matchRest(halfDimLiteralRE, q, &q):
+	case MarkerHalfDim:
 		b.WriteString(`<span class="csym-dim">` + halfDimSym + `</span>`)
-		writeExt(&b, q)
-
-	case matchRest(dimRE, q, &q) || matchRest(dimOLetterRE, q, &q) || matchRest(dimLiteralRE, q, &q):
+	case MarkerDim:
 		b.WriteString(`<span class="csym-dim">` + dimSym + `</span>`)
-		writeExt(&b, q)
-
-	case matchRest(augRE, q, &q):
+	case MarkerAug:
 		b.WriteString(`<span class="csym-dim">+</span>`)
-		writeExt(&b, q)
-
-	default:
-		if m := minorRE.FindString(q); m != "" {
-			b.WriteString(`<span class="csym-minor">` + esc(m) + `</span>`)
-			q = q[len(m):]
-		}
-		writeExt(&b, q)
+	case MarkerMinor:
+		b.WriteString(`<span class="csym-minor">` + esc(dq.MarkerRaw) + `</span>`)
 	}
+	writeExt(&b, dq.Ext)
 
 	if p.Bass != "" {
 		b.WriteString(`<span class="csym-bass">/<span data-pc="` + strconv.Itoa(PitchClass(p.Bass)) + `">` + esc(p.Bass) + `</span></span>`)

@@ -413,7 +413,7 @@ func expandBeats(tokens []string, beatsPerBar int) []viewerBeat {
 		span := beatsPerBar / len(tokens)
 		out := make([]viewerBeat, 0, beatsPerBar)
 		for _, t := range tokens {
-			out = append(out, viewerBeat{Text: t})
+			out = append(out, viewerBeat{Text: song.TokenChord(t)})
 			for i := 1; i < span; i++ {
 				out = append(out, viewerBeat{IsTie: true})
 			}
@@ -426,7 +426,7 @@ func expandBeats(tokens []string, beatsPerBar int) []viewerBeat {
 			out = append(out, viewerBeat{IsTie: true})
 			continue
 		}
-		out = append(out, viewerBeat{Text: t})
+		out = append(out, viewerBeat{Text: song.TokenChord(t)})
 	}
 	return computeSpans(out)
 }

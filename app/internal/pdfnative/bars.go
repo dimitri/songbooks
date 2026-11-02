@@ -1,91 +1,121 @@
 package pdfnative
 
 import (
-	"strings"
-
 	"app/internal/song"
 )
 
-// chordLabel strips a ":duration" tag ("Gm:4.", "F:8") down to the bare
-// chord name for display. Measure.Tokens are kept verbatim by design (see
-// song.Measure's doc comment) — no renderer in this app actually uses the
-// tag for layout today (neither this one nor the web editor), so showing
-// it raw is a display bug, not a meaningful omission. Only the FIRST ':'
-// matters: a bass-note slash chord ("C/G") has no colon, so this never
-// touches a real chord symbol.
+// chordLabel strips a token's ":duration" tag down to the bare chord/rest
+// symbol — song.TokenChord, shared with the web Play view's own beat-slot
+// rendering (internal/httpapi's expandBeats) so both surfaces apply the
+// exact same rule.
 func chordLabel(tok string) string {
-	if i := strings.IndexByte(tok, ':'); i >= 0 {
-		return tok[:i]
-	}
-	return tok
+	return song.TokenChord(tok)
 }
 
-// barRow draws (or measures) one line of bar-chart measures — the
-// chord-grid half of v2/lib/grid.typ: bordered boxes, a diagonal slash per
-// beat, repeat-barline double-strokes with dots, and the chord symbol for
-// any beat that actually names one, placed above its slash.
+// barRow draws (or measures) one line of bar-chart measures, iReal Pro
+// style: thin hairline barlines (not a bordered box per bar), one bold
+// chord symbol per beat that actually names one (nothing drawn for a tied/
+// sustained beat — real lead sheets don't re-mark every beat, only where a
+// chord starts), a single centered glyph for a whole-bar repeat, and a
+// thin+thick double-rule for a repeat-barline open/close instead of a box
+// edge to attach it to. This replaced an earlier bordered-box-per-bar
+// version with a diagonal slash on every beat — correct but, per direct
+// user feedback, "looking like done by a kid without talent"; iReal Pro's
+// actual chart style (reviewed live via its App Store screenshots) is
+// exactly this sparser, more typographic look.
 func (c *canvas) barRow(measures []song.Measure, size float64) {
 	if len(measures) == 0 {
 		return
 	}
-	boxH := size*1.3 + 10
-	chordH := size + 4
-	rowH := boxH + chordH
-	c.ensureSpace(rowH + 4)
+	chordH := size * 1.3
+	ruleGap := size * 0.55
+	rowH := chordH + ruleGap
+	c.ensureSpace(rowH + 6)
 
 	n := float64(len(measures))
 	boxW := c.colW / n
 	x0 := c.curX()
-	boxTop := c.y + chordH
+	baseline := c.y + chordH
+	ruleY := baseline + ruleGap*0.5
+	barTop := baseline - chordH*0.92
 
 	for i, m := range measures {
 		bx := x0 + float64(i)*boxW
-		c.strokedRect(bx, boxTop, boxW, boxH, c.th.ink, 0.7)
 
-		// Repeat barlines: a heavier second stroke + two dots just inside
-		// the box, at whichever edge opens/closes the repeat.
+		// A hairline divider between bars — not a box, just the one edge
+		// that actually separates two measures (the row's own left/right
+		// margins already bound the row itself, so the first bar needs no
+		// line on its own left and the last none on its right).
+		if i > 0 {
+			c.line(bx, barTop, bx, ruleY, c.th.line, 0.5)
+		}
+
+		// Repeat barline: a thin stroke next to the music, a heavier one
+		// just outside it, two dots between — LilyPond/real-chart
+		// convention, same thin:thick ratio the web chart's own CSS
+		// already uses, just without a box edge to hang it off of here.
 		if m.Open {
-			c.line(bx+3, boxTop, bx+3, boxTop+boxH, c.th.ink, 1.6)
-			c.repeatDots(bx+7, boxTop, boxH)
+			c.line(bx+2, barTop, bx+2, ruleY, c.th.ink, 1.8)
+			c.repeatDots(bx+7, barTop, ruleY-barTop)
 		}
 		if m.Close {
-			c.line(bx+boxW-3, boxTop, bx+boxW-3, boxTop+boxH, c.th.ink, 1.6)
-			c.repeatDots(bx+boxW-10, boxTop, boxH)
+			c.line(bx+boxW-2, barTop, bx+boxW-2, ruleY, c.th.ink, 1.8)
+			c.repeatDots(bx+boxW-9, barTop, ruleY-barTop)
 		}
 
-		// Volta marker ("1.", "1,2,3.") sits just above the box, left edge.
+		// Volta marker ("1.", "1,2,3.") sits just above the bar, left edge.
 		if m.Volta != "" {
-			c.textAt(bx+2, c.y-1, m.Volta, faceSans, size*0.72, c.th.faint)
+			c.textAt(bx+2, c.y-1, m.Volta, faceSans, size*0.62, c.th.faint)
 		}
 
+		// "%" repeats the previous bar, "%%" the previous TWO — the same
+		// placeholder convention v2/lib/staff.typ's PLACEHOLDER list and
+		// is-simile check use; both render as one centered repeat glyph,
+		// "%%" additionally getting a small repeat-count badge (matching
+		// the web chart's own .simile-count, which shows "2" there).
 		toks := m.Tokens
-		if len(toks) == 1 && toks[0] == "%" {
-			// Whole-bar repeat-previous: one centered "%" mark, no slashes.
-			tw := c.measureWidth("%", faceSansBold, size)
-			c.textAt(bx+boxW/2-tw/2, boxTop+boxH/2+size*0.35, "%", faceSansBold, size, c.th.faint)
+		if len(toks) == 1 && (toks[0] == "%" || toks[0] == "%%") {
+			c.drawBarRepeatGlyph(bx+boxW/2, baseline, chordH*0.7, c.th.faint)
+			if toks[0] == "%%" {
+				c.textAt(bx+boxW/2-3, barTop+size*0.2, "2", faceSansBold, size*0.5, c.th.faint)
+			}
 			continue
 		}
-		if len(toks) == 0 {
-			toks = []string{"."}
+
+		// Chords that actually start here, left to right, no internal
+		// divider between them within the bar — a tied/sustained beat
+		// ("." or an empty slot) draws nothing, same as a real chart only
+		// marking where a chord begins. Start further right when this
+		// bar's own repeat-open dots (above) are drawn in the same corner.
+		cx := bx + 3
+		if m.Open {
+			cx = bx + 14
 		}
-		sub := boxW / float64(len(toks))
-		for j, tok := range toks {
-			cx := bx + float64(j)*sub
-			// Diagonal slash, the universal "play a beat here" mark —
-			// every beat gets one, chorded or sustained ("." / repeated).
-			c.line(cx+sub*0.28, boxTop+boxH*0.82, cx+sub*0.72, boxTop+boxH*0.18, c.th.faint, 0.9)
+		gap := size * 0.4
+		for _, tok := range toks {
 			label := chordLabel(tok)
-			if label != "." && label != "%" && label != "" {
-				tw := c.measureWidth(label, faceSansBold, size*0.82)
-				chordX := cx + 2
-				if chordX+tw > bx+boxW-2 {
-					chordX = bx + boxW - 2 - tw
-				}
-				c.textAt(chordX, c.y+chordH-3, label, faceSansBold, size*0.82, c.th.chord)
+			if label == "." || label == "%" || label == "%%" || label == "" {
+				continue
 			}
+			cx += c.drawChordSymbol(cx, baseline, label, size*0.95, c.th.chord) + gap
 		}
 	}
-	c.y = boxTop + boxH + 5
+	c.line(x0, ruleY, x0+c.colW, ruleY, c.th.line, 0.7)
+	c.y = ruleY + 6
+}
+
+// drawBarRepeatGlyph draws a "play the previous bar again" mark: a
+// diagonal slash flanked by two dots, the real-chart convention (and
+// v2/lib/staff.typ's own simile() glyph), centered on (cx, baselineY).
+func (c *canvas) drawBarRepeatGlyph(cx, baselineY, h float64, col rgb) {
+	if !c.draw {
+		return
+	}
+	c.line(cx-h*0.32, baselineY+h*0.25, cx+h*0.32, baselineY-h*0.65, col, h*0.14)
+	r := h * 0.08
+	c.doc.SetFillColor(col.r, col.g, col.b)
+	c.doc.Oval(cx-h*0.32-r, baselineY-h*0.1-r, cx-h*0.32+r, baselineY-h*0.1+r)
+	c.doc.Oval(cx+h*0.32-r, baselineY-h*0.5-r, cx+h*0.32+r, baselineY-h*0.5+r)
 }
 
 // repeatDots draws the two dots a repeat barline carries, vertically
