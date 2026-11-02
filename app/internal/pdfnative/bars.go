@@ -1,6 +1,24 @@
 package pdfnative
 
-import "app/internal/song"
+import (
+	"strings"
+
+	"app/internal/song"
+)
+
+// chordLabel strips a ":duration" tag ("Gm:4.", "F:8") down to the bare
+// chord name for display. Measure.Tokens are kept verbatim by design (see
+// song.Measure's doc comment) — no renderer in this app actually uses the
+// tag for layout today (neither this one nor the web editor), so showing
+// it raw is a display bug, not a meaningful omission. Only the FIRST ':'
+// matters: a bass-note slash chord ("C/G") has no colon, so this never
+// touches a real chord symbol.
+func chordLabel(tok string) string {
+	if i := strings.IndexByte(tok, ':'); i >= 0 {
+		return tok[:i]
+	}
+	return tok
+}
 
 // barRow draws (or measures) one line of bar-chart measures — the
 // chord-grid half of v2/lib/grid.typ: bordered boxes, a diagonal slash per
@@ -56,13 +74,14 @@ func (c *canvas) barRow(measures []song.Measure, size float64) {
 			// Diagonal slash, the universal "play a beat here" mark —
 			// every beat gets one, chorded or sustained ("." / repeated).
 			c.line(cx+sub*0.28, boxTop+boxH*0.82, cx+sub*0.72, boxTop+boxH*0.18, c.th.faint, 0.9)
-			if tok != "." && tok != "%" && tok != "" {
-				tw := c.measureWidth(tok, faceSansBold, size*0.82)
+			label := chordLabel(tok)
+			if label != "." && label != "%" && label != "" {
+				tw := c.measureWidth(label, faceSansBold, size*0.82)
 				chordX := cx + 2
 				if chordX+tw > bx+boxW-2 {
 					chordX = bx + boxW - 2 - tw
 				}
-				c.textAt(chordX, c.y+chordH-3, tok, faceSansBold, size*0.82, c.th.chord)
+				c.textAt(chordX, c.y+chordH-3, label, faceSansBold, size*0.82, c.th.chord)
 			}
 		}
 	}
