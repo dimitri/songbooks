@@ -63,6 +63,17 @@ func renderSongHeader(c *canvas, s *song.Song) {
 	c.y += 4
 	c.line(marginX, c.y, pageW-marginX, c.y, c.th.ink, 1.1)
 	c.y += 10
+
+	// The header (title/meta/rule) is drawn once, in column 0, but it
+	// visually spans the full page width above BOTH columns. c.top started
+	// as the raw page margin for every column; left there, a later column
+	// switch (ensureSpace) would reset column 2's cursor to that same raw
+	// margin — above where the header rule sits — so overflow text in
+	// column 2 would start flush with the TITLE's own row instead of below
+	// the header, reading as if it overlapped it. Raising c.top to here
+	// makes every column (including ones not yet visited) start below the
+	// shared header, same as column 0 already does.
+	c.top = c.y
 }
 
 // renderSongBody draws every section in source order at the given body

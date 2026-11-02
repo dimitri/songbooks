@@ -132,14 +132,16 @@ func (c *canvas) repeatDots(x, top, h float64) {
 }
 
 // barsPerLineFor applies the section's own override (song.Section.
-// BarsPerLine), defaulting to 8 — iReal Pro shows a full tune continuously
-// at 8 bars/row where they fit (v2/lib/grid.typ's Typst pipeline defaulted
-// to 4; this native renderer's own chart style targets the denser iReal
-// look instead, per the approved mockup).
+// BarsPerLine), defaulting to 4 — the print chart's own default (distinct
+// from the web Jazz view's intentionally denser 8-bars/row default, set in
+// internal/httpapi/handlers_pages.go's groupMeasures to match the approved
+// iReal Pro mockup). 4/row is what makes standard forms read cleanly on
+// paper: an 8-bar form wraps as 2 rows, a 12-bar blues as 3 — real sheet
+// music convention — rather than one long uneven row.
 func barsPerLineFor(sec song.Section, lineIdx int) int {
 	switch len(sec.BarsPerLine) {
 	case 0:
-		return 8
+		return 4
 	case 1:
 		return sec.BarsPerLine[0]
 	default:
