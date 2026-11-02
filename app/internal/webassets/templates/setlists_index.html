@@ -9,6 +9,8 @@
 {{template "pwa-head"}}
 </head>
 <body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
   <h1>Set lists</h1>
@@ -126,6 +128,7 @@ document.querySelectorAll('.new-band-setlist-btn').forEach(btn => {
 });
 </script>
 {{template "pwa-register"}}
+</div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
 </body>

@@ -9,6 +9,8 @@
 {{template "pwa-head"}}
 </head>
 <body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
   <h1>Prep: {{.Stem}}</h1>
@@ -77,6 +79,7 @@
 <script src="/static/js/importer.js"></script>
 <script src="/static/js/preview.js"></script>
 <script src="/static/js/prep.js"></script>
+</div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
 </body>

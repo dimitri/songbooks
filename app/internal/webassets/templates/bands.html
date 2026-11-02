@@ -9,6 +9,8 @@
 {{template "pwa-head"}}
 </head>
 <body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
   <h1>My bands</h1>
@@ -66,6 +68,7 @@ document.getElementById('create-band-btn').addEventListener('click', async () =>
   }
 });
 </script>
+</div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
 </body>

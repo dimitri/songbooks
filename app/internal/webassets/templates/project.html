@@ -9,6 +9,8 @@
 {{template "pwa-head"}}
 </head>
 <body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
   <h1>{{.Book}}</h1>
@@ -134,6 +136,7 @@
 <script src="/static/js/clock.js"></script>
 <script src="/static/js/project.js"></script>
 {{template "pwa-register"}}
+</div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
 </body>

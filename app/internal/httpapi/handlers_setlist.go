@@ -114,7 +114,7 @@ func (s *Server) handleSetlistsPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, "setlists-index", map[string]any{
-		"Books": books, "Setlists": rows,
+		"Me": person, "Books": books, "Setlists": rows,
 		"MySetlists": mySetlists, "Bands": bandRows,
 	})
 }
@@ -122,7 +122,8 @@ func (s *Server) handleSetlistsPage(w http.ResponseWriter, r *http.Request) {
 // handleMetronomePage serves the standalone practice metronome — no song
 // attached, for warming up or drilling a groove before pulling up a chart.
 func (s *Server) handleMetronomePage(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "metronome", nil)
+	person := personFromContext(r)
+	s.render(w, "metronome", map[string]any{"Me": person})
 }
 
 func (s *Server) handleSetlistEditPage(w http.ResponseWriter, r *http.Request) {

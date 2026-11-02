@@ -9,6 +9,8 @@
 {{template "pwa-head"}}
 </head>
 <body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
 <header class="app-header">
   <h1>Songbooks</h1>
   <nav class="song-nav">
@@ -153,6 +155,7 @@ document.getElementById('attention-filters')?.addEventListener('click', (e) => {
 <script src="/static/js/index.js"></script>
 {{template "notif-bell-script"}}
 {{template "pwa-register"}}
+</div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
 </body>

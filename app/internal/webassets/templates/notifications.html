@@ -9,6 +9,8 @@
 {{template "pwa-head"}}
 </head>
 <body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
   <h1>Notifications</h1>
@@ -64,6 +66,7 @@ document.getElementById('mark-all-read-btn').addEventListener('click', async () 
   location.reload();
 });
 </script>
+</div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
 </body>

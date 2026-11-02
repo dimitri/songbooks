@@ -26,17 +26,21 @@
    default (`color-scheme` + `prefers-color-scheme`); `data-theme` on
    <body> is an explicit per-viewer override set by the theme-toggle
    button. */
-/* Palette: "Stage" — a warm paper neutral with one amber accent, chosen
-   from this session's design research over competitors (iReal Pro,
-   Ultimate Guitar, Moises) and 2025-26 trends: a confident single accent
-   on a quiet neutral, warm rather than clinical so it reads well under
-   stage lighting, distinct from the blue/purple space most practice-app
-   competitors already occupy. Replaces the earlier cool-neutral/teal-
-   green palette; --ok keeps a teal (the palette's secondary accent) for
-   positive/live states so existing "it worked" usages don't need to
-   become amber. Same variable NAMES as before (just new values) so every
-   existing selector in this file retones automatically — don't
-   reintroduce a parallel set of color variables. */
+/* Palette: "Larkin Poe" — terracotta + mustard gold, sampled live from
+   larkinpoe.com (one of three real band/artist sites reviewed against this
+   app's own blues/rock/soul catalogue — jbonamassa.com and raycharles.com
+   were the other two candidates) and approved over the earlier "Stage"
+   (plain amber) palette. --accent is the terracotta; --ok repurposes the
+   palette's mustard gold as the secondary/positive accent (its own ink
+   tone is deliberately darker than the raw gold hex, since gold alone
+   fails body-text contrast — see --ok/--ok-bg below, gold is a background/
+   underline color here, never a text color). --danger is pulled slightly
+   toward pure red (away from orange) so it stays visually distinct from
+   the now-terracotta --accent, which the old --danger hex sat too close
+   to in hue. Same variable NAMES as before (just new values, plus the new
+   --sidebar-* set for the desktop nav) so every existing selector in this
+   file retones automatically — don't reintroduce a parallel set of color
+   variables. */
 :root {
   color-scheme: light dark;
   --gap: 1rem;
@@ -44,63 +48,73 @@
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --font-chart: "EB Garamond", Georgia, "Times New Roman", serif;
 
-  --bg: #f6f3ec;
+  --bg: #f6f1e7;
   --bg-raised: #ffffff;
-  --bg-sunken: #efe9db;
-  --fg: #1c1a16;
-  --fg-muted: #5b564c;
-  --fg-faint: #8b8578;
-  --border: #e4dfd2;
-  --border-strong: #1c1a16;
-  --accent: #c97a2b;
-  --accent-bg: #fbead4;
-  --accent-ink: #8a520f;
+  --bg-sunken: #efe6d3;
+  --fg: #241e18;
+  --fg-muted: #5f554a;
+  --fg-faint: #948a79;
+  --border: #e7dfcf;
+  --border-strong: #241e18;
+  --accent: #af4e39;
+  --accent-bg: #f3ddd4;
+  --accent-ink: #8a3d2c;
   --accent-contrast: #ffffff;
-  --current-bg: #f4c57a;
-  --current-fg: #2b1a05;
-  --danger: #b2452f;
-  --danger-bg: #fbe7e0;
-  --ok: #2f8f82;
-  --ok-bg: #e3f2ef;
+  --current-bg: #f2ebc6;
+  --current-fg: #4a3f14;
+  --danger: #a52f2f;
+  --danger-bg: #f7e0dc;
+  --ok: #8a7a2e;
+  --ok-bg: #f2ebc6;
   --radius: 10px;
   --shadow: 0 1px 2px rgba(28, 22, 12, 0.06), 0 4px 14px rgba(28, 22, 12, 0.06);
+
+  /* Desktop sidebar: a dark surface on purpose, distinct from the rest of
+     the (light) app — see .desktop-sidebar's own comment. Not swapped by
+     light/dark mode below; the sidebar stays dark in both, like a band
+     site's header bar. */
+  --sidebar-bg: #201b17;
+  --sidebar-fg: #f2e9dd;
+  --sidebar-border: #3a322b;
+  --sidebar-active-bg: #352c20;
+  --sidebar-active-fg: #e2d165;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #17140f;
-    --bg-raised: #221d16;
-    --bg-sunken: #100d09;
-    --fg: #f3efe6;
-    --fg-muted: #b9af9e;
-    --fg-faint: #8a8272;
-    --border: #3a3226;
-    --border-strong: #f3efe6;
-    --accent: #e8a33d;
-    --accent-bg: #3a2a12;
-    --accent-ink: #f4c57a;
-    --accent-contrast: #211404;
-    --current-bg: #e8a33d;
-    --current-fg: #211404;
-    --danger: #e2614a;
-    --danger-bg: #3a1a12;
-    --ok: #4bae9f;
-    --ok-bg: #123531;
+    --bg: #1d1712;
+    --bg-raised: #241d16;
+    --bg-sunken: #140f0b;
+    --fg: #f2e9dd;
+    --fg-muted: #c4b8a0;
+    --fg-faint: #9c8f78;
+    --border: #3a322b;
+    --border-strong: #f2e9dd;
+    --accent: #d9684a;
+    --accent-bg: #3a221a;
+    --accent-ink: #f0a98c;
+    --accent-contrast: #fff8f0;
+    --current-bg: #e2d165;
+    --current-fg: #241c08;
+    --danger: #d9584f;
+    --danger-bg: #3a1a15;
+    --ok: #cdbb63;
+    --ok-bg: #2f2a17;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 18px rgba(0, 0, 0, 0.45);
   }
 }
 
 body[data-theme="light"] {
-  --bg: #f6f3ec; --bg-raised: #fff; --bg-sunken: #efe9db; --fg: #1c1a16; --fg-muted: #5b564c; --fg-faint: #8b8578;
-  --border: #e4dfd2; --border-strong: #1c1a16; --accent: #c97a2b; --accent-bg: #fbead4; --accent-ink: #8a520f; --accent-contrast: #ffffff;
-  --current-bg: #f4c57a; --current-fg: #2b1a05;
-  --danger: #b2452f; --danger-bg: #fbe7e0; --ok: #2f8f82; --ok-bg: #e3f2ef;
+  --bg: #f6f1e7; --bg-raised: #fff; --bg-sunken: #efe6d3; --fg: #241e18; --fg-muted: #5f554a; --fg-faint: #948a79;
+  --border: #e7dfcf; --border-strong: #241e18; --accent: #af4e39; --accent-bg: #f3ddd4; --accent-ink: #8a3d2c; --accent-contrast: #ffffff;
+  --current-bg: #f2ebc6; --current-fg: #4a3f14;
+  --danger: #a52f2f; --danger-bg: #f7e0dc; --ok: #8a7a2e; --ok-bg: #f2ebc6;
 }
 body[data-theme="dark"] {
-  --bg: #17140f; --bg-raised: #221d16; --bg-sunken: #100d09; --fg: #f3efe6; --fg-muted: #b9af9e; --fg-faint: #8a8272;
-  --border: #3a3226; --border-strong: #f3efe6; --accent: #e8a33d; --accent-bg: #3a2a12; --accent-ink: #f4c57a; --accent-contrast: #211404;
-  --current-bg: #e8a33d; --current-fg: #211404;
-  --danger: #e2614a; --danger-bg: #3a1a12; --ok: #4bae9f; --ok-bg: #123531;
+  --bg: #1d1712; --bg-raised: #241d16; --bg-sunken: #140f0b; --fg: #f2e9dd; --fg-muted: #c4b8a0; --fg-faint: #9c8f78;
+  --border: #3a322b; --border-strong: #f2e9dd; --accent: #d9684a; --accent-bg: #3a221a; --accent-ink: #f0a98c; --accent-contrast: #fff8f0;
+  --current-bg: #e2d165; --current-fg: #241c08;
+  --danger: #d9584f; --danger-bg: #3a1a15; --ok: #cdbb63; --ok-bg: #2f2a17;
 }
 
 * { box-sizing: border-box; }
@@ -225,6 +239,57 @@ input[type="text"], input[type="url"], input[type="date"] {
 }
 .app-header h1 { margin: 0; font-size: 1.25rem; font-weight: 700; }
 .song-nav { margin-left: auto; display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+
+/* ---- Desktop sidebar (>=901px) ------------------------------------------
+   Hidden by default/on mobile (the global bottom tab bar is the only nav
+   there); shown and laid out as a flex sibling of .app-content only inside
+   the >=901px media query at the bottom of this file, the same "default
+   off, switched on past the breakpoint" convention .global-tabbar/
+   .song-context-bar use in reverse for the <=900px case. A dark surface
+   deliberately distinct from the rest of the (light/paper) app, matching
+   the approved nav proposal -- the one dark element in an otherwise light
+   UI, same way a band site's header bar often reads as a dark anchor
+   against a lighter page. */
+.desktop-sidebar {
+  display: none;
+  flex: 0 0 220px; width: 220px; box-sizing: border-box;
+  flex-direction: column; gap: 1.4rem; padding: 1.1rem 0.85rem;
+  background: var(--sidebar-bg); color: var(--sidebar-fg);
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+.sidebar-brand {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0 0.3rem;
+  color: var(--sidebar-fg); font-weight: 700; font-size: 1.02rem; text-decoration: none;
+}
+.sidebar-brand .icon.logo-mark { width: 1.4rem; height: 1.4rem; opacity: 1; }
+.sidebar-primary, .sidebar-secondary { display: flex; flex-direction: column; gap: 0.15rem; }
+.sidebar-primary a, .sidebar-secondary a {
+  display: flex; align-items: center; gap: 0.7rem;
+  padding: 0.55rem 0.6rem; border-radius: 10px; text-decoration: none;
+  color: var(--sidebar-fg); font-size: 0.88rem; font-weight: 500;
+}
+.sidebar-primary a .icon { width: 1.1rem; height: 1.1rem; flex: none; }
+.sidebar-primary a.active, .sidebar-secondary a.active {
+  background: var(--sidebar-active-bg); color: var(--sidebar-active-fg); font-weight: 600;
+}
+.sidebar-primary a:not(.active):hover, .sidebar-secondary a:not(.active):hover {
+  background: color-mix(in srgb, var(--sidebar-fg) 10%, transparent);
+}
+.sidebar-secondary {
+  margin-top: auto; padding-top: 0.9rem; border-top: 1px solid var(--sidebar-border);
+  font-size: 0.82rem;
+}
+.sidebar-secondary a { font-weight: 500; color: color-mix(in srgb, var(--sidebar-fg) 78%, transparent); }
+.sidebar-account {
+  display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.6rem;
+  border-radius: 10px; text-decoration: none; color: var(--sidebar-fg); font-size: 0.85rem;
+  background: color-mix(in srgb, var(--sidebar-fg) 7%, transparent);
+}
+.sidebar-account-avatar {
+  width: 1.7rem; height: 1.7rem; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-bg); color: var(--accent-ink); font-weight: 700; font-size: 0.8rem;
+}
 
 /* ---- Notification bell -------------------------------------------------- */
 .notif-bell { position: relative; display: inline-flex; align-items: center; color: inherit; }
@@ -1498,6 +1563,40 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 
 @media (min-width: 901px) {
   .global-tabbar, .song-context-bar, .stack-sheet, .stack-backdrop { display: none; }
+
+  /* ---- Desktop sidebar shell -------------------------------------------
+     Every top-level authenticated page now renders {{template
+     "desktop-sidebar"}} as the first child of <body>, immediately followed
+     by a <div class="app-content"> wrapping that page's existing
+     <header class="app-header">/<main> — see the Phase 28 brief. Below
+     900px, body stays plain block flow (unchanged from Phase 27) and the
+     sidebar renders nothing (display:none from its own base rule above);
+     here, body becomes a flex row so the sidebar and .app-content sit side
+     by side, sidebar fixed width, content filling the rest. Pages that
+     don't use this wrapper (Play's own already-redesigned chrome from
+     Phases 23-25, and unauthenticated/jam pages that never render the
+     sidebar partial at all) are simply unaffected — .app-content only
+     matters on pages that have it. */
+  body:has(> .desktop-sidebar) { display: flex; align-items: stretch; min-height: 100vh; }
+  .desktop-sidebar { display: flex; }
+  .app-content { flex: 1 1 auto; min-width: 0; }
+
+  /* The old flat text-link header nav duplicates what the sidebar now
+     covers (Home/Catalog/Bands/Setlists/Profile/Admin as sidebar items;
+     the home-link "&larr; Songbooks" partial as sidebar's own Home). Hide
+     exactly those, by exact href match, rather than hiding .song-nav/
+     .app-header wholesale — every page's OTHER header content (page
+     title, a contextual back-link to a parent resource, action buttons
+     like Import/+project/PDF export, the notif bell) is not a nav
+     duplicate and stays visible, so .app-header keeps working as each
+     page's own slim utility strip above its content. */
+  .back-link[href="/"] { display: none; }
+  .song-nav a[href="/metronome"],
+  .song-nav a[href="/setlists"],
+  .song-nav a[href="/catalog"],
+  .song-nav a[href="/bands"],
+  .song-nav a[href="/profile"],
+  .song-nav a[href="/admin"] { display: none; }
 }
 
 /* Chord symbol typesetting — Brandt & Roemer style (see internal/chordsym):

@@ -13,5 +13,5 @@ func (s *Server) handleDevOutbox(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.render(w, "dev_outbox", map[string]any{"Entries": entries})
+	s.render(w, "dev_outbox", map[string]any{"Me": personFromContext(r), "Entries": entries})
 }
