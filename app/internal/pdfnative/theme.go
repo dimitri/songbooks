@@ -10,36 +10,42 @@ type rgb struct{ r, g, b uint8 }
 // rendered through Typst ever did — same ink/chord/chip colors, just drawn
 // by a different engine.
 type theme struct {
-	bg      rgb // page background (DARK only; LIGHT pages are plain white)
-	ink     rgb // body text
-	chord   rgb // chord symbols
-	faint   rgb // secondary/meta text
-	chip    rgb // section-tag chip background
-	chipInk rgb // section-tag chip text
-	meta    rgb // contents-table meta columns
-	line    rgb // rules/dividers
+	bg       rgb // page background (DARK only; LIGHT pages are plain white)
+	ink      rgb // body text
+	chord    rgb // chord symbols
+	faint    rgb // secondary/meta text
+	chip     rgb // section-tag chip background
+	chipInk  rgb // section-tag chip text
+	meta     rgb // contents-table meta columns
+	line     rgb // rules/dividers
+	badge    rgb // rehearsal-mark letter badge background (iReal Pro style)
+	badgeInk rgb // rehearsal-mark letter badge text
 }
 
 var lightTheme = theme{
-	bg:      rgb{255, 255, 255},
-	ink:     rgb{0x14, 0x14, 0x14},
-	chord:   rgb{0x8a, 0x1c, 0x1c},
-	faint:   rgb{0x9a, 0x9a, 0x9a},
-	chip:    rgb{0xe8, 0xe8, 0xe8},
-	chipInk: rgb{0x14, 0x14, 0x14},
-	meta:    rgb{0x5a, 0x5a, 0x5a},
-	line:    rgb{0x14, 0x14, 0x14},
+	bg:       rgb{255, 255, 255},
+	ink:      rgb{0x14, 0x14, 0x14},
+	chord:    rgb{0x8a, 0x1c, 0x1c},
+	faint:    rgb{0x9a, 0x9a, 0x9a},
+	chip:     rgb{0xe8, 0xe8, 0xe8},
+	chipInk:  rgb{0x14, 0x14, 0x14},
+	meta:     rgb{0x5a, 0x5a, 0x5a},
+	line:     rgb{0x14, 0x14, 0x14},
+	badge:    rgb{0xc0, 0x39, 0x2b},
+	badgeInk: rgb{255, 255, 255},
 }
 
 var darkTheme = theme{
-	bg:      rgb{0x0f, 0x0f, 0x0f},
-	ink:     rgb{0xed, 0xed, 0xed},
-	chord:   rgb{0xe8, 0xa3, 0x3d},
-	faint:   rgb{0x6e, 0x6e, 0x6e},
-	chip:    rgb{0x2b, 0x2b, 0x2b},
-	chipInk: rgb{0xed, 0xed, 0xed},
-	meta:    rgb{0x9a, 0x9a, 0x9a},
-	line:    rgb{0xb4, 0xb4, 0xb4},
+	bg:       rgb{0x0f, 0x0f, 0x0f},
+	ink:      rgb{0xed, 0xed, 0xed},
+	chord:    rgb{0xe8, 0xa3, 0x3d},
+	faint:    rgb{0x6e, 0x6e, 0x6e},
+	chip:     rgb{0x2b, 0x2b, 0x2b},
+	chipInk:  rgb{0xed, 0xed, 0xed},
+	meta:     rgb{0x9a, 0x9a, 0x9a},
+	line:     rgb{0xb4, 0xb4, 0xb4},
+	badge:    rgb{0xe0, 0x55, 0x45},
+	badgeInk: rgb{0x0f, 0x0f, 0x0f},
 }
 
 func themeFor(name string) theme {

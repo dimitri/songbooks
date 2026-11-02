@@ -12,10 +12,11 @@
      condition for the InferredNote case fixes that. */}}
 <section class="sheet-section{{if or .InferredNote .Repeat .IsReference .Compact}} is-compact{{end}}" data-section-index="{{.Index}}" data-label="{{label .Label}}" data-start-bar="{{.StartBar}}" data-bar-count="{{.BarCount}}" data-has-lyrics="{{if .Lyrics}}true{{else}}false{{end}}" data-has-note="{{if .InferredNote}}true{{else}}false{{end}}" style="--bars: {{.BarCount}}">
   <h3>
-    <button class="section-jump" type="button" data-section-index="{{.Index}}" title="jump here">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if or .Repeat .IsReference}} <span class="repeat-suffix">&middot; repeat</span>{{end}}</button>
+    <button class="section-jump" type="button" data-section-index="{{.Index}}" title="jump here">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if or .Repeat .IsReference}} <span class="repeat-suffix">&middot; repeat</span>{{end}}</button>
     {{if .InferredNote}}<span class="inferred-note">{{.InferredNote}}</span>{{end}}
   </h3>
   <div class="section-map-chip">
+    {{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}
     <span class="chip-label">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}</span>
     {{if .BarCount}}
     {{/* Plain total ("16"), not "8 + 8" — the mockup of 8 bar cells below,

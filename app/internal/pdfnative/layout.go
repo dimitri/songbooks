@@ -155,19 +155,33 @@ func (c *canvas) measureWidth(s, face string, size float64) float64 {
 	return w
 }
 
-// sectionTag draws the grey rounded-rect "VERSE"/"CHORUS"/"INTRO" label
-// (v2/lib/sheet.typ's chip) and advances y past it.
-func (c *canvas) sectionTag(label string, size float64) {
-	label = strings.ToUpper(label)
-	c.setFont(faceSansBold, size)
-	w, _ := c.doc.MeasureTextWidth(label)
-	padX, h := 7.0, size+7
-	c.ensureSpace(h + 6)
-	c.filledRect(c.curX(), c.y, w+2*padX, h, c.th.chip)
-	if c.draw {
-		c.doc.SetTextColor(c.th.chipInk.r, c.th.chipInk.g, c.th.chipInk.b)
-		c.doc.SetXY(c.curX()+padX, c.y+h-size*0.72)
-		c.doc.Text(label)
+// sectionTag draws the iReal Pro style rehearsal mark: a small square
+// letter badge (A, B, C... — assigned per unique section label by
+// renderSongBody, in order of first appearance) in front of the section's
+// own descriptive label, set small and grey rather than the earlier
+// full-width filled banner chip. The badge is iReal's own convention; the
+// label alongside it is this app's richer section-naming feature, kept
+// compact instead of dropped. Advances y past both.
+func (c *canvas) sectionTag(label, mark string, size float64) {
+	badgeSize := size + 6
+	c.ensureSpace(badgeSize + 6)
+	bx, by := c.curX(), c.y
+	c.filledRect(bx, by, badgeSize, badgeSize, c.th.badge)
+	if c.draw && mark != "" {
+		c.setFont(faceSansBold, size*0.86)
+		mw, _ := c.doc.MeasureTextWidth(mark)
+		c.doc.SetTextColor(c.th.badgeInk.r, c.th.badgeInk.g, c.th.badgeInk.b)
+		c.doc.SetXY(bx+(badgeSize-mw)/2, by+badgeSize-size*0.46)
+		c.doc.Text(mark)
 	}
-	c.y += h + 6
+	if label != "" {
+		labelSize := size * 0.82
+		c.setFont(faceSansBold, labelSize)
+		if c.draw {
+			c.doc.SetTextColor(c.th.faint.r, c.th.faint.g, c.th.faint.b)
+			c.doc.SetXY(bx+badgeSize+6, by+badgeSize-size*0.46)
+			c.doc.Text(strings.ToUpper(label))
+		}
+	}
+	c.y += badgeSize + 6
 }

@@ -75,9 +75,17 @@ func renderSongHeader(c *canvas, s *song.Song) {
 // a genuinely different one.
 func renderSongBody(c *canvas, s *song.Song, bodySize float64, mode pdf.Mode, hideNotes bool) {
 	renderSongHeader(c, s)
+	marks := map[string]string{}
+	next := 'A'
 	for _, sec := range s.Sections {
 		if sec.Label != "" {
-			c.sectionTag(sec.Label, bodySize*0.78)
+			mark, ok := marks[sec.Label]
+			if !ok {
+				mark = string(next)
+				marks[sec.Label] = mark
+				next++
+			}
+			c.sectionTag(sec.Label, mark, bodySize*0.78)
 		}
 		if sec.Repeat {
 			continue // mirrors v2/lib/song.typ: a (repeat) occurrence prints

@@ -132,11 +132,14 @@ func (c *canvas) repeatDots(x, top, h float64) {
 }
 
 // barsPerLineFor applies the section's own override (song.Section.
-// BarsPerLine), defaulting to 4 — same rule v2/lib/grid.typ uses.
+// BarsPerLine), defaulting to 8 — iReal Pro shows a full tune continuously
+// at 8 bars/row where they fit (v2/lib/grid.typ's Typst pipeline defaulted
+// to 4; this native renderer's own chart style targets the denser iReal
+// look instead, per the approved mockup).
 func barsPerLineFor(sec song.Section, lineIdx int) int {
 	switch len(sec.BarsPerLine) {
 	case 0:
-		return 4
+		return 8
 	case 1:
 		return sec.BarsPerLine[0]
 	default:

@@ -697,6 +697,21 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .section-jump:not(:disabled):hover { color: var(--accent); }
 .sheet-section.current-section > h3 .section-jump { color: var(--accent-contrast); background: var(--accent); }
 
+/* Rehearsal-mark badge — iReal Pro's own convention (a single letter, A/B/
+   C..., assigned per distinct section label in order of first appearance;
+   see assignRehearsalMarks in handlers_pages.go): a small square badge
+   placed in FRONT of this app's own, richer section name, not a
+   replacement for it — iReal's compact "go back to B" shorthand plus the
+   descriptive label, rather than picking one over the other. */
+.rehearsal-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.15em; height: 1.15em; margin-right: 0.4em; flex: 0 0 auto;
+  background: #c0392b; color: #fff; border-radius: 2px;
+  font-family: var(--font-ui, sans-serif); font-style: normal; font-weight: 800;
+  font-variant: normal; letter-spacing: 0; font-size: 0.72em; line-height: 1;
+}
+.sheet-section.current-section > h3 .rehearsal-mark { background: var(--accent); }
+
 /* Chart style: Engraved Serif — section labels on the chart itself (not
    the sidebar timeline, which keeps its own plain nav look) read as a
    typeset small-caps heading instead of a UI pill, matching a printed

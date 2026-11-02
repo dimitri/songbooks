@@ -518,6 +518,13 @@ type viewerSection struct {
 	// with a single Intro), else its 1-based occurrence order among
 	// sections sharing the same label.
 	LabelNumber int
+	// Mark is this section's iReal-Pro-style rehearsal letter ("A", "B",
+	// "C", ...) — assigned once per distinct Label, in order of first
+	// appearance, by assignRehearsalMarks. It's a compact badge alongside
+	// the section's own (richer) descriptive name, not a replacement for
+	// it: iReal's single-letter convention plus this app's real section
+	// names, rather than picking one over the other.
+	Mark string
 }
 
 // viewerLine is one chart "system" (row) within a section's grid: its bars,
@@ -533,7 +540,11 @@ type viewerLine struct {
 
 // groupMeasures chunks a section's measures into display rows — "systems",
 // in chart terms — per its BarsPerLine: a single value is a uniform
-// measures-per-row count (the format's own default is 4); several values
+// measures-per-row count (the FILE format's own default, when "bars:" is
+// absent, is 4 — see song.Section.BarsPerLine's doc comment — but this
+// view's own display default is 8, matching iReal Pro's own continuous,
+// denser chart; narrower screens still shrink a row's capacity further at
+// render time via reflowStaffLines in song.js); several values
 // ("bars: 4,5") are explicit, sequential row sizes, with the last value
 // repeating for any remaining measures.
 func groupMeasures(measures []viewerMeasure, barsPerLine []int) []viewerLine {
@@ -542,7 +553,7 @@ func groupMeasures(measures []viewerMeasure, barsPerLine []int) []viewerLine {
 	}
 	sizes := barsPerLine
 	if len(sizes) == 0 {
-		sizes = []int{4}
+		sizes = []int{8}
 	}
 	var lines []viewerLine
 	i := 0
@@ -700,6 +711,7 @@ func buildSections(sg *song.Song) []viewerSection {
 	}
 	annotateStructure(sections)
 	assignLabelNumbers(sections)
+	assignRehearsalMarks(sections)
 
 	// Bar numbering — done as its own pass, after annotateStructure, not
 	// interleaved with the loop above: a bare/reference section's BarCount
@@ -759,6 +771,30 @@ func assignLabelNumbers(sections []viewerSection) {
 		}
 		seen[key]++
 		sections[i].LabelNumber = seen[key]
+	}
+}
+
+// assignRehearsalMarks assigns each section the iReal-Pro-style rehearsal
+// letter of its label: the first distinct label seen gets "A", the second
+// distinct label "B", and so on — every later occurrence of a label
+// (repeats, references, a numbered "Verse 2") reuses the same letter as
+// its first occurrence, the same convention a real chart uses ("go back
+// to B").
+func assignRehearsalMarks(sections []viewerSection) {
+	marks := map[string]string{}
+	next := byte('A')
+	for i := range sections {
+		key := strings.ToLower(strings.TrimSpace(sections[i].Label))
+		if key == "" {
+			continue
+		}
+		mark, ok := marks[key]
+		if !ok {
+			mark = string(next)
+			marks[key] = mark
+			next++
+		}
+		sections[i].Mark = mark
 	}
 }
 
