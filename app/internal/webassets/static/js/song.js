@@ -92,6 +92,21 @@ const ICONS = {
     // one row's own budget so it's never squeezed out by its neighbors.
     const fontPx = parseFloat(getComputedStyle(sheet).fontSize) || 16;
     const clefPx = 2.5 * fontPx;
+    // The server groups every mode's rows at ONE shared target (8 bars/
+    // line — iReal Pro's own continuous, denser convention, picked for
+    // jazz mode specifically) because all four modes render from the same
+    // server-sent Lines: there's no second request to re-group them
+    // server-side when the reader flips the mode dropdown. Jazz mode
+    // wants that 8-bar density; the other three (chords+lyrics, map,
+    // lyrics-only) are read at a normal, print-style density instead —
+    // the same 4-bar-per-line convention the PDF/file-format default
+    // already uses — so an 8-bar row there reads as a single, overly
+    // dense line with its chord labels visually crowding past the row's
+    // own width, even though the row's own CSS width still matches the
+    // lyric column exactly (a real user mistook that crowding for the
+    // two no longer sharing a width at all). Capped here, not server-
+    // side, so jazz mode keeps its own density untouched.
+    const modeCap = sheet.dataset.renderMode === 'jazz' ? 8 : 4;
     for (const { grid, lines } of staffLineOriginals) {
       if (!grid.isConnected) continue;
       const availW = grid.clientWidth;
@@ -105,7 +120,7 @@ const ICONS = {
         // author's own intended capacity even when more would physically
         // fit, so a wide desktop/tablet screen renders exactly what the
         // "bars:" hint asked for, same as today.
-        const useCap = Math.min(cap, effCap);
+        const useCap = Math.min(cap, effCap, modeCap);
         const cells = [...template.children]; // clef cell (maybe) + .bar elements, in order
         const actualBarCount = cells.filter(el => el.classList.contains('bar')).length;
         if (useCap >= actualBarCount) {
