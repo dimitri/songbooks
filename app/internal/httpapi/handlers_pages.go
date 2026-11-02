@@ -528,11 +528,12 @@ type viewerSection struct {
 }
 
 // viewerLine is one chart "system" (row) within a section's grid: its bars,
-// plus Capacity — the row's INTENDED bar count (from BarsPerLine), not
-// necessarily len(Measures). A trailing partial row (e.g. 2 bars when every
-// other row holds 4) keeps the same per-bar width as a full row instead of
-// stretching its few bars to fill the row's full width, which previously
-// made a half-empty last line look like a wider, different bar duration.
+// plus Capacity — the row's ACTUAL bar count (len(Measures)), echoed onto
+// --cap so the row's bars divide its line's own full width evenly. Every
+// row — a full one or a short trailing one — stretches to the same shared
+// line width as every other row and as the lyric text beneath it (the
+// "staff width" the chart and the lyrics both share); a short row's bars
+// are simply wider per bar than a full row's, not the row itself narrower.
 type viewerLine struct {
 	Measures []viewerMeasure
 	Capacity int
@@ -540,13 +541,17 @@ type viewerLine struct {
 
 // groupMeasures chunks a section's measures into display rows — "systems",
 // in chart terms — per its BarsPerLine: a single value is a uniform
-// measures-per-row count (the FILE format's own default, when "bars:" is
+// measures-per-row target (the FILE format's own default, when "bars:" is
 // absent, is 4 — see song.Section.BarsPerLine's doc comment — but this
 // view's own display default is 8, matching iReal Pro's own continuous,
-// denser chart; narrower screens still shrink a row's capacity further at
+// denser chart; narrower screens still shrink a row's target further at
 // render time via reflowStaffLines in song.js); several values
-// ("bars: 4,5") are explicit, sequential row sizes, with the last value
-// repeating for any remaining measures.
+// ("bars: 4,5") are explicit, sequential row targets, with the last value
+// repeating for any remaining measures. A row's target only decides WHERE
+// it breaks — its displayed Capacity is always its own actual bar count
+// (set below), so a short row (fewer measures than the target, e.g. a
+// 5-bar section against the 8-bar default) still stretches to the line's
+// full width instead of rendering visibly narrower than other rows.
 func groupMeasures(measures []viewerMeasure, barsPerLine []int) []viewerLine {
 	if len(measures) == 0 {
 		return nil
@@ -570,7 +575,7 @@ func groupMeasures(measures []viewerMeasure, barsPerLine []int) []viewerLine {
 		if end > len(measures) {
 			end = len(measures)
 		}
-		lines = append(lines, viewerLine{Measures: measures[i:end], Capacity: n})
+		lines = append(lines, viewerLine{Measures: measures[i:end], Capacity: end - i})
 		i = end
 	}
 	return lines
