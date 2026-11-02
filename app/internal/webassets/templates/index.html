@@ -75,7 +75,7 @@
       <div class="band-card">
         <div class="band-card-head">
           <div>
-            <h4>{{.Name}}</h4>
+            <h4><a class="band-card-title-link" href="/bands/{{.ID}}">{{.Name}}</a></h4>
             <div class="band-card-members">{{.Members}} member{{if ne .Members 1}}s{{end}}</div>
           </div>
         </div>
@@ -86,7 +86,6 @@
         </div>
         {{end}}
         <div class="band-card-actions">
-          <a href="/bands/{{.ID}}">overview</a>
           <a href="/bands/{{.ID}}/catalog">songbook</a>
           {{if eq .SetlistCount 1}}
           <a href="/setlists/{{.FirstSetlistID}}/practice">set list</a>

@@ -1,0 +1,49 @@
+{{define "band_setlists"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Band.Name}} — set lists</title>
+<link rel="stylesheet" href="/static/css/app.css">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
+  <h1>{{.Band.Name}} — set lists</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index">
+  <nav class="band-tabs band-tabs-row">
+    <a href="/bands/{{.Band.ID}}">Overview</a>
+    <a href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
+    <a href="/bands/{{.Band.ID}}/setlists" class="active">Setlists</a>
+    <a href="/bands/{{.Band.ID}}/proposals">Proposals &amp; Listening Party</a>
+    <a href="/bands/{{.Band.ID}}/members">Members</a>
+  </nav>
+
+  <p class="hint">Every set list owned by this band. New ones are created from <a href="/setlists">the set lists page</a> and assigned to this band as owner.</p>
+
+  <div class="attention-list">
+  {{range .Setlists}}
+    <div class="attention-row">
+      <div style="flex:1">
+        <div class="attention-title">{{.Title}}</div>
+      </div>
+      <a href="/setlists/{{.ID}}/practice">practice</a>
+      <a href="/setlists/{{.ID}}/listening">listening</a>
+      <a href="/setlists/{{.ID}}/clicktrack">{{template "icon-play"}} clicktrack</a>
+    </div>
+  {{else}}
+    <a class="attention-empty" href="/setlists">No set lists yet — create one &rarr;</a>
+  {{end}}
+  </div>
+</main>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

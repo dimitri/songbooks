@@ -2468,16 +2468,55 @@ input.matrix-slot:hover, input.matrix-slot:focus {
    list doesn't work on mobile"). Reflows to 1 column on a phone with no
    breakpoint needed. */
 .band-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
-.band-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: 0.7rem; }
+.band-card {
+  position: relative; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised);
+  padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: 0.7rem;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.band-card:hover { border-color: var(--accent); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07); }
 .band-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
 .band-card-head h4 { margin: 0; font-size: 1.05rem; }
+/* Stretched-link pattern: the title is a real <a> covering the WHOLE
+   card via its own ::after (so the whole card is clickable, not just
+   the title text), while the quick-action links below stay real,
+   independently-clickable links by sitting above it in z-index — no JS,
+   no nested-interactive-content a11y problem. */
+.band-card-title-link { color: var(--accent-ink); font-weight: 700; }
+.band-card-title-link::after { content: ""; position: absolute; inset: 0; }
 .band-card-members { font-size: 0.78rem; color: var(--fg-faint); }
 .band-card-digest { font-size: 0.85rem; padding: 0.5rem 0.65rem; background: var(--bg-sunken); border-radius: 8px; }
-.band-card-gig { font-size: 0.82rem; }
+.band-card-gig { font-size: 0.82rem; position: relative; z-index: 1; }
 .band-card-gig a { color: var(--accent-ink); font-weight: 600; }
-.band-card-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-.band-card-actions a { font-size: 0.78rem; padding: 0.3rem 0.6rem; border: 1px solid var(--border); border-radius: 8px; }
+.band-card-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; position: relative; z-index: 1; }
+.band-card-actions a { font-size: 0.78rem; padding: 0.3rem 0.6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-raised); }
 .band-card-actions a.votes { border-color: var(--accent); background: var(--accent-bg); color: var(--accent-ink); }
+
+/* List-page header: title/tabs on the left, the primary "create" action
+   top-right — the standard list-page layout, so "+ New band" stops
+   competing with real bands for grid space as its own lopsided card. */
+.list-page-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
+.create-row {
+  display: flex; align-items: flex-end; gap: 0.8rem; flex-wrap: wrap; border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--bg-raised); padding: 1rem 1.1rem; margin-bottom: 1.2rem;
+}
+.create-row[hidden] { display: none; }
+.create-row .field { display: flex; flex-direction: column; gap: 0.3rem; }
+.create-row .field label { font-size: 0.78rem; font-weight: 600; color: var(--fg-muted); }
+.create-row .field input { min-width: 16rem; }
+.create-row-cancel { background: none; border: none; color: var(--fg-faint); cursor: pointer; font-size: 0.85rem; }
+.create-row #create-band-result { margin: 0; flex-basis: 100%; }
+
+/* Pill tab-bar, same visual language as .catalog-view-tab / .attention-
+   filters — shared by the bands-list page (My bands / All bands) and
+   every band-detail sub-page (Overview / Repertoire / Setlists /
+   Proposals & Listening Party / Members). */
+.band-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.band-tabs a {
+  padding: 0.5rem 1.1rem; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--bg-raised); color: var(--fg-muted); font-weight: 600; font-size: 0.88rem;
+}
+.band-tabs a.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast, #fff); }
+.band-tabs-row { margin-bottom: 1.2rem; }
 
 .coming-up-card {
   display: flex; align-items: center; gap: 1rem; border: 1px solid var(--border); border-radius: var(--radius);

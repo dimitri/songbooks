@@ -47,7 +47,20 @@ func (s *Server) requireBandMember(next http.HandlerFunc) http.HandlerFunc {
 // "create a band" action.
 func (s *Server) handleBandsPage(w http.ResponseWriter, r *http.Request) {
 	person := personFromContext(r)
-	bands, err := s.store.ListBandsForPerson(r.Context(), person.ID)
+
+	// "All bands" is an admin-only second tab — browsing every band on
+	// the instance regardless of membership, not just the ones you
+	// belong to. Gated on person.IsAdmin (same flag /admin already
+	// gates on); anyone else only ever sees their own "My bands" tab.
+	tab := "mine"
+	var bands []store.Band
+	var err error
+	if r.URL.Query().Get("tab") == "all" && person.IsAdmin {
+		tab = "all"
+		bands, err = s.store.ListAllBands(r.Context())
+	} else {
+		bands, err = s.store.ListBandsForPerson(r.Context(), person.ID)
+	}
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -55,13 +68,17 @@ func (s *Server) handleBandsPage(w http.ResponseWriter, r *http.Request) {
 	// Reuses the exact same per-band card data (member count, since-last-
 	// visit digest, open-vote count) the home page shows — Phase 27, so
 	// this listing isn't just band names any more, consistent with the
-	// home page's activity-first framing.
+	// home page's activity-first framing. For the admin "all bands" tab
+	// this still works for bands the admin doesn't belong to: every
+	// query inside buildBandCards is keyed by band id, not membership —
+	// GetBandLastSeen just comes back nil ("you haven't visited yet"),
+	// which is the honest answer for a band you're not in.
 	bandCards, _, err := s.buildBandCards(r.Context(), person.ID, bands)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.render(w, "bands", map[string]any{"Me": person, "Bands": bandCards})
+	s.render(w, "bands", map[string]any{"Me": person, "Bands": bandCards, "Tab": tab, "ShowAllTab": person.IsAdmin})
 }
 
 // handleCreateBand makes a brand-new band, with the creator as its first
@@ -107,11 +124,6 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	members, err := s.store.ListBandMembers(r.Context(), bandID, true)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
 
 	since, err := s.store.GetBandLastSeen(r.Context(), bandID, person.ID)
 	if err != nil {
@@ -124,23 +136,6 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.store.MarkBandSeen(r.Context(), bandID, person.ID); err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	// Phase 27: show a complete roster picture — current members (with
-	// their instrument) AND anyone named on a still-open group-invite
-	// roster who hasn't claimed their slot yet ("Marc hasn't joined
-	// yet"), plus any already-created, still-shareable invite link, so
-	// the page never again shows a link only once right after creating
-	// it (see ListGroupInvitesForTarget/ListOpenBandInvites doc comments).
-	groupInvites, err := s.store.ListGroupInvitesForTarget(r.Context(), "band", bandID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	openInvites, err := s.store.ListOpenBandInvites(r.Context(), bandID)
-	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -192,12 +187,80 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, "band", map[string]any{
-		"Me": person, "Band": band, "Members": members, "Changes": changes, "HasLastSeen": since != nil,
-		"GroupInvites": groupInvites, "OpenInvites": openInvites,
+		"Me": person, "Band": band, "Changes": changes, "HasLastSeen": since != nil,
 		"OpenProposals": openProposals,
 		"Repertoire":    repertoirePreview, "RepertoireCount": len(repertoire),
 		"Setlists": setlists, "NextGig": nextGig,
 	})
+}
+
+// handleBandMembersPage is the Members tab: full current roster (with
+// instrument), unclaimed group-invite slots ("hasn't joined yet"), past
+// members, and the add-person/invite-link/group-invite-link/delete-band
+// forms — split out of handleBandPage (Phase 43 tabs) so the Overview tab
+// stays focused on activity, not roster administration.
+func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	person := personFromContext(r)
+	band, err := s.store.GetBand(r.Context(), bandID)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	members, err := s.store.ListBandMembers(r.Context(), bandID, true)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Phase 27: show a complete roster picture — current members (with
+	// their instrument) AND anyone named on a still-open group-invite
+	// roster who hasn't claimed their slot yet ("Marc hasn't joined
+	// yet"), plus any already-created, still-shareable invite link, so
+	// the page never again shows a link only once right after creating
+	// it (see ListGroupInvitesForTarget/ListOpenBandInvites doc comments).
+	groupInvites, err := s.store.ListGroupInvitesForTarget(r.Context(), "band", bandID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	openInvites, err := s.store.ListOpenBandInvites(r.Context(), bandID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	s.render(w, "band_members", map[string]any{
+		"Me": person, "Band": band, "Members": members,
+		"GroupInvites": groupInvites, "OpenInvites": openInvites,
+	})
+}
+
+// handleBandSetlistsPage is the Setlists tab: every setlist owned by this
+// band, linking to practice/listening/clicktrack for each — a per-band
+// view over the same data /setlists shows globally (ListSetlistsForBand).
+func (s *Server) handleBandSetlistsPage(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	person := personFromContext(r)
+	band, err := s.store.GetBand(r.Context(), bandID)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	setlists, err := s.store.ListSetlistsForBand(r.Context(), bandID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.render(w, "band_setlists", map[string]any{"Me": person, "Band": band, "Setlists": setlists})
 }
 
 // handleAddBandMember adds an existing person (by username — this is a

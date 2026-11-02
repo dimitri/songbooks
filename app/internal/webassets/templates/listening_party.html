@@ -14,12 +14,22 @@
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
   <h1>{{.Band.Name}} — listening party</h1>
-  <nav class="song-nav">
-    <a href="/bands/{{.Band.ID}}/proposals">all proposals</a>
-    {{template "notif-bell"}}
-  </nav>
+  {{template "notif-bell"}}
 </header>
 <main class="index">
+  <nav class="band-tabs band-tabs-row">
+    <a href="/bands/{{.Band.ID}}">Overview</a>
+    <a href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
+    <a href="/bands/{{.Band.ID}}/setlists">Setlists</a>
+    <a href="/bands/{{.Band.ID}}/proposals" class="active">Proposals &amp; Listening Party</a>
+    <a href="/bands/{{.Band.ID}}/members">Members</a>
+  </nav>
+
+  <div class="band-tabs" style="margin-bottom:1rem;">
+    <a href="/bands/{{.Band.ID}}/proposals">All proposals</a>
+    <a href="/bands/{{.Band.ID}}/listening-party" class="active">Listening party</a>
+  </div>
+
   <p class="hint">Throw in songs to consider for the setlist, then vote right here — this is just a focused view over the band's normal proposal/vote mechanism (see <a href="/bands/{{.Band.ID}}/proposals">all proposals</a>), filtered to open "new song" proposals so a session doesn't get lost in the full list. A single veto rejects a song immediately; otherwise it auto-accepts into the repertoire once more than half of the band's {{.MemberCount}} current members vote yes.</p>
 
   <div class="card" style="max-width:520px">

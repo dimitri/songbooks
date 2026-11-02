@@ -216,6 +216,8 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// other band-scoped mutation above.
 	mux.HandleFunc("POST /api/bands/{id}/group-invites", s.requireBandMember(s.handleCreateBandGroupInvite))
 	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/close", s.requireBandMember(s.handleCloseBandGroupInvite))
+	mux.HandleFunc("GET /bands/{id}/members", s.requireBandMember(s.handleBandMembersPage))
+	mux.HandleFunc("GET /bands/{id}/setlists", s.requireBandMember(s.handleBandSetlistsPage))
 	mux.HandleFunc("GET /bands/{id}/catalog", s.requireBandMember(s.handleBandCatalogPage))
 	mux.HandleFunc("POST /api/bands/{id}/catalog", s.requireBandMember(s.handleAddBandCatalogEntry))
 	mux.HandleFunc("DELETE /api/bands/{id}/catalog/{variantID}", s.requireBandMember(s.handleRemoveBandCatalogEntry))

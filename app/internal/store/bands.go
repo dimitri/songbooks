@@ -128,6 +128,27 @@ func (st *Store) ListBandsForPerson(ctx context.Context, personID int64) ([]Band
 	return out, rows.Err()
 }
 
+// ListAllBands lists every band on the instance, alphabetically by name —
+// for the admin-only "All bands" browse tab, independent of the caller's
+// own membership. Callers must gate this on person.IsAdmin themselves;
+// this method does no authorization of its own.
+func (st *Store) ListAllBands(ctx context.Context) ([]Band, error) {
+	rows, err := st.db.Query(ctx, `SELECT id, name, created_at FROM bands ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Band
+	for rows.Next() {
+		var b Band
+		if err := rows.Scan(&b.ID, &b.Name, &b.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
 // IsCurrentBandMember reports whether personID currently (left_at IS
 // NULL) belongs to bandID, core or guest status alike — the permission
 // gate for every band-scoped mutation in this phase, and the "actor is a

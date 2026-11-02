@@ -17,6 +17,28 @@
   {{template "notif-bell"}}
 </header>
 <main class="index">
+  <div class="list-page-head">
+    {{if .ShowAllTab}}
+    <nav class="band-tabs">
+      <a href="/bands" class="{{if eq .Tab "mine"}}active{{end}}">My bands</a>
+      <a href="/bands?tab=all" class="{{if eq .Tab "all"}}active{{end}}">All bands</a>
+    </nav>
+    {{else}}
+    <div></div>
+    {{end}}
+    <button type="button" class="primary" id="new-band-toggle-btn">{{template "icon-plus"}} New band</button>
+  </div>
+
+  <div class="create-row" id="new-band-row" hidden>
+    <div class="field">
+      <label for="new-band-name">Band name</label>
+      <input type="text" id="new-band-name" placeholder="e.g. The Fretless">
+    </div>
+    <button type="button" class="primary" id="create-band-btn">Create band</button>
+    <button type="button" class="create-row-cancel" id="new-band-cancel-btn">Cancel</button>
+    <p id="create-band-result" class="hint"></p>
+  </div>
+
   {{/* Same card language and the same per-band digest/vote data as the
        home page's "Your bands" section (Phase 26/27) — this listing is
        the full roster, that one's a short preview, but both read as one
@@ -27,7 +49,7 @@
     <div class="band-card">
       <div class="band-card-head">
         <div>
-          <h4><a href="/bands/{{.ID}}">{{.Name}}</a></h4>
+          <h4><a class="band-card-title-link" href="/bands/{{.ID}}">{{.Name}}</a></h4>
           <div class="band-card-members">{{.Members}} member{{if ne .Members 1}}s{{end}}</div>
         </div>
       </div>
@@ -38,7 +60,6 @@
       </div>
       {{end}}
       <div class="band-card-actions">
-        <a href="/bands/{{.ID}}">overview</a>
         <a href="/bands/{{.ID}}/catalog">songbook</a>
         {{if eq .SetlistCount 1}}
         <a href="/setlists/{{.FirstSetlistID}}/practice">set list</a>
@@ -51,20 +72,19 @@
       </div>
     </div>
   {{else}}
-    <p class="hint">You're not in any bands yet.</p>
+    <p class="hint">{{if eq .Tab "all"}}No bands on this instance yet.{{else}}You're not in any bands yet.{{end}}</p>
   {{end}}
-  </div>
-
-  <div class="card" style="max-width:420px">
-    <h2>Start a band</h2>
-    <p>
-      <label>Name <input type="text" id="new-band-name" placeholder="e.g. The Fretless"></label>
-    </p>
-    <button type="button" id="create-band-btn">Create band</button>
-    <p id="create-band-result" class="hint"></p>
   </div>
 </main>
 <script>
+document.getElementById('new-band-toggle-btn').addEventListener('click', () => {
+  const row = document.getElementById('new-band-row');
+  row.hidden = !row.hidden;
+  if (!row.hidden) document.getElementById('new-band-name').focus();
+});
+document.getElementById('new-band-cancel-btn').addEventListener('click', () => {
+  document.getElementById('new-band-row').hidden = true;
+});
 document.getElementById('create-band-btn').addEventListener('click', async () => {
   const name = document.getElementById('new-band-name').value.trim();
   if (!name) return;

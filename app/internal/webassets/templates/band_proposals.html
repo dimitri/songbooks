@@ -14,12 +14,27 @@
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
   <h1>{{.Band.Name}} — proposals</h1>
-  <nav class="song-nav">
-    <a href="/bands/{{.Band.ID}}/listening-party">listening party</a>
-    {{template "notif-bell"}}
-  </nav>
+  {{template "notif-bell"}}
 </header>
 <main class="index">
+  <nav class="band-tabs band-tabs-row">
+    <a href="/bands/{{.Band.ID}}">Overview</a>
+    <a href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
+    <a href="/bands/{{.Band.ID}}/setlists">Setlists</a>
+    <a href="/bands/{{.Band.ID}}/proposals" class="active">Proposals &amp; Listening Party</a>
+    <a href="/bands/{{.Band.ID}}/members">Members</a>
+  </nav>
+
+  {{/* Proposals and the listening party are the SAME underlying
+       proposal/vote queue (a listening party is just open 'new_song'
+       proposals) — a sub-toggle between the two views in one tab,
+       instead of two separate pages pretending to be different
+       features. */}}
+  <div class="band-tabs" style="margin-bottom:1rem;">
+    <a href="/bands/{{.Band.ID}}/proposals" class="active">All proposals</a>
+    <a href="/bands/{{.Band.ID}}/listening-party">Listening party</a>
+  </div>
+
   <p class="hint">Propose adding an existing catalog variant to the repertoire ("new song"), or a new reference URL for a variant already in it ("new reference"). Any current member may vote yes/veto, or just accept/reject directly — a single veto rejects immediately no matter how many yes votes exist; otherwise a proposal auto-accepts once more than half of the band's {{.MemberCount}} current members have voted yes.</p>
 
   <div class="form-with-list">
