@@ -580,6 +580,13 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .clicktrack-now-playing h2 { margin: 0 0 0.3rem; }
 .clicktrack-meta { color: var(--fg-muted); font-size: 0.9rem; margin-bottom: 0.9rem; }
 .clicktrack-nav { display: flex; justify-content: center; gap: 0.8rem; }
+.clicktrack-nav-btn {
+  display: inline-flex; align-items: center; gap: 0.35rem; width: auto; height: auto;
+  padding: 0.5rem 1.1rem; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--bg-raised); color: inherit; font-size: 0.88rem; font-weight: 600;
+}
+.clicktrack-nav-btn:disabled { opacity: 0.4; }
+.clicktrack-nav-btn .icon { width: 1em; height: 1em; }
 .clicktrack-break { text-align: center; }
 .clicktrack-break h2 { margin: 0 0 0.4rem; }
 .clicktrack-break .hint { margin-bottom: 1rem; }
@@ -2288,6 +2295,8 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .band-card-head h4 { margin: 0; font-size: 1.05rem; }
 .band-card-members { font-size: 0.78rem; color: var(--fg-faint); }
 .band-card-digest { font-size: 0.85rem; padding: 0.5rem 0.65rem; background: var(--bg-sunken); border-radius: 8px; }
+.band-card-gig { font-size: 0.82rem; }
+.band-card-gig a { color: var(--accent-ink); font-weight: 600; }
 .band-card-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .band-card-actions a { font-size: 0.78rem; padding: 0.3rem 0.6rem; border: 1px solid var(--border); border-radius: 8px; }
 .band-card-actions a.votes { border-color: var(--accent); background: var(--accent-bg); color: var(--accent-ink); }

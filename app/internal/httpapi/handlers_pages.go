@@ -46,6 +46,19 @@ type bandCardView struct {
 	Members   int
 	Digest    string
 	OpenVotes int
+
+	// Phase 32: direct links from the bands page to this band's own
+	// song list/set lists — SetlistCount/FirstSetlistID let the template
+	// link straight to "the" setlist when there's exactly one, or to the
+	// grouped setlists index otherwise; NextGig* is this band's own
+	// soonest upcoming gig, if any.
+	SetlistCount   int
+	FirstSetlistID int64
+
+	HasNextGig     bool
+	NextGigDate    time.Time
+	NextGigVenue   string
+	NextGigSetlist int64
 }
 
 // homeGreeting returns a time-of-day greeting line — purely cosmetic,
@@ -189,6 +202,24 @@ func (s *Server) buildBookStats(ctx context.Context, personID int64) ([]bookStat
 func (s *Server) buildBandCards(ctx context.Context, personID int64, bands []store.Band) ([]bandCardView, []attentionItem, error) {
 	var bandCards []bandCardView
 	var attention []attentionItem
+
+	// One query for every band's soonest upcoming gig, rather than one
+	// per band — ListUpcomingGigsForPerson is already ordered soonest
+	// first, so the first row per band id is that band's next gig.
+	gigs, err := s.store.ListUpcomingGigsForPerson(ctx, personID, 200)
+	if err != nil {
+		return nil, nil, err
+	}
+	nextGigByBand := map[int64]store.UpcomingGig{}
+	for _, g := range gigs {
+		if g.BandID == nil {
+			continue
+		}
+		if _, ok := nextGigByBand[*g.BandID]; !ok {
+			nextGigByBand[*g.BandID] = g
+		}
+	}
+
 	for _, b := range bands {
 		members, err := s.store.ListBandMembers(ctx, b.ID, false)
 		if err != nil {
@@ -211,9 +242,27 @@ func (s *Server) buildBandCards(ctx context.Context, personID int64, bands []sto
 		if err != nil {
 			return nil, nil, err
 		}
-		bandCards = append(bandCards, bandCardView{
+
+		setlists, err := s.store.ListSetlistsForBand(ctx, b.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		var firstSetlistID int64
+		if len(setlists) > 0 {
+			firstSetlistID = setlists[0].ID
+		}
+
+		card := bandCardView{
 			ID: b.ID, Name: b.Name, Members: len(members), Digest: digest, OpenVotes: len(proposals),
-		})
+			SetlistCount: len(setlists), FirstSetlistID: firstSetlistID,
+		}
+		if g, ok := nextGigByBand[b.ID]; ok {
+			card.HasNextGig = true
+			card.NextGigDate = g.Date
+			card.NextGigVenue = g.Venue
+			card.NextGigSetlist = g.SetlistID
+		}
+		bandCards = append(bandCards, card)
 		for _, p := range proposals {
 			title := fmt.Sprintf("Vote: add %q to %s's repertoire", p.TargetTitle, b.Name)
 			if p.Kind == "new_reference" {

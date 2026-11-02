@@ -426,6 +426,7 @@ type UpcomingGig struct {
 	Notes        string
 	SetlistTitle string
 	BandName     string // "" for a personal setlist
+	BandID       *int64 // nil for a personal setlist
 }
 
 // ListUpcomingGigsForPerson finds the soonest (today or later) gigs
@@ -436,7 +437,7 @@ type UpcomingGig struct {
 func (st *Store) ListUpcomingGigsForPerson(ctx context.Context, personID int64, limit int) ([]UpcomingGig, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT g.id, g.setlist_id, g.date, g.venue, g.notes,
-		       sl.title, coalesce(b.name, '')
+		       sl.title, coalesce(b.name, ''), b.id
 		FROM setlist_gigs g
 		JOIN setlists sl ON sl.id = g.setlist_id
 		LEFT JOIN bands b ON b.id = sl.owner_band_id
@@ -456,7 +457,7 @@ func (st *Store) ListUpcomingGigsForPerson(ctx context.Context, personID int64, 
 	var out []UpcomingGig
 	for rows.Next() {
 		var g UpcomingGig
-		if err := rows.Scan(&g.ID, &g.SetlistID, &g.Date, &g.Venue, &g.Notes, &g.SetlistTitle, &g.BandName); err != nil {
+		if err := rows.Scan(&g.ID, &g.SetlistID, &g.Date, &g.Venue, &g.Notes, &g.SetlistTitle, &g.BandName, &g.BandID); err != nil {
 			return nil, err
 		}
 		out = append(out, g)

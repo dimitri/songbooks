@@ -80,8 +80,19 @@
           </div>
         </div>
         <div class="band-card-digest">{{.Digest}}</div>
+        {{if .HasNextGig}}
+        <div class="band-card-gig">
+          <a href="/setlists/{{.NextGigSetlist}}/practice">{{template "icon-presentation"}} {{.NextGigDate.Format "Jan 2"}}{{if .NextGigVenue}} &middot; {{.NextGigVenue}}{{end}}</a>
+        </div>
+        {{end}}
         <div class="band-card-actions">
-          <a href="/bands/{{.ID}}">repertoire</a>
+          <a href="/bands/{{.ID}}">overview</a>
+          <a href="/bands/{{.ID}}/catalog">songbook</a>
+          {{if eq .SetlistCount 1}}
+          <a href="/setlists/{{.FirstSetlistID}}/practice">set list</a>
+          {{else if gt .SetlistCount 1}}
+          <a href="/setlists">{{.SetlistCount}} set lists</a>
+          {{end}}
           {{if .OpenVotes}}<a class="votes" href="/bands/{{.ID}}/proposals">{{.OpenVotes}} to vote on</a>{{end}}
         </div>
       </div>
