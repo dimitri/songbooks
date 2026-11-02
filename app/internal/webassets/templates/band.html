@@ -98,66 +98,85 @@
     </tbody>
   </table></div>
 
-  <div class="card" style="max-width:420px">
-    <h2>Add a member</h2>
-    <p>
-      <label>Username <input type="text" id="add-username" placeholder="existing account"></label>
-    </p>
-    <p>
-      <label>Status
-        <select id="add-status">
-          <option value="core" selected>core</option>
-          <option value="guest">guest</option>
-        </select>
-      </label>
-    </p>
-    <button type="button" id="add-member-btn">Add to band</button>
-    <p id="add-member-result" class="hint"></p>
-  </div>
+  <div class="card">
+    <h2>Add people to this band</h2>
 
-  <div class="card" style="max-width:480px">
-    <h2>Invite someone</h2>
-    <p class="hint">A single-use link — good for one person.</p>
-    {{range .OpenInvites}}
-    <div class="invite-link-row">
-      <code class="invite-link-url" data-url="/join/{{.Token}}">/join/{{.Token}}</code>
-      <button type="button" class="copy-link-btn" data-url="/join/{{.Token}}">copy</button>
-      <span class="hint">({{.Status}}, expires {{.ExpiresAt.Format "2006-01-02"}})</span>
+    <div class="form-subsection">
+      <h3>Add an existing account</h3>
+      <div class="form-stack">
+        <div class="field">
+          <label for="add-username">Username</label>
+          <input type="text" id="add-username" placeholder="existing account">
+        </div>
+        <div class="field">
+          <label for="add-status">Status</label>
+          <select id="add-status">
+            <option value="core" selected>core</option>
+            <option value="guest">guest</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="add-member-btn">Add to band</button>
+        </div>
+        <p id="add-member-result" class="hint"></p>
+      </div>
     </div>
-    {{end}}
-    <p>
-      <label>Status
-        <select id="invite-status">
-          <option value="core" selected>core</option>
-          <option value="guest">guest</option>
-        </select>
-      </label>
-    </p>
-    <button type="button" id="create-band-invite-btn">Create a new invite link</button>
-    <p id="band-invite-result" class="hint"></p>
-  </div>
 
-  <div class="card" style="max-width:520px">
-    <h2>Group invite link (roster)</h2>
-    <p class="hint">Type the names you expect (and optionally their instrument), then get ONE link to share — on WhatsApp, say. Each person who opens it picks their own name (or "someone else"), then creates an account or logs in. Everyone joins as a <strong>guest</strong> member; promote them to core afterwards if you like.</p>
-    {{range .GroupInvites}}
-      {{if not .ClosedAt}}
+    <div class="form-subsection">
+      <h3>Invite someone</h3>
+      <p class="hint">A single-use link — good for one person.</p>
+      {{range .OpenInvites}}
       <div class="invite-link-row">
         <code class="invite-link-url" data-url="/join/{{.Token}}">/join/{{.Token}}</code>
         <button type="button" class="copy-link-btn" data-url="/join/{{.Token}}">copy</button>
-        <button type="button" class="close-group-invite-btn danger" data-invite-id="{{.ID}}">close</button>
+        <span class="hint">({{.Status}}, expires {{.ExpiresAt.Format "2006-01-02"}})</span>
       </div>
       {{end}}
-    {{end}}
-    <div id="group-invite-rows">
-      <p class="group-invite-row">
-        <input type="text" class="group-invite-name" placeholder="name">
-        <input type="text" class="group-invite-instrument" placeholder="instrument (optional)">
-      </p>
+      <div class="form-stack">
+        <div class="field">
+          <label for="invite-status">Status</label>
+          <select id="invite-status">
+            <option value="core" selected>core</option>
+            <option value="guest">guest</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="create-band-invite-btn">Create a new invite link</button>
+        </div>
+        <p id="band-invite-result" class="hint"></p>
+      </div>
     </div>
-    <button type="button" id="group-invite-add-row-btn">+ add another name</button>
-    <p><button type="button" id="create-group-invite-btn">Create a new group invite link</button></p>
-    <p id="group-invite-result" class="hint"></p>
+
+    <div class="form-subsection">
+      <h3>Group invite link (roster)</h3>
+      <p class="hint">Type the names you expect (and optionally their instrument), then get ONE link to share — on WhatsApp, say. Each person who opens it picks their own name (or "someone else"), then creates an account or logs in. Everyone joins as a <strong>guest</strong> member; promote them to core afterwards if you like.</p>
+      {{range .GroupInvites}}
+        {{if not .ClosedAt}}
+        <div class="invite-link-row">
+          <code class="invite-link-url" data-url="/join/{{.Token}}">/join/{{.Token}}</code>
+          <button type="button" class="copy-link-btn" data-url="/join/{{.Token}}">copy</button>
+          <button type="button" class="close-group-invite-btn danger" data-invite-id="{{.ID}}">close</button>
+        </div>
+        {{end}}
+      {{end}}
+      <div class="form-stack" id="group-invite-rows">
+        <div class="group-invite-row">
+          <div class="field">
+            <label>Name</label>
+            <input type="text" class="group-invite-name" placeholder="e.g. Marc">
+          </div>
+          <div class="field">
+            <label>Instrument <span class="hint">(optional)</span></label>
+            <input type="text" class="group-invite-instrument" placeholder="e.g. drums">
+          </div>
+        </div>
+      </div>
+      <div class="form-actions" style="margin-top:0.7rem">
+        <button type="button" id="group-invite-add-row-btn">+ add another name</button>
+        <button type="button" id="create-group-invite-btn">Create a new group invite link</button>
+      </div>
+      <p id="group-invite-result" class="hint"></p>
+    </div>
   </div>
 
   <div class="card" style="max-width:420px">
@@ -225,10 +244,11 @@ document.getElementById('create-band-invite-btn').addEventListener('click', asyn
   }
 });
 document.getElementById('group-invite-add-row-btn').addEventListener('click', () => {
-  const p = document.createElement('p');
-  p.className = 'group-invite-row';
-  p.innerHTML = '<input type="text" class="group-invite-name" placeholder="name"> <input type="text" class="group-invite-instrument" placeholder="instrument (optional)">';
-  document.getElementById('group-invite-rows').appendChild(p);
+  const row = document.createElement('div');
+  row.className = 'group-invite-row';
+  row.innerHTML = '<div class="field"><label>Name</label><input type="text" class="group-invite-name" placeholder="e.g. Marc"></div>' +
+    '<div class="field"><label>Instrument <span class="hint">(optional)</span></label><input type="text" class="group-invite-instrument" placeholder="e.g. drums"></div>';
+  document.getElementById('group-invite-rows').appendChild(row);
 });
 document.getElementById('create-group-invite-btn').addEventListener('click', async () => {
   const slots = [];

@@ -22,47 +22,61 @@
 <main class="index">
   <p class="hint">Propose adding an existing catalog variant to the repertoire ("new song"), or a new reference URL for a variant already in it ("new reference"). Any current member may vote yes/veto, or just accept/reject directly — a single veto rejects immediately no matter how many yes votes exist; otherwise a proposal auto-accepts once more than half of the band's {{.MemberCount}} current members have voted yes.</p>
 
-  <div class="card" style="max-width:560px">
-    <h2>New proposal</h2>
-    <label>Kind
-      <select id="proposal-kind">
-        <option value="new_song">new song (add an existing variant to the repertoire)</option>
-        <option value="new_reference">new reference URL (for a variant already in the repertoire)</option>
-      </select>
-    </label>
-    <label>Variant id
-      <input type="number" id="proposal-variant-id" placeholder="from /catalog or a repertoire entry">
-    </label>
-    <label id="proposal-url-field">Proposed reference URL <input type="text" id="proposal-url" placeholder="https://..."></label>
-    <label>Note (optional) <input type="text" id="proposal-note"></label>
-    <button type="button" id="create-proposal-btn">Propose</button>
-    <p id="create-proposal-result" class="hint"></p>
-  </div>
+  <div class="form-with-list">
+    <div class="card">
+      <h2>New proposal</h2>
+      <div class="form-stack">
+        <div class="field">
+          <label for="proposal-kind">Kind</label>
+          <select id="proposal-kind">
+            <option value="new_song">new song (add an existing variant to the repertoire)</option>
+            <option value="new_reference">new reference URL (for a variant already in the repertoire)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="proposal-variant-id">Variant id</label>
+          <input type="number" id="proposal-variant-id" placeholder="e.g. 42 — from /catalog or a repertoire entry">
+        </div>
+        <div class="field" id="proposal-url-field">
+          <label for="proposal-url">Proposed reference URL</label>
+          <input type="text" id="proposal-url" placeholder="https://...">
+        </div>
+        <div class="field">
+          <label for="proposal-note">Note <span class="hint">(optional)</span></label>
+          <input type="text" id="proposal-note">
+        </div>
+        <div class="form-actions">
+          <button type="button" id="create-proposal-btn" class="primary">Propose</button>
+        </div>
+        <p id="create-proposal-result" class="hint"></p>
+      </div>
+    </div>
 
-  <div class="table-scroll"><table class="card" style="width:100%">
-    <thead><tr><th>Kind</th><th>Variant</th><th>Proposer</th><th>Status</th><th>Votes</th><th></th></tr></thead>
-    <tbody>
-    {{range .Proposals}}
-      <tr data-proposal-id="{{.ID}}">
-        <td>{{.Kind}}</td>
-        <td><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}variant {{deref64 .TargetVariantID}}{{end}}</a></td>
-        <td>{{.ProposerUsername}}</td>
-        <td>{{.Status}}</td>
-        <td>{{.YesVotes}} yes / {{.VetoVotes}} veto</td>
-        <td>
-        {{if eq .Status "open"}}
-          <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="yes">vote yes</button>
-          <button type="button" class="vote-btn danger" data-proposal-id="{{.ID}}" data-vote="veto">veto</button>
-          <button type="button" class="accept-btn primary" data-proposal-id="{{.ID}}">accept</button>
-          <button type="button" class="reject-btn danger" data-proposal-id="{{.ID}}">reject</button>
-        {{end}}
-        </td>
-      </tr>
-    {{else}}
-      <tr><td colspan="6" class="hint">No proposals yet.</td></tr>
-    {{end}}
-    </tbody>
-  </table></div>
+    <div class="table-scroll"><table class="card" style="width:100%">
+      <thead><tr><th>Kind</th><th>Variant</th><th>Proposer</th><th>Status</th><th>Votes</th><th></th></tr></thead>
+      <tbody>
+      {{range .Proposals}}
+        <tr data-proposal-id="{{.ID}}">
+          <td>{{.Kind}}</td>
+          <td><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}variant {{deref64 .TargetVariantID}}{{end}}</a></td>
+          <td>{{.ProposerUsername}}</td>
+          <td>{{.Status}}</td>
+          <td>{{.YesVotes}} yes / {{.VetoVotes}} veto</td>
+          <td>
+          {{if eq .Status "open"}}
+            <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="yes">vote yes</button>
+            <button type="button" class="vote-btn danger" data-proposal-id="{{.ID}}" data-vote="veto">veto</button>
+            <button type="button" class="accept-btn primary" data-proposal-id="{{.ID}}">accept</button>
+            <button type="button" class="reject-btn danger" data-proposal-id="{{.ID}}">reject</button>
+          {{end}}
+          </td>
+        </tr>
+      {{else}}
+        <tr><td colspan="6" class="hint">No proposals yet.</td></tr>
+      {{end}}
+      </tbody>
+    </table></div>
+  </div>
 </main>
 <script>
 const bandId = {{.Band.ID}};

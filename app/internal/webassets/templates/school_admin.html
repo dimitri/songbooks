@@ -17,11 +17,13 @@
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  <div class="card" style="max-width:420px">
+  <div class="card">
     <h2>School name</h2>
-    <label>Name <input type="text" id="rename-input" value="{{.School.Name}}"></label>
-    <button type="button" id="rename-btn">Save</button>
-    <p id="rename-result" class="hint"></p>
+    <div class="form-stack">
+      <div class="field"><label for="rename-input">Name</label><input type="text" id="rename-input" value="{{.School.Name}}"></div>
+      <div class="form-actions"><button type="button" id="rename-btn">Save</button></div>
+      <p id="rename-result" class="hint"></p>
+    </div>
   </div>
 
   <h2>Pending submissions</h2>
@@ -88,55 +90,77 @@
     </tbody>
   </table></div>
 
-  <div class="card" style="max-width:420px">
-    <h2>Add a member</h2>
-    <p>
-      <label>Username <input type="text" id="add-username" placeholder="existing account"></label>
-    </p>
-    <p>
-      <label>Role
-        <select id="add-role">
-          <option value="student" selected>student</option>
-          <option value="instructor">instructor</option>
-        </select>
-      </label>
-    </p>
-    <button type="button" id="add-member-btn">Add to school</button>
-    <p id="add-member-result" class="hint"></p>
-  </div>
+  <div class="card">
+    <h2>Add people to this school</h2>
 
-  <div class="card" style="max-width:480px">
-    <h2>Create a group invite link</h2>
-    <p class="hint">Type the names you expect, then get ONE link to share — on WhatsApp, say. Each person who opens it picks their own name (or "someone else"), then creates an account or logs in. Everyone joins as a <strong>student</strong>; promote an instructor afterwards via "Add a member" above.</p>
-    <div id="group-invite-rows">
-      <p class="group-invite-row"><input type="text" class="group-invite-name" placeholder="name"></p>
+    <div class="form-subsection">
+      <h3>Add an existing account</h3>
+      <div class="form-stack">
+        <div class="field">
+          <label for="add-username">Username</label>
+          <input type="text" id="add-username" placeholder="existing account">
+        </div>
+        <div class="field">
+          <label for="add-role">Role</label>
+          <select id="add-role">
+            <option value="student" selected>student</option>
+            <option value="instructor">instructor</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="add-member-btn">Add to school</button>
+        </div>
+        <p id="add-member-result" class="hint"></p>
+      </div>
     </div>
-    <button type="button" id="group-invite-add-row-btn">+ add another name</button>
-    <p><button type="button" id="create-group-invite-btn">Create group invite link</button></p>
-    <p id="group-invite-result" class="hint"></p>
-    <p><button type="button" id="close-group-invite-btn" hidden>Close this invite link</button></p>
+
+    <div class="form-subsection">
+      <h3>Group invite link</h3>
+      <p class="hint">Type the names you expect, then get ONE link to share — on WhatsApp, say. Each person who opens it picks their own name (or "someone else"), then creates an account or logs in. Everyone joins as a <strong>student</strong>; promote an instructor afterwards via "Add a member" above.</p>
+      <div class="form-stack" id="group-invite-rows">
+        <div class="group-invite-row">
+          <div class="field">
+            <label>Name</label>
+            <input type="text" class="group-invite-name" placeholder="e.g. Alex">
+          </div>
+        </div>
+      </div>
+      <div class="form-actions" style="margin-top:0.7rem">
+        <button type="button" id="group-invite-add-row-btn">+ add another name</button>
+        <button type="button" id="create-group-invite-btn">Create group invite link</button>
+        <button type="button" id="close-group-invite-btn" hidden>Close this invite link</button>
+      </div>
+      <p id="group-invite-result" class="hint"></p>
+    </div>
   </div>
 
   <h2>School repertoire</h2>
-  <div class="card" style="max-width:520px">
+  <div class="card">
     <h3>Write a new original song</h3>
-    <label>Title <input type="text" id="new-variant-title"></label>
-    <label>Artist <input type="text" id="new-variant-artist"></label>
-    <label>Project
-      <select id="new-variant-project">
-        {{range .Books}}<option value="{{.}}">{{.}}</option>{{end}}
-      </select>
-    </label>
-    <button type="button" id="new-variant-btn">+ create</button>
-    <p id="new-variant-result" class="hint"></p>
+    <div class="form-stack">
+      <div class="field"><label for="new-variant-title">Title</label><input type="text" id="new-variant-title"></div>
+      <div class="field"><label for="new-variant-artist">Artist</label><input type="text" id="new-variant-artist"></div>
+      <div class="field">
+        <label for="new-variant-project">Project</label>
+        <select id="new-variant-project">
+          {{range .Books}}<option value="{{.}}">{{.}}</option>{{end}}
+        </select>
+      </div>
+      <div class="form-actions"><button type="button" id="new-variant-btn">+ create</button></div>
+      <p id="new-variant-result" class="hint"></p>
+    </div>
   </div>
 
-  <div class="card" style="max-width:520px">
+  <div class="card">
     <h3>Add a variant by id</h3>
-    <label>Variant id <input type="number" id="variant-id-input"></label>
-    <button type="button" id="add-existing-btn">+ add to repertoire</button>
-    <button type="button" id="fork-into-school-btn">fork into this school</button>
-    <p id="add-result" class="hint"></p>
+    <div class="form-stack">
+      <div class="field"><label for="variant-id-input">Variant id</label><input type="number" id="variant-id-input"></div>
+      <div class="form-actions">
+        <button type="button" id="add-existing-btn">+ add to repertoire</button>
+        <button type="button" id="fork-into-school-btn">fork into this school</button>
+      </div>
+      <p id="add-result" class="hint"></p>
+    </div>
   </div>
 
   <div class="table-scroll"><table class="card" style="width:100%">
@@ -266,10 +290,10 @@ document.getElementById('fork-into-school-btn').addEventListener('click', async 
   }
 });
 document.getElementById('group-invite-add-row-btn').addEventListener('click', () => {
-  const p = document.createElement('p');
-  p.className = 'group-invite-row';
-  p.innerHTML = '<input type="text" class="group-invite-name" placeholder="name">';
-  document.getElementById('group-invite-rows').appendChild(p);
+  const row = document.createElement('div');
+  row.className = 'group-invite-row';
+  row.innerHTML = '<div class="field"><label>Name</label><input type="text" class="group-invite-name" placeholder="e.g. Alex"></div>';
+  document.getElementById('group-invite-rows').appendChild(row);
 });
 document.getElementById('create-group-invite-btn').addEventListener('click', async () => {
   const slots = [];
