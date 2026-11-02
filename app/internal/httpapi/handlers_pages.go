@@ -482,6 +482,17 @@ type viewerSection struct {
 	// either re-printing the whole chart (loop-unrolled) or silently
 	// vanishing (losing the form entirely).
 	IsReference bool
+	// GridDuplicateOf is set when this section wrote its OWN grid (unlike
+	// IsReference's bare sections) that is token-for-token identical to an
+	// earlier section's — confirmed real .song data does this (e.g. a
+	// Verse that states the exact same "grid:" line as the Intro above
+	// it), not a guess from matching labels. Holds the earlier section's
+	// display label ("Intro", "Verse 1"); empty when this section's grid
+	// is original. A duplicate's own Lines are left empty (see
+	// buildSections) so the identical chart isn't printed twice — this
+	// section's own Lyrics, which may be genuinely new words, still render
+	// normally alongside a compact repeat mark in their place.
+	GridDuplicateOf string
 	// Compact marks a section that should render as a slim structural chip
 	// even though it has no note/reference text to show — a section with no
 	// grid of its own whose chords simply carry on from an earlier one.
@@ -657,6 +668,35 @@ func simpleRepeatSpan(measures []song.Measure) (written int, ok bool) {
 	return realBarCount(measures) / 2, true
 }
 
+// measuresEqual reports whether two sections wrote the token-for-token same
+// grid — a real, confirmed case in the corpus (a Verse restating the exact
+// same "grid:" line as the Intro above it), compared on the raw parsed data
+// rather than the view-built Measures (which carry a one-time Clef/Tempo
+// stamp on whichever measure renders first in the whole song, not per
+// section — see buildSections' own comment at its call site). Deliberately
+// exact, not "looks similar": a single differing token, volta, or repeat
+// bracket means two different progressions, not a typo to paper over.
+func measuresEqual(a, b []song.Measure) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		ma, mb := a[i], b[i]
+		if ma.Open != mb.Open || ma.Close != mb.Close || ma.Volta != mb.Volta || ma.Meter != mb.Meter {
+			return false
+		}
+		if len(ma.Tokens) != len(mb.Tokens) {
+			return false
+		}
+		for ti := range ma.Tokens {
+			if ma.Tokens[ti] != mb.Tokens[ti] {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func buildSections(sg *song.Song) []viewerSection {
 	globalTime := orDefault(sg.Get("time"), "4/4")
 	globalBeats := timeSigBeats(globalTime)
@@ -665,6 +705,12 @@ func buildSections(sg *song.Song) []viewerSection {
 	clefDrawn := false
 
 	var sections []viewerSection
+	// dupSrc[i] is the source section index GridDuplicateOf's label was
+	// taken from (-1 when section i isn't a duplicate) — kept alongside
+	// `sections` only so the post-assignLabelNumbers pass below can
+	// re-render that label WITH its number ("Verse 1", not bare "Verse")
+	// once numbering is known, without re-running the comparison.
+	var dupSrc []int
 	for si, sec := range sg.Sections {
 		vs := viewerSection{Index: si, Label: sec.Label, Repeat: sec.Repeat, Notes: sec.Notes}
 		beatsPerBar := globalBeats
@@ -704,7 +750,28 @@ func buildSections(sg *song.Song) []viewerSection {
 		if written, ok := simpleRepeatSpan(sec.Measures); ok {
 			vs.RepeatSegmentBars = written
 		}
-		vs.Lines = groupMeasures(vs.Measures, sec.BarsPerLine)
+		// A duplicate grid: an EARLIER section (already appended to
+		// `sections`, since this loop processes in order) wrote the exact
+		// same measures this one just did. Compared on the raw, pre-beat-
+		// expansion song.Measure data (not vs.Measures — that carries the
+		// song's one-time Clef/Tempo stamp on whichever measure happened
+		// to render first, which would make two genuinely identical grids
+		// compare unequal). The FIRST such match wins, not just the
+		// nearest — "same as Intro" should point at the grid's original
+		// statement, not whichever repeat happened to come right before it.
+		dupIdx := -1
+		if len(sec.Measures) > 0 {
+			for j := 0; j < si; j++ {
+				if len(sg.Sections[j].Measures) > 0 && measuresEqual(sg.Sections[j].Measures, sec.Measures) {
+					vs.GridDuplicateOf = sections[j].Label
+					dupIdx = j
+					break
+				}
+			}
+		}
+		if vs.GridDuplicateOf == "" {
+			vs.Lines = groupMeasures(vs.Measures, sec.BarsPerLine)
+		}
 		for li, l := range sec.Lyrics {
 			vl := viewerLyricLine{Index: li}
 			for _, seg := range l.Segments {
@@ -713,10 +780,25 @@ func buildSections(sg *song.Song) []viewerSection {
 			vs.Lyrics = append(vs.Lyrics, vl)
 		}
 		sections = append(sections, vs)
+		dupSrc = append(dupSrc, dupIdx)
 	}
 	annotateStructure(sections)
 	assignLabelNumbers(sections)
 	assignRehearsalMarks(sections)
+	// Re-render each duplicate's label now that numbering is known, so two
+	// same-labeled sections ("Verse 1"/"Verse 2") read unambiguously
+	// ("same as Verse 1") instead of the bare label captured during the
+	// main loop above, before assignLabelNumbers had run.
+	for i, j := range dupSrc {
+		if j < 0 {
+			continue
+		}
+		label := sections[j].Label
+		if sections[j].LabelNumber != 0 {
+			label = fmt.Sprintf("%s %d", label, sections[j].LabelNumber)
+		}
+		sections[i].GridDuplicateOf = label
+	}
 
 	// Bar numbering — done as its own pass, after annotateStructure, not
 	// interleaved with the loop above: a bare/reference section's BarCount

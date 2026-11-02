@@ -680,7 +680,16 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    is why .sheet stays display:block throughout. */
 @media (min-width: 761px) {
   .sheet-section { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 0.3rem 2.2rem; }
-  .sheet-section h3, .sheet-section .grid.spans-full, .sheet-section .multi-rest-row { grid-column: 1 / -1; }
+  /* .grid.spans-full (true to its name) already occupies the section's
+     FULL width, not just the "left" 1.1fr track the two-column template
+     above still declares — so .lyrics sitting in its own implicit single
+     track (whichever one is left after h3/grid/multi-rest-row claim both)
+     rendered at roughly HALF the chart's own width, wrapping lines that
+     had plenty of room on the shared width above them. .lyrics shares the
+     same "staff width" every bar-row already spans (see viewerLine's own
+     doc comment) — it belongs in this full-span list too, not its own
+     narrower column. */
+  .sheet-section h3, .sheet-section .grid.spans-full, .sheet-section .multi-rest-row, .sheet-section .lyrics { grid-column: 1 / -1; }
 }
 @media (min-width: 1150px) {
   #sheet { column-count: 2; column-gap: 2.4rem; }
@@ -728,6 +737,18 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 
 .sheet-section .grid { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.6rem; font-family: var(--font-chart); }
 .sheet-section .lyrics { font-size: 1.05rem; color: var(--fg); }
+
+/* A duplicate-grid section (GridDuplicateOf, handlers_pages.go): the exact
+   same chord grid an earlier section already printed, so it's shown once
+   via a repeat mark instead of a second identical copy — see that field's
+   own doc comment. Styled like the repeat-suffix text next to a reference
+   section's heading (muted, small-caps-adjacent), not like a real chord
+   row, so it reads as "nothing new here" at a glance. */
+.grid-duplicate-note {
+  font-family: var(--font-chart); font-style: italic; font-size: 0.85rem;
+  color: var(--fg-muted); margin-bottom: 0.6rem;
+}
+.grid-duplicate-note .repeat-barline { font-style: normal; font-size: 1.1em; }
 
 /* A "staff line" is one chart system/row, engraved-notation style: a single
    thin rhythm-staff line runs under each bar, crossed by a slash mark per
