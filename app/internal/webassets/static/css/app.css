@@ -66,6 +66,8 @@
   --danger-bg: #f7e0dc;
   --ok: #8a7a2e;
   --ok-bg: #f2ebc6;
+  --warn: #b8762a;
+  --warn-bg: #f5e3c4;
   --radius: 10px;
   --shadow: 0 1px 2px rgba(28, 22, 12, 0.06), 0 4px 14px rgba(28, 22, 12, 0.06);
 
@@ -100,6 +102,8 @@
     --danger-bg: #3a1a15;
     --ok: #cdbb63;
     --ok-bg: #2f2a17;
+    --warn: #e0a24f;
+    --warn-bg: #3a2a12;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 18px rgba(0, 0, 0, 0.45);
   }
 }
@@ -108,13 +112,13 @@ body[data-theme="light"] {
   --bg: #f6f1e7; --bg-raised: #fff; --bg-sunken: #efe6d3; --fg: #241e18; --fg-muted: #5f554a; --fg-faint: #948a79;
   --border: #e7dfcf; --border-strong: #241e18; --accent: #af4e39; --accent-bg: #f3ddd4; --accent-ink: #8a3d2c; --accent-contrast: #ffffff;
   --current-bg: #f2ebc6; --current-fg: #4a3f14;
-  --danger: #a52f2f; --danger-bg: #f7e0dc; --ok: #8a7a2e; --ok-bg: #f2ebc6;
+  --danger: #a52f2f; --danger-bg: #f7e0dc; --ok: #8a7a2e; --ok-bg: #f2ebc6; --warn: #b8762a; --warn-bg: #f5e3c4;
 }
 body[data-theme="dark"] {
   --bg: #1d1712; --bg-raised: #241d16; --bg-sunken: #140f0b; --fg: #f2e9dd; --fg-muted: #c4b8a0; --fg-faint: #9c8f78;
   --border: #3a322b; --border-strong: #f2e9dd; --accent: #d9684a; --accent-bg: #3a221a; --accent-ink: #f0a98c; --accent-contrast: #fff8f0;
   --current-bg: #e2d165; --current-fg: #241c08;
-  --danger: #d9584f; --danger-bg: #3a1a15; --ok: #cdbb63; --ok-bg: #2f2a17;
+  --danger: #d9584f; --danger-bg: #3a1a15; --ok: #cdbb63; --ok-bg: #2f2a17; --warn: #e0a24f; --warn-bg: #3a2a12;
 }
 
 * { box-sizing: border-box; }
@@ -331,7 +335,7 @@ input[type="text"], input[type="url"], input[type="date"] {
 .notif-bell { position: relative; display: inline-flex; align-items: center; color: inherit; }
 .notif-badge {
   position: absolute; top: -0.4rem; right: -0.6rem;
-  background: #d64545; color: #fff; border-radius: 999px;
+  background: var(--danger); color: #fff; border-radius: 999px;
   font-size: 0.65rem; font-weight: 700; line-height: 1;
   padding: 0.15rem 0.4rem; min-width: 1.1rem; text-align: center;
 }
@@ -1802,7 +1806,7 @@ textarea {
 .chip-wrap { margin-bottom: 0.5rem; }
 .bar-matrix { border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; padding: 0.75rem; background: var(--bg-sunken); }
 .matrix-tools { margin-bottom: 0.75rem; }
-.matrix-tools summary { cursor: pointer; font-size: 0.8rem; color: var(--text-muted, #666); padding: 0.3rem 0; list-style: none; }
+.matrix-tools summary { cursor: pointer; font-size: 0.8rem; color: var(--fg-muted); padding: 0.3rem 0; list-style: none; }
 .matrix-tools summary::-webkit-details-marker { display: none; }
 .matrix-tools summary::before { content: '▸ '; }
 .matrix-tools[open] summary::before { content: '▾ '; }
@@ -1868,13 +1872,13 @@ textarea {
 /* Bar-fullness feedback (Guitar Pro-style "does this measure balance?") —
    solid green border once every slot holds a chord or a sustain, dashed
    amber while something's still blank. */
-.matrix-cell.bar-complete { border-color: var(--ok, #2a8f4e); }
-.matrix-cell.bar-underfull { border-style: dashed; border-color: var(--warn, #c98a1f); }
+.matrix-cell.bar-complete { border-color: var(--ok); }
+.matrix-cell.bar-underfull { border-style: dashed; border-color: var(--warn); }
 .matrix-cell-top { display: flex; align-items: center; justify-content: space-between; gap: 0.3rem; }
 .matrix-bar-no { font-size: 0.7rem; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
 .matrix-fullness { font-size: 0.7rem; font-variant-numeric: tabular-nums; color: var(--fg-muted); }
-.matrix-cell.bar-complete .matrix-fullness { color: var(--ok, #2a8f4e); }
-.matrix-cell.bar-underfull .matrix-fullness { color: var(--warn, #c98a1f); }
+.matrix-cell.bar-complete .matrix-fullness { color: var(--ok); }
+.matrix-cell.bar-underfull .matrix-fullness { color: var(--warn); }
 .density-select { font-size: 0.7rem; padding: 0.1rem 0.2rem; border-radius: 4px; }
 /* flex-wrap: wrap — a bar split into several beat-slots (density > 1) needs
    real room per slot for its chord text and ♪ button; wrapping onto a

@@ -20,14 +20,14 @@
   <section class="card" style="max-width:360px">
     <h3>Log in with a passkey</h3>
     <p class="hint">Touch ID, Face ID, Windows Hello, or a security key — no password to remember or email to wait for.</p>
-    <p id="webauthn-login-error" style="color:#b33; display:none"></p>
+    <p id="webauthn-login-error" style="color:var(--danger); display:none"></p>
     <button type="button" id="webauthn-login-btn">Sign in with a passkey</button>
     <p class="hint" id="webauthn-unsupported" style="display:none">Your browser doesn't support passkeys — use a password or a login link below instead.</p>
   </section>
 
   <section class="card" style="max-width:360px">
     <h3>Log in with a password</h3>
-    {{if .InvalidCredentials}}<p style="color:#b33">Invalid username/email or password.</p>{{end}}
+    {{if .InvalidCredentials}}<p style="color:var(--danger)">Invalid username/email or password.</p>{{end}}
     <form method="post" action="/login">
       <input type="hidden" name="mode" value="password">
       <p><label>Username or email<br><input type="text" name="identifier" autocomplete="username" required autofocus></label></p>
@@ -39,7 +39,7 @@
 
   <section class="card" style="max-width:360px">
     <h3>Email me a login link</h3>
-    {{if .Error}}<p style="color:#b33">Something went wrong — please try again.</p>{{end}}
+    {{if .Error}}<p style="color:var(--danger)">Something went wrong — please try again.</p>{{end}}
     <form method="post" action="/login">
       <p><label>Email<br><input type="email" name="email" autocomplete="email" required></label></p>
       <button type="submit">Send me a login link</button>

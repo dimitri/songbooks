@@ -243,6 +243,7 @@ type projectGroup struct {
 }
 
 func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
+	person := personFromContext(r)
 	book := r.PathValue("book")
 	groups, err := s.store.ListSongsOrdered(book)
 	if err != nil {
@@ -265,7 +266,7 @@ func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
 	}
 	meta := s.store.LoadBookMeta(book)
 	s.render(w, "project", map[string]any{
-		"Book": book, "Groups": out, "Playlist": meta.Playlist,
+		"Me": person, "Book": book, "Groups": out, "Playlist": meta.Playlist,
 	})
 }
 

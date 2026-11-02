@@ -75,8 +75,8 @@
           {{end}}{{else}}<em>nobody yet</em>{{end}}
           <small>
             ({{.Count}}/{{maxcap .MaxCount}})
-            {{if .Unmet}}<span style="color:#b45309"> — needs at least {{.MinCount}}</span>{{end}}
-            {{if .Full}}<span style="color:#15803d"> — full</span>{{end}}
+            {{if .Unmet}}<span style="color:var(--warn)"> — needs at least {{.MinCount}}</span>{{end}}
+            {{if .Full}}<span style="color:var(--ok)"> — full</span>{{end}}
           </small>
         </li>
       {{end}}

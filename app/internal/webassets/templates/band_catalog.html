@@ -25,24 +25,42 @@
   <div class="card" style="max-width:520px">
     <h2>Write a new original song</h2>
     <p class="hint">Starts from scratch — no existing variant to fork from — straight into this band's own private ("band"-visibility) repertoire. Only current members can see or edit it.</p>
-    <label>Title <input type="text" id="new-variant-title"></label>
-    <label>Artist <input type="text" id="new-variant-artist"></label>
-    <label>Project
-      <select id="new-variant-project">
-        {{range .Books}}<option value="{{.}}">{{.}}</option>{{end}}
-      </select>
-    </label>
-    <button type="button" id="new-variant-btn">+ create</button>
-    <p id="new-variant-result" class="hint"></p>
+    <div class="form-stack">
+      <div class="field">
+        <label for="new-variant-title">Title</label>
+        <input type="text" id="new-variant-title">
+      </div>
+      <div class="field">
+        <label for="new-variant-artist">Artist</label>
+        <input type="text" id="new-variant-artist">
+      </div>
+      <div class="field">
+        <label for="new-variant-project">Project</label>
+        <select id="new-variant-project">
+          {{range .Books}}<option value="{{.}}">{{.}}</option>{{end}}
+        </select>
+      </div>
+      <div class="form-actions">
+        <button type="button" id="new-variant-btn">+ create</button>
+      </div>
+      <p id="new-variant-result" class="hint"></p>
+    </div>
   </div>
 
   <div class="card" style="max-width:520px">
     <h2>Add a variant by id</h2>
     <p class="hint">Find a variant's id from the <a href="/catalog">catalog</a> (it's shown next to each song's actions there, or in the URL of its "all versions" page).</p>
-    <label>Variant id <input type="number" id="variant-id-input"></label>
-    <button type="button" id="add-existing-btn">+ add to repertoire</button>
-    <button type="button" id="fork-into-band-btn">fork into this band</button>
-    <p id="add-result" class="hint"></p>
+    <div class="form-stack">
+      <div class="field">
+        <label for="variant-id-input">Variant id</label>
+        <input type="number" id="variant-id-input">
+      </div>
+      <div class="form-actions">
+        <button type="button" id="add-existing-btn">+ add to repertoire</button>
+        <button type="button" id="fork-into-band-btn">fork into this band</button>
+      </div>
+      <p id="add-result" class="hint"></p>
+    </div>
   </div>
 
   <div class="table-scroll"><table class="card" style="width:100%">

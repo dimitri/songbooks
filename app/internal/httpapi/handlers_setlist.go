@@ -127,6 +127,7 @@ func (s *Server) handleMetronomePage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSetlistEditPage(w http.ResponseWriter, r *http.Request) {
+	person := personFromContext(r)
 	book, stem := r.PathValue("book"), r.PathValue("stem")
 	books, err := s.store.ListBooks()
 	if err != nil {
@@ -140,7 +141,7 @@ func (s *Server) handleSetlistEditPage(w http.ResponseWriter, r *http.Request) {
 	}
 	songsJSON, _ := json.Marshal(songsByBook)
 	s.render(w, "setlist-edit", map[string]any{
-		"Book": book, "Stem": stem, "IsNew": stem == "new",
+		"Me": person, "Book": book, "Stem": stem, "IsNew": stem == "new",
 		"SongsByBookJSON": template.JS(songsJSON),
 	})
 }
@@ -165,6 +166,7 @@ type gigSet struct {
 // with ?gig=1 carried through so prev/next and the back link keep pointing
 // back at this list instead of the editor.
 func (s *Server) handleSetlistGigPage(w http.ResponseWriter, r *http.Request) {
+	person := personFromContext(r)
 	book, stem := r.PathValue("book"), r.PathValue("stem")
 	l, _, err := s.store.LoadSetlist(book, stem)
 	if err != nil {
@@ -188,7 +190,7 @@ func (s *Server) handleSetlistGigPage(w http.ResponseWriter, r *http.Request) {
 		sets = append(sets, gigSet{Label: set.Label, Rows: rows})
 	}
 	s.render(w, "setlist-gig", map[string]any{
-		"Book": book, "Stem": stem,
+		"Me": person, "Book": book, "Stem": stem,
 		"Title": orDefault(l.Get("title"), stem), "Date": l.Get("date"), "Venue": l.Get("venue"),
 		"Sets": sets, "SetlistRef": book + "/" + stem,
 	})

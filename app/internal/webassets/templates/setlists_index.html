@@ -38,7 +38,9 @@
       <label>in book
         <select id="new-book">{{range .Books}}<option value="{{.}}">{{.}}</option>{{end}}</select>
       </label>
-      <input type="text" id="new-stem" placeholder="filename, e.g. spring-rehearsal-2026">
+      <label>filename
+        <input type="text" id="new-stem" placeholder="e.g. spring-rehearsal-2026">
+      </label>
       <button id="new-setlist-btn" type="button" class="primary">{{template "icon-plus"}} Create</button>
     </div>
   </section>
@@ -62,7 +64,9 @@
     <p class="hint">No personal set lists yet.</p>
     {{end}}
     <div class="structure-actions">
-      <input type="text" id="my-setlist-title" placeholder="title">
+      <label>title
+        <input type="text" id="my-setlist-title" placeholder="e.g. Spring Rehearsal">
+      </label>
       <button id="new-my-setlist-btn" type="button" class="primary">{{template "icon-plus"}} Create personal set list</button>
     </div>
   </section>
@@ -84,7 +88,9 @@
     <p class="hint">No set lists yet for this band.</p>
     {{end}}
     <div class="structure-actions">
-      <input type="text" class="band-setlist-title" placeholder="title">
+      <label>title
+        <input type="text" class="band-setlist-title" placeholder="e.g. Spring Rehearsal">
+      </label>
       <button type="button" class="primary new-band-setlist-btn" data-band-id="{{.Band.ID}}">{{template "icon-plus"}} Create band set list</button>
     </div>
   </section>

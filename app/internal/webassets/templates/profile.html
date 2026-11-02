@@ -45,8 +45,8 @@
     {{else}}
       <p class="hint">No password set — you're currently magic-link-only. Set one below to also be able to log in with a password.</p>
     {{end}}
-    {{if .PwSaved}}<p style="color:#2a7">Password saved.</p>{{end}}
-    {{if .PwError}}<p style="color:#b33">{{.PwError}}</p>{{end}}
+    {{if .PwSaved}}<p style="color:var(--ok)">Password saved.</p>{{end}}
+    {{if .PwError}}<p style="color:var(--danger)">{{.PwError}}</p>{{end}}
     <form method="post" action="/profile/password">
       <p><label>{{if .HasPassword}}New password{{else}}Password{{end}}<br>
         <input type="password" name="password" autocomplete="new-password" required minlength="8"></label></p>
@@ -85,7 +85,7 @@
     {{else}}
     <p class="hint">No passkeys registered yet.</p>
     {{end}}
-    <p id="webauthn-register-error" style="color:#b33; display:none"></p>
+    <p id="webauthn-register-error" style="color:var(--danger); display:none"></p>
     <button type="button" id="webauthn-register-btn">Add a passkey</button>
     <p class="hint" id="webauthn-register-unsupported" style="display:none">Your browser doesn't support passkeys.</p>
   </section>

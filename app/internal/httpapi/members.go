@@ -10,13 +10,14 @@ import (
 // ones or change/revoke an existing member's role. Owner-gated by the
 // requireRole("owner", ...) wrapper in router.go.
 func (s *Server) handleMembersPage(w http.ResponseWriter, r *http.Request) {
+	person := personFromContext(r)
 	book := r.PathValue("book")
 	members, err := s.store.ListMembers(r.Context(), book)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	s.render(w, "members", map[string]any{"Book": book, "Members": members})
+	s.render(w, "members", map[string]any{"Me": person, "Book": book, "Members": members})
 }
 
 // handleCreateInvite makes a new single-use invite link, valid for 7 days.

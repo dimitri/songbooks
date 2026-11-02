@@ -9,6 +9,8 @@
 {{template "pwa-head"}}
 </head>
 <body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
   <h1>{{.Band.Name}} — listening party</h1>
@@ -23,10 +25,20 @@
   <div class="card" style="max-width:520px">
     <h2>Throw in a song</h2>
     <p class="hint">Pick a variant id from the <a href="/catalog">catalog</a> or the band's own <a href="/bands/{{.Band.ID}}/catalog">repertoire</a> page.</p>
-    <label>Variant id <input type="number" id="variant-id-input"></label>
-    <label>Note (optional) <input type="text" id="note-input"></label>
-    <button type="button" id="submit-btn">Add to the queue</button>
-    <p id="submit-result" class="hint"></p>
+    <div class="form-stack">
+      <div class="field">
+        <label for="variant-id-input">Variant id</label>
+        <input type="number" id="variant-id-input">
+      </div>
+      <div class="field">
+        <label for="note-input">Note (optional)</label>
+        <input type="text" id="note-input">
+      </div>
+      <div class="form-actions">
+        <button type="button" id="submit-btn">Add to the queue</button>
+      </div>
+      <p id="submit-result" class="hint"></p>
+    </div>
   </div>
 
   <div class="table-scroll"><table class="card" style="width:100%">
@@ -77,6 +89,9 @@ document.querySelectorAll('.vote-btn').forEach(btn => {
   });
 });
 </script>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
 </body>
 </html>
 {{end}}

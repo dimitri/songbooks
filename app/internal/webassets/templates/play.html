@@ -385,7 +385,7 @@
   <div class="edit-drawer-body" id="notes-drawer-body" data-variant-id="{{.VariantID}}">
     <p class="hint">Private notes are visible only to you; shared notes are visible to anyone who can view this song.</p>
     {{range .Sections}}
-    <section class="prep-panel notes-section" data-section-index="{{.Index}}" style="display:block;padding:.75em 0;border-bottom:1px solid var(--border, #ccc)">
+    <section class="prep-panel notes-section" data-section-index="{{.Index}}" style="display:block;padding:.75em 0;border-bottom:1px solid var(--border)">
       <h3 style="margin:.25em 0">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}</h3>
       <ul class="notes-list" data-section-index="{{.Index}}"></ul>
       <form class="note-add-form" data-section-index="{{.Index}}">
