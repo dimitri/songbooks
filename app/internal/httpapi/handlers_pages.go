@@ -769,6 +769,23 @@ func buildSections(sg *song.Song) []viewerSection {
 				}
 			}
 		}
+		// A section now known to be reused verbatim by a later one (dupIdx
+		// >= 0 above once resolved) gets real repeat-barline glyphs on its
+		// OWN grid — the open mark on its first measure, close on its last —
+		// the same .bar-open/.bar-close/.repeat-dots convention the real
+		// |: ... :| source syntax already drives (play.html). This is
+		// display-only: it mutates the already-built viewerMeasure copies in
+		// `sections`, never sg.Sections itself, so nothing is written back
+		// to the parsed song or the .song file. Lines were sliced from this
+		// same Measures backing array in groupMeasures above, so the edit is
+		// visible there too without re-running it.
+		if dupIdx >= 0 {
+			orig := sections[dupIdx].Measures
+			if len(orig) > 0 {
+				orig[0].Open = true
+				orig[len(orig)-1].Close = true
+			}
+		}
 		if vs.GridDuplicateOf == "" {
 			vs.Lines = groupMeasures(vs.Measures, sec.BarsPerLine)
 		}
