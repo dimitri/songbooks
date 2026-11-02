@@ -205,8 +205,16 @@
     <a class="icon-btn" href="/b/{{.Book}}/{{.Stem}}/export-ly.pdf" title="export PDF (LilyPond notation: chords over a staff + lyrics)" download>LY</a>
     {{if .WorkID}}<a class="icon-btn" href="/works/{{.WorkID}}" title="all versions of this song">versions</a>{{end}}
     {{if .VariantID}}<a class="icon-btn" href="/variants/{{.VariantID}}/history" title="revision history">history</a>
-    <button id="fork-variant-btn" class="icon-btn" type="button" data-variant-id="{{.VariantID}}" title="fork: make your own editable copy">fork</button>
-    <button id="notes-toggle" class="icon-btn" type="button" title="notes: personal or shared, per section">notes</button>{{end}}
+    {{/* Desktop only — on mobile this is reached via the View stack's
+         Notes row instead (#notes-stack-row), see .topbar-notes-btn's
+         mobile-breakpoint rule in app.css; there's no "view menu"
+         concept on desktop to fold it into. */}}
+    <button id="notes-toggle" class="icon-btn topbar-notes-btn" type="button" title="notes: personal or shared, per section">notes</button>{{end}}
+    {{/* Desktop only — on mobile this is reached via the View stack's
+         Reference row instead (#reference-stack-row); same
+         .topbar-notes-btn-style mobile-hiding rule, see
+         .topbar-reference-btn in app.css. */}}
+    <button id="reference-toggle" class="icon-btn topbar-reference-btn" type="button" title="reference video">ref</button>
     <button id="theme-toggle" class="icon-btn" type="button" title="theme: auto">{{template "icon-theme"}}</button>
   </div>
   {{if .Prev}}
@@ -275,7 +283,7 @@
       </div>
     </section>
 
-    <section class="prep-panel" data-panel="raw" id="editor" data-book="{{.Book}}" data-stem="{{.Stem}}" data-version="{{.Version}}" hidden>
+    <section class="prep-panel" data-panel="raw" id="editor" data-book="{{.Book}}" data-stem="{{.Stem}}" data-version="{{.Version}}" data-variant-id="{{.VariantID}}" data-can-edit="{{.CanEdit}}" hidden>
       <div class="import-bar">
         <details>
           <summary>Import lyrics from a URL</summary>
@@ -311,6 +319,41 @@
         <span id="save-status"></span>
       </div>
     </section>
+  </div>
+</div>
+
+{{/* Reference: a YouTube link so the whole band is listening to the same
+     version — embedded inline (not just a link out) when it's recognizably
+     a YouTube URL, since the point is everyone pulling up the same video
+     with no extra click. The edit affordance is a single URL field
+     (handlePutMeta), not the raw-source editor — this is a field every
+     song has a reason to set, not an advanced edit. Its own drawer, opened
+     from the View stack's Reference row — it used to live inside the
+     metronome/transport sidebar, which only a drummer checking tempo would
+     ever open; watching/changing the reference video has nothing to do
+     with the click track. */}}
+<div class="edit-drawer-backdrop" id="reference-drawer-backdrop" hidden></div>
+<div class="edit-drawer card" id="reference-drawer" role="dialog" aria-modal="true" aria-label="Reference for {{.Title}}" hidden>
+  <div class="edit-drawer-head">
+    <h2 style="margin:0">Reference</h2>
+    <button id="reference-drawer-close" class="icon-btn" type="button" title="close">{{template "icon-close"}}</button>
+  </div>
+  <div class="edit-drawer-body">
+    <div class="reference-block" id="reference-block" data-url="{{.Reference}}" data-book="{{.Book}}" data-stem="{{.Stem}}">
+      <div class="reference-row">
+        <a id="reference-link" class="meta-row" href="{{.Reference}}" target="_blank" rel="noopener"{{if not .Reference}} hidden{{end}}>reference &#8599;</a>
+        {{/* The embedded video (reference-embed, below) starts collapsed —
+             it's a sizeable fixed block (a 16:9 iframe); a reader who wants
+             it can show it with one tap. */}}
+        <button id="reference-show-btn" type="button" class="icon-btn" title="show reference video"{{if not .Reference}} hidden{{end}}>{{template "icon-play"}}</button>
+        <button id="reference-edit-btn" type="button" class="icon-btn" title="{{if .Reference}}change reference{{else}}add a reference video{{end}}">{{template "icon-edit"}}</button>
+      </div>
+      <div class="reference-edit-row" id="reference-edit-row" hidden>
+        <input type="url" id="reference-url-input" placeholder="https://youtube.com/watch?v=..." value="{{.Reference}}">
+        <button id="reference-save-btn" type="button" class="primary">Save</button>
+      </div>
+      <div class="reference-embed" id="reference-embed"></div>
+    </div>
   </div>
 </div>
 
@@ -351,6 +394,13 @@
         <button id="play-pause-btn" type="button" title="play" class="primary icon-btn">{{template "icon-play"}}</button>
         <button id="stop-btn" type="button" title="stop (resets to the top)" class="icon-btn">{{template "icon-stop"}}</button>
         <button id="tap-btn" type="button" title="tap tempo (determine, or re-sync while playing)" class="icon-btn">{{template "icon-tap"}}</button>
+        {{/* Count-in moved up alongside Play/Stop/Tap — it's a transport
+             setting a drummer checks right before hitting play, not an
+             "advanced" option worth burying under tempo/key/reference. */}}
+        <div class="metro-icon-row transport-countin" id="intro-bars" data-value="2" title="count-in length — the band comes in together, drummer's call">
+          <button type="button" data-value="1">1 bar</button>
+          <button type="button" data-value="2" class="active">2 bars</button>
+        </div>
       </div>
       <div class="beat-dots" id="beat-dots" aria-hidden="true"></div>
       <div class="tempo-row">
@@ -369,54 +419,32 @@
       </div>
       {{end}}
       {{if .Capo}}<div class="meta-row">capo {{.Capo}}</div>{{end}}
-      {{/* Reference: a YouTube link so the whole band is listening to the
-           same version — embedded inline (not just a link out) when it's
-           recognizably a YouTube URL, since the point is everyone pulling
-           up the same video with no extra click. The edit affordance is a
-           single URL field (handlePutMeta), not the raw-source editor —
-           this is a field every song has a reason to set, not an advanced
-           edit. */}}
-      <div class="reference-block" id="reference-block" data-url="{{.Reference}}" data-book="{{.Book}}" data-stem="{{.Stem}}">
-        <div class="reference-row">
-          <a id="reference-link" class="meta-row" href="{{.Reference}}" target="_blank" rel="noopener"{{if not .Reference}} hidden{{end}}>reference &#8599;</a>
-          {{/* The embedded video (reference-embed, below) starts collapsed —
-               it's a sizeable fixed block (a 16:9 iframe) that was eating
-               most of a phone screen's height before the chart itself even
-               appeared, on top of the transport controls already above it.
-               A reader who wants it can show it with one tap; a reader who
-               just wants to play from the chart never has to scroll past
-               it. */}}
-          <button id="reference-show-btn" type="button" class="icon-btn" title="show reference video"{{if not .Reference}} hidden{{end}}>{{template "icon-play"}}</button>
-          <button id="reference-edit-btn" type="button" class="icon-btn" title="{{if .Reference}}change reference{{else}}add a reference video{{end}}">{{template "icon-edit"}}</button>
-        </div>
-        <div class="reference-edit-row" id="reference-edit-row" hidden>
-          <input type="url" id="reference-url-input" placeholder="https://youtube.com/watch?v=..." value="{{.Reference}}">
-          <button id="reference-save-btn" type="button" class="primary">Save</button>
-        </div>
-        <div class="reference-embed" id="reference-embed"></div>
-      </div>
-
       <div class="metro-icon-row" id="metro-mode" data-value="off">
         <button type="button" data-value="off" class="active" title="No click — visual beat only">{{template "icon-metro-off"}}</button>
         <button type="button" data-value="intro" title="Intro count-in only, then silent">{{template "icon-metro-intro"}}</button>
         <button type="button" data-value="full" title="Click track — clicks through the whole song">{{template "icon-metro-full"}}</button>
       </div>
-      {{/* Not a collapsed <details> any more — count-in length and click
-           sound are exactly what a drummer (or anyone practicing at home)
-           needs to glance at and set before counting the band in, not
-           something worth hiding behind an extra tap on a small disclosure
-           triangle. */}}
+      {{/* Not a collapsed <details> any more — click sound is exactly what
+           a drummer (or anyone practicing at home) needs to glance at and
+           set before counting the band in, not something worth hiding
+           behind an extra tap on a small disclosure triangle. Count-in
+           itself now lives up with Play/Stop/Tap (see transport-controls
+           above). */}}
       <div class="metro-advanced">
-        <div class="metro-advanced-label hint">count-in &amp; sound</div>
-        <div class="metro-icon-row" id="intro-bars" data-value="2" title="count-in length — the band comes in together, drummer's call">
-          <button type="button" data-value="1">1 bar</button>
-          <button type="button" data-value="2" class="active">2 bars</button>
-        </div>
+        <div class="metro-advanced-label hint">sound</div>
         <div class="metro-icon-row" id="sound-picker" data-value="click">
           <button type="button" data-value="click" class="active" title="Click">{{template "icon-sound-click"}}</button>
           <button type="button" data-value="beep" title="Beep">{{template "icon-sound-beep"}}</button>
           <button type="button" data-value="wood" title="Wood block">{{template "icon-sound-wood"}}</button>
           <button type="button" data-value="tick" title="Tick">{{template "icon-sound-tick"}}</button>
+          {{/* Patterns, not timbres — kick/hi-hat assigns a voice per main
+               pulse (1&3 kick, 2&4 hi-hat, or the 6/8 or 12/8 equivalent —
+               see _patternClick in clock.js); backbeat plays only the 2&4
+               (or equivalent) voice and is silent otherwise. Selecting
+               either sets metronome.pattern instead of metronome.sound —
+               see the sound-picker wiring in song.js. */}}
+          <button type="button" data-value="kick-hihat" title="Kick + hi-hat: kick on 1 &amp; 3, hi-hat on 2 &amp; 4 (or the 6/8 / 12/8 equivalent)">{{template "icon-sound-kick-hihat"}}</button>
+          <button type="button" data-value="backbeat" title="Backbeat: click only on 2 &amp; 4 (or the 6/8 / 12/8 equivalent), silent otherwise">{{template "icon-sound-backbeat"}}</button>
         </div>
       </div>
     </div>
@@ -447,6 +475,8 @@
     <button type="button" class="stack-sheet-row" data-forward="lyrics">{{template "icon-mode-lyrics"}} Lyrics only</button>
     <button type="button" class="stack-sheet-row" data-forward="map">{{template "icon-mode-map"}} Song map</button>
     <button type="button" class="stack-sheet-row" data-forward="edit">{{template "icon-edit"}} Edit</button>
+    {{if .VariantID}}<button type="button" class="stack-sheet-row" id="notes-stack-row">{{template "icon-notes"}} Notes</button>{{end}}
+    <button type="button" class="stack-sheet-row" id="reference-stack-row">{{template "icon-reference"}} Reference</button>
   </div>
 
   <div class="content-main">
@@ -493,29 +523,16 @@
 </script>
 {{end}}
 <script>
-const forkBtn = document.getElementById('fork-variant-btn');
-if (forkBtn) {
-  forkBtn.addEventListener('click', async () => {
-    const variantId = Number(forkBtn.dataset.variantId);
-    if (!variantId) return;
-    const res = await fetch(`/api/variants/${variantId}/fork`, {method: 'POST'});
-    const data = await res.json();
-    if (res.ok) {
-      location.href = `/b/${encodeURIComponent(data.book)}/${encodeURIComponent(data.stem)}`;
-    } else {
-      alert(data.error || 'fork failed');
-    }
-  });
-}
-</script>
-<script>
 // Notes editor: per-section personal/shared annotations, independent of
 // jam mode — usable on any variant this page's viewer can already view.
 (function() {
-  const toggle = document.getElementById('notes-toggle');
+  // Two triggers, one drawer: the desktop top-bar button and the mobile
+  // View stack's "Notes" row (there's no "view menu" on desktop to fold
+  // the button into, so it stays there — see .topbar-notes-btn in app.css).
+  const toggles = [document.getElementById('notes-toggle'), document.getElementById('notes-stack-row')].filter(Boolean);
   const drawer = document.getElementById('notes-drawer');
   const backdrop = document.getElementById('notes-drawer-backdrop');
-  if (!toggle || !drawer) return;
+  if (!toggles.length || !drawer) return;
   const body = document.getElementById('notes-drawer-body');
   const variantId = Number(body.dataset.variantId);
   let loaded = false;
@@ -526,7 +543,7 @@ if (forkBtn) {
     if (!loaded) { loaded = true; loadNotes(); }
   }
   function closeDrawer() { drawer.hidden = true; backdrop.hidden = true; }
-  toggle.addEventListener('click', openDrawer);
+  toggles.forEach((toggle) => toggle.addEventListener('click', openDrawer));
   document.getElementById('notes-drawer-close').addEventListener('click', closeDrawer);
   backdrop.addEventListener('click', closeDrawer);
 
@@ -570,6 +587,25 @@ if (forkBtn) {
       }
     });
   });
+})();
+</script>
+<script>
+// Reference drawer: same two-triggers-one-drawer pattern as the Notes
+// drawer above (desktop top-bar button + mobile View stack row) — the
+// actual show/edit/save logic for the video itself lives in song.js's
+// initReference(), which looks its elements up by id regardless of where
+// in the document they live, so moving this block here needed no changes
+// there.
+(function() {
+  const toggles = [document.getElementById('reference-toggle'), document.getElementById('reference-stack-row')].filter(Boolean);
+  const drawer = document.getElementById('reference-drawer');
+  const backdrop = document.getElementById('reference-drawer-backdrop');
+  if (!toggles.length || !drawer) return;
+  function openDrawer() { drawer.hidden = false; backdrop.hidden = false; }
+  function closeDrawer() { drawer.hidden = true; backdrop.hidden = true; }
+  toggles.forEach((toggle) => toggle.addEventListener('click', openDrawer));
+  document.getElementById('reference-drawer-close').addEventListener('click', closeDrawer);
+  backdrop.addEventListener('click', closeDrawer);
 })();
 </script>
 <script>(function () {

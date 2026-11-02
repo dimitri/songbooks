@@ -632,10 +632,15 @@ func (s *Server) handleSetlistStep(w http.ResponseWriter, r *http.Request, mode 
 	sections := buildSections(sg)
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
 	variantID, workID, _ := s.store.VariantLookup(r.Context(), step.Book, step.Stem)
+	// Same implicit-fork-on-edit signal as handleSong — see its comment.
+	canEdit := true
+	if variantID != 0 {
+		canEdit, _ = s.store.CanEditVariant(r.Context(), person.ID, variantID)
+	}
 
 	data := map[string]any{
 		"Book": step.Book, "Stem": step.Stem,
-		"VariantID": variantID, "WorkID": workID,
+		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit,
 		"Title": orDefault(sg.Get("title"), step.Stem), "Artist": sg.Get("artist"),
 		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
 		"TimeNum": num, "TimeDen": den,

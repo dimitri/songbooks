@@ -16,9 +16,9 @@ const ICONS = {
 (function () {
   const book = document.getElementById('structure')?.dataset.book || document.getElementById('editor')?.dataset.book;
   const stem = document.getElementById('structure')?.dataset.stem || document.getElementById('editor')?.dataset.stem;
-  const editorEl = document.getElementById('editor');
-  const pageVariantId = Number(editorEl?.dataset.variantId) || 0;
-  const pageCanEdit = editorEl?.dataset.canEdit !== 'false';
+  const editorElForFork = document.getElementById('editor');
+  const pageVariantId = Number(editorElForFork?.dataset.variantId) || 0;
+  const pageCanEdit = editorElForFork?.dataset.canEdit !== 'false';
 
   // ---- Clock / metronome ---------------------------------------------------
   const transportEl = document.getElementById('transport');

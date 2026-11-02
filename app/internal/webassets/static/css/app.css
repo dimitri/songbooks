@@ -1392,6 +1392,13 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 
   .global-tabbar { bottom: 0; }
 
+  /* Notes moves into the View stack's own row on mobile (#notes-stack-row
+     below) -- the top-bar button is desktop-only. */
+  button.topbar-notes-btn { display: none; }
+  /* Reference moves into the View stack's own row on mobile
+     (#reference-stack-row) -- same reasoning as Notes above. */
+  button.topbar-reference-btn { display: none; }
+
   /* #mode-segmented: no longer a bar on mobile -- see the comment block
      above. The desktop pill (the default, non-mobile rule) is completely
      untouched; this only applies inside the 900px breakpoint. */
@@ -1448,6 +1455,19 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   /* The .timeline sheet's resting position (and the view-stack's,
      above) must clear BOTH fixed bars now, not just one. */
   .timeline { bottom: calc(var(--tabbar-h) + var(--context-h) + env(safe-area-inset-bottom, 0px)); }
+
+  /* .timeline's own collapsed state (translateY(calc(100% - 2.6rem)),
+     above) was tuned back when the sheet sat flush against the real
+     bottom edge of the viewport and its own peeking drag-handle was the
+     only way to discover it was there. Now that it's anchored above the
+     context bar + tab bar instead, that same 2.6rem peek floats mid-page
+     -- a visible sliver of drag-handle and the top of the play/stop/tap
+     buttons sitting over the chart content, not at a screen edge, which
+     reads as broken rather than as an affordance. Discovery is now the
+     explicit Metronome button in .song-context-bar, so the peek is
+     redundant as well as broken: fully hide the sheet when closed. */
+  .timeline { transform: translateY(100%); }
+  .timeline.open { transform: translateY(0); }
 
   /* Content clearance: every mode's scrollable content (chart grid,
      lyrics, song map) must never end up hidden behind the two fixed
