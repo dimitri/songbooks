@@ -35,8 +35,33 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Phase 32: "Songbooks" is one nav entry/page for both ways of
+	// finding a song — the flat browse above, or by the collection it
+	// belongs to (a project's book, or a band's shared repertoire; see
+	// icons.html's desktop-sidebar comment). Reuses the exact same
+	// per-project/per-band computations the home page uses so the stats
+	// never drift between the two pages.
+	books, err := s.buildBookStats(r.Context(), person.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	bands, err := s.store.ListBandsForPerson(r.Context(), person.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	bandCards, _, err := s.buildBandCards(r.Context(), person.ID, bands)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	s.render(w, "catalog", map[string]any{
 		"Me": person, "Variants": variants, "Filter": filter, "Genres": genres,
+		"Books": books, "BandCards": bandCards,
+		"View": r.URL.Query().Get("view"), // "books" deep-links straight to the "by songbook" tab
 	})
 }
 

@@ -2309,7 +2309,21 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .browse-card h4 { margin: 0 0 0.25rem; font-size: 1rem; }
 .browse-card p { margin: 0; font-size: 0.82rem; color: var(--fg-faint); }
 
-/* ---- Catalog: genre filter row + mobile card list ------------------- */
+/* ---- Songbooks (Phase 32): a browse/discovery page, not a technical
+   listing — a fluid card grid is the default at EVERY width (not just
+   mobile; the old desktop <table> is gone), a view toggle switches
+   between the flat song browse and "by songbook" (a project's book, or a
+   band's repertoire — see icons.html's desktop-sidebar comment and
+   catalog.html). ------------------------------------------------------ */
+.catalog-intro { max-width: 46rem; color: var(--fg-muted); margin: 0 0 1.1rem; }
+
+.catalog-view-toggle { display: flex; gap: 0.4rem; margin-bottom: 1.1rem; }
+.catalog-view-tab {
+  padding: 0.5rem 1.1rem; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--bg-raised); color: var(--fg-muted); font-weight: 600; font-size: 0.88rem; cursor: pointer;
+}
+.catalog-view-tab.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast, #fff); }
+
 /* A filter bar, not a data-entry form — several short fields side by
    side is the accepted exception to "single column," since the whole
    point is scanning/adjusting several small controls at once. Each
@@ -2317,23 +2331,32 @@ input.matrix-slot:hover, input.matrix-slot:focus {
    for the same persistent-label reasoning as the rest of the app's
    forms, and a consistent min-width keeps short fields from feeling
    cramped at narrow desktop widths. */
-.catalog-filters { display: flex; gap: 1.1em; align-items: end; flex-wrap: wrap; padding: 1rem 1.1rem; }
+.catalog-filters { display: flex; gap: 1.1em; align-items: end; flex-wrap: wrap; padding: 1rem 1.1rem; margin-bottom: 1.1rem; }
 .catalog-filters label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.82rem; font-weight: 600; color: var(--fg-muted); min-width: 9rem; }
 .catalog-filters button[type="submit"] { padding: 0.45rem 1.1rem; }
 
-.catalog-cards { display: none; }
-@media (max-width: 900px) {
-  .catalog-table-wrap { display: none; }
-  .catalog-cards { display: flex; flex-direction: column; gap: 0.6rem; }
-  .catalog-card {
-    display: flex; flex-direction: column; gap: 0.5rem; border: 1px solid var(--border);
-    border-radius: var(--radius); background: var(--bg-raised); padding: 0.8rem 0.9rem;
-  }
-  .catalog-card-title { font-weight: 600; font-size: 0.98rem; }
-  .catalog-card-meta { font-size: 0.8rem; color: var(--fg-faint); margin-top: 0.15rem; }
-  .catalog-card-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; font-size: 0.8rem; }
-  .catalog-card-actions button { font-size: 0.78rem; padding: 0.3rem 0.55rem; }
+.catalog-cards {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.9rem;
 }
+.catalog-card {
+  display: flex; flex-direction: column; gap: 0.6rem; border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--bg-raised); padding: 1rem 1.1rem;
+}
+.catalog-card-main { color: inherit; }
+.catalog-card-title { font-weight: 600; font-size: 1.05rem; font-family: var(--font-chart, inherit); }
+.catalog-card-meta { font-size: 0.82rem; color: var(--fg-faint); margin-top: 0.2rem; }
+.catalog-card-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; font-size: 0.8rem; }
+.catalog-card-actions button { font-size: 0.78rem; padding: 0.3rem 0.55rem; }
+
+.catalog-books-heading { font-size: 1.1rem; margin: 1.4rem 0 0.8rem; }
+.catalog-books-heading:first-child { margin-top: 0; }
+.catalog-book-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.9rem; margin-bottom: 0.4rem; }
+.catalog-book-card {
+  display: block; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-raised); padding: 1rem 1.1rem; color: inherit;
+}
+.catalog-book-card-title { font-weight: 600; font-size: 1.05rem; font-family: var(--font-chart, inherit); }
+.catalog-book-card-meta { font-size: 0.82rem; color: var(--fg-faint); margin-top: 0.2rem; }
 
 /* ---- Phase 27: bands listing + per-band page redo -------------------- */
 

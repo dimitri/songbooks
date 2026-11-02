@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "songbooks-dev",
+      "runtimeExecutable": "go",
+      "runtimeArgs": ["run", "./cmd/songbooks", "--addr", "localhost:8080", "--dev-auto-login", "tapoueh"],
+      "port": 8080
+    }
+  ]
+}

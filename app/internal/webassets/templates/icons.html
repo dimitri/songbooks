@@ -46,7 +46,7 @@
 {{define "global-tabbar"}}
 <nav class="tabbar global-tabbar" id="global-tabbar" aria-label="main navigation">
   <a href="/" data-path="/" data-label="Home">{{template "icon-home"}}</a>
-  <a href="/catalog" data-path="/catalog" data-label="Catalog">{{template "icon-catalog"}}</a>
+  <a href="/catalog" data-path="/catalog" data-label="Songbooks">{{template "icon-catalog"}}</a>
   <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}}</a>
   <a href="/setlists" data-path="/setlists" data-label="Setlists">{{template "icon-setlists"}}</a>
   <a href="/profile" data-path="/profile" data-label="Profile">{{template "icon-profile"}}</a>
@@ -72,11 +72,15 @@
      900px. 2025/26 SaaS-nav research is consistent that past ~6 top-level
      sections a left sidebar reads better on a wide screen than a top bar
      (items don't hide behind hover/overflow or wrap) -- Songbooks has 7
-     (Home, Catalog, My songbook, Bands, Setlists, Profile, Admin). Primary
+     (Home, Songbooks, My songbook, Bands, Setlists, Profile, Admin). Primary
      items mirror .global-tabbar's 5 destinations and icons EXACTLY so the
      nav vocabulary is identical on desktop and phone, never two IAs to
      learn. Admin/Metronome sit below a divider as secondary/utility, not
-     primary nav. Rendered on every top-level authenticated page, right
+     primary nav. "Songbooks" (the /catalog route) is both the flat
+     browse-every-song view AND, as of Phase 32, the "by songbook" view —
+     one nav entry, one destination, for "every collection of songs I can
+     open" (a project's book, or a band's repertoire), see catalog.html's
+     view toggle. Rendered on every top-level authenticated page, right
      after <body> (see desktop-sidebar-script for the active-item logic,
      the same pathname-matching approach as global-tabbar-script). Hidden
      entirely below 900px via CSS -- .global-tabbar is the only nav there. */}}
@@ -85,7 +89,7 @@
   <a class="sidebar-brand" href="/">{{template "icon-logo"}} Songbooks</a>
   <div class="sidebar-primary">
     <a href="/" data-path="/" data-label="Home">{{template "icon-home"}} Home</a>
-    <a href="/catalog" data-path="/catalog" data-label="Catalog">{{template "icon-catalog"}} Catalog</a>
+    <a href="/catalog" data-path="/catalog" data-label="Songbooks">{{template "icon-catalog"}} Songbooks</a>
     <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}} Bands</a>
     <a href="/setlists" data-path="/setlists" data-label="Setlists">{{template "icon-setlists"}} Setlists</a>
     <a href="/profile" data-path="/profile" data-label="Profile">{{template "icon-profile"}} Profile</a>

@@ -103,30 +103,11 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	projects, err := s.store.ListProjectsForPerson(r.Context(), person.ID)
+	views, err := s.buildBookStats(r.Context(), person.ID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	var views []bookStats
-	for _, pr := range projects {
-		b := pr.Slug
-		groups, err := s.store.ListSongsOrdered(b)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		songCount := 0
-		for _, g := range groups {
-			songCount += len(g.Stems)
-		}
-		setlists, _ := s.store.ListSetlists(b)
-		views = append(views, bookStats{
-			Name: b, SongCount: songCount, SetCount: len(groups),
-			HasOrder: s.store.HasOrderFile(b), Setlists: len(setlists),
-		})
-	}
-	sort.Slice(views, func(i, j int) bool { return views[i].Name < views[j].Name })
 
 	bands, err := s.store.ListBandsForPerson(r.Context(), person.ID)
 	if err != nil {
@@ -165,6 +146,37 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		"Books": views, "Me": person, "Greeting": homeGreeting(),
 		"Bands": bandCards, "Attention": attention, "NextGig": nextGig,
 	})
+}
+
+// buildBookStats computes the per-project "book" stats (song/set/setlist
+// counts) for every project personID can see, alphabetical by name.
+// Shared by handleIndex (the home page's "Your songbooks" teaser) and
+// handleCatalogPage (Phase 32's "by songbook" view) so both pages show
+// identical project stats rather than two implementations that can drift.
+func (s *Server) buildBookStats(ctx context.Context, personID int64) ([]bookStats, error) {
+	projects, err := s.store.ListProjectsForPerson(ctx, personID)
+	if err != nil {
+		return nil, err
+	}
+	var views []bookStats
+	for _, pr := range projects {
+		b := pr.Slug
+		groups, err := s.store.ListSongsOrdered(b)
+		if err != nil {
+			return nil, err
+		}
+		songCount := 0
+		for _, g := range groups {
+			songCount += len(g.Stems)
+		}
+		setlists, _ := s.store.ListSetlists(b)
+		views = append(views, bookStats{
+			Name: b, SongCount: songCount, SetCount: len(groups),
+			HasOrder: s.store.HasOrderFile(b), Setlists: len(setlists),
+		})
+	}
+	sort.Slice(views, func(i, j int) bool { return views[i].Name < views[j].Name })
+	return views, nil
 }
 
 // buildBandCards computes the per-band "card" data (member count, a

@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Catalog — Songbooks</title>
+<title>Songbooks — browse</title>
 <link rel="stylesheet" href="/static/css/app.css">
 {{template "pwa-head"}}
 </head>
@@ -13,75 +13,106 @@
 <div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
-  <h1>Catalog</h1>
+  <h1>Songbooks</h1>
   <nav class="song-nav">
     <a href="/catalog/mine">my songbook</a>
     {{template "notif-bell"}}
   </nav>
 </header>
 <main class="index">
-  <form class="card catalog-filters" method="get" action="/catalog">
-    <label>Artist <input type="text" name="artist" value="{{.Filter.Artist}}" placeholder="any"></label>
-    <label>Project <input type="text" name="project" value="{{.Filter.Project}}" placeholder="any"></label>
-    <label>Genre
-      <select name="genre">
-        <option value="" {{if eq .Filter.Genre ""}}selected{{end}}>all genres</option>
-        {{range .Genres}}<option value="{{.}}" {{if eq $.Filter.Genre .}}selected{{end}}>{{.}}</option>{{end}}
-      </select>
-    </label>
-    <label>Sort
-      <select name="sort">
-        <option value="" {{if ne .Filter.Sort "artist"}}selected{{end}}>alphabetical (title)</option>
-        <option value="artist" {{if eq .Filter.Sort "artist"}}selected{{end}}>by artist</option>
-      </select>
-    </label>
-    <button type="submit">Filter</button>
-  </form>
-  <p class="hint">No "by album" filter — nothing in this app's song data carries an album field, so there's nothing to group by. "By project" above is the closest grouping that actually exists.</p>
+  <p class="catalog-intro">Every song your bands play, browsable by title or artist — or jump straight to a whole songbook: a project's book, or a band's shared repertoire.</p>
 
-  <div class="table-scroll catalog-table-wrap"><table class="card" style="width:100%">
-    <thead><tr><th>Title</th><th>Artist</th><th>Genre</th><th>Project</th><th>Visibility</th><th></th></tr></thead>
-    <tbody>
+  {{/* Two ways to find a song, one page, one nav entry — see
+       icons.html's desktop-sidebar comment. Plain hash-free client-side
+       toggle (no reload) so filtering state on the "all songs" tab isn't
+       lost by switching tabs; ?view=books deep-links straight to the
+       second one. */}}
+  <div class="catalog-view-toggle" role="tablist">
+    <button type="button" class="catalog-view-tab{{if ne .View "books"}} active{{end}}" data-view="songs" role="tab">All songs</button>
+    <button type="button" class="catalog-view-tab{{if eq .View "books"}} active{{end}}" data-view="books" role="tab">By songbook</button>
+  </div>
+
+  <section class="catalog-view" data-view-panel="songs"{{if eq .View "books"}} hidden{{end}}>
+    <form class="card catalog-filters" method="get" action="/catalog">
+      <label>Artist <input type="text" name="artist" value="{{.Filter.Artist}}" placeholder="any"></label>
+      <label>Project <input type="text" name="project" value="{{.Filter.Project}}" placeholder="any"></label>
+      <label>Genre
+        <select name="genre">
+          <option value="" {{if eq .Filter.Genre ""}}selected{{end}}>all genres</option>
+          {{range .Genres}}<option value="{{.}}" {{if eq $.Filter.Genre .}}selected{{end}}>{{.}}</option>{{end}}
+        </select>
+      </label>
+      <label>Sort
+        <select name="sort">
+          <option value="" {{if ne .Filter.Sort "artist"}}selected{{end}}>alphabetical (title)</option>
+          <option value="artist" {{if eq .Filter.Sort "artist"}}selected{{end}}>by artist</option>
+        </select>
+      </label>
+      <button type="submit">Filter</button>
+    </form>
+
+    {{if .Variants}}
+    <div class="catalog-cards">
     {{range .Variants}}
-      <tr data-variant-id="{{.VariantID}}">
-        <td><a href="/b/{{.Book}}/{{.Stem}}">{{.Title}}</a></td>
-        <td>{{.Artist}}</td>
-        <td>{{.Genre}}</td>
-        <td>{{.Book}}</td>
-        <td>{{.Visibility}}{{if .ForkedFromID}} (fork){{end}}</td>
-        <td>
+      <div class="catalog-card" data-variant-id="{{.VariantID}}">
+        <a class="catalog-card-main" href="/b/{{.Book}}/{{.Stem}}">
+          <div class="catalog-card-title">{{.Title}}</div>
+          <div class="catalog-card-meta">{{.Artist}}{{if .Genre}} &middot; {{.Genre}}{{end}} &middot; {{.Book}}</div>
+        </a>
+        <div class="catalog-card-actions">
           <a href="/works/{{.WorkID}}">all versions</a>
           <button type="button" class="add-catalog-btn" data-variant-id="{{.VariantID}}">+ my songbook</button>
           <button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">fork</button>
-        </td>
-      </tr>
-    {{end}}
-    </tbody>
-  </table></div>
-
-  {{/* Mobile-only (see the breakpoint in app.css): a stacked card list
-       instead of the table above — sideways-scrolling to read a song
-       title is a bad browsing experience on a phone, not just visually
-       rough (see the "catalog doesn't work well on mobile" brief this
-       replaces the old .table-scroll stopgap for). Desktop keeps the
-       table; this list is hidden there. */}}
-  <div class="catalog-cards">
-  {{range .Variants}}
-    <div class="catalog-card" data-variant-id="{{.VariantID}}">
-      <a class="catalog-card-main" href="/b/{{.Book}}/{{.Stem}}">
-        <div class="catalog-card-title">{{.Title}}</div>
-        <div class="catalog-card-meta">{{.Artist}}{{if .Genre}} &middot; {{.Genre}}{{end}} &middot; {{.Book}}</div>
-      </a>
-      <div class="catalog-card-actions">
-        <a href="/works/{{.WorkID}}">all versions</a>
-        <button type="button" class="add-catalog-btn" data-variant-id="{{.VariantID}}">+ my songbook</button>
-        <button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">fork</button>
+        </div>
       </div>
+    {{end}}
     </div>
-  {{end}}
-  </div>
+    {{else}}
+    <p class="hint">No songs match this filter.</p>
+    {{end}}
+    <p class="hint">No "by album" filter — nothing in this app's song data carries an album field, so there's nothing to group by. "By project" above is the closest grouping that actually exists.</p>
+  </section>
+
+  <section class="catalog-view" data-view-panel="books"{{if ne .View "books"}} hidden{{end}}>
+    <h2 class="catalog-books-heading">Projects</h2>
+    {{if .Books}}
+    <div class="catalog-book-cards">
+    {{range .Books}}
+      <a class="catalog-book-card" href="/b/{{.Name}}">
+        <div class="catalog-book-card-title">{{.Name}}</div>
+        <div class="catalog-book-card-meta">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}} &middot; {{.SetCount}} set{{if ne .SetCount 1}}s{{end}}</div>
+      </a>
+    {{end}}
+    </div>
+    {{else}}
+    <p class="hint">No projects yet.</p>
+    {{end}}
+
+    <h2 class="catalog-books-heading">Band repertoires</h2>
+    {{if .BandCards}}
+    <div class="catalog-book-cards">
+    {{range .BandCards}}
+      <a class="catalog-book-card" href="/bands/{{.ID}}/catalog">
+        <div class="catalog-book-card-title">{{.Name}}</div>
+        <div class="catalog-book-card-meta">{{.Members}} member{{if ne .Members 1}}s{{end}} &middot; repertoire</div>
+      </a>
+    {{end}}
+    </div>
+    {{else}}
+    <p class="hint">You're not in a band yet — <a href="/bands">start one</a> to get a shared repertoire.</p>
+    {{end}}
+  </section>
 </main>
 <script>
+document.querySelectorAll('.catalog-view-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.catalog-view-tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.querySelectorAll('.catalog-view').forEach(p => { p.hidden = p.dataset.viewPanel !== tab.dataset.view; });
+    const url = new URL(location.href);
+    if (tab.dataset.view === 'books') url.searchParams.set('view', 'books'); else url.searchParams.delete('view');
+    history.replaceState(null, '', url);
+  });
+});
 document.querySelectorAll('.add-catalog-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const variantId = Number(btn.dataset.variantId);
