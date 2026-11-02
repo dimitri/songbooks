@@ -1095,6 +1095,34 @@ const ICONS = {
   const structureEl = document.getElementById('structure');
   let structVersion = null, structMeta = [], structSections = [];
 
+  // ---- Desktop "focus" editor (Guitar Pro-inspired: one section at a
+  // time, persistent left toolbar, infinite single-line staff) vs.
+  // mobile's existing iReal Pro-style stacked blocks list. Gated on the
+  // same ≥901px breakpoint the global sidebar/tab-bar split already uses
+  // (Phase 28) — a deliberately different, wider threshold than
+  // isMobileEditWidth()'s 760px, which only controls toolbar DOCKING
+  // within the (mobile-only) blocks list, a separate concern. Mobile's
+  // renderBlocksList() is completely unmodified by any of this; every
+  // former call site of it now goes through this dispatcher instead, so
+  // switching width (or resizing across the breakpoint) always re-renders
+  // the correct surface. focusModeActive is read by renderMatrix/
+  // buildChordToolbar to decide single-line-vs-wrapped bars and the
+  // split-count progression — see their own comments.
+  let focusModeActive = false;
+  let focusIndex = 0;
+  function isDesktopWidth() {
+    return window.matchMedia('(min-width: 901px)').matches;
+  }
+  function renderStructureUI() {
+    if (isDesktopWidth()) { focusModeActive = true; renderFocusEditor(); }
+    else { focusModeActive = false; renderBlocksList(); }
+  }
+  window.addEventListener('resize', () => {
+    if (isDesktopWidth() !== focusModeActive && structureEl && !structureEl.hidden) {
+      renderStructureUI();
+    }
+  });
+
   // ---- Header fields (time signature / tempo), editable inline ------------
   // Previously the only way to change these was the raw "time: 4/4" /
   // "tempo: 120" header lines in Source — fine as the advanced-syntax
@@ -1124,7 +1152,7 @@ const ICONS = {
     timeInput.placeholder = '4/4';
     timeInput.value = metaGet('time');
     timeInput.title = 'e.g. 4/4, 3/4, 6/8 — affects beat slots and bar-fullness below';
-    timeInput.addEventListener('input', () => { metaSet('time', timeInput.value.trim()); renderBlocks(); });
+    timeInput.addEventListener('input', () => { metaSet('time', timeInput.value.trim()); renderStructureUI(); });
     timeField.appendChild(timeInput);
 
     const tempoField = document.createElement('label');
@@ -1170,6 +1198,21 @@ const ICONS = {
   function editorBeatsPerBar() {
     const n = parseInt((metaGet('time') || '').split('/')[0], 10);
     return n > 0 ? n : beatsPerBar;
+  }
+
+  // The desktop focus editor's default bar-split progression: whole bar
+  // → the main half-bar split → every main pulse. "Main pulse count" for
+  // a compound numerator (6, 9, 12) is NOT the raw numerator — a 6/8 bar
+  // has 2 real pulses (dotted quarters), not 6 — same compound-meter
+  // table clock.js's Metronome already uses for accenting (6→2, 9→3,
+  // 12→4 main pulses); a simple-meter numerator (2, 3, 4...) already IS
+  // its own pulse count.
+  function barSplitProgression(bpb) {
+    const pulses = { 6: 2, 9: 3, 12: 4 }[bpb] || bpb;
+    const opts = new Set([1]);
+    if (pulses % 2 === 0) opts.add(pulses / 2);
+    opts.add(pulses);
+    return [...opts].sort((a, b) => a - b);
   }
 
   function emptySection(label, repeat) {
@@ -1563,7 +1606,14 @@ const ICONS = {
     const splitLabel = document.createElement('span'); splitLabel.className = 'hint toolbar-split-label'; splitLabel.textContent = 'split bar:';
     splitRow.appendChild(splitLabel);
     const bpb = editorBeatsPerBar();
-    const splitOptions = bpb >= 3 ? [1, 2, 3, bpb] : [1, bpb];
+    // Desktop focus editor: the default progression is musical, not a
+    // flat beat count — whole bar, then the main half-bar split (beats
+    // 1 & 3 in 4/4), then the full per-beat split, generalized to
+    // compound meters via the same main-pulse structure clock.js's own
+    // ACCENTS table encodes for the metronome (6/8 = 2 pulses, 12/8 = 4
+    // pulses) — see barSplitProgression. Mobile keeps the old flat
+    // [1,2,3,bpb] list unchanged.
+    const splitOptions = focusModeActive ? barSplitProgression(bpb) : (bpb >= 3 ? [1, 2, 3, bpb] : [1, bpb]);
     [...new Set(splitOptions)].forEach(n => {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'toolbar-btn toolbar-split-btn'; b.dataset.split = String(n);
       b.textContent = n === 1 ? '1' : String(n);
@@ -1765,6 +1815,10 @@ const ICONS = {
     // instead of pushing the actual chart below the fold.
     const toolsDetails = document.createElement('details');
     toolsDetails.className = 'matrix-tools';
+    // Desktop focus editor: these tools live in the always-visible left
+    // column (plenty of room), so there's no reason to keep them behind a
+    // disclosure the way the cramped mobile blocks list needs to.
+    if (focusModeActive) toolsDetails.open = true;
     const toolsSummary = document.createElement('summary');
     toolsSummary.textContent = 'bar layout tools (add/repeat bars, line width)';
     toolsDetails.appendChild(toolsSummary);
@@ -1860,7 +1914,13 @@ const ICONS = {
     toolsDetails.appendChild(toolbar);
     host.appendChild(toolsDetails);
 
-    const rows = chunkRows(sec.measures, (sec.barsPerLine && sec.barsPerLine[0]) || 4);
+    // Desktop focus editor: one continuous, horizontally-scrolling staff
+    // line (Guitar Pro's "infinite staff") rather than the wrapped rows
+    // the mobile/print layout uses — a LOCAL chunk-size override only,
+    // never written back to sec.barsPerLine (that field is real saved
+    // data the print/PDF pipeline also reads; overwriting it here would
+    // silently corrupt the song's actual line-wrap intent).
+    const rows = chunkRows(sec.measures, focusModeActive ? Math.max(1, sec.measures.length) : ((sec.barsPerLine && sec.barsPerLine[0]) || 4));
     let mi = 0;
     rows.forEach(row => {
       const rowEl = document.createElement('div');
@@ -2038,10 +2098,17 @@ const ICONS = {
 
   function insertSectionAt(i, label, openChords) {
     const sec = emptySection(label, false);
-    if (openChords) { sec.measures = [emptyMeasure(), emptyMeasure(), emptyMeasure(), emptyMeasure()]; }
+    // Desktop focus editor default: 8 bars on its one continuous staff
+    // line, per the Guitar Pro-inspired spec. Mobile's own default (4,
+    // sized for the stacked blocks list) is unchanged.
+    if (openChords) {
+      const n = isDesktopWidth() ? 8 : 4;
+      sec.measures = Array.from({ length: n }, () => emptyMeasure());
+    }
     structSections.splice(i, 0, sec);
     expanded.add(i);
-    renderBlocks();
+    focusIndex = i;
+    renderStructureUI();
     requestAnimationFrame(() => {
       const row = document.querySelector(`.block-row[data-index="${i}"] .block-label`);
       if (row) { row.focus(); if (!openChords) row.select(); }
@@ -2094,7 +2161,7 @@ const ICONS = {
 
   let dragFrom = null;
 
-  function renderBlocks() {
+  function renderBlocksList() {
     const list = document.getElementById('chip-list');
     list.innerHTML = '';
     // A single seam at the very top only — Notion doesn't put a visible
@@ -2129,7 +2196,7 @@ const ICONS = {
         // up taking the target's old slot, which is what the row it's
         // dropped onto visually expects.
         structSections.splice(i, 0, moved);
-        renderBlocks();
+        renderStructureUI();
       });
 
       // Left-margin gutter — hidden until this row is hovered/focused,
@@ -2151,16 +2218,16 @@ const ICONS = {
       repeatToggle.type = 'button'; repeatToggle.className = 'block-repeat-toggle';
       repeatToggle.textContent = sec.repeat ? 'repeat marker' : 'has content';
       repeatToggle.title = sec.repeat ? 'make this its own section with real content' : 'turn into a bare repeat marker (no content of its own)';
-      repeatToggle.addEventListener('click', () => { sec.repeat = !sec.repeat; renderBlocks(); });
+      repeatToggle.addEventListener('click', () => { sec.repeat = !sec.repeat; renderStructureUI(); });
       const bars_ = (sec.measures || []).length;
       const barsBadge = document.createElement('span'); barsBadge.className = 'block-bars-badge';
       barsBadge.textContent = bars_ ? `${bars_} bars` : '';
       const actions = document.createElement('div'); actions.className = 'block-row-actions';
       const dup = document.createElement('button'); dup.type = 'button'; dup.className = 'icon-btn'; dup.innerHTML = ICONS.duplicate; dup.title = 'duplicate as a repeat marker';
-      dup.addEventListener('click', () => { structSections.splice(i + 1, 0, emptySection(sec.label, true)); renderBlocks(); });
+      dup.addEventListener('click', () => { structSections.splice(i + 1, 0, emptySection(sec.label, true)); renderStructureUI(); });
       const del = document.createElement('button'); del.type = 'button'; del.className = 'icon-btn'; del.title = 'delete this section';
       del.innerHTML = ICONS.close;
-      del.addEventListener('click', () => { structSections.splice(i, 1); renderBlocks(); });
+      del.addEventListener('click', () => { structSections.splice(i, 1); renderStructureUI(); });
       actions.append(dup, del);
       head.append(label, repeatToggle, barsBadge, actions);
       row.appendChild(head);
@@ -2181,7 +2248,7 @@ const ICONS = {
           chordToggle.addEventListener('click', () => {
             if (!bars_ && !expanded.has(i)) { sec.measures = [emptyMeasure(), emptyMeasure(), emptyMeasure(), emptyMeasure()]; }
             if (expanded.has(i)) expanded.delete(i); else expanded.add(i);
-            renderBlocks();
+            renderStructureUI();
           });
           body.appendChild(chordToggle);
           if (expanded.has(i)) {
@@ -2204,7 +2271,7 @@ const ICONS = {
         notesToggle.textContent = (expandedNotes.has(i) ? '▾ ' : '▸ ') + (sec.notes.length ? `notes (${sec.notes.length})` : '+ note');
         notesToggle.addEventListener('click', () => {
           if (expandedNotes.has(i)) expandedNotes.delete(i); else expandedNotes.add(i);
-          renderBlocks();
+          renderStructureUI();
         });
         body.appendChild(notesToggle);
         if (expandedNotes.has(i) || sec.notes.length) {
@@ -2234,6 +2301,150 @@ const ICONS = {
       const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = 'No sections yet — use the + above to start.';
       list.appendChild(hint);
     }
+  }
+
+  // ---- Desktop focus editor: one section at a time, Guitar Pro-style ----
+  // Reuses buildChordToolbar/renderMatrix completely unmodified in their
+  // own DOM-building logic — only the CSS (.bar-matrix.focus-mode, see
+  // app.css) repositions the toolbar they already append first into a
+  // sticky LEFT column via CSS Grid, and focusModeActive (read inside
+  // renderMatrix/buildChordToolbar) switches the row-chunking and
+  // split-progression behavior. No parallel chart-rendering code exists.
+  function renderFocusEditor() {
+    const list = document.getElementById('chip-list');
+    list.innerHTML = '';
+
+    if (structSections.length === 0) {
+      const hint = document.createElement('p'); hint.className = 'hint';
+      hint.textContent = 'No sections yet — use the + above to start.';
+      list.appendChild(hint);
+      return;
+    }
+    if (focusIndex >= structSections.length) focusIndex = structSections.length - 1;
+    if (focusIndex < 0) focusIndex = 0;
+    const i = focusIndex;
+    const sec = structSections[i];
+
+    const wrap = document.createElement('div');
+    wrap.className = 'focus-editor';
+
+    // ---- Section nav: prev/next + a tab strip, so switching which part
+    // you're looking at is always one click away, never buried. ----------
+    const nav = document.createElement('div');
+    nav.className = 'focus-nav';
+    const prevBtn = document.createElement('button');
+    prevBtn.type = 'button'; prevBtn.className = 'icon-btn'; prevBtn.textContent = '‹';
+    prevBtn.title = 'previous section'; prevBtn.disabled = i === 0;
+    prevBtn.addEventListener('click', () => { focusIndex = Math.max(0, i - 1); renderFocusEditor(); });
+    const tabs = document.createElement('div');
+    tabs.className = 'focus-nav-tabs';
+    structSections.forEach((s, si) => {
+      const tab = document.createElement('button');
+      tab.type = 'button'; tab.className = 'focus-nav-tab' + (si === i ? ' active' : '');
+      tab.textContent = s.label || (s.repeat ? '(repeat)' : 'Untitled');
+      tab.title = s.repeat ? 'repeat marker' : `${(s.measures || []).length} bars`;
+      tab.addEventListener('click', () => { focusIndex = si; renderFocusEditor(); });
+      tabs.appendChild(tab);
+    });
+    const nextBtn = document.createElement('button');
+    nextBtn.type = 'button'; nextBtn.className = 'icon-btn'; nextBtn.textContent = '›';
+    nextBtn.title = 'next section'; nextBtn.disabled = i === structSections.length - 1;
+    nextBtn.addEventListener('click', () => { focusIndex = Math.min(structSections.length - 1, i + 1); renderFocusEditor(); });
+    const addTabBtn = document.createElement('button');
+    addTabBtn.type = 'button'; addTabBtn.className = 'icon-btn'; addTabBtn.innerHTML = ICONS.plus;
+    addTabBtn.title = 'add a section after this one';
+    addTabBtn.addEventListener('click', () => openInsertMenu(addTabBtn, i + 1));
+    nav.append(prevBtn, tabs, nextBtn, addTabBtn);
+    wrap.appendChild(nav);
+
+    // ---- Main: this one section's editable content ----------------------
+    const main = document.createElement('div');
+    main.className = 'focus-main';
+
+    const headRow = document.createElement('div');
+    headRow.className = 'focus-section-head';
+    const labelInput = document.createElement('input');
+    labelInput.type = 'text'; labelInput.className = 'block-label'; labelInput.value = sec.label;
+    labelInput.addEventListener('input', () => {
+      sec.label = labelInput.value;
+      const tab = tabs.children[i];
+      if (tab) tab.textContent = labelInput.value || 'Untitled';
+    });
+    const repeatToggle = document.createElement('button');
+    repeatToggle.type = 'button'; repeatToggle.className = 'block-repeat-toggle';
+    repeatToggle.textContent = sec.repeat ? 'repeat marker' : 'has content';
+    repeatToggle.addEventListener('click', () => { sec.repeat = !sec.repeat; renderFocusEditor(); });
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button'; delBtn.className = 'icon-btn'; delBtn.title = 'delete this section'; delBtn.innerHTML = ICONS.close;
+    delBtn.addEventListener('click', () => {
+      structSections.splice(i, 1);
+      if (focusIndex >= structSections.length) focusIndex = structSections.length - 1;
+      renderFocusEditor();
+    });
+    headRow.append(labelInput, repeatToggle, delBtn);
+    main.appendChild(headRow);
+
+    if (!sec.repeat) {
+      if (sectionHasAdvancedSyntax(sec)) {
+        const notice = document.createElement('p');
+        notice.className = 'hint advanced-syntax-notice';
+        notice.textContent = 'Advanced grid syntax (a per-bar meter override, duration tag, or more than one repeat barline than this builder can show) — edit it precisely in the Source tab; nothing here will be changed or lost.';
+        main.appendChild(notice);
+      } else {
+        if (!sec.measures || sec.measures.length === 0) {
+          sec.measures = Array.from({ length: 8 }, () => emptyMeasure());
+        }
+        const matrixHost = document.createElement('div');
+        matrixHost.className = 'bar-matrix focus-mode';
+        matrixHost.id = 'matrix-host-' + i;
+        main.appendChild(matrixHost);
+        requestAnimationFrame(() => {
+          renderMatrix(sec, i);
+          // Default chord placement on beat 1: land the selection there
+          // the moment this section's grid is shown, rather than making
+          // the user hunt for the first empty slot before the toolbar
+          // does anything. selectSlot() (not focusSlot()) on purpose —
+          // it updates sec._sel/the toolbar/highlight directly, which
+          // works unconditionally; a page-load-time programmatic
+          // el.focus() (what focusSlot ultimately does) is routinely
+          // ignored by the browser outside a user gesture, so relying on
+          // it alone left the auto-selection silently not happening.
+          if (!sec._sel && sec.measures.length) {
+            selectSlot(sec, i, 0, 0);
+            const host = document.getElementById('matrix-host-' + i);
+            // preventScroll: this runs on every section load — letting
+            // the browser's default focus()-scrolls-into-view behavior
+            // fire here visibly yanked the whole drawer body around on
+            // every section switch, fighting the page's own scroll
+            // position rather than quietly pre-arming the toolbar.
+            host && host.querySelector('.matrix-slot[data-mi="0"][data-ti="0"]')?.focus({ preventScroll: true });
+          }
+        });
+      }
+
+      const notesBox = document.createElement('textarea');
+      notesBox.className = 'block-notes';
+      notesBox.placeholder = 'performance directions — one per line, e.g. "GTR + claviers only"';
+      if (!sec.notes) sec.notes = [];
+      notesBox.value = sec.notes.join('\n');
+      notesBox.rows = Math.max(2, Math.min(6, sec.notes.length + 1));
+      notesBox.addEventListener('input', () => { sec.notes = notesBox.value.split('\n').map(s => s.trim()).filter(Boolean); });
+
+      const lyricsBox = document.createElement('textarea');
+      lyricsBox.className = 'block-lyrics';
+      lyricsBox.placeholder = 'words for this section — [Chord] before a word attaches it there';
+      lyricsBox.value = lyricsToText(sec.lyrics);
+      lyricsBox.rows = Math.max(3, Math.min(12, (sec.lyrics || []).length + 1));
+      lyricsBox.addEventListener('input', () => { sec.lyrics = textToLyrics(lyricsBox.value); });
+
+      const lyricsNotes = document.createElement('div');
+      lyricsNotes.className = 'focus-lyrics-notes';
+      lyricsNotes.append(notesBox, lyricsBox);
+      main.appendChild(lyricsNotes);
+    }
+
+    wrap.appendChild(main);
+    list.appendChild(wrap);
   }
   document.getElementById('add-section').addEventListener('click', () => insertSectionAt(structSections.length, 'New', false));
   document.getElementById('save-structure').addEventListener('click', async () => {
@@ -2268,7 +2479,7 @@ const ICONS = {
       return { ...sec, measures: common, endings };
     });
     renderHeaderFields();
-    renderBlocks();
+    renderStructureUI();
   })();
 
   // ---- Keyboard & handheld-pedal navigation ---------------------------------

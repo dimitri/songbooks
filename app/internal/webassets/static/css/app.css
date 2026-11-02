@@ -1729,6 +1729,20 @@ body.drawer-open { overflow: hidden; }
     inset: 0; border-radius: 0; box-shadow: none;
   }
 }
+/* Desktop (≥901px, the same threshold the sidebar/global-tab-bar split
+   already uses): editing is a true fullscreen VIEW too, not a JS popup
+   floating over a dimmed page — the same "edit is a mode, not a dialog"
+   rule the ≤760px mobile rule above already established, now extended to
+   desktop per the Guitar Pro-inspired editor rework. The 761–900px
+   tablet band keeps the original floating-card behavior — the user's own
+   spec only named "desktop" and "mobile", so that middle band is left as
+   a reasonable, non-breaking default rather than guessed at. */
+@media (min-width: 901px) {
+  .edit-drawer:not([hidden]) {
+    inset: 0; border-radius: 0; box-shadow: none;
+  }
+  .edit-drawer-backdrop { display: none; }
+}
 .edit-drawer-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .edit-drawer-head #edit-drawer-close { margin-left: auto; }
 .edit-drawer-body { padding: 1rem; flex: 1; overflow: auto; display: flex; flex-direction: column; min-height: 0; }
@@ -1971,6 +1985,43 @@ input.matrix-slot:hover, input.matrix-slot:focus {
    pulled in here — this app has no JS bundler/dependency story anywhere
    else (hand-written CSS/JS, go:embed, single binary), so this hand-rolled
    DOM version earns the same feel without a new build-time dependency. */
+/* ---- Desktop focus editor (Guitar Pro-inspired) ------------------------
+   One section at a time: a nav strip up top, then that section's content
+   below. The chord-entry toolbar ends up in a persistent LEFT column via
+   the .bar-matrix.focus-mode grid below — renderMatrix/buildChordToolbar
+   are completely unchanged, this is pure repositioning. Mobile never
+   renders any of these classes (renderBlocksList doesn't use them). */
+.focus-editor { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 0.9rem; }
+.focus-nav { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding-bottom: 0.6rem; }
+.focus-nav-tabs { display: flex; gap: 0.3rem; flex-wrap: wrap; flex: 1; }
+.focus-nav-tab { padding: 0.35rem 0.85rem; border-radius: 999px; font-size: 0.85rem; }
+.focus-nav-tab.active { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.focus-main { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem; }
+.focus-section-head { display: flex; align-items: center; gap: 0.6rem; }
+.focus-section-head .block-label { font-size: 1.1rem; font-weight: 600; flex: 1; max-width: 22rem; }
+.focus-lyrics-notes { display: flex; flex-direction: column; gap: 0.6rem; max-width: 46rem; }
+
+/* The toolbar renderMatrix appends first becomes a sticky LEFT column;
+   everything after it (structural tools, the bar line, alternative
+   endings) flows in column 2 via CSS Grid auto-placement — each later
+   child only declares grid-column:2, so they stack in source order
+   within that column without needing an explicit grid-row each. */
+.bar-matrix.focus-mode {
+  display: grid; grid-template-columns: 260px 1fr; gap: 0 1.5rem; align-items: start;
+  border: none; background: none; padding: 0;
+}
+.bar-matrix.focus-mode > .chord-toolbar {
+  grid-column: 1; grid-row: 1 / 999; position: sticky; top: 0;
+  max-height: calc(100vh - 16rem); overflow-y: auto; align-self: start;
+}
+.bar-matrix.focus-mode > :not(.chord-toolbar) { grid-column: 2; }
+/* Infinite staff line: one continuous row the user scrolls horizontally,
+   not wrapped into short print-width rows (renderMatrix's own chunk-size
+   override, see focusModeActive there) — cells keep a fixed width rather
+   than shrinking to fit, since the row can simply extend sideways. */
+.bar-matrix.focus-mode .matrix-row { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 0.6rem; }
+.bar-matrix.focus-mode .matrix-cell { flex: 0 0 7rem; }
+
 .block-row {
   position: relative; padding: 0.3rem 0 0.3rem 1.9rem; margin: 0;
   border-radius: 6px; transition: background 0.1s;
