@@ -119,11 +119,21 @@ func (s *Server) handleSetlistsPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleMetronomePage serves the standalone practice metronome — no song
-// attached, for warming up or drilling a groove before pulling up a chart.
+// handleMetronomePage serves the standalone practice metronome. Normally
+// no song attached, for warming up or drilling a groove before pulling up
+// a chart — but the mobile Play page's "Metronome" bottom-bar entry links
+// here with ?bpm=&time=&title=&back= so a song's own tempo/time signature
+// preload instead of the generic default, and a "back to the song" link
+// appears (the dedicated-page replacement for the old inline off-canvas
+// metronome sheet on mobile — see play.html/app.css).
 func (s *Server) handleMetronomePage(w http.ResponseWriter, r *http.Request) {
 	person := personFromContext(r)
-	s.render(w, "metronome", map[string]any{"Me": person})
+	q := r.URL.Query()
+	s.render(w, "metronome", map[string]any{
+		"Me": person,
+		"PresetBPM": q.Get("bpm"), "PresetTime": q.Get("time"),
+		"BackTitle": q.Get("title"), "BackURL": q.Get("back"),
+	})
 }
 
 func (s *Server) handleSetlistEditPage(w http.ResponseWriter, r *http.Request) {

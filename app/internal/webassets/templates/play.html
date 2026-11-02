@@ -531,7 +531,14 @@
        as it was, untouched. */}}
   <div class="song-context-bar">
     <button type="button" id="view-stack-btn">{{template "icon-view"}} View</button>
-    <button type="button" id="metronome-stack-btn">{{template "icon-metro-full"}} Metronome</button>
+    {{/* A real page link, not a sheet toggle — the inline off-canvas
+         .timeline metronome panel was confusing/broken on mobile (two
+         separate reports this session), so mobile metronome access now
+         goes to the dedicated /metronome page instead, preloaded with
+         this song's own tempo/time signature and a link back here.
+         Desktop is untouched: the sidebar's own transport panel stays
+         in-flow exactly as before. */}}
+    <a id="metronome-stack-btn" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/b/%s/%s" .Book .Stem | urlquery}}">{{template "icon-metro-full"}} Metronome</a>
     <button type="button" id="song-stack-btn">{{template "icon-song-actions"}} Song</button>
     <button type="button" id="site-nav-fullpage-btn">{{template "icon-more"}} More</button>
   </div>
@@ -722,8 +729,6 @@
   var viewBtn = document.getElementById('view-stack-btn');
   var viewSheet = document.getElementById('view-stack');
   var viewBackdrop = document.getElementById('view-stack-backdrop');
-  var metroBtn = document.getElementById('metronome-stack-btn');
-  var metroFab = document.getElementById('mobile-controls-fab');
   if (!viewBtn || !viewSheet) return;
 
   function setViewOpen(open) {
@@ -756,17 +761,8 @@
     }).observe(modeSegmented, {attributes: true, attributeFilter: ['data-value']});
   }
 
-  // Metronome stack: re-triggers the SAME .timeline off-canvas sheet the
-  // (now invisible on mobile) floating FAB used to open — see initMobileControls
-  // in song.js, unchanged.
-  var structureStrip = document.getElementById('structure-strip');
-  function syncMetroActive() {
-    if (metroBtn && structureStrip) metroBtn.classList.toggle('active', structureStrip.classList.contains('open'));
-  }
-  if (metroBtn && metroFab) {
-    metroBtn.addEventListener('click', function () { metroFab.click(); syncMetroActive(); });
-    document.getElementById('timeline-backdrop')?.addEventListener('click', syncMetroActive);
-  }
+  // Metronome: a plain <a href="/metronome?..."> now (see the markup),
+  // not a sheet toggle — no JS wiring needed here any more.
 
   // Song-actions sheet (PDF export/versions/history) -- same open/close
   // shape as the View sheet above, its own button/backdrop.

@@ -189,7 +189,7 @@ select {
      and the full option text is always there once it's opened. */
   max-width: 100%;
 }
-input[type="text"], input[type="url"], input[type="date"] {
+input[type="text"], input[type="url"], input[type="date"], input[type="number"] {
   background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border);
   border-radius: 8px; padding: 0.4rem 0.6rem;
   max-width: 100%; /* same reasoning as select's own max-width, above */
@@ -218,7 +218,18 @@ input[type="text"], input[type="url"], input[type="date"] {
 }
 #mode-segmented .icon { width: 1.05rem; height: 1.05rem; }
 
-.card { background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.card { background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.3rem 1.5rem; }
+/* A <table class="card"> keeps its own cell padding, so the card's own
+   block padding above would just double it up around the table's
+   edges — cancel it there, the table element already fills its card. */
+table.card { padding: 0; }
+.card h2, .card h3 { margin: 0 0 0.5rem; font-size: 1.1rem; }
+.card > *:last-child { margin-bottom: 0; }
+/* A row of same-purpose cards (the band repertoire's "new original" /
+   "add by id" pair, the members page's three add-people methods) —
+   side by side on a wide screen, stacked on a phone, instead of each
+   full-bleed one under the other. */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1.25rem; align-items: start; margin-bottom: 1.5rem; }
 
 /* ---- Single-column forms ---------------------------------------------
    Phase 29: a reusable stacked-label form layout, applied to every real

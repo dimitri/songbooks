@@ -128,7 +128,7 @@
 {{template "desktop-sidebar" .Me}}
 <div class="app-content">
 <header class="app-header">
-  {{template "home-link"}}
+  {{if .BackURL}}<a href="{{.BackURL}}" class="back-link">&larr; {{if .BackTitle}}{{.BackTitle}}{{else}}back{{end}}</a>{{else}}{{template "home-link"}}{{end}}
   <h1>Metronome</h1>
   <nav class="song-nav">
     <button id="theme-toggle" class="icon-btn" type="button" title="toggle light/dark">{{template "icon-theme"}}</button>
@@ -140,6 +140,25 @@
 </main>
 <script src="/static/js/clock.js?v={{staticVersion}}"></script>
 <script src="/static/js/metronome-page.js?v={{staticVersion}}"></script>
+{{if or .PresetBPM .PresetTime}}
+<script>
+(() => {
+  // Preload this song's own tempo/time signature when arriving from its
+  // Play page's mobile "Metronome" entry — same engine, just pre-dialed
+  // instead of the generic default; metronome-page.js's own input/change
+  // listeners pick these up normally, nothing bypassed.
+  var bpm = {{.PresetBPM}}, time = {{.PresetTime}};
+  if (bpm) {
+    var bpmInput = document.getElementById('bpm-input');
+    if (bpmInput) { bpmInput.value = bpm; bpmInput.dispatchEvent(new Event('change')); }
+  }
+  if (time) {
+    var btn = document.querySelector('#time-sig-picker [data-value="' + CSS.escape(time) + '"]');
+    if (btn) btn.click();
+  }
+})();
+</script>
+{{end}}
 {{template "pwa-register"}}
 </div>
 {{template "global-tabbar"}}
