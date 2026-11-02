@@ -4,10 +4,14 @@
 package webassets
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"html/template"
+	"io"
 	"io/fs"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -120,6 +124,14 @@ var funcMap = template.FuncMap{
 		linked := outboxURLPattern.ReplaceAllString(escaped, `<a href="$1">$1</a>`)
 		return template.HTML(linked)
 	},
+	// staticVersion is a content hash of every embedded static/ file,
+	// appended as a "?v=" query param to every /static/ URL so a browser's
+	// cache key changes exactly when the content does — without it,
+	// default heuristic caching serves a stale app.css/song.js
+	// indefinitely after a deploy (the route has no filename hashing and
+	// previously set no Cache-Control at all). Computed once at startup,
+	// not per-request.
+	"staticVersion": func() string { return staticVersion },
 }
 
 var outboxURLPattern = regexp.MustCompile(`(https?://[^\s<]+)`)
@@ -139,4 +151,40 @@ func StaticFS() fs.FS {
 		panic(err)
 	}
 	return sub
+}
+
+// staticVersion is a short hex hash of every embedded static/ file's
+// content, computed once at package init. Deterministic across identical
+// builds, changes whenever any static asset's bytes change.
+var staticVersion = computeStaticVersion()
+
+func computeStaticVersion() string {
+	var paths []string
+	err := fs.WalkDir(staticFSRaw, "static", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
+	sort.Strings(paths)
+
+	h := sha256.New()
+	for _, p := range paths {
+		f, err := staticFSRaw.Open(p)
+		if err != nil {
+			panic(err)
+		}
+		if _, err := io.Copy(h, f); err != nil {
+			f.Close()
+			panic(err)
+		}
+		f.Close()
+	}
+	return hex.EncodeToString(h.Sum(nil))[:12]
 }

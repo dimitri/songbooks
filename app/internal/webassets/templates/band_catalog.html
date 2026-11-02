@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Band.Name}} — repertoire</title>
-<link rel="stylesheet" href="/static/css/app.css">
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
 <body>
@@ -159,7 +159,7 @@ document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   });
 });
 </script>
-<script src="/static/js/pdf-export.js"></script>
+<script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 </div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}

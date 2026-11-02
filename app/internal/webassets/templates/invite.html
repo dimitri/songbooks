@@ -8,7 +8,7 @@
 {{if eq .Kind "project"}}Join {{.ProjectName}}
 {{else if eq .Kind "band"}}Join {{.BandName}}
 {{else}}Create your account{{end}} — Songbooks</title>
-<link rel="stylesheet" href="/static/css/app.css">
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
 <body>

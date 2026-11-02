@@ -26,7 +26,9 @@
     <span class="chip-bars">{{.BarCount}}</span>
     {{end}}
   </div>
-  {{if .Lines}}
+  {{if .GridDuplicateOf}}
+  <div class="grid-duplicate-note"><span class="repeat-barline">&#x1D106;</span> same as {{.GridDuplicateOf}} <span class="repeat-barline">&#x1D107;</span></div>
+  {{else if .Lines}}
   <div class="grid spans-full">
     {{range .Lines}}
     <div class="staff-line" style="--cap: {{.Capacity}}">
@@ -178,7 +180,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} — Songbooks</title>
-<link rel="stylesheet" href="/static/css/app.css">
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
 <body data-mode="view">
@@ -585,9 +587,9 @@
   </div>
 </div>
 
-<script src="/static/js/clock.js"></script>
-<script src="/static/js/song.js"></script>
-<script src="/static/js/pdf-export.js"></script>
+<script src="/static/js/clock.js?v={{staticVersion}}"></script>
+<script src="/static/js/song.js?v={{staticVersion}}"></script>
+<script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 {{if .PracticeStepMode}}
 <script>
 // Practice/listening mode forces a specific view mode (full chart for

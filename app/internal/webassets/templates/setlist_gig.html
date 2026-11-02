@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} — gig view — Songbooks</title>
-<link rel="stylesheet" href="/static/css/app.css">
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
 <body data-gig="1">
@@ -55,8 +55,8 @@
   {{end}}
 </main>
 
-<script src="/static/js/gig.js"></script>
-<script src="/static/js/pdf-export.js"></script>
+<script src="/static/js/gig.js?v={{staticVersion}}"></script>
+<script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 {{template "pwa-register"}}
 </div>
 {{template "global-tabbar"}}

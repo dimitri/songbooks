@@ -365,7 +365,12 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("POST /jam/{code}/new", s.requireJamProfile(s.handleJamCreateVariant))
 	mux.HandleFunc("POST /jam/{code}/fork", s.requireJamProfile(s.handleJamForkVariant))
 
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(webassets.StaticFS())))
+	// Every /static/ URL served by a template carries a content-hash
+	// "?v=" query param (webassets.staticVersion), so the URL itself
+	// changes whenever an asset's bytes do — safe to cache aggressively
+	// and immutably keyed on that URL, rather than relying on the
+	// browser's own (and previously entirely absent) revalidation.
+	mux.Handle("GET /static/", cacheForever(http.StripPrefix("/static/", http.FileServerFS(webassets.StaticFS()))))
 
 	// PWA: served from the root, not /static/, so the service worker's
 	// default scope covers the whole app (see handlers_pwa.go). Left
@@ -375,4 +380,15 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("GET /apple-touch-icon.png", s.handleAppIcon)
 
 	return mux
+}
+
+// cacheForever sets a one-year, immutable Cache-Control on every response —
+// safe only because every caller URL is busted with a content-hash query
+// param (see webassets.staticVersion), so a stale cache can never serve
+// content that doesn't match its own URL.
+func cacheForever(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		h.ServeHTTP(w, r)
+	})
 }
