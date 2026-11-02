@@ -2480,3 +2480,12 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .wizard-pick-add { font-size: 0.8rem; padding: 0.25rem 0.6rem; }
 .wizard-pick-added { opacity: 0.6; }
 @media (max-width: 760px) { .wizard-option-row { flex-direction: column; } }
+
+/* PDF export mode picker (Phase 38) — a small inline control row paired
+   with a "PDF"/"export songbook" link (internal/webassets/static/js/
+   pdf-export.js rewrites the link's query string on change). Deliberately
+   lightweight: a <select> + a checkbox, not a settings panel. */
+.pdf-mode-row { display: inline-flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+.pdf-mode-select { font-size: 0.8rem; padding: 0.2rem 0.4rem; border-radius: 6px; border: 1px solid var(--line, #ccc); background: var(--card, #fff); color: var(--ink, #222); }
+.pdf-notes-label { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--ink-soft, var(--text-muted, #666)); white-space: nowrap; }
+@media (max-width: 760px) { .pdf-mode-row { width: 100%; } }

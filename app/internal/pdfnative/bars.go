@@ -1,6 +1,7 @@
 package pdfnative
 
 import (
+	"app/internal/pdf"
 	"app/internal/song"
 )
 
@@ -149,8 +150,17 @@ func barsPerLineFor(sec song.Section, lineIdx int) int {
 // measureSection draws (or measures) every bar-row and lyric line a
 // section carries, in source order — grid rows first mirrors how a real
 // chart reads top to bottom: the groove, then the words sung over it.
-func (c *canvas) measureSection(sec song.Section, bodySize float64) {
-	if len(sec.Measures) > 0 {
+// mode trims which parts actually draw: ModeJazz skips the lyric lines
+// (chords-only, the print analogue of the web Jazz chart view — with no
+// lyrics to fit, fitSongToPage naturally lands on a larger, denser-reading
+// size instead of needing a second, separate "tight spacing" code path);
+// ModeLyrics skips the bar-chart rows entirely (lyrics + the section tags
+// above are the structure indication, per the user's own "lyrics only +
+// struct indications" spec — no separate structure element needed).
+// ModeDefault/ModeMap (ModeMap never reaches this function) draw both.
+// hideNotes mutes the Notes loop regardless of mode.
+func (c *canvas) measureSection(sec song.Section, bodySize float64, mode pdf.Mode, hideNotes bool) {
+	if mode != pdf.ModeLyrics && len(sec.Measures) > 0 {
 		lineIdx := 0
 		start := 0
 		for start < len(sec.Measures) {
@@ -164,10 +174,14 @@ func (c *canvas) measureSection(sec song.Section, bodySize float64) {
 			lineIdx++
 		}
 	}
-	for _, ln := range sec.Lyrics {
-		c.lyricLine(ln, bodySize)
+	if mode != pdf.ModeJazz {
+		for _, ln := range sec.Lyrics {
+			c.lyricLine(ln, bodySize)
+		}
 	}
-	for _, note := range sec.Notes {
-		c.wrappedText(note, faceSansIt, bodySize*0.92, c.th.faint)
+	if !hideNotes {
+		for _, note := range sec.Notes {
+			c.wrappedText(note, faceSansIt, bodySize*0.92, c.th.faint)
+		}
 	}
 }

@@ -15,7 +15,16 @@
   <a class="back-link" href="/setlists/{{.Book}}/{{.Stem}}">{{template "icon-back"}} edit</a>
   <h1>{{.Title}}</h1>
   <nav class="song-nav">
-    <a class="icon-btn" href="/setlists/{{.Book}}/{{.Stem}}/export.pdf" title="export the whole setlist as one PDF — cover, title page, setlist, every song" download>PDF</a>
+    <span class="pdf-mode-row">
+      <a class="pdf-export-link icon-btn" href="/setlists/{{.Book}}/{{.Stem}}/export.pdf" title="export the whole setlist as one PDF — cover, title page, setlist, every song" download>PDF</a>
+      <select class="pdf-mode-select" title="PDF view mode">
+        <option value="">Chords + lyrics</option>
+        <option value="jazz">Jazz chart</option>
+        <option value="map">Song map</option>
+        <option value="lyrics">Lyrics only</option>
+      </select>
+      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
+    </span>
     <a class="icon-btn" href="/setlists/{{.Book}}/{{.Stem}}/export-setlist-page.pdf" title="export just the running order as a single page — for a music stand" download>setlist page</a>
     <button id="gig-theme-toggle" class="icon-btn" type="button" title="toggle light/dark">{{template "icon-theme"}}</button>
   </nav>
@@ -47,6 +56,7 @@
 </main>
 
 <script src="/static/js/gig.js"></script>
+<script src="/static/js/pdf-export.js"></script>
 {{template "pwa-register"}}
 </div>
 {{template "global-tabbar"}}

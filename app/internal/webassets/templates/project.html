@@ -19,7 +19,16 @@
     <a href="/setlists">set lists</a>
     <a href="/catalog">catalog</a>
     <a href="/api/books/{{.Book}}/export" download>{{template "icon-download"}} Export</a>
-    <a href="/b/{{.Book}}/export-songbook.pdf" title="export the whole songbook as one PDF — cover, title page, contents, every song" download>export songbook (PDF)</a>
+    <span class="pdf-mode-row">
+      <a class="pdf-export-link" href="/b/{{.Book}}/export-songbook.pdf" title="export the whole songbook as one PDF — cover, title page, contents, every song" download>export songbook (PDF)</a>
+      <select class="pdf-mode-select" title="PDF view mode">
+        <option value="">Chords + lyrics</option>
+        <option value="jazz">Jazz chart</option>
+        <option value="map">Song map</option>
+        <option value="lyrics">Lyrics only</option>
+      </select>
+      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
+    </span>
     <button id="remove-project-btn" class="danger" type="button" data-book="{{.Book}}">{{template "icon-trash"}} Remove project</button>
     {{template "notif-bell"}}
   </nav>
@@ -136,6 +145,7 @@
 
 <script src="/static/js/clock.js"></script>
 <script src="/static/js/project.js"></script>
+<script src="/static/js/pdf-export.js"></script>
 {{template "pwa-register"}}
 </div>
 {{template "global-tabbar"}}

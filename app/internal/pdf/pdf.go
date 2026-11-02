@@ -44,11 +44,51 @@ type Exporter interface {
 
 var _ Exporter = (*Bridge)(nil)
 
+// Mode selects which view of a song's content a PDF export renders — the
+// print analogue of play.html's client-side View modes (chords+lyrics,
+// jazz chart, lyrics only, song map). Only internal/pdfnative.Renderer
+// actually branches on this; Bridge (the legacy Typst path) ignores it and
+// always renders the one chords+lyrics layout it always has, which is
+// fine — Mode is a pdfnative feature, Bridge is a kept-for-rollback path.
+type Mode string
+
+const (
+	ModeDefault Mode = ""       // chords + lyrics — every existing caller's implicit mode today
+	ModeJazz    Mode = "jazz"   // chords only, denser — the print analogue of the web Jazz chart view
+	ModeMap     Mode = "map"    // section order only, no chords, no lyrics — a one-page "roadmap"
+	ModeLyrics  Mode = "lyrics" // lyrics + section labels, no chord chart — for the singer
+)
+
+// ModeFromString maps a request's raw ?mode= value to a Mode, falling back
+// to ModeDefault for anything unrecognized (including "") rather than
+// erroring — an export link with a typo'd or stale mode param should still
+// produce a PDF, just the default one, not a 400.
+func ModeFromString(s string) Mode {
+	switch Mode(s) {
+	case ModeJazz, ModeMap, ModeLyrics:
+		return Mode(s)
+	default:
+		return ModeDefault
+	}
+}
+
 // Options controls the page target/theme passed through to render.typ /
-// render-book.typ, same inputs the normal `make` pipeline uses.
+// render-book.typ, same inputs the normal `make` pipeline uses, plus the
+// view-mode/notes choices pdfnative honors.
 type Options struct {
 	Target string // e.g. "a4"; empty defaults to "a4"
 	Theme  string // "light" or "dark"; empty defaults to "light"
+	Mode   Mode   // zero value ModeDefault — unchanged behavior for every existing call site
+
+	// HideNotes, when true, omits each section's free-text performance/
+	// arrangement Notes (song.Section.Notes) from the output. The zero
+	// value (false) matches pdfnative's existing unconditional rendering
+	// of them, so every pdf.Options{} call site written before this field
+	// existed keeps showing notes exactly as it always has — the
+	// "no-regression default" is deliberately the inverse-sense name
+	// (HideNotes, not WithNotes/ShowNotes) specifically so the zero value
+	// is safe.
+	HideNotes bool
 }
 
 func (o Options) target() string {

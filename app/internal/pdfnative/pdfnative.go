@@ -38,7 +38,7 @@ func (r *Renderer) ExportSong(ctx context.Context, book, body string, opts pdf.O
 	if err != nil {
 		return nil, err
 	}
-	if err := renderSong(doc, s, themeFor(opts.Theme)); err != nil {
+	if err := renderSong(doc, s, themeFor(opts.Theme), opts.Mode, opts.HideNotes); err != nil {
 		return nil, err
 	}
 	return pdfBytes(doc)
@@ -46,18 +46,25 @@ func (r *Renderer) ExportSong(ctx context.Context, book, body string, opts pdf.O
 
 // songPages returns how many pages s will actually take (1, almost
 // always; 2 only for a chart that overflows even at the smallest
-// candidate size) — used to number the contents table's PAGE column
-// without a full two-pass render of the songs themselves. measureDoc must
-// already be Start()ed with fonts registered (gopdf's MeasureTextWidth
-// needs a loaded font even in a draw=false pass) — reused across every
-// song in a songbook rather than constructed fresh per call.
-func songPages(measureDoc *gopdf.GoPdf, s *song.Song, th theme) int {
-	size, allowPage2 := fitSongToPage(measureDoc, s, th)
+// candidate size; always 1 for ModeMap, which never measures/fits — it's
+// a short fixed-format list, not a chart that can overflow in practice,
+// and giving it the same treatment as the other modes would require
+// duplicating renderSongMap's layout into the measurement path for no
+// real benefit) — used to number the contents table's PAGE column without
+// a full two-pass render of the songs themselves. measureDoc must already
+// be Start()ed with fonts registered (gopdf's MeasureTextWidth needs a
+// loaded font even in a draw=false pass) — reused across every song in a
+// songbook rather than constructed fresh per call.
+func songPages(measureDoc *gopdf.GoPdf, s *song.Song, th theme, mode pdf.Mode, hideNotes bool) int {
+	if mode == pdf.ModeMap {
+		return 1
+	}
+	size, allowPage2 := fitSongToPage(measureDoc, s, th, mode, hideNotes)
 	if !allowPage2 {
 		return 1
 	}
 	c := newCanvas(measureDoc, false, th, 2, true)
-	renderSongBody(c, s, size)
+	renderSongBody(c, s, size, mode, hideNotes)
 	return c.pages
 }
 
@@ -66,7 +73,7 @@ func songPages(measureDoc *gopdf.GoPdf, s *song.Song, th theme) int {
 // cover=1, title=2, contents=3, songs start at 4 — true as long as the
 // contents table itself is always exactly one page, which
 // renderContentsPage's row-shrinking guarantees (see its own doc comment).
-func buildEntries(refs []pdf.SongRef, th theme, withPages bool) ([]*song.Song, []contentsEntry) {
+func buildEntries(refs []pdf.SongRef, th theme, withPages bool, mode pdf.Mode, hideNotes bool) ([]*song.Song, []contentsEntry) {
 	parsed := make([]*song.Song, len(refs))
 	entries := make([]contentsEntry, len(refs))
 	page := 4
@@ -93,7 +100,7 @@ func buildEntries(refs []pdf.SongRef, th theme, withPages bool) ([]*song.Song, [
 		}
 		if withPages {
 			e.Page = page
-			page += songPages(measureDoc, s, th)
+			page += songPages(measureDoc, s, th, mode, hideNotes)
 		}
 		entries[i] = e
 	}
@@ -129,11 +136,11 @@ func (r *Renderer) ExportSetlist(ctx context.Context, title string, front pdf.Fr
 		renderTitlePlate(doc, title, "")
 	}
 
-	parsed, entries := buildEntries(refs, th, true)
+	parsed, entries := buildEntries(refs, th, true, opts.Mode, opts.HideNotes)
 	renderContentsPage(doc, title, "", entries, true, th)
 
 	for _, s := range parsed {
-		if err := renderSong(doc, s, th); err != nil {
+		if err := renderSong(doc, s, th, opts.Mode, opts.HideNotes); err != nil {
 			return nil, err
 		}
 	}
@@ -157,7 +164,10 @@ func (r *Renderer) ExportSetlistPageOnly(ctx context.Context, title, subtitle st
 	if err != nil {
 		return nil, err
 	}
-	_, entries := buildEntries(refs, th, false)
+	// mode/hideNotes are irrelevant here (withPages=false means songPages,
+	// the only thing that reads them, is never called) — passed through
+	// anyway only to satisfy buildEntries' signature.
+	_, entries := buildEntries(refs, th, false, opts.Mode, opts.HideNotes)
 	renderContentsPage(doc, title, subtitle, entries, false, th)
 	return pdfBytes(doc)
 }

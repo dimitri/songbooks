@@ -11,9 +11,25 @@ import (
 	"app/internal/store"
 )
 
-// handleExportSongPDF renders one song to a one-page (best-effort) PDF via
-// the v2/ Typst pipeline. Requires s.pdf to be configured (--v2-root set);
-// otherwise it reports 503 rather than silently pretending to succeed.
+// optionsFromRequest reads the view-mode/notes choices a PDF export link
+// can carry — ?mode=jazz|map|lyrics (anything else, including absent,
+// falls back to pdf.ModeDefault — today's only behavior, so an existing
+// bookmarked/linked export.pdf URL with no query params is unaffected)
+// and ?notes=0 (the only way to turn OFF notes — HideNotes's zero value
+// is false, matching pdfnative's existing unconditional rendering of
+// Section.Notes, so an absent ?notes= param also reproduces today's
+// behavior exactly).
+func optionsFromRequest(r *http.Request) pdf.Options {
+	return pdf.Options{
+		Mode:      pdf.ModeFromString(r.URL.Query().Get("mode")),
+		HideNotes: r.URL.Query().Get("notes") == "0",
+	}
+}
+
+// handleExportSongPDF renders one song to a one-page (best-effort) PDF.
+// Requires s.pdf to be configured (--v2-root set, for the legacy Typst
+// Bridge path); otherwise it reports 503 rather than silently pretending
+// to succeed.
 func (s *Server) handleExportSongPDF(w http.ResponseWriter, r *http.Request) {
 	if s.pdf == nil {
 		httpError(w, http.StatusServiceUnavailable, "PDF export is not configured on this server (no --v2-root)")
@@ -25,7 +41,7 @@ func (s *Server) handleExportSongPDF(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusNotFound, "no such song")
 		return
 	}
-	data, err := s.pdf.ExportSong(r.Context(), book, body, pdf.Options{})
+	data, err := s.pdf.ExportSong(r.Context(), book, body, optionsFromRequest(r))
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
 		return
@@ -138,7 +154,7 @@ func (s *Server) handleExportSetlistPDF(w http.ResponseWriter, r *http.Request) 
 		front.EventTitle = ""
 	}
 
-	data, err := s.pdf.ExportSetlist(r.Context(), title, front, refs, pdf.Options{})
+	data, err := s.pdf.ExportSetlist(r.Context(), title, front, refs, optionsFromRequest(r))
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
 		return
@@ -166,7 +182,7 @@ func (s *Server) handleExportSetlistPageOnlyPDF(w http.ResponseWriter, r *http.R
 	person := personFromContext(r)
 	refs, _ := resolveLegacySetlistRefs(r.Context(), s, person.ID, l)
 	title := orDefault(l.Get("title"), stem)
-	data, err := s.pdf.ExportSetlistPageOnly(r.Context(), title, gigSubtitle(l.Get("date"), l.Get("venue")), refs, pdf.Options{})
+	data, err := s.pdf.ExportSetlistPageOnly(r.Context(), title, gigSubtitle(l.Get("date"), l.Get("venue")), refs, optionsFromRequest(r))
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
 		return
@@ -228,7 +244,7 @@ func (s *Server) handleExportSetlistByIDPDF(w http.ResponseWriter, r *http.Reque
 	refs, skipped := resolveByIDSetlistRefs(r.Context(), s, l)
 	front := s.setlistFrontMatter(r, meta, title)
 
-	data, err := s.pdf.ExportSetlist(r.Context(), title, front, refs, pdf.Options{})
+	data, err := s.pdf.ExportSetlist(r.Context(), title, front, refs, optionsFromRequest(r))
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
 		return
@@ -267,7 +283,7 @@ func (s *Server) handleExportSetlistPageOnlyByIDPDF(w http.ResponseWriter, r *ht
 	title := orDefault(meta.Title, "setlist")
 	refs, _ := resolveByIDSetlistRefs(r.Context(), s, l)
 	front := s.setlistFrontMatter(r, meta, title)
-	data, err := s.pdf.ExportSetlistPageOnly(r.Context(), title, gigSubtitle(front.Date, front.Venue), refs, pdf.Options{})
+	data, err := s.pdf.ExportSetlistPageOnly(r.Context(), title, gigSubtitle(front.Date, front.Venue), refs, optionsFromRequest(r))
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
 		return
@@ -314,7 +330,7 @@ func (s *Server) handleExportProjectSongbookPDF(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	data, err := s.pdf.ExportSongbook(r.Context(), book, refs, pdf.Options{})
+	data, err := s.pdf.ExportSongbook(r.Context(), book, refs, optionsFromRequest(r))
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
 		return
@@ -361,7 +377,7 @@ func (s *Server) handleExportBandSongbookPDF(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	data, err := s.pdf.ExportSongbook(r.Context(), band.Name, refs, pdf.Options{})
+	data, err := s.pdf.ExportSongbook(r.Context(), band.Name, refs, optionsFromRequest(r))
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
 		return

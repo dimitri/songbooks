@@ -15,7 +15,16 @@
   <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
   <h1>{{.Band.Name}} — repertoire</h1>
   <nav class="song-nav">
-    <a class="icon-btn" href="/bands/{{.Band.ID}}/export-songbook.pdf" title="export the whole repertoire as one PDF — cover, title page, contents, every song" download>export songbook (PDF)</a>
+    <span class="pdf-mode-row">
+      <a class="pdf-export-link icon-btn" href="/bands/{{.Band.ID}}/export-songbook.pdf" title="export the whole repertoire as one PDF — cover, title page, contents, every song" download>export songbook (PDF)</a>
+      <select class="pdf-mode-select" title="PDF view mode">
+        <option value="">Chords + lyrics</option>
+        <option value="jazz">Jazz chart</option>
+        <option value="map">Song map</option>
+        <option value="lyrics">Lyrics only</option>
+      </select>
+      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
+    </span>
     {{template "notif-bell"}}
   </nav>
 </header>
@@ -136,6 +145,7 @@ document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   });
 });
 </script>
+<script src="/static/js/pdf-export.js"></script>
 </div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
