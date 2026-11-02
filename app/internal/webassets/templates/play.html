@@ -429,6 +429,26 @@
   <div class="timeline-backdrop" id="timeline-backdrop"></div>
   <button class="mobile-controls-fab" id="mobile-controls-fab" type="button" title="playback controls &amp; structure">{{template "icon-play"}}</button>
 
+  {{/* Mobile-only: the two "page tools" for this song, each opening its
+       own bottom sheet (a "stack") — View re-exposes the same 5 modes
+       #mode-segmented already models (hidden as a bar on mobile, see the
+       CSS), Metronome re-triggers the existing .timeline off-canvas
+       sheet. Docked in a slim strip just above the global tab bar (see
+       global-tabbar below) so that bar stays reachable the whole time —
+       the point of this layout. Hidden outside the mobile breakpoint. */}}
+  <div class="song-context-bar">
+    <button type="button" id="view-stack-btn">{{template "icon-view"}} View</button>
+    <button type="button" id="metronome-stack-btn">{{template "icon-metro-full"}} Metronome</button>
+  </div>
+  <div class="stack-backdrop" id="view-stack-backdrop"></div>
+  <div class="stack-sheet" id="view-stack" role="dialog" aria-label="View">
+    <button type="button" class="stack-sheet-row" data-forward="normal">{{template "icon-mode-normal"}} Chords + lyrics</button>
+    <button type="button" class="stack-sheet-row" data-forward="jazz">{{template "icon-mode-jazz"}} Jazz chart</button>
+    <button type="button" class="stack-sheet-row" data-forward="lyrics">{{template "icon-mode-lyrics"}} Lyrics only</button>
+    <button type="button" class="stack-sheet-row" data-forward="map">{{template "icon-mode-map"}} Song map</button>
+    <button type="button" class="stack-sheet-row" data-forward="edit">{{template "icon-edit"}} Edit</button>
+  </div>
+
   <div class="content-main">
     {{/* Single-line song structure overview — a thin progress line with
          one tick + label per section, weighted by its own bar count.
@@ -552,7 +572,60 @@ if (forkBtn) {
   });
 })();
 </script>
+<script>(function () {
+  var viewBtn = document.getElementById('view-stack-btn');
+  var viewSheet = document.getElementById('view-stack');
+  var viewBackdrop = document.getElementById('view-stack-backdrop');
+  var metroBtn = document.getElementById('metronome-stack-btn');
+  var metroFab = document.getElementById('mobile-controls-fab');
+  if (!viewBtn || !viewSheet) return;
+
+  function setViewOpen(open) {
+    viewSheet.classList.toggle('open', open);
+    viewBackdrop.classList.toggle('open', open);
+    viewBtn.classList.toggle('active', open);
+  }
+  viewBtn.addEventListener('click', () => setViewOpen(!viewSheet.classList.contains('open')));
+  viewBackdrop.addEventListener('click', () => setViewOpen(false));
+
+  // Each row forwards a real click to the corresponding (hidden-on-mobile)
+  // #mode-segmented button, so the existing wireSegmented/edit-toggle/
+  // save-default logic in song.js runs completely untouched.
+  viewSheet.querySelectorAll('.stack-sheet-row').forEach(function (row) {
+    row.addEventListener('click', function () {
+      var real = document.querySelector('#mode-segmented button[data-value="' + row.dataset.forward + '"]');
+      if (real) real.click();
+      setViewOpen(false);
+    });
+  });
+  // Keep the sheet's own active row in sync with the real mode switcher,
+  // including the saved-default restore that runs on load.
+  var modeSegmented = document.getElementById('mode-segmented');
+  if (modeSegmented) {
+    new MutationObserver(function () {
+      var value = modeSegmented.dataset.value;
+      viewSheet.querySelectorAll('.stack-sheet-row').forEach(function (row) {
+        row.classList.toggle('active', row.dataset.forward === value);
+      });
+    }).observe(modeSegmented, {attributes: true, attributeFilter: ['data-value']});
+  }
+
+  // Metronome stack: re-triggers the SAME .timeline off-canvas sheet the
+  // (now invisible on mobile) floating FAB used to open — see initMobileControls
+  // in song.js, unchanged.
+  var structureStrip = document.getElementById('structure-strip');
+  function syncMetroActive() {
+    if (metroBtn && structureStrip) metroBtn.classList.toggle('active', structureStrip.classList.contains('open'));
+  }
+  if (metroBtn && metroFab) {
+    metroBtn.addEventListener('click', function () { metroFab.click(); syncMetroActive(); });
+    document.getElementById('timeline-backdrop')?.addEventListener('click', syncMetroActive);
+  }
+})();
+</script>
 {{template "pwa-register"}}
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
 </body>
 </html>
 {{end}}

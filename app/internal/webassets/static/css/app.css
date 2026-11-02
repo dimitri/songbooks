@@ -1330,95 +1330,137 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   body:has(#sheet[data-render-mode="lyrics"]) .structure-seg-label { display: none; }
   body:has(#sheet[data-render-mode="lyrics"]) .song-structure-strip { padding-top: 0.6rem; }
 
-  /* ---- Mode switcher: a native phone-app bottom tab bar, not the
-     desktop pill under the title ----------------------------------------
-     On a phone this is "which view of the song", asked for constantly
-     mid-performance (singer flips to lyrics, player flips to jazz chart)
-     -- a small pill centered under the title is easy to miss and asks a
-     thumb to reach up the screen for it every time. A full-width bar
-     pinned to the bottom, one tap per mode, is the standard native-app
-     tab-bar treatment. This restyles the SAME #mode-segmented element
-     used on desktop (no duplicate buttons) so every bit of existing JS
-     wiring -- wireSegmented's active-class toggling, the saved-default
-     localStorage logic, the edit-toggle special case -- keeps working
-     untouched; this block is pure CSS repositioning. --tabbar-h is also
-     read below (the FAB offset, the sheet's resting position, content
-     clearance) so all four stay in lock-step if this height ever
-     changes. */
-  :root { --tabbar-h: 3.4rem; }
-  #mode-segmented {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 57;
+  /* ---- Global bottom tab bar (site-wide nav) + Play page's own
+     "view"/"metronome" icon stacks -----------------------------------
+     Phase 23: every page now gets ONE persistent, always-reachable
+     bottom tab bar (.global-tabbar, below) -- the site's actual
+     navigation (Home/Catalog/Bands/Setlists/Profile), present even on
+     the Play page. That page previously used THIS SAME fixed-bottom-bar
+     slot for its own 5-way view switcher (#mode-segmented); that would
+     now collide with the global bar occupying the same strip, and
+     "which view of this song" isn't site navigation anyway. So on a
+     phone #mode-segmented no longer renders itself as a bar at all --
+     it's hidden (desktop keeps the original pill, untouched, see the
+     non-mobile rule) -- and Play instead shows one small "View" icon
+     (.song-context-bar below) that opens a bottom sheet (.view-stack)
+     listing the same 5 modes; selecting a row forwards a real click to
+     the hidden #mode-segmented button of the same data-value, so every
+     bit of existing JS wiring (wireSegmented, the saved-default
+     localStorage logic, the edit-toggle special case) keeps working
+     completely untouched -- this is pure addition, not a rewire. The
+     metronome/transport sidebar (.timeline) already had an off-canvas
+     mobile sheet of its own; its trigger just moves from a floating
+     corner FAB into the same context bar, right next to View, so both
+     "page tools" live in one slim strip docked just above the (always
+     visible) global tab bar instead of one floating circle plus a full
+     tab bar of view buttons. --tabbar-h / --context-h are read by both
+     bars' content-clearance math below so they all stay in lock-step if
+     either height ever changes. */
+  :root { --tabbar-h: 3.4rem; --context-h: 2.8rem; }
+
+  /* .tabbar: the generic fixed-bottom-bar component, shared by the
+     global nav bar and (structurally, via the same selectors) anything
+     else that wants the native-app tab-bar look. Icon-only children
+     (<a> or <button>) get a short label generated from data-label --
+     checked at 320-375px: five text labels this short never wrap, five
+     full action names (as #mode-segmented tried, desktop-only) would. */
+  .tabbar {
+    position: fixed; left: 0; right: 0; z-index: 60;
     display: flex; flex-wrap: nowrap; margin: 0; width: auto; height: var(--tabbar-h);
     border: none; border-top: 1px solid var(--border); border-radius: 0;
     background: var(--bg-raised); padding: 0 0 env(safe-area-inset-bottom, 0px);
-    box-shadow: var(--shadow-lg, var(--shadow));
+    box-shadow: var(--shadow-lg, var(--shadow)); list-style: none;
   }
-  /* Icon-only on the desktop pill (see the template comment on
-     #mode-segmented); a bottom tab bar reads better with a short label
-     under each icon -- iOS/Android's own tab-bar convention -- so every
-     tab is unambiguous without a tooltip a thumb will never see. Checked
-     both: five text buttons wide enough not to wrap/truncate ("chords +
-     lyrics" etc., the sr-only/title text) don't fit five-across on a
-     320-375px phone, so these are short standalone words, generated
-     rather than duplicating markup the sr-only span already carries for
-     screen readers. */
-  #mode-segmented button {
+  .tabbar > a, .tabbar > button {
     flex: 1 1 0; width: auto; height: 100%; position: relative;
-    flex-direction: column; justify-content: center; gap: 0.2rem;
-    border-radius: 0; font-size: 0.62rem; color: var(--fg-muted);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem;
+    border-radius: 0; font-size: 0.62rem; color: var(--fg-muted); text-decoration: none;
+    background: none; border: none;
   }
-  #mode-segmented .icon { width: 1.35rem; height: 1.35rem; }
-  #mode-segmented button::after { display: block; line-height: 1; }
-  #mode-segmented button[data-value="normal"]::after { content: "Chart"; }
-  #mode-segmented button[data-value="jazz"]::after { content: "Jazz"; }
-  #mode-segmented button[data-value="lyrics"]::after { content: "Lyrics"; }
-  #mode-segmented button[data-value="map"]::after { content: "Map"; }
-  #mode-segmented button[data-value="edit"]::after { content: "Edit"; }
-  /* Active state: the desktop pill's solid fill-swap would paint one of
-     five equal-width tabs as a jarring full-height block here -- bottom
-     tab bars mark the current tab with color instead (icons are
-     stroke="currentColor", so this tints icon + label together) plus a
-     top indicator bar, the same "accent color + accent bar" convention
-     already used for the current section elsewhere (.structure-seg's own
-     tick+label, .sheet-section's current-section underline). */
-  #mode-segmented button.active { background: none; color: var(--accent); font-weight: 600; }
-  #mode-segmented button.active::before {
+  .tabbar .icon { width: 1.35rem; height: 1.35rem; }
+  .tabbar > a::after, .tabbar > button::after { content: attr(data-label); display: block; line-height: 1; }
+  /* Active state: color + a top indicator bar, the same "accent color +
+     accent bar" convention already used for the current section
+     elsewhere (.structure-seg's own tick+label, .sheet-section's
+     current-section underline) -- a solid fill-swap would paint one of
+     five equal-width tabs as a jarring full-height block here. */
+  .tabbar > a.active, .tabbar > button.active { color: var(--accent); font-weight: 600; }
+  .tabbar > a.active::before, .tabbar > button.active::before {
     content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
     width: 1.6rem; height: 0.15rem; border-radius: 0 0 999px 999px; background: var(--accent);
   }
-  /* "edit" is an action (opens the full-screen drawer) among four
-     persistent view-state tabs, not a mode the chart re-renders into --
-     see setDrawerOpen's own comment: it deliberately never gets the
-     .active treatment above, even while the drawer is open, so it
-     doesn't masquerade as a 5th view state. A thin divider sets it
-     visually apart instead, the same "action tab separated from state
-     tabs" pattern a native app uses for a trailing "+"/compose tab. */
-  #mode-segmented button[data-value="edit"] { border-left: 1px solid var(--border); }
 
-  /* Hidden while the transport bottom sheet is pulled open: with the
-     sheet open this is a modal-ish state (same reasoning as the backdrop
-     dimming everything else) and a second fixed full-width bar competing
-     with it at the same screen edge reads as two stacked toolbars, not
-     one. Reuses the same body:has() scoping as the lyrics-strip rule
-     above. */
-  body:has(.timeline.open) #mode-segmented { display: none; }
+  .global-tabbar { bottom: 0; }
 
-  /* Coexistence with the transport FAB: it used to sit flush in the
-     corner (bottom: 1rem) when the tab bar didn't exist; now it must
-     float ABOVE the tab bar, never behind/overlapping it. */
-  .mobile-controls-fab { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 0.8rem); }
-  /* The sheet's own resting position (closed, just its drag-handle peek
-     showing) needs the same clearance, or that peek would sit behind/
-     under the new tab bar instead of visibly above it. */
-  .timeline { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); }
+  /* #mode-segmented: no longer a bar on mobile -- see the comment block
+     above. The desktop pill (the default, non-mobile rule) is completely
+     untouched; this only applies inside the 900px breakpoint. */
+  #mode-segmented { display: none; }
+
+  /* ---- Song context bar: View + Metronome, docked just above the
+     global tab bar ----------------------------------------------------- */
+  .song-context-bar {
+    position: fixed; left: 0; right: 0; bottom: var(--tabbar-h); z-index: 59;
+    display: flex; height: var(--context-h);
+    background: var(--bg-raised); border-top: 1px solid var(--border);
+    box-shadow: var(--shadow);
+  }
+  .song-context-bar button {
+    flex: 1 1 0; display: flex; align-items: center; justify-content: center; gap: 0.4rem;
+    background: none; border: none; border-right: 1px solid var(--border);
+    color: var(--fg-muted); font-size: 0.78rem; font-weight: 600;
+  }
+  .song-context-bar button:last-child { border-right: none; }
+  .song-context-bar button.active { color: var(--accent); }
+  .song-context-bar .icon { width: 1.2rem; height: 1.2rem; }
+
+  /* ---- View stack: a bottom sheet listing the 5 view modes ---------- */
+  .stack-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); z-index: 61;
+  }
+  .stack-backdrop.open { display: block; }
+  .stack-sheet {
+    position: fixed; left: 0; right: 0; bottom: calc(var(--tabbar-h) + var(--context-h)); z-index: 62;
+    /* Closed state must clear its own height PLUS the "bottom" offset
+       above (the two fixed bars it's docked above) to land fully
+       off-screen — 110% of its own height alone isn't enough once that
+       offset is non-trivial, unlike .timeline (anchored at bottom: 0 in
+       its own closed/peek state, where a plain percentage is enough). */
+    transform: translateY(calc(100% + var(--tabbar-h) + var(--context-h) + env(safe-area-inset-bottom, 0px) + 1rem));
+    transition: transform 0.2s ease;
+    background: var(--bg); border-radius: 16px 16px 0 0; box-shadow: var(--shadow-lg, var(--shadow));
+    padding: 0.6rem 0 calc(0.6rem + env(safe-area-inset-bottom, 0px));
+  }
+  .stack-sheet.open { transform: translateY(0); }
+  .stack-sheet-row {
+    display: flex; align-items: center; gap: 0.8rem; width: 100%;
+    padding: 0.7rem 1.1rem; background: none; border: none; text-align: left;
+    font-size: 0.95rem; color: var(--fg);
+  }
+  .stack-sheet-row.active { color: var(--accent); font-weight: 600; }
+  .stack-sheet-row .icon { width: 1.25rem; height: 1.25rem; flex: none; }
+
+  /* The transport FAB is retired on mobile -- its old role (open the
+     .timeline sheet) is now the Metronome button in .song-context-bar,
+     which sits in-flow in that bar rather than floating. */
+  .mobile-controls-fab { display: none !important; }
+
+  /* The .timeline sheet's resting position (and the view-stack's,
+     above) must clear BOTH fixed bars now, not just one. */
+  .timeline { bottom: calc(var(--tabbar-h) + var(--context-h) + env(safe-area-inset-bottom, 0px)); }
 
   /* Content clearance: every mode's scrollable content (chart grid,
-     lyrics, song map) must never end up hidden behind the new fixed tab
-     bar -- the same class of overlap bug already flagged twice this
+     lyrics, song map) must never end up hidden behind the two fixed
+     bars -- the same class of overlap bug already flagged twice this
      session (the chart overflow, the lyrics-mode sidebar), so checked
      explicitly here for all four modes at 375px, scrolled to a song's
      last line. */
-  .content-main { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 1rem); }
+  .content-main { padding-bottom: calc(var(--tabbar-h) + var(--context-h) + env(safe-area-inset-bottom, 0px) + 1rem); }
+  body:not(:has(#sheet)) { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); }
+}
+
+@media (min-width: 901px) {
+  .global-tabbar, .song-context-bar, .stack-sheet, .stack-backdrop { display: none; }
 }
 
 /* Chord symbol typesetting — Brandt & Roemer style (see internal/chordsym):

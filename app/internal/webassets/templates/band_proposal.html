@@ -72,6 +72,8 @@ document.getElementById('reject-btn') && document.getElementById('reject-btn').a
   else { const data = await res.json().catch(() => ({})); document.getElementById('vote-result').textContent = data.error || 'reject failed'; }
 });
 </script>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
 </body>
 </html>
 {{end}}
