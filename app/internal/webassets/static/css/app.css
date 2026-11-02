@@ -1898,7 +1898,17 @@ textarea {
    one. Needs to be unmistakable at a glance, including on a phone
    screenshot, so it's both a background tint and a solid accent ring,
    not just a subtle border-color change. */
-.matrix-cell.cell-selected { box-shadow: 0 0 0 2px var(--accent); background: var(--bg-sunken); }
+.matrix-cell.cell-selected { box-shadow: 0 0 0 3px var(--accent); background: var(--bg-sunken); position: relative; }
+/* The cursor itself — a small solid triangle above the selected cell, the
+   same role a caret plays in a text editor or MuseScore's own note-input
+   cursor: one unambiguous "you are here" mark, not a sentence you have to
+   read (see toolbar-slot-label's own comment — that text is now a terse
+   fallback, this triangle is the primary cue). */
+.matrix-cell.cell-selected::before {
+  content: ''; position: absolute; top: -0.55rem; left: 50%; transform: translateX(-50%);
+  border-left: 0.4rem solid transparent; border-right: 0.4rem solid transparent;
+  border-top: 0.45rem solid var(--accent);
+}
 .matrix-slot-row.slot-selected .matrix-slot { background: var(--accent); color: var(--accent-contrast); }
 /* Bar-fullness feedback (Guitar Pro-style "does this measure balance?") —
    solid green border once every slot holds a chord or a sustain, dashed
@@ -2122,9 +2132,18 @@ input.matrix-slot:hover, input.matrix-slot:focus {
    slots. Computed from the song's own time signature (compound meters
    label by pulse — "1"/"4" — matching the dotted-quarter convention used
    everywhere else in this app, not the raw eighth-note count). */
+/* Muted to near-invisible by default — real notation software never shows
+   its own internal beat/slot bookkeeping as permanent on-chart chrome (the
+   old "beat 1"/"beat 3" labels reading as data leakage was a specific
+   complaint). Still present for anyone who needs it (hover, or the
+   selected slot), just no longer competing with the chord symbols for
+   attention on first glance. */
 .matrix-beat-label {
-  font-size: 0.62rem; color: var(--fg-muted); text-align: center; font-variant-numeric: tabular-nums;
+  font-size: 0.6rem; color: var(--fg-faint); text-align: center;
+  font-variant-numeric: tabular-nums; opacity: 0.35; transition: opacity 0.15s;
 }
+.matrix-cell:hover .matrix-beat-label,
+.matrix-cell.cell-selected .matrix-beat-label { opacity: 1; }
 
 .matrix-slot-row { display: flex; gap: 0.2rem; align-items: center; }
 
@@ -2160,8 +2179,21 @@ input.matrix-slot:hover, input.matrix-slot:focus {
   border: 1px solid var(--border); font-variant-numeric: tabular-nums;
 }
 .toolbar-meta-tempo:empty { display: none; }
-.toolbar-slot-label { color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Terse fallback only — the cell's own caret (.cell-selected::before) is
+   the primary "you are here" cue now; this just adds the chord's actual
+   text content (not useful to show visually, since the slot itself already
+   displays it) for anyone on a screen reader or without room to see the
+   chart. Kept deliberately short, not a full sentence. */
+.toolbar-slot-label { color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.72rem; }
 .chord-toolbar.no-selection .toolbar-slot-label { font-style: italic; }
+/* Unsaved-changes indicator — a persistent, impossible-to-miss badge, not
+   a toast that fades: closing/navigating away with this showing should
+   never feel like a surprise. */
+.edit-dirty-indicator {
+  font-size: 0.78rem; font-weight: 600; color: var(--warn); white-space: nowrap;
+  padding: 0.15rem 0.55rem; border-radius: 999px; background: var(--warn-bg);
+  border: 1px solid var(--warn);
+}
 .toolbar-row { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .toolbar-btn {
   flex: 1 1 2rem; min-width: 2rem; padding: 0.35rem 0.3rem; font-size: 0.85rem; font-weight: 700;

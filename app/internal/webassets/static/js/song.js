@@ -859,14 +859,67 @@ const ICONS = {
     try { localStorage.setItem('songbooks-theme', next); } catch (e) { /* ignore */ }
   });
 
-  // ---- Edit drawer: a near-fullscreen modal (source + structure) ------------
+  // ---- Edit drawer: a first-class, bookmarkable editing state, not a
+  // disposable popup — see dirty-tracking and the ?edit=1 history wiring
+  // below. On desktop/mobile this already renders full-screen (Phase 35);
+  // what was missing was the URL/history/exit-safety side of "feels like a
+  // real page": reload or share the link mid-edit and you land back in the
+  // editor, Back actually backs out of it instead of leaving the app, and
+  // unsaved work is never silently dropped. ------------------------------
   const drawer = document.getElementById('edit-drawer');
   const drawerBackdrop = document.getElementById('edit-drawer-backdrop');
   const editToggle = document.getElementById('edit-toggle');
   const closeEditBtn = document.getElementById('edit-drawer-close');
+  const dirtyIndicator = document.getElementById('edit-dirty-indicator');
   let savedSheetHTML = sheet.innerHTML;
 
-  function setDrawerOpen(opening) {
+  // ---- Unsaved-changes tracking — previously nonexistent: every exit path
+  // (X, backdrop, Escape, Back, tab close) silently discarded in-progress
+  // edits with zero warning. markDirty() is called from every place this
+  // file actually mutates editable state (matrix slots, chord toolbar
+  // buttons, bar insert/delete, repeat toggle, line-width, lyrics text,
+  // header fields, the raw-text textarea); clearDirty() only after a
+  // confirmed, successful save.
+  let isDirty = false;
+  function markDirty() {
+    if (isDirty) return;
+    isDirty = true;
+    if (dirtyIndicator) dirtyIndicator.hidden = false;
+  }
+  function clearDirty() {
+    isDirty = false;
+    if (dirtyIndicator) dirtyIndicator.hidden = true;
+  }
+  // A native confirm() is the same idiom this file already uses for other
+  // destructive choices (redo-song-btn) — OK means "discard and proceed",
+  // Cancel means "stay, let me hit Save instead." Every exit path funnels
+  // through this one check, so there is exactly one place that decides
+  // whether it's safe to leave.
+  function confirmDiscardIfDirty() {
+    if (!isDirty) return true;
+    return confirm('You have unsaved changes in the editor. Discard them and close, or Cancel to go back and save?');
+  }
+  window.addEventListener('beforeunload', e => {
+    if (!isDirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
+  // ---- URL/history: ?edit=1 is now the real, persistent address of "the
+  // editor is open" — pushed when opening (so Back closes it instead of
+  // leaving the page), kept on reload (so a bookmarked/shared edit link
+  // lands back in the editor), and popped when closing via any in-app
+  // control (X/backdrop/Escape) so Back and those controls leave history
+  // in the same state either way. suppressHistory lets setDrawerOpen be
+  // called FROM a popstate handler without pushing a second entry.
+  function editURL(open) {
+    const params = new URLSearchParams(location.search);
+    if (open) params.set('edit', '1'); else params.delete('edit');
+    const qs = params.toString();
+    return location.pathname + (qs ? '?' + qs : '') + location.hash;
+  }
+  function setDrawerOpen(opening, { suppressHistory } = {}) {
+    if (!opening && !confirmDiscardIfDirty()) return false;
     drawer.hidden = !opening;
     drawerBackdrop.hidden = !opening;
     document.body.classList.toggle('drawer-open', opening);
@@ -883,11 +936,36 @@ const ICONS = {
       document.getElementById('raw-text')?.focus();
     } else {
       // Closing without necessarily having saved — restore the last-known
-      // saved render so the chart never silently shows an unsaved draft.
+      // saved render so the chart never silently shows an unsaved draft,
+      // and drop any in-memory edits now that the user has confirmed (or
+      // there was nothing to confirm).
       sheet.innerHTML = savedSheetHTML;
       rebindSheet();
+      clearDirty();
     }
+    if (!suppressHistory) {
+      const wantURL = editURL(opening);
+      if (wantURL !== location.pathname + location.search + location.hash) {
+        history.pushState({ songbooksEdit: opening }, '', wantURL);
+      }
+    }
+    return true;
   }
+  // Browser Back/Forward across the edit boundary: re-sync the drawer to
+  // whatever the URL now says rather than trusting the gesture alone — a
+  // user who hits Back with unsaved changes gets the same confirm as any
+  // other exit path, and Cancel re-asserts the ?edit=1 URL instead of
+  // leaving history pointing somewhere the UI didn't actually go.
+  window.addEventListener('popstate', () => {
+    const wantOpen = new URLSearchParams(location.search).get('edit') === '1';
+    if (wantOpen === !drawer.hidden) return;
+    if (!setDrawerOpen(wantOpen, { suppressHistory: true })) {
+      // User cancelled closing — the URL already changed out from under us
+      // (that's how popstate fired at all); push it back to ?edit=1 so the
+      // address bar still matches "the editor is open."
+      history.pushState({ songbooksEdit: true }, '', editURL(true));
+    }
+  });
   // Implicit fork: a viewer without edit rights on this variant never sees
   // a separate "fork" button/step (the old explicit fork-variant-btn is
   // gone — see play.html) — tapping Edit silently forks it for them first,
@@ -913,11 +991,14 @@ const ICONS = {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && !drawer.hidden) setDrawerOpen(false);
   });
-  // Landed here straight from an implicit fork above — open the drawer
-  // immediately instead of making the reader tap Edit a second time.
+  // ?edit=1 on load (a direct link, a reload mid-edit, or landing here
+  // straight from the implicit-fork redirect above) opens the editor AND
+  // keeps the URL as-is — previously this stripped the param immediately
+  // via replaceState, which is exactly why the editor never felt
+  // bookmarkable: reloading or sharing the link always dropped you back on
+  // the read-only chart.
   if (new URLSearchParams(location.search).get('edit') === '1') {
-    setDrawerOpen(true);
-    history.replaceState(null, '', location.pathname + location.search.replace(/[?&]edit=1/, '').replace(/^&/, '?') + location.hash);
+    setDrawerOpen(true, { suppressHistory: true });
   }
 
   // ---- Mobile off-canvas controls sheet ---------------------------------
@@ -973,6 +1054,7 @@ const ICONS = {
     highlightCode.innerHTML = rawTextarea.value.split('\n').map(highlightLine).join('\n');
   }
   rawTextarea.addEventListener('input', renderHighlight);
+  rawTextarea.addEventListener('input', markDirty);
   rawTextarea.addEventListener('scroll', () => {
     backdrop.scrollTop = rawTextarea.scrollTop;
     backdrop.scrollLeft = rawTextarea.scrollLeft;
@@ -1022,6 +1104,7 @@ const ICONS = {
     status.className = 'ok'; status.textContent = 'saved';
     await renderPreview();
     savedSheetHTML = sheet.innerHTML; // this is now the saved state
+    clearDirty();
   });
 
   // ---- Redo this song (destructive: erases body, keeps book/stem identity) --
@@ -1047,6 +1130,7 @@ const ICONS = {
     setDrawerOpen(true);
     await renderPreview();
     savedSheetHTML = sheet.innerHTML;
+    clearDirty();
     if (status) { status.className = 'ok'; status.textContent = 'redone — fill it back in'; }
   });
 
@@ -1152,7 +1236,7 @@ const ICONS = {
     timeInput.placeholder = '4/4';
     timeInput.value = metaGet('time');
     timeInput.title = 'e.g. 4/4, 3/4, 6/8 — affects beat slots and bar-fullness below';
-    timeInput.addEventListener('input', () => { metaSet('time', timeInput.value.trim()); renderStructureUI(); });
+    timeInput.addEventListener('input', () => { markDirty(); metaSet('time', timeInput.value.trim()); renderStructureUI(); });
     timeField.appendChild(timeInput);
 
     const tempoField = document.createElement('label');
@@ -1163,7 +1247,7 @@ const ICONS = {
     tempoInput.placeholder = '120';
     tempoInput.value = metaGet('tempo');
     tempoInput.title = 'beats per minute, saved to the song header';
-    tempoInput.addEventListener('input', () => { metaSet('tempo', tempoInput.value.trim()); });
+    tempoInput.addEventListener('input', () => { markDirty(); metaSet('tempo', tempoInput.value.trim()); });
     tempoField.append(tempoInput, ' bpm');
 
     // Genre lives on the song's parent WORK, not in the raw .song body
@@ -1302,6 +1386,7 @@ const ICONS = {
   // always means "the bar I'm leaving balances", mirroring how Guitar Pro
   // never lets you walk away from an underfull measure.
   function applyDuration(sec, mi, ti, n) {
+    markDirty();
     const m = sec.measures[mi];
     const end = n === 'bar' ? m.tokens.length : Math.min(m.tokens.length, ti + n);
     for (let k = ti + 1; k < end; k++) m.tokens[k] = '.';
@@ -1322,6 +1407,7 @@ const ICONS = {
   function setBarSplit(sec, mi, n) {
     const m = sec.measures[mi];
     if (!m) return;
+    markDirty();
     const old = m.tokens.filter(t => t !== '' && t !== '.');
     const next = new Array(n).fill('.');
     for (let k = 0; k < n; k++) next[k] = old[k] || (k === 0 ? '' : '.');
@@ -1465,8 +1551,16 @@ const ICONS = {
     if (bassBtn) bassBtn.classList.toggle('active', !!sel && !!parts.bass);
     const barSlotCount = sel && sec.measures[sel.mi] ? sec.measures[sel.mi].tokens.length : 0;
     toolbar.querySelectorAll('[data-split]').forEach(b => b.classList.toggle('active', !!sel && parseInt(b.dataset.split, 10) === barSlotCount));
+    // Terse now — the cell's own caret (.cell-selected::before, CSS) is
+    // the primary cursor cue; this text is a screen-reader-friendly
+    // fallback, not a sentence a sighted user needs to read to know where
+    // they are. "bar 3 · 2/4" reads as a compact coordinate, not a caption.
     const slotLabel = toolbar.querySelector('.toolbar-slot-label');
-    if (slotLabel) slotLabel.textContent = sel ? `editing bar ${sel.mi + 1}, slot ${sel.ti + 1}${tok ? ' — ' + tok : ''}` : 'tap a bar slot below to select it';
+    if (slotLabel) {
+      slotLabel.textContent = sel
+        ? `bar ${sel.mi + 1} · ${sel.ti + 1}/${sec.measures[sel.mi].tokens.length}${tok ? ' · ' + tok : ''}`
+        : 'no bar selected';
+    }
     toolbar.classList.toggle('no-selection', !sel);
   }
   // Writes one part (root/accidental/quality/bass) of the SELECTED slot's
@@ -1478,6 +1572,7 @@ const ICONS = {
   function setChordPart(sec, i, part, value) {
     const sel = sec._sel;
     if (!sel || !sec.measures[sel.mi]) return;
+    markDirty();
     const cur = sec.measures[sel.mi].tokens[sel.ti] || '';
     const parts = parseChordDisplay(cur);
     parts[part] = value;
@@ -1711,7 +1806,7 @@ const ICONS = {
       input.type = 'text'; input.className = 'matrix-slot'; input.value = tok;
       input.dataset.mi = String(mi); input.dataset.ti = String(ti);
       input.placeholder = ti === 0 ? '%' : '.';
-      input.addEventListener('input', () => { m.tokens[ti] = input.value; updateLabel(input.value); updateFullness(); refreshToolbarHighlight(sec, secIndexOf(sec)); });
+      input.addEventListener('input', () => { markDirty(); m.tokens[ti] = input.value; updateLabel(input.value); updateFullness(); refreshToolbarHighlight(sec, secIndexOf(sec)); });
       // Tapping/focusing a slot selects it — the toolbar above reflects
       // and acts on whichever slot was last focused, whether that focus
       // came from a click, a Tab, or an arrow-key move (see below): one
@@ -1757,7 +1852,7 @@ const ICONS = {
     row2.className = 'matrix-cell-bottom';
     const delBar = document.createElement('button');
     delBar.type = 'button'; delBar.innerHTML = ICONS.close; delBar.title = 'remove this bar';
-    delBar.addEventListener('click', () => { sec.measures.splice(mi, 1); renderMatrix(sec, secIndexOf(sec)); });
+    delBar.addEventListener('click', () => { markDirty(); sec.measures.splice(mi, 1); renderMatrix(sec, secIndexOf(sec)); });
     row2.appendChild(delBar);
     cell.appendChild(row2);
 
@@ -1820,7 +1915,7 @@ const ICONS = {
     // disclosure the way the cramped mobile blocks list needs to.
     if (focusModeActive) toolsDetails.open = true;
     const toolsSummary = document.createElement('summary');
-    toolsSummary.textContent = 'bar layout tools (add/repeat bars, line width)';
+    toolsSummary.textContent = 'bar tools (insert/repeat, line width)';
     toolsDetails.appendChild(toolsSummary);
 
     const toolbar = document.createElement('div');
@@ -1832,6 +1927,7 @@ const ICONS = {
     perLineInput.type = 'text'; perLineInput.inputMode = 'numeric'; perLineInput.style.width = '3rem';
     perLineInput.value = (sec.barsPerLine && sec.barsPerLine[0]) || 4;
     perLineInput.addEventListener('change', () => {
+      markDirty();
       const n = parseInt(perLineInput.value, 10);
       sec.barsPerLine = n > 0 ? [n] : undefined;
       renderMatrix(sec, i);
@@ -1839,10 +1935,34 @@ const ICONS = {
     perLine.appendChild(perLineInput);
     toolbar.appendChild(perLine);
 
-    const addBar = document.createElement('button');
-    addBar.type = 'button'; addBar.textContent = '+ bar';
-    addBar.addEventListener('click', () => { sec.measures.push(emptyMeasure()); renderMatrix(sec, i); });
-    toolbar.appendChild(addBar);
+    // Insert at the cursor, not just append at the end — Guitar Pro/
+    // MuseScore both let you insert a bar/beat exactly where you're
+    // looking, not only at the tail of the piece. Falls back to "append at
+    // the end" when nothing is selected, so this never dead-ends on an
+    // empty section. The new bar is selected afterward (bar N+1 lands at
+    // the insertion point either way), so you can start typing into it
+    // immediately — no extra click to find it.
+    const insertBefore = document.createElement('button');
+    insertBefore.type = 'button'; insertBefore.textContent = '+ bar before';
+    insertBefore.title = 'insert a new bar before the selected one';
+    insertBefore.addEventListener('click', () => {
+      markDirty();
+      const at = sec._sel ? sec._sel.mi : sec.measures.length;
+      sec.measures.splice(at, 0, emptyMeasure());
+      renderMatrix(sec, i);
+      focusSlot(sec, at, 0);
+    });
+    const insertAfter = document.createElement('button');
+    insertAfter.type = 'button'; insertAfter.textContent = '+ bar after';
+    insertAfter.title = 'insert a new bar after the selected one';
+    insertAfter.addEventListener('click', () => {
+      markDirty();
+      const at = sec._sel ? sec._sel.mi + 1 : sec.measures.length;
+      sec.measures.splice(at, 0, emptyMeasure());
+      renderMatrix(sec, i);
+      focusSlot(sec, at, 0);
+    });
+    toolbar.append(insertBefore, insertAfter);
 
     // Repeat toggle — LilyPond's own \repeat volta N: the common bars play
     // through, then repeat. Previously there was no way to set this at
@@ -1871,6 +1991,7 @@ const ICONS = {
       repeatToggle.title = 'this section has no common bars before its endings — edit the repeat bracket in Source';
     }
     repeatCheckbox.addEventListener('change', () => {
+      markDirty();
       if (sec.measures.length === 0) { repeatCheckbox.checked = false; return; }
       sec.measures.forEach(m => { m.open = false; m.close = false; });
       if (repeatCheckbox.checked) {
@@ -1989,7 +2110,7 @@ const ICONS = {
         // this keeps full round-trip fidelity without needing the full
         // density-select sub-editor the common-bar grid has.
         input.type = 'text'; input.value = (m.tokens || []).join(' '); input.placeholder = 'chord (space-separate for sub-beats, e.g. Eb . Bb .)';
-        input.addEventListener('input', () => { m.tokens = input.value.split(/\s+/).filter(Boolean); if (!m.tokens.length) m.tokens = ['']; });
+        input.addEventListener('input', () => { markDirty(); m.tokens = input.value.split(/\s+/).filter(Boolean); if (!m.tokens.length) m.tokens = ['']; });
         cell.appendChild(input);
         if (end.measures.length > 1) {
           const rm = document.createElement('button'); rm.type = 'button'; rm.innerHTML = ICONS.close; rm.title = 'remove this bar';
@@ -2070,6 +2191,7 @@ const ICONS = {
   const SECTION_QUICK_LABELS = ['Verse', 'Chorus', 'Pre-Chorus', 'Bridge', 'Intro', 'Outro', 'Solo'];
 
   function insertSectionAt(i, label, openChords) {
+    markDirty();
     const sec = emptySection(label, false);
     // Desktop focus editor default: 8 bars on its one continuous staff
     // line, per the Guitar Pro-inspired spec. Mobile's own default (4,
@@ -2262,7 +2384,7 @@ const ICONS = {
         lyricsBox.placeholder = 'words for this section — [Chord] before a word attaches it there';
         lyricsBox.value = lyricsToText(sec.lyrics);
         lyricsBox.rows = Math.max(2, Math.min(10, (sec.lyrics || []).length + 1));
-        lyricsBox.addEventListener('input', () => { sec.lyrics = textToLyrics(lyricsBox.value); });
+        lyricsBox.addEventListener('input', () => { markDirty(); sec.lyrics = textToLyrics(lyricsBox.value); });
         body.appendChild(lyricsBox);
 
         row.appendChild(body);
@@ -2408,7 +2530,7 @@ const ICONS = {
       lyricsBox.placeholder = 'words for this section — [Chord] before a word attaches it there';
       lyricsBox.value = lyricsToText(sec.lyrics);
       lyricsBox.rows = Math.max(3, Math.min(12, (sec.lyrics || []).length + 1));
-      lyricsBox.addEventListener('input', () => { sec.lyrics = textToLyrics(lyricsBox.value); });
+      lyricsBox.addEventListener('input', () => { markDirty(); sec.lyrics = textToLyrics(lyricsBox.value); });
 
       const lyricsNotes = document.createElement('div');
       lyricsNotes.className = 'focus-lyrics-notes';
@@ -2437,6 +2559,12 @@ const ICONS = {
     const data = await res.json();
     structVersion = data.version;
     status.className = 'ok'; status.textContent = 'saved — reloading chart…';
+    // Clear BEFORE the reload, not after — isDirty was still true at the
+    // moment of this save, and leaving it true would trip the beforeunload
+    // guard on the very reload that just confirmed the save succeeded (a
+    // real bug caught during verification: a browser-native "leave site?"
+    // prompt appearing right after a successful Save).
+    clearDirty();
     setTimeout(() => window.location.reload(), 600);
   });
   (async function loadStructure() {
