@@ -112,8 +112,17 @@ const ICONS = {
       const availW = grid.clientWidth;
       if (!availW) continue; // hidden in this mode (e.g. a compact section's unused grid) — nothing to reflow
       const newLines = [];
+      // Jazz mode still stretches bars to 100%/--cap (its own base-rule
+      // behavior, untouched), so its capacity floor stays the old flat
+      // 2.6em readable minimum. The other three modes now give every bar
+      // a flat --bar-w typeset width (CSS, see .bar's own comment) instead
+      // of shrinking to content, so their capacity math has to use that
+      // SAME 7.2em here — using the old 2.6em floor would let more bars
+      // fit per row than the CSS actually has room to draw at their real
+      // (wider) fixed width, overflowing the row again.
+      const flatFloorEm = sheet.dataset.renderMode === 'jazz' ? 2.6 : 7.2;
       for (const { cap, hasClef, maxSlots, template } of lines) {
-        const minBarPx = Math.max(2.6 * fontPx, maxSlots * 0.9 * fontPx);
+        const minBarPx = Math.max(flatFloorEm * fontPx, maxSlots * 0.9 * fontPx);
         const budget = hasClef ? availW - clefPx : availW;
         const effCap = Math.max(1, Math.floor(budget / minBarPx));
         // Never split a row that already fits — and never grow PAST the

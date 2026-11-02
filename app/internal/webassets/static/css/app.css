@@ -898,25 +898,40 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 }
 /* Ragged-right chart rows, normal/map/lyrics modes only — a deliberate,
    explicit choice (confirmed live against the lyric column, which is
-   itself ragged-right prose): a bar now takes its own natural content
-   width (same min-width floor as the base rule above, just no forced
-   100%/--cap stretch), and the row shrinks to fit its bars instead of
-   always filling the shared column width — so a short row ends wherever
-   its own content ends, the same way a wrapped lyric line does, rather
-   than stretching its few bars out to still reach the column's right
-   edge. Row-BREAKING (how many bars land on one line) is untouched — that
-   decision is still groupMeasures/reflowStaffLines' own min-width-floor
-   math; only how a row's bars fill ITS OWN width changes here. Jazz mode
-   keeps the base rule's justified-to-100% behavior unchanged — that's
-   iReal Pro's own convention, not this one, and already shipped/approved
-   separately. #sheet (ID) in the selector outranks both the base .bar
-   rule and the .staff-timesig-cell one above without needing !important. */
+   itself ragged-right prose), tuned in two passes:
+   Pass 1 stretched bars to 100%/--cap (the base rule above) — a short
+   trailing row stretched its few bars edge-to-edge, as wide as a full
+   row, reading as a different, longer measure than its neighbors.
+   Pass 2 (flex: 0 0 auto, shrink-to-content) over-corrected: a bar's own
+   content is just a root+quality label and a couple of slash marks, far
+   narrower than a typical lyric line, so a 4-bar row rendered visibly
+   SHORTER than the lyric text beside it — confirmed live, it read as
+   broken/incomplete, not merely "ragged."
+   This is pass 3: --bar-w is a flat, typeset-style width (7.2em ≈ 115px
+   at a 16px base — close to, but under, a typical lyric line's own
+   length, the same number reflowStaffLines' minBarPx now uses as its
+   floor, see song.js), used as the bar's flex-basis — not the row's
+   100% share (pass 1), not the bar's own glyph width (pass 2). A row
+   still only takes up as much TOTAL width as its bars need (width:
+   fit-content on .staff-line), so a short row still ends short, same
+   ragged-right intent as pass 2 — it just no longer collapses each bar
+   down to near-nothing to do it. min-width still floors a busy bar (more
+   --slots) up past --bar-w when its own content genuinely needs more
+   room, same floor the base rule and reflowStaffLines() both use.
+   Row-BREAKING (how many bars land on one line) is untouched — that
+   decision is still groupMeasures/reflowStaffLines' own capacity math,
+   now keyed to this same --bar-w instead of the old flat 2.6em. Jazz
+   mode keeps the base rule's justified-to-100% behavior unchanged —
+   that's iReal Pro's own convention, not this one, and already shipped/
+   approved separately. #sheet (ID) in the selector outranks both the
+   base .bar rule and the .staff-timesig-cell one above without needing
+   !important. */
 #sheet:not([data-render-mode="jazz"]) .staff-line {
   width: fit-content; max-width: 100%; align-self: flex-start;
 }
 #sheet:not([data-render-mode="jazz"]) .bar,
 #sheet:not([data-render-mode="jazz"]) .staff-line:has(.staff-timesig-cell) .bar {
-  flex: 0 0 auto;
+  flex: 0 0 var(--bar-w, 7.2em);
 }
 .bar + .bar { border-left: 1px solid var(--border); }
 /* Repeat barline — LilyPond/Guitar Pro convention: a THIN line next to the
