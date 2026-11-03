@@ -1272,13 +1272,29 @@ func timeSigParts(t string) (num, den string) {
 // the song actually looks like.
 func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Text string `json:"text"`
+		Text string    `json:"text"`
+		Song *jsonSong `json:"song"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	sg := song.Parse(req.Text)
+	// The desktop focus editor's chart canvas is the structured
+	// {meta, sections} shape it already edits in memory (the same wire
+	// shape /api/songs/{book}/{stem}'s PUT saves), not raw .song text — it
+	// has no text serializer of its own and round-tripping through one on
+	// every keystroke would be pure overhead. fromJSON (json.go) already
+	// exists for exactly this shape (PUT reuses it), so a second preview
+	// path alongside the raw-editor's text one costs one branch, not a
+	// new rendering engine: both still end at the identical buildSections
+	// + "sheet-body" template call, which is the whole point — the editor
+	// canvas can never visually drift from what Play actually renders.
+	var sg *song.Song
+	if req.Song != nil {
+		sg = fromJSON(*req.Song)
+	} else {
+		sg = song.Parse(req.Text)
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := webassets.Templates.ExecuteTemplate(w, "sheet-body", map[string]any{
 		"Sections": buildSections(sg),
