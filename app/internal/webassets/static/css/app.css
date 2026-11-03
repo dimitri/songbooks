@@ -1502,7 +1502,14 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    wide enough for the bold number + staff + end ticks and a ceiling
    that still reads as compact next to a real multi-bar staff, not
    another full section. */
-.bar-recall {
+/* #sheet[data-render-mode="map"] prefix, not a bare `.bar-recall` rule:
+   the shared base rule (#sheet:not([data-render-mode="jazz"]) .bar —
+   every OTHER mode's flat --bar-w width) is ID-scoped and outranks a
+   plain single-class selector regardless of source order, so this
+   never actually applied without it — confirmed live, computed
+   flex-basis stayed 115.2px (the flat default) instead of this clamp().
+   Caught while checking the 4-bars-per-line mobile request below. */
+#sheet[data-render-mode="map"] .bar-recall {
   flex: 0 0 clamp(4.5em, calc(3em + var(--bars, 4) * 0.35em), 8em);
   display: flex; flex-direction: column; align-items: center;
   justify-content: flex-end; padding-bottom: 0.3em; gap: 0.15em;
@@ -1886,6 +1893,21 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
     flex-wrap: wrap; row-gap: 2.6em;
   }
   #sheet[data-render-mode="map"] .map-score { max-width: 100%; }
+  /* Same 4-bars-per-line floor as Chords+lyrics/lyrics-only (see
+     reflowStaffLines' MIN_BARS_PER_LINE, song.js) — Song Map doesn't go
+     through that JS reflow at all (its row-grouping is fixed, server-
+     side, continuous across sections), so wrapping alone would still
+     let a real bar's flat 7.2em width push each wrapped line down to
+     2-3 bars on a phone, same problem in a different mode. A static,
+     narrower --bar-w here isn't computed against the exact live width
+     the way reflowStaffLines' per-row value is — this is a CSS-only
+     mode with no equivalent JS pass — but it's sized to comfortably fit
+     4+ real bars at ordinary phone widths (~340-400px). Scoped to real
+     bars only: .bar-recall sets its own compact width (above) and must
+     not be widened back out by this. */
+  #sheet[data-render-mode="map"] .map-score .bar:not(.bar-recall) {
+    --bar-w: 4.6em;
+  }
 
   /* ---- Song context bar: View + Metronome + Song + More, THE bottom bar
      on this page — .global-tabbar is hidden here (see body:has() rule
