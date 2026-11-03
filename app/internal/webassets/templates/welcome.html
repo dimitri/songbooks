@@ -23,13 +23,14 @@
       <span class="wizard-dot{{if eq .Step 2}} active{{end}}{{if gt .Step 2}} done{{end}}"></span>
       <span class="wizard-dot{{if eq .Step 3}} active{{end}}{{if gt .Step 3}} done{{end}}"></span>
       <span class="wizard-dot{{if eq .Step 4}} active{{end}}{{if gt .Step 4}} done{{end}}"></span>
-      <span class="wizard-dot{{if eq .Step 5}} active{{end}}"></span>
-      <span class="hint">step {{.Step}} of 5</span>
+      <span class="wizard-dot{{if eq .Step 5}} active{{end}}{{if gt .Step 5}} done{{end}}"></span>
+      <span class="wizard-dot{{if eq .Step 6}} active{{end}}"></span>
+      <span class="hint">step {{.Step}} of 6</span>
     </div>
 
     {{if eq .Step 1}}
     <h2>Welcome to Songbooks</h2>
-    <p>Chord charts, lyrics, your bands' repertoires, and setlists for the gig — all in one place. Three quick steps to set your profile up: your instrument, a band (or not), a few first songs.</p>
+    <p>Chord charts, lyrics, your bands' repertoires, and setlists for the gig — all in one place. A few quick steps to set your profile up: a passkey, your instrument, a band (or not), a few first songs.</p>
     <div class="wizard-actions">
       <a class="primary" href="/welcome?step=2{{if .Next}}&amp;next={{.Next}}{{end}}">Let's go</a>
       <form method="post" action="/welcome/finish" style="display:inline">
@@ -39,10 +40,24 @@
     </div>
 
     {{else if eq .Step 2}}
+    <h2>Add a passkey</h2>
+    {{if .AlreadyDone}}
+    <p class="hint">Already set up — Touch ID, Face ID, or Windows Hello will work next time you log in. Add another below (e.g. a second device), or just move on.</p>
+    {{else}}
+    <p class="hint">Touch ID, Face ID, Windows Hello, or a security key — sign in next time with no password to type and no email to wait for. Takes a few seconds, and your password still works as a fallback either way.</p>
+    {{end}}
+    <p id="webauthn-register-error" style="color:var(--danger); display:none"></p>
+    <div class="wizard-actions">
+      <button type="button" id="webauthn-register-btn" class="primary">Add a passkey</button>
+      <a class="link-btn" href="/welcome?step=3{{if .Next}}&amp;next={{.Next}}{{end}}">{{if .AlreadyDone}}Continue{{else}}Skip this step{{end}}</a>
+    </div>
+    <p class="hint" id="webauthn-register-unsupported" style="display:none">Your browser doesn't support passkeys — no problem, skip this step and use your password instead.</p>
+
+    {{else if eq .Step 3}}
     <h2>What do you play?</h2>
     {{if .AlreadyDone}}<p class="hint">Already set — pick again any time, or just move on.</p>{{end}}
     <form method="post" action="/profile/instruments">
-      <input type="hidden" name="next" value="/welcome?step=3{{if .Next}}&amp;next={{.Next}}{{end}}">
+      <input type="hidden" name="next" value="/welcome?step=4{{if .Next}}&amp;next={{.Next}}{{end}}">
       <div class="instrument-icon-row">
         {{range .CommonInstruments}}
         <label class="instrument-icon-btn{{if index $.Checked .}} active{{end}}">
@@ -57,16 +72,16 @@
       </label></p>
       <div class="wizard-actions">
         <button type="submit" class="primary">Continue</button>
-        <a class="link-btn" href="/welcome?step=3{{if .Next}}&amp;next={{.Next}}{{end}}">Skip this step</a>
+        <a class="link-btn" href="/welcome?step=4{{if .Next}}&amp;next={{.Next}}{{end}}">Skip this step</a>
       </div>
     </form>
 
-    {{else if eq .Step 3}}
+    {{else if eq .Step 4}}
     <h2>Your band</h2>
     {{if .Bands}}
     <p class="hint">You're already in {{len .Bands}} band{{if ne (len .Bands) 1}}s{{end}}: {{range $i, $b := .Bands}}{{if $i}}, {{end}}<a href="/bands/{{$b.ID}}">{{$b.Name}}</a>{{end}}.</p>
     <div class="wizard-actions">
-      <a class="primary" href="/welcome?step=4{{if .Next}}&amp;next={{.Next}}{{end}}">Continue</a>
+      <a class="primary" href="/welcome?step=5{{if .Next}}&amp;next={{.Next}}{{end}}">Continue</a>
     </div>
     {{else}}
     <p class="hint">Playing solo for now is perfectly fine — you can always create or join a band later from the Bands page.</p>
@@ -83,11 +98,11 @@
       </div>
     </div>
     <div class="wizard-actions">
-      <a class="link-btn" href="/welcome?step=4{{if .Next}}&amp;next={{.Next}}{{end}}">Skip this step</a>
+      <a class="link-btn" href="/welcome?step=5{{if .Next}}&amp;next={{.Next}}{{end}}">Skip this step</a>
     </div>
     {{end}}
 
-    {{else if eq .Step 4}}
+    {{else if eq .Step 5}}
     <h2>A few first songs</h2>
     {{if .MyCatalogCount}}
     <p class="hint">You already have {{.MyCatalogCount}} song{{if ne .MyCatalogCount 1}}s{{end}} in <a href="/catalog/mine">your songbook</a>. Add a few more below, or move on.</p>
@@ -104,11 +119,11 @@
       {{end}}
     </div>
     <div class="wizard-actions">
-      <a class="primary" href="/welcome?step=5{{if .Next}}&amp;next={{.Next}}{{end}}">Continue</a>
-      <a class="link-btn" href="/welcome?step=5{{if .Next}}&amp;next={{.Next}}{{end}}">Skip this step</a>
+      <a class="primary" href="/welcome?step=6{{if .Next}}&amp;next={{.Next}}{{end}}">Continue</a>
+      <a class="link-btn" href="/welcome?step=6{{if .Next}}&amp;next={{.Next}}{{end}}">Skip this step</a>
     </div>
 
-    {{else if eq .Step 5}}
+    {{else if eq .Step 6}}
     <h2>You're set</h2>
     <p>That's everything — find your bands and songs any time from the menu. Come back to this setup whenever you like from your Profile page.</p>
     <div class="wizard-actions">
@@ -121,6 +136,61 @@
   </div>
 </main>
 <script>
+// Add a passkey (wizard step 2) — same ceremony as profile.html's own
+// "Add a passkey" button, duplicated rather than shared across two
+// separate pages' inline scripts (the wizard's success path also
+// auto-advances to the next step, which the profile page has no
+// equivalent of). Prompts for a nickname right after the platform
+// ceremony succeeds, same as profile.html, so the management list under
+// /profile reads "iPhone"/"MacBook" from the start.
+(function() {
+  const btn = document.getElementById('webauthn-register-btn');
+  if (!btn) return;
+  const errEl = document.getElementById('webauthn-register-error');
+  const unsupportedEl = document.getElementById('webauthn-register-unsupported');
+
+  if (!window.PublicKeyCredential || !window.PublicKeyCredential.parseCreationOptionsFromJSON) {
+    btn.disabled = true;
+    unsupportedEl.style.display = '';
+    return;
+  }
+
+  function showError(msg) {
+    errEl.textContent = msg;
+    errEl.style.display = '';
+  }
+
+  btn.addEventListener('click', async () => {
+    errEl.style.display = 'none';
+    btn.disabled = true;
+    try {
+      const beginRes = await fetch('/api/webauthn/register/begin', { method: 'POST' });
+      if (!beginRes.ok) {
+        const body = await beginRes.json().catch(() => ({}));
+        throw new Error(body.error || 'could not start passkey registration');
+      }
+      const options = await beginRes.json();
+      const cred = await navigator.credentials.create({
+        publicKey: PublicKeyCredential.parseCreationOptionsFromJSON(options.publicKey),
+      });
+      const nickname = (window.prompt('Name this passkey (e.g. "MacBook" or "iPhone"):', '') || '').trim();
+      const finishRes = await fetch('/api/webauthn/register/finish?nickname=' + encodeURIComponent(nickname), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cred.toJSON()),
+      });
+      if (!finishRes.ok) {
+        const body = await finishRes.json().catch(() => ({}));
+        throw new Error(body.error || 'passkey registration failed');
+      }
+      location.href = '/welcome?step=3{{if .Next}}&next={{.Next}}{{end}}';
+    } catch (err) {
+      showError(err.message || 'passkey registration failed.');
+      btn.disabled = false;
+    }
+  });
+})();
+
 (function() {
   const btn = document.getElementById('wizard-create-band-btn');
   if (btn) {
@@ -134,7 +204,7 @@
       const data = await res.json();
       const out = document.getElementById('wizard-band-result');
       if (res.ok) {
-        location.href = '/welcome?step=4{{if .Next}}&next={{.Next}}{{end}}';
+        location.href = '/welcome?step=5{{if .Next}}&next={{.Next}}{{end}}';
       } else {
         out.textContent = data.error || 'failed to create band';
       }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // JamEvent is one scheduled jam night: a short, human-typeable code tied to
@@ -138,6 +139,15 @@ func (st *Store) CreateJamEvent(ctx context.Context, projectSlug, name string, t
 func isUniqueViolation(err error) bool {
 	var pgErr interface{ SQLState() string }
 	return errors.As(err, &pgErr) && pgErr.SQLState() == "23505"
+}
+
+// constraintViolated reports whether err is a unique-violation on
+// specifically the named constraint — for a caller that needs to tell
+// WHICH of several unique columns conflicted (e.g. username vs email on
+// the same INSERT), not just that one of them did.
+func constraintViolated(err error, name string) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.SQLState() == "23505" && pgErr.ConstraintName == name
 }
 
 // GetJamEvent resolves a code to its still-open event, or ErrNotFound if

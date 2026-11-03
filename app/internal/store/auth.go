@@ -725,6 +725,12 @@ func (st *Store) CreatePersonAndAcceptInvite(ctx context.Context, token, usernam
 	if err := tx.QueryRow(ctx,
 		`INSERT INTO people (username, display_name, email, password_hash) VALUES ($1, $2, $3, $4) RETURNING id`,
 		username, displayName, email, pwHash).Scan(&personID); err != nil {
+		if constraintViolated(err, "people_username_key") {
+			return 0, "", ErrUsernameTaken
+		}
+		if constraintViolated(err, "people_email_key") {
+			return 0, "", ErrEmailTaken
+		}
 		return 0, "", err
 	}
 

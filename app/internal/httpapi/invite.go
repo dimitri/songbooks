@@ -1,12 +1,15 @@
 package httpapi
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
+
+	"app/internal/store"
 )
 
 // handleInvitePage shows a pending invite: if the visitor is already
@@ -27,29 +30,54 @@ func (s *Server) handleInvitePage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	s.renderInvitePage(w, inv, loggedInAs, "", "", "", "")
+}
+
+// renderInvitePage is the shared render for both the initial GET and a
+// failed POST — the latter needs the exact same invite context
+// (Kind/ProjectName/Role/BandName/Token) PLUS whatever the visitor
+// already typed (so a rejected username/weak password doesn't make them
+// retype their email too) and a reason the form bounced. formErr is
+// empty on the normal first view.
+func (s *Server) renderInvitePage(w http.ResponseWriter, inv *store.Invite, loggedInAs, formErr, username, displayName, email string) {
 	s.render(w, "invite", map[string]any{
 		"Token": inv.Token, "Kind": inv.Kind(),
 		"ProjectName": inv.ProjectName, "Role": inv.Role,
 		"BandName": inv.BandName, "BandStatus": inv.BandStatus,
 		"LoggedInAs": loggedInAs,
+		"Error":      formErr,
+		"Username":   username, "DisplayName": displayName, "Email": email,
 	})
 }
 
 // handlePostInvite accepts an invite. A logged-in visitor just gets the
-// membership added to their existing account; an anonymous one must supply
-// a username/display name/email, which creates a brand-new account in the
-// same transaction as the membership grant — see
-// store.CreatePersonAndAcceptInvite. The form's password field is
-// optional: left blank, the new account has no password and falls back to
-// magic-link-only login, exactly like before password login was restored;
-// filled in, it's hashed here and the account can log in with it right
-// away. Accepting the invite IS this account's first authentication
-// either way: the visitor ends up logged in (a fresh session cookie) and
-// redirected into the project.
+// membership added to their existing account; an anonymous one must
+// supply a username/display name/email/password, which creates a
+// brand-new account in the same transaction as the membership grant —
+// see store.CreatePersonAndAcceptInvite. A password is REQUIRED here
+// (unlike the account this account started as capable of — the store
+// layer still accepts a blank hash for a magic-link-only account, kept
+// for the --set-password-style bootstrap paths): asking a brand-new
+// visitor to create one real credential up front, rather than defaulting
+// them into "wait for an email every time," is the stronger default for
+// an account they're about to use regularly — a password can always be
+// changed later from /profile, same as every other account.
+//
+// Accepting the invite IS this account's first authentication either
+// way: the visitor ends up logged in (a fresh session cookie) and routed
+// into the getting-started wizard, which opens on its passkey-setup step
+// (see handleWelcomePage) before anything else — a brand-new account is
+// the ideal moment to offer "and while you're here, add a passkey too,"
+// not a separate flow bolted on afterward.
 func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
+	inv, invErr := s.store.GetInvite(r.Context(), token)
+	if invErr != nil {
+		http.Error(w, "this invite link is invalid or has expired", http.StatusNotFound)
+		return
+	}
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		s.renderInvitePage(w, inv, "", "invalid form", "", "", "")
 		return
 	}
 
@@ -68,25 +96,48 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 	username := strings.TrimSpace(r.FormValue("username"))
 	displayName := strings.TrimSpace(r.FormValue("display_name"))
 	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
+	password := r.FormValue("password")
+	confirm := r.FormValue("confirm")
+
 	if username == "" || displayName == "" || email == "" {
-		http.Error(w, "username, display name and email are all required", http.StatusBadRequest)
+		s.renderInvitePage(w, inv, "", "username, display name and email are all required", username, displayName, email)
+		return
+	}
+	// Same minimal shape check as the profile page's own email field
+	// (handleSetEmailProfile) — not a strict RFC validator, just enough
+	// to catch a typo before it becomes an account nobody can log into.
+	at := strings.IndexByte(email, '@')
+	if at <= 0 || at == len(email)-1 {
+		s.renderInvitePage(w, inv, "", "enter a valid email address", username, displayName, email)
+		return
+	}
+	if len(password) < 8 {
+		s.renderInvitePage(w, inv, "", "password must be at least 8 characters", username, displayName, email)
+		return
+	}
+	if password != confirm {
+		s.renderInvitePage(w, inv, "", "passwords didn't match", username, displayName, email)
 		return
 	}
 
-	var bcryptHash string
-	if password := r.FormValue("password"); password != "" {
-		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-		if err != nil {
-			log.Printf("hashing invite-accept password: %v", err)
-			http.Error(w, "couldn't accept this invite", http.StatusInternalServerError)
-			return
-		}
-		bcryptHash = string(hash)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("hashing invite-accept password: %v", err)
+		s.renderInvitePage(w, inv, "", "couldn't accept this invite — try again", username, displayName, email)
+		return
 	}
 
-	personID, dest, err := s.store.CreatePersonAndAcceptInvite(r.Context(), token, username, displayName, email, bcryptHash)
+	personID, dest, err := s.store.CreatePersonAndAcceptInvite(r.Context(), token, username, displayName, email, string(hash))
 	if err != nil {
-		http.Error(w, "couldn't accept this invite: "+err.Error(), http.StatusBadRequest)
+		switch {
+		case errors.Is(err, store.ErrUsernameTaken):
+			s.renderInvitePage(w, inv, "", "that username is already taken — try another", "", displayName, email)
+		case errors.Is(err, store.ErrEmailTaken):
+			s.renderInvitePage(w, inv, "", "that email is already registered to another account", username, displayName, "")
+		default:
+			log.Printf("accepting invite %s: %v", token, err)
+			s.renderInvitePage(w, inv, "", "couldn't accept this invite — try again", username, displayName, email)
+		}
 		return
 	}
 	sessToken, err := s.store.CreateSession(r.Context(), personID)
@@ -101,7 +152,8 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 	})
 	// This call only ever reaches a brand-new account (personID just came
 	// out of CreatePersonAndAcceptInvite above) — offer the
-	// getting-started wizard, carrying the real destination for its
-	// "Done"/"skip the rest" step so the invite's own target isn't lost.
-	http.Redirect(w, r, "/welcome?next="+url.QueryEscape(dest), http.StatusFound)
+	// getting-started wizard, STARTING on its passkey step (2), carrying
+	// the real destination for its "Done"/"skip the rest" step so the
+	// invite's own target isn't lost.
+	http.Redirect(w, r, "/welcome?step=2&next="+url.QueryEscape(dest), http.StatusFound)
 }

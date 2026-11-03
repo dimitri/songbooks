@@ -40,11 +40,13 @@
       {{else}}Continue{{end}}
       </button>
     {{else}}
-      <p><label>Username<br><input type="text" name="username" autocomplete="username" required autofocus></label></p>
-      <p><label>Your name<br><input type="text" name="display_name" required></label></p>
-      <p><label>Email<br><input type="email" name="email" autocomplete="email" required></label></p>
-      <p><label>Password (optional)<br><input type="password" name="password" autocomplete="new-password"></label></p>
-      <p class="hint">Set a password now to log in with it right away, or leave it blank and we'll email you a login link each time instead — you can always add a password later from your profile page.</p>
+      {{if .Error}}<p style="color:var(--danger)">{{.Error}}</p>{{end}}
+      <p><label>Username<br><input type="text" name="username" value="{{.Username}}" autocomplete="username" required autofocus></label></p>
+      <p><label>Your name<br><input type="text" name="display_name" value="{{.DisplayName}}" required></label></p>
+      <p><label>Email<br><input type="email" name="email" value="{{.Email}}" autocomplete="email" required></label></p>
+      <p><label>Password<br><input type="password" name="password" autocomplete="new-password" required minlength="8"></label></p>
+      <p><label>Confirm password<br><input type="password" name="confirm" autocomplete="new-password" required minlength="8"></label></p>
+      <p class="hint">You'll be offered a passkey (Touch ID, Face ID, Windows Hello) right after this, as a faster alternative for next time — your password still works either way.</p>
       <button type="submit">Create account{{if ne .Kind "plain"}} &amp; join{{end}}</button>
     {{end}}
   </form>

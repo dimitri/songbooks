@@ -58,6 +58,11 @@ var ErrForbidden = fmt.Errorf("forbidden")
 // migration 0025).
 var ErrEmailTaken = fmt.Errorf("email already in use by another account")
 
+// ErrUsernameTaken is returned by CreatePersonAndAcceptInvite when the
+// chosen username already belongs to another account (people.username
+// has a UNIQUE constraint — see migration 0001).
+var ErrUsernameTaken = fmt.Errorf("username already in use by another account")
+
 func validName(s string) bool {
 	return s != "" && !strings.ContainsAny(s, "/\\")
 }
