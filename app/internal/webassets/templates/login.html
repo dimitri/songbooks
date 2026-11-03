@@ -9,7 +9,7 @@
 {{template "pwa-head"}}
 </head>
 <body>
-<main class="index">
+<main class="index auth-page">
   <div class="hero">
     <div>
       <h2>Log in</h2>
@@ -17,15 +17,15 @@
     </div>
   </div>
 
-  <section class="card" style="max-width:360px">
+  <section class="card">
     <h3>Log in with a passkey</h3>
     <p class="hint">Touch ID, Face ID, Windows Hello, or a security key — no password to remember or email to wait for.</p>
     <p id="webauthn-login-error" style="color:var(--danger); display:none"></p>
-    <button type="button" id="webauthn-login-btn">Sign in with a passkey</button>
+    <button type="button" id="webauthn-login-btn" class="primary">Sign in with a passkey</button>
     <p class="hint" id="webauthn-unsupported" style="display:none">Your browser doesn't support passkeys — use a password or a login link below instead.</p>
   </section>
 
-  <section class="card" style="max-width:360px">
+  <section class="card">
     <h3>Log in with a password</h3>
     {{if .InvalidCredentials}}<p style="color:var(--danger)">Invalid username/email or password.</p>{{end}}
     <form method="post" action="/login">
@@ -37,7 +37,7 @@
     <p class="hint">No password set yet? Use "email me a link" below, then set one from your profile page.</p>
   </section>
 
-  <section class="card" style="max-width:360px">
+  <section class="card">
     <h3>Email me a login link</h3>
     {{if .Error}}<p style="color:var(--danger)">Something went wrong — please try again.</p>{{end}}
     <form method="post" action="/login">
@@ -46,7 +46,7 @@
     </form>
   </section>
 
-  <p class="hint">New here? You'll need an invite link to create an account.</p>
+  <p class="hint" style="text-align:center">New here? You'll need an invite link to create an account.</p>
 </main>
 <script>
 // Passkey ("sign in with a passkey") login: a fully passwordless,

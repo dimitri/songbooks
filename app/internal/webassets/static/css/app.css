@@ -3120,6 +3120,24 @@ input.matrix-slot:hover, input.matrix-slot:focus {
   border: 1px solid var(--border); padding: 2.4rem 1.6rem;
   display: flex; align-items: center; gap: 1.2rem;
 }
+
+/* Standalone auth pages (login, invite-accept, "check your email", an
+   expired-link notice) — no sidebar, no app chrome, just this. Every
+   competitor worth checking (GitHub, Google, Stripe dashboard) centers
+   this kind of page in a single fixed-width column rather than letting
+   it stretch edge to edge or sit flush left; this had neither — no CSS
+   targeted .index at all, so these pages rendered as a plain, left-
+   aligned, flush, full-width block with zero gap between the stacked
+   cards. Scoped to this new class, not the bare .index main.html already
+   uses for OTHER pages (e.g. the getting-started wizard, which lives
+   inside the normal sidebar'd app chrome and should stay as it is) —
+   reusing .index itself would have centered those too. */
+.auth-page {
+  max-width: 440px; margin: 3.5rem auto; padding: 0 1.2rem;
+  display: flex; flex-direction: column; gap: 1.25rem;
+}
+.auth-page .hero { margin-bottom: 0; text-align: center; }
+.auth-page .hero > div { width: 100%; }
 .hero-mark { flex: none; color: var(--accent); font-size: 3.2rem; }
 .hero h2 { margin: 0; font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; }
 .hero p { margin: 0.4rem 0 0; color: var(--fg-muted); font-size: 0.98rem; }

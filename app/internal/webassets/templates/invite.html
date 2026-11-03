@@ -12,7 +12,7 @@
 {{template "pwa-head"}}
 </head>
 <body>
-<main class="index">
+<main class="index auth-page">
   <div class="hero">
     <div>
       {{if eq .Kind "project"}}
@@ -27,7 +27,7 @@
       {{end}}
     </div>
   </div>
-  <form class="card" method="post" action="/invite/{{.Token}}" style="max-width:360px">
+  <form class="card" method="post" action="/invite/{{.Token}}">
     {{if .LoggedInAs}}
       <p>
       {{if eq .Kind "project"}}Join {{.ProjectName}} as <strong>{{.LoggedInAs}}</strong>?
