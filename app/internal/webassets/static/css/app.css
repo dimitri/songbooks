@@ -1037,10 +1037,16 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    chord-bearing row had been collapsed to a single hairline baseline in
    an earlier pass (see the base .staff-line::before comment above), which
    is exactly what made the two block types look like different kinds of
-   staff side by side. Restored here, scoped to normal mode only — jazz
-   stays staff-less by its own deliberate convention (::before display:none
-   below), map mode's own full-row staff is untouched. */
-#sheet[data-render-mode="normal"] .staff-line::before {
+   staff side by side. Restored here for normal mode — jazz stays
+   staff-less by its own deliberate convention (::before display:none
+   below). Song Map had the identical mismatch (its recall cells already
+   drew a real 5-line staff via .multi-rest-row::before below, but a row's
+   REAL bars still sat on just the single hairline the base rule draws),
+   so the two cell types looked like different kinds of paper side by
+   side within the same continuous system — added here too so the whole
+   row, recall and real bars alike, reads as one sheet. */
+#sheet[data-render-mode="normal"] .staff-line::before,
+#sheet[data-render-mode="map"] .staff-line::before {
   background-image:
     linear-gradient(var(--fg-muted), var(--fg-muted)),
     linear-gradient(var(--fg-muted), var(--fg-muted)),
@@ -1631,7 +1637,14 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
     without reintroducing exactly the "forced break" this mode exists to
     remove, just at the column boundary instead of a section boundary. */
 }
-#sheet[data-render-mode="map"] .map-score { display: block; }
+/* flex column, not block: lets .staff-line's own padding-top (badge
+   clearance, below) be the only row-to-row spacing, same as before — the
+   actual fix for "disconnected floating chip" rows was .bar-recall's own
+   height (below), which used to be taller than a real .bar (a stacked
+   number/rest/caption column instead of one baseline-anchored cell), so
+   a recall-only row's flex-wrapped sub-lines pushed apart from EACH
+   OTHER by their own oversized content, not from this gap. */
+#sheet[data-render-mode="map"] .map-score { display: flex; flex-direction: column; }
 #sheet[data-render-mode="map"] .map-score .staff-line {
   width: fit-content; max-width: 100%;
 }
@@ -1653,16 +1666,34 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    never actually applied without it — confirmed live, computed
    flex-basis stayed 115.2px (the flat default) instead of this clamp().
    Caught while checking the 4-bars-per-line mobile request below. */
+/* Anchored exactly like a real .bar now (same bar-body height, same
+   flex-end alignment to the row's shared staff baseline — see .staff-line
+   align-items:flex-end) instead of its own column of stacked lines with a
+   different total height. A recall cell used to be visibly TALLER than
+   its neighboring real bars (number line + rest glyph + "= Intro" line,
+   each its own row), which is what made it read as a separate floating
+   chip rather than another measure sitting on the same system. */
 #sheet[data-render-mode="map"] .bar-recall {
   flex: 0 0 clamp(4.5em, calc(3em + var(--bars, 4) * 0.35em), 8em);
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: flex-end; padding-bottom: 0.3em; gap: 0.15em;
+  padding: 0 0.5em; position: relative;
 }
-.bar-recall .chip-bars { font-size: 1.1rem; font-weight: 700; color: var(--fg-muted); }
+#sheet[data-render-mode="map"] .bar-recall .bar-body {
+  display: flex; align-items: center; justify-content: center; position: relative;
+}
+/* Same offset/anchor as a real bar's .chord-label (bottom:100%, directly
+   above the staff) — the bar count IS this cell's "chord label". */
+.bar-recall .chip-bars {
+  position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+  margin-bottom: 0.35em; white-space: nowrap;
+  font-size: 0.95em; font-weight: 700; color: var(--fg-muted);
+}
 .bar-recall .multi-rest-row {
-  display: flex; align-items: center; position: relative; width: 70%; height: 1.4em; margin: 0;
+  display: flex; align-items: center; position: relative; width: 80%; height: 100%; margin: 0;
 }
-.bar-recall .recall-of { font-size: 0.7em; color: var(--fg-muted); font-style: italic; white-space: nowrap; }
+/* "= Intro" now rides on the section badge itself (see play.html) instead
+   of as a second line of text below the bar — no real engraved multi-rest
+   carries a caption underneath it. */
+.map-sec-badge .recall-of { font-style: normal; font-weight: 400; opacity: 0.75; }
 /* Section-name annotation — a CHILD of the bar it anchors to (see
    play.html's chart-bar/MapAnnotate), floated above it with zero footprint
    in the row's own flow (same overlay technique as .bar.editing::after).
@@ -1673,6 +1704,11 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   display: flex; align-items: center; gap: 0.35em; white-space: nowrap;
   font-family: Georgia, serif; font-style: italic; font-weight: 700; font-size: 0.8em; color: var(--accent);
 }
+/* This clearance is for what stacks above a SINGLE bar (badge + chord-
+   label/chip-bars) — unchanged from before (reducing it reopened the
+   badge/chord-label collision this value was originally tuned against).
+   The fix for the "disconnected floating chip" complaint is the row-to-
+   row gap above (.map-score), not this. */
 #sheet[data-render-mode="map"] .map-score .staff-line { padding-top: 5.2em; }
 /* Every recall in Song Map gets its multi-rest glyph, not just the ones
    carrying an inferred note (e.g. a Solo's duration) — that's the whole
