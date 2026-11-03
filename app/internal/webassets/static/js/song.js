@@ -79,6 +79,57 @@ const ICONS = {
       }),
     }));
   }
+  // Greedy, real-width row packing for jazz mode's variable-width bars —
+  // see the call site's own comment in reflowStaffLines() for why a
+  // fixed bar-count-per-row assumption doesn't work here. Measures every
+  // bar's ACTUAL rendered width (can't predict it from a formula — chord
+  // text length varies bar to bar) by laying them all out, once, in one
+  // temporary non-wrapping row attached to the real grid (so real font/
+  // layout metrics apply), reading back each bar's width, then discarding
+  // that scratch row — the real rows below are built fresh from those
+  // numbers, not reused from it.
+  function packJazzLinesByRealWidth(grid, originalLines, availW, clefPx, newLines) {
+    const allBars = originalLines.flatMap(l => [...l.template.querySelectorAll(':scope > .bar')]);
+    if (!allBars.length) return;
+    const hasClefAll = originalLines[0].hasClef;
+    const clefEl = hasClefAll ? originalLines[0].template.querySelector(':scope > .staff-timesig-cell') : null;
+
+    const measure = document.createElement('div');
+    measure.className = 'staff-line';
+    measure.style.cssText = 'position:absolute; visibility:hidden; flex-wrap:nowrap; width:auto; left:0; top:0;';
+    if (clefEl) measure.appendChild(clefEl.cloneNode(true));
+    const measureBars = allBars.map(b => { const c = b.cloneNode(true); measure.appendChild(c); return c; });
+    grid.appendChild(measure);
+    const clefW = clefEl ? measure.firstElementChild.getBoundingClientRect().width : 0;
+    const widths = measureBars.map(b => b.getBoundingClientRect().width);
+    measure.remove();
+
+    // Greedy pack: keep adding bars to the current row until the next
+    // one would overflow its real budget, then start a new row. Only
+    // the very first row (if this section opens with the song's own
+    // clef/time-sig cell) loses clefW from its budget.
+    let current = [];
+    let currentW = 0;
+    let isFirstRow = true;
+    const flushRow = () => {
+      if (!current.length) return;
+      const line = document.createElement('div');
+      line.className = 'staff-line';
+      if (isFirstRow && clefEl) line.appendChild(clefEl.cloneNode(true));
+      for (const bar of current) line.appendChild(bar.cloneNode(true));
+      newLines.push(line);
+      isFirstRow = false;
+      current = []; currentW = 0;
+    };
+    for (let i = 0; i < allBars.length; i++) {
+      const w = widths[i];
+      const budget = isFirstRow ? availW - clefW : availW;
+      if (current.length && currentW + w > budget) flushRow();
+      current.push(allBars[i]);
+      currentW += w;
+    }
+    flushRow();
+  }
   function reflowStaffLines() {
     if (!staffLineOriginals) return;
     // Resolved from the live em value at #sheet's CURRENT font-size —
@@ -119,6 +170,29 @@ const ICONS = {
       const availW = grid.clientWidth;
       if (!availW) continue; // hidden in this mode (e.g. a compact section's unused grid) — nothing to reflow
       const newLines = [];
+      // Jazz: real width-based row packing, not a fixed bar-count-per-row
+      // assumption. Jazz bars are intentionally variable width (CSS:
+      // flex:0 0 auto — a plain "G-" bar is narrower than a packed "E7
+      // A7" bar, matching real iReal Pro). The cap-based chunking below
+      // (shared with the other modes) assumes every bar in a row is the
+      // SAME width — it measures the single widest bar anywhere in the
+      // chart, picks one font-size from that, then assigns every row the
+      // same fixed bar count. When a specific row's real bars didn't fit
+      // at that assumed uniform width, CSS flex-wrap silently spilled the
+      // overflow onto new lines, one or two bars at a time, wherever the
+      // cumulative width happened to break — confirmed live: a 5-bar row
+      // rendering as one bar, a wall of blank space, then another lone
+      // bar stranded on its own line, not randomness, just this
+      // assumption failing on a row with mixed narrow/wide bars. Packing
+      // each row by its OWN bars' real measured width removes the
+      // assumption: a row holds exactly as many bars as actually fit,
+      // full stop — flex-wrap is never relied on to bail out mid-row.
+      if (sheet.dataset.renderMode === 'jazz') {
+        packJazzLinesByRealWidth(grid, originalLines, availW, clefPx, newLines);
+        grid.replaceChildren(...newLines);
+        resolveLabelCollisions(grid);
+        continue;
+      }
       // Jazz: flatten this section's ORIGINAL server-authored rows into
       // one pool before regrouping. The per-line loop below can only ever
       // SPLIT an original line that's too big for useCap — it has no way
