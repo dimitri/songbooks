@@ -527,11 +527,13 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
 .song-topzone { background: var(--bg-sunken); border-bottom: 1px solid var(--border); }
 .topbar-utility-mobile { padding: 0.5rem 1.1rem 0; }
 .topbar-utility-mobile .back-link { padding: 0.2rem 0; font-size: 0.78rem; }
-@media (min-width: 901px) {
-  /* Desktop has its own copy of this link in the sidebar (.sidebar-crumb);
-     showing both would be redundant. */
-  .topbar-utility-mobile { display: none; }
-}
+/* Desktop has its own copy of this link in the sidebar (.sidebar-crumb);
+   mobile has its own copy now too — the Up entry in .song-context-bar's
+   bottom bar (clearer "go back a level" icon, at the bottom where the
+   rest of this page's navigation already lives, instead of a small text
+   link competing with the title at the very top). Showing this too would
+   be redundant on both. */
+.topbar-utility-mobile { display: none; }
 @media (max-width: 900px) {
   /* Mobile already has its own mode switcher (the "View" entry in
      .song-context-bar below) — this full-width tab row is a desktop-only
@@ -1545,6 +1547,17 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 #sheet:not([data-render-mode="lyrics"]) .sheet-section.is-compact .multi-rest-row {
   display: flex; align-items: center; height: 1.7em; margin: 0.3em 0; position: relative;
 }
+/* Normal/lyrics mode's .sheet-section is still a full-width block (unlike
+   Song Map's own compact recall glyph, .bar-recall, sized separately) —
+   but the rest bar inside it has no reason to stretch the full column
+   width just because its container does. A 16-bar "repeat" reading as a
+   bar nearly as wide as the whole phone screen is "longer than
+   necessary"; it only needs to look like one short rest glyph, same
+   idea as the already-compact .multi-rest-repeat-cells variant above. */
+#sheet[data-render-mode="normal"] .sheet-section.is-compact .multi-rest-row,
+#sheet[data-render-mode="lyrics"] .sheet-section.is-compact .multi-rest-row {
+  width: min(16em, 70%);
+}
 /* Normal mode and song map keep the real staff under the rest bar (per
    the "keep the staff, use the multi-bar visual on it" correction) —
    jazz mode has no staff at all by design, so it gets none here either.
@@ -1848,6 +1861,32 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
      untouched; this only applies inside the 900px breakpoint. */
   #mode-segmented { display: none; }
 
+  /* Song Map: desktop renders each row as a fixed-width, non-wrapping
+     flex line (8 cells, sized to fit a wide screen) — on a phone that
+     same row is wider than the viewport, so the WHOLE PAGE scrolls
+     horizontally to see it, not just that one row. Desktop's own
+     row-grouping (server-side, buildMapLines in handlers_pages.go) stays
+     exactly as-is; this only lets a row that doesn't fit WRAP onto an
+     extra visual line of its own instead of overflowing — the row's
+     bars/recall-glyphs keep their normal fixed widths, they just
+     continue below rather than off the right edge. Section-start badges
+     are position:absolute on their own bar, so they follow it onto
+     whichever sub-line it wraps to, unaffected. */
+  /* row-gap, not the 0.6em a plain bar-to-bar wrap would need: every
+     cell can carry a .map-sec-badge floated ABOVE it via position:
+     absolute (bottom:100%, ~2.3em of its own height+margin) — that
+     badge contributes nothing to this flex box's own layout height, so
+     without real clearance here, a badge belonging to a cell on one
+     wrapped sub-row collides with the bars directly above it on the
+     previous sub-row (confirmed live: "Verse 2"/"Solo" badges printing
+     on top of the row above once wrapping kicked in). padding-top on
+     .staff-line (below) still separately covers the gap above the
+     very FIRST visual row, under the structure ribbon — unaffected. */
+  #sheet[data-render-mode="map"] .map-score .staff-line {
+    flex-wrap: wrap; row-gap: 2.6em;
+  }
+  #sheet[data-render-mode="map"] .map-score { max-width: 100%; }
+
   /* ---- Song context bar: View + Metronome + Song + More, THE bottom bar
      on this page — .global-tabbar is hidden here (see body:has() rule
      below), so this docks at the real bottom (bottom: 0), not floating
@@ -1861,14 +1900,18 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
     background: var(--bg-raised); border-top: 1px solid var(--border);
     box-shadow: var(--shadow-lg, var(--shadow));
   }
-  .song-context-bar button, .song-context-bar a {
+  .song-context-bar button, .song-context-bar a, .song-context-bar .context-bar-disabled {
     flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem;
     background: none; border: none;
-    color: var(--fg-muted); font-size: 0.62rem; font-weight: 600;
-    text-decoration: none;
+    color: var(--fg-muted); font-size: 0.58rem; font-weight: 600;
+    text-decoration: none; white-space: nowrap;
   }
   .song-context-bar button.active, .song-context-bar a.active { color: var(--accent); }
-  .song-context-bar .icon { width: 1.35rem; height: 1.35rem; }
+  .song-context-bar .icon { width: 1.3rem; height: 1.3rem; }
+  /* No next song (last song in the book/setlist) — stays in place as a
+     disabled slot rather than disappearing, so the bar keeps its 6 even
+     columns instead of the remaining items reflowing wider. */
+  .song-context-bar .context-bar-disabled { opacity: 0.35; }
 
   /* ---- View stack: a bottom sheet listing the 5 view modes ---------- */
   .stack-backdrop {

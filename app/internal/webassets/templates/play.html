@@ -581,6 +581,20 @@
        mobile breakpoint; every other page keeps .global-tabbar exactly
        as it was, untouched. */}}
   <div class="song-context-bar">
+    {{/* First entry, replacing the old top-of-page "< Mercy" breadcrumb
+         (.topbar-utility-mobile, now hidden on mobile — see its own
+         comment below) — same destination logic it already had (the
+         setlist in practice/gig mode, else the book/catalogue), just
+         relocated into the bottom bar as a clear "up a level" icon
+         instead of a small text link competing with the title for the
+         very top of the screen. */}}
+    {{if .PracticeMode}}
+    <a href="/setlists" title="back to set list">{{template "icon-up"}} Up</a>
+    {{else if .GigMode}}
+    <a href="/setlists/{{.SetlistRef}}/gig" title="back to set list">{{template "icon-up"}} Up</a>
+    {{else}}
+    <a href="/b/{{.Book}}" title="back to {{.Book}}">{{template "icon-up"}} Up</a>
+    {{end}}
     <button type="button" id="view-stack-btn">{{template "icon-view"}} View</button>
     {{/* A real page link, not a sheet toggle — the inline off-canvas
          .timeline metronome panel was confusing/broken on mobile (two
@@ -592,6 +606,18 @@
     <a id="metronome-stack-btn" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/b/%s/%s" .Book .Stem | urlquery}}">{{template "icon-metro-full"}} Metronome</a>
     <button type="button" id="song-stack-btn">{{template "icon-song-actions"}} Song</button>
     <button type="button" id="site-nav-fullpage-btn">{{template "icon-more"}} More</button>
+    {{/* Last entry: next song in this same list (setlist step order, or
+         the book's own song order) — the desktop topbar-next card's own
+         link logic, reused as-is. No prev icon here: Up (above) already
+         covers "I'm done/lost, take me back a level"; forward-through-
+         the-list is the one direction mobile had no way to reach at all
+         before this. Disabled, not hidden, when there's no next song, so
+         the bar keeps its 6 even slots rather than reflowing. */}}
+    {{if .Next}}
+    <a href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.NextIndex}}{{else}}/b/{{.Next.Book}}/{{.Next.Stem}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{end}}{{end}}" title="next: {{.Next.Title}}">{{template "icon-forward"}} Next</a>
+    {{else}}
+    <span class="context-bar-disabled">{{template "icon-forward"}} Next</span>
+    {{end}}
   </div>
   <div class="stack-backdrop" id="view-stack-backdrop"></div>
   <div class="stack-sheet" id="view-stack" role="dialog" aria-label="View">
