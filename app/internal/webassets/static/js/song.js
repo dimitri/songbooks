@@ -1480,7 +1480,14 @@ const ICONS = {
   }
   function getSlotInput(i, mi, ti) {
     const host = document.getElementById('matrix-host-' + i);
-    return host && host.querySelector(`.matrix-slot[data-mi="${mi}"][data-ti="${ti}"]`);
+    // input.matrix-slot, not just .matrix-slot — focus mode's real chart
+    // (wireRealChartEditing) tags real .beat-slot/.bar DIVs with this same
+    // class so selection/highlight code can address them uniformly, but
+    // setting .value on a div and dispatching 'input' at it is a silent
+    // no-op (no listener, no visible effect) — a bare class match here
+    // took that branch instead of the real-chart refreshRealChart() path,
+    // so edits updated the data model but the chart never visibly redrew.
+    return host && host.querySelector(`input.matrix-slot[data-mi="${mi}"][data-ti="${ti}"]`);
   }
   // All {mi, ti} slot coordinates in this section, in reading order — used
   // for arrow-key/Tab navigation that has to cross bar boundaries.
