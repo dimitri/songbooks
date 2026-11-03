@@ -363,14 +363,23 @@
 
 <div class="edit-drawer-backdrop" id="edit-drawer-backdrop" hidden></div>
 <div class="edit-drawer card" id="edit-drawer" role="dialog" aria-modal="true" aria-label="Edit {{.Title}}" hidden>
-  <div class="edit-drawer-head">
-    <div class="prep-tabs" role="tablist">
-      <button class="prep-tab active" data-tab="structure" type="button">Blocks</button>
+  <div class="edit-topzone">
+    <div class="edit-title-row">
+      <div class="edit-title-main">
+        <h2>Editing &mdash; {{.Title}}</h2>
+        <span id="edit-dirty-indicator" class="edit-dirty-indicator" hidden>&#9679; unsaved changes</span>
+      </div>
+      <div class="edit-title-actions">
+        <button id="edit-discard-btn" type="button" class="ghost-btn" title="discard unsaved changes" disabled>Discard</button>
+        <button id="edit-save-btn" type="button" class="primary" title="save changes">Save</button>
+        <button id="redo-song-btn" class="icon-btn" type="button" title="redo this song from scratch — erases the current lyrics/chords">{{template "icon-trash"}}<span class="sr-only">redo this song from scratch</span></button>
+        <button id="edit-drawer-close" class="icon-btn" type="button" title="close">{{template "icon-close"}}</button>
+      </div>
+    </div>
+    <div class="prep-tabs view-tabs" role="tablist">
+      <button class="prep-tab active" data-tab="structure" type="button">Chart</button>
       <button class="prep-tab" data-tab="raw" type="button">Source</button>
     </div>
-    <span id="edit-dirty-indicator" class="edit-dirty-indicator" hidden>&#9679; unsaved changes</span>
-    <button id="redo-song-btn" class="icon-btn" type="button" title="redo this song from scratch — erases the current lyrics/chords">{{template "icon-trash"}}<span class="sr-only">redo this song from scratch</span></button>
-    <button id="edit-drawer-close" class="icon-btn" type="button" title="close">{{template "icon-close"}}</button>
   </div>
   <div class="edit-drawer-body">
     <section class="prep-panel" data-panel="structure" id="structure" data-book="{{.Book}}" data-stem="{{.Stem}}" data-variant-id="{{.VariantID}}" data-genre="{{.Genre}}">
@@ -379,7 +388,7 @@
       <div id="chip-list" class="chip-list"></div>
       <div class="structure-actions">
         <button id="add-section" type="button">{{template "icon-plus"}} add section at the end</button>
-        <button id="save-structure" type="button" class="primary">Save</button>
+        <button id="save-structure" type="button" class="primary" hidden>Save</button>
         <span id="structure-status"></span>
       </div>
     </section>
@@ -416,7 +425,7 @@
         <textarea id="raw-text" rows="22" spellcheck="false">{{.Text}}</textarea>
       </div>
       <div class="editor-actions">
-        <button id="save-btn" type="button" class="primary">Save</button>
+        <button id="save-btn" type="button" class="primary" hidden>Save</button>
         <span id="save-status"></span>
       </div>
     </section>

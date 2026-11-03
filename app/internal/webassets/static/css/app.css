@@ -155,6 +155,7 @@ button {
 button:hover:not(:disabled) { border-color: var(--border-strong); }
 button:disabled { opacity: 0.4; cursor: default; }
 button.primary { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); font-weight: 700; }
+button.ghost-btn { background: transparent; color: var(--fg-muted); }
 /* button.danger: the one other weighted button variant — destructive,
    hard-to-undo actions (delete a band, reject a proposal/submission,
    remove a member, veto a song) need to read as different from a plain
@@ -1471,16 +1472,31 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 #sheet[data-render-mode="map"] {
   display: flex; flex-wrap: wrap; align-items: flex-end; column-count: 1;
 }
-/* A section with real content (its own staff/chords) always takes the
-   full line, same as a real chart. A compact/reference section — the
-   "nothing new, just N bars" case — packs onto a shared line with its
-   neighbors instead of claiming a full line to itself: that's the whole
-   point of the multi-rest bar (see the Bands-Camp reference: "Intro 4 /
-   Couplet 8 / Refrain 2 / Intro 2" sit side by side on ONE staff line,
-   not stacked one-per-line). flex-wrap packs however many fit before
-   wrapping; --bars (already set server-side) weights each one's share of
-   the row roughly by its own length. */
-#sheet[data-render-mode="map"] .sheet-section { flex: 1 1 100%; }
+/* Reflow like text, not like a stack of blocks: a short defining section
+   (its own real staff/chords) packs onto a shared line with its
+   neighbors exactly like a compact multi-rest chip does, only wrapping
+   to a new line once a row runs out of room — see the Bands-Camp
+   reference: "Intro 4 / Couplet 8 / Refrain 2 / Intro 2" sit side by
+   side on ONE line, full staffs and recall chips alike, nothing forces
+   an early break. A defining section's own width is its natural content
+   width (bar count * the fixed --bar-w below), not a stretch-to-fill —
+   that's what lets a short Intro sit next to the next chip instead of
+   claiming the whole row for itself; a long section is simply wider and
+   wraps on its own once it doesn't fit. */
+#sheet[data-render-mode="map"] .sheet-section:not(.is-compact) {
+  flex: 0 1 auto; width: fit-content; max-width: 100%;
+}
+/* Bars in a defining map-mode section use the same flat typeset width as
+   the clef row elsewhere (--bar-w, 7.2em) instead of the normal chart
+   modes' 100%/--cap stretch-to-row-width — a percentage basis has
+   nothing stable to resolve against once the section itself is sized to
+   its own content rather than to the page, and would otherwise just
+   collapse to its min-width floor. Fixed width is also exactly what
+   "natural size" means for text-like packing: a 4-bar Intro is always
+   4 * 7.2em wide, regardless of how much page width happens to be free. */
+#sheet[data-render-mode="map"] .sheet-section:not(.is-compact) .bar {
+  flex: 0 0 var(--bar-w, 7.2em);
+}
 #sheet[data-render-mode="map"] .sheet-section.is-compact {
   flex: var(--bars, 1) 1 7rem; min-width: 6rem;
   border-left: none; padding-left: 0.4rem;
@@ -2139,8 +2155,18 @@ body.drawer-open { overflow: hidden; }
   body.drawer-open .song-topzone,
   body.drawer-open .content-row { display: none; }
 }
-.edit-drawer-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-.edit-drawer-head #edit-drawer-close { margin-left: auto; }
+/* Same cream "sunken" band as the read-only song page's .song-topzone —
+   title + obvious Save/Discard first, the Chart/Source tab row directly
+   below it, matching the song view's title-row-then-tabs layout rather
+   than a bare icon strip. Not literally `.song-topzone` itself: that
+   class is force-hidden by `body.drawer-open .song-topzone` (the real
+   topbar underneath the drawer), which would also hide this one. */
+.edit-topzone { background: var(--bg-sunken); border-bottom: 1px solid var(--border); }
+.edit-title-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.7rem 1rem 0.5rem; flex-wrap: wrap; }
+.edit-title-main { display: flex; align-items: center; gap: 0.7rem; min-width: 0; }
+.edit-title-main h2 { margin: 0; font-size: 1.1rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.edit-title-actions { display: flex; align-items: center; gap: 0.5rem; }
+.edit-topzone .prep-tabs { display: flex; gap: 0.4rem; padding: 0 1rem 0.6rem; margin: 0; }
 .edit-drawer-body { padding: 1rem; flex: 1; overflow: auto; display: flex; flex-direction: column; min-height: 0; }
 /* :not([hidden]) — a bare class selector here would have the same
    specificity as the UA stylesheet's own [hidden] { display: none }, and

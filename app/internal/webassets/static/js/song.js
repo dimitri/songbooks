@@ -889,14 +889,17 @@ const ICONS = {
   // header fields, the raw-text textarea); clearDirty() only after a
   // confirmed, successful save.
   let isDirty = false;
+  const discardBtn = document.getElementById('edit-discard-btn');
   function markDirty() {
     if (isDirty) return;
     isDirty = true;
     if (dirtyIndicator) dirtyIndicator.hidden = false;
+    if (discardBtn) discardBtn.disabled = false;
   }
   function clearDirty() {
     isDirty = false;
     if (dirtyIndicator) dirtyIndicator.hidden = true;
+    if (discardBtn) discardBtn.disabled = true;
   }
   // A native confirm() is the same idiom this file already uses for other
   // destructive choices (redo-song-btn) — OK means "discard and proceed",
@@ -1033,6 +1036,25 @@ const ICONS = {
       if (btn.dataset.tab === 'structure') { if (focusModeActive) renderFocusEditor(); }
       else { document.getElementById('toolbox-sections').innerHTML = ''; document.getElementById('toolbox-toolbar').innerHTML = ''; }
     });
+  });
+
+  // ---- Top-bar Save/Discard — one obvious pair of actions regardless of
+  // which tab (Chart/Source) is active, instead of two separate buried
+  // per-panel Save buttons (still present, just hidden, and proxied here
+  // so neither tab's own save/version-conflict logic had to be
+  // duplicated). Discard reverts to the last-saved version by refetching
+  // it from the server — the same reload Save itself already does on
+  // success — rather than trying to hand-unwind in-memory edits.
+  document.getElementById('edit-save-btn')?.addEventListener('click', () => {
+    const activeTab = document.querySelector('.prep-tab.active')?.dataset.tab;
+    const target = activeTab === 'raw' ? 'save-btn' : 'save-structure';
+    document.getElementById(target)?.click();
+  });
+  document.getElementById('edit-discard-btn')?.addEventListener('click', () => {
+    if (!isDirty) return;
+    if (!confirm('Discard all unsaved changes in this editor?')) return;
+    clearDirty();
+    window.location.reload();
   });
 
   // ---- Raw editor + live preview --------------------------------------------
