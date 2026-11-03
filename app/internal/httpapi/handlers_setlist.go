@@ -606,6 +606,13 @@ func (s *Server) handleSetlistListening(w http.ResponseWriter, r *http.Request) 
 // into this same practice/listening run (via ?i=N) instead of at the
 // project/setlist-gig neighbors handleSong itself offers.
 func (s *Server) handleSetlistStep(w http.ResponseWriter, r *http.Request, mode string) {
+	// no-store: this renders the same "song" template/chart as
+	// handleSong, which got this header in 055d787 to defeat bfcache
+	// restores serving a stale pre-deploy chart. This handler shares
+	// the exact same chart-rendering path (see the doc comment above)
+	// but had been missed, leaving practice/listening open to the same
+	// stale-bfcache class of bug.
+	w.Header().Set("Cache-Control", "no-store")
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		http.NotFound(w, r)
