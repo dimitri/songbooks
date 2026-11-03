@@ -1052,6 +1052,23 @@ func (s *Server) handleSongRedirect(w http.ResponseWriter, r *http.Request) {
 // "play") plus an Edit drawer (formerly the separate "prep" page) behind a
 // toggle, so editing happens in place instead of on a different URL.
 func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
+	// no-store: this page's chart-rendering CSS/JS has changed several
+	// times in a single day this session (stretch -> shrink-to-content ->
+	// fixed-width bar cells), and a phone tab left open across those
+	// deploys can get bfcache-restored by the OS/browser with the OLD
+	// script execution state still live — no network round-trip at all,
+	// so the /static/ cache-busting (router.go's cacheForever, keyed to
+	// content hash) never even gets a chance to matter, since the HTML
+	// document itself was never re-fetched. A real report matching this
+	// exact symptom (bars rendering inconsistent widths within one row)
+	// could not be reproduced against the current, live code at any
+	// viewport/font-size tested — the CSS/JS here is correct — which
+	// points at exactly this: a stale bfcache snapshot from earlier in
+	// the day, not a live bug. no-store defeats bfcache eligibility in
+	// every major engine (unlike most Cache-Control values, which bfcache
+	// explicitly ignores), so a revisit always re-executes fresh markup
+	// and script against whatever is currently deployed.
+	w.Header().Set("Cache-Control", "no-store")
 	book, stem := r.PathValue("book"), r.PathValue("stem")
 	sg, _, err := s.store.LoadSong(book, stem)
 	if err != nil {
