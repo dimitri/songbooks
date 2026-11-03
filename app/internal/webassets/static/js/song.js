@@ -114,11 +114,39 @@ const ICONS = {
     // hidden (display:none), so its clientWidth is 0 and the loop below
     // skips it on its own.
     const modeCap = sheet.dataset.renderMode === 'jazz' ? 8 : 4;
-    for (const { grid, lines } of staffLineOriginals) {
+    for (const { grid, lines: originalLines } of staffLineOriginals) {
       if (!grid.isConnected) continue;
       const availW = grid.clientWidth;
       if (!availW) continue; // hidden in this mode (e.g. a compact section's unused grid) — nothing to reflow
       const newLines = [];
+      // Jazz: flatten this section's ORIGINAL server-authored rows into
+      // one pool before regrouping. The per-line loop below can only ever
+      // SPLIT an original line that's too big for useCap — it has no way
+      // to MERGE several already-small original lines back together, so
+      // a song authored with "bars: 2" (a print/PDF-export density
+      // choice) stayed stuck at exactly 2 bars/row in jazz mode forever,
+      // no matter how much width or how small a font was available
+      // (confirmed live: useCap correctly computed as 8, but
+      // useCap >= actualBarCount(2) took the "already fits, don't
+      // touch it" branch every time). One synthetic line containing
+      // every bar from every original line lets the existing split-to-
+      // fit logic below do the real regrouping, from scratch, at jazz's
+      // own target density — exactly the "ignore the author's print
+      // density, this is a maximum-density view" intent already decided
+      // for `useCap` itself, just not reachable before because of this
+      // separate per-original-line structure.
+      let lines = originalLines;
+      if (sheet.dataset.renderMode === 'jazz' && originalLines.length > 1) {
+        const allBars = originalLines.flatMap(l => [...l.template.querySelectorAll(':scope > .bar')]);
+        const maxSlotsAll = originalLines.reduce((m, l) => Math.max(m, l.maxSlots), 3);
+        const hasClefAll = originalLines[0].hasClef;
+        const clefEl = hasClefAll ? originalLines[0].template.querySelector(':scope > .staff-timesig-cell') : null;
+        const synthetic = document.createElement('div');
+        synthetic.className = 'staff-line';
+        if (clefEl) synthetic.appendChild(clefEl.cloneNode(true));
+        for (const b of allBars) synthetic.appendChild(b.cloneNode(true));
+        lines = [{ cap: allBars.length, hasClef: hasClefAll, maxSlots: maxSlotsAll, template: synthetic }];
+      }
       // Jazz mode still stretches bars to 100%/--cap (its own base-rule
       // behavior, untouched), so its capacity floor stays the old flat
       // 2.6em readable minimum. The other three modes now give every bar
@@ -142,8 +170,19 @@ const ICONS = {
         // Never split a row that already fits — and never grow PAST the
         // author's own intended capacity even when more would physically
         // fit, so a wide desktop/tablet screen renders exactly what the
-        // "bars:" hint asked for, same as today.
-        let useCap = Math.min(cap, effCap, modeCap);
+        // "bars:" hint asked for, same as today. Jazz mode is the one
+        // exception: it drops `cap` from this ceiling entirely. The
+        // author's "bars:" hint is a PRINT/PDF-export density choice —
+        // honoring it here is exactly what silently capped every row at
+        // 2 bars for a song authored with "bars: 2", regardless of
+        // screen size or font-size search below, since cap is the FIRST
+        // term in this min() (confirmed live: effCap/modeCap were both
+        // large, but useCap still came out 2 — the author's own
+        // historical per-line choice, not a real space constraint).
+        // Jazz is an always-maximum-density view by design (the whole
+        // point of matching a real iReal Pro chart); it has no business
+        // reusing a density number chosen for a different output format.
+        let useCap = sheet.dataset.renderMode === 'jazz' ? Math.min(effCap, modeCap) : Math.min(cap, effCap, modeCap);
         // lineBarWpx stays null (use the flat CSS default) unless the
         // 4-bar floor above actually had to kick in — most rows, on most
         // screens, never touch this.
@@ -638,27 +677,25 @@ const ICONS = {
     // only inside that fixed shape, search column count (1-3) and font
     // size so a longer tune fits without the page itself changing shape.
     const bottomMargin = 24; // breathing room below the page box, same idea as the other modes
-    const availH = Math.max(200, window.innerHeight - sheet.getBoundingClientRect().top - bottomMargin);
-    let h = availH, w = h * A4_RATIO;
-    if (w > availW) { w = availW; h = w / A4_RATIO; }
-    sheet.style.height = h + 'px';
-    sheet.style.width = w + 'px';
-    sheet.style.margin = '0 auto';
     const floor = 9;
-    const maxCols = 3;
-    // With an explicit column-count AND a fixed height, CSS multicol does
-    // NOT grow scrollHeight when content doesn't fit — it silently spills
-    // into extra implicit columns off the right edge instead (scrollWidth
-    // grows, scrollHeight doesn't). So "does it fit" has to check width,
-    // not height, once columns are in play.
-    //
-    // scrollWidth alone isn't enough, though: .chord-label is
-    // position:absolute (so it can float above the staff line), which
-    // means it never contributes to flex/scrollWidth sizing at all — bars
-    // could get squeezed arbitrarily narrow with no overflow ever being
-    // reported, while the absolutely-positioned chord text visibly
-    // collided with its neighbors. So also check real label-vs-label
-    // collisions directly, left-to-right within each staff line.
+    // Shared by both the mobile and desktop paths below — moved up here
+    // (used to live only in the desktop half) after a real bug: mobile's
+    // own safety-net loop called this before its declaration further
+    // down the function, a temporal-dead-zone ReferenceError that
+    // silently aborted applyPageBox mid-way through on every single
+    // mobile/jazz run, BEFORE it reached the re-reflow call that
+    // regroups bars-per-row at the final settled font size — the actual
+    // reason density still looked unfixed on some songs even after the
+    // font-size computation itself was correct (confirmed live via the
+    // console: "Cannot access 'labelsCollide' before initialization",
+    // thrown every time, caught by nothing, breaking silently).
+    // .chord-label is position:absolute (so it can float above the
+    // staff line), which means it never contributes to flex/scrollWidth
+    // sizing at all — bars could get squeezed arbitrarily narrow with no
+    // overflow ever being reported, while the absolutely-positioned
+    // chord text visibly collided with its neighbors. So also check real
+    // label-vs-label collisions directly, left-to-right within each
+    // staff line.
     const labelsCollide = () => {
       let prevRight = null, prevLine = null;
       for (const el of sheet.querySelectorAll('.chord-label')) {
@@ -669,6 +706,100 @@ const ICONS = {
       }
       return false;
     };
+    // Mobile: a DIFFERENT fit strategy entirely, not a narrower version of
+    // desktop's — see the long comment on `overflows()` below for why.
+    // Short version: content-sized bars (flex:0 0 auto, added for real-
+    // iReal-Pro fidelity) wrap on mobile instead of overflowing, and
+    // wrapped content never registers as the kind of overflow a trial-
+    // and-error shrink loop can detect — it just produces more, shorter
+    // rows, invisible to a scrollWidth/scrollHeight check. The genuinely
+    // bad case this caused in practice: 2 real bars per row, each row
+    // ~83px tall from an oversized font the loop never got a signal to
+    // shrink, a 22-bar Intro alone costing 473px of scroll. Rather than
+    // keep trying to coax a width/height-overflow loop into also solving
+    // "how many bars fit per row" (a different question it was never
+    // built to answer), this computes the font size DIRECTLY from a
+    // target bar count — same idea reflowStaffLines() already uses for
+    // the other modes' own mobile floor (MIN_BARS_PER_LINE), just solved
+    // by measurement instead of trial groupings, since jazz bars don't
+    // have a fixed per-mode width to re-group.
+    if (!window.matchMedia('(min-width: 901px)').matches) {
+      sheet.style.height = '';
+      sheet.style.width = availW + 'px';
+      sheet.style.margin = '0 auto';
+      sheet.style.columnCount = '1';
+      const TARGET_BARS_PER_ROW = 4;
+      // Measure at a clean, known reference size — a leftover font-size
+      // from a previous pass (e.g. the old 15px fallback) would make the
+      // scale computation below measure against the WRONG starting
+      // width. Real CSS text width scales close enough to linearly with
+      // font-size over this range for bar widths (driven by chord-label
+      // text, not bar borders/padding, which are themselves em-based and
+      // scale the same way) that a single measure-and-compute pass is
+      // accurate without needing a trial loop at all.
+      const REF_SIZE = 16;
+      sheet.style.fontSize = REF_SIZE + 'px';
+      const bars = [...sheet.querySelectorAll('.bar:not(.bar-recall)')];
+      const widestAtRef = bars.reduce((m, b) => Math.max(m, b.getBoundingClientRect().width), 0);
+      // The REAL per-row width, not availW (the outer page box) — a grid
+      // can be narrower than the page box (padding, the row's own
+      // width:fit-content on some modes' CSS), and using the wrong,
+      // larger number here was the actual reason this still under-
+      // shrank (confirmed live: availW=340 but the real grid was
+      // 269px — the formula targeted 4 bars at 340/4=85px each, which
+      // is genuinely too wide once squeezed into the real 269px row,
+      // landing back at 3 bars, not 4).
+      const realRowW = sheet.querySelector('.grid.spans-full')?.clientWidth || availW;
+      if (widestAtRef > 0) {
+        const targetBarWidth = realRowW / TARGET_BARS_PER_ROW;
+        const scale = targetBarWidth / widestAtRef;
+        let size = Math.max(floor, Math.min(22, REF_SIZE * scale));
+        sheet.style.fontSize = size + 'px';
+        // Safety net: the linear-scale estimate can still slightly
+        // undershoot for an unusually dense bar (many sub-beat chord
+        // changes) — nudge down toward the floor if real labels still
+        // collide at the computed size, same collision check the desktop
+        // path already relies on.
+        let guard = 0;
+        while (size > floor && labelsCollide() && guard++ < 40) {
+          size -= 0.5;
+          sheet.style.fontSize = size + 'px';
+        }
+      }
+      // reflowStaffLines() already ran once before applyPageBox (see the
+      // call order comment on the resize handler below) — but at
+      // whatever font-size was left over from the PREVIOUS render, not
+      // the size just computed above. Its own row-grouping (--cap) is
+      // frozen from that earlier pass, so without re-running it now, the
+      // bars-per-row grouping stays stuck at what an earlier, usually
+      // larger, font implied room for — exactly the "font shrank but the
+      // row still only holds 3 bars" symptom confirmed live. Re-running
+      // it here, after the font has actually settled, lets it regroup at
+      // the real final size.
+      reflowStaffLines();
+      refreshBarsCache();
+      return;
+    }
+    const availH = Math.max(200, window.innerHeight - sheet.getBoundingClientRect().top - bottomMargin);
+    let h = availH, w = h * A4_RATIO;
+    if (w > availW) { w = availW; h = w / A4_RATIO; }
+    sheet.style.height = h + 'px';
+    sheet.style.width = w + 'px';
+    sheet.style.margin = '0 auto';
+    const maxCols = 3;
+    // With an explicit column-count AND a fixed height, CSS multicol does
+    // NOT grow scrollHeight when content doesn't fit — it silently spills
+    // into extra implicit columns off the right edge instead (scrollWidth
+    // grows, scrollHeight doesn't). So "does it fit" has to check width,
+    // not height, once columns are in play.
+    //
+    // scrollWidth alone isn't enough, though: .chord-label is
+    // position:absolute (so it can float above the staff line), which
+    // Desktop only from here down — mobile returns earlier above (see its
+    // own comment: a width/height-overflow loop like this one can't
+    // answer "how many bars fit per row" once rows wrap, which is why
+    // mobile uses a direct computed-font-size pass instead of this trial
+    // search). Desktop jazz never wraps, so this is unchanged.
     const overflows = () => sheet.scrollWidth > sheet.clientWidth + 1 || labelsCollide();
     for (let cols = 1; cols <= maxCols; cols++) {
       sheet.style.columnCount = String(cols);
