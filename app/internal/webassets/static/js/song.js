@@ -105,12 +105,15 @@ const ICONS = {
     // row's own CSS width still matches the lyric column exactly (a real
     // user mistook that crowding for the two no longer sharing a width at
     // all). Capped here, not server-side, so jazz mode keeps its own
-    // density untouched. Song Map wants jazz's own density (a continuous
-    // score, 8 bars/line or more if the row has room — not the 4-bar
-    // print density), so it shares jazz's uncapped-upward treatment: no
-    // fixed ceiling, effCap (how many bars actually fit this row) is the
-    // only limit.
-    const modeCap = (sheet.dataset.renderMode === 'jazz' || sheet.dataset.renderMode === 'map') ? Infinity : 4;
+    // density untouched. Song Map no longer goes through this per-section
+    // reflow path at all — it renders its own pre-grouped continuous
+    // score (.map-score, built server-side from .MapLines — see
+    // buildMapLines in handlers_pages.go) instead of the per-section
+    // .grid.spans-full rows this function operates on; that old grid
+    // stays in the DOM for map mode (shared markup, every mode) but
+    // hidden (display:none), so its clientWidth is 0 and the loop below
+    // skips it on its own.
+    const modeCap = sheet.dataset.renderMode === 'jazz' ? 8 : 4;
     for (const { grid, lines } of staffLineOriginals) {
       if (!grid.isConnected) continue;
       const availW = grid.clientWidth;

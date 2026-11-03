@@ -1276,8 +1276,14 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 #sheet[data-render-mode="lyrics"] .grid,
 #sheet[data-render-mode="map"] .lyrics { display: none; }
 #sheet[data-render-mode="jazz"] .sheet-section,
-#sheet[data-render-mode="lyrics"] .sheet-section,
-#sheet[data-render-mode="map"] .sheet-section { display: block; }
+#sheet[data-render-mode="lyrics"] .sheet-section { display: block; }
+/* Song Map renders its own separate continuous-score block (.map-score,
+   built from .MapLines) instead of one independent chart per section —
+   see the matching CSS further down and buildMapLines in
+   handlers_pages.go. The old per-section markup is still emitted (shared
+   by every mode) but stays hidden in this mode. */
+#sheet[data-render-mode="map"] .sheet-section { display: none; }
+.map-score { display: none; }
 #sheet[data-render-mode="jazz"] .bar { padding: 0.25em 0.7em; }
 #sheet[data-render-mode="jazz"] .csym-root { font-size: 1.2em; }
 /* iReal Pro's own clearest visual signature: a solid-filled, rounded
@@ -1464,43 +1470,51 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 }
 
 /* ---- Song map: chords + staff + structure, no lyrics — "what's the form
-   AND the changes," a continuous rehearsal/overview score. Unlike jazz/
-   lyrics-only, this does NOT get a narrow A4-proportioned page box
-   (applyPageBox in song.js explicitly skips map mode) — it uses the
-   FULL available width so reflowStaffLines() can fit 8+ bars per line,
-   same density as a real chart, not a cramped print page. Multi-rest
-   chips flex-wrap and pack within that full width. */
+   AND the changes," as ONE continuous engraved score, not one independent
+   chart per section. Unlike jazz/lyrics-only, this does NOT get a narrow
+   A4-proportioned page box (applyPageBox in song.js explicitly skips map
+   mode) — it uses the FULL available width. Rows are pre-grouped
+   server-side (buildMapLines/groupMapCells, handlers_pages.go) at 8
+   cells/line; bars use the normal flat typeset width (.bar's own base
+   rule, --bar-w), so — unlike the old per-section grid — this needs no
+   client-side reflow pass: a row's own bar count already is its final
+   bar count. */
 #sheet[data-render-mode="map"] {
-  display: flex; flex-wrap: wrap; align-items: flex-end; column-count: 1;
+  column-count: 1; /* overrides the generic wide-viewport #sheet{column-count:2} —
+    a continuous score can't split into two side-by-side newspaper columns
+    without reintroducing exactly the "forced break" this mode exists to
+    remove, just at the column boundary instead of a section boundary. */
 }
-/* A defining section (its own real staff/chords) is a continuous score,
-   not a text-reflow item: full row width, one section after another,
-   same as the normal Chords+lyrics chart — NOT packed into a narrow
-   fit-content column next to its neighbor (that read as a cramped
-   "vertical breakdown" of tiny side-by-side blocks once a section had
-   real bar-density, rather than a score). reflowStaffLines() (song.js)
-   measures this row's real available width to compute bars-per-line —
-   it needs the row at its full, final width to do that, which a
-   fit-content column (sized FROM the bar count it's trying to compute)
-   can't give it. Only the compact multi-rest chips below still pack
-   inline with each other — they're the "Intro 4 / Couplet 8" reflow
-   from the Bands-Camp reference, which was always about short recall
-   blocks, not full chord staffs. */
-#sheet[data-render-mode="map"] .sheet-section:not(.is-compact) {
-  flex: 1 1 100%; width: 100%;
+#sheet[data-render-mode="map"] .map-score { display: block; }
+#sheet[data-render-mode="map"] .map-score .staff-line {
+  width: fit-content; max-width: 100%;
 }
-#sheet[data-render-mode="map"] .sheet-section.is-compact {
-  flex: var(--bars, 1) 1 7rem; min-width: 6rem;
-  border-left: none; padding-left: 0.4rem;
+/* Recall glyph — same multi-rest-bar/chip-bars visual the old per-section
+   is-compact chip used (kept, not re-skinned: this change is about flow,
+   not the glyph itself), now one flex item sitting inline among real
+   .bar elements in the SAME row instead of its own section block. Fixed
+   width (not --bar-w): it needs room for the bold number + staff + end
+   ticks, which a single bar's width doesn't give it. */
+.bar-recall {
+  flex: 0 0 9em; display: flex; flex-direction: column; align-items: center;
+  justify-content: flex-end; padding-bottom: 0.3em; gap: 0.15em;
 }
-#sheet[data-render-mode="map"] .section-map-chip {
-  display: flex; align-items: baseline; gap: 0.5em; margin-bottom: 0.3rem;
+.bar-recall .chip-bars { font-size: 1.1rem; font-weight: 700; color: var(--fg-muted); }
+.bar-recall .multi-rest-row {
+  display: flex; align-items: center; position: relative; width: 70%; height: 1.4em; margin: 0;
 }
-#sheet[data-render-mode="map"] .chip-bars { font-size: 1.3rem; margin-top: 0; }
-/* A compact/reference section (no new content stated — "same as before")
-   reads as part of the form at a glance, its bar count muted rather than
-   bold, instead of a full empty block. */
-#sheet[data-render-mode="map"] .sheet-section.is-compact .chip-bars { color: var(--fg-muted); font-weight: 700; }
+.bar-recall .recall-of { font-size: 0.7em; color: var(--fg-muted); font-style: italic; white-space: nowrap; }
+/* Section-name annotation — a CHILD of the bar it anchors to (see
+   play.html's chart-bar/MapAnnotate), floated above it with zero footprint
+   in the row's own flow (same overlay technique as .bar.editing::after).
+   Sits above the chord-label's own space (.chord-label is bottom:100% on
+   the SAME .bar), so it needs more clearance, not the same offset. */
+.map-sec-badge {
+  position: absolute; left: 0; bottom: 100%; margin-bottom: 1.5em;
+  display: flex; align-items: center; gap: 0.35em; white-space: nowrap;
+  font-family: Georgia, serif; font-style: italic; font-weight: 700; font-size: 0.8em; color: var(--accent);
+}
+#sheet[data-render-mode="map"] .map-score .staff-line { padding-top: 5.2em; }
 /* Every recall in Song Map gets its multi-rest glyph, not just the ones
    carrying an inferred note (e.g. a Solo's duration) — that's the whole
    point of the LilyPond convention this mode is built around: "N bars,

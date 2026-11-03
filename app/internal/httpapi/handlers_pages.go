@@ -383,6 +383,15 @@ type viewerMeasure struct {
 	// the same amount of page space as the section it solos over, instead
 	// of collapsing to a one-line note. Rendered as empty, dimmed slashes.
 	Placeholder bool
+	// MapAnnotate/MapMark/MapLabel are set ONLY by buildMapLines, on
+	// whichever measure is the first bar of its section in Song Map's
+	// flattened continuous score — every other mode's per-section
+	// rendering leaves these zero-value, a no-op in "chart-bar" (see
+	// play.html). This is how a section's name rides along as a small
+	// floating annotation on its own first bar instead of a separate
+	// element that would force a row break between sections.
+	MapAnnotate       bool
+	MapMark, MapLabel string
 }
 
 // expandBeats maps a bar's raw tokens onto beatsPerBar rhythm-slash slots.
@@ -588,6 +597,96 @@ func groupMeasures(measures []viewerMeasure, barsPerLine []int) []viewerLine {
 		}
 		lines = append(lines, viewerLine{Measures: measures[i:end], Capacity: end - i})
 		i = end
+	}
+	return lines
+}
+
+// mapCell is one rendered unit of Song Map's continuous score: either a
+// real measure (with MapAnnotate/MapMark/MapLabel set on it when it's the
+// first bar of its section — see viewerMeasure's doc comment) or a single
+// compact "recall" glyph standing in for an entire recalled section's
+// worth of bars. See buildMapLines.
+type mapCell struct {
+	IsRecall bool
+	Measure  viewerMeasure // zero value when IsRecall
+
+	// Recall-only — a recall cell IS its section's first (only) bar, so it
+	// carries its own annotation directly rather than via Measure.
+	SectionStart bool
+	Mark, Label  string
+	RecallBars   int
+	RecallOf     string // "" unless GridDuplicateOf named a differently-labeled source section
+}
+
+type mapLine struct {
+	Cells []mapCell
+}
+
+// buildMapLines flattens every section's bars into ONE continuous bar
+// sequence for Song Map mode. Every other mode (chords+lyrics, jazz,
+// lyrics-only) still renders section-by-section, each with its own
+// independent row-grouping (groupMeasures/vs.Lines) — a section always
+// starts a fresh row there, however short. Song Map instead wants a single
+// engraved score where bars from one section flow straight into the next
+// section's bars on the same staff-line row, with section names riding
+// along as small floating annotations rather than forcing a new row (the
+// actual, specific ask: "drop the forced line breaks, embed them within a
+// single multi-line score"). A recalled section — a bare repeat/
+// reference, a "chords continue" compact section, an inferred-note Solo,
+// or a verbatim grid duplicate under a different label — still collapses
+// to one compact multi-rest cell, not its own repeated bars; that's the
+// exact same predicate the old per-section view's "is-compact" styling
+// used (see play.html's sheet-body template), just evaluated here instead
+// of left to CSS.
+func buildMapLines(sections []viewerSection) []mapLine {
+	var cells []mapCell
+	for _, sec := range sections {
+		label := sec.Label
+		if sec.LabelNumber != 0 {
+			label = fmt.Sprintf("%s %d", label, sec.LabelNumber)
+		}
+		isRecall := sec.GridDuplicateOf != "" || sec.Repeat || sec.IsReference || sec.Compact || sec.InferredNote != ""
+		if isRecall {
+			if sec.BarCount <= 0 {
+				continue // nothing to show at all (an unresolved reference)
+			}
+			cells = append(cells, mapCell{
+				IsRecall: true, SectionStart: true, Mark: sec.Mark, Label: label,
+				RecallBars: sec.BarCount, RecallOf: sec.GridDuplicateOf,
+			})
+			continue
+		}
+		for mi, m := range sec.Measures {
+			if mi == 0 {
+				m.MapAnnotate, m.MapMark, m.MapLabel = true, sec.Mark, label
+			}
+			cells = append(cells, mapCell{Measure: m})
+		}
+	}
+	return groupMapCells(cells, 8)
+}
+
+// groupMapCells chunks the flat cell stream into display rows, the same
+// 8-cells/line target every mode's own default row uses (groupMeasures) —
+// a row can start or end mid-section, nothing about a section boundary
+// forces a break. Unlike groupMeasures this doesn't echo a row Capacity
+// for CSS to stretch bars against: map-mode bars use a flat typeset width
+// (app.css), not a percentage-of-row width, so a short trailing row is
+// simply narrower, never stretched.
+func groupMapCells(cells []mapCell, perLine int) []mapLine {
+	if len(cells) == 0 {
+		return nil
+	}
+	if perLine <= 0 {
+		perLine = 8
+	}
+	var lines []mapLine
+	for i := 0; i < len(cells); i += perLine {
+		end := i + perLine
+		if end > len(cells) {
+			end = len(cells)
+		}
+		lines = append(lines, mapLine{Cells: cells[i:end]})
 	}
 	return lines
 }
@@ -1115,6 +1214,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"Capo": sg.Get("capo"), "Reference": sg.Get("reference"),
 		"TimeBeats": timeSigBeats(sg.Get("time")),
 		"Sections":  sections,
+		"MapLines":  buildMapLines(sections),
 		"Text":      text, "Version": version,
 	}
 	if setlistRef := r.URL.Query().Get("setlist"); setlistRef != "" {
@@ -1295,9 +1395,11 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 	} else {
 		sg = song.Parse(req.Text)
 	}
+	sections := buildSections(sg)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := webassets.Templates.ExecuteTemplate(w, "sheet-body", map[string]any{
-		"Sections": buildSections(sg),
+		"Sections": sections,
+		"MapLines": buildMapLines(sections),
 	}); err != nil {
 		log.Printf("render preview: %v", err)
 	}

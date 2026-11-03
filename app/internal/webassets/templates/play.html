@@ -1,4 +1,99 @@
+{{define "chart-bar"}}
+{{/* One measure's markup, factored out so the Song Map continuous score
+     (below, over .MapLines) renders the EXACT same bar — same clef cell,
+     same simile/rest/beat-slot glyphs, same data-bar/data-global-bar
+     attributes the click-to-jump/metronome-sync code reads — as every
+     other mode's per-section grid does. Operates on one viewerMeasure. */}}
+{{if .Clef}}
+{{/* Engraving convention (LilyPond, standard notation practice): the
+     time signature sits ON the staff, in the space before the
+     opening barline — not as a floating heading above it. It gets
+     its own staff-cell here, continuous with the bars that follow,
+     with the tempo mark (the one thing that genuinely belongs above
+     the staff) positioned above this cell specifically — which also
+     keeps it well clear of the first bar's own chord label, now
+     that the two no longer share the same anchor point. */}}
+<span class="staff-timesig-cell">
+  {{if and (eq .TimeDen "8") (or (eq .TimeNum "6") (eq .TimeNum "9") (eq .TimeNum "12"))}}
+  <span class="tempo-mark-inline"><span class="note">&#9833;<span class="aug-dot">.</span></span> = {{.Tempo}}</span>
+  {{else}}
+  <span class="tempo-mark-inline"><span class="note">&#9833;</span> = {{.Tempo}}</span>
+  {{end}}
+  <span class="tsnum">{{.TimeNum}}</span>
+  <span class="tsden">{{.TimeDen}}</span>
+</span>
+{{end}}
+{{/* --slots backs the bar's own min-width (see .bar's CSS comment):
+     a flat floor sized for a typical ~3-slot bar left a busier bar
+     (more beat-slots — e.g. a 4/4 "Gm . . Cm" with a mid-bar change,
+     every slot its own 0.9em floor) squeezed well below what its OWN
+     beat-slots need once a row is actually narrow enough to reach
+     that floor (reflowStaffLines(), song.js, only ever narrows rows
+     down TO it) — each one just collided with its neighbor instead
+     of the row ever being flagged as needing to wrap further. */}}
+<span class="bar{{if .Open}} bar-open{{end}}{{if .Close}} bar-close{{end}}{{if .IsRepeat}} bar-pct{{end}}{{if .Volta}} has-volta{{end}}{{if and .Volta (not .VoltaFirst)}} volta-continues{{end}}{{if .Placeholder}} bar-placeholder{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}" style="--slots: {{len .Beats}}">
+  {{/* MapAnnotate/MapMark/MapLabel are only ever set on a cell built by
+       buildMapLines (Song Map's continuous score) — zero-value (no-op)
+       for every other mode's ordinary per-section rendering. A CHILD of
+       .bar (already position:relative), not a preceding sibling, so it
+       anchors to exactly the bar it annotates via plain CSS, no JS
+       positioning needed, and adds no width/height to the row's flow. */}}
+  {{if .MapAnnotate}}<span class="map-sec-badge">{{if .MapMark}}<span class="rehearsal-mark">{{.MapMark}}</span>{{end}}{{label .MapLabel}}</span>{{end}}
+  {{if .Open}}<span class="repeat-dots" title="repeat starts"></span>{{end}}
+  {{if .Volta}}<span class="volta">{{if .VoltaFirst}}<span class="volta-num">{{.Volta}}</span>{{end}}</span>{{end}}
+  <span class="bar-body">
+    {{if .IsRepeat}}
+      <span class="simile-mark{{if eq .RepeatCount 2}} simile-wide{{end}}" title="{{if eq .RepeatCount 2}}repeat previous 2 bars{{else}}repeat previous bar{{end}}">
+        <span class="simile-slash" aria-hidden="true"></span>
+        <span class="simile-dot simile-dot-a" aria-hidden="true"></span>
+        <span class="simile-dot simile-dot-b" aria-hidden="true"></span>
+      </span>
+      {{if eq .RepeatCount 2}}<span class="simile-count">2</span>{{end}}
+    {{else if .IsRest}}
+      <span class="rest-mark" title="full bar rest" aria-hidden="true"></span>
+    {{else}}
+      {{range .Beats}}<span class="beat-slot{{if .IsTie}} tie{{end}}" style="--span: {{.Span}}">{{if not .IsTie}}<span class="chord-label">{{chord .Text}}</span>{{end}}<span class="slash">&#8260;</span></span>{{end}}
+    {{end}}
+  </span>
+  {{if .Close}}<span class="repeat-dots" title="repeat ends"></span>{{end}}
+</span>
+{{end}}
+
 {{define "sheet-body"}}
+{{/* ---- Song map: ONE continuous engraved score, not one independent
+     chart per section — bars from one section flow straight into the
+     next section's bars on the same staff-line row; section names ride
+     along as small floating annotations (.map-sec-badge, position:
+     absolute — the same "overlay the real chart, change nothing about
+     its layout" technique already used elsewhere, e.g. the chord
+     editor's .bar.editing::after caret) instead of forcing a new row.
+     .MapLines is pre-grouped server-side (buildMapLines/groupMapCells,
+     handlers_pages.go) at the same 8-cells/line default every mode's
+     grid uses — map-mode bars are flat fixed-width (not row-stretched,
+     see app.css), so this needs no further client-side reflow the way
+     the old per-section .grid.spans-full rows did. A recalled section
+     collapses to one compact multi-rest cell (reusing the exact glyph
+     the old per-section is-compact chip already used), not its own
+     repeated bars. Hidden outside map mode by CSS ([data-render-mode]). */}}
+<div class="map-score">
+  {{range .MapLines}}
+  <div class="staff-line">
+    {{range .Cells}}
+    {{if .IsRecall}}
+    <span class="bar bar-recall">
+      {{if .SectionStart}}<span class="map-sec-badge">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</span>{{end}}
+      <span class="chip-bars">{{.RecallBars}}</span>
+      <span class="multi-rest-row"><span class="multi-rest-bar"></span></span>
+      {{if .RecallOf}}<span class="recall-of">= {{.RecallOf}}</span>{{end}}
+    </span>
+    {{else}}
+    {{template "chart-bar" .Measure}}
+    {{end}}
+    {{end}}
+  </div>
+  {{end}}
+</div>
+
 {{range .Sections}}
 {{/* is-compact: this section states nothing new of its own — a bare
      repeat/reference, a plain "chords continue" section, or a Solo whose
@@ -33,83 +128,7 @@
     {{range .Lines}}
     <div class="staff-line" style="--cap: {{.Capacity}}">
       {{range .Measures}}
-      {{if .Clef}}
-      {{/* Engraving convention (LilyPond, standard notation practice): the
-           time signature sits ON the staff, in the space before the
-           opening barline — not as a floating heading above it. It gets
-           its own staff-cell here, continuous with the bars that follow,
-           with the tempo mark (the one thing that genuinely belongs above
-           the staff) positioned above this cell specifically — which also
-           keeps it well clear of the first bar's own chord label, now
-           that the two no longer share the same anchor point. */}}
-      <span class="staff-timesig-cell">
-        {{if and (eq .TimeDen "8") (or (eq .TimeNum "6") (eq .TimeNum "9") (eq .TimeNum "12"))}}
-        <span class="tempo-mark-inline"><span class="note">&#9833;<span class="aug-dot">.</span></span> = {{.Tempo}}</span>
-        {{else}}
-        <span class="tempo-mark-inline"><span class="note">&#9833;</span> = {{.Tempo}}</span>
-        {{end}}
-        <span class="tsnum">{{.TimeNum}}</span>
-        <span class="tsden">{{.TimeDen}}</span>
-      </span>
-      {{end}}
-      {{/* --slots backs the bar's own min-width (see .bar's CSS comment):
-           a flat floor sized for a typical ~3-slot bar left a busier bar
-           (more beat-slots — e.g. a 4/4 "Gm . . Cm" with a mid-bar change,
-           every slot its own 0.9em floor) squeezed well below what its OWN
-           beat-slots need once a row is actually narrow enough to reach
-           that floor (reflowStaffLines(), song.js, only ever narrows rows
-           down TO it) — each one just collided with its neighbor instead
-           of the row ever being flagged as needing to wrap further. */}}
-      <span class="bar{{if .Open}} bar-open{{end}}{{if .Close}} bar-close{{end}}{{if .IsRepeat}} bar-pct{{end}}{{if .Volta}} has-volta{{end}}{{if and .Volta (not .VoltaFirst)}} volta-continues{{end}}{{if .Placeholder}} bar-placeholder{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}" style="--slots: {{len .Beats}}">
-        {{if .Open}}<span class="repeat-dots" title="repeat starts"></span>{{end}}
-        {{if .Volta}}<span class="volta">{{if .VoltaFirst}}<span class="volta-num">{{.Volta}}</span>{{end}}</span>{{end}}
-        <span class="bar-body">
-          {{if .IsRepeat}}
-            {{/* Engraving convention (Real Book / LilyPond "simile" sign,
-                 ported from v2/lib/staff.typ's own simile()): a hollow
-                 slash flanked diagonally by two dots, staff-height, drawn —
-                 not the literal "%" character, whose stroke weight and
-                 alignment never quite matches the rest of the hand-drawn
-                 staff. "%%" is the same glyph widened slightly with a bold
-                 "2" above it (repeat the previous TWO bars), not a second
-                 measure. Plain CSS divs, not an SVG: an SVG is a replaced
-                 element with its own intrinsic aspect ratio, and two
-                 separate incidents (a dense jazz layout, then a plain
-                 chords+lyrics chart in real Firefox — neither reproduced
-                 by this session's own Firefox-headless testing, which
-                 bundles a different Firefox build than the browser people
-                 actually run) showed browsers disagreeing enough about
-                 that sizing to let the glyph balloon across several bars.
-                 A div has no such intrinsic-ratio computation to disagree
-                 about — width/height are just width/height, everywhere. */}}
-            {{/* simile-count is a SIBLING of simile-mark, not a child: it's
-                 deliberately positioned above the mark's own box
-                 (bottom:100%), and simile-mark has overflow:hidden as a
-                 safety fence against a glyph-sizing regression two
-                 incidents already needed — that fence was clipping this
-                 label into invisibility, since anything positioned
-                 outside an overflow:hidden element's own box is clipped
-                 regardless of z-index. Siblings under .bar-body (plain
-                 overflow:visible) aren't subject to that fence. */}}
-            <span class="simile-mark{{if eq .RepeatCount 2}} simile-wide{{end}}" title="{{if eq .RepeatCount 2}}repeat previous 2 bars{{else}}repeat previous bar{{end}}">
-              <span class="simile-slash" aria-hidden="true"></span>
-              <span class="simile-dot simile-dot-a" aria-hidden="true"></span>
-              <span class="simile-dot simile-dot-b" aria-hidden="true"></span>
-            </span>
-            {{if eq .RepeatCount 2}}<span class="simile-count">2</span>{{end}}
-          {{else if .IsRest}}
-            {{/* Full-bar rest ("R" token): the standard whole-rest glyph —
-                 a filled block hanging below the staff's 2nd line
-                 (v2/lib/staff.typ's own rest()) — never a literal "R" with
-                 ordinary slashes under it, which reads as "play something
-                 called R" instead of "nothing is played here". */}}
-            <span class="rest-mark" title="full bar rest" aria-hidden="true"></span>
-          {{else}}
-            {{range .Beats}}<span class="beat-slot{{if .IsTie}} tie{{end}}" style="--span: {{.Span}}">{{if not .IsTie}}<span class="chord-label">{{chord .Text}}</span>{{end}}<span class="slash">&#8260;</span></span>{{end}}
-          {{end}}
-        </span>
-        {{if .Close}}<span class="repeat-dots" title="repeat ends"></span>{{end}}
-      </span>
+      {{template "chart-bar" .}}
       {{end}}
     </div>
     {{end}}

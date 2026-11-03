@@ -130,7 +130,7 @@ func (s *Server) handleMetronomePage(w http.ResponseWriter, r *http.Request) {
 	person := personFromContext(r)
 	q := r.URL.Query()
 	s.render(w, "metronome", map[string]any{
-		"Me": person,
+		"Me":        person,
 		"PresetBPM": q.Get("bpm"), "PresetTime": q.Get("time"),
 		"BackTitle": q.Get("title"), "BackURL": q.Get("back"),
 	})
@@ -667,6 +667,7 @@ func (s *Server) handleSetlistStep(w http.ResponseWriter, r *http.Request, mode 
 		"Capo": sg.Get("capo"), "Reference": sg.Get("reference"),
 		"TimeBeats": timeSigBeats(sg.Get("time")),
 		"Sections":  sections,
+		"MapLines":  buildMapLines(sections),
 
 		"PracticeMode":      true,
 		"PracticeStepMode":  mode, // "practice" or "listening"
