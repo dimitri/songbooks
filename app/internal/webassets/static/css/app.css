@@ -2166,8 +2166,19 @@ body.drawer-open { overflow: hidden; }
 .edit-title-main { display: flex; align-items: center; gap: 0.7rem; min-width: 0; }
 .edit-title-main h2 { margin: 0; font-size: 1.1rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .edit-title-actions { display: flex; align-items: center; gap: 0.5rem; }
-.edit-topzone .prep-tabs { display: flex; gap: 0.4rem; padding: 0 1rem 0.6rem; margin: 0; }
+.edit-topzone .prep-tabs { display: inline-flex; flex-wrap: wrap; justify-content: center; margin: 0 auto 0.7rem; gap: 0.15rem; }
+.edit-topzone { text-align: center; }
+.edit-title-row, .edit-drawer-body { text-align: left; }
+.edit-topzone .prep-tab { background: none; border: none; border-radius: 999px; padding: 0.5rem 0.9rem; font-size: 0.85rem; color: var(--fg-muted); }
+.edit-topzone .prep-tab:hover { color: var(--fg); }
+.edit-topzone .prep-tab.active { background: var(--accent); color: var(--bg-raised); border-color: transparent; font-weight: 600; }
 .edit-drawer-body { padding: 1rem; flex: 1; overflow: auto; display: flex; flex-direction: column; min-height: 0; }
+/* Tucked away and collapsed by default, well below Save — this erases
+   lyrics/chords (not the song itself), which the old icon-only trash
+   button in the top bar read as "delete the song" at a glance. */
+.danger-zone { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); flex: none; }
+.danger-zone summary { cursor: pointer; color: var(--fg-muted); font-size: 0.85rem; }
+.danger-zone p.hint { margin: 0.5rem 0; }
 /* :not([hidden]) — a bare class selector here would have the same
    specificity as the UA stylesheet's own [hidden] { display: none }, and
    as an AUTHOR rule it would win the tie, silently un-hiding whichever

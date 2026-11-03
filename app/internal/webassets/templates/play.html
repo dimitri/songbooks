@@ -372,7 +372,6 @@
       <div class="edit-title-actions">
         <button id="edit-discard-btn" type="button" class="ghost-btn" title="discard unsaved changes" disabled>Discard</button>
         <button id="edit-save-btn" type="button" class="primary" title="save changes">Save</button>
-        <button id="redo-song-btn" class="icon-btn" type="button" title="redo this song from scratch — erases the current lyrics/chords">{{template "icon-trash"}}<span class="sr-only">redo this song from scratch</span></button>
         <button id="edit-drawer-close" class="icon-btn" type="button" title="close">{{template "icon-close"}}</button>
       </div>
     </div>
@@ -428,6 +427,11 @@
         <button id="save-btn" type="button" class="primary" hidden>Save</button>
         <span id="save-status"></span>
       </div>
+      <details class="danger-zone">
+        <summary>Start this song over</summary>
+        <p class="hint">Erases the current lyrics and chords for this song (not the song itself — title, artist and other metadata stay) and drops you back into a blank Source editor to fill in again. Can't be undone.</p>
+        <button id="redo-song-btn" type="button" class="danger">Erase lyrics &amp; chords, start over</button>
+      </details>
     </section>
   </div>
 </div>
