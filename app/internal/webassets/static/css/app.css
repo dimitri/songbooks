@@ -319,6 +319,12 @@ table.card { padding: 0; }
   color: var(--sidebar-fg); font-weight: 700; font-size: 1.02rem; text-decoration: none;
 }
 .sidebar-brand .icon.logo-mark { width: 1.4rem; height: 1.4rem; opacity: 1; }
+.sidebar-crumb { padding: 0.3rem 0.3rem 0.1rem; }
+.sidebar-crumb a {
+  display: flex; align-items: center; gap: 0.4rem; text-decoration: none;
+  color: var(--accent); font-size: 0.82rem; font-weight: 600;
+}
+.sidebar-crumb a .icon { width: 0.9rem; height: 0.9rem; flex: none; }
 .sidebar-primary, .sidebar-secondary { display: flex; flex-direction: column; gap: 0.15rem; }
 .sidebar-primary a, .sidebar-secondary a {
   display: flex; align-items: center; gap: 0.7rem;
@@ -510,23 +516,41 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
    1-2-1 — the current song (title, artist, key, tempo) gets the wide
    center cell so it's the thing you actually see, with prev/next either
    side of it rather than as a separate, easy-to-miss row underneath. */
+/* Phase 46: one shared "sunken" cream background for both rows (title +
+   view-tabs) — ties the top panel visually to the sidebar's own dark
+   column without the heavy contrast of actually matching its colour. */
+.song-topzone { background: var(--bg-sunken); border-bottom: 1px solid var(--border); }
+.topbar-utility-mobile { padding: 0.5rem 1.1rem 0; }
+.topbar-utility-mobile .back-link { padding: 0.2rem 0; font-size: 0.78rem; }
+@media (min-width: 901px) {
+  /* Desktop has its own copy of this link in the sidebar (.sidebar-crumb);
+     showing both would be redundant. */
+  .topbar-utility-mobile { display: none; }
+}
+@media (max-width: 900px) {
+  /* Mobile already has its own mode switcher (the "View" entry in
+     .song-context-bar below) — this full-width tab row is a desktop-only
+     addition, not a second way to do the same thing here. */
+  .view-tabs { display: none; }
+}
 .song-topbar {
-  display: grid; grid-template-columns: 1fr 2fr 1fr; grid-template-rows: auto auto; gap: 0.3rem 0.6rem;
-  padding: 0.5rem 1.1rem 0.6rem; border-bottom: 1px solid var(--border); background: var(--bg-raised);
+  display: grid; grid-template-columns: 1fr 2fr 1fr; grid-template-rows: auto; gap: 0.3rem 0.6rem;
+  padding: 0.7rem 1.1rem 0.5rem;
 }
-.topbar-utility {
-  grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: 0.35rem 0.5rem;
+.view-tabs { display: flex; padding: 0 1.1rem; border-top: 1px solid var(--border); flex-wrap: wrap; }
+/* #mode-segmented.view-tabs, not just .view-tabs: the plain #mode-segmented
+   button rule above (icon-only square touch targets, used on mobile's
+   hidden copy of this same element) is an ID selector and would otherwise
+   win over a class-only rule here, squashing these text tabs back down to
+   2.1rem squares. */
+#mode-segmented.view-tabs button {
+  display: flex; align-items: center; width: auto; height: auto;
+  background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0;
+  padding: 0.55rem 0.9rem; font-size: 0.85rem; color: var(--fg-muted); cursor: pointer;
 }
-.topbar-utility .back-link { padding: 0.2rem 0; font-size: 0.78rem; }
-/* These utility links/buttons (PDF, LY, versions, history, fork, notes,
-   theme) reuse .icon-btn for its pill look, but most of them are a text
-   label, not a single icon glyph — .icon-btn's fixed circular width (set
-   for a lone icon) clipped and ran that text together with no gap on a
-   narrow screen. Widen to fit the label instead of forcing the circle,
-   here specifically (an icon-only control like the theme toggle still
-   renders fine at auto width). */
-.topbar-utility .icon-btn { width: auto; min-width: 2.1rem; padding: 0.35rem 0.6rem; border-radius: 8px; font-size: 0.82rem; }
+.view-tabs button:hover { color: var(--fg); }
+.view-tabs button.active { color: var(--fg); font-weight: 600; border-bottom-color: var(--accent); }
+#mode-segmented.view-tabs .icon { width: 0.95rem; height: 0.95rem; margin-right: 0.3em; vertical-align: -0.15em; }
 .topbar-cell { display: flex; align-items: center; gap: 0.5rem; min-width: 0; color: var(--fg); }
 .topbar-cell.empty { visibility: hidden; }
 a.topbar-cell { padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid var(--border); }
@@ -696,6 +720,12 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    full transport/metronome sheet (reachable via the Metronome stack icon),
    not a replacement: just "give me the tempo" without opening anything. */
 .mini-metro { display: flex; align-items: center; justify-content: center; gap: 0.4rem; margin-top: 0.3rem; }
+/* Phase 46: #mini-metro now carries the HTML `hidden` attribute (its
+   play/fade/tap buttons stay in the DOM for jumpToSection()/setPlaying(),
+   but are no longer shown here — see the template comment) — the rule
+   above has the same specificity as the UA [hidden] default and was
+   winning by source order, so the "hidden" trio was rendering anyway. */
+.mini-metro[hidden] { display: none; }
 .mini-metro button, .mini-metro a { width: 1.9rem; height: 1.9rem; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--fg-muted); text-decoration: none; }
 .mini-metro button:hover, .mini-metro a:hover { color: var(--accent); }
 .mini-metro button.active { color: var(--accent); background: var(--accent-bg, var(--bg-sunken)); }
@@ -2187,6 +2217,18 @@ textarea {
   border-top: 0.45rem solid var(--accent);
 }
 .matrix-slot-row.slot-selected .matrix-slot { background: var(--accent); color: var(--accent-contrast); }
+/* Focus mode's real-chart canvas (song.js renderRealChart) — the chart
+   itself is the UNCHANGED real "sheet-body" markup, pixel-identical to
+   the read-only Play view; this is purely an overlay on top: a dashed
+   selection ring + a blinking text-caret, no fill/background/layout
+   change to the bar or beat-slot it's drawn on. */
+.real-chart-host .matrix-slot.editing { outline: 2px dashed var(--accent); outline-offset: 3px; border-radius: 2px; }
+.real-chart-host .bar.editing { position: relative; }
+.real-chart-host .bar.editing::after {
+  content: ''; position: absolute; left: 0.1em; top: 0.15em; width: 1px; height: 1.1em;
+  background: var(--accent); animation: real-chart-caret-blink 1s step-end infinite;
+}
+@keyframes real-chart-caret-blink { 50% { opacity: 0; } }
 /* Bar-fullness feedback (Guitar Pro-style "does this measure balance?") —
    solid green border once every slot holds a chord or a sustain, dashed
    amber while something's still blank. */

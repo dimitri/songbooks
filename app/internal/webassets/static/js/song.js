@@ -931,12 +931,12 @@ const ICONS = {
     drawer.hidden = !opening;
     drawerBackdrop.hidden = !opening;
     document.body.classList.toggle('drawer-open', opening);
-    // editToggle lives inside the mode-segmented pill now — reuse its own
-    // .active styling (so "edit" looks selected while the drawer is open)
-    // rather than a generic .primary that wouldn't match the pill's look.
-    if (opening) {
-      document.querySelectorAll('#mode-segmented button').forEach(b => b.classList.toggle('active', b === editToggle));
-    } else {
+    // Phase 46: editToggle moved out of the mode-segmented pill into its
+    // own sidebar row, so its .active state is toggled on its own element
+    // directly now, separately from the view-mode tabs' own active-button
+    // bookkeeping (which editToggle no longer participates in).
+    editToggle.classList.toggle('active', opening);
+    if (!opening) {
       const real = document.querySelector(`#mode-segmented button[data-value="${sheet.dataset.renderMode}"]`);
       document.querySelectorAll('#mode-segmented button').forEach(b => b.classList.toggle('active', b === real));
     }
@@ -1422,8 +1422,16 @@ const ICONS = {
     requestAnimationFrame(() => {
       const host = document.getElementById('matrix-host-' + i);
       const el = host && host.querySelector(`.matrix-slot[data-mi="${mi}"][data-ti="${ti}"]`);
-      if (el) el.focus();
-      else { highlightSelection(sec, i); refreshToolbarHighlight(sec, i); }
+      // Only a real <input> (the mobile/box grid) takes native keyboard
+      // focus — focus mode's real-chart slots are plain spans (tabIndex
+      // -1, see wireRealChartEditing), selected purely via sec._sel/CSS,
+      // same as a click already does there. Either way the highlight/
+      // toolbar refresh below is unconditional, so a focus-mode caller
+      // (applyDuration, setBarSplit, the repeat-bar button, …) always
+      // sees its new selection reflected, not just when an <input> exists.
+      if (el && el.tagName === 'INPUT') el.focus();
+      highlightSelection(sec, i);
+      refreshToolbarHighlight(sec, i);
     });
   }
 
@@ -1527,11 +1535,22 @@ const ICONS = {
     const sel = sec._sel;
     host.querySelectorAll('.matrix-slot-row.slot-selected').forEach(el => el.classList.remove('slot-selected'));
     host.querySelectorAll('.matrix-cell.cell-selected').forEach(el => el.classList.remove('cell-selected'));
+    host.querySelectorAll('.matrix-slot.editing').forEach(el => el.classList.remove('editing'));
+    host.querySelectorAll('.bar.editing').forEach(el => el.classList.remove('editing'));
     if (!sel) return;
     const input = getSlotInput(i, sel.mi, sel.ti);
-    if (input) {
-      input.closest('.matrix-slot-row').classList.add('slot-selected');
-      input.closest('.matrix-cell').classList.add('cell-selected');
+    if (!input) return;
+    const row = input.closest('.matrix-slot-row');
+    if (row) {
+      // Mobile/box grid: the old per-cell outline.
+      row.classList.add('slot-selected');
+      input.closest('.matrix-cell')?.classList.add('cell-selected');
+    } else {
+      // Focus mode's real chart: a thin overlay on the UNCHANGED real
+      // markup — a dashed ring + caret (CSS), nothing about the bar's own
+      // layout/background changes.
+      input.classList.add('editing');
+      input.closest('.bar')?.classList.add('editing');
     }
   }
   // Lights up the toolbar's own buttons to match the currently selected
@@ -1597,16 +1616,32 @@ const ICONS = {
     const text = composeChord(parts);
     const input = getSlotInput(i, sel.mi, sel.ti);
     if (input) { input.value = text; input.dispatchEvent(new Event('input')); }
-    else { sec.measures[sel.mi].tokens[sel.ti] = text; }
+    else { sec.measures[sel.mi].tokens[sel.ti] = text; refreshRealChart(sec, i); }
     refreshToolbarHighlight(sec, i);
   }
   function setSlotToken(sec, i, token) {
     const sel = sec._sel;
     if (!sel || !sec.measures[sel.mi]) return;
+    markDirty();
     const input = getSlotInput(i, sel.mi, sel.ti);
     if (input) { input.value = token; input.dispatchEvent(new Event('input')); }
-    else { sec.measures[sel.mi].tokens[sel.ti] = token; }
+    else { sec.measures[sel.mi].tokens[sel.ti] = token; refreshRealChart(sec, i); }
     refreshToolbarHighlight(sec, i);
+  }
+  // Focus mode's real chart has no <input> to dispatch an 'input' event
+  // through (see setChordPart/setSlotToken's own comments) — a direct
+  // sec.measures write there needs its own explicit re-fetch instead.
+  // Debounced per-section so a quick run of taps (root, then quality,
+  // then duration) collapses into one /api/preview round trip, not one
+  // per tap.
+  const realChartRefreshTimers = new Map();
+  function refreshRealChart(sec, i) {
+    if (!focusModeActive) return;
+    clearTimeout(realChartRefreshTimers.get(i));
+    realChartRefreshTimers.set(i, setTimeout(() => {
+      const chartHost = document.querySelector('#matrix-host-' + i + ' .real-chart-host');
+      if (chartHost) renderRealChart(sec, i, chartHost);
+    }, 120));
   }
 
   function buildChordToolbar(sec, i) {
@@ -2033,31 +2068,127 @@ const ICONS = {
     // never written back to sec.barsPerLine (that field is real saved
     // data the print/PDF pipeline also reads; overwriting it here would
     // silently corrupt the song's actual line-wrap intent).
-    const rows = chunkRows(sec.measures, focusModeActive ? Math.max(1, sec.measures.length) : ((sec.barsPerLine && sec.barsPerLine[0]) || 4));
-    let mi = 0;
-    rows.forEach(row => {
-      const rowEl = document.createElement('div');
-      rowEl.className = 'matrix-row';
-      row.forEach(() => { rowEl.appendChild(buildMatrixCell(sec, mi)); mi++; });
-      host.appendChild(rowEl);
-    });
-    if (sec.measures.length === 0) {
-      const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = 'No bars yet — "+ bar" to start, or use fill for a repeating phrase.';
-      host.appendChild(hint);
+    // Restore the selection highlight/toolbar state after a full rebuild
+    // (every edit re-renders this host) — clamp first in case the bar or
+    // slot that was selected no longer exists (bar deleted, density
+    // lowered the slot count). Done BEFORE building the grid below:
+    // focus mode's real-chart path (renderRealChart) needs sec._sel
+    // already clamped when it does its own post-fetch highlight.
+    if (sec._sel && (!sec.measures[sec._sel.mi] || sec._sel.ti >= sec.measures[sec._sel.mi].tokens.length)) {
+      sec._sel = null;
+    }
+
+    if (focusModeActive) {
+      // Desktop: the chart canvas is the REAL read-only Play-view chart,
+      // not a lookalike — same "sheet-body" template, fetched from the
+      // section's current (possibly unsaved) in-memory state via
+      // /api/preview, so it can never visually drift from what reading
+      // this song actually looks like. Editing is a thin overlay on top
+      // (wireRealChartEditing): a .matrix-slot class + data-mi/data-ti on
+      // each real .beat-slot, so the existing selection/toolbar machinery
+      // (getSlotInput, highlightSelection, setChordPart, …) just works —
+      // they already fall back to writing straight into sec.measures
+      // when getSlotInput finds no <input>, which a real .beat-slot never
+      // is. Mobile keeps the old bespoke box/table grid below unchanged.
+      const chartHost = document.createElement('div');
+      chartHost.className = 'real-chart-host';
+      host.appendChild(chartHost);
+      renderRealChart(sec, i, chartHost);
+    } else {
+      const rows = chunkRows(sec.measures, (sec.barsPerLine && sec.barsPerLine[0]) || 4);
+      let mi = 0;
+      rows.forEach(row => {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'matrix-row';
+        row.forEach(() => { rowEl.appendChild(buildMatrixCell(sec, mi)); mi++; });
+        host.appendChild(rowEl);
+      });
+      if (sec.measures.length === 0) {
+        const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = 'No bars yet — "+ bar" to start, or use fill for a repeating phrase.';
+        host.appendChild(hint);
+      }
     }
 
     renderAlternatives(sec, i, host);
 
-    // Restore the selection highlight/toolbar state after a full rebuild
-    // (every edit re-renders this host) — clamp first in case the bar or
-    // slot that was selected no longer exists (bar deleted, density
-    // lowered the slot count).
-    if (sec._sel && (!sec.measures[sec._sel.mi] || sec._sel.ti >= sec.measures[sec._sel.mi].tokens.length)) {
-      sec._sel = null;
+    refreshToolbarHighlight(sec, i);
+    dockToolbar(i);
+    // Focus mode's grid highlight happens inside renderRealChart's own
+    // fetch callback instead (the grid doesn't exist yet at this point —
+    // it's still in flight) — the mobile/box path's grid is already in
+    // the DOM synchronously above, so it highlights right away as before.
+    if (!focusModeActive) highlightSelection(sec, i);
+  }
+
+  // ---- Focus mode's real chart canvas -----------------------------------
+  // Fetches the SAME "sheet-body" HTML the real Play "Chords + lyrics" view
+  // renders (internal/httpapi's handlePreview, given this song's current
+  // structured state instead of saved .song text) and shows exactly the
+  // section being edited, with a thin click-to-select overlay layered on
+  // top. realChartReqId guards against an in-flight fetch from an earlier
+  // edit landing AFTER a newer one and clobbering it (every keystroke that
+  // calls renderMatrix kicks off a new fetch; only the latest should win).
+  let realChartReqId = 0;
+  async function renderRealChart(sec, i, chartHost) {
+    const myReq = ++realChartReqId;
+    const sectionsForPreview = structSections.map(s => ({ ...s, measures: joinVoltaGroups(s), endings: undefined }));
+    let html;
+    try {
+      const res = await fetch('/api/preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ song: { meta: structMeta, sections: sectionsForPreview } }),
+      });
+      html = await res.text();
+    } catch (e) {
+      return; // network hiccup — the previous render just stays on screen
+    }
+    if (myReq !== realChartReqId) return; // superseded by a newer edit
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    const match = tmp.querySelector(`.sheet-section[data-section-index="${i}"]`);
+    chartHost.innerHTML = '';
+    if (match) {
+      chartHost.appendChild(match);
+      wireRealChartEditing(sec, i, match);
+    } else {
+      const hint = document.createElement('p'); hint.className = 'hint';
+      hint.textContent = sec.repeat ? '(repeat marker — nothing to show)' : 'No bars yet — "+ bar" to start.';
+      chartHost.appendChild(hint);
     }
     highlightSelection(sec, i);
     refreshToolbarHighlight(sec, i);
-    dockToolbar(i);
+  }
+
+  // Layers click-to-select onto the real chart markup without touching its
+  // own structure: one .matrix-slot class + data-mi/data-ti per real
+  // .beat-slot (one per token/beat, matching sec.measures[mi].tokens[ti]
+  // exactly), so every existing selection/toolbar function keeps working
+  // unmodified — they already address a slot purely by data-mi/data-ti,
+  // never by assuming it's an <input>.
+  function wireRealChartEditing(sec, i, sectionEl) {
+    sectionEl.querySelectorAll('.bar').forEach(barEl => {
+      const mi = parseInt(barEl.dataset.bar, 10);
+      if (Number.isNaN(mi) || !sec.measures[mi]) return;
+      const beatSlots = [...barEl.querySelectorAll('.beat-slot')];
+      if (beatSlots.length === 0) {
+        // A simile/rest/placeholder bar has no .beat-slot children at all
+        // (it's a % mark or a whole-bar rest glyph) — still selectable, as
+        // slot 0, so the toolbar's "clear"/duration buttons can turn it
+        // back into a real chord.
+        barEl.classList.add('matrix-slot');
+        barEl.dataset.mi = String(mi); barEl.dataset.ti = '0';
+        barEl.tabIndex = -1;
+        barEl.addEventListener('click', () => selectSlot(sec, i, mi, 0));
+        return;
+      }
+      beatSlots.forEach((slotEl, ti) => {
+        if (!sec.measures[mi].tokens[ti] && sec.measures[mi].tokens[ti] !== '') return;
+        slotEl.classList.add('matrix-slot');
+        slotEl.dataset.mi = String(mi); slotEl.dataset.ti = String(ti);
+        slotEl.tabIndex = -1;
+        slotEl.addEventListener('click', () => selectSlot(sec, i, mi, ti));
+      });
+    });
   }
 
   // ---- Alternative endings — LilyPond's \alternative { \volta "1,2,3" {…}

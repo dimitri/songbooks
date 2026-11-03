@@ -205,6 +205,19 @@
      completely untouched. */}}
 <nav class="desktop-sidebar" id="desktop-sidebar" aria-label="main navigation">
   <a class="sidebar-brand" href="/">{{template "icon-logo"}} Songbooks</a>
+  {{/* Phase 46: the "where did I come from" breadcrumb used to live in the
+       top panel (.topbar-utility) — it's site navigation, not something
+       about this specific song, so it belongs with the rest of the
+       sidebar's nav, same as every other page's own back-link. */}}
+  <div class="sidebar-crumb">
+    {{if .PracticeMode}}
+    <a href="/setlists">{{template "icon-back"}} {{.PracticeStepMode}}: {{.PracticeTitle}}</a>
+    {{else if .GigMode}}
+    <a href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} set list</a>
+    {{else}}
+    <a href="/b/{{.Book}}">{{template "icon-back"}} {{.Book}}</a>
+    {{end}}
+  </div>
   {{/* Phase 45: while the desktop editor is open, this single row replaces
        the whole nav below (CSS, body.drawer-open) — "editor integrated
        into the website" means it shares the sidebar's real estate, not a
@@ -229,13 +242,15 @@
        vertical sidebar list instead of a horizontal icon pill. */}}
   <div class="sidebar-secondary sidebar-song-group">
     <div class="sidebar-group-label">This song</div>
-    <div class="segmented" id="mode-segmented" data-value="normal">
-      <button type="button" data-value="normal" class="active" title="chords + lyrics">{{template "icon-mode-normal"}}<span class="sr-only">Chords + lyrics</span></button>
-      <button type="button" data-value="jazz" title="jazz chart">{{template "icon-mode-jazz"}}<span class="sr-only">Jazz chart</span></button>
-      <button type="button" data-value="lyrics" title="lyrics only">{{template "icon-mode-lyrics"}}<span class="sr-only">Lyrics only</span></button>
-      <button type="button" data-value="map" title="song map">{{template "icon-mode-map"}}<span class="sr-only">Song map</span></button>
-      <button type="button" data-value="edit" id="edit-toggle" title="edit">{{template "icon-edit"}}<span class="sr-only">Edit</span></button>
-    </div>
+    <button type="button" id="edit-toggle" class="sidebar-song-row" title="edit">{{template "icon-edit"}} Edit</button>
+    {{/* A real page link with this song's own context, not a bare nav
+         entry — same href the old in-page mini-metro settings icon used,
+         now the only way to reach metronome/transport settings from this
+         page (Phase 46: the top panel's play/fade/tap controls and this
+         settings link both moved out of the top row; the settings link
+         belongs here with everything else that's a "this song" action,
+         not a global nav item). */}}
+    <a class="sidebar-song-row" title="metronome &amp; transport settings" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/b/%s/%s" .Book .Stem | urlquery}}">{{template "icon-metro-full"}} Metronome</a>
     {{if .VariantID}}
     <button id="notes-toggle" class="sidebar-song-row" type="button" title="notes: personal or shared, per section">{{template "icon-notes"}} Notes</button>
     {{end}}
@@ -269,26 +284,29 @@
   {{end}}
 </nav>
 <div class="app-content">
-{{/* Three-column top bar, width split into 4 and given as 1-2-1 (previous
-     / current / next, current spanning the two merged middle columns) —
-     the title/artist/key/tempo that used to sit in a plain header, easy
-     to miss, now lives in the widest, most central cell, with prev/next
-     navigation either side of it instead of as a separate row below.
-     Every song-level action that used to live in this bar (view mode,
-     notes, PDF export, edit, versions, history, reference, theme) now
-     lives in the desktop sidebar's "This song" group instead (Phase 44)
-     — what's left here is only what's about THIS moment: where you are
-     (breadcrumb, prev/next) and what you're about to do (play/tap). */}}
+{{/* Phase 46: the top panel is now two stacked rows sharing one "sunken"
+     cream background (.song-topzone) — the title row (prev/current/next,
+     same 1-2-1 split as before, but no metronome controls: those moved
+     to the sidebar's "This song" group entirely, settings link included)
+     above the view-mode tabs, now a real full-width tab row instead of a
+     small icon pill buried in the sidebar — it's what you switch between
+     most, so it earns the full top-panel width. The breadcrumb that used
+     to open this bar now lives in the sidebar (.sidebar-crumb) since it's
+     site navigation, not something about this specific song. */}}
+<div class="song-topzone">
+{{/* Mobile has no left sidebar, so the breadcrumb that moved there for
+     desktop (.sidebar-crumb) needs its own copy here — hidden on desktop
+     (CSS, min-width:901px) where the sidebar's own copy takes over. */}}
+<div class="topbar-utility-mobile">
+  {{if .PracticeMode}}
+  <a class="back-link" href="/setlists">{{template "icon-back"}} {{.PracticeStepMode}}: {{.PracticeTitle}}</a>
+  {{else if .GigMode}}
+  <a class="back-link" href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} set list</a>
+  {{else}}
+  <a class="back-link" href="/b/{{.Book}}">{{template "icon-back"}} {{.Book}}</a>
+  {{end}}
+</div>
 <div class="song-topbar">
-  <div class="topbar-utility">
-    {{if .PracticeMode}}
-    <a class="back-link" href="/setlists">{{template "icon-back"}} {{.PracticeStepMode}}: {{.PracticeTitle}}</a>
-    {{else if .GigMode}}
-    <a class="back-link" href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} set list</a>
-    {{else}}
-    <a class="back-link" href="/b/{{.Book}}">{{template "icon-back"}} {{.Book}}</a>
-    {{end}}
-  </div>
   {{if .Prev}}
   <a class="topbar-cell topbar-prev setlist-nav-card prev" href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.PrevIndex}}{{else}}/b/{{.Prev.Book}}/{{.Prev.Stem}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{end}}{{end}}">
     {{template "icon-back"}}
@@ -303,25 +321,17 @@
       {{if .Key}}<span class="topbar-meta-item">key {{.Key}}</span>{{end}}
       {{if .Tempo}}<span class="topbar-meta-item">{{.Tempo}} bpm</span>{{end}}
     </div>
-    {{/* A very small, always-visible metronome — the lightweight
-         complement to the full transport/metronome sheet reachable via
-         the Metronome stack icon (Phases 23-25), which stays exactly as
-         it is. This is just "give me the tempo" without opening anything:
-         continuous click, one bar then fade (count-in, then get out of
-         the way), tap tempo. Reuses the SAME clock/metronome instances
-         song.js already drives the full sheet with — no second engine. */}}
-    <div class="mini-metro" id="mini-metro">
+    {{/* mini-metro-play/-fade/-tap stay in the DOM but hidden, not deleted
+         — jumpToSection()/setPlaying() (song.js) operate on these exact
+         ids to drive click-a-section-and-follow-along playback, which is
+         a real, separate feature from the metronome SETTINGS panel that
+         moved to /metronome. The settings link itself is gone from here
+         (it's the sidebar's new "Metronome" row instead) — only the
+         playback-state hooks remain, invisible. */}}
+    <div class="mini-metro" id="mini-metro" hidden>
       <button type="button" id="mini-metro-play" title="click track: play/stop">{{template "icon-play"}}</button>
       <button type="button" id="mini-metro-fade" title="play one bar, then fade out">{{template "icon-metro-intro"}}</button>
       <button type="button" id="mini-metro-tap" title="tap tempo">{{template "icon-tap"}}</button>
-      {{/* A real page link, not a panel toggle — same split mobile's own
-           Metronome stack button already uses (see .song-context-bar
-           below): full settings (tempo/time-sig/key transpose/click
-           sound/count-in) live only on the dedicated /metronome page,
-           preloaded with this song's own tempo/time signature and a link
-           back here. Desktop and mobile now behave identically; no inline
-           settings surface remains on this page at all. */}}
-      <a id="mini-metro-settings" title="metronome &amp; transport settings" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/b/%s/%s" .Book .Stem | urlquery}}">{{template "icon-metro-full"}}</a>
     </div>
   </div>
 
@@ -331,6 +341,13 @@
     {{template "icon-forward"}}
   </a>
   {{else}}<span class="topbar-cell topbar-next empty"></span>{{end}}
+</div>
+<div class="view-tabs" id="mode-segmented" data-value="normal">
+  <button type="button" data-value="normal" class="active" title="chords + lyrics">{{template "icon-mode-normal"}} Chords + lyrics</button>
+  <button type="button" data-value="jazz" title="jazz chart">{{template "icon-mode-jazz"}} Jazz chart</button>
+  <button type="button" data-value="lyrics" title="lyrics only">{{template "icon-mode-lyrics"}} Lyrics only</button>
+  <button type="button" data-value="map" title="song map">{{template "icon-mode-map"}} Song map</button>
+</div>
 </div>
 
 <div class="edit-drawer-backdrop" id="edit-drawer-backdrop" hidden></div>
