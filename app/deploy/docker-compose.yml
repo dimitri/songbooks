@@ -46,6 +46,15 @@ services:
       # song data recoverable from the git repo) — never on a real
       # production deployment.
       SONGBOOKS_DEV_AUTO_LOGIN: ${SONGBOOKS_DEV_AUTO_LOGIN:-}
+      # Pins passkey (WebAuthn) registrations/logins to this deployment's
+      # real hostname instead of deriving the Relying Party ID from each
+      # request's own Host header (a dev-only convenience — see
+      # internal/httpapi/webauthn.go's webauthnForRequest and this repo's
+      # deploy/README.md). Must be set to exactly the public hostname,
+      # songbooks.tapoueh.org, in deploy/.env before any passkey is
+      # registered here — a passkey made under one RPID never works under
+      # another.
+      SONGBOOKS_WEBAUTHN_RP_ID: ${SONGBOOKS_WEBAUTHN_RP_ID:-}
     command: ["--addr", "0.0.0.0:8080"]
     ports:
       # 8102: chosen after checking `ss -tlnp` + `docker ps` on the host —
