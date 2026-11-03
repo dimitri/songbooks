@@ -156,6 +156,7 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// Set/change your own password — the "opt into password login later"
 	// path for a magic-link-only account. See profile.go.
 	mux.HandleFunc("POST /profile/password", s.requireAuth(s.handleSetPasswordProfile))
+	mux.HandleFunc("POST /profile/email", s.requireAuth(s.handleSetEmailProfile))
 	// Passkeys: add one to an already-logged-in account (requireAuth —
 	// account creation itself stays invite-only, see webauthn.go's package
 	// doc comment), rename, or remove.

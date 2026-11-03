@@ -256,6 +256,9 @@ func (st *Store) SetPassword(ctx context.Context, personID int64, bcryptHash str
 func (st *Store) SetEmail(ctx context.Context, personID int64, email string) error {
 	tag, err := st.db.Exec(ctx, `UPDATE people SET email = $1 WHERE id = $2`, email, personID)
 	if err != nil {
+		if isUniqueViolation(err) {
+			return ErrEmailTaken
+		}
 		return err
 	}
 	if tag.RowsAffected() == 0 {

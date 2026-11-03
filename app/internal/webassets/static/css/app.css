@@ -283,6 +283,32 @@ table.card { padding: 0; }
    ticker already makes for its own nowrap row. */
 .table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
+/* Profile → Passkeys list: 4 columns (name+rename form, added, last used,
+   remove) is too dense for a phone screen even with .table-scroll's
+   horizontal-scroll fallback — a settings page shouldn't need side-
+   scrolling to rename or remove a passkey. Below 600px each row becomes
+   its own stacked block instead, each cell's own label (data-label)
+   printed inline before its content (a well-known plain-CSS technique for
+   turning a table into a mobile list without a second markup/JS path) —
+   scoped to this one table, not every .table-scroll table in the app,
+   since most of those are denser data grids (member/song lists) where
+   horizontal scroll is the better tradeoff, not a short settings list. */
+@media (max-width: 600px) {
+  .passkeys-table thead { display: none; }
+  .passkeys-table, .passkeys-table tbody, .passkeys-table tr, .passkeys-table td {
+    display: block; width: 100%;
+  }
+  .passkeys-table tr {
+    border-bottom: 1px solid var(--border); padding: 0.6rem 0; margin-bottom: 0.4rem;
+  }
+  .passkeys-table tr:last-child { border-bottom: none; }
+  .passkeys-table td { padding: 0.2rem 0; }
+  .passkeys-table td[data-label]::before {
+    content: attr(data-label); display: block;
+    font-size: 0.8rem; font-weight: 600; color: var(--fg-muted); margin-bottom: 0.15rem;
+  }
+}
+
 /* ---- App chrome ---------------------------------------------------------- */
 .app-header {
   display: flex; align-items: center; gap: var(--gap);

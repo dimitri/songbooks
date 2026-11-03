@@ -1,10 +1,13 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
+
+	"app/internal/store"
 )
 
 // commonInstruments is the icon-picker/profile vocabulary this phase
@@ -42,7 +45,46 @@ func (s *Server) handleProfilePage(w http.ResponseWriter, r *http.Request) {
 		"PwError":     r.URL.Query().Get("pwerror"),
 		"PwSaved":     r.URL.Query().Get("pwsaved") != "",
 		"Passkeys":    passkeys,
+		"EmailError":  r.URL.Query().Get("emailerror"),
+		"EmailSaved":  r.URL.Query().Get("emailsaved") != "",
 	})
+}
+
+// handleSetEmailProfile is POST /profile/email — lets a logged-in person
+// set or change the email their account uses for magic-link login (and,
+// going forward, as their login identifier for password login too — see
+// handlePasswordLogin, which already accepts either username or email).
+// Many pre-existing accounts (e.g. the --import bootstrap path) start
+// with no email at all and are otherwise stuck on password-only login —
+// this is the self-serve path to fix that, alongside the --set-email CLI
+// flag it shares SetEmail with.
+func (s *Server) handleSetEmailProfile(w http.ResponseWriter, r *http.Request) {
+	p := personFromContext(r)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, "/profile?emailerror=invalid+form", http.StatusFound)
+		return
+	}
+	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
+	// Deliberately minimal validation (non-empty, contains "@" with
+	// something on each side) — same posture as the rest of this app's
+	// forms (e.g. the invite-accept form's email field): a stricter RFC
+	// validator would reject real addresses it doesn't recognize, and the
+	// address only needs to be deliverable, which actually sending to it
+	// is the real test of, not a regex here.
+	at := strings.IndexByte(email, '@')
+	if email == "" || at <= 0 || at == len(email)-1 {
+		http.Redirect(w, r, "/profile?emailerror=enter+a+valid+email+address", http.StatusFound)
+		return
+	}
+	if err := s.store.SetEmail(r.Context(), p.ID, email); err != nil {
+		if errors.Is(err, store.ErrEmailTaken) {
+			http.Redirect(w, r, "/profile?emailerror=that+email+is+already+registered+to+another+account", http.StatusFound)
+			return
+		}
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	http.Redirect(w, r, "/profile?emailsaved=1", http.StatusFound)
 }
 
 // handleSetPasswordProfile is POST /profile/password — lets a logged-in

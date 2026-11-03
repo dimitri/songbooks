@@ -53,6 +53,11 @@ var ErrNotFound = fmt.Errorf("not found")
 // happen inside the same transaction as the write it's guarding.
 var ErrForbidden = fmt.Errorf("forbidden")
 
+// ErrEmailTaken is returned by SetEmail when the address already belongs
+// to a different account (people.email has a UNIQUE constraint — see
+// migration 0025).
+var ErrEmailTaken = fmt.Errorf("email already in use by another account")
+
 func validName(s string) bool {
 	return s != "" && !strings.ContainsAny(s, "/\\")
 }

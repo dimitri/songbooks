@@ -40,6 +40,22 @@
   </section>
 
   <section class="card book-card">
+    <h3>Email</h3>
+    {{if .Me.Email}}
+      <p class="hint">Login identifier for magic-link login (and password login — either username or email works there). Currently: <strong>{{.Me.Email}}</strong>.</p>
+    {{else}}
+      <p class="hint">No email on file yet — magic-link login won't work until you set one.</p>
+    {{end}}
+    {{if .EmailSaved}}<p style="color:var(--ok)">Email saved.</p>{{end}}
+    {{if .EmailError}}<p style="color:var(--danger)">{{.EmailError}}</p>{{end}}
+    <form method="post" action="/profile/email">
+      <p><label>{{if .Me.Email}}New email{{else}}Email{{end}}<br>
+        <input type="email" name="email" value="" placeholder="you@example.com" required></label></p>
+      <button type="submit" class="primary">{{if .Me.Email}}Change email{{else}}Set email{{end}}</button>
+    </form>
+  </section>
+
+  <section class="card book-card">
     <h3>Password</h3>
     {{if .HasPassword}}
       <p class="hint">A password is set on this account — you can log in with it or with a magic link.</p>
@@ -61,19 +77,19 @@
     <h3>Passkeys</h3>
     <p class="hint">Touch ID, Face ID, Windows Hello, or a security key — a third way to log in, alongside your password and login links. A passkey registered here only works on the site/origin you registered it on (a passkey made on your laptop at a local dev address won't work on the live site, and vice versa — that's WebAuthn working as designed, not a bug).</p>
     {{if .Passkeys}}
-    <div class="table-scroll"><table class="card" style="width:100%">
+    <table class="card passkeys-table">
       <thead><tr><th>Name</th><th>Added</th><th>Last used</th><th></th></tr></thead>
       <tbody>
       {{range .Passkeys}}
         <tr>
-          <td>
+          <td data-label="Name">
             <form method="post" action="/profile/passkeys/{{.ID}}/nickname" style="display:flex; gap:4px">
               <input type="text" name="nickname" value="{{.Nickname}}" placeholder="e.g. MacBook, iPhone" size="18">
               <button type="submit">Rename</button>
             </form>
           </td>
-          <td>{{.CreatedAt.Format "Jan 2, 2006"}}</td>
-          <td>{{if .LastUsedAt}}{{.LastUsedAt.Format "Jan 2, 2006"}}{{else}}never{{end}}</td>
+          <td data-label="Added">{{.CreatedAt.Format "Jan 2, 2006"}}</td>
+          <td data-label="Last used">{{if .LastUsedAt}}{{.LastUsedAt.Format "Jan 2, 2006"}}{{else}}never{{end}}</td>
           <td>
             <form method="post" action="/profile/passkeys/{{.ID}}/remove" onsubmit="return confirm('Remove this passkey? You will no longer be able to log in with it.')">
               <button type="submit" class="danger">Remove</button>
@@ -82,7 +98,7 @@
         </tr>
       {{end}}
       </tbody>
-    </table></div>
+    </table>
     {{else}}
     <p class="hint">No passkeys registered yet.</p>
     {{end}}
