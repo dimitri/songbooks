@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"app/internal/chordsym"
 	"app/internal/song"
 	"app/internal/store"
 	"app/internal/webassets"
@@ -545,6 +546,26 @@ type viewerSection struct {
 	// it: iReal's single-letter convention plus this app's real section
 	// names, rather than picking one over the other.
 	Mark string
+	// JazzSegno/JazzDSAlCoda/JazzCoda/JazzHidden drive jazz-mode-ONLY
+	// Segno/Dal Segno al Coda/Coda navigation signs (see
+	// detectSegnoRepeat) — modeled on LilyPond's own \repeat segno
+	// semantics (checked against the LilyPond Notation Reference's
+	// "Segno repeat structure" section, not approximated from the iReal
+	// Pro PDF images alone): Segno marks the jump-BACK target, D.S. al
+	// Coda marks the jump-FROM point (where a later, genuinely
+	// multi-section repeated run gets collapsed into one marker instead
+	// of being re-rendered section by section), and Coda marks where
+	// play resumes afterward. This is deliberately a DIFFERENT, bigger
+	// structure than \repeat volta — the bracket-repeat convention this
+	// app already uses (GridDuplicateOf/IsReference) for a single
+	// repeated section, which stays exactly as it is. Every other view
+	// mode ignores these fields and renders each section's own content
+	// normally; only jazz mode's CSS/template branch (data-render-
+	// mode="jazz") acts on them.
+	JazzSegno    bool
+	JazzDSAlCoda bool // this section's own content is replaced by a "D.S. al Coda" marker
+	JazzCoda     bool // a Coda (𝄌, U+1D10C) mark renders before this section
+	JazzHidden   bool // part of the collapsed repeated run (after its first section) — fully hidden in jazz mode
 }
 
 // viewerLine is one chart "system" (row) within a section's grid: its bars,
@@ -767,33 +788,201 @@ func simpleRepeatSpan(measures []song.Measure) (written int, ok bool) {
 	return realBarCount(measures) / 2, true
 }
 
-// measuresEqual reports whether two sections wrote the token-for-token same
-// grid — a real, confirmed case in the corpus (a Verse restating the exact
-// same "grid:" line as the Intro above it), compared on the raw parsed data
-// rather than the view-built Measures (which carry a one-time Clef/Tempo
-// stamp on whichever measure renders first in the whole song, not per
-// section — see buildSections' own comment at its call site). Deliberately
-// exact, not "looks similar": a single differing token, volta, or repeat
-// bracket means two different progressions, not a typo to paper over.
-func measuresEqual(a, b []song.Measure) bool {
+// beatIR is one beat's normalized, comparable chord content — by pitch
+// class (enharmonic-insensitive: F# and Gb compare equal) and decomposed
+// quality marker+extension (via chordsym, the same parser the real chart
+// rendering uses), not by literal token spelling. "N.C.", "%", and any
+// other non-chord token chordsym can't decompose fall back to raw-string
+// comparison in Other, since there's nothing more meaningful to normalize.
+type beatIR struct {
+	rootPC int
+	bassPC int
+	marker chordsym.Marker
+	ext    string
+	other  string
+}
+
+func normalizeBeatText(text string) beatIR {
+	ir := beatIR{rootPC: -1, bassPC: -1}
+	if text == "" {
+		return ir
+	}
+	p := chordsym.Split(text)
+	if p.Root == "" {
+		ir.other = p.Quality
+		return ir
+	}
+	dq := chordsym.DecomposeQuality(p.Quality)
+	ir.rootPC, ir.marker, ir.ext = chordsym.PitchClass(p.Root), dq.Marker, dq.Ext
+	if p.Bass != "" {
+		ir.bassPC = chordsym.PitchClass(p.Bass)
+	}
+	return ir
+}
+
+// measureIR is a measure's musical content, normalized: its beats'
+// chords, forward-filled across sustain/tie beats via the same
+// expandBeats this file already uses to RENDER a measure — two measures
+// that voice the same progression with a different sub-beat split (one
+// token stretched to fill the bar vs. the same chord typed at every
+// beat, or a differing run of "." sustains) expand to the same per-beat
+// sequence here, so they compare equal. Meter is kept alongside as
+// musically real (a bar in a different time signature is not "the same
+// bar" even with identical chords) — Open/Close/Volta are deliberately
+// NOT part of this: they're repeat-barline/ending notation, not musical
+// content, and two measures voiced identically shouldn't fail to match
+// just because a repeat bracket happens to start or end on one of them.
+type measureIR struct {
+	beats []beatIR
+	meter string
+}
+
+func normalizeMeasure(m song.Measure, beatsPerBar int) measureIR {
+	expanded := expandBeats(m.Tokens, beatsPerBar)
+	beats := make([]beatIR, len(expanded))
+	var last beatIR
+	for i, b := range expanded {
+		if b.IsTie {
+			beats[i] = last
+			continue
+		}
+		cur := normalizeBeatText(b.Text)
+		beats[i] = cur
+		last = cur
+	}
+	return measureIR{beats: beats, meter: m.Meter}
+}
+
+func measureIRsEqual(a, b measureIR) bool {
+	if a.meter != b.meter || len(a.beats) != len(b.beats) {
+		return false
+	}
+	for i := range a.beats {
+		if a.beats[i] != b.beats[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// measuresEqual reports whether two sections are the SAME MUSIC — compared
+// on a normalized Intermediate Representation (measureIR, via
+// normalizeMeasure above), not on literal token/struct equality. A
+// previous version required identical token spelling, identical sub-beat
+// splitting, and identical Open/Close/Volta repeat-barline flags; this
+// drove every "is this section the same as an earlier one" decision in
+// the app (Song Map's compact recall chip, Chords+lyrics' "same as X"
+// note, Jazz mode's repeat brackets and Segno/D.S. detection below), so
+// two sections voiced identically but typed or repeat-bracketed
+// differently used to wrongly compare unequal. beatsPerBarA/B are each
+// section's OWN beats-per-bar (its "time:" override, or the song's
+// global one) — the two sides being compared can legitimately differ.
+func measuresEqual(a, b []song.Measure, beatsPerBarA, beatsPerBarB int) bool {
 	if len(a) != len(b) {
 		return false
 	}
 	for i := range a {
-		ma, mb := a[i], b[i]
-		if ma.Open != mb.Open || ma.Close != mb.Close || ma.Volta != mb.Volta || ma.Meter != mb.Meter {
+		if !measureIRsEqual(normalizeMeasure(a[i], beatsPerBarA), normalizeMeasure(b[i], beatsPerBarB)) {
 			return false
-		}
-		if len(ma.Tokens) != len(mb.Tokens) {
-			return false
-		}
-		for ti := range ma.Tokens {
-			if ma.Tokens[ti] != mb.Tokens[ti] {
-				return false
-			}
 		}
 	}
 	return true
+}
+
+// sectionsEqual reports whether two RAW song sections (not the built
+// viewerSection) are the same musical content, for Segno/D.S. detection.
+// Same label (the song author's own structural claim — "Verse" recurring
+// IS the author saying "this is the Verse again") and, when both wrote a
+// grid of their own, semantically equal measures (measuresEqual). A
+// section with no grid (an explicit repeat marker, or an empty
+// placeholder) is taken at the label's word: two same-labeled sections
+// where at least one has no grid to check content against are treated as
+// the same section recurring — the same label+emptiness inference this
+// file's IsReference/Compact detection already leans on elsewhere.
+func sectionsEqual(a, b song.Section, beatsA, beatsB int) bool {
+	if a.Label != b.Label {
+		return false
+	}
+	if len(a.Measures) > 0 && len(b.Measures) > 0 {
+		return measuresEqual(a.Measures, b.Measures, beatsA, beatsB)
+	}
+	return true
+}
+
+// segnoMatch is a detected Segno/D.S. al Coda structure: the earlier run
+// of sections [SegnoAt, SegnoAt+Len) is verbatim-repeated (sectionsEqual,
+// pairwise, in order) by the later run [DSAt, DSAt+Len).
+type segnoMatch struct {
+	SegnoAt, DSAt, Len int
+}
+
+// detectSegnoRepeat looks for the real-notation Segno/D.S. al Coda
+// pattern in a song's section ordering — modeled on LilyPond's own
+// \repeat segno (checked against the LilyPond Notation Reference's
+// "Segno repeat structure" documentation, not approximated from the
+// iReal Pro PDF images alone): Segno marks an earlier point to jump BACK
+// to, D.S. (dal segno) marks the jump-FROM point, and whatever follows
+// the repeated material is the Coda, reached after the second pass. This
+// is a genuinely different, BIGGER structure than \repeat volta (a
+// bracket repeat of ONE section, already handled by
+// GridDuplicateOf/IsReference — untouched by this function).
+//
+// Deliberately conservative:
+//   - requires a real gap between the two runs (j > i+k) — an
+//     IMMEDIATELY adjacent repeat is \repeat volta territory (the
+//     existing bracket treatment), not Segno; Segno exists specifically
+//     for a long-distance callback, not "play this twice in a row".
+//   - requires an exact, unambiguous match of at least 2 sections —
+//     returns ok=false rather than guessing at a partial/fuzzy one.
+//   - prefers the LONGEST such match, and among equal lengths the one
+//     whose later run reaches closest to the song's end, so what remains
+//     after it reads as a real Coda tail, not most of the song.
+//
+// O(n^4) worst case in the section count, which is always tiny (a real
+// song's section count is in the tens, not hundreds).
+func detectSegnoRepeat(sg *song.Song, globalBeats int) (segnoMatch, bool) {
+	n := len(sg.Sections)
+	if n < 4 { // need room for a 2-section run twice, with a gap between
+		return segnoMatch{}, false
+	}
+	beats := make([]int, n)
+	for i, sec := range sg.Sections {
+		beats[i] = sectionBeatsPerBar(sec, globalBeats)
+	}
+	var best segnoMatch
+	found := false
+	for k := n / 2; k >= 2; k-- {
+		for i := 0; i+k <= n; i++ {
+			for j := i + k + 1; j+k <= n; j++ { // j > i+k: a real gap, not back-to-back
+				match := true
+				for d := 0; d < k; d++ {
+					if !sectionsEqual(sg.Sections[i+d], sg.Sections[j+d], beats[i+d], beats[j+d]) {
+						match = false
+						break
+					}
+				}
+				if !match {
+					continue
+				}
+				cand := segnoMatch{SegnoAt: i, DSAt: j, Len: k}
+				if !found || segnoMatchBetter(cand, best, n) {
+					best, found = cand, true
+				}
+			}
+		}
+	}
+	return best, found
+}
+
+// segnoMatchBetter reports whether a is a better Segno/D.S. candidate
+// than b: longer wins outright; among equal lengths, the one whose later
+// (D.S.) run ends closer to the song's end wins, leaving a shorter, more
+// plausible Coda tail rather than most of the song past the repeat.
+func segnoMatchBetter(a, b segnoMatch, n int) bool {
+	if a.Len != b.Len {
+		return a.Len > b.Len
+	}
+	return (n - (a.DSAt + a.Len)) < (n - (b.DSAt + b.Len))
 }
 
 func buildSections(sg *song.Song) []viewerSection {
@@ -812,10 +1001,7 @@ func buildSections(sg *song.Song) []viewerSection {
 	var dupSrc []int
 	for si, sec := range sg.Sections {
 		vs := viewerSection{Index: si, Label: sec.Label, Repeat: sec.Repeat, Notes: sec.Notes}
-		beatsPerBar := globalBeats
-		if sec.Time != "" {
-			beatsPerBar = timeSigBeats(sec.Time)
-		}
+		beatsPerBar := sectionBeatsPerBar(sec, globalBeats)
 		for mi, m := range sec.Measures {
 			isRepeat := len(m.Tokens) == 1 && (m.Tokens[0] == "%" || m.Tokens[0] == "%%")
 			repeatCount := 1
@@ -861,7 +1047,8 @@ func buildSections(sg *song.Song) []viewerSection {
 		dupIdx := -1
 		if len(sec.Measures) > 0 {
 			for j := 0; j < si; j++ {
-				if len(sg.Sections[j].Measures) > 0 && measuresEqual(sg.Sections[j].Measures, sec.Measures) {
+				other := sg.Sections[j]
+				if len(other.Measures) > 0 && measuresEqual(other.Measures, sec.Measures, sectionBeatsPerBar(other, globalBeats), beatsPerBar) {
 					vs.GridDuplicateOf = sections[j].Label
 					dupIdx = j
 					break
@@ -940,6 +1127,16 @@ func buildSections(sg *song.Song) []viewerSection {
 			}
 		}
 		globalBar += sec.BarCount
+	}
+	if m, ok := detectSegnoRepeat(sg, globalBeats); ok {
+		sections[m.SegnoAt].JazzSegno = true
+		sections[m.DSAt].JazzDSAlCoda = true
+		for d := 1; d < m.Len; d++ {
+			sections[m.DSAt+d].JazzHidden = true
+		}
+		if codaAt := m.DSAt + m.Len; codaAt < len(sections) {
+			sections[codaAt].JazzCoda = true
+		}
 	}
 	return sections
 }
@@ -1328,6 +1525,19 @@ func orDefault(v, def string) string {
 		return def
 	}
 	return v
+}
+
+// sectionBeatsPerBar is a section's own beats-per-bar: its "time:"
+// override if it has one, else the song's global time signature. Factored
+// out of buildSections' main loop so measuresEqual's normalized
+// comparison (which needs BOTH sides' own beats-per-bar, not just the
+// current loop iteration's) can compute it for an arbitrary earlier
+// section too.
+func sectionBeatsPerBar(sec song.Section, globalBeats int) int {
+	if sec.Time != "" {
+		return timeSigBeats(sec.Time)
+	}
+	return globalBeats
 }
 
 // timeSigBeats extracts the numerator of a "N/M" time signature (the

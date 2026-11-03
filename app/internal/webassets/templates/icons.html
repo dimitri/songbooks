@@ -174,6 +174,25 @@
 
 {{define "icon-down"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>{{end}}
 
+{{/* Segno (jazz-mode Dal Segno al Coda navigation, handlers_pages.go's
+     detectSegnoRepeat) — hand-drawn, not the real Unicode glyph (U+1D10B
+     𝄋 MUSICAL SYMBOL SEGNO): measured directly against this app's own
+     font stack and confirmed to have NO real glyph at all (falls back to
+     the exact same rendered width as a guaranteed-unassigned codepoint —
+     true tofu, not just a plain/ugly substitute). A diagonal stroke
+     through a loop with two flanking dots, the same visual DNA as the
+     real sign, distinct from the simile/repeat "%"-style dots already
+     used elsewhere in this app (.simile-mark) so the two don't read as
+     the same thing. */}}
+{{define "icon-segno"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="4.2"/><path d="M4 16L16 4"/><circle cx="4.6" cy="15.4" r="1.1" fill="currentColor" stroke="none"/><circle cx="15.4" cy="4.6" r="1.1" fill="currentColor" stroke="none"/></svg>{{end}}
+
+{{/* Coda (jazz-mode Dal Segno al Coda navigation) — same reasoning as
+     icon-segno above: U+1D10C 𝄌 MUSICAL SYMBOL CODA measured as true
+     tofu in this font stack too. A circle with a cross through it is
+     the real coda sign's own actual design (a "target"), so this one is
+     a direct, not approximated, rendition. */}}
+{{define "icon-coda"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="6.2"/><path d="M10 1.8v16.4M1.8 10h16.4"/></svg>{{end}}
+
 {{/* View-mode icons, replacing the text labels on #mode-segmented — hand-
      drawn to match this set's own stroke-based 20x20 style (no Font
      Awesome/icon-font dependency; this app has no CDN asset anywhere

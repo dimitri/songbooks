@@ -1740,6 +1740,50 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    vertical space this mode most needs to stay on one page. */
 #sheet[data-render-mode="jazz"] .sheet-section.is-compact .multi-rest-row { display: none; }
 
+/* ---- Segno / D.S. al Coda / Coda — jazz mode only. A genuinely
+   multi-section repeated run (detectSegnoRepeat, handlers_pages.go,
+   modeled on LilyPond's \repeat segno — see that function's own doc
+   comment) collapses to one "D.S. al Coda" marker instead of being
+   re-rendered section by section; a single repeated SECTION still gets
+   the existing 𝄆𝄇 bracket treatment above, untouched. */
+/* The run's own later occurrences (every JazzHidden section after the
+   first) are fully hidden — their content isn't wrong to render, it's
+   just redundant once the marker names the whole span. Every other
+   mode ignores .jazz-hidden entirely and shows these sections normally. */
+#sheet[data-render-mode="jazz"] .sheet-section.jazz-hidden { display: none; }
+/* The jazz-ds section's own normal content (chip/grid/multi-rest-row)
+   still renders in the DOM (every other mode needs it) — hidden here,
+   replaced by .jazz-ds-mark below. */
+#sheet[data-render-mode="jazz"] .sheet-section.jazz-ds > .section-map-chip,
+#sheet[data-render-mode="jazz"] .sheet-section.jazz-ds > .grid,
+#sheet[data-render-mode="jazz"] .sheet-section.jazz-ds > .grid-duplicate-note,
+#sheet[data-render-mode="jazz"] .sheet-section.jazz-ds > .multi-rest-row {
+  display: none;
+}
+.jazz-ds-mark { display: none; }
+#sheet[data-render-mode="jazz"] .jazz-ds-mark {
+  display: block; font-family: var(--font-ui); font-weight: 700; font-style: italic;
+  font-size: 1.1em; margin: 0.3em 0;
+}
+/* Segno and Coda — hand-drawn SVG (icon-segno/icon-coda, icons.html),
+   not the real Unicode glyphs (U+1D10B/U+1D10C). Those were the first
+   choice here (same Musical Symbols block as the 𝄆/𝄇 repeat-bracket
+   glyphs already used above and confirmed rendering) but measured
+   directly against this app's own font stack as TRUE tofu — rendered
+   width identical to a guaranteed-unassigned codepoint, confirmed live
+   (a solid striped box, not even an ugly fallback character) — so an
+   SVG icon is the only reliable option, same as every other icon in
+   this app. */
+.jazz-segno-mark, .jazz-coda-mark { display: none; }
+#sheet[data-render-mode="jazz"] .jazz-segno-mark,
+#sheet[data-render-mode="jazz"] .jazz-coda-mark {
+  display: inline-flex; align-items: center; margin-right: 0.3em; color: var(--fg);
+}
+#sheet[data-render-mode="jazz"] .jazz-segno-mark .icon,
+#sheet[data-render-mode="jazz"] .jazz-coda-mark .icon {
+  width: 1.5em; height: 1.5em;
+}
+
 /* ---- Compact section reference — the "call site, not re-inlined" case:
    a bare section whose content was already written out once earlier (an
    inferred or explicit repeat) renders as a single slim line, not a

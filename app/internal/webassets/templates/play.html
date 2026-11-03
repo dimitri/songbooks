@@ -105,11 +105,33 @@
      count" case a bare Verse repeat already is, inconsistent with how
      every other non-defining section renders. Dropping the "(not .Lines)"
      condition for the InferredNote case fixes that. */}}
-<section class="sheet-section{{if or .InferredNote .Repeat .IsReference .Compact}} is-compact{{end}}" data-section-index="{{.Index}}" data-label="{{label .Label}}" data-start-bar="{{.StartBar}}" data-bar-count="{{.BarCount}}" data-has-lyrics="{{if .Lyrics}}true{{else}}false{{end}}" data-has-note="{{if .InferredNote}}true{{else}}false{{end}}" style="--bars: {{.BarCount}}">
+<section class="sheet-section{{if or .InferredNote .Repeat .IsReference .Compact}} is-compact{{end}}{{if .JazzSegno}} jazz-segno{{end}}{{if .JazzDSAlCoda}} jazz-ds{{end}}{{if .JazzCoda}} jazz-coda{{end}}{{if .JazzHidden}} jazz-hidden{{end}}" data-section-index="{{.Index}}" data-label="{{label .Label}}" data-start-bar="{{.StartBar}}" data-bar-count="{{.BarCount}}" data-has-lyrics="{{if .Lyrics}}true{{else}}false{{end}}" data-has-note="{{if .InferredNote}}true{{else}}false{{end}}" style="--bars: {{.BarCount}}">
+  {{/* Segno/D.S. al Coda/Coda — jazz mode only (CSS below scopes all
+       three to #sheet[data-render-mode="jazz"]; every other mode's CSS
+       simply never shows them, same technique the recall chip/multi-
+       rest-row pair already uses elsewhere on this element). Modeled on
+       LilyPond's \repeat segno, not just the iReal Pro PDF's visual
+       appearance — see viewerSection's own doc comment (handlers_pages.go)
+       for the semantics each glyph/marker represents. */}}
+  {{/* Hand-drawn SVG icons, not the real U+1D10B/U+1D10C glyphs — those
+       measured as true tofu (no glyph at all) against this app's actual
+       font stack; see icon-segno/icon-coda's own doc comments in
+       icons.html for how that was confirmed and why these are a direct,
+       not approximated, substitute. */}}
+  {{if .JazzSegno}}<span class="jazz-segno-mark" title="Segno">{{template "icon-segno"}}</span>{{end}}
+  {{if .JazzCoda}}<span class="jazz-coda-mark" title="Coda">{{template "icon-coda"}}</span>{{end}}
   <h3>
     <button class="section-jump" type="button" data-section-index="{{.Index}}" title="jump here">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if or .Repeat .IsReference}} <span class="repeat-suffix">&middot; repeat</span>{{end}}</button>
     {{if .InferredNote}}<span class="inferred-note">{{.InferredNote}}</span>{{end}}
   </h3>
+  {{if .JazzDSAlCoda}}
+  {{/* The whole later repeated run (this section plus the JazzHidden
+       ones right after it) collapses to this one marker in jazz mode —
+       its own normal content (chip/grid/multi-rest-row below) still
+       renders unconditionally for every OTHER mode, just hidden here by
+       the same CSS that shows this instead. */}}
+  <div class="jazz-ds-mark">D.S. al Coda</div>
+  {{end}}
   <div class="section-map-chip">
     {{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}
     <span class="chip-label">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}</span>
