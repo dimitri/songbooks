@@ -857,16 +857,21 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    that; bars and the time-sig cell sit on top of it with no background of
    their own and simply line up with it because both are anchored to the
    row's bottom edge at the same 1.7em height. */
+/* A single hairline at the row's own baseline — NOT a literal 5-line music
+   staff. A chord/slash rhythm chart isn't pitched notation, so a real grand
+   staff behind it is a category error; this was the one mode (normal/map)
+   that hadn't yet adopted the single-rule convention jazz mode already uses
+   deliberately below ("a real printed chords-only fake-book page never
+   draws a 5-line staff"), and today's row-height/width changes made the
+   old 5-line version read as visibly broken — especially on a row holding
+   only repeat marks, which rendered as a near-empty grand staff. Kept as a
+   ::before with the same anchoring (bottom:0, height:1.7em) so no other
+   positioning math (.bar, .chord-label, .staff-timesig-cell) needs to move. */
 .staff-line::before {
   content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1.7em;
-  background-image:
-    linear-gradient(var(--border), var(--border)),
-    linear-gradient(var(--border), var(--border)),
-    linear-gradient(var(--border), var(--border)),
-    linear-gradient(var(--border), var(--border)),
-    linear-gradient(var(--border), var(--border));
+  background-image: linear-gradient(var(--border), var(--border));
   background-size: 100% 1px;
-  background-position: 0 0%, 0 25%, 0 50%, 0 75%, 0 100%;
+  background-position: 0 100%;
   background-repeat: no-repeat;
 }
 .bar {
@@ -1933,6 +1938,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    .desktop-sidebar to begin with); shown only under the condition below. */
 .sidebar-back-to-play { display: none; }
 @media (min-width: 901px) {
+  body.drawer-open .sidebar-crumb,
   body.drawer-open .sidebar-primary,
   body.drawer-open .sidebar-secondary,
   body.drawer-open .sidebar-song-group,
@@ -2011,7 +2017,7 @@ body.drawer-open { overflow: hidden; }
      static-flow drawer above doesn't just stack on top of them (nothing
      else here pulls them out of flow for us now that the drawer no longer
      does via position:fixed). */
-  body.drawer-open .song-topbar,
+  body.drawer-open .song-topzone,
   body.drawer-open .content-row { display: none; }
 }
 .edit-drawer-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
