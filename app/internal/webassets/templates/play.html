@@ -378,6 +378,7 @@
     <div class="prep-tabs view-tabs" role="tablist">
       <button class="prep-tab active" data-tab="structure" type="button">Chart</button>
       <button class="prep-tab" data-tab="raw" type="button">Source</button>
+      <button class="prep-tab" data-tab="import" type="button">Import</button>
     </div>
   </div>
   <div class="edit-drawer-body">
@@ -393,25 +394,6 @@
     </section>
 
     <section class="prep-panel" data-panel="raw" id="editor" data-book="{{.Book}}" data-stem="{{.Stem}}" data-version="{{.Version}}" data-variant-id="{{.VariantID}}" data-can-edit="{{.CanEdit}}" hidden>
-      <div class="import-bar">
-        <details>
-          <summary>Import lyrics from a URL</summary>
-          <div class="import-row">
-            <input type="url" id="import-lyrics-url" placeholder="https://genius.com/... (or any lyrics page)">
-            <button id="import-lyrics-btn" type="button">Fetch</button>
-            <a id="google-lyrics-link" href="#" target="_blank" rel="noopener">search Google &#8599;</a>
-          </div>
-          <span id="import-lyrics-status" class="hint"></span>
-        </details>
-        <details>
-          <summary>Bootstrap chords from an Ultimate Guitar tab</summary>
-          <div class="import-row">
-            <input type="url" id="import-ug-url" placeholder="https://tabs.ultimate-guitar.com/tab/...">
-            <button id="import-ug-btn" type="button">Fetch</button>
-          </div>
-          <span id="import-ug-status" class="hint"></span>
-        </details>
-      </div>
       <div class="code-toolbar" id="code-toolbar">
         <button type="button" data-insert="section">[Section]</button>
         <button type="button" data-insert="grid">grid:</button>
@@ -432,6 +414,52 @@
         <p class="hint">Erases the current lyrics and chords for this song (not the song itself — title, artist and other metadata stay) and drops you back into a blank Source editor to fill in again. Can't be undone.</p>
         <button id="redo-song-btn" type="button" class="danger">Erase lyrics &amp; chords, start over</button>
       </details>
+    </section>
+
+    {{/* Import wizard — pick what (lyrics vs. chords) → find a source
+         (pre-filled search links built from this song's own title/artist,
+         opened in a new tab — no server-side scraping of a search-results
+         page, same policy the old "search Google" link already followed —
+         or paste a URL directly) → review the fetched draft → apply it
+         into Source. Replaces the two buried <details> blocks that used
+         to sit at the top of the Source tab itself. */}}
+    <section class="prep-panel import-wizard" data-panel="import" id="import-wizard" hidden>
+      <div class="import-step" data-step="pick">
+        <p class="hint">Pull lyrics or a chord chart in from an online source, review the draft, then apply it — nothing is written until you confirm.</p>
+        <div class="import-pick-row">
+          <button type="button" class="import-pick-btn" data-kind="lyrics">
+            <strong>Lyrics</strong>
+            <span class="hint">from Genius or any lyrics page</span>
+          </button>
+          <button type="button" class="import-pick-btn" data-kind="chords">
+            <strong>Chords</strong>
+            <span class="hint">from an Ultimate Guitar tab</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="import-step" data-step="find" hidden>
+        <button type="button" class="import-back" data-back="pick">{{template "icon-back"}} back</button>
+        <p class="hint" id="import-find-hint"></p>
+        <div class="import-search-links" id="import-search-links"></div>
+        <label class="import-url-label">or paste a URL directly
+          <input type="url" id="import-url-input" placeholder="https://...">
+        </label>
+        <div class="import-row">
+          <button type="button" id="import-fetch-btn" class="primary">Fetch</button>
+          <span id="import-fetch-status" class="hint"></span>
+        </div>
+      </div>
+
+      <div class="import-step" data-step="review" hidden>
+        <button type="button" class="import-back" data-back="find">{{template "icon-back"}} back</button>
+        <p class="hint">Review the draft below — nothing is applied yet. You can edit it here before applying.</p>
+        <textarea id="import-review-text" class="import-review-text" rows="14" spellcheck="false"></textarea>
+        <div class="import-row">
+          <button type="button" id="import-apply-btn" class="primary">Apply to Source</button>
+          <span id="import-apply-status" class="hint"></span>
+        </div>
+      </div>
     </section>
   </div>
 </div>
