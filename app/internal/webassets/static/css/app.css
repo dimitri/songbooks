@@ -1509,14 +1509,14 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    reads as part of the form at a glance, its bar count muted rather than
    bold, instead of a full empty block. */
 #sheet[data-render-mode="map"] .sheet-section.is-compact .chip-bars { color: var(--fg-muted); font-weight: 700; }
-/* A plain repeat with nothing new to say ("Chorus · repeat", identical to
-   the one already shown) doesn't need its own bold multi-rest bar in the
-   overview — that's for a section carrying real information (right now,
-   only a Solo's inferred duration note; see InferredNote). Suppressing it
-   for the plain case keeps the roadmap's visual weight on the parts that
-   actually differ, instead of a "16 bars, nothing new" bar repeating for
-   every single verse/chorus recurrence in the song. */
-#sheet[data-render-mode="map"] .sheet-section.is-compact[data-has-note="false"] .multi-rest-row { display: none; }
+/* Every recall in Song Map gets its multi-rest glyph, not just the ones
+   carrying an inferred note (e.g. a Solo's duration) — that's the whole
+   point of the LilyPond convention this mode is built around: "N bars,
+   same as before" reads as a bar-and-staff glyph, every time, the way a
+   real chart recalls a repeated passage. (Previously suppressed for the
+   plain case, which is what made every ordinary repeated Verse/Chorus
+   render as a bare text line instead of the approved multi-rest block —
+   reverted.) */
 
 /* Multi-measure rest bar — LilyPond's own convention for "N bars, nothing
    new to show" (checked against scm/define-grobs.scm's MultiMeasureRest:
