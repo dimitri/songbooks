@@ -1288,22 +1288,43 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .map-score { display: none; }
 #sheet[data-render-mode="jazz"] .bar { padding: 0.25em 0.7em; }
 #sheet[data-render-mode="jazz"] .csym-root { font-size: 1.2em; }
-/* iReal Pro's own clearest visual signature: a solid-filled, rounded
-   section marker sitting right against the start of its line — not an
-   underlined small-caps heading (this chart's normal "engraved" style).
-   Real charts box a single letter (A/B/C); this app keeps the full
-   Verse/Chorus/Bridge vocabulary on purpose (an earlier, explicit call —
-   see the session notes), so the marker keeps the word but borrows the
-   same solid-chip treatment. */
+/* Chord symbols, sans-serif and bold — verified against real iReal Pro
+   screenshots (irealpro.com marketing/learn pages: "Chelsea Bridge",
+   the Editor screenshot on /learn/edit-a-song): iReal's chord font is a
+   clean bold sans digit-and-letter face, never the serif/italic
+   "engraved" treatment this chart's other modes use on purpose. Scoped
+   to jazz only — normal/map/lyrics keep their own look. */
+#sheet[data-render-mode="jazz"] .csym { font-family: var(--font-ui); font-weight: 700; }
+#sheet[data-render-mode="jazz"] .csym-plain { font-style: normal; }
+/* Section marker: REVERSES an earlier explicit choice in this codebase
+   to keep the full Verse/Chorus/Bridge word next to the letter in jazz
+   mode (see the removed comment this replaced) — confirmed against the
+   same real iReal Pro screenshots that a rehearsal mark there is NEVER
+   more than the bare boxed letter (A/B/C), sitting tight against the
+   corner of the staff, no section name spelled out anywhere on the
+   chart itself. Flagging this reversal explicitly since it was a
+   previous deliberate call, not an oversight — the user's current,
+   explicit ask ("exactly like iReal Pro", for real interop with
+   bandmates still on iReal Pro) is more specific and more recent, so
+   this fork follows it, but it's worth the user confirming they're
+   fine overriding that earlier decision.
+   font-size:0 / reset-on-the-span is the standard "keep one inline
+   child visible, collapse the rest of this element's own text" trick —
+   .section-jump's template unconditionally prints the label as plain
+   text after .rehearsal-mark with no wrapping span of its own to
+   target directly. */
 #sheet[data-render-mode="jazz"] .section-jump {
-  font-size: 0.72em; background: var(--accent); color: var(--accent-contrast);
-  border: none; border-radius: 3px; padding: 0.1em 0.45em; font-style: normal;
-  font-variant: normal; letter-spacing: 0.02em;
+  font-size: 0; background: none; color: inherit;
+  border: none; border-radius: 0; padding: 0; font-style: normal;
+  font-variant: normal; letter-spacing: 0;
 }
-#sheet[data-render-mode="jazz"] .sheet-section.current-section > h3 .section-jump {
+#sheet[data-render-mode="jazz"] .section-jump .rehearsal-mark {
+  font-size: 0.78rem; margin-right: 0;
+}
+#sheet[data-render-mode="jazz"] .sheet-section.current-section > h3 .section-jump .rehearsal-mark {
   background: var(--accent); color: var(--accent-contrast); filter: brightness(1.15);
 }
-#sheet[data-render-mode="jazz"] .sheet-section.is-compact .section-jump {
+#sheet[data-render-mode="jazz"] .sheet-section.is-compact .section-jump .rehearsal-mark {
   background: var(--fg-muted);
 }
 /* Section chrome (padding, header margin) also needs to shrink with the
@@ -1340,8 +1361,22 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   border: none; height: auto; width: auto; margin-right: 0.6em; align-self: center;
 }
 #sheet[data-render-mode="jazz"] .tsnum, #sheet[data-render-mode="jazz"] .tsden { font-size: 0.85em; }
+/* .section-jump (the h3 button above, already styled as a solid accent
+   pill — the real "boxed letter" iReal Pro convention) is jazz mode's
+   ONE section header; .section-map-chip (built for song-map/normal's
+   own "label + bar count" summary row) duplicated it entirely — same
+   letter, same name, rendered a second time directly underneath,
+   reading as a garbled double layout (confirmed live, both desktop and
+   mobile widths; not a mobile-only bug). Jazz keeps only .chip-bars
+   from that chip — the one piece of information .section-jump doesn't
+   already carry, needed so a compact/reference section's multi-rest
+   row (below) still shows its bar count. */
 #sheet[data-render-mode="jazz"] .section-map-chip {
   display: flex; align-items: baseline; gap: 0.4em; margin-bottom: 0.3em;
+}
+#sheet[data-render-mode="jazz"] .section-map-chip .rehearsal-mark,
+#sheet[data-render-mode="jazz"] .section-map-chip .chip-label {
+  display: none;
 }
 #sheet[data-render-mode="jazz"] .chip-bars { font-size: 1.1em; margin-top: 0; }
 #sheet[data-render-mode="jazz"] .sheet-section.is-compact .chip-bars { color: var(--fg-muted); }
@@ -1373,20 +1408,31 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   display: none;
 }
 
-/* ---- Jazz chart, iReal Pro style — thin vertical barlines between bars,
-   a thin rule above/below each ROW of bars, NOT a bordered box per bar.
-   The earlier version drew a full 4-sided border around every single bar
-   (border + border-radius), which reads as a spreadsheet/table of cells —
-   compare the real iReal Pro reference (swiss-jazz.ch-style: "All The
-   Things You Are"): bars are separated only by a plain "|" and the row
-   itself is bounded top/bottom by a single thin rule, no per-cell boxes
-   at all. Each bar still shows only the chord symbol(s) that actually
-   occur in it — a single centered chord fills the whole cell, two split
-   it evenly — matching how a musician actually reads it ("what do I play
-   in this bar"), not how long each chord lasts within it. */
+/* ---- Jazz chart, iReal Pro style — a REAL bordered box per bar.
+   Reverses an earlier call here (see the removed comment) that checked
+   a third-party fakebook-style reference (swiss-jazz.ch) and concluded
+   no per-cell boxes — that's not actually iReal Pro's own interface.
+   Verified instead directly against real iReal Pro app screenshots
+   (irealpro.com's own marketing page and /learn/edit-a-song): every
+   bar is a complete 4-sided grid cell, adjacent cells sharing their
+   border like an ordinary table, not just a vertical "|" between them
+   with a rule above/below the row. Each bar still shows only the chord
+   symbol(s) that actually occur in it — a single centered chord fills
+   the whole cell, two split it evenly — matching how a musician
+   actually reads it ("what do I play in this bar"), not how long each
+   chord lasts within it. */
 #sheet[data-render-mode="jazz"] .staff-line {
-  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
 }
+#sheet[data-render-mode="jazz"] .bar {
+  border-bottom: 1px solid var(--border);
+}
+/* Vertical dividers between bars already come from the shared, every-
+   mode .bar + .bar { border-left } rule above — only the row's own left
+   and right OUTER edges need adding here, or that shared rule would
+   double up with a border-right on every bar (each bar's own right
+   edge plus the next bar's shared left edge = a visibly thicker line
+   between bars than at the row's outer edges). */
 #sheet[data-render-mode="jazz"] .bar:first-of-type { border-left: 1px solid var(--border); }
 #sheet[data-render-mode="jazz"] .bar:last-of-type { border-right: 1px solid var(--border); }
 #sheet[data-render-mode="jazz"] .slash { display: none; }
