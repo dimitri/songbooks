@@ -20,6 +20,20 @@
   <section class="card book-card">
     <h2>{{.Me.DisplayName}} <span class="song-link-sub">@{{.Me.Username}}</span></h2>
     <p class="hint">New here, or want to pick up where you left off? <a href="/welcome">Walk through getting-started setup</a> — instruments, a band, a few first songs. You can re-enter it any time.</p>
+    {{if .Me.IsAdmin}}
+    {{/* The only mobile path to /admin: the desktop sidebar's Admin link
+         sits below a divider there (see desktop-sidebar's own doc
+         comment — "secondary/utility, not primary nav"), but is hidden
+         entirely below 900px along with the rest of that sidebar, and
+         the shared global-tabbar partial every page renders on mobile is
+         deliberately fixed at 5 icons with no admin awareness and no
+         per-page data at all (its own doc comment: "this partial needs
+         no per-page data") — widening it would mean threading .Me
+         through ~30 call sites for one admin-only link. Profile is
+         already one of those 5 universal destinations and already has
+         .Me in scope, so it's the natural place for this instead. */}}
+    <p class="hint"><a href="/admin">Admin panel &rarr;</a></p>
+    {{end}}
     <h3>Instruments you play</h3>
     <p class="hint">Picked here pre-fill your instrument choice when you join a jam.</p>
     <form method="post" action="/profile/instruments">

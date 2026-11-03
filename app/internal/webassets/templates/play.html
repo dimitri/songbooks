@@ -694,20 +694,6 @@
        since this IS their mobile home now. */}}
   <div class="stack-backdrop" id="song-stack-backdrop"></div>
   <div class="stack-sheet" id="song-stack" role="dialog" aria-label="Song">
-    {{/* Mobile had NO way to reach the editor at all — #edit-toggle (and
-         Notes/Reference) live inside .desktop-sidebar, which is flat-out
-         CSS-hidden below the 901px breakpoint (see desktop-sidebar's own
-         doc comment), so a phone visitor tapping the bottom bar's "Song"
-         button got a sheet with export/versions/history and nothing to
-         actually edit with. These rows don't duplicate #edit-toggle's
-         id (ids must be unique) — they forward-click the real, hidden
-         desktop button via song.js, same single source of truth/handler,
-         then close this sheet, rather than reimplementing the drawer-open
-         logic a second time. */}}
-    <button type="button" id="song-stack-edit-btn" class="stack-sheet-row" title="edit">{{template "icon-edit"}} Edit</button>
-    <a class="stack-sheet-row" title="metronome &amp; transport settings" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/b/%s/%s" .Book .Stem | urlquery}}">{{template "icon-metro-full"}} Metronome</a>
-    {{if .VariantID}}<button type="button" id="song-stack-notes-btn" class="stack-sheet-row" title="notes: personal or shared, per section">{{template "icon-notes"}} Notes</button>{{end}}
-    <button type="button" id="song-stack-reference-btn" class="stack-sheet-row" title="reference video">{{template "icon-reference"}} Reference</button>
     <div class="stack-sheet-row pdf-mode-row" style="flex-wrap:wrap;gap:0.6rem 0.9rem;">
       <a class="pdf-export-link" href="/b/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF (chart)" download>{{template "icon-download"}} Export PDF</a>
       <select class="pdf-mode-select" title="PDF view mode">
@@ -738,6 +724,7 @@
     <a class="site-nav-fullpage-row" href="/bands">{{template "icon-bands"}} Bands</a>
     <a class="site-nav-fullpage-row" href="/setlists">{{template "icon-setlists"}} Setlists</a>
     <a class="site-nav-fullpage-row" href="/profile">{{template "icon-profile"}} Profile</a>
+    {{if and .Me .Me.IsAdmin}}<a class="site-nav-fullpage-row" href="/admin">Admin</a>{{end}}
   </div>
 
   <div class="content-main">
@@ -886,11 +873,20 @@
   viewBackdrop.addEventListener('click', () => setViewOpen(false));
 
   // Each row forwards a real click to the corresponding (hidden-on-mobile)
-  // #mode-segmented button, so the existing wireSegmented/edit-toggle/
-  // save-default logic in song.js runs completely untouched.
+  // #mode-segmented button, so the existing wireSegmented/save-default
+  // logic in song.js runs completely untouched. "edit" is the one
+  // exception: edit-toggle was later moved OUT of the #mode-segmented
+  // pill into its own standalone button (see song.js's "Phase 46"
+  // comment), so '#mode-segmented button[data-value="edit"]' no longer
+  // matches anything and this row silently did nothing — forward it to
+  // #edit-toggle directly instead, the same real desktop button Notes/
+  // Reference already forward to (see their own toggles-array wiring
+  // below) rather than reimplement the drawer-open logic here too.
   viewSheet.querySelectorAll('.stack-sheet-row').forEach(function (row) {
     row.addEventListener('click', function () {
-      var real = document.querySelector('#mode-segmented button[data-value="' + row.dataset.forward + '"]');
+      var real = row.dataset.forward === 'edit'
+        ? document.getElementById('edit-toggle')
+        : document.querySelector('#mode-segmented button[data-value="' + row.dataset.forward + '"]');
       if (real) real.click();
       setViewOpen(false);
     });
@@ -925,22 +921,6 @@
     songBackdrop.addEventListener('click', () => setSongOpen(false));
     // A plain <a> row (versions/history) should just navigate, same as
     // clicking it anywhere else -- no sheet-closing intercept needed.
-
-    // Edit/Notes/Reference: forward to the real desktop-sidebar button
-    // (song.js's actual click handler lives there — #edit-toggle etc.
-    // can't be duplicated, ids must be unique) rather than reimplement
-    // the drawer-open logic a second time, then close this sheet so the
-    // drawer that opens isn't fighting a stale backdrop underneath it.
-    function forwardAndClose(sourceId) {
-      var el = document.getElementById(sourceId);
-      var btn = document.getElementById('song-stack-' + sourceId.replace('-toggle', '') + '-btn');
-      if (el && btn) {
-        btn.addEventListener('click', () => { setSongOpen(false); el.click(); });
-      }
-    }
-    forwardAndClose('edit-toggle');
-    forwardAndClose('notes-toggle');
-    forwardAndClose('reference-toggle');
   }
 
   // "..." full-page site navigation -- a genuine full-screen takeover,
