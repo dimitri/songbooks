@@ -97,16 +97,20 @@ const ICONS = {
     // jazz mode specifically) because all four modes render from the same
     // server-sent Lines: there's no second request to re-group them
     // server-side when the reader flips the mode dropdown. Jazz mode
-    // wants that 8-bar density; the other three (chords+lyrics, map,
-    // lyrics-only) are read at a normal, print-style density instead —
-    // the same 4-bar-per-line convention the PDF/file-format default
-    // already uses — so an 8-bar row there reads as a single, overly
-    // dense line with its chord labels visually crowding past the row's
-    // own width, even though the row's own CSS width still matches the
-    // lyric column exactly (a real user mistook that crowding for the
-    // two no longer sharing a width at all). Capped here, not server-
-    // side, so jazz mode keeps its own density untouched.
-    const modeCap = sheet.dataset.renderMode === 'jazz' ? 8 : 4;
+    // wants that 8-bar density; chords+lyrics and lyrics-only are read at
+    // a normal, print-style density instead — the same 4-bar-per-line
+    // convention the PDF/file-format default already uses — so an 8-bar
+    // row there reads as a single, overly dense line with its chord
+    // labels visually crowding past the row's own width, even though the
+    // row's own CSS width still matches the lyric column exactly (a real
+    // user mistook that crowding for the two no longer sharing a width at
+    // all). Capped here, not server-side, so jazz mode keeps its own
+    // density untouched. Song Map wants jazz's own density (a continuous
+    // score, 8 bars/line or more if the row has room — not the 4-bar
+    // print density), so it shares jazz's uncapped-upward treatment: no
+    // fixed ceiling, effCap (how many bars actually fit this row) is the
+    // only limit.
+    const modeCap = (sheet.dataset.renderMode === 'jazz' || sheet.dataset.renderMode === 'map') ? Infinity : 4;
     for (const { grid, lines } of staffLineOriginals) {
       if (!grid.isConnected) continue;
       const availW = grid.clientWidth;
@@ -555,7 +559,7 @@ const ICONS = {
     const mode = sheet.dataset.renderMode;
     const availW = sheet.parentElement.clientWidth;
 
-    if (mode === 'lyrics' || mode === 'map') {
+    if (mode === 'lyrics') {
       // A reading mode: single column, A4-width proportioned and centered,
       // but NOT height-constrained — scrolling is normal here (singing
       // along, or scanning a long form), so the box just grows with its
@@ -563,14 +567,20 @@ const ICONS = {
       // mode's page-box is. The width is "what an A4 page would be if its
       // height matched the visible viewport" — a deterministic, screen-
       // proportional single-column width without needing to know the
-      // content's real height up front. Song map keeps its own flex-wrap
-      // packing of multi-rest rows inside this width (see the CSS) — this
-      // only sets the page-shaped column they pack within.
+      // content's real height up front.
       const availH = Math.max(200, window.innerHeight - sheet.getBoundingClientRect().top - 32);
       sheet.style.width = Math.min(availW, availH * A4_RATIO) + 'px';
       sheet.style.margin = '0 auto';
       return;
     }
+    // Song map: a continuous score, not a printed page — the opposite of
+    // jazz/lyrics' narrow A4 box. It wants the FULL available width so
+    // reflowStaffLines() can fit as many bars per line as the row
+    // actually has room for (8 or more), same as the normal chart. No
+    // custom width/margin to set — the reset at the top of this function
+    // already cleared any earlier page-box sizing, so this is a no-op by
+    // design, left explicit rather than silently falling through.
+    if (mode === 'map') return;
     if (mode !== 'jazz') return;
 
     // Jazz: a real printed fake-book page, deliberately narrow (A4
@@ -1047,7 +1057,10 @@ const ICONS = {
   // success — rather than trying to hand-unwind in-memory edits.
   document.getElementById('edit-save-btn')?.addEventListener('click', () => {
     const activeTab = document.querySelector('.prep-tab.active')?.dataset.tab;
-    const target = activeTab === 'raw' ? 'save-btn' : 'save-structure';
+    // Import has no save of its own — an applied draft lands in Source's
+    // raw text (see the import wizard below), so Save there is what
+    // commits it, same as any other raw-text edit.
+    const target = (activeTab === 'raw' || activeTab === 'import') ? 'save-btn' : 'save-structure';
     document.getElementById(target)?.click();
   });
   document.getElementById('edit-discard-btn')?.addEventListener('click', () => {
@@ -1171,13 +1184,6 @@ const ICONS = {
     const artist = (rawTextarea.value.match(/^artist:\s*(.+)$/m) || [, ''])[1].trim();
     return { title, artist };
   }
-  const googleLink = document.getElementById('google-lyrics-link');
-  function refreshGoogleLink() {
-    const { title, artist } = titleArtist();
-    googleLink.href = `https://www.google.com/search?q=${encodeURIComponent(`${artist} ${title} lyrics`.trim())}`;
-  }
-  refreshGoogleLink();
-  rawTextarea.addEventListener('blur', refreshGoogleLink);
 
   function insertAtCursor(text) {
     const start = rawTextarea.selectionStart ?? rawTextarea.value.length;
@@ -1185,26 +1191,100 @@ const ICONS = {
     rawTextarea.value = rawTextarea.value.slice(0, start) + text + rawTextarea.value.slice(end);
     rawTextarea.dispatchEvent(new Event('input'));
   }
-  async function doImport(btn, statusEl, endpoint, urlInput) {
-    const url = urlInput.value.trim();
-    if (!url) return;
-    btn.disabled = true; statusEl.textContent = 'fetching…'; statusEl.className = 'hint';
-    try {
-      const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'fetch failed');
-      insertAtCursor('\n\n# imported from ' + url + '\n' + data.text + '\n');
-      statusEl.textContent = 'inserted below cursor — review and fold into sections';
-      statusEl.className = 'ok';
-    } catch (e) { statusEl.textContent = e.message; statusEl.className = 'err'; }
-    finally { btn.disabled = false; }
-  }
-  document.getElementById('import-lyrics-btn').addEventListener('click', () => doImport(
-    document.getElementById('import-lyrics-btn'), document.getElementById('import-lyrics-status'),
-    '/api/import/lyrics', document.getElementById('import-lyrics-url')));
-  document.getElementById('import-ug-btn').addEventListener('click', () => doImport(
-    document.getElementById('import-ug-btn'), document.getElementById('import-ug-status'),
-    '/api/import/chords', document.getElementById('import-ug-url')));
+
+  // ---- Import wizard — pick → find a source → review the fetched draft →
+  // apply. Replaces the old import-bar's two buried <details> blocks with
+  // a guided flow, still built on the exact same /api/import/lyrics and
+  // /api/import/chords endpoints (internal/importer server-side) — only
+  // the UI around them changed. "Find a source" offers pre-filled SEARCH
+  // LINKS (built locally from the song's own title/artist) that open in a
+  // new tab — never server-side scraping of a search-results page, same
+  // policy the old Google-search link already followed; the user still
+  // picks the actual source page themselves and pastes its URL back in.
+  (function wireImportWizard() {
+    const wizard = document.getElementById('import-wizard');
+    if (!wizard) return;
+    const steps = {
+      pick: wizard.querySelector('[data-step="pick"]'),
+      find: wizard.querySelector('[data-step="find"]'),
+      review: wizard.querySelector('[data-step="review"]'),
+    };
+    const findHint = document.getElementById('import-find-hint');
+    const searchLinksHost = document.getElementById('import-search-links');
+    const urlInput = document.getElementById('import-url-input');
+    const fetchBtn = document.getElementById('import-fetch-btn');
+    const fetchStatus = document.getElementById('import-fetch-status');
+    const reviewText = document.getElementById('import-review-text');
+    const applyBtn = document.getElementById('import-apply-btn');
+    const applyStatus = document.getElementById('import-apply-status');
+
+    let importKind = null; // 'lyrics' | 'chords'
+    let importSourceURL = '';
+
+    function showStep(name) {
+      Object.entries(steps).forEach(([k, el]) => { if (el) el.hidden = k !== name; });
+    }
+    function buildSearchLinks(kind) {
+      const { title, artist } = titleArtist();
+      const q = `${artist} ${title}`.trim();
+      searchLinksHost.innerHTML = '';
+      const sources = kind === 'chords'
+        ? [{ label: 'Ultimate Guitar', url: `https://www.ultimate-guitar.com/search.php?search_type=title&value=${encodeURIComponent(q)}` }]
+        : [
+            { label: 'Genius', url: `https://genius.com/search?q=${encodeURIComponent(q)}` },
+            { label: 'Google', url: `https://www.google.com/search?q=${encodeURIComponent((q + ' lyrics').trim())}` },
+          ];
+      sources.forEach(s => {
+        const a = document.createElement('a');
+        a.href = s.url; a.target = '_blank'; a.rel = 'noopener'; a.className = 'import-search-link';
+        a.textContent = `search on ${s.label} ↗`;
+        searchLinksHost.appendChild(a);
+      });
+    }
+    wizard.querySelectorAll('.import-pick-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        importKind = btn.dataset.kind;
+        findHint.textContent = importKind === 'chords'
+          ? 'Find an Ultimate Guitar tab for this song, open it, then paste its URL below.'
+          : 'Find a lyrics page for this song, open it, then paste its URL below.';
+        buildSearchLinks(importKind);
+        urlInput.value = '';
+        fetchStatus.textContent = ''; fetchStatus.className = 'hint';
+        showStep('find');
+        urlInput.focus();
+      });
+    });
+    wizard.querySelectorAll('.import-back').forEach(btn => {
+      btn.addEventListener('click', () => showStep(btn.dataset.back));
+    });
+    fetchBtn.addEventListener('click', async () => {
+      const url = urlInput.value.trim();
+      if (!url) { fetchStatus.textContent = 'paste a URL first'; fetchStatus.className = 'err'; return; }
+      fetchBtn.disabled = true; fetchStatus.textContent = 'fetching…'; fetchStatus.className = 'hint';
+      try {
+        const endpoint = importKind === 'chords' ? '/api/import/chords' : '/api/import/lyrics';
+        const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'fetch failed');
+        importSourceURL = url;
+        reviewText.value = data.text;
+        applyStatus.textContent = ''; applyStatus.className = 'hint';
+        showStep('review');
+      } catch (e) {
+        fetchStatus.textContent = e.message; fetchStatus.className = 'err';
+      } finally {
+        fetchBtn.disabled = false;
+      }
+    });
+    applyBtn.addEventListener('click', () => {
+      const text = reviewText.value.trim();
+      if (!text) return;
+      insertAtCursor(`\n\n# imported from ${importSourceURL}\n${text}\n`);
+      applyStatus.textContent = 'applied — inserted into Source below cursor, review and fold into sections';
+      applyStatus.className = 'ok';
+      setTimeout(() => { importKind = null; importSourceURL = ''; showStep('pick'); }, 900);
+    });
+  })();
 
   // ---- Structure editor -------------------------------------------------------
   const structureEl = document.getElementById('structure');

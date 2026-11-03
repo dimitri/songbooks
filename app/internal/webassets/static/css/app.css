@@ -1464,38 +1464,30 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 }
 
 /* ---- Song map: chords + staff + structure, no lyrics — "what's the form
-   AND the changes," a rehearsal/overview chart. Same A4-proportioned page
-   width as jazz/lyrics-only (set by applyPageBox in song.js — width only,
-   not height-locked: this reads as an overview you scroll, not a page
-   that must fit one screen the way jazz's does). Multi-rest rows flex-
-   wrap and pack within that width. */
+   AND the changes," a continuous rehearsal/overview score. Unlike jazz/
+   lyrics-only, this does NOT get a narrow A4-proportioned page box
+   (applyPageBox in song.js explicitly skips map mode) — it uses the
+   FULL available width so reflowStaffLines() can fit 8+ bars per line,
+   same density as a real chart, not a cramped print page. Multi-rest
+   chips flex-wrap and pack within that full width. */
 #sheet[data-render-mode="map"] {
   display: flex; flex-wrap: wrap; align-items: flex-end; column-count: 1;
 }
-/* Reflow like text, not like a stack of blocks: a short defining section
-   (its own real staff/chords) packs onto a shared line with its
-   neighbors exactly like a compact multi-rest chip does, only wrapping
-   to a new line once a row runs out of room — see the Bands-Camp
-   reference: "Intro 4 / Couplet 8 / Refrain 2 / Intro 2" sit side by
-   side on ONE line, full staffs and recall chips alike, nothing forces
-   an early break. A defining section's own width is its natural content
-   width (bar count * the fixed --bar-w below), not a stretch-to-fill —
-   that's what lets a short Intro sit next to the next chip instead of
-   claiming the whole row for itself; a long section is simply wider and
-   wraps on its own once it doesn't fit. */
+/* A defining section (its own real staff/chords) is a continuous score,
+   not a text-reflow item: full row width, one section after another,
+   same as the normal Chords+lyrics chart — NOT packed into a narrow
+   fit-content column next to its neighbor (that read as a cramped
+   "vertical breakdown" of tiny side-by-side blocks once a section had
+   real bar-density, rather than a score). reflowStaffLines() (song.js)
+   measures this row's real available width to compute bars-per-line —
+   it needs the row at its full, final width to do that, which a
+   fit-content column (sized FROM the bar count it's trying to compute)
+   can't give it. Only the compact multi-rest chips below still pack
+   inline with each other — they're the "Intro 4 / Couplet 8" reflow
+   from the Bands-Camp reference, which was always about short recall
+   blocks, not full chord staffs. */
 #sheet[data-render-mode="map"] .sheet-section:not(.is-compact) {
-  flex: 0 1 auto; width: fit-content; max-width: 100%;
-}
-/* Bars in a defining map-mode section use the same flat typeset width as
-   the clef row elsewhere (--bar-w, 7.2em) instead of the normal chart
-   modes' 100%/--cap stretch-to-row-width — a percentage basis has
-   nothing stable to resolve against once the section itself is sized to
-   its own content rather than to the page, and would otherwise just
-   collapse to its min-width floor. Fixed width is also exactly what
-   "natural size" means for text-like packing: a 4-bar Intro is always
-   4 * 7.2em wide, regardless of how much page width happens to be free. */
-#sheet[data-render-mode="map"] .sheet-section:not(.is-compact) .bar {
-  flex: 0 0 var(--bar-w, 7.2em);
+  flex: 1 1 100%; width: 100%;
 }
 #sheet[data-render-mode="map"] .sheet-section.is-compact {
   flex: var(--bars, 1) 1 7rem; min-width: 6rem;
@@ -2191,11 +2183,28 @@ body.drawer-open { overflow: hidden; }
 .prep-tab { padding: 0.4rem 0.9rem; border-radius: 999px; }
 .prep-tab.active { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 
-.import-bar { margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
-.import-bar details { border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.75rem; background: var(--bg-sunken); }
-.import-bar summary { cursor: pointer; font-weight: 600; }
-.import-row { display: flex; gap: 0.5rem; margin: 0.5rem 0; flex-wrap: wrap; }
-.import-row input[type="url"] { flex: 1; min-width: 12rem; }
+/* Import wizard — pick / find / review, one step visible at a time. */
+.import-wizard { gap: 0; }
+.import-step { max-width: 34rem; }
+.import-pick-row { display: flex; gap: 0.75rem; margin-top: 0.75rem; flex-wrap: wrap; }
+.import-pick-btn {
+  flex: 1; min-width: 10rem; display: flex; flex-direction: column; gap: 0.25rem;
+  align-items: flex-start; padding: 0.9rem 1rem; text-align: left;
+}
+.import-pick-btn strong { font-size: 1rem; }
+.import-back { background: none; border: none; padding: 0.2rem 0; margin-bottom: 0.6rem; color: var(--fg-muted); display: inline-flex; align-items: center; gap: 0.3em; }
+.import-back:hover { color: var(--fg); }
+.import-back .icon { width: 0.9em; height: 0.9em; }
+.import-search-links { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 0.5rem 0 1rem; }
+.import-search-link {
+  display: inline-block; padding: 0.4rem 0.8rem; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--bg-sunken); font-size: 0.85rem;
+}
+.import-search-link:hover { border-color: var(--border-strong); }
+.import-url-label { display: block; font-size: 0.85rem; color: var(--fg-muted); margin-bottom: 0.3rem; }
+.import-url-label input[type="url"] { display: block; width: 100%; margin-top: 0.3rem; }
+.import-row { display: flex; align-items: center; gap: 0.75rem; margin: 0.75rem 0 0; flex-wrap: wrap; }
+.import-review-text { font-family: var(--font-mono); font-size: 0.9rem; }
 
 textarea {
   width: 100%; font-family: var(--font-mono); font-size: 0.95rem;
