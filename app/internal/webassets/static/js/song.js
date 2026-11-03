@@ -1418,6 +1418,42 @@ const ICONS = {
         a.textContent = `search on ${s.label} ↗`;
         searchLinksHost.appendChild(a);
       });
+      // One-click path for lyrics only: Genius has a real search API (not a
+      // scrape of its search-results HTML), so title+artist can resolve
+      // straight to a fetched draft without the "open a tab, find the
+      // link, copy it, paste it back" round-trip the plain search links
+      // above still need. Ultimate Guitar and Google have no equivalent
+      // sanctioned endpoint (checked directly, not assumed — UG's search
+      // page is server-rendered with no backing JSON/API call to reuse,
+      // same as Google, both deliberately staying manual-only, see
+      // internal/importer/lyrics.go's own comment on why Google never
+      // gets this treatment) — so this button only ever appears for
+      // lyrics. Needs SONGBOOKS_GENIUS_TOKEN configured server-side; falls
+      // back to a plain, clear message (not a raw error) when it isn't.
+      if (kind === 'lyrics' && title) {
+        const findBtn = document.createElement('button');
+        findBtn.type = 'button'; findBtn.className = 'import-search-link import-find-fetch-btn';
+        findBtn.textContent = 'find & fetch from Genius';
+        findBtn.addEventListener('click', async () => {
+          findBtn.disabled = true;
+          fetchStatus.textContent = 'searching Genius…'; fetchStatus.className = 'hint';
+          try {
+            const res = await fetch(`/api/import/lyrics/find?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist || '')}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(res.status === 501 ? 'automatic search isn’t configured on this deployment — paste a URL instead' : (data.error || 'search failed'));
+            importSourceURL = data.url;
+            urlInput.value = data.url;
+            reviewText.value = data.text;
+            applyStatus.textContent = ''; applyStatus.className = 'hint';
+            showStep('review');
+          } catch (e) {
+            fetchStatus.textContent = e.message; fetchStatus.className = 'err';
+          } finally {
+            findBtn.disabled = false;
+          }
+        });
+        searchLinksHost.appendChild(findBtn);
+      }
     }
     wizard.querySelectorAll('.import-pick-btn').forEach(btn => {
       btn.addEventListener('click', () => {

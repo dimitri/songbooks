@@ -1,10 +1,15 @@
 package importer
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var geniusMarkerRE = regexp.MustCompile(`<div[^>]*data-lyrics-container="true"[^>]*>`)
@@ -86,6 +91,65 @@ func FetchLyrics(url string) (text string, source string, err error) {
 		return "", "", fmt.Errorf("couldn't find a lyrics container on this Genius page — paste the text instead")
 	}
 	return stripTags(body), "generic", nil
+}
+
+// ErrGeniusNotConfigured is returned by SearchGenius when no API token is
+// configured on this deployment — a distinct sentinel so the HTTP handler
+// (and the editor UI) can show "automatic search isn't configured, paste a
+// URL instead" rather than a raw network/API error.
+var ErrGeniusNotConfigured = fmt.Errorf("Genius API search isn't configured on this deployment (set SONGBOOKS_GENIUS_TOKEN) — paste a URL instead")
+
+// SearchGenius resolves a title+artist to a real Genius song page URL via
+// Genius's own documented search API (api.genius.com/search) — a sanctioned
+// data endpoint, not a scrape of Genius's search-results HTML page. Unlike
+// FetchLyrics (any URL the user already has), this one API call REQUIRES a
+// client access token — confirmed directly against the live API (a keyless
+// request returns 401 "This call requires an access_token"), not assumed.
+// No token is configured on this deployment by default (see
+// ErrGeniusNotConfigured); an operator who wants one-click search needs to
+// create a free client at genius.com/developers and set
+// SONGBOOKS_GENIUS_TOKEN.
+func SearchGenius(title, artist string) (songURL string, err error) {
+	token := os.Getenv("SONGBOOKS_GENIUS_TOKEN")
+	if token == "" {
+		return "", ErrGeniusNotConfigured
+	}
+	q := strings.TrimSpace(artist + " " + title)
+	req, err := http.NewRequest(http.MethodGet, "https://api.genius.com/search?q="+url.QueryEscape(q), nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("User-Agent", userAgent)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("genius search: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("genius search: returned %s", resp.Status)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return "", err
+	}
+	var parsed struct {
+		Response struct {
+			Hits []struct {
+				Result struct {
+					URL string `json:"url"`
+				} `json:"result"`
+			} `json:"hits"`
+		} `json:"response"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return "", fmt.Errorf("genius search: unexpected response: %w", err)
+	}
+	if len(parsed.Response.Hits) == 0 {
+		return "", fmt.Errorf("no Genius results for %q — try a manual search instead", q)
+	}
+	return parsed.Response.Hits[0].Result.URL, nil
 }
 
 // GoogleLyricsSearchURL builds a plain Google search URL for the song, to

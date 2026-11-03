@@ -108,6 +108,7 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("GET /b/{book}/{stem}/prep", s.requireRole("viewer", s.handleSongRedirect))
 	mux.HandleFunc("POST /api/preview", s.requireAuth(s.handlePreview))
 	mux.HandleFunc("POST /api/import/lyrics", s.requireAuth(s.handleImportLyrics))
+	mux.HandleFunc("GET /api/import/lyrics/find", s.requireAuth(s.handleImportLyricsFindFetch))
 	mux.HandleFunc("POST /api/import/chords", s.requireAuth(s.handleImportChords))
 
 	mux.HandleFunc("GET /api/songs/{book}/{stem}", s.requireRole("viewer", s.handleGetSong))
