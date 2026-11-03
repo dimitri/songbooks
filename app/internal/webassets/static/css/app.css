@@ -1052,7 +1052,13 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   background-repeat: no-repeat;
   opacity: 0.5;
 }
-.bar + .bar { border-left: 1px solid var(--border); }
+/* Measure (bar) divider — LilyPond/Guitar Pro both draw this as a crisp,
+   clearly visible thin line (not a faint UI hairline like --border, which
+   at ~90% contrast with the page background read as "almost invisible"
+   per direct user feedback). Same color family as the staff lines
+   (--fg-muted) but full opacity, since a barline is structural content,
+   not decoration. */
+.bar + .bar { border-left: 1px solid var(--fg-muted); }
 /* Repeat barline — LilyPond/Guitar Pro convention: a THIN line next to the
    music and a THICK line outside it (away from the repeated material),
    never two equal-weight lines (that's a plain section-divider double
@@ -1487,8 +1493,8 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    claim doesn't hold: there is no border-top or border-bottom anywhere
    on the chart at all, only a single thin vertical line between bars
    (and the row's own left/right outer edges) — reverted. */
-#sheet[data-render-mode="jazz"] .bar:first-of-type { border-left: 1px solid var(--border); }
-#sheet[data-render-mode="jazz"] .bar:last-of-type { border-right: 1px solid var(--border); }
+#sheet[data-render-mode="jazz"] .bar:first-of-type { border-left: 1px solid var(--fg-muted); }
+#sheet[data-render-mode="jazz"] .bar:last-of-type { border-right: 1px solid var(--fg-muted); }
 /* Repeat bracket — iReal Pro's own swirled-bracket-with-dots convention
    (confirmed in all four real exports), not the LilyPond thick/thin
    barline-with-dots this app's other modes correctly use (that one stays

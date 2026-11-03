@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Back to black — iReal Pro style mockup</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;background:#f2f2f2;}
+</style>
+</helmet>
+
+<div style="width:360px;height:640px;box-sizing:border-box;background:#fff;display:flex;flex-direction:column;overflow:hidden;border:1px solid #ddd;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:700;">
+
+  <!-- status/title bar -->
+  <div style="border-bottom:1px solid #ccc;padding:14px 16px 10px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;font-weight:400;">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;">
+      <span style="font-size:12px;color:#888;">(Ballad)</span>
+      <span style="font-size:12px;color:#888;">Mercy</span>
+    </div>
+    <div style="text-align:center;font-size:18px;font-weight:700;color:#111;margin-top:2px;">Back to black</div>
+  </div>
+
+  <!-- the chart: 8 bars/row, no cell borders, hairline rule under each row, red rehearsal-mark badge at the left of the row a new section starts on -->
+  <div style="padding:28px 14px 6px;">
+
+    <!-- INTRO: |: Dm | % | Gm | % | Bb | % | A | % :|  -- 8 bars, one row, rehearsal mark A -->
+    <div style="display:grid;grid-template-columns:22px repeat(8,1fr);border-bottom:1px solid #999;padding-bottom:10px;align-items:start;">
+      <div style="background:#c0392b;color:#fff;font-size:12px;line-height:18px;text-align:center;width:18px;height:18px;border-radius:2px;">A</div>
+      <div style="position:relative;border-left:2px double #222;padding-left:7px;">
+        <span style="position:absolute;left:-1px;top:-3px;font-size:6px;line-height:1;color:#222;">&#9679;<br>&#9679;</span>
+        <span style="font-size:23px;color:#111;margin-left:7px;">D<span style="font-size:14px;vertical-align:5px;">-</span></span>
+      </div>
+      <div style="padding-left:7px;"><span style="font-size:18px;color:#555;font-weight:400;">%</span></div>
+      <div style="padding-left:7px;"><span style="font-size:23px;color:#111;">G<span style="font-size:14px;vertical-align:5px;">-</span></span></div>
+      <div style="padding-left:7px;"><span style="font-size:18px;color:#555;font-weight:400;">%</span></div>
+      <div style="padding-left:7px;"><span style="font-size:23px;color:#111;">B<span style="font-size:14px;">&#9837;</span></span></div>
+      <div style="padding-left:7px;"><span style="font-size:18px;color:#555;font-weight:400;">%</span></div>
+      <div style="padding-left:7px;"><span style="font-size:23px;color:#111;">A</span></div>
+      <div style="position:relative;padding-left:7px;">
+        <span style="font-size:18px;color:#555;font-weight:400;">%</span>
+        <span style="position:absolute;right:3px;top:-3px;font-size:6px;line-height:1;color:#222;">&#9679;<br>&#9679;</span>
+        <span style="border-right:2px double #222;position:absolute;right:0;top:0;bottom:0;"></span>
+      </div>
+    </div>
+
+    <!-- VERSE (no distinct grid in the source data for this section — it rides the same Intro changes by ear, shown here honestly as a repeat of the A section rather than invented chords) -->
+    <div style="display:grid;grid-template-columns:22px repeat(8,1fr);border-bottom:1px solid #999;padding-bottom:10px;padding-top:16px;align-items:start;">
+      <div style="background:#c0392b;color:#fff;font-size:12px;line-height:18px;text-align:center;width:18px;height:18px;border-radius:2px;">A</div>
+      <div style="padding-left:7px;"><span style="font-size:23px;color:#111;">D<span style="font-size:14px;vertical-align:5px;">-</span></span></div>
+      <div style="padding-left:7px;"><span style="font-size:18px;color:#555;font-weight:400;">%</span></div>
+      <div style="padding-left:7px;"><span style="font-size:23px;color:#111;">G<span style="font-size:14px;vertical-align:5px;">-</span></span></div>
+      <div style="padding-left:7px;"><span style="font-size:18px;color:#555;font-weight:400;">%</span></div>
+      <div style="padding-left:7px;"><span style="font-size:23px;color:#111;">B<span style="font-size:14px;">&#9837;</span></span></div>
+      <div style="padding-left:7px;"><span style="font-size:18px;color:#555;font-weight:400;">%</span></div>
+      <div style="padding-left:7px;"><span style="font-size:23px;color:#111;">A</span></div>
+      <div style="padding-left:7px;"><span style="font-size:18px;color:#555;font-weight:400;">%</span></div>
+    </div>
+
+    <!-- BRIDGE: |: Dm | % | Bbmaj7 | % | F | % | A | A7 :|  -- real grid data, rehearsal mark B -->
+    <div style="display:grid;grid-template-columns:22px repeat(8,1fr);border-bottom:1px solid #999;padding-bottom:10px;padding-top:16px;align-items:start;">
+      <div style="background:#c0392b;color:#fff;font-size:12px;line-height:18px;text-align:center;width:18px;height:18px;border-radius:2px;">B</div>
+      <div style="position:relative;border-left:2px double #222;padding-left:7px;">
+        <span style="position:absolute;left:-1px;top:-3px;font-size:6px;line-height:1;color:#222;">&#9679;<br>&#9679;</span>
+        <span style="font-size:23px;color:#111;margin-left:7px;">D<span style="font-size:14px;vertical-align:5px;">-</span></span>
+      </div>
+      <div style="padding-left:7px;"><span style="font-size:18px;color:#555;font-weight:400;">%</span></div>
+      <div style="padding-left:7px;"><span style="font-size:23px;color:#111;">B<span style="font-size:14px;">&#9837;</span><span style="font-size:14px;vertical-align:5px;">&#9651;7</span></span></div>
+      <div style="padding-left:7px;"><span style="font-size:18px;color:#555;font-weight:400;">%</span></div>
+      <div style="padding-left:7px;"><span style="font-size:23px;color:#111;">F</span></div>
+      <div style="padding-left:7px;"><span style="font-size:18px;color:#555;font-weight:400;">%</span></div>
+      <div style="padding-left:7px;"><span style="font-size:23px;color:#111;">A</span></div>
+      <div style="position:relative;padding-left:7px;">
+        <span style="font-size:23px;color:#111;">A<span style="font-size:14px;vertical-align:5px;">7</span></span>
+        <span style="position:absolute;right:3px;top:-3px;font-size:6px;line-height:1;color:#222;">&#9679;<br>&#9679;</span>
+        <span style="border-right:2px double #222;position:absolute;right:0;top:0;bottom:0;"></span>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="flex:1;"></div>
+
+  <div style="padding:10px 16px 14px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;font-weight:400;font-size:11px;color:#999;line-height:1.5;border-top:1px solid #eee;">
+    Rehearsal marks (A, B) replace the "Intro / Verse / Chorus" banner — this app's richer section names are a real feature iReal doesn't have, worth a compact badge of its own rather than copying the single-letter convention exactly. Chorus/most Verses aren't shown: this song's data has no separate chord grid for them (they ride the Intro's changes by ear) — not invented here on purpose.
+  </div>
+
+  <div style="display:flex;justify-content:space-around;align-items:center;height:48px;border-top:1px solid #ddd;background:#fafafa;font-size:10px;color:#999;font-weight:400;">
+    <span>&#9664;</span><span>Songs</span><span>&#9654;</span>
+  </div>
+
+</div>
+</x-dc>
+
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":360,"height":640}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
