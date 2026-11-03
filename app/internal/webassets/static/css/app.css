@@ -1901,12 +1901,18 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
      2-3 bars on a phone, same problem in a different mode. A static,
      narrower --bar-w here isn't computed against the exact live width
      the way reflowStaffLines' per-row value is — this is a CSS-only
-     mode with no equivalent JS pass — but it's sized to comfortably fit
-     4+ real bars at ordinary phone widths (~340-400px). Scoped to real
-     bars only: .bar-recall sets its own compact width (above) and must
-     not be widened back out by this. */
+     mode with no equivalent JS pass. 4.6em first looked right but was
+     still too wide for the one row that ALSO carries the time-signature
+     clef cell (.staff-timesig-cell: 2.1em + 0.4em margin) — that row's
+     own real budget is ~2.5em narrower than every other row's, so it
+     alone wrapped to 3 bars instead of 4 (confirmed live: every row
+     without a clef cell already held 4 fine). 4.0em leaves enough
+     margin to fit 4 real bars even on the clef row, at ordinary phone
+     widths (~340-400px). Scoped to real bars only: .bar-recall sets its
+     own compact width (above) and must not be widened back out by
+     this. */
   #sheet[data-render-mode="map"] .map-score .bar:not(.bar-recall) {
-    --bar-w: 4.6em;
+    --bar-w: 4em;
   }
 
   /* ---- Song context bar: View + Metronome + Song + More, THE bottom bar
