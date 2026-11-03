@@ -319,7 +319,7 @@
     <span class="pdf-mode-row">
       <a class="pdf-export-link sidebar-song-row" href="/b/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF (chart)" download>{{template "icon-download"}} Export PDF</a>
       <select class="pdf-mode-select" title="PDF view mode">
-        <option value="">Chords + lyrics</option>
+        <option value="">Song</option>
         <option value="jazz">Jazz chart</option>
         <option value="map">Song map</option>
         <option value="lyrics">Lyrics only</option>
@@ -405,7 +405,7 @@
   {{else}}<span class="topbar-cell topbar-next empty"></span>{{end}}
 </div>
 <div class="view-tabs" id="mode-segmented" data-value="normal">
-  <button type="button" data-value="normal" class="active" title="chords + lyrics">{{template "icon-mode-normal"}} Chords + lyrics</button>
+  <button type="button" data-value="normal" class="active" title="song">{{template "icon-mode-normal"}} Song</button>
   <button type="button" data-value="jazz" title="jazz chart">{{template "icon-mode-jazz"}} Jazz chart</button>
   <button type="button" data-value="lyrics" title="lyrics only">{{template "icon-mode-lyrics"}} Lyrics only</button>
   <button type="button" data-value="map" title="song map">{{template "icon-mode-map"}} Song map</button>
@@ -655,7 +655,7 @@
   </div>
   <div class="stack-backdrop" id="view-stack-backdrop"></div>
   <div class="stack-sheet" id="view-stack" role="dialog" aria-label="View">
-    <button type="button" class="stack-sheet-row" data-forward="normal">{{template "icon-mode-normal"}} Chords + lyrics</button>
+    <button type="button" class="stack-sheet-row" data-forward="normal">{{template "icon-mode-normal"}} Song</button>
     <button type="button" class="stack-sheet-row" data-forward="jazz">{{template "icon-mode-jazz"}} Jazz chart</button>
     <button type="button" class="stack-sheet-row" data-forward="lyrics">{{template "icon-mode-lyrics"}} Lyrics only</button>
     <button type="button" class="stack-sheet-row" data-forward="map">{{template "icon-mode-map"}} Song map</button>
@@ -676,7 +676,7 @@
     <div class="stack-sheet-row pdf-mode-row" style="flex-wrap:wrap;gap:0.6rem 0.9rem;">
       <a class="pdf-export-link" href="/b/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF (chart)" download>{{template "icon-download"}} Export PDF</a>
       <select class="pdf-mode-select" title="PDF view mode">
-        <option value="">Chords + lyrics</option>
+        <option value="">Song</option>
         <option value="jazz">Jazz chart</option>
         <option value="map">Song map</option>
         <option value="lyrics">Lyrics only</option>

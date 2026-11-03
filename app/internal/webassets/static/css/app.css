@@ -896,34 +896,49 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    themselves, which is why jazz mode kept falling back to scrolling even
    with plenty of width available). */
 .staff-line { display: flex; align-items: flex-end; padding-top: 3.3em; position: relative; }
-/* The staff belongs to the ROW, not to each bar — this is the one thing
-   that actually makes it read as a staff instead of a strip of disconnected
-   hatch-boxes. Real engraving (LilyPond's Staff/BarLine split: the staff
-   context owns its five lines for the whole system, BarLine is a separate
-   grob that just strokes across them) never lets a barline interrupt the
-   lines it crosses. Drawing the gradient per-bar-body did exactly that:
-   every bar's padding/gap was a gap in the staff too, so each bar looked
-   like its own little isolated ladder instead of one continuous staff with
-   barlines through it. One shared background behind the whole row fixes
-   that; bars and the time-sig cell sit on top of it with no background of
-   their own and simply line up with it because both are anchored to the
-   row's bottom edge at the same 1.7em height. */
-/* A single hairline at the row's own baseline — NOT a literal 5-line music
-   staff. A chord/slash rhythm chart isn't pitched notation, so a real grand
-   staff behind it is a category error; this was the one mode (normal/map)
-   that hadn't yet adopted the single-rule convention jazz mode already uses
-   deliberately below ("a real printed chords-only fake-book page never
-   draws a 5-line staff"), and today's row-height/width changes made the
-   old 5-line version read as visibly broken — especially on a row holding
-   only repeat marks, which rendered as a near-empty grand staff. Kept as a
-   ::before with the same anchoring (bottom:0, height:1.7em) so no other
-   positioning math (.bar, .chord-label, .staff-timesig-cell) needs to move. */
-.staff-line::before {
-  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1.7em;
-  background-image: linear-gradient(var(--border), var(--border));
+/* ---- One staff-drawing engine, reused everywhere a chart actually wants
+   a 5-line staff (normal/chords+lyrics mode and Song Map; jazz is
+   deliberately staff-less by its own real-iReal-Pro-fidelity convention,
+   confirmed earlier, see --staff-5lines' non-use there).
+   History: this used to be THREE separate implementations — a row-level
+   single hairline (.staff-line::before), a row-level 5-line variant
+   layered on top of it for normal/map, and a fully duplicated 5-line
+   rule on .multi-rest-row for compact/recall sections, which don't sit
+   inside a .bar at all. The row-level versions anchor to the ROW
+   container, position:absolute, bottom:0 — fine as long as a row's bars
+   never CSS-wrap. Chords+lyrics never does (reflowStaffLines, song.js,
+   computes each row's exact bar count so it always fits); Song Map DOES
+   (no per-device JS pass — it falls back to flex-wrap on narrow
+   screens), and a wrapped row only has ONE bottom edge for that one
+   absolutely-positioned background to anchor to — every wrapped sub-line
+   above the last one rendered with NO staff under it at all (the
+   "Chorus 1 has no staff lines" bug, reported directly against a live
+   screenshot).
+   Fix: draw the staff PER CELL instead — every .bar and the leading
+   .staff-timesig-cell each paint their own identical slice (same height,
+   same five y-offsets), so adjacent cells' lines land on the same
+   y-position and read as one continuous staff regardless of where a row
+   happens to wrap, with no dependency on a single row's own box ever
+   staying unwrapped. --staff-5lines holds the one gradient-image list
+   every staff-drawing rule below references via var() — change the
+   look of a staff in exactly one place, not three. */
+:root { --staff-5lines:
+    linear-gradient(var(--fg-muted), var(--fg-muted)),
+    linear-gradient(var(--fg-muted), var(--fg-muted)),
+    linear-gradient(var(--fg-muted), var(--fg-muted)),
+    linear-gradient(var(--fg-muted), var(--fg-muted)),
+    linear-gradient(var(--fg-muted), var(--fg-muted));
+}
+#sheet[data-render-mode="normal"] .bar::before,
+#sheet[data-render-mode="normal"] .staff-timesig-cell::before,
+#sheet[data-render-mode="map"] .bar::before,
+#sheet[data-render-mode="map"] .staff-timesig-cell::before {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1.7em; z-index: 0;
+  background-image: var(--staff-5lines);
   background-size: 100% 1px;
-  background-position: 0 100%;
+  background-position: 0 0%, 0 25%, 0 50%, 0 75%, 0 100%;
   background-repeat: no-repeat;
+  opacity: 0.5;
 }
 .bar {
   display: flex; align-items: flex-end;
@@ -1030,33 +1045,6 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 #sheet[data-render-mode="normal"] .staff-line { width: 100%; }
 #sheet[data-render-mode="normal"] .bar {
   flex: 0 0 calc(100% / var(--cap, 4));
-}
-/* Chords+lyrics: the real 5-line staff, same technique (and literally the
-   same gradient rule) as the multi-rest/recall block's own ::before —
-   that block already reads as "proper sheet music" to the user; a real
-   chord-bearing row had been collapsed to a single hairline baseline in
-   an earlier pass (see the base .staff-line::before comment above), which
-   is exactly what made the two block types look like different kinds of
-   staff side by side. Restored here for normal mode — jazz stays
-   staff-less by its own deliberate convention (::before display:none
-   below). Song Map had the identical mismatch (its recall cells already
-   drew a real 5-line staff via .multi-rest-row::before below, but a row's
-   REAL bars still sat on just the single hairline the base rule draws),
-   so the two cell types looked like different kinds of paper side by
-   side within the same continuous system — added here too so the whole
-   row, recall and real bars alike, reads as one sheet. */
-#sheet[data-render-mode="normal"] .staff-line::before,
-#sheet[data-render-mode="map"] .staff-line::before {
-  background-image:
-    linear-gradient(var(--fg-muted), var(--fg-muted)),
-    linear-gradient(var(--fg-muted), var(--fg-muted)),
-    linear-gradient(var(--fg-muted), var(--fg-muted)),
-    linear-gradient(var(--fg-muted), var(--fg-muted)),
-    linear-gradient(var(--fg-muted), var(--fg-muted));
-  background-size: 100% 1px;
-  background-position: 0 0%, 0 25%, 0 50%, 0 75%, 0 100%;
-  background-repeat: no-repeat;
-  opacity: 0.5;
 }
 /* Measure (bar) divider — LilyPond/Guitar Pro both draw this as a crisp,
    clearly visible thin line (not a faint UI hairline like --border, which
@@ -1201,9 +1189,9 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .bar-placeholder .rest-mark::before { opacity: 0.3; }
 
 /* A "Solo" section's inferred placeholder bars — real page space, not real
-   chord data. The staff itself is shared with every other bar in the row
-   now (see .staff-line::before), so placeholder-ness reads through the
-   slashes alone rather than by dimming a per-bar staff fragment. */
+   chord data. Every bar draws its own identical staff slice (see
+   --staff-5lines), so placeholder-ness reads through the slashes alone
+   rather than by dimming a per-bar staff fragment. */
 .bar-placeholder .slash { opacity: 0.3; }
 
 /* Time signature, engraved on the staff — LilyPond/standard practice: it
@@ -1434,10 +1422,10 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 /* Jazz chart: NO staff. A real printed "chords only" fake-book page never
    draws a 5-line staff for a rhythm-slash-only chart — it's chord symbols
    over a plain grid, exactly the swiss-jazz.ch / Real Book references this
-   mode is modeled on. Hiding the shared staff background (see
-   .staff-line::before) and giving each bar a single baseline instead
-   keeps the slash marks grounded without claiming to be notated rhythm. */
-#sheet[data-render-mode="jazz"] .staff-line::before { display: none; }
+   mode is modeled on. The shared staff engine (.bar::before/
+   .staff-timesig-cell::before, see --staff-5lines above) is only ever
+   defined for normal/map in the first place, so jazz simply never draws
+   one — nothing to hide here. */
 #sheet[data-render-mode="jazz"] .staff-timesig-cell {
   border: none; height: auto; width: auto; margin-right: 0.6em; align-self: center;
 }
@@ -1748,32 +1736,26 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 /* Normal mode and song map keep the real staff under the rest bar (per
    the "keep the staff, use the multi-bar visual on it" correction) —
    jazz mode has no staff at all by design, so it gets none here either.
-   Same 5-line technique as .staff-line::before, duplicated rather than
-   shared since this row isn't a .staff-line (it has no bars to anchor
-   the background to). */
-
+   This cell isn't a .bar (an is-compact section's multi-rest-row is a
+   standalone block, not a flex item inside a .staff-line), so it can't
+   share the .bar::before SELECTOR above — but it draws the exact same
+   lines via the same --staff-5lines custom property (defined once, near
+   .staff-line), not a second copy of the gradient list. */
 #sheet[data-render-mode="normal"] .multi-rest-row::before,
 #sheet[data-render-mode="map"] .multi-rest-row::before {
-  /* --fg-muted, not the usual --border: against a bold black rest bar,
-     the hairline --border staff lines (fine everywhere else, next to
-     slash marks of similar faint weight) read as "one stray line" rather
-     than a staff — only the line right next to the bar had enough
-     contrast to actually be seen. A stronger, consistent color here
-     makes all 5 lines read as one staff the rest bar sits on, matching
-     the reference (an evenly-weighted TAB staff under its own rest bar),
-     not a bug in the position math, which was already correct. */
   content: ""; position: absolute; inset: 0;
-  background-image:
-    linear-gradient(var(--fg-muted), var(--fg-muted)),
-    linear-gradient(var(--fg-muted), var(--fg-muted)),
-    linear-gradient(var(--fg-muted), var(--fg-muted)),
-    linear-gradient(var(--fg-muted), var(--fg-muted)),
-    linear-gradient(var(--fg-muted), var(--fg-muted));
+  background-image: var(--staff-5lines);
   background-size: 100% 1px;
   background-position: 0 0%, 0 25%, 0 50%, 0 75%, 0 100%;
   background-repeat: no-repeat;
   opacity: 0.5;
 }
+/* A recall cell's .multi-rest-row sits inside a .bar already (.bar-recall
+   has class "bar"), which paints its own full-width staff slice via
+   .bar::before above — without this override the rule just above also
+   matched it, drawing a second staff confined to the glyph's own
+   narrower, centered width, visibly misaligned against the wider one. */
+.bar-recall .multi-rest-row::before { content: none; }
 /* End ticks — checked against the real stencil code, lily/multi-measure-
    rest.cc's big_rest(): the main bar is the thick horizontal block
    (thick-thickness, ~6.6 line-units tall), and at EACH end there's a
