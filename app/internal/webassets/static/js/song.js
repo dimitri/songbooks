@@ -418,7 +418,15 @@ const ICONS = {
         c.classList.toggle('current', i === idx);
         c.classList.toggle('done', idx >= 0 && i < idx);
       });
-      if (sectionEl) sectionEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      // Only auto-scroll while actually following along (clock running) —
+      // this same "current section changed" branch also fires once on
+      // page load (bar 0 → the Intro section becomes "current" the
+      // instant sections[] populates), which used to scroll the page
+      // immediately on opening a song, shoving the title/nav bar out of
+      // view before the reader had done anything. Highlighting (above)
+      // still updates either way — it's only the forced scroll that's
+      // playback-only now.
+      if (sectionEl && clock.running) sectionEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
       currentSectionEl = sectionEl;
     }
     // Lyrics mode's own finer-grained position indicator: which LINE
