@@ -1243,6 +1243,17 @@ func annotateStructure(sections []viewerSection) {
 					sec.IsReference = true
 					sec.BarCount = sections[j].BarCount
 					sec.RepeatSegmentBars = sections[j].RepeatSegmentBars
+					// Web display only — the .song FILE still states this
+					// occurrence as a bare repeat, which is deliberate: that's
+					// what keeps the PDF export (internal/pdfnative, reads the
+					// parsed song.Song directly, never this viewerSection
+					// model) fitting on a single page. But a singer reading
+					// the WEB page off a phone wants the actual words again
+					// at "Chorus 2", not a silent "18 bars, repeat" — so this
+					// view model (and only this one) carries the source
+					// section's lyrics along, same as it already does for
+					// BarCount/RepeatSegmentBars.
+					sec.Lyrics = sections[j].Lyrics
 					break
 				}
 			}

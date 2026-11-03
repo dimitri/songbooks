@@ -1042,8 +1042,15 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    broken") even though the row-grouping itself is correct. Narrower here;
    reflowStaffLines()'s capacity math still budgets every bar at the wider
    7.2em floor (unchanged), so a row can end up with a little unused width
-   rather than ever overflow — the safe direction for a CSS-only fix. */
-#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]) .bar.bar-pct {
+   rather than ever overflow — the safe direction for a CSS-only fix.
+   Lyrics-only only now: excluding map here too, not just jazz/normal —
+   map's bars are justified (--cap-based, below) like normal mode's, and
+   this rule's two :not() clauses give it HIGHER specificity than that
+   justified rule despite being defined first, so without the exclusion
+   it silently overrode map's bar-pct cells back down to a flat 3.2em,
+   which is exactly what made some rows end short of the row's own full
+   width (a repeat-mark cell not stretching to its justified share). */
+#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]):not([data-render-mode="map"]) .bar.bar-pct {
   flex: 0 0 3.2em;
 }
 /* Chords+lyrics (and now Song Map too — same engine, not a second one):
@@ -1710,16 +1717,16 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 #sheet:not([data-render-mode="lyrics"]) .sheet-section.is-compact .multi-rest-row {
   display: flex; align-items: center; height: 1.7em; margin: 0.3em 0; position: relative;
 }
-/* Normal/lyrics mode's .sheet-section is still a full-width block (unlike
-   Song Map's own compact recall glyph, .bar-recall, sized separately) —
-   but the rest bar inside it has no reason to stretch the full column
-   width just because its container does. A 16-bar "repeat" reading as a
-   bar nearly as wide as the whole phone screen is "longer than
-   necessary"; it only needs to look like one short rest glyph, same
-   idea as the already-compact .multi-rest-repeat-cells variant above. */
-#sheet[data-render-mode="normal"] .sheet-section.is-compact .multi-rest-row,
+/* Lyrics-only's rest glyph stays compact (nothing else on that row needs
+   full width either). Normal/Song mode now matches every other staff
+   row's own full line length instead — a compact rest bar next to
+   full-width real-bar rows read as a different, shorter kind of system,
+   not "the same music sheet" the rest of the chart uses. */
 #sheet[data-render-mode="lyrics"] .sheet-section.is-compact .multi-rest-row {
   width: min(16em, 70%);
+}
+#sheet[data-render-mode="normal"] .sheet-section.is-compact .multi-rest-row {
+  width: 100%;
 }
 /* Normal mode and song map keep the real staff under the rest bar (per
    the "keep the staff, use the multi-bar visual on it" correction) —
