@@ -999,11 +999,11 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    approved separately. #sheet (ID) in the selector outranks both the
    base .bar rule and the .staff-timesig-cell one above without needing
    !important. */
-#sheet:not([data-render-mode="jazz"]) .staff-line {
+#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]) .staff-line {
   width: fit-content; max-width: 100%; align-self: flex-start;
 }
-#sheet:not([data-render-mode="jazz"]) .bar,
-#sheet:not([data-render-mode="jazz"]) .staff-line:has(.staff-timesig-cell) .bar {
+#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]) .bar,
+#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]) .staff-line:has(.staff-timesig-cell) .bar {
   flex: 0 0 var(--bar-w, 7.2em);
 }
 /* A repeat-only bar (just a simile mark, no chord label) has nothing to
@@ -1013,8 +1013,44 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    reflowStaffLines()'s capacity math still budgets every bar at the wider
    7.2em floor (unchanged), so a row can end up with a little unused width
    rather than ever overflow — the safe direction for a CSS-only fix. */
-#sheet:not([data-render-mode="jazz"]) .bar.bar-pct {
+#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]) .bar.bar-pct {
   flex: 0 0 3.2em;
+}
+/* Chords+lyrics: justified, like a real engraved score — every staff-line
+   row in the chart stretches to the SAME full column width, same
+   technique jazz mode already uses (the base .bar rule below, percentage-
+   of-cap, is exactly that — jazz just never got excluded from it). A
+   sparser row (fewer bars, or a short trailing row) gets WIDER bars that
+   fill the row, not fixed-width bars leaving ragged trailing blank space.
+   This supersedes the old fixed-7.2em/fit-content treatment above (kept
+   for map/lyrics modes, untouched) at the user's explicit request,
+   comparing favorably against the multi-rest block (which already fills
+   its own row) and real printed charts, where every system justifies to
+   the same page width. */
+#sheet[data-render-mode="normal"] .staff-line { width: 100%; }
+#sheet[data-render-mode="normal"] .bar {
+  flex: 0 0 calc(100% / var(--cap, 4));
+}
+/* Chords+lyrics: the real 5-line staff, same technique (and literally the
+   same gradient rule) as the multi-rest/recall block's own ::before —
+   that block already reads as "proper sheet music" to the user; a real
+   chord-bearing row had been collapsed to a single hairline baseline in
+   an earlier pass (see the base .staff-line::before comment above), which
+   is exactly what made the two block types look like different kinds of
+   staff side by side. Restored here, scoped to normal mode only — jazz
+   stays staff-less by its own deliberate convention (::before display:none
+   below), map mode's own full-row staff is untouched. */
+#sheet[data-render-mode="normal"] .staff-line::before {
+  background-image:
+    linear-gradient(var(--fg-muted), var(--fg-muted)),
+    linear-gradient(var(--fg-muted), var(--fg-muted)),
+    linear-gradient(var(--fg-muted), var(--fg-muted)),
+    linear-gradient(var(--fg-muted), var(--fg-muted)),
+    linear-gradient(var(--fg-muted), var(--fg-muted));
+  background-size: 100% 1px;
+  background-position: 0 0%, 0 25%, 0 50%, 0 75%, 0 100%;
+  background-repeat: no-repeat;
+  opacity: 0.5;
 }
 .bar + .bar { border-left: 1px solid var(--border); }
 /* Repeat barline — LilyPond/Guitar Pro convention: a THIN line next to the
