@@ -117,7 +117,7 @@
      count" case a bare Verse repeat already is, inconsistent with how
      every other non-defining section renders. Dropping the "(not .Lines)"
      condition for the InferredNote case fixes that. */}}
-<section class="sheet-section{{if or .InferredNote .Repeat .IsReference .Compact}} is-compact{{end}}{{if .JazzSegno}} jazz-segno{{end}}{{if .JazzDSAlCoda}} jazz-ds{{end}}{{if .JazzCoda}} jazz-coda{{end}}{{if .JazzHidden}} jazz-hidden{{end}}" data-section-index="{{.Index}}" data-label="{{label .Label}}" data-start-bar="{{.StartBar}}" data-bar-count="{{.BarCount}}" data-has-lyrics="{{if .Lyrics}}true{{else}}false{{end}}" data-has-note="{{if .InferredNote}}true{{else}}false{{end}}" style="--bars: {{.BarCount}}">
+<section class="sheet-section{{if or .InferredNote .Repeat .IsReference .Compact}} is-compact{{end}}{{if .JazzSegno}} jazz-segno{{end}}{{if .JazzDSAlCoda}} jazz-ds{{end}}{{if .JazzCoda}} jazz-coda{{end}}{{if .JazzHidden}} jazz-hidden{{end}}" data-section-index="{{.Index}}" data-label="{{label .Label}}" data-start-bar="{{.StartBar}}" data-bar-count="{{.BarCount}}" data-has-lyrics="{{if .Lyrics}}true{{else}}false{{end}}" data-has-note="{{if .InferredNote}}true{{else}}false{{end}}" data-is-solo="{{if .IsSolo}}true{{else}}false{{end}}" style="--bars: {{.BarCount}}">
   {{/* Segno/D.S. al Coda/Coda — jazz mode only (CSS below scopes all
        three to #sheet[data-render-mode="jazz"]; every other mode's CSS
        simply never shows them, same technique the recall chip/multi-

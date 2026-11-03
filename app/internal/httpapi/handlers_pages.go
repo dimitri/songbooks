@@ -512,6 +512,18 @@ type viewerSection struct {
 	// times — the chip alone (keeping the section visible in the jazz
 	// chart, which is the part that actually matters) is enough.
 	Compact bool
+	// IsSolo marks ANY section labeled "Solo..." — set regardless of
+	// whether it's a bare/inferred placeholder or a fully defined section
+	// with its own real grid/lyrics (e.g. a sung ad-lib over a guitar
+	// solo). Unlike InferredNote (which only ever applies to the bare
+	// case), this drives a visual-only "this is a Solo" marker
+	// (chip + multi-rest bar, same component bare/compact sections use)
+	// shown ALONGSIDE whatever real content the section has, not instead
+	// of it — a defined Solo section with its own lyrics otherwise
+	// rendered identically to a plain Verse, which read as the vocalist
+	// singing straight through the solo instead of it being its own,
+	// structurally distinct section.
+	IsSolo bool
 	// BarCount is this section's bar count for the song-map/structure view
 	// (the "Couplet 8" style roadmap): the section's own written bars, or —
 	// for a Solo's inferred placeholder bars, a reference, or a compact
@@ -1203,6 +1215,7 @@ func annotateStructure(sections []viewerSection) {
 		sec := &sections[i]
 		label := strings.TrimSpace(sec.Label)
 		bare := len(sec.Measures) == 0 && len(sec.Lyrics) == 0
+		sec.IsSolo = strings.HasPrefix(strings.ToLower(label), "solo")
 
 		if bare {
 			// "Solo" is its own convention (playing over the changes, not a

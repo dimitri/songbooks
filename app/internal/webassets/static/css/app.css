@@ -1073,6 +1073,22 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 #sheet[data-render-mode="map"] .bar {
   flex: 0 0 calc(100% / var(--cap, 4));
 }
+/* The very first row also needs the clef-cell-width subtraction (see
+   .staff-line:has(.staff-timesig-cell) .bar's own comment above, "D bar
+   clipped") — but that rule has no #sheet ID in its selector, so the
+   plain justified rule just above it (which DOES have one) silently
+   outranked it for flex-basis specifically, on ID alone, regardless of
+   source order. Confirmed live: a clef row's bars still computed at the
+   plain 25% share, 2.5em too wide in total, overflowing its row by
+   exactly that amount — reported directly as "the first line is longer
+   than all the other ones." Re-declared here at the SAME #sheet-scoped
+   specificity as the plain rule, so normal cascade order (this comes
+   after) decides it correctly instead of ID count short-circuiting the
+   comparison. */
+#sheet[data-render-mode="normal"] .staff-line:has(.staff-timesig-cell) .bar,
+#sheet[data-render-mode="map"] .staff-line:has(.staff-timesig-cell) .bar {
+  flex-basis: calc((100% - 2.5em) / var(--cap, 4));
+}
 /* Measure (bar) divider — LilyPond/Guitar Pro both draw this as a crisp,
    clearly visible thin line (not a faint UI hairline like --border, which
    at ~90% contrast with the page background read as "almost invisible"
@@ -1080,6 +1096,31 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    (--fg-muted) but full opacity, since a barline is structural content,
    not decoration. */
 .bar + .bar { border-left: 1px solid var(--fg-muted); }
+/* System boundary barlines — LilyPond/Guitar Pro/real printed lead
+   sheets all bound every SYSTEM (row), not just every bar WITHIN a row:
+   a barline right after the clef (or at the row's own left edge when
+   there's no clef on that row) opens it, and one closes it at the last
+   bar, the same as the divider between any two ordinary bars — a
+   measure boundary doesn't stop being one just because it happens to
+   fall at a line break. Previously only the .bar+.bar divider existed,
+   so a row's first and last bar had an open edge, reported directly:
+   "end of line should have a bar separator, and probably start of line
+   too." Skipped on a bar that's already .bar-open/.bar-close — those
+   already draw their own, more prominent thick-barline+dots repeat
+   bracket in the same place, and a second line there would double up.
+   Scoped to normal/map (the two shared-engine "paper" modes); jazz
+   already has its own equivalent (:first-of-type/:last-of-type, see its
+   own section below) checked against real iReal Pro exports. */
+#sheet[data-render-mode="normal"] .staff-line > .bar:first-child:not(.bar-open),
+#sheet[data-render-mode="normal"] .staff-line > .staff-timesig-cell + .bar:not(.bar-open),
+#sheet[data-render-mode="map"] .staff-line > .bar:first-child:not(.bar-open),
+#sheet[data-render-mode="map"] .staff-line > .staff-timesig-cell + .bar:not(.bar-open) {
+  border-left: 1px solid var(--fg-muted);
+}
+#sheet[data-render-mode="normal"] .staff-line > .bar:last-child:not(.bar-close),
+#sheet[data-render-mode="map"] .staff-line > .bar:last-child:not(.bar-close) {
+  border-right: 1px solid var(--fg-muted);
+}
 /* Repeat barline — LilyPond/Guitar Pro convention: a THIN line next to the
    music and a THICK line outside it (away from the repeated material),
    never two equal-weight lines (that's a plain section-divider double
@@ -1499,6 +1540,31 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 #sheet[data-render-mode="normal"] .sheet-section.is-compact[data-has-lyrics="true"] h3 {
   margin: 0 0 0.6rem;
 }
+/* A Solo section is the one case that overrides the rule directly above:
+   it still wants the chip + multi-rest "N bars" marker even when it
+   carries real lyrics of its own (a sung ad-lib over the solo) — without
+   it, a defined Solo section (real grid/lyrics, not the bare/inferred
+   placeholder case) rendered identically to a plain Verse, reading as
+   the vocalist singing straight through the solo instead of the solo
+   being its own, structurally distinct section (direct user report).
+   [data-is-solo] is independent of is-compact — it fires whether or not
+   this Solo also happens to be compact/bare, and layers the marker
+   ALONGSIDE whatever real content (grid, lyrics) the section has, not
+   instead of it. !important: this one narrow case needs to beat the
+   has-lyrics hide rule above regardless of selector order, rather than
+   adding yet another specificity fight to this file's history of them. */
+#sheet[data-render-mode="normal"] .sheet-section[data-is-solo="true"] .section-map-chip {
+  display: flex !important; align-items: baseline; gap: 0.4em; margin-top: 0.1rem;
+}
+#sheet[data-render-mode="normal"] .sheet-section[data-is-solo="true"] .multi-rest-row {
+  display: flex !important; align-items: center; height: 1.7em; margin: 0.3em 0 0.8em; position: relative;
+}
+#sheet[data-render-mode="lyrics"] .sheet-section[data-is-solo="true"] .section-map-chip {
+  display: flex !important; align-items: baseline; gap: 0.5em; margin-bottom: 0.4rem;
+}
+#sheet[data-render-mode="lyrics"] .sheet-section[data-is-solo="true"] .multi-rest-row {
+  display: flex !important; align-items: center; height: 1.3em; margin: 0.4em 0; position: relative;
+}
 #sheet[data-render-mode="normal"] .sheet-section.is-compact[data-has-lyrics="true"] .section-map-chip,
 #sheet[data-render-mode="normal"] .sheet-section.is-compact[data-has-lyrics="true"] .multi-rest-row {
   display: none;
@@ -1629,10 +1695,17 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    reason this "avoid scrolling" reading mode scrolled anyway. A compact
    multi-rest bar (same component the rest of the chart already uses for
    "N bars, nothing new") says the same thing in a fraction of the
-   height, GRID is still hidden in favour of this (lyrics mode shows
-   words, not chords) — unaffected for a section that genuinely has
-   lyrics, which keeps its natural (content-driven) height. */
-#sheet[data-render-mode="lyrics"] .sheet-section[data-has-lyrics="false"] .multi-rest-row {
+   height. GRID is still hidden in favour of this (lyrics mode shows
+   words, not chords).
+   Every is-compact section gets it now, not only a lyrics-free one — a
+   repeated Verse/Chorus carries its own duplicated lyrics now (see
+   annotateStructure, handlers_pages.go) and still wants the same "N
+   bars" staff glyph next to its bar count that every other section
+   shows (explicit user preference: "I like the Intro 18 one... would be
+   good to have for the other sections"), with the actual words simply
+   following below it rather than the glyph being dropped once lyrics
+   exist. */
+#sheet[data-render-mode="lyrics"] .sheet-section.is-compact .multi-rest-row {
   display: flex; align-items: center; height: 1.3em; margin: 0.4em 0; position: relative;
 }
 
