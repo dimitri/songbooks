@@ -537,7 +537,21 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
   display: grid; grid-template-columns: 1fr 2fr 1fr; grid-template-rows: auto; gap: 0.3rem 0.6rem;
   padding: 0.7rem 1.1rem 0.5rem;
 }
-.view-tabs { display: flex; padding: 0 1.1rem; border-top: 1px solid var(--border); flex-wrap: wrap; }
+/* A real pill-tab track (same pattern as .band-tabs), not an underline row
+   — the underline style read as plain text on this already-sunken topzone
+   background, not as a tab bar at all. Centered, own bg-raised track so it
+   visibly pops off .song-topzone's sunken background, active tab filled
+   solid with the accent colour so "which view am I on" is unambiguous. */
+.view-tabs {
+  display: inline-flex; flex-wrap: wrap; justify-content: center;
+  margin: 0.6rem auto 0.7rem; padding: 0.25rem; gap: 0.15rem;
+  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 999px;
+}
+/* The parent needs text-align:center for an inline-flex child to actually
+   center itself; .song-topbar/.topbar-utility-mobile aren't centered text,
+   so this rule is scoped to .song-topzone alone. */
+.song-topzone { text-align: center; }
+.song-topzone .song-topbar, .song-topzone .topbar-utility-mobile { text-align: left; }
 /* #mode-segmented.view-tabs, not just .view-tabs: the plain #mode-segmented
    button rule above (icon-only square touch targets, used on mobile's
    hidden copy of this same element) is an ID selector and would otherwise
@@ -545,11 +559,11 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
    2.1rem squares. */
 #mode-segmented.view-tabs button {
   display: flex; align-items: center; width: auto; height: auto;
-  background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0;
-  padding: 0.55rem 0.9rem; font-size: 0.85rem; color: var(--fg-muted); cursor: pointer;
+  background: none; border: none; border-radius: 999px;
+  padding: 0.5rem 0.9rem; font-size: 0.85rem; color: var(--fg-muted); cursor: pointer;
 }
 .view-tabs button:hover { color: var(--fg); }
-.view-tabs button.active { color: var(--fg); font-weight: 600; border-bottom-color: var(--accent); }
+.view-tabs button.active { background: var(--accent); color: var(--bg-raised); font-weight: 600; }
 #mode-segmented.view-tabs .icon { width: 0.95rem; height: 0.95rem; margin-right: 0.3em; vertical-align: -0.15em; }
 .topbar-cell { display: flex; align-items: center; gap: 0.5rem; min-width: 0; color: var(--fg); }
 .topbar-cell.empty { visibility: hidden; }
