@@ -1,6 +1,8 @@
 package pdfnative
 
 import (
+	"strconv"
+
 	"app/internal/pdf"
 	"app/internal/song"
 )
@@ -40,6 +42,16 @@ func (c *canvas) barRow(measures []song.Measure, size float64) {
 	ruleY := baseline + ruleGap*0.5
 	barTop := baseline - chordH*0.92
 
+	// A stated repeat count ("|:4 ...") carries from the Open bar across
+	// to the Close bar, same as buildSections does for the web chart —
+	// printed at the END of the repeated span (see the Close branch
+	// below for why), not the start. Only tracked within this one
+	// printed row/call: the common case (a repeat bracket's bars all fit
+	// on one line) prints correctly; a bracket that happens to wrap onto
+	// a second printed row silently prints nothing rather than guessing
+	// — an acceptable, rare edge case for a print layout, not worth the
+	// extra plumbing a cross-row canvas-level variable would need.
+	pendingRepeatCount := 0
 	for i, m := range measures {
 		bx := x0 + float64(i)*boxW
 
@@ -58,10 +70,24 @@ func (c *canvas) barRow(measures []song.Measure, size float64) {
 		if m.Open {
 			c.line(bx+2, barTop, bx+2, ruleY, c.th.ink, 1.8)
 			c.repeatDots(bx+7, barTop, ruleY-barTop)
+			if m.RepeatCount > 0 {
+				pendingRepeatCount = m.RepeatCount
+			}
 		}
 		if m.Close {
 			c.line(bx+boxW-2, barTop, bx+boxW-2, ruleY, c.th.ink, 1.8)
 			c.repeatDots(bx+boxW-9, barTop, ruleY-barTop)
+			// A STATED repeat count ("|:4 ..." — song.Measure.RepeatCount's
+			// doc comment) prints next to the CLOSING repeat sign, same as
+			// the web chart's own .bracket-repeat-count — real engraving
+			// places it at the end of the repeated span, not the start. A
+			// plain count-less bracket (the implicit "x2" every repeat
+			// sign already means) prints nothing, same as before this
+			// existed.
+			if pendingRepeatCount > 0 {
+				c.textAt(bx+boxW-24, barTop+size*0.2, "x"+strconv.Itoa(pendingRepeatCount), faceSansBold, size*0.5, c.th.faint)
+				pendingRepeatCount = 0
+			}
 		}
 
 		// Volta marker ("1.", "1,2,3.") sits just above the bar, left edge.

@@ -61,7 +61,18 @@
     // "|:" leaves a bare ":" leading the next token; ":|" leaves a trailing ":"
     let opens = tok.starts-with(":")
     let closes = tok.ends-with(":")
-    if opens and tok.len() > 0 { tok = tok.slice(1).trim() }
+    if opens and tok.len() > 0 {
+      tok = tok.slice(1)
+      // An explicit repeat count rides right after the opening colon, no
+      // space ("|:4 F#m | ..." -- app/internal/song's RepeatCount field).
+      // Not acted on here (this print path still just draws the repeat
+      // dots once, same as a plain "|: ... :|"), but the digits must be
+      // stripped or they'd be swallowed into this bar's own chord token.
+      let j = 0
+      while j < tok.len() and tok.at(j) in "0123456789" { j += 1 }
+      if j > 0 { tok = tok.slice(j) }
+      tok = tok.trim()
+    }
     if closes and tok.len() > 0 { tok = tok.slice(0, -1).trim() }
     // per-bar meter change, e.g. "{2/4} G" -- parentheses are already taken
     // by volta markers

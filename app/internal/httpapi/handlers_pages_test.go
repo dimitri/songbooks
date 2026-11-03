@@ -50,6 +50,59 @@ func TestBareSoloTimesDoublesBarCount(t *testing.T) {
 	}
 }
 
+// TestExplicitBracketRepeatCount covers the "|:4 ... :|" syntax: a 4-bar
+// phrase stated to repeat 4 times (not the implicit, count-less bracket's
+// default of 2), immediately followed by more plain bars in the SAME
+// grid/section — the mixed case simpleRepeatSpan deliberately doesn't
+// treat as "the whole section is one repeat" (see its own doc comment),
+// so this only exercises realBarCount's own per-bracket multiplier.
+func TestExplicitBracketRepeatCount(t *testing.T) {
+	src := "title: X\ntime: 4/4\n\n" +
+		"[Verse]\ngrid: |:4 F#m | D | Bm | E :| F#m | A\n"
+	sg := song.Parse(src)
+	sections := buildSections(sg)
+	if len(sections) != 1 {
+		t.Fatalf("expected 1 section, got %d", len(sections))
+	}
+	// 4 bars x4 (the stated bracket) + 2 plain trailing bars = 18.
+	if got := sections[0].BarCount; got != 18 {
+		t.Errorf("expected BarCount 18 (4x4 + 2), got %d", got)
+	}
+	// The "x4" label itself belongs on the CLOSE bar (measure index 3,
+	// the "E" bar) — real engraving places a repeat count at the END of
+	// the repeated span, not the Open bar (index 0, "F#m") where the
+	// source states it.
+	ms := sections[0].Measures
+	if ms[0].BracketRepeatCount != 0 {
+		t.Errorf("expected the Open bar to carry no label (0), got %d", ms[0].BracketRepeatCount)
+	}
+	if ms[3].BracketRepeatCount != 4 {
+		t.Errorf("expected the Close bar to carry the x4 label, got %d", ms[3].BracketRepeatCount)
+	}
+}
+
+// TestWholeSectionExplicitBracketRepeatCount covers a section that's
+// WHOLLY one explicitly-counted bracket ("|:4 ... :|", nothing else) —
+// unlike the mixed case above, simpleRepeatSpan's "whole section is one
+// repeat" fast path applies here, so MultiRestSegments/Per should reflect
+// the STATED count (4 segments of 4 bars), not the implicit 2.
+func TestWholeSectionExplicitBracketRepeatCount(t *testing.T) {
+	src := "title: X\ntime: 4/4\n\n" +
+		"[Verse]\ngrid: |:4 F#m | D | Bm | E :|\n"
+	sg := song.Parse(src)
+	sections := buildSections(sg)
+	sec := sections[0]
+	if sec.BarCount != 16 {
+		t.Errorf("expected BarCount 16 (4 bars x4), got %d", sec.BarCount)
+	}
+	if sec.RepeatSegmentBars != 4 {
+		t.Errorf("expected RepeatSegmentBars 4 (one pass), got %d", sec.RepeatSegmentBars)
+	}
+	if sec.MultiRestSegments != 4 || sec.MultiRestPer != 4 {
+		t.Errorf("expected FOUR 4-bar rest glyphs, got MultiRestSegments=%d MultiRestPer=%d", sec.MultiRestSegments, sec.MultiRestPer)
+	}
+}
+
 func TestMeasuresEqualSubBeatSplit(t *testing.T) {
 	// Same music ("G for the whole bar"), written two different ways: one
 	// token stretched to fill the bar vs. the same chord repeated at

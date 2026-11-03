@@ -56,6 +56,15 @@
     {{end}}
   </span>
   {{if .Close}}<span class="repeat-dots" title="repeat ends"></span>{{end}}
+  {{/* A STATED repeat count ("|:4 ..." — see song.Measure.RepeatCount's
+       doc comment) prints next to the CLOSING repeat sign — real
+       engraving (checked against LilyPond) places it at the end of the
+       repeated span, not the start — same as a real chart would write
+       "x4" there. The plain count-less bracket (the implicit, unlabeled
+       "x2" every "|: :|" already means) prints nothing, same as before
+       this existed. BracketRepeatCount is only ever set on a Close bar
+       (see buildSections) — no separate Close check needed here. */}}
+  {{if gt .BracketRepeatCount 0}}<span class="bracket-repeat-count" title="played {{.BracketRepeatCount}} times">&times;{{.BracketRepeatCount}}</span>{{end}}
 </span>
 {{end}}
 

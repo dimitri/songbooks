@@ -151,8 +151,26 @@ func parseGrid(spec string) []Measure {
 
 		opens := strings.HasPrefix(tok, ":")
 		closes := strings.HasSuffix(tok, ":")
+		var repeatCount int
 		if opens {
-			tok = strings.TrimSpace(tok[1:])
+			tok = tok[1:]
+			// An explicit repeat count rides right after the opening
+			// colon, no space ("|:4 F#m | ..."), same place a real
+			// chart would write "x4" next to the repeat sign — digits
+			// consumed up front, before the usual TrimSpace, so a
+			// count-less "|: ..." (the overwhelmingly common case) is
+			// completely unaffected.
+			j := 0
+			for j < len(tok) && tok[j] >= '0' && tok[j] <= '9' {
+				j++
+			}
+			if j > 0 {
+				if n, err := strconv.Atoi(tok[:j]); err == nil {
+					repeatCount = n
+				}
+				tok = tok[j:]
+			}
+			tok = strings.TrimSpace(tok)
 		}
 		if closes && len(tok) > 0 {
 			tok = strings.TrimSpace(tok[:len(tok)-1])
@@ -183,11 +201,12 @@ func parseGrid(spec string) []Measure {
 			tokens = strings.Fields(tok)
 		}
 		out = append(out, Measure{
-			Tokens: tokens,
-			Open:   opens,
-			Close:  closes,
-			Volta:  volta,
-			Meter:  meter,
+			Tokens:      tokens,
+			Open:        opens,
+			Close:       closes,
+			RepeatCount: repeatCount,
+			Volta:       volta,
+			Meter:       meter,
 		})
 	}
 	return out

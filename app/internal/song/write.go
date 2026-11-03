@@ -79,7 +79,11 @@ func writeGrid(measures []Measure) string {
 		tok.WriteString(strings.Join(m.Tokens, " "))
 		s := strings.TrimSpace(tok.String())
 		if m.Open {
-			s = ": " + s
+			if m.RepeatCount > 0 {
+				s = ":" + strconv.Itoa(m.RepeatCount) + " " + s
+			} else {
+				s = ": " + s
+			}
 		}
 		if m.Close {
 			s = s + " :"

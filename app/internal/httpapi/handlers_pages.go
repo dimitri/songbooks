@@ -374,6 +374,19 @@ type viewerMeasure struct {
 	Meter      string
 	Open       bool
 	Close      bool
+	// BracketRepeatCount is set ONLY on the CLOSE bar of a bracket whose
+	// source stated its own repeat count ("|:4 ...", carried on the OPEN
+	// measure — see song.Measure.RepeatCount's doc comment) — 0 for
+	// every other bar, including a plain count-less "|: ..." bracket
+	// (the implicit, unlabeled "x2" every repeat sign already means with
+	// nothing printed). Printed on the close side, not the open side
+	// where the count is actually stated in source: real engraving
+	// (checked against LilyPond) places a repeat count at the END of the
+	// repeated span (buildSections carries it across the span to get
+	// there). Deliberately NOT named RepeatCount — that name is already
+	// taken on this struct by the simile ("%%") glyph's own, unrelated
+	// count.
+	BracketRepeatCount int
 	// Clef is set only on the very first bar of the whole song's first
 	// grid — real engraving shows the time signature and tempo mark once,
 	// not on every system.
@@ -763,17 +776,21 @@ func groupMapCells(cells []mapCell, perLine int) []mapLine {
 //     only one is ever played on a given pass. Only the first-seen volta
 //     label in a run counts; a later, different label immediately
 //     following it is an alternate, not a new bar.
-//   - A "|: ... :|" repeat bracket is played twice, so every bar from the
-//     opening to the closing barline (inclusive) counts double. This is
-//     the section's real length, used both for the song-map/structure
-//     "N bars" label and for the clock's own timing (StartBar/GlobalBar
-//     in buildSections below) — a repeated 8-bar phrase really does take
-//     16 bars of real time to play through, and the metronome needs to
-//     wait that long before moving on to the next section, not just 8.
+//   - A "|: ... :|" repeat bracket is played twice by default, so every
+//     bar from the opening to the closing barline (inclusive) counts
+//     double — or, when the bracket states its own count ("|:4 ...",
+//     see song.Measure.RepeatCount's doc comment), that many times
+//     instead of the implicit 2. This is the section's real length, used
+//     both for the song-map/structure "N bars" label and for the clock's
+//     own timing (StartBar/GlobalBar in buildSections below) — a
+//     repeated 8-bar phrase really does take 16 (or N*8) bars of real
+//     time to play through, and the metronome needs to wait that long
+//     before moving on to the next section, not just 8.
 func realBarCount(measures []song.Measure) int {
 	n := 0
 	firstVoltaLabel := ""
 	inRepeat := false
+	repeatMult := 1
 	for _, m := range measures {
 		counts := true
 		if m.Volta != "" {
@@ -787,16 +804,21 @@ func realBarCount(measures []song.Measure) int {
 		}
 		if m.Open {
 			inRepeat = true
+			repeatMult = m.RepeatCount
+			if repeatMult <= 0 {
+				repeatMult = 2
+			}
 		}
 		mult := 1
 		if inRepeat {
-			mult = 2
+			mult = repeatMult
 		}
 		if counts {
 			n += mult
 		}
 		if m.Close {
 			inRepeat = false
+			repeatMult = 1
 		}
 	}
 	return n
@@ -825,7 +847,11 @@ func simpleRepeatSpan(measures []song.Measure) (written int, ok bool) {
 	if opens != 1 || closes != 1 {
 		return 0, false
 	}
-	return realBarCount(measures) / 2, true
+	mult := measures[0].RepeatCount
+	if mult <= 0 {
+		mult = 2
+	}
+	return realBarCount(measures) / mult, true
 }
 
 // beatIR is one beat's normalized, comparable chord content — by pitch
@@ -1042,7 +1068,19 @@ func buildSections(sg *song.Song) []viewerSection {
 	for si, sec := range sg.Sections {
 		vs := viewerSection{Index: si, Label: sec.Label, Repeat: sec.Repeat, Notes: sec.Notes, Times: sec.Times}
 		beatsPerBar := sectionBeatsPerBar(sec, globalBeats)
+		// A stated repeat count ("|:4 ...") is recorded on the OPEN
+		// measure (see song.Measure.RepeatCount's doc comment — that's
+		// where the source states it), but the "x4" label itself prints
+		// on the CLOSE side instead: real engraving (checked against
+		// LilyPond's own convention) places a repeat count at the END of
+		// the repeated span, not the start — the opening barline just
+		// marks where to jump back to, the closing one is where the
+		// player needs telling "...and do that N times total."
+		pendingBracketRepeatCount := 0
 		for mi, m := range sec.Measures {
+			if m.Open && m.RepeatCount > 0 {
+				pendingBracketRepeatCount = m.RepeatCount
+			}
 			isRepeat := len(m.Tokens) == 1 && (m.Tokens[0] == "%" || m.Tokens[0] == "%%")
 			repeatCount := 1
 			if isRepeat && m.Tokens[0] == "%%" {
@@ -1063,6 +1101,10 @@ func buildSections(sg *song.Song) []viewerSection {
 				// counter incremented in this loop.
 				Index: mi, Beats: expandBeats(m.Tokens, beatsPerBar), IsRepeat: isRepeat, RepeatCount: repeatCount, IsRest: isRest,
 				Volta: m.Volta, VoltaFirst: voltaFirst, Meter: m.Meter, Open: m.Open, Close: m.Close,
+			}
+			if m.Close && pendingBracketRepeatCount > 0 {
+				vm.BracketRepeatCount = pendingBracketRepeatCount
+				pendingBracketRepeatCount = 0
 			}
 			if !clefDrawn {
 				vm.Clef = true

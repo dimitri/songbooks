@@ -105,10 +105,22 @@ type Section struct {
 // stripped of a ":duration" suffix.
 type Measure struct {
 	Tokens []string
-	Open   bool   // this bar opens a "|: ... :|" repeat
-	Close  bool   // this bar closes a "|: ... :|" repeat
-	Volta  string // raw volta marker, e.g. "1." or "1,2,3.", "" if absent
-	Meter  string // raw per-bar meter override, e.g. "2/4", "" if absent
+	Open   bool // this bar opens a "|: ... :|" repeat
+	Close  bool // this bar closes a "|: ... :|" repeat
+	// RepeatCount is how many times a "|: ... :|" bracket is actually
+	// played — only meaningful (and only ever set) on the Open measure.
+	// 0 means "not stated" — the standard, implicit "play it twice"
+	// every plain "|: ... :|" bracket already means, unchanged. A
+	// stated count is written right after the opening colon with no
+	// space, e.g. "|:4 F#m | D | Bm | E :|" for a 4-bar phrase played
+	// four times through — the bracket-level counterpart to a whole
+	// SECTION's own "times:" line (see Section.Times's doc comment):
+	// that one multiplies an inherited/own section length, this one
+	// states literally how many times the written bars themselves
+	// repeat, which a bare "|: :|" can't express beyond the implicit 2.
+	RepeatCount int
+	Volta       string // raw volta marker, e.g. "1." or "1,2,3.", "" if absent
+	Meter       string // raw per-bar meter override, e.g. "2/4", "" if absent
 }
 
 // LyricLine is one chorded lyric line: "Some [Gm]words here".

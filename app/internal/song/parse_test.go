@@ -103,3 +103,41 @@ func TestWriteTimesRoundTrip(t *testing.T) {
 		t.Errorf("round-trip mismatch\n--- first ---\n%+v\n--- again ---\n%+v", s, again)
 	}
 }
+
+func TestParseGridExplicitRepeatCount(t *testing.T) {
+	s := Parse("title: X\n\n[Verse]\ngrid: |:4 F#m | D | Bm | E :| F#m | A\n")
+	ms := s.Sections[0].Measures
+	if len(ms) != 6 {
+		t.Fatalf("expected 6 measures, got %d", len(ms))
+	}
+	if !ms[0].Open || ms[0].RepeatCount != 4 {
+		t.Errorf("expected first measure to open a 4x repeat, got Open=%v RepeatCount=%d", ms[0].Open, ms[0].RepeatCount)
+	}
+	if !reflect.DeepEqual(ms[0].Tokens, []string{"F#m"}) {
+		t.Errorf("unexpected tokens on the open measure: %v", ms[0].Tokens)
+	}
+	if !ms[3].Close {
+		t.Error("expected the 4th measure to close the repeat")
+	}
+	if ms[4].Open || ms[4].RepeatCount != 0 {
+		t.Errorf("measures after the bracket shouldn't carry repeat state, got %+v", ms[4])
+	}
+}
+
+func TestWriteGridExplicitRepeatCountRoundTrip(t *testing.T) {
+	s := Parse("title: X\n\n[Verse]\ngrid: |:4 F#m | D | Bm | E :| F#m | A\n")
+	again := Parse(Write(s))
+	if !reflect.DeepEqual(s, again) {
+		t.Errorf("round-trip mismatch\n--- first ---\n%+v\n--- again ---\n%+v", s, again)
+	}
+	// A plain, count-less bracket must still round-trip to RepeatCount 0,
+	// not pick up a stray "2" — the whole point of 0 meaning "unstated".
+	s2 := Parse("title: X\n\n[Verse]\ngrid: |: F#m | D :|\n")
+	if s2.Sections[0].Measures[0].RepeatCount != 0 {
+		t.Errorf("expected an unstated bracket to parse RepeatCount 0, got %d", s2.Sections[0].Measures[0].RepeatCount)
+	}
+	again2 := Parse(Write(s2))
+	if !reflect.DeepEqual(s2, again2) {
+		t.Errorf("round-trip mismatch for count-less bracket\n--- first ---\n%+v\n--- again ---\n%+v", s2, again2)
+	}
+}

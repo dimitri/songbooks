@@ -1365,6 +1365,23 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .repeat-dots { position: absolute; top: 0; bottom: 0; width: 0.3em; pointer-events: none; }
 .bar-open .repeat-dots { left: 0.2em; }
 .bar-close .repeat-dots { right: 0.2em; }
+/* A STATED repeat count ("x4"), printed on the CLOSE bar — see the
+   template's own comment on .bracket-repeat-count for why the end side,
+   not the start. Centered above the bar (same anchor as .simile-count/
+   .chord-label), not flush over the repeat-close dots — a single-bar
+   bracket's Close bar can also be the song's very first bar, where the
+   clef/tempo mark already occupies that corner; centering clears it
+   regardless. Stacked ABOVE the chord label itself (.chord-label's own
+   margin-bottom is 0.35em; this clears its full glyph height too,
+   generously — chordsym's bold root + raised quality text run taller
+   than plain text), not sharing its exact baseline — real engraving
+   stacks a repeat annotation further from the staff than the chord
+   name. */
+.bracket-repeat-count {
+  position: absolute; left: 50%; bottom: 100%; margin-bottom: 1.5em;
+  transform: translateX(-50%);
+  font-weight: 700; font-size: 0.85em; color: var(--fg-muted); white-space: nowrap;
+}
 .repeat-dots::before, .repeat-dots::after {
   content: ""; position: absolute; left: 50%; width: 0.28em; height: 0.28em;
   border-radius: 50%; background: var(--fg); transform: translate(-50%, -50%);
