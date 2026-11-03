@@ -7,7 +7,7 @@ map: Intro · Verse · Verse · Solo · Verse · Verse · Solo
 reference: https://www.youtube.com/watch?v=kpC69qIe02E
 
 [Intro]
-grid: |: Bm | % | % | % | Em | % | Bm | % | G7 | F#7 | Bm | % :|
+grid: Bm | % | % | % | Em | % | Bm | % | G7 | F#7 | Bm | %
 
 [Verse]
 The thrill is gone
@@ -44,3 +44,4 @@ And now that it's all over
 All that I can do is wish you well
 
 [Solo]
+times: 2
