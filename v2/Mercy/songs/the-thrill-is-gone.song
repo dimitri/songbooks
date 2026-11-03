@@ -3,7 +3,7 @@ artist: B.B. King
 key: Bm
 tempo: 90
 time: 4/4
-map: Intro · Verse · Verse · Solo · Verse · Solo
+map: Intro · Verse · Verse · Solo · Verse · Verse · Solo
 reference: https://www.youtube.com/watch?v=kpC69qIe02E
 
 [Intro]
@@ -26,6 +26,8 @@ Although, I'll still live on
 But so lonely I'll be
 
 [Solo]
+
+[Verse]
 The thrill is gone
 It's gone away for good
 All the thrill is gone
