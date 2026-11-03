@@ -78,6 +78,27 @@
     </div>
 
     <div class="card">
+      <h2>Add several songs at once</h2>
+      <p class="hint">One song per line, <code>Title - Artist</code> (artist optional). Each becomes its own empty placeholder in the repertoire below — click into one afterward to fill in lyrics and chords.</p>
+      <div class="form-stack">
+        <div class="field">
+          <label for="bulk-variant-lines">Songs</label>
+          <textarea id="bulk-variant-lines" rows="5" placeholder="Zombie - Yungblud&#10;Sweet Dreams - Marilyn Manson&#10;The Final Countdown - Europe"></textarea>
+        </div>
+        <div class="field">
+          <label for="bulk-variant-project">Project</label>
+          <select id="bulk-variant-project">
+            {{range .Books}}<option value="{{.}}">{{.}}</option>{{end}}
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="bulk-variant-btn">+ create all</button>
+        </div>
+        <ul id="bulk-variant-result" class="hint" style="list-style:none; padding:0; margin:0;"></ul>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Add a variant by id</h2>
       <p class="hint">Find a variant's id from the <a href="/catalog">catalog</a> (it's shown next to each song's actions there, or in the URL of its "all versions" page).</p>
       <div class="form-stack">
@@ -160,9 +181,50 @@ document.getElementById('new-variant-btn').addEventListener('click', async () =>
   });
   const data = await res.json().catch(() => ({}));
   if (res.ok) {
-    location.href = `/b/${data.book}/${data.stem}`;
+    // Straight into edit mode, not the Play page — a brand-new original
+    // has an empty [Verse] placeholder and nothing to play yet.
+    location.href = `/b/${data.book}/${data.stem}?edit=1`;
   } else {
     document.getElementById('new-variant-result').textContent = data.error || 'failed to create';
+  }
+});
+document.getElementById('bulk-variant-btn').addEventListener('click', async () => {
+  const lines = document.getElementById('bulk-variant-lines').value;
+  const project = document.getElementById('bulk-variant-project').value;
+  const resultEl = document.getElementById('bulk-variant-result');
+  resultEl.innerHTML = '';
+  if (!lines.trim() || !project) return;
+  const btn = document.getElementById('bulk-variant-btn');
+  btn.disabled = true;
+  btn.textContent = 'creating…';
+  try {
+    const res = await fetch(`/api/bands/${bandId}/variants/bulk`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({lines, project}),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      resultEl.innerHTML = `<li>${data.error || 'failed to create'}</li>`;
+      return;
+    }
+    let created = 0;
+    for (const r of data.results || []) {
+      const li = document.createElement('li');
+      if (r.error) {
+        li.textContent = `${r.title}: ${r.error}`;
+      } else {
+        created++;
+        const a = document.createElement('a');
+        a.href = `/b/${r.book}/${r.stem}?edit=1`;
+        a.textContent = `${r.title}${r.artist ? ' — ' + r.artist : ''}`;
+        li.append('✓ ', a, ' — click to fill in');
+      }
+      resultEl.appendChild(li);
+    }
+    if (created > 0) document.getElementById('bulk-variant-lines').value = '';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '+ create all';
   }
 });
 document.getElementById('add-existing-btn').addEventListener('click', async () => {

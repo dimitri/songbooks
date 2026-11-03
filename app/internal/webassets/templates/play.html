@@ -456,7 +456,20 @@
 
     <section class="prep-panel" data-panel="raw" id="editor" data-book="{{.Book}}" data-stem="{{.Stem}}" data-version="{{.Version}}" data-variant-id="{{.VariantID}}" data-can-edit="{{.CanEdit}}" hidden>
       <div class="code-toolbar" id="code-toolbar">
-        <button type="button" data-insert="section">[Section]</button>
+        {{/* One-tap section markers — the common labels this app's own
+             section-type inference (handlers_pages.go's annotateStructure,
+             IsSolo, etc.) already recognizes by name, so a tapped-in
+             "[Chorus]"/"[Solo]" gets the same chip/multi-rest treatment as
+             one typed by hand. Covers splitting a pasted wall of lyrics
+             (no section breaks at all, the common post-import state) into
+             real structure without typing "[" + the label + "]" by hand
+             each time. */}}
+        <button type="button" data-insert-label="Verse">[Verse]</button>
+        <button type="button" data-insert-label="Chorus">[Chorus]</button>
+        <button type="button" data-insert-label="Bridge">[Bridge]</button>
+        <button type="button" data-insert-label="Intro">[Intro]</button>
+        <button type="button" data-insert-label="Outro">[Outro]</button>
+        <button type="button" data-insert-label="Solo">[Solo]</button>
         <button type="button" data-insert="grid">grid:</button>
         <button type="button" data-insert="bars">bars:</button>
         <button type="button" data-wrap="chord">[Chord]</button>

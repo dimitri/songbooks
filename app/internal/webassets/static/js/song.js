@@ -1445,7 +1445,7 @@ const ICONS = {
     const btn = e.target.closest('button');
     if (!btn) return;
     rawTextarea.focus();
-    if (btn.dataset.insert === 'section') insertAtCursor('[Verse]\n');
+    if (btn.dataset.insertLabel) insertSectionLabel(btn.dataset.insertLabel);
     else if (btn.dataset.insert === 'grid') insertAtCursor('grid: |  |  |  |  |\n');
     else if (btn.dataset.insert === 'bars') insertAtCursor('bars: 4\n');
     else if (btn.dataset.insert === 'comment') insertAtCursor('# ');
@@ -1525,6 +1525,27 @@ const ICONS = {
     const start = rawTextarea.selectionStart ?? rawTextarea.value.length;
     const end = rawTextarea.selectionEnd ?? rawTextarea.value.length;
     rawTextarea.value = rawTextarea.value.slice(0, start) + text + rawTextarea.value.slice(end);
+    rawTextarea.dispatchEvent(new Event('input'));
+  }
+
+  // insertSectionLabel drops "[Label]\n" right before the CURSOR, or —
+  // when text is selected (e.g. a block of pasted, unsectioned lyrics
+  // the person just highlighted as "this is the chorus") — right before
+  // the START of that selection, leaving the selected text itself
+  // untouched rather than replacing it the way insertAtCursor's plain
+  // start/end splice would. A blank line is added first UNLESS the
+  // insertion point is already at the very start of the text or right
+  // after an existing blank line, so repeated taps don't pile up extra
+  // blank lines between sections.
+  function insertSectionLabel(label) {
+    const at = rawTextarea.selectionStart ?? rawTextarea.value.length;
+    const before = rawTextarea.value.slice(0, at);
+    const needsBlankLine = before.length > 0 && !/\n\s*\n$/.test(before) && !before.endsWith('\n\n');
+    const prefix = (needsBlankLine ? (before.endsWith('\n') ? '\n' : '\n\n') : '');
+    const insertion = prefix + '[' + label + ']\n';
+    rawTextarea.value = before + insertion + rawTextarea.value.slice(at);
+    const caret = at + insertion.length;
+    rawTextarea.selectionStart = rawTextarea.selectionEnd = caret;
     rawTextarea.dispatchEvent(new Event('input'));
   }
 

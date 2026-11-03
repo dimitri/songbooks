@@ -226,6 +226,7 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("DELETE /api/bands/{id}/catalog/{variantID}", s.requireBandMember(s.handleRemoveBandCatalogEntry))
 	mux.HandleFunc("POST /api/bands/{id}/catalog/fork/{variantID}", s.requireBandMember(s.handleForkVariantIntoBand))
 	mux.HandleFunc("POST /api/bands/{id}/variants", s.requireBandMember(s.handleCreateBandVariant))
+	mux.HandleFunc("POST /api/bands/{id}/variants/bulk", s.requireBandMember(s.handleCreateBandVariantsBulk))
 
 	// Band proposals + voting (phase 7): propose a new song (an existing
 	// catalog variant, for the band's repertoire) or a new reference URL

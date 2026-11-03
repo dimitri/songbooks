@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -660,6 +661,90 @@ func (s *Server) handleCreateBandVariant(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"variantId": newID, "book": v.Book, "stem": v.Stem,
 	})
+}
+
+// bulkLineRE splits a pasted "Title - Artist" line into its two halves —
+// the last " - "/" – "/" — " occurrence, not the first, so a title that
+// itself contains a hyphen ("Mr. Brightside - The Killers" is fine, but
+// so is "Self-Control - Laura Branigan": only the LAST separator is
+// treated as the title/artist boundary). No separator at all is a
+// title-only line (artist left blank, same as the single-song form's own
+// optional Artist field).
+var bulkLineRE = regexp.MustCompile(`\s+[-\x{2013}\x{2014}]\s+`)
+
+func splitTitleArtist(line string) (title, artist string) {
+	loc := bulkLineRE.FindAllStringIndex(line, -1)
+	if len(loc) == 0 {
+		return strings.TrimSpace(line), ""
+	}
+	last := loc[len(loc)-1]
+	return strings.TrimSpace(line[:last[0]]), strings.TrimSpace(line[last[1]:])
+}
+
+// bulkCreateResult is one line's outcome — created (Book/Stem set) or
+// skipped (Error set, e.g. a blank line or a store-level failure) —
+// reported per-line rather than failing the whole paste on one bad row,
+// since a 20-song paste with one typo'd line shouldn't lose the other 19.
+type bulkCreateResult struct {
+	Title  string `json:"title"`
+	Artist string `json:"artist,omitempty"`
+	Book   string `json:"book,omitempty"`
+	Stem   string `json:"stem,omitempty"`
+	Error  string `json:"error,omitempty"`
+}
+
+// handleCreateBandVariantsBulk is the "fill in several songs at once"
+// counterpart to handleCreateBandVariant: one placeholder (empty-body,
+// title/artist only) per non-blank input line, each immediately editable
+// — the repertoire page's bulk-add form links each result straight into
+// that song's own edit view (?edit=1, not the Play page) via the
+// returned Book/Stem, same "then click a song to fill it in" flow the
+// single-song form's own "+ create" now also uses (see that handler).
+func (s *Server) handleCreateBandVariantsBulk(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		Project string `json:"project"`
+		Lines   string `json:"lines"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Project) == "" {
+		httpError(w, http.StatusBadRequest, "project is required")
+		return
+	}
+	projectID, err := s.store.ProjectID(r.Context(), req.Project)
+	if errors.Is(err, store.ErrNotFound) {
+		httpError(w, http.StatusNotFound, "no such project: "+req.Project)
+		return
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	actor := personFromContext(r)
+
+	var results []bulkCreateResult
+	for _, raw := range strings.Split(req.Lines, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" {
+			continue
+		}
+		title, artist := splitTitleArtist(line)
+		if title == "" {
+			results = append(results, bulkCreateResult{Title: line, Error: "couldn't read a title from this line"})
+			continue
+		}
+		newID, err := s.store.CreateBandVariant(r.Context(), bandID, projectID, title, artist, actor.ID)
+		if err != nil {
+			results = append(results, bulkCreateResult{Title: title, Artist: artist, Error: err.Error()})
+			continue
+		}
+		v, err := s.store.GetVariant(r.Context(), newID)
+		if err != nil {
+			results = append(results, bulkCreateResult{Title: title, Artist: artist, Error: err.Error()})
+			continue
+		}
+		results = append(results, bulkCreateResult{Title: title, Artist: artist, Book: v.Book, Stem: v.Stem})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"results": results})
 }
 
 // handleAddBandCatalogEntry points the band's repertoire at an existing
