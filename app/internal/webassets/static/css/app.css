@@ -914,14 +914,26 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    above the last one rendered with NO staff under it at all (the
    "Chorus 1 has no staff lines" bug, reported directly against a live
    screenshot).
-   Fix: draw the staff PER CELL instead — every .bar and the leading
-   .staff-timesig-cell each paint their own identical slice (same height,
-   same five y-offsets), so adjacent cells' lines land on the same
-   y-position and read as one continuous staff regardless of where a row
-   happens to wrap, with no dependency on a single row's own box ever
+   Fix: draw the staff PER CELL instead — every .bar's .bar-body and the
+   leading .staff-timesig-cell each paint their own identical slice (same
+   height, same five y-offsets), so adjacent cells' lines land on the
+   same y-position and read as one continuous staff regardless of where a
+   row happens to wrap, with no dependency on a single row's own box ever
    staying unwrapped. --staff-5lines holds the one gradient-image list
    every staff-drawing rule below references via var() — change the
-   look of a staff in exactly one place, not three. */
+   look of a staff in exactly one place, not three.
+   On .bar-body, not .bar itself: .bar's own ::before is already spoken
+   for by the repeat-barline accent strip (.bar-open::before/.bar-close
+   ::after, further down) — a SECOND rule targeting the same pseudo-
+   element on the same node doesn't layer, it fights it property by
+   property (confirmed live: a repeat-open bar's solid accent-strip
+   background-color painted over this rule's gradient, and its own width
+   won out over this rule's left/right, collapsing the staff to a
+   sliver). .bar-body is a real, uncontested child element, with no
+   competing ::before/::after rule anywhere else — left/right bleed by
+   .bar's own 0.5em horizontal padding so adjacent cells' slices still
+   touch seamlessly at the bar boundary, same as drawing directly on
+   .bar would have. */
 :root { --staff-5lines:
     linear-gradient(var(--fg-muted), var(--fg-muted)),
     linear-gradient(var(--fg-muted), var(--fg-muted)),
@@ -929,11 +941,11 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
     linear-gradient(var(--fg-muted), var(--fg-muted)),
     linear-gradient(var(--fg-muted), var(--fg-muted));
 }
-#sheet[data-render-mode="normal"] .bar::before,
+#sheet[data-render-mode="normal"] .bar-body::before,
 #sheet[data-render-mode="normal"] .staff-timesig-cell::before,
-#sheet[data-render-mode="map"] .bar::before,
+#sheet[data-render-mode="map"] .bar-body::before,
 #sheet[data-render-mode="map"] .staff-timesig-cell::before {
-  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1.7em; z-index: 0;
+  content: ""; position: absolute; left: -0.5em; right: -0.5em; bottom: 0; height: 1.7em; z-index: 0;
   background-image: var(--staff-5lines);
   background-size: 100% 1px;
   background-position: 0 0%, 0 25%, 0 50%, 0 75%, 0 100%;
@@ -1014,11 +1026,14 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    approved separately. #sheet (ID) in the selector outranks both the
    base .bar rule and the .staff-timesig-cell one above without needing
    !important. */
-#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]) .staff-line {
+/* Lyrics-only is the one remaining mode with this ragged-right, flat-
+   typeset-width treatment — map now shares normal mode's justified engine
+   instead (below), so it's excluded here too. */
+#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]):not([data-render-mode="map"]) .staff-line {
   width: fit-content; max-width: 100%; align-self: flex-start;
 }
-#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]) .bar,
-#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]) .staff-line:has(.staff-timesig-cell) .bar {
+#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]):not([data-render-mode="map"]) .bar,
+#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]):not([data-render-mode="map"]) .staff-line:has(.staff-timesig-cell) .bar {
   flex: 0 0 var(--bar-w, 7.2em);
 }
 /* A repeat-only bar (just a simile mark, no chord label) has nothing to
@@ -1031,19 +1046,24 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 #sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]) .bar.bar-pct {
   flex: 0 0 3.2em;
 }
-/* Chords+lyrics: justified, like a real engraved score — every staff-line
-   row in the chart stretches to the SAME full column width, same
-   technique jazz mode already uses (the base .bar rule below, percentage-
-   of-cap, is exactly that — jazz just never got excluded from it). A
-   sparser row (fewer bars, or a short trailing row) gets WIDER bars that
-   fill the row, not fixed-width bars leaving ragged trailing blank space.
-   This supersedes the old fixed-7.2em/fit-content treatment above (kept
-   for map/lyrics modes, untouched) at the user's explicit request,
-   comparing favorably against the multi-rest block (which already fills
-   its own row) and real printed charts, where every system justifies to
-   the same page width. */
-#sheet[data-render-mode="normal"] .staff-line { width: 100%; }
-#sheet[data-render-mode="normal"] .bar {
+/* Chords+lyrics (and now Song Map too — same engine, not a second one):
+   justified, like a real engraved score — every staff-line row in the
+   chart stretches to the SAME full column width, same technique jazz
+   mode already uses (the base .bar rule below, percentage-of-cap, is
+   exactly that — jazz just never got excluded from it). A sparser row
+   (fewer bars, or a short trailing row) gets WIDER bars that fill the
+   row, not fixed-width bars leaving ragged trailing blank space —
+   exactly why Song Map's rows used to come out visibly different
+   lengths from each other (flat per-bar width, no justification) next
+   to Chords+lyrics' own uniform-width rows. This supersedes the old
+   fixed-7.2em/fit-content treatment above (kept for lyrics-only,
+   untouched) at the user's explicit request, comparing favorably against
+   the multi-rest block (which already fills its own row) and real
+   printed charts, where every system justifies to the same page width. */
+#sheet[data-render-mode="normal"] .staff-line,
+#sheet[data-render-mode="map"] .staff-line { width: 100%; }
+#sheet[data-render-mode="normal"] .bar,
+#sheet[data-render-mode="map"] .bar {
   flex: 0 0 calc(100% / var(--cap, 4));
 }
 /* Measure (bar) divider — LilyPond/Guitar Pro both draw this as a crisp,
@@ -1611,58 +1631,26 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 
 /* ---- Song map: chords + staff + structure, no lyrics — "what's the form
    AND the changes," as ONE continuous engraved score, not one independent
-   chart per section. Unlike jazz/lyrics-only, this does NOT get a narrow
-   A4-proportioned page box (applyPageBox in song.js explicitly skips map
-   mode) — it uses the FULL available width. Rows are pre-grouped
-   server-side (buildMapLines/groupMapCells, handlers_pages.go) at 8
-   cells/line; bars use the normal flat typeset width (.bar's own base
-   rule, --bar-w), so — unlike the old per-section grid — this needs no
-   client-side reflow pass: a row's own bar count already is its final
-   bar count. */
+   chart per section. Shares its ENTIRE sizing/justification engine with
+   Chords+lyrics mode now, not a separate ragged/fixed-width treatment of
+   its own: same width:100% justified .staff-line, same flex:0 0 calc(100%
+   / var(--cap)) .bar rule (just below — unscoped from "normal" to include
+   map), same reflow pass (reflowMapLines, song.js, sibling to
+   reflowStaffLines using identical capacity math) recomputing each row's
+   real bar count against the actual viewport instead of a server-fixed
+   8-cells/line default. A recall cell (.bar-recall) carries class "bar"
+   and intentionally gets NO width rule of its own below — it's simply
+   another column at the row's shared width, the same way a real
+   multi-measure rest in engraved notation is a fixed-width glyph with a
+   number above it, not sized proportionally to its own bar count. */
 #sheet[data-render-mode="map"] {
   column-count: 1; /* overrides the generic wide-viewport #sheet{column-count:2} —
     a continuous score can't split into two side-by-side newspaper columns
     without reintroducing exactly the "forced break" this mode exists to
     remove, just at the column boundary instead of a section boundary. */
 }
-/* flex column, not block: lets .staff-line's own padding-top (badge
-   clearance, below) be the only row-to-row spacing, same as before — the
-   actual fix for "disconnected floating chip" rows was .bar-recall's own
-   height (below), which used to be taller than a real .bar (a stacked
-   number/rest/caption column instead of one baseline-anchored cell), so
-   a recall-only row's flex-wrapped sub-lines pushed apart from EACH
-   OTHER by their own oversized content, not from this gap. */
 #sheet[data-render-mode="map"] .map-score { display: flex; flex-direction: column; }
-#sheet[data-render-mode="map"] .map-score .staff-line {
-  width: fit-content; max-width: 100%;
-}
-/* Recall glyph — same multi-rest-bar/chip-bars visual the old per-section
-   is-compact chip used (kept, not re-skinned: this change is about flow,
-   not the glyph itself), now one flex item sitting inline among real
-   .bar elements in the SAME row instead of its own section block. A
-   flat 9em for every recall regardless of its real length (2 bars or
-   20) read as an oversized, same-size-for-everything block — this is
-   "as much as we need", scaled by the section's own bar count
-   (--bars, set inline per cell from .RecallBars) between a floor just
-   wide enough for the bold number + staff + end ticks and a ceiling
-   that still reads as compact next to a real multi-bar staff, not
-   another full section. */
-/* #sheet[data-render-mode="map"] prefix, not a bare `.bar-recall` rule:
-   the shared base rule (#sheet:not([data-render-mode="jazz"]) .bar —
-   every OTHER mode's flat --bar-w width) is ID-scoped and outranks a
-   plain single-class selector regardless of source order, so this
-   never actually applied without it — confirmed live, computed
-   flex-basis stayed 115.2px (the flat default) instead of this clamp().
-   Caught while checking the 4-bars-per-line mobile request below. */
-/* Anchored exactly like a real .bar now (same bar-body height, same
-   flex-end alignment to the row's shared staff baseline — see .staff-line
-   align-items:flex-end) instead of its own column of stacked lines with a
-   different total height. A recall cell used to be visibly TALLER than
-   its neighboring real bars (number line + rest glyph + "= Intro" line,
-   each its own row), which is what made it read as a separate floating
-   chip rather than another measure sitting on the same system. */
 #sheet[data-render-mode="map"] .bar-recall {
-  flex: 0 0 clamp(4.5em, calc(3em + var(--bars, 4) * 0.35em), 8em);
   padding: 0 0.5em; position: relative;
 }
 #sheet[data-render-mode="map"] .bar-recall .bar-body {
@@ -2074,52 +2062,11 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
      untouched; this only applies inside the 900px breakpoint. */
   #mode-segmented { display: none; }
 
-  /* Song Map: desktop renders each row as a fixed-width, non-wrapping
-     flex line (8 cells, sized to fit a wide screen) — on a phone that
-     same row is wider than the viewport, so the WHOLE PAGE scrolls
-     horizontally to see it, not just that one row. Desktop's own
-     row-grouping (server-side, buildMapLines in handlers_pages.go) stays
-     exactly as-is; this only lets a row that doesn't fit WRAP onto an
-     extra visual line of its own instead of overflowing — the row's
-     bars/recall-glyphs keep their normal fixed widths, they just
-     continue below rather than off the right edge. Section-start badges
-     are position:absolute on their own bar, so they follow it onto
-     whichever sub-line it wraps to, unaffected. */
-  /* row-gap, not the 0.6em a plain bar-to-bar wrap would need: every
-     cell can carry a .map-sec-badge floated ABOVE it via position:
-     absolute (bottom:100%, ~2.3em of its own height+margin) — that
-     badge contributes nothing to this flex box's own layout height, so
-     without real clearance here, a badge belonging to a cell on one
-     wrapped sub-row collides with the bars directly above it on the
-     previous sub-row (confirmed live: "Verse 2"/"Solo" badges printing
-     on top of the row above once wrapping kicked in). padding-top on
-     .staff-line (below) still separately covers the gap above the
-     very FIRST visual row, under the structure ribbon — unaffected. */
-  #sheet[data-render-mode="map"] .map-score .staff-line {
-    flex-wrap: wrap; row-gap: 2.6em;
-  }
-  #sheet[data-render-mode="map"] .map-score { max-width: 100%; }
-  /* Same 4-bars-per-line floor as Chords+lyrics/lyrics-only (see
-     reflowStaffLines' MIN_BARS_PER_LINE, song.js) — Song Map doesn't go
-     through that JS reflow at all (its row-grouping is fixed, server-
-     side, continuous across sections), so wrapping alone would still
-     let a real bar's flat 7.2em width push each wrapped line down to
-     2-3 bars on a phone, same problem in a different mode. A static,
-     narrower --bar-w here isn't computed against the exact live width
-     the way reflowStaffLines' per-row value is — this is a CSS-only
-     mode with no equivalent JS pass. 4.6em first looked right but was
-     still too wide for the one row that ALSO carries the time-signature
-     clef cell (.staff-timesig-cell: 2.1em + 0.4em margin) — that row's
-     own real budget is ~2.5em narrower than every other row's, so it
-     alone wrapped to 3 bars instead of 4 (confirmed live: every row
-     without a clef cell already held 4 fine). 4.0em leaves enough
-     margin to fit 4 real bars even on the clef row, at ordinary phone
-     widths (~340-400px). Scoped to real bars only: .bar-recall sets its
-     own compact width (above) and must not be widened back out by
-     this. */
-  #sheet[data-render-mode="map"] .map-score .bar:not(.bar-recall) {
-    --bar-w: 4em;
-  }
+  /* Song Map now reflows through the exact same JS pass as Chords+lyrics
+     (reflowMapLines, song.js — sibling to reflowStaffLines, same capacity
+     math) instead of a separate CSS-only flex-wrap fallback: every row is
+     already rebuilt, client-side, at exactly the bar count this viewport
+     can hold, so there is nothing left for mobile-only CSS to do here. */
 
   /* Jazz chart: bars are content-sized now (flex:0 0 auto, see the real-
      iReal-Pro-fidelity pass — a bar with 3 chords is genuinely wider

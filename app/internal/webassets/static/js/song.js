@@ -79,6 +79,86 @@ const ICONS = {
       }),
     }));
   }
+  // Song Map's own pristine original — captured the same way as
+  // staffLineOriginals, but flattened across every server-rendered
+  // .staff-line into ONE ordered stream (clef cell, if any, first;
+  // every real .bar and .bar-recall cell in document order after it).
+  // Song Map's whole point is bars flowing continuously across section
+  // boundaries on the same row, so there's no per-section grid to key
+  // this off the way captureStaffLineOriginals does — one flat list for
+  // the whole song is the right shape to rebuild rows from.
+  let mapScoreOriginal = null;
+  function captureMapScoreOriginal() {
+    const mapScore = sheet.querySelector('.map-score');
+    mapScoreOriginal = mapScore ? [...mapScore.querySelectorAll(':scope > .staff-line > *')] : null;
+  }
+  // Song Map's reflow pass — same capacity math as reflowStaffLines below
+  // (chords+lyrics), reused rather than reimplemented, just applied to one
+  // continuous cell stream instead of independent per-section grids. The
+  // server pre-groups .MapLines at a fixed 8-cells/line (buildMapLines,
+  // handlers_pages.go) purely as a reasonable initial HTML shape; this
+  // always rebuilds fresh from mapScoreOriginal against the REAL viewport
+  // width, the same "never trust what a previous pass left behind"
+  // approach reflowStaffLines uses for staffLineOriginals. Previously Song
+  // Map had NO per-viewport reflow at all — just a fixed server row count
+  // plus a CSS flex-wrap fallback on narrow screens, which is what
+  // produced rows of visibly different lengths (no justification) and,
+  // once a recall-only row didn't fit, one cell per wrapped line instead
+  // of a packed continuous sheet.
+  function reflowMapLines() {
+    if (!mapScoreOriginal || sheet.dataset.renderMode !== 'map') return;
+    const mapScore = sheet.querySelector('.map-score');
+    if (!mapScore) return;
+    const availW = mapScore.clientWidth;
+    if (!availW) return;
+    const fontPx = parseFloat(getComputedStyle(sheet).fontSize) || 16;
+    const clefPx = 2.5 * fontPx;
+    const flatFloorEm = 7.2; // same floor reflowStaffLines uses for normal mode
+    const maxSlots = mapScoreOriginal.reduce((m, el) => {
+      if (!el.classList.contains('bar')) return m;
+      return Math.max(m, parseInt(el.style.getPropertyValue('--slots'), 10) || 3);
+    }, 3);
+    const minBarPx = Math.max(flatFloorEm * fontPx, maxSlots * 0.9 * fontPx);
+    const hasClef = mapScoreOriginal[0]?.classList.contains('staff-timesig-cell');
+    const budget = hasClef ? availW - clefPx : availW;
+    let cap = Math.max(1, Math.floor(budget / minBarPx));
+    // Same 4-bars/line floor Chords+lyrics falls back to once bars would
+    // otherwise shrink past a comfortable width on a narrow phone — bars
+    // shrink (a row-specific --bar-w) rather than a row holding fewer of
+    // them below this floor.
+    let lineBarWpx = null;
+    if (cap < 4) {
+      cap = 4;
+      lineBarWpx = Math.max(2.6 * fontPx, budget / cap);
+    }
+    const cells = mapScoreOriginal.filter(el => !el.classList.contains('staff-timesig-cell'));
+    const newLines = [];
+    let current = [];
+    let isFirstRow = true;
+    const flushRow = (isLast) => {
+      if (!current.length) return;
+      const line = document.createElement('div');
+      line.className = 'staff-line';
+      // A short final row keeps its OWN (smaller) count as --cap so its
+      // bars stretch to fill the row's full width, same justified
+      // "every system fills the page" look as every other row, instead
+      // of leaving blank staff behind a handful of flat-width bars.
+      line.style.setProperty('--cap', String(isLast && current.length < cap ? current.length : cap));
+      if (lineBarWpx) line.style.setProperty('--bar-w', lineBarWpx + 'px');
+      if (isFirstRow && hasClef) line.appendChild(mapScoreOriginal[0].cloneNode(true));
+      for (const cell of current) line.appendChild(cell.cloneNode(true));
+      newLines.push(line);
+      isFirstRow = false;
+      current = [];
+    };
+    for (let i = 0; i < cells.length; i++) {
+      current.push(cells[i]);
+      if (current.length >= cap) flushRow(false);
+    }
+    flushRow(true);
+    mapScore.replaceChildren(...newLines);
+    resolveLabelCollisions(mapScore);
+  }
   // Greedy, real-width row packing for jazz mode's variable-width bars —
   // see the call site's own comment in reflowStaffLines() for why a
   // fixed bar-count-per-row assumption doesn't work here. Measures every
@@ -418,6 +498,8 @@ const ICONS = {
   function rebindSheet() {
     captureStaffLineOriginals();
     reflowStaffLines();
+    captureMapScoreOriginal();
+    reflowMapLines();
     refreshBarsCache();
     // startBar/barCount come from the server (every section's real
     // position in the performed bar sequence — see StartBar's Go-side doc
@@ -936,7 +1018,9 @@ const ICONS = {
     // A grid hidden in the PREVIOUS mode reads clientWidth 0 while
     // reflowStaffLines() skips it, so switching to a mode that shows it
     // needs a fresh pass now that it's actually laid out and measurable.
+    // Same reasoning for Song Map's .map-score and reflowMapLines().
     reflowStaffLines();
+    reflowMapLines();
     refreshBarsCache();
     applyPageBox();
     try { localStorage.setItem('songbooks-default-mode', v); } catch (e) { /* ignore */ }
@@ -952,7 +1036,7 @@ const ICONS = {
   let resizeTimer = null;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => { reflowStaffLines(); refreshBarsCache(); applyPageBox(); }, 100);
+    resizeTimer = setTimeout(() => { reflowStaffLines(); reflowMapLines(); refreshBarsCache(); applyPageBox(); }, 100);
   });
 
   // Open every song in the reader's own last-used view instead of always

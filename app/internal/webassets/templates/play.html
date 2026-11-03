@@ -81,15 +81,17 @@
     {{range .Cells}}
     {{if .IsRecall}}
     {{/* Anchored to the row's shared staff baseline exactly like a real
-         .bar (same bar-body height/flex-end alignment) instead of its own
-         taller, independently-centered block — that mismatch is what made
-         a recall read as a disconnected floating chip instead of a measure
-         sitting on the same continuous system as its neighbors. The bar
-         count floats above the staff the same way a chord label does
-         (chip-bars, bottom:100%); "= Intro" rides along on the section
-         badge itself rather than as a second line of text below the bar,
-         which no real engraved multi-rest carries. */}}
-    <span class="bar bar-recall" style="--bars: {{.RecallBars}}">
+         .bar (same bar-body height/flex-end alignment, same --cap-based
+         column width via the shared .bar flex-basis rule — no bar-recall-
+         specific sizing of its own) instead of its own taller,
+         independently-centered, independently-widthed block — that
+         mismatch is what made a recall read as a disconnected floating
+         chip instead of a measure sitting on the same continuous system
+         as its neighbors. The bar count floats above the staff the same
+         way a chord label does (chip-bars, bottom:100%); "= Intro" rides
+         along on the section badge itself rather than as a second line of
+         text below the bar, which no real engraved multi-rest carries. */}}
+    <span class="bar bar-recall">
       {{if .SectionStart}}<span class="map-sec-badge">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}{{if .RecallOf}} <span class="recall-of">= {{.RecallOf}}</span>{{end}}</span>{{end}}
       <span class="bar-body">
         <span class="chip-bars">{{.RecallBars}}</span>
