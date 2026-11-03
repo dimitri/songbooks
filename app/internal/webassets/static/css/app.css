@@ -294,8 +294,12 @@ table.card { padding: 0; }
   font-size: 0.8rem; color: var(--text-secondary); background: var(--bg-sunken);
   border: 1px solid var(--border); border-radius: 6px; padding: 0.3rem 0.5rem;
 }
-.album-group-heading { font-size: 1.05rem; margin: 1.4rem 0 0.5rem; }
-.album-group-heading:first-of-type { margin-top: 0; }
+.album-group-heading { font-size: 1.05rem; margin: 0 0 0.2rem; }
+.album-group-heading-row { display: flex; align-items: center; gap: 0.7rem; margin: 1.4rem 0 0.6rem; }
+.album-group-heading-row:first-of-type { margin-top: 0; }
+.album-group-cover { width: 44px; height: 44px; border-radius: 4px; object-fit: cover; flex: none; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.album-group-year { font-weight: 400; color: var(--fg-faint); }
+.album-group-credit { margin: 0.1rem 0 0; }
 
 /* ---- Desktop sidebar (>=901px) ------------------------------------------
    Hidden by default/on mobile (the global bottom tab bar is the only nav
@@ -2705,6 +2709,12 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .attention-filters button.active { border-color: var(--accent); background: var(--accent-bg); color: var(--accent-ink); }
 
 .attention-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--bg-raised); }
+.album-preview-list.attention-list { border: none; background: none; gap: 0.9rem; }
+.album-preview-group { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--bg-raised); }
+.album-preview-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--border); background: var(--bg-sunken); }
+.album-preview-cover { width: 28px; height: 28px; border-radius: 3px; object-fit: cover; flex: none; }
+.album-preview-name { font-weight: 600; font-size: 0.88rem; }
+.album-preview-year { font-weight: 400; color: var(--fg-faint); }
 .attention-row {
   display: flex; align-items: center; gap: 0.9rem; padding: 0.8rem 1rem;
   border-bottom: 1px solid var(--border); color: var(--fg);

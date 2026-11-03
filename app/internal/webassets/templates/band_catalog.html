@@ -97,7 +97,13 @@
 
   {{if .AlbumGroups}}
   {{range .AlbumGroups}}
-  <h2 class="album-group-heading">{{.Album}}</h2>
+  <div class="album-group-heading-row">
+    {{if .CoverURL}}<img class="album-group-cover" src="{{.CoverURL}}" alt="{{.Album}} cover">{{end}}
+    <div>
+      <h2 class="album-group-heading">{{.Album}}{{if .ReleaseYear}} <span class="album-group-year">({{.ReleaseYear}})</span>{{end}}</h2>
+      {{if .Credit}}<p class="album-group-credit hint">{{.Credit}}</p>{{end}}
+    </div>
+  </div>
   <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th>Visibility</th><th></th></tr></thead>
     <tbody>

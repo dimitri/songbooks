@@ -91,6 +91,24 @@ document.getElementById('music-type-select').addEventListener('change', async (e
       <h3>Repertoire</h3>
       <a href="/bands/{{.Band.ID}}/catalog">{{.RepertoireCount}} song{{if ne .RepertoireCount 1}}s{{end}} &rarr;</a>
     </div>
+    {{if .RepertoirePreviewAlbums}}
+    <div class="attention-list album-preview-list">
+    {{range .RepertoirePreviewAlbums}}
+      <div class="album-preview-group">
+        <div class="album-preview-head">
+          {{if .CoverURL}}<img class="album-preview-cover" src="{{.CoverURL}}" alt="{{.Album}} cover">{{end}}
+          <span class="album-preview-name">{{.Album}}{{if .ReleaseYear}} <span class="album-preview-year">({{.ReleaseYear}})</span>{{end}}</span>
+        </div>
+        {{range .Entries}}
+          <a class="attention-row" href="/b/{{.Book}}/{{.Stem}}">
+            <div class="attention-title">{{.Title}}</div>
+            {{if .Artist}}<div class="attention-subtitle">{{.Artist}}</div>{{end}}
+          </a>
+        {{end}}
+      </div>
+    {{end}}
+    </div>
+    {{else}}
     <div class="attention-list">
     {{range .Repertoire}}
       <a class="attention-row" href="/b/{{.Book}}/{{.Stem}}">
@@ -101,6 +119,7 @@ document.getElementById('music-type-select').addEventListener('change', async (e
       <a class="attention-empty" href="/bands/{{.Band.ID}}/catalog">No songs yet — add one from the repertoire page &rarr;</a>
     {{end}}
     </div>
+    {{end}}
   </section>
 
   {{/* ---- Setlists preview: this band's own setlists, soonest gig

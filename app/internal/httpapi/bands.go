@@ -187,6 +187,27 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 		repertoirePreview = repertoirePreview[:5]
 	}
 
+	// Same per-album grouping the Repertoire tab uses (handleBandCatalogPage),
+	// applied to the already-trimmed preview slice — an "original" act's
+	// Overview card should read as album groups too, not a flat 5-song
+	// list that happens to mix records together.
+	var repertoirePreviewAlbums []albumGroup
+	if band.MusicType == "original" {
+		var covers map[string]store.AlbumCover
+		if band.ProjectID != nil {
+			covers, err = s.store.GetAlbumCovers(r.Context(), *band.ProjectID)
+			if err != nil {
+				httpError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+		previewEntries := make([]store.BandCatalogEntry, len(repertoirePreview))
+		for i, v := range repertoirePreview {
+			previewEntries[i] = store.BandCatalogEntry{CatalogVariant: v}
+		}
+		repertoirePreviewAlbums = groupByAlbum(previewEntries, covers)
+	}
+
 	setlists, err := s.store.ListSetlistsForBand(r.Context(), bandID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
@@ -210,7 +231,8 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 		"Me": person, "Band": band, "Changes": changes, "HasLastSeen": since != nil,
 		"OpenProposals": openProposals,
 		"Repertoire":    repertoirePreview, "RepertoireCount": repertoireCount,
-		"Setlists": setlists, "NextGig": nextGig,
+		"RepertoirePreviewAlbums": repertoirePreviewAlbums,
+		"Setlists":                setlists, "NextGig": nextGig,
 	})
 }
 
@@ -535,7 +557,15 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 	// simplification, not a claim of real track/release order.
 	var albumGroups []albumGroup
 	if band.MusicType == "original" {
-		albumGroups = groupByAlbum(entries)
+		var covers map[string]store.AlbumCover
+		if band.ProjectID != nil {
+			covers, err = s.store.GetAlbumCovers(r.Context(), *band.ProjectID)
+			if err != nil {
+				httpError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+		albumGroups = groupByAlbum(entries, covers)
 	}
 
 	s.render(w, "band_catalog", map[string]any{
@@ -544,14 +574,20 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// albumGroup is one album's songs on a band's Repertoire tab, for an
-// "original"-type band (handleBandCatalogPage).
+// albumGroup is one album's songs on a band's Repertoire tab (or the
+// Overview preview), for an "original"-type band — cover art fields are
+// zero-valued when no project_albums row exists yet for that album
+// (migration 0034), which the template treats as "no cover, just show
+// the name".
 type albumGroup struct {
-	Album   string
-	Entries []store.BandCatalogEntry
+	Album       string
+	CoverURL    string
+	ReleaseYear int
+	Credit      string
+	Entries     []store.BandCatalogEntry
 }
 
-func groupByAlbum(entries []store.BandCatalogEntry) []albumGroup {
+func groupByAlbum(entries []store.BandCatalogEntry, covers map[string]store.AlbumCover) []albumGroup {
 	byAlbum := map[string][]store.BandCatalogEntry{}
 	for _, e := range entries {
 		album := e.Album
@@ -569,7 +605,11 @@ func groupByAlbum(entries []store.BandCatalogEntry) []albumGroup {
 	for _, name := range names {
 		songs := byAlbum[name]
 		sort.Slice(songs, func(i, j int) bool { return songs[i].Title < songs[j].Title })
-		groups = append(groups, albumGroup{Album: name, Entries: songs})
+		g := albumGroup{Album: name, Entries: songs}
+		if c, ok := covers[name]; ok {
+			g.CoverURL, g.ReleaseYear, g.Credit = c.CoverURL, c.ReleaseYear, c.Credit
+		}
+		groups = append(groups, g)
 	}
 	return groups
 }

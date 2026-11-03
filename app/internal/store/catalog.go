@@ -84,6 +84,51 @@ func (st *Store) SetWorkGenre(ctx context.Context, workID int64, genre string) e
 	return nil
 }
 
+// AlbumCover is one album's cover art for a project, keyed by
+// (project_id, album) per migration 0034.
+type AlbumCover struct {
+	Album       string
+	CoverURL    string
+	ReleaseYear int
+	Credit      string
+}
+
+// GetAlbumCovers returns every album cover known for projectID, keyed by
+// album name, for pages that group a repertoire by album (an
+// "original"-type band's Repertoire tab and Overview preview).
+func (st *Store) GetAlbumCovers(ctx context.Context, projectID int64) (map[string]AlbumCover, error) {
+	rows, err := st.db.Query(ctx, `SELECT album, cover_url, coalesce(release_year, 0), credit FROM project_albums WHERE project_id = $1`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]AlbumCover{}
+	for rows.Next() {
+		var c AlbumCover
+		if err := rows.Scan(&c.Album, &c.CoverURL, &c.ReleaseYear, &c.Credit); err != nil {
+			return nil, err
+		}
+		out[c.Album] = c
+	}
+	return out, rows.Err()
+}
+
+// SetAlbumCover upserts one album's cover art for a project — idempotent,
+// safe to re-run (e.g. a backfill script run more than once).
+func (st *Store) SetAlbumCover(ctx context.Context, projectID int64, album, coverURL string, releaseYear int, credit string) error {
+	var yr any
+	if releaseYear > 0 {
+		yr = releaseYear
+	}
+	_, err := st.db.Exec(ctx, `
+		INSERT INTO project_albums (project_id, album, cover_url, release_year, credit)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (project_id, album) DO UPDATE
+		SET cover_url = EXCLUDED.cover_url, release_year = EXCLUDED.release_year, credit = EXCLUDED.credit
+	`, projectID, album, coverURL, yr, credit)
+	return err
+}
+
 // findOrCreateWork matches title/artist against works by simple
 // normalization (lowercase, trim) and returns the existing work's id, or
 // creates one. The ON CONFLICT ... DO UPDATE RETURNING trick makes this
