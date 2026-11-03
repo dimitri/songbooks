@@ -1840,15 +1840,33 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .multi-rest-bar::after { right: 0; }
 
 /* Repeat variant — a section that's wholly one "|: ... :|" bracket (see
-   RepeatSegmentBars): a compact, fixed-width mockup of the WRITTEN bars
-   (empty cells, no chord text — this isn't the real grid, just a shape
-   to count), bounded by real repeat-barline + dots at the ends (same
-   .bar-open/.bar-close/.repeat-dots convention the real chord grid
-   uses). Deliberately NOT a single bar stretched the full row width —
-   that read as an oversized, empty-looking block; a short row you can
-   actually count reads as "8 bars" on sight. */
+   RepeatSegmentBars): a mockup of the WRITTEN bars (empty cells, no
+   chord text — this isn't the real grid, just a shape to count), bounded
+   by real repeat-barline + dots at the ends (same .bar-open/.bar-close/
+   .repeat-dots convention the real chord grid uses).
+   A previous pass deliberately kept this fixed/narrow ("not a single bar
+   stretched the full row width — that reads as an oversized, empty
+   block"), but next to every other multi-rest glyph on the page now
+   using the row's full width (chip-bars/multi-rest-bar, see their own
+   width:100% rule), this one narrow exception read as broken/half-done
+   instead — and the large empty gap it left made the page rhythm
+   unclear enough that the NEXT section's heading didn't register as a
+   clean break (direct report: "the following section isn't marked").
+   Stretched to match, scoped to normal/lyrics (song/singer-facing
+   modes) — jazz keeps its own compact, maximum-density convention. */
 .multi-rest-repeat-cells { display: flex; width: fit-content; max-width: 100%; height: 1.6em; }
-.repeat-cell { width: 1.15em; border-left: 1px solid var(--border); position: relative; flex: none; }
+#sheet[data-render-mode="normal"] .multi-rest-repeat-cells,
+#sheet[data-render-mode="lyrics"] .multi-rest-repeat-cells {
+  width: 100%;
+}
+#sheet[data-render-mode="normal"] .repeat-cell,
+#sheet[data-render-mode="lyrics"] .repeat-cell {
+  flex: 1 1 0;
+}
+/* --fg-muted, not --border — the same near-invisible-hairline bug the
+   real chord grid's own .bar+.bar divider had (fixed earlier this
+   session), present here too since it's a separate, un-updated rule. */
+.repeat-cell { width: 1.15em; border-left: 1px solid var(--fg-muted); position: relative; flex: none; }
 .repeat-cell:first-child { border-left: none; }
 .repeat-cell-open::before, .repeat-cell-close::after {
   content: ""; position: absolute; top: 0; bottom: 0; width: 0.22em; background: var(--border-strong);
