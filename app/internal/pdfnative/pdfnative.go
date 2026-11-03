@@ -168,7 +168,12 @@ func (r *Renderer) ExportSetlistPageOnly(ctx context.Context, title, subtitle st
 	// the only thing that reads them, is never called) — passed through
 	// anyway only to satisfy buildEntries' signature.
 	_, entries := buildEntries(refs, th, false, opts.Mode, opts.HideNotes)
-	renderContentsPage(doc, title, subtitle, entries, false, th)
+	// growToFill=true: this is the standalone "music stand / stage floor"
+	// export (no song pages follow, nothing else shares this page) — a
+	// short setlist should use the spare page space for bigger, more
+	// legible rows, not leave it blank the way the multi-page contents
+	// table's own sizing (shared via the plain renderContentsPage) does.
+	renderContentsPageSized(doc, title, subtitle, entries, false, th, true)
 	return pdfBytes(doc)
 }
 

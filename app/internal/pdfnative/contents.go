@@ -20,6 +20,23 @@ type contentsEntry struct {
 // a 60+ song songbook fits one page that way, the same reason the Typst
 // pipeline it replaces made the same choice.
 func renderContentsPage(doc *gopdf.GoPdf, title, subtitle string, entries []contentsEntry, withPage bool, th theme) {
+	renderContentsPageSized(doc, title, subtitle, entries, withPage, th, false)
+}
+
+// renderContentsPageSized is renderContentsPage with control over whether
+// short lists grow their row height to fill the page (growToFill) instead
+// of always using the smallest row height that merely fits. The multi-page
+// ExportSetlist/ExportSongbook contents table (growToFill=false, via the
+// plain renderContentsPage above) keeps its existing fixed-ladder sizing —
+// untouched. The standalone single-page "setlist page" export (for a music
+// stand/stage floor, see ExportSetlistPageOnly) wants the opposite: a
+// 10-song set left most of the page blank at the old fixed 15pt row height
+// even though nothing else shares that page — confirmed against a real
+// 27-song setlist, which still only used about half the page. Growing rows
+// to fill the available height, not just shrinking them to fit, is the
+// actual "legible from a few feet away, for a gig" requirement this export
+// exists for.
+func renderContentsPageSized(doc *gopdf.GoPdf, title, subtitle string, entries []contentsEntry, withPage bool, th theme, growToFill bool) {
 	doc.AddPage()
 	paintPageBackground(doc, th)
 
@@ -77,6 +94,19 @@ func renderContentsPage(doc *gopdf.GoPdf, title, subtitle string, entries []cont
 			break
 		}
 	}
+	// growToFill: once we know rows fit at 15pt (the ladder above never
+	// needed to shrink), scale UP instead of leaving the rest of the page
+	// blank — capped well short of silly-looking (28pt) and still bounded
+	// by what actually fits (avail/len(entries)), so a short list fills the
+	// page without ever overflowing it.
+	if growToFill && len(entries) > 0 {
+		if fit := avail / float64(len(entries)); fit > rowH {
+			rowH = fit
+			if rowH > 28 {
+				rowH = 28
+			}
+		}
+	}
 
 	drawHeader := func() {
 		c.ensureSpace(headerH + 4)
@@ -125,7 +155,18 @@ func renderContentsPage(doc *gopdf.GoPdf, title, subtitle string, entries []cont
 		baseline := c.y + rowH*0.68
 		// Row font sizes scale with rowH (floored at 0.6x) so a large
 		// songbook that needed smaller rows to stay on one page doesn't
-		// end up with text taller than its own row.
+		// end up with text taller than its own row. Capped at 1.0x even
+		// when growToFill enlarges rowH past 15: the KEY/TEMPO/PAGE
+		// columns are positioned at FIXED offsets from the row's right
+		// edge (c.colW-76 etc.), sized for this font size specifically —
+		// letting fsz grow past 1.0 made those columns collide with the
+		// title/artist text at the larger size (confirmed live: "Gm94",
+		// "F#n90" — key and tempo running together with no gap, title
+		// text overlapping the key column on several rows). growToFill's
+		// extra row height still goes somewhere real: more vertical
+		// breathing room between lines at the SAME glyph size, not
+		// (without a real column-offset rework this pass didn't attempt)
+		// larger glyphs that would need the columns re-spaced to match.
 		fsz := rowH / 15.0
 		if fsz > 1 {
 			fsz = 1
@@ -137,9 +178,7 @@ func renderContentsPage(doc *gopdf.GoPdf, title, subtitle string, entries []cont
 		doc.SetXY(c.curX(), baseline)
 		doc.Text(strconv.Itoa(i + 1))
 
-		doc.SetFont(faceSansBold, "", 9.5*fsz)
 		doc.SetTextColor(th.ink.r, th.ink.g, th.ink.b)
-		doc.SetXY(c.curX()+18, baseline)
 		title := e.Title
 		// The title/artist run starts at x=18 (from curX()) and must stay
 		// clear of the KEY column, which starts at c.colW-76 — so the
@@ -149,7 +188,25 @@ func renderContentsPage(doc *gopdf.GoPdf, title, subtitle string, entries []cont
 		// real 66-song export: "While My Guitar Gently Weeps / The
 		// Beatles" ran straight into "115").
 		maxTitleW := c.colW - 18 - 76 - 4
+		// A song TITLE is the one thing on this page that must never be
+		// ambiguous — unlike the artist (secondary, dropped/truncated
+		// below without a second thought), a performer reading this off
+		// the floor needs the actual title, not "Ain't No Love in the
+		// Heart of the …" (confirmed against a real 27-song setlist: the
+		// old fixed-size truncation-only approach did exactly this).
+		// Shrink the title's own font first, down to a real floor, and
+		// only fall back to character truncation if even that floor size
+		// still doesn't fit — which in practice should be close to never
+		// for a realistic song title.
+		titleFsz := 9.5 * fsz
+		const titleFontFloor = 6.0
+		doc.SetFont(faceSansBold, "", titleFsz)
 		tw, _ := doc.MeasureTextWidth(title)
+		for tw > maxTitleW && titleFsz > titleFontFloor {
+			titleFsz -= 0.5
+			doc.SetFont(faceSansBold, "", titleFsz)
+			tw, _ = doc.MeasureTextWidth(title)
+		}
 		for tw > maxTitleW && len(title) > 1 {
 			title = title[:len(title)-1]
 			tw, _ = doc.MeasureTextWidth(title + "…")
@@ -157,6 +214,7 @@ func renderContentsPage(doc *gopdf.GoPdf, title, subtitle string, entries []cont
 		if title != e.Title {
 			title += "…"
 		}
+		doc.SetXY(c.curX()+18, baseline)
 		doc.Text(title)
 		if e.Artist != "" {
 			tw2, _ := doc.MeasureTextWidth(title + "  ")
