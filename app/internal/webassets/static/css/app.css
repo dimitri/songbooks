@@ -696,8 +696,8 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    full transport/metronome sheet (reachable via the Metronome stack icon),
    not a replacement: just "give me the tempo" without opening anything. */
 .mini-metro { display: flex; align-items: center; justify-content: center; gap: 0.4rem; margin-top: 0.3rem; }
-.mini-metro button { width: 1.9rem; height: 1.9rem; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--fg-muted); }
-.mini-metro button:hover { color: var(--accent); }
+.mini-metro button, .mini-metro a { width: 1.9rem; height: 1.9rem; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--fg-muted); text-decoration: none; }
+.mini-metro button:hover, .mini-metro a:hover { color: var(--accent); }
 .mini-metro button.active { color: var(--accent); background: var(--accent-bg, var(--bg-sunken)); }
 .mini-metro .icon { width: 0.95rem; height: 0.95rem; }
 
@@ -1547,28 +1547,15 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    always-visible nav, not a row of pills competing with the toolbar. */
 .content-row { display: flex; align-items: flex-start; gap: 1.6rem; padding: 0.6rem 1.1rem 0; }
 .content-main { flex: 1; min-width: 0; }
-.mobile-controls-fab, .timeline-backdrop { display: none; }
-
-/* The full transport/tempo/time-sig/key-transpose/click-sound panel used
-   to sit permanently in-flow here, sticky beside the chart — reported as
-   an out-of-place floating box crowding the chart on desktop. It's now a
-   closed-by-default slide-over at every width (not just mobile, which
-   already hides it entirely below and relies on its own dedicated
-   /metronome page instead): opened on demand from the mini-metro row's
-   settings button (song.js's initMobileControls), closed by its backdrop
-   or the same button again. */
-.timeline {
-  flex: none; position: fixed; top: 0; right: 0; bottom: 0; z-index: 55;
-  width: 320px; max-width: 90vw;
-  display: flex; flex-direction: column; padding: 0.8rem 0.6rem;
-  max-height: 100vh; overflow-y: auto;
-  background: var(--bg); box-shadow: var(--shadow-lg, var(--shadow));
-  transform: translateX(100%); transition: transform 0.2s ease;
-}
-.timeline.open { transform: translateX(0); }
-.timeline.open ~ .timeline-backdrop, .timeline-backdrop.open {
-  display: block; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); z-index: 54;
-}
+/* The full transport/tempo/time-sig/key-transpose/click-sound panel that
+   used to render here (first in-flow, briefly as a slide-over) is gone —
+   #transport/#beat-dots above are now just hidden data holders (see
+   play.html), never a visible panel at any width. Settings live only on
+   the dedicated /metronome page, same as mobile. Any remaining
+   .timeline/.mobile-controls-fab/.timeline-backdrop rules below this
+   point are dead (no such elements exist any more) and are left as
+   harmless unused CSS rather than hunted down across every historical
+   media query — safe to prune later, not a functional risk now. */
 
 @media (max-width: 900px) {
   /* align-items: flex-start (the desktop row layout's own cross-axis

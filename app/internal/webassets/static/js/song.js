@@ -315,23 +315,19 @@ const ICONS = {
   }
   let reapplyTranspose = () => {};
 
-  async function jumpToSection(i) {
+  function jumpToSection(i) {
     const sec = sections[i];
     if (!sec || sec.startBar == null) return;
-    // Respect the metronome mode here too — a "no click" reader clicking a
-    // section shouldn't suddenly hear a count-in the Play button itself
-    // wouldn't have played, and the un-asked-for ~4-beat wait before
-    // anything moved was exactly what made this feel broken.
-    if (metroModeEl.dataset.value !== 'off') {
-      metronome._ensureCtx();
-      await metronome.countIn(4, clock.bpm, clock.beatsPerBar);
-    }
+    // No count-in, no click — the in-page quick player is always "no
+    // click" now (see metronome.enabled = false above), so a reader
+    // clicking a section to follow along moves there immediately instead
+    // of waiting through an un-asked-for count-in.
     clock.seekToBar(sec.startBar);
     clock.start();
-    metronome.enabled = metroModeEl.dataset.value === 'full';
     metronome.start();
     playPauseBtn.innerHTML = iconPause;
     playPauseBtn.title = 'pause';
+    playPauseBtn.classList.add('active');
   }
 
   let currentBarEl = null;
@@ -419,15 +415,19 @@ const ICONS = {
   }
   requestAnimationFrame(highlightTick);
 
-  const playPauseBtn = document.getElementById('play-pause-btn');
+  // The top mini-metro row's play button is now the ONLY play/pause
+  // control on this page — the full sheet that used to have its own
+  // separate #play-pause-btn (kept in sync via a second listener) is
+  // gone, so there's nothing left to mirror.
+  const playPauseBtn = document.getElementById('mini-metro-play');
   function updateBpmDisplay() {
     const input = document.getElementById('tempo-input');
     if (input && document.activeElement !== input) input.value = Math.round(clock.bpm);
   }
   updateBpmDisplay();
 
-  const iconPlay = '<svg class="icon" viewBox="0 0 20 20" fill="currentColor"><path d="M6 4.5v11l9-5.5-9-5.5z"/></svg>';
-  const iconPause = '<svg class="icon" viewBox="0 0 20 20" fill="currentColor"><rect x="5" y="4" width="3.4" height="12" rx="1"/><rect x="11.6" y="4" width="3.4" height="12" rx="1"/></svg>';
+  const iconPlay = playPauseBtn.innerHTML;
+  const iconPause = '<svg class="icon" viewBox="0 0 20 20" fill="currentColor"><rect x="5" y="5" width="10" height="10" rx="1.5"/></svg>';
 
   // ---- View / layout controls ----------------------------------------------
   // Shared by the mode switch (chords+lyrics/jazz/lyrics) and the metronome's
@@ -445,96 +445,44 @@ const ICONS = {
     });
   }
 
-  // Metronome mode: "no click" (pure visual beat, the default — nobody
-  // should be surprised by audio the moment they hit play), "intro only"
-  // (count the band in, then silence — play live from there), or "click
-  // track" (count in, then keep clicking through the whole song — tight
-  // sync with in-ears/a backing track). The intro length is the same
-  // count-in mechanism either way, just a drummer's choice of 1 or 2 bars.
-  const metroModeEl = document.getElementById('metro-mode');
-  const introBarsEl = document.getElementById('intro-bars');
-  metronome.enabled = metroModeEl.dataset.value !== 'off';
-  wireSegmented('metro-mode', v => { if (!clock.running) metronome.enabled = v !== 'off'; });
-  wireSegmented('intro-bars', () => {});
-  wireSegmented('sound-picker', v => {
-    if (v === 'kick-hihat' || v === 'backbeat') { metronome.pattern = v; }
-    else { metronome.sound = v; metronome.pattern = 'plain'; }
-  });
+  // Metronome mode/click sound/count-in are no longer configurable on this
+  // page at all — that's now exclusively the dedicated /metronome page's
+  // job (see the mini-metro-settings link). The in-page quick play below
+  // always behaves like the old panel's own default ("no click" — nobody
+  // should be surprised by audio the moment they hit play, and a reader
+  // clicking a section to follow along never asked for a click track).
+  metronome.enabled = false;
 
+  // No count-in branch any more — metronome.enabled is always false here
+  // (settings, including count-in bars, live only on /metronome now), so
+  // playback always starts immediately, same as the old panel's own
+  // "off" mode already did.
   function setPlaying(playing) {
     if (!playing) {
       clock.pause(); metronome.stop();
-      metronome.enabled = metroModeEl.dataset.value !== 'off';
+      metronome.enabled = false;
       playPauseBtn.innerHTML = iconPlay;
       playPauseBtn.title = 'play';
+      playPauseBtn.classList.remove('active');
       return;
     }
-    const mode = metroModeEl.dataset.value;
-    const bars = mode === 'off' ? 0 : parseInt(introBarsEl.dataset.value, 10);
-    const start = () => {
-      clock.start();
-      metronome.enabled = mode === 'full';
-      metronome.start();
-      playPauseBtn.innerHTML = iconPause;
-      playPauseBtn.title = 'pause';
-      playPauseBtn.disabled = false;
-    };
-    if (bars > 0) {
-      playPauseBtn.disabled = true;
-      metronome._ensureCtx();
-      metronome.countIn(bars * clock.beatsPerBar, clock.bpm, clock.beatsPerBar).then(start);
-    } else {
-      start();
-    }
-  }
-  function stopPlaying() {
-    clock.pause();
-    clock.seekToBar(0);
-    metronome.stop();
-    metronome.enabled = metroModeEl.dataset.value !== 'off';
-    playPauseBtn.innerHTML = iconPlay;
-    playPauseBtn.title = 'play';
-    playPauseBtn.disabled = false;
+    clock.start();
+    metronome.enabled = false;
+    metronome.start();
+    playPauseBtn.innerHTML = iconPause;
+    playPauseBtn.title = 'pause';
+    playPauseBtn.classList.add('active');
   }
   playPauseBtn.addEventListener('click', () => setPlaying(!clock.running));
-  document.getElementById('stop-btn').addEventListener('click', stopPlaying);
-  document.getElementById('tap-btn').addEventListener('click', () => {
+
+  document.getElementById('mini-metro-fade').addEventListener('click', () => {
+    if (clock.running) return; // a one-off cue only makes sense from a stop
+    metronome.playBarThenFade(clock.bpm, clock.beatsPerBar);
+  });
+  document.getElementById('mini-metro-tap').addEventListener('click', () => {
     if (!clock.running) { const g = clock.tapDetermine(); if (g) { clock.setBpm(g); updateBpmDisplay(); } }
     else { clock.tapResync(); updateBpmDisplay(); }
   });
-  document.getElementById('tempo-input').addEventListener('change', e => {
-    const v = parseFloat(e.target.value);
-    if (v > 0) { clock.setBpm(v); updateBpmDisplay(); }
-  });
-
-  // ---- Mini metronome (song-page header) — a tiny always-visible
-  // complement to the full sheet above, not a second engine: reuses the
-  // exact same clock/metronome instances and setPlaying/tap-tempo logic,
-  // just a lighter control surface for "give me the tempo" without
-  // opening the Metronome stack. ----------------------------------------
-  const miniPlayBtn = document.getElementById('mini-metro-play');
-  if (miniPlayBtn) {
-    const miniIconPlay = miniPlayBtn.innerHTML;
-    const miniIconStop = '<svg class="icon" viewBox="0 0 20 20" fill="currentColor"><rect x="5" y="5" width="10" height="10" rx="1.5"/></svg>';
-    const syncMiniPlayIcon = () => {
-      miniPlayBtn.innerHTML = clock.running ? miniIconStop : miniIconPlay;
-      miniPlayBtn.classList.toggle('active', clock.running);
-    };
-    miniPlayBtn.addEventListener('click', () => { setPlaying(!clock.running); syncMiniPlayIcon(); });
-    // Keep in sync when playback is started/stopped from the full sheet
-    // instead (same clock, so either control must reflect the other).
-    playPauseBtn.addEventListener('click', syncMiniPlayIcon);
-    document.getElementById('stop-btn').addEventListener('click', syncMiniPlayIcon);
-
-    document.getElementById('mini-metro-fade').addEventListener('click', () => {
-      if (clock.running) return; // a one-off cue only makes sense from a stop
-      metronome.playBarThenFade(clock.bpm, clock.beatsPerBar);
-    });
-    document.getElementById('mini-metro-tap').addEventListener('click', () => {
-      if (!clock.running) { const g = clock.tapDetermine(); if (g) { clock.setBpm(g); updateBpmDisplay(); } }
-      else { clock.tapResync(); updateBpmDisplay(); }
-    });
-  }
 
   // Beat dots: one per main pulse in the bar, lit as the clock ticks
   // through it — visual timing feedback that works whether or not the
@@ -1068,30 +1016,9 @@ const ICONS = {
     setDrawerOpen(true, { suppressHistory: true });
   }
 
-  // ---- Mobile off-canvas controls sheet ---------------------------------
-  // See the max-width:900px CSS: below that width the sidebar (transport +
-  // structure rail) is pulled off-screen by default so the chart gets the
-  // full screen, and this button/backdrop bring it up on demand instead.
-  // Both are no-ops (hidden, never clicked) above that width.
-  (function initMobileControls() {
-    const fab = document.getElementById('mobile-controls-fab');
-    const backdrop = document.getElementById('timeline-backdrop');
-    const sheetEl = document.getElementById('structure-strip');
-    const settingsBtn = document.getElementById('mini-metro-settings');
-    if (!backdrop || !sheetEl) return;
-    function setOpen(open) {
-      sheetEl.classList.toggle('open', open);
-      backdrop.classList.toggle('open', open);
-    }
-    fab?.addEventListener('click', () => setOpen(!sheetEl.classList.contains('open')));
-    // Desktop trigger: the full transport/tempo/key/click-sound sheet now
-    // opens on demand from the compact mini-metro row instead of sitting
-    // permanently in-flow beside the chart (it was reported as an
-    // out-of-place floating panel crowding the chart). Same sheet/backdrop,
-    // same open/close mechanics as the mobile FAB above.
-    settingsBtn?.addEventListener('click', () => setOpen(!sheetEl.classList.contains('open')));
-    backdrop.addEventListener('click', () => setOpen(false));
-  })();
+  // No off-canvas controls sheet any more — #mini-metro-settings is a
+  // plain link to /metronome now (see play.html), not a panel toggle,
+  // so there's nothing left to wire up here.
 
   document.querySelectorAll('.prep-tab').forEach(btn => {
     btn.addEventListener('click', () => {

@@ -314,14 +314,14 @@
       <button type="button" id="mini-metro-play" title="click track: play/stop">{{template "icon-play"}}</button>
       <button type="button" id="mini-metro-fade" title="play one bar, then fade out">{{template "icon-metro-intro"}}</button>
       <button type="button" id="mini-metro-tap" title="tap tempo">{{template "icon-tap"}}</button>
-      {{/* Opens the full transport sheet (tempo/time-sig/key transpose/
-           metro mode/click sound/count-in) as an on-demand slide-over
-           instead of it sitting permanently in-flow next to the chart —
-           the always-visible floating panel was reported as out of place
-           and crowding the chart. Reuses the exact sheet/backdrop pair and
-           open/close JS mobile already uses for the same panel (see
-           initMobileControls in song.js), just a second trigger. */}}
-      <button type="button" id="mini-metro-settings" title="metronome &amp; transport settings">{{template "icon-metro-full"}}</button>
+      {{/* A real page link, not a panel toggle — same split mobile's own
+           Metronome stack button already uses (see .song-context-bar
+           below): full settings (tempo/time-sig/key transpose/click
+           sound/count-in) live only on the dedicated /metronome page,
+           preloaded with this song's own tempo/time signature and a link
+           back here. Desktop and mobile now behave identically; no inline
+           settings surface remains on this page at all. */}}
+      <a id="mini-metro-settings" title="metronome &amp; transport settings" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/b/%s/%s" .Book .Stem | urlquery}}">{{template "icon-metro-full"}}</a>
     </div>
   </div>
 
@@ -461,74 +461,22 @@
 </div>
 
 <div class="content-row">
-  <nav class="timeline" id="structure-strip" aria-label="song structure">
-    <div class="transport" id="transport" data-bpm="{{.Tempo}}" data-beats-per-bar="{{.TimeBeats}}" data-time-num="{{.TimeNum}}" data-time-den="{{.TimeDen}}">
-      <div class="transport-controls">
-        <button id="play-pause-btn" type="button" title="play" class="primary icon-btn">{{template "icon-play"}}</button>
-        <button id="stop-btn" type="button" title="stop (resets to the top)" class="icon-btn">{{template "icon-stop"}}</button>
-        <button id="tap-btn" type="button" title="tap tempo (determine, or re-sync while playing)" class="icon-btn">{{template "icon-tap"}}</button>
-        {{/* Count-in moved up alongside Play/Stop/Tap — it's a transport
-             setting a drummer checks right before hitting play, not an
-             "advanced" option worth burying under tempo/key/reference. */}}
-        <div class="metro-icon-row transport-countin" id="intro-bars" data-value="2" title="count-in length — the band comes in together, drummer's call">
-          <button type="button" data-value="1">1 bar</button>
-          <button type="button" data-value="2" class="active">2 bars</button>
-        </div>
-      </div>
-      <div class="beat-dots" id="beat-dots" aria-hidden="true"></div>
-      <div class="tempo-row">
-        <span class="time-sig" id="time-sig-display"><span>{{.TimeNum}}</span><span>{{.TimeDen}}</span></span>
-        <input type="text" id="tempo-input" value="{{.Tempo}}" inputmode="numeric">
-        <span class="bpm-unit">bpm</span>
-      </div>
-      {{if .Key}}
-      <div class="meta-row">
-        <span id="key-display">key <span id="key-original">{{.Key}}</span><span id="key-transposed" hidden></span></span>
-        <div class="transpose-control" title="transpose this view — never changes the song's own saved key">
-          <button id="transpose-down" type="button" aria-label="transpose down a semitone">&minus;</button>
-          <span id="transpose-amount">0</span>
-          <button id="transpose-up" type="button" aria-label="transpose up a semitone">+</button>
-        </div>
-      </div>
-      {{end}}
-      {{if .Capo}}<div class="meta-row">capo {{.Capo}}</div>{{end}}
-      <div class="metro-icon-row" id="metro-mode" data-value="off">
-        <button type="button" data-value="off" class="active" title="No click — visual beat only">{{template "icon-metro-off"}}</button>
-        <button type="button" data-value="intro" title="Intro count-in only, then silent">{{template "icon-metro-intro"}}</button>
-        <button type="button" data-value="full" title="Click track — clicks through the whole song">{{template "icon-metro-full"}}</button>
-      </div>
-      {{/* Not a collapsed <details> any more — click sound is exactly what
-           a drummer (or anyone practicing at home) needs to glance at and
-           set before counting the band in, not something worth hiding
-           behind an extra tap on a small disclosure triangle. Count-in
-           itself now lives up with Play/Stop/Tap (see transport-controls
-           above). */}}
-      <div class="metro-advanced">
-        <div class="metro-advanced-label hint">sound</div>
-        <div class="metro-icon-row" id="sound-picker" data-value="click">
-          <button type="button" data-value="click" class="active" title="Click">{{template "icon-sound-click"}}</button>
-          <button type="button" data-value="beep" title="Beep">{{template "icon-sound-beep"}}</button>
-          <button type="button" data-value="wood" title="Wood block">{{template "icon-sound-wood"}}</button>
-          <button type="button" data-value="tick" title="Tick">{{template "icon-sound-tick"}}</button>
-          {{/* Patterns, not timbres — kick/hi-hat assigns a voice per main
-               pulse (1&3 kick, 2&4 hi-hat, or the 6/8 or 12/8 equivalent —
-               see _patternClick in clock.js); backbeat plays only the 2&4
-               (or equivalent) voice and is silent otherwise. Selecting
-               either sets metronome.pattern instead of metronome.sound —
-               see the sound-picker wiring in song.js. */}}
-          <button type="button" data-value="kick-hihat" title="Kick + hi-hat: kick on 1 &amp; 3, hi-hat on 2 &amp; 4 (or the 6/8 / 12/8 equivalent)">{{template "icon-sound-kick-hihat"}}</button>
-          <button type="button" data-value="backbeat" title="Backbeat: click only on 2 &amp; 4 (or the 6/8 / 12/8 equivalent), silent otherwise">{{template "icon-sound-backbeat"}}</button>
-        </div>
-      </div>
-    </div>
-  </nav>
-  {{/* Mobile-only (see the max-width:900px CSS): the sidebar above becomes
-       an off-canvas sheet instead of sitting in-flow above the chart, so
-       the chart is full-screen by default — this button and backdrop are
-       what pull it up/dismiss it. Both are hidden outside that
-       breakpoint. */}}
-  <div class="timeline-backdrop" id="timeline-backdrop"></div>
-  <button class="mobile-controls-fab" id="mobile-controls-fab" type="button" title="playback controls &amp; structure">{{template "icon-play"}}</button>
+  {{/* The full transport/tempo/time-sig/key-transpose/click-sound panel
+       that used to live here (first in-flow beside the chart, briefly as
+       an on-demand slide-over) is gone — reported as out of place and,
+       even as a slide-over, still not what was asked for. Settings now
+       live ONLY on the dedicated /metronome page (see the link in the
+       mini-metro row above), preloaded with this song's tempo/time
+       signature, exactly like mobile's own Metronome link already works.
+       What's left here is purely functional, never shown: #transport
+       carries the bpm/time-signature data attributes the clock reads at
+       load (song.js's `transportEl`), and #beat-dots is the mount point
+       the pulse-dot visualization appends its spans to — both referenced
+       unconditionally in song.js, so they stay in the DOM (just never
+       rendered) rather than needing every call site rewritten to guard
+       against their absence. */}}
+  <div id="transport" data-bpm="{{.Tempo}}" data-beats-per-bar="{{.TimeBeats}}" data-time-num="{{.TimeNum}}" data-time-den="{{.TimeDen}}" hidden></div>
+  <div id="beat-dots" hidden></div>
 
   {{/* Mobile-only, Phase 41: FOUR "page tools" for this song, each opening
        its own bottom sheet (a "stack") — View (5 modes), Metronome, Song
