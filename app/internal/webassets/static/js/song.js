@@ -128,6 +128,13 @@ const ICONS = {
       // fit per row than the CSS actually has room to draw at their real
       // (wider) fixed width, overflowing the row again.
       const flatFloorEm = sheet.dataset.renderMode === 'jazz' ? 2.6 : 7.2;
+      // Chords+lyrics/lyrics-only must never drop below 4 bars/line, even
+      // on a narrow phone where the flat 7.2em bar width would otherwise
+      // only fit 2-3 — on a screen that narrow, bars shrink (a per-row
+      // --bar-w override, below) rather than the row showing fewer of
+      // them. Jazz already targets 8 and has its own narrower 2.6em
+      // floor, so it's never at risk of landing under 4 — left alone.
+      const MIN_BARS_PER_LINE = sheet.dataset.renderMode === 'jazz' ? null : 4;
       for (const { cap, hasClef, maxSlots, template } of lines) {
         const minBarPx = Math.max(flatFloorEm * fontPx, maxSlots * 0.9 * fontPx);
         const budget = hasClef ? availW - clefPx : availW;
@@ -136,11 +143,24 @@ const ICONS = {
         // author's own intended capacity even when more would physically
         // fit, so a wide desktop/tablet screen renders exactly what the
         // "bars:" hint asked for, same as today.
-        const useCap = Math.min(cap, effCap, modeCap);
+        let useCap = Math.min(cap, effCap, modeCap);
+        // lineBarWpx stays null (use the flat CSS default) unless the
+        // 4-bar floor above actually had to kick in — most rows, on most
+        // screens, never touch this.
+        let lineBarWpx = null;
+        if (MIN_BARS_PER_LINE && useCap < MIN_BARS_PER_LINE) {
+          useCap = Math.min(cap, modeCap, MIN_BARS_PER_LINE);
+          // Divide the row's real budget evenly across the forced bar
+          // count instead of leaving them at the flat (too-wide-to-fit)
+          // default — floored at the same absolute minimum jazz mode
+          // already uses, so a bar never shrinks past genuine legibility.
+          lineBarWpx = Math.max(2.6 * fontPx, budget / useCap);
+        }
         const cells = [...template.children]; // clef cell (maybe) + .bar elements, in order
         const actualBarCount = cells.filter(el => el.classList.contains('bar')).length;
         if (useCap >= actualBarCount) {
           const line = template.cloneNode(true);
+          if (lineBarWpx) line.style.setProperty('--bar-w', lineBarWpx + 'px');
           // The ORIGINAL authored `cap` can itself already be larger than
           // this particular line's actual bar count (the server's own
           // short-trailing-row for a section whose bar count doesn't
@@ -190,6 +210,7 @@ const ICONS = {
           const line = document.createElement('div');
           line.className = 'staff-line';
           line.style.setProperty('--cap', String(chunk.length < effUseCap ? chunk.length : effUseCap));
+          if (lineBarWpx) line.style.setProperty('--bar-w', lineBarWpx + 'px');
           if (i === 0 && clefEl) line.appendChild(clefEl.cloneNode(true));
           for (const bar of chunk) line.appendChild(bar.cloneNode(true));
           newLines.push(line);

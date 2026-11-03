@@ -1492,11 +1492,17 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 /* Recall glyph — same multi-rest-bar/chip-bars visual the old per-section
    is-compact chip used (kept, not re-skinned: this change is about flow,
    not the glyph itself), now one flex item sitting inline among real
-   .bar elements in the SAME row instead of its own section block. Fixed
-   width (not --bar-w): it needs room for the bold number + staff + end
-   ticks, which a single bar's width doesn't give it. */
+   .bar elements in the SAME row instead of its own section block. A
+   flat 9em for every recall regardless of its real length (2 bars or
+   20) read as an oversized, same-size-for-everything block — this is
+   "as much as we need", scaled by the section's own bar count
+   (--bars, set inline per cell from .RecallBars) between a floor just
+   wide enough for the bold number + staff + end ticks and a ceiling
+   that still reads as compact next to a real multi-bar staff, not
+   another full section. */
 .bar-recall {
-  flex: 0 0 9em; display: flex; flex-direction: column; align-items: center;
+  flex: 0 0 clamp(4.5em, calc(3em + var(--bars, 4) * 0.35em), 8em);
+  display: flex; flex-direction: column; align-items: center;
   justify-content: flex-end; padding-bottom: 0.3em; gap: 0.15em;
 }
 .bar-recall .chip-bars { font-size: 1.1rem; font-weight: 700; color: var(--fg-muted); }
@@ -1762,7 +1768,11 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
      tab bar of view buttons. --tabbar-h / --context-h are read by both
      bars' content-clearance math below so they all stay in lock-step if
      either height ever changes. */
-  :root { --tabbar-h: 3.4rem; --context-h: 2.8rem; }
+  /* --context-h now matches --tabbar-h: .song-context-bar switched from a
+     horizontal icon+label row to .tabbar's vertical icon-over-label
+     layout (see .song-context-bar below), so it needs the same height a
+     native tab bar actually uses, not the old shorter single-row figure. */
+  :root { --tabbar-h: 3.4rem; --context-h: 3.4rem; }
 
   /* .tabbar: the generic fixed-bottom-bar component, shared by the
      global nav bar and (structurally, via the same selectors) anything
@@ -1838,23 +1848,27 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
      untouched; this only applies inside the 900px breakpoint. */
   #mode-segmented { display: none; }
 
-  /* ---- Song context bar: View + Metronome, docked just above the
-     global tab bar ----------------------------------------------------- */
+  /* ---- Song context bar: View + Metronome + Song + More, THE bottom bar
+     on this page — .global-tabbar is hidden here (see body:has() rule
+     below), so this docks at the real bottom (bottom: 0), not floating
+     above a now-nonexistent second bar. Styled like .tabbar (icon over
+     label, no column dividers) so it reads as a native app tab bar, not
+     a different one-off control. */
   .song-context-bar {
-    position: fixed; left: 0; right: 0; bottom: var(--tabbar-h); z-index: 59;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 59;
     display: flex; height: var(--context-h);
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
     background: var(--bg-raised); border-top: 1px solid var(--border);
-    box-shadow: var(--shadow);
+    box-shadow: var(--shadow-lg, var(--shadow));
   }
   .song-context-bar button, .song-context-bar a {
-    flex: 1 1 0; display: flex; align-items: center; justify-content: center; gap: 0.4rem;
-    background: none; border: none; border-right: 1px solid var(--border);
-    color: var(--fg-muted); font-size: 0.78rem; font-weight: 600;
+    flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem;
+    background: none; border: none;
+    color: var(--fg-muted); font-size: 0.62rem; font-weight: 600;
     text-decoration: none;
   }
-  .song-context-bar button:last-child, .song-context-bar a:last-child { border-right: none; }
   .song-context-bar button.active, .song-context-bar a.active { color: var(--accent); }
-  .song-context-bar .icon { width: 1.2rem; height: 1.2rem; }
+  .song-context-bar .icon { width: 1.35rem; height: 1.35rem; }
 
   /* ---- View stack: a bottom sheet listing the 5 view modes ---------- */
   .stack-backdrop {
@@ -1862,13 +1876,15 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   }
   .stack-backdrop.open { display: block; }
   .stack-sheet {
-    position: fixed; left: 0; right: 0; bottom: calc(var(--tabbar-h) + var(--context-h)); z-index: 62;
+    position: fixed; left: 0; right: 0; bottom: var(--context-h); z-index: 62;
     /* Closed state must clear its own height PLUS the "bottom" offset
-       above (the two fixed bars it's docked above) to land fully
-       off-screen — 110% of its own height alone isn't enough once that
-       offset is non-trivial, unlike .timeline (anchored at bottom: 0 in
-       its own closed/peek state, where a plain percentage is enough). */
-    transform: translateY(calc(100% + var(--tabbar-h) + var(--context-h) + env(safe-area-inset-bottom, 0px) + 1rem));
+       above (.song-context-bar, the one fixed bar it's docked above —
+       .global-tabbar is hidden on this page, so there's no second bar's
+       height to add here any more) to land fully off-screen — 110% of
+       its own height alone isn't enough once that offset is non-trivial,
+       unlike .timeline (anchored at bottom: 0 in its own closed/peek
+       state, where a plain percentage is enough). */
+    transform: translateY(calc(100% + var(--context-h) + env(safe-area-inset-bottom, 0px) + 1rem));
     transition: transform 0.2s ease;
     background: var(--bg); border-radius: 16px 16px 0 0; box-shadow: var(--shadow-lg, var(--shadow));
     padding: 0.6rem 0 calc(0.6rem + env(safe-area-inset-bottom, 0px));
@@ -1957,7 +1973,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
      session (the chart overflow, the lyrics-mode sidebar), so checked
      explicitly here for all four modes at 375px, scrolled to a song's
      last line. */
-  .content-main { padding-bottom: calc(var(--tabbar-h) + var(--context-h) + env(safe-area-inset-bottom, 0px) + 1rem); }
+  .content-main { padding-bottom: calc(var(--context-h) + env(safe-area-inset-bottom, 0px) + 1rem); }
   body:not(:has(#sheet)) { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); }
 }
 

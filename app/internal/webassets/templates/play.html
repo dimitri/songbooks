@@ -80,7 +80,7 @@
   <div class="staff-line">
     {{range .Cells}}
     {{if .IsRecall}}
-    <span class="bar bar-recall">
+    <span class="bar bar-recall" style="--bars: {{.RecallBars}}">
       {{if .SectionStart}}<span class="map-sec-badge">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</span>{{end}}
       <span class="chip-bars">{{.RecallBars}}</span>
       <span class="multi-rest-row"><span class="multi-rest-bar"></span></span>
