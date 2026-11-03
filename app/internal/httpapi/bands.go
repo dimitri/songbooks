@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -157,12 +158,31 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 	// system"). So a proposal's own Kind IS its listening-party-ness;
 	// no separate query, just a per-item label below in the template.
 
-	repertoire, err := s.store.ListBandCatalog(r.Context(), bandID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
+	// Same live-link-aware source the Repertoire tab uses (handleBandCatalogPage):
+	// a project-linked band's repertoire count must agree with what that
+	// tab actually shows, not fall back to the separately maintained
+	// band_catalog_entries pointers a linked band no longer uses.
+	var repertoireCount int
+	var repertoirePreview []store.CatalogVariant
+	if band.ProjectID != nil {
+		variants, err := s.store.ListCatalog(r.Context(), person.ID, store.CatalogFilter{Project: band.ProjectSlug})
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		repertoireCount = len(variants)
+		repertoirePreview = variants
+	} else {
+		repertoire, err := s.store.ListBandCatalog(r.Context(), bandID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		repertoireCount = len(repertoire)
+		for _, e := range repertoire {
+			repertoirePreview = append(repertoirePreview, e.CatalogVariant)
+		}
 	}
-	repertoirePreview := repertoire
 	if len(repertoirePreview) > 5 {
 		repertoirePreview = repertoirePreview[:5]
 	}
@@ -189,9 +209,28 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "band", map[string]any{
 		"Me": person, "Band": band, "Changes": changes, "HasLastSeen": since != nil,
 		"OpenProposals": openProposals,
-		"Repertoire":    repertoirePreview, "RepertoireCount": len(repertoire),
+		"Repertoire":    repertoirePreview, "RepertoireCount": repertoireCount,
 		"Setlists": setlists, "NextGig": nextGig,
 	})
+}
+
+// handleSetBandMusicType sets whether a band plays covers or original
+// music — any current member may set it (requireBandMember), same as
+// every other band-admin action in this app's no-owner-role model.
+func (s *Server) handleSetBandMusicType(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		MusicType string `json:"musicType"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if err := s.store.SetBandMusicType(r.Context(), bandID, strings.TrimSpace(req.MusicType)); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"musicType": req.MusicType})
 }
 
 // handleBandMembersPage is the Members tab: full current roster (with
@@ -487,7 +526,52 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.render(w, "band_catalog", map[string]any{"Me": person, "Band": band, "Entries": entries, "Books": books})
+
+	// An "original" act's repertoire reads naturally grouped by the
+	// record a song is from; a covers band (or a band that hasn't said
+	// which it is) keeps the flat list. No per-song track-order or
+	// release-year signal is stored, so songs within an album and
+	// albums themselves fall back to alphabetical — an honest
+	// simplification, not a claim of real track/release order.
+	var albumGroups []albumGroup
+	if band.MusicType == "original" {
+		albumGroups = groupByAlbum(entries)
+	}
+
+	s.render(w, "band_catalog", map[string]any{
+		"Me": person, "Band": band, "Entries": entries, "Books": books,
+		"AlbumGroups": albumGroups,
+	})
+}
+
+// albumGroup is one album's songs on a band's Repertoire tab, for an
+// "original"-type band (handleBandCatalogPage).
+type albumGroup struct {
+	Album   string
+	Entries []store.BandCatalogEntry
+}
+
+func groupByAlbum(entries []store.BandCatalogEntry) []albumGroup {
+	byAlbum := map[string][]store.BandCatalogEntry{}
+	for _, e := range entries {
+		album := e.Album
+		if album == "" {
+			album = "(no album set)"
+		}
+		byAlbum[album] = append(byAlbum[album], e)
+	}
+	names := make([]string, 0, len(byAlbum))
+	for name := range byAlbum {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	groups := make([]albumGroup, 0, len(names))
+	for _, name := range names {
+		songs := byAlbum[name]
+		sort.Slice(songs, func(i, j int) bool { return songs[i].Title < songs[j].Title })
+		groups = append(groups, albumGroup{Album: name, Entries: songs})
+	}
+	return groups
 }
 
 // handleCreateBandVariant creates a brand-new, from-scratch variant

@@ -14,8 +14,22 @@
 <header class="app-header">
   <a class="back-link" href="/bands">{{template "icon-back"}} My bands</a>
   <h1>{{.Band.Name}}</h1>
+  <select id="music-type-select" class="music-type-select" title="Covers or original music?">
+    <option value="" {{if eq .Band.MusicType ""}}selected{{end}}>Music type: not set</option>
+    <option value="covers" {{if eq .Band.MusicType "covers"}}selected{{end}}>Covers band</option>
+    <option value="original" {{if eq .Band.MusicType "original"}}selected{{end}}>Original music</option>
+  </select>
   {{template "notif-bell"}}
 </header>
+<script>
+document.getElementById('music-type-select').addEventListener('change', async (e) => {
+  await fetch('/api/bands/{{.Band.ID}}/music-type', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({musicType: e.target.value}),
+  });
+  location.reload();
+});
+</script>
 <main class="index">
   {{/* Phase 43: tabs across the whole band-detail area — Overview (this
        page) / Repertoire / Setlists / Proposals & Listening Party /

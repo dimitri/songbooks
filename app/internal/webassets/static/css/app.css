@@ -290,6 +290,12 @@ table.card { padding: 0; }
 }
 .app-header h1 { margin: 0; font-size: 1.25rem; font-weight: 700; }
 .song-nav { margin-left: auto; display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+.music-type-select {
+  font-size: 0.8rem; color: var(--text-secondary); background: var(--bg-sunken);
+  border: 1px solid var(--border); border-radius: 6px; padding: 0.3rem 0.5rem;
+}
+.album-group-heading { font-size: 1.05rem; margin: 1.4rem 0 0.5rem; }
+.album-group-heading:first-of-type { margin-top: 0; }
 
 /* ---- Desktop sidebar (>=901px) ------------------------------------------
    Hidden by default/on mobile (the global bottom tab bar is the only nav

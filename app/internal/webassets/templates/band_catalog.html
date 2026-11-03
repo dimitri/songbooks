@@ -95,6 +95,28 @@
   </div>
   {{end}}
 
+  {{if .AlbumGroups}}
+  {{range .AlbumGroups}}
+  <h2 class="album-group-heading">{{.Album}}</h2>
+  <div class="table-scroll"><table class="card" style="width:100%">
+    <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th>Visibility</th><th></th></tr></thead>
+    <tbody>
+    {{range .Entries}}
+      <tr data-variant-id="{{.VariantID}}">
+        <td><a href="/b/{{.Book}}/{{.Stem}}">{{.Title}}</a></td>
+        <td>{{.Artist}}</td>
+        <td>{{.Book}}</td>
+        <td>{{.Visibility}}{{if .ForkedFromID}} (<a href="/variants/{{deref64 .ForkedFromID}}/history">forked from</a>){{end}}</td>
+        <td>
+          <a href="/works/{{.WorkID}}">all versions</a>
+          <a href="/variants/{{.VariantID}}/history">history</a>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table></div>
+  {{end}}
+  {{else}}
   <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th>Visibility</th>{{if not .Band.ProjectID}}<th>Added by</th>{{end}}<th></th></tr></thead>
     <tbody>
@@ -116,6 +138,7 @@
     {{end}}
     </tbody>
   </table></div>
+  {{end}}
 </main>
 {{if not .Band.ProjectID}}
 <script>

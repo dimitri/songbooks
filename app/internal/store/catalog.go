@@ -31,13 +31,14 @@ type Work struct {
 	Title  string
 	Artist string
 	Genre  string
+	Album  string
 }
 
-// GetWork fetches one work by id, genre included.
+// GetWork fetches one work by id, genre and album included.
 func (st *Store) GetWork(ctx context.Context, workID int64) (*Work, error) {
 	var w Work
-	err := st.db.QueryRow(ctx, `SELECT id, title, artist, coalesce(genre, '') FROM works WHERE id = $1`, workID).
-		Scan(&w.ID, &w.Title, &w.Artist, &w.Genre)
+	err := st.db.QueryRow(ctx, `SELECT id, title, artist, coalesce(genre, ''), coalesce(album, '') FROM works WHERE id = $1`, workID).
+		Scan(&w.ID, &w.Title, &w.Artist, &w.Genre, &w.Album)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such work %d: %w", workID, ErrNotFound)
 	}
@@ -45,6 +46,24 @@ func (st *Store) GetWork(ctx context.Context, workID int64) (*Work, error) {
 		return nil, err
 	}
 	return &w, nil
+}
+
+// SetWorkAlbum sets (or clears, with "") workID's free-text album — see
+// migration 0033's comment for why this lives on works rather than
+// per-variant.
+func (st *Store) SetWorkAlbum(ctx context.Context, workID int64, album string) error {
+	var arg any
+	if album != "" {
+		arg = album
+	}
+	tag, err := st.db.Exec(ctx, `UPDATE works SET album = $1 WHERE id = $2`, arg, workID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no such work %d: %w", workID, ErrNotFound)
+	}
+	return nil
 }
 
 // SetWorkGenre sets (or clears, with "") workID's free-text genre —
@@ -150,6 +169,7 @@ type CatalogVariant struct {
 	OwnerJamEventID *int64
 	ForkedFromID    *int64
 	Genre           string // from the parent work; "" means unset, not filtered out of an unfiltered listing
+	Album           string // from the parent work; "" means unset (migration 0033)
 }
 
 // CatalogFilter narrows ListCatalog's listing. Zero values mean "no
@@ -163,10 +183,10 @@ type CatalogFilter struct {
 
 // ListCatalog lists every global variant plus viewerID's own
 // user-visibility variants — "the whole catalog, as this person can see
-// it" — filtered/sorted per filter. "By album" isn't offered: no song in
-// this app's data model carries an album field (see song.MetaKeys), so
-// there's nothing to group or filter by; "by project" stands in as the
-// closest grouping concept that does exist.
+// it" — filtered/sorted per filter. Each variant carries its parent
+// work's album (migration 0033) for pages that group by it (an
+// "original"-type band's repertoire); "by album" isn't offered as a
+// CatalogFilter itself, since most variants have no album set.
 //
 // visibility='jam' rows are never included here (nor in
 // ListVariantsForWork below), deliberately, mirroring how a 'band'
@@ -179,7 +199,7 @@ func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter Catalog
 		order = "s.artist, s.title"
 	}
 	rows, err := st.db.Query(ctx, `
-		SELECT s.id, s.work_id, s.title, s.artist, p.slug, s.stem, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_school_id, s.owner_jam_event_id, s.forked_from_id, coalesce(w.genre, '')
+		SELECT s.id, s.work_id, s.title, s.artist, p.slug, s.stem, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_school_id, s.owner_jam_event_id, s.forked_from_id, coalesce(w.genre, ''), coalesce(w.album, '')
 		FROM songs s JOIN projects p ON p.id = s.project_id JOIN works w ON w.id = s.work_id
 		WHERE (s.visibility = 'global' OR s.owner_person_id = $1)
 		  AND ($2 = '' OR s.artist = $2)
@@ -212,7 +232,7 @@ func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter Catalog
 // just an under-inclusion bug for the band's own members.
 func (st *Store) ListVariantsForWork(ctx context.Context, workID, viewerID int64) ([]CatalogVariant, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT s.id, s.work_id, s.title, s.artist, p.slug, s.stem, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_school_id, s.owner_jam_event_id, s.forked_from_id, coalesce(w.genre, '')
+		SELECT s.id, s.work_id, s.title, s.artist, p.slug, s.stem, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_school_id, s.owner_jam_event_id, s.forked_from_id, coalesce(w.genre, ''), coalesce(w.album, '')
 		FROM songs s JOIN projects p ON p.id = s.project_id JOIN works w ON w.id = s.work_id
 		WHERE s.work_id = $1 AND (
 		  s.visibility = 'global'
@@ -236,7 +256,7 @@ func scanCatalogVariants(rows pgx.Rows) ([]CatalogVariant, error) {
 	var out []CatalogVariant
 	for rows.Next() {
 		var v CatalogVariant
-		if err := rows.Scan(&v.VariantID, &v.WorkID, &v.Title, &v.Artist, &v.Book, &v.Stem, &v.Visibility, &v.OwnerID, &v.OwnerBandID, &v.OwnerSchoolID, &v.OwnerJamEventID, &v.ForkedFromID, &v.Genre); err != nil {
+		if err := rows.Scan(&v.VariantID, &v.WorkID, &v.Title, &v.Artist, &v.Book, &v.Stem, &v.Visibility, &v.OwnerID, &v.OwnerBandID, &v.OwnerSchoolID, &v.OwnerJamEventID, &v.ForkedFromID, &v.Genre, &v.Album); err != nil {
 			return nil, err
 		}
 		out = append(out, v)

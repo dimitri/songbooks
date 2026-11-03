@@ -27,6 +27,12 @@ type Band struct {
 	// added/forked by hand.
 	ProjectID   *int64
 	ProjectSlug string
+	// MusicType: "covers", "original", or "" (unset — nothing says yet).
+	// Set by a member via the Overview page; "original" is what turns on
+	// the Repertoire tab's per-album grouping (an original act's songs
+	// group naturally by the record they're from; a covers band has no
+	// such concept).
+	MusicType string
 }
 
 // BandMember is one row of band_members — one person's one stint of
@@ -100,13 +106,35 @@ func (st *Store) CreateBand(ctx context.Context, name string, creatorPersonID in
 	return bandID, nil
 }
 
+// SetBandMusicType sets (or clears, with "") whether a band is a covers
+// act or plays original music. Any current member may set it — same
+// no-owner-role reasoning as the rest of band administration
+// (requireBandMember's doc comment).
+func (st *Store) SetBandMusicType(ctx context.Context, bandID int64, musicType string) error {
+	var arg any
+	if musicType != "" {
+		if musicType != "covers" && musicType != "original" {
+			return fmt.Errorf("invalid music_type %q", musicType)
+		}
+		arg = musicType
+	}
+	tag, err := st.db.Exec(ctx, `UPDATE bands SET music_type = $1 WHERE id = $2`, arg, bandID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no such band %d: %w", bandID, ErrNotFound)
+	}
+	return nil
+}
+
 // GetBand loads one band by id.
 func (st *Store) GetBand(ctx context.Context, bandID int64) (*Band, error) {
 	var b Band
 	err := st.db.QueryRow(ctx, `
-		SELECT b.id, b.name, b.created_at, b.project_id, coalesce(p.slug, '')
+		SELECT b.id, b.name, b.created_at, b.project_id, coalesce(p.slug, ''), coalesce(b.music_type, '')
 		FROM bands b LEFT JOIN projects p ON p.id = b.project_id WHERE b.id = $1`, bandID).
-		Scan(&b.ID, &b.Name, &b.CreatedAt, &b.ProjectID, &b.ProjectSlug)
+		Scan(&b.ID, &b.Name, &b.CreatedAt, &b.ProjectID, &b.ProjectSlug, &b.MusicType)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such band %d: %w", bandID, ErrNotFound)
 	}
