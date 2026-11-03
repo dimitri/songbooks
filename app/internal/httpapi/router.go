@@ -103,21 +103,21 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 
 	mux.HandleFunc("GET /", s.requireAuth(s.handleIndex))
 	mux.HandleFunc("GET /b/{book}", s.requireRole("viewer", s.handleProject))
-	mux.HandleFunc("GET /b/{book}/{stem}", s.requireRole("viewer", s.handleSong))
-	mux.HandleFunc("GET /b/{book}/{stem}/play", s.requireRole("viewer", s.handleSongRedirect)) // old links -> the unified page
-	mux.HandleFunc("GET /b/{book}/{stem}/prep", s.requireRole("viewer", s.handleSongRedirect))
+	mux.HandleFunc("GET /b/{book}/{stem}", s.requireSongRole("viewer", s.handleSong))
+	mux.HandleFunc("GET /b/{book}/{stem}/play", s.requireSongRole("viewer", s.handleSongRedirect)) // old links -> the unified page
+	mux.HandleFunc("GET /b/{book}/{stem}/prep", s.requireSongRole("viewer", s.handleSongRedirect))
 	mux.HandleFunc("POST /api/preview", s.requireAuth(s.handlePreview))
 	mux.HandleFunc("POST /api/import/lyrics", s.requireAuth(s.handleImportLyrics))
 	mux.HandleFunc("GET /api/import/lyrics/find", s.requireAuth(s.handleImportLyricsFindFetch))
 	mux.HandleFunc("POST /api/import/chords", s.requireAuth(s.handleImportChords))
 
-	mux.HandleFunc("GET /api/songs/{book}/{stem}", s.requireRole("viewer", s.handleGetSong))
-	mux.HandleFunc("PUT /api/songs/{book}/{stem}", s.requireRole("editor", s.handlePutSong))
-	mux.HandleFunc("PUT /api/songs/{book}/{stem}/meta", s.requireRole("editor", s.handlePutMeta))
+	mux.HandleFunc("GET /api/songs/{book}/{stem}", s.requireSongRole("viewer", s.handleGetSong))
+	mux.HandleFunc("PUT /api/songs/{book}/{stem}", s.requireSongRole("editor", s.handlePutSong))
+	mux.HandleFunc("PUT /api/songs/{book}/{stem}/meta", s.requireSongRole("editor", s.handlePutMeta))
 	mux.HandleFunc("PUT /api/variants/{id}/genre", s.requireAuth(s.handlePutVariantGenre))
-	mux.HandleFunc("GET /api/songs/{book}/{stem}/raw", s.requireRole("viewer", s.handleGetRaw))
-	mux.HandleFunc("PUT /api/songs/{book}/{stem}/raw", s.requireRole("editor", s.handlePutRaw))
-	mux.HandleFunc("PUT /api/songs/{book}/{stem}/redo", s.requireRole("editor", s.handleRedoSong))
+	mux.HandleFunc("GET /api/songs/{book}/{stem}/raw", s.requireSongRole("viewer", s.handleGetRaw))
+	mux.HandleFunc("PUT /api/songs/{book}/{stem}/raw", s.requireSongRole("editor", s.handlePutRaw))
+	mux.HandleFunc("PUT /api/songs/{book}/{stem}/redo", s.requireSongRole("editor", s.handleRedoSong))
 
 	mux.HandleFunc("PUT /api/books/{book}/order", s.requireRole("editor", s.handleSaveOrder))
 	mux.HandleFunc("POST /api/books", s.requireAuth(s.handleCreateBook))
@@ -303,7 +303,7 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("GET /setlists/{id}/listening", s.requireAuth(s.handleSetlistListening))
 	mux.HandleFunc("GET /setlists/{id}/clicktrack", s.requireAuth(s.handleSetlistClicktrack))
 
-	mux.HandleFunc("GET /b/{book}/{stem}/export.pdf", s.requireRole("viewer", s.handleExportSongPDF))
+	mux.HandleFunc("GET /b/{book}/{stem}/export.pdf", s.requireSongRole("viewer", s.handleExportSongPDF))
 	mux.HandleFunc("GET /setlists/{book}/{stem}/export.pdf", s.requireRole("viewer", s.handleExportSetlistPDF))
 	mux.HandleFunc("GET /setlists/{book}/{stem}/export-setlist-page.pdf", s.requireRole("viewer", s.handleExportSetlistPageOnlyPDF))
 	// Phase 3 (id-addressed person/band/project-scoped) setlists: same
@@ -326,7 +326,7 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// distinct paths so both stay independently reachable. Band
 	// repertoire export is new in this pipeline (the Typst bridge never
 	// had one); requireBandMember matches every other band-scoped route.
-	mux.HandleFunc("GET /b/{book}/{stem}/export-ly.pdf", s.requireRole("viewer", s.handleExportSongLilyPDF))
+	mux.HandleFunc("GET /b/{book}/{stem}/export-ly.pdf", s.requireSongRole("viewer", s.handleExportSongLilyPDF))
 	mux.HandleFunc("GET /setlists/{book}/{stem}/export-ly.pdf", s.requireRole("viewer", s.handleExportSetlistLilyPDF))
 	mux.HandleFunc("GET /bands/{id}/export-ly.pdf", s.requireBandMember(s.handleExportBandRepertoireLilyPDF))
 

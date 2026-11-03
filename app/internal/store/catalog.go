@@ -379,6 +379,66 @@ func (st *Store) CanEditVariant(ctx context.Context, personID, variantID int64) 
 	}
 }
 
+// CanViewVariant is CanEditVariant's read-only counterpart — the same
+// visibility/owner switch, but at the lower "may look at it" bar rather
+// than "may change it": every visibility that CanEditVariant already
+// grants edit access to is trivially viewable too, plus two cases
+// CanEditVariant deliberately keeps narrower for editing:
+//   - visibility='school': any CURRENT member (student or instructor),
+//     not instructor-only — CanEditVariant's own doc comment already
+//     states this as the intended asymmetry ("a current STUDENT may view
+//     the school's material... but never edit it directly"); this is
+//     that view path.
+//   - visibility='jam'/'user': unchanged from CanEditVariant (a jam
+//     variant has no ordinary-login view path either — see
+//     CanEditVariantAsJamParticipant for the session-based one; a
+//     personal variant stays owner-only to view, same as to edit).
+//
+// Added alongside requireSongRole (auth.go) — before this, EVERY song
+// page's HTTP-layer gate (GET /b/{book}/{stem} and its API/export
+// siblings) checked ONLY project-role membership via requireRole, with
+// no awareness of band/school ownership at all. A band- or school-owned
+// song's underlying project (songs.project_id — see ForkVariant's and
+// CreateBandVariant's own doc comments on why a fork/band-variant stays
+// attached to SOME project rather than having one of its own) routinely
+// has zero project_members rows for the very people who should be able
+// to see it: its own band's members. The project-role gate alone made
+// such a song unreachable by anyone — including, in the reported case,
+// the band member who had just created it — a 403 on every click,
+// regardless of real (band-membership-based) access rights that
+// CanEditVariant/CanViewVariant already correctly compute. requireAuth
+// still gates "is anyone logged in" first, as before.
+func (st *Store) CanViewVariant(ctx context.Context, personID, variantID int64) (bool, error) {
+	var visibility string
+	var ownerID, ownerBandID, ownerSchoolID *int64
+	err := st.db.QueryRow(ctx, `SELECT visibility::text, owner_person_id, owner_band_id, owner_school_id FROM songs WHERE id = $1`, variantID).
+		Scan(&visibility, &ownerID, &ownerBandID, &ownerSchoolID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, fmt.Errorf("no such variant %d: %w", variantID, ErrNotFound)
+	}
+	if err != nil {
+		return false, err
+	}
+	switch visibility {
+	case "global":
+		return true, nil
+	case "band":
+		if ownerBandID == nil {
+			return false, nil
+		}
+		return st.IsCurrentBandMember(ctx, *ownerBandID, personID)
+	case "school":
+		if ownerSchoolID == nil {
+			return false, nil
+		}
+		return st.IsCurrentSchoolMember(ctx, *ownerSchoolID, personID)
+	case "jam":
+		return false, nil
+	default: // "user"
+		return ownerID != nil && *ownerID == personID, nil
+	}
+}
+
 // CanEditVariantAsJamParticipant reports whether a valid jam session for
 // jamEventID may edit variantID — the jam-session counterpart to
 // CanEditVariant above. Mirrors the band branch's "any current member"

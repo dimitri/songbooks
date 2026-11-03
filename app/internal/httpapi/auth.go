@@ -111,6 +111,69 @@ func (s *Server) requireRole(minRole string, next http.HandlerFunc) http.Handler
 	})
 }
 
+// requireSongRole is requireRole's counterpart for routes scoped to one
+// SONG (book+stem), not a setlist or any other {book}-scoped resource —
+// use requireRole for those, this only for the /b/{book}/{stem} family
+// and its API/export siblings.
+//
+// Access is the UNION of two independent checks, either one sufficient:
+//  1. requireRole's own check — project-role membership on {book}. Kept
+//     exactly as before: a legacy/plain song with no real owner (or one
+//     that was explicitly shared by granting project membership) still
+//     works exactly as it always did.
+//  2. The song's own ownership scope (store.CanViewVariant/
+//     CanEditVariant) — band/school/global visibility, resolved from the
+//     song's row, independent of project_members entirely. See
+//     CanViewVariant's doc comment for why this second check had to be
+//     added: a band- or school-owned song's project routinely has no
+//     project_members rows for the band/school's own members at all
+//     (ForkVariant/CreateBandVariant deliberately don't create a
+//     dedicated project per band — see their own doc comments), so check
+//     1 alone made such songs unreachable by anyone, including whoever
+//     had just created them.
+//
+// A book/stem that doesn't resolve to a real variant at all (shouldn't
+// happen for any route this wraps, but handled rather than assumed) just
+// falls back to check 1's own verdict unchanged.
+func (s *Server) requireSongRole(minRole string, next http.HandlerFunc) http.HandlerFunc {
+	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		book, stem := r.PathValue("book"), r.PathValue("stem")
+		p := personFromContext(r)
+
+		role, ok, err := s.store.GetRole(r.Context(), p.ID, book)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		allowed := ok && roleRank[role] >= roleRank[minRole]
+
+		if !allowed {
+			if variantID, _, err := s.store.VariantLookup(r.Context(), book, stem); err == nil && variantID != 0 {
+				var viaOwnership bool
+				var ownErr error
+				if minRole == "editor" || minRole == "owner" {
+					viaOwnership, ownErr = s.store.CanEditVariant(r.Context(), p.ID, variantID)
+				} else {
+					viaOwnership, ownErr = s.store.CanViewVariant(r.Context(), p.ID, variantID)
+				}
+				if ownErr == nil && viaOwnership {
+					allowed = true
+				}
+			}
+		}
+
+		if !allowed {
+			if isAPIRequest(r) {
+				httpError(w, http.StatusForbidden, "insufficient project role")
+			} else {
+				http.Error(w, "forbidden", http.StatusForbidden)
+			}
+			return
+		}
+		next(w, r)
+	})
+}
+
 // requireAdmin wraps next with requireAuth, then additionally checks the
 // logged-in person's site-wide is_admin flag — deliberately a separate
 // middleware from requireRole, since admin is a property of the person
