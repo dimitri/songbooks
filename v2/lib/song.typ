@@ -184,6 +184,11 @@
       cur.score = line.slice(6).trim()
     } else if line.starts-with("grid:") {
       cur.grid += " " + line.slice(5).trim()
+    } else if line.starts-with("times:") {
+      // A viewer-only directive (app/internal/song's "Times" field) for
+      // how many passes a bare/inherited section actually repeats — not
+      // yet acted on by this print pipeline, but recognized here so it
+      // isn't misread as a literal lyric line under the section's heading.
     } else if line.starts-with("bars:") {
       // Usually a uniform override of the 4-bars-per-line default (e.g. a
       // 6-bar verse written as one line). A comma list ("bars: 4,5") instead
