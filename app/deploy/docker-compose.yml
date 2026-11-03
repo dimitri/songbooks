@@ -34,6 +34,18 @@ services:
       # back to the old Typst-shelling pdf.Bridge (kept as a rollback
       # path), which this image no longer ships typst for — don't set it
       # here without also restoring the Typst install step in Dockerfile.
+      #
+      # SONGBOOKS_DEV_AUTO_LOGIN: opt-in, default EMPTY (off) — this var is
+      # only ever read from deploy/.env, never set here. Leaving the
+      # reference empty-by-default means blindly copying this compose file
+      # to a brand-new deployment is still safe (auth stays on unless that
+      # new deployment's own .env deliberately sets it). Setting it
+      # disables login for every visitor who can reach the server — see
+      # main.go's own flag description. Currently set on dev-runner/staging
+      # ONLY, at the user's explicit instruction (not production,
+      # song data recoverable from the git repo) — never on a real
+      # production deployment.
+      SONGBOOKS_DEV_AUTO_LOGIN: ${SONGBOOKS_DEV_AUTO_LOGIN:-}
     command: ["--addr", "0.0.0.0:8080"]
     ports:
       # 8102: chosen after checking `ss -tlnp` + `docker ps` on the host —
