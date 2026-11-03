@@ -1367,18 +1367,22 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .bar-close .repeat-dots { right: 0.2em; }
 /* A STATED repeat count ("x4"), printed on the CLOSE bar — see the
    template's own comment on .bracket-repeat-count for why the end side,
-   not the start. Centered above the bar (same anchor as .simile-count/
-   .chord-label), not flush over the repeat-close dots — a single-bar
-   bracket's Close bar can also be the song's very first bar, where the
-   clef/tempo mark already occupies that corner; centering clears it
-   regardless. Stacked ABOVE the chord label itself (.chord-label's own
-   margin-bottom is 0.35em; this clears its full glyph height too,
-   generously — chordsym's bold root + raised quality text run taller
-   than plain text), not sharing its exact baseline — real engraving
-   stacks a repeat annotation further from the staff than the chord
-   name. */
+   not the start. Measured and found overlapping the chord name below
+   it (a bottom:100% + margin-bottom stack, same idea as .chord-label's
+   own anchor, landed mid-way through the chord glyph's own box — its
+   actual rendered height runs taller than a flat em-based margin
+   guessed), so this instead copies .volta's own proven pattern: a flat
+   `top: -Nem` offset from the BAR's own top edge (not relative to the
+   chord label's box at all), the same fixed height every repeat count
+   sits at regardless of which chord happens to be under it — real
+   engraving (LilyPond) puts this annotation in its own clear band above
+   the staff, not stacked relative to the chord name. -4.4em (vs.
+   .volta's -2.3em) because a volta marker's own bracket line sits right
+   at the barline; this needs to additionally clear the chord label that
+   volta doesn't have to — measured live against a real chord glyph's
+   own box, not just guessed from .volta's offset. */
 .bracket-repeat-count {
-  position: absolute; left: 50%; bottom: 100%; margin-bottom: 1.5em;
+  position: absolute; left: 50%; top: -4.4em;
   transform: translateX(-50%);
   font-weight: 700; font-size: 0.85em; color: var(--fg-muted); white-space: nowrap;
 }
