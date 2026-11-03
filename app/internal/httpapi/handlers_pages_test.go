@@ -11,6 +11,39 @@ import (
 // function's own doc comment for why. Each case states which of the two
 // implementations it distinguishes.
 
+// TestBareSoloTimesDoublesBarCount covers the-thrill-is-gone's outro Solo:
+// a bare section labeled "Solo", with no grid of its own, inferring the
+// Intro's 12-bar changes but stating "times: 2" to mean it's actually
+// played through twice — it should report 24 real bars (for the song-map
+// label and the metronome's timing) while showing two 12-bar multi-rest
+// segments (RepeatSegmentBars), the same side-by-side display a literal
+// "|: ... :|" bracket gets, not one unbroken "24".
+func TestBareSoloTimesDoublesBarCount(t *testing.T) {
+	src := "title: X\ntime: 4/4\n\n" +
+		"[Intro]\ngrid: Bm | % | % | % | Em | % | Bm | % | G7 | F#7 | Bm | %\n\n" +
+		"[Solo]\n\n" +
+		"[Solo]\ntimes: 2\n"
+	sg := song.Parse(src)
+	sections := buildSections(sg)
+	if len(sections) != 3 {
+		t.Fatalf("expected 3 sections, got %d", len(sections))
+	}
+	intro, solo1, solo2 := sections[0], sections[1], sections[2]
+
+	if intro.BarCount != 12 {
+		t.Fatalf("expected Intro BarCount 12, got %d", intro.BarCount)
+	}
+	if solo1.BarCount != 12 || solo1.RepeatSegmentBars != 0 {
+		t.Errorf("expected Solo 1 (times absent) BarCount 12, RepeatSegmentBars 0, got BarCount=%d RepeatSegmentBars=%d", solo1.BarCount, solo1.RepeatSegmentBars)
+	}
+	if solo2.BarCount != 24 {
+		t.Errorf("expected Solo 2 (times: 2) BarCount 24, got %d", solo2.BarCount)
+	}
+	if solo2.RepeatSegmentBars != 12 {
+		t.Errorf("expected Solo 2 RepeatSegmentBars 12 (two 12-bar segments), got %d", solo2.RepeatSegmentBars)
+	}
+}
+
 func TestMeasuresEqualSubBeatSplit(t *testing.T) {
 	// Same music ("G for the whole bar"), written two different ways: one
 	// token stretched to fill the bar vs. the same chord repeated at

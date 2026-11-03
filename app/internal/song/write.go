@@ -41,6 +41,9 @@ func Write(s *Song) string {
 		if len(sec.BarsPerLine) > 0 {
 			b.WriteString("bars: " + writeBars(sec.BarsPerLine) + "\n")
 		}
+		if sec.Times > 0 {
+			b.WriteString("times: " + strconv.Itoa(sec.Times) + "\n")
+		}
 		if len(sec.Measures) > 0 {
 			b.WriteString("grid: " + writeGrid(sec.Measures) + "\n")
 		}

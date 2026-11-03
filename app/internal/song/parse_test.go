@@ -81,3 +81,25 @@ func TestParseBarsOverride(t *testing.T) {
 		t.Errorf("unexpected BarsPerLine: %v", s.Sections[0].BarsPerLine)
 	}
 }
+
+func TestParseTimesOnBareSection(t *testing.T) {
+	s := Parse("title: X\n\n[Intro]\ngrid: | Gm | Bb |\n\n[Solo]\ntimes: 2\n")
+	if len(s.Sections) != 2 {
+		t.Fatalf("expected 2 sections, got %d", len(s.Sections))
+	}
+	sec := s.Sections[1]
+	if sec.Times != 2 {
+		t.Errorf("expected Times 2, got %d", sec.Times)
+	}
+	if len(sec.Measures) != 0 || len(sec.Lyrics) != 0 {
+		t.Errorf("expected a bare section (times: alone shouldn't count as content), got %+v", sec)
+	}
+}
+
+func TestWriteTimesRoundTrip(t *testing.T) {
+	s := Parse("title: X\n\n[Solo]\ntimes: 2\n")
+	again := Parse(Write(s))
+	if !reflect.DeepEqual(s, again) {
+		t.Errorf("round-trip mismatch\n--- first ---\n%+v\n--- again ---\n%+v", s, again)
+	}
+}

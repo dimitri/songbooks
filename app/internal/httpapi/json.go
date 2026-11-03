@@ -39,6 +39,7 @@ type jsonSection struct {
 	Repeat      bool            `json:"repeat"`
 	Time        string          `json:"time"`
 	Score       string          `json:"score"`
+	Times       int             `json:"times,omitempty"`
 	BarsPerLine []int           `json:"barsPerLine,omitempty"`
 	Measures    []jsonMeasure   `json:"measures"`
 	Lyrics      []jsonLyricLine `json:"lyrics"`
@@ -61,6 +62,7 @@ func toJSON(s *song.Song) jsonSong {
 			Repeat:      sec.Repeat,
 			Time:        sec.Time,
 			Score:       sec.Score,
+			Times:       sec.Times,
 			BarsPerLine: sec.BarsPerLine,
 			Notes:       sec.Notes,
 		}
@@ -92,6 +94,7 @@ func fromJSON(in jsonSong) *song.Song {
 			Repeat:      js.Repeat,
 			Time:        js.Time,
 			Score:       js.Score,
+			Times:       js.Times,
 			BarsPerLine: js.BarsPerLine,
 			Notes:       js.Notes,
 		}

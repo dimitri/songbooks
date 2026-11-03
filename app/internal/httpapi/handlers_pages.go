@@ -473,6 +473,15 @@ type viewerSection struct {
 	Label    string
 	Repeat   bool
 	Measures []viewerMeasure // flat, used for the "first bar of this section" lookup
+	// Times mirrors song.Section.Times (0/1 = a single pass; > 1 means
+	// this section — its own grid, or, when bare, whatever grid it
+	// inherits below — is actually played that many times through). Used
+	// by this section's own BarCount/RepeatSegmentBars math below AND, for
+	// a bare section, re-applied as a multiplier on top of an inherited
+	// section's numbers in annotateStructure — a bare section's own
+	// "times:" is about how many times IT repeats, independent of
+	// whatever the section it borrows content from does.
+	Times int
 	Lines    []viewerLine    // grouped into chart "systems" (rows), per section.BarsPerLine
 	Lyrics   []viewerLyricLine
 	// Notes are this section occurrence's own free-text performance
@@ -1012,7 +1021,7 @@ func buildSections(sg *song.Song) []viewerSection {
 	// once numbering is known, without re-running the comparison.
 	var dupSrc []int
 	for si, sec := range sg.Sections {
-		vs := viewerSection{Index: si, Label: sec.Label, Repeat: sec.Repeat, Notes: sec.Notes}
+		vs := viewerSection{Index: si, Label: sec.Label, Repeat: sec.Repeat, Notes: sec.Notes, Times: sec.Times}
 		beatsPerBar := sectionBeatsPerBar(sec, globalBeats)
 		for mi, m := range sec.Measures {
 			isRepeat := len(m.Tokens) == 1 && (m.Tokens[0] == "%" || m.Tokens[0] == "%%")
@@ -1046,6 +1055,18 @@ func buildSections(sg *song.Song) []viewerSection {
 		vs.BarCount = realBarCount(sec.Measures)
 		if written, ok := simpleRepeatSpan(sec.Measures); ok {
 			vs.RepeatSegmentBars = written
+		}
+		// A section's own grid, played through "times:" N times (distinct
+		// from a "|: ... :|" bracket WITHIN the grid, which simpleRepeatSpan
+		// above already accounts for) — the written grid's one-pass length
+		// becomes the side-by-side multi-rest segment length (same display
+		// as a literal repeat bracket), and BarCount scales by N for the
+		// song-map/structure view and the metronome's real timing.
+		if sec.Times > 1 && len(sec.Measures) > 0 {
+			if vs.RepeatSegmentBars == 0 {
+				vs.RepeatSegmentBars = vs.BarCount
+			}
+			vs.BarCount *= sec.Times
 		}
 		// A duplicate grid: an EARLIER section (already appended to
 		// `sections`, since this loop processes in order) wrote the exact
@@ -1227,11 +1248,19 @@ func annotateStructure(sections []viewerSection) {
 			if strings.HasPrefix(strings.ToLower(label), "solo") {
 				if j := nearestDefiningSectionLabeled(sections, i, soloReferenceLabel(label)); j >= 0 {
 					bars := sections[j].BarCount
+					times := sec.Times
+					if times < 1 {
+						times = 1
+					}
 					unit := "bar"
-					if bars != 1 {
+					if bars*times != 1 {
 						unit = "bars"
 					}
-					sec.InferredNote = fmt.Sprintf("%d %s — %s changes", bars, unit, sections[j].Label)
+					note := fmt.Sprintf("%d %s — %s changes", bars*times, unit, sections[j].Label)
+					if times > 1 {
+						note = fmt.Sprintf("%d %s — %s changes, x%d", bars*times, unit, sections[j].Label, times)
+					}
+					sec.InferredNote = note
 					// Give the solo real (placeholder) bars, not just a text
 					// note — otherwise it reads as a quick aside instead of
 					// the chunk of the song it actually is, and a long solo
@@ -1241,8 +1270,21 @@ func annotateStructure(sections []viewerSection) {
 					// in that case, so this path never runs for it) — this
 					// is purely the inferred fallback.
 					sec.Lines = placeholderLines(sections[j].Lines)
-					sec.BarCount = sections[j].BarCount
-					sec.RepeatSegmentBars = sections[j].RepeatSegmentBars
+					sec.BarCount = bars * times
+					// A "times:" > 1 bare solo reuses the referenced
+					// section's own single-pass length as its repeat-segment
+					// span — same side-by-side multi-rest display (two "12"
+					// bars, not one "24") a literal "|: ... :|" grid gets.
+					// When the referenced section is itself already a
+					// repeat (RepeatSegmentBars > 0) and times is also > 1,
+					// keep the referenced section's own segment span — a
+					// double-nested repeat is an edge case this doesn't try
+					// to represent more precisely than that.
+					if times > 1 && sections[j].RepeatSegmentBars == 0 {
+						sec.RepeatSegmentBars = bars
+					} else {
+						sec.RepeatSegmentBars = sections[j].RepeatSegmentBars
+					}
 				}
 				continue
 			}
@@ -1254,8 +1296,16 @@ func annotateStructure(sections []viewerSection) {
 			for j := i - 1; j >= 0; j-- {
 				if strings.EqualFold(strings.TrimSpace(sections[j].Label), label) && (len(sections[j].Measures) != 0 || len(sections[j].Lyrics) != 0) {
 					sec.IsReference = true
-					sec.BarCount = sections[j].BarCount
-					sec.RepeatSegmentBars = sections[j].RepeatSegmentBars
+					times := sec.Times
+					if times < 1 {
+						times = 1
+					}
+					sec.BarCount = sections[j].BarCount * times
+					if times > 1 && sections[j].RepeatSegmentBars == 0 {
+						sec.RepeatSegmentBars = sections[j].BarCount
+					} else {
+						sec.RepeatSegmentBars = sections[j].RepeatSegmentBars
+					}
 					// Web display only — the .song FILE still states this
 					// occurrence as a bare repeat, which is deliberate: that's
 					// what keeps the PDF export (internal/pdfnative, reads the
@@ -1290,8 +1340,16 @@ func annotateStructure(sections []viewerSection) {
 		if len(sec.Measures) == 0 {
 			if j := nearestDefiningSection(sections, i); j >= 0 {
 				sec.Compact = true
-				sec.BarCount = sections[j].BarCount
-				sec.RepeatSegmentBars = sections[j].RepeatSegmentBars
+				times := sec.Times
+				if times < 1 {
+					times = 1
+				}
+				sec.BarCount = sections[j].BarCount * times
+				if times > 1 && sections[j].RepeatSegmentBars == 0 {
+					sec.RepeatSegmentBars = sections[j].BarCount
+				} else {
+					sec.RepeatSegmentBars = sections[j].RepeatSegmentBars
+				}
 			}
 		}
 	}

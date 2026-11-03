@@ -69,6 +69,17 @@ type Section struct {
 	Time  string // per-section "time:" override, "" if absent
 	Score string // raw "score:" filename, "" if absent; not otherwise interpreted
 
+	// Times is the section's "times:" line — how many passes through its
+	// grid it actually takes (its own, when it has one, or an inherited
+	// one for a bare section — see annotateStructure in httpapi). 0 means
+	// absent, same as 1 (a single pass); only a value > 1 changes
+	// anything. This is a web-viewer-only field: v2/lib/song.typ's Typst
+	// parser doesn't act on it (it silently ignores an unrecognized
+	// "times:" line rather than printing it as a lyric — see that file),
+	// so a PDF built through the Typst pipeline still shows the section's
+	// grid exactly as written, same as before this field existed.
+	Times int
+
 	// BarsPerLine mirrors the "bars:" line: nil if absent (default of 4
 	// measures/line applies), one element for a uniform override ("bars: 6"),
 	// or several for an explicit per-row list ("bars: 4,5").

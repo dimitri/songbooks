@@ -22,6 +22,7 @@ type rawSection struct {
 	repeat  bool
 	time    string
 	score   string
+	times   int
 	bars    []int
 	gridRaw strings.Builder
 	lines   []string
@@ -43,6 +44,7 @@ func Parse(src string) *Song {
 			Repeat:      cur.repeat,
 			Time:        cur.time,
 			Score:       cur.score,
+			Times:       cur.times,
 			BarsPerLine: cur.bars,
 			Lyrics:      make([]LyricLine, 0, len(cur.lines)),
 			Notes:       cur.notes,
@@ -102,6 +104,10 @@ func Parse(src string) *Song {
 			cur.gridRaw.WriteString(" " + strings.TrimSpace(line[5:]))
 		case strings.HasPrefix(line, "bars:"):
 			cur.bars = parseBars(strings.TrimSpace(line[5:]))
+		case strings.HasPrefix(line, "times:"):
+			if n, err := strconv.Atoi(strings.TrimSpace(line[6:])); err == nil {
+				cur.times = n
+			}
 		case strings.HasPrefix(line, "note:"):
 			cur.notes = append(cur.notes, strings.TrimSpace(line[5:]))
 		case strings.HasPrefix(line, "|") && len(cur.lines) == 0:
