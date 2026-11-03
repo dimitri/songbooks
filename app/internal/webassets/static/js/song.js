@@ -1024,6 +1024,14 @@ const ICONS = {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.prep-tab').forEach(b => b.classList.toggle('active', b === btn));
       document.querySelectorAll('.prep-panel').forEach(p => { p.hidden = p.dataset.panel !== btn.dataset.tab; });
+      // The sidebar toolbox (#toolbox-sections/#toolbox-toolbar) is only
+      // ever meaningful for the "Blocks" (structure) tab — it lives
+      // outside .prep-panel's own [hidden] toggle above, so it needs its
+      // own show/hide here: cleared on Source, rebuilt on switching back
+      // (structSections itself is untouched by the tab switch, only the
+      // sidebar DOM was emptied).
+      if (btn.dataset.tab === 'structure') { if (focusModeActive) renderFocusEditor(); }
+      else { document.getElementById('toolbox-sections').innerHTML = ''; document.getElementById('toolbox-toolbar').innerHTML = ''; }
     });
   });
 
@@ -1566,7 +1574,9 @@ const ICONS = {
   // blindly emit taps.
   function refreshToolbarHighlight(sec, i) {
     const host = document.getElementById('matrix-host-' + i);
-    const toolbar = host && host.querySelector('.chord-toolbar');
+    // Desktop focus mode moved the toolbar out of host and into the
+    // sidebar rail (see renderMatrix) — fall back to it there.
+    const toolbar = (host && host.querySelector('.chord-toolbar')) || document.querySelector('#toolbox-toolbar .chord-toolbar');
     if (!toolbar) return;
     const sel = sec._sel;
     const tok = sel && sec.measures[sel.mi] ? (sec.measures[sel.mi].tokens[sel.ti] || '') : '';
@@ -1961,9 +1971,16 @@ const ICONS = {
     if (!sec.measures) sec.measures = [];
 
     // The persistent chord-entry toolbar — always visible above this
-    // section's grid, not a popup. Comes first so it reads as the primary
-    // input device, the grid below as the canvas it edits.
-    host.appendChild(buildChordToolbar(sec, i));
+    // section's grid, not a popup. Desktop focus mode relocates it (and
+    // the bar-tools block below) into the real sidebar rail — the actual
+    // nav column the approved GP8 mockup repurposes as the toolbox —
+    // instead of a second fake column squeezed into the main canvas
+    // (the earlier .bar-matrix.focus-mode grid hack this replaces). Mobile
+    // keeps it inline, first child of host, exactly as before.
+    const toolbarEl = buildChordToolbar(sec, i);
+    const toolboxToolbar = focusModeActive ? document.getElementById('toolbox-toolbar') : null;
+    if (toolboxToolbar) { toolboxToolbar.innerHTML = ''; toolboxToolbar.appendChild(toolbarEl); }
+    else host.appendChild(toolbarEl);
 
     // Structural tools (line width, add bar, repeat-phrase fill, repeat
     // barline) are collapsed by default: tap a bar to start editing its
@@ -2067,7 +2084,8 @@ const ICONS = {
     repeatToggle.append(repeatCheckbox, document.createTextNode(' repeats (|: :|)'));
     toolbar.appendChild(repeatToggle);
     toolsDetails.appendChild(toolbar);
-    host.appendChild(toolsDetails);
+    if (toolboxToolbar) toolboxToolbar.appendChild(toolsDetails);
+    else host.appendChild(toolsDetails);
 
     // Desktop focus editor: one continuous, horizontally-scrolling staff
     // line (Guitar Pro's "infinite staff") rather than the wrapped rows
@@ -2557,9 +2575,9 @@ const ICONS = {
 
   // ---- Desktop focus editor: one section at a time, Guitar Pro-style ----
   // Reuses buildChordToolbar/renderMatrix completely unmodified in their
-  // own DOM-building logic — only the CSS (.bar-matrix.focus-mode, see
-  // app.css) repositions the toolbar they already append first into a
-  // sticky LEFT column via CSS Grid, and focusModeActive (read inside
+  // own DOM-building logic — renderMatrix itself relocates the toolbar
+  // (and bar-tools) it builds into the real sidebar rail (#toolbox-toolbar)
+  // instead of appending it inline, and focusModeActive (read inside
   // renderMatrix/buildChordToolbar) switches the row-chunking and
   // split-progression behavior. No parallel chart-rendering code exists.
   function renderFocusEditor() {
@@ -2570,6 +2588,8 @@ const ICONS = {
       const hint = document.createElement('p'); hint.className = 'hint';
       hint.textContent = 'No sections yet — use the + above to start.';
       list.appendChild(hint);
+      document.getElementById('toolbox-sections').innerHTML = '';
+      document.getElementById('toolbox-toolbar').innerHTML = '';
       return;
     }
     if (focusIndex >= structSections.length) focusIndex = structSections.length - 1;
@@ -2577,37 +2597,38 @@ const ICONS = {
     const i = focusIndex;
     const sec = structSections[i];
 
+    // ---- Sections: a vertical list in the sidebar toolbox (GP8's own
+    // track list lives in its left rail; this is the chord-chart
+    // analogue), not a horizontal tab strip competing with the canvas for
+    // width. Rebuilt in full on every render — cheap, and it's the only
+    // thing here that needs to reflect every OTHER section's label too. --
+    const sectionsList = document.getElementById('toolbox-sections');
+    sectionsList.innerHTML = '';
+    structSections.forEach((s, si) => {
+      const row = document.createElement('button');
+      row.type = 'button'; row.className = 'tbx-sec-row' + (si === i ? ' active' : '');
+      row.title = s.repeat ? 'repeat marker' : `${(s.measures || []).length} bars`;
+      const name = document.createElement('span'); name.textContent = s.label || (s.repeat ? '(repeat)' : 'Untitled');
+      const count = document.createElement('span'); count.className = 'tbx-sec-count';
+      count.textContent = s.repeat ? '—' : String((s.measures || []).length);
+      row.append(name, count);
+      row.addEventListener('click', () => { focusIndex = si; renderFocusEditor(); });
+      sectionsList.appendChild(row);
+    });
+    const addRow = document.createElement('button');
+    addRow.type = 'button'; addRow.className = 'tbx-sec-add';
+    addRow.textContent = '+ add section';
+    addRow.addEventListener('click', () => openInsertMenu(addRow, i + 1));
+    sectionsList.appendChild(addRow);
+
+    // Cleared unconditionally, same as the host it used to live inside —
+    // a repeat marker or advanced-syntax section renders no matrix at all
+    // below, so nothing repopulates this otherwise and the PREVIOUS
+    // section's toolbar would otherwise linger, looking editable.
+    document.getElementById('toolbox-toolbar').innerHTML = '';
+
     const wrap = document.createElement('div');
     wrap.className = 'focus-editor';
-
-    // ---- Section nav: prev/next + a tab strip, so switching which part
-    // you're looking at is always one click away, never buried. ----------
-    const nav = document.createElement('div');
-    nav.className = 'focus-nav';
-    const prevBtn = document.createElement('button');
-    prevBtn.type = 'button'; prevBtn.className = 'icon-btn'; prevBtn.textContent = '‹';
-    prevBtn.title = 'previous section'; prevBtn.disabled = i === 0;
-    prevBtn.addEventListener('click', () => { focusIndex = Math.max(0, i - 1); renderFocusEditor(); });
-    const tabs = document.createElement('div');
-    tabs.className = 'focus-nav-tabs';
-    structSections.forEach((s, si) => {
-      const tab = document.createElement('button');
-      tab.type = 'button'; tab.className = 'focus-nav-tab' + (si === i ? ' active' : '');
-      tab.textContent = s.label || (s.repeat ? '(repeat)' : 'Untitled');
-      tab.title = s.repeat ? 'repeat marker' : `${(s.measures || []).length} bars`;
-      tab.addEventListener('click', () => { focusIndex = si; renderFocusEditor(); });
-      tabs.appendChild(tab);
-    });
-    const nextBtn = document.createElement('button');
-    nextBtn.type = 'button'; nextBtn.className = 'icon-btn'; nextBtn.textContent = '›';
-    nextBtn.title = 'next section'; nextBtn.disabled = i === structSections.length - 1;
-    nextBtn.addEventListener('click', () => { focusIndex = Math.min(structSections.length - 1, i + 1); renderFocusEditor(); });
-    const addTabBtn = document.createElement('button');
-    addTabBtn.type = 'button'; addTabBtn.className = 'icon-btn'; addTabBtn.innerHTML = ICONS.plus;
-    addTabBtn.title = 'add a section after this one';
-    addTabBtn.addEventListener('click', () => openInsertMenu(addTabBtn, i + 1));
-    nav.append(prevBtn, tabs, nextBtn, addTabBtn);
-    wrap.appendChild(nav);
 
     // ---- Main: this one section's editable content ----------------------
     const main = document.createElement('div');
@@ -2619,8 +2640,8 @@ const ICONS = {
     labelInput.type = 'text'; labelInput.className = 'block-label'; labelInput.value = sec.label;
     labelInput.addEventListener('input', () => {
       sec.label = labelInput.value;
-      const tab = tabs.children[i];
-      if (tab) tab.textContent = labelInput.value || 'Untitled';
+      const row = sectionsList.children[i];
+      if (row) row.firstChild.textContent = labelInput.value || 'Untitled';
     });
     const repeatToggle = document.createElement('button');
     repeatToggle.type = 'button'; repeatToggle.className = 'block-repeat-toggle';
