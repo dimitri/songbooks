@@ -554,6 +554,25 @@ type viewerSection struct {
 	// bar claiming "16", which reads as the section's real length but
 	// hides that it's a repeated 8-bar phrase, not a genuinely-16-bar one.
 	RepeatSegmentBars int
+	// MultiRestSegments/MultiRestPer drive the multi-measure-rest glyph(s)
+	// in Song/Lyrics mode (see the "multi-rest-row" template block):
+	// MultiRestSegments separate glyphs, each standing for MultiRestPer
+	// bars — LilyPond's own convention for "N bars, nothing new to show"
+	// (a bold bar with tall end-posts, bounded by thin measure barlines,
+	// the bar count printed above it). RepeatSegmentBars==0 (a plain
+	// single pass, not a repeat) is 1 glyph of BarCount bars;
+	// RepeatSegmentBars>0 (this section is really M repeats of an N-bar
+	// phrase — a literal "|: ... :|" grid, or a bare section whose
+	// "times:" multiplies an inherited length) is M glyphs of N bars
+	// each, not one combined glyph claiming M*N — exactly how LilyPond
+	// prints two consecutive R1*12 rests as two separate "12" rests, not
+	// one "24". Computed once, after annotateStructure has finalized
+	// every section's BarCount/RepeatSegmentBars (including inherited
+	// ones), so every rendering mode reads the same two numbers instead
+	// of re-deriving them (and risking drifting out of sync with the
+	// chip's own BarCount total).
+	MultiRestSegments int
+	MultiRestPer      int
 	// LabelNumber distinguishes "which Verse is this" for a musician
 	// calling out a part by name ("let's start from Verse 2") — 0 when
 	// this label occurs only once in the song (no "Intro 1" for a song
@@ -1119,6 +1138,19 @@ func buildSections(sg *song.Song) []viewerSection {
 		dupSrc = append(dupSrc, dupIdx)
 	}
 	annotateStructure(sections)
+	for i := range sections {
+		sec := &sections[i]
+		if sec.BarCount <= 0 {
+			continue
+		}
+		if sec.RepeatSegmentBars > 0 && sec.RepeatSegmentBars < sec.BarCount {
+			sec.MultiRestSegments = sec.BarCount / sec.RepeatSegmentBars
+			sec.MultiRestPer = sec.RepeatSegmentBars
+		} else {
+			sec.MultiRestSegments = 1
+			sec.MultiRestPer = sec.BarCount
+		}
+	}
 	assignLabelNumbers(sections)
 	assignRehearsalMarks(sections)
 	// Re-render each duplicate's label now that numbering is known, so two

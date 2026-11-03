@@ -1563,7 +1563,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   display: flex !important; align-items: baseline; gap: 0.5em; margin-bottom: 0.4rem;
 }
 #sheet[data-render-mode="lyrics"] .sheet-section[data-is-solo="true"] .multi-rest-row {
-  display: flex !important; align-items: center; height: 1.3em; margin: 0.4em 0; position: relative;
+  display: flex !important; align-items: center; height: 1.3em; margin: 1em 0 0.4em; position: relative;
 }
 #sheet[data-render-mode="normal"] .sheet-section.is-compact[data-has-lyrics="true"] .section-map-chip,
 #sheet[data-render-mode="normal"] .sheet-section.is-compact[data-has-lyrics="true"] .multi-rest-row {
@@ -1706,7 +1706,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    following below it rather than the glyph being dropped once lyrics
    exist. */
 #sheet[data-render-mode="lyrics"] .sheet-section.is-compact .multi-rest-row {
-  display: flex; align-items: center; height: 1.3em; margin: 0.4em 0; position: relative;
+  display: flex; align-items: center; height: 1.3em; margin: 1em 0 0.4em; position: relative;
 }
 
 /* ---- Song map: chords + staff + structure, no lyrics — "what's the form
@@ -1744,7 +1744,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   font-size: 0.95em; font-weight: 700; color: var(--fg-muted);
 }
 .bar-recall .multi-rest-row {
-  display: flex; align-items: center; position: relative; width: 80%; height: 100%; margin: 0;
+  display: flex; align-items: center; justify-content: center; position: relative; width: 80%; height: 100%; margin: 0;
 }
 /* "= Intro" now rides on the section badge itself (see play.html) instead
    of as a second line of text below the bar — no real engraved multi-rest
@@ -1788,7 +1788,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    compact/reference/inferred-placeholder one does. */
 .multi-rest-row { display: none; }
 #sheet:not([data-render-mode="lyrics"]) .sheet-section.is-compact .multi-rest-row {
-  display: flex; align-items: center; height: 1.7em; margin: 0.3em 0; position: relative;
+  display: flex; align-items: stretch; height: 1.7em; margin: 0.3em 0; position: relative;
 }
 /* Lyrics-only's rest glyph stays compact (nothing else on that row needs
    full width either). Normal/Song mode now matches every other staff
@@ -1824,59 +1824,45 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    matched it, drawing a second staff confined to the glyph's own
    narrower, centered width, visibly misaligned against the wider one. */
 .bar-recall .multi-rest-row::before { content: none; }
+/* Each glyph lives in its own measure: thin barlines at both ends (same
+   convention the real chord grid's own .bar boundaries use — see the
+   first/last-child barline rules near .staff-line above), equal share of
+   the row's width, the glyph centered inside with clear margin from the
+   barlines — not a symbol stretched flush edge-to-edge, which read as a
+   plain stripe rather than "a bar containing a rest". */
+.multi-rest-measure {
+  flex: 1 1 0; min-width: 0; height: 100%; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  border-left: 1px solid var(--fg-muted);
+}
+.multi-rest-row .multi-rest-measure:last-child { border-right: 1px solid var(--fg-muted); }
+/* The bar count, printed ABOVE its own glyph — LilyPond's
+   MultiMeasureRestNumber, checked against scm/define-grobs.scm (it sits
+   centered over the rest, not beside it). Floats above the measure's own
+   box (bottom:100%, same technique .chip-bars already uses) so it never
+   competes for the glyph's vertical centering. */
+.multi-rest-count {
+  position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+  margin-bottom: 0.15em; white-space: nowrap;
+  font-size: 0.85em; font-weight: 700; color: var(--fg-muted);
+}
 /* End ticks — checked against the real stencil code, lily/multi-measure-
    rest.cc's big_rest(): the main bar is the thick horizontal block
    (thick-thickness, ~6.6 line-units tall), and at EACH end there's a
    separate, TALLER vertical post — hair-thickness wide, 2 full
    staff-spaces tall (Box (Interval(-0.5,0.5)*ythick, Interval(-ss,ss))) —
-   i.e. almost the full staff height, centered on the bar. Not just a bare
-   horizontal bar, which is what this had before. */
-.multi-rest-bar { flex: 1; height: 0.16em; background: var(--fg); border-radius: 1px; position: relative; z-index: 1; }
+   i.e. almost the full staff height, centered on the bar. These are the
+   glyph's OWN short end-posts, distinct from (and inset from) the
+   measure's own barlines above — a real engraved multi-rest has both: a
+   normal barline bounding the measure, and the rest glyph's own narrower
+   end-posts floating inside it. */
+.multi-rest-bar { width: min(70%, 6em); height: 0.16em; background: var(--fg); border-radius: 1px; position: relative; z-index: 1; }
 .multi-rest-bar::before, .multi-rest-bar::after {
   content: ""; position: absolute; top: 50%; width: 0.1em; height: 0.85em;
   background: var(--fg); transform: translateY(-50%);
 }
 .multi-rest-bar::before { left: 0; }
 .multi-rest-bar::after { right: 0; }
-
-/* Repeat variant — a section that's wholly one "|: ... :|" bracket (see
-   RepeatSegmentBars): a mockup of the WRITTEN bars (empty cells, no
-   chord text — this isn't the real grid, just a shape to count), bounded
-   by real repeat-barline + dots at the ends (same .bar-open/.bar-close/
-   .repeat-dots convention the real chord grid uses).
-   A previous pass deliberately kept this fixed/narrow ("not a single bar
-   stretched the full row width — that reads as an oversized, empty
-   block"), but next to every other multi-rest glyph on the page now
-   using the row's full width (chip-bars/multi-rest-bar, see their own
-   width:100% rule), this one narrow exception read as broken/half-done
-   instead — and the large empty gap it left made the page rhythm
-   unclear enough that the NEXT section's heading didn't register as a
-   clean break (direct report: "the following section isn't marked").
-   Stretched to match, scoped to normal/lyrics (song/singer-facing
-   modes) — jazz keeps its own compact, maximum-density convention. */
-.multi-rest-repeat-cells { display: flex; width: fit-content; max-width: 100%; height: 1.6em; }
-#sheet[data-render-mode="normal"] .multi-rest-repeat-cells,
-#sheet[data-render-mode="lyrics"] .multi-rest-repeat-cells {
-  width: 100%;
-}
-#sheet[data-render-mode="normal"] .repeat-cell,
-#sheet[data-render-mode="lyrics"] .repeat-cell {
-  flex: 1 1 0;
-}
-/* --fg-muted, not --border — the same near-invisible-hairline bug the
-   real chord grid's own .bar+.bar divider had (fixed earlier this
-   session), present here too since it's a separate, un-updated rule. */
-.repeat-cell { width: 1.15em; border-left: 1px solid var(--fg-muted); position: relative; flex: none; }
-.repeat-cell:first-child { border-left: none; }
-.repeat-cell-open::before, .repeat-cell-close::after {
-  content: ""; position: absolute; top: 0; bottom: 0; width: 0.22em; background: var(--border-strong);
-}
-.repeat-cell-open::before { left: -1px; }
-.repeat-cell-close::after { right: -1px; }
-.repeat-cell-open { border-left: 1.5px solid var(--border-strong); }
-.repeat-cell-close { border-right: 1.5px solid var(--border-strong); }
-.repeat-dots-open { left: 0.06em; }
-.repeat-dots-close { right: 0.06em; }
 
 /* Jazz chart: lean entirely on real repeat/structure notation (the chip's
    own bar count, plus simile/repeat marks inside a grid) rather than ALSO

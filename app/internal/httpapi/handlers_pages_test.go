@@ -42,6 +42,12 @@ func TestBareSoloTimesDoublesBarCount(t *testing.T) {
 	if solo2.RepeatSegmentBars != 12 {
 		t.Errorf("expected Solo 2 RepeatSegmentBars 12 (two 12-bar segments), got %d", solo2.RepeatSegmentBars)
 	}
+	if solo1.MultiRestSegments != 1 || solo1.MultiRestPer != 12 {
+		t.Errorf("expected Solo 1 to render as ONE 12-bar rest glyph, got MultiRestSegments=%d MultiRestPer=%d", solo1.MultiRestSegments, solo1.MultiRestPer)
+	}
+	if solo2.MultiRestSegments != 2 || solo2.MultiRestPer != 12 {
+		t.Errorf("expected Solo 2 to render as TWO 12-bar rest glyphs, got MultiRestSegments=%d MultiRestPer=%d", solo2.MultiRestSegments, solo2.MultiRestPer)
+	}
 }
 
 func TestMeasuresEqualSubBeatSplit(t *testing.T) {

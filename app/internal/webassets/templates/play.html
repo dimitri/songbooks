@@ -178,28 +178,34 @@
        .multi-rest-row) decides which one actually shows per mode — the
        full/detailed modes keep the real grid, jazz/song-map swap to this
        instead of showing both or showing nothing. */}}
-  {{if .RepeatSegmentBars}}
-  {{/* The section is wholly one "|: ... :|" bracket — e.g. an 8-bar
-       phrase played twice. A compact mockup of the WRITTEN 8 bars —
-       plain empty cells, no chord text — bounded by real repeat
-       barlines (thick-thin + dots, the same convention the real chord
-       grid uses), fixed-width rather than stretched full-page-wide: it
-       reads as "8 bars, play it twice" by counting the cells, not by
-       parsing a number. */}}
+  {{/* MultiRestSegments glyphs, each MultiRestPer bars — LilyPond's own
+       multi-measure-rest convention, checked against the real stencil
+       (lily/multi-measure-rest.cc's big_rest(): a thick horizontal bar
+       with a taller post at each end) and MultiMeasureRestNumber (the
+       bar count printed above each rest). Each glyph sits in its own
+       measure — thin barlines at both ends, same convention the real
+       chord grid's own bar boundaries use — with the glyph itself
+       centered inside, margin on both sides, not stretched flush to the
+       barlines. A plain single pass (RepeatSegmentBars==0) is ONE glyph
+       of BarCount bars; a section that's really M repeats of an N-bar
+       phrase (a literal "|: ... :|" grid, or a bare "times:" section) is
+       M separate glyphs of N bars each — e.g. two "12" rests side by
+       side, not one "24" — the same way LilyPond prints two consecutive
+       R1*12 rests, not a single R1*24. */}}
   {{$sec := .}}
   <div class="multi-rest-row">
-    <div class="multi-rest-repeat-cells">
-      {{range seq $sec.RepeatSegmentBars}}
-      <span class="repeat-cell{{if eq . 0}} repeat-cell-open{{end}}{{if eq (add1 .) $sec.RepeatSegmentBars}} repeat-cell-close{{end}}">
-        {{if eq . 0}}<span class="repeat-dots repeat-dots-open"></span>{{end}}
-        {{if eq (add1 .) $sec.RepeatSegmentBars}}<span class="repeat-dots repeat-dots-close"></span>{{end}}
-      </span>
-      {{end}}
+    {{range seq $sec.MultiRestSegments}}
+    <div class="multi-rest-measure">
+      {{/* Only shown when there's more than one glyph: a single glyph's
+           count is already the section's own chip-bars number, right
+           above this row — repeating it on the glyph itself is noise.
+           Two-plus glyphs is new information the chip's own COMBINED
+           total ("24") doesn't carry — which one of these is 12. */}}
+      {{if gt $sec.MultiRestSegments 1}}<span class="multi-rest-count">{{$sec.MultiRestPer}}</span>{{end}}
+      <span class="multi-rest-bar"></span>
     </div>
+    {{end}}
   </div>
-  {{else}}
-  <div class="multi-rest-row"><span class="multi-rest-bar"></span></div>
-  {{end}}
   {{end}}
   {{if .Notes}}
   {{/* Performance/arrangement directions for this section occurrence —
