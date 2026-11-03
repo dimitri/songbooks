@@ -1737,6 +1737,58 @@ const ICONS = {
     else if (k === 'z' && e.shiftKey || k === 'y') { e.preventDefault(); redoEdit(); }
   });
 
+  // ---- Keyboard chord entry (desktop focus editor) --------------------------
+  // The focus editor's bar grid is the REAL rendered chart markup, not
+  // <input> elements (see setChordPart's own "Focus mode's real chart has
+  // no <input>" comment) — so a selected slot has no native text box to
+  // just type into, and typing a chord by hand silently did nothing. This
+  // mirrors the chord toolbar's own two-step "tap a root, then tap a
+  // quality" model — same setChordPart/setSlotToken calls the buttons
+  // themselves use — just driven by single keystrokes onto whichever slot
+  // is currently selected (lastSelSec/lastSelIndex, updated by selectSlot/
+  // focusSlot above) instead of a mouse click. A root letter still
+  // respects a pending ♭/♯ tapped on the toolbar first, exactly like
+  // tapping the root button would (sec._pendingAcc/_bassMode are shared
+  // state either input path reads).
+  const KEY_QUALITY = { m: 'm', '7': '7', M: 'maj7', o: 'dim', '0': 'dim', '+': 'aug' };
+  document.addEventListener('keydown', e => {
+    if (!focusModeActive || e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = document.activeElement;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    const drawer = document.getElementById('edit-drawer');
+    if (!drawer || drawer.hidden) return;
+    if (document.getElementById('structure')?.hidden) return; // Chart tab only
+    const sec = lastSelSec, i = lastSelIndex;
+    if (!sec || !sec._sel) return;
+
+    const key = e.key;
+    if (/^[A-Ga-g]$/.test(key)) {
+      e.preventDefault();
+      const acc = sec._pendingAcc || '';
+      const root = key.toUpperCase() + acc;
+      if (sec._bassMode) { setChordPart(sec, i, 'bass', root); sec._bassMode = false; }
+      else setChordPart(sec, i, 'root', root);
+      sec._pendingAcc = '';
+    } else if (key in KEY_QUALITY) {
+      e.preventDefault();
+      setChordPart(sec, i, 'quality', KEY_QUALITY[key]);
+    } else if (key === '.') {
+      e.preventDefault();
+      setSlotToken(sec, i, '.');
+      moveSelection(sec, i, 1);
+    } else if (key === 'Backspace' || key === 'Delete') {
+      e.preventDefault();
+      setSlotToken(sec, i, '');
+    }
+    // Toolbar buttons re-render the WHOLE toolbar/grid (buildChordToolbar
+    // is called again elsewhere, re-reading sec._pendingAcc/_bassMode) —
+    // this path edits the same shared state those buttons read without
+    // forcing a full rebuild, so the ♭/♯/bass "pending" button glow (a
+    // separate, non-reactive CSS class toggled only in the button's own
+    // click handler) can't be kept in sync without one; harmless since a
+    // keyboard-only session never taps those buttons to see it drift.
+  });
+
   // ---- Desktop "focus" editor (Guitar Pro-inspired: one section at a
   // time, persistent left toolbar, infinite single-line staff) vs.
   // mobile's existing iReal Pro-style stacked blocks list. Gated on the
@@ -1976,6 +2028,7 @@ const ICONS = {
   function focusSlot(sec, mi, ti) {
     const i = secIndexOf(sec);
     sec._sel = { mi, ti };
+    lastSelSec = sec; lastSelIndex = i;
     requestAnimationFrame(() => {
       const host = document.getElementById('matrix-host-' + i);
       const el = host && host.querySelector(`.matrix-slot[data-mi="${mi}"][data-ti="${ti}"]`);
@@ -2076,8 +2129,15 @@ const ICONS = {
     const next = Math.max(0, Math.min(slots.length - 1, cur + delta));
     focusSlot(sec, slots[next].mi, slots[next].ti);
   }
+  // Tracks whichever (section, index) selectSlot was last called for — the
+  // keyboard-chord-entry handler below (desktop focus editor only) has no
+  // other way to know which section's toolbar is "live" right now, since
+  // selection state otherwise lives entirely on the section object itself
+  // (sec._sel), not in one shared place.
+  let lastSelSec = null, lastSelIndex = -1;
   function selectSlot(sec, i, mi, ti) {
     sec._sel = { mi, ti };
+    lastSelSec = sec; lastSelIndex = i;
     highlightSelection(sec, i);
     refreshToolbarHighlight(sec, i);
     dockToolbar(i);
