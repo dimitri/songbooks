@@ -1077,12 +1077,19 @@ const ICONS = {
     const fab = document.getElementById('mobile-controls-fab');
     const backdrop = document.getElementById('timeline-backdrop');
     const sheetEl = document.getElementById('structure-strip');
-    if (!fab || !backdrop || !sheetEl) return;
+    const settingsBtn = document.getElementById('mini-metro-settings');
+    if (!backdrop || !sheetEl) return;
     function setOpen(open) {
       sheetEl.classList.toggle('open', open);
       backdrop.classList.toggle('open', open);
     }
-    fab.addEventListener('click', () => setOpen(!sheetEl.classList.contains('open')));
+    fab?.addEventListener('click', () => setOpen(!sheetEl.classList.contains('open')));
+    // Desktop trigger: the full transport/tempo/key/click-sound sheet now
+    // opens on demand from the compact mini-metro row instead of sitting
+    // permanently in-flow beside the chart (it was reported as an
+    // out-of-place floating panel crowding the chart). Same sheet/backdrop,
+    // same open/close mechanics as the mobile FAB above.
+    settingsBtn?.addEventListener('click', () => setOpen(!sheetEl.classList.contains('open')));
     backdrop.addEventListener('click', () => setOpen(false));
   })();
 

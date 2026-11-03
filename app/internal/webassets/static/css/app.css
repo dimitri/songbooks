@@ -1549,10 +1549,25 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .content-main { flex: 1; min-width: 0; }
 .mobile-controls-fab, .timeline-backdrop { display: none; }
 
+/* The full transport/tempo/time-sig/key-transpose/click-sound panel used
+   to sit permanently in-flow here, sticky beside the chart — reported as
+   an out-of-place floating box crowding the chart on desktop. It's now a
+   closed-by-default slide-over at every width (not just mobile, which
+   already hides it entirely below and relies on its own dedicated
+   /metronome page instead): opened on demand from the mini-metro row's
+   settings button (song.js's initMobileControls), closed by its backdrop
+   or the same button again. */
 .timeline {
-  flex: 0 0 190px; position: sticky; top: 0.8rem; align-self: flex-start;
-  display: flex; flex-direction: column; padding: 0.4rem 0.2rem 0.4rem 0.2rem;
-  max-height: calc(100vh - 1.6rem); overflow-y: auto;
+  flex: none; position: fixed; top: 0; right: 0; bottom: 0; z-index: 55;
+  width: 320px; max-width: 90vw;
+  display: flex; flex-direction: column; padding: 0.8rem 0.6rem;
+  max-height: 100vh; overflow-y: auto;
+  background: var(--bg); box-shadow: var(--shadow-lg, var(--shadow));
+  transform: translateX(100%); transition: transform 0.2s ease;
+}
+.timeline.open { transform: translateX(0); }
+.timeline.open ~ .timeline-backdrop, .timeline-backdrop.open {
+  display: block; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); z-index: 54;
 }
 
 @media (max-width: 900px) {

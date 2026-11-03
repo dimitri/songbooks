@@ -314,6 +314,14 @@
       <button type="button" id="mini-metro-play" title="click track: play/stop">{{template "icon-play"}}</button>
       <button type="button" id="mini-metro-fade" title="play one bar, then fade out">{{template "icon-metro-intro"}}</button>
       <button type="button" id="mini-metro-tap" title="tap tempo">{{template "icon-tap"}}</button>
+      {{/* Opens the full transport sheet (tempo/time-sig/key transpose/
+           metro mode/click sound/count-in) as an on-demand slide-over
+           instead of it sitting permanently in-flow next to the chart —
+           the always-visible floating panel was reported as out of place
+           and crowding the chart. Reuses the exact sheet/backdrop pair and
+           open/close JS mobile already uses for the same panel (see
+           initMobileControls in song.js), just a second trigger. */}}
+      <button type="button" id="mini-metro-settings" title="metronome &amp; transport settings">{{template "icon-metro-full"}}</button>
     </div>
   </div>
 
