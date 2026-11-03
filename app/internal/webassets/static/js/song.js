@@ -1468,6 +1468,60 @@ const ICONS = {
   const structureEl = document.getElementById('structure');
   let structVersion = null, structMeta = [], structSections = [];
 
+  // ---- Undo/redo — a bounded-depth snapshot stack over structMeta/
+  // structSections, the same in-memory state Save/Discard already work
+  // against. Not a general command pattern (that's real work for a
+  // feature this scoped) — pushUndo() is called explicitly at the START
+  // of each mutation this editor actually has (chord taps, bar insert/
+  // remove, section insert/delete — see call sites), capturing the state
+  // to RESTORE TO if that action is undone. Doesn't survive a reload or
+  // a Save, same as the rest of this in-memory editing session.
+  const UNDO_DEPTH = 50;
+  let undoStack = [], redoStack = [];
+  function snapshotState() {
+    return JSON.parse(JSON.stringify({ meta: structMeta, sections: structSections }));
+  }
+  function pushUndo() {
+    undoStack.push(snapshotState());
+    if (undoStack.length > UNDO_DEPTH) undoStack.shift();
+    redoStack.length = 0;
+    updateUndoRedoButtons();
+  }
+  function restoreSnapshot(snap) {
+    structMeta = snap.meta;
+    structSections = snap.sections;
+    markDirty();
+    renderHeaderFields();
+    renderStructureUI();
+    updateUndoRedoButtons();
+  }
+  function undoEdit() {
+    if (!undoStack.length) return;
+    redoStack.push(snapshotState());
+    restoreSnapshot(undoStack.pop());
+  }
+  function redoEdit() {
+    if (!redoStack.length) return;
+    undoStack.push(snapshotState());
+    restoreSnapshot(redoStack.pop());
+  }
+  function updateUndoRedoButtons() {
+    const u = document.getElementById('edit-undo-btn'), r = document.getElementById('edit-redo-btn');
+    if (u) u.disabled = !undoStack.length;
+    if (r) r.disabled = !redoStack.length;
+  }
+  document.getElementById('edit-undo-btn')?.addEventListener('click', undoEdit);
+  document.getElementById('edit-redo-btn')?.addEventListener('click', redoEdit);
+  document.addEventListener('keydown', e => {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    if (document.getElementById('structure')?.hidden) return; // Chart tab only
+    const drawer = document.getElementById('edit-drawer');
+    if (!drawer || drawer.hidden) return;
+    const k = e.key.toLowerCase();
+    if (k === 'z' && !e.shiftKey) { e.preventDefault(); undoEdit(); }
+    else if (k === 'z' && e.shiftKey || k === 'y') { e.preventDefault(); redoEdit(); }
+  });
+
   // ---- Desktop "focus" editor (Guitar Pro-inspired: one section at a
   // time, persistent left toolbar, infinite single-line staff) vs.
   // mobile's existing iReal Pro-style stacked blocks list. Gated on the
@@ -1777,6 +1831,22 @@ const ICONS = {
     // so edits updated the data model but the chart never visibly redrew.
     return host && host.querySelector(`input.matrix-slot[data-mi="${mi}"][data-ti="${ti}"]`);
   }
+  // Same lookup, but matches EITHER kind of tagged slot — the mobile
+  // <input> above, or the real-chart's plain .beat-slot/.bar DIV
+  // (wireRealChartEditing tags both ".matrix-slot", only the mobile one
+  // is actually an <input>). getSlotInput() is deliberately narrow so
+  // setChordPart/setSlotToken can branch on "found → mobile, not found →
+  // real chart" — but that same narrowness meant highlightSelection()
+  // (a read-only visual op, no branching need) always got `null` for a
+  // real-chart selection and silently skipped drawing the dashed-ring/
+  // caret overlay entirely: the selection worked (sec._sel updated, the
+  // sidebar status line changed), it just never became visible on the
+  // chart itself — confirmed live as the reported "I click around and
+  // can't tell anything got selected" bug.
+  function getSlotElement(i, mi, ti) {
+    const host = document.getElementById('matrix-host-' + i);
+    return host && host.querySelector(`.matrix-slot[data-mi="${mi}"][data-ti="${ti}"]`);
+  }
   // All {mi, ti} slot coordinates in this section, in reading order — used
   // for arrow-key/Tab navigation that has to cross bar boundaries.
   function allSlots(sec) {
@@ -1833,7 +1903,7 @@ const ICONS = {
     host.querySelectorAll('.matrix-slot.editing').forEach(el => el.classList.remove('editing'));
     host.querySelectorAll('.bar.editing').forEach(el => el.classList.remove('editing'));
     if (!sel) return;
-    const input = getSlotInput(i, sel.mi, sel.ti);
+    const input = getSlotElement(i, sel.mi, sel.ti);
     if (!input) return;
     const row = input.closest('.matrix-slot-row');
     if (row) {
@@ -1895,7 +1965,7 @@ const ICONS = {
   function setChordPart(sec, i, part, value) {
     const sel = sec._sel;
     if (!sel || !sec.measures[sel.mi]) return;
-    markDirty();
+    pushUndo(); markDirty();
     const cur = sec.measures[sel.mi].tokens[sel.ti] || '';
     const parts = parseChordDisplay(cur);
     parts[part] = value;
@@ -1919,7 +1989,7 @@ const ICONS = {
   function setSlotToken(sec, i, token) {
     const sel = sec._sel;
     if (!sel || !sec.measures[sel.mi]) return;
-    markDirty();
+    pushUndo(); markDirty();
     const input = getSlotInput(i, sel.mi, sel.ti);
     if (input) { input.value = token; input.dispatchEvent(new Event('input')); }
     else { sec.measures[sel.mi].tokens[sel.ti] = token; refreshRealChart(sec, i); }
@@ -2304,7 +2374,7 @@ const ICONS = {
     insertBefore.type = 'button'; insertBefore.textContent = '+ bar before';
     insertBefore.title = 'insert a new bar before the selected one';
     insertBefore.addEventListener('click', () => {
-      markDirty();
+      pushUndo(); markDirty();
       const at = sec._sel ? sec._sel.mi : sec.measures.length;
       sec.measures.splice(at, 0, emptyMeasure());
       renderMatrix(sec, i);
@@ -2314,13 +2384,28 @@ const ICONS = {
     insertAfter.type = 'button'; insertAfter.textContent = '+ bar after';
     insertAfter.title = 'insert a new bar after the selected one';
     insertAfter.addEventListener('click', () => {
-      markDirty();
+      pushUndo(); markDirty();
       const at = sec._sel ? sec._sel.mi + 1 : sec.measures.length;
       sec.measures.splice(at, 0, emptyMeasure());
       renderMatrix(sec, i);
       focusSlot(sec, at, 0);
     });
-    toolbar.append(insertBefore, insertAfter);
+    // Remove the selected bar — insert-before/-after existed, nothing to
+    // take a bar back out again (the only way to shorten a section was
+    // deleting the whole thing and starting over).
+    const removeBar = document.createElement('button');
+    removeBar.type = 'button'; removeBar.textContent = '− bar';
+    removeBar.title = 'remove the selected bar';
+    removeBar.addEventListener('click', () => {
+      if (!sec._sel || !sec.measures.length) return;
+      pushUndo(); markDirty();
+      const at = sec._sel.mi;
+      sec.measures.splice(at, 1);
+      sec._sel = null;
+      renderMatrix(sec, i);
+      if (sec.measures.length) focusSlot(sec, Math.min(at, sec.measures.length - 1), 0);
+    });
+    toolbar.append(insertBefore, insertAfter, removeBar);
 
     // Repeat toggle — LilyPond's own \repeat volta N: the common bars play
     // through, then repeat. Previously there was no way to set this at
@@ -2646,15 +2731,20 @@ const ICONS = {
   const SECTION_QUICK_LABELS = ['Verse', 'Chorus', 'Pre-Chorus', 'Bridge', 'Intro', 'Outro', 'Solo'];
 
   function insertSectionAt(i, label, openChords) {
-    markDirty();
+    pushUndo(); markDirty();
     const sec = emptySection(label, false);
-    // Desktop focus editor default: 8 bars on its one continuous staff
-    // line, per the Guitar Pro-inspired spec. Mobile's own default (4,
-    // sized for the stacked blocks list) is unchanged.
-    if (openChords) {
-      const n = isDesktopWidth() ? 8 : 4;
-      sec.measures = Array.from({ length: n }, () => emptyMeasure());
-    }
+    // A brand-new section used to start with ZERO bars — reasonable for a
+    // "bare chord sequence" fast-path (openChords), but every other new
+    // section (picking a label like "Verse") landed on a totally blank
+    // staff too, forcing the user to add bars one at a time from nothing
+    // before they could type a single chord. Starts with 4 bars now in
+    // every case — the same floor the "bare chord sequence" path already
+    // used on mobile. Desktop's "bare chord sequence" path keeps its own
+    // larger 8-bar default (its one continuous staff line, per the
+    // Guitar Pro-inspired spec) since that path is specifically for
+    // "I'm about to type out a real progression," not a label pick.
+    const n = openChords && isDesktopWidth() ? 8 : 4;
+    sec.measures = Array.from({ length: n }, () => emptyMeasure());
     structSections.splice(i, 0, sec);
     expanded.add(i);
     focusIndex = i;
@@ -2777,7 +2867,7 @@ const ICONS = {
       dup.addEventListener('click', () => { structSections.splice(i + 1, 0, emptySection(sec.label, true)); renderStructureUI(); });
       const del = document.createElement('button'); del.type = 'button'; del.className = 'icon-btn'; del.title = 'delete this section';
       del.innerHTML = ICONS.close;
-      del.addEventListener('click', () => { structSections.splice(i, 1); renderStructureUI(); });
+      del.addEventListener('click', () => { pushUndo(); markDirty(); structSections.splice(i, 1); renderStructureUI(); });
       actions.append(dup, del);
       head.append(label, repeatToggle, barsBadge, actions);
       row.appendChild(head);

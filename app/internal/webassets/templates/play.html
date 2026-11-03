@@ -411,6 +411,8 @@
         <span id="edit-dirty-indicator" class="edit-dirty-indicator" hidden>&#9679; unsaved changes</span>
       </div>
       <div class="edit-title-actions">
+        <button id="edit-undo-btn" class="icon-btn" type="button" title="undo (Cmd/Ctrl+Z)" disabled>{{template "icon-undo"}}<span class="sr-only">undo</span></button>
+        <button id="edit-redo-btn" class="icon-btn" type="button" title="redo (Shift+Cmd/Ctrl+Z)" disabled>{{template "icon-redo"}}<span class="sr-only">redo</span></button>
         <button id="edit-discard-btn" type="button" class="ghost-btn" title="discard unsaved changes" disabled>Discard</button>
         <button id="edit-save-btn" type="button" class="primary" title="save changes">Save</button>
         <button id="edit-drawer-close" class="icon-btn" type="button" title="close">{{template "icon-close"}}</button>

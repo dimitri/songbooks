@@ -2305,7 +2305,15 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   background: none; border-radius: 0;
 }
 .tbx-sec-row:hover { background: color-mix(in srgb, var(--sidebar-fg) 10%, transparent); }
-.tbx-sec-row.active { background: var(--sidebar-active-bg); color: var(--sidebar-active-fg); font-weight: 600; }
+/* Stronger than the plain nav-row active state (--sidebar-active-bg is a
+   subtle dark-on-dark shift, barely readable as "this one, not those" when
+   every row in the list is a similar short word like "Verse"/"Verse"/
+   "Verse" — confirmed hard to spot live). A solid accent left bar + the
+   accent color itself on the text, not just a background tint. */
+.tbx-sec-row.active {
+  background: var(--sidebar-active-bg); color: var(--accent); font-weight: 700;
+  border-left: 3px solid var(--accent); padding-left: calc(1rem - 3px);
+}
 .tbx-sec-row span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tbx-sec-count { flex: none; opacity: 0.65; font-size: 0.78rem; }
 .tbx-sec-add {
@@ -2319,7 +2327,17 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 }
 .sidebar-toolbox .chord-toolbar-meta,
 .sidebar-toolbox .toolbar-slot-label { color: color-mix(in srgb, var(--sidebar-fg) 70%, transparent); }
-.sidebar-toolbox .toolbar-meta-chip { color: var(--sidebar-fg); }
+/* The light-theme pill (--bg-sunken background, light border) was never
+   overridden for the dark sidebar — pale text (--sidebar-fg) on a pale
+   background, unreadable (confirmed live). It also reads as a second
+   editable field next to the real song-level time/tempo inputs (#song-
+   header-fields, the one true input location), which it isn't: this is
+   a read-only context readout. Dropped the pill/border entirely in
+   favor of plain muted text, so it neither hides itself nor gets
+   mistaken for an input. */
+.sidebar-toolbox .toolbar-meta-chip {
+  color: var(--sidebar-fg); background: none; border: none; padding: 0; font-weight: 600;
+}
 .sidebar-toolbox .toolbar-btn {
   background: color-mix(in srgb, var(--sidebar-fg) 8%, transparent);
   border: 1px solid var(--sidebar-border); color: var(--sidebar-fg);
@@ -2621,8 +2639,17 @@ textarea {
    the read-only Play view; this is purely an overlay on top: a dashed
    selection ring + a blinking text-caret, no fill/background/layout
    change to the bar or beat-slot it's drawn on. */
-.real-chart-host .matrix-slot.editing { outline: 2px dashed var(--accent); outline-offset: 3px; border-radius: 2px; }
-.real-chart-host .bar.editing { position: relative; }
+/* Stronger than a dashed outline alone (that was the whole visible cue
+   before, easy to miss at a glance — confirmed live, "I click around and
+   can't tell anything got selected") — a filled accent tint on the slot
+   itself, same idea as the mobile box-grid's .slot-selected background,
+   so the selected bar/beat reads as unmistakable even before you notice
+   the ring. */
+.real-chart-host .matrix-slot.editing {
+  outline: 2px dashed var(--accent); outline-offset: 3px; border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.real-chart-host .bar.editing { position: relative; background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .real-chart-host .bar.editing::after {
   content: ''; position: absolute; left: 0.1em; top: 0.15em; width: 1px; height: 1.1em;
   background: var(--accent); animation: real-chart-caret-blink 1s step-end infinite;
