@@ -215,6 +215,71 @@ func Render(sym string) string {
 	return b.String()
 }
 
+// DecomposeQualityJazz is DecomposeQuality's iReal Pro counterpart —
+// verified against real iReal Pro PDF exports (not memory, not a
+// third-party fakebook site): minor is always written "-", and critically
+// a half-diminished chord is NOT substituted with the ø glyph the way
+// Render does for every other mode — iReal Pro spells it out literally,
+// e.g. "B-7♭5", which is exactly what you get by treating "m7b5" as plain
+// minor ("-") with extension "7b5" and skipping the half-dim check
+// entirely. Dim/aug keep the same °/+ treatment as the shared decomposer
+// (not contradicted by any of the four real exports checked).
+func DecomposeQualityJazz(q string) QualityParts {
+	if strings.HasPrefix(q, "maj") {
+		return QualityParts{Marker: MarkerMajor7, Ext: q[len("maj"):]}
+	}
+	if m := minorRE.FindString(q); m != "" {
+		return QualityParts{Marker: MarkerMinor, MarkerRaw: "-", Ext: q[len(m):]}
+	}
+	var rest string
+	if matchRest(dimRE, q, &rest) || matchRest(dimOLetterRE, q, &rest) || matchRest(dimLiteralRE, q, &rest) {
+		return QualityParts{Marker: MarkerDim, Ext: rest}
+	}
+	if matchRest(augRE, q, &rest) {
+		return QualityParts{Marker: MarkerAug, Ext: rest}
+	}
+	return QualityParts{Ext: q}
+}
+
+// RenderJazz is Render's iReal Pro counterpart, used only by jazz chart
+// mode (see the "chordJazz" template func, internal/webassets/embed.go).
+// Same root/bass handling (bass note still a <span class="csym-bass">
+// child — jazz mode repositions it below-right via CSS, see app.css —
+// stacked rather than inline, matching the real exports), but quality
+// goes through DecomposeQualityJazz instead of DecomposeQuality.
+func RenderJazz(sym string) string {
+	p := Split(sym)
+	if p.Root == "" {
+		if p.Quality == "" {
+			return ""
+		}
+		return `<span class="csym csym-plain">` + esc(p.Quality) + `</span>`
+	}
+
+	var b strings.Builder
+	b.WriteString(`<span class="csym">`)
+	b.WriteString(`<span class="csym-root" data-pc="` + strconv.Itoa(PitchClass(p.Root)) + `">` + esc(p.Root) + `</span>`)
+
+	dq := DecomposeQualityJazz(p.Quality)
+	switch dq.Marker {
+	case MarkerMajor7:
+		b.WriteString(`<span class="csym-triangle">` + triangle + `</span>`)
+	case MarkerDim:
+		b.WriteString(`<span class="csym-dim">` + dimSym + `</span>`)
+	case MarkerAug:
+		b.WriteString(`<span class="csym-dim">+</span>`)
+	case MarkerMinor:
+		b.WriteString(`<span class="csym-minor">` + esc(dq.MarkerRaw) + `</span>`)
+	}
+	writeExt(&b, dq.Ext)
+
+	if p.Bass != "" {
+		b.WriteString(`<span class="csym-bass">/<span data-pc="` + strconv.Itoa(PitchClass(p.Bass)) + `">` + esc(p.Bass) + `</span></span>`)
+	}
+	b.WriteString(`</span>`)
+	return b.String()
+}
+
 // matchRest tries re against q; on a match it replaces *rest with whatever
 // the match's capture group(s) left over (so e.g. "m9b5" -> quality kind
 // half-dim, with "9" surviving as the extension still to render) and

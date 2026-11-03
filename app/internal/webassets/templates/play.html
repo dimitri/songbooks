@@ -52,7 +52,7 @@
     {{else if .IsRest}}
       <span class="rest-mark" title="full bar rest" aria-hidden="true"></span>
     {{else}}
-      {{range .Beats}}<span class="beat-slot{{if .IsTie}} tie{{end}}" style="--span: {{.Span}}">{{if not .IsTie}}<span class="chord-label">{{chord .Text}}</span>{{end}}<span class="slash">&#8260;</span></span>{{end}}
+      {{range .Beats}}<span class="beat-slot{{if .IsTie}} tie{{end}}" style="--span: {{.Span}}">{{if not .IsTie}}<span class="chord-label"><span class="chord-std">{{chord .Text}}</span><span class="chord-jazz">{{chordJazz .Text}}</span></span>{{end}}<span class="slash">&#8260;</span></span>{{end}}
     {{end}}
   </span>
   {{if .Close}}<span class="repeat-dots" title="repeat ends"></span>{{end}}

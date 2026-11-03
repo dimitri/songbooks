@@ -29,6 +29,12 @@ var funcMap = template.FuncMap{
 	// quality, triangle for maj7, real flat/sharp glyphs) — see
 	// internal/chordsym. Empty/"%"/"N.C." tokens render as plain text.
 	"chord": func(sym string) template.HTML { return template.HTML(chordsym.Render(sym)) },
+	// chordJazz is chord's iReal Pro counterpart (jazz chart mode only —
+	// see chart-bar, play.html, which renders both and lets CSS pick per
+	// data-render-mode rather than threading a mode flag through every
+	// shared template): minor as "-", half-diminished spelled out
+	// literally ("-7♭5") instead of the ø glyph — see RenderJazz.
+	"chordJazz": func(sym string) template.HTML { return template.HTML(chordsym.RenderJazz(sym)) },
 	"add1":  func(n int) int { return n + 1 },
 	// seq returns [0, n) for templates to range over a plain bar count —
 	// e.g. the repeat-bar mockup's N empty bar cells, where N varies per
