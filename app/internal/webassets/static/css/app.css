@@ -1003,6 +1003,16 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 #sheet:not([data-render-mode="jazz"]) .staff-line:has(.staff-timesig-cell) .bar {
   flex: 0 0 var(--bar-w, 7.2em);
 }
+/* A repeat-only bar (just a simile mark, no chord label) has nothing to
+   typeset at chord-label width — giving it the same 7.2em as a real chord
+   bar is what makes a row mixing the two read as sparse/gappy ("badly
+   broken") even though the row-grouping itself is correct. Narrower here;
+   reflowStaffLines()'s capacity math still budgets every bar at the wider
+   7.2em floor (unchanged), so a row can end up with a little unused width
+   rather than ever overflow — the safe direction for a CSS-only fix. */
+#sheet:not([data-render-mode="jazz"]) .bar.bar-pct {
+  flex: 0 0 3.2em;
+}
 .bar + .bar { border-left: 1px solid var(--border); }
 /* Repeat barline — LilyPond/Guitar Pro convention: a THIN line next to the
    music and a THICK line outside it (away from the repeated material),
