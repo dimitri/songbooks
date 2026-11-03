@@ -368,7 +368,22 @@ const ICONS = {
     // actually being played. Found directly from each section's own
     // [startBar, startBar+barCount) range instead, which every section
     // has now regardless of whether it rendered any bars.
-    const curSec = sections.find(s => s.startBar != null && bar >= s.startBar && bar < s.startBar + s.barCount);
+    // A zero-bar section (no grid at all — not a compact/recall section,
+    // genuinely empty, e.g. an Intro nobody's filled in yet) has a
+    // degenerate [startBar, startBar) range that bar < startBar+barCount
+    // can never satisfy, even at bar === startBar — so it could never
+    // become "current," and since whatever section follows it starts at
+    // that SAME bar offset (it consumed zero bars), that next section's
+    // real range matched instead: the indicator jumped straight past an
+    // empty first section to whatever came after it, even while still
+    // scrolled to the top of the page. Zero-bar sections get their own
+    // single-instant match at exactly their own startBar instead; sections
+    // are checked in song order, so on a tie (two sections sharing a
+    // startBar) the earlier, zero-bar one wins until bar actually advances
+    // past it.
+    const curSec = sections.find(s => s.startBar != null && (
+      s.barCount > 0 ? (bar >= s.startBar && bar < s.startBar + s.barCount) : bar === s.startBar
+    ));
     const sectionEl = curSec ? curSec.el : null;
     if (sectionEl !== currentSectionEl) {
       currentSectionEl?.classList.remove('current-section');
