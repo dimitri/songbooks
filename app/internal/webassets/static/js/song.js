@@ -1867,6 +1867,33 @@ const ICONS = {
     if (!host) return;
     host.innerHTML = '';
 
+    // Title/artist: the only two header fields with no other editing
+    // surface on this page at all (the Source tab's raw title:/artist:
+    // lines are the sole alternative) — a new, blank song (title
+    // "untitled") had no way to name itself from the structured Chart
+    // view, reported directly. Title changes also retitle the page/tab
+    // (see the save success handler's reload), so it's the field most in
+    // need of being right here, not buried in Source.
+    const titleField = document.createElement('label');
+    titleField.className = 'header-field';
+    titleField.append('title ');
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text'; titleInput.className = 'header-field-input';
+    titleInput.placeholder = 'Song title';
+    titleInput.value = metaGet('title');
+    titleInput.addEventListener('input', () => { markDirty(); metaSet('title', titleInput.value.trim()); });
+    titleField.appendChild(titleInput);
+
+    const artistField = document.createElement('label');
+    artistField.className = 'header-field';
+    artistField.append('artist ');
+    const artistInput = document.createElement('input');
+    artistInput.type = 'text'; artistInput.className = 'header-field-input';
+    artistInput.placeholder = 'Artist';
+    artistInput.value = metaGet('artist');
+    artistInput.addEventListener('input', () => { markDirty(); metaSet('artist', artistInput.value.trim()); });
+    artistField.appendChild(artistInput);
+
     const timeField = document.createElement('label');
     timeField.className = 'header-field';
     timeField.append('time signature ');
@@ -1911,7 +1938,7 @@ const ICONS = {
     });
     genreField.appendChild(genreInput);
 
-    host.append(timeField, tempoField, genreField);
+    host.append(titleField, artistField, timeField, tempoField, genreField);
   }
 
   // The song's own beatsPerBar as edited here, read fresh from structMeta
@@ -3479,7 +3506,13 @@ const ICONS = {
   (async function loadStructure() {
     const res = await fetch(`/api/songs/${pageVariantId}`);
     const data = await res.json();
-    structVersion = data.version; structMeta = data.song.meta;
+    // A brand-new song (created blank, never saved through the structure
+    // editor yet) returns meta: null, not []  — metaGet/metaSet's .find()
+    // crashed on it, which silently killed renderHeaderFields() entirely
+    // (no title/time/tempo/genre fields rendered at all, not just title)
+    // for exactly this "editing a song that's never been touched" case —
+    // reported directly as "can't edit the title," caught here instead.
+    structVersion = data.version; structMeta = data.song.meta || [];
     // Split each section's flat measures into {common, endings} once, up
     // front — see splitVoltaGroups. Every editing function from here on
     // (renderMatrix, the Alternatives panel) only ever deals with that
