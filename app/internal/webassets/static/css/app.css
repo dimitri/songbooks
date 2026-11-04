@@ -2810,6 +2810,12 @@ textarea {
    itself, same idea as the mobile box-grid's .slot-selected background,
    so the selected bar/beat reads as unmistakable even before you notice
    the ring. */
+/* An "advanced syntax" section's chart: real markup, but no click-to-
+   select overlay is ever wired onto it (readOnly in renderRealChart) —
+   dimmed + a plain cursor so it reads as "look, don't touch" rather than
+   a chart that's simply unresponsive to clicks. */
+.real-chart-host-readonly { opacity: 0.82; cursor: default; pointer-events: none; }
+
 .real-chart-host .matrix-slot.editing {
   outline: 2px dashed var(--accent); outline-offset: 3px; border-radius: 2px;
   background: color-mix(in srgb, var(--accent) 16%, transparent);

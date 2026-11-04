@@ -2817,9 +2817,27 @@ const ICONS = {
   // edit landing AFTER a newer one and clobbering it (every keystroke that
   // calls renderMatrix kicks off a new fetch; only the latest should win).
   let realChartReqId = 0;
-  async function renderRealChart(sec, i, chartHost) {
+  // readOnly: render the real chart with no click-to-select overlay — used
+  // for an "advanced syntax" section (sectionHasAdvancedSyntax), which has
+  // no editable matrix at all, so a reader can at least SEE the staff
+  // instead of just a text notice ("show the staff read-only" — the
+  // notice alone wasn't good enough). The caller still can't edit it here;
+  // the Source tab remains the only way to change it.
+  async function renderRealChart(sec, i, chartHost, readOnly) {
     const myReq = ++realChartReqId;
-    const sectionsForPreview = structSections.map(s => ({ ...s, measures: joinVoltaGroups(s), endings: undefined }));
+    // joinVoltaGroups forces the Close flag onto a section's OWN last
+    // bar — correct for the simple "repeats (|: :|)" toggle's own shape,
+    // but WRONG for an advanced section (e.g. a repeat bracket covering
+    // only a bars PREFIX — see sectionHasAdvancedSyntax's own doc
+    // comment): it would move the close marker onto a bar that was never
+    // the bracket's real end, rendering a silently corrupted preview —
+    // exactly the bug sectionHasAdvancedSyntax exists to avoid. Advanced
+    // sections pass their own measures through untouched instead, since
+    // those were loaded correctly from the server and this code path
+    // never edits them.
+    const sectionsForPreview = structSections.map(s => ({
+      ...s, measures: sectionHasAdvancedSyntax(s) ? s.measures : joinVoltaGroups(s), endings: undefined,
+    }));
     let html;
     try {
       const res = await fetch('/api/preview', {
@@ -2835,16 +2853,19 @@ const ICONS = {
     tmp.innerHTML = html;
     const match = tmp.querySelector(`.sheet-section[data-section-index="${i}"]`);
     chartHost.innerHTML = '';
+    chartHost.classList.toggle('real-chart-host-readonly', !!readOnly);
     if (match) {
       chartHost.appendChild(match);
-      wireRealChartEditing(sec, i, match);
+      if (!readOnly) wireRealChartEditing(sec, i, match);
     } else {
       const hint = document.createElement('p'); hint.className = 'hint';
       hint.textContent = sec.repeat ? '(repeat marker — nothing to show)' : 'No bars yet — "+ bar" to start.';
       chartHost.appendChild(hint);
     }
-    highlightSelection(sec, i);
-    refreshToolbarHighlight(sec, i);
+    if (!readOnly) {
+      highlightSelection(sec, i);
+      refreshToolbarHighlight(sec, i);
+    }
   }
 
   // Layers click-to-select onto the real chart markup without touching its
@@ -3177,8 +3198,17 @@ const ICONS = {
         if (sectionHasAdvancedSyntax(sec)) {
           const notice = document.createElement('p');
           notice.className = 'hint advanced-syntax-notice';
-          notice.textContent = `Advanced grid syntax (${bars_} bars) — a per-bar meter override, duration tag, or more than one repeat barline than this builder can show. Edit it precisely in the Source tab; nothing here will be changed or lost.`;
+          notice.textContent = `Advanced grid syntax (${bars_} bars) — a per-bar meter override, duration tag, or a repeat bracket this builder can't show as an editable grid. Shown below read-only; edit it precisely in the Source tab.`;
           body.appendChild(notice);
+          // Read-only, not just a text notice — same real chart markup
+          // Play itself renders (renderRealChart), minus the click-to-
+          // select overlay (readOnly=true). Lets a reader actually SEE
+          // what they're about to go edit in Source instead of guessing
+          // from the raw grid text alone.
+          const chartHost = document.createElement('div');
+          chartHost.className = 'real-chart-host';
+          body.appendChild(chartHost);
+          requestAnimationFrame(() => renderRealChart(sec, i, chartHost, true));
         } else {
           const chordToggle = document.createElement('button');
           chordToggle.type = 'button'; chordToggle.className = 'block-chord-toggle';
@@ -3329,8 +3359,12 @@ const ICONS = {
       if (sectionHasAdvancedSyntax(sec)) {
         const notice = document.createElement('p');
         notice.className = 'hint advanced-syntax-notice';
-        notice.textContent = 'Advanced grid syntax (a per-bar meter override, duration tag, or more than one repeat barline than this builder can show) — edit it precisely in the Source tab; nothing here will be changed or lost.';
+        notice.textContent = 'Advanced grid syntax (a per-bar meter override, duration tag, or a repeat bracket this builder can\'t show as an editable grid) — shown below read-only; edit it precisely in the Source tab.';
         main.appendChild(notice);
+        const chartHost = document.createElement('div');
+        chartHost.className = 'real-chart-host';
+        main.appendChild(chartHost);
+        requestAnimationFrame(() => renderRealChart(sec, i, chartHost, true));
       } else {
         if (!sec.measures || sec.measures.length === 0) {
           sec.measures = Array.from({ length: 8 }, () => emptyMeasure());
