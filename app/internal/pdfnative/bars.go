@@ -164,6 +164,39 @@ func (c *canvas) filledDot(cx, cy, r float64) {
 	c.doc.Polygon(pts, "F")
 }
 
+// filledCircle draws a solid circle of radius r centered on (cx, cy) —
+// the sectionTag badge's "stage"-style round variant. Same fill-via-
+// polygon approach as filledDot (see its own doc comment for why gopdf's
+// own Oval can't be used for a filled shape), just at badge size instead
+// of a tiny repeat-mark dot.
+func (c *canvas) filledCircle(cx, cy, r float64, col rgb) {
+	if !c.draw {
+		return
+	}
+	const segments = 32
+	pts := make([]gopdf.Point, segments)
+	for i := range pts {
+		a := 2 * math.Pi * float64(i) / segments
+		pts[i] = gopdf.Point{X: cx + r*math.Cos(a), Y: cy + r*math.Sin(a)}
+	}
+	c.doc.SetFillColor(col.r, col.g, col.b)
+	c.doc.Polygon(pts, "F")
+}
+
+// circleOutline draws a stroked (unfilled) ring of radius r centered on
+// (cx, cy) — gopdf's Oval always strokes, never fills (see filledDot's
+// doc comment), which is exactly the shape this needs: the "classic"
+// style's plain rehearsal-mark ring, restrained next to iReal Pro's
+// filled chip.
+func (c *canvas) circleOutline(cx, cy, r, width float64, col rgb) {
+	if !c.draw {
+		return
+	}
+	c.doc.SetStrokeColor(col.r, col.g, col.b)
+	c.doc.SetLineWidth(width)
+	c.doc.Oval(cx-r, cy-r, cx+r, cy+r)
+}
+
 // drawBarRepeatGlyph draws a "play the previous bar again" mark: a
 // diagonal slash flanked by two dots, the real-chart convention (and
 // v2/lib/staff.typ's own simile() glyph), centered on (cx, baselineY).

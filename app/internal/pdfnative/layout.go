@@ -166,7 +166,14 @@ func (c *canvas) sectionTag(label, mark string, size float64) {
 	badgeSize := size + 6
 	c.ensureSpace(badgeSize + 6)
 	bx, by := c.curX(), c.y
-	c.filledRect(bx, by, badgeSize, badgeSize, c.th.badge)
+	switch {
+	case c.th.badgeRound && c.th.badgeOutline:
+		c.circleOutline(bx+badgeSize/2, by+badgeSize/2, badgeSize/2, 1.0, c.th.ink)
+	case c.th.badgeRound:
+		c.filledCircle(bx+badgeSize/2, by+badgeSize/2, badgeSize/2, c.th.badge)
+	default:
+		c.filledRect(bx, by, badgeSize, badgeSize, c.th.badge)
+	}
 	if c.draw && mark != "" {
 		c.setFont(faceSansBold, size*0.86)
 		mw, _ := c.doc.MeasureTextWidth(mark)

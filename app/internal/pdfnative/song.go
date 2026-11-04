@@ -34,10 +34,20 @@ func renderSongHeader(c *canvas, s *song.Song) {
 	// caused the title and meta line to collide: c.y advanced by the
 	// title's SIZE, not its full line height (ascent+descent), landing
 	// the meta baseline inside the title's own glyph box.
-	titleSize := 20.0
+	titleFont := c.th.titleFont
+	if titleFont == "" {
+		titleFont = faceSerif
+	}
+	titleSize := c.th.titleSize
+	if titleSize == 0 {
+		titleSize = 20
+	}
+	if c.th.titleUpper {
+		title = strings.ToUpper(title)
+	}
 	titleLineH := titleSize * 1.3
 	c.ensureSpace(titleLineH)
-	c.textAt(c.curX(), c.y+titleSize*0.8, title, faceSerif, titleSize, c.th.ink)
+	c.textAt(c.curX(), c.y+titleSize*0.8, title, titleFont, titleSize, c.th.ink)
 	c.y += titleLineH
 
 	var meta []string
@@ -61,7 +71,15 @@ func renderSongHeader(c *canvas, s *song.Song) {
 		c.y += metaLineH
 	}
 	c.y += 4
-	c.line(marginX, c.y, pageW-marginX, c.y, c.th.ink, 1.1)
+	ruleWeight := c.th.ruleWeight
+	if ruleWeight == 0 {
+		ruleWeight = 1.1
+	}
+	c.line(marginX, c.y, pageW-marginX, c.y, c.th.line, ruleWeight)
+	if c.th.doubleRule {
+		c.y += 3
+		c.line(marginX, c.y, pageW-marginX, c.y, c.th.line, 0.5)
+	}
 	c.y += 10
 
 	// The header (title/meta/rule) is drawn once, in column 0, but it
