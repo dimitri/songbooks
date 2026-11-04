@@ -3,12 +3,83 @@ package pdfnative
 import (
 	"math"
 	"strconv"
+	"strings"
 
 	"app/internal/pdf"
 	"app/internal/song"
 
 	"github.com/signintech/gopdf"
 )
+
+// timeSigBeats is internal/httpapi's own timeSigBeats, duplicated rather
+// than imported (httpapi depends on pdfnative, not the other way around)
+// — same numerator extraction, same compound-meter (6/8, 9/8, 12/8 — beat
+// is the dotted quarter, so beats = numerator/3) rule, so the PDF's
+// rhythm-slash count always agrees with the web chart's and the
+// metronome's for the same time signature.
+func timeSigBeats(t string) int {
+	i := strings.IndexByte(t, '/')
+	if i <= 0 {
+		return 4
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(t[:i]))
+	if err != nil || n <= 0 {
+		return 4
+	}
+	den := strings.TrimSpace(t[i+1:])
+	if den == "8" && n%3 == 0 && n >= 6 {
+		return n / 3
+	}
+	return n
+}
+
+// beatSlot is one rhythm-slash position in a bar: either a chord's
+// downbeat (Label set) or a tied/sustained beat (empty Label) — mirrors
+// internal/httpapi's viewerBeat/expandBeats closely enough to produce the
+// identical slash count and chord placement for the same measure.
+type beatSlot struct {
+	label string
+	tied  bool
+}
+
+// expandBeatSlots maps a bar's raw tokens onto beatsPerBar rhythm-slash
+// slots, same rule as internal/httpapi's expandBeats: a single whole-bar
+// chord (or any token count that divides beatsPerBar evenly, with no
+// explicit "." sub-beat dot anywhere) spreads across all beatsPerBar
+// slots, chord shown on the downbeat only, the rest tied — rather than
+// one slash per raw token, which under-counts a plain "Em" whole-bar
+// chord to a single slash instead of the real 4 (in 4/4). A token list
+// that's already explicit (has a ".", or already beatsPerBar tokens long)
+// maps 1:1, no spreading.
+func expandBeatSlots(tokens []string, beatsPerBar int) []beatSlot {
+	hasDot := false
+	for _, t := range tokens {
+		if t == "." {
+			hasDot = true
+			break
+		}
+	}
+	if !hasDot && beatsPerBar > 0 && len(tokens) > 0 && len(tokens) < beatsPerBar && beatsPerBar%len(tokens) == 0 {
+		span := beatsPerBar / len(tokens)
+		out := make([]beatSlot, 0, beatsPerBar)
+		for _, t := range tokens {
+			out = append(out, beatSlot{label: chordLabel(t)})
+			for i := 1; i < span; i++ {
+				out = append(out, beatSlot{tied: true})
+			}
+		}
+		return out
+	}
+	out := make([]beatSlot, 0, len(tokens))
+	for _, t := range tokens {
+		if t == "." {
+			out = append(out, beatSlot{tied: true})
+			continue
+		}
+		out = append(out, beatSlot{label: chordLabel(t)})
+	}
+	return out
+}
 
 // chordLabel strips a token's ":duration" tag down to the bare chord/rest
 // symbol — song.TokenChord, shared with the web Play view's own beat-slot
@@ -29,6 +100,14 @@ func chordLabel(tok string) string {
 // user feedback, "looking like done by a kid without talent"; iReal Pro's
 // actual chart style (reviewed live via its App Store screenshots) is
 // exactly this sparser, more typographic look.
+//
+// Reserved for ModeJazz, which deliberately stays iReal-style — see
+// measureSection's own call site. ModeDefault/ModeMap now go through
+// staffBarRow instead (below): a direct, careful port of the web Play
+// view's own "Song" chart (faint 5-line staff + a rhythm slash per beat,
+// no grid borders at all), not a repeat of the earlier rejected attempt —
+// this one matches the web's exact, already-tuned proportions rather than
+// a from-scratch guess.
 func (c *canvas) barRow(measures []song.Measure, size float64, jazz bool) {
 	if len(measures) == 0 {
 		return
@@ -158,6 +237,118 @@ func (c *canvas) barRow(measures []song.Measure, size float64, jazz bool) {
 	c.y = ruleY + 6
 }
 
+// staffBarRow draws one line of bar-chart measures as an open 5-line
+// staff — the print analogue of the web Play view's "Song" chart
+// (internal/webassets/static/css/app.css's --staff-5lines + .slash), not
+// the boxed iReal-style table barRow draws for jazz mode. No cell
+// borders anywhere: a faint 5-line staff spans the row, thin barlines
+// mark measure boundaries (real engraving convention, not a table grid),
+// and a rotated slash fills every beat-slot — muted for a tied/sustained
+// beat, full weight where a chord actually starts, with the chord symbol
+// itself sitting above the staff. Proportions (staff height, slash angle
+// and size, line weight) are carried over from the web CSS's own tuned
+// values, not re-guessed — matching an already-approved design beats a
+// fresh attempt at the same idea.
+func (c *canvas) staffBarRow(measures []song.Measure, size float64, beatsPerBar int) {
+	if len(measures) == 0 {
+		return
+	}
+	chordH := size * 1.4
+	staffH := size * 1.05
+	ruleGap := size * 0.5
+	rowH := chordH + staffH + ruleGap
+	c.ensureSpace(rowH + 6)
+
+	n := float64(len(measures))
+	boxW := c.colW / n
+	x0 := c.curX()
+	baseline := c.y + chordH
+	staffTop := baseline + size*0.18
+	staffBottom := staffTop + staffH
+
+	// The 5-line staff itself: evenly spaced, faint — background texture
+	// for the slashes/barlines to sit on, never competing with them.
+	for i := 0; i < 5; i++ {
+		ly := staffTop + staffH*float64(i)/4
+		c.line(x0, ly, x0+c.colW, ly, c.th.faint, 0.4)
+	}
+	// Thin barlines bound the row's own ends — real engraving draws a
+	// barline at the start and end of every system, not just between
+	// measures (an open/close repeat sign below overrides either end).
+	c.line(x0, staffTop, x0, staffBottom, c.th.line, 0.7)
+	c.line(x0+c.colW, staffTop, x0+c.colW, staffBottom, c.th.line, 0.7)
+
+	pendingRepeatCount := 0
+	for i, m := range measures {
+		bx := x0 + float64(i)*boxW
+
+		if i > 0 {
+			c.line(bx, staffTop, bx, staffBottom, c.th.line, 0.7)
+		}
+
+		if m.Open {
+			c.line(bx+2, staffTop, bx+2, staffBottom, c.th.ink, 1.8)
+			c.repeatDots(bx+7, staffTop, staffH)
+			if m.RepeatCount > 0 {
+				pendingRepeatCount = m.RepeatCount
+			}
+		}
+		if m.Close {
+			c.line(bx+boxW-2, staffTop, bx+boxW-2, staffBottom, c.th.ink, 1.8)
+			c.repeatDots(bx+boxW-9, staffTop, staffH)
+			if pendingRepeatCount > 0 {
+				c.textAt(bx+boxW-24, c.y-1, "x"+strconv.Itoa(pendingRepeatCount), faceSansBold, size*0.5, c.th.faint)
+				pendingRepeatCount = 0
+			}
+		}
+
+		if m.Volta != "" {
+			c.textAt(bx+2, c.y-1, m.Volta, faceSans, size*0.62, c.th.faint)
+		}
+
+		toks := m.Tokens
+		if len(toks) == 1 && (toks[0] == "%" || toks[0] == "%%") {
+			c.drawBarRepeatGlyph(bx+boxW/2, (staffTop+staffBottom)/2+size*0.2, chordH*0.7, c.th.faint)
+			if toks[0] == "%%" {
+				c.textAt(bx+boxW/2-3, staffTop-size*0.3, "2", faceSansBold, size*0.5, c.th.faint)
+			}
+			continue
+		}
+
+		startX := bx + 3
+		if m.Open {
+			startX = bx + 14
+		}
+		slots := expandBeatSlots(toks, beatsPerBar)
+		slotW := (boxW - (startX - bx) - 3) / float64(len(slots))
+		for si, sl := range slots {
+			sx := startX + float64(si)*slotW + slotW/2
+			col := c.th.ink
+			if sl.tied {
+				col = c.th.faint
+			}
+			c.drawSlash(sx, (staffTop+staffBottom)/2, staffH*0.8, col)
+			if !sl.tied {
+				c.drawChordSymbolMode(startX+float64(si)*slotW, baseline, sl.label, size*0.95, c.th.chord, false)
+			}
+		}
+	}
+	c.y = staffBottom + ruleGap
+}
+
+// drawSlash draws one rhythm-slash mark (the LilyPond/Real Book "play a
+// beat of this chord" convention), centered on (cx, cy), rotated to match
+// the web chart's own .slash (10°) — a short thick diagonal stroke, not a
+// character glyph (no face has a slash at the right weight/angle).
+func (c *canvas) drawSlash(cx, cy, h float64, col rgb) {
+	if !c.draw {
+		return
+	}
+	const deg = 10.0 * math.Pi / 180
+	dx, dy := math.Sin(deg)*h/2, math.Cos(deg)*h/2
+	c.line(cx-dx, cy+dy, cx+dx, cy-dy, col, h*0.16)
+}
+
 // filledDot draws a solid circle of radius r centered on (cx, cy) — gopdf's
 // own Oval always STROKES its path (cache_content_oval.go ends every oval
 // with the "S" operator, never "f", regardless of SetFillColor), so calling
@@ -268,8 +459,12 @@ func barsPerLineFor(sec song.Section, lineIdx int) int {
 // struct indications" spec — no separate structure element needed).
 // ModeDefault/ModeMap (ModeMap never reaches this function) draw both.
 // hideNotes mutes the Notes loop regardless of mode.
-func (c *canvas) measureSection(sec song.Section, bodySize float64, mode pdf.Mode, hideNotes bool) {
+func (c *canvas) measureSection(sec song.Section, bodySize float64, mode pdf.Mode, hideNotes bool, globalBeats int) {
 	if mode != pdf.ModeLyrics && len(sec.Measures) > 0 {
+		beatsPerBar := globalBeats
+		if sec.Time != "" {
+			beatsPerBar = timeSigBeats(sec.Time)
+		}
 		lineIdx := 0
 		start := 0
 		for start < len(sec.Measures) {
@@ -278,7 +473,11 @@ func (c *canvas) measureSection(sec song.Section, bodySize float64, mode pdf.Mod
 			if end > len(sec.Measures) {
 				end = len(sec.Measures)
 			}
-			c.barRow(sec.Measures[start:end], bodySize, mode == pdf.ModeJazz)
+			if mode == pdf.ModeJazz {
+				c.barRow(sec.Measures[start:end], bodySize, true)
+			} else {
+				c.staffBarRow(sec.Measures[start:end], bodySize, beatsPerBar)
+			}
 			start = end
 			lineIdx++
 		}

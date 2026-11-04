@@ -104,6 +104,7 @@ func renderSongHeader(c *canvas, s *song.Song) {
 // a genuinely different one.
 func renderSongBody(c *canvas, s *song.Song, bodySize float64, mode pdf.Mode, hideNotes bool) {
 	renderSongHeader(c, s)
+	globalBeats := timeSigBeats(s.Get("time"))
 	marks := map[string]string{}
 	next := 'A'
 	for _, sec := range s.Sections {
@@ -120,7 +121,7 @@ func renderSongBody(c *canvas, s *song.Song, bodySize float64, mode pdf.Mode, hi
 			continue // mirrors v2/lib/song.typ: a (repeat) occurrence prints
 			// only its label, no measures/lyrics of its own.
 		}
-		c.measureSection(sec, bodySize, mode, hideNotes)
+		c.measureSection(sec, bodySize, mode, hideNotes, globalBeats)
 	}
 }
 
