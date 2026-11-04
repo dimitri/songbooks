@@ -1586,16 +1586,18 @@ const ICONS = {
     const applyBtn = document.getElementById('import-apply-btn');
     const applyStatus = document.getElementById('import-apply-status');
 
-    // Strips chord data from an already-converted .song-format draft
-    // (this app's own "[Section]\ngrid: ...\n[Chord]word" shape — see
-    // ToSongText) while keeping the structure: a "[Label]" line entirely
-    // on its own is a section header, kept as-is; a "grid:" line is pure
-    // chord data, dropped entirely; any other line has its inline
+    // Removes chords from the LYRICS only, in an already-converted
+    // .song-format draft (this app's own "[Section]\ngrid: ...\n
+    // [Chord]word" shape — see ToSongText) — the chord progression
+    // stays exactly where it belongs, the grid: line, which this never
+    // touches; a "[Label]" line entirely on its own is a section
+    // header, also left untouched; every other line has its inline
     // "[Chord]" markers removed, leaving the lyric text and line breaks
-    // untouched — "keep the words and structure, drop the chords" for
-    // whoever only wants lyrics out of a chords-tab import.
+    // as-is. For a chords-tab import where the grid is useful but
+    // seeing a chord symbol floating mid-lyric isn't.
     function stripChordMarkers(text) {
-      return text.split('\n').filter(line => !/^grid:\s*/.test(line)).map(line => {
+      return text.split('\n').map(line => {
+        if (/^grid:\s*/.test(line)) return line;
         if (/^\[[^\]]*\](?:\s*\(repeat\))?$/.test(line.trim())) return line;
         return line.replace(/\[[^\]\n]*\]/g, '');
       }).join('\n');
