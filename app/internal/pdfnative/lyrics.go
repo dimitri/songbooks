@@ -38,6 +38,20 @@ func (c *canvas) lyricLine(ln song.LyricLine, size float64) {
 	for _, seg := range ln.Segments {
 		words := strings.Fields(seg.Text)
 		if len(words) == 0 {
+			// A chord-bearing segment with no following word at all — the
+			// routine trailing-chord/turnaround shape ("...but you [E] "),
+			// common in both UG and LaTeX-songs-package imports. The
+			// chord still needs to be drawn (dropping it here was a real
+			// bug: strings.Fields of an empty/whitespace-only string
+			// returns zero words, so the per-word loop below never ran
+			// at all) — same x position a word would have started at,
+			// advancing by roughly one chord-symbol's width so a run of
+			// several bare trailing chords doesn't stack on top of
+			// itself.
+			if seg.HasChord {
+				c.drawChordSymbol(x, baseline()-size*0.85, seg.Chord, size*0.95, c.th.chord)
+				x += c.measureWidth(seg.Chord, faceSans, size*0.95) + spaceW
+			}
 			continue
 		}
 		for wi, w := range words {
