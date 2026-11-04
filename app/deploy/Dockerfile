@@ -9,6 +9,11 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o /out/songbooks ./cmd/songbooks
+# One-off admin script, not served — downloads reference audio for every
+# song that already has a YouTube reference: link. Built alongside the
+# main binary so it ships in the same image with no extra build step;
+# run via `docker compose exec app backfillaudio --db "$DATABASE_URL"`.
+RUN CGO_ENABLED=0 go build -o /out/backfillaudio ./cmd/backfillaudio
 
 # --- runtime -------------------------------------------------------------
 # debian:bookworm-slim, not alpine: the LilyPond release tarball below is a
@@ -70,6 +75,7 @@ RUN set -eux; \
 RUN which lilypond && lilypond --version
 
 COPY --from=builder /out/songbooks /usr/local/bin/songbooks
+COPY --from=builder /out/backfillaudio /usr/local/bin/backfillaudio
 
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/songbooks"]

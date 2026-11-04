@@ -2,31 +2,24 @@ package httpapi
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strconv"
-	"time"
 
 	"app/internal/store"
+	"app/internal/ytaudio"
 )
 
 // maxAudioUpload is a sane size ceiling for a direct file upload — a
 // reference MP3 for one song, not an album; 50MB covers even a long,
 // high-bitrate track with room to spare. yt-dlp's own extraction isn't
 // bounded by this (it transcodes before the app ever sees the bytes),
-// but the download itself is bounded by ytDLPTimeout below instead.
+// but the download itself is bounded by ytaudio.Timeout instead.
 const maxAudioUpload = 50 << 20
-
-const ytDLPTimeout = 5 * time.Minute
 
 type audioMeta struct {
 	HasAudio  bool            `json:"hasAudio"`
@@ -144,48 +137,12 @@ func (s *Server) handlePostSongAudioYouTube(w http.ResponseWriter, r *http.Reque
 		httpError(w, http.StatusBadRequest, "missing url")
 		return
 	}
-	data, err := downloadYouTubeAudio(r.Context(), req.URL)
+	data, err := ytaudio.Download(r.Context(), req.URL)
 	if err != nil {
 		httpError(w, http.StatusBadGateway, "download failed: "+err.Error())
 		return
 	}
 	s.storeAudioBytes(w, r, variantID, data, "audio/mpeg", req.URL)
-}
-
-// downloadYouTubeAudio shells out to yt-dlp (see deploy/Dockerfile for
-// why this is a self-hosted binary, not a third-party API) in a fresh
-// temp directory per call — never reused across requests, and always
-// removed afterward, so two concurrent downloads can never collide on a
-// filename and nothing lingers on disk if the app restarts mid-download.
-func downloadYouTubeAudio(ctx context.Context, url string) ([]byte, error) {
-	dir, err := os.MkdirTemp("", "ytdlp-*")
-	if err != nil {
-		return nil, err
-	}
-	defer os.RemoveAll(dir)
-
-	ctx, cancel := context.WithTimeout(ctx, ytDLPTimeout)
-	defer cancel()
-	out := filepath.Join(dir, "audio.%(ext)s")
-	cmd := exec.CommandContext(ctx, "yt-dlp",
-		"-x", "--audio-format", "mp3", "--audio-quality", "0",
-		"--no-playlist", "-o", out, url)
-	if combined, err := cmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("%w: %s", err, trimOutput(combined))
-	}
-	data, err := os.ReadFile(filepath.Join(dir, "audio.mp3"))
-	if err != nil {
-		return nil, fmt.Errorf("yt-dlp reported success but no audio.mp3 was produced: %w", err)
-	}
-	return data, nil
-}
-
-func trimOutput(b []byte) string {
-	const max = 500
-	if len(b) > max {
-		return string(b[len(b)-max:])
-	}
-	return string(b)
 }
 
 // storeAudioBytes is the shared tail of both upload paths: hash, store,
