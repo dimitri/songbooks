@@ -51,68 +51,43 @@
       </div>
       {{end}}
     {{end}}
+    {{if .HasPendingSlots}}
+    <div class="roster-pending-header">
+      <span>Name</span><span>Instrument</span><span>Role</span><span></span><span></span><span></span>
+    </div>
+    {{end}}
     {{range .GroupInvites}}
       {{if not .ClosedAt}}
         {{$giID := .ID}}
         {{range .Slots}}
           {{if not .ClaimedByPersonID}}
           <div class="roster-row roster-row-pending" data-group-invite-id="{{$giID}}" data-slot-id="{{.ID}}">
-            <div class="roster-pending-fields">
-              <div class="roster-field">
-                <label>Name</label>
-                <input type="text" class="roster-pending-name" value="{{.DisplayName}}">
-              </div>
-              <div class="roster-field">
-                <label>Instrument</label>
-                <input type="text" class="roster-pending-instrument" placeholder="optional" value="{{.Instrument}}">
-              </div>
-              <div class="roster-field roster-field-narrow">
-                <label>Role</label>
-                <select class="roster-pending-status">
-                  <option value="core" {{if eq .Status "core"}}selected{{end}}>core</option>
-                  <option value="guest" {{if eq .Status "guest"}}selected{{end}}>guest</option>
-                </select>
-              </div>
-            </div>
-            <div class="roster-pending-actions">
-              <span class="roster-pending-badge">hasn't joined yet</span>
-              <button type="button" class="roster-pending-save-btn">Save</button>
-              <button type="button" class="roster-pending-remove-btn danger">Remove</button>
-            </div>
+            <input type="text" class="roster-pending-name" aria-label="Name" value="{{.DisplayName}}">
+            <input type="text" class="roster-pending-instrument" aria-label="Instrument" placeholder="optional" value="{{.Instrument}}">
+            <select class="roster-pending-status" aria-label="Role">
+              <option value="core" {{if eq .Status "core"}}selected{{end}}>core</option>
+              <option value="guest" {{if eq .Status "guest"}}selected{{end}}>guest</option>
+            </select>
+            <span class="roster-pending-badge">hasn't joined yet</span>
+            <button type="button" class="roster-pending-save-btn">Save</button>
+            <button type="button" class="roster-pending-remove-btn danger">Remove</button>
           </div>
           {{end}}
         {{end}}
       {{end}}
     {{end}}
-    </div>
-
-    <form class="roster-quick-add" id="roster-quick-add-form">
-      <div class="roster-quick-add-head">
-        <h4>Quick-add a name</h4>
-        <p class="hint">Adds straight to the roster above as "hasn't joined yet" — they'll claim this slot themselves the next time you share the group invite link below.</p>
-      </div>
-      <div class="roster-quick-add-fields">
-        <div class="field">
-          <label for="roster-add-name">Name</label>
-          <input type="text" id="roster-add-name" placeholder="e.g. Marc" required>
-        </div>
-        <div class="field">
-          <label for="roster-add-instrument">Instrument <span class="hint">(optional)</span></label>
-          <input type="text" id="roster-add-instrument" placeholder="e.g. drums">
-        </div>
-        <div class="field roster-field-narrow">
-          <label for="roster-add-status">Role</label>
-          <select id="roster-add-status">
-            <option value="core" selected>core</option>
-            <option value="guest">guest</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-actions">
-        <button type="submit" id="roster-add-btn" class="primary">Add to roster</button>
-        <span id="roster-add-result" class="hint"></span>
-      </div>
+    <form class="roster-row roster-quick-add" id="roster-quick-add-form">
+      <input type="text" id="roster-add-name" aria-label="Name" placeholder="+ add a name" required>
+      <input type="text" id="roster-add-instrument" aria-label="Instrument" placeholder="instrument">
+      <select id="roster-add-status" aria-label="Role">
+        <option value="core" selected>core</option>
+        <option value="guest">guest</option>
+      </select>
+      <span id="roster-add-result" class="hint"></span>
+      <button type="submit" id="roster-add-btn" class="primary">Add</button>
     </form>
+    </div>
+    <p class="hint">Quick-add adds straight to the roster as "hasn't joined yet" — they'll claim their slot themselves the next time you share the group invite link below.</p>
   </section>
 
   <label><input type="checkbox" id="show-past-toggle"> Show past members</label>

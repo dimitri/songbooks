@@ -319,9 +319,26 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Whether to show the pending-slots column header (Name/Instrument/
+	// Role) at all — computed here rather than in the template, since
+	// "any unclaimed slot across any open group invite" needs a flag a
+	// nested range can't cheaply produce on its own.
+	hasPendingSlots := false
+	for _, gi := range groupInvites {
+		if gi.ClosedAt != nil {
+			continue
+		}
+		for _, sl := range gi.Slots {
+			if sl.ClaimedByPersonID == nil {
+				hasPendingSlots = true
+			}
+		}
+	}
+
 	s.render(w, "band_members", map[string]any{
 		"Me": person, "Band": band, "Members": members,
 		"GroupInvites": groupInvites, "OpenInvites": openInvites,
+		"HasPendingSlots": hasPendingSlots,
 	})
 }
 

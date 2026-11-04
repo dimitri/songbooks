@@ -3593,42 +3593,35 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 /* One list for current members AND unclaimed roster slots — "who's in
    this band" as a single coherent picture (the gap this phase fills:
    previously a pending slot was invisible anywhere on the band page). */
-.roster-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; margin-bottom: 1.5rem; }
-.roster-row { display: flex; align-items: center; gap: 0.8rem; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); }
+.roster-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; margin-bottom: 0.4rem; }
+.roster-row { display: flex; align-items: center; gap: 0.8rem; padding: 0.45rem 1rem; border-bottom: 1px solid var(--border); min-height: 2.6rem; }
 .roster-row:last-child { border-bottom: none; }
 .roster-row-pending { background: var(--bg-sunken); }
-.roster-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.roster-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
 .roster-name { font-weight: 500; }
 .roster-instruments { display: flex; gap: 0.6rem; flex-wrap: wrap; }
 .roster-instrument-badge { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--fg-muted); background: var(--bg-sunken); border-radius: 999px; padding: 0.15rem 0.55rem; }
 .roster-row-pending .roster-instrument-badge { background: var(--bg-raised); }
-.roster-pending-badge { font-size: 0.76rem; font-weight: 600; color: var(--fg-faint); background: var(--bg-raised); border: 1px dashed var(--border); border-radius: 999px; padding: 0.2rem 0.65rem; white-space: nowrap; flex: none; }
+.roster-pending-badge { font-size: 0.74rem; font-weight: 600; color: var(--fg-faint); background: var(--bg-raised); border: 1px dashed var(--border); border-radius: 999px; padding: 0.15rem 0.55rem; white-space: nowrap; flex: none; }
 .roster-row select.status-select { flex: none; }
 
-/* A pending (unclaimed) roster slot — editable inline, unlike a current
-   member's row, so it gets real labelled fields (name/instrument/role),
-   not bare inputs: a form embedded in a list row is still a form. Two
-   rows (fields, then status+actions) rather than cramming everything
-   into one line, which is what made this read as a spreadsheet. */
-.roster-row-pending { flex-direction: column; align-items: stretch; gap: 0.6rem; }
-.roster-pending-fields { display: flex; gap: 0.7rem; flex-wrap: wrap; }
-.roster-field { display: flex; flex-direction: column; gap: 0.2rem; flex: 1 1 140px; min-width: 0; }
-.roster-field label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--fg-muted); }
-.roster-field-narrow { flex: 0 0 110px; }
-.roster-pending-actions { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
-
-/* The roster's own "add one name now" action — a small form attached
-   directly under the roster list (not a bare row of unlabeled inputs
-   floating below it), same field/label shape as roster-field above so
-   it reads as a continuation of the same list, not a different widget. */
-.roster-quick-add { border: 1px dashed var(--border); border-radius: var(--radius); padding: 0.9rem 1rem; margin-top: -1px; }
-.roster-quick-add-head h4 { margin: 0 0 0.2rem; font-size: 0.92rem; }
-.roster-quick-add-head .hint { margin: 0 0 0.7rem; }
-.roster-quick-add-fields { display: flex; gap: 0.7rem; flex-wrap: wrap; margin-bottom: 0.7rem; }
-.roster-quick-add-fields .field { display: flex; flex-direction: column; gap: 0.25rem; flex: 1 1 140px; min-width: 0; }
-.roster-quick-add-fields .field label { font-size: 0.78rem; font-weight: 600; color: var(--fg-muted); }
-.roster-quick-add-fields .field input, .roster-quick-add-fields .field select { width: 100%; }
-.roster-quick-add-fields .field.roster-field-narrow { flex: 0 0 110px; }
+/* A pending (unclaimed) roster slot is editable inline — unlike a
+   current member's row — but stays ONE compact line like every other
+   roster row: a one-time column header (.roster-pending-header) above
+   the list supplies the Name/Instrument/Role labels instead of
+   repeating them per row, which is what made each row tall. The quick-
+   add form below reuses the exact same grid columns so it reads as the
+   list's own "next row," not a separate boxed-off widget. */
+.roster-pending-header, .roster-row-pending, .roster-quick-add {
+  display: grid; grid-template-columns: 1.3fr 1fr 6rem auto auto auto;
+  align-items: center; gap: 0.6rem;
+}
+.roster-pending-header { padding: 0.3rem 1rem; border-bottom: 1px solid var(--border); }
+.roster-pending-header span { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--fg-muted); }
+.roster-row-pending input, .roster-row-pending select,
+.roster-quick-add input, .roster-quick-add select { padding: 0.3rem 0.5rem; font-size: 0.88rem; }
+.roster-quick-add { grid-template-columns: 1.3fr 1fr 6rem 1fr auto; background: none; }
+.roster-quick-add #roster-add-result { font-size: 0.8rem; justify-self: end; }
 
 /* An already-created, still-shareable invite link, with its own copy
    button — shown up front instead of only right after creation (the
