@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -29,6 +30,12 @@ type UGLine struct {
 type UGSection struct {
 	Label string
 	Lines []UGLine
+	// RepeatCount is set from a bare chord-progression line's trailing
+	// "x2"/"x3" multiplier (UG's own convention for "play this
+	// sequence N times" — common on an Intro/Outro/instrumental line,
+	// e.g. "[ch]Am[/ch] [ch]G[/ch] ... x2") — see parseChordOnlyLine.
+	// 0 means no such marker was seen.
+	RepeatCount int
 }
 
 // UGSong is the semantic form a raw Ultimate Guitar tab parses into —
@@ -40,6 +47,7 @@ type UGSection struct {
 type UGSong struct {
 	Title    string
 	Artist   string
+	Capo     string // from a pre-first-section "Capo N" line, "" if absent — see preSectionMetaLine
 	Sections []UGSection
 }
 
@@ -222,6 +230,105 @@ func mergeChordRows(lines []string) []string {
 	return out
 }
 
+// capoLineRE matches a standalone "Capo N" (or "Capo: N") annotation line
+// — UG's own convention for stating a capo position, always as plain
+// text before the first real section, never tagged as a chord.
+var capoLineRE = regexp.MustCompile(`(?i)^capo:?\s*(\d+)\s*$`)
+
+// preSectionMetaLineRE matches common plain-text attribution/metadata
+// lines UG tabs carry before their first real [Section] — "Tabbed by:
+// X", "Tuning: standard", "Key: G" and similar. Confirmed against a real
+// fetched tab (Hotel California's own UG chords page starts "Tabbed by:
+// Emrldeyzs\nCapo 2\n\n[Intro]..."): without this, those two lines
+// became a bogus unlabeled leading section whose "lyrics" were just the
+// tabber's byline — a real bug, not a hypothetical one. Capo is handled
+// separately (capoLineRE, extracted rather than dropped); everything
+// this matches is pure noise with nothing this app's own format can use.
+var preSectionMetaLineRE = regexp.MustCompile(`(?i)^(?:tabbed by|tuning|key|tempo|bpm|difficulty)\s*:`)
+
+// chordLegendLineRE matches one line of a chord-fingering legend — a
+// chord name, whitespace, then a dash-separated fret-position pattern
+// ("Em7     0-2-2-0-3-3", "Dsus4   x-x-0-2-3-3") — UG's convention for
+// listing every chord shape used in the song before the song itself
+// starts, confirmed against a real fetched tab (Wonderwall's own UG
+// chords page opens with exactly six such lines, no [Section] heading
+// at all, before "[Intro]"). Without skipping these, they became a
+// bogus leading "Verse" section whose "lyrics" were fret diagrams.
+var chordLegendLineRE = regexp.MustCompile(`^(\S+)\s+[0-9xX]+(?:-[0-9xX]+)+\s*$`)
+
+// tabStaffLineRE matches one line of real six-string ASCII guitar
+// tablature — a string-name letter (e/E/A/D/G/B), a "|", then nothing
+// but fret numbers/techniques/bars (confirmed against a real fetched
+// tab: "Shallow"'s UG chords page embeds full tab staves — e.g.
+// "B|-3----3----3----1----3----3----1----0----3----2----|" — mid-song,
+// not just before the first section, as a riff illustration alongside
+// the plain chord-and-lyric content this app actually wants). Rejecting
+// these outright, wherever they appear, keeps fret-diagram noise out of
+// Lyrics() the same way parseChordOnlyLine already keeps a bare "x2"
+// line out of it.
+var tabStaffLineRE = regexp.MustCompile(`^[a-gA-G]\|[-0-9hpb/\\~sx() ]*\|?$`)
+
+// preSectionNoiseLineRE matches a couple more common byline-area lines
+// with no colon for preSectionMetaLineRE to key off of ("Standard
+// tuning.", a bare artist/title repeated as its own line before the
+// first section — the latter already ends up redundant with Title/
+// Artist from the page's own metadata, so dropping a line that's
+// JUST the tuning name is the safe, narrowly-scoped part of this).
+var preSectionNoiseLineRE = regexp.MustCompile(`(?i)^(?:standard |drop [a-g][#b]? )?tuning\.?$`)
+
+// repeatSuffixRE matches a trailing "x2"/"x 2"/"×3" repeat-count marker
+// — UG's own convention for "play the line above N times", written as
+// plain text (never tagged) right after the last chord on a bare
+// progression line.
+var repeatSuffixRE = regexp.MustCompile(`(?i)^[x×]\s*(\d+)$`)
+
+// parseChordOnlyLine recognizes a bare chord-progression line — one or
+// more "[Chord]" groups (already converted from UG's own "[ch]..[/ch]"),
+// every one of them a real chord per looksLikeChord, and NOTHING else
+// except an optional trailing "x2"-style repeat marker. Returns ok=false
+// for anything else (including a line with real lyric text mixed in),
+// so the caller falls back to the normal per-token parse.
+//
+// This exists because the generic tokenizer alone got this wrong on
+// real UG content: a line like "[Am] [E7] ... [E7]   x2" has its LAST
+// token's trailing text be " x2" (non-blank), which the normal
+// hasText-from-any-token check in UGSection.Lyrics() reads as "this
+// line has real lyrics" — reproducing the whole chord-and-"x2" line as
+// a garbled pseudo-lyric. Recognizing the shape explicitly, here, keeps
+// it out of Lyrics() entirely and lets its repeat count feed Grid().
+func parseChordOnlyLine(line string) (chords []string, repeat int, ok bool) {
+	groups := ugLineTokenRE.FindAllStringSubmatchIndex(line, -1)
+	if len(groups) == 0 {
+		return nil, 0, false
+	}
+	if strings.TrimSpace(line[:groups[0][0]]) != "" {
+		return nil, 0, false // real text before the first chord
+	}
+	lastEnd := 0
+	for i, g := range groups {
+		if strings.TrimSpace(line[lastEnd:g[0]]) != "" {
+			return nil, 0, false // real text between two chords
+		}
+		chord, text := line[g[2]:g[3]], strings.TrimSpace(line[g[4]:g[5]])
+		if !looksLikeChord(chord) {
+			return nil, 0, false
+		}
+		chords = append(chords, chord)
+		lastEnd = g[1]
+		if i < len(groups)-1 {
+			continue // only the LAST group's trailing text may be a repeat marker
+		}
+		if text != "" {
+			m := repeatSuffixRE.FindStringSubmatch(text)
+			if m == nil {
+				return nil, 0, false // trailing text that isn't a bare "x2"
+			}
+			repeat, _ = strconv.Atoi(m[1])
+		}
+	}
+	return chords, repeat, true
+}
+
 // ParseUGContent parses raw Ultimate Guitar tab content (UG's own
 // "[ch]G[/ch]lyric" / "[Verse]" text, as stored in their page data,
 // still carrying [ch]/[tab] tags) into the semantic UGSong form. Handles
@@ -253,10 +360,37 @@ func ParseUGContent(raw string) (*UGSong, error) {
 		if line == "" {
 			continue
 		}
+		trimmed := strings.TrimSpace(line)
+		if !haveSection && len(cur.Lines) == 0 {
+			if m := capoLineRE.FindStringSubmatch(trimmed); m != nil {
+				song.Capo = m[1]
+				continue
+			}
+			if m := chordLegendLineRE.FindStringSubmatch(trimmed); m != nil && looksLikeChord(m[1]) {
+				continue
+			}
+			if preSectionMetaLineRE.MatchString(trimmed) || preSectionNoiseLineRE.MatchString(trimmed) {
+				continue
+			}
+		}
+		if tabStaffLineRE.MatchString(trimmed) {
+			continue // real six-string tablature, not chord/lyric content — see tabStaffLineRE
+		}
 		if m := sectionHeaderRE.FindStringSubmatch(line); m != nil && !looksLikeChord(m[1]) {
 			flush()
 			cur = UGSection{Label: strings.TrimSpace(m[1])}
 			haveSection = true
+			continue
+		}
+		if chords, repeat, ok := parseChordOnlyLine(line); ok {
+			var ln UGLine
+			for _, c := range chords {
+				ln.Tokens = append(ln.Tokens, UGToken{Chord: c})
+			}
+			cur.Lines = append(cur.Lines, ln)
+			if repeat > 0 {
+				cur.RepeatCount = repeat
+			}
 			continue
 		}
 		var ln UGLine
@@ -337,7 +471,21 @@ func (s UGSection) Grid() string {
 		}
 		bars = append(bars, c)
 	}
-	return strings.Join(bars, " | ")
+	inner := strings.Join(bars, " | ")
+	// A bare progression line's own "x2"/"x3" trailing marker (see
+	// parseChordOnlyLine) becomes a real repeat bracket in this app's
+	// own grid: syntax — the same "|:N ... :|" shape a stated repeat
+	// count already uses elsewhere (see song.Measure.RepeatCount's doc
+	// comment: 2 is the implicit default every plain "|: :|" already
+	// means, so only a count above 2 is written explicitly).
+	if s.RepeatCount >= 2 {
+		count := ""
+		if s.RepeatCount > 2 {
+			count = strconv.Itoa(s.RepeatCount)
+		}
+		return "|:" + count + " " + inner + " :|"
+	}
+	return inner
 }
 
 // Lyrics renders this section's lines back out in this app's own inline

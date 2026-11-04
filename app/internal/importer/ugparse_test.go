@@ -66,6 +66,34 @@ func TestParseUGContentNoFalseSectionFromChord(t *testing.T) {
 	}
 }
 
+// TestParseUGContentCapoAndRepeatMarkers covers two real bugs found by
+// fetching an actual live UG page (Hotel California's own "Chords" tab):
+// a pre-first-section "Tabbed by: X" / "Capo N" pair used to become a
+// bogus unlabeled leading section whose "lyrics" were the tabber's
+// byline, and a bare chord-progression line's trailing "x2"/"x3" marker
+// used to leak into Lyrics() as a garbled pseudo-lyric (its own text
+// case lives in testdata/ugimport/capo_and_repeat_markers; this checks
+// the one outcome — Capo — a plain text diff of ToSongText can't see).
+func TestParseUGContentCapoAndRepeatMarkers(t *testing.T) {
+	raw := "Tabbed by: Someone\nCapo 2\n\n[Intro]\n[ch]Am[/ch] [ch]G[/ch] x2\n"
+	song, err := ParseUGContent(raw)
+	if err != nil {
+		t.Fatalf("ParseUGContent: %v", err)
+	}
+	if song.Capo != "2" {
+		t.Errorf("Capo = %q, want \"2\"", song.Capo)
+	}
+	if len(song.Sections) != 1 || song.Sections[0].Label != "Intro" {
+		t.Fatalf("got sections %+v, want one Intro section (no bogus leading section from the byline)", song.Sections)
+	}
+	if lyrics := song.Sections[0].Lyrics(); lyrics != "" {
+		t.Errorf("Lyrics() = %q, want empty (the x2 marker must not leak in as a pseudo-lyric)", lyrics)
+	}
+	if song.Sections[0].RepeatCount != 2 {
+		t.Errorf("RepeatCount = %d, want 2", song.Sections[0].RepeatCount)
+	}
+}
+
 // TestParseUGContentNoSectionLabels guards the other structural case the
 // golden corpus's "no_labels" entry exercises: UG text with no [Section]
 // markers at all defaults to a single "Verse".
