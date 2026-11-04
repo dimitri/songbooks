@@ -1636,10 +1636,19 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    instead of it. !important: this one narrow case needs to beat the
    has-lyrics hide rule above regardless of selector order, rather than
    adding yet another specificity fight to this file's history of them. */
-#sheet[data-render-mode="normal"] .sheet-section[data-is-solo="true"] .section-map-chip {
+/* :not(:has(.grid)) — a Solo that already states its OWN real chord grid
+   (e.g. "[Solo]\ngrid: | Gm | Eb | F | Gm |") doesn't need this forced
+   badge at all: the grid itself already reads as visually distinct from
+   a plain Verse (no lyrics under it), so forcing the badge on top of it
+   just duplicated a blank rest-bar directly under a populated one — a
+   direct report ("the song is buggy"). This rule is for the case the
+   comment above actually describes: a Solo with NO grid of its own
+   (lyrics-only, or nothing at all), which otherwise has nothing marking
+   it as a Solo rather than a Verse. */
+#sheet[data-render-mode="normal"] .sheet-section[data-is-solo="true"]:not(:has(.grid)) .section-map-chip {
   display: flex !important; align-items: baseline; gap: 0.4em; margin-top: 0.1rem;
 }
-#sheet[data-render-mode="normal"] .sheet-section[data-is-solo="true"] .multi-rest-row {
+#sheet[data-render-mode="normal"] .sheet-section[data-is-solo="true"]:not(:has(.grid)) .multi-rest-row {
   display: flex !important; align-items: center; height: 1.7em; margin: 0.3em 0 0.8em; position: relative;
 }
 #sheet[data-render-mode="lyrics"] .sheet-section[data-is-solo="true"] .section-map-chip {
