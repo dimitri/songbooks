@@ -134,12 +134,21 @@
     <p class="hint">A nickname and picture people see instead of your real name/username, and opt-in toggles for whether your email or phone show alongside it.</p>
     {{if .PublicSaved}}<p style="color:var(--ok)">Public profile saved.</p>{{end}}
     <form method="post" action="/profile/public">
-      {{if .Me.PictureURL}}<p><img src="{{.Me.PictureURL}}" alt="" class="profile-picture-preview"></p>{{end}}
+      {{/* No picture_url set: fall back to a Gravatar for the account's
+           email (EffectivePictureURL, d=404 so onerror can tell "no
+           Gravatar registered" apart from "fetch failed") — opt out via
+           the checkbox below instead of needing to paste a picture_url
+           just to suppress it. A real picture_url always wins outright. */}}
+      {{$eff := .Me.EffectivePictureURL}}
+      {{if $eff}}<p><img src="{{$eff}}" alt="" class="profile-picture-preview" onerror="this.style.display='none'"></p>{{end}}
       <p><label>Nickname<br>
         <input type="text" name="nickname" value="{{.Me.Nickname}}" placeholder="shown instead of your display name" maxlength="60"></label></p>
       <p><label>Picture URL<br>
         <input type="url" name="picture_url" value="{{.Me.PictureURL}}" placeholder="https://..."></label>
-        <br><span class="hint">A link to an image — no upload here, paste a URL (e.g. from a photo you already host somewhere).</span></p>
+        <br><span class="hint">A link to an image — no upload here, paste a URL (e.g. from a photo you already host somewhere). Left blank, your <a href="https://gravatar.com" target="_blank" rel="noopener">Gravatar</a> for this account's email is used instead, if you have one.</span></p>
+      {{if not .Me.PictureURL}}
+      <p><label><input type="checkbox" name="gravatar_opt_out" {{if .Me.GravatarOptOut}}checked{{end}}> Don't use my Gravatar — show no picture instead</label></p>
+      {{end}}
       <p><label>Phone <span class="hint">(e.g. for WhatsApp)</span><br>
         <input type="tel" name="phone" value="{{.Me.Phone}}" placeholder="+1 555 123 4567"></label></p>
       <p><label><input type="checkbox" name="share_email" {{if .Me.ShareEmail}}checked{{end}}> Show my email on my public profile</label></p>

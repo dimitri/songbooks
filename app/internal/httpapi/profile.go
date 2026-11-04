@@ -69,7 +69,8 @@ func (s *Server) handleSetPublicProfile(w http.ResponseWriter, r *http.Request) 
 	phone := strings.TrimSpace(r.FormValue("phone"))
 	shareEmail := r.FormValue("share_email") == "on"
 	sharePhone := r.FormValue("share_phone") == "on"
-	if err := s.store.SetPublicProfile(r.Context(), p.ID, nickname, pictureURL, phone, shareEmail, sharePhone); err != nil {
+	gravatarOptOut := r.FormValue("gravatar_opt_out") == "on"
+	if err := s.store.SetPublicProfile(r.Context(), p.ID, nickname, pictureURL, phone, shareEmail, sharePhone, gravatarOptOut); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

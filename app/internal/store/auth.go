@@ -2,11 +2,13 @@ package store
 
 import (
 	"context"
+	"crypto/md5"
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -41,6 +43,31 @@ type Person struct {
 	Phone      string
 	ShareEmail bool
 	SharePhone bool
+	// GravatarOptOut suppresses the Gravatar-by-email fallback the public
+	// profile picture uses when PictureURL is blank (see EffectivePictureURL).
+	GravatarOptOut bool
+}
+
+// EffectivePictureURL is what the public profile picture should actually
+// render: PictureURL if the person set one, else a Gravatar URL derived
+// from their email (d=404, so a browser <img onerror> can fall back to
+// the plain-initials avatar when no Gravatar is registered for that
+// address) — unless they've opted out, in which case there's no photo at
+// all (empty string, same as "no picture set" everywhere else already
+// handles).
+func (p Person) EffectivePictureURL() string {
+	if p.PictureURL != "" {
+		return p.PictureURL
+	}
+	if p.GravatarOptOut || p.Email == "" {
+		return ""
+	}
+	return gravatarURL(p.Email)
+}
+
+func gravatarURL(email string) string {
+	h := md5.Sum([]byte(strings.ToLower(strings.TrimSpace(email))))
+	return fmt.Sprintf("https://www.gravatar.com/avatar/%x?s=200&d=404", h)
 }
 
 // ProjectSummary is one project plus the asking person's own role in it —
@@ -93,12 +120,12 @@ func randomToken() (string, error) {
 
 // GetPersonByUsername looks up a person by their login name.
 func (st *Store) GetPersonByUsername(ctx context.Context, username string) (*Person, error) {
-	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone FROM people WHERE username = $1`, username)
+	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people WHERE username = $1`, username)
 }
 
 // GetPersonByID looks up a person by id.
 func (st *Store) GetPersonByID(ctx context.Context, id int64) (*Person, error) {
-	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone FROM people WHERE id = $1`, id)
+	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people WHERE id = $1`, id)
 }
 
 // GetPersonByEmail looks up a person by their email address — the
@@ -106,12 +133,12 @@ func (st *Store) GetPersonByID(ctx context.Context, id int64) (*Person, error) {
 // email was stored (emails are lowercased on input, see handleLogin/
 // SetEmail).
 func (st *Store) GetPersonByEmail(ctx context.Context, email string) (*Person, error) {
-	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone FROM people WHERE email = $1`, email)
+	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people WHERE email = $1`, email)
 }
 
 func (st *Store) scanPerson(ctx context.Context, query string, arg any) (*Person, error) {
 	var p Person
-	err := st.db.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone)
+	err := st.db.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone, &p.GravatarOptOut)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such person: %w", ErrNotFound)
 	}
@@ -136,10 +163,10 @@ func (st *Store) SetInstruments(ctx context.Context, personID int64, instruments
 // SetPublicProfile replaces personID's public-profile fields wholesale
 // (see migration 0038 / Person's doc comment) — the "public profile" tab
 // on /profile, same "whole-form save" posture as SetInstruments.
-func (st *Store) SetPublicProfile(ctx context.Context, personID int64, nickname, pictureURL, phone string, shareEmail, sharePhone bool) error {
+func (st *Store) SetPublicProfile(ctx context.Context, personID int64, nickname, pictureURL, phone string, shareEmail, sharePhone, gravatarOptOut bool) error {
 	tag, err := st.db.Exec(ctx, `
-		UPDATE people SET nickname = $1, picture_url = $2, phone = $3, share_email = $4, share_phone = $5
-		WHERE id = $6`, nickname, pictureURL, phone, shareEmail, sharePhone, personID)
+		UPDATE people SET nickname = $1, picture_url = $2, phone = $3, share_email = $4, share_phone = $5, gravatar_opt_out = $6
+		WHERE id = $7`, nickname, pictureURL, phone, shareEmail, sharePhone, gravatarOptOut, personID)
 	if err != nil {
 		return err
 	}
@@ -274,10 +301,10 @@ func (st *Store) GetSession(ctx context.Context, token string) (*Person, error) 
 	var p Person
 	err := st.db.QueryRow(ctx, `
 		SELECT p.id, p.username, p.display_name, coalesce(p.email, ''), coalesce(p.password_hash, ''), p.is_admin, p.instruments,
-		       p.nickname, p.picture_url, p.phone, p.share_email, p.share_phone
+		       p.nickname, p.picture_url, p.phone, p.share_email, p.share_phone, p.gravatar_opt_out
 		FROM sessions s JOIN people p ON p.id = s.person_id
 		WHERE s.token = $1 AND s.expires_at > now()`, token).
-		Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone)
+		Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone, &p.GravatarOptOut)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such session: %w", ErrNotFound)
 	}
@@ -341,7 +368,7 @@ func (st *Store) ConsumeLoginToken(ctx context.Context, token string) (*Person, 
 		return nil, err
 	}
 
-	p, err := st.scanPersonTx(ctx, tx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone FROM people WHERE id = $1`, personID)
+	p, err := st.scanPersonTx(ctx, tx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people WHERE id = $1`, personID)
 	if err != nil {
 		return nil, err
 	}
@@ -353,7 +380,7 @@ func (st *Store) ConsumeLoginToken(ctx context.Context, token string) (*Person, 
 
 func (st *Store) scanPersonTx(ctx context.Context, tx pgx.Tx, query string, arg any) (*Person, error) {
 	var p Person
-	err := tx.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone)
+	err := tx.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone, &p.GravatarOptOut)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such person: %w", ErrNotFound)
 	}
