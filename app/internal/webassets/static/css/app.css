@@ -317,8 +317,17 @@ table.card { padding: 0; }
 }
 .app-header h1 { margin: 0; font-size: 1.25rem; font-weight: 700; }
 .band-name-row { display: flex; align-items: center; gap: 0.4rem; }
-.band-name-row .icon-btn { font-size: 0.95rem; opacity: 0.6; }
-.band-name-row .icon-btn:hover { opacity: 1; }
+/* Click-to-rename title — same affordance Notion/Linear/Trello use for an
+   inline title (no separate pencil button): cursor:text signals it's
+   editable, a dashed underline only on hover/focus (not permanently, so
+   the page doesn't read as "half-finished" at rest) is the whole cue. */
+#band-name-display {
+  cursor: text; border-radius: 4px; padding: 0.1rem 0.3rem; margin: 0 -0.3rem;
+  border-bottom: 1px dashed transparent;
+}
+#band-name-display:hover, #band-name-display:focus-visible {
+  border-bottom-color: var(--border-strong); background: var(--bg-sunken); outline: none;
+}
 .band-name-input {
   margin: 0; font-size: 1.25rem; font-weight: 700; font-family: inherit; color: inherit;
   background: var(--bg-sunken); border: 1px solid var(--border-strong); border-radius: 6px;

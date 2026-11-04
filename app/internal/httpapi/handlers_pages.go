@@ -1559,7 +1559,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	data := map[string]any{
-		"Book": book, "Stem": stem, "Me": person,
+		"Book": book, "ProjectName": s.store.ProjectName(r.Context(), book), "Stem": stem, "Me": person,
 		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "Genre": genre,
 		"Title": orDefault(sg.Get("title"), stem), "Artist": sg.Get("artist"),
 		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),

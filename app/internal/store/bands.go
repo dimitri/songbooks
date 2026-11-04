@@ -115,14 +115,36 @@ func (st *Store) SetBandName(ctx context.Context, bandID int64, name string) err
 	if name == "" {
 		return fmt.Errorf("band name cannot be empty")
 	}
-	tag, err := st.db.Exec(ctx, `UPDATE bands SET name = $1 WHERE id = $2`, name, bandID)
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	tag, err := tx.Exec(ctx, `UPDATE bands SET name = $1 WHERE id = $2`, name, bandID)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("no such band %d: %w", bandID, ErrNotFound)
 	}
-	return nil
+	// A band linked to a legacy project (Band.ProjectID's own doc comment)
+	// shows that project's live song list as its repertoire — but the
+	// project's own NAME is a separate row, so a band rename alone left
+	// the project's display name stale everywhere it's shown standalone
+	// (the song page's own back-link when it has no ?band= context, the
+	// project index, etc.) — a direct report: "the band rename went
+	// through but the project has not been renamed". Only the project's
+	// display `name` changes here, never its `slug` — the slug is the
+	// URL identifier (/b/{slug}/...) every existing link and bookmark
+	// depends on; renaming it would break them for no benefit the band
+	// rename itself asked for.
+	if _, err := tx.Exec(ctx, `
+		UPDATE projects SET name = $1
+		WHERE id = (SELECT project_id FROM bands WHERE id = $2 AND project_id IS NOT NULL)`,
+		name, bandID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // SetBandMusicType sets (or clears, with "") whether a band is a covers

@@ -285,7 +285,7 @@
     {{else if .BandRef}}
     <a href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} {{.BandName}}</a>
     {{else}}
-    <a href="/b/{{.Book}}">{{template "icon-back"}} {{.Book}}</a>
+    <a href="/b/{{.Book}}">{{template "icon-back"}} {{.ProjectName}}</a>
     {{end}}
   </div>
   {{/* Phase 45: while the desktop editor is open, this single row replaces
@@ -386,7 +386,7 @@
   {{else if .BandRef}}
   <a class="back-link" href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} {{.BandName}}</a>
   {{else}}
-  <a class="back-link" href="/b/{{.Book}}">{{template "icon-back"}} {{.Book}}</a>
+  <a class="back-link" href="/b/{{.Book}}">{{template "icon-back"}} {{.ProjectName}}</a>
   {{end}}
 </div>
 <div class="song-topbar">

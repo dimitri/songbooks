@@ -145,6 +145,21 @@ func (st *Store) projectID(ctx context.Context, book string) (int64, error) {
 	return id, err
 }
 
+// ProjectName resolves a project's slug to its own display name — the
+// song page's own back-link fallback (no ?setlist=/?band= context) used
+// to show the raw URL slug itself ("FourNonBlondes") instead of a
+// properly spaced display name ("Four Non Blondes"), a direct report
+// ("the link in the navigation bar is misplaced and ugly"). Falls back
+// to the slug itself on any error — never worth failing the whole page
+// render over a cosmetic label.
+func (st *Store) ProjectName(ctx context.Context, book string) string {
+	var name string
+	if err := st.db.QueryRow(ctx, `SELECT name FROM projects WHERE slug = $1`, book).Scan(&name); err != nil || name == "" {
+		return book
+	}
+	return name
+}
+
 // CreateSong makes a new song (variant) with just a title/artist header
 // and one empty [Verse] section to start from. Fails if the stem is
 // already taken. creatorPersonID is recorded as created_by_person_id (0
