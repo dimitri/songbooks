@@ -122,7 +122,14 @@ func processContentLine(line string, chordsOn bool) (lyric song.LyricLine, chord
 	line = caretRE.ReplaceAllString(line, "")
 
 	if !chordsOn {
-		text := strings.TrimSpace(line)
+		// \chordsoff only suppresses PRINTING — it's common for an
+		// author not to bother deleting the now-inert \[Chord] markup
+		// on lines typed after it (real example: Trio/every-breath-you-
+		// take.tex, \chordsoff then three more chorded-looking lines
+		// before \chordson turns it back on for the bridge). Left as
+		// literal "\[G]" text, this is a visible bug, not a harmless
+		// quirk — strip the markers, keeping only the words.
+		text := strings.TrimSpace(chordRE.ReplaceAllString(line, ""))
 		if text == "" {
 			return song.LyricLine{}, nil, false
 		}

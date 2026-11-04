@@ -1,6 +1,7 @@
 package latexsong
 
 import (
+	"strings"
 	"testing"
 
 	"app/internal/song"
@@ -245,5 +246,52 @@ func TestExportParseRoundTrip(t *testing.T) {
 	verse := back.Song.Sections[0]
 	if verse.Lyrics[0].Segments[0].Chord != "C" || verse.Lyrics[0].Segments[0].Text != "I am just a poor boy" {
 		t.Fatalf("verse first segment wrong: %+v", verse.Lyrics[0].Segments[0])
+	}
+}
+
+func TestParseChordsoffLeavesStrayMarkupStripped(t *testing.T) {
+	tex := `\beginsong{Every Breath You Take}[by={The Police}]
+  \beginverse
+  \[G]Every breath you take
+  \endverse
+  \chordsoff
+  \beginverse
+  Every move you \[G]make
+  And every vow you \[Em]break
+  I'll be watching you \[G]
+  \endverse
+  \textnote{Bridge}
+  \chordson
+  \beginverse
+  \[Eb]Since you've gone
+  \endverse
+\endsong
+`
+	out, err := Parse(tex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := out[0].Song
+	// sections: Verse (chorded), Verse (chordsoff), Bridge (chordson again)
+	if len(s.Sections) != 3 {
+		t.Fatalf("got %d sections, want 3: %+v", len(s.Sections), s.Sections)
+	}
+	offVerse := s.Sections[1]
+	if len(offVerse.Measures) != 0 {
+		t.Fatalf("chordsoff verse should have no grid: %+v", offVerse.Measures)
+	}
+	for _, ln := range offVerse.Lyrics {
+		for _, seg := range ln.Segments {
+			if strings.Contains(seg.Text, `\[`) || strings.Contains(seg.Text, `]`) {
+				t.Fatalf("stray LaTeX chord markup leaked into lyric text: %q", seg.Text)
+			}
+		}
+	}
+	if offVerse.Lyrics[0].Segments[0].Text != "Every move you make" {
+		t.Fatalf("first chordsoff line = %q", offVerse.Lyrics[0].Segments[0].Text)
+	}
+	bridge := s.Sections[2]
+	if bridge.Label != "Bridge" || len(bridge.Measures) == 0 {
+		t.Fatalf("chordson bridge should have its grid back: %+v", bridge)
 	}
 }
