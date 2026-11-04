@@ -85,18 +85,160 @@ func looksLikeChord(s string) bool {
 	return chordQualityRE.MatchString(rest)
 }
 
+// chordTagGroupRE matches one whole "[ch]X[/ch]" group in RAW (unconverted)
+// UG tab text, capturing the chord text itself (group 1).
+var chordTagGroupRE = regexp.MustCompile(`\[ch\]([^\[]*)\[/ch\]`)
+
+// chordOnlyRawLineRE matches a raw line (tags intact) that is nothing but
+// one or more "[ch]X[/ch]" groups and whitespace — UG's own "chord row"
+// convention: many tabs put a line of chords on its own line, spaced to
+// align over the lyric line immediately below, rather than tagging chords
+// inline within the lyric line itself (the ONLY shape ParseUGContent used
+// to understand; see mergeChordRows's doc comment for why that silently
+// produced two-line "chord-line-above-lyric-line" output instead of this
+// app's own inline "[Chord]word" syntax).
+var chordOnlyRawLineRE = regexp.MustCompile(`^(?:\s*\[ch\][^\[]*\[/ch\])+\s*$`)
+
+// bareColumnsOf returns, in order, each "[ch]X[/ch]" group's chord text
+// and the character column it starts at once every [ch]/[/ch] tag on the
+// line is stripped down to just the bare chord text (no tags, no
+// brackets) — the column space a tab's author actually typed in, since
+// UG's own site strips tags for display and a chord row's spacing is
+// authored to align with the plain lyric text below it, not with the
+// (much longer) raw [ch]/[/ch]-tagged source text.
+func bareColumnsOf(line string) (chords []string, cols []int) {
+	stripped := 0
+	for _, m := range chordTagGroupRE.FindAllStringSubmatchIndex(line, -1) {
+		start, cStart, cEnd, end := m[0], m[2], m[3], m[1]
+		chords = append(chords, line[cStart:cEnd])
+		cols = append(cols, start-stripped)
+		stripped += (end - start) - (cEnd - cStart)
+	}
+	return
+}
+
+// mergeChordRows folds UG's "chord row on its own line, lyric line right
+// below it" convention into one merged raw line per pair, chord tags
+// re-inserted at the column each one was authored at (see bareColumnsOf) —
+// turning e.g.
+//
+//	[ch]G[/ch]          [ch]F[/ch]
+//	They would hurt, They would hurt
+//
+// into
+//
+//	They would hurt,[ch]F[/ch] They would hurt
+//
+// with the FIRST chord's column folded in specially: a chord-row's very
+// first chord almost always marks the line's first word (column 0),
+// which this always honors by prepending it, regardless of its
+// authored column — tab authors are inconsistent about whether that
+// first chord is typed at column 0 exactly or a column or two into
+// leading whitespace. Every subsequent chord on the row uses its real
+// column, clamped to the lyric line's length, inserted into the nearest
+// following word boundary rather than mid-word (splitting a word in two
+// is never correct — any imprecision should land before a word, not
+// inside one). A chord whose column is level with or past the end of
+// the lyric line is appended at the end instead of dropped — rare, but
+// losing a transcribed chord silently would be worse than misplacing it
+// by a word or two, and this is explicitly a correctable draft (see this
+// package's own doc comment), not an authoritative import.
+// wordStartsOf returns the index of every word's first character in s
+// (0, and every index right after a run of spaces) — the only positions
+// a chord tag may ever be inserted at, since this app's inline syntax
+// attaches a chord to the WORD it precedes, never to a position inside
+// one.
+func wordStartsOf(s string) []int {
+	var starts []int
+	atStart := true
+	for i, c := range s {
+		if c == ' ' {
+			atStart = true
+			continue
+		}
+		if atStart {
+			starts = append(starts, i)
+			atStart = false
+		}
+	}
+	return starts
+}
+
+// nearestWordStart picks whichever entry in starts (word-start positions
+// in a line of length n) is closest to col — a tab author's chord column
+// marks the syllable it changes on, which often lands mid-word rather
+// than exactly at a word's first letter (this app's model can only
+// attach a chord to a whole word, never mid-word), so the closest word
+// start, forward OR backward, is the best single-word approximation of
+// where that chord belongs. n itself (append at the very end) is also a
+// candidate, for a chord column past the last word. Ties favor the
+// earlier (backward) word, matching the common case of a chord column
+// sitting a character or two past the word it actually marks.
+func nearestWordStart(col int, starts []int, n int) int {
+	best, bestDist := n, abs(col-n)
+	for _, s := range starts {
+		if d := abs(col - s); d < bestDist {
+			best, bestDist = s, d
+		}
+	}
+	return best
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
+
+func mergeChordRows(lines []string) []string {
+	out := make([]string, 0, len(lines))
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
+		if !chordOnlyRawLineRE.MatchString(line) || i+1 >= len(lines) {
+			out = append(out, line)
+			continue
+		}
+		next := lines[i+1]
+		if next == "" || chordOnlyRawLineRE.MatchString(next) || sectionHeaderRE.MatchString(strings.TrimRight(next, " \t")) {
+			out = append(out, line)
+			continue
+		}
+		chords, cols := bareColumnsOf(line)
+		if len(chords) == 0 {
+			out = append(out, line)
+			continue
+		}
+		merged := next
+		wordStarts := wordStartsOf(merged)
+		for ci := len(chords) - 1; ci >= 0; ci-- {
+			tag := "[ch]" + chords[ci] + "[/ch]"
+			col := nearestWordStart(cols[ci], wordStarts, len(merged))
+			merged = merged[:col] + tag + merged[col:]
+		}
+		out = append(out, merged)
+		i++ // consumed both lines
+	}
+	return out
+}
+
 // ParseUGContent parses raw Ultimate Guitar tab content (UG's own
 // "[ch]G[/ch]lyric" / "[Verse]" text, as stored in their page data,
-// still carrying [ch]/[tab] tags) into the semantic UGSong form.
+// still carrying [ch]/[tab] tags) into the semantic UGSong form. Handles
+// both UG layout conventions: chords tagged inline within the lyric line
+// itself, and a chord-only row immediately above its lyric line (folded
+// into inline form first — see mergeChordRows).
 func ParseUGContent(raw string) (*UGSong, error) {
-	content := chTagRE.ReplaceAllStringFunc(raw, func(m string) string {
+	raw = regexp.MustCompile(`\[/?tab\]`).ReplaceAllString(raw, "")
+	raw = strings.ReplaceAll(raw, "\r\n", "\n")
+	mergedLines := mergeChordRows(strings.Split(raw, "\n"))
+
+	content := chTagRE.ReplaceAllStringFunc(strings.Join(mergedLines, "\n"), func(m string) string {
 		if m == "[ch]" {
 			return "["
 		}
 		return "]"
 	})
-	content = regexp.MustCompile(`\[/?tab\]`).ReplaceAllString(content, "")
-	content = strings.ReplaceAll(content, "\r\n", "\n")
 
 	song := &UGSong{}
 	cur := UGSection{}
@@ -118,8 +260,22 @@ func ParseUGContent(raw string) (*UGSong, error) {
 			continue
 		}
 		var ln UGLine
-		for _, tm := range ugLineTokenRE.FindAllStringSubmatch(line, -1) {
-			chord, text := tm[1], tm[2]
+		matches := ugLineTokenRE.FindAllStringSubmatchIndex(line, -1)
+		// Any plain text before the line's first bracket (never possible
+		// in the single-line "[ch]Chord[/ch]lyric" shape, where a chord
+		// always opens its own segment — but routine now that
+		// mergeChordRows can insert a chord mid-line, after real leading
+		// words the regex below would otherwise silently drop) becomes
+		// its own chordless leading token.
+		if len(matches) == 0 || matches[0][0] > 0 {
+			end := len(line)
+			if len(matches) > 0 {
+				end = matches[0][0]
+			}
+			ln.Tokens = append(ln.Tokens, UGToken{Text: line[:end]})
+		}
+		for _, mi := range matches {
+			chord, text := line[mi[2]:mi[3]], line[mi[4]:mi[5]]
 			if chord != "" && !looksLikeChord(chord) {
 				// A bracketed run that isn't actually a chord (rare,
 				// e.g. a stray annotation) — keep it as plain text
