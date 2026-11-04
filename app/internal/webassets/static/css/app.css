@@ -978,6 +978,18 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   background-repeat: no-repeat;
   opacity: 0.5;
 }
+/* A repeat barline's own bar (.bar-open/.bar-close) carries extra padding
+   (0.7em, not the base .bar's 0.5em — see ".bar-open"/".bar-close" below)
+   to make room for its dots + thick accent strip. The staff-line bleed
+   above is a flat 0.5em, matching the common case only — on an open/close
+   bar that left a bare 0.2em strip with no staff lines under the repeat
+   sign itself, reading as the barline sitting AFTER the staff rather than
+   being drawn on it (real engraving: the barline is part of the staff).
+   Bleed further on exactly the side that owns the extra padding. */
+#sheet[data-render-mode="normal"] .bar-open .bar-body::before,
+#sheet[data-render-mode="map"] .bar-open .bar-body::before { left: -0.7em; }
+#sheet[data-render-mode="normal"] .bar-close .bar-body::before,
+#sheet[data-render-mode="map"] .bar-close .bar-body::before { right: -0.7em; }
 .bar {
   display: flex; align-items: flex-end;
   /* Fixed per-bar width, from the ROW's intended capacity (--cap, set
