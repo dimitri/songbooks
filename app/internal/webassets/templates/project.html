@@ -156,14 +156,41 @@
     <textarea id="wiz-lyrics-preview" class="wizard-preview" rows="8" placeholder="fetched lyrics will appear here, editable before you create the song"></textarea>
   </section>
 
+  {{/* Ultimate Guitar import: a mini wizard of its own (URL -> fetch &
+       parse -> preview, pick sections -> import, or skip entirely and
+       paste/type raw text) — not just a raw-text dump, since UG's tab
+       text now parses into real sections+grid+lyrics (see
+       internal/importer/ugparse.go). wiz-chords-preview stays the
+       textarea the outer wizard's Create action reads from; the
+       section-preview UI below only ever writes into it. */}}
   <section class="wizard-panel" data-step="3" hidden>
-    <p class="hint">Fetch a chord/lyric tab from Ultimate Guitar, or paste one below. Ultimate Guitar tabs are often wrong — treat this as a starting point to correct, not a finished chart.</p>
-    <div class="import-row">
-      <input type="url" id="wiz-chords-url" placeholder="https://tabs.ultimate-guitar.com/tab/...">
-      <button type="button" id="wiz-chords-fetch">Fetch</button>
+    <p class="hint">Fetch a chord/lyric tab from Ultimate Guitar and pick which sections to bring in, or skip straight to pasting/typing text yourself. Ultimate Guitar tabs are often wrong, and bar placement is always a guess — treat this as a starting point to correct, not a finished chart.</p>
+
+    <div class="ug-import-substep" id="ug-step-url">
+      <div class="import-row">
+        <input type="url" id="wiz-chords-url" placeholder="https://tabs.ultimate-guitar.com/tab/...">
+        <button type="button" id="wiz-chords-fetch" class="primary">Fetch &amp; parse</button>
+        <button type="button" id="ug-skip-to-raw">Skip — paste text instead</button>
+      </div>
+      <span id="wiz-chords-status" class="hint"></span>
     </div>
-    <span id="wiz-chords-status" class="hint"></span>
-    <textarea id="wiz-chords-preview" class="wizard-preview" rows="8" placeholder="fetched chords + lyrics will appear here, editable before you create the song"></textarea>
+
+    <div class="ug-import-substep" id="ug-step-preview" hidden>
+      <p class="hint" id="ug-preview-title"></p>
+      <div id="ug-preview-sections" class="ug-preview-sections"></div>
+      <div class="form-actions" style="margin-top:0.6rem">
+        <button type="button" id="ug-preview-back">&larr; back</button>
+        <button type="button" id="ug-preview-use" class="primary">Use selected sections</button>
+      </div>
+    </div>
+
+    <div class="ug-import-substep" id="ug-step-raw" hidden>
+      <p class="hint">Paste chords+lyrics, or whatever the import above produced — this is the exact text that will be saved.</p>
+      <textarea id="wiz-chords-preview" class="wizard-preview" rows="8" placeholder="chords + lyrics, [Chord]word syntax, one [Section] at a time"></textarea>
+      <div class="form-actions" style="margin-top:0.4rem">
+        <button type="button" id="ug-raw-back">&larr; back to import</button>
+      </div>
+    </div>
   </section>
 
   <div class="wizard-actions">

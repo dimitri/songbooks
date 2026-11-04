@@ -9,14 +9,26 @@
 {{template "pwa-head"}}
 </head>
 <body data-gig="1">
-{{template "desktop-sidebar" .Me}}
-<div class="app-content">
-<header class="app-header">
-  <a class="back-link" href="/setlists/{{.Book}}/{{.Stem}}">{{template "icon-back"}} edit</a>
-  <h1>{{.Title}}</h1>
-  <nav class="song-nav">
-    <span class="pdf-mode-row">
-      <a class="pdf-export-link icon-btn" href="/setlists/{{.Book}}/{{.Stem}}/export.pdf" title="export the whole setlist as one PDF — cover, title page, setlist, every song" download>PDF</a>
+{{/* A duplicated desktop-sidebar (same pattern setlist_overview.html's
+     "This setlist" group uses) instead of the shared partial — the
+     PDF-export cluster that used to crowd the top bar moves into a
+     sidebar group, same fix as setlist_overview.html. The PDF mode
+     select/notes-toggle are genuinely page controls (they change what
+     export.pdf below them produces), so they move together with it,
+     not split across header and sidebar. */}}
+<nav class="desktop-sidebar" id="desktop-sidebar" aria-label="main navigation">
+  <a class="sidebar-brand" href="/">{{template "icon-logo"}} Songbooks</a>
+  <div class="sidebar-primary">
+    <a href="/" data-path="/" data-label="Home">{{template "icon-home"}} Home</a>
+    <a href="/catalog" data-path="/catalog" data-label="Songbooks">{{template "icon-catalog"}} Songbooks</a>
+    <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}} Bands</a>
+    <a href="/profile" data-path="/profile" data-label="Profile">{{template "icon-profile"}} Profile</a>
+  </div>
+  <div class="sidebar-secondary sidebar-song-group">
+    <div class="sidebar-group-label">This setlist</div>
+    <a class="sidebar-song-row" href="/setlists/{{.Book}}/{{.Stem}}/export-setlist-page.pdf" title="export just the running order as a single page — for a music stand" download>{{template "icon-download"}} Setlist page</a>
+    <span class="pdf-mode-row sidebar-song-row" style="flex-wrap:wrap;">
+      <a class="pdf-export-link" href="/setlists/{{.Book}}/{{.Stem}}/export.pdf" title="export the whole setlist as one PDF — cover, title page, setlist, every song" download>{{template "icon-download"}} Export PDF</a>
       <select class="pdf-mode-select" title="PDF view mode">
         <option value="">Song</option>
         <option value="jazz">Jazz chart</option>
@@ -25,7 +37,19 @@
       </select>
       <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
     </span>
-    <a class="icon-btn" href="/setlists/{{.Book}}/{{.Stem}}/export-setlist-page.pdf" title="export just the running order as a single page — for a music stand" download>setlist page</a>
+  </div>
+  {{if .Me}}
+  <a class="sidebar-account" href="/profile">
+    <span class="sidebar-account-avatar">{{slice .Me.DisplayName 0 1}}</span>
+    <span>{{.Me.DisplayName}}</span>
+  </a>
+  {{end}}
+</nav>
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/setlists/{{.Book}}/{{.Stem}}">{{template "icon-back"}} edit</a>
+  <h1>{{.Title}}</h1>
+  <nav class="song-nav">
     <button id="gig-theme-toggle" class="icon-btn" type="button" title="toggle light/dark">{{template "icon-theme"}}</button>
   </nav>
 </header>
@@ -61,6 +85,7 @@
 </div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
+{{template "desktop-sidebar-script"}}
 </body>
 </html>
 {{end}}

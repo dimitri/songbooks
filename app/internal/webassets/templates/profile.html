@@ -17,8 +17,14 @@
   {{template "notif-bell"}}
 </header>
 <main>
+  <h2 style="margin:0 0 0.3rem">{{.Me.DisplayName}} <span class="song-link-sub">@{{.Me.Username}}</span></h2>
+  <nav class="band-tabs band-tabs-row profile-tabs">
+    <a href="#" class="profile-tab-btn{{if ne .Tab "public"}} active{{end}}" data-tab="account">Account</a>
+    <a href="#" class="profile-tab-btn{{if eq .Tab "public"}} active{{end}}" data-tab="public">Public profile</a>
+  </nav>
+
+  <div class="profile-tab-panel" data-tab="account" {{if eq .Tab "public"}}hidden{{end}}>
   <section class="card book-card">
-    <h2>{{.Me.DisplayName}} <span class="song-link-sub">@{{.Me.Username}}</span></h2>
     <p class="hint">New here, or want to pick up where you left off? <a href="/welcome">Walk through getting-started setup</a> — instruments, a band, a few first songs. You can re-enter it any time.</p>
     {{if .Me.IsAdmin}}
     {{/* The only mobile path to /admin: the desktop sidebar's Admin link
@@ -120,8 +126,40 @@
     <button type="button" id="webauthn-register-btn">Add a passkey</button>
     <p class="hint" id="webauthn-register-unsupported" style="display:none">Your browser doesn't support passkeys.</p>
   </section>
+  </div>
+
+  <div class="profile-tab-panel" data-tab="public" {{if ne .Tab "public"}}hidden{{end}}>
+  <section class="card book-card">
+    <h3>Public profile</h3>
+    <p class="hint">A nickname and picture people see instead of your real name/username, and opt-in toggles for whether your email or phone show alongside it.</p>
+    {{if .PublicSaved}}<p style="color:var(--ok)">Public profile saved.</p>{{end}}
+    <form method="post" action="/profile/public">
+      {{if .Me.PictureURL}}<p><img src="{{.Me.PictureURL}}" alt="" class="profile-picture-preview"></p>{{end}}
+      <p><label>Nickname<br>
+        <input type="text" name="nickname" value="{{.Me.Nickname}}" placeholder="shown instead of your display name" maxlength="60"></label></p>
+      <p><label>Picture URL<br>
+        <input type="url" name="picture_url" value="{{.Me.PictureURL}}" placeholder="https://..."></label>
+        <br><span class="hint">A link to an image — no upload here, paste a URL (e.g. from a photo you already host somewhere).</span></p>
+      <p><label>Phone <span class="hint">(e.g. for WhatsApp)</span><br>
+        <input type="tel" name="phone" value="{{.Me.Phone}}" placeholder="+1 555 123 4567"></label></p>
+      <p><label><input type="checkbox" name="share_email" {{if .Me.ShareEmail}}checked{{end}}> Show my email on my public profile</label></p>
+      <p><label><input type="checkbox" name="share_phone" {{if .Me.SharePhone}}checked{{end}}> Show my phone on my public profile</label></p>
+      <button type="submit" class="primary">Save</button>
+    </form>
+  </section>
+  </div>
 </main>
 <script>
+document.querySelectorAll('.profile-tab-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.profile-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.profile-tab-panel').forEach(p => p.hidden = p.dataset.tab !== tab);
+    history.replaceState(null, '', tab === 'public' ? '/profile?tab=public' : '/profile');
+  });
+});
+
 // A checkbox styled as an icon button — toggle the "active" look when
 // its (visually hidden) checkbox is clicked, same idea as the segmented
 // mode-switcher elsewhere in the app, just backed by real checkboxes so

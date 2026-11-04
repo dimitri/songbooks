@@ -89,6 +89,21 @@ type Options struct {
 	// (HideNotes, not WithNotes/ShowNotes) specifically so the zero value
 	// is safe.
 	HideNotes bool
+
+	// Columns overrides the chart's chord/lyric column count (normally
+	// 2). A setlist/gig export sets this to 1 — printed for reading off a
+	// music stand from a few feet away, where a dense two-column chart
+	// isn't legible, unlike a songbook/single-song export which keeps
+	// the default. Zero means "use the renderer's normal default".
+	Columns int
+}
+
+// Cols returns the effective column count: Columns if set, else 2.
+func (o Options) Cols() int {
+	if o.Columns > 0 {
+		return o.Columns
+	}
+	return 2
 }
 
 func (o Options) target() string {

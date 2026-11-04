@@ -1,0 +1,3 @@
+[Bridge]
+[ch]G[/ch]
+[ch]D[/ch]

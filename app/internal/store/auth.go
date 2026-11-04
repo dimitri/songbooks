@@ -30,6 +30,17 @@ type Person struct {
 	// DefaultInstrumentLimits — plus anything else they type). Used to
 	// pre-fill jam signup rather than to gate anything.
 	Instruments []string
+
+	// Public-profile fields (see migration 0038): shown instead of
+	// Username/DisplayName wherever a "public" view of this person is
+	// shown (not built yet beyond the profile editor itself). ShareEmail/
+	// SharePhone are separate opt-ins — a nickname/picture alone doesn't
+	// expose contact info.
+	Nickname   string
+	PictureURL string
+	Phone      string
+	ShareEmail bool
+	SharePhone bool
 }
 
 // ProjectSummary is one project plus the asking person's own role in it —
@@ -89,12 +100,12 @@ func randomToken() (string, error) {
 
 // GetPersonByUsername looks up a person by their login name.
 func (st *Store) GetPersonByUsername(ctx context.Context, username string) (*Person, error) {
-	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments FROM people WHERE username = $1`, username)
+	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone FROM people WHERE username = $1`, username)
 }
 
 // GetPersonByID looks up a person by id.
 func (st *Store) GetPersonByID(ctx context.Context, id int64) (*Person, error) {
-	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments FROM people WHERE id = $1`, id)
+	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone FROM people WHERE id = $1`, id)
 }
 
 // GetPersonByEmail looks up a person by their email address — the
@@ -102,12 +113,12 @@ func (st *Store) GetPersonByID(ctx context.Context, id int64) (*Person, error) {
 // email was stored (emails are lowercased on input, see handleLogin/
 // SetEmail).
 func (st *Store) GetPersonByEmail(ctx context.Context, email string) (*Person, error) {
-	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments FROM people WHERE email = $1`, email)
+	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone FROM people WHERE email = $1`, email)
 }
 
 func (st *Store) scanPerson(ctx context.Context, query string, arg any) (*Person, error) {
 	var p Person
-	err := st.db.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments)
+	err := st.db.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such person: %w", ErrNotFound)
 	}
@@ -120,6 +131,22 @@ func (st *Store) scanPerson(ctx context.Context, query string, arg any) (*Person
 // SetInstruments replaces personID's set of instruments (see Person.Instruments).
 func (st *Store) SetInstruments(ctx context.Context, personID int64, instruments []string) error {
 	tag, err := st.db.Exec(ctx, `UPDATE people SET instruments = $1 WHERE id = $2`, instruments, personID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no such person id %d: %w", personID, ErrNotFound)
+	}
+	return nil
+}
+
+// SetPublicProfile replaces personID's public-profile fields wholesale
+// (see migration 0038 / Person's doc comment) — the "public profile" tab
+// on /profile, same "whole-form save" posture as SetInstruments.
+func (st *Store) SetPublicProfile(ctx context.Context, personID int64, nickname, pictureURL, phone string, shareEmail, sharePhone bool) error {
+	tag, err := st.db.Exec(ctx, `
+		UPDATE people SET nickname = $1, picture_url = $2, phone = $3, share_email = $4, share_phone = $5
+		WHERE id = $6`, nickname, pictureURL, phone, shareEmail, sharePhone, personID)
 	if err != nil {
 		return err
 	}
@@ -290,10 +317,11 @@ func (st *Store) CreateSession(ctx context.Context, personID int64) (string, err
 func (st *Store) GetSession(ctx context.Context, token string) (*Person, error) {
 	var p Person
 	err := st.db.QueryRow(ctx, `
-		SELECT p.id, p.username, p.display_name, coalesce(p.email, ''), coalesce(p.password_hash, ''), p.is_admin, p.instruments
+		SELECT p.id, p.username, p.display_name, coalesce(p.email, ''), coalesce(p.password_hash, ''), p.is_admin, p.instruments,
+		       p.nickname, p.picture_url, p.phone, p.share_email, p.share_phone
 		FROM sessions s JOIN people p ON p.id = s.person_id
 		WHERE s.token = $1 AND s.expires_at > now()`, token).
-		Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments)
+		Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such session: %w", ErrNotFound)
 	}
@@ -357,7 +385,7 @@ func (st *Store) ConsumeLoginToken(ctx context.Context, token string) (*Person, 
 		return nil, err
 	}
 
-	p, err := st.scanPersonTx(ctx, tx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments FROM people WHERE id = $1`, personID)
+	p, err := st.scanPersonTx(ctx, tx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone FROM people WHERE id = $1`, personID)
 	if err != nil {
 		return nil, err
 	}
@@ -369,7 +397,7 @@ func (st *Store) ConsumeLoginToken(ctx context.Context, token string) (*Person, 
 
 func (st *Store) scanPersonTx(ctx context.Context, tx pgx.Tx, query string, arg any) (*Person, error) {
 	var p Person
-	err := tx.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments)
+	err := tx.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such person: %w", ErrNotFound)
 	}

@@ -78,3 +78,62 @@ func (s *Server) handleImportChords(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"text": text})
 }
+
+// ugSectionPreview is one parsed section as the import wizard's preview
+// step needs it — plain strings, no song.Section/UGSong types exposed to
+// the client, so the JS side never has to re-derive the grid/lyrics
+// rendering rules.
+type ugSectionPreview struct {
+	Label  string `json:"label"`
+	Grid   string `json:"grid"`
+	Lyrics string `json:"lyrics"`
+}
+
+// handleImportUGParse is the wizard's "fetch and parse" step: parses an
+// Ultimate Guitar tab into its semantic section list (see
+// importer.ParseUGContent) instead of handing back one raw blob of text
+// — the preview step that follows renders this directly, and the
+// "import" step (handleImportUGConvert) re-parses the SAME url rather
+// than trusting a client-echoed section list, so the conversion is
+// always driven by what was actually fetched.
+func (s *Server) handleImportUGParse(w http.ResponseWriter, r *http.Request) {
+	var req importRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
+		httpError(w, http.StatusBadRequest, "missing url")
+		return
+	}
+	song, err := importer.FetchAndParseUGTab(req.URL)
+	if err != nil {
+		httpError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	sections := make([]ugSectionPreview, len(song.Sections))
+	for i, sec := range song.Sections {
+		sections[i] = ugSectionPreview{Label: sec.Label, Grid: sec.Grid(), Lyrics: sec.Lyrics()}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"title": song.Title, "artist": song.Artist, "sections": sections,
+	})
+}
+
+// handleImportUGConvert is the wizard's "import" step: re-fetches and
+// re-parses url (never trusting a client-supplied section list — see
+// handleImportUGParse's doc comment), then converts exactly the
+// requested (0-based) section indices to this app's own .song-format
+// text via UGSong.ToSongText.
+func (s *Server) handleImportUGConvert(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		URL      string `json:"url"`
+		Selected []int  `json:"selected"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
+		httpError(w, http.StatusBadRequest, "missing url")
+		return
+	}
+	song, err := importer.FetchAndParseUGTab(req.URL)
+	if err != nil {
+		httpError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"text": song.ToSongText(req.Selected)})
+}

@@ -111,9 +111,9 @@ func renderSongBody(c *canvas, s *song.Song, bodySize float64, mode pdf.Mode, hi
 // each candidate — cheap, no PDF content is actually emitted until the
 // winning size is known), falling back to the smallest size with a second
 // page allowed if nothing fits even at the floor.
-func fitSongToPage(doc *gopdf.GoPdf, s *song.Song, th theme, mode pdf.Mode, hideNotes bool) (size float64, allowPage2 bool) {
+func fitSongToPage(doc *gopdf.GoPdf, s *song.Song, th theme, mode pdf.Mode, hideNotes bool, cols int) (size float64, allowPage2 bool) {
 	for _, sz := range candidateSizes {
-		c := newCanvas(doc, false, th, 2, false)
+		c := newCanvas(doc, false, th, cols, false)
 		renderSongBody(c, s, sz, mode, hideNotes)
 		if !c.overflowed {
 			return sz, false
@@ -125,15 +125,17 @@ func fitSongToPage(doc *gopdf.GoPdf, s *song.Song, th theme, mode pdf.Mode, hide
 // renderSong draws one full song, starting a fresh page, at whatever size
 // fitSongToPage determines it needs (one page if at all possible, two as a
 // last resort for a genuinely long chart). ModeMap is handled separately
-// (renderSongMap) — it's not a smaller chart, it's a different page.
-func renderSong(doc *gopdf.GoPdf, s *song.Song, th theme, mode pdf.Mode, hideNotes bool) error {
+// (renderSongMap) — it's not a smaller chart, it's a different page. cols
+// is normally 2; a setlist/gig export passes 1 (see pdf.Options.Columns)
+// so the printed chart is legible from a few feet away.
+func renderSong(doc *gopdf.GoPdf, s *song.Song, th theme, mode pdf.Mode, hideNotes bool, cols int) error {
 	if mode == pdf.ModeMap {
 		return renderSongMap(doc, s, th, hideNotes)
 	}
-	size, allowPage2 := fitSongToPage(doc, s, th, mode, hideNotes)
+	size, allowPage2 := fitSongToPage(doc, s, th, mode, hideNotes, cols)
 	doc.AddPage()
 	paintPageBackground(doc, th)
-	c := newCanvas(doc, true, th, 2, allowPage2)
+	c := newCanvas(doc, true, th, cols, allowPage2)
 	renderSongBody(c, s, size, mode, hideNotes)
 	if c.pages > 2 {
 		return fmt.Errorf("song %q still overflows at the floor size across %d pages", s.Get("title"), c.pages)

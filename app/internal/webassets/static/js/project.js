@@ -73,6 +73,9 @@ document.getElementById('open-wizard-btn')?.addEventListener('click', () => {
   document.getElementById('wiz-lyrics-status').textContent = '';
   document.getElementById('wiz-chords-status').textContent = '';
   document.getElementById('wiz-status').textContent = '';
+  document.getElementById('ug-preview-sections').innerHTML = '';
+  ugLastURL = '';
+  ugShowSubstep('ug-step-url');
   wizShowStep(0);
   wizard.showModal();
   document.getElementById('wiz-title').focus();
@@ -95,7 +98,87 @@ async function wizFetch(kind, endpoint) {
   status.className = 'hint ok';
 }
 document.getElementById('wiz-lyrics-fetch')?.addEventListener('click', () => wizFetch('lyrics', '/api/import/lyrics'));
-document.getElementById('wiz-chords-fetch')?.addEventListener('click', () => wizFetch('chords', '/api/import/chords'));
+
+// ---- Ultimate Guitar import sub-wizard: URL -> fetch & parse -> preview
+// (pick sections) -> import, or skip straight to the raw textarea. The
+// parsed sections are kept in memory only — "Use selected sections"
+// re-sends the URL + chosen indices to /convert, which re-fetches and
+// re-parses server-side rather than trusting this client-side copy (see
+// handleImportUGConvert's doc comment).
+let ugLastURL = '';
+function ugShowSubstep(id) {
+  document.querySelectorAll('.ug-import-substep').forEach(el => { el.hidden = el.id !== id; });
+}
+document.getElementById('ug-skip-to-raw')?.addEventListener('click', () => ugShowSubstep('ug-step-raw'));
+document.getElementById('ug-raw-back')?.addEventListener('click', () => ugShowSubstep('ug-step-url'));
+document.getElementById('ug-preview-back')?.addEventListener('click', () => ugShowSubstep('ug-step-url'));
+
+document.getElementById('wiz-chords-fetch')?.addEventListener('click', async () => {
+  const url = document.getElementById('wiz-chords-url').value.trim();
+  const status = document.getElementById('wiz-chords-status');
+  if (!url) { status.textContent = 'paste a URL first'; status.className = 'hint err'; return; }
+  status.textContent = 'fetching & parsing…'; status.className = 'hint';
+  const res = await fetch('/api/import/ultimate-guitar/parse', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }),
+  });
+  const data = await res.json();
+  if (!res.ok) { status.textContent = data.error || 'fetch failed — try "skip" and paste the text instead'; status.className = 'hint err'; return; }
+  status.textContent = '';
+  ugLastURL = url;
+  if (data.title && !document.getElementById('wiz-title').value.trim()) document.getElementById('wiz-title').value = data.title;
+  if (data.artist && !document.getElementById('wiz-artist').value.trim()) document.getElementById('wiz-artist').value = data.artist;
+  const titleEl = document.getElementById('ug-preview-title');
+  titleEl.textContent = `${data.sections.length} section${data.sections.length === 1 ? '' : 's'} found — pick which ones to bring in (bar placement is a naive guess, fix it in the editor after).`;
+  const list = document.getElementById('ug-preview-sections');
+  list.innerHTML = '';
+  data.sections.forEach((sec, i) => {
+    const card = document.createElement('label');
+    card.className = 'ug-preview-section';
+    const lyricsPreview = sec.lyrics.split('\n').slice(0, 3).join('\n');
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'ug-section-checkbox';
+    checkbox.dataset.index = i;
+    checkbox.checked = true;
+
+    const body = document.createElement('div');
+    body.className = 'ug-preview-section-body';
+    const label = document.createElement('div');
+    label.className = 'ug-preview-section-label';
+    label.textContent = sec.label || 'Verse';
+    body.appendChild(label);
+    if (sec.grid) {
+      const grid = document.createElement('code');
+      grid.className = 'ug-preview-section-grid';
+      grid.textContent = `grid: ${sec.grid}`;
+      body.appendChild(grid);
+    }
+    const lyrics = document.createElement('pre');
+    lyrics.className = 'ug-preview-section-lyrics';
+    lyrics.textContent = lyricsPreview;
+    body.appendChild(lyrics);
+
+    card.appendChild(checkbox);
+    card.appendChild(body);
+    list.appendChild(card);
+  });
+  ugShowSubstep('ug-step-preview');
+});
+
+document.getElementById('ug-preview-use')?.addEventListener('click', async () => {
+  const selected = [...document.querySelectorAll('.ug-section-checkbox:checked')].map(cb => parseInt(cb.dataset.index, 10));
+  const status = document.getElementById('wiz-chords-status');
+  if (selected.length === 0) { ugShowSubstep('ug-step-raw'); return; }
+  const res = await fetch('/api/import/ultimate-guitar/convert', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: ugLastURL, selected }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { status.textContent = data.error || 'import failed'; status.className = 'hint err'; ugShowSubstep('ug-step-url'); return; }
+  document.getElementById('wiz-chords-preview').value = data.text;
+  ugShowSubstep('ug-step-raw');
+});
 
 document.getElementById('wiz-create')?.addEventListener('click', async () => {
   const title = document.getElementById('wiz-title').value.trim();

@@ -108,10 +108,13 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("GET /b/{book}/{stem}", s.requireSongRole("viewer", s.handleSong))
 	mux.HandleFunc("GET /b/{book}/{stem}/play", s.requireSongRole("viewer", s.handleSongRedirect)) // old links -> the unified page
 	mux.HandleFunc("GET /b/{book}/{stem}/prep", s.requireSongRole("viewer", s.handleSongRedirect))
+	mux.HandleFunc("GET /api/qr", s.requireAuth(s.handleQRCode))
 	mux.HandleFunc("POST /api/preview", s.requireAuth(s.handlePreview))
 	mux.HandleFunc("POST /api/import/lyrics", s.requireAuth(s.handleImportLyrics))
 	mux.HandleFunc("GET /api/import/lyrics/find", s.requireAuth(s.handleImportLyricsFindFetch))
 	mux.HandleFunc("POST /api/import/chords", s.requireAuth(s.handleImportChords))
+	mux.HandleFunc("POST /api/import/ultimate-guitar/parse", s.requireAuth(s.handleImportUGParse))
+	mux.HandleFunc("POST /api/import/ultimate-guitar/convert", s.requireAuth(s.handleImportUGConvert))
 
 	mux.HandleFunc("GET /api/songs/{book}/{stem}", s.requireSongRole("viewer", s.handleGetSong))
 	mux.HandleFunc("PUT /api/songs/{book}/{stem}", s.requireSongRole("editor", s.handlePutSong))
@@ -176,6 +179,7 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// path for a magic-link-only account. See profile.go.
 	mux.HandleFunc("POST /profile/password", s.requireAuth(s.handleSetPasswordProfile))
 	mux.HandleFunc("POST /profile/email", s.requireAuth(s.handleSetEmailProfile))
+	mux.HandleFunc("POST /profile/public", s.requireAuth(s.handleSetPublicProfile))
 	// Passkeys: add one to an already-logged-in account (requireAuth —
 	// account creation itself stays invite-only, see webauthn.go's package
 	// doc comment), rename, or remove.
@@ -239,6 +243,9 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// other band-scoped mutation above.
 	mux.HandleFunc("POST /api/bands/{id}/group-invites", s.requireBandMember(s.handleCreateBandGroupInvite))
 	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/close", s.requireBandMember(s.handleCloseBandGroupInvite))
+	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/slots", s.requireBandMember(s.handleAddGroupInviteSlot))
+	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/slots/{slotID}", s.requireBandMember(s.handleUpdateGroupInviteSlot))
+	mux.HandleFunc("DELETE /api/bands/{id}/group-invites/{groupInviteID}/slots/{slotID}", s.requireBandMember(s.handleRemoveGroupInviteSlot))
 	mux.HandleFunc("GET /bands/{id}/members", s.requireBandMember(s.handleBandMembersPage))
 	mux.HandleFunc("GET /bands/{id}/setlists", s.requireBandMember(s.handleBandSetlistsPage))
 	mux.HandleFunc("GET /bands/{id}/catalog", s.requireBandMember(s.handleBandCatalogPage))

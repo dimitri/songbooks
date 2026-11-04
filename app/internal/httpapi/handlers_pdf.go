@@ -26,6 +26,19 @@ func optionsFromRequest(r *http.Request) pdf.Options {
 	}
 }
 
+// setlistOptionsFromRequest is optionsFromRequest for a gig/setlist
+// export: single-column by default, since it's printed to read off a
+// music stand from a few feet away, where the normal two-column chart
+// isn't legible — ?cols=2 opts back into the dense layout if wanted.
+func setlistOptionsFromRequest(r *http.Request) pdf.Options {
+	o := optionsFromRequest(r)
+	o.Columns = 1
+	if c, err := strconv.Atoi(r.URL.Query().Get("cols")); err == nil && c > 0 {
+		o.Columns = c
+	}
+	return o
+}
+
 // handleExportSongPDF renders one song to a one-page (best-effort) PDF.
 // Requires s.pdf to be configured (--v2-root set, for the legacy Typst
 // Bridge path); otherwise it reports 503 rather than silently pretending
@@ -154,7 +167,7 @@ func (s *Server) handleExportSetlistPDF(w http.ResponseWriter, r *http.Request) 
 		front.EventTitle = ""
 	}
 
-	data, err := s.pdf.ExportSetlist(r.Context(), title, front, refs, optionsFromRequest(r))
+	data, err := s.pdf.ExportSetlist(r.Context(), title, front, refs, setlistOptionsFromRequest(r))
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
 		return
@@ -244,7 +257,7 @@ func (s *Server) handleExportSetlistByIDPDF(w http.ResponseWriter, r *http.Reque
 	refs, skipped := resolveByIDSetlistRefs(r.Context(), s, l)
 	front := s.setlistFrontMatter(r, meta, title)
 
-	data, err := s.pdf.ExportSetlist(r.Context(), title, front, refs, optionsFromRequest(r))
+	data, err := s.pdf.ExportSetlist(r.Context(), title, front, refs, setlistOptionsFromRequest(r))
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
 		return

@@ -53,22 +53,66 @@
     {{end}}
     {{range .GroupInvites}}
       {{if not .ClosedAt}}
+        {{$giID := .ID}}
         {{range .Slots}}
           {{if not .ClaimedByPersonID}}
-          <div class="roster-row roster-row-pending">
-            <div class="roster-row-main">
-              <div class="roster-name">{{.DisplayName}}</div>
-              <div class="roster-instruments">
-              {{if .Instrument}}<span class="roster-instrument-badge">{{template "instrument-icon" .Instrument}} {{.Instrument}}</span>{{end}}
+          <div class="roster-row roster-row-pending" data-group-invite-id="{{$giID}}" data-slot-id="{{.ID}}">
+            <div class="roster-pending-fields">
+              <div class="roster-field">
+                <label>Name</label>
+                <input type="text" class="roster-pending-name" value="{{.DisplayName}}">
+              </div>
+              <div class="roster-field">
+                <label>Instrument</label>
+                <input type="text" class="roster-pending-instrument" placeholder="optional" value="{{.Instrument}}">
+              </div>
+              <div class="roster-field roster-field-narrow">
+                <label>Role</label>
+                <select class="roster-pending-status">
+                  <option value="core" {{if eq .Status "core"}}selected{{end}}>core</option>
+                  <option value="guest" {{if eq .Status "guest"}}selected{{end}}>guest</option>
+                </select>
               </div>
             </div>
-            <span class="roster-pending-badge">hasn't joined yet</span>
+            <div class="roster-pending-actions">
+              <span class="roster-pending-badge">hasn't joined yet</span>
+              <button type="button" class="roster-pending-save-btn">Save</button>
+              <button type="button" class="roster-pending-remove-btn danger">Remove</button>
+            </div>
           </div>
           {{end}}
         {{end}}
       {{end}}
     {{end}}
     </div>
+
+    <form class="roster-quick-add" id="roster-quick-add-form">
+      <div class="roster-quick-add-head">
+        <h4>Quick-add a name</h4>
+        <p class="hint">Adds straight to the roster above as "hasn't joined yet" — they'll claim this slot themselves the next time you share the group invite link below.</p>
+      </div>
+      <div class="roster-quick-add-fields">
+        <div class="field">
+          <label for="roster-add-name">Name</label>
+          <input type="text" id="roster-add-name" placeholder="e.g. Marc" required>
+        </div>
+        <div class="field">
+          <label for="roster-add-instrument">Instrument <span class="hint">(optional)</span></label>
+          <input type="text" id="roster-add-instrument" placeholder="e.g. drums">
+        </div>
+        <div class="field roster-field-narrow">
+          <label for="roster-add-status">Role</label>
+          <select id="roster-add-status">
+            <option value="core" selected>core</option>
+            <option value="guest">guest</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" id="roster-add-btn" class="primary">Add to roster</button>
+        <span id="roster-add-result" class="hint"></span>
+      </div>
+    </form>
   </section>
 
   <label><input type="checkbox" id="show-past-toggle"> Show past members</label>
@@ -90,16 +134,26 @@
   </table></div>
 
   <div class="home-section-head" style="margin-top:0.4rem;"><h3>Add people to this band</h3></div>
+  <p class="hint">Three separate actions below, each for a different situation — the quick-add above the roster covers the common case (name a slot, share the link later).</p>
   <div class="card-grid">
     <div class="card">
-      <h2>Add an existing account</h2>
+      <h2>Add an existing account, or send a one-off link</h2>
+      <p class="hint">For someone who already has a Songbooks account (type their username, they're added immediately) — or, to invite someone not yet on the roster by name, a single-use link with no name attached.</p>
+      {{range .OpenInvites}}
+      <div class="invite-link-row">
+        <code class="invite-link-url" data-url="/join/{{.Token}}">/join/{{.Token}}</code>
+        <button type="button" class="copy-link-btn" data-url="/join/{{.Token}}">copy</button>
+        <button type="button" class="qr-link-btn" data-url="/join/{{.Token}}">QR</button>
+        <span class="hint">({{.Status}}, expires {{.ExpiresAt.Format "2006-01-02"}})</span>
+      </div>
+      {{end}}
       <div class="form-stack">
         <div class="field">
-          <label for="add-username">Username</label>
-          <input type="text" id="add-username" placeholder="existing account">
+          <label for="add-username">Username <span class="hint">(leave blank to get a link instead)</span></label>
+          <input type="text" id="add-username" placeholder="e.g. marcguitar">
         </div>
         <div class="field">
-          <label for="add-status">Status</label>
+          <label for="add-status">Role</label>
           <select id="add-status">
             <option value="core" selected>core</option>
             <option value="guest">guest</option>
@@ -113,38 +167,14 @@
     </div>
 
     <div class="card">
-      <h2>Invite someone</h2>
-      <p class="hint">A single-use link — good for one person.</p>
-      {{range .OpenInvites}}
-      <div class="invite-link-row">
-        <code class="invite-link-url" data-url="/join/{{.Token}}">/join/{{.Token}}</code>
-        <button type="button" class="copy-link-btn" data-url="/join/{{.Token}}">copy</button>
-        <span class="hint">({{.Status}}, expires {{.ExpiresAt.Format "2006-01-02"}})</span>
-      </div>
-      {{end}}
-      <div class="form-stack">
-        <div class="field">
-          <label for="invite-status">Status</label>
-          <select id="invite-status">
-            <option value="core" selected>core</option>
-            <option value="guest">guest</option>
-          </select>
-        </div>
-        <div class="form-actions">
-          <button type="button" id="create-band-invite-btn" class="primary">Create a new invite link</button>
-        </div>
-        <p id="band-invite-result" class="hint"></p>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Group invite link (roster)</h2>
-      <p class="hint">Type the names you expect (and optionally their instrument), then get ONE link to share — on WhatsApp, say. Each person who opens it picks their own name (or "someone else"), then creates an account or logs in. Everyone joins as a <strong>guest</strong> member; promote them to core afterwards if you like.</p>
+      <h2>Share one link for several people</h2>
+      <p class="hint">Type the names you expect (instrument and role, optionally), then get ONE link to share — on WhatsApp, say. Each person who opens it picks their own name (or "someone else"), then creates an account or logs in — and joins at the role you picked for them here.</p>
       {{range .GroupInvites}}
         {{if not .ClosedAt}}
         <div class="invite-link-row">
           <code class="invite-link-url" data-url="/join/{{.Token}}">/join/{{.Token}}</code>
           <button type="button" class="copy-link-btn" data-url="/join/{{.Token}}">copy</button>
+          <button type="button" class="qr-link-btn" data-url="/join/{{.Token}}">QR</button>
           <button type="button" class="close-group-invite-btn danger" data-invite-id="{{.ID}}">close</button>
         </div>
         {{end}}
@@ -158,6 +188,13 @@
           <div class="field">
             <label>Instrument <span class="hint">(optional)</span></label>
             <input type="text" class="group-invite-instrument" placeholder="e.g. drums">
+          </div>
+          <div class="field">
+            <label>Role</label>
+            <select class="group-invite-status">
+              <option value="core" selected>core</option>
+              <option value="guest">guest</option>
+            </select>
           </div>
         </div>
       </div>
@@ -175,25 +212,37 @@
     <button type="button" id="delete-band-btn" class="danger">Delete this band</button>
   </div>
 </main>
+<script src="/static/js/qr.js?v={{staticVersion}}"></script>
 <script>
 const bandId = {{.Band.ID}};
+// First still-open group invite id, if any — the roster's own "+ add to
+// roster" action appends to it (or creates one if none exists yet),
+// rather than making the roster-edit UI juggle "which link" itself.
+let openGroupInviteId = null;
+{{range .GroupInvites}}{{if not .ClosedAt}}openGroupInviteId = {{.ID}};{{end}}{{end}}
+
 document.getElementById('show-past-toggle').addEventListener('change', (e) => {
   document.getElementById('past-members-wrap').hidden = !e.target.checked;
 });
 document.getElementById('add-member-btn').addEventListener('click', async () => {
   const username = document.getElementById('add-username').value.trim();
   const status = document.getElementById('add-status').value;
-  if (!username) return;
-  const res = await fetch(`/api/bands/${bandId}/members`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({username, status}),
-  });
-  const data = await res.json();
-  if (res.ok) {
-    location.reload();
-  } else {
-    document.getElementById('add-member-result').textContent = data.error || 'failed to add member';
+  const out = document.getElementById('add-member-result');
+  if (username) {
+    const res = await fetch(`/api/bands/${bandId}/members`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username, status}),
+    });
+    const data = await res.json();
+    if (res.ok) { location.reload(); } else { out.textContent = data.error || 'failed to add member'; }
+    return;
   }
+  // No username — same action, send a link instead ("we send a link,
+  // that's it").
+  const body = new URLSearchParams({status});
+  const res = await fetch(`/api/bands/${bandId}/invites`, {method: 'POST', body});
+  const data = await res.json();
+  if (res.ok) { location.reload(); } else { out.textContent = data.error || 'failed to create invite'; }
 });
 document.querySelectorAll('.status-select').forEach(sel => {
   sel.addEventListener('change', async () => {
@@ -222,23 +271,12 @@ document.querySelectorAll('.copy-link-btn').forEach(btn => {
     }).catch(() => {});
   });
 });
-document.getElementById('create-band-invite-btn').addEventListener('click', async () => {
-  const status = document.getElementById('invite-status').value;
-  const body = new URLSearchParams({status});
-  const res = await fetch(`/api/bands/${bandId}/invites`, {method: 'POST', body});
-  const data = await res.json();
-  const out = document.getElementById('band-invite-result');
-  if (res.ok) {
-    location.reload();
-  } else {
-    out.textContent = data.error || 'failed to create invite';
-  }
-});
 document.getElementById('group-invite-add-row-btn').addEventListener('click', () => {
   const row = document.createElement('div');
   row.className = 'group-invite-row';
   row.innerHTML = '<div class="field"><label>Name</label><input type="text" class="group-invite-name" placeholder="e.g. Marc"></div>' +
-    '<div class="field"><label>Instrument <span class="hint">(optional)</span></label><input type="text" class="group-invite-instrument" placeholder="e.g. drums"></div>';
+    '<div class="field"><label>Instrument <span class="hint">(optional)</span></label><input type="text" class="group-invite-instrument" placeholder="e.g. drums"></div>' +
+    '<div class="field"><label>Role</label><select class="group-invite-status"><option value="core" selected>core</option><option value="guest">guest</option></select></div>';
   document.getElementById('group-invite-rows').appendChild(row);
 });
 document.getElementById('create-group-invite-btn').addEventListener('click', async () => {
@@ -246,7 +284,8 @@ document.getElementById('create-group-invite-btn').addEventListener('click', asy
   document.querySelectorAll('.group-invite-row').forEach(row => {
     const displayName = row.querySelector('.group-invite-name').value.trim();
     const instrument = row.querySelector('.group-invite-instrument').value.trim();
-    if (displayName) slots.push({displayName, instrument});
+    const status = row.querySelector('.group-invite-status').value;
+    if (displayName) slots.push({displayName, instrument, status});
   });
   const res = await fetch(`/api/bands/${bandId}/group-invites`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -259,6 +298,54 @@ document.getElementById('create-group-invite-btn').addEventListener('click', asy
   } else {
     out.textContent = data.error || 'failed to create group invite';
   }
+});
+document.querySelectorAll('.qr-link-btn').forEach(btn => {
+  btn.addEventListener('click', () => showQR(location.origin + btn.dataset.url));
+});
+document.getElementById('roster-quick-add-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const displayName = document.getElementById('roster-add-name').value.trim();
+  const instrument = document.getElementById('roster-add-instrument').value.trim();
+  const status = document.getElementById('roster-add-status').value;
+  const out = document.getElementById('roster-add-result');
+  if (!displayName) { out.textContent = 'enter a name'; return; }
+  let res;
+  if (openGroupInviteId) {
+    res = await fetch(`/api/bands/${bandId}/group-invites/${openGroupInviteId}/slots`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({displayName, instrument, status}),
+    });
+  } else {
+    res = await fetch(`/api/bands/${bandId}/group-invites`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({slots: [{displayName, instrument, status}]}),
+    });
+  }
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) { location.reload(); } else { out.textContent = data.error || 'failed to add to roster'; }
+});
+document.querySelectorAll('.roster-pending-save-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const row = btn.closest('.roster-row-pending');
+    const giID = row.dataset.groupInviteId, slotID = row.dataset.slotId;
+    const displayName = row.querySelector('.roster-pending-name').value.trim();
+    const instrument = row.querySelector('.roster-pending-instrument').value.trim();
+    const status = row.querySelector('.roster-pending-status').value;
+    const res = await fetch(`/api/bands/${bandId}/group-invites/${giID}/slots/${slotID}`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({displayName, instrument, status}),
+    });
+    if (res.ok) location.reload();
+  });
+});
+document.querySelectorAll('.roster-pending-remove-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm('Remove this name from the roster?')) return;
+    const row = btn.closest('.roster-row-pending');
+    const giID = row.dataset.groupInviteId, slotID = row.dataset.slotId;
+    await fetch(`/api/bands/${bandId}/group-invites/${giID}/slots/${slotID}`, {method: 'DELETE'});
+    location.reload();
+  });
 });
 document.querySelectorAll('.close-group-invite-btn').forEach(btn => {
   btn.addEventListener('click', async () => {

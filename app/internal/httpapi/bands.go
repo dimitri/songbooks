@@ -489,6 +489,7 @@ func (s *Server) handleCreateBandGroupInvite(w http.ResponseWriter, r *http.Requ
 		Slots []struct {
 			DisplayName string `json:"displayName"`
 			Instrument  string `json:"instrument"`
+			Status      string `json:"status"`
 		} `json:"slots"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -497,7 +498,7 @@ func (s *Server) handleCreateBandGroupInvite(w http.ResponseWriter, r *http.Requ
 	}
 	slots := make([]store.GroupInviteSlotInput, 0, len(req.Slots))
 	for _, sl := range req.Slots {
-		slots = append(slots, store.GroupInviteSlotInput{DisplayName: sl.DisplayName, Instrument: sl.Instrument})
+		slots = append(slots, store.GroupInviteSlotInput{DisplayName: sl.DisplayName, Instrument: sl.Instrument, Status: sl.Status})
 	}
 	actor := personFromContext(r)
 	groupInviteID, token, err := s.store.CreateGroupInvite(r.Context(), "band", bandID, actor.ID, slots)
@@ -506,6 +507,98 @@ func (s *Server) handleCreateBandGroupInvite(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": groupInviteID, "url": "/join/" + token})
+}
+
+// handleAddGroupInviteSlot appends one more named roster slot to an
+// already-open band group invite — "add names, even for members that
+// have not joined yet" from the roster itself, not just at link-creation
+// time.
+func (s *Server) handleAddGroupInviteSlot(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	groupInviteID, err := strconv.ParseInt(r.PathValue("groupInviteID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid group invite id")
+		return
+	}
+	var req struct {
+		DisplayName string `json:"displayName"`
+		Instrument  string `json:"instrument"`
+		Status      string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	slotID, err := s.store.AddGroupInviteSlot(r.Context(), groupInviteID, "band", bandID, store.GroupInviteSlotInput{
+		DisplayName: req.DisplayName, Instrument: req.Instrument, Status: req.Status,
+	})
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			httpError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int64{"slotId": slotID})
+}
+
+// handleUpdateGroupInviteSlot fixes a pending roster slot's name,
+// instrument, or role before that person has joined.
+func (s *Server) handleUpdateGroupInviteSlot(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	groupInviteID, err := strconv.ParseInt(r.PathValue("groupInviteID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid group invite id")
+		return
+	}
+	slotID, err := strconv.ParseInt(r.PathValue("slotID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid slot id")
+		return
+	}
+	var req struct {
+		DisplayName string `json:"displayName"`
+		Instrument  string `json:"instrument"`
+		Status      string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if err := s.store.UpdateGroupInviteSlot(r.Context(), groupInviteID, slotID, bandID, req.DisplayName, req.Instrument, req.Status); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			httpError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
+}
+
+// handleRemoveGroupInviteSlot deletes a pending (unclaimed) roster slot.
+func (s *Server) handleRemoveGroupInviteSlot(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	groupInviteID, err := strconv.ParseInt(r.PathValue("groupInviteID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid group invite id")
+		return
+	}
+	slotID, err := strconv.ParseInt(r.PathValue("slotID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid slot id")
+		return
+	}
+	if err := s.store.RemoveGroupInviteSlot(r.Context(), groupInviteID, slotID, bandID); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			httpError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"removed": true})
 }
 
 // handleCloseBandGroupInvite explicitly closes a still-open band group

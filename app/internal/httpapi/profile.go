@@ -47,7 +47,33 @@ func (s *Server) handleProfilePage(w http.ResponseWriter, r *http.Request) {
 		"Passkeys":    passkeys,
 		"EmailError":  r.URL.Query().Get("emailerror"),
 		"EmailSaved":  r.URL.Query().Get("emailsaved") != "",
+		"PublicSaved": r.URL.Query().Get("publicsaved") != "",
+		"Tab":         r.URL.Query().Get("tab"),
 	})
+}
+
+// handleSetPublicProfile is POST /profile/public — saves the "public
+// profile" tab's fields (see migration 0038): a nickname/picture to show
+// instead of the real username, plus opt-in toggles for whether email/
+// phone show on that public view. There's no public-facing page that
+// actually reads these yet — this is the editor half only, ahead of
+// whatever surface (a public catalog, a jam roster) ends up showing it.
+func (s *Server) handleSetPublicProfile(w http.ResponseWriter, r *http.Request) {
+	p := personFromContext(r)
+	if err := r.ParseForm(); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid form")
+		return
+	}
+	nickname := strings.TrimSpace(r.FormValue("nickname"))
+	pictureURL := strings.TrimSpace(r.FormValue("picture_url"))
+	phone := strings.TrimSpace(r.FormValue("phone"))
+	shareEmail := r.FormValue("share_email") == "on"
+	sharePhone := r.FormValue("share_phone") == "on"
+	if err := s.store.SetPublicProfile(r.Context(), p.ID, nickname, pictureURL, phone, shareEmail, sharePhone); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	http.Redirect(w, r, "/profile?tab=public&publicsaved=1", http.StatusFound)
 }
 
 // handleSetEmailProfile is POST /profile/email — lets a logged-in person

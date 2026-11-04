@@ -36,6 +36,7 @@ type GroupInviteSlot struct {
 	GroupInviteID     int64
 	DisplayName       string
 	Instrument        string
+	Status            string // "core" or "guest" — the band status this slot grants on claim
 	ClaimedByPersonID *int64
 	ClaimedByName     string // the claiming person's display name, '' if unclaimed
 	ClaimedAt         *time.Time
@@ -56,6 +57,14 @@ type GroupInviteView struct {
 type GroupInviteSlotInput struct {
 	DisplayName string
 	Instrument  string // band kind only; ignored for school
+	Status      string // band kind only; "core" or "guest", defaults to "guest" if blank/invalid
+}
+
+func normalizeSlotStatus(status string) string {
+	if status == "core" {
+		return "core"
+	}
+	return "guest"
 }
 
 // CreateGroupInvite makes a brand-new, reusable group invite for
@@ -95,14 +104,16 @@ func (st *Store) CreateGroupInvite(ctx context.Context, targetKind string, targe
 			continue
 		}
 		var instrument *string
+		status := "guest"
 		if targetKind == "band" {
 			if v := strings.TrimSpace(sl.Instrument); v != "" {
 				instrument = &v
 			}
+			status = normalizeSlotStatus(sl.Status)
 		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO group_invite_slots (group_invite_id, display_name, instrument)
-			VALUES ($1, $2, $3)`, groupInviteID, name, instrument); err != nil {
+			INSERT INTO group_invite_slots (group_invite_id, display_name, instrument, status)
+			VALUES ($1, $2, $3, $4)`, groupInviteID, name, instrument, status); err != nil {
 			return 0, "", err
 		}
 	}
@@ -205,7 +216,7 @@ func (st *Store) scanGroupInvite(ctx context.Context, q dbtx, query string, arg 
 
 func (st *Store) listGroupInviteSlots(ctx context.Context, q dbtx, groupInviteID int64) ([]GroupInviteSlot, error) {
 	rows, err := q.Query(ctx, `
-		SELECT s.id, s.group_invite_id, s.display_name, coalesce(s.instrument, ''), s.claimed_by_person_id, s.claimed_at,
+		SELECT s.id, s.group_invite_id, s.display_name, coalesce(s.instrument, ''), s.status, s.claimed_by_person_id, s.claimed_at,
 		       coalesce(p.display_name, '')
 		FROM group_invite_slots s
 		LEFT JOIN people p ON p.id = s.claimed_by_person_id
@@ -219,7 +230,7 @@ func (st *Store) listGroupInviteSlots(ctx context.Context, q dbtx, groupInviteID
 		var sl GroupInviteSlot
 		var claimedBy sql.NullInt64
 		var claimedAt sql.NullTime
-		if err := rows.Scan(&sl.ID, &sl.GroupInviteID, &sl.DisplayName, &sl.Instrument, &claimedBy, &claimedAt, &sl.ClaimedByName); err != nil {
+		if err := rows.Scan(&sl.ID, &sl.GroupInviteID, &sl.DisplayName, &sl.Instrument, &sl.Status, &claimedBy, &claimedAt, &sl.ClaimedByName); err != nil {
 			return nil, err
 		}
 		if claimedBy.Valid {
@@ -263,7 +274,7 @@ func (st *Store) lockOpenGroupInviteTx(ctx context.Context, tx pgx.Tx, token str
 // personID is already a CURRENT member of that band/school (an existing
 // account claiming a slot should never get a duplicate membership row
 // or an error just because they're already in).
-func (st *Store) grantGroupInviteMembershipTx(ctx context.Context, tx pgx.Tx, gi *GroupInvite, personID int64) (dest string, err error) {
+func (st *Store) grantGroupInviteMembershipTx(ctx context.Context, tx pgx.Tx, gi *GroupInvite, personID int64, status string) (dest string, err error) {
 	switch gi.TargetKind {
 	case "band":
 		already, err := isCurrentBandMember(ctx, tx, gi.BandID, personID)
@@ -273,7 +284,7 @@ func (st *Store) grantGroupInviteMembershipTx(ctx context.Context, tx pgx.Tx, gi
 		if !already {
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO band_members (band_id, person_id, status, invited_by_person_id)
-				VALUES ($1, $2, 'guest', $3)`, gi.BandID, personID, nullableID(gi.CreatedBy)); err != nil {
+				VALUES ($1, $2, $3, $4)`, gi.BandID, personID, normalizeSlotStatus(status), nullableID(gi.CreatedBy)); err != nil {
 				return "", err
 			}
 		}
@@ -302,22 +313,22 @@ func (st *Store) grantGroupInviteMembershipTx(ctx context.Context, tx pgx.Tx, gi
 // personID, after checking it isn't already claimed by someone else —
 // ErrConflict (same sentinel a stale/concurrent edit uses elsewhere in
 // this codebase) if a double-claim race loses.
-func (st *Store) claimSlotTx(ctx context.Context, tx pgx.Tx, groupInviteID, slotID, personID int64) error {
+func (st *Store) claimSlotTx(ctx context.Context, tx pgx.Tx, groupInviteID, slotID, personID int64) (status string, err error) {
 	var claimed bool
-	err := tx.QueryRow(ctx, `
-		SELECT claimed_by_person_id IS NOT NULL FROM group_invite_slots
-		WHERE id = $1 AND group_invite_id = $2 FOR UPDATE`, slotID, groupInviteID).Scan(&claimed)
+	err = tx.QueryRow(ctx, `
+		SELECT claimed_by_person_id IS NOT NULL, status FROM group_invite_slots
+		WHERE id = $1 AND group_invite_id = $2 FOR UPDATE`, slotID, groupInviteID).Scan(&claimed, &status)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("no such slot on this invite: %w", ErrNotFound)
+		return "", fmt.Errorf("no such slot on this invite: %w", ErrNotFound)
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 	if claimed {
-		return fmt.Errorf("this slot has already been claimed: %w", ErrConflict)
+		return "", fmt.Errorf("this slot has already been claimed: %w", ErrConflict)
 	}
 	_, err = tx.Exec(ctx, `UPDATE group_invite_slots SET claimed_by_person_id = $1, claimed_at = now() WHERE id = $2`, personID, slotID)
-	return err
+	return status, err
 }
 
 // ClaimGroupInviteSlot is an already-logged-in person claiming a named
@@ -336,10 +347,11 @@ func (st *Store) ClaimGroupInviteSlot(ctx context.Context, token string, slotID,
 	if err != nil {
 		return "", err
 	}
-	if err := st.claimSlotTx(ctx, tx, gi.ID, slotID, personID); err != nil {
+	status, err := st.claimSlotTx(ctx, tx, gi.ID, slotID, personID)
+	if err != nil {
 		return "", err
 	}
-	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID)
+	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, status)
 	if err != nil {
 		return "", err
 	}
@@ -361,7 +373,7 @@ func (st *Store) ClaimGroupInviteUnlisted(ctx context.Context, token string, per
 	if err != nil {
 		return "", err
 	}
-	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID)
+	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, "guest")
 	if err != nil {
 		return "", err
 	}
@@ -397,10 +409,11 @@ func (st *Store) CreatePersonAndClaimGroupInviteSlot(ctx context.Context, token 
 	if err != nil {
 		return 0, "", err
 	}
-	if err := st.claimSlotTx(ctx, tx, gi.ID, slotID, personID); err != nil {
+	status, err := st.claimSlotTx(ctx, tx, gi.ID, slotID, personID)
+	if err != nil {
 		return 0, "", err
 	}
-	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID)
+	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, status)
 	if err != nil {
 		return 0, "", err
 	}
@@ -426,7 +439,7 @@ func (st *Store) CreatePersonAndClaimGroupInviteUnlisted(ctx context.Context, to
 	if err != nil {
 		return 0, "", err
 	}
-	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID)
+	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, "guest")
 	if err != nil {
 		return 0, "", err
 	}
@@ -436,6 +449,94 @@ func (st *Store) CreatePersonAndClaimGroupInviteUnlisted(ctx context.Context, to
 		return 0, "", err
 	}
 	return personID, dest, tx.Commit(ctx)
+}
+
+// AddGroupInviteSlot appends one more named roster slot to an already
+// open group invite — the roster-editing counterpart of typing an extra
+// name into CreateGroupInvite's form, for a roster someone already
+// shared a link for ("add names... even for members that have not
+// joined yet"). targetKind+targetID scope it the same defense-in-depth
+// way CloseGroupInvite does.
+func (st *Store) AddGroupInviteSlot(ctx context.Context, groupInviteID int64, targetKind string, targetID int64, in GroupInviteSlotInput) (slotID int64, err error) {
+	col := "band_id"
+	if targetKind == "school" {
+		col = "school_id"
+	}
+	var openID int64
+	err = st.db.QueryRow(ctx, fmt.Sprintf(`
+		SELECT id FROM group_invites WHERE id = $1 AND target_kind = $2 AND %s = $3 AND closed_at IS NULL`, col),
+		groupInviteID, targetKind, targetID).Scan(&openID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, fmt.Errorf("no such open group invite: %w", ErrNotFound)
+	}
+	if err != nil {
+		return 0, err
+	}
+	name := strings.TrimSpace(in.DisplayName)
+	if name == "" {
+		return 0, fmt.Errorf("a name is required")
+	}
+	var instrument *string
+	status := "guest"
+	if targetKind == "band" {
+		if v := strings.TrimSpace(in.Instrument); v != "" {
+			instrument = &v
+		}
+		status = normalizeSlotStatus(in.Status)
+	}
+	err = st.db.QueryRow(ctx, `
+		INSERT INTO group_invite_slots (group_invite_id, display_name, instrument, status)
+		VALUES ($1, $2, $3, $4) RETURNING id`, groupInviteID, name, instrument, status).Scan(&slotID)
+	return slotID, err
+}
+
+// UpdateGroupInviteSlot edits an unclaimed roster slot's name/instrument/
+// status in place — the "fix a name, change someone's role before they
+// join" action. ErrConflict if the slot has already been claimed (the
+// roster UI never lets an editable row get this far, but a concurrent
+// claim is still possible), ErrNotFound if the slot/invite doesn't
+// resolve to this exact band.
+func (st *Store) UpdateGroupInviteSlot(ctx context.Context, groupInviteID, slotID, bandID int64, displayName, instrument, status string) error {
+	name := strings.TrimSpace(displayName)
+	if name == "" {
+		return fmt.Errorf("a name is required")
+	}
+	var instrumentArg *string
+	if v := strings.TrimSpace(instrument); v != "" {
+		instrumentArg = &v
+	}
+	tag, err := st.db.Exec(ctx, `
+		UPDATE group_invite_slots s SET display_name = $1, instrument = $2, status = $3
+		FROM group_invites gi
+		WHERE s.id = $4 AND s.group_invite_id = $5 AND s.claimed_by_person_id IS NULL
+		  AND gi.id = s.group_invite_id AND gi.target_kind = 'band' AND gi.band_id = $6`,
+		name, instrumentArg, normalizeSlotStatus(status), slotID, groupInviteID, bandID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no such unclaimed slot on this band's roster: %w", ErrNotFound)
+	}
+	return nil
+}
+
+// RemoveGroupInviteSlot deletes an unclaimed roster slot ("remove names,
+// even for members that have not joined yet") — never a claimed one; use
+// RemoveBandMember for an actual current member instead.
+func (st *Store) RemoveGroupInviteSlot(ctx context.Context, groupInviteID, slotID, bandID int64) error {
+	tag, err := st.db.Exec(ctx, `
+		DELETE FROM group_invite_slots s
+		USING group_invites gi
+		WHERE s.id = $1 AND s.group_invite_id = $2 AND s.claimed_by_person_id IS NULL
+		  AND gi.id = s.group_invite_id AND gi.target_kind = 'band' AND gi.band_id = $3`,
+		slotID, groupInviteID, bandID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no such unclaimed slot on this band's roster: %w", ErrNotFound)
+	}
+	return nil
 }
 
 // CloseGroupInvite explicitly closes a still-open group invite —
