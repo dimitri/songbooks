@@ -3331,6 +3331,8 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 }
 .gig-row:nth-child(odd) { background: var(--bg-sunken); }
 .gig-row:hover { background: color-mix(in srgb, var(--accent) 12%, var(--bg-sunken)); }
+.gig-row.current { background: color-mix(in srgb, var(--accent) 20%, var(--bg-sunken)); }
+.gig-row.current .gig-title { color: var(--accent); }
 .gig-num { font-variant-numeric: tabular-nums; color: var(--fg-muted); font-size: 1.1rem; text-align: right; }
 .gig-title { display: flex; flex-direction: column; gap: 0.1rem; font-size: 1.25rem; font-weight: 700; }
 .gig-note { font-size: 0.78rem; font-weight: 400; font-style: italic; color: var(--fg-muted); }

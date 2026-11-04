@@ -9,18 +9,33 @@
 {{template "pwa-head"}}
 </head>
 <body>
-{{template "desktop-sidebar" .Me}}
-<div class="app-content">
-<header class="app-header">
-  {{template "home-link"}}
-  <h1>{{.Book}}</h1>
-  <nav class="song-nav">
-    {{if .Playlist}}<a href="{{.Playlist}}" target="_blank" rel="noopener">playlist &#8599;</a>{{end}}
-    <a href="/setlists">set lists</a>
-    <a href="/catalog">catalog</a>
-    <a href="/api/books/{{.Book}}/export" download>{{template "icon-download"}} Export</a>
-    <span class="pdf-mode-row">
-      <a class="pdf-export-link" href="/b/{{.Book}}/export-songbook.pdf" title="export the whole songbook as one PDF — cover, title page, contents, every song" download>export songbook (PDF)</a>
+{{/* A duplicated desktop-sidebar (same pattern play.html's own "This
+     song" group uses — see its own doc comment) instead of the shared
+     partial: the action row that used to crowd the top bar (playlist,
+     export, export-songbook PDF, remove project) moves into a "This
+     project" group here, contextual to whichever project is open,
+     rather than floating at the top of the page — a direct report
+     ("the action menu is on the top of the page instead of being in
+     the navigation pane"). Remove-project is dropped entirely per
+     direct request, not just relocated — a destructive, rarely-used
+     action doesn't need a standing button on a page people mostly just
+     use to open a song; the backend route is untouched for now. */}}
+<nav class="desktop-sidebar" id="desktop-sidebar" aria-label="main navigation">
+  <a class="sidebar-brand" href="/">{{template "icon-logo"}} Songbooks</a>
+  <div class="sidebar-primary">
+    <a href="/" data-path="/" data-label="Home">{{template "icon-home"}} Home</a>
+    <a href="/catalog" data-path="/catalog" data-label="Songbooks">{{template "icon-catalog"}} Songbooks</a>
+    <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}} Bands</a>
+    <a href="/profile" data-path="/profile" data-label="Profile">{{template "icon-profile"}} Profile</a>
+  </div>
+  <div class="sidebar-secondary sidebar-song-group">
+    <div class="sidebar-group-label">This project</div>
+    {{if .Playlist}}<a class="sidebar-song-row" href="{{.Playlist}}" target="_blank" rel="noopener" title="external playlist">{{template "icon-reference"}} Playlist &#8599;</a>{{end}}
+    <a class="sidebar-song-row" href="/b/{{.Book}}/playlist/metronome" title="step through every song's tempo, in order">{{template "icon-metro-full"}} Metronome playlist</a>
+    <a class="sidebar-song-row" href="/b/{{.Book}}/playlist/mp3" title="play every song's reference audio back to back">{{template "icon-play"}} MP3 playlist</a>
+    <a class="sidebar-song-row" href="/api/books/{{.Book}}/export" download title="export this project's raw .song files">{{template "icon-download"}} Export</a>
+    <span class="pdf-mode-row sidebar-song-row" style="flex-wrap:wrap;">
+      <a class="pdf-export-link" href="/b/{{.Book}}/export-songbook.pdf" title="export the whole songbook as one PDF — cover, title page, contents, every song" download>{{template "icon-download"}} Songbook PDF</a>
       <select class="pdf-mode-select" title="PDF view mode">
         <option value="">Song</option>
         <option value="jazz">Jazz chart</option>
@@ -29,7 +44,24 @@
       </select>
       <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
     </span>
-    <button id="remove-project-btn" class="danger" type="button" data-book="{{.Book}}">{{template "icon-trash"}} Remove project</button>
+  </div>
+  <div class="sidebar-secondary">
+    {{if and .Me .Me.IsAdmin}}<a href="/admin" data-path="/admin">Admin</a>{{end}}
+    <a href="/metronome" data-path="/metronome">Metronome</a>
+    <a href="/catalog/mine" data-path="/catalog/mine">My songbook</a>
+  </div>
+  {{if .Me}}
+  <a class="sidebar-account" href="/profile">
+    <span class="sidebar-account-avatar">{{slice .Me.DisplayName 0 1}}</span>
+    <span>{{.Me.DisplayName}}</span>
+  </a>
+  {{end}}
+</nav>
+<div class="app-content">
+<header class="app-header">
+  {{template "home-link"}}
+  <h1>{{.Book}}</h1>
+  <nav class="song-nav">
     {{template "notif-bell"}}
   </nav>
 </header>
@@ -145,6 +177,7 @@
 
 <script src="/static/js/clock.js?v={{staticVersion}}"></script>
 <script src="/static/js/project.js?v={{staticVersion}}"></script>
+{{template "desktop-sidebar-script"}}
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 {{template "pwa-register"}}
 </div>

@@ -1,0 +1,89 @@
+{{define "mp3-playlist"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Book}} — MP3 playlist — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/b/{{.Book}}">{{template "icon-back"}} {{.Book}}</a>
+  <h1>MP3 playlist</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="gig-sets">
+  <div class="audio-player" id="playlist-player" style="margin:1rem;">
+    <div class="audio-player-body" id="playlist-player-body">
+      <div class="audio-controls">
+        <button type="button" id="pl-prev-btn" class="audio-pill-btn" title="previous song">&#9664;&#9664;</button>
+        <button type="button" id="pl-play-btn" class="icon-btn audio-play-btn" title="play/pause">&#9654;</button>
+        <button type="button" id="pl-next-btn" class="audio-pill-btn" title="next song">&#9654;&#9654;</button>
+        <span id="pl-now-playing" class="audio-time-label">Pick a song below to start</span>
+      </div>
+    </div>
+  </div>
+  <section class="gig-set">
+    <div class="gig-table" id="playlist-rows">
+      {{range $i, $row := .Rows}}
+      <div class="gig-row" data-stem="{{$row.Stem}}" style="cursor:pointer;">
+        <span class="gig-num">{{add1 $i}}</span>
+        <span class="gig-title">{{$row.Title}}</span>
+        <span class="gig-key">{{$row.Key}}</span>
+        <span class="gig-tempo">{{if $row.Tempo}}{{$row.Tempo}}{{end}}</span>
+      </div>
+      {{else}}
+      <div class="attention-empty">No songs with reference audio yet — add some from a song's Reference tab.</div>
+      {{end}}
+    </div>
+  </section>
+</main>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+{{template "desktop-sidebar-script"}}
+<script>
+(function () {
+  const book = {{.Book}};
+  const rowEls = [...document.querySelectorAll('#playlist-rows .gig-row[data-stem]')];
+  const stems = rowEls.map(el => el.dataset.stem);
+  const nowPlaying = document.getElementById('pl-now-playing');
+  const playBtn = document.getElementById('pl-play-btn');
+  const audio = new Audio();
+  let index = -1;
+
+  // Prefer the band's own recording over a YouTube download when a song
+  // has both (app/docs/mp3-reference-audio.md's two categories) — the
+  // band's own take is the more useful one to rehearse against back to
+  // back; falls back to youtube, since HasAudio only promises SOME
+  // category exists, not which one.
+  async function loadIndex(i) {
+    if (i < 0 || i >= stems.length) return;
+    index = i;
+    rowEls.forEach((el, j) => el.classList.toggle('current', j === i));
+    const stem = stems[i];
+    nowPlaying.textContent = rowEls[i].querySelector('.gig-title').textContent;
+    for (const category of ['band', 'youtube']) {
+      const res = await fetch(`/b/${book}/${stem}/audio.mp3?category=${category}`, { method: 'HEAD' });
+      if (res.ok) { audio.src = `/b/${book}/${stem}/audio.mp3?category=${category}`; audio.play(); return; }
+    }
+  }
+  function playNext() { if (index + 1 < stems.length) loadIndex(index + 1); }
+  function playPrev() { if (index - 1 >= 0) loadIndex(index - 1); }
+
+  rowEls.forEach((el, i) => el.addEventListener('click', () => loadIndex(i)));
+  document.getElementById('pl-next-btn').addEventListener('click', playNext);
+  document.getElementById('pl-prev-btn').addEventListener('click', playPrev);
+  playBtn.addEventListener('click', () => { if (audio.paused) audio.play(); else audio.pause(); });
+  audio.addEventListener('play', () => { playBtn.textContent = '⏸'; });
+  audio.addEventListener('pause', () => { playBtn.textContent = '▶'; });
+  audio.addEventListener('ended', playNext);
+})();
+</script>
+</body>
+</html>
+{{end}}

@@ -103,6 +103,8 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 
 	mux.HandleFunc("GET /", s.requireAuth(s.handleIndex))
 	mux.HandleFunc("GET /b/{book}", s.requireRole("viewer", s.handleProject))
+	mux.HandleFunc("GET /b/{book}/playlist/metronome", s.requireRole("viewer", s.handleMetronomePlaylist))
+	mux.HandleFunc("GET /b/{book}/playlist/mp3", s.requireRole("viewer", s.handleMP3Playlist))
 	mux.HandleFunc("GET /b/{book}/{stem}", s.requireSongRole("viewer", s.handleSong))
 	mux.HandleFunc("GET /b/{book}/{stem}/play", s.requireSongRole("viewer", s.handleSongRedirect)) // old links -> the unified page
 	mux.HandleFunc("GET /b/{book}/{stem}/prep", s.requireSongRole("viewer", s.handleSongRedirect))
