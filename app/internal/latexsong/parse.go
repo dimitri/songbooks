@@ -14,8 +14,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"app/internal/song"
+
+	"app/internal/lilychord"
 )
 
 // ParsedSong is one \beginsong...\endsong block, converted.
@@ -37,6 +40,14 @@ var (
 	nolyricsRE  = regexp.MustCompile(`^\{\\nolyrics(.*)\}$`)
 	lilypondRE  = regexp.MustCompile(`\\lilypondfile(?:\[[^\]]*\])?\{[^}]*\}`)
 	caretRE     = regexp.MustCompile(`\^`)
+	// lilypondStandaloneRE matches a line that is NOTHING BUT a
+	// \lilypondfile reference (the real corpus's own actual shape,
+	// confirmed by survey — a mid-line occurrence mixed with other
+	// content is left to lilypondRE's plain strip, unchanged) —
+	// captures the referenced filename so it can be resolved to real
+	// chord data for a song whose chords live ONLY in that .ly file
+	// (see ParseWithResolver).
+	lilypondStandaloneRE = regexp.MustCompile(`^\\lilypondfile(?:\[[^\]]*\])?\{([^}]*)\}$`)
 )
 
 // unescapeLatex undoes the one escape this corpus's titles/artists
@@ -89,6 +100,27 @@ type sectionBuilder struct {
 	lines     []song.LyricLine
 	chords    []string // every chord seen in this section, attached or bare, in order
 	hadChords bool      // at least one \[Chord] actually seen (vs. a chordless lyrics-only section)
+	// lyMeasures is this section's grid as resolved from a sibling .ly
+	// file's \chordmode block (see ParseWithResolver) — used only when
+	// chords is empty, i.e. this section's chords were never written as
+	// \[Chord] text at all, only as LilyPond notation.
+	lyMeasures []song.Measure
+}
+
+// labelFromFilename derives a section label from a .ly filename when no
+// \textnote preceded a standalone \lilypondfile reference (e.g. Still Got
+// The Blues' intro.ly, referenced before any \beginverse at all) —
+// "intro.ly" -> "Intro", "bridge.ly" -> "Bridge".
+func labelFromFilename(name string) string {
+	stem := strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))
+	stem = strings.ReplaceAll(stem, "-", " ")
+	stem = strings.ReplaceAll(stem, "_", " ")
+	if stem == "" {
+		return "Intro"
+	}
+	r := []rune(stem)
+	r[0] = unicode.ToUpper(r[0])
+	return string(r)
 }
 
 // processContentLine turns one lyric/chord line from inside a \beginverse
@@ -204,7 +236,21 @@ func processContentLine(line string, chordsOn bool) (lyric song.LyricLine, chord
 //     dropped from the source text entirely (plain lyrics continue).
 //   - \gtab{...}{...}, \lilypondfile[...]{...} outside a verse/chorus,
 //     blank lines, and whole-line "%" comments are ignored.
+// Parse is ParseWithResolver with no .ly resolver — a section whose
+// chords live only in a sibling LilyPond file (never as \[Chord] text)
+// is left chordless, same as before lilychord existed.
 func Parse(tex string) ([]ParsedSong, error) {
+	return ParseWithResolver(tex, nil)
+}
+
+// ParseWithResolver is Parse, plus resolveLy: called with a referenced
+// .ly filename (e.g. "bridge.ly") whenever a standalone \lilypondfile
+// line is seen with no \[Chord] text already collected for that section
+// — see lilypondStandaloneRE's own doc comment for why only a
+// whole-line reference triggers this, and ParseFile for the real
+// resolver (reads the sibling file and runs it through
+// internal/lilychord.Parse). A nil resolveLy behaves exactly like Parse.
+func ParseWithResolver(tex string, resolveLy func(filename string) []song.Measure) ([]ParsedSong, error) {
 	var out []ParsedSong
 	var cur *ParsedSong
 	chordsOn := true
@@ -219,6 +265,8 @@ func Parse(tex string) ([]ParsedSong, error) {
 		sec := song.Section{Label: sb.label, Lyrics: sb.lines}
 		if len(sb.chords) > 0 {
 			sec.Measures = buildGrid(sb.chords)
+		} else if len(sb.lyMeasures) > 0 {
+			sec.Measures = sb.lyMeasures
 		}
 		cur.Song.Sections = append(cur.Song.Sections, sec)
 		sb = nil
@@ -321,6 +369,43 @@ func Parse(tex string) ([]ParsedSong, error) {
 			flushSection()
 			continue
 		}
+		if m := lilypondStandaloneRE.FindStringSubmatch(trimmed); m != nil {
+			var measures []song.Measure
+			if resolveLy != nil {
+				measures = resolveLy(m[1])
+			}
+			if sb != nil {
+				// Only ever used as a fallback for a section with no
+				// \[Chord] text of its own (flushSection prefers
+				// sb.chords when both exist) — most sections' own
+				// \lilypondfile reference is just the engraving for
+				// chords already written inline, redundant with chords
+				// already collected.
+				sb.lyMeasures = measures
+				continue
+			}
+			// A standalone reference outside any \beginverse/\beginchorus
+			// (e.g. Still Got The Blues' intro.ly, referenced before the
+			// first \beginverse at all — or a \textnote{Bridge} INSIDE an
+			// open \beginverse, which flushes that verse right away and
+			// leaves sb nil, same as \textnote always does; see
+			// Trio/still-got-the-blues' real bridge, whose label and
+			// \lilypondfile both sit ahead of its lyric lines inside one
+			// \beginverse block). Opens a real sectionBuilder, not a
+			// finished Section appended outright — any lyric lines still
+			// to come before the next \endverse/\beginverse must land in
+			// THIS section, not be silently dropped for having no open
+			// sb to attach to (a real bug this shape triggered: Still Got
+			// The Blues' bridge lyrics vanished until this was an sb).
+			flushSection()
+			label := pendingLabel
+			if label == "" {
+				label = labelFromFilename(m[1])
+			}
+			pendingLabel = ""
+			sb = &sectionBuilder{label: label, lyMeasures: measures}
+			continue
+		}
 		if sb == nil {
 			continue // between \beginsong and the first section — \gtab, preamble-ish lines
 		}
@@ -396,7 +481,19 @@ func ParseFile(texPath string) ([]ParsedSong, error) {
 	if err != nil {
 		return nil, err
 	}
-	songs, err := Parse(string(b))
+	dir := filepath.Dir(texPath)
+	resolveLy := func(filename string) []song.Measure {
+		lyBody, err := os.ReadFile(filepath.Join(dir, filename))
+		if err != nil {
+			return nil
+		}
+		measures, err := lilychord.Parse(string(lyBody))
+		if err != nil {
+			return nil
+		}
+		return measures
+	}
+	songs, err := ParseWithResolver(string(b), resolveLy)
 	if err != nil {
 		return nil, err
 	}
