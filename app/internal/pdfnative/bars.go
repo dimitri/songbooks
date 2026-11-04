@@ -1,10 +1,13 @@
 package pdfnative
 
 import (
+	"math"
 	"strconv"
 
 	"app/internal/pdf"
 	"app/internal/song"
+
+	"github.com/signintech/gopdf"
 )
 
 // chordLabel strips a token's ":duration" tag down to the bare chord/rest
@@ -83,9 +86,15 @@ func (c *canvas) barRow(measures []song.Measure, size float64) {
 			// places it at the end of the repeated span, not the start. A
 			// plain count-less bracket (the implicit "x2" every repeat
 			// sign already means) prints nothing, same as before this
-			// existed.
+			// existed. Y = c.y-1, same anchor the Volta marker just below
+			// already uses for its own above-the-staff label — the
+			// previous "barTop+size*0.2" baseline sat INSIDE the staff
+			// box, so the glyph's own ascent shot up well past the row's
+			// own top margin (c.y) into whatever sits above it, reading
+			// as "floating high above the bar" rather than sitting on it
+			// the way Guitar Pro prints an explicit repeat count.
 			if pendingRepeatCount > 0 {
-				c.textAt(bx+boxW-24, barTop+size*0.2, "x"+strconv.Itoa(pendingRepeatCount), faceSansBold, size*0.5, c.th.faint)
+				c.textAt(bx+boxW-24, c.y-1, "x"+strconv.Itoa(pendingRepeatCount), faceSansBold, size*0.5, c.th.faint)
 				pendingRepeatCount = 0
 			}
 		}
@@ -109,26 +118,50 @@ func (c *canvas) barRow(measures []song.Measure, size float64) {
 			continue
 		}
 
-		// Chords that actually start here, left to right, no internal
-		// divider between them within the bar — a tied/sustained beat
-		// ("." or an empty slot) draws nothing, same as a real chart only
-		// marking where a chord begins. Start further right when this
+		// Chords positioned by their OWN beat-slot index, not packed
+		// left-to-right in drawn order — a tied/sustained beat ("." or an
+		// empty slot) draws nothing but still occupies its slot's width,
+		// same as the web chart's own equal-width .beat-slot flex cells.
+		// Packing by drawn order (the previous version) put every chord
+		// immediately after the one before it regardless of how many ties
+		// separated them, so "A . D ." (chord on beat 1, chord on beat 3)
+		// rendered D hard against A as if they were beats 1 and 2 — a real
+		// reported bug, caught by comparing the PDF against this exact
+		// bar's own web chart rendering. Start further right when this
 		// bar's own repeat-open dots (above) are drawn in the same corner.
-		cx := bx + 3
+		startX := bx + 3
 		if m.Open {
-			cx = bx + 14
+			startX = bx + 14
 		}
-		gap := size * 0.4
-		for _, tok := range toks {
+		slotW := (boxW - (startX - bx) - 3) / float64(len(toks))
+		for si, tok := range toks {
 			label := chordLabel(tok)
 			if label == "." || label == "%" || label == "%%" || label == "" {
 				continue
 			}
-			cx += c.drawChordSymbol(cx, baseline, label, size*0.95, c.th.chord) + gap
+			c.drawChordSymbol(startX+float64(si)*slotW, baseline, label, size*0.95, c.th.chord)
 		}
 	}
 	c.line(x0, ruleY, x0+c.colW, ruleY, c.th.line, 0.7)
 	c.y = ruleY + 6
+}
+
+// filledDot draws a solid circle of radius r centered on (cx, cy) — gopdf's
+// own Oval always STROKES its path (cache_content_oval.go ends every oval
+// with the "S" operator, never "f", regardless of SetFillColor), so calling
+// it for a "dot" draws a hollow ring instead — the reported "donut, not a
+// dot" look on every repeat-barline/simile mark in the PDF. Approximated as
+// a 16-gon via Polygon's "F" (fill) style, the one primitive this library
+// actually fills; invisible at dot size (a few points across), same as
+// v2/lib/staff.typ's own simile() dots already do in the Typst pipeline.
+func (c *canvas) filledDot(cx, cy, r float64) {
+	const segments = 16
+	pts := make([]gopdf.Point, segments)
+	for i := range pts {
+		a := 2 * math.Pi * float64(i) / segments
+		pts[i] = gopdf.Point{X: cx + r*math.Cos(a), Y: cy + r*math.Sin(a)}
+	}
+	c.doc.Polygon(pts, "F")
 }
 
 // drawBarRepeatGlyph draws a "play the previous bar again" mark: a
@@ -141,8 +174,8 @@ func (c *canvas) drawBarRepeatGlyph(cx, baselineY, h float64, col rgb) {
 	c.line(cx-h*0.32, baselineY+h*0.25, cx+h*0.32, baselineY-h*0.65, col, h*0.14)
 	r := h * 0.08
 	c.doc.SetFillColor(col.r, col.g, col.b)
-	c.doc.Oval(cx-h*0.32-r, baselineY-h*0.1-r, cx-h*0.32+r, baselineY-h*0.1+r)
-	c.doc.Oval(cx+h*0.32-r, baselineY-h*0.5-r, cx+h*0.32+r, baselineY-h*0.5+r)
+	c.filledDot(cx-h*0.32, baselineY-h*0.1, r)
+	c.filledDot(cx+h*0.32, baselineY-h*0.5, r)
 }
 
 // repeatDots draws the two dots a repeat barline carries, vertically
@@ -151,10 +184,10 @@ func (c *canvas) repeatDots(x, top, h float64) {
 	if !c.draw {
 		return
 	}
-	r := 1.6
+	r := 1.1
 	c.doc.SetFillColor(c.th.ink.r, c.th.ink.g, c.th.ink.b)
-	c.doc.Oval(x-r, top+h*0.33-r, x+r, top+h*0.33+r)
-	c.doc.Oval(x-r, top+h*0.67-r, x+r, top+h*0.67+r)
+	c.filledDot(x, top+h*0.33, r)
+	c.filledDot(x, top+h*0.67, r)
 }
 
 // barsPerLineFor applies the section's own override (song.Section.
