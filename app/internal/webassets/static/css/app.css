@@ -1392,10 +1392,17 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    .volta's -2.3em) because a volta marker's own bracket line sits right
    at the barline; this needs to additionally clear the chord label that
    volta doesn't have to — measured live against a real chord glyph's
-   own box, not just guessed from .volta's offset. */
+   own box, not just guessed from .volta's offset.
+   Horizontally: right-anchored to the bar's own right edge (where the
+   close dots + thick accent strip live — see .bar-close .repeat-dots/
+   .bar-close::after just above/below), NOT centered over the whole bar
+   — real engraving sits a repeat count directly over the END barline
+   itself, not over the repeated span's midpoint (that's what the volta
+   bracket's own full-width span is for; this is a distinct, narrower
+   mark). Centering it read as floating over whichever chord happened to
+   fall mid-bar, not tied to the barline it actually describes. */
 .bracket-repeat-count {
-  position: absolute; left: 50%; top: -4.4em;
-  transform: translateX(-50%);
+  position: absolute; right: 0; top: -4.4em;
   font-weight: 700; font-size: 0.85em; color: var(--fg-muted); white-space: nowrap;
 }
 .repeat-dots::before, .repeat-dots::after {
