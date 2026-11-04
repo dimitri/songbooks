@@ -347,10 +347,31 @@ func (s UGSection) Grid() string {
 // reformat.
 func (s UGSection) Lyrics() string {
 	var b strings.Builder
-	for i, ln := range s.Lines {
-		if i > 0 {
+	first := true
+	for _, ln := range s.Lines {
+		hasText := false
+		for _, tok := range ln.Tokens {
+			if strings.TrimSpace(tok.Text) != "" {
+				hasText = true
+				break
+			}
+		}
+		// A line with no real lyric text at all — just a chord or a
+		// whole chord sequence on its own (e.g. an instrumental intro's
+		// "[Am] [G] [F] [Am]") — adds nothing Grid() doesn't already
+		// capture, and reproducing it here as a bare "[Am] [G] [F] [Am]"
+		// lyric line is actively harmful: this app's own .song parser
+		// reads a section's lyric text expecting prose, not a run of
+		// several bracket groups on one line, which it can misparse as a
+		// garbled section header (several "[...]" runs read as one,
+		// since a label is normally just one).
+		if !hasText {
+			continue
+		}
+		if !first {
 			b.WriteByte('\n')
 		}
+		first = false
 		for _, tok := range ln.Tokens {
 			if tok.Chord != "" {
 				b.WriteByte('[')
