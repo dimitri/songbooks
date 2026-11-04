@@ -21,19 +21,35 @@ RUN CGO_ENABLED=0 go build -o /out/songbooks ./cmd/songbooks
 # export is in-process now, which is the whole point of pdfnative.
 FROM debian:bookworm-slim
 
-# ca-certificates: outbound HTTPS from the app itself (none today, but
-#   cheap insurance) and used transitively by nothing at runtime — kept
-#   for future-proofing the SMTP follow-up.
+# ca-certificates: outbound HTTPS from the app itself — was "none today,
+#   cheap insurance" before yt-dlp (below) started making real outbound
+#   requests to youtube.com, so no longer just insurance.
 # fontconfig + fonts-noto: LilyPond needs a font stack for fallback glyphs.
 # curl + xz-utils: only used to fetch/unpack the tarball below; not needed
 #   after this layer, but kept (small) rather than a multi-stage copy-out.
+# python3 + ffmpeg: yt-dlp's own runtime (it's a Python script) and the
+#   encoder it shells out to for `-x --audio-format mp3` extraction — see
+#   app/docs/mp3-reference-audio.md §1 for why this deployment runs its
+#   own downloader rather than depending on a third-party service.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         fontconfig \
         fonts-noto \
         curl \
         xz-utils \
+        python3 \
+        ffmpeg \
     && rm -rf /var/lib/apt/lists/*
+
+# yt-dlp: a single self-contained Python zipapp, pinned by release tag
+# (not `latest`, which YouTube's own frequent markup/API changes can
+# break without warning) — download it like LilyPond above rather than
+# via pip, so there's no Python package index dependency at build time.
+RUN set -eux; \
+    curl -fsSL -o /usr/local/bin/yt-dlp \
+        https://github.com/yt-dlp/yt-dlp/releases/download/2025.09.26/yt-dlp; \
+    chmod a+rx /usr/local/bin/yt-dlp
+RUN which yt-dlp && yt-dlp --version
 
 # LilyPond 2.26.0 — same version as the Mac dev environment (`brew install
 # lilypond` currently gives 2.26.0). Official release tarball, not apt:

@@ -582,7 +582,21 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
      .song-context-bar below) — this full-width tab row is a desktop-only
      addition, not a second way to do the same thing here. */
   .view-tabs { display: none; }
+  .view-tabs-row { display: none; }
 }
+/* Wraps #mode-segmented (the real render-mode pill) and the Reference tab
+   (view-tabs-extra) as visual siblings in one centered row — Reference
+   isn't a #sheet render mode (see play.html's own comment on why it's a
+   sibling, not a 5th button inside #mode-segmented), but reads as one
+   continuous tab row regardless. */
+.view-tabs-row { display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; }
+.view-tabs-extra {
+  display: flex; align-items: center; gap: 0.3em;
+  margin: 0.6rem 0 0.7rem; padding: 0.5rem 0.9rem; font-size: 0.85rem; color: var(--fg-muted);
+  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 999px; cursor: pointer;
+}
+.view-tabs-extra:hover { color: var(--fg); }
+.view-tabs-extra .icon { width: 0.95rem; height: 0.95rem; }
 .song-topbar {
   display: grid; grid-template-columns: 1fr 2fr 1fr; grid-template-rows: auto; gap: 0.3rem 0.6rem;
   padding: 0.7rem 1.1rem 0.5rem;

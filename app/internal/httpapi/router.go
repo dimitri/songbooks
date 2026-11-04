@@ -117,6 +117,17 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("PUT /api/variants/{id}/genre", s.requireAuth(s.handlePutVariantGenre))
 	mux.HandleFunc("GET /api/songs/{book}/{stem}/raw", s.requireSongRole("viewer", s.handleGetRaw))
 	mux.HandleFunc("PUT /api/songs/{book}/{stem}/raw", s.requireSongRole("editor", s.handlePutRaw))
+
+	// Reference audio (app/docs/mp3-reference-audio.md): metadata/serving
+	// are viewer-level (same as reading the chart itself), upload/delete/
+	// markers are editor-level (same as editing the chart itself).
+	mux.HandleFunc("GET /api/songs/{book}/{stem}/audio", s.requireSongRole("viewer", s.handleGetSongAudioMeta))
+	mux.HandleFunc("GET /b/{book}/{stem}/audio.mp3", s.requireSongRole("viewer", s.handleGetSongAudioData))
+	mux.HandleFunc("PUT /api/songs/{book}/{stem}/audio", s.requireSongRole("editor", s.handlePutSongAudio))
+	mux.HandleFunc("POST /api/songs/{book}/{stem}/audio/youtube", s.requireSongRole("editor", s.handlePostSongAudioYouTube))
+	mux.HandleFunc("DELETE /api/songs/{book}/{stem}/audio", s.requireSongRole("editor", s.handleDeleteSongAudio))
+	mux.HandleFunc("PUT /api/songs/{book}/{stem}/audio/markers/{sectionIndex}", s.requireSongRole("editor", s.handlePutAudioMarker))
+	mux.HandleFunc("DELETE /api/songs/{book}/{stem}/audio/markers/{sectionIndex}", s.requireSongRole("editor", s.handleDeleteAudioMarker))
 	mux.HandleFunc("PUT /api/songs/{book}/{stem}/redo", s.requireSongRole("editor", s.handleRedoSong))
 
 	mux.HandleFunc("PUT /api/books/{book}/order", s.requireRole("editor", s.handleSaveOrder))

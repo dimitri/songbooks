@@ -429,11 +429,24 @@
   </a>
   {{else}}<span class="topbar-cell topbar-next empty"></span>{{end}}
 </div>
+<div class="view-tabs-row">
 <div class="view-tabs" id="mode-segmented" data-value="normal">
   <button type="button" data-value="normal" class="active" title="song">{{template "icon-mode-normal"}} Song</button>
   <button type="button" data-value="jazz" title="jazz chart">{{template "icon-mode-jazz"}} Jazz chart</button>
   <button type="button" data-value="lyrics" title="lyrics only">{{template "icon-mode-lyrics"}} Lyrics only</button>
   <button type="button" data-value="map" title="song map">{{template "icon-mode-map"}} Song map</button>
+</div>
+{{/* Deliberately a SIBLING of #mode-segmented, not a child — wireSegmented
+     (song.js) binds a click listener to every button inside #mode-segmented
+     and treats it as a #sheet render-mode switch; a button with no
+     data-value in that same container would set data-value to undefined
+     and break the real chart render. Opens the existing reference drawer
+     instead, same as the sidebar's own Reference row, just promoted to
+     sit alongside the chart's other views rather than buried in the
+     sidebar, per direct request. initReference (below) already collects
+     every trigger by id into one array, so this is a third id, not new
+     JS; .view-tabs-row's own CSS keeps it visually part of the same row. */}}
+<button type="button" class="view-tabs-extra" id="reference-view-tab" title="reference video">{{template "icon-reference"}} Reference</button>
 </div>
 </div>
 
@@ -864,7 +877,7 @@
 // in the document they live, so moving this block here needed no changes
 // there.
 (function() {
-  const toggles = [document.getElementById('reference-toggle'), document.getElementById('reference-stack-row')].filter(Boolean);
+  const toggles = [document.getElementById('reference-toggle'), document.getElementById('reference-stack-row'), document.getElementById('reference-view-tab')].filter(Boolean);
   const drawer = document.getElementById('reference-drawer');
   const backdrop = document.getElementById('reference-drawer-backdrop');
   if (!toggles.length || !drawer) return;
