@@ -779,6 +779,49 @@
         {{end}}
       </div>
     </nav>
+    {{/* Reference-audio player — app/docs/mp3-reference-audio.md §3/§4.
+         Sits right under the structure strip (per direct request: "just
+         under the timeline horizontal bar") so the waveform/markers and
+         the section-progress strip above it read as one continuous unit.
+         All of empty-state vs. player-body vs. upload controls is decided
+         client-side (audio-player.js, after its own /audio fetch) rather
+         than server-side, since "does this song have audio yet" would
+         otherwise need threading through handleSong for a feature this
+         page-specific. */}}
+    <div class="audio-player" id="audio-player" data-book="{{.Book}}" data-stem="{{.Stem}}" data-can-edit="{{if .CanEdit}}true{{else}}false{{end}}">
+      <input type="file" id="audio-upload-file" accept="audio/*" hidden>
+      <div id="audio-empty-state" class="audio-empty-state" hidden>
+        {{if .CanEdit}}
+        <button type="button" id="audio-upload-file-btn" class="audio-pill-btn">{{template "icon-reference"}} Add reference audio (MP3)</button>
+        <span class="audio-empty-or">or</span>
+        <input type="url" id="audio-youtube-url" placeholder="https://www.youtube.com/watch?v=...">
+        <button type="button" id="audio-youtube-btn" class="audio-pill-btn">Download from YouTube</button>
+        <span id="audio-youtube-status" class="hint"></span>
+        {{else}}
+        <span class="hint">No reference audio for this song yet.</span>
+        {{end}}
+      </div>
+      <div id="audio-player-body" class="audio-player-body" hidden>
+        <div class="audio-waveform-wrap">
+          <canvas id="audio-waveform" class="audio-waveform"></canvas>
+          <div id="audio-playhead" class="audio-playhead"></div>
+        </div>
+        <div class="audio-controls">
+          <button type="button" id="audio-back10-btn" class="audio-pill-btn" title="back 10s">&#8634;10</button>
+          <button type="button" id="audio-play-btn" class="icon-btn audio-play-btn" title="play/pause">&#9654;</button>
+          <button type="button" id="audio-stop-btn" class="icon-btn" title="stop">&#9632;</button>
+          <button type="button" id="audio-restart-btn" class="icon-btn" title="restart">&#8634;</button>
+          <button type="button" id="audio-fwd10-btn" class="audio-pill-btn" title="forward 10s">10&#8635;</button>
+          <span id="audio-time-label" class="audio-time-label">0:00 / 0:00</span>
+          {{if .CanEdit}}
+          <span class="audio-controls-spacer"></span>
+          <button type="button" id="audio-set-marker-btn" class="audio-pill-btn" title="click a section in the strip above, then set its marker to the current playback position">set marker</button>
+          <button type="button" id="audio-replace-btn" class="audio-pill-btn" title="replace this audio">replace</button>
+          <button type="button" id="audio-delete-btn" class="audio-pill-btn danger" title="remove this audio">remove</button>
+          {{end}}
+        </div>
+      </div>
+    </div>
     <main class="sheet" id="sheet" data-render-mode="normal" data-key="{{.Key}}" data-flats="{{if .Flats}}1{{else}}0{{end}}">
     {{template "sheet-body" .}}
     </main>
@@ -788,6 +831,7 @@
 
 <script src="/static/js/clock.js?v={{staticVersion}}"></script>
 <script src="/static/js/song.js?v={{staticVersion}}"></script>
+<script src="/static/js/audio-player.js?v={{staticVersion}}"></script>
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 {{if .PracticeStepMode}}
 <script>
