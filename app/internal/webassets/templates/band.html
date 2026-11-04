@@ -13,7 +13,11 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/bands">{{template "icon-back"}} My bands</a>
-  <h1>{{.Band.Name}}</h1>
+  <span class="band-name-row">
+    <h1 id="band-name-display">{{.Band.Name}}</h1>
+    <button type="button" id="band-name-edit-btn" class="icon-btn" title="rename this band">&#9998;</button>
+    <input type="text" id="band-name-input" class="band-name-input" value="{{.Band.Name}}" hidden>
+  </span>
   <select id="music-type-select" class="music-type-select" title="Covers or original music?">
     <option value="" {{if eq .Band.MusicType ""}}selected{{end}}>Music type: not set</option>
     <option value="covers" {{if eq .Band.MusicType "covers"}}selected{{end}}>Covers band</option>
@@ -29,6 +33,37 @@ document.getElementById('music-type-select').addEventListener('change', async (e
   });
   location.reload();
 });
+(function () {
+  const display = document.getElementById('band-name-display');
+  const editBtn = document.getElementById('band-name-edit-btn');
+  const input = document.getElementById('band-name-input');
+  function startEdit() {
+    display.hidden = true; editBtn.hidden = true;
+    input.hidden = false; input.value = display.textContent;
+    input.focus(); input.select();
+  }
+  function cancelEdit() {
+    input.hidden = true; display.hidden = false; editBtn.hidden = false;
+  }
+  async function saveEdit() {
+    const name = input.value.trim();
+    if (!name || name === display.textContent) { cancelEdit(); return; }
+    const res = await fetch('/api/bands/{{.Band.ID}}/name', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name}),
+    });
+    if (!res.ok) { alert('Could not rename the band.'); cancelEdit(); return; }
+    document.title = name + ' — Songbooks';
+    display.textContent = name;
+    cancelEdit();
+  }
+  editBtn.addEventListener('click', startEdit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); saveEdit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+  });
+  input.addEventListener('blur', saveEdit);
+})();
 </script>
 <main class="index">
   {{/* Phase 43: tabs across the whole band-detail area — Overview (this

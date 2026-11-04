@@ -237,6 +237,29 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleSetBandName renames a band — any current member may do it, same
+// no-owner-role model as handleSetBandMusicType just below.
+func (s *Server) handleSetBandName(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		httpError(w, http.StatusBadRequest, "name cannot be empty")
+		return
+	}
+	if err := s.store.SetBandName(r.Context(), bandID, name); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"name": name})
+}
+
 // handleSetBandMusicType sets whether a band plays covers or original
 // music — any current member may set it (requireBandMember), same as
 // every other band-admin action in this app's no-owner-role model.

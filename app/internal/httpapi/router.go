@@ -208,6 +208,7 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("POST /api/bands", s.requireAuth(s.handleCreateBand))
 	mux.HandleFunc("GET /bands/{id}", s.requireBandMember(s.handleBandPage))
 	mux.HandleFunc("DELETE /api/bands/{id}", s.requireBandMember(s.handleDeleteBand))
+	mux.HandleFunc("POST /api/bands/{id}/name", s.requireBandMember(s.handleSetBandName))
 	mux.HandleFunc("POST /api/bands/{id}/music-type", s.requireBandMember(s.handleSetBandMusicType))
 	mux.HandleFunc("POST /api/bands/{id}/members", s.requireBandMember(s.handleAddBandMember))
 	mux.HandleFunc("POST /api/bands/{id}/members/{personID}/status", s.requireBandMember(s.handleSetBandMemberStatus))

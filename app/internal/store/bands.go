@@ -106,6 +106,25 @@ func (st *Store) CreateBand(ctx context.Context, name string, creatorPersonID in
 	return bandID, nil
 }
 
+// SetBandName renames a band — any current member may do it, same
+// no-owner-role reasoning as SetBandMusicType just below. A blank or
+// whitespace-only name is rejected rather than silently stored: an empty
+// band name would read as a bug everywhere else it's displayed (page
+// titles, nav crumbs, the Bands index), not a legitimate state to allow.
+func (st *Store) SetBandName(ctx context.Context, bandID int64, name string) error {
+	if name == "" {
+		return fmt.Errorf("band name cannot be empty")
+	}
+	tag, err := st.db.Exec(ctx, `UPDATE bands SET name = $1 WHERE id = $2`, name, bandID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no such band %d: %w", bandID, ErrNotFound)
+	}
+	return nil
+}
+
 // SetBandMusicType sets (or clears, with "") whether a band is a covers
 // act or plays original music. Any current member may set it — same
 // no-owner-role reasoning as the rest of band administration
