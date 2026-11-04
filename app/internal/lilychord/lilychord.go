@@ -487,21 +487,15 @@ func build(toks []tok) ([]song.Measure, error) {
 			stack = append(stack, stackFrame{kind: "volta"})
 			pendingVolta = label
 		case tTranspose:
-			parts := strings.Fields(t.text)
-			shift := 0
-			if len(parts) == 2 {
-				from, _, okF := parsePitch(parts[0])
-				to, _, okT := parsePitch(parts[1])
-				if okF && okT {
-					shift = to - from
-					if shift < -6 {
-						shift += 12
-					} else if shift > 6 {
-						shift -= 12
-					}
-				}
-			}
-			stack = append(stack, stackFrame{kind: "transpose", transposeBy: shift})
+			// Deliberately NOT applied — per direct request (and
+			// consistent with how this app already treats the LaTeX
+			// \transpose{N} macro, see internal/latexsong's own doc
+			// comment on Parse: a band plays from the LITERAL written
+			// chords, with the shift noted as metadata, never baked into
+			// the chord text itself). \transpose still opens/closes its
+			// own stack frame — needed to keep brace nesting balanced —
+			// just with no pitch effect.
+			stack = append(stack, stackFrame{kind: "transpose", transposeBy: 0})
 		case tBreak:
 			// A layout hint only (where the engraving wraps to a new
 			// printed line) — bar boundaries come from accumulated

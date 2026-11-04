@@ -43,8 +43,11 @@ func TestHotelCalifornia(t *testing.T) {
 }
 
 // TestTransposeAndAlternative is Still Got The Blues' verse.ly — exercises
-// \transpose, inherited durations, and \alternative/\volta endings, with
-// expected values computed by hand against the real published chords.
+// inherited durations and \alternative/\volta endings, with expected
+// values computed by hand against the literal written pitches. \transpose
+// is deliberately IGNORED (see the "transpose" case's own doc comment —
+// per direct request, kept in the original written Dm, not the Bm the
+// \transpose d b wrapper would shift it to).
 func TestTransposeAndAlternative(t *testing.T) {
 	src := `
 \chordmode {
@@ -70,12 +73,12 @@ func TestTransposeAndAlternative(t *testing.T) {
 		close  bool
 	}
 	wants := []want{
-		{"Bm7 D/E", "", true, false},
-		{"Amaj7 Dmaj7", "", false, false},
-		{"G#m7b5 C#", "1.", false, false},
-		{"F#m", "", false, false},
-		{"G#m7b5", "2.", false, false},
-		{"C#sus4 C#", "", false, true},
+		{"Dm7 F/G", "", true, false},
+		{"Cmaj7 Fmaj7", "", false, false},
+		{"Bm7b5 E", "1.", false, false},
+		{"Am", "", false, false},
+		{"Bm7b5", "2.", false, false},
+		{"Esus4 E", "", false, true},
 	}
 	if len(got) != len(wants) {
 		t.Fatalf("got %d measures, want %d: %+v", len(got), len(wants), got)
