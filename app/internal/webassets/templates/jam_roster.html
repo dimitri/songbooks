@@ -10,14 +10,14 @@
 </head>
 <body>
 <header class="app-header">
-  <h1><a href="/b/{{.Book}}">{{.Book}}</a> — {{.Name}}</h1>
-  <p>Signup link: <code>{{.JamURL}}</code> &middot; <a href="/b/{{.Book}}/jam/{{.Code}}/add">+ add a song</a></p>
+  <h1>{{.Name}}</h1>
+  <p>Signup link: <code>{{.JamURL}}</code> &middot; <a href="/songbooks/{{.SongbookID}}/jam/{{.Code}}/add">+ add a song</a></p>
 </header>
 <main class="index">
   <div id="call-banner" class="card"{{if not .Called}} hidden{{end}} style="font-size:1.2em;font-weight:bold">
     <span id="call-text">{{if .Called}}Now calling: {{.Called.Nickname}} on {{.Called.Instrument}} for "{{.Called.SongTitle}}"{{end}}</span>
     {{if .CanOrganize}}
-    <form method="post" action="/b/{{.Book}}/jam/{{.Code}}/call" style="display:inline;font-weight:normal;font-size:0.6em">
+    <form method="post" action="/songbooks/{{.SongbookID}}/jam/{{.Code}}/call" style="display:inline;font-weight:normal;font-size:0.6em">
       <input type="hidden" name="clear" value="1">
       <button type="submit">clear</button>
     </form>
@@ -30,7 +30,7 @@
     <ul>
       {{range .Organizers}}<li>{{.Username}}</li>{{end}}
     </ul>
-    <form method="post" action="/b/{{$.Book}}/jam/{{$.Code}}/organizers">
+    <form method="post" action="/songbooks/{{$.SongbookID}}/jam/{{$.Code}}/organizers">
       <label>Add organizer (username): <input type="text" name="username" required></label>
       <button type="submit">add</button>
     </form>
@@ -38,7 +38,7 @@
   {{end}}
 
   {{if not .Groups}}
-    <p class="card">No songs on this jam's list yet — <a href="/b/{{.Book}}/jam/{{.Code}}/add">add one</a> to get started.</p>
+    <p class="card">No songs on this jam's list yet — <a href="/songbooks/{{.SongbookID}}/jam/{{.Code}}/add">add one</a> to get started.</p>
   {{end}}
   <div id="song-groups">
   {{range $gi, $g := .Groups}}
@@ -54,7 +54,7 @@
         {{end}}
         {{$g.Title}}
         {{if $.CanOrganize}}
-        <form method="post" action="/b/{{$.Book}}/jam/{{$.Code}}/songs/{{$g.SongID}}/remove" style="display:inline" onsubmit="return confirm('Remove {{$g.Title}} from this jam\'s list?')">
+        <form method="post" action="/songbooks/{{$.SongbookID}}/jam/{{$.Code}}/songs/{{$g.SongID}}/remove" style="display:inline" onsubmit="return confirm('Remove {{$g.Title}} from this jam\'s list?')">
           <button type="submit" class="icon-btn" title="remove from this jam's list" style="font-weight:normal;font-size:0.8em">remove</button>
         </form>
         {{end}}
@@ -65,7 +65,7 @@
           <strong>{{.Instrument}}</strong>:
           {{if .Players}}{{range $i, $p := .Players}}{{if $i}}, {{end}}{{$p.Nickname}}
             {{if $.CanOrganize}}
-            <form method="post" action="/b/{{$.Book}}/jam/{{$.Code}}/call" style="display:inline">
+            <form method="post" action="/songbooks/{{$.SongbookID}}/jam/{{$.Code}}/call" style="display:inline">
               <input type="hidden" name="jam_profile_id" value="{{$p.ProfileID}}">
               <input type="hidden" name="song_id" value="{{$g.SongID}}">
               <input type="hidden" name="instrument" value="{{$.Instrument}}">
@@ -86,12 +86,12 @@
   </div>
 </main>
 <script>
-const book = {{.Book}}, code = {{.Code}};
+const songbookId = {{.SongbookID}}, code = {{.Code}};
 
 // ---- "Now calling" live banner: simple polling, no websockets ------------
 async function pollCallStatus() {
   try {
-    const res = await fetch(`/b/${encodeURIComponent(book)}/jam/${encodeURIComponent(code)}/call-status`);
+    const res = await fetch(`/songbooks/${songbookId}/jam/${encodeURIComponent(code)}/call-status`);
     if (!res.ok) return;
     const data = await res.json();
     const banner = document.getElementById('call-banner');
@@ -115,7 +115,7 @@ document.querySelectorAll('.jam-reorder-form').forEach(form => {
     const j = form.dataset.dir === 'up' ? i - 1 : i + 1;
     if (j < 0 || j >= ids.length) return;
     [ids[i], ids[j]] = [ids[j], ids[i]];
-    const res = await fetch(`/b/${encodeURIComponent(book)}/jam/${encodeURIComponent(code)}/reorder`, {
+    const res = await fetch(`/songbooks/${songbookId}/jam/${encodeURIComponent(code)}/reorder`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ song_ids: ids }),
     });

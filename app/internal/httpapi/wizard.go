@@ -65,7 +65,12 @@ func (s *Server) handleWelcomePage(w http.ResponseWriter, r *http.Request) {
 		}
 		data["Bands"] = bands
 	case 5:
-		mine, err := s.store.ListMyCatalog(r.Context(), person.ID)
+		mySongbook, err := s.store.GetDefaultSongbook(r.Context(), "person", person.ID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		mine, err := s.store.ListSongbookEntries(r.Context(), mySongbook)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -84,87 +85,34 @@ func isAPIRequest(r *http.Request) bool {
 	return len(r.URL.Path) >= 5 && r.URL.Path[:5] == "/api/"
 }
 
-var roleRank = map[string]int{"viewer": 1, "editor": 2, "owner": 3}
-
-// requireRole wraps next with requireAuth, then additionally checks the
-// logged-in person's role on the {book} path param meets at least minRole.
-// Not a project member at all, or below minRole, both get the same 403 —
-// a non-member shouldn't learn a project exists from the status code.
-func (s *Server) requireRole(minRole string, next http.HandlerFunc) http.HandlerFunc {
+// requireVariantRole wraps next with requireAuth, then checks the
+// logged-in person's access to the variant identified by the {id} path
+// param — store.CanViewVariant for minRole="viewer", CanEditVariant for
+// "editor"/"owner" (a variant has no three-tier role of its own; "can
+// edit" is the only bar above "can view"). Replaces the old project-role
+// gate entirely now that ownership (global/band/school/user/jam/setlist)
+// is the only access model.
+func (s *Server) requireVariantRole(minRole string, next http.HandlerFunc) http.HandlerFunc {
 	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
-		book := r.PathValue("book")
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil {
+			httpError(w, http.StatusBadRequest, "invalid id")
+			return
+		}
 		p := personFromContext(r)
-		role, ok, err := s.store.GetRole(r.Context(), p.ID, book)
+		var allowed bool
+		if minRole == "editor" || minRole == "owner" {
+			allowed, err = s.store.CanEditVariant(r.Context(), p.ID, id)
+		} else {
+			allowed, err = s.store.CanViewVariant(r.Context(), p.ID, id)
+		}
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if !ok || roleRank[role] < roleRank[minRole] {
-			if isAPIRequest(r) {
-				httpError(w, http.StatusForbidden, "insufficient project role")
-			} else {
-				http.Error(w, "forbidden", http.StatusForbidden)
-			}
-			return
-		}
-		next(w, r)
-	})
-}
-
-// requireSongRole is requireRole's counterpart for routes scoped to one
-// SONG (book+stem), not a setlist or any other {book}-scoped resource —
-// use requireRole for those, this only for the /b/{book}/{stem} family
-// and its API/export siblings.
-//
-// Access is the UNION of two independent checks, either one sufficient:
-//  1. requireRole's own check — project-role membership on {book}. Kept
-//     exactly as before: a legacy/plain song with no real owner (or one
-//     that was explicitly shared by granting project membership) still
-//     works exactly as it always did.
-//  2. The song's own ownership scope (store.CanViewVariant/
-//     CanEditVariant) — band/school/global visibility, resolved from the
-//     song's row, independent of project_members entirely. See
-//     CanViewVariant's doc comment for why this second check had to be
-//     added: a band- or school-owned song's project routinely has no
-//     project_members rows for the band/school's own members at all
-//     (ForkVariant/CreateBandVariant deliberately don't create a
-//     dedicated project per band — see their own doc comments), so check
-//     1 alone made such songs unreachable by anyone, including whoever
-//     had just created them.
-//
-// A book/stem that doesn't resolve to a real variant at all (shouldn't
-// happen for any route this wraps, but handled rather than assumed) just
-// falls back to check 1's own verdict unchanged.
-func (s *Server) requireSongRole(minRole string, next http.HandlerFunc) http.HandlerFunc {
-	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
-		book, stem := r.PathValue("book"), r.PathValue("stem")
-		p := personFromContext(r)
-
-		role, ok, err := s.store.GetRole(r.Context(), p.ID, book)
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		allowed := ok && roleRank[role] >= roleRank[minRole]
-
-		if !allowed {
-			if variantID, _, err := s.store.VariantLookup(r.Context(), book, stem); err == nil && variantID != 0 {
-				var viaOwnership bool
-				var ownErr error
-				if minRole == "editor" || minRole == "owner" {
-					viaOwnership, ownErr = s.store.CanEditVariant(r.Context(), p.ID, variantID)
-				} else {
-					viaOwnership, ownErr = s.store.CanViewVariant(r.Context(), p.ID, variantID)
-				}
-				if ownErr == nil && viaOwnership {
-					allowed = true
-				}
-			}
-		}
-
 		if !allowed {
 			if isAPIRequest(r) {
-				httpError(w, http.StatusForbidden, "insufficient project role")
+				httpError(w, http.StatusForbidden, "insufficient access")
 			} else {
 				http.Error(w, "forbidden", http.StatusForbidden)
 			}
@@ -194,15 +142,11 @@ func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
-// requireJamOrganizer gates a {book}/{code}-scoped jam-management endpoint
-// (song reorder, "now calling") on "is a designated organizer for this
-// jam event OR has editor/owner on the parent project" — the Phase 5
-// rule. Distinct from requireRole (project-scoped only) and from
-// requireAdmin (site-wide only): a jam organizer is scoped to one jam
-// event and need not have project-wide editor rights at all.
+// requireJamOrganizer gates a {code}-scoped jam-management endpoint (song
+// reorder, "now calling") on "is a designated organizer for this jam
+// event OR can access the songbook it draws from."
 func (s *Server) requireJamOrganizer(next http.HandlerFunc) http.HandlerFunc {
 	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
-		book := r.PathValue("book")
 		code := r.PathValue("code")
 		p := personFromContext(r)
 		ev, err := s.store.GetJamEvent(r.Context(), code)
@@ -219,16 +163,11 @@ func (s *Server) requireJamOrganizer(next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 			return
 		}
-		role, ok, err := s.store.GetRole(r.Context(), p.ID, book)
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		if ok && roleRank[role] >= roleRank["editor"] {
+		if ok, err := s.store.CanAccessSongbook(r.Context(), p.ID, ev.SongbookID); err == nil && ok {
 			next(w, r)
 			return
 		}
-		httpError(w, http.StatusForbidden, "organizer status (or editor/owner on this project) required")
+		httpError(w, http.StatusForbidden, "organizer status (or access to this jam's songbook) required")
 	})
 }
 

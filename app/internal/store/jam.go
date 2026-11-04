@@ -11,14 +11,15 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// JamEvent is one scheduled jam night: a short, human-typeable code tied to
-// one project, open for signups until ExpiresAt.
+// JamEvent is one scheduled jam night: a short, human-typeable code
+// drawing its pickable songs from one songbook, open for signups until
+// ExpiresAt.
 type JamEvent struct {
-	ID        int64
-	ProjectID int64
-	Code      string
-	Name      string
-	ExpiresAt time.Time
+	ID         int64
+	SongbookID int64
+	Code       string
+	Name       string
+	ExpiresAt  time.Time
 }
 
 // JamPlayer is one signed-up nickname that picked a (song, instrument) —
@@ -97,17 +98,13 @@ func randomJamCode(n int) (string, error) {
 	return string(b), nil
 }
 
-// CreateJamEvent starts a new jam event for projectSlug, open for ttl, and
-// makes creatorPersonID an organizer for it (see AddJamOrganizer) —
-// "the person who creates the jam event is automatically an organizer for
-// it." The caller is responsible for checking the requesting person's
-// role (editor/owner) — this method trusts it, same convention as the
-// rest of this package (see AddMember/CreateInvite).
-func (st *Store) CreateJamEvent(ctx context.Context, projectSlug, name string, ttl time.Duration, creatorPersonID int64) (*JamEvent, error) {
-	pid, err := st.projectID(ctx, projectSlug)
-	if err != nil {
-		return nil, err
-	}
+// CreateJamEvent starts a new jam event drawing its pickable songs from
+// songbookID, open for ttl, and makes creatorPersonID an organizer for
+// it (see AddJamOrganizer) — "the person who creates the jam event is
+// automatically an organizer for it." The caller is responsible for
+// checking the requesting person's access to that songbook — this
+// method trusts it.
+func (st *Store) CreateJamEvent(ctx context.Context, songbookID int64, name string, ttl time.Duration, creatorPersonID int64) (*JamEvent, error) {
 	// A handful of retries on a code collision is simpler and plenty
 	// reliable at this scale than a longer code or a DB-side generator.
 	for attempt := 0; attempt < 5; attempt++ {
@@ -117,11 +114,11 @@ func (st *Store) CreateJamEvent(ctx context.Context, projectSlug, name string, t
 		}
 		var ev JamEvent
 		err = st.db.QueryRow(ctx, `
-			INSERT INTO jam_events (project_id, code, name, expires_at)
+			INSERT INTO jam_events (songbook_id, code, name, expires_at)
 			VALUES ($1, $2, $3, $4)
-			RETURNING id, project_id, code, name, expires_at`,
-			pid, code, name, time.Now().Add(ttl)).
-			Scan(&ev.ID, &ev.ProjectID, &ev.Code, &ev.Name, &ev.ExpiresAt)
+			RETURNING id, songbook_id, code, name, expires_at`,
+			songbookID, code, name, time.Now().Add(ttl)).
+			Scan(&ev.ID, &ev.SongbookID, &ev.Code, &ev.Name, &ev.ExpiresAt)
 		if err == nil {
 			if err := st.AddJamOrganizer(ctx, ev.ID, creatorPersonID); err != nil {
 				return nil, err
@@ -155,9 +152,9 @@ func constraintViolated(err error, name string) bool {
 func (st *Store) GetJamEvent(ctx context.Context, code string) (*JamEvent, error) {
 	var ev JamEvent
 	err := st.db.QueryRow(ctx, `
-		SELECT id, project_id, code, name, expires_at FROM jam_events
+		SELECT id, songbook_id, code, name, expires_at FROM jam_events
 		WHERE code = $1 AND expires_at > now()`, code).
-		Scan(&ev.ID, &ev.ProjectID, &ev.Code, &ev.Name, &ev.ExpiresAt)
+		Scan(&ev.ID, &ev.SongbookID, &ev.Code, &ev.Name, &ev.ExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such jam event %q: %w", code, ErrNotFound)
 	}
@@ -258,8 +255,6 @@ func (st *Store) RemoveJamPick(ctx context.Context, jamEventID, jamProfileID, so
 // (jam_songs.html), isolated from any other song's picks.
 type JamSong struct {
 	ID          int64
-	Book        string // project slug the variant lives under — needed to LoadSong/buildSections it for inline section-annotation rendering
-	Stem        string
 	Title       string
 	PlayOrder   int
 	Instruments []RosterRow // Instrument/Players/Count/MinCount/MaxCount/Unmet/Full populated; SongID/SongStem/SongTitle left zero here (redundant with the JamSong they're nested under)
@@ -267,21 +262,15 @@ type JamSong struct {
 
 // ListJamSongs lists jamCode's event's pickable song list — i.e. the
 // songs an organizer has explicitly added via AddJamSong (jam_songs),
-// ordered by play_order, NOT every song in the project. A plain
-// project-scoped-through-the-event read, exactly like any other
-// per-project query in this package. Previously this ran through a
-// second, non-owning Postgres role plus a row-level-security policy
-// (migrations/0003_jam_rls.sql); that was dropped
-// (migrations/0004_drop_jam_rls.sql) as unneeded complexity — a jam code
-// is already the access control here, same trust level as a project slug
+// ordered by play_order, NOT every song in the songbook. A jam code is
+// already the access control here, same trust level as a songbook id
 // anywhere else in this file.
 func (st *Store) ListJamSongs(ctx context.Context, jamCode string) ([]JamSong, error) {
 	var eventID int64
 	rows, err := st.db.Query(ctx, `
-		SELECT s.id, p.slug, s.stem, s.title, js.play_order, je.id
+		SELECT s.id, s.title, js.play_order, je.id
 		FROM jam_songs js
 		JOIN songs s ON s.id = js.song_id
-		JOIN projects p ON p.id = s.project_id
 		JOIN jam_events je ON je.id = js.jam_event_id
 		WHERE je.code = $1 AND je.expires_at > now()
 		ORDER BY js.play_order`, jamCode)
@@ -291,7 +280,7 @@ func (st *Store) ListJamSongs(ctx context.Context, jamCode string) ([]JamSong, e
 	var out []JamSong
 	for rows.Next() {
 		var s JamSong
-		if err := rows.Scan(&s.ID, &s.Book, &s.Stem, &s.Title, &s.PlayOrder, &eventID); err != nil {
+		if err := rows.Scan(&s.ID, &s.Title, &s.PlayOrder, &eventID); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -463,19 +452,15 @@ func (st *Store) RemoveJamSong(ctx context.Context, jamEventID, songID int64) er
 	return err
 }
 
-// ListAddableJamSongs lists projectSlug's songs not yet on jamEventID's
+// ListAddableJamSongs lists songbookID's entries not yet on jamEventID's
 // pickable list — the candidate list for the organizer's "add a song"
 // control.
-func (st *Store) ListAddableJamSongs(ctx context.Context, jamEventID int64, projectSlug string) ([]JamSong, error) {
-	pid, err := st.projectID(ctx, projectSlug)
-	if err != nil {
-		return nil, err
-	}
+func (st *Store) ListAddableJamSongs(ctx context.Context, jamEventID, songbookID int64) ([]JamSong, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT s.id, s.stem, s.title FROM songs s
-		WHERE s.project_id = $1
+		SELECT s.id, s.title FROM songbook_entries se JOIN songs s ON s.id = se.variant_id
+		WHERE se.songbook_id = $1
 		AND NOT EXISTS (SELECT 1 FROM jam_songs js WHERE js.jam_event_id = $2 AND js.song_id = s.id)
-		ORDER BY s.stem`, pid, jamEventID)
+		ORDER BY s.title`, songbookID, jamEventID)
 	if err != nil {
 		return nil, err
 	}
@@ -483,7 +468,7 @@ func (st *Store) ListAddableJamSongs(ctx context.Context, jamEventID int64, proj
 	var out []JamSong
 	for rows.Next() {
 		var s JamSong
-		if err := rows.Scan(&s.ID, &s.Stem, &s.Title); err != nil {
+		if err := rows.Scan(&s.ID, &s.Title); err != nil {
 			return nil, err
 		}
 		out = append(out, s)

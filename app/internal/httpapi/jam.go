@@ -18,20 +18,28 @@ const jamCookie = "songbooks_jam"
 // a single evening plus some slack, not a standing fixture.
 const jamTTL = 18 * time.Hour
 
-// handleCreateJamEvent starts a new jam event for {book}. Editor-or-owner
-// gated by the requireRole("editor", ...) wrapper in router.go.
+// handleCreateJamEvent starts a new jam event drawing from songbook {id}.
 func (s *Server) handleCreateJamEvent(w http.ResponseWriter, r *http.Request) {
-	book := r.PathValue("book")
+	songbookID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid songbook id")
+		return
+	}
+	p := personFromContext(r)
+	if ok, err := s.store.CanAccessSongbook(r.Context(), p.ID, songbookID); err != nil || !ok {
+		httpError(w, http.StatusForbidden, "no access to this songbook")
+		return
+	}
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" {
 		name = "Jam night"
 	}
-	ev, err := s.store.CreateJamEvent(r.Context(), book, name, jamTTL, personFromContext(r).ID)
+	ev, err := s.store.CreateJamEvent(r.Context(), songbookID, name, jamTTL, p.ID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	http.Redirect(w, r, "/b/"+book+"/jam/"+ev.Code+"/roster", http.StatusFound)
+	http.Redirect(w, r, "/songbooks/"+strconv.FormatInt(songbookID, 10)+"/jam/"+ev.Code+"/roster", http.StatusFound)
 }
 
 // handleJamLandingPage is the public (no login) page a jam code's link
@@ -217,20 +225,19 @@ func defaultInstrumentFormRows() []instrumentFormRow {
 // Editor-or-owner gated (requireRole in router.go) — adding songs/caps is
 // an organizer decision, not something a mere viewer should do.
 func (s *Server) handleJamAddSongsPage(w http.ResponseWriter, r *http.Request) {
-	book := r.PathValue("book")
 	code := r.PathValue("code")
 	ev, err := s.store.GetJamEvent(r.Context(), code)
 	if err != nil {
 		http.Error(w, "this jam link is invalid or has expired", http.StatusNotFound)
 		return
 	}
-	candidates, err := s.store.ListAddableJamSongs(r.Context(), ev.ID, book)
+	candidates, err := s.store.ListAddableJamSongs(r.Context(), ev.ID, ev.SongbookID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	s.render(w, "jam_add_songs", map[string]any{
-		"Book": book, "Code": code, "Name": ev.Name,
+		"SongbookID": ev.SongbookID, "Code": code, "Name": ev.Name,
 		"Candidates": candidates, "DefaultRows": defaultInstrumentFormRows(),
 		"CommonInstruments": commonInstruments,
 	})
@@ -242,7 +249,6 @@ func (s *Server) handleJamAddSongsPage(w http.ResponseWriter, r *http.Request) {
 // instrument rows are skipped, so the organizer doesn't have to delete
 // unused extra rows).
 func (s *Server) handleAddJamSong(w http.ResponseWriter, r *http.Request) {
-	book := r.PathValue("book")
 	code := r.PathValue("code")
 	ev, err := s.store.GetJamEvent(r.Context(), code)
 	if err != nil {
@@ -287,12 +293,11 @@ func (s *Server) handleAddJamSong(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	http.Redirect(w, r, "/b/"+book+"/jam/"+code+"/roster", http.StatusFound)
+	http.Redirect(w, r, "/songbooks/"+strconv.FormatInt(ev.SongbookID, 10)+"/jam/"+code+"/roster", http.StatusFound)
 }
 
 // handleRemoveJamSong drops a song from the jam's pickable list.
 func (s *Server) handleRemoveJamSong(w http.ResponseWriter, r *http.Request) {
-	book := r.PathValue("book")
 	code := r.PathValue("code")
 	ev, err := s.store.GetJamEvent(r.Context(), code)
 	if err != nil {
@@ -308,7 +313,7 @@ func (s *Server) handleRemoveJamSong(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	http.Redirect(w, r, "/b/"+book+"/jam/"+code+"/roster", http.StatusFound)
+	http.Redirect(w, r, "/songbooks/"+strconv.FormatInt(ev.SongbookID, 10)+"/jam/"+code+"/roster", http.StatusFound)
 }
 
 // handleJamSongsPage lists the jam event's pickable songs for the
@@ -350,7 +355,7 @@ func (s *Server) handleJamSongsPage(w http.ResponseWriter, r *http.Request) {
 	var views []jamSongView
 	for _, js := range songs {
 		v := jamSongView{JamSong: js}
-		if sg, _, err := s.store.LoadSong(js.Book, js.Stem); err == nil {
+		if sg, _, err := s.store.LoadVariant(js.ID); err == nil {
 			notes, _ := s.store.ListAllSectionAnnotations(r.Context(), js.ID, nil, &profile.ID)
 			byIndex := map[int][]store.SectionAnnotation{}
 			for _, n := range notes {
@@ -444,7 +449,6 @@ func (s *Server) handleReorderJamSongs(w http.ResponseWriter, r *http.Request) {
 // "now calling" state for the jam — the prominent roster banner (e.g.
 // "Now calling: Alex on bass for 'Mercy'"). Gated by requireJamOrganizer.
 func (s *Server) handleCallJamParticipant(w http.ResponseWriter, r *http.Request) {
-	book := r.PathValue("book")
 	code := r.PathValue("code")
 	ev, err := s.store.GetJamEvent(r.Context(), code)
 	if err != nil {
@@ -460,7 +464,7 @@ func (s *Server) handleCallJamParticipant(w http.ResponseWriter, r *http.Request
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		http.Redirect(w, r, "/b/"+book+"/jam/"+code+"/roster", http.StatusFound)
+		http.Redirect(w, r, "/songbooks/"+strconv.FormatInt(ev.SongbookID, 10)+"/jam/"+code+"/roster", http.StatusFound)
 		return
 	}
 	profileID, err := strconv.ParseInt(r.FormValue("jam_profile_id"), 10, 64)
@@ -478,7 +482,7 @@ func (s *Server) handleCallJamParticipant(w http.ResponseWriter, r *http.Request
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	http.Redirect(w, r, "/b/"+book+"/jam/"+code+"/roster", http.StatusFound)
+	http.Redirect(w, r, "/songbooks/"+strconv.FormatInt(ev.SongbookID, 10)+"/jam/"+code+"/roster", http.StatusFound)
 }
 
 // handleJamCallStatus is the small JSON endpoint the roster page polls
@@ -486,7 +490,6 @@ func (s *Server) handleCallJamParticipant(w http.ResponseWriter, r *http.Request
 // websockets") to keep the "now calling" banner live without a full page
 // reload.
 func (s *Server) handleJamCallStatus(w http.ResponseWriter, r *http.Request) {
-	book := r.PathValue("book")
 	code := r.PathValue("code")
 	ev, err := s.store.GetJamEvent(r.Context(), code)
 	if err != nil {
@@ -499,12 +502,12 @@ func (s *Server) handleJamCallStatus(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	role, isMember, err := s.store.GetRole(r.Context(), p.ID, book)
+	hasAccess, err := s.store.CanAccessSongbook(r.Context(), p.ID, ev.SongbookID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if !isOrganizer && !(isMember && roleRank[role] >= roleRank["viewer"]) {
+	if !isOrganizer && !hasAccess {
 		httpError(w, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -521,7 +524,6 @@ func (s *Server) handleJamCallStatus(w http.ResponseWriter, r *http.Request) {
 // project-level decision, so gated by requireRole("editor", ...) in
 // router.go, not requireJamOrganizer.
 func (s *Server) handleAddJamOrganizer(w http.ResponseWriter, r *http.Request) {
-	book := r.PathValue("book")
 	code := r.PathValue("code")
 	ev, err := s.store.GetJamEvent(r.Context(), code)
 	if err != nil {
@@ -542,7 +544,7 @@ func (s *Server) handleAddJamOrganizer(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	http.Redirect(w, r, "/b/"+book+"/jam/"+code+"/roster", http.StatusFound)
+	http.Redirect(w, r, "/songbooks/"+strconv.FormatInt(ev.SongbookID, 10)+"/jam/"+code+"/roster", http.StatusFound)
 }
 
 // handleJamRosterPage is the organiser's view: who picked what, on which
@@ -556,7 +558,6 @@ func (s *Server) handleAddJamOrganizer(w http.ResponseWriter, r *http.Request) {
 // all" — that's a reasonable gap to leave for later, not something to
 // invent new schema for in this pass.
 func (s *Server) handleJamRosterPage(w http.ResponseWriter, r *http.Request) {
-	book := r.PathValue("book")
 	code := r.PathValue("code")
 	ev, err := s.store.GetJamEvent(r.Context(), code)
 	if err != nil {
@@ -564,23 +565,21 @@ func (s *Server) handleJamRosterPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Viewing the roster needs project viewer-or-above OR designated
-	// jam-organizer status — a jam organizer need not have any
-	// project-wide role at all (see requireJamOrganizer's doc comment),
-	// so this can't just be requireRole("viewer", ...) at the route.
+	// Viewing the roster needs songbook access OR designated
+	// jam-organizer status — a jam organizer need not have any access
+	// to the songbook at all (see requireJamOrganizer's doc comment).
 	p := personFromContext(r)
 	isOrganizer, err := s.store.IsJamOrganizer(r.Context(), ev.ID, p.ID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	role, isMember, err := s.store.GetRole(r.Context(), p.ID, book)
+	hasAccess, err := s.store.CanAccessSongbook(r.Context(), p.ID, ev.SongbookID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	hasViewerRole := isMember && roleRank[role] >= roleRank["viewer"]
-	if !isOrganizer && !hasViewerRole {
+	if !isOrganizer && !hasAccess {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -612,7 +611,12 @@ func (s *Server) handleJamRosterPage(w http.ResponseWriter, r *http.Request) {
 	// (requireJamOrganizer/requireRole), this is purely "don't show
 	// buttons that would just 403." isOrganizer/role/isMember were already
 	// resolved above for the view-access check.
-	canOrganize := isOrganizer || (isMember && roleRank[role] >= roleRank["editor"])
+	canEdit, err := s.store.CanAccessSongbook(r.Context(), p.ID, ev.SongbookID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	canOrganize := isOrganizer || canEdit
 	organizers, err := s.store.ListJamOrganizers(r.Context(), ev.ID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
@@ -625,7 +629,7 @@ func (s *Server) handleJamRosterPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, "jam_roster", map[string]any{
-		"Book": book, "Code": code, "Name": ev.Name,
+		"SongbookID": ev.SongbookID, "Code": code, "Name": ev.Name,
 		"JamURL": "/jam/" + code, "Groups": groups,
 		"CanOrganize": canOrganize, "Organizers": organizers, "Called": called,
 	})
@@ -656,9 +660,8 @@ func (s *Server) handleJamCatalogPage(w http.ResponseWriter, r *http.Request) {
 	ev, profile := jamEventFromContext(r), jamProfileFromContext(r)
 	code := r.PathValue("code")
 	filter := store.CatalogFilter{
-		Artist:  r.URL.Query().Get("artist"),
-		Project: r.URL.Query().Get("project"),
-		Sort:    r.URL.Query().Get("sort"),
+		Artist: r.URL.Query().Get("artist"),
+		Sort:   r.URL.Query().Get("sort"),
 	}
 	variants, err := s.store.ListCatalog(r.Context(), 0, filter)
 	if err != nil {
@@ -727,7 +730,7 @@ func (s *Server) handleJamCreateVariant(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	artist := strings.TrimSpace(r.FormValue("artist"))
-	if _, err := s.store.CreateJamVariant(r.Context(), ev.ID, ev.ProjectID, title, artist, 0); err != nil {
+	if _, err := s.store.CreateJamVariant(r.Context(), ev.ID, title, artist, 0); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

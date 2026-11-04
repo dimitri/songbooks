@@ -62,32 +62,25 @@ type Member struct {
 }
 
 // Invite is a pending, single-use invitation. It targets exactly one of:
-// a project (ProjectSlug/Role set), a band (BandID/BandStatus set), or
-// neither — a "plain" invite that just lets its holder create an
-// account with no membership attached (see Kind).
+// a band (BandID/BandStatus set), or neither — a "plain" invite that
+// just lets its holder create an account with no membership attached
+// (see Kind).
 type Invite struct {
-	Token       string
-	ProjectSlug string
-	ProjectName string
-	Role        string
-	BandID      int64
-	BandName    string
-	BandStatus  string
-	CreatedBy   int64 // 0/unknown for invites predating this column
-	ExpiresAt   time.Time
+	Token      string
+	BandID     int64
+	BandName   string
+	BandStatus string
+	CreatedBy  int64 // 0/unknown for invites predating this column
+	ExpiresAt  time.Time
 }
 
-// Kind reports which of the three invite shapes inv is, for templates
-// and handlers that need to branch on it.
+// Kind reports which of the two invite shapes inv is, for templates and
+// handlers that need to branch on it.
 func (inv Invite) Kind() string {
-	switch {
-	case inv.ProjectSlug != "":
-		return "project"
-	case inv.BandID != 0:
+	if inv.BandID != 0 {
 		return "band"
-	default:
-		return "plain"
 	}
+	return "plain"
 }
 
 func randomToken() (string, error) {
@@ -205,43 +198,6 @@ func (st *Store) ListAllPeople(ctx context.Context) ([]PersonAdminRow, error) {
 	for rows.Next() {
 		var p PersonAdminRow
 		if err := rows.Scan(&p.ID, &p.Username, &p.DisplayName, &p.IsAdmin, &p.CreatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, p)
-	}
-	return out, rows.Err()
-}
-
-// ProjectAdminRow is one row of the admin panel's projects list.
-type ProjectAdminRow struct {
-	Slug        string
-	Name        string
-	Owners      int
-	Editors     int
-	Viewers     int
-	MemberTotal int
-}
-
-// ListAllProjectsWithCounts lists every project with its member counts by
-// role, for the admin panel.
-func (st *Store) ListAllProjectsWithCounts(ctx context.Context) ([]ProjectAdminRow, error) {
-	rows, err := st.db.Query(ctx, `
-		SELECT p.slug, p.name,
-			count(*) FILTER (WHERE m.role = 'owner'),
-			count(*) FILTER (WHERE m.role = 'editor'),
-			count(*) FILTER (WHERE m.role = 'viewer'),
-			count(*)
-		FROM projects p LEFT JOIN project_members m ON m.project_id = p.id
-		GROUP BY p.id, p.slug, p.name
-		ORDER BY p.name`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []ProjectAdminRow
-	for rows.Next() {
-		var p ProjectAdminRow
-		if err := rows.Scan(&p.Slug, &p.Name, &p.Owners, &p.Editors, &p.Viewers, &p.MemberTotal); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -407,120 +363,6 @@ func (st *Store) scanPersonTx(ctx context.Context, tx pgx.Tx, query string, arg 
 	return &p, nil
 }
 
-// ListProjectsForPerson returns every project personID is a member of, with
-// their own role in each, alphabetically by name — the person-scoped
-// replacement for the unscoped ListBooks on the dashboard.
-func (st *Store) ListProjectsForPerson(ctx context.Context, personID int64) ([]ProjectSummary, error) {
-	rows, err := st.db.Query(ctx, `
-		SELECT p.slug, p.name, m.role::text
-		FROM project_members m JOIN projects p ON p.id = m.project_id
-		WHERE m.person_id = $1
-		ORDER BY p.name`, personID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []ProjectSummary
-	for rows.Next() {
-		var ps ProjectSummary
-		if err := rows.Scan(&ps.Slug, &ps.Name, &ps.Role); err != nil {
-			return nil, err
-		}
-		out = append(out, ps)
-	}
-	return out, rows.Err()
-}
-
-// GetRole returns personID's role on the project identified by slug, and
-// whether they're a member at all.
-func (st *Store) GetRole(ctx context.Context, personID int64, projectSlug string) (string, bool, error) {
-	var role string
-	err := st.db.QueryRow(ctx, `
-		SELECT m.role::text FROM project_members m JOIN projects p ON p.id = m.project_id
-		WHERE m.person_id = $1 AND p.slug = $2`, personID, projectSlug).Scan(&role)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", false, nil
-	}
-	if err != nil {
-		return "", false, err
-	}
-	return role, true, nil
-}
-
-// AddMember grants personID role on the project identified by slug —
-// INSERT ... ON CONFLICT so it also serves as "set the role" when the
-// person is already a member (e.g. re-running an owner grant is harmless).
-func (st *Store) AddMember(ctx context.Context, projectSlug string, personID int64, role string) error {
-	pid, err := st.projectID(ctx, projectSlug)
-	if err != nil {
-		return err
-	}
-	_, err = st.db.Exec(ctx, `
-		INSERT INTO project_members (project_id, person_id, role) VALUES ($1, $2, $3)
-		ON CONFLICT (project_id, person_id) DO UPDATE SET role = EXCLUDED.role`,
-		pid, personID, role)
-	return err
-}
-
-// ListMembers returns a project's members, by username.
-func (st *Store) ListMembers(ctx context.Context, projectSlug string) ([]Member, error) {
-	rows, err := st.db.Query(ctx, `
-		SELECT p.id, p.username, p.display_name, m.role::text
-		FROM project_members m
-		JOIN people p ON p.id = m.person_id
-		JOIN projects pr ON pr.id = m.project_id
-		WHERE pr.slug = $1
-		ORDER BY p.username`, projectSlug)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []Member
-	for rows.Next() {
-		var m Member
-		if err := rows.Scan(&m.PersonID, &m.Username, &m.DisplayName, &m.Role); err != nil {
-			return nil, err
-		}
-		out = append(out, m)
-	}
-	return out, rows.Err()
-}
-
-// SetMemberRole changes an existing member's role.
-func (st *Store) SetMemberRole(ctx context.Context, projectSlug string, personID int64, role string) error {
-	return st.AddMember(ctx, projectSlug, personID, role)
-}
-
-// RemoveMember revokes personID's membership in a project entirely.
-func (st *Store) RemoveMember(ctx context.Context, projectSlug string, personID int64) error {
-	pid, err := st.projectID(ctx, projectSlug)
-	if err != nil {
-		return err
-	}
-	_, err = st.db.Exec(ctx, `DELETE FROM project_members WHERE project_id = $1 AND person_id = $2`, pid, personID)
-	return err
-}
-
-// CreateInvite makes a single-use, time-limited invite to join a project at
-// role. createdBy is the inviting person's id (0 if unknown).
-func (st *Store) CreateInvite(ctx context.Context, projectSlug, role string, createdBy int64, ttl time.Duration) (string, error) {
-	pid, err := st.projectID(ctx, projectSlug)
-	if err != nil {
-		return "", err
-	}
-	token, err := randomToken()
-	if err != nil {
-		return "", err
-	}
-	_, err = st.db.Exec(ctx,
-		`INSERT INTO invites (token, project_id, role, created_by_person_id, expires_at) VALUES ($1, $2, $3, $4, $5)`,
-		token, pid, role, nullableID(createdBy), time.Now().Add(ttl))
-	if err != nil {
-		return "", err
-	}
-	return token, nil
-}
-
 // CreateBandInvite makes a single-use, time-limited invite to join a band
 // at status ("core" or "guest") — the band equivalent of CreateInvite.
 func (st *Store) CreateBandInvite(ctx context.Context, bandID int64, status string, createdBy int64, ttl time.Duration) (string, error) {
@@ -604,31 +446,26 @@ func nullableID(id int64) *int64 {
 }
 
 // GetInvite resolves a token to its still-valid invite, or ErrNotFound if
-// missing/expired. Exactly one of (ProjectSlug, BandID) is set, or
-// neither for a plain invite — see Invite.Kind.
+// missing/expired. BandID is set, or not, for a plain invite — see
+// Invite.Kind.
 func (st *Store) GetInvite(ctx context.Context, token string) (*Invite, error) {
 	var inv Invite
-	var projectSlug, projectName, role sql.NullString
 	var bandID sql.NullInt64
 	var bandName, bandStatus sql.NullString
 	var createdBy sql.NullInt64
 	err := st.db.QueryRow(ctx, `
-		SELECT i.token, p.slug, p.name, i.role::text,
-		       i.band_id, b.name, i.band_status::text,
+		SELECT i.token, i.band_id, b.name, i.band_status::text,
 		       i.created_by_person_id, i.expires_at
 		FROM invites i
-		LEFT JOIN projects p ON p.id = i.project_id
 		LEFT JOIN bands b ON b.id = i.band_id
 		WHERE i.token = $1 AND i.expires_at > now()`, token).
-		Scan(&inv.Token, &projectSlug, &projectName, &role,
-			&bandID, &bandName, &bandStatus, &createdBy, &inv.ExpiresAt)
+		Scan(&inv.Token, &bandID, &bandName, &bandStatus, &createdBy, &inv.ExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such invite: %w", ErrNotFound)
 	}
 	if err != nil {
 		return nil, err
 	}
-	inv.ProjectSlug, inv.ProjectName, inv.Role = projectSlug.String, projectName.String, role.String
 	inv.BandID, inv.BandName, inv.BandStatus = bandID.Int64, bandName.String, bandStatus.String
 	inv.CreatedBy = createdBy.Int64
 	return &inv, nil
@@ -636,21 +473,18 @@ func (st *Store) GetInvite(ctx context.Context, token string) (*Invite, error) {
 
 // acceptInviteTx is the shared body of AcceptInvite/CreatePersonAndAcceptInvite:
 // given the invite row (already locked/read inside tx) and the person now
-// accepting it, grants the right membership (project, band, or none for a
-// plain invite), deletes the invite, and — for a band invite — notifies
+// accepting it, grants the right membership (band, or none for a plain
+// invite), deletes the invite, and — for a band invite — notifies
 // whoever created it. dest is where the browser should be redirected
 // afterwards.
 func (st *Store) acceptInviteTx(ctx context.Context, tx pgx.Tx, token string, personID int64, accepterName string) (dest string, err error) {
-	var projectID, bandID, createdBy sql.NullInt64
-	var role sql.NullString
-	var projectSlug sql.NullString
+	var bandID, createdBy sql.NullInt64
 	var bandName sql.NullString
 	err = tx.QueryRow(ctx, `
-		SELECT i.project_id, i.role::text, (SELECT slug FROM projects WHERE id = i.project_id),
-		       i.band_id, b.name, i.created_by_person_id
+		SELECT i.band_id, b.name, i.created_by_person_id
 		FROM invites i LEFT JOIN bands b ON b.id = i.band_id
 		WHERE i.token = $1 AND i.expires_at > now()`, token).
-		Scan(&projectID, &role, &projectSlug, &bandID, &bandName, &createdBy)
+		Scan(&bandID, &bandName, &createdBy)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", fmt.Errorf("no such invite: %w", ErrNotFound)
 	}
@@ -659,15 +493,6 @@ func (st *Store) acceptInviteTx(ctx context.Context, tx pgx.Tx, token string, pe
 	}
 
 	switch {
-	case projectID.Valid:
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO project_members (project_id, person_id, role) VALUES ($1, $2, $3)
-			ON CONFLICT (project_id, person_id) DO UPDATE SET role = EXCLUDED.role`,
-			projectID.Int64, personID, role.String); err != nil {
-			return "", err
-		}
-		dest = "/b/" + projectSlug.String
-
 	case bandID.Valid:
 		var invitedBy *int64
 		if createdBy.Valid {

@@ -1,10 +1,10 @@
-{{define "my_catalog"}}
+{{define "my-songbooks"}}
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>My songbook — Songbooks</title>
+<title>My songbooks — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,37 +13,35 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/catalog">{{template "icon-back"}} Catalog</a>
-  <h1>My songbook</h1>
+  <h1>My songbooks</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  <p class="hint">Pointers into the catalog — adding a song here doesn't copy it; forking does (and swaps the pointer to your fork).</p>
-  <div class="table-scroll"><table class="card" style="width:100%">
-    <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th>Visibility</th><th></th></tr></thead>
-    <tbody>
-    {{range .Entries}}
-      <tr data-variant-id="{{.VariantID}}">
-        <td><a href="/b/{{.Book}}/{{.Stem}}">{{.Title}}</a></td>
-        <td>{{.Artist}}</td>
-        <td>{{.Book}}</td>
-        <td>{{.Visibility}}{{if .ForkedFromID}} (<a href="/variants/{{deref64 .ForkedFromID}}/history">forked from</a>){{end}}</td>
-        <td>
-          <a href="/works/{{.WorkID}}">all versions</a>
-          <a href="/variants/{{.VariantID}}/history">history</a>
-          <button type="button" class="remove-catalog-btn danger" data-variant-id="{{.VariantID}}">remove</button>
-        </td>
-      </tr>
-    {{end}}
-    </tbody>
-  </table></div>
+  <p class="hint">Every profile has a default songbook (can't be deleted, can be renamed) — create more if you want separate collections.</p>
+  <div class="card-grid">
+  {{range .Songbooks}}
+    <a class="card" href="/songbooks/{{.ID}}">
+      <h2>{{.Name}}{{if .IsDefault}} <span class="hint">(default)</span>{{end}}</h2>
+    </a>
+  {{end}}
+  </div>
+  <div class="form-actions" style="margin-top:1rem">
+    <input type="text" id="new-songbook-name" placeholder="New songbook name">
+    <button type="button" id="create-songbook-btn" class="primary">+ create songbook</button>
+  </div>
+  <p id="create-songbook-result" class="hint"></p>
 </main>
 <script>
-document.querySelectorAll('.remove-catalog-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const variantId = btn.dataset.variantId;
-    await fetch(`/api/catalog/${variantId}`, {method: 'DELETE'});
-    btn.closest('tr').remove();
+document.getElementById('create-songbook-btn').addEventListener('click', async () => {
+  const name = document.getElementById('new-songbook-name').value.trim();
+  const out = document.getElementById('create-songbook-result');
+  if (!name) { out.textContent = 'enter a name'; return; }
+  const res = await fetch('/api/songbooks', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name}),
   });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) { location.href = `/songbooks/${data.id}`; } else { out.textContent = data.error || 'failed to create songbook'; }
 });
 </script>
 </div>

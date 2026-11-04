@@ -1,33 +1,35 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 )
 
 // playlistRow is the flattened (no Set grouping — a playlist plays straight
 // through) per-song row both playlist pages below share.
 type playlistRow struct {
-	Book, Stem, Title, Tempo, Key, Time string
-	HasAudio                            bool
+	VariantID                   int64
+	Title, Tempo, Key, Time string
+	HasAudio                     bool
 }
 
-// flattenProjectSongs is projectGroup's own per-group loop, flattened
+// flattenSongbookSongs is songbookGroup's own per-group loop, flattened
 // across every group — a playlist has no use for the Set 1/Set 2
-// grouping handleProject's own page shows, just the one running order.
-func (s *Server) flattenProjectSongs(book string) []playlistRow {
-	groups, err := s.store.ListSongsOrdered(book)
+// grouping the songbook page itself shows, just the one running order.
+func (s *Server) flattenSongbookSongs(ctx context.Context, songbookID int64) []playlistRow {
+	groups, err := s.store.ListSongsOrdered(ctx, songbookID)
 	if err != nil {
 		return nil
 	}
 	var out []playlistRow
 	for _, g := range groups {
-		for _, stem := range g.Stems {
-			row := playlistRow{Book: book, Stem: stem, Title: stem}
-			sg, _, err := s.store.LoadSong(book, stem)
+		for _, vid := range g.VariantIDs {
+			row := playlistRow{VariantID: vid, Title: "untitled"}
+			sg, _, err := s.store.LoadVariant(vid)
 			if err != nil {
 				continue
 			}
-			row.Title = orDefault(sg.Get("title"), stem)
+			row.Title = orDefault(sg.Get("title"), "untitled")
 			row.Tempo = sg.Get("tempo")
 			row.Key = sg.Get("key")
 			row.Time = orDefault(sg.Get("time"), "4/4")
@@ -37,38 +39,48 @@ func (s *Server) flattenProjectSongs(book string) []playlistRow {
 	return out
 }
 
-// handleMetronomePlaylist is GET /b/{book}/playlist/metronome — steps
-// through every song in the project's own order, each row launching the
-// real /metronome page already pre-filled with that song's own bpm/time/
-// title (same deep link play.html's own sidebar "Metronome" row already
-// uses for one song, just offered for every song in order here instead
-// of requiring a detour back through the project page between each).
+// handleMetronomePlaylist is GET /songbooks/{id}/playlist/metronome —
+// steps through every song in the songbook's own order, each row
+// launching the real /metronome page already pre-filled with that
+// song's own bpm/time/title.
 func (s *Server) handleMetronomePlaylist(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid songbook id")
+		return
+	}
 	person := personFromContext(r)
-	book := r.PathValue("book")
-	rows := s.flattenProjectSongs(book)
+	if ok, err := s.store.CanAccessSongbook(r.Context(), person.ID, id); err != nil || !ok {
+		http.NotFound(w, r)
+		return
+	}
+	rows := s.flattenSongbookSongs(r.Context(), id)
 	s.render(w, "metronome-playlist", map[string]any{
-		"Me": person, "Book": book, "Rows": rows,
+		"Me": person, "SongbookID": id, "Rows": rows,
 	})
 }
 
-// handleMP3Playlist is GET /b/{book}/playlist/mp3 — plays every song's
-// reference audio back to back, in the project's own order. Prefers the
-// "band" category over "youtube" when a song has both (the band's own
-// recording is the more useful one to rehearse against back to back);
-// falls back to whichever one category exists, and is simply skipped
-// (not shown as a dead row) when neither does.
+// handleMP3Playlist is GET /songbooks/{id}/playlist/mp3 — plays every
+// song's reference audio back to back, in the songbook's own order.
+// Prefers the "band" category over "youtube" when a song has both (the
+// band's own recording is the more useful one to rehearse against back
+// to back); falls back to whichever one category exists, and is simply
+// skipped (not shown as a dead row) when neither does.
 func (s *Server) handleMP3Playlist(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid songbook id")
+		return
+	}
 	person := personFromContext(r)
-	book := r.PathValue("book")
-	rows := s.flattenProjectSongs(book)
+	if ok, err := s.store.CanAccessSongbook(r.Context(), person.ID, id); err != nil || !ok {
+		http.NotFound(w, r)
+		return
+	}
+	rows := s.flattenSongbookSongs(r.Context(), id)
 	var out []playlistRow
 	for _, row := range rows {
-		variantID, _, err := s.store.VariantLookup(r.Context(), row.Book, row.Stem)
-		if err != nil || variantID == 0 {
-			continue
-		}
-		list, err := s.store.ListSongAudio(r.Context(), variantID)
+		list, err := s.store.ListSongAudio(r.Context(), row.VariantID)
 		if err != nil || len(list) == 0 {
 			continue
 		}
@@ -76,6 +88,6 @@ func (s *Server) handleMP3Playlist(w http.ResponseWriter, r *http.Request) {
 		out = append(out, row)
 	}
 	s.render(w, "mp3-playlist", map[string]any{
-		"Me": person, "Book": book, "Rows": out,
+		"Me": person, "SongbookID": id, "Rows": out,
 	})
 }

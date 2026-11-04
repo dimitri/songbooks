@@ -63,10 +63,9 @@ func (st *Store) RemoveSchoolCatalogEntry(ctx context.Context, schoolID, variant
 func (st *Store) ListSchoolCatalog(ctx context.Context, schoolID int64) ([]SchoolCatalogEntry, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT c.id, c.added_at, c.added_by_person_id, coalesce(p.username, ''),
-		       s.id, s.work_id, s.title, s.artist, pr.slug, s.stem, s.visibility::text, s.owner_person_id, s.forked_from_id
+		       s.id, s.work_id, s.title, s.artist, s.visibility::text, s.owner_person_id, s.forked_from_id
 		FROM school_catalog_entries c
 		JOIN songs s ON s.id = c.variant_id
-		JOIN projects pr ON pr.id = s.project_id
 		LEFT JOIN people p ON p.id = c.added_by_person_id
 		WHERE c.school_id = $1
 		ORDER BY c.added_at DESC`, schoolID)
@@ -78,7 +77,7 @@ func (st *Store) ListSchoolCatalog(ctx context.Context, schoolID int64) ([]Schoo
 	for rows.Next() {
 		var e SchoolCatalogEntry
 		if err := rows.Scan(&e.EntryID, &e.AddedAt, &e.AddedByPersonID, &e.AddedByUsername,
-			&e.VariantID, &e.WorkID, &e.Title, &e.Artist, &e.Book, &e.Stem, &e.Visibility, &e.OwnerID, &e.ForkedFromID); err != nil {
+			&e.VariantID, &e.WorkID, &e.Title, &e.Artist, &e.Visibility, &e.OwnerID, &e.ForkedFromID); err != nil {
 			return nil, err
 		}
 		out = append(out, e)

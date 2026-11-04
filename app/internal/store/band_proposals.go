@@ -31,8 +31,6 @@ type BandProposal struct {
 	Kind              string // "new_song" or "new_reference"
 	TargetVariantID   *int64
 	TargetTitle       string
-	TargetBook        string
-	TargetStem        string
 	Payload           json.RawMessage
 	Status            string // "open", "accepted", "rejected"
 	CreatedAt         time.Time
@@ -134,14 +132,13 @@ type ProposalFilter struct {
 func (st *Store) ListProposals(ctx context.Context, bandID int64, filter ProposalFilter) ([]BandProposal, error) {
 	q := `
 		SELECT bp.id, bp.band_id, bp.proposer_person_id, p.username, bp.kind::text, bp.target_variant_id,
-		       coalesce(s.title, ''), coalesce(pr.slug, ''), coalesce(s.stem, ''),
+		       coalesce(s.title, ''),
 		       bp.payload, bp.status::text, bp.created_at, bp.decided_at, bp.decided_by_person_id, coalesce(dp.username, ''),
 		       (SELECT count(*) FROM proposal_votes v WHERE v.proposal_id = bp.id AND v.vote = 'yes'),
 		       (SELECT count(*) FROM proposal_votes v WHERE v.proposal_id = bp.id AND v.vote = 'veto')
 		FROM band_proposals bp
 		JOIN people p ON p.id = bp.proposer_person_id
 		LEFT JOIN songs s ON s.id = bp.target_variant_id
-		LEFT JOIN projects pr ON pr.id = s.project_id
 		LEFT JOIN people dp ON dp.id = bp.decided_by_person_id
 		WHERE bp.band_id = $1`
 	args := []any{bandID}
@@ -164,7 +161,7 @@ func (st *Store) ListProposals(ctx context.Context, bandID int64, filter Proposa
 	for rows.Next() {
 		var p BandProposal
 		if err := rows.Scan(&p.ID, &p.BandID, &p.ProposerPersonID, &p.ProposerUsername, &p.Kind, &p.TargetVariantID,
-			&p.TargetTitle, &p.TargetBook, &p.TargetStem, &p.Payload, &p.Status, &p.CreatedAt, &p.DecidedAt,
+			&p.TargetTitle, &p.Payload, &p.Status, &p.CreatedAt, &p.DecidedAt,
 			&p.DecidedByPersonID, &p.DecidedByUsername, &p.YesVotes, &p.VetoVotes); err != nil {
 			return nil, err
 		}
@@ -179,18 +176,17 @@ func (st *Store) GetProposal(ctx context.Context, proposalID int64) (*BandPropos
 	var p BandProposal
 	err := st.db.QueryRow(ctx, `
 		SELECT bp.id, bp.band_id, bp.proposer_person_id, p.username, bp.kind::text, bp.target_variant_id,
-		       coalesce(s.title, ''), coalesce(pr.slug, ''), coalesce(s.stem, ''),
+		       coalesce(s.title, ''),
 		       bp.payload, bp.status::text, bp.created_at, bp.decided_at, bp.decided_by_person_id, coalesce(dp.username, ''),
 		       (SELECT count(*) FROM proposal_votes v WHERE v.proposal_id = bp.id AND v.vote = 'yes'),
 		       (SELECT count(*) FROM proposal_votes v WHERE v.proposal_id = bp.id AND v.vote = 'veto')
 		FROM band_proposals bp
 		JOIN people p ON p.id = bp.proposer_person_id
 		LEFT JOIN songs s ON s.id = bp.target_variant_id
-		LEFT JOIN projects pr ON pr.id = s.project_id
 		LEFT JOIN people dp ON dp.id = bp.decided_by_person_id
 		WHERE bp.id = $1`, proposalID).
 		Scan(&p.ID, &p.BandID, &p.ProposerPersonID, &p.ProposerUsername, &p.Kind, &p.TargetVariantID,
-			&p.TargetTitle, &p.TargetBook, &p.TargetStem, &p.Payload, &p.Status, &p.CreatedAt, &p.DecidedAt,
+			&p.TargetTitle, &p.Payload, &p.Status, &p.CreatedAt, &p.DecidedAt,
 			&p.DecidedByPersonID, &p.DecidedByUsername, &p.YesVotes, &p.VetoVotes)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such proposal %d: %w", proposalID, ErrNotFound)
@@ -307,16 +303,12 @@ func (st *Store) applyAcceptEffect(ctx context.Context, p *BandProposal, actorPe
 		if payload.URL == "" {
 			return fmt.Errorf("new_reference proposal %d has no url in its payload", p.ID)
 		}
-		v, err := st.GetVariant(ctx, *p.TargetVariantID)
-		if err != nil {
-			return err
-		}
-		sg, version, err := st.LoadSong(v.Book, v.Stem)
+		sg, version, err := st.LoadVariant(*p.TargetVariantID)
 		if err != nil {
 			return err
 		}
 		sg.Set("reference", payload.URL)
-		if _, err := st.SaveSong(v.Book, v.Stem, sg, version, actorPersonID); err != nil {
+		if _, err := st.SaveVariant(*p.TargetVariantID, sg, version, actorPersonID); err != nil {
 			return err
 		}
 		return nil

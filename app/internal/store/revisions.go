@@ -300,61 +300,6 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 			}
 		}
 
-	case "band_catalog_entry":
-		var snap BandCatalogEntrySnapshot
-		if err := json.Unmarshal(snapshotData, &snap); err != nil {
-			return fmt.Errorf("decoding revision %d snapshot: %w", revisionID, err)
-		}
-		id, err := strconv.ParseInt(entityID, 10, 64)
-		if err != nil {
-			return fmt.Errorf("revision %d has a non-numeric band_catalog_entry id %q: %w", revisionID, entityID, err)
-		}
-
-		var curBandID, curVariantID int64
-		var curAddedAt time.Time
-		var curAddedBy *int64
-		err = tx.QueryRow(ctx, `
-			SELECT band_id, variant_id, added_at, added_by_person_id
-			FROM band_catalog_entries WHERE id = $1 FOR UPDATE`, id).
-			Scan(&curBandID, &curVariantID, &curAddedAt, &curAddedBy)
-		rowExists := !errors.Is(err, pgx.ErrNoRows)
-		if err != nil && rowExists {
-			return err
-		}
-
-		actor := &actorPersonID
-		if rowExists {
-			if err := st.RecordRevision(ctx, tx, "band_catalog_entry", entityID, actor, BandCatalogEntrySnapshot{
-				Exists: true, BandID: curBandID, VariantID: curVariantID, AddedAt: curAddedAt, AddedByPersonID: curAddedBy,
-			}); err != nil {
-				return err
-			}
-		} else {
-			if err := st.RecordRevision(ctx, tx, "band_catalog_entry", entityID, actor, BandCatalogEntrySnapshot{Exists: false}); err != nil {
-				return err
-			}
-		}
-
-		if !snap.Exists {
-			// Undoes an Add — see the band_member case above for why a
-			// hard delete is the right undo for a creation.
-			if _, err := tx.Exec(ctx, `DELETE FROM band_catalog_entries WHERE id = $1`, id); err != nil {
-				return err
-			}
-		} else {
-			// Undoes a Remove: re-insert with the SAME id, so this row's
-			// entity_id stays stable for any further revisions/reverts.
-			if _, err := tx.Exec(ctx, `
-				INSERT INTO band_catalog_entries (id, band_id, variant_id, added_at, added_by_person_id)
-				VALUES ($1, $2, $3, $4, $5)
-				ON CONFLICT (id) DO UPDATE SET
-					band_id = EXCLUDED.band_id, variant_id = EXCLUDED.variant_id,
-					added_at = EXCLUDED.added_at, added_by_person_id = EXCLUDED.added_by_person_id`,
-				id, snap.BandID, snap.VariantID, snap.AddedAt, snap.AddedByPersonID); err != nil {
-				return err
-			}
-		}
-
 	case "setlist":
 		var snap SetlistSnapshot
 		if err := json.Unmarshal(snapshotData, &snap); err != nil {

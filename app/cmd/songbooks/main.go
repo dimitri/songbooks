@@ -1,8 +1,7 @@
 // Command songbooks serves the songbooks web app: a single static binary
-// (all templates/assets are go:embed'd) backed by Postgres — projects,
+// (all templates/assets are go:embed'd) backed by Postgres — songbooks,
 // songs and setlists all live in the database, migrated automatically on
-// startup. Pass --import to one-time load an existing v2/ directory tree
-// instead of serving.
+// startup.
 package main
 
 import (
@@ -26,7 +25,6 @@ func main() {
 	addr := flag.String("addr", "localhost:8080", "address to listen on")
 	dbURL := flag.String("db-url", envOr("DATABASE_URL", "postgres://localhost:5432/songbooks_dev?sslmode=disable"), "Postgres connection string (or set DATABASE_URL)")
 	v2Root := flag.String("v2-root", envOr("SONGBOOKS_V2_ROOT", ""), "path to the v2/ Typst pipeline — optional: PDF export uses the pure-Go native renderer by default and needs no v2/ checkout; set this only to opt back into the Typst-shelling exporter instead")
-	importPath := flag.String("import", "", "one-time import: load every book (directory with a songs/ subdir) under this path into the database, then exit")
 	setPasswordUser := flag.String("set-password", "", "one-time bootstrap: read a password for this username from stdin, hash it, store it, then exit — secondary/legacy auth path now that /login is magic-link-only")
 	grantAdminUser := flag.String("grant-admin", "", "one-time bootstrap: grant this username site-wide admin (is_admin), then exit — the only way to create the first admin, since there's no self-serve path")
 	setEmailUser := flag.String("set-email", "", "one-time bootstrap: set a pre-existing account's email so it can use magic-link login — pass the username here and the email as the one remaining positional argument, e.g. songbooks --set-email tapoueh me@example.com")
@@ -41,13 +39,6 @@ func main() {
 		log.Fatalf("connecting to database: %v", err)
 	}
 	defer st.Close()
-
-	if *importPath != "" {
-		if err := store.ImportTree(ctx, st, *importPath); err != nil {
-			log.Fatalf("import failed: %v", err)
-		}
-		return
-	}
 
 	if *setPasswordUser != "" {
 		p, err := st.GetPersonByUsername(ctx, *setPasswordUser)

@@ -20,10 +20,9 @@ import (
 func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 	person := personFromContext(r)
 	filter := store.CatalogFilter{
-		Artist:  r.URL.Query().Get("artist"),
-		Project: r.URL.Query().Get("project"),
-		Genre:   r.URL.Query().Get("genre"),
-		Sort:    r.URL.Query().Get("sort"),
+		Artist: r.URL.Query().Get("artist"),
+		Genre:  r.URL.Query().Get("genre"),
+		Sort:   r.URL.Query().Get("sort"),
 	}
 	variants, err := s.store.ListCatalog(r.Context(), person.ID, filter)
 	if err != nil {
@@ -36,13 +35,10 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Phase 32: "Songbooks" is one nav entry/page for both ways of
-	// finding a song — the flat browse above, or by the collection it
-	// belongs to (a project's book, or a band's shared repertoire; see
-	// icons.html's desktop-sidebar comment). Reuses the exact same
-	// per-project/per-band computations the home page uses so the stats
-	// never drift between the two pages.
-	books, err := s.buildBookStats(r.Context(), person.ID)
+	// "Songbooks" is one nav entry/page for both ways of finding a song —
+	// the flat browse above, or by the collection it belongs to (a
+	// person's or a band's songbook).
+	mySongbooks, err := s.store.ListSongbooks(r.Context(), "person", person.ID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -57,25 +53,17 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	s.render(w, "catalog", map[string]any{
-		"Me": person, "Variants": variants, "Filter": filter, "Genres": genres,
-		"Books": books, "BandCards": bandCards,
-		"View": r.URL.Query().Get("view"), // "books" deep-links straight to the "by songbook" tab
-	})
-}
-
-// handleMyCatalogPage lists the logged-in person's personal catalog —
-// pointers (not copies) to variants they've added to their own songbook,
-// including forks they made.
-func (s *Server) handleMyCatalogPage(w http.ResponseWriter, r *http.Request) {
-	person := personFromContext(r)
-	entries, err := s.store.ListMyCatalog(r.Context(), person.ID)
+	defaultSongbookID, err := s.store.GetDefaultSongbook(r.Context(), "person", person.ID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	s.render(w, "my_catalog", map[string]any{"Me": person, "Entries": entries})
+
+	s.render(w, "catalog", map[string]any{
+		"Me": person, "Variants": variants, "Filter": filter, "Genres": genres,
+		"MySongbooks": mySongbooks, "BandCards": bandCards, "DefaultSongbookID": defaultSongbookID,
+		"View": r.URL.Query().Get("view"), // "books" deep-links straight to the "by songbook" tab
+	})
 }
 
 // handleWorkVersionsPage is a work's "all versions of this song" page:
@@ -142,39 +130,6 @@ func (s *Server) handleVariantHistoryPage(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// handleAddToCatalog is "add this variant to my songbook" — a pointer,
-// not a copy.
-func (s *Server) handleAddToCatalog(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		VariantID int64 `json:"variantId"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.VariantID == 0 {
-		httpError(w, http.StatusBadRequest, "missing variantId")
-		return
-	}
-	person := personFromContext(r)
-	if err := s.store.AddToCatalog(r.Context(), person.ID, req.VariantID); err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]bool{"added": true})
-}
-
-// handleRemoveFromCatalog drops personID's pointer to one variant.
-func (s *Server) handleRemoveFromCatalog(w http.ResponseWriter, r *http.Request) {
-	variantID, err := strconv.ParseInt(r.PathValue("variantID"), 10, 64)
-	if err != nil {
-		httpError(w, http.StatusBadRequest, "invalid variant id")
-		return
-	}
-	person := personFromContext(r)
-	if err := s.store.RemoveFromCatalog(r.Context(), person.ID, variantID); err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]bool{"removed": true})
-}
-
 // handleForkVariant creates a personal copy of a variant (global or
 // someone else's) in the caller's own catalog, with lineage back to the
 // original — a normal HTTP action, not a special "promote" flow.
@@ -194,14 +149,7 @@ func (s *Server) handleForkVariant(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	v, err := s.store.GetVariant(r.Context(), newID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"variantId": newID, "book": v.Book, "stem": v.Stem,
-	})
+	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})
 }
 
 // handleCreateAnnotation leaves a free-text note on a variant — not an
@@ -285,10 +233,10 @@ func (s *Server) handleRevertRevision(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusForbidden, "no edit rights on this variant")
 			return
 		}
-	case "band_member", "band_catalog_entry":
-		// Both snapshot shapes carry a band_id — peek it off the revision
-		// being reverted itself, not off the entity's current row (which,
-		// for an "add" revision, this very revert may be about to delete).
+	case "band_member":
+		// Carries a band_id — peek it off the revision being reverted
+		// itself, not off the entity's current row (which, for an "add"
+		// revision, this very revert may be about to delete).
 		bandID, err := s.store.PeekRevisionBandID(r.Context(), revisionID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())

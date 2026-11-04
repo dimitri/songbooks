@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Book}} — MP3 playlist — Songbooks</title>
+<title>MP3 playlist — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -12,7 +12,7 @@
 {{template "desktop-sidebar" .Me}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/b/{{.Book}}">{{template "icon-back"}} {{.Book}}</a>
+  <a class="back-link" href="/songbooks/{{.SongbookID}}">{{template "icon-back"}} songbook</a>
   <h1>MP3 playlist</h1>
   {{template "notif-bell"}}
 </header>
@@ -30,7 +30,7 @@
   <section class="gig-set">
     <div class="gig-table" id="playlist-rows">
       {{range $i, $row := .Rows}}
-      <div class="gig-row" data-stem="{{$row.Stem}}" style="cursor:pointer;">
+      <div class="gig-row" data-variant-id="{{$row.VariantID}}" style="cursor:pointer;">
         <span class="gig-num">{{add1 $i}}</span>
         <span class="gig-title">{{$row.Title}}</span>
         <span class="gig-key">{{$row.Key}}</span>
@@ -48,9 +48,8 @@
 {{template "desktop-sidebar-script"}}
 <script>
 (function () {
-  const book = {{.Book}};
-  const rowEls = [...document.querySelectorAll('#playlist-rows .gig-row[data-stem]')];
-  const stems = rowEls.map(el => el.dataset.stem);
+  const rowEls = [...document.querySelectorAll('#playlist-rows .gig-row[data-variant-id]')];
+  const variantIds = rowEls.map(el => el.dataset.variantId);
   const nowPlaying = document.getElementById('pl-now-playing');
   const playBtn = document.getElementById('pl-play-btn');
   const audio = new Audio();
@@ -62,17 +61,17 @@
   // back; falls back to youtube, since HasAudio only promises SOME
   // category exists, not which one.
   async function loadIndex(i) {
-    if (i < 0 || i >= stems.length) return;
+    if (i < 0 || i >= variantIds.length) return;
     index = i;
     rowEls.forEach((el, j) => el.classList.toggle('current', j === i));
-    const stem = stems[i];
+    const variantId = variantIds[i];
     nowPlaying.textContent = rowEls[i].querySelector('.gig-title').textContent;
     for (const category of ['band', 'youtube']) {
-      const res = await fetch(`/b/${book}/${stem}/audio.mp3?category=${category}`, { method: 'HEAD' });
-      if (res.ok) { audio.src = `/b/${book}/${stem}/audio.mp3?category=${category}`; audio.play(); return; }
+      const res = await fetch(`/song/${variantId}/audio.mp3?category=${category}`, { method: 'HEAD' });
+      if (res.ok) { audio.src = `/song/${variantId}/audio.mp3?category=${category}`; audio.play(); return; }
     }
   }
-  function playNext() { if (index + 1 < stems.length) loadIndex(index + 1); }
+  function playNext() { if (index + 1 < variantIds.length) loadIndex(index + 1); }
   function playPrev() { if (index - 1 >= 0) loadIndex(index - 1); }
 
   rowEls.forEach((el, i) => el.addEventListener('click', () => loadIndex(i)));

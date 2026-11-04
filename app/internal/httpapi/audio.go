@@ -49,10 +49,9 @@ type jsonAudioMark struct {
 // category this song has reference audio for (0, 1, or 2 entries), each
 // with its markers, without ever loading the audio bytes themselves.
 func (s *Server) handleGetSongAudioMeta(w http.ResponseWriter, r *http.Request) {
-	book, stem := r.PathValue("book"), r.PathValue("stem")
-	variantID, _, err := s.store.VariantLookup(r.Context(), book, stem)
-	if err != nil || variantID == 0 {
-		writeJSON(w, http.StatusOK, map[string]any{"categories": []audioCategoryMeta{}})
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	list, err := s.store.ListSongAudio(r.Context(), variantID)
@@ -84,14 +83,13 @@ func (s *Server) handleGetSongAudioMeta(w http.ResponseWriter, r *http.Request) 
 // implements it correctly already, so the player's seek/scrub never
 // re-downloads the whole file).
 func (s *Server) handleGetSongAudioData(w http.ResponseWriter, r *http.Request) {
-	book, stem := r.PathValue("book"), r.PathValue("stem")
-	category, ok := parseAudioCategory(r.URL.Query().Get("category"))
-	if !ok {
-		http.NotFound(w, r)
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	variantID, _, err := s.store.VariantLookup(r.Context(), book, stem)
-	if err != nil || variantID == 0 {
+	category, ok := parseAudioCategory(r.URL.Query().Get("category"))
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
@@ -106,21 +104,20 @@ func (s *Server) handleGetSongAudioData(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	w.Header().Set("Content-Type", contentType)
-	http.ServeContent(w, r, stem+"-"+string(category)+".mp3", meta.CreatedAt, bytes.NewReader(data))
+	http.ServeContent(w, r, strconv.FormatInt(variantID, 10)+"-"+string(category)+".mp3", meta.CreatedAt, bytes.NewReader(data))
 }
 
 // handlePutSongAudio is PUT /api/songs/{book}/{stem}/audio/{category} — a
 // direct file upload for that one category.
 func (s *Server) handlePutSongAudio(w http.ResponseWriter, r *http.Request) {
-	book, stem := r.PathValue("book"), r.PathValue("stem")
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
 	category, ok := parseAudioCategory(r.PathValue("category"))
 	if !ok {
 		httpError(w, http.StatusBadRequest, `category must be "youtube" or "band"`)
-		return
-	}
-	variantID, _, err := s.store.VariantLookup(r.Context(), book, stem)
-	if err != nil || variantID == 0 {
-		httpError(w, http.StatusNotFound, "no such song")
 		return
 	}
 	if err := r.ParseMultipartForm(maxAudioUpload); err != nil {
@@ -153,10 +150,9 @@ func (s *Server) handlePutSongAudio(w http.ResponseWriter, r *http.Request) {
 // two exist specifically to distinguish a YouTube source from the band's
 // own recording.
 func (s *Server) handlePostSongAudioYouTube(w http.ResponseWriter, r *http.Request) {
-	book, stem := r.PathValue("book"), r.PathValue("stem")
-	variantID, _, err := s.store.VariantLookup(r.Context(), book, stem)
-	if err != nil || variantID == 0 {
-		httpError(w, http.StatusNotFound, "no such song")
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var req struct {
@@ -187,15 +183,14 @@ func (s *Server) storeAudioBytes(w http.ResponseWriter, r *http.Request, variant
 }
 
 func (s *Server) handleDeleteSongAudio(w http.ResponseWriter, r *http.Request) {
-	book, stem := r.PathValue("book"), r.PathValue("stem")
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
 	category, ok := parseAudioCategory(r.PathValue("category"))
 	if !ok {
 		httpError(w, http.StatusBadRequest, `category must be "youtube" or "band"`)
-		return
-	}
-	variantID, _, err := s.store.VariantLookup(r.Context(), book, stem)
-	if err != nil || variantID == 0 {
-		httpError(w, http.StatusNotFound, "no such song")
 		return
 	}
 	if err := s.store.DeleteSongAudio(r.Context(), variantID, category); err != nil {
@@ -208,7 +203,11 @@ func (s *Server) handleDeleteSongAudio(w http.ResponseWriter, r *http.Request) {
 // handlePutAudioMarker is PUT /api/songs/{book}/{stem}/audio/{category}/markers/{sectionIndex}
 // — "set marker here" for one section of one category, body {"timeSeconds": N}.
 func (s *Server) handlePutAudioMarker(w http.ResponseWriter, r *http.Request) {
-	book, stem := r.PathValue("book"), r.PathValue("stem")
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
 	category, ok := parseAudioCategory(r.PathValue("category"))
 	if !ok {
 		httpError(w, http.StatusBadRequest, `category must be "youtube" or "band"`)
@@ -217,11 +216,6 @@ func (s *Server) handlePutAudioMarker(w http.ResponseWriter, r *http.Request) {
 	sectionIndex, err := strconv.Atoi(r.PathValue("sectionIndex"))
 	if err != nil {
 		httpError(w, http.StatusBadRequest, "invalid section index")
-		return
-	}
-	variantID, _, err := s.store.VariantLookup(r.Context(), book, stem)
-	if err != nil || variantID == 0 {
-		httpError(w, http.StatusNotFound, "no such song")
 		return
 	}
 	meta, err := s.store.GetSongAudioMeta(r.Context(), variantID, category)
@@ -244,7 +238,11 @@ func (s *Server) handlePutAudioMarker(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteAudioMarker(w http.ResponseWriter, r *http.Request) {
-	book, stem := r.PathValue("book"), r.PathValue("stem")
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
 	category, ok := parseAudioCategory(r.PathValue("category"))
 	if !ok {
 		httpError(w, http.StatusBadRequest, `category must be "youtube" or "band"`)
@@ -253,11 +251,6 @@ func (s *Server) handleDeleteAudioMarker(w http.ResponseWriter, r *http.Request)
 	sectionIndex, err := strconv.Atoi(r.PathValue("sectionIndex"))
 	if err != nil {
 		httpError(w, http.StatusBadRequest, "invalid section index")
-		return
-	}
-	variantID, _, err := s.store.VariantLookup(r.Context(), book, stem)
-	if err != nil || variantID == 0 {
-		httpError(w, http.StatusNotFound, "no such song")
 		return
 	}
 	meta, err := s.store.GetSongAudioMeta(r.Context(), variantID, category)

@@ -159,30 +159,16 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 	// system"). So a proposal's own Kind IS its listening-party-ness;
 	// no separate query, just a per-item label below in the template.
 
-	// Same live-link-aware source the Repertoire tab uses (handleBandCatalogPage):
-	// a project-linked band's repertoire count must agree with what that
-	// tab actually shows, not fall back to the separately maintained
-	// band_catalog_entries pointers a linked band no longer uses.
 	var repertoireCount int
 	var repertoirePreview []store.CatalogVariant
-	if band.ProjectID != nil {
-		variants, err := s.store.ListCatalog(r.Context(), person.ID, store.CatalogFilter{Project: band.ProjectSlug})
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		repertoireCount = len(variants)
-		repertoirePreview = variants
-	} else {
-		repertoire, err := s.store.ListBandCatalog(r.Context(), bandID)
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		repertoireCount = len(repertoire)
-		for _, e := range repertoire {
-			repertoirePreview = append(repertoirePreview, e.CatalogVariant)
-		}
+	repertoire, err := s.store.ListBandCatalog(r.Context(), bandID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	repertoireCount = len(repertoire)
+	for _, e := range repertoire {
+		repertoirePreview = append(repertoirePreview, e.CatalogVariant)
 	}
 	if len(repertoirePreview) > 5 {
 		repertoirePreview = repertoirePreview[:5]
@@ -194,13 +180,10 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 	// list that happens to mix records together.
 	var repertoirePreviewAlbums []albumGroup
 	if band.MusicType == "original" {
-		var covers map[string]store.AlbumCover
-		if band.ProjectID != nil {
-			covers, err = s.store.GetAlbumCovers(r.Context(), *band.ProjectID)
-			if err != nil {
-				httpError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
+		covers, err := s.store.GetAlbumCovers(r.Context(), bandID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
 		}
 		previewEntries := make([]store.BandCatalogEntry, len(repertoirePreview))
 		for i, v := range repertoirePreview {
@@ -655,29 +638,7 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	var entries []store.BandCatalogEntry
-	if band.ProjectID != nil {
-		// Linked band (e.g. "Mercy" <-> the v2/Mercy project): the
-		// project's own song list IS the repertoire, live — not a
-		// separately maintained band_catalog_entries copy. Every
-		// globally-visible variant in that project, same listing a
-		// band member would see browsing the catalog filtered to it.
-		variants, err := s.store.ListCatalog(r.Context(), person.ID, store.CatalogFilter{Project: band.ProjectSlug})
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		for _, v := range variants {
-			entries = append(entries, store.BandCatalogEntry{CatalogVariant: v})
-		}
-	} else {
-		entries, err = s.store.ListBandCatalog(r.Context(), bandID)
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-	}
-	books, err := s.store.ListBooks()
+	entries, err := s.store.ListBandCatalog(r.Context(), bandID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -691,19 +652,16 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 	// simplification, not a claim of real track/release order.
 	var albumGroups []albumGroup
 	if band.MusicType == "original" {
-		var covers map[string]store.AlbumCover
-		if band.ProjectID != nil {
-			covers, err = s.store.GetAlbumCovers(r.Context(), *band.ProjectID)
-			if err != nil {
-				httpError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
+		covers, err := s.store.GetAlbumCovers(r.Context(), bandID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
 		}
 		albumGroups = groupByAlbum(entries, covers)
 	}
 
 	s.render(w, "band_catalog", map[string]any{
-		"Me": person, "Band": band, "Entries": entries, "Books": books,
+		"Me": person, "Band": band, "Entries": entries,
 		"AlbumGroups": albumGroups,
 	})
 }
@@ -759,25 +717,15 @@ func groupByAlbum(entries []store.BandCatalogEntry, covers map[string]store.Albu
 func (s *Server) handleCreateBandVariant(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
-		Title   string `json:"title"`
-		Artist  string `json:"artist"`
-		Project string `json:"project"`
+		Title  string `json:"title"`
+		Artist string `json:"artist"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Title) == "" || strings.TrimSpace(req.Project) == "" {
-		httpError(w, http.StatusBadRequest, "title and project are required")
-		return
-	}
-	projectID, err := s.store.ProjectID(r.Context(), req.Project)
-	if errors.Is(err, store.ErrNotFound) {
-		httpError(w, http.StatusNotFound, "no such project: "+req.Project)
-		return
-	}
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Title) == "" {
+		httpError(w, http.StatusBadRequest, "title is required")
 		return
 	}
 	actor := personFromContext(r)
-	newID, err := s.store.CreateBandVariant(r.Context(), bandID, projectID, req.Title, req.Artist, actor.ID)
+	newID, err := s.store.CreateBandVariant(r.Context(), bandID, req.Title, req.Artist, actor.ID)
 	if errors.Is(err, store.ErrForbidden) {
 		httpError(w, http.StatusForbidden, err.Error())
 		return
@@ -786,14 +734,7 @@ func (s *Server) handleCreateBandVariant(w http.ResponseWriter, r *http.Request)
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	v, err := s.store.GetVariant(r.Context(), newID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"variantId": newID, "book": v.Book, "stem": v.Stem,
-	})
+	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})
 }
 
 // bulkLineRE splits a pasted "Title - Artist" line into its two halves —
@@ -819,11 +760,10 @@ func splitTitleArtist(line string) (title, artist string) {
 // reported per-line rather than failing the whole paste on one bad row,
 // since a 20-song paste with one typo'd line shouldn't lose the other 19.
 type bulkCreateResult struct {
-	Title  string `json:"title"`
-	Artist string `json:"artist,omitempty"`
-	Book   string `json:"book,omitempty"`
-	Stem   string `json:"stem,omitempty"`
-	Error  string `json:"error,omitempty"`
+	Title     string `json:"title"`
+	Artist    string `json:"artist,omitempty"`
+	VariantID int64  `json:"variantId,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
 
 // handleCreateBandVariantsBulk is the "fill in several songs at once"
@@ -836,20 +776,10 @@ type bulkCreateResult struct {
 func (s *Server) handleCreateBandVariantsBulk(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
-		Project string `json:"project"`
-		Lines   string `json:"lines"`
+		Lines string `json:"lines"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Project) == "" {
-		httpError(w, http.StatusBadRequest, "project is required")
-		return
-	}
-	projectID, err := s.store.ProjectID(r.Context(), req.Project)
-	if errors.Is(err, store.ErrNotFound) {
-		httpError(w, http.StatusNotFound, "no such project: "+req.Project)
-		return
-	}
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
 	actor := personFromContext(r)
@@ -865,17 +795,12 @@ func (s *Server) handleCreateBandVariantsBulk(w http.ResponseWriter, r *http.Req
 			results = append(results, bulkCreateResult{Title: line, Error: "couldn't read a title from this line"})
 			continue
 		}
-		newID, err := s.store.CreateBandVariant(r.Context(), bandID, projectID, title, artist, actor.ID)
+		newID, err := s.store.CreateBandVariant(r.Context(), bandID, title, artist, actor.ID)
 		if err != nil {
 			results = append(results, bulkCreateResult{Title: title, Artist: artist, Error: err.Error()})
 			continue
 		}
-		v, err := s.store.GetVariant(r.Context(), newID)
-		if err != nil {
-			results = append(results, bulkCreateResult{Title: title, Artist: artist, Error: err.Error()})
-			continue
-		}
-		results = append(results, bulkCreateResult{Title: title, Artist: artist, Book: v.Book, Stem: v.Stem})
+		results = append(results, bulkCreateResult{Title: title, Artist: artist, VariantID: newID})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"results": results})
 }
@@ -941,12 +866,5 @@ func (s *Server) handleForkVariantIntoBand(w http.ResponseWriter, r *http.Reques
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	v, err := s.store.GetVariant(r.Context(), newID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"variantId": newID, "book": v.Book, "stem": v.Stem,
-	})
+	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})
 }

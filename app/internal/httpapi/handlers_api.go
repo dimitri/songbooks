@@ -16,8 +16,12 @@ type songResponse struct {
 }
 
 func (s *Server) handleGetSong(w http.ResponseWriter, r *http.Request) {
-	book, stem := r.PathValue("book"), r.PathValue("stem")
-	sg, version, err := s.store.LoadSong(book, stem)
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	sg, version, err := s.store.LoadVariant(id)
 	if err != nil {
 		httpError(w, http.StatusNotFound, err.Error())
 		return
@@ -31,14 +35,18 @@ type putSongRequest struct {
 }
 
 func (s *Server) handlePutSong(w http.ResponseWriter, r *http.Request) {
-	book, stem := r.PathValue("book"), r.PathValue("stem")
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
 	var req putSongRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
 	sg := fromJSON(req.Song)
-	newVersion, err := s.store.SaveSong(book, stem, sg, req.Version, actorID(r))
+	newVersion, err := s.store.SaveVariant(id, sg, req.Version, actorID(r))
 	if err != nil {
 		writeSaveErr(w, err)
 		return
@@ -52,8 +60,12 @@ type rawResponse struct {
 }
 
 func (s *Server) handleGetRaw(w http.ResponseWriter, r *http.Request) {
-	book, stem := r.PathValue("book"), r.PathValue("stem")
-	text, version, err := s.store.LoadRaw(book, stem)
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	text, version, err := s.store.LoadVariantRaw(id)
 	if err != nil {
 		httpError(w, http.StatusNotFound, err.Error())
 		return
@@ -62,13 +74,17 @@ func (s *Server) handleGetRaw(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePutRaw(w http.ResponseWriter, r *http.Request) {
-	book, stem := r.PathValue("book"), r.PathValue("stem")
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
 	var req rawResponse
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	newVersion, err := s.store.SaveRaw(book, stem, req.Text, req.Version, actorID(r))
+	newVersion, err := s.store.SaveVariantRaw(id, req.Text, req.Version, actorID(r))
 	if err != nil {
 		writeSaveErr(w, err)
 		return
@@ -85,7 +101,11 @@ func (s *Server) handlePutRaw(w http.ResponseWriter, r *http.Request) {
 // check against a client-held version — fine for a single scalar field
 // where the chance of a genuine concurrent edit is negligible.
 func (s *Server) handlePutMeta(w http.ResponseWriter, r *http.Request) {
-	book, stem := r.PathValue("book"), r.PathValue("stem")
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
 	var req struct {
 		Key   string `json:"key"`
 		Value string `json:"value"`
@@ -98,13 +118,13 @@ func (s *Server) handlePutMeta(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "unknown meta key: "+req.Key)
 		return
 	}
-	sg, version, err := s.store.LoadSong(book, stem)
+	sg, version, err := s.store.LoadVariant(id)
 	if err != nil {
 		httpError(w, http.StatusNotFound, err.Error())
 		return
 	}
 	sg.Set(req.Key, req.Value)
-	newVersion, err := s.store.SaveSong(book, stem, sg, version, actorID(r))
+	newVersion, err := s.store.SaveVariant(id, sg, version, actorID(r))
 	if err != nil {
 		writeSaveErr(w, err)
 		return

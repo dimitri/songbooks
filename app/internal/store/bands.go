@@ -18,15 +18,6 @@ type Band struct {
 	ID        int64
 	Name      string
 	CreatedAt time.Time
-	// ProjectID/ProjectSlug: set when this band corresponds 1:1 to a
-	// legacy songbook project (e.g. the "Mercy" band and the v2/Mercy
-	// project) — when set, the band's Repertoire tab shows that
-	// project's own song list live instead of the separately
-	// maintained band_catalog_entries pointers. nil/"" for every other
-	// band (the normal case): repertoire stays band_catalog_entries,
-	// added/forked by hand.
-	ProjectID   *int64
-	ProjectSlug string
 	// MusicType: "covers", "original", or "" (unset — nothing says yet).
 	// Set by a member via the Overview page; "original" is what turns on
 	// the Repertoire tab's per-album grouping (an original act's songs
@@ -127,23 +118,6 @@ func (st *Store) SetBandName(ctx context.Context, bandID int64, name string) err
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("no such band %d: %w", bandID, ErrNotFound)
 	}
-	// A band linked to a legacy project (Band.ProjectID's own doc comment)
-	// shows that project's live song list as its repertoire — but the
-	// project's own NAME is a separate row, so a band rename alone left
-	// the project's display name stale everywhere it's shown standalone
-	// (the song page's own back-link when it has no ?band= context, the
-	// project index, etc.) — a direct report: "the band rename went
-	// through but the project has not been renamed". Only the project's
-	// display `name` changes here, never its `slug` — the slug is the
-	// URL identifier (/b/{slug}/...) every existing link and bookmark
-	// depends on; renaming it would break them for no benefit the band
-	// rename itself asked for.
-	if _, err := tx.Exec(ctx, `
-		UPDATE projects SET name = $1
-		WHERE id = (SELECT project_id FROM bands WHERE id = $2 AND project_id IS NOT NULL)`,
-		name, bandID); err != nil {
-		return err
-	}
 	return tx.Commit(ctx)
 }
 
@@ -173,9 +147,9 @@ func (st *Store) SetBandMusicType(ctx context.Context, bandID int64, musicType s
 func (st *Store) GetBand(ctx context.Context, bandID int64) (*Band, error) {
 	var b Band
 	err := st.db.QueryRow(ctx, `
-		SELECT b.id, b.name, b.created_at, b.project_id, coalesce(p.slug, ''), coalesce(b.music_type, '')
-		FROM bands b LEFT JOIN projects p ON p.id = b.project_id WHERE b.id = $1`, bandID).
-		Scan(&b.ID, &b.Name, &b.CreatedAt, &b.ProjectID, &b.ProjectSlug, &b.MusicType)
+		SELECT b.id, b.name, b.created_at, coalesce(b.music_type, '')
+		FROM bands b WHERE b.id = $1`, bandID).
+		Scan(&b.ID, &b.Name, &b.CreatedAt, &b.MusicType)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such band %d: %w", bandID, ErrNotFound)
 	}

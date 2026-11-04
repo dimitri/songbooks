@@ -18,10 +18,9 @@
 (function () {
   const root = document.getElementById('audio-player');
   if (!root) return; // not on a page with the player
-  const book = root.dataset.book;
-  const stem = root.dataset.stem;
+  const variantId = root.dataset.variantId;
   const canEdit = root.dataset.canEdit === 'true';
-  const prefKey = `songbooks:audio-category:${book}/${stem}`;
+  const prefKey = `songbooks:audio-category:${variantId}`;
 
   const categoryToggle = document.getElementById('audio-category-toggle');
   const emptyState = document.getElementById('audio-empty-state');
@@ -56,7 +55,7 @@
   // no re-decode. ------------------------------------------------------
   async function decodeWaveform() {
     peaks = null;
-    const res = await fetch(`/b/${book}/${stem}/audio.mp3?category=${activeCategory}`);
+    const res = await fetch(`/song/${variantId}/audio.mp3?category=${activeCategory}`);
     if (!res.ok) return;
     const arrayBuffer = await res.arrayBuffer();
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -163,7 +162,7 @@
       return;
     }
     const t = audio.currentTime;
-    const res = await fetch(`/api/songs/${book}/${stem}/audio/${activeCategory}/markers/${pendingSectionIndex}`, {
+    const res = await fetch(`/api/songs/${variantId}/audio/${activeCategory}/markers/${pendingSectionIndex}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ timeSeconds: t }),
     });
@@ -184,13 +183,13 @@
     try { localStorage.setItem(prefKey, cat); } catch (e) {}
     categoryToggle?.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.category === cat));
     audio.pause();
-    audio.src = `/b/${book}/${stem}/audio.mp3?category=${cat}`;
+    audio.src = `/song/${variantId}/audio.mp3?category=${cat}`;
     duration = 0;
     decodeWaveform();
   }
 
   async function loadMeta() {
-    const res = await fetch(`/api/songs/${book}/${stem}/audio`);
+    const res = await fetch(`/api/songs/${variantId}/audio`);
     if (!res.ok) return;
     const data = await res.json();
     categories = {};
@@ -233,7 +232,7 @@
   function uploadFile(category, file, onDone) {
     const fd = new FormData();
     fd.append('file', file);
-    fetch(`/api/songs/${book}/${stem}/audio/${category}`, { method: 'PUT', body: fd })
+    fetch(`/api/songs/${variantId}/audio/${category}`, { method: 'PUT', body: fd })
       .then(async res => {
         if (!res.ok) { alert('Upload failed: ' + (await res.text())); return; }
         loadMeta();
@@ -254,7 +253,7 @@
   });
   bandDeleteBtn?.addEventListener('click', async () => {
     if (!confirm('Remove the band recording?')) return;
-    const res = await fetch(`/api/songs/${book}/${stem}/audio/band`, { method: 'DELETE' });
+    const res = await fetch(`/api/songs/${variantId}/audio/band`, { method: 'DELETE' });
     if (res.ok) loadMeta();
   });
 
@@ -274,7 +273,7 @@
     ytReplaceBtn && (ytReplaceBtn.disabled = true);
     if (ytStatus) ytStatus.textContent = 'Downloading… this can take a minute.';
     try {
-      const res = await fetch(`/api/songs/${book}/${stem}/audio/youtube`, {
+      const res = await fetch(`/api/songs/${variantId}/audio/youtube`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       });
@@ -293,7 +292,7 @@
   ytReplaceBtn?.addEventListener('click', downloadFromReference);
   ytDeleteBtn?.addEventListener('click', async () => {
     if (!confirm('Remove the downloaded YouTube audio?')) return;
-    const res = await fetch(`/api/songs/${book}/${stem}/audio/youtube`, { method: 'DELETE' });
+    const res = await fetch(`/api/songs/${variantId}/audio/youtube`, { method: 'DELETE' });
     if (res.ok) loadMeta();
   });
 

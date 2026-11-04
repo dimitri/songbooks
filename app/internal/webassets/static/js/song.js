@@ -14,8 +14,6 @@ const ICONS = {
 };
 
 (function () {
-  const book = document.getElementById('structure')?.dataset.book || document.getElementById('editor')?.dataset.book;
-  const stem = document.getElementById('structure')?.dataset.stem || document.getElementById('editor')?.dataset.stem;
   const editorElForFork = document.getElementById('editor');
   const pageVariantId = Number(editorElForFork?.dataset.variantId) || 0;
   const pageCanEdit = editorElForFork?.dataset.canEdit !== 'false';
@@ -1077,7 +1075,7 @@ const ICONS = {
   (function initReference() {
     const block = document.getElementById('reference-block');
     if (!block) return;
-    const { book, stem } = block.dataset;
+    const variantId = block.dataset.variantId;
     const embedEl = document.getElementById('reference-embed');
     const linkEl = document.getElementById('reference-link');
     const editBtn = document.getElementById('reference-edit-btn');
@@ -1121,7 +1119,7 @@ const ICONS = {
       const url = urlInput.value.trim();
       saveBtn.disabled = true;
       try {
-        const res = await fetch(`/api/songs/${book}/${stem}/meta`, {
+        const res = await fetch(`/api/songs/${variantId}/meta`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key: 'reference', value: url }),
         });
@@ -1347,7 +1345,7 @@ const ICONS = {
         const res = await fetch(`/api/variants/${pageVariantId}/fork`, {method: 'POST'});
         const data = await res.json();
         if (!res.ok) { alert(data.error || "couldn't create your own copy to edit"); return; }
-        location.href = `/b/${encodeURIComponent(data.book)}/${encodeURIComponent(data.stem)}?edit=1`;
+        location.href = `/song/${data.variantId}?edit=1`;
         return;
       } finally {
         editToggle.disabled = false;
@@ -1485,7 +1483,7 @@ const ICONS = {
   document.getElementById('save-btn').addEventListener('click', async () => {
     const status = document.getElementById('save-status');
     status.className = ''; status.textContent = 'saving…';
-    const res = await fetch(`/api/songs/${book}/${stem}/raw`, {
+    const res = await fetch(`/api/songs/${pageVariantId}/raw`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version: rawVersion, text: rawTextarea.value }),
     });
@@ -1501,12 +1499,12 @@ const ICONS = {
 
   // ---- Redo this song (destructive: erases body, keeps book/stem identity) --
   document.getElementById('redo-song-btn')?.addEventListener('click', async () => {
-    const title = document.querySelector('.topbar-current h1')?.textContent?.trim() || stem;
+    const title = document.querySelector('.topbar-current h1')?.textContent?.trim() || 'untitled';
     if (!confirm(`This will erase the current lyrics/chords for ${title} — continue?`)) return;
     const status = document.getElementById('save-status');
-    const res = await fetch(`/api/songs/${book}/${stem}/redo`, {
+    const res = await fetch(`/api/songs/${pageVariantId}/redo`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ version: rawVersion }),
+      body: JSON.stringify({ title, version: rawVersion }),
     });
     if (res.status === 409) { alert('conflict: this song changed since it was loaded — reload before redoing it'); return; }
     if (!res.ok) { alert("couldn't redo this song"); return; }
@@ -3442,7 +3440,7 @@ const ICONS = {
     // stores — built fresh for the request only, so the live sections
     // being edited keep their split common/endings shape afterward.
     const sectionsForSave = structSections.map(sec => ({ ...sec, measures: joinVoltaGroups(sec), endings: undefined }));
-    const res = await fetch(`/api/songs/${book}/${stem}`, {
+    const res = await fetch(`/api/songs/${pageVariantId}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version: structVersion, song: { meta: structMeta, sections: sectionsForSave } }),
     });
@@ -3460,7 +3458,7 @@ const ICONS = {
     setTimeout(() => window.location.reload(), 600);
   });
   (async function loadStructure() {
-    const res = await fetch(`/api/songs/${book}/${stem}`);
+    const res = await fetch(`/api/songs/${pageVariantId}`);
     const data = await res.json();
     structVersion = data.version; structMeta = data.song.meta;
     // Split each section's flat measures into {common, endings} once, up

@@ -15,7 +15,7 @@
   {{template "home-link"}}
   <h1>Songbooks</h1>
   <nav class="song-nav">
-    <a href="/catalog/mine">my songbook</a>
+    <a href="/songbooks/mine">my songbook</a>
     {{template "notif-bell"}}
   </nav>
 </header>
@@ -35,7 +35,6 @@
   <section class="catalog-view" data-view-panel="songs"{{if eq .View "books"}} hidden{{end}}>
     <form class="card catalog-filters" method="get" action="/catalog">
       <label>Artist <input type="text" name="artist" value="{{.Filter.Artist}}" placeholder="any"></label>
-      <label>Project <input type="text" name="project" value="{{.Filter.Project}}" placeholder="any"></label>
       <label>Genre
         <select name="genre">
           <option value="" {{if eq .Filter.Genre ""}}selected{{end}}>all genres</option>
@@ -55,9 +54,9 @@
     <div class="catalog-cards">
     {{range .Variants}}
       <div class="catalog-card" data-variant-id="{{.VariantID}}">
-        <a class="catalog-card-main" href="/b/{{.Book}}/{{.Stem}}">
+        <a class="catalog-card-main" href="/song/{{.VariantID}}">
           <div class="catalog-card-title">{{.Title}}</div>
-          <div class="catalog-card-meta">{{.Artist}}{{if .Genre}} &middot; {{.Genre}}{{end}} &middot; {{.Book}}</div>
+          <div class="catalog-card-meta">{{.Artist}}{{if .Genre}} &middot; {{.Genre}}{{end}}</div>
         </a>
         <div class="catalog-card-actions">
           <a href="/works/{{.WorkID}}">all versions</a>
@@ -70,22 +69,21 @@
     {{else}}
     <p class="hint">No songs match this filter.</p>
     {{end}}
-    <p class="hint">No "by album" filter — nothing in this app's song data carries an album field, so there's nothing to group by. "By project" above is the closest grouping that actually exists.</p>
+    <p class="hint">No "by album" filter — nothing in this app's song data carries an album field, so there's nothing to group by.</p>
   </section>
 
   <section class="catalog-view" data-view-panel="books"{{if ne .View "books"}} hidden{{end}}>
-    <h2 class="catalog-books-heading">Projects</h2>
-    {{if .Books}}
+    <h2 class="catalog-books-heading">My songbooks</h2>
+    {{if .MySongbooks}}
     <div class="catalog-book-cards">
-    {{range .Books}}
-      <a class="catalog-book-card" href="/b/{{.Name}}">
+    {{range .MySongbooks}}
+      <a class="catalog-book-card" href="/songbooks/{{.ID}}">
         <div class="catalog-book-card-title">{{.Name}}</div>
-        <div class="catalog-book-card-meta">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}} &middot; {{.SetCount}} set{{if ne .SetCount 1}}s{{end}}</div>
       </a>
     {{end}}
     </div>
     {{else}}
-    <p class="hint">No projects yet.</p>
+    <p class="hint">No songbooks yet.</p>
     {{end}}
 
     <h2 class="catalog-books-heading">Band repertoires</h2>
@@ -113,10 +111,11 @@ document.querySelectorAll('.catalog-view-tab').forEach(tab => {
     history.replaceState(null, '', url);
   });
 });
+const defaultSongbookId = {{.DefaultSongbookID}};
 document.querySelectorAll('.add-catalog-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const variantId = Number(btn.dataset.variantId);
-    const res = await fetch('/api/catalog', {
+    const res = await fetch(`/api/songbooks/${defaultSongbookId}/entries`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({variantId}),
     });
@@ -129,7 +128,7 @@ document.querySelectorAll('.fork-btn').forEach(btn => {
     const res = await fetch(`/api/variants/${variantId}/fork`, {method: 'POST'});
     const data = await res.json();
     if (res.ok) {
-      location.href = `/b/${encodeURIComponent(data.book)}/${encodeURIComponent(data.stem)}`;
+      location.href = `/song/${data.variantId}`;
     } else {
       btn.textContent = data.error || 'fork failed';
     }

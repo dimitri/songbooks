@@ -102,12 +102,27 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("GET /dev/outbox", s.requireAdmin(s.handleDevOutbox))
 
 	mux.HandleFunc("GET /", s.requireAuth(s.handleIndex))
-	mux.HandleFunc("GET /b/{book}", s.requireRole("viewer", s.handleProject))
-	mux.HandleFunc("GET /b/{book}/playlist/metronome", s.requireRole("viewer", s.handleMetronomePlaylist))
-	mux.HandleFunc("GET /b/{book}/playlist/mp3", s.requireRole("viewer", s.handleMP3Playlist))
-	mux.HandleFunc("GET /b/{book}/{stem}", s.requireSongRole("viewer", s.handleSong))
-	mux.HandleFunc("GET /b/{book}/{stem}/play", s.requireSongRole("viewer", s.handleSongRedirect)) // old links -> the unified page
-	mux.HandleFunc("GET /b/{book}/{stem}/prep", s.requireSongRole("viewer", s.handleSongRedirect))
+
+	// Songbooks: a named, ordered collection of variant pointers owned by
+	// a person or a band (see internal/store/songbooks.go) — the "project"
+	// container's replacement. /songbooks/mine lists the logged-in
+	// person's own; /songbooks/{id} is any one songbook's page.
+	mux.HandleFunc("GET /songbooks/mine", s.requireAuth(s.handleMySongbooksPage))
+	mux.HandleFunc("POST /api/songbooks", s.requireAuth(s.handleCreateSongbook))
+	mux.HandleFunc("GET /songbooks/{id}", s.requireAuth(s.handleSongbookPage))
+	mux.HandleFunc("POST /api/songbooks/{id}/rename", s.requireAuth(s.handleRenameSongbook))
+	mux.HandleFunc("DELETE /api/songbooks/{id}", s.requireAuth(s.handleDeleteSongbook))
+	mux.HandleFunc("PUT /api/songbooks/{id}/order", s.requireAuth(s.handleSaveSongbookOrder))
+	mux.HandleFunc("POST /api/songbooks/{id}/songs", s.requireAuth(s.handleCreateSongInSongbook))
+	mux.HandleFunc("POST /api/catalog/songs", s.requireAuth(s.handleCreateCatalogSong))
+	mux.HandleFunc("POST /api/songbooks/{id}/entries", s.requireAuth(s.handleAddSongbookEntry))
+	mux.HandleFunc("DELETE /api/songbooks/{id}/entries/{variantID}", s.requireAuth(s.handleRemoveSongbookEntry))
+	mux.HandleFunc("GET /songbooks/{id}/playlist/metronome", s.requireAuth(s.handleMetronomePlaylist))
+	mux.HandleFunc("GET /songbooks/{id}/playlist/mp3", s.requireAuth(s.handleMP3Playlist))
+
+	// Songs: addressed by their own variant id from here on — see
+	// migration 0041's "remove the project notion" doc comment.
+	mux.HandleFunc("GET /song/{id}", s.requireVariantRole("viewer", s.handleSong))
 	mux.HandleFunc("GET /api/qr", s.requireAuth(s.handleQRCode))
 	mux.HandleFunc("POST /api/preview", s.requireAuth(s.handlePreview))
 	mux.HandleFunc("POST /api/import/lyrics", s.requireAuth(s.handleImportLyrics))
@@ -116,43 +131,29 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("POST /api/import/ultimate-guitar/parse", s.requireAuth(s.handleImportUGParse))
 	mux.HandleFunc("POST /api/import/ultimate-guitar/convert", s.requireAuth(s.handleImportUGConvert))
 
-	mux.HandleFunc("GET /api/songs/{book}/{stem}", s.requireSongRole("viewer", s.handleGetSong))
-	mux.HandleFunc("PUT /api/songs/{book}/{stem}", s.requireSongRole("editor", s.handlePutSong))
-	mux.HandleFunc("PUT /api/songs/{book}/{stem}/meta", s.requireSongRole("editor", s.handlePutMeta))
+	mux.HandleFunc("GET /api/songs/{id}", s.requireVariantRole("viewer", s.handleGetSong))
+	mux.HandleFunc("PUT /api/songs/{id}", s.requireVariantRole("editor", s.handlePutSong))
+	mux.HandleFunc("PUT /api/songs/{id}/meta", s.requireVariantRole("editor", s.handlePutMeta))
 	mux.HandleFunc("PUT /api/variants/{id}/genre", s.requireAuth(s.handlePutVariantGenre))
-	mux.HandleFunc("GET /api/songs/{book}/{stem}/raw", s.requireSongRole("viewer", s.handleGetRaw))
-	mux.HandleFunc("PUT /api/songs/{book}/{stem}/raw", s.requireSongRole("editor", s.handlePutRaw))
+	mux.HandleFunc("GET /api/songs/{id}/raw", s.requireVariantRole("viewer", s.handleGetRaw))
+	mux.HandleFunc("PUT /api/songs/{id}/raw", s.requireVariantRole("editor", s.handlePutRaw))
+	mux.HandleFunc("DELETE /api/songs/{id}", s.requireVariantRole("editor", s.handleDeleteSong))
+	mux.HandleFunc("PUT /api/songs/{id}/redo", s.requireVariantRole("editor", s.handleRedoSong))
 
 	// Reference audio (app/docs/mp3-reference-audio.md): metadata/serving
 	// are viewer-level (same as reading the chart itself), upload/delete/
 	// markers are editor-level (same as editing the chart itself).
-	mux.HandleFunc("GET /api/songs/{book}/{stem}/audio", s.requireSongRole("viewer", s.handleGetSongAudioMeta))
-	// category is a query param here (?category=youtube|band), not a path
-	// segment — a path segment collided with the existing /b/{book}/jam/
-	// {code}/roster route ("neither is more specific than the other," Go
-	// 1.22+ ServeMux's own conflict error), and a {category} segment with
-	// a literal ".mp3" suffix attached is rejected outright ("bad wildcard
+	mux.HandleFunc("GET /api/songs/{id}/audio", s.requireVariantRole("viewer", s.handleGetSongAudioMeta))
+	// category is a query param (?category=youtube|band), not a path
+	// segment — a {category} segment with a literal ".mp3" suffix
+	// attached is rejected outright by Go 1.22+ ServeMux ("bad wildcard
 	// segment," must be the whole path segment).
-	mux.HandleFunc("GET /b/{book}/{stem}/audio.mp3", s.requireSongRole("viewer", s.handleGetSongAudioData))
-	mux.HandleFunc("PUT /api/songs/{book}/{stem}/audio/{category}", s.requireSongRole("editor", s.handlePutSongAudio))
-	mux.HandleFunc("POST /api/songs/{book}/{stem}/audio/youtube", s.requireSongRole("editor", s.handlePostSongAudioYouTube))
-	mux.HandleFunc("DELETE /api/songs/{book}/{stem}/audio/{category}", s.requireSongRole("editor", s.handleDeleteSongAudio))
-	mux.HandleFunc("PUT /api/songs/{book}/{stem}/audio/{category}/markers/{sectionIndex}", s.requireSongRole("editor", s.handlePutAudioMarker))
-	mux.HandleFunc("DELETE /api/songs/{book}/{stem}/audio/{category}/markers/{sectionIndex}", s.requireSongRole("editor", s.handleDeleteAudioMarker))
-	mux.HandleFunc("PUT /api/songs/{book}/{stem}/redo", s.requireSongRole("editor", s.handleRedoSong))
-
-	mux.HandleFunc("PUT /api/books/{book}/order", s.requireRole("editor", s.handleSaveOrder))
-	mux.HandleFunc("POST /api/books", s.requireAuth(s.handleCreateBook))
-	mux.HandleFunc("DELETE /api/books/{book}", s.requireRole("owner", s.handleDeleteBook))
-	mux.HandleFunc("POST /api/books/{book}/songs", s.requireRole("editor", s.handleCreateSong))
-	mux.HandleFunc("DELETE /api/books/{book}/songs/{stem}", s.requireRole("editor", s.handleDeleteSong))
-	mux.HandleFunc("GET /api/books/{book}/export", s.requireRole("viewer", s.handleExportBook))
-	mux.HandleFunc("POST /api/books/import", s.requireAuth(s.handleImportBook))
-
-	mux.HandleFunc("GET /b/{book}/members", s.requireRole("owner", s.handleMembersPage))
-	mux.HandleFunc("POST /b/{book}/invites", s.requireRole("owner", s.handleCreateInvite))
-	mux.HandleFunc("POST /b/{book}/members/{personID}/role", s.requireRole("owner", s.handleSetMemberRole))
-	mux.HandleFunc("DELETE /b/{book}/members/{personID}", s.requireRole("owner", s.handleRemoveMember))
+	mux.HandleFunc("GET /song/{id}/audio.mp3", s.requireVariantRole("viewer", s.handleGetSongAudioData))
+	mux.HandleFunc("PUT /api/songs/{id}/audio/{category}", s.requireVariantRole("editor", s.handlePutSongAudio))
+	mux.HandleFunc("POST /api/songs/{id}/audio/youtube", s.requireVariantRole("editor", s.handlePostSongAudioYouTube))
+	mux.HandleFunc("DELETE /api/songs/{id}/audio/{category}", s.requireVariantRole("editor", s.handleDeleteSongAudio))
+	mux.HandleFunc("PUT /api/songs/{id}/audio/{category}/markers/{sectionIndex}", s.requireVariantRole("editor", s.handlePutAudioMarker))
+	mux.HandleFunc("DELETE /api/songs/{id}/audio/{category}/markers/{sectionIndex}", s.requireVariantRole("editor", s.handleDeleteAudioMarker))
 
 	mux.HandleFunc("GET /metronome", s.requireAuth(s.handleMetronomePage))
 
@@ -195,12 +196,9 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// what's visible/editable here, not project membership; see
 	// internal/store/catalog.go and internal/store/revisions.go.
 	mux.HandleFunc("GET /catalog", s.requireAuth(s.handleCatalogPage))
-	mux.HandleFunc("GET /catalog/mine", s.requireAuth(s.handleMyCatalogPage))
 	mux.HandleFunc("GET /works/{id}", s.requireAuth(s.handleWorkVersionsPage))
 	mux.HandleFunc("GET /variants/{id}/history", s.requireAuth(s.handleVariantHistoryPage))
 
-	mux.HandleFunc("POST /api/catalog", s.requireAuth(s.handleAddToCatalog))
-	mux.HandleFunc("DELETE /api/catalog/{variantID}", s.requireAuth(s.handleRemoveFromCatalog))
 	mux.HandleFunc("POST /api/variants/{id}/fork", s.requireAuth(s.handleForkVariant))
 	mux.HandleFunc("POST /api/variants/{id}/annotations", s.requireAuth(s.handleCreateAnnotation))
 	// PUT /api/variants/{id}: optionalPerson, not requireAuth — accepts
@@ -306,17 +304,12 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("POST /admin/people/{personID}/remove", s.requireAdmin(s.handleAdminRemovePerson))
 
 	mux.HandleFunc("GET /setlists", s.requireAuth(s.handleSetlistsPage))
-	mux.HandleFunc("GET /setlists/{book}/{stem}/gig", s.requireRole("viewer", s.handleSetlistGigPage))
-	mux.HandleFunc("GET /setlists/{book}/{stem}", s.requireRole("viewer", s.handleSetlistEditPage))
-	mux.HandleFunc("GET /api/setlists/{book}/{stem}", s.requireRole("viewer", s.handleGetSetlist))
-	mux.HandleFunc("PUT /api/setlists/{book}/{stem}", s.requireRole("editor", s.handlePutSetlist))
 
-	// Phase 3 of the data-model rewrite: person/band-scoped setlists,
-	// addressed by their own id rather than by book/stem (see
+	// Person/band-scoped setlists, addressed by their own id (see
 	// internal/store/setlists.go's SetlistMeta/CreateSetlist/
 	// CanEditSetlistByID), plus setlist_gigs and practice/listening
-	// mode. All requireAuth only, not requireRole — a setlist's own
-	// scope (project/person/band) governs who may view/edit it, checked
+	// mode. All requireAuth only, not a role middleware — a setlist's
+	// own scope (person/band) governs who may view/edit it, checked
 	// inside each handler via CanViewSetlistByID/CanEditSetlistByID,
 	// same division of responsibility CanEditVariant/requireBandMember
 	// already use elsewhere.
@@ -332,54 +325,34 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("GET /setlists/{id}/listening", s.requireAuth(s.handleSetlistListening))
 	mux.HandleFunc("GET /setlists/{id}/clicktrack", s.requireAuth(s.handleSetlistClicktrack))
 
-	mux.HandleFunc("GET /b/{book}/{stem}/export.pdf", s.requireSongRole("viewer", s.handleExportSongPDF))
-	mux.HandleFunc("GET /setlists/{book}/{stem}/export.pdf", s.requireRole("viewer", s.handleExportSetlistPDF))
-	mux.HandleFunc("GET /setlists/{book}/{stem}/export-setlist-page.pdf", s.requireRole("viewer", s.handleExportSetlistPageOnlyPDF))
-	// Phase 3 (id-addressed person/band/project-scoped) setlists: same
-	// pair of exports, gated by CanViewSetlistByID inside the handler
-	// itself (requireAuth only here, same as every other /setlists/{id}/...
-	// route) rather than a role/band middleware, since the right check
-	// genuinely differs by scope.
+	mux.HandleFunc("GET /song/{id}/export.pdf", s.requireVariantRole("viewer", s.handleExportSongPDF))
 	mux.HandleFunc("GET /setlists/{id}/export.pdf", s.requireAuth(s.handleExportSetlistByIDPDF))
 	mux.HandleFunc("GET /setlists/{id}/export-setlist-page.pdf", s.requireAuth(s.handleExportSetlistPageOnlyByIDPDF))
-	// Whole-songbook export: a project's full song list, or a band's full
-	// repertoire — same Typst pipeline as a single song/setlist above, new
-	// in this phase (previously PDF export only covered one song or a
-	// curated setlist, never "every song this project/band has").
-	mux.HandleFunc("GET /b/{book}/export-songbook.pdf", s.requireRole("viewer", s.handleExportProjectSongbookPDF))
+	// Whole-songbook export: same Typst pipeline as a single song/setlist
+	// above, covering every entry a songbook has.
+	mux.HandleFunc("GET /songbooks/{id}/export-songbook.pdf", s.requireAuth(s.handleExportSongbookPDF))
 	mux.HandleFunc("GET /bands/{id}/export-songbook.pdf", s.requireBandMember(s.handleExportBandSongbookPDF))
 
 	// LilyPond export: a second, independent PDF pipeline (real engraved
 	// chords-over-a-staff notation + lyrics, see internal/lilypond) next
 	// to the Typst "chart" export above — same route scoping/role checks,
-	// distinct paths so both stay independently reachable. Band
-	// repertoire export is new in this pipeline (the Typst bridge never
-	// had one); requireBandMember matches every other band-scoped route.
-	mux.HandleFunc("GET /b/{book}/{stem}/export-ly.pdf", s.requireSongRole("viewer", s.handleExportSongLilyPDF))
-	mux.HandleFunc("GET /setlists/{book}/{stem}/export-ly.pdf", s.requireRole("viewer", s.handleExportSetlistLilyPDF))
+	// distinct paths so both stay independently reachable.
+	mux.HandleFunc("GET /song/{id}/export-ly.pdf", s.requireVariantRole("viewer", s.handleExportSongLilyPDF))
 	mux.HandleFunc("GET /bands/{id}/export-ly.pdf", s.requireBandMember(s.handleExportBandRepertoireLilyPDF))
 
-	// Jam mode: organiser routes are normal {book}-scoped, role-gated
-	// routes. /jam/{code}/* is reachable WITHOUT a login — a nickname-only
-	// jam_profiles identity, set via its own cookie in jam.go, not
-	// requireAuth/requireRole at all.
-	mux.HandleFunc("POST /b/{book}/jam-events", s.requireRole("editor", s.handleCreateJamEvent))
-	// requireAuth only (not requireRole): a designated jam organizer with
-	// no project-wide role at all must still be able to see this page —
-	// handleJamRosterPage itself checks "viewer-or-above OR organizer".
-	mux.HandleFunc("GET /b/{book}/jam/{code}/roster", s.requireAuth(s.handleJamRosterPage))
-	mux.HandleFunc("GET /b/{book}/jam/{code}/add", s.requireRole("editor", s.handleJamAddSongsPage))
-	mux.HandleFunc("POST /b/{book}/jam/{code}/songs", s.requireRole("editor", s.handleAddJamSong))
-	mux.HandleFunc("POST /b/{book}/jam/{code}/songs/{songID}/remove", s.requireRole("editor", s.handleRemoveJamSong))
-	// Jam organizer (Phase 5): song-order and "now calling" control, gated
-	// on organizer-for-this-event OR project editor/owner, not plain
-	// editor like the song-list management routes above.
-	mux.HandleFunc("POST /b/{book}/jam/{code}/reorder", s.requireJamOrganizer(s.handleReorderJamSongs))
-	mux.HandleFunc("POST /b/{book}/jam/{code}/call", s.requireJamOrganizer(s.handleCallJamParticipant))
-	// requireAuth only, same "viewer-or-organizer" reasoning as the roster
-	// route above — handleJamCallStatus checks it itself.
-	mux.HandleFunc("GET /b/{book}/jam/{code}/call-status", s.requireAuth(s.handleJamCallStatus))
-	mux.HandleFunc("POST /b/{book}/jam/{code}/organizers", s.requireRole("editor", s.handleAddJamOrganizer))
+	// Jam mode: organiser routes are scoped to a songbook (the pool of
+	// songs a jam event draws from/adds into — see migration 0041).
+	// /jam/{code}/* is reachable WITHOUT a login — a nickname-only
+	// jam_profiles identity, set via its own cookie in jam.go.
+	mux.HandleFunc("POST /songbooks/{id}/jam-events", s.requireAuth(s.handleCreateJamEvent))
+	mux.HandleFunc("GET /songbooks/{id}/jam/{code}/roster", s.requireAuth(s.handleJamRosterPage))
+	mux.HandleFunc("GET /songbooks/{id}/jam/{code}/add", s.requireAuth(s.handleJamAddSongsPage))
+	mux.HandleFunc("POST /songbooks/{id}/jam/{code}/songs", s.requireAuth(s.handleAddJamSong))
+	mux.HandleFunc("POST /songbooks/{id}/jam/{code}/songs/{songID}/remove", s.requireAuth(s.handleRemoveJamSong))
+	mux.HandleFunc("POST /songbooks/{id}/jam/{code}/reorder", s.requireJamOrganizer(s.handleReorderJamSongs))
+	mux.HandleFunc("POST /songbooks/{id}/jam/{code}/call", s.requireJamOrganizer(s.handleCallJamParticipant))
+	mux.HandleFunc("GET /songbooks/{id}/jam/{code}/call-status", s.requireAuth(s.handleJamCallStatus))
+	mux.HandleFunc("POST /songbooks/{id}/jam/{code}/organizers", s.requireAuth(s.handleAddJamOrganizer))
 	mux.HandleFunc("GET /jam/{code}", s.optionalPerson(s.handleJamLandingPage))
 	mux.HandleFunc("POST /jam/{code}/join", s.handleJamJoin)
 	mux.HandleFunc("GET /jam/{code}/songs", s.handleJamSongsPage)

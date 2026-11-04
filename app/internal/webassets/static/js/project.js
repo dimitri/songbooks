@@ -4,7 +4,7 @@
 // data model: everything here lands as ordinary .song header lines or
 // grid/lyric text, the same shape a hand-edited song file already has.
 const wizard = document.getElementById('song-wizard');
-const wizBook = wizard?.dataset.book;
+const wizSongbookId = wizard?.dataset.songbookId;
 const WIZ_STEPS = 4;
 let wizStep = 0;
 
@@ -186,12 +186,12 @@ document.getElementById('wiz-create')?.addEventListener('click', async () => {
   const status = document.getElementById('wiz-status');
   if (!title) { document.getElementById('wiz-title').focus(); return; }
   status.textContent = 'creating…'; status.className = 'hint';
-  const res = await fetch(`/api/books/${wizBook}/songs`, {
+  const res = await fetch(`/api/songbooks/${wizSongbookId}/songs`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, artist }),
   });
   const data = await res.json();
   if (!res.ok) { status.textContent = 'could not create: ' + data.error; status.className = 'hint err'; return; }
-  const { stem } = data;
+  const variantId = data.variantId;
 
   const key = document.getElementById('wiz-key').value.trim();
   const tempo = document.getElementById('wiz-tempo').value.trim();
@@ -216,27 +216,19 @@ document.getElementById('wiz-create')?.addEventListener('click', async () => {
     } else {
       body += `[Verse]\n${lyrics}\n`;
     }
-    await fetch(`/api/songs/${wizBook}/${stem}/raw`, {
+    await fetch(`/api/songs/${variantId}/raw`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ version: null, text: body }),
     });
   }
-  window.location.href = `/b/${wizBook}/${stem}`;
-});
-
-document.getElementById('remove-project-btn')?.addEventListener('click', async () => {
-  const book = document.getElementById('remove-project-btn').dataset.book;
-  if (!confirm(`Delete the entire "${book}" project? This removes all its songs and cannot be undone.`)) return;
-  const res = await fetch(`/api/books/${book}`, { method: 'DELETE' });
-  if (!res.ok) { alert('Could not delete project'); return; }
-  window.location.href = '/';
+  window.location.href = `/song/${variantId}?songbook=${wizSongbookId}`;
 });
 
 document.querySelectorAll('.remove-song-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    const { book, stem } = btn.dataset;
-    if (!confirm(`Delete "${stem}"? This cannot be undone.`)) return;
-    const res = await fetch(`/api/books/${book}/songs/${stem}`, { method: 'DELETE' });
-    if (!res.ok) { alert('Could not delete song'); return; }
+    const { songbookId, variantId } = btn.dataset;
+    if (!confirm('Remove this song from the songbook?')) return;
+    const res = await fetch(`/api/songbooks/${songbookId}/entries/${variantId}`, { method: 'DELETE' });
+    if (!res.ok) { alert('Could not remove song'); return; }
     window.location.reload();
   });
 });
@@ -250,7 +242,7 @@ document.querySelectorAll('.remove-song-btn').forEach(btn => {
   const toggle = document.getElementById('catalog-edit-toggle');
   if (!section || !toggle) return;
   const status = document.getElementById('catalog-save-status');
-  const book = section.dataset.book;
+  const songbookId = section.dataset.songbookId;
 
   toggle.addEventListener('click', () => {
     const editing = section.classList.toggle('editing');
@@ -266,11 +258,11 @@ document.querySelectorAll('.remove-song-btn').forEach(btn => {
   async function saveOrder() {
     const groups = [...document.querySelectorAll('.song-list')].map(ul => ({
       label: ul.dataset.groupLabel,
-      stems: [...ul.children].map(li => li.dataset.stem),
+      variantIds: [...ul.children].map(li => parseInt(li.dataset.variantId, 10)),
     }));
     status.textContent = 'saving…';
     try {
-      const res = await fetch(`/api/books/${book}/order`, {
+      const res = await fetch(`/api/songbooks/${songbookId}/order`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ groups }),
       });
       if (!res.ok) throw new Error(await res.text());

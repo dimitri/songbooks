@@ -127,7 +127,12 @@ func (s *Server) handleSchoolPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	myCatalog, err := s.store.ListMyCatalog(r.Context(), person.ID)
+	mySongbookID, err := s.store.GetDefaultSongbook(r.Context(), "person", person.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	myCatalog, err := s.store.ListSongbookEntries(r.Context(), mySongbookID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -173,15 +178,10 @@ func (s *Server) handleSchoolAdminPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	books, err := s.store.ListBooks()
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
 	s.render(w, "school_admin", map[string]any{
 		"Me": person, "School": school, "Members": members,
 		"PendingSubmissions": pending, "AllSubmissions": decided,
-		"Entries": entries, "Books": books,
+		"Entries": entries,
 	})
 }
 
@@ -407,14 +407,7 @@ func (s *Server) handleForkVariantIntoSchool(w http.ResponseWriter, r *http.Requ
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	v, err := s.store.GetVariant(r.Context(), newID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"variantId": newID, "book": v.Book, "stem": v.Stem,
-	})
+	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})
 }
 
 // handleCreateSchoolVariant creates a brand-new, from-scratch variant
@@ -423,25 +416,15 @@ func (s *Server) handleForkVariantIntoSchool(w http.ResponseWriter, r *http.Requ
 func (s *Server) handleCreateSchoolVariant(w http.ResponseWriter, r *http.Request) {
 	schoolID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
-		Title   string `json:"title"`
-		Artist  string `json:"artist"`
-		Project string `json:"project"`
+		Title  string `json:"title"`
+		Artist string `json:"artist"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Title) == "" || strings.TrimSpace(req.Project) == "" {
-		httpError(w, http.StatusBadRequest, "title and project are required")
-		return
-	}
-	projectID, err := s.store.ProjectID(r.Context(), req.Project)
-	if errors.Is(err, store.ErrNotFound) {
-		httpError(w, http.StatusNotFound, "no such project: "+req.Project)
-		return
-	}
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Title) == "" {
+		httpError(w, http.StatusBadRequest, "title is required")
 		return
 	}
 	actor := personFromContext(r)
-	newID, err := s.store.CreateSchoolVariant(r.Context(), schoolID, projectID, req.Title, req.Artist, actor.ID)
+	newID, err := s.store.CreateSchoolVariant(r.Context(), schoolID, req.Title, req.Artist, actor.ID)
 	if errors.Is(err, store.ErrForbidden) {
 		httpError(w, http.StatusForbidden, err.Error())
 		return
@@ -450,14 +433,7 @@ func (s *Server) handleCreateSchoolVariant(w http.ResponseWriter, r *http.Reques
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	v, err := s.store.GetVariant(r.Context(), newID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"variantId": newID, "book": v.Book, "stem": v.Stem,
-	})
+	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})
 }
 
 // handleCreateSchoolSubmission is a student submitting their own

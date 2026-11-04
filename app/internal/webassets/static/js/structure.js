@@ -4,8 +4,7 @@
 (function () {
   const el = document.getElementById('structure');
   if (!el) return; // not on a page with the structure panel
-  const book = el.dataset.book;
-  const stem = el.dataset.stem;
+  const variantId = el.dataset.variantId;
 
   let version = null;
   let meta = [];
@@ -62,7 +61,7 @@
   document.getElementById('save-structure').addEventListener('click', async () => {
     const status = document.getElementById('structure-status');
     status.className = ''; status.textContent = 'saving…';
-    const res = await fetch(`/api/songs/${book}/${stem}`, {
+    const res = await fetch(`/api/songs/${variantId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version, song: { meta, sections } }),
@@ -79,7 +78,7 @@
   });
 
   (async function load() {
-    const res = await fetch(`/api/songs/${book}/${stem}`);
+    const res = await fetch(`/api/songs/${variantId}`);
     const data = await res.json();
     version = data.version;
     meta = data.song.meta;

@@ -1,7 +1,7 @@
-// Package store is the Postgres-backed repository of projects, songs and
-// setlists. A "book" (the term predates this package's move to Postgres,
-// kept because the HTTP layer and URLs still use it) is a projects row;
-// book/stem pairs are resolved to project_id/stem lookups.
+// Package store is the Postgres-backed repository of songs, songbooks and
+// setlists. A song variant is addressed by its own id — there is no
+// "project"/"book" container any more (see migration 0041's doc comment
+// for the removal and the real-data decisions that came with it).
 package store
 
 import (
@@ -67,127 +67,115 @@ func validName(s string) bool {
 	return s != "" && !strings.ContainsAny(s, "/\\")
 }
 
-// ListBooks returns every project's slug, alphabetically.
-func (st *Store) ListBooks() ([]string, error) {
-	rows, err := st.db.Query(context.Background(), `SELECT slug FROM projects ORDER BY slug`)
+// LoadVariant parses one variant's body by id. The returned string is the
+// variant's version, an opaque token for optimistic-concurrency checks on
+// save.
+func (st *Store) LoadVariant(variantID int64) (*song.Song, string, error) {
+	body, version, err := st.LoadVariantRaw(variantID)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var slug string
-		if err := rows.Scan(&slug); err != nil {
-			return nil, err
-		}
-		out = append(out, slug)
-	}
-	return out, rows.Err()
+	return song.Parse(body), version, nil
 }
 
-// ListSongs returns the stems of every song in book, alphabetically.
-func (st *Store) ListSongs(book string) ([]string, error) {
-	rows, err := st.db.Query(context.Background(), `
-		SELECT s.stem FROM songs s JOIN projects p ON p.id = s.project_id
-		WHERE p.slug = $1 ORDER BY s.stem`, book)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var stem string
-		if err := rows.Scan(&stem); err != nil {
-			return nil, err
-		}
-		out = append(out, stem)
-	}
-	return out, rows.Err()
-}
-
-// CreateBook makes a new, empty project.
-func (st *Store) CreateBook(name string) error {
-	if !validName(name) {
-		return fmt.Errorf("invalid book name: %q", name)
-	}
-	_, err := st.db.Exec(context.Background(),
-		`INSERT INTO projects (slug, name) VALUES ($1, $1)`, name)
-	return err
-}
-
-// DeleteBook removes an entire project and everything under it (songs,
-// setlists, revisions — cascades via FK) — irreversible, so callers must
-// only reach this from an explicit, confirmed user action.
-func (st *Store) DeleteBook(book string) error {
-	if !validName(book) {
-		return fmt.Errorf("invalid book name: %q", book)
-	}
-	_, err := st.db.Exec(context.Background(), `DELETE FROM projects WHERE slug = $1`, book)
-	return err
-}
-
-// ProjectID resolves a project (book) slug to its row id, or ErrNotFound.
-// Exported wrapper around projectID for callers outside this package
-// that need to resolve a book slug to attach new material to (e.g. the
-// band repertoire page's "new original song" form, which lets a band
-// pick an existing project for a from-scratch band variant to live
-// under — see CreateBandVariant's doc comment).
-func (st *Store) ProjectID(ctx context.Context, book string) (int64, error) {
-	return st.projectID(ctx, book)
-}
-
-func (st *Store) projectID(ctx context.Context, book string) (int64, error) {
-	var id int64
-	err := st.db.QueryRow(ctx, `SELECT id FROM projects WHERE slug = $1`, book).Scan(&id)
+// LoadVariantRaw returns a variant's body verbatim, for the raw-text
+// editor, plus its version.
+func (st *Store) LoadVariantRaw(variantID int64) (string, string, error) {
+	var body string
+	var version int
+	err := st.db.QueryRow(context.Background(),
+		`SELECT body, version FROM songs WHERE id = $1`, variantID).Scan(&body, &version)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, fmt.Errorf("no such project %q: %w", book, ErrNotFound)
+		return "", "", fmt.Errorf("no such variant %d: %w", variantID, ErrNotFound)
 	}
-	return id, err
+	if err != nil {
+		return "", "", err
+	}
+	return body, strconv.Itoa(version), nil
 }
 
-// ProjectName resolves a project's slug to its own display name — the
-// song page's own back-link fallback (no ?setlist=/?band= context) used
-// to show the raw URL slug itself ("FourNonBlondes") instead of a
-// properly spaced display name ("Four Non Blondes"), a direct report
-// ("the link in the navigation bar is misplaced and ugly"). Falls back
-// to the slug itself on any error — never worth failing the whole page
-// render over a cosmetic label.
-func (st *Store) ProjectName(ctx context.Context, book string) string {
-	var name string
-	if err := st.db.QueryRow(ctx, `SELECT name FROM projects WHERE slug = $1`, book).Scan(&name); err != nil || name == "" {
-		return book
-	}
-	return name
+// SaveVariant writes s's serialized form as variantID's body, via
+// SaveVariantByID (see catalog.go) — this wrapper just does the
+// song.Write/parse plumbing LoadVariant's counterpart needs, same
+// division SaveSong/SaveRaw used to have.
+func (st *Store) SaveVariant(variantID int64, s *song.Song, expectVersion string, actorPersonID int64) (string, error) {
+	body := song.Write(s)
+	parsed := song.Parse(body)
+	return st.SaveVariantByID(context.Background(), variantID, parsed.Get("title"), parsed.Get("artist"), parsed.Get("reference"), body, expectVersion, actorPersonID)
 }
 
-// CreateSong makes a new song (variant) with just a title/artist header
-// and one empty [Verse] section to start from. Fails if the stem is
-// already taken. creatorPersonID is recorded as created_by_person_id (0
-// means "unknown/system", stored as NULL) — the variant itself stays
-// visibility='global' (shared project content, same as every song this
-// app has ever had), not owner_person_id-scoped to the creator; only a
-// fork is personally owned. A work is matched-or-created from
-// title/artist per the "work vs variant" model (internal/store/catalog.go).
-func (st *Store) CreateSong(book, stem, title, artist string, creatorPersonID int64) error {
-	if !validName(stem) {
-		return fmt.Errorf("invalid stem: %q", stem)
-	}
-	ctx := context.Background()
-	pid, err := st.projectID(ctx, book)
+// SaveVariantRaw writes text verbatim as variantID's body, with the same
+// optimistic-concurrency guard as SaveVariant.
+func (st *Store) SaveVariantRaw(variantID int64, text, expectVersion string, actorPersonID int64) (string, error) {
+	parsed := song.Parse(text)
+	return st.SaveVariantByID(context.Background(), variantID, parsed.Get("title"), parsed.Get("artist"), parsed.Get("reference"), text, expectVersion, actorPersonID)
+}
+
+// RedoVariant resets an existing variant's body back to a blank
+// title/[Verse]-only template — "redo this song from scratch": same
+// identity (same row, same revision history), but every bit of body
+// content is discarded and replaced. Same optimistic-concurrency guard as
+// SaveVariant.
+func (st *Store) RedoVariant(variantID int64, title, expectVersion string, actorPersonID int64) (string, string, error) {
+	body := "title: " + title + "\n\n[Verse]\n"
+	version, err := st.SaveVariantRaw(variantID, body, expectVersion, actorPersonID)
+	return body, version, err
+}
+
+// DeleteVariant removes one variant.
+func (st *Store) DeleteVariant(variantID int64) error {
+	tag, err := st.db.Exec(context.Background(), `DELETE FROM songs WHERE id = $1`, variantID)
 	if err != nil {
 		return err
 	}
-	var exists bool
-	if err := st.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM songs WHERE project_id = $1 AND stem = $2)`, pid, stem).Scan(&exists); err != nil {
-		return err
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no such variant %d: %w", variantID, ErrNotFound)
 	}
-	if exists {
-		return fmt.Errorf("a song already exists at %s/%s", book, stem)
+	return nil
+}
+
+// OwnerKind selects who a brand-new variant belongs to at creation —
+// "private, band-private, or public catalogue" per the songs-management
+// brief.
+type OwnerKind string
+
+const (
+	OwnerCatalog OwnerKind = "catalog" // public: visibility='global', no owner
+	OwnerPerson  OwnerKind = "person"  // private: visibility='user', owner_person_id
+	OwnerBand    OwnerKind = "band"    // band-private: visibility='band', owner_band_id
+)
+
+// CreateVariant makes a brand-new, from-scratch variant (title/artist
+// header plus one empty [Verse] section) owned per ownerKind/ownerID —
+// the single creation entry point replacing the old per-project
+// CreateSong plus the per-scope CreateBandVariant/CreateJamVariant/
+// CreateSchoolVariant (jam/school creation stay in their own files,
+// jam.go/school_catalog.go, since they also need an atomic "add to my
+// own pickable list" step CreateVariant has no reason to know about).
+// A new variant is also, atomically, added to the owner's default
+// songbook (OwnerPerson/OwnerBand) — "a variant that isn't in its
+// owner's own songbook doesn't make sense," same rule band/jam variant
+// creation already followed under the old model.
+func (st *Store) CreateVariant(ctx context.Context, ownerKind OwnerKind, ownerID int64, title, artist string, creatorPersonID int64) (int64, error) {
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
+	if ownerKind == OwnerBand {
+		isMember, err := isCurrentBandMember(ctx, tx, ownerID, creatorPersonID)
+		if err != nil {
+			return 0, err
+		}
+		if !isMember {
+			return 0, fmt.Errorf("person %d is not a current member of band %d: %w", creatorPersonID, ownerID, ErrForbidden)
+		}
 	}
 
-	workID, err := st.FindOrCreateWork(ctx, title, artist)
+	workID, err := st.findOrCreateWork(ctx, tx, title, artist)
 	if err != nil {
-		return fmt.Errorf("resolving work for %q/%q: %w", title, artist, err)
+		return 0, fmt.Errorf("resolving work for %q/%q: %w", title, artist, err)
 	}
 
 	var b strings.Builder
@@ -196,173 +184,59 @@ func (st *Store) CreateSong(book, stem, title, artist string, creatorPersonID in
 		b.WriteString("artist: " + artist + "\n")
 	}
 	b.WriteString("\n[Verse]\n")
-	body := b.String()
 
 	var creator *int64
 	if creatorPersonID != 0 {
 		creator = &creatorPersonID
 	}
-	_, err = st.db.Exec(ctx,
-		`INSERT INTO songs (project_id, stem, title, artist, reference_url, body, work_id, created_by_person_id)
-		 VALUES ($1, $2, $3, $4, '', $5, $6, $7)`,
-		pid, stem, title, artist, body, workID, creator)
-	return err
-}
 
-// RedoSong resets an existing song's body back to the same blank
-// title/[Verse]-only template CreateSong starts a brand-new song from —
-// "redo this song from scratch": same identity (book+stem, same row, same
-// revision history), but every bit of body content (structure, lyrics,
-// chords, and the title/artist header along with it, since a from-scratch
-// redo really does start the wizard over) is discarded and replaced.
-// Same optimistic-concurrency guard as SaveSong/SaveRaw — the caller
-// should pass the version it last loaded so a redo started against stale
-// data is rejected with ErrConflict rather than clobbering a save that
-// happened in between.
-func (st *Store) RedoSong(book, stem, expectVersion string, actorPersonID int64) (string, string, error) {
-	body := "title: " + stem + "\n\n[Verse]\n"
-	version, err := st.saveBody(book, stem, body, expectVersion, actorPersonID)
-	return body, version, err
-}
-
-// DeleteSong removes one song.
-func (st *Store) DeleteSong(book, stem string) error {
-	ctx := context.Background()
-	pid, err := st.projectID(ctx, book)
-	if err != nil {
-		return err
-	}
-	tag, err := st.db.Exec(ctx, `DELETE FROM songs WHERE project_id = $1 AND stem = $2`, pid, stem)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("no such song %s/%s: %w", book, stem, ErrNotFound)
-	}
-	return nil
-}
-
-// LoadSong parses one song's body. The returned string is the song's
-// version, an opaque token for optimistic-concurrency checks on save.
-func (st *Store) LoadSong(book, stem string) (*song.Song, string, error) {
-	body, version, err := st.loadBody(book, stem)
-	if err != nil {
-		return nil, "", err
-	}
-	return song.Parse(body), version, nil
-}
-
-func (st *Store) loadBody(book, stem string) (string, string, error) {
-	var body string
-	var version int
-	err := st.db.QueryRow(context.Background(), `
-		SELECT s.body, s.version FROM songs s JOIN projects p ON p.id = s.project_id
-		WHERE p.slug = $1 AND s.stem = $2`, book, stem).Scan(&body, &version)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", "", fmt.Errorf("no such song %s/%s: %w", book, stem, ErrNotFound)
+	var newID int64
+	switch ownerKind {
+	case OwnerPerson:
+		err = tx.QueryRow(ctx, `
+			INSERT INTO songs (title, artist, body, work_id, visibility, owner_person_id, created_by_person_id)
+			VALUES ($1, $2, $3, $4, 'user', $5, $6) RETURNING id`,
+			title, artist, b.String(), workID, ownerID, creator).Scan(&newID)
+	case OwnerBand:
+		err = tx.QueryRow(ctx, `
+			INSERT INTO songs (title, artist, body, work_id, visibility, owner_band_id, created_by_person_id)
+			VALUES ($1, $2, $3, $4, 'band', $5, $6) RETURNING id`,
+			title, artist, b.String(), workID, ownerID, creator).Scan(&newID)
+	default: // OwnerCatalog
+		err = tx.QueryRow(ctx, `
+			INSERT INTO songs (title, artist, body, work_id, created_by_person_id)
+			VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+			title, artist, b.String(), workID, creator).Scan(&newID)
 	}
 	if err != nil {
-		return "", "", err
+		return 0, err
 	}
-	return body, strconv.Itoa(version), nil
+
+	if ownerKind == OwnerPerson || ownerKind == OwnerBand {
+		kind := "person"
+		if ownerKind == OwnerBand {
+			kind = "band"
+		}
+		var sbID int64
+		if err := tx.QueryRow(ctx, `
+			SELECT id FROM songbooks WHERE owner_kind = $1 AND owner_`+kind+`_id = $2 AND is_default`,
+			kind, ownerID).Scan(&sbID); err != nil {
+			return 0, err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO songbook_entries (songbook_id, variant_id, added_by_person_id) VALUES ($1, $2, $3)`,
+			sbID, newID, creator); err != nil {
+			return 0, err
+		}
+	}
+
+	return newID, tx.Commit(ctx)
 }
 
-// SaveSong writes s's serialized form as the song's body. If expectVersion
-// is non-empty, the save is rejected with ErrConflict when the row's
-// current version doesn't match. actorPersonID (0 = unknown) is recorded
-// as the revision's actor — see RecordRevision.
-func (st *Store) SaveSong(book, stem string, s *song.Song, expectVersion string, actorPersonID int64) (string, error) {
-	return st.saveBody(book, stem, song.Write(s), expectVersion, actorPersonID)
-}
-
-// LoadRaw returns a song's body verbatim, for the raw-text editor.
-func (st *Store) LoadRaw(book, stem string) (string, string, error) {
-	return st.loadBody(book, stem)
-}
-
-// SaveRaw writes text verbatim as the song's body, with the same
-// optimistic-concurrency guard as SaveSong.
-func (st *Store) SaveRaw(book, stem, text, expectVersion string, actorPersonID int64) (string, error) {
-	return st.saveBody(book, stem, text, expectVersion, actorPersonID)
-}
-
-// saveBody is every variant-body write's common path: every edit to a
-// variant's body/grid/lyrics/header fields goes through here, and every
-// one of them records a revision (the pre-edit snapshot) in the same
-// transaction as the write, via RecordRevision — this is phase 1's wiring
-// of the generic revision/undo mechanism into the existing save path (see
-// internal/store/revisions.go). The SELECT ... FOR UPDATE + version check
-// + INSERT + UPDATE all happen in one transaction, so a concurrent save
-// can't interleave with the revision snapshot.
-func (st *Store) saveBody(book, stem, body, expectVersion string, actorPersonID int64) (string, error) {
-	ctx := context.Background()
-	pid, err := st.projectID(ctx, book)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := st.db.Begin(ctx)
-	if err != nil {
-		return "", err
-	}
-	defer tx.Rollback(ctx)
-
-	var id int64
-	var curBody, curTitle, curArtist, curRef string
-	var curVersion int
-	err = tx.QueryRow(ctx, `
-		SELECT id, body, title, artist, reference_url, version FROM songs
-		WHERE project_id = $1 AND stem = $2 FOR UPDATE`, pid, stem).
-		Scan(&id, &curBody, &curTitle, &curArtist, &curRef, &curVersion)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", fmt.Errorf("no such song %s/%s: %w", book, stem, ErrNotFound)
-	}
-	if err != nil {
-		return "", err
-	}
-	if expectVersion != "" && strconv.Itoa(curVersion) != expectVersion {
-		return "", ErrConflict
-	}
-
-	var actor *int64
-	if actorPersonID != 0 {
-		actor = &actorPersonID
-	}
-	if err := st.RecordRevision(ctx, tx, "variant", strconv.FormatInt(id, 10), actor, VariantSnapshot{
-		Title: curTitle, Artist: curArtist, ReferenceURL: curRef, Body: curBody,
-	}); err != nil {
-		return "", err
-	}
-
-	parsed := song.Parse(body)
-	title, artist, ref := parsed.Get("title"), parsed.Get("artist"), parsed.Get("reference")
-
-	var newVersion int
-	if err := tx.QueryRow(ctx, `
-		UPDATE songs SET body = $1, title = $2, artist = $3, reference_url = $4, version = version + 1
-		WHERE id = $5
-		RETURNING version`,
-		body, title, artist, ref, id).Scan(&newVersion); err != nil {
-		return "", err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return "", err
-	}
-	return strconv.Itoa(newVersion), nil
-}
-
-// ImportSong inserts a song row directly (used by the import tool and by
-// zip import, where the stem is known not to collide in a fresh project).
-// Imported songs are visibility='global' (the column default) with no
-// owner — this is exactly the catalog's bulk-loaded, shared content. A
-// work is matched-or-created from title/artist same as CreateSong.
-func (st *Store) ImportSong(book, stem, body string) error {
-	ctx := context.Background()
-	pid, err := st.projectID(ctx, book)
-	if err != nil {
-		return err
-	}
+// ImportVariant inserts a variant row directly, visibility='global' (the
+// column default) with no owner — used by the bulk-import tool. A work
+// is matched-or-created from title/artist same as CreateVariant.
+func (st *Store) ImportVariant(ctx context.Context, body string) error {
 	parsed := song.Parse(body)
 	title, artist, ref := parsed.Get("title"), parsed.Get("artist"), parsed.Get("reference")
 	workID, err := st.FindOrCreateWork(ctx, title, artist)
@@ -370,8 +244,7 @@ func (st *Store) ImportSong(book, stem, body string) error {
 		return fmt.Errorf("resolving work for %q/%q: %w", title, artist, err)
 	}
 	_, err = st.db.Exec(ctx, `
-		INSERT INTO songs (project_id, stem, title, artist, reference_url, body, work_id) VALUES ($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT (project_id, stem) DO NOTHING`,
-		pid, stem, title, artist, ref, body, workID)
+		INSERT INTO songs (title, artist, reference_url, body, work_id) VALUES ($1, $2, $3, $4, $5)`,
+		title, artist, ref, body, workID)
 	return err
 }

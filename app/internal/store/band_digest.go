@@ -52,45 +52,11 @@ func (st *Store) ListBandChanges(ctx context.Context, bandID int64, since *time.
 		return nil, err
 	}
 
-	// band_catalog_entry: band_id is coalesced from the live row (correct
-	// even for the "add" case, whose own snapshot doesn't carry it — see
-	// AddBandCatalogEntry's Exists:false snapshot) falling back to the
-	// snapshot's own band_id for a now-deleted (removed) row, which DOES
-	// carry it (RemoveBandCatalogEntry captures the full pre-state).
-	catalogRows, err := st.db.Query(ctx, `
-		SELECT r.created_at, coalesce(pr.display_name, ''), coalesce(s.title, ''), (r.snapshot->>'exists')::boolean
-		FROM revisions r
-		LEFT JOIN people pr ON pr.id = r.actor_person_id
-		LEFT JOIN band_catalog_entries bce ON bce.id = CAST(r.entity_id AS bigint)
-		LEFT JOIN songs s ON s.id = coalesce(bce.variant_id, (r.snapshot->>'variant_id')::bigint)
-		WHERE r.entity_type = 'band_catalog_entry'
-		  AND coalesce(bce.band_id, (r.snapshot->>'band_id')::bigint) = $1
-		  AND ($2::timestamptz IS NULL OR r.created_at > $2)
-		ORDER BY r.created_at DESC`, bandID, since)
-	if err != nil {
-		return nil, err
-	}
-	for catalogRows.Next() {
-		var createdAt time.Time
-		var actorName, title string
-		var preExisted bool
-		if err := catalogRows.Scan(&createdAt, &actorName, &title, &preExisted); err != nil {
-			catalogRows.Close()
-			return nil, err
-		}
-		if title == "" {
-			title = "a song"
-		}
-		if preExisted {
-			out = append(out, BandChange{createdAt, actorName, fmt.Sprintf("removed %q from the repertoire", title)})
-		} else {
-			out = append(out, BandChange{createdAt, actorName, fmt.Sprintf("added %q to the repertoire", title)})
-		}
-	}
-	catalogRows.Close()
-	if err := catalogRows.Err(); err != nil {
-		return nil, err
-	}
+	// Songbook-entry adds/removes (what band_catalog_entry revisions used
+	// to cover under the old project/repertoire model) aren't tracked in
+	// the digest any more — songbook_entries has no revision history of
+	// its own yet; a focused follow-up if the "added/removed from the
+	// songbook" digest line is missed.
 
 	memberRows, err := st.db.Query(ctx, `
 		SELECT r.created_at, coalesce(pr.display_name, ''), p.display_name, (r.snapshot->>'exists')::boolean, bm.status::text, bm.left_at

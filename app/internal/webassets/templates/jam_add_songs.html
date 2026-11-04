@@ -10,17 +10,17 @@
 </head>
 <body>
 <header class="app-header">
-  <h1><a href="/b/{{.Book}}/jam/{{.Code}}/roster">&larr; {{.Name}}</a></h1>
+  <h1><a href="/songbooks/{{.SongbookID}}/jam/{{.Code}}/roster">&larr; {{.Name}}</a></h1>
   <p>Add a song to this jam's pickable list, with min/max headcount caps per instrument.</p>
 </header>
 <main class="index">
   {{if not .Candidates}}
-    <p class="card">Every song in this book is already on the jam's list.</p>
+    <p class="card">Every song in this songbook is already on the jam's list.</p>
   {{end}}
   {{range .Candidates}}
     <details class="card">
       <summary>{{.Title}}</summary>
-      <form method="post" action="/b/{{$.Book}}/jam/{{$.Code}}/songs">
+      <form method="post" action="/songbooks/{{$.SongbookID}}/jam/{{$.Code}}/songs">
         <input type="hidden" name="song_id" value="{{.ID}}">
         <div class="table-scroll"><table style="width:100%">
           <thead><tr><th>Instrument</th><th>Min</th><th>Max (blank = no cap)</th></tr></thead>

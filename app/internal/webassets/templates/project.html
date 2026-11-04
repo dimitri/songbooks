@@ -1,25 +1,14 @@
-{{define "project"}}
+{{define "songbook"}}
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Book}} — Songbooks</title>
+<title>{{.Songbook.Name}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
 <body>
-{{/* A duplicated desktop-sidebar (same pattern play.html's own "This
-     song" group uses — see its own doc comment) instead of the shared
-     partial: the action row that used to crowd the top bar (playlist,
-     export, export-songbook PDF, remove project) moves into a "This
-     project" group here, contextual to whichever project is open,
-     rather than floating at the top of the page — a direct report
-     ("the action menu is on the top of the page instead of being in
-     the navigation pane"). Remove-project is dropped entirely per
-     direct request, not just relocated — a destructive, rarely-used
-     action doesn't need a standing button on a page people mostly just
-     use to open a song; the backend route is untouched for now. */}}
 <nav class="desktop-sidebar" id="desktop-sidebar" aria-label="main navigation">
   <a class="sidebar-brand" href="/">{{template "icon-logo"}} Songbooks</a>
   <div class="sidebar-primary">
@@ -29,13 +18,12 @@
     <a href="/profile" data-path="/profile" data-label="Profile">{{template "icon-profile"}} Profile</a>
   </div>
   <div class="sidebar-secondary sidebar-song-group">
-    <div class="sidebar-group-label">This project</div>
-    {{if .Playlist}}<a class="sidebar-song-row" href="{{.Playlist}}" target="_blank" rel="noopener" title="external playlist">{{template "icon-reference"}} Playlist &#8599;</a>{{end}}
-    <a class="sidebar-song-row" href="/b/{{.Book}}/playlist/metronome" title="step through every song's tempo, in order">{{template "icon-metro-full"}} Metronome playlist</a>
-    <a class="sidebar-song-row" href="/b/{{.Book}}/playlist/mp3" title="play every song's reference audio back to back">{{template "icon-play"}} MP3 playlist</a>
-    <a class="sidebar-song-row" href="/api/books/{{.Book}}/export" download title="export this project's raw .song files">{{template "icon-download"}} Export</a>
+    <div class="sidebar-group-label">This songbook</div>
+    {{if .Songbook.PlaylistURL}}<a class="sidebar-song-row" href="{{.Songbook.PlaylistURL}}" target="_blank" rel="noopener" title="external playlist">{{template "icon-reference"}} Playlist &#8599;</a>{{end}}
+    <a class="sidebar-song-row" href="/songbooks/{{.Songbook.ID}}/playlist/metronome" title="step through every song's tempo, in order">{{template "icon-metro-full"}} Metronome playlist</a>
+    <a class="sidebar-song-row" href="/songbooks/{{.Songbook.ID}}/playlist/mp3" title="play every song's reference audio back to back">{{template "icon-play"}} MP3 playlist</a>
     <span class="pdf-mode-row sidebar-song-row" style="flex-wrap:wrap;">
-      <a class="pdf-export-link" href="/b/{{.Book}}/export-songbook.pdf" title="export the whole songbook as one PDF — cover, title page, contents, every song" download>{{template "icon-download"}} Songbook PDF</a>
+      <a class="pdf-export-link" href="/songbooks/{{.Songbook.ID}}/export-songbook.pdf" title="export the whole songbook as one PDF — cover, title page, contents, every song" download>{{template "icon-download"}} Songbook PDF</a>
       <select class="pdf-mode-select" title="PDF view mode">
         <option value="">Song</option>
         <option value="jazz">Jazz chart</option>
@@ -48,7 +36,7 @@
   <div class="sidebar-secondary">
     {{if and .Me .Me.IsAdmin}}<a href="/admin" data-path="/admin">Admin</a>{{end}}
     <a href="/metronome" data-path="/metronome">Metronome</a>
-    <a href="/catalog/mine" data-path="/catalog/mine">My songbook</a>
+    <a href="/songbooks/mine" data-path="/songbooks/mine">My songbooks</a>
   </div>
   {{if .Me}}
   <a class="sidebar-account" href="/profile">
@@ -60,17 +48,13 @@
 <div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
-  <h1>{{.Book}}</h1>
+  <h1>{{.Songbook.Name}}</h1>
   <nav class="song-nav">
     {{template "notif-bell"}}
   </nav>
 </header>
 <main>
-  {{/* Read-only by default: a drag handle and a delete icon sitting on
-       every row invites an accidental drag or misclick on a page people
-       mostly just use to open a song. Edit mode is an explicit, deliberate
-       step — reveals the handle and trash icon, nothing else changes. */}}
-  <section class="book-card card" id="catalog-section" data-book="{{.Book}}">
+  <section class="book-card card" id="catalog-section" data-songbook-id="{{.Songbook.ID}}">
     <div class="catalog-head">
       <button type="button" id="catalog-edit-toggle">{{template "icon-edit"}} Edit order</button>
       <span id="catalog-save-status" class="hint"></span>
@@ -82,26 +66,26 @@
         {{$n := 0}}
         {{range .Songs}}
         {{$n = add1 $n}}
-        <li data-stem="{{.Stem}}">
+        <li data-variant-id="{{.VariantID}}">
           <span class="catalog-drag-handle" title="drag to reorder" aria-hidden="true">{{template "icon-grip"}}</span>
           <span class="song-num">{{$n}}.</span>
-          <a class="song-link" href="/b/{{$.Book}}/{{.Stem}}">
+          <a class="song-link" href="/song/{{.VariantID}}?songbook={{$.Songbook.ID}}">
             <span class="song-title">{{.Title}}</span>
             <span class="song-meta">{{if .Tempo}}{{.Tempo}} bpm{{end}}{{if and .Tempo .Key}} &middot; {{end}}{{.Key}}</span>
           </a>
-          <button type="button" class="remove-song-btn icon-btn danger" data-book="{{$.Book}}" data-stem="{{.Stem}}" title="remove song">{{template "icon-trash"}}</button>
+          <button type="button" class="remove-song-btn icon-btn danger" data-songbook-id="{{$.Songbook.ID}}" data-variant-id="{{.VariantID}}" title="remove from this songbook">{{template "icon-trash"}}</button>
         </li>
         {{end}}
       </ul>
     </div>
     {{end}}
     <div class="add-row">
-      <button type="button" id="open-wizard-btn" data-book="{{.Book}}" class="primary">{{template "icon-plus"}} song</button>
+      <button type="button" id="open-wizard-btn" data-songbook-id="{{.Songbook.ID}}" class="primary">{{template "icon-plus"}} song</button>
     </div>
   </section>
 </main>
 
-<dialog id="song-wizard" data-book="{{.Book}}">
+<dialog id="song-wizard" data-songbook-id="{{.Songbook.ID}}">
   <h2>New song</h2>
   <div class="wizard-steps" id="wizard-steps">
     <span class="wizard-step-dot active" data-step="0">1 &middot; title</span>
@@ -110,9 +94,6 @@
     <span class="wizard-step-dot" data-step="3">4 &middot; chords</span>
   </div>
 
-  {{/* Step 1: title/artist + an optional reference video — set first so
-       the embed can play in the background while filling in the rest
-       (tapping tempo along with it on step 2, in particular). */}}
   <section class="wizard-panel" data-step="0">
     <p class="hint">Start from a title. A reference video is optional but makes the rest of this easier — the whole band pulls up the same version, and you can tap tempo along with it on the next step.</p>
     <div class="wizard-fields">
@@ -125,8 +106,6 @@
     <div class="reference-embed" id="wiz-reference-embed"></div>
   </section>
 
-  {{/* Step 2: key + tempo, tap-tempo reusing the same Clock used on the
-       play page — no new tempo-detection code, same tap logic. */}}
   <section class="wizard-panel" data-step="1" hidden>
     <p class="hint">Key and tempo — both optional, both editable later. Tap along with the reference video above if you set one.</p>
     <div class="wizard-fields">
@@ -144,8 +123,6 @@
     </div>
   </section>
 
-  {{/* Steps 3 & 4: the existing fetch-or-paste importers, unchanged, just
-       their own steps now instead of both sitting open at once. */}}
   <section class="wizard-panel" data-step="2" hidden>
     <p class="hint">Fetch lyrics from a URL, or just paste them below — either way, review/edit before creating.</p>
     <div class="import-row">
@@ -156,13 +133,6 @@
     <textarea id="wiz-lyrics-preview" class="wizard-preview" rows="8" placeholder="fetched lyrics will appear here, editable before you create the song"></textarea>
   </section>
 
-  {{/* Ultimate Guitar import: a mini wizard of its own (URL -> fetch &
-       parse -> preview, pick sections -> import, or skip entirely and
-       paste/type raw text) — not just a raw-text dump, since UG's tab
-       text now parses into real sections+grid+lyrics (see
-       internal/importer/ugparse.go). wiz-chords-preview stays the
-       textarea the outer wizard's Create action reads from; the
-       section-preview UI below only ever writes into it. */}}
   <section class="wizard-panel" data-step="3" hidden>
     <p class="hint">Fetch a chord/lyric tab from Ultimate Guitar and pick which sections to bring in, or skip straight to pasting/typing text yourself. Ultimate Guitar tabs are often wrong, and bar placement is always a guess — treat this as a starting point to correct, not a finished chart.</p>
 

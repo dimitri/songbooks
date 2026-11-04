@@ -18,11 +18,11 @@ import (
 )
 
 type bookStats struct {
+	ID        int64
 	Name      string
 	SongCount int
-	SetCount  int // groups in order.txt (or 1 for the alphabetical fallback)
+	SetCount  int // song_order groups (or 1 for the alphabetical fallback)
 	HasOrder  bool
-	Setlists  int
 }
 
 // attentionItem is one row of the home page's "needs your attention"
@@ -162,31 +162,29 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// buildBookStats computes the per-project "book" stats (song/set/setlist
-// counts) for every project personID can see, alphabetical by name.
-// Shared by handleIndex (the home page's "Your songbooks" teaser) and
-// handleCatalogPage (Phase 32's "by songbook" view) so both pages show
-// identical project stats rather than two implementations that can drift.
+// buildBookStats computes song-count stats for every songbook personID
+// owns, alphabetical by name. Shared by handleIndex (the home page's
+// "Your songbooks" teaser) and handleCatalogPage ("by songbook" view) so
+// both pages show identical stats rather than two implementations that
+// can drift.
 func (s *Server) buildBookStats(ctx context.Context, personID int64) ([]bookStats, error) {
-	projects, err := s.store.ListProjectsForPerson(ctx, personID)
+	songbooks, err := s.store.ListSongbooks(ctx, "person", personID)
 	if err != nil {
 		return nil, err
 	}
 	var views []bookStats
-	for _, pr := range projects {
-		b := pr.Slug
-		groups, err := s.store.ListSongsOrdered(b)
+	for _, sb := range songbooks {
+		groups, err := s.store.ListSongsOrdered(ctx, sb.ID)
 		if err != nil {
 			return nil, err
 		}
 		songCount := 0
 		for _, g := range groups {
-			songCount += len(g.Stems)
+			songCount += len(g.VariantIDs)
 		}
-		setlists, _ := s.store.ListSetlists(b)
 		views = append(views, bookStats{
-			Name: b, SongCount: songCount, SetCount: len(groups),
-			HasOrder: s.store.HasOrderFile(b), Setlists: len(setlists),
+			ID: sb.ID, Name: sb.Name, SongCount: songCount, SetCount: len(groups),
+			HasOrder: s.store.HasSongOrder(ctx, sb.ID),
 		})
 	}
 	sort.Slice(views, func(i, j int) bool { return views[i].Name < views[j].Name })
@@ -292,46 +290,6 @@ func plural(n int) string {
 // (from order.txt, or a flat alphabetical fallback) plus the "+ song"
 // control; this is what clicking a project on the home page opens.
 // projectSongRow enriches a bare stem with the title/tempo/key a musician
-// actually orients by — same reasoning, and same per-song LoadSong lookup,
-// as the gig view's gigRow: a list of raw filenames ("its-too-late",
-// "worried-life-blues") reads as a directory listing, not a songbook.
-type projectSongRow struct {
-	Stem, Title, Tempo, Key string
-}
-
-type projectGroup struct {
-	Label string
-	Songs []projectSongRow
-}
-
-func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
-	person := personFromContext(r)
-	book := r.PathValue("book")
-	groups, err := s.store.ListSongsOrdered(book)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	var out []projectGroup
-	for _, g := range groups {
-		pg := projectGroup{Label: g.Label}
-		for _, stem := range g.Stems {
-			row := projectSongRow{Stem: stem, Title: stem}
-			if sg, _, err := s.store.LoadSong(book, stem); err == nil {
-				row.Title = orDefault(sg.Get("title"), stem)
-				row.Tempo = sg.Get("tempo")
-				row.Key = sg.Get("key")
-			}
-			pg.Songs = append(pg.Songs, row)
-		}
-		out = append(out, pg)
-	}
-	meta := s.store.LoadBookMeta(book)
-	s.render(w, "project", map[string]any{
-		"Me": person, "Book": book, "Groups": out, "Playlist": meta.Playlist,
-	})
-}
-
 // viewerBeat is one quarter-beat slot in a bar's rhythm-slash notation (the
 // Real Book / LilyPond rhythmic-staff convention this chart imitates):
 // every beat gets its own slash mark on the staff line, but a chord symbol
@@ -1521,36 +1479,38 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	// explicitly ignores), so a revisit always re-executes fresh markup
 	// and script against whatever is currently deployed.
 	w.Header().Set("Cache-Control", "no-store")
-	book, stem := r.PathValue("book"), r.PathValue("stem")
-	sg, _, err := s.store.LoadSong(book, stem)
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	sg, _, err := s.store.LoadVariant(variantID)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	text, version, err := s.store.LoadRaw(book, stem)
+	text, version, err := s.store.LoadVariantRaw(variantID)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 	sections := buildSections(sg)
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
-	variantID, workID, _ := s.store.VariantLookup(r.Context(), book, stem)
-	// Me: the desktop sidebar (Phase 44) needs it for the admin-only Admin
-	// link and the account row, same as every other top-level page.
+	variant, _ := s.store.GetVariant(r.Context(), variantID)
+	var workID int64
+	if variant != nil {
+		workID = variant.WorkID
+	}
+	// Me: the desktop sidebar needs it for the admin-only Admin link and
+	// the account row, same as every other top-level page.
 	person := personFromContext(r)
 	// CanEdit drives the client-side implicit-fork-on-edit flow (see
 	// song.js's editToggle handler): a viewer without edit rights on this
 	// variant never sees a separate "fork" step — tapping Edit silently
-	// forks it for them first. Same CanEditVariant check handlers_catalog.go
-	// already uses for the history page; false (not an error) for the
-	// legacy no-variant case, since there's nothing to fork there.
-	canEdit := true
-	if variantID != 0 {
-		if person != nil {
-			canEdit, _ = s.store.CanEditVariant(r.Context(), person.ID, variantID)
-		} else {
-			canEdit = false
-		}
+	// forks it for them first.
+	var canEdit bool
+	if person != nil {
+		canEdit, _ = s.store.CanEditVariant(r.Context(), person.ID, variantID)
 	}
 	var genre string
 	if workID != 0 {
@@ -1559,9 +1519,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	data := map[string]any{
-		"Book": book, "ProjectName": s.store.ProjectName(r.Context(), book), "Stem": stem, "Me": person,
+		"Me": person,
 		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "Genre": genre,
-		"Title": orDefault(sg.Get("title"), stem), "Artist": sg.Get("artist"),
+		"Title": orDefault(sg.Get("title"), "untitled"), "Artist": sg.Get("artist"),
 		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
 		"TimeNum": num, "TimeDen": den,
 		"Capo": sg.Get("capo"), "Reference": sg.Get("reference"),
@@ -1572,34 +1532,24 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	}
 	if setlistRef := r.URL.Query().Get("setlist"); setlistRef != "" {
 		data["SetlistRef"] = setlistRef
-		data["Prev"], data["Next"] = s.setlistNeighbors(r.Context(), setlistRef, book, stem)
+		data["Prev"], data["Next"] = s.setlistNeighbors(r.Context(), setlistRef, variantID)
 		// Arrived from the gig view (not the editable setlist page): keep the
 		// back link and prev/next pointed at that read-only list instead of
-		// the project page, so a reader never loses their way back to it.
+		// a songbook page, so a reader never loses their way back to it.
 		data["GigMode"] = r.URL.Query().Get("gig") == "1"
-	} else {
-		// Opened straight from the project page, no setlist in play: still
-		// offer prev/next, from the project's own order (order.txt, or
-		// alphabetical) — there's no reason a setlist should be the only
-		// way to flip through a project's songs.
-		data["Prev"], data["Next"] = s.projectNeighbors(book, stem)
-		// Arrived from a band's own repertoire view (band_catalog.html's
-		// song links carry "?band=ID") rather than the generic project
-		// page — "This band is linked to the X songbook project" means
-		// /b/{book} shows the SAME song list, but it's still a different
-		// page than the one the reader actually came from (no band tabs,
-		// no "export songbook" link, etc). Point the back-link at the
-		// band's own catalog instead of silently falling through to the
-		// project page in that case, same as the setlist/gig branch above
-		// does for its own "where did I come from" case. Any invalid/
-		// inaccessible band id is ignored, not errored — the back-link
-		// just falls back to the project page as before.
-		if bandParam := r.URL.Query().Get("band"); bandParam != "" {
-			if bandID, err := strconv.ParseInt(bandParam, 10, 64); err == nil {
-				if b, err := s.store.GetBand(r.Context(), bandID); err == nil {
-					data["BandRef"] = b.ID
-					data["BandName"] = b.Name
-				}
+	} else if songbookParam := r.URL.Query().Get("songbook"); songbookParam != "" {
+		// Opened from a songbook page, no setlist in play: offer prev/next
+		// from that songbook's own order.
+		if songbookID, err := strconv.ParseInt(songbookParam, 10, 64); err == nil {
+			data["SongbookRef"] = songbookID
+			data["Prev"], data["Next"] = s.songbookNeighbors(r.Context(), songbookID, variantID)
+		}
+	}
+	if bandParam := r.URL.Query().Get("band"); bandParam != "" {
+		if bandID, err := strconv.ParseInt(bandParam, 10, 64); err == nil {
+			if b, err := s.store.GetBand(r.Context(), bandID); err == nil {
+				data["BandRef"] = b.ID
+				data["BandName"] = b.Name
 			}
 		}
 	}
@@ -1609,123 +1559,82 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 // songNeighbor is the prev/next-in-setlist card: just enough to glance at
 // before switching — title, tempo, key — without loading the whole chart.
 type songNeighbor struct {
-	Book, Stem, Title, Tempo, Key string
+	VariantID           int64
+	Title, Tempo, Key string
 }
 
-// setlistNeighbors flattens every set's entries into one running order (a
-// setlist is a single gig, sets back to back) and returns the entries
-// immediately before/after (book, stem) in it.
-// projectNeighbors is setlistNeighbors' sibling for the no-setlist case:
-// prev/next from the project's own song order (order.txt, same ordering
-// project.html itself lists), so every song page offers SOME way to flip
-// to the next one, not only when it was opened via a setlist.
-func (s *Server) projectNeighbors(book, stem string) (prev, next *songNeighbor) {
-	groups, err := s.store.ListSongsOrdered(book)
+func (s *Server) loadSongNeighbor(variantID int64) *songNeighbor {
+	sg, _, err := s.store.LoadVariant(variantID)
+	if err != nil {
+		return nil
+	}
+	return &songNeighbor{VariantID: variantID, Title: orDefault(sg.Get("title"), "untitled"), Tempo: sg.Get("tempo"), Key: sg.Get("key")}
+}
+
+// songbookNeighbors returns the entries immediately before/after
+// variantID in songbookID's own order, so every song page offers SOME
+// way to flip to the next one, not only when it was opened via a
+// setlist.
+func (s *Server) songbookNeighbors(ctx context.Context, songbookID, variantID int64) (prev, next *songNeighbor) {
+	groups, err := s.store.ListSongsOrdered(ctx, songbookID)
 	if err != nil {
 		return nil, nil
 	}
-	var flat []string
+	var flat []int64
 	at := -1
 	for _, g := range groups {
-		for _, st := range g.Stems {
-			if st == stem && at < 0 {
+		for _, vid := range g.VariantIDs {
+			if vid == variantID && at < 0 {
 				at = len(flat)
 			}
-			flat = append(flat, st)
+			flat = append(flat, vid)
 		}
 	}
 	if at < 0 {
 		return nil, nil
 	}
-	load := func(st string) *songNeighbor {
-		sg, _, err := s.store.LoadSong(book, st)
-		if err != nil {
-			return nil
-		}
-		return &songNeighbor{Book: book, Stem: st, Title: orDefault(sg.Get("title"), st), Tempo: sg.Get("tempo"), Key: sg.Get("key")}
-	}
 	if at > 0 {
-		prev = load(flat[at-1])
+		prev = s.loadSongNeighbor(flat[at-1])
 	}
 	if at < len(flat)-1 {
-		next = load(flat[at+1])
+		next = s.loadSongNeighbor(flat[at+1])
 	}
 	return prev, next
 }
 
-func (s *Server) setlistNeighbors(ctx context.Context, setlistRef, book, stem string) (prev, next *songNeighbor) {
-	type ref struct{ book, stem string }
-	var flat []ref
+// setlistNeighbors flattens every set's entries into one running order (a
+// setlist is a single gig, sets back to back) and returns the entries
+// immediately before/after variantID in it.
+func (s *Server) setlistNeighbors(ctx context.Context, setlistRef string, variantID int64) (prev, next *songNeighbor) {
+	id, err := strconv.ParseInt(setlistRef, 10, 64)
+	if err != nil {
+		return nil, nil
+	}
+	l, _, _, err := s.store.LoadSetlistByID(ctx, id)
+	if err != nil {
+		return nil, nil
+	}
+	var flat []int64
 	at := -1
-
-	// setlistRef is either "book/stem" (the legacy file-based setlist
-	// family — LoadSetlist) or a bare numeric id (the DB-backed family —
-	// LoadSetlistByID, the one band_catalog.html/setlist_overview.html's
-	// own links and ?band= both actually use). Only the first form was
-	// ever handled here — a numeric setlistRef (e.g. "?setlist=7", from
-	// setlist-overview.html's own song links) silently fell through the
-	// book/stem split and returned no neighbors at all, so Prev/Next
-	// never appeared for a DB-backed setlist — a direct report.
-	if id, err := strconv.ParseInt(setlistRef, 10, 64); err == nil {
-		l, _, _, err := s.store.LoadSetlistByID(ctx, id)
-		if err != nil {
-			return nil, nil
-		}
-		for _, set := range l.Sets {
-			for _, e := range set.Entries {
-				eb, es := e.Book, e.Stem
-				if e.IsVariant() {
-					v, err := s.store.GetVariant(ctx, e.VariantID)
-					if err != nil {
-						continue
-					}
-					eb, es = v.Book, v.Stem
-				}
-				if eb == "" || es == "" {
-					continue
-				}
-				if eb == book && es == stem && at < 0 {
-					at = len(flat)
-				}
-				flat = append(flat, ref{eb, es})
+	for _, set := range l.Sets {
+		for _, e := range set.Entries {
+			if !e.IsVariant() {
+				continue
 			}
-		}
-	} else {
-		parts := strings.SplitN(setlistRef, "/", 2)
-		if len(parts) != 2 {
-			return nil, nil
-		}
-		l, _, err := s.store.LoadSetlist(parts[0], parts[1])
-		if err != nil {
-			return nil, nil
-		}
-		for _, set := range l.Sets {
-			for _, e := range set.Entries {
-				if e.Book == book && e.Stem == stem && at < 0 {
-					at = len(flat)
-				}
-				flat = append(flat, ref{e.Book, e.Stem})
+			if e.VariantID == variantID && at < 0 {
+				at = len(flat)
 			}
+			flat = append(flat, e.VariantID)
 		}
 	}
 	if at < 0 {
 		return nil, nil
 	}
-	load := func(r ref) *songNeighbor {
-		sg, _, err := s.store.LoadSong(r.book, r.stem)
-		if err != nil {
-			return nil
-		}
-		return &songNeighbor{
-			Book: r.book, Stem: r.stem, Title: orDefault(sg.Get("title"), r.stem),
-			Tempo: sg.Get("tempo"), Key: sg.Get("key"),
-		}
-	}
 	if at > 0 {
-		prev = load(flat[at-1])
+		prev = s.loadSongNeighbor(flat[at-1])
 	}
 	if at < len(flat)-1 {
-		next = load(flat[at+1])
+		next = s.loadSongNeighbor(flat[at+1])
 	}
 	return prev, next
 }

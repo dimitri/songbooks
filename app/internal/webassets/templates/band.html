@@ -139,7 +139,7 @@ document.getElementById('music-type-select').addEventListener('change', async (e
           <span class="album-preview-name">{{.Album}}{{if .ReleaseYear}} <span class="album-preview-year">({{.ReleaseYear}})</span>{{end}}</span>
         </div>
         {{range .Entries}}
-          <a class="attention-row" href="/b/{{.Book}}/{{.Stem}}">
+          <a class="attention-row" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
             <div class="attention-title">{{.Title}}</div>
             {{if .Artist}}<div class="attention-subtitle">{{.Artist}}</div>{{end}}
           </a>
@@ -150,7 +150,7 @@ document.getElementById('music-type-select').addEventListener('change', async (e
     {{else}}
     <div class="attention-list">
     {{range .Repertoire}}
-      <a class="attention-row" href="/b/{{.Book}}/{{.Stem}}">
+      <a class="attention-row" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
         <div class="attention-title">{{.Title}}</div>
         {{if .Artist}}<div class="attention-subtitle">{{.Artist}}</div>{{end}}
       </a>

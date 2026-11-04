@@ -19,7 +19,7 @@
 <main class="index">
   <div class="card" style="max-width:560px">
     <p><strong>Kind:</strong> {{.Proposal.Kind}}</p>
-    <p><strong>Variant:</strong> {{if .Proposal.TargetTitle}}<a href="/b/{{.Proposal.TargetBook}}/{{.Proposal.TargetStem}}">{{.Proposal.TargetTitle}}</a>{{else}}variant {{deref64 .Proposal.TargetVariantID}}{{end}}</p>
+    <p><strong>Variant:</strong> {{if .Proposal.TargetTitle}}<a href="/song/{{deref64 .Proposal.TargetVariantID}}">{{.Proposal.TargetTitle}}</a>{{else}}variant {{deref64 .Proposal.TargetVariantID}}{{end}}</p>
     <p><strong>Proposed by:</strong> {{.Proposal.ProposerUsername}} on {{.Proposal.CreatedAt.Format "2006-01-02 15:04"}}</p>
     <p><strong>Status:</strong> {{.Proposal.Status}}
       {{if .Proposal.DecidedAt}} ({{.Proposal.DecidedAt.Format "2006-01-02 15:04"}}{{if .Proposal.DecidedByUsername}}, by {{.Proposal.DecidedByUsername}}{{else}}, by vote{{end}}){{end}}

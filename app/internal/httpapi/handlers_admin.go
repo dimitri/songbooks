@@ -7,16 +7,10 @@ import (
 )
 
 // handleAdminPage is the site-wide admin panel: every person (username,
-// created date, is_admin) and every project (owner/editor/viewer counts).
-// Gated by requireAdmin (router.go), not requireRole — this is
-// instance-wide, not scoped to any one project.
+// created date, is_admin). Gated by requireAdmin (router.go) — this is
+// instance-wide, not scoped to any one songbook/band.
 func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 	people, err := s.store.ListAllPeople(r.Context())
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	projects, err := s.store.ListAllProjectsWithCounts(r.Context())
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -28,7 +22,7 @@ func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.render(w, "admin", map[string]any{
-		"Me": personFromContext(r), "People": people, "Projects": projects,
+		"Me": personFromContext(r), "People": people,
 		"AdminCount": adminCount,
 	})
 }

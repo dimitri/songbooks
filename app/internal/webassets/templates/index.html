@@ -17,7 +17,7 @@
     <a href="/metronome">metronome</a>
     <a href="/setlists">set lists</a>
     <a href="/catalog">catalog</a>
-    <a href="/catalog/mine">my songbook</a>
+    <a href="/songbooks/mine">my songbook</a>
     <a href="/bands">bands</a>
     <a href="/profile">profile</a>
     <button id="import-project-btn" type="button">{{template "icon-download"}} Import</button>
@@ -125,12 +125,11 @@
     <div class="home-section-head"><h3>Your songbooks</h3></div>
     <div class="project-grid">
     {{range .Books}}
-      <a class="project-card card" href="/b/{{.Name}}">
+      <a class="project-card card" href="/songbooks/{{.ID}}">
         <h2>{{.Name}}</h2>
         <div class="project-stats">
           <span>{{.SongCount}} song{{if ne .SongCount 1}}s{{end}}</span>
           {{if .HasOrder}}<span>{{.SetCount}} set{{if ne .SetCount 1}}s{{end}}</span>{{end}}
-          {{if .Setlists}}<span>{{.Setlists}} setlist{{if ne .Setlists 1}}s{{end}}</span>{{end}}
         </div>
       </a>
     {{end}}
@@ -144,7 +143,7 @@
         <h4>Global catalog</h4>
         <p>by artist, alphabetical, by project or genre — free to reuse in any jam</p>
       </a>
-      <a class="browse-card" href="/catalog/mine">
+      <a class="browse-card" href="/songbooks/mine">
         <h4>My songbook</h4>
         <p>songs you've forked or written, just for you</p>
       </a>

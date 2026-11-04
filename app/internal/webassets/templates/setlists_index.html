@@ -18,37 +18,6 @@
 </header>
 <main>
   <section class="card book-card">
-    {{if .Setlists}}
-    <ul class="song-list">
-      {{range .Setlists}}
-      <li>
-        <a class="song-link" href="/setlists/{{.Book}}/{{.Stem}}">{{.Stem}}</a> <span class="song-link-sub">{{.Book}}</span>
-        <a class="gig-link" href="/setlists/{{.Book}}/{{.Stem}}/gig">{{template "icon-presentation"}} gig view</a>
-      </li>
-      {{end}}
-    </ul>
-    {{else}}
-    <p class="hint">No set lists yet — create one below to start building a running order for a gig.</p>
-    {{end}}
-  </section>
-
-  <section class="card book-card new-setlist-form">
-    <h2>New set list</h2>
-    <div class="structure-actions">
-      <label>in book
-        <select id="new-book">{{range .Books}}<option value="{{.}}">{{.}}</option>{{end}}</select>
-      </label>
-      <label>filename
-        <input type="text" id="new-stem" placeholder="e.g. spring-rehearsal-2026">
-      </label>
-      <button id="new-setlist-btn" type="button" class="primary">{{template "icon-plus"}} Create</button>
-    </div>
-  </section>
-
-  {{/* Phase 3: person/band-scoped setlists — no book/stem, addressed by
-       id instead, so they're their own section with practice/listening
-       links rather than mixed into the book/stem list above. */}}
-  <section class="card book-card">
     <h2>My set lists</h2>
     {{if .MySetlists}}
     <ul class="song-list">
@@ -121,13 +90,6 @@
   {{end}}
 </main>
 <script>
-document.getElementById('new-setlist-btn').addEventListener('click', () => {
-  const book = document.getElementById('new-book').value;
-  const stem = document.getElementById('new-stem').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-');
-  if (!book || !stem) return;
-  window.location.href = `/setlists/${book}/${stem}`;
-});
-
 async function createScopedSetlist(scope, title, bandID) {
   if (!title) return;
   const res = await fetch('/api/setlists', {

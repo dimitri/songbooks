@@ -42,7 +42,6 @@ func (s *Server) handleInvitePage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) renderInvitePage(w http.ResponseWriter, inv *store.Invite, loggedInAs, formErr, username, displayName, email string) {
 	s.render(w, "invite", map[string]any{
 		"Token": inv.Token, "Kind": inv.Kind(),
-		"ProjectName": inv.ProjectName, "Role": inv.Role,
 		"BandName": inv.BandName, "BandStatus": inv.BandStatus,
 		"LoggedInAs": loggedInAs,
 		"Error":      formErr,

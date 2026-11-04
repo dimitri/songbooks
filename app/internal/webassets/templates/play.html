@@ -287,7 +287,7 @@
     {{else if .BandRef}}
     <a href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} {{.BandName}}</a>
     {{else}}
-    <a href="/b/{{.Book}}">{{template "icon-back"}} {{.ProjectName}}</a>
+    {{if .SongbookRef}}<a href="/songbooks/{{.SongbookRef}}">{{template "icon-back"}} songbook</a>{{else if .BandRef}}<a href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} {{.BandName}}</a>{{else}}<a href="/catalog">{{template "icon-back"}} catalog</a>{{end}}
     {{end}}
   </div>
   {{/* Phase 45: while the desktop editor is open, this single row replaces
@@ -332,12 +332,12 @@
          settings link both moved out of the top row; the settings link
          belongs here with everything else that's a "this song" action,
          not a global nav item). */}}
-    <a class="sidebar-song-row" title="metronome &amp; transport settings" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/b/%s/%s" .Book .Stem | urlquery}}">{{template "icon-metro-full"}} Metronome</a>
+    <a class="sidebar-song-row" title="metronome &amp; transport settings" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-metro-full"}} Metronome</a>
     {{if .VariantID}}
     <button id="notes-toggle" class="sidebar-song-row" type="button" title="notes: personal or shared, per section">{{template "icon-notes"}} Notes</button>
     {{end}}
     <span class="pdf-mode-row">
-      <a class="pdf-export-link sidebar-song-row" href="/b/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF (chart)" download>{{template "icon-download"}} Export PDF</a>
+      <a class="pdf-export-link sidebar-song-row" href="/song/{{.VariantID}}/export.pdf" title="export PDF (chart)" download>{{template "icon-download"}} Export PDF</a>
       <select class="pdf-mode-select" title="PDF view mode">
         <option value="">Song</option>
         <option value="jazz">Jazz chart</option>
@@ -353,7 +353,7 @@
   <div class="sidebar-secondary">
     {{if and .Me .Me.IsAdmin}}<a href="/admin" data-path="/admin">Admin</a>{{end}}
     <a href="/metronome" data-path="/metronome">Metronome</a>
-    <a href="/catalog/mine" data-path="/catalog/mine">My songbook</a>
+    <a href="/songbooks/mine" data-path="/songbooks/mine">My songbook</a>
   </div>
   <div class="sidebar-song-group" style="border-top:none;padding-top:0;">
     <button id="theme-toggle" class="sidebar-song-row" type="button" title="theme: auto">{{template "icon-theme"}} Theme</button>
@@ -388,13 +388,15 @@
   <a class="back-link" href="/setlists/{{.SetlistRef}}">{{template "icon-back"}} set list</a>
   {{else if .BandRef}}
   <a class="back-link" href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} {{.BandName}}</a>
+  {{else if .SongbookRef}}
+  <a class="back-link" href="/songbooks/{{.SongbookRef}}">{{template "icon-back"}} songbook</a>
   {{else}}
-  <a class="back-link" href="/b/{{.Book}}">{{template "icon-back"}} {{.ProjectName}}</a>
+  <a class="back-link" href="/catalog">{{template "icon-back"}} catalog</a>
   {{end}}
 </div>
 <div class="song-topbar">
   {{if .Prev}}
-  <a class="topbar-cell topbar-prev setlist-nav-card prev" href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.PrevIndex}}{{else}}/b/{{.Prev.Book}}/{{.Prev.Stem}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{end}}{{end}}">
+  <a class="topbar-cell topbar-prev setlist-nav-card prev" href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.PrevIndex}}{{else}}/song/{{.Prev.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{end}}{{end}}">
     {{template "icon-back"}}
     <span class="topbar-nav-info"><small>previous</small><strong>{{.Prev.Title}}</strong><small>{{if .Prev.Tempo}}{{.Prev.Tempo}} bpm{{end}}{{if and .Prev.Tempo .Prev.Key}} &middot; {{end}}{{.Prev.Key}}</small></span>
   </a>
@@ -422,7 +424,7 @@
   </div>
 
   {{if .Next}}
-  <a class="topbar-cell topbar-next setlist-nav-card next" href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.NextIndex}}{{else}}/b/{{.Next.Book}}/{{.Next.Stem}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{end}}{{end}}">
+  <a class="topbar-cell topbar-next setlist-nav-card next" href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.NextIndex}}{{else}}/song/{{.Next.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{end}}{{end}}">
     <span class="topbar-nav-info"><small>next</small><strong>{{.Next.Title}}</strong><small>{{if .Next.Tempo}}{{.Next.Tempo}} bpm{{end}}{{if and .Next.Tempo .Next.Key}} &middot; {{end}}{{.Next.Key}}</small></span>
     {{template "icon-forward"}}
   </a>
@@ -465,7 +467,7 @@
     </div>
   </div>
   <div class="edit-drawer-body">
-    <section class="prep-panel" data-panel="structure" id="structure" data-book="{{.Book}}" data-stem="{{.Stem}}" data-variant-id="{{.VariantID}}" data-genre="{{.Genre}}">
+    <section class="prep-panel" data-panel="structure" id="structure" data-variant-id="{{.VariantID}}" data-genre="{{.Genre}}">
       <p class="hint">Hover a section for its handle (drag to reorder) and + (insert after it) — pick a label, a custom one, or a bare chord sequence. Each section holds its own chords and lyrics; a duplicated section starts as a bare "repeat marker" until you give it real content.</p>
       <div id="song-header-fields" class="song-header-fields"></div>
       <div id="chip-list" class="chip-list"></div>
@@ -476,7 +478,7 @@
       </div>
     </section>
 
-    <section class="prep-panel" data-panel="raw" id="editor" data-book="{{.Book}}" data-stem="{{.Stem}}" data-version="{{.Version}}" data-variant-id="{{.VariantID}}" data-can-edit="{{.CanEdit}}" hidden>
+    <section class="prep-panel" data-panel="raw" id="editor" data-version="{{.Version}}" data-variant-id="{{.VariantID}}" data-can-edit="{{.CanEdit}}" hidden>
       <div class="code-toolbar" id="code-toolbar">
         {{/* One-tap section markers — the common labels this app's own
              section-type inference (handlers_pages.go's annotateStructure,
@@ -635,7 +637,7 @@
     {{else if .GigMode}}
     <a href="/setlists/{{.SetlistRef}}/gig" title="back to set list">{{template "icon-up"}} Up</a>
     {{else}}
-    <a href="/b/{{.Book}}" title="back to {{.Book}}">{{template "icon-up"}} Up</a>
+    {{if .SongbookRef}}<a href="/songbooks/{{.SongbookRef}}" title="back to songbook">{{template "icon-up"}} Up</a>{{else if .BandRef}}<a href="/bands/{{.BandRef}}/catalog" title="back to {{.BandName}}">{{template "icon-up"}} Up</a>{{else}}<a href="/catalog" title="back to catalog">{{template "icon-up"}} Up</a>{{end}}
     {{end}}
     <button type="button" id="view-stack-btn">{{template "icon-view"}} View</button>
     {{/* A real page link, not a sheet toggle — the inline off-canvas
@@ -645,7 +647,7 @@
          this song's own tempo/time signature and a link back here.
          Desktop is untouched: the sidebar's own transport panel stays
          in-flow exactly as before. */}}
-    <a id="metronome-stack-btn" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/b/%s/%s" .Book .Stem | urlquery}}">{{template "icon-metro-full"}} Metronome</a>
+    <a id="metronome-stack-btn" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-metro-full"}} Metronome</a>
     <button type="button" id="song-stack-btn">{{template "icon-song-actions"}} Song</button>
     <button type="button" id="site-nav-fullpage-btn">{{template "icon-more"}} More</button>
     {{/* Last entry: next song in this same list (setlist step order, or
@@ -656,7 +658,7 @@
          before this. Disabled, not hidden, when there's no next song, so
          the bar keeps its 6 even slots rather than reflowing. */}}
     {{if .Next}}
-    <a href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.NextIndex}}{{else}}/b/{{.Next.Book}}/{{.Next.Stem}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{end}}{{end}}" title="next: {{.Next.Title}}">{{template "icon-forward"}} Next</a>
+    <a href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.NextIndex}}{{else}}/song/{{.Next.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{end}}{{end}}" title="next: {{.Next.Title}}">{{template "icon-forward"}} Next</a>
     {{else}}
     <span class="context-bar-disabled">{{template "icon-forward"}} Next</span>
     {{end}}
@@ -692,7 +694,7 @@
          own bespoke open logic for. */}}
     <button type="button" class="stack-sheet-row" data-forward="reference">{{template "icon-reference"}} Reference</button>
     <div class="stack-sheet-row pdf-mode-row" style="flex-wrap:wrap;gap:0.6rem 0.9rem;">
-      <a class="pdf-export-link" href="/b/{{.Book}}/{{.Stem}}/export.pdf" title="export PDF (chart)" download>{{template "icon-download"}} Export PDF</a>
+      <a class="pdf-export-link" href="/song/{{.VariantID}}/export.pdf" title="export PDF (chart)" download>{{template "icon-download"}} Export PDF</a>
       <select class="pdf-mode-select" title="PDF view mode">
         <option value="">Song</option>
         <option value="jazz">Jazz chart</option>
@@ -763,7 +765,7 @@
          itself is stored in this browser's localStorage, per song, not
          shared/synced — it's a listening preference, not song data),
          and the waveform/transport/markers for whichever is selected. */}}
-    <div class="audio-player" id="audio-player" data-book="{{.Book}}" data-stem="{{.Stem}}" data-can-edit="{{if .CanEdit}}true{{else}}false{{end}}">
+    <div class="audio-player" id="audio-player" data-variant-id="{{.VariantID}}" data-can-edit="{{if .CanEdit}}true{{else}}false{{end}}">
       <div id="audio-category-toggle" class="audio-category-toggle" hidden>
         <button type="button" data-category="youtube">YouTube</button>
         <button type="button" data-category="band">Band recording</button>
@@ -815,7 +817,7 @@
            (app/docs/mp3-reference-audio.md §1). One URL field serves both:
            there's no reason to type the same link twice. */}}
       <h3 class="reference-section-head">YouTube video</h3>
-      <div class="reference-block" id="reference-block" data-url="{{.Reference}}" data-book="{{.Book}}" data-stem="{{.Stem}}">
+      <div class="reference-block" id="reference-block" data-url="{{.Reference}}" data-variant-id="{{.VariantID}}">
         <div class="reference-row">
           <a id="reference-link" class="meta-row" href="{{.Reference}}" target="_blank" rel="noopener"{{if not .Reference}} hidden{{end}}>reference &#8599;</a>
           <button id="reference-edit-btn" type="button" class="icon-btn" title="{{if .Reference}}change reference{{else}}add a reference video{{end}}">{{template "icon-edit"}}</button>

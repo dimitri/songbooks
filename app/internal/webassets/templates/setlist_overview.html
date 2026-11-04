@@ -66,7 +66,7 @@
       {{range $rowIdx, $row := $set.Rows}}
       <div class="gig-row setlist-overview-row" data-set-index="{{$setIdx}}" data-row-index="{{$rowIdx}}">
         <span class="gig-num">{{$row.Num}}</span>
-        <a class="gig-title" href="/b/{{$row.Book}}/{{$row.Stem}}?setlist={{$.SetlistID}}">
+        <a class="gig-title" href="/song/{{$row.VariantID}}?setlist={{$.SetlistID}}">
           {{$row.Title}}{{if $row.Note}}<small class="gig-note">{{$row.Note}}</small>{{end}}
         </a>
         <span class="gig-key">{{$row.Key}}</span>

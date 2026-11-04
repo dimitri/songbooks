@@ -40,87 +40,44 @@ func setlistOptionsFromRequest(r *http.Request) pdf.Options {
 }
 
 // handleExportSongPDF renders one song to a one-page (best-effort) PDF.
-// Requires s.pdf to be configured (--v2-root set, for the legacy Typst
-// Bridge path); otherwise it reports 503 rather than silently pretending
-// to succeed.
 func (s *Server) handleExportSongPDF(w http.ResponseWriter, r *http.Request) {
 	if s.pdf == nil {
-		httpError(w, http.StatusServiceUnavailable, "PDF export is not configured on this server (no --v2-root)")
+		httpError(w, http.StatusServiceUnavailable, "PDF export is not configured on this server")
 		return
 	}
-	book, stem := r.PathValue("book"), r.PathValue("stem")
-	body, _, err := s.store.LoadRaw(book, stem)
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	body, _, err := s.store.LoadVariantRaw(id)
 	if err != nil {
 		httpError(w, http.StatusNotFound, "no such song")
 		return
 	}
-	data, err := s.pdf.ExportSong(r.Context(), book, body, optionsFromRequest(r))
+	data, err := s.pdf.ExportSong(r.Context(), "", body, optionsFromRequest(r))
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
 		return
 	}
-	writePDF(w, stem, data)
+	writePDF(w, strconv.FormatInt(id, 10), data)
 }
 
-// resolveLegacySetlistRefs resolves every entry of a legacy project-scoped
-// (book/stem) setlist to a pdf.SongRef, skipping (and counting) any whose
-// project the requester has no role on, or that fail to load.
-func resolveLegacySetlistRefs(ctx context.Context, s *Server, personID int64, l *setlist.Setlist) (refs []pdf.SongRef, skipped int) {
-	roleCache := map[string]bool{}
-	accessible := func(project string) bool {
-		if ok, cached := roleCache[project]; cached {
-			return ok
-		}
-		_, ok, err := s.store.GetRole(ctx, personID, project)
-		ok = ok && err == nil
-		roleCache[project] = ok
-		return ok
-	}
-	for _, set := range l.Sets {
-		for _, e := range set.Entries {
-			if !accessible(e.Book) {
-				skipped++
-				continue
-			}
-			body, _, err := s.store.LoadRaw(e.Book, e.Stem)
-			if err != nil {
-				skipped++
-				continue
-			}
-			refs = append(refs, pdf.SongRef{Group: set.Label, Book: e.Book, Stem: e.Stem, Body: body})
-		}
-	}
-	return refs, skipped
-}
-
-// resolveByIDSetlistRefs is resolveLegacySetlistRefs' sibling for the
-// id-addressed (person/band/project scope) setlist model, whose entries
-// may reference a variant directly (setlist.Entry.IsVariant()) instead of
-// a book/stem pair — resolved to book/stem via GetVariant the same way
-// handleSetlistClicktrack already does, since every variant still belongs
-// to a project (see store.CatalogVariant's own doc comment).
+// resolveByIDSetlistRefs resolves a setlist's variant entries to
+// pdf.SongRef, skipping (and counting) any that fail to load.
 func resolveByIDSetlistRefs(ctx context.Context, s *Server, l *setlist.Setlist) (refs []pdf.SongRef, skipped int) {
 	for _, set := range l.Sets {
 		for _, e := range set.Entries {
-			book, stem := e.Book, e.Stem
-			if e.IsVariant() {
-				v, err := s.store.GetVariant(ctx, e.VariantID)
-				if err != nil {
-					skipped++
-					continue
-				}
-				book, stem = v.Book, v.Stem
-			}
-			if book == "" || stem == "" {
+			if !e.IsVariant() {
 				skipped++
 				continue
 			}
-			body, _, err := s.store.LoadRaw(book, stem)
+			body, _, err := s.store.LoadVariantRaw(e.VariantID)
 			if err != nil {
 				skipped++
 				continue
 			}
-			refs = append(refs, pdf.SongRef{Group: set.Label, Book: book, Stem: stem, Body: body})
+			refs = append(refs, pdf.SongRef{Group: set.Label, Stem: strconv.FormatInt(e.VariantID, 10), Body: body})
 		}
 	}
 	return refs, skipped
@@ -139,75 +96,11 @@ func gigSubtitle(date, venue string) string {
 	}
 }
 
-// handleExportSetlistPDF renders every entry in a legacy project-scoped
-// (book/stem) setlist to one combined PDF — cover, title/event page (the
-// legacy .setlist format's own date/venue meta fields feed the event
-// title page when set), contents, then every song. Entries can reference
-// songs from OTHER projects than the setlist's own; an entry whose
-// project the requester has no role on at all is skipped (noted via
-// X-Songbooks-Skipped response headers) rather than failing the whole
-// export over one inaccessible song.
-func (s *Server) handleExportSetlistPDF(w http.ResponseWriter, r *http.Request) {
-	if s.pdf == nil {
-		httpError(w, http.StatusServiceUnavailable, "PDF export is not configured on this server (no --v2-root)")
-		return
-	}
-	book, stem := r.PathValue("book"), r.PathValue("stem")
-	l, _, err := s.store.LoadSetlist(book, stem)
-	if err != nil {
-		httpError(w, http.StatusNotFound, "no such setlist")
-		return
-	}
-	person := personFromContext(r)
-
-	refs, skipped := resolveLegacySetlistRefs(r.Context(), s, person.ID, l)
-	title := orDefault(l.Get("title"), stem)
-	front := pdf.FrontMatter{EventTitle: title, Date: l.Get("date"), Venue: l.Get("venue")}
-	if front.Date == "" && front.Venue == "" {
-		front.EventTitle = ""
-	}
-
-	data, err := s.pdf.ExportSetlist(r.Context(), title, front, refs, setlistOptionsFromRequest(r))
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
-		return
-	}
-	if skipped > 0 {
-		w.Header().Set("X-Songbooks-Skipped-Entries", fmt.Sprintf("%d", skipped))
-	}
-	writePDF(w, stem, data)
-}
-
-// handleExportSetlistPageOnlyPDF renders just the running-order table for
-// a legacy project-scoped setlist — a single page, no song pages. For a
-// music stand, not the full book.
-func (s *Server) handleExportSetlistPageOnlyPDF(w http.ResponseWriter, r *http.Request) {
-	if s.pdf == nil {
-		httpError(w, http.StatusServiceUnavailable, "PDF export is not configured on this server (no --v2-root)")
-		return
-	}
-	book, stem := r.PathValue("book"), r.PathValue("stem")
-	l, _, err := s.store.LoadSetlist(book, stem)
-	if err != nil {
-		httpError(w, http.StatusNotFound, "no such setlist")
-		return
-	}
-	person := personFromContext(r)
-	refs, _ := resolveLegacySetlistRefs(r.Context(), s, person.ID, l)
-	title := orDefault(l.Get("title"), stem)
-	data, err := s.pdf.ExportSetlistPageOnly(r.Context(), title, gigSubtitle(l.Get("date"), l.Get("venue")), refs, optionsFromRequest(r))
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
-		return
-	}
-	writePDF(w, stem+"-setlist", data)
-}
-
 // setlistFrontMatter resolves event metadata for an id-scoped setlist: the
 // band's own name (band-scoped setlists only) plus its soonest-upcoming
 // gig's date/venue, if it has one. A setlist with no gigs gets an empty
-// EventTitle, which ExportSetlist/render-book.typ render as a plain
-// title-plate rather than a half-filled event page.
+// EventTitle, which ExportSetlist renders as a plain title-plate rather
+// than a half-filled event page.
 func (s *Server) setlistFrontMatter(r *http.Request, meta *store.SetlistMeta, title string) pdf.FrontMatter {
 	front := pdf.FrontMatter{EventTitle: title}
 	if meta.OwnerBandID != nil {
@@ -228,12 +121,11 @@ func (s *Server) setlistFrontMatter(r *http.Request, meta *store.SetlistMeta, ti
 	return front
 }
 
-// handleExportSetlistByIDPDF renders a person/band/project-scoped setlist
-// (addressed by id, the "Phase 3" model) to one combined PDF — same
-// cover/title/contents/songs structure as the legacy handler above.
+// handleExportSetlistByIDPDF renders a person/band-scoped setlist to one
+// combined PDF — cover, title/event page, contents, then every song.
 func (s *Server) handleExportSetlistByIDPDF(w http.ResponseWriter, r *http.Request) {
 	if s.pdf == nil {
-		httpError(w, http.StatusServiceUnavailable, "PDF export is not configured on this server (no --v2-root)")
+		httpError(w, http.StatusServiceUnavailable, "PDF export is not configured on this server")
 		return
 	}
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -273,7 +165,7 @@ func (s *Server) handleExportSetlistByIDPDF(w http.ResponseWriter, r *http.Reque
 // handleExportSetlistByIDPDF.
 func (s *Server) handleExportSetlistPageOnlyByIDPDF(w http.ResponseWriter, r *http.Request) {
 	if s.pdf == nil {
-		httpError(w, http.StatusServiceUnavailable, "PDF export is not configured on this server (no --v2-root)")
+		httpError(w, http.StatusServiceUnavailable, "PDF export is not configured on this server")
 		return
 	}
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -304,23 +196,33 @@ func (s *Server) handleExportSetlistPageOnlyByIDPDF(w http.ResponseWriter, r *ht
 	writePDF(w, title+"-setlist", data)
 }
 
-// handleExportProjectSongbookPDF renders a project/book's entire song
-// list to one combined PDF (cover, plain title page, contents, every
-// song) — in the project's own canonical song_order (store.ListSongsOrdered),
-// the same ordering the book's own page already shows. A project with
-// real "# SET:"-style groups in its order (an album-sectioned book, not
-// just the single "Songs" fallback) carries those groups through to the
-// contents table too — richer structure the book's own ordering already
-// has, not invented for this export.
-func (s *Server) handleExportProjectSongbookPDF(w http.ResponseWriter, r *http.Request) {
+// handleExportSongbookPDF renders a songbook's entire song list to one
+// combined PDF (cover, plain title page, contents, every song) — in the
+// songbook's own canonical song_order, the same ordering the songbook's
+// own page already shows.
+func (s *Server) handleExportSongbookPDF(w http.ResponseWriter, r *http.Request) {
 	if s.pdf == nil {
-		httpError(w, http.StatusServiceUnavailable, "PDF export is not configured on this server (no --v2-root)")
+		httpError(w, http.StatusServiceUnavailable, "PDF export is not configured on this server")
 		return
 	}
-	book := r.PathValue("book")
-	groups, err := s.store.ListSongsOrdered(book)
+	id, err := pathID(r, "id")
 	if err != nil {
-		httpError(w, http.StatusNotFound, "no such project")
+		httpError(w, http.StatusBadRequest, "invalid songbook id")
+		return
+	}
+	person := personFromContext(r)
+	if ok, err := s.store.CanAccessSongbook(r.Context(), person.ID, id); err != nil || !ok {
+		http.NotFound(w, r)
+		return
+	}
+	sb, err := s.store.GetSongbook(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	groups, err := s.store.ListSongsOrdered(r.Context(), id)
+	if err != nil {
+		httpError(w, http.StatusNotFound, "no such songbook")
 		return
 	}
 
@@ -330,35 +232,34 @@ func (s *Server) handleExportProjectSongbookPDF(w http.ResponseWriter, r *http.R
 		if groupLabel == "Songs" {
 			groupLabel = ""
 		}
-		for _, stem := range g.Stems {
-			body, _, err := s.store.LoadRaw(book, stem)
+		for _, vid := range g.VariantIDs {
+			body, _, err := s.store.LoadVariantRaw(vid)
 			if err != nil {
 				continue
 			}
-			refs = append(refs, pdf.SongRef{Group: groupLabel, Book: book, Stem: stem, Body: body})
+			refs = append(refs, pdf.SongRef{Group: groupLabel, Stem: strconv.FormatInt(vid, 10), Body: body})
 		}
 	}
 	if len(refs) == 0 {
-		httpError(w, http.StatusNotFound, "no songs in this project")
+		httpError(w, http.StatusNotFound, "no songs in this songbook")
 		return
 	}
 
-	data, err := s.pdf.ExportSongbook(r.Context(), book, refs, optionsFromRequest(r))
+	data, err := s.pdf.ExportSongbook(r.Context(), sb.Name, refs, optionsFromRequest(r))
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
 		return
 	}
-	writePDF(w, book+"-songbook", data)
+	writePDF(w, sb.Name+"-songbook", data)
 }
 
-// handleExportBandSongbookPDF is handleExportProjectSongbookPDF's sibling
-// for a band's repertoire (store.ListBandCatalog) — most-recently-added-
-// first order, same as that order already is throughout the rest of the
-// app; no Set structure (a repertoire isn't divided into performance sets
-// the way a setlist is).
+// handleExportBandSongbookPDF is handleExportSongbookPDF's sibling for a
+// band's own default songbook (store.ListBandCatalog) — most-recently-
+// added-first order; no Set structure (a repertoire isn't divided into
+// performance sets the way a setlist is).
 func (s *Server) handleExportBandSongbookPDF(w http.ResponseWriter, r *http.Request) {
 	if s.pdf == nil {
-		httpError(w, http.StatusServiceUnavailable, "PDF export is not configured on this server (no --v2-root)")
+		httpError(w, http.StatusServiceUnavailable, "PDF export is not configured on this server")
 		return
 	}
 	bandID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -379,11 +280,11 @@ func (s *Server) handleExportBandSongbookPDF(w http.ResponseWriter, r *http.Requ
 
 	var refs []pdf.SongRef
 	for _, e := range catalog {
-		body, _, err := s.store.LoadRaw(e.Book, e.Stem)
+		body, _, err := s.store.LoadVariantRaw(e.VariantID)
 		if err != nil {
 			continue
 		}
-		refs = append(refs, pdf.SongRef{Book: e.Book, Stem: e.Stem, Body: body})
+		refs = append(refs, pdf.SongRef{Stem: strconv.FormatInt(e.VariantID, 10), Body: body})
 	}
 	if len(refs) == 0 {
 		httpError(w, http.StatusNotFound, "this band's repertoire has no songs yet")

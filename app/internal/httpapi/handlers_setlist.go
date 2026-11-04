@@ -60,36 +60,10 @@ func setlistFromJSON(in jsonSetlist) *setlist.Setlist {
 	return out
 }
 
-// handleSetlistsPage lists every setlist across every book — a setlist can
-// reference songs from any book, so it isn't filed under a single book in
-// the UI even though its file lives under one book's setlists/ directory.
+// handleSetlistsPage lists this person's own setlists, plus every current
+// band's setlists.
 func (s *Server) handleSetlistsPage(w http.ResponseWriter, r *http.Request) {
 	person := personFromContext(r)
-	projects, err := s.store.ListProjectsForPerson(r.Context(), person.ID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	var books []string
-	for _, pr := range projects {
-		books = append(books, pr.Slug)
-	}
-	type row struct{ Book, Stem string }
-	var rows []row
-	for _, b := range books {
-		stems, err := s.store.ListSetlists(b)
-		if err != nil {
-			continue
-		}
-		for _, st := range stems {
-			rows = append(rows, row{Book: b, Stem: st})
-		}
-	}
-
-	// Phase 3: alongside the book/stem list above, also list this
-	// person's own personal setlists and every current band's setlists —
-	// scope='person'/'band' setlists have no book/stem, so they're their
-	// own section rather than mixed into rows above.
 	mySetlists, err := s.store.ListSetlistsForPerson(r.Context(), person.ID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
@@ -114,7 +88,7 @@ func (s *Server) handleSetlistsPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, "setlists-index", map[string]any{
-		"Me": person, "Books": books, "Setlists": rows,
+		"Me": person,
 		"MySetlists": mySetlists, "Bands": bandRows,
 	})
 }
@@ -136,74 +110,17 @@ func (s *Server) handleMetronomePage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) handleSetlistEditPage(w http.ResponseWriter, r *http.Request) {
-	person := personFromContext(r)
-	book, stem := r.PathValue("book"), r.PathValue("stem")
-	books, err := s.store.ListBooks()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	songsByBook := map[string][]string{}
-	for _, b := range books {
-		songs, _ := s.store.ListSongs(b)
-		songsByBook[b] = songs
-	}
-	songsJSON, _ := json.Marshal(songsByBook)
-	s.render(w, "setlist-edit", map[string]any{
-		"Me": person, "Book": book, "Stem": stem, "IsNew": stem == "new",
-		"SongsByBookJSON": template.JS(songsJSON),
-	})
-}
-
 // gigRow/gigSet are the "perform" view's model — just what a musician glances
 // at before tapping a song: running number, title, key, tempo. Deliberately
 // the same four columns as the band's own LaTeX titlepage set-list tables.
 type gigRow struct {
-	Num                                            int
-	Book, Stem, Title, Tempo, Key, Note, Reference string
+	Num                                   int
+	VariantID                             int64
+	Title, Tempo, Key, Note, Reference string
 }
 type gigSet struct {
 	Label string
 	Rows  []gigRow
-}
-
-// handleSetlistGigPage is the read-only, large-type, numbered-and-striped
-// view meant to be used AT a gig or rehearsal — no editing controls, no
-// drag handles, just the running order and enough per-song info (key,
-// tempo) to orient before counting a song in. Tapping a row opens that
-// song in the reader's own saved default view (song.js, localStorage),
-// with ?gig=1 carried through so prev/next and the back link keep pointing
-// back at this list instead of the editor.
-func (s *Server) handleSetlistGigPage(w http.ResponseWriter, r *http.Request) {
-	person := personFromContext(r)
-	book, stem := r.PathValue("book"), r.PathValue("stem")
-	l, _, err := s.store.LoadSetlist(book, stem)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	var sets []gigSet
-	n := 0
-	for _, set := range l.Sets {
-		var rows []gigRow
-		for _, e := range set.Entries {
-			n++
-			title, tempo, key := e.Stem, "", ""
-			if sg, _, err := s.store.LoadSong(e.Book, e.Stem); err == nil {
-				title = orDefault(sg.Get("title"), e.Stem)
-				tempo = sg.Get("tempo")
-				key = sg.Get("key")
-			}
-			rows = append(rows, gigRow{Num: n, Book: e.Book, Stem: e.Stem, Title: title, Tempo: tempo, Key: key, Note: e.Note})
-		}
-		sets = append(sets, gigSet{Label: set.Label, Rows: rows})
-	}
-	s.render(w, "setlist-gig", map[string]any{
-		"Me": person, "Book": book, "Stem": stem,
-		"Title": orDefault(l.Get("title"), stem), "Date": l.Get("date"), "Venue": l.Get("venue"),
-		"Sets": sets, "SetlistRef": book + "/" + stem,
-	})
 }
 
 // handleSetlistOverview is GET /setlists/{id} — the setlist-by-numeric-ID
@@ -248,26 +165,18 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 	for _, set := range l.Sets {
 		var rows []gigRow
 		for _, e := range set.Entries {
-			book, stem := e.Book, e.Stem
-			if e.IsVariant() {
-				v, err := s.store.GetVariant(r.Context(), e.VariantID)
-				if err != nil {
-					continue
-				}
-				book, stem = v.Book, v.Stem
-			}
-			if book == "" || stem == "" {
+			if !e.IsVariant() {
 				continue
 			}
 			n++
-			title, tempo, key, reference := stem, "", "", ""
-			if sg, _, err := s.store.LoadSong(book, stem); err == nil {
-				title = orDefault(sg.Get("title"), stem)
+			title, tempo, key, reference := "untitled", "", "", ""
+			if sg, _, err := s.store.LoadVariant(e.VariantID); err == nil {
+				title = orDefault(sg.Get("title"), "untitled")
 				tempo = sg.Get("tempo")
 				key = sg.Get("key")
 				reference = sg.Get("reference")
 			}
-			rows = append(rows, gigRow{Num: n, Book: book, Stem: stem, Title: title, Tempo: tempo, Key: key, Note: e.Note, Reference: reference})
+			rows = append(rows, gigRow{Num: n, VariantID: e.VariantID, Title: title, Tempo: tempo, Key: key, Note: e.Note, Reference: reference})
 		}
 		sets = append(sets, gigSet{Label: set.Label, Rows: rows})
 	}
@@ -278,49 +187,7 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) handleGetSetlist(w http.ResponseWriter, r *http.Request) {
-	book, stem := r.PathValue("book"), r.PathValue("stem")
-	l, version, err := s.store.LoadSetlist(book, stem)
-	if err != nil {
-		httpError(w, http.StatusNotFound, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"version": version, "setlist": setlistToJSON(l)})
-}
-
-func (s *Server) handlePutSetlist(w http.ResponseWriter, r *http.Request) {
-	book, stem := r.PathValue("book"), r.PathValue("stem")
-	var req struct {
-		Version string      `json:"version"`
-		Setlist jsonSetlist `json:"setlist"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-		return
-	}
-	// A request body that decodes successfully but carries no "setlist"
-	// field at all (e.g. a caller sending the wrong shape, as happened
-	// once during manual testing of the gig view) would otherwise silently
-	// overwrite real saved content with an empty file — reject it instead
-	// of trusting a save with nothing in it.
-	if len(req.Setlist.Meta) == 0 && len(req.Setlist.Sets) == 0 {
-		httpError(w, http.StatusBadRequest, "request body has no setlist content — refusing to save an empty setlist")
-		return
-	}
-	l := setlistFromJSON(req.Setlist)
-	newVersion, err := s.store.SaveSetlist(book, stem, l, req.Version)
-	if err != nil {
-		if errors.Is(err, store.ErrConflict) {
-			httpError(w, http.StatusConflict, err.Error())
-			return
-		}
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"version": newVersion})
-}
-
-// --- Phase 3: person/band-scoped setlists (id-addressed), gigs, and
+// --- person/band-scoped setlists (id-addressed), gigs, and
 // practice/listening mode ------------------------------------------------
 
 type jsonSetlistMeta struct {
@@ -328,8 +195,6 @@ type jsonSetlistMeta struct {
 	Scope         string `json:"scope"`
 	Notes         string `json:"notes"`
 	Title         string `json:"title"`
-	Book          string `json:"book,omitempty"`
-	Stem          string `json:"stem,omitempty"`
 	OwnerPersonID *int64 `json:"owner_person_id,omitempty"`
 	OwnerBandID   *int64 `json:"owner_band_id,omitempty"`
 	Version       string `json:"version"`
@@ -338,7 +203,7 @@ type jsonSetlistMeta struct {
 func setlistMetaToJSON(m *store.SetlistMeta) jsonSetlistMeta {
 	return jsonSetlistMeta{
 		ID: m.ID, Scope: m.Scope, Notes: m.Notes, Title: m.Title,
-		Book: m.Book, Stem: m.Stem, OwnerPersonID: m.OwnerPersonID, OwnerBandID: m.OwnerBandID,
+		OwnerPersonID: m.OwnerPersonID, OwnerBandID: m.OwnerBandID,
 		Version: strconv.Itoa(m.Version),
 	}
 }
@@ -618,37 +483,23 @@ func (s *Server) handleRemoveSetlistGig(w http.ResponseWriter, r *http.Request) 
 
 // --- Practice / listening mode -------------------------------------------
 
-// setlistStep is one resolved step of a practice/listening play-through
-// — a plain book/stem, resolved up front from either kind of Entry (see
-// internal/setlist.Entry's doc comment) so the rest of the walk is
-// identical regardless of how the setlist got there.
+// setlistStep is one resolved step of a practice/listening play-through.
 type setlistStep struct {
-	Book, Stem, Note string
+	VariantID int64
+	Note      string
 }
 
 // resolveSetlistSteps flattens every set's entries, in order, into a
-// single run of book/stem steps — a variant_id entry is resolved via
-// GetVariant (every variant, person/band-owned included, still lives
-// under some project — see store.ForkVariant's doc comment — so this
-// always has a book/stem to resolve to); an entry that fails to resolve
-// (a stale/deleted reference) is skipped rather than failing the whole
-// page.
+// single run of variant-id steps; a non-variant (legacy book/stem) entry
+// is skipped.
 func (s *Server) resolveSetlistSteps(ctx context.Context, l *setlist.Setlist) []setlistStep {
 	var out []setlistStep
 	for _, set := range l.Sets {
 		for _, e := range set.Entries {
-			book, stem := e.Book, e.Stem
-			if e.IsVariant() {
-				v, err := s.store.GetVariant(ctx, e.VariantID)
-				if err != nil {
-					continue
-				}
-				book, stem = v.Book, v.Stem
-			}
-			if book == "" || stem == "" {
+			if !e.IsVariant() {
 				continue
 			}
-			out = append(out, setlistStep{Book: book, Stem: stem, Note: e.Note})
+			out = append(out, setlistStep{VariantID: e.VariantID, Note: e.Note})
 		}
 	}
 	return out
@@ -715,25 +566,26 @@ func (s *Server) handleSetlistStep(w http.ResponseWriter, r *http.Request, mode 
 		i = len(steps) - 1
 	}
 	step := steps[i]
+	variantID := step.VariantID
 
-	sg, _, err := s.store.LoadSong(step.Book, step.Stem)
+	sg, _, err := s.store.LoadVariant(variantID)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 	sections := buildSections(sg)
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
-	variantID, workID, _ := s.store.VariantLookup(r.Context(), step.Book, step.Stem)
-	// Same implicit-fork-on-edit signal as handleSong — see its comment.
-	canEdit := true
-	if variantID != 0 {
-		canEdit, _ = s.store.CanEditVariant(r.Context(), person.ID, variantID)
+	var workID int64
+	if v, err := s.store.GetVariant(r.Context(), variantID); err == nil {
+		workID = v.WorkID
 	}
+	// Same implicit-fork-on-edit signal as handleSong — see its comment.
+	canEdit, _ := s.store.CanEditVariant(r.Context(), person.ID, variantID)
 
 	data := map[string]any{
-		"Book": step.Book, "Stem": step.Stem, "Me": person,
+		"Me": person,
 		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit,
-		"Title": orDefault(sg.Get("title"), step.Stem), "Artist": sg.Get("artist"),
+		"Title": orDefault(sg.Get("title"), "untitled"), "Artist": sg.Get("artist"),
 		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
 		"TimeNum": num, "TimeDen": den,
 		"Capo": sg.Get("capo"), "Reference": sg.Get("reference"),
@@ -747,16 +599,14 @@ func (s *Server) handleSetlistStep(w http.ResponseWriter, r *http.Request, mode 
 		"PracticeTitle":     orDefault(meta.Title, "set list"),
 	}
 	if i > 0 {
-		ps := steps[i-1]
-		if psg, _, err := s.store.LoadSong(ps.Book, ps.Stem); err == nil {
-			data["Prev"] = &songNeighbor{Book: ps.Book, Stem: ps.Stem, Title: orDefault(psg.Get("title"), ps.Stem), Tempo: psg.Get("tempo"), Key: psg.Get("key")}
+		if n := s.loadSongNeighbor(steps[i-1].VariantID); n != nil {
+			data["Prev"] = n
 			data["PrevIndex"] = i - 1
 		}
 	}
 	if i < len(steps)-1 {
-		ns := steps[i+1]
-		if nsg, _, err := s.store.LoadSong(ns.Book, ns.Stem); err == nil {
-			data["Next"] = &songNeighbor{Book: ns.Book, Stem: ns.Stem, Title: orDefault(nsg.Get("title"), ns.Stem), Tempo: nsg.Get("tempo"), Key: nsg.Get("key")}
+		if n := s.loadSongNeighbor(steps[i+1].VariantID); n != nil {
+			data["Next"] = n
 			data["NextIndex"] = i + 1
 		}
 	}
@@ -772,8 +622,7 @@ type clicktrackSong struct {
 	SetLabel     string `json:"setLabel"`
 	SetIndex     int    `json:"setIndex"`
 	IsFirstInSet bool   `json:"isFirstInSet"`
-	Book         string `json:"book"`
-	Stem         string `json:"stem"`
+	VariantID    int64  `json:"variantId"`
 	Title        string `json:"title"`
 	Artist       string `json:"artist"`
 	Key          string `json:"key"`
@@ -814,18 +663,10 @@ func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request)
 	for si, set := range l.Sets {
 		first := true
 		for _, e := range set.Entries {
-			book, stem := e.Book, e.Stem
-			if e.IsVariant() {
-				v, err := s.store.GetVariant(r.Context(), e.VariantID)
-				if err != nil {
-					continue
-				}
-				book, stem = v.Book, v.Stem
-			}
-			if book == "" || stem == "" {
+			if !e.IsVariant() {
 				continue
 			}
-			sg, _, err := s.store.LoadSong(book, stem)
+			sg, _, err := s.store.LoadVariant(e.VariantID)
 			if err != nil {
 				continue
 			}
@@ -835,8 +676,8 @@ func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request)
 			}
 			songs = append(songs, clicktrackSong{
 				Index: n, SetLabel: set.Label, SetIndex: si, IsFirstInSet: first,
-				Book: book, Stem: stem,
-				Title: orDefault(sg.Get("title"), stem), Artist: sg.Get("artist"),
+				VariantID: e.VariantID,
+				Title:     orDefault(sg.Get("title"), "untitled"), Artist: sg.Get("artist"),
 				Key: sg.Get("key"), Tempo: tempo, TimeSig: orDefault(sg.Get("time"), "4/4"),
 				Note: e.Note,
 			})

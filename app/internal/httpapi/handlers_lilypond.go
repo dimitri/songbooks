@@ -26,8 +26,12 @@ import (
 
 // handleExportSongLilyPDF renders one song to a LilyPond-engraved PDF.
 func (s *Server) handleExportSongLilyPDF(w http.ResponseWriter, r *http.Request) {
-	book, stem := r.PathValue("book"), r.PathValue("stem")
-	body, _, err := s.store.LoadRaw(book, stem)
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	body, _, err := s.store.LoadVariantRaw(id)
 	if err != nil {
 		httpError(w, http.StatusNotFound, "no such song")
 		return
@@ -37,62 +41,7 @@ func (s *Server) handleExportSongLilyPDF(w http.ResponseWriter, r *http.Request)
 		httpError(w, http.StatusInternalServerError, "rendering LilyPond PDF: "+err.Error())
 		return
 	}
-	writePDF(w, stem, data)
-}
-
-// handleExportSetlistLilyPDF renders every entry in a setlist to one
-// combined LilyPond-engraved PDF, same skip-inaccessible-entries
-// behavior as handleExportSetlistPDF (the Typst equivalent).
-func (s *Server) handleExportSetlistLilyPDF(w http.ResponseWriter, r *http.Request) {
-	book, stem := r.PathValue("book"), r.PathValue("stem")
-	l, _, err := s.store.LoadSetlist(book, stem)
-	if err != nil {
-		httpError(w, http.StatusNotFound, "no such setlist")
-		return
-	}
-	person := personFromContext(r)
-
-	roleCache := map[string]bool{}
-	accessible := func(project string) bool {
-		if ok, cached := roleCache[project]; cached {
-			return ok
-		}
-		_, ok, err := s.store.GetRole(r.Context(), person.ID, project)
-		ok = ok && err == nil
-		roleCache[project] = ok
-		return ok
-	}
-
-	var entries []lilypond.BookEntry
-	var skipped int
-	for _, set := range l.Sets {
-		for _, e := range set.Entries {
-			if !accessible(e.Book) {
-				skipped++
-				continue
-			}
-			body, _, err := s.store.LoadRaw(e.Book, e.Stem)
-			if err != nil {
-				skipped++
-				continue
-			}
-			entries = append(entries, lilypond.BookEntry{Group: set.Label, Song: song.Parse(body)})
-		}
-	}
-
-	title := l.Get("title")
-	if title == "" {
-		title = stem
-	}
-	data, err := s.ly.ExportBook(r.Context(), title, entries)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, "rendering LilyPond PDF: "+err.Error())
-		return
-	}
-	if skipped > 0 {
-		w.Header().Set("X-Songbooks-Skipped-Entries", fmt.Sprintf("%d", skipped))
-	}
-	writePDF(w, stem, data)
+	writePDF(w, strconv.FormatInt(id, 10), data)
 }
 
 // handleExportBandRepertoireLilyPDF renders a whole band's catalog (every
@@ -139,7 +88,7 @@ func (s *Server) handleExportBandRepertoireLilyPDF(w http.ResponseWriter, r *htt
 
 func loadBandRepertoireSongs(ctx context.Context, st *store.Store, catalog []store.BandCatalogEntry) (entries []lilypond.BookEntry, skipped int) {
 	for _, e := range catalog {
-		body, _, err := st.LoadRaw(e.Book, e.Stem)
+		body, _, err := st.LoadVariantRaw(e.VariantID)
 		if err != nil {
 			skipped++
 			continue

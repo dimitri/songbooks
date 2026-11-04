@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Book}} — metronome playlist — Songbooks</title>
+<title>Metronome playlist — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -12,23 +12,23 @@
 {{template "desktop-sidebar" .Me}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/b/{{.Book}}">{{template "icon-back"}} {{.Book}}</a>
+  <a class="back-link" href="/songbooks/{{.SongbookID}}">{{template "icon-back"}} songbook</a>
   <h1>Metronome playlist</h1>
   {{template "notif-bell"}}
 </header>
 <main class="gig-sets">
-  <p class="hint" style="padding:0.5rem 1rem;">Every song in {{.Book}}, in running order — tap one to open the metronome already set to its own tempo/time signature; the metronome page's own Prev/Next (if the song came from a setlist) won't apply here, so use Up to come back and pick the next one.</p>
+  <p class="hint" style="padding:0.5rem 1rem;">Every song in this songbook, in running order — tap one to open the metronome already set to its own tempo/time signature; the metronome page's own Prev/Next (if the song came from a setlist) won't apply here, so use Up to come back and pick the next one.</p>
   <section class="gig-set">
     <div class="gig-table">
       {{range $i, $row := .Rows}}
-      <a class="gig-row" href="/metronome?bpm={{$row.Tempo}}&amp;time={{$row.Time | urlquery}}&amp;title={{$row.Title | urlquery}}&amp;back={{printf "/b/%s/playlist/metronome" $.Book | urlquery}}">
+      <a class="gig-row" href="/metronome?bpm={{$row.Tempo}}&amp;time={{$row.Time | urlquery}}&amp;title={{$row.Title | urlquery}}&amp;back={{printf "/songbooks/%d/playlist/metronome" $.SongbookID | urlquery}}">
         <span class="gig-num">{{add1 $i}}</span>
         <span class="gig-title">{{$row.Title}}</span>
         <span class="gig-key">{{$row.Key}}</span>
         <span class="gig-tempo">{{if $row.Tempo}}{{$row.Tempo}}{{end}}</span>
       </a>
       {{else}}
-      <div class="attention-empty">No songs in this project yet.</div>
+      <div class="attention-empty">No songs in this songbook yet.</div>
       {{end}}
     </div>
   </section>

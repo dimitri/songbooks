@@ -1,8 +1,7 @@
 (function () {
   const el = document.getElementById('editor');
   if (!el) return; // not on a page with the raw editor panel
-  const book = el.dataset.book;
-  const stem = el.dataset.stem;
+  const variantId = el.dataset.variantId;
   let version = el.dataset.version;
 
   document.getElementById('save-btn').addEventListener('click', async () => {
@@ -10,7 +9,7 @@
     status.className = '';
     status.textContent = 'saving…';
     const text = document.getElementById('raw-text').value;
-    const res = await fetch(`/api/songs/${book}/${stem}/raw`, {
+    const res = await fetch(`/api/songs/${variantId}/raw`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version, text }),

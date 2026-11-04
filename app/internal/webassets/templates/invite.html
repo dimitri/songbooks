@@ -5,8 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>
-{{if eq .Kind "project"}}Join {{.ProjectName}}
-{{else if eq .Kind "band"}}Join {{.BandName}}
+{{if eq .Kind "band"}}Join {{.BandName}}
 {{else}}Create your account{{end}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
@@ -15,10 +14,7 @@
 <main class="index auth-page">
   <div class="hero">
     <div>
-      {{if eq .Kind "project"}}
-        <h2>Join {{.ProjectName}}</h2>
-        <p>You've been invited as <strong>{{.Role}}</strong>.</p>
-      {{else if eq .Kind "band"}}
+      {{if eq .Kind "band"}}
         <h2>Join {{.BandName}}</h2>
         <p>You've been invited as a <strong>{{.BandStatus}}</strong> member.</p>
       {{else}}
@@ -30,13 +26,11 @@
   <form class="card" method="post" action="/invite/{{.Token}}">
     {{if .LoggedInAs}}
       <p>
-      {{if eq .Kind "project"}}Join {{.ProjectName}} as <strong>{{.LoggedInAs}}</strong>?
-      {{else if eq .Kind "band"}}Join {{.BandName}} as <strong>{{.LoggedInAs}}</strong>?
+      {{if eq .Kind "band"}}Join {{.BandName}} as <strong>{{.LoggedInAs}}</strong>?
       {{else}}Continue as <strong>{{.LoggedInAs}}</strong>?{{end}}
       </p>
       <button type="submit">
-      {{if eq .Kind "project"}}Join {{.ProjectName}}
-      {{else if eq .Kind "band"}}Join {{.BandName}}
+      {{if eq .Kind "band"}}Join {{.BandName}}
       {{else}}Continue{{end}}
       </button>
     {{else}}

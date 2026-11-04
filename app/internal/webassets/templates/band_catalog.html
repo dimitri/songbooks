@@ -59,11 +59,6 @@
     <a href="/bands/{{.Band.ID}}/members">Members</a>
   </nav>
 
-  {{if .Band.ProjectID}}
-  <div class="attention-empty" style="border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:1.2rem; font-size:0.95rem;">
-    This band is linked to the <a href="/b/{{.Band.ProjectSlug}}">{{.Band.ProjectSlug}}</a> songbook project — its repertoire below is that project's own song list, live, not a copy. Add a song by editing the project itself; it shows up here automatically.
-  </div>
-  {{else}}
   <p class="hint">Pointers into the catalog, same as a personal songbook — adding here doesn't copy a song; forking does, and makes it this band's own "band"-visibility variant that any current member (core or guest) can edit in place.</p>
 
   {{if not .Entries}}
@@ -85,12 +80,6 @@
           <label for="new-variant-artist">Artist</label>
           <input type="text" id="new-variant-artist">
         </div>
-        <div class="field">
-          <label for="new-variant-project">Project</label>
-          <select id="new-variant-project">
-            {{range .Books}}<option value="{{.}}">{{.}}</option>{{end}}
-          </select>
-        </div>
         <div class="form-actions">
           <button type="button" id="new-variant-btn">+ create</button>
         </div>
@@ -105,12 +94,6 @@
         <div class="field">
           <label for="bulk-variant-lines">Songs</label>
           <textarea id="bulk-variant-lines" rows="5" placeholder="Zombie - Yungblud&#10;Sweet Dreams - Marilyn Manson&#10;The Final Countdown - Europe"></textarea>
-        </div>
-        <div class="field">
-          <label for="bulk-variant-project">Project</label>
-          <select id="bulk-variant-project">
-            {{range .Books}}<option value="{{.}}">{{.}}</option>{{end}}
-          </select>
         </div>
         <div class="form-actions">
           <button type="button" id="bulk-variant-btn">+ create all</button>
@@ -135,7 +118,6 @@
       </div>
     </div>
   </div>
-  {{end}}
 
   {{if .AlbumGroups}}
   {{range .AlbumGroups}}
@@ -151,9 +133,8 @@
     <tbody>
     {{range .Entries}}
       <tr data-variant-id="{{.VariantID}}">
-        <td><a href="/b/{{.Book}}/{{.Stem}}?band={{$.Band.ID}}">{{.Title}}</a></td>
+        <td><a href="/song/{{.VariantID}}?band={{$.Band.ID}}">{{.Title}}</a></td>
         <td>{{.Artist}}</td>
-        <td>{{.Book}}</td>
         <td>{{.Visibility}}{{if .ForkedFromID}} (<a href="/variants/{{deref64 .ForkedFromID}}/history">forked from</a>){{end}}</td>
         <td>
           <a href="/works/{{.WorkID}}">all versions</a>
@@ -166,19 +147,18 @@
   {{end}}
   {{else}}
   <div class="table-scroll"><table class="card" style="width:100%">
-    <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th>Visibility</th>{{if not .Band.ProjectID}}<th>Added by</th>{{end}}<th></th></tr></thead>
+    <thead><tr><th>Title</th><th>Artist</th><th>Visibility</th><th>Added by</th><th></th></tr></thead>
     <tbody>
     {{range .Entries}}
       <tr data-variant-id="{{.VariantID}}">
-        <td><a href="/b/{{.Book}}/{{.Stem}}?band={{$.Band.ID}}">{{.Title}}</a></td>
+        <td><a href="/song/{{.VariantID}}?band={{$.Band.ID}}">{{.Title}}</a></td>
         <td>{{.Artist}}</td>
-        <td>{{.Book}}</td>
         <td>{{.Visibility}}{{if .ForkedFromID}} (<a href="/variants/{{deref64 .ForkedFromID}}/history">forked from</a>){{end}}</td>
-        {{if not $.Band.ProjectID}}<td>{{.AddedByUsername}}</td>{{end}}
+        <td>{{.AddedByUsername}}</td>
         <td>
           <a href="/works/{{.WorkID}}">all versions</a>
           <a href="/variants/{{.VariantID}}/history">history</a>
-          {{if not $.Band.ProjectID}}<button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}">remove</button>{{end}}
+          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}">remove</button>
         </td>
       </tr>
     {{else}}
@@ -188,40 +168,37 @@
   </table></div>
   {{end}}
 </main>
-{{if not .Band.ProjectID}}
 <script>
 const bandId = {{.Band.ID}};
 document.getElementById('new-variant-btn').addEventListener('click', async () => {
   const title = document.getElementById('new-variant-title').value.trim();
   const artist = document.getElementById('new-variant-artist').value.trim();
-  const project = document.getElementById('new-variant-project').value;
-  if (!title || !project) return;
+  if (!title) return;
   const res = await fetch(`/api/bands/${bandId}/variants`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({title, artist, project}),
+    body: JSON.stringify({title, artist}),
   });
   const data = await res.json().catch(() => ({}));
   if (res.ok) {
     // Straight into edit mode, not the Play page — a brand-new original
     // has an empty [Verse] placeholder and nothing to play yet.
-    location.href = `/b/${data.book}/${data.stem}?edit=1`;
+    location.href = `/song/${data.variantId}?edit=1`;
   } else {
     document.getElementById('new-variant-result').textContent = data.error || 'failed to create';
   }
 });
 document.getElementById('bulk-variant-btn').addEventListener('click', async () => {
   const lines = document.getElementById('bulk-variant-lines').value;
-  const project = document.getElementById('bulk-variant-project').value;
   const resultEl = document.getElementById('bulk-variant-result');
   resultEl.innerHTML = '';
-  if (!lines.trim() || !project) return;
+  if (!lines.trim()) return;
   const btn = document.getElementById('bulk-variant-btn');
   btn.disabled = true;
   btn.textContent = 'creating…';
   try {
     const res = await fetch(`/api/bands/${bandId}/variants/bulk`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({lines, project}),
+      body: JSON.stringify({lines}),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -236,7 +213,7 @@ document.getElementById('bulk-variant-btn').addEventListener('click', async () =
       } else {
         created++;
         const a = document.createElement('a');
-        a.href = `/b/${r.book}/${r.stem}?edit=1`;
+        a.href = `/song/${r.variantId}?edit=1`;
         a.textContent = `${r.title}${r.artist ? ' — ' + r.artist : ''}`;
         li.append('✓ ', a, ' — click to fill in');
       }
@@ -281,7 +258,6 @@ document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   });
 });
 </script>
-{{end}}
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 </div>
 {{template "global-tabbar"}}

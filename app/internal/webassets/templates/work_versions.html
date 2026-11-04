@@ -19,8 +19,8 @@
 <main class="index">
   {{range .Variants}}
   <section class="card" data-variant-id="{{.VariantID}}">
-    <h2><a href="/b/{{.Book}}/{{.Stem}}">{{.Title}}</a> — {{.Artist}}</h2>
-    <p class="hint">{{.Book}}/{{.Stem}} &middot; {{.Visibility}}{{if .ForkedFromID}} &middot; forked from <a href="/variants/{{deref64 .ForkedFromID}}/history">variant {{deref64 .ForkedFromID}}</a>{{end}}</p>
+    <h2><a href="/song/{{.VariantID}}">{{.Title}}</a> — {{.Artist}}</h2>
+    <p class="hint">{{.Visibility}}{{if .ForkedFromID}} &middot; forked from <a href="/variants/{{deref64 .ForkedFromID}}/history">variant {{deref64 .ForkedFromID}}</a>{{end}}</p>
     <div class="variant-actions">
       <button type="button" class="add-catalog-btn" data-variant-id="{{.VariantID}}">+ my songbook</button>
       <button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">fork</button>

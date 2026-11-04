@@ -140,12 +140,6 @@
     <div class="form-stack">
       <div class="field"><label for="new-variant-title">Title</label><input type="text" id="new-variant-title"></div>
       <div class="field"><label for="new-variant-artist">Artist</label><input type="text" id="new-variant-artist"></div>
-      <div class="field">
-        <label for="new-variant-project">Project</label>
-        <select id="new-variant-project">
-          {{range .Books}}<option value="{{.}}">{{.}}</option>{{end}}
-        </select>
-      </div>
       <div class="form-actions"><button type="button" id="new-variant-btn">+ create</button></div>
       <p id="new-variant-result" class="hint"></p>
     </div>
@@ -164,13 +158,12 @@
   </div>
 
   <div class="table-scroll"><table class="card" style="width:100%">
-    <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th>Added by</th><th></th></tr></thead>
+    <thead><tr><th>Title</th><th>Artist</th><th>Added by</th><th></th></tr></thead>
     <tbody>
     {{range .Entries}}
       <tr data-variant-id="{{.VariantID}}">
-        <td><a href="/b/{{.Book}}/{{.Stem}}">{{.Title}}</a></td>
+        <td><a href="/song/{{.VariantID}}">{{.Title}}</a></td>
         <td>{{.Artist}}</td>
-        <td>{{.Book}}</td>
         <td>{{.AddedByUsername}}</td>
         <td>
           <a href="/variants/{{.VariantID}}/history">history</a>
@@ -251,15 +244,14 @@ document.querySelectorAll('.remove-member-btn').forEach(btn => {
 document.getElementById('new-variant-btn').addEventListener('click', async () => {
   const title = document.getElementById('new-variant-title').value.trim();
   const artist = document.getElementById('new-variant-artist').value.trim();
-  const project = document.getElementById('new-variant-project').value;
-  if (!title || !project) return;
+  if (!title) return;
   const res = await fetch(`/api/schools/${schoolId}/variants`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({title, artist, project}),
+    body: JSON.stringify({title, artist}),
   });
   const data = await res.json().catch(() => ({}));
   if (res.ok) {
-    location.href = `/b/${data.book}/${data.stem}`;
+    location.href = `/song/${data.variantId}`;
   } else {
     document.getElementById('new-variant-result').textContent = data.error || 'failed to create';
   }

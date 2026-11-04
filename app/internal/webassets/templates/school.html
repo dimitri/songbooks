@@ -23,17 +23,16 @@
   <p class="hint">Read-only repertoire — only an instructor can edit this school's material directly. Submit your own work below for an instructor to review instead.</p>
 
   <div class="table-scroll"><table class="card" style="width:100%">
-    <thead><tr><th>Title</th><th>Artist</th><th>Project</th><th></th></tr></thead>
+    <thead><tr><th>Title</th><th>Artist</th><th></th></tr></thead>
     <tbody>
     {{range .Entries}}
       <tr data-variant-id="{{.VariantID}}">
-        <td><a href="/b/{{.Book}}/{{.Stem}}">{{.Title}}</a></td>
+        <td><a href="/song/{{.VariantID}}">{{.Title}}</a></td>
         <td>{{.Artist}}</td>
-        <td>{{.Book}}</td>
         <td><a href="/works/{{.WorkID}}">all versions</a> <a href="/variants/{{.VariantID}}/history">history</a></td>
       </tr>
     {{else}}
-      <tr><td colspan="4" class="hint">No repertoire yet.</td></tr>
+      <tr><td colspan="3" class="hint">No repertoire yet.</td></tr>
     {{end}}
     </tbody>
   </table></div>
@@ -52,7 +51,7 @@
     <p>
       <label>Your variant
         <select id="submit-variant">
-          {{range .MyCatalog}}<option value="{{.VariantID}}">{{.Title}} ({{.Book}}/{{.Stem}})</option>{{end}}
+          {{range .MyCatalog}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}
         </select>
       </label>
     </p>

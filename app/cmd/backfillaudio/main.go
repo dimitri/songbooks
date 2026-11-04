@@ -45,31 +45,30 @@ func main() {
 	defer pool.Close()
 
 	rows, err := pool.Query(ctx, `
-		SELECT s.id, p.slug, s.stem, s.body
+		SELECT s.id, coalesce(s.title, ''), s.body
 		FROM songs s
-		JOIN projects p ON p.id = s.project_id
 		WHERE NOT EXISTS (SELECT 1 FROM song_audio sa WHERE sa.variant_id = s.id AND sa.category = 'youtube')
 		ORDER BY s.id`)
 	if err != nil {
 		log.Fatal(err)
 	}
 	type candidate struct {
-		id         int64
-		book, stem string
-		url        string
+		id    int64
+		title string
+		url   string
 	}
 	var candidates []candidate
 	for rows.Next() {
 		var id int64
-		var book, stem, body string
-		if err := rows.Scan(&id, &book, &stem, &body); err != nil {
+		var title, body string
+		if err := rows.Scan(&id, &title, &body); err != nil {
 			log.Fatal(err)
 		}
 		m := youtubeRE.FindStringSubmatch(body)
 		if m == nil {
 			continue
 		}
-		candidates = append(candidates, candidate{id: id, book: book, stem: stem, url: m[1]})
+		candidates = append(candidates, candidate{id: id, title: title, url: m[1]})
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
@@ -78,7 +77,7 @@ func main() {
 
 	fmt.Printf("%d song(s) with a YouTube reference and no audio yet\n", len(candidates))
 	for _, c := range candidates {
-		fmt.Printf("  %s/%s -> %s\n", c.book, c.stem, c.url)
+		fmt.Printf("  #%d %s -> %s\n", c.id, c.title, c.url)
 	}
 	if *dryRun {
 		fmt.Println("--dry-run: not downloading anything")
@@ -87,7 +86,7 @@ func main() {
 
 	ok, failed := 0, 0
 	for _, c := range candidates {
-		fmt.Printf("downloading %s/%s ... ", c.book, c.stem)
+		fmt.Printf("downloading #%d %s ... ", c.id, c.title)
 		start := time.Now()
 		data, err := ytaudio.Download(ctx, c.url)
 		if err != nil {
