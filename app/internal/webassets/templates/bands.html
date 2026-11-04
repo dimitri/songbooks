@@ -62,7 +62,7 @@
       <div class="band-card-actions">
         <a href="/bands/{{.ID}}/catalog">songbook</a>
         {{if eq .SetlistCount 1}}
-        <a href="/setlists/{{.FirstSetlistID}}/practice">set list</a>
+        <a href="/setlists/{{.FirstSetlistID}}">set list</a>
         {{else if gt .SetlistCount 1}}
         <a href="/setlists">{{.SetlistCount}} set lists</a>
         {{else}}

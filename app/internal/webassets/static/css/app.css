@@ -3228,8 +3228,18 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .gig-note { font-size: 0.78rem; font-weight: 400; font-style: italic; color: var(--fg-muted); }
 .gig-key, .gig-tempo { font-variant-numeric: tabular-nums; color: var(--fg-muted); font-size: 1.05rem; text-align: right; }
 
+/* The setlist overview's own row — same visual language as the gig
+   view's .gig-row, extended with two more columns for a per-song "play
+   it" link (reference: URL, when set) and the reorder up/down buttons
+   that only appear once "reorder" mode is toggled on. */
+.setlist-overview-row { grid-template-columns: 2.6rem 1fr 3.5rem 3rem 2.2rem 3.2rem; }
+.setlist-overview-play { text-decoration: none; }
+.setlist-overview-reorder-btns:not([hidden]) { display: flex; gap: 0.15rem; }
+#reorder-toggle.active { background: var(--accent); color: var(--bg); }
+
 @media (max-width: 560px) {
   .gig-row { grid-template-columns: 2rem 1fr 3.4rem; }
+  .setlist-overview-row { grid-template-columns: 2rem 1fr 3.4rem 2rem 2.8rem; }
   .gig-tempo { display: none; } /* key matters more than tempo at a glance on a phone */
   .gig-title { font-size: 1.1rem; }
 }

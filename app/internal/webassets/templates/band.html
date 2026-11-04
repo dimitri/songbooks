@@ -165,7 +165,7 @@ document.getElementById('music-type-select').addEventListener('change', async (e
       <a href="/bands/{{.Band.ID}}/setlists">all set lists &rarr;</a>
     </div>
     {{if .NextGig}}
-    <a class="coming-up-card" href="/setlists/{{.NextGig.SetlistID}}/practice">
+    <a class="coming-up-card" href="/setlists/{{.NextGig.SetlistID}}">
       <div class="coming-up-date">
         <span class="month">{{.NextGig.Date.Format "Jan"}}</span>
         <span class="day">{{.NextGig.Date.Format "2"}}</span>
@@ -179,7 +179,7 @@ document.getElementById('music-type-select').addEventListener('change', async (e
     <div class="attention-list">
     {{range .Setlists}}
       {{if not (and $.NextGig (eq .ID $.NextGig.SetlistID))}}
-      <a class="attention-row" href="/setlists/{{.ID}}/practice">
+      <a class="attention-row" href="/setlists/{{.ID}}">
         <div class="attention-title">{{.Title}}</div>
       </a>
       {{end}}

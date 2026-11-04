@@ -1,0 +1,143 @@
+{{define "setlist-overview"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/setlists">{{template "icon-back"}} Set lists</a>
+  <h1>{{.Title}}</h1>
+  <nav class="song-nav">
+    <a class="icon-btn" href="/setlists/{{.SetlistID}}/export-setlist-page.pdf" title="print the running order — one page, for the music stand" download>print one-pager</a>
+    <a class="icon-btn" href="/setlists/{{.SetlistID}}/export.pdf" title="export the whole setlist (cover, running order, every song) as one PDF" download>export PDF</a>
+    {{if .CanEdit}}<button type="button" id="reorder-toggle" class="icon-btn">reorder</button>{{end}}
+    {{template "notif-bell"}}
+  </nav>
+</header>
+
+{{if or .Date .Venue}}
+<div class="gig-meta">
+  {{if .Date}}<span>{{.Date}}</span>{{end}}
+  {{if .Venue}}<span>{{.Venue}}</span>{{end}}
+</div>
+{{end}}
+
+<main class="index">
+  <nav class="band-tabs band-tabs-row">
+    <a href="/setlists/{{.SetlistID}}" class="active">Running order</a>
+    <a href="/setlists/{{.SetlistID}}/practice">Practice (chart)</a>
+    <a href="/setlists/{{.SetlistID}}/listening">Listening (lyrics)</a>
+    <a href="/setlists/{{.SetlistID}}/clicktrack">Metronome / click track</a>
+  </nav>
+
+  {{range $setIdx, $set := .Sets}}
+  <section class="gig-set" data-set-index="{{$setIdx}}">
+    <h2>{{$set.Label}}</h2>
+    <div class="gig-table" data-reorder-list>
+      {{range $rowIdx, $row := $set.Rows}}
+      <div class="gig-row setlist-overview-row" data-set-index="{{$setIdx}}" data-row-index="{{$rowIdx}}">
+        <span class="gig-num">{{$row.Num}}</span>
+        <a class="gig-title" href="/b/{{$row.Book}}/{{$row.Stem}}?setlist={{$.SetlistID}}">
+          {{$row.Title}}{{if $row.Note}}<small class="gig-note">{{$row.Note}}</small>{{end}}
+        </a>
+        <span class="gig-key">{{$row.Key}}</span>
+        <span class="gig-tempo">{{if $row.Tempo}}{{$row.Tempo}}{{end}}</span>
+        {{if $row.Reference}}<a class="icon-btn setlist-overview-play" href="{{$row.Reference}}" target="_blank" rel="noopener" title="play it — {{$row.Reference}}">&#9654;</a>{{end}}
+        <span class="setlist-overview-reorder-btns" hidden>
+          <button type="button" class="icon-btn" data-move="up" title="move up">&#9650;</button>
+          <button type="button" class="icon-btn" data-move="down" title="move down">&#9660;</button>
+        </span>
+      </div>
+      {{end}}
+    </div>
+  </section>
+  {{end}}
+</main>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+{{if .CanEdit}}
+<script>
+(function () {
+  const setlistID = {{.SetlistID}};
+  let version = {{.Version}};
+  const toggleBtn = document.getElementById('reorder-toggle');
+  let reordering = false;
+
+  function setRowButtonsVisible(visible) {
+    document.querySelectorAll('.setlist-overview-reorder-btns').forEach(el => { el.hidden = !visible; });
+  }
+
+  toggleBtn.addEventListener('click', () => {
+    reordering = !reordering;
+    toggleBtn.textContent = reordering ? 'done' : 'reorder';
+    toggleBtn.classList.toggle('active', reordering);
+    setRowButtonsVisible(reordering);
+  });
+
+  // Swaps this row with its up/down neighbor IN THE SAME SET (a reorder
+  // across sets is a bigger edit — add/remove the entry from each set —
+  // out of scope for a quick up/down nudge; use the Source/edit tools
+  // for that).
+  async function move(row, dir) {
+    const list = row.closest('[data-reorder-list]');
+    const rows = [...list.children];
+    const i = rows.indexOf(row);
+    const j = dir === 'up' ? i - 1 : i + 1;
+    if (j < 0 || j >= rows.length) return;
+    if (dir === 'up') list.insertBefore(row, rows[j]);
+    else list.insertBefore(rows[j], row);
+    await save();
+  }
+
+  async function save() {
+    // Re-fetch the full setlist JSON (not just this page's display rows,
+    // which only carry what gigRow needs) so the PUT carries every field
+    // (notes, variant ids) untouched — then reorder its entries to match
+    // the DOM's current order before sending it back.
+    const res = await fetch(`/api/setlists/${setlistID}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    document.querySelectorAll('.gig-set').forEach(setEl => {
+      const setIdx = parseInt(setEl.dataset.setIndex, 10);
+      const domRows = [...setEl.querySelectorAll('.setlist-overview-row')];
+      const apiSet = data.setlist.sets[setIdx];
+      if (!apiSet) return;
+      const reordered = domRows.map(r => apiSet.entries[parseInt(r.dataset.rowIndex, 10)]).filter(Boolean);
+      // Row indices in the DOM are now stale after a swap (they still
+      // point at the OLD position) — fine for this one read, since we
+      // rebuild apiSet.entries wholesale from the DOM's current order;
+      // re-render below gives every row fresh indices for the next move.
+      apiSet.entries = reordered;
+    });
+    const put = await fetch(`/api/setlists/${setlistID}`, {
+      method: 'PUT', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({version, setlist: data.setlist}),
+    });
+    if (put.ok) {
+      const putData = await put.json();
+      version = putData.version;
+      location.reload();
+    }
+  }
+
+  document.querySelectorAll('.setlist-overview-row').forEach(row => {
+    row.querySelectorAll('[data-move]').forEach(btn => {
+      btn.addEventListener('click', e => { e.preventDefault(); move(row, btn.dataset.move); });
+    });
+    // While reordering, a tap on the row shouldn't navigate to the song.
+    row.querySelector('.gig-title').addEventListener('click', e => { if (reordering) e.preventDefault(); });
+  });
+})();
+</script>
+{{end}}
+</body>
+</html>
+{{end}}

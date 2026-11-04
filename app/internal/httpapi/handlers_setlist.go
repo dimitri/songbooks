@@ -160,8 +160,8 @@ func (s *Server) handleSetlistEditPage(w http.ResponseWriter, r *http.Request) {
 // at before tapping a song: running number, title, key, tempo. Deliberately
 // the same four columns as the band's own LaTeX titlepage set-list tables.
 type gigRow struct {
-	Num                                 int
-	Book, Stem, Title, Tempo, Key, Note string
+	Num                                            int
+	Book, Stem, Title, Tempo, Key, Note, Reference string
 }
 type gigSet struct {
 	Label string
@@ -203,6 +203,78 @@ func (s *Server) handleSetlistGigPage(w http.ResponseWriter, r *http.Request) {
 		"Me": person, "Book": book, "Stem": stem,
 		"Title": orDefault(l.Get("title"), stem), "Date": l.Get("date"), "Venue": l.Get("venue"),
 		"Sets": sets, "SetlistRef": book + "/" + stem,
+	})
+}
+
+// handleSetlistOverview is GET /setlists/{id} — the setlist-by-numeric-ID
+// family's own "view the actual set list" page: band.html's own setlist
+// links used to point straight at /setlists/{id}/practice, which jumps
+// into the FIRST song's full chart, not a list — a direct report ("the
+// set list link should link to a view of the actual set list, not to the
+// first song in it"). This is the missing middle page: the running order
+// (reusing gigRow/gigSet, same fields the read-only gig page already
+// shows), a print link to the existing one-pager PDF export, a Reorder
+// toggle (client-side, saving through the existing PUT /api/setlists/{id}
+// entries array), and links into the practice/listening/clicktrack views.
+// A song's own reference: URL (if set) becomes that row's "play it" link.
+func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	person := personFromContext(r)
+	canView, err := s.store.CanViewSetlistByID(r.Context(), person.ID, id)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !canView {
+		httpError(w, http.StatusForbidden, "no view rights on this setlist")
+		return
+	}
+	l, _, version, err := s.store.LoadSetlistByID(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	canEdit, _ := s.store.CanEditSetlistByID(r.Context(), person.ID, id)
+	var sets []gigSet
+	n := 0
+	for _, set := range l.Sets {
+		var rows []gigRow
+		for _, e := range set.Entries {
+			book, stem := e.Book, e.Stem
+			if e.IsVariant() {
+				v, err := s.store.GetVariant(r.Context(), e.VariantID)
+				if err != nil {
+					continue
+				}
+				book, stem = v.Book, v.Stem
+			}
+			if book == "" || stem == "" {
+				continue
+			}
+			n++
+			title, tempo, key, reference := stem, "", "", ""
+			if sg, _, err := s.store.LoadSong(book, stem); err == nil {
+				title = orDefault(sg.Get("title"), stem)
+				tempo = sg.Get("tempo")
+				key = sg.Get("key")
+				reference = sg.Get("reference")
+			}
+			rows = append(rows, gigRow{Num: n, Book: book, Stem: stem, Title: title, Tempo: tempo, Key: key, Note: e.Note, Reference: reference})
+		}
+		sets = append(sets, gigSet{Label: set.Label, Rows: rows})
+	}
+	s.render(w, "setlist-overview", map[string]any{
+		"Me": person, "SetlistID": id, "Version": version, "CanEdit": canEdit,
+		"Title": orDefault(l.Get("title"), "Setlist"), "Date": l.Get("date"), "Venue": l.Get("venue"),
+		"Sets": sets,
 	})
 }
 
