@@ -136,7 +136,7 @@ DECLARE
   proj RECORD;
   grp JSONB;
   new_groups JSONB;
-  stem TEXT;
+  v_stem TEXT;
   vid BIGINT;
   var_ids JSONB;
   sb_id BIGINT;
@@ -157,8 +157,8 @@ BEGIN
     new_groups := '[]'::jsonb;
     FOR grp IN SELECT * FROM jsonb_array_elements(proj.song_order) LOOP
       var_ids := '[]'::jsonb;
-      FOR stem IN SELECT * FROM jsonb_array_elements_text(grp->'Stems') LOOP
-        SELECT s.id INTO vid FROM songs s WHERE s.project_id = proj.id AND s.stem = stem;
+      FOR v_stem IN SELECT * FROM jsonb_array_elements_text(grp->'Stems') LOOP
+        SELECT s.id INTO vid FROM songs s WHERE s.project_id = proj.id AND s.stem = v_stem;
         IF vid IS NOT NULL THEN
           var_ids := var_ids || to_jsonb(vid);
         END IF;
