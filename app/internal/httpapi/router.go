@@ -286,6 +286,7 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// Group invites (roster link, multi-use): instructor-only to
 	// create/close, since schools (unlike bands) have a real hierarchy.
 	mux.HandleFunc("POST /api/schools/{id}/group-invites", s.requireSchoolInstructor(s.handleCreateSchoolGroupInvite))
+	mux.HandleFunc("POST /api/schools/{id}/community-link", s.requireSchoolInstructor(s.handleCreateCommunityLink))
 	mux.HandleFunc("POST /api/schools/{id}/group-invites/{groupInviteID}/close", s.requireSchoolInstructor(s.handleCloseSchoolGroupInvite))
 	mux.HandleFunc("POST /api/schools/{id}/members/{personID}/role", s.requireSchoolInstructor(s.handleSetSchoolMemberRole))
 	mux.HandleFunc("DELETE /api/schools/{id}/members/{personID}", s.requireSchoolInstructor(s.handleRemoveSchoolMember))

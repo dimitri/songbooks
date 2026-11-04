@@ -319,12 +319,52 @@ func (s *Server) handleCreateSchoolGroupInvite(w http.ResponseWriter, r *http.Re
 		slots = append(slots, store.GroupInviteSlotInput{DisplayName: sl.DisplayName})
 	}
 	actor := personFromContext(r)
-	groupInviteID, token, err := s.store.CreateGroupInvite(r.Context(), "school", schoolID, actor.ID, slots)
+	groupInviteID, token, err := s.store.CreateGroupInvite(r.Context(), "school", schoolID, actor.ID, slots, "")
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": groupInviteID, "url": "/join/" + token})
+}
+
+// handleCreateCommunityLink mints a single, reusable, open-join link for
+// this community (school) — no pre-typed roster, unlike
+// handleCreateSchoolGroupInvite's slots-based one: anyone who follows it
+// creates an account (or logs into an existing one) and immediately gets
+// the role fixed on the link itself at creation time, "staff" or
+// "member" — the user's own explicit design choice for Community over
+// the slots-per-person model bands/schools already have. Internally this
+// is still a GroupInvite with zero slots (see ClaimGroupInviteUnlisted),
+// just created without ever offering a roster form.
+func (s *Server) handleCreateCommunityLink(w http.ResponseWriter, r *http.Request) {
+	schoolID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		Role string `json:"role"` // "staff" or "member"
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	role := "student"
+	if req.Role == "staff" {
+		role = "instructor"
+	}
+	actor := personFromContext(r)
+	isStaff, err := s.store.IsCurrentSchoolInstructor(r.Context(), schoolID, actor.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !isStaff {
+		httpError(w, http.StatusForbidden, "must be staff of this community")
+		return
+	}
+	_, token, err := s.store.CreateGroupInvite(r.Context(), "school", schoolID, actor.ID, nil, role)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"url": "/join/" + token, "role": req.Role})
 }
 
 // handleCloseSchoolGroupInvite explicitly closes a still-open school

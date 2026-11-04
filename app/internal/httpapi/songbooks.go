@@ -123,8 +123,8 @@ func (s *Server) handleRenameSongbook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := personFromContext(r)
-	if ok, err := s.store.CanAccessSongbook(r.Context(), p.ID, id); err != nil || !ok {
-		httpError(w, http.StatusForbidden, "no access to this songbook")
+	if ok, err := s.store.CanEditSongbook(r.Context(), p.ID, id); err != nil || !ok {
+		httpError(w, http.StatusForbidden, "no edit access to this songbook")
 		return
 	}
 	var req struct {
@@ -152,8 +152,8 @@ func (s *Server) handleDeleteSongbook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := personFromContext(r)
-	if ok, err := s.store.CanAccessSongbook(r.Context(), p.ID, id); err != nil || !ok {
-		httpError(w, http.StatusForbidden, "no access to this songbook")
+	if ok, err := s.store.CanEditSongbook(r.Context(), p.ID, id); err != nil || !ok {
+		httpError(w, http.StatusForbidden, "no edit access to this songbook")
 		return
 	}
 	if err := s.store.DeleteSongbook(r.Context(), id); err != nil {
@@ -172,8 +172,8 @@ func (s *Server) handleSaveSongbookOrder(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	p := personFromContext(r)
-	if ok, err := s.store.CanAccessSongbook(r.Context(), p.ID, id); err != nil || !ok {
-		httpError(w, http.StatusForbidden, "no access to this songbook")
+	if ok, err := s.store.CanEditSongbook(r.Context(), p.ID, id); err != nil || !ok {
+		httpError(w, http.StatusForbidden, "no edit access to this songbook")
 		return
 	}
 	var req struct {
@@ -208,8 +208,8 @@ func (s *Server) handleCreateSongInSongbook(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	p := personFromContext(r)
-	if ok, err := s.store.CanAccessSongbook(r.Context(), p.ID, id); err != nil || !ok {
-		httpError(w, http.StatusForbidden, "no access to this songbook")
+	if ok, err := s.store.CanEditSongbook(r.Context(), p.ID, id); err != nil || !ok {
+		httpError(w, http.StatusForbidden, "no edit access to this songbook")
 		return
 	}
 	sb, err := s.store.GetSongbook(r.Context(), id)
@@ -268,8 +268,8 @@ func (s *Server) handleAddSongbookEntry(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	p := personFromContext(r)
-	if ok, err := s.store.CanAccessSongbook(r.Context(), p.ID, id); err != nil || !ok {
-		httpError(w, http.StatusForbidden, "no access to this songbook")
+	if ok, err := s.store.CanEditSongbook(r.Context(), p.ID, id); err != nil || !ok {
+		httpError(w, http.StatusForbidden, "no edit access to this songbook")
 		return
 	}
 	var req struct {
@@ -304,8 +304,8 @@ func (s *Server) handleRemoveSongbookEntry(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	p := personFromContext(r)
-	if ok, err := s.store.CanAccessSongbook(r.Context(), p.ID, id); err != nil || !ok {
-		httpError(w, http.StatusForbidden, "no access to this songbook")
+	if ok, err := s.store.CanEditSongbook(r.Context(), p.ID, id); err != nil || !ok {
+		httpError(w, http.StatusForbidden, "no edit access to this songbook")
 		return
 	}
 	if err := s.store.RemoveFromSongbook(r.Context(), id, variantID); err != nil {

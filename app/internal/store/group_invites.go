@@ -24,6 +24,15 @@ type GroupInvite struct {
 	CreatedBy  int64
 	CreatedAt  time.Time
 	ClosedAt   *time.Time
+	// DefaultStatus is the fixed role every claim through this invite
+	// grants — used for a "community" (school-target) link, where the
+	// role is chosen once when the link is minted (a staff-granting link
+	// vs. a member-granting link) rather than per named roster slot the
+	// way a band's group invite works. "" preserves every pre-existing
+	// invite's exact old behavior: a band's unlisted claim still grants
+	// 'guest', a school's still grants 'student' — see
+	// grantGroupInviteMembershipTx.
+	DefaultStatus string
 }
 
 // GroupInviteSlot is one pre-typed expected person on a group invite's
@@ -70,7 +79,13 @@ func normalizeSlotStatus(status string) string {
 // CreateGroupInvite makes a brand-new, reusable group invite for
 // targetKind ("band" or "school") + targetID, with one group_invite_slots
 // row per non-blank entry in slots. Returns the invite's token.
-func (st *Store) CreateGroupInvite(ctx context.Context, targetKind string, targetID, createdBy int64, slots []GroupInviteSlotInput) (groupInviteID int64, token string, err error) {
+// defaultStatus fixes the role every claim through this invite grants
+// (used for a community/school link minted as either "staff" or
+// "member" — see GroupInvite.DefaultStatus's own doc comment); ""
+// preserves the pre-existing per-slot/hardcoded behavior exactly, for
+// every other caller (a band's named roster link, or a school link
+// created before this existed).
+func (st *Store) CreateGroupInvite(ctx context.Context, targetKind string, targetID, createdBy int64, slots []GroupInviteSlotInput, defaultStatus string) (groupInviteID int64, token string, err error) {
 	if targetKind != "band" && targetKind != "school" {
 		return 0, "", fmt.Errorf("invalid target kind %q", targetKind)
 	}
@@ -91,10 +106,14 @@ func (st *Store) CreateGroupInvite(ctx context.Context, targetKind string, targe
 	} else {
 		schoolID = &targetID
 	}
+	var defaultStatusArg *string
+	if defaultStatus != "" {
+		defaultStatusArg = &defaultStatus
+	}
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO group_invites (token, target_kind, band_id, school_id, created_by_person_id)
-		VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-		token, targetKind, bandID, schoolID, nullableID(createdBy)).Scan(&groupInviteID); err != nil {
+		INSERT INTO group_invites (token, target_kind, band_id, school_id, created_by_person_id, default_status)
+		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+		token, targetKind, bandID, schoolID, nullableID(createdBy), defaultStatusArg).Scan(&groupInviteID); err != nil {
 		return 0, "", err
 	}
 
@@ -129,7 +148,7 @@ func (st *Store) CreateGroupInvite(ctx context.Context, targetKind string, targe
 // name and full slot list, or ErrNotFound if the token is unknown.
 func (st *Store) GetGroupInviteByToken(ctx context.Context, token string) (*GroupInviteView, error) {
 	gi, targetName, err := st.scanGroupInvite(ctx, st.db, `
-		SELECT gi.id, gi.token, gi.target_kind, gi.band_id, gi.school_id, gi.created_by_person_id, gi.created_at, gi.closed_at,
+		SELECT gi.id, gi.token, gi.target_kind, gi.band_id, gi.school_id, gi.created_by_person_id, gi.created_at, gi.closed_at, coalesce(gi.default_status, ''),
 		       coalesce(b.name, sc.name, '')
 		FROM group_invites gi
 		LEFT JOIN bands b ON b.id = gi.band_id
@@ -158,7 +177,7 @@ func (st *Store) ListGroupInvitesForTarget(ctx context.Context, targetKind strin
 		col = "school_id"
 	}
 	rows, err := st.db.Query(ctx, `
-		SELECT id, token, target_kind, band_id, school_id, created_by_person_id, created_at, closed_at
+		SELECT id, token, target_kind, band_id, school_id, created_by_person_id, created_at, closed_at, coalesce(default_status, '')
 		FROM group_invites WHERE `+col+` = $1
 		ORDER BY (closed_at IS NULL) DESC, created_at DESC`, targetID)
 	if err != nil {
@@ -170,7 +189,7 @@ func (st *Store) ListGroupInvitesForTarget(ctx context.Context, targetKind strin
 		var gi GroupInvite
 		var bandID, schoolID, createdBy sql.NullInt64
 		var closedAt sql.NullTime
-		if err := rows.Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &schoolID, &createdBy, &gi.CreatedAt, &closedAt); err != nil {
+		if err := rows.Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &schoolID, &createdBy, &gi.CreatedAt, &closedAt, &gi.DefaultStatus); err != nil {
 			return nil, err
 		}
 		gi.BandID, gi.SchoolID, gi.CreatedBy = bandID.Int64, schoolID.Int64, createdBy.Int64
@@ -200,7 +219,7 @@ func (st *Store) scanGroupInvite(ctx context.Context, q dbtx, query string, arg 
 	var closedAt sql.NullTime
 	var targetName string
 	err := q.QueryRow(ctx, query, arg).
-		Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &schoolID, &createdBy, &gi.CreatedAt, &closedAt, &targetName)
+		Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &schoolID, &createdBy, &gi.CreatedAt, &closedAt, &gi.DefaultStatus, &targetName)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, "", fmt.Errorf("no such group invite: %w", ErrNotFound)
 	}
@@ -255,7 +274,7 @@ func (st *Store) listGroupInviteSlots(ctx context.Context, q dbtx, groupInviteID
 // joins until a person explicitly closes it.
 func (st *Store) lockOpenGroupInviteTx(ctx context.Context, tx pgx.Tx, token string) (*GroupInvite, error) {
 	gi, _, err := st.scanGroupInvite(ctx, tx, `
-		SELECT id, token, target_kind, band_id, school_id, created_by_person_id, created_at, closed_at, ''
+		SELECT id, token, target_kind, band_id, school_id, created_by_person_id, created_at, closed_at, coalesce(default_status, ''), ''
 		FROM group_invites WHERE token = $1 FOR UPDATE`, token)
 	if err != nil {
 		return nil, err
@@ -295,10 +314,14 @@ func (st *Store) grantGroupInviteMembershipTx(ctx context.Context, tx pgx.Tx, gi
 		if err != nil {
 			return "", err
 		}
+		role := gi.DefaultStatus
+		if role != "instructor" && role != "student" {
+			role = "student" // every pre-existing school group invite's exact old behavior
+		}
 		if !already {
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO school_members (school_id, person_id, role, invited_by_person_id)
-				VALUES ($1, $2, 'student', $3)`, gi.SchoolID, personID, nullableID(gi.CreatedBy)); err != nil {
+				VALUES ($1, $2, $3, $4)`, gi.SchoolID, personID, role, nullableID(gi.CreatedBy)); err != nil {
 				return "", err
 			}
 		}

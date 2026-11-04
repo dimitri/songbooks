@@ -217,10 +217,11 @@ func setlistMetaToJSON(m *store.SetlistMeta) jsonSetlistMeta {
 // on someone else's behalf").
 func (s *Server) handleCreateSetlist(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Scope  string `json:"scope"`
-		Title  string `json:"title"`
-		Notes  string `json:"notes"`
-		BandID int64  `json:"band_id"`
+		Scope    string `json:"scope"`
+		Title    string `json:"title"`
+		Notes    string `json:"notes"`
+		BandID   int64  `json:"band_id"`
+		SchoolID int64  `json:"school_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -228,7 +229,7 @@ func (s *Server) handleCreateSetlist(w http.ResponseWriter, r *http.Request) {
 	}
 	person := personFromContext(r)
 
-	var ownerPersonID, ownerBandID *int64
+	var ownerPersonID, ownerBandID, ownerSchoolID *int64
 	switch req.Scope {
 	case "person":
 		ownerPersonID = &person.ID
@@ -247,12 +248,27 @@ func (s *Server) handleCreateSetlist(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		ownerBandID = &req.BandID
+	case "school":
+		if req.SchoolID == 0 {
+			httpError(w, http.StatusBadRequest, "school_id is required for scope=school")
+			return
+		}
+		isStaff, err := s.store.IsCurrentSchoolInstructor(r.Context(), req.SchoolID, person.ID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !isStaff {
+			httpError(w, http.StatusForbidden, "must be staff of this community to create its setlists")
+			return
+		}
+		ownerSchoolID = &req.SchoolID
 	default:
-		httpError(w, http.StatusBadRequest, `scope must be "person" or "band"`)
+		httpError(w, http.StatusBadRequest, `scope must be "person", "band", or "school"`)
 		return
 	}
 
-	id, err := s.store.CreateSetlist(r.Context(), req.Scope, req.Title, req.Notes, ownerPersonID, ownerBandID, person.ID)
+	id, err := s.store.CreateSetlist(r.Context(), req.Scope, req.Title, req.Notes, ownerPersonID, ownerBandID, ownerSchoolID, person.ID)
 	if err != nil {
 		httpError(w, http.StatusBadRequest, err.Error())
 		return

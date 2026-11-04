@@ -26,11 +26,12 @@ import (
 // and is the only one kept — see migration 0016.
 type SetlistMeta struct {
 	ID            int64
-	Scope         string // "person" or "band"
+	Scope         string // "person", "band", or "school" (community)
 	Notes         string
 	Title         string
 	OwnerPersonID *int64
 	OwnerBandID   *int64
+	OwnerSchoolID *int64
 	Version       int
 	CreatedAt     time.Time
 }
@@ -59,10 +60,10 @@ func (st *Store) GetSetlistMeta(ctx context.Context, id int64) (*SetlistMeta, er
 	var m SetlistMeta
 	err := st.db.QueryRow(ctx, `
 		SELECT sl.id, sl.scope::text, sl.notes, sl.title,
-		       sl.owner_person_id, sl.owner_band_id, sl.version, sl.created_at
+		       sl.owner_person_id, sl.owner_band_id, sl.owner_school_id, sl.version, sl.created_at
 		FROM setlists sl WHERE sl.id = $1`, id).
 		Scan(&m.ID, &m.Scope, &m.Notes, &m.Title,
-			&m.OwnerPersonID, &m.OwnerBandID, &m.Version, &m.CreatedAt)
+			&m.OwnerPersonID, &m.OwnerBandID, &m.OwnerSchoolID, &m.Version, &m.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such setlist %d: %w", id, ErrNotFound)
 	}
@@ -103,6 +104,11 @@ func (st *Store) CanViewSetlistByID(ctx context.Context, personID, setlistID int
 			return false, nil
 		}
 		return st.IsCurrentBandMember(ctx, *meta.OwnerBandID, personID)
+	case "school":
+		if meta.OwnerSchoolID == nil {
+			return false, nil
+		}
+		return isCurrentSchoolMember(ctx, st.db, *meta.OwnerSchoolID, personID, "")
 	default:
 		return false, nil
 	}
@@ -111,7 +117,10 @@ func (st *Store) CanViewSetlistByID(ctx context.Context, personID, setlistID int
 // CanEditSetlistByID reports whether personID may edit setlistID —
 // person scope: the owner only (no sharing — it's their personal
 // setlist); band scope: any current band member (same open-
-// collaboration rule as a band's songbook).
+// collaboration rule as a band's songbook); school(community) scope:
+// staff only (the existing 'instructor' role) — a read-only community
+// member can view and use the community's setlists but not edit them,
+// same split the user asked for on membership generally.
 func (st *Store) CanEditSetlistByID(ctx context.Context, personID, setlistID int64) (bool, error) {
 	meta, err := st.GetSetlistMeta(ctx, setlistID)
 	if err != nil {
@@ -125,6 +134,11 @@ func (st *Store) CanEditSetlistByID(ctx context.Context, personID, setlistID int
 			return false, nil
 		}
 		return st.IsCurrentBandMember(ctx, *meta.OwnerBandID, personID)
+	case "school":
+		if meta.OwnerSchoolID == nil {
+			return false, nil
+		}
+		return isCurrentSchoolMember(ctx, st.db, *meta.OwnerSchoolID, personID, "instructor")
 	default:
 		return false, nil
 	}
@@ -133,8 +147,8 @@ func (st *Store) CanEditSetlistByID(ctx context.Context, personID, setlistID int
 // CreateSetlist creates a new person- or band-scoped setlist. Exactly
 // one of ownerPersonID/ownerBandID must be set, matching scope. Returns
 // the new setlist's id.
-func (st *Store) CreateSetlist(ctx context.Context, scope, title, notes string, ownerPersonID, ownerBandID *int64, actorPersonID int64) (int64, error) {
-	if scope != "person" && scope != "band" {
+func (st *Store) CreateSetlist(ctx context.Context, scope, title, notes string, ownerPersonID, ownerBandID, ownerSchoolID *int64, actorPersonID int64) (int64, error) {
+	if scope != "person" && scope != "band" && scope != "school" {
 		return 0, fmt.Errorf("invalid setlist scope %q for CreateSetlist", scope)
 	}
 	if scope == "person" && ownerPersonID == nil {
@@ -142,6 +156,9 @@ func (st *Store) CreateSetlist(ctx context.Context, scope, title, notes string, 
 	}
 	if scope == "band" && ownerBandID == nil {
 		return 0, fmt.Errorf("owner_band_id is required for a band-scoped setlist")
+	}
+	if scope == "school" && ownerSchoolID == nil {
+		return 0, fmt.Errorf("owner_school_id is required for a school(community)-scoped setlist")
 	}
 
 	tx, err := st.db.Begin(ctx)
@@ -152,10 +169,10 @@ func (st *Store) CreateSetlist(ctx context.Context, scope, title, notes string, 
 
 	var id int64
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO setlists (title, body, scope, owner_person_id, owner_band_id, notes)
-		VALUES ($1, '', $2, $3, $4, $5)
+		INSERT INTO setlists (title, body, scope, owner_person_id, owner_band_id, owner_school_id, notes)
+		VALUES ($1, '', $2, $3, $4, $5, $6)
 		RETURNING id`,
-		title, scope, ownerPersonID, ownerBandID, notes).Scan(&id); err != nil {
+		title, scope, ownerPersonID, ownerBandID, ownerSchoolID, notes).Scan(&id); err != nil {
 		return 0, err
 	}
 
@@ -251,9 +268,15 @@ func (st *Store) ListSetlistsForBand(ctx context.Context, bandID int64) ([]Setli
 	return st.listSetlistsByOwner(ctx, `owner_band_id = $1`, bandID)
 }
 
+// ListSetlistsForSchool lists every school(community)-scoped setlist
+// schoolID owns, most recently created first.
+func (st *Store) ListSetlistsForSchool(ctx context.Context, schoolID int64) ([]SetlistMeta, error) {
+	return st.listSetlistsByOwner(ctx, `owner_school_id = $1`, schoolID)
+}
+
 func (st *Store) listSetlistsByOwner(ctx context.Context, whereClause string, ownerID int64) ([]SetlistMeta, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT id, scope::text, notes, title, owner_person_id, owner_band_id, version, created_at
+		SELECT id, scope::text, notes, title, owner_person_id, owner_band_id, owner_school_id, version, created_at
 		FROM setlists WHERE `+whereClause+` ORDER BY created_at DESC`, ownerID)
 	if err != nil {
 		return nil, err
@@ -263,7 +286,7 @@ func (st *Store) listSetlistsByOwner(ctx context.Context, whereClause string, ow
 	for rows.Next() {
 		var m SetlistMeta
 		if err := rows.Scan(&m.ID, &m.Scope, &m.Notes, &m.Title,
-			&m.OwnerPersonID, &m.OwnerBandID, &m.Version, &m.CreatedAt); err != nil {
+			&m.OwnerPersonID, &m.OwnerBandID, &m.OwnerSchoolID, &m.Version, &m.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, m)

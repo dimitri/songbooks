@@ -501,7 +501,7 @@ func (s *Server) handleCreateBandGroupInvite(w http.ResponseWriter, r *http.Requ
 		slots = append(slots, store.GroupInviteSlotInput{DisplayName: sl.DisplayName, Instrument: sl.Instrument, Status: sl.Status})
 	}
 	actor := personFromContext(r)
-	groupInviteID, token, err := s.store.CreateGroupInvite(r.Context(), "band", bandID, actor.ID, slots)
+	groupInviteID, token, err := s.store.CreateGroupInvite(r.Context(), "band", bandID, actor.ID, slots, "")
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return

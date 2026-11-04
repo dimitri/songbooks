@@ -5,9 +5,12 @@ import (
 	"time"
 )
 
-// SchoolCatalogEntry is one row of a school's repertoire — a pointer
-// (not a copy) from a school to a variant, same shape BandCatalogEntry
-// uses for bands.
+// SchoolCatalogEntry is one row of a school(community)'s DEFAULT
+// songbook — a pointer (not a copy) from a school to a variant. Thin
+// wrapper over the shared songbooks/songbook_entries model (migration
+// 0042), same pattern as BandCatalogEntry/ListBandCatalog — a community
+// can also have additional named songbooks beyond this default one; see
+// ListSongbooks for those.
 type SchoolCatalogEntry struct {
 	CatalogVariant
 	EntryID         int64
@@ -16,59 +19,40 @@ type SchoolCatalogEntry struct {
 	AddedByUsername string
 }
 
-// AddSchoolCatalogEntry points schoolID's repertoire at variantID — a
-// pointer, not a copy. addedByPersonID (0 = unknown) is stored as
-// added_by_person_id. A no-op (not an error) if the school already has
-// this variant — same shape as AddBandCatalogEntry.
+// AddSchoolCatalogEntry points schoolID's default songbook at variantID —
+// a pointer, not a copy. A no-op if the school already has this variant.
 func (st *Store) AddSchoolCatalogEntry(ctx context.Context, schoolID, variantID, addedByPersonID int64) error {
-	tx, err := st.db.Begin(ctx)
+	sbID, err := st.GetDefaultSongbook(ctx, "school", schoolID)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
-
-	var already bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM school_catalog_entries WHERE school_id = $1 AND variant_id = $2)`,
-		schoolID, variantID).Scan(&already); err != nil {
-		return err
-	}
-	if already {
-		return tx.Commit(ctx)
-	}
-
-	var addedBy *int64
-	if addedByPersonID != 0 {
-		addedBy = &addedByPersonID
-	}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO school_catalog_entries (school_id, variant_id, added_by_person_id)
-		VALUES ($1, $2, $3)`, schoolID, variantID, addedBy); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	return st.AddToSongbook(ctx, sbID, variantID, addedByPersonID)
 }
 
 // RemoveSchoolCatalogEntry drops schoolID's pointer to variantID, if any.
 func (st *Store) RemoveSchoolCatalogEntry(ctx context.Context, schoolID, variantID int64) error {
-	tag, err := st.db.Exec(ctx, `DELETE FROM school_catalog_entries WHERE school_id = $1 AND variant_id = $2`, schoolID, variantID)
+	sbID, err := st.GetDefaultSongbook(ctx, "school", schoolID)
 	if err != nil {
 		return err
 	}
-	_ = tag // already gone is a no-op, not an error — same as RemoveBandCatalogEntry
-	return nil
+	return st.RemoveFromSongbook(ctx, sbID, variantID)
 }
 
-// ListSchoolCatalog lists schoolID's repertoire, most recently added
-// first.
+// ListSchoolCatalog lists schoolID's default songbook, most recently
+// added first.
 func (st *Store) ListSchoolCatalog(ctx context.Context, schoolID int64) ([]SchoolCatalogEntry, error) {
+	sbID, err := st.GetDefaultSongbook(ctx, "school", schoolID)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := st.db.Query(ctx, `
-		SELECT c.id, c.added_at, c.added_by_person_id, coalesce(p.username, ''),
+		SELECT se.id, se.added_at, se.added_by_person_id, coalesce(p.username, ''),
 		       s.id, s.work_id, s.title, s.artist, s.visibility::text, s.owner_person_id, s.forked_from_id
-		FROM school_catalog_entries c
-		JOIN songs s ON s.id = c.variant_id
-		LEFT JOIN people p ON p.id = c.added_by_person_id
-		WHERE c.school_id = $1
-		ORDER BY c.added_at DESC`, schoolID)
+		FROM songbook_entries se
+		JOIN songs s ON s.id = se.variant_id
+		LEFT JOIN people p ON p.id = se.added_by_person_id
+		WHERE se.songbook_id = $1
+		ORDER BY se.added_at DESC`, sbID)
 	if err != nil {
 		return nil, err
 	}

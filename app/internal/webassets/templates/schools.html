@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>My schools — Songbooks</title>
+<title>My communities — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,10 +13,11 @@
 <div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
-  <h1>My schools</h1>
+  <h1>My communities</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
+  <p class="hint">A community is a named group with read-write staff and read-only members, sharing a set of songbooks and setlists — a school, a choir, any group that isn't quite a band.</p>
   <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>Name</th><th></th></tr></thead>
     <tbody>
@@ -26,18 +27,18 @@
         <td><a href="/schools/{{.ID}}/admin">admin</a></td>
       </tr>
     {{else}}
-      <tr><td colspan="2" class="hint">You're not in any schools yet.</td></tr>
+      <tr><td colspan="2" class="hint">You're not in any communities yet.</td></tr>
     {{end}}
     </tbody>
   </table></div>
 
   <div class="card" style="max-width:420px">
-    <h2>Start a school</h2>
-    <p class="hint">You'll be the first instructor.</p>
+    <h2>Start a community</h2>
+    <p class="hint">You'll be the first staff member.</p>
     <p>
       <label>Name <input type="text" id="new-school-name" placeholder="e.g. Riverside Music School"></label>
     </p>
-    <button type="button" id="create-school-btn">Create school</button>
+    <button type="button" id="create-school-btn">Create community</button>
     <p id="create-school-result" class="hint"></p>
   </div>
 </main>
@@ -53,7 +54,7 @@ document.getElementById('create-school-btn').addEventListener('click', async () 
   if (res.ok) {
     location.href = `/schools/${data.id}/admin`;
   } else {
-    document.getElementById('create-school-result').textContent = data.error || 'failed to create school';
+    document.getElementById('create-school-result').textContent = data.error || 'failed to create community';
   }
 });
 </script>
