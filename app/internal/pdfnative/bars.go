@@ -33,8 +33,8 @@ func (c *canvas) barRow(measures []song.Measure, size float64) {
 	if len(measures) == 0 {
 		return
 	}
-	chordH := size * 1.3
-	ruleGap := size * 0.55
+	chordH := size * 1.4
+	ruleGap := size * 0.65
 	rowH := chordH + ruleGap
 	c.ensureSpace(rowH + 6)
 
@@ -54,16 +54,28 @@ func (c *canvas) barRow(measures []song.Measure, size float64) {
 	// a second printed row silently prints nothing rather than guessing
 	// — an acceptable, rare edge case for a print layout, not worth the
 	// extra plumbing a cross-row canvas-level variable would need.
+	// A thin cap line above the row and a bolder baseline below it frame
+	// the row as an actual staff strip — the earlier version hung chords
+	// above one faint 0.7pt rule with no top edge and no closing barline
+	// at either end, which read as a loose row of ticks rather than a
+	// measure grid a musician's eye can lock onto while playing.
+	c.line(x0, barTop, x0+c.colW, barTop, c.th.line, 0.6)
+	c.line(x0, barTop, x0, ruleY, c.th.line, 1.1)
+	c.line(x0+c.colW, barTop, x0+c.colW, ruleY, c.th.line, 1.1)
+
 	pendingRepeatCount := 0
 	for i, m := range measures {
 		bx := x0 + float64(i)*boxW
 
-		// A hairline divider between bars — not a box, just the one edge
-		// that actually separates two measures (the row's own left/right
-		// margins already bound the row itself, so the first bar needs no
-		// line on its own left and the last none on its right).
+		// A divider between bars — not a box, just the one edge that
+		// actually separates two measures (the row's own left/right
+		// margins already bound the row itself via the framing barlines
+		// just above, so the first bar needs no line on its own left and
+		// the last none on its right). Weighted a notch heavier than the
+		// original 0.5pt hairline — visible as a real measure boundary at
+		// a glance, not just on close inspection.
 		if i > 0 {
-			c.line(bx, barTop, bx, ruleY, c.th.line, 0.5)
+			c.line(bx, barTop, bx, ruleY, c.th.line, 0.7)
 		}
 
 		// Repeat barline: a thin stroke next to the music, a heavier one
@@ -142,7 +154,7 @@ func (c *canvas) barRow(measures []song.Measure, size float64) {
 			c.drawChordSymbol(startX+float64(si)*slotW, baseline, label, size*0.95, c.th.chord)
 		}
 	}
-	c.line(x0, ruleY, x0+c.colW, ruleY, c.th.line, 0.7)
+	c.line(x0, ruleY, x0+c.colW, ruleY, c.th.line, 1.3)
 	c.y = ruleY + 6
 }
 
@@ -269,6 +281,15 @@ func (c *canvas) measureSection(sec song.Section, bodySize float64, mode pdf.Mod
 			c.barRow(sec.Measures[start:end], bodySize)
 			start = end
 			lineIdx++
+		}
+		if mode != pdf.ModeJazz && len(sec.Lyrics) > 0 {
+			// A beat more air between the grid's own closing baseline
+			// and the lyric block right under it — without this they
+			// visually fused into one run-on block (the grid's last
+			// rule sat only 6pt above the first lyric line's own
+			// baseline), blurring where the chart ends and the words
+			// begin.
+			c.y += bodySize * 0.35
 		}
 	}
 	if mode != pdf.ModeJazz {
