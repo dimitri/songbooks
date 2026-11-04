@@ -1607,6 +1607,7 @@ const ICONS = {
     }
 
     let importSourceURL = '';
+    let importMeta = {}; // { title, artist, capo } from the fetch response, for applyBtn's header merge
 
     function showStep(name) {
       Object.entries(steps).forEach(([k, el]) => { if (el) el.hidden = k !== name; });
@@ -1631,6 +1632,7 @@ const ICONS = {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'search failed');
         importSourceURL = data.url;
+        importMeta = { title: data.title, artist: data.artist, capo: data.capo };
         urlInput.value = data.url;
         reviewText.value = data.text;
         reviewHint.textContent = `From ${data.url} — ${data.confidence}.`;
@@ -1654,6 +1656,7 @@ const ICONS = {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'fetch failed');
         importSourceURL = url;
+        importMeta = { title: data.title, artist: data.artist, capo: data.capo };
         reviewText.value = data.text;
         reviewHint.textContent = `From ${url} — pasted manually, not cross-checked.`;
         applyStatus.textContent = ''; applyStatus.className = 'hint';
@@ -1664,14 +1667,66 @@ const ICONS = {
         fetchBtn.disabled = false;
       }
     });
+    // A header field counts as "already set" only if it has a real
+    // value — an empty "title:" line (the common case right after
+    // "+ create" quick-adds a song) must still get filled in, not be
+    // treated as already-present and skipped.
+    function hasHeaderField(key) {
+      return new RegExp(`^${key}:\\s*\\S`, 'm').test(rawTextarea.value);
+    }
+    // Inserts any of meta.{title,artist,capo} that aren't already set
+    // for real, IN PLACE at the top of the existing header block (the
+    // run of key:value lines before the first [Section] — empty if
+    // there isn't one yet) — never by replacing/reordering the whole
+    // document. An earlier version of this rebuilt the whole textarea
+    // whenever ANY field was missing, which, for a song that already
+    // had a title but no artist, stranded that EXISTING title: line
+    // after the newly-inserted sections — past the first [Section],
+    // outside the header zone this app's own parser reads header
+    // fields from at all, silently breaking it.
+    function mergeHeaderFields(meta) {
+      const value = rawTextarea.value;
+      const m = value.match(/^\[/m);
+      const headerEnd = m ? m.index : value.length;
+      let headerZone = value.slice(0, headerEnd);
+      const rest = value.slice(headerEnd);
+      let additions = '';
+      if (meta.title && !hasHeaderField('title')) additions += `title: ${meta.title}\n`;
+      if (meta.artist && !hasHeaderField('artist')) additions += `artist: ${meta.artist}\n`;
+      if (meta.capo && !hasHeaderField('capo')) additions += `capo: ${meta.capo}\n`;
+      if (!additions) return;
+      // A blank "title:" placeholder (the one genuinely-empty-title
+      // creation path leaves) would otherwise sit right next to the
+      // real one this just added — drop it rather than leave both.
+      headerZone = headerZone.replace(/^title:[ \t]*\n/, '');
+      const trimmed = headerZone.replace(/\s+$/, '');
+      rawTextarea.value = (trimmed ? trimmed + '\n' + additions : additions) + '\n' + rest.replace(/^\n+/, '');
+    }
     applyBtn.addEventListener('click', () => {
       let text = reviewText.value.trim();
       if (!text) return;
       if (stripChordsCheck.checked) text = stripChordMarkers(text).trim();
+      mergeHeaderFields(importMeta);
+      // Append at the end, not "wherever the cursor happens to be" —
+      // mergeHeaderFields may have just shifted every later offset by
+      // inserting lines near the top, which would make a cursor
+      // position captured beforehand land somewhere wrong; appending
+      // is also simply the right default for "add this fetched chart
+      // to the song," cursor position aside.
+      rawTextarea.selectionStart = rawTextarea.selectionEnd = rawTextarea.value.length;
       insertAtCursor(`\n\n# imported from ${importSourceURL}\n${text}\n`);
-      applyStatus.textContent = 'applied — inserted into Source below cursor, review and fold into sections';
-      applyStatus.className = 'ok';
-      setTimeout(() => { importSourceURL = ''; showStep('find'); }, 900);
+      applyStatus.textContent = '';
+      importSourceURL = ''; importMeta = {};
+      showStep('find');
+      // Switch to Source right away — reported directly as "it's
+      // missing the last step from review to the source file," since
+      // staying on Import after Accept left the result invisible
+      // (the textarea it landed in is a different, hidden tab panel)
+      // and made it look like nothing had happened at all. Same
+      // tab-switch redo-song-btn already uses.
+      document.querySelectorAll('.prep-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'raw'));
+      document.querySelectorAll('.prep-panel').forEach(p => { p.hidden = p.dataset.panel !== 'raw'; });
+      rawTextarea.focus();
     });
   })();
 

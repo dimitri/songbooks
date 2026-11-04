@@ -90,7 +90,9 @@ func (s *Server) handleImportChords(w http.ResponseWriter, r *http.Request) {
 	for i := range all {
 		all[i] = i
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"text": song.ToSongText(all)})
+	writeJSON(w, http.StatusOK, map[string]string{
+		"text": song.ToSongText(all), "title": song.Title, "artist": song.Artist, "capo": song.Capo,
+	})
 }
 
 // handleImportUGFind is the import wizard's one-click "find & fetch"
