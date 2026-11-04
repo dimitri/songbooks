@@ -11,7 +11,11 @@
 <body>
 <header class="app-header">
   <h1>{{.Name}}</h1>
-  <p>Signup link: <code>{{.JamURL}}</code> &middot; <a href="/songbooks/{{.SongbookID}}/jam/{{.Code}}/add">+ add a song</a></p>
+  <p>Signup link: <code>{{.JamURL}}</code>
+    <button type="button" id="show-participant-qr-btn">show QR code</button>
+    &middot; <a href="/songbooks/{{.SongbookID}}/jam/{{.Code}}/add">+ add a song</a>
+    {{if .CanOrganize}} &middot; <a href="/songbooks/{{.SongbookID}}/jam/{{.Code}}/organizer-link">staff invite link</a>{{end}}
+  </p>
 </header>
 <main class="index">
   <div id="call-banner" class="card"{{if not .Called}} hidden{{end}} style="font-size:1.2em;font-weight:bold">
@@ -85,8 +89,12 @@
   {{end}}
   </div>
 </main>
+<script src="/static/js/qr.js?v={{staticVersion}}"></script>
 <script>
 const songbookId = {{.SongbookID}}, code = {{.Code}};
+document.getElementById('show-participant-qr-btn').addEventListener('click', () => {
+  showQR(location.origin + {{.JamURL}});
+});
 
 // ---- "Now calling" live banner: simple polling, no websockets ------------
 async function pollCallStatus() {

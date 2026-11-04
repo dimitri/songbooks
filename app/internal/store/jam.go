@@ -15,11 +15,12 @@ import (
 // drawing its pickable songs from one songbook, open for signups until
 // ExpiresAt.
 type JamEvent struct {
-	ID         int64
-	SongbookID int64
-	Code       string
-	Name       string
-	ExpiresAt  time.Time
+	ID             int64
+	SongbookID     int64
+	Code           string
+	Name           string
+	ExpiresAt      time.Time
+	OrganizerToken string // shareable "become an organizer" link token — see migration 0045
 }
 
 // JamPlayer is one signed-up nickname that picked a (song, instrument) —
@@ -36,6 +37,7 @@ type JamProfile struct {
 	ID         int64
 	JamEventID int64
 	Nickname   string
+	PersonID   *int64 // set when this profile is linked to a real account
 }
 
 // RosterRow is one (song, instrument) group from JamRoster, with every
@@ -104,6 +106,10 @@ func randomJamCode(n int) (string, error) {
 // checking the requesting person's access to that songbook — this
 // method trusts it.
 func (st *Store) CreateJamEvent(ctx context.Context, songbookID int64, name string, ttl time.Duration, creatorPersonID int64) (*JamEvent, error) {
+	organizerToken, err := randomToken()
+	if err != nil {
+		return nil, err
+	}
 	// A handful of retries on a code collision is simpler and plenty
 	// reliable at this scale than a longer code or a DB-side generator.
 	for attempt := 0; attempt < 5; attempt++ {
@@ -113,11 +119,11 @@ func (st *Store) CreateJamEvent(ctx context.Context, songbookID int64, name stri
 		}
 		var ev JamEvent
 		err = st.db.QueryRow(ctx, `
-			INSERT INTO jam_events (songbook_id, code, name, expires_at)
-			VALUES ($1, $2, $3, $4)
-			RETURNING id, songbook_id, code, name, expires_at`,
-			songbookID, code, name, time.Now().Add(ttl)).
-			Scan(&ev.ID, &ev.SongbookID, &ev.Code, &ev.Name, &ev.ExpiresAt)
+			INSERT INTO jam_events (songbook_id, code, name, expires_at, organizer_token)
+			VALUES ($1, $2, $3, $4, $5)
+			RETURNING id, songbook_id, code, name, expires_at, organizer_token`,
+			songbookID, code, name, time.Now().Add(ttl), organizerToken).
+			Scan(&ev.ID, &ev.SongbookID, &ev.Code, &ev.Name, &ev.ExpiresAt, &ev.OrganizerToken)
 		if err == nil {
 			if err := st.AddJamOrganizer(ctx, ev.ID, creatorPersonID); err != nil {
 				return nil, err
@@ -151,9 +157,9 @@ func constraintViolated(err error, name string) bool {
 func (st *Store) GetJamEvent(ctx context.Context, code string) (*JamEvent, error) {
 	var ev JamEvent
 	err := st.db.QueryRow(ctx, `
-		SELECT id, songbook_id, code, name, expires_at FROM jam_events
+		SELECT id, songbook_id, code, name, expires_at, coalesce(organizer_token, '') FROM jam_events
 		WHERE code = $1 AND expires_at > now()`, code).
-		Scan(&ev.ID, &ev.SongbookID, &ev.Code, &ev.Name, &ev.ExpiresAt)
+		Scan(&ev.ID, &ev.SongbookID, &ev.Code, &ev.Name, &ev.ExpiresAt, &ev.OrganizerToken)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such jam event %q: %w", code, ErrNotFound)
 	}
@@ -163,21 +169,92 @@ func (st *Store) GetJamEvent(ctx context.Context, code string) (*JamEvent, error
 	return &ev, nil
 }
 
-// CreateJamProfile signs a new nickname up for a jam event.
-func (st *Store) CreateJamProfile(ctx context.Context, jamEventID int64, nickname string) (*JamProfile, error) {
+// GetJamEventByOrganizerToken resolves the separate "become an
+// organizer" link (see migration 0045's doc comment) to its jam event —
+// kept apart from GetJamEvent (looked up by the plain participant code)
+// so the two links can never be confused server-side either.
+func (st *Store) GetJamEventByOrganizerToken(ctx context.Context, token string) (*JamEvent, error) {
+	var ev JamEvent
+	err := st.db.QueryRow(ctx, `
+		SELECT id, songbook_id, code, name, expires_at, organizer_token FROM jam_events
+		WHERE organizer_token = $1 AND expires_at > now()`, token).
+		Scan(&ev.ID, &ev.SongbookID, &ev.Code, &ev.Name, &ev.ExpiresAt, &ev.OrganizerToken)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("no such organizer link: %w", ErrNotFound)
+	}
+	return &ev, err
+}
+
+// ListJamEventsForPerson lists every still-open jam event personID can
+// reach as either an organizer or a joined (account-linked) participant
+// — "Jam sessions" menu, the home-dashboard listing the user asked for
+// ("another access added to their dashboard" on joining one).
+type JamEventSummary struct {
+	JamEvent
+	SongbookName string
+	IsOrganizer  bool
+}
+
+func (st *Store) ListJamEventsForPerson(ctx context.Context, personID int64) ([]JamEventSummary, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT je.id, je.songbook_id, je.code, je.name, je.expires_at, je.organizer_token,
+		       coalesce(sb.name, ''), true AS is_organizer
+		FROM jam_events je
+		JOIN jam_organizers jo ON jo.jam_event_id = je.id AND jo.person_id = $1
+		LEFT JOIN songbooks sb ON sb.id = je.songbook_id
+		WHERE je.expires_at > now()
+		UNION
+		SELECT je.id, je.songbook_id, je.code, je.name, je.expires_at, je.organizer_token,
+		       coalesce(sb.name, ''), false AS is_organizer
+		FROM jam_events je
+		JOIN jam_profiles jp ON jp.jam_event_id = je.id AND jp.person_id = $1
+		LEFT JOIN songbooks sb ON sb.id = je.songbook_id
+		WHERE je.expires_at > now()
+		  AND NOT EXISTS (SELECT 1 FROM jam_organizers jo2 WHERE jo2.jam_event_id = je.id AND jo2.person_id = $1)
+		ORDER BY expires_at DESC`, personID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []JamEventSummary
+	for rows.Next() {
+		var s JamEventSummary
+		if err := rows.Scan(&s.ID, &s.SongbookID, &s.Code, &s.Name, &s.ExpiresAt, &s.OrganizerToken, &s.SongbookName, &s.IsOrganizer); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// CreateJamProfile makes a nickname-only jam profile — personID is 0
+// for a fully anonymous participant (the only case before account-
+// linking existed), or a real person id when the joining visitor is
+// already logged in, in which case this GETS-OR-CREATES: re-visiting
+// the same jam while logged in as the same person reuses their existing
+// profile (jam_profiles_person_unique) rather than creating a duplicate
+// every time — "another access added to their dashboard," not a fresh
+// disconnected identity each visit.
+func (st *Store) CreateJamProfile(ctx context.Context, jamEventID int64, nickname string, personID int64) (*JamProfile, error) {
+	var person *int64
+	if personID != 0 {
+		person = &personID
+	}
 	var p JamProfile
 	err := st.db.QueryRow(ctx, `
-		INSERT INTO jam_profiles (jam_event_id, nickname) VALUES ($1, $2)
-		RETURNING id, jam_event_id, nickname`, jamEventID, nickname).
-		Scan(&p.ID, &p.JamEventID, &p.Nickname)
+		INSERT INTO jam_profiles (jam_event_id, nickname, person_id) VALUES ($1, $2, $3)
+		ON CONFLICT (jam_event_id, person_id) WHERE person_id IS NOT NULL
+		DO UPDATE SET nickname = EXCLUDED.nickname
+		RETURNING id, jam_event_id, nickname, person_id`, jamEventID, nickname, person).
+		Scan(&p.ID, &p.JamEventID, &p.Nickname, &p.PersonID)
 	return &p, err
 }
 
 // GetJamProfile looks up a jam profile by id (from the jam cookie).
 func (st *Store) GetJamProfile(ctx context.Context, id int64) (*JamProfile, error) {
 	var p JamProfile
-	err := st.db.QueryRow(ctx, `SELECT id, jam_event_id, nickname FROM jam_profiles WHERE id = $1`, id).
-		Scan(&p.ID, &p.JamEventID, &p.Nickname)
+	err := st.db.QueryRow(ctx, `SELECT id, jam_event_id, nickname, person_id FROM jam_profiles WHERE id = $1`, id).
+		Scan(&p.ID, &p.JamEventID, &p.Nickname, &p.PersonID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such jam profile: %w", ErrNotFound)
 	}

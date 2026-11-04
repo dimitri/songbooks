@@ -347,7 +347,10 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// /jam/{code}/* is reachable WITHOUT a login — a nickname-only
 	// jam_profiles identity, set via its own cookie in jam.go.
 	mux.HandleFunc("POST /songbooks/{id}/jam-events", s.requireAuth(s.handleCreateJamEvent))
+	mux.HandleFunc("GET /jams", s.requireAuth(s.handleJamsIndexPage))
+	mux.HandleFunc("GET /jam-organize/{token}", s.requireAuth(s.handleJamOrganizerJoin))
 	mux.HandleFunc("GET /songbooks/{id}/jam/{code}/roster", s.requireAuth(s.handleJamRosterPage))
+	mux.HandleFunc("GET /songbooks/{id}/jam/{code}/organizer-link", s.requireAuth(s.handleJamOrganizerLinkPage))
 	mux.HandleFunc("GET /songbooks/{id}/jam/{code}/add", s.requireAuth(s.handleJamAddSongsPage))
 	mux.HandleFunc("POST /songbooks/{id}/jam/{code}/songs", s.requireAuth(s.handleAddJamSong))
 	mux.HandleFunc("POST /songbooks/{id}/jam/{code}/songs/{songID}/remove", s.requireAuth(s.handleRemoveJamSong))

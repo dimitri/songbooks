@@ -1,0 +1,68 @@
+{{define "jams_index"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jam sessions — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
+<header class="app-header">
+  {{template "home-link"}}
+  <h1>Jam sessions</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index">
+  <p class="hint">A jam session is a time-limited, QR-shareable pickable-song list drawn from one of your songbooks — participants join with just a nickname (or their own account, if they're already logged in), no new account required.</p>
+
+  <h2>Your jam sessions</h2>
+  {{if .Jams}}
+  <div class="table-scroll"><table class="card" style="width:100%">
+    <thead><tr><th>Name</th><th>Songbook</th><th>Expires</th><th>Role</th><th></th></tr></thead>
+    <tbody>
+    {{range .Jams}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td>{{.SongbookName}}</td>
+        <td>{{.ExpiresAt.Format "2006-01-02 15:04"}}</td>
+        <td>{{if .IsOrganizer}}organizer{{else}}participant{{end}}</td>
+        <td><a href="/songbooks/{{.SongbookID}}/jam/{{.Code}}/roster">roster</a></td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table></div>
+  {{else}}
+  <p class="hint">No active jam sessions yet.</p>
+  {{end}}
+
+  <h2>Start a jam session</h2>
+  <p class="hint">Pick a songbook — its songs become the jam's pickable list. You'll land on the roster page, with the participant link and QR code to share, plus a separate staff/organizer link on its own page.</p>
+  <div class="card-grid">
+  {{range .MySongbooks}}
+    <form method="post" action="/songbooks/{{.ID}}/jam-events" class="card">
+      <h3>{{.Name}}</h3>
+      <p class="hint">your songbook</p>
+      <label>Name <input type="text" name="name" placeholder="e.g. Friday jam"></label>
+      <button type="submit" class="primary">Start jam</button>
+    </form>
+  {{end}}
+  {{range .BandSongbooks}}
+    <form method="post" action="/songbooks/{{.ID}}/jam-events" class="card">
+      <h3>{{.Name}}</h3>
+      <p class="hint">band songbook</p>
+      <label>Name <input type="text" name="name" placeholder="e.g. Friday jam"></label>
+      <button type="submit" class="primary">Start jam</button>
+    </form>
+  {{end}}
+  </div>
+</main>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

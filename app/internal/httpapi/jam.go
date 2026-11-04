@@ -42,6 +42,61 @@ func (s *Server) handleCreateJamEvent(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/songbooks/"+strconv.FormatInt(songbookID, 10)+"/jam/"+ev.Code+"/roster", http.StatusFound)
 }
 
+// handleJamOrganizerJoin is the separate "become an organizer" link
+// (GET /jam-organize/{token} — see migration 0045's doc comment for why
+// it's a distinct token/route from the plain participant link, never the
+// same page): requireAuth-gated (an organizer must already have a real
+// account, per the user's own spec — no anonymous-profile path here at
+// all), adds the visitor as an organizer of the jam this token belongs
+// to, then sends them to the roster.
+func (s *Server) handleJamOrganizerJoin(w http.ResponseWriter, r *http.Request) {
+	token := r.PathValue("token")
+	ev, err := s.store.GetJamEventByOrganizerToken(r.Context(), token)
+	if err != nil {
+		http.Error(w, "this organizer link is invalid or has expired", http.StatusNotFound)
+		return
+	}
+	p := personFromContext(r)
+	if err := s.store.AddJamOrganizer(r.Context(), ev.ID, p.ID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	http.Redirect(w, r, "/songbooks/"+strconv.FormatInt(ev.SongbookID, 10)+"/jam/"+ev.Code+"/roster", http.StatusFound)
+}
+
+// handleJamsIndexPage is the "Jam sessions" nav destination: every still-
+// open jam this person organizes or has joined (account-linked), plus a
+// way to start a new one from any songbook they can reach.
+func (s *Server) handleJamsIndexPage(w http.ResponseWriter, r *http.Request) {
+	p := personFromContext(r)
+	jams, err := s.store.ListJamEventsForPerson(r.Context(), p.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	mySongbooks, err := s.store.ListSongbooks(r.Context(), "person", p.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	bands, err := s.store.ListBandsForPerson(r.Context(), p.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var bandSongbooks []store.Songbook
+	for _, b := range bands {
+		sbs, err := s.store.ListSongbooks(r.Context(), "band", b.ID)
+		if err != nil {
+			continue
+		}
+		bandSongbooks = append(bandSongbooks, sbs...)
+	}
+	s.render(w, "jams_index", map[string]any{
+		"Me": p, "Jams": jams, "MySongbooks": mySongbooks, "BandSongbooks": bandSongbooks,
+	})
+}
+
 // handleJamLandingPage is the public (no login) page a jam code's link
 // opens: event name plus a nickname+instrument signup form. Reached via
 // optionalPerson (router.go), not requireAuth — jam signup itself stays
@@ -50,6 +105,12 @@ func (s *Server) handleCreateJamEvent(w http.ResponseWriter, r *http.Request) {
 // instruments (Person.Instruments, set on /profile) passed through so
 // the form can pre-select their usual instrument rather than starting
 // blank — see jam_landing.html's icon picker.
+// handleJamLandingPage either asks for a nickname (anonymous visitor) or,
+// per the user's own decision ("log in first, then the link just
+// works"), skips the form entirely when the visitor already has a
+// session: joins immediately under their own display name, reusing
+// their existing profile for this jam if they've joined it before (see
+// CreateJamProfile), and lands them straight on the song list.
 func (s *Server) handleJamLandingPage(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	ev, err := s.store.GetJamEvent(r.Context(), code)
@@ -57,40 +118,28 @@ func (s *Server) handleJamLandingPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "this jam link is invalid or has expired", http.StatusNotFound)
 		return
 	}
-	var myInstruments []string
 	if p := personFromContext(r); p != nil {
-		myInstruments = p.Instruments
+		if err := s.joinJamAsPerson(w, r, ev, p.ID, p.DisplayName); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		http.Redirect(w, r, "/jam/"+code+"/songs", http.StatusFound)
+		return
 	}
 	s.render(w, "jam_landing", map[string]any{
 		"Code": code, "Name": ev.Name,
-		"CommonInstruments": commonInstruments, "MyInstruments": myInstruments,
+		"CommonInstruments": commonInstruments, "MyInstruments": []string(nil),
 	})
 }
 
-// handleJamJoin creates a jam profile (no password — a nickname is the
-// whole identity) and sets the jam cookie identifying it, separate from
-// the normal login session cookie, since this is a different, narrower
-// kind of access.
-func (s *Server) handleJamJoin(w http.ResponseWriter, r *http.Request) {
-	code := r.PathValue("code")
-	ev, err := s.store.GetJamEvent(r.Context(), code)
+// joinJamAsPerson creates/reuses a jam profile and sets the jam cookie —
+// shared by the logged-in auto-join path (handleJamLandingPage) and the
+// anonymous nickname-form path (handleJamJoin). personID is 0 for an
+// anonymous participant.
+func (s *Server) joinJamAsPerson(w http.ResponseWriter, r *http.Request, ev *store.JamEvent, personID int64, nickname string) error {
+	profile, err := s.store.CreateJamProfile(r.Context(), ev.ID, nickname, personID)
 	if err != nil {
-		http.Error(w, "this jam link is invalid or has expired", http.StatusNotFound)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
-		return
-	}
-	nickname := strings.TrimSpace(r.FormValue("nickname"))
-	if nickname == "" {
-		http.Error(w, "a nickname is required", http.StatusBadRequest)
-		return
-	}
-	profile, err := s.store.CreateJamProfile(r.Context(), ev.ID, nickname)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
+		return err
 	}
 	http.SetCookie(w, &http.Cookie{
 		// Path "/" (not scoped to "/jam/"+code, as this started as) —
@@ -109,6 +158,39 @@ func (s *Server) handleJamJoin(w http.ResponseWriter, r *http.Request) {
 		Path: "/", HttpOnly: true, Secure: r.TLS != nil,
 		SameSite: http.SameSiteLaxMode, MaxAge: int(jamTTL.Seconds()),
 	})
+	return nil
+}
+
+// handleJamJoin creates a jam profile (no password — a nickname is the
+// whole identity) and sets the jam cookie identifying it, separate from
+// the normal login session cookie, since this is a different, narrower
+// kind of access. Only reached by an anonymous visitor in practice —
+// handleJamLandingPage short-circuits straight through this for anyone
+// already logged in.
+func (s *Server) handleJamJoin(w http.ResponseWriter, r *http.Request) {
+	code := r.PathValue("code")
+	ev, err := s.store.GetJamEvent(r.Context(), code)
+	if err != nil {
+		http.Error(w, "this jam link is invalid or has expired", http.StatusNotFound)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	nickname := strings.TrimSpace(r.FormValue("nickname"))
+	if nickname == "" {
+		http.Error(w, "a nickname is required", http.StatusBadRequest)
+		return
+	}
+	var personID int64
+	if p := personFromContext(r); p != nil {
+		personID = p.ID
+	}
+	if err := s.joinJamAsPerson(w, r, ev, personID, nickname); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	http.Redirect(w, r, "/jam/"+code+"/songs", http.StatusFound)
 }
 
@@ -631,6 +713,38 @@ func (s *Server) handleJamRosterPage(w http.ResponseWriter, r *http.Request) {
 		"SongbookID": ev.SongbookID, "Code": code, "Name": ev.Name,
 		"JamURL": "/jam/" + code, "Groups": groups,
 		"CanOrganize": canOrganize, "Organizers": organizers, "Called": called,
+	})
+}
+
+// handleJamOrganizerLinkPage shows the "become an organizer" link/QR code
+// on its own page, separate from the participant roster page, specifically
+// so an organizer never shares the wrong one by mistake (the whole reason
+// this is its own route rather than a section on jam_roster.html).
+func (s *Server) handleJamOrganizerLinkPage(w http.ResponseWriter, r *http.Request) {
+	code := r.PathValue("code")
+	ev, err := s.store.GetJamEvent(r.Context(), code)
+	if err != nil {
+		http.Error(w, "this jam link is invalid or has expired", http.StatusNotFound)
+		return
+	}
+	p := personFromContext(r)
+	isOrganizer, err := s.store.IsJamOrganizer(r.Context(), ev.ID, p.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	canEdit, err := s.store.CanAccessSongbook(r.Context(), p.ID, ev.SongbookID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !isOrganizer && !canEdit {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	s.render(w, "jam_organizer_link", map[string]any{
+		"SongbookID": ev.SongbookID, "Code": code, "Name": ev.Name,
+		"OrganizerURL": "/jam-organize/" + ev.OrganizerToken,
 	})
 }
 

@@ -1,0 +1,39 @@
+{{define "jam_organizer_link"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Name}} — organizer link</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+<header class="app-header">
+  <h1>{{.Name}} — staff invite</h1>
+  <p><a href="/songbooks/{{.SongbookID}}/jam/{{.Code}}/roster">&larr; back to roster</a></p>
+</header>
+<main class="index">
+  <div class="card" style="max-width:480px">
+    <p class="hint" style="color:var(--warn)">This link grants organizer (staff) control over this jam — call players, reorder songs, add other organizers. Share it only with people who should have that control. The plain participant link on the roster page is the one for everyone else.</p>
+    <p>Link: <code id="organizer-url">{{.OrganizerURL}}</code></p>
+    <button type="button" id="copy-link-btn">copy link</button>
+    <button type="button" id="show-qr-btn">show QR code</button>
+  </div>
+</main>
+<script src="/static/js/qr.js?v={{staticVersion}}"></script>
+<script>
+const url = location.origin + {{.OrganizerURL}};
+document.getElementById('copy-link-btn').addEventListener('click', () => {
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.getElementById('copy-link-btn');
+    const was = btn.textContent;
+    btn.textContent = 'copied!';
+    setTimeout(() => { btn.textContent = was; }, 1500);
+  }).catch(() => {});
+});
+document.getElementById('show-qr-btn').addEventListener('click', () => showQR(url));
+</script>
+</body>
+</html>
+{{end}}
