@@ -2,9 +2,22 @@ package song
 
 import (
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
+
+// sectionHeaderRE matches a line that is ENTIRELY one "[Label]" or
+// "[Label] (repeat)" marker and nothing else — critically, the label
+// itself may not contain a further "[" or "]", so a lyric line that
+// merely happens to start and end with a bracket (a chord at its very
+// start, a bare trailing chord with no following word at its very end —
+// both routine in imported content, e.g. "[Em]Leading m[Am]e, going
+// [G7]home [C]") is never misread as a section header. A real
+// prefix/suffix check here is too loose for that — see this project's
+// own history of exactly this bug biting UG-tab and LaTeX-songs-package
+// imports before it was tightened.
+var sectionHeaderRE = regexp.MustCompile(`^\[([^\[\]]+)\](\s*\(repeat\))?$`)
 
 // ParseFile reads and parses a .song file.
 func ParseFile(path string) (*Song, error) {
@@ -64,16 +77,9 @@ func Parse(src string) *Song {
 			continue
 		}
 
-		if strings.HasPrefix(line, "[") && (strings.HasSuffix(line, "]") || strings.HasSuffix(line, "] (repeat)")) {
+		if m := sectionHeaderRE.FindStringSubmatch(line); m != nil {
 			flush()
-			repeat := strings.HasSuffix(line, "(repeat)")
-			var label string
-			if repeat {
-				label = line[1:strings.Index(line, "]")]
-			} else {
-				label = line[1 : len(line)-1]
-			}
-			cur = &rawSection{label: label, repeat: repeat}
+			cur = &rawSection{label: m[1], repeat: m[2] != ""}
 			inHead = false
 			continue
 		}
