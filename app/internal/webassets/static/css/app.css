@@ -2693,11 +2693,23 @@ textarea {
   color: var(--fg); pointer-events: none; z-index: 0;
 }
 .code-backdrop code { font-family: inherit; white-space: inherit; }
-.tok-header-key { color: var(--accent); font-weight: 700; }
-.tok-section { color: var(--accent); font-weight: 700; }
-.tok-keyword { color: var(--ok); font-weight: 700; }
-.tok-chord { color: var(--accent); font-weight: 700; }
-.tok-comment { color: var(--fg-muted); font-style: italic; }
+/* Color only — no font-weight/font-style on any token. This overlay works
+   by rendering the real <textarea>'s text fully transparent and drawing
+   the highlighted copy in a <pre> sitting exactly behind it (code-backdrop
+   above): the two only stay pixel-aligned, cursor included, as long as
+   every character in the backdrop occupies EXACTLY the advance width its
+   invisible twin in the textarea does. A bold or italic span can widen a
+   "monospace" font's glyphs just enough to drift the backdrop out from
+   under the real cursor a few characters later on the line — a direct
+   report ("the editor gets easily confused with where the cursor is
+   editing vs displayed"), worse the longer a highlighted token's line
+   gets. Color changes a glyph's paint, never its advance width, so this
+   is the one styling axis this technique can use safely. */
+.tok-header-key { color: var(--accent); }
+.tok-section { color: var(--accent); }
+.tok-keyword { color: var(--ok); }
+.tok-chord { color: var(--accent); }
+.tok-comment { color: var(--fg-muted); }
 .editor-actions, .structure-actions { margin-top: 0.75rem; display: flex; gap: 1rem; align-items: center; }
 .hint { color: var(--fg-muted); font-size: 0.88rem; }
 
