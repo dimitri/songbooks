@@ -21,9 +21,14 @@ func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 			adminCount++
 		}
 	}
+	communities, err := s.store.ListAllSchoolsWithCounts(r.Context())
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "admin", map[string]any{
 		"Me": personFromContext(r), "People": people,
-		"AdminCount": adminCount,
+		"AdminCount": adminCount, "Communities": communities,
 	})
 }
 

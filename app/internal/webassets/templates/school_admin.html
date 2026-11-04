@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.School.Name}} — instructor admin</title>
+<title>{{.School.Name}} — staff admin</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,12 +13,12 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/schools/{{.School.ID}}">{{template "icon-back"}} {{.School.Name}}</a>
-  <h1>{{.School.Name}} — instructor admin</h1>
+  <h1>{{.School.Name}} — staff admin</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
   <div class="card">
-    <h2>School name</h2>
+    <h2>Community name</h2>
     <div class="form-stack">
       <div class="field"><label for="rename-input">Name</label><input type="text" id="rename-input" value="{{.School.Name}}"></div>
       <div class="form-actions"><button type="button" id="rename-btn">Save</button></div>
@@ -28,7 +28,7 @@
 
   <h2>Pending submissions</h2>
   <div class="table-scroll"><table class="card" style="width:100%">
-    <thead><tr><th>Student</th><th>Kind</th><th>Submitted</th><th>Source</th><th>Note</th><th></th></tr></thead>
+    <thead><tr><th>Submitted by</th><th>Kind</th><th>Submitted</th><th>Source</th><th>Note</th><th></th></tr></thead>
     <tbody id="pending-body">
     {{range .PendingSubmissions}}
       <tr data-submission-id="{{.ID}}">
@@ -50,7 +50,7 @@
 
   <h2>All submissions</h2>
   <div class="table-scroll"><table class="card" style="width:100%">
-    <thead><tr><th>Student</th><th>Kind</th><th>Submitted</th><th>Status</th><th>Decided by</th></tr></thead>
+    <thead><tr><th>Submitted by</th><th>Kind</th><th>Submitted</th><th>Status</th><th>Decided by</th></tr></thead>
     <tbody>
     {{range .AllSubmissions}}
       <tr>
@@ -77,8 +77,8 @@
         <td>
           {{if .IsCurrent}}
           <select class="role-select" data-person-id="{{.PersonID}}">
-            <option value="instructor" {{if eq .Role "instructor"}}selected{{end}}>instructor</option>
-            <option value="student" {{if eq .Role "student"}}selected{{end}}>student</option>
+            <option value="staff" {{if eq .Role "staff"}}selected{{end}}>staff</option>
+            <option value="member" {{if eq .Role "member"}}selected{{end}}>member</option>
           </select>
           {{else}}{{.Role}}{{end}}
         </td>
@@ -91,7 +91,7 @@
   </table></div>
 
   <div class="card">
-    <h2>Add people to this school</h2>
+    <h2>Add people to this community</h2>
 
     <div class="form-subsection">
       <h3>Add an existing account</h3>
@@ -103,12 +103,12 @@
         <div class="field">
           <label for="add-role">Role</label>
           <select id="add-role">
-            <option value="student" selected>student</option>
-            <option value="instructor">instructor</option>
+            <option value="member" selected>member</option>
+            <option value="staff">staff</option>
           </select>
         </div>
         <div class="form-actions">
-          <button type="button" id="add-member-btn">Add to school</button>
+          <button type="button" id="add-member-btn">Add to community</button>
         </div>
         <p id="add-member-result" class="hint"></p>
       </div>
@@ -116,7 +116,7 @@
 
     <div class="form-subsection">
       <h3>Group invite link</h3>
-      <p class="hint">Type the names you expect, then get ONE link to share — on WhatsApp, say. Each person who opens it picks their own name (or "someone else"), then creates an account or logs in. Everyone joins as a <strong>student</strong>; promote an instructor afterwards via "Add a member" above.</p>
+      <p class="hint">Type the names you expect, then get ONE link to share — on WhatsApp, say. Each person who opens it picks their own name (or "someone else"), then creates an account or logs in. Everyone joins as a <strong>member</strong>; promote to staff afterwards via "Add a member" above.</p>
       <div class="form-stack" id="group-invite-rows">
         <div class="group-invite-row">
           <div class="field">
@@ -144,7 +144,7 @@
     </div>
   </div>
 
-  <h2>School repertoire</h2>
+  <h2>Community repertoire</h2>
   <div class="card">
     <h3>Write a new original song</h3>
     <div class="form-stack">
@@ -161,7 +161,7 @@
       <div class="field"><label for="variant-id-input">Variant id</label><input type="number" id="variant-id-input"></div>
       <div class="form-actions">
         <button type="button" id="add-existing-btn">+ add to repertoire</button>
-        <button type="button" id="fork-into-school-btn">fork into this school</button>
+        <button type="button" id="fork-into-community-btn">fork into this community</button>
       </div>
       <p id="add-result" class="hint"></p>
     </div>
@@ -197,7 +197,7 @@ document.getElementById('rename-btn').addEventListener('click', async () => {
   });
   const data = await res.json().catch(() => ({}));
   document.getElementById('rename-result').textContent = res.ok ? 'saved' : (data.error || 'failed');
-  if (res.ok) document.title = name + ' — instructor admin';
+  if (res.ok) document.title = name + ' — staff admin';
 });
 document.querySelectorAll('.accept-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
@@ -245,7 +245,7 @@ document.querySelectorAll('.role-select').forEach(sel => {
 });
 document.querySelectorAll('.remove-member-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (!confirm('Remove this member from the school?')) return;
+    if (!confirm('Remove this member from the community?')) return;
     const personID = btn.dataset.personId;
     await fetch(`/api/schools/${schoolId}/members/${personID}`, {method: 'DELETE'});
     location.reload();
@@ -280,7 +280,7 @@ document.getElementById('add-existing-btn').addEventListener('click', async () =
     document.getElementById('add-result').textContent = data.error || 'failed to add';
   }
 });
-document.getElementById('fork-into-school-btn').addEventListener('click', async () => {
+document.getElementById('fork-into-community-btn').addEventListener('click', async () => {
   const variantId = Number(document.getElementById('variant-id-input').value);
   if (!variantId) return;
   const res = await fetch(`/api/schools/${schoolId}/catalog/fork/${variantId}`, {method: 'POST'});

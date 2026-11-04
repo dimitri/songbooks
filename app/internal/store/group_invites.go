@@ -315,8 +315,8 @@ func (st *Store) grantGroupInviteMembershipTx(ctx context.Context, tx pgx.Tx, gi
 			return "", err
 		}
 		role := gi.DefaultStatus
-		if role != "instructor" && role != "student" {
-			role = "student" // every pre-existing school group invite's exact old behavior
+		if role != "staff" && role != "member" {
+			role = "member" // every pre-existing school group invite's exact old behavior
 		}
 		if !already {
 			if _, err := tx.Exec(ctx, `

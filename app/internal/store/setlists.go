@@ -138,7 +138,7 @@ func (st *Store) CanEditSetlistByID(ctx context.Context, personID, setlistID int
 		if meta.OwnerSchoolID == nil {
 			return false, nil
 		}
-		return isCurrentSchoolMember(ctx, st.db, *meta.OwnerSchoolID, personID, "instructor")
+		return isCurrentSchoolMember(ctx, st.db, *meta.OwnerSchoolID, personID, "staff")
 	default:
 		return false, nil
 	}

@@ -274,29 +274,29 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// preserving membership shape, same catalog pointer mechanism), but
 	// with a REAL two-tier role (instructor/student) instead of bands'
 	// deliberately flat membership. requireSchoolMember gates "may see
-	// this school's material" (either role); requireSchoolInstructor
+	// this school's material" (either role); requireSchoolStaff
 	// gates every instructor-only action (membership/catalog management,
 	// rename, submission review). See internal/httpapi/schools.go.
 	mux.HandleFunc("GET /schools", s.requireAuth(s.handleSchoolsPage))
 	mux.HandleFunc("POST /api/schools", s.requireAuth(s.handleCreateSchool))
 	mux.HandleFunc("GET /schools/{id}", s.requireSchoolMember(s.handleSchoolPage))
-	mux.HandleFunc("GET /schools/{id}/admin", s.requireSchoolInstructor(s.handleSchoolAdminPage))
-	mux.HandleFunc("POST /api/schools/{id}/rename", s.requireSchoolInstructor(s.handleRenameSchool))
-	mux.HandleFunc("POST /api/schools/{id}/members", s.requireSchoolInstructor(s.handleAddSchoolMember))
+	mux.HandleFunc("GET /schools/{id}/admin", s.requireSchoolStaff(s.handleSchoolAdminPage))
+	mux.HandleFunc("POST /api/schools/{id}/rename", s.requireSchoolStaff(s.handleRenameSchool))
+	mux.HandleFunc("POST /api/schools/{id}/members", s.requireSchoolStaff(s.handleAddSchoolMember))
 	// Group invites (roster link, multi-use): instructor-only to
 	// create/close, since schools (unlike bands) have a real hierarchy.
-	mux.HandleFunc("POST /api/schools/{id}/group-invites", s.requireSchoolInstructor(s.handleCreateSchoolGroupInvite))
-	mux.HandleFunc("POST /api/schools/{id}/community-link", s.requireSchoolInstructor(s.handleCreateCommunityLink))
-	mux.HandleFunc("POST /api/schools/{id}/group-invites/{groupInviteID}/close", s.requireSchoolInstructor(s.handleCloseSchoolGroupInvite))
-	mux.HandleFunc("POST /api/schools/{id}/members/{personID}/role", s.requireSchoolInstructor(s.handleSetSchoolMemberRole))
-	mux.HandleFunc("DELETE /api/schools/{id}/members/{personID}", s.requireSchoolInstructor(s.handleRemoveSchoolMember))
-	mux.HandleFunc("POST /api/schools/{id}/catalog", s.requireSchoolInstructor(s.handleAddSchoolCatalogEntry))
-	mux.HandleFunc("DELETE /api/schools/{id}/catalog/{variantID}", s.requireSchoolInstructor(s.handleRemoveSchoolCatalogEntry))
-	mux.HandleFunc("POST /api/schools/{id}/catalog/fork/{variantID}", s.requireSchoolInstructor(s.handleForkVariantIntoSchool))
-	mux.HandleFunc("POST /api/schools/{id}/variants", s.requireSchoolInstructor(s.handleCreateSchoolVariant))
+	mux.HandleFunc("POST /api/schools/{id}/group-invites", s.requireSchoolStaff(s.handleCreateSchoolGroupInvite))
+	mux.HandleFunc("POST /api/schools/{id}/community-link", s.requireSchoolStaff(s.handleCreateCommunityLink))
+	mux.HandleFunc("POST /api/schools/{id}/group-invites/{groupInviteID}/close", s.requireSchoolStaff(s.handleCloseSchoolGroupInvite))
+	mux.HandleFunc("POST /api/schools/{id}/members/{personID}/role", s.requireSchoolStaff(s.handleSetSchoolMemberRole))
+	mux.HandleFunc("DELETE /api/schools/{id}/members/{personID}", s.requireSchoolStaff(s.handleRemoveSchoolMember))
+	mux.HandleFunc("POST /api/schools/{id}/catalog", s.requireSchoolStaff(s.handleAddSchoolCatalogEntry))
+	mux.HandleFunc("DELETE /api/schools/{id}/catalog/{variantID}", s.requireSchoolStaff(s.handleRemoveSchoolCatalogEntry))
+	mux.HandleFunc("POST /api/schools/{id}/catalog/fork/{variantID}", s.requireSchoolStaff(s.handleForkVariantIntoSchool))
+	mux.HandleFunc("POST /api/schools/{id}/variants", s.requireSchoolStaff(s.handleCreateSchoolVariant))
 	mux.HandleFunc("POST /api/schools/{id}/submissions", s.requireSchoolMember(s.handleCreateSchoolSubmission))
-	mux.HandleFunc("POST /api/schools/{id}/submissions/{submissionID}/accept", s.requireSchoolInstructor(s.handleAcceptSchoolSubmission))
-	mux.HandleFunc("POST /api/schools/{id}/submissions/{submissionID}/reject", s.requireSchoolInstructor(s.handleRejectSchoolSubmission))
+	mux.HandleFunc("POST /api/schools/{id}/submissions/{submissionID}/accept", s.requireSchoolStaff(s.handleAcceptSchoolSubmission))
+	mux.HandleFunc("POST /api/schools/{id}/submissions/{submissionID}/reject", s.requireSchoolStaff(s.handleRejectSchoolSubmission))
 
 	// Site-wide admin panel — gated by requireAdmin (is_admin on the
 	// person), not requireRole (per-project role): see auth.go.

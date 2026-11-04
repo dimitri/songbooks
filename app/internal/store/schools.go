@@ -10,13 +10,14 @@ import (
 )
 
 // School is a named group of people with a REAL two-tier role
-// (instructor/student) — unlike a Band (deliberately flat, no
-// hierarchy — see bands.go's doc comment), a school explicitly has one:
-// instructors manage membership and the school's shared catalog and
-// review student submissions; students get read-only access to the
-// school's repertoire (see CanEditVariant's "school" case) plus their
-// own ordinary personal space (phases 1-3, nothing school-specific
-// needed there).
+// (staff/member — "Community" at the user-facing layer, see migration
+// 0042's doc comment for why this table keeps its original name) —
+// unlike a Band (deliberately flat, no hierarchy — see bands.go's doc
+// comment), a school/community explicitly has a hierarchy: staff manage
+// membership and the community's shared songbooks/setlists and review
+// member submissions; members get read-only access to the community's
+// repertoire (see CanEditVariant's "school" case, CanEditSongbook) plus
+// their own ordinary personal space.
 type School struct {
 	ID        int64
 	Name      string
@@ -34,7 +35,7 @@ type SchoolMember struct {
 	PersonID          int64
 	Username          string
 	DisplayName       string
-	Role              string // "instructor" or "student"
+	Role              string // "staff" or "member"
 	JoinedAt          time.Time
 	LeftAt            *time.Time
 	InvitedByPersonID *int64
@@ -44,15 +45,15 @@ type SchoolMember struct {
 // IsCurrent reports whether m is an active (not left) membership row.
 func (m SchoolMember) IsCurrent() bool { return m.LeftAt == nil }
 
-// IsInstructor reports whether m's role is the instructor tier.
-func (m SchoolMember) IsInstructor() bool { return m.Role == "instructor" }
+// IsStaff reports whether m's role is the instructor tier.
+func (m SchoolMember) IsStaff() bool { return m.Role == "staff" }
 
 // CreateSchool makes a new school and inserts creatorPersonID as its
 // first member, AS AN INSTRUCTOR (not a student) — a school with no
 // instructor at all would be a dead end nobody could ever manage, same
 // "first member must be able to bootstrap the rest" reasoning
 // CreateBand uses, except here the tier matters: only an instructor can
-// add further members at all (see requireSchoolInstructor), so the
+// add further members at all (see requireSchoolStaff), so the
 // creator cannot start out as a student.
 func (st *Store) CreateSchool(ctx context.Context, name string, creatorPersonID int64) (int64, error) {
 	tx, err := st.db.Begin(ctx)
@@ -105,6 +106,43 @@ func (st *Store) RenameSchool(ctx context.Context, schoolID int64, name string) 
 
 // ListSchoolsForPerson lists every school personID is currently a
 // member of (either role), alphabetically by name.
+// SchoolAdminRow is one community as the site-wide admin panel needs it —
+// name plus current staff/member counts, no per-person detail (that's
+// the community's own admin page's job).
+type SchoolAdminRow struct {
+	ID          int64
+	Name        string
+	StaffCount  int
+	MemberCount int
+	CreatedAt   time.Time
+}
+
+// ListAllSchoolsWithCounts lists every community on the instance, newest
+// first — the site admin panel's "Communities" tab.
+func (st *Store) ListAllSchoolsWithCounts(ctx context.Context) ([]SchoolAdminRow, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT sc.id, sc.name, sc.created_at,
+		       count(*) FILTER (WHERE sm.role = 'staff' AND sm.left_at IS NULL),
+		       count(*) FILTER (WHERE sm.role = 'member' AND sm.left_at IS NULL)
+		FROM schools sc
+		LEFT JOIN school_members sm ON sm.school_id = sc.id
+		GROUP BY sc.id, sc.name, sc.created_at
+		ORDER BY sc.created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []SchoolAdminRow
+	for rows.Next() {
+		var r SchoolAdminRow
+		if err := rows.Scan(&r.ID, &r.Name, &r.CreatedAt, &r.StaffCount, &r.MemberCount); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 func (st *Store) ListSchoolsForPerson(ctx context.Context, personID int64) ([]School, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT DISTINCT sc.id, sc.name, sc.created_at
@@ -132,15 +170,15 @@ func (st *Store) IsCurrentSchoolMember(ctx context.Context, schoolID, personID i
 	return isCurrentSchoolMember(ctx, st.db, schoolID, personID, "")
 }
 
-// IsCurrentSchoolInstructor reports whether personID is currently a
+// IsCurrentSchoolStaff reports whether personID is currently a
 // member of schoolID at the instructor tier specifically — the
 // permission gate for every instructor-only action (membership
 // management, catalog add/fork/remove, submission review, rename).
-func (st *Store) IsCurrentSchoolInstructor(ctx context.Context, schoolID, personID int64) (bool, error) {
-	return isCurrentSchoolMember(ctx, st.db, schoolID, personID, "instructor")
+func (st *Store) IsCurrentSchoolStaff(ctx context.Context, schoolID, personID int64) (bool, error) {
+	return isCurrentSchoolMember(ctx, st.db, schoolID, personID, "staff")
 }
 
-// isCurrentSchoolMember is IsCurrentSchoolMember/IsCurrentSchoolInstructor's
+// isCurrentSchoolMember is IsCurrentSchoolMember/IsCurrentSchoolStaff's
 // shared implementation, taking a dbtx (pool or an already-open tx) —
 // same reasoning as isCurrentBandMember in bands.go: a method that's
 // already mid-transaction must run this check against THAT SAME tx
@@ -148,7 +186,7 @@ func (st *Store) IsCurrentSchoolInstructor(ctx context.Context, schoolID, person
 // the first one's transaction is still open (that's exactly the
 // AddBandMember connection-pool bug this phase's bugfix commit
 // addresses). role == "" means "any role"; otherwise it's an exact
-// match ("instructor").
+// match ("staff").
 func isCurrentSchoolMember(ctx context.Context, q dbtx, schoolID, personID int64, role string) (bool, error) {
 	var ok bool
 	err := q.QueryRow(ctx, `
@@ -191,8 +229,8 @@ func (st *Store) ListSchoolMembers(ctx context.Context, schoolID int64, includeP
 	return out, rows.Err()
 }
 
-// AddSchoolMember adds personID to schoolID at role ("instructor" or
-// "student"), invited by invitedByPersonID — a brand-new school_members
+// AddSchoolMember adds personID to schoolID at role ("staff" or
+// "member"), invited by invitedByPersonID — a brand-new school_members
 // row, never a reuse of a past one even if personID left and is
 // rejoining (same rule as AddBandMember/migration 0010). Errors if
 // personID is already a current member of the school.
@@ -203,7 +241,7 @@ func (st *Store) ListSchoolMembers(ctx context.Context, schoolID int64, includeP
 // second, pool-level query while this tx is still open risks a
 // connection-pool deadlock/exhaustion under load.
 func (st *Store) AddSchoolMember(ctx context.Context, schoolID, personID int64, role string, invitedByPersonID int64) (int64, error) {
-	if role != "instructor" && role != "student" {
+	if role != "staff" && role != "member" {
 		return 0, fmt.Errorf("invalid school member role %q", role)
 	}
 	tx, err := st.db.Begin(ctx)
@@ -255,7 +293,7 @@ func (st *Store) RemoveSchoolMember(ctx context.Context, schoolID, personID int6
 	if err != nil {
 		return err
 	}
-	if row.Role == "instructor" {
+	if row.Role == "staff" {
 		if err := requireAnotherCurrentInstructor(ctx, tx, schoolID, personID); err != nil {
 			return err
 		}
@@ -268,11 +306,11 @@ func (st *Store) RemoveSchoolMember(ctx context.Context, schoolID, personID int6
 }
 
 // SetSchoolMemberRole promotes/demotes personID's current membership in
-// schoolID between "instructor" and "student". Refuses to demote a
+// schoolID between "staff" and "member". Refuses to demote a
 // school's last current instructor — see RemoveSchoolMember's doc
 // comment for why.
 func (st *Store) SetSchoolMemberRole(ctx context.Context, schoolID, personID int64, role string) error {
-	if role != "instructor" && role != "student" {
+	if role != "staff" && role != "member" {
 		return fmt.Errorf("invalid school member role %q", role)
 	}
 	tx, err := st.db.Begin(ctx)
@@ -285,7 +323,7 @@ func (st *Store) SetSchoolMemberRole(ctx context.Context, schoolID, personID int
 	if err != nil {
 		return err
 	}
-	if row.Role == "instructor" && role == "student" {
+	if row.Role == "staff" && role == "member" {
 		if err := requireAnotherCurrentInstructor(ctx, tx, schoolID, personID); err != nil {
 			return err
 		}

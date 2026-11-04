@@ -113,7 +113,7 @@ func (st *Store) CanEditSongbook(ctx context.Context, personID, songbookID int64
 		return false, err
 	}
 	if sb.OwnerKind == "school" {
-		return isCurrentSchoolMember(ctx, st.db, sb.OwnerSchoolID, personID, "instructor")
+		return isCurrentSchoolMember(ctx, st.db, sb.OwnerSchoolID, personID, "staff")
 	}
 	return st.CanAccessSongbook(ctx, personID, songbookID)
 }

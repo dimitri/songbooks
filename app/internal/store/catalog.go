@@ -355,7 +355,7 @@ func (st *Store) CanEditVariant(ctx context.Context, personID, variantID int64) 
 		if ownerSchoolID == nil {
 			return false, nil
 		}
-		return st.IsCurrentSchoolInstructor(ctx, *ownerSchoolID, personID)
+		return st.IsCurrentSchoolStaff(ctx, *ownerSchoolID, personID)
 	case "jam":
 		return false, nil
 	case "setlist":
@@ -501,7 +501,7 @@ func (st *Store) VariantContent(ctx context.Context, variantID int64) (title, ar
 // into a school's repertoire: visibility='school', owner_school_id =
 // bandID, that school's school_catalog_entries pointer swapped instead
 // — instructor-only, same shape as "band" but gated on
-// IsCurrentSchoolInstructor rather than IsCurrentBandMember), or "jam"
+// IsCurrentSchoolStaff rather than IsCurrentBandMember), or "jam"
 // (fork into one jam event's pickable list only: visibility='jam',
 // owner_jam_event_id = bandID — reusing the same int64 parameter as the
 // event id, see the doc note below — then auto-added to that event's
@@ -553,7 +553,7 @@ func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, sco
 	} else if scope == "school" {
 		// Instructor-only — same tx-scoped check reasoning as "band"
 		// above. bandID doubles as "the school id" for this scope.
-		isInstructor, err := isCurrentSchoolMember(ctx, tx, bandID, forkerID, "instructor")
+		isInstructor, err := isCurrentSchoolMember(ctx, tx, bandID, forkerID, "staff")
 		if err != nil {
 			return 0, err
 		}
@@ -812,7 +812,7 @@ func (st *Store) CreateBandVariant(ctx context.Context, bandID int64, title, art
 // (creatorPersonID must be a CURRENT INSTRUCTOR of schoolID — checked
 // inside this same tx, same isCurrentSchoolMember(ctx, tx, ...) pattern
 // CreateBandVariant/ForkVariant use, never the pool-level
-// IsCurrentSchoolInstructor while this tx is open).
+// IsCurrentSchoolStaff while this tx is open).
 func (st *Store) CreateSchoolVariant(ctx context.Context, schoolID int64, title, artist string, creatorPersonID int64) (int64, error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
@@ -820,7 +820,7 @@ func (st *Store) CreateSchoolVariant(ctx context.Context, schoolID int64, title,
 	}
 	defer tx.Rollback(ctx)
 
-	isInstructor, err := isCurrentSchoolMember(ctx, tx, schoolID, creatorPersonID, "instructor")
+	isInstructor, err := isCurrentSchoolMember(ctx, tx, schoolID, creatorPersonID, "staff")
 	if err != nil {
 		return 0, err
 	}

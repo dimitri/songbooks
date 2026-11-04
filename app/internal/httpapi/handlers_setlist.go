@@ -253,7 +253,7 @@ func (s *Server) handleCreateSetlist(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusBadRequest, "school_id is required for scope=school")
 			return
 		}
-		isStaff, err := s.store.IsCurrentSchoolInstructor(r.Context(), req.SchoolID, person.ID)
+		isStaff, err := s.store.IsCurrentSchoolStaff(r.Context(), req.SchoolID, person.ID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return

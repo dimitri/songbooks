@@ -36,13 +36,13 @@ func (s *Server) requireSchoolMember(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
-// requireSchoolInstructor wraps requireAuth, then checks the logged-in
+// requireSchoolStaff wraps requireAuth, then checks the logged-in
 // person is a CURRENT INSTRUCTOR of the school identified by the {id}
 // path param — the gate on every instructor-only action: membership
 // management, catalog add/fork/remove/create, rename, and submission
 // review. A current STUDENT gets the same 403 a non-member would (don't
 // leak the distinction via status code).
-func (s *Server) requireSchoolInstructor(next http.HandlerFunc) http.HandlerFunc {
+func (s *Server) requireSchoolStaff(next http.HandlerFunc) http.HandlerFunc {
 	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		schoolID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 		if err != nil {
@@ -50,7 +50,7 @@ func (s *Server) requireSchoolInstructor(next http.HandlerFunc) http.HandlerFunc
 			return
 		}
 		person := personFromContext(r)
-		isInstructor, err := s.store.IsCurrentSchoolInstructor(r.Context(), schoolID, person.ID)
+		isInstructor, err := s.store.IsCurrentSchoolStaff(r.Context(), schoolID, person.ID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -117,7 +117,7 @@ func (s *Server) handleSchoolPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	isInstructor, err := s.store.IsCurrentSchoolInstructor(r.Context(), schoolID, person.ID)
+	isInstructor, err := s.store.IsCurrentSchoolStaff(r.Context(), schoolID, person.ID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -138,7 +138,7 @@ func (s *Server) handleSchoolPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, "school", map[string]any{
-		"Me": person, "School": school, "Entries": entries, "IsInstructor": isInstructor,
+		"Me": person, "School": school, "Entries": entries, "IsStaff": isInstructor,
 		"MySubmissions": mySubmissions, "MyCatalog": myCatalog,
 	})
 }
@@ -216,8 +216,8 @@ func (s *Server) handleAddSchoolMember(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "missing username")
 		return
 	}
-	if req.Role != "instructor" && req.Role != "student" {
-		httpError(w, http.StatusBadRequest, `role must be "instructor" or "student"`)
+	if req.Role != "staff" && req.Role != "member" {
+		httpError(w, http.StatusBadRequest, `role must be "staff" or "member"`)
 		return
 	}
 	target, err := s.store.GetPersonByUsername(r.Context(), req.Username)
@@ -300,7 +300,7 @@ func (s *Server) handleSetSchoolMemberRole(w http.ResponseWriter, r *http.Reques
 // handleCreateBandGroupInvite. Instructor-only (unlike bands' "any
 // current member," schools have a real instructor/student hierarchy —
 // see this phase's lifecycle note). Every claimed slot defaults to
-// school role "student" (see store.grantGroupInviteMembershipTx);
+// school role "member" (see store.grantGroupInviteMembershipTx);
 // inviting someone AS an instructor stays the deliberate direct-add
 // flow (handleAddSchoolMember), not a casual roster link.
 func (s *Server) handleCreateSchoolGroupInvite(w http.ResponseWriter, r *http.Request) {
@@ -345,12 +345,14 @@ func (s *Server) handleCreateCommunityLink(w http.ResponseWriter, r *http.Reques
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	role := "student"
+	role := "member"
 	if req.Role == "staff" {
-		role = "instructor"
+		role = "staff"
 	}
+	// (role already matches the DB's own 'staff'/'member' enum values
+	// 1:1 — no translation layer needed since migration 0044.)
 	actor := personFromContext(r)
-	isStaff, err := s.store.IsCurrentSchoolInstructor(r.Context(), schoolID, actor.ID)
+	isStaff, err := s.store.IsCurrentSchoolStaff(r.Context(), schoolID, actor.ID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -518,7 +520,7 @@ func (s *Server) handleCreateSchoolSubmission(w http.ResponseWriter, r *http.Req
 }
 
 // handleAcceptSchoolSubmission accepts a pending submission —
-// instructor-only (requireSchoolInstructor); store.AcceptSchoolSubmission
+// instructor-only (requireSchoolStaff); store.AcceptSchoolSubmission
 // double-checks instructor status against the submission's OWN
 // school_id too, same defense-in-depth every other accept/reject path
 // in this codebase uses.

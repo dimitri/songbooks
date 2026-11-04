@@ -232,7 +232,7 @@ func (st *Store) AcceptSchoolSubmission(ctx context.Context, submissionID, instr
 		return ErrAlreadyDecided
 	}
 
-	isInstructor, err := st.IsCurrentSchoolInstructor(ctx, sub.SchoolID, instructorPersonID)
+	isInstructor, err := st.IsCurrentSchoolStaff(ctx, sub.SchoolID, instructorPersonID)
 	if err != nil {
 		return err
 	}
@@ -279,7 +279,7 @@ func (st *Store) RejectSchoolSubmission(ctx context.Context, submissionID, instr
 		return ErrAlreadyDecided
 	}
 
-	isInstructor, err := st.IsCurrentSchoolInstructor(ctx, sub.SchoolID, instructorPersonID)
+	isInstructor, err := st.IsCurrentSchoolStaff(ctx, sub.SchoolID, instructorPersonID)
 	if err != nil {
 		return err
 	}
