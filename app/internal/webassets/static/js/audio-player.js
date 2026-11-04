@@ -5,21 +5,27 @@
 // SAME elements/CSS classes the metronome's own playback highlight uses
 // in song.js — reused here, not reimplemented, just driven by
 // audio.currentTime instead of the BPM clock).
+//
+// Two reference CATEGORIES per song ("a personal choice of reference
+// version (yt video, band recording: two categories only)" — store.
+// AudioCategory's own doc comment): "youtube" and "band". Upload/replace/
+// remove controls for both live in the Reference drawer (wired at the
+// bottom of this file); THIS player is playback-only, with a toggle
+// between categories when a song has both. Which category is selected is
+// a per-browser preference (localStorage, keyed by book/stem), not song
+// data — two listeners can prefer different reference versions of the
+// same song without fighting over a shared setting.
 (function () {
   const root = document.getElementById('audio-player');
-  if (!root) return; // not on a page with the player (e.g. not logged in, or template guard failed)
+  if (!root) return; // not on a page with the player
   const book = root.dataset.book;
   const stem = root.dataset.stem;
+  const canEdit = root.dataset.canEdit === 'true';
+  const prefKey = `songbooks:audio-category:${book}/${stem}`;
 
+  const categoryToggle = document.getElementById('audio-category-toggle');
   const emptyState = document.getElementById('audio-empty-state');
   const playerBody = document.getElementById('audio-player-body');
-  const uploadFileInput = document.getElementById('audio-upload-file');
-  const uploadFileBtn = document.getElementById('audio-upload-file-btn');
-  const youtubeInput = document.getElementById('audio-youtube-url');
-  const youtubeBtn = document.getElementById('audio-youtube-btn');
-  const youtubeStatus = document.getElementById('audio-youtube-status');
-  const replaceBtn = document.getElementById('audio-replace-btn');
-  const deleteBtn = document.getElementById('audio-delete-btn');
   const canvas = document.getElementById('audio-waveform');
   const canvasCtx = canvas ? canvas.getContext('2d') : null;
   const playhead = document.getElementById('audio-playhead');
@@ -35,8 +41,8 @@
   audio.preload = 'metadata';
   let peaks = null; // Float32Array of per-bucket peak amplitudes, 0..1
   let duration = 0;
-  let markers = []; // [{sectionIndex, timeSeconds}], sorted by time
-  let canEdit = root.dataset.canEdit === 'true';
+  let categories = {}; // {youtube: {markers: [...], ...} | undefined, band: {...} | undefined}
+  let activeCategory = null;
 
   function fmtTime(s) {
     if (!isFinite(s) || s < 0) s = 0;
@@ -44,11 +50,13 @@
     return `${m}:${String(sec).padStart(2, '0')}`;
   }
 
-  // ---- Waveform: decode once, draw peaks into a fixed-width bucket array
-  // (independent of canvas pixel width, which can change on resize) so a
-  // resize just re-renders from cached peaks, no re-decode. ----------------
+  // ---- Waveform: decode once per category switch, draw peaks into a
+  // fixed-width bucket array (independent of canvas pixel width, which
+  // can change on resize) so a resize just re-renders from cached peaks,
+  // no re-decode. ------------------------------------------------------
   async function decodeWaveform() {
-    const res = await fetch(`/b/${book}/${stem}/audio.mp3`);
+    peaks = null;
+    const res = await fetch(`/b/${book}/${stem}/audio.mp3?category=${activeCategory}`);
     if (!res.ok) return;
     const arrayBuffer = await res.arrayBuffer();
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -97,11 +105,11 @@
 
   // ---- Markers / structure-strip sync -------------------------------------
   const segEls = [...document.querySelectorAll('.structure-seg')];
-  function markerForSection(idx) { return markers.find(m => m.sectionIndex === idx); }
+  function currentMarkers() { return (categories[activeCategory] && categories[activeCategory].markers) || []; }
+  function markerForSection(idx) { return currentMarkers().find(m => m.sectionIndex === idx); }
   function currentMarkerIndex(t) {
-    // The last marker whose time is <= t — "which section are we in."
     let found = -1;
-    for (const m of markers) { if (m.timeSeconds <= t) found = m.sectionIndex; else break; }
+    for (const m of currentMarkers()) { if (m.timeSeconds <= t) found = m.sectionIndex; else break; }
     return found;
   }
   function highlightFromTime(t) {
@@ -112,14 +120,11 @@
       el.classList.toggle('done', idx >= 0 && i < idx);
     });
   }
-  // Clicking a structure-seg seeks to its marker, if it has one — doesn't
-  // fight the existing click behavior (metronome section-jump) when no
-  // audio/marker exists for that section, since nothing is added unless
-  // markerForSection finds a hit.
+  let pendingSectionIndex = null;
   segEls.forEach(el => {
     el.addEventListener('click', () => {
-      const idx = parseInt(el.dataset.sectionIndex, 10);
-      const m = markerForSection(idx);
+      pendingSectionIndex = parseInt(el.dataset.sectionIndex, 10);
+      const m = markerForSection(pendingSectionIndex);
       if (m && duration) { audio.currentTime = m.timeSeconds; }
     });
   });
@@ -145,7 +150,6 @@
   audio.addEventListener('timeupdate', renderPlayheadAndMarkers);
   audio.addEventListener('loadedmetadata', () => { duration = audio.duration; renderPlayheadAndMarkers(); });
 
-  // Click-to-seek on the waveform itself.
   canvas?.addEventListener('click', e => {
     if (!duration) return;
     const rect = canvas.getBoundingClientRect();
@@ -153,93 +157,161 @@
     audio.currentTime = pct * duration;
   });
 
-  // "Set marker here" — attached to whichever structure-seg is currently
-  // selected via a simple prompt-free flow: play/scrub to the spot, pick
-  // the section from the strip (click still seeks if a marker exists
-  // already; with none yet it does nothing but stays visually clickable),
-  // then press "set marker" which writes it against the LAST section the
-  // strip highlighted as current by playback position proximity — simplest
-  // correct behavior without adding a second selection UI.
-  let pendingSectionIndex = null;
-  segEls.forEach(el => {
-    el.addEventListener('click', () => { pendingSectionIndex = parseInt(el.dataset.sectionIndex, 10); });
-  });
   setMarkerBtn?.addEventListener('click', async () => {
     if (pendingSectionIndex === null) {
       alert('Click a section in the structure strip first, then "set marker" to attach the current playback position to it.');
       return;
     }
     const t = audio.currentTime;
-    const res = await fetch(`/api/songs/${book}/${stem}/audio/markers/${pendingSectionIndex}`, {
+    const res = await fetch(`/api/songs/${book}/${stem}/audio/${activeCategory}/markers/${pendingSectionIndex}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ timeSeconds: t }),
     });
     if (!res.ok) { alert('Could not save the marker.'); return; }
-    const existing = markerForSection(pendingSectionIndex);
+    const list = categories[activeCategory].markers || (categories[activeCategory].markers = []);
+    const existing = list.find(m => m.sectionIndex === pendingSectionIndex);
     if (existing) existing.timeSeconds = t;
-    else markers.push({ sectionIndex: pendingSectionIndex, timeSeconds: t });
-    markers.sort((a, b) => a.timeSeconds - b.timeSeconds);
+    else list.push({ sectionIndex: pendingSectionIndex, timeSeconds: t });
+    list.sort((a, b) => a.timeSeconds - b.timeSeconds);
     renderPlayheadAndMarkers();
   });
 
-  // ---- Load / upload ---------------------------------------------------
+  // ---- Category toggle / load -------------------------------------------
+  function categoryLabel(c) { return c === 'youtube' ? 'YouTube' : 'Band recording'; }
+
+  function selectCategory(cat) {
+    activeCategory = cat;
+    try { localStorage.setItem(prefKey, cat); } catch (e) {}
+    categoryToggle?.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.category === cat));
+    audio.pause();
+    audio.src = `/b/${book}/${stem}/audio.mp3?category=${cat}`;
+    duration = 0;
+    decodeWaveform();
+  }
+
   async function loadMeta() {
     const res = await fetch(`/api/songs/${book}/${stem}/audio`);
     if (!res.ok) return;
     const data = await res.json();
-    if (!data.hasAudio) {
+    categories = {};
+    (data.categories || []).forEach(c => { categories[c.category] = c; });
+    const available = Object.keys(categories);
+
+    if (available.length === 0) {
       if (emptyState) emptyState.hidden = false;
       if (playerBody) playerBody.hidden = true;
+      if (categoryToggle) categoryToggle.hidden = true;
       return;
     }
-    markers = (data.markers || []).slice().sort((a, b) => a.timeSeconds - b.timeSeconds);
     if (emptyState) emptyState.hidden = true;
     if (playerBody) playerBody.hidden = false;
-    audio.src = `/b/${book}/${stem}/audio.mp3`;
-    decodeWaveform();
+
+    if (categoryToggle) {
+      categoryToggle.hidden = available.length < 2;
+      categoryToggle.querySelectorAll('button').forEach(b => { b.hidden = !categories[b.dataset.category]; });
+    }
+
+    let preferred = null;
+    try { preferred = localStorage.getItem(prefKey); } catch (e) {}
+    const target = (preferred && categories[preferred]) ? preferred : available[0];
+    selectCategory(target);
   }
 
-  async function uploadFile(file) {
-    const fd = new FormData();
-    fd.append('file', file);
-    const res = await fetch(`/api/songs/${book}/${stem}/audio`, { method: 'PUT', body: fd });
-    if (!res.ok) { alert('Upload failed: ' + (await res.text())); return; }
-    loadMeta();
-  }
-  uploadFileBtn?.addEventListener('click', () => uploadFileInput?.click());
-  uploadFileInput?.addEventListener('change', () => {
-    const f = uploadFileInput.files && uploadFileInput.files[0];
-    if (f) uploadFile(f);
+  categoryToggle?.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-category]');
+    if (btn && categories[btn.dataset.category]) selectCategory(btn.dataset.category);
   });
 
-  youtubeBtn?.addEventListener('click', async () => {
-    const url = youtubeInput?.value.trim();
-    if (!url) return;
-    youtubeBtn.disabled = true;
-    if (youtubeStatus) youtubeStatus.textContent = 'Downloading… this can take a minute.';
+  window.addEventListener('resize', drawWaveform);
+
+  // ---- Reference-drawer upload controls (YouTube download + band file
+  // upload) — moved here from the main player per direct request. Both
+  // just call loadMeta() again afterward so the player above picks up
+  // the new category without a full page reload. --------------------------
+  if (!canEdit) { loadMeta(); return; }
+
+  function uploadFile(category, file, onDone) {
+    const fd = new FormData();
+    fd.append('file', file);
+    fetch(`/api/songs/${book}/${stem}/audio/${category}`, { method: 'PUT', body: fd })
+      .then(async res => {
+        if (!res.ok) { alert('Upload failed: ' + (await res.text())); return; }
+        loadMeta();
+      })
+      .finally(() => onDone && onDone());
+  }
+
+  // Band recording: plain file upload.
+  const bandFileInput = document.getElementById('audio-band-file');
+  const bandUploadBtn = document.getElementById('audio-band-upload-btn');
+  const bandReplaceBtn = document.getElementById('audio-band-replace-btn');
+  const bandDeleteBtn = document.getElementById('audio-band-delete-btn');
+  bandUploadBtn?.addEventListener('click', () => bandFileInput?.click());
+  bandReplaceBtn?.addEventListener('click', () => bandFileInput?.click());
+  bandFileInput?.addEventListener('change', () => {
+    const f = bandFileInput.files && bandFileInput.files[0];
+    if (f) uploadFile('band', f, () => { bandFileInput.value = ''; });
+  });
+  bandDeleteBtn?.addEventListener('click', async () => {
+    if (!confirm('Remove the band recording?')) return;
+    const res = await fetch(`/api/songs/${book}/${stem}/audio/band`, { method: 'DELETE' });
+    if (res.ok) loadMeta();
+  });
+
+  // YouTube: downloads audio from the video URL already saved as this
+  // song's reference (see #reference-block's data-url, kept current by
+  // song.js's own initReference) — no second URL field to fill in.
+  const ytDownloadBtn = document.getElementById('audio-youtube-download-btn');
+  const ytReplaceBtn = document.getElementById('audio-youtube-replace-btn');
+  const ytDeleteBtn = document.getElementById('audio-youtube-delete-btn');
+  const ytStatus = document.getElementById('audio-youtube-status');
+  const referenceBlock = document.getElementById('reference-block');
+
+  async function downloadFromReference() {
+    const url = referenceBlock && referenceBlock.dataset.url;
+    if (!url) { alert('Add the YouTube video link above first, then download its audio.'); return; }
+    ytDownloadBtn && (ytDownloadBtn.disabled = true);
+    ytReplaceBtn && (ytReplaceBtn.disabled = true);
+    if (ytStatus) ytStatus.textContent = 'Downloading… this can take a minute.';
     try {
       const res = await fetch(`/api/songs/${book}/${stem}/audio/youtube`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       });
       if (!res.ok) {
-        if (youtubeStatus) youtubeStatus.textContent = 'Download failed: ' + (await res.text());
+        if (ytStatus) ytStatus.textContent = 'Download failed: ' + (await res.text());
         return;
       }
-      if (youtubeStatus) youtubeStatus.textContent = '';
+      if (ytStatus) ytStatus.textContent = '';
       loadMeta();
     } finally {
-      youtubeBtn.disabled = false;
+      ytDownloadBtn && (ytDownloadBtn.disabled = false);
+      ytReplaceBtn && (ytReplaceBtn.disabled = false);
     }
+  }
+  ytDownloadBtn?.addEventListener('click', downloadFromReference);
+  ytReplaceBtn?.addEventListener('click', downloadFromReference);
+  ytDeleteBtn?.addEventListener('click', async () => {
+    if (!confirm('Remove the downloaded YouTube audio?')) return;
+    const res = await fetch(`/api/songs/${book}/${stem}/audio/youtube`, { method: 'DELETE' });
+    if (res.ok) loadMeta();
   });
 
-  replaceBtn?.addEventListener('click', () => uploadFileInput?.click());
-  deleteBtn?.addEventListener('click', async () => {
-    if (!confirm('Remove this song’s reference audio?')) return;
-    const res = await fetch(`/api/songs/${book}/${stem}/audio`, { method: 'DELETE' });
-    if (res.ok) { audio.pause(); audio.removeAttribute('src'); markers = []; loadMeta(); }
-  });
-
-  window.addEventListener('resize', drawWaveform);
+  // Reflect which categories already exist in the drawer's own
+  // upload/replace/remove button visibility (upload hidden once present,
+  // replace/remove shown instead) — re-run whenever loadMeta() refreshes
+  // categories, not just once at load.
+  const origLoadMeta = loadMeta;
+  loadMeta = async function () {
+    await origLoadMeta();
+    const hasYouTube = !!categories.youtube;
+    const hasBand = !!categories.band;
+    if (ytDownloadBtn) ytDownloadBtn.hidden = hasYouTube;
+    if (ytReplaceBtn) ytReplaceBtn.hidden = !hasYouTube;
+    if (ytDeleteBtn) ytDeleteBtn.hidden = !hasYouTube;
+    if (bandUploadBtn) bandUploadBtn.hidden = hasBand;
+    if (bandReplaceBtn) bandReplaceBtn.hidden = !hasBand;
+    if (bandDeleteBtn) bandDeleteBtn.hidden = !hasBand;
+  };
   loadMeta();
 })();

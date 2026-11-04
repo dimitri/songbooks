@@ -122,12 +122,18 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// are viewer-level (same as reading the chart itself), upload/delete/
 	// markers are editor-level (same as editing the chart itself).
 	mux.HandleFunc("GET /api/songs/{book}/{stem}/audio", s.requireSongRole("viewer", s.handleGetSongAudioMeta))
+	// category is a query param here (?category=youtube|band), not a path
+	// segment — a path segment collided with the existing /b/{book}/jam/
+	// {code}/roster route ("neither is more specific than the other," Go
+	// 1.22+ ServeMux's own conflict error), and a {category} segment with
+	// a literal ".mp3" suffix attached is rejected outright ("bad wildcard
+	// segment," must be the whole path segment).
 	mux.HandleFunc("GET /b/{book}/{stem}/audio.mp3", s.requireSongRole("viewer", s.handleGetSongAudioData))
-	mux.HandleFunc("PUT /api/songs/{book}/{stem}/audio", s.requireSongRole("editor", s.handlePutSongAudio))
+	mux.HandleFunc("PUT /api/songs/{book}/{stem}/audio/{category}", s.requireSongRole("editor", s.handlePutSongAudio))
 	mux.HandleFunc("POST /api/songs/{book}/{stem}/audio/youtube", s.requireSongRole("editor", s.handlePostSongAudioYouTube))
-	mux.HandleFunc("DELETE /api/songs/{book}/{stem}/audio", s.requireSongRole("editor", s.handleDeleteSongAudio))
-	mux.HandleFunc("PUT /api/songs/{book}/{stem}/audio/markers/{sectionIndex}", s.requireSongRole("editor", s.handlePutAudioMarker))
-	mux.HandleFunc("DELETE /api/songs/{book}/{stem}/audio/markers/{sectionIndex}", s.requireSongRole("editor", s.handleDeleteAudioMarker))
+	mux.HandleFunc("DELETE /api/songs/{book}/{stem}/audio/{category}", s.requireSongRole("editor", s.handleDeleteSongAudio))
+	mux.HandleFunc("PUT /api/songs/{book}/{stem}/audio/{category}/markers/{sectionIndex}", s.requireSongRole("editor", s.handlePutAudioMarker))
+	mux.HandleFunc("DELETE /api/songs/{book}/{stem}/audio/{category}/markers/{sectionIndex}", s.requireSongRole("editor", s.handleDeleteAudioMarker))
 	mux.HandleFunc("PUT /api/songs/{book}/{stem}/redo", s.requireSongRole("editor", s.handleRedoSong))
 
 	mux.HandleFunc("PUT /api/books/{book}/order", s.requireRole("editor", s.handleSaveOrder))

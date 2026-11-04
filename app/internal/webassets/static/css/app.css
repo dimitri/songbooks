@@ -700,12 +700,28 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   --waveform-color: color-mix(in srgb, var(--accent) 55%, var(--fg-muted));
 }
 .audio-empty-state:not([hidden]) { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: 0.85rem; padding: 0.3rem 0; }
-.audio-empty-or { color: var(--fg-muted); font-size: 0.8rem; flex: 0 0 auto; }
-#audio-youtube-url { min-width: 14rem; flex: 1 1 14rem; }
+/* The toggle between the two reference categories (visible only when a
+   song actually has both) — same pill-track visual language as
+   .band-tabs/.admin-tabs, kept small since it's a secondary control
+   sitting above the waveform, not a primary nav. */
+.audio-category-toggle:not([hidden]) {
+  display: inline-flex; gap: 0.15rem; margin-bottom: 0.5rem;
+  background: var(--bg-sunken); border-radius: 999px; padding: 0.2rem;
+}
+.audio-category-toggle button {
+  padding: 0.3rem 0.7rem; border-radius: 999px; border: none; background: none;
+  color: var(--fg-muted); font-size: 0.78rem; font-weight: 500; cursor: pointer;
+}
+.audio-category-toggle button.active { background: var(--bg-raised); color: var(--fg); font-weight: 600; }
 /* A button with a TEXT label, not the icon-only circular .icon-btn (fixed
    2.3rem width, fine for a single glyph, but wraps "Add reference audio
-   (MP3)" into four lines when reused for one) — auto width, no wrap. */
-.audio-pill-btn {
+   (MP3)" into four lines when reused for one) — auto width, no wrap.
+   :not([hidden]) — same class-vs-attribute-selector specificity issue
+   fixed repeatedly elsewhere this session (.setlist-overview-reorder-
+   btns, .real-chart-host-readonly, .audio-empty-state): a bare class
+   rule's `display` outranks the `[hidden]` attribute's own UA default,
+   so replace/remove buttons meant to start hidden showed immediately. */
+.audio-pill-btn:not([hidden]) {
   display: inline-flex; align-items: center; gap: 0.3em; white-space: nowrap; flex: 0 0 auto;
   padding: 0.35rem 0.7rem; font-size: 0.82rem; border-radius: 999px;
   border: 1px solid var(--border); background: var(--bg-raised); color: var(--fg); cursor: pointer;
@@ -861,6 +877,12 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   width: 100%; aspect-ratio: 16 / 9; border: 1px solid var(--border);
   border-radius: 6px; display: block;
 }
+.reference-section-head {
+  margin: 1.2rem 0 0.4rem; padding-top: 1rem; border-top: 1px solid var(--border);
+  font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--fg-muted);
+}
+.reference-section-head:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+.audio-category-upload { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.6rem; }
 
 /* A segmented row of equal-width icon buttons — the sound/mode/intro-length
    pickers, replacing what used to be <select> dropdowns: a dropdown hides

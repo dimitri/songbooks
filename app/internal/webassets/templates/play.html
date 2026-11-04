@@ -585,6 +585,15 @@
     <button id="reference-drawer-close" class="icon-btn" type="button" title="close">{{template "icon-close"}}</button>
   </div>
   <div class="edit-drawer-body">
+    {{/* Two reference CATEGORIES, not one blended thing — "a personal
+         choice of reference version (yt video, band recording: two
+         categories only)". This section is the YouTube one: the video
+         link itself (unchanged from before) plus — moved here from the
+         main player, per direct request — the button that downloads
+         that SAME video's audio as this song's "youtube" category MP3
+         (app/docs/mp3-reference-audio.md §1). One URL field serves both:
+         there's no reason to type the same link twice. */}}
+    <h3 class="reference-section-head">YouTube video</h3>
     <div class="reference-block" id="reference-block" data-url="{{.Reference}}" data-book="{{.Book}}" data-stem="{{.Stem}}">
       <div class="reference-row">
         <a id="reference-link" class="meta-row" href="{{.Reference}}" target="_blank" rel="noopener"{{if not .Reference}} hidden{{end}}>reference &#8599;</a>
@@ -599,6 +608,30 @@
         <button id="reference-save-btn" type="button" class="primary">Save</button>
       </div>
       <div class="reference-embed" id="reference-embed"></div>
+      {{if .CanEdit}}
+      <div class="audio-category-upload" id="audio-youtube-controls">
+        <button type="button" id="audio-youtube-download-btn" class="audio-pill-btn">{{template "icon-reference"}} Download audio from this video (MP3)</button>
+        <button type="button" id="audio-youtube-replace-btn" class="audio-pill-btn" hidden>replace audio</button>
+        <button type="button" id="audio-youtube-delete-btn" class="audio-pill-btn danger" hidden>remove audio</button>
+        <span id="audio-youtube-status" class="hint"></span>
+      </div>
+      {{end}}
+    </div>
+
+    {{/* The other category: the band's own practice/live recording — a
+         plain file upload, nothing YouTube-specific about it. */}}
+    <h3 class="reference-section-head">Band recording</h3>
+    <div class="reference-block" id="band-audio-block">
+      {{if .CanEdit}}
+      <input type="file" id="audio-band-file" accept="audio/*" hidden>
+      <div class="audio-category-upload" id="audio-band-controls">
+        <button type="button" id="audio-band-upload-btn" class="audio-pill-btn">{{template "icon-reference"}} Upload a recording (MP3)</button>
+        <button type="button" id="audio-band-replace-btn" class="audio-pill-btn" hidden>replace</button>
+        <button type="button" id="audio-band-delete-btn" class="audio-pill-btn danger" hidden>remove</button>
+      </div>
+      {{else}}
+      <span class="hint">No band recording uploaded yet.</span>
+      {{end}}
     </div>
   </div>
 </div>
@@ -788,18 +821,22 @@
          than server-side, since "does this song have audio yet" would
          otherwise need threading through handleSong for a feature this
          page-specific. */}}
+    {{/* Upload/replace/remove controls for BOTH categories now live in
+         the Reference drawer (moved there per direct request — "move the
+         forms with the URL for the yt video and the mp3 source download
+         to the reference tab"). This block is purely playback: which
+         categories exist, a toggle between them when there's more than
+         one ("a personal choice of reference version" — the choice
+         itself is stored in this browser's localStorage, per song, not
+         shared/synced — it's a listening preference, not song data),
+         and the waveform/transport/markers for whichever is selected. */}}
     <div class="audio-player" id="audio-player" data-book="{{.Book}}" data-stem="{{.Stem}}" data-can-edit="{{if .CanEdit}}true{{else}}false{{end}}">
-      <input type="file" id="audio-upload-file" accept="audio/*" hidden>
+      <div id="audio-category-toggle" class="audio-category-toggle" hidden>
+        <button type="button" data-category="youtube">YouTube</button>
+        <button type="button" data-category="band">Band recording</button>
+      </div>
       <div id="audio-empty-state" class="audio-empty-state" hidden>
-        {{if .CanEdit}}
-        <button type="button" id="audio-upload-file-btn" class="audio-pill-btn">{{template "icon-reference"}} Add reference audio (MP3)</button>
-        <span class="audio-empty-or">or</span>
-        <input type="url" id="audio-youtube-url" placeholder="https://www.youtube.com/watch?v=...">
-        <button type="button" id="audio-youtube-btn" class="audio-pill-btn">Download from YouTube</button>
-        <span id="audio-youtube-status" class="hint"></span>
-        {{else}}
-        <span class="hint">No reference audio for this song yet.</span>
-        {{end}}
+        <span class="hint">No reference audio yet — add one from the <button type="button" id="audio-empty-reference-link" class="link-btn">Reference</button> tab.</span>
       </div>
       <div id="audio-player-body" class="audio-player-body" hidden>
         <div class="audio-waveform-wrap">
@@ -816,8 +853,6 @@
           {{if .CanEdit}}
           <span class="audio-controls-spacer"></span>
           <button type="button" id="audio-set-marker-btn" class="audio-pill-btn" title="click a section in the strip above, then set its marker to the current playback position">set marker</button>
-          <button type="button" id="audio-replace-btn" class="audio-pill-btn" title="replace this audio">replace</button>
-          <button type="button" id="audio-delete-btn" class="audio-pill-btn danger" title="remove this audio">remove</button>
           {{end}}
         </div>
       </div>
@@ -921,7 +956,7 @@
 // in the document they live, so moving this block here needed no changes
 // there.
 (function() {
-  const toggles = [document.getElementById('reference-toggle'), document.getElementById('reference-stack-row'), document.getElementById('reference-view-tab')].filter(Boolean);
+  const toggles = [document.getElementById('reference-toggle'), document.getElementById('reference-stack-row'), document.getElementById('reference-view-tab'), document.getElementById('audio-empty-reference-link')].filter(Boolean);
   const drawer = document.getElementById('reference-drawer');
   const backdrop = document.getElementById('reference-drawer-backdrop');
   if (!toggles.length || !drawer) return;

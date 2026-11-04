@@ -8,17 +8,29 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// SongAudio is one reference-recording MP3 for a song variant — see
-// app/docs/mp3-reference-audio.md for why this is stored as bytea in
-// Postgres rather than a filesystem volume or object storage.
+// AudioCategory is one of exactly two reference-audio kinds a song can
+// have — "a personal choice of reference version (yt video, band
+// recording: two categories only)," not an open-ended list of takes.
+type AudioCategory string
+
+const (
+	AudioYouTube AudioCategory = "youtube"
+	AudioBand    AudioCategory = "band"
+)
+
+// SongAudio is one reference-recording MP3 for a song variant, in one of
+// the two categories above — see app/docs/mp3-reference-audio.md for why
+// this is stored as bytea in Postgres rather than a filesystem volume or
+// object storage.
 type SongAudio struct {
-	ID               int64
-	VariantID        int64
-	ContentType      string
-	ByteSize         int64
-	SHA256           string
-	SourceURL        string
-	CreatedAt        time.Time
+	ID                int64
+	VariantID         int64
+	Category          AudioCategory
+	ContentType       string
+	ByteSize          int64
+	SHA256            string
+	SourceURL         string
+	CreatedAt         time.Time
 	CreatedByPersonID *int64
 }
 
@@ -31,15 +43,36 @@ type AudioMarker struct {
 	TimeSeconds  float64
 }
 
-// GetSongAudioMeta loads a variant's audio row WITHOUT its bytes — for
-// pages that just need to know "is there audio, how big, what markers,"
-// not stream it.
-func (st *Store) GetSongAudioMeta(ctx context.Context, variantID int64) (*SongAudio, error) {
+// ListSongAudio loads every category a variant has reference audio for
+// (0, 1, or 2 rows — see AudioCategory's own doc comment), WITHOUT the
+// bytes themselves, for pages that just need to know "what's available."
+func (st *Store) ListSongAudio(ctx context.Context, variantID int64) ([]SongAudio, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT id, variant_id, category, content_type, byte_size, sha256, source_url, created_at, created_by_person_id
+		FROM song_audio WHERE variant_id = $1 ORDER BY category`, variantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []SongAudio
+	for rows.Next() {
+		var a SongAudio
+		if err := rows.Scan(&a.ID, &a.VariantID, &a.Category, &a.ContentType, &a.ByteSize, &a.SHA256, &a.SourceURL, &a.CreatedAt, &a.CreatedByPersonID); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// GetSongAudioMeta loads one category's audio row for a variant, without
+// its bytes.
+func (st *Store) GetSongAudioMeta(ctx context.Context, variantID int64, category AudioCategory) (*SongAudio, error) {
 	var a SongAudio
 	err := st.db.QueryRow(ctx, `
-		SELECT id, variant_id, content_type, byte_size, sha256, source_url, created_at, created_by_person_id
-		FROM song_audio WHERE variant_id = $1`, variantID).
-		Scan(&a.ID, &a.VariantID, &a.ContentType, &a.ByteSize, &a.SHA256, &a.SourceURL, &a.CreatedAt, &a.CreatedByPersonID)
+		SELECT id, variant_id, category, content_type, byte_size, sha256, source_url, created_at, created_by_person_id
+		FROM song_audio WHERE variant_id = $1 AND category = $2`, variantID, category).
+		Scan(&a.ID, &a.VariantID, &a.Category, &a.ContentType, &a.ByteSize, &a.SHA256, &a.SourceURL, &a.CreatedAt, &a.CreatedByPersonID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -50,9 +83,10 @@ func (st *Store) GetSongAudioMeta(ctx context.Context, variantID int64) (*SongAu
 }
 
 // GetSongAudioData loads one audio row's actual bytes, by its own id (not
-// variant_id) — used by the serving handler, which already resolved the
-// id from GetSongAudioMeta and wants a second, cheap round-trip rather
-// than ever holding every variant's audio bytes in memory at once.
+// variant_id/category) — used by the serving handler, which already
+// resolved the id from GetSongAudioMeta and wants a second, cheap
+// round-trip rather than ever holding every variant's audio bytes in
+// memory at once.
 func (st *Store) GetSongAudioData(ctx context.Context, audioID int64) ([]byte, string, error) {
 	var data []byte
 	var contentType string
@@ -63,27 +97,28 @@ func (st *Store) GetSongAudioData(ctx context.Context, audioID int64) ([]byte, s
 	return data, contentType, err
 }
 
-// SetSongAudio replaces (or creates) a variant's reference audio — one
-// row per variant (song_audio_variant_idx), so a re-upload overwrites
-// the previous recording rather than accumulating takes.
-func (st *Store) SetSongAudio(ctx context.Context, variantID int64, data []byte, contentType, sha256, sourceURL string, createdByPersonID int64) (int64, error) {
+// SetSongAudio replaces (or creates) a variant's reference audio FOR ONE
+// CATEGORY — one row per (variant, category) (song_audio_variant_category_idx),
+// so re-uploading the same category overwrites it, but uploading the
+// other category doesn't touch this one.
+func (st *Store) SetSongAudio(ctx context.Context, variantID int64, category AudioCategory, data []byte, contentType, sha256, sourceURL string, createdByPersonID int64) (int64, error) {
 	var id int64
 	err := st.db.QueryRow(ctx, `
-		INSERT INTO song_audio (variant_id, content_type, byte_size, sha256, source_url, data, created_by_person_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT (variant_id) DO UPDATE SET
+		INSERT INTO song_audio (variant_id, category, content_type, byte_size, sha256, source_url, data, created_by_person_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT (variant_id, category) DO UPDATE SET
 			content_type = EXCLUDED.content_type, byte_size = EXCLUDED.byte_size,
 			sha256 = EXCLUDED.sha256, source_url = EXCLUDED.source_url,
 			data = EXCLUDED.data, created_at = now(), created_by_person_id = EXCLUDED.created_by_person_id
 		RETURNING id`,
-		variantID, contentType, len(data), sha256, sourceURL, data, createdByPersonID).Scan(&id)
+		variantID, category, contentType, len(data), sha256, sourceURL, data, createdByPersonID).Scan(&id)
 	return id, err
 }
 
-// DeleteSongAudio removes a variant's reference audio (and, via ON DELETE
-// CASCADE, its markers).
-func (st *Store) DeleteSongAudio(ctx context.Context, variantID int64) error {
-	_, err := st.db.Exec(ctx, `DELETE FROM song_audio WHERE variant_id = $1`, variantID)
+// DeleteSongAudio removes one category of a variant's reference audio
+// (and, via ON DELETE CASCADE, its markers).
+func (st *Store) DeleteSongAudio(ctx context.Context, variantID int64, category AudioCategory) error {
+	_, err := st.db.Exec(ctx, `DELETE FROM song_audio WHERE variant_id = $1 AND category = $2`, variantID, category)
 	return err
 }
 

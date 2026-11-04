@@ -48,7 +48,7 @@ func main() {
 		SELECT s.id, p.slug, s.stem, s.body
 		FROM songs s
 		JOIN projects p ON p.id = s.project_id
-		WHERE NOT EXISTS (SELECT 1 FROM song_audio sa WHERE sa.variant_id = s.id)
+		WHERE NOT EXISTS (SELECT 1 FROM song_audio sa WHERE sa.variant_id = s.id AND sa.category = 'youtube')
 		ORDER BY s.id`)
 	if err != nil {
 		log.Fatal(err)
@@ -97,9 +97,9 @@ func main() {
 		}
 		sum := sha256.Sum256(data)
 		if _, err := pool.Exec(ctx, `
-			INSERT INTO song_audio (variant_id, content_type, byte_size, sha256, source_url, data)
-			VALUES ($1, 'audio/mpeg', $2, $3, $4, $5)
-			ON CONFLICT (variant_id) DO NOTHING`,
+			INSERT INTO song_audio (variant_id, category, content_type, byte_size, sha256, source_url, data)
+			VALUES ($1, 'youtube', 'audio/mpeg', $2, $3, $4, $5)
+			ON CONFLICT (variant_id, category) DO NOTHING`,
 			c.id, len(data), hex.EncodeToString(sum[:]), c.url, data); err != nil {
 			fmt.Printf("FAILED to store: %v\n", err)
 			failed++
