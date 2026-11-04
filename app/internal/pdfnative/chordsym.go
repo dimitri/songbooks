@@ -32,12 +32,15 @@ type chordSym struct {
 	bass      string
 }
 
-func parseChordSym(raw string) chordSym {
+func parseChordSym(raw string, jazz bool) chordSym {
 	p := chordsym.Split(raw)
 	if p.Root == "" {
 		return chordSym{plain: p.Quality}
 	}
 	dq := chordsym.DecomposeQuality(p.Quality)
+	if jazz {
+		dq = chordsym.DecomposeQualityJazz(p.Quality)
+	}
 	return chordSym{root: p.Root, marker: dq.Marker, markerRaw: dq.MarkerRaw, ext: dq.Ext, bass: p.Bass}
 }
 
@@ -135,7 +138,17 @@ func (c *canvas) drawTriangle(x, y, size float64, col rgb) float64 {
 // chord symbol at (x, baselineY), per the typographic rules above.
 // Returns the symbol's total width.
 func (c *canvas) drawChordSymbol(x, baselineY float64, raw string, size float64, col rgb) float64 {
-	cs := parseChordSym(raw)
+	return c.drawChordSymbolMode(x, baselineY, raw, size, col, false)
+}
+
+// drawChordSymbolMode is drawChordSymbol with jazz-mode selectable: jazz
+// uses chordsym.DecomposeQualityJazz's "-" minor marker, drawn on the
+// baseline at normal weight (matching the web Jazz chart's .csym-minor,
+// never the engraved modes' subscript-below-baseline "m") — see
+// RenderJazz's own doc comment in internal/chordsym for why jazz gets a
+// different marker at all.
+func (c *canvas) drawChordSymbolMode(x, baselineY float64, raw string, size float64, col rgb, jazz bool) float64 {
+	cs := parseChordSym(raw, jazz)
 	if cs.plain != "" {
 		c.textAt(x, baselineY, cs.plain, faceSansBold, size, col)
 		return c.measureWidth(cs.plain, faceSansBold, size)
@@ -155,6 +168,10 @@ func (c *canvas) drawChordSymbol(x, baselineY float64, raw string, size float64,
 	case chordsym.MarkerAug:
 		cx += 1 + c.drawRunWithAccidentals(cx+1, baselineY-size*0.34, "+", faceSansBold, extSize, col)
 	case chordsym.MarkerMinor:
+		if jazz {
+			cx += 1 + c.drawRunWithAccidentals(cx+1, baselineY, cs.markerRaw, faceSansBold, size, col)
+			break
+		}
 		mSize := size * 0.6
 		c.textAt(cx+1, baselineY+size*0.14, cs.markerRaw, faceSansBold, mSize, col)
 		cx += 1 + c.measureWidth(cs.markerRaw, faceSansBold, mSize)

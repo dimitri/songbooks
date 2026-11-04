@@ -29,7 +29,7 @@ func chordLabel(tok string) string {
 // user feedback, "looking like done by a kid without talent"; iReal Pro's
 // actual chart style (reviewed live via its App Store screenshots) is
 // exactly this sparser, more typographic look.
-func (c *canvas) barRow(measures []song.Measure, size float64) {
+func (c *canvas) barRow(measures []song.Measure, size float64, jazz bool) {
 	if len(measures) == 0 {
 		return
 	}
@@ -151,7 +151,7 @@ func (c *canvas) barRow(measures []song.Measure, size float64) {
 			if label == "." || label == "%" || label == "%%" || label == "" {
 				continue
 			}
-			c.drawChordSymbol(startX+float64(si)*slotW, baseline, label, size*0.95, c.th.chord)
+			c.drawChordSymbolMode(startX+float64(si)*slotW, baseline, label, size*0.95, c.th.chord, jazz)
 		}
 	}
 	c.line(x0, ruleY, x0+c.colW, ruleY, c.th.line, 1.3)
@@ -278,7 +278,7 @@ func (c *canvas) measureSection(sec song.Section, bodySize float64, mode pdf.Mod
 			if end > len(sec.Measures) {
 				end = len(sec.Measures)
 			}
-			c.barRow(sec.Measures[start:end], bodySize)
+			c.barRow(sec.Measures[start:end], bodySize, mode == pdf.ModeJazz)
 			start = end
 			lineIdx++
 		}
