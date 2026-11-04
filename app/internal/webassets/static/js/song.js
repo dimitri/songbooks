@@ -1582,8 +1582,24 @@ const ICONS = {
     const fetchBtn = document.getElementById('import-fetch-btn');
     const fetchStatus = document.getElementById('import-fetch-status');
     const reviewText = document.getElementById('import-review-text');
+    const stripChordsCheck = document.getElementById('import-strip-chords');
     const applyBtn = document.getElementById('import-apply-btn');
     const applyStatus = document.getElementById('import-apply-status');
+
+    // Strips chord data from an already-converted .song-format draft
+    // (this app's own "[Section]\ngrid: ...\n[Chord]word" shape — see
+    // ToSongText) while keeping the structure: a "[Label]" line entirely
+    // on its own is a section header, kept as-is; a "grid:" line is pure
+    // chord data, dropped entirely; any other line has its inline
+    // "[Chord]" markers removed, leaving the lyric text and line breaks
+    // untouched — "keep the words and structure, drop the chords" for
+    // whoever only wants lyrics out of a chords-tab import.
+    function stripChordMarkers(text) {
+      return text.split('\n').filter(line => !/^grid:\s*/.test(line)).map(line => {
+        if (/^\[[^\]]*\](?:\s*\(repeat\))?$/.test(line.trim())) return line;
+        return line.replace(/\[[^\]\n]*\]/g, '');
+      }).join('\n');
+    }
 
     let importKind = null; // 'lyrics' | 'chords'
     let importSourceURL = '';
@@ -1680,8 +1696,9 @@ const ICONS = {
       }
     });
     applyBtn.addEventListener('click', () => {
-      const text = reviewText.value.trim();
+      let text = reviewText.value.trim();
       if (!text) return;
+      if (stripChordsCheck.checked) text = stripChordMarkers(text).trim();
       insertAtCursor(`\n\n# imported from ${importSourceURL}\n${text}\n`);
       applyStatus.textContent = 'applied — inserted into Source below cursor, review and fold into sections';
       applyStatus.className = 'ok';

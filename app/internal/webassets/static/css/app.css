@@ -1524,7 +1524,28 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 
 .lyrics .lyric-line { margin: 0.25rem 0; }
 .lyric-line.current { background: var(--current-bg); color: var(--current-fg); border-radius: 3px; }
-.inline-chord { display: inline-block; vertical-align: top; margin-right: 0.15em; }
+/* A chord-bearing segment stacks its chord directly above the word it
+   attaches to (two-row inline-flex column), matching both the PDF
+   export's own placement (internal/pdfnative/lyrics.go's drawChordSymbol
+   call, same x as the word beneath it) and the LaTeX "songs" package's
+   own convention this app's [Chord]word syntax was modeled on — a chord
+   mark raised above its syllable, never read inline before it on the
+   same line. A chordless segment stays a plain inline run so it still
+   wraps normally mid-phrase. */
+.lyric-seg { display: inline; }
+.lyric-seg.has-chord {
+  display: inline-flex; flex-direction: column; align-items: flex-start;
+  vertical-align: bottom; margin-right: 0.15em;
+}
+.inline-chord {
+  font-size: 0.78em; font-style: italic; line-height: 1.1;
+  margin-bottom: 0.05em; white-space: nowrap;
+}
+/* Lyrics-only mode is read by the singer, not the player — chords are
+   pure visual noise there (the "jazz chart"/"song" modes are where a
+   player wants them); strip them entirely rather than just de-emphasize
+   them. */
+#sheet[data-render-mode="lyrics"] .inline-chord { display: none; }
 
 /* ---- Shared structure/bar-count header ------------------------------------
    The "Intro 4 / Couplet 8 / Refrain 2" road-map convention (per a real
@@ -2749,6 +2770,7 @@ body.drawer-open { overflow: hidden; }
 .import-url-label input[type="url"] { display: block; width: 100%; margin-top: 0.3rem; }
 .import-row { display: flex; align-items: center; gap: 0.75rem; margin: 0.75rem 0 0; flex-wrap: wrap; }
 .import-review-text { font-family: var(--font-mono); font-size: 0.9rem; }
+.import-strip-chords-label { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.5rem; font-size: 0.9rem; color: var(--fg-muted); }
 
 textarea {
   width: 100%; font-family: var(--font-mono); font-size: 0.95rem;
