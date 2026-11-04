@@ -44,17 +44,37 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         xz-utils \
         python3 \
         ffmpeg \
+        unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # yt-dlp: a single self-contained Python zipapp, pinned by release tag
 # (not `latest`, which YouTube's own frequent markup/API changes can
 # break without warning) — download it like LilyPond above rather than
 # via pip, so there's no Python package index dependency at build time.
+# 2026.10.26, not the original 2025.09.26 pin: YouTube rolled out "SABR
+# streaming" server-side partway through that year-plus gap, which
+# breaks extraction on older yt-dlp builds entirely ("YouTube is forcing
+# SABR streaming for this client" — direct report, a real failed
+# download, not a hypothetical) — yt-dlp's own fix for it landed in
+# later releases, so this is a real functional requirement, not just
+# routine freshening.
 RUN set -eux; \
     curl -fsSL -o /usr/local/bin/yt-dlp \
-        https://github.com/yt-dlp/yt-dlp/releases/download/2025.09.26/yt-dlp; \
+        https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp; \
     chmod a+rx /usr/local/bin/yt-dlp
 RUN which yt-dlp && yt-dlp --version
+
+# deno: yt-dlp's own JS runtime for evaluating YouTube's signature-
+# decryption code — without one it falls back to a reduced format set
+# (confirmed live: "No supported JavaScript runtime could be found ...
+# some formats may be missing"); extraction still worked in that one
+# test, but a video whose only remaining formats need JS evaluation
+# would fail outright. Official install script, same "curl a vendor's
+# own installer, land the binary on PATH" pattern as yt-dlp/LilyPond
+# above — it installs to $HOME/.deno by default (root's, in this image).
+RUN set -eux; \
+    curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh -s -- -y; \
+    which deno && deno --version
 
 # LilyPond 2.26.0 — same version as the Mac dev environment (`brew install
 # lilypond` currently gives 2.26.0). Official release tarball, not apt:
