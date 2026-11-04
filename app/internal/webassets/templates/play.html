@@ -282,6 +282,8 @@
     <a href="/setlists">{{template "icon-back"}} {{.PracticeStepMode}}: {{.PracticeTitle}}</a>
     {{else if .GigMode}}
     <a href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} set list</a>
+    {{else if .SetlistRef}}
+    <a href="/setlists/{{.SetlistRef}}">{{template "icon-back"}} set list</a>
     {{else if .BandRef}}
     <a href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} {{.BandName}}</a>
     {{else}}
@@ -383,6 +385,8 @@
   <a class="back-link" href="/setlists">{{template "icon-back"}} {{.PracticeStepMode}}: {{.PracticeTitle}}</a>
   {{else if .GigMode}}
   <a class="back-link" href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} set list</a>
+  {{else if .SetlistRef}}
+  <a class="back-link" href="/setlists/{{.SetlistRef}}">{{template "icon-back"}} set list</a>
   {{else if .BandRef}}
   <a class="back-link" href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} {{.BandName}}</a>
   {{else}}

@@ -1572,7 +1572,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	}
 	if setlistRef := r.URL.Query().Get("setlist"); setlistRef != "" {
 		data["SetlistRef"] = setlistRef
-		data["Prev"], data["Next"] = s.setlistNeighbors(setlistRef, book, stem)
+		data["Prev"], data["Next"] = s.setlistNeighbors(r.Context(), setlistRef, book, stem)
 		// Arrived from the gig view (not the editable setlist page): keep the
 		// back link and prev/next pointed at that read-only list instead of
 		// the project page, so a reader never loses their way back to it.
@@ -1653,24 +1653,59 @@ func (s *Server) projectNeighbors(book, stem string) (prev, next *songNeighbor) 
 	return prev, next
 }
 
-func (s *Server) setlistNeighbors(setlistRef, book, stem string) (prev, next *songNeighbor) {
-	parts := strings.SplitN(setlistRef, "/", 2)
-	if len(parts) != 2 {
-		return nil, nil
-	}
-	l, _, err := s.store.LoadSetlist(parts[0], parts[1])
-	if err != nil {
-		return nil, nil
-	}
+func (s *Server) setlistNeighbors(ctx context.Context, setlistRef, book, stem string) (prev, next *songNeighbor) {
 	type ref struct{ book, stem string }
 	var flat []ref
 	at := -1
-	for _, set := range l.Sets {
-		for _, e := range set.Entries {
-			if e.Book == book && e.Stem == stem && at < 0 {
-				at = len(flat)
+
+	// setlistRef is either "book/stem" (the legacy file-based setlist
+	// family — LoadSetlist) or a bare numeric id (the DB-backed family —
+	// LoadSetlistByID, the one band_catalog.html/setlist_overview.html's
+	// own links and ?band= both actually use). Only the first form was
+	// ever handled here — a numeric setlistRef (e.g. "?setlist=7", from
+	// setlist-overview.html's own song links) silently fell through the
+	// book/stem split and returned no neighbors at all, so Prev/Next
+	// never appeared for a DB-backed setlist — a direct report.
+	if id, err := strconv.ParseInt(setlistRef, 10, 64); err == nil {
+		l, _, _, err := s.store.LoadSetlistByID(ctx, id)
+		if err != nil {
+			return nil, nil
+		}
+		for _, set := range l.Sets {
+			for _, e := range set.Entries {
+				eb, es := e.Book, e.Stem
+				if e.IsVariant() {
+					v, err := s.store.GetVariant(ctx, e.VariantID)
+					if err != nil {
+						continue
+					}
+					eb, es = v.Book, v.Stem
+				}
+				if eb == "" || es == "" {
+					continue
+				}
+				if eb == book && es == stem && at < 0 {
+					at = len(flat)
+				}
+				flat = append(flat, ref{eb, es})
 			}
-			flat = append(flat, ref{e.Book, e.Stem})
+		}
+	} else {
+		parts := strings.SplitN(setlistRef, "/", 2)
+		if len(parts) != 2 {
+			return nil, nil
+		}
+		l, _, err := s.store.LoadSetlist(parts[0], parts[1])
+		if err != nil {
+			return nil, nil
+		}
+		for _, set := range l.Sets {
+			for _, e := range set.Entries {
+				if e.Book == book && e.Stem == stem && at < 0 {
+					at = len(flat)
+				}
+				flat = append(flat, ref{e.Book, e.Stem})
+			}
 		}
 	}
 	if at < 0 {
