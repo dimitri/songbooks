@@ -195,6 +195,7 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// requireRole — a variant's visibility ('global' vs 'user') governs
 	// what's visible/editable here, not project membership; see
 	// internal/store/catalog.go and internal/store/revisions.go.
+	mux.HandleFunc("GET /songbooks", s.requireAuth(s.handleSongbooksIndexPage))
 	mux.HandleFunc("GET /catalog", s.requireAuth(s.handleCatalogPage))
 	mux.HandleFunc("GET /works/{id}", s.requireAuth(s.handleWorkVersionsPage))
 	mux.HandleFunc("GET /variants/{id}/history", s.requireAuth(s.handleVariantHistoryPage))

@@ -1,0 +1,57 @@
+{{define "songbooks-index"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
+<header class="app-header">
+  {{template "home-link"}}
+  <h1>Songbooks</h1>
+  <nav class="song-nav">
+    <a href="/catalog">catalog</a>
+    {{template "notif-bell"}}
+  </nav>
+</header>
+<main class="index">
+  <p class="catalog-intro">Every songbook you can open: your own personal collections, and your bands' shared repertoires.</p>
+
+  <h2 class="catalog-books-heading">My songbooks</h2>
+  {{if .MySongbooks}}
+  <div class="catalog-book-cards">
+  {{range .MySongbooks}}
+    <a class="catalog-book-card" href="/songbooks/{{.ID}}">
+      <div class="catalog-book-card-title">{{.Name}}</div>
+    </a>
+  {{end}}
+  </div>
+  {{else}}
+  <p class="hint">No songbooks yet.</p>
+  {{end}}
+
+  <h2 class="catalog-books-heading">Band repertoires</h2>
+  {{if .BandCards}}
+  <div class="catalog-book-cards">
+  {{range .BandCards}}
+    <a class="catalog-book-card" href="/bands/{{.ID}}/catalog">
+      <div class="catalog-book-card-title">{{.Name}}</div>
+      <div class="catalog-book-card-meta">{{.Members}} member{{if ne .Members 1}}s{{end}} &middot; repertoire</div>
+    </a>
+  {{end}}
+  </div>
+  {{else}}
+  <p class="hint">You're not in a band yet — <a href="/bands">start one</a> to get a shared repertoire.</p>
+  {{end}}
+</main>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

@@ -152,8 +152,8 @@ func (st *Store) CreateSetlist(ctx context.Context, scope, title, notes string, 
 
 	var id int64
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO setlists (project_id, stem, title, body, scope, owner_person_id, owner_band_id, notes)
-		VALUES (NULL, '', $1, '', $2, $3, $4, $5)
+		INSERT INTO setlists (title, body, scope, owner_person_id, owner_band_id, notes)
+		VALUES ($1, '', $2, $3, $4, $5)
 		RETURNING id`,
 		title, scope, ownerPersonID, ownerBandID, notes).Scan(&id); err != nil {
 		return 0, err

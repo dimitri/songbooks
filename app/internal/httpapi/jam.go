@@ -592,7 +592,6 @@ func (s *Server) handleJamRosterPage(w http.ResponseWriter, r *http.Request) {
 
 	type songGroup struct {
 		SongID    int64
-		Stem      string
 		Title     string
 		PlayOrder int
 		Rows      []store.RosterRow
@@ -600,7 +599,7 @@ func (s *Server) handleJamRosterPage(w http.ResponseWriter, r *http.Request) {
 	var groups []songGroup
 	for _, row := range roster {
 		if len(groups) == 0 || groups[len(groups)-1].SongID != row.SongID {
-			groups = append(groups, songGroup{SongID: row.SongID, Stem: row.SongStem, Title: row.SongTitle, PlayOrder: row.PlayOrder})
+			groups = append(groups, songGroup{SongID: row.SongID, Title: row.SongTitle, PlayOrder: row.PlayOrder})
 		}
 		g := &groups[len(groups)-1]
 		g.Rows = append(g.Rows, row)

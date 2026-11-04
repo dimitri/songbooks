@@ -43,7 +43,6 @@ type JamProfile struct {
 // see jam_song_instrument_limits).
 type RosterRow struct {
 	SongID     int64
-	SongStem   string
 	SongTitle  string
 	PlayOrder  int
 	Instrument string
@@ -257,7 +256,7 @@ type JamSong struct {
 	ID          int64
 	Title       string
 	PlayOrder   int
-	Instruments []RosterRow // Instrument/Players/Count/MinCount/MaxCount/Unmet/Full populated; SongID/SongStem/SongTitle left zero here (redundant with the JamSong they're nested under)
+	Instruments []RosterRow // Instrument/Players/Count/MinCount/MaxCount/Unmet/Full populated; SongID/SongTitle left zero here (redundant with the JamSong they're nested under)
 }
 
 // ListJamSongs lists jamCode's event's pickable song list — i.e. the
@@ -514,7 +513,7 @@ func (st *Store) JamRoster(ctx context.Context, jamEventID int64) ([]RosterRow, 
 	}
 
 	songRows, err := st.db.Query(ctx, `
-		SELECT s.id, s.stem, s.title, js.play_order FROM jam_songs js JOIN songs s ON s.id = js.song_id
+		SELECT s.id, s.title, js.play_order FROM jam_songs js JOIN songs s ON s.id = js.song_id
 		WHERE js.jam_event_id = $1 ORDER BY js.play_order`, jamEventID)
 	if err != nil {
 		return nil, err
@@ -532,9 +531,9 @@ func (st *Store) JamRoster(ctx context.Context, jamEventID int64) ([]RosterRow, 
 	var out []RosterRow
 	for songRows.Next() {
 		var songID int64
-		var stem, title string
+		var title string
 		var playOrder int
-		if err := songRows.Scan(&songID, &stem, &title, &playOrder); err != nil {
+		if err := songRows.Scan(&songID, &title, &playOrder); err != nil {
 			return nil, err
 		}
 		seen := map[string]bool{}
@@ -546,7 +545,7 @@ func (st *Store) JamRoster(ctx context.Context, jamEventID int64) ([]RosterRow, 
 			ps := players[songInstrumentKey{songID, instrument}]
 			cnt := len(ps)
 			out = append(out, RosterRow{
-				SongID: songID, SongStem: stem, SongTitle: title, PlayOrder: playOrder, Instrument: instrument, Players: ps,
+				SongID: songID, SongTitle: title, PlayOrder: playOrder, Instrument: instrument, Players: ps,
 				Count: cnt, MinCount: min, MaxCount: max, Unmet: cnt < min, Full: max != nil && cnt >= *max,
 			})
 		}

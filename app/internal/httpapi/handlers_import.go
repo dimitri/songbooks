@@ -65,18 +65,31 @@ func (s *Server) handleImportLyricsFindFetch(w http.ResponseWriter, r *http.Requ
 	}{Text: text, Source: source, URL: songURL})
 }
 
+// handleImportChords is the song editor's single-step "Fetch" Import tab
+// (see play.html's import-wizard): unlike the full multi-step
+// pick-sections wizard (handleImportUGParse/handleImportUGConvert, used
+// when creating a brand-new song), this has no section-picker UI, so it
+// converts every parsed section via UGSong.ToSongText straight away —
+// the result already uses this app's own inline "[Chord]word" syntax
+// (not UG's raw chord-line-above-lyric-line layout), landed in the same
+// review textarea the lyrics path already uses for the user to edit
+// before applying.
 func (s *Server) handleImportChords(w http.ResponseWriter, r *http.Request) {
 	var req importRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
 		httpError(w, http.StatusBadRequest, "missing url")
 		return
 	}
-	text, err := importer.FetchUGTab(req.URL)
+	song, err := importer.FetchAndParseUGTab(req.URL)
 	if err != nil {
 		httpError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"text": text})
+	all := make([]int, len(song.Sections))
+	for i := range all {
+		all[i] = i
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"text": song.ToSongText(all)})
 }
 
 // ugSectionPreview is one parsed section as the import wizard's preview

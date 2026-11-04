@@ -218,6 +218,7 @@ type CatalogVariant struct {
 // CatalogFilter narrows ListCatalog's listing. Zero values mean "no
 // filter" for that field.
 type CatalogFilter struct {
+	Query  string // full-text search over title/artist/lyrics (songs.search), via plainto_tsquery
 	Artist string // exact match (case-sensitive on the stored value, as typed in the filter UI's dropdown)
 	Genre  string // exact match against works.genre
 	Sort   string // "artist" sorts by artist then title; anything else (including "") sorts alphabetically by title
@@ -246,7 +247,8 @@ func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter Catalog
 		WHERE (s.visibility = 'global' OR s.owner_person_id = $1)
 		  AND ($2 = '' OR s.artist = $2)
 		  AND ($3 = '' OR w.genre = $3)
-		ORDER BY `+order, viewerID, filter.Artist, filter.Genre)
+		  AND ($4 = '' OR s.search @@ plainto_tsquery('english', $4))
+		ORDER BY `+order, viewerID, filter.Artist, filter.Genre, filter.Query)
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +287,7 @@ func (st *Store) ListVariantsForWork(ctx context.Context, workID, viewerID int64
 		        SELECT 1 FROM school_members sm
 		        WHERE sm.school_id = s.owner_school_id AND sm.person_id = $2 AND sm.left_at IS NULL))
 		)
-		ORDER BY s.visibility, p.slug, s.stem`, workID, viewerID)
+		ORDER BY s.visibility, s.id`, workID, viewerID)
 	if err != nil {
 		return nil, err
 	}

@@ -23,8 +23,6 @@ type SchoolSubmission struct {
 	SourceTitle        string
 	SubmittedVariantID int64
 	SubmittedTitle     string
-	SubmittedBook      string
-	SubmittedStem      string
 	Note               string
 	Status             string // "pending", "accepted", "rejected"
 	CreatedAt          time.Time
@@ -82,20 +80,19 @@ func (st *Store) CreateSchoolSubmission(ctx context.Context, schoolID, studentPe
 // GetSchoolSubmission's shared SELECT shape.
 const submissionCols = `
 	sub.id, sub.school_id, sub.student_person_id, stu.username, sub.kind::text, sub.source_variant_id,
-	coalesce(src.title, ''), sub.submitted_variant_id, coalesce(sv.title, ''), coalesce(pr.slug, ''), coalesce(sv.stem, ''),
+	coalesce(src.title, ''), sub.submitted_variant_id, coalesce(sv.title, ''),
 	sub.note, sub.status::text, sub.created_at, sub.decided_at, sub.decided_by_person_id, coalesce(dp.username, '')`
 const submissionJoins = `
 	FROM school_submissions sub
 	JOIN people stu ON stu.id = sub.student_person_id
 	LEFT JOIN songs src ON src.id = sub.source_variant_id
 	LEFT JOIN songs sv ON sv.id = sub.submitted_variant_id
-	LEFT JOIN projects pr ON pr.id = sv.project_id
 	LEFT JOIN people dp ON dp.id = sub.decided_by_person_id`
 
 func scanSubmission(row pgx.Row) (*SchoolSubmission, error) {
 	var s SchoolSubmission
 	err := row.Scan(&s.ID, &s.SchoolID, &s.StudentPersonID, &s.StudentUsername, &s.Kind, &s.SourceVariantID,
-		&s.SourceTitle, &s.SubmittedVariantID, &s.SubmittedTitle, &s.SubmittedBook, &s.SubmittedStem,
+		&s.SourceTitle, &s.SubmittedVariantID, &s.SubmittedTitle,
 		&s.Note, &s.Status, &s.CreatedAt, &s.DecidedAt, &s.DecidedByPersonID, &s.DecidedByUsername)
 	if err != nil {
 		return nil, err

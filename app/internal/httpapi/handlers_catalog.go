@@ -20,6 +20,7 @@ import (
 func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 	person := personFromContext(r)
 	filter := store.CatalogFilter{
+		Query:  r.URL.Query().Get("q"),
 		Artist: r.URL.Query().Get("artist"),
 		Genre:  r.URL.Query().Get("genre"),
 		Sort:   r.URL.Query().Get("sort"),
@@ -34,10 +35,25 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	defaultSongbookID, err := s.store.GetDefaultSongbook(r.Context(), "person", person.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	// "Songbooks" is one nav entry/page for both ways of finding a song —
-	// the flat browse above, or by the collection it belongs to (a
-	// person's or a band's songbook).
+	s.render(w, "catalog", map[string]any{
+		"Me": person, "Variants": variants, "Filter": filter, "Genres": genres,
+		"DefaultSongbookID": defaultSongbookID,
+	})
+}
+
+// handleSongbooksIndexPage is the "Songbooks" nav entry's destination: every
+// songbook the viewer can open, their own personal ones plus each of their
+// bands' shared repertoires — split out from the flat all-songs catalog
+// (handleCatalogPage) so each has its own URL/nav entry instead of one page
+// with an internal tab toggle.
+func (s *Server) handleSongbooksIndexPage(w http.ResponseWriter, r *http.Request) {
+	person := personFromContext(r)
 	mySongbooks, err := s.store.ListSongbooks(r.Context(), "person", person.ID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -53,16 +69,8 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defaultSongbookID, err := s.store.GetDefaultSongbook(r.Context(), "person", person.ID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	s.render(w, "catalog", map[string]any{
-		"Me": person, "Variants": variants, "Filter": filter, "Genres": genres,
-		"MySongbooks": mySongbooks, "BandCards": bandCards, "DefaultSongbookID": defaultSongbookID,
-		"View": r.URL.Query().Get("view"), // "books" deep-links straight to the "by songbook" tab
+	s.render(w, "songbooks-index", map[string]any{
+		"Me": person, "MySongbooks": mySongbooks, "BandCards": bandCards,
 	})
 }
 

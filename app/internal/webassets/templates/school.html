@@ -73,7 +73,7 @@
       {{range .MySubmissions}}
         <tr>
           <td>{{.Kind}}</td>
-          <td>{{.SubmittedTitle}} ({{.SubmittedBook}}/{{.SubmittedStem}})</td>
+          <td>{{.SubmittedTitle}}</td>
           <td>{{.Status}}</td>
           <td>{{if .DecidedAt}}{{.DecidedAt.Format "2006-01-02"}}{{end}}</td>
         </tr>
