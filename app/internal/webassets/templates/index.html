@@ -20,9 +20,6 @@
     <a href="/songbooks/mine">my songbook</a>
     <a href="/bands">bands</a>
     <a href="/profile">profile</a>
-    <button id="import-project-btn" type="button">{{template "icon-download"}} Import</button>
-    <input type="file" id="import-project-file" accept=".zip" hidden>
-    <button id="add-project-btn" type="button">{{template "icon-plus"}} project</button>
     {{if and .Me .Me.IsAdmin}}<a href="/admin">admin</a>{{end}}
     {{template "notif-bell"}}
   </nav>
@@ -141,7 +138,7 @@
     <div class="browse-row">
       <a class="browse-card" href="/catalog">
         <h4>Global catalog</h4>
-        <p>by artist, alphabetical, by project or genre — free to reuse in any jam</p>
+        <p>searchable by title, artist, or lyrics — free to reuse in any jam</p>
       </a>
       <a class="browse-card" href="/songbooks/mine">
         <h4>My songbook</h4>
@@ -161,7 +158,6 @@ document.getElementById('attention-filters')?.addEventListener('click', (e) => {
   });
 });
 </script>
-<script src="/static/js/index.js?v={{staticVersion}}"></script>
 {{template "notif-bell-script"}}
 {{template "pwa-register"}}
 </div>
