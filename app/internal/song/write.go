@@ -68,6 +68,8 @@ func writeBars(bars []int) string {
 
 func writeGrid(measures []Measure) string {
 	parts := make([]string, len(measures))
+	closes := make([]bool, len(measures))
+	opens := make([]bool, len(measures))
 	for i, m := range measures {
 		var tok strings.Builder
 		if m.Meter != "" {
@@ -84,13 +86,38 @@ func writeGrid(measures []Measure) string {
 			} else {
 				s = ": " + s
 			}
+			opens[i] = true
 		}
 		if m.Close {
 			s = s + " :"
+			closes[i] = true
 		}
 		parts[i] = s
 	}
-	return "|" + strings.Join(parts, " | ") + "|"
+	var b strings.Builder
+	b.WriteByte('|')
+	for i, p := range parts {
+		if i > 0 {
+			switch {
+			// A closing bracket glues straight to the "|" that follows it
+			// ("E :|"), and an opening one glues straight to the "|"
+			// before it ("% |:3 Cadd9") — matching how a hand-written
+			// chart (and the existing parser) writes a repeat bracket;
+			// everywhere else measures get the usual " | " separator.
+			case closes[i-1] && opens[i]:
+				b.WriteString("|")
+			case closes[i-1]:
+				b.WriteString("| ")
+			case opens[i]:
+				b.WriteString(" |")
+			default:
+				b.WriteString(" | ")
+			}
+		}
+		b.WriteString(p)
+	}
+	b.WriteByte('|')
+	return b.String()
 }
 
 func writeLyric(l LyricLine) string {

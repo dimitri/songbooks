@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"app/internal/song"
 )
 
 // UGToken is one inline chord+lyric fragment from a tab line: the chord
@@ -471,7 +473,22 @@ func (s UGSection) Grid() string {
 		}
 		bars = append(bars, c)
 	}
-	inner := strings.Join(bars, " | ")
+	// Fold any whole-phrase repeats (the common case: a verse's 4-bar
+	// loop played straight through several times, since plain UG tab
+	// text never marks that explicitly) into "|: ... :|"/"%" notation
+	// before this section's own "x2"-style repeat wrapper (below, if
+	// any) is added — see song.SimplifyGridText's doc comment.
+	inner := song.SimplifyGridText(strings.Join(bars, " | "))
+	// SimplifyGridText always wraps its result in one leading/trailing
+	// "|" (writeGrid's own bar-delimiter convention) — strip that outer
+	// wrapper UNLESS it's doing double duty as a repeat bracket's own
+	// "|:"/":|" delimiter, which must stay.
+	if !strings.HasPrefix(inner, "|:") {
+		inner = strings.TrimPrefix(inner, "|")
+	}
+	if !strings.HasSuffix(inner, ":|") {
+		inner = strings.TrimSuffix(inner, "|")
+	}
 	// A bare progression line's own "x2"/"x3" trailing marker (see
 	// parseChordOnlyLine) becomes a real repeat bracket in this app's
 	// own grid: syntax — the same "|:N ... :|" shape a stated repeat

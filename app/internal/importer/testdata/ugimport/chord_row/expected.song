@@ -2,7 +2,7 @@
 grid: Am | G | F | Am
 
 [Verse]
-grid: Am | G | F | Am | G | F | G | Dm
+grid: |: Am | G | F :| G | Dm
 [Am]If I was to talk about the words
 They would [G]hurt, They would [F]hurt
 So [Am]if you were to ask about the pain
@@ -21,7 +21,7 @@ Would you even [Am]want me, looking like a zombie?
 Would you even [F]want me, want me, want me?
 
 [Verse]
-grid: Am | G | F | Am | G | F | G | Dm
+grid: |: Am | G | F :| G | Dm
 [Am]We could catch a space-ship to the moon
 But we'd [G]crash, it wouldn't [F]last
 'Cause the [Am]world is just a figment of the fools
@@ -33,7 +33,7 @@ grid: F
 But it's [F]running out, it's running out
 
 [Chorus]
-grid: C | G | Am | F | C | G | Am | F
+grid: |: C | G | Am | F :|
 Oh, I [C]know that I can't live without you
 But this [G]world will keep turning if you do
 Would you even [Am]want me, looking like a zombie?
