@@ -1023,7 +1023,14 @@ const ICONS = {
     reflowMapLines();
     refreshBarsCache();
     applyPageBox();
-    try { localStorage.setItem('songbooks-default-mode', v); } catch (e) { /* ignore */ }
+    // Never save "reference" as the reader's default mode — unlike the
+    // other four (a real, lasting preference: "I always want the jazz
+    // chart"), landing on the video/audio page by default on every song
+    // opened next would replace the chart nobody asked to stop seeing.
+    // Same reasoning edit's own early return above already applies.
+    if (v !== 'reference') {
+      try { localStorage.setItem('songbooks-default-mode', v); } catch (e) { /* ignore */ }
+    }
   });
   // Reflow before the jazz-mode fit search (applyPageBox): it decides how
   // many bars fit per row at the CURRENT font-size, so it needs to run
@@ -1045,7 +1052,7 @@ const ICONS = {
   // every song in a set. Per-device (localStorage), not song data.
   try {
     const saved = localStorage.getItem('songbooks-default-mode');
-    if (saved && saved !== 'normal') {
+    if (saved && saved !== 'normal' && saved !== 'reference') {
       document.querySelector(`#mode-segmented button[data-value="${saved}"]`)?.click();
     }
   } catch (e) { /* ignore */ }
@@ -1073,16 +1080,20 @@ const ICONS = {
     const { book, stem } = block.dataset;
     const embedEl = document.getElementById('reference-embed');
     const linkEl = document.getElementById('reference-link');
-    const showBtn = document.getElementById('reference-show-btn');
     const editBtn = document.getElementById('reference-edit-btn');
     const editRow = document.getElementById('reference-edit-row');
     const urlInput = document.getElementById('reference-url-input');
     const saveBtn = document.getElementById('reference-save-btn');
 
-    // Lazily build the iframe only once shown, not on page load — loading
-    // it eagerly was the single biggest contributor to the page being
-    // taller than the viewport before the chart itself even appeared (see
-    // applyPageBox's own notes on jazz mode never needing to scroll).
+    // Always rendered now (no more show/hide tap) — Reference is its own
+    // dedicated page (data-render-mode="reference"), not a cramped drawer
+    // sharing space with the chart, so there's no tight-viewport reason
+    // left to hide it by default. Still built lazily (only once the
+    // reader actually switches to this mode, via the #sheet
+    // data-render-mode observer below), not eagerly on every page load —
+    // loading the iframe for a mode most views of a song never visit
+    // would be pure waste.
+    let embedBuilt = false;
     function renderEmbed(url) {
       embedEl.innerHTML = '';
       const vid = url && youtubeId(url);
@@ -1095,14 +1106,15 @@ const ICONS = {
       iframe.allowFullscreen = true;
       embedEl.appendChild(iframe);
     }
-    if (showBtn) {
-      showBtn.addEventListener('click', () => {
-        const showing = embedEl.classList.toggle('shown');
-        if (showing) renderEmbed(block.dataset.url);
-        else embedEl.innerHTML = '';
-        showBtn.title = showing ? 'hide reference video' : 'show reference video';
-      });
+    function ensureEmbedBuilt() {
+      if (embedBuilt) return;
+      embedBuilt = true;
+      renderEmbed(block.dataset.url);
     }
+    if (sheet.dataset.renderMode === 'reference') ensureEmbedBuilt();
+    new MutationObserver(() => {
+      if (sheet.dataset.renderMode === 'reference') ensureEmbedBuilt();
+    }).observe(sheet, { attributes: true, attributeFilter: ['data-render-mode'] });
 
     editBtn.addEventListener('click', () => { editRow.hidden = !editRow.hidden; if (!editRow.hidden) urlInput.focus(); });
     saveBtn.addEventListener('click', async () => {
@@ -1118,8 +1130,8 @@ const ICONS = {
         linkEl.href = url;
         linkEl.hidden = !url;
         editBtn.title = url ? 'change reference' : 'add a reference video';
-        if (showBtn) showBtn.hidden = !url;
-        if (embedEl.classList.contains('shown')) renderEmbed(url);
+        renderEmbed(url);
+        embedBuilt = true;
         editRow.hidden = true;
       } catch (e) {
         alert('Could not save reference: ' + e.message);
