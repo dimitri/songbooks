@@ -22,6 +22,11 @@ type jsonMeasure struct {
 	Close  bool     `json:"close"`
 	Volta  string   `json:"volta"`
 	Meter  string   `json:"meter"`
+	// RepeatCount mirrors song.Measure.RepeatCount ("|:4 ... :|") — exposed
+	// so a round-trip through this JSON API (the Chart editor's load/save
+	// and its /api/preview fetch) doesn't silently drop an explicit repeat
+	// count down to the implicit, unlabeled "x2" every "|: :|" means.
+	RepeatCount int `json:"repeatCount,omitempty"`
 }
 
 type jsonLyricSeg struct {
@@ -69,6 +74,7 @@ func toJSON(s *song.Song) jsonSong {
 		for _, m := range sec.Measures {
 			js.Measures = append(js.Measures, jsonMeasure{
 				Tokens: m.Tokens, Open: m.Open, Close: m.Close, Volta: m.Volta, Meter: m.Meter,
+				RepeatCount: m.RepeatCount,
 			})
 		}
 		for _, l := range sec.Lyrics {
@@ -101,6 +107,7 @@ func fromJSON(in jsonSong) *song.Song {
 		for _, m := range js.Measures {
 			sec.Measures = append(sec.Measures, song.Measure{
 				Tokens: m.Tokens, Open: m.Open, Close: m.Close, Volta: m.Volta, Meter: m.Meter,
+				RepeatCount: m.RepeatCount,
 			})
 		}
 		for _, jl := range js.Lyrics {

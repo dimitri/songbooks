@@ -1953,6 +1953,29 @@ const ICONS = {
     if (measures.some(m => (m.tokens || []).some(t => /:/.test(t)))) return true;
     if (measures.filter(m => m.open).length > 1) return true;
     if (measures.filter(m => m.close).length > 1) return true;
+    // An explicit repeat count ("|:4 ... :|") has no control in this
+    // builder (the "repeats" toggle only ever means the implicit,
+    // unlabeled x2) — editing here would silently drop it on save.
+    if (measures.some(m => m.repeatCount)) return true;
+    // A repeat bracket that covers only a PREFIX of the section's bars
+    // (e.g. a 4-bar "|: :|" phrase followed by 4 more plain bars, same
+    // shape as "Synth Intro"/"Instru"/"Break"/"Outro" in a real song)
+    // isn't representable by this builder's single open/close "repeats"
+    // toggle, which always treats the section's own last bar as the
+    // close — joinVoltaGroups would otherwise silently move the real
+    // close flag there, extending the bracket over bars it never
+    // covered. Skip this check when alternative endings are in play:
+    // there the true close legitimately lives in an ending, not in
+    // `measures` itself (see the "repeats (|: :|)" toggle's own save
+    // handler) — that's the one case this builder DOES model correctly.
+    const hasEndings = sec.endings && sec.endings.length > 0;
+    if (!hasEndings) {
+      const openIdx = measures.findIndex(m => m.open);
+      if (openIdx >= 0) {
+        const closeIdx = measures.findIndex(m => m.close);
+        if (closeIdx < 0 || closeIdx !== measures.length - 1) return true;
+      }
+    }
     return false;
   }
 
