@@ -17,64 +17,114 @@
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  <div class="card">
-    <h3>People</h3>
-    <div class="table-scroll"><table style="width:100%">
-      <thead><tr><th>Username</th><th>Display name</th><th>Created</th><th>Admin</th><th></th></tr></thead>
-      <tbody>
-      {{range .People}}
-        <tr>
-          <td>{{.Username}}</td>
-          <td>{{.DisplayName}}</td>
-          <td>{{.CreatedAt.Format "2006-01-02"}}</td>
-          <td>{{if .IsAdmin}}yes{{else}}no{{end}}</td>
-          <td>
-            {{if ne .ID $.Me.ID}}
-            <form method="post" action="/admin/people/{{.ID}}/admin" style="display:inline">
-              <input type="hidden" name="is_admin" value="{{if .IsAdmin}}0{{else}}1{{end}}">
-              <button type="submit">{{if .IsAdmin}}revoke admin{{else}}make admin{{end}}</button>
-            </form>
-            <form method="post" action="/admin/people/{{.ID}}/remove" style="display:inline" onsubmit="return confirm('Remove {{.Username}}? (not implemented yet)')">
-              <button type="submit" class="danger">remove</button>
-            </form>
-            {{else}}
-            <em>you</em>
-            {{end}}
-          </td>
-        </tr>
-      {{end}}
-      </tbody>
-    </table></div>
+  {{/* Quick-glance counts — the three tabs below used to be three cards
+       stacked on top of each other with no summary at all, so answering
+       "how many people/admins/projects does this instance have" meant
+       scrolling and counting rows by eye. Purely derived from the same
+       .People/.Projects data the tabs already render; no new handler
+       data needed. */}}
+  <div class="admin-stats-row">
+    <div class="admin-stat"><strong>{{len .People}}</strong><span>people</span></div>
+    <div class="admin-stat"><strong>{{.AdminCount}}</strong><span>admins</span></div>
+    <div class="admin-stat"><strong>{{len .Projects}}</strong><span>projects</span></div>
   </div>
 
-  <div class="card" style="max-width:420px">
-    <h3>Plain signup invite</h3>
-    <p class="hint">No self-serve registration exists yet — this is the only way to let someone in with no project or band attached.</p>
-    <button type="button" id="create-plain-invite-btn">Create invite link</button>
-    <button type="button" id="copy-plain-invite-btn" hidden>Copy link</button>
-    <p id="plain-invite-result" class="hint"></p>
-  </div>
+  {{/* A tab-styled nav (same pattern as the band-detail pages' own
+       .band-tabs) over three client-side panels in one page, not three
+       separate routes — this data is all already on the page, so there's
+       nothing a server round-trip would add. Replaces the old plain
+       stack of three cards, where "Plain signup invite" (a rare,
+       one-off action) sat visually between "People" and "Projects" (the
+       two things an admin actually scans regularly), pushing Projects
+       below the fold on a long People table for no reason. The active
+       tab is kept in the URL hash so a reload or a shared link lands
+       back on the same panel. */}}
+  <nav class="admin-tabs" id="admin-tabs" role="tablist">
+    <button type="button" data-tab="people" class="active" role="tab">People</button>
+    <button type="button" data-tab="invites" role="tab">Invites</button>
+    <button type="button" data-tab="projects" role="tab">Projects</button>
+  </nav>
 
-  <div class="card">
-    <h3>Projects</h3>
-    <div class="table-scroll"><table style="width:100%">
-      <thead><tr><th>Slug</th><th>Name</th><th>Owners</th><th>Editors</th><th>Viewers</th><th>Total members</th></tr></thead>
-      <tbody>
-      {{range .Projects}}
-        <tr>
-          <td><a href="/b/{{.Slug}}">{{.Slug}}</a></td>
-          <td>{{.Name}}</td>
-          <td>{{.Owners}}</td>
-          <td>{{.Editors}}</td>
-          <td>{{.Viewers}}</td>
-          <td>{{.MemberTotal}}</td>
-        </tr>
-      {{end}}
-      </tbody>
-    </table></div>
-  </div>
+  <section class="admin-panel" data-panel="people">
+    <div class="card">
+      <h3>People</h3>
+      <div class="table-scroll"><table style="width:100%">
+        <thead><tr><th>Username</th><th>Display name</th><th>Created</th><th>Admin</th><th></th></tr></thead>
+        <tbody>
+        {{range .People}}
+          <tr>
+            <td>{{.Username}}</td>
+            <td>{{.DisplayName}}</td>
+            <td>{{.CreatedAt.Format "2006-01-02"}}</td>
+            <td>{{if .IsAdmin}}yes{{else}}no{{end}}</td>
+            <td>
+              {{if ne .ID $.Me.ID}}
+              <form method="post" action="/admin/people/{{.ID}}/admin" style="display:inline">
+                <input type="hidden" name="is_admin" value="{{if .IsAdmin}}0{{else}}1{{end}}">
+                <button type="submit">{{if .IsAdmin}}revoke admin{{else}}make admin{{end}}</button>
+              </form>
+              <form method="post" action="/admin/people/{{.ID}}/remove" style="display:inline" onsubmit="return confirm('Remove {{.Username}}? (not implemented yet)')">
+                <button type="submit" class="danger">remove</button>
+              </form>
+              {{else}}
+              <em>you</em>
+              {{end}}
+            </td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="admin-panel" data-panel="invites" hidden>
+    <div class="card" style="max-width:420px">
+      <h3>Plain signup invite</h3>
+      <p class="hint">No self-serve registration exists yet — this is the only way to let someone in with no project or band attached.</p>
+      <button type="button" id="create-plain-invite-btn">Create invite link</button>
+      <button type="button" id="copy-plain-invite-btn" hidden>Copy link</button>
+      <p id="plain-invite-result" class="hint"></p>
+    </div>
+  </section>
+
+  <section class="admin-panel" data-panel="projects" hidden>
+    <div class="card">
+      <h3>Projects</h3>
+      <div class="table-scroll"><table style="width:100%">
+        <thead><tr><th>Slug</th><th>Name</th><th>Owners</th><th>Editors</th><th>Viewers</th><th>Total members</th></tr></thead>
+        <tbody>
+        {{range .Projects}}
+          <tr>
+            <td><a href="/b/{{.Slug}}">{{.Slug}}</a></td>
+            <td>{{.Name}}</td>
+            <td>{{.Owners}}</td>
+            <td>{{.Editors}}</td>
+            <td>{{.Viewers}}</td>
+            <td>{{.MemberTotal}}</td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table></div>
+    </div>
+  </section>
 </main>
 <script>
+(function () {
+  const tabs = document.getElementById('admin-tabs');
+  const buttons = [...tabs.querySelectorAll('button[data-tab]')];
+  const panels = [...document.querySelectorAll('.admin-panel')];
+  function activate(name, pushHash) {
+    const match = buttons.find(b => b.dataset.tab === name) ? name : 'people';
+    buttons.forEach(b => b.classList.toggle('active', b.dataset.tab === match));
+    panels.forEach(p => { p.hidden = p.dataset.panel !== match; });
+    if (pushHash) history.replaceState(null, '', '#' + match);
+  }
+  tabs.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-tab]');
+    if (btn) activate(btn.dataset.tab, true);
+  });
+  activate(location.hash.slice(1), false);
+})();
 document.getElementById('create-plain-invite-btn').addEventListener('click', async () => {
   const res = await fetch('/admin/invites/plain', {method: 'POST'});
   const data = await res.json();

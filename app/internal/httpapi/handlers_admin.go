@@ -21,8 +21,15 @@ func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	adminCount := 0
+	for _, p := range people {
+		if p.IsAdmin {
+			adminCount++
+		}
+	}
 	s.render(w, "admin", map[string]any{
 		"Me": personFromContext(r), "People": people, "Projects": projects,
+		"AdminCount": adminCount,
 	})
 }
 
