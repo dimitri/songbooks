@@ -1583,6 +1583,25 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		// alphabetical) — there's no reason a setlist should be the only
 		// way to flip through a project's songs.
 		data["Prev"], data["Next"] = s.projectNeighbors(book, stem)
+		// Arrived from a band's own repertoire view (band_catalog.html's
+		// song links carry "?band=ID") rather than the generic project
+		// page — "This band is linked to the X songbook project" means
+		// /b/{book} shows the SAME song list, but it's still a different
+		// page than the one the reader actually came from (no band tabs,
+		// no "export songbook" link, etc). Point the back-link at the
+		// band's own catalog instead of silently falling through to the
+		// project page in that case, same as the setlist/gig branch above
+		// does for its own "where did I come from" case. Any invalid/
+		// inaccessible band id is ignored, not errored — the back-link
+		// just falls back to the project page as before.
+		if bandParam := r.URL.Query().Get("band"); bandParam != "" {
+			if bandID, err := strconv.ParseInt(bandParam, 10, 64); err == nil {
+				if b, err := s.store.GetBand(r.Context(), bandID); err == nil {
+					data["BandRef"] = b.ID
+					data["BandName"] = b.Name
+				}
+			}
+		}
 	}
 	s.render(w, "song", data)
 }

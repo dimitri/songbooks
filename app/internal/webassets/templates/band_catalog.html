@@ -130,7 +130,7 @@
     <tbody>
     {{range .Entries}}
       <tr data-variant-id="{{.VariantID}}">
-        <td><a href="/b/{{.Book}}/{{.Stem}}">{{.Title}}</a></td>
+        <td><a href="/b/{{.Book}}/{{.Stem}}?band={{$.Band.ID}}">{{.Title}}</a></td>
         <td>{{.Artist}}</td>
         <td>{{.Book}}</td>
         <td>{{.Visibility}}{{if .ForkedFromID}} (<a href="/variants/{{deref64 .ForkedFromID}}/history">forked from</a>){{end}}</td>
@@ -149,7 +149,7 @@
     <tbody>
     {{range .Entries}}
       <tr data-variant-id="{{.VariantID}}">
-        <td><a href="/b/{{.Book}}/{{.Stem}}">{{.Title}}</a></td>
+        <td><a href="/b/{{.Book}}/{{.Stem}}?band={{$.Band.ID}}">{{.Title}}</a></td>
         <td>{{.Artist}}</td>
         <td>{{.Book}}</td>
         <td>{{.Visibility}}{{if .ForkedFromID}} (<a href="/variants/{{deref64 .ForkedFromID}}/history">forked from</a>){{end}}</td>

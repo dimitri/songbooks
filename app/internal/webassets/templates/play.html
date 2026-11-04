@@ -282,6 +282,8 @@
     <a href="/setlists">{{template "icon-back"}} {{.PracticeStepMode}}: {{.PracticeTitle}}</a>
     {{else if .GigMode}}
     <a href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} set list</a>
+    {{else if .BandRef}}
+    <a href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} {{.BandName}}</a>
     {{else}}
     <a href="/b/{{.Book}}">{{template "icon-back"}} {{.Book}}</a>
     {{end}}
@@ -381,13 +383,15 @@
   <a class="back-link" href="/setlists">{{template "icon-back"}} {{.PracticeStepMode}}: {{.PracticeTitle}}</a>
   {{else if .GigMode}}
   <a class="back-link" href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} set list</a>
+  {{else if .BandRef}}
+  <a class="back-link" href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} {{.BandName}}</a>
   {{else}}
   <a class="back-link" href="/b/{{.Book}}">{{template "icon-back"}} {{.Book}}</a>
   {{end}}
 </div>
 <div class="song-topbar">
   {{if .Prev}}
-  <a class="topbar-cell topbar-prev setlist-nav-card prev" href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.PrevIndex}}{{else}}/b/{{.Prev.Book}}/{{.Prev.Stem}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{end}}{{end}}">
+  <a class="topbar-cell topbar-prev setlist-nav-card prev" href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.PrevIndex}}{{else}}/b/{{.Prev.Book}}/{{.Prev.Stem}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{end}}{{end}}">
     {{template "icon-back"}}
     <span class="topbar-nav-info"><small>previous</small><strong>{{.Prev.Title}}</strong><small>{{if .Prev.Tempo}}{{.Prev.Tempo}} bpm{{end}}{{if and .Prev.Tempo .Prev.Key}} &middot; {{end}}{{.Prev.Key}}</small></span>
   </a>
@@ -415,7 +419,7 @@
   </div>
 
   {{if .Next}}
-  <a class="topbar-cell topbar-next setlist-nav-card next" href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.NextIndex}}{{else}}/b/{{.Next.Book}}/{{.Next.Stem}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{end}}{{end}}">
+  <a class="topbar-cell topbar-next setlist-nav-card next" href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.NextIndex}}{{else}}/b/{{.Next.Book}}/{{.Next.Stem}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{end}}{{end}}">
     <span class="topbar-nav-info"><small>next</small><strong>{{.Next.Title}}</strong><small>{{if .Next.Tempo}}{{.Next.Tempo}} bpm{{end}}{{if and .Next.Tempo .Next.Key}} &middot; {{end}}{{.Next.Key}}</small></span>
     {{template "icon-forward"}}
   </a>
@@ -678,7 +682,7 @@
          before this. Disabled, not hidden, when there's no next song, so
          the bar keeps its 6 even slots rather than reflowing. */}}
     {{if .Next}}
-    <a href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.NextIndex}}{{else}}/b/{{.Next.Book}}/{{.Next.Stem}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{end}}{{end}}" title="next: {{.Next.Title}}">{{template "icon-forward"}} Next</a>
+    <a href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.NextIndex}}{{else}}/b/{{.Next.Book}}/{{.Next.Stem}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{end}}{{end}}" title="next: {{.Next.Title}}">{{template "icon-forward"}} Next</a>
     {{else}}
     <span class="context-bar-disabled">{{template "icon-forward"}} Next</span>
     {{end}}
