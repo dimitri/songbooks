@@ -232,7 +232,7 @@
   <div class="lyrics">
     {{range .Lyrics}}
     <p class="lyric-line" data-line="{{.Index}}">
-      {{range .Segments}}<span class="lyric-seg{{if .HasChord}} has-chord{{end}}">{{if .HasChord}}<span class="inline-chord">{{chord .Chord}}</span>{{end}}<span class="word">{{.Text}}</span></span>{{end}}
+      {{range .Segments}}<span class="lyric-seg{{if .HasChord}} has-chord{{end}}">{{if .HasChord}}<span class="inline-chord">{{chord .Chord}}</span>{{end}}<span class="word">{{if .Text}}{{.Text}}{{else}}&nbsp;{{end}}</span></span>{{end}}
     </p>
     {{end}}
   </div>
