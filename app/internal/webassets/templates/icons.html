@@ -33,6 +33,8 @@
 {{define "icon-catalog"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3.8h8.5a1.8 1.8 0 0 1 1.8 1.8v10.6H5.8A1.8 1.8 0 0 1 4 14.4V3.8z"/><path d="M4 14.4a1.8 1.8 0 0 1 1.8-1.8h8.5" /><path d="M6.5 6.5h5" /></svg>{{end}}
 {{define "icon-profile"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="6.8" r="3"/><path d="M3.8 16.2a6.3 6.3 0 0 1 12.4 0"/></svg>{{end}}
 {{define "icon-view"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 10s2.8-5 8-5 8 5 8 5-2.8 5-8 5-8-5-8-5z"/><circle cx="10" cy="10" r="2.2"/></svg>{{end}}
+{{define "icon-community"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6.5" r="2.3"/><circle cx="14" cy="6.5" r="2.3"/><circle cx="10" cy="13" r="2.3"/></svg>{{end}}
+{{define "icon-jam"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 11v-2M7.3 13.5v-7M10.6 16v-12M13.9 13.5v-7M17 11v-2"/></svg>{{end}}
 
 {{/* Global bottom tab bar: the app's one persistent, always-reachable
      navigation surface on a phone (see the mobile-menu brief: "keep the
@@ -49,8 +51,16 @@
   <a href="/songbooks" data-path="/songbooks" data-label="Songbooks">{{template "icon-catalog"}}</a>
   <a href="/catalog" data-path="/catalog" data-label="Catalog">{{template "icon-view"}}</a>
   <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}}</a>
-  <a href="/profile" data-path="/profile" data-label="Profile">{{template "icon-profile"}}</a>
+  {{/* Replaces a standalone Profile tab — Profile moved into the shared
+       More sheet below (site-nav-fullpage) alongside Communities, Jam
+       sessions, My songbook and Metronome, none of which fit in 5 fixed
+       mobile slots and were previously unreachable on mobile at all.
+       Reuses the exact #site-nav-fullpage-btn id play.html's own "..."
+       toggle already wires up — see site-nav-fullpage-script below,
+       shared by every page instead of being duplicated per-page. */}}
+  <button type="button" id="site-nav-fullpage-btn" data-label="More">{{template "icon-more"}}</button>
 </nav>
+{{template "site-nav-fullpage"}}
 {{end}}
 {{define "global-tabbar-script"}}
 <script>(function () {
@@ -66,23 +76,87 @@
   });
   if (best) best.classList.add('active');
 })();</script>
+{{template "site-nav-fullpage-script"}}
+{{end}}
+
+{{/* Shared mobile "More" full-page navigation — a genuine full-screen
+     takeover (no backdrop to tap through, no sheet height limit), the
+     one place every destination not in .global-tabbar's 4 fixed icons
+     is reachable from on a phone: Communities, Jam sessions, My
+     songbook and Metronome were unreachable on mobile at all before
+     this (desktop's sidebar-secondary was the only way to them). Admin
+     is deliberately left off this shared sheet — every global-tabbar
+     call site renders with no per-page data (31 call sites), so gating
+     it on .Me.IsAdmin here would mean threading that context through
+     all of them; a non-admin opening /admin just gets the normal
+     403/redirect, same as typing the URL directly, so the omission
+     costs nothing but tidiness. Desktop's sidebar still shows Admin,
+     properly gated, since desktop-sidebar already receives .Me. */}}
+{{define "site-nav-fullpage"}}
+<div class="site-nav-fullpage" id="site-nav-fullpage" role="dialog" aria-label="Navigation">
+  <div class="site-nav-fullpage-header">
+    <h2>Songbooks</h2>
+    <button type="button" id="site-nav-fullpage-close" class="icon-btn" title="close">{{template "icon-close"}}</button>
+  </div>
+  <a class="site-nav-fullpage-row" href="/">{{template "icon-home"}} Home</a>
+  <a class="site-nav-fullpage-row" href="/songbooks">{{template "icon-catalog"}} Songbooks</a>
+  <a class="site-nav-fullpage-row" href="/catalog">{{template "icon-view"}} Catalog</a>
+  <a class="site-nav-fullpage-row" href="/bands">{{template "icon-bands"}} Bands</a>
+  <a class="site-nav-fullpage-row" href="/schools">{{template "icon-community"}} Communities</a>
+  <a class="site-nav-fullpage-row" href="/jams">{{template "icon-jam"}} Jam sessions</a>
+  <a class="site-nav-fullpage-row" href="/songbooks/mine">{{template "icon-catalog"}} My songbook</a>
+  <a class="site-nav-fullpage-row" href="/metronome">{{template "icon-metro-full"}} Metronome</a>
+  <a class="site-nav-fullpage-row" href="/profile">{{template "icon-profile"}} Profile</a>
+</div>
+{{end}}
+{{define "site-nav-fullpage-script"}}
+<script>(function () {
+  // querySelectorAll, not getElementById: play.html's own song-context-bar
+  // carries a second #site-nav-fullpage-btn (its "More" tool, same id on
+  // purpose so either page's trigger opens the one shared sheet) — only
+  // one is ever visible at a time (global-tabbar's copy is CSS-hidden on
+  // that page), but both get a working listener regardless of DOM order.
+  var navBtns = document.querySelectorAll('#site-nav-fullpage-btn');
+  var navPage = document.getElementById('site-nav-fullpage');
+  var navClose = document.getElementById('site-nav-fullpage-close');
+  if (!navBtns.length || !navPage) return;
+  function setNavOpen(open) {
+    navPage.classList.toggle('open', open);
+    navBtns.forEach(function (b) { b.classList.toggle('active', open); });
+  }
+  navBtns.forEach(function (b) { b.addEventListener('click', () => setNavOpen(true)); });
+  navClose?.addEventListener('click', () => setNavOpen(false));
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && navPage.classList.contains('open')) setNavOpen(false);
+  });
+})();</script>
 {{end}}
 
 {{/* Desktop sidebar: the wide-screen counterpart to .global-tabbar below
      900px. 2025/26 SaaS-nav research is consistent that past ~6 top-level
      sections a left sidebar reads better on a wide screen than a top bar
-     (items don't hide behind hover/overflow or wrap) -- Songbooks has 7
-     (Home, Songbooks, My songbook, Bands, Setlists, Profile, Admin). Primary
-     items mirror .global-tabbar's 5 destinations and icons EXACTLY so the
-     nav vocabulary is identical on desktop and phone, never two IAs to
-     learn. Admin/Metronome sit below a divider as secondary/utility, not
-     primary nav. "Songbooks" (the /catalog route) is both the flat
-     browse-every-song view AND, as of Phase 32, the "by songbook" view —
-     one nav entry, one destination, for "every collection of songs I can
-     open" (a project's book, or a band's repertoire), see catalog.html's
-     view toggle. Rendered on every top-level authenticated page, right
-     after <body> (see desktop-sidebar-script for the active-item logic,
-     the same pathname-matching approach as global-tabbar-script). Hidden
+     (items don't hide behind hover/overflow or wrap) -- Songbooks has 6
+     (Home, Songbooks, Catalog, Bands, Communities, Jam sessions): per
+     direct feedback, Communities/Jams are "part of the main things now,"
+     not secondary utility links. Primary items mirror .global-tabbar's
+     first 4 destinations plus these two. "Songbooks" (the /catalog
+     route) is both the flat browse-every-song view AND, as of Phase 32,
+     the "by songbook" view — one nav entry, one destination, for "every
+     collection of songs I can open" (a project's book, or a band's
+     repertoire), see catalog.html's view toggle.
+     Below the primary list sits sidebar-tools (Metronome, My songbook —
+     actual tools/shortcuts, not site sections), kept deliberately
+     separate from the account-level group at the very bottom (the
+     account chip + Admin): per direct feedback, "the bottom menu is a
+     strange concept" because it used to mix site navigation, a tool,
+     and account-level links in one undifferentiated list — Profile
+     itself was ALSO a redundant separate primary link when the account
+     chip already opens /profile from your own name, so it's dropped
+     here (mobile's shared site-nav-fullpage sheet still lists it
+     explicitly, since mobile has no persistent account chip to lean
+     on). Rendered on every top-level authenticated page, right after
+     <body> (see desktop-sidebar-script for the active-item logic, the
+     same pathname-matching approach as global-tabbar-script). Hidden
      entirely below 900px via CSS -- .global-tabbar is the only nav there. */}}
 {{define "desktop-sidebar"}}
 <nav class="desktop-sidebar" id="desktop-sidebar" aria-label="main navigation">
@@ -92,20 +166,19 @@
     <a href="/songbooks" data-path="/songbooks" data-label="Songbooks">{{template "icon-catalog"}} Songbooks</a>
     <a href="/catalog" data-path="/catalog" data-label="Catalog">{{template "icon-view"}} Catalog</a>
     <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}} Bands</a>
-    <a href="/profile" data-path="/profile" data-label="Profile">{{template "icon-profile"}} Profile</a>
+    <a href="/schools" data-path="/schools" data-label="Communities">{{template "icon-community"}} Communities</a>
+    <a href="/jams" data-path="/jams" data-label="Jam sessions">{{template "icon-jam"}} Jam sessions</a>
   </div>
   <div class="sidebar-secondary">
-    {{/* Dropped per direct request: "it looks too much like the
-         songbooks by songbook page" — a setlist is still reachable from
-         a band's own Setlists tab, or by URL, just not a top-level
-         global nav entry competing visually with Songbooks. */}}
-    {{if and . .IsAdmin}}<a href="/admin" data-path="/admin">Admin</a>{{end}}
-    <a href="/metronome" data-path="/metronome">Metronome</a>
-    <a href="/songbooks/mine" data-path="/songbooks/mine">My songbook</a>
-    <a href="/schools" data-path="/schools">Communities</a>
-    <a href="/jams" data-path="/jams">Jam sessions</a>
+    <a href="/metronome" data-path="/metronome">{{template "icon-metro-full"}} Metronome</a>
+    <a href="/songbooks/mine" data-path="/songbooks/mine">{{template "icon-catalog"}} My songbook</a>
   </div>
   {{if .}}
+  {{if .IsAdmin}}
+  <div class="sidebar-secondary">
+    <a href="/admin" data-path="/admin">Admin</a>
+  </div>
+  {{end}}
   <a class="sidebar-account" href="/profile">
     <span class="sidebar-account-avatar">{{slice .DisplayName 0 1}}</span>
     <span>{{.DisplayName}}</span>

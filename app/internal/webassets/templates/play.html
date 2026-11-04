@@ -709,24 +709,11 @@
     {{if .VariantID}}<a class="stack-sheet-row" href="/variants/{{.VariantID}}/history">{{template "icon-notes"}} Revision history</a>{{end}}
   </div>
 
-  {{/* "..." full-page site navigation — a genuine full-screen takeover
-       (no backdrop to tap through, no slide-up sheet height limit), same
-       spirit as Phase 40's editor becoming its own first-class surface
-       rather than another small popup. Same 5 destinations/icons as
-       .global-tabbar, just laid out as a real page of big, obvious rows
-       instead of five tiny bottom-bar icons. */}}
-  <div class="site-nav-fullpage" id="site-nav-fullpage" role="dialog" aria-label="Navigation">
-    <div class="site-nav-fullpage-header">
-      <h2>Songbooks</h2>
-      <button type="button" id="site-nav-fullpage-close" class="icon-btn" title="close">{{template "icon-close"}}</button>
-    </div>
-    <a class="site-nav-fullpage-row" href="/">{{template "icon-home"}} Home</a>
-    <a class="site-nav-fullpage-row" href="/songbooks">{{template "icon-catalog"}} Songbooks</a>
-    <a class="site-nav-fullpage-row" href="/catalog">{{template "icon-view"}} Catalog</a>
-    <a class="site-nav-fullpage-row" href="/bands">{{template "icon-bands"}} Bands</a>
-    <a class="site-nav-fullpage-row" href="/profile">{{template "icon-profile"}} Profile</a>
-    {{if and .Me .Me.IsAdmin}}<a class="site-nav-fullpage-row" href="/admin">Admin</a>{{end}}
-  </div>
+  {{/* The "..." full-page site navigation used to be a local copy here;
+       it's now the shared site-nav-fullpage template (icons.html),
+       folded into every global-tabbar include so it's reachable from
+       every page, not just this one — see that template's own doc
+       comment. Removed to avoid a duplicate #site-nav-fullpage id. */}}
 
   <div class="content-main">
     {{/* Single-line song structure overview — a thin progress line with
@@ -1035,23 +1022,9 @@
     });
   }
 
-  // "..." full-page site navigation -- a genuine full-screen takeover,
-  // not a bottom sheet: toggled by a plain class, no height/transform
-  // math needed since it fills the viewport outright.
-  var navBtn = document.getElementById('site-nav-fullpage-btn');
-  var navPage = document.getElementById('site-nav-fullpage');
-  var navClose = document.getElementById('site-nav-fullpage-close');
-  if (navBtn && navPage) {
-    function setNavOpen(open) {
-      navPage.classList.toggle('open', open);
-      navBtn.classList.toggle('active', open);
-    }
-    navBtn.addEventListener('click', () => setNavOpen(true));
-    navClose?.addEventListener('click', () => setNavOpen(false));
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && navPage.classList.contains('open')) setNavOpen(false);
-    });
-  }
+  // "..." full-page site navigation is now wired by the shared
+  // site-nav-fullpage-script template (icons.html, folded into
+  // global-tabbar-script below) instead of a local copy here.
 })();
 </script>
 {{template "pwa-register"}}

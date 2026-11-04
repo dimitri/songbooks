@@ -13,16 +13,7 @@
 <div class="app-content">
 <header class="app-header">
   <h1>Songbooks</h1>
-  <nav class="song-nav">
-    <a href="/metronome">metronome</a>
-    <a href="/setlists">set lists</a>
-    <a href="/catalog">catalog</a>
-    <a href="/songbooks/mine">my songbook</a>
-    <a href="/bands">bands</a>
-    <a href="/profile">profile</a>
-    {{if and .Me .Me.IsAdmin}}<a href="/admin">admin</a>{{end}}
-    {{template "notif-bell"}}
-  </nav>
+  {{template "notif-bell"}}
 </header>
 <main class="index">
   <div class="home-greeting">
