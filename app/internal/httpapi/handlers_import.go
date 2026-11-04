@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"app/internal/importer"
@@ -90,6 +91,41 @@ func (s *Server) handleImportChords(w http.ResponseWriter, r *http.Request) {
 		all[i] = i
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"text": song.ToSongText(all)})
+}
+
+// handleImportUGFind is the import wizard's one-click "find & fetch"
+// step for the common case: searches Ultimate Guitar for title+artist,
+// ranks the public chord/tab results, fetches the best candidates in
+// order, and — when Genius search is configured (SONGBOOKS_GENIUS_
+// TOKEN) — cross-checks each one's lyrics against a Genius reference
+// before accepting it (see importer.FindBestUGTab). Returns the same
+// {"text": ...} shape handleImportChords already does, plus url/
+// confidence/verified so the review step can show HOW the draft was
+// chosen rather than silently presenting it as certain.
+func (s *Server) handleImportUGFind(w http.ResponseWriter, r *http.Request) {
+	title := r.URL.Query().Get("title")
+	artist := r.URL.Query().Get("artist")
+	if title == "" {
+		httpError(w, http.StatusBadRequest, "missing title")
+		return
+	}
+	res, err := importer.FindBestUGTab(title, artist)
+	if err != nil {
+		httpError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	all := make([]int, len(res.Song.Sections))
+	for i := range all {
+		all[i] = i
+	}
+	confidence := "picked the highest-rated public Ultimate Guitar version — lyrics couldn't be cross-checked, please review"
+	if res.Verified {
+		confidence = fmt.Sprintf("lyrics cross-checked against Genius (%.0f%% match)", res.Similarity*100)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"text": res.Song.ToSongText(all), "url": res.URL, "confidence": confidence, "verified": res.Verified,
+		"title": res.Song.Title, "artist": res.Song.Artist, "capo": res.Song.Capo,
+	})
 }
 
 // ugSectionPreview is one parsed section as the import wizard's preview

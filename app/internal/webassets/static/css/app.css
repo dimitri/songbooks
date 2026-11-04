@@ -2748,15 +2748,18 @@ body.drawer-open { overflow: hidden; }
 .prep-tab { padding: 0.4rem 0.9rem; border-radius: 999px; }
 .prep-tab.active { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 
-/* Import wizard — pick / find / review, one step visible at a time. */
+/* Import wizard — find (auto or manual) / review, one step visible at a
+   time. Ultimate-Guitar-only (see song.js's own doc comment on
+   wireImportWizard) — the old pick-lyrics-vs-chords step and its two
+   buttons are gone; "find" opens straight on the one-click automatic
+   path, with the manual search-link+paste-URL fallback tucked behind
+   a <details> disclosure instead of competing for attention. */
 .import-wizard { gap: 0; }
 .import-step { max-width: 34rem; }
-.import-pick-row { display: flex; gap: 0.75rem; margin-top: 0.75rem; flex-wrap: wrap; }
-.import-pick-btn {
-  flex: 1; min-width: 10rem; display: flex; flex-direction: column; gap: 0.25rem;
-  align-items: flex-start; padding: 0.9rem 1rem; text-align: left;
-}
-.import-pick-btn strong { font-size: 1rem; }
+.import-manual-details { margin-top: 1rem; font-size: 0.9rem; }
+.import-manual-details summary { cursor: pointer; color: var(--fg-muted); }
+.import-manual-details summary:hover { color: var(--fg); }
+.import-manual-details[open] summary { margin-bottom: 0.5rem; }
 .import-back { background: none; border: none; padding: 0.2rem 0; margin-bottom: 0.6rem; color: var(--fg-muted); display: inline-flex; align-items: center; gap: 0.3em; }
 .import-back:hover { color: var(--fg); }
 .import-back .icon { width: 0.9em; height: 0.9em; }

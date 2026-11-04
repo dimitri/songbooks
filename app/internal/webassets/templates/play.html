@@ -515,44 +515,42 @@
       </details>
     </section>
 
-    {{/* Import wizard — pick what (lyrics vs. chords) → find a source
-         (pre-filled search links built from this song's own title/artist,
-         opened in a new tab — no server-side scraping of a search-results
-         page, same policy the old "search Google" link already followed —
-         or paste a URL directly) → review the fetched draft → apply it
-         into Source. Replaces the two buried <details> blocks that used
-         to sit at the top of the Source tab itself. */}}
+    {{/* Import wizard — Ultimate Guitar only (a UG tab already carries
+         both chords AND lyrics interleaved — the earlier separate
+         Genius-lyrics-only path and Chords-only path asked the user to
+         run two imports and merge them by hand for no real benefit, per
+         direct feedback). "Find automatically" is the real one-click
+         path: searches UG, ranks every public Chords/Tabs result by a
+         popularity-weighted rating, fetches the best candidates in
+         order, and — when Genius search is configured server-side —
+         cross-checks each one's lyrics against a Genius reference
+         before accepting it (see importer.FindBestUGTab). Manual
+         search-link + paste-URL stays as the fallback for a song
+         automatic search can't find or gets wrong. → review the
+         fetched draft → apply it into Source. */}}
     <section class="prep-panel import-wizard" data-panel="import" id="import-wizard" hidden>
-      <div class="import-step" data-step="pick">
-        <p class="hint">Pull lyrics or a chord chart in from an online source, review the draft, then apply it — nothing is written until you confirm.</p>
-        <div class="import-pick-row">
-          <button type="button" class="import-pick-btn" data-kind="lyrics">
-            <strong>Lyrics</strong>
-            <span class="hint">from Genius or any lyrics page</span>
-          </button>
-          <button type="button" class="import-pick-btn" data-kind="chords">
-            <strong>Chords</strong>
-            <span class="hint">from an Ultimate Guitar tab</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="import-step" data-step="find" hidden>
-        <button type="button" class="import-back" data-back="pick">{{template "icon-back"}} back</button>
-        <p class="hint" id="import-find-hint"></p>
-        <div class="import-search-links" id="import-search-links"></div>
-        <label class="import-url-label">or paste a URL directly
-          <input type="url" id="import-url-input" placeholder="https://...">
-        </label>
+      <div class="import-step" data-step="find">
+        <p class="hint">Pulls a chord+lyric chart in from Ultimate Guitar, reviews the draft, then applies it — nothing is written until you confirm.</p>
         <div class="import-row">
-          <button type="button" id="import-fetch-btn" class="primary">Fetch</button>
-          <span id="import-fetch-status" class="hint"></span>
+          <button type="button" id="import-auto-find-btn" class="primary">{{template "icon-view"}} Find &amp; fetch automatically</button>
+          <span id="import-auto-find-status" class="hint"></span>
         </div>
+        <details class="import-manual-details">
+          <summary>Or find it yourself</summary>
+          <div class="import-search-links" id="import-search-links"></div>
+          <label class="import-url-label">paste a tab URL directly
+            <input type="url" id="import-url-input" placeholder="https://...">
+          </label>
+          <div class="import-row">
+            <button type="button" id="import-fetch-btn">Fetch</button>
+            <span id="import-fetch-status" class="hint"></span>
+          </div>
+        </details>
       </div>
 
       <div class="import-step" data-step="review" hidden>
         <button type="button" class="import-back" data-back="find">{{template "icon-back"}} back</button>
-        <p class="hint">Review the draft below — nothing is applied yet. You can edit it here before applying.</p>
+        <p class="hint" id="import-review-hint">Review the draft below — nothing is applied yet. You can edit it here before applying.</p>
         <textarea id="import-review-text" class="import-review-text" rows="14" spellcheck="false"></textarea>
         <label class="import-strip-chords-label"><input type="checkbox" id="import-strip-chords"> keep chords in the grid only, remove them from the lyrics</label>
         <div class="import-row">

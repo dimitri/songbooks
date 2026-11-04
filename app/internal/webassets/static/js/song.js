@@ -1559,28 +1559,31 @@ const ICONS = {
     rawTextarea.dispatchEvent(new Event('input'));
   }
 
-  // ---- Import wizard — pick → find a source → review the fetched draft →
-  // apply. Replaces the old import-bar's two buried <details> blocks with
-  // a guided flow, still built on the exact same /api/import/lyrics and
-  // /api/import/chords endpoints (internal/importer server-side) — only
-  // the UI around them changed. "Find a source" offers pre-filled SEARCH
-  // LINKS (built locally from the song's own title/artist) that open in a
-  // new tab — never server-side scraping of a search-results page, same
-  // policy the old Google-search link already followed; the user still
-  // picks the actual source page themselves and pastes its URL back in.
+  // ---- Import wizard — Ultimate Guitar only (a UG tab already carries
+  // both chords AND lyrics together, so splitting "lyrics" and "chords"
+  // into two separate imports the user had to merge by hand added a
+  // step for no benefit — dropped per direct feedback). "Find
+  // automatically" drives /api/import/ug/find: searches UG, ranks every
+  // public result, fetches the best candidates, and cross-checks lyrics
+  // against Genius when that's configured server-side (see
+  // importer.FindBestUGTab) — landing straight in Review with a note on
+  // HOW it was picked. The manual search-link + paste-URL fallback
+  // (/api/import/chords) stays for whatever automatic search can't find
+  // or gets wrong.
   (function wireImportWizard() {
     const wizard = document.getElementById('import-wizard');
     if (!wizard) return;
     const steps = {
-      pick: wizard.querySelector('[data-step="pick"]'),
       find: wizard.querySelector('[data-step="find"]'),
       review: wizard.querySelector('[data-step="review"]'),
     };
-    const findHint = document.getElementById('import-find-hint');
     const searchLinksHost = document.getElementById('import-search-links');
     const urlInput = document.getElementById('import-url-input');
     const fetchBtn = document.getElementById('import-fetch-btn');
     const fetchStatus = document.getElementById('import-fetch-status');
+    const autoFindBtn = document.getElementById('import-auto-find-btn');
+    const autoFindStatus = document.getElementById('import-auto-find-status');
+    const reviewHint = document.getElementById('import-review-hint');
     const reviewText = document.getElementById('import-review-text');
     const stripChordsCheck = document.getElementById('import-strip-chords');
     const applyBtn = document.getElementById('import-apply-btn');
@@ -1603,77 +1606,41 @@ const ICONS = {
       }).join('\n');
     }
 
-    let importKind = null; // 'lyrics' | 'chords'
     let importSourceURL = '';
 
     function showStep(name) {
       Object.entries(steps).forEach(([k, el]) => { if (el) el.hidden = k !== name; });
     }
-    function buildSearchLinks(kind) {
+    (function buildSearchLink() {
       const { title, artist } = titleArtist();
       const q = `${artist} ${title}`.trim();
       searchLinksHost.innerHTML = '';
-      const sources = kind === 'chords'
-        ? [{ label: 'Ultimate Guitar', url: `https://www.ultimate-guitar.com/search.php?search_type=title&value=${encodeURIComponent(q)}` }]
-        : [
-            { label: 'Genius', url: `https://genius.com/search?q=${encodeURIComponent(q)}` },
-            { label: 'Google', url: `https://www.google.com/search?q=${encodeURIComponent((q + ' lyrics').trim())}` },
-          ];
-      sources.forEach(s => {
-        const a = document.createElement('a');
-        a.href = s.url; a.target = '_blank'; a.rel = 'noopener'; a.className = 'import-search-link';
-        a.textContent = `search on ${s.label} ↗`;
-        searchLinksHost.appendChild(a);
-      });
-      // One-click path for lyrics only: Genius has a real search API (not a
-      // scrape of its search-results HTML), so title+artist can resolve
-      // straight to a fetched draft without the "open a tab, find the
-      // link, copy it, paste it back" round-trip the plain search links
-      // above still need. Ultimate Guitar and Google have no equivalent
-      // sanctioned endpoint (checked directly, not assumed — UG's search
-      // page is server-rendered with no backing JSON/API call to reuse,
-      // same as Google, both deliberately staying manual-only, see
-      // internal/importer/lyrics.go's own comment on why Google never
-      // gets this treatment) — so this button only ever appears for
-      // lyrics. Needs SONGBOOKS_GENIUS_TOKEN configured server-side; falls
-      // back to a plain, clear message (not a raw error) when it isn't.
-      if (kind === 'lyrics' && title) {
-        const findBtn = document.createElement('button');
-        findBtn.type = 'button'; findBtn.className = 'import-search-link import-find-fetch-btn';
-        findBtn.textContent = 'find & fetch from Genius';
-        findBtn.addEventListener('click', async () => {
-          findBtn.disabled = true;
-          fetchStatus.textContent = 'searching Genius…'; fetchStatus.className = 'hint';
-          try {
-            const res = await fetch(`/api/import/lyrics/find?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist || '')}`);
-            const data = await res.json();
-            if (!res.ok) throw new Error(res.status === 501 ? 'automatic search isn’t configured on this deployment — paste a URL instead' : (data.error || 'search failed'));
-            importSourceURL = data.url;
-            urlInput.value = data.url;
-            reviewText.value = data.text;
-            applyStatus.textContent = ''; applyStatus.className = 'hint';
-            showStep('review');
-          } catch (e) {
-            fetchStatus.textContent = e.message; fetchStatus.className = 'err';
-          } finally {
-            findBtn.disabled = false;
-          }
-        });
-        searchLinksHost.appendChild(findBtn);
+      const a = document.createElement('a');
+      a.href = `https://www.ultimate-guitar.com/search.php?search_type=title&value=${encodeURIComponent(q)}`;
+      a.target = '_blank'; a.rel = 'noopener'; a.className = 'import-search-link';
+      a.textContent = 'search on Ultimate Guitar ↗';
+      searchLinksHost.appendChild(a);
+    })();
+    autoFindBtn.addEventListener('click', async () => {
+      const { title, artist } = titleArtist();
+      if (!title) { autoFindStatus.textContent = 'set a title first (Chart tab)'; autoFindStatus.className = 'err'; return; }
+      autoFindBtn.disabled = true;
+      autoFindStatus.textContent = 'searching Ultimate Guitar…'; autoFindStatus.className = 'hint';
+      try {
+        const res = await fetch(`/api/import/ug/find?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist || '')}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'search failed');
+        importSourceURL = data.url;
+        urlInput.value = data.url;
+        reviewText.value = data.text;
+        reviewHint.textContent = `From ${data.url} — ${data.confidence}.`;
+        applyStatus.textContent = ''; applyStatus.className = 'hint';
+        showStep('review');
+      } catch (e) {
+        autoFindStatus.textContent = e.message; autoFindStatus.className = 'err';
+      } finally {
+        autoFindBtn.disabled = false;
       }
-    }
-    wizard.querySelectorAll('.import-pick-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        importKind = btn.dataset.kind;
-        findHint.textContent = importKind === 'chords'
-          ? 'Find an Ultimate Guitar tab for this song, open it, then paste its URL below.'
-          : 'Find a lyrics page for this song, open it, then paste its URL below.';
-        buildSearchLinks(importKind);
-        urlInput.value = '';
-        fetchStatus.textContent = ''; fetchStatus.className = 'hint';
-        showStep('find');
-        urlInput.focus();
-      });
     });
     wizard.querySelectorAll('.import-back').forEach(btn => {
       btn.addEventListener('click', () => showStep(btn.dataset.back));
@@ -1683,12 +1650,12 @@ const ICONS = {
       if (!url) { fetchStatus.textContent = 'paste a URL first'; fetchStatus.className = 'err'; return; }
       fetchBtn.disabled = true; fetchStatus.textContent = 'fetching…'; fetchStatus.className = 'hint';
       try {
-        const endpoint = importKind === 'chords' ? '/api/import/chords' : '/api/import/lyrics';
-        const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+        const res = await fetch('/api/import/chords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'fetch failed');
         importSourceURL = url;
         reviewText.value = data.text;
+        reviewHint.textContent = `From ${url} — pasted manually, not cross-checked.`;
         applyStatus.textContent = ''; applyStatus.className = 'hint';
         showStep('review');
       } catch (e) {
@@ -1704,7 +1671,7 @@ const ICONS = {
       insertAtCursor(`\n\n# imported from ${importSourceURL}\n${text}\n`);
       applyStatus.textContent = 'applied — inserted into Source below cursor, review and fold into sections';
       applyStatus.className = 'ok';
-      setTimeout(() => { importKind = null; importSourceURL = ''; showStep('pick'); }, 900);
+      setTimeout(() => { importSourceURL = ''; showStep('find'); }, 900);
     });
   })();
 
