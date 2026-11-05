@@ -213,6 +213,62 @@ func (st *Store) ListGroupInvitesForTarget(ctx context.Context, targetKind strin
 	return out, nil
 }
 
+// ListAllGroupInvites lists every group invite on the instance, open
+// ones first then closed, newest first within each, each with its
+// target's resolved name and full slot list — the admin panel's own
+// "every invite ever sent, and whether it's been used" view (see
+// ListGroupInvitesForTarget's doc comment for the per-band/school
+// version this mirrors; this is its site-wide counterpart, for an
+// admin troubleshooting "they say the invite didn't work" without
+// already knowing which band or school it belongs to).
+func (st *Store) ListAllGroupInvites(ctx context.Context) ([]GroupInviteView, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT gi.id, gi.token, gi.target_kind, gi.band_id, gi.school_id, gi.created_by_person_id,
+		       gi.created_at, gi.closed_at, coalesce(gi.default_status, ''),
+		       coalesce(b.name, sc.name, '')
+		FROM group_invites gi
+		LEFT JOIN bands b ON b.id = gi.band_id
+		LEFT JOIN schools sc ON sc.id = gi.school_id
+		ORDER BY (gi.closed_at IS NULL) DESC, gi.created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	type row struct {
+		gi         GroupInvite
+		targetName string
+	}
+	var invites []row
+	for rows.Next() {
+		var gi GroupInvite
+		var bandID, schoolID, createdBy sql.NullInt64
+		var closedAt sql.NullTime
+		var targetName string
+		if err := rows.Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &schoolID, &createdBy,
+			&gi.CreatedAt, &closedAt, &gi.DefaultStatus, &targetName); err != nil {
+			return nil, err
+		}
+		gi.BandID, gi.SchoolID, gi.CreatedBy = bandID.Int64, schoolID.Int64, createdBy.Int64
+		if closedAt.Valid {
+			gi.ClosedAt = &closedAt.Time
+		}
+		invites = append(invites, row{gi: gi, targetName: targetName})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]GroupInviteView, 0, len(invites))
+	for _, r := range invites {
+		slots, err := st.listGroupInviteSlots(ctx, st.db, r.gi.ID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, GroupInviteView{GroupInvite: r.gi, TargetName: r.targetName, Slots: slots})
+	}
+	return out, nil
+}
+
 func (st *Store) scanGroupInvite(ctx context.Context, q dbtx, query string, arg any) (*GroupInvite, string, error) {
 	var gi GroupInvite
 	var bandID, schoolID, createdBy sql.NullInt64
@@ -568,6 +624,24 @@ func (st *Store) RemoveGroupInviteSlot(ctx context.Context, groupInviteID, slotI
 // guessing its id (same defense-in-depth every other band/school-scoped
 // store method in this codebase uses). ErrNotFound if groupInviteID
 // doesn't resolve to an open invite on that exact target.
+// CloseGroupInviteAdmin closes any group invite by id alone, no
+// band/school scoping check — unlike CloseGroupInvite (used by a band
+// member/school staffer, who only has rights over their own band/
+// school), the site-wide admin panel is already fully trusted via
+// requireAdmin and may need to close an invite without first looking
+// up which band or school it belongs to.
+func (st *Store) CloseGroupInviteAdmin(ctx context.Context, groupInviteID int64) error {
+	tag, err := st.db.Exec(ctx, `
+		UPDATE group_invites SET closed_at = now() WHERE id = $1 AND closed_at IS NULL`, groupInviteID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no such open group invite: %w", ErrNotFound)
+	}
+	return nil
+}
+
 func (st *Store) CloseGroupInvite(ctx context.Context, groupInviteID int64, targetKind string, targetID int64) error {
 	col := "band_id"
 	if targetKind == "school" {

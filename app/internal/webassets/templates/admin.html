@@ -107,6 +107,71 @@
       <button type="button" id="copy-plain-invite-btn" hidden>Copy link</button>
       <p id="plain-invite-result" class="hint"></p>
     </div>
+
+    {{/* The gap a direct report flagged: no way to see who was invited,
+         whether they used it, or whether it quietly expired before they
+         got to it — the only trace of a band/school roster invite's
+         state used to be the one-time link shown right after creation.
+         Group invites (the roster-link kind, reusable, per-slot claims)
+         and plain invites (single-use, actually deleted on accept) are
+         different enough in shape that they get their own tables rather
+         than one forced-common view. */}}
+    <div class="card">
+      <h3>Band &amp; community invite links</h3>
+      <p class="hint">Every roster-link invite ever created, newest open ones first. A slot shows who claimed it, or stays open for anyone still on the list.</p>
+      <div class="table-scroll"><table style="width:100%">
+        <thead><tr><th>Target</th><th>Created</th><th>Status</th><th>Slots</th><th></th></tr></thead>
+        <tbody>
+        {{range .GroupInvites}}
+          <tr>
+            <td>{{.TargetKind}}: {{if .TargetName}}{{.TargetName}}{{else}}<em>(deleted)</em>{{end}}</td>
+            <td>{{.CreatedAt.Format "2006-01-02"}}</td>
+            <td>{{if .ClosedAt}}closed {{.ClosedAt.Format "2006-01-02"}}{{else}}open{{end}}</td>
+            <td>
+              {{range .Slots}}
+                <div>{{.DisplayName}}{{if .Instrument}} ({{.Instrument}}){{end}}:
+                  {{if .ClaimedByName}}<strong>joined as {{.ClaimedByName}}</strong>{{if .ClaimedAt}} on {{.ClaimedAt.Format "2006-01-02"}}{{end}}
+                  {{else}}<span class="hint">not claimed yet</span>{{end}}
+                </div>
+              {{else}}
+                <span class="hint">unlisted-join link, no named slots</span>
+              {{end}}
+            </td>
+            <td>
+              {{if not .ClosedAt}}
+              <form method="post" action="/admin/group-invites/{{.ID}}/close" onsubmit="return confirm('Close this invite link? Anyone still holding it won\'t be able to join through it.')">
+                <button type="submit" class="danger">close</button>
+              </form>
+              {{end}}
+            </td>
+          </tr>
+        {{else}}
+          <tr><td colspan="5" class="hint">No band/community invite links created yet.</td></tr>
+        {{end}}
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h3>Single-use invites</h3>
+      <p class="hint">Plain signup invites and direct band invites — single-use, and removed from this list the moment they're accepted (so what's left here is either still open or sat unused past its expiry — exactly the "did it expire?" question this answers).</p>
+      <div class="table-scroll"><table style="width:100%">
+        <thead><tr><th>Kind</th><th>Created by</th><th>Created</th><th>Expires</th><th>Status</th></tr></thead>
+        <tbody>
+        {{range .PlainInvites}}
+          <tr>
+            <td>{{if .BandID}}band: {{.BandName}}{{else}}plain signup{{end}}</td>
+            <td>{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>unknown</em>{{end}}</td>
+            <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+            <td>{{.ExpiresAt.Format "2006-01-02 15:04"}}</td>
+            <td>{{if .ExpiresAt.After now}}<strong>still open</strong>{{else}}expired, never used{{end}}</td>
+          </tr>
+        {{else}}
+          <tr><td colspan="5" class="hint">No single-use invites pending.</td></tr>
+        {{end}}
+        </tbody>
+      </table></div>
+    </div>
   </section>
 
 

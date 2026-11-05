@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"app/internal/chordsym"
 )
@@ -35,7 +36,12 @@ var funcMap = template.FuncMap{
 	// shared template): minor as "-", half-diminished spelled out
 	// literally ("-7♭5") instead of the ø glyph — see RenderJazz.
 	"chordJazz": func(sym string) template.HTML { return template.HTML(chordsym.RenderJazz(sym)) },
-	"add1":  func(n int) int { return n + 1 },
+	"add1":      func(n int) int { return n + 1 },
+	// now gives a template a current timestamp to compare against —
+	// e.g. the admin panel's invite list, which needs "is this expiry
+	// in the future" rather than any value computed once at render time
+	// being stale by the time someone actually reads the page.
+	"now": func() time.Time { return time.Now() },
 	// seq returns [0, n) for templates to range over a plain bar count —
 	// e.g. the repeat-bar mockup's N empty bar cells, where N varies per
 	// song (RepeatSegmentBars), not a fixed 8.

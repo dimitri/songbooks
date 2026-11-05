@@ -472,6 +472,50 @@ func nullableID(id int64) *int64 {
 	return &id
 }
 
+// PlainInviteRow is one row of ListPlainInvites — a plain/band
+// single-use invite, whether still open or already expired (GetInvite
+// itself only ever returns the still-valid ones; the admin listing
+// needs the expired ones too, to actually answer "did this expire, or
+// never exist").
+type PlainInviteRow struct {
+	Token         string
+	BandID        int64
+	BandName      string
+	CreatedByName string
+	CreatedAt     time.Time
+	ExpiresAt     time.Time
+}
+
+// ListPlainInvites lists every row still sitting in the invites table —
+// single-use plain or band invites that haven't been accepted yet
+// (accepting one deletes it, see acceptInviteTx), whether still valid
+// or already past expires_at. Newest first. The admin panel's "did the
+// invite I sent actually expire, and when" view — GetInvite alone can't
+// answer that since it treats an expired row exactly like a missing one.
+func (st *Store) ListPlainInvites(ctx context.Context) ([]PlainInviteRow, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT i.token, i.band_id, coalesce(b.name, ''), coalesce(p.display_name, ''), i.created_at, i.expires_at
+		FROM invites i
+		LEFT JOIN bands b ON b.id = i.band_id
+		LEFT JOIN people p ON p.id = i.created_by_person_id
+		ORDER BY i.created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PlainInviteRow
+	for rows.Next() {
+		var r PlainInviteRow
+		var bandID sql.NullInt64
+		if err := rows.Scan(&r.Token, &bandID, &r.BandName, &r.CreatedByName, &r.CreatedAt, &r.ExpiresAt); err != nil {
+			return nil, err
+		}
+		r.BandID = bandID.Int64
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 // GetInvite resolves a token to its still-valid invite, or ErrNotFound if
 // missing/expired. BandID is set, or not, for a plain invite — see
 // Invite.Kind.

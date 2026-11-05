@@ -1,9 +1,12 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
+
+	"app/internal/store"
 )
 
 // handleAdminPage is the site-wide admin panel: every person (username,
@@ -26,9 +29,20 @@ func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	groupInvites, err := s.store.ListAllGroupInvites(r.Context())
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	plainInvites, err := s.store.ListPlainInvites(r.Context())
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "admin", map[string]any{
 		"Me": personFromContext(r), "People": people,
 		"AdminCount": adminCount, "Communities": communities,
+		"GroupInvites": groupInvites, "PlainInvites": plainInvites,
 	})
 }
 
@@ -68,6 +82,30 @@ func (s *Server) handleCreatePlainInvite(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"url": "/invite/" + token})
+}
+
+// handleAdminCloseGroupInvite closes any group invite (band or school
+// roster link) by id — the admin panel's own revoke action, for a link
+// that was sent to the wrong person, posted somewhere it shouldn't have
+// been, or is just done being needed. No band/school scoping check: an
+// admin may not be a member of the band/school the invite belongs to,
+// which is exactly why this exists instead of the member-only
+// handleCloseBandGroupInvite/its school counterpart.
+func (s *Server) handleAdminCloseGroupInvite(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid invite id")
+		return
+	}
+	if err := s.store.CloseGroupInviteAdmin(r.Context(), id); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			httpError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	http.Redirect(w, r, "/admin#invites", http.StatusFound)
 }
 
 // handleAdminRemovePerson is a deliberate stub: removing a person touches

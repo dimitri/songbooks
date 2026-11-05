@@ -303,6 +303,7 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// person), not requireRole (per-project role): see auth.go.
 	mux.HandleFunc("GET /admin", s.requireAdmin(s.handleAdminPage))
 	mux.HandleFunc("POST /admin/invites/plain", s.requireAdmin(s.handleCreatePlainInvite))
+	mux.HandleFunc("POST /admin/group-invites/{id}/close", s.requireAdmin(s.handleAdminCloseGroupInvite))
 	mux.HandleFunc("POST /admin/people/{personID}/admin", s.requireAdmin(s.handleSetAdmin))
 	mux.HandleFunc("POST /admin/people/{personID}/remove", s.requireAdmin(s.handleAdminRemovePerson))
 
