@@ -306,19 +306,21 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("POST /api/schools/{id}/submissions/{submissionID}/reject", s.requireSchoolStaff(s.handleRejectSchoolSubmission))
 
 	// Events: see internal/httpapi/events.go's own doc comments.
-	// Creation and manager-assignment stay at the owner-staff level
-	// (requireSchoolStaff / requireBandMember, both admin-bypassed);
-	// the public event/community-events pages and registration are
-	// unauthenticated routes that do their own per-event visibility
-	// check inline (a band-owned event is never public).
+	// Creation stays at the owner-staff level (requireSchoolStaff /
+	// requireBandMember, both admin-bypassed); the public event/
+	// community-events pages and registration are unauthenticated
+	// routes that do their own per-event visibility check inline (a
+	// band-owned event is never public). Manager ASSIGNMENT is a
+	// community-only concept — a band is flat (no staff hierarchy), so
+	// any current band member already manages any of that band's
+	// events via CanManageEvent's own fallback; there's nothing for a
+	// band-scoped manager-assignment route to add.
 	mux.HandleFunc("GET /schools/{id}/events", s.optionalPerson(s.handleCommunityEventsPage))
 	mux.HandleFunc("POST /api/schools/{id}/events", s.requireSchoolStaff(s.handleCreateSchoolEvent))
 	mux.HandleFunc("POST /api/schools/{id}/events/{eventID}/managers", s.requireSchoolStaff(s.handleAssignEventManager))
 	mux.HandleFunc("DELETE /api/schools/{id}/events/{eventID}/managers/{personID}", s.requireSchoolStaff(s.handleRemoveEventManager))
 	mux.HandleFunc("GET /bands/{id}/events", s.requireBandMember(s.handleBandEventsPage))
 	mux.HandleFunc("POST /api/bands/{id}/events", s.requireBandMember(s.handleCreateBandEvent))
-	mux.HandleFunc("POST /api/bands/{id}/events/{eventID}/managers", s.requireBandMember(s.handleAssignEventManager))
-	mux.HandleFunc("DELETE /api/bands/{id}/events/{eventID}/managers/{personID}", s.requireBandMember(s.handleRemoveEventManager))
 	mux.HandleFunc("GET /events/{id}", s.optionalPerson(s.handleEventPage))
 	mux.HandleFunc("GET /events/{id}/ics", s.optionalPerson(s.handleEventICS))
 	mux.HandleFunc("POST /events/{id}/register", s.optionalPerson(s.handleRegisterForEvent))

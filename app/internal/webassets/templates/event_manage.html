@@ -56,10 +56,14 @@
 
   <div class="card">
     <h3>Event managers</h3>
+    {{if eq .Event.OwnerKind "school"}}
     <ul>
-    {{range .Managers}}<li>{{.DisplayName}} <span class="hint">({{.Username}})</span></li>{{else}}<li class="hint">Nobody separately assigned — staff/band members can already manage this event.</li>{{end}}
+    {{range .Managers}}<li>{{.DisplayName}} <span class="hint">({{.Username}})</span></li>{{else}}<li class="hint">Nobody separately assigned — community staff can already manage this event.</li>{{end}}
     </ul>
-    <p class="hint">Assigning/removing managers is done from the {{if eq .Event.OwnerKind "school"}}community{{else}}band{{end}}'s own admin page.</p>
+    <p class="hint">Assigning/removing managers is done from the community's own admin page.</p>
+    {{else}}
+    <p class="hint">Bands don't need separately assigned managers — any current band member can already manage this event.</p>
+    {{end}}
   </div>
 </main>
 <script>
