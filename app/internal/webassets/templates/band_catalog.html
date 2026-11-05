@@ -131,8 +131,7 @@
     <p class="hint">Pointers into the catalog, same as a personal songbook — adding here doesn't copy a song; forking does, and makes it this band's own "band"-visibility variant that any current member (core or guest) can edit in place.</p>
     <div class="add-song-tabs">
       <button type="button" class="add-song-tab active" data-panel="write">Write new</button>
-      <button type="button" class="add-song-tab" data-panel="bulk">Add several</button>
-      <button type="button" class="add-song-tab" data-panel="byid">Add by id</button>
+      <button type="button" class="add-song-tab" data-panel="catalog">From the catalog</button>
     </div>
 
     <div class="add-song-panel" data-panel="write">
@@ -153,33 +152,14 @@
       </div>
     </div>
 
-    <div class="add-song-panel" data-panel="bulk" hidden>
-      <p class="hint">One song per line, <code>Title - Artist</code> (artist optional). Each becomes its own empty placeholder — click into one afterward to fill in lyrics and chords.</p>
-      <div class="form-stack">
-        <div class="field">
-          <label for="bulk-variant-lines">Songs</label>
-          <textarea id="bulk-variant-lines" rows="5" placeholder="Zombie - Yungblud&#10;Sweet Dreams - Marilyn Manson&#10;The Final Countdown - Europe"></textarea>
-        </div>
-        <div class="form-actions">
-          <button type="button" id="bulk-variant-btn">+ create all</button>
-        </div>
-        <ul id="bulk-variant-result" class="hint" style="list-style:none; padding:0; margin:0;"></ul>
+    <div class="add-song-panel" data-panel="catalog" hidden>
+      <p class="hint">Search the whole catalog — adding points at that variant as-is (any current member can still edit it); forking makes this band's own copy instead.</p>
+      <div class="field">
+        <label for="catalog-search-input">Search</label>
+        <input type="search" id="catalog-search-input" placeholder="Title or artist…">
       </div>
-    </div>
-
-    <div class="add-song-panel" data-panel="byid" hidden>
-      <p class="hint">Find a variant's id from the <a href="/catalog">catalog</a> (it's shown next to each song's actions there, or in the URL of its "all versions" page).</p>
-      <div class="form-stack">
-        <div class="field">
-          <label for="variant-id-input">Variant id</label>
-          <input type="number" id="variant-id-input">
-        </div>
-        <div class="form-actions">
-          <button type="button" id="add-existing-btn">+ add to repertoire</button>
-          <button type="button" id="fork-into-band-btn">fork into this band</button>
-        </div>
-        <p id="add-result" class="hint"></p>
-      </div>
+      <div id="catalog-search-results" class="attention-list"></div>
+      <p id="add-result" class="hint"></p>
     </div>
 
     <div class="form-actions" style="margin-top:1rem;">
@@ -206,69 +186,73 @@ document.getElementById('new-variant-btn').addEventListener('click', async () =>
     document.getElementById('new-variant-result').textContent = data.error || 'failed to create';
   }
 });
-document.getElementById('bulk-variant-btn').addEventListener('click', async () => {
-  const lines = document.getElementById('bulk-variant-lines').value;
-  const resultEl = document.getElementById('bulk-variant-result');
-  resultEl.innerHTML = '';
-  if (!lines.trim()) return;
-  const btn = document.getElementById('bulk-variant-btn');
-  btn.disabled = true;
-  btn.textContent = 'creating…';
-  try {
-    const res = await fetch(`/api/bands/${bandId}/variants/bulk`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({lines}),
-    });
+// ---- "From the catalog": search-as-you-type over /api/catalog/search,
+// replacing the old "paste a variant id you found on another page"
+// flow — add points at the variant as-is, fork makes this band's own
+// copy, same two actions the old by-id form offered. ----
+(function () {
+  const input = document.getElementById('catalog-search-input');
+  const results = document.getElementById('catalog-search-results');
+  const resultMsg = document.getElementById('add-result');
+  if (!input) return;
+  let debounceTimer;
+
+  async function doAdd(variantId, fork) {
+    resultMsg.textContent = '';
+    const url = fork ? `/api/bands/${bandId}/catalog/fork/${variantId}` : `/api/bands/${bandId}/catalog`;
+    const opts = fork
+      ? {method: 'POST'}
+      : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({variantId})};
+    const res = await fetch(url, opts);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      resultEl.innerHTML = `<li>${data.error || 'failed to create'}</li>`;
+    if (res.ok) {
+      location.reload();
+    } else {
+      resultMsg.textContent = data.error || (fork ? 'failed to fork' : 'failed to add');
+    }
+  }
+
+  async function search() {
+    const q = input.value.trim();
+    results.innerHTML = '';
+    if (!q) return;
+    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`);
+    const hits = await res.json().catch(() => []);
+    if (!hits.length) {
+      results.innerHTML = '<p class="hint">No matches.</p>';
       return;
     }
-    let created = 0;
-    for (const r of data.results || []) {
-      const li = document.createElement('li');
-      if (r.error) {
-        li.textContent = `${r.title}: ${r.error}`;
-      } else {
-        created++;
-        const a = document.createElement('a');
-        a.href = `/song/${r.variantId}?edit=1`;
-        a.textContent = `${r.title}${r.artist ? ' — ' + r.artist : ''}`;
-        li.append('✓ ', a, ' — click to fill in');
-      }
-      resultEl.appendChild(li);
+    for (const hit of hits) {
+      const row = document.createElement('div');
+      row.className = 'attention-row';
+      row.innerHTML = `
+        <div>
+          <div class="attention-title">${hit.title}</div>
+          ${hit.artist ? `<div class="attention-subtitle">${hit.artist}</div>` : ''}
+        </div>`;
+      const actions = document.createElement('span');
+      actions.style.marginLeft = 'auto';
+      actions.style.display = 'flex';
+      actions.style.gap = '0.4rem';
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.textContent = 'Add';
+      addBtn.addEventListener('click', () => doAdd(hit.variantId, false));
+      const forkBtn = document.createElement('button');
+      forkBtn.type = 'button';
+      forkBtn.textContent = 'Fork';
+      forkBtn.addEventListener('click', () => doAdd(hit.variantId, true));
+      actions.append(addBtn, forkBtn);
+      row.appendChild(actions);
+      results.appendChild(row);
     }
-    if (created > 0) document.getElementById('bulk-variant-lines').value = '';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '+ create all';
   }
-});
-document.getElementById('add-existing-btn').addEventListener('click', async () => {
-  const variantId = Number(document.getElementById('variant-id-input').value);
-  if (!variantId) return;
-  const res = await fetch(`/api/bands/${bandId}/catalog`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({variantId}),
+
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(search, 250);
   });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) {
-    location.reload();
-  } else {
-    document.getElementById('add-result').textContent = data.error || 'failed to add';
-  }
-});
-document.getElementById('fork-into-band-btn').addEventListener('click', async () => {
-  const variantId = Number(document.getElementById('variant-id-input').value);
-  if (!variantId) return;
-  const res = await fetch(`/api/bands/${bandId}/catalog/fork/${variantId}`, {method: 'POST'});
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) {
-    location.reload();
-  } else {
-    document.getElementById('add-result').textContent = data.error || 'failed to fork';
-  }
-});
+})();
 document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const variantId = btn.dataset.variantId;

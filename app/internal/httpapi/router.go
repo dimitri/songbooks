@@ -198,6 +198,7 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// internal/store/catalog.go and internal/store/revisions.go.
 	mux.HandleFunc("GET /songbooks", s.requireAuth(s.handleSongbooksIndexPage))
 	mux.HandleFunc("GET /catalog", s.requireAuth(s.handleCatalogPage))
+	mux.HandleFunc("GET /api/catalog/search", s.requireAuth(s.handleCatalogSearch))
 	mux.HandleFunc("GET /works/{id}", s.requireAuth(s.handleWorkVersionsPage))
 	mux.HandleFunc("GET /variants/{id}/history", s.requireAuth(s.handleVariantHistoryPage))
 
@@ -253,7 +254,6 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("DELETE /api/bands/{id}/catalog/{variantID}", s.requireBandMember(s.handleRemoveBandCatalogEntry))
 	mux.HandleFunc("POST /api/bands/{id}/catalog/fork/{variantID}", s.requireBandMember(s.handleForkVariantIntoBand))
 	mux.HandleFunc("POST /api/bands/{id}/variants", s.requireBandMember(s.handleCreateBandVariant))
-	mux.HandleFunc("POST /api/bands/{id}/variants/bulk", s.requireBandMember(s.handleCreateBandVariantsBulk))
 
 	// Band proposals + voting (phase 7): propose a new song (an existing
 	// catalog variant, for the band's repertoire) or a new reference URL

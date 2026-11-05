@@ -47,6 +47,48 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// catalogSearchHit is one result of handleCatalogSearch — just enough to
+// render a type-ahead row and carry the variant id the caller actually
+// needs (e.g. the band repertoire "Add song" dialog's add/fork actions).
+type catalogSearchHit struct {
+	VariantID  int64  `json:"variantId"`
+	Title      string `json:"title"`
+	Artist     string `json:"artist"`
+	Visibility string `json:"visibility"`
+}
+
+// handleCatalogSearch is GET /api/catalog/search?q=... — a JSON type-
+// ahead over the same ListCatalog full-text search handleCatalogPage
+// uses, for any UI that needs "find a variant by name" without a full
+// page navigation (the band repertoire "Add song" dialog's by-id form
+// used to make someone go find a catalog page, copy a numeric id, and
+// paste it back — this replaces that with search-as-you-type). Capped
+// at maxCatalogSearchResults since it's meant for a dropdown, not a
+// browse page.
+const maxCatalogSearchResults = 20
+
+func (s *Server) handleCatalogSearch(w http.ResponseWriter, r *http.Request) {
+	person := personFromContext(r)
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		writeJSON(w, http.StatusOK, []catalogSearchHit{})
+		return
+	}
+	variants, err := s.store.ListCatalog(r.Context(), person.ID, store.CatalogFilter{Query: q})
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if len(variants) > maxCatalogSearchResults {
+		variants = variants[:maxCatalogSearchResults]
+	}
+	hits := make([]catalogSearchHit, len(variants))
+	for i, v := range variants {
+		hits[i] = catalogSearchHit{VariantID: v.VariantID, Title: v.Title, Artist: v.Artist, Visibility: v.Visibility}
+	}
+	writeJSON(w, http.StatusOK, hits)
+}
+
 // handleSongbooksIndexPage is the "Songbooks" nav entry's destination: every
 // songbook the viewer can open, their own personal ones plus each of their
 // bands' shared repertoires — split out from the flat all-songs catalog
