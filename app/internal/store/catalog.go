@@ -1011,8 +1011,17 @@ type GlobalVariantStub struct {
 // catalog entry in place (preserving its id, so anything already
 // pointing at it stays valid) instead of creating a duplicate.
 func (st *Store) FindGlobalVariantByWorkID(ctx context.Context, workID int64) (variantID int64, found bool, err error) {
+	// ORDER BY id — not just LIMIT 1 — so this is deterministic: a
+	// work with more than one global variant (a real, pre-existing
+	// state: the original bulk import that seeded the catalog created
+	// at least two such duplicate pairs) always resolves to the SAME
+	// one across repeated runs of a redo/import tool. Without this, two
+	// runs of the same tool could each pick a different row (Postgres
+	// gives no ordering guarantee to a bare LIMIT 1) and end up linking
+	// BOTH variants into a songbook instead of reusing one — exactly
+	// what happened once before this was added.
 	err = st.db.QueryRow(ctx, `
-		SELECT id FROM songs WHERE work_id = $1 AND visibility = 'global' LIMIT 1`, workID).Scan(&variantID)
+		SELECT id FROM songs WHERE work_id = $1 AND visibility = 'global' ORDER BY id LIMIT 1`, workID).Scan(&variantID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, false, nil
 	}
