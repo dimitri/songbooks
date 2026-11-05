@@ -553,6 +553,24 @@
         <p class="hint" id="import-review-hint">Review the draft below — nothing is applied yet. You can edit it here before applying.</p>
         <textarea id="import-review-text" class="import-review-text" rows="14" spellcheck="false"></textarea>
         <label class="import-strip-chords-label"><input type="checkbox" id="import-strip-chords"> keep chords in the grid only, remove them from the lyrics</label>
+
+        {{/* iReal Pro bar-accurate chord reference — an enrichment of
+             the UG draft above, never a replacement: iReal has no
+             lyrics or section structure at all, only chords/bars, so
+             it only ever offers to swap ONE section's grid: line at a
+             time, shown here for the user to look at before accepting
+             — see internal/irealpro/merge.go's own doc comment on why
+             this is never silently auto-applied (a transposed match
+             was confirmed wrong on real songs this session even at
+             high confidence). */}}
+        <div class="import-ireal-block">
+          <div class="import-row">
+            <button type="button" id="import-ireal-check-btn">{{template "icon-view"}} Check iReal Pro for bar-accurate chords</button>
+            <span id="import-ireal-status" class="hint"></span>
+          </div>
+          <div id="import-ireal-candidates" class="import-ireal-candidates"></div>
+        </div>
+
         <div class="import-row">
           <button type="button" id="import-apply-btn" class="primary">{{template "icon-plus"}} Accept &amp; insert into Source</button>
           <span id="import-apply-status" class="hint"></span>

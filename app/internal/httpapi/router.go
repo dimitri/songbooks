@@ -129,6 +129,8 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("GET /api/import/lyrics/find", s.requireAuth(s.handleImportLyricsFindFetch))
 	mux.HandleFunc("POST /api/import/chords", s.requireAuth(s.handleImportChords))
 	mux.HandleFunc("GET /api/import/ug/find", s.requireAuth(s.handleImportUGFind))
+	mux.HandleFunc("GET /api/import/ireal/find", s.requireAuth(s.handleImportIRealFind))
+	mux.HandleFunc("POST /api/import/ireal/merge", s.requireAuth(s.handleImportIRealMerge))
 	mux.HandleFunc("POST /api/import/ultimate-guitar/parse", s.requireAuth(s.handleImportUGParse))
 	mux.HandleFunc("POST /api/import/ultimate-guitar/convert", s.requireAuth(s.handleImportUGConvert))
 

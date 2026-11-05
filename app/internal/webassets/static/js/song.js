@@ -1588,6 +1588,9 @@ const ICONS = {
     const stripChordsCheck = document.getElementById('import-strip-chords');
     const applyBtn = document.getElementById('import-apply-btn');
     const applyStatus = document.getElementById('import-apply-status');
+    const irealCheckBtn = document.getElementById('import-ireal-check-btn');
+    const irealStatus = document.getElementById('import-ireal-status');
+    const irealCandidatesHost = document.getElementById('import-ireal-candidates');
 
     // Removes chords from the LYRICS only, in an already-converted
     // .song-format draft (this app's own "[Section]\ngrid: ...\n
@@ -1702,6 +1705,101 @@ const ICONS = {
       const trimmed = headerZone.replace(/\s+$/, '');
       rawTextarea.value = (trimmed ? trimmed + '\n' + additions : additions) + '\n' + rest.replace(/^\n+/, '');
     }
+    // iReal Pro step: an enrichment of the draft already in reviewText,
+    // not a separate fetch-and-replace flow like the UG one above — it
+    // only ever proposes swapping individual sections' grid: lines for
+    // a bar-accurate chart, and only once the user ticks which ones to
+    // accept (see internal/irealpro/merge.go's doc comment on why a
+    // transposed match is never auto-applied: a high-confidence match
+    // was confirmed WRONG on real songs this session).
+    irealCheckBtn.addEventListener('click', async () => {
+      const { title, artist } = titleArtist();
+      if (!title) { irealStatus.textContent = 'set a title first (Chart tab)'; irealStatus.className = 'err'; return; }
+      const currentText = reviewText.value.trim();
+      if (!currentText) { irealStatus.textContent = 'nothing to check yet — fetch or paste a draft first'; irealStatus.className = 'err'; return; }
+      irealCheckBtn.disabled = true;
+      irealStatus.textContent = 'checking iReal Pro…'; irealStatus.className = 'hint';
+      irealCandidatesHost.innerHTML = '';
+      try {
+        const res = await fetch('/api/import/ireal/merge', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currentText, title, artist: artist || '' }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'no iReal chart found for this song');
+        renderIRealCandidates(data.candidates || []);
+        irealStatus.textContent = (data.candidates || []).length
+          ? 'found a chart — review each section below before accepting.'
+          : 'found a chart, but nothing new to propose.';
+        irealStatus.className = 'hint';
+      } catch (e) {
+        irealStatus.textContent = e.message; irealStatus.className = 'err';
+      } finally {
+        irealCheckBtn.disabled = false;
+      }
+    });
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function renderIRealCandidates(candidates) {
+      irealCandidatesHost.innerHTML = '';
+      if (!candidates.length) return;
+      candidates.forEach(c => {
+        const row = document.createElement('div');
+        row.className = 'import-ireal-candidate' + (c.Safe ? ' is-safe' : '');
+        const flag = c.Safe
+          ? 'same key — safe to accept'
+          : (c.Offset ? `transposed ${c.Offset > 0 ? '+' : ''}${c.Offset} semitones — please check before accepting` : 'low-confidence match — please check');
+        row.innerHTML = `
+          <div class="import-ireal-candidate-head">
+            <span class="import-ireal-candidate-label">[${c.Label}]</span>
+            <span class="import-ireal-candidate-flag${c.Safe ? ' is-safe' : ''}">${flag}</span>
+          </div>
+          <div class="import-ireal-candidate-grids">
+            <div><span class="label">current</span>${c.CurrentGrid ? escapeHtml(c.CurrentGrid) : '(none)'}</div>
+            <div><span class="label">iReal Pro</span>${escapeHtml(c.ProposedGrid)}</div>
+          </div>
+          <div class="import-ireal-candidate-actions">
+            <label><input type="checkbox" class="import-ireal-accept" ${c.Safe ? 'checked' : ''}> accept this section</label>
+          </div>`;
+        row.querySelector('.import-ireal-accept').dataset.label = c.Label;
+        irealCandidatesHost.appendChild(row);
+      });
+      const applyRow = document.createElement('div');
+      applyRow.className = 'import-row';
+      const applyIrealBtn = document.createElement('button');
+      applyIrealBtn.type = 'button';
+      applyIrealBtn.textContent = 'Apply accepted sections to draft';
+      const applyIrealStatus = document.createElement('span');
+      applyIrealStatus.className = 'hint';
+      applyRow.append(applyIrealBtn, applyIrealStatus);
+      irealCandidatesHost.appendChild(applyRow);
+      applyIrealBtn.addEventListener('click', async () => {
+        const { title, artist } = titleArtist();
+        const acceptLabels = Array.from(irealCandidatesHost.querySelectorAll('.import-ireal-accept:checked')).map(el => el.dataset.label);
+        if (!acceptLabels.length) { applyIrealStatus.textContent = 'tick at least one section first'; applyIrealStatus.className = 'err'; return; }
+        applyIrealBtn.disabled = true;
+        applyIrealStatus.textContent = 'applying…'; applyIrealStatus.className = 'hint';
+        try {
+          const res = await fetch('/api/import/ireal/merge', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ currentText: reviewText.value.trim(), title, artist: artist || '', apply: true, acceptLabels }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'apply failed');
+          reviewText.value = data.text;
+          irealCandidatesHost.innerHTML = '';
+          irealStatus.textContent = 'applied — accepted sections now use the iReal Pro grid.'; irealStatus.className = 'hint';
+        } catch (e) {
+          applyIrealStatus.textContent = e.message; applyIrealStatus.className = 'err';
+        } finally {
+          applyIrealBtn.disabled = false;
+        }
+      });
+    }
+
     applyBtn.addEventListener('click', () => {
       let text = reviewText.value.trim();
       if (!text) return;

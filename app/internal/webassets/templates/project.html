@@ -158,6 +158,18 @@
     <div class="ug-import-substep" id="ug-step-raw" hidden>
       <p class="hint">Paste chords+lyrics, or whatever the import above produced — this is the exact text that will be saved.</p>
       <textarea id="wiz-chords-preview" class="wizard-preview" rows="8" placeholder="chords + lyrics, [Chord]word syntax, one [Section] at a time"></textarea>
+
+      {{/* iReal Pro bar-accurate chord reference, same backend/UX as
+           the editor's Import tab (play.html) — see that file's own
+           comment for why a transposed match is never auto-applied. */}}
+      <div class="import-ireal-block">
+        <div class="import-row">
+          <button type="button" id="wiz-ireal-check-btn">{{template "icon-view"}} Check iReal Pro for bar-accurate chords</button>
+          <span id="wiz-ireal-status" class="hint"></span>
+        </div>
+        <div id="wiz-ireal-candidates" class="import-ireal-candidates"></div>
+      </div>
+
       <div class="form-actions" style="margin-top:0.4rem">
         <button type="button" id="ug-raw-back">&larr; back to import</button>
       </div>

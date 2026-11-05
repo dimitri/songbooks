@@ -73,6 +73,8 @@ document.getElementById('open-wizard-btn')?.addEventListener('click', () => {
   document.getElementById('wiz-lyrics-status').textContent = '';
   document.getElementById('wiz-chords-status').textContent = '';
   document.getElementById('wiz-status').textContent = '';
+  document.getElementById('wiz-ireal-status').textContent = '';
+  document.getElementById('wiz-ireal-candidates').innerHTML = '';
   document.getElementById('ug-preview-sections').innerHTML = '';
   ugLastURL = '';
   ugShowSubstep('ug-step-url');
@@ -179,6 +181,106 @@ document.getElementById('ug-preview-use')?.addEventListener('click', async () =>
   document.getElementById('wiz-chords-preview').value = data.text;
   ugShowSubstep('ug-step-raw');
 });
+
+// iReal Pro bar-accurate chord reference, layered onto whatever's
+// already in wiz-chords-preview (an enrichment, never a separate
+// fetch-and-replace flow — same backend/semantics as the editor's own
+// Import tab; see internal/irealpro/merge.go's doc comment for why a
+// transposed match is never auto-applied).
+function wizEscapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+document.getElementById('wiz-ireal-check-btn')?.addEventListener('click', async () => {
+  const title = document.getElementById('wiz-title').value.trim();
+  const artist = document.getElementById('wiz-artist').value.trim();
+  const status = document.getElementById('wiz-ireal-status');
+  const host = document.getElementById('wiz-ireal-candidates');
+  const btn = document.getElementById('wiz-ireal-check-btn');
+  const currentText = document.getElementById('wiz-chords-preview').value.trim();
+  if (!title) { status.textContent = 'set a title first'; status.className = 'hint err'; return; }
+  if (!currentText) { status.textContent = 'nothing to check yet — import or paste a draft first'; status.className = 'hint err'; return; }
+  btn.disabled = true;
+  status.textContent = 'checking iReal Pro…'; status.className = 'hint';
+  host.innerHTML = '';
+  try {
+    const res = await fetch('/api/import/ireal/merge', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentText, title, artist: artist || '' }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'no iReal chart found for this song');
+    wizRenderIRealCandidates(data.candidates || []);
+    status.textContent = (data.candidates || []).length
+      ? 'found a chart — review each section below before accepting.'
+      : 'found a chart, but nothing new to propose.';
+    status.className = 'hint';
+  } catch (e) {
+    status.textContent = e.message; status.className = 'hint err';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function wizRenderIRealCandidates(candidates) {
+  const host = document.getElementById('wiz-ireal-candidates');
+  host.innerHTML = '';
+  if (!candidates.length) return;
+  candidates.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'import-ireal-candidate' + (c.Safe ? ' is-safe' : '');
+    const flag = c.Safe
+      ? 'same key — safe to accept'
+      : (c.Offset ? `transposed ${c.Offset > 0 ? '+' : ''}${c.Offset} semitones — please check before accepting` : 'low-confidence match — please check');
+    row.innerHTML = `
+      <div class="import-ireal-candidate-head">
+        <span class="import-ireal-candidate-label">[${c.Label}]</span>
+        <span class="import-ireal-candidate-flag${c.Safe ? ' is-safe' : ''}">${flag}</span>
+      </div>
+      <div class="import-ireal-candidate-grids">
+        <div><span class="label">current</span>${c.CurrentGrid ? wizEscapeHtml(c.CurrentGrid) : '(none)'}</div>
+        <div><span class="label">iReal Pro</span>${wizEscapeHtml(c.ProposedGrid)}</div>
+      </div>
+      <div class="import-ireal-candidate-actions">
+        <label><input type="checkbox" class="wiz-ireal-accept" ${c.Safe ? 'checked' : ''}> accept this section</label>
+      </div>`;
+    row.querySelector('.wiz-ireal-accept').dataset.label = c.Label;
+    host.appendChild(row);
+  });
+  const applyRow = document.createElement('div');
+  applyRow.className = 'import-row';
+  const applyBtn = document.createElement('button');
+  applyBtn.type = 'button';
+  applyBtn.textContent = 'Apply accepted sections to draft';
+  const applyStatus = document.createElement('span');
+  applyStatus.className = 'hint';
+  applyRow.append(applyBtn, applyStatus);
+  host.appendChild(applyRow);
+  applyBtn.addEventListener('click', async () => {
+    const title = document.getElementById('wiz-title').value.trim();
+    const artist = document.getElementById('wiz-artist').value.trim();
+    const acceptLabels = Array.from(host.querySelectorAll('.wiz-ireal-accept:checked')).map(el => el.dataset.label);
+    if (!acceptLabels.length) { applyStatus.textContent = 'tick at least one section first'; applyStatus.className = 'hint err'; return; }
+    applyBtn.disabled = true;
+    applyStatus.textContent = 'applying…'; applyStatus.className = 'hint';
+    try {
+      const preview = document.getElementById('wiz-chords-preview');
+      const res = await fetch('/api/import/ireal/merge', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentText: preview.value.trim(), title, artist: artist || '', apply: true, acceptLabels }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'apply failed');
+      preview.value = data.text;
+      host.innerHTML = '';
+      document.getElementById('wiz-ireal-status').textContent = 'applied — accepted sections now use the iReal Pro grid.';
+      document.getElementById('wiz-ireal-status').className = 'hint';
+    } catch (e) {
+      applyStatus.textContent = e.message; applyStatus.className = 'hint err';
+    } finally {
+      applyBtn.disabled = false;
+    }
+  });
+}
 
 document.getElementById('wiz-create')?.addEventListener('click', async () => {
   const title = document.getElementById('wiz-title').value.trim();
