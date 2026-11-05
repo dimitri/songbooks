@@ -767,6 +767,20 @@ func (st *Store) CreateJamVariant(ctx context.Context, jamEventID int64, title, 
 // song" form offers a project dropdown, the same store.ListBooks list
 // CreateSong's own form draws from).
 func (st *Store) CreateBandVariant(ctx context.Context, bandID int64, title, artist string, creatorPersonID int64) (int64, error) {
+	// Resolved before the transaction — same reasoning as ForkVariant's
+	// own fix: GetDefaultSongbook isn't tx-scoped and may itself need to
+	// INSERT a songbook row (a band's default songbook is created
+	// lazily, same as a person's). The raw `... AND is_default` SELECT
+	// this used to run inline assumed one always already existed and
+	// 500'd with a bare "no rows in result set" for a band whose
+	// songbook page had never been visited — exactly the gap flagged:
+	// every "create a song" path needs a real target songbook to add
+	// into, not an assumption that one exists.
+	sbID, err := st.GetDefaultSongbook(ctx, "band", bandID)
+	if err != nil {
+		return 0, err
+	}
+
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, err
@@ -808,10 +822,6 @@ func (st *Store) CreateBandVariant(ctx context.Context, bandID int64, title, art
 		return 0, err
 	}
 
-	var sbID int64
-	if err := tx.QueryRow(ctx, `SELECT id FROM songbooks WHERE owner_kind='band' AND owner_band_id=$1 AND is_default`, bandID).Scan(&sbID); err != nil {
-		return 0, err
-	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO songbook_entries (songbook_id, variant_id, added_by_person_id) VALUES ($1, $2, $3)`,
 		sbID, newID, creator); err != nil {
