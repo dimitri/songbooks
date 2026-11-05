@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.School.Name}} — Events</title>
+<title>{{.Community.Name}} — Events</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -12,8 +12,8 @@
 {{template "desktop-sidebar" .Me}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/schools/{{.School.ID}}">{{template "icon-back"}} {{.School.Name}}</a>
-  <h1>{{.School.Name}} — Events</h1>
+  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
+  <h1>{{.Community.Name}} — Events</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">

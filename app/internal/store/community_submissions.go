@@ -9,13 +9,13 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// SchoolSubmission is one row of school_submissions, joined with enough
+// CommunitySubmission is one row of community_submissions, joined with enough
 // context (student/decider names, source/submitted variant titles) for
 // a submissions queue / history view to render without extra round
 // trips — same shape BandProposal plays for band_proposals.
-type SchoolSubmission struct {
+type CommunitySubmission struct {
 	ID                 int64
-	SchoolID           int64
+	CommunityID           int64
 	StudentPersonID    int64
 	StudentUsername    string
 	Kind               string // "new_song" or "edit"
@@ -35,15 +35,15 @@ type SchoolSubmission struct {
 // meaning: the submission is no longer 'pending', not a stale-read
 // problem).
 
-// CreateSchoolSubmission records a student's submission of work for
-// schoolID's consideration. kind "new_song" has no sourceVariantID (the
+// CreateCommunitySubmission records a student's submission of work for
+// communityID's consideration. kind "new_song" has no sourceVariantID (the
 // submitted variant IS the whole proposal); kind "edit" requires one —
-// the school/global variant the student is proposing a change to.
+// the community/global variant the student is proposing a change to.
 // submittedVariantID must be a variant the student themselves owns
 // (their own personal-scope fork/draft, created via the normal phase-1
 // CreateSong/fork flow BEFORE ever calling this) — enforced here so a
 // submission can never point at someone else's work.
-func (st *Store) CreateSchoolSubmission(ctx context.Context, schoolID, studentPersonID int64, kind string, sourceVariantID *int64, submittedVariantID int64, note string) (int64, error) {
+func (st *Store) CreateCommunitySubmission(ctx context.Context, communityID, studentPersonID int64, kind string, sourceVariantID *int64, submittedVariantID int64, note string) (int64, error) {
 	if kind != "new_song" && kind != "edit" {
 		return 0, fmt.Errorf("invalid submission kind %q", kind)
 	}
@@ -70,28 +70,28 @@ func (st *Store) CreateSchoolSubmission(ctx context.Context, schoolID, studentPe
 
 	var id int64
 	err = st.db.QueryRow(ctx, `
-		INSERT INTO school_submissions (school_id, student_person_id, kind, source_variant_id, submitted_variant_id, note)
+		INSERT INTO community_submissions (community_id, student_person_id, kind, source_variant_id, submitted_variant_id, note)
 		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-		schoolID, studentPersonID, kind, sourceVariantID, submittedVariantID, note).Scan(&id)
+		communityID, studentPersonID, kind, sourceVariantID, submittedVariantID, note).Scan(&id)
 	return id, err
 }
 
-// submissionCols/submissionJoins is ListSchoolSubmissions/
-// GetSchoolSubmission's shared SELECT shape.
+// submissionCols/submissionJoins is ListCommunitySubmissions/
+// GetCommunitySubmission's shared SELECT shape.
 const submissionCols = `
-	sub.id, sub.school_id, sub.student_person_id, stu.username, sub.kind::text, sub.source_variant_id,
+	sub.id, sub.community_id, sub.student_person_id, stu.username, sub.kind::text, sub.source_variant_id,
 	coalesce(src.title, ''), sub.submitted_variant_id, coalesce(sv.title, ''),
 	sub.note, sub.status::text, sub.created_at, sub.decided_at, sub.decided_by_person_id, coalesce(dp.username, '')`
 const submissionJoins = `
-	FROM school_submissions sub
+	FROM community_submissions sub
 	JOIN people stu ON stu.id = sub.student_person_id
 	LEFT JOIN songs src ON src.id = sub.source_variant_id
 	LEFT JOIN songs sv ON sv.id = sub.submitted_variant_id
 	LEFT JOIN people dp ON dp.id = sub.decided_by_person_id`
 
-func scanSubmission(row pgx.Row) (*SchoolSubmission, error) {
-	var s SchoolSubmission
-	err := row.Scan(&s.ID, &s.SchoolID, &s.StudentPersonID, &s.StudentUsername, &s.Kind, &s.SourceVariantID,
+func scanSubmission(row pgx.Row) (*CommunitySubmission, error) {
+	var s CommunitySubmission
+	err := row.Scan(&s.ID, &s.CommunityID, &s.StudentPersonID, &s.StudentUsername, &s.Kind, &s.SourceVariantID,
 		&s.SourceTitle, &s.SubmittedVariantID, &s.SubmittedTitle,
 		&s.Note, &s.Status, &s.CreatedAt, &s.DecidedAt, &s.DecidedByPersonID, &s.DecidedByUsername)
 	if err != nil {
@@ -100,15 +100,15 @@ func scanSubmission(row pgx.Row) (*SchoolSubmission, error) {
 	return &s, nil
 }
 
-// SubmissionFilter narrows ListSchoolSubmissions. "" means "no filter".
+// SubmissionFilter narrows ListCommunitySubmissions. "" means "no filter".
 type SubmissionFilter struct {
 	Status string // "pending", "accepted", "rejected"
 }
 
-// ListSchoolSubmissions lists schoolID's submissions, newest first.
-func (st *Store) ListSchoolSubmissions(ctx context.Context, schoolID int64, filter SubmissionFilter) ([]SchoolSubmission, error) {
-	q := `SELECT ` + submissionCols + submissionJoins + ` WHERE sub.school_id = $1`
-	args := []any{schoolID}
+// ListCommunitySubmissions lists communityID's submissions, newest first.
+func (st *Store) ListCommunitySubmissions(ctx context.Context, communityID int64, filter SubmissionFilter) ([]CommunitySubmission, error) {
+	q := `SELECT ` + submissionCols + submissionJoins + ` WHERE sub.community_id = $1`
+	args := []any{communityID}
 	if filter.Status != "" {
 		args = append(args, filter.Status)
 		q += fmt.Sprintf(" AND sub.status = $%d", len(args))
@@ -120,7 +120,7 @@ func (st *Store) ListSchoolSubmissions(ctx context.Context, schoolID int64, filt
 		return nil, err
 	}
 	defer rows.Close()
-	var out []SchoolSubmission
+	var out []CommunitySubmission
 	for rows.Next() {
 		s, err := scanSubmission(rows)
 		if err != nil {
@@ -131,18 +131,18 @@ func (st *Store) ListSchoolSubmissions(ctx context.Context, schoolID int64, filt
 	return out, rows.Err()
 }
 
-// ListSchoolSubmissionsForStudent lists studentPersonID's own submission
-// history across every school, newest first — "your submission history/
+// ListCommunitySubmissionsForStudent lists studentPersonID's own submission
+// history across every community, newest first — "your submission history/
 // status" on the student-facing page.
-func (st *Store) ListSchoolSubmissionsForStudent(ctx context.Context, schoolID, studentPersonID int64) ([]SchoolSubmission, error) {
+func (st *Store) ListCommunitySubmissionsForStudent(ctx context.Context, communityID, studentPersonID int64) ([]CommunitySubmission, error) {
 	rows, err := st.db.Query(ctx, `SELECT `+submissionCols+submissionJoins+`
-		WHERE sub.school_id = $1 AND sub.student_person_id = $2
-		ORDER BY sub.created_at DESC`, schoolID, studentPersonID)
+		WHERE sub.community_id = $1 AND sub.student_person_id = $2
+		ORDER BY sub.created_at DESC`, communityID, studentPersonID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []SchoolSubmission
+	var out []CommunitySubmission
 	for rows.Next() {
 		s, err := scanSubmission(rows)
 		if err != nil {
@@ -153,8 +153,8 @@ func (st *Store) ListSchoolSubmissionsForStudent(ctx context.Context, schoolID, 
 	return out, rows.Err()
 }
 
-// GetSchoolSubmission loads one submission by id.
-func (st *Store) GetSchoolSubmission(ctx context.Context, submissionID int64) (*SchoolSubmission, error) {
+// GetCommunitySubmission loads one submission by id.
+func (st *Store) GetCommunitySubmission(ctx context.Context, submissionID int64) (*CommunitySubmission, error) {
 	row := st.db.QueryRow(ctx, `SELECT `+submissionCols+submissionJoins+` WHERE sub.id = $1`, submissionID)
 	s, err := scanSubmission(row)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -163,12 +163,12 @@ func (st *Store) GetSchoolSubmission(ctx context.Context, submissionID int64) (*
 	return s, err
 }
 
-// decideSchoolSubmission locks submissionID, checks it's still
+// decideCommunitySubmission locks submissionID, checks it's still
 // 'pending', and flips it to newStatus. Called AFTER any accept side
 // effect has already been applied (same "side effect first, so a
 // failure leaves the submission retriable rather than falsely
 // 'accepted'" ordering decideProposal uses in band_proposals.go).
-func (st *Store) decideSchoolSubmission(ctx context.Context, submissionID int64, newStatus string, decidedByPersonID int64) error {
+func (st *Store) decideCommunitySubmission(ctx context.Context, submissionID int64, newStatus string, decidedByPersonID int64) error {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return err
@@ -176,7 +176,7 @@ func (st *Store) decideSchoolSubmission(ctx context.Context, submissionID int64,
 	defer tx.Rollback(ctx)
 
 	var status string
-	err = tx.QueryRow(ctx, `SELECT status::text FROM school_submissions WHERE id = $1 FOR UPDATE`, submissionID).Scan(&status)
+	err = tx.QueryRow(ctx, `SELECT status::text FROM community_submissions WHERE id = $1 FOR UPDATE`, submissionID).Scan(&status)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("no such submission %d: %w", submissionID, ErrNotFound)
 	}
@@ -188,43 +188,43 @@ func (st *Store) decideSchoolSubmission(ctx context.Context, submissionID int64,
 	}
 
 	if _, err := tx.Exec(ctx, `
-		UPDATE school_submissions SET status = $1, decided_at = now(), decided_by_person_id = $2 WHERE id = $3`,
+		UPDATE community_submissions SET status = $1, decided_at = now(), decided_by_person_id = $2 WHERE id = $3`,
 		newStatus, decidedByPersonID, submissionID); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
 }
 
-// AcceptSchoolSubmission accepts submissionID: instructorPersonID must
-// be a current instructor of the submission's own school (checked
-// against the SUBMISSION's school_id, not whatever id the HTTP path
+// AcceptCommunitySubmission accepts submissionID: instructorPersonID must
+// be a current instructor of the submission's own community (checked
+// against the SUBMISSION's community_id, not whatever id the HTTP path
 // happened to carry — same defense-in-depth ForkVariant's scope="band"/
-// "school" branches use). Applies the kind-specific side effect, then
+// "community" branches use). Applies the kind-specific side effect, then
 // notifies the student.
 //
 // For kind="new_song": the student's own submitted variant is pointed
-// at from the school's catalog (AddSchoolCatalogEntry) — a pointer, not
+// at from the community's catalog (AddCommunityCatalogEntry) — a pointer, not
 // a copy, same "fork/pointer not copy" rule as everywhere else; the
-// student keeps owning it, it's now ALSO school material.
+// student keeps owning it, it's now ALSO community material.
 //
 // For kind="edit": the submitted variant's CONTENT (title/artist/
-// reference/body) is copied onto the actual source (school-owned, or
+// reference/body) is copied onto the actual source (community-owned, or
 // global) variant via SaveVariantByID — the normal save/edit path,
 // which naturally records a revision. JUDGMENT CALL on attribution: the
 // revision's actor is recorded as the ACCEPTING INSTRUCTOR
 // (instructorPersonID), not the student — the brief frames acceptance
-// as the school formally taking ownership of the change, and
+// as the community formally taking ownership of the change, and
 // SaveVariantByID's actor convention elsewhere always means "who wrote
 // this to the row," which is, at the moment of acceptance, the
 // instructor's decision to apply it. The durable record of who
-// ORIGINALLY authored the change is never lost: school_submissions.
+// ORIGINALLY authored the change is never lost: community_submissions.
 // student_person_id keeps pointing at the student regardless of this
 // revision's own actor. The student's own submitted variant (their
 // personal fork) is left untouched either way — accepting an edit never
 // deletes or mutates the student's draft, consistent with "rejection
 // doesn't delete their work" for the reject path.
-func (st *Store) AcceptSchoolSubmission(ctx context.Context, submissionID, instructorPersonID int64) error {
-	sub, err := st.GetSchoolSubmission(ctx, submissionID)
+func (st *Store) AcceptCommunitySubmission(ctx context.Context, submissionID, instructorPersonID int64) error {
+	sub, err := st.GetCommunitySubmission(ctx, submissionID)
 	if err != nil {
 		return err
 	}
@@ -232,17 +232,17 @@ func (st *Store) AcceptSchoolSubmission(ctx context.Context, submissionID, instr
 		return ErrAlreadyDecided
 	}
 
-	isInstructor, err := st.IsCurrentSchoolStaff(ctx, sub.SchoolID, instructorPersonID)
+	isInstructor, err := st.IsCurrentCommunityStaff(ctx, sub.CommunityID, instructorPersonID)
 	if err != nil {
 		return err
 	}
 	if !isInstructor {
-		return fmt.Errorf("person %d is not a current staff member of community %d: %w", instructorPersonID, sub.SchoolID, ErrForbidden)
+		return fmt.Errorf("person %d is not a current staff member of community %d: %w", instructorPersonID, sub.CommunityID, ErrForbidden)
 	}
 
 	switch sub.Kind {
 	case "new_song":
-		if err := st.AddSchoolCatalogEntry(ctx, sub.SchoolID, sub.SubmittedVariantID, instructorPersonID); err != nil {
+		if err := st.AddCommunityCatalogEntry(ctx, sub.CommunityID, sub.SubmittedVariantID, instructorPersonID); err != nil {
 			return err
 		}
 	case "edit":
@@ -260,18 +260,18 @@ func (st *Store) AcceptSchoolSubmission(ctx context.Context, submissionID, instr
 		return fmt.Errorf("unknown submission kind %q", sub.Kind)
 	}
 
-	if err := st.decideSchoolSubmission(ctx, submissionID, "accepted", instructorPersonID); err != nil {
+	if err := st.decideCommunitySubmission(ctx, submissionID, "accepted", instructorPersonID); err != nil {
 		return err
 	}
-	return st.notifySchoolSubmissionDecided(ctx, sub, "accepted")
+	return st.notifyCommunitySubmissionDecided(ctx, sub, "accepted")
 }
 
-// RejectSchoolSubmission rejects submissionID — no side effect, just
+// RejectCommunitySubmission rejects submissionID — no side effect, just
 // marks it decided and notifies the student. The submitted variant
 // stays in the student's own personal space untouched: rejecting a
 // submission never deletes or alters their work.
-func (st *Store) RejectSchoolSubmission(ctx context.Context, submissionID, instructorPersonID int64) error {
-	sub, err := st.GetSchoolSubmission(ctx, submissionID)
+func (st *Store) RejectCommunitySubmission(ctx context.Context, submissionID, instructorPersonID int64) error {
+	sub, err := st.GetCommunitySubmission(ctx, submissionID)
 	if err != nil {
 		return err
 	}
@@ -279,26 +279,26 @@ func (st *Store) RejectSchoolSubmission(ctx context.Context, submissionID, instr
 		return ErrAlreadyDecided
 	}
 
-	isInstructor, err := st.IsCurrentSchoolStaff(ctx, sub.SchoolID, instructorPersonID)
+	isInstructor, err := st.IsCurrentCommunityStaff(ctx, sub.CommunityID, instructorPersonID)
 	if err != nil {
 		return err
 	}
 	if !isInstructor {
-		return fmt.Errorf("person %d is not a current staff member of community %d: %w", instructorPersonID, sub.SchoolID, ErrForbidden)
+		return fmt.Errorf("person %d is not a current staff member of community %d: %w", instructorPersonID, sub.CommunityID, ErrForbidden)
 	}
 
-	if err := st.decideSchoolSubmission(ctx, submissionID, "rejected", instructorPersonID); err != nil {
+	if err := st.decideCommunitySubmission(ctx, submissionID, "rejected", instructorPersonID); err != nil {
 		return err
 	}
-	return st.notifySchoolSubmissionDecided(ctx, sub, "rejected")
+	return st.notifyCommunitySubmissionDecided(ctx, sub, "rejected")
 }
 
-// notifySchoolSubmissionDecided tells the student their submission was
+// notifyCommunitySubmissionDecided tells the student their submission was
 // accepted/rejected — the one notification this phase sends for
 // submissions, same "did my thing get picked up" one-recipient pattern
 // notifyProposalDecided uses for band proposals.
-func (st *Store) notifySchoolSubmissionDecided(ctx context.Context, sub *SchoolSubmission, newStatus string) error {
-	school, err := st.GetSchool(ctx, sub.SchoolID)
+func (st *Store) notifyCommunitySubmissionDecided(ctx context.Context, sub *CommunitySubmission, newStatus string) error {
+	community, err := st.GetCommunity(ctx, sub.CommunityID)
 	if err != nil {
 		return err
 	}
@@ -309,11 +309,11 @@ func (st *Store) notifySchoolSubmissionDecided(ctx context.Context, sub *SchoolS
 	var what string
 	switch sub.Kind {
 	case "new_song":
-		what = fmt.Sprintf("your submission of %q to %s's repertoire", title, school.Name)
+		what = fmt.Sprintf("your submission of %q to %s's repertoire", title, community.Name)
 	case "edit":
-		what = fmt.Sprintf("your submitted edit of %q in %s", title, school.Name)
+		what = fmt.Sprintf("your submitted edit of %q in %s", title, community.Name)
 	default:
-		what = fmt.Sprintf("your submission in %s", school.Name)
+		what = fmt.Sprintf("your submission in %s", community.Name)
 	}
 	var body string
 	switch newStatus {
@@ -324,7 +324,7 @@ func (st *Store) notifySchoolSubmissionDecided(ctx context.Context, sub *SchoolS
 	default:
 		body = fmt.Sprintf("Decided (%s): %s", newStatus, what)
 	}
-	link := fmt.Sprintf("/schools/%d", sub.SchoolID)
-	_, err = st.CreateNotification(ctx, sub.StudentPersonID, "school_submission_"+newStatus, body, link)
+	link := fmt.Sprintf("/communities/%d", sub.CommunityID)
+	_, err = st.CreateNotification(ctx, sub.StudentPersonID, "community_submission_"+newStatus, body, link)
 	return err
 }

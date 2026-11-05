@@ -1,4 +1,4 @@
-{{define "schools"}}
+{{define "communities"}}
 <!doctype html>
 <html lang="en">
 <head>
@@ -17,14 +17,14 @@
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  <p class="hint">A community is a named group with read-write staff and read-only members, sharing a set of songbooks and setlists — a school, a choir, any group that isn't quite a band.</p>
+  <p class="hint">A community is a named group with read-write staff and read-only members, sharing a set of songbooks and setlists — a community, a choir, any group that isn't quite a band.</p>
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>Name</th><th></th></tr></thead>
     <tbody>
-    {{range .Schools}}
+    {{range .Communities}}
       <tr>
-        <td data-label="Name"><a href="/schools/{{.ID}}">{{.Name}}</a></td>
-        <td><a href="/schools/{{.ID}}/admin">admin</a></td>
+        <td data-label="Name"><a href="/communities/{{.ID}}">{{.Name}}</a></td>
+        <td><a href="/communities/{{.ID}}/admin">admin</a></td>
       </tr>
     {{else}}
       <tr><td colspan="2" class="hint">You're not in any communities yet.</td></tr>
@@ -36,25 +36,25 @@
     <h2>Start a community</h2>
     <p class="hint">You'll be the first staff member.</p>
     <p>
-      <label>Name <input type="text" id="new-school-name" placeholder="e.g. Riverside Music School"></label>
+      <label>Name <input type="text" id="new-community-name" placeholder="e.g. Riverside Music Community"></label>
     </p>
-    <button type="button" id="create-school-btn">Create community</button>
-    <p id="create-school-result" class="hint"></p>
+    <button type="button" id="create-community-btn">Create community</button>
+    <p id="create-community-result" class="hint"></p>
   </div>
 </main>
 <script>
-document.getElementById('create-school-btn').addEventListener('click', async () => {
-  const name = document.getElementById('new-school-name').value.trim();
+document.getElementById('create-community-btn').addEventListener('click', async () => {
+  const name = document.getElementById('new-community-name').value.trim();
   if (!name) return;
-  const res = await fetch('/api/schools', {
+  const res = await fetch('/api/communities', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({name}),
   });
   const data = await res.json().catch(() => ({}));
   if (res.ok) {
-    location.href = `/schools/${data.id}/admin`;
+    location.href = `/communities/${data.id}/admin`;
   } else {
-    document.getElementById('create-school-result').textContent = data.error || 'failed to create community';
+    document.getElementById('create-community-result').textContent = data.error || 'failed to create community';
   }
 });
 </script>

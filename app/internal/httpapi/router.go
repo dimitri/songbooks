@@ -87,7 +87,7 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("GET /invite/{token}", s.handleInvitePage)
 	mux.HandleFunc("POST /invite/{token}", s.handlePostInvite)
 
-	// Group invites: a band/school-wide reusable roster link (see
+	// Group invites: a band/community-wide reusable roster link (see
 	// internal/store/group_invites.go) — distinct from the single-use
 	// /invite/{token} above. Public, no auth required to view (same
 	// "must work from a bare WhatsApp link" requirement); see join.go.
@@ -275,38 +275,38 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("POST /api/bands/{id}/proposals/{proposalID}/votes", s.requireBandMember(s.handleCastVote))
 	mux.HandleFunc("GET /bands/{id}/listening-party", s.requireBandMember(s.handleListeningPartyPage))
 
-	// School mode: a close structural cousin of bands (same history-
+	// Community mode: a close structural cousin of bands (same history-
 	// preserving membership shape, same catalog pointer mechanism), but
 	// with a REAL two-tier role (instructor/student) instead of bands'
-	// deliberately flat membership. requireSchoolMember gates "may see
-	// this school's material" (either role); requireSchoolStaff
+	// deliberately flat membership. requireCommunityMember gates "may see
+	// this community's material" (either role); requireCommunityStaff
 	// gates every instructor-only action (membership/catalog management,
-	// rename, submission review). See internal/httpapi/schools.go.
-	mux.HandleFunc("GET /schools", s.requireAuth(s.handleSchoolsPage))
-	mux.HandleFunc("POST /api/schools", s.requireAuth(s.handleCreateSchool))
-	mux.HandleFunc("GET /schools/{id}", s.requireSchoolMember(s.handleSchoolPage))
-	mux.HandleFunc("GET /schools/{id}/admin", s.requireSchoolStaff(s.handleSchoolAdminPage))
-	mux.HandleFunc("POST /api/schools/{id}/rename", s.requireSchoolStaff(s.handleRenameSchool))
-	mux.HandleFunc("POST /api/schools/{id}/default-join-role", s.requireSchoolStaff(s.handleSetSchoolDefaultJoinRole))
-	mux.HandleFunc("POST /api/schools/{id}/members", s.requireSchoolStaff(s.handleAddSchoolMember))
-	mux.HandleFunc("POST /api/schools/{id}/personal-invites", s.requireSchoolStaff(s.handleCreateSchoolPersonalInvite))
+	// rename, submission review). See internal/httpapi/communities.go.
+	mux.HandleFunc("GET /communities", s.requireAuth(s.handleCommunitiesPage))
+	mux.HandleFunc("POST /api/communities", s.requireAuth(s.handleCreateCommunity))
+	mux.HandleFunc("GET /communities/{id}", s.requireCommunityMember(s.handleCommunityPage))
+	mux.HandleFunc("GET /communities/{id}/admin", s.requireCommunityStaff(s.handleCommunityAdminPage))
+	mux.HandleFunc("POST /api/communities/{id}/rename", s.requireCommunityStaff(s.handleRenameCommunity))
+	mux.HandleFunc("POST /api/communities/{id}/default-join-role", s.requireCommunityStaff(s.handleSetCommunityDefaultJoinRole))
+	mux.HandleFunc("POST /api/communities/{id}/members", s.requireCommunityStaff(s.handleAddCommunityMember))
+	mux.HandleFunc("POST /api/communities/{id}/personal-invites", s.requireCommunityStaff(s.handleCreateCommunityPersonalInvite))
 	// Group invites (roster link, multi-use): instructor-only to
-	// create/close, since schools (unlike bands) have a real hierarchy.
-	mux.HandleFunc("POST /api/schools/{id}/group-invites", s.requireSchoolStaff(s.handleCreateSchoolGroupInvite))
-	mux.HandleFunc("POST /api/schools/{id}/community-link", s.requireSchoolStaff(s.handleCreateCommunityLink))
-	mux.HandleFunc("POST /api/schools/{id}/group-invites/{groupInviteID}/close", s.requireSchoolStaff(s.handleCloseSchoolGroupInvite))
-	mux.HandleFunc("POST /api/schools/{id}/members/{personID}/role", s.requireSchoolStaff(s.handleSetSchoolMemberRole))
-	mux.HandleFunc("DELETE /api/schools/{id}/members/{personID}", s.requireSchoolStaff(s.handleRemoveSchoolMember))
-	mux.HandleFunc("POST /api/schools/{id}/catalog", s.requireSchoolStaff(s.handleAddSchoolCatalogEntry))
-	mux.HandleFunc("DELETE /api/schools/{id}/catalog/{variantID}", s.requireSchoolStaff(s.handleRemoveSchoolCatalogEntry))
-	mux.HandleFunc("POST /api/schools/{id}/catalog/fork/{variantID}", s.requireSchoolStaff(s.handleForkVariantIntoSchool))
-	mux.HandleFunc("POST /api/schools/{id}/variants", s.requireSchoolStaff(s.handleCreateSchoolVariant))
-	mux.HandleFunc("POST /api/schools/{id}/submissions", s.requireSchoolMember(s.handleCreateSchoolSubmission))
-	mux.HandleFunc("POST /api/schools/{id}/submissions/{submissionID}/accept", s.requireSchoolStaff(s.handleAcceptSchoolSubmission))
-	mux.HandleFunc("POST /api/schools/{id}/submissions/{submissionID}/reject", s.requireSchoolStaff(s.handleRejectSchoolSubmission))
+	// create/close, since communities (unlike bands) have a real hierarchy.
+	mux.HandleFunc("POST /api/communities/{id}/group-invites", s.requireCommunityStaff(s.handleCreateCommunityGroupInvite))
+	mux.HandleFunc("POST /api/communities/{id}/community-link", s.requireCommunityStaff(s.handleCreateCommunityLink))
+	mux.HandleFunc("POST /api/communities/{id}/group-invites/{groupInviteID}/close", s.requireCommunityStaff(s.handleCloseCommunityGroupInvite))
+	mux.HandleFunc("POST /api/communities/{id}/members/{personID}/role", s.requireCommunityStaff(s.handleSetCommunityMemberRole))
+	mux.HandleFunc("DELETE /api/communities/{id}/members/{personID}", s.requireCommunityStaff(s.handleRemoveCommunityMember))
+	mux.HandleFunc("POST /api/communities/{id}/catalog", s.requireCommunityStaff(s.handleAddCommunityCatalogEntry))
+	mux.HandleFunc("DELETE /api/communities/{id}/catalog/{variantID}", s.requireCommunityStaff(s.handleRemoveCommunityCatalogEntry))
+	mux.HandleFunc("POST /api/communities/{id}/catalog/fork/{variantID}", s.requireCommunityStaff(s.handleForkVariantIntoCommunity))
+	mux.HandleFunc("POST /api/communities/{id}/variants", s.requireCommunityStaff(s.handleCreateCommunityVariant))
+	mux.HandleFunc("POST /api/communities/{id}/submissions", s.requireCommunityMember(s.handleCreateCommunitySubmission))
+	mux.HandleFunc("POST /api/communities/{id}/submissions/{submissionID}/accept", s.requireCommunityStaff(s.handleAcceptCommunitySubmission))
+	mux.HandleFunc("POST /api/communities/{id}/submissions/{submissionID}/reject", s.requireCommunityStaff(s.handleRejectCommunitySubmission))
 
 	// Events: see internal/httpapi/events.go's own doc comments.
-	// Creation stays at the owner-staff level (requireSchoolStaff /
+	// Creation stays at the owner-staff level (requireCommunityStaff /
 	// requireBandMember, both admin-bypassed); the public event/
 	// community-events pages and registration are unauthenticated
 	// routes that do their own per-event visibility check inline (a
@@ -315,10 +315,10 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// any current band member already manages any of that band's
 	// events via CanManageEvent's own fallback; there's nothing for a
 	// band-scoped manager-assignment route to add.
-	mux.HandleFunc("GET /schools/{id}/events", s.optionalPerson(s.handleCommunityEventsPage))
-	mux.HandleFunc("POST /api/schools/{id}/events", s.requireSchoolStaff(s.handleCreateSchoolEvent))
-	mux.HandleFunc("POST /api/schools/{id}/events/{eventID}/managers", s.requireSchoolStaff(s.handleAssignEventManager))
-	mux.HandleFunc("DELETE /api/schools/{id}/events/{eventID}/managers/{personID}", s.requireSchoolStaff(s.handleRemoveEventManager))
+	mux.HandleFunc("GET /communities/{id}/events", s.optionalPerson(s.handleCommunityEventsPage))
+	mux.HandleFunc("POST /api/communities/{id}/events", s.requireCommunityStaff(s.handleCreateCommunityEvent))
+	mux.HandleFunc("POST /api/communities/{id}/events/{eventID}/managers", s.requireCommunityStaff(s.handleAssignEventManager))
+	mux.HandleFunc("DELETE /api/communities/{id}/events/{eventID}/managers/{personID}", s.requireCommunityStaff(s.handleRemoveEventManager))
 	mux.HandleFunc("GET /bands/{id}/events", s.requireBandMember(s.handleBandEventsPage))
 	mux.HandleFunc("POST /api/bands/{id}/events", s.requireBandMember(s.handleCreateBandEvent))
 	mux.HandleFunc("GET /events/{id}", s.optionalPerson(s.handleEventPage))

@@ -72,7 +72,7 @@
         <label for="add-membership-kind">Kind</label>
         <select id="add-membership-kind">
           <option value="band">Band</option>
-          <option value="school">Community</option>
+          <option value="community">Community</option>
         </select>
       </div>
       <div class="field" id="add-membership-target-field">
@@ -81,9 +81,9 @@
           {{range .AvailableBands}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
         </select>
       </div>
-      <div class="field" id="add-membership-target-field-school" hidden>
-        <label for="add-membership-target-school">Community</label>
-        <select id="add-membership-target-school">
+      <div class="field" id="add-membership-target-field-community" hidden>
+        <label for="add-membership-target-community">Community</label>
+        <select id="add-membership-target-community">
           {{range .AvailableCommunities}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
         </select>
       </div>
@@ -92,8 +92,8 @@
         <select id="add-membership-role">
           <option value="core" data-kind="band" selected>core</option>
           <option value="guest" data-kind="band">guest</option>
-          <option value="member" data-kind="school">member</option>
-          <option value="staff" data-kind="school">staff</option>
+          <option value="member" data-kind="community">member</option>
+          <option value="staff" data-kind="community">staff</option>
         </select>
       </div>
       <button type="button" id="add-membership-btn" class="primary">Add</button>
@@ -130,12 +130,12 @@ document.querySelectorAll('.membership-remove-btn').forEach(btn => {
 
 const kindSel = document.getElementById('add-membership-kind');
 const bandField = document.getElementById('add-membership-target-field');
-const schoolField = document.getElementById('add-membership-target-field-school');
+const communityField = document.getElementById('add-membership-target-field-community');
 const roleSel = document.getElementById('add-membership-role');
 function syncAddFormKind() {
   const kind = kindSel.value;
   bandField.hidden = kind !== 'band';
-  schoolField.hidden = kind !== 'school';
+  communityField.hidden = kind !== 'community';
   [...roleSel.options].forEach(o => { o.hidden = o.dataset.kind !== kind; });
   const firstForKind = [...roleSel.options].find(o => o.dataset.kind === kind);
   if (firstForKind) roleSel.value = firstForKind.value;
@@ -145,7 +145,7 @@ syncAddFormKind();
 
 document.getElementById('add-membership-btn').addEventListener('click', async () => {
   const kind = kindSel.value;
-  const targetSel = kind === 'band' ? document.getElementById('add-membership-target') : document.getElementById('add-membership-target-school');
+  const targetSel = kind === 'band' ? document.getElementById('add-membership-target') : document.getElementById('add-membership-target-community');
   const status = document.getElementById('add-membership-status');
   if (!targetSel.value) { status.textContent = 'nothing left to add'; status.className = 'hint err'; return; }
   status.textContent = 'adding…'; status.className = 'hint';

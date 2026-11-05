@@ -18,8 +18,8 @@ import (
 
 // requireEventManager gates an event-addressed ({id} = event id) route
 // to whoever may manage it — an explicitly assigned event manager, or
-// anyone who could have created the event in the first place (school
-// staff for a school event, any band member for a band event — see
+// anyone who could have created the event in the first place (community
+// staff for a community event, any band member for a band event — see
 // store.CanManageEvent's own doc comment), or a site admin.
 func (s *Server) requireEventManager(next http.HandlerFunc) http.HandlerFunc {
 	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
@@ -79,10 +79,10 @@ var validEventTypes = map[string]bool{
 	"jam": true, "concert": true, "meetup": true, "listening_party": true, "dinner": true, "show_together": true,
 }
 
-// handleCreateSchoolEvent creates a community-hosted event. Staff-only
-// (requireSchoolStaff, which a site admin already bypasses).
-func (s *Server) handleCreateSchoolEvent(w http.ResponseWriter, r *http.Request) {
-	schoolID, err := pathID(r, "id")
+// handleCreateCommunityEvent creates a community-hosted event. Staff-only
+// (requireCommunityStaff, which a site admin already bypasses).
+func (s *Server) handleCreateCommunityEvent(w http.ResponseWriter, r *http.Request) {
+	communityID, err := pathID(r, "id")
 	if err != nil {
 		httpError(w, http.StatusBadRequest, "invalid community id")
 		return
@@ -106,7 +106,7 @@ func (s *Server) handleCreateSchoolEvent(w http.ResponseWriter, r *http.Request)
 		scope = "members"
 	}
 	actor := personFromContext(r)
-	id, err := s.store.CreateEvent(r.Context(), "school", schoolID, req.EventType, req.Name, req.Description, req.Location, startsAt, endsAt, scope, actor.ID)
+	id, err := s.store.CreateEvent(r.Context(), "community", communityID, req.EventType, req.Name, req.Description, req.Location, startsAt, endsAt, scope, actor.ID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -152,12 +152,12 @@ func (s *Server) handleCreateBandEvent(w http.ResponseWriter, r *http.Request) {
 // explicit spec: "a public page (everyone) that lists upcoming events…
 // and past events, and allows one to register."
 func (s *Server) handleCommunityEventsPage(w http.ResponseWriter, r *http.Request) {
-	schoolID, err := pathID(r, "id")
+	communityID, err := pathID(r, "id")
 	if err != nil {
 		httpError(w, http.StatusBadRequest, "invalid community id")
 		return
 	}
-	school, err := s.store.GetSchool(r.Context(), schoolID)
+	community, err := s.store.GetCommunity(r.Context(), communityID)
 	if errors.Is(err, store.ErrNotFound) {
 		http.NotFound(w, r)
 		return
@@ -166,7 +166,7 @@ func (s *Server) handleCommunityEventsPage(w http.ResponseWriter, r *http.Reques
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	events, err := s.store.ListEventsForSchool(r.Context(), schoolID)
+	events, err := s.store.ListEventsForCommunity(r.Context(), communityID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -181,7 +181,7 @@ func (s *Server) handleCommunityEventsPage(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	s.render(w, "community_events", map[string]any{
-		"Me": personFromContext(r), "School": school, "Upcoming": upcoming, "Past": past,
+		"Me": personFromContext(r), "Community": community, "Upcoming": upcoming, "Past": past,
 	})
 }
 
@@ -230,7 +230,7 @@ type eventSongRow struct {
 }
 
 // handleEventPage is the single event detail page — public for a
-// school-owned event, band-member-gated for a band-owned one (see
+// community-owned event, band-member-gated for a band-owned one (see
 // canViewEvent). Shows date/place/description, an add-to-calendar
 // link, the attendee list, the attached setlist's songs with whoever's
 // registered to play each (if any), and a register form.
@@ -660,7 +660,7 @@ func (s *Server) handleEventManagePage(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleCreateEventSetlist creates a fresh setlist (scoped to the
-// event's own owner — school or band) and attaches it to eventID, for
+// event's own owner — community or band) and attaches it to eventID, for
 // an event that doesn't have one yet.
 func (s *Server) handleCreateEventSetlist(w http.ResponseWriter, r *http.Request) {
 	eventID, err := pathID(r, "id")
@@ -678,17 +678,17 @@ func (s *Server) handleCreateEventSetlist(w http.ResponseWriter, r *http.Request
 		return
 	}
 	actor := personFromContext(r)
-	var ownerBandID, ownerSchoolID *int64
+	var ownerBandID, ownerCommunityID *int64
 	scope := "band"
-	if ev.OwnerKind == "school" {
-		scope = "school"
-		id := ev.OwnerSchoolID
-		ownerSchoolID = &id
+	if ev.OwnerKind == "community" {
+		scope = "community"
+		id := ev.OwnerCommunityID
+		ownerCommunityID = &id
 	} else {
 		id := ev.OwnerBandID
 		ownerBandID = &id
 	}
-	setlistID, err := s.store.CreateSetlist(r.Context(), scope, ev.Name, "", nil, ownerBandID, ownerSchoolID, actor.ID)
+	setlistID, err := s.store.CreateSetlist(r.Context(), scope, ev.Name, "", nil, ownerBandID, ownerCommunityID, actor.ID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -702,7 +702,7 @@ func (s *Server) handleCreateEventSetlist(w http.ResponseWriter, r *http.Request
 
 // handleAssignEventManager and handleRemoveEventManagerFor* share one
 // implementation, scoped by the owner-level middleware that calls
-// them (requireSchoolStaff / requireBandMember) — "assigned by the jam
+// them (requireCommunityStaff / requireBandMember) — "assigned by the jam
 // staff / community staff," the user's own explicit spec: assignment
 // itself stays at the owner-staff level, not delegable to an existing
 // event manager.

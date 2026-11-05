@@ -485,8 +485,8 @@ func nullableID(id int64) *int64 {
 // the real person picks when they claim their invite; people.username
 // is NOT NULL+UNIQUE, so a shell needs *something* there from the
 // start), is_shell true. The caller attaches whatever band_members/
-// school_members rows this person should have (AddBandMember/
-// AddSchoolMember both work unchanged against a shell's id — they're
+// community_members rows this person should have (AddBandMember/
+// AddCommunityMember both work unchanged against a shell's id — they're
 // ordinary membership rows, nothing shell-specific about them) before
 // ever generating an invite link — see CreatePersonalInvite.
 func (st *Store) CreateShellPerson(ctx context.Context, displayName string) (int64, error) {
@@ -522,10 +522,10 @@ func (st *Store) CreatePersonalInvite(ctx context.Context, personID, createdBy i
 // page to list ("you're invited to join: What's Up as guitar/bass/
 // singer (core), Couleur Acoustique (core)").
 type PersonalInviteMembership struct {
-	Kind   string // "band" or "school"
+	Kind   string // "band" or "community"
 	ID     int64
 	Name   string
-	Status string // band_members.status, or school_members.role
+	Status string // band_members.status, or community_members.role
 }
 
 // PersonalInviteView is what the /invite/{token} landing page needs
@@ -577,8 +577,8 @@ func (st *Store) GetPersonMemberships(ctx context.Context, personID int64) ([]Pe
 		FROM band_members bm JOIN bands b ON b.id = bm.band_id
 		WHERE bm.person_id = $1 AND bm.left_at IS NULL
 		UNION ALL
-		SELECT 'school', sc.id, sc.name, sm.role::text
-		FROM school_members sm JOIN schools sc ON sc.id = sm.school_id
+		SELECT 'community', sc.id, sc.name, sm.role::text
+		FROM community_members sm JOIN communities sc ON sc.id = sm.community_id
 		WHERE sm.person_id = $1 AND sm.left_at IS NULL
 		ORDER BY 1, 3`, personID)
 	if err != nil {
@@ -670,11 +670,11 @@ func (st *Store) ListShellPeopleForBand(ctx context.Context, bandID int64) ([]Sh
 		"p.id IN (SELECT person_id FROM band_members WHERE band_id = %d AND left_at IS NULL)", bandID))
 }
 
-// ListShellPeopleForSchool is ListShellPeopleForBand's school/community
+// ListShellPeopleForCommunity is ListShellPeopleForBand's community/community
 // counterpart — the community admin page's own "pending" section.
-func (st *Store) ListShellPeopleForSchool(ctx context.Context, schoolID int64) ([]ShellPersonRow, error) {
+func (st *Store) ListShellPeopleForCommunity(ctx context.Context, communityID int64) ([]ShellPersonRow, error) {
 	return st.listShellPeople(ctx, fmt.Sprintf(
-		"p.id IN (SELECT person_id FROM school_members WHERE school_id = %d AND left_at IS NULL)", schoolID))
+		"p.id IN (SELECT person_id FROM community_members WHERE community_id = %d AND left_at IS NULL)", communityID))
 }
 
 func (st *Store) listShellPeople(ctx context.Context, memberOfSQL string) ([]ShellPersonRow, error) {

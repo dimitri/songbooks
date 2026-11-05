@@ -93,7 +93,7 @@
             <td data-label="Staff">{{.StaffCount}}</td>
             <td data-label="Members">{{.MemberCount}}</td>
             <td data-label="Created">{{.CreatedAt.Format "2006-01-02"}}</td>
-            <td><a href="/schools/{{.ID}}">open</a></td>
+            <td><a href="/communities/{{.ID}}">open</a></td>
           </tr>
         {{else}}
           <tr><td colspan="5" class="hint">No communities on this instance yet.</td></tr>
@@ -150,7 +150,7 @@
 
     {{/* The gap a direct report flagged: no way to see who was invited,
          whether they used it, or whether it quietly expired before they
-         got to it — the only trace of a band/school roster invite's
+         got to it — the only trace of a band/community roster invite's
          state used to be the one-time link shown right after creation.
          Group invites (the roster-link kind, reusable, per-slot claims)
          and plain invites (single-use, actually deleted on accept) are

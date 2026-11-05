@@ -12,33 +12,33 @@ import (
 )
 
 // GroupInvite is one shareable, multi-use roster link, targeting exactly
-// one band or school (see Kind). Unlike Invite (single-use, one accept =
+// one band or community (see Kind). Unlike Invite (single-use, one accept =
 // consumed), a GroupInvite stays open across many accepts — each of its
 // slots is claimable exactly once instead.
 type GroupInvite struct {
 	ID         int64
 	Token      string
-	TargetKind string // "band" or "school"
+	TargetKind string // "band" or "community"
 	BandID     int64
-	SchoolID   int64
+	CommunityID   int64
 	CreatedBy  int64
 	CreatedAt  time.Time
 	ClosedAt   *time.Time
 	// DefaultStatus is the fixed role every claim through this invite
-	// grants — used for a "community" (school-target) link, where the
+	// grants — used for a "community" (community-target) link, where the
 	// role is chosen once when the link is minted (a staff-granting link
 	// vs. a member-granting link) rather than per named roster slot the
 	// way a band's group invite works. "" preserves every pre-existing
 	// invite's exact old behavior: a band's unlisted claim still grants
-	// 'guest', a school's still grants 'student' — see
+	// 'guest', a community's still grants 'student' — see
 	// grantGroupInviteMembershipTx.
 	DefaultStatus string
 }
 
 // GroupInviteSlot is one pre-typed expected person on a group invite's
 // roster. Instrument is only ever set for a band-targeted invite — a
-// school roster entry is just a name (see this phase's design notes:
-// every school slot defaults to 'student' on claim; inviting someone AS
+// community roster entry is just a name (see this phase's design notes:
+// every community slot defaults to 'student' on claim; inviting someone AS
 // an instructor stays a deliberate direct-add, not a roster claim).
 type GroupInviteSlot struct {
 	ID                int64
@@ -52,7 +52,7 @@ type GroupInviteSlot struct {
 }
 
 // GroupInviteView is everything the public /join/{token} page needs:
-// the invite itself, the band/school name it resolves to, and its full
+// the invite itself, the band/community name it resolves to, and its full
 // slot list (claimed and unclaimed both — the claimed ones are shown,
 // not pickable, so a visitor can see who's already in).
 type GroupInviteView struct {
@@ -65,7 +65,7 @@ type GroupInviteView struct {
 // creating the invite.
 type GroupInviteSlotInput struct {
 	DisplayName string
-	Instrument  string // band kind only; ignored for school
+	Instrument  string // band kind only; ignored for community
 	Status      string // band kind only; "core" or "guest", defaults to "guest" if blank/invalid
 }
 
@@ -77,16 +77,16 @@ func normalizeSlotStatus(status string) string {
 }
 
 // CreateGroupInvite makes a brand-new, reusable group invite for
-// targetKind ("band" or "school") + targetID, with one group_invite_slots
+// targetKind ("band" or "community") + targetID, with one group_invite_slots
 // row per non-blank entry in slots. Returns the invite's token.
 // defaultStatus fixes the role every claim through this invite grants
-// (used for a community/school link minted as either "staff" or
+// (used for a community/community link minted as either "staff" or
 // "member" — see GroupInvite.DefaultStatus's own doc comment); ""
 // preserves the pre-existing per-slot/hardcoded behavior exactly, for
-// every other caller (a band's named roster link, or a school link
+// every other caller (a band's named roster link, or a community link
 // created before this existed).
 func (st *Store) CreateGroupInvite(ctx context.Context, targetKind string, targetID, createdBy int64, slots []GroupInviteSlotInput, defaultStatus string) (groupInviteID int64, token string, err error) {
-	if targetKind != "band" && targetKind != "school" {
+	if targetKind != "band" && targetKind != "community" {
 		return 0, "", fmt.Errorf("invalid target kind %q", targetKind)
 	}
 	token, err = randomToken()
@@ -100,20 +100,20 @@ func (st *Store) CreateGroupInvite(ctx context.Context, targetKind string, targe
 	}
 	defer tx.Rollback(ctx)
 
-	var bandID, schoolID *int64
+	var bandID, communityID *int64
 	if targetKind == "band" {
 		bandID = &targetID
 	} else {
-		schoolID = &targetID
+		communityID = &targetID
 	}
 	var defaultStatusArg *string
 	if defaultStatus != "" {
 		defaultStatusArg = &defaultStatus
 	}
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO group_invites (token, target_kind, band_id, school_id, created_by_person_id, default_status)
+		INSERT INTO group_invites (token, target_kind, band_id, community_id, created_by_person_id, default_status)
 		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-		token, targetKind, bandID, schoolID, nullableID(createdBy), defaultStatusArg).Scan(&groupInviteID); err != nil {
+		token, targetKind, bandID, communityID, nullableID(createdBy), defaultStatusArg).Scan(&groupInviteID); err != nil {
 		return 0, "", err
 	}
 
@@ -148,11 +148,11 @@ func (st *Store) CreateGroupInvite(ctx context.Context, targetKind string, targe
 // name and full slot list, or ErrNotFound if the token is unknown.
 func (st *Store) GetGroupInviteByToken(ctx context.Context, token string) (*GroupInviteView, error) {
 	gi, targetName, err := st.scanGroupInvite(ctx, st.db, `
-		SELECT gi.id, gi.token, gi.target_kind, gi.band_id, gi.school_id, gi.created_by_person_id, gi.created_at, gi.closed_at, coalesce(gi.default_status, ''),
+		SELECT gi.id, gi.token, gi.target_kind, gi.band_id, gi.community_id, gi.created_by_person_id, gi.created_at, gi.closed_at, coalesce(gi.default_status, ''),
 		       coalesce(b.name, sc.name, '')
 		FROM group_invites gi
 		LEFT JOIN bands b ON b.id = gi.band_id
-		LEFT JOIN schools sc ON sc.id = gi.school_id
+		LEFT JOIN communities sc ON sc.id = gi.community_id
 		WHERE gi.token = $1`, token)
 	if err != nil {
 		return nil, err
@@ -165,19 +165,19 @@ func (st *Store) GetGroupInviteByToken(ctx context.Context, token string) (*Grou
 }
 
 // ListGroupInvitesForTarget lists every group invite ever created for
-// targetKind+targetID ("band" or "school"), open ones first then closed,
+// targetKind+targetID ("band" or "community"), open ones first then closed,
 // newest first within each, each with its full slot list (claimed and
-// unclaimed) — what a band/school's own page needs to show "here's the
+// unclaimed) — what a band/community's own page needs to show "here's the
 // roster link you already made, and who on it hasn't joined yet,"
 // instead of a link that's only ever visible once, right after creation
 // (see CreateGroupInvite's doc comment — the gap this fills).
 func (st *Store) ListGroupInvitesForTarget(ctx context.Context, targetKind string, targetID int64) ([]GroupInviteView, error) {
 	col := "band_id"
-	if targetKind == "school" {
-		col = "school_id"
+	if targetKind == "community" {
+		col = "community_id"
 	}
 	rows, err := st.db.Query(ctx, `
-		SELECT id, token, target_kind, band_id, school_id, created_by_person_id, created_at, closed_at, coalesce(default_status, '')
+		SELECT id, token, target_kind, band_id, community_id, created_by_person_id, created_at, closed_at, coalesce(default_status, '')
 		FROM group_invites WHERE `+col+` = $1
 		ORDER BY (closed_at IS NULL) DESC, created_at DESC`, targetID)
 	if err != nil {
@@ -187,12 +187,12 @@ func (st *Store) ListGroupInvitesForTarget(ctx context.Context, targetKind strin
 	var invites []GroupInvite
 	for rows.Next() {
 		var gi GroupInvite
-		var bandID, schoolID, createdBy sql.NullInt64
+		var bandID, communityID, createdBy sql.NullInt64
 		var closedAt sql.NullTime
-		if err := rows.Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &schoolID, &createdBy, &gi.CreatedAt, &closedAt, &gi.DefaultStatus); err != nil {
+		if err := rows.Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &communityID, &createdBy, &gi.CreatedAt, &closedAt, &gi.DefaultStatus); err != nil {
 			return nil, err
 		}
-		gi.BandID, gi.SchoolID, gi.CreatedBy = bandID.Int64, schoolID.Int64, createdBy.Int64
+		gi.BandID, gi.CommunityID, gi.CreatedBy = bandID.Int64, communityID.Int64, createdBy.Int64
 		if closedAt.Valid {
 			gi.ClosedAt = &closedAt.Time
 		}
@@ -215,9 +215,9 @@ func (st *Store) ListGroupInvitesForTarget(ctx context.Context, targetKind strin
 
 // SharesMembershipWith reports whether actorID and targetID are both
 // current members of at least one of the same bands, or both current
-// (any role) members of at least one of the same schools — the
+// (any role) members of at least one of the same communities — the
 // authorization boundary for an action on someone else's account that
-// isn't scoped to one specific band/school URL already (e.g.
+// isn't scoped to one specific band/community URL already (e.g.
 // regenerating a shell person's invite link), mirroring this app's
 // existing "any current member of a shared context may act" rule
 // rather than introducing a new one.
@@ -228,7 +228,7 @@ func (st *Store) SharesMembershipWith(ctx context.Context, actorID, targetID int
 			SELECT 1 FROM band_members a JOIN band_members b ON a.band_id = b.band_id
 			WHERE a.person_id = $1 AND a.left_at IS NULL AND b.person_id = $2 AND b.left_at IS NULL
 			UNION ALL
-			SELECT 1 FROM school_members a JOIN school_members b ON a.school_id = b.school_id
+			SELECT 1 FROM community_members a JOIN community_members b ON a.community_id = b.community_id
 			WHERE a.person_id = $1 AND a.left_at IS NULL AND b.person_id = $2 AND b.left_at IS NULL
 		)`, actorID, targetID).Scan(&ok)
 	return ok, err
@@ -238,18 +238,18 @@ func (st *Store) SharesMembershipWith(ctx context.Context, actorID, targetID int
 // ones first then closed, newest first within each, each with its
 // target's resolved name and full slot list — the admin panel's own
 // "every invite ever sent, and whether it's been used" view (see
-// ListGroupInvitesForTarget's doc comment for the per-band/school
+// ListGroupInvitesForTarget's doc comment for the per-band/community
 // version this mirrors; this is its site-wide counterpart, for an
 // admin troubleshooting "they say the invite didn't work" without
-// already knowing which band or school it belongs to).
+// already knowing which band or community it belongs to).
 func (st *Store) ListAllGroupInvites(ctx context.Context) ([]GroupInviteView, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT gi.id, gi.token, gi.target_kind, gi.band_id, gi.school_id, gi.created_by_person_id,
+		SELECT gi.id, gi.token, gi.target_kind, gi.band_id, gi.community_id, gi.created_by_person_id,
 		       gi.created_at, gi.closed_at, coalesce(gi.default_status, ''),
 		       coalesce(b.name, sc.name, '')
 		FROM group_invites gi
 		LEFT JOIN bands b ON b.id = gi.band_id
-		LEFT JOIN schools sc ON sc.id = gi.school_id
+		LEFT JOIN communities sc ON sc.id = gi.community_id
 		ORDER BY (gi.closed_at IS NULL) DESC, gi.created_at DESC`)
 	if err != nil {
 		return nil, err
@@ -262,14 +262,14 @@ func (st *Store) ListAllGroupInvites(ctx context.Context) ([]GroupInviteView, er
 	var invites []row
 	for rows.Next() {
 		var gi GroupInvite
-		var bandID, schoolID, createdBy sql.NullInt64
+		var bandID, communityID, createdBy sql.NullInt64
 		var closedAt sql.NullTime
 		var targetName string
-		if err := rows.Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &schoolID, &createdBy,
+		if err := rows.Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &communityID, &createdBy,
 			&gi.CreatedAt, &closedAt, &gi.DefaultStatus, &targetName); err != nil {
 			return nil, err
 		}
-		gi.BandID, gi.SchoolID, gi.CreatedBy = bandID.Int64, schoolID.Int64, createdBy.Int64
+		gi.BandID, gi.CommunityID, gi.CreatedBy = bandID.Int64, communityID.Int64, createdBy.Int64
 		if closedAt.Valid {
 			gi.ClosedAt = &closedAt.Time
 		}
@@ -292,18 +292,18 @@ func (st *Store) ListAllGroupInvites(ctx context.Context) ([]GroupInviteView, er
 
 func (st *Store) scanGroupInvite(ctx context.Context, q dbtx, query string, arg any) (*GroupInvite, string, error) {
 	var gi GroupInvite
-	var bandID, schoolID, createdBy sql.NullInt64
+	var bandID, communityID, createdBy sql.NullInt64
 	var closedAt sql.NullTime
 	var targetName string
 	err := q.QueryRow(ctx, query, arg).
-		Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &schoolID, &createdBy, &gi.CreatedAt, &closedAt, &gi.DefaultStatus, &targetName)
+		Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &communityID, &createdBy, &gi.CreatedAt, &closedAt, &gi.DefaultStatus, &targetName)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, "", fmt.Errorf("no such group invite: %w", ErrNotFound)
 	}
 	if err != nil {
 		return nil, "", err
 	}
-	gi.BandID, gi.SchoolID, gi.CreatedBy = bandID.Int64, schoolID.Int64, createdBy.Int64
+	gi.BandID, gi.CommunityID, gi.CreatedBy = bandID.Int64, communityID.Int64, createdBy.Int64
 	if closedAt.Valid {
 		gi.ClosedAt = &closedAt.Time
 	}
@@ -351,7 +351,7 @@ func (st *Store) listGroupInviteSlots(ctx context.Context, q dbtx, groupInviteID
 // joins until a person explicitly closes it.
 func (st *Store) lockOpenGroupInviteTx(ctx context.Context, tx pgx.Tx, token string) (*GroupInvite, error) {
 	gi, _, err := st.scanGroupInvite(ctx, tx, `
-		SELECT id, token, target_kind, band_id, school_id, created_by_person_id, created_at, closed_at, coalesce(default_status, ''), ''
+		SELECT id, token, target_kind, band_id, community_id, created_by_person_id, created_at, closed_at, coalesce(default_status, ''), ''
 		FROM group_invites WHERE token = $1 FOR UPDATE`, token)
 	if err != nil {
 		return nil, err
@@ -364,10 +364,10 @@ func (st *Store) lockOpenGroupInviteTx(ctx context.Context, tx pgx.Tx, token str
 
 // grantGroupInviteMembershipTx grants personID the membership a group
 // invite's target promises — band status='guest' (a casually roster-
-// invited person isn't automatically "core"), school role='student'
+// invited person isn't automatically "core"), community role='student'
 // (inviting someone AS an instructor stays a deliberate direct-add, see
-// handleAddSchoolMember, not a roster claim) — and is a no-op if
-// personID is already a CURRENT member of that band/school (an existing
+// handleAddCommunityMember, not a roster claim) — and is a no-op if
+// personID is already a CURRENT member of that band/community (an existing
 // account claiming a slot should never get a duplicate membership row
 // or an error just because they're already in).
 func (st *Store) grantGroupInviteMembershipTx(ctx context.Context, tx pgx.Tx, gi *GroupInvite, personID int64, status string) (dest string, err error) {
@@ -386,23 +386,23 @@ func (st *Store) grantGroupInviteMembershipTx(ctx context.Context, tx pgx.Tx, gi
 		}
 		return fmt.Sprintf("/bands/%d", gi.BandID), nil
 
-	case "school":
-		already, err := isCurrentSchoolMember(ctx, tx, gi.SchoolID, personID, "")
+	case "community":
+		already, err := isCurrentCommunityMember(ctx, tx, gi.CommunityID, personID, "")
 		if err != nil {
 			return "", err
 		}
 		role := gi.DefaultStatus
 		if role != "staff" && role != "member" {
-			role = "member" // every pre-existing school group invite's exact old behavior
+			role = "member" // every pre-existing community group invite's exact old behavior
 		}
 		if !already {
 			if _, err := tx.Exec(ctx, `
-				INSERT INTO school_members (school_id, person_id, role, invited_by_person_id)
-				VALUES ($1, $2, $3, $4)`, gi.SchoolID, personID, role, nullableID(gi.CreatedBy)); err != nil {
+				INSERT INTO community_members (community_id, person_id, role, invited_by_person_id)
+				VALUES ($1, $2, $3, $4)`, gi.CommunityID, personID, role, nullableID(gi.CreatedBy)); err != nil {
 				return "", err
 			}
 		}
-		return fmt.Sprintf("/schools/%d", gi.SchoolID), nil
+		return fmt.Sprintf("/communities/%d", gi.CommunityID), nil
 
 	default:
 		return "", fmt.Errorf("invalid target kind %q", gi.TargetKind)
@@ -559,8 +559,8 @@ func (st *Store) CreatePersonAndClaimGroupInviteUnlisted(ctx context.Context, to
 // way CloseGroupInvite does.
 func (st *Store) AddGroupInviteSlot(ctx context.Context, groupInviteID int64, targetKind string, targetID int64, in GroupInviteSlotInput) (slotID int64, err error) {
 	col := "band_id"
-	if targetKind == "school" {
-		col = "school_id"
+	if targetKind == "community" {
+		col = "community_id"
 	}
 	var openID int64
 	err = st.db.QueryRow(ctx, fmt.Sprintf(`
@@ -640,17 +640,17 @@ func (st *Store) RemoveGroupInviteSlot(ctx context.Context, groupInviteID, slotI
 }
 
 // CloseGroupInvite explicitly closes a still-open group invite —
-// scoped to targetKind+targetID so a caller authorized on band/school X
-// can't close an invite belonging to some other band/school Y just by
-// guessing its id (same defense-in-depth every other band/school-scoped
+// scoped to targetKind+targetID so a caller authorized on band/community X
+// can't close an invite belonging to some other band/community Y just by
+// guessing its id (same defense-in-depth every other band/community-scoped
 // store method in this codebase uses). ErrNotFound if groupInviteID
 // doesn't resolve to an open invite on that exact target.
 // CloseGroupInviteAdmin closes any group invite by id alone, no
-// band/school scoping check — unlike CloseGroupInvite (used by a band
-// member/school staffer, who only has rights over their own band/
-// school), the site-wide admin panel is already fully trusted via
+// band/community scoping check — unlike CloseGroupInvite (used by a band
+// member/community staffer, who only has rights over their own band/
+// community), the site-wide admin panel is already fully trusted via
 // requireAdmin and may need to close an invite without first looking
-// up which band or school it belongs to.
+// up which band or community it belongs to.
 func (st *Store) CloseGroupInviteAdmin(ctx context.Context, groupInviteID int64) error {
 	tag, err := st.db.Exec(ctx, `
 		UPDATE group_invites SET closed_at = now() WHERE id = $1 AND closed_at IS NULL`, groupInviteID)
@@ -665,8 +665,8 @@ func (st *Store) CloseGroupInviteAdmin(ctx context.Context, groupInviteID int64)
 
 func (st *Store) CloseGroupInvite(ctx context.Context, groupInviteID int64, targetKind string, targetID int64) error {
 	col := "band_id"
-	if targetKind == "school" {
-		col = "school_id"
+	if targetKind == "community" {
+		col = "community_id"
 	}
 	tag, err := st.db.Exec(ctx, fmt.Sprintf(`
 		UPDATE group_invites SET closed_at = now()

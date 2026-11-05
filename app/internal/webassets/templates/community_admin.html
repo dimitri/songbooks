@@ -1,10 +1,10 @@
-{{define "school_admin"}}
+{{define "community_admin"}}
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.School.Name}} — staff admin</title>
+<title>{{.Community.Name}} — staff admin</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -12,15 +12,15 @@
 {{template "desktop-sidebar" .Me}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/schools/{{.School.ID}}">{{template "icon-back"}} {{.School.Name}}</a>
-  <h1>{{.School.Name}} — staff admin</h1>
+  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
+  <h1>{{.Community.Name}} — staff admin</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
   <div class="card">
     <h2>Community name</h2>
     <div class="form-stack">
-      <div class="field"><label for="rename-input">Name</label><input type="text" id="rename-input" value="{{.School.Name}}"></div>
+      <div class="field"><label for="rename-input">Name</label><input type="text" id="rename-input" value="{{.Community.Name}}"></div>
       <div class="form-actions"><button type="button" id="rename-btn">Save</button></div>
       <p id="rename-result" class="hint"></p>
     </div>
@@ -28,8 +28,8 @@
       <div class="field">
         <label for="default-join-role-select">When someone joins by registering for an event, their role is</label>
         <select id="default-join-role-select">
-          <option value="member" {{if eq .School.DefaultJoinRole "member"}}selected{{end}}>member</option>
-          <option value="staff" {{if eq .School.DefaultJoinRole "staff"}}selected{{end}}>staff</option>
+          <option value="member" {{if eq .Community.DefaultJoinRole "member"}}selected{{end}}>member</option>
+          <option value="staff" {{if eq .Community.DefaultJoinRole "staff"}}selected{{end}}>staff</option>
         </select>
       </div>
       <p id="default-join-role-result" class="hint"></p>
@@ -39,12 +39,12 @@
   {{/* Events: community-hosted jam/scène ouverte, meetup, listening
        party, dinner, going-to-a-show-together — see internal/httpapi/
        events.go's own doc comments. Public listing/registration lives
-       at /schools/{id}/events; this is the staff-only create/manage
+       at /communities/{id}/events; this is the staff-only create/manage
        surface, including assigning per-event managers (never delegated
        to an existing manager — "assigned by the jam staff / community
        staff," the user's own explicit spec). */}}
   <div class="card">
-    <h2>Events <a href="/schools/{{.School.ID}}/events" class="hint">(public page)</a></h2>
+    <h2>Events <a href="/communities/{{.Community.ID}}/events" class="hint">(public page)</a></h2>
     <div class="form-stack">
       <div class="field"><label for="ev-name">Name</label><input type="text" id="ev-name"></div>
       <div class="field"><label for="ev-type">Type</label>
@@ -140,7 +140,7 @@
     {{range .ShellPeople}}
       <tr data-person-id="{{.PersonID}}">
         <td data-label="Name">{{.DisplayName}}</td>
-        <td data-label="Role">{{range .Memberships}}{{if eq .Kind "school"}}{{.Status}}{{end}}{{end}}</td>
+        <td data-label="Role">{{range .Memberships}}{{if eq .Kind "community"}}{{.Status}}{{end}}{{end}}</td>
         <td data-label="Invited by">{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>unknown</em>{{end}}</td>
         <td data-label="Added">{{.CreatedAt.Format "2006-01-02"}}</td>
         <td>
@@ -303,11 +303,11 @@
   </table></div>
 </main>
 <script>
-const schoolId = {{.School.ID}};
+const communityId = {{.Community.ID}};
 document.getElementById('rename-btn').addEventListener('click', async () => {
   const name = document.getElementById('rename-input').value.trim();
   if (!name) return;
-  const res = await fetch(`/api/schools/${schoolId}/rename`, {
+  const res = await fetch(`/api/communities/${communityId}/rename`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({name}),
   });
@@ -316,7 +316,7 @@ document.getElementById('rename-btn').addEventListener('click', async () => {
   if (res.ok) document.title = name + ' — staff admin';
 });
 document.getElementById('default-join-role-select').addEventListener('change', async (e) => {
-  const res = await fetch(`/api/schools/${schoolId}/default-join-role`, {
+  const res = await fetch(`/api/communities/${communityId}/default-join-role`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({role: e.target.value}),
   });
@@ -338,7 +338,7 @@ document.getElementById('create-event-btn').addEventListener('click', async () =
   const out = document.getElementById('create-event-result');
   if (!name || !startsLocal) { out.textContent = 'name and date/time are required'; return; }
   const startsAt = new Date(startsLocal).toISOString();
-  const res = await fetch(`/api/schools/${schoolId}/events`, {
+  const res = await fetch(`/api/communities/${communityId}/events`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({name, eventType, audienceScope, startsAt, location, description}),
   });
@@ -349,7 +349,7 @@ document.querySelectorAll('.assign-manager-select').forEach(sel => {
   sel.addEventListener('change', async () => {
     if (!sel.value) return;
     const eventId = sel.dataset.eventId;
-    const res = await fetch(`/api/schools/${schoolId}/events/${eventId}/managers`, {
+    const res = await fetch(`/api/communities/${communityId}/events/${eventId}/managers`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({personId: parseInt(sel.value, 10)}),
     });
@@ -359,14 +359,14 @@ document.querySelectorAll('.assign-manager-select').forEach(sel => {
 document.querySelectorAll('.accept-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const id = btn.dataset.id;
-    const res = await fetch(`/api/schools/${schoolId}/submissions/${id}/accept`, {method: 'POST'});
+    const res = await fetch(`/api/communities/${communityId}/submissions/${id}/accept`, {method: 'POST'});
     if (res.ok) location.reload();
   });
 });
 document.querySelectorAll('.reject-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const id = btn.dataset.id;
-    const res = await fetch(`/api/schools/${schoolId}/submissions/${id}/reject`, {method: 'POST'});
+    const res = await fetch(`/api/communities/${communityId}/submissions/${id}/reject`, {method: 'POST'});
     if (res.ok) location.reload();
   });
 });
@@ -380,7 +380,7 @@ document.getElementById('quick-add-btn').addEventListener('click', async () => {
   const role = document.getElementById('quick-add-role').value;
   const out = document.getElementById('quick-add-result');
   if (!displayName) { out.textContent = 'enter a name'; return; }
-  const res = await fetch(`/api/schools/${schoolId}/personal-invites`, {
+  const res = await fetch(`/api/communities/${communityId}/personal-invites`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({displayName, role}),
   });
@@ -411,7 +411,7 @@ document.getElementById('add-member-btn').addEventListener('click', async () => 
   const username = document.getElementById('add-username').value.trim();
   const role = document.getElementById('add-role').value;
   if (!username) return;
-  const res = await fetch(`/api/schools/${schoolId}/members`, {
+  const res = await fetch(`/api/communities/${communityId}/members`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({username, role}),
   });
@@ -425,7 +425,7 @@ document.getElementById('add-member-btn').addEventListener('click', async () => 
 document.querySelectorAll('.role-select').forEach(sel => {
   sel.addEventListener('change', async () => {
     const personID = sel.dataset.personId;
-    const res = await fetch(`/api/schools/${schoolId}/members/${personID}/role`, {
+    const res = await fetch(`/api/communities/${communityId}/members/${personID}/role`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({role: sel.value}),
     });
@@ -436,7 +436,7 @@ document.querySelectorAll('.remove-member-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     if (!confirm('Remove this member from the community?')) return;
     const personID = btn.dataset.personId;
-    await fetch(`/api/schools/${schoolId}/members/${personID}`, {method: 'DELETE'});
+    await fetch(`/api/communities/${communityId}/members/${personID}`, {method: 'DELETE'});
     location.reload();
   });
 });
@@ -444,7 +444,7 @@ document.getElementById('new-variant-btn').addEventListener('click', async () =>
   const title = document.getElementById('new-variant-title').value.trim();
   const artist = document.getElementById('new-variant-artist').value.trim();
   if (!title) return;
-  const res = await fetch(`/api/schools/${schoolId}/variants`, {
+  const res = await fetch(`/api/communities/${communityId}/variants`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({title, artist}),
   });
@@ -458,7 +458,7 @@ document.getElementById('new-variant-btn').addEventListener('click', async () =>
 document.getElementById('add-existing-btn').addEventListener('click', async () => {
   const variantId = Number(document.getElementById('variant-id-input').value);
   if (!variantId) return;
-  const res = await fetch(`/api/schools/${schoolId}/catalog`, {
+  const res = await fetch(`/api/communities/${communityId}/catalog`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({variantId}),
   });
@@ -472,7 +472,7 @@ document.getElementById('add-existing-btn').addEventListener('click', async () =
 document.getElementById('fork-into-community-btn').addEventListener('click', async () => {
   const variantId = Number(document.getElementById('variant-id-input').value);
   if (!variantId) return;
-  const res = await fetch(`/api/schools/${schoolId}/catalog/fork/${variantId}`, {method: 'POST'});
+  const res = await fetch(`/api/communities/${communityId}/catalog/fork/${variantId}`, {method: 'POST'});
   const data = await res.json().catch(() => ({}));
   if (res.ok) {
     location.reload();
@@ -492,7 +492,7 @@ document.getElementById('create-group-invite-btn').addEventListener('click', asy
     const displayName = row.querySelector('.group-invite-name').value.trim();
     if (displayName) slots.push({displayName});
   });
-  const res = await fetch(`/api/schools/${schoolId}/group-invites`, {
+  const res = await fetch(`/api/communities/${communityId}/group-invites`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({slots}),
   });
@@ -506,7 +506,7 @@ document.getElementById('create-group-invite-btn').addEventListener('click', asy
     closeBtn.hidden = false;
     closeBtn.onclick = async () => {
       if (!confirm('Close this invite link? No further claims will be possible.')) return;
-      const r = await fetch(`/api/schools/${schoolId}/group-invites/${data.id}/close`, {method: 'POST'});
+      const r = await fetch(`/api/communities/${communityId}/group-invites/${data.id}/close`, {method: 'POST'});
       if (r.ok) {
         out.textContent = 'Closed.';
         closeBtn.hidden = true;
@@ -522,7 +522,7 @@ document.querySelectorAll('.community-link-btn').forEach(btn => {
     const role = btn.dataset.role;
     const out = document.getElementById('community-link-result');
     out.textContent = 'creating…';
-    const res = await fetch(`/api/schools/${schoolId}/community-link`, {
+    const res = await fetch(`/api/communities/${communityId}/community-link`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({role}),
     });
@@ -539,7 +539,7 @@ document.querySelectorAll('.community-link-btn').forEach(btn => {
 document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const variantId = btn.dataset.variantId;
-    await fetch(`/api/schools/${schoolId}/catalog/${variantId}`, {method: 'DELETE'});
+    await fetch(`/api/communities/${communityId}/catalog/${variantId}`, {method: 'DELETE'});
     btn.closest('tr').remove();
   });
 });

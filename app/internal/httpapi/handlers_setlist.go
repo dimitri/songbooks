@@ -221,7 +221,7 @@ func (s *Server) handleCreateSetlist(w http.ResponseWriter, r *http.Request) {
 		Title    string `json:"title"`
 		Notes    string `json:"notes"`
 		BandID   int64  `json:"band_id"`
-		SchoolID int64  `json:"school_id"`
+		CommunityID int64  `json:"community_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -229,7 +229,7 @@ func (s *Server) handleCreateSetlist(w http.ResponseWriter, r *http.Request) {
 	}
 	person := personFromContext(r)
 
-	var ownerPersonID, ownerBandID, ownerSchoolID *int64
+	var ownerPersonID, ownerBandID, ownerCommunityID *int64
 	switch req.Scope {
 	case "person":
 		ownerPersonID = &person.ID
@@ -248,12 +248,12 @@ func (s *Server) handleCreateSetlist(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		ownerBandID = &req.BandID
-	case "school":
-		if req.SchoolID == 0 {
-			httpError(w, http.StatusBadRequest, "school_id is required for scope=school")
+	case "community":
+		if req.CommunityID == 0 {
+			httpError(w, http.StatusBadRequest, "community_id is required for scope=community")
 			return
 		}
-		isStaff, err := s.store.IsCurrentSchoolStaff(r.Context(), req.SchoolID, person.ID)
+		isStaff, err := s.store.IsCurrentCommunityStaff(r.Context(), req.CommunityID, person.ID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -262,13 +262,13 @@ func (s *Server) handleCreateSetlist(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusForbidden, "must be staff of this community to create its setlists")
 			return
 		}
-		ownerSchoolID = &req.SchoolID
+		ownerCommunityID = &req.CommunityID
 	default:
-		httpError(w, http.StatusBadRequest, `scope must be "person", "band", or "school"`)
+		httpError(w, http.StatusBadRequest, `scope must be "person", "band", or "community"`)
 		return
 	}
 
-	id, err := s.store.CreateSetlist(r.Context(), req.Scope, req.Title, req.Notes, ownerPersonID, ownerBandID, ownerSchoolID, person.ID)
+	id, err := s.store.CreateSetlist(r.Context(), req.Scope, req.Title, req.Notes, ownerPersonID, ownerBandID, ownerCommunityID, person.ID)
 	if err != nil {
 		httpError(w, http.StatusBadRequest, err.Error())
 		return

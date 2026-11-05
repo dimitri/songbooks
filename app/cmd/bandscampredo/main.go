@@ -1,8 +1,8 @@
 // bandscampredo is a one-shot batch redo of Bands Camp's song catalog,
 // per the user's explicit request after the real community-creation
 // tools turned out to have been silently broken (migration 0042
-// dropped school_catalog_entries; CreateSchoolVariant/ForkVariant's
-// school case kept writing to it — see the commit that fixed this).
+// dropped community_catalog_entries; CreateCommunityVariant/ForkVariant's
+// community case kept writing to it — see the commit that fixed this).
 // Bands Camp's songbook_entries were cleared, leaving the underlying
 // songs rows (visibility='global') in place but unlinked.
 //
@@ -45,7 +45,7 @@
 //
 //	docker compose run --rm -v ~/dev/www/songbooks/v2/BandsCamp:/legacy:ro app \
 //	  bandscampredo --db "$DATABASE_URL" --legacy-dir /legacy \
-//	  --school-id 3 --songbook-id 6 --actor-id 1
+//	  --community-id 3 --songbook-id 6 --actor-id 1
 package main
 
 import (

@@ -22,7 +22,7 @@
      styled "back-link" reading "Home" — three spellings of the same
      link). A single shared partial so the brand mark + label are
      identical everywhere a page's header links back to "/". Pages whose
-     header instead backs up to a parent resource (a band, a school, a
+     header instead backs up to a parent resource (a band, a community, a
      project) keep their own back-link — this only replaces the
      link-to-home case. */}}
 {{define "home-link"}}<a class="back-link" href="/">{{template "icon-logo"}} Songbooks</a>{{end}}
@@ -108,7 +108,7 @@
   <a class="site-nav-fullpage-row" href="/songbooks">{{template "icon-catalog"}} Songbooks</a>
   <a class="site-nav-fullpage-row" href="/catalog">{{template "icon-view"}} Catalog</a>
   <a class="site-nav-fullpage-row" href="/bands">{{template "icon-bands"}} Bands</a>
-  <a class="site-nav-fullpage-row" href="/schools">{{template "icon-community"}} Communities</a>
+  <a class="site-nav-fullpage-row" href="/communities">{{template "icon-community"}} Communities</a>
   <a class="site-nav-fullpage-row" href="/jams">{{template "icon-jam"}} Jam sessions</a>
   <a class="site-nav-fullpage-row" href="/metronome">{{template "icon-metro-full"}} Metronome</a>
   <a class="site-nav-fullpage-row" href="/profile">{{template "icon-profile"}} Profile</a>
@@ -188,7 +188,7 @@
     <a href="/songbooks" data-path="/songbooks" data-label="Songbooks">{{template "icon-catalog"}} Songbooks</a>
     <a href="/catalog" data-path="/catalog" data-label="Catalog">{{template "icon-view"}} Catalog</a>
     <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}} Bands</a>
-    <a href="/schools" data-path="/schools" data-label="Communities">{{template "icon-community"}} Communities</a>
+    <a href="/communities" data-path="/communities" data-label="Communities">{{template "icon-community"}} Communities</a>
     <a href="/jams" data-path="/jams" data-label="Jam sessions">{{template "icon-jam"}} Jam sessions</a>
   </div>
   <div class="sidebar-secondary">

@@ -13,15 +13,15 @@ import (
 // (or its bands-only "scène ouverte" variant, via AudienceScope), a
 // band's concert/gig, or a lightweight social event (meetup, listening
 // party, dinner, "going to a show together"). See migration 0049's own
-// doc comment for the ownership/visibility split: a school-owned event
+// doc comment for the ownership/visibility split: a community-owned event
 // gets a public listing/registration page, a band-owned one follows
 // the band's own membership gate and is never public.
 type Event struct {
 	ID                int64
-	OwnerKind         string // "school" or "band"
-	OwnerSchoolID     int64
+	OwnerKind         string // "community" or "band"
+	OwnerCommunityID     int64
 	OwnerBandID       int64
-	OwnerName         string // the school/band's own name, joined in for display
+	OwnerName         string // the community/band's own name, joined in for display
 	EventType         string
 	Name              string
 	Description       string
@@ -45,42 +45,42 @@ func (e Event) IsPast(now time.Time) bool {
 }
 
 const eventSelectCols = `
-	e.id, e.owner_kind::text, coalesce(e.owner_school_id,0), coalesce(e.owner_band_id,0),
+	e.id, e.owner_kind::text, coalesce(e.owner_community_id,0), coalesce(e.owner_band_id,0),
 	coalesce(sc.name, bd.name, ''),
 	e.event_type::text, e.name, e.description, e.location, e.starts_at, e.ends_at,
 	e.audience_scope::text, e.setlist_id, e.created_by_person_id, e.created_at`
 
 const eventFromJoin = `
 	FROM events e
-	LEFT JOIN schools sc ON sc.id = e.owner_school_id
+	LEFT JOIN communities sc ON sc.id = e.owner_community_id
 	LEFT JOIN bands bd ON bd.id = e.owner_band_id`
 
 func scanEvent(row interface{ Scan(...any) error }) (*Event, error) {
 	var ev Event
-	var schoolID, bandID int64
+	var communityID, bandID int64
 	var setlistID *int64
 	var createdBy *int64
-	if err := row.Scan(&ev.ID, &ev.OwnerKind, &schoolID, &bandID, &ev.OwnerName,
+	if err := row.Scan(&ev.ID, &ev.OwnerKind, &communityID, &bandID, &ev.OwnerName,
 		&ev.EventType, &ev.Name, &ev.Description, &ev.Location, &ev.StartsAt, &ev.EndsAt,
 		&ev.AudienceScope, &setlistID, &createdBy, &ev.CreatedAt); err != nil {
 		return nil, err
 	}
-	ev.OwnerSchoolID, ev.OwnerBandID = schoolID, bandID
+	ev.OwnerCommunityID, ev.OwnerBandID = communityID, bandID
 	ev.SetlistID, ev.CreatedByPersonID = setlistID, createdBy
 	return &ev, nil
 }
 
-// CreateEvent makes a new event owned by a community (ownerKind="school")
+// CreateEvent makes a new event owned by a community (ownerKind="community")
 // or a band (ownerKind="band"). audienceScope only matters for
 // eventType="jam" ("members", "bands" — the "scène ouverte" case, or
 // "both"); pass "members" for every other event type.
 func (st *Store) CreateEvent(ctx context.Context, ownerKind string, ownerID int64, eventType, name, description, location string, startsAt time.Time, endsAt *time.Time, audienceScope string, creatorID int64) (int64, error) {
-	if ownerKind != "school" && ownerKind != "band" {
+	if ownerKind != "community" && ownerKind != "band" {
 		return 0, fmt.Errorf("invalid event owner kind %q", ownerKind)
 	}
-	var schoolCol, bandCol any
-	if ownerKind == "school" {
-		schoolCol = ownerID
+	var communityCol, bandCol any
+	if ownerKind == "community" {
+		communityCol = ownerID
 	} else {
 		bandCol = ownerID
 	}
@@ -90,10 +90,10 @@ func (st *Store) CreateEvent(ctx context.Context, ownerKind string, ownerID int6
 	}
 	var id int64
 	err := st.db.QueryRow(ctx, `
-		INSERT INTO events (owner_kind, owner_school_id, owner_band_id, event_type, name, description, location, starts_at, ends_at, audience_scope, created_by_person_id)
+		INSERT INTO events (owner_kind, owner_community_id, owner_band_id, event_type, name, description, location, starts_at, ends_at, audience_scope, created_by_person_id)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id`,
-		ownerKind, schoolCol, bandCol, eventType, name, description, location, startsAt, endsAt, audienceScope, creator).Scan(&id)
+		ownerKind, communityCol, bandCol, eventType, name, description, location, startsAt, endsAt, audienceScope, creator).Scan(&id)
 	return id, err
 }
 
@@ -124,11 +124,11 @@ func (st *Store) listEvents(ctx context.Context, whereCol string, ownerID int64)
 	return out, rows.Err()
 }
 
-// ListEventsForSchool lists schoolID's events, newest-starting first —
+// ListEventsForCommunity lists communityID's events, newest-starting first —
 // the community's public events page and its admin "manage events" tab
 // both use this, splitting upcoming/past client-side via Event.IsPast.
-func (st *Store) ListEventsForSchool(ctx context.Context, schoolID int64) ([]Event, error) {
-	return st.listEvents(ctx, "e.owner_school_id", schoolID)
+func (st *Store) ListEventsForCommunity(ctx context.Context, communityID int64) ([]Event, error) {
+	return st.listEvents(ctx, "e.owner_community_id", communityID)
 }
 
 // ListEventsForBand lists bandID's own events — never public, gated by
@@ -218,7 +218,7 @@ func (st *Store) IsEventManager(ctx context.Context, eventID, personID int64) (b
 
 // CanManageEvent is the real gate behind requireEventManager: an
 // assigned event manager, OR anyone who could have assigned one in the
-// first place (school staff for a school event, any band member for a
+// first place (community staff for a community event, any band member for a
 // band event — same "whoever can create it can also run it" rule
 // every other owner-scoped admin surface in this app already follows).
 func (st *Store) CanManageEvent(ctx context.Context, eventID, personID int64) (bool, error) {
@@ -229,8 +229,8 @@ func (st *Store) CanManageEvent(ctx context.Context, eventID, personID int64) (b
 	if ok, err := st.IsEventManager(ctx, eventID, personID); err != nil || ok {
 		return ok, err
 	}
-	if ev.OwnerKind == "school" {
-		return st.IsCurrentSchoolStaff(ctx, ev.OwnerSchoolID, personID)
+	if ev.OwnerKind == "community" {
+		return st.IsCurrentCommunityStaff(ctx, ev.OwnerCommunityID, personID)
 	}
 	return st.IsCurrentBandMember(ctx, ev.OwnerBandID, personID)
 }
@@ -238,9 +238,9 @@ func (st *Store) CanManageEvent(ctx context.Context, eventID, personID int64) (b
 // ---- Event registration ("attending") ---------------------------------
 
 // RegisterForEvent records personID (optionally as/with bandID) as
-// registered for eventID. If the event is school-owned, this also
+// registered for eventID. If the event is community-owned, this also
 // joins them to that community at its own configured default role
-// (schools.default_join_role) — "an event is part of a community so
+// (communities.default_join_role) — "an event is part of a community so
 // the account joins the community," applying that community's own
 // edited defaults — a no-op if they're already a current member.
 // Idempotent on (event, person): re-registering just leaves the
@@ -253,12 +253,12 @@ func (st *Store) RegisterForEvent(ctx context.Context, eventID, personID int64, 
 	defer tx.Rollback(ctx)
 
 	var ownerKind string
-	var ownerSchoolID int64
+	var ownerCommunityID int64
 	var defaultRole string
 	if err := tx.QueryRow(ctx, `
-		SELECT e.owner_kind::text, coalesce(e.owner_school_id,0), coalesce(sc.default_join_role::text, 'member')
-		FROM events e LEFT JOIN schools sc ON sc.id = e.owner_school_id
-		WHERE e.id = $1`, eventID).Scan(&ownerKind, &ownerSchoolID, &defaultRole); err != nil {
+		SELECT e.owner_kind::text, coalesce(e.owner_community_id,0), coalesce(sc.default_join_role::text, 'member')
+		FROM events e LEFT JOIN communities sc ON sc.id = e.owner_community_id
+		WHERE e.id = $1`, eventID).Scan(&ownerKind, &ownerCommunityID, &defaultRole); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("no such event %d: %w", eventID, ErrNotFound)
 		}
@@ -275,15 +275,15 @@ func (st *Store) RegisterForEvent(ctx context.Context, eventID, personID int64, 
 		return err
 	}
 
-	if ownerKind == "school" {
-		already, err := isCurrentSchoolMember(ctx, tx, ownerSchoolID, personID, "")
+	if ownerKind == "community" {
+		already, err := isCurrentCommunityMember(ctx, tx, ownerCommunityID, personID, "")
 		if err != nil {
 			return err
 		}
 		if !already {
 			if _, err := tx.Exec(ctx, `
-				INSERT INTO school_members (school_id, person_id, role) VALUES ($1, $2, $3)`,
-				ownerSchoolID, personID, defaultRole); err != nil {
+				INSERT INTO community_members (community_id, person_id, role) VALUES ($1, $2, $3)`,
+				ownerCommunityID, personID, defaultRole); err != nil {
 				return err
 			}
 		}

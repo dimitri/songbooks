@@ -27,7 +27,7 @@ type bookStats struct {
 
 // attentionItem is one row of the home page's "needs your attention"
 // feed — band proposals the viewer can vote on, plus their own unread
-// notifications (proposal decisions, school submission decisions, ...).
+// notifications (proposal decisions, community submission decisions, ...).
 // Deliberately NOT a full activity log: band edits already have their
 // own home for this ("your bands" card's digest line below), and
 // group-invite slot claims don't fire a notification today (see

@@ -12,8 +12,8 @@
 {{template "desktop-sidebar" .Me}}
 <div class="app-content">
 <header class="app-header">
-  {{if eq .Event.OwnerKind "school"}}
-  <a class="back-link" href="/schools/{{.Event.OwnerSchoolID}}/events">{{template "icon-back"}} {{.Event.OwnerName}}</a>
+  {{if eq .Event.OwnerKind "community"}}
+  <a class="back-link" href="/communities/{{.Event.OwnerCommunityID}}/events">{{template "icon-back"}} {{.Event.OwnerName}}</a>
   {{else}}
   <a class="back-link" href="/bands/{{.Event.OwnerBandID}}/events">{{template "icon-back"}} {{.Event.OwnerName}}</a>
   {{end}}

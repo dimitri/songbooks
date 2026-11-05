@@ -90,7 +90,7 @@ func isAPIRequest(r *http.Request) bool {
 // param — store.CanViewVariant for minRole="viewer", CanEditVariant for
 // "editor"/"owner" (a variant has no three-tier role of its own; "can
 // edit" is the only bar above "can view"). Replaces the old project-role
-// gate entirely now that ownership (global/band/school/user/jam/setlist)
+// gate entirely now that ownership (global/band/community/user/jam/setlist)
 // is the only access model.
 func (s *Server) requireVariantRole(minRole string, next http.HandlerFunc) http.HandlerFunc {
 	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {

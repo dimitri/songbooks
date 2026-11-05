@@ -149,8 +149,8 @@ const (
 // header plus one empty [Verse] section) owned per ownerKind/ownerID —
 // the single creation entry point replacing the old per-project
 // CreateSong plus the per-scope CreateBandVariant/CreateJamVariant/
-// CreateSchoolVariant (jam/school creation stay in their own files,
-// jam.go/school_catalog.go, since they also need an atomic "add to my
+// CreateCommunityVariant (jam/community creation stay in their own files,
+// jam.go/community_catalog.go, since they also need an atomic "add to my
 // own pickable list" step CreateVariant has no reason to know about).
 // A new variant is also, atomically, added to the owner's default
 // songbook (OwnerPerson/OwnerBand) — "a variant that isn't in its

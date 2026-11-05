@@ -10,17 +10,17 @@ import (
 )
 
 // Songbook is one named, ordered collection of variant pointers, owned by
-// exactly one person, one band, or one school ("Community" at the user-
-// facing layer — see migration 0042's doc comment for why the schools/
-// school_members tables keep their original name internally). Every
+// exactly one person, one band, or one community ("Community" at the user-
+// facing layer — see migration 0042's doc comment for why the communities/
+// community_members tables keep their original name internally). Every
 // owner always has at least one (IsDefault) — created automatically the
 // first time GetOrCreateDefault is asked for one that doesn't exist yet.
 type Songbook struct {
 	ID            int64
-	OwnerKind     string // "person", "band", or "school"
+	OwnerKind     string // "person", "band", or "community"
 	OwnerPersonID int64
 	OwnerBandID   int64
-	OwnerSchoolID int64
+	OwnerCommunityID int64
 	Name          string
 	IsDefault     bool
 	PlaylistURL   string
@@ -34,8 +34,8 @@ func songbookOwnerCol(ownerKind string) string {
 	switch ownerKind {
 	case "band":
 		return "owner_band_id"
-	case "school":
-		return "owner_school_id"
+	case "community":
+		return "owner_community_id"
 	default:
 		return "owner_person_id"
 	}
@@ -46,7 +46,7 @@ func songbookOwnerCol(ownerKind string) string {
 func (st *Store) ListSongbooks(ctx context.Context, ownerKind string, ownerID int64) ([]Songbook, error) {
 	col := songbookOwnerCol(ownerKind)
 	rows, err := st.db.Query(ctx, `
-		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_school_id,0), name, is_default, playlist_url, created_at
+		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at
 		FROM songbooks WHERE owner_kind = $1 AND `+col+` = $2
 		ORDER BY (NOT is_default), name`, ownerKind, ownerID)
 	if err != nil {
@@ -56,7 +56,7 @@ func (st *Store) ListSongbooks(ctx context.Context, ownerKind string, ownerID in
 	var out []Songbook
 	for rows.Next() {
 		var sb Songbook
-		if err := rows.Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerSchoolID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt); err != nil {
+		if err := rows.Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, sb)
@@ -68,9 +68,9 @@ func (st *Store) ListSongbooks(ctx context.Context, ownerKind string, ownerID in
 func (st *Store) GetSongbook(ctx context.Context, songbookID int64) (*Songbook, error) {
 	var sb Songbook
 	err := st.db.QueryRow(ctx, `
-		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_school_id,0), name, is_default, playlist_url, created_at
+		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at
 		FROM songbooks WHERE id = $1`, songbookID).
-		Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerSchoolID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt)
+		Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such songbook %d: %w", songbookID, ErrNotFound)
 	}
@@ -78,7 +78,7 @@ func (st *Store) GetSongbook(ctx context.Context, songbookID int64) (*Songbook, 
 }
 
 // CanAccessSongbook reports whether personID may view/edit songbookID —
-// a person songbook is owner-only, a band or school(community) songbook
+// a person songbook is owner-only, a band or community(community) songbook
 // is any current member (same open-collaboration-within-the-group rule
 // as everything else band/community-owned — a read-only community
 // member still has full read-write access to the community's own
@@ -92,8 +92,8 @@ func (st *Store) CanAccessSongbook(ctx context.Context, personID, songbookID int
 	switch sb.OwnerKind {
 	case "band":
 		return st.IsCurrentBandMember(ctx, sb.OwnerBandID, personID)
-	case "school":
-		return isCurrentSchoolMember(ctx, st.db, sb.OwnerSchoolID, personID, "")
+	case "community":
+		return isCurrentCommunityMember(ctx, st.db, sb.OwnerCommunityID, personID, "")
 	default:
 		return sb.OwnerPersonID == personID, nil
 	}
@@ -102,7 +102,7 @@ func (st *Store) CanAccessSongbook(ctx context.Context, personID, songbookID int
 // CanEditSongbook reports whether personID may change songbookID itself
 // or its contents (rename, delete, reorder, add/remove/create a song) —
 // identical to CanAccessSongbook for a person or band songbook (no
-// read-only tier there), but STAFF ONLY for a school(community)
+// read-only tier there), but STAFF ONLY for a community(community)
 // songbook: a read-only community member can open and play every song
 // in it (see CanAccessSongbook) but not edit the songbook or add/remove
 // entries, the read-write-staff/read-only-member split the user asked
@@ -112,14 +112,14 @@ func (st *Store) CanEditSongbook(ctx context.Context, personID, songbookID int64
 	if err != nil {
 		return false, err
 	}
-	if sb.OwnerKind == "school" {
-		return isCurrentSchoolMember(ctx, st.db, sb.OwnerSchoolID, personID, "staff")
+	if sb.OwnerKind == "community" {
+		return isCurrentCommunityMember(ctx, st.db, sb.OwnerCommunityID, personID, "staff")
 	}
 	return st.CanAccessSongbook(ctx, personID, songbookID)
 }
 
 // GetDefaultSongbook resolves ownerKind+ownerID's default songbook id —
-// every person/band/school gets one automatically, so this never needs
+// every person/band/community gets one automatically, so this never needs
 // to create one on demand in practice, but falls back to doing so
 // defensively (e.g. a brand-new owner created after this phase shipped)
 // rather than erroring.
@@ -129,7 +129,7 @@ func (st *Store) GetDefaultSongbook(ctx context.Context, ownerKind string, owner
 	switch ownerKind {
 	case "band":
 		defaultName = "Songbook"
-	case "school":
+	case "community":
 		defaultName = "Community songbook"
 	}
 	var id int64
@@ -146,20 +146,20 @@ func (st *Store) CreateSongbook(ctx context.Context, ownerKind string, ownerID i
 	if !validName(name) {
 		return 0, fmt.Errorf("invalid songbook name: %q", name)
 	}
-	var personCol, bandCol, schoolCol any
+	var personCol, bandCol, communityCol any
 	switch ownerKind {
 	case "band":
 		bandCol = ownerID
-	case "school":
-		schoolCol = ownerID
+	case "community":
+		communityCol = ownerID
 	default:
 		personCol = ownerID
 	}
 	var id int64
 	err := st.db.QueryRow(ctx, `
-		INSERT INTO songbooks (owner_kind, owner_person_id, owner_band_id, owner_school_id, name, is_default)
+		INSERT INTO songbooks (owner_kind, owner_person_id, owner_band_id, owner_community_id, name, is_default)
 		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-		ownerKind, personCol, bandCol, schoolCol, name, isDefault).Scan(&id)
+		ownerKind, personCol, bandCol, communityCol, name, isDefault).Scan(&id)
 	return id, err
 }
 

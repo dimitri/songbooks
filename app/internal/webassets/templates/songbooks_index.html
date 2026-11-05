@@ -50,17 +50,17 @@
   {{end}}
 
   <h2 class="catalog-books-heading">Community repertoires</h2>
-  {{if .SchoolCards}}
+  {{if .CommunityCards}}
   <div class="catalog-book-cards">
-  {{range .SchoolCards}}
-    <a class="catalog-book-card" href="/schools/{{.ID}}">
+  {{range .CommunityCards}}
+    <a class="catalog-book-card" href="/communities/{{.ID}}">
       <div class="catalog-book-card-title">{{.Name}}</div>
       <div class="catalog-book-card-meta">{{.Members}} member{{if ne .Members 1}}s{{end}} &middot; repertoire</div>
     </a>
   {{end}}
   </div>
   {{else}}
-  <p class="hint">You're not in a community yet — <a href="/schools">browse communities</a>.</p>
+  <p class="hint">You're not in a community yet — <a href="/communities">browse communities</a>.</p>
   {{end}}
 </main>
 </div>

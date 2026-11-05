@@ -1,10 +1,10 @@
-{{define "school"}}
+{{define "community"}}
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.School.Name}} — Songbooks</title>
+<title>{{.Community.Name}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -12,11 +12,11 @@
 {{template "desktop-sidebar" .Me}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/schools">{{template "icon-back"}} My communities</a>
-  <h1>{{.School.Name}}</h1>
+  <a class="back-link" href="/communities">{{template "icon-back"}} My communities</a>
+  <h1>{{.Community.Name}}</h1>
   <nav class="song-nav">
-    <a href="/schools/{{.School.ID}}/events">events</a>
-    {{if .IsStaff}}<a href="/schools/{{.School.ID}}/admin">staff admin</a>{{end}}
+    <a href="/communities/{{.Community.ID}}/events">events</a>
+    {{if .IsStaff}}<a href="/communities/{{.Community.ID}}/admin">staff admin</a>{{end}}
     {{template "notif-bell"}}
   </nav>
 </header>
@@ -86,7 +86,7 @@
   </div>
 </main>
 <script>
-const schoolId = {{.School.ID}};
+const communityId = {{.Community.ID}};
 document.getElementById('submit-kind').addEventListener('change', (e) => {
   document.getElementById('source-variant-row').hidden = e.target.value !== 'edit';
 });
@@ -96,7 +96,7 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
   const sourceVariantId = Number(document.getElementById('submit-source-variant').value) || 0;
   const note = document.getElementById('submit-note').value;
   if (!submittedVariantId) return;
-  const res = await fetch(`/api/schools/${schoolId}/submissions`, {
+  const res = await fetch(`/api/communities/${communityId}/submissions`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({kind, submittedVariantId, sourceVariantId, note}),
   });

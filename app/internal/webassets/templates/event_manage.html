@@ -56,7 +56,7 @@
 
   <div class="card">
     <h3>Event managers</h3>
-    {{if eq .Event.OwnerKind "school"}}
+    {{if eq .Event.OwnerKind "community"}}
     <ul>
     {{range .Managers}}<li>{{.DisplayName}} <span class="hint">({{.Username}})</span></li>{{else}}<li class="hint">Nobody separately assigned — community staff can already manage this event.</li>{{end}}
     </ul>

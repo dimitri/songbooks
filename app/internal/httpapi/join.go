@@ -25,7 +25,7 @@ const pendingJoinCookie = "songbooks_pending_join"
 // handleJoinPage is the public, no-auth-required group-invite landing
 // page — GET /join/{token} — same "must work from a bare WhatsApp link
 // with zero cookies" requirement as the existing single-use /invite/
-// {token} page. Shows the band/school name, every slot (claimed ones
+// {token} page. Shows the band/community name, every slot (claimed ones
 // are shown but not pickable), an "I'm not on this list" option, and —
 // if the visitor is already logged in — skips straight to "pick your
 // slot, then confirm."

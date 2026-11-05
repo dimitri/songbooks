@@ -398,7 +398,7 @@ table.card { padding: 0; }
   .form-with-list { grid-template-columns: 1fr; }
 }
 
-/* Every data table in the app (catalog, band/school rosters and
+/* Every data table in the app (catalog, band/community rosters and
    repertoire, admin, notifications, submissions...) is `width:100%` with
    ordinary (auto) table layout — on a phone, a handful of columns (even
    just Title/Artist/Project/Visibility) easily need more min-content
