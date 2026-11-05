@@ -254,9 +254,9 @@ func (s *Server) handleExportSongbookPDF(w http.ResponseWriter, r *http.Request)
 }
 
 // handleExportBandSongbookPDF is handleExportSongbookPDF's sibling for a
-// band's own default songbook (store.ListBandCatalog) — most-recently-
-// added-first order; no Set structure (a repertoire isn't divided into
-// performance sets the way a setlist is).
+// band's own default songbook (store.ListBandCatalog) — alphabetical by
+// title; no Set structure (a repertoire isn't divided into performance
+// sets the way a setlist is).
 func (s *Server) handleExportBandSongbookPDF(w http.ResponseWriter, r *http.Request) {
 	if s.pdf == nil {
 		httpError(w, http.StatusServiceUnavailable, "PDF export is not configured on this server")

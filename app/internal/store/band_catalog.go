@@ -35,8 +35,11 @@ func (st *Store) RemoveBandCatalogEntry(ctx context.Context, bandID, variantID, 
 	return st.RemoveFromSongbook(ctx, sbID, variantID)
 }
 
-// ListBandCatalog lists bandID's default songbook, most recently added
-// first.
+// ListBandCatalog lists bandID's default songbook, alphabetically by
+// title — this is a "what do we play" reference list first and an
+// admin log second, so it reads like a setlist/songbook (title order),
+// not an activity feed (most-recently-added first, the old default,
+// which made a repertoire of any real size impossible to scan).
 func (st *Store) ListBandCatalog(ctx context.Context, bandID int64) ([]BandCatalogEntry, error) {
 	sbID, err := st.GetDefaultSongbook(ctx, "band", bandID)
 	if err != nil {
@@ -49,7 +52,7 @@ func (st *Store) ListBandCatalog(ctx context.Context, bandID int64) ([]BandCatal
 		JOIN songs s ON s.id = se.variant_id
 		LEFT JOIN people p ON p.id = se.added_by_person_id
 		WHERE se.songbook_id = $1
-		ORDER BY se.added_at DESC`, sbID)
+		ORDER BY s.title`, sbID)
 	if err != nil {
 		return nil, err
 	}

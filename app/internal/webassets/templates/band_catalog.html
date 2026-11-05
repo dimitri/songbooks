@@ -60,18 +60,83 @@
     <a href="/bands/{{.Band.ID}}/members">Members</a>
   </nav>
 
-  <p class="hint">Pointers into the catalog, same as a personal songbook — adding here doesn't copy a song; forking does, and makes it this band's own "band"-visibility variant that any current member (core or guest) can edit in place.</p>
-
   {{if not .Entries}}
   <div class="attention-empty" style="border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:1.2rem; font-size:0.95rem;">
-    This band's repertoire is empty — songs don't appear here automatically, they have to be added or forked below. Write a new original, or paste a variant id from the <a href="/catalog">catalog</a> into "Add a variant by id."
+    This band's repertoire is empty — songs don't appear here automatically. <button type="button" class="link-button" id="open-add-song-empty">Add your first song</button> to get started.
+  </div>
+  {{else}}
+  <div class="repertoire-toolbar">
+    <input type="search" id="repertoire-search" placeholder="Search this repertoire…" aria-label="Search this repertoire">
+    <button type="button" id="open-add-song">{{template "icon-plus"}} Add song</button>
   </div>
   {{end}}
 
-  <div class="card-grid">
-    <div class="card">
-      <h2>Write a new original song</h2>
-      <p class="hint">Starts from scratch — no existing variant to fork from — straight into this band's own private ("band"-visibility) repertoire. Only current members can see or edit it.</p>
+  {{if .AlbumGroups}}
+  {{range .AlbumGroups}}
+  <div class="album-group-heading-row" data-album-group>
+    {{if .CoverURL}}<img class="album-group-cover" src="{{.CoverURL}}" alt="{{.Album}} cover">{{end}}
+    <div>
+      <h2 class="album-group-heading">{{.Album}}{{if .ReleaseYear}} <span class="album-group-year">({{.ReleaseYear}})</span>{{end}}</h2>
+      {{if .Credit}}<p class="album-group-credit hint">{{.Credit}}</p>{{end}}
+    </div>
+  </div>
+  <div class="gig-table" data-repertoire-list>
+  {{range .Entries}}
+    <div class="gig-row repertoire-row" data-variant-id="{{.VariantID}}" data-search="{{.Title}} {{.Artist}}">
+      <a class="gig-title" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
+        {{.Title}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
+      </a>
+      <span class="gig-key">{{.Key}}</span>
+      <span class="gig-tempo">{{.Tempo}}</span>
+      <details class="row-menu">
+        <summary title="more">{{template "icon-more"}}</summary>
+        <div class="row-menu-panel">
+          <a href="/works/{{.WorkID}}">All versions</a>
+          <a href="/variants/{{.VariantID}}/history">History</a>
+          {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">Forked from</a>{{end}}
+          <p class="hint">{{.Visibility}}</p>
+        </div>
+      </details>
+    </div>
+  {{end}}
+  </div>
+  {{end}}
+  {{else}}
+  <div class="gig-table" data-repertoire-list>
+  {{range .Entries}}
+    <div class="gig-row repertoire-row" data-variant-id="{{.VariantID}}" data-search="{{.Title}} {{.Artist}}">
+      <a class="gig-title" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
+        {{.Title}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
+      </a>
+      <span class="gig-key">{{.Key}}</span>
+      <span class="gig-tempo">{{.Tempo}}</span>
+      <details class="row-menu">
+        <summary title="more">{{template "icon-more"}}</summary>
+        <div class="row-menu-panel">
+          <a href="/works/{{.WorkID}}">All versions</a>
+          <a href="/variants/{{.VariantID}}/history">History</a>
+          {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">Forked from</a>{{end}}
+          <p class="hint">{{.Visibility}} &middot; added by {{.AddedByUsername}}</p>
+          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}">Remove</button>
+        </div>
+      </details>
+    </div>
+  {{end}}
+  </div>
+  {{end}}
+  <p class="hint repertoire-empty-filtered" id="repertoire-empty-filtered">No songs match that search.</p>
+
+  <dialog id="add-song-dialog">
+    <h2>Add a song</h2>
+    <p class="hint">Pointers into the catalog, same as a personal songbook — adding here doesn't copy a song; forking does, and makes it this band's own "band"-visibility variant that any current member (core or guest) can edit in place.</p>
+    <div class="add-song-tabs">
+      <button type="button" class="add-song-tab active" data-panel="write">Write new</button>
+      <button type="button" class="add-song-tab" data-panel="bulk">Add several</button>
+      <button type="button" class="add-song-tab" data-panel="byid">Add by id</button>
+    </div>
+
+    <div class="add-song-panel" data-panel="write">
+      <p class="hint">Starts from scratch — no existing variant to fork from — straight into this band's own private ("band"-visibility) repertoire.</p>
       <div class="form-stack">
         <div class="field">
           <label for="new-variant-title">Title</label>
@@ -88,9 +153,8 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2>Add several songs at once</h2>
-      <p class="hint">One song per line, <code>Title - Artist</code> (artist optional). Each becomes its own empty placeholder in the repertoire below — click into one afterward to fill in lyrics and chords.</p>
+    <div class="add-song-panel" data-panel="bulk" hidden>
+      <p class="hint">One song per line, <code>Title - Artist</code> (artist optional). Each becomes its own empty placeholder — click into one afterward to fill in lyrics and chords.</p>
       <div class="form-stack">
         <div class="field">
           <label for="bulk-variant-lines">Songs</label>
@@ -103,8 +167,7 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2>Add a variant by id</h2>
+    <div class="add-song-panel" data-panel="byid" hidden>
       <p class="hint">Find a variant's id from the <a href="/catalog">catalog</a> (it's shown next to each song's actions there, or in the URL of its "all versions" page).</p>
       <div class="form-stack">
         <div class="field">
@@ -118,56 +181,11 @@
         <p id="add-result" class="hint"></p>
       </div>
     </div>
-  </div>
 
-  {{if .AlbumGroups}}
-  {{range .AlbumGroups}}
-  <div class="album-group-heading-row">
-    {{if .CoverURL}}<img class="album-group-cover" src="{{.CoverURL}}" alt="{{.Album}} cover">{{end}}
-    <div>
-      <h2 class="album-group-heading">{{.Album}}{{if .ReleaseYear}} <span class="album-group-year">({{.ReleaseYear}})</span>{{end}}</h2>
-      {{if .Credit}}<p class="album-group-credit hint">{{.Credit}}</p>{{end}}
+    <div class="form-actions" style="margin-top:1rem;">
+      <button type="button" id="close-add-song">Close</button>
     </div>
-  </div>
-  <div class="table-scroll"><table class="card" style="width:100%">
-    <thead><tr><th>Title</th><th>Artist</th><th>Visibility</th><th></th></tr></thead>
-    <tbody>
-    {{range .Entries}}
-      <tr data-variant-id="{{.VariantID}}">
-        <td><a href="/song/{{.VariantID}}?band={{$.Band.ID}}">{{.Title}}</a></td>
-        <td>{{.Artist}}</td>
-        <td>{{.Visibility}}{{if .ForkedFromID}} (<a href="/variants/{{deref64 .ForkedFromID}}/history">forked from</a>){{end}}</td>
-        <td>
-          <a href="/works/{{.WorkID}}">all versions</a>
-          <a href="/variants/{{.VariantID}}/history">history</a>
-        </td>
-      </tr>
-    {{end}}
-    </tbody>
-  </table></div>
-  {{end}}
-  {{else}}
-  <div class="table-scroll"><table class="card" style="width:100%">
-    <thead><tr><th>Title</th><th>Artist</th><th>Visibility</th><th>Added by</th><th></th></tr></thead>
-    <tbody>
-    {{range .Entries}}
-      <tr data-variant-id="{{.VariantID}}">
-        <td><a href="/song/{{.VariantID}}?band={{$.Band.ID}}">{{.Title}}</a></td>
-        <td>{{.Artist}}</td>
-        <td>{{.Visibility}}{{if .ForkedFromID}} (<a href="/variants/{{deref64 .ForkedFromID}}/history">forked from</a>){{end}}</td>
-        <td>{{.AddedByUsername}}</td>
-        <td>
-          <a href="/works/{{.WorkID}}">all versions</a>
-          <a href="/variants/{{.VariantID}}/history">history</a>
-          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}">remove</button>
-        </td>
-      </tr>
-    {{else}}
-      <tr><td colspan="6" class="hint">No repertoire yet — add or fork a variant above.</td></tr>
-    {{end}}
-    </tbody>
-  </table></div>
-  {{end}}
+  </dialog>
 </main>
 <script>
 const bandId = {{.Band.ID}};
@@ -255,9 +273,52 @@ document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const variantId = btn.dataset.variantId;
     await fetch(`/api/bands/${bandId}/catalog/${variantId}`, {method: 'DELETE'});
-    btn.closest('tr').remove();
+    btn.closest('.gig-row').remove();
   });
 });
+
+// ---- "+ Add song" dialog: three alternative methods as tabs, not a
+// linear wizard — opened from either the toolbar or the empty state. ----
+(function () {
+  const dialog = document.getElementById('add-song-dialog');
+  if (!dialog) return;
+  document.getElementById('open-add-song')?.addEventListener('click', () => dialog.showModal());
+  document.getElementById('open-add-song-empty')?.addEventListener('click', () => dialog.showModal());
+  document.getElementById('close-add-song')?.addEventListener('click', () => dialog.close());
+  dialog.querySelectorAll('.add-song-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      dialog.querySelectorAll('.add-song-tab').forEach(t => t.classList.toggle('active', t === tab));
+      dialog.querySelectorAll('.add-song-panel').forEach(p => { p.hidden = p.dataset.panel !== tab.dataset.panel; });
+    });
+  });
+})();
+
+// ---- Live search over the already-rendered list — a repertoire is
+// small enough to filter client-side, no round trip, instant as you
+// type. Also hides an album-group heading once every song under it is
+// filtered out, so a search doesn't leave empty headers on screen. ----
+(function () {
+  const search = document.getElementById('repertoire-search');
+  if (!search) return;
+  const emptyHint = document.getElementById('repertoire-empty-filtered');
+  const groups = document.querySelectorAll('[data-album-group]');
+  function apply() {
+    const q = search.value.trim().toLowerCase();
+    let anyVisible = false;
+    document.querySelectorAll('[data-repertoire-list] .gig-row').forEach(row => {
+      const match = !q || row.dataset.search.toLowerCase().includes(q);
+      row.hidden = !match;
+      if (match) anyVisible = true;
+    });
+    groups.forEach(heading => {
+      const list = heading.nextElementSibling;
+      const hasVisible = list && [...list.children].some(row => !row.hidden);
+      heading.hidden = !hasVisible;
+    });
+    if (emptyHint) emptyHint.style.display = anyVisible ? 'none' : 'block';
+  }
+  search.addEventListener('input', apply);
+})();
 </script>
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 </div>

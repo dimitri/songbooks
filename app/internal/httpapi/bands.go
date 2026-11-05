@@ -185,9 +185,9 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		previewEntries := make([]store.BandCatalogEntry, len(repertoirePreview))
+		previewEntries := make([]bandCatalogRow, len(repertoirePreview))
 		for i, v := range repertoirePreview {
-			previewEntries[i] = store.BandCatalogEntry{CatalogVariant: v}
+			previewEntries[i] = bandCatalogRow{BandCatalogEntry: store.BandCatalogEntry{CatalogVariant: v}}
 		}
 		repertoirePreviewAlbums = groupByAlbum(previewEntries, covers)
 	}
@@ -644,6 +644,20 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Key/tempo badges — the same "what to glance at before playing"
+	// cue the setlist's gig-row already shows (see gigRow in
+	// handlers_setlist.go) — so the repertoire list reads the same way
+	// a setlist does, per the redesign. Best-effort: a variant that
+	// fails to load just shows no badges, never breaks the page.
+	rows := make([]bandCatalogRow, len(entries))
+	for i, e := range entries {
+		rows[i] = bandCatalogRow{BandCatalogEntry: e}
+		if sg, _, err := s.store.LoadVariant(e.VariantID); err == nil {
+			rows[i].Key = sg.Get("key")
+			rows[i].Tempo = sg.Get("tempo")
+		}
+	}
+
 	// An "original" act's repertoire reads naturally grouped by the
 	// record a song is from; a covers band (or a band that hasn't said
 	// which it is) keeps the flat list. No per-song track-order or
@@ -657,13 +671,21 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		albumGroups = groupByAlbum(entries, covers)
+		albumGroups = groupByAlbum(rows, covers)
 	}
 
 	s.render(w, "band_catalog", map[string]any{
-		"Me": person, "Band": band, "Entries": entries,
+		"Me": person, "Band": band, "Entries": rows,
 		"AlbumGroups": albumGroups,
 	})
+}
+
+// bandCatalogRow is BandCatalogEntry plus the key/tempo badges the
+// Repertoire list shows next to each title — the same at-a-glance cue
+// the setlist's gig-row already uses (see gigRow in handlers_setlist.go).
+type bandCatalogRow struct {
+	store.BandCatalogEntry
+	Key, Tempo string
 }
 
 // albumGroup is one album's songs on a band's Repertoire tab (or the
@@ -676,11 +698,11 @@ type albumGroup struct {
 	CoverURL    string
 	ReleaseYear int
 	Credit      string
-	Entries     []store.BandCatalogEntry
+	Entries     []bandCatalogRow
 }
 
-func groupByAlbum(entries []store.BandCatalogEntry, covers map[string]store.AlbumCover) []albumGroup {
-	byAlbum := map[string][]store.BandCatalogEntry{}
+func groupByAlbum(entries []bandCatalogRow, covers map[string]store.AlbumCover) []albumGroup {
+	byAlbum := map[string][]bandCatalogRow{}
 	for _, e := range entries {
 		album := e.Album
 		if album == "" {

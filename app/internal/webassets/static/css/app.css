@@ -341,6 +341,7 @@ table.card { padding: 0; }
 .album-group-heading { font-size: 1.05rem; margin: 0 0 0.2rem; }
 .album-group-heading-row { display: flex; align-items: center; gap: 0.7rem; margin: 1.4rem 0 0.6rem; }
 .album-group-heading-row:first-of-type { margin-top: 0; }
+.album-group-heading-row[hidden] { display: none; } /* its own display:flex would otherwise beat the [hidden] UA rule */
 .album-group-cover { width: 44px; height: 44px; border-radius: 4px; object-fit: cover; flex: none; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
 .album-group-year { font-weight: 400; color: var(--fg-faint); }
 .album-group-credit { margin: 0.1rem 0 0; }
@@ -3379,11 +3380,68 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .setlist-overview-reorder-btns:not([hidden]) { display: flex; gap: 0.15rem; }
 #reorder-toggle.active { background: var(--accent); color: var(--bg); }
 
+/* The band Repertoire tab's own row — same visual language as the gig
+   view's .gig-row (a repertoire should read like a setlist, not a data
+   table), no running number (it's not an ordered set), artist as the
+   .gig-title's second line (reusing the same stacked-line slot .gig-note
+   already defines), and a trailing kebab menu for the provenance/admin
+   actions (visibility, who added it, all-versions/history, remove) that
+   matter occasionally, not on every glance. */
+.repertoire-row { grid-template-columns: 1fr 3.4rem 3.4rem 2.2rem; }
+.repertoire-row[hidden] { display: none; } /* .gig-row's own display:grid would otherwise beat the [hidden] UA rule */
+.repertoire-artist { font-size: 0.85rem; font-weight: 400; color: var(--fg-muted); }
+.row-menu { position: relative; justify-self: end; }
+.row-menu > summary { list-style: none; cursor: pointer; padding: 0.2rem 0.5rem; border-radius: 5px; color: var(--fg-muted); }
+.row-menu > summary::-webkit-details-marker { display: none; }
+.row-menu > summary:hover { background: var(--bg-sunken); color: var(--fg); }
+.row-menu[open] > summary { background: var(--bg-sunken); }
+.row-menu-panel {
+  position: absolute; right: 0; top: 100%; z-index: 5; min-width: 11rem; margin-top: 0.2rem;
+  display: flex; flex-direction: column; padding: 0.4rem; gap: 0.1rem;
+  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow);
+}
+.row-menu-panel a, .row-menu-panel button {
+  display: block; width: 100%; text-align: left; padding: 0.4rem 0.6rem; border-radius: 5px;
+  font: inherit; background: none; border: none; color: var(--fg); text-decoration: none; cursor: pointer;
+}
+.row-menu-panel a:hover, .row-menu-panel button:hover { background: var(--bg-sunken); }
+.row-menu-panel .hint { padding: 0.2rem 0.6rem 0.3rem; margin: 0; }
+
+/* Search box above the list, same card-adjacent look the catalog page's
+   own filter form uses, just client-side (a repertoire is small enough
+   to filter in the browser — no round trip, instant as you type). */
+.repertoire-toolbar { display: flex; gap: 0.6rem; align-items: center; margin-bottom: 0.8rem; flex-wrap: wrap; }
+.repertoire-toolbar input[type="search"] { flex: 1; min-width: 10rem; }
+.repertoire-empty-filtered { display: none; }
+
 @media (max-width: 560px) {
   .gig-row { grid-template-columns: 2rem 1fr 3.4rem; }
   .setlist-overview-row { grid-template-columns: 2rem 1fr 3.4rem 2rem 2.8rem; }
+  .repertoire-row { grid-template-columns: 1fr 3.4rem 2.2rem; }
   .gig-tempo { display: none; } /* key matters more than tempo at a glance on a phone */
   .gig-title { font-size: 1.1rem; }
+}
+
+/* "+ Add song" dialog — three alternative methods as tabs (not a linear
+   wizard's numbered steps, so a distinct tab look from .wizard-step-dot
+   even though it borrows #song-wizard's own dialog chrome below). */
+#add-song-dialog {
+  width: min(560px, 92vw); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1.3rem 1.4rem; background: var(--bg-raised); color: var(--fg); box-shadow: var(--shadow);
+}
+#add-song-dialog::backdrop { background: rgba(10, 8, 4, 0.45); }
+#add-song-dialog h2 { margin: 0 0 0.8rem; }
+.add-song-tabs { display: flex; gap: 0.3rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.add-song-tab {
+  font: inherit; background: none; border: none; cursor: pointer; padding: 0.5rem 0.2rem;
+  color: var(--fg-muted); border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.add-song-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.add-song-panel[hidden] { display: none; }
+
+.link-button {
+  background: none; border: none; padding: 0; font: inherit; color: var(--accent);
+  text-decoration: underline; cursor: pointer;
 }
 
 /* Icon-based instrument picker (profile, jam signup, jam song-pick,

@@ -51,8 +51,8 @@ func (s *Server) handleExportSongLilyPDF(w http.ResponseWriter, r *http.Request)
 // pipeline never had one; only single-song and setlist export existed
 // before). Entries are grouped by nothing in particular (Group: "")
 // since a band's repertoire, unlike a setlist, has no Set structure —
-// one page per song, book-sorted by ListBandCatalog's own most-recently-
-// added-first order.
+// one page per song, book-sorted by ListBandCatalog's own alphabetical
+// order.
 func (s *Server) handleExportBandRepertoireLilyPDF(w http.ResponseWriter, r *http.Request) {
 	bandID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
