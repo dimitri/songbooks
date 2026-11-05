@@ -110,7 +110,7 @@ document.getElementById('wiz-cancel')?.addEventListener('click', () => wizard.cl
     matchesHost.hidden = false;
     const heading = document.createElement('p');
     heading.className = 'hint';
-    heading.textContent = 'Already in the catalog — use one of these instead of creating a new song?';
+    heading.textContent = 'Already in the catalog — add it instead of creating a new song. You can still edit it either way: "Add as-is" shares your edits back to the catalog for everyone, "Fork a private copy" keeps your edits to yourself.';
     matchesHost.appendChild(heading);
     for (const hit of hits.slice(0, 5)) {
       const row = document.createElement('div');
@@ -120,12 +120,17 @@ document.getElementById('wiz-cancel')?.addEventListener('click', () => wizard.cl
           <div class="attention-title">${hit.title}</div>
           ${hit.artist ? `<div class="attention-subtitle">${hit.artist}</div>` : ''}
         </div>`;
+      const actions = document.createElement('span');
+      actions.style.marginLeft = 'auto';
+      actions.style.display = 'flex';
+      actions.style.gap = '0.4rem';
+
       const addBtn = document.createElement('button');
       addBtn.type = 'button';
-      addBtn.style.marginLeft = 'auto';
-      addBtn.textContent = 'Add to this songbook';
+      addBtn.title = 'Adds the catalog song as-is — editing it afterward updates the catalog version for everyone, same as fixing a typo for the whole band.';
+      addBtn.textContent = 'Add as-is (contribute edits)';
       addBtn.addEventListener('click', async () => {
-        addBtn.disabled = true;
+        addBtn.disabled = true; forkBtn.disabled = true;
         const res = await fetch(`/api/songbooks/${wizSongbookId}/entries`, {
           method: 'POST', headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({variantId: hit.variantId}),
@@ -134,10 +139,33 @@ document.getElementById('wiz-cancel')?.addEventListener('click', () => wizard.cl
           wizard.close();
           location.href = `/song/${hit.variantId}`;
         } else {
-          addBtn.disabled = false;
+          addBtn.disabled = false; forkBtn.disabled = false;
         }
       });
-      row.appendChild(addBtn);
+
+      const forkBtn = document.createElement('button');
+      forkBtn.type = 'button';
+      forkBtn.title = 'Makes your own private copy in this songbook — your edits stay yours, the catalog version is untouched.';
+      forkBtn.textContent = 'Fork a private copy';
+      forkBtn.addEventListener('click', async () => {
+        addBtn.disabled = true; forkBtn.disabled = true;
+        const forkRes = await fetch(`/api/variants/${hit.variantId}/fork`, {method: 'POST'});
+        const forkData = await forkRes.json().catch(() => ({}));
+        if (!forkRes.ok) { addBtn.disabled = false; forkBtn.disabled = false; return; }
+        const res = await fetch(`/api/songbooks/${wizSongbookId}/entries`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({variantId: forkData.variantId}),
+        });
+        if (res.ok) {
+          wizard.close();
+          location.href = `/song/${forkData.variantId}`;
+        } else {
+          addBtn.disabled = false; forkBtn.disabled = false;
+        }
+      });
+
+      actions.append(addBtn, forkBtn);
+      row.appendChild(actions);
       matchesHost.appendChild(row);
     }
   }

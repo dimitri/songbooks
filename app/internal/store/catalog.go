@@ -532,6 +532,31 @@ func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, sco
 	if scope != "user" && scope != "band" && scope != "school" && scope != "jam" {
 		return 0, fmt.Errorf("invalid fork scope %q", scope)
 	}
+
+	// Resolved before the transaction (GetDefaultSongbook isn't tx-scoped,
+	// and may itself need to INSERT a songbook — "every person/band gets
+	// a default songbook automatically" doesn't hold for an account that
+	// forks something before ever visiting its own songbook page, e.g.
+	// straight from the catalog browse page or the new-song wizard's
+	// catalog-match step; the raw `... AND is_default` SELECT this used
+	// to run inline hit exactly that gap and 500'd with a bare "no rows
+	// in result set").
+	var defaultSongbookID int64
+	switch scope {
+	case "user":
+		var err error
+		defaultSongbookID, err = st.GetDefaultSongbook(ctx, "person", forkerID)
+		if err != nil {
+			return 0, err
+		}
+	case "band":
+		var err error
+		defaultSongbookID, err = st.GetDefaultSongbook(ctx, "band", bandID)
+		if err != nil {
+			return 0, err
+		}
+	}
+
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, err
@@ -620,29 +645,21 @@ func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, sco
 			return 0, err
 		}
 	case "user":
-		var sbID int64
-		if err := tx.QueryRow(ctx, `SELECT id FROM songbooks WHERE owner_kind='person' AND owner_person_id=$1 AND is_default`, forkerID).Scan(&sbID); err != nil {
-			return 0, err
-		}
-		if _, err := tx.Exec(ctx, `DELETE FROM songbook_entries WHERE songbook_id = $1 AND variant_id = $2`, sbID, variantID); err != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM songbook_entries WHERE songbook_id = $1 AND variant_id = $2`, defaultSongbookID, variantID); err != nil {
 			return 0, err
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO songbook_entries (songbook_id, variant_id, added_by_person_id) VALUES ($1, $2, $3)
-			ON CONFLICT (songbook_id, variant_id) DO NOTHING`, sbID, newID, forkerID); err != nil {
+			ON CONFLICT (songbook_id, variant_id) DO NOTHING`, defaultSongbookID, newID, forkerID); err != nil {
 			return 0, err
 		}
 	case "band":
-		var sbID int64
-		if err := tx.QueryRow(ctx, `SELECT id FROM songbooks WHERE owner_kind='band' AND owner_band_id=$1 AND is_default`, bandID).Scan(&sbID); err != nil {
-			return 0, err
-		}
-		if _, err := tx.Exec(ctx, `DELETE FROM songbook_entries WHERE songbook_id = $1 AND variant_id = $2`, sbID, variantID); err != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM songbook_entries WHERE songbook_id = $1 AND variant_id = $2`, defaultSongbookID, variantID); err != nil {
 			return 0, err
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO songbook_entries (songbook_id, variant_id, added_by_person_id) VALUES ($1, $2, $3)`,
-			sbID, newID, forkerID); err != nil {
+			defaultSongbookID, newID, forkerID); err != nil {
 			return 0, err
 		}
 	case "school": // same pointer-swap shape as "band", school_catalog_entries table (unchanged by this phase).
