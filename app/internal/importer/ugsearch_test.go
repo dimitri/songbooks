@@ -87,3 +87,43 @@ func TestLyricsSimilarity(t *testing.T) {
 		t.Errorf("unrelated lyrics scored %.2f, want a low score", sim)
 	}
 }
+
+// TestMatchesQueryRejectsWrongSong locks in real mismatches a bulk
+// Bands Camp re-import turned up live: Ultimate Guitar's own search
+// handed back a popular, well-rated, but completely unrelated song as
+// the top "Chords" hit for each of these queries.
+func TestMatchesQueryRejectsWrongSong(t *testing.T) {
+	cases := []struct {
+		title, artist string
+		r             UGSearchResult
+	}{
+		{"I Wish", "Stevie Wonder", UGSearchResult{SongName: "I Just Called To Say I Love You", ArtistName: "Stevie Wonder"}},
+		{"Killing In The Name", "Rage Against The Machine", UGSearchResult{SongName: "Something In The Orange", ArtistName: "Zach Bryan"}},
+		{"Long Train Running", "The Doobie Brothers", UGSearchResult{SongName: "Listen To The Music", ArtistName: "The Doobie Brothers"}},
+		{"Shake Everything You've Got", "Maceo Parker", UGSearchResult{SongName: "Youve Got Everything Now", ArtistName: "The Smiths"}},
+		{"Should I Stay or Should I Go", "The Clash", UGSearchResult{SongName: "Tangled - I See The Light", ArtistName: "Misc Cartoons"}},
+		{"You Really Got Me", "Van Halen", UGSearchResult{SongName: "Nothing You Can Take From Me", ArtistName: "Misc Soundtrack"}},
+		{"Blue Jean Blues", "ZZ Top", UGSearchResult{SongName: "Kodom", ArtistName: "Blue Jeans"}},
+	}
+	for _, c := range cases {
+		if matchesQuery(c.title, c.artist, c.r) {
+			t.Errorf("matchesQuery(%q, %q, %+v) = true, want false", c.title, c.artist, c.r)
+		}
+	}
+}
+
+func TestMatchesQueryAcceptsRealMatch(t *testing.T) {
+	cases := []struct {
+		title, artist string
+		r             UGSearchResult
+	}{
+		{"Hotel California", "Eagles", UGSearchResult{SongName: "Hotel California", ArtistName: "Eagles"}},
+		{"Master Blaster (Jammin')", "Stevie Wonder", UGSearchResult{SongName: "Master Blaster Jammin", ArtistName: "Stevie Wonder"}},
+		{"I Love Rock 'n' Roll", "Joan Jett", UGSearchResult{SongName: "I Love Rock N Roll", ArtistName: "Joan Jett And The Blackhearts"}},
+	}
+	for _, c := range cases {
+		if !matchesQuery(c.title, c.artist, c.r) {
+			t.Errorf("matchesQuery(%q, %q, %+v) = false, want true", c.title, c.artist, c.r)
+		}
+	}
+}

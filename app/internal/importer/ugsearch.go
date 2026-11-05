@@ -107,6 +107,21 @@ func SearchUG(title, artist string) ([]UGSearchResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Ultimate Guitar's own search is a loose/fuzzy match: for an unusual
+	// title it has been observed to hand back a completely different,
+	// highly-rated song rather than no result at all (e.g. querying
+	// "Rage Against The Machine Killing In The Name" surfaced a popular
+	// Zach Bryan song as the top "Chords" hit). Popularity-sorting that
+	// garbage would just pick the wrong song with high confidence, so
+	// results that don't actually resemble what was asked for are
+	// dropped before ranking ever sees them — see matchesQuery.
+	filtered := results[:0]
+	for _, r := range results {
+		if matchesQuery(title, artist, r) {
+			filtered = append(filtered, r)
+		}
+	}
+	results = filtered
 	sort.SliceStable(results, func(i, j int) bool {
 		ri, rj := searchTypeRank(results[i].Type), searchTypeRank(results[j].Type)
 		if ri != rj {
@@ -117,11 +132,42 @@ func SearchUG(title, artist string) ([]UGSearchResult, error) {
 	return results, nil
 }
 
+// minTitleMatch/minArtistMatch are deliberately lenient Jaccard
+// thresholds (not near-1.0): the same song's title/artist is spelled
+// slightly differently across sources often enough (punctuation,
+// "feat.", parenthetical subtitles) that demanding a near-exact match
+// would reject good matches as often as it catches wrong ones — the
+// goal is only to catch a DIFFERENT song, not to penalize spelling.
+const (
+	minTitleMatch  = 0.25
+	minArtistMatch = 0.3
+)
+
+// matchesQuery is SearchUG's sanity gate: the result's own title must
+// share real vocabulary with the query title (catches "different song
+// by the same artist" — e.g. "Long Train Running" vs. the same band's
+// "Listen To The Music"), and, when an artist was given, the result's
+// artist must likewise resemble it (catches "same-ish words, totally
+// different artist" — e.g. "Shake Everything You've Got" by Maceo
+// Parker vs. The Smiths' "You've Got Everything Now"). Both checks are
+// independent and both must pass; relying on only one misses either
+// failure mode (confirmed against real UG search results for both).
+func matchesQuery(queryTitle, queryArtist string, r UGSearchResult) bool {
+	if jaccard(normalizeWords(queryTitle), normalizeWords(r.SongName)) < minTitleMatch {
+		return false
+	}
+	if strings.TrimSpace(queryArtist) != "" &&
+		jaccard(normalizeWords(queryArtist), normalizeWords(r.ArtistName)) < minArtistMatch {
+		return false
+	}
+	return true
+}
+
 func popularityScore(r UGSearchResult) float64 {
 	return r.Rating * math.Log10(float64(r.Votes)+1)
 }
 
-// wordRE splits normalized text into words for lyricsSimilarity.
+// wordRE splits normalized text into words for lyricsSimilarity/jaccard.
 var wordRE = regexp.MustCompile(`[a-z0-9']+`)
 
 // normalizeLyricsForCompare strips this app's/UG's own chord markup
@@ -132,20 +178,24 @@ var wordRE = regexp.MustCompile(`[a-z0-9']+`)
 func normalizeLyricsForCompare(s string) []string {
 	s = chTagRE.ReplaceAllString(s, "")
 	s = regexp.MustCompile(`\[[^\]]*\]`).ReplaceAllString(s, " ")
-	s = strings.ToLower(s)
-	return wordRE.FindAllString(s, -1)
+	return normalizeWords(s)
 }
 
-// lyricsSimilarity scores how much two lyric texts overlap, 0..1, as a
-// Jaccard index over normalized word SETS (not sequences — verse/chorus
-// repeat structure and line-wrap differ enough between sources that a
-// sequence-alignment score would under-count a genuine match; a shared-
-// vocabulary measure is the robust, simple choice here, not a stand-in
-// for real text diffing). Deliberately coarse: this is a sanity check
-// ("is this plausibly the same song's lyrics"), not a precision edit
-// distance.
-func lyricsSimilarity(a, b string) float64 {
-	wa, wb := normalizeLyricsForCompare(a), normalizeLyricsForCompare(b)
+// normalizeWords lowercases and splits plain text (a title, an artist
+// name — no chord markup to strip) into its word stream, for jaccard.
+func normalizeWords(s string) []string {
+	return wordRE.FindAllString(strings.ToLower(s), -1)
+}
+
+// jaccard scores how much two word streams overlap, 0..1, as a Jaccard
+// index over normalized word SETS (not sequences — word order varies
+// too much between independent sources, whether that's two lyric
+// transcriptions or a search query vs. a result's own title, for a
+// sequence-alignment score to be the right tool here; a shared-
+// vocabulary measure is the robust, simple choice). Deliberately coarse
+// on purpose: every caller uses this as a sanity check ("is this
+// plausibly the same thing"), not a precision edit distance.
+func jaccard(wa, wb []string) float64 {
 	if len(wa) == 0 || len(wb) == 0 {
 		return 0
 	}
@@ -168,6 +218,16 @@ func lyricsSimilarity(a, b string) float64 {
 		return 0
 	}
 	return float64(inter) / float64(union)
+}
+
+// lyricsSimilarity scores how much two lyric texts overlap — see
+// jaccard's doc comment; 0.5 (minLyricsSimilarity) firmly rejects a
+// wrong song (two different songs' lyrics essentially never share half
+// their vocabulary) while tolerating normal transcription variance
+// (repeated choruses written out once vs "x2", spelled-out ad-libs,
+// bracketed backing vocals).
+func lyricsSimilarity(a, b string) float64 {
+	return jaccard(normalizeLyricsForCompare(a), normalizeLyricsForCompare(b))
 }
 
 // allLyrics concatenates every section's lyrics, for a whole-song
