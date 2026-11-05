@@ -177,6 +177,25 @@ calculus above needs re-deciding, not just re-confirming:
   uploaded (no incremental audio-only backup), and Postgres's own MVCC/
   TOAST machinery isn't designed for the write/read pattern a large binary
   blob table produces at real traffic.
+  **Sketch, not yet scoped in detail:** keep `song_audio`'s metadata row
+  (variant_id, content_type, byte_size, sha256, source_url) in Postgres —
+  it's small and relational — but replace the `bytea` column with an
+  `object_key` pointing at a bucket (Cloudflare R2 is the natural pick for
+  a small/self-hosted deployment: S3-compatible API, no egress fee, which
+  matters once reference audio is actually being streamed by listeners
+  rather than just stored). The app mints a short-lived presigned GET URL
+  per request instead of serving bytes itself; upload (both the yt-dlp
+  path and a direct file-input) streams straight to the bucket via a
+  presigned PUT, so the app process never holds a whole MP3 in memory.
+  Migration path: a one-off script reads every existing `song_audio.data`
+  row, PUTs it to the bucket, records the `object_key`, then the column
+  drops — straightforward since every row already carries its own sha256
+  for post-migration integrity verification. This becomes worth doing
+  once either (a) total audio size meaningfully slows `pg_dump`/
+  `pg_restore`, or (b) the jam-video-upload idea (see
+  `docs/jam-videos-and-paid-features.md`) ships, since video files are
+  10–100x an MP3's size and make the `bytea` approach's weaknesses acute
+  immediately rather than gradually.
 - **A real rights/takedown process.** Even self-hosted, a public or
   commercial instance needs a DMCA contact, a takedown workflow, and
   almost certainly a licensing conversation (sync licenses, mechanical
