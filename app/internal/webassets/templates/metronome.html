@@ -128,7 +128,13 @@
 {{template "desktop-sidebar" .Me}}
 <div class="app-content">
 <header class="app-header">
-  {{if .BackURL}}<a href="{{.BackURL}}" class="back-link">&larr; {{if .BackTitle}}{{.BackTitle}}{{else}}back{{end}}</a>{{else}}{{template "home-link"}}{{end}}
+  {{/* Every other .back-link in the app pairs the class with the shared
+       icon-back SVG, not a literal "&larr;" glyph — this one page had
+       drifted onto its own text arrow (audit, Nov 2026: the same
+       "three spellings of the same link" pattern home-link's own doc
+       comment already called out and fixed once, just not swept here
+       too). */}}
+  {{if .BackURL}}<a href="{{.BackURL}}" class="back-link">{{template "icon-back"}} {{if .BackTitle}}{{.BackTitle}}{{else}}back{{end}}</a>{{else}}{{template "home-link"}}{{end}}
   <h1>Metronome</h1>
   <nav class="song-nav">
     <button id="theme-toggle" class="icon-btn" type="button" title="toggle light/dark">{{template "icon-theme"}}</button>
