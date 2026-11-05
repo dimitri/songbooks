@@ -293,17 +293,27 @@ table.card { padding: 0; }
    scoped to this one table, not every .table-scroll table in the app,
    since most of those are denser data grids (member/song lists) where
    horizontal scroll is the better tradeoff, not a short settings list. */
+/* .table-stack — the same technique, generalized to a reusable class
+   (admin.html's five tables: People, Communities, Pending accounts,
+   Band & community invite links, Single-use invites — reported back as
+   still unusable on mobile even with .table-scroll's horizontal-scroll
+   fallback, since side-scrolling a dense admin table on a phone is
+   real friction, not just a visual nit). Any `<td>` needs its own
+   `data-label="Column Name"` for the stacked view's inline label; a
+   cell with genuinely no useful label (an actions column, say) can
+   omit it and just render its buttons with no heading. */
 @media (max-width: 600px) {
-  .passkeys-table thead { display: none; }
-  .passkeys-table, .passkeys-table tbody, .passkeys-table tr, .passkeys-table td {
+  .passkeys-table thead, .table-stack thead { display: none; }
+  .passkeys-table, .passkeys-table tbody, .passkeys-table tr, .passkeys-table td,
+  .table-stack, .table-stack tbody, .table-stack tr, .table-stack td {
     display: block; width: 100%;
   }
-  .passkeys-table tr {
+  .passkeys-table tr, .table-stack tr {
     border-bottom: 1px solid var(--border); padding: 0.6rem 0; margin-bottom: 0.4rem;
   }
-  .passkeys-table tr:last-child { border-bottom: none; }
-  .passkeys-table td { padding: 0.2rem 0; }
-  .passkeys-table td[data-label]::before {
+  .passkeys-table tr:last-child, .table-stack tr:last-child { border-bottom: none; }
+  .passkeys-table td, .table-stack td { padding: 0.2rem 0; }
+  .passkeys-table td[data-label]::before, .table-stack td[data-label]::before {
     content: attr(data-label); display: block;
     font-size: 0.8rem; font-weight: 600; color: var(--fg-muted); margin-bottom: 0.15rem;
   }

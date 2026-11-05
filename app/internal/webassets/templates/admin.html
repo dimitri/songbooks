@@ -48,15 +48,15 @@
   <section class="admin-panel" data-panel="people">
     <div class="card">
       <h3>People</h3>
-      <div class="table-scroll"><table style="width:100%">
+      <div class="table-scroll"><table class="table-stack" style="width:100%">
         <thead><tr><th>Username</th><th>Display name</th><th>Created</th><th>Admin</th><th></th></tr></thead>
         <tbody>
         {{range .People}}
           <tr>
-            <td><a href="/admin/people/{{.ID}}">{{.Username}}</a></td>
-            <td>{{.DisplayName}}</td>
-            <td>{{.CreatedAt.Format "2006-01-02"}}</td>
-            <td>{{if .IsAdmin}}yes{{else}}no{{end}}</td>
+            <td data-label="Username"><a href="/admin/people/{{.ID}}">{{.Username}}</a></td>
+            <td data-label="Display name">{{.DisplayName}}</td>
+            <td data-label="Created">{{.CreatedAt.Format "2006-01-02"}}</td>
+            <td data-label="Admin">{{if .IsAdmin}}yes{{else}}no{{end}}</td>
             <td>
               {{if ne .ID $.Me.ID}}
               <form method="post" action="/admin/people/{{.ID}}/admin" style="display:inline">
@@ -80,15 +80,15 @@
   <section class="admin-panel" data-panel="communities" hidden>
     <div class="card">
       <h3>Communities</h3>
-      <div class="table-scroll"><table style="width:100%">
+      <div class="table-scroll"><table class="table-stack" style="width:100%">
         <thead><tr><th>Name</th><th>Staff</th><th>Members</th><th>Created</th><th></th></tr></thead>
         <tbody>
         {{range .Communities}}
           <tr>
-            <td>{{.Name}}</td>
-            <td>{{.StaffCount}}</td>
-            <td>{{.MemberCount}}</td>
-            <td>{{.CreatedAt.Format "2006-01-02"}}</td>
+            <td data-label="Name">{{.Name}}</td>
+            <td data-label="Staff">{{.StaffCount}}</td>
+            <td data-label="Members">{{.MemberCount}}</td>
+            <td data-label="Created">{{.CreatedAt.Format "2006-01-02"}}</td>
             <td><a href="/schools/{{.ID}}">open</a></td>
           </tr>
         {{else}}
@@ -108,16 +108,16 @@
     <div class="card">
       <h3>Pending accounts</h3>
       <p class="hint">People already added to a roster (with real memberships) who haven't claimed their account yet — their invite link completes exactly this person, whatever band(s) or community they're already on.</p>
-      <div class="table-scroll"><table style="width:100%">
+      <div class="table-scroll"><table class="table-stack" style="width:100%">
         <thead><tr><th>Name</th><th>Memberships</th><th>Invited by</th><th>Added</th><th></th></tr></thead>
         <tbody>
         {{range .ShellPeople}}
           <tr>
-            <td><a href="/admin/people/{{.PersonID}}">{{.DisplayName}}</a></td>
-            <td>{{range .Memberships}}<span class="roster-instrument-badge">{{.Name}} ({{.Status}})</span> {{end}}</td>
-            <td>{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>unknown</em>{{end}}</td>
-            <td>{{.CreatedAt.Format "2006-01-02"}}</td>
-            <td>
+            <td data-label="Name"><a href="/admin/people/{{.PersonID}}">{{.DisplayName}}</a></td>
+            <td data-label="Memberships">{{range .Memberships}}<span class="roster-instrument-badge">{{.Name}} ({{.Status}})</span> {{end}}</td>
+            <td data-label="Invited by">{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>unknown</em>{{end}}</td>
+            <td data-label="Added">{{.CreatedAt.Format "2006-01-02"}}</td>
+            <td data-label="Invite link">
               {{if .OpenInviteToken}}
               <span class="invite-link-row">
                 <code class="invite-link-url" data-url="/invite/{{.OpenInviteToken}}">/invite/{{.OpenInviteToken}}</code>
@@ -155,15 +155,15 @@
     <div class="card">
       <h3>Band &amp; community invite links</h3>
       <p class="hint">Every roster-link invite ever created, newest open ones first. A slot shows who claimed it, or stays open for anyone still on the list.</p>
-      <div class="table-scroll"><table style="width:100%">
+      <div class="table-scroll"><table class="table-stack" style="width:100%">
         <thead><tr><th>Target</th><th>Created</th><th>Status</th><th>Slots</th><th></th></tr></thead>
         <tbody>
         {{range .GroupInvites}}
           <tr>
-            <td>{{.TargetKind}}: {{if .TargetName}}{{.TargetName}}{{else}}<em>(deleted)</em>{{end}}</td>
-            <td>{{.CreatedAt.Format "2006-01-02"}}</td>
-            <td>{{if .ClosedAt}}closed {{.ClosedAt.Format "2006-01-02"}}{{else}}open{{end}}</td>
-            <td>
+            <td data-label="Target">{{.TargetKind}}: {{if .TargetName}}{{.TargetName}}{{else}}<em>(deleted)</em>{{end}}</td>
+            <td data-label="Created">{{.CreatedAt.Format "2006-01-02"}}</td>
+            <td data-label="Status">{{if .ClosedAt}}closed {{.ClosedAt.Format "2006-01-02"}}{{else}}open{{end}}</td>
+            <td data-label="Slots">
               {{range .Slots}}
                 <div>{{.DisplayName}}{{if .Instrument}} ({{.Instrument}}){{end}}:
                   {{if .ClaimedByName}}<strong>joined as {{.ClaimedByName}}</strong>{{if .ClaimedAt}} on {{.ClaimedAt.Format "2006-01-02"}}{{end}}
@@ -191,16 +191,16 @@
     <div class="card">
       <h3>Single-use invites</h3>
       <p class="hint">Plain signup invites and direct band invites — single-use, and removed from this list the moment they're accepted (so what's left here is either still open or sat unused past its expiry — exactly the "did it expire?" question this answers).</p>
-      <div class="table-scroll"><table style="width:100%">
+      <div class="table-scroll"><table class="table-stack" style="width:100%">
         <thead><tr><th>Kind</th><th>Created by</th><th>Created</th><th>Expires</th><th>Status</th></tr></thead>
         <tbody>
         {{range .PlainInvites}}
           <tr>
-            <td>{{if .BandID}}band: {{.BandName}}{{else}}plain signup{{end}}</td>
-            <td>{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>unknown</em>{{end}}</td>
-            <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
-            <td>{{.ExpiresAt.Format "2006-01-02 15:04"}}</td>
-            <td>{{if .ExpiresAt.After now}}<strong>still open</strong>{{else}}expired, never used{{end}}</td>
+            <td data-label="Kind">{{if .BandID}}band: {{.BandName}}{{else}}plain signup{{end}}</td>
+            <td data-label="Created by">{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>unknown</em>{{end}}</td>
+            <td data-label="Created">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+            <td data-label="Expires">{{.ExpiresAt.Format "2006-01-02 15:04"}}</td>
+            <td data-label="Status">{{if .ExpiresAt.After now}}<strong>still open</strong>{{else}}expired, never used{{end}}</td>
           </tr>
         {{else}}
           <tr><td colspan="5" class="hint">No single-use invites pending.</td></tr>
