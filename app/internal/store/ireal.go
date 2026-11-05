@@ -78,6 +78,7 @@ func (st *Store) ListIRealFetches(ctx context.Context) ([]IRealFetch, error) {
 // IRealSong is one cached, normalized iReal Pro chart.
 type IRealSong struct {
 	ID                          int64
+	FetchID                     int64
 	Title, Composer, Style, Key string
 	TimeSigNum, TimeSigDen      int
 	GridText                    string
@@ -99,18 +100,31 @@ type IRealSong struct {
 func (st *Store) FindIRealSong(ctx context.Context, title string) (*IRealSong, error) {
 	var s IRealSong
 	err := st.db.QueryRow(ctx, `
-		SELECT s.id, s.title, s.composer, s.style, s.key, s.time_sig_num, s.time_sig_den,
+		SELECT s.id, s.fetch_id, s.title, s.composer, s.style, s.key, s.time_sig_num, s.time_sig_den,
 		       s.grid_text, s.reaction_count, f.source_url
 		FROM ireal_songs s
 		JOIN ireal_library_fetches f ON f.id = s.fetch_id
 		WHERE s.norm_title = lower(trim($1))
 		ORDER BY s.reaction_count DESC
-		LIMIT 1`, title).Scan(&s.ID, &s.Title, &s.Composer, &s.Style, &s.Key,
+		LIMIT 1`, title).Scan(&s.ID, &s.FetchID, &s.Title, &s.Composer, &s.Style, &s.Key,
 		&s.TimeSigNum, &s.TimeSigDen, &s.GridText, &s.ReactionCount, &s.SourceURL)
 	if err != nil {
 		return nil, err
 	}
 	return &s, nil
+}
+
+// GetIRealFetchRawBody returns the raw irealb:// cipher bytes cached
+// for fetchID — re-parsing this (irealpro.ParseURL) recovers a live
+// *Tune with its own real section letters intact, unlike IRealSong's
+// own GridText, which is already flattened to one simplified string
+// and has lost that per-section structure. Used by a redo/import tool
+// that wants a proper per-section merge (irealpro.MergePreviewSegments)
+// rather than just one whole-song reference grid.
+func (st *Store) GetIRealFetchRawBody(ctx context.Context, fetchID int64) (string, error) {
+	var raw string
+	err := st.db.QueryRow(ctx, `SELECT raw_body FROM ireal_library_fetches WHERE id = $1`, fetchID).Scan(&raw)
+	return raw, err
 }
 
 // CountIRealSongs reports the cache's total size, for coverage reporting.
