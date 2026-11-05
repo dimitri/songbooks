@@ -120,6 +120,44 @@ func PitchClass(root string) int {
 	return ((pc % 12) + 12) % 12
 }
 
+// sharpNames/flatNames mirror song.js's own SHARP_NAMES/FLAT_NAMES
+// tables (the live transpose feature already in the Play view) — kept
+// in sync with that spelling convention rather than inventing a second
+// one, since a server-side transpose (the iReal/UG chord merge) and the
+// client-side one should spell the same pitch class the same way.
+var (
+	sharpNames = [12]string{"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
+	flatNames  = [12]string{"C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"}
+)
+
+// SpellPitchClass renders pc (0-11, C=0) as a root name, sharp-spelled
+// unless flats is true — the inverse of PitchClass.
+func SpellPitchClass(pc int, flats bool) string {
+	pc = ((pc % 12) + 12) % 12
+	if flats {
+		return flatNames[pc]
+	}
+	return sharpNames[pc]
+}
+
+// Transpose shifts sym's root (and bass, if it has one) by semitones,
+// re-spelling with SpellPitchClass — the quality (m7, sus4, whatever)
+// passes through unchanged, same as the client-side transpose feature.
+// A symbol with no recognizable root (N.C., %, already-blank) passes
+// through unchanged.
+func Transpose(sym string, semitones int, flats bool) string {
+	p := Split(sym)
+	if p.Root == "" {
+		return sym
+	}
+	root := SpellPitchClass(PitchClass(p.Root)+semitones, flats)
+	out := root + p.Quality
+	if p.Bass != "" {
+		out += "/" + SpellPitchClass(PitchClass(p.Bass)+semitones, flats)
+	}
+	return out
+}
+
 func glyphs(s string) string {
 	s = strings.ReplaceAll(s, "b", flatGlyph)
 	s = strings.ReplaceAll(s, "#", sharpGlyph)

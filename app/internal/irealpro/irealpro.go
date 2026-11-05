@@ -109,13 +109,16 @@ func cleanupChordString(s string) string {
 }
 
 var (
-	bracketRE   = regexp.MustCompile(`[\[\]]`)
-	commentRE   = regexp.MustCompile(`<.*?>`)
-	altChordRE  = regexp.MustCompile(`\([^)]*\)`)
-	fermataRE   = regexp.MustCompile(`f`)
-	lNotAltRE   = regexp.MustCompile(`(^|[^a])l([^t]|$)`)
-	sNotSusRE   = regexp.MustCompile(`(^|[^u])s([^u]|$)`)
-	sectionRE   = regexp.MustCompile(`\*\w`)
+	bracketRE  = regexp.MustCompile(`[\[\]]`)
+	commentRE  = regexp.MustCompile(`<.*?>`)
+	altChordRE = regexp.MustCompile(`\([^)]*\)`)
+	fermataRE  = regexp.MustCompile(`f`)
+	lNotAltRE  = regexp.MustCompile(`(^|[^a])l([^t]|$)`)
+	sNotSusRE  = regexp.MustCompile(`(^|[^u])s([^u]|$)`)
+	// Captures the letter so removeAnnotations can turn it into a
+	// section-boundary sentinel instead of just discarding it — see
+	// getMeasuresWithSections.
+	sectionRE   = regexp.MustCompile(`\*(\w)`)
 	timeSigRE   = regexp.MustCompile(`T\d+`)
 	augStarRE   = regexp.MustCompile(`\+\*`)
 	markersRE   = regexp.MustCompile(`U|S|Q|N\d`)
@@ -137,7 +140,13 @@ func removeAnnotations(s string) string {
 	s = fermataRE.ReplaceAllString(s, "")
 	s = lNotAltRE.ReplaceAllString(s, "$1$2")
 	s = sNotSusRE.ReplaceAllString(s, "$1$2")
-	s = sectionRE.ReplaceAllString(s, "")
+	// Turned into its own bracketed "measure" (never merged with real
+	// chord content) rather than discarded, so getMeasuresWithSections
+	// can locate where each of iReal's own section letters begins in
+	// the final, fully-expanded (repeats/codas resolved) bar sequence —
+	// the section-aware merge needs real boundaries, not just one long
+	// flat chart.
+	s = sectionRE.ReplaceAllString(s, "|§$1§|")
 	s = timeSigRE.ReplaceAllString(s, "")
 	s = augStarRE.ReplaceAllString(s, "+")
 	return s
@@ -298,26 +307,51 @@ var measureSplitRE = regexp.MustCompile(`\||LZ|K|Z|\{|\}|\[|\]`)
 // fillLongRepeats/fillCodas/fillSingleDoubleRepeats/fillSlashes), empty
 // measures dropped.
 func getMeasures(chordString string) ([]string, error) {
+	measures, _, err := getMeasuresWithSections(chordString)
+	return measures, err
+}
+
+// sectionBoundary marks where one of iReal's own section letters (*A,
+// *B, *i for intro, ...) begins in the fully-expanded (repeats/codas
+// already resolved) measure list — Index is approximate when a "r"
+// (two-bar repeat) shorthand later in the same tune grows the array,
+// since boundaries are recorded against the pre-expansion index space;
+// good enough for carving a chart into natural chunks (the section-
+// aware merge's actual use), not claimed to be sample-accurate.
+type sectionBoundary struct {
+	Letter string
+	Index  int
+}
+
+var sectionTokenRE = regexp.MustCompile(`^§(\w)§$`)
+
+func getMeasuresWithSections(chordString string) ([]string, []sectionBoundary, error) {
 	s := cleanupChordString(chordString)
 	s = removeAnnotations(s)
 	s = fillLongRepeats(s)
 	s, err := fillCodas(s)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	raw := measureSplitRE.Split(s, -1)
 	var measures []string
+	var bounds []sectionBoundary
 	for _, m := range raw {
 		m = strings.ReplaceAll(m, " ", "")
-		if strings.TrimSpace(m) != "" {
-			measures = append(measures, m)
+		if m == "" {
+			continue
 		}
+		if mm := sectionTokenRE.FindStringSubmatch(m); mm != nil {
+			bounds = append(bounds, sectionBoundary{Letter: mm[1], Index: len(measures)})
+			continue
+		}
+		measures = append(measures, m)
 	}
 	measures = fillSingleDoubleRepeats(measures)
 	measures = fillSlashes(measures)
 	measures = addSpaceBetweenChords(measures)
 	measures = replaceNoChords(measures)
-	return measures, nil
+	return measures, bounds, nil
 }
 
 var timeSigRE2 = regexp.MustCompile(`T(\d)(\d)`)
@@ -340,6 +374,14 @@ type Tune struct {
 	TimeSigNum, TimeSigDen      int
 	ChordString                 string   // cleaned, human-readable chord text
 	Measures                    []string // one entry per bar, already flattened (repeats/codas/shorthand resolved)
+	// Sections marks where iReal's own section letters (*A, *B, *i for
+	// intro, ...) begin within Measures — see sectionBoundary. iReal
+	// doesn't name these "Verse"/"Chorus" the way this app's own
+	// sections are labeled, just generic letters in appearance order;
+	// matching them up to this app's own section labels is the caller's
+	// job (see the section-aware merge), this package only exposes the
+	// boundaries themselves.
+	Sections []sectionBoundary
 }
 
 // splitFields splits a tune's "=" separated field list the same lossy
@@ -403,7 +445,7 @@ func parseTune(tuneString string) (*Tune, error) {
 	raw := unscrambleChordString(scrambled)
 	cleaned := cleanupChordString(raw)
 	numSig, denSig := getTimeSignature(cleaned)
-	measures, err := getMeasures(cleaned)
+	measures, bounds, err := getMeasuresWithSections(cleaned)
 	if err != nil {
 		return nil, fmt.Errorf("tune %q: %w", title, err)
 	}
@@ -412,7 +454,7 @@ func parseTune(tuneString string) (*Tune, error) {
 		Title: strings.TrimSpace(title), Composer: strings.TrimSpace(composer),
 		Style: strings.TrimSpace(style), Key: strings.TrimSpace(key),
 		TimeSigNum: numSig, TimeSigDen: denSig,
-		ChordString: cleaned, Measures: measures,
+		ChordString: cleaned, Measures: measures, Sections: bounds,
 	}, nil
 }
 

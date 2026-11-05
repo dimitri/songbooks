@@ -64,3 +64,26 @@ func TestHalfDimAndDim(t *testing.T) {
 		t.Errorf("Render(\"Am9b5\") = %q, want ø glyph with a surviving \"9\" extension", got)
 	}
 }
+
+func TestTranspose(t *testing.T) {
+	cases := []struct {
+		sym       string
+		semitones int
+		flats     bool
+		want      string
+	}{
+		{"C", 2, false, "D"},
+		{"Em7", -1, false, "D#m7"},
+		{"Em7", -1, true, "Ebm7"},
+		{"G/B", 1, false, "G#/C"},
+		{"N.C.", 3, false, "N.C."},
+		{"%", 1, false, "%"},
+		{"Bb-7", -1, true, "A-7"},
+	}
+	for _, c := range cases {
+		got := Transpose(c.sym, c.semitones, c.flats)
+		if got != c.want {
+			t.Errorf("Transpose(%q, %d, flats=%v) = %q, want %q", c.sym, c.semitones, c.flats, got, c.want)
+		}
+	}
+}
