@@ -46,7 +46,7 @@
     <div id="membership-rows" class="form-stack">
     {{range .Memberships}}
       <div class="import-row" data-kind="{{.Kind}}" data-target-id="{{.ID}}">
-        <strong style="min-width:9rem">{{if eq .Kind "band"}}band{{else}}community{{end}}: {{.Name}}</strong>
+        <strong class="membership-row-label">{{if eq .Kind "band"}}band{{else}}community{{end}}: {{.Name}}</strong>
         <select class="membership-role-select">
           {{if eq .Kind "band"}}
           <option value="core" {{if eq .Status "core"}}selected{{end}}>core</option>
@@ -65,7 +65,7 @@
     </div>
   </div>
 
-  <div class="card" style="max-width:480px">
+  <div class="card card--narrow-lg">
     <h3>Add a membership</h3>
     <div class="form-stack">
       <div class="field">

@@ -590,17 +590,17 @@
 <div class="edit-drawer-backdrop" id="notes-drawer-backdrop" hidden></div>
 <div class="edit-drawer card" id="notes-drawer" role="dialog" aria-modal="true" aria-label="Notes on {{.Title}}" hidden>
   <div class="edit-drawer-head">
-    <h2 style="margin:0">Notes</h2>
+    <h2>Notes</h2>
     <button id="notes-drawer-close" class="icon-btn" type="button" title="close">{{template "icon-close"}}</button>
   </div>
   <div class="edit-drawer-body" id="notes-drawer-body" data-variant-id="{{.VariantID}}">
     <p class="hint">Private notes are visible only to you; shared notes are visible to anyone who can view this song.</p>
     {{range .Sections}}
-    <section class="prep-panel notes-section" data-section-index="{{.Index}}" style="display:block;padding:.75em 0;border-bottom:1px solid var(--border)">
-      <h3 style="margin:.25em 0">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}</h3>
+    <section class="prep-panel notes-section" data-section-index="{{.Index}}">
+      <h3>{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}</h3>
       <ul class="notes-list" data-section-index="{{.Index}}"></ul>
       <form class="note-add-form" data-section-index="{{.Index}}">
-        <textarea class="note-body" rows="2" placeholder="e.g. watch the key change here" style="width:100%"></textarea>
+        <textarea class="note-body" rows="2" placeholder="e.g. watch the key change here"></textarea>
         <label><input type="radio" name="visibility-{{.Index}}" value="private" checked> private</label>
         <label><input type="radio" name="visibility-{{.Index}}" value="shared"> shared</label>
         <button type="submit">add note</button>

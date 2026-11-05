@@ -53,7 +53,15 @@
   --bg-sunken: #efe6d3;
   --fg: #241e18;
   --fg-muted: #5f554a;
-  --fg-faint: #948a79;
+  /* --fg-faint, --ok, and --warn below are darkened from their original
+     hues (audit, Nov 2026 — computed WCAG contrast against their own
+     backgrounds came in at 3.02:1 / 3.56:1 / 2.94:1, all failing AA's
+     4.5:1 normal-text minimum). Each is a straight lightness reduction
+     in HSV with hue/saturation untouched, so the palette's character
+     — terracotta/mustard-gold warmth — survives; only the "how pale can
+     this get before stage lighting eats it" margin changed. All three
+     now clear 4.5:1 against their paired *-bg token. */
+  --fg-faint: #6f675b;
   --border: #e7dfcf;
   --border-strong: #241e18;
   --accent: #af4e39;
@@ -64,12 +72,26 @@
   --current-fg: #4a3f14;
   --danger: #a52f2f;
   --danger-bg: #f7e0dc;
-  --ok: #8a7a2e;
+  --ok: #685c23;
   --ok-bg: #f2ebc6;
-  --warn: #b8762a;
+  --warn: #8a5920;
   --warn-bg: #f5e3c4;
   --radius: 10px;
   --shadow: 0 1px 2px rgba(28, 22, 12, 0.06), 0 4px 14px rgba(28, 22, 12, 0.06);
+
+  /* Documented spacing scale (audit, Nov 2026): most of the file already
+     converges on these seven values by convention — this just names them
+     so the next page built picks one instead of inventing an eighth. Not
+     a hard requirement everywhere (the chart/tab-bar layouts have their
+     own geometry-driven numbers that don't belong on this scale), but
+     the default for ordinary padding/margin/gap. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
 
   /* Desktop sidebar: a dark surface on purpose, distinct from the rest of
      the (light) app — see .desktop-sidebar's own comment. Not swapped by
@@ -98,7 +120,11 @@
     --accent-contrast: #fff8f0;
     --current-bg: #e2d165;
     --current-fg: #241c08;
-    --danger: #d9584f;
+    /* --danger brightened from #d9584f (audit: 4.08:1 against
+       --danger-bg, failing AA) to #ef6157 — same hue, raised value —
+       now 4.87:1. --ok/--warn/--fg-faint's dark-mode pairs already
+       cleared AA (7.4:1 / 6.2:1 / 5.6:1) and are untouched. */
+    --danger: #ef6157;
     --danger-bg: #3a1a15;
     --ok: #cdbb63;
     --ok-bg: #2f2a17;
@@ -108,17 +134,21 @@
   }
 }
 
+/* Both explicit-override blocks below mirror the :root/@media values
+   above exactly — same post-audit contrast fixes apply here too, since
+   these win over prefers-color-scheme whenever a viewer picks a theme
+   explicitly via the toggle button. */
 body[data-theme="light"] {
-  --bg: #f6f1e7; --bg-raised: #fff; --bg-sunken: #efe6d3; --fg: #241e18; --fg-muted: #5f554a; --fg-faint: #948a79;
+  --bg: #f6f1e7; --bg-raised: #fff; --bg-sunken: #efe6d3; --fg: #241e18; --fg-muted: #5f554a; --fg-faint: #6f675b;
   --border: #e7dfcf; --border-strong: #241e18; --accent: #af4e39; --accent-bg: #f3ddd4; --accent-ink: #8a3d2c; --accent-contrast: #ffffff;
   --current-bg: #f2ebc6; --current-fg: #4a3f14;
-  --danger: #a52f2f; --danger-bg: #f7e0dc; --ok: #8a7a2e; --ok-bg: #f2ebc6; --warn: #b8762a; --warn-bg: #f5e3c4;
+  --danger: #a52f2f; --danger-bg: #f7e0dc; --ok: #685c23; --ok-bg: #f2ebc6; --warn: #8a5920; --warn-bg: #f5e3c4;
 }
 body[data-theme="dark"] {
   --bg: #1d1712; --bg-raised: #241d16; --bg-sunken: #140f0b; --fg: #f2e9dd; --fg-muted: #c4b8a0; --fg-faint: #9c8f78;
   --border: #3a322b; --border-strong: #f2e9dd; --accent: #d9684a; --accent-bg: #3a221a; --accent-ink: #f0a98c; --accent-contrast: #fff8f0;
   --current-bg: #e2d165; --current-fg: #241c08;
-  --danger: #d9584f; --danger-bg: #3a1a15; --ok: #cdbb63; --ok-bg: #2f2a17; --warn: #e0a24f; --warn-bg: #3a2a12;
+  --danger: #ef6157; --danger-bg: #3a1a15; --ok: #cdbb63; --ok-bg: #2f2a17; --warn: #e0a24f; --warn-bg: #3a2a12;
 }
 
 * { box-sizing: border-box; }
@@ -226,6 +256,14 @@ input[type="text"], input[type="url"], input[type="date"], input[type="number"] 
 table.card { padding: 0; }
 .card h2, .card h3 { margin: 0 0 0.5rem; font-size: 1.1rem; }
 .card > *:last-child { margin-bottom: 0; }
+/* A single short form (a settings/identity card, an "add one thing" card)
+   reads better capped well short of the page's full width than full-
+   bleed — two near-identical hardcoded `style="max-width:...px"` values
+   had drifted onto individual cards (admin.html, admin_person.html)
+   instead of a class; named modifiers here so a future narrow card reuses
+   one of these two instead of inventing a third pixel value. */
+.card--narrow { max-width: 420px; }
+.card--narrow-lg { max-width: 480px; }
 /* A row of same-purpose cards (the band repertoire's "new original" /
    "add by id" pair, the members page's three add-people methods) —
    side by side on a wide screen, stacked on a phone, instead of each
@@ -2742,6 +2780,14 @@ body.drawer-open { overflow: hidden; }
 .edit-topzone .prep-tab:hover { color: var(--fg); }
 .edit-topzone .prep-tab.active { background: var(--accent); color: var(--bg-raised); border-color: transparent; font-weight: 600; }
 .edit-drawer-body { padding: 1rem; flex: 1; overflow: auto; display: flex; flex-direction: column; min-height: 0; }
+/* Notes drawer (play.html): the drawer header's own <h2> and the per-
+   section notes blocks had their layout as four one-off inline `style=`
+   attributes instead of rules here — moved onto named classes so a
+   future spacing-scale pass can reach them. */
+.edit-drawer-head h2 { margin: 0; }
+.notes-section { display: block; padding: 0.75em 0; border-bottom: 1px solid var(--border); }
+.notes-section h3 { margin: 0.25em 0; }
+.note-body { width: 100%; }
 /* Tucked away and collapsed by default, well below Save — this erases
    lyrics/chords (not the song itself), which the old icon-only trash
    button in the top bar read as "delete the song" at a glance. */
@@ -2784,6 +2830,12 @@ body.drawer-open { overflow: hidden; }
 .import-url-label { display: block; font-size: 0.85rem; color: var(--fg-muted); margin-bottom: 0.3rem; }
 .import-url-label input[type="url"] { display: block; width: 100%; margin-top: 0.3rem; }
 .import-row { display: flex; align-items: center; gap: 0.75rem; margin: 0.75rem 0 0; flex-wrap: wrap; }
+/* admin_person.html's membership rows ("band: The Thing  [role v] [remove]")
+   need their label column to line up down the list — scoped to this one
+   row shape rather than widening every .import-row's <strong> (band_events/
+   event/project reuse .import-row for plain one-off rows with no column to
+   align). */
+.membership-row-label { min-width: 9rem; }
 .import-review-text { font-family: var(--font-mono); font-size: 0.9rem; }
 .import-strip-chords-label { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.5rem; font-size: 0.9rem; color: var(--fg-muted); }
 
