@@ -208,6 +208,21 @@ body {
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+/* General keyboard-focus ring (audit, Nov 2026): before this, only 4
+   :focus-visible rules existed, each scoped to one specific component —
+   everywhere else fell back to each browser's own default outline,
+   which is fine on a plain rectangular control but looks clipped/odd
+   on anything with border-radius:999px (.icon-btn, .segmented, pill
+   buttons generally — modern browsers round the native outline to the
+   element's own border-radius, but inconsistently across engines).
+   One rule here covers every focusable element by default; a component
+   with its own more specific :focus-visible rule (the real-chart
+   editing-cell outline this pattern borrows from, line ~3097) still
+   wins by specificity, so this is a floor, not an override. */
+:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+
 /* ---- Widgets: buttons, selects, segmented controls, cards --------------- */
 button, select, input { font-family: inherit; color: inherit; font-size: 0.9rem; }
 button {
@@ -427,7 +442,15 @@ table.card { padding: 0; }
   border-bottom: 1px dashed transparent;
 }
 #band-name-display:hover, #band-name-display:focus-visible {
-  border-bottom-color: var(--border-strong); background: var(--bg-sunken); outline: none;
+  border-bottom-color: var(--border-strong); background: var(--bg-sunken);
+}
+/* The background tint above is the hover cue, but alone it's a weak
+   focus signal for a keyboard user (audit, Nov 2026: outline:none here
+   previously had nothing real replacing it) — layer the standard
+   focus ring from the global :focus-visible rule below back on top,
+   inset so it doesn't collide with the dashed underline cue. */
+#band-name-display:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
 }
 .band-name-input {
   margin: 0; font-size: 1.25rem; font-weight: 700; font-family: inherit; color: inherit;
@@ -888,7 +911,11 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .metro-bpm-row { display: flex; align-items: center; justify-content: center; gap: 1rem; }
 .metro-bpm-display { display: flex; flex-direction: column; align-items: center; }
 .metro-bpm-display #bpm-input { width: 5.5rem; font-size: 3rem; font-weight: 700; text-align: center; border: none; background: none; padding: 0; }
-.metro-bpm-display #bpm-input:focus { outline: none; background: var(--bg-sunken); border-radius: 6px; }
+/* :focus, not :focus-visible, since this is the metronome's own huge
+   BPM number — the ring below (same fix as #band-name-display above)
+   joins the existing background tint instead of replacing it; outline:
+   none previously left only the tint as the focus cue. */
+.metro-bpm-display #bpm-input:focus { background: var(--bg-sunken); border-radius: 6px; outline: 2px solid var(--accent); outline-offset: 2px; }
 .metro-bpm-display .bpm-unit { font-size: 0.8rem; color: var(--fg-muted); }
 .metro-bpm-row .icon-btn { width: 2.6rem; height: 2.6rem; font-size: 1.3rem; }
 .metro-beat-dots { gap: 0.6rem; padding: 0.3rem 0; }

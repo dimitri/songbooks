@@ -46,7 +46,13 @@
      active tab is set client-side (global-tabbar-script, below) by
      matching location.pathname, so this partial needs no per-page data. */}}
 {{define "global-tabbar"}}
-<nav class="tabbar global-tabbar" id="global-tabbar" aria-label="main navigation">
+{{/* Both this nav and desktop-sidebar below are always in the DOM —
+     CSS hides whichever doesn't match the current breakpoint, it's
+     never removed — so a screen-reader user navigating by landmark
+     saw two identically-named "main navigation" regions with no way
+     to tell them apart by name alone (audit, Nov 2026). Distinct
+     labels fix that without touching either one's actual behavior. */}}
+<nav class="tabbar global-tabbar" id="global-tabbar" aria-label="main navigation (mobile)">
   <a href="/" data-path="/" data-label="Home">{{template "icon-home"}}</a>
   <a href="/songbooks" data-path="/songbooks" data-label="Songbooks">{{template "icon-catalog"}}</a>
   <a href="/catalog" data-path="/catalog" data-label="Catalog">{{template "icon-view"}}</a>
@@ -175,7 +181,7 @@
      same pathname-matching approach as global-tabbar-script). Hidden
      entirely below 900px via CSS -- .global-tabbar is the only nav there. */}}
 {{define "desktop-sidebar"}}
-<nav class="desktop-sidebar" id="desktop-sidebar" aria-label="main navigation">
+<nav class="desktop-sidebar" id="desktop-sidebar" aria-label="main navigation (desktop)">
   <a class="sidebar-brand" href="/">{{template "icon-logo"}} Songbooks</a>
   <div class="sidebar-primary">
     <a href="/" data-path="/" data-label="Home">{{template "icon-home"}} Home</a>
