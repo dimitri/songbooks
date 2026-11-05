@@ -63,9 +63,13 @@
                 <input type="hidden" name="is_admin" value="{{if .IsAdmin}}0{{else}}1{{end}}">
                 <button type="submit">{{if .IsAdmin}}revoke admin{{else}}make admin{{end}}</button>
               </form>
-              <form method="post" action="/admin/people/{{.ID}}/remove" style="display:inline" onsubmit="return confirm('Remove {{.Username}}? (not implemented yet)')">
-                <button type="submit" class="danger">remove</button>
-              </form>
+              {{/* handleAdminRemovePerson (handlers_admin.go) is a deliberate
+                   501 stub — removing a person needs a real policy for what
+                   happens to projects they solely own, which doesn't exist
+                   yet. Shipping a confirm() dialog that only admits that
+                   after the admin clicks OK reads as a broken button, not
+                   an honest one; disable it instead until removal is real. */}}
+              <button type="button" class="danger" disabled title="Not implemented yet — removing a person needs a data-ownership policy first">remove</button>
               {{else}}
               <em>you</em>
               {{end}}

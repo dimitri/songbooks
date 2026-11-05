@@ -165,7 +165,7 @@ button.ghost-btn { background: transparent; color: var(--fg-muted); }
    buttons — it still gets a solid fill on hover/focus, where the person
    is already committing to the click. */
 button.danger { color: var(--danger); border-color: var(--danger); background: var(--bg-raised); }
-button.danger:hover:not(:disabled), button.danger:focus-visible { background: var(--danger); color: #fff; border-color: var(--danger); }
+button.danger:hover:not(:disabled), button.danger:focus-visible { background: var(--danger); color: var(--accent-contrast); border-color: var(--danger); }
 button.icon-btn { width: 2.3rem; height: 2.3rem; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; font-size: 1.05rem; }
 
 /* In-house SVG icons (templates/icons.html + the JS-built-row duplicates in
@@ -476,7 +476,7 @@ table.card { padding: 0; }
 .notif-bell { position: relative; display: inline-flex; align-items: center; color: inherit; }
 .notif-badge {
   position: absolute; top: -0.4rem; right: -0.6rem;
-  background: var(--danger); color: #fff; border-radius: 999px;
+  background: var(--danger); color: var(--accent-contrast); border-radius: 999px;
   font-size: 0.65rem; font-weight: 700; line-height: 1;
   padding: 0.15rem 0.4rem; min-width: 1.1rem; text-align: center;
 }
@@ -975,7 +975,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .rehearsal-mark {
   display: inline-flex; align-items: center; justify-content: center;
   width: 1.15em; height: 1.15em; margin-right: 0.4em; flex: 0 0 auto;
-  background: #c0392b; color: #fff; border-radius: 2px;
+  background: var(--danger); color: var(--accent-contrast); border-radius: 2px;
   font-family: var(--font-ui, sans-serif); font-style: normal; font-weight: 800;
   font-variant: normal; letter-spacing: 0; font-size: 0.72em; line-height: 1;
 }
@@ -3767,6 +3767,11 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 
 .qr-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 500; padding: 1rem; }
 .qr-modal { background: var(--bg); border-radius: 12px; padding: 1.2rem; display: flex; flex-direction: column; align-items: center; gap: 0.7rem; max-width: 90vw; }
+/* The QR code itself is black-on-white PNG data regardless of theme (a
+   dark-mode-tinted background would reduce the quiet-zone contrast a
+   scanner relies on), so this one square deliberately stays a literal
+   white, not var(--bg-raised) — everything else in the modal still
+   follows tokens. */
 .qr-modal-img { width: 260px; height: 260px; background: #fff; border-radius: 8px; }
 .qr-modal-url { max-width: 260px; text-align: center; overflow-wrap: anywhere; }
 
@@ -3804,8 +3809,14 @@ input.matrix-slot:hover, input.matrix-slot:focus {
    pdf-export.js rewrites the link's query string on change). Deliberately
    lightweight: a <select> + a checkbox, not a settings panel. */
 .pdf-mode-row { display: inline-flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
-.pdf-mode-select { font-size: 0.8rem; padding: 0.2rem 0.4rem; border-radius: 6px; border: 1px solid var(--line, #ccc); background: var(--card, #fff); color: var(--ink, #222); }
-.pdf-notes-label { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--ink-soft, var(--text-muted, #666)); white-space: nowrap; }
+/* --line/--card/--ink/--ink-soft/--text-muted were never this app's own
+   token names (ported from a different project's vocabulary) — none of
+   them exist in :root, so the hardcoded fallbacks above were silently
+   winning in every theme and this control stayed light-on-light-gray in
+   dark mode while everything around it switched. Reconciled to the real
+   tokens: --border/--bg-raised/--fg/--fg-muted. */
+.pdf-mode-select { font-size: 0.8rem; padding: 0.2rem 0.4rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-raised); color: var(--fg); }
+.pdf-notes-label { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--fg-muted); white-space: nowrap; }
 /* Phase 41: the old "wrap to full width at 760px" rule used to be this
    row's only mobile treatment — it still rendered inline in the mobile
    top bar, just as a wrapped second line, which collided with the
