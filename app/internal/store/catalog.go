@@ -998,6 +998,55 @@ func (st *Store) AnnotateVariant(ctx context.Context, variantID, personID int64,
 
 // ListAnnotations lists every note left on variantID, oldest first (a
 // simple chronological thread).
+// GlobalVariantStub is just enough of a global-visibility variant to
+// drive a batch re-fetch/redo tool (cmd/bandscampredo) — id/title/
+// artist, nothing else.
+type GlobalVariantStub struct {
+	ID            int64
+	Title, Artist string
+}
+
+// FindGlobalVariantByWorkID looks for an existing global-visibility
+// song for workID — used by a redo/import tool to update an existing
+// catalog entry in place (preserving its id, so anything already
+// pointing at it stays valid) instead of creating a duplicate.
+func (st *Store) FindGlobalVariantByWorkID(ctx context.Context, workID int64) (variantID int64, found bool, err error) {
+	err = st.db.QueryRow(ctx, `
+		SELECT id FROM songs WHERE work_id = $1 AND visibility = 'global' LIMIT 1`, workID).Scan(&variantID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return variantID, true, nil
+}
+
+// ListGlobalVariantsByBatchTimestamp lists every global-visibility
+// song whose created_at (truncated to the second) matches batchSecond
+// — a bulk import lands every row in one INSERT within the same
+// second, so this isolates one specific batch from the rest of the
+// global catalog without needing a separate "which batch" column.
+func (st *Store) ListGlobalVariantsByBatchTimestamp(ctx context.Context, batchSecond time.Time) ([]GlobalVariantStub, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT id, title, artist FROM songs
+		WHERE visibility = 'global' AND date_trunc('second', created_at) = date_trunc('second', $1::timestamptz)
+		ORDER BY title`, batchSecond)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []GlobalVariantStub
+	for rows.Next() {
+		var v GlobalVariantStub
+		if err := rows.Scan(&v.ID, &v.Title, &v.Artist); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
 func (st *Store) ListAnnotations(ctx context.Context, variantID int64) ([]Annotation, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT a.id, a.variant_id, a.person_id, p.display_name, a.body, a.created_at

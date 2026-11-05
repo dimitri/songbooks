@@ -14,6 +14,13 @@ RUN CGO_ENABLED=0 go build -o /out/songbooks ./cmd/songbooks
 # main binary so it ships in the same image with no extra build step;
 # run via `docker compose exec app backfillaudio --db "$DATABASE_URL"`.
 RUN CGO_ENABLED=0 go build -o /out/backfillaudio ./cmd/backfillaudio
+# One-off admin script, same shape as backfillaudio — batch-imports
+# Bands Camp's song catalog from the hand-curated legacy .song files
+# in v2/BandsCamp/; see cmd/bandscampredo's own doc comment for why
+# (far better source than a fresh UG/iReal fetch) and the
+# docker compose run invocation (needs v2/BandsCamp mounted in, not
+# baked into this image — it's reference data, not app code).
+RUN CGO_ENABLED=0 go build -o /out/bandscampredo ./cmd/bandscampredo
 
 # --- runtime -------------------------------------------------------------
 # debian:bookworm-slim, not alpine: the LilyPond release tarball below is a
@@ -96,6 +103,7 @@ RUN which lilypond && lilypond --version
 
 COPY --from=builder /out/songbooks /usr/local/bin/songbooks
 COPY --from=builder /out/backfillaudio /usr/local/bin/backfillaudio
+COPY --from=builder /out/bandscampredo /usr/local/bin/bandscampredo
 
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/songbooks"]
