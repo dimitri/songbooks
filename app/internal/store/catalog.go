@@ -589,7 +589,7 @@ func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, sco
 			return 0, err
 		}
 		if !isInstructor {
-			return 0, fmt.Errorf("person %d is not a current instructor of school %d: %w", forkerID, bandID, ErrForbidden)
+			return 0, fmt.Errorf("person %d is not a current staff member of community %d: %w", forkerID, bandID, ErrForbidden)
 		}
 	}
 
@@ -870,7 +870,7 @@ func (st *Store) CreateSchoolVariant(ctx context.Context, schoolID int64, title,
 		return 0, err
 	}
 	if !isInstructor {
-		return 0, fmt.Errorf("person %d is not a current instructor of school %d: %w", creatorPersonID, schoolID, ErrForbidden)
+		return 0, fmt.Errorf("person %d is not a current staff member of community %d: %w", creatorPersonID, schoolID, ErrForbidden)
 	}
 
 	workID, err := st.findOrCreateWork(ctx, tx, title, artist)

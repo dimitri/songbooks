@@ -84,7 +84,7 @@ var validEventTypes = map[string]bool{
 func (s *Server) handleCreateSchoolEvent(w http.ResponseWriter, r *http.Request) {
 	schoolID, err := pathID(r, "id")
 	if err != nil {
-		httpError(w, http.StatusBadRequest, "invalid school id")
+		httpError(w, http.StatusBadRequest, "invalid community id")
 		return
 	}
 	var req eventRequestBody
@@ -154,7 +154,7 @@ func (s *Server) handleCreateBandEvent(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCommunityEventsPage(w http.ResponseWriter, r *http.Request) {
 	schoolID, err := pathID(r, "id")
 	if err != nil {
-		httpError(w, http.StatusBadRequest, "invalid school id")
+		httpError(w, http.StatusBadRequest, "invalid community id")
 		return
 	}
 	school, err := s.store.GetSchool(r.Context(), schoolID)

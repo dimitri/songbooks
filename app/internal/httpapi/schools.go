@@ -20,7 +20,7 @@ func (s *Server) requireSchoolMember(next http.HandlerFunc) http.HandlerFunc {
 	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		schoolID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 		if err != nil {
-			httpError(w, http.StatusBadRequest, "invalid school id")
+			httpError(w, http.StatusBadRequest, "invalid community id")
 			return
 		}
 		person := personFromContext(r)
@@ -34,7 +34,7 @@ func (s *Server) requireSchoolMember(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		if !isMember {
-			httpError(w, http.StatusForbidden, "must be a current member of this school")
+			httpError(w, http.StatusForbidden, "must be a current member of this community")
 			return
 		}
 		next(w, r)
@@ -51,7 +51,7 @@ func (s *Server) requireSchoolStaff(next http.HandlerFunc) http.HandlerFunc {
 	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		schoolID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 		if err != nil {
-			httpError(w, http.StatusBadRequest, "invalid school id")
+			httpError(w, http.StatusBadRequest, "invalid community id")
 			return
 		}
 		person := personFromContext(r)
@@ -71,7 +71,7 @@ func (s *Server) requireSchoolStaff(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		if !isInstructor {
-			httpError(w, http.StatusForbidden, "must be a current instructor of this school")
+			httpError(w, http.StatusForbidden, "must be a current staff member of this community")
 			return
 		}
 		next(w, r)

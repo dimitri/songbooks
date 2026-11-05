@@ -237,7 +237,7 @@ func (st *Store) AcceptSchoolSubmission(ctx context.Context, submissionID, instr
 		return err
 	}
 	if !isInstructor {
-		return fmt.Errorf("person %d is not a current instructor of school %d: %w", instructorPersonID, sub.SchoolID, ErrForbidden)
+		return fmt.Errorf("person %d is not a current staff member of community %d: %w", instructorPersonID, sub.SchoolID, ErrForbidden)
 	}
 
 	switch sub.Kind {
@@ -284,7 +284,7 @@ func (st *Store) RejectSchoolSubmission(ctx context.Context, submissionID, instr
 		return err
 	}
 	if !isInstructor {
-		return fmt.Errorf("person %d is not a current instructor of school %d: %w", instructorPersonID, sub.SchoolID, ErrForbidden)
+		return fmt.Errorf("person %d is not a current staff member of community %d: %w", instructorPersonID, sub.SchoolID, ErrForbidden)
 	}
 
 	if err := st.decideSchoolSubmission(ctx, submissionID, "rejected", instructorPersonID); err != nil {

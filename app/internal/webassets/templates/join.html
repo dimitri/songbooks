@@ -16,14 +16,14 @@
       {{if eq .Kind "band"}}
         <p>Pick your name below, or "someone else" if you're not on the list.</p>
       {{else}}
-        <p>Pick your name below, or "someone else" if you're not on the list. You'll join as a student.</p>
+        <p>Pick your name below, or "someone else" if you're not on the list. You'll join this community.</p>
       {{end}}
     </div>
   </div>
 
   {{if .Closed}}
     <div class="card" style="max-width:420px">
-      <p>This invite link has been closed by {{if eq .Kind "band"}}the band{{else}}the school{{end}} — no further claims are possible. Ask for a fresh link.</p>
+      <p>This invite link has been closed by {{if eq .Kind "band"}}the band{{else}}the community{{end}} — no further claims are possible. Ask for a fresh link.</p>
     </div>
   {{else}}
   <div class="card" style="max-width:420px">

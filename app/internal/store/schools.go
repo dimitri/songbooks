@@ -261,7 +261,7 @@ func (st *Store) ListSchoolMembers(ctx context.Context, schoolID int64, includeP
 // connection-pool deadlock/exhaustion under load.
 func (st *Store) AddSchoolMember(ctx context.Context, schoolID, personID int64, role string, invitedByPersonID int64) (int64, error) {
 	if role != "staff" && role != "member" {
-		return 0, fmt.Errorf("invalid school member role %q", role)
+		return 0, fmt.Errorf("invalid community member role %q", role)
 	}
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
@@ -274,7 +274,7 @@ func (st *Store) AddSchoolMember(ctx context.Context, schoolID, personID int64, 
 		return 0, err
 	}
 	if already {
-		return 0, fmt.Errorf("that person is already a current member of this school")
+		return 0, fmt.Errorf("that person is already a current member of this community")
 	}
 
 	var invitedBy *int64
@@ -330,7 +330,7 @@ func (st *Store) RemoveSchoolMember(ctx context.Context, schoolID, personID int6
 // comment for why.
 func (st *Store) SetSchoolMemberRole(ctx context.Context, schoolID, personID int64, role string) error {
 	if role != "staff" && role != "member" {
-		return fmt.Errorf("invalid school member role %q", role)
+		return fmt.Errorf("invalid community member role %q", role)
 	}
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
@@ -368,7 +368,7 @@ func requireAnotherCurrentInstructor(ctx context.Context, tx pgx.Tx, schoolID, e
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("a school must keep at least one current instructor: %w", ErrForbidden)
+		return fmt.Errorf("a community must keep at least one current staff member: %w", ErrForbidden)
 	}
 	return nil
 }
