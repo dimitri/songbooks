@@ -111,8 +111,32 @@ func (s *Server) handleSongbooksIndexPage(w http.ResponseWriter, r *http.Request
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Community (school) repertoires were missing from this index
+	// entirely — a community member had no way to reach their
+	// community's own shared songbook from the main Songbooks page,
+	// only the bands+personal sections existed. Member count mirrors
+	// bandCardView's own "N members" meta line.
+	schools, err := s.store.ListSchoolsForPerson(r.Context(), person.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	type schoolCardView struct {
+		ID      int64
+		Name    string
+		Members int
+	}
+	var schoolCards []schoolCardView
+	for _, sc := range schools {
+		members, err := s.store.ListSchoolMembers(r.Context(), sc.ID, false)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		schoolCards = append(schoolCards, schoolCardView{ID: sc.ID, Name: sc.Name, Members: len(members)})
+	}
 	s.render(w, "songbooks-index", map[string]any{
-		"Me": person, "MySongbooks": mySongbooks, "BandCards": bandCards,
+		"Me": person, "MySongbooks": mySongbooks, "BandCards": bandCards, "SchoolCards": schoolCards,
 	})
 }
 

@@ -48,6 +48,20 @@
   {{else}}
   <p class="hint">You're not in a band yet — <a href="/bands">start one</a> to get a shared repertoire.</p>
   {{end}}
+
+  <h2 class="catalog-books-heading">Community repertoires</h2>
+  {{if .SchoolCards}}
+  <div class="catalog-book-cards">
+  {{range .SchoolCards}}
+    <a class="catalog-book-card" href="/schools/{{.ID}}">
+      <div class="catalog-book-card-title">{{.Name}}</div>
+      <div class="catalog-book-card-meta">{{.Members}} member{{if ne .Members 1}}s{{end}} &middot; repertoire</div>
+    </a>
+  {{end}}
+  </div>
+  {{else}}
+  <p class="hint">You're not in a community yet — <a href="/schools">browse communities</a>.</p>
+  {{end}}
 </main>
 </div>
 {{template "global-tabbar"}}
