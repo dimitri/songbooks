@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"app/internal/store"
 )
@@ -178,10 +179,15 @@ func (s *Server) handleSchoolAdminPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	shellPeople, err := s.store.ListShellPeopleForSchool(r.Context(), schoolID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "school_admin", map[string]any{
 		"Me": person, "School": school, "Members": members,
 		"PendingSubmissions": pending, "AllSubmissions": decided,
-		"Entries": entries,
+		"Entries": entries, "ShellPeople": shellPeople,
 	})
 }
 
@@ -236,6 +242,45 @@ func (s *Server) handleAddSchoolMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]int64{"memberId": memberID})
+}
+
+// handleCreateSchoolPersonalInvite is handleCreateBandPersonalInvite's
+// community counterpart: creates a shell person (see store.
+// CreateShellPerson's doc comment), adds them to this school at role,
+// and mints a personal invite token for them — one action, so the
+// person is on the roster immediately and the invite link is just how
+// they finish their own account, not a prerequisite for being added.
+func (s *Server) handleCreateSchoolPersonalInvite(w http.ResponseWriter, r *http.Request) {
+	schoolID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		DisplayName string `json:"displayName"`
+		Role        string `json:"role"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.DisplayName == "" {
+		httpError(w, http.StatusBadRequest, "displayName is required")
+		return
+	}
+	role := req.Role
+	if role != "staff" && role != "member" {
+		role = "member"
+	}
+	actor := personFromContext(r)
+
+	personID, err := s.store.CreateShellPerson(r.Context(), req.DisplayName)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if _, err := s.store.AddSchoolMember(r.Context(), schoolID, personID, role, actor.ID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	token, err := s.store.CreatePersonalInvite(r.Context(), personID, actor.ID, 30*24*time.Hour)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"personId": personID, "url": "/invite/" + token})
 }
 
 // handleRemoveSchoolMember ends personID's current membership in the

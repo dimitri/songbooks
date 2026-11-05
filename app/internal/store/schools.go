@@ -67,7 +67,7 @@ func (st *Store) CreateSchool(ctx context.Context, name string, creatorPersonID 
 		return 0, err
 	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO school_members (school_id, person_id, role) VALUES ($1, $2, 'instructor')`,
+		INSERT INTO school_members (school_id, person_id, role) VALUES ($1, $2, 'staff')`,
 		schoolID, creatorPersonID); err != nil {
 		return 0, err
 	}
@@ -343,7 +343,7 @@ func requireAnotherCurrentInstructor(ctx context.Context, tx pgx.Tx, schoolID, e
 	var ok bool
 	err := tx.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM school_members
-		              WHERE school_id = $1 AND role = 'instructor' AND left_at IS NULL AND person_id != $2)`,
+		              WHERE school_id = $1 AND role = 'staff' AND left_at IS NULL AND person_id != $2)`,
 		schoolID, exceptPersonID).Scan(&ok)
 	if err != nil {
 		return err

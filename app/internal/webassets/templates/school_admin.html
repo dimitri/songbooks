@@ -66,6 +66,34 @@
     </tbody>
   </table></div>
 
+  {{if .ShellPeople}}
+  <h2>Pending (not yet joined)</h2>
+  <div class="table-scroll"><table class="card" style="width:100%">
+    <thead><tr><th>Name</th><th>Role</th><th>Invited by</th><th>Added</th><th></th></tr></thead>
+    <tbody>
+    {{range .ShellPeople}}
+      <tr data-person-id="{{.PersonID}}">
+        <td>{{.DisplayName}}</td>
+        <td>{{range .Memberships}}{{if eq .Kind "school"}}{{.Status}}{{end}}{{end}}</td>
+        <td>{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>unknown</em>{{end}}</td>
+        <td>{{.CreatedAt.Format "2006-01-02"}}</td>
+        <td>
+          {{if .OpenInviteToken}}
+          <span class="invite-link-row">
+            <code class="invite-link-url" data-url="/invite/{{.OpenInviteToken}}">/invite/{{.OpenInviteToken}}</code>
+            <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}">copy</button>
+            <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}">QR</button>
+          </span>
+          {{else}}
+          <button type="button" class="create-shell-invite-btn" data-person-id="{{.PersonID}}">Get invite link</button>
+          {{end}}
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table></div>
+  {{end}}
+
   <label><input type="checkbox" id="show-past-toggle"> Show past members</label>
   <div class="table-scroll"><table class="card" style="width:100%">
     <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Joined</th><th>Left</th><th></th></tr></thead>
@@ -92,6 +120,28 @@
 
   <div class="card">
     <h2>Add people to this community</h2>
+
+    <div class="form-subsection">
+      <h3>Quick add (personal invite)</h3>
+      <p class="hint">Type a name, get a personal invite link immediately — they're on the roster right away, the link just finishes their account. For someone not yet in the system at all.</p>
+      <div class="form-stack">
+        <div class="field">
+          <label for="quick-add-name">Name</label>
+          <input type="text" id="quick-add-name" placeholder="e.g. Alex">
+        </div>
+        <div class="field">
+          <label for="quick-add-role">Role</label>
+          <select id="quick-add-role">
+            <option value="member" selected>member</option>
+            <option value="staff">staff</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="quick-add-btn">Add &amp; get invite link</button>
+        </div>
+        <p id="quick-add-result" class="hint"></p>
+      </div>
+    </div>
 
     <div class="form-subsection">
       <h3>Add an existing account</h3>
@@ -217,6 +267,38 @@ document.getElementById('show-past-toggle').addEventListener('change', (e) => {
   document.querySelectorAll('.past-member').forEach(tr => {
     tr.style.display = e.target.checked ? '' : 'none';
   });
+});
+document.getElementById('quick-add-btn').addEventListener('click', async () => {
+  const displayName = document.getElementById('quick-add-name').value.trim();
+  const role = document.getElementById('quick-add-role').value;
+  const out = document.getElementById('quick-add-result');
+  if (!displayName) { out.textContent = 'enter a name'; return; }
+  const res = await fetch(`/api/schools/${schoolId}/personal-invites`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({displayName, role}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) { location.reload(); } else { out.textContent = data.error || 'failed to add'; }
+});
+document.querySelectorAll('.create-shell-invite-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    const res = await fetch(`/api/people/${btn.dataset.personId}/personal-invites`, {method: 'POST'});
+    if (res.ok) { location.reload(); } else { btn.disabled = false; }
+  });
+});
+document.querySelectorAll('.copy-link-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const url = location.origin + btn.dataset.url;
+    navigator.clipboard.writeText(url).then(() => {
+      const prev = btn.textContent;
+      btn.textContent = 'copied!';
+      setTimeout(() => { btn.textContent = prev; }, 1500);
+    }).catch(() => {});
+  });
+});
+document.querySelectorAll('.qr-link-btn').forEach(btn => {
+  btn.addEventListener('click', () => showQR(location.origin + btn.dataset.url));
 });
 document.getElementById('add-member-btn').addEventListener('click', async () => {
   const username = document.getElementById('add-username').value.trim();
@@ -355,6 +437,7 @@ document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   });
 });
 </script>
+<script src="/static/js/qr.js?v={{staticVersion}}"></script>
 </div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
