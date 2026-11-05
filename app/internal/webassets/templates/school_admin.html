@@ -93,16 +93,16 @@
   </div>
 
   <h2>Pending submissions</h2>
-  <div class="table-scroll"><table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>Submitted by</th><th>Kind</th><th>Submitted</th><th>Source</th><th>Note</th><th></th></tr></thead>
     <tbody id="pending-body">
     {{range .PendingSubmissions}}
       <tr data-submission-id="{{.ID}}">
-        <td>{{.StudentUsername}}</td>
-        <td>{{.Kind}}</td>
-        <td>{{.SubmittedTitle}}</td>
-        <td>{{if .SourceVariantID}}{{.SourceTitle}} (#{{deref64 .SourceVariantID}}){{end}}</td>
-        <td>{{.Note}}</td>
+        <td data-label="Submitted by">{{.StudentUsername}}</td>
+        <td data-label="Kind">{{.Kind}}</td>
+        <td data-label="Submitted">{{.SubmittedTitle}}</td>
+        <td data-label="Source">{{if .SourceVariantID}}{{.SourceTitle}} (#{{deref64 .SourceVariantID}}){{end}}</td>
+        <td data-label="Note">{{.Note}}</td>
         <td>
           <button type="button" class="accept-btn primary" data-id="{{.ID}}">accept</button>
           <button type="button" class="reject-btn danger" data-id="{{.ID}}">reject</button>
@@ -115,16 +115,16 @@
   </table></div>
 
   <h2>All submissions</h2>
-  <div class="table-scroll"><table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>Submitted by</th><th>Kind</th><th>Submitted</th><th>Status</th><th>Decided by</th></tr></thead>
     <tbody>
     {{range .AllSubmissions}}
       <tr>
-        <td>{{.StudentUsername}}</td>
-        <td>{{.Kind}}</td>
-        <td>{{.SubmittedTitle}}</td>
-        <td>{{.Status}}</td>
-        <td>{{.DecidedByUsername}}</td>
+        <td data-label="Submitted by">{{.StudentUsername}}</td>
+        <td data-label="Kind">{{.Kind}}</td>
+        <td data-label="Submitted">{{.SubmittedTitle}}</td>
+        <td data-label="Status">{{.Status}}</td>
+        <td data-label="Decided by">{{.DecidedByUsername}}</td>
       </tr>
     {{else}}
       <tr><td colspan="5" class="hint">No submissions yet.</td></tr>
@@ -134,15 +134,15 @@
 
   {{if .ShellPeople}}
   <h2>Pending (not yet joined)</h2>
-  <div class="table-scroll"><table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>Name</th><th>Role</th><th>Invited by</th><th>Added</th><th></th></tr></thead>
     <tbody>
     {{range .ShellPeople}}
       <tr data-person-id="{{.PersonID}}">
-        <td>{{.DisplayName}}</td>
-        <td>{{range .Memberships}}{{if eq .Kind "school"}}{{.Status}}{{end}}{{end}}</td>
-        <td>{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>unknown</em>{{end}}</td>
-        <td>{{.CreatedAt.Format "2006-01-02"}}</td>
+        <td data-label="Name">{{.DisplayName}}</td>
+        <td data-label="Role">{{range .Memberships}}{{if eq .Kind "school"}}{{.Status}}{{end}}{{end}}</td>
+        <td data-label="Invited by">{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>unknown</em>{{end}}</td>
+        <td data-label="Added">{{.CreatedAt.Format "2006-01-02"}}</td>
         <td>
           {{if .OpenInviteToken}}
           <span class="invite-link-row">
@@ -161,14 +161,14 @@
   {{end}}
 
   <label><input type="checkbox" id="show-past-toggle"> Show past members</label>
-  <div class="table-scroll"><table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Joined</th><th>Left</th><th></th></tr></thead>
     <tbody id="members-body">
     {{range .Members}}
       <tr data-person-id="{{.PersonID}}" data-current="{{if .IsCurrent}}1{{else}}0{{end}}" {{if not .IsCurrent}}class="past-member" style="display:none"{{end}}>
-        <td>{{.Username}}</td>
-        <td>{{.DisplayName}}</td>
-        <td>
+        <td data-label="Username">{{.Username}}</td>
+        <td data-label="Name">{{.DisplayName}}</td>
+        <td data-label="Role">
           {{if .IsCurrent}}
           <select class="role-select" data-person-id="{{.PersonID}}">
             <option value="staff" {{if eq .Role "staff"}}selected{{end}}>staff</option>
@@ -176,8 +176,8 @@
           </select>
           {{else}}{{.Role}}{{end}}
         </td>
-        <td>{{.JoinedAt.Format "2006-01-02"}}</td>
-        <td>{{if .LeftAt}}{{.LeftAt.Format "2006-01-02"}}{{end}}</td>
+        <td data-label="Joined">{{.JoinedAt.Format "2006-01-02"}}</td>
+        <td data-label="Left">{{if .LeftAt}}{{.LeftAt.Format "2006-01-02"}}{{end}}</td>
         <td>{{if .IsCurrent}}<button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}">remove</button>{{end}}</td>
       </tr>
     {{end}}
@@ -283,14 +283,14 @@
     </div>
   </div>
 
-  <div class="table-scroll"><table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>Title</th><th>Artist</th><th>Added by</th><th></th></tr></thead>
     <tbody>
     {{range .Entries}}
       <tr data-variant-id="{{.VariantID}}">
-        <td><a href="/song/{{.VariantID}}">{{.Title}}</a></td>
-        <td>{{.Artist}}</td>
-        <td>{{.AddedByUsername}}</td>
+        <td data-label="Title"><a href="/song/{{.VariantID}}">{{.Title}}</a></td>
+        <td data-label="Artist">{{.Artist}}</td>
+        <td data-label="Added by">{{.AddedByUsername}}</td>
         <td>
           <a href="/variants/{{.VariantID}}/history">history</a>
           <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}">remove</button>

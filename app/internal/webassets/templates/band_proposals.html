@@ -64,16 +64,16 @@
       </div>
     </div>
 
-    <div class="table-scroll"><table class="card" style="width:100%">
+    <div class="table-scroll"><table class="card table-stack" style="width:100%">
       <thead><tr><th>Kind</th><th>Variant</th><th>Proposer</th><th>Status</th><th>Votes</th><th></th></tr></thead>
       <tbody>
       {{range .Proposals}}
         <tr data-proposal-id="{{.ID}}">
-          <td>{{.Kind}}</td>
-          <td><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}variant {{deref64 .TargetVariantID}}{{end}}</a></td>
-          <td>{{.ProposerUsername}}</td>
-          <td>{{.Status}}</td>
-          <td>{{.YesVotes}} yes / {{.VetoVotes}} veto</td>
+          <td data-label="Kind">{{.Kind}}</td>
+          <td data-label="Variant"><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}variant {{deref64 .TargetVariantID}}{{end}}</a></td>
+          <td data-label="Proposer">{{.ProposerUsername}}</td>
+          <td data-label="Status">{{.Status}}</td>
+          <td data-label="Votes">{{.YesVotes}} yes / {{.VetoVotes}} veto</td>
           <td>
           {{if eq .Status "open"}}
             <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="yes">vote yes</button>

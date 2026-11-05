@@ -18,12 +18,12 @@
 </header>
 <main class="index">
   <p class="hint">A community is a named group with read-write staff and read-only members, sharing a set of songbooks and setlists — a school, a choir, any group that isn't quite a band.</p>
-  <div class="table-scroll"><table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>Name</th><th></th></tr></thead>
     <tbody>
     {{range .Schools}}
       <tr>
-        <td><a href="/schools/{{.ID}}">{{.Name}}</a></td>
+        <td data-label="Name"><a href="/schools/{{.ID}}">{{.Name}}</a></td>
         <td><a href="/schools/{{.ID}}/admin">admin</a></td>
       </tr>
     {{else}}
@@ -32,7 +32,7 @@
     </tbody>
   </table></div>
 
-  <div class="card" style="max-width:420px">
+  <div class="card card--narrow">
     <h2>Start a community</h2>
     <p class="hint">You'll be the first staff member.</p>
     <p>

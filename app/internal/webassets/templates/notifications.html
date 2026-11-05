@@ -19,14 +19,14 @@
   </nav>
 </header>
 <main class="index">
-  <div class="table-scroll"><table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>When</th><th>Kind</th><th>Message</th><th></th></tr></thead>
     <tbody id="notifications-body">
     {{range .Notifications}}
       <tr data-id="{{.ID}}" class="{{if .IsRead}}read{{else}}unread{{end}}">
-        <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
-        <td>{{.Kind}}</td>
-        <td>
+        <td data-label="When">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+        <td data-label="Kind">{{.Kind}}</td>
+        <td data-label="Message">
           {{if .Link}}
           <a href="#" class="notif-link" data-id="{{.ID}}" data-href="{{.Link}}">{{.Body}}</a>
           {{else}}

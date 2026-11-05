@@ -22,14 +22,14 @@
       <summary>{{.Title}}</summary>
       <form method="post" action="/songbooks/{{$.SongbookID}}/jam/{{$.Code}}/songs">
         <input type="hidden" name="song_id" value="{{.ID}}">
-        <div class="table-scroll"><table style="width:100%">
+        <div class="table-scroll"><table class="table-stack" style="width:100%">
           <thead><tr><th>Instrument</th><th>Min</th><th>Max (blank = no cap)</th></tr></thead>
           <tbody>
           {{$i := 0}}
           {{range $.DefaultRows}}
             {{$i = add1 $i}}
             <tr>
-              <td>
+              <td data-label="Instrument">
                 {{/* Icon quick-fill for the common instruments — sets
                      this row's own text input rather than replacing it
                      outright, since min/max caps still ride along with
@@ -44,8 +44,8 @@
                 </div>
                 <input type="text" id="instrument-row-{{$i}}" name="instrument" value="{{.Instrument}}" placeholder="instrument">
               </td>
-              <td><input type="number" name="min" min="0" value="{{.Min}}" style="width:4em"></td>
-              <td><input type="number" name="max" min="0" value="{{.Max}}" style="width:4em" placeholder="unlimited"></td>
+              <td data-label="Min"><input type="number" name="min" min="0" value="{{.Min}}" style="width:4em"></td>
+              <td data-label="Max (blank = no cap)"><input type="number" name="max" min="0" value="{{.Max}}" style="width:4em" placeholder="unlimited"></td>
             </tr>
           {{end}}
           </tbody>

@@ -93,6 +93,38 @@
   --space-6: 32px;
   --space-7: 48px;
 
+  /* Breakpoint inventory (audit, Nov 2026): 16 @media rules use 8 raw
+     pixel values across the file — 480/560/600/640/760/761/900/901/1150.
+     Confirmed by direct read: every "mobile" rule in the 900-tier
+     consistently uses max-width:900px and every "desktop" rule uses
+     min-width:901px (no accidental 899/900/901 mix), same for the
+     760/761 pair — so none of this is a latent bug, just more distinct
+     numbers than the three conceptual tiers below actually need:
+       - ~600px  — "this one dense component needs its own mobile
+                    treatment" (.table-stack/.passkeys-table at 600,
+                    the gig/setlist row grids at 560, the toolbar's
+                    duration row at 480 — all narrower special cases
+                    nested inside the tier below, not a fourth tier).
+       - ~760px  — chart/editor "tablet-and-up gets the richer layout"
+                    boundary (.sheet-section multicol at 761, the edit
+                    drawer/toolbar at 760).
+       - ~900px  — app-chrome "desktop sidebar vs. mobile tab bar"
+                    boundary (.form-with-list, .view-tabs, the editor
+                    drawer's second breakpoint, the 901px desktop-nav
+                    rules) — this is the one that matches icons.html's
+                    own documented nav-architecture split.
+       - 1150px  — one standalone widescreen enhancement (2-column
+                    chart layout on very wide viewports), intentionally
+                    outside the three tiers above, not a drift case.
+     Not merged into literal shared numbers in this pass — each of
+     these was tuned against where its own layout actually breaks
+     (confirmed by its own in-file comment in most cases), and forcing
+     them onto one shared pixel value without re-testing every affected
+     component's content-driven breakpoint risks trading a documented,
+     intentional number for an undocumented coincidence. Recorded here
+     so the next page reaches for one of 480/600/760/900/1150 instead
+     of inventing a ninth. */
+
   /* Desktop sidebar: a dark surface on purpose, distinct from the rest of
      the (light) app — see .desktop-sidebar's own comment. Not swapped by
      light/dark mode below; the sidebar stays dark in both, like a band
@@ -181,6 +213,15 @@ button, select, input { font-family: inherit; color: inherit; font-size: 0.9rem;
 button {
   cursor: pointer; background: var(--bg-raised); border: 1px solid var(--border);
   border-radius: 8px; padding: 0.45rem 0.8rem; transition: background 0.1s, border-color 0.1s;
+  /* Audit (Nov 2026): the base rule computed to ~36-37px tall with
+     default line-height — under the 44pt/48dp Apple/Material baselines
+     this app's users (musicians glancing at a phone mid-song) actually
+     carry expectations from, and the single most error-prone place for
+     that shortfall to live since every button in the app — including
+     .primary/.danger, which only override color/weight, not size —
+     inherits it. min-height (not height) so a button with wrapped or
+     larger text still grows instead of clipping. */
+  min-height: 2.75rem;
 }
 button:hover:not(:disabled) { border-color: var(--border-strong); }
 button:disabled { opacity: 0.4; cursor: default; }
@@ -196,7 +237,13 @@ button.ghost-btn { background: transparent; color: var(--fg-muted); }
    is already committing to the click. */
 button.danger { color: var(--danger); border-color: var(--danger); background: var(--bg-raised); }
 button.danger:hover:not(:disabled), button.danger:focus-visible { background: var(--danger); color: var(--accent-contrast); border-color: var(--danger); }
-button.icon-btn { width: 2.3rem; height: 2.3rem; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; font-size: 1.05rem; }
+/* 2.3rem (36.8px) was under both touch-target baselines and this is the
+   single most-used interactive control in the app (close/more/edit/
+   metronome icons across icons.html's shared nav partials, plus 18+
+   template call sites) — raised to 2.75rem/44px, matching the base
+   button rule above. min-height/min-width (not height/width) in case a
+   future call site's content forces it larger; square at the floor. */
+button.icon-btn { width: 2.75rem; height: 2.75rem; min-width: 2.75rem; min-height: 2.75rem; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; font-size: 1.05rem; }
 
 /* In-house SVG icons (templates/icons.html + the JS-built-row duplicates in
    song.js/setlist.js) — sized to sit on the text baseline inside a button,
@@ -230,6 +277,11 @@ input[type="text"], input[type="url"], input[type="date"], input[type="number"] 
 .segmented button {
   border: none; background: none; border-radius: 999px; padding: 0.3rem 0.8rem;
   font-size: 0.82rem; color: var(--fg-muted);
+  /* Not part of the audit's button/icon-btn touch-target fix — a
+     segmented control's compact pill shape is deliberate, and
+     min-height:2.75rem from the base `button` rule above would
+     otherwise bloat it past its own design. */
+  min-height: 0;
 }
 .segmented button.active { background: var(--fg); color: var(--bg); font-weight: 600; }
 
@@ -245,7 +297,7 @@ input[type="text"], input[type="url"], input[type="date"], input[type="number"] 
    touch targets sized for a thumb, not a text button's loose padding. */
 #mode-segmented button {
   display: flex; align-items: center; justify-content: center;
-  width: 2.1rem; height: 2.1rem; padding: 0;
+  width: 2.1rem; height: 2.1rem; min-height: 0; padding: 0;
 }
 #mode-segmented .icon { width: 1.05rem; height: 1.05rem; }
 
@@ -264,6 +316,7 @@ table.card { padding: 0; }
    one of these two instead of inventing a third pixel value. */
 .card--narrow { max-width: 420px; }
 .card--narrow-lg { max-width: 480px; }
+.card--md { max-width: 560px; }
 /* A row of same-purpose cards (the band repertoire's "new original" /
    "add by id" pair, the members page's three add-people methods) —
    side by side on a wide screen, stacked on a phone, instead of each

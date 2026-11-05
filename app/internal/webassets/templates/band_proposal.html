@@ -27,7 +27,7 @@
   </div>
 
   {{if eq .Proposal.Status "open"}}
-  <div class="card" style="max-width:420px">
+  <div class="card card--narrow">
     <h2>Cast your vote</h2>
     <p class="hint">Auto-accepts once more than half of the band's {{.MemberCount}} current members vote yes. A single veto rejects immediately, no matter how many yes votes exist.</p>
     <button type="button" id="vote-yes-btn">vote yes</button>
@@ -38,11 +38,11 @@
   </div>
   {{end}}
 
-  <div class="table-scroll"><table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>Who</th><th>Vote</th><th>When</th></tr></thead>
     <tbody>
     {{range .Votes}}
-      <tr><td>{{.Username}}</td><td>{{.Vote}}</td><td>{{.CastAt.Format "2006-01-02 15:04"}}</td></tr>
+      <tr><td data-label="Who">{{.Username}}</td><td data-label="Vote">{{.Vote}}</td><td data-label="When">{{.CastAt.Format "2006-01-02 15:04"}}</td></tr>
     {{else}}
       <tr><td colspan="3" class="hint">No votes yet.</td></tr>
     {{end}}

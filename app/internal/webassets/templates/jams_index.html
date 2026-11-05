@@ -21,15 +21,15 @@
 
   <h2>Your jam sessions</h2>
   {{if .Jams}}
-  <div class="table-scroll"><table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>Name</th><th>Songbook</th><th>Expires</th><th>Role</th><th></th></tr></thead>
     <tbody>
     {{range .Jams}}
       <tr>
-        <td>{{.Name}}</td>
-        <td>{{.SongbookName}}</td>
-        <td>{{.ExpiresAt.Format "2006-01-02 15:04"}}</td>
-        <td>{{if .IsOrganizer}}organizer{{else}}participant{{end}}</td>
+        <td data-label="Name">{{.Name}}</td>
+        <td data-label="Songbook">{{.SongbookName}}</td>
+        <td data-label="Expires">{{.ExpiresAt.Format "2006-01-02 15:04"}}</td>
+        <td data-label="Role">{{if .IsOrganizer}}organizer{{else}}participant{{end}}</td>
         <td><a href="/songbooks/{{.SongbookID}}/jam/{{.Code}}/roster">roster</a></td>
       </tr>
     {{end}}

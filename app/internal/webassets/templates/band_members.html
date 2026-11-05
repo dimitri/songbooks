@@ -91,17 +91,17 @@
   </section>
 
   <label><input type="checkbox" id="show-past-toggle"> Show past members</label>
-  <div class="table-scroll" id="past-members-wrap" hidden><table class="card" style="width:100%">
+  <div class="table-scroll" id="past-members-wrap" hidden><table class="card table-stack" style="width:100%">
     <thead><tr><th>Username</th><th>Name</th><th>Status</th><th>Joined</th><th>Left</th></tr></thead>
     <tbody>
     {{range .Members}}
       {{if not .IsCurrent}}
       <tr>
-        <td>{{.Username}}</td>
-        <td>{{.DisplayName}}</td>
-        <td>{{.Status}}</td>
-        <td>{{.JoinedAt.Format "2006-01-02"}}</td>
-        <td>{{if .LeftAt}}{{.LeftAt.Format "2006-01-02"}}{{end}}</td>
+        <td data-label="Username">{{.Username}}</td>
+        <td data-label="Name">{{.DisplayName}}</td>
+        <td data-label="Status">{{.Status}}</td>
+        <td data-label="Joined">{{.JoinedAt.Format "2006-01-02"}}</td>
+        <td data-label="Left">{{if .LeftAt}}{{.LeftAt.Format "2006-01-02"}}{{end}}</td>
       </tr>
       {{end}}
     {{end}}

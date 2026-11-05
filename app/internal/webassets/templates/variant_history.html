@@ -18,14 +18,14 @@
 </header>
 <main class="index">
   {{if not .CanEdit}}<p class="hint">You don't have edit rights on this variant, so reverting is disabled here.</p>{{end}}
-  <div class="table-scroll"><table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>When</th><th>By</th><th>Change</th><th></th></tr></thead>
     <tbody>
     {{range .Revisions}}
       <tr data-revision-id="{{.ID}}">
-        <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
-        <td>{{if .ActorName}}{{.ActorName}}{{else}}&mdash;{{end}}</td>
-        <td>~{{.LinesChanged}} line{{if ne .LinesChanged 1}}s{{end}} changed</td>
+        <td data-label="When">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+        <td data-label="By">{{if .ActorName}}{{.ActorName}}{{else}}&mdash;{{end}}</td>
+        <td data-label="Change">~{{.LinesChanged}} line{{if ne .LinesChanged 1}}s{{end}} changed</td>
         <td>{{if $.CanEdit}}<button type="button" class="revert-btn" data-revision-id="{{.ID}}">revert to this</button>{{end}}</td>
       </tr>
     {{else}}

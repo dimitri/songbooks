@@ -23,13 +23,13 @@
 <main class="index">
   <p class="hint">Read-only repertoire — only a staff member can edit this community's material directly. Submit your own work below for staff to review instead.</p>
 
-  <div class="table-scroll"><table class="card" style="width:100%">
+  <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>Title</th><th>Artist</th><th></th></tr></thead>
     <tbody>
     {{range .Entries}}
       <tr data-variant-id="{{.VariantID}}">
-        <td><a href="/song/{{.VariantID}}">{{.Title}}</a></td>
-        <td>{{.Artist}}</td>
+        <td data-label="Title"><a href="/song/{{.VariantID}}">{{.Title}}</a></td>
+        <td data-label="Artist">{{.Artist}}</td>
         <td><a href="/works/{{.WorkID}}">all versions</a> <a href="/variants/{{.VariantID}}/history">history</a></td>
       </tr>
     {{else}}
@@ -38,7 +38,7 @@
     </tbody>
   </table></div>
 
-  <div class="card" style="max-width:560px">
+  <div class="card card--md">
     <h2>Submit your work</h2>
     <p class="hint">Pick one of your own personal catalog items (fork or create it first from the <a href="/catalog">catalog</a> page if it isn't there yet), then submit it here for staff to accept or reject.</p>
     <p>
@@ -66,17 +66,17 @@
     <p id="submit-result" class="hint"></p>
   </div>
 
-  <div class="card" style="max-width:560px">
+  <div class="card card--md">
     <h2>Your submission history</h2>
-    <div class="table-scroll"><table style="width:100%">
+    <div class="table-scroll"><table class="table-stack" style="width:100%">
       <thead><tr><th>Kind</th><th>Submitted</th><th>Status</th><th>Decided</th></tr></thead>
       <tbody>
       {{range .MySubmissions}}
         <tr>
-          <td>{{.Kind}}</td>
-          <td>{{.SubmittedTitle}}</td>
-          <td>{{.Status}}</td>
-          <td>{{if .DecidedAt}}{{.DecidedAt.Format "2006-01-02"}}{{end}}</td>
+          <td data-label="Kind">{{.Kind}}</td>
+          <td data-label="Submitted">{{.SubmittedTitle}}</td>
+          <td data-label="Status">{{.Status}}</td>
+          <td data-label="Decided">{{if .DecidedAt}}{{.DecidedAt.Format "2006-01-02"}}{{end}}</td>
         </tr>
       {{else}}
         <tr><td colspan="4" class="hint">No submissions yet.</td></tr>
