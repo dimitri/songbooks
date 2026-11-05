@@ -76,6 +76,8 @@ document.getElementById('open-wizard-btn')?.addEventListener('click', () => {
   document.getElementById('wiz-ireal-status').textContent = '';
   document.getElementById('wiz-ireal-candidates').innerHTML = '';
   document.getElementById('ug-preview-sections').innerHTML = '';
+  document.getElementById('wiz-catalog-matches').hidden = true;
+  document.getElementById('wiz-catalog-matches').innerHTML = '';
   ugLastURL = '';
   ugShowSubstep('ug-step-url');
   wizShowStep(0);
@@ -83,6 +85,69 @@ document.getElementById('open-wizard-btn')?.addEventListener('click', () => {
   document.getElementById('wiz-title').focus();
 });
 document.getElementById('wiz-cancel')?.addEventListener('click', () => wizard.close());
+
+// ---- Step 1's "is this already in the catalog?" search-as-you-type —
+// same /api/catalog/search the band repertoire's "From the catalog" tab
+// uses, offered right where a duplicate would otherwise get created.
+// "Add to this songbook" short-circuits the rest of the wizard entirely
+// (closes the dialog, lands on the existing song) rather than letting
+// title/key/lyrics/chords steps keep collecting data for a song that's
+// about to be thrown away.
+(function () {
+  const titleInput = document.getElementById('wiz-title');
+  const artistInput = document.getElementById('wiz-artist');
+  const matchesHost = document.getElementById('wiz-catalog-matches');
+  if (!titleInput || !matchesHost) return;
+  let debounceTimer;
+
+  async function search() {
+    const q = `${titleInput.value.trim()} ${artistInput.value.trim()}`.trim();
+    if (q.length < 2) { matchesHost.hidden = true; matchesHost.innerHTML = ''; return; }
+    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`);
+    const hits = await res.json().catch(() => []);
+    matchesHost.innerHTML = '';
+    if (!hits.length) { matchesHost.hidden = true; return; }
+    matchesHost.hidden = false;
+    const heading = document.createElement('p');
+    heading.className = 'hint';
+    heading.textContent = 'Already in the catalog — use one of these instead of creating a new song?';
+    matchesHost.appendChild(heading);
+    for (const hit of hits.slice(0, 5)) {
+      const row = document.createElement('div');
+      row.className = 'attention-row';
+      row.innerHTML = `
+        <div>
+          <div class="attention-title">${hit.title}</div>
+          ${hit.artist ? `<div class="attention-subtitle">${hit.artist}</div>` : ''}
+        </div>`;
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.style.marginLeft = 'auto';
+      addBtn.textContent = 'Add to this songbook';
+      addBtn.addEventListener('click', async () => {
+        addBtn.disabled = true;
+        const res = await fetch(`/api/songbooks/${wizSongbookId}/entries`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({variantId: hit.variantId}),
+        });
+        if (res.ok) {
+          wizard.close();
+          location.href = `/song/${hit.variantId}`;
+        } else {
+          addBtn.disabled = false;
+        }
+      });
+      row.appendChild(addBtn);
+      matchesHost.appendChild(row);
+    }
+  }
+  [titleInput, artistInput].forEach(el => {
+    el.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(search, 300);
+    });
+  });
+})();
 
 async function wizFetch(kind, endpoint) {
   const url = document.getElementById(`wiz-${kind}-url`).value.trim();

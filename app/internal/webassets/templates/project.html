@@ -105,6 +105,14 @@
       <input type="url" id="wiz-reference-url" placeholder="https://youtube.com/watch?v=... (optional)">
     </div>
     <div class="reference-embed" id="wiz-reference-embed"></div>
+
+    {{/* Catches the common "didn't realize this was already in the
+         catalog" case before a duplicate gets created — search-as-
+         you-type over the exact same /api/catalog/search the band
+         repertoire's "From the catalog" tab already uses, offering to
+         add the existing song to this songbook instead of continuing
+         the wizard. */}}
+    <div id="wiz-catalog-matches" class="attention-list" hidden></div>
   </section>
 
   <section class="wizard-panel" data-step="1" hidden>
