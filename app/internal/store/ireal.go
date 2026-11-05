@@ -48,6 +48,33 @@ func (st *Store) SaveIRealLibrary(ctx context.Context, sourceURL, title, rawBody
 	return tx.Commit(ctx)
 }
 
+// IRealFetch is one cached forum link fetch — the raw layer
+// SaveIRealLibrary writes to ireal_library_fetches.
+type IRealFetch struct {
+	ID                        int64
+	SourceURL, Title, RawBody string
+}
+
+// ListIRealFetches returns every cached raw fetch, for re-deriving
+// ireal_songs from stored bytes after a parser fix (see
+// cmd/irealreparse) without re-fetching the forum.
+func (st *Store) ListIRealFetches(ctx context.Context) ([]IRealFetch, error) {
+	rows, err := st.db.Query(ctx, `SELECT id, source_url, title, raw_body FROM ireal_library_fetches ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []IRealFetch
+	for rows.Next() {
+		var f IRealFetch
+		if err := rows.Scan(&f.ID, &f.SourceURL, &f.Title, &f.RawBody); err != nil {
+			return nil, err
+		}
+		out = append(out, f)
+	}
+	return out, rows.Err()
+}
+
 // IRealSong is one cached, normalized iReal Pro chart.
 type IRealSong struct {
 	ID                          int64

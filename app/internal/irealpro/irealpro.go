@@ -81,6 +81,13 @@ var (
 	endMarkerRE   = regexp.MustCompile(`Z`)
 	spaceAfterBar = regexp.MustCompile(`\|\s+`)
 	multiSpaceRE  = regexp.MustCompile(`\s+`)
+	// A "W" was observed (this session, real forum-fetched data) always
+	// immediately before a "/" slash-bass marker, e.g. "Eb-7W/Gb" —
+	// never as part of a real chord root (iReal roots are A-G only) —
+	// and isn't documented in the reference implementation this package
+	// was cross-checked against either; stripped as a harmless unknown
+	// annotation rather than left to leak into the chord text.
+	slashMarkerWRE = regexp.MustCompile(`W/`)
 )
 
 // cleanupChordString normalizes the unscrambled text into a plain,
@@ -88,6 +95,7 @@ var (
 // "new measure" or "no chord" into one, strips vertical-spacing/empty
 // markers, and collapses whitespace.
 func cleanupChordString(s string) string {
+	s = slashMarkerWRE.ReplaceAllString(s, "/")
 	s = newMeasureRE.ReplaceAllString(s, "|")
 	s = oneBarRepeat.ReplaceAllString(s, "x")
 	s = doubleStarRE.ReplaceAllString(s, "")
