@@ -31,6 +31,10 @@ func (s *Server) requireBandMember(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		person := personFromContext(r)
+		if person.IsAdmin {
+			next(w, r)
+			return
+		}
 		isMember, err := s.store.IsCurrentBandMember(r.Context(), bandID, person.ID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())

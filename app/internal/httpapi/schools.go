@@ -24,6 +24,10 @@ func (s *Server) requireSchoolMember(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		person := personFromContext(r)
+		if person.IsAdmin {
+			next(w, r)
+			return
+		}
 		isMember, err := s.store.IsCurrentSchoolMember(r.Context(), schoolID, person.ID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
@@ -51,6 +55,16 @@ func (s *Server) requireSchoolStaff(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		person := personFromContext(r)
+		// Site admin bypass: an admin manages every community, not just
+		// the ones they happen to already be staff of — without this, a
+		// brand-new community has no staff at all until its FIRST member
+		// joins through some other path, and an admin can't fix a
+		// misconfigured community (wrong staff, stuck invite state)
+		// without first adding themselves as staff through a workaround.
+		if person.IsAdmin {
+			next(w, r)
+			return
+		}
 		isInstructor, err := s.store.IsCurrentSchoolStaff(r.Context(), schoolID, person.ID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
