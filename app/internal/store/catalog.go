@@ -555,6 +555,12 @@ func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, sco
 		if err != nil {
 			return 0, err
 		}
+	case "school":
+		var err error
+		defaultSongbookID, err = st.GetDefaultSongbook(ctx, "school", bandID)
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	tx, err := st.db.Begin(ctx)
@@ -662,13 +668,13 @@ func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, sco
 			defaultSongbookID, newID, forkerID); err != nil {
 			return 0, err
 		}
-	case "school": // same pointer-swap shape as "band", school_catalog_entries table (unchanged by this phase).
-		if _, err := tx.Exec(ctx, `DELETE FROM school_catalog_entries WHERE school_id = $1 AND variant_id = $2`, bandID, variantID); err != nil {
+	case "school": // same songbook_entries pointer-swap shape as "band" — see migration 0042, which dropped school_catalog_entries in favor of this.
+		if _, err := tx.Exec(ctx, `DELETE FROM songbook_entries WHERE songbook_id = $1 AND variant_id = $2`, defaultSongbookID, variantID); err != nil {
 			return 0, err
 		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO school_catalog_entries (school_id, variant_id, added_by_person_id)
-			VALUES ($1, $2, $3)`, bandID, newID, forkerID); err != nil {
+			INSERT INTO songbook_entries (songbook_id, variant_id, added_by_person_id) VALUES ($1, $2, $3)`,
+			defaultSongbookID, newID, forkerID); err != nil {
 			return 0, err
 		}
 	}
@@ -841,6 +847,18 @@ func (st *Store) CreateBandVariant(ctx context.Context, bandID int64, title, art
 // CreateBandVariant/ForkVariant use, never the pool-level
 // IsCurrentSchoolStaff while this tx is open).
 func (st *Store) CreateSchoolVariant(ctx context.Context, schoolID int64, title, artist string, creatorPersonID int64) (int64, error) {
+	// Resolved before the transaction — same ForkVariant/CreateBandVariant
+	// fix: GetDefaultSongbook isn't tx-scoped and may itself need to
+	// INSERT a songbook row. This also fixes a real, separate bug this
+	// function had: it used to write straight to school_catalog_entries,
+	// a table migration 0042 DROPPED in favor of songbook_entries —
+	// every call to this function has been failing outright in
+	// production since that migration shipped.
+	sbID, err := st.GetDefaultSongbook(ctx, "school", schoolID)
+	if err != nil {
+		return 0, err
+	}
+
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, err
@@ -881,8 +899,8 @@ func (st *Store) CreateSchoolVariant(ctx context.Context, schoolID int64, title,
 	}
 
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO school_catalog_entries (school_id, variant_id, added_by_person_id)
-		VALUES ($1, $2, $3)`, schoolID, newID, creator); err != nil {
+		INSERT INTO songbook_entries (songbook_id, variant_id, added_by_person_id) VALUES ($1, $2, $3)`,
+		sbID, newID, creator); err != nil {
 		return 0, err
 	}
 
