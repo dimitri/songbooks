@@ -197,8 +197,14 @@ func fillCodas(s string) (string, error) {
 	if qs == 2 {
 		q1 := strings.IndexByte(s, 'Q')
 		q2 := strings.IndexByte(s[q1+1:], 'Q') + q1 + 1
+		// segno should mark where the repeated section starts, before
+		// the first Q — a real forum-fetched library turned up a case
+		// where 'S' instead occurs later in the string (not a genuine
+		// segno at all, just some other use of the letter), which would
+		// otherwise put segno past q1 and panic the s[segno+1:q1] slice
+		// below; treat that as "no segno" rather than trust it blindly.
 		segno := strings.IndexByte(s, 'S')
-		if segno == -1 {
+		if segno == -1 || segno >= q1 {
 			segno = 0
 		}
 		coda := s[q2+1:]
@@ -336,6 +342,22 @@ type Tune struct {
 // silently diverge from it.
 var fieldSplitRE = regexp.MustCompile(`=+`)
 
+// parseTuneSafe wraps parseTune with a panic recovery — real forum-
+// fetched data has already turned up at least one malformed tune that
+// panicked deep in the grammar logic (an out-of-range slice in
+// fillCodas, now fixed, but this package processes thousands of
+// unpredictable real-world strings from a format with no spec to
+// validate against, so one more surprising edge case shouldn't be able
+// to take down a whole library's worth of otherwise-good songs).
+func parseTuneSafe(tuneString string) (t *Tune, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			t, err = nil, fmt.Errorf("panic parsing tune: %v", r)
+		}
+	}()
+	return parseTune(tuneString)
+}
+
 // parseTune parses one tune's field-list string (already split off a
 // "===" boundary, not yet containing the "irealb://" scheme or any
 // playlist-level prefix — see ParseURL's stripPlaylistPrefix). Fields
@@ -420,9 +442,9 @@ func ParseURL(raw string) ([]*Tune, error) {
 		if strings.TrimSpace(chunk) == "" {
 			continue
 		}
-		t, err := parseTune(chunk)
+		t, err := parseTuneSafe(chunk)
 		if err != nil {
-			continue // one bad tune in a 400-song library shouldn't fail the rest
+			continue // one bad tune in a library of hundreds shouldn't fail the rest
 		}
 		tunes = append(tunes, t)
 	}
