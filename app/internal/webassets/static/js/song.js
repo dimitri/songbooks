@@ -1898,9 +1898,10 @@ const ICONS = {
     // need of being right here, not buried in Source.
     const titleField = document.createElement('label');
     titleField.className = 'header-field';
-    titleField.append('title ');
+    titleField.append('Title');
     const titleInput = document.createElement('input');
-    titleInput.type = 'text'; titleInput.className = 'header-field-input';
+    titleInput.id = 'song-title-input';
+    titleInput.type = 'text';
     titleInput.placeholder = 'Song title';
     titleInput.value = metaGet('title');
     titleInput.addEventListener('input', () => { markDirty(); metaSet('title', titleInput.value.trim()); });
@@ -1908,9 +1909,10 @@ const ICONS = {
 
     const artistField = document.createElement('label');
     artistField.className = 'header-field';
-    artistField.append('artist ');
+    artistField.append('Artist');
     const artistInput = document.createElement('input');
-    artistInput.type = 'text'; artistInput.className = 'header-field-input';
+    artistInput.id = 'song-artist-input';
+    artistInput.type = 'text';
     artistInput.placeholder = 'Artist';
     artistInput.value = metaGet('artist');
     artistInput.addEventListener('input', () => { markDirty(); metaSet('artist', artistInput.value.trim()); });
@@ -1960,7 +1962,15 @@ const ICONS = {
     });
     genreField.appendChild(genreInput);
 
-    host.append(titleField, artistField, timeField, tempoField, genreField);
+    const titleArtistRow = document.createElement('div');
+    titleArtistRow.className = 'song-title-artist-fields';
+    titleArtistRow.append(titleField, artistField);
+
+    const chipsRow = document.createElement('div');
+    chipsRow.className = 'song-meta-chips-row';
+    chipsRow.append(timeField, tempoField, genreField);
+
+    host.append(titleArtistRow, chipsRow);
   }
 
   // The song's own beatsPerBar as edited here, read fresh from structMeta

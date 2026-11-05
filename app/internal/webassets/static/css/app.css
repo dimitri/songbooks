@@ -2854,8 +2854,20 @@ textarea {
 
 /* ---- Song header fields (time signature / tempo), editable inline, same
    row as the structure hint — see song.js's renderHeaderFields. --------- */
-.song-header-fields { display: flex; gap: 1rem; margin-bottom: 0.75rem; font-size: 0.85rem; flex-wrap: wrap; }
-.header-field { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--fg-muted); }
+.song-header-fields { margin-bottom: 0.75rem; }
+/* Title/artist get their own full-width, prominent row — the song's
+   actual identity, not a same-sized peer of a 3-digit tempo field (the
+   old flat row used one 4.5rem centered input for every field, which
+   made a real title like "While My Guitar Gently Weeps" illegible;
+   direct report). */
+.song-title-artist-fields { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.9rem; }
+.song-title-artist-fields .header-field { display: flex; flex-direction: column; align-items: stretch; gap: 0.2rem; color: var(--fg-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
+#song-title-input { font-size: 1.3rem; font-weight: 700; padding: 0.4rem 0.6rem; width: 100%; text-align: left; color: var(--fg); }
+#song-artist-input { font-size: 1rem; padding: 0.3rem 0.6rem; width: 100%; text-align: left; color: var(--fg); }
+/* The compact chips row (time/tempo/genre) keeps the old small-input
+   treatment — these genuinely are short, fixed-width values. */
+.song-meta-chips-row { display: flex; gap: 1rem; font-size: 0.85rem; flex-wrap: wrap; }
+.song-meta-chips-row .header-field { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--fg-muted); }
 .header-field-input { width: 4.5rem; padding: 0.25rem 0.4rem; text-align: center; }
 
 /* ---- Bar-matrix chord grid editor (iReal-Pro-inspired) ------------------- */
