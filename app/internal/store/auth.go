@@ -670,10 +670,17 @@ func (st *Store) ListShellPeopleForBand(ctx context.Context, bandID int64) ([]Sh
 		"p.id IN (SELECT person_id FROM band_members WHERE band_id = %d AND left_at IS NULL)", bandID))
 }
 
-func (st *Store) listShellPeople(ctx context.Context, memberOfBandSQL string) ([]ShellPersonRow, error) {
+// ListShellPeopleForSchool is ListShellPeopleForBand's school/community
+// counterpart — the community admin page's own "pending" section.
+func (st *Store) ListShellPeopleForSchool(ctx context.Context, schoolID int64) ([]ShellPersonRow, error) {
+	return st.listShellPeople(ctx, fmt.Sprintf(
+		"p.id IN (SELECT person_id FROM school_members WHERE school_id = %d AND left_at IS NULL)", schoolID))
+}
+
+func (st *Store) listShellPeople(ctx context.Context, memberOfSQL string) ([]ShellPersonRow, error) {
 	cond := "p.is_shell"
-	if memberOfBandSQL != "" {
-		cond = memberOfBandSQL + " AND p.is_shell"
+	if memberOfSQL != "" {
+		cond = memberOfSQL + " AND p.is_shell"
 	}
 	rows, err := st.db.Query(ctx, `
 		SELECT p.id, p.display_name, p.created_at
