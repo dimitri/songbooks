@@ -242,6 +242,8 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// internal/store/group_invites.go and join.go): any current band
 	// member may create or close one, same "no hierarchy" rule as every
 	// other band-scoped mutation above.
+	mux.HandleFunc("POST /api/bands/{id}/personal-invites", s.requireBandMember(s.handleCreateBandPersonalInvite))
+	mux.HandleFunc("POST /api/people/{personID}/personal-invites", s.requireAuth(s.handleCreatePersonalInviteForPerson))
 	mux.HandleFunc("POST /api/bands/{id}/group-invites", s.requireBandMember(s.handleCreateBandGroupInvite))
 	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/close", s.requireBandMember(s.handleCloseBandGroupInvite))
 	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/slots", s.requireBandMember(s.handleAddGroupInviteSlot))

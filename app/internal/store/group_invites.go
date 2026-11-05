@@ -213,6 +213,27 @@ func (st *Store) ListGroupInvitesForTarget(ctx context.Context, targetKind strin
 	return out, nil
 }
 
+// SharesMembershipWith reports whether actorID and targetID are both
+// current members of at least one of the same bands, or both current
+// (any role) members of at least one of the same schools — the
+// authorization boundary for an action on someone else's account that
+// isn't scoped to one specific band/school URL already (e.g.
+// regenerating a shell person's invite link), mirroring this app's
+// existing "any current member of a shared context may act" rule
+// rather than introducing a new one.
+func (st *Store) SharesMembershipWith(ctx context.Context, actorID, targetID int64) (bool, error) {
+	var ok bool
+	err := st.db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM band_members a JOIN band_members b ON a.band_id = b.band_id
+			WHERE a.person_id = $1 AND a.left_at IS NULL AND b.person_id = $2 AND b.left_at IS NULL
+			UNION ALL
+			SELECT 1 FROM school_members a JOIN school_members b ON a.school_id = b.school_id
+			WHERE a.person_id = $1 AND a.left_at IS NULL AND b.person_id = $2 AND b.left_at IS NULL
+		)`, actorID, targetID).Scan(&ok)
+	return ok, err
+}
+
 // ListAllGroupInvites lists every group invite on the instance, open
 // ones first then closed, newest first within each, each with its
 // target's resolved name and full slot list — the admin panel's own

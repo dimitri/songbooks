@@ -39,10 +39,16 @@ func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	shellPeople, err := s.store.ListShellPeople(r.Context())
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "admin", map[string]any{
 		"Me": personFromContext(r), "People": people,
 		"AdminCount": adminCount, "Communities": communities,
 		"GroupInvites": groupInvites, "PlainInvites": plainInvites,
+		"ShellPeople": shellPeople,
 	})
 }
 

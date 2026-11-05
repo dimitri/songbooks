@@ -97,13 +97,21 @@ type Invite struct {
 	BandID     int64
 	BandName   string
 	BandStatus string
+	PersonID   int64 // set for a personal invite — see Kind, CreateShellPerson
 	CreatedBy  int64 // 0/unknown for invites predating this column
 	ExpiresAt  time.Time
 }
 
-// Kind reports which of the two invite shapes inv is, for templates and
-// handlers that need to branch on it.
+// Kind reports which shape inv is, for templates and handlers that need
+// to branch on it: "personal" (PersonID set — completes an existing
+// shell person's account, see ClaimPersonalInvite) takes priority over
+// the older "band" (BandID set, no shell — grants the given account
+// membership in one band directly) and "plain" (neither — just an
+// account with no attached membership) shapes.
 func (inv Invite) Kind() string {
+	if inv.PersonID != 0 {
+		return "personal"
+	}
 	if inv.BandID != 0 {
 		return "band"
 	}
@@ -472,6 +480,247 @@ func nullableID(id int64) *int64 {
 	return &id
 }
 
+// CreateShellPerson makes a not-yet-claimed person row — displayName
+// set, username a throwaway unique placeholder (replaced by whatever
+// the real person picks when they claim their invite; people.username
+// is NOT NULL+UNIQUE, so a shell needs *something* there from the
+// start), is_shell true. The caller attaches whatever band_members/
+// school_members rows this person should have (AddBandMember/
+// AddSchoolMember both work unchanged against a shell's id — they're
+// ordinary membership rows, nothing shell-specific about them) before
+// ever generating an invite link — see CreatePersonalInvite.
+func (st *Store) CreateShellPerson(ctx context.Context, displayName string) (int64, error) {
+	placeholder, err := randomToken()
+	if err != nil {
+		return 0, err
+	}
+	var id int64
+	err = st.db.QueryRow(ctx,
+		`INSERT INTO people (username, display_name, is_shell) VALUES ($1, $2, true) RETURNING id`,
+		"pending-"+placeholder[:16], displayName).Scan(&id)
+	return id, err
+}
+
+// CreatePersonalInvite makes a single-use token for personID (normally
+// a shell — see CreateShellPerson) to complete their own account.
+// Unlike CreatePlainInvite/CreateBandInvite, claiming it never creates
+// a new person row: ClaimPersonalInvite finishes the EXISTING one.
+func (st *Store) CreatePersonalInvite(ctx context.Context, personID, createdBy int64, ttl time.Duration) (string, error) {
+	token, err := randomToken()
+	if err != nil {
+		return "", err
+	}
+	_, err = st.db.Exec(ctx,
+		`INSERT INTO invites (token, person_id, created_by_person_id, expires_at) VALUES ($1, $2, $3, $4)`,
+		token, personID, nullableID(createdBy), time.Now().Add(ttl))
+	return token, err
+}
+
+// PersonalInviteMembership is one band/community PersonalInviteView's
+// shell person is already a member of (set before the invite was even
+// created — see CreatePersonalInvite's doc comment), for the landing
+// page to list ("you're invited to join: What's Up as guitar/bass/
+// singer (core), Couleur Acoustique (core)").
+type PersonalInviteMembership struct {
+	Kind   string // "band" or "school"
+	ID     int64
+	Name   string
+	Status string // band_members.status, or school_members.role
+}
+
+// PersonalInviteView is what the /invite/{token} landing page needs
+// for a personal invite: the shell person's chosen display name and
+// every membership already granted to them.
+type PersonalInviteView struct {
+	Token       string
+	PersonID    int64
+	DisplayName string
+	Memberships []PersonalInviteMembership
+	ExpiresAt   time.Time
+}
+
+// GetPersonalInvite resolves token to its still-valid personal invite
+// (person_id set), or ErrNotFound if missing/expired/not personal.
+func (st *Store) GetPersonalInvite(ctx context.Context, token string) (*PersonalInviteView, error) {
+	var v PersonalInviteView
+	var personID sql.NullInt64
+	err := st.db.QueryRow(ctx, `
+		SELECT i.token, i.person_id, p.display_name, i.expires_at
+		FROM invites i JOIN people p ON p.id = i.person_id
+		WHERE i.token = $1 AND i.expires_at > now() AND i.person_id IS NOT NULL`, token).
+		Scan(&v.Token, &personID, &v.DisplayName, &v.ExpiresAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("no such invite: %w", ErrNotFound)
+	}
+	if err != nil {
+		return nil, err
+	}
+	v.PersonID = personID.Int64
+
+	rows, err := st.db.Query(ctx, `
+		SELECT 'band', b.id, b.name, bm.status::text
+		FROM band_members bm JOIN bands b ON b.id = bm.band_id
+		WHERE bm.person_id = $1 AND bm.left_at IS NULL
+		UNION ALL
+		SELECT 'school', sc.id, sc.name, sm.role::text
+		FROM school_members sm JOIN schools sc ON sc.id = sm.school_id
+		WHERE sm.person_id = $1 AND sm.left_at IS NULL`, v.PersonID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var m PersonalInviteMembership
+		if err := rows.Scan(&m.Kind, &m.ID, &m.Name, &m.Status); err != nil {
+			return nil, err
+		}
+		v.Memberships = append(v.Memberships, m)
+	}
+	return &v, rows.Err()
+}
+
+// ClaimPersonalInvite finishes a shell person's account: sets their
+// real username/email/password (bcryptHash may be "" for an email-
+// only/magic-link account, same as the plain-invite path), clears
+// is_shell, and deletes the invite — no new person row, no new
+// memberships (those were already granted when the shell was made).
+func (st *Store) ClaimPersonalInvite(ctx context.Context, token, username, email, bcryptHash string) (personID int64, err error) {
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
+	err = tx.QueryRow(ctx, `
+		SELECT person_id FROM invites WHERE token = $1 AND expires_at > now() AND person_id IS NOT NULL`, token).
+		Scan(&personID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, fmt.Errorf("no such invite: %w", ErrNotFound)
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	var pwHash *string
+	if bcryptHash != "" {
+		pwHash = &bcryptHash
+	}
+	_, err = tx.Exec(ctx, `
+		UPDATE people SET username = $1, email = $2, password_hash = $3, is_shell = false WHERE id = $4`,
+		username, nullableString(email), pwHash, personID)
+	if err != nil {
+		if constraintViolated(err, "people_username_key") {
+			return 0, ErrUsernameTaken
+		}
+		if constraintViolated(err, "people_email_key") {
+			return 0, ErrEmailTaken
+		}
+		return 0, err
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM invites WHERE token = $1`, token); err != nil {
+		return 0, err
+	}
+	return personID, tx.Commit(ctx)
+}
+
+// ShellPersonRow is one row of ListShellPeople/ListShellPeopleForBand —
+// a not-yet-claimed person plus their pre-set memberships and whether
+// an invite link has ever been generated for them (a shell can exist
+// with no live invite yet, e.g. right after AddBandMember but before
+// "create invite link" was clicked).
+type ShellPersonRow struct {
+	PersonID        int64
+	DisplayName     string
+	CreatedAt       time.Time
+	Memberships     []PersonalInviteMembership
+	OpenInviteToken string // "" if no still-valid invite exists
+	CreatedByName   string
+}
+
+// ListShellPeople lists every not-yet-claimed shell person on the
+// instance — the admin panel's "pending accounts" view.
+func (st *Store) ListShellPeople(ctx context.Context) ([]ShellPersonRow, error) {
+	return st.listShellPeople(ctx, "")
+}
+
+// ListShellPeopleForBand lists shell people with a current membership
+// in bandID specifically — the band's own Members page's "pending"
+// section, same "any current member can see/manage this" rule the rest
+// of this app's band pages already follow.
+func (st *Store) ListShellPeopleForBand(ctx context.Context, bandID int64) ([]ShellPersonRow, error) {
+	return st.listShellPeople(ctx, fmt.Sprintf(
+		"p.id IN (SELECT person_id FROM band_members WHERE band_id = %d AND left_at IS NULL)", bandID))
+}
+
+func (st *Store) listShellPeople(ctx context.Context, memberOfBandSQL string) ([]ShellPersonRow, error) {
+	cond := "p.is_shell"
+	if memberOfBandSQL != "" {
+		cond = memberOfBandSQL + " AND p.is_shell"
+	}
+	rows, err := st.db.Query(ctx, `
+		SELECT p.id, p.display_name, p.created_at
+		FROM people p
+		WHERE `+cond+`
+		ORDER BY p.created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	var out []ShellPersonRow
+	for rows.Next() {
+		var r ShellPersonRow
+		if err := rows.Scan(&r.PersonID, &r.DisplayName, &r.CreatedAt); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	for i := range out {
+		mrows, err := st.db.Query(ctx, `
+			SELECT 'band', b.id, b.name, bm.status::text
+			FROM band_members bm JOIN bands b ON b.id = bm.band_id
+			WHERE bm.person_id = $1 AND bm.left_at IS NULL
+			UNION ALL
+			SELECT 'school', sc.id, sc.name, sm.role::text
+			FROM school_members sm JOIN schools sc ON sc.id = sm.school_id
+			WHERE sm.person_id = $1 AND sm.left_at IS NULL`, out[i].PersonID)
+		if err != nil {
+			return nil, err
+		}
+		for mrows.Next() {
+			var m PersonalInviteMembership
+			if err := mrows.Scan(&m.Kind, &m.ID, &m.Name, &m.Status); err != nil {
+				mrows.Close()
+				return nil, err
+			}
+			out[i].Memberships = append(out[i].Memberships, m)
+		}
+		mrows.Close()
+		if err := mrows.Err(); err != nil {
+			return nil, err
+		}
+
+		var token sql.NullString
+		var createdByName sql.NullString
+		err = st.db.QueryRow(ctx, `
+			SELECT i.token, p.display_name FROM invites i
+			LEFT JOIN people p ON p.id = i.created_by_person_id
+			WHERE i.person_id = $1 AND i.expires_at > now() LIMIT 1`, out[i].PersonID).
+			Scan(&token, &createdByName)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+		out[i].OpenInviteToken = token.String
+		out[i].CreatedByName = createdByName.String
+	}
+	return out, nil
+}
+
 // PlainInviteRow is one row of ListPlainInvites — a plain/band
 // single-use invite, whether still open or already expired (GetInvite
 // itself only ever returns the still-valid ones; the admin listing
@@ -521,16 +770,16 @@ func (st *Store) ListPlainInvites(ctx context.Context) ([]PlainInviteRow, error)
 // Invite.Kind.
 func (st *Store) GetInvite(ctx context.Context, token string) (*Invite, error) {
 	var inv Invite
-	var bandID sql.NullInt64
+	var bandID, personID sql.NullInt64
 	var bandName, bandStatus sql.NullString
 	var createdBy sql.NullInt64
 	err := st.db.QueryRow(ctx, `
 		SELECT i.token, i.band_id, b.name, i.band_status::text,
-		       i.created_by_person_id, i.expires_at
+		       i.person_id, i.created_by_person_id, i.expires_at
 		FROM invites i
 		LEFT JOIN bands b ON b.id = i.band_id
 		WHERE i.token = $1 AND i.expires_at > now()`, token).
-		Scan(&inv.Token, &bandID, &bandName, &bandStatus, &createdBy, &inv.ExpiresAt)
+		Scan(&inv.Token, &bandID, &bandName, &bandStatus, &personID, &createdBy, &inv.ExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such invite: %w", ErrNotFound)
 	}
@@ -538,6 +787,7 @@ func (st *Store) GetInvite(ctx context.Context, token string) (*Invite, error) {
 		return nil, err
 	}
 	inv.BandID, inv.BandName, inv.BandStatus = bandID.Int64, bandName.String, bandStatus.String
+	inv.PersonID = personID.Int64
 	inv.CreatedBy = createdBy.Int64
 	return &inv, nil
 }

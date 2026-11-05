@@ -15,11 +15,26 @@ import (
 // handleInvitePage shows a pending invite: if the visitor is already
 // logged in, a "join as {them}" confirm button; otherwise a short
 // create-account form. Either path posts to the same handlePostInvite.
+// A personal invite (Kind() == "personal") instead shows every
+// membership already granted to its shell person — see
+// store.GetPersonalInvite — and its form only ever finishes THAT
+// account (ClaimPersonalInvite), never creates a new one, so the
+// "already logged in" branch doesn't apply to it at all.
 func (s *Server) handleInvitePage(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
 	inv, err := s.store.GetInvite(r.Context(), token)
 	if err != nil {
 		http.Error(w, "this invite link is invalid or has expired", http.StatusNotFound)
+		return
+	}
+
+	if inv.Kind() == "personal" {
+		pv, err := s.store.GetPersonalInvite(r.Context(), token)
+		if err != nil {
+			http.Error(w, "this invite link is invalid or has expired", http.StatusNotFound)
+			return
+		}
+		s.renderPersonalInvitePage(w, pv, "", pv.DisplayName, "")
 		return
 	}
 
@@ -49,6 +64,19 @@ func (s *Server) renderInvitePage(w http.ResponseWriter, inv *store.Invite, logg
 	})
 }
 
+// renderPersonalInvitePage is renderInvitePage's counterpart for a
+// personal invite: reuses the same "invite" template (Kind == "personal"
+// switches its content), but carries the pre-set membership list instead
+// of a single band/role pair.
+func (s *Server) renderPersonalInvitePage(w http.ResponseWriter, pv *store.PersonalInviteView, formErr, username, email string) {
+	s.render(w, "invite", map[string]any{
+		"Token": pv.Token, "Kind": "personal",
+		"DisplayName": pv.DisplayName, "Memberships": pv.Memberships,
+		"Error":    formErr,
+		"Username": username, "Email": email,
+	})
+}
+
 // handlePostInvite accepts an invite. A logged-in visitor just gets the
 // membership added to their existing account; an anonymous one must
 // supply a username/display name/email/password, which creates a
@@ -73,6 +101,10 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 	inv, invErr := s.store.GetInvite(r.Context(), token)
 	if invErr != nil {
 		http.Error(w, "this invite link is invalid or has expired", http.StatusNotFound)
+		return
+	}
+	if inv.Kind() == "personal" {
+		s.handlePostPersonalInvite(w, r, token)
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -155,4 +187,82 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 	// the real destination for its "Done"/"skip the rest" step so the
 	// invite's own target isn't lost.
 	http.Redirect(w, r, "/welcome?step=2&next="+url.QueryEscape(dest), http.StatusFound)
+}
+
+// handlePostPersonalInvite finishes a shell person's account — same
+// username/email/password shape as handlePostInvite's anonymous branch,
+// but calls ClaimPersonalInvite (sets the fields on the EXISTING shell
+// row) instead of CreatePersonAndAcceptInvite (which always inserts a
+// new one). No "already logged in, just add membership" branch: a
+// personal invite's whole point is finishing ONE specific pre-named
+// account, not attaching its memberships to whoever happens to already
+// be signed in on this browser.
+func (s *Server) handlePostPersonalInvite(w http.ResponseWriter, r *http.Request, token string) {
+	pv, pvErr := s.store.GetPersonalInvite(r.Context(), token)
+	if pvErr != nil {
+		http.Error(w, "this invite link is invalid or has expired", http.StatusNotFound)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		s.renderPersonalInvitePage(w, pv, "invalid form", "", "")
+		return
+	}
+
+	username := strings.TrimSpace(r.FormValue("username"))
+	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
+	password := r.FormValue("password")
+	confirm := r.FormValue("confirm")
+
+	if username == "" || email == "" {
+		s.renderPersonalInvitePage(w, pv, "username and email are both required", username, email)
+		return
+	}
+	at := strings.IndexByte(email, '@')
+	if at <= 0 || at == len(email)-1 {
+		s.renderPersonalInvitePage(w, pv, "enter a valid email address", username, email)
+		return
+	}
+	var hash string
+	if password != "" || confirm != "" {
+		if len(password) < 8 {
+			s.renderPersonalInvitePage(w, pv, "password must be at least 8 characters", username, email)
+			return
+		}
+		if password != confirm {
+			s.renderPersonalInvitePage(w, pv, "passwords didn't match", username, email)
+			return
+		}
+		h, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		if err != nil {
+			log.Printf("hashing personal-invite password: %v", err)
+			s.renderPersonalInvitePage(w, pv, "couldn't finish setting up this account — try again", username, email)
+			return
+		}
+		hash = string(h)
+	}
+
+	personID, err := s.store.ClaimPersonalInvite(r.Context(), token, username, email, hash)
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrUsernameTaken):
+			s.renderPersonalInvitePage(w, pv, "that username is already taken — try another", "", email)
+		case errors.Is(err, store.ErrEmailTaken):
+			s.renderPersonalInvitePage(w, pv, "that email is already registered to another account", username, "")
+		default:
+			log.Printf("claiming personal invite %s: %v", token, err)
+			s.renderPersonalInvitePage(w, pv, "couldn't finish setting up this account — try again", username, email)
+		}
+		return
+	}
+	sessToken, err := s.store.CreateSession(r.Context(), personID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name: sessionCookie, Value: sessToken, Path: "/",
+		HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode,
+		MaxAge: 30 * 24 * 60 * 60,
+	})
+	http.Redirect(w, r, "/welcome?step=2&next=/", http.StatusFound)
 }

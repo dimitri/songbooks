@@ -100,6 +100,38 @@
   </section>
 
   <section class="admin-panel" data-panel="invites" hidden>
+    {{/* Pending/shell accounts: every person added to a band or
+         community roster who hasn't finished setting up their own
+         login yet — a personal invite's whole point. This is the
+         site-wide view across every band/community; each band's own
+         Members page shows the same thing scoped to itself. */}}
+    <div class="card">
+      <h3>Pending accounts</h3>
+      <p class="hint">People already added to a roster (with real memberships) who haven't claimed their account yet — their invite link completes exactly this person, whatever band(s) or community they're already on.</p>
+      <div class="table-scroll"><table style="width:100%">
+        <thead><tr><th>Name</th><th>Memberships</th><th>Invited by</th><th>Added</th><th></th></tr></thead>
+        <tbody>
+        {{range .ShellPeople}}
+          <tr>
+            <td>{{.DisplayName}}</td>
+            <td>{{range .Memberships}}<span class="roster-instrument-badge">{{.Name}} ({{.Status}})</span> {{end}}</td>
+            <td>{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>unknown</em>{{end}}</td>
+            <td>{{.CreatedAt.Format "2006-01-02"}}</td>
+            <td>
+              {{if .OpenInviteToken}}
+              <code class="invite-link-url" data-url="/invite/{{.OpenInviteToken}}">/invite/{{.OpenInviteToken}}</code>
+              {{else}}
+              <span class="hint">no live link</span>
+              {{end}}
+            </td>
+          </tr>
+        {{else}}
+          <tr><td colspan="5" class="hint">No pending accounts.</td></tr>
+        {{end}}
+        </tbody>
+      </table></div>
+    </div>
+
     <div class="card" style="max-width:420px">
       <h3>Plain signup invite</h3>
       <p class="hint">No self-serve registration exists yet — this is the only way to let someone in with no project or band attached.</p>

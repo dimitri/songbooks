@@ -5,7 +5,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>
-{{if eq .Kind "band"}}Join {{.BandName}}
+{{if eq .Kind "personal"}}Welcome, {{.DisplayName}}
+{{else if eq .Kind "band"}}Join {{.BandName}}
 {{else}}Create your account{{end}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
@@ -14,7 +15,14 @@
 <main class="index auth-page">
   <div class="hero">
     <div>
-      {{if eq .Kind "band"}}
+      {{if eq .Kind "personal"}}
+        <h2>Welcome, {{.DisplayName}}</h2>
+        <p>You're already on the roster for:</p>
+        <ul>
+        {{range .Memberships}}<li>{{.Name}} <span class="hint">({{.Status}})</span></li>{{end}}
+        </ul>
+        <p class="hint">Finish setting up your login below — nothing else changes, these memberships are already yours.</p>
+      {{else if eq .Kind "band"}}
         <h2>Join {{.BandName}}</h2>
         <p>You've been invited as a <strong>{{.BandStatus}}</strong> member.</p>
       {{else}}
@@ -24,7 +32,15 @@
     </div>
   </div>
   <form class="card" method="post" action="/invite/{{.Token}}">
-    {{if .LoggedInAs}}
+    {{if eq .Kind "personal"}}
+      {{if .Error}}<p style="color:var(--danger)">{{.Error}}</p>{{end}}
+      <p><label>Username<br><input type="text" name="username" value="{{.Username}}" autocomplete="username" required autofocus></label></p>
+      <p><label>Email<br><input type="email" name="email" value="{{.Email}}" autocomplete="email" required></label></p>
+      <p><label>Password <span class="hint">(optional — leave blank to log in with an emailed link instead)</span><br><input type="password" name="password" autocomplete="new-password" minlength="8"></label></p>
+      <p><label>Confirm password<br><input type="password" name="confirm" autocomplete="new-password" minlength="8"></label></p>
+      <p class="hint">You'll be offered a passkey (Touch ID, Face ID, Windows Hello) right after this, as a faster alternative for next time.</p>
+      <button type="submit">Finish setting up my account</button>
+    {{else if .LoggedInAs}}
       <p>
       {{if eq .Kind "band"}}Join {{.BandName}} as <strong>{{.LoggedInAs}}</strong>?
       {{else}}Continue as <strong>{{.LoggedInAs}}</strong>?{{end}}

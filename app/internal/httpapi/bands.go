@@ -300,6 +300,11 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	shellPeople, err := s.store.ListShellPeopleForBand(r.Context(), bandID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 
 	// Whether to show the pending-slots column header (Name/Instrument/
 	// Role) at all — computed here rather than in the template, since
@@ -320,7 +325,7 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "band_members", map[string]any{
 		"Me": person, "Band": band, "Members": members,
 		"GroupInvites": groupInvites, "OpenInvites": openInvites,
-		"HasPendingSlots": hasPendingSlots,
+		"HasPendingSlots": hasPendingSlots, "ShellPeople": shellPeople,
 	})
 }
 
@@ -482,6 +487,86 @@ func (s *Server) handleCreateBandInvite(w http.ResponseWriter, r *http.Request) 
 // slot grants the claiming person band status "guest" (see
 // store.grantGroupInviteMembershipTx's doc comment for why guest, not
 // core, is the default here).
+// handleCreateBandPersonalInvite replaces the old group-invite ("pick
+// your name from a shared roster link") flow with a personal one: a
+// shell person is created with their membership (band_id/status)
+// already attached, then one single-use invite token is minted for
+// THAT person — see store.CreateShellPerson/CreatePersonalInvite. The
+// roster shows this person immediately (as "hasn't joined yet"),
+// exactly as a quick-add did before, but now with a real invite link
+// attached to them specifically rather than an anonymous shared one.
+func (s *Server) handleCreateBandPersonalInvite(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		DisplayName string `json:"displayName"`
+		Instrument  string `json:"instrument"`
+		Status      string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.DisplayName == "" {
+		httpError(w, http.StatusBadRequest, "displayName is required")
+		return
+	}
+	status := req.Status
+	if status != "core" && status != "guest" {
+		status = "guest"
+	}
+	actor := personFromContext(r)
+
+	personID, err := s.store.CreateShellPerson(r.Context(), req.DisplayName)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if req.Instrument != "" {
+		if err := s.store.SetInstruments(r.Context(), personID, []string{req.Instrument}); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	if _, err := s.store.AddBandMember(r.Context(), bandID, personID, status, actor.ID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	token, err := s.store.CreatePersonalInvite(r.Context(), personID, actor.ID, 30*24*time.Hour)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"personId": personID, "url": "/invite/" + token})
+}
+
+// handleCreatePersonalInviteForPerson (re)generates a personal invite
+// link for an existing shell person — their memberships don't change,
+// only a fresh token is minted (the "Get invite link" / "resend"
+// action for a shell added before this existed, or whose link
+// expired). Gated on the caller sharing at least one current band or
+// community with the target, the same "any current member can manage
+// this" boundary CreateBandPersonalInvite's own route already uses,
+// generalized since this endpoint isn't scoped to one band's URL.
+func (s *Server) handleCreatePersonalInviteForPerson(w http.ResponseWriter, r *http.Request) {
+	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid person id")
+		return
+	}
+	actor := personFromContext(r)
+	shared, err := s.store.SharesMembershipWith(r.Context(), actor.ID, personID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !shared {
+		httpError(w, http.StatusForbidden, "you don't share a band or community with this person")
+		return
+	}
+	token, err := s.store.CreatePersonalInvite(r.Context(), personID, actor.ID, 30*24*time.Hour)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"url": "/invite/" + token})
+}
+
 func (s *Server) handleCreateBandGroupInvite(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
