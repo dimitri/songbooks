@@ -310,6 +310,13 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("POST /admin/group-invites/{id}/close", s.requireAdmin(s.handleAdminCloseGroupInvite))
 	mux.HandleFunc("POST /admin/people/{personID}/admin", s.requireAdmin(s.handleSetAdmin))
 	mux.HandleFunc("POST /admin/people/{personID}/remove", s.requireAdmin(s.handleAdminRemovePerson))
+	// Per-person profile review: memberships across every band/community,
+	// with role adjustment, all from one page — see handlers_admin.go's
+	// handleAdminPersonPage doc comment.
+	mux.HandleFunc("GET /admin/people/{personID}", s.requireAdmin(s.handleAdminPersonPage))
+	mux.HandleFunc("POST /admin/people/{personID}/memberships", s.requireAdmin(s.handleAdminAddMembership))
+	mux.HandleFunc("POST /admin/people/{personID}/memberships/{kind}/{targetID}/role", s.requireAdmin(s.handleAdminSetMembershipRole))
+	mux.HandleFunc("POST /admin/people/{personID}/memberships/{kind}/{targetID}/remove", s.requireAdmin(s.handleAdminRemoveMembership))
 
 	mux.HandleFunc("GET /setlists", s.requireAuth(s.handleSetlistsPage))
 

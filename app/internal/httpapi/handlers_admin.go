@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -112,6 +113,195 @@ func (s *Server) handleAdminCloseGroupInvite(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	http.Redirect(w, r, "/admin#invites", http.StatusFound)
+}
+
+// handleAdminPersonPage is the per-person profile review screen: one
+// person's identity (username, display name, created date, site-admin
+// bit) plus every band/community they currently belong to and the role
+// within each — the admin-panel counterpart to a band/community's own
+// Members page, but scoped to a PERSON across every roster they're on,
+// not to one roster. Lets an admin fix a misassigned role or missing
+// membership without having to find and open each band/community in
+// turn. Gated by requireAdmin — no per-band/school membership check,
+// same reasoning as handleAdminCloseGroupInvite.
+func (s *Server) handleAdminPersonPage(w http.ResponseWriter, r *http.Request) {
+	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid person id")
+		return
+	}
+	person, err := s.store.GetPersonByID(r.Context(), personID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			httpError(w, http.StatusNotFound, "no such person")
+			return
+		}
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	memberships, err := s.store.GetPersonMemberships(r.Context(), personID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	allBands, err := s.store.ListAllBands(r.Context())
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	allCommunities, err := s.store.ListAllSchoolsWithCounts(r.Context())
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Only offer bands/communities this person isn't already on — the
+	// add-membership picker would otherwise let an admin "add" someone
+	// who's already a member and hit AddBandMember/AddSchoolMember's own
+	// already-a-member error for no reason.
+	already := map[string]bool{}
+	for _, m := range memberships {
+		already[m.Kind+":"+strconv.FormatInt(m.ID, 10)] = true
+	}
+	var availableBands []store.Band
+	for _, b := range allBands {
+		if !already["band:"+strconv.FormatInt(b.ID, 10)] {
+			availableBands = append(availableBands, b)
+		}
+	}
+	var availableCommunities []store.SchoolAdminRow
+	for _, c := range allCommunities {
+		if !already["school:"+strconv.FormatInt(c.ID, 10)] {
+			availableCommunities = append(availableCommunities, c)
+		}
+	}
+
+	s.render(w, "admin_person", map[string]any{
+		"Me": personFromContext(r), "Person": person, "Memberships": memberships,
+		"AvailableBands": availableBands, "AvailableCommunities": availableCommunities,
+	})
+}
+
+// adminMembershipMutationRequest is the shared body shape for the three
+// membership-mutation endpoints below — one small JSON struct instead
+// of three near-identical ones, since every caller sends a subset of
+// these same three fields (kind always; targetID to add; role to add
+// or change).
+type adminMembershipMutationRequest struct {
+	Kind     string `json:"kind"` // "band" or "school"
+	TargetID int64  `json:"targetID"`
+	Role     string `json:"role"` // band_members.status ("core"/"guest") or school_members.role ("staff"/"member")
+}
+
+// handleAdminAddMembership adds personID to a band or community at the
+// given role, as the admin panel's own action — bypassing the "must
+// already be a current member to invite someone else" rule every other
+// add-member path enforces, the same site-wide-admin exception
+// handleAdminCloseGroupInvite already carries.
+func (s *Server) handleAdminAddMembership(w http.ResponseWriter, r *http.Request) {
+	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid person id")
+		return
+	}
+	var req adminMembershipMutationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TargetID == 0 {
+		httpError(w, http.StatusBadRequest, "kind and targetID are required")
+		return
+	}
+	actor := personFromContext(r)
+	switch req.Kind {
+	case "band":
+		if req.Role == "" {
+			req.Role = "core"
+		}
+		if _, err := s.store.AddBandMember(r.Context(), req.TargetID, personID, req.Role, actor.ID); err != nil {
+			httpError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	case "school":
+		if req.Role == "" {
+			req.Role = "member"
+		}
+		if _, err := s.store.AddSchoolMember(r.Context(), req.TargetID, personID, req.Role, actor.ID); err != nil {
+			httpError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	default:
+		httpError(w, http.StatusBadRequest, "kind must be \"band\" or \"school\"")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleAdminSetMembershipRole promotes/demotes personID's current
+// membership in the given band or community.
+func (s *Server) handleAdminSetMembershipRole(w http.ResponseWriter, r *http.Request) {
+	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid person id")
+		return
+	}
+	targetID, err := strconv.ParseInt(r.PathValue("targetID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid target id")
+		return
+	}
+	var req adminMembershipMutationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Role == "" {
+		httpError(w, http.StatusBadRequest, "role is required")
+		return
+	}
+	actor := personFromContext(r)
+	switch r.PathValue("kind") {
+	case "band":
+		if err := s.store.SetBandMemberStatus(r.Context(), targetID, personID, req.Role, actor.ID); err != nil {
+			httpError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	case "school":
+		if err := s.store.SetSchoolMemberRole(r.Context(), targetID, personID, req.Role); err != nil {
+			httpError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	default:
+		httpError(w, http.StatusBadRequest, "kind must be \"band\" or \"school\"")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleAdminRemoveMembership ends personID's current membership in the
+// given band or community (soft removal — see RemoveBandMember/
+// RemoveSchoolMember's own doc comments).
+func (s *Server) handleAdminRemoveMembership(w http.ResponseWriter, r *http.Request) {
+	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid person id")
+		return
+	}
+	targetID, err := strconv.ParseInt(r.PathValue("targetID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid target id")
+		return
+	}
+	actor := personFromContext(r)
+	switch r.PathValue("kind") {
+	case "band":
+		if err := s.store.RemoveBandMember(r.Context(), targetID, personID, actor.ID); err != nil {
+			httpError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	case "school":
+		if err := s.store.RemoveSchoolMember(r.Context(), targetID, personID); err != nil {
+			httpError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	default:
+		httpError(w, http.StatusBadRequest, "kind must be \"band\" or \"school\"")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // handleAdminRemovePerson is a deliberate stub: removing a person touches

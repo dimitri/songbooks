@@ -53,7 +53,7 @@
         <tbody>
         {{range .People}}
           <tr>
-            <td>{{.Username}}</td>
+            <td><a href="/admin/people/{{.ID}}">{{.Username}}</a></td>
             <td>{{.DisplayName}}</td>
             <td>{{.CreatedAt.Format "2006-01-02"}}</td>
             <td>{{if .IsAdmin}}yes{{else}}no{{end}}</td>
@@ -113,13 +113,17 @@
         <tbody>
         {{range .ShellPeople}}
           <tr>
-            <td>{{.DisplayName}}</td>
+            <td><a href="/admin/people/{{.PersonID}}">{{.DisplayName}}</a></td>
             <td>{{range .Memberships}}<span class="roster-instrument-badge">{{.Name}} ({{.Status}})</span> {{end}}</td>
             <td>{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>unknown</em>{{end}}</td>
             <td>{{.CreatedAt.Format "2006-01-02"}}</td>
             <td>
               {{if .OpenInviteToken}}
-              <code class="invite-link-url" data-url="/invite/{{.OpenInviteToken}}">/invite/{{.OpenInviteToken}}</code>
+              <span class="invite-link-row">
+                <code class="invite-link-url" data-url="/invite/{{.OpenInviteToken}}">/invite/{{.OpenInviteToken}}</code>
+                <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}">copy</button>
+                <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}">QR</button>
+              </span>
               {{else}}
               <span class="hint">no live link</span>
               {{end}}
@@ -240,7 +244,21 @@ document.getElementById('create-plain-invite-btn').addEventListener('click', asy
     copyBtn.hidden = true;
   }
 });
+document.querySelectorAll('.copy-link-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const url = location.origin + btn.dataset.url;
+    navigator.clipboard.writeText(url).then(() => {
+      const prev = btn.textContent;
+      btn.textContent = 'copied!';
+      setTimeout(() => { btn.textContent = prev; }, 1500);
+    }).catch(() => {});
+  });
+});
+document.querySelectorAll('.qr-link-btn').forEach(btn => {
+  btn.addEventListener('click', () => showQR(location.origin + btn.dataset.url));
+});
 </script>
+<script src="/static/js/qr.js?v={{staticVersion}}"></script>
 </div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}

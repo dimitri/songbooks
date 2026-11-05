@@ -557,6 +557,21 @@ func (st *Store) GetPersonalInvite(ctx context.Context, token string) (*Personal
 	}
 	v.PersonID = personID.Int64
 
+	v.Memberships, err = st.GetPersonMemberships(ctx, v.PersonID)
+	if err != nil {
+		return nil, err
+	}
+	return &v, nil
+}
+
+// GetPersonMemberships lists personID's current band and community
+// memberships (kind/id/name plus that membership's own status or role,
+// unified as PersonalInviteMembership.Status) — shared by the personal-
+// invite flows above and by the admin profile-review page
+// (handleAdminPersonPage) to show and adjust a person's roster
+// assignments in one place, whether or not they've claimed their
+// account yet.
+func (st *Store) GetPersonMemberships(ctx context.Context, personID int64) ([]PersonalInviteMembership, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT 'band', b.id, b.name, bm.status::text
 		FROM band_members bm JOIN bands b ON b.id = bm.band_id
@@ -564,19 +579,21 @@ func (st *Store) GetPersonalInvite(ctx context.Context, token string) (*Personal
 		UNION ALL
 		SELECT 'school', sc.id, sc.name, sm.role::text
 		FROM school_members sm JOIN schools sc ON sc.id = sm.school_id
-		WHERE sm.person_id = $1 AND sm.left_at IS NULL`, v.PersonID)
+		WHERE sm.person_id = $1 AND sm.left_at IS NULL
+		ORDER BY 1, 3`, personID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+	var out []PersonalInviteMembership
 	for rows.Next() {
 		var m PersonalInviteMembership
 		if err := rows.Scan(&m.Kind, &m.ID, &m.Name, &m.Status); err != nil {
 			return nil, err
 		}
-		v.Memberships = append(v.Memberships, m)
+		out = append(out, m)
 	}
-	return &v, rows.Err()
+	return out, rows.Err()
 }
 
 // ClaimPersonalInvite finishes a shell person's account: sets their
@@ -681,27 +698,8 @@ func (st *Store) listShellPeople(ctx context.Context, memberOfBandSQL string) ([
 	}
 
 	for i := range out {
-		mrows, err := st.db.Query(ctx, `
-			SELECT 'band', b.id, b.name, bm.status::text
-			FROM band_members bm JOIN bands b ON b.id = bm.band_id
-			WHERE bm.person_id = $1 AND bm.left_at IS NULL
-			UNION ALL
-			SELECT 'school', sc.id, sc.name, sm.role::text
-			FROM school_members sm JOIN schools sc ON sc.id = sm.school_id
-			WHERE sm.person_id = $1 AND sm.left_at IS NULL`, out[i].PersonID)
+		out[i].Memberships, err = st.GetPersonMemberships(ctx, out[i].PersonID)
 		if err != nil {
-			return nil, err
-		}
-		for mrows.Next() {
-			var m PersonalInviteMembership
-			if err := mrows.Scan(&m.Kind, &m.ID, &m.Name, &m.Status); err != nil {
-				mrows.Close()
-				return nil, err
-			}
-			out[i].Memberships = append(out[i].Memberships, m)
-		}
-		mrows.Close()
-		if err := mrows.Err(); err != nil {
 			return nil, err
 		}
 

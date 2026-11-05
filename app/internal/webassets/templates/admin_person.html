@@ -1,0 +1,165 @@
+{{define "admin_person"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Person.DisplayName}} — Admin — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
+<header class="app-header">
+  {{template "home-link"}}
+  <h1>{{.Person.DisplayName}}</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index">
+  <a href="/admin#people" class="import-back">{{template "icon-back"}} back to Admin</a>
+
+  <div class="card">
+    <h3>Identity</h3>
+    <table style="width:100%">
+      <tr><td class="hint">Username</td><td>{{.Person.Username}}</td></tr>
+      <tr><td class="hint">Display name</td><td>{{.Person.DisplayName}}</td></tr>
+      <tr><td class="hint">Email</td><td>{{if .Person.Email}}{{.Person.Email}}{{else}}<em>none</em>{{end}}</td></tr>
+      <tr><td class="hint">Site admin</td><td>
+        {{if eq .Person.ID .Me.ID}}<em>you</em>{{else}}
+        <form method="post" action="/admin/people/{{.Person.ID}}/admin" style="display:inline">
+          <input type="hidden" name="is_admin" value="{{if .Person.IsAdmin}}0{{else}}1{{end}}">
+          <button type="submit">{{if .Person.IsAdmin}}revoke admin{{else}}make admin{{end}}</button>
+        </form>
+        {{end}}
+      </td></tr>
+    </table>
+  </div>
+
+  {{/* The whole point of this page: every roster this person is on,
+       with their role within it, adjustable in place — instead of
+       having to find and open each band/community separately to fix
+       one person's role. */}}
+  <div class="card">
+    <h3>Memberships &amp; roles</h3>
+    <p class="hint">Adjusting a role here takes effect immediately, same as doing it from the band/community's own Members page.</p>
+    <div id="membership-rows" class="form-stack">
+    {{range .Memberships}}
+      <div class="import-row" data-kind="{{.Kind}}" data-target-id="{{.ID}}">
+        <strong style="min-width:9rem">{{if eq .Kind "band"}}band{{else}}community{{end}}: {{.Name}}</strong>
+        <select class="membership-role-select">
+          {{if eq .Kind "band"}}
+          <option value="core" {{if eq .Status "core"}}selected{{end}}>core</option>
+          <option value="guest" {{if eq .Status "guest"}}selected{{end}}>guest</option>
+          {{else}}
+          <option value="staff" {{if eq .Status "staff"}}selected{{end}}>staff</option>
+          <option value="member" {{if eq .Status "member"}}selected{{end}}>member</option>
+          {{end}}
+        </select>
+        <button type="button" class="membership-remove-btn danger">remove</button>
+        <span class="membership-row-status hint"></span>
+      </div>
+    {{else}}
+      <p class="hint">Not on any band or community roster yet.</p>
+    {{end}}
+    </div>
+  </div>
+
+  <div class="card" style="max-width:480px">
+    <h3>Add a membership</h3>
+    <div class="form-stack">
+      <div class="field">
+        <label for="add-membership-kind">Kind</label>
+        <select id="add-membership-kind">
+          <option value="band">Band</option>
+          <option value="school">Community</option>
+        </select>
+      </div>
+      <div class="field" id="add-membership-target-field">
+        <label for="add-membership-target">Band</label>
+        <select id="add-membership-target">
+          {{range .AvailableBands}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div class="field" id="add-membership-target-field-school" hidden>
+        <label for="add-membership-target-school">Community</label>
+        <select id="add-membership-target-school">
+          {{range .AvailableCommunities}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div class="field">
+        <label for="add-membership-role">Role</label>
+        <select id="add-membership-role">
+          <option value="core" data-kind="band" selected>core</option>
+          <option value="guest" data-kind="band">guest</option>
+          <option value="member" data-kind="school">member</option>
+          <option value="staff" data-kind="school">staff</option>
+        </select>
+      </div>
+      <button type="button" id="add-membership-btn" class="primary">Add</button>
+      <span id="add-membership-status" class="hint"></span>
+    </div>
+  </div>
+</main>
+<script>
+const personId = {{.Person.ID}};
+
+function reload() { location.reload(); }
+
+document.querySelectorAll('.membership-role-select').forEach(sel => {
+  sel.addEventListener('change', async () => {
+    const row = sel.closest('[data-kind]');
+    const status = row.querySelector('.membership-row-status');
+    status.textContent = 'saving…'; status.className = 'membership-row-status hint';
+    const res = await fetch(`/admin/people/${personId}/memberships/${row.dataset.kind}/${row.dataset.targetId}/role`,
+      {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({role: sel.value})});
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) { status.textContent = 'saved'; status.className = 'membership-row-status hint ok'; }
+    else { status.textContent = data.error || 'failed'; status.className = 'membership-row-status hint err'; }
+  });
+});
+
+document.querySelectorAll('.membership-remove-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const row = btn.closest('[data-kind]');
+    if (!confirm('Remove this membership?')) return;
+    const res = await fetch(`/admin/people/${personId}/memberships/${row.dataset.kind}/${row.dataset.targetId}/remove`, {method: 'POST'});
+    if (res.ok) row.remove(); else alert('failed to remove');
+  });
+});
+
+const kindSel = document.getElementById('add-membership-kind');
+const bandField = document.getElementById('add-membership-target-field');
+const schoolField = document.getElementById('add-membership-target-field-school');
+const roleSel = document.getElementById('add-membership-role');
+function syncAddFormKind() {
+  const kind = kindSel.value;
+  bandField.hidden = kind !== 'band';
+  schoolField.hidden = kind !== 'school';
+  [...roleSel.options].forEach(o => { o.hidden = o.dataset.kind !== kind; });
+  const firstForKind = [...roleSel.options].find(o => o.dataset.kind === kind);
+  if (firstForKind) roleSel.value = firstForKind.value;
+}
+kindSel.addEventListener('change', syncAddFormKind);
+syncAddFormKind();
+
+document.getElementById('add-membership-btn').addEventListener('click', async () => {
+  const kind = kindSel.value;
+  const targetSel = kind === 'band' ? document.getElementById('add-membership-target') : document.getElementById('add-membership-target-school');
+  const status = document.getElementById('add-membership-status');
+  if (!targetSel.value) { status.textContent = 'nothing left to add'; status.className = 'hint err'; return; }
+  status.textContent = 'adding…'; status.className = 'hint';
+  const res = await fetch(`/admin/people/${personId}/memberships`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({kind, targetID: parseInt(targetSel.value, 10), role: roleSel.value}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) { reload(); } else { status.textContent = data.error || 'failed to add'; status.className = 'hint err'; }
+});
+</script>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}
