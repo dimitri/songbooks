@@ -39,28 +39,31 @@ ALTER TYPE variant_visibility RENAME VALUE 'school' TO 'community';
 
 -- songbooks.owner_kind and group_invites.target_kind are plain TEXT
 -- columns with a CHECK, not enums — the 'school' value is real stored
--- data here, not just a type label, so it needs an actual UPDATE
--- before the CHECK constraint can be swapped to the new literal.
-UPDATE songbooks SET owner_kind = 'community' WHERE owner_kind = 'school';
+-- data here, not just a type label. The old CHECK constraints (and the
+-- partial-index predicate below) only know about the literal 'school',
+-- not 'community' yet, so they must be dropped BEFORE the data UPDATE
+-- runs, or the UPDATE itself violates them (caught when this migration
+-- was first run against production, which — unlike the empty local
+-- test database this was authored against — actually has school-owned
+-- songbooks).
 ALTER TABLE songbooks DROP CONSTRAINT songbooks_owner_kind_check;
-ALTER TABLE songbooks ADD CONSTRAINT songbooks_owner_kind_check CHECK (owner_kind IN ('person', 'band', 'community'));
 ALTER TABLE songbooks DROP CONSTRAINT songbooks_check;
+DROP INDEX songbooks_default_school_idx;
+DROP INDEX songbooks_owner_school_idx;
+UPDATE songbooks SET owner_kind = 'community' WHERE owner_kind = 'school';
+ALTER TABLE songbooks ADD CONSTRAINT songbooks_owner_kind_check CHECK (owner_kind IN ('person', 'band', 'community'));
 ALTER TABLE songbooks ADD CONSTRAINT songbooks_check CHECK (
   (owner_kind = 'person'    AND owner_person_id IS NOT NULL AND owner_band_id IS NULL AND owner_community_id IS NULL) OR
   (owner_kind = 'band'      AND owner_band_id IS NOT NULL   AND owner_person_id IS NULL AND owner_community_id IS NULL) OR
   (owner_kind = 'community' AND owner_community_id IS NOT NULL AND owner_person_id IS NULL AND owner_band_id IS NULL)
 );
--- The two owner_kind='school' partial-index predicates need the same
--- literal swap — DROP+CREATE (ALTER INDEX can't rewrite a predicate).
-DROP INDEX songbooks_default_school_idx;
 CREATE UNIQUE INDEX songbooks_default_community_idx ON songbooks (owner_community_id) WHERE is_default AND owner_kind = 'community';
-DROP INDEX songbooks_owner_school_idx;
 CREATE INDEX songbooks_owner_community_idx ON songbooks (owner_community_id) WHERE owner_community_id IS NOT NULL;
 
-UPDATE group_invites SET target_kind = 'community' WHERE target_kind = 'school';
 ALTER TABLE group_invites DROP CONSTRAINT group_invites_target_kind_check;
-ALTER TABLE group_invites ADD CONSTRAINT group_invites_target_kind_check CHECK (target_kind IN ('band', 'community'));
 ALTER TABLE group_invites DROP CONSTRAINT group_invites_one_target;
+UPDATE group_invites SET target_kind = 'community' WHERE target_kind = 'school';
+ALTER TABLE group_invites ADD CONSTRAINT group_invites_target_kind_check CHECK (target_kind IN ('band', 'community'));
 ALTER TABLE group_invites ADD CONSTRAINT group_invites_one_target CHECK (
   (target_kind = 'band'      AND band_id IS NOT NULL      AND community_id IS NULL) OR
   (target_kind = 'community' AND community_id IS NOT NULL AND band_id      IS NULL)
