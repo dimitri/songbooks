@@ -24,7 +24,7 @@
     {{if .Event.SetlistID}}
       <p><a href="/setlists/{{.Event.SetlistID}}">Open and edit the running order</a> — add or remove songs there; they'll show up on this event's own page for people to sign up to play.</p>
     {{else}}
-      <p class="hint">No setlist yet — create one to start building the bill.</p>
+      <div class="attention-empty">No setlist yet — create one to start building the bill.</div>
       <button type="button" id="create-setlist-btn" class="primary">Create setlist</button>
     {{end}}
   </div>

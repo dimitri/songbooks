@@ -260,6 +260,30 @@ button.danger:hover:not(:disabled), button.danger:focus-visible { background: va
    future call site's content forces it larger; square at the floor. */
 button.icon-btn { width: 2.75rem; height: 2.75rem; min-width: 2.75rem; min-height: 2.75rem; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; font-size: 1.05rem; }
 
+/* Shared loading indicator (audit, Nov 2026): no spinner/in-progress
+   component existed anywhere in the file — every real async action
+   (YouTube audio download, passkey registration, PDF export) either had
+   no visual feedback beyond a disabled button, or rolled its own ad hoc
+   text swap. One small CSS-only spinner (a rotating ring, no JS/SVG
+   asset needed) plus a `.btn-loading` button modifier that hides the
+   button's own label text behind it without changing the button's size
+   — wire both onto a button during an in-flight fetch instead of a new
+   one-off pattern per feature. */
+.spinner {
+  display: inline-block; width: 1em; height: 1em; flex: none;
+  border: 2px solid currentColor; border-right-color: transparent;
+  border-radius: 50%; opacity: 0.65;
+  animation: spinner-rotate 0.7s linear infinite;
+}
+@keyframes spinner-rotate { to { transform: rotate(360deg); } }
+button.btn-loading { position: relative; color: transparent !important; pointer-events: none; }
+button.btn-loading .spinner {
+  position: absolute; top: 50%; left: 50%; margin: -0.5em 0 0 -0.5em;
+  color: var(--fg-muted);
+}
+button.primary.btn-loading .spinner { color: var(--accent-contrast); }
+button.danger.btn-loading .spinner { color: var(--danger); }
+
 /* In-house SVG icons (templates/icons.html + the JS-built-row duplicates in
    song.js/setlist.js) — sized to sit on the text baseline inside a button,
    colored by the button's own text color so active/disabled states are

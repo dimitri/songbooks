@@ -203,6 +203,14 @@ document.querySelectorAll('.instrument-icon-btn input[type=checkbox]').forEach(c
   btn.addEventListener('click', async () => {
     errEl.style.display = 'none';
     btn.disabled = true;
+    // .btn-loading/.spinner (app.css) — navigator.credentials.create()
+    // waits on the OS's own Touch ID/security-key prompt, which can sit
+    // for several seconds with nothing else on the page indicating the
+    // click registered at all.
+    const spinner = document.createElement('span');
+    spinner.className = 'spinner';
+    btn.classList.add('btn-loading');
+    btn.appendChild(spinner);
     try {
       const beginRes = await fetch('/api/webauthn/register/begin', { method: 'POST' });
       if (!beginRes.ok) {
@@ -227,6 +235,8 @@ document.querySelectorAll('.instrument-icon-btn input[type=checkbox]').forEach(c
     } catch (err) {
       showError(err.message || 'passkey registration failed.');
       btn.disabled = false;
+      btn.classList.remove('btn-loading');
+      spinner.remove();
     }
   });
 })();

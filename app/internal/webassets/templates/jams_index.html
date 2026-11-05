@@ -36,7 +36,14 @@
     </tbody>
   </table></div>
   {{else}}
-  <p class="hint">No active jam sessions yet.</p>
+  {{/* .attention-empty (audit, Nov 2026): plain .hint text read as
+       "nothing here" with no next step, where band.html's own empty
+       repertoire state ("No songs yet — add one..." with a real CTA)
+       reads better. No single link target here (the action is one of
+       several per-songbook "Start jam" forms right below), so this
+       reuses .attention-empty's plain-div form, same as the "Nothing
+       new" empty state on band.html's own Overview tab. */}}
+  <div class="attention-empty">No active jam sessions yet — start one below.</div>
   {{end}}
 
   <h2>Start a jam session</h2>

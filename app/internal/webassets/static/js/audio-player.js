@@ -271,6 +271,17 @@
     if (!url) { alert('Add the YouTube video link above first, then download its audio.'); return; }
     ytDownloadBtn && (ytDownloadBtn.disabled = true);
     ytReplaceBtn && (ytReplaceBtn.disabled = true);
+    // .btn-loading/.spinner (app.css) — this download can take a real
+    // minute (yt-dlp fetch + transcode), and the only in-progress cue
+    // before this was the status line's own text, easy to miss below the
+    // fold on a long page. A spinner on whichever button was actually
+    // clicked makes "it's working" visible right where the person is
+    // looking.
+    const activeBtn = (ytReplaceBtn && !ytReplaceBtn.hidden) ? ytReplaceBtn : ytDownloadBtn;
+    const spinner = document.createElement('span');
+    spinner.className = 'spinner';
+    activeBtn && activeBtn.classList.add('btn-loading');
+    activeBtn && activeBtn.appendChild(spinner);
     if (ytStatus) ytStatus.textContent = 'Downloading… this can take a minute.';
     try {
       const res = await fetch(`/api/songs/${variantId}/audio/youtube`, {
@@ -286,6 +297,8 @@
     } finally {
       ytDownloadBtn && (ytDownloadBtn.disabled = false);
       ytReplaceBtn && (ytReplaceBtn.disabled = false);
+      activeBtn && activeBtn.classList.remove('btn-loading');
+      spinner.remove();
     }
   }
   ytDownloadBtn?.addEventListener('click', downloadFromReference);
