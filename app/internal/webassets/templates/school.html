@@ -15,6 +15,7 @@
   <a class="back-link" href="/schools">{{template "icon-back"}} My communities</a>
   <h1>{{.School.Name}}</h1>
   <nav class="song-nav">
+    <a href="/schools/{{.School.ID}}/events">events</a>
     {{if .IsStaff}}<a href="/schools/{{.School.ID}}/admin">staff admin</a>{{end}}
     {{template "notif-bell"}}
   </nav>

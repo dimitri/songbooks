@@ -1,0 +1,126 @@
+{{define "event"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Event.Name}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
+<header class="app-header">
+  {{if eq .Event.OwnerKind "school"}}
+  <a class="back-link" href="/schools/{{.Event.OwnerSchoolID}}/events">{{template "icon-back"}} {{.Event.OwnerName}}</a>
+  {{else}}
+  <a class="back-link" href="/bands/{{.Event.OwnerBandID}}/events">{{template "icon-back"}} {{.Event.OwnerName}}</a>
+  {{end}}
+  <h1>{{.Event.Name}}</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index">
+  <div class="card">
+    <p><strong>{{.Event.StartsAt.Format "Monday, January 2, 2006 · 15:04"}}</strong>{{if .Event.Location}} — {{.Event.Location}}{{end}}</p>
+    {{if .Event.Description}}<p>{{.Event.Description}}</p>{{end}}
+    <div class="import-row">
+      <a href="/events/{{.Event.ID}}/ics" class="event-ics-btn">{{template "icon-download"}} Add to calendar</a>
+      {{if .Me}}<a href="/events/{{.Event.ID}}/manage" class="hint">manage this event</a>{{end}}
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Who's coming</h3>
+    <div class="form-stack">
+    {{range .Attendees}}
+      <div class="import-row"><span>{{.DisplayName}}{{if .BandName}} <span class="hint">({{.BandName}})</span>{{end}}</span></div>
+    {{else}}
+      <p class="hint">Nobody's registered yet — be the first!</p>
+    {{end}}
+    </div>
+  </div>
+
+  {{if not .AlreadyRegistered}}
+  <div class="card" style="max-width:480px" id="register-card">
+    <h3>Register</h3>
+    <form method="post" action="/events/{{.Event.ID}}/register" class="form-stack">
+      {{if not .Me}}
+      <div class="field"><label for="reg-username">Username</label><input type="text" id="reg-username" name="username" required></div>
+      <div class="field"><label for="reg-display-name">Your name</label><input type="text" id="reg-display-name" name="display_name" required></div>
+      <div class="field"><label for="reg-email">Email <span class="hint">(optional)</span></label><input type="email" id="reg-email" name="email"></div>
+      <div class="field"><label for="reg-password">Password <span class="hint">(optional — leave blank to use an emailed login link instead)</span></label><input type="password" id="reg-password" name="password"></div>
+      {{end}}
+      {{if and (not .AlreadyRegistered) .MyBands}}
+      <div class="field">
+        <label for="reg-band">Registering as a band? <span class="hint">(optional)</span></label>
+        <select id="reg-band" name="band_id">
+          <option value="">Just me</option>
+          {{range .MyBands}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      {{end}}
+      <button type="submit" class="primary">Register</button>
+    </form>
+  </div>
+  {{else}}
+  <p class="hint">You're registered for this event.</p>
+  {{end}}
+
+  {{if .Event.SetlistID}}
+  <div class="card">
+    <h3>Songs</h3>
+    <p class="hint">{{if eq .Event.AudienceScope "bands"}}Bands can claim a song to play.{{else if eq .Event.AudienceScope "both"}}Bands or individual musicians can claim a song to play.{{else}}Sign up to play one of these.{{end}}</p>
+    {{/* Always-visible band picker for song registration — the one
+         above (inside the register form) disappears once .AlreadyRegistered
+         is true, which would otherwise make it impossible to pick a
+         band when claiming a song after already registering. */}}
+    {{if .MyBands}}
+    <div class="field" style="max-width:320px">
+      <label for="song-reg-band">Playing as</label>
+      <select id="song-reg-band">
+        <option value="">Just me</option>
+        {{range .MyBands}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+      </select>
+    </div>
+    {{end}}
+    <div class="form-stack" id="event-songs-list">
+    {{range .SongRows}}
+      <div class="import-row" data-variant-id="{{.VariantID}}">
+        <div>
+          <strong>{{.Title}}</strong>{{if .Artist}} <span class="hint">{{.Artist}}</span>{{end}}
+          <div class="hint">
+          {{range .Registrations}}{{if .BandName}}{{.BandName}}{{else}}{{.PersonName}}{{end}} {{end}}
+          {{if not .Registrations}}nobody signed up yet{{end}}
+          </div>
+        </div>
+        {{if $.Me}}<button type="button" class="event-song-register-btn" data-variant-id="{{.VariantID}}">I'll play this</button>{{end}}
+      </div>
+    {{else}}
+      <p class="hint">No songs on the setlist yet.</p>
+    {{end}}
+    </div>
+  </div>
+  {{end}}
+</main>
+<script>
+document.querySelectorAll('.event-song-register-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const variantId = Number(btn.dataset.variantId);
+    let bandId = 0;
+    const bandSel = document.getElementById('song-reg-band');
+    if (bandSel && bandSel.value) bandId = Number(bandSel.value);
+    const res = await fetch(`/events/{{.Event.ID}}/songs`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({variantId, bandId}),
+    });
+    if (res.ok) location.reload(); else btn.textContent = 'failed — try again';
+  });
+});
+</script>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

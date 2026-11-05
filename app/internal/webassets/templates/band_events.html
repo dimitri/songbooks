@@ -1,0 +1,99 @@
+{{define "band_events"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Band.Name}} — Events</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
+  <h1>{{.Band.Name}} — Events</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index">
+  <nav class="band-tabs band-tabs-row">
+    <a href="/bands/{{.Band.ID}}">Overview</a>
+    <a href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
+    <a href="/bands/{{.Band.ID}}/setlists">Setlists</a>
+    <a href="/bands/{{.Band.ID}}/proposals">Proposals</a>
+    <a href="/bands/{{.Band.ID}}/listening-party">Discover</a>
+    <a href="/bands/{{.Band.ID}}/events" class="active">Events</a>
+    <a href="/bands/{{.Band.ID}}/members">Members</a>
+  </nav>
+
+  <p class="hint">Concerts/gigs and any other band event — not public, only visible to current band members.</p>
+
+  <div class="card">
+    <h3>Create an event</h3>
+    <div class="form-stack">
+      <div class="field"><label for="ev-name">Name</label><input type="text" id="ev-name"></div>
+      <div class="field"><label for="ev-type">Type</label>
+        <select id="ev-type">
+          <option value="concert" selected>Concert / gig</option>
+          <option value="meetup">Meetup</option>
+          <option value="listening_party">Listening party</option>
+          <option value="dinner">Dinner</option>
+          <option value="show_together">Going to a show together</option>
+        </select>
+      </div>
+      <div class="field"><label for="ev-starts">Date &amp; time</label><input type="datetime-local" id="ev-starts"></div>
+      <div class="field"><label for="ev-location">Place</label><input type="text" id="ev-location"></div>
+      <div class="field"><label for="ev-description">Description <span class="hint">(optional)</span></label><textarea id="ev-description" rows="2"></textarea></div>
+      <button type="button" id="create-event-btn" class="primary">Create</button>
+      <p id="create-event-result" class="hint"></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Upcoming</h3>
+    <div class="form-stack">
+    {{range .Upcoming}}
+      <div class="import-row"><a href="/events/{{.ID}}"><strong>{{.Name}}</strong></a> <span class="hint">{{.StartsAt.Format "Mon, Jan 2 2006 · 15:04"}}{{if .Location}} — {{.Location}}{{end}}</span></div>
+    {{else}}
+      <p class="hint">Nothing scheduled yet.</p>
+    {{end}}
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Past</h3>
+    <div class="form-stack">
+    {{range .Past}}
+      <div class="import-row"><a href="/events/{{.ID}}">{{.Name}}</a> <span class="hint">{{.StartsAt.Format "Mon, Jan 2 2006"}}</span></div>
+    {{else}}
+      <p class="hint">No past events yet.</p>
+    {{end}}
+    </div>
+  </div>
+</main>
+<script>
+const bandId = {{.Band.ID}};
+document.getElementById('create-event-btn').addEventListener('click', async () => {
+  const name = document.getElementById('ev-name').value.trim();
+  const eventType = document.getElementById('ev-type').value;
+  const startsLocal = document.getElementById('ev-starts').value;
+  const location = document.getElementById('ev-location').value.trim();
+  const description = document.getElementById('ev-description').value.trim();
+  const out = document.getElementById('create-event-result');
+  if (!name || !startsLocal) { out.textContent = 'name and date/time are required'; return; }
+  const startsAt = new Date(startsLocal).toISOString();
+  const res = await fetch(`/api/bands/${bandId}/events`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, eventType, startsAt, location, description}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) { location.href = `/events/${data.eventId}`; } else { out.textContent = data.error || 'failed to create event'; }
+});
+</script>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

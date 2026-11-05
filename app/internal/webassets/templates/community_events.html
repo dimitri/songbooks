@@ -1,0 +1,59 @@
+{{define "community_events"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.School.Name}} — Events</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/schools/{{.School.ID}}">{{template "icon-back"}} {{.School.Name}}</a>
+  <h1>{{.School.Name}} — Events</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index">
+  {{/* Public page, no login required — anyone can see what's on and
+       register. Upcoming first (the common case), past kept below for
+       reference ("did we already do this jam?"). */}}
+  <div class="card">
+    <h3>Upcoming</h3>
+    <div class="form-stack">
+    {{range .Upcoming}}
+      <div class="import-row">
+        <div>
+          <a href="/events/{{.ID}}"><strong>{{.Name}}</strong></a>
+          <div class="hint">{{.StartsAt.Format "Mon, Jan 2 2006 · 15:04"}}{{if .Location}} — {{.Location}}{{end}}</div>
+        </div>
+      </div>
+    {{else}}
+      <p class="hint">Nothing scheduled yet.</p>
+    {{end}}
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Past</h3>
+    <div class="form-stack">
+    {{range .Past}}
+      <div class="import-row">
+        <div>
+          <a href="/events/{{.ID}}">{{.Name}}</a>
+          <div class="hint">{{.StartsAt.Format "Mon, Jan 2 2006"}}{{if .Location}} — {{.Location}}{{end}}</div>
+        </div>
+      </div>
+    {{else}}
+      <p class="hint">No past events yet.</p>
+    {{end}}
+    </div>
+  </div>
+</main>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

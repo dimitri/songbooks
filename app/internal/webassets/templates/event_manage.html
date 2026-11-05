@@ -1,0 +1,85 @@
+{{define "event_manage"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manage {{.Event.Name}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .Me}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/events/{{.Event.ID}}">{{template "icon-back"}} {{.Event.Name}}</a>
+  <h1>Manage {{.Event.Name}}</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index">
+  <p class="hint">Event managers run this one event's songbook and setlist — see the event's own page for attendees and who's registered to play what.</p>
+
+  <div class="card">
+    <h3>Setlist</h3>
+    {{if .Event.SetlistID}}
+      <p><a href="/setlists/{{.Event.SetlistID}}">Open and edit the running order</a> — add or remove songs there; they'll show up on this event's own page for people to sign up to play.</p>
+    {{else}}
+      <p class="hint">No setlist yet — create one to start building the bill.</p>
+      <button type="button" id="create-setlist-btn" class="primary">Create setlist</button>
+    {{end}}
+  </div>
+
+  {{if .Event.SetlistID}}
+  <div class="card">
+    <h3>Who's playing what</h3>
+    <div class="table-scroll"><table class="table-stack" style="width:100%">
+      <thead><tr><th>Song</th><th>Registered</th></tr></thead>
+      <tbody>
+      {{range .SongRows}}
+        <tr>
+          <td data-label="Song">{{.Title}}{{if .Artist}} <span class="hint">— {{.Artist}}</span>{{end}}</td>
+          <td data-label="Registered">
+          {{range .Registrations}}
+            <span class="roster-instrument-badge">{{if .BandName}}{{.BandName}}{{else}}{{.PersonName}}{{end}}
+              <button type="button" class="song-reg-remove-btn" data-reg-id="{{.ID}}" title="remove">&times;</button>
+            </span>
+          {{else}}<span class="hint">nobody yet</span>{{end}}
+          </td>
+        </tr>
+      {{else}}
+        <tr><td colspan="2" class="hint">No songs on the setlist yet.</td></tr>
+      {{end}}
+      </tbody>
+    </table></div>
+  </div>
+  {{end}}
+
+  <div class="card">
+    <h3>Event managers</h3>
+    <ul>
+    {{range .Managers}}<li>{{.DisplayName}} <span class="hint">({{.Username}})</span></li>{{else}}<li class="hint">Nobody separately assigned — staff/band members can already manage this event.</li>{{end}}
+    </ul>
+    <p class="hint">Assigning/removing managers is done from the {{if eq .Event.OwnerKind "school"}}community{{else}}band{{end}}'s own admin page.</p>
+  </div>
+</main>
+<script>
+const eventId = {{.Event.ID}};
+document.getElementById('create-setlist-btn')?.addEventListener('click', async () => {
+  const res = await fetch(`/events/${eventId}/setlist`, {method: 'POST'});
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) { location.href = `/setlists/${data.setlistId}`; } else { alert(data.error || 'failed to create setlist'); }
+});
+document.querySelectorAll('.song-reg-remove-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const regId = btn.dataset.regId;
+    const res = await fetch(`/events/${eventId}/songs/${regId}`, {method: 'DELETE'});
+    if (res.ok) location.reload();
+  });
+});
+</script>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

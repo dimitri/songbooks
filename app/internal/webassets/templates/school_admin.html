@@ -24,6 +24,72 @@
       <div class="form-actions"><button type="button" id="rename-btn">Save</button></div>
       <p id="rename-result" class="hint"></p>
     </div>
+    <div class="form-stack" style="margin-top:0.8rem">
+      <div class="field">
+        <label for="default-join-role-select">When someone joins by registering for an event, their role is</label>
+        <select id="default-join-role-select">
+          <option value="member" {{if eq .School.DefaultJoinRole "member"}}selected{{end}}>member</option>
+          <option value="staff" {{if eq .School.DefaultJoinRole "staff"}}selected{{end}}>staff</option>
+        </select>
+      </div>
+      <p id="default-join-role-result" class="hint"></p>
+    </div>
+  </div>
+
+  {{/* Events: community-hosted jam/scène ouverte, meetup, listening
+       party, dinner, going-to-a-show-together — see internal/httpapi/
+       events.go's own doc comments. Public listing/registration lives
+       at /schools/{id}/events; this is the staff-only create/manage
+       surface, including assigning per-event managers (never delegated
+       to an existing manager — "assigned by the jam staff / community
+       staff," the user's own explicit spec). */}}
+  <div class="card">
+    <h2>Events <a href="/schools/{{.School.ID}}/events" class="hint">(public page)</a></h2>
+    <div class="form-stack">
+      <div class="field"><label for="ev-name">Name</label><input type="text" id="ev-name"></div>
+      <div class="field"><label for="ev-type">Type</label>
+        <select id="ev-type">
+          <option value="jam" selected>Jam</option>
+          <option value="meetup">Meetup</option>
+          <option value="listening_party">Listening party</option>
+          <option value="dinner">Dinner</option>
+          <option value="show_together">Going to a show together</option>
+        </select>
+      </div>
+      <div class="field" id="ev-audience-field">
+        <label for="ev-audience">Open to</label>
+        <select id="ev-audience">
+          <option value="members" selected>Musicians (members)</option>
+          <option value="bands">Bands only (scène ouverte)</option>
+          <option value="both">Both</option>
+        </select>
+      </div>
+      <div class="field"><label for="ev-starts">Date &amp; time</label><input type="datetime-local" id="ev-starts"></div>
+      <div class="field"><label for="ev-location">Place</label><input type="text" id="ev-location"></div>
+      <div class="field"><label for="ev-description">Description <span class="hint">(optional)</span></label><textarea id="ev-description" rows="2"></textarea></div>
+      <button type="button" id="create-event-btn" class="primary">Create</button>
+      <p id="create-event-result" class="hint"></p>
+    </div>
+
+    <div class="form-stack" style="margin-top:1rem">
+    {{range .Events}}
+      <div class="import-row" data-event-id="{{.ID}}">
+        <div>
+          <a href="/events/{{.ID}}"><strong>{{.Name}}</strong></a>
+          <div class="hint">{{.StartsAt.Format "Mon, Jan 2 2006 · 15:04"}}{{if .Location}} — {{.Location}}{{end}} — {{.EventType}}</div>
+          <div class="hint">managers:
+          {{range index $.EventManagers .ID}}{{.DisplayName}} {{else}}<em>none assigned</em>{{end}}
+          </div>
+        </div>
+        <select class="assign-manager-select" data-event-id="{{.ID}}">
+          <option value="">assign a manager…</option>
+          {{range $.Members}}{{if .IsCurrent}}<option value="{{.PersonID}}">{{.DisplayName}}</option>{{end}}{{end}}
+        </select>
+      </div>
+    {{else}}
+      <p class="hint">No events yet.</p>
+    {{end}}
+    </div>
   </div>
 
   <h2>Pending submissions</h2>
@@ -248,6 +314,47 @@ document.getElementById('rename-btn').addEventListener('click', async () => {
   const data = await res.json().catch(() => ({}));
   document.getElementById('rename-result').textContent = res.ok ? 'saved' : (data.error || 'failed');
   if (res.ok) document.title = name + ' — staff admin';
+});
+document.getElementById('default-join-role-select').addEventListener('change', async (e) => {
+  const res = await fetch(`/api/schools/${schoolId}/default-join-role`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({role: e.target.value}),
+  });
+  const data = await res.json().catch(() => ({}));
+  document.getElementById('default-join-role-result').textContent = res.ok ? 'saved' : (data.error || 'failed');
+});
+const evTypeSel = document.getElementById('ev-type');
+const evAudienceField = document.getElementById('ev-audience-field');
+function syncEventAudienceVisibility() { evAudienceField.hidden = evTypeSel.value !== 'jam'; }
+evTypeSel.addEventListener('change', syncEventAudienceVisibility);
+syncEventAudienceVisibility();
+document.getElementById('create-event-btn').addEventListener('click', async () => {
+  const name = document.getElementById('ev-name').value.trim();
+  const eventType = evTypeSel.value;
+  const audienceScope = document.getElementById('ev-audience').value;
+  const startsLocal = document.getElementById('ev-starts').value;
+  const location = document.getElementById('ev-location').value.trim();
+  const description = document.getElementById('ev-description').value.trim();
+  const out = document.getElementById('create-event-result');
+  if (!name || !startsLocal) { out.textContent = 'name and date/time are required'; return; }
+  const startsAt = new Date(startsLocal).toISOString();
+  const res = await fetch(`/api/schools/${schoolId}/events`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, eventType, audienceScope, startsAt, location, description}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) { location.href = `/events/${data.eventId}`; } else { out.textContent = data.error || 'failed to create event'; }
+});
+document.querySelectorAll('.assign-manager-select').forEach(sel => {
+  sel.addEventListener('change', async () => {
+    if (!sel.value) return;
+    const eventId = sel.dataset.eventId;
+    const res = await fetch(`/api/schools/${schoolId}/events/${eventId}/managers`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({personId: parseInt(sel.value, 10)}),
+    });
+    if (res.ok) location.reload(); else sel.value = '';
+  });
 });
 document.querySelectorAll('.accept-btn').forEach(btn => {
   btn.addEventListener('click', async () => {

@@ -198,10 +198,25 @@ func (s *Server) handleSchoolAdminPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	events, err := s.store.ListEventsForSchool(r.Context(), schoolID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	eventManagers := map[int64][]store.EventManager{}
+	for _, ev := range events {
+		mgrs, err := s.store.ListEventManagers(r.Context(), ev.ID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		eventManagers[ev.ID] = mgrs
+	}
 	s.render(w, "school_admin", map[string]any{
 		"Me": person, "School": school, "Members": members,
 		"PendingSubmissions": pending, "AllSubmissions": decided,
 		"Entries": entries, "ShellPeople": shellPeople,
+		"Events": events, "EventManagers": eventManagers,
 	})
 }
 
@@ -218,6 +233,25 @@ func (s *Server) handleRenameSchool(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.store.RenameSchool(r.Context(), schoolID, req.Name); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
+}
+
+// handleSetSchoolDefaultJoinRole sets the role granted to someone who
+// joins this community automatically via event registration — "apply
+// community edited defaults."
+func (s *Server) handleSetSchoolDefaultJoinRole(w http.ResponseWriter, r *http.Request) {
+	schoolID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		Role string `json:"role"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if err := s.store.SetSchoolDefaultJoinRole(r.Context(), schoolID, req.Role); err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})

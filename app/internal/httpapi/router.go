@@ -287,6 +287,7 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("GET /schools/{id}", s.requireSchoolMember(s.handleSchoolPage))
 	mux.HandleFunc("GET /schools/{id}/admin", s.requireSchoolStaff(s.handleSchoolAdminPage))
 	mux.HandleFunc("POST /api/schools/{id}/rename", s.requireSchoolStaff(s.handleRenameSchool))
+	mux.HandleFunc("POST /api/schools/{id}/default-join-role", s.requireSchoolStaff(s.handleSetSchoolDefaultJoinRole))
 	mux.HandleFunc("POST /api/schools/{id}/members", s.requireSchoolStaff(s.handleAddSchoolMember))
 	mux.HandleFunc("POST /api/schools/{id}/personal-invites", s.requireSchoolStaff(s.handleCreateSchoolPersonalInvite))
 	// Group invites (roster link, multi-use): instructor-only to
@@ -303,6 +304,28 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("POST /api/schools/{id}/submissions", s.requireSchoolMember(s.handleCreateSchoolSubmission))
 	mux.HandleFunc("POST /api/schools/{id}/submissions/{submissionID}/accept", s.requireSchoolStaff(s.handleAcceptSchoolSubmission))
 	mux.HandleFunc("POST /api/schools/{id}/submissions/{submissionID}/reject", s.requireSchoolStaff(s.handleRejectSchoolSubmission))
+
+	// Events: see internal/httpapi/events.go's own doc comments.
+	// Creation and manager-assignment stay at the owner-staff level
+	// (requireSchoolStaff / requireBandMember, both admin-bypassed);
+	// the public event/community-events pages and registration are
+	// unauthenticated routes that do their own per-event visibility
+	// check inline (a band-owned event is never public).
+	mux.HandleFunc("GET /schools/{id}/events", s.optionalPerson(s.handleCommunityEventsPage))
+	mux.HandleFunc("POST /api/schools/{id}/events", s.requireSchoolStaff(s.handleCreateSchoolEvent))
+	mux.HandleFunc("POST /api/schools/{id}/events/{eventID}/managers", s.requireSchoolStaff(s.handleAssignEventManager))
+	mux.HandleFunc("DELETE /api/schools/{id}/events/{eventID}/managers/{personID}", s.requireSchoolStaff(s.handleRemoveEventManager))
+	mux.HandleFunc("GET /bands/{id}/events", s.requireBandMember(s.handleBandEventsPage))
+	mux.HandleFunc("POST /api/bands/{id}/events", s.requireBandMember(s.handleCreateBandEvent))
+	mux.HandleFunc("POST /api/bands/{id}/events/{eventID}/managers", s.requireBandMember(s.handleAssignEventManager))
+	mux.HandleFunc("DELETE /api/bands/{id}/events/{eventID}/managers/{personID}", s.requireBandMember(s.handleRemoveEventManager))
+	mux.HandleFunc("GET /events/{id}", s.optionalPerson(s.handleEventPage))
+	mux.HandleFunc("GET /events/{id}/ics", s.optionalPerson(s.handleEventICS))
+	mux.HandleFunc("POST /events/{id}/register", s.optionalPerson(s.handleRegisterForEvent))
+	mux.HandleFunc("POST /events/{id}/songs", s.requireAuth(s.handleRegisterSongForEvent))
+	mux.HandleFunc("DELETE /events/{id}/songs/{regID}", s.requireAuth(s.handleRemoveSongRegistration))
+	mux.HandleFunc("GET /events/{id}/manage", s.requireEventManager(s.handleEventManagePage))
+	mux.HandleFunc("POST /events/{id}/setlist", s.requireEventManager(s.handleCreateEventSetlist))
 
 	// Site-wide admin panel — gated by requireAdmin (is_admin on the
 	// person), not requireRole (per-project role): see auth.go.

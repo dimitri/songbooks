@@ -19,9 +19,10 @@ import (
 // repertoire (see CanEditVariant's "school" case, CanEditSongbook) plus
 // their own ordinary personal space.
 type School struct {
-	ID        int64
-	Name      string
-	CreatedAt time.Time
+	ID              int64
+	Name            string
+	DefaultJoinRole string
+	CreatedAt       time.Time
 }
 
 // SchoolMember is one row of school_members — one person's one stint of
@@ -80,8 +81,8 @@ func (st *Store) CreateSchool(ctx context.Context, name string, creatorPersonID 
 // GetSchool loads one school by id.
 func (st *Store) GetSchool(ctx context.Context, schoolID int64) (*School, error) {
 	var sc School
-	err := st.db.QueryRow(ctx, `SELECT id, name, created_at FROM schools WHERE id = $1`, schoolID).
-		Scan(&sc.ID, &sc.Name, &sc.CreatedAt)
+	err := st.db.QueryRow(ctx, `SELECT id, name, default_join_role::text, created_at FROM schools WHERE id = $1`, schoolID).
+		Scan(&sc.ID, &sc.Name, &sc.DefaultJoinRole, &sc.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such school %d: %w", schoolID, ErrNotFound)
 	}
@@ -95,6 +96,24 @@ func (st *Store) GetSchool(ctx context.Context, schoolID int64) (*School, error)
 // school settings" action.
 func (st *Store) RenameSchool(ctx context.Context, schoolID int64, name string) error {
 	tag, err := st.db.Exec(ctx, `UPDATE schools SET name = $1 WHERE id = $2`, name, schoolID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no such school %d: %w", schoolID, ErrNotFound)
+	}
+	return nil
+}
+
+// SetSchoolDefaultJoinRole sets the role granted to someone who joins
+// this community automatically by registering for one of its events
+// (see RegisterForEvent) — "apply community edited defaults," the
+// user's own explicit spec.
+func (st *Store) SetSchoolDefaultJoinRole(ctx context.Context, schoolID int64, role string) error {
+	if role != "staff" && role != "member" {
+		return fmt.Errorf("invalid default join role %q", role)
+	}
+	tag, err := st.db.Exec(ctx, `UPDATE schools SET default_join_role = $1 WHERE id = $2`, role, schoolID)
 	if err != nil {
 		return err
 	}
