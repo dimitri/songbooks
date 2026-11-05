@@ -2448,6 +2448,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
     font-size: 1.05rem; font-weight: 600; border-bottom: 1px solid var(--border);
   }
   .site-nav-fullpage-row .icon { width: 1.5rem; height: 1.5rem; flex: none; color: var(--accent); }
+  .site-nav-fullpage-row[hidden] { display: none; } /* its own display:flex would otherwise beat the [hidden] UA rule */
 
   /* The transport FAB is retired on mobile -- its old role (open the
      .timeline sheet) is now the Metronome button in .song-context-bar,

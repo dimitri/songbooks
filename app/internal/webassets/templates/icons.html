@@ -104,9 +104,16 @@
   <a class="site-nav-fullpage-row" href="/bands">{{template "icon-bands"}} Bands</a>
   <a class="site-nav-fullpage-row" href="/schools">{{template "icon-community"}} Communities</a>
   <a class="site-nav-fullpage-row" href="/jams">{{template "icon-jam"}} Jam sessions</a>
-  <a class="site-nav-fullpage-row" href="/songbooks/mine">{{template "icon-catalog"}} My songbook</a>
   <a class="site-nav-fullpage-row" href="/metronome">{{template "icon-metro-full"}} Metronome</a>
   <a class="site-nav-fullpage-row" href="/profile">{{template "icon-profile"}} Profile</a>
+  {{/* Hidden by default, no per-page .Me needed here (see this
+       template's own doc comment above on why global-tabbar's 31 call
+       sites carry no page data) — site-nav-fullpage-script instead
+       mirrors #desktop-sidebar's own already-correctly-gated Admin
+       link, which every page renders into the DOM regardless of
+       viewport (just CSS-hidden below 900px), so reading ITS presence
+       needs no new data plumbing or API call at all. */}}
+  <a class="site-nav-fullpage-row" href="/admin" id="site-nav-fullpage-admin-row" hidden>Admin</a>
 </div>
 {{end}}
 {{define "site-nav-fullpage-script"}}
@@ -123,6 +130,15 @@
   function setNavOpen(open) {
     navPage.classList.toggle('open', open);
     navBtns.forEach(function (b) { b.classList.toggle('active', open); });
+  }
+  // Mirror #desktop-sidebar's own already-correctly-gated Admin link
+  // into the mobile sheet — that link is server-rendered into every
+  // page regardless of viewport (just CSS-hidden below 900px), so its
+  // mere presence in the DOM is a free, always-fresh "is this viewer
+  // an admin" signal with no new per-page data or API call needed.
+  var adminRow = document.getElementById('site-nav-fullpage-admin-row');
+  if (adminRow && document.querySelector('#desktop-sidebar a[href="/admin"]')) {
+    adminRow.hidden = false;
   }
   navBtns.forEach(function (b) { b.addEventListener('click', () => setNavOpen(true)); });
   navClose?.addEventListener('click', () => setNavOpen(false));
