@@ -3740,6 +3740,19 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .group-invite-row { display: flex; flex-direction: column; gap: 0.6rem; }
 .group-invite-row + .group-invite-row { margin-top: 0.7rem; padding-top: 0.7rem; border-top: 1px dashed var(--border); }
 .invite-link-url { font-size: 0.82rem; overflow-wrap: anywhere; flex: 1 1 auto; min-width: 0; }
+/* Inside a data-table cell (admin's Pending accounts list) there's no
+   flex context to stretch into, so the table's own layout algorithm
+   shrinks that column toward zero width to keep the table at its
+   "width:100%" — and overflow-wrap:anywhere then happily breaks the
+   token one character per line rather than violate that width, the
+   exact vertical wall of characters a mobile screenshot caught. A
+   table cell's job here is different from the flex-row case above:
+   let the token stay one unbroken run, so the table naturally grows
+   past 100% and .table-scroll's own horizontal scroll (not character
+   wrapping) is what absorbs the overflow — the same resolution this
+   file's own .table-scroll comment already prescribes for wide
+   content. */
+.table-scroll .invite-link-url { white-space: nowrap; overflow-wrap: normal; display: inline-block; }
 .copy-link-btn, .qr-link-btn { flex: none; font-size: 0.8rem; padding: 0.3rem 0.65rem; }
 
 .qr-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 500; padding: 1rem; }
