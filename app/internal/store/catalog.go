@@ -500,8 +500,8 @@ func (st *Store) VariantContent(ctx context.Context, variantID int64) (title, ar
 // band's band_catalog_entries pointer swapped instead), "community" (fork
 // into a community's repertoire: visibility='community', owner_community_id =
 // bandID, that community's community_catalog_entries pointer swapped instead
-// — instructor-only, same shape as "band" but gated on
-// IsCurrentCommunityStaff rather than IsCurrentBandMember), or "jam"
+// — any current member, same shape and same IsCurrentCommunityStaff-free
+// gating as "band"), or "jam"
 // (fork into one jam event's pickable list only: visibility='jam',
 // owner_jam_event_id = bandID — reusing the same int64 parameter as the
 // event id, see the doc note below — then auto-added to that event's
@@ -582,14 +582,16 @@ func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, sco
 			return 0, fmt.Errorf("person %d is not a current member of band %d: %w", forkerID, bandID, ErrForbidden)
 		}
 	} else if scope == "community" {
-		// Instructor-only — same tx-scoped check reasoning as "band"
-		// above. bandID doubles as "the community id" for this scope.
-		isInstructor, err := isCurrentCommunityMember(ctx, tx, bandID, forkerID, "staff")
+		// Any current member, same as "band" above — not staff-only:
+		// a community's repertoire is member-editable the same way a
+		// band's is, no instructor/student review gate. bandID doubles
+		// as "the community id" for this scope.
+		isMember, err := isCurrentCommunityMember(ctx, tx, bandID, forkerID, "")
 		if err != nil {
 			return 0, err
 		}
-		if !isInstructor {
-			return 0, fmt.Errorf("person %d is not a current staff member of community %d: %w", forkerID, bandID, ErrForbidden)
+		if !isMember {
+			return 0, fmt.Errorf("person %d is not a current member of community %d: %w", forkerID, bandID, ErrForbidden)
 		}
 	}
 
@@ -839,13 +841,12 @@ func (st *Store) CreateBandVariant(ctx context.Context, bandID int64, title, art
 
 // CreateCommunityVariant creates a brand-new, from-scratch variant owned by
 // communityID (visibility='community', owner_community_id = communityID) — the
-// community-scoped sibling of CreateBandVariant, for an instructor who
-// wants to write a brand-new original straight into the community's
-// repertoire without first finding something to fork. Instructor-only
-// (creatorPersonID must be a CURRENT INSTRUCTOR of communityID — checked
+// community-scoped sibling of CreateBandVariant, for a member who wants
+// to write a brand-new original straight into the community's repertoire
+// without first finding something to fork. Any current member
+// (creatorPersonID must be a CURRENT MEMBER of communityID — checked
 // inside this same tx, same isCurrentCommunityMember(ctx, tx, ...) pattern
-// CreateBandVariant/ForkVariant use, never the pool-level
-// IsCurrentCommunityStaff while this tx is open).
+// CreateBandVariant/ForkVariant use).
 func (st *Store) CreateCommunityVariant(ctx context.Context, communityID int64, title, artist string, creatorPersonID int64) (int64, error) {
 	// Resolved before the transaction — same ForkVariant/CreateBandVariant
 	// fix: GetDefaultSongbook isn't tx-scoped and may itself need to
@@ -865,12 +866,15 @@ func (st *Store) CreateCommunityVariant(ctx context.Context, communityID int64, 
 	}
 	defer tx.Rollback(ctx)
 
-	isInstructor, err := isCurrentCommunityMember(ctx, tx, communityID, creatorPersonID, "staff")
+	// Any current member, same as CreateBandVariant — not staff-only:
+	// a community's repertoire is member-editable the same way a
+	// band's is, no instructor/student review gate.
+	isMember, err := isCurrentCommunityMember(ctx, tx, communityID, creatorPersonID, "")
 	if err != nil {
 		return 0, err
 	}
-	if !isInstructor {
-		return 0, fmt.Errorf("person %d is not a current staff member of community %d: %w", creatorPersonID, communityID, ErrForbidden)
+	if !isMember {
+		return 0, fmt.Errorf("person %d is not a current member of community %d: %w", creatorPersonID, communityID, ErrForbidden)
 	}
 
 	workID, err := st.findOrCreateWork(ctx, tx, title, artist)

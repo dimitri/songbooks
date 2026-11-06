@@ -297,10 +297,13 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("POST /api/communities/{id}/group-invites/{groupInviteID}/close", s.requireCommunityStaff(s.handleCloseCommunityGroupInvite))
 	mux.HandleFunc("POST /api/communities/{id}/members/{personID}/role", s.requireCommunityStaff(s.handleSetCommunityMemberRole))
 	mux.HandleFunc("DELETE /api/communities/{id}/members/{personID}", s.requireCommunityStaff(s.handleRemoveCommunityMember))
-	mux.HandleFunc("POST /api/communities/{id}/catalog", s.requireCommunityStaff(s.handleAddCommunityCatalogEntry))
-	mux.HandleFunc("DELETE /api/communities/{id}/catalog/{variantID}", s.requireCommunityStaff(s.handleRemoveCommunityCatalogEntry))
-	mux.HandleFunc("POST /api/communities/{id}/catalog/fork/{variantID}", s.requireCommunityStaff(s.handleForkVariantIntoCommunity))
-	mux.HandleFunc("POST /api/communities/{id}/variants", s.requireCommunityStaff(s.handleCreateCommunityVariant))
+	// Member-level, not staff-only, matching the band repertoire's own
+	// model — any current member can add/fork/create directly (see
+	// community.html's "+ Add song" dialog, same as band_catalog.html's).
+	mux.HandleFunc("POST /api/communities/{id}/catalog", s.requireCommunityMember(s.handleAddCommunityCatalogEntry))
+	mux.HandleFunc("DELETE /api/communities/{id}/catalog/{variantID}", s.requireCommunityMember(s.handleRemoveCommunityCatalogEntry))
+	mux.HandleFunc("POST /api/communities/{id}/catalog/fork/{variantID}", s.requireCommunityMember(s.handleForkVariantIntoCommunity))
+	mux.HandleFunc("POST /api/communities/{id}/variants", s.requireCommunityMember(s.handleCreateCommunityVariant))
 	mux.HandleFunc("POST /api/communities/{id}/submissions", s.requireCommunityMember(s.handleCreateCommunitySubmission))
 	mux.HandleFunc("POST /api/communities/{id}/submissions/{submissionID}/accept", s.requireCommunityStaff(s.handleAcceptCommunitySubmission))
 	mux.HandleFunc("POST /api/communities/{id}/submissions/{submissionID}/reject", s.requireCommunityStaff(s.handleRejectCommunitySubmission))

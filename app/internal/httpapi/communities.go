@@ -117,11 +117,11 @@ type communityCatalogRow struct {
 	Key, Tempo string
 }
 
-// handleCommunityPage is the student-facing (but instructor-reachable too)
-// community page: the community's read-only repertoire, a "submit your work"
-// entry point, and the viewer's own submission history/status. Catalog
-// management, membership, and the submissions review queue live on the
-// separate instructor-only /communities/{id}/admin page (handleCommunityAdminPage).
+// handleCommunityPage is the member-facing community page: the shared
+// repertoire, member-editable (add/fork/remove) the same way a band's
+// own repertoire page is — no staff review gate. Membership and the
+// legacy submissions review queue live on the separate instructor-only
+// /communities/{id}/admin page (handleCommunityAdminPage).
 func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	person := personFromContext(r)
@@ -155,24 +155,8 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	mySubmissions, err := s.store.ListCommunitySubmissionsForStudent(r.Context(), communityID, person.ID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	mySongbookID, err := s.store.GetDefaultSongbook(r.Context(), "person", person.ID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	myCatalog, err := s.store.ListSongbookEntries(r.Context(), mySongbookID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
 	s.render(w, "community", map[string]any{
 		"Me": person, "Community": community, "Entries": entries, "IsStaff": isInstructor,
-		"MySubmissions": mySubmissions, "MyCatalog": myCatalog,
 	})
 }
 
@@ -501,8 +485,8 @@ func (s *Server) handleCloseCommunityGroupInvite(w http.ResponseWriter, r *http.
 }
 
 // handleAddCommunityCatalogEntry points the community's repertoire at an
-// existing (global, or anyone's visible) variant, by reference.
-// Instructor-only.
+// existing (global, or anyone's visible) variant, by reference. Any
+// current member, same as a band's own catalog — no staff review gate.
 func (s *Server) handleAddCommunityCatalogEntry(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
@@ -521,7 +505,7 @@ func (s *Server) handleAddCommunityCatalogEntry(w http.ResponseWriter, r *http.R
 }
 
 // handleRemoveCommunityCatalogEntry drops the community's pointer to one
-// variant. Instructor-only.
+// variant. Any current member, same as a band's own catalog.
 func (s *Server) handleRemoveCommunityCatalogEntry(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	variantID, err := strconv.ParseInt(r.PathValue("variantID"), 10, 64)
@@ -538,7 +522,7 @@ func (s *Server) handleRemoveCommunityCatalogEntry(w http.ResponseWriter, r *htt
 
 // handleForkVariantIntoCommunity forks an existing (global, or anyone's
 // visible) variant into the community's own repertoire — visibility=
-// 'community', owner_community_id = this community. Instructor-only.
+// 'community', owner_community_id = this community. Any current member.
 func (s *Server) handleForkVariantIntoCommunity(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	variantID, err := strconv.ParseInt(r.PathValue("variantID"), 10, 64)
@@ -565,7 +549,7 @@ func (s *Server) handleForkVariantIntoCommunity(w http.ResponseWriter, r *http.R
 
 // handleCreateCommunityVariant creates a brand-new, from-scratch variant
 // owned by this community (visibility='community') via
-// store.CreateCommunityVariant. Instructor-only.
+// store.CreateCommunityVariant. Any current member.
 func (s *Server) handleCreateCommunityVariant(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {

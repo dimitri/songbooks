@@ -53,16 +53,19 @@
   </nav>
 </header>
 <main class="index">
-  <p class="hint">Read-only repertoire — only a staff member can edit this community's material directly. Submit your own work below for staff to review instead.</p>
+  <p class="hint">This community's shared repertoire — any current member can add, fork, or remove a song here, same as a band's.</p>
 
   {{if not .Entries}}
   <div class="attention-empty" style="border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:1.2rem; font-size:0.95rem;">
-    This community's repertoire is empty.
+    This community's repertoire is empty — songs don't appear here automatically. <button type="button" class="link-button" id="open-add-song-empty">Add your first song</button> to get started.
   </div>
   {{else}}
   <div class="repertoire-toolbar">
     <input type="search" id="repertoire-search" placeholder="Search this repertoire…" aria-label="Search this repertoire">
+    <button type="button" id="open-add-song">{{template "icon-plus"}} Add song</button>
   </div>
+  {{end}}
+
   <div class="gig-table" data-repertoire-list>
   {{range .Entries}}
     <div class="gig-row repertoire-row" data-variant-id="{{.VariantID}}" data-search="{{.Title}} {{.Artist}}">
@@ -77,84 +80,164 @@
           <a href="/works/{{.WorkID}}">All versions</a>
           <a href="/variants/{{.VariantID}}/history">History</a>
           {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">Forked from</a>{{end}}
-          <p class="hint">{{.Visibility}}</p>
+          <p class="hint">{{.Visibility}} &middot; added by {{.AddedByUsername}}</p>
+          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}">Remove</button>
         </div>
       </details>
     </div>
   {{end}}
   </div>
   <p class="hint repertoire-empty-filtered" id="repertoire-empty-filtered">No songs match that search.</p>
-  {{end}}
 
-  <div class="card card--md">
-    <h2>Submit your work</h2>
-    <p class="hint">Pick one of your own personal catalog items (fork or create it first from the <a href="/catalog">catalog</a> page if it isn't there yet), then submit it here for staff to accept or reject.</p>
-    <p>
-      <label>Kind
-        <select id="submit-kind">
-          <option value="new_song">new song (add to the community's repertoire)</option>
-          <option value="edit">edit (apply onto an existing variant)</option>
-        </select>
-      </label>
-    </p>
-    <p>
-      <label>Your variant
-        <select id="submit-variant">
-          {{range .MyCatalog}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}
-        </select>
-      </label>
-    </p>
-    <p id="source-variant-row" hidden>
-      <label>Source variant id being edited <input type="number" id="submit-source-variant"></label>
-    </p>
-    <p>
-      <label>Note <input type="text" id="submit-note" placeholder="optional"></label>
-    </p>
-    <button type="button" id="submit-btn">Submit for review</button>
-    <p id="submit-result" class="hint"></p>
-  </div>
+  <dialog id="add-song-dialog">
+    <h2>Add a song</h2>
+    <p class="hint">Pointers into the catalog, same as a band's repertoire — adding here doesn't copy a song; forking does, and makes it this community's own "community"-visibility variant that any current member can edit in place.</p>
+    <div class="add-song-tabs">
+      <button type="button" class="add-song-tab active" data-panel="write">Write new</button>
+      <button type="button" class="add-song-tab" data-panel="catalog">From the catalog</button>
+    </div>
 
-  <div class="card card--md">
-    <h2>Your submission history</h2>
-    <div class="table-scroll"><table class="table-stack" style="width:100%">
-      <thead><tr><th>Kind</th><th>Submitted</th><th>Status</th><th>Decided</th></tr></thead>
-      <tbody>
-      {{range .MySubmissions}}
-        <tr>
-          <td data-label="Kind">{{.Kind}}</td>
-          <td data-label="Submitted">{{.SubmittedTitle}}</td>
-          <td data-label="Status">{{.Status}}</td>
-          <td data-label="Decided">{{if .DecidedAt}}{{.DecidedAt.Format "2006-01-02"}}{{end}}</td>
-        </tr>
-      {{else}}
-        <tr><td colspan="4" class="hint">No submissions yet.</td></tr>
-      {{end}}
-      </tbody>
-    </table></div>
-  </div>
+    <div class="add-song-panel" data-panel="write">
+      <p class="hint">Starts from scratch — no existing variant to fork from — straight into this community's own private ("community"-visibility) repertoire.</p>
+      <div class="form-stack">
+        <div class="field">
+          <label for="new-variant-title">Title</label>
+          <input type="text" id="new-variant-title">
+        </div>
+        <div class="field">
+          <label for="new-variant-artist">Artist</label>
+          <input type="text" id="new-variant-artist">
+        </div>
+        <div class="form-actions">
+          <button type="button" id="new-variant-btn">+ create</button>
+        </div>
+        <p id="new-variant-result" class="hint"></p>
+      </div>
+    </div>
+
+    <div class="add-song-panel" data-panel="catalog" hidden>
+      <p class="hint">Search the whole catalog — adding points at that variant as-is (any current member can still edit it); forking makes this community's own copy instead.</p>
+      <div class="field">
+        <label for="catalog-search-input">Search</label>
+        <input type="search" id="catalog-search-input" placeholder="Title or artist…">
+      </div>
+      <div id="catalog-search-results" class="attention-list"></div>
+      <p id="add-result" class="hint"></p>
+    </div>
+
+    <div class="form-actions" style="margin-top:1rem;">
+      <button type="button" id="close-add-song">Close</button>
+    </div>
+  </dialog>
 </main>
 <script>
 const communityId = {{.Community.ID}};
-document.getElementById('submit-kind').addEventListener('change', (e) => {
-  document.getElementById('source-variant-row').hidden = e.target.value !== 'edit';
-});
-document.getElementById('submit-btn').addEventListener('click', async () => {
-  const kind = document.getElementById('submit-kind').value;
-  const submittedVariantId = Number(document.getElementById('submit-variant').value);
-  const sourceVariantId = Number(document.getElementById('submit-source-variant').value) || 0;
-  const note = document.getElementById('submit-note').value;
-  if (!submittedVariantId) return;
-  const res = await fetch(`/api/communities/${communityId}/submissions`, {
+document.getElementById('new-variant-btn').addEventListener('click', async () => {
+  const title = document.getElementById('new-variant-title').value.trim();
+  const artist = document.getElementById('new-variant-artist').value.trim();
+  if (!title) return;
+  const res = await fetch(`/api/communities/${communityId}/variants`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({kind, submittedVariantId, sourceVariantId, note}),
+    body: JSON.stringify({title, artist}),
   });
   const data = await res.json().catch(() => ({}));
   if (res.ok) {
-    location.reload();
+    // Straight into edit mode, not the Play page — a brand-new original
+    // has an empty [Verse] placeholder and nothing to play yet.
+    location.href = `/song/${data.variantId}?edit=1`;
   } else {
-    document.getElementById('submit-result').textContent = data.error || 'failed to submit';
+    document.getElementById('new-variant-result').textContent = data.error || 'failed to create';
   }
 });
+// ---- "From the catalog": search-as-you-type over /api/catalog/search,
+// add points at the variant as-is, fork makes this community's own copy —
+// same two actions the band repertoire page's dialog offers. ----
+(function () {
+  const input = document.getElementById('catalog-search-input');
+  const results = document.getElementById('catalog-search-results');
+  const resultMsg = document.getElementById('add-result');
+  if (!input) return;
+  let debounceTimer;
+
+  async function doAdd(variantId, fork) {
+    resultMsg.textContent = '';
+    const url = fork ? `/api/communities/${communityId}/catalog/fork/${variantId}` : `/api/communities/${communityId}/catalog`;
+    const opts = fork
+      ? {method: 'POST'}
+      : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({variantId})};
+    const res = await fetch(url, opts);
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      location.reload();
+    } else {
+      resultMsg.textContent = data.error || (fork ? 'failed to fork' : 'failed to add');
+    }
+  }
+
+  async function search() {
+    const q = input.value.trim();
+    results.innerHTML = '';
+    if (!q) return;
+    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`);
+    const hits = await res.json().catch(() => []);
+    if (!hits.length) {
+      results.innerHTML = '<p class="hint">No matches.</p>';
+      return;
+    }
+    for (const hit of hits) {
+      const row = document.createElement('div');
+      row.className = 'attention-row';
+      row.innerHTML = `
+        <div>
+          <div class="attention-title">${hit.title}</div>
+          ${hit.artist ? `<div class="attention-subtitle">${hit.artist}</div>` : ''}
+        </div>`;
+      const actions = document.createElement('span');
+      actions.style.marginLeft = 'auto';
+      actions.style.display = 'flex';
+      actions.style.gap = '0.4rem';
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.textContent = 'Add';
+      addBtn.addEventListener('click', () => doAdd(hit.variantId, false));
+      const forkBtn = document.createElement('button');
+      forkBtn.type = 'button';
+      forkBtn.textContent = 'Fork';
+      forkBtn.addEventListener('click', () => doAdd(hit.variantId, true));
+      actions.append(addBtn, forkBtn);
+      row.appendChild(actions);
+      results.appendChild(row);
+    }
+  }
+
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(search, 250);
+  });
+})();
+document.querySelectorAll('.remove-entry-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const variantId = btn.dataset.variantId;
+    await fetch(`/api/communities/${communityId}/catalog/${variantId}`, {method: 'DELETE'});
+    btn.closest('.gig-row').remove();
+  });
+});
+
+// ---- "+ Add song" dialog: two alternative methods as tabs, opened from
+// either the toolbar or the empty state. ----
+(function () {
+  const dialog = document.getElementById('add-song-dialog');
+  if (!dialog) return;
+  document.getElementById('open-add-song')?.addEventListener('click', () => dialog.showModal());
+  document.getElementById('open-add-song-empty')?.addEventListener('click', () => dialog.showModal());
+  document.getElementById('close-add-song')?.addEventListener('click', () => dialog.close());
+  dialog.querySelectorAll('.add-song-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      dialog.querySelectorAll('.add-song-tab').forEach(t => t.classList.toggle('active', t === tab));
+      dialog.querySelectorAll('.add-song-panel').forEach(p => { p.hidden = p.dataset.panel !== tab.dataset.panel; });
+    });
+  });
+})();
 
 // ---- Live search over the already-rendered list — same as the band
 // repertoire page's own filter, a small-enough list to filter
