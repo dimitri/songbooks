@@ -56,16 +56,6 @@ var funcMap = template.FuncMap{
 	// (e.g. "Instrumental \& Solo") from section labels for display — the
 	// stored text keeps the escape so the Typst pipeline still works.
 	"label": unescapeTypst,
-	// maxcap renders a *int headcount cap (nil = no cap set) as either its
-	// number or "no cap" — jam_songs.html/jam_roster.html's own caps
-	// display. Needed because text/template's default %v on a *int prints
-	// its address, not the pointed-to value.
-	"maxcap": func(n *int) string {
-		if n == nil {
-			return "no cap"
-		}
-		return strconv.Itoa(*n)
-	},
 	// deref64 renders a *int64 (nil = absent) as its decimal value or "" —
 	// catalog/revision templates' forked_from_id/owner_person_id display,
 	// same "text/template won't dereference a pointer for you" reason as
@@ -95,7 +85,7 @@ var funcMap = template.FuncMap{
 	// Matching is by substring, case-insensitive, not an exact-value
 	// switch: instrument is genuinely free text (see migration 0018 — no
 	// fixed enum), and this app already has two different naming
-	// conventions in real use for the same instruments — the jam-signup
+	// conventions in real use for the same instruments — the event-signup
 	// vocabulary ("drummer"/"bassist"/"guitarist"/"singer") and plain
 	// band-roster nouns ("drums"/"bass"/"guitar"/"singer", "guitar &
 	// singer", "guitar/bass/singer") — a strict switch would silently

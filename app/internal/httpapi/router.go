@@ -206,22 +206,17 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 
 	mux.HandleFunc("POST /api/variants/{id}/fork", s.requireAuth(s.handleForkVariant))
 	mux.HandleFunc("POST /api/variants/{id}/annotations", s.requireAuth(s.handleCreateAnnotation))
-	// PUT /api/variants/{id}: optionalPerson, not requireAuth — accepts
-	// either a normal login OR a valid jam session (see
-	// handleUpdateVariant's doc comment; phase 4 of the data-model
-	// rewrite, jam-scoped variants).
-	mux.HandleFunc("PUT /api/variants/{id}", s.optionalPerson(s.handleUpdateVariant))
+	mux.HandleFunc("PUT /api/variants/{id}", s.requireAuth(s.handleUpdateVariant))
 	mux.HandleFunc("GET /api/revisions", s.requireAuth(s.handleListRevisions))
 	mux.HandleFunc("POST /api/revisions/{id}/revert", s.requireAuth(s.handleRevertRevision))
 
-	// Section annotations (phase 4 of the data-model rewrite): lightweight
-	// per-section notes ("solo: sax"), usable both inside a jam and by a
-	// logged-in person outside one. optionalPerson, not requireAuth — see
-	// canAnnotateVariant's doc comment for who may call these and why
+	// Section annotations: lightweight per-section notes ("solo: sax").
+	// requireAuth — jam-session (no-login) annotating was retired along
+	// with the rest of the old jam system (migration 0051).
 	// (any identified viewer, not gated by edit rights).
-	mux.HandleFunc("POST /api/variants/{id}/sections/{index}/annotations", s.optionalPerson(s.handleCreateSectionAnnotation))
-	mux.HandleFunc("GET /api/variants/{id}/sections/{index}/annotations", s.optionalPerson(s.handleListSectionAnnotations))
-	mux.HandleFunc("GET /api/variants/{id}/annotations", s.optionalPerson(s.handleListAllSectionAnnotations))
+	mux.HandleFunc("POST /api/variants/{id}/sections/{index}/annotations", s.requireAuth(s.handleCreateSectionAnnotation))
+	mux.HandleFunc("GET /api/variants/{id}/sections/{index}/annotations", s.requireAuth(s.handleListSectionAnnotations))
+	mux.HandleFunc("GET /api/variants/{id}/annotations", s.requireAuth(s.handleListAllSectionAnnotations))
 
 	// Bands (phase 2 of the data-model rewrite): collaborative groups that
 	// own shared, band-visibility catalog material. No band owner/admin
@@ -385,38 +380,12 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("GET /song/{id}/export-ly.pdf", s.requireVariantRole("viewer", s.handleExportSongLilyPDF))
 	mux.HandleFunc("GET /bands/{id}/export-ly.pdf", s.requireBandMember(s.handleExportBandRepertoireLilyPDF))
 
-	// Jam mode: organiser routes are scoped to a songbook (the pool of
-	// songs a jam event draws from/adds into — see migration 0041).
-	// /jam/{code}/* is reachable WITHOUT a login — a nickname-only
-	// jam_profiles identity, set via its own cookie in jam.go.
-	mux.HandleFunc("POST /songbooks/{id}/jam-events", s.requireAuth(s.handleCreateJamEvent))
-	mux.HandleFunc("GET /jams", s.requireAuth(s.handleJamsIndexPage))
-	mux.HandleFunc("GET /jam-organize/{token}", s.requireAuth(s.handleJamOrganizerJoin))
-	mux.HandleFunc("GET /songbooks/{id}/jam/{code}/roster", s.requireAuth(s.handleJamRosterPage))
-	mux.HandleFunc("GET /songbooks/{id}/jam/{code}/organizer-link", s.requireAuth(s.handleJamOrganizerLinkPage))
-	mux.HandleFunc("GET /songbooks/{id}/jam/{code}/add", s.requireAuth(s.handleJamAddSongsPage))
-	mux.HandleFunc("POST /songbooks/{id}/jam/{code}/songs", s.requireAuth(s.handleAddJamSong))
-	mux.HandleFunc("POST /songbooks/{id}/jam/{code}/songs/{songID}/remove", s.requireAuth(s.handleRemoveJamSong))
-	mux.HandleFunc("POST /songbooks/{id}/jam/{code}/reorder", s.requireJamOrganizer(s.handleReorderJamSongs))
-	mux.HandleFunc("POST /songbooks/{id}/jam/{code}/call", s.requireJamOrganizer(s.handleCallJamParticipant))
-	mux.HandleFunc("GET /songbooks/{id}/jam/{code}/call-status", s.requireAuth(s.handleJamCallStatus))
-	mux.HandleFunc("POST /songbooks/{id}/jam/{code}/organizers", s.requireAuth(s.handleAddJamOrganizer))
-	mux.HandleFunc("GET /jam/{code}", s.optionalPerson(s.handleJamLandingPage))
-	mux.HandleFunc("POST /jam/{code}/join", s.handleJamJoin)
-	mux.HandleFunc("GET /jam/{code}/songs", s.handleJamSongsPage)
-	mux.HandleFunc("POST /jam/{code}/picks", s.handleJamPick)
-	mux.HandleFunc("DELETE /jam/{code}/picks", s.handleJamPick)
-	// Final phase of the data-model rewrite: a jam PARTICIPANT (any valid
-	// jam session for this event, via requireJamProfile — not an
-	// organizer/editor) can add any global-catalog song to the jam's own
-	// pickable list, create a brand-new jam-scoped variant from scratch,
-	// or fork an existing variant into jam scope. See handleJamCatalogPage
-	// et al. in jam.go.
-	mux.HandleFunc("GET /jam/{code}/catalog", s.requireJamProfile(s.handleJamCatalogPage))
-	mux.HandleFunc("POST /jam/{code}/catalog", s.requireJamProfile(s.handleJamAddCatalogSong))
-	mux.HandleFunc("GET /jam/{code}/new", s.requireJamProfile(s.handleJamNewVariantPage))
-	mux.HandleFunc("POST /jam/{code}/new", s.requireJamProfile(s.handleJamCreateVariant))
-	mux.HandleFunc("POST /jam/{code}/fork", s.requireJamProfile(s.handleJamForkVariant))
+	// Jam mode retired (migration 0051): the old nickname-only,
+	// no-login jam_events/jam_profiles system predates the community
+	// model and never overlapped with it. Jams now only exist as a
+	// community event (event_type='jam', see migration 0049 and
+	// handleCreateCommunityEvent) — real account registration, no
+	// separate jam-specific routes needed here at all.
 
 	// Every /static/ URL served by a template carries a content-hash
 	// "?v=" query param (webassets.staticVersion), so the URL itself

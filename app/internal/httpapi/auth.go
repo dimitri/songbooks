@@ -41,10 +41,7 @@ func actorID(r *http.Request) int64 {
 // /login; an unauthenticated /api/* request gets a 401 JSON body instead of
 // a redirect, since it has no browser chrome to redirect.
 //
-// This guards "is anyone logged in" only. Jam mode (Phase 4, not built
-// yet) lets an unlogged nickname-only participant read one event's project
-// songs — that will need its own, separate, narrower guard alongside this
-// one, not a change to this one; don't fold jam access into this check.
+// This guards "is anyone logged in" only.
 func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Dev-only escape hatch (see Server.devAutoLogin's doc comment):
@@ -90,7 +87,7 @@ func isAPIRequest(r *http.Request) bool {
 // param — store.CanViewVariant for minRole="viewer", CanEditVariant for
 // "editor"/"owner" (a variant has no three-tier role of its own; "can
 // edit" is the only bar above "can view"). Replaces the old project-role
-// gate entirely now that ownership (global/band/community/user/jam/setlist)
+// gate entirely now that ownership (global/band/community/user/setlist)
 // is the only access model.
 func (s *Server) requireVariantRole(minRole string, next http.HandlerFunc) http.HandlerFunc {
 	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
@@ -139,35 +136,6 @@ func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		next(w, r)
-	})
-}
-
-// requireJamOrganizer gates a {code}-scoped jam-management endpoint (song
-// reorder, "now calling") on "is a designated organizer for this jam
-// event OR can access the songbook it draws from."
-func (s *Server) requireJamOrganizer(next http.HandlerFunc) http.HandlerFunc {
-	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
-		code := r.PathValue("code")
-		p := personFromContext(r)
-		ev, err := s.store.GetJamEvent(r.Context(), code)
-		if err != nil {
-			httpError(w, http.StatusNotFound, "this jam link is invalid or has expired")
-			return
-		}
-		isOrganizer, err := s.store.IsJamOrganizer(r.Context(), ev.ID, p.ID)
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		if isOrganizer {
-			next(w, r)
-			return
-		}
-		if ok, err := s.store.CanAccessSongbook(r.Context(), p.ID, ev.SongbookID); err == nil && ok {
-			next(w, r)
-			return
-		}
-		httpError(w, http.StatusForbidden, "organizer status (or access to this jam's songbook) required")
 	})
 }
 

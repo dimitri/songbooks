@@ -375,21 +375,12 @@ func (s *Server) handleRevertRevision(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleUpdateVariant is PUT /api/variants/{id} — edits a variant's
-// content directly by its row id, the path personal-, band-, and
-// jam-owned variants are edited through (see store.SaveVariantByID's doc
-// comment for why this is a separate path from PUT /api/songs/{book}/
-// {stem}: that one is gated on project-editor role, which a fork's
-// owner, a band member, or a jam participant need not hold on the
-// project the variant happens to live under).
-//
-// Routed through optionalPerson, not requireAuth: a jam participant
-// editing their own jam-scoped creation has no login session at all
-// (see jam_profiles) — this handler accepts EITHER a normal login
-// session (checked via store.CanEditVariant) OR a valid jam session for
-// the variant's own owner_jam_event_id (via
-// store.CanEditVariantAsJamParticipant), same "jam's participant roster
-// IS its membership" rule CanEditVariant's band branch already uses for
-// band_members.
+// content directly by its row id, the path personal- and band-owned
+// variants are edited through (see store.SaveVariantByID's doc comment
+// for why this is a separate path from PUT /api/songs/{book}/{stem}:
+// that one is gated on project-editor role, which a fork's owner or a
+// band member need not hold on the project the variant happens to live
+// under).
 func (s *Server) handleUpdateVariant(w http.ResponseWriter, r *http.Request) {
 	variantID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -397,17 +388,8 @@ func (s *Server) handleUpdateVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	person := personFromContext(r)
-	var canEdit bool
-	var actorPersonID int64
-	if person != nil {
-		canEdit, err = s.store.CanEditVariant(r.Context(), person.ID, variantID)
-		actorPersonID = person.ID
-	} else if jp := s.jamProfileFromCookie(r); jp != nil {
-		canEdit, err = s.store.CanEditVariantAsJamParticipant(r.Context(), jp.JamEventID, variantID)
-	} else {
-		httpError(w, http.StatusUnauthorized, "login, or a jam session, required")
-		return
-	}
+	canEdit, err := s.store.CanEditVariant(r.Context(), person.ID, variantID)
+	actorPersonID := person.ID
 	if errors.Is(err, store.ErrNotFound) {
 		httpError(w, http.StatusNotFound, err.Error())
 		return

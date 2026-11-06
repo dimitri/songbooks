@@ -34,7 +34,6 @@
 {{define "icon-profile"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="6.8" r="3"/><path d="M3.8 16.2a6.3 6.3 0 0 1 12.4 0"/></svg>{{end}}
 {{define "icon-view"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 10s2.8-5 8-5 8 5 8 5-2.8 5-8 5-8-5-8-5z"/><circle cx="10" cy="10" r="2.2"/></svg>{{end}}
 {{define "icon-community"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6.5" r="2.3"/><circle cx="14" cy="6.5" r="2.3"/><circle cx="10" cy="13" r="2.3"/></svg>{{end}}
-{{define "icon-jam"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 11v-2M7.3 13.5v-7M10.6 16v-12M13.9 13.5v-7M17 11v-2"/></svg>{{end}}
 
 {{/* Global bottom tab bar: the app's one persistent, always-reachable
      navigation surface on a phone (see the mobile-menu brief: "keep the
@@ -58,12 +57,12 @@
   <a href="/catalog" data-path="/catalog" data-label="Catalog">{{template "icon-view"}}</a>
   <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}}</a>
   {{/* Replaces a standalone Profile tab — Profile moved into the shared
-       More sheet below (site-nav-fullpage) alongside Communities, Jam
-       sessions and Metronome, none of which fit in 5 fixed
-       mobile slots and were previously unreachable on mobile at all.
-       Reuses the exact #site-nav-fullpage-btn id play.html's own "..."
-       toggle already wires up — see site-nav-fullpage-script below,
-       shared by every page instead of being duplicated per-page. */}}
+       More sheet below (site-nav-fullpage) alongside Communities and
+       Metronome, neither of which fit in 5 fixed mobile slots and were
+       previously unreachable on mobile at all. Reuses the exact
+       #site-nav-fullpage-btn id play.html's own "..." toggle already
+       wires up — see site-nav-fullpage-script below, shared by every
+       page instead of being duplicated per-page. */}}
   <button type="button" id="site-nav-fullpage-btn" data-label="More">{{template "icon-more"}}</button>
 </nav>
 {{template "site-nav-fullpage"}}
@@ -88,9 +87,9 @@
 {{/* Shared mobile "More" full-page navigation — a genuine full-screen
      takeover (no backdrop to tap through, no sheet height limit), the
      one place every destination not in .global-tabbar's 4 fixed icons
-     is reachable from on a phone: Communities, Jam sessions, My
-     songbook and Metronome were unreachable on mobile at all before
-     this (desktop's sidebar-secondary was the only way to them). Admin
+     is reachable from on a phone: Communities and Metronome were
+     unreachable on mobile at all before this (desktop's
+     sidebar-secondary was the only way to them). Admin
      is deliberately left off this shared sheet — every global-tabbar
      call site renders with no per-page data (31 call sites), so gating
      it on .Me.IsAdmin here would mean threading that context through
@@ -109,7 +108,6 @@
   <a class="site-nav-fullpage-row" href="/catalog">{{template "icon-view"}} Catalog</a>
   <a class="site-nav-fullpage-row" href="/bands">{{template "icon-bands"}} Bands</a>
   <a class="site-nav-fullpage-row" href="/communities">{{template "icon-community"}} Communities</a>
-  <a class="site-nav-fullpage-row" href="/jams">{{template "icon-jam"}} Jam sessions</a>
   <a class="site-nav-fullpage-row" href="/metronome">{{template "icon-metro-full"}} Metronome</a>
   <a class="site-nav-fullpage-row" href="/profile">{{template "icon-profile"}} Profile</a>
   {{/* Hidden by default, no per-page .Me needed here (see this
@@ -155,13 +153,15 @@
 {{end}}
 
 {{/* Desktop sidebar: the wide-screen counterpart to .global-tabbar below
-     900px. 2025/26 SaaS-nav research is consistent that past ~6 top-level
-     sections a left sidebar reads better on a wide screen than a top bar
-     (items don't hide behind hover/overflow or wrap) -- Songbooks has 6
-     (Home, Songbooks, Catalog, Bands, Communities, Jam sessions): per
-     direct feedback, Communities/Jams are "part of the main things now,"
-     not secondary utility links. Primary items mirror .global-tabbar's
-     first 4 destinations plus these two. "Songbooks" (the /catalog
+     900px. 2025/26 SaaS-nav research is consistent that past ~6-7
+     top-level sections a left sidebar reads better on a wide screen
+     than a top bar (items don't hide behind hover/overflow or wrap) --
+     Songbooks has 5 (Home, Songbooks, Catalog, Bands, Communities): per
+     direct feedback, Communities is "part of the main things now," not
+     a secondary utility link (Jam sessions, the sixth entry here until
+     the old no-login jam system was retired in favor of community
+     events, is gone — see migration 0051). Primary items mirror
+     .global-tabbar's first 4 destinations plus this one. "Songbooks" (the /catalog
      route) is both the flat browse-every-song view AND, as of Phase 32,
      the "by songbook" view — one nav entry, one destination, for "every
      collection of songs I can open" (a project's book, or a band's
@@ -189,7 +189,6 @@
     <a href="/catalog" data-path="/catalog" data-label="Catalog">{{template "icon-view"}} Catalog</a>
     <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}} Bands</a>
     <a href="/communities" data-path="/communities" data-label="Communities">{{template "icon-community"}} Communities</a>
-    <a href="/jams" data-path="/jams" data-label="Jam sessions">{{template "icon-jam"}} Jam sessions</a>
   </div>
   <div class="sidebar-secondary">
     <a href="/metronome" data-path="/metronome">{{template "icon-metro-full"}} Metronome</a>

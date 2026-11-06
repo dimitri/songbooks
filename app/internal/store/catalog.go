@@ -209,7 +209,6 @@ type CatalogVariant struct {
 	OwnerID         *int64
 	OwnerBandID     *int64
 	OwnerCommunityID   *int64
-	OwnerJamEventID *int64
 	ForkedFromID    *int64
 	Genre           string // from the parent work; "" means unset, not filtered out of an unfiltered listing
 	Album           string // from the parent work; "" means unset (migration 0033)
@@ -231,18 +230,13 @@ type CatalogFilter struct {
 // "original"-type band's repertoire); "by album" isn't offered as a
 // CatalogFilter itself, since most variants have no album set.
 //
-// visibility='jam' rows are never included here (nor in
-// ListVariantsForWork below), deliberately, mirroring how a 'band'
-// variant never shows up in another band's view — a jam-scoped variant
-// is only reachable through its own jam's song list (store.ListJamSongs),
-// never the general catalog/work-versions browse pages.
 func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter CatalogFilter) ([]CatalogVariant, error) {
 	order := "s.title, s.artist"
 	if filter.Sort == "artist" {
 		order = "s.artist, s.title"
 	}
 	rows, err := st.db.Query(ctx, `
-		SELECT s.id, s.work_id, s.title, s.artist, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_community_id, s.owner_jam_event_id, s.forked_from_id, coalesce(w.genre, ''), coalesce(w.album, '')
+		SELECT s.id, s.work_id, s.title, s.artist, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_community_id, s.forked_from_id, coalesce(w.genre, ''), coalesce(w.album, '')
 		FROM songs s JOIN works w ON w.id = s.work_id
 		WHERE (s.visibility = 'global' OR s.owner_person_id = $1)
 		  AND ($2 = '' OR s.artist = $2)
@@ -259,7 +253,6 @@ func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter Catalog
 // see — every global variant, plus the viewer's own private ('user')
 // ones, plus any 'band'-scoped one owned by a band viewerID is CURRENTLY
 // a member of — for the work's "all versions of this song" page.
-// Excludes visibility='jam' rows — see ListCatalog's doc comment.
 //
 // Unlike ListCatalog (which deliberately leaves 'band' rows out entirely
 // — a band's repertoire has its own page, ListBandCatalog, and mixing it
@@ -275,7 +268,7 @@ func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter Catalog
 // just an under-inclusion bug for the band's own members.
 func (st *Store) ListVariantsForWork(ctx context.Context, workID, viewerID int64) ([]CatalogVariant, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT s.id, s.work_id, s.title, s.artist, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_community_id, s.owner_jam_event_id, s.forked_from_id, coalesce(w.genre, ''), coalesce(w.album, '')
+		SELECT s.id, s.work_id, s.title, s.artist, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_community_id, s.forked_from_id, coalesce(w.genre, ''), coalesce(w.album, '')
 		FROM songs s JOIN works w ON w.id = s.work_id
 		WHERE s.work_id = $1 AND (
 		  s.visibility = 'global'
@@ -299,7 +292,7 @@ func scanCatalogVariants(rows pgx.Rows) ([]CatalogVariant, error) {
 	var out []CatalogVariant
 	for rows.Next() {
 		var v CatalogVariant
-		if err := rows.Scan(&v.VariantID, &v.WorkID, &v.Title, &v.Artist, &v.Visibility, &v.OwnerID, &v.OwnerBandID, &v.OwnerCommunityID, &v.OwnerJamEventID, &v.ForkedFromID, &v.Genre, &v.Album); err != nil {
+		if err := rows.Scan(&v.VariantID, &v.WorkID, &v.Title, &v.Artist, &v.Visibility, &v.OwnerID, &v.OwnerBandID, &v.OwnerCommunityID, &v.ForkedFromID, &v.Genre, &v.Album); err != nil {
 			return nil, err
 		}
 		out = append(out, v)
@@ -314,18 +307,8 @@ func scanCatalogVariants(rows pgx.Rows) ([]CatalogVariant, error) {
 //     IsCurrentBandMember) of the owning band. This is this phase's actual
 //     tightening of the placeholder below: band material is no longer
 //     editable by "any logged-in person," only by the band.
-//   - visibility='community': only a CURRENT INSTRUCTOR of the owning
-//     community — the key asymmetry community mode adds over band mode. A
-//     current STUDENT may view the community's material (see
-//     ListVariantsForWork) but never edit it directly here; a student's
-//     only path to changing community material is a reviewed submission
-//     (see community_submissions.go) that an instructor then accepts.
-//   - visibility='jam': a logged-in person has no automatic edit rights
-//     here (a jam participant typically ISN'T a logged-in person at all —
-//     see jam_profiles) — always false. Jam-session-authenticated edit
-//     access is checked separately, via CanEditVariantAsJamParticipant,
-//     by the HTTP layer (see handleUpdateVariant and friends), which
-//     accepts either a normal login session or a valid jam session.
+//   - visibility='community': any CURRENT member — matches band's own
+//     model (see the community-page member-level catalog change).
 //   - visibility='global': any logged-in person. Still a deliberate,
 //     known-permissive placeholder, same as phase 1 — global variants
 //     have no band/role concept attached to them in THIS phase either;
@@ -355,9 +338,7 @@ func (st *Store) CanEditVariant(ctx context.Context, personID, variantID int64) 
 		if ownerCommunityID == nil {
 			return false, nil
 		}
-		return st.IsCurrentCommunityStaff(ctx, *ownerCommunityID, personID)
-	case "jam":
-		return false, nil
+		return st.IsCurrentCommunityMember(ctx, *ownerCommunityID, personID)
 	case "setlist":
 		if ownerSetlistID == nil {
 			return false, nil
@@ -378,10 +359,8 @@ func (st *Store) CanEditVariant(ctx context.Context, personID, variantID int64) 
 //     states this as the intended asymmetry ("a current STUDENT may view
 //     the community's material... but never edit it directly"); this is
 //     that view path.
-//   - visibility='jam'/'user': unchanged from CanEditVariant (a jam
-//     variant has no ordinary-login view path either — see
-//     CanEditVariantAsJamParticipant for the session-based one; a
-//     personal variant stays owner-only to view, same as to edit).
+//   - visibility='user': unchanged from CanEditVariant (owner-only to
+//     view, same as to edit).
 //
 // Added alongside requireSongRole (auth.go) — before this, EVERY song
 // page's HTTP-layer gate (GET /b/{book}/{stem} and its API/export
@@ -421,8 +400,6 @@ func (st *Store) CanViewVariant(ctx context.Context, personID, variantID int64) 
 			return false, nil
 		}
 		return st.IsCurrentCommunityMember(ctx, *ownerCommunityID, personID)
-	case "jam":
-		return false, nil
 	case "setlist":
 		if ownerSetlistID == nil {
 			return false, nil
@@ -433,38 +410,15 @@ func (st *Store) CanViewVariant(ctx context.Context, personID, variantID int64) 
 	}
 }
 
-// CanEditVariantAsJamParticipant reports whether a valid jam session for
-// jamEventID may edit variantID — the jam-session counterpart to
-// CanEditVariant above. Mirrors the band branch's "any current member"
-// pattern: a jam's participant roster (a live jam session for that
-// event) IS its membership for this purpose, same conceptual role
-// band_members plays for visibility='band'. Only true for a variant
-// that's actually scoped to THIS jam event (visibility='jam' AND
-// owner_jam_event_id = jamEventID) — holding a session for jam A grants
-// no rights over jam B's (or any other scope's) variants.
-func (st *Store) CanEditVariantAsJamParticipant(ctx context.Context, jamEventID, variantID int64) (bool, error) {
-	var visibility string
-	var ownerJamEventID *int64
-	err := st.db.QueryRow(ctx, `SELECT visibility::text, owner_jam_event_id FROM songs WHERE id = $1`, variantID).
-		Scan(&visibility, &ownerJamEventID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, fmt.Errorf("no such variant %d: %w", variantID, ErrNotFound)
-	}
-	if err != nil {
-		return false, err
-	}
-	return visibility == "jam" && ownerJamEventID != nil && *ownerJamEventID == jamEventID, nil
-}
-
 // GetVariant loads one variant's full catalog row by id (not scoped to a
 // book/stem the way LoadSong is) — used by the fork/annotate/"all
 // versions" endpoints, which address a variant by its row id.
 func (st *Store) GetVariant(ctx context.Context, variantID int64) (*CatalogVariant, error) {
 	var v CatalogVariant
 	err := st.db.QueryRow(ctx, `
-		SELECT s.id, s.work_id, s.title, s.artist, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_community_id, s.owner_jam_event_id, s.forked_from_id
+		SELECT s.id, s.work_id, s.title, s.artist, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_community_id, s.forked_from_id
 		FROM songs s WHERE s.id = $1`, variantID).
-		Scan(&v.VariantID, &v.WorkID, &v.Title, &v.Artist, &v.Visibility, &v.OwnerID, &v.OwnerBandID, &v.OwnerCommunityID, &v.OwnerJamEventID, &v.ForkedFromID)
+		Scan(&v.VariantID, &v.WorkID, &v.Title, &v.Artist, &v.Visibility, &v.OwnerID, &v.OwnerBandID, &v.OwnerCommunityID, &v.ForkedFromID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such variant %d: %w", variantID, ErrNotFound)
 	}
@@ -497,39 +451,25 @@ func (st *Store) VariantContent(ctx context.Context, variantID int64) (title, ar
 // scope is "user" (personal fork: visibility='user', owner_person_id =
 // forkerID, personal catalog_entries pointer swapped), "band" (fork into
 // a band's repertoire: visibility='band', owner_band_id = bandID, that
-// band's band_catalog_entries pointer swapped instead), "community" (fork
-// into a community's repertoire: visibility='community', owner_community_id =
-// bandID, that community's community_catalog_entries pointer swapped instead
-// — any current member, same shape and same IsCurrentCommunityStaff-free
-// gating as "band"), or "jam"
-// (fork into one jam event's pickable list only: visibility='jam',
-// owner_jam_event_id = bandID — reusing the same int64 parameter as the
-// event id, see the doc note below — then auto-added to that event's
-// jam_songs via AddJamSong with the default instrument limits, since "a
-// jam-scoped variant that isn't on the jam's song list doesn't make
-// sense" per the brief). forkerID must be a CURRENT member of bandID for
-// a "band" fork — checked inside this same transaction (returning
+// band's band_catalog_entries pointer swapped instead), or "community"
+// (fork into a community's repertoire: visibility='community',
+// owner_community_id = bandID, that community's community_catalog_entries
+// pointer swapped instead — any current member, same shape/gating as
+// "band"). forkerID must be a CURRENT member of bandID for a "band" or
+// "community" fork — checked inside this same transaction (returning
 // ErrForbidden if not) rather than left entirely to the HTTP layer, since
-// this call also writes owner_band_id. A "jam" fork has no analogous
-// membership check here: holding a valid jam session for that event IS
-// the membership check, and it's the HTTP layer's job (same division of
-// responsibility as "band") to have already verified the caller holds
-// one for THIS eventID before calling with scope="jam".
+// this call also writes owner_band_id/owner_community_id.
 //
-// bandID doubles as "the band id" (scope="band") or "the jam event id"
-// (scope="jam") — not the cleanest signature, but it keeps this one
-// method's shape instead of adding a fourth parameter that's only ever
-// used by one of three scopes; forkerID for scope="jam" is the jam
-// profile id's owning person if any (0/unknown is fine — see
-// SaveVariantByID's actorPersonID convention) and is NOT written as this
-// fork's owner (there is no owner_person_id for a jam-scoped variant).
+// bandID doubles as "the band id" (scope="band") or "the community id"
+// (scope="community") — not the cleanest signature, but it keeps this
+// one method's shape instead of adding a parameter only one scope uses.
 //
 // The fork stays attached to src's project (songs.project_id is NOT NULL
 // and FK'd, and forks aren't project material in their own right yet in
 // this phase) under a generated, collision-free stem; later phases that
 // decouple personal/band variants from any one project can revisit this.
 func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, scope string, bandID int64) (int64, error) {
-	if scope != "user" && scope != "band" && scope != "community" && scope != "jam" {
+	if scope != "user" && scope != "band" && scope != "community" {
 		return 0, fmt.Errorf("invalid fork scope %q", scope)
 	}
 
@@ -609,10 +549,6 @@ func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, sco
 	}
 
 	var newID int64
-	var creator *int64
-	if forkerID != 0 {
-		creator = &forkerID
-	}
 	switch scope {
 	case "user":
 		err = tx.QueryRow(ctx, `
@@ -635,23 +571,12 @@ func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, sco
 			VALUES ($1, $2, $3, $4, $5, 'community', $6, $7, $8)
 			RETURNING id`,
 			title, artist, referenceURL, body, workID, bandID, variantID, forkerID).Scan(&newID)
-	case "jam":
-		err = tx.QueryRow(ctx, `
-			INSERT INTO songs (title, artist, reference_url, body, work_id,
-			                    visibility, owner_jam_event_id, forked_from_id, created_by_person_id)
-			VALUES ($1, $2, $3, $4, $5, 'jam', $6, $7, $8)
-			RETURNING id`,
-			title, artist, referenceURL, body, workID, bandID, variantID, creator).Scan(&newID)
 	}
 	if err != nil {
 		return 0, err
 	}
 
 	switch scope {
-	case "jam":
-		if err := st.addJamSongTx(ctx, tx, bandID, newID, DefaultInstrumentLimits()); err != nil {
-			return 0, err
-		}
 	case "user":
 		if _, err := tx.Exec(ctx, `DELETE FROM songbook_entries WHERE songbook_id = $1 AND variant_id = $2`, defaultSongbookID, variantID); err != nil {
 			return 0, err
@@ -687,93 +612,14 @@ func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, sco
 	return newID, nil
 }
 
-// CreateJamVariant creates a brand-new, from-scratch variant scoped to
-// jamEventID only (visibility='jam', owner_jam_event_id = jamEventID) —
-// the jam-scoped sibling of store.CreateSong: same creation shape
-// (title/artist header plus one empty [Verse] section to start from),
-// just visibility='jam' instead of 'global'/owner_jam_event_id instead of
-// no owner, and auto-added to the event's own jam_songs pickable list in
-// the SAME transaction via addJamSongTx — "a jam-scoped variant that
-// isn't on the jam's song list doesn't make sense" per the brief, so
-// creation and list-membership happen atomically, never one without the
-// other. The variant still lives under projectID (the jam's own parent
-// project), consistent with ForkVariant's "forks/jam variants aren't
-// project material in their own right yet" rule. creatorPersonID is the
-// acting participant's underlying person id if they also happen to be
-// logged in; 0 (the common case — an unlogged jam_profiles participant)
-// is recorded as NULL, same "unknown actor" convention as
-// SaveVariantByID.
-func (st *Store) CreateJamVariant(ctx context.Context, jamEventID int64, title, artist string, creatorPersonID int64) (int64, error) {
-	tx, err := st.db.Begin(ctx)
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback(ctx)
-
-	workID, err := st.findOrCreateWork(ctx, tx, title, artist)
-	if err != nil {
-		return 0, fmt.Errorf("resolving work for %q/%q: %w", title, artist, err)
-	}
-
-	var b strings.Builder
-	b.WriteString("title: " + title + "\n")
-	if artist != "" {
-		b.WriteString("artist: " + artist + "\n")
-	}
-	b.WriteString("\n[Verse]\n")
-
-	var creator *int64
-	if creatorPersonID != 0 {
-		creator = &creatorPersonID
-	}
-	var newID int64
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO songs (title, artist, body, work_id, visibility, owner_jam_event_id, created_by_person_id)
-		VALUES ($1, $2, $3, $4, 'jam', $5, $6)
-		RETURNING id`,
-		title, artist, b.String(), workID, jamEventID, creator).Scan(&newID); err != nil {
-		return 0, err
-	}
-
-	if err := st.addJamSongTx(ctx, tx, jamEventID, newID, DefaultInstrumentLimits()); err != nil {
-		return 0, err
-	}
-
-	return newID, tx.Commit(ctx)
-}
-
 // CreateBandVariant creates a brand-new, from-scratch variant owned by
 // bandID (visibility='band', owner_band_id = bandID) — the band-scoped
-// sibling of store.CreateSong and store.CreateJamVariant: same creation
-// shape (title/artist header plus one empty [Verse] section to start
-// from), just visibility='band'/owner_band_id instead of 'global'/no
-// owner or 'jam'/owner_jam_event_id. Before this method existed, the
-// only way a band acquired band-owned material was ForkVariant with
-// scope="band" — which requires an existing source variant to fork
-// from. A band that wants to write a brand-new original composition
-// straight into its own private repertoire, without first creating (or
-// finding) some other variant to fork, had no path to do that at all.
-//
-// Mirrors CreateJamVariant's "create + auto-add to the owner's own list,
-// atomically" shape: here, the new variant is pointed at from the
-// band's own band_catalog_entries repertoire in the SAME transaction —
-// "a band variant that isn't in the band's own repertoire doesn't make
-// sense," same rule as a jam-scoped variant always being on its event's
-// jam_songs list.
-//
-// creatorPersonID must be a CURRENT member of bandID — checked inside
-// this transaction (returning ErrForbidden if not), same gate
-// ForkVariant's scope="band" branch uses, since this call also writes
-// owner_band_id.
-//
-// The variant still needs some projectID to live under (songs.project_id
-// is NOT NULL and FK'd, and band-owned variants aren't project material
-// in their own right any more than a fork is — see ForkVariant's doc
-// comment on why forks stay attached to their source's project). There's
-// no "band's own project" concept in this data model, so the caller
-// picks an existing project (the band repertoire page's "new original
-// song" form offers a project dropdown, the same store.ListBooks list
-// CreateSong's own form draws from).
+// sibling of store.CreateSong: same creation shape (title/artist header
+// plus one empty [Verse] section to start from), just visibility='band'/
+// owner_band_id instead of 'global'/no owner. Before this method
+// existed, the only way a band acquired band-owned material was
+// ForkVariant with scope="band" — which requires an existing source
+// variant to fork from.
 func (st *Store) CreateBandVariant(ctx context.Context, bandID int64, title, artist string, creatorPersonID int64) (int64, error) {
 	// Resolved before the transaction — same reasoning as ForkVariant's
 	// own fix: GetDefaultSongbook isn't tx-scoped and may itself need to

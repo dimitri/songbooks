@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"app/internal/song"
@@ -148,14 +149,13 @@ const (
 // CreateVariant makes a brand-new, from-scratch variant (title/artist
 // header plus one empty [Verse] section) owned per ownerKind/ownerID —
 // the single creation entry point replacing the old per-project
-// CreateSong plus the per-scope CreateBandVariant/CreateJamVariant/
-// CreateCommunityVariant (jam/community creation stay in their own files,
-// jam.go/community_catalog.go, since they also need an atomic "add to my
-// own pickable list" step CreateVariant has no reason to know about).
-// A new variant is also, atomically, added to the owner's default
-// songbook (OwnerPerson/OwnerBand) — "a variant that isn't in its
-// owner's own songbook doesn't make sense," same rule band/jam variant
-// creation already followed under the old model.
+// CreateSong plus the per-scope CreateBandVariant/CreateCommunityVariant
+// (community creation stays in its own file, community_catalog.go,
+// since it also needs an atomic "add to my own songbook" step
+// CreateVariant has no reason to know about). A new variant is also,
+// atomically, added to the owner's default songbook (OwnerPerson/
+// OwnerBand) — "a variant that isn't in its owner's own songbook doesn't
+// make sense."
 func (st *Store) CreateVariant(ctx context.Context, ownerKind OwnerKind, ownerID int64, title, artist string, creatorPersonID int64) (int64, error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
@@ -247,4 +247,20 @@ func (st *Store) ImportVariant(ctx context.Context, body string) error {
 		INSERT INTO songs (title, artist, reference_url, body, work_id) VALUES ($1, $2, $3, $4, $5)`,
 		title, artist, ref, body, workID)
 	return err
+}
+
+// isUniqueViolation reports whether err is a Postgres unique-constraint
+// violation (SQLSTATE 23505), any constraint.
+func isUniqueViolation(err error) bool {
+	var pgErr interface{ SQLState() string }
+	return errors.As(err, &pgErr) && pgErr.SQLState() == "23505"
+}
+
+// constraintViolated reports whether err is a unique-violation on
+// specifically the named constraint — for a caller that needs to tell
+// WHICH of several unique columns conflicted (e.g. username vs email on
+// the same INSERT), not just that one of them did.
+func constraintViolated(err error, name string) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.SQLState() == "23505" && pgErr.ConstraintName == name
 }
