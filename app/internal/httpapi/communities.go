@@ -78,16 +78,48 @@ func (s *Server) requireCommunityStaff(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
+// communityCardView is store.CommunityCardRow plus the next upcoming
+// event's digest, same "what's coming up" cue bands.html's own card
+// shows via HasNextGig/NextGigDate.
+type communityCardView struct {
+	store.CommunityCardRow
+	HasNextEvent  bool
+	NextEventID   int64
+	NextEventName string
+	NextEventDate time.Time
+}
+
 // handleCommunitiesPage lists the logged-in person's own current communities
 // (either role), with a "start a community" action.
 func (s *Server) handleCommunitiesPage(w http.ResponseWriter, r *http.Request) {
 	person := personFromContext(r)
-	communities, err := s.store.ListCommunitiesForPerson(r.Context(), person.ID)
+	rows, err := s.store.ListCommunityCardsForPerson(r.Context(), person.ID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.render(w, "communities", map[string]any{"Me": person, "Communities": communities})
+	cards := make([]communityCardView, len(rows))
+	for i, row := range rows {
+		cards[i] = communityCardView{CommunityCardRow: row}
+		events, err := s.store.ListEventsForCommunity(r.Context(), row.ID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		now := time.Now()
+		for _, e := range events {
+			if e.IsPast(now) {
+				continue
+			}
+			if !cards[i].HasNextEvent || e.StartsAt.Before(cards[i].NextEventDate) {
+				cards[i].HasNextEvent = true
+				cards[i].NextEventID = e.ID
+				cards[i].NextEventName = e.Name
+				cards[i].NextEventDate = e.StartsAt
+			}
+		}
+	}
+	s.render(w, "communities", map[string]any{"Me": person, "Communities": cards})
 }
 
 // handleCreateCommunity makes a brand-new community, with the creator as its

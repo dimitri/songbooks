@@ -295,7 +295,7 @@ button.icon-btn .icon { margin-right: 0; width: 1.15em; height: 1.15em; }
 .back-link .icon { margin-right: 0; }
 select {
   background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border);
-  border-radius: 8px; padding: 0.4rem 0.6rem;
+  border-radius: 8px; padding: 0.4rem 0.6rem; min-height: 2.75rem;
   /* A native <select> sizes to its LONGEST <option> text by default, with
      no wrapping possible — a verbose option ("new song (add an existing
      variant to the repertoire)", the band-proposal kind picker) can be
@@ -306,9 +306,16 @@ select {
      and the full option text is always there once it's opened. */
   max-width: 100%;
 }
-input[type="text"], input[type="url"], input[type="date"], input[type="number"] {
+/* input[type="search"] included here (it wasn't before — an oversight
+   that left every search box, e.g. a repertoire's search-this-list
+   field, with zero styling of its own: no border/background/radius,
+   and critically no min-height, so it sat visibly shorter than the
+   button beside it). min-height matches the base `button` rule's own
+   2.75rem touch-target floor, so an input/select next to a button in a
+   toolbar lines up instead of looking like two different widget sets. */
+input[type="text"], input[type="url"], input[type="date"], input[type="number"], input[type="search"] {
   background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border);
-  border-radius: 8px; padding: 0.4rem 0.6rem;
+  border-radius: 8px; padding: 0.4rem 0.6rem; min-height: 2.75rem;
   max-width: 100%; /* same reasoning as select's own max-width, above */
 }
 
@@ -564,6 +571,16 @@ table.card { padding: 0; }
   color: color-mix(in srgb, var(--sidebar-fg) 60%, transparent);
   padding: 0 0.6rem; margin-bottom: 0.3rem;
 }
+/* .sidebar-secondary's own `margin-top: auto` is right for the shared
+   sidebar's genuinely-secondary utility links (Metronome, My songbook)
+   that belong pinned low, above the account chip. A page's own "This
+   band"/"This community"/"This song" action group (.sidebar-song-group)
+   is not that — it's the primary thing to do on that page, and pinning
+   it to the bottom buried it below a tall gap on any page with more
+   than a couple of primary-nav rows (reported: "THIS BAND" actions easy
+   to miss). Cancel the auto-margin so it sits right under the primary
+   nav list instead. */
+.sidebar-secondary.sidebar-song-group { margin-top: 0; }
 .sidebar-song-group #mode-segmented {
   display: flex; flex-direction: column; gap: 0.15rem;
   border: none; background: none; padding: 0; border-radius: 0; margin-bottom: 0.3rem;
@@ -3604,7 +3621,7 @@ input.matrix-slot:hover, input.matrix-slot:focus {
    own filter form uses, just client-side (a repertoire is small enough
    to filter in the browser — no round trip, instant as you type). */
 .repertoire-toolbar { display: flex; gap: 0.6rem; align-items: center; margin-bottom: 0.8rem; flex-wrap: wrap; }
-.repertoire-toolbar input[type="search"] { flex: 1; min-width: 10rem; }
+.repertoire-toolbar input[type="search"] { flex: 1; min-width: 10rem; max-width: 24rem; }
 .repertoire-empty-filtered { display: none; }
 
 @media (max-width: 560px) {

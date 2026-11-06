@@ -183,6 +183,48 @@ func (st *Store) ListCommunitiesForPerson(ctx context.Context, personID int64) (
 	return out, rows.Err()
 }
 
+// CommunityCardRow is one community as the person's own "My communities"
+// listing needs it — same digest shape bands.html's own card uses
+// (member count, repertoire size, the viewer's own role) so the two
+// listing pages read as one consistent picture, not two different UIs.
+type CommunityCardRow struct {
+	ID          int64
+	Name        string
+	MemberCount int
+	SongCount   int
+	MyRole      string
+}
+
+// ListCommunityCardsForPerson is ListCommunitiesForPerson plus the counts
+// a listing card shows — one query per community would N+1 on a person
+// in many communities, so this does it in a single round trip instead.
+func (st *Store) ListCommunityCardsForPerson(ctx context.Context, personID int64) ([]CommunityCardRow, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT sc.id, sc.name, my.role::text,
+		       count(DISTINCT cm.person_id) FILTER (WHERE cm.left_at IS NULL),
+		       count(DISTINCT se.variant_id)
+		FROM communities sc
+		JOIN community_members my ON my.community_id = sc.id AND my.person_id = $1 AND my.left_at IS NULL
+		LEFT JOIN community_members cm ON cm.community_id = sc.id
+		LEFT JOIN songbooks sb ON sb.owner_community_id = sc.id AND sb.is_default
+		LEFT JOIN songbook_entries se ON se.songbook_id = sb.id
+		GROUP BY sc.id, sc.name, my.role
+		ORDER BY sc.name`, personID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []CommunityCardRow
+	for rows.Next() {
+		var r CommunityCardRow
+		if err := rows.Scan(&r.ID, &r.Name, &r.MyRole, &r.MemberCount, &r.SongCount); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 // IsCurrentCommunityMember reports whether personID currently (left_at IS
 // NULL) belongs to communityID, instructor or student alike.
 func (st *Store) IsCurrentCommunityMember(ctx context.Context, communityID, personID int64) (bool, error) {

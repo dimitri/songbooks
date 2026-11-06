@@ -59,7 +59,7 @@
   <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}}</a>
   {{/* Replaces a standalone Profile tab — Profile moved into the shared
        More sheet below (site-nav-fullpage) alongside Communities, Jam
-       sessions, My songbook and Metronome, none of which fit in 5 fixed
+       sessions and Metronome, none of which fit in 5 fixed
        mobile slots and were previously unreachable on mobile at all.
        Reuses the exact #site-nav-fullpage-btn id play.html's own "..."
        toggle already wires up — see site-nav-fullpage-script below,
@@ -166,8 +166,8 @@
      the "by songbook" view — one nav entry, one destination, for "every
      collection of songs I can open" (a project's book, or a band's
      repertoire), see catalog.html's view toggle.
-     Below the primary list sits sidebar-tools (Metronome, My songbook —
-     actual tools/shortcuts, not site sections), kept deliberately
+     Below the primary list sits sidebar-tools (Metronome —
+     an actual tool/shortcut, not a site section), kept deliberately
      separate from the account-level group at the very bottom (the
      account chip + Admin): per direct feedback, "the bottom menu is a
      strange concept" because it used to mix site navigation, a tool,
@@ -193,7 +193,6 @@
   </div>
   <div class="sidebar-secondary">
     <a href="/metronome" data-path="/metronome">{{template "icon-metro-full"}} Metronome</a>
-    <a href="/songbooks/mine" data-path="/songbooks/mine">{{template "icon-catalog"}} My songbook</a>
   </div>
   {{if .}}
   {{if .IsAdmin}}

@@ -27,13 +27,22 @@
   <div class="catalog-book-cards">
   {{range .MySongbooks}}
     <a class="catalog-book-card" href="/songbooks/{{.ID}}">
-      <div class="catalog-book-card-title">{{.Name}}</div>
+      <div class="catalog-book-card-title">{{.Name}}{{if .IsDefault}} <span class="hint">(default)</span>{{end}}</div>
     </a>
   {{end}}
   </div>
   {{else}}
   <p class="hint">No songbooks yet.</p>
   {{end}}
+  {{/* Folded in from the now-removed standalone "My songbook" nav entry
+       — creating an extra personal songbook (beyond the one default
+       every profile already has) belongs right here, not behind its
+       own top-level destination. */}}
+  <div class="form-actions" style="margin-top:0.4rem; margin-bottom:1.2rem;">
+    <input type="text" id="new-songbook-name" placeholder="New songbook name">
+    <button type="button" id="create-songbook-btn">+ create songbook</button>
+  </div>
+  <p id="create-songbook-result" class="hint"></p>
 
   <h2 class="catalog-books-heading">Band repertoires</h2>
   {{if .BandCards}}
@@ -63,6 +72,19 @@
   <p class="hint">You're not in a community yet — <a href="/communities">browse communities</a>.</p>
   {{end}}
 </main>
+<script>
+document.getElementById('create-songbook-btn').addEventListener('click', async () => {
+  const name = document.getElementById('new-songbook-name').value.trim();
+  const out = document.getElementById('create-songbook-result');
+  if (!name) { out.textContent = 'enter a name'; return; }
+  const res = await fetch('/api/songbooks', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) { location.href = `/songbooks/${data.id}`; } else { out.textContent = data.error || 'failed to create songbook'; }
+});
+</script>
 </div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
