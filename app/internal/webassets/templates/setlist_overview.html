@@ -29,10 +29,15 @@
 <main class="index">
   <nav class="band-tabs band-tabs-row">
     <a href="/setlists/{{.SetlistID}}" class="active">Running order</a>
-    <a href="/setlists/{{.SetlistID}}/practice">Practice (chart)</a>
-    <a href="/setlists/{{.SetlistID}}/listening">Listening (lyrics)</a>
     <a href="/setlists/{{.SetlistID}}/clicktrack">Metronome / click track</a>
-    {{if .CanEdit}}<button type="button" id="reorder-toggle" style="margin-left:auto;">{{template "icon-edit"}} Reorder</button>{{end}}
+    <details class="row-menu" style="margin-left:auto;">
+      <summary title="export PDF">{{template "icon-download"}} PDF</summary>
+      <div class="row-menu-panel">
+        <a href="/setlists/{{.SetlistID}}/export-setlist-page.pdf" download>One-pager setlist</a>
+        <a href="/setlists/{{.SetlistID}}/export.pdf" download>Full setlist songbook</a>
+      </div>
+    </details>
+    {{if .CanEdit}}<button type="button" id="reorder-toggle">{{template "icon-edit"}} Reorder</button>{{end}}
   </nav>
 
   {{range $setIdx, $set := .Sets}}
