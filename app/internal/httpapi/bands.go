@@ -14,11 +14,14 @@ import (
 
 // requireBandMember wraps requireAuth, then checks the logged-in person
 // is a CURRENT member of the band identified by the {id} path param —
-// the gate on every band-scoped page/mutation in this phase. No band
-// "owner"/"admin" role exists (see internal/store/bands.go's Band doc
-// comment), so this one check also covers add/remove member, promote/
-// demote, band-catalog add/fork/remove, and deleting the whole band —
-// any current member (core or guest alike) may do all of those.
+// the gate on every band-scoped page/mutation. No band "owner"/"admin"
+// role exists (see internal/store/bands.go's Band doc comment), so this
+// one check also covers add/remove member, band-catalog add/fork/
+// remove, and deleting the whole band — any current member (core or
+// guest alike) may do all of those. The one exception is assigning a
+// member's core/guest status itself, gated on requireBandCore instead
+// (below) — "core members may assign privileges, guests may not" is the
+// only asymmetry between the two tiers.
 //
 // A non-member and a bad/missing band id both get the same 403, same
 // "don't leak whether it exists" reasoning requireRole uses for project
@@ -42,6 +45,36 @@ func (s *Server) requireBandMember(next http.HandlerFunc) http.HandlerFunc {
 		}
 		if !isMember {
 			httpError(w, http.StatusForbidden, "must be a current member of this band")
+			return
+		}
+		next(w, r)
+	})
+}
+
+// requireBandCore wraps requireAuth, then checks the logged-in person is
+// a CURRENT CORE member of the band — the one privilege asymmetry bands
+// have (see requireBandMember's own doc comment): assigning another
+// member's core/guest status is core-only, everything else stays
+// member-symmetric.
+func (s *Server) requireBandCore(next http.HandlerFunc) http.HandlerFunc {
+	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		bandID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil {
+			httpError(w, http.StatusBadRequest, "invalid band id")
+			return
+		}
+		person := personFromContext(r)
+		if person.IsAdmin {
+			next(w, r)
+			return
+		}
+		isCore, err := s.store.IsCurrentBandCore(r.Context(), bandID, person.ID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !isCore {
+			httpError(w, http.StatusForbidden, "must be a current core member of this band")
 			return
 		}
 		next(w, r)
@@ -326,10 +359,17 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	isCore, err := s.store.IsCurrentBandCore(r.Context(), bandID, person.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	s.render(w, "band_members", map[string]any{
 		"Me": person, "Band": band, "Members": members,
 		"GroupInvites": groupInvites, "OpenInvites": openInvites,
 		"HasPendingSlots": hasPendingSlots, "ShellPeople": shellPeople,
+		"IsCore": isCore || person.IsAdmin,
 	})
 }
 
@@ -415,10 +455,8 @@ func (s *Server) handleRemoveBandMember(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleSetBandMemberStatus promotes/demotes a current member between
-// core and guest. Any current member may change any other member's
-// status (or their own) — no reduced tier exists between core and guest
-// to gate this on, consistent with "guests get identical edit rights to
-// core members" elsewhere in this phase.
+// core and guest. requireBandCore-gated — the one privilege a guest
+// lacks relative to core (everything else is symmetric).
 func (s *Server) handleSetBandMemberStatus(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)

@@ -27,7 +27,7 @@
     <a href="/bands/{{.Band.ID}}/members" class="active">Members</a>
   </nav>
 
-  <p class="hint">No "owner"/"admin" role here — any current member (core or guest) can add or remove members, promote/demote, or delete the whole band.</p>
+  <p class="hint">No "owner"/"admin" role here — any current member (core or guest) can add or remove members or delete the whole band. Promoting/demoting between core and guest is core-only.</p>
 
   {{/* Phase 27: one roster — current members (with instrument) AND every
        unclaimed group-invite slot ("hasn't joined yet"), instead of two
@@ -44,10 +44,14 @@
           {{range .Instruments}}<span class="roster-instrument-badge">{{template "instrument-icon" .}} {{.}}</span>{{else}}<span class="hint">no instrument set</span>{{end}}
           </div>
         </div>
+        {{if $.IsCore}}
         <select class="status-select" data-person-id="{{.PersonID}}">
           <option value="core" {{if eq .Status "core"}}selected{{end}}>core</option>
           <option value="guest" {{if eq .Status "guest"}}selected{{end}}>guest</option>
         </select>
+        {{else}}
+        <span class="hint">{{.Status}}</span>
+        {{end}}
         <button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}">remove</button>
       </div>
       {{end}}

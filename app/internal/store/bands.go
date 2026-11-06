@@ -11,9 +11,10 @@ import (
 
 // Band is a lightweight group of people who collaborate on shared
 // ("band"-visibility) catalog material. No band "owner"/"admin" role
-// exists in this phase: any current member may add/remove/promote/demote
-// another member, and any current member may delete the whole band — see
-// the handlers in internal/httpapi/bands.go for where that's enforced.
+// exists: any current member may add/remove another member and delete
+// the whole band. The one privilege asymmetry is promote/demote
+// (core/guest status) itself — core-only, see requireBandCore in
+// internal/httpapi/bands.go.
 type Band struct {
 	ID        int64
 	Name      string
@@ -229,6 +230,20 @@ func isCurrentBandMember(ctx context.Context, q dbtx, bandID, personID int64) (b
 	var ok bool
 	err := q.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM band_members WHERE band_id = $1 AND person_id = $2 AND left_at IS NULL)`,
+		bandID, personID).Scan(&ok)
+	return ok, err
+}
+
+// IsCurrentBandCore reports whether personID is currently a CORE member
+// of bandID specifically — the one privilege asymmetry bands have:
+// core/guest are otherwise fully symmetric (see requireBandMember's doc
+// comment), but only a core member may assign another member's core/
+// guest status (see handleSetBandMemberStatus).
+func (st *Store) IsCurrentBandCore(ctx context.Context, bandID, personID int64) (bool, error) {
+	var ok bool
+	err := st.db.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM band_members
+		              WHERE band_id = $1 AND person_id = $2 AND left_at IS NULL AND status = 'core')`,
 		bandID, personID).Scan(&ok)
 	return ok, err
 }
