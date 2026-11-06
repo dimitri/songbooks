@@ -53,16 +53,16 @@
   </nav>
 </header>
 <main class="index">
-  <p class="hint">This community's shared repertoire — any current member can add, fork, or remove a song here, same as a band's.</p>
+  <p class="hint">This community's shared repertoire{{if .CanEdit}} — any member whose role grants it can add, fork, or remove a song here, same as a band's{{else}} — read-only with your current role{{end}}.</p>
 
   {{if not .Entries}}
   <div class="attention-empty" style="border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:1.2rem; font-size:0.95rem;">
-    This community's repertoire is empty — songs don't appear here automatically. <button type="button" class="link-button" id="open-add-song-empty">Add your first song</button> to get started.
+    This community's repertoire is empty.{{if .CanEdit}} Songs don't appear here automatically. <button type="button" class="link-button" id="open-add-song-empty">Add your first song</button> to get started.{{end}}
   </div>
   {{else}}
   <div class="repertoire-toolbar">
     <input type="search" id="repertoire-search" placeholder="Search this repertoire…" aria-label="Search this repertoire">
-    <button type="button" id="open-add-song">{{template "icon-plus"}} Add song</button>
+    {{if .CanEdit}}<button type="button" id="open-add-song">{{template "icon-plus"}} Add song</button>{{end}}
   </div>
   {{end}}
 
@@ -81,7 +81,7 @@
           <a href="/variants/{{.VariantID}}/history">History</a>
           {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">Forked from</a>{{end}}
           <p class="hint">{{.Visibility}} &middot; added by {{.AddedByUsername}}</p>
-          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}">Remove</button>
+          {{if $.CanEdit}}<button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}">Remove</button>{{end}}
         </div>
       </details>
     </div>

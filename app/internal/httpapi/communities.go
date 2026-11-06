@@ -78,6 +78,68 @@ func (s *Server) requireCommunityStaff(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
+// requireCommunityPrivilege wraps requireAuth, then checks the logged-in
+// person's CURRENT role in the community identified by the {id} path
+// param grants priv — the fine-grained replacement for
+// requireCommunityStaff's old flat staff-only gate, letting a custom
+// role (e.g. an "Events coordinator" granting only manage_events) reach
+// exactly the actions its privileges cover, not an all-or-nothing tier.
+func (s *Server) requireCommunityPrivilege(priv string, next http.HandlerFunc) http.HandlerFunc {
+	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		communityID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil {
+			httpError(w, http.StatusBadRequest, "invalid community id")
+			return
+		}
+		person := personFromContext(r)
+		if person.IsAdmin {
+			next(w, r)
+			return
+		}
+		has, err := s.store.HasCommunityPrivilege(r.Context(), communityID, person.ID, priv)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !has {
+			httpError(w, http.StatusForbidden, "your role in this community doesn't grant this")
+			return
+		}
+		next(w, r)
+	})
+}
+
+// requireCommunityAnyManagePrivilege is requireCommunityPrivilege's
+// "any of these" variant — gates a page (not a single action) that's
+// useful to anyone holding at least one management privilege, even if
+// a given viewer's own role can't act on every section shown (each
+// section's own form submits through its own requireCommunityPrivilege
+// route, which is the real enforcement boundary).
+func (s *Server) requireCommunityAnyManagePrivilege(next http.HandlerFunc) http.HandlerFunc {
+	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		communityID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil {
+			httpError(w, http.StatusBadRequest, "invalid community id")
+			return
+		}
+		person := personFromContext(r)
+		if person.IsAdmin {
+			next(w, r)
+			return
+		}
+		has, err := s.store.HasAnyCommunityManagePrivilege(r.Context(), communityID, person.ID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !has {
+			httpError(w, http.StatusForbidden, "your role in this community doesn't grant any management privilege")
+			return
+		}
+		next(w, r)
+	})
+}
+
 // communityCardView is store.CommunityCardRow plus the next upcoming
 // event's digest, same "what's coming up" cue bands.html's own card
 // shows via HasNextGig/NextGigDate.
@@ -182,13 +244,19 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 			entries[i].Tempo = sg.Get("tempo")
 		}
 	}
-	isInstructor, err := s.store.IsCurrentCommunityStaff(r.Context(), communityID, person.ID)
+	canManage, err := s.store.HasAnyCommunityManagePrivilege(r.Context(), communityID, person.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	canEdit, err := s.store.HasCommunityPrivilege(r.Context(), communityID, person.ID, store.PrivEditRepertoire)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	s.render(w, "community", map[string]any{
-		"Me": person, "Community": community, "Entries": entries, "IsStaff": isInstructor,
+		"Me": person, "Community": community, "Entries": entries,
+		"IsStaff": canManage || person.IsAdmin, "CanEdit": canEdit || person.IsAdmin,
 	})
 }
 
@@ -246,11 +314,17 @@ func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request
 		}
 		eventManagers[ev.ID] = mgrs
 	}
+	roles, err := s.store.ListCommunityRoles(r.Context(), communityID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "community_admin", map[string]any{
 		"Me": person, "Community": community, "Members": members,
 		"PendingSubmissions": pending, "AllSubmissions": decided,
 		"Entries": entries, "ShellPeople": shellPeople,
 		"Events": events, "EventManagers": eventManagers,
+		"Roles": roles, "AllPrivileges": store.AllCommunityPrivileges,
 	})
 }
 
@@ -304,9 +378,8 @@ func (s *Server) handleAddCommunityMember(w http.ResponseWriter, r *http.Request
 		httpError(w, http.StatusBadRequest, "missing username")
 		return
 	}
-	if req.Role != "staff" && req.Role != "member" {
-		httpError(w, http.StatusBadRequest, `role must be "staff" or "member"`)
-		return
+	if req.Role == "" {
+		req.Role = "member"
 	}
 	target, err := s.store.GetPersonByUsername(r.Context(), req.Username)
 	if errors.Is(err, store.ErrNotFound) {
@@ -343,7 +416,7 @@ func (s *Server) handleCreateCommunityPersonalInvite(w http.ResponseWriter, r *h
 		return
 	}
 	role := req.Role
-	if role != "staff" && role != "member" {
+	if role == "" {
 		role = "member"
 	}
 	actor := personFromContext(r)
@@ -424,18 +497,18 @@ func (s *Server) handleSetCommunityMemberRole(w http.ResponseWriter, r *http.Req
 
 // handleCreateCommunityGroupInvite makes a brand-new, reusable group
 // invite for this community — the community equivalent of
-// handleCreateBandGroupInvite. Instructor-only (unlike bands' "any
-// current member," communities have a real instructor/student hierarchy —
-// see this phase's lifecycle note). Every claimed slot defaults to
-// community role "member" (see store.grantGroupInviteMembershipTx);
-// inviting someone AS an instructor stays the deliberate direct-add
-// flow (handleAddCommunityMember), not a casual roster link.
+// handleCreateBandGroupInvite. manage_members-gated. Every claimed slot
+// joins at req.Role (any of this community's own roles — falls back to
+// "member" if unset, see store.grantGroupInviteMembershipTx); inviting
+// someone directly AS staff stays the deliberate direct-add flow
+// (handleAddCommunityMember), not a casual roster link.
 func (s *Server) handleCreateCommunityGroupInvite(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
 		Slots []struct {
 			DisplayName string `json:"displayName"`
 		} `json:"slots"`
+		Role string `json:"role"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -446,7 +519,7 @@ func (s *Server) handleCreateCommunityGroupInvite(w http.ResponseWriter, r *http
 		slots = append(slots, store.GroupInviteSlotInput{DisplayName: sl.DisplayName})
 	}
 	actor := personFromContext(r)
-	groupInviteID, token, err := s.store.CreateGroupInvite(r.Context(), "community", communityID, actor.ID, slots, "")
+	groupInviteID, token, err := s.store.CreateGroupInvite(r.Context(), "community", communityID, actor.ID, slots, req.Role)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -466,34 +539,23 @@ func (s *Server) handleCreateCommunityGroupInvite(w http.ResponseWriter, r *http
 func (s *Server) handleCreateCommunityLink(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
-		Role string `json:"role"` // "staff" or "member"
+		Role string `json:"role"` // any of this community's own role names — built-in or custom
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	role := "member"
-	if req.Role == "staff" {
-		role = "staff"
+	role := req.Role
+	if role == "" {
+		role = "member"
 	}
-	// (role already matches the DB's own 'staff'/'member' enum values
-	// 1:1 — no translation layer needed since migration 0044.)
 	actor := personFromContext(r)
-	isStaff, err := s.store.IsCurrentCommunityStaff(r.Context(), communityID, actor.ID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if !isStaff {
-		httpError(w, http.StatusForbidden, "must be staff of this community")
-		return
-	}
 	_, token, err := s.store.CreateGroupInvite(r.Context(), "community", communityID, actor.ID, nil, role)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"url": "/join/" + token, "role": req.Role})
+	writeJSON(w, http.StatusOK, map[string]any{"url": "/join/" + token, "role": role})
 }
 
 // handleCloseCommunityGroupInvite explicitly closes a still-open community
@@ -695,4 +757,115 @@ func writeCommunitySubmissionDecisionError(w http.ResponseWriter, err error) {
 		return
 	}
 	httpError(w, http.StatusInternalServerError, err.Error())
+}
+
+// handleListCommunityRoles is GET /api/communities/{id}/roles — any
+// current member may see the role list (needed to populate an invite's
+// target-role picker, for instance), not just those who can edit it.
+func (s *Server) handleListCommunityRoles(w http.ResponseWriter, r *http.Request) {
+	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	roles, err := s.store.ListCommunityRoles(r.Context(), communityID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, roles)
+}
+
+// handleCreateCommunityRole makes a new custom role.
+func (s *Server) handleCreateCommunityRole(w http.ResponseWriter, r *http.Request) {
+	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		Name       string   `json:"name"`
+		Privileges []string `json:"privileges"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Name) == "" {
+		httpError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	roleID, err := s.store.CreateCommunityRole(r.Context(), communityID, req.Name, req.Privileges)
+	if err != nil {
+		if errors.Is(err, store.ErrConflict) {
+			httpError(w, http.StatusConflict, err.Error())
+			return
+		}
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int64{"roleId": roleID})
+}
+
+// handleSetCommunityRolePrivileges replaces a role's entire privilege
+// set — works for a built-in role too (a community may re-tune what
+// "member" or "staff" itself grants).
+func (s *Server) handleSetCommunityRolePrivileges(w http.ResponseWriter, r *http.Request) {
+	roleID, err := strconv.ParseInt(r.PathValue("roleID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid role id")
+		return
+	}
+	var req struct {
+		Privileges []string `json:"privileges"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if err := s.store.SetCommunityRolePrivileges(r.Context(), roleID, req.Privileges); err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
+}
+
+// handleRenameCommunityRole renames a CUSTOM role (refused for a built-in).
+func (s *Server) handleRenameCommunityRole(w http.ResponseWriter, r *http.Request) {
+	roleID, err := strconv.ParseInt(r.PathValue("roleID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid role id")
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Name) == "" {
+		httpError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	if err := s.store.RenameCommunityRole(r.Context(), roleID, req.Name); err != nil {
+		if errors.Is(err, store.ErrForbidden) {
+			httpError(w, http.StatusForbidden, err.Error())
+			return
+		}
+		if errors.Is(err, store.ErrConflict) {
+			httpError(w, http.StatusConflict, err.Error())
+			return
+		}
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
+}
+
+// handleDeleteCommunityRole deletes a CUSTOM role not currently held by
+// any member (refused for a built-in, or one still in use).
+func (s *Server) handleDeleteCommunityRole(w http.ResponseWriter, r *http.Request) {
+	roleID, err := strconv.ParseInt(r.PathValue("roleID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid role id")
+		return
+	}
+	if err := s.store.DeleteCommunityRole(r.Context(), roleID); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			httpError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, store.ErrForbidden) || errors.Is(err, store.ErrConflict) {
+			httpError(w, http.StatusConflict, err.Error())
+			return
+		}
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
 }

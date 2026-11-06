@@ -272,36 +272,42 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 
 	// Community mode: a close structural cousin of bands (same history-
 	// preserving membership shape, same catalog pointer mechanism), but
-	// with a REAL two-tier role (instructor/student) instead of bands'
-	// deliberately flat membership. requireCommunityMember gates "may see
-	// this community's material" (either role); requireCommunityStaff
-	// gates every instructor-only action (membership/catalog management,
-	// rename, submission review). See internal/httpapi/communities.go.
+	// with real configurable roles (see internal/store/roles.go) instead
+	// of bands' deliberately flat membership. requireCommunityMember
+	// gates "may see this community's material" (any role, including
+	// guest); requireCommunityPrivilege(priv) gates a specific
+	// fine-grained action on the viewer's current role actually granting
+	// that privilege. See internal/httpapi/communities.go.
 	mux.HandleFunc("GET /communities", s.requireAuth(s.handleCommunitiesPage))
 	mux.HandleFunc("POST /api/communities", s.requireAuth(s.handleCreateCommunity))
 	mux.HandleFunc("GET /communities/{id}", s.requireCommunityMember(s.handleCommunityPage))
-	mux.HandleFunc("GET /communities/{id}/admin", s.requireCommunityStaff(s.handleCommunityAdminPage))
-	mux.HandleFunc("POST /api/communities/{id}/rename", s.requireCommunityStaff(s.handleRenameCommunity))
-	mux.HandleFunc("POST /api/communities/{id}/default-join-role", s.requireCommunityStaff(s.handleSetCommunityDefaultJoinRole))
-	mux.HandleFunc("POST /api/communities/{id}/members", s.requireCommunityStaff(s.handleAddCommunityMember))
-	mux.HandleFunc("POST /api/communities/{id}/personal-invites", s.requireCommunityStaff(s.handleCreateCommunityPersonalInvite))
-	// Group invites (roster link, multi-use): instructor-only to
-	// create/close, since communities (unlike bands) have a real hierarchy.
-	mux.HandleFunc("POST /api/communities/{id}/group-invites", s.requireCommunityStaff(s.handleCreateCommunityGroupInvite))
-	mux.HandleFunc("POST /api/communities/{id}/community-link", s.requireCommunityStaff(s.handleCreateCommunityLink))
-	mux.HandleFunc("POST /api/communities/{id}/group-invites/{groupInviteID}/close", s.requireCommunityStaff(s.handleCloseCommunityGroupInvite))
-	mux.HandleFunc("POST /api/communities/{id}/members/{personID}/role", s.requireCommunityStaff(s.handleSetCommunityMemberRole))
-	mux.HandleFunc("DELETE /api/communities/{id}/members/{personID}", s.requireCommunityStaff(s.handleRemoveCommunityMember))
-	// Member-level, not staff-only, matching the band repertoire's own
-	// model — any current member can add/fork/create directly (see
-	// community.html's "+ Add song" dialog, same as band_catalog.html's).
-	mux.HandleFunc("POST /api/communities/{id}/catalog", s.requireCommunityMember(s.handleAddCommunityCatalogEntry))
-	mux.HandleFunc("DELETE /api/communities/{id}/catalog/{variantID}", s.requireCommunityMember(s.handleRemoveCommunityCatalogEntry))
-	mux.HandleFunc("POST /api/communities/{id}/catalog/fork/{variantID}", s.requireCommunityMember(s.handleForkVariantIntoCommunity))
-	mux.HandleFunc("POST /api/communities/{id}/variants", s.requireCommunityMember(s.handleCreateCommunityVariant))
+	mux.HandleFunc("GET /communities/{id}/admin", s.requireCommunityAnyManagePrivilege(s.handleCommunityAdminPage))
+	mux.HandleFunc("POST /api/communities/{id}/rename", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleRenameCommunity))
+	mux.HandleFunc("POST /api/communities/{id}/default-join-role", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleSetCommunityDefaultJoinRole))
+	mux.HandleFunc("POST /api/communities/{id}/members", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleAddCommunityMember))
+	mux.HandleFunc("POST /api/communities/{id}/personal-invites", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleCreateCommunityPersonalInvite))
+	// Group invites (roster link, multi-use): manage_members to create/close.
+	mux.HandleFunc("POST /api/communities/{id}/group-invites", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleCreateCommunityGroupInvite))
+	mux.HandleFunc("POST /api/communities/{id}/community-link", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleCreateCommunityLink))
+	mux.HandleFunc("POST /api/communities/{id}/group-invites/{groupInviteID}/close", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleCloseCommunityGroupInvite))
+	mux.HandleFunc("POST /api/communities/{id}/members/{personID}/role", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleSetCommunityMemberRole))
+	mux.HandleFunc("DELETE /api/communities/{id}/members/{personID}", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleRemoveCommunityMember))
+	// Role management itself (create/edit/delete a role): also manage_members.
+	mux.HandleFunc("GET /api/communities/{id}/roles", s.requireCommunityMember(s.handleListCommunityRoles))
+	mux.HandleFunc("POST /api/communities/{id}/roles", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleCreateCommunityRole))
+	mux.HandleFunc("POST /api/communities/{id}/roles/{roleID}/privileges", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleSetCommunityRolePrivileges))
+	mux.HandleFunc("POST /api/communities/{id}/roles/{roleID}/rename", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleRenameCommunityRole))
+	mux.HandleFunc("DELETE /api/communities/{id}/roles/{roleID}", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleDeleteCommunityRole))
+	// edit_repertoire, not just member-level — a guest (read-only, the
+	// role a jam-event invite/QR code targets) can see the repertoire
+	// (requireCommunityMember on the page itself) but not change it.
+	mux.HandleFunc("POST /api/communities/{id}/catalog", s.requireCommunityPrivilege(store.PrivEditRepertoire, s.handleAddCommunityCatalogEntry))
+	mux.HandleFunc("DELETE /api/communities/{id}/catalog/{variantID}", s.requireCommunityPrivilege(store.PrivEditRepertoire, s.handleRemoveCommunityCatalogEntry))
+	mux.HandleFunc("POST /api/communities/{id}/catalog/fork/{variantID}", s.requireCommunityPrivilege(store.PrivEditRepertoire, s.handleForkVariantIntoCommunity))
+	mux.HandleFunc("POST /api/communities/{id}/variants", s.requireCommunityPrivilege(store.PrivEditRepertoire, s.handleCreateCommunityVariant))
 	mux.HandleFunc("POST /api/communities/{id}/submissions", s.requireCommunityMember(s.handleCreateCommunitySubmission))
-	mux.HandleFunc("POST /api/communities/{id}/submissions/{submissionID}/accept", s.requireCommunityStaff(s.handleAcceptCommunitySubmission))
-	mux.HandleFunc("POST /api/communities/{id}/submissions/{submissionID}/reject", s.requireCommunityStaff(s.handleRejectCommunitySubmission))
+	mux.HandleFunc("POST /api/communities/{id}/submissions/{submissionID}/accept", s.requireCommunityPrivilege(store.PrivManageSubmissions, s.handleAcceptCommunitySubmission))
+	mux.HandleFunc("POST /api/communities/{id}/submissions/{submissionID}/reject", s.requireCommunityPrivilege(store.PrivManageSubmissions, s.handleRejectCommunitySubmission))
 
 	// Events: see internal/httpapi/events.go's own doc comments.
 	// Creation stays at the owner-staff level (requireCommunityStaff /
@@ -314,9 +320,9 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// events via CanManageEvent's own fallback; there's nothing for a
 	// band-scoped manager-assignment route to add.
 	mux.HandleFunc("GET /communities/{id}/events", s.optionalPerson(s.handleCommunityEventsPage))
-	mux.HandleFunc("POST /api/communities/{id}/events", s.requireCommunityStaff(s.handleCreateCommunityEvent))
-	mux.HandleFunc("POST /api/communities/{id}/events/{eventID}/managers", s.requireCommunityStaff(s.handleAssignEventManager))
-	mux.HandleFunc("DELETE /api/communities/{id}/events/{eventID}/managers/{personID}", s.requireCommunityStaff(s.handleRemoveEventManager))
+	mux.HandleFunc("POST /api/communities/{id}/events", s.requireCommunityPrivilege(store.PrivManageEvents, s.handleCreateCommunityEvent))
+	mux.HandleFunc("POST /api/communities/{id}/events/{eventID}/managers", s.requireCommunityPrivilege(store.PrivManageEvents, s.handleAssignEventManager))
+	mux.HandleFunc("DELETE /api/communities/{id}/events/{eventID}/managers/{personID}", s.requireCommunityPrivilege(store.PrivManageEvents, s.handleRemoveEventManager))
 	mux.HandleFunc("GET /bands/{id}/events", s.requireBandMember(s.handleBandEventsPage))
 	mux.HandleFunc("POST /api/bands/{id}/events", s.requireBandMember(s.handleCreateBandEvent))
 	mux.HandleFunc("GET /events/{id}", s.optionalPerson(s.handleEventPage))

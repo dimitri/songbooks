@@ -28,11 +28,46 @@
       <div class="field">
         <label for="default-join-role-select">When someone joins by registering for an event, their role is</label>
         <select id="default-join-role-select">
-          <option value="member" {{if eq .Community.DefaultJoinRole "member"}}selected{{end}}>member</option>
-          <option value="staff" {{if eq .Community.DefaultJoinRole "staff"}}selected{{end}}>staff</option>
+          {{range .Roles}}<option value="{{.Name}}" {{if eq $.Community.DefaultJoinRole .Name}}selected{{end}}>{{.Name}}</option>{{end}}
         </select>
       </div>
       <p id="default-join-role-result" class="hint"></p>
+    </div>
+  </div>
+
+  {{/* Roles: a name plus a chosen set of privileges from the fixed
+       catalog (see internal/store/roles.go) — the 3 built-ins (staff,
+       member, guest) always exist and can't be renamed/deleted, but
+       their OWN privilege sets are editable here too, same as a custom
+       role's. A role's checkbox state saves immediately on toggle
+       (no separate "save" step per row) to match the rest of this
+       page's instant-save pattern. */}}
+  <div class="card">
+    <h2>Roles</h2>
+    <p class="hint">A role is a name plus a set of privileges. The 3 built-in roles always exist; create more for anything in between.</p>
+    <div class="table-scroll"><table class="table-stack" style="width:100%" id="roles-table">
+      <thead><tr><th>Role</th>{{range $.AllPrivileges}}<th>{{.}}</th>{{end}}<th></th></tr></thead>
+      <tbody>
+      {{range .Roles}}
+        {{$role := .}}
+        <tr data-role-id="{{.ID}}">
+          <td data-label="Role">
+            {{if .IsBuiltin}}{{.Name}}
+            {{else}}<input type="text" class="role-name-input" value="{{.Name}}" data-role-id="{{.ID}}">
+            {{end}}
+          </td>
+          {{range $.AllPrivileges}}
+          <td data-label="{{.}}"><input type="checkbox" class="role-priv-checkbox" data-role-id="{{$role.ID}}" data-privilege="{{.}}" {{if $role.HasPrivilege .}}checked{{end}}></td>
+          {{end}}
+          <td>{{if not .IsBuiltin}}<button type="button" class="delete-role-btn danger" data-role-id="{{.ID}}">delete</button>{{end}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table></div>
+    <div class="form-stack" style="margin-top:0.8rem">
+      <div class="field"><label for="new-role-name">New role name</label><input type="text" id="new-role-name" placeholder="e.g. Events coordinator"></div>
+      <div class="form-actions"><button type="button" id="create-role-btn">+ create role</button></div>
+      <p id="create-role-result" class="hint"></p>
     </div>
   </div>
 
@@ -170,9 +205,9 @@
         <td data-label="Name">{{.DisplayName}}</td>
         <td data-label="Role">
           {{if .IsCurrent}}
+          {{$memberRole := .Role}}
           <select class="role-select" data-person-id="{{.PersonID}}">
-            <option value="staff" {{if eq .Role "staff"}}selected{{end}}>staff</option>
-            <option value="member" {{if eq .Role "member"}}selected{{end}}>member</option>
+            {{range $.Roles}}<option value="{{.Name}}" {{if eq $memberRole .Name}}selected{{end}}>{{.Name}}</option>{{end}}
           </select>
           {{else}}{{.Role}}{{end}}
         </td>
@@ -198,8 +233,7 @@
         <div class="field">
           <label for="quick-add-role">Role</label>
           <select id="quick-add-role">
-            <option value="member" selected>member</option>
-            <option value="staff">staff</option>
+            {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{.Name}}</option>{{end}}
           </select>
         </div>
         <div class="form-actions">
@@ -219,8 +253,7 @@
         <div class="field">
           <label for="add-role">Role</label>
           <select id="add-role">
-            <option value="member" selected>member</option>
-            <option value="staff">staff</option>
+            {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{.Name}}</option>{{end}}
           </select>
         </div>
         <div class="form-actions">
@@ -232,7 +265,7 @@
 
     <div class="form-subsection">
       <h3>Group invite link</h3>
-      <p class="hint">Type the names you expect, then get ONE link to share — on WhatsApp, say. Each person who opens it picks their own name (or "someone else"), then creates an account or logs in. Everyone joins as a <strong>member</strong>; promote to staff afterwards via "Add a member" above.</p>
+      <p class="hint">Type the names you expect, then get ONE link to share — on WhatsApp, say. Each person who opens it picks their own name (or "someone else"), then creates an account or logs in, joining at the role picked below; reassign afterwards via the members table above if needed.</p>
       <div class="form-stack" id="group-invite-rows">
         <div class="group-invite-row">
           <div class="field">
@@ -240,6 +273,12 @@
             <input type="text" class="group-invite-name" placeholder="e.g. Alex">
           </div>
         </div>
+      </div>
+      <div class="field">
+        <label for="group-invite-role">Role</label>
+        <select id="group-invite-role">
+          {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
       </div>
       <div class="form-actions" style="margin-top:0.7rem">
         <button type="button" id="group-invite-add-row-btn">+ add another name</button>
@@ -250,11 +289,10 @@
     </div>
 
     <div class="form-subsection">
-      <h3>Community link</h3>
-      <p class="hint">One open link, no names needed — anyone who follows it creates an account (or logs into one they already have) and joins immediately, at whichever role you pick here. Mint a separate link for each role rather than share one and promote people after, so you never hand out a staff-granting link by mistake.</p>
+      <h3>Community link / QR code</h3>
+      <p class="hint">One open link (and QR code), no names needed — anyone who follows it creates an account (or logs into one they already have) and joins immediately, holding whichever role you pick here. Mint a separate link per role rather than share one and promote people after, so you never hand out a more-privileged link by mistake. A "guest" link is the read-only role meant for an open/anonymous-feeling signup, e.g. a jam event's door QR code.</p>
       <div class="form-actions">
-        <button type="button" class="community-link-btn" data-role="member">Get a member link (read-only)</button>
-        <button type="button" class="community-link-btn" data-role="staff">Get a staff link (read-write)</button>
+        {{range .Roles}}<button type="button" class="community-link-btn" data-role="{{.Name}}">Get a "{{.Name}}" link</button>{{end}}
       </div>
       <p id="community-link-result" class="hint"></p>
     </div>
@@ -304,6 +342,52 @@
 </main>
 <script>
 const communityId = {{.Community.ID}};
+// ---- Roles: privilege checkboxes save immediately on toggle (collect
+// every currently-checked privilege for that role and PUT the whole
+// set, matching store.SetCommunityRolePrivileges' "replace the set"
+// shape rather than one add/remove call per checkbox). ----
+document.querySelectorAll('.role-priv-checkbox').forEach(cb => {
+  cb.addEventListener('change', async () => {
+    const roleId = cb.dataset.roleId;
+    const privileges = Array.from(document.querySelectorAll(`.role-priv-checkbox[data-role-id="${roleId}"]:checked`)).map(c => c.dataset.privilege);
+    const res = await fetch(`/api/communities/${communityId}/roles/${roleId}/privileges`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({privileges}),
+    });
+    if (!res.ok) { cb.checked = !cb.checked; alert('failed to save'); }
+  });
+});
+document.querySelectorAll('.role-name-input').forEach(inp => {
+  inp.addEventListener('blur', async () => {
+    const roleId = inp.dataset.roleId;
+    const name = inp.value.trim();
+    if (!name) return;
+    const res = await fetch(`/api/communities/${communityId}/roles/${roleId}/rename`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name}),
+    });
+    if (res.ok) location.reload();
+  });
+});
+document.querySelectorAll('.delete-role-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm('Delete this role? Members currently holding it must be reassigned first.')) return;
+    const roleId = btn.dataset.roleId;
+    const res = await fetch(`/api/communities/${communityId}/roles/${roleId}`, {method: 'DELETE'});
+    if (res.ok) { location.reload(); } else { const d = await res.json().catch(() => ({})); alert(d.error || 'failed to delete'); }
+  });
+});
+document.getElementById('create-role-btn').addEventListener('click', async () => {
+  const name = document.getElementById('new-role-name').value.trim();
+  const out = document.getElementById('create-role-result');
+  if (!name) { out.textContent = 'enter a name'; return; }
+  const res = await fetch(`/api/communities/${communityId}/roles`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, privileges: []}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) { location.reload(); } else { out.textContent = data.error || 'failed to create role'; }
+});
 document.getElementById('rename-btn').addEventListener('click', async () => {
   const name = document.getElementById('rename-input').value.trim();
   if (!name) return;
@@ -492,9 +576,10 @@ document.getElementById('create-group-invite-btn').addEventListener('click', asy
     const displayName = row.querySelector('.group-invite-name').value.trim();
     if (displayName) slots.push({displayName});
   });
+  const role = document.getElementById('group-invite-role').value;
   const res = await fetch(`/api/communities/${communityId}/group-invites`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({slots}),
+    body: JSON.stringify({slots, role}),
   });
   const data = await res.json().catch(() => ({}));
   const out = document.getElementById('group-invite-result');
@@ -529,7 +614,8 @@ document.querySelectorAll('.community-link-btn').forEach(btn => {
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
       const url = location.origin + data.url;
-      out.innerHTML = `${role === 'staff' ? 'Staff' : 'Member'} link: <a href="${url}">${url}</a>`;
+      out.innerHTML = `"${data.role}" link: <a href="${url}">${url}</a> <button type="button" class="community-link-qr-btn">QR</button>`;
+      out.querySelector('.community-link-qr-btn').addEventListener('click', () => showQR(url));
       navigator.clipboard.writeText(url).catch(() => {});
     } else {
       out.textContent = data.error || 'failed to create link';

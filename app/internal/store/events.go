@@ -218,9 +218,10 @@ func (st *Store) IsEventManager(ctx context.Context, eventID, personID int64) (b
 
 // CanManageEvent is the real gate behind requireEventManager: an
 // assigned event manager, OR anyone who could have assigned one in the
-// first place (community staff for a community event, any band member for a
-// band event — same "whoever can create it can also run it" rule
-// every other owner-scoped admin surface in this app already follows).
+// first place (a community member whose role grants manage_events for a
+// community event, any band member for a band event — same "whoever can
+// create it can also run it" rule every other owner-scoped admin
+// surface in this app already follows).
 func (st *Store) CanManageEvent(ctx context.Context, eventID, personID int64) (bool, error) {
 	ev, err := st.GetEvent(ctx, eventID)
 	if err != nil {
@@ -230,7 +231,7 @@ func (st *Store) CanManageEvent(ctx context.Context, eventID, personID int64) (b
 		return ok, err
 	}
 	if ev.OwnerKind == "community" {
-		return st.IsCurrentCommunityStaff(ctx, ev.OwnerCommunityID, personID)
+		return st.HasCommunityPrivilege(ctx, ev.OwnerCommunityID, personID, PrivManageEvents)
 	}
 	return st.IsCurrentBandMember(ctx, ev.OwnerBandID, personID)
 }
@@ -281,9 +282,13 @@ func (st *Store) RegisterForEvent(ctx context.Context, eventID, personID int64, 
 			return err
 		}
 		if !already {
+			roleID, err := resolveCommunityRoleByName(ctx, tx, ownerCommunityID, defaultRole)
+			if err != nil {
+				return err
+			}
 			if _, err := tx.Exec(ctx, `
-				INSERT INTO community_members (community_id, person_id, role) VALUES ($1, $2, $3)`,
-				ownerCommunityID, personID, defaultRole); err != nil {
+				INSERT INTO community_members (community_id, person_id, role_id) VALUES ($1, $2, $3)`,
+				ownerCommunityID, personID, roleID); err != nil {
 				return err
 			}
 		}

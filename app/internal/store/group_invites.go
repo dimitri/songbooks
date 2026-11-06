@@ -391,14 +391,21 @@ func (st *Store) grantGroupInviteMembershipTx(ctx context.Context, tx pgx.Tx, gi
 		if err != nil {
 			return "", err
 		}
-		role := gi.DefaultStatus
-		if role != "staff" && role != "member" {
-			role = "member" // every pre-existing community group invite's exact old behavior
+		// DefaultStatus holds the invite's embedded target role NAME —
+		// any of the community's own roles (built-in or custom), e.g.
+		// "guest" for an open/anonymous-feeling signup link such as a
+		// jam-type event's QR code. Falls back to "member" if unset,
+		// same as every pre-existing community group invite's behavior
+		// (resolveCommunityRoleByName also falls back there if the
+		// named role no longer exists).
+		roleID, err := resolveCommunityRoleByName(ctx, tx, gi.CommunityID, gi.DefaultStatus)
+		if err != nil {
+			return "", err
 		}
 		if !already {
 			if _, err := tx.Exec(ctx, `
-				INSERT INTO community_members (community_id, person_id, role, invited_by_person_id)
-				VALUES ($1, $2, $3, $4)`, gi.CommunityID, personID, role, nullableID(gi.CreatedBy)); err != nil {
+				INSERT INTO community_members (community_id, person_id, role_id, invited_by_person_id)
+				VALUES ($1, $2, $3, $4)`, gi.CommunityID, personID, roleID, nullableID(gi.CreatedBy)); err != nil {
 				return "", err
 			}
 		}
