@@ -218,15 +218,16 @@ type CommunityCardRow struct {
 // in many communities, so this does it in a single round trip instead.
 func (st *Store) ListCommunityCardsForPerson(ctx context.Context, personID int64) ([]CommunityCardRow, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT sc.id, sc.name, my.role::text,
+		SELECT sc.id, sc.name, my_role.name,
 		       count(DISTINCT cm.person_id) FILTER (WHERE cm.left_at IS NULL),
 		       count(DISTINCT se.variant_id)
 		FROM communities sc
 		JOIN community_members my ON my.community_id = sc.id AND my.person_id = $1 AND my.left_at IS NULL
+		JOIN community_roles my_role ON my_role.id = my.role_id
 		LEFT JOIN community_members cm ON cm.community_id = sc.id
 		LEFT JOIN songbooks sb ON sb.owner_community_id = sc.id AND sb.is_default
 		LEFT JOIN songbook_entries se ON se.songbook_id = sb.id
-		GROUP BY sc.id, sc.name, my.role
+		GROUP BY sc.id, sc.name, my_role.name
 		ORDER BY sc.name`, personID)
 	if err != nil {
 		return nil, err

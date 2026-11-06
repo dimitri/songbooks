@@ -577,8 +577,10 @@ func (st *Store) GetPersonMemberships(ctx context.Context, personID int64) ([]Pe
 		FROM band_members bm JOIN bands b ON b.id = bm.band_id
 		WHERE bm.person_id = $1 AND bm.left_at IS NULL
 		UNION ALL
-		SELECT 'community', sc.id, sc.name, sm.role::text
-		FROM community_members sm JOIN communities sc ON sc.id = sm.community_id
+		SELECT 'community', sc.id, sc.name, cr.name
+		FROM community_members sm
+		JOIN communities sc ON sc.id = sm.community_id
+		JOIN community_roles cr ON cr.id = sm.role_id
 		WHERE sm.person_id = $1 AND sm.left_at IS NULL
 		ORDER BY 1, 3`, personID)
 	if err != nil {
