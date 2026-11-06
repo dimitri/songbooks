@@ -3,12 +3,15 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"app/internal/store"
+	"app/internal/webassets"
 )
 
 // requireCommunityMember wraps requireAuth, then checks the logged-in
@@ -216,7 +219,131 @@ type communityCatalogRow struct {
 // own repertoire page is — no staff review gate. Membership and the
 // legacy submissions review queue live on the separate instructor-only
 // /communities/{id}/admin page (handleCommunityAdminPage).
+// handleCommunityPage is the community's real home page: who runs it,
+// how many members, a songbooks summary (this community can have more
+// than one — see handleCommunitySongbooksPage), and an upcoming-events
+// teaser. The actual repertoire listing/editing UI lives at its own
+// /communities/{id}/repertoire tab (handleCommunityRepertoirePage).
 func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
+	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	person := personFromContext(r)
+	community, err := s.store.GetCommunity(r.Context(), communityID)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	members, err := s.store.ListCommunityMembers(r.Context(), communityID, false)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var staffNames []string
+	for _, m := range members {
+		if m.IsStaff() {
+			staffNames = append(staffNames, m.DisplayName)
+		}
+	}
+	songbooks, err := s.store.ListSongbooks(r.Context(), "community", communityID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	songbookRows := make([]communitySongbookRow, len(songbooks))
+	for i, sb := range songbooks {
+		entries, err := s.store.ListSongbookEntries(r.Context(), sb.ID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		songbookRows[i] = communitySongbookRow{Songbook: sb, SongCount: len(entries)}
+	}
+	events, err := s.store.ListEventsForCommunity(r.Context(), communityID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	now := time.Now()
+	var upcoming []store.Event
+	for _, ev := range events {
+		if !ev.IsPast(now) {
+			upcoming = append(upcoming, ev)
+		}
+	}
+	sort.Slice(upcoming, func(i, j int) bool { return upcoming[i].StartsAt.Before(upcoming[j].StartsAt) })
+	if len(upcoming) > 3 {
+		upcoming = upcoming[:3]
+	}
+	canManage, err := s.store.HasAnyCommunityManagePrivilege(r.Context(), communityID, person.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.render(w, "community", map[string]any{
+		"Me": person, "Community": community, "Members": members, "StaffNames": staffNames,
+		"Songbooks": songbookRows, "UpcomingEvents": upcoming,
+		"IsStaff": canManage || person.IsAdmin,
+	})
+}
+
+// communitySongbookRow is a store.Songbook plus its song count, for the
+// overview and songbooks-tab listings.
+type communitySongbookRow struct {
+	store.Songbook
+	SongCount int
+}
+
+// handleCommunitySongbooksPage lists every songbook this community has
+// (its default repertoire plus any additional named ones — event-
+// specific prep books, a "Christmas set," whatever a community wants),
+// with a create-another-one action. "More than one songbook per
+// community" is the user's own explicit requirement; the backend
+// (store.CreateSongbook/ListSongbooks) was already fully generic across
+// person/band/community, this page is what actually exposes it.
+func (s *Server) handleCommunitySongbooksPage(w http.ResponseWriter, r *http.Request) {
+	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	person := personFromContext(r)
+	community, err := s.store.GetCommunity(r.Context(), communityID)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	songbooks, err := s.store.ListSongbooks(r.Context(), "community", communityID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	rows := make([]communitySongbookRow, len(songbooks))
+	for i, sb := range songbooks {
+		entries, err := s.store.ListSongbookEntries(r.Context(), sb.ID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		rows[i] = communitySongbookRow{Songbook: sb, SongCount: len(entries)}
+	}
+	canEdit, err := s.store.HasCommunityPrivilege(r.Context(), communityID, person.ID, store.PrivEditRepertoire)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.render(w, "community_songbooks", map[string]any{
+		"Me": person, "Community": community, "Songbooks": rows, "CanEdit": canEdit || person.IsAdmin,
+	})
+}
+
+// handleCommunityRepertoirePage is the community's default songbook,
+// with the richer add/fork/remove dialog UI (the content that used to
+// live at /communities/{id} itself before it became the real home page
+// — see handleCommunityPage).
+func (s *Server) handleCommunityRepertoirePage(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	person := personFromContext(r)
 	community, err := s.store.GetCommunity(r.Context(), communityID)
@@ -254,9 +381,12 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.render(w, "community", map[string]any{
+	s.render(w, "community_repertoire", map[string]any{
 		"Me": person, "Community": community, "Entries": entries,
 		"IsStaff": canManage || person.IsAdmin, "CanEdit": canEdit || person.IsAdmin,
+		"ContextualGroup": webassets.ContextualGroup{
+			Label: "This community", PDFExportPath: fmt.Sprintf("/communities/%d/export-songbook.pdf", communityID),
+		},
 	})
 }
 

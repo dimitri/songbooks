@@ -654,8 +654,20 @@ func (s *Server) handleEventManagePage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// The event owner's existing songbooks, for "attach an existing one"
+	// instead of always creating a brand-new dedicated one.
+	ownerKind, ownerID := "band", ev.OwnerBandID
+	if ev.OwnerKind == "community" {
+		ownerKind, ownerID = "community", ev.OwnerCommunityID
+	}
+	ownerSongbooks, err := s.store.ListSongbooks(r.Context(), ownerKind, ownerID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "event_manage", map[string]any{
 		"Me": personFromContext(r), "Event": ev, "SongRows": songRows, "Managers": managers,
+		"OwnerSongbooks": ownerSongbooks,
 	})
 }
 
@@ -698,6 +710,64 @@ func (s *Server) handleCreateEventSetlist(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]int64{"setlistId": setlistID})
+}
+
+// handleCreateEventSongbook creates a brand-new songbook owned by the
+// event's own community/band and attaches it as the event's dedicated
+// songbook (SetEventSongbook) — the pool of material being prepped for
+// it, distinct from and alongside its setlist (handleCreateEventSetlist).
+func (s *Server) handleCreateEventSongbook(w http.ResponseWriter, r *http.Request) {
+	eventID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid event id")
+		return
+	}
+	ev, err := s.store.GetEvent(r.Context(), eventID)
+	if errors.Is(err, store.ErrNotFound) {
+		httpError(w, http.StatusNotFound, "no such event")
+		return
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	ownerKind, ownerID := "band", ev.OwnerBandID
+	if ev.OwnerKind == "community" {
+		ownerKind, ownerID = "community", ev.OwnerCommunityID
+	}
+	songbookID, err := s.store.CreateSongbook(r.Context(), ownerKind, ownerID, ev.Name, false)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := s.store.SetEventSongbook(r.Context(), eventID, songbookID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int64{"songbookId": songbookID})
+}
+
+// handleAttachEventSongbook attaches an EXISTING community/band songbook
+// (one the event's owner already has) as the event's dedicated songbook,
+// instead of creating a new one.
+func (s *Server) handleAttachEventSongbook(w http.ResponseWriter, r *http.Request) {
+	eventID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid event id")
+		return
+	}
+	var req struct {
+		SongbookID int64 `json:"songbookId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SongbookID == 0 {
+		httpError(w, http.StatusBadRequest, "songbookId is required")
+		return
+	}
+	if err := s.store.SetEventSongbook(r.Context(), eventID, req.SongbookID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
 }
 
 // handleAssignEventManager and handleRemoveEventManagerFor* share one

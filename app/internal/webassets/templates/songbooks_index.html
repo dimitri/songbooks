@@ -9,7 +9,7 @@
 {{template "pwa-head"}}
 </head>
 <body>
-{{template "desktop-sidebar" .Me}}
+{{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
@@ -62,7 +62,7 @@
   {{if .CommunityCards}}
   <div class="catalog-book-cards">
   {{range .CommunityCards}}
-    <a class="catalog-book-card" href="/communities/{{.ID}}">
+    <a class="catalog-book-card" href="/communities/{{.ID}}/repertoire">
       <div class="catalog-book-card-title">{{.Name}}</div>
       <div class="catalog-book-card-meta">{{.Members}} member{{if ne .Members 1}}s{{end}} &middot; repertoire</div>
     </a>

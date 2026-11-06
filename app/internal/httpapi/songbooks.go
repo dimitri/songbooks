@@ -3,11 +3,13 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"app/internal/store"
+	"app/internal/webassets"
 )
 
 // handleMySongbooksPage lists the logged-in person's own songbooks (the
@@ -29,8 +31,9 @@ func (s *Server) handleMySongbooksPage(w http.ResponseWriter, r *http.Request) {
 // all the songs in it."
 func (s *Server) handleCreateSongbook(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name       string `json:"name"`
-		OwnerBandID int64  `json:"ownerBandId"`
+		Name             string `json:"name"`
+		OwnerBandID      int64  `json:"ownerBandId"`
+		OwnerCommunityID int64  `json:"ownerCommunityId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Name) == "" {
 		httpError(w, http.StatusBadRequest, "missing name")
@@ -38,7 +41,8 @@ func (s *Server) handleCreateSongbook(w http.ResponseWriter, r *http.Request) {
 	}
 	p := personFromContext(r)
 	ownerKind, ownerID := "person", p.ID
-	if req.OwnerBandID != 0 {
+	switch {
+	case req.OwnerBandID != 0:
 		isMember, err := s.store.IsCurrentBandMember(r.Context(), req.OwnerBandID, p.ID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
@@ -49,6 +53,17 @@ func (s *Server) handleCreateSongbook(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		ownerKind, ownerID = "band", req.OwnerBandID
+	case req.OwnerCommunityID != 0:
+		canEdit, err := s.store.HasCommunityPrivilege(r.Context(), req.OwnerCommunityID, p.ID, store.PrivEditRepertoire)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !canEdit {
+			httpError(w, http.StatusForbidden, "your role in this community doesn't grant songbook creation")
+			return
+		}
+		ownerKind, ownerID = "community", req.OwnerCommunityID
 	}
 	id, err := s.store.CreateSongbook(r.Context(), ownerKind, ownerID, strings.TrimSpace(req.Name), false)
 	if err != nil {
@@ -109,8 +124,23 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, sg)
 	}
+	contextual := webassets.ContextualGroup{
+		Label:          "This songbook",
+		PDFExportPath:  fmt.Sprintf("/songbooks/%d/export-songbook.pdf", id),
+		PDFExportLabel: "Songbook PDF",
+		Entries: []webassets.NavEntry{
+			{Label: "Metronome playlist", Path: fmt.Sprintf("/songbooks/%d/playlist/metronome", id), Icon: "icon-metro-full"},
+			{Label: "MP3 playlist", Path: fmt.Sprintf("/songbooks/%d/playlist/mp3", id), Icon: "icon-play"},
+		},
+	}
+	if sb.PlaylistURL != "" {
+		contextual.Entries = append([]webassets.NavEntry{
+			{Label: "Playlist", Path: sb.PlaylistURL, Icon: "icon-reference", External: true},
+		}, contextual.Entries...)
+	}
 	s.render(w, "songbook", map[string]any{
 		"Me": p, "Songbook": sb, "Groups": out,
+		"ContextualGroup": contextual,
 	})
 }
 

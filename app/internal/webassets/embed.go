@@ -37,6 +37,12 @@ var funcMap = template.FuncMap{
 	// literally ("-7♭5") instead of the ø glyph — see RenderJazz.
 	"chordJazz": func(sym string) template.HTML { return template.HTML(chordsym.RenderJazz(sym)) },
 	"add1":      func(n int) int { return n + 1 },
+	// navGlobal returns the global nav's declared entry list for one
+	// surface ("desktop"/"mobileTab"/"mobileMore") — see nav.go, the
+	// single source of truth desktop-sidebar/global-tabbar/
+	// site-nav-fullpage all render from instead of each hardcoding its
+	// own list.
+	"navGlobal": navGlobal,
 	// now gives a template a current timestamp to compare against —
 	// e.g. the admin panel's invite list, which needs "is this expiry
 	// in the future" rather than any value computed once at render time

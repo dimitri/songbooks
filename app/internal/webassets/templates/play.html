@@ -309,11 +309,7 @@
     <div class="toolbox-toolbar" id="toolbox-toolbar"></div>
   </div>
   <div class="sidebar-primary">
-    <a href="/" data-path="/" data-label="Home">{{template "icon-home"}} Home</a>
-    <a href="/songbooks" data-path="/songbooks" data-label="Songbooks">{{template "icon-catalog"}} Songbooks</a>
-    <a href="/catalog" data-path="/catalog" data-label="Catalog">{{template "icon-view"}} Catalog</a>
-    <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}} Bands</a>
-    <a href="/profile" data-path="/profile" data-label="Profile">{{template "icon-profile"}} Profile</a>
+    {{range navGlobal "desktop"}}<a href="{{.Path}}" data-path="{{.Path}}" data-label="{{.Label}}">{{template "nav-icon" .Icon}} {{.Label}}</a>{{end}}
   </div>
   {{/* This song: every control that used to crowd the top bar, moved here
        — it's contextual to whichever song is open, the same pattern as a

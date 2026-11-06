@@ -9,33 +9,7 @@
 {{template "pwa-head"}}
 </head>
 <body>
-{{/* A duplicated desktop-sidebar (same pattern project.html's "This
-     project" group uses — see its own doc comment) instead of the
-     shared partial: the print/export/reorder actions that used to
-     crowd the top bar move into a "This setlist" group here, a direct
-     report ("not using the navigation pane for the action/tools"). */}}
-<nav class="desktop-sidebar" id="desktop-sidebar" aria-label="main navigation">
-  <a class="sidebar-brand" href="/">{{template "icon-logo"}} Songbooks</a>
-  <div class="sidebar-primary">
-    <a href="/" data-path="/" data-label="Home">{{template "icon-home"}} Home</a>
-    <a href="/songbooks" data-path="/songbooks" data-label="Songbooks">{{template "icon-catalog"}} Songbooks</a>
-    <a href="/catalog" data-path="/catalog" data-label="Catalog">{{template "icon-view"}} Catalog</a>
-    <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}} Bands</a>
-    <a href="/profile" data-path="/profile" data-label="Profile">{{template "icon-profile"}} Profile</a>
-  </div>
-  <div class="sidebar-secondary sidebar-song-group">
-    <div class="sidebar-group-label">This setlist</div>
-    <a class="sidebar-song-row" href="/setlists/{{.SetlistID}}/export-setlist-page.pdf" title="print the running order — one page, for the music stand" download>{{template "icon-download"}} Print one-pager</a>
-    <a class="sidebar-song-row" href="/setlists/{{.SetlistID}}/export.pdf" title="export the whole setlist (cover, running order, every song) as one PDF" download>{{template "icon-download"}} Export PDF</a>
-    {{if .CanEdit}}<button type="button" id="reorder-toggle" class="sidebar-song-row">{{template "icon-edit"}} Reorder</button>{{end}}
-  </div>
-  {{if .Me}}
-  <a class="sidebar-account" href="/profile">
-    <span class="sidebar-account-avatar">{{slice .Me.DisplayName 0 1}}</span>
-    <span>{{.Me.DisplayName}}</span>
-  </a>
-  {{end}}
-</nav>
+{{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/setlists">{{template "icon-back"}} Set lists</a>
@@ -58,6 +32,7 @@
     <a href="/setlists/{{.SetlistID}}/practice">Practice (chart)</a>
     <a href="/setlists/{{.SetlistID}}/listening">Listening (lyrics)</a>
     <a href="/setlists/{{.SetlistID}}/clicktrack">Metronome / click track</a>
+    {{if .CanEdit}}<button type="button" id="reorder-toggle" style="margin-left:auto;">{{template "icon-edit"}} Reorder</button>{{end}}
   </nav>
 
   {{range $setIdx, $set := .Sets}}

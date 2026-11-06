@@ -9,7 +9,7 @@
 {{template "pwa-head"}}
 </head>
 <body>
-{{template "desktop-sidebar" .Me}}
+{{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
@@ -17,6 +17,14 @@
   {{template "notif-bell"}}
 </header>
 <main class="index">
+  <nav class="band-tabs band-tabs-row">
+    <a href="/communities/{{.Community.ID}}">Overview</a>
+    <a href="/communities/{{.Community.ID}}/repertoire">Repertoire</a>
+    <a href="/communities/{{.Community.ID}}/songbooks">Songbooks</a>
+    <a href="/communities/{{.Community.ID}}/events">Events</a>
+    <a href="/communities/{{.Community.ID}}/admin" class="active">Admin</a>
+  </nav>
+
   <div class="card">
     <h2>Community name</h2>
     <div class="form-stack">

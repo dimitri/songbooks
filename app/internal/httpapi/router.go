@@ -281,6 +281,8 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("GET /communities", s.requireAuth(s.handleCommunitiesPage))
 	mux.HandleFunc("POST /api/communities", s.requireAuth(s.handleCreateCommunity))
 	mux.HandleFunc("GET /communities/{id}", s.requireCommunityMember(s.handleCommunityPage))
+	mux.HandleFunc("GET /communities/{id}/repertoire", s.requireCommunityMember(s.handleCommunityRepertoirePage))
+	mux.HandleFunc("GET /communities/{id}/songbooks", s.requireCommunityMember(s.handleCommunitySongbooksPage))
 	mux.HandleFunc("GET /communities/{id}/admin", s.requireCommunityAnyManagePrivilege(s.handleCommunityAdminPage))
 	mux.HandleFunc("POST /api/communities/{id}/rename", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleRenameCommunity))
 	mux.HandleFunc("POST /api/communities/{id}/default-join-role", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleSetCommunityDefaultJoinRole))
@@ -332,6 +334,8 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("DELETE /events/{id}/songs/{regID}", s.requireAuth(s.handleRemoveSongRegistration))
 	mux.HandleFunc("GET /events/{id}/manage", s.requireEventManager(s.handleEventManagePage))
 	mux.HandleFunc("POST /events/{id}/setlist", s.requireEventManager(s.handleCreateEventSetlist))
+	mux.HandleFunc("POST /events/{id}/songbook", s.requireEventManager(s.handleCreateEventSongbook))
+	mux.HandleFunc("POST /events/{id}/songbook/attach", s.requireEventManager(s.handleAttachEventSongbook))
 
 	// Site-wide admin panel — gated by requireAdmin (is_admin on the
 	// person), not requireRole (per-project role): see auth.go.

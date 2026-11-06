@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html/template"
 	"net/http"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 
 	"app/internal/setlist"
 	"app/internal/store"
+	"app/internal/webassets"
 )
 
 type jsonEntry struct {
@@ -184,6 +186,10 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 		"Me": person, "SetlistID": id, "Version": version, "CanEdit": canEdit,
 		"Title": orDefault(l.Get("title"), "Setlist"), "Date": l.Get("date"), "Venue": l.Get("venue"),
 		"Sets": sets,
+		"ContextualGroup": webassets.ContextualGroup{Label: "This setlist", Entries: []webassets.NavEntry{
+			{Label: "Print one-pager", Path: fmt.Sprintf("/setlists/%d/export-setlist-page.pdf", id), Icon: "icon-download"},
+			{Label: "Export PDF", Path: fmt.Sprintf("/setlists/%d/export.pdf", id), Icon: "icon-download"},
+		}},
 	})
 }
 

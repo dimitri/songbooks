@@ -9,43 +9,7 @@
 {{template "pwa-head"}}
 </head>
 <body>
-<nav class="desktop-sidebar" id="desktop-sidebar" aria-label="main navigation">
-  <a class="sidebar-brand" href="/">{{template "icon-logo"}} Songbooks</a>
-  <div class="sidebar-primary">
-    <a href="/" data-path="/" data-label="Home">{{template "icon-home"}} Home</a>
-    <a href="/songbooks" data-path="/songbooks" data-label="Songbooks">{{template "icon-catalog"}} Songbooks</a>
-    <a href="/catalog" data-path="/catalog" data-label="Catalog">{{template "icon-view"}} Catalog</a>
-    <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}} Bands</a>
-    <a href="/profile" data-path="/profile" data-label="Profile">{{template "icon-profile"}} Profile</a>
-  </div>
-  <div class="sidebar-secondary sidebar-song-group">
-    <div class="sidebar-group-label">This songbook</div>
-    {{if .Songbook.PlaylistURL}}<a class="sidebar-song-row" href="{{.Songbook.PlaylistURL}}" target="_blank" rel="noopener" title="external playlist">{{template "icon-reference"}} Playlist &#8599;</a>{{end}}
-    <a class="sidebar-song-row" href="/songbooks/{{.Songbook.ID}}/playlist/metronome" title="step through every song's tempo, in order">{{template "icon-metro-full"}} Metronome playlist</a>
-    <a class="sidebar-song-row" href="/songbooks/{{.Songbook.ID}}/playlist/mp3" title="play every song's reference audio back to back">{{template "icon-play"}} MP3 playlist</a>
-    <span class="pdf-mode-row sidebar-song-row" style="flex-wrap:wrap;">
-      <a class="pdf-export-link" href="/songbooks/{{.Songbook.ID}}/export-songbook.pdf" title="export the whole songbook as one PDF — cover, title page, contents, every song" download>{{template "icon-download"}} Songbook PDF</a>
-      <select class="pdf-mode-select" title="PDF view mode">
-        <option value="">Song</option>
-        <option value="jazz">Jazz chart</option>
-        <option value="map">Song map</option>
-        <option value="lyrics">Lyrics only</option>
-      </select>
-      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
-    </span>
-  </div>
-  <div class="sidebar-secondary">
-    {{if and .Me .Me.IsAdmin}}<a href="/admin" data-path="/admin">Admin</a>{{end}}
-    <a href="/metronome" data-path="/metronome">Metronome</a>
-    <a href="/songbooks" data-path="/songbooks">My songbooks</a>
-  </div>
-  {{if .Me}}
-  <a class="sidebar-account" href="/profile">
-    <span class="sidebar-account-avatar">{{slice .Me.DisplayName 0 1}}</span>
-    <span>{{.Me.DisplayName}}</span>
-  </a>
-  {{end}}
-</nav>
+{{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
   {{template "home-link"}}

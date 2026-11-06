@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"app/internal/store"
+	"app/internal/webassets"
 )
 
 // requireBandMember wraps requireAuth, then checks the logged-in person
@@ -247,12 +249,23 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	contextual := webassets.ContextualGroup{Label: "This band", Entries: []webassets.NavEntry{
+		{Label: "Propose a song", Path: fmt.Sprintf("/bands/%d/proposals", bandID), Icon: "icon-plus"},
+		{Label: "Discover a song", Path: fmt.Sprintf("/bands/%d/listening-party", bandID), Icon: "icon-play"},
+	}}
+	if repertoireCount > 0 || len(repertoirePreview) > 0 {
+		contextual.Entries = append(contextual.Entries, webassets.NavEntry{
+			Label: "Edit a song", Path: fmt.Sprintf("/bands/%d/catalog", bandID), Icon: "icon-edit",
+		})
+	}
+
 	s.render(w, "band", map[string]any{
 		"Me": person, "Band": band, "Changes": changes, "HasLastSeen": since != nil,
 		"OpenProposals": openProposals,
 		"Repertoire":    repertoirePreview, "RepertoireCount": repertoireCount,
 		"RepertoirePreviewAlbums": repertoirePreviewAlbums,
 		"Setlists":                setlists, "NextGig": nextGig,
+		"ContextualGroup": contextual,
 	})
 }
 
@@ -803,6 +816,9 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "band_catalog", map[string]any{
 		"Me": person, "Band": band, "Entries": rows,
 		"AlbumGroups": albumGroups,
+		"ContextualGroup": webassets.ContextualGroup{
+			Label: "This band", PDFExportPath: fmt.Sprintf("/bands/%d/export-songbook.pdf", bandID),
+		},
 	})
 }
 

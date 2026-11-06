@@ -9,261 +9,78 @@
 {{template "pwa-head"}}
 </head>
 <body>
-{{/* A duplicated desktop-sidebar (same "This X" group pattern
-     band_catalog.html/project.html use) instead of the shared partial —
-     the PDF-export cluster moves into a "This community" group, same
-     shape as a band's repertoire page. */}}
-<nav class="desktop-sidebar" id="desktop-sidebar" aria-label="main navigation">
-  <a class="sidebar-brand" href="/">{{template "icon-logo"}} Songbooks</a>
-  <div class="sidebar-primary">
-    <a href="/" data-path="/" data-label="Home">{{template "icon-home"}} Home</a>
-    <a href="/songbooks" data-path="/songbooks" data-label="Songbooks">{{template "icon-catalog"}} Songbooks</a>
-    <a href="/catalog" data-path="/catalog" data-label="Catalog">{{template "icon-view"}} Catalog</a>
-    <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}} Bands</a>
-    <a href="/profile" data-path="/profile" data-label="Profile">{{template "icon-profile"}} Profile</a>
-  </div>
-  <div class="sidebar-secondary sidebar-song-group">
-    <div class="sidebar-group-label">This community</div>
-    <span class="pdf-mode-row sidebar-song-row" style="flex-wrap:wrap;">
-      <a class="pdf-export-link" href="/communities/{{.Community.ID}}/export-songbook.pdf" title="export the whole repertoire as one PDF — cover, title page, contents, every song" download>{{template "icon-download"}} Export songbook (PDF)</a>
-      <select class="pdf-mode-select" title="PDF view mode">
-        <option value="">Song</option>
-        <option value="jazz">Jazz chart</option>
-        <option value="map">Song map</option>
-        <option value="lyrics">Lyrics only</option>
-      </select>
-      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
-    </span>
-  </div>
-  {{if .Me}}
-  <a class="sidebar-account" href="/profile">
-    <span class="sidebar-account-avatar">{{slice .Me.DisplayName 0 1}}</span>
-    <span>{{.Me.DisplayName}}</span>
-  </a>
-  {{end}}
-</nav>
+{{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/communities">{{template "icon-back"}} My communities</a>
   <h1>{{.Community.Name}}</h1>
-  <nav class="song-nav">
-    <a href="/communities/{{.Community.ID}}/events">events</a>
-    {{if .IsStaff}}<a href="/communities/{{.Community.ID}}/admin">staff admin</a>{{end}}
-    {{template "notif-bell"}}
-  </nav>
+  {{template "notif-bell"}}
 </header>
 <main class="index">
-  <p class="hint">This community's shared repertoire{{if .CanEdit}} — any member whose role grants it can add, fork, or remove a song here, same as a band's{{else}} — read-only with your current role{{end}}.</p>
+  <nav class="band-tabs band-tabs-row">
+    <a href="/communities/{{.Community.ID}}" class="active">Overview</a>
+    <a href="/communities/{{.Community.ID}}/repertoire">Repertoire</a>
+    <a href="/communities/{{.Community.ID}}/songbooks">Songbooks</a>
+    <a href="/communities/{{.Community.ID}}/events">Events</a>
+    {{if .IsStaff}}<a href="/communities/{{.Community.ID}}/admin">Admin</a>{{end}}
+  </nav>
 
-  {{if not .Entries}}
-  <div class="attention-empty" style="border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:1.2rem; font-size:0.95rem;">
-    This community's repertoire is empty.{{if .CanEdit}} Songs don't appear here automatically. <button type="button" class="link-button" id="open-add-song-empty">Add your first song</button> to get started.{{end}}
-  </div>
-  {{else}}
-  <div class="repertoire-toolbar">
-    <input type="search" id="repertoire-search" placeholder="Search this repertoire…" aria-label="Search this repertoire">
-    {{if .CanEdit}}<button type="button" id="open-add-song">{{template "icon-plus"}} Add song</button>{{end}}
-  </div>
-  {{end}}
+  {{/* ---- Members summary: staff names + total count, not a full
+       roster (that's the Admin page's job) — same "who runs this"
+       glance a band's overview gives via its member-symmetric note. ---- */}}
+  <section class="home-section">
+    <div class="home-section-head">
+      <h3>Members</h3>
+      <span class="count">{{len .Members}} current</span>
+    </div>
+    <p class="hint">
+      {{if .StaffNames}}Staff: {{range $i, $n := .StaffNames}}{{if $i}}, {{end}}{{$n}}{{end}}{{else}}No staff members currently.{{end}}
+      {{if .IsStaff}} — full roster and invites are on the <a href="/communities/{{.Community.ID}}/admin">Admin</a> page.{{end}}
+    </p>
+  </section>
 
-  <div class="gig-table" data-repertoire-list>
-  {{range .Entries}}
-    <div class="gig-row repertoire-row" data-variant-id="{{.VariantID}}" data-search="{{.Title}} {{.Artist}}">
-      <a class="gig-title" href="/song/{{.VariantID}}">
-        {{.Title}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
+  {{/* ---- Songbooks summary: this community can have more than one —
+       its default repertoire plus any additional named ones (an
+       event-specific prep book, a seasonal set, etc). ---- */}}
+  <section class="home-section">
+    <div class="home-section-head">
+      <h3>Songbooks</h3>
+      <a href="/communities/{{.Community.ID}}/songbooks">{{len .Songbooks}} songbook{{if ne (len .Songbooks) 1}}s{{end}} &rarr;</a>
+    </div>
+    <div class="attention-list">
+    {{range .Songbooks}}
+      <a class="attention-row" href="{{if .IsDefault}}/communities/{{$.Community.ID}}/repertoire{{else}}/songbooks/{{.ID}}{{end}}">
+        <div class="attention-title">{{.Name}}{{if .IsDefault}} <span class="hint">(default)</span>{{end}}</div>
+        <div class="attention-subtitle">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}}</div>
       </a>
-      <span class="gig-key">{{.Key}}</span>
-      <span class="gig-tempo">{{.Tempo}}</span>
-      <details class="row-menu">
-        <summary title="more">{{template "icon-more"}}</summary>
-        <div class="row-menu-panel">
-          <a href="/works/{{.WorkID}}">All versions</a>
-          <a href="/variants/{{.VariantID}}/history">History</a>
-          {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">Forked from</a>{{end}}
-          <p class="hint">{{.Visibility}} &middot; added by {{.AddedByUsername}}</p>
-          {{if $.CanEdit}}<button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}">Remove</button>{{end}}
-        </div>
-      </details>
+    {{else}}
+      <div class="attention-empty">No songbooks yet.</div>
+    {{end}}
     </div>
-  {{end}}
-  </div>
-  <p class="hint repertoire-empty-filtered" id="repertoire-empty-filtered">No songs match that search.</p>
+  </section>
 
-  <dialog id="add-song-dialog">
-    <h2>Add a song</h2>
-    <p class="hint">Pointers into the catalog, same as a band's repertoire — adding here doesn't copy a song; forking does, and makes it this community's own "community"-visibility variant that any current member can edit in place.</p>
-    <div class="add-song-tabs">
-      <button type="button" class="add-song-tab active" data-panel="write">Write new</button>
-      <button type="button" class="add-song-tab" data-panel="catalog">From the catalog</button>
+  {{/* ---- Events summary: soonest few upcoming, same teaser shape a
+       band's "Set lists" section uses for its next gig. ---- */}}
+  <section class="home-section">
+    <div class="home-section-head">
+      <h3>Events</h3>
+      <a href="/communities/{{.Community.ID}}/events">all events &rarr;</a>
     </div>
-
-    <div class="add-song-panel" data-panel="write">
-      <p class="hint">Starts from scratch — no existing variant to fork from — straight into this community's own private ("community"-visibility) repertoire.</p>
-      <div class="form-stack">
-        <div class="field">
-          <label for="new-variant-title">Title</label>
-          <input type="text" id="new-variant-title">
-        </div>
-        <div class="field">
-          <label for="new-variant-artist">Artist</label>
-          <input type="text" id="new-variant-artist">
-        </div>
-        <div class="form-actions">
-          <button type="button" id="new-variant-btn">+ create</button>
-        </div>
-        <p id="new-variant-result" class="hint"></p>
-      </div>
+    <div class="attention-list">
+    {{range .UpcomingEvents}}
+      <a class="attention-row" href="/events/{{.ID}}">
+        <div class="attention-title">{{.Name}}</div>
+        <div class="attention-subtitle">{{.StartsAt.Format "Mon, Jan 2 · 15:04"}}{{if .Location}} — {{.Location}}{{end}}</div>
+      </a>
+    {{else}}
+      <div class="attention-empty">No upcoming events.</div>
+    {{end}}
     </div>
-
-    <div class="add-song-panel" data-panel="catalog" hidden>
-      <p class="hint">Search the whole catalog — adding points at that variant as-is (any current member can still edit it); forking makes this community's own copy instead.</p>
-      <div class="field">
-        <label for="catalog-search-input">Search</label>
-        <input type="search" id="catalog-search-input" placeholder="Title or artist…">
-      </div>
-      <div id="catalog-search-results" class="attention-list"></div>
-      <p id="add-result" class="hint"></p>
-    </div>
-
-    <div class="form-actions" style="margin-top:1rem;">
-      <button type="button" id="close-add-song">Close</button>
-    </div>
-  </dialog>
+  </section>
 </main>
-<script>
-const communityId = {{.Community.ID}};
-document.getElementById('new-variant-btn').addEventListener('click', async () => {
-  const title = document.getElementById('new-variant-title').value.trim();
-  const artist = document.getElementById('new-variant-artist').value.trim();
-  if (!title) return;
-  const res = await fetch(`/api/communities/${communityId}/variants`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({title, artist}),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) {
-    // Straight into edit mode, not the Play page — a brand-new original
-    // has an empty [Verse] placeholder and nothing to play yet.
-    location.href = `/song/${data.variantId}?edit=1`;
-  } else {
-    document.getElementById('new-variant-result').textContent = data.error || 'failed to create';
-  }
-});
-// ---- "From the catalog": search-as-you-type over /api/catalog/search,
-// add points at the variant as-is, fork makes this community's own copy —
-// same two actions the band repertoire page's dialog offers. ----
-(function () {
-  const input = document.getElementById('catalog-search-input');
-  const results = document.getElementById('catalog-search-results');
-  const resultMsg = document.getElementById('add-result');
-  if (!input) return;
-  let debounceTimer;
-
-  async function doAdd(variantId, fork) {
-    resultMsg.textContent = '';
-    const url = fork ? `/api/communities/${communityId}/catalog/fork/${variantId}` : `/api/communities/${communityId}/catalog`;
-    const opts = fork
-      ? {method: 'POST'}
-      : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({variantId})};
-    const res = await fetch(url, opts);
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      location.reload();
-    } else {
-      resultMsg.textContent = data.error || (fork ? 'failed to fork' : 'failed to add');
-    }
-  }
-
-  async function search() {
-    const q = input.value.trim();
-    results.innerHTML = '';
-    if (!q) return;
-    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`);
-    const hits = await res.json().catch(() => []);
-    if (!hits.length) {
-      results.innerHTML = '<p class="hint">No matches.</p>';
-      return;
-    }
-    for (const hit of hits) {
-      const row = document.createElement('div');
-      row.className = 'attention-row';
-      row.innerHTML = `
-        <div>
-          <div class="attention-title">${hit.title}</div>
-          ${hit.artist ? `<div class="attention-subtitle">${hit.artist}</div>` : ''}
-        </div>`;
-      const actions = document.createElement('span');
-      actions.style.marginLeft = 'auto';
-      actions.style.display = 'flex';
-      actions.style.gap = '0.4rem';
-      const addBtn = document.createElement('button');
-      addBtn.type = 'button';
-      addBtn.textContent = 'Add';
-      addBtn.addEventListener('click', () => doAdd(hit.variantId, false));
-      const forkBtn = document.createElement('button');
-      forkBtn.type = 'button';
-      forkBtn.textContent = 'Fork';
-      forkBtn.addEventListener('click', () => doAdd(hit.variantId, true));
-      actions.append(addBtn, forkBtn);
-      row.appendChild(actions);
-      results.appendChild(row);
-    }
-  }
-
-  input.addEventListener('input', () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(search, 250);
-  });
-})();
-document.querySelectorAll('.remove-entry-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const variantId = btn.dataset.variantId;
-    await fetch(`/api/communities/${communityId}/catalog/${variantId}`, {method: 'DELETE'});
-    btn.closest('.gig-row').remove();
-  });
-});
-
-// ---- "+ Add song" dialog: two alternative methods as tabs, opened from
-// either the toolbar or the empty state. ----
-(function () {
-  const dialog = document.getElementById('add-song-dialog');
-  if (!dialog) return;
-  document.getElementById('open-add-song')?.addEventListener('click', () => dialog.showModal());
-  document.getElementById('open-add-song-empty')?.addEventListener('click', () => dialog.showModal());
-  document.getElementById('close-add-song')?.addEventListener('click', () => dialog.close());
-  dialog.querySelectorAll('.add-song-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      dialog.querySelectorAll('.add-song-tab').forEach(t => t.classList.toggle('active', t === tab));
-      dialog.querySelectorAll('.add-song-panel').forEach(p => { p.hidden = p.dataset.panel !== tab.dataset.panel; });
-    });
-  });
-})();
-
-// ---- Live search over the already-rendered list — same as the band
-// repertoire page's own filter, a small-enough list to filter
-// client-side with no round trip. ----
-(function () {
-  const search = document.getElementById('repertoire-search');
-  if (!search) return;
-  const emptyHint = document.getElementById('repertoire-empty-filtered');
-  function apply() {
-    const q = search.value.trim().toLowerCase();
-    let anyVisible = false;
-    document.querySelectorAll('[data-repertoire-list] .gig-row').forEach(row => {
-      const match = !q || row.dataset.search.toLowerCase().includes(q);
-      row.hidden = !match;
-      if (match) anyVisible = true;
-    });
-    if (emptyHint) emptyHint.style.display = anyVisible ? 'none' : 'block';
-  }
-  search.addEventListener('input', apply);
-})();
-</script>
-<script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 </div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
-{{template "desktop-sidebar-script"}}
 </body>
 </html>
 {{end}}

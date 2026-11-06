@@ -9,7 +9,7 @@
 {{template "pwa-head"}}
 </head>
 <body>
-{{template "desktop-sidebar" .Me}}
+{{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/events/{{.Event.ID}}">{{template "icon-back"}} {{.Event.Name}}</a>
@@ -18,6 +18,28 @@
 </header>
 <main class="index">
   <p class="hint">Event managers run this one event's songbook and setlist — see the event's own page for attendees and who's registered to play what.</p>
+
+  {{/* A songbook (editable material pool) and a setlist (ordered
+       running order) are deliberately separate things an event can
+       have — see store.SetEventSongbook's doc comment. */}}
+  <div class="card">
+    <h3>Songbook</h3>
+    {{if .Event.SongbookID}}
+      <p><a href="/songbooks/{{.Event.SongbookID}}">Open this event's songbook</a> — prep material here ahead of building the setlist above.</p>
+    {{else}}
+      <div class="attention-empty">No dedicated songbook yet.</div>
+      <div class="form-actions">
+        <button type="button" id="create-songbook-btn" class="primary">Create a new songbook for this event</button>
+        {{if .OwnerSongbooks}}
+        <select id="attach-songbook-select">
+          <option value="">— or attach an existing one —</option>
+          {{range .OwnerSongbooks}}<option value="{{.ID}}">{{.Name}}{{if .IsDefault}} (default){{end}}</option>{{end}}
+        </select>
+        {{end}}
+      </div>
+      <p id="songbook-result" class="hint"></p>
+    {{end}}
+  </div>
 
   <div class="card">
     <h3>Setlist</h3>
@@ -68,6 +90,21 @@
 </main>
 <script>
 const eventId = {{.Event.ID}};
+document.getElementById('create-songbook-btn')?.addEventListener('click', async () => {
+  const res = await fetch(`/events/${eventId}/songbook`, {method: 'POST'});
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) { location.href = `/songbooks/${data.songbookId}`; } else { document.getElementById('songbook-result').textContent = data.error || 'failed to create songbook'; }
+});
+document.getElementById('attach-songbook-select')?.addEventListener('change', async (e) => {
+  const songbookId = Number(e.target.value);
+  if (!songbookId) return;
+  const res = await fetch(`/events/${eventId}/songbook/attach`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({songbookId}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) { location.reload(); } else { document.getElementById('songbook-result').textContent = data.error || 'failed to attach'; }
+});
 document.getElementById('create-setlist-btn')?.addEventListener('click', async () => {
   const res = await fetch(`/events/${eventId}/setlist`, {method: 'POST'});
   const data = await res.json().catch(() => ({}));

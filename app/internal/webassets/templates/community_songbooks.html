@@ -1,0 +1,66 @@
+{{define "community_songbooks"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Community.Name}} — songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
+  <h1>{{.Community.Name}} — songbooks</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index">
+  <nav class="band-tabs band-tabs-row">
+    <a href="/communities/{{.Community.ID}}">Overview</a>
+    <a href="/communities/{{.Community.ID}}/repertoire">Repertoire</a>
+    <a href="/communities/{{.Community.ID}}/songbooks" class="active">Songbooks</a>
+    <a href="/communities/{{.Community.ID}}/events">Events</a>
+  </nav>
+
+  <p class="hint">A community can keep more than one songbook — the default repertoire, plus any others you want: a seasonal set, a jam-night book, an event's own prep material (an event's own "manage" page can also create or attach one directly).</p>
+
+  <div class="catalog-book-cards">
+  {{range .Songbooks}}
+    <a class="catalog-book-card" href="{{if .IsDefault}}/communities/{{$.Community.ID}}/repertoire{{else}}/songbooks/{{.ID}}{{end}}">
+      <div class="catalog-book-card-title">{{.Name}}{{if .IsDefault}} <span class="hint">(default)</span>{{end}}</div>
+      <div class="catalog-book-card-meta">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}}</div>
+    </a>
+  {{else}}
+    <p class="hint">No songbooks yet.</p>
+  {{end}}
+  </div>
+
+  {{if .CanEdit}}
+  <div class="form-actions" style="margin-top:1.2rem;">
+    <input type="text" id="new-songbook-name" placeholder="New songbook name">
+    <button type="button" id="create-songbook-btn">+ create songbook</button>
+  </div>
+  <p id="create-songbook-result" class="hint"></p>
+  {{end}}
+</main>
+<script>
+document.getElementById('create-songbook-btn')?.addEventListener('click', async () => {
+  const name = document.getElementById('new-songbook-name').value.trim();
+  const out = document.getElementById('create-songbook-result');
+  if (!name) { out.textContent = 'enter a name'; return; }
+  const res = await fetch('/api/songbooks', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, ownerCommunityId: {{.Community.ID}}}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) { location.href = `/songbooks/${data.id}`; } else { out.textContent = data.error || 'failed to create songbook'; }
+});
+</script>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

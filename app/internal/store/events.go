@@ -30,6 +30,7 @@ type Event struct {
 	EndsAt            *time.Time
 	AudienceScope     string
 	SetlistID         *int64
+	SongbookID        *int64
 	CreatedByPersonID *int64
 	CreatedAt         time.Time
 }
@@ -48,7 +49,7 @@ const eventSelectCols = `
 	e.id, e.owner_kind::text, coalesce(e.owner_community_id,0), coalesce(e.owner_band_id,0),
 	coalesce(sc.name, bd.name, ''),
 	e.event_type::text, e.name, e.description, e.location, e.starts_at, e.ends_at,
-	e.audience_scope::text, e.setlist_id, e.created_by_person_id, e.created_at`
+	e.audience_scope::text, e.setlist_id, e.songbook_id, e.created_by_person_id, e.created_at`
 
 const eventFromJoin = `
 	FROM events e
@@ -58,15 +59,15 @@ const eventFromJoin = `
 func scanEvent(row interface{ Scan(...any) error }) (*Event, error) {
 	var ev Event
 	var communityID, bandID int64
-	var setlistID *int64
+	var setlistID, songbookID *int64
 	var createdBy *int64
 	if err := row.Scan(&ev.ID, &ev.OwnerKind, &communityID, &bandID, &ev.OwnerName,
 		&ev.EventType, &ev.Name, &ev.Description, &ev.Location, &ev.StartsAt, &ev.EndsAt,
-		&ev.AudienceScope, &setlistID, &createdBy, &ev.CreatedAt); err != nil {
+		&ev.AudienceScope, &setlistID, &songbookID, &createdBy, &ev.CreatedAt); err != nil {
 		return nil, err
 	}
 	ev.OwnerCommunityID, ev.OwnerBandID = communityID, bandID
-	ev.SetlistID, ev.CreatedByPersonID = setlistID, createdBy
+	ev.SetlistID, ev.SongbookID, ev.CreatedByPersonID = setlistID, songbookID, createdBy
 	return &ev, nil
 }
 
@@ -142,6 +143,24 @@ func (st *Store) ListEventsForBand(ctx context.Context, bandID int64) ([]Event, 
 // their event.
 func (st *Store) SetEventSetlist(ctx context.Context, eventID, setlistID int64) error {
 	tag, err := st.db.Exec(ctx, `UPDATE events SET setlist_id = $1 WHERE id = $2`, setlistID, eventID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no such event %d: %w", eventID, ErrNotFound)
+	}
+	return nil
+}
+
+// SetEventSongbook attaches (or replaces) eventID's own dedicated
+// songbook — the pool of material being prepped for it, distinct from
+// its setlist (the ordered final running order, see SetEventSetlist).
+// The caller is responsible for the songbook actually existing and
+// belonging to the same owner as the event (the manage-event handler
+// creates one via the generic CreateVariant/CreateSongbook path, owned
+// by the event's own community/band, then calls this).
+func (st *Store) SetEventSongbook(ctx context.Context, eventID, songbookID int64) error {
+	tag, err := st.db.Exec(ctx, `UPDATE events SET songbook_id = $1 WHERE id = $2`, songbookID, eventID)
 	if err != nil {
 		return err
 	}

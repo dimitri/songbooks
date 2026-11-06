@@ -52,10 +52,7 @@
      to tell them apart by name alone (audit, Nov 2026). Distinct
      labels fix that without touching either one's actual behavior. */}}
 <nav class="tabbar global-tabbar" id="global-tabbar" aria-label="main navigation (mobile)">
-  <a href="/" data-path="/" data-label="Home">{{template "icon-home"}}</a>
-  <a href="/songbooks" data-path="/songbooks" data-label="Songbooks">{{template "icon-catalog"}}</a>
-  <a href="/catalog" data-path="/catalog" data-label="Catalog">{{template "icon-view"}}</a>
-  <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}}</a>
+  {{range navGlobal "mobileTab"}}<a href="{{.Path}}" data-path="{{.Path}}" data-label="{{.Label}}">{{template "nav-icon" .Icon}}</a>{{end}}
   {{/* Replaces a standalone Profile tab — Profile moved into the shared
        More sheet below (site-nav-fullpage) alongside Communities and
        Metronome, neither of which fit in 5 fixed mobile slots and were
@@ -103,20 +100,17 @@
     <h2>Songbooks</h2>
     <button type="button" id="site-nav-fullpage-close" class="icon-btn" title="close">{{template "icon-close"}}</button>
   </div>
-  <a class="site-nav-fullpage-row" href="/">{{template "icon-home"}} Home</a>
-  <a class="site-nav-fullpage-row" href="/songbooks">{{template "icon-catalog"}} Songbooks</a>
-  <a class="site-nav-fullpage-row" href="/catalog">{{template "icon-view"}} Catalog</a>
-  <a class="site-nav-fullpage-row" href="/bands">{{template "icon-bands"}} Bands</a>
-  <a class="site-nav-fullpage-row" href="/communities">{{template "icon-community"}} Communities</a>
-  <a class="site-nav-fullpage-row" href="/metronome">{{template "icon-metro-full"}} Metronome</a>
-  <a class="site-nav-fullpage-row" href="/profile">{{template "icon-profile"}} Profile</a>
-  {{/* Hidden by default, no per-page .Me needed here (see this
-       template's own doc comment above on why global-tabbar's 31 call
-       sites carry no page data) — site-nav-fullpage-script instead
-       mirrors #desktop-sidebar's own already-correctly-gated Admin
-       link, which every page renders into the DOM regardless of
-       viewport (just CSS-hidden below 900px), so reading ITS presence
-       needs no new data plumbing or API call at all. */}}
+  {{range navGlobal "mobileMore"}}
+  {{if not .RequiresAdmin}}
+  <a class="site-nav-fullpage-row" href="{{.Path}}">{{template "nav-icon" .Icon}} {{.Label}}</a>
+  {{end}}
+  {{end}}
+  {{/* The one admin-gated entry is still rendered hidden-by-default and
+       shown via site-nav-fullpage-script, not a template condition here —
+       no per-page .Me is threaded through global-tabbar's many call
+       sites (see its own doc comment), so this mirrors desktop-sidebar's
+       own already-correctly-gated Admin link's presence in the DOM
+       instead of needing new data plumbing. */}}
   <a class="site-nav-fullpage-row" href="/admin" id="site-nav-fullpage-admin-row" hidden>Admin</a>
 </div>
 {{end}}
@@ -180,28 +174,59 @@
      <body> (see desktop-sidebar-script for the active-item logic, the
      same pathname-matching approach as global-tabbar-script). Hidden
      entirely below 900px via CSS -- .global-tabbar is the only nav there. */}}
+{{/* nav-icon dispatches a navGlobal entry's Icon (a plain string — a
+     dynamic {{template .Icon}} isn't legal Go template syntax, the name
+     must be a literal) to the right icon-* define. Add a line here
+     whenever a NavEntry in nav.go references a new icon. */}}
+{{define "nav-icon"}}{{if eq . "icon-home"}}{{template "icon-home"}}
+{{- else if eq . "icon-catalog"}}{{template "icon-catalog"}}
+{{- else if eq . "icon-view"}}{{template "icon-view"}}
+{{- else if eq . "icon-bands"}}{{template "icon-bands"}}
+{{- else if eq . "icon-community"}}{{template "icon-community"}}
+{{- else if eq . "icon-metro-full"}}{{template "icon-metro-full"}}
+{{- else if eq . "icon-profile"}}{{template "icon-profile"}}
+{{- else if eq . "icon-plus"}}{{template "icon-plus"}}
+{{- else if eq . "icon-play"}}{{template "icon-play"}}
+{{- else if eq . "icon-edit"}}{{template "icon-edit"}}
+{{- else if eq . "icon-reference"}}{{template "icon-reference"}}
+{{- else if eq . "icon-download"}}{{template "icon-download"}}
+{{- end}}{{end}}
 {{define "desktop-sidebar"}}
 <nav class="desktop-sidebar" id="desktop-sidebar" aria-label="main navigation (desktop)">
   <a class="sidebar-brand" href="/">{{template "icon-logo"}} Songbooks</a>
   <div class="sidebar-primary">
-    <a href="/" data-path="/" data-label="Home">{{template "icon-home"}} Home</a>
-    <a href="/songbooks" data-path="/songbooks" data-label="Songbooks">{{template "icon-catalog"}} Songbooks</a>
-    <a href="/catalog" data-path="/catalog" data-label="Catalog">{{template "icon-view"}} Catalog</a>
-    <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}} Bands</a>
-    <a href="/communities" data-path="/communities" data-label="Communities">{{template "icon-community"}} Communities</a>
+    {{range navGlobal "desktop"}}<a href="{{.Path}}" data-path="{{.Path}}" data-label="{{.Label}}">{{template "nav-icon" .Icon}} {{.Label}}</a>{{end}}
   </div>
   <div class="sidebar-secondary">
     <a href="/metronome" data-path="/metronome">{{template "icon-metro-full"}} Metronome</a>
   </div>
-  {{if .}}
-  {{if .IsAdmin}}
+  {{if .Me}}
+  {{if .Me.IsAdmin}}
   <div class="sidebar-secondary">
     <a href="/admin" data-path="/admin">Admin</a>
   </div>
   {{end}}
+  {{with .ContextualGroup}}
+  <div class="sidebar-secondary sidebar-song-group">
+    <div class="sidebar-group-label">{{.Label}}</div>
+    {{range .Entries}}<a class="sidebar-song-row" href="{{.Path}}"{{if .External}} target="_blank" rel="noopener"{{end}}>{{if .Icon}}{{template "nav-icon" .Icon}} {{end}}{{.Label}}{{if .External}} &#8599;{{end}}</a>{{end}}
+    {{if .PDFExportPath}}
+    <span class="pdf-mode-row sidebar-song-row" style="flex-wrap:wrap;">
+      <a class="pdf-export-link" href="{{.PDFExportPath}}" title="export the whole songbook as one PDF — cover, title page, contents, every song" download>{{template "icon-download"}} {{if .PDFExportLabel}}{{.PDFExportLabel}}{{else}}Export songbook (PDF){{end}}</a>
+      <select class="pdf-mode-select" title="PDF view mode">
+        <option value="">Song</option>
+        <option value="jazz">Jazz chart</option>
+        <option value="map">Song map</option>
+        <option value="lyrics">Lyrics only</option>
+      </select>
+      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
+    </span>
+    {{end}}
+  </div>
+  {{end}}
   <a class="sidebar-account" href="/profile">
-    <span class="sidebar-account-avatar">{{slice .DisplayName 0 1}}</span>
-    <span>{{.DisplayName}}</span>
+    <span class="sidebar-account-avatar">{{slice .Me.DisplayName 0 1}}</span>
+    <span>{{.Me.DisplayName}}</span>
   </a>
   {{end}}
 </nav>
