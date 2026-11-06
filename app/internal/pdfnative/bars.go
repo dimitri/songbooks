@@ -108,21 +108,86 @@ func chordLabel(tok string) string {
 // no grid borders at all), not a repeat of the earlier rejected attempt —
 // this one matches the web's exact, already-tuned proportions rather than
 // a from-scratch guess.
-func (c *canvas) barRow(measures []song.Measure, size float64, jazz bool) {
+// timeSigCellWidth is how much horizontal room drawTimeSigTempo needs,
+// for a caller to reserve before computing its own bar-box widths.
+func timeSigCellWidth(size float64) float64 { return size * 2.5 }
+
+// drawTimeSigTempo draws the tempo mark above the time signature, both
+// sitting in the space before the staff's opening barline — same
+// engraving convention (and the same reasoning: the time signature is
+// part of the staff, the tempo mark is the one thing that genuinely
+// belongs above it) the web Play view's own .staff-timesig-cell uses,
+// now carried over to print instead of staying a text-line fact ("120
+// bpm · 4/4") with no relation to the staff it governs. x0 is the cell's
+// left edge; barTop/barBottom bound the staff/row height to center the
+// time-signature numerals in. Centered dotted-quarter tempo mark, to
+// match the web's own compound-meter (6/8, 9/8, 12/8) special case.
+func (c *canvas) drawTimeSigTempo(x0, barTop, barBottom, size float64, tempo, timeNum, timeDen string) {
+	if !c.draw {
+		return
+	}
+	cellW := timeSigCellWidth(size)
+	cx := x0 + cellW/2
+	if tempo != "" {
+		dotted := timeDen == "8" && (timeNum == "6" || timeNum == "9" || timeNum == "12")
+		note := "♩"
+		if dotted {
+			note += "."
+		}
+		mark := note + " = " + tempo
+		w := c.measureWidth(mark, faceSans, size*0.62)
+		c.textAt(cx-w/2, barTop-size*0.35, mark, faceSans, size*0.62, c.th.faint)
+	}
+	if timeNum != "" && timeDen != "" {
+		midY := (barTop + barBottom) / 2
+		numW := c.measureWidth(timeNum, faceSansBold, size*0.95)
+		denW := c.measureWidth(timeDen, faceSansBold, size*0.95)
+		c.textAt(cx-numW/2, midY-size*0.08, timeNum, faceSansBold, size*0.95, c.th.ink)
+		c.textAt(cx-denW/2, midY+size*0.78, timeDen, faceSansBold, size*0.95, c.th.ink)
+	}
+}
+
+func (c *canvas) barRow(measures []song.Measure, size float64, jazz bool, firstStaff bool, tempo, timeNum, timeDen string) {
 	if len(measures) == 0 {
 		return
 	}
 	chordH := size * 1.4
 	ruleGap := size * 0.65
 	rowH := chordH + ruleGap
-	c.ensureSpace(rowH + 6)
+	// barRow's own barTop sits very close to the row's own top edge (the
+	// boxed/jazz layout, unlike staffBarRow, reserves almost nothing
+	// above it) — the tempo mark drawn above barTop needs its own extra
+	// headroom here, or it collides with whatever was drawn just before
+	// (the section tag) instead of sitting inside this row's own space.
+	topPad := 0.0
+	if firstStaff && tempo != "" {
+		topPad = size * 0.65
+	}
+	c.ensureSpace(rowH + topPad + 6)
+	c.y += topPad
 
-	n := float64(len(measures))
-	boxW := c.colW / n
 	x0 := c.curX()
+	// When this is the first staff (see measureSection), a time-sig/
+	// tempo cell sits before the opening barline — same "part of the
+	// staff, not a separate heading" convention the web chart's own
+	// .staff-timesig-cell uses (see drawTimeSigTempo's own doc comment).
+	// The staff's cap/base lines still span the full row width (the
+	// staff itself runs continuously under the cell); only the OPENING
+	// barline moves right, past the cell.
+	tsW := 0.0
+	if firstStaff {
+		tsW = timeSigCellWidth(size)
+	}
+	barsX0 := x0 + tsW
+	n := float64(len(measures))
+	boxW := (c.colW - tsW) / n
 	baseline := c.y + chordH
 	ruleY := baseline + ruleGap*0.5
 	barTop := baseline - chordH*0.92
+
+	if firstStaff {
+		c.drawTimeSigTempo(x0, barTop, ruleY, size, tempo, timeNum, timeDen)
+	}
 
 	// A stated repeat count ("|:4 ...") carries from the Open bar across
 	// to the Close bar, same as buildSections does for the web chart —
@@ -139,12 +204,12 @@ func (c *canvas) barRow(measures []song.Measure, size float64, jazz bool) {
 	// at either end, which read as a loose row of ticks rather than a
 	// measure grid a musician's eye can lock onto while playing.
 	c.line(x0, barTop, x0+c.colW, barTop, c.th.line, 0.6)
-	c.line(x0, barTop, x0, ruleY, c.th.line, 1.1)
+	c.line(barsX0, barTop, barsX0, ruleY, c.th.line, 1.1)
 	c.line(x0+c.colW, barTop, x0+c.colW, ruleY, c.th.line, 1.1)
 
 	pendingRepeatCount := 0
 	for i, m := range measures {
-		bx := x0 + float64(i)*boxW
+		bx := barsX0 + float64(i)*boxW
 
 		// A divider between bars — not a box, just the one edge that
 		// actually separates two measures (the row's own left/right
@@ -249,7 +314,7 @@ func (c *canvas) barRow(measures []song.Measure, size float64, jazz bool) {
 // and size, line weight) are carried over from the web CSS's own tuned
 // values, not re-guessed — matching an already-approved design beats a
 // fresh attempt at the same idea.
-func (c *canvas) staffBarRow(measures []song.Measure, size float64, beatsPerBar int) {
+func (c *canvas) staffBarRow(measures []song.Measure, size float64, beatsPerBar int, firstStaff bool, tempo, timeNum, timeDen string) {
 	if len(measures) == 0 {
 		return
 	}
@@ -259,15 +324,27 @@ func (c *canvas) staffBarRow(measures []song.Measure, size float64, beatsPerBar 
 	rowH := chordH + staffH + ruleGap
 	c.ensureSpace(rowH + 6)
 
-	n := float64(len(measures))
-	boxW := c.colW / n
 	x0 := c.curX()
+	tsW := 0.0
+	if firstStaff {
+		tsW = timeSigCellWidth(size)
+	}
+	barsX0 := x0 + tsW
+	n := float64(len(measures))
+	boxW := (c.colW - tsW) / n
 	baseline := c.y + chordH
 	staffTop := baseline + size*0.18
 	staffBottom := staffTop + staffH
 
+	if firstStaff {
+		c.drawTimeSigTempo(x0, staffTop, staffBottom, size, tempo, timeNum, timeDen)
+	}
+
 	// The 5-line staff itself: evenly spaced, faint — background texture
-	// for the slashes/barlines to sit on, never competing with them.
+	// for the slashes/barlines to sit on, never competing with them. Runs
+	// the full row width, continuous under the time-sig cell too (see
+	// barRow's own comment on why only the OPENING barline, not the
+	// staff lines, moves past the cell).
 	for i := 0; i < 5; i++ {
 		ly := staffTop + staffH*float64(i)/4
 		c.line(x0, ly, x0+c.colW, ly, c.th.faint, 0.4)
@@ -275,12 +352,12 @@ func (c *canvas) staffBarRow(measures []song.Measure, size float64, beatsPerBar 
 	// Thin barlines bound the row's own ends — real engraving draws a
 	// barline at the start and end of every system, not just between
 	// measures (an open/close repeat sign below overrides either end).
-	c.line(x0, staffTop, x0, staffBottom, c.th.line, 0.7)
+	c.line(barsX0, staffTop, barsX0, staffBottom, c.th.line, 0.7)
 	c.line(x0+c.colW, staffTop, x0+c.colW, staffBottom, c.th.line, 0.7)
 
 	pendingRepeatCount := 0
 	for i, m := range measures {
-		bx := x0 + float64(i)*boxW
+		bx := barsX0 + float64(i)*boxW
 
 		if i > 0 {
 			c.line(bx, staffTop, bx, staffBottom, c.th.line, 0.7)
@@ -458,8 +535,11 @@ func barsPerLineFor(sec song.Section, lineIdx int) int {
 // above are the structure indication, per the user's own "lyrics only +
 // struct indications" spec — no separate structure element needed).
 // ModeDefault/ModeMap (ModeMap never reaches this function) draw both.
-// hideNotes mutes the Notes loop regardless of mode.
-func (c *canvas) measureSection(sec song.Section, bodySize float64, mode pdf.Mode, hideNotes bool, globalBeats int) {
+// hideNotes mutes the Notes loop regardless of mode. firstStaff/tempo/
+// timeNum/timeDen: when firstStaff is true, the row's own FIRST printed
+// line gets the tempo+time-signature cell before its opening barline —
+// see renderSongBody's one-shot firstStaffDrawn tracking.
+func (c *canvas) measureSection(sec song.Section, bodySize float64, mode pdf.Mode, hideNotes bool, globalBeats int, firstStaff bool, tempo, timeNum, timeDen string) {
 	if mode != pdf.ModeLyrics && len(sec.Measures) > 0 {
 		beatsPerBar := globalBeats
 		if sec.Time != "" {
@@ -473,10 +553,11 @@ func (c *canvas) measureSection(sec song.Section, bodySize float64, mode pdf.Mod
 			if end > len(sec.Measures) {
 				end = len(sec.Measures)
 			}
+			showTS := firstStaff && lineIdx == 0
 			if mode == pdf.ModeJazz {
-				c.barRow(sec.Measures[start:end], bodySize, true)
+				c.barRow(sec.Measures[start:end], bodySize, true, showTS, tempo, timeNum, timeDen)
 			} else {
-				c.staffBarRow(sec.Measures[start:end], bodySize, beatsPerBar)
+				c.staffBarRow(sec.Measures[start:end], bodySize, beatsPerBar, showTS, tempo, timeNum, timeDen)
 			}
 			start = end
 			lineIdx++

@@ -50,18 +50,16 @@ func renderSongHeader(c *canvas, s *song.Song) {
 	c.textAt(c.curX(), c.y+titleSize*0.8, title, titleFont, titleSize, c.th.ink)
 	c.y += titleLineH
 
+	// Tempo and time signature are deliberately NOT in this text line —
+	// same convention the web Play view uses (its topbar-meta shows only
+	// artist/key; tempo+time sit on the first staff itself, before the
+	// opening barline — see renderSongBody's firstStaff handling below).
 	var meta []string
 	if a := s.Get("artist"); a != "" {
 		meta = append(meta, a)
 	}
 	if k := s.Get("key"); k != "" {
 		meta = append(meta, "key "+k)
-	}
-	if t := s.Get("tempo"); t != "" {
-		meta = append(meta, t+" bpm")
-	}
-	if tm := s.Get("time"); tm != "" {
-		meta = append(meta, tm)
 	}
 	if len(meta) > 0 {
 		metaSize := 10.5
@@ -105,6 +103,17 @@ func renderSongHeader(c *canvas, s *song.Song) {
 func renderSongBody(c *canvas, s *song.Song, bodySize float64, mode pdf.Mode, hideNotes bool) {
 	renderSongHeader(c, s)
 	globalBeats := timeSigBeats(s.Get("time"))
+	// tempo/timeNum/timeDen print once, on the very first staff row drawn
+	// (the first bar of the first section that actually has measures) —
+	// same "clefDrawn" one-shot convention buildSections uses for the web
+	// chart's own .staff-timesig-cell, not a per-section repeat.
+	tempo, timeNum, timeDen := s.Get("tempo"), "", ""
+	if tm := s.Get("time"); tm != "" {
+		if parts := strings.SplitN(tm, "/", 2); len(parts) == 2 {
+			timeNum, timeDen = parts[0], parts[1]
+		}
+	}
+	firstStaffDrawn := false
 	marks := map[string]string{}
 	next := 'A'
 	for _, sec := range s.Sections {
@@ -121,7 +130,11 @@ func renderSongBody(c *canvas, s *song.Song, bodySize float64, mode pdf.Mode, hi
 			continue // mirrors v2/lib/song.typ: a (repeat) occurrence prints
 			// only its label, no measures/lyrics of its own.
 		}
-		c.measureSection(sec, bodySize, mode, hideNotes, globalBeats)
+		isFirst := !firstStaffDrawn && len(sec.Measures) > 0 && mode != pdf.ModeLyrics
+		c.measureSection(sec, bodySize, mode, hideNotes, globalBeats, isFirst, tempo, timeNum, timeDen)
+		if isFirst {
+			firstStaffDrawn = true
+		}
 	}
 }
 
