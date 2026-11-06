@@ -232,12 +232,12 @@ func (st *Store) AcceptCommunitySubmission(ctx context.Context, submissionID, in
 		return ErrAlreadyDecided
 	}
 
-	isInstructor, err := st.IsCurrentCommunityStaff(ctx, sub.CommunityID, instructorPersonID)
+	canReview, err := st.HasCommunityPrivilege(ctx, sub.CommunityID, instructorPersonID, PrivManageSubmissions)
 	if err != nil {
 		return err
 	}
-	if !isInstructor {
-		return fmt.Errorf("person %d is not a current staff member of community %d: %w", instructorPersonID, sub.CommunityID, ErrForbidden)
+	if !canReview {
+		return fmt.Errorf("person %d's role in community %d doesn't grant submission review: %w", instructorPersonID, sub.CommunityID, ErrForbidden)
 	}
 
 	switch sub.Kind {
@@ -279,12 +279,12 @@ func (st *Store) RejectCommunitySubmission(ctx context.Context, submissionID, in
 		return ErrAlreadyDecided
 	}
 
-	isInstructor, err := st.IsCurrentCommunityStaff(ctx, sub.CommunityID, instructorPersonID)
+	canReview, err := st.HasCommunityPrivilege(ctx, sub.CommunityID, instructorPersonID, PrivManageSubmissions)
 	if err != nil {
 		return err
 	}
-	if !isInstructor {
-		return fmt.Errorf("person %d is not a current staff member of community %d: %w", instructorPersonID, sub.CommunityID, ErrForbidden)
+	if !canReview {
+		return fmt.Errorf("person %d's role in community %d doesn't grant submission review: %w", instructorPersonID, sub.CommunityID, ErrForbidden)
 	}
 
 	if err := st.decideCommunitySubmission(ctx, submissionID, "rejected", instructorPersonID); err != nil {

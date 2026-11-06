@@ -253,13 +253,13 @@ func (s *Server) handleCreateSetlist(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusBadRequest, "community_id is required for scope=community")
 			return
 		}
-		isStaff, err := s.store.IsCurrentCommunityStaff(r.Context(), req.CommunityID, person.ID)
+		canEdit, err := s.store.HasCommunityPrivilege(r.Context(), req.CommunityID, person.ID, store.PrivEditRepertoire)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if !isStaff {
-			httpError(w, http.StatusForbidden, "must be staff of this community to create its setlists")
+		if !canEdit {
+			httpError(w, http.StatusForbidden, "your role in this community doesn't grant setlist creation")
 			return
 		}
 		ownerCommunityID = &req.CommunityID

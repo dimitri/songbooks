@@ -102,18 +102,17 @@ func (st *Store) CanAccessSongbook(ctx context.Context, personID, songbookID int
 // CanEditSongbook reports whether personID may change songbookID itself
 // or its contents (rename, delete, reorder, add/remove/create a song) —
 // identical to CanAccessSongbook for a person or band songbook (no
-// read-only tier there), but STAFF ONLY for a community(community)
-// songbook: a read-only community member can open and play every song
-// in it (see CanAccessSongbook) but not edit the songbook or add/remove
-// entries, the read-write-staff/read-only-member split the user asked
-// for community membership.
+// read-only tier there), but gated on the edit_repertoire privilege for
+// a community songbook: a member whose role doesn't grant it (e.g. the
+// built-in "guest" role) can open and play every song in it (see
+// CanAccessSongbook) but not edit the songbook or add/remove entries.
 func (st *Store) CanEditSongbook(ctx context.Context, personID, songbookID int64) (bool, error) {
 	sb, err := st.GetSongbook(ctx, songbookID)
 	if err != nil {
 		return false, err
 	}
 	if sb.OwnerKind == "community" {
-		return isCurrentCommunityMember(ctx, st.db, sb.OwnerCommunityID, personID, "staff")
+		return st.HasCommunityPrivilege(ctx, sb.OwnerCommunityID, personID, PrivEditRepertoire)
 	}
 	return st.CanAccessSongbook(ctx, personID, songbookID)
 }

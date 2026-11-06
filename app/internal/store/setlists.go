@@ -138,7 +138,7 @@ func (st *Store) CanEditSetlistByID(ctx context.Context, personID, setlistID int
 		if meta.OwnerCommunityID == nil {
 			return false, nil
 		}
-		return isCurrentCommunityMember(ctx, st.db, *meta.OwnerCommunityID, personID, "staff")
+		return st.HasCommunityPrivilege(ctx, *meta.OwnerCommunityID, personID, PrivEditRepertoire)
 	default:
 		return false, nil
 	}
