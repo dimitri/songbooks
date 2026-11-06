@@ -9,7 +9,39 @@
 {{template "pwa-head"}}
 </head>
 <body>
-{{template "desktop-sidebar" .Me}}
+{{/* A duplicated desktop-sidebar (same "This X" group pattern
+     band_catalog.html/project.html use) instead of the shared partial —
+     the PDF-export cluster moves into a "This community" group, same
+     shape as a band's repertoire page. */}}
+<nav class="desktop-sidebar" id="desktop-sidebar" aria-label="main navigation">
+  <a class="sidebar-brand" href="/">{{template "icon-logo"}} Songbooks</a>
+  <div class="sidebar-primary">
+    <a href="/" data-path="/" data-label="Home">{{template "icon-home"}} Home</a>
+    <a href="/songbooks" data-path="/songbooks" data-label="Songbooks">{{template "icon-catalog"}} Songbooks</a>
+    <a href="/catalog" data-path="/catalog" data-label="Catalog">{{template "icon-view"}} Catalog</a>
+    <a href="/bands" data-path="/bands" data-label="Bands">{{template "icon-bands"}} Bands</a>
+    <a href="/profile" data-path="/profile" data-label="Profile">{{template "icon-profile"}} Profile</a>
+  </div>
+  <div class="sidebar-secondary sidebar-song-group">
+    <div class="sidebar-group-label">This community</div>
+    <span class="pdf-mode-row sidebar-song-row" style="flex-wrap:wrap;">
+      <a class="pdf-export-link" href="/communities/{{.Community.ID}}/export-songbook.pdf" title="export the whole repertoire as one PDF — cover, title page, contents, every song" download>{{template "icon-download"}} Export songbook (PDF)</a>
+      <select class="pdf-mode-select" title="PDF view mode">
+        <option value="">Song</option>
+        <option value="jazz">Jazz chart</option>
+        <option value="map">Song map</option>
+        <option value="lyrics">Lyrics only</option>
+      </select>
+      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
+    </span>
+  </div>
+  {{if .Me}}
+  <a class="sidebar-account" href="/profile">
+    <span class="sidebar-account-avatar">{{slice .Me.DisplayName 0 1}}</span>
+    <span>{{.Me.DisplayName}}</span>
+  </a>
+  {{end}}
+</nav>
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/communities">{{template "icon-back"}} My communities</a>
@@ -23,20 +55,36 @@
 <main class="index">
   <p class="hint">Read-only repertoire — only a staff member can edit this community's material directly. Submit your own work below for staff to review instead.</p>
 
-  <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>Title</th><th>Artist</th><th></th></tr></thead>
-    <tbody>
-    {{range .Entries}}
-      <tr data-variant-id="{{.VariantID}}">
-        <td data-label="Title"><a href="/song/{{.VariantID}}">{{.Title}}</a></td>
-        <td data-label="Artist">{{.Artist}}</td>
-        <td><a href="/works/{{.WorkID}}">all versions</a> <a href="/variants/{{.VariantID}}/history">history</a></td>
-      </tr>
-    {{else}}
-      <tr><td colspan="3" class="hint">No repertoire yet.</td></tr>
-    {{end}}
-    </tbody>
-  </table></div>
+  {{if not .Entries}}
+  <div class="attention-empty" style="border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:1.2rem; font-size:0.95rem;">
+    This community's repertoire is empty.
+  </div>
+  {{else}}
+  <div class="repertoire-toolbar">
+    <input type="search" id="repertoire-search" placeholder="Search this repertoire…" aria-label="Search this repertoire">
+  </div>
+  <div class="gig-table" data-repertoire-list>
+  {{range .Entries}}
+    <div class="gig-row repertoire-row" data-variant-id="{{.VariantID}}" data-search="{{.Title}} {{.Artist}}">
+      <a class="gig-title" href="/song/{{.VariantID}}">
+        {{.Title}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
+      </a>
+      <span class="gig-key">{{.Key}}</span>
+      <span class="gig-tempo">{{.Tempo}}</span>
+      <details class="row-menu">
+        <summary title="more">{{template "icon-more"}}</summary>
+        <div class="row-menu-panel">
+          <a href="/works/{{.WorkID}}">All versions</a>
+          <a href="/variants/{{.VariantID}}/history">History</a>
+          {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">Forked from</a>{{end}}
+          <p class="hint">{{.Visibility}}</p>
+        </div>
+      </details>
+    </div>
+  {{end}}
+  </div>
+  <p class="hint repertoire-empty-filtered" id="repertoire-empty-filtered">No songs match that search.</p>
+  {{end}}
 
   <div class="card card--md">
     <h2>Submit your work</h2>
@@ -107,10 +155,32 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
     document.getElementById('submit-result').textContent = data.error || 'failed to submit';
   }
 });
+
+// ---- Live search over the already-rendered list — same as the band
+// repertoire page's own filter, a small-enough list to filter
+// client-side with no round trip. ----
+(function () {
+  const search = document.getElementById('repertoire-search');
+  if (!search) return;
+  const emptyHint = document.getElementById('repertoire-empty-filtered');
+  function apply() {
+    const q = search.value.trim().toLowerCase();
+    let anyVisible = false;
+    document.querySelectorAll('[data-repertoire-list] .gig-row').forEach(row => {
+      const match = !q || row.dataset.search.toLowerCase().includes(q);
+      row.hidden = !match;
+      if (match) anyVisible = true;
+    });
+    if (emptyHint) emptyHint.style.display = anyVisible ? 'none' : 'block';
+  }
+  search.addEventListener('input', apply);
+})();
 </script>
+<script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 </div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
+{{template "desktop-sidebar-script"}}
 </body>
 </html>
 {{end}}

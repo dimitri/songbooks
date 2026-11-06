@@ -110,6 +110,13 @@ func (s *Server) handleCreateCommunity(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]int64{"id": id})
 }
 
+// communityCatalogRow is store.CommunityCatalogEntry plus the band
+// repertoire page's own key/tempo badges (see bandCatalogRow).
+type communityCatalogRow struct {
+	store.CommunityCatalogEntry
+	Key, Tempo string
+}
+
 // handleCommunityPage is the student-facing (but instructor-reachable too)
 // community page: the community's read-only repertoire, a "submit your work"
 // entry point, and the viewer's own submission history/status. Catalog
@@ -127,10 +134,21 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	entries, err := s.store.ListCommunityCatalog(r.Context(), communityID)
+	catalog, err := s.store.ListCommunityCatalog(r.Context(), communityID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	// Key/tempo badges, same "what to glance at before playing" cue the
+	// band repertoire page's gig-row shows (see bandCatalogRow) — best
+	// effort, a variant that fails to load just shows no badges.
+	entries := make([]communityCatalogRow, len(catalog))
+	for i, e := range catalog {
+		entries[i] = communityCatalogRow{CommunityCatalogEntry: e}
+		if sg, _, err := s.store.LoadVariant(e.VariantID); err == nil {
+			entries[i].Key = sg.Get("key")
+			entries[i].Tempo = sg.Get("tempo")
+		}
 	}
 	isInstructor, err := s.store.IsCurrentCommunityStaff(r.Context(), communityID, person.ID)
 	if err != nil {

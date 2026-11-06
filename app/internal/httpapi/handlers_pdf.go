@@ -298,3 +298,47 @@ func (s *Server) handleExportBandSongbookPDF(w http.ResponseWriter, r *http.Requ
 	}
 	writePDF(w, band.Name+"-songbook", data)
 }
+
+// handleExportCommunitySongbookPDF is handleExportBandSongbookPDF's sibling
+// for a community's own default songbook (store.ListCommunityCatalog).
+func (s *Server) handleExportCommunitySongbookPDF(w http.ResponseWriter, r *http.Request) {
+	if s.pdf == nil {
+		httpError(w, http.StatusServiceUnavailable, "PDF export is not configured on this server")
+		return
+	}
+	communityID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid community id")
+		return
+	}
+	community, err := s.store.GetCommunity(r.Context(), communityID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	catalog, err := s.store.ListCommunityCatalog(r.Context(), communityID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	var refs []pdf.SongRef
+	for _, e := range catalog {
+		body, _, err := s.store.LoadVariantRaw(e.VariantID)
+		if err != nil {
+			continue
+		}
+		refs = append(refs, pdf.SongRef{Stem: strconv.FormatInt(e.VariantID, 10), Body: body})
+	}
+	if len(refs) == 0 {
+		httpError(w, http.StatusNotFound, "this community's repertoire has no songs yet")
+		return
+	}
+
+	data, err := s.pdf.ExportSongbook(r.Context(), community.Name, refs, optionsFromRequest(r))
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
+		return
+	}
+	writePDF(w, community.Name+"-songbook", data)
+}

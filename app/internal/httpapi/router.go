@@ -373,6 +373,7 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// above, covering every entry a songbook has.
 	mux.HandleFunc("GET /songbooks/{id}/export-songbook.pdf", s.requireAuth(s.handleExportSongbookPDF))
 	mux.HandleFunc("GET /bands/{id}/export-songbook.pdf", s.requireBandMember(s.handleExportBandSongbookPDF))
+	mux.HandleFunc("GET /communities/{id}/export-songbook.pdf", s.requireCommunityMember(s.handleExportCommunitySongbookPDF))
 
 	// LilyPond export: a second, independent PDF pipeline (real engraved
 	// chords-over-a-staff notation + lyrics, see internal/lilypond) next
