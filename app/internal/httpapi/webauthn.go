@@ -469,7 +469,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 		HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode,
 		MaxAge: 30 * 24 * 60 * 60,
 	})
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "redirect": "/"})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "redirect": "/home"})
 }
 
 // webauthnDiscoverableHandler returns the webauthn.DiscoverableUserHandler

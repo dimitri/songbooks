@@ -94,18 +94,14 @@ func timeAgo(t time.Time) string {
 	}
 }
 
-// handleRoot is GET / behind optionalPerson (see router.go): the public
-// marketing homepage for a signed-out visitor, the "my songbooks"
-// dashboard (handleIndex) for a signed-in one. Kept as a thin dispatcher
-// rather than folding the branch into handleIndex itself, since
-// handleIndex assumes a non-nil person throughout (it used to be
-// requireAuth-gated) and the marketing page needs no person at all.
-func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
-	if person := personFromContext(r); person == nil {
-		s.render(w, "marketing_home", map[string]any{"Person": person})
-		return
-	}
-	s.handleIndex(w, r)
+// handleMarketingHome is GET / behind optionalPerson (see router.go): the
+// public marketing homepage, same whether or not the visitor happens to
+// be signed in — personFromContext only steers its nav between "Sign in"
+// and "My Songbooks" (the latter linking to /home, the actual
+// dashboard). / is never the dashboard itself, so it never has to
+// choose between the pitch and your own stuff.
+func (s *Server) handleMarketingHome(w http.ResponseWriter, r *http.Request) {
+	s.render(w, "marketing_home", map[string]any{"Person": personFromContext(r)})
 }
 
 // handleMarketingEditor and handleMarketingEducators are the rest of the

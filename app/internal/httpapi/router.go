@@ -101,16 +101,17 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// live login links.
 	mux.HandleFunc("GET /dev/outbox", s.requireAdmin(s.handleDevOutbox))
 
-	// GET / is the public marketing homepage for a signed-out visitor, and
-	// the "my songbooks" dashboard (the old unconditional handleIndex) for
-	// a signed-in one — optionalPerson loads the session without denying
-	// the request, and handleRoot branches on personFromContext. The
-	// marketing site's other pages (below) are public the same way, so a
-	// signed-in visitor who lands on them from an outside link still sees
-	// their own nav state instead of a sign-in prompt.
-	mux.HandleFunc("GET /", s.optionalPerson(s.handleRoot))
+	// GET / is always the public marketing homepage, signed in or not —
+	// optionalPerson only so its nav can show "My Songbooks" instead of
+	// "Sign in" for a visitor who's already authenticated. The "my
+	// songbooks" dashboard (the old handleIndex, previously mounted at
+	// / itself) lives at /home instead, so root is never contested
+	// between "the pitch" and "your stuff." The rest of the marketing
+	// site is public the same way, for the same reason.
+	mux.HandleFunc("GET /", s.optionalPerson(s.handleMarketingHome))
 	mux.HandleFunc("GET /editor", s.optionalPerson(s.handleMarketingEditor))
 	mux.HandleFunc("GET /for-educators", s.optionalPerson(s.handleMarketingEducators))
+	mux.HandleFunc("GET /home", s.requireAuth(s.handleIndex))
 
 	// Songbooks: a named, ordered collection of variant pointers owned by
 	// a person or a band (see internal/store/songbooks.go) — the "project"

@@ -142,7 +142,7 @@ func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 func (s *Server) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(sessionCookie); err == nil {
 		if _, err := s.store.GetSession(r.Context(), cookie.Value); err == nil {
-			http.Redirect(w, r, "/", http.StatusFound)
+			http.Redirect(w, r, "/home", http.StatusFound)
 			return
 		}
 	}
@@ -275,7 +275,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode,
 		MaxAge: 30 * 24 * 60 * 60,
 	})
-	http.Redirect(w, r, "/", http.StatusFound)
+	http.Redirect(w, r, "/home", http.StatusFound)
 }
 
 // loginLinkURL builds the magic-link URL embedded in the login email,
@@ -318,7 +318,7 @@ func (s *Server) handleLoginConfirm(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode,
 		MaxAge: 30 * 24 * 60 * 60,
 	})
-	http.Redirect(w, r, "/", http.StatusFound)
+	http.Redirect(w, r, "/home", http.StatusFound)
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {

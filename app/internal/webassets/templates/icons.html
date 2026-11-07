@@ -21,11 +21,12 @@
      duplicated with drift (plain "&larr; Songbooks", "&larr; Books", a
      styled "back-link" reading "Home" — three spellings of the same
      link). A single shared partial so the brand mark + label are
-     identical everywhere a page's header links back to "/". Pages whose
-     header instead backs up to a parent resource (a band, a community, a
-     project) keep their own back-link — this only replaces the
-     link-to-home case. */}}
-{{define "home-link"}}<a class="back-link" href="/">{{template "icon-logo"}} Songbooks</a>{{end}}
+     identical everywhere a page's header links back to the dashboard
+     (/home — not /, which is the public marketing homepage now, not
+     this page). Pages whose header instead backs up to a parent
+     resource (a band, a community, a project) keep their own
+     back-link — this only replaces the link-to-home case. */}}
+{{define "home-link"}}<a class="back-link" href="/home">{{template "icon-logo"}} Songbooks</a>{{end}}
 
 {{define "icon-home"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 9.5 10 4l6.5 5.5"/><path d="M5.3 8.3V16h9.4V8.3"/></svg>{{end}}
 {{define "icon-bands"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="6.5" r="2.3"/><circle cx="14" cy="7.3" r="1.9"/><path d="M3 16v-1.3A3.7 3.7 0 0 1 6.7 11h.6A3.7 3.7 0 0 1 11 14.7V16"/><path d="M12.7 11.3a3.2 3.2 0 0 1 3.3 3.2V16"/></svg>{{end}}
@@ -193,7 +194,7 @@
 {{- end}}{{end}}
 {{define "desktop-sidebar"}}
 <nav class="desktop-sidebar" id="desktop-sidebar" aria-label="main navigation (desktop)">
-  <a class="sidebar-brand" href="/">{{template "icon-logo"}} Songbooks</a>
+  <a class="sidebar-brand" href="/home">{{template "icon-logo"}} Songbooks</a>
   <div class="sidebar-primary">
     {{range navGlobal "desktop"}}<a href="{{.Path}}" data-path="{{.Path}}" data-label="{{.Label}}">{{template "nav-icon" .Icon}} {{.Label}}</a>{{end}}
   </div>

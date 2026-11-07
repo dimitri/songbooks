@@ -109,7 +109,7 @@
       <a href="/editor">The editor</a>
       <a href="/for-educators">For educators</a>
       {{if .Person}}
-      <a href="/" class="btn">My Songbooks</a>
+      <a href="/home" class="btn">My Songbooks</a>
       {{else}}
       <a href="/login" class="btn">Sign in</a>
       <span class="invite-note">invite&#8209;only for now</span>
@@ -123,7 +123,7 @@
       <h1>One songbook.<br>Everyone's copy,<br><span class="hl">always right.</span></h1>
       <p class="lede">Chord charts, setlists, and a click track that your band or community edits together &mdash; or keep your own, just for you. No more five different PDFs of the same song.</p>
       <div class="cta-row">
-        <a href="{{if .Person}}/{{else}}/login{{end}}" class="btn btn-lg">{{if .Person}}My Songbooks{{else}}Start your songbook{{end}}</a>
+        <a href="{{if .Person}}/home{{else}}/login{{end}}" class="btn btn-lg">{{if .Person}}My Songbooks{{else}}Start your songbook{{end}}</a>
         <a href="/editor" class="btn-outline">See it in action</a>
       </div>
     </div>
@@ -200,7 +200,7 @@
         <h2>Bring your band's binder into one book.</h2>
         <p>Free to start. No credit card, no PDF attachments.</p>
       </div>
-      <a href="{{if .Person}}/{{else}}/login{{end}}" class="btn btn-lg">{{if .Person}}My Songbooks{{else}}Start your songbook{{end}}</a>
+      <a href="{{if .Person}}/home{{else}}/login{{end}}" class="btn btn-lg">{{if .Person}}My Songbooks{{else}}Start your songbook{{end}}</a>
     </div>
   </section>
 

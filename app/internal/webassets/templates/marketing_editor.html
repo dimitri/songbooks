@@ -93,7 +93,7 @@
       <a href="#import">Importing a song</a>
       <a href="/for-educators">For educators</a>
       {{if .Person}}
-      <a href="/" class="btn">My Songbooks</a>
+      <a href="/home" class="btn">My Songbooks</a>
       {{else}}
       <a href="/login" class="btn">Sign in</a>
       <span class="invite-note">invite&#8209;only for now</span>
@@ -177,7 +177,7 @@ grid: |: <span class="c">Gm</span> . . <span class="c">Cm</span> | <span class="
         <h2>Bring in a song and see it render.</h2>
         <p>Paste from a tab site, or start from scratch &mdash; the chart updates as you type.</p>
       </div>
-      <a href="{{if .Person}}/{{else}}/login{{end}}" class="btn">{{if .Person}}My Songbooks{{else}}Start your songbook{{end}}</a>
+      <a href="{{if .Person}}/home{{else}}/login{{end}}" class="btn">{{if .Person}}My Songbooks{{else}}Start your songbook{{end}}</a>
     </div>
   </section>
 

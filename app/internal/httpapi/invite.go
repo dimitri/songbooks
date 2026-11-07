@@ -264,5 +264,5 @@ func (s *Server) handlePostPersonalInvite(w http.ResponseWriter, r *http.Request
 		HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode,
 		MaxAge: 30 * 24 * 60 * 60,
 	})
-	http.Redirect(w, r, "/welcome?step=2&next=/", http.StatusFound)
+	http.Redirect(w, r, "/welcome?step=2&next=/home", http.StatusFound)
 }
