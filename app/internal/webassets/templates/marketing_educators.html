@@ -1,0 +1,254 @@
+{{define "marketing_educators"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Songbooks for guitar educators</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,800;0,9..144,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#f6f1e7; --bg-raised:#fff; --bg-sunken:#efe6d3; --border:#e7dfcf; --fg:#241e18; --fg-muted:#5f554a; --accent:#af4e39; --accent-ink:#8a3d2c; --accent-bg:#f3ddd4; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Inter',sans-serif; background:var(--bg); color:var(--fg); }
+  a { color: var(--accent); text-decoration:none; }
+  a:hover { color: var(--accent-ink); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+  header { display:flex; align-items:center; justify-content:space-between; padding: 20px 0; border-bottom:1px solid var(--border); }
+  .brand { display:flex; align-items:center; gap:10px; font-family:'Fraunces',serif; font-weight:900; font-size:21px; letter-spacing:-0.015em; }
+  nav { display:flex; align-items:center; gap:28px; font-size:14px; font-weight:500; color:var(--fg-muted); }
+  .btn { background:var(--accent); color:#fff; padding:10px 20px; border-radius:8px; font-weight:700; font-size:14px; display:inline-block; }
+  .btn:hover { color:#fff; background:var(--accent-ink); }
+  .btn-lg { padding:13px 22px; font-size:15px; }
+  .btn-outline { border:2px solid var(--fg); color:var(--fg); padding:11px 22px; border-radius:8px; font-weight:700; font-size:15px; display:inline-block; }
+
+  .hero { padding: 64px 0 56px; max-width: 760px; }
+  .eyebrow { font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); }
+  h1 { font-family:'Fraunces',serif; font-weight:900; font-size:46px; line-height:1.08; letter-spacing:-0.015em; margin: 14px 0 18px; }
+  h1 .hl { color: var(--accent); }
+  .lede { font-size:18px; line-height:1.6; color:var(--fg-muted); margin:0 0 28px; }
+  .cta-row { display:flex; gap:14px; flex-wrap:wrap; }
+
+  section.block { padding: 56px 0; border-top: 1px solid var(--border); }
+  .block h2 { font-family:'Fraunces',serif; font-weight:800; font-size:28px; margin:0 0 10px; letter-spacing:-0.01em; }
+  .block .sub { color:var(--fg-muted); font-size:16px; max-width:62ch; margin:0 0 36px; }
+
+  /* competitive table — a real <table>, so rows align and it scrolls
+     horizontally on narrow screens instead of silently breaking. */
+  .matrix-wrap { overflow-x: auto; border:1px solid var(--border); border-radius:14px; }
+  table.matrix { width:100%; border-collapse:collapse; font-size:13.5px; background:var(--bg-raised); }
+  .matrix th, .matrix td { padding:14px 16px; text-align:left; vertical-align:top; border-bottom:1px solid var(--border); }
+  .matrix thead th { font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--fg-muted); background:var(--bg-sunken); vertical-align:bottom; }
+  .matrix thead th small { display:block; font-weight:400; text-transform:none; letter-spacing:0; font-size:11.5px; margin-top:4px; color:var(--fg-muted); }
+  .matrix tbody th { font-weight:600; background:var(--bg-raised); white-space:nowrap; }
+  .matrix tbody tr:last-child th, .matrix tbody tr:last-child td { border-bottom:none; }
+  .matrix .yes { color:var(--accent-ink); font-weight:700; }
+  .matrix .no { color:var(--fg-muted); }
+  .matrix .us { background:var(--accent-bg); }
+  .matrix thead .us { background:var(--accent); color:#fff; }
+  .matrix thead .us small { color:#f3ddd4; }
+
+  /* feature picker */
+  .picker { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+  .pick { background:var(--bg-raised); border:1px solid var(--border); border-radius:12px; padding:18px 20px; display:flex; gap:14px; align-items:flex-start; }
+  .pick .chk { flex:0 0 22px; height:22px; border-radius:6px; border:2px solid var(--accent); display:flex; align-items:center; justify-content:center; margin-top:1px; }
+  .pick .chk svg { width:13px; height:13px; }
+  .pick h4 { font-family:'Fraunces',serif; font-weight:700; font-size:16px; margin:0 0 4px; }
+  .pick p { margin:0; color:var(--fg-muted); font-size:14px; line-height:1.55; }
+
+  /* money flow */
+  .flow { display:flex; align-items:stretch; gap:0; flex-wrap:wrap; }
+  .flow-step { flex:1 1 200px; background:var(--bg-raised); border:1px solid var(--border); padding:22px 20px; position:relative; }
+  .flow-step:not(:last-child) { border-right:none; }
+  .flow-step:first-child { border-radius:12px 0 0 12px; }
+  .flow-step:last-child { border-radius:0 12px 12px 0; }
+  .flow-num { width:26px; height:26px; border-radius:50%; background:var(--accent); color:#fff; font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; margin-bottom:12px; font-family:'Inter',sans-serif; }
+  .flow-step h4 { font-family:'Fraunces',serif; font-weight:700; font-size:15.5px; margin:0 0 6px; }
+  .flow-step p { margin:0; font-size:13.5px; color:var(--fg-muted); line-height:1.5; }
+  @media (max-width:860px){ .flow-step, .flow-step:not(:last-child) { border-right:1px solid var(--border); border-radius:0; } .flow-step:first-child{border-radius:12px 12px 0 0;} .flow-step:last-child{border-radius:0 0 12px 12px;} }
+
+  .roadmap { display:flex; flex-wrap:wrap; gap:20px; }
+  .road-card { flex:1 1 300px; background:var(--bg-raised); border:1px dashed var(--border); border-radius:14px; padding:22px 24px; }
+  .road-tag { display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--accent-ink); background:var(--accent-bg); padding:3px 9px; border-radius:999px; margin-bottom:10px; }
+  .road-card h4 { font-family:'Fraunces',serif; font-weight:700; font-size:16px; margin:0 0 6px; }
+  .road-card p { margin:0; color:var(--fg-muted); font-size:14px; line-height:1.55; }
+
+  .ctaband { background: var(--fg); color: var(--bg); border-radius:18px; padding:48px 44px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:24px; }
+  .ctaband h2 { font-family:'Fraunces',serif; font-weight:800; font-size:26px; margin:0 0 6px; color:#fff; }
+  .ctaband p { margin:0; color:#cfc6b6; font-size:15px; max-width:48ch; }
+  .ctaband .btn { background:var(--accent); }
+
+  footer { padding:36px 0 48px; color:var(--fg-muted); font-size:13px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+  footer .foot-brand { display:flex; align-items:center; gap:8px; font-family:'Fraunces',serif; font-weight:800; color:var(--fg); }
+
+  @media (max-width: 860px) { .picker { grid-template-columns:1fr; } }
+  @media (max-width: 720px) { h1{font-size:34px;} .block h2{font-size:24px;} nav{gap:16px;} .ctaband{padding:32px 26px;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true">
+        <rect width="100" height="100" rx="22" fill="#241e18"/>
+        <g fill="#af4e39">
+          <circle cx="33" cy="18" r="7"/><circle cx="50" cy="18" r="7"/><circle cx="67" cy="18" r="7"/>
+          <circle cx="33" cy="34" r="7"/>
+          <circle cx="33" cy="50" r="7"/><circle cx="50" cy="50" r="7"/><circle cx="67" cy="50" r="7"/>
+          <circle cx="67" cy="66" r="7"/>
+          <circle cx="33" cy="82" r="7"/><circle cx="50" cy="82" r="7"/><circle cx="67" cy="82" r="7"/>
+        </g>
+      </svg>
+      Songbooks
+    </div>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/editor">The editor</a>
+      <a href="#compare">What's out there</a>
+      <a href="#money">How you get paid</a>
+      {{if .Person}}
+      <a href="/" class="btn">My Songbooks</a>
+      {{else}}
+      <a href="/login" class="btn">Sign in</a>
+      {{end}}
+    </nav>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">For guitar &amp; music educators on YouTube</div>
+    <h1>You've got the audience.<br>Let's turn it into <span class="hl">income.</span></h1>
+    <p class="lede">You don't need to become a software company to run a paid community. Pick the pieces you want &mdash; private lessons, member uploads, live events &mdash; and we run the platform under your name. You teach and price it; we collect, pay you out, and keep a platform fee for doing the plumbing.</p>
+    <div class="cta-row">
+      <span class="btn btn-lg">Talk to us</span>
+      <span class="btn-outline">See the full platform</span>
+    </div>
+  </section>
+
+  <section class="block" id="compare">
+    <h2>What's already working, and where we fit</h2>
+    <p class="sub">Some educators have built a huge personal library of lesson videos over the years. Others rent a general content platform and point it at a music audience. Both are real, working models &mdash; here's the gap between them that we're built to fill.</p>
+    <div class="matrix-wrap">
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th scope="col"></th>
+          <th scope="col">A big personal video library<small>Years of lessons, a course-site checkout</small></th>
+          <th scope="col">General creator platform<small>Uscreen, Mighty Networks&hellip;</small></th>
+          <th scope="col" class="us">Songbooks</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">Built for music, not video-in-general</th>
+          <td class="no">The content is, the platform isn't</td>
+          <td class="no">No &mdash; music is one content type among many</td>
+          <td class="yes us">Yes</td>
+        </tr>
+        <tr>
+          <th scope="row">Chord charts, tabs, a shared repertoire</th>
+          <td class="no">Not part of the platform</td>
+          <td class="no">Not offered</td>
+          <td class="yes us">Built in</td>
+        </tr>
+        <tr>
+          <th scope="row">Click track tied to the actual material</th>
+          <td class="no">Not standard</td>
+          <td class="no">Not offered</td>
+          <td class="yes us">Built in</td>
+        </tr>
+        <tr>
+          <th scope="row">Takes years of content to be worth it</th>
+          <td class="no">Yes &mdash; the library <em>is</em> the product</td>
+          <td class="yes">No</td>
+          <td class="yes us">No</td>
+        </tr>
+        <tr>
+          <th scope="row">Someone else runs payments &amp; payouts</th>
+          <td class="no">You do it all yourself</td>
+          <td class="no">You do it all yourself</td>
+          <td class="yes us">We do it for you</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>Pick what your community needs</h2>
+    <p class="sub">Turn pieces on or off per community &mdash; nothing here is one-size-fits-all.</p>
+    <div class="picker">
+      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>Private, members-only lessons</h4><p>Video lessons gated to paying members &mdash; nothing public until you decide otherwise.</p></div></div>
+      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>Member uploads</h4><p>Let students post their own practice videos &mdash; for feedback, for a group challenge, or just to show up.</p></div></div>
+      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>Feedback that stays scoped</h4><p>A note on the exact bar or section it's about &mdash; private to one student, or shared with the group. Not an open chat room you have to police.</p></div></div>
+      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>Charts your students edit live</h4><p>The chart editor is right there in the browser &mdash; fix a transcription, add a riff, no re-export, no re-upload.</p></div></div>
+      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>Your own events</h4><p>Schedule a live session for your community, solo or alongside other educators &mdash; a joint masterclass across channels, not just your own.</p></div></div>
+      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>Physical seminars, not just video</h4><p>Take it offline &mdash; a weekend seminar at a partner studio (Studios Sunburst, in Brittany, is one we work with directly) run and promoted through the same community.</p></div></div>
+    </div>
+  </section>
+
+  <section class="block" id="money">
+    <h2>You get paid. We run the plumbing.</h2>
+    <p class="sub">You set the price for your own community. We're not a marketplace taking a cut of a sale you don't control &mdash; it's your pricing, your name, your students.</p>
+    <div class="flow">
+      <div class="flow-step"><div class="flow-num">1</div><h4>You price it</h4><p>Decide what your community costs, and what each tier includes.</p></div>
+      <div class="flow-step"><div class="flow-num">2</div><h4>We collect</h4><p>Members subscribe through the platform &mdash; one checkout, one login, no separate tools for them to juggle.</p></div>
+      <div class="flow-step"><div class="flow-num">3</div><h4>You invoice us</h4><p>For what your community has brought in, on whatever schedule we agree.</p></div>
+      <div class="flow-step"><div class="flow-num">4</div><h4>We pay you out</h4><p>Minus a platform and service fee for running the infrastructure, the payments, and the support &mdash; you keep teaching, we keep the lights on.</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>What's live today, and what's next</h2>
+    <p class="sub">The practice-and-repertoire side is real and working now. The paid-community layer above is what we're building toward with the first educators who come on board.</p>
+    <div class="roadmap">
+      <div class="road-card">
+        <span class="road-tag">Live today</span>
+        <h4>Shared repertoire &amp; chart editor</h4>
+        <p>A real community with a shared songbook, editable in the browser, with a click track tied to each piece.</p>
+      </div>
+      <div class="road-card">
+        <span class="road-tag">Planned</span>
+        <h4>Private video &amp; member uploads</h4>
+        <p>Members-only lesson hosting and student-submitted practice videos, gated the same way as the chart library.</p>
+      </div>
+      <div class="road-card">
+        <span class="road-tag">Planned</span>
+        <h4>Billing &amp; payout</h4>
+        <p>The pricing, collection, and payout flow described above &mdash; in build, starting with the first educators we work with directly.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="ctaband">
+      <div>
+        <h2>You teach. We'll handle the rest.</h2>
+        <p>Tell us what your community looks like and we'll figure out the right setup together &mdash; no platform fee until you're actually earning.</p>
+      </div>
+      <span class="btn btn-lg">Talk to us</span>
+    </div>
+  </section>
+
+  <footer>
+    <div class="foot-brand">
+      <svg width="20" height="20" viewBox="0 0 100 100" aria-hidden="true">
+        <rect width="100" height="100" rx="22" fill="#241e18"/>
+        <g fill="#af4e39">
+          <circle cx="33" cy="18" r="7"/><circle cx="50" cy="18" r="7"/><circle cx="67" cy="18" r="7"/>
+          <circle cx="33" cy="34" r="7"/>
+          <circle cx="33" cy="50" r="7"/><circle cx="50" cy="50" r="7"/><circle cx="67" cy="50" r="7"/>
+          <circle cx="67" cy="66" r="7"/>
+          <circle cx="33" cy="82" r="7"/><circle cx="50" cy="82" r="7"/><circle cx="67" cy="82" r="7"/>
+        </g>
+      </svg>
+      Songbooks
+    </div>
+    <nav style="display:flex;">
+      <a href="/">Home</a>
+      <a href="/editor">The editor</a>
+    </nav>
+  </footer>
+</div>
+</body>
+</html>
+{{end}}

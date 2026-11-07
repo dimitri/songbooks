@@ -1,0 +1,296 @@
+{{define "marketing_editor"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Songbooks — the editor &amp; song format</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,800;0,9..144,900&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f6f1e7; --bg-raised:#fff; --bg-sunken:#efe6d3; --border:#e7dfcf; --fg:#241e18; --fg-muted:#5f554a; --accent:#af4e39; --accent-ink:#8a3d2c; --accent-bg:#f3ddd4;
+    --danger:#a52f2f; --accent-contrast:#fff; --font-chart: 'EB Garamond', Georgia, 'Times New Roman', serif;
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --staff-5lines:
+      linear-gradient(var(--fg-muted), var(--fg-muted)), linear-gradient(var(--fg-muted), var(--fg-muted)),
+      linear-gradient(var(--fg-muted), var(--fg-muted)), linear-gradient(var(--fg-muted), var(--fg-muted)),
+      linear-gradient(var(--fg-muted), var(--fg-muted));
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Inter',sans-serif; background:var(--bg); color:var(--fg); }
+  a { color: var(--accent); text-decoration:none; }
+  a:hover { color: var(--accent-ink); }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 28px; }
+  header { display:flex; align-items:center; justify-content:space-between; padding: 20px 0; border-bottom:1px solid var(--border); }
+  .brand { display:flex; align-items:center; gap:10px; font-family:'Fraunces',serif; font-weight:900; font-size:21px; letter-spacing:-0.015em; }
+  nav { display:flex; align-items:center; gap:28px; font-size:14px; font-weight:500; color:var(--fg-muted); }
+  .btn { background:var(--accent); color:#fff; padding:10px 20px; border-radius:8px; font-weight:700; font-size:14px; display:inline-block; }
+  .invite-note { font-size:11.5px; color:var(--fg-muted); margin-left:-14px; }
+
+  .hero { padding: 56px 0 40px; max-width: 760px; }
+  .eyebrow { font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); }
+  h1 { font-family:'Fraunces',serif; font-weight:900; font-size:42px; line-height:1.1; letter-spacing:-0.015em; margin: 14px 0 16px; }
+  h1 .hl { color: var(--accent); }
+  .lede { font-size:17px; line-height:1.6; color:var(--fg-muted); margin:0; }
+
+  /* split editor mockup */
+  .split { display:grid; grid-template-columns: 1fr 1fr; border:2px solid var(--fg); border-radius:14px; overflow:hidden; box-shadow:7px 7px 0 var(--accent); margin: 32px 0 20px; }
+  .pane { background:var(--bg-raised); }
+  .pane-head { display:flex; align-items:center; gap:8px; padding:10px 16px; border-bottom:1px solid var(--border); background:var(--bg-sunken); font-size:11.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--fg-muted); }
+  .dots { display:flex; gap:5px; margin-right:4px; }
+  .dots span { width:8px; height:8px; border-radius:50%; background:var(--border); }
+  .src { border-right:1px solid var(--border); }
+  .src pre { margin:0; padding:20px 18px; font-family:'JetBrains Mono', ui-monospace, monospace; font-size:13px; line-height:1.85; overflow-x:auto; }
+  .k { color: var(--accent-ink); font-weight:600; }     /* header keys */
+  .s { color: #4a6b4a; font-weight:600; }                /* [Section] */
+  .c { color: var(--accent); font-weight:600; }          /* chords / grid tokens */
+  .n { color: var(--fg-muted); font-style:italic; }      /* note: lines */
+  .render { padding: 22px 22px 26px; font-size: 15px; }
+  .r-title { font-family:'Fraunces',serif; font-weight:800; font-size:18px; }
+  .r-sub { font-size:12.5px; color:var(--fg-muted); margin:1px 0 18px; }
+  .r-illustrative { font-size:11px; color:var(--fg-muted); font-style:italic; margin:6px 0 0; }
+
+  /* ===================================================================
+     Everything below this line is copied VERBATIM from the live app's
+     own stylesheet (app.css) — the same class names, the same rules,
+     not a marketing-page approximation. If the product's chart
+     rendering changes, this block is what's out of date, not a
+     reimplementation to keep in sync by hand. */
+  .sheet-section { padding: 0.9rem 0; }
+  .sheet-section h3 { margin: 0 0 0.6rem; display: flex; align-items: center; gap: 0.5rem; }
+  .section-jump {
+    background: none; border: none; padding: 0.1rem 0; font: inherit;
+    font-family: var(--font-chart); font-style: italic; font-weight: 600;
+    font-variant: small-caps; letter-spacing: 0.05em; text-transform: none;
+    font-size: 0.95rem; border-bottom: 1px solid var(--border); color: inherit;
+  }
+  .rehearsal-mark {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.15em; height: 1.15em; margin-right: 0.4em; flex: 0 0 auto;
+    background: var(--danger); color: var(--accent-contrast); border-radius: 2px;
+    font-family: var(--font-ui, sans-serif); font-style: normal; font-weight: 800;
+    font-variant: normal; letter-spacing: 0; font-size: 0.72em; line-height: 1;
+  }
+  .sheet-section .grid { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.6rem; font-family: var(--font-chart); }
+  .staff-line { display: flex; align-items: flex-end; padding-top: 3.3em; position: relative; }
+  .bar {
+    display: flex; align-items: flex-end;
+    flex: 0 0 calc(100% / var(--cap, 4)); min-width: max(2.6em, calc(var(--slots, 3) * 0.9em));
+    padding: 0 0.5em; position: relative; font-family: var(--font-chart);
+    z-index: 1;
+  }
+  .bar + .bar { border-left: 1px solid var(--fg-muted); }
+  .bar-body { display: flex; flex: 1; min-width: 0; position: relative; height: 1.7em; }
+  .bar-body::before {
+    content: ""; position: absolute; left: -0.5em; right: -0.5em; bottom: 0; height: 1.7em; z-index: 0;
+    background-image: var(--staff-5lines); background-size: 100% 1px;
+    background-position: 0 0%, 0 25%, 0 50%, 0 75%, 0 100%; background-repeat: no-repeat; opacity: 0.5;
+  }
+  .beat-slot { flex: 1 1 0; min-width: 0.9em; text-align: center; position: relative; display: flex; align-items: center; justify-content: center; height: 100%; }
+  .chord-label { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 0.35em; white-space: nowrap; font-style: italic; }
+  .slash { display: inline-block; font-size: 1.3em; color: var(--fg); transform: rotate(10deg); }
+  .staff-timesig-cell { display: flex; flex-direction: column; position: relative; z-index: 1; height: 1.7em; width: 2.1em; margin-right: 0.4em; }
+  .staff-line:has(.staff-timesig-cell) .bar { flex-basis: calc((100% - 2.5em) / var(--cap, 4)); }
+  .staff-timesig-cell::before {
+    content: ""; position: absolute; left: -0.5em; right: -0.5em; bottom: 0; height: 1.7em; z-index: 0;
+    background-image: var(--staff-5lines); background-size: 100% 1px;
+    background-position: 0 0%, 0 25%, 0 50%, 0 75%, 0 100%; background-repeat: no-repeat; opacity: 0.5;
+  }
+  .staff-timesig-cell .tsnum, .staff-timesig-cell .tsden {
+    flex: 1 0 0.85em; height: 0.85em; overflow: hidden; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-family: var(--font-chart); font-size: 1em; line-height: 1;
+  }
+  .tempo-mark-inline { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 0.3em; font-size: 0.85em; color: var(--fg-muted); white-space: nowrap; }
+  .section-notes { margin: 0.3em 0; }
+  .section-note { margin: 0.1em 0; font-size: 0.82em; font-style: italic; color: var(--fg-muted); }
+  .sheet-section .lyrics { font-size: 1.05rem; color: var(--fg); }
+  .lyrics .lyric-line { margin: 0.25rem 0; }
+  .lyric-seg { display: inline; }
+  .lyric-seg.has-chord { display: inline-flex; flex-direction: column; align-items: flex-start; vertical-align: bottom; margin-right: 0.15em; }
+  .inline-chord { font-size: 0.78em; font-style: italic; line-height: 1.1; margin-bottom: 0.05em; white-space: nowrap; font-family: var(--font-chart); }
+  /* =================================================================== */
+
+  .callouts { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin: 36px 0 0; }
+  .callout h4 { font-family:'Fraunces',serif; font-weight:700; font-size:15.5px; margin:0 0 6px; }
+  .callout p { margin:0; font-size:13.5px; line-height:1.6; color:var(--fg-muted); }
+
+  section.block { padding: 48px 0; border-top: 1px solid var(--border); }
+  .block h2 { font-family:'Fraunces',serif; font-weight:800; font-size:26px; margin:0 0 10px; letter-spacing:-0.01em; }
+  .block .sub { color:var(--fg-muted); font-size:15.5px; max-width:62ch; margin:0 0 28px; }
+
+  .ctaband { background: var(--fg); color: var(--bg); border-radius:18px; padding:40px 40px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:24px; }
+  .ctaband h2 { font-family:'Fraunces',serif; font-weight:800; font-size:24px; margin:0 0 6px; color:#fff; }
+  .ctaband p { margin:0; color:#cfc6b6; font-size:14.5px; }
+  .ctaband .btn { background:var(--accent); }
+
+  footer { padding:32px 0 48px; color:var(--fg-muted); font-size:13px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+  footer .foot-brand { display:flex; align-items:center; gap:8px; font-family:'Fraunces',serif; font-weight:800; color:var(--fg); }
+
+  @media (max-width: 860px) { .split { grid-template-columns:1fr; } .src { border-right:none; border-bottom:1px solid var(--border); } .callouts { grid-template-columns:1fr; } }
+  @media (max-width: 720px) { h1{font-size:32px;} .block h2{font-size:22px;} nav{gap:16px;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true">
+        <rect width="100" height="100" rx="22" fill="#241e18"/>
+        <g fill="#af4e39">
+          <circle cx="33" cy="18" r="7"/><circle cx="50" cy="18" r="7"/><circle cx="67" cy="18" r="7"/>
+          <circle cx="33" cy="34" r="7"/>
+          <circle cx="33" cy="50" r="7"/><circle cx="50" cy="50" r="7"/><circle cx="67" cy="50" r="7"/>
+          <circle cx="67" cy="66" r="7"/>
+          <circle cx="33" cy="82" r="7"/><circle cx="50" cy="82" r="7"/><circle cx="67" cy="82" r="7"/>
+        </g>
+      </svg>
+      Songbooks
+    </div>
+    <nav>
+      <a href="/">Home</a>
+      <a href="#import">Importing a song</a>
+      <a href="/for-educators">For educators</a>
+      {{if .Person}}
+      <a href="/" class="btn">My Songbooks</a>
+      {{else}}
+      <a href="/login" class="btn">Sign in</a>
+      <span class="invite-note">invite&#8209;only for now</span>
+      {{end}}
+    </nav>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">The editor &amp; the song format</div>
+    <h1>Plain text in.<br>A real chart <span class="hl">out.</span></h1>
+    <p class="lede">No import/export round trip, no "upload a PDF and hope it stays in sync." What you type on the left is exactly what renders on the right &mdash; on screen, in the PDF, on a music stand.</p>
+  </section>
+
+  <div class="split">
+    <div class="pane src">
+      <div class="pane-head"><span class="dots"><span></span><span></span><span></span></span>aint-no-love.song</div>
+<pre><span class="k">title:</span> Ain't No Love in the Heart of the City
+<span class="k">artist:</span> Bobby "Blue" Bland
+<span class="k">key:</span> Gm
+<span class="k">tempo:</span> 76
+<span class="k">time:</span> 4/4
+
+<span class="s">[Chorus]</span>
+grid: <span class="c">Gm</span> | <span class="c">Cm</span> | <span class="c">Gm</span> | <span class="c">E&#9837;</span> | <span class="c">F</span> | <span class="c">Gm</span></pre>
+    </div>
+    <div class="pane render">
+      <div class="r-title">Ain't No Love in the Heart of the City</div>
+      <div class="r-sub">Bobby "Blue" Bland &middot; key Gm &middot; 76 bpm</div>
+
+      <section class="sheet-section">
+        <h3><span class="section-jump"><span class="rehearsal-mark">A</span>Chorus</span></h3>
+        <div class="grid">
+          <div class="staff-line" style="--cap: 3">
+            <span class="staff-timesig-cell">
+              <span class="tempo-mark-inline">&#9833; = 76</span>
+              <span class="tsnum">4</span><span class="tsden">4</span>
+            </span>
+            <span class="bar"><span class="bar-body">
+              <span class="beat-slot"><span class="chord-label">Gm</span><span class="slash">&#8260;</span></span>
+            </span></span>
+            <span class="bar"><span class="bar-body">
+              <span class="beat-slot"><span class="chord-label">Cm</span><span class="slash">&#8260;</span></span>
+            </span></span>
+            <span class="bar"><span class="bar-body">
+              <span class="beat-slot"><span class="chord-label">Gm</span><span class="slash">&#8260;</span></span>
+            </span></span>
+          </div>
+          <div class="staff-line" style="--cap: 3">
+            <span class="bar"><span class="bar-body">
+              <span class="beat-slot"><span class="chord-label">E&#9837;</span><span class="slash">&#8260;</span></span>
+            </span></span>
+            <span class="bar"><span class="bar-body">
+              <span class="beat-slot"><span class="chord-label">F</span><span class="slash">&#8260;</span></span>
+            </span></span>
+            <span class="bar"><span class="bar-body">
+              <span class="beat-slot"><span class="chord-label">Gm</span><span class="slash">&#8260;</span></span>
+            </span></span>
+          </div>
+        </div>
+        <p class="r-illustrative">(placeholder chorus line, for layout only &mdash; not the song's actual words)</p>
+      </section>
+    </div>
+  </div>
+
+  <p class="r-illustrative" style="margin:-8px 0 0;">Real chords from the staging catalog's own copy of this song &mdash; lyrics replaced with a placeholder for this marketing page.</p>
+
+  <div class="callouts" style="margin-top:36px;">
+    <div class="callout" style="grid-column: 1 / -1;">
+      <h4>Not a mockup &mdash; the actual in-app editor</h4>
+      <p style="margin-bottom:14px;">The bar-by-bar chord builder from the real app: pick a root, a quality, how long it holds, and the chart above updates as you go. No markup to memorize unless you want to drop into the <code>Source</code> tab directly.</p>
+      <img src="/static/img/marketing/editor-screenshot-builder.jpg?v={{staticVersion}}" alt="Screenshot of the real Songbooks chord-grid editor, mid-edit on this song" style="width:100%; border:2px solid var(--fg); border-radius:12px; box-shadow:7px 7px 0 var(--accent); display:block;">
+    </div>
+  </div>
+
+  <div class="callouts" style="margin-top:28px;">
+    <div class="callout" style="grid-column: 1 / -1;">
+      <h4>And when you need paper</h4>
+      <p style="margin-bottom:14px;">The same file drives the PDF export, native to the app &mdash; no separate layout pass, nothing to keep in sync by hand.</p>
+      <img src="/static/img/marketing/pdf-export-page.png?v={{staticVersion}}" alt="Screenshot of the real PDF export for this song" style="width:100%; max-width:420px; border:1px solid var(--border); border-radius:4px; box-shadow:0 10px 30px rgba(0,0,0,.12); display:block;">
+    </div>
+  </div>
+
+  <div class="callouts">
+    <div class="callout"><h4>Header fields</h4><p>Title, artist, key, tempo, time signature &mdash; plain <code>key: value</code> lines, nothing to configure in a sidebar first.</p></div>
+    <div class="callout"><h4>Grid or lyrics, same chart</h4><p>A chords-only section renders as a staff; a <code>[Chord]word</code> line puts the chord right above the word it changes on &mdash; not glued to every syllable.</p></div>
+    <div class="callout"><h4>Notes stay with the song</h4><p>An arrangement note &mdash; "let it ring," "capo 2" &mdash; is one line in the file and shows up right where it's relevant, on screen and in the PDF.</p></div>
+  </div>
+
+  <section class="block" id="import">
+    <h2>Already have the chords somewhere else?</h2>
+    <p class="sub">Paste a link, not a blank page. The import wizard reads the chord grid out of it and drops it straight into the editor as a draft &mdash; you fix what it got wrong, you don't start from zero.</p>
+    <div class="callouts" style="margin-top:0;">
+      <div class="callout"><h4>From Ultimate Guitar</h4><p>Paste a tab page URL &mdash; the chord-over-lyric text comes in pre-formatted, ready to clean up.</p></div>
+      <div class="callout"><h4>From iReal Pro</h4><p>Bring in a song or a whole playlist from an iReal Pro forum link &mdash; chords, structure, and key arrive already split into sections.</p></div>
+      <div class="callout"><h4>Always a draft first</h4><p>Nothing imports straight into your songbook unedited &mdash; it lands in the editor so you can fix the inevitable wrong chord before saving.</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>Why a text format, not a drag-and-drop builder</h2>
+    <p class="sub">A chart is a document, and documents are text &mdash; that gets you three things a purely visual editor can't.</p>
+    <div class="callouts" style="margin-top:0;">
+      <div class="callout"><h4>One source, every output</h4><p>The same file renders the web chart, the printable PDF, and the setlist export &mdash; there's nothing to keep in sync by hand.</p></div>
+      <div class="callout"><h4>Fast to type, fast to fix</h4><p>Transposing a section, fixing a wrong chord, adding a verse &mdash; it's a text edit, not a sequence of clicks through a toolbar.</p></div>
+      <div class="callout"><h4>Still has a real editor</h4><p>You don't have to hand-write the grammar &mdash; the in-app editor gives you section chips, a bar-by-bar chord builder, and live preview on top of the same format.</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="ctaband">
+      <div>
+        <h2>Bring in a song and see it render.</h2>
+        <p>Paste from a tab site, or start from scratch &mdash; the chart updates as you type.</p>
+      </div>
+      <a href="{{if .Person}}/{{else}}/login{{end}}" class="btn">{{if .Person}}My Songbooks{{else}}Start your songbook{{end}}</a>
+    </div>
+  </section>
+
+  <footer>
+    <div class="foot-brand">
+      <svg width="20" height="20" viewBox="0 0 100 100" aria-hidden="true">
+        <rect width="100" height="100" rx="22" fill="#241e18"/>
+        <g fill="#af4e39">
+          <circle cx="33" cy="18" r="7"/><circle cx="50" cy="18" r="7"/><circle cx="67" cy="18" r="7"/>
+          <circle cx="33" cy="34" r="7"/>
+          <circle cx="33" cy="50" r="7"/><circle cx="50" cy="50" r="7"/><circle cx="67" cy="50" r="7"/>
+          <circle cx="67" cy="66" r="7"/>
+          <circle cx="33" cy="82" r="7"/><circle cx="50" cy="82" r="7"/><circle cx="67" cy="82" r="7"/>
+        </g>
+      </svg>
+      Songbooks
+    </div>
+    <nav style="display:flex;">
+      <a href="/">Home</a>
+      <a href="/for-educators">For educators</a>
+    </nav>
+  </footer>
+</div>
+</body>
+</html>
+{{end}}

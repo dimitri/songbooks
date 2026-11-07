@@ -94,6 +94,32 @@ func timeAgo(t time.Time) string {
 	}
 }
 
+// handleRoot is GET / behind optionalPerson (see router.go): the public
+// marketing homepage for a signed-out visitor, the "my songbooks"
+// dashboard (handleIndex) for a signed-in one. Kept as a thin dispatcher
+// rather than folding the branch into handleIndex itself, since
+// handleIndex assumes a non-nil person throughout (it used to be
+// requireAuth-gated) and the marketing page needs no person at all.
+func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
+	if person := personFromContext(r); person == nil {
+		s.render(w, "marketing_home", map[string]any{"Person": person})
+		return
+	}
+	s.handleIndex(w, r)
+}
+
+// handleMarketingEditor and handleMarketingEducators are the rest of the
+// public marketing site (see router.go) — both optionalPerson, not
+// requireAuth, so an outside link still works for a signed-out visitor,
+// and a signed-in one sees "My Songbooks" in the nav instead of "Sign in".
+func (s *Server) handleMarketingEditor(w http.ResponseWriter, r *http.Request) {
+	s.render(w, "marketing_editor", map[string]any{"Person": personFromContext(r)})
+}
+
+func (s *Server) handleMarketingEducators(w http.ResponseWriter, r *http.Request) {
+	s.render(w, "marketing_educators", map[string]any{"Person": personFromContext(r)})
+}
+
 // handleIndex is just the project directory: name + a few stats per book,
 // click through to /b/{book} for the actual set list. Keeping it light
 // means it stays fast and legible even with many books/projects.

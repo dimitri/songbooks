@@ -1,0 +1,229 @@
+{{define "marketing_home"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Songbooks — one songbook, everyone's copy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,800;0,9..144,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f6f1e7; --bg-raised:#fff; --bg-sunken:#efe6d3; --border:#e7dfcf; --fg:#241e18; --fg-muted:#5f554a; --accent:#af4e39; --accent-ink:#8a3d2c; --accent-bg:#f3ddd4;
+    --staff-lines:
+      linear-gradient(var(--fg-muted), var(--fg-muted)), linear-gradient(var(--fg-muted), var(--fg-muted)),
+      linear-gradient(var(--fg-muted), var(--fg-muted)), linear-gradient(var(--fg-muted), var(--fg-muted)),
+      linear-gradient(var(--fg-muted), var(--fg-muted));
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Inter',sans-serif; background:var(--bg); color:var(--fg); }
+  a { color: var(--accent); text-decoration:none; }
+  a:hover { color: var(--accent-ink); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+  header { display:flex; align-items:center; justify-content:space-between; padding: 20px 0; border-bottom:1px solid var(--border); }
+  .brand { display:flex; align-items:center; gap:10px; font-family:'Fraunces',serif; font-weight:900; font-size:21px; letter-spacing:-0.015em; }
+  nav { display:flex; align-items:center; gap:28px; font-size:14px; font-weight:500; color:var(--fg-muted); }
+  .btn { background:var(--accent); color:#fff; padding:10px 20px; border-radius:8px; font-weight:700; font-size:14px; display:inline-block; }
+  .btn:hover { color:#fff; background:var(--accent-ink); }
+  .btn-lg { padding:13px 22px; font-size:15px; }
+  .btn-outline { border:2px solid var(--fg); color:var(--fg); padding:11px 22px; border-radius:8px; font-weight:700; font-size:15px; display:inline-block; }
+  .invite-note { font-size:11.5px; color:var(--fg-muted); margin-left:-14px; }
+
+  .hero { display:flex; flex-wrap:wrap; align-items:center; gap:48px; padding: 68px 0 76px; }
+  .hero-text { flex: 1 1 420px; }
+  .eyebrow { font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); }
+  h1 { font-family:'Fraunces',serif; font-weight:900; font-size:54px; line-height:1.05; letter-spacing:-0.02em; margin: 14px 0 18px; }
+  h1 .hl { color: var(--accent); }
+  .lede { font-size:18px; line-height:1.6; color:var(--fg-muted); max-width:42ch; margin:0 0 28px; }
+  .cta-row { display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
+
+  .card { flex:1 1 360px; max-width:420px; background:var(--bg-raised); border:2px solid var(--fg); border-radius:14px; box-shadow:7px 7px 0 var(--accent); padding:26px 28px; }
+  .card-title { font-family:'Fraunces',serif; font-weight:800; font-size:20px; }
+  .card-sub { font-size:13px; color:var(--fg-muted); margin-top:2px; }
+
+  .mock-section { display:flex; align-items:center; gap:8px; margin:20px 0 26px; }
+  .mock-badge { width:20px; height:20px; border-radius:5px; background:var(--accent); color:#fff; font-weight:700; font-size:11px; font-family:'Inter',sans-serif; display:flex; align-items:center; justify-content:center; }
+  .mock-seclabel { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--fg-muted); }
+  .mock-staffrow { display:flex; align-items:flex-end; position:relative; padding-top: 1.6em; }
+  .mock-timesig { flex:0 0 auto; width:2.1em; height:1.7em; margin-right:0.4em; display:flex; flex-direction:column; position:relative; }
+  .mock-timesig b { flex:1; display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-weight:700; font-size:1em; font-style:normal; }
+  .mock-tempo { position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:0.3em; font-size:0.78em; color:var(--fg-muted); white-space:nowrap; }
+  .mock-bar { flex:1; display:flex; height:1.7em; position:relative; }
+  .mock-bar::before { content:""; position:absolute; inset:0; background-image: var(--staff-lines); background-size:100% 1px; background-position:0 0%,0 25%,0 50%,0 75%,0 100%; background-repeat:no-repeat; opacity:0.5; }
+  .mock-beat { flex:1; position:relative; display:flex; align-items:center; justify-content:center; }
+  .mock-chord { position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:0.35em; font-style:italic; font-family:'Fraunces',serif; font-size:1.05em; color:var(--fg); white-space:nowrap; }
+  .mock-slash { font-size:1.3em; color:var(--fg); transform:rotate(10deg); display:inline-block; }
+  .card-foot { margin-top:20px; padding-top:16px; border-top:1px dashed var(--border); display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--fg-muted); }
+  .avatars span { width:24px; height:24px; border-radius:50%; display:inline-block; border:2px solid var(--bg-raised); margin-left:-8px; }
+  .avatars span:first-child { margin-left:0; }
+
+  section.block { padding: 64px 0; border-top: 1px solid var(--border); }
+  .block h2 { font-family:'Fraunces',serif; font-weight:800; font-size:32px; margin:0 0 10px; letter-spacing:-0.01em; }
+  .block .sub { color:var(--fg-muted); font-size:16px; max-width:56ch; margin:0 0 40px; }
+
+  .audiences { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; }
+  .aud { background:var(--bg-raised); border:1px solid var(--border); border-radius:14px; padding:28px 26px; display:flex; flex-direction:column; gap:12px; }
+  .aud .icon { width:44px; height:44px; border-radius:11px; background:var(--accent-bg); display:flex; align-items:center; justify-content:center; }
+  .aud h3 { font-family:'Fraunces',serif; font-weight:700; font-size:19px; margin:4px 0 0; }
+  .aud p { margin:0; color:var(--fg-muted); font-size:14.5px; line-height:1.6; flex:1; }
+  .aud .tag { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--accent-ink); }
+
+  .features { display:grid; grid-template-columns:repeat(3,1fr); gap:28px 32px; }
+  .feature { display:flex; gap:14px; }
+  .feature .dot { flex:0 0 8px; height:8px; border-radius:50%; background:var(--accent); margin-top:8px; }
+  .feature h4 { font-family:'Fraunces',serif; font-weight:700; font-size:16px; margin:0 0 6px; }
+  .feature p { margin:0; color:var(--fg-muted); font-size:14px; line-height:1.55; }
+
+  .ctaband { background: var(--fg); color: var(--bg); border-radius:18px; padding:48px 44px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:24px; }
+  .ctaband h2 { font-family:'Fraunces',serif; font-weight:800; font-size:28px; margin:0 0 6px; color:#fff; }
+  .ctaband p { margin:0; color:#cfc6b6; font-size:15px; }
+  .ctaband .btn { background:var(--accent); }
+
+  footer { padding:36px 0 48px; color:var(--fg-muted); font-size:13px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+  footer .foot-brand { display:flex; align-items:center; gap:8px; font-family:'Fraunces',serif; font-weight:800; color:var(--fg); }
+  footer nav { gap:20px; }
+
+  @media (max-width: 860px) { .audiences, .features { grid-template-columns:1fr; } }
+  @media (max-width: 720px) { h1{font-size:40px;} .block h2{font-size:26px;} nav{gap:16px;} .ctaband{padding:32px 26px;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true">
+        <rect width="100" height="100" rx="22" fill="#241e18"/>
+        <g fill="#af4e39">
+          <circle cx="33" cy="18" r="7"/><circle cx="50" cy="18" r="7"/><circle cx="67" cy="18" r="7"/>
+          <circle cx="33" cy="34" r="7"/>
+          <circle cx="33" cy="50" r="7"/><circle cx="50" cy="50" r="7"/><circle cx="67" cy="50" r="7"/>
+          <circle cx="67" cy="66" r="7"/>
+          <circle cx="33" cy="82" r="7"/><circle cx="50" cy="82" r="7"/><circle cx="67" cy="82" r="7"/>
+        </g>
+      </svg>
+      Songbooks
+    </div>
+    <nav>
+      <a href="#audiences">Who it's for</a>
+      <a href="#features">Features</a>
+      <a href="/editor">The editor</a>
+      <a href="/for-educators">For educators</a>
+      {{if .Person}}
+      <a href="/" class="btn">My Songbooks</a>
+      {{else}}
+      <a href="/login" class="btn">Sign in</a>
+      <span class="invite-note">invite&#8209;only for now</span>
+      {{end}}
+    </nav>
+  </header>
+
+  <section class="hero">
+    <div class="hero-text">
+      <div class="eyebrow">For musicians, bands &amp; communities</div>
+      <h1>One songbook.<br>Everyone's copy,<br><span class="hl">always right.</span></h1>
+      <p class="lede">Chord charts, setlists, and a click track that your band or community edits together &mdash; or keep your own, just for you. No more five different PDFs of the same song.</p>
+      <div class="cta-row">
+        <a href="{{if .Person}}/{{else}}/login{{end}}" class="btn btn-lg">{{if .Person}}My Songbooks{{else}}Start your songbook{{end}}</a>
+        <a href="/editor" class="btn-outline">See it in action</a>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Just Like Heaven</div>
+      <div class="card-sub">The Cure &middot; key Bb</div>
+      <div class="mock-section"><span class="mock-badge">A</span><span class="mock-seclabel">Intro</span></div>
+      <div class="mock-staffrow">
+        <div class="mock-timesig">
+          <span class="mock-tempo">&#9833; = 94</span>
+          <b>4</b><b>4</b>
+        </div>
+        <div class="mock-bar">
+          <div class="mock-beat"><span class="mock-chord">Gm</span><span class="mock-slash">&#8260;</span></div>
+          <div class="mock-beat"><span class="mock-slash">&#8260;</span></div>
+          <div class="mock-beat"><span class="mock-slash">&#8260;</span></div>
+          <div class="mock-beat"><span class="mock-slash">&#8260;</span></div>
+        </div>
+      </div>
+      <div class="card-foot">
+        <span>3 members editing</span>
+        <span class="avatars"><span style="background:#af4e39"></span><span style="background:#8a3d2c"></span><span style="background:#241e18"></span></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="audiences">
+    <h2>Built for how you actually play</h2>
+    <p class="sub">The same chart, the same engine &mdash; what changes is who else can see and touch it.</p>
+    <div class="audiences">
+      <div class="aud">
+        <div class="icon">
+          <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="6.8" r="3"/><path d="M3.8 16.2a6.3 6.3 0 0 1 12.4 0"/></svg>
+        </div>
+        <div class="tag">On your own</div>
+        <h3>Just you</h3>
+        <p>Keep your own charts, fork a song you want to change without touching the original, and practice against a metronome that remembers how you like it. Private by default &mdash; nobody sees it unless you share it.</p>
+      </div>
+      <div class="aud">
+        <div class="icon">
+          <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="6.5" r="2.3"/><circle cx="14" cy="7.3" r="1.9"/><path d="M3 16v-1.3A3.7 3.7 0 0 1 6.7 11h.6A3.7 3.7 0 0 1 11 14.7V16"/><path d="M12.7 11.3a3.2 3.2 0 0 1 3.3 3.2V16"/></svg>
+        </div>
+        <div class="tag">Rehearsal to gig</div>
+        <h3>Your band</h3>
+        <p>One shared chart per song &mdash; any member fixes a typo or changes a key, and everyone sees it before the next rehearsal. Setlists, gig notes, and a click track built for the stage, not bolted on after.</p>
+      </div>
+      <div class="aud">
+        <div class="icon">
+          <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6.5" r="2.3"/><circle cx="14" cy="6.5" r="2.3"/><circle cx="10" cy="13" r="2.3"/></svg>
+        </div>
+        <div class="tag">Beyond one band</div>
+        <h3>Your community</h3>
+        <p>Run a jam night, a worship team, or a teaching studio. Roles decide who can edit the repertoire, manage events, or just read &mdash; invite links carry the right role automatically, so onboarding is one tap.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="features">
+    <h2>Everything lives in one place</h2>
+    <p class="sub">Not a chart viewer with a setlist bolted on &mdash; one app, built in that order.</p>
+    <div class="features">
+      <div class="feature"><span class="dot"></span><div><h4>Shared, not forwarded</h4><p>Every member works from the same variant of a song &mdash; fork it to make your own version, don't duplicate it to edit in secret.</p></div></div>
+      <div class="feature"><span class="dot"></span><div><h4>Click track, built in</h4><p>A metronome that already knows the song's tempo and time signature, with your display preferences remembered across every song in the set.</p></div></div>
+      <div class="feature"><span class="dot"></span><div><h4>Edit in place, get it right</h4><p>A chart editor built into the page itself &mdash; type a chord, add a section, drop in a riff &mdash; backed by a plain text format that renders the same polished chart on screen and in the PDF, with no separate typesetting step.</p></div></div>
+      <div class="feature"><span class="dot"></span><div><h4>PDF for the stand</h4><p>Export a single chart, a full setlist, or a whole songbook &mdash; with each song's tempo and time signature printed where a player actually looks for it.</p></div></div>
+      <div class="feature"><span class="dot"></span><div><h4>Notes, private or shared</h4><p>Leave yourself a reminder on a tricky section, or post one the whole band sees &mdash; your call, per note.</p></div></div>
+      <div class="feature"><span class="dot"></span><div><h4>The original recording, right there</h4><p>Link the YouTube video or an mp3 extract to a song and play it alongside the chart &mdash; scrub to a section, drop a marker, practice against the real thing.</p></div></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="ctaband">
+      <div>
+        <h2>Bring your band's binder into one book.</h2>
+        <p>Free to start. No credit card, no PDF attachments.</p>
+      </div>
+      <a href="{{if .Person}}/{{else}}/login{{end}}" class="btn btn-lg">{{if .Person}}My Songbooks{{else}}Start your songbook{{end}}</a>
+    </div>
+  </section>
+
+  <footer>
+    <div class="foot-brand">
+      <svg width="20" height="20" viewBox="0 0 100 100" aria-hidden="true">
+        <rect width="100" height="100" rx="22" fill="#241e18"/>
+        <g fill="#af4e39">
+          <circle cx="33" cy="18" r="7"/><circle cx="50" cy="18" r="7"/><circle cx="67" cy="18" r="7"/>
+          <circle cx="33" cy="34" r="7"/>
+          <circle cx="33" cy="50" r="7"/><circle cx="50" cy="50" r="7"/><circle cx="67" cy="50" r="7"/>
+          <circle cx="67" cy="66" r="7"/>
+          <circle cx="33" cy="82" r="7"/><circle cx="50" cy="82" r="7"/><circle cx="67" cy="82" r="7"/>
+        </g>
+      </svg>
+      Songbooks
+    </div>
+    <nav style="display:flex;">
+      <a href="#audiences">Who it's for</a>
+      <a href="#features">Features</a>
+    </nav>
+  </footer>
+</div>
+</body>
+</html>
+{{end}}
