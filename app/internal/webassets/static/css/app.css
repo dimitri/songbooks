@@ -993,11 +993,14 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 
 /* ---- Click-track's own compact metronome — deliberately smaller than
    the standalone tool's control surface (no practice-technique/accent/
-   sound-pattern tabs): bpm row, beat dots, transport + one options menu
-   for the few things worth adjusting mid-set. data-size on the section
-   scales the beat dots for across-the-room visibility; .mc-landscape
-   switches to a wide, row-based layout for a phone propped sideways. */
-.metronome-compact { max-width: 26rem; margin: 1.2rem auto; padding: 1.3rem; display: flex; flex-direction: column; gap: 1rem; }
+   sound-pattern tabs), but every control sits flat on the page: no
+   popup/menu/disclosure anywhere. A drummer glancing down at a phone
+   propped up mid-gig needs every option visible and one tap away, not
+   behind a "..." they'd have to stop playing to find and open.
+   data-size on the section scales the beat dots for across-the-room
+   visibility; .mc-landscape switches to a wide, row-based layout for a
+   phone propped sideways. */
+.metronome-compact { max-width: 30rem; margin: 1.2rem auto; padding: 1.3rem; display: flex; flex-direction: column; gap: 1rem; }
 .mc-row { display: flex; align-items: center; justify-content: center; gap: 1rem; }
 .mc-bpm-display { display: flex; align-items: baseline; gap: 0.3rem; font-weight: 700; }
 #mc-bpm-value { font-size: 2.2rem; }
@@ -1011,20 +1014,20 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .metronome-compact[data-size="lg"] .mc-beat-dots { gap: 0.8rem; }
 .metronome-compact[data-size="lg"] .mc-beat-dots .beat-dot { width: 1.3rem; height: 1.3rem; }
 .metronome-compact[data-size="lg"] .mc-beat-dots .beat-dot.downbeat { width: 1.6rem; height: 1.6rem; }
-#mc-options { position: relative; }
-#mc-options > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 2.6rem; height: 2.6rem; border-radius: 50%; color: var(--fg-muted); }
-#mc-options > summary::-webkit-details-marker { display: none; }
-#mc-options > summary:hover, #mc-options[open] > summary { background: var(--bg-sunken); color: var(--fg); }
-.mc-options-panel { min-width: 13rem; }
-.mc-options-panel .hint { margin: 0.5rem 0 0.3rem; padding: 0 0.2rem; }
-.mc-options-panel .hint:first-child { margin-top: 0; }
-.mc-options-panel .metro-icon-row { width: 100%; }
-.mc-options-panel .metro-icon-row button { flex: 1; }
+/* Flat options: every row always rendered, always visible, no disclosure
+   — label on the left, segmented buttons filling the rest of the row so
+   each is still a large, easy-to-hit target. */
+.mc-options-flat { display: flex; flex-direction: column; gap: 0.5rem; padding-top: 0.3rem; border-top: 1px solid var(--border); }
+.mc-opt-row { display: flex; align-items: center; gap: 0.7rem; }
+.mc-opt-label { flex: 0 0 4rem; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); }
+.mc-opt-row .metro-icon-row { flex: 1; }
+.mc-opt-row .metro-icon-row button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.3rem; }
 /* Landscape layout: a phone propped sideways on a stand — the beat dots
-   become the whole point of the page, everything else rides along a
-   single row beneath/above instead of stacking tall. */
-.metronome-compact.mc-landscape { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; max-width: none; gap: 1.2rem; }
-.metronome-compact.mc-landscape .mc-beat-dots { order: -1; width: 100%; justify-content: center; }
+   become the whole point of the page, transport rides along a single
+   row beneath; the options rows stay stacked underneath, still fully
+   visible, just not competing with the dots for the top of the screen. */
+.metronome-compact.mc-landscape { max-width: none; }
+.metronome-compact.mc-landscape .mc-beat-dots { justify-content: center; }
 .metronome-compact.mc-landscape[data-size="md"] .mc-beat-dots .beat-dot,
 .metronome-compact.mc-landscape[data-size="sm"] .mc-beat-dots .beat-dot { width: 1.1rem; height: 1.1rem; }
 .metronome-compact.mc-landscape[data-size="md"] .mc-beat-dots .beat-dot.downbeat,

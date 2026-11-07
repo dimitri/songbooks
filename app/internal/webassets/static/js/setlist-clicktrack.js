@@ -70,6 +70,7 @@
   function setTimeSig(sig) {
     clock.beatsPerBar = beatsForSig(sig);
     metronome.isCompound = isCompoundSig(sig);
+    applyClickMode();
     renderDots();
   }
 
@@ -122,6 +123,24 @@
   wireSeg('mc-group-picker', v => { groupBars = parseInt(v, 10) || 1; renderDots(); }, 'songbooks-clicktrack-group', '1');
   wireSeg('mc-orientation-picker', v => { compactEl.classList.toggle('mc-landscape', v === 'landscape'); }, 'songbooks-clicktrack-orientation', 'portrait');
 
+  // "Beat 1 only" — both the audible click AND the dot flash fire once
+  // per bar instead of every beat, for a drummer who just wants a bar
+  // reference, not a full click track. Reuses clock.js's existing
+  // gap-click practice mode (play 1 beat, silence the rest of the bar,
+  // repeat) rather than a second silencing mechanism — the "gap" cycle
+  // is just set to exactly one bar.
+  let clickMode = 'every';
+  function applyClickMode() {
+    if (clickMode === 'beat1') {
+      metronome.practiceMode = 'gap';
+      metronome.gapOnBeats = 1;
+      metronome.gapOffBeats = Math.max(1, clock.beatsPerBar - 1);
+    } else {
+      metronome.practiceMode = 'none';
+    }
+  }
+  wireSeg('mc-click-picker', v => { clickMode = v; applyClickMode(); }, 'songbooks-clicktrack-click-mode', 'every');
+
   function renderDots() {
     dotsEl.innerHTML = '';
     const n = clock.beatsPerBar * groupBars;
@@ -136,7 +155,10 @@
     const dots = dotsEl.children;
     if (dots.length === n) {
       const idx = clock.running ? Math.floor(clock.currentBeat()) % n : -1;
-      for (let i = 0; i < dots.length; i++) dots[i].classList.toggle('lit', i === idx);
+      for (let i = 0; i < dots.length; i++) {
+        const lit = i === idx && (clickMode !== 'beat1' || i % clock.beatsPerBar === 0);
+        dots[i].classList.toggle('lit', lit);
+      }
     }
     requestAnimationFrame(tickDots);
   }

@@ -44,9 +44,11 @@
   {{/* A dedicated, deliberately small control surface — not the full
        standalone metronome-widget (its three tabs' worth of practice/
        accent/sound-pattern options are for solo practice, not this
-       page's "count the band in and read the note" job). One options
-       menu holds the few things worth adjusting here; everything else is
-       one tap away on the main row. */}}
+       page's "count the band in and read the note" job). Every control
+       sits flat on the page, no popup/menu/disclosure anywhere — a
+       drummer glancing down at a phone propped at a gig needs every
+       option visible and one tap away, not behind a "..." they have to
+       find and open mid-song. */}}
   <div id="clicktrack-metronome-wrap">
     <section class="card book-card metronome-compact" id="metronome-compact" data-size="md">
       <div class="mc-row">
@@ -61,28 +63,39 @@
         <button id="mc-play" type="button" title="start" class="primary icon-btn">{{template "icon-play"}}</button>
         <button id="mc-tap" type="button" title="tap tempo" class="icon-btn">{{template "icon-tap"}}</button>
         <button id="mc-mute" type="button" title="mute sound" class="icon-btn" aria-pressed="false">{{template "icon-speaker"}}</button>
-        <details class="row-menu" id="mc-options">
-          <summary title="display options">{{template "icon-more"}}</summary>
-          <div class="row-menu-panel mc-options-panel">
-            <p class="hint">Visual size</p>
-            <div class="metro-icon-row" id="mc-size-picker" data-value="md">
-              <button type="button" data-value="sm">S</button>
-              <button type="button" data-value="md" class="active">M</button>
-              <button type="button" data-value="lg">L</button>
-            </div>
-            <p class="hint">Group</p>
-            <div class="metro-icon-row" id="mc-group-picker" data-value="1">
-              <button type="button" data-value="1" class="active">1 bar</button>
-              <button type="button" data-value="2">2 bars</button>
-              <button type="button" data-value="4">4 bars</button>
-            </div>
-            <p class="hint">Layout</p>
-            <div class="metro-icon-row" id="mc-orientation-picker" data-value="portrait">
-              <button type="button" data-value="portrait" class="active">Portrait</button>
-              <button type="button" data-value="landscape">Landscape</button>
-            </div>
+      </div>
+
+      <div class="mc-options-flat">
+        <div class="mc-opt-row">
+          <span class="mc-opt-label">Size</span>
+          <div class="metro-icon-row" id="mc-size-picker" data-value="md">
+            <button type="button" data-value="sm">S</button>
+            <button type="button" data-value="md" class="active">M</button>
+            <button type="button" data-value="lg">L</button>
           </div>
-        </details>
+        </div>
+        <div class="mc-opt-row">
+          <span class="mc-opt-label">Group</span>
+          <div class="metro-icon-row" id="mc-group-picker" data-value="1">
+            <button type="button" data-value="1" class="active">1 bar</button>
+            <button type="button" data-value="2">2 bars</button>
+            <button type="button" data-value="4">4 bars</button>
+          </div>
+        </div>
+        <div class="mc-opt-row">
+          <span class="mc-opt-label">Layout</span>
+          <div class="metro-icon-row" id="mc-orientation-picker" data-value="portrait">
+            <button type="button" data-value="portrait">{{template "icon-portrait"}} Portrait</button>
+            <button type="button" data-value="landscape">{{template "icon-landscape"}} Landscape</button>
+          </div>
+        </div>
+        <div class="mc-opt-row">
+          <span class="mc-opt-label">Click</span>
+          <div class="metro-icon-row" id="mc-click-picker" data-value="every">
+            <button type="button" data-value="every">Every beat</button>
+            <button type="button" data-value="beat1">Beat 1 only</button>
+          </div>
+        </div>
       </div>
     </section>
   </div>
