@@ -361,6 +361,7 @@ type SongRef struct {
 	Book  string
 	Stem  string
 	Body  string
+	Note  string // the setlist entry's own gig note (setlist.Entry.Note), e.g. "capo 2, watch the bridge tempo" — printed in the contents/running-order table, not part of the song's own chart
 }
 
 // FrontMatter controls the cover + title page rendered before the

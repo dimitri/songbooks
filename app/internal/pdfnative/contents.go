@@ -10,7 +10,8 @@ import (
 // contentsEntry is one row of a setlist/songbook's running-order table.
 type contentsEntry struct {
 	Title, Artist, Key, Tempo, Group string
-	Page                             int // 0 when no page column is shown (the standalone setlist-page export)
+	Note                             string // the setlist entry's own gig note (setlist.Entry.Note) — printed after the artist, sharing its line rather than growing the row
+	Page                             int    // 0 when no page column is shown (the standalone setlist-page export)
 }
 
 // renderContentsPage draws the linked title/key/tempo[/page] table, grouped
@@ -216,27 +217,59 @@ func renderContentsPageSized(doc *gopdf.GoPdf, title, subtitle string, entries [
 		}
 		doc.SetXY(c.curX()+18, baseline)
 		doc.Text(title)
-		if e.Artist != "" {
+		// The artist and the entry's own gig note (e.g. "capo 2, watch the
+		// bridge tempo") share this one sub-line rather than growing the
+		// row — every row in the table uses the same rowH, so a per-entry
+		// second line would either squeeze every OTHER row too or need a
+		// per-row height, neither worth it for what's usually a short
+		// aside. Note prints in italic, distinct from the plain artist.
+		sub := e.Artist
+		if e.Note != "" {
+			if sub != "" {
+				sub += "  —  " + e.Note
+			} else {
+				sub = e.Note
+			}
+		}
+		if sub != "" {
 			tw2, _ := doc.MeasureTextWidth(title + "  ")
+			noteStart := len(e.Artist) // rune count, used below to pick the style per character run
 			doc.SetFont(faceSans, "", 7.5*fsz)
 			doc.SetTextColor(th.meta.r, th.meta.g, th.meta.b)
 			// Clip to the same right boundary the title itself is held to
 			// (maxTitleW, measured from the row's left edge) — unbounded,
 			// a long artist name ran straight into the KEY/TEMPO/PAGE
 			// columns (e.g. "While My Guitar Gently Weeps / The Beatles").
-			artist := e.Artist
-			maxArtistW := maxTitleW - tw2
-			if maxArtistW >= 8 {
-				aw, _ := doc.MeasureTextWidth(artist)
-				for aw > maxArtistW && len(artist) > 1 {
-					artist = artist[:len(artist)-1]
-					aw, _ = doc.MeasureTextWidth(artist + "…")
+			text := sub
+			maxSubW := maxTitleW - tw2
+			if maxSubW >= 8 {
+				tw3, _ := doc.MeasureTextWidth(text)
+				for tw3 > maxSubW && len(text) > 1 {
+					text = text[:len(text)-1]
+					tw3, _ = doc.MeasureTextWidth(text + "…")
 				}
-				if artist != e.Artist {
-					artist += "…"
+				if text != sub {
+					text += "…"
 				}
-				doc.SetXY(c.curX()+18+tw2, baseline)
-				doc.Text(artist)
+				if e.Artist != "" && e.Note != "" && len(text) > noteStart {
+					// Two runs, two styles: the artist stays plain, the
+					// note (and the "—" joining them) prints in italic so
+					// it reads as an aside, not as more artist text.
+					artistPart := text[:noteStart]
+					notePart := text[noteStart:]
+					doc.SetXY(c.curX()+18+tw2, baseline)
+					doc.Text(artistPart)
+					aw, _ := doc.MeasureTextWidth(artistPart)
+					doc.SetFont(faceSansIt, "", 7.5*fsz)
+					doc.SetXY(c.curX()+18+tw2+aw, baseline)
+					doc.Text(notePart)
+				} else {
+					if e.Artist == "" {
+						doc.SetFont(faceSansIt, "", 7.5*fsz)
+					}
+					doc.SetXY(c.curX()+18+tw2, baseline)
+					doc.Text(text)
+				}
 			}
 		}
 

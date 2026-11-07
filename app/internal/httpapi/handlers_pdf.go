@@ -77,7 +77,7 @@ func resolveByIDSetlistRefs(ctx context.Context, s *Server, l *setlist.Setlist) 
 				skipped++
 				continue
 			}
-			refs = append(refs, pdf.SongRef{Group: set.Label, Stem: strconv.FormatInt(e.VariantID, 10), Body: body})
+			refs = append(refs, pdf.SongRef{Group: set.Label, Stem: strconv.FormatInt(e.VariantID, 10), Body: body, Note: e.Note})
 		}
 	}
 	return refs, skipped

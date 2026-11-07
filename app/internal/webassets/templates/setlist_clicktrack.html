@@ -28,6 +28,7 @@
     <div class="clicktrack-position" id="clicktrack-position"></div>
     <h2 id="clicktrack-title"></h2>
     <div class="clicktrack-meta" id="clicktrack-meta"></div>
+    <p class="clicktrack-note" id="clicktrack-note" hidden></p>
     <div class="clicktrack-nav">
       <button type="button" id="clicktrack-prev" class="clicktrack-nav-btn">{{template "icon-back"}} prev</button>
       <button type="button" id="clicktrack-next" class="clicktrack-nav-btn">next {{template "icon-forward"}}</button>
@@ -40,13 +41,56 @@
     <button type="button" id="clicktrack-break-continue" class="primary">Start next set</button>
   </div>
 
+  {{/* A dedicated, deliberately small control surface — not the full
+       standalone metronome-widget (its three tabs' worth of practice/
+       accent/sound-pattern options are for solo practice, not this
+       page's "count the band in and read the note" job). One options
+       menu holds the few things worth adjusting here; everything else is
+       one tap away on the main row. */}}
   <div id="clicktrack-metronome-wrap">
-    {{template "metronome-widget" .}}
+    <section class="card book-card metronome-compact" id="metronome-compact" data-size="md">
+      <div class="mc-row">
+        <button id="mc-bpm-down" type="button" class="icon-btn" aria-label="slower">&minus;</button>
+        <div class="mc-bpm-display"><span id="mc-bpm-value">120</span><span class="bpm-unit">bpm</span></div>
+        <button id="mc-bpm-up" type="button" class="icon-btn" aria-label="faster">+</button>
+      </div>
+
+      <div class="beat-dots mc-beat-dots" id="mc-beat-dots" aria-hidden="true"></div>
+
+      <div class="metro-transport-controls">
+        <button id="mc-play" type="button" title="start" class="primary icon-btn">{{template "icon-play"}}</button>
+        <button id="mc-tap" type="button" title="tap tempo" class="icon-btn">{{template "icon-tap"}}</button>
+        <button id="mc-mute" type="button" title="mute sound" class="icon-btn" aria-pressed="false">{{template "icon-speaker"}}</button>
+        <details class="row-menu" id="mc-options">
+          <summary title="display options">{{template "icon-more"}}</summary>
+          <div class="row-menu-panel mc-options-panel">
+            <p class="hint">Visual size</p>
+            <div class="metro-icon-row" id="mc-size-picker" data-value="md">
+              <button type="button" data-value="sm">S</button>
+              <button type="button" data-value="md" class="active">M</button>
+              <button type="button" data-value="lg">L</button>
+            </div>
+            <p class="hint">Group</p>
+            <div class="metro-icon-row" id="mc-group-picker" data-value="1">
+              <button type="button" data-value="1" class="active">1 bar</button>
+              <button type="button" data-value="2">2 bars</button>
+              <button type="button" data-value="4">4 bars</button>
+            </div>
+            <p class="hint">Layout</p>
+            <div class="metro-icon-row" id="mc-orientation-picker" data-value="portrait">
+              <button type="button" data-value="portrait" class="active">Portrait</button>
+              <button type="button" data-value="landscape">Landscape</button>
+            </div>
+          </div>
+        </details>
+      </div>
+    </section>
   </div>
 </main>
 <script id="clicktrack-data" type="application/json">{{.SongsJSON}}</script>
+<template id="icon-speaker-tpl">{{template "icon-speaker"}}</template>
+<template id="icon-speaker-mute-tpl">{{template "icon-speaker-mute"}}</template>
 <script src="/static/js/clock.js?v={{staticVersion}}"></script>
-<script src="/static/js/metronome-page.js?v={{staticVersion}}"></script>
 <script src="/static/js/setlist-clicktrack.js?v={{staticVersion}}"></script>
 {{template "pwa-register"}}
 </div>

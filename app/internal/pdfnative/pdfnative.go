@@ -94,6 +94,7 @@ func buildEntries(refs []pdf.SongRef, th theme, withPages bool, mode pdf.Mode, h
 			Key:    s.Get("key"),
 			Tempo:  s.Get("tempo"),
 			Group:  ref.Group,
+			Note:   ref.Note,
 		}
 		if e.Title == "" {
 			e.Title = ref.Stem

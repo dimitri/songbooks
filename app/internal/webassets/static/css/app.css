@@ -986,6 +986,49 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .clicktrack-break { text-align: center; }
 .clicktrack-break h2 { margin: 0 0 0.4rem; }
 .clicktrack-break .hint { margin-bottom: 1rem; }
+.clicktrack-note {
+  margin: 0 auto 0.9rem; max-width: 30rem; font-style: italic; color: var(--fg-muted);
+  background: var(--bg-sunken); border-radius: var(--radius); padding: 0.5rem 0.9rem;
+}
+
+/* ---- Click-track's own compact metronome — deliberately smaller than
+   the standalone tool's control surface (no practice-technique/accent/
+   sound-pattern tabs): bpm row, beat dots, transport + one options menu
+   for the few things worth adjusting mid-set. data-size on the section
+   scales the beat dots for across-the-room visibility; .mc-landscape
+   switches to a wide, row-based layout for a phone propped sideways. */
+.metronome-compact { max-width: 26rem; margin: 1.2rem auto; padding: 1.3rem; display: flex; flex-direction: column; gap: 1rem; }
+.mc-row { display: flex; align-items: center; justify-content: center; gap: 1rem; }
+.mc-bpm-display { display: flex; align-items: baseline; gap: 0.3rem; font-weight: 700; }
+#mc-bpm-value { font-size: 2.2rem; }
+.mc-bpm-display .bpm-unit { font-size: 0.8rem; color: var(--fg-muted); font-weight: 400; }
+.mc-row .icon-btn { width: 2.6rem; height: 2.6rem; font-size: 1.3rem; }
+.mc-beat-dots { gap: 0.5rem; padding: 0.2rem 0; flex-wrap: wrap; }
+.mc-beat-dots .beat-dot { width: 0.7rem; height: 0.7rem; }
+.mc-beat-dots .beat-dot.downbeat { width: 0.85rem; height: 0.85rem; }
+.metronome-compact[data-size="sm"] .mc-beat-dots .beat-dot { width: 0.45rem; height: 0.45rem; }
+.metronome-compact[data-size="sm"] .mc-beat-dots .beat-dot.downbeat { width: 0.58rem; height: 0.58rem; }
+.metronome-compact[data-size="lg"] .mc-beat-dots { gap: 0.8rem; }
+.metronome-compact[data-size="lg"] .mc-beat-dots .beat-dot { width: 1.3rem; height: 1.3rem; }
+.metronome-compact[data-size="lg"] .mc-beat-dots .beat-dot.downbeat { width: 1.6rem; height: 1.6rem; }
+#mc-options { position: relative; }
+#mc-options > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 2.6rem; height: 2.6rem; border-radius: 50%; color: var(--fg-muted); }
+#mc-options > summary::-webkit-details-marker { display: none; }
+#mc-options > summary:hover, #mc-options[open] > summary { background: var(--bg-sunken); color: var(--fg); }
+.mc-options-panel { min-width: 13rem; }
+.mc-options-panel .hint { margin: 0.5rem 0 0.3rem; padding: 0 0.2rem; }
+.mc-options-panel .hint:first-child { margin-top: 0; }
+.mc-options-panel .metro-icon-row { width: 100%; }
+.mc-options-panel .metro-icon-row button { flex: 1; }
+/* Landscape layout: a phone propped sideways on a stand — the beat dots
+   become the whole point of the page, everything else rides along a
+   single row beneath/above instead of stacking tall. */
+.metronome-compact.mc-landscape { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; max-width: none; gap: 1.2rem; }
+.metronome-compact.mc-landscape .mc-beat-dots { order: -1; width: 100%; justify-content: center; }
+.metronome-compact.mc-landscape[data-size="md"] .mc-beat-dots .beat-dot,
+.metronome-compact.mc-landscape[data-size="sm"] .mc-beat-dots .beat-dot { width: 1.1rem; height: 1.1rem; }
+.metronome-compact.mc-landscape[data-size="md"] .mc-beat-dots .beat-dot.downbeat,
+.metronome-compact.mc-landscape[data-size="sm"] .mc-beat-dots .beat-dot.downbeat { width: 1.35rem; height: 1.35rem; }
 .metro-beat-picker button {
   width: 2.1rem; height: 2.1rem; border-radius: 50%; padding: 0; font-weight: 700;
 }
