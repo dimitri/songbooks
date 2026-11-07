@@ -130,21 +130,72 @@ func (c *canvas) drawTimeSigTempo(x0, barTop, barBottom, size float64, tempo, ti
 	cx := x0 + cellW/2
 	if tempo != "" {
 		dotted := timeDen == "8" && (timeNum == "6" || timeNum == "9" || timeNum == "12")
-		note := "♩"
-		if dotted {
-			note += "."
-		}
-		mark := note + " = " + tempo
-		w := c.measureWidth(mark, faceSans, size*0.62)
-		c.textAt(cx-w/2, barTop-size*0.35, mark, faceSans, size*0.62, c.th.faint)
+		noteSize := size * 0.55
+		label := " = " + tempo
+		labelW := c.measureWidth(label, faceSans, size*0.62)
+		noteW := c.quarterNoteWidth(noteSize, dotted)
+		baselineY := barTop - size*0.35
+		startX := cx - (noteW+labelW)/2
+		adv := c.drawQuarterNote(startX, baselineY, noteSize, dotted, c.th.faint)
+		c.textAt(startX+adv, baselineY, label, faceSans, size*0.62, c.th.faint)
 	}
 	if timeNum != "" && timeDen != "" {
-		midY := (barTop + barBottom) / 2
-		numW := c.measureWidth(timeNum, faceSansBold, size*0.95)
-		denW := c.measureWidth(timeDen, faceSansBold, size*0.95)
-		c.textAt(cx-numW/2, midY-size*0.08, timeNum, faceSansBold, size*0.95, c.th.ink)
-		c.textAt(cx-denW/2, midY+size*0.78, timeDen, faceSansBold, size*0.95, c.th.ink)
+		// Each numeral is sized and baselined to fill most of its own half
+		// of the staff height (barTop..midY and midY..barBottom), not a
+		// fixed offset from the exact middle — a fixed offset (the
+		// previous approach) didn't scale with the half-height available,
+		// which is what let both numerals print partly above/below the
+		// staff itself (the reported "doesn't fit within the staff" bug).
+		// 0.8 approximates a bold sans digit's ascent as a fraction of its
+		// own font size (no descender to account for) — same ascent
+		// convention renderSongHeader already uses for its title baseline.
+		half := (barBottom - barTop) / 2
+		fs := half * 0.95
+		const ascent = 0.8
+		midY := barTop + half
+		numBaseline := barTop + (half+ascent*fs)/2
+		denBaseline := midY + (half+ascent*fs)/2
+		numW := c.measureWidth(timeNum, faceSansBold, fs)
+		denW := c.measureWidth(timeDen, faceSansBold, fs)
+		c.textAt(cx-numW/2, numBaseline, timeNum, faceSansBold, fs, c.th.ink)
+		c.textAt(cx-denW/2, denBaseline, timeDen, faceSansBold, fs, c.th.ink)
 	}
+}
+
+// quarterNoteWidth returns drawQuarterNote's footprint without drawing —
+// used to center the glyph+"= 94" assembly as one block.
+func (c *canvas) quarterNoteWidth(size float64, dotted bool) float64 {
+	r := size * 0.17
+	w := r*2 + size*0.05
+	if dotted {
+		w += size * 0.22
+	}
+	return w
+}
+
+// drawQuarterNote draws a quarter-note glyph (filled oval notehead + stem,
+// plus an augmentation dot for the dotted/compound-meter case) as vector
+// shapes rather than the Unicode "♩"/"♩." characters the tempo mark used
+// to print — the embedded Lato font carries no musical-symbol glyphs, so
+// that character silently drew nothing (the reported "tempo is missing
+// the note" bug: the mark read as a bare "= 94"). x is the glyph's left
+// edge, baselineY is where the notehead's bottom sits (same convention
+// textAt's y uses for text). Returns the glyph's total width.
+func (c *canvas) drawQuarterNote(x, baselineY, size float64, dotted bool, col rgb) float64 {
+	r := size * 0.17
+	cx := x + r
+	cy := baselineY - r
+	c.filledCircle(cx, cy, r, col)
+	stemX := cx + r*0.9
+	c.line(stemX, cy, stemX, cy-size*0.75, col, size*0.08)
+	w := r*2 + size*0.05
+	if dotted {
+		dotR := size * 0.05
+		dotCx := cx + r + size*0.17
+		c.filledCircle(dotCx, cy, dotR, col)
+		w = (dotCx + dotR) - x
+	}
+	return w
 }
 
 func (c *canvas) barRow(measures []song.Measure, size float64, jazz bool, firstStaff bool, tempo, timeNum, timeDen string) {
