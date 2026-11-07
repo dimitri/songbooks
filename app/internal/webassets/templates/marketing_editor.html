@@ -45,70 +45,11 @@
   .s { color: #4a6b4a; font-weight:600; }                /* [Section] */
   .c { color: var(--accent); font-weight:600; }          /* chords / grid tokens */
   .n { color: var(--fg-muted); font-style:italic; }      /* note: lines */
-  .render { padding: 22px 22px 26px; font-size: 15px; }
+  .render { padding: 18px 20px 20px; font-size: 15px; }
   .r-title { font-family:'Fraunces',serif; font-weight:800; font-size:18px; }
-  .r-sub { font-size:12.5px; color:var(--fg-muted); margin:1px 0 18px; }
+  .r-sub { font-size:12.5px; color:var(--fg-muted); margin:1px 0 14px; }
   .r-illustrative { font-size:11px; color:var(--fg-muted); font-style:italic; margin:6px 0 0; }
-
-  /* ===================================================================
-     Everything below this line is copied VERBATIM from the live app's
-     own stylesheet (app.css) — the same class names, the same rules,
-     not a marketing-page approximation. If the product's chart
-     rendering changes, this block is what's out of date, not a
-     reimplementation to keep in sync by hand. */
-  .sheet-section { padding: 0.9rem 0; }
-  .sheet-section h3 { margin: 0 0 0.6rem; display: flex; align-items: center; gap: 0.5rem; }
-  .section-jump {
-    background: none; border: none; padding: 0.1rem 0; font: inherit;
-    font-family: var(--font-chart); font-style: italic; font-weight: 600;
-    font-variant: small-caps; letter-spacing: 0.05em; text-transform: none;
-    font-size: 0.95rem; border-bottom: 1px solid var(--border); color: inherit;
-  }
-  .rehearsal-mark {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 1.15em; height: 1.15em; margin-right: 0.4em; flex: 0 0 auto;
-    background: var(--danger); color: var(--accent-contrast); border-radius: 2px;
-    font-family: var(--font-ui, sans-serif); font-style: normal; font-weight: 800;
-    font-variant: normal; letter-spacing: 0; font-size: 0.72em; line-height: 1;
-  }
-  .sheet-section .grid { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.6rem; font-family: var(--font-chart); }
-  .staff-line { display: flex; align-items: flex-end; padding-top: 3.3em; position: relative; }
-  .bar {
-    display: flex; align-items: flex-end;
-    flex: 0 0 calc(100% / var(--cap, 4)); min-width: max(2.6em, calc(var(--slots, 3) * 0.9em));
-    padding: 0 0.5em; position: relative; font-family: var(--font-chart);
-    z-index: 1;
-  }
-  .bar + .bar { border-left: 1px solid var(--fg-muted); }
-  .bar-body { display: flex; flex: 1; min-width: 0; position: relative; height: 1.7em; }
-  .bar-body::before {
-    content: ""; position: absolute; left: -0.5em; right: -0.5em; bottom: 0; height: 1.7em; z-index: 0;
-    background-image: var(--staff-5lines); background-size: 100% 1px;
-    background-position: 0 0%, 0 25%, 0 50%, 0 75%, 0 100%; background-repeat: no-repeat; opacity: 0.5;
-  }
-  .beat-slot { flex: 1 1 0; min-width: 0.9em; text-align: center; position: relative; display: flex; align-items: center; justify-content: center; height: 100%; }
-  .chord-label { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 0.35em; white-space: nowrap; font-style: italic; }
-  .slash { display: inline-block; font-size: 1.3em; color: var(--fg); transform: rotate(10deg); }
-  .staff-timesig-cell { display: flex; flex-direction: column; position: relative; z-index: 1; height: 1.7em; width: 2.1em; margin-right: 0.4em; }
-  .staff-line:has(.staff-timesig-cell) .bar { flex-basis: calc((100% - 2.5em) / var(--cap, 4)); }
-  .staff-timesig-cell::before {
-    content: ""; position: absolute; left: -0.5em; right: -0.5em; bottom: 0; height: 1.7em; z-index: 0;
-    background-image: var(--staff-5lines); background-size: 100% 1px;
-    background-position: 0 0%, 0 25%, 0 50%, 0 75%, 0 100%; background-repeat: no-repeat; opacity: 0.5;
-  }
-  .staff-timesig-cell .tsnum, .staff-timesig-cell .tsden {
-    flex: 1 0 0.85em; height: 0.85em; overflow: hidden; display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-family: var(--font-chart); font-size: 1em; line-height: 1;
-  }
-  .tempo-mark-inline { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 0.3em; font-size: 0.85em; color: var(--fg-muted); white-space: nowrap; }
-  .section-notes { margin: 0.3em 0; }
-  .section-note { margin: 0.1em 0; font-size: 0.82em; font-style: italic; color: var(--fg-muted); }
-  .sheet-section .lyrics { font-size: 1.05rem; color: var(--fg); }
-  .lyrics .lyric-line { margin: 0.25rem 0; }
-  .lyric-seg { display: inline; }
-  .lyric-seg.has-chord { display: inline-flex; flex-direction: column; align-items: flex-start; vertical-align: bottom; margin-right: 0.15em; }
-  .inline-chord { font-size: 0.78em; font-style: italic; line-height: 1.1; margin-bottom: 0.05em; white-space: nowrap; font-family: var(--font-chart); }
-  /* =================================================================== */
+  .render img { width:100%; display:block; border-radius:6px; }
 
   .callouts { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin: 36px 0 0; }
   .callout h4 { font-family:'Fraunces',serif; font-weight:700; font-size:15.5px; margin:0 0 6px; }
@@ -170,54 +111,23 @@
     <div class="pane src">
       <div class="pane-head"><span class="dots"><span></span><span></span><span></span></span>aint-no-love.song</div>
 <pre><span class="k">title:</span> Ain't No Love in the Heart of the City
-<span class="k">artist:</span> Bobby "Blue" Bland
-<span class="k">key:</span> Gm
-<span class="k">tempo:</span> 76
+<span class="k">artist:</span> Gov't Mule
+<span class="k">tempo:</span> 72
 <span class="k">time:</span> 4/4
+<span class="k">flats:</span> yes
 
 <span class="s">[Chorus]</span>
-grid: <span class="c">Gm</span> | <span class="c">Cm</span> | <span class="c">Gm</span> | <span class="c">E&#9837;</span> | <span class="c">F</span> | <span class="c">Gm</span></pre>
+grid: |: <span class="c">Gm</span> . . <span class="c">Cm</span> | <span class="c">Gm</span> | <span class="c">E&#9837;</span> . . <span class="c">F</span> | <span class="c">Gm</span> | <span class="c">Gm</span> . . <span class="c">Cm</span> | <span class="c">Gm</span> | <span class="c">E&#9837;</span> . <span class="c">Cm</span> . | <span class="c">Gm</span> :|</pre>
     </div>
     <div class="pane render">
       <div class="r-title">Ain't No Love in the Heart of the City</div>
-      <div class="r-sub">Bobby "Blue" Bland &middot; key Gm &middot; 76 bpm</div>
-
-      <section class="sheet-section">
-        <h3><span class="section-jump"><span class="rehearsal-mark">A</span>Chorus</span></h3>
-        <div class="grid">
-          <div class="staff-line" style="--cap: 3">
-            <span class="staff-timesig-cell">
-              <span class="tempo-mark-inline">&#9833; = 76</span>
-              <span class="tsnum">4</span><span class="tsden">4</span>
-            </span>
-            <span class="bar"><span class="bar-body">
-              <span class="beat-slot"><span class="chord-label">Gm</span><span class="slash">&#8260;</span></span>
-            </span></span>
-            <span class="bar"><span class="bar-body">
-              <span class="beat-slot"><span class="chord-label">Cm</span><span class="slash">&#8260;</span></span>
-            </span></span>
-            <span class="bar"><span class="bar-body">
-              <span class="beat-slot"><span class="chord-label">Gm</span><span class="slash">&#8260;</span></span>
-            </span></span>
-          </div>
-          <div class="staff-line" style="--cap: 3">
-            <span class="bar"><span class="bar-body">
-              <span class="beat-slot"><span class="chord-label">E&#9837;</span><span class="slash">&#8260;</span></span>
-            </span></span>
-            <span class="bar"><span class="bar-body">
-              <span class="beat-slot"><span class="chord-label">F</span><span class="slash">&#8260;</span></span>
-            </span></span>
-            <span class="bar"><span class="bar-body">
-              <span class="beat-slot"><span class="chord-label">Gm</span><span class="slash">&#8260;</span></span>
-            </span></span>
-          </div>
-        </div>
-        <p class="r-illustrative">(placeholder chorus line, for layout only &mdash; not the song's actual words)</p>
-      </section>
+      <div class="r-sub">Gov't Mule &middot; 72 bpm</div>
+      <img src="/static/img/marketing/editor-screenshot-chart.png?v={{staticVersion}}" alt="The rendered chart for this exact grid, straight from the app's own Play view">
+      <p class="r-illustrative">(placeholder chorus line, for layout only &mdash; not the song's actual words)</p>
     </div>
   </div>
 
-  <p class="r-illustrative" style="margin:-8px 0 0;">Real chords from the staging catalog's own copy of this song &mdash; lyrics replaced with a placeholder for this marketing page.</p>
+  <p class="r-illustrative" style="margin:-8px 0 0;">Real header and grid line copied from this song's own entry in the production catalog &mdash; lyrics replaced with a placeholder for this marketing page. The render on the right is a screenshot of the app's own Play view for this exact source, not a hand-built approximation.</p>
 
   <div class="callouts" style="margin-top:36px;">
     <div class="callout" style="grid-column: 1 / -1;">
