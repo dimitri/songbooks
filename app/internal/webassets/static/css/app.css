@@ -3815,17 +3815,31 @@ input.matrix-slot:hover, input.matrix-slot:focus {
    Setlists / Proposals & Listening Party / Members). One rounded track
    holding the tabs, the active one riding a raised pill inside it. */
 .band-tabs {
-  display: inline-flex; gap: 0.15rem; flex-wrap: wrap;
+  display: inline-flex; align-items: center; gap: 0.15rem; flex-wrap: wrap;
   background: var(--bg-sunken); border-radius: 10px; padding: 0.2rem;
 }
-.band-tabs a {
-  padding: 0.45rem 0.9rem; border-radius: 7px; border: none;
-  background: transparent; color: var(--fg-muted); font-weight: 500; font-size: 0.82rem;
+/* Every item in the row — plain nav link, a <button> action (Reorder), or
+   a <details><summary> dropdown (PDF) — renders as the same pill: one
+   visual language for the whole row instead of tabs mixed with
+   differently-styled buttons/links (confirmed live as a real usability
+   complaint on mobile, where the odd-one-out controls wrapped to their
+   own row). icon + label on every pill, no text-only ones. */
+.band-tabs .band-tab,
+.band-tabs .band-tab-menu > summary {
+  display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer;
+  padding: 0.45rem 0.9rem; border-radius: 7px; border: none; list-style: none;
+  background: transparent; color: var(--fg-muted); font-weight: 500; font-size: 0.82rem; font-family: inherit;
 }
-.band-tabs a.active {
+.band-tabs .band-tab-menu > summary::-webkit-details-marker { display: none; }
+.band-tabs .band-tab .icon,
+.band-tabs .band-tab-menu > summary .icon { width: 1.05em; height: 1.05em; }
+.band-tabs .band-tab.active,
+.band-tabs .band-tab-menu[open] > summary {
   background: var(--bg-raised); color: var(--fg); font-weight: 600;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
+.band-tabs .band-tab-menu { position: relative; }
+.band-tabs .band-tab-menu .row-menu-panel { right: 0; left: auto; }
 .band-tabs-row { margin-bottom: 1.2rem; }
 
 .profile-picture-preview { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; }
