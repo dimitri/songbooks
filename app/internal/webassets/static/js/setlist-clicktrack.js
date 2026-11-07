@@ -81,57 +81,50 @@
     if (t) setBpm(t);
   });
 
-  // Sound on/off — mutes the click without stopping the clock/visuals
-  // (Metronome.enabled already gates every scheduled click in clock.js).
-  let muted = false;
-  try { muted = localStorage.getItem('songbooks-clicktrack-muted') === '1'; } catch (e) { /* ignore */ }
+  // ---- Display/sound preferences: size, bar-group, portrait/landscape,
+  // every-beat/beat-1-only, mute. These persist across every song in the
+  // setlist (nothing here resets on prev/next — see render() below) AND
+  // silently follow the person's account, not just this browser: a local
+  // copy applies instantly (and covers the offline/logged-out case), a
+  // server copy (GET on load, debounced PUT on every change) is what
+  // actually makes it "recall whatever I last set, on any device." No
+  // explicit save action — every change writes through on its own.
+  const PREF_DEFAULTS = { size: 'md', group: '1', orientation: 'portrait', clickMode: 'every', muted: false };
+  let prefs = { ...PREF_DEFAULTS };
+  try { Object.assign(prefs, JSON.parse(localStorage.getItem('songbooks-clicktrack-prefs') || '{}')); } catch (e) { /* ignore */ }
+
+  let savePrefsTimer;
+  function savePrefs() {
+    try { localStorage.setItem('songbooks-clicktrack-prefs', JSON.stringify(prefs)); } catch (e) { /* ignore */ }
+    clearTimeout(savePrefsTimer);
+    savePrefsTimer = setTimeout(() => {
+      fetch('/api/me/click-track-prefs', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prefs),
+      }).catch(() => { /* best-effort — the local copy already applied */ });
+    }, 500);
+  }
+
   function applyMute() {
-    metronome.enabled = !muted;
-    muteBtn.innerHTML = document.getElementById(muted ? 'icon-speaker-mute-tpl' : 'icon-speaker-tpl').innerHTML;
-    muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
-    muteBtn.title = muted ? 'unmute' : 'mute sound';
+    metronome.enabled = !prefs.muted;
+    muteBtn.innerHTML = document.getElementById(prefs.muted ? 'icon-speaker-mute-tpl' : 'icon-speaker-tpl').innerHTML;
+    muteBtn.setAttribute('aria-pressed', prefs.muted ? 'true' : 'false');
+    muteBtn.title = prefs.muted ? 'unmute' : 'mute sound';
   }
   muteBtn.addEventListener('click', () => {
-    muted = !muted;
-    try { localStorage.setItem('songbooks-clicktrack-muted', muted ? '1' : '0'); } catch (e) { /* ignore */ }
+    prefs.muted = !prefs.muted;
     applyMute();
+    savePrefs();
   });
 
-  // ---- Visual options: size, bar-group, portrait/landscape — a few
-  // viewer conveniences remembered locally, not sent anywhere. ----------
-  function wireSeg(id, onChange, persistKey, fallback) {
-    const row = document.getElementById(id);
-    let value = fallback;
-    try { value = localStorage.getItem(persistKey) || fallback; } catch (e) { /* ignore */ }
-    row.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.value === value));
-    row.dataset.value = value;
-    row.addEventListener('click', e => {
-      const btn = e.target.closest('button');
-      if (!btn) return;
-      row.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      row.dataset.value = btn.dataset.value;
-      try { localStorage.setItem(persistKey, btn.dataset.value); } catch (err) { /* ignore */ }
-      onChange(btn.dataset.value);
-    });
-    onChange(value);
-    return value;
-  }
-
-  let groupBars = 1;
-  wireSeg('mc-size-picker', v => { compactEl.dataset.size = v; }, 'songbooks-clicktrack-size', 'md');
-  wireSeg('mc-group-picker', v => { groupBars = parseInt(v, 10) || 1; renderDots(); }, 'songbooks-clicktrack-group', '1');
-  wireSeg('mc-orientation-picker', v => { compactEl.classList.toggle('mc-landscape', v === 'landscape'); }, 'songbooks-clicktrack-orientation', 'portrait');
-
+  let groupBars = parseInt(prefs.group, 10) || 1;
   // "Beat 1 only" — both the audible click AND the dot flash fire once
   // per bar instead of every beat, for a drummer who just wants a bar
   // reference, not a full click track. Reuses clock.js's existing
   // gap-click practice mode (play 1 beat, silence the rest of the bar,
   // repeat) rather than a second silencing mechanism — the "gap" cycle
   // is just set to exactly one bar.
-  let clickMode = 'every';
   function applyClickMode() {
-    if (clickMode === 'beat1') {
+    if (prefs.clickMode === 'beat1') {
       metronome.practiceMode = 'gap';
       metronome.gapOnBeats = 1;
       metronome.gapOffBeats = Math.max(1, clock.beatsPerBar - 1);
@@ -139,7 +132,51 @@
       metronome.practiceMode = 'none';
     }
   }
-  wireSeg('mc-click-picker', v => { clickMode = v; applyClickMode(); }, 'songbooks-clicktrack-click-mode', 'every');
+
+  const pickerEffects = {
+    size: v => { compactEl.dataset.size = v; },
+    group: v => { groupBars = parseInt(v, 10) || 1; renderDots(); },
+    orientation: v => { compactEl.classList.toggle('mc-landscape', v === 'landscape'); },
+    clickMode: v => { applyClickMode(); },
+  };
+  const pickerApply = {};
+  function wireSeg(id, field) {
+    const row = document.getElementById(id);
+    function apply(value) {
+      row.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.value === value));
+      row.dataset.value = value;
+      pickerEffects[field](value);
+    }
+    row.addEventListener('click', e => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      prefs[field] = btn.dataset.value;
+      apply(btn.dataset.value);
+      savePrefs();
+    });
+    pickerApply[field] = apply;
+    apply(prefs[field]);
+  }
+  wireSeg('mc-size-picker', 'size');
+  wireSeg('mc-group-picker', 'group');
+  wireSeg('mc-orientation-picker', 'orientation');
+  wireSeg('mc-click-picker', 'clickMode');
+
+  // The local copy above applies immediately so the page never flashes
+  // defaults-then-settings; the server fetch only overrides fields it
+  // actually has a saved value for (omitted/zero fields in the response
+  // mean "never set on any device," not "explicitly reset to default"),
+  // covering the case where the person's last change was on a different
+  // device than this one.
+  fetch('/api/me/click-track-prefs').then(r => (r.ok ? r.json() : null)).then(server => {
+    if (!server) return;
+    let changed = false;
+    for (const field of ['size', 'group', 'orientation', 'clickMode']) {
+      if (server[field] && server[field] !== prefs[field]) { prefs[field] = server[field]; pickerApply[field](server[field]); changed = true; }
+    }
+    if (typeof server.muted === 'boolean' && server.muted !== prefs.muted) { prefs.muted = server.muted; applyMute(); changed = true; }
+    if (changed) { try { localStorage.setItem('songbooks-clicktrack-prefs', JSON.stringify(prefs)); } catch (e) { /* ignore */ } }
+  }).catch(() => { /* offline/logged-out — local/default prefs already applied */ });
 
   function renderDots() {
     dotsEl.innerHTML = '';
@@ -156,7 +193,7 @@
     if (dots.length === n) {
       const idx = clock.running ? Math.floor(clock.currentBeat()) % n : -1;
       for (let i = 0; i < dots.length; i++) {
-        const lit = i === idx && (clickMode !== 'beat1' || i % clock.beatsPerBar === 0);
+        const lit = i === idx && (prefs.clickMode !== 'beat1' || i % clock.beatsPerBar === 0);
         dots[i].classList.toggle('lit', lit);
       }
     }

@@ -373,6 +373,8 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("GET /setlists/{id}/practice", s.requireAuth(s.handleSetlistPractice))
 	mux.HandleFunc("GET /setlists/{id}/listening", s.requireAuth(s.handleSetlistListening))
 	mux.HandleFunc("GET /setlists/{id}/clicktrack", s.requireAuth(s.handleSetlistClicktrack))
+	mux.HandleFunc("GET /api/me/click-track-prefs", s.requireAuth(s.handleGetClickTrackPrefs))
+	mux.HandleFunc("PUT /api/me/click-track-prefs", s.requireAuth(s.handleSetClickTrackPrefs))
 
 	mux.HandleFunc("GET /song/{id}/export.pdf", s.requireVariantRole("viewer", s.handleExportSongPDF))
 	mux.HandleFunc("GET /setlists/{id}/export.pdf", s.requireAuth(s.handleExportSetlistByIDPDF))
