@@ -120,9 +120,9 @@
       <p class="hint">For someone who already has a Songbooks account (type their username, they're added immediately) — or, to invite someone not yet on the roster by name, a single-use link with no name attached.</p>
       {{range .OpenInvites}}
       <div class="invite-link-row">
-        <code class="invite-link-url" data-url="/join/{{.Token}}">/join/{{.Token}}</code>
-        <button type="button" class="copy-link-btn" data-url="/join/{{.Token}}">copy</button>
-        <button type="button" class="qr-link-btn" data-url="/join/{{.Token}}">QR</button>
+        <code class="invite-link-url" data-url="/invite/{{.Token}}">/invite/{{.Token}}</code>
+        <button type="button" class="copy-link-btn" data-url="/invite/{{.Token}}">copy</button>
+        <button type="button" class="qr-link-btn" data-url="/invite/{{.Token}}">QR</button>
         <span class="hint">({{.Status}}, expires {{.ExpiresAt.Format "2006-01-02"}})</span>
       </div>
       {{end}}

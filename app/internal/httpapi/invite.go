@@ -222,24 +222,28 @@ func (s *Server) handlePostPersonalInvite(w http.ResponseWriter, r *http.Request
 		s.renderPersonalInvitePage(w, pv, "enter a valid email address", username, email)
 		return
 	}
-	var hash string
-	if password != "" || confirm != "" {
-		if len(password) < 8 {
-			s.renderPersonalInvitePage(w, pv, "password must be at least 8 characters", username, email)
-			return
-		}
-		if password != confirm {
-			s.renderPersonalInvitePage(w, pv, "passwords didn't match", username, email)
-			return
-		}
-		h, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-		if err != nil {
-			log.Printf("hashing personal-invite password: %v", err)
-			s.renderPersonalInvitePage(w, pv, "couldn't finish setting up this account — try again", username, email)
-			return
-		}
-		hash = string(h)
+	// Password is REQUIRED here, not an optional fallback to "log in with
+	// an emailed link instead" — this deployment has no real SMTP wired up
+	// (internal/mailer/console.go only logs to stdout), so a magic-link
+	// login is not actually reachable by the account holder. Same
+	// requirement as handlePostInvite's brand-new-account branch; the
+	// passkey offered right after (via /welcome?step=2) is step two, not a
+	// substitute for having a working credential at all.
+	if len(password) < 8 {
+		s.renderPersonalInvitePage(w, pv, "password must be at least 8 characters", username, email)
+		return
 	}
+	if password != confirm {
+		s.renderPersonalInvitePage(w, pv, "passwords didn't match", username, email)
+		return
+	}
+	h, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("hashing personal-invite password: %v", err)
+		s.renderPersonalInvitePage(w, pv, "couldn't finish setting up this account — try again", username, email)
+		return
+	}
+	hash := string(h)
 
 	personID, err := s.store.ClaimPersonalInvite(r.Context(), token, username, email, hash)
 	if err != nil {
