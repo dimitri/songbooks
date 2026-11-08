@@ -313,7 +313,13 @@ select {
    button beside it). min-height matches the base `button` rule's own
    2.75rem touch-target floor, so an input/select next to a button in a
    toolbar lines up instead of looking like two different widget sets. */
-input[type="text"], input[type="url"], input[type="date"], input[type="number"], input[type="search"] {
+/* email/password added here (they weren't before — the same oversight
+   as search above, just not caught yet: every account-creation and
+   login form's email/password boxes rendered with zero styling of
+   their own — default browser chrome, no border-radius, no
+   min-height — right next to a styled username field, which is what
+   made the invite/login forms look broken rather than merely plain). */
+input[type="text"], input[type="url"], input[type="date"], input[type="number"], input[type="search"], input[type="email"], input[type="password"] {
   background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border);
   border-radius: 8px; padding: 0.4rem 0.6rem; min-height: 2.75rem;
   max-width: 100%; /* same reasoning as select's own max-width, above */

@@ -34,30 +34,34 @@
   <form class="card" method="post" action="/invite/{{.Token}}">
     {{if eq .Kind "personal"}}
       {{if .Error}}<p style="color:var(--danger)">{{.Error}}</p>{{end}}
-      <p><label>Username<br><input type="text" name="username" value="{{.Username}}" autocomplete="username" required autofocus></label></p>
-      <p><label>Email<br><input type="email" name="email" value="{{.Email}}" autocomplete="email" required></label></p>
-      <p><label>Password<br><input type="password" name="password" autocomplete="new-password" required minlength="8"></label></p>
-      <p><label>Confirm password<br><input type="password" name="confirm" autocomplete="new-password" required minlength="8"></label></p>
-      <p class="hint">You'll be offered a passkey (Touch ID, Face ID, Windows Hello) right after this, as a faster alternative for next time — your password still works either way.</p>
-      <button type="submit">Finish setting up my account</button>
+      <div class="form-stack">
+        <div class="field"><label for="f-username">Username</label><input id="f-username" type="text" name="username" value="{{.Username}}" autocomplete="username" required autofocus></div>
+        <div class="field"><label for="f-email">Email</label><input id="f-email" type="email" name="email" value="{{.Email}}" autocomplete="email" required></div>
+        <div class="field"><label for="f-password">Password</label><input id="f-password" type="password" name="password" autocomplete="new-password" required minlength="8"></div>
+        <div class="field"><label for="f-confirm">Confirm password</label><input id="f-confirm" type="password" name="confirm" autocomplete="new-password" required minlength="8"></div>
+        <p class="hint">You'll be offered a passkey (Touch ID, Face ID, Windows Hello) right after this, as a faster alternative for next time — your password still works either way.</p>
+        <div class="form-actions"><button type="submit" class="primary">Finish setting up my account</button></div>
+      </div>
     {{else if .LoggedInAs}}
       <p>
       {{if eq .Kind "band"}}Join {{.BandName}} as <strong>{{.LoggedInAs}}</strong>?
       {{else}}Continue as <strong>{{.LoggedInAs}}</strong>?{{end}}
       </p>
-      <button type="submit">
+      <button type="submit" class="primary">
       {{if eq .Kind "band"}}Join {{.BandName}}
       {{else}}Continue{{end}}
       </button>
     {{else}}
       {{if .Error}}<p style="color:var(--danger)">{{.Error}}</p>{{end}}
-      <p><label>Username<br><input type="text" name="username" value="{{.Username}}" autocomplete="username" required autofocus></label></p>
-      <p><label>Your name<br><input type="text" name="display_name" value="{{.DisplayName}}" required></label></p>
-      <p><label>Email<br><input type="email" name="email" value="{{.Email}}" autocomplete="email" required></label></p>
-      <p><label>Password<br><input type="password" name="password" autocomplete="new-password" required minlength="8"></label></p>
-      <p><label>Confirm password<br><input type="password" name="confirm" autocomplete="new-password" required minlength="8"></label></p>
-      <p class="hint">You'll be offered a passkey (Touch ID, Face ID, Windows Hello) right after this, as a faster alternative for next time — your password still works either way.</p>
-      <button type="submit">Create account{{if ne .Kind "plain"}} &amp; join{{end}}</button>
+      <div class="form-stack">
+        <div class="field"><label for="f-username">Username</label><input id="f-username" type="text" name="username" value="{{.Username}}" autocomplete="username" required autofocus></div>
+        <div class="field"><label for="f-display-name">Your name</label><input id="f-display-name" type="text" name="display_name" value="{{.DisplayName}}" required></div>
+        <div class="field"><label for="f-email">Email</label><input id="f-email" type="email" name="email" value="{{.Email}}" autocomplete="email" required></div>
+        <div class="field"><label for="f-password">Password</label><input id="f-password" type="password" name="password" autocomplete="new-password" required minlength="8"></div>
+        <div class="field"><label for="f-confirm">Confirm password</label><input id="f-confirm" type="password" name="confirm" autocomplete="new-password" required minlength="8"></div>
+        <p class="hint">You'll be offered a passkey (Touch ID, Face ID, Windows Hello) right after this, as a faster alternative for next time — your password still works either way.</p>
+        <div class="form-actions"><button type="submit" class="primary">Create account{{if ne .Kind "plain"}} &amp; join{{end}}</button></div>
+      </div>
     {{end}}
   </form>
 </main>
