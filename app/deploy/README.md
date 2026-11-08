@@ -10,28 +10,39 @@ reverse-proxied by the host's existing Caddy under `songbooks.tapoueh.org`.
 ## Layout on the host
 
 ```
-~/dev/www/songbooks/
-  app/            <- this repo's app/ subtree (rsync'd or git-cloned)
-  v2/             <- a copy of songbooks/v2 (Typst templates + fonts)
-  deploy/.env     <- real secrets, not committed anywhere
+~/dev/www/songbooks/      <- a git clone of this repo (origin = GitHub),
+                              not an rsync'd tree — see "Redeploying" below
+  app/
+    deploy/.env           <- real secrets, gitignored, never overwritten
+                              by a pull
+  v2/
 ```
 
 `docker-compose.yml`'s build context is `..` relative to this `deploy/`
 directory, i.e. the `app/` directory itself — so `deploy/` must stay
 checked out as a subdirectory of `app/`, same as in this repo.
 
+**Why git, not rsync**: an earlier phase deployed with
+`rsync -a --delete app/ dev-runner:.../app/`, which — because `deploy/.env`
+only ever exists on the host and is gitignored — silently deleted the
+live `.env` on every redeploy, once actually taking the site down
+(blank Postgres password, recovered by resetting the role's password).
+`git pull` only ever touches tracked files, so a gitignored `.env` is
+never at risk.
+
 ## First deploy
 
-1. Copy the app tree and the v2/ content tree to the host:
+1. Clone the repo onto the host (it already has its own GitHub deploy
+   key at `~/.ssh/id_ed25519_github`, confirmed working):
 
    ```
-   rsync -a --delete /Users/dim/dev/songbooks/app/  dev-runner:~/dev/www/songbooks/app/
-   rsync -a --delete /Users/dim/dev/songbooks/v2/   dev-runner:~/dev/www/songbooks/v2/
+   ssh dev-runner 'git clone git@github.com:dimitri/songbooks.git ~/dev/www/songbooks'
    ```
 
 2. On the host, create `~/dev/www/songbooks/app/deploy/.env` from
-   `.env.example` (real `POSTGRES_PASSWORD`, and `V2_HOST_PATH` pointing at
-   the `v2/` copy from step 1 — e.g. `/home/dim/dev/www/songbooks/v2`).
+   `.env.example` (real `POSTGRES_PASSWORD`, and
+   `SONGBOOKS_WEBAUTHN_RP_ID=songbooks.tapoueh.org`). This file is
+   gitignored — it is never touched by a later `git pull`.
 
 3. Build and start:
 
@@ -79,20 +90,35 @@ checked out as a subdirectory of `app/`, same as in this repo.
 
 ## Redeploying after a code change (manual — no CI/CD in this phase)
 
-```
-rsync -a --delete /Users/dim/dev/songbooks/app/ dev-runner:~/dev/www/songbooks/app/
-ssh dev-runner 'cd ~/dev/www/songbooks/app/deploy && docker compose build && docker compose up -d'
-```
+1. Commit and push to GitHub, as usual:
 
-If `v2/` content changed (new songs imported locally, templates edited),
-re-rsync it too:
+   ```
+   git push origin main
+   ```
 
-```
-rsync -a --delete /Users/dim/dev/songbooks/v2/ dev-runner:~/dev/www/songbooks/v2/
-```
+2. Run the rollout script from your machine:
 
-No restart is needed for a `v2/` content change alone — the app reads it at
-request time.
+   ```
+   app/deploy/rollout.sh
+   ```
+
+   It backs up the live database, `git fetch`es on the host, refuses to
+   proceed if the host's `origin/main` doesn't match what you just pushed,
+   fast-forwards the host's checkout (`git merge --ff-only` — this only
+   ever touches tracked files, so `deploy/.env` is safe), rebuilds the
+   Docker image, restarts the stack, and polls the site until it returns
+   HTTP 200 (or reports a failure with the log command to check).
+
+   Equivalent by hand, if you ever need to do it manually:
+
+   ```
+   ssh dev-runner 'cd ~/dev/www/songbooks && git pull --ff-only'
+   ssh dev-runner 'cd ~/dev/www/songbooks/app/deploy && docker compose build && docker compose up -d'
+   ```
+
+`v2/` content (songs, templates) lives in the same repo and pulls down with
+the same `git pull` — no separate step. No restart is needed for a `v2/`
+content-only change; the app reads it at request time.
 
 ## Bringing it down
 
