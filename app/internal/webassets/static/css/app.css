@@ -1478,7 +1478,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    never recovers on its own once it does have content. The plain .grid
    rows this mode also carries (hidden here, chord/lyric content) don't
    care either way. */
-#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]):not([data-render-mode="map"]):not([data-render-mode="drummer"]):not([data-render-mode="bass"]):not([data-render-mode="guitar"]) .staff-line {
+#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]):not([data-render-mode="map"]):not([data-render-mode="drummer"]) .staff-line {
   width: fit-content; max-width: 100%; align-self: flex-start;
 }
 #sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]):not([data-render-mode="map"]) .bar,
@@ -2022,74 +2022,61 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    by every mode) but stays hidden in this mode. */
 #sheet[data-render-mode="map"] .sheet-section { display: none; }
 .map-score { display: none; }
-/* ---- Drummer view: one chip per section, flex-wrapped like Song Map --
-   Same idea Song Map uses for the chord grid (bars-per-section packed
-   onto a line by real width, not one independent block per section) —
-   different mechanism: .drum-map (built from .DrumChips — see
-   buildDrumChips, handlers_pages.go) is a flex-wrap row of per-section
-   chips, not one shared alphaTab document for the whole song (see that
-   function's own doc comment for why: a real alphaTeX "\section" marker
-   on a shared document turned out to always exclude its own bar from
-   multiBarRest consolidation). Each chip's own label is plain HTML
-   (.drum-chip-label) above its own alphaTab mount — a narrow (rest-
-   only) chip and a wide (real-notation) chip sit in the same flex row,
-   wrapping exactly like Song Map's own variable-width recall cells. The
-   old per-section markup (chip, grid, lyrics — shared by every mode)
-   stays hidden in this mode entirely, same as it already is for Song
-   Map. */
+/* ---- Drummer view: one continuous, full-width chart, like Song Map --
+   Same design Song Map already settled on for the chord grid (bars flow
+   continuously, nothing independently boxed) — different MECHANISM:
+   .drum-map (built from .DrumMap — see buildDrumMap, handlers_pages.go)
+   is a column of ROWS (.drum-row), each a flex row of per-SECTION cells
+   (.drum-cell), not one shared alphaTab document for the whole song (see
+   buildDrumMap's own doc comment for why: a real alphaTeX "\section"
+   marker on a shared document always excludes its own bar from
+   multiBarRest consolidation). What makes a row of independent alphaTab
+   mounts read as one continuous full-width line instead of disconnected
+   chips: each cell's width is a server-computed PERCENTAGE of its row
+   (.WidthPct, inline style — see buildDrumMap) rather than a fixed pixel
+   budget, the exact "--cap" idea the chord grid's own bars already use
+   (a row always sums to 100% regardless of how little content it holds)
+   just computed in Go instead of CSS, since a cell's width here depends
+   on its siblings sharing the row. The old per-section markup (chip,
+   grid, lyrics — shared by every mode) stays hidden in this mode
+   entirely, same as it already is for Song Map. */
 #sheet[data-render-mode="drummer"] .sheet-section { display: none; }
 .drum-map { display: none; }
 #sheet[data-render-mode="drummer"] .drum-map {
-  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.7rem 1.2rem;
+  display: flex; flex-direction: column; gap: 0.9rem;
 }
-.drum-chip { display: flex; flex-direction: column; gap: 0.2rem; }
+/* flex-wrap is a safety net, not the packing mechanism — buildDrumMap's
+   own row-grouping (Go) already decided which sections share a row and
+   each cell's WidthPct already sums its row to 100%. It only matters
+   when min-width (below) pushes a row's real total past 100%: without
+   it the overflow would just spill past the page edge instead of
+   dropping to a second line. */
+.drum-row { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-start; }
+/* 11rem (176px), not an arbitrary floor: a multiBarRest glyph's own
+   count number needs real room to draw at all — measured live down to
+   120px (the consolidated rest glyph still drew, but alphaTab silently
+   omitted the count number entirely) and up through a 2-digit count
+   ("16") needing ~150-160px before it stopped clipping; 11rem clears
+   both with margin. A rest-only cell's own WidthPct can compute well
+   under this on a narrow viewport or a crowded row (several short
+   sections sharing one 8-slot budget) — min-width is what keeps its
+   count legible when that happens, at the cost of the row's total
+   occasionally running past 100% (see flex-wrap above). */
+.drum-cell { display: flex; flex-direction: column; gap: 0.2rem; min-width: 11rem; }
 .drum-chip-label {
   font-family: var(--font-chart); font-weight: 700; letter-spacing: 0.04em;
   text-transform: uppercase; font-size: 0.8rem; color: var(--fg-muted); white-space: nowrap;
 }
 .drum-chip-label .rehearsal-mark { margin-right: 0.35em; }
-/* An alphaTab row with no CSS width at all measures 0 and alphaTab
-   silently skips rendering into it ("width=0 (element invisible)") even
-   though its PARENT is visible — confirmed live. Deliberately NOT
-   width:100% here (unlike .map-score's own normal/map-mode-scoped
-   ".staff-line { width: 100% }" rule): a chip wants its own NATURAL,
-   content-sized width — alphaTab's own settings.display.justifyLastSystem
-   is off for a drum track specifically (alphatab-tab.js) so it never
-   stretches to fill this floor width either — min-width is only a
-   starting measurement budget. */
-.drum-chip .alphatab-row { min-width: 7rem; }
-
-/* ---- Bass view / Guitar view: the exact same chip-per-section +
-   flex-wrap chart as Drummer view just above (.BassChips/.GuitarChips —
-   buildBassChips/buildGuitarChips, handlers_pages.go), duplicated under
-   their own class names rather than shared ones so each mode's rules
-   stay independently scoped (and independently tunable later) the same
-   way jazz/map/drummer already are from each other. */
-#sheet[data-render-mode="bass"] .sheet-section { display: none; }
-.bass-map { display: none; }
-#sheet[data-render-mode="bass"] .bass-map {
-  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.7rem 1.2rem;
-}
-.bass-chip { display: flex; flex-direction: column; gap: 0.2rem; }
-.bass-chip-label {
-  font-family: var(--font-chart); font-weight: 700; letter-spacing: 0.04em;
-  text-transform: uppercase; font-size: 0.8rem; color: var(--fg-muted); white-space: nowrap;
-}
-.bass-chip-label .rehearsal-mark { margin-right: 0.35em; }
-.bass-chip .alphatab-row { min-width: 7rem; }
-
-#sheet[data-render-mode="guitar"] .sheet-section { display: none; }
-.guitar-map { display: none; }
-#sheet[data-render-mode="guitar"] .guitar-map {
-  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.7rem 1.2rem;
-}
-.guitar-chip { display: flex; flex-direction: column; gap: 0.2rem; }
-.guitar-chip-label {
-  font-family: var(--font-chart); font-weight: 700; letter-spacing: 0.04em;
-  text-transform: uppercase; font-size: 0.8rem; color: var(--fg-muted); white-space: nowrap;
-}
-.guitar-chip-label .rehearsal-mark { margin-right: 0.35em; }
-.guitar-chip .alphatab-row { min-width: 7rem; }
+/* No extra width rule needed here: the global ".staff-line.alphatab-row
+   { width: 100% }" rule (unscoped — applies in every render mode)
+   already fills each cell (.drum-cell, already sized to its own
+   WidthPct share of the row) — the same role it already plays for a
+   melodic TabOnly row filling ITS OWN row. An alphaTab row with NO
+   width at all measures 0 and alphaTab silently skips rendering into it
+   ("width=0 (element invisible)") even though its parent is visible —
+   confirmed live earlier this session — which is what that global rule
+   exists to prevent. */
 
 #sheet[data-render-mode="map"] .chord-legend { display: none; }
 .chord-legend {

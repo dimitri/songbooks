@@ -717,19 +717,20 @@ func atoiOr(s string, fallback int) int {
 // since, and every real catalog song using this today — Bones, Kawasaki,
 // Mercy Mercy Mercy, etc., one hand-written riff per song) always
 // resolves to that one track, unchanged from before NamedRiff existed.
-// A section with SEVERAL melodic tracks (a full multi-instrument import —
-// see buildBassChips/buildGuitarChips) returns nil instead of guessing:
-// confirmed live (Belle of the Ball, a full bass+guitar GP import) that
-// auto-picking one of several tracks to overlay onto the shared chord
-// chart silently replaces its chord-grid markup with that one track's
-// tab notation for EVERY section — not just wrong for the other melodic
-// track, but breaks Song Map and Jazz chart too, both of which read the
-// same grid-replaced sections and render as empty/bar-count-only once
-// the grid is gone (see #sheet[data-render-mode="jazz"]
-// .sheet-section:not(.is-compact):not(:has(.grid)), app.css). Each
-// instrument's own full notation belongs in its own dedicated chip view
-// instead (Drummer/Bass/Guitar) — the shared chart stays pure chords
-// whenever there's more than one melodic voice to choose from.
+// A section with SEVERAL melodic tracks (a full multi-instrument import)
+// returns nil instead of guessing: confirmed live (Belle of the Ball, a
+// full bass+guitar GP import) that auto-picking one of several tracks to
+// overlay onto the shared chord chart silently replaces its chord-grid
+// markup with that one track's tab notation for EVERY section — not
+// just wrong for the other melodic track, but breaks Song Map and Jazz
+// chart too, both of which read the same grid-replaced sections and
+// render as empty/bar-count-only once the grid is gone (see
+// #sheet[data-render-mode="jazz"] .sheet-section:not(.is-compact):not(
+// :has(.grid)), app.css). An instrument picker beside the view-mode tabs
+// (planned, not yet built) will let a reader choose which melodic track
+// overlays the shared chart when there's more than one — until then the
+// chart just stays pure chords whenever picking automatically would be
+// a guess.
 func firstMelodicRiff(tracks []tab.NamedRiff) *tab.Riff {
 	var found *tab.Riff
 	for _, t := range tracks {
@@ -744,97 +745,12 @@ func firstMelodicRiff(tracks []tab.NamedRiff) *tab.Riff {
 	return found
 }
 
-// viewerChip is one section's worth of a per-instrument chip view
-// (Drummer/Bass/Guitar — buildDrumChips/buildBassChips/buildGuitarChips)
-// — AlphaTex is that section's OWN riff (real notation for whichever
-// instrument this view is, or a synthetic all-rest run), rendered as its
-// own, independent alphaTab mount. See buildDrumChips's own doc comment
-// for why this is one mount PER SECTION rather than one shared document
-// for the whole song.
-type viewerChip struct {
-	Mark, Label string
-	AlphaTex    string
-	Bars        int
-	// RestOnly is true when the section has no real riff of its own for
-	// THIS view's instrument — a synthetic all-rest run, which alphaTab
-	// draws as a single consolidated multi-bar-rest glyph regardless of
-	// Bars, and so needs only a small fixed mount width (data-restonly,
-	// play.html; alphatab-tab.js), not one scaled by bar count the way a
-	// chip with real, individually-drawn notes needs.
-	RestOnly bool
-}
-
-// buildDrumChips builds Drummer view's own per-section chips — one
-// alphaTab mount per section, laid out with plain CSS flex-wrap
-// (.drum-map, play.html) instead of one continuous alphaTeX document
-// for the whole song. An EARLIER version of this used one shared
-// document with a real alphaTeX "\section" marker on each section's
-// first bar, the same real-engraving technique Song Map's own
-// .map-sec-badge imitates by hand — but confirmed live that alphaTab
-// ALWAYS excludes a "\section"-marked bar from multiBarRest
-// consolidation (a rehearsal mark needs an actual drawn measure to
-// anchor to), which split every all-rest section into a lone marked
-// bar plus an (N-1)-bar rest instead of one correctly-counted glyph.
-// One Riff per section sidesteps that entirely: nothing in THIS
-// section's own document carries a marker, so its bars always
-// consolidate cleanly, and its label is plain HTML drawn above the
-// mount instead of something alphaTab has to lay out itself — flex-wrap
-// then packs narrow (short/rest-only) chips several to a line and gives
-// a wide (real-notation) chip its own, the same visual result Song
-// Map's own variable-width recall cells already produce for the chord
-// grid, just via CSS layout instead of alphaTab's internal bar-wrap.
-//
-// Bars is the chip's own bar count, written out to the mount's data-bars
-// attribute (play.html) and read by alphatab-tab.js to pin
-// settings.display.barsPerRow: a chip's natural/unstretched width (CSS
-// min-width, not 100%, so flex-wrap can pack several per line) means
-// alphaTab's own default auto-wrap (by measured container width) sees a
-// narrow box and wraps every bar onto its own line instead of the one
-// line a single section's worth of bars is meant to read as — pinning
-// barsPerRow to the chip's own bar count keeps it on one line regardless
-// of how little horizontal room the flex layout happens to give it.
-//
-// Chord labels for a section with its own real drum riff are extracted
-// by bar POSITION (0-based, in written order) — same as attachTabRiffs
-// does for a melodic riff's own chord overlay (chordsym.Glyphs
-// (m.Beats[0].Text), skipping a tied bar) — so a drummer reading real
-// engraved bars still sees the chord changes. A section with no drum
-// riff of its own gets no chord labels at all (Drummer view's whole
-// point there is still just the bar count).
-func buildDrumChips(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff) []viewerChip {
-	var out []viewerChip
-	for si := range sections {
-		sec := &sections[si]
-		if sec.BarCount <= 0 {
-			continue
-		}
-		var riff *tab.Riff
-		if tracks, ok := scoreTracks[sec.Index]; ok {
-			for _, t := range tracks {
-				if t.Riff.Drums && len(t.Riff.Bars) > 0 {
-					riff = t.Riff
-					break
-				}
-			}
-		}
-		bars, chordLabels, restOnly := chipSource(sec, riff)
-		out = append(out, viewerChip{
-			Mark:     sec.Mark,
-			Label:    sec.Label,
-			AlphaTex: tab.ToAlphaTexDrums(&tab.Riff{Drums: true, Bars: bars}, chordLabels),
-			Bars:     len(bars),
-			RestOnly: restOnly,
-		})
-	}
-	return out
-}
-
-// chipSource is buildDrumChips/buildMelodicChips' shared "what does this
-// chip actually draw" step: riff's own bars and their bar-position chord
-// labels (chordsym.Glyphs(m.Beats[0].Text), skipping a tied bar — same
+// chipSource is buildDrumMap's "what does this section actually draw"
+// step: riff's own bars and their bar-position chord labels
+// (chordsym.Glyphs(m.Beats[0].Text), skipping a tied bar — same
 // extraction attachTabRiffs does for its own chord overlay) when the
-// section has a matching riff for this view's instrument, or a synthetic
-// all-rest run (and no labels — nothing to hang them on) otherwise.
+// section has a matching riff, or a synthetic all-rest run (and no
+// labels — nothing to hang them on) otherwise.
 func chipSource(sec *viewerSection, riff *tab.Riff) (bars []tab.Bar, chordLabels []string, restOnly bool) {
 	if riff != nil && len(riff.Bars) > 0 {
 		chordLabels = make([]string, 0, len(sec.Measures))
@@ -855,28 +771,67 @@ func chipSource(sec *viewerSection, riff *tab.Riff) (bars []tab.Bar, chordLabels
 	return bars, nil, true
 }
 
-// standardBassTuning/standardGuitarTuning back a rest-only chip's own
-// \tuning directive (buildMelodicChips) — a chip with no real riff of
-// its own still needs SOME tuning for alphaTab to clef and lay out its
-// staff, and the exact strings are moot (there are no notes to place on
-// them), so these are just the common default for each instrument
-// rather than anything read from real data.
-var (
-	standardBassTuning   = []int{43, 38, 33, 28}
-	standardGuitarTuning = []int{64, 59, 55, 50, 45, 40}
-)
+// viewerDrumMapCell is one SECTION's own alphaTab mount within Drummer
+// view's continuous flow (viewerDrumMapRow) — see buildDrumMap's own doc
+// comment for the overall design. WidthPct is this cell's percentage
+// share of its row, server-computed from its own SLOT count against the
+// row's total — the exact same idea the chord grid's own "--cap" CSS
+// variable already uses (every row stretches to 100% regardless of
+// actual content, each bar gets 100%/cap of it) — just computed in Go
+// instead of CSS, since a cell's width here depends on OTHER cells
+// sharing the same row, something CSS alone can't express per element
+// without a shared custom property this app's existing --cap convention
+// already standardizes on at the ROW level, not per child.
+type viewerDrumMapCell struct {
+	Mark, Label string
+	AlphaTex    string
+	WidthPct    float64
+}
 
-// buildMelodicChips is buildDrumChips' melodic-instrument counterpart —
-// Bass view and Guitar view (buildBassChips/buildGuitarChips below). A
-// section can carry several melodic tracks (a full multi-instrument
-// import — see firstMelodicRiff's own doc comment for why that case no
-// longer auto-overlays onto the shared chord chart); bass picks which
-// ONE is "the" track for this view by STRING COUNT (<=4 strings = bass),
-// the same heuristic tab.ToAlphaTexBass already clefs by — not by track
-// NAME, which is arbitrary free text a GP import carries over verbatim
-// ("Jazz Guitar", "Electric Bass", ...), not a reliable instrument tag.
-func buildMelodicChips(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff, bass bool) []viewerChip {
-	var out []viewerChip
+type viewerDrumMapRow struct {
+	Cells []viewerDrumMapCell
+}
+
+// buildDrumMap builds Drummer view's own continuous, full-width chart —
+// Song Map's own design ("one continuous engraved sheet, not disconnected
+// floating chips" — see that exact commit title in this repo's history;
+// Drummer view repeated that same disconnected-chips mistake once before
+// fixing it here) applied to real drum notation instead of chord slashes.
+//
+// One alphaTab mount per SECTION (never one shared document for the
+// whole song): a shared document needs a real alphaTeX "\section" marker
+// to label where each section starts, and alphaTab ALWAYS excludes a
+// "\section"-marked bar from multiBarRest consolidation (confirmed
+// live — a rehearsal mark needs an actual drawn measure to anchor to),
+// splitting an all-rest section into a lone marked bar plus a shorter
+// rest instead of one clean count. Keeping each section as its own
+// mount sidesteps that entirely AND keeps one section's rest count from
+// ever silently merging with a neighboring section's — this view's own
+// label is plain HTML (not alphaTab's), so there's no marker to need in
+// the first place.
+//
+// The fix for the "disconnected chips" version of this isn't dropping
+// per-section mounts, though — it's sizing and PACKING them the same way
+// the rest of this app already packs variable-width content into full
+// rows: section SLOTS (a section with real notation costs one slot per
+// bar — same as a real bar's own width budget everywhere else in this
+// app; an all-rest section costs exactly ONE slot regardless of its bar
+// count, since a correctly consolidated multi-bar rest draws about as
+// wide as a single ordinary bar, same visual footprint Song Map's own
+// recall cells already have) are greedily packed into rows against an
+// 8-slot target (groupMeasures/groupMapCells' own row-size default,
+// kept consistent with every other mode), and each cell's mount gets a
+// PERCENTAGE width — its own slot share of the row's ACTUAL total, not
+// the 8-slot target — the exact "--cap" idea (a short row still
+// stretches to the full line width instead of rendering narrower than
+// its neighbors) just computed server-side instead of via a CSS custom
+// property, because it depends on sibling cells sharing the row.
+func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff) []viewerDrumMapRow {
+	type cell struct {
+		mark, label, alphaTex string
+		slots                 int
+	}
+	var all []cell
 	for si := range sections {
 		sec := &sections[si]
 		if sec.BarCount <= 0 {
@@ -885,42 +840,53 @@ func buildMelodicChips(sections []viewerSection, scoreTracks map[int][]tab.Named
 		var riff *tab.Riff
 		if tracks, ok := scoreTracks[sec.Index]; ok {
 			for _, t := range tracks {
-				if t.Riff.Drums {
-					continue
-				}
-				if (len(t.Riff.Tuning) <= 4) == bass {
+				if t.Riff.Drums && len(t.Riff.Bars) > 0 {
 					riff = t.Riff
 					break
 				}
 			}
 		}
 		bars, chordLabels, restOnly := chipSource(sec, riff)
-		chipRiff := &tab.Riff{Bars: bars}
-		switch {
-		case riff != nil:
-			chipRiff.Tuning, chipRiff.MinimumFret = riff.Tuning, riff.MinimumFret
-		case bass:
-			chipRiff.Tuning = standardBassTuning
-		default:
-			chipRiff.Tuning = standardGuitarTuning
+		slots := len(bars)
+		if restOnly {
+			slots = 1
 		}
-		out = append(out, viewerChip{
-			Mark:     sec.Mark,
-			Label:    sec.Label,
-			AlphaTex: tab.ToAlphaTexBass(chipRiff, chordLabels),
-			Bars:     len(bars),
-			RestOnly: restOnly,
+		all = append(all, cell{
+			mark: sec.Mark, label: sec.Label, slots: slots,
+			alphaTex: tab.ToAlphaTexDrums(&tab.Riff{Drums: true, Bars: bars}, chordLabels),
 		})
 	}
-	return out
-}
-
-func buildBassChips(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff) []viewerChip {
-	return buildMelodicChips(sections, scoreTracks, true)
-}
-
-func buildGuitarChips(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff) []viewerChip {
-	return buildMelodicChips(sections, scoreTracks, false)
+	if len(all) == 0 {
+		return nil
+	}
+	const rowTarget = 8
+	var rows []viewerDrumMapRow
+	var cur []cell
+	curSlots := 0
+	flush := func() {
+		if len(cur) == 0 {
+			return
+		}
+		row := viewerDrumMapRow{Cells: make([]viewerDrumMapCell, len(cur))}
+		for i, c := range cur {
+			row.Cells[i] = viewerDrumMapCell{
+				Mark: c.mark, Label: c.label, AlphaTex: c.alphaTex,
+				WidthPct: 100 * float64(c.slots) / float64(curSlots),
+			}
+		}
+		rows = append(rows, row)
+		cur = nil
+		curSlots = 0
+	}
+	for _, c := range all {
+		if curSlots > 0 && curSlots+c.slots > rowTarget {
+			flush()
+		}
+		cur = append(cur, c)
+		curSlots += c.slots
+	}
+	flush()
+	return rows
 }
 
 func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff, timeNum, timeDen int) {
@@ -2226,9 +2192,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
 	riffs, scoreErrs := tab.LoadScores(sg)
 	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4))
-	drumChips := buildDrumChips(sections, riffs)
-	bassChips := buildBassChips(sections, riffs)
-	guitarChips := buildGuitarChips(sections, riffs)
+	drumMap := buildDrumMap(sections, riffs)
 	for _, e := range scoreErrs {
 		log.Printf("variant %d: %v", variantID, e)
 	}
@@ -2264,9 +2228,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"TimeBeats":       timeSigBeats(sg.Get("time")),
 		"Sections":        sections,
 		"MapLines":        buildMapLines(sections),
-		"DrumChips":       drumChips,
-		"BassChips":       bassChips,
-		"GuitarChips":     guitarChips,
+		"DrumMap":         drumMap,
 		"Chords":          sg.Chords,
 		"HasAlphaTab": anyTabOnlyLine(sections),
 		"HasLyrics":   anySectionHasLyrics(sections),
@@ -2495,13 +2457,11 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 	// them the same way the real Play page does — a section's
 	// "score[label]:" block shows its real notation here too, not just
 	// after a round trip to Play. Same tab.LoadScores/attachTabRiffs/
-	// buildDrumChips call handleSong itself makes.
+	// buildDrumMap call handleSong itself makes.
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
 	riffs, scoreErrs := tab.LoadScores(sg)
 	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4))
-	drumChips := buildDrumChips(sections, riffs)
-	bassChips := buildBassChips(sections, riffs)
-	guitarChips := buildGuitarChips(sections, riffs)
+	drumMap := buildDrumMap(sections, riffs)
 	for _, e := range scoreErrs {
 		log.Printf("preview: %v", e)
 	}
@@ -2509,9 +2469,7 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 	if err := webassets.Templates.ExecuteTemplate(w, "sheet-body", map[string]any{
 		"Sections":        sections,
 		"MapLines":        buildMapLines(sections),
-		"DrumChips":       drumChips,
-		"BassChips":       bassChips,
-		"GuitarChips":     guitarChips,
+		"DrumMap":         drumMap,
 	}); err != nil {
 		log.Printf("render preview: %v", err)
 	}
