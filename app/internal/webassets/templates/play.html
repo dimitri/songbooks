@@ -203,7 +203,42 @@
   {{range .DrumChips}}
   <div class="drum-chip">
     <div class="drum-chip-label">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
-    <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}"></div>
+    <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}" data-restonly="{{if .RestOnly}}1{{end}}"></div>
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{/* Bass view / Guitar view — the exact same per-section-chip +
+     CSS-flex-wrap chart as Drummer view just above (buildBassChips/
+     buildGuitarChips, handlers_pages.go; see buildMelodicChips' own doc
+     comment for how a section's several melodic tracks resolve to ONE
+     per view, by string count, not by track name), with their own class
+     names so each mode's CSS (app.css) stays independently scoped from
+     Drummer's. Why a dedicated view at all, instead of just overlaying
+     the chosen track onto the normal Song chart the way a single-riff
+     "score:" field always has (attachTabRiffs): a FULL multi-instrument
+     import covers every section, and firstMelodicRiff deliberately
+     stops auto-overlaying once a section has more than one melodic
+     track (see its own doc comment) — the shared chord chart stays pure
+     chords, and each instrument's own full notation lives here instead. */}}
+{{if .BassChips}}
+<div class="bass-map">
+  {{range .BassChips}}
+  <div class="bass-chip">
+    <div class="bass-chip-label">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
+    <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}" data-restonly="{{if .RestOnly}}1{{end}}"></div>
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{if .GuitarChips}}
+<div class="guitar-map">
+  {{range .GuitarChips}}
+  <div class="guitar-chip">
+    <div class="guitar-chip-label">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
+    <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}" data-restonly="{{if .RestOnly}}1{{end}}"></div>
   </div>
   {{end}}
 </div>
@@ -586,6 +621,8 @@
   {{if .HasLyrics}}<button type="button" data-value="lyrics" title="lyrics only">{{template "icon-mode-lyrics"}} Lyrics only</button>{{end}}
   <button type="button" data-value="map" title="song map">{{template "icon-mode-map"}} Song map</button>
   <button type="button" data-value="drummer" title="drummer view">{{template "icon-mode-drummer"}} Drummer</button>
+  <button type="button" data-value="bass" title="bass view">{{template "icon-mode-strings"}} Bass</button>
+  <button type="button" data-value="guitar" title="guitar view">{{template "icon-mode-strings"}} Guitar</button>
   <button type="button" data-value="reference" title="reference">{{template "icon-reference"}} Reference</button>
 </div>
 </div>
@@ -980,6 +1017,8 @@
     {{if .HasLyrics}}<button type="button" class="stack-sheet-row" data-forward="lyrics">{{template "icon-mode-lyrics"}} Lyrics only</button>{{end}}
     <button type="button" class="stack-sheet-row" data-forward="map">{{template "icon-mode-map"}} Song map</button>
     <button type="button" class="stack-sheet-row" data-forward="drummer">{{template "icon-mode-drummer"}} Drummer</button>
+    <button type="button" class="stack-sheet-row" data-forward="bass">{{template "icon-mode-strings"}} Bass</button>
+    <button type="button" class="stack-sheet-row" data-forward="guitar">{{template "icon-mode-strings"}} Guitar</button>
     <button type="button" class="stack-sheet-row" data-forward="edit">{{template "icon-edit"}} Edit</button>
     {{if .VariantID}}<button type="button" class="stack-sheet-row" id="notes-stack-row">{{template "icon-notes"}} Notes</button>{{end}}
   </div>

@@ -152,10 +152,37 @@
     // text. Giving the container an explicit width here, scaled by its
     // own bar count, gives alphaTab the room that bar count actually
     // needs before it measures anything.
+    //
+    // data-restonly (set only when the chip has no real riff of its own —
+    // see RestOnly, handlers_pages.go) is the one exception to BOTH of
+    // the above: a run of bare rest bars consolidates into ONE
+    // multiBarRest glyph regardless of how many bars it covers, so (a)
+    // scaling width by bar count produces a chip hundreds of pixels wide
+    // for a single number, and (b) pinning barsPerRow to that same bar
+    // count is actively wrong — confirmed live (Belle of the Ball, every
+    // chip rest-only): barsPerRow tells alphaTab's layout to fit that
+    // many SEPARATE bar slots on the row, which is in direct tension
+    // with multiBarRest collapsing them down to one slot, and alphaTab
+    // resolves that by silently dropping the count glyph entirely — bars
+    // AND restonly both set produced a correctly-sized but blank chip.
+    // Leaving barsPerRow at its default (-1, auto) for a rest-only chip
+    // is safe specifically BECAUSE consolidation means there's only ever
+    // one real visual unit to lay out, so there's nothing for auto-wrap
+    // to wrap.
     if (container.dataset.bars) {
       const bars = parseInt(container.dataset.bars, 10);
-      settings.display.barsPerRow = bars;
-      container.style.width = (5.5 + bars * 8) + 'rem';
+      if (container.dataset.restonly) {
+        // 11rem (176px) is a measured floor, not a round guess: a
+        // multiBarRest glyph's own count number needs real room to
+        // draw at all — tested live down to 120px (consolidated glyph
+        // present, but alphaTab silently omits the count text entirely)
+        // and up through a 2-digit count ("16") needing ~150-160px
+        // before it stops clipping; 11rem clears both with margin.
+        container.style.width = '11rem';
+      } else {
+        settings.display.barsPerRow = bars;
+        container.style.width = (5.5 + bars * 8) + 'rem';
+      }
     }
     settings.notation.rhythmMode = alphaTab.TabRhythmMode.ShowWithBars;
     // The "Guitar/Bass Standard Tuning" caption above the staff — this
