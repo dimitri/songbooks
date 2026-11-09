@@ -666,10 +666,21 @@
     if (!res.ok) throw new Error('source file upload failed: ' + (await res.text()));
   }
 
-  async function putScore(sectionIndex, riff) {
-    const res = await fetch(`/api/songs/${variantId}/scores/${sectionIndex}`, {
+  // Writes straight into the section's own score[label]: field in the
+  // song's raw text (handlePutSectionScore, handlers_api.go) — the same
+  // storage a hand-written score[Drum]: ... line uses, not a separate
+  // per-section database row. label is the GP file's own track name
+  // (falling back to "Guitar", same default prepareTimeline/trackSelect
+  // use when a GP track carries no name of its own); it's a display/key
+  // name only — the imported riff already carries its own exact
+  // Tuning/fret choices (extractRiff), so nothing here depends on the
+  // label itself being "guitar"/"bass"/"drum" the way a hand-typed
+  // score[label]: shortcut body would (tab.ParseVoice dispatches a JSON
+  // riff straight to tab.DecodeRiffJSON, bypassing that lookup).
+  async function putScore(sectionIndex, label, riff) {
+    const res = await fetch(`/api/songs/${variantId}/sections/${sectionIndex}/score/${encodeURIComponent(label)}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lySource: JSON.stringify(riff) }),
+      body: JSON.stringify({ body: JSON.stringify(riff) }),
     });
     if (!res.ok) throw new Error(`section ${sectionIndex}: ` + (await res.text()));
   }
@@ -720,6 +731,7 @@
   importBtn.addEventListener('click', async () => {
     if (!score) { setStatus('parse a file first', 'err'); return; }
     const track = score.tracks[Number(trackSelect.value) || 0];
+    const label = track.name || 'Guitar';
     const checks = [...mappingBody.querySelectorAll('.gpimport-include')];
     importBtn.disabled = true;
     try {
@@ -728,7 +740,7 @@
         const sec = ourSections[i];
         setStatus(`importing section ${i + 1}/${ourSections.length}: ${sec.label}…`);
         const riff = extractRiff(track, boundaries[i], sectionBarCount(i));
-        await putScore(sec.index, riff);
+        await putScore(sec.index, label, riff);
       }
       if (includeAudio.checked) {
         setStatus('uploading backing track + sync points…');
@@ -736,7 +748,7 @@
       }
       setStatus('uploading the Guitar Pro file itself (for download)…');
       await uploadSourceFile();
-      setStatus('imported. Reload the Chart tab to see it — each section still needs a "score:" line in Source pointing at it.', 'ok');
+      setStatus('imported. Reload the Chart tab to see it.', 'ok');
     } catch (e) {
       setStatus('import failed: ' + e.message, 'err');
     } finally {

@@ -244,7 +244,7 @@ func (s *Server) handleDocsSongFormatExampleTab(w http.ResponseWriter, r *http.R
 	}
 	sections := buildSections(sg)
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
-	attachTabRiffs(sections, map[int]*tab.Riff{0: riff}, atoiOr(num, 4), atoiOr(den, 4))
+	attachTabRiffs(sections, map[int][]tab.NamedRiff{0: {{Name: "guitar", Riff: riff}}}, atoiOr(num, 4), atoiOr(den, 4))
 	s.renderDocsExamplePage(w, sg, sections)
 }
 

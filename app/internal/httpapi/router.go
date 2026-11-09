@@ -173,11 +173,20 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /song/{id}/gp-file", s.requireVariantRole("viewer", s.handleGetSongGPFile))
 
 	// A section's "score[label]:" voices (internal/tab's LilyPond-
-	// compatible subset) are plain text in the body itself now (see
-	// song.ScoreVoice's own doc comment) — no separate route to read,
-	// write or preview one: Source's existing raw-text save/preview
-	// already covers it (/api/songs/{id}/raw, /api/preview), the same way
-	// any other "grid:"/"note:" content is edited.
+	// compatible subset, or a GP-imported riff's own JSON encoding — see
+	// tab.DecodeScoreSource) are plain text in the body itself now (see
+	// song.ScoreVoice's own doc comment) — no separate route to read a
+	// voice, or for a human to write or preview one: Source's existing
+	// raw-text save/preview already covers that (/api/songs/{id}/raw,
+	// /api/preview), the same way any other "grid:"/"note:" content is
+	// edited. The GP import wizard (gp-import.js) is the one exception:
+	// it writes several sections' worth of imported riffs in a tight
+	// machine-driven sequence, where round-tripping the WHOLE raw text
+	// through the browser for every single section would mean threading
+	// a save/reload/re-slice cycle through its own import loop for no
+	// real benefit — handlePutSectionScore does that same splice
+	// server-side instead, where it already has song.Parse/song.Write.
+	mux.HandleFunc("PUT /api/songs/{id}/sections/{index}/score/{label}", s.requireVariantRole("editor", s.handlePutSectionScore))
 	mux.HandleFunc("POST /api/chord-diagrams/preview", s.requireAuth(s.handleChordDiagramPreview))
 
 	mux.HandleFunc("GET /metronome", s.requireAuth(s.handleMetronomePage))
