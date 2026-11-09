@@ -48,12 +48,21 @@ services:
       # registered here — a passkey made under one RPID never works under
       # another.
       SONGBOOKS_WEBAUTHN_RP_ID: ${SONGBOOKS_WEBAUTHN_RP_ID:-}
+      # Admin-gated file staging (GET /admin/files/{name} — see
+      # internal/httpapi/admin_files.go) — opt-in, default EMPTY (off),
+      # same posture as SONGBOOKS_DEV_AUTO_LOGIN above. Only ever set in
+      # deploy/.env for the duration of a deliberate one-off bulk-import
+      # operation; ./import-staging (gitignored, see the volumes: entry
+      # below) is where files to import are dropped on the host first.
+      SONGBOOKS_ADMIN_FILE_DIR: ${SONGBOOKS_ADMIN_FILE_DIR:-}
     command: ["--addr", "0.0.0.0:8080"]
     ports:
       # 8102: chosen after checking `ss -tlnp` + `docker ps` on the host —
       # 8090-8094/8099-8101 and the 18000s are already taken by the gites
       # and pr0 stacks, prlobby and docs-reader; 8102 was free.
       - "127.0.0.1:8102:8080"
+    volumes:
+      - ./import-staging:/import-staging:ro
 
 volumes:
   songbooks_db_data:
