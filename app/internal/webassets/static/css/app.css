@@ -1478,7 +1478,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    never recovers on its own once it does have content. The plain .grid
    rows this mode also carries (hidden here, chord/lyric content) don't
    care either way. */
-#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]):not([data-render-mode="map"]):not([data-render-mode="drummer"]) .staff-line {
+#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]):not([data-render-mode="map"]):not([data-render-mode="drummer"]):not([data-render-mode="bass"]):not([data-render-mode="guitar"]) .staff-line {
   width: fit-content; max-width: 100%; align-self: flex-start;
 }
 #sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]):not([data-render-mode="map"]) .bar,
@@ -2058,6 +2058,38 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    stretches to fill this floor width either — min-width is only a
    starting measurement budget. */
 .drum-chip .alphatab-row { min-width: 7rem; }
+
+/* ---- Bass view / Guitar view: the exact same chip-per-section +
+   flex-wrap chart as Drummer view just above (.BassChips/.GuitarChips —
+   buildBassChips/buildGuitarChips, handlers_pages.go), duplicated under
+   their own class names rather than shared ones so each mode's rules
+   stay independently scoped (and independently tunable later) the same
+   way jazz/map/drummer already are from each other. */
+#sheet[data-render-mode="bass"] .sheet-section { display: none; }
+.bass-map { display: none; }
+#sheet[data-render-mode="bass"] .bass-map {
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.7rem 1.2rem;
+}
+.bass-chip { display: flex; flex-direction: column; gap: 0.2rem; }
+.bass-chip-label {
+  font-family: var(--font-chart); font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; font-size: 0.8rem; color: var(--fg-muted); white-space: nowrap;
+}
+.bass-chip-label .rehearsal-mark { margin-right: 0.35em; }
+.bass-chip .alphatab-row { min-width: 7rem; }
+
+#sheet[data-render-mode="guitar"] .sheet-section { display: none; }
+.guitar-map { display: none; }
+#sheet[data-render-mode="guitar"] .guitar-map {
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.7rem 1.2rem;
+}
+.guitar-chip { display: flex; flex-direction: column; gap: 0.2rem; }
+.guitar-chip-label {
+  font-family: var(--font-chart); font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; font-size: 0.8rem; color: var(--fg-muted); white-space: nowrap;
+}
+.guitar-chip-label .rehearsal-mark { margin-right: 0.35em; }
+.guitar-chip .alphatab-row { min-width: 7rem; }
 
 #sheet[data-render-mode="map"] .chord-legend { display: none; }
 .chord-legend {
