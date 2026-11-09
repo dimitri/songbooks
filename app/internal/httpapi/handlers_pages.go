@@ -744,7 +744,7 @@ func attachTabRiffs(sections []viewerSection, riffs map[int]*tab.Riff, timeNum, 
 						rowBars = append(rowBars, rb)
 					}
 					label := ""
-					if len(m.Beats) > 0 && !m.Beats[0].IsTie {
+					if !m.IsRest && !m.IsRepeat && len(m.Beats) > 0 && !m.Beats[0].IsTie {
 						label = chordsym.Glyphs(m.Beats[0].Text)
 					}
 					chordLabels = append(chordLabels, label)
