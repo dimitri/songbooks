@@ -26,9 +26,17 @@ package tab
 // each a sequence of beats, each beat zero or more simultaneous notes
 // (a chord) or a rest.
 type Riff struct {
-	Tuning      []int // open-string MIDI pitches, index 0 = string 1 (highest, matching this package's and LilyPond's own convention)
-	MinimumFret int   // the TabStaff.minimumFret in effect at the START of the riff; see Beat.MinimumFret for mid-riff changes
-	Bars        []Bar
+	Tuning      []int // open-string MIDI pitches, index 0 = string 1 (highest, matching this package's and LilyPond's own convention). Unused (nil) when Drums is true — a drum kit has no string tuning.
+	MinimumFret int   // the TabStaff.minimumFret in effect at the START of the riff; see Beat.MinimumFret for mid-riff changes. Unused when Drums is true.
+
+	// Drums marks a riff parsed from a "\new DrumStaff { \drummode {...} }"
+	// block (see parseDrumStaffBody) rather than a "\new TabStaff"
+	// fretted-note one. A drum Beat's Notes carry a General MIDI
+	// percussion number in MIDI (String/Fret are unused, always 0) —
+	// see drumPitchNames and ToAlphaTexDrums.
+	Drums bool
+
+	Bars []Bar
 }
 
 // Bar is one inferred bar's worth of beats — see inferBars' doc comment

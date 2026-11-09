@@ -104,7 +104,59 @@
     // underneath whatever we do. Off entirely — nothing in this app
     // wants alphaTab touching page scroll position, ever.
     settings.player.scrollMode = alphaTab.ScrollMode.Off;
-    settings.display.staveProfile = alphaTab.StaveProfile.Tab;
+    // A percussion track (internal/tab.ToAlphaTexDrums — detected here by
+    // its own literal "instrument percussion" directive, the one marker
+    // every drum alphaTeX block carries) has no tab staff at all: there
+    // are no frets to show, only GM percussion noteheads on a standard
+    // 5-line staff. StaveProfile.Tab (every other riff kind's own
+    // setting) would try to draw a tab staff that doesn't exist for this
+    // track and leave the row blank; Score (confirmed against the
+    // vendored library's own StaveProfile enum — "Default", "ScoreTab",
+    // "Score", "Tab", "TabMixed"; there is no "ScoreDefault") renders the
+    // standard-notation-only staff alphaTab already draws percussion on.
+    const isDrumTrack = tex.includes('instrument percussion');
+    settings.display.staveProfile = isDrumTrack ? alphaTab.StaveProfile.Score : alphaTab.StaveProfile.Tab;
+    // Every row this app hands to alphaTab is its OWN separate document
+    // (one bar, or a handful) — meaning every one of them is, as far as
+    // alphaTab's own layout is concerned, the LAST (and only) system of
+    // its score, and alphaTab's real default (lastSystemFillThreshold=1,
+    // i.e. justifyLastSystem=false — confirmed against the vendored
+    // library) deliberately does NOT stretch a trailing, possibly-
+    // incomplete system to fill the page width, the normal engraving
+    // convention. For a melodic (guitar/bass) TabOnly row, overlaid onto
+    // a chord-grid row of a known width, that's exactly wrong: this
+    // app's own chord-grid bars and the chart's other staff rows
+    // (reflowStaffLines(), the CSS --cap-based flex-basis) always
+    // justify every row to the SAME full line length regardless of
+    // content, so forcing it here makes a melodic row match that
+    // convention too, instead of standing out as its own, differently-
+    // sized system. A drum chip (Drummer view, one alphaTab mount per
+    // section — see buildDrumChips, handlers_pages.go) wants the OPPOSITE:
+    // its own natural, content-sized width, so CSS flex-wrap (.drum-map)
+    // can pack several narrow ones onto a line — stretching it here
+    // would defeat that packing entirely.
+    settings.display.justifyLastSystem = !isDrumTrack;
+    // A Drummer-view chip (data-bars, set only there — see buildDrumChips,
+    // handlers_pages.go) is laid out at its own natural/content-sized
+    // width (CSS min-width, not 100%) so flex-wrap can pack several narrow
+    // chips onto one line — but that leaves alphaTab's own default
+    // auto-wrap (by measured container width, barsPerRow=-1) seeing a
+    // narrow box and wrapping the chip's own bars onto separate lines
+    // instead of the single line a single section's worth of bars is
+    // meant to read as. Pinning barsPerRow to the chip's own bar count
+    // keeps it on one line, but alphaTab still lays that one line out
+    // within whatever width the (empty, pre-render) container measures at
+    // mount time — the CSS min-width alone (sized for the common 1-bar
+    // rest case), so a chip with several real bars got them all squeezed
+    // into that same narrow width, overlapping glyphs and chord-name
+    // text. Giving the container an explicit width here, scaled by its
+    // own bar count, gives alphaTab the room that bar count actually
+    // needs before it measures anything.
+    if (container.dataset.bars) {
+      const bars = parseInt(container.dataset.bars, 10);
+      settings.display.barsPerRow = bars;
+      container.style.width = (5.5 + bars * 8) + 'rem';
+    }
     settings.notation.rhythmMode = alphaTab.TabRhythmMode.ShowWithBars;
     // The "Guitar/Bass Standard Tuning" caption above the staff — this
     // app's own tuning is already implied by the song/section (and the

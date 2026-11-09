@@ -179,6 +179,36 @@
   {{end}}
 </div>
 
+{{/* Drummer view's own chart, the drum-staff counterpart of .map-score
+     right above — same IDEA (one continuous-reading chart, not a chord
+     grid chopped per section), different MECHANISM: one alphaTab mount
+     PER SECTION (.DrumChips, built by buildDrumChips, handlers_pages.go)
+     instead of one shared document for the whole song. An earlier
+     version used a single document with a real alphaTeX "\section"
+     marker per section (alphaTab's own rehearsal-mark glyph, the same
+     real-engraving technique .map-sec-badge imitates by hand) — but
+     confirmed live that a "\section"-marked bar is always excluded from
+     multiBarRest consolidation, splitting an all-rest section into a
+     lone marked bar plus a shorter rest instead of one correctly-
+     counted glyph. One Riff per section avoids that: this section's
+     label is plain HTML (.drum-chip-label) drawn above its OWN mount,
+     which then always consolidates cleanly since nothing in it carries
+     a marker. CSS flex-wrap (.drum-map) packs narrow (rest-only) chips
+     several to a line and gives a wide (real-notation) chip its own —
+     the same visual result Song Map's own variable-width recall cells
+     give the chord grid, via plain layout instead of alphaTab's
+     internal bar-wrap. Hidden outside drummer mode by CSS. */}}
+{{if .DrumChips}}
+<div class="drum-map">
+  {{range .DrumChips}}
+  <div class="drum-chip">
+    <div class="drum-chip-label">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
+    <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}"></div>
+  </div>
+  {{end}}
+</div>
+{{end}}
+
 {{range .Sections}}
 {{/* is-compact: this section states nothing new of its own — a bare
      repeat/reference, a plain "chords continue" section, or a Solo whose
@@ -555,6 +585,7 @@
   <button type="button" data-value="jazz" title="jazz chart">{{template "icon-mode-jazz"}} Jazz chart</button>
   {{if .HasLyrics}}<button type="button" data-value="lyrics" title="lyrics only">{{template "icon-mode-lyrics"}} Lyrics only</button>{{end}}
   <button type="button" data-value="map" title="song map">{{template "icon-mode-map"}} Song map</button>
+  <button type="button" data-value="drummer" title="drummer view">{{template "icon-mode-drummer"}} Drummer</button>
   <button type="button" data-value="reference" title="reference">{{template "icon-reference"}} Reference</button>
 </div>
 </div>
@@ -629,7 +660,7 @@
         </details>
         <button type="button" data-insert="grid">grid:</button>
         <button type="button" data-insert="bars">bars:</button>
-        <button type="button" data-insert="score">score:</button>
+        <button type="button" data-insert="score">score[...]:</button>
         <button type="button" data-insert="chord">chord:</button>
         <button type="button" data-wrap="chord">[Chord]</button>
         <button type="button" data-insert="comment"># comment</button>
@@ -662,30 +693,14 @@
       </details>
     </section>
 
-    {{/* Scores: per-section note-level LilyPond-subset editor (see
-         /docs/song-format#score) plus a chord-diagram builder for
-         "chord:" header lines. Lazily populated by score-editor.js the
-         first time this tab is opened (window.ScoreEditor.init(), wired
-         from the tab-switch handler in song.js) rather than at page
-         load, since most songs have no score: section at all yet. */}}
+    {{/* Chord-diagram builder for "chord:" header lines. A section's own
+         note-level tab/staff source is now plain text in the file
+         itself — "score[label]: ..." in Source (see
+         /docs/song-format#score-drums, #score-multitrack), live-
+         previewed there the same way the real chart renders it, not a
+         separate save step here any more. */}}
     <section class="prep-panel" data-panel="scores" id="scores-panel" data-variant-id="{{.VariantID}}" hidden>
-      <p class="hint">Each section below can carry its own note-level tab/staff source (LilyPond-subset — see <a href="/docs/song-format#score" target="_blank" rel="noopener">syntax reference</a>), validated and previewed here before it's saved. Saving here stores the source, but the section's own chart still shows its plain chord grid until that section also has a <code>score:</code> line in Source (the <code>score:</code> toolbar button there adds one) &mdash; that's what turns this source into the section's actual chart display. The chord-diagram builder at the bottom generates a <code>chord:</code> header line to paste into Source.</p>
-      <div id="score-sections">
-        {{range .Sections}}
-        <details class="score-section" data-section-index="{{.Index}}">
-          <summary>{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}</summary>
-          <div class="score-section-body">
-            <textarea class="score-source" rows="6" spellcheck="false" placeholder="\relative { ... } — see the syntax reference above"></textarea>
-            <div class="score-section-preview sheet"></div>
-            <div class="score-section-actions">
-              <button type="button" class="primary score-save">Save</button>
-              <button type="button" class="danger score-delete">Remove score</button>
-              <span class="score-status hint"></span>
-            </div>
-          </div>
-        </details>
-        {{end}}
-      </div>
+      <p class="hint">A section's own note-level tab/staff notation is written directly in Source now, as a <code>score[label]:</code> line — see the <a href="/docs/song-format#score" target="_blank" rel="noopener">syntax reference</a> for the drum/bass shortcuts and the full form. It live-previews there as you type. The chord-diagram builder below generates a <code>chord:</code> header line to paste into Source.</p>
       <h3>Chord diagram</h3>
       <p class="hint">Click a fret cell to mark it, click again to cycle fret &rarr; mute &rarr; open. Drag across a row at the same fret to mark a barre.</p>
       <div class="chord-diagram-editor" id="chord-diagram-editor">
@@ -964,6 +979,7 @@
     <button type="button" class="stack-sheet-row" data-forward="jazz">{{template "icon-mode-jazz"}} Jazz chart</button>
     {{if .HasLyrics}}<button type="button" class="stack-sheet-row" data-forward="lyrics">{{template "icon-mode-lyrics"}} Lyrics only</button>{{end}}
     <button type="button" class="stack-sheet-row" data-forward="map">{{template "icon-mode-map"}} Song map</button>
+    <button type="button" class="stack-sheet-row" data-forward="drummer">{{template "icon-mode-drummer"}} Drummer</button>
     <button type="button" class="stack-sheet-row" data-forward="edit">{{template "icon-edit"}} Edit</button>
     {{if .VariantID}}<button type="button" class="stack-sheet-row" id="notes-stack-row">{{template "icon-notes"}} Notes</button>{{end}}
   </div>

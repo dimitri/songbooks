@@ -38,8 +38,12 @@ func Write(s *Song) string {
 		if sec.Time != "" {
 			b.WriteString("time: " + sec.Time + "\n")
 		}
-		if sec.Score != "" {
-			b.WriteString("score: " + sec.Score + "\n")
+		for _, sv := range sec.Scores {
+			lines := strings.Split(sv.Body, "\n")
+			b.WriteString("score[" + sv.Label + "]: " + lines[0] + "\n")
+			for _, l := range lines[1:] {
+				b.WriteString(l + "\n")
+			}
 		}
 		if len(sec.BarsPerLine) > 0 {
 			b.WriteString("bars: " + writeBars(sec.BarsPerLine) + "\n")

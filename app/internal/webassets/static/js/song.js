@@ -1037,6 +1037,23 @@ const ICONS = {
     reflowMapLines();
     refreshBarsCache();
     applyPageBox();
+    // Drummer view's own .drum-map row (buildDrumMap, handlers_pages.go)
+    // is hidden by CSS in every other mode — the same "width=0,
+    // invisible" trap a hidden .grid/.map-score row would hit, except
+    // alphaTab (unlike this app's own CSS-only bar markup) only ever
+    // mounts a row ONCE, at page load (alphatab-tab.js's renderAll), when
+    // this mode's row is still hidden for anyone who doesn't already have
+    // "drummer" saved as their default mode — confirmed live: alphaTab
+    // logs "skipped rendering because of width=0" and never retries on
+    // its own once visible. Mount it now that it's actually visible if it
+    // hasn't been already; harmless/idempotent to call again for a row
+    // alphaTab already painted (it just reconstructs the same SVG from
+    // the same data-tex).
+    if (v === 'drummer' && window.AlphaTabTab) {
+      sheet.querySelectorAll('.drum-map .alphatab-row[data-tex]').forEach(row => {
+        if (!row.querySelector('svg')) window.AlphaTabTab.render(row);
+      });
+    }
     // Never save "reference" as the reader's default mode — unlike the
     // other four (a real, lasting preference: "I always want the jazz
     // chart"), landing on the video/audio page by default on every song
@@ -1522,7 +1539,7 @@ const ICONS = {
     else if (btn.dataset.insert === 'grid') insertAtCursor('grid: |  |  |  |  |\n');
     else if (btn.dataset.insert === 'bars') insertAtCursor('bars: 4\n');
     else if (btn.dataset.insert === 'comment') insertAtCursor('# ');
-    else if (btn.dataset.insert === 'score') insertAtCursor('score: riff.ly\n');
+    else if (btn.dataset.insert === 'score') insertAtCursor('score[drum]: bd4 hh8 hh8 sn4 hh8 hh8\n');
     else if (btn.dataset.insert === 'chord') insertAtCursor('chord: Cm 8:XX3(111)\n');
     else if (btn.dataset.wrap === 'chord') {
       const start = rawTextarea.selectionStart, end = rawTextarea.selectionEnd;

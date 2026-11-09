@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -10,6 +11,7 @@ import (
 	"app/internal/setlist"
 	"app/internal/song"
 	"app/internal/store"
+	"app/internal/tab"
 )
 
 // optionsFromRequest reads the view-mode/notes choices a PDF export link
@@ -56,10 +58,22 @@ func (s *Server) handleExportSongPDF(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusNotFound, "no such song")
 		return
 	}
-	scores, err := s.store.LoadVariantScores(r.Context(), id, sg)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, "loading score: riffs: "+err.Error())
-		return
+	scoreTracks, scoreErrs := tab.LoadScores(sg)
+	for _, e := range scoreErrs {
+		log.Printf("variant %d: %v", id, e)
+	}
+	// PDF export only knows the melodic (guitar/bass) riff per section so
+	// far — same one the chord chart overlays on screen (firstMelodicRiff,
+	// handlers_pages.go). A section whose "score:" is drums-only, or
+	// drums-plus-melodic, still exports fine: it just has no riff overlay
+	// in the PDF yet, the same graceful "no score: content for this bar"
+	// case the renderer already handles. Native drum-staff PDF engraving
+	// is tracked separately, not yet implemented.
+	scores := make(map[int]*tab.Riff, len(scoreTracks))
+	for si, tracks := range scoreTracks {
+		if riff := firstMelodicRiff(tracks); riff != nil {
+			scores[si] = riff
+		}
 	}
 	data, err := s.pdf.ExportSong(r.Context(), "", song.Write(sg), scores, optionsFromRequest(r))
 	if err != nil {

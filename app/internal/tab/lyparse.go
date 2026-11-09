@@ -37,6 +37,86 @@ func ParseScore(src string) (*Riff, error) {
 	return riff, nil
 }
 
+// ParseVoice parses one song.ScoreVoice's Body into a Riff — the
+// label-driven shortcut form (see song.ScoreVoice's own doc comment):
+// raw bare content, no "\new TabStaff { ... }"/"\new DrumStaff {
+// \drummode { ... } }" boilerplate required. label picks the grammar and
+// default tuning (case-insensitive, surrounding space trimmed):
+// "drum"/"drums" parses raw directly as \drummode content (the same
+// parseDrumModeBody a "\new DrumStaff" block's own content goes through
+// — see parseDrumStaffBody); "bass" parses it as TabStaff content
+// (parseTabStaffBody — bare absolute-pitch notes, or a "\relative {...}"
+// wrapper, or a handful of other directives it already tolerates — see
+// its own doc comment) at standard 4-string bass tuning; anything else
+// (a custom name like "guitar-1", or no label at all) gets the same
+// TabStaff grammar at standard 6-string guitar tuning, this package's
+// existing default.
+//
+// If raw (trimmed) already starts with "\new", it's the full explicit
+// form instead — delegated to ParseScore unchanged, so a voice that
+// needs something the shortcut can't express (an unusual tuning, an
+// explicit minimumFret, two staves in one voice) still has an escape
+// hatch.
+func ParseVoice(label, raw string) (*Riff, error) {
+	if strings.HasPrefix(strings.TrimSpace(raw), `\new`) {
+		return ParseScore(raw)
+	}
+	toks, err := lex(raw)
+	if err != nil {
+		return nil, err
+	}
+	switch strings.ToLower(strings.TrimSpace(label)) {
+	case "drum", "drums":
+		return parseDrumModeBody(toks)
+	case "bass":
+		return parseTabStaffBody(toks, bassTuning, 0)
+	default:
+		return parseTabStaffBody(toks, defaultGuitarTuning, 0)
+	}
+}
+
+// NamedRiff pairs one "\new TabStaff/DrumStaff" block's extracted Riff
+// with an instrument label — either that context's own explicit
+// LilyPond name ("\new TabStaff = \"Bass\" { ... }", real context-naming
+// syntax LilyPond already supports) or, when none is given, an inferred
+// default: "drums" for a DrumStaff, "bass" for a <=4-string TabStaff,
+// "guitar" for a 6-string one — numbered ("guitar-2", ...) when more
+// than one of the same kind appears unlabeled in the same file. See
+// ParseScoreTracks.
+type NamedRiff struct {
+	Name string
+	Riff *Riff
+}
+
+// ParseScoreTracks is ParseScore generalized to a "score:" source
+// carrying SEVERAL simultaneous instrument staves — real LilyPond syntax
+// already supports this (one "<< \new TabStaff {...} \new DrumStaff
+// {...} >>" group; each staff's own \with{stringTunings=...}/\relative/
+// \drummode body parses exactly as it does standalone), so multi-track
+// input doesn't need a second grammar: a band's whole arrangement for
+// one section — drums, bass, two guitars — can live in the ONE "score:"
+// field that section already has (see song_scores' own doc comment: the
+// per-section editing model doesn't change, only how much a single
+// score can hold). Every "\new TabStaff/DrumStaff" block found anywhere
+// in src (nested inside << >> groups, same traversal ParseScore itself
+// uses) is returned, in source order.
+func ParseScoreTracks(src string) ([]NamedRiff, error) {
+	toks, err := lex(src)
+	if err != nil {
+		return nil, err
+	}
+	p := &lyParser{toks: toks}
+	for !p.atEnd() {
+		if _, err := p.topLevel(); err != nil {
+			return nil, err
+		}
+	}
+	if len(p.collected) == 0 {
+		return nil, fmt.Errorf("score: no \\new TabStaff or \\new DrumStaff block found")
+	}
+	return p.collected, nil
+}
+
 // --- Lexer -----------------------------------------------------------
 
 type tokKind int
@@ -165,6 +245,36 @@ func lex(src string) ([]token, error) {
 type lyParser struct {
 	toks []token
 	pos  int
+
+	// collected accumulates every "\new TabStaff/DrumStaff" riff found
+	// during this parse, each tagged with its instrument name — see
+	// ParseScoreTracks. ParseScore's own single-riff loop ignores this
+	// (it tracks its own "last riff wins" return value), so populating it
+	// unconditionally in parseNewContext costs ParseScore callers
+	// nothing.
+	collected []NamedRiff
+	kindCount map[string]int // "guitar" -> how many unlabeled ones seen so far, for auto-numbering
+}
+
+// autoName picks a default instrument label for a "\new TabStaff/
+// DrumStaff" block that didn't carry an explicit "= \"name\"" — see
+// NamedRiff's own doc comment for the naming rule.
+func (p *lyParser) autoName(ctx string, riff *Riff) string {
+	if p.kindCount == nil {
+		p.kindCount = map[string]int{}
+	}
+	base := "guitar"
+	switch {
+	case ctx == "DrumStaff":
+		base = "drums"
+	case len(riff.Tuning) <= 4:
+		base = "bass"
+	}
+	p.kindCount[base]++
+	if p.kindCount[base] == 1 {
+		return base
+	}
+	return fmt.Sprintf("%s-%d", base, p.kindCount[base])
 }
 
 func (p *lyParser) atEnd() bool { return p.pos >= len(p.toks) }
@@ -316,13 +426,27 @@ func (p *lyParser) skipUnknownStatement() error {
 	return nil
 }
 
-// parseNewContext handles "\new <Context> [\with {...}] <body>".
+// parseNewContext handles "\new <Context> [= \"name\"] [\with {...}] <body>".
+// The optional "= \"name\""  is real LilyPond context-naming syntax
+// (e.g. "\new TabStaff = \"Bass\" { ... }") — this subset only reads it
+// to label a multi-track score's riffs (see NamedRiff/ParseScoreTracks);
+// it has no other effect here, same as real LilyPond, where it mainly
+// matters for cross-referencing a context elsewhere in the file.
 func (p *lyParser) parseNewContext() (*Riff, error) {
 	p.next() // consume \new
 	if p.peek().kind != tWord {
 		return nil, fmt.Errorf("score: expected a context name after \\new")
 	}
-	ctx := p.next().text // "Voice", "Staff", "TabStaff", "ChordNames"
+	ctx := p.next().text // "Voice", "Staff", "TabStaff", "DrumStaff", "ChordNames"
+
+	explicitName := ""
+	if p.peek().kind == tWord && p.peek().text == "=" {
+		p.next()
+		if p.peek().kind != tString {
+			return nil, fmt.Errorf("score: expected a quoted name after '=' in \\new %s =", ctx)
+		}
+		explicitName = p.next().text
+	}
 
 	minFret := 0
 	tuning := defaultGuitarTuning
@@ -341,13 +465,27 @@ func (p *lyParser) parseNewContext() (*Riff, error) {
 		if err != nil {
 			return nil, err
 		}
-		if ctx != "TabStaff" {
+		var riff *Riff
+		switch ctx {
+		case "TabStaff":
+			riff, err = parseTabStaffBody(body, tuning, minFret)
+		case "DrumStaff":
+			riff, err = parseDrumStaffBody(body)
+		default:
 			// Standard-notation Staff/Voice (and a bare ChordNames, which
 			// does nothing without an attached \chordmode anyway) — not
 			// this package's target; see the package doc comment.
 			return nil, nil
 		}
-		return parseTabStaffBody(body, tuning, minFret)
+		if err != nil {
+			return nil, err
+		}
+		name := explicitName
+		if name == "" {
+			name = p.autoName(ctx, riff)
+		}
+		p.collected = append(p.collected, NamedRiff{Name: name, Riff: riff})
+		return riff, nil
 	case tLDouble:
 		return p.parseGroup(tRDouble)
 	default:
