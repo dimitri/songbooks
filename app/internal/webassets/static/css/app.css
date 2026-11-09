@@ -1165,13 +1165,15 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 @media (min-width: 1150px) {
   #sheet { column-count: 2; column-gap: 2.4rem; }
   #sheet .sheet-section { break-inside: avoid; }
-  /* A sheet with only ONE section (e.g. a GP import with no section
-     markers — see internal/tab's GP-import path) has nothing to put in
-     the second newspaper column, so that lone section gets squeezed into
-     one ~half-width column with the other left empty instead of using
-     the full chart width. Multicol only earns its keep when there are
-     several short sections to lay out side by side. */
-  #sheet:has(.sheet-section:only-of-type) { column-count: 1; }
+  /* The newspaper-style 2-column split earns its keep for a chord+lyrics
+     chart: several short sections (chords left, lyrics right) stack
+     neatly into two half-width pages. A chart with no lyrics at all
+     (a GP import, with no section markers either — see internal/tab's
+     GP-import path) is just one continuous run of tab/chord rows with
+     nothing proportioned for a half-width column, so it gets squeezed
+     into one narrow column with the other left empty. Use the full
+     chart width instead whenever the sheet has no lyrics anywhere. */
+  #sheet:not(:has(.lyrics)) { column-count: 1; }
 }
 
 .sheet-section { padding: 0.9rem 0; scroll-margin-top: 6rem; }
