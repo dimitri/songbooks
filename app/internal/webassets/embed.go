@@ -16,7 +16,9 @@ import (
 	"strings"
 	"time"
 
+	"app/internal/chorddiagram"
 	"app/internal/chordsym"
+	"app/internal/song"
 )
 
 //go:embed templates
@@ -36,6 +38,16 @@ var funcMap = template.FuncMap{
 	// shared template): minor as "-", half-diminished spelled out
 	// literally ("-7♭5") instead of the ø glyph — see RenderJazz.
 	"chordJazz": func(sym string) template.HTML { return template.HTML(chordsym.RenderJazz(sym)) },
+	// chordDiagram renders one "chord:" header line (ref.Name/ref.Spec —
+	// see song.ChordRef) as a standalone SVG fretboard box for the
+	// chart's legend row, e.g. a song page's chord-diagram strip under
+	// the title. The name label is plain text (SVG <text> can't hold
+	// chordsym's HTML spans), escaped by the same glyph substitution
+	// chordsym itself does for "b"/"#" so e.g. "Ab" prints as "A♭".
+	"chordDiagram": func(ref song.ChordRef) template.HTML {
+		d := chorddiagram.ParseSpec(ref.Spec)
+		return template.HTML(chorddiagram.RenderSVG(d, chordsym.GlyphName(ref.Name)))
+	},
 	"add1":      func(n int) int { return n + 1 },
 	// navGlobal returns the global nav's declared entry list for one
 	// surface ("desktop"/"mobileTab"/"mobileMore") — see nav.go, the
@@ -165,6 +177,13 @@ func StaticFS() fs.FS {
 // content, computed once at package init. Deterministic across identical
 // builds, changes whenever any static asset's bytes change.
 var staticVersion = computeStaticVersion()
+
+// StaticVersion exposes staticVersion to Go code outside this package
+// that needs the same cache-busting "?v=" suffix a template gets for
+// free via the "staticVersion" template func — e.g. a handler building
+// a small standalone HTML document itself rather than through a
+// template (see handleDocsSongFormatExample, internal/httpapi).
+func StaticVersion() string { return staticVersion }
 
 func computeStaticVersion() string {
 	var paths []string

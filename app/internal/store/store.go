@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"app/internal/song"
+	"app/internal/tab"
 )
 
 type Store struct {
@@ -70,13 +71,61 @@ func validName(s string) bool {
 
 // LoadVariant parses one variant's body by id. The returned string is the
 // variant's version, an opaque token for optimistic-concurrency checks on
-// save.
+// save. This does NOT resolve any "score:" fields — most LoadVariant
+// callers (membership checks, catalog listings, ...) never render a
+// chart at all, so that lookup is a separate, explicit step a renderer
+// opts into — see LoadVariantScores.
 func (st *Store) LoadVariant(variantID int64) (*song.Song, string, error) {
 	body, version, err := st.LoadVariantRaw(variantID)
 	if err != nil {
 		return nil, "", err
 	}
 	return song.Parse(body), version, nil
+}
+
+// LoadVariantScores resolves every section's "score:" field (if any)
+// into a parsed internal/tab.Riff, keyed by section index — the data a
+// renderer overlays onto that section's normal chord grid. A section
+// with no "score:" field, or whose score has never been saved yet, is
+// simply absent from the returned map rather than an error; only a
+// genuinely malformed STORED score errors (surfacing a save-time bug
+// rather than hiding it at every read — see handlePutSongScore's own
+// save-time validation, which should make this rare).
+func (st *Store) LoadVariantScores(ctx context.Context, variantID int64, sg *song.Song) (map[int]*tab.Riff, error) {
+	hasScore := false
+	for _, sec := range sg.Sections {
+		if sec.Score != "" {
+			hasScore = true
+			break
+		}
+	}
+	if !hasScore {
+		return nil, nil
+	}
+	scores, err := st.ListSongScores(ctx, variantID)
+	if err != nil {
+		return nil, err
+	}
+	bySection := make(map[int]string, len(scores))
+	for _, s := range scores {
+		bySection[s.SectionIndex] = s.LySource
+	}
+	out := make(map[int]*tab.Riff)
+	for i, sec := range sg.Sections {
+		if sec.Score == "" {
+			continue
+		}
+		src, ok := bySection[i]
+		if !ok {
+			continue
+		}
+		riff, err := tab.ParseScore(src)
+		if err != nil {
+			return nil, fmt.Errorf("variant %d section %d: stored score: %w", variantID, i, err)
+		}
+		out[i] = riff
+	}
+	return out, nil
 }
 
 // LoadVariantRaw returns a variant's body verbatim, for the raw-text

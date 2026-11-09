@@ -1240,6 +1240,13 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    themselves, which is why jazz mode kept falling back to scrolling even
    with plenty of width available). */
 .staff-line { display: flex; align-items: flex-end; padding-top: 3.3em; position: relative; }
+/* A tab-only row rendered by the vendored alphaTab JS library (see
+   alphatab-tab.js) is a single block container alphaTab draws its own
+   SVG into directly — opt out of .staff-line's flex/align-items (meant
+   for laying out several .bar children side by side), which would
+   otherwise apply to alphaTab's injected SVG root as a flex item. */
+.staff-line.alphatab-row { display: block; padding-top: 0; width: 100%; }
+.staff-line.alphatab-row svg { max-width: 100%; height: auto; }
 /* ---- One staff-drawing engine, reused everywhere a chart actually wants
    a 5-line staff (normal/chords+lyrics mode and Song Map; jazz is
    deliberately staff-less by its own real-iReal-Pro-fidelity convention,
@@ -1285,9 +1292,9 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
     linear-gradient(var(--fg-muted), var(--fg-muted)),
     linear-gradient(var(--fg-muted), var(--fg-muted));
 }
-#sheet[data-render-mode="normal"] .bar-body::before,
+#sheet[data-render-mode="normal"] .bar-body:not(.bar-body-tab-only)::before,
 #sheet[data-render-mode="normal"] .staff-timesig-cell::before,
-#sheet[data-render-mode="map"] .bar-body::before,
+#sheet[data-render-mode="map"] .bar-body:not(.bar-body-tab-only)::before,
 #sheet[data-render-mode="map"] .staff-timesig-cell::before {
   content: ""; position: absolute; left: -0.5em; right: -0.5em; bottom: 0; height: 1.7em; z-index: 0;
   background-image: var(--staff-5lines);
@@ -1296,6 +1303,10 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   background-repeat: no-repeat;
   opacity: 0.5;
 }
+/* A tab-only row's own leading time-sig cell shouldn't paint a staff
+   slice either — "either tabs or staff, not both" applies to the WHOLE
+   row, not just the per-bar content. */
+#sheet .staff-line:has(.bar-body-tab-only) .staff-timesig-cell::before { background-image: none; }
 /* A repeat barline's own bar (.bar-open/.bar-close) carries extra padding
    (0.7em, not the base .bar's 0.5em — see ".bar-open"/".bar-close" below)
    to make room for its dots + thick accent strip. The staff-line bleed
@@ -1517,6 +1528,103 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 }
 .beat-slot { flex: 1 1 0; min-width: 0.9em; text-align: center; position: relative; display: flex; align-items: center; justify-content: center; height: 100%; }
 .chord-label { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 0.35em; white-space: nowrap; font-style: italic; }
+
+/* A bar's "score:" riff (internal/tab) — note-level tab notation
+   overlaid above that same bar's normal chord/slash row. Child of .bar
+   (already position:relative — see .bar's own comment), same anchoring
+   technique as .chord-label/.map-sec-badge, just spanning the bar's
+   full width instead of one beat-slot. Height is string count * a fixed
+   line spacing, so a 4-string bass riff takes less vertical room than a
+   6-string guitar one. */
+.tab-block {
+  position: absolute; bottom: 100%; left: 0; right: 0;
+  height: calc(var(--strings) * 1.1em); margin-bottom: 0.3em;
+  font-family: var(--font-chart);
+}
+.tab-line {
+  position: absolute; left: 0; right: 0; top: calc(var(--string) * 1.1em);
+  border-top: 1px solid var(--fg-muted);
+}
+.tab-beats { position: absolute; inset: 0; display: flex; }
+.tab-beat { flex: 1 1 0; min-width: 0; position: relative; }
+.tab-fret {
+  position: absolute; left: 50%; top: calc((var(--string) - 1) * 1.1em);
+  transform: translate(-50%, -50%);
+  background: var(--bg); padding: 0 0.15em; font-size: 0.75em; line-height: 1;
+  font-weight: normal; /* real LilyPond/engraved tab numbers are plain upright digits, not bold */
+}
+
+/* Tab-only rows: when a WHOLE display row's bars all have "score:" note
+   data (viewerLine.TabOnly), the tab staff REPLACES that row's normal
+   5-line staff/slashes instead of overlaying above it — real tab
+   notation, not an annotation on a staff, matching how a printed tab
+   chart actually looks. Chord names stay anchored in the same spot
+   (.chord-label, floating via the row's own .tab-only-slot row) a
+   normal bar's chord names already use. */
+.bar-body-tab-only {
+  height: calc(var(--strings) * 1.1em + 0.9em) !important;
+}
+.tab-only-chords { position: absolute; inset: 0; display: flex; z-index: 1; }
+.tab-only-slot { flex: 1 1 0; min-width: 0; position: relative; }
+.tab-block.tab-replaces-staff {
+  position: relative; bottom: auto; left: auto; right: auto;
+  flex: 1 1 auto; width: 100%; height: 100%; margin-bottom: 0;
+}
+/* Proportional-to-duration spacing (real engraving: a half note gets
+   twice a quarter's horizontal room) — grid-template-columns is set
+   inline per bar from viewerTabBar.GridCols, one "<weight>fr" term per
+   beat. Overlay mode (.tab-block without .tab-replaces-staff) keeps the
+   simpler equal-width flex row above; only the tab-only/replaces-staff
+   case reaches for proportional spacing, since that's the one meant to
+   read as real notation rather than a small annotation. */
+.tab-block.tab-replaces-staff .tab-beats { display: grid; grid-auto-flow: column; }
+.tab-block.tab-replaces-staff .tab-beat { position: relative; min-width: 0; }
+
+/* Beamed runs: 2+ consecutive eighth/sixteenth notes joined by a shared
+   horizontal bar instead of each drawing its own hooked flag — standard
+   notation practice, reviewed against real LilyPond \tabFullNotation
+   output. One .tab-beam grid item per run, grid-column spanning from
+   its first to its last beamed note (viewerTabBeam.StartCol/EndCol).
+   Sits at the same row as the beats themselves (one implicit grid row),
+   positioned by its own height so it lines up with where an unbeamed
+   note's stem top would be. */
+.tab-beam { position: relative; height: 100%; }
+.tab-beam-bar {
+  position: absolute; left: 0; right: 0; bottom: 0.55em; height: 1.4px;
+  background: var(--fg-muted);
+}
+.tab-beam-bar:nth-child(2) { bottom: 0.4em; }
+
+/* Rhythm marks under each beat's fret numbers — the "how long does this
+   note last" information real tab/Guitar-Pro/LilyPond \tabFullNotation
+   notation always carries alongside the fret number itself. A bare stem
+   for a quarter note or longer (no flag), one flag per eighth-note
+   halving (8th=1, 16th=2...), a dot for a dotted duration, a dedicated
+   rest glyph instead of a stem when the beat is silent. Sits below the
+   lowest string line, inside the row's own tabH reserve. */
+.tab-stem {
+  position: absolute; bottom: 0.1em; left: 50%; transform: translateX(-50%);
+  width: 1px; height: 0.5em; background: var(--fg-muted);
+}
+.tab-stem::after {
+  content: ""; position: absolute; bottom: 0; left: 0; width: 0.35em; height: 0.35em;
+  border-bottom: 1px solid var(--fg-muted); border-right: 1px solid var(--fg-muted);
+  border-radius: 0 0 60% 0; opacity: 0; /* overridden per flag below */
+}
+.tab-flag {
+  position: absolute; bottom: 0.1em; left: 50%; width: 0.4em; height: 0.3em;
+  border-bottom: 1.4px solid var(--fg-muted); border-right: 1.4px solid var(--fg-muted);
+  border-radius: 0 0 70% 0; transform: translateX(-1px);
+}
+.tab-stem .tab-flag:nth-child(1) { bottom: 0.1em; }
+.tab-stem .tab-flag:nth-child(2) { bottom: 0.25em; }
+.tab-stem.dotted::before {
+  content: "."; position: absolute; bottom: 0; left: 0.45em; color: var(--fg-muted); font-weight: bold;
+}
+.tab-rest {
+  position: absolute; bottom: 0.1em; left: 50%; transform: translateX(-50%);
+  width: 0.45em; height: 0.45em; border-radius: 50%; border: 1.4px solid var(--fg-muted);
+}
 .slash { display: inline-block; font-size: 1.3em; color: var(--fg); transform: rotate(10deg); }
 .beat-slot.tie .slash { color: var(--fg-muted); opacity: 0.55; }
 /* Simile ("bar repeat") sign — Real Book / LilyPond convention, ported
@@ -1795,6 +1903,20 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    by every mode) but stays hidden in this mode. */
 #sheet[data-render-mode="map"] .sheet-section { display: none; }
 .map-score { display: none; }
+#sheet[data-render-mode="map"] .chord-legend { display: none; }
+.chord-legend {
+  display: flex; flex-wrap: wrap; gap: 1.2em;
+  margin: 0 0 1.2em;
+}
+.chord-diagram-name { font: 700 0.85rem/1 inherit; fill: var(--fg); }
+.chord-diagram-nut { stroke: var(--fg); stroke-width: 2.5; }
+.chord-diagram-fretline { stroke: var(--fg-muted); stroke-width: 1; }
+.chord-diagram-string { stroke: var(--fg-muted); stroke-width: 1; }
+.chord-diagram-barre { stroke: var(--fg); }
+.chord-diagram-dot { fill: var(--fg); }
+.chord-diagram-open { fill: none; stroke: var(--fg); stroke-width: 1.5; }
+.chord-diagram-muted line { stroke: var(--fg); stroke-width: 1.5; }
+.chord-diagram-fretnum { font: 0.7rem/1 inherit; fill: var(--fg-muted); }
 #sheet[data-render-mode="jazz"] .bar { padding: 0.25em 0.7em; }
 #sheet[data-render-mode="jazz"] .csym-root { font-size: 1.2em; }
 /* Chord symbols, sans-serif and bold — verified against real iReal Pro
@@ -3032,7 +3154,26 @@ textarea {
 }
 
 /* ---- Syntax-highlighted raw editor (toolbar + textarea-over-<pre>) ------- */
-.code-toolbar { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.code-toolbar { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.5rem; align-items: flex-start; position: relative; }
+.toolbar-menu { position: relative; }
+.toolbar-menu > summary {
+  list-style: none; cursor: pointer; border: 1px solid var(--border); border-radius: 6px;
+  padding: 0.3rem 0.6rem; font-size: 0.85rem; background: var(--bg-raised); color: var(--fg);
+}
+.toolbar-menu > summary::-webkit-details-marker { display: none; }
+.toolbar-menu[open] > summary { border-color: var(--accent); }
+.toolbar-menu-body {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 20;
+  display: flex; flex-direction: column; gap: 0.15rem; min-width: 10rem;
+  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.35rem; box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+.toolbar-menu-body button { text-align: left; border: none; background: none; padding: 0.35rem 0.5rem; border-radius: 5px; font-size: 0.85rem; }
+.toolbar-menu-body button:hover { background: var(--bg-sunken); }
+.toolbar-menu-custom { display: flex; gap: 0.25rem; margin-top: 0.25rem; padding-top: 0.35rem; border-top: 1px solid var(--border); }
+.toolbar-menu-custom input { flex: 1; min-width: 0; font-size: 0.85rem; padding: 0.25rem 0.4rem; border: 1px solid var(--border); border-radius: 5px; }
+.code-toolbar-help { margin-left: auto; font-size: 0.82rem; color: var(--fg-muted); white-space: nowrap; }
+.code-toolbar-help:hover { color: var(--fg); }
 .code-toolbar button { font-size: 0.78rem; padding: 0.3rem 0.6rem; font-family: var(--font-mono); }
 .code-editor { position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .code-editor textarea, .code-backdrop {
@@ -3048,6 +3189,11 @@ textarea {
   color: var(--fg); pointer-events: none; z-index: 0;
 }
 .code-backdrop code { font-family: inherit; white-space: inherit; }
+/* One <div> per source line (see song.js's renderHighlight) instead of
+   one big innerHTML string joined by "\n" — needed for incremental
+   per-line patching, so each div must occupy exactly the space a real
+   line break did, no default block margin added. */
+.code-backdrop code > div { margin: 0; min-height: 1em; }
 /* Color only — no font-weight/font-style on any token. This overlay works
    by rendering the real <textarea>'s text fully transparent and drawing
    the highlighted copy in a <pre> sitting exactly behind it (code-backdrop
@@ -3067,6 +3213,43 @@ textarea {
 .tok-comment { color: var(--fg-muted); }
 .editor-actions, .structure-actions { margin-top: 0.75rem; display: flex; gap: 1rem; align-items: center; }
 .hint { color: var(--fg-muted); font-size: 0.88rem; }
+
+/* Two-pane Source editor (desktop only — a narrow viewport has no room
+   for a real second column, so it stacks there instead, same as the
+   .code-editor above it already does at phone width). */
+.code-editor-row { display: flex; flex-direction: column; gap: 0.75rem; min-height: 0; flex: 1; }
+.source-preview {
+  display: none; overflow: auto; padding: 0.75rem; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--bg-raised);
+}
+@media (min-width: 960px) {
+  .code-editor-row { flex-direction: row; }
+  .code-editor-row .code-editor { flex: 1 1 50%; min-width: 0; }
+  .source-preview { display: block; flex: 1 1 50%; min-width: 0; }
+}
+
+/* Scores tab: per-section score editor + chord-diagram builder. */
+.score-section { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.6rem; padding: 0.5rem 0.75rem; }
+.score-section summary { cursor: pointer; font-weight: 600; }
+.score-section-body { margin-top: 0.6rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.score-source { width: 100%; font-family: var(--font-mono); font-size: 0.9rem; padding: 0.5rem; }
+.score-section-preview:not(:empty) { padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-raised); overflow-x: auto; }
+.score-section-actions { display: flex; gap: 0.75rem; align-items: center; }
+
+.chord-diagram-editor { display: flex; flex-direction: column; gap: 0.75rem; max-width: 32rem; }
+.cde-controls { display: flex; gap: 1rem; flex-wrap: wrap; }
+.cde-controls label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; color: var(--fg-muted); }
+.cde-controls input { width: 6rem; }
+.cde-grid { display: flex; gap: 0.3rem; }
+.cde-col { display: flex; flex-direction: column; gap: 0.2rem; }
+.cde-cell {
+  width: 2rem; height: 2rem; font-family: var(--font-mono); font-size: 0.85rem;
+  border: 1px solid var(--border); border-radius: 4px; background: var(--bg-raised); cursor: pointer;
+}
+.cde-cell.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.cde-preview:not(:empty) { max-width: 10rem; }
+.cde-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.cde-actions code { font-family: var(--font-mono); font-size: 0.85rem; color: var(--fg-muted); }
 
 .chip-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .chip {

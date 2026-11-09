@@ -88,6 +88,12 @@ func Parse(src string) *Song {
 			if line == "" {
 				continue
 			}
+			if strings.HasPrefix(line, "chord:") {
+				if ref, ok := parseChordRef(line[len("chord:"):]); ok {
+					song.Chords = append(song.Chords, ref)
+				}
+				continue
+			}
 			if i := strings.Index(line, ":"); i >= 0 {
 				k := strings.TrimSpace(line[:i])
 				if isMetaKey(k) {
@@ -127,6 +133,26 @@ func Parse(src string) *Song {
 	flush()
 
 	return song
+}
+
+// parseChordRef splits a "chord:" line's value into "Name Spec" — the
+// chord name (first whitespace-delimited token, same grammar as a
+// grid:/lyric chord symbol, never containing a space) and the raw
+// fretboard-diagram spec (everything after it, trimmed). A line with no
+// spec at all ("chord: Cm") is dropped rather than kept as a nameless
+// diagram.
+func parseChordRef(v string) (ChordRef, bool) {
+	v = strings.TrimSpace(v)
+	i := strings.IndexAny(v, " \t")
+	if i < 0 {
+		return ChordRef{}, false
+	}
+	name := v[:i]
+	spec := strings.TrimSpace(v[i+1:])
+	if name == "" || spec == "" {
+		return ChordRef{}, false
+	}
+	return ChordRef{Name: name, Spec: spec}, true
 }
 
 func parseBars(v string) []int {

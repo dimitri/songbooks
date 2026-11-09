@@ -1,0 +1,281 @@
+{{define "docs_song_format"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Songbooks — the .song file format</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,800;0,9..144,900&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f6f1e7; --bg-raised:#fff; --bg-sunken:#efe6d3; --border:#e7dfcf; --fg:#241e18; --fg-muted:#5f554a; --accent:#af4e39; --accent-ink:#8a3d2c; --accent-bg:#f3ddd4;
+    --font-chart: 'EB Garamond', Georgia, 'Times New Roman', serif;
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Inter',sans-serif; background:var(--bg); color:var(--fg); line-height:1.6; }
+  a { color: var(--accent); text-decoration:none; }
+  a:hover { color: var(--accent-ink); }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 28px; }
+  header { display:flex; align-items:center; justify-content:space-between; padding: 20px 0; border-bottom:1px solid var(--border); }
+  .brand { display:flex; align-items:center; gap:10px; font-family:'Fraunces',serif; font-weight:900; font-size:21px; letter-spacing:-0.015em; }
+  nav { display:flex; align-items:center; gap:28px; font-size:14px; font-weight:500; color:var(--fg-muted); }
+  .btn { background:var(--accent); color:#fff; padding:10px 20px; border-radius:8px; font-weight:700; font-size:14px; display:inline-block; }
+
+  .layout { display:grid; grid-template-columns: 240px 1fr; gap:48px; padding: 36px 0 80px; align-items:start; }
+  .toc { position:sticky; top:24px; font-size:13.5px; }
+  .toc h3 { font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--fg-muted); margin:0 0 10px; }
+  .toc ul { list-style:none; margin:0 0 20px; padding:0; }
+  .toc li { margin:0 0 6px; }
+  .toc a { color:var(--fg); }
+  .toc a:hover { color:var(--accent); }
+  .toc .sub { padding-left:14px; font-size:12.5px; color:var(--fg-muted); }
+
+  main h1 { font-family:'Fraunces',serif; font-weight:900; font-size:36px; letter-spacing:-0.015em; margin:0 0 8px; }
+  main .lede { font-size:16px; color:var(--fg-muted); max-width:640px; margin:0 0 36px; }
+  main section { margin: 0 0 52px; scroll-margin-top: 20px; }
+  main h2 { font-family:'Fraunces',serif; font-weight:800; font-size:24px; margin:0 0 6px; padding-top:8px; border-top:1px solid var(--border); padding-top:28px; }
+  main h3 { font-size:16px; font-weight:700; margin:28px 0 8px; }
+  main p { max-width:680px; }
+  main .hint { color:var(--fg-muted); font-size:14px; }
+  code { font-family:'JetBrains Mono',monospace; font-size:0.88em; background:var(--bg-sunken); padding:0.1em 0.35em; border-radius:4px; }
+  pre { font-family:'JetBrains Mono',monospace; font-size:13.5px; line-height:1.55; background:var(--bg-raised); border:1px solid var(--border); border-radius:10px; padding:16px 18px; overflow-x:auto; max-width:760px; }
+  pre code { background:none; padding:0; }
+  table { border-collapse:collapse; max-width:760px; width:100%; font-size:14px; margin: 14px 0; }
+  th, td { text-align:left; padding:7px 12px 7px 0; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { color:var(--fg-muted); font-weight:600; font-size:12.5px; text-transform:uppercase; letter-spacing:.03em; }
+  .callout { background:var(--accent-bg); border-left:3px solid var(--accent); padding:12px 16px; border-radius:0 8px 8px 0; font-size:14px; max-width:680px; margin:14px 0; }
+  .ex-label { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--fg-muted); margin:18px 0 4px; }
+
+  /* Worked example at the top of the page: real source on the left, its
+     ACTUAL rendering on the right (an iframe onto handleDocsSongFormatExample,
+     the real app.css/templates — not a second, docs-only approximation
+     of the chart's look, which a direct report said looked visibly off
+     from the real thing). */
+  .worked-example { display:flex; gap:20px; flex-wrap:wrap; margin: 18px 0 36px; align-items:flex-start; }
+  .worked-example > div { flex: 1 1 340px; min-width: 0; }
+  .worked-example pre { margin:0; max-width:none; }
+  .example-frame { width:100%; border:1px solid var(--border); border-radius:10px; background:#fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true">
+        <rect width="100" height="100" rx="22" fill="#241e18"/>
+        <g fill="#af4e39">
+          <circle cx="33" cy="18" r="7"/><circle cx="50" cy="18" r="7"/><circle cx="67" cy="18" r="7"/>
+          <circle cx="33" cy="34" r="7"/>
+          <circle cx="33" cy="50" r="7"/><circle cx="50" cy="50" r="7"/><circle cx="67" cy="50" r="7"/>
+          <circle cx="67" cy="66" r="7"/>
+          <circle cx="33" cy="82" r="7"/><circle cx="50" cy="82" r="7"/><circle cx="67" cy="82" r="7"/>
+        </g>
+      </svg>
+      Songbooks
+    </div>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/editor">The editor</a>
+      {{if .Person}}<a href="/home" class="btn">My Songbooks</a>{{else}}<a href="/login" class="btn">Sign in</a>{{end}}
+    </nav>
+  </header>
+
+  <div class="layout">
+    <aside class="toc">
+      <h3>On this page</h3>
+      <ul>
+        <li><a href="#header">Header fields</a></li>
+        <li><a href="#sections">Sections</a></li>
+        <li><a href="#grid">Chord grid</a></li>
+        <li><a href="#lyrics">Lyrics</a></li>
+        <li><a href="#chords">Chord diagrams</a></li>
+        <li><a href="#score">Note-level scores (<code>score:</code>)</a>
+          <ul>
+            <li class="sub"><a href="#score-pitch">Pitch &amp; duration</a></li>
+            <li class="sub"><a href="#score-tuning">Tuning &amp; frets</a></li>
+            <li class="sub"><a href="#score-hammer">Hammer-on / pull-off</a></li>
+            <li class="sub"><a href="#score-slide">Slides</a></li>
+            <li class="sub"><a href="#score-bend">Bends &amp; palm mute</a></li>
+            <li class="sub"><a href="#score-mixed">Mixing with the chord grid</a></li>
+          </ul>
+        </li>
+        <li><a href="#rendering">How it renders</a></li>
+      </ul>
+    </aside>
+
+    <main>
+      <h1>The <code>.song</code> file format</h1>
+      <p class="lede">Every song in Songbooks is one plain-text <code>.song</code> document: a short header, then one or more labeled sections, each holding a chord grid and/or lyrics — and, optionally, a real note-level riff written in a clean LilyPond-compatible subset. This page is the complete grammar.</p>
+
+      <p class="ex-label">A complete example</p>
+      <div class="worked-example">
+        <div>
+          <pre><code>title: Just Like Heaven
+artist: The Cure
+key: C
+time: 4/4
+tempo: 120
+
+[Verse]
+grid: | C | G | Am | F |
+[C]Show me, show me, show me [G]how you do that trick
+The [Am]one that makes me [F]scream, she said</code></pre>
+        </div>
+        <div>
+          {{/* The actual app rendering, not a hand-drawn approximation —
+               loaded as its own tiny page (handleDocsSongFormatExample)
+               through the real app.css, so this can never visually drift
+               from what a real song page shows. Same-origin, so the
+               inline script below can read its content height and size
+               the iframe to it instead of guessing a fixed height. */}}
+          <iframe class="example-frame" src="/docs/song-format/example" title="Rendered example" loading="lazy" onload="this.style.height=(this.contentDocument.documentElement.scrollHeight+4)+'px'"></iframe>
+        </div>
+      </div>
+      <p class="hint">That's a whole playable song: a header (only <code>title</code> is required), one section with a four-bar chord grid, and lyrics with inline <code>[Chord]</code> markers. Everything below adds optional depth on top of this same shape — more header fields, more section fields, multi-chord bars, repeats, and (further down) real note-level tab/staff notation in place of the plain chord-over-slash grid.</p>
+
+      <section id="header">
+        <h2>Header fields</h2>
+        <p>Each header line is <code>key: value</code>, before the first <code>[Section]</code>. Every field is optional except <code>title</code>.</p>
+        <table>
+          <tr><th>Key</th><th>Meaning</th></tr>
+          <tr><td><code>title</code></td><td>Song title.</td></tr>
+          <tr><td><code>artist</code></td><td>Artist/band name.</td></tr>
+          <tr><td><code>key</code></td><td>Key signature, e.g. <code>Bb</code>, <code>F#m</code>.</td></tr>
+          <tr><td><code>tempo</code></td><td>Beats per minute, e.g. <code>96</code>.</td></tr>
+          <tr><td><code>time</code></td><td>Time signature, e.g. <code>4/4</code>, <code>6/8</code>.</td></tr>
+          <tr><td><code>capo</code></td><td>Capo fret, printed as an annotation.</td></tr>
+          <tr><td><code>transpose</code></td><td>Semitones to transpose for display — never changes the chord text itself.</td></tr>
+          <tr><td><code>map</code></td><td>A short "&middot;"-separated overview of the song's structure (e.g. <code>Verse &middot; Chorus &middot; Verse</code>).</td></tr>
+          <tr><td><code>reference</code></td><td>A reference URL (usually YouTube) for this song.</td></tr>
+          <tr><td><code>flats</code></td><td><code>yes</code> to spell transposed chords with flats instead of sharps.</td></tr>
+          <tr><td><code>cover</code> / <code>cover-credit</code></td><td>A cover image URL and its photo credit.</td></tr>
+          <tr><td><code>chord:</code></td><td>One fretboard diagram — see <a href="#chords">Chord diagrams</a>. Repeatable.</td></tr>
+        </table>
+      </section>
+
+      <section id="sections">
+        <h2>Sections</h2>
+        <p>A section starts with <code>[Label]</code> on its own line — <code>Verse</code>, <code>Chorus</code>, <code>Bridge</code>, or any free text. <code>[Label] (repeat)</code> marks a bare repeat: just the label, no grid or lyrics of its own.</p>
+        <p>Inside a section, before any grid/lyric lines, a few more fields are recognized:</p>
+        <table>
+          <tr><th>Key</th><th>Meaning</th></tr>
+          <tr><td><code>time:</code></td><td>Per-section time-signature override.</td></tr>
+          <tr><td><code>bars:</code></td><td>How many bars per printed row — one number for all rows (<code>bars: 4</code>), or a comma list for different row lengths (<code>bars: 4,5</code>, the last value repeating).</td></tr>
+          <tr><td><code>times:</code></td><td>How many times this section is actually played through (&gt;1 — affects the structure map, not the printed grid).</td></tr>
+          <tr><td><code>note:</code></td><td>A free-text performance direction for this section occurrence (e.g. <code>GTR + claviers only</code>). Repeatable.</td></tr>
+          <tr><td><code>score:</code></td><td>A note-level riff for this section — see <a href="#score">Note-level scores</a>.</td></tr>
+        </table>
+      </section>
+
+      <section id="grid">
+        <h2>Chord grid</h2>
+        <p>A <code>grid:</code> line (or several, concatenated) holds the chord changes as <code>|</code>-separated bars:</p>
+        <pre><code>grid: | Gm | Bb . D . | Cm7 |</code></pre>
+        <p>Inside a bar, chord tokens are space-separated; <code>.</code> or <code>%</code> repeats the previous chord; a bare chord fills the whole bar.</p>
+        <table>
+          <tr><th>Syntax</th><th>Meaning</th></tr>
+          <tr><td><code>|: ... :|</code></td><td>A repeated bracket (plain "x2" implied). <code>|:4 ...</code> states an explicit repeat count.</td></tr>
+          <tr><td><code>(1.)</code> / <code>(1,2.)</code></td><td>A volta (first/second-ending) marker, right after a bar's own opening.</td></tr>
+          <tr><td><code>{2/4}</code></td><td>A one-bar meter override.</td></tr>
+          <tr><td><code>~</code> on a chord token</td><td>Tie — the chord sounds through, not restruck.</td></tr>
+          <tr><td><code>R</code> / <code>r</code></td><td>A full bar of rest.</td></tr>
+          <tr><td><code>Chord:4.</code></td><td>A duration tag — a dotted-quarter hold, for example — stripped for display, kept for rhythm.</td></tr>
+        </table>
+      </section>
+
+      <section id="lyrics">
+        <h2>Lyrics</h2>
+        <p>Any section line that isn't a recognized field is a lyric line, with chords inline as <code>[Chord]</code> right before the syllable they land on:</p>
+        <pre><code>Pla[Gm]ceholder words [Bb]here</code></pre>
+      </section>
+
+      <section id="chords">
+        <h2>Chord diagrams</h2>
+        <p>A <code>chord:</code> header line adds one fretboard box to the legend strip under the title — the same small grid-with-dots diagram a real printed songbook carries:</p>
+        <pre><code>chord: Cm 8:XX3(111)
+chord: G 7:XX(3121)
+chord: Ab 8:X4312X</code></pre>
+        <p>The name is a normal chord symbol (same grammar as the grid/lyrics). The spec is <code>[fret:]strings</code>, one character per string, left to right = lowest-pitched string to highest:</p>
+        <table>
+          <tr><th>Character</th><th>Meaning</th></tr>
+          <tr><td><code>X</code></td><td>Muted string.</td></tr>
+          <tr><td><code>O</code> / <code>0</code></td><td>Open string.</td></tr>
+          <tr><td>a digit <code>1</code>&ndash;<code>9</code></td><td>A fretted dot at that row (relative to the leading fret number, or row 1 = open position if none given).</td></tr>
+          <tr><td><code>(digits)</code></td><td>A barre across those strings, drawn at the lowest enclosed row.</td></tr>
+        </table>
+        <p class="hint">This spec is byte-compatible with the legacy LaTeX <code>songs</code> package's own <code>\gtab</code> grid notation — real legacy diagrams paste in unchanged.</p>
+      </section>
+
+      <section id="score">
+        <h2>Note-level scores (<code>score:</code>)</h2>
+        <p>A section's <code>score:</code> field names a riff — real note-level tab/notation, not just chord changes. The field itself just holds a filename-like label; the actual source is a separate LilyPond-compatible document, stored per section and reachable at <code>/api/songs/{id}/scores/{sectionIndex}</code> (a dedicated in-editor panel for this is designed but not built yet — see the editor roadmap). Only a clean, intentionally bounded subset of real LilyPond is understood:</p>
+        <pre><code>\new TabStaff {
+  \set TabStaff.minimumFret = 3
+  \relative {
+    g,4 &lt;d' g'&gt;8. g,16 bes,8 c d f16 g
+  }
+}</code></pre>
+
+        <h3 id="score-pitch">Pitch &amp; duration</h3>
+        <table>
+          <tr><th>Syntax</th><th>Meaning</th></tr>
+          <tr><td><code>c d e f g a b</code></td><td>Note names (Dutch/LilyPond spelling).</td></tr>
+          <tr><td><code>cis</code> / <code>ces</code></td><td>Sharp / flat (<code>-is</code> / <code>-es</code>).</td></tr>
+          <tr><td><code>'</code> / <code>,</code></td><td>Octave up / down, relative to the previous note (real LilyPond "nearest pitch within a fourth" rule).</td></tr>
+          <tr><td><code>4 8 16 ...</code></td><td>Duration (quarter, eighth, sixteenth...); a trailing <code>.</code> dots it. Omitted duration repeats the last one written.</td></tr>
+          <tr><td><code>r4</code></td><td>A rest.</td></tr>
+          <tr><td><code>~</code></td><td>Tie into the next note of the same pitch.</td></tr>
+          <tr><td><code>&lt;c e g&gt;4</code></td><td>A chord cluster.</td></tr>
+          <tr><td><code>\tuplet 3/2 { g16 f d }</code></td><td>A triplet (or any N-in-the-time-of-M grouping).</td></tr>
+          <tr><td><code>\relative { ... }</code></td><td>Wraps a passage in relative-pitch mode. Riffs may also be written in plain absolute pitch with no wrapper.</td></tr>
+        </table>
+
+        <h3 id="score-tuning">Tuning &amp; frets</h3>
+        <p>Fret and string numbers are never written explicitly — they're computed the same way real LilyPond does, from the written pitch, the tuning, and the minimum-fret preference:</p>
+        <pre><code>\new TabStaff \with { stringTunings = #bass-tuning } {
+  \set TabStaff.minimumFret = 7
+  ...
+}</code></pre>
+        <p>Default tuning is standard 6-string guitar; <code>#bass-tuning</code> selects standard 4-string bass. <code>\set TabStaff.minimumFret = N</code> may appear mid-riff to push a later passage higher up the neck.</p>
+
+        <h3 id="score-hammer">Hammer-on / pull-off</h3>
+        <p>A real LilyPond slur across two notes, on a tab staff, is how a hammer-on (ascending) or pull-off (descending) is written — the direction (and the printed "H"/"P" letter) is worked out automatically from the two pitches:</p>
+        <pre><code>g,( a,) a, a,</code></pre>
+
+        <h3 id="score-slide">Slides</h3>
+        <p>A grace note slurred-and-glissando'd into the main note is a slide — the grace note's own duration doesn't matter (it borrows time), only its pitch:</p>
+        <pre><code>f~ f8 ees8~ \grace f16( \glissando g8)</code></pre>
+
+        <h3 id="score-bend">Bends &amp; palm mute</h3>
+        <p class="callout">This part of the grammar is this app's own addition — it doesn't appear in real LilyPond, and no real legacy score in this app's own library happens to use it yet. It exists ahead of a planned Guitar Pro importer, which carries a bend amount and a palm-mute flag on every note and needs some text form to round-trip through this format. It reuses LilyPond's own genuine text-articulation syntax (<code>note^"label"</code>) rather than inventing a new token.</p>
+        <table>
+          <tr><th>Label</th><th>Meaning</th></tr>
+          <tr><td><code>^"full"</code></td><td>A whole-step bend.</td></tr>
+          <tr><td><code>^"1/2"</code>, <code>^"1/4"</code>, <code>^"3/4"</code></td><td>A fractional-step bend.</td></tr>
+          <tr><td><code>^"1 1/2"</code></td><td>A mixed-number bend (one and a half steps).</td></tr>
+          <tr><td><code>^"full (release)"</code></td><td>Bends up, then releases back down before the beat ends.</td></tr>
+          <tr><td><code>^"PM"</code> / <code>^"P.M."</code></td><td>Palm mute. Consecutive muted notes draw one "P.M." label with a dashed line, not one label per note.</td></tr>
+        </table>
+        <pre><code>e8^"full" e8 e8^"PM" e8^"PM" e4</code></pre>
+
+        <h3 id="score-mixed">Mixing with the chord grid</h3>
+        <p>A <code>score:</code> riff and the section's own <code>grid:</code> describe the <em>same bars</em> two ways — the riff is the detailed notation, the grid is the chord changes. They don't need to agree on every bar:</p>
+        <ul>
+          <li>If every bar in a printed row has riff data, that whole row prints as real tab/notation, replacing the chord-grid row entirely (chord names float above it, read from the grid, positioned independently of the riff's own note timing).</li>
+          <li>If only some bars in a row have riff data, those bars show the riff as a smaller overlay above their own normal chord-grid bar — "detailed here, plain changes there," on the <em>same</em> line.</li>
+          <li>A later row with no riff data at all for any of its bars prints as an ordinary chord-grid row — the chart naturally switches back to plain changes on the next line.</li>
+        </ul>
+        <p class="hint">In other words: an intro with a real riff and a verse that's just chord changes can sit in the same section-less chart, each rendered the way it actually has data for — no separate toggle needed anywhere.</p>
+      </section>
+
+      <section id="rendering">
+        <h2>How it renders</h2>
+        <p>Chord-grid rows render as HTML/CSS in the browser and as pure-Go vector drawing in the PDF export — no shared third-party engine. A fully riff-covered row renders differently per target: on the web it's handed to a vendored copy of <a href="https://www.alphatab.net/" target="_blank" rel="noopener">alphaTab</a> as real engraved notation (proper stems, beams, hammer-on/pull-off slurs, bends); in the PDF export it's drawn by this app's own native tab engraver, built from the same real engraving proportions (stem length, beam thickness, logarithmic note spacing) rather than guessed numbers.</p>
+      </section>
+    </main>
+  </div>
+</div>
+</body>
+</html>
+{{end}}

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"app/internal/chordsym"
 	"app/internal/song"
 	"app/internal/store"
+	"app/internal/tab"
 	"app/internal/webassets"
 )
 
@@ -110,6 +112,67 @@ func (s *Server) handleMarketingHome(w http.ResponseWriter, r *http.Request) {
 // and a signed-in one sees "My Songbooks" in the nav instead of "Sign in".
 func (s *Server) handleMarketingEditor(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "marketing_editor", map[string]any{"Person": personFromContext(r)})
+}
+
+// handleDocsSongFormat serves the full .song file format reference —
+// header fields, grid/lyric syntax, chord diagrams, and the LilyPond-
+// subset "score:" grammar (pitch/duration, hammer-on/pull-off, slides,
+// this app's own bend/palm-mute text-articulation extension), plus how
+// a mixed riff/chord-grid section actually renders. Linked from the
+// editor marketing page and from the Source panel's own inline help
+// (see song.js) so both stay pointed at one single source of truth.
+func (s *Server) handleDocsSongFormat(w http.ResponseWriter, r *http.Request) {
+	s.render(w, "docs_song_format", map[string]any{"Person": personFromContext(r)})
+}
+
+// docsExampleSong is the worked example at the top of /docs/song-format —
+// kept here as source text (not just embedded HTML) so it stays a real,
+// parseable .song document shown verbatim in the docs page's left-hand
+// <pre>, with the right-hand side its ACTUAL rendering (see
+// handleDocsSongFormatExample) rather than a hand-drawn approximation of
+// one, which a direct report said looked visibly off from the real thing.
+const docsExampleSong = `title: Just Like Heaven
+artist: The Cure
+key: C
+time: 4/4
+tempo: 120
+
+[Verse]
+grid: | C | G | Am | F |
+[C]Show me, show me, show me [G]how you do that trick
+The [Am]one that makes me [F]scream, she said
+`
+
+// handleDocsSongFormatExample serves the docs page's worked example as
+// its own tiny standalone page — loaded into an <iframe> rather than
+// inlined, so it renders through the exact same app.css this app's real
+// song page uses (see play.html), pixel-identical and never hand-
+// maintained out of sync with it, instead of a second, docs-only
+// approximation of the chart's look.
+func (s *Server) handleDocsSongFormatExample(w http.ResponseWriter, r *http.Request) {
+	sg := song.Parse(docsExampleSong)
+	sections := buildSections(sg)
+	var body bytes.Buffer
+	if err := webassets.Templates.ExecuteTemplate(&body, "sheet-body", map[string]any{
+		"Sections": sections,
+		"MapLines": buildMapLines(sections),
+		"Chords":   sg.Chords,
+	}); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprintf(w, `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/static/css/app.css?v=%s">
+<style>html,body{margin:0;background:var(--bg-raised,#fff);} main.sheet{padding:16px;}</style>
+</head>
+<body data-mode="view">
+<main class="sheet" data-render-mode="normal" data-key="%s">%s</main>
+</body>
+</html>`, webassets.StaticVersion(), sg.Get("key"), body.String())
 }
 
 func (s *Server) handleMarketingEducators(w http.ResponseWriter, r *http.Request) {
@@ -386,6 +449,218 @@ type viewerMeasure struct {
 	// element that would force a row break between sections.
 	MapAnnotate       bool
 	MapMark, MapLabel string
+
+	// Tab is this bar's note-level tab notation, from the section's
+	// "score:" field (internal/tab) — nil for the common case of a bar
+	// with no such data, which renders exactly as before. Set by
+	// attachTabRiffs after buildSections, not by buildSections itself:
+	// it needs a separate, optional store lookup buildSections' own
+	// signature (sg *song.Song only, no variant id/ctx) doesn't have.
+	Tab *viewerTabBar
+	// TabOnly mirrors this bar's display row's own viewerLine.TabOnly —
+	// copied onto each bar rather than looked up from the parent row so
+	// the "chart-bar" template (which only ever sees one viewerMeasure,
+	// not its enclosing viewerLine) can branch on it directly.
+	TabOnly bool
+}
+
+// viewerTabBar is one bar's worth of tab notation. When every bar in its
+// display row has one (see viewerLine.TabOnly), the row renders tab-only
+// — a real string/fret staff with rhythm marks in place of the normal
+// 5-line staff, chord names kept in the same position above it (see
+// play.html's "chart-bar" template) — matching how a real tab chart
+// looks (fret numbers ARE the notation, not an annotation on top of
+// one). When only SOME bars in a row have one, those bars instead get it
+// as a smaller overlay above their own normal chord/slash content — "not
+// every bar needs one."
+type viewerTabBar struct {
+	Strings int // how many string lines to draw (len(Riff.Tuning))
+	Beats   []viewerTabBeat
+	// GridCols is a CSS grid-template-columns value, one "<weight>fr"
+	// term per beat — real engraving spaces notes proportionally to
+	// duration (a half note gets twice a quarter's horizontal room), not
+	// in equal-width slots; reviewed against real LilyPond tab output.
+	GridCols string
+	// Beams are runs of 2+ consecutive eighth-or-shorter notes joined by
+	// a horizontal beam bar instead of each drawing its own hooked flag
+	// — standard notation (and real LilyPond \tabFullNotation) practice.
+	// A lone flagged note with no flagged neighbor still falls back to
+	// an individual hooked flag (see viewerTabBeat.Flags), same as
+	// real engraving.
+	Beams []viewerTabBeam
+}
+
+// viewerTabBeam is one beamed run within a bar — StartCol/EndCol are
+// 1-based CSS grid-column line numbers (so "span StartCol to EndCol"
+// reads directly into a grid-column CSS value), Levels is how many beam
+// bars to stack (1 for an eighth-note run, 2 if the run's shortest
+// member is a sixteenth, matching DurationGlyph's flag count).
+type viewerTabBeam struct {
+	StartCol, EndCol int
+	Levels           int
+}
+
+type viewerTabBeat struct {
+	Notes []viewerTabNote
+	Rest  bool
+	// Flags/Dotted are the rhythm mark under this beat's fret numbers —
+	// real tab/Guitar-Pro/LilyPond \tabFullNotation convention: a bare
+	// stem for a quarter note or longer, one flag per eighth-note
+	// halving (8th=1, 16th=2, ...), a dot for a dotted duration. This is
+	// the "how long does this note last" information a bare fret number
+	// can't carry on its own — see internal/tab.DurationGlyph. Only
+	// drawn as an individual hooked flag when NOT part of a beam group
+	// (see viewerTabBar.Beams) — a beamed note still carries these so
+	// the stem itself still draws, just without its own flag hooks.
+	Flags  int
+	Dotted bool
+	// Beamed is true when this beat is part of a viewerTabBar.Beams run
+	// — the template skips drawing individual hook flags for it (the
+	// beam bar already shows the rhythm), drawing only its stem.
+	Beamed bool
+}
+
+type viewerTabNote struct {
+	String int // 1-based, top line = string 1
+	Fret   int
+}
+
+// attachTabRiffs attaches each riff's bars onto the matching section's
+// measures, bar index to bar index — a section's "score:" riff is
+// expected to cover the SAME bars as its "grid:" (that's the whole
+// point: the chord chart and the note-level riff describe the same
+// passage), so riff.Bars[j] overlays sections[i].Measures[j]. A riff
+// with more bars than the section has grid measures is truncated rather
+// than erroring; a shorter riff just leaves the remaining bars plain —
+// "optionally we have scores content for some of the bars" is exactly
+// this: not every bar needs one. A display row whose every bar got one
+// is additionally flagged TabOnly, switching that row's own rendering
+// from the normal chord/slash staff to a tab staff (see viewerTabBar's
+// doc comment) — computed per actual display row (not per section),
+// since a line break can fall mid-riff.
+// atoiOr parses s as an int, returning fallback on any parse failure or
+// an empty string — timeSigParts's own return values are raw, unvalidated
+// source text ("4", "6", possibly "" if time: was absent/malformed).
+func atoiOr(s string, fallback int) int {
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return fallback
+	}
+	return n
+}
+
+func attachTabRiffs(sections []viewerSection, riffs map[int]*tab.Riff, timeNum, timeDen int) {
+	for si := range sections {
+		riff, ok := riffs[sections[si].Index]
+		if !ok {
+			continue
+		}
+		numStrings := len(riff.Tuning)
+		byBarIndex := make(map[int]*viewerTabBar, len(riff.Bars))
+		rawBarByIndex := make(map[int]tab.Bar, len(riff.Bars))
+		for bi, bar := range riff.Bars {
+			rawBarByIndex[bi] = bar
+			vb := make([]viewerTabBeat, 0, len(bar.Beats))
+			weights := make([]float64, 0, len(bar.Beats))
+			for _, beat := range bar.Beats {
+				var notes []viewerTabNote
+				for _, n := range beat.Notes {
+					notes = append(notes, viewerTabNote{String: n.String, Fret: n.Fret})
+				}
+				flags, dotted := tab.DurationGlyph(beat.Duration)
+				vb = append(vb, viewerTabBeat{Notes: notes, Rest: beat.Rest, Flags: flags, Dotted: dotted})
+				w, err := tab.DurationBeats(beat.Duration)
+				if err != nil || w <= 0 {
+					w = 1
+				}
+				weights = append(weights, w)
+			}
+			var beams []viewerTabBeam
+			for _, bg := range tab.GroupBeams(bar.Beats, timeNum, timeDen) {
+				for i := bg.StartIdx; i <= bg.EndIdx; i++ {
+					vb[i].Beamed = true
+				}
+				// CSS grid-column uses LINE numbers, not track indices:
+				// track i (0-based) starts at line i+1, and spanning
+				// through track j ends at line j+2.
+				beams = append(beams, viewerTabBeam{StartCol: bg.StartIdx + 1, EndCol: bg.EndIdx + 2, Levels: bg.MinFlags})
+			}
+			byBarIndex[bi] = &viewerTabBar{Strings: numStrings, Beats: vb, GridCols: gridColsCSS(weights), Beams: beams}
+		}
+		// Set on both the flat Measures list AND each grouped display
+		// row's own copy (groupMeasures may re-slice or copy — matching
+		// by Index rather than assuming which keeps this correct either
+		// way, since Index uniquely identifies a bar within its section).
+		for bi := range sections[si].Measures {
+			if tb, ok := byBarIndex[sections[si].Measures[bi].Index]; ok {
+				sections[si].Measures[bi].Tab = tb
+			}
+		}
+		for li := range sections[si].Lines {
+			allCovered := len(sections[si].Lines[li].Measures) > 0
+			for bi := range sections[si].Lines[li].Measures {
+				tb, ok := byBarIndex[sections[si].Lines[li].Measures[bi].Index]
+				if ok {
+					sections[si].Lines[li].Measures[bi].Tab = tb
+				} else {
+					allCovered = false
+				}
+			}
+			if allCovered {
+				sections[si].Lines[li].TabOnly = true
+				var rowBars []tab.Bar
+				var chordLabels []string
+				for bi := range sections[si].Lines[li].Measures {
+					m := &sections[si].Lines[li].Measures[bi]
+					m.TabOnly = true
+					if rb, ok := rawBarByIndex[m.Index]; ok {
+						rowBars = append(rowBars, rb)
+					}
+					label := ""
+					if len(m.Beats) > 0 && !m.Beats[0].IsTie {
+						label = chordsym.Glyphs(m.Beats[0].Text)
+					}
+					chordLabels = append(chordLabels, label)
+				}
+				rowRiff := &tab.Riff{Tuning: riff.Tuning, MinimumFret: riff.MinimumFret, Bars: rowBars}
+				clef := ""
+				if numStrings <= 4 {
+					clef = "F4"
+				}
+				sections[si].Lines[li].AlphaTex = tab.ToAlphaTex(rowRiff, clef, chordLabels)
+			}
+		}
+	}
+}
+
+// anyTabOnlyLine reports whether any display row across sections needs
+// the vendored alphaTab JS renderer (see .HasAlphaTab, play.html) — used
+// to skip loading that ~1.5MB library on a song page with no riff-
+// covered row at all, the common case.
+func anyTabOnlyLine(sections []viewerSection) bool {
+	for _, sec := range sections {
+		for _, l := range sec.Lines {
+			if l.TabOnly {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// gridColsCSS renders a CSS grid-template-columns value, one "<w>fr"
+// term per beat's duration weight — real engraving spaces notes
+// proportionally to how long they last (reviewed against real LilyPond
+// tab output), not in uniform equal-width slots.
+func gridColsCSS(weights []float64) string {
+	var b strings.Builder
+	for i, w := range weights {
+		if i > 0 {
+			b.WriteByte(' ')
+		}
+		fmt.Fprintf(&b, "%.3ffr", w)
+	}
+	return b.String()
 }
 
 // expandBeats maps a bar's raw tokens onto beatsPerBar rhythm-slash slots.
@@ -474,9 +749,9 @@ type viewerSection struct {
 	// section's numbers in annotateStructure — a bare section's own
 	// "times:" is about how many times IT repeats, independent of
 	// whatever the section it borrows content from does.
-	Times int
-	Lines    []viewerLine    // grouped into chart "systems" (rows), per section.BarsPerLine
-	Lyrics   []viewerLyricLine
+	Times  int
+	Lines  []viewerLine // grouped into chart "systems" (rows), per section.BarsPerLine
+	Lyrics []viewerLyricLine
 	// Notes are this section occurrence's own free-text performance
 	// directions ("GTR + claviers only") — see song.Section.Notes's doc
 	// comment for the full design (per-occurrence, not per-bar-row).
@@ -611,6 +886,17 @@ type viewerSection struct {
 type viewerLine struct {
 	Measures []viewerMeasure
 	Capacity int
+	// TabOnly is set by attachTabRiffs when every bar in this display row
+	// has note-level tab data — see viewerTabBar's doc comment for what
+	// that switches in the template.
+	TabOnly bool
+	// AlphaTex is this row's note-level riff, re-encoded as alphaTeX
+	// source for the vendored alphaTab JS renderer to draw (real
+	// engraved tab, including proper beam grouping — see
+	// internal/tab.ToAlphaTex's own doc comment for why this replaced
+	// this app's hand-rolled CSS/SVG tab drawing for the TabOnly case).
+	// Only set alongside TabOnly; "" otherwise.
+	AlphaTex string
 }
 
 // groupMeasures chunks a section's measures into display rows — "systems",
@@ -1518,6 +1804,11 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	}
 	sections := buildSections(sg)
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
+	if riffs, err := s.store.LoadVariantScores(r.Context(), variantID, sg); err == nil {
+		attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4))
+	} else {
+		log.Printf("loading score: riffs for variant %d: %v", variantID, err)
+	}
 	variant, _ := s.store.GetVariant(r.Context(), variantID)
 	var workID int64
 	if variant != nil {
@@ -1541,16 +1832,18 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	data := map[string]any{
-		"Me": person,
+		"Me":        person,
 		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "Genre": genre,
 		"Title": orDefault(sg.Get("title"), "untitled"), "Artist": sg.Get("artist"),
 		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
 		"TimeNum": num, "TimeDen": den,
 		"Capo": sg.Get("capo"), "Reference": sg.Get("reference"),
-		"TimeBeats": timeSigBeats(sg.Get("time")),
-		"Sections":  sections,
-		"MapLines":  buildMapLines(sections),
-		"Text":      text, "Version": version,
+		"TimeBeats":   timeSigBeats(sg.Get("time")),
+		"Sections":    sections,
+		"MapLines":    buildMapLines(sections),
+		"Chords":      sg.Chords,
+		"HasAlphaTab": anyTabOnlyLine(sections),
+		"Text":        text, "Version": version,
 	}
 	if setlistRef := r.URL.Query().Get("setlist"); setlistRef != "" {
 		data["SetlistRef"] = setlistRef
@@ -1581,7 +1874,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 // songNeighbor is the prev/next-in-setlist card: just enough to glance at
 // before switching — title, tempo, key — without loading the whole chart.
 type songNeighbor struct {
-	VariantID           int64
+	VariantID         int64
 	Title, Tempo, Key string
 }
 

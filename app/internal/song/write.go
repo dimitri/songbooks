@@ -19,6 +19,9 @@ func Write(s *Song) string {
 		b.WriteString(f.Value)
 		b.WriteString("\n")
 	}
+	for _, c := range s.Chords {
+		b.WriteString("chord: " + c.Name + " " + c.Spec + "\n")
+	}
 
 	for _, sec := range s.Sections {
 		if b.Len() > 0 {

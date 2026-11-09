@@ -1391,6 +1391,12 @@ const ICONS = {
       // sidebar DOM was emptied).
       if (btn.dataset.tab === 'structure') { if (focusModeActive) renderFocusEditor(); }
       else { document.getElementById('toolbox-sections').innerHTML = ''; document.getElementById('toolbox-toolbar').innerHTML = ''; }
+      // Two-pane preview starts empty (it's only worth the round trip
+      // once the panel is actually visible) — fill it in the moment
+      // Source is first opened, same lazy trigger the Scores tab below
+      // uses for its own per-section fetches.
+      if (btn.dataset.tab === 'raw' && sourcePreview && !sourcePreview.innerHTML) renderPreview();
+      if (btn.dataset.tab === 'scores') window.ScoreEditor?.init();
     });
   });
 
@@ -1432,7 +1438,7 @@ const ICONS = {
     if ((m = line.match(/^(\[.*?\])(.*)$/))) {
       return `<span class="tok-section">${escapeHTML(m[1])}</span>${escapeHTML(m[2])}`;
     }
-    if ((m = line.match(/^(grid|bars|time|score):/))) {
+    if ((m = line.match(/^(grid|bars|time|score|chord):/))) {
       l = l.replace(/^([a-z]+:)/, '<span class="tok-keyword">$1</span>');
     } else if ((m = line.match(/^([a-z][a-z0-9_-]*):\s/i))) {
       l = l.replace(/^([a-z][a-z0-9_-]*:)/i, '<span class="tok-header-key">$1</span>');
@@ -1440,8 +1446,34 @@ const ICONS = {
     l = l.replace(/\[([^\]]*)\]/g, '[<span class="tok-chord">$1</span>]');
     return l;
   }
+  // Incremental per-line patching, not a full-document innerHTML rebuild
+  // on every keystroke — the original cursor-tracking bug report ("the
+  // highlighted text visibly lags the real caret on a long song"):
+  // highlightLine already tokenizes one line at a time independently, so
+  // the fix is to only touch the DOM nodes for lines that actually
+  // changed, making the per-keystroke cost O(1) amortized instead of
+  // O(document length). Debouncing would hide the SAME lag behind a
+  // delay instead of removing it — the caret would still visibly outrun
+  // stale highlighting while typing, just with extra latency added on
+  // top, so this is a real fix, not a cosmetic workaround.
+  let lastLines = [];
   function renderHighlight() {
-    highlightCode.innerHTML = rawTextarea.value.split('\n').map(highlightLine).join('\n');
+    const lines = rawTextarea.value.split('\n');
+    while (highlightCode.children.length > lines.length) {
+      highlightCode.removeChild(highlightCode.lastChild);
+    }
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i] === lastLines[i] && highlightCode.children[i]) continue;
+      let el = highlightCode.children[i];
+      if (!el) {
+        el = document.createElement('div');
+        highlightCode.appendChild(el);
+      }
+      // A blank line still needs real height to stay aligned with the
+      // textarea's own row for it — an empty <div> collapses to 0px.
+      el.innerHTML = highlightLine(lines[i]) || '<br>';
+    }
+    lastLines = lines;
   }
   rawTextarea.addEventListener('input', renderHighlight);
   rawTextarea.addEventListener('input', markDirty);
@@ -1451,14 +1483,31 @@ const ICONS = {
   });
   renderHighlight();
 
+  const sectionMenu = document.getElementById('section-menu');
   document.getElementById('code-toolbar').addEventListener('click', e => {
     const btn = e.target.closest('button');
     if (!btn) return;
+    if (btn.id === 'section-menu-custom-add') {
+      const input = document.getElementById('section-menu-custom');
+      const label = input.value.trim();
+      if (label) {
+        rawTextarea.focus();
+        insertSectionLabel(label);
+        input.value = '';
+      }
+      sectionMenu.open = false;
+      return;
+    }
     rawTextarea.focus();
-    if (btn.dataset.insertLabel) insertSectionLabel(btn.dataset.insertLabel);
+    if (btn.dataset.insertLabel) {
+      insertSectionLabel(btn.dataset.insertLabel);
+      sectionMenu.open = false;
+    }
     else if (btn.dataset.insert === 'grid') insertAtCursor('grid: |  |  |  |  |\n');
     else if (btn.dataset.insert === 'bars') insertAtCursor('bars: 4\n');
     else if (btn.dataset.insert === 'comment') insertAtCursor('# ');
+    else if (btn.dataset.insert === 'score') insertAtCursor('score: riff.ly\n');
+    else if (btn.dataset.insert === 'chord') insertAtCursor('chord: Cm 8:XX3(111)\n');
     else if (btn.dataset.wrap === 'chord') {
       const start = rawTextarea.selectionStart, end = rawTextarea.selectionEnd;
       const sel = rawTextarea.value.slice(start, end) || 'G';
@@ -1466,7 +1515,22 @@ const ICONS = {
       rawTextarea.dispatchEvent(new Event('input'));
     }
   });
+  // Enter in the custom-label field acts like clicking "Add", and
+  // outside-click/Escape close the menu — <details> alone only gives the
+  // open/close toggle itself, not these two usual popover conveniences.
+  document.getElementById('section-menu-custom')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      document.getElementById('section-menu-custom-add').click();
+    } else if (e.key === 'Escape') {
+      sectionMenu.open = false;
+    }
+  });
+  document.addEventListener('click', e => {
+    if (sectionMenu?.open && !sectionMenu.contains(e.target)) sectionMenu.open = false;
+  });
 
+  const sourcePreview = document.getElementById('source-preview');
   let previewTimer = null;
   async function renderPreview() {
     try {
@@ -1474,8 +1538,18 @@ const ICONS = {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: rawTextarea.value }),
       });
-      sheet.innerHTML = await res.text();
+      const html = await res.text();
+      sheet.innerHTML = html;
       rebindSheet();
+      // The Source panel's own two-pane preview (see play.html) — a
+      // second, non-interactive mount of the exact same markup, since
+      // the real #sheet sits behind this drawer while it's open.
+      if (sourcePreview) {
+        sourcePreview.innerHTML = html;
+        if (window.AlphaTabTab) {
+          sourcePreview.querySelectorAll('.alphatab-row[data-tex]').forEach(window.AlphaTabTab.render);
+        }
+      }
     } catch (e) { /* leave the last good render in place */ }
   }
   rawTextarea.addEventListener('input', () => { clearTimeout(previewTimer); previewTimer = setTimeout(renderPreview, 400); });

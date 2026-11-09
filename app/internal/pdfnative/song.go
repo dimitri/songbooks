@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"app/internal/pdf"
 	"app/internal/song"
+	"app/internal/tab"
 
 	"github.com/signintech/gopdf"
 )
@@ -80,6 +80,12 @@ func renderSongHeader(c *canvas, s *song.Song) {
 	}
 	c.y += 10
 
+	// Chord-diagram legend row, same spot the web chart's .chord-legend
+	// sits (under the title/meta/rule, above the chart) — see
+	// internal/chorddiagram and song.ChordRef's own doc comment on the
+	// "chord:" source syntax.
+	c.drawChordLegend(s.Chords, 11)
+
 	// The header (title/meta/rule) is drawn once, in column 0, but it
 	// visually spans the full page width above BOTH columns. c.top started
 	// as the raw page margin for every column; left there, a later column
@@ -100,7 +106,7 @@ func renderSongHeader(c *canvas, s *song.Song) {
 // reaches here at all — it has its own renderSongMap, since "just the
 // section order" isn't a smaller version of the chart/lyrics layout, it's
 // a genuinely different one.
-func renderSongBody(c *canvas, s *song.Song, bodySize float64, mode pdf.Mode, hideNotes bool) {
+func renderSongBody(c *canvas, s *song.Song, scores map[int]*tab.Riff, bodySize float64, mode Mode, hideNotes bool) {
 	renderSongHeader(c, s)
 	globalBeats := timeSigBeats(s.Get("time"))
 	// tempo/timeNum/timeDen print once, on the very first staff row drawn
@@ -116,7 +122,7 @@ func renderSongBody(c *canvas, s *song.Song, bodySize float64, mode pdf.Mode, hi
 	firstStaffDrawn := false
 	marks := map[string]string{}
 	next := 'A'
-	for _, sec := range s.Sections {
+	for si, sec := range s.Sections {
 		if sec.Label != "" {
 			mark, ok := marks[sec.Label]
 			if !ok {
@@ -130,8 +136,8 @@ func renderSongBody(c *canvas, s *song.Song, bodySize float64, mode pdf.Mode, hi
 			continue // mirrors v2/lib/song.typ: a (repeat) occurrence prints
 			// only its label, no measures/lyrics of its own.
 		}
-		isFirst := !firstStaffDrawn && len(sec.Measures) > 0 && mode != pdf.ModeLyrics
-		c.measureSection(sec, bodySize, mode, hideNotes, globalBeats, isFirst, tempo, timeNum, timeDen)
+		isFirst := !firstStaffDrawn && len(sec.Measures) > 0 && mode != ModeLyrics
+		c.measureSection(sec, scores[si], bodySize, mode, hideNotes, globalBeats, isFirst, tempo, timeNum, timeDen)
 		if isFirst {
 			firstStaffDrawn = true
 		}
@@ -143,10 +149,10 @@ func renderSongBody(c *canvas, s *song.Song, bodySize float64, mode pdf.Mode, hi
 // each candidate — cheap, no PDF content is actually emitted until the
 // winning size is known), falling back to the smallest size with a second
 // page allowed if nothing fits even at the floor.
-func fitSongToPage(doc *gopdf.GoPdf, s *song.Song, th theme, mode pdf.Mode, hideNotes bool, cols int) (size float64, allowPage2 bool) {
+func fitSongToPage(doc *gopdf.GoPdf, s *song.Song, scores map[int]*tab.Riff, th theme, mode Mode, hideNotes bool, cols int) (size float64, allowPage2 bool) {
 	for _, sz := range candidateSizes {
 		c := newCanvas(doc, false, th, cols, false)
-		renderSongBody(c, s, sz, mode, hideNotes)
+		renderSongBody(c, s, scores, sz, mode, hideNotes)
 		if !c.overflowed {
 			return sz, false
 		}
@@ -158,17 +164,17 @@ func fitSongToPage(doc *gopdf.GoPdf, s *song.Song, th theme, mode pdf.Mode, hide
 // fitSongToPage determines it needs (one page if at all possible, two as a
 // last resort for a genuinely long chart). ModeMap is handled separately
 // (renderSongMap) — it's not a smaller chart, it's a different page. cols
-// is normally 2; a setlist/gig export passes 1 (see pdf.Options.Columns)
+// is normally 2; a setlist/gig export passes 1 (see Options.Columns)
 // so the printed chart is legible from a few feet away.
-func renderSong(doc *gopdf.GoPdf, s *song.Song, th theme, mode pdf.Mode, hideNotes bool, cols int) error {
-	if mode == pdf.ModeMap {
+func renderSong(doc *gopdf.GoPdf, s *song.Song, scores map[int]*tab.Riff, th theme, mode Mode, hideNotes bool, cols int) error {
+	if mode == ModeMap {
 		return renderSongMap(doc, s, th, hideNotes)
 	}
-	size, allowPage2 := fitSongToPage(doc, s, th, mode, hideNotes, cols)
+	size, allowPage2 := fitSongToPage(doc, s, scores, th, mode, hideNotes, cols)
 	doc.AddPage()
 	paintPageBackground(doc, th)
 	c := newCanvas(doc, true, th, cols, allowPage2)
-	renderSongBody(c, s, size, mode, hideNotes)
+	renderSongBody(c, s, scores, size, mode, hideNotes)
 	if c.pages > 2 {
 		return fmt.Errorf("song %q still overflows at the floor size across %d pages", s.Get("title"), c.pages)
 	}

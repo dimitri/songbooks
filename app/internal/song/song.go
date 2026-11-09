@@ -1,10 +1,14 @@
-// Package song is a Go port of the .song grammar parsed by v2/lib/song.typ.
+// Package song parses and serializes the ".song" file format — the
+// app's one text representation for a song's header, structure, chord
+// grid and lyrics.
 //
-// Unlike the Typst parser, this package never interprets or transposes chord
-// text: it only pulls apart the structural syntax (bars, sections, lyric
-// brackets) it needs to drive an editor and viewer, and keeps every token's
-// text byte-for-byte as written. That keeps round-tripping safe for content
-// this app doesn't understand yet (duration tags, score references).
+// This package never interprets or transposes chord text: it only pulls
+// apart the structural syntax (bars, sections, lyric brackets) it needs
+// to drive an editor and viewer, and keeps every token's text
+// byte-for-byte as written. That keeps round-tripping safe for content
+// this package doesn't itself understand (duration tags, score
+// references — see Section.Score's own doc comment for where that one
+// actually gets resolved).
 package song
 
 // MetaKeys are the header fields recognized by v2/lib/song.typ's META-KEYS,
@@ -34,7 +38,22 @@ type MetaField struct {
 // Song is the whole parsed .song file.
 type Song struct {
 	Meta     []MetaField
+	Chords   []ChordRef
 	Sections []Section
+}
+
+// ChordRef is one "chord: Name Spec" header line — a fretboard-diagram
+// reference for the chart's legend row (the small grid-with-dots boxes
+// printed under a song's title). Name is a plain chordsym symbol, same
+// grammar as every chord already written in grid:/lyrics ("Cm", "Ab",
+// "D9/F#") — not a separate naming scheme. Spec is kept raw here, same
+// convention as Section.Score: this package only pulls apart the file's
+// structural syntax, never interprets it — see internal/chorddiagram for
+// the actual grid grammar (fret position + per-string X/O/digit/barre)
+// and the real legacy source it's compatible with.
+type ChordRef struct {
+	Name string
+	Spec string
 }
 
 // Get returns the value of the first occurrence of key, or "" if absent.
@@ -66,8 +85,14 @@ type Section struct {
 	Label  string
 	Repeat bool
 
-	Time  string // per-section "time:" override, "" if absent
-	Score string // raw "score:" filename, "" if absent; not otherwise interpreted
+	Time string // per-section "time:" override, "" if absent
+	// Score is the raw "score:" filename, "" if absent. This package
+	// never resolves it (parse/write keep it as a plain opaque string,
+	// same as any other field — see this package's own doc comment); the
+	// actual LilyPond-subset source it names lives in Postgres
+	// (store.SongScore, keyed by section index) and is resolved into
+	// this section's Measures by Store.LoadVariant, not here.
+	Score string
 
 	// Times is the section's "times:" line — how many passes through its
 	// grid it actually takes (its own, when it has one, or an inherited

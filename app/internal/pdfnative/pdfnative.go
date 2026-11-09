@@ -3,24 +3,20 @@ package pdfnative
 import (
 	"context"
 
-	"app/internal/pdf"
 	"app/internal/song"
+	"app/internal/tab"
 
 	"github.com/signintech/gopdf"
 )
 
-// Renderer is a pure-Go, in-process implementation of pdf.Exporter — see
-// the package doc comment in fonts.go for why this exists. It shells out
-// to nothing: New takes no arguments (no v2Root, no external binary to
-// find) because everything it needs (fonts, layout rules) is compiled in.
+// Renderer is the app's PDF exporter: pure Go, in-process — see the
+// package doc comment in fonts.go for why this exists. It shells out to
+// nothing: New takes no arguments because everything it needs (fonts,
+// layout rules) is compiled in.
 type Renderer struct{}
 
-// New constructs a Renderer. There is nothing to configure — unlike
-// pdf.New(v2Root), which needed a path to the Typst pipeline, this type
-// has no external dependency at all.
+// New constructs a Renderer. There is nothing to configure.
 func New() *Renderer { return &Renderer{} }
-
-var _ pdf.Exporter = (*Renderer)(nil)
 
 func newDoc() (*gopdf.GoPdf, error) {
 	doc := &gopdf.GoPdf{}
@@ -31,14 +27,20 @@ func newDoc() (*gopdf.GoPdf, error) {
 	return doc, nil
 }
 
-// ExportSong renders one song's body text to a one-page (best-effort) PDF.
-func (r *Renderer) ExportSong(ctx context.Context, book, body string, opts pdf.Options) ([]byte, error) {
+// ExportSong renders one song's body text to a one-page (best-effort)
+// PDF. scores overlays each section's "score:" riff, if any — keyed by
+// section index, same shape as internal/httpapi's attachTabRiffs for the
+// web chart; pass nil when there's nothing to overlay (every call site
+// except the single-song export route, for now — see ExportSetlist's own
+// doc comment on why this isn't threaded through setlist/songbook export
+// yet).
+func (r *Renderer) ExportSong(ctx context.Context, book, body string, scores map[int]*tab.Riff, opts Options) ([]byte, error) {
 	s := song.Parse(body)
 	doc, err := newDoc()
 	if err != nil {
 		return nil, err
 	}
-	if err := renderSong(doc, s, themeFor(opts.Theme), opts.Mode, opts.HideNotes, opts.Cols()); err != nil {
+	if err := renderSong(doc, s, scores, themeFor(opts.Theme), opts.Mode, opts.HideNotes, opts.Cols()); err != nil {
 		return nil, err
 	}
 	return pdfBytes(doc)
@@ -55,16 +57,16 @@ func (r *Renderer) ExportSong(ctx context.Context, book, body string, opts pdf.O
 // be Start()ed with fonts registered (gopdf's MeasureTextWidth needs a
 // loaded font even in a draw=false pass) — reused across every song in a
 // songbook rather than constructed fresh per call.
-func songPages(measureDoc *gopdf.GoPdf, s *song.Song, th theme, mode pdf.Mode, hideNotes bool, cols int) int {
-	if mode == pdf.ModeMap {
+func songPages(measureDoc *gopdf.GoPdf, s *song.Song, th theme, mode Mode, hideNotes bool, cols int) int {
+	if mode == ModeMap {
 		return 1
 	}
-	size, allowPage2 := fitSongToPage(measureDoc, s, th, mode, hideNotes, cols)
+	size, allowPage2 := fitSongToPage(measureDoc, s, nil, th, mode, hideNotes, cols)
 	if !allowPage2 {
 		return 1
 	}
 	c := newCanvas(measureDoc, false, th, cols, true)
-	renderSongBody(c, s, size, mode, hideNotes)
+	renderSongBody(c, s, nil, size, mode, hideNotes)
 	return c.pages
 }
 
@@ -73,7 +75,7 @@ func songPages(measureDoc *gopdf.GoPdf, s *song.Song, th theme, mode pdf.Mode, h
 // cover=1, title=2, contents=3, songs start at 4 — true as long as the
 // contents table itself is always exactly one page, which
 // renderContentsPage's row-shrinking guarantees (see its own doc comment).
-func buildEntries(refs []pdf.SongRef, th theme, withPages bool, mode pdf.Mode, hideNotes bool, cols int) ([]*song.Song, []contentsEntry) {
+func buildEntries(refs []SongRef, th theme, withPages bool, mode Mode, hideNotes bool, cols int) ([]*song.Song, []contentsEntry) {
 	parsed := make([]*song.Song, len(refs))
 	entries := make([]contentsEntry, len(refs))
 	page := 4
@@ -111,7 +113,7 @@ func buildEntries(refs []pdf.SongRef, th theme, withPages bool, mode pdf.Mode, h
 // ExportSetlist renders a cover page, a title page (event-aware when front
 // carries real date/venue/event-title, plain otherwise), a contents/
 // setlist page grouped by Set, then one page per song in order.
-func (r *Renderer) ExportSetlist(ctx context.Context, title string, front pdf.FrontMatter, refs []pdf.SongRef, opts pdf.Options) ([]byte, error) {
+func (r *Renderer) ExportSetlist(ctx context.Context, title string, front FrontMatter, refs []SongRef, opts Options) ([]byte, error) {
 	th := themeFor(opts.Theme)
 	doc, err := newDoc()
 	if err != nil {
@@ -141,7 +143,12 @@ func (r *Renderer) ExportSetlist(ctx context.Context, title string, front pdf.Fr
 	renderContentsPage(doc, title, "", entries, true, th)
 
 	for _, s := range parsed {
-		if err := renderSong(doc, s, th, opts.Mode, opts.HideNotes, opts.Cols()); err != nil {
+		// scores is nil: a setlist/songbook export's SongRef carries only
+		// a resolved body string, not a variant id to look up "score:"
+		// riffs against — threading that through is a real follow-up,
+		// not done in this pass (ExportSong, the single-song route, has
+		// it).
+		if err := renderSong(doc, s, nil, th, opts.Mode, opts.HideNotes, opts.Cols()); err != nil {
 			return nil, err
 		}
 	}
@@ -152,14 +159,14 @@ func (r *Renderer) ExportSetlist(ctx context.Context, title string, front pdf.Fr
 // a band's full repertoire) — the same cover/title/contents/songs
 // structure as ExportSetlist, with no Set grouping and no event metadata
 // (a songbook isn't tied to one gig).
-func (r *Renderer) ExportSongbook(ctx context.Context, title string, refs []pdf.SongRef, opts pdf.Options) ([]byte, error) {
-	return r.ExportSetlist(ctx, title, pdf.FrontMatter{}, refs, opts)
+func (r *Renderer) ExportSongbook(ctx context.Context, title string, refs []SongRef, opts Options) ([]byte, error) {
+	return r.ExportSetlist(ctx, title, FrontMatter{}, refs, opts)
 }
 
 // ExportSetlistPageOnly renders just the running-order table (no PAGE
 // column, since no song pages follow it) as a single-page PDF — cheap: it
 // never fits/lays out a single song's chart.
-func (r *Renderer) ExportSetlistPageOnly(ctx context.Context, title, subtitle string, refs []pdf.SongRef, opts pdf.Options) ([]byte, error) {
+func (r *Renderer) ExportSetlistPageOnly(ctx context.Context, title, subtitle string, refs []SongRef, opts Options) ([]byte, error) {
 	th := themeFor(opts.Theme)
 	doc, err := newDoc()
 	if err != nil {

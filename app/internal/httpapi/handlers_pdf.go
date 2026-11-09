@@ -6,22 +6,23 @@ import (
 	"net/http"
 	"strconv"
 
-	"app/internal/pdf"
+	"app/internal/pdfnative"
 	"app/internal/setlist"
+	"app/internal/song"
 	"app/internal/store"
 )
 
 // optionsFromRequest reads the view-mode/notes choices a PDF export link
 // can carry — ?mode=jazz|map|lyrics (anything else, including absent,
-// falls back to pdf.ModeDefault — today's only behavior, so an existing
+// falls back to pdfnative.ModeDefault — today's only behavior, so an existing
 // bookmarked/linked export.pdf URL with no query params is unaffected)
 // and ?notes=0 (the only way to turn OFF notes — HideNotes's zero value
 // is false, matching pdfnative's existing unconditional rendering of
 // Section.Notes, so an absent ?notes= param also reproduces today's
 // behavior exactly).
-func optionsFromRequest(r *http.Request) pdf.Options {
-	return pdf.Options{
-		Mode:      pdf.ModeFromString(r.URL.Query().Get("mode")),
+func optionsFromRequest(r *http.Request) pdfnative.Options {
+	return pdfnative.Options{
+		Mode:      pdfnative.ModeFromString(r.URL.Query().Get("mode")),
 		HideNotes: r.URL.Query().Get("notes") == "0",
 	}
 }
@@ -30,7 +31,7 @@ func optionsFromRequest(r *http.Request) pdf.Options {
 // export: single-column by default, since it's printed to read off a
 // music stand from a few feet away, where the normal two-column chart
 // isn't legible — ?cols=2 opts back into the dense layout if wanted.
-func setlistOptionsFromRequest(r *http.Request) pdf.Options {
+func setlistOptionsFromRequest(r *http.Request) pdfnative.Options {
 	o := optionsFromRequest(r)
 	o.Columns = 1
 	if c, err := strconv.Atoi(r.URL.Query().Get("cols")); err == nil && c > 0 {
@@ -50,12 +51,17 @@ func (s *Server) handleExportSongPDF(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	body, _, err := s.store.LoadVariantRaw(id)
+	sg, _, err := s.store.LoadVariant(id)
 	if err != nil {
 		httpError(w, http.StatusNotFound, "no such song")
 		return
 	}
-	data, err := s.pdf.ExportSong(r.Context(), "", body, optionsFromRequest(r))
+	scores, err := s.store.LoadVariantScores(r.Context(), id, sg)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, "loading score: riffs: "+err.Error())
+		return
+	}
+	data, err := s.pdf.ExportSong(r.Context(), "", song.Write(sg), scores, optionsFromRequest(r))
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
 		return
@@ -64,20 +70,20 @@ func (s *Server) handleExportSongPDF(w http.ResponseWriter, r *http.Request) {
 }
 
 // resolveByIDSetlistRefs resolves a setlist's variant entries to
-// pdf.SongRef, skipping (and counting) any that fail to load.
-func resolveByIDSetlistRefs(ctx context.Context, s *Server, l *setlist.Setlist) (refs []pdf.SongRef, skipped int) {
+// pdfnative.SongRef, skipping (and counting) any that fail to load.
+func resolveByIDSetlistRefs(ctx context.Context, s *Server, l *setlist.Setlist) (refs []pdfnative.SongRef, skipped int) {
 	for _, set := range l.Sets {
 		for _, e := range set.Entries {
 			if !e.IsVariant() {
 				skipped++
 				continue
 			}
-			body, _, err := s.store.LoadVariantRaw(e.VariantID)
+			sg, _, err := s.store.LoadVariant(e.VariantID)
 			if err != nil {
 				skipped++
 				continue
 			}
-			refs = append(refs, pdf.SongRef{Group: set.Label, Stem: strconv.FormatInt(e.VariantID, 10), Body: body, Note: e.Note})
+			refs = append(refs, pdfnative.SongRef{Group: set.Label, Stem: strconv.FormatInt(e.VariantID, 10), Body: song.Write(sg), Note: e.Note})
 		}
 	}
 	return refs, skipped
@@ -101,8 +107,8 @@ func gigSubtitle(date, venue string) string {
 // gig's date/venue, if it has one. A setlist with no gigs gets an empty
 // EventTitle, which ExportSetlist renders as a plain title-plate rather
 // than a half-filled event page.
-func (s *Server) setlistFrontMatter(r *http.Request, meta *store.SetlistMeta, title string) pdf.FrontMatter {
-	front := pdf.FrontMatter{EventTitle: title}
+func (s *Server) setlistFrontMatter(r *http.Request, meta *store.SetlistMeta, title string) pdfnative.FrontMatter {
+	front := pdfnative.FrontMatter{EventTitle: title}
 	if meta.OwnerBandID != nil {
 		if band, err := s.store.GetBand(r.Context(), *meta.OwnerBandID); err == nil {
 			front.BandName = band.Name
@@ -226,18 +232,18 @@ func (s *Server) handleExportSongbookPDF(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var refs []pdf.SongRef
+	var refs []pdfnative.SongRef
 	for _, g := range groups {
 		groupLabel := g.Label
 		if groupLabel == "Songs" {
 			groupLabel = ""
 		}
 		for _, vid := range g.VariantIDs {
-			body, _, err := s.store.LoadVariantRaw(vid)
+			sg, _, err := s.store.LoadVariant(vid)
 			if err != nil {
 				continue
 			}
-			refs = append(refs, pdf.SongRef{Group: groupLabel, Stem: strconv.FormatInt(vid, 10), Body: body})
+			refs = append(refs, pdfnative.SongRef{Group: groupLabel, Stem: strconv.FormatInt(vid, 10), Body: song.Write(sg)})
 		}
 	}
 	if len(refs) == 0 {
@@ -278,13 +284,13 @@ func (s *Server) handleExportBandSongbookPDF(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	var refs []pdf.SongRef
+	var refs []pdfnative.SongRef
 	for _, e := range catalog {
-		body, _, err := s.store.LoadVariantRaw(e.VariantID)
+		sg, _, err := s.store.LoadVariant(e.VariantID)
 		if err != nil {
 			continue
 		}
-		refs = append(refs, pdf.SongRef{Stem: strconv.FormatInt(e.VariantID, 10), Body: body})
+		refs = append(refs, pdfnative.SongRef{Stem: strconv.FormatInt(e.VariantID, 10), Body: song.Write(sg)})
 	}
 	if len(refs) == 0 {
 		httpError(w, http.StatusNotFound, "this band's repertoire has no songs yet")
@@ -322,13 +328,13 @@ func (s *Server) handleExportCommunitySongbookPDF(w http.ResponseWriter, r *http
 		return
 	}
 
-	var refs []pdf.SongRef
+	var refs []pdfnative.SongRef
 	for _, e := range catalog {
-		body, _, err := s.store.LoadVariantRaw(e.VariantID)
+		sg, _, err := s.store.LoadVariant(e.VariantID)
 		if err != nil {
 			continue
 		}
-		refs = append(refs, pdf.SongRef{Stem: strconv.FormatInt(e.VariantID, 10), Body: body})
+		refs = append(refs, pdfnative.SongRef{Stem: strconv.FormatInt(e.VariantID, 10), Body: song.Write(sg)})
 	}
 	if len(refs) == 0 {
 		httpError(w, http.StatusNotFound, "this community's repertoire has no songs yet")

@@ -166,6 +166,20 @@ func glyphs(s string) string {
 
 func esc(s string) string { return html.EscapeString(glyphs(s)) }
 
+// GlyphName renders sym as plain escaped text with real flat/sharp
+// glyphs substituted for "b"/"#" (same substitution Render applies to
+// each span) but with none of Render's span markup — for a context that
+// can't hold HTML, e.g. an SVG <text> element (internal/chorddiagram's
+// chord-box labels).
+func GlyphName(sym string) string { return esc(sym) }
+
+// Glyphs is GlyphName without the HTML-escaping — for a context that
+// will itself be HTML-escaped exactly once further down the pipeline
+// (e.g. html/template auto-escaping a Go string into an HTML attribute
+// value), where pre-escaping here would double-encode it. Same
+// flat/sharp glyph substitution as GlyphName/Render.
+func Glyphs(sym string) string { return glyphs(sym) }
+
 // Render produces the chart-style HTML for one chord symbol:
 // <span class="csym">...</span>, safe to embed directly (all dynamic text
 // is HTML-escaped).

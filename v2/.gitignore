@@ -1,8 +1,0 @@
-build/
-dist/
-*.zip
-__pycache__/
-.export-tmp-*/
-.pytest_cache/
-.artifact-scratch/
-dbgr1_scratch.typ

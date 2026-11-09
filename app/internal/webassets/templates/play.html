@@ -31,7 +31,23 @@
      that floor (reflowStaffLines(), song.js, only ever narrows rows
      down TO it) — each one just collided with its neighbor instead
      of the row ever being flagged as needing to wrap further. */}}
-<span class="bar{{if .Open}} bar-open{{end}}{{if .Close}} bar-close{{end}}{{if .IsRepeat}} bar-pct{{end}}{{if .Volta}} has-volta{{end}}{{if and .Volta (not .VoltaFirst)}} volta-continues{{end}}{{if .Placeholder}} bar-placeholder{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}" style="--slots: {{len .Beats}}">
+<span class="bar{{if .Open}} bar-open{{end}}{{if .Close}} bar-close{{end}}{{if .IsRepeat}} bar-pct{{end}}{{if .Volta}} has-volta{{end}}{{if and .Volta (not .VoltaFirst)}} volta-continues{{end}}{{if .Placeholder}} bar-placeholder{{end}}{{if .Tab}} has-tab{{end}}{{if .TabOnly}} tab-only{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}" style="--slots: {{len .Beats}}">
+  {{/* The bar's "score:" riff, if this bar has one. When its whole
+       display row is fully covered (.TabOnly), the riff REPLACES the
+       normal staff/slash content below — real tab notation, not an
+       annotation on top of a staff (see viewerTabBar's doc comment);
+       chord names stay in the same position above it. Otherwise (a row
+       only partly covered) it's a smaller overlay above that one bar's
+       still-normal content — "optionally we have scores content for
+       some of the bars." */}}
+  {{if and .Tab (not .TabOnly)}}
+  <span class="tab-block" style="--strings: {{.Tab.Strings}}">
+    {{range $i := seq .Tab.Strings}}<span class="tab-line" style="--string: {{$i}}"></span>{{end}}
+    <span class="tab-beats">
+      {{range .Tab.Beats}}<span class="tab-beat">{{range .Notes}}<span class="tab-fret" style="--string: {{.String}}">{{.Fret}}</span>{{end}}</span>{{end}}
+    </span>
+  </span>
+  {{end}}
   {{/* MapAnnotate/MapMark/MapLabel are only ever set on a cell built by
        buildMapLines (Song Map's continuous score) — zero-value (no-op)
        for every other mode's ordinary per-section rendering. A CHILD of
@@ -41,8 +57,44 @@
   {{if .MapAnnotate}}<span class="map-sec-badge">{{if .MapMark}}<span class="rehearsal-mark">{{.MapMark}}</span>{{end}}{{label .MapLabel}}</span>{{end}}
   {{if .Open}}<span class="repeat-dots" title="repeat starts"></span>{{end}}
   {{if .Volta}}<span class="volta">{{if .VoltaFirst}}<span class="volta-num">{{.Volta}}</span>{{end}}</span>{{end}}
-  <span class="bar-body">
-    {{if .IsRepeat}}
+  <span class="bar-body{{if .TabOnly}} bar-body-tab-only{{end}}"{{if .TabOnly}} style="--strings: {{.Tab.Strings}}"{{end}}>
+    {{if .TabOnly}}
+      {{/* Chord names ride above this row exactly like a normal bar's
+           (.chord-label, floating via CSS over this same beat-slot
+           row) — just with no slash marks underneath them, since the
+           tab staff below IS the notation now, not an annotation on
+           top of one. */}}
+      <span class="tab-only-chords">
+        {{range .Beats}}<span class="beat-slot tab-only-slot{{if .IsTie}} tie{{end}}" style="--span: {{.Span}}">{{if not .IsTie}}<span class="chord-label"><span class="chord-std">{{chord .Text}}</span><span class="chord-jazz">{{chordJazz .Text}}</span></span>{{end}}</span>{{end}}
+      </span>
+      <span class="tab-block tab-replaces-staff" style="--strings: {{.Tab.Strings}}">
+        {{range $i := seq .Tab.Strings}}<span class="tab-line" style="--string: {{$i}}"></span>{{end}}
+        {{/* Real engraving spaces notes proportionally to duration (a
+             half note gets twice a quarter's room), not in uniform
+             slots — reviewed against real LilyPond tab output.
+             grid-template-columns (one "<weight>fr" term per beat, from
+             .Tab.GridCols) gives exact proportional widths; beam bars
+             (below) then span whole-number grid-column ranges to
+             connect the stems of consecutive eighth/sixteenth notes. */}}
+        <span class="tab-beats" style="grid-template-columns: {{.Tab.GridCols}}">
+          {{range .Tab.Beats}}<span class="tab-beat">
+            {{range .Notes}}<span class="tab-fret" style="--string: {{.String}}">{{.Fret}}</span>{{end}}
+            {{/* Rhythm mark under the fret numbers — the crucial "how
+                 long does this beat last" information real tab/
+                 Guitar-Pro/LilyPond \tabFullNotation notation always
+                 carries: a stem for every sounding note, individual
+                 hooked flags ONLY for an unbeamed eighth/sixteenth (a
+                 beamed run draws one shared bar instead — see below), a
+                 dot for a dotted duration, a rest glyph instead of a
+                 stem for a rest beat. */}}
+            {{if .Rest}}<span class="tab-rest" aria-hidden="true"></span>
+            {{else}}<span class="tab-stem{{if .Dotted}} dotted{{end}}" aria-hidden="true">{{if not .Beamed}}{{range seq .Flags}}<span class="tab-flag"></span>{{end}}{{end}}</span>
+            {{end}}
+          </span>{{end}}
+          {{range .Tab.Beams}}<span class="tab-beam" aria-hidden="true" style="grid-column: {{.StartCol}} / {{.EndCol}}; --levels: {{.Levels}}">{{range seq .Levels}}<span class="tab-beam-bar"></span>{{end}}</span>{{end}}
+        </span>
+      </span>
+    {{else if .IsRepeat}}
       <span class="simile-mark{{if eq .RepeatCount 2}} simile-wide{{end}}" title="{{if eq .RepeatCount 2}}repeat previous 2 bars{{else}}repeat previous bar{{end}}">
         <span class="simile-slash" aria-hidden="true"></span>
         <span class="simile-dot simile-dot-a" aria-hidden="true"></span>
@@ -69,6 +121,18 @@
 {{end}}
 
 {{define "sheet-body"}}
+{{if .Chords}}
+{{/* Chord-diagram legend row, under the title and above the chart —
+     the fretbox strip a real printed songbook carries (see this app's
+     own legacy LaTeX corpus's \gtab rows, e.g. Mercy/gone/gone.tex).
+     Hidden in song-map mode (CSS below), same as every other non-map
+     chrome in this template. */}}
+<div class="chord-legend">
+  {{range .Chords}}
+  <div class="chord-legend-item">{{chordDiagram .}}</div>
+  {{end}}
+</div>
+{{end}}
 {{/* ---- Song map: ONE continuous engraved score, not one independent
      chart per section — bars from one section flow straight into the
      next section's bars on the same staff-line row; section names ride
@@ -169,11 +233,26 @@
   {{else if .Lines}}
   <div class="grid spans-full">
     {{range .Lines}}
+    {{if .TabOnly}}
+    {{/* The whole row is riff-covered — rendered by the vendored
+         alphaTab JS library (static/js/vendor/alphatab, booted by
+         static/js/alphatab-tab.js) from .AlphaTex instead of this app's
+         own hand-rolled CSS/SVG tab drawing: real engraved noteheads
+         and, critically, real beam-bar grouping (TabRhythmMode.
+         ShowWithBars — alphaTab's own per-bar CSS/SVG beaming never
+         grouped eighth/sixteenth runs correctly, only individual hooked
+         flags; ShowWithBars does). One alphaTab instance per display
+         row, not per bar — alphaTab lays out its own bars/spacing
+         internally across the whole string it's given, so a bar-by-bar
+         mount would fight its own layout rather than use it. */}}
+    <div class="staff-line alphatab-row" style="--cap: {{.Capacity}}" data-tex="{{.AlphaTex}}"></div>
+    {{else}}
     <div class="staff-line" style="--cap: {{.Capacity}}">
       {{range .Measures}}
       {{template "chart-bar" .}}
       {{end}}
     </div>
+    {{end}}
     {{end}}
   </div>
   {{end}}
@@ -460,6 +539,7 @@
     <div class="prep-tabs view-tabs" role="tablist">
       <button class="prep-tab active" data-tab="structure" type="button">Chart</button>
       <button class="prep-tab" data-tab="raw" type="button">Source</button>
+      <button class="prep-tab" data-tab="scores" type="button">Scores</button>
       <button class="prep-tab" data-tab="import" type="button">Import</button>
     </div>
   </div>
@@ -477,28 +557,59 @@
 
     <section class="prep-panel" data-panel="raw" id="editor" data-version="{{.Version}}" data-variant-id="{{.VariantID}}" data-can-edit="{{.CanEdit}}" hidden>
       <div class="code-toolbar" id="code-toolbar">
-        {{/* One-tap section markers — the common labels this app's own
-             section-type inference (handlers_pages.go's annotateStructure,
-             IsSolo, etc.) already recognizes by name, so a tapped-in
-             "[Chorus]"/"[Solo]" gets the same chip/multi-rest treatment as
-             one typed by hand. Covers splitting a pasted wall of lyrics
-             (no section breaks at all, the common post-import state) into
-             real structure without typing "[" + the label + "]" by hand
-             each time. */}}
-        <button type="button" data-insert-label="Verse">[Verse]</button>
-        <button type="button" data-insert-label="Chorus">[Chorus]</button>
-        <button type="button" data-insert-label="Bridge">[Bridge]</button>
-        <button type="button" data-insert-label="Intro">[Intro]</button>
-        <button type="button" data-insert-label="Outro">[Outro]</button>
-        <button type="button" data-insert-label="Solo">[Solo]</button>
+        {{/* One menu, not one button per label — six separate [Verse]/
+             [Chorus]/... buttons ate a full toolbar row on their own and
+             crowded out everything else (the reported "takes too much
+             space"). A single trigger + dropdown is the same pattern
+             every code editor's own "insert/new X" control uses (VS
+             Code's command palette, GitHub's "+" add-file menu): one
+             fixed-width affordance, the actual choices hidden until
+             asked for. <details>/<summary> gives real disclosure
+             semantics (keyboard-operable, no extra ARIA wiring) for
+             free; song.js only adds a click-outside/Escape close and
+             the "Custom…" free-text fallback on top. The labels
+             offered are still exactly this app's own section-type
+             inference vocabulary (handlers_pages.go's
+             annotateStructure/IsSolo), so a tapped-in "[Chorus]" gets
+             the same chip/multi-rest treatment as one typed by hand. */}}
+        <details class="toolbar-menu" id="section-menu">
+          <summary>+ Section</summary>
+          <div class="toolbar-menu-body">
+            <button type="button" data-insert-label="Verse">Verse</button>
+            <button type="button" data-insert-label="Chorus">Chorus</button>
+            <button type="button" data-insert-label="Bridge">Bridge</button>
+            <button type="button" data-insert-label="Intro">Intro</button>
+            <button type="button" data-insert-label="Outro">Outro</button>
+            <button type="button" data-insert-label="Solo">Solo</button>
+            <div class="toolbar-menu-custom">
+              <input type="text" id="section-menu-custom" placeholder="Custom label&hellip;" maxlength="40">
+              <button type="button" id="section-menu-custom-add">Add</button>
+            </div>
+          </div>
+        </details>
         <button type="button" data-insert="grid">grid:</button>
         <button type="button" data-insert="bars">bars:</button>
+        <button type="button" data-insert="score">score:</button>
+        <button type="button" data-insert="chord">chord:</button>
         <button type="button" data-wrap="chord">[Chord]</button>
         <button type="button" data-insert="comment"># comment</button>
+        <a href="/docs/song-format" target="_blank" rel="noopener" class="code-toolbar-help" title="full .song syntax reference">Syntax help &#8599;</a>
       </div>
-      <div class="code-editor">
-        <pre class="code-backdrop" id="code-backdrop" aria-hidden="true"><code id="code-highlight"></code></pre>
-        <textarea id="raw-text" rows="22" spellcheck="false">{{.Text}}</textarea>
+      {{/* Two panes on desktop (source left, live computed output right) —
+           the raw editor already recomputes a full preview on every edit
+           (renderPreview, song.js, debounced 400ms) and was just writing
+           it straight into the hidden Chart tab's #sheet behind this
+           drawer, so a round trip to the Chart tab was the only way to
+           see it. #source-preview is a second mount point for that exact
+           same response; CSS (app.css) only turns this into a real
+           side-by-side layout at desktop widths — on narrow viewports it
+           stacks, since a real second column has no room there. */}}
+      <div class="code-editor-row">
+        <div class="code-editor">
+          <pre class="code-backdrop" id="code-backdrop" aria-hidden="true"><code id="code-highlight"></code></pre>
+          <textarea id="raw-text" rows="22" spellcheck="false">{{.Text}}</textarea>
+        </div>
+        <div class="sheet source-preview" id="source-preview" aria-label="live preview"></div>
       </div>
       <div class="editor-actions">
         <button id="save-btn" type="button" class="primary" hidden>Save</button>
@@ -509,6 +620,48 @@
         <p class="hint">Erases the current lyrics and chords for this song (not the song itself — title, artist and other metadata stay) and drops you back into a blank Source editor to fill in again. Can't be undone.</p>
         <button id="redo-song-btn" type="button" class="danger">Erase lyrics &amp; chords, start over</button>
       </details>
+    </section>
+
+    {{/* Scores: per-section note-level LilyPond-subset editor (see
+         /docs/song-format#score) plus a chord-diagram builder for
+         "chord:" header lines. Lazily populated by score-editor.js the
+         first time this tab is opened (window.ScoreEditor.init(), wired
+         from the tab-switch handler in song.js) rather than at page
+         load, since most songs have no score: section at all yet. */}}
+    <section class="prep-panel" data-panel="scores" id="scores-panel" data-variant-id="{{.VariantID}}" hidden>
+      <p class="hint">Each section below can carry its own note-level tab/staff source (LilyPond-subset — see <a href="/docs/song-format#score" target="_blank" rel="noopener">syntax reference</a>), validated and previewed here before it's saved. Saving here stores the source, but the section's own chart still shows its plain chord grid until that section also has a <code>score:</code> line in Source (the <code>score:</code> toolbar button there adds one) &mdash; that's what turns this source into the section's actual chart display. The chord-diagram builder at the bottom generates a <code>chord:</code> header line to paste into Source.</p>
+      <div id="score-sections">
+        {{range .Sections}}
+        <details class="score-section" data-section-index="{{.Index}}">
+          <summary>{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}</summary>
+          <div class="score-section-body">
+            <textarea class="score-source" rows="6" spellcheck="false" placeholder="\relative { ... } — see the syntax reference above"></textarea>
+            <div class="score-section-preview sheet"></div>
+            <div class="score-section-actions">
+              <button type="button" class="primary score-save">Save</button>
+              <button type="button" class="danger score-delete">Remove score</button>
+              <span class="score-status hint"></span>
+            </div>
+          </div>
+        </details>
+        {{end}}
+      </div>
+      <h3>Chord diagram</h3>
+      <p class="hint">Click a fret cell to mark it, click again to cycle fret &rarr; mute &rarr; open. Drag across a row at the same fret to mark a barre.</p>
+      <div class="chord-diagram-editor" id="chord-diagram-editor">
+        <div class="cde-controls">
+          <label>Name <input type="text" id="cde-name" placeholder="Cm" maxlength="12"></label>
+          <label>Base fret <input type="number" id="cde-base-fret" value="1" min="1" max="20"></label>
+          <label>Strings <input type="number" id="cde-num-strings" value="6" min="4" max="6"></label>
+        </div>
+        <div class="cde-grid" id="cde-grid"></div>
+        <div class="cde-preview" id="cde-preview"></div>
+        <div class="cde-actions">
+          <code id="cde-spec"></code>
+          <button type="button" id="cde-insert">Insert chord: line into Source</button>
+          <span id="cde-status" class="hint"></span>
+        </div>
+      </div>
     </section>
 
     {{/* Import wizard — Ultimate Guitar only (a UG tab already carries
@@ -864,6 +1017,18 @@
 <script src="/static/js/song.js?v={{staticVersion}}"></script>
 <script src="/static/js/audio-player.js?v={{staticVersion}}"></script>
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
+{{if or .HasAlphaTab .CanEdit}}
+{{/* Loaded whenever the page already has a riff-covered row to draw
+     (see .HasAlphaTab, handleSong), OR the viewer can edit — the Scores
+     tab's live preview needs it even on a song with no score: yet (that's
+     exactly what the tab is for). The vendored library is ~1.5MB, not
+     worth shipping to a read-only viewer who'll never open that tab. */}}
+<script src="/static/js/vendor/alphatab/alphaTab.min.js?v={{staticVersion}}"></script>
+<script src="/static/js/alphatab-tab.js?v={{staticVersion}}"></script>
+{{end}}
+{{if .CanEdit}}
+<script src="/static/js/score-editor.js?v={{staticVersion}}"></script>
+{{end}}
 {{if .PracticeStepMode}}
 <script>
 // Practice/listening mode forces a specific view mode (full chart for

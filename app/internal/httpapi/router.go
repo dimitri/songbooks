@@ -5,7 +5,6 @@ import (
 
 	"app/internal/lilypond"
 	"app/internal/mailer"
-	"app/internal/pdf"
 	"app/internal/pdfnative"
 	"app/internal/store"
 	"app/internal/webassets"
@@ -13,13 +12,9 @@ import (
 
 type Server struct {
 	store *store.Store
-	// pdf defaults to pdfnative.Renderer — pure Go, in-process, no `typst`
-	// binary or /v2 mount required. Falls back to the Typst-shelling
-	// pdf.Bridge only when v2Root is explicitly given (kept as a rollback
-	// path, not the default — see NewServer). Never nil either way, so the
-	// handlers_pdf.go "s.pdf == nil" 503 guards are now dead in practice,
-	// left in place rather than ripped out in this same change.
-	pdf    pdf.Exporter
+	// pdf is pdfnative's pure-Go, in-process renderer — no `typst`/
+	// `lilypond` binary, no /v2 mount, never nil.
+	pdf    *pdfnative.Renderer
 	ly     *lilypond.Bridge // the LilyPond export pipeline — needs no external template tree, so always non-nil; a missing `lilypond` binary only surfaces as a request-time 500
 	mailer mailer.Mailer
 
@@ -47,12 +42,7 @@ type Server struct {
 	webauthn *webauthnState
 }
 
-// NewServer wires the HTTP handler. PDF export always uses pdfnative's
-// pure-Go in-process renderer; v2Root, now otherwise unused, keeps ONE
-// legacy meaning — a non-empty value switches PDF export back to the
-// Typst-shelling pdf.Bridge instead, a rollback path for a deployment
-// that still has the `typst` binary and a /v2 checkout and wants it,
-// rather than the normal default. m is the mailer magic-link login uses
+// NewServer wires the HTTP handler. m is the mailer magic-link login uses
 // to "send" its emails — see internal/mailer and cmd/songbooks/main.go,
 // which constructs a mailer.ConsoleMailer by default. devAutoLogin is nil
 // in every normal (including production) deployment — see the
@@ -61,13 +51,8 @@ type Server struct {
 // passkey Relying Party ID (empty = derive per-request from Host, dev-only
 // default — see webauthn.go's webauthnForRequest and main.go's
 // --webauthn-rp-id flag).
-func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *store.Person, webauthnRPID string) http.Handler {
-	s := &Server{store: st, mailer: m, ly: lilypond.NewBridge(), devAutoLogin: devAutoLogin, webauthnRPID: webauthnRPID, webauthn: newWebAuthnState()}
-	if v2Root != "" {
-		s.pdf = pdf.New(v2Root)
-	} else {
-		s.pdf = pdfnative.New()
-	}
+func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, webauthnRPID string) http.Handler {
+	s := &Server{store: st, mailer: m, pdf: pdfnative.New(), ly: lilypond.NewBridge(), devAutoLogin: devAutoLogin, webauthnRPID: webauthnRPID, webauthn: newWebAuthnState()}
 	mux := http.NewServeMux()
 
 	// Auth itself: reachable without a session (that's the point).
@@ -110,6 +95,8 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	// site is public the same way, for the same reason.
 	mux.HandleFunc("GET /", s.optionalPerson(s.handleMarketingHome))
 	mux.HandleFunc("GET /editor", s.optionalPerson(s.handleMarketingEditor))
+	mux.HandleFunc("GET /docs/song-format", s.optionalPerson(s.handleDocsSongFormat))
+	mux.HandleFunc("GET /docs/song-format/example", s.handleDocsSongFormatExample)
 	mux.HandleFunc("GET /for-educators", s.optionalPerson(s.handleMarketingEducators))
 	mux.HandleFunc("GET /home", s.requireAuth(s.handleIndex))
 
@@ -167,6 +154,18 @@ func NewServer(st *store.Store, v2Root string, m mailer.Mailer, devAutoLogin *st
 	mux.HandleFunc("DELETE /api/songs/{id}/audio/{category}", s.requireVariantRole("editor", s.handleDeleteSongAudio))
 	mux.HandleFunc("PUT /api/songs/{id}/audio/{category}/markers/{sectionIndex}", s.requireVariantRole("editor", s.handlePutAudioMarker))
 	mux.HandleFunc("DELETE /api/songs/{id}/audio/{category}/markers/{sectionIndex}", s.requireVariantRole("editor", s.handleDeleteAudioMarker))
+
+	// A section's "score:" source (internal/tab's LilyPond-compatible
+	// subset) — read is viewer-level, write/delete editor-level, same
+	// split as audio above. Rendering itself needs no separate route:
+	// Store.LoadVariant resolves it straight into the section's chord
+	// grid, so it shows up through the exact same web/PDF paths any
+	// other "grid:" content does.
+	mux.HandleFunc("GET /api/songs/{id}/scores/{sectionIndex}", s.requireVariantRole("viewer", s.handleGetSongScore))
+	mux.HandleFunc("PUT /api/songs/{id}/scores/{sectionIndex}", s.requireVariantRole("editor", s.handlePutSongScore))
+	mux.HandleFunc("DELETE /api/songs/{id}/scores/{sectionIndex}", s.requireVariantRole("editor", s.handleDeleteSongScore))
+	mux.HandleFunc("POST /api/songs/{id}/scores/{sectionIndex}/preview", s.requireVariantRole("editor", s.handlePreviewSongScore))
+	mux.HandleFunc("POST /api/chord-diagrams/preview", s.requireAuth(s.handleChordDiagramPreview))
 
 	mux.HandleFunc("GET /metronome", s.requireAuth(s.handleMetronomePage))
 

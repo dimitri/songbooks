@@ -1,7 +1,6 @@
-// Package pdfnative is a pure-Go, in-process PDF renderer for songs,
-// songbooks and setlists — a drop-in replacement for internal/pdf's
-// Typst-shelling Bridge (see pdf.Exporter), built so the app no longer
-// needs the `typst` binary or a /v2 bind mount just to export a PDF.
+// Package pdfnative is the app's pure-Go, in-process PDF renderer for
+// songs, songbooks and setlists — no `typst`/`lilypond` binary, no /v2
+// bind mount, just this package.
 //
 // It never shells out to anything: it parses a song's body with
 // internal/song (the same parser the editor already uses) and draws

@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"app/internal/pdf"
 	"app/internal/song"
+	"app/internal/tab"
 
 	"github.com/signintech/gopdf"
 )
@@ -365,16 +365,50 @@ func (c *canvas) barRow(measures []song.Measure, size float64, jazz bool, firstS
 // and size, line weight) are carried over from the web CSS's own tuned
 // values, not re-guessed — matching an already-approved design beats a
 // fresh attempt at the same idea.
-func (c *canvas) staffBarRow(measures []song.Measure, size float64, beatsPerBar int, firstStaff bool, tempo, timeNum, timeDen string) {
+func (c *canvas) staffBarRow(measures []song.Measure, riffBars []*tab.Bar, tuning []int, size float64, beatsPerBar int, firstStaff bool, tempo, timeNum, timeDen string) {
 	if len(measures) == 0 {
 		return
 	}
+	// tabH reserves room ABOVE the normal chord/staff row for a "score:"
+	// riff's note-level tab, when this row has any — same "overlay above
+	// this bar, same bar width, optional per bar" layout as the web
+	// chart's .tab-block (see internal/httpapi's attachTabRiffs and
+	// play.html's "chart-bar" template). 0 when no bar in this row has one,
+	// so a normal chart's row height is completely unchanged.
+	tabH := 0.0
+	hasTab := false
+	allTab := len(riffBars) > 0
+	for _, b := range riffBars {
+		if b != nil {
+			hasTab = true
+		} else {
+			allTab = false
+		}
+	}
+	if allTab {
+		timeNumI, _ := strconv.Atoi(timeNum)
+		if timeNumI <= 0 {
+			timeNumI = beatsPerBar
+		}
+		timeDenI, _ := strconv.Atoi(timeDen)
+		if timeDenI <= 0 {
+			timeDenI = 4
+		}
+		c.tabOnlyRow(measures, riffBars, tuning, size, beatsPerBar, firstStaff, tempo, timeNum, timeDen, timeNumI, timeDenI)
+		return
+	}
+	if hasTab {
+		tabH = float64(len(tuning))*size*0.5 + size*0.3
+	}
+
 	chordH := size * 1.4
 	staffH := size * 1.05
 	ruleGap := size * 0.5
-	rowH := chordH + staffH + ruleGap
+	rowH := tabH + chordH + staffH + ruleGap
 	c.ensureSpace(rowH + 6)
 
+	rowTop := c.y
+	c.y += tabH
 	x0 := c.curX()
 	tsW := 0.0
 	if firstStaff {
@@ -409,6 +443,10 @@ func (c *canvas) staffBarRow(measures []song.Measure, size float64, beatsPerBar 
 	pendingRepeatCount := 0
 	for i, m := range measures {
 		bx := barsX0 + float64(i)*boxW
+
+		if i < len(riffBars) && riffBars[i] != nil {
+			c.drawTabBar(riffBars[i], tuning, bx, boxW, rowTop, tabH, size)
+		}
 
 		if i > 0 {
 			c.line(bx, staffTop, bx, staffBottom, c.th.line, 0.7)
@@ -462,6 +500,43 @@ func (c *canvas) staffBarRow(measures []song.Measure, size float64, beatsPerBar 
 		}
 	}
 	c.y = staffBottom + ruleGap
+}
+
+// drawTabBar draws one bar's worth of note-level tab notation (from a
+// "score:" riff — see internal/tab) into the (x, x+w) by (top, top+h)
+// box reserved for it above this bar's normal chord/staff row — string
+// lines full-width, fret numbers positioned by beat fraction across the
+// bar and by string. A simplified v1 (no stems/beams — see
+// internal/tab's own package doc comment on scope), matching the web
+// chart's .tab-block overlay.
+func (c *canvas) drawTabBar(bar *tab.Bar, tuning []int, x, w, top, h, size float64) {
+	n := len(tuning)
+	if n == 0 || !c.draw {
+		return
+	}
+	lineGap := h / float64(n+1)
+	for s := 1; s <= n; s++ {
+		ly := top + lineGap*float64(s)
+		c.line(x, ly, x+w, ly, c.th.faint, 0.4)
+	}
+	beats := len(bar.Beats)
+	if beats == 0 {
+		return
+	}
+	colW := w / float64(beats)
+	for bi, beat := range bar.Beats {
+		cx := x + colW*(float64(bi)+0.5)
+		for _, note := range beat.Notes {
+			if note.String < 1 || note.String > n {
+				continue
+			}
+			ly := top + lineGap*float64(note.String)
+			txt := strconv.Itoa(note.Fret)
+			tw := c.measureWidth(txt, faceSansBold, size*0.55)
+			c.filledRect(cx-tw/2-1, ly-size*0.3, tw+2, size*0.6, c.th.bg)
+			c.textAt(cx-tw/2, ly+size*0.2, txt, faceSansBold, size*0.55, c.th.ink)
+		}
+	}
 }
 
 // drawSlash draws one rhythm-slash mark (the LilyPond/Real Book "play a
@@ -590,11 +665,26 @@ func barsPerLineFor(sec song.Section, lineIdx int) int {
 // timeNum/timeDen: when firstStaff is true, the row's own FIRST printed
 // line gets the tempo+time-signature cell before its opening barline —
 // see renderSongBody's one-shot firstStaffDrawn tracking.
-func (c *canvas) measureSection(sec song.Section, bodySize float64, mode pdf.Mode, hideNotes bool, globalBeats int, firstStaff bool, tempo, timeNum, timeDen string) {
-	if mode != pdf.ModeLyrics && len(sec.Measures) > 0 {
+func (c *canvas) measureSection(sec song.Section, riff *tab.Riff, bodySize float64, mode Mode, hideNotes bool, globalBeats int, firstStaff bool, tempo, timeNum, timeDen string) {
+	if mode != ModeLyrics && len(sec.Measures) > 0 {
 		beatsPerBar := globalBeats
 		if sec.Time != "" {
 			beatsPerBar = timeSigBeats(sec.Time)
+		}
+		// riffBars is sec.Measures-length, nil everywhere except the bar
+		// indices riff actually has data for — "optionally we have
+		// scores content for some of the bars", same convention the web
+		// chart's attachTabRiffs uses.
+		var riffBars []*tab.Bar
+		var tuning []int
+		if riff != nil {
+			tuning = riff.Tuning
+			riffBars = make([]*tab.Bar, len(sec.Measures))
+			for i := range riff.Bars {
+				if i < len(riffBars) {
+					riffBars[i] = &riff.Bars[i]
+				}
+			}
 		}
 		lineIdx := 0
 		start := 0
@@ -605,15 +695,19 @@ func (c *canvas) measureSection(sec song.Section, bodySize float64, mode pdf.Mod
 				end = len(sec.Measures)
 			}
 			showTS := firstStaff && lineIdx == 0
-			if mode == pdf.ModeJazz {
+			if mode == ModeJazz {
 				c.barRow(sec.Measures[start:end], bodySize, true, showTS, tempo, timeNum, timeDen)
 			} else {
-				c.staffBarRow(sec.Measures[start:end], bodySize, beatsPerBar, showTS, tempo, timeNum, timeDen)
+				var rowRiffBars []*tab.Bar
+				if riffBars != nil {
+					rowRiffBars = riffBars[start:end]
+				}
+				c.staffBarRow(sec.Measures[start:end], rowRiffBars, tuning, bodySize, beatsPerBar, showTS, tempo, timeNum, timeDen)
 			}
 			start = end
 			lineIdx++
 		}
-		if mode != pdf.ModeJazz && len(sec.Lyrics) > 0 {
+		if mode != ModeJazz && len(sec.Lyrics) > 0 {
 			// A beat more air between the grid's own closing baseline
 			// and the lyric block right under it — without this they
 			// visually fused into one run-on block (the grid's last
@@ -623,7 +717,7 @@ func (c *canvas) measureSection(sec song.Section, bodySize float64, mode pdf.Mod
 			c.y += bodySize * 0.35
 		}
 	}
-	if mode != pdf.ModeJazz {
+	if mode != ModeJazz {
 		for _, ln := range sec.Lyrics {
 			c.lyricLine(ln, bodySize)
 		}

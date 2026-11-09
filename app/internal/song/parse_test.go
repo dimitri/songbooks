@@ -6,13 +6,18 @@ import (
 	"testing"
 )
 
-// TestRoundTripFixtures parses every real .song file in the repo, writes it
-// back out, and reparses — the two parsed Songs must be structurally
+// TestRoundTripFixtures parses every real .song file in testdata/, writes
+// it back out, and reparses — the two parsed Songs must be structurally
 // identical. This is a semantic round-trip, not a byte-for-byte one: Write
 // regenerates canonical formatting, so it doesn't need to reproduce a human
 // author's original whitespace/line-wrapping, only preserve meaning.
+//
+// These fixtures are real song bodies pulled from the repo's retired v2/
+// Typst pipeline (v2/*/songs/*.song) before that directory was removed —
+// Postgres is this app's only runtime source of song content now, so
+// testdata/ is this test's own copy, not a second live source.
 func TestRoundTripFixtures(t *testing.T) {
-	paths, err := filepath.Glob("../../../v2/*/songs/*.song")
+	paths, err := filepath.Glob("testdata/*.song")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,6 +37,24 @@ func TestRoundTripFixtures(t *testing.T) {
 				t.Errorf("round-trip mismatch for %s\n--- first ---\n%+v\n--- again ---\n%+v", path, first, again)
 			}
 		})
+	}
+}
+
+func TestParseChordRefs(t *testing.T) {
+	src := "title: Gone\nchord: Cm 8:XX3(111)\nchord: G 7:XX(3121)\nchord: Ab 8:X4312X\nchord: Eb 8:X3(111)X\n\n[Verse]\n[Cm]Hello\n"
+	s := Parse(src)
+	want := []ChordRef{
+		{Name: "Cm", Spec: "8:XX3(111)"},
+		{Name: "G", Spec: "7:XX(3121)"},
+		{Name: "Ab", Spec: "8:X4312X"},
+		{Name: "Eb", Spec: "8:X3(111)X"},
+	}
+	if !reflect.DeepEqual(s.Chords, want) {
+		t.Errorf("Chords = %+v, want %+v", s.Chords, want)
+	}
+	again := Parse(Write(s))
+	if !reflect.DeepEqual(s.Chords, again.Chords) {
+		t.Errorf("round-trip mismatch: %+v vs %+v", s.Chords, again.Chords)
 	}
 }
 
