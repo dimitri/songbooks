@@ -1037,22 +1037,20 @@ const ICONS = {
     reflowMapLines();
     refreshBarsCache();
     applyPageBox();
-    // Drummer/Bass/Guitar view's own chip row (.drum-map/.bass-map/
-    // .guitar-map — buildDrumChips/buildBassChips/buildGuitarChips,
+    // Drummer view's own continuous chart (.drum-map — buildDrumMap,
     // handlers_pages.go) is hidden by CSS in every other mode — the same
     // "width=0, invisible" trap a hidden .grid/.map-score row would hit,
     // except alphaTab (unlike this app's own CSS-only bar markup) only
     // ever mounts a row ONCE, at page load (alphatab-tab.js's
     // renderAll), when this mode's row is still hidden for anyone who
-    // doesn't already have it saved as their default mode — confirmed
-    // live: alphaTab logs "skipped rendering because of width=0" and
-    // never retries on its own once visible. Mount it now that it's
-    // actually visible if it hasn't been already; harmless/idempotent to
-    // call again for a row alphaTab already painted (it just
-    // reconstructs the same SVG from the same data-tex).
-    const chipMapClass = { drummer: '.drum-map', bass: '.bass-map', guitar: '.guitar-map' }[v];
-    if (chipMapClass && window.AlphaTabTab) {
-      sheet.querySelectorAll(chipMapClass + ' .alphatab-row[data-tex]').forEach(row => {
+    // doesn't already have "drummer" saved as their default mode —
+    // confirmed live: alphaTab logs "skipped rendering because of
+    // width=0" and never retries on its own once visible. Mount it now
+    // that it's actually visible if it hasn't been already; harmless/
+    // idempotent to call again for a row alphaTab already painted (it
+    // just reconstructs the same SVG from the same data-tex).
+    if (v === 'drummer' && window.AlphaTabTab) {
+      sheet.querySelectorAll('.drum-map .alphatab-row[data-tex]').forEach(row => {
         if (!row.querySelector('svg')) window.AlphaTabTab.render(row);
       });
     }

@@ -123,67 +123,14 @@
     // i.e. justifyLastSystem=false — confirmed against the vendored
     // library) deliberately does NOT stretch a trailing, possibly-
     // incomplete system to fill the page width, the normal engraving
-    // convention. For a melodic (guitar/bass) TabOnly row, overlaid onto
-    // a chord-grid row of a known width, that's exactly wrong: this
-    // app's own chord-grid bars and the chart's other staff rows
-    // (reflowStaffLines(), the CSS --cap-based flex-basis) always
-    // justify every row to the SAME full line length regardless of
-    // content, so forcing it here makes a melodic row match that
-    // convention too, instead of standing out as its own, differently-
-    // sized system. A drum chip (Drummer view, one alphaTab mount per
-    // section — see buildDrumChips, handlers_pages.go) wants the OPPOSITE:
-    // its own natural, content-sized width, so CSS flex-wrap (.drum-map)
-    // can pack several narrow ones onto a line — stretching it here
-    // would defeat that packing entirely.
-    settings.display.justifyLastSystem = !isDrumTrack;
-    // A Drummer-view chip (data-bars, set only there — see buildDrumChips,
-    // handlers_pages.go) is laid out at its own natural/content-sized
-    // width (CSS min-width, not 100%) so flex-wrap can pack several narrow
-    // chips onto one line — but that leaves alphaTab's own default
-    // auto-wrap (by measured container width, barsPerRow=-1) seeing a
-    // narrow box and wrapping the chip's own bars onto separate lines
-    // instead of the single line a single section's worth of bars is
-    // meant to read as. Pinning barsPerRow to the chip's own bar count
-    // keeps it on one line, but alphaTab still lays that one line out
-    // within whatever width the (empty, pre-render) container measures at
-    // mount time — the CSS min-width alone (sized for the common 1-bar
-    // rest case), so a chip with several real bars got them all squeezed
-    // into that same narrow width, overlapping glyphs and chord-name
-    // text. Giving the container an explicit width here, scaled by its
-    // own bar count, gives alphaTab the room that bar count actually
-    // needs before it measures anything.
-    //
-    // data-restonly (set only when the chip has no real riff of its own —
-    // see RestOnly, handlers_pages.go) is the one exception to BOTH of
-    // the above: a run of bare rest bars consolidates into ONE
-    // multiBarRest glyph regardless of how many bars it covers, so (a)
-    // scaling width by bar count produces a chip hundreds of pixels wide
-    // for a single number, and (b) pinning barsPerRow to that same bar
-    // count is actively wrong — confirmed live (Belle of the Ball, every
-    // chip rest-only): barsPerRow tells alphaTab's layout to fit that
-    // many SEPARATE bar slots on the row, which is in direct tension
-    // with multiBarRest collapsing them down to one slot, and alphaTab
-    // resolves that by silently dropping the count glyph entirely — bars
-    // AND restonly both set produced a correctly-sized but blank chip.
-    // Leaving barsPerRow at its default (-1, auto) for a rest-only chip
-    // is safe specifically BECAUSE consolidation means there's only ever
-    // one real visual unit to lay out, so there's nothing for auto-wrap
-    // to wrap.
-    if (container.dataset.bars) {
-      const bars = parseInt(container.dataset.bars, 10);
-      if (container.dataset.restonly) {
-        // 11rem (176px) is a measured floor, not a round guess: a
-        // multiBarRest glyph's own count number needs real room to
-        // draw at all — tested live down to 120px (consolidated glyph
-        // present, but alphaTab silently omits the count text entirely)
-        // and up through a 2-digit count ("16") needing ~150-160px
-        // before it stops clipping; 11rem clears both with margin.
-        container.style.width = '11rem';
-      } else {
-        settings.display.barsPerRow = bars;
-        container.style.width = (5.5 + bars * 8) + 'rem';
-      }
-    }
+    // convention. Every alphaTab mount in this app sits inside a
+    // container ALREADY sized to its own content (a melodic TabOnly
+    // row's --cap-based width, or Drummer view's own per-section
+    // percentage width — buildDrumMap, handlers_pages.go) — so
+    // stretching to fill that container, rather than standing out as
+    // its own undersized system within it, is the right default for
+    // every mount here, drum or melodic alike.
+    settings.display.justifyLastSystem = true;
     settings.notation.rhythmMode = alphaTab.TabRhythmMode.ShowWithBars;
     // The "Guitar/Bass Standard Tuning" caption above the staff — this
     // app's own tuning is already implied by the song/section (and the

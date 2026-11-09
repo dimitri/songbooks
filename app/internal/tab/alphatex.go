@@ -285,7 +285,7 @@ var drumArticulationName = map[int]string{
 // drummer reading real engraved bars (not the no-notation default
 // multi-rest case) still sees the chord changes they're drumming to.
 //
-// One Riff = one alphaTab mount = one section (see buildDrumChips,
+// One Riff = one alphaTab mount = one section (see buildDrumMap,
 // handlers_pages.go), deliberately NOT alphaTeX's own "\section"
 // directive on a shared, whole-song document: confirmed live that a
 // bar carrying "\section" is always excluded from multiBarRest
@@ -295,7 +295,7 @@ var drumArticulationName = map[int]string{
 // that entirely — every bar in THIS document belongs to the same
 // section, so it consolidates into one correctly-counted glyph, and the
 // section's own label is plain HTML drawn above the mount (see the
-// "drum-chip" template block) instead of something alphaTab itself has
+// "drum-cell" template block) instead of something alphaTab itself has
 // to lay out.
 func ToAlphaTexDrums(riff *Riff, chordLabels []string) string {
 	var b strings.Builder

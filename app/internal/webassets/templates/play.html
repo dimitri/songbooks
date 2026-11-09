@@ -180,65 +180,38 @@
 </div>
 
 {{/* Drummer view's own chart, the drum-staff counterpart of .map-score
-     right above — same IDEA (one continuous-reading chart, not a chord
-     grid chopped per section), different MECHANISM: one alphaTab mount
-     PER SECTION (.DrumChips, built by buildDrumChips, handlers_pages.go)
-     instead of one shared document for the whole song. An earlier
-     version used a single document with a real alphaTeX "\section"
-     marker per section (alphaTab's own rehearsal-mark glyph, the same
-     real-engraving technique .map-sec-badge imitates by hand) — but
-     confirmed live that a "\section"-marked bar is always excluded from
-     multiBarRest consolidation, splitting an all-rest section into a
-     lone marked bar plus a shorter rest instead of one correctly-
-     counted glyph. One Riff per section avoids that: this section's
-     label is plain HTML (.drum-chip-label) drawn above its OWN mount,
-     which then always consolidates cleanly since nothing in it carries
-     a marker. CSS flex-wrap (.drum-map) packs narrow (rest-only) chips
-     several to a line and gives a wide (real-notation) chip its own —
-     the same visual result Song Map's own variable-width recall cells
-     give the chord grid, via plain layout instead of alphaTab's
-     internal bar-wrap. Hidden outside drummer mode by CSS. */}}
-{{if .DrumChips}}
+     right above — same DESIGN Song Map itself already settled on (see
+     this repo's own history: "Song Map: one continuous engraved sheet,
+     not disconnected floating chips") applied to real drum notation
+     instead of chord slashes. One alphaTab mount per SECTION, never one
+     shared document for the whole song: a shared document needs a real
+     alphaTeX "\section" marker to label where a section starts, and
+     alphaTab ALWAYS excludes a "\section"-marked bar from multiBarRest
+     consolidation (confirmed live), splitting an all-rest section into
+     a lone marked bar plus a shorter rest instead of one clean count —
+     and this view's own label is plain HTML, so there's no marker to
+     need in the first place (buildDrumMap, handlers_pages.go).
+     What actually fixes "disconnected floating chips" isn't dropping
+     per-section mounts — it's PACKING and SIZING them the way the rest
+     of this app already packs variable-width content into full rows:
+     buildDrumMap groups sections into rows against an 8-slot target
+     (groupMeasures/groupMapCells' own row-size default) and gives each
+     cell a server-computed WidthPct — its own slot share of the row's
+     ACTUAL total, not the 8-slot target — the same "a short row still
+     stretches to the full line width" idea the chord grid's own --cap
+     CSS variable already encodes, just computed here since it depends
+     on sibling cells sharing the row. Hidden outside drummer mode by
+     CSS. */}}
+{{if .DrumMap}}
 <div class="drum-map">
-  {{range .DrumChips}}
-  <div class="drum-chip">
-    <div class="drum-chip-label">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
-    <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}" data-restonly="{{if .RestOnly}}1{{end}}"></div>
-  </div>
-  {{end}}
-</div>
-{{end}}
-
-{{/* Bass view / Guitar view — the exact same per-section-chip +
-     CSS-flex-wrap chart as Drummer view just above (buildBassChips/
-     buildGuitarChips, handlers_pages.go; see buildMelodicChips' own doc
-     comment for how a section's several melodic tracks resolve to ONE
-     per view, by string count, not by track name), with their own class
-     names so each mode's CSS (app.css) stays independently scoped from
-     Drummer's. Why a dedicated view at all, instead of just overlaying
-     the chosen track onto the normal Song chart the way a single-riff
-     "score:" field always has (attachTabRiffs): a FULL multi-instrument
-     import covers every section, and firstMelodicRiff deliberately
-     stops auto-overlaying once a section has more than one melodic
-     track (see its own doc comment) — the shared chord chart stays pure
-     chords, and each instrument's own full notation lives here instead. */}}
-{{if .BassChips}}
-<div class="bass-map">
-  {{range .BassChips}}
-  <div class="bass-chip">
-    <div class="bass-chip-label">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
-    <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}" data-restonly="{{if .RestOnly}}1{{end}}"></div>
-  </div>
-  {{end}}
-</div>
-{{end}}
-
-{{if .GuitarChips}}
-<div class="guitar-map">
-  {{range .GuitarChips}}
-  <div class="guitar-chip">
-    <div class="guitar-chip-label">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
-    <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}" data-restonly="{{if .RestOnly}}1{{end}}"></div>
+  {{range .DrumMap}}
+  <div class="drum-row">
+    {{range .Cells}}
+    <div class="drum-cell" style="width: {{.WidthPct}}%">
+      <div class="drum-chip-label">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
+      <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}"></div>
+    </div>
+    {{end}}
   </div>
   {{end}}
 </div>
@@ -621,8 +594,6 @@
   {{if .HasLyrics}}<button type="button" data-value="lyrics" title="lyrics only">{{template "icon-mode-lyrics"}} Lyrics only</button>{{end}}
   <button type="button" data-value="map" title="song map">{{template "icon-mode-map"}} Song map</button>
   <button type="button" data-value="drummer" title="drummer view">{{template "icon-mode-drummer"}} Drummer</button>
-  <button type="button" data-value="bass" title="bass view">{{template "icon-mode-strings"}} Bass</button>
-  <button type="button" data-value="guitar" title="guitar view">{{template "icon-mode-strings"}} Guitar</button>
   <button type="button" data-value="reference" title="reference">{{template "icon-reference"}} Reference</button>
 </div>
 </div>
@@ -1017,8 +988,6 @@
     {{if .HasLyrics}}<button type="button" class="stack-sheet-row" data-forward="lyrics">{{template "icon-mode-lyrics"}} Lyrics only</button>{{end}}
     <button type="button" class="stack-sheet-row" data-forward="map">{{template "icon-mode-map"}} Song map</button>
     <button type="button" class="stack-sheet-row" data-forward="drummer">{{template "icon-mode-drummer"}} Drummer</button>
-    <button type="button" class="stack-sheet-row" data-forward="bass">{{template "icon-mode-strings"}} Bass</button>
-    <button type="button" class="stack-sheet-row" data-forward="guitar">{{template "icon-mode-strings"}} Guitar</button>
     <button type="button" class="stack-sheet-row" data-forward="edit">{{template "icon-edit"}} Edit</button>
     {{if .VariantID}}<button type="button" class="stack-sheet-row" id="notes-stack-row">{{template "icon-notes"}} Notes</button>{{end}}
   </div>
