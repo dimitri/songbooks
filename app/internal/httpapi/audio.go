@@ -26,7 +26,7 @@ const maxAudioUpload = 50 << 20
 // categories only)") — never an open-ended string straight from the URL.
 func parseAudioCategory(s string) (store.AudioCategory, bool) {
 	switch store.AudioCategory(s) {
-	case store.AudioYouTube, store.AudioBand:
+	case store.AudioYouTube, store.AudioBand, store.AudioGP:
 		return store.AudioCategory(s), true
 	default:
 		return "", false
@@ -34,10 +34,11 @@ func parseAudioCategory(s string) (store.AudioCategory, bool) {
 }
 
 type audioCategoryMeta struct {
-	Category  string          `json:"category"`
-	ByteSize  int64           `json:"byteSize"`
-	SourceURL string          `json:"sourceUrl,omitempty"`
-	Markers   []jsonAudioMark `json:"markers,omitempty"`
+	Category      string          `json:"category"`
+	ByteSize      int64           `json:"byteSize"`
+	SourceURL     string          `json:"sourceUrl,omitempty"`
+	Markers       []jsonAudioMark `json:"markers,omitempty"`
+	BarSyncPoints []jsonGPBarSync `json:"barSyncPoints,omitempty"`
 }
 
 type jsonAudioMark struct {
@@ -45,9 +46,18 @@ type jsonAudioMark struct {
 	TimeSeconds  float64 `json:"timeSeconds"`
 }
 
+// jsonGPBarSync is one GPBarSyncPoint on the wire — only ever present on
+// the "gp" category (see store.GPBarSyncPoint's doc comment), used by
+// the player to let a click on any rendered bar seek straight to it.
+type jsonGPBarSync struct {
+	BarIndex    int     `json:"barIndex"`
+	TimeSeconds float64 `json:"timeSeconds"`
+}
+
 // handleGetSongAudioMeta is GET /api/songs/{book}/{stem}/audio — every
-// category this song has reference audio for (0, 1, or 2 entries), each
-// with its markers, without ever loading the audio bytes themselves.
+// category this song has reference audio for (0, 1, 2, or 3 entries),
+// each with its markers (and, for "gp", its bar sync points), without
+// ever loading the audio bytes themselves.
 func (s *Server) handleGetSongAudioMeta(w http.ResponseWriter, r *http.Request) {
 	variantID, err := pathID(r, "id")
 	if err != nil {
@@ -69,6 +79,16 @@ func (s *Server) handleGetSongAudioMeta(w http.ResponseWriter, r *http.Request) 
 		cm := audioCategoryMeta{Category: string(a.Category), ByteSize: a.ByteSize, SourceURL: a.SourceURL}
 		for _, m := range markers {
 			cm.Markers = append(cm.Markers, jsonAudioMark{SectionIndex: m.SectionIndex, TimeSeconds: m.TimeSeconds})
+		}
+		if a.Category == store.AudioGP {
+			points, err := s.store.ListGPBarSyncPoints(r.Context(), a.ID)
+			if err != nil {
+				httpError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			for _, p := range points {
+				cm.BarSyncPoints = append(cm.BarSyncPoints, jsonGPBarSync{BarIndex: p.BarIndex, TimeSeconds: p.TimeSeconds})
+			}
 		}
 		out = append(out, cm)
 	}
@@ -117,7 +137,7 @@ func (s *Server) handlePutSongAudio(w http.ResponseWriter, r *http.Request) {
 	}
 	category, ok := parseAudioCategory(r.PathValue("category"))
 	if !ok {
-		httpError(w, http.StatusBadRequest, `category must be "youtube" or "band"`)
+		httpError(w, http.StatusBadRequest, `category must be "youtube", "band", or "gp"`)
 		return
 	}
 	if err := r.ParseMultipartForm(maxAudioUpload); err != nil {
@@ -190,7 +210,7 @@ func (s *Server) handleDeleteSongAudio(w http.ResponseWriter, r *http.Request) {
 	}
 	category, ok := parseAudioCategory(r.PathValue("category"))
 	if !ok {
-		httpError(w, http.StatusBadRequest, `category must be "youtube" or "band"`)
+		httpError(w, http.StatusBadRequest, `category must be "youtube", "band", or "gp"`)
 		return
 	}
 	if err := s.store.DeleteSongAudio(r.Context(), variantID, category); err != nil {
@@ -210,7 +230,7 @@ func (s *Server) handlePutAudioMarker(w http.ResponseWriter, r *http.Request) {
 	}
 	category, ok := parseAudioCategory(r.PathValue("category"))
 	if !ok {
-		httpError(w, http.StatusBadRequest, `category must be "youtube" or "band"`)
+		httpError(w, http.StatusBadRequest, `category must be "youtube", "band", or "gp"`)
 		return
 	}
 	sectionIndex, err := strconv.Atoi(r.PathValue("sectionIndex"))
@@ -245,7 +265,7 @@ func (s *Server) handleDeleteAudioMarker(w http.ResponseWriter, r *http.Request)
 	}
 	category, ok := parseAudioCategory(r.PathValue("category"))
 	if !ok {
-		httpError(w, http.StatusBadRequest, `category must be "youtube" or "band"`)
+		httpError(w, http.StatusBadRequest, `category must be "youtube", "band", or "gp"`)
 		return
 	}
 	sectionIndex, err := strconv.Atoi(r.PathValue("sectionIndex"))

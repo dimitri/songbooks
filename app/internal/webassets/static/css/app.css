@@ -1319,6 +1319,12 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 #sheet[data-render-mode="map"] .bar-open .bar-body::before { left: -0.7em; }
 #sheet[data-render-mode="normal"] .bar-close .bar-body::before,
 #sheet[data-render-mode="map"] .bar-close .bar-body::before { right: -0.7em; }
+/* GP-synced playback only (audio-player.js's wireBarClickToPlay) — a
+   bar is clickable to seek exactly when its real audio timestamp is
+   known, which the other two reference-audio categories never have. */
+#sheet.bar-click-to-play .bar { cursor: pointer; }
+#sheet.bar-click-to-play .bar:hover { background: var(--bg-sunken); }
+
 .bar {
   display: flex; align-items: flex-end;
   /* Fixed per-bar width, from the ROW's intended capacity (--cap, set

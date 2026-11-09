@@ -8,14 +8,20 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// AudioCategory is one of exactly two reference-audio kinds a song can
+// AudioCategory is one of exactly three reference-audio kinds a song can
 // have — "a personal choice of reference version (yt video, band
-// recording: two categories only)," not an open-ended list of takes.
+// recording, gp backing track)," not an open-ended list of takes.
+// AudioGP is the one case that's NOT a manually-tapped personal choice:
+// it comes from a Guitar Pro import's own embedded backing track,
+// already bar-synced (see GPBarSyncPoint) — the player defaults to it
+// over the other two when present, since it's the only one guaranteed
+// to line up with the chart's own bars.
 type AudioCategory string
 
 const (
 	AudioYouTube AudioCategory = "youtube"
 	AudioBand    AudioCategory = "band"
+	AudioGP      AudioCategory = "gp"
 )
 
 // SongAudio is one reference-recording MP3 for a song variant, in one of
@@ -160,4 +166,56 @@ func (st *Store) SetAudioMarker(ctx context.Context, songAudioID int64, sectionI
 func (st *Store) DeleteAudioMarker(ctx context.Context, songAudioID int64, sectionIndex int) error {
 	_, err := st.db.Exec(ctx, `DELETE FROM song_audio_markers WHERE song_audio_id = $1 AND section_index = $2`, songAudioID, sectionIndex)
 	return err
+}
+
+// GPBarSyncPoint is one bar's real audio-frame-derived timestamp — see
+// migration 0056's own doc comment for why this is a separate, finer-
+// grained table from song_audio_markers (per bar, not per section; only
+// ever populated from a GP import, never hand-tapped).
+type GPBarSyncPoint struct {
+	BarIndex    int
+	TimeSeconds float64
+}
+
+// ListGPBarSyncPoints returns a song_audio row's bar sync points, ordered
+// by bar — the sequence the chart's own click-to-play handler walks.
+func (st *Store) ListGPBarSyncPoints(ctx context.Context, songAudioID int64) ([]GPBarSyncPoint, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT bar_index, time_seconds FROM gp_bar_sync_point
+		WHERE song_audio_id = $1 ORDER BY bar_index`, songAudioID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []GPBarSyncPoint
+	for rows.Next() {
+		var p GPBarSyncPoint
+		if err := rows.Scan(&p.BarIndex, &p.TimeSeconds); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// SetGPBarSyncPoints replaces a song_audio row's entire set of bar sync
+// points in one transaction — always written as a whole batch (one GP
+// import, or a re-run of the import wizard), never point-edited one bar
+// at a time the way a hand-tapped section marker is.
+func (st *Store) SetGPBarSyncPoints(ctx context.Context, songAudioID int64, points []GPBarSyncPoint) error {
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `DELETE FROM gp_bar_sync_point WHERE song_audio_id = $1`, songAudioID); err != nil {
+		return err
+	}
+	for _, p := range points {
+		if _, err := tx.Exec(ctx, `INSERT INTO gp_bar_sync_point (song_audio_id, bar_index, time_seconds) VALUES ($1, $2, $3)`,
+			songAudioID, p.BarIndex, p.TimeSeconds); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }

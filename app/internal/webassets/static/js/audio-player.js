@@ -176,7 +176,7 @@
   });
 
   // ---- Category toggle / load -------------------------------------------
-  function categoryLabel(c) { return c === 'youtube' ? 'YouTube' : 'Band recording'; }
+  function categoryLabel(c) { return c === 'youtube' ? 'YouTube' : c === 'gp' ? 'Guitar Pro' : 'Band recording'; }
 
   function selectCategory(cat) {
     activeCategory = cat;
@@ -186,6 +186,7 @@
     audio.src = `/song/${variantId}/audio.mp3?category=${cat}`;
     duration = 0;
     decodeWaveform();
+    wireBarClickToPlay();
   }
 
   async function loadMeta() {
@@ -212,7 +213,12 @@
 
     let preferred = null;
     try { preferred = localStorage.getItem(prefKey); } catch (e) {}
-    const target = (preferred && categories[preferred]) ? preferred : available[0];
+    // Default to "gp" over whatever order the server happened to return
+    // (available[0]) when the listener hasn't picked a preference yet —
+    // it's the one category guaranteed to line up with the chart's own
+    // bars (see store.AudioGP's doc comment), so it's the right silent
+    // default even on a song that also has a youtube/band recording.
+    const target = (preferred && categories[preferred]) ? preferred : (categories.gp ? 'gp' : available[0]);
     selectCategory(target);
   }
 
@@ -222,6 +228,34 @@
   });
 
   window.addEventListener('resize', drawWaveform);
+
+  // ---- Bar click-to-play (GP sync points only) ---------------------------
+  // A GP import's bar sync points are real audio-frame-derived timestamps
+  // (see store.GPBarSyncPoint's doc comment) keyed by the chart's own
+  // REAL performed bar index (.bar[data-global-bar], same numbering
+  // song.js's clock highlight already uses) — clicking any rendered bar
+  // while the gp category is active seeks straight to it and starts
+  // playback, same as tapping a section marker already does for the
+  // other two categories, just bar-granular instead of section-granular.
+  let barClickHandler = null;
+  function wireBarClickToPlay() {
+    const sheet = document.getElementById('sheet');
+    if (!sheet) return;
+    if (barClickHandler) sheet.removeEventListener('click', barClickHandler);
+    const points = categories[activeCategory]?.barSyncPoints;
+    sheet.classList.toggle('bar-click-to-play', !!(points && points.length));
+    if (!points || !points.length) return;
+    const byBar = new Map(points.map(p => [p.barIndex, p.timeSeconds]));
+    barClickHandler = e => {
+      const barEl = e.target.closest('.bar[data-global-bar]');
+      if (!barEl) return;
+      const t = byBar.get(Number(barEl.dataset.globalBar));
+      if (t === undefined) return;
+      audio.currentTime = t;
+      audio.play().catch(() => {});
+    };
+    sheet.addEventListener('click', barClickHandler);
+  }
 
   // ---- Reference-drawer upload controls (YouTube download + band file
   // upload) — moved here from the main player per direct request. Both
