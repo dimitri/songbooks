@@ -40,7 +40,7 @@
     if (sectionEl !== currentSectionEl) {
       currentSectionEl?.classList.remove('current-section');
       sectionEl?.classList.add('current-section');
-      if (sectionEl) sectionEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      if (sectionEl && clock.running) sectionEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
       currentSectionEl = sectionEl;
     }
     requestAnimationFrame(highlightTick);
