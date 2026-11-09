@@ -9,16 +9,26 @@ import (
 	"net/http"
 	"strconv"
 
+	"app/internal/audiotranscode"
 	"app/internal/store"
 	"app/internal/ytaudio"
 )
 
-// maxAudioUpload is a sane size ceiling for a direct file upload — a
+// maxAudioUpload is a sane size ceiling for what's actually STORED — a
 // reference MP3 for one song, not an album; 50MB covers even a long,
 // high-bitrate track with room to spare. yt-dlp's own extraction isn't
 // bounded by this (it transcodes before the app ever sees the bytes),
 // but the download itself is bounded by ytaudio.Timeout instead.
 const maxAudioUpload = 50 << 20
+
+// maxRawAudioUpload is the ceiling for what's accepted FROM the client,
+// before audiotranscode.ToMP3 gets a chance to compress it down toward
+// maxAudioUpload — a direct upload can be an uncompressed WAV (a real
+// Guitar Pro file's own embedded backing track came in at 67MB this
+// session), not already an MP3 the way the YouTube-download path always
+// is, so this ceiling has to cover raw PCM for a full-length song, not
+// just a compressed one.
+const maxRawAudioUpload = 250 << 20
 
 // parseAudioCategory validates the "category" path value against the
 // two allowed categories (store.AudioCategory's own doc comment: "a
@@ -140,7 +150,7 @@ func (s *Server) handlePutSongAudio(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, `category must be "youtube", "band", or "gp"`)
 		return
 	}
-	if err := r.ParseMultipartForm(maxAudioUpload); err != nil {
+	if err := r.ParseMultipartForm(maxRawAudioUpload); err != nil {
 		httpError(w, http.StatusBadRequest, "file too large or not multipart/form-data: "+err.Error())
 		return
 	}
@@ -150,13 +160,31 @@ func (s *Server) handlePutSongAudio(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	data, err := io.ReadAll(io.LimitReader(file, maxAudioUpload+1))
+	data, err := io.ReadAll(io.LimitReader(file, maxRawAudioUpload+1))
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if len(data) > maxRawAudioUpload {
+		httpError(w, http.StatusRequestEntityTooLarge, "file exceeds 250MB")
+		return
+	}
+	// A GP import's embedded backing track routinely arrives as
+	// uncompressed WAV (see maxRawAudioUpload's own doc comment); a
+	// direct band-recording upload could too. Compress it to MP3 before
+	// it ever reaches storeAudioBytes/Postgres — no reason to keep an
+	// uncompressed reference track around at 10x the size for no
+	// audible benefit on a practice/reference recording.
+	if audiotranscode.NeedsTranscode(data) {
+		mp3, err := audiotranscode.ToMP3(r.Context(), data)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, "couldn't compress this audio: "+err.Error())
+			return
+		}
+		data = mp3
+	}
 	if len(data) > maxAudioUpload {
-		httpError(w, http.StatusRequestEntityTooLarge, "file exceeds 50MB")
+		httpError(w, http.StatusRequestEntityTooLarge, "file exceeds 50MB even after compression")
 		return
 	}
 	s.storeAudioBytes(w, r, variantID, category, data, "audio/mpeg", "")

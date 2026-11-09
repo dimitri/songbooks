@@ -145,10 +145,27 @@
     return real;
   }
 
-  // ---- Real-bar -> seconds, from GP's own sync points, interpolated/
-  // extrapolated for the (usually few) real bars that don't carry one
-  // directly. Falls back to a flat average tempo across the whole file
-  // when there are fewer than 2 sync points to interpolate between.
+  // ---- Real-bar -> seconds. Two layers:
+  //
+  // 1. A NOMINAL timeline, walked across the real (as-played) bar
+  //    sequence using the file's own tempo automations and each bar's
+  //    own time signature (beats = numerator * 4/denominator, duration
+  //    = beats * 60/tempo) — the same arithmetic any notation program
+  //    uses to estimate playback time absent real audio analysis.
+  // 2. GP's own real sync points, where present, override the nominal
+  //    shape locally: interpolated between adjacent known points
+  //    (captures actual human tempo drift a nominal estimate can't),
+  //    and used to anchor (shift) the nominal timeline everywhere else.
+  //
+  // Needed because real sync-point DENSITY varies a lot file to file —
+  // confirmed this session: short lesson riffs had one sync point
+  // nearly every bar, but a real band's own working chart (Mottainai
+  // Structure SD.gp, 45 bars) had exactly ONE. The earlier version of
+  // this function only used sync points (extrapolating from the
+  // nearest pair's own rate), which degenerates badly below 2 points —
+  // with exactly 1, every OTHER bar silently stayed at time 0, pinning
+  // the whole bar grid to the left edge. A tempo-aware nominal estimate
+  // underneath fixes that for every file, not just sparse ones.
   //
   // Returns realIdx.length + 1 entries, not realIdx.length: the extra
   // synthetic entry at index realIdx.length is "one bar past the last
@@ -159,31 +176,53 @@
   // count (confirmed live: a 13-real-bar file could only ever reach 12
   // mapped bars).
   function buildBarTimes() {
+    const nominal = new Array(realIdx.length + 1).fill(0);
+    let tempo = score.tempo || 120;
+    let t = 0;
+    for (let pos = 0; pos < realIdx.length; pos++) {
+      const mb = score.masterBars[realIdx[pos]];
+      if (mb.tempoAutomations && mb.tempoAutomations.length) tempo = mb.tempoAutomations[0].value || tempo;
+      nominal[pos] = t;
+      // A free-time bar (mb.isFreeTime — a rubato intro/outro with no
+      // fixed tempo, confirmed present in a real file this session)
+      // has no well-defined duration to estimate from time signature
+      // and tempo alone; a 0-length guess would stack several of them
+      // at the same x position on the timeline, so fall back to one
+      // nominal 4-beat bar's worth of time instead — still wrong, but
+      // spread out and draggable rather than invisible.
+      const beats = mb.isFreeTime ? 4 : (mb.timeSignatureNumerator || 4) * (4 / (mb.timeSignatureDenominator || 4));
+      t += (beats || 4) * 60 / tempo;
+    }
+    nominal[realIdx.length] = t;
+
     const known = []; // [{pos, t}]
     realIdx.forEach((gpBarIdx, pos) => {
-      const mb = score.masterBars[gpBarIdx];
-      const sp = mb.syncPoints && mb.syncPoints[0];
+      const sp = score.masterBars[gpBarIdx].syncPoints && score.masterBars[gpBarIdx].syncPoints[0];
       if (sp) known.push({ pos, t: sp.syncPointValue.millisecondOffset / 1000 });
     });
-    const times = new Array(realIdx.length + 1).fill(0);
-    if (known.length >= 2) {
-      for (let i = 0; i < known.length - 1; i++) {
-        const a = known[i], b = known[i + 1];
-        for (let pos = a.pos; pos <= b.pos; pos++) {
-          const frac = b.pos > a.pos ? (pos - a.pos) / (b.pos - a.pos) : 0;
-          times[pos] = a.t + frac * (b.t - a.t);
-        }
-      }
-      // Extrapolate before the first and after the last known point
-      // using the nearest known interval's own rate.
-      const rateStart = (known[1].t - known[0].t) / (known[1].pos - known[0].pos || 1);
-      for (let pos = 0; pos < known[0].pos; pos++) times[pos] = known[0].t - (known[0].pos - pos) * rateStart;
-      const last2 = known[known.length - 2], lastK = known[known.length - 1];
-      const rateEnd = (lastK.t - last2.t) / (lastK.pos - last2.pos || 1);
-      for (let pos = lastK.pos + 1; pos <= realIdx.length; pos++) times[pos] = lastK.t + (pos - lastK.pos) * rateEnd;
-    } else if (known.length === 1) {
-      times[known[0].pos] = known[0].t;
+    if (known.length === 0) return nominal;
+
+    const times = nominal.slice();
+    if (known.length === 1) {
+      const offset = known[0].t - nominal[known[0].pos];
+      for (let pos = 0; pos <= realIdx.length; pos++) times[pos] = nominal[pos] + offset;
+      return times;
     }
+    for (let i = 0; i < known.length - 1; i++) {
+      const a = known[i], b = known[i + 1];
+      for (let pos = a.pos; pos <= b.pos; pos++) {
+        const frac = b.pos > a.pos ? (pos - a.pos) / (b.pos - a.pos) : 0;
+        times[pos] = a.t + frac * (b.t - a.t);
+      }
+    }
+    // Before the first / after the last known point: shift the nominal
+    // timeline's own shape so it passes exactly through that point,
+    // rather than extrapolating a single borrowed interval's rate.
+    const offsetStart = known[0].t - nominal[known[0].pos];
+    for (let pos = 0; pos < known[0].pos; pos++) times[pos] = nominal[pos] + offsetStart;
+    const lastK = known[known.length - 1];
+    const offsetEnd = lastK.t - nominal[lastK.pos];
+    for (let pos = lastK.pos + 1; pos <= realIdx.length; pos++) times[pos] = nominal[pos] + offsetEnd;
     return times;
   }
 
