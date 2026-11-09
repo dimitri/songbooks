@@ -685,24 +685,46 @@
         <p><button type="button" id="gpimport-step1-next" class="primary" disabled>Next: align bars &rarr;</button></p>
       </div>
 
-      {{/* Step 2: align GP bars to this song's sections, with a real
-           preview of each mapped section rendered through the EXACT
-           same endpoint/renderer the Scores tab's own live preview uses
-           (POST .../scores/{i}/preview -> tab.DecodeScoreSource ->
-           tab.ToAlphaTex -> alphaTab) — never a hand-drawn approximation
-           of what the import would produce. The lead-in shift exists
-           because the embedded backing track routinely starts with a
-           count-in or silent bars this chart has no bar for; a wrong
-           guess here is only visible as a wrong-looking preview, which
-           is the whole reason this step previews before anything saves. */}}
+      {{/* Step 2: align GP bars to this song's sections on an Audacity-
+           style timeline — one continuous waveform (decoded from the
+           GP file's own embedded backing track) with a labeled-region
+           lane below it, boundaries shared between adjacent sections
+           (the end of one section IS the start of the next — no per-
+           section gaps to separately manage). Dragging the very first
+           boundary IS the "lead-in shift" the old numeric field used to
+           be: the recording routinely starts with a count-in or silent
+           bars this chart has no bar for, and that's now just "drag the
+           first handle to where the count-in ends," pointed at the
+           actual recording instead of guessed as a bar number. Zoomed
+           in, each bar gets its own tick (from the GP file's own real
+           per-bar sync points, not audio analysis — see gp-import.js's
+           own doc comment on why a from-scratch beat detector was tried
+           and rejected); zoomed out, a section collapses to one solid
+           block, the same "multi-rest" idea the chart's own compact
+           sections already use. */}}
       <div class="gpimport-step" id="gpimport-step-align" hidden>
         <h3>2. Align bars</h3>
-        <p>Lead-in shift (GP bars to skip before this song's bar 0): <input type="number" id="gpimport-shift" value="0" style="width:5rem"></p>
+        <p class="hint">Drag a boundary to set where one section ends and the next begins. The first boundary is this song's bar 0 — drag it right past any count-in or silent lead-in.</p>
+        <div class="gpimport-toolbar">
+          <button type="button" id="gpimport-zoom-out">&minus;</button>
+          <span class="gpimport-zoom-label" id="gpimport-zoom-label">100%</span>
+          <button type="button" id="gpimport-zoom-in">+</button>
+          <button type="button" id="gpimport-play">&#9654; Play</button>
+          <span class="gpimport-zoom-label" id="gpimport-time-label">0:00 / 0:00</span>
+        </div>
+        <div class="gpimport-scroll" id="gpimport-scroll">
+          <div class="gpimport-timeline" id="gpimport-timeline">
+            <canvas id="gpimport-waveform"></canvas>
+            <div class="gpimport-bargrid" id="gpimport-bargrid"></div>
+            <div class="gpimport-playhead" id="gpimport-playhead"></div>
+            <div class="gpimport-labeltrack" id="gpimport-labeltrack"></div>
+            <div class="gpimport-boundaries" id="gpimport-boundaries"></div>
+          </div>
+        </div>
         <table id="gpimport-mapping-table" class="gpimport-mapping-table" hidden>
-          <thead><tr><th></th><th>Section</th><th>Bars</th><th>GP start bar</th><th></th></tr></thead>
+          <thead><tr><th></th><th>Section</th><th>Required bars</th><th>Mapped bars</th><th></th></tr></thead>
           <tbody id="gpimport-mapping"></tbody>
         </table>
-        <div id="gpimport-preview" class="score-section-preview sheet"></div>
         <p>
           <button type="button" id="gpimport-step2-back">&larr; Back</button>
           <button type="button" id="gpimport-step2-next" class="primary">Next: import &rarr;</button>

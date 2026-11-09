@@ -32,13 +32,26 @@
 // the embedded backing track routinely starts with a count-in or
 // silent bars the chart has no bar for, so "where does our bar 0
 // actually start in this file" needs a real answer before anything
-// saves, not a guessed number. The align step's bar strip renders
-// EVERY real bar through this app's own actual pipeline (POST
-// .../scores/{i}/preview -> tab.DecodeScoreSource -> tab.ToAlphaTex ->
-// alphaTab) — never a hand-drawn stand-in — and a section row's "Mark
-// in preview…" button arms it so the next bar clicked sets that
-// section's start directly, the same "select, then click where"
-// interaction the audio-marker UI already uses.
+// saves, not a guessed number.
+//
+// The align step is an Audacity-3-style timeline — one continuous
+// waveform with a labeled-region lane below it — not a grid of per-bar
+// notation cards (an earlier version of this file did that; a direct
+// review found it hard to scan and disconnected from the actual
+// problem, which is a LISTENING problem, not a reading-notation one).
+// Section boundaries are SHARED between adjacent sections (the end of
+// one section IS the start of the next), so there's one draggable
+// handle per boundary, not independent start/end handles per section —
+// simpler, and it can't produce gaps or overlaps. The bar grid overlaid
+// on the waveform comes from the GP file's own real per-bar sync
+// points, never from audio analysis: a from-scratch energy-flux beat
+// detector was prototyped and tested against a real file with known
+// ground-truth bar times this session, and only matched the true grid
+// on 16% of its detected onsets (worse, it reported an identical,
+// clearly-bogus tempo on two unrelated songs) — nowhere near reliable
+// enough to drive bar placement. GP's own sync points are real,
+// human-authored-and-synced data; there's no reason to approximate them
+// with an unreliable DSP guess when they're already right there.
 (function () {
   const panel = document.getElementById('gpimport-panel');
   if (!panel) return;
@@ -48,13 +61,24 @@
   const status = document.getElementById('gpimport-status');
   const trackRow = document.getElementById('gpimport-track-row');
   const trackSelect = document.getElementById('gpimport-track');
-  const shiftInput = document.getElementById('gpimport-shift');
   const mappingBody = document.getElementById('gpimport-mapping');
   const mappingTable = document.getElementById('gpimport-mapping-table');
-  const previewEl = document.getElementById('gpimport-preview');
   const importBtn = document.getElementById('gpimport-run');
   const includeAudio = document.getElementById('gpimport-include-audio');
   const summary = document.getElementById('gpimport-summary');
+
+  const scrollWrap = document.getElementById('gpimport-scroll');
+  const timeline = document.getElementById('gpimport-timeline');
+  const waveformCanvas = document.getElementById('gpimport-waveform');
+  const bargridEl = document.getElementById('gpimport-bargrid');
+  const labeltrackEl = document.getElementById('gpimport-labeltrack');
+  const boundariesEl = document.getElementById('gpimport-boundaries');
+  const playheadEl = document.getElementById('gpimport-playhead');
+  const zoomInBtn = document.getElementById('gpimport-zoom-in');
+  const zoomOutBtn = document.getElementById('gpimport-zoom-out');
+  const zoomLabel = document.getElementById('gpimport-zoom-label');
+  const playBtn = document.getElementById('gpimport-play');
+  const timeLabel = document.getElementById('gpimport-time-label');
 
   const steps = {
     file: document.getElementById('gpimport-step-file'),
@@ -72,6 +96,13 @@
 
   let score = null;
   let ourSections = []; // [{index, label, barCount, startBar}]
+  let realIdx = [];     // real-bar-position -> GP-authored masterBar index
+  let barTimes = [];    // real-bar-position -> seconds (interpolated where GP has no sync point for it)
+  let audioEl = null;   // <audio>, source = a Blob URL of the embedded backing track
+  let audioDuration = 0;
+  let boundaries = [];  // length ourSections.length+1, each a real-bar-position (float, fractional between bars while dragging is in progress is never stored — always snapped to an integer bar)
+  let pxPerSec = 20;
+  const SECTION_COLORS = ['#af4e39', '#3d7a8a', '#7a5ca8', '#2f8f5b', '#b8860b', '#c0507e'];
 
   function setStatus(msg, cls) {
     status.textContent = msg;
@@ -92,9 +123,8 @@
     let i = 0;
     while (i < masterBars.length) {
       if (masterBars[i].isRepeatStart || !masterBars[i].isRepeatEnd) {
-        // Find the matching repeat end (or just this one bar, if none).
         let j = i;
-        let openedAt = masterBars[i].isRepeatStart ? i : i;
+        const openedAt = i;
         while (j < masterBars.length && !masterBars[j].isRepeatEnd) j++;
         if (j < masterBars.length && masterBars[j].isRepeatEnd) {
           const count = Math.max(2, masterBars[j].repeatCount || 2);
@@ -115,6 +145,60 @@
     return real;
   }
 
+  // ---- Real-bar -> seconds, from GP's own sync points, interpolated/
+  // extrapolated for the (usually few) real bars that don't carry one
+  // directly. Falls back to a flat average tempo across the whole file
+  // when there are fewer than 2 sync points to interpolate between.
+  //
+  // Returns realIdx.length + 1 entries, not realIdx.length: the extra
+  // synthetic entry at index realIdx.length is "one bar past the last
+  // real bar," needed so the LAST boundary (the end of the last mapped
+  // section) can actually reach every real bar in the file, including
+  // the final one — a boundary is an exclusive end position, so without
+  // this a file's last bar could never be included in any section's
+  // count (confirmed live: a 13-real-bar file could only ever reach 12
+  // mapped bars).
+  function buildBarTimes() {
+    const known = []; // [{pos, t}]
+    realIdx.forEach((gpBarIdx, pos) => {
+      const mb = score.masterBars[gpBarIdx];
+      const sp = mb.syncPoints && mb.syncPoints[0];
+      if (sp) known.push({ pos, t: sp.syncPointValue.millisecondOffset / 1000 });
+    });
+    const times = new Array(realIdx.length + 1).fill(0);
+    if (known.length >= 2) {
+      for (let i = 0; i < known.length - 1; i++) {
+        const a = known[i], b = known[i + 1];
+        for (let pos = a.pos; pos <= b.pos; pos++) {
+          const frac = b.pos > a.pos ? (pos - a.pos) / (b.pos - a.pos) : 0;
+          times[pos] = a.t + frac * (b.t - a.t);
+        }
+      }
+      // Extrapolate before the first and after the last known point
+      // using the nearest known interval's own rate.
+      const rateStart = (known[1].t - known[0].t) / (known[1].pos - known[0].pos || 1);
+      for (let pos = 0; pos < known[0].pos; pos++) times[pos] = known[0].t - (known[0].pos - pos) * rateStart;
+      const last2 = known[known.length - 2], lastK = known[known.length - 1];
+      const rateEnd = (lastK.t - last2.t) / (lastK.pos - last2.pos || 1);
+      for (let pos = lastK.pos + 1; pos <= realIdx.length; pos++) times[pos] = lastK.t + (pos - lastK.pos) * rateEnd;
+    } else if (known.length === 1) {
+      times[known[0].pos] = known[0].t;
+    }
+    return times;
+  }
+
+  function nearestBarForTime(t) {
+    let lo = 0, hi = barTimes.length - 1;
+    if (t <= barTimes[0]) return 0;
+    if (t >= barTimes[hi]) return hi;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (barTimes[mid] < t) lo = mid + 1; else hi = mid;
+    }
+    if (lo > 0 && Math.abs(barTimes[lo - 1] - t) < Math.abs(barTimes[lo] - t)) return lo - 1;
+    return lo;
+  }
+
   async function loadFile(file) {
     setStatus('parsing…');
     try {
@@ -133,177 +217,248 @@
       trackSelect.appendChild(opt);
     });
     trackRow.hidden = score.tracks.length < 2;
-    setStatus(`parsed "${score.title || file.name}" — ${score.tracks.length} track(s), ${score.masterBars.length} bar(s). Loading this song's sections…`);
+    realIdx = expandGPBars(score.masterBars);
+    barTimes = buildBarTimes();
     step1Next.disabled = false;
-    await loadOurSections();
-  }
-
-  async function loadOurSections() {
     const res = await fetch(`/api/songs/${variantId}/structure`);
     if (!res.ok) { setStatus('could not load this song\'s sections', 'err'); return; }
     const data = await res.json();
-    ourSections = data.sections || [];
-    renderMapping();
+    ourSections = (data.sections || []).filter(s => s.barCount > 0);
+    boundaries = [0];
+    ourSections.forEach(sec => boundaries.push(Math.min(realIdx.length, boundaries[boundaries.length - 1] + sec.barCount)));
+    setStatus(`parsed "${score.title || file.name}" — ${score.tracks.length} track(s), ${realIdx.length} real bar(s), ${ourSections.length} section(s) to map.`, 'ok');
   }
 
-  // A fixed, distinct color per mapped section — cycles if there are
-  // more sections than colors. Used to tint both the mapping table row
-  // and that section's assigned bars in the strip below, so "which bars
-  // did I just assign to the Verse" reads at a glance instead of
-  // requiring the user to cross-reference bar numbers by hand.
-  const SECTION_COLORS = ['#af4e39', '#3d7a8a', '#7a5ca8', '#2f8f5b', '#b8860b', '#c0507e'];
-  function sectionColor(i) { return SECTION_COLORS[i % SECTION_COLORS.length]; }
+  trackSelect.addEventListener('change', () => { if (steps.align.hidden === false) prepareTimeline(); });
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
 
-  let armedRow = null; // the <tr> currently waiting for a bar click, or null
-
-  function renderMapping() {
-    if (!score || !ourSections.length) {
-      mappingTable.hidden = true;
+  // ---- Timeline setup: decode the embedded backing track once, build
+  // an <audio> element from it for playback/seeking, then lay out.
+  async function prepareTimeline() {
+    if (!score) return;
+    if (!score.backingTrack || !score.backingTrack.rawAudioFile) {
+      scrollWrap.hidden = true;
+      setStatus('This file has no embedded backing track — nothing to align against. Sections will map in their own default order; the import still writes note data for each, just without audio sync.');
+      renderMappingTableOnly();
       return;
     }
-    const shift = parseInt(shiftInput.value, 10) || 0;
+    scrollWrap.hidden = false;
+    if (!audioEl) {
+      const bytes = score.backingTrack.rawAudioFile;
+      const blob = new Blob([bytes], { type: 'audio/mpeg' });
+      audioEl = new Audio(URL.createObjectURL(blob));
+      audioEl.addEventListener('loadedmetadata', () => { audioDuration = audioEl.duration; layout(); });
+      audioEl.addEventListener('timeupdate', () => {
+        playheadEl.style.left = (audioEl.currentTime * pxPerSec) + 'px';
+        timeLabel.textContent = `${fmtTime(audioEl.currentTime)} / ${fmtTime(audioDuration)}`;
+      });
+      audioEl.addEventListener('ended', () => { playBtn.textContent = '▶ Play'; });
+    }
+    layout();
+  }
+
+  function fmtTime(t) {
+    if (!isFinite(t)) return '0:00';
+    const m = Math.floor(t / 60), s = Math.floor(t % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function drawWaveform() {
+    const ctx = waveformCanvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(timeline.clientWidth, 1), h = waveformCanvas.clientHeight;
+    waveformCanvas.width = w * dpr; waveformCanvas.height = h * dpr;
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#9fe870';
+    const mid = h / 2;
+    // Real peak data when decodeAudioData has run (best-effort, kept
+    // simple — a flat silhouette if decoding hasn't resolved yet is a
+    // harmless placeholder, not a correctness issue).
+    const peaks = waveformCanvas._peaks;
+    if (peaks) {
+      for (let x = 0; x < w; x++) {
+        const i = Math.floor((x / w) * peaks.length);
+        const amp = (peaks[i] || 0) * mid * 0.95;
+        ctx.fillRect(x, mid - amp, 1, amp * 2);
+      }
+    }
+  }
+
+  async function decodePeaks() {
+    if (!score.backingTrack || !score.backingTrack.rawAudioFile) return;
+    try {
+      const bytes = score.backingTrack.rawAudioFile;
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+      const audioBuffer = await ctx.decodeAudioData(ab);
+      ctx.close();
+      const channel = audioBuffer.getChannelData(0);
+      const buckets = 2000;
+      const perBucket = Math.floor(channel.length / buckets) || 1;
+      const peaks = new Float32Array(buckets);
+      for (let i = 0; i < buckets; i++) {
+        let max = 0;
+        const start = i * perBucket, end = Math.min(start + perBucket, channel.length);
+        for (let j = start; j < end; j++) { const v = Math.abs(channel[j]); if (v > max) max = v; }
+        peaks[i] = max;
+      }
+      waveformCanvas._peaks = peaks;
+      drawWaveform();
+    } catch (e) { /* leave the flat placeholder — playback/alignment still work without a waveform picture */ }
+  }
+
+  // ---- Bar grid: real per-bar ticks when zoomed in enough to read
+  // them, else one collapsed block per section (the chart's own
+  // "multi-rest" idea, applied to the timeline instead of the staff).
+  const TICK_THRESHOLD_PX = 10; // below this px-per-bar, stop drawing individual ticks
+  function renderBarGrid() {
+    bargridEl.innerHTML = '';
+    if (!barTimes.length) return;
+    const avgPxPerBar = (barTimes[barTimes.length - 1] - barTimes[0]) / barTimes.length * pxPerSec;
+    if (avgPxPerBar >= TICK_THRESHOLD_PX) {
+      realIdx.forEach((gpBarIdx, pos) => {
+        const x = barTimes[pos] * pxPerSec;
+        const mb = score.masterBars[gpBarIdx];
+        const line = document.createElement('div');
+        line.className = 'beat1';
+        line.style.left = x + 'px';
+        bargridEl.appendChild(line);
+        const num = document.createElement('div');
+        num.className = 'barnum';
+        num.style.left = (x + 2) + 'px';
+        num.textContent = pos;
+        bargridEl.appendChild(num);
+      });
+    } else {
+      // Collapsed: one tinted block per CURRENT section mapping (not
+      // per original GP bar) so the zoomed-out view already shows the
+      // boundaries the user is placing, not an unrelated GP grouping.
+      for (let i = 0; i < boundaries.length - 1; i++) {
+        const block = document.createElement('div');
+        block.className = 'collapsed-block';
+        block.style.left = (barTimes[boundaries[i]] * pxPerSec) + 'px';
+        block.style.width = ((barTimes[boundaries[i + 1]] - barTimes[boundaries[i]]) * pxPerSec) + 'px';
+        bargridEl.appendChild(block);
+      }
+    }
+  }
+
+  function sectionBarCount(i) { return boundaries[i + 1] - boundaries[i]; }
+
+  function renderLabelTrack() {
+    labeltrackEl.innerHTML = '';
+    ourSections.forEach((sec, i) => {
+      const x0 = barTimes[boundaries[i]] * pxPerSec;
+      const x1 = barTimes[boundaries[i + 1]] * pxPerSec;
+      const el = document.createElement('div');
+      const mapped = sectionBarCount(i);
+      el.className = 'gpimport-section-block' + (mapped !== sec.barCount ? ' mismatch' : '');
+      el.style.left = x0 + 'px';
+      el.style.width = Math.max(2, x1 - x0) + 'px';
+      el.style.background = mapped === sec.barCount ? '' : '';
+      el.textContent = `${sec.label} (${mapped}/${sec.barCount} bars)`;
+      el.title = mapped === sec.barCount ? 'Matches this section\'s real bar count' : `This section needs ${sec.barCount} bars — currently mapped to ${mapped}`;
+      labeltrackEl.appendChild(el);
+    });
+  }
+
+  let draggingBoundary = -1;
+  function renderBoundaries() {
+    boundariesEl.innerHTML = '';
+    boundaries.forEach((pos, i) => {
+      const handle = document.createElement('div');
+      handle.className = 'gpimport-boundary' + (i === draggingBoundary ? ' dragging' : '');
+      handle.style.left = (barTimes[pos] * pxPerSec) + 'px';
+      handle.title = i === 0 ? 'Drag past any count-in/lead-in — this is the song\'s bar 0'
+        : i === boundaries.length - 1 ? 'End of the last mapped section'
+        : `Boundary between "${ourSections[i - 1].label}" and "${ourSections[i].label}"`;
+      handle.addEventListener('mousedown', ev => startDrag(ev, i));
+      boundariesEl.appendChild(handle);
+    });
+  }
+
+  function startDrag(ev, i) {
+    ev.preventDefault();
+    draggingBoundary = i;
+    renderBoundaries();
+    const onMove = e => {
+      const rect = timeline.getBoundingClientRect();
+      const x = e.clientX - rect.left + scrollWrap.scrollLeft;
+      const t = Math.max(0, x / pxPerSec);
+      let pos = nearestBarForTime(t);
+      const lo = i === 0 ? 0 : boundaries[i - 1] + 1;
+      const hi = i === boundaries.length - 1 ? realIdx.length : boundaries[i + 1] - 1;
+      pos = Math.max(lo, Math.min(hi, pos));
+      boundaries[i] = pos;
+      renderBarGrid();
+      renderLabelTrack();
+      renderBoundaries();
+    };
+    const onUp = () => {
+      draggingBoundary = -1;
+      renderBoundaries();
+      renderMappingTableOnly();
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  timeline.addEventListener('click', e => {
+    if (e.target.closest('.gpimport-boundary') || !audioEl) return;
+    const rect = timeline.getBoundingClientRect();
+    const x = e.clientX - rect.left + scrollWrap.scrollLeft;
+    audioEl.currentTime = Math.max(0, x / pxPerSec);
+  });
+
+  function layout() {
+    const duration = audioDuration || (barTimes[barTimes.length - 1] || 60) + 5;
+    const widthPx = duration * pxPerSec;
+    timeline.style.width = widthPx + 'px';
+    zoomLabel.textContent = Math.round(pxPerSec / 20 * 100) + '%';
+    drawWaveform();
+    renderBarGrid();
+    renderLabelTrack();
+    renderBoundaries();
+    renderMappingTableOnly();
+  }
+
+  zoomInBtn.addEventListener('click', () => { pxPerSec = Math.min(300, pxPerSec * 1.6); layout(); });
+  zoomOutBtn.addEventListener('click', () => { pxPerSec = Math.max(2, pxPerSec / 1.6); layout(); });
+  playBtn.addEventListener('click', () => {
+    if (!audioEl) return;
+    if (audioEl.paused) { audioEl.play(); playBtn.textContent = '❚❚ Pause'; }
+    else { audioEl.pause(); playBtn.textContent = '▶ Play'; }
+  });
+
+  function renderMappingTableOnly() {
+    if (!ourSections.length) { mappingTable.hidden = true; return; }
     mappingBody.innerHTML = '';
-    ourSections.forEach((sec, colorIdx) => {
+    ourSections.forEach((sec, i) => {
+      const mapped = sectionBarCount(i);
       const tr = document.createElement('tr');
-      tr.dataset.sectionIndex = sec.index;
-      tr.dataset.barCount = sec.barCount;
-      tr.style.borderLeft = `4px solid ${sectionColor(colorIdx)}`;
-      const suggested = sec.startBar + shift;
+      tr.style.borderLeft = `4px solid ${SECTION_COLORS[i % SECTION_COLORS.length]}`;
       tr.innerHTML = `
-        <td><input type="checkbox" class="gpimport-include" checked ${sec.barCount ? '' : 'disabled'}></td>
+        <td><input type="checkbox" class="gpimport-include" checked></td>
         <td>${sec.label}</td>
         <td>${sec.barCount}</td>
-        <td><input type="number" class="gpimport-start" value="${suggested}" min="0" style="width:4rem"></td>
-        <td><button type="button" class="gpimport-mark">Mark in preview&hellip;</button></td>`;
+        <td${mapped !== sec.barCount ? ' style="color:#b8860b;font-weight:600"' : ''}>${mapped}</td>
+        <td></td>`;
       mappingBody.appendChild(tr);
     });
     mappingTable.hidden = false;
-    highlightBarStrip();
   }
-
-  mappingBody.addEventListener('click', e => {
-    const btn = e.target.closest('.gpimport-mark');
-    if (!btn) return;
-    const tr = btn.closest('tr');
-    if (armedRow === tr) {
-      armedRow = null;
-      btn.textContent = 'Mark in preview…';
-    } else {
-      mappingBody.querySelectorAll('.gpimport-mark').forEach(b => b.textContent = 'Mark in preview…');
-      armedRow = tr;
-      btn.textContent = 'Click a bar below ↓';
-    }
-    highlightBarStrip();
-  });
-  mappingBody.addEventListener('input', e => {
-    if (e.target.classList.contains('gpimport-start')) highlightBarStrip();
-  });
-
-  // ---- The bar strip: this song's ACTUAL rendering code (POST
-  // .../scores/{i}/preview -> tab.DecodeScoreSource -> tab.ToAlphaTex ->
-  // alphaTab), one real bar at a time, as a row of small clickable
-  // cards — not a hand-drawn stand-in for what the import would
-  // produce. Clicking a card while a section row is "armed" (its own
-  // "Mark in preview…" button) sets that section's GP start bar
-  // directly — the actual lead-in/offset problem this wizard exists for
-  // is "where does the chart's bar 0 really start in this recording,"
-  // which is far easier to answer by pointing at the real notation than
-  // by guessing a bar NUMBER. The sectionIndex in the preview URL is
-  // arbitrary (parsing doesn't depend on which section it's "for") —
-  // the first real section is reused for every ad-hoc preview here.
-  let barStripCache = null; // {tex: [...], realCount}
-  async function renderBarStrip() {
-    if (!score) return;
-    const track = score.tracks[Number(trackSelect.value) || 0];
-    const realIdx = expandGPBars(score.masterBars);
-    const cap = 120; // real lesson/riff files are short; a longer file just previews its first 120 real bars
-    const count = Math.min(realIdx.length, cap);
-    previewEl.innerHTML = '<p class="hint">rendering preview…</p>';
-    const cards = [];
-    for (let r = 0; r < count; r++) {
-      const riff = extractRiff(track, r, 1);
-      let tex = null;
-      try {
-        const res = await fetch(`/api/songs/${variantId}/scores/${ourSections[0].index}/preview`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lySource: JSON.stringify(riff) }),
-        });
-        const data = await res.json();
-        if (data.ok) tex = data.alphaTex;
-      } catch (e) { /* leave this one bar unrendered */ }
-      cards.push({ bar: r, tex });
-    }
-    barStripCache = cards;
-    previewEl.innerHTML = '';
-    cards.forEach(({ bar, tex }) => {
-      const card = document.createElement('div');
-      card.className = 'gpimport-bar-card';
-      card.dataset.bar = bar;
-      card.innerHTML = `<div class="gpimport-bar-label">${bar}</div>`;
-      if (tex) {
-        const row = document.createElement('div');
-        row.className = 'alphatab-row';
-        row.dataset.tex = tex;
-        card.appendChild(row);
-        window.AlphaTabTab?.render(row);
-      }
-      card.addEventListener('click', () => {
-        if (!armedRow) return;
-        armedRow.querySelector('.gpimport-start').value = bar;
-        armedRow.querySelector('.gpimport-mark').textContent = 'Mark in preview…';
-        armedRow = null;
-        highlightBarStrip();
-      });
-      previewEl.appendChild(card);
-    });
-    highlightBarStrip();
-    if (realIdx.length > cap) {
-      const note = document.createElement('p');
-      note.className = 'hint';
-      note.textContent = `(showing the first ${cap} of ${realIdx.length} bars — set a start bar beyond this range by typing it directly.)`;
-      previewEl.appendChild(note);
-    }
-  }
-
-  // Tints each bar card by whichever section(s) currently claim it
-  // (per the mapping table's own start-bar + bar-count), and gives the
-  // armed row's target range a dashed outline as a live preview of
-  // where the NEXT click would land.
-  function highlightBarStrip() {
-    if (!previewEl) return;
-    previewEl.querySelectorAll('.gpimport-bar-card').forEach(card => {
-      card.style.background = '';
-      card.style.outline = '';
-      card.title = '';
-    });
-    [...mappingBody.querySelectorAll('tr')].forEach((tr, colorIdx) => {
-      const start = parseInt(tr.querySelector('.gpimport-start').value, 10);
-      const count = Number(tr.dataset.barCount);
-      if (isNaN(start) || !count) return;
-      const label = tr.children[1].textContent;
-      for (let b = start; b < start + count; b++) {
-        const card = previewEl.querySelector(`.gpimport-bar-card[data-bar="${b}"]`);
-        if (!card) continue;
-        card.style.background = sectionColor(colorIdx) + '33';
-        card.title = label;
-        if (tr === armedRow) card.style.outline = `2px dashed ${sectionColor(colorIdx)}`;
-      }
-    });
-  }
-
-  shiftInput.addEventListener('input', renderMapping);
-  fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
-  trackSelect.addEventListener('change', () => { renderMapping(); renderBarStrip(); });
 
   // ---- Per-section extraction: GP real-bar range -> our Riff JSON ----
   function extractRiff(track, realBarStart, barCount) {
     const staff = track.staves[0];
     const numStrings = staff.tuning.length;
-    const realIdx = expandGPBars(score.masterBars);
     const bars = [];
     for (let r = realBarStart; r < realBarStart + barCount; r++) {
       const gpBarIndex = realIdx[r];
-      if (gpBarIndex === undefined) break; // ran past the end of the GP file
+      if (gpBarIndex === undefined) break;
       const gpBar = staff.bars[gpBarIndex];
       const voice = gpBar.voices[0];
       const beats = (voice ? voice.beats : []).map(b => {
@@ -335,9 +490,6 @@
       });
       bars.push({ Beats: beats });
     }
-    // Slide-out on GP note N becomes HasSlideFrom on beat N+1 in this
-    // app's own model (a slide is described from the NEXT beat's point
-    // of view — see Beat.HasSlideFrom's doc comment).
     for (let bi = 0; bi < bars.length; bi++) {
       for (let i = 0; i < bars[bi].Beats.length; i++) {
         const prev = i > 0 ? bars[bi].Beats[i - 1] : (bi > 0 ? bars[bi - 1].Beats[bars[bi - 1].Beats.length - 1] : null);
@@ -359,7 +511,12 @@
     if (!res.ok) throw new Error(`section ${sectionIndex}: ` + (await res.text()));
   }
 
-  async function importAudioAndSync(realBarStart0, shift) {
+  // Sync points are keyed on the SAME boundaries the score import just
+  // used — not a separately-tracked global shift (the earlier version
+  // of this file had exactly that bug: a shift field decoupled from
+  // whatever a user had manually marked, uploading audio sync for a
+  // different bar mapping than the one actually saved).
+  async function importAudioAndSync() {
     if (!score.backingTrack || !score.backingTrack.rawAudioFile) return;
     const bytes = score.backingTrack.rawAudioFile;
     const form = new FormData();
@@ -367,15 +524,10 @@
     const upRes = await fetch(`/api/songs/${variantId}/audio/gp`, { method: 'PUT', body: form });
     if (!upRes.ok) throw new Error('audio upload failed: ' + (await upRes.text()));
 
-    const realIdx = expandGPBars(score.masterBars);
     const points = [];
-    for (let r = 0; r < realIdx.length; r++) {
-      const gpBar = score.masterBars[realIdx[r]];
-      const sp = gpBar.syncPoints && gpBar.syncPoints[0];
-      if (!sp) continue;
-      const ourBar = r - shift; // GP real-bar r corresponds to our song's real bar (r - shift)
-      if (ourBar < 0) continue;
-      points.push({ barIndex: ourBar, timeSeconds: sp.syncPointValue.millisecondOffset / 1000 });
+    for (let pos = boundaries[0]; pos < realIdx.length; pos++) {
+      const ourBar = pos - boundaries[0];
+      points.push({ barIndex: ourBar, timeSeconds: barTimes[pos] });
     }
     if (points.length) {
       const spRes = await fetch(`/api/songs/${variantId}/audio/gp/sync-points`, {
@@ -386,9 +538,14 @@
     }
   }
 
-  step1Next.addEventListener('click', () => { goToStep('align'); renderBarStrip(); });
-  step2Back.addEventListener('click', () => goToStep('file'));
+  step1Next.addEventListener('click', async () => {
+    goToStep('align');
+    await prepareTimeline();
+    decodePeaks();
+  });
+  step2Back.addEventListener('click', () => { if (audioEl) audioEl.pause(); goToStep('file'); });
   step2Next.addEventListener('click', () => {
+    if (audioEl) audioEl.pause();
     const rows = [...mappingBody.querySelectorAll('tr')].filter(tr => tr.querySelector('.gpimport-include').checked);
     summary.textContent = rows.length
       ? `Importing ${rows.length} section(s): ${rows.map(tr => tr.children[1].textContent).join(', ')}.`
@@ -400,23 +557,21 @@
   importBtn.addEventListener('click', async () => {
     if (!score) { setStatus('parse a file first', 'err'); return; }
     const track = score.tracks[Number(trackSelect.value) || 0];
-    const shift = parseInt(shiftInput.value, 10) || 0;
-    const rows = [...mappingBody.querySelectorAll('tr')].filter(tr => tr.querySelector('.gpimport-include').checked);
+    const checks = [...mappingBody.querySelectorAll('.gpimport-include')];
     importBtn.disabled = true;
     try {
-      for (const tr of rows) {
-        const sectionIndex = Number(tr.dataset.sectionIndex);
-        const barCount = Number(tr.dataset.barCount);
-        const startBar = parseInt(tr.querySelector('.gpimport-start').value, 10) || 0;
-        setStatus(`importing section ${sectionIndex + 1}/${rows.length}…`);
-        const riff = extractRiff(track, startBar, barCount);
-        await putScore(sectionIndex, riff);
+      for (let i = 0; i < ourSections.length; i++) {
+        if (!checks[i] || !checks[i].checked) continue;
+        const sec = ourSections[i];
+        setStatus(`importing section ${i + 1}/${ourSections.length}: ${sec.label}…`);
+        const riff = extractRiff(track, boundaries[i], sectionBarCount(i));
+        await putScore(sec.index, riff);
       }
       if (includeAudio.checked) {
         setStatus('uploading backing track + sync points…');
-        await importAudioAndSync(0, shift);
+        await importAudioAndSync();
       }
-      setStatus(`imported ${rows.length} section(s). Reload the Chart tab to see them — each section still needs a "score:" line in Source pointing at it.`, 'ok');
+      setStatus('imported. Reload the Chart tab to see it — each section still needs a "score:" line in Source pointing at it.', 'ok');
     } catch (e) {
       setStatus('import failed: ' + e.message, 'err');
     } finally {
