@@ -5,9 +5,12 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strconv"
+	"strings"
 
 	"app/internal/song"
 	"app/internal/store"
+	"app/internal/tab"
 )
 
 type songResponse struct {
@@ -124,6 +127,74 @@ func (s *Server) handlePutMeta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sg.Set(req.Key, req.Value)
+	newVersion, err := s.store.SaveVariant(id, sg, version, actorID(r))
+	if err != nil {
+		writeSaveErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"version": newVersion})
+}
+
+// handlePutSectionScore is PUT /api/songs/{id}/sections/{index}/score/{label}
+// — upserts one ScoreVoice (song.ScoreVoice) into a section by label,
+// body {"body": "..."}. Used by the GP import wizard (gp-import.js) to
+// write an imported riff straight into the section's own score[label]:
+// field in the song's raw text — the SAME storage a hand-written
+// score[Drum]: ... line uses — instead of a separate per-section
+// database row (see migration 0057_retire_song_scores.sql for why that
+// table is gone; an imported riff is a JSON-encoded tab.Riff, which
+// tab.ParseVoice recognizes and decodes verbatim via
+// tab.DecodeScoreSource instead of running it through the LilyPond-
+// subset grammar). Like handlePutMeta just above, this reads the
+// current version itself immediately before saving rather than checking
+// a client-held one: a multi-section import writes several of these in
+// a tight sequence from one wizard session, where threading a version
+// through each step for conflict detection against a concurrent edit
+// (negligible chance, same import session) would be pure overhead.
+func (s *Server) handlePutSectionScore(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	index, err := strconv.Atoi(r.PathValue("index"))
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid section index")
+		return
+	}
+	label := r.PathValue("label")
+	var req struct {
+		Body string `json:"body"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if _, err := tab.ParseVoice(label, req.Body); err != nil {
+		httpError(w, http.StatusBadRequest, "couldn't parse this as a score: "+err.Error())
+		return
+	}
+	sg, version, err := s.store.LoadVariant(id)
+	if err != nil {
+		httpError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if index < 0 || index >= len(sg.Sections) {
+		httpError(w, http.StatusBadRequest, "invalid section index")
+		return
+	}
+	sec := &sg.Sections[index]
+	replaced := false
+	for i := range sec.Scores {
+		if strings.EqualFold(sec.Scores[i].Label, label) {
+			sec.Scores[i].Body = req.Body
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		sec.Scores = append(sec.Scores, song.ScoreVoice{Label: label, Body: req.Body})
+	}
 	newVersion, err := s.store.SaveVariant(id, sg, version, actorID(r))
 	if err != nil {
 		writeSaveErr(w, err)

@@ -167,6 +167,26 @@ func TestParseVoice_DefaultGuitarTuning(t *testing.T) {
 	}
 }
 
+func TestParseVoice_GPImportedJSONRiff(t *testing.T) {
+	// The shape handlePutSectionScore (internal/httpapi/handlers_api.go)
+	// saves when the GP import wizard (gp-import.js) writes an imported
+	// track straight into a section's score[label]: field — label here
+	// is the GP track's own name, irrelevant to how a JSON body decodes.
+	src := `{"Tuning":[64,59,55,50,45,40],"MinimumFret":0,"Bars":[{"Beats":[
+		{"Duration":"4","Notes":[{"MIDI":64,"String":1,"Fret":0}]}
+	]}]}`
+	riff, err := ParseVoice("Distorted Guitar", src)
+	if err != nil {
+		t.Fatalf("ParseVoice: %v", err)
+	}
+	if len(riff.Tuning) != 6 {
+		t.Errorf("expected the JSON's own 6-string tuning to be preserved, got %d strings", len(riff.Tuning))
+	}
+	if riff.Drums {
+		t.Errorf("expected a melodic riff")
+	}
+}
+
 func TestParseVoice_ExplicitFormStillWorks(t *testing.T) {
 	riff, err := ParseVoice("drum", `\new DrumStaff { \drummode { bd4 sn4 bd4 sn4 } }`)
 	if err != nil {
