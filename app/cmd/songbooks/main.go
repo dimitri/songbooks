@@ -33,6 +33,7 @@ func main() {
 	smtpURL := flag.String("smtp-url", "", "real SMTP endpoint for outbound mail — NOT YET IMPLEMENTED; if set, this is logged and the server falls back to the console/outbox mailer. Swapping in a real mailer.Mailer implementation here is the contained follow-up change this flag is a placeholder for.")
 	devAutoLoginUser := flag.String("dev-auto-login", envOr("SONGBOOKS_DEV_AUTO_LOGIN", ""), "DEV/TESTING ONLY, DEFAULT OFF: if set to a username, every single HTTP request is automatically authenticated as that person — /login is skipped entirely, no cookie, no session. This completely disables authentication for anyone who can reach the server. NEVER set this (as a flag or as the SONGBOOKS_DEV_AUTO_LOGIN env var) on a production or otherwise publicly-reachable deployment. Leave it unset (the default) everywhere except your own local dev loop.")
 	webauthnRPID := flag.String("webauthn-rp-id", envOr("SONGBOOKS_WEBAUTHN_RP_ID", ""), "passkey (WebAuthn) Relying Party ID — the bare hostname passkeys are bound to (e.g. songbooks.tapoueh.org). MUST be set explicitly in production: a passkey only ever works against the exact RPID it was registered under, and defaulting this is a dev-only convenience (see below). Left unset (the default), the RPID/origin are instead derived per-request from that request's own Host header — fine for bouncing between localhost:8080 and a LAN IP while developing, but wrong for a real deployment, which should pin one fixed hostname here instead of trusting whatever Host a request arrived with.")
+	adminFileDir := flag.String("admin-file-dir", envOr("SONGBOOKS_ADMIN_FILE_DIR", ""), "DEFAULT OFF: a directory to serve flat (no subdirectories) at GET /admin/files/{name}, admin-auth-gated — a small staging area for getting a large local file (a bulk-import source, say) onto this app's own origin, so a browser session already signed in here can fetch it directly instead of hitting mixed-content/CORS blocks against a separate host. Leave unset outside of a deliberate one-off bulk-import operation.")
 	flag.Parse()
 
 	ctx := context.Background()
@@ -158,7 +159,7 @@ func main() {
 		log.Printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 	}
 
-	handler := httpapi.NewServer(st, m, devAutoLogin, *webauthnRPID)
+	handler := httpapi.NewServer(st, m, devAutoLogin, *webauthnRPID, *adminFileDir)
 
 	log.Printf("songbooks serving %s on http://%s", *dbURL, *addr)
 	log.Fatal(http.ListenAndServe(*addr, handler))

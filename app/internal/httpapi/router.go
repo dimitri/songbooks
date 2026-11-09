@@ -40,6 +40,18 @@ type Server struct {
 	// registration/login ceremony's challenge state — see webauthn.go's
 	// webauthnState doc comment.
 	webauthn *webauthnState
+
+	// adminFileDir, when non-empty, serves files from this directory at
+	// GET /admin/files/{name} (requireAdmin) — a small, deliberately
+	// narrow staging area for moving a large local file (a bulk import
+	// source, say) onto the SAME origin a browser session is already
+	// authenticated against, without routing it through a third-party
+	// host or a cross-origin fetch (blocked either by mixed content, if
+	// the source is plain HTTP, or by CORS, since this app's own API
+	// isn't configured for cross-origin browser access). Empty (the
+	// default) disables the route entirely — see --admin-file-dir in
+	// cmd/songbooks/main.go.
+	adminFileDir string
 }
 
 // NewServer wires the HTTP handler. m is the mailer magic-link login uses
@@ -51,8 +63,8 @@ type Server struct {
 // passkey Relying Party ID (empty = derive per-request from Host, dev-only
 // default — see webauthn.go's webauthnForRequest and main.go's
 // --webauthn-rp-id flag).
-func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, webauthnRPID string) http.Handler {
-	s := &Server{store: st, mailer: m, pdf: pdfnative.New(), ly: lilypond.NewBridge(), devAutoLogin: devAutoLogin, webauthnRPID: webauthnRPID, webauthn: newWebAuthnState()}
+func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, webauthnRPID, adminFileDir string) http.Handler {
+	s := &Server{store: st, mailer: m, pdf: pdfnative.New(), ly: lilypond.NewBridge(), devAutoLogin: devAutoLogin, webauthnRPID: webauthnRPID, webauthn: newWebAuthnState(), adminFileDir: adminFileDir}
 	mux := http.NewServeMux()
 
 	// Auth itself: reachable without a session (that's the point).
@@ -355,6 +367,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /admin/invites/plain", s.requireAdmin(s.handleCreatePlainInvite))
 	mux.HandleFunc("POST /admin/group-invites/{id}/close", s.requireAdmin(s.handleAdminCloseGroupInvite))
 	mux.HandleFunc("POST /admin/people/{personID}/admin", s.requireAdmin(s.handleSetAdmin))
+	mux.HandleFunc("GET /admin/files/{name}", s.requireAdmin(s.handleAdminFile))
 	mux.HandleFunc("POST /admin/people/{personID}/remove", s.requireAdmin(s.handleAdminRemovePerson))
 	// Per-person profile review: memberships across every band/community,
 	// with role adjustment, all from one page — see handlers_admin.go's
