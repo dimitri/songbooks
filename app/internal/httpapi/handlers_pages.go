@@ -126,6 +126,40 @@ func (s *Server) handleDocsSongFormat(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "docs_song_format", map[string]any{"Person": personFromContext(r)})
 }
 
+type jsonSectionStructure struct {
+	Index    int    `json:"index"`
+	Label    string `json:"label"`
+	BarCount int    `json:"barCount"`
+	StartBar int    `json:"startBar"`
+}
+
+// handleGetSongStructure is GET /api/songs/{id}/structure — each
+// section's REAL played bar count and starting position (repeats and
+// volta alternates already expanded — realBarCount's own doc comment),
+// the same numbers the chart itself renders against. Built for the GP
+// import wizard (gp-import.js): it needs to map a GP file's own bars
+// onto this song's EXISTING sections, and this is the one place that
+// expansion math already lives — recomputing it client-side from the
+// raw grid: text would be the same logic maintained twice.
+func (s *Server) handleGetSongStructure(w http.ResponseWriter, r *http.Request) {
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	sg, _, err := s.store.LoadVariant(variantID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	sections := buildSections(sg)
+	out := make([]jsonSectionStructure, len(sections))
+	for i, sec := range sections {
+		out[i] = jsonSectionStructure{Index: sec.Index, Label: sec.Label, BarCount: sec.BarCount, StartBar: sec.StartBar}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"sections": out})
+}
+
 // docsExampleSong is the worked example at the top of /docs/song-format —
 // kept here as source text (not just embedded HTML) so it stays a real,
 // parseable .song document shown verbatim in the docs page's left-hand

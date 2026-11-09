@@ -119,7 +119,7 @@ func (st *Store) LoadVariantScores(ctx context.Context, variantID int64, sg *son
 		if !ok {
 			continue
 		}
-		riff, err := tab.ParseScore(src)
+		riff, err := tab.DecodeScoreSource(src)
 		if err != nil {
 			return nil, fmt.Errorf("variant %d section %d: stored score: %w", variantID, i, err)
 		}

@@ -137,6 +137,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/songs/{id}/meta", s.requireVariantRole("editor", s.handlePutMeta))
 	mux.HandleFunc("PUT /api/variants/{id}/genre", s.requireAuth(s.handlePutVariantGenre))
 	mux.HandleFunc("GET /api/songs/{id}/raw", s.requireVariantRole("viewer", s.handleGetRaw))
+	mux.HandleFunc("GET /api/songs/{id}/structure", s.requireVariantRole("viewer", s.handleGetSongStructure))
 	mux.HandleFunc("PUT /api/songs/{id}/raw", s.requireVariantRole("editor", s.handlePutRaw))
 	mux.HandleFunc("DELETE /api/songs/{id}", s.requireVariantRole("editor", s.handleDeleteSong))
 	mux.HandleFunc("PUT /api/songs/{id}/redo", s.requireVariantRole("editor", s.handleRedoSong))
@@ -155,6 +156,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("DELETE /api/songs/{id}/audio/{category}", s.requireVariantRole("editor", s.handleDeleteSongAudio))
 	mux.HandleFunc("PUT /api/songs/{id}/audio/{category}/markers/{sectionIndex}", s.requireVariantRole("editor", s.handlePutAudioMarker))
 	mux.HandleFunc("DELETE /api/songs/{id}/audio/{category}/markers/{sectionIndex}", s.requireVariantRole("editor", s.handleDeleteAudioMarker))
+	mux.HandleFunc("PUT /api/songs/{id}/audio/gp/sync-points", s.requireVariantRole("editor", s.handlePutGPBarSyncPoints))
 
 	// A section's "score:" source (internal/tab's LilyPond-compatible
 	// subset) — read is viewer-level, write/delete editor-level, same

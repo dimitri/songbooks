@@ -257,6 +257,43 @@ func (s *Server) handlePutAudioMarker(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
+// handlePutGPBarSyncPoints is PUT /api/songs/{id}/audio/gp/sync-points —
+// replaces the "gp" category's entire set of per-bar sync points in one
+// call, body {"points": [{"barIndex": N, "timeSeconds": N}, ...]}. Always
+// written as a whole batch (one GP import), never point-edited — see
+// Store.SetGPBarSyncPoints' own doc comment.
+func (s *Server) handlePutGPBarSyncPoints(w http.ResponseWriter, r *http.Request) {
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	meta, err := s.store.GetSongAudioMeta(r.Context(), variantID, store.AudioGP)
+	if err != nil {
+		httpError(w, http.StatusNotFound, "no gp audio for this song yet — upload it first")
+		return
+	}
+	var req struct {
+		Points []struct {
+			BarIndex    int     `json:"barIndex"`
+			TimeSeconds float64 `json:"timeSeconds"`
+		} `json:"points"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	points := make([]store.GPBarSyncPoint, len(req.Points))
+	for i, p := range req.Points {
+		points[i] = store.GPBarSyncPoint{BarIndex: p.BarIndex, TimeSeconds: p.TimeSeconds}
+	}
+	if err := s.store.SetGPBarSyncPoints(r.Context(), meta.ID, points); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "count": len(points)})
+}
+
 func (s *Server) handleDeleteAudioMarker(w http.ResponseWriter, r *http.Request) {
 	variantID, err := pathID(r, "id")
 	if err != nil {

@@ -54,8 +54,8 @@ func (s *Server) handlePutSongScore(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "missing lySource")
 		return
 	}
-	if _, err := tab.ParseScore(req.LySource); err != nil {
-		httpError(w, http.StatusBadRequest, "couldn't parse this as a LilyPond-subset score: "+err.Error())
+	if _, err := tab.DecodeScoreSource(req.LySource); err != nil {
+		httpError(w, http.StatusBadRequest, "couldn't parse this as a score: "+err.Error())
 		return
 	}
 	id, err := s.store.SetSongScore(r.Context(), variantID, sectionIndex, req.LySource, actorID(r))
@@ -82,7 +82,7 @@ func (s *Server) handlePreviewSongScore(w http.ResponseWriter, r *http.Request) 
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	riff, err := tab.ParseScore(req.LySource)
+	riff, err := tab.DecodeScoreSource(req.LySource)
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
 		return

@@ -540,6 +540,7 @@
       <button class="prep-tab active" data-tab="structure" type="button">Chart</button>
       <button class="prep-tab" data-tab="raw" type="button">Source</button>
       <button class="prep-tab" data-tab="scores" type="button">Scores</button>
+      <button class="prep-tab" data-tab="gpimport" type="button">GP Import</button>
       <button class="prep-tab" data-tab="import" type="button">Import</button>
     </div>
   </div>
@@ -661,6 +662,62 @@
           <button type="button" id="cde-insert">Insert chord: line into Source</button>
           <span id="cde-status" class="hint"></span>
         </div>
+      </div>
+    </section>
+
+    {{/* Guitar Pro import wizard (gp-import.js) — parses a .gp file
+         entirely client-side (vendored alphaTab's own importer, same
+         library already shipped for web tab rendering) and maps its
+         bars onto this song's EXISTING sections (GET .../structure
+         gives their real, repeats-expanded bar counts/positions — see
+         handleGetSongStructure). "Lead-in shift" handles the classic
+         case where the embedded backing track starts with a count-in
+         or silent bars the chart itself has no bar for. */}}
+    <section class="prep-panel" data-panel="gpimport" id="gpimport-panel" data-variant-id="{{.VariantID}}" hidden>
+      <p class="hint">Import a Guitar Pro file's notation into this song's existing sections, plus its embedded backing track (synced to the bars automatically, if the file carries sync points).</p>
+      <p id="gpimport-status" class="hint"></p>
+
+      {{/* Step 1: file + track. */}}
+      <div class="gpimport-step" id="gpimport-step-file">
+        <h3>1. Choose file</h3>
+        <p><input type="file" id="gpimport-file" accept=".gp,.gp3,.gp4,.gp5,.gpx"></p>
+        <p id="gpimport-track-row" hidden>Track: <select id="gpimport-track"></select></p>
+        <p><button type="button" id="gpimport-step1-next" class="primary" disabled>Next: align bars &rarr;</button></p>
+      </div>
+
+      {{/* Step 2: align GP bars to this song's sections, with a real
+           preview of each mapped section rendered through the EXACT
+           same endpoint/renderer the Scores tab's own live preview uses
+           (POST .../scores/{i}/preview -> tab.DecodeScoreSource ->
+           tab.ToAlphaTex -> alphaTab) — never a hand-drawn approximation
+           of what the import would produce. The lead-in shift exists
+           because the embedded backing track routinely starts with a
+           count-in or silent bars this chart has no bar for; a wrong
+           guess here is only visible as a wrong-looking preview, which
+           is the whole reason this step previews before anything saves. */}}
+      <div class="gpimport-step" id="gpimport-step-align" hidden>
+        <h3>2. Align bars</h3>
+        <p>Lead-in shift (GP bars to skip before this song's bar 0): <input type="number" id="gpimport-shift" value="0" style="width:5rem"></p>
+        <table id="gpimport-mapping-table" class="gpimport-mapping-table" hidden>
+          <thead><tr><th></th><th>Section</th><th>Bars</th><th>GP start bar</th><th></th></tr></thead>
+          <tbody id="gpimport-mapping"></tbody>
+        </table>
+        <div id="gpimport-preview" class="score-section-preview sheet"></div>
+        <p>
+          <button type="button" id="gpimport-step2-back">&larr; Back</button>
+          <button type="button" id="gpimport-step2-next" class="primary">Next: import &rarr;</button>
+        </p>
+      </div>
+
+      {{/* Step 3: confirm + commit. */}}
+      <div class="gpimport-step" id="gpimport-step-import" hidden>
+        <h3>3. Import</h3>
+        <p id="gpimport-summary" class="hint"></p>
+        <p><label><input type="checkbox" id="gpimport-include-audio" checked> also import the backing track + bar sync</label></p>
+        <p>
+          <button type="button" id="gpimport-step3-back">&larr; Back</button>
+          <button type="button" id="gpimport-run" class="primary">Import into song</button>
+        </p>
       </div>
     </section>
 
@@ -1029,6 +1086,7 @@
 {{end}}
 {{if .CanEdit}}
 <script src="/static/js/score-editor.js?v={{staticVersion}}"></script>
+<script src="/static/js/gp-import.js?v={{staticVersion}}"></script>
 {{end}}
 {{if .PracticeStepMode}}
 <script>

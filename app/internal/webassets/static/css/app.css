@@ -3257,6 +3257,14 @@ textarea {
 .cde-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
 .cde-actions code { font-family: var(--font-mono); font-size: 0.85rem; color: var(--fg-muted); }
 
+.gpimport-mapping-table { border-collapse: collapse; margin: 0.75rem 0; }
+.gpimport-mapping-table th, .gpimport-mapping-table td { padding: 0.3rem 0.6rem; border-bottom: 1px solid var(--border); text-align: left; }
+.gpimport-step h3 { margin: 0 0 0.5rem; }
+#gpimport-preview { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-raised); max-height: 22rem; overflow-y: auto; }
+.gpimport-bar-card { border: 1px solid var(--border); border-radius: 6px; padding: 0.3rem; cursor: pointer; min-width: 5.5rem; transition: background 0.1s; }
+.gpimport-bar-card:hover { background: var(--bg-sunken); }
+.gpimport-bar-label { font-size: 0.72rem; color: var(--fg-muted); text-align: center; margin-bottom: 0.2rem; }
+
 .chip-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .chip {
   display: flex; align-items: center; gap: 0.5rem;
