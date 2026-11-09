@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"sort"
@@ -136,6 +137,10 @@ artist: The Cure
 key: C
 time: 4/4
 tempo: 120
+chord: C X32010
+chord: G 320033
+chord: Am X02210
+chord: F 133211
 
 [Verse]
 grid: | C | G | Am | F |
@@ -143,15 +148,89 @@ grid: | C | G | Am | F |
 The [Am]one that makes me [F]scream, she said
 `
 
-// handleDocsSongFormatExample serves the docs page's worked example as
-// its own tiny standalone page — loaded into an <iframe> rather than
-// inlined, so it renders through the exact same app.css this app's real
-// song page uses (see play.html), pixel-identical and never hand-
-// maintained out of sync with it, instead of a second, docs-only
-// approximation of the chart's look.
+// docsExampleTabSong/docsExampleTabLy are the docs page's SECOND worked
+// example: a real note-level "score:" riff, not a hand-written one — the
+// Larkin Poe cover's own intro from this app's legacy LaTeX+LilyPond
+// corpus (Mercy/bad-spell/intro.ly), already a parser test fixture (see
+// internal/tab/lyparse_corpus_test.go), so this is real-world LilyPond
+// source, include/ChordNames noise and all, not a cleaned-up toy.
+const docsExampleTabSong = `title: Bad Spell
+artist: Larkin Poe
+time: 4/4
+tempo: 84
+
+[Intro]
+grid: | R | R | R |
+score: riff.ly
+`
+
+const docsExampleTabLy = `\include "header.ly"
+
+\new ChordNames \with {
+  \override BarLine.bar-extent = #'(-2 . 2)
+  \consists "Bar_engraver"
+}
+
+\new TabStaff {
+   \tabFullNotation
+   \tempo 4 = 84
+   \set TabStaff.minimumFret = 3
+   \set TabStaff.restrainOpenStrings = ##t
+
+   g,4 <d' g'>8. g,16 bes,8 c d f16 g
+   g,4 <d' g'>8. bes16( c'4) bes8 \tuplet 3/2 { g16 f d } g,4
+}
+
+\markup \vspace #1
+`
+
+// handleDocsSongFormatExample serves the docs page's first worked
+// example (a plain chord grid + chord diagrams, no score:) as its own
+// tiny standalone page — see renderDocsExamplePage's doc comment for why
+// this is a real page, not inlined HTML.
 func (s *Server) handleDocsSongFormatExample(w http.ResponseWriter, r *http.Request) {
 	sg := song.Parse(docsExampleSong)
 	sections := buildSections(sg)
+	s.renderDocsExamplePage(w, sg, sections)
+}
+
+// handleDocsSongFormatExampleTab serves the docs page's SECOND worked
+// example: a section whose chart comes entirely from a real note-level
+// "score:" riff (see docsExampleTabSong/docsExampleTabLy) rather than a
+// chord grid — exercising the exact same tab.ParseScore -> attachTabRiffs
+// -> alphaTab pipeline a real song's score: field goes through
+// (handleSong), just with the riff supplied directly instead of fetched
+// from the store, since this page has no variant/DB row behind it.
+func (s *Server) handleDocsSongFormatExampleTab(w http.ResponseWriter, r *http.Request) {
+	sg := song.Parse(docsExampleTabSong)
+	riff, err := tab.ParseScore(docsExampleTabLy)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	sections := buildSections(sg)
+	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
+	attachTabRiffs(sections, map[int]*tab.Riff{0: riff}, atoiOr(num, 4), atoiOr(den, 4))
+	s.renderDocsExamplePage(w, sg, sections)
+}
+
+// renderDocsExamplePage renders sections (already built by the caller,
+// optionally with a score: riff attached) as its own tiny standalone
+// HTML page, loaded into the docs page's <iframe> rather than inlined —
+// so it renders through the exact same app.css and sheet-body template
+// this app's real song page uses (see play.html/handleSong), pixel-
+// identical and never hand-maintained out of sync with it, instead of a
+// second, docs-only approximation of the chart's look (a direct report
+// against an earlier, hand-drawn mock said it looked visibly off).
+// id="sheet" matters, not just class="sheet": the 5-line staff
+// background (app.css's #sheet[data-render-mode="normal"] .bar-body
+// ::before, var(--staff-5lines)) is scoped to that id — omitting it was
+// an earlier bug here, confirmed by a direct screenshot report ("not
+// seeing the staff lines"). The page background is var(--bg), the same
+// token body itself uses on a real song page — var(--bg-raised) (an
+// earlier version of this function) is the card/content-box tone, not
+// the page background, and visibly whiter than the real page.
+func (s *Server) renderDocsExamplePage(w http.ResponseWriter, sg *song.Song, sections []viewerSection) {
 	var body bytes.Buffer
 	if err := webassets.Templates.ExecuteTemplate(&body, "sheet-body", map[string]any{
 		"Sections": sections,
@@ -167,12 +246,26 @@ func (s *Server) handleDocsSongFormatExample(w http.ResponseWriter, r *http.Requ
 <head>
 <meta charset="utf-8">
 <link rel="stylesheet" href="/static/css/app.css?v=%s">
-<style>html,body{margin:0;background:var(--bg-raised,#fff);} main.sheet{padding:16px;}</style>
+<style>html,body{margin:0;background:var(--bg);} main.sheet{padding:16px;}</style>
 </head>
 <body data-mode="view">
-<main class="sheet" data-render-mode="normal" data-key="%s">%s</main>
+<main class="sheet" id="sheet" data-render-mode="normal" data-key="%s">%s</main>
 </body>
-</html>`, webassets.StaticVersion(), sg.Get("key"), body.String())
+%s</html>`, webassets.StaticVersion(), sg.Get("key"), body.String(), docsExampleAlphaTabScripts(sections))
+}
+
+// docsExampleAlphaTabScripts loads the vendored alphaTab JS the same way
+// play.html does (see its own .HasAlphaTab comment) — only when this
+// particular example actually has a riff-covered row to draw, since the
+// plain chord-grid example never needs the ~1.5MB library at all.
+func docsExampleAlphaTabScripts(sections []viewerSection) template.HTML {
+	if !anyTabOnlyLine(sections) {
+		return ""
+	}
+	v := webassets.StaticVersion()
+	return template.HTML(fmt.Sprintf(
+		`<script src="/static/js/vendor/alphatab/alphaTab.min.js?v=%s"></script><script src="/static/js/alphatab-tab.js?v=%s"></script>`,
+		v, v))
 }
 
 func (s *Server) handleMarketingEducators(w http.ResponseWriter, r *http.Request) {

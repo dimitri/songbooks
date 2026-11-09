@@ -116,6 +116,10 @@ artist: The Cure
 key: C
 time: 4/4
 tempo: 120
+chord: C X32010
+chord: G 320033
+chord: Am X02210
+chord: F 133211
 
 [Verse]
 grid: | C | G | Am | F |
@@ -132,7 +136,43 @@ The [Am]one that makes me [F]scream, she said</code></pre>
           <iframe class="example-frame" src="/docs/song-format/example" title="Rendered example" loading="lazy" onload="this.style.height=(this.contentDocument.documentElement.scrollHeight+4)+'px'"></iframe>
         </div>
       </div>
-      <p class="hint">That's a whole playable song: a header (only <code>title</code> is required), one section with a four-bar chord grid, and lyrics with inline <code>[Chord]</code> markers. Everything below adds optional depth on top of this same shape — more header fields, more section fields, multi-chord bars, repeats, and (further down) real note-level tab/staff notation in place of the plain chord-over-slash grid.</p>
+      <p class="hint">That's a whole playable song: a header (only <code>title</code> is required) with four <code>chord:</code> diagrams, one section with a four-bar chord grid, and lyrics with inline <code>[Chord]</code> markers. Everything below adds optional depth on top of this same shape — more header fields, more section fields, multi-chord bars, repeats, and real note-level tab/staff notation in place of the plain chord-over-slash grid, like this real riff:</p>
+
+      <p class="ex-label">A second example: a real riff</p>
+      <div class="worked-example">
+        <div>
+          <pre><code>title: Bad Spell
+artist: Larkin Poe
+time: 4/4
+tempo: 84
+
+[Intro]
+grid: | R | R | R |
+score: riff.ly</code></pre>
+          <p class="hint" style="margin-top:10px;"><code>riff.ly</code>, real LilyPond source from this app's own legacy corpus (unedited — <code>\include</code>/<code>\chordmode</code> noise and all, see <a href="#score">Note-level scores</a> below for the subset this parses):</p>
+          <pre><code>\include "header.ly"
+
+\new ChordNames \with {
+  \override BarLine.bar-extent = #'(-2 . 2)
+  \consists "Bar_engraver"
+}
+
+\new TabStaff {
+   \tabFullNotation
+   \tempo 4 = 84
+   \set TabStaff.minimumFret = 3
+   \set TabStaff.restrainOpenStrings = ##t
+
+   g,4 &lt;d' g'&gt;8. g,16 bes,8 c d f16 g
+   g,4 &lt;d' g'&gt;8. bes16( c'4) bes8 \tuplet 3/2 { g16 f d } g,4
+}
+
+\markup \vspace #1</code></pre>
+        </div>
+        <div>
+          <iframe class="example-frame" src="/docs/song-format/example-tab" title="Rendered tab example" loading="lazy" onload="this.style.height=(this.contentDocument.documentElement.scrollHeight+4)+'px'"></iframe>
+        </div>
+      </div>
 
       <section id="header">
         <h2>Header fields</h2>
