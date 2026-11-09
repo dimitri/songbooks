@@ -782,10 +782,25 @@ func chipSource(sec *viewerSection, riff *tab.Riff) (bars []tab.Bar, chordLabels
 // sharing the same row, something CSS alone can't express per element
 // without a shared custom property this app's existing --cap convention
 // already standardizes on at the ROW level, not per child.
+//
+// Slots is that same share expressed as a flex-grow weight (play.html:
+// "flex: {{.Slots}} 1 {{.WidthPct}}%"), not just the width basis — a
+// flex item's default flex-grow is 0, so a cell sized ONLY by width
+// stops exactly at that width and never claims any space left over once
+// its siblings' own min-width floors are satisfied, which is exactly
+// "not full width" again (confirmed live: a row of several rest-only
+// cells, all equal 1-slot weight, each clamped to its own 11rem
+// min-width floor rather than the tiny percentage WidthPct alone would
+// give it — the row's real total then falls well short of 100%, and
+// with flex-grow:0 that shortfall just sits there as dead space instead
+// of being redistributed). Weighting grow by Slots (not a flat 1) keeps
+// a real-content cell expanding proportionally more than a rest-only
+// neighbor when there IS slack to hand out.
 type viewerDrumMapCell struct {
 	Mark, Label string
 	AlphaTex    string
 	WidthPct    float64
+	Slots       int
 }
 
 type viewerDrumMapRow struct {
@@ -872,6 +887,7 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff)
 			row.Cells[i] = viewerDrumMapCell{
 				Mark: c.mark, Label: c.label, AlphaTex: c.alphaTex,
 				WidthPct: 100 * float64(c.slots) / float64(curSlots),
+				Slots:    c.slots,
 			}
 		}
 		rows = append(rows, row)
