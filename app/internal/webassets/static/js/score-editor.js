@@ -1,115 +1,16 @@
-// Scores tab: per-section LilyPond-subset score editor (note-level
-// tab/staff source, see /docs/song-format#score) plus a chord-diagram
-// builder for "chord:" header lines (see internal/chorddiagram). Lazily
-// initialized the first time the Scores tab is opened (song.js's
-// tab-switch handler calls window.ScoreEditor.init()) — most songs have
-// no score: yet, so there's no reason to fetch anything at page load.
+// Scores tab: chord-diagram builder for "chord:" header lines (see
+// internal/chorddiagram). A section's own note-level tab/staff source is
+// plain text in Source now ("score[label]: ...", live-previewed there —
+// see handlePreview, handlers_pages.go), not a separate per-section
+// editor here any more. Lazily initialized the first time the Scores tab
+// is opened (song.js's tab-switch handler calls window.ScoreEditor.init()).
 (function () {
   let initialized = false;
 
   function init() {
     if (initialized) return;
     initialized = true;
-    initScoreSections();
     initChordDiagramEditor();
-  }
-
-  // ---- Per-section score source -------------------------------------------
-  function initScoreSections() {
-    const panel = document.getElementById('scores-panel');
-    const variantId = panel?.dataset.variantId;
-    if (!panel || !variantId) return;
-
-    panel.querySelectorAll('.score-section').forEach(section => {
-      const sectionIndex = section.dataset.sectionIndex;
-      const textarea = section.querySelector('.score-source');
-      const preview = section.querySelector('.score-section-preview');
-      const status = section.querySelector('.score-status');
-      let loaded = false;
-      let previewTimer = null;
-
-      async function loadOnce() {
-        if (loaded) return;
-        loaded = true;
-        try {
-          const res = await fetch(`/api/songs/${variantId}/scores/${sectionIndex}`);
-          if (res.ok) {
-            const data = await res.json();
-            textarea.value = data.lySource || '';
-            renderLivePreview();
-          }
-          // 404 (no score saved yet) just leaves the textarea at its
-          // placeholder — not an error state worth surfacing.
-        } catch (e) { /* leave textarea empty; user can still type+save */ }
-      }
-
-      async function renderLivePreview() {
-        const src = textarea.value.trim();
-        if (!src) { preview.innerHTML = ''; status.textContent = ''; status.className = 'score-status hint'; return; }
-        try {
-          const res = await fetch(`/api/songs/${variantId}/scores/${sectionIndex}/preview`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lySource: src }),
-          });
-          const data = await res.json();
-          if (!data.ok) {
-            preview.innerHTML = '';
-            status.textContent = data.error || "couldn't parse this as a score";
-            status.className = 'score-status err';
-            return;
-          }
-          status.textContent = '';
-          status.className = 'score-status hint';
-          const row = document.createElement('div');
-          row.className = 'alphatab-row';
-          row.dataset.tex = data.alphaTex;
-          preview.innerHTML = '';
-          preview.appendChild(row);
-          window.AlphaTabTab?.render(row);
-        } catch (e) { /* leave last good preview in place */ }
-      }
-
-      section.addEventListener('toggle', () => { if (section.open) loadOnce(); });
-      textarea.addEventListener('input', () => {
-        clearTimeout(previewTimer);
-        previewTimer = setTimeout(renderLivePreview, 400);
-      });
-
-      section.querySelector('.score-save').addEventListener('click', async () => {
-        status.textContent = 'saving…'; status.className = 'score-status';
-        try {
-          const res = await fetch(`/api/songs/${variantId}/scores/${sectionIndex}`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lySource: textarea.value }),
-          });
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            status.textContent = err.error || 'save failed';
-            status.className = 'score-status err';
-            return;
-          }
-          status.textContent = 'saved — reload the Chart tab to see it in place';
-          status.className = 'score-status ok';
-        } catch (e) {
-          status.textContent = 'save failed';
-          status.className = 'score-status err';
-        }
-      });
-
-      section.querySelector('.score-delete').addEventListener('click', async () => {
-        if (!confirm('Remove this section’s score source?')) return;
-        try {
-          await fetch(`/api/songs/${variantId}/scores/${sectionIndex}`, { method: 'DELETE' });
-          textarea.value = '';
-          preview.innerHTML = '';
-          status.textContent = 'removed';
-          status.className = 'score-status ok';
-        } catch (e) {
-          status.textContent = 'remove failed';
-          status.className = 'score-status err';
-        }
-      });
-    });
   }
 
   // ---- Chord diagram builder -----------------------------------------------

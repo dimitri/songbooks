@@ -2,6 +2,7 @@ package tab
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -229,6 +230,162 @@ func escapeAlphaTexString(s string) string {
 	s = strings.ReplaceAll(s, `\`, `\\`)
 	s = strings.ReplaceAll(s, `"`, `\"`)
 	return s
+}
+
+// drumArticulationName maps a General MIDI percussion note number (see
+// drumPitchNames, drums.go) to the fixed alphaTeX articulation name
+// ToAlphaTexDrums declares for it. These are this package's OWN chosen
+// names, each declared via a "\articulation (Name N)" line in the output
+// (see ToAlphaTexDrums) rather than relied on from alphaTab's built-in
+// default articulation table — that table's exact names/casing (e.g.
+// whether it's "KickHit" or "Kickhit") isn't reliably documented, so
+// self-declaring sidesteps the ambiguity entirely: every name this
+// function emits, it also defines.
+var drumArticulationName = map[int]string{
+	36: "Kick",
+	37: "SideStick",
+	38: "Snare",
+	41: "TomFloorLow",
+	42: "HiHatClosed",
+	43: "TomFloorHigh",
+	44: "HiHatPedal",
+	45: "TomLow",
+	46: "HiHatOpen",
+	47: "TomMid",
+	49: "Crash",
+	50: "TomHigh",
+	51: "Ride",
+	53: "RideBell",
+	56: "Cowbell",
+}
+
+// ToAlphaTexDrums renders a drum Riff (Riff.Drums == true) as alphaTeX
+// source for the vendored alphaTab renderer, the drum-notation
+// counterpart of ToAlphaTex/ToAlphaTexBass. A percussion track needs two
+// things neither of those emit: "instrument percussion" on the track
+// (alphaTab then draws a standard notation staff with GM percussion
+// noteheads instead of a guitar tab staff — see alphatab-tab.js, which
+// detects this same literal string to switch its own staveProfile), and
+// an explicit "\articulation (Name N)" line per distinct drum piece this
+// riff actually uses (only those, not the whole GM kit) — see
+// drumArticulationName's own doc comment for why these are self-declared
+// rather than assumed from alphaTab's built-in defaults. "multiBarRest"
+// (confirmed against the vendored library — a bare track-level flag,
+// score.stylesheet.perTrackMultiBarRest) consolidates a run of
+// consecutive full-bar rests into one real engraved multi-measure-rest
+// glyph with its own bar count, instead of drawing each empty bar out —
+// the same convention this chart's own .multi-rest-row already uses
+// elsewhere, now also covering genuine rest bars WITHIN a written drum
+// part (a bridge where the kit lays out, say), not just a section with
+// no drum notation of its own at all.
+//
+// chordLabels, when non-nil, is one chord-symbol string per bar ("" for
+// a bar with no label) — same convention and same beat-property
+// ("{ch "Name"}") ToAlphaTex already uses for a melodic riff, so a
+// drummer reading real engraved bars (not the no-notation default
+// multi-rest case) still sees the chord changes they're drumming to.
+//
+// One Riff = one alphaTab mount = one section (see buildDrumChips,
+// handlers_pages.go), deliberately NOT alphaTeX's own "\section"
+// directive on a shared, whole-song document: confirmed live that a
+// bar carrying "\section" is always excluded from multiBarRest
+// consolidation (real engraving convention — a rehearsal mark needs an
+// actual drawn measure to anchor to), which split an 8-bar rest section
+// into a lone marked bar plus a 7-bar rest. One Riff per section sidesteps
+// that entirely — every bar in THIS document belongs to the same
+// section, so it consolidates into one correctly-counted glyph, and the
+// section's own label is plain HTML drawn above the mount (see the
+// "drum-chip" template block) instead of something alphaTab itself has
+// to lay out.
+func ToAlphaTexDrums(riff *Riff, chordLabels []string) string {
+	var b strings.Builder
+	b.WriteString("\\track \"Drums\" { instrument percussion multiBarRest }\n")
+	b.WriteString("\\clef neutral\n")
+
+	used := map[int]bool{}
+	var order []int
+	for _, bar := range riff.Bars {
+		for _, beat := range bar.Beats {
+			for _, n := range beat.Notes {
+				if !used[n.MIDI] {
+					used[n.MIDI] = true
+					order = append(order, n.MIDI)
+				}
+			}
+		}
+	}
+	sort.Ints(order)
+	for _, midi := range order {
+		name := drumArticulationName[midi]
+		if name == "" {
+			continue
+		}
+		b.WriteString(`\articulation (`)
+		b.WriteString(name)
+		b.WriteByte(' ')
+		b.WriteString(strconv.Itoa(midi))
+		b.WriteString(")\n")
+	}
+	b.WriteString(".\n")
+
+	for bi, bar := range riff.Bars {
+		if bi > 0 {
+			b.WriteString(" | ")
+		}
+		var label string
+		if bi < len(chordLabels) {
+			label = chordLabels[bi]
+		}
+		for i, beat := range bar.Beats {
+			if i > 0 {
+				b.WriteByte(' ')
+			}
+			writeDrumBeat(&b, beat, label)
+			label = ""
+		}
+	}
+	b.WriteString(" |")
+	return b.String()
+}
+
+func writeDrumBeat(b *strings.Builder, beat Beat, chordLabel string) {
+	dur, dotted := splitDuration(beat.Duration)
+	switch {
+	case beat.Rest:
+		b.WriteString("r.")
+		b.WriteString(dur)
+	case len(beat.Notes) == 1:
+		b.WriteString(drumArticulationName[beat.Notes[0].MIDI])
+		b.WriteByte('.')
+		b.WriteString(dur)
+	default:
+		b.WriteByte('(')
+		for i, n := range beat.Notes {
+			if i > 0 {
+				b.WriteByte(' ')
+			}
+			b.WriteString(drumArticulationName[n.MIDI])
+		}
+		b.WriteString(").")
+		b.WriteString(dur)
+	}
+	if dotted || chordLabel != "" {
+		b.WriteByte('{')
+		wrote := false
+		if dotted {
+			b.WriteString("d")
+			wrote = true
+		}
+		if chordLabel != "" {
+			if wrote {
+				b.WriteByte(' ')
+			}
+			b.WriteString(`ch "`)
+			b.WriteString(escapeAlphaTexString(chordLabel))
+			b.WriteByte('"')
+		}
+		b.WriteByte('}')
+	}
 }
 
 // splitDuration splits a LilyPond duration token ("4", "4.", "16") into

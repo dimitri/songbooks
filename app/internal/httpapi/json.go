@@ -39,16 +39,22 @@ type jsonLyricLine struct {
 	Segments []jsonLyricSeg `json:"segments"`
 }
 
+// jsonScoreVoice mirrors song.ScoreVoice — one "score[label]: ..." block.
+type jsonScoreVoice struct {
+	Label string `json:"label"`
+	Body  string `json:"body"`
+}
+
 type jsonSection struct {
-	Label       string          `json:"label"`
-	Repeat      bool            `json:"repeat"`
-	Time        string          `json:"time"`
-	Score       string          `json:"score"`
-	Times       int             `json:"times,omitempty"`
-	BarsPerLine []int           `json:"barsPerLine,omitempty"`
-	Measures    []jsonMeasure   `json:"measures"`
-	Lyrics      []jsonLyricLine `json:"lyrics"`
-	Notes       []string        `json:"notes,omitempty"`
+	Label       string           `json:"label"`
+	Repeat      bool             `json:"repeat"`
+	Time        string           `json:"time"`
+	Scores      []jsonScoreVoice `json:"scores,omitempty"`
+	Times       int              `json:"times,omitempty"`
+	BarsPerLine []int            `json:"barsPerLine,omitempty"`
+	Measures    []jsonMeasure    `json:"measures"`
+	Lyrics      []jsonLyricLine  `json:"lyrics"`
+	Notes       []string         `json:"notes,omitempty"`
 }
 
 type jsonSong struct {
@@ -66,10 +72,12 @@ func toJSON(s *song.Song) jsonSong {
 			Label:       sec.Label,
 			Repeat:      sec.Repeat,
 			Time:        sec.Time,
-			Score:       sec.Score,
 			Times:       sec.Times,
 			BarsPerLine: sec.BarsPerLine,
 			Notes:       sec.Notes,
+		}
+		for _, sv := range sec.Scores {
+			js.Scores = append(js.Scores, jsonScoreVoice{Label: sv.Label, Body: sv.Body})
 		}
 		for _, m := range sec.Measures {
 			js.Measures = append(js.Measures, jsonMeasure{
@@ -99,10 +107,12 @@ func fromJSON(in jsonSong) *song.Song {
 			Label:       js.Label,
 			Repeat:      js.Repeat,
 			Time:        js.Time,
-			Score:       js.Score,
 			Times:       js.Times,
 			BarsPerLine: js.BarsPerLine,
 			Notes:       js.Notes,
+		}
+		for _, sv := range js.Scores {
+			sec.Scores = append(sec.Scores, song.ScoreVoice{Label: sv.Label, Body: sv.Body})
 		}
 		for _, m := range js.Measures {
 			sec.Measures = append(sec.Measures, song.Measure{

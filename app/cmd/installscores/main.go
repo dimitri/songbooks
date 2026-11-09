@@ -265,7 +265,15 @@ func main() {
 			} else {
 				fmt.Printf("  score -> section %q (#%d) from %s\n", sg.Sections[idx].Label, idx, rm.relPath)
 			}
-			sg.Sections[idx].Score = filepath.Base(rm.relPath)
+			// The riff's own real LilyPond source goes straight into the
+			// body text now (song[label]: ..., inline — see
+			// song.ScoreVoice's own doc comment), not a separate Postgres
+			// row: no second save pass needed below any more. Label is the
+			// source file's own base name, minus extension — descriptive,
+			// and distinct across the (rare) case of two riffs landing on
+			// the same section.
+			label := strings.TrimSuffix(filepath.Base(rm.relPath), filepath.Ext(rm.relPath))
+			sg.Sections[idx].Scores = append(sg.Sections[idx].Scores, song.ScoreVoice{Label: label, Body: rm.lySource})
 		}
 
 		if refs, ok := chordsByWork[key]; ok {
@@ -293,15 +301,6 @@ func main() {
 		if _, err := st.SaveVariantRaw(newID, newText, version, personID); err != nil {
 			fmt.Printf("  ERROR saving text: %v\n", err)
 			continue
-		}
-		for _, rm := range p.riffs {
-			for i, sec := range sg.Sections {
-				if sec.Score == filepath.Base(rm.relPath) {
-					if _, err := st.SetSongScore(ctx, newID, i, rm.lySource, personID); err != nil {
-						fmt.Printf("  ERROR saving score for section #%d: %v\n", i, err)
-					}
-				}
-			}
 		}
 		fmt.Printf("  -> %s/song/%d\n", *publicBase, newID)
 	}

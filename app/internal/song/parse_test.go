@@ -3,6 +3,7 @@ package song
 import (
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -162,5 +163,67 @@ func TestWriteGridExplicitRepeatCountRoundTrip(t *testing.T) {
 	again2 := Parse(Write(s2))
 	if !reflect.DeepEqual(s2, again2) {
 		t.Errorf("round-trip mismatch for count-less bracket\n--- first ---\n%+v\n--- again ---\n%+v", s2, again2)
+	}
+}
+
+func TestParseScoreVoiceShortcut(t *testing.T) {
+	src := "title: X\n\n[Chorus]\ngrid: |: D | % | % | % :|\nscore[drum]: bd4 hh8 hh8 sn4 hh8 hh8\n  bd4 hh8 bd8 sn4 hh8 hh8\nscore[bass]: d,4 d d d\n  d d d d\n"
+	s := Parse(src)
+	sec := s.Sections[0]
+	if len(sec.Scores) != 2 {
+		t.Fatalf("expected 2 score voices, got %d: %+v", len(sec.Scores), sec.Scores)
+	}
+	if sec.Scores[0].Label != "drum" {
+		t.Errorf("expected first voice label %q, got %q", "drum", sec.Scores[0].Label)
+	}
+	wantDrum := "bd4 hh8 hh8 sn4 hh8 hh8\nbd4 hh8 bd8 sn4 hh8 hh8"
+	if sec.Scores[0].Body != wantDrum {
+		t.Errorf("drum voice body:\ngot:  %q\nwant: %q", sec.Scores[0].Body, wantDrum)
+	}
+	if sec.Scores[1].Label != "bass" {
+		t.Errorf("expected second voice label %q, got %q", "bass", sec.Scores[1].Label)
+	}
+	wantBass := "d,4 d d d\nd d d d"
+	if sec.Scores[1].Body != wantBass {
+		t.Errorf("bass voice body:\ngot:  %q\nwant: %q", sec.Scores[1].Body, wantBass)
+	}
+}
+
+func TestParseScoreVoiceExplicitForm(t *testing.T) {
+	// The full "\new ..." form still works, including a blank line INSIDE
+	// its own braces — brace-depth tracking must not stop at it the way
+	// the bare-content shortcut form's blank-line termination rule would.
+	src := "title: X\n\n[Chorus]\nscore[guitar-1]: \\new TabStaff {\n  \\relative {\n\n    e,4 e e e\n  }\n}\nnote: after\n"
+	s := Parse(src)
+	sec := s.Sections[0]
+	if len(sec.Scores) != 1 {
+		t.Fatalf("expected 1 score voice, got %d: %+v", len(sec.Scores), sec.Scores)
+	}
+	if !strings.Contains(sec.Scores[0].Body, "e,4 e e e") {
+		t.Errorf("expected captured body to include the note content past the blank line, got %q", sec.Scores[0].Body)
+	}
+	if len(sec.Notes) != 1 || sec.Notes[0] != "after" {
+		t.Errorf("expected the note: line after the score block to parse normally, got %+v", sec.Notes)
+	}
+}
+
+func TestParseScoreVoiceTerminatesAtBlankLine(t *testing.T) {
+	src := "title: X\n\n[Chorus]\nscore[drum]: bd4 hh8\n\nnote: separate\n"
+	s := Parse(src)
+	sec := s.Sections[0]
+	if len(sec.Scores) != 1 || sec.Scores[0].Body != "bd4 hh8" {
+		t.Errorf("expected the blank line to end the shortcut-form block, got %+v", sec.Scores)
+	}
+	if len(sec.Notes) != 1 || sec.Notes[0] != "separate" {
+		t.Errorf("expected note: after the blank line to parse normally, got %+v", sec.Notes)
+	}
+}
+
+func TestWriteScoreVoiceRoundTrip(t *testing.T) {
+	src := "title: X\n\n[Chorus]\ngrid: |: D | % | % | % :|\nscore[drum]: bd4 hh8 hh8 sn4 hh8 hh8\nbd4 hh8 bd8 sn4 hh8 hh8\nscore[bass]: d,4 d d d\n"
+	s := Parse(src)
+	again := Parse(Write(s))
+	if !reflect.DeepEqual(s, again) {
+		t.Errorf("round-trip mismatch\n--- first ---\n%+v\n--- again ---\n%+v", s, again)
 	}
 }

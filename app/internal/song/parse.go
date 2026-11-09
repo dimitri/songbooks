@@ -34,12 +34,20 @@ type rawSection struct {
 	label   string
 	repeat  bool
 	time    string
-	score   string
+	scores  []rawScore
 	times   int
 	bars    []int
 	gridRaw strings.Builder
 	lines   []string
 	notes   []string
+}
+
+// rawScore accumulates one "score[label]: ..." block's lines while
+// scanning — see scoreBlockPrefix's own doc comment for how a block's
+// extent is found.
+type rawScore struct {
+	label string
+	lines []string
 }
 
 // Parse parses .song source text, following v2/lib/song.typ's parse-song.
@@ -56,11 +64,13 @@ func Parse(src string) *Song {
 			Label:       cur.label,
 			Repeat:      cur.repeat,
 			Time:        cur.time,
-			Score:       cur.score,
 			Times:       cur.times,
 			BarsPerLine: cur.bars,
 			Lyrics:      make([]LyricLine, 0, len(cur.lines)),
 			Notes:       cur.notes,
+		}
+		for _, rs := range cur.scores {
+			sec.Scores = append(sec.Scores, ScoreVoice{Label: rs.label, Body: strings.Join(rs.lines, "\n")})
 		}
 		if spec := strings.TrimSpace(cur.gridRaw.String()); spec != "" {
 			sec.Measures = parseGrid(spec)
@@ -70,6 +80,15 @@ func Parse(src string) *Song {
 		}
 		song.Sections = append(song.Sections, sec)
 	}
+
+	// curScore/scoreBraceDepth track a "score[label]:" block currently
+	// being captured — see scoreContinues' own doc comment for the
+	// termination rule. Reset (curScore = nil) on every section header
+	// and whenever a block's own extent ends, so a stale pointer from an
+	// earlier section/block is never written to (always re-acquired,
+	// after any append, right before use — see below).
+	var curScore *rawScore
+	var scoreBraceDepth int
 
 	for _, raw := range strings.Split(src, "\n") {
 		line := strings.TrimSpace(raw)
@@ -81,6 +100,7 @@ func Parse(src string) *Song {
 			flush()
 			cur = &rawSection{label: m[1], repeat: m[2] != ""}
 			inHead = false
+			curScore = nil
 			continue
 		}
 
@@ -103,15 +123,47 @@ func Parse(src string) *Song {
 			continue
 		}
 
-		if cur == nil || line == "" {
+		if cur == nil {
+			continue
+		}
+
+		// Checked before the blank-line skip below: a blank line (or the
+		// next recognized directive) is exactly what ends an open block
+		// when it isn't inside a balanced "{ }" — this needs to see it to
+		// know capture has stopped, not have it silently skipped out from
+		// under it.
+		if curScore != nil {
+			if scoreBraceDepth > 0 || scoreContinues(line) {
+				curScore.lines = append(curScore.lines, line)
+				scoreBraceDepth += strings.Count(line, "{") - strings.Count(line, "}")
+				if scoreBraceDepth < 0 {
+					scoreBraceDepth = 0
+				}
+				continue
+			}
+			curScore = nil
+		}
+
+		if line == "" {
 			continue
 		}
 
 		switch {
 		case strings.HasPrefix(line, "time:"):
 			cur.time = strings.TrimSpace(line[5:])
-		case strings.HasPrefix(line, "score:"):
-			cur.score = strings.TrimSpace(line[6:])
+		case strings.HasPrefix(line, "score["):
+			if label, val, ok := parseScoreHeader(line); ok {
+				cur.scores = append(cur.scores, rawScore{label: label})
+				curScore = &cur.scores[len(cur.scores)-1]
+				scoreBraceDepth = 0
+				if val != "" {
+					curScore.lines = append(curScore.lines, val)
+					scoreBraceDepth = strings.Count(val, "{") - strings.Count(val, "}")
+					if scoreBraceDepth < 0 {
+						scoreBraceDepth = 0
+					}
+				}
+			}
 		case strings.HasPrefix(line, "grid:"):
 			cur.gridRaw.WriteString(" " + strings.TrimSpace(line[5:]))
 		case strings.HasPrefix(line, "bars:"):
@@ -122,6 +174,13 @@ func Parse(src string) *Song {
 			}
 		case strings.HasPrefix(line, "note:"):
 			cur.notes = append(cur.notes, strings.TrimSpace(line[5:]))
+		case strings.HasPrefix(line, "score:"):
+			// The old single-line "score: <label>" form (a Postgres-
+			// stored-content pointer) — retired in favor of
+			// "score[label]: <content>" (see ScoreVoice's own doc
+			// comment, song.go): dropped rather than kept as a lyric
+			// line, which is what the default case below would
+			// otherwise do with it.
 		case strings.HasPrefix(line, "|") && len(cur.lines) == 0:
 			// Grid lines always precede lyric lines within a section; once
 			// lyric text has started, a "|"-leading line is lyric content.
@@ -133,6 +192,46 @@ func Parse(src string) *Song {
 	flush()
 
 	return song
+}
+
+// parseScoreHeader splits a "score[label]: value" line into its label
+// and the (possibly empty) first-line content after the colon. ok is
+// false for a malformed line (no closing "]") — left out of cur.scores
+// entirely rather than guessed at.
+func parseScoreHeader(line string) (label, val string, ok bool) {
+	rest := line[len("score["):]
+	end := strings.IndexByte(rest, ']')
+	if end < 0 {
+		return "", "", false
+	}
+	label = strings.TrimSpace(rest[:end])
+	val = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(rest[end+1:]), ":"))
+	return label, val, true
+}
+
+// scoreContinues reports whether line should be treated as more content
+// for an IN-PROGRESS "score[label]:" block that's currently at brace
+// depth 0 (tracked by the caller, Parse's own main loop) — inside a
+// balanced "{ }" a line always continues regardless of what it looks
+// like, since real LilyPond content can legitimately contain a blank
+// line, or text that merely resembles another field, inside a multi-line
+// "\new ... { ... }" body. At depth 0 (the common case for the bare
+// "score[drum]: bd4 hh8 ..." shortcut form — see internal/tab.ParseVoice
+// — which has no braces to track at all), a block ends at the first line
+// that looks like the start of something else: blank, a new "[Section]"
+// header, or another recognized field prefix — so a short, undecorated
+// voice doesn't accidentally swallow whatever comes after it in the
+// file.
+func scoreContinues(line string) bool {
+	if line == "" || sectionHeaderRE.MatchString(line) {
+		return false
+	}
+	for _, p := range [...]string{"time:", "grid:", "bars:", "times:", "note:", "score:", "score["} {
+		if strings.HasPrefix(line, p) {
+			return false
+		}
+	}
+	return true
 }
 
 // parseChordRef splits a "chord:" line's value into "Name Spec" — the

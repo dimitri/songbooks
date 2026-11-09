@@ -710,10 +710,127 @@ func atoiOr(s string, fallback int) int {
 	return n
 }
 
-func attachTabRiffs(sections []viewerSection, riffs map[int]*tab.Riff, timeNum, timeDen int) {
+// firstMelodicRiff returns the first non-drum track from a section's
+// score tracks — the one the main chord-chart overlay renders (a bass or
+// guitar riff). A "score:" field with only one track (every file before
+// multi-track input existed, and the common case since) always resolves
+// to that same track, unchanged from before NamedRiff existed; a
+// multi-track file (drums + bass + guitar(s), see
+// tab.ParseScoreTracks) picks whichever melodic track was written
+// first, same "one riff overlays the chord grid" behavior this view has
+// always had — picking among several melodic tracks for THIS view is a
+// later, combined-chart concern (see Drummer view's own separate
+// attachDrumRiff for the one track it actually wants).
+func firstMelodicRiff(tracks []tab.NamedRiff) *tab.Riff {
+	for _, t := range tracks {
+		if !t.Riff.Drums {
+			return t.Riff
+		}
+	}
+	return nil
+}
+
+// viewerDrumChip is one section's worth of Drummer view — AlphaTex is
+// that section's OWN riff (real drum notation, or a synthetic all-rest
+// run), rendered as its own, independent alphaTab mount. See
+// buildDrumChips's own doc comment for why this is one mount PER
+// SECTION rather than one shared document for the whole song.
+type viewerDrumChip struct {
+	Mark, Label string
+	AlphaTex    string
+	Bars        int
+}
+
+// buildDrumChips builds Drummer view's own per-section chips — one
+// alphaTab mount per section, laid out with plain CSS flex-wrap
+// (.drum-map, play.html) instead of one continuous alphaTeX document
+// for the whole song. An EARLIER version of this used one shared
+// document with a real alphaTeX "\section" marker on each section's
+// first bar, the same real-engraving technique Song Map's own
+// .map-sec-badge imitates by hand — but confirmed live that alphaTab
+// ALWAYS excludes a "\section"-marked bar from multiBarRest
+// consolidation (a rehearsal mark needs an actual drawn measure to
+// anchor to), which split every all-rest section into a lone marked
+// bar plus an (N-1)-bar rest instead of one correctly-counted glyph.
+// One Riff per section sidesteps that entirely: nothing in THIS
+// section's own document carries a marker, so its bars always
+// consolidate cleanly, and its label is plain HTML drawn above the
+// mount instead of something alphaTab has to lay out itself — flex-wrap
+// then packs narrow (short/rest-only) chips several to a line and gives
+// a wide (real-notation) chip its own, the same visual result Song
+// Map's own variable-width recall cells already produce for the chord
+// grid, just via CSS layout instead of alphaTab's internal bar-wrap.
+//
+// Bars is the chip's own bar count, written out to the mount's data-bars
+// attribute (play.html) and read by alphatab-tab.js to pin
+// settings.display.barsPerRow: a chip's natural/unstretched width (CSS
+// min-width, not 100%, so flex-wrap can pack several per line) means
+// alphaTab's own default auto-wrap (by measured container width) sees a
+// narrow box and wraps every bar onto its own line instead of the one
+// line a single section's worth of bars is meant to read as — pinning
+// barsPerRow to the chip's own bar count keeps it on one line regardless
+// of how little horizontal room the flex layout happens to give it.
+//
+// Chord labels for a section with its own real drum riff are extracted
+// by bar POSITION (0-based, in written order) — same as attachTabRiffs
+// does for a melodic riff's own chord overlay (chordsym.Glyphs
+// (m.Beats[0].Text), skipping a tied bar) — so a drummer reading real
+// engraved bars still sees the chord changes. A section with no drum
+// riff of its own gets no chord labels at all (Drummer view's whole
+// point there is still just the bar count).
+func buildDrumChips(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff) []viewerDrumChip {
+	var out []viewerDrumChip
 	for si := range sections {
-		riff, ok := riffs[sections[si].Index]
+		sec := &sections[si]
+		if sec.BarCount <= 0 {
+			continue
+		}
+		var bars []tab.Bar
+		var chordLabels []string
+		var riff *tab.Riff
+		if tracks, ok := scoreTracks[sec.Index]; ok {
+			for _, t := range tracks {
+				if t.Riff.Drums && len(t.Riff.Bars) > 0 {
+					riff = t.Riff
+					break
+				}
+			}
+		}
+		if riff != nil {
+			bars = riff.Bars
+			chordLabels = make([]string, 0, len(sec.Measures))
+			for bi := range sec.Measures {
+				m := &sec.Measures[bi]
+				cl := ""
+				if len(m.Beats) > 0 && !m.Beats[0].IsTie {
+					cl = chordsym.Glyphs(m.Beats[0].Text)
+				}
+				chordLabels = append(chordLabels, cl)
+			}
+		} else {
+			bars = make([]tab.Bar, sec.BarCount)
+			for i := range bars {
+				bars[i] = tab.Bar{Beats: []tab.Beat{{Rest: true, Duration: "1"}}}
+			}
+		}
+		out = append(out, viewerDrumChip{
+			Mark:     sec.Mark,
+			Label:    sec.Label,
+			AlphaTex: tab.ToAlphaTexDrums(&tab.Riff{Drums: true, Bars: bars}, chordLabels),
+			Bars:     len(bars),
+		})
+	}
+	return out
+}
+
+func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff, timeNum, timeDen int) {
+	for si := range sections {
+		tracks, ok := scoreTracks[sections[si].Index]
 		if !ok {
+			continue
+		}
+		riff := firstMelodicRiff(tracks)
+		if riff == nil {
 			continue
 		}
 		numStrings := len(riff.Tuning)
@@ -930,6 +1047,7 @@ type viewerLyricLine struct {
 }
 
 type viewerSection struct {
+
 	Index    int
 	Label    string
 	Repeat   bool
@@ -2006,10 +2124,11 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	}
 	sections := buildSections(sg)
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
-	if riffs, err := s.store.LoadVariantScores(r.Context(), variantID, sg); err == nil {
-		attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4))
-	} else {
-		log.Printf("loading score: riffs for variant %d: %v", variantID, err)
+	riffs, scoreErrs := tab.LoadScores(sg)
+	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4))
+	drumChips := buildDrumChips(sections, riffs)
+	for _, e := range scoreErrs {
+		log.Printf("variant %d: %v", variantID, e)
 	}
 	variant, _ := s.store.GetVariant(r.Context(), variantID)
 	var workID int64
@@ -2040,10 +2159,11 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
 		"TimeNum": num, "TimeDen": den,
 		"Capo": sg.Get("capo"), "Reference": sg.Get("reference"),
-		"TimeBeats":   timeSigBeats(sg.Get("time")),
-		"Sections":    sections,
-		"MapLines":    buildMapLines(sections),
-		"Chords":      sg.Chords,
+		"TimeBeats":       timeSigBeats(sg.Get("time")),
+		"Sections":        sections,
+		"MapLines":        buildMapLines(sections),
+		"DrumChips":       drumChips,
+		"Chords":          sg.Chords,
 		"HasAlphaTab": anyTabOnlyLine(sections),
 		"HasLyrics":   anySectionHasLyrics(sections),
 		"Text":        text, "Version": version,
@@ -2266,10 +2386,24 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 		sg = song.Parse(req.Text)
 	}
 	sections := buildSections(sg)
+	// Score voices are plain text in the body now (song.Section.Scores —
+	// see that field's own doc comment), so the live preview can resolve
+	// them the same way the real Play page does — a section's
+	// "score[label]:" block shows its real notation here too, not just
+	// after a round trip to Play. Same tab.LoadScores/attachTabRiffs/
+	// buildDrumChips call handleSong itself makes.
+	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
+	riffs, scoreErrs := tab.LoadScores(sg)
+	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4))
+	drumChips := buildDrumChips(sections, riffs)
+	for _, e := range scoreErrs {
+		log.Printf("preview: %v", e)
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := webassets.Templates.ExecuteTemplate(w, "sheet-body", map[string]any{
-		"Sections": sections,
-		"MapLines": buildMapLines(sections),
+		"Sections":        sections,
+		"MapLines":        buildMapLines(sections),
+		"DrumChips":       drumChips,
 	}); err != nil {
 		log.Printf("render preview: %v", err)
 	}

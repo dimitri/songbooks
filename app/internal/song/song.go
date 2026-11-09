@@ -3,12 +3,13 @@
 // grid and lyrics.
 //
 // This package never interprets or transposes chord text: it only pulls
-// apart the structural syntax (bars, sections, lyric brackets) it needs
-// to drive an editor and viewer, and keeps every token's text
-// byte-for-byte as written. That keeps round-tripping safe for content
-// this package doesn't itself understand (duration tags, score
-// references — see Section.Score's own doc comment for where that one
-// actually gets resolved).
+// apart the structural syntax (bars, sections, lyric brackets, score
+// voices) it needs to drive an editor and viewer, and keeps every
+// token's text byte-for-byte as written. That keeps round-tripping safe
+// for content this package doesn't itself understand (duration tags, a
+// score voice's own LilyPond-subset source — see ScoreVoice's own doc
+// comment, and internal/tab.ParseVoice, where that one actually gets
+// resolved).
 package song
 
 // MetaKeys are the header fields recognized by v2/lib/song.typ's META-KEYS,
@@ -47,7 +48,7 @@ type Song struct {
 // printed under a song's title). Name is a plain chordsym symbol, same
 // grammar as every chord already written in grid:/lyrics ("Cm", "Ab",
 // "D9/F#") — not a separate naming scheme. Spec is kept raw here, same
-// convention as Section.Score: this package only pulls apart the file's
+// convention as a ScoreVoice's own Body: this package only pulls apart the file's
 // structural syntax, never interprets it — see internal/chorddiagram for
 // the actual grid grammar (fret position + per-string X/O/digit/barre)
 // and the real legacy source it's compatible with.
@@ -77,6 +78,19 @@ func (s *Song) Set(key, value string) {
 	s.Meta = append(s.Meta, MetaField{Key: key, Value: value})
 }
 
+// ScoreVoice is one "score[Label]: <content>" block — Label is this
+// voice's name (freeform; "drum"/"drums" and "bass" are the two this
+// package's parser (internal/tab.ParseVoice) recognizes specially, to
+// skip the "\new DrumStaff { \drummode {...} } }"/"\new TabStaff \with
+// {...} { \relative {...} }" boilerplate a bare drum or bass voice would
+// otherwise need — anything else defaults to guitar tuning), Body is the
+// LilyPond-subset source verbatim, never interpreted by this package
+// (see this package's own doc comment).
+type ScoreVoice struct {
+	Label string
+	Body  string
+}
+
 // Section is one [Label] or [Label] (repeat) block.
 //
 // A (repeat) section carries no measures/lyrics of its own, mirroring
@@ -86,13 +100,16 @@ type Section struct {
 	Repeat bool
 
 	Time string // per-section "time:" override, "" if absent
-	// Score is the raw "score:" filename, "" if absent. This package
-	// never resolves it (parse/write keep it as a plain opaque string,
-	// same as any other field — see this package's own doc comment); the
-	// actual LilyPond-subset source it names lives in Postgres
-	// (store.SongScore, keyed by section index) and is resolved into
-	// this section's Measures by Store.LoadVariant, not here.
-	Score string
+
+	// Scores are this section's "score[label]: ..." voices — real,
+	// bounded-subset LilyPond source, inline in the file (single
+	// source of truth: no separate database row, no out-of-band
+	// lookup — a .song file is meant to be the whole song, readable,
+	// editable and git-diffable on its own, including its notation; see
+	// this package's own doc comment and internal/tab.ParseVoice, which
+	// resolves each one's Body into a Riff). One entry per "score[...]:"
+	// line, in source order; a section with none has Scores == nil.
+	Scores []ScoreVoice
 
 	// Times is the section's "times:" line — how many passes through its
 	// grid it actually takes (its own, when it has one, or an inherited

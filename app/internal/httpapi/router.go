@@ -172,16 +172,12 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file", s.requireVariantRole("editor", s.handlePutSongGPFile))
 	mux.HandleFunc("GET /song/{id}/gp-file", s.requireVariantRole("viewer", s.handleGetSongGPFile))
 
-	// A section's "score:" source (internal/tab's LilyPond-compatible
-	// subset) — read is viewer-level, write/delete editor-level, same
-	// split as audio above. Rendering itself needs no separate route:
-	// Store.LoadVariant resolves it straight into the section's chord
-	// grid, so it shows up through the exact same web/PDF paths any
-	// other "grid:" content does.
-	mux.HandleFunc("GET /api/songs/{id}/scores/{sectionIndex}", s.requireVariantRole("viewer", s.handleGetSongScore))
-	mux.HandleFunc("PUT /api/songs/{id}/scores/{sectionIndex}", s.requireVariantRole("editor", s.handlePutSongScore))
-	mux.HandleFunc("DELETE /api/songs/{id}/scores/{sectionIndex}", s.requireVariantRole("editor", s.handleDeleteSongScore))
-	mux.HandleFunc("POST /api/songs/{id}/scores/{sectionIndex}/preview", s.requireVariantRole("editor", s.handlePreviewSongScore))
+	// A section's "score[label]:" voices (internal/tab's LilyPond-
+	// compatible subset) are plain text in the body itself now (see
+	// song.ScoreVoice's own doc comment) — no separate route to read,
+	// write or preview one: Source's existing raw-text save/preview
+	// already covers it (/api/songs/{id}/raw, /api/preview), the same way
+	// any other "grid:"/"note:" content is edited.
 	mux.HandleFunc("POST /api/chord-diagrams/preview", s.requireAuth(s.handleChordDiagramPreview))
 
 	mux.HandleFunc("GET /metronome", s.requireAuth(s.handleMetronomePage))

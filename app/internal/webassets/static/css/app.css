@@ -1469,8 +1469,16 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    !important. */
 /* Lyrics-only is the one remaining mode with this ragged-right, flat-
    typeset-width treatment — map now shares normal mode's justified engine
-   instead (below), so it's excluded here too. */
-#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]):not([data-render-mode="map"]) .staff-line {
+   instead (below), so it's excluded here too. Drummer excluded as well:
+   its OWN ".drum-grid .staff-line { width: 100% }" rule (further down)
+   needs to win over this one for its alphaTab rows specifically — an
+   alphaTab row that measures 0 width (this rule's own fit-content,
+   before alphaTab has painted anything into it) never renders at all
+   ("AlphaTab skipped rendering because of width=0", confirmed live) and
+   never recovers on its own once it does have content. The plain .grid
+   rows this mode also carries (hidden here, chord/lyric content) don't
+   care either way. */
+#sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]):not([data-render-mode="map"]):not([data-render-mode="drummer"]) .staff-line {
   width: fit-content; max-width: 100%; align-self: flex-start;
 }
 #sheet:not([data-render-mode="jazz"]):not([data-render-mode="normal"]):not([data-render-mode="map"]) .bar,
@@ -2014,6 +2022,43 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    by every mode) but stays hidden in this mode. */
 #sheet[data-render-mode="map"] .sheet-section { display: none; }
 .map-score { display: none; }
+/* ---- Drummer view: one chip per section, flex-wrapped like Song Map --
+   Same idea Song Map uses for the chord grid (bars-per-section packed
+   onto a line by real width, not one independent block per section) —
+   different mechanism: .drum-map (built from .DrumChips — see
+   buildDrumChips, handlers_pages.go) is a flex-wrap row of per-section
+   chips, not one shared alphaTab document for the whole song (see that
+   function's own doc comment for why: a real alphaTeX "\section" marker
+   on a shared document turned out to always exclude its own bar from
+   multiBarRest consolidation). Each chip's own label is plain HTML
+   (.drum-chip-label) above its own alphaTab mount — a narrow (rest-
+   only) chip and a wide (real-notation) chip sit in the same flex row,
+   wrapping exactly like Song Map's own variable-width recall cells. The
+   old per-section markup (chip, grid, lyrics — shared by every mode)
+   stays hidden in this mode entirely, same as it already is for Song
+   Map. */
+#sheet[data-render-mode="drummer"] .sheet-section { display: none; }
+.drum-map { display: none; }
+#sheet[data-render-mode="drummer"] .drum-map {
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.7rem 1.2rem;
+}
+.drum-chip { display: flex; flex-direction: column; gap: 0.2rem; }
+.drum-chip-label {
+  font-family: var(--font-chart); font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; font-size: 0.8rem; color: var(--fg-muted); white-space: nowrap;
+}
+.drum-chip-label .rehearsal-mark { margin-right: 0.35em; }
+/* An alphaTab row with no CSS width at all measures 0 and alphaTab
+   silently skips rendering into it ("width=0 (element invisible)") even
+   though its PARENT is visible — confirmed live. Deliberately NOT
+   width:100% here (unlike .map-score's own normal/map-mode-scoped
+   ".staff-line { width: 100% }" rule): a chip wants its own NATURAL,
+   content-sized width — alphaTab's own settings.display.justifyLastSystem
+   is off for a drum track specifically (alphatab-tab.js) so it never
+   stretches to fill this floor width either — min-width is only a
+   starting measurement budget. */
+.drum-chip .alphatab-row { min-width: 7rem; }
+
 #sheet[data-render-mode="map"] .chord-legend { display: none; }
 .chord-legend {
   display: flex; flex-wrap: wrap; gap: 1.2em;
@@ -2457,14 +2502,19 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 #sheet[data-render-mode="normal"] .sheet-section.is-compact .multi-rest-row {
   width: 100%;
 }
+/* Drummer view never shows this CSS-built rest block at all — its own
+   .sheet-section is hidden entirely in that mode (see the "Drummer
+   view: ONE continuous drum staff" rule above), same as Song Map's. */
 /* Normal mode and song map keep the real staff under the rest bar (per
    the "keep the staff, use the multi-bar visual on it" correction) —
-   jazz mode has no staff at all by design, so it gets none here either.
-   This cell isn't a .bar (an is-compact section's multi-rest-row is a
-   standalone block, not a flex item inside a .staff-line), so it can't
-   share the .bar::before SELECTOR above — but it draws the exact same
-   lines via the same --staff-5lines custom property (defined once, near
-   .staff-line), not a second copy of the gradient list. */
+   jazz mode has no staff at all by design, so it gets none here either;
+   drummer mode never shows this component at all any more (see its own
+   rule above). This cell isn't a .bar (an is-compact section's
+   multi-rest-row is a standalone block, not a flex item inside a
+   .staff-line), so it can't share the .bar::before SELECTOR above — but
+   it draws the exact same lines via the same --staff-5lines custom
+   property (defined once, near .staff-line), not a second copy of the
+   gradient list. */
 #sheet[data-render-mode="normal"] .multi-rest-row::before,
 #sheet[data-render-mode="map"] .multi-rest-row::before {
   content: ""; position: absolute; inset: 0;
@@ -3355,6 +3405,12 @@ textarea {
 .score-source { width: 100%; font-family: var(--font-mono); font-size: 0.9rem; padding: 0.5rem; }
 .score-section-preview:not(:empty) { padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-raised); overflow-x: auto; }
 .score-section-actions { display: flex; gap: 0.75rem; align-items: center; }
+/* One of these per track a multi-track score contains (see
+   tab.ParseScoreTracks) — the label is what tells an editor "yes, that
+   second staff was recognized as drums," not just a second riff that
+   happens to look similar. */
+.score-track-preview + .score-track-preview { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed var(--border); }
+.score-track-label { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 0.3rem; }
 
 .chord-diagram-editor { display: flex; flex-direction: column; gap: 0.75rem; max-width: 32rem; }
 .cde-controls { display: flex; gap: 1rem; flex-wrap: wrap; }
