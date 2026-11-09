@@ -718,10 +718,27 @@ func attachTabRiffs(sections []viewerSection, riffs map[int]*tab.Riff, timeNum, 
 		// row's own copy (groupMeasures may re-slice or copy — matching
 		// by Index rather than assuming which keeps this correct either
 		// way, since Index uniquely identifies a bar within its section).
+		fullyCovered := len(sections[si].Measures) > 0
 		for bi := range sections[si].Measures {
 			if tb, ok := byBarIndex[sections[si].Measures[bi].Index]; ok {
 				sections[si].Measures[bi].Tab = tb
+			} else {
+				fullyCovered = false
 			}
+		}
+		// A lyrics-free section with no explicit "bars:" override and a
+		// riff covering every one of its bars (the common GP-import
+		// shape: one section, no sections/lyrics of its own) gets
+		// re-chunked into ONE continuous row here, overriding whatever
+		// groupMeasures' 8-bars/row default already split it into —
+		// that default exists for a chord+lyrics chart's readability,
+		// which doesn't apply here, and pre-chunking it would otherwise
+		// force each 8-bar chunk into its own independent alphaTeX
+		// "mini-score" (own bar numbering, own premature final barline —
+		// see the AlphaTex assembly below) for no reason a reader of
+		// this riff would want.
+		if fullyCovered && !sections[si].ExplicitBarsPerLine && len(sections[si].Lyrics) == 0 {
+			sections[si].Lines = groupMeasures(sections[si].Measures, []int{len(sections[si].Measures)})
 		}
 		for li := range sections[si].Lines {
 			allCovered := len(sections[si].Lines[li].Measures) > 0
@@ -878,6 +895,14 @@ type viewerSection struct {
 	// whatever the section it borrows content from does.
 	Times  int
 	Lines  []viewerLine // grouped into chart "systems" (rows), per section.BarsPerLine
+	// ExplicitBarsPerLine is true when the source actually wrote a
+	// "bars:" line — as opposed to Lines having been grouped by the
+	// view's own 8-bars/row default (groupMeasures) because none was
+	// given. attachTabRiffs reads this to decide whether a lyrics-free,
+	// fully riff-covered section may re-chunk itself into one continuous
+	// row instead of respecting that default; an explicit "bars:" always
+	// wins over that inference.
+	ExplicitBarsPerLine bool
 	Lyrics []viewerLyricLine
 	// Notes are this section occurrence's own free-text performance
 	// directions ("GTR + claviers only") — see song.Section.Notes's doc
@@ -1561,6 +1586,7 @@ func buildSections(sg *song.Song) []viewerSection {
 		}
 		if vs.GridDuplicateOf == "" {
 			vs.Lines = groupMeasures(vs.Measures, sec.BarsPerLine)
+			vs.ExplicitBarsPerLine = len(sec.BarsPerLine) > 0
 		}
 		for li, l := range sec.Lyrics {
 			vl := viewerLyricLine{Index: li}
