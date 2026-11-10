@@ -139,8 +139,8 @@ func TestToAlphaTex_BendAndPalmMute(t *testing.T) {
 		t.Fatal(err)
 	}
 	tex := ToAlphaTex(riff, "", nil)
-	if !strings.Contains(tex, "{b 4}") {
-		t.Errorf("expected {b 4} (full bend = 4 quarter-tones) in alphaTex, got:\n%s", tex)
+	if !strings.Contains(tex, "{b (0 4)}") {
+		t.Errorf("expected {b (0 4)} (full bend = 4 quarter-tones, point-list syntax) in alphaTex, got:\n%s", tex)
 	}
 	if !strings.Contains(tex, "{pm}") {
 		t.Errorf("expected {pm} in alphaTex, got:\n%s", tex)

@@ -139,13 +139,21 @@ func writeBeat(b *strings.Builder, beat Beat, chordLabel string) {
 			noteProps = append(noteProps, "h")
 		}
 		if beat.BendSemitones > 0 {
-			// alphaTeX bend amounts are in quarter-tones; this package's
-			// own BendSemitones is in semitones (see its own doc
-			// comment), so *2. BendRelease isn't separately representable
-			// here (alphaTeX infers bend shape from a point list this
-			// package doesn't build — a plain bend-up is the common
-			// case and what every hand-written test fixture uses).
-			noteProps = append(noteProps, fmt.Sprintf("b %d", int(beat.BendSemitones*2)))
+			// alphaTeX's "{b ...}" effect takes a BEND POINT LIST, not a
+			// bare amount — confirmed empirically this session: "{b 4}"
+			// parses without error but silently produces NO bend glyph
+			// at all (every bend in a batch of GP-imported songs was
+			// invisible because of exactly this), while "{b (0 4)}" (one
+			// point: time-position 0, value 4) renders the real curved
+			// arrow + "full"/fractional label. Bend amounts are in
+			// quarter-tones; this package's own BendSemitones is in
+			// semitones (see its own doc comment), so *2. BendRelease
+			// isn't separately representable here (a proper 3-point
+			// release curve was tried and produced spurious extra
+			// fret-number glyphs — not worth chasing for a secondary
+			// nuance); a plain bend-up-and-hold is the common case and
+			// what every hand-written test fixture uses.
+			noteProps = append(noteProps, fmt.Sprintf("b (0 %d)", int(beat.BendSemitones*2)))
 		}
 		if beat.PalmMute {
 			noteProps = append(noteProps, "pm")
