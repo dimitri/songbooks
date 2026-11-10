@@ -825,6 +825,18 @@ func chipSource(sec *viewerSection, riff *tab.Riff) (bars []tab.Bar, chordLabels
 	return bars, nil, true
 }
 
+// isWholeBarRest reports whether bar is a single whole-bar rest — the
+// exact shape both chipSource's own all-rest fallback and its padding
+// (a real riff shorter than its section's BarCount) produce. Used to
+// tell a row's real bar count apart from its RestOnly flag (buildDrumMap):
+// a section with its own real riff can still pad out with rest bars
+// like this mid-row, so RestOnly (a whole SECTION having no riff at
+// all) isn't enough on its own to know which of a row's bars actually
+// carry notation.
+func isWholeBarRest(bar tab.Bar) bool {
+	return len(bar.Beats) == 1 && bar.Beats[0].Rest
+}
+
 // viewerDrumMapLabel is one section's rehearsal mark + name, floated
 // above wherever that section actually starts within its line
 // (viewerDrumMapRow) — LeftPct is that start bar's own position as a
@@ -844,9 +856,27 @@ type viewerDrumMapLabel struct {
 // data-restonly) picks which legibility floor applies to the row as a
 // whole: a line built entirely from consolidated multi-bar rests needs
 // much less width than one carrying real notes and chord labels would.
+// RealBars (data-realbars) is how many of the row's own bars carry
+// actual notation rather than a plain whole-bar rest — the real driver
+// of a mixed row's min-width (alphatab-tab.js): confirmed live that
+// total bar count alone is the wrong signal (an 8-bar row split 2
+// real/6 rest and one split 6 real/2 rest both carry "Bars: 8", but the
+// second needs far more width than the first — each real bar's own
+// notation needs real room regardless of how many rest bars share the
+// line, while a consolidated rest's own glyph needs the same small,
+// roughly fixed amount of room no matter how many bars it folds in).
+// RestRuns (data-restruns) is how many SEPARATE consolidated-rest
+// glyphs the row draws — usually 0 or 1, occasionally 2 (a short rest
+// run on both sides of the row's real notation). Each one needs its
+// own roughly-fixed minimum width (alphatab-tab.js) regardless of how
+// many bars it folds in, same reasoning as RestOnly's own doc comment,
+// so the row's total floor adds one per run rather than one flat
+// amount regardless of how many there are.
 type viewerDrumMapRow struct {
 	AlphaTex string
 	Bars     int
+	RealBars int
+	RestRuns int
 	RestOnly bool
 	Labels   []viewerDrumMapLabel
 }
@@ -941,6 +971,9 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 		chordLabels := make([]string, 0, len(chunk))
 		boundaries := make([]bool, len(chunk))
 		restOnly := true
+		realBars := 0
+		restRuns := 0
+		inRestRun := false
 		var labels []viewerDrumMapLabel
 		for bi, fb := range chunk {
 			bars = append(bars, fb.bar)
@@ -948,10 +981,20 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 			if !fb.sectionIsRestOnly {
 				restOnly = false
 			}
-			if fb.isSectionStart {
-				if bi > 0 {
-					boundaries[bi] = true
+			isBoundary := fb.isSectionStart && bi > 0
+			if isBoundary {
+				boundaries[bi] = true
+			}
+			if isWholeBarRest(fb.bar) {
+				if !inRestRun || isBoundary {
+					restRuns++
+					inRestRun = true
 				}
+			} else {
+				realBars++
+				inRestRun = false
+			}
+			if fb.isSectionStart {
 				labels = append(labels, viewerDrumMapLabel{
 					Mark: fb.mark, Label: fb.label,
 					LeftPct: 100 * float64(bi) / float64(len(chunk)),
@@ -961,6 +1004,8 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 		rows = append(rows, viewerDrumMapRow{
 			AlphaTex: tab.ToAlphaTexDrums(&tab.Riff{Drums: true, Bars: bars}, chordLabels, boundaries, tempo),
 			Bars:     len(chunk),
+			RealBars: realBars,
+			RestRuns: restRuns,
 			RestOnly: restOnly,
 			Labels:   labels,
 		})

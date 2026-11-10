@@ -217,7 +217,7 @@
     {{range .Labels}}
     <div class="drum-row-label" style="left: {{.LeftPct}}%">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
     {{end}}
-    <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}" data-restonly="{{if .RestOnly}}1{{end}}"></div>
+    <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}" data-realbars="{{.RealBars}}" data-restruns="{{.RestRuns}}" data-restonly="{{if .RestOnly}}1{{end}}"></div>
   </div>
   {{end}}
 </div>
