@@ -1,8 +1,8 @@
 // songimport restores a file-based export written by cmd/songexport
 // back into a Postgres database — disaster recovery without needing the
 // original pg_dump, or a way to inspect/hand-edit a backup before
-// reinstalling it (every .song file and members.txt is plain, readable
-// text).
+// reinstalling it (every .song file is plain text; users.json/
+// members.json/variants.json/songbooks.json are plain JSON).
 //
 // Meant to run against a FRESH, already-migrated database (store.New
 // runs pending migrations on connect, which is exactly what's wanted
@@ -25,11 +25,11 @@ import (
 	"path/filepath"
 	"sort"
 
-	"app/internal/membersfmt"
+	"app/internal/groupfmt"
 	"app/internal/store"
 )
 
-type person struct {
+type user struct {
 	ID          int64    `json:"id"`
 	Username    string   `json:"username"`
 	DisplayName string   `json:"displayName"`
@@ -52,7 +52,7 @@ type variantRecord struct {
 	Visibility         string               `json:"visibility"`
 	OwnerKind          string               `json:"ownerKind"`
 	OwnerName          string               `json:"ownerName,omitempty"`
-	CreatedByUsername  string               `json:"createdByUsername,omitempty"`
+	CreatedByUserID    int64                `json:"createdByUserId,omitempty"`
 	ForkedFromID       int64                `json:"forkedFromId,omitempty"`
 	SongbookMembership []songbookMembership `json:"songbookMemberships,omitempty"`
 }
@@ -85,8 +85,8 @@ func main() {
 		log.Fatal("usage: songimport --db <url> --in <dir> [--apply]")
 	}
 
-	var people []person
-	readJSON(filepath.Join(*inDir, "people.json"), &people)
+	var users []user
+	readJSON(filepath.Join(*inDir, "users.json"), &users)
 	var variants []variantRecord
 	readJSON(filepath.Join(*inDir, "variants.json"), &variants)
 	var songbookRecs []songbookRecord
@@ -99,10 +99,11 @@ func main() {
 	}
 	defer st.Close()
 
-	run := &runner{st: st, inDir: *inDir, apply: *apply, personIDByUsername: map[string]int64{},
-		ownerID: map[ownerKey]int64{}, groupCreator: map[ownerKey]int64{}, songbookID: map[songbookKey]int64{}, newVariantID: map[int64]int64{}}
+	run := &runner{st: st, inDir: *inDir, apply: *apply, newUserID: map[int64]int64{}, usernameByOldID: map[int64]string{},
+		personIDByUsername: map[string]int64{},
+		ownerID:            map[ownerKey]int64{}, groupCreator: map[ownerKey]int64{}, songbookID: map[songbookKey]int64{}, newVariantID: map[int64]int64{}}
 
-	run.importPeople(ctx, people)
+	run.importUsers(ctx, users)
 	run.importGroups(ctx, variants) // bands/communities, their members
 	run.importSongbooks(ctx, songbookRecs)
 	run.importSongs(ctx, variants)
@@ -121,7 +122,9 @@ type runner struct {
 	inDir string
 	apply bool
 
-	personIDByUsername map[string]int64
+	newUserID          map[int64]int64    // OLD user id (from users.json) -> NEW person id in this database
+	usernameByOldID    map[int64]string   // for log messages only
+	personIDByUsername map[string]int64   // username -> NEW person id — OwnerName for a person-owned song/songbook is a username (slug), not a users.json id
 	ownerID            map[ownerKey]int64 // (kind,name) -> band id / community id / person id
 	groupCreator       map[ownerKey]int64 // (kind,name) -> a CURRENT member, for a song whose own created_by is unrecorded; 0 if the group has no members at all
 	songbookID         map[songbookKey]int64
@@ -130,23 +133,27 @@ type runner struct {
 
 func (r *runner) logf(format string, args ...any) { fmt.Printf(format+"\n", args...) }
 
-func (r *runner) importPeople(ctx context.Context, people []person) {
-	for _, p := range people {
-		existing, err := r.st.GetPersonByUsername(ctx, p.Username)
+func (r *runner) importUsers(ctx context.Context, users []user) {
+	for _, u := range users {
+		r.usernameByOldID[u.ID] = u.Username
+		existing, err := r.st.GetPersonByUsername(ctx, u.Username)
 		if err == nil {
-			r.personIDByUsername[p.Username] = existing.ID
+			r.newUserID[u.ID] = existing.ID
+			r.personIDByUsername[u.Username] = existing.ID
 			continue
 		}
-		r.logf("person %s: creating (display name %q)", p.Username, p.DisplayName)
+		r.logf("person %s: creating (display name %q)", u.Username, u.DisplayName)
 		if !r.apply {
-			r.personIDByUsername[p.Username] = -1 // placeholder so a dry run can still walk the rest of the logic
+			r.newUserID[u.ID] = -1 // placeholder so a dry run can still walk the rest of the logic
+			r.personIDByUsername[u.Username] = -1
 			continue
 		}
-		newID, err := r.st.CreatePerson(ctx, p.Username, p.DisplayName, p.Email)
+		newID, err := r.st.CreatePerson(ctx, u.Username, u.DisplayName, u.Email)
 		if err != nil {
-			log.Fatalf("creating person %s: %v", p.Username, err)
+			log.Fatalf("creating person %s: %v", u.Username, err)
 		}
-		r.personIDByUsername[p.Username] = newID
+		r.newUserID[u.ID] = newID
+		r.personIDByUsername[u.Username] = newID
 	}
 }
 
@@ -169,13 +176,13 @@ func (r *runner) importGroups(ctx context.Context, variants []variantRecord) {
 }
 
 func (r *runner) importGroup(ctx context.Context, k ownerKey) {
-	path := filepath.Join(r.inDir, "songbooks", k.name, "members.txt")
-	mf, err := membersfmt.Read(path)
+	path := filepath.Join(r.inDir, "songbooks", k.name, "members.json")
+	mf, err := groupfmt.Read(path)
 	if err != nil {
 		log.Fatalf("reading %s: %v", path, err)
 	}
 	sort.SliceStable(mf.Members, func(i, j int) bool { return mf.Members[i].JoinedAt < mf.Members[j].JoinedAt })
-	name := mf.Header["name"]
+	name := mf.Name
 
 	if len(mf.Members) == 0 {
 		// Real data, not a malformed export: a legacy band/community can
@@ -202,13 +209,13 @@ func (r *runner) importGroup(ctx context.Context, k ownerKey) {
 		return
 	}
 
-	creatorUsername := mf.Members[0].Username
-	creatorID, ok := r.personIDByUsername[creatorUsername]
+	creatorOldID := mf.Members[0].UserID
+	creatorID, ok := r.newUserID[creatorOldID]
 	if !ok {
-		log.Fatalf("%s: creator %q not found in people.json", path, creatorUsername)
+		log.Fatalf("%s: creator (user id %d) not found in users.json", path, creatorOldID)
 	}
 
-	r.logf("%s %q: creating with %d member(s), creator=%s", k.kind, name, len(mf.Members), creatorUsername)
+	r.logf("%s %q: creating with %d member(s), creator=%s", k.kind, name, len(mf.Members), r.usernameByOldID[creatorOldID])
 	if !r.apply {
 		r.ownerID[k] = -1 // placeholder so importSongs' dry run doesn't also fail to resolve it
 		return
@@ -242,13 +249,13 @@ func (r *runner) importGroup(ctx context.Context, k ownerKey) {
 	}
 
 	for _, m := range mf.Members[1:] { // [0] is the creator, already a member
-		personID, ok := r.personIDByUsername[m.Username]
+		personID, ok := r.newUserID[m.UserID]
 		if !ok {
-			log.Fatalf("%s: member %q not found in people.json", path, m.Username)
+			log.Fatalf("%s: member (user id %d) not found in users.json", path, m.UserID)
 		}
 		var invitedBy int64
-		if m.InvitedBy != "" {
-			invitedBy = r.personIDByUsername[m.InvitedBy]
+		if m.InvitedBy != 0 {
+			invitedBy = r.newUserID[m.InvitedBy]
 		}
 		var addErr error
 		switch k.kind {
@@ -258,11 +265,11 @@ func (r *runner) importGroup(ctx context.Context, k ownerKey) {
 			_, addErr = r.st.AddCommunityMember(ctx, groupID, personID, m.RoleOrStatus, invitedBy)
 		}
 		if addErr != nil {
-			log.Fatalf("adding %s to %s %q: %v", m.Username, k.kind, name, addErr)
+			log.Fatalf("adding %s to %s %q: %v", r.usernameByOldID[m.UserID], k.kind, name, addErr)
 		}
 		if m.LeftAt != "" {
 			if err := r.st.SetMemberLeftAt(ctx, k.kind, groupID, personID, m.LeftAt); err != nil {
-				log.Fatalf("marking %s as departed from %s %q: %v", m.Username, k.kind, name, err)
+				log.Fatalf("marking %s as departed from %s %q: %v", r.usernameByOldID[m.UserID], k.kind, name, err)
 			}
 		}
 	}
@@ -355,8 +362,8 @@ func (r *runner) importSongs(ctx context.Context, variants []variantRecord) {
 			continue
 		}
 		var creatorID int64
-		if v.CreatedByUsername != "" {
-			creatorID = r.personIDByUsername[v.CreatedByUsername]
+		if v.CreatedByUserID != 0 {
+			creatorID = r.newUserID[v.CreatedByUserID]
 		}
 		// CreateBandVariant/CreateCommunityVariant require the creator to
 		// be a CURRENT member — a song with no created_by_person_id on

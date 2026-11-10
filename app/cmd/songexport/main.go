@@ -7,10 +7,13 @@
 // Layout:
 //
 //	songbooks/<owner>/<songbook>/<title>.song   one real .song source file per song
-//	songbooks/<band>/members.txt                band roster (see membersfmt.go)
-//	songbooks/<community>/members.txt           community roster + role definitions
+//	songbooks/<band>/members.json                band roster (see internal/groupfmt)
+//	songbooks/<community>/members.json           community roster + role definitions
 //	songbooks/_catalog/...                      public-catalogue songs (no person/band/community owner)
-//	people.json                                 every person referenced anywhere (for username resolution on import)
+//	users.json                                  every person referenced anywhere, by id — members.json
+//	                                             rosters and variants.json's createdByUserId/invitedBy all
+//	                                             reference this file's entries by id, rather than each
+//	                                             repeating a username/display name redundantly
 //	variants.json                               per-song metadata a directory tree alone can't carry:
 //	                                             visibility, true owner, work (title/artist/genre/album),
 //	                                             fork lineage, every songbook it's actually filed in (a song
@@ -43,10 +46,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"app/internal/membersfmt"
+	"app/internal/groupfmt"
 )
 
-type person struct {
+type user struct {
 	ID          int64    `json:"id"`
 	Username    string   `json:"username"`
 	DisplayName string   `json:"displayName"`
@@ -135,7 +138,7 @@ type variantRecord struct {
 	WorkArtist         string               `json:"workArtist"`
 	WorkGenre          string               `json:"workGenre,omitempty"`
 	WorkAlbum          string               `json:"workAlbum,omitempty"`
-	CreatedByUsername  string               `json:"createdByUsername,omitempty"`
+	CreatedByUserID    int64                `json:"createdByUserId,omitempty"`
 	CreatedAt          string               `json:"createdAt"`
 	ForkedFromID       int64                `json:"forkedFromId,omitempty"`
 	ForkedFromFile     string               `json:"forkedFromFile,omitempty"`
@@ -208,13 +211,13 @@ func main() {
 
 	// ---- Load every reference table up front; small, fits in memory. ----
 
-	people := map[int64]person{}
+	users := map[int64]user{}
 	rows, err := pool.Query(ctx, `SELECT id, username, display_name, coalesce(email,''), is_admin, instruments FROM people`)
 	must(err, "query people")
 	for rows.Next() {
-		var p person
-		must(rows.Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.IsAdmin, &p.Instruments), "scan person")
-		people[p.ID] = p
+		var u user
+		must(rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Email, &u.IsAdmin, &u.Instruments), "scan user")
+		users[u.ID] = u
 	}
 	rows.Close()
 
@@ -284,7 +287,7 @@ func main() {
 	ownerDirName := func(kind string, id int64) string {
 		switch kind {
 		case "person":
-			if p, ok := people[id]; ok {
+			if p, ok := users[id]; ok {
 				return slugify(p.Username)
 			}
 		case "band":
@@ -340,7 +343,7 @@ func main() {
 		var trueOwnerKind, trueOwnerName string
 		switch {
 		case s.OwnerPersonID != nil:
-			trueOwnerKind, trueOwnerName = "person", slugify(people[*s.OwnerPersonID].Username)
+			trueOwnerKind, trueOwnerName = "person", slugify(users[*s.OwnerPersonID].Username)
 		case s.OwnerBandID != nil:
 			trueOwnerKind, trueOwnerName = "band", slugify(bands[*s.OwnerBandID].Name)
 		case s.OwnerCommunityID != nil:
@@ -382,9 +385,9 @@ func main() {
 		fileByVariant[s.ID] = relPath
 
 		w := works[s.WorkID]
-		var createdByUsername string
+		var createdByUserID int64
 		if s.CreatedByPersonID != nil {
-			createdByUsername = people[*s.CreatedByPersonID].Username
+			createdByUserID = *s.CreatedByPersonID
 		}
 		var memberships []songbookMembership
 		for _, sbID := range memberSongbooks {
@@ -398,7 +401,7 @@ func main() {
 			ID: s.ID, File: relPath, Title: s.Title, Artist: s.Artist, Visibility: s.Visibility,
 			OwnerKind: trueOwnerKind, OwnerName: trueOwnerName,
 			WorkTitle: w.Title, WorkArtist: w.Artist, WorkGenre: w.Genre, WorkAlbum: w.Album,
-			CreatedByUsername: createdByUsername, CreatedAt: rfc3339(s.CreatedAt),
+			CreatedByUserID: createdByUserID, CreatedAt: rfc3339(s.CreatedAt),
 			SongbookMembership: memberships,
 		})
 	}
@@ -410,23 +413,24 @@ func main() {
 		}
 	}
 
-	// ---- members.txt for every band and community ----
+	// ---- members.json for every band and community ----
+	//
+	// Rosters reference people by id (groupfmt.Member.UserID/InvitedBy),
+	// into users.json below — not by embedding a username in every group
+	// file that person belongs to.
 
 	for id, b := range bands {
 		rows, err := pool.Query(ctx, `
-			SELECT p.username, bm.status, bm.joined_at, bm.left_at,
-			       coalesce(ip.username,'')
+			SELECT bm.person_id, bm.status, bm.joined_at, bm.left_at, coalesce(bm.invited_by_person_id, 0)
 			FROM band_members bm
-			JOIN people p ON p.id = bm.person_id
-			LEFT JOIN people ip ON ip.id = bm.invited_by_person_id
 			WHERE bm.band_id = $1 ORDER BY bm.joined_at`, id)
 		must(err, "query band_members")
-		var roster []membersfmt.Member
+		var roster []groupfmt.Member
 		for rows.Next() {
-			var m membersfmt.Member
+			var m groupfmt.Member
 			var joinedAt time.Time
 			var leftAt *time.Time
-			must(rows.Scan(&m.Username, &m.RoleOrStatus, &joinedAt, &leftAt, &m.InvitedBy), "scan band_member")
+			must(rows.Scan(&m.UserID, &m.RoleOrStatus, &joinedAt, &leftAt, &m.InvitedBy), "scan band_member")
 			m.JoinedAt, m.LeftAt = rfc3339(joinedAt), rfc3339Null(leftAt)
 			roster = append(roster, m)
 		}
@@ -435,19 +439,18 @@ func main() {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			log.Fatalf("mkdir %s: %v", dir, err)
 		}
-		must(membersfmt.Write(filepath.Join(dir, "members.txt"), membersfmt.File{
-			Header:  map[string]string{"name": b.Name, "music_type": b.MusicType},
-			Members: roster,
-		}), "write band members.txt")
+		must(groupfmt.Write(filepath.Join(dir, "members.json"), groupfmt.File{
+			Name: b.Name, MusicType: b.MusicType, Members: roster,
+		}), "write band members.json")
 	}
 
 	for id, c := range communities {
 		roleRows, err := pool.Query(ctx, `SELECT id, name, coalesce(builtin_key,'') FROM community_roles WHERE community_id = $1`, id)
 		must(err, "query community_roles")
-		var roleDefs []membersfmt.Role
+		var roleDefs []groupfmt.Role
 		for roleRows.Next() {
 			var rid int64
-			var rd membersfmt.Role
+			var rd groupfmt.Role
 			must(roleRows.Scan(&rid, &rd.Name, &rd.Builtin), "scan community_role")
 			roleDefs = append(roleDefs, rd)
 		}
@@ -464,20 +467,17 @@ func main() {
 		}
 
 		rows, err := pool.Query(ctx, `
-			SELECT p.username, cr.name, cm.joined_at, cm.left_at,
-			       coalesce(ip.username,'')
+			SELECT cm.person_id, cr.name, cm.joined_at, cm.left_at, coalesce(cm.invited_by_person_id, 0)
 			FROM community_members cm
-			JOIN people p ON p.id = cm.person_id
 			JOIN community_roles cr ON cr.id = cm.role_id
-			LEFT JOIN people ip ON ip.id = cm.invited_by_person_id
 			WHERE cm.community_id = $1 ORDER BY cm.joined_at`, id)
 		must(err, "query community_members")
-		var roster []membersfmt.Member
+		var roster []groupfmt.Member
 		for rows.Next() {
-			var m membersfmt.Member
+			var m groupfmt.Member
 			var joinedAt time.Time
 			var leftAt *time.Time
-			must(rows.Scan(&m.Username, &m.RoleOrStatus, &joinedAt, &leftAt, &m.InvitedBy), "scan community_member")
+			must(rows.Scan(&m.UserID, &m.RoleOrStatus, &joinedAt, &leftAt, &m.InvitedBy), "scan community_member")
 			m.JoinedAt, m.LeftAt = rfc3339(joinedAt), rfc3339Null(leftAt)
 			roster = append(roster, m)
 		}
@@ -486,21 +486,19 @@ func main() {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			log.Fatalf("mkdir %s: %v", dir, err)
 		}
-		must(membersfmt.Write(filepath.Join(dir, "members.txt"), membersfmt.File{
-			Header:  map[string]string{"name": c.Name, "default_join_role": c.DefaultJoinRole},
-			Roles:   roleDefs,
-			Members: roster,
-		}), "write community members.txt")
+		must(groupfmt.Write(filepath.Join(dir, "members.json"), groupfmt.File{
+			Name: c.Name, DefaultJoinRole: c.DefaultJoinRole, Roles: roleDefs, Members: roster,
+		}), "write community members.json")
 	}
 
-	// ---- people.json / variants.json / songbooks.json ----
+	// ---- users.json / variants.json / songbooks.json ----
 
-	var peopleList []person
-	for _, p := range people {
-		peopleList = append(peopleList, p)
+	var userList []user
+	for _, u := range users {
+		userList = append(userList, u)
 	}
-	sort.Slice(peopleList, func(i, j int) bool { return peopleList[i].ID < peopleList[j].ID })
-	writeJSON(filepath.Join(*outDir, "people.json"), peopleList)
+	sort.Slice(userList, func(i, j int) bool { return userList[i].ID < userList[j].ID })
+	writeJSON(filepath.Join(*outDir, "users.json"), userList)
 
 	sort.Slice(variants, func(i, j int) bool { return variants[i].ID < variants[j].ID })
 	writeJSON(filepath.Join(*outDir, "variants.json"), variants)
@@ -516,7 +514,7 @@ func main() {
 	writeJSON(filepath.Join(*outDir, "songbooks.json"), songbookList)
 
 	fmt.Printf("Exported %d songs, %d people, %d bands, %d communities, %d songbooks to %s\n",
-		len(variants), len(people), len(bands), len(communities), len(songbooks), *outDir)
+		len(variants), len(users), len(bands), len(communities), len(songbooks), *outDir)
 }
 
 func sortedKeys(m map[int64]songbook) []int64 {
