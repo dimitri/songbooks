@@ -96,8 +96,29 @@
       new alphaTab.model.Font('EB Garamond', remPx * 1.4, alphaTab.model.FontStyle.Italic, alphaTab.model.FontWeight.Regular)
     );
 
+    // Reserve the row's approximate final height BEFORE alphaTab paints
+    // anything, so the page doesn't suddenly grow by hundreds or
+    // thousands of pixels the instant rendering finishes — confirmed
+    // this session to be the real cause behind what reads as an
+    // unwanted auto-scroll on a slower device (an iPad in particular):
+    // .alphatab-row starts at 0 height with nothing reserved, so once a
+    // long continuous riff (see attachTabRiffs — a whole GP-imported
+    // section can be one row now) finally paints, everything below it
+    // gets shoved down by its full height in one frame — on a slow
+    // device that jump can land well after the reader has already
+    // started scrolling/reading, which is exactly what reads as the
+    // page yanking itself around. The estimate only has to be in the
+    // right ballpark (it's replaced by the real layout the moment
+    // content actually paints — see clearReservedHeight below): 6 bars
+    // per system and ~150px per system are rough figures read off this
+    // app's own rendered charts, not a documented alphaTab constant.
+    const barCount = (tex.match(/\|/g) || []).length;
+    const estSystems = Math.max(1, Math.ceil(barCount / 6));
+    container.style.minHeight = (estSystems * 150) + 'px';
+    const clearReservedHeight = () => { container.style.minHeight = ''; };
+
     const api = new alphaTab.AlphaTabApi(container, settings);
-    api.renderFinished.on(() => pollForChordFix(container, tex));
+    api.renderFinished.on(() => pollForChordFix(container, tex, 0, clearReservedHeight));
     api.tex(tex);
 
     // Watchdog: with lazy loading off (see above), the remaining known
@@ -106,16 +127,25 @@
     // happens when the container's width isn't resolved yet at
     // construction (renderAll's own requestAnimationFrame delay usually
     // avoids this, but isn't a hard guarantee across every layout
-    // path). A full reconstruction, not a same-instance api.render()
-    // call, is what reliably recovers it.
+    // path). Gated on renderFinished rather than a short fixed delay:
+    // a long continuous riff can legitimately take a few seconds to lay
+    // out on a slower device, and destroying a still-in-progress render
+    // to "retry" it only makes a slow render look like a permanently
+    // blank one — confirmed this session as the likely cause of
+    // intermittent blank charts on an iPad. A full reconstruction, not
+    // a same-instance api.render() call, is what reliably recovers the
+    // genuine zero-width case.
+    let finished = false;
+    api.renderFinished.on(() => { finished = true; });
     const watchdog = () => {
       if (retriesLeft <= 0) return;
-      if (container.querySelector('svg text')) return;
+      if (finished || container.querySelector('svg text')) return;
       container.innerHTML = '';
+      container.style.minHeight = (estSystems * 150) + 'px';
       retriesLeft--;
       render(container, retriesLeft);
     };
-    setTimeout(watchdog, 1200);
+    setTimeout(watchdog, 8000);
   }
 
   // pollForChordFix retries fixChordNameSpacing across a few animation
@@ -128,15 +158,16 @@
   // "<text>" that doesn't exist yet is a silent no-op, not an error, so
   // the single-rAF version of this call looked like it was failing to
   // find chord text at all even though the function itself was correct.
-  function pollForChordFix(container, tex, attempt) {
+  function pollForChordFix(container, tex, attempt, onContent) {
     attempt = attempt || 0;
     requestAnimationFrame(() => {
       const hasContent = [...container.querySelectorAll('svg text')].some(t => t.textContent.trim() !== '');
       if (hasContent) {
         fixChordNameSpacing(container, tex);
+        onContent?.();
         return;
       }
-      if (attempt < 20) pollForChordFix(container, tex, attempt + 1);
+      if (attempt < 20) pollForChordFix(container, tex, attempt + 1, onContent);
     });
   }
 
