@@ -2055,6 +2055,14 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if communityParam := r.URL.Query().Get("community"); communityParam != "" {
+		if communityID, err := strconv.ParseInt(communityParam, 10, 64); err == nil {
+			if c, err := s.store.GetCommunity(r.Context(), communityID); err == nil {
+				data["CommunityRef"] = c.ID
+				data["CommunityName"] = c.Name
+			}
+		}
+	}
 	s.render(w, "song", data)
 }
 

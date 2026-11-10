@@ -365,8 +365,12 @@
     <a href="/setlists/{{.SetlistRef}}">{{template "icon-back"}} set list</a>
     {{else if .BandRef}}
     <a href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} {{.BandName}}</a>
+    {{else if .CommunityRef}}
+    <a href="/communities/{{.CommunityRef}}/repertoire">{{template "icon-back"}} {{.CommunityName}}</a>
+    {{else if .SongbookRef}}
+    <a href="/songbooks/{{.SongbookRef}}">{{template "icon-back"}} songbook</a>
     {{else}}
-    {{if .SongbookRef}}<a href="/songbooks/{{.SongbookRef}}">{{template "icon-back"}} songbook</a>{{else if .BandRef}}<a href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} {{.BandName}}</a>{{else}}<a href="/catalog">{{template "icon-back"}} catalog</a>{{end}}
+    <a href="/catalog">{{template "icon-back"}} catalog</a>
     {{end}}
   </div>
   {{/* Phase 45: while the desktop editor is open, this single row replaces
@@ -464,6 +468,8 @@
   <a class="back-link" href="/setlists/{{.SetlistRef}}">{{template "icon-back"}} set list</a>
   {{else if .BandRef}}
   <a class="back-link" href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} {{.BandName}}</a>
+  {{else if .CommunityRef}}
+  <a class="back-link" href="/communities/{{.CommunityRef}}/repertoire">{{template "icon-back"}} {{.CommunityName}}</a>
   {{else if .SongbookRef}}
   <a class="back-link" href="/songbooks/{{.SongbookRef}}">{{template "icon-back"}} songbook</a>
   {{else}}

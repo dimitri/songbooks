@@ -41,7 +41,7 @@
   <div class="gig-table" data-repertoire-list>
   {{range .Entries}}
     <div class="gig-row repertoire-row" data-variant-id="{{.VariantID}}" data-search="{{.Title}} {{.Artist}}">
-      <a class="gig-title" href="/song/{{.VariantID}}">
+      <a class="gig-title" href="/song/{{.VariantID}}?community={{$.Community.ID}}">
         {{.Title}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
       </a>
       <span class="gig-key">{{.Key}}</span>
