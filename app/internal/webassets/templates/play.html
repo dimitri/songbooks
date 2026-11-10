@@ -120,6 +120,26 @@
 </span>
 {{end}}
 
+{{define "drummap_rows"}}
+{{/* Factored out to its own top-level template (html/template refuses a
+     {{define}} nested inside another one's body, which is why this
+     can't just sit inline inside "sheet-body" below) so
+     handleGetDrummerRows (handlers_pages.go) can render exactly this
+     same markup from a fresh buildDrumMap call, packed against the
+     client's own real measured width, without duplicating it — see
+     alphatab-tab.js's own doc comment on where that call comes from and
+     why. Operates on a []viewerDrumMapRow directly, same shape as
+     .DrumMap below. */}}
+{{range .}}
+<div class="drum-row">
+  {{range .Labels}}
+  <div class="drum-row-label" style="left: {{.LeftPct}}%">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
+  {{end}}
+  <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}" data-realbars="{{.RealBars}}" data-restruns="{{.RestRuns}}" data-restonly="{{if .RestOnly}}1{{end}}"></div>
+</div>
+{{end}}
+{{end}}
+
 {{define "sheet-body"}}
 {{if .Chords}}
 {{/* Chord-diagram legend row, under the title and above the chart —
@@ -211,16 +231,7 @@
      bar count so alphaTab's own auto-wrap never draws it across two
      internal lines. Hidden outside drummer mode by CSS. */}}
 {{if .DrumMap}}
-<div class="drum-map">
-  {{range .DrumMap}}
-  <div class="drum-row">
-    {{range .Labels}}
-    <div class="drum-row-label" style="left: {{.LeftPct}}%">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
-    {{end}}
-    <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}" data-realbars="{{.RealBars}}" data-restruns="{{.RestRuns}}" data-restonly="{{if .RestOnly}}1{{end}}"></div>
-  </div>
-  {{end}}
-</div>
+<div class="drum-map" data-variant-id="{{.VariantID}}">{{template "drummap_rows" .DrumMap}}</div>
 {{end}}
 
 {{range .Sections}}

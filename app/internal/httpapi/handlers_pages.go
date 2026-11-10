@@ -160,6 +160,48 @@ func (s *Server) handleGetSongStructure(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]any{"sections": out})
 }
 
+// handleGetDrummerRows is GET /api/songs/{id}/drummer-rows?width=<rem> —
+// alphatab-tab.js's own width-aware re-fetch (see buildDrumMap's doc
+// comment for the full story): the server already rendered Drummer view
+// once, at a generous desktop-oriented default width, for the page's
+// first paint; this reruns the SAME buildDrumMap against the width the
+// client actually measured on its own .drum-map container, so a
+// genuinely narrow viewport gets lines packed to actually fit it instead
+// of a few, too-wide ones later squeezed down to fit by display.scale.
+// width is in rem (alphatab-tab.js's own unit throughout this feature,
+// matching drumRowBaseRem/drumRowRealBarRem/drumRowRestRunRem), clamped
+// to a sane range rather than trusted outright — this is a public,
+// unauthenticated-content-shape endpoint reachable with any query value.
+func (s *Server) handleGetDrummerRows(w http.ResponseWriter, r *http.Request) {
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	sg, _, err := s.store.LoadVariant(variantID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	width, _ := strconv.ParseFloat(r.URL.Query().Get("width"), 64)
+	switch {
+	case width <= 0:
+		width = defaultDrumRowTargetRem
+	case width < 10:
+		width = 10 // narrower than this and even a single real bar's own legibility floor can't fit — not a real device width
+	case width > 200:
+		width = 200 // guards against a pathological query value driving one enormous line; no real viewport is this wide in rem
+	}
+	sections := buildSections(sg)
+	riffs, _ := tab.LoadScores(sg)
+	drumMap := buildDrumMap(sections, riffs, atoiOr(orDefault(sg.Get("tempo"), "120"), 120), width)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := webassets.Templates.ExecuteTemplate(w, "drummap_rows", drumMap); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+	}
+}
+
 // docsExampleSong is the worked example at the top of /docs/song-format —
 // kept here as source text (not just embedded HTML) so it stays a real,
 // parseable .song document shown verbatim in the docs page's left-hand
@@ -892,8 +934,27 @@ type viewerDrumMapRow struct {
 // Every section's bars (real notation where written, a synthetic
 // all-rest run otherwise — chipSource) are flattened into one continuous
 // sequence, same idea buildMapLines already uses for the chord grid,
-// then chunked into lines of 8 bars (groupMeasures/groupMapCells' own
-// row-size default). Where a section boundary falls MID-LINE, that line
+// then chunked into lines by packDrumRowBounds — a GREEDY, WEIGHTED pack
+// against targetRem (see that function's own doc comment for why a flat
+// bar count, this function's previous behavior, isn't the right unit:
+// confirmed live, a mobile viewport forced into the same bar count a
+// wide desktop window comfortably holds either needed horizontal
+// scrolling — rejected outright, this app is read hands-off while
+// actually playing — or, scaled down to avoid that, rendered real
+// notation small enough to misread mid-song). targetRem itself has two
+// sources: handleSong's own call renders at a generous desktop-oriented
+// default for the page's first paint (and for any client that never
+// runs the follow-up below); alphatab-tab.js then measures the DRAWN
+// .drum-map's own real width once on load and, when it's narrower,
+// re-fetches this exact same rendering from handleDrummerRows at that
+// real width — the same row-packing logic, just handed the width that
+// actually matters, rather than a client-side re-implementation of it
+// (which would mean keeping two copies of this packing logic, in two
+// languages, in sync by hand) or a second, separately-computed set of
+// rows baked into the initial HTML for a guessed "mobile" breakpoint
+// (which still wouldn't be the device's REAL width — a tablet, a split
+// view, a rotated phone all fall between any two fixed guesses).
+// Where a section boundary falls MID-LINE, that line
 // is STILL exactly one alphaTab mount — the whole chunk's bars go into
 // ONE alphaTeX document, with a "\tempo" marker (ToAlphaTexDrums's own
 // boundaries param — see its doc comment for why tempo, not alphaTeX's
@@ -921,15 +982,94 @@ type viewerDrumMapRow struct {
 // per-section split, needs none of that: there is never a sibling cell
 // to share width or wrap against, so the whole CSS side of this problem
 // stops existing.
-func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff, tempo int) []viewerDrumMapRow {
-	type flatBar struct {
-		bar               tab.Bar
-		chordLabel        string
-		mark, label       string
-		isSectionStart    bool
-		sectionIsRestOnly bool
+// drumRowBaseRem, drumRowRealBarRem and drumRowRestRunRem are the SAME
+// per-line-element costs alphatab-tab.js's own legibility-floor formula
+// already uses to size a line's rendered width (9.5 + realBars*4.5 +
+// restRuns*8.5, fitted live against two real measured rows — see that
+// file's own doc comment) — reused here, not reinvented, so a line this
+// function decides fits a given targetRem is, by construction, the same
+// line the client would size at scale 1 (no shrink needed) once it
+// applies that identical formula to what actually got packed.
+const (
+	drumRowBaseRem    = 9.5
+	drumRowRealBarRem = 4.5
+	drumRowRestRunRem = 8.5
+	// defaultDrumRowTargetRem is handleSong's own first-paint target — a
+	// generous width comparable to what the old flat "8 raw bars" chunk
+	// size typically produced on an actual desktop browser window, so a
+	// client that never runs the follow-up re-fetch (JS disabled, or the
+	// fetch itself fails) still gets a reasonable, if not perfectly
+	// width-matched, rendering rather than an empty or broken one.
+	defaultDrumRowTargetRem = 56.0
+)
+
+// packDrumRowBounds decides where each printed line of Drummer view
+// breaks: a GREEDY walk that keeps adding bars to the current line while
+// its projected width (drumRowBaseRem/drumRowRealBarRem/
+// drumRowRestRunRem, the same formula buildDrumMap's own doc comment
+// points to) stays within targetRem, starting a new line as soon as the
+// next bar would exceed it — never an empty line, so a single bar wider
+// than targetRem on its own still gets a line of its own (alphatab-
+// tab.js's own display.scale fallback is what keeps THAT pathological
+// case from overflowing the real viewport; this function's job is to
+// make that fallback's job as small as possible, not to guarantee it's
+// never needed). This replaces an earlier flat "8 raw bars per line"
+// rule that had no notion of width at all: two rows both holding 8 raw
+// bars could need very different real width (2 real bars + 6 folded
+// into one rest glyph vs. 6 real bars + 2 rest bars), so a fixed count
+// either wasted width on a sparse row or overflowed a busy one — exactly
+// backwards from what deciding line breaks BY width, in the first place,
+// naturally avoids.
+func packDrumRowBounds(flat []flatDrumBar, targetRem float64) [][2]int {
+	var bounds [][2]int
+	start := 0
+	realBars, restRuns := 0, 0
+	inRestRun := false
+	for i, fb := range flat {
+		isBoundary := fb.isSectionStart && i > start
+		addReal, addRestRun := 0, 0
+		if isWholeBarRest(fb.bar) {
+			if !inRestRun || isBoundary {
+				addRestRun = 1
+			}
+		} else {
+			addReal = 1
+		}
+		projected := drumRowBaseRem + float64(realBars+addReal)*drumRowRealBarRem + float64(restRuns+addRestRun)*drumRowRestRunRem
+		if i > start && projected > targetRem {
+			bounds = append(bounds, [2]int{start, i})
+			start = i
+			realBars, restRuns, inRestRun = 0, 0, false
+			if isWholeBarRest(fb.bar) {
+				addReal, addRestRun = 0, 1
+			} else {
+				addReal, addRestRun = 1, 0
+			}
+		}
+		realBars += addReal
+		restRuns += addRestRun
+		inRestRun = isWholeBarRest(fb.bar)
 	}
-	var flat []flatBar
+	if start < len(flat) {
+		bounds = append(bounds, [2]int{start, len(flat)})
+	}
+	return bounds
+}
+
+// flatDrumBar is one bar of buildDrumMap's own flattened, whole-song bar
+// sequence — pulled out to its own named type (rather than staying a
+// func-local struct, its shape before this comment) so packDrumRowBounds
+// can take it as a parameter too.
+type flatDrumBar struct {
+	bar               tab.Bar
+	chordLabel        string
+	mark, label       string
+	isSectionStart    bool
+	sectionIsRestOnly bool
+}
+
+func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff, tempo int, targetRem float64) []viewerDrumMapRow {
+	var flat []flatDrumBar
 	for si := range sections {
 		sec := &sections[si]
 		if sec.BarCount <= 0 {
@@ -946,7 +1086,7 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 		}
 		bars, chordLabels, restOnly := chipSource(sec, riff)
 		for bi, b := range bars {
-			fb := flatBar{bar: b, sectionIsRestOnly: restOnly}
+			fb := flatDrumBar{bar: b, sectionIsRestOnly: restOnly}
 			if bi < len(chordLabels) {
 				fb.chordLabel = chordLabels[bi]
 			}
@@ -959,14 +1099,12 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 	if len(flat) == 0 {
 		return nil
 	}
-	const perLine = 8
+	if targetRem <= 0 {
+		targetRem = defaultDrumRowTargetRem
+	}
 	var rows []viewerDrumMapRow
-	for i := 0; i < len(flat); i += perLine {
-		end := i + perLine
-		if end > len(flat) {
-			end = len(flat)
-		}
-		chunk := flat[i:end]
+	for _, bound := range packDrumRowBounds(flat, targetRem) {
+		chunk := flat[bound[0]:bound[1]]
 		bars := make([]tab.Bar, 0, len(chunk))
 		chordLabels := make([]string, 0, len(chunk))
 		boundaries := make([]bool, len(chunk))
@@ -2319,7 +2457,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	riffs, scoreErrs := tab.LoadScores(sg)
 	instrument := r.URL.Query().Get("instrument")
 	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), instrument)
-	drumMap := buildDrumMap(sections, riffs, atoiOr(orDefault(sg.Get("tempo"), "120"), 120))
+	drumMap := buildDrumMap(sections, riffs, atoiOr(orDefault(sg.Get("tempo"), "120"), 120), 0)
 	for _, e := range scoreErrs {
 		log.Printf("variant %d: %v", variantID, e)
 	}
@@ -2590,15 +2728,16 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
 	riffs, scoreErrs := tab.LoadScores(sg)
 	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), "")
-	drumMap := buildDrumMap(sections, riffs, atoiOr(orDefault(sg.Get("tempo"), "120"), 120))
+	drumMap := buildDrumMap(sections, riffs, atoiOr(orDefault(sg.Get("tempo"), "120"), 120), 0)
 	for _, e := range scoreErrs {
 		log.Printf("preview: %v", e)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := webassets.Templates.ExecuteTemplate(w, "sheet-body", map[string]any{
-		"Sections": sections,
-		"MapLines": buildMapLines(sections),
-		"DrumMap":  drumMap,
+		"Sections":  sections,
+		"MapLines":  buildMapLines(sections),
+		"DrumMap":   drumMap,
+		"VariantID": int64(0), // unsaved preview — no real variant to re-fetch drummer-rows against; alphatab-tab.js skips the re-fetch when this is absent/zero
 	}); err != nil {
 		log.Printf("render preview: %v", err)
 	}

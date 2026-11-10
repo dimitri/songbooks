@@ -594,6 +594,54 @@
     });
   }
 
+  // refreshDrumMap re-fetches Drummer view's own rows (handleGetDrummerRows,
+  // handlers_pages.go) packed against THIS container's real measured
+  // width, before anything in it is mounted. The server's first-paint
+  // HTML packs rows against a generous, desktop-oriented default (no way
+  // for it to know the real viewport yet) — fine on an actual desktop
+  // window, routinely too wide on a phone, which is what forced every
+  // row through display.scale's shrink-to-fit before this existed.
+  // Re-running the EXACT SAME packing logic (packDrumRowBounds,
+  // handlers_pages.go) server-side against the width that's actually
+  // available is the whole point: it's one formula, in one language,
+  // always right for whatever device loads the page, rather than a
+  // second, hand-ported copy of that packing logic in JS (which a future
+  // tweak to the real one could silently drift out of sync with) or a
+  // fixed "mobile" guess that's still wrong for a tablet or a split view.
+  //
+  // Called from two places: renderAll below (the common case — Drummer
+  // is the reader's saved default mode, so .drum-map is already visible
+  // at page load) and song.js's mode-switch handler (a reader whose
+  // default is some OTHER mode, who then clicks into Drummer for the
+  // first time this page load — .drum-map is width=0/invisible at
+  // renderAll's own call, same "hidden rows never get a first paint"
+  // trap every other per-mode row in this app already has to work
+  // around). Self-guards via data-width-fetched so the second call site
+  // is a cheap no-op on every page load where the first already ran, and
+  // so flipping BACK to Drummer mode later doesn't re-fetch and re-tex
+  // every row again for no reason.
+  async function refreshDrumMap() {
+    const drumMap = document.querySelector('.drum-map[data-variant-id]');
+    if (!drumMap || drumMap.dataset.widthFetched) return;
+    const variantId = drumMap.dataset.variantId;
+    if (!variantId || variantId === '0') return; // unsaved editor preview (handlePutSectionScore) — nothing to re-fetch against
+    const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const widthRem = drumMap.getBoundingClientRect().width / remPx;
+    if (!(widthRem > 0)) return; // hidden (not in drummer mode yet) — nothing to measure, don't mark fetched: the other call site retries once it's visible
+    try {
+      const res = await fetch(`/api/songs/${variantId}/drummer-rows?width=${widthRem.toFixed(2)}`);
+      if (res.ok) {
+        drumMap.innerHTML = await res.text();
+        drumMap.dataset.widthFetched = '1';
+      }
+    } catch (e) {
+      // Network hiccup or similar — the SSR default rows already in the
+      // DOM stand as-is; display.scale remains the backstop for whatever
+      // they don't perfectly fit. Not marked fetched: a later call (e.g.
+      // the reader switching modes again) gets another chance.
+    }
+  }
+
   function renderAll() {
     // A container's width is still 0 at the exact moment a bottom-of-
     // body <script> runs — alphaTab measures the element synchronously
@@ -604,7 +652,9 @@
     // same construction succeeds immediately when run a tick later from
     // the console, with no other change).
     requestAnimationFrame(() => {
-      document.querySelectorAll('.alphatab-row[data-tex]').forEach(render);
+      refreshDrumMap().finally(() => {
+        document.querySelectorAll('.alphatab-row[data-tex]').forEach(render);
+      });
     });
   }
 
@@ -640,5 +690,5 @@
   // writes a fresh data-tex onto its own preview container on every
   // edit and needs to re-trigger this same renderer on demand, not just
   // once at page load.
-  window.AlphaTabTab = { render };
+  window.AlphaTabTab = { render, refreshDrumMap };
 })();
