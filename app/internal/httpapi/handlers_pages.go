@@ -2048,6 +2048,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"HasLyrics":   anySectionHasLyrics(sections),
 		"Text":        text, "Version": version,
 	}
+	if gpMeta, err := s.store.GetSongGPSourceFileMeta(r.Context(), variantID); err == nil {
+		data["GPFileName"] = gpMeta.Filename
+	}
 	if setlistRef := r.URL.Query().Get("setlist"); setlistRef != "" {
 		data["SetlistRef"] = setlistRef
 		data["Prev"], data["Next"] = s.setlistNeighbors(r.Context(), setlistRef, variantID)

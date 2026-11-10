@@ -95,6 +95,9 @@
   }
 
   let score = null;
+  let rawFile = null;   // the originally-selected .gp/.gp3/.gp4/.gp5/.gpx File — kept so the
+                         // import step can also upload the source file itself for download,
+                         // alongside the data it extracts from it (see uploadSourceFile)
   let ourSections = []; // [{index, label, barCount, startBar}]
   let realIdx = [];     // real-bar-position -> GP-authored masterBar index
   let barTimes = [];    // real-bar-position -> seconds (interpolated where GP has no sync point for it)
@@ -243,6 +246,7 @@
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
       score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(buf);
+      rawFile = file;
     } catch (e) {
       setStatus('could not parse this file: ' + e.message, 'err');
       score = null;
@@ -556,6 +560,19 @@
     return { Tuning: staff.tuning.slice(), MinimumFret: 0, Bars: bars };
   }
 
+  // Keeps the ORIGINAL file downloadable (see internal/store/gpfile.go) —
+  // separate from importAudioAndSync below, which only ever extracts and
+  // uploads the backing track audio GP embeds, never the source file
+  // itself. Best-effort: a failure here shouldn't block the data import
+  // that's the actual point of this wizard.
+  async function uploadSourceFile() {
+    if (!rawFile) return;
+    const form = new FormData();
+    form.append('file', rawFile, rawFile.name);
+    const res = await fetch(`/api/songs/${variantId}/gp-file`, { method: 'PUT', body: form });
+    if (!res.ok) throw new Error('source file upload failed: ' + (await res.text()));
+  }
+
   async function putScore(sectionIndex, riff) {
     const res = await fetch(`/api/songs/${variantId}/scores/${sectionIndex}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -624,6 +641,8 @@
         setStatus('uploading backing track + sync points…');
         await importAudioAndSync();
       }
+      setStatus('uploading the Guitar Pro file itself (for download)…');
+      await uploadSourceFile();
       setStatus('imported. Reload the Chart tab to see it — each section still needs a "score:" line in Source pointing at it.', 'ok');
     } catch (e) {
       setStatus('import failed: ' + e.message, 'err');

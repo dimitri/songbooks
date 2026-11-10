@@ -458,6 +458,7 @@
       </select>
       <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
     </span>
+    {{if .GPFileName}}<a class="sidebar-song-row" href="/song/{{.VariantID}}/gp-file" title="download the original Guitar Pro file ({{.GPFileName}})" download>{{template "icon-download"}} Guitar Pro file</a>{{end}}
     {{if .WorkID}}<a class="sidebar-song-row" href="/works/{{.WorkID}}" title="all versions of this song">{{template "icon-mode-map"}} Versions</a>{{end}}
     {{if .VariantID}}<a class="sidebar-song-row" href="/variants/{{.VariantID}}/history" title="revision history">{{template "icon-notes"}} History</a>{{end}}
     <button id="reference-toggle" class="sidebar-song-row" type="button" title="reference video">{{template "icon-reference"}} Reference</button>
@@ -987,6 +988,7 @@
       </select>
       <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
     </div>
+    {{if .GPFileName}}<a class="stack-sheet-row" href="/song/{{.VariantID}}/gp-file" title="download the original Guitar Pro file ({{.GPFileName}})" download>{{template "icon-download"}} Guitar Pro file</a>{{end}}
     {{if .WorkID}}<a class="stack-sheet-row" href="/works/{{.WorkID}}">{{template "icon-mode-map"}} All versions of this song</a>{{end}}
     {{if .VariantID}}<a class="stack-sheet-row" href="/variants/{{.VariantID}}/history">{{template "icon-notes"}} Revision history</a>{{end}}
   </div>
