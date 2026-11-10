@@ -12,6 +12,37 @@
 (function () {
   if (typeof alphaTab === 'undefined') return;
 
+  // alphaTab's OWN layout engine already knows, precisely, when a row's
+  // container is too narrow for what it's being asked to draw — it logs
+  // exactly that ("Bars 1, 7 do not fit into the available width ...
+  // up to 32px missing. Notation elements might overlap.") through
+  // alphaTab.Logger whenever a bar gets compressed below its own
+  // computed minimum. Confirmed live as the real cause of a Drummer-
+  // view multi-bar-rest glyph sitting left-shifted in its own measure
+  // with a dead gap before the next barline, at a container width this
+  // app's own hand-fitted min-width formula considered more than
+  // enough: three rounds of guessing that formula from screenshots
+  // (bars-based, then real-bars/rest-runs-based) never priced in this
+  // specific compression, because it only shows up through alphaTab's
+  // own internal per-bar layout math, not anything visible from the
+  // outside. Wrapping the logger's own sink to capture that number
+  // turns "guess a width, screenshot it, guess again" into "ask
+  // alphaTab how many px it was short, add exactly that." The original
+  // sink is kept and still called — this never silences the warning,
+  // only also captures it.
+  let lastMissingPx = 0;
+  const originalLogSink = alphaTab.Logger.log;
+  alphaTab.Logger.log = {
+    debug: (...a) => originalLogSink.debug(...a),
+    info: (...a) => originalLogSink.info(...a),
+    error: (...a) => originalLogSink.error(...a),
+    warning: (category, message, ...rest) => {
+      const m = typeof message === 'string' && message.match(/up to (\d+(?:\.\d+)?)px missing/);
+      if (m) lastMissingPx = Math.max(lastMissingPx, parseFloat(m[1]));
+      originalLogSink.warning(category, message, ...rest);
+    },
+  };
+
   const theme = () => getComputedStyle(document.body);
 
   function color(cssVar, fallback) {
@@ -183,7 +214,12 @@
     // touching, but only by a few px, thin enough that a compressed
     // phone-width screenshot still read as a dead collision.
     const restFloorRem = (n) => n < 10 ? 8.5 : 11;
-    if (container.dataset.bars) {
+    // A width-compression retry (below, driven by alphaTab's own "do not
+    // fit" warning) already left container.style.minWidth at the exact
+    // px value that fixed it — recomputing the formula here on that
+    // retry pass would throw that correction straight away and render
+    // the same too-narrow row all over again.
+    if (container.dataset.bars && !container.dataset.widthRetriesLeft) {
       const bars = parseInt(container.dataset.bars, 10);
       settings.display.barsPerRow = bars;
       if (container.dataset.restonly) {
@@ -193,6 +229,8 @@
         const restRuns = parseInt(container.dataset.restruns, 10) || 0;
         container.style.minWidth = (9.5 + realBars * 4.5 + restRuns * 8.5) + 'rem';
       }
+    } else if (container.dataset.bars) {
+      settings.display.barsPerRow = parseInt(container.dataset.bars, 10);
     }
 
     const fg = color('--fg', new alphaTab.model.Color(0x24, 0x1e, 0x18));
@@ -338,6 +376,7 @@
     // this session appeared to do nothing — not that the retry logic was
     // wrong, but that it never ran.
     let finished = false;
+    lastMissingPx = 0;
     try {
       const api = new alphaTab.AlphaTabApi(container, settings);
       api.renderFinished.on(() => {
@@ -352,6 +391,28 @@
       clearInterval(pollGuard);
       resizeGuard.disconnect();
       recover();
+      return;
+    }
+
+    // Score loading/layout (unlike the actual SVG paint, which lazy
+    // loading can still defer) runs synchronously inside tex(), so any
+    // "Bars ... do not fit" warning it triggers is already captured by
+    // the time tex() returns above: widen by exactly what alphaTab
+    // itself says is missing (plus a small buffer for rounding) and
+    // reconstruct, rather than leaving a known-too-narrow row on
+    // screen. widthRetriesLeft is independent of retriesLeft (the
+    // lazy-load/paint watchdogs' own budget) — the two problems are
+    // unrelated and each needs its own retry ceiling so one can't
+    // starve the other.
+    if (lastMissingPx > 0 && (container.dataset.widthRetriesLeft === undefined || +container.dataset.widthRetriesLeft > 0)) {
+      const widthRetriesLeft = container.dataset.widthRetriesLeft === undefined ? 3 : +container.dataset.widthRetriesLeft;
+      const currentPx = container.getBoundingClientRect().width || parseFloat(container.style.minWidth) * remPx;
+      container.style.minWidth = Math.ceil(currentPx + lastMissingPx + 8) + 'px';
+      container.dataset.widthRetriesLeft = widthRetriesLeft - 1;
+      clearInterval(pollGuard);
+      resizeGuard.disconnect();
+      container.innerHTML = '';
+      render(container, retriesLeft);
       return;
     }
 
