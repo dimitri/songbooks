@@ -1681,6 +1681,15 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    above this block is for "normal" mode only) so a tab-only bar reads
    exactly like any other bar here: chords over a staff. */
 #sheet[data-render-mode="map"] .tab-block.tab-replaces-staff { display: none; }
+/* .bar-body-tab-only's height formula (calc(var(--strings) * 1.1em +
+   0.9em)) sizes the box to fit the real fret-by-fret .tab-block hidden
+   above — tall enough for a 6-string guitar (~7.5em) — so with that
+   block hidden in map mode, every TabOnly bar still rendered as a
+   near-empty ~120px-tall box, just the chord label floating at the top
+   and the rest filled only by the "current bar" playhead tint (a stray
+   oversized colored rectangle, confirmed live). Collapse it back to the
+   same flat height every normal chord bar already uses here. */
+#sheet[data-render-mode="map"] .bar-body-tab-only { height: 1.7em !important; }
 
 /* Beamed runs: 2+ consecutive eighth/sixteenth notes joined by a shared
    horizontal bar instead of each drawing its own hooked flag — standard
