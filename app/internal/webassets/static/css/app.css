@@ -3523,7 +3523,13 @@ textarea {
 .gpimport-timeline { position: relative; height: 200px; background: #201c16; }
 #gpimport-waveform { display: block; width: 100%; height: 150px; }
 .gpimport-bargrid { position: absolute; top: 0; height: 150px; left: 0; right: 0; pointer-events: none; }
-.gpimport-bargrid .beat1 { position: absolute; top: 0; bottom: 0; width: 1px; background: #c0392b; }
+/* Plain .beat1 (this wizard's own estimate — interpolated/extrapolated,
+   no real sync data at this exact bar) stays dim; .synced (a REAL GP
+   sync point, syncedPositions/buildBarTimes) is the one solid, full-
+   opacity line — same "which of these is real file data vs. a guess"
+   distinction Guitar Pro's own tempo-map editor draws. */
+.gpimport-bargrid .beat1 { position: absolute; top: 0; bottom: 0; width: 1px; background: #c0392b; opacity: 0.45; }
+.gpimport-bargrid .beat1.synced { opacity: 1; width: 2px; box-shadow: 0 0 2px rgba(192,57,43,0.8); }
 .gpimport-bargrid .beatN { position: absolute; top: 0; bottom: 0; width: 1px; border-left: 1px dashed #d4ac0d; opacity: 0.55; }
 .gpimport-bargrid .barnum { position: absolute; top: 2px; font-family: var(--font-mono); font-size: 9.5px; color: #cabb9a; }
 .gpimport-bargrid .collapsed-block { position: absolute; top: 0; bottom: 0; background: rgba(255,255,255,0.04); border-left: 1px solid rgba(255,255,255,0.15); border-right: 1px solid rgba(255,255,255,0.15); }
