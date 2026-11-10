@@ -58,6 +58,7 @@
   const variantId = panel.dataset.variantId;
 
   const fileInput = document.getElementById('gpimport-file');
+  const fileSourceNote = document.getElementById('gpimport-file-source');
   const status = document.getElementById('gpimport-status');
   const trackRow = document.getElementById('gpimport-track-row');
   const trackSelect = document.getElementById('gpimport-track');
@@ -66,8 +67,15 @@
   const importBtn = document.getElementById('gpimport-run');
   const includeAudio = document.getElementById('gpimport-include-audio');
   const summary = document.getElementById('gpimport-summary');
+  const previewHolder = document.getElementById('gpimport-preview');
   const deriveRow = document.getElementById('gpimport-derive-row');
   const deriveBtn = document.getElementById('gpimport-derive-chords');
+
+  const searchTitleInput = document.getElementById('gpimport-search-title');
+  const searchArtistInput = document.getElementById('gpimport-search-artist');
+  const searchBtn = document.getElementById('gpimport-search-btn');
+  const searchResults = document.getElementById('gpimport-search-results');
+  const searchSkip = document.getElementById('gpimport-search-skip');
 
   const scrollWrap = document.getElementById('gpimport-scroll');
   const timeline = document.getElementById('gpimport-timeline');
@@ -83,6 +91,7 @@
   const timeLabel = document.getElementById('gpimport-time-label');
 
   const steps = {
+    search: document.getElementById('gpimport-step-search'),
     file: document.getElementById('gpimport-step-file'),
     align: document.getElementById('gpimport-step-align'),
     import: document.getElementById('gpimport-step-import'),
@@ -95,6 +104,89 @@
   function goToStep(name) {
     Object.entries(steps).forEach(([k, el]) => { el.hidden = k !== name; });
   }
+
+  // ---- Step 0: search GProTab.net (handleImportGPFind, handlers_import.go)
+  // for a Guitar Pro file, as an alternative to picking one already on
+  // disk. Title/artist are prefilled from this song's own header so the
+  // common case ("find a file for THIS song") is a single click; both
+  // stay editable for anything else. See that handler's own doc comment
+  // for why GProTab.net rather than Ultimate Guitar.
+  searchTitleInput.value = panel.dataset.songTitle || '';
+  searchArtistInput.value = panel.dataset.songArtist || '';
+
+  async function runSearch() {
+    const title = searchTitleInput.value.trim();
+    if (!title) { setStatus('enter a song title to search for', 'err'); return; }
+    searchBtn.disabled = true;
+    searchResults.innerHTML = '';
+    setStatus('searching GProTab.net…');
+    try {
+      const qs = new URLSearchParams({ title, artist: searchArtistInput.value.trim() });
+      const res = await fetch(`/api/import/gp/find?${qs}`);
+      if (!res.ok) throw new Error(await res.text());
+      const { candidates } = await res.json();
+      if (!candidates || !candidates.length) {
+        setStatus('no results on GProTab.net for that title — try a different spelling, or choose a file by hand below.', 'err');
+        return;
+      }
+      setStatus(`found ${candidates.length} result(s).`, 'ok');
+      renderSearchResults(candidates);
+    } catch (e) {
+      setStatus('search failed: ' + e.message, 'err');
+    } finally {
+      searchBtn.disabled = false;
+    }
+  }
+
+  function renderSearchResults(candidates) {
+    searchResults.innerHTML = '';
+    const table = document.createElement('table');
+    table.className = 'gpimport-mapping-table';
+    table.innerHTML = '<thead><tr><th>Title</th><th>Artist</th><th>Format</th><th>Size</th><th>Rating</th><th></th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    for (const c of candidates) {
+      const tr = document.createElement('tr');
+      const sizeText = c.SizeKB ? `${c.SizeKB.toFixed(1)} kb` : '—';
+      const ratingText = c.Votes ? `${c.Rating.toFixed(1)}/5 (${c.Votes})` : '—';
+      tr.innerHTML = `
+        <td>${escapeHTML(c.Title)}</td>
+        <td>${escapeHTML(c.Artist)}</td>
+        <td>${escapeHTML(c.Format || '?')}</td>
+        <td>${sizeText}</td>
+        <td>${ratingText}</td>
+        <td><button type="button" class="primary gpimport-use-result">Use this</button></td>`;
+      tr.querySelector('.gpimport-use-result').addEventListener('click', () => useSearchResult(c));
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    searchResults.appendChild(table);
+  }
+
+  function escapeHTML(s) {
+    return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  async function useSearchResult(c) {
+    setStatus(`fetching "${c.Title}" from GProTab.net…`);
+    try {
+      const res = await fetch(`/api/import/gp/fetch?url=${encodeURIComponent(c.URL)}`);
+      if (!res.ok) throw new Error(await res.text());
+      const buf = await res.arrayBuffer();
+      let filename = 'import.gp';
+      const cd = res.headers.get('Content-Disposition');
+      const m = cd && /filename="([^"]+)"/.exec(cd);
+      if (m) filename = m[1];
+      fileSourceNote.hidden = false;
+      fileSourceNote.innerHTML = `From GProTab.net: <a href="${escapeHTML(c.URL)}" target="_blank" rel="noopener">${escapeHTML(c.Title)} — ${escapeHTML(c.Artist)}</a>`;
+      goToStep('file');
+      await loadFile({ name: filename, arrayBuffer: async () => buf });
+    } catch (e) {
+      setStatus('fetching that file failed: ' + e.message, 'err');
+    }
+  }
+
+  searchBtn.addEventListener('click', runSearch);
+  searchSkip.addEventListener('click', () => { fileSourceNote.hidden = true; goToStep('file'); });
 
   let score = null;
   let rawFile = null;   // the originally-selected .gp/.gp3/.gp4/.gp5/.gpx File — kept so the
@@ -718,14 +810,53 @@
     decodePeaks();
   });
   step2Back.addEventListener('click', () => { if (audioEl) audioEl.pause(); goToStep('file'); });
-  step2Next.addEventListener('click', () => {
+  step2Next.addEventListener('click', async () => {
     if (audioEl) audioEl.pause();
     const rows = [...mappingBody.querySelectorAll('tr')].filter(tr => tr.querySelector('.gpimport-include').checked);
     summary.textContent = rows.length
       ? `Importing ${rows.length} section(s): ${rows.map(tr => tr.children[1].textContent).join(', ')}.`
       : 'No sections selected — nothing will be imported.';
     goToStep('import');
+    await renderPreview();
   });
+
+  // ---- Preview: real notation for exactly the sections currently
+  // checked, before the one commit step — see handleGPImportPreview's
+  // own doc comment (handlers_import.go) for why this is a server round
+  // trip (reusing tab.ToAlphaTex) rather than a second alphaTeX
+  // generator written in JS. One alphaTab mount per included section,
+  // same .staff-line.alphatab-row/data-tex convention every other
+  // TabOnly row in this app already uses, so alphatab-tab.js's own
+  // render() handles it identically — nothing GP-import-specific in how
+  // it actually draws.
+  async function renderPreview() {
+    previewHolder.innerHTML = '';
+    if (!score) return;
+    const track = score.tracks[Number(trackSelect.value) || 0];
+    const checks = [...mappingBody.querySelectorAll('.gpimport-include')];
+    for (let i = 0; i < ourSections.length; i++) {
+      if (!checks[i] || !checks[i].checked) continue;
+      const sec = ourSections[i];
+      const riff = extractRiff(track, boundaries[i], sectionBarCount(i));
+      const row = document.createElement('div');
+      row.className = 'gpimport-preview-row';
+      row.innerHTML = `<p class="hint">${escapeHTML(sec.label)}</p><div class="staff-line alphatab-row"></div>`;
+      previewHolder.appendChild(row);
+      const mount = row.querySelector('.alphatab-row');
+      try {
+        const res = await fetch('/api/gp-import/preview', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ riff: JSON.stringify(riff) }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const { alphaTex } = await res.json();
+        mount.dataset.tex = alphaTex;
+        if (window.AlphaTabTab) window.AlphaTabTab.render(mount);
+      } catch (e) {
+        row.querySelector('.hint').textContent += ` — preview failed: ${e.message}`;
+      }
+    }
+  }
   step3Back.addEventListener('click', () => goToStep('align'));
 
   importBtn.addEventListener('click', async () => {
