@@ -285,19 +285,26 @@ var drumArticulationName = map[int]string{
 // drummer reading real engraved bars (not the no-notation default
 // multi-rest case) still sees the chord changes they're drumming to.
 //
-// One Riff = one alphaTab mount = one section (see buildDrumMap,
-// handlers_pages.go), deliberately NOT alphaTeX's own "\section"
-// directive on a shared, whole-song document: confirmed live that a
-// bar carrying "\section" is always excluded from multiBarRest
-// consolidation (real engraving convention — a rehearsal mark needs an
-// actual drawn measure to anchor to), which split an 8-bar rest section
-// into a lone marked bar plus a 7-bar rest. One Riff per section sidesteps
-// that entirely — every bar in THIS document belongs to the same
-// section, so it consolidates into one correctly-counted glyph, and the
-// section's own label is plain HTML drawn above the mount (see the
-// "drum-cell" template block) instead of something alphaTab itself has
-// to lay out.
-func ToAlphaTexDrums(riff *Riff, chordLabels []string) string {
+// boundaries, when non-nil, marks which bars start a DIFFERENT section
+// than the one before it (see buildDrumMap, handlers_pages.go, which
+// builds one alphaTab mount per LINE — several sections' worth of bars
+// can share a line, flowing straight from one into the next). Without a
+// boundary there, two adjacent sections' own all-rest runs silently
+// consolidate into ONE combined multiBarRest glyph with no indication
+// of where one ends and the other begins — confirmed live and flagged
+// directly (Belle of the Ball: a line showing "Pickup"/"Intro" labels
+// above a single unbroken "8", no way to tell 2 bars of Pickup from 6 of
+// Intro). A boundary bar gets an alphaTeX "\section "" "" " directive —
+// empty mark AND label text, confirmed live to draw NO visible text at
+// all (this view's own labels are plain HTML, drawn separately — see
+// buildDrumMap's own doc comment for why alphaTeX's native marker is
+// otherwise avoided) — purely for multiBarRest's own break condition,
+// which checks only whether a bar carries a section object, never its
+// text. The marked bar itself can't join either neighboring rest run
+// (confirmed live: it renders as its own single-bar rest, "2 | - | 5"
+// for an 8-bar line split at bar 3), so a boundary is correct information
+// — "a new section starts exactly here" — not a cosmetic artifact.
+func ToAlphaTexDrums(riff *Riff, chordLabels []string, boundaries []bool) string {
 	var b strings.Builder
 	b.WriteString("\\track \"Drums\" { instrument percussion multiBarRest }\n")
 	b.WriteString("\\clef neutral\n")
@@ -331,6 +338,9 @@ func ToAlphaTexDrums(riff *Riff, chordLabels []string) string {
 	for bi, bar := range riff.Bars {
 		if bi > 0 {
 			b.WriteString(" | ")
+		}
+		if bi < len(boundaries) && boundaries[bi] {
+			b.WriteString(`\section "" "" `)
 		}
 		var label string
 		if bi < len(chordLabels) {

@@ -858,12 +858,23 @@ type viewerDrumMapLine struct {
 // chunked into lines of 8 bars (groupMeasures/groupMapCells' own
 // default), each line its OWN alphaTab mount at the full page width
 // (the global ".staff-line.alphatab-row { width: 100% }" rule, same as
-// every melodic TabOnly row already uses). No "\section" marker needed
-// (nothing in a line's own document needs an in-canvas label — see
-// Starts above), so multiBarRest consolidates correctly within each
-// line; a section whose bars happen to straddle a line break just
-// continues on the next line, the same way a long section's chord-grid
-// bars already span multiple display rows in every other mode.
+// every melodic TabOnly row already uses); a section whose bars happen
+// to straddle a line break just continues on the next line, the same
+// way a long section's chord-grid bars already span multiple display
+// rows in every other mode.
+//
+// No IN-CANVAS label is drawn (Starts, above, is plain HTML instead) —
+// but when two DIFFERENT sections' bars share one line, an empty-text
+// alphaTeX "\section "" "" " boundary marker (ToAlphaTexDrums's own
+// boundaries parameter) still goes on the second one's first bar:
+// without it, two adjacent all-rest sections consolidate into ONE
+// combined multiBarRest glyph with no indication of where one ends and
+// the other begins (confirmed live and flagged directly: Belle of the
+// Ball, a line labeled "Pickup"/"Intro" showing one unbroken "8", no way
+// to tell 2 bars of Pickup from 6 of Intro). A boundary bar renders as
+// its own single-bar rest, splitting that "8" into "2 | - | 5" — real
+// information (exactly where the new section starts), not a cosmetic
+// split to avoid.
 func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff) []viewerDrumMapLine {
 	type flatBar struct {
 		bar        tab.Bar
@@ -910,17 +921,24 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff)
 		chunk := flat[i:end]
 		bars := make([]tab.Bar, 0, len(chunk))
 		chordLabels := make([]string, 0, len(chunk))
+		boundaries := make([]bool, 0, len(chunk))
 		var starts []drumMapStart
-		for _, fb := range chunk {
+		for j, fb := range chunk {
 			bars = append(bars, fb.bar)
 			chordLabels = append(chordLabels, fb.chordLabel)
+			// j>0, not just fb.start!=nil: a section starting at the
+			// very FIRST bar of this line has nothing earlier in THIS
+			// line's own document to merge with, so no boundary marker
+			// is needed there (see ToAlphaTexDrums's own doc comment for
+			// what a boundary does and why one's needed at all).
+			boundaries = append(boundaries, fb.start != nil && j > 0)
 			if fb.start != nil {
 				starts = append(starts, *fb.start)
 			}
 		}
 		lines = append(lines, viewerDrumMapLine{
 			Starts:   starts,
-			AlphaTex: tab.ToAlphaTexDrums(&tab.Riff{Drums: true, Bars: bars}, chordLabels),
+			AlphaTex: tab.ToAlphaTexDrums(&tab.Riff{Drums: true, Bars: bars}, chordLabels, boundaries),
 		})
 	}
 	return lines
