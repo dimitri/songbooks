@@ -2065,6 +2065,18 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .drum-map { display: none; }
 #sheet[data-render-mode="drummer"] .drum-map {
   display: flex; flex-direction: column; gap: 0.9rem;
+  /* A row's own min-width floor (alphatab-tab.js) is a real legibility
+     requirement — confirmed live against this app's own narrowest
+     phone-width viewport, a short consolidated-rest run sitting right
+     next to real notation genuinely needs more room than that viewport
+     has to keep its own bar count clear of the next bar's chord name —
+     not something to just let compress further. overflow-x here means
+     a line that floor pushes wider than the viewport scrolls on its
+     own, horizontally, rather than silently clipping off the page's
+     right edge (the default without this) or forcing the WHOLE page
+     (sidebar included) to scroll sideways (what overflow-x on .drum-row
+     itself, one level down, would do instead). */
+  overflow-x: auto;
 }
 .drum-row { position: relative; }
 /* Same overlay technique as Song Map's own .map-sec-badge (floats above
@@ -2085,6 +2097,16 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    invisible)") even though its parent is visible — confirmed live
    earlier this session — which is what that global rule exists to
    prevent. */
+/* "every line the same height" (this section's own opening comment)
+   needs an explicit floor: alphaTab renders a plain consolidated rest
+   noticeably SHORTER than a line carrying real notes, chord labels and
+   a dynamic marking (confirmed live: 135px vs. 166px, a ~23% jump) —
+   confirmed directly as a real visual break, not a nitpick: a bare rest
+   line sitting right next to a busier one reads as a shorter, oddly
+   sized line rather than a uniform sheet. 11rem (176px) clears the
+   tallest case measured live with a small margin for a busier riff than
+   this app's own demo content (more beamed 16ths, a crash cymbal). */
+.drum-row .staff-line.alphatab-row { min-height: 11rem; }
 
 #sheet[data-render-mode="map"] .chord-legend { display: none; }
 .chord-legend {

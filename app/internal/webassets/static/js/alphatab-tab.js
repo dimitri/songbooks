@@ -166,12 +166,26 @@
     // per bar than a rest does (measured live against 2/4/6-bar riffs at
     // varying note density: roughly 0.95rem/bar on top of a ~9.5rem
     // clef+time-signature overhead before chord labels start to overlap).
+    //
+    // A row carrying BOTH (a section boundary mid-line — buildDrumMap —
+    // so real notation sits right next to a consolidated rest from a
+    // different section) needs noticeably more than that per-bar formula
+    // alone gives: confirmed live on a real 8-bar row (2 bars rest, 2 of
+    // real notes+chords, 4 more rest) — the formula's own 17.1rem was
+    // nowhere near enough; the rest run's own count number crowded right
+    // up against the very next bar's chord name because the REST portion
+    // of a short, unevenly-split row gets squeezed far more than the
+    // formula (calibrated against evenly-dense content alone) accounts
+    // for. 26.25rem (420px) is the measured clean threshold for that
+    // exact case, kept as an explicit floor under the per-bar formula
+    // rather than baked into it, since a long, evenly-dense real row
+    // already clears it on the formula alone.
     if (container.dataset.bars) {
       const bars = parseInt(container.dataset.bars, 10);
       settings.display.barsPerRow = bars;
       container.style.minWidth = container.dataset.restonly
         ? (bars < 10 ? '8.5rem' : '11rem')
-        : (9.5 + bars * 0.95) + 'rem';
+        : Math.max(9.5 + bars * 0.95, 26.25) + 'rem';
     }
 
     const fg = color('--fg', new alphaTab.model.Color(0x24, 0x1e, 0x18));
