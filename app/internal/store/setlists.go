@@ -383,7 +383,7 @@ func (st *Store) ListUpcomingGigsForPerson(ctx context.Context, personID int64, 
 		  AND (
 		    sl.owner_person_id = $1
 		    OR sl.owner_band_id IN (
-		      SELECT band_id FROM band_members WHERE person_id = $1 AND left_at IS NULL
+		      SELECT band_id FROM band_members WHERE person_id = $1 AND upper_inf(validity)
 		    )
 		  )
 		ORDER BY g.date ASC, g.id ASC

@@ -256,7 +256,8 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 		var curLeftAt *time.Time
 		var curInvitedBy *int64
 		err = tx.QueryRow(ctx, `
-			SELECT band_id, person_id, status::text, joined_at, left_at, invited_by_person_id
+			SELECT band_id, person_id, status::text, lower(validity),
+			       CASE WHEN upper_inf(validity) THEN NULL ELSE upper(validity) END, invited_by_person_id
 			FROM band_members WHERE id = $1 FOR UPDATE`, id).
 			Scan(&curBandID, &curPersonID, &curStatus, &curJoinedAt, &curLeftAt, &curInvitedBy)
 		rowExists := !errors.Is(err, pgx.ErrNoRows)
@@ -294,7 +295,7 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 				return fmt.Errorf("band membership row %d no longer exists, can't restore it: %w", id, ErrNotFound)
 			}
 			if _, err := tx.Exec(ctx, `
-				UPDATE band_members SET status = $1, left_at = $2 WHERE id = $3`,
+				UPDATE band_members SET status = $1, validity = tstzrange(lower(validity), $2::timestamptz) WHERE id = $3`,
 				snap.Status, snap.LeftAt, id); err != nil {
 				return err
 			}

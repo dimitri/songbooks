@@ -275,10 +275,10 @@ func (st *Store) ListVariantsForWork(ctx context.Context, workID, viewerID int64
 		  OR (s.visibility = 'user' AND s.owner_person_id = $2)
 		  OR (s.visibility = 'band' AND EXISTS (
 		        SELECT 1 FROM band_members bm
-		        WHERE bm.band_id = s.owner_band_id AND bm.person_id = $2 AND bm.left_at IS NULL))
+		        WHERE bm.band_id = s.owner_band_id AND bm.person_id = $2 AND upper_inf(bm.validity)))
 		  OR (s.visibility = 'community' AND EXISTS (
 		        SELECT 1 FROM community_members sm
-		        WHERE sm.community_id = s.owner_community_id AND sm.person_id = $2 AND sm.left_at IS NULL))
+		        WHERE sm.community_id = s.owner_community_id AND sm.person_id = $2 AND upper_inf(sm.validity)))
 		)
 		ORDER BY s.visibility, s.id`, workID, viewerID)
 	if err != nil {

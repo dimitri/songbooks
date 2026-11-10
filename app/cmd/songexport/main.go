@@ -513,9 +513,11 @@ func main() {
 
 	for id, b := range bands {
 		rows, err := pool.Query(ctx, `
-			SELECT bm.person_id, bm.status, bm.joined_at, bm.left_at, coalesce(bm.invited_by_person_id, 0)
+			SELECT bm.person_id, bm.status, lower(bm.validity),
+			       CASE WHEN upper_inf(bm.validity) THEN NULL ELSE upper(bm.validity) END,
+			       coalesce(bm.invited_by_person_id, 0)
 			FROM band_members bm
-			WHERE bm.band_id = $1 ORDER BY bm.joined_at`, id)
+			WHERE bm.band_id = $1 ORDER BY lower(bm.validity)`, id)
 		must(err, "query band_members")
 		var roster []groupfmt.Member
 		for rows.Next() {
@@ -559,10 +561,12 @@ func main() {
 		}
 
 		rows, err := pool.Query(ctx, `
-			SELECT cm.person_id, cr.name, cm.joined_at, cm.left_at, coalesce(cm.invited_by_person_id, 0)
+			SELECT cm.person_id, cr.name, lower(cm.validity),
+			       CASE WHEN upper_inf(cm.validity) THEN NULL ELSE upper(cm.validity) END,
+			       coalesce(cm.invited_by_person_id, 0)
 			FROM community_members cm
 			JOIN community_roles cr ON cr.id = cm.role_id
-			WHERE cm.community_id = $1 ORDER BY cm.joined_at`, id)
+			WHERE cm.community_id = $1 ORDER BY lower(cm.validity)`, id)
 		must(err, "query community_members")
 		var roster []groupfmt.Member
 		for rows.Next() {

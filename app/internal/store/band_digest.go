@@ -59,7 +59,8 @@ func (st *Store) ListBandChanges(ctx context.Context, bandID int64, since *time.
 	// songbook" digest line is missed.
 
 	memberRows, err := st.db.Query(ctx, `
-		SELECT r.created_at, coalesce(pr.display_name, ''), p.display_name, (r.snapshot->>'exists')::boolean, bm.status::text, bm.left_at
+		SELECT r.created_at, coalesce(pr.display_name, ''), p.display_name, (r.snapshot->>'exists')::boolean, bm.status::text,
+		       CASE WHEN upper_inf(bm.validity) THEN NULL ELSE upper(bm.validity) END
 		FROM revisions r
 		JOIN band_members bm ON bm.id = CAST(r.entity_id AS bigint)
 		JOIN people p ON p.id = bm.person_id
