@@ -99,6 +99,30 @@
   }
 
   function renderInner(container, tex, retriesLeft) {
+    // Drummer view's own rows are all constructed in the SAME
+    // synchronous forEach (renderAll, below) — confirmed live as a real,
+    // reproducible bad-layout case distinct from the lazy-load race the
+    // watchdog further down already guards against: the very FIRST
+    // render of a row can come out with a multi-rest glyph crowded
+    // right up against the next bar despite correct settings (barsPerRow
+    // already the right rendered-measure count, width already wide
+    // enough — no "do not fit" warning fires for it, nothing here
+    // reports anything wrong), while reconstructing that EXACT same
+    // container with the EXACT same settings a moment later, once the
+    // other rows being built in that same loop have settled, renders it
+    // correctly every time. Hidden (not skipped) for the first attempt
+    // so the user never sees the wrong layout flash by — restored once
+    // the resettled rebuild's own tex() call returns (see below).
+    if (container.dataset.bars && !container.dataset.resettled) {
+      container.style.visibility = 'hidden';
+      container.dataset.resettled = '1';
+      setTimeout(() => {
+        container.innerHTML = '';
+        render(container, retriesLeft);
+      }, 400);
+      return;
+    }
+
     const settings = new alphaTab.Settings();
     settings.core.fontDirectory = '/static/js/vendor/alphatab/font/';
     settings.core.useWorkers = false; // small, synchronous riffs — no benefit from a background worker, and it avoids a console error when the worker script can't resolve under this app's own static path
@@ -184,10 +208,28 @@
     // mid-line — there is never a sibling cell in the row to share space
     // or wrap against (the two previous designs both split a shared line
     // into several per-section mounts and spent three separate CSS fixes
-    // fighting exactly that). Pinning barsPerRow to the row's own bar
-    // count still matters even at full width: it stops alphaTab's own
-    // auto-wrap from ever drawing a line's bars across TWO internal
-    // lines when the viewport is narrow.
+    // fighting exactly that). Pinning barsPerRow still matters even at
+    // full width: it stops alphaTab's own auto-wrap from ever drawing a
+    // line's bars across TWO internal lines when the viewport is narrow.
+    //
+    // barsPerRow is the row's RENDERED measure count (RealBars+RestRuns,
+    // data-realbars/data-restruns — each real bar is its own measure, a
+    // whole consolidated rest is ONE measure regardless of how many raw
+    // bars it folds in), NOT Bars (the raw bar count, data-bars — e.g. 8
+    // for "2 rest + 6 rest" bars that render as only 2 measures). Using
+    // Bars here was the actual cause of a multi-rest glyph sitting
+    // left-hugged against its own barline with a dead gap after it, or
+    // (once min-width grew enough to silence alphaTab's own "do not fit"
+    // warning below) a short rest glyph stretched out to sit far from
+    // where it belongs: telling alphaTab to divide the row into 8 slots
+    // when only 2 are ever drawn makes it size and place those 2 against
+    // a grid of mostly-phantom bars that don't exist, not the actual 2
+    // it's drawing. Confirmed live: the exact same content, same width,
+    // with barsPerRow set to the real "2" instead of the raw "8",
+    // triggers no compression warning at all and centers correctly —
+    // this is the fix the width-compression-retry below was papering
+    // over, not a case that still needs it, though the retry stays on
+    // as a backstop for whatever content this doesn't anticipate.
     // min-width is a legibility floor, not the row's primary width
     // (which is simply the full page width) — a backstop for a genuinely
     // narrow viewport.
@@ -214,23 +256,23 @@
     // touching, but only by a few px, thin enough that a compressed
     // phone-width screenshot still read as a dead collision.
     const restFloorRem = (n) => n < 10 ? 8.5 : 11;
-    // A width-compression retry (below, driven by alphaTab's own "do not
-    // fit" warning) already left container.style.minWidth at the exact
-    // px value that fixed it — recomputing the formula here on that
-    // retry pass would throw that correction straight away and render
-    // the same too-narrow row all over again.
-    if (container.dataset.bars && !container.dataset.widthRetriesLeft) {
+    if (container.dataset.bars) {
       const bars = parseInt(container.dataset.bars, 10);
-      settings.display.barsPerRow = bars;
-      if (container.dataset.restonly) {
-        container.style.minWidth = restFloorRem(bars) + 'rem';
-      } else {
-        const realBars = parseInt(container.dataset.realbars, 10) || bars;
-        const restRuns = parseInt(container.dataset.restruns, 10) || 0;
-        container.style.minWidth = (9.5 + realBars * 4.5 + restRuns * 8.5) + 'rem';
+      const realBars = parseInt(container.dataset.realbars, 10) || 0;
+      const restRuns = parseInt(container.dataset.restruns, 10) || 0;
+      settings.display.barsPerRow = Math.max(1, realBars + restRuns);
+      // A width-compression retry (below, driven by alphaTab's own "do
+      // not fit" warning) already left container.style.minWidth at the
+      // exact px value that fixed it — recomputing the formula here on
+      // that retry pass would throw that correction straight away and
+      // render the same too-narrow row all over again.
+      if (!container.dataset.widthRetriesLeft) {
+        if (container.dataset.restonly) {
+          container.style.minWidth = restFloorRem(bars) + 'rem';
+        } else {
+          container.style.minWidth = (9.5 + realBars * 4.5 + restRuns * 8.5) + 'rem';
+        }
       }
-    } else if (container.dataset.bars) {
-      settings.display.barsPerRow = parseInt(container.dataset.bars, 10);
     }
 
     const fg = color('--fg', new alphaTab.model.Color(0x24, 0x1e, 0x18));
@@ -387,6 +429,7 @@
         });
       });
       api.tex(tex);
+      container.style.visibility = '';
     } catch (e) {
       clearInterval(pollGuard);
       resizeGuard.disconnect();
