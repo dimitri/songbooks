@@ -18,11 +18,11 @@
 </header>
 <main class="index">
   <nav class="band-tabs band-tabs-row">
-    <a href="/communities/{{.Community.ID}}">Overview</a>
-    <a href="/communities/{{.Community.ID}}/repertoire" class="active">Repertoire</a>
-    <a href="/communities/{{.Community.ID}}/songbooks">Songbooks</a>
-    <a href="/communities/{{.Community.ID}}/events">Events</a>
-    {{if .IsStaff}}<a href="/communities/{{.Community.ID}}/admin">Admin</a>{{end}}
+    <a class="band-tab" href="/communities/{{.Community.ID}}">Overview</a>
+    <a href="/communities/{{.Community.ID}}/repertoire" class="band-tab active">Repertoire</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">Songbooks</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/events">Events</a>
+    {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/admin">Admin</a>{{end}}
   </nav>
 
   <p class="hint">The community's default songbook{{if .CanEdit}} — any member whose role grants it can add, fork, or remove a song here, same as a band's{{else}} — read-only with your current role{{end}}. See <a href="/communities/{{.Community.ID}}/songbooks">Songbooks</a> for this community's other books.</p>

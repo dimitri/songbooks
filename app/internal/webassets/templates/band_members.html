@@ -18,13 +18,13 @@
 </header>
 <main class="index">
   <nav class="band-tabs band-tabs-row">
-    <a href="/bands/{{.Band.ID}}">Overview</a>
-    <a href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
-    <a href="/bands/{{.Band.ID}}/setlists">Setlists</a>
-    <a href="/bands/{{.Band.ID}}/proposals">Proposals</a>
-    <a href="/bands/{{.Band.ID}}/listening-party">Discover</a>
-    <a href="/bands/{{.Band.ID}}/events">Events</a>
-    <a href="/bands/{{.Band.ID}}/members" class="active">Members</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}">Overview</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/setlists">Setlists</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/proposals">Proposals</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/listening-party">Discover</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/events">Events</a>
+    <a href="/bands/{{.Band.ID}}/members" class="band-tab active">Members</a>
   </nav>
 
   <p class="hint">No "owner"/"admin" role here — any current member (core or guest) can add or remove members or delete the whole band. Promoting/demoting between core and guest is core-only.</p>

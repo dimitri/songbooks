@@ -18,13 +18,13 @@
 </header>
 <main class="index">
   <nav class="band-tabs band-tabs-row">
-    <a href="/bands/{{.Band.ID}}">Overview</a>
-    <a href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
-    <a href="/bands/{{.Band.ID}}/setlists">Setlists</a>
-    <a href="/bands/{{.Band.ID}}/proposals" class="active">Proposals</a>
-    <a href="/bands/{{.Band.ID}}/listening-party">Discover</a>
-    <a href="/bands/{{.Band.ID}}/events">Events</a>
-    <a href="/bands/{{.Band.ID}}/members">Members</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}">Overview</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/setlists">Setlists</a>
+    <a href="/bands/{{.Band.ID}}/proposals" class="band-tab active">Proposals</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/listening-party">Discover</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/events">Events</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/members">Members</a>
   </nav>
 
   {{/* Proposals and Discover (née "listening party") are two real tabs

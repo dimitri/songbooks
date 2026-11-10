@@ -19,10 +19,10 @@
 <main class="index">
   {{if .Me}}
   <nav class="band-tabs band-tabs-row">
-    <a href="/communities/{{.Community.ID}}">Overview</a>
-    <a href="/communities/{{.Community.ID}}/repertoire">Repertoire</a>
-    <a href="/communities/{{.Community.ID}}/songbooks">Songbooks</a>
-    <a href="/communities/{{.Community.ID}}/events" class="active">Events</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}">Overview</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/repertoire">Repertoire</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">Songbooks</a>
+    <a href="/communities/{{.Community.ID}}/events" class="band-tab active">Events</a>
   </nav>
   {{end}}
   {{/* Public page, no login required — anyone can see what's on and

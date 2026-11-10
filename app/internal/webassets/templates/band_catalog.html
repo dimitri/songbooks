@@ -20,13 +20,13 @@
 </header>
 <main class="index">
   <nav class="band-tabs band-tabs-row">
-    <a href="/bands/{{.Band.ID}}">Overview</a>
-    <a href="/bands/{{.Band.ID}}/catalog" class="active">Repertoire</a>
-    <a href="/bands/{{.Band.ID}}/setlists">Setlists</a>
-    <a href="/bands/{{.Band.ID}}/proposals">Proposals</a>
-    <a href="/bands/{{.Band.ID}}/listening-party">Discover</a>
-    <a href="/bands/{{.Band.ID}}/events">Events</a>
-    <a href="/bands/{{.Band.ID}}/members">Members</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}">Overview</a>
+    <a href="/bands/{{.Band.ID}}/catalog" class="band-tab active">Repertoire</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/setlists">Setlists</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/proposals">Proposals</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/listening-party">Discover</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/events">Events</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/members">Members</a>
   </nav>
 
   {{if not .Entries}}

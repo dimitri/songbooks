@@ -18,11 +18,11 @@
 </header>
 <main class="index">
   <nav class="band-tabs band-tabs-row">
-    <a href="/communities/{{.Community.ID}}" class="active">Overview</a>
-    <a href="/communities/{{.Community.ID}}/repertoire">Repertoire</a>
-    <a href="/communities/{{.Community.ID}}/songbooks">Songbooks</a>
-    <a href="/communities/{{.Community.ID}}/events">Events</a>
-    {{if .IsStaff}}<a href="/communities/{{.Community.ID}}/admin">Admin</a>{{end}}
+    <a href="/communities/{{.Community.ID}}" class="band-tab active">Overview</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/repertoire">Repertoire</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">Songbooks</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/events">Events</a>
+    {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/admin">Admin</a>{{end}}
   </nav>
 
   {{/* ---- Members summary: staff names + total count, not a full

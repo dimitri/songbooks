@@ -77,13 +77,13 @@ document.getElementById('music-type-select').addEventListener('change', async (e
        section), so this is a tab-styled nav bar linking between full
        pages rather than one giant client-side-tabbed page. */}}
   <nav class="band-tabs band-tabs-row">
-    <a href="/bands/{{.Band.ID}}" class="active">Overview</a>
-    <a href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
-    <a href="/bands/{{.Band.ID}}/setlists">Setlists</a>
-    <a href="/bands/{{.Band.ID}}/proposals">Proposals</a>
-    <a href="/bands/{{.Band.ID}}/listening-party">Discover</a>
-    <a href="/bands/{{.Band.ID}}/events">Events</a>
-    <a href="/bands/{{.Band.ID}}/members">Members</a>
+    <a href="/bands/{{.Band.ID}}" class="band-tab active">Overview</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/setlists">Setlists</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/proposals">Proposals</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/listening-party">Discover</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/events">Events</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/members">Members</a>
   </nav>
 
   {{/* ---- Recent activity: band-change digest (edits, repertoire

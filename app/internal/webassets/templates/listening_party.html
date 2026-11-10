@@ -18,13 +18,13 @@
 </header>
 <main class="index">
   <nav class="band-tabs band-tabs-row">
-    <a href="/bands/{{.Band.ID}}">Overview</a>
-    <a href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
-    <a href="/bands/{{.Band.ID}}/setlists">Setlists</a>
-    <a href="/bands/{{.Band.ID}}/proposals">Proposals</a>
-    <a href="/bands/{{.Band.ID}}/listening-party" class="active">Discover</a>
-    <a href="/bands/{{.Band.ID}}/events">Events</a>
-    <a href="/bands/{{.Band.ID}}/members">Members</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}">Overview</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/setlists">Setlists</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/proposals">Proposals</a>
+    <a href="/bands/{{.Band.ID}}/listening-party" class="band-tab active">Discover</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/events">Events</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/members">Members</a>
   </nav>
 
   <p class="hint">Throw in songs you'd like the band to check out, then vote right here — this is just a focused view over the band's normal proposal/vote mechanism (see <a href="/bands/{{.Band.ID}}/proposals">all proposals</a>), filtered to open "new song" proposals so a session doesn't get lost in the full list. A single veto rejects a song immediately; otherwise it auto-accepts into the repertoire once more than half of the band's {{.MemberCount}} current members vote yes.</p>

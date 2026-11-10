@@ -18,13 +18,13 @@
 </header>
 <main class="index">
   <nav class="band-tabs band-tabs-row">
-    <a href="/bands/{{.Band.ID}}">Overview</a>
-    <a href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
-    <a href="/bands/{{.Band.ID}}/setlists" class="active">Setlists</a>
-    <a href="/bands/{{.Band.ID}}/proposals">Proposals</a>
-    <a href="/bands/{{.Band.ID}}/listening-party">Discover</a>
-    <a href="/bands/{{.Band.ID}}/events">Events</a>
-    <a href="/bands/{{.Band.ID}}/members">Members</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}">Overview</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
+    <a href="/bands/{{.Band.ID}}/setlists" class="band-tab active">Setlists</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/proposals">Proposals</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/listening-party">Discover</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/events">Events</a>
+    <a class="band-tab" href="/bands/{{.Band.ID}}/members">Members</a>
   </nav>
 
   <p class="hint">Every set list owned by this band. New ones are created from <a href="/setlists">the set lists page</a> and assigned to this band as owner.</p>
