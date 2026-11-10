@@ -167,9 +167,34 @@
     if (container.dataset.bars) {
       const bars = parseInt(container.dataset.bars, 10);
       settings.display.barsPerRow = bars;
+      // Measured live against real notes + chord labels (2/4/6-bar
+      // riffs, varying note density): the clean no-overlap threshold
+      // tracks bars roughly linearly at ~0.95rem/bar on top of a
+      // ~9.5rem clef+time-signature overhead, not the far larger
+      // 3+7*bars this replaced — that old formula forced a 6-bar real
+      // cell to 45rem (720px), which on its own exceeded most rows'
+      // total width and tipped flex-wrap into splitting cells that the
+      // server had correctly placed on the same line apart onto
+      // separate ones.
+      //
+      // The rest-only floor is smaller for a single-digit count: a
+      // consolidated multi-bar rest's count number stops drawing at all
+      // below ~120px (measured live), so 8.5rem (136px) keeps a safe
+      // margin above that cliff for 1-9 bars; a cell whose own count
+      // can run to two digits keeps the larger, separately-measured
+      // 11rem. The smaller floor matters in exactly the case that used
+      // to defeat the server's own row-packing math (buildDrumMap,
+      // handlers_pages.go): a small rest-only cell (say 2 bars) sharing
+      // a row with a much bigger one (say 6) gets a genuinely narrow
+      // percentage share — 11rem flat was wide enough to clip that
+      // share's own calc()-adjusted basis (FlexBasis, same file) by a
+      // few px, which is enough: CSS clamps a flex item's HYPOTHETICAL
+      // size (the one flex-wrap's line-fit check uses) up to its own
+      // min-width, so that few-px clip alone was pushing the row over
+      // 100% and wrapping an otherwise correctly-packed pair apart.
       container.style.minWidth = container.dataset.restonly
-        ? '11rem'
-        : (3 + bars * 7) + 'rem';
+        ? (bars < 10 ? '8.5rem' : '11rem')
+        : (9.5 + bars * 0.95) + 'rem';
     }
 
     const fg = color('--fg', new alphaTab.model.Color(0x24, 0x1e, 0x18));
