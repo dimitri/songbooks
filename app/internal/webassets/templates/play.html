@@ -218,7 +218,7 @@
   {{range .DrumMap}}
   <div class="drum-row">
     {{range .Cells}}
-    <div class="drum-cell" style="flex: {{.Bars}} 1 {{.WidthPct}}%">
+    <div class="drum-cell" style="flex: {{.Bars}} 1 {{.FlexBasis}}">
       <div class="drum-chip-label">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
       <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}" data-restonly="{{if .RestOnly}}1{{end}}"></div>
     </div>

@@ -854,8 +854,27 @@ type viewerDrumMapCell struct {
 	AlphaTex    string
 	Bars        int
 	WidthPct    float64
+	FlexBasis   string
 	RestOnly    bool
 }
+
+// drumRowGapPx mirrors .drum-row's own "gap: 1.2rem" (app.css) at this
+// app's fixed 16px root font size — the two aren't coupled by anything
+// the compiler checks, same as alphatab-tab.js's own hand-matched rem
+// assumptions elsewhere in this feature.
+//
+// A row's cells' WidthPct values already sum to exactly 100% on their
+// own (chunk's bar count divided among its cells), which leaves NO room
+// for the gap between them — confirmed live as a real, separate bug
+// from the min-width one: CSS flex-wrap decides whether items fit a
+// line using their HYPOTHETICAL (pre-shrink) main size, gaps included,
+// NOT their post-shrink size, so a row whose basis percentages sum to
+// 100% always overflows by exactly its own gap width and wraps every
+// cell onto its own line — regardless of whether shrinking would
+// actually have made them fit. FlexBasis below (calc(X% - Y px), Y the
+// same for every cell in a row) reserves that gap's own width up front
+// so the row's total never exceeds 100% in the first place.
+const drumRowGapPx = 19.2
 
 type viewerDrumMapRow struct {
 	Cells []viewerDrumMapCell
@@ -947,6 +966,15 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff)
 			}
 		}
 		row := viewerDrumMapRow{Cells: make([]viewerDrumMapCell, len(runs))}
+		// Every cell in this row gives up the same fixed slice of width
+		// (gapShare) for the (len(runs)-1) gaps CSS draws between them —
+		// see drumRowGapPx's own doc comment. Summed across the row
+		// that's exactly len(runs)*gapShare == gap*(len(runs)-1), the
+		// row's real total gap width, so the cells' bases plus the gaps
+		// land on exactly 100%, never over it. Zero for a solo cell
+		// (len(runs)==1): nothing to share a line with, nothing to
+		// reserve room for.
+		gapShare := drumRowGapPx * float64(len(runs)-1) / float64(len(runs))
 		for ri, run := range runs {
 			bars := make([]tab.Bar, 0, len(run))
 			chordLabels := make([]string, 0, len(run))
@@ -962,12 +990,14 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff)
 			if run[0].isSectionStart {
 				mark, label = run[0].mark, run[0].label
 			}
+			widthPct := 100 * float64(len(bars)) / float64(len(chunk))
 			row.Cells[ri] = viewerDrumMapCell{
 				Mark: mark, Label: label,
-				AlphaTex: tab.ToAlphaTexDrums(&tab.Riff{Drums: true, Bars: bars}, chordLabels, nil),
-				Bars:     len(bars),
-				WidthPct: 100 * float64(len(bars)) / float64(len(chunk)),
-				RestOnly: run[0].sectionIsRestOnly,
+				AlphaTex:  tab.ToAlphaTexDrums(&tab.Riff{Drums: true, Bars: bars}, chordLabels, nil),
+				Bars:      len(bars),
+				WidthPct:  widthPct,
+				FlexBasis: fmt.Sprintf("calc(%.4f%% - %.2fpx)", widthPct, gapShare),
+				RestOnly:  run[0].sectionIsRestOnly,
 			}
 		}
 		rows = append(rows, row)
