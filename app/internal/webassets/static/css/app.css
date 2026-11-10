@@ -1289,6 +1289,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    to recover after the fact. */
 .staff-line.alphatab-row { display: block; padding-top: 0; width: 100%; transform: translateZ(0); }
 .staff-line.alphatab-row svg { max-width: 100%; height: auto; }
+.alphatab-render-failed { color: var(--fg-muted); font-size: 0.85rem; font-style: italic; padding: 0.5rem 0; }
 /* Real tab notation is a "normal" mode thing only — jazz/map/lyrics
    never showed it (jazz is deliberately staff-less, see above; map and
    lyrics have their own simpler conventions) — but a FULLY tab-only

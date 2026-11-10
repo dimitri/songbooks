@@ -43,6 +43,22 @@
     },
   };
 
+  // giveUp replaces every retry chain's final fallback. A silent
+  // location.reload() here used to double as this app's own crash
+  // recovery — reliable for the resize-corruption case it was written
+  // for, but just as happy to fire on a genuinely malformed alphaTeX
+  // document (a real bug, not a transient glitch no retry will ever fix)
+  // and reload the WHOLE page under a reader who has no idea why,
+  // discarding anything else live on it (reference-audio playback,
+  // mid-edit form state). Leave the row visibly failed instead: no more
+  // retries, no page reload, just a small note so it's obviously inert
+  // rather than silently blank.
+  function giveUp(container) {
+    container.style.minHeight = '';
+    container.style.visibility = '';
+    container.innerHTML = '<p class="alphatab-render-failed">Couldn’t render this chart. <a href="javascript:location.reload()">Reload the page</a> to try again.</p>';
+  }
+
   const theme = () => getComputedStyle(document.body);
 
   function color(cssVar, fallback) {
@@ -87,10 +103,10 @@
       // the outermost safety net: whatever throws, however early,
       // retry (with the same backoff-free immediacy the construction-
       // time watchdog would eventually reach anyway) or, once
-      // retriesLeft is exhausted, fall back to location.reload() — the
-      // one thing proven 100% reliable this session.
+      // retriesLeft is exhausted, give up in place (see giveUp's own
+      // doc comment for why this is no longer a page reload).
       if (retriesLeft <= 0) {
-        location.reload();
+        giveUp(container);
         return;
       }
       container.innerHTML = '';
@@ -386,14 +402,14 @@
     // wrong for a while after that animation, not instantly correct
     // again. So: more attempts, growing backoff between them (give the
     // browser's own geometry time to resettle rather than retrying into
-    // the same bad state), and — since a real reload is the only thing
-    // proven 100% reliable — an actual location.reload() as the final
-    // fallback if every in-place attempt still comes up empty, rather
-    // than leaving a reader staring at a permanently blank chart.
+    // the same bad state), and giveUp() in place as the final fallback
+    // if every in-place attempt still comes up empty, rather than either
+    // leaving a reader staring at a permanently blank chart OR reloading
+    // the whole page out from under them (see giveUp's own doc comment).
     function recover() {
       if (container.querySelector('svg text')) return; // already fine
       if (retriesLeft <= 0) {
-        location.reload();
+        giveUp(container);
         return;
       }
       container.innerHTML = '';
