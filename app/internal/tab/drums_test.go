@@ -51,7 +51,7 @@ func TestToAlphaTexDrums(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseScore: %v", err)
 	}
-	tex := ToAlphaTexDrums(riff, nil)
+	tex := ToAlphaTexDrums(riff, nil, nil)
 	for _, want := range []string{
 		`\track "Drums" { instrument percussion multiBarRest }`,
 		`\articulation (Kick 36)`,
@@ -73,7 +73,7 @@ func TestToAlphaTexDrums_ChordLabels(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseScore: %v", err)
 	}
-	tex := ToAlphaTexDrums(riff, []string{"Dm", "G7"})
+	tex := ToAlphaTexDrums(riff, []string{"Dm", "G7"}, nil)
 	if !strings.Contains(tex, `Kick.4{ch "Dm"}`) {
 		t.Errorf("expected bar 1's first beat to carry the Dm chord label; got:\n%s", tex)
 	}
@@ -84,6 +84,28 @@ func TestToAlphaTexDrums_ChordLabels(t *testing.T) {
 	// right after the labeled "Kick.4" must not also carry one.
 	if strings.Contains(tex, `HiHatClosed.8{ch`) {
 		t.Errorf("a non-first beat should never carry a chord label; got:\n%s", tex)
+	}
+}
+
+func TestToAlphaTexDrums_Boundaries(t *testing.T) {
+	// An all-rest riff — Drummer view's own synthetic no-notation case
+	// (buildDrumMap) — with a boundary on bar index 2 (Belle of the
+	// Ball's own real shape: a 2-bar section followed by a different one
+	// sharing the same line).
+	riff := &Riff{Drums: true, Bars: make([]Bar, 8)}
+	for i := range riff.Bars {
+		riff.Bars[i] = Bar{Beats: []Beat{{Rest: true, Duration: "1"}}}
+	}
+	boundaries := make([]bool, 8)
+	boundaries[2] = true
+	tex := ToAlphaTexDrums(riff, nil, boundaries)
+	if !strings.Contains(tex, `\section "" "" r.1`) {
+		t.Errorf("expected an empty-text \\section marker right before bar index 2; got:\n%s", tex)
+	}
+	// Exactly one marker — not on bar 0 (nothing precedes it to merge
+	// with) and not on any other bar.
+	if strings.Count(tex, `\section`) != 1 {
+		t.Errorf("expected exactly one \\section marker; got:\n%s", tex)
 	}
 }
 
