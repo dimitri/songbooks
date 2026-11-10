@@ -141,57 +141,34 @@
     // instrument (confirmed: same enum entry gates the bass-tuning
     // caption too).
     settings.notation.elements.set(alphaTab.NotationElement.GuitarTuning, false);
-    // Drummer view's own cells (data-bars/data-restonly, set only there
-    // — see buildDrumMap, handlers_pages.go) can share a row at LESS
-    // than the full page width (a section boundary falling mid-line
-    // splits that line into one mount per section — viewerDrumMapCell's
-    // own doc comment). Pinning barsPerRow to the cell's own bar count
-    // stops alphaTab's own auto-wrap from ever drawing those bars across
-    // TWO internal lines when the row gives it less room than its
-    // content wants — confirmed live as the actual cause of one cell
-    // rendering visibly TALLER than its single-line row neighbors (a
-    // 2-bar riff wrapping bar-by-bar inside its own narrow mount). A
-    // solo cell (the common case, full row width) gets the exact same
-    // pin — harmless there, since its own bar count already fits
-    // comfortably at full width, but keeps every cell's sizing logic
-    // identical regardless of whether it ends up sharing a row.
-    // min-width is the matching legibility floor, NOT the primary width
-    // (WidthPct from the cell's own inline "flex" style already does
-    // that, play.html) — just a backstop for when percentage math alone
-    // would squeeze a cell narrower than its content can draw into: a
-    // consolidated multi-bar rest's own count number needs real room to
-    // draw at all (measured live down to 120px — the rest glyph still
-    // drew, but alphaTab silently omitted the count text; 11rem clears
-    // it with margin, including a 2-digit count), while real notes and
-    // chord labels need noticeably more room per bar than a rest does.
+    // Drummer view's own "\tempo" boundary markers (ToAlphaTexDrums,
+    // internal/tab/alphatex.go — see its own doc comment) are a pure
+    // multiBarRest-consolidation trick: they must never actually draw a
+    // "♩ = N" marking. Every OTHER mount in this app is unaffected —
+    // nothing else ever emits a "\tempo" directive.
+    settings.notation.elements.set(alphaTab.NotationElement.EffectTempo, false);
+    // Drummer view's own rows (data-bars/data-restonly, set only there —
+    // see buildDrumMap, handlers_pages.go) are always exactly ONE mount
+    // per line, full page width, even where a section boundary falls
+    // mid-line — there is never a sibling cell in the row to share space
+    // or wrap against (the two previous designs both split a shared line
+    // into several per-section mounts and spent three separate CSS fixes
+    // fighting exactly that). Pinning barsPerRow to the row's own bar
+    // count still matters even at full width: it stops alphaTab's own
+    // auto-wrap from ever drawing a line's bars across TWO internal
+    // lines when the viewport is narrow.
+    // min-width is a legibility floor, not the row's primary width
+    // (which is simply the full page width) — a backstop for a genuinely
+    // narrow viewport: a consolidated multi-bar rest's own count number
+    // needs real room to draw at all (measured live down to ~120px — the
+    // rest glyph still drew, but alphaTab silently omitted the count
+    // text), while real notes and chord labels need noticeably more room
+    // per bar than a rest does (measured live against 2/4/6-bar riffs at
+    // varying note density: roughly 0.95rem/bar on top of a ~9.5rem
+    // clef+time-signature overhead before chord labels start to overlap).
     if (container.dataset.bars) {
       const bars = parseInt(container.dataset.bars, 10);
       settings.display.barsPerRow = bars;
-      // Measured live against real notes + chord labels (2/4/6-bar
-      // riffs, varying note density): the clean no-overlap threshold
-      // tracks bars roughly linearly at ~0.95rem/bar on top of a
-      // ~9.5rem clef+time-signature overhead, not the far larger
-      // 3+7*bars this replaced — that old formula forced a 6-bar real
-      // cell to 45rem (720px), which on its own exceeded most rows'
-      // total width and tipped flex-wrap into splitting cells that the
-      // server had correctly placed on the same line apart onto
-      // separate ones.
-      //
-      // The rest-only floor is smaller for a single-digit count: a
-      // consolidated multi-bar rest's count number stops drawing at all
-      // below ~120px (measured live), so 8.5rem (136px) keeps a safe
-      // margin above that cliff for 1-9 bars; a cell whose own count
-      // can run to two digits keeps the larger, separately-measured
-      // 11rem. The smaller floor matters in exactly the case that used
-      // to defeat the server's own row-packing math (buildDrumMap,
-      // handlers_pages.go): a small rest-only cell (say 2 bars) sharing
-      // a row with a much bigger one (say 6) gets a genuinely narrow
-      // percentage share — 11rem flat was wide enough to clip that
-      // share's own calc()-adjusted basis (FlexBasis, same file) by a
-      // few px, which is enough: CSS clamps a flex item's HYPOTHETICAL
-      // size (the one flex-wrap's line-fit check uses) up to its own
-      // min-width, so that few-px clip alone was pushing the row over
-      // 100% and wrapping an otherwise correctly-packed pair apart.
       container.style.minWidth = container.dataset.restonly
         ? (bars < 10 ? '8.5rem' : '11rem')
         : (9.5 + bars * 0.95) + 'rem';
