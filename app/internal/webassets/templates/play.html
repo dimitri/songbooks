@@ -721,6 +721,16 @@
         <h3>1. Choose file</h3>
         <p><input type="file" id="gpimport-file" accept=".gp,.gp3,.gp4,.gp5,.gpx"></p>
         <p id="gpimport-track-row" hidden>Track: <select id="gpimport-track"></select></p>
+        {{/* Shown only when this song has no sections/chords yet — a GP
+             file's own chord diagrams (real, human-authored chord names
+             attached to specific beats, not re-derived from the notes)
+             are enough to write a real chord grid, not just attach a
+             riff on top of chords someone already typed in by hand. See
+             gp-import.js's deriveAndCreateSection. */}}
+        <p id="gpimport-derive-row" hidden class="hint">
+          This song has no chords yet.
+          <button type="button" id="gpimport-derive-chords" class="primary">Create chord grid from this file's chord diagrams</button>
+        </p>
         <p><button type="button" id="gpimport-step1-next" class="primary" disabled>Next: align bars &rarr;</button></p>
       </div>
 

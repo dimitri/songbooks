@@ -66,6 +66,8 @@
   const importBtn = document.getElementById('gpimport-run');
   const includeAudio = document.getElementById('gpimport-include-audio');
   const summary = document.getElementById('gpimport-summary');
+  const deriveRow = document.getElementById('gpimport-derive-row');
+  const deriveBtn = document.getElementById('gpimport-derive-chords');
 
   const scrollWrap = document.getElementById('gpimport-scroll');
   const timeline = document.getElementById('gpimport-timeline');
@@ -269,6 +271,7 @@
     ourSections = (data.sections || []).filter(s => s.barCount > 0);
     boundaries = [0];
     ourSections.forEach(sec => boundaries.push(Math.min(realIdx.length, boundaries[boundaries.length - 1] + sec.barCount)));
+    deriveRow.hidden = ourSections.length > 0;
     setStatus(`parsed "${score.title || file.name}" — ${score.tracks.length} track(s), ${realIdx.length} real bar(s), ${ourSections.length} section(s) to map.`, 'ok');
   }
 
@@ -493,6 +496,86 @@
     });
     mappingTable.hidden = false;
   }
+
+  // ---- Chord-grid derivation: GP's own chord diagrams -> a "grid:"
+  // line, for a song that has no chords typed in yet. A GP beat that
+  // carries a chord diagram has a chordId into staff.chords (a real,
+  // human-authored chord name the GP author attached — e.g. "E7" — not
+  // re-derived by guessing from the notes, which would be unreliable
+  // and could silently pick the wrong chord). Only the FIRST chord-
+  // bearing beat in a bar sets that bar's chord — a mid-bar chord change
+  // isn't representable in this app's one-chord-per-bar grid grammar
+  // (same granularity the chart's own grid: line always has). A bar
+  // whose chord repeats the previous bar's becomes "." (grid's own
+  // sustain token), exactly how a hand-typed grid already works.
+  function extractChordGrid(track, realBarStart, barCount) {
+    const staff = track.staves[0];
+    const chords = staff.chords;
+    const tokens = [];
+    let lastChord = null;
+    for (let r = realBarStart; r < realBarStart + barCount; r++) {
+      const gpBarIndex = realIdx[r];
+      if (gpBarIndex === undefined) break;
+      const voice = staff.bars[gpBarIndex].voices[0];
+      let barChord = null;
+      if (voice && chords) {
+        for (const b of voice.beats) {
+          if (b.chordId != null && chords.has(b.chordId)) { barChord = chords.get(b.chordId).name; break; }
+        }
+      }
+      if (barChord) {
+        tokens.push(barChord === lastChord ? '.' : barChord);
+        lastChord = barChord;
+      } else {
+        // No chord diagram on this bar at all — not even a repeat of
+        // the last one (a real gap in the file's own chord authoring,
+        // not something to guess at). "?" keeps the bar count right and
+        // is visibly wrong at a glance, for a quick manual fix, instead
+        // of silently repeating whatever chord came before.
+        tokens.push('?');
+        lastChord = null;
+      }
+    }
+    return tokens;
+  }
+
+  // Writes a brand-new "[Song]" section from the derived chord grid —
+  // for a song with no sections/chords yet (see gpimport-derive-row in
+  // play.html). Preserves whatever header lines (title/artist/key/...)
+  // already exist; only the section body is new. Re-fetches this
+  // song's structure afterward so the normal align/import steps below
+  // see the section that was just created, same as if a human had
+  // typed it in by hand.
+  async function deriveAndCreateSection() {
+    deriveBtn.disabled = true;
+    try {
+      setStatus('deriving chord grid from this file…');
+      const track = score.tracks[Number(trackSelect.value) || 0];
+      const tokens = extractChordGrid(track, 0, realIdx.length);
+      const rawRes = await fetch(`/api/songs/${variantId}/raw`);
+      if (!rawRes.ok) throw new Error('could not load this song\'s current source');
+      const raw = await rawRes.json();
+      const body = raw.text.replace(/\s*$/, '');
+      const grid = `[Song]\ngrid: | ${tokens.join(' | ')} |\n`;
+      const putRes = await fetch(`/api/songs/${variantId}/raw`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: body ? body + '\n\n' + grid : grid, version: raw.version }),
+      });
+      if (!putRes.ok) throw new Error('saving the chord grid failed: ' + (await putRes.text()));
+      const res = await fetch(`/api/songs/${variantId}/structure`);
+      const data = await res.json();
+      ourSections = (data.sections || []).filter(s => s.barCount > 0);
+      boundaries = [0];
+      ourSections.forEach(sec => boundaries.push(Math.min(realIdx.length, boundaries[boundaries.length - 1] + sec.barCount)));
+      deriveRow.hidden = true;
+      setStatus(`created a chord grid from this file's own chord diagrams — ${ourSections.length} section(s) ready to map.`, 'ok');
+    } catch (e) {
+      setStatus('deriving chord grid failed: ' + e.message, 'err');
+    } finally {
+      deriveBtn.disabled = false;
+    }
+  }
+  deriveBtn.addEventListener('click', deriveAndCreateSection);
 
   // ---- Per-section extraction: GP real-bar range -> our Riff JSON ----
   function extractRiff(track, realBarStart, barCount) {
