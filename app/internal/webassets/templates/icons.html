@@ -15,7 +15,14 @@
 <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});</script>
 {{end}}
 
-{{define "icon-logo"}}<svg class="icon logo-mark" viewBox="0 0 48 48" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="2.4" stroke-linecap="round" opacity="0.55"><line x1="6" y1="16" x2="42" y2="16"/><line x1="6" y1="24" x2="42" y2="24"/><line x1="6" y1="32" x2="42" y2="32"/></g><g fill="currentColor"><circle cx="17" cy="33" r="4.4"/><rect x="20.5" y="10" width="2.3" height="23" rx="1.1"/><path d="M22.8 10 C29 10 31.5 15.5 31.5 19 C28 16.8 24.8 16.2 22.8 16.8 Z"/></g></svg>{{end}}
+{{/* The brand mark: a dark rounded-square badge with an 11-dot grid —
+     matches the public marketing pages' own header logo exactly (same
+     coordinates/colors, see marketing_home.html and friends). Fixed
+     colors, not currentColor: it's a self-contained badge like a real
+     logo, not a monochrome glyph meant to tint with surrounding text —
+     the sidebar it's used in is always dark regardless of the site's
+     own light/dark mode, so a fixed dark badge never clashes. */}}
+{{define "icon-logo"}}<svg class="icon logo-mark" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#241e18"/><g fill="#af4e39"><circle cx="33" cy="18" r="7"/><circle cx="50" cy="18" r="7"/><circle cx="67" cy="18" r="7"/><circle cx="33" cy="34" r="7"/><circle cx="33" cy="50" r="7"/><circle cx="50" cy="50" r="7"/><circle cx="67" cy="50" r="7"/><circle cx="67" cy="66" r="7"/><circle cx="33" cy="82" r="7"/><circle cx="50" cy="82" r="7"/><circle cx="67" cy="82" r="7"/></g></svg>{{end}}
 
 {{/* home-link: the one piece of header markup nearly every page template
      duplicated with drift (plain "&larr; Songbooks", "&larr; Books", a

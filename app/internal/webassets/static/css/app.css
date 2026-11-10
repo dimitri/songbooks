@@ -531,10 +531,20 @@ table.card { padding: 0; }
 .sidebar-brand .icon.logo-mark { width: 1.4rem; height: 1.4rem; opacity: 1; }
 .sidebar-crumb { padding: 0.3rem 0.3rem 0.1rem; }
 .sidebar-crumb a {
-  display: flex; align-items: center; gap: 0.4rem; text-decoration: none;
+  /* A long songbook/band/community name used to wrap onto 2+ lines
+     with the back-icon vertically centered against the WHOLE block —
+     the icon ends up floating at the midpoint between lines instead of
+     sitting next to the first one, and the extra wrapped lines compete
+     for attention with the primary nav right below. Truncating to one
+     line (title attr gives the full name back on hover) keeps this a
+     quiet, secondary "back" affordance the way every other sidebar row
+     already is, regardless of how long the destination's name is. */
+  display: flex; align-items: flex-start; gap: 0.4rem; text-decoration: none;
   color: var(--accent); font-size: 0.82rem; font-weight: 600;
+  overflow: hidden;
 }
-.sidebar-crumb a .icon { width: 0.9rem; height: 0.9rem; flex: none; }
+.sidebar-crumb a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-crumb a .icon { width: 0.9rem; height: 0.9rem; flex: none; margin-top: 0.1rem; }
 .sidebar-primary, .sidebar-secondary { display: flex; flex-direction: column; gap: 0.15rem; }
 .sidebar-primary a, .sidebar-secondary a {
   display: flex; align-items: center; gap: 0.7rem;

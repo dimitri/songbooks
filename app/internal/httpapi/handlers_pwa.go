@@ -45,21 +45,20 @@ func serveEmbedded(w http.ResponseWriter, r *http.Request, name, contentType str
 }
 
 // handleAppIcon draws the PWA/home-screen icon on the fly — a plain
-// image.RGBA with the same staff-lines-and-note mark as icon.svg/icon-logo,
-// rasterized with the stdlib only (no font/vector library, no build step,
-// no binary asset to keep in sync by hand). iOS's Add to Home Screen needs
-// a real PNG; SVG manifest icons cover everything else.
+// image.RGBA with the same dot-grid mark as icon.svg/icon-logo (and the
+// public marketing pages' own header logo), rasterized with the stdlib
+// only (no font/vector library, no build step, no binary asset to keep
+// in sync by hand). iOS's Add to Home Screen needs a real PNG; SVG
+// manifest icons cover everything else.
 func (s *Server) handleAppIcon(w http.ResponseWriter, r *http.Request) {
 	const size = 512
-	bg := color.RGBA{0x0b, 0x0c, 0x0e, 0xff}
-	accent := color.RGBA{0x1e, 0xd9, 0xa3, 0xff}
+	scale := size / 100.0 // the logo's own coordinate space is 0-100
+	bg := color.RGBA{0x24, 0x1e, 0x18, 0xff}
+	accent := color.RGBA{0xaf, 0x4e, 0x39, 0xff}
 
 	img := image.NewRGBA(image.Rect(0, 0, size, size))
 	draw.Draw(img, img.Bounds(), &image.Uniform{bg}, image.Point{}, draw.Src)
 
-	fillRect := func(x0, y0, x1, y1 int) {
-		draw.Draw(img, image.Rect(x0, y0, x1, y1), &image.Uniform{accent}, image.Point{}, draw.Src)
-	}
 	fillCircle := func(cx, cy, rad int) {
 		for y := cy - rad; y <= cy+rad; y++ {
 			for x := cx - rad; x <= cx+rad; x++ {
@@ -71,18 +70,17 @@ func (s *Server) handleAppIcon(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Three staff lines.
-	for _, y := range []int{170, 246, 322} {
-		fillRect(96, y, 416, y+12)
+	// The 11-dot grid, same coordinates as icon.svg/icon-logo.
+	dots := [][2]int{
+		{33, 18}, {50, 18}, {67, 18},
+		{33, 34},
+		{33, 50}, {50, 50}, {67, 50},
+		{67, 66},
+		{33, 82}, {50, 82}, {67, 82},
 	}
-	// Note stem + flag (a simple triangular flag, drawn as stacked
-	// decreasing-width rects — no path/bezier support needed for this).
-	fillRect(232, 96, 256, 352)
-	for i := 0; i < 70; i++ {
-		fillRect(256, 96+i*2, 256+70-i, 98+i*2)
+	for _, d := range dots {
+		fillCircle(int(float64(d[0])*scale), int(float64(d[1])*scale), int(7*scale))
 	}
-	// Notehead.
-	fillCircle(192, 362, 50)
 
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Cache-Control", "public, max-age=604800")

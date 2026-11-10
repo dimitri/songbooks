@@ -358,19 +358,19 @@
        sidebar's nav, same as every other page's own back-link. */}}
   <div class="sidebar-crumb">
     {{if .PracticeMode}}
-    <a href="/setlists">{{template "icon-back"}} {{.PracticeStepMode}}: {{.PracticeTitle}}</a>
+    <a href="/setlists">{{template "icon-back"}} <span title="{{.PracticeStepMode}}: {{.PracticeTitle}}">{{.PracticeStepMode}}: {{.PracticeTitle}}</span></a>
     {{else if .GigMode}}
-    <a href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} set list</a>
+    <a href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} <span>set list</span></a>
     {{else if .SetlistRef}}
-    <a href="/setlists/{{.SetlistRef}}">{{template "icon-back"}} set list</a>
+    <a href="/setlists/{{.SetlistRef}}">{{template "icon-back"}} <span>set list</span></a>
     {{else if .BandRef}}
-    <a href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} {{.BandName}}</a>
+    <a href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} <span title="{{.BandName}}">{{.BandName}}</span></a>
     {{else if .CommunityRef}}
-    <a href="/communities/{{.CommunityRef}}/repertoire">{{template "icon-back"}} {{.CommunityName}}</a>
+    <a href="/communities/{{.CommunityRef}}/repertoire">{{template "icon-back"}} <span title="{{.CommunityName}}">{{.CommunityName}}</span></a>
     {{else if .SongbookRef}}
-    <a href="/songbooks/{{.SongbookRef}}">{{template "icon-back"}} songbook</a>
+    <a href="/songbooks/{{.SongbookRef}}">{{template "icon-back"}} <span>songbook</span></a>
     {{else}}
-    <a href="/catalog">{{template "icon-back"}} catalog</a>
+    <a href="/catalog">{{template "icon-back"}} <span>catalog</span></a>
     {{end}}
   </div>
   {{/* Phase 45: while the desktop editor is open, this single row replaces
@@ -467,9 +467,9 @@
   {{else if .SetlistRef}}
   <a class="back-link" href="/setlists/{{.SetlistRef}}">{{template "icon-back"}} set list</a>
   {{else if .BandRef}}
-  <a class="back-link" href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} {{.BandName}}</a>
+  <a class="back-link" href="/bands/{{.BandRef}}/catalog" title="{{.BandName}}">{{template "icon-back"}} {{.BandName}}</a>
   {{else if .CommunityRef}}
-  <a class="back-link" href="/communities/{{.CommunityRef}}/repertoire">{{template "icon-back"}} {{.CommunityName}}</a>
+  <a class="back-link" href="/communities/{{.CommunityRef}}/repertoire" title="{{.CommunityName}}">{{template "icon-back"}} {{.CommunityName}}</a>
   {{else if .SongbookRef}}
   <a class="back-link" href="/songbooks/{{.SongbookRef}}">{{template "icon-back"}} songbook</a>
   {{else}}
