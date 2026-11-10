@@ -2229,7 +2229,16 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    live: multi-chord bars rendered as illegibly overlapping text) that
    building against desktop-only screenshots hadn't caught the first
    time, not just a stylistic choice. */
-#sheet[data-render-mode="jazz"] .bar { flex: 0 0 auto; width: auto; min-width: 0; }
+/* A TabOnly bar's chord content lives in .tab-only-chords, which is
+   position:absolute (see its own rule below) so it can overlay several
+   beat-slots — meaning it never contributes to this bar's auto-width
+   sizing the way a real jazz bar's in-flow .chord-label does just above.
+   Zeroing the floor the same way for these bars collapsed every one of
+   them to ~0 width, piling all their chord text on top of itself at the
+   row's left edge (confirmed live on a GP-imported single-track song).
+   Keep the base .bar rule's real min-width floor for them specifically. */
+#sheet[data-render-mode="jazz"] .bar:not(.tab-only) { flex: 0 0 auto; width: auto; min-width: 0; }
+#sheet[data-render-mode="jazz"] .bar.tab-only { flex: 0 0 auto; width: auto; }
 #sheet[data-render-mode="jazz"] .beat-slot { flex: 0 0 auto; padding: 0 0.3em; }
 #sheet[data-render-mode="jazz"] .beat-slot:first-child { padding-left: 0; }
 #sheet[data-render-mode="jazz"] .beat-slot:last-child { padding-right: 0; }
