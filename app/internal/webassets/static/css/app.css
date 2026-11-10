@@ -2071,7 +2071,19 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    real total past 100%: without it the overflow would just spill past
    the page edge instead of dropping to a second line. */
 .drum-row { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-start; }
-.drum-cell { display: flex; flex-direction: column; gap: 0.2rem; }
+/* min-width: 0 overrides the flex item default (min-width: auto, i.e.
+   "never shrink below your own content's width") — confirmed live as
+   the real remaining cause of a shared row's cells still wrapping
+   apart even once their own flex-basis math (FlexBasis, handlers_
+   pages.go) correctly left room for the gap: alphaTab doesn't always
+   draw the alphaTeX row to the exact pixel width its container asked
+   for, and WITHOUT this, that wider-than-asked rendered SVG's own
+   intrinsic width become EVERY cell's automatic minimum size, which
+   silently overrides the intended percentage split and pushes the
+   row's real total past 100% again. overflow: hidden is what actually
+   acts on that override: it stops the now-deliberately-too-narrow box
+   from just letting the oversized SVG bleed out past its own edge. */
+.drum-cell { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; overflow: hidden; }
 .drum-chip-label {
   font-family: var(--font-chart); font-weight: 700; letter-spacing: 0.04em;
   text-transform: uppercase; font-size: 0.8rem; color: var(--fg-muted); white-space: nowrap;
