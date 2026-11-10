@@ -128,8 +128,48 @@
     container.style.minHeight = (estSystems * 150) + 'px';
     const clearReservedHeight = () => { container.style.minHeight = ''; };
 
+    // Resize-triggered vanish guard: alphaTab's own container-width
+    // watcher (separate from, and not covered by, the construction-time
+    // watchdog below) re-renders a row WHENEVER it thinks the
+    // container's width changed — confirmed this session as a real,
+    // reproducible bug on an iPad specifically (not reproducible on a
+    // desktop browser, which has no equivalent trigger): scrolling up
+    // and down made a chart that had rendered correctly go permanently
+    // blank, every time, with no further recovery — almost certainly
+    // iOS Safari's dynamic toolbar (the address bar that collapses and
+    // re-expands as you scroll) causing alphaTab to see a width change
+    // that isn't real, re-render, and hit the same "container invisible
+    // during autosizing" failure the construction-time watchdog exists
+    // for, just on a code path that watchdog was never wired to catch.
+    // Rather than patching the vendored bundle's own resize-watcher
+    // (fragile against a future vendor update, and its exact trigger
+    // condition is undocumented), this is a general safety net: once a
+    // row has successfully shown real content, any later resize that's
+    // followed by the row going BACK to empty gets treated exactly like
+    // the already-handled construction-time failure — a full
+    // reconstruction from scratch, reusing the proven recovery path
+    // rather than trusting alphaTab's own resize-render to recover
+    // itself.
+    let hadContent = false;
+    const resizeGuard = new ResizeObserver(() => {
+      if (!hadContent) return;
+      clearTimeout(resizeGuard._t);
+      resizeGuard._t = setTimeout(() => {
+        if (hadContent && !container.querySelector('svg text')) {
+          resizeGuard.disconnect();
+          container.innerHTML = '';
+          container.style.minHeight = (estSystems * 150) + 'px';
+          render(container, 2);
+        }
+      }, 400);
+    });
+    resizeGuard.observe(container);
+
     const api = new alphaTab.AlphaTabApi(container, settings);
-    api.renderFinished.on(() => pollForChordFix(container, tex, 0, clearReservedHeight));
+    api.renderFinished.on(() => pollForChordFix(container, tex, 0, () => {
+      hadContent = true;
+      clearReservedHeight();
+    }));
     api.tex(tex);
 
     // Watchdog: with lazy loading off (see above), the remaining known
