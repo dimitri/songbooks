@@ -255,24 +255,64 @@
     // earlier, narrower floor found the glyphs technically not
     // touching, but only by a few px, thin enough that a compressed
     // phone-width screenshot still read as a dead collision.
+    // remPx is needed below (the row width floor) before it's otherwise
+    // used for chord-font sizing, so it's computed here rather than
+    // right next to that later use.
+    const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+
+    // This app is read hands-off while actually playing (band practice,
+    // a gig) — nobody can stop to swipe a chart sideways mid-song, so a
+    // row must never need horizontal scrolling, full stop. Confirmed
+    // live this is NOT the same thing as just capping the container's
+    // width: alphaTab's own answer to "fit this content into less width
+    // than it wants" is to compress note SPACING, which has a floor —
+    // past that floor it starts drawing noteheads, stems, chord names
+    // and hi-hat crosses on top of each other instead of refusing to
+    // shrink further. A capped width with no scale adjustment reliably
+    // reproduced exactly that: readable glyphs stacked into an
+    // unreadable mess, not just "tighter." The fix is display.scale, a
+    // genuine zoom of the WHOLE engraving (noteheads, stems, text AND
+    // their spacing, together) — everything shrinks in proportion, so
+    // nothing can overlap that didn't already overlap at scale 1; it
+    // just reads smaller, the same tradeoff a real pocket chart makes.
+    // availablePx is measured from the row's own parent (.drum-row —
+    // already laid out at its final width by this point, since the
+    // global ".staff-line.alphatab-row { width: 100% }" rule, not this
+    // container's own not-yet-set width, is what's sized it so far)
+    // rather than assumed from the viewport, so it's correct inside a
+    // narrower host too (an embed, a split view).
     const restFloorRem = (n) => n < 10 ? 8.5 : 11;
     if (container.dataset.bars) {
       const bars = parseInt(container.dataset.bars, 10);
       const realBars = parseInt(container.dataset.realbars, 10) || 0;
       const restRuns = parseInt(container.dataset.restruns, 10) || 0;
       settings.display.barsPerRow = Math.max(1, realBars + restRuns);
+      const idealRem = container.dataset.restonly ? restFloorRem(bars) : (9.5 + realBars * 4.5 + restRuns * 8.5);
+      const idealPx = idealRem * remPx;
       // A width-compression retry (below, driven by alphaTab's own "do
       // not fit" warning) already left container.style.minWidth at the
       // exact px value that fixed it — recomputing the formula here on
       // that retry pass would throw that correction straight away and
       // render the same too-narrow row all over again.
       if (!container.dataset.widthRetriesLeft) {
-        if (container.dataset.restonly) {
-          container.style.minWidth = restFloorRem(bars) + 'rem';
-        } else {
-          container.style.minWidth = (9.5 + realBars * 4.5 + restRuns * 8.5) + 'rem';
-        }
+        const availablePx = container.parentElement.getBoundingClientRect().width;
+        container.style.minWidth = Math.min(idealPx, availablePx) + 'px';
       }
+      // scale is derived from whatever width is actually in effect right
+      // now — the floor just set above, OR (on a retry pass, which skips
+      // that block) a prior pass's own width-compression-retry growth —
+      // against idealPx, the width that formula's coefficients were
+      // measured AT scale 1. That ratio reproduces the same proportions
+      // (same relative gaps, same relative glyph size) in whatever
+      // smaller space is actually available, rather than leaving layout
+      // at scale 1 and asking alphaTab to squeeze note spacing to fit —
+      // confirmed live that squeeze has a floor, and past it alphaTab
+      // draws noteheads, stems, chord names and hi-hat crosses on top of
+      // each other instead of refusing to shrink further. Recomputed on
+      // every pass (not just the first) so a retry's own width growth
+      // keeps scale consistent with it too, instead of resetting to 1.
+      const currentWidthPx = parseFloat(container.style.minWidth) || idealPx;
+      settings.display.scale = Math.min(1, currentWidthPx / idealPx);
     }
 
     const fg = color('--fg', new alphaTab.model.Color(0x24, 0x1e, 0x18));
@@ -296,7 +336,6 @@
     // PREDOMINANT weight (regular, not bold — only the root letter is
     // ever bold) and the real resolved size reads far closer than the
     // earlier bold/fixed-16 guess did.
-    const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     settings.display.resources.elementFonts.set(
       alphaTab.NotationElement.EffectChordNames,
       new alphaTab.model.Font('EB Garamond', remPx * 1.4, alphaTab.model.FontStyle.Italic, alphaTab.model.FontWeight.Regular)
@@ -447,16 +486,29 @@
     // lazy-load/paint watchdogs' own budget) — the two problems are
     // unrelated and each needs its own retry ceiling so one can't
     // starve the other.
+    //
+    // The grown width is capped at the row's own parent's width
+    // (availablePx — same measurement the drum-row floor above uses):
+    // growing past that is exactly how a row ends up wider than the
+    // screen during a gig, which this app must never do. If there's no
+    // room left to grow at all (already at the container's own max),
+    // skip the retry rather than reconstruct into the identical
+    // still-too-narrow state forever — alphaTab's own compressed
+    // layout, drawn within that width, is what stands.
     if (lastMissingPx > 0 && (container.dataset.widthRetriesLeft === undefined || +container.dataset.widthRetriesLeft > 0)) {
-      const widthRetriesLeft = container.dataset.widthRetriesLeft === undefined ? 3 : +container.dataset.widthRetriesLeft;
       const currentPx = container.getBoundingClientRect().width || parseFloat(container.style.minWidth) * remPx;
-      container.style.minWidth = Math.ceil(currentPx + lastMissingPx + 8) + 'px';
-      container.dataset.widthRetriesLeft = widthRetriesLeft - 1;
-      clearInterval(pollGuard);
-      resizeGuard.disconnect();
-      container.innerHTML = '';
-      render(container, retriesLeft);
-      return;
+      const availablePx = container.parentElement.getBoundingClientRect().width;
+      const grownPx = Math.min(currentPx + lastMissingPx + 8, availablePx);
+      if (grownPx > currentPx + 0.5) {
+        const widthRetriesLeft = container.dataset.widthRetriesLeft === undefined ? 3 : +container.dataset.widthRetriesLeft;
+        container.style.minWidth = Math.ceil(grownPx) + 'px';
+        container.dataset.widthRetriesLeft = widthRetriesLeft - 1;
+        clearInterval(pollGuard);
+        resizeGuard.disconnect();
+        container.innerHTML = '';
+        render(container, retriesLeft);
+        return;
+      }
     }
 
     // Construction-time watchdog: the vendored bundle's "AlphaTab

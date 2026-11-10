@@ -2065,18 +2065,17 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .drum-map { display: none; }
 #sheet[data-render-mode="drummer"] .drum-map {
   display: flex; flex-direction: column; gap: 0.9rem;
-  /* A row's own min-width floor (alphatab-tab.js) is a real legibility
-     requirement — confirmed live against this app's own narrowest
-     phone-width viewport, a short consolidated-rest run sitting right
-     next to real notation genuinely needs more room than that viewport
-     has to keep its own bar count clear of the next bar's chord name —
-     not something to just let compress further. overflow-x here means
-     a line that floor pushes wider than the viewport scrolls on its
-     own, horizontally, rather than silently clipping off the page's
-     right edge (the default without this) or forcing the WHOLE page
-     (sidebar included) to scroll sideways (what overflow-x on .drum-row
-     itself, one level down, would do instead). */
-  overflow-x: auto;
+  /* No horizontal scroll, ever: this app is read hands-off while
+     actually playing (band practice, a gig) — nobody can stop to swipe
+     a chart sideways mid-song. A row's own legibility-floor width
+     (alphatab-tab.js) is capped at its own container's measured width
+     before it's ever applied, so a row that would otherwise want more
+     room than the viewport has compresses to fit instead of growing
+     past it. overflow-x stays hidden as the hard backstop for that
+     guarantee (a sub-pixel rounding case, not the normal path), rather
+     than auto: a scrollbar here would be an escape hatch back into the
+     exact thing this is meant to prevent. */
+  overflow-x: hidden;
 }
 .drum-row { position: relative; }
 /* Same overlay technique as Song Map's own .map-sec-badge (floats above
