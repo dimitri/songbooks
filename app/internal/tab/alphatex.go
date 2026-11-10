@@ -327,7 +327,6 @@ var drumArticulationName = map[int]string{
 func ToAlphaTexDrums(riff *Riff, chordLabels []string, boundaries []bool, tempo int) string {
 	var b strings.Builder
 	b.WriteString("\\track \"Drums\" { instrument percussion multiBarRest }\n")
-	b.WriteString("\\clef neutral\n")
 
 	used := map[int]bool{}
 	var order []int
@@ -368,6 +367,9 @@ func ToAlphaTexDrums(riff *Riff, chordLabels []string, boundaries []bool, tempo 
 			b.WriteString(strconv.Itoa(boundaryTempo))
 			b.WriteByte(' ')
 			boundaryTempo = tempo + tempo + 1 - boundaryTempo // swap between tempo and tempo+1
+		}
+		if bi == 0 {
+			b.WriteString(`\clef neutral `)
 		}
 		var label string
 		if bi < len(chordLabels) {
