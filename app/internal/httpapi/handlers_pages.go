@@ -231,41 +231,99 @@ grid: | C | G | Am | F |
 The [Am]one that makes me [F]scream, she said
 `
 
-// docsExampleTabSong/docsExampleTabLy are the docs page's SECOND worked
-// example: a real note-level "score:" riff, not a hand-written one — the
-// Larkin Poe cover's own intro from this app's legacy LaTeX+LilyPond
-// corpus (Mercy/bad-spell/intro.ly), already a parser test fixture (see
-// internal/tab/lyparse_corpus_test.go), so this is real-world LilyPond
-// source, include/ChordNames noise and all, not a cleaned-up toy.
-const docsExampleTabSong = `title: Bad Spell
+// docsScoreExample is one named, live-rendered example embedded on the
+// song-format docs page (and reusable from other marketing pages, e.g.
+// /guitar-pro) — a real, parseable one-section .song document, shown
+// verbatim in a <pre> AND rendered through the exact same
+// song.Parse -> buildSections -> tab.LoadScores -> attachTabRiffs/
+// buildDrumMap pipeline a real song goes through (see
+// renderDocsExamplePage's own doc comment for why that matters: no
+// second, docs-only approximation of the chart to drift out of sync).
+// Source uses the current "score[label]:" INLINE grammar only — the
+// format's old pointer-to-a-file form ("score: some.ly") was retired
+// (see song/parse.go's own comment on that line) and is silently
+// dropped by the real parser, so an example written that way would
+// render nothing; every example here is probed against the real parser
+// before being written in (see this session's own probe test).
+type docsScoreExample struct {
+	Source     string // the whole .song document
+	Instrument string // forces attachTabRiffs' instrument-picker choice when a section has more than one melodic voice; "" picks the first
+	Drummer    bool   // render via buildDrumMap (Drummer view) instead of the Song overlay — for a drum-only voice, which never shows in the Song overlay (see attachTabRiffs' pickRiff/firstMelodicRiff)
+}
+
+var docsScoreExamples = map[string]docsScoreExample{
+	// The docs page's second worked example: the Larkin Poe cover's own
+	// intro, written the way a human actually types it today — inline,
+	// no \include/\chordmode/\new TabStaff boilerplate — rather than the
+	// raw legacy .ly file (still a real parser test fixture on its own,
+	// see internal/tab/lyparse_corpus_test.go, just not what this page
+	// should hold up as the thing to type).
+	"riff": {Source: `title: Bad Spell
 artist: Larkin Poe
 time: 4/4
 tempo: 84
 
 [Intro]
 grid: | R | R | R |
-score: riff.ly
-`
+score[guitar]: g,4 <d' g'>8. g,16 bes,8 c d f16 g
+  g,4 <d' g'>8. bes16( c'4) bes8 \tuplet 3/2 { g16 f d } g,4
+`},
+	"bass": {Source: `title: Bass tuning
+time: 4/4
 
-const docsExampleTabLy = `\include "header.ly"
+[Riff]
+grid: | D | D |
+score[bass]: d,4 d d d d d d d
+`},
+	"hammer": {Source: `title: Hammer-on / pull-off
+time: 4/4
 
-\new ChordNames \with {
-  \override BarLine.bar-extent = #'(-2 . 2)
-  \consists "Bar_engraver"
+[Riff]
+grid: | D |
+score[guitar]: \set TabStaff.minimumFret = 3
+  g,4( a,) a, a,
+`},
+	"slide": {Source: `title: Slide
+time: 4/4
+
+[Riff]
+grid: | D |
+score[guitar]: f4~ f8 ees8~ \grace f16( \glissando g8)
+`},
+	"bend": {Source: `title: Bend and palm mute
+time: 4/4
+
+[Riff]
+grid: | E |
+score[guitar]: e8^"full" e8 e8^"PM" e8^"PM" e4
+`},
+	"drum": {Drummer: true, Source: `title: Drum notation
+time: 4/4
+
+[Chorus]
+grid: |: D | % | % | % :|
+score[drum]: bd4 hh8 hh8 sn4 hh8 hh8
+  bd4 hh8 bd8 sn4 hh8 hh8
+`},
+	"multitrack": {Instrument: "bass", Source: `title: Multiple voices
+time: 4/4
+
+[Riff]
+grid: | D |
+score[drum]: bd4 hh8 hh8 sn4 hh8 hh8
+  bd4 hh8 bd8 sn4 hh8 hh8
+score[bass]: d,4 d d d d d d d
+score[guitar-1]: <e, b e>4 <e b e> <e b e> <e b e>
+score[guitar-2]: e'8 g e g e g e g
+`},
+	"mixed": {Source: `title: Mixed voice and grid
+time: 4/4
+
+[Riff]
+grid: | D | D | G | G |
+score[guitar]: <a, d fis>4 <a d fis> <a d fis> <a d fis>
+`},
 }
-
-\new TabStaff {
-   \tabFullNotation
-   \tempo 4 = 84
-   \set TabStaff.minimumFret = 3
-   \set TabStaff.restrainOpenStrings = ##t
-
-   g,4 <d' g'>8. g,16 bes,8 c d f16 g
-   g,4 <d' g'>8. bes16( c'4) bes8 \tuplet 3/2 { g16 f d } g,4
-}
-
-\markup \vspace #1
-`
 
 // handleDocsSongFormatExample serves the docs page's first worked
 // example (a plain chord grid + chord diagrams, no score:) as its own
@@ -274,37 +332,44 @@ const docsExampleTabLy = `\include "header.ly"
 func (s *Server) handleDocsSongFormatExample(w http.ResponseWriter, r *http.Request) {
 	sg := song.Parse(docsExampleSong)
 	sections := buildSections(sg)
-	s.renderDocsExamplePage(w, sg, sections)
+	s.renderDocsExamplePage(w, sg, sections, nil, "normal")
 }
 
-// handleDocsSongFormatExampleTab serves the docs page's SECOND worked
-// example: a section whose chart comes entirely from a real note-level
-// "score:" riff (see docsExampleTabSong/docsExampleTabLy) rather than a
-// chord grid — exercising the exact same tab.ParseScore -> attachTabRiffs
-// -> alphaTab pipeline a real song's score: field goes through
-// (handleSong), just with the riff supplied directly instead of fetched
-// from the store, since this page has no variant/DB row behind it.
-func (s *Server) handleDocsSongFormatExampleTab(w http.ResponseWriter, r *http.Request) {
-	sg := song.Parse(docsExampleTabSong)
-	riff, err := tab.ParseScore(docsExampleTabLy)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+// handleDocsScoreExample serves one of docsScoreExamples (keyed by the
+// "key" path value) as its own tiny standalone page, loaded into a
+// docs/marketing page's <iframe> — one such example per notation
+// feature documented, each a real rendering rather than a hand-drawn
+// approximation.
+func (s *Server) handleDocsScoreExample(w http.ResponseWriter, r *http.Request) {
+	ex, ok := docsScoreExamples[r.PathValue("key")]
+	if !ok {
+		http.NotFound(w, r)
 		return
 	}
+	sg := song.Parse(ex.Source)
 	sections := buildSections(sg)
+	riffs, errs := tab.LoadScores(sg)
+	for _, err := range errs {
+		log.Printf("docs score example %q: %v", r.PathValue("key"), err)
+	}
+	if ex.Drummer {
+		drumMap := buildDrumMap(sections, riffs, atoiOr(orDefault(sg.Get("tempo"), "120"), 120), 0)
+		s.renderDocsExamplePage(w, sg, nil, drumMap, "drummer")
+		return
+	}
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
-	attachTabRiffs(sections, map[int][]tab.NamedRiff{0: {{Name: "guitar", Riff: riff}}}, atoiOr(num, 4), atoiOr(den, 4), "")
-	s.renderDocsExamplePage(w, sg, sections)
+	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), ex.Instrument)
+	s.renderDocsExamplePage(w, sg, sections, nil, "normal")
 }
 
-// renderDocsExamplePage renders sections (already built by the caller,
-// optionally with a score: riff attached) as its own tiny standalone
-// HTML page, loaded into the docs page's <iframe> rather than inlined —
-// so it renders through the exact same app.css and sheet-body template
-// this app's real song page uses (see play.html/handleSong), pixel-
-// identical and never hand-maintained out of sync with it, instead of a
-// second, docs-only approximation of the chart's look (a direct report
-// against an earlier, hand-drawn mock said it looked visibly off).
+// renderDocsExamplePage renders sections and/or drumMap (already built
+// by the caller) as its own tiny standalone HTML page, loaded into a
+// docs/marketing page's <iframe> rather than inlined — so it renders
+// through the exact same app.css and sheet-body template this app's
+// real song page uses (see play.html/handleSong), pixel-identical and
+// never hand-maintained out of sync with it, instead of a second,
+// docs-only approximation of the chart's look (a direct report against
+// an earlier, hand-drawn mock said it looked visibly off).
 // id="sheet" matters, not just class="sheet": the 5-line staff
 // background (app.css's #sheet[data-render-mode="normal"] .bar-body
 // ::before, var(--staff-5lines)) is scoped to that id — omitting it was
@@ -313,12 +378,28 @@ func (s *Server) handleDocsSongFormatExampleTab(w http.ResponseWriter, r *http.R
 // token body itself uses on a real song page — var(--bg-raised) (an
 // earlier version of this function) is the card/content-box tone, not
 // the page background, and visibly whiter than the real page.
-func (s *Server) renderDocsExamplePage(w http.ResponseWriter, sg *song.Song, sections []viewerSection) {
+//
+// The trailing inline script is what actually fixes the iframe's own
+// sizing (a direct report: a riff-covered example clipped mid-staff,
+// showing only its first couple of bars) — the parent page's own
+// onload-time height read (the iframe's own "onload" attribute, docs
+// template) fires once, at DOCUMENT load, which is BEFORE alphaTab's own
+// async render actually finishes mutating the DOM (it loads a ~1.5MB
+// vendored JS library and draws real engraved SVG after that), so a
+// height read at onload time is whatever the page measured before any
+// notation was actually drawn. A ResizeObserver on #sheet, driven from
+// INSIDE this same-origin child page (same origin as the parent docs
+// page, so writing to window.frameElement is allowed), catches every
+// later resize too — not just alphaTab's async render, but any later
+// reflow — so this is the one general fix for every example this
+// function ever serves, not a timing patch for one of them.
+func (s *Server) renderDocsExamplePage(w http.ResponseWriter, sg *song.Song, sections []viewerSection, drumMap []viewerDrumMapRow, mode string) {
 	var body bytes.Buffer
 	if err := webassets.Templates.ExecuteTemplate(&body, "sheet-body", map[string]any{
 		"Sections": sections,
 		"MapLines": buildMapLines(sections),
 		"Chords":   sg.Chords,
+		"DrumMap":  drumMap,
 	}); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -332,17 +413,25 @@ func (s *Server) renderDocsExamplePage(w http.ResponseWriter, sg *song.Song, sec
 <style>html,body{margin:0;background:var(--bg);} main.sheet{padding:16px;}</style>
 </head>
 <body data-mode="view">
-<main class="sheet" id="sheet" data-render-mode="normal" data-key="%s">%s</main>
+<main class="sheet" id="sheet" data-render-mode="%s" data-key="%s">%s</main>
+<script>(function(){
+  var sheet = document.getElementById('sheet');
+  function resize(){ try { if (window.frameElement) window.frameElement.style.height = (document.documentElement.scrollHeight + 4) + 'px'; } catch (e) {} }
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(sheet);
+  window.addEventListener('load', resize);
+  resize();
+})();</script>
 </body>
-%s</html>`, webassets.StaticVersion(), sg.Get("key"), body.String(), docsExampleAlphaTabScripts(sections))
+%s</html>`, webassets.StaticVersion(), mode, sg.Get("key"), body.String(), docsExampleAlphaTabScripts(sections, drumMap))
 }
 
 // docsExampleAlphaTabScripts loads the vendored alphaTab JS the same way
 // play.html does (see its own .HasAlphaTab comment) — only when this
-// particular example actually has a riff-covered row to draw, since the
-// plain chord-grid example never needs the ~1.5MB library at all.
-func docsExampleAlphaTabScripts(sections []viewerSection) template.HTML {
-	if !anyTabOnlyLine(sections) {
+// particular example actually has a riff-covered row (melodic) or a
+// drum map (Drummer view) to draw, since a plain chord-grid example
+// never needs the ~1.5MB library at all.
+func docsExampleAlphaTabScripts(sections []viewerSection, drumMap []viewerDrumMapRow) template.HTML {
+	if !anyTabOnlyLine(sections) && len(drumMap) == 0 {
 		return ""
 	}
 	v := webassets.StaticVersion()

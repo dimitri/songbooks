@@ -110,7 +110,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /guitar-pro", s.optionalPerson(s.handleMarketingGuitarPro))
 	mux.HandleFunc("GET /docs/song-format", s.optionalPerson(s.handleDocsSongFormat))
 	mux.HandleFunc("GET /docs/song-format/example", s.handleDocsSongFormatExample)
-	mux.HandleFunc("GET /docs/song-format/example-tab", s.handleDocsSongFormatExampleTab)
+	mux.HandleFunc("GET /docs/song-format/example/{key}", s.handleDocsScoreExample)
 	mux.HandleFunc("GET /for-educators", s.optionalPerson(s.handleMarketingEducators))
 	mux.HandleFunc("GET /home", s.requireAuth(s.handleIndex))
 

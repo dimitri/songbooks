@@ -37,6 +37,14 @@
   .callout h4 .icon { width:1.1rem; height:1.1rem; flex:none; color:var(--accent); }
   .callout p { margin:0; font-size:13.5px; line-height:1.6; color:var(--fg-muted); }
 
+  /* Real-rendered examples (the exact app.css/alphaTab pipeline, via
+     renderDocsExamplePage — see /docs/song-format's own worked
+     examples) under each "what comes in" callout, not a screenshot or a
+     hand-drawn mock of the chart's look. */
+  .live-examples { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin: 14px 0 0; }
+  .live-examples .example-frame { width:100%; min-height:110px; border:1px solid var(--border); border-radius:10px; background:#fff; }
+  .live-examples .example-caption { font-size:12.5px; color:var(--fg-muted); margin: 6px 2px 0; }
+
   section.block { padding: 48px 0; border-top: 1px solid var(--border); }
   .block h2 { font-family:'Fraunces',serif; font-weight:800; font-size:26px; margin:0 0 10px; letter-spacing:-0.01em; }
   .block .sub { color:var(--fg-muted); font-size:15.5px; max-width:62ch; margin:0 0 28px; }
@@ -64,7 +72,7 @@
   footer { padding:32px 0 48px; color:var(--fg-muted); font-size:13px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
   footer .foot-brand { display:flex; align-items:center; gap:8px; font-family:'Fraunces',serif; font-weight:800; color:var(--fg); }
 
-  @media (max-width: 860px) { .callouts { grid-template-columns:1fr; } }
+  @media (max-width: 860px) { .callouts { grid-template-columns:1fr; } .live-examples { grid-template-columns:1fr; } }
   @media (max-width: 720px) {
     h1{font-size:32px;} .block h2{font-size:22px;}
     header { flex-wrap:wrap; }
@@ -97,6 +105,7 @@
     <nav>
       <a href="/">Home</a>
       <a href="/editor">The editor</a>
+      <a href="/docs/song-format">Format docs</a>
       <a href="/for-educators">For educators</a>
       {{if .Person}}
       <a href="/home" class="btn">My Songbooks</a>
@@ -125,6 +134,21 @@
     <div class="callout">
       <h4>{{template "icon-mode-normal"}} Any number of guitars</h4>
       <p>Rhythm, lead, a second rhythm part &mdash; each guitar track comes in as its own voice, independently viewable, never merged into one.</p>
+    </div>
+  </div>
+
+  <div class="live-examples">
+    <div>
+      <iframe class="example-frame" src="/docs/song-format/example/drum" title="Real rendered drum notation" loading="lazy"></iframe>
+      <p class="example-caption">Drummer view &mdash; real GM percussion notation, chord names floating above it.</p>
+    </div>
+    <div>
+      <iframe class="example-frame" src="/docs/song-format/example/bass" title="Real rendered bass tab" loading="lazy"></iframe>
+      <p class="example-caption">Bass &mdash; real tab, its own tuning, overlaying the chord chart.</p>
+    </div>
+    <div>
+      <iframe class="example-frame" src="/docs/song-format/example/riff" title="Real rendered guitar tab" loading="lazy"></iframe>
+      <p class="example-caption">Guitar &mdash; full notation, not a simplified chord-only version.</p>
     </div>
   </div>
 

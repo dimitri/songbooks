@@ -102,6 +102,7 @@
     <nav>
       <a href="/">Home</a>
       <a href="#import">Importing a song</a>
+      <a href="/guitar-pro">Guitar Pro import</a>
       <a href="/for-educators">For educators</a>
       {{if .Person}}
       <a href="/home" class="btn">My Songbooks</a>
@@ -170,7 +171,14 @@ grid: |: <span class="c">Gm</span> . . <span class="c">Cm</span> | <span class="
       <div class="callout"><h4>From Ultimate Guitar</h4><p>Paste a tab page URL &mdash; the chord-over-lyric text comes in pre-formatted, ready to clean up.</p></div>
       <div class="callout"><h4>From iReal Pro</h4><p>Bring in a song or a whole playlist from an iReal Pro forum link &mdash; chords, structure, and key arrive already split into sections.</p></div>
       <div class="callout"><h4>Always a draft first</h4><p>Nothing imports straight into your songbook unedited &mdash; it lands in the editor so you can fix the inevitable wrong chord before saving.</p></div>
-      <div class="callout" style="grid-column: 1 / -1;"><h4>From Guitar Pro</h4><p>Drop in a <code>.gp</code>/<code>.gp3</code>&ndash;<code>.gpx</code> file and bring in more than chords &mdash; drums, bass, and every guitar track, each kept as its own real notation, automatically mapped onto your song's own sections. <a href="/guitar-pro">See what's supported &rarr;</a></p></div>
+      <div class="callout" style="grid-column: 1 / -1;">
+        <h4>From Guitar Pro</h4>
+        <p style="margin-bottom:14px;">Drop in a <code>.gp</code>/<code>.gp3</code>&ndash;<code>.gpx</code> file and bring in more than chords &mdash; drums, bass, and every guitar track, each kept as its own real notation (not a generic placeholder), automatically mapped onto your song's own sections, with the file's own embedded backing-track MP3 along with it if you want it. <a href="/guitar-pro">See what's supported &rarr;</a></p>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+          <iframe src="/docs/song-format/example/drum" title="Real rendered drum notation" loading="lazy" style="width:100%; min-height:110px; border:1px solid var(--border); border-radius:10px; background:#fff;"></iframe>
+          <iframe src="/docs/song-format/example/bass" title="Real rendered bass tab" loading="lazy" style="width:100%; min-height:110px; border:1px solid var(--border); border-radius:10px; background:#fff;"></iframe>
+        </div>
+      </div>
     </div>
   </section>
 

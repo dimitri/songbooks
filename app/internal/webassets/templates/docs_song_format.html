@@ -56,6 +56,15 @@
   .worked-example > div { flex: 1 1 340px; min-width: 0; }
   .worked-example pre { margin:0; max-width:none; }
   .example-frame { width:100%; border:1px solid var(--border); border-radius:10px; background:#fff; }
+
+  /* Smaller inline "see it rendered" example dropped right under a
+     score-grammar subsection's own code snippet — same real iframe
+     mechanism as the two worked examples up top (renderDocsExamplePage),
+     just sized for a one-line riff rather than a whole song. */
+  .mini-example { display:flex; gap:16px; flex-wrap:wrap; margin: 10px 0 22px; align-items:flex-start; }
+  .mini-example > div { flex: 1 1 260px; min-width: 0; }
+  .mini-example pre { margin:0; max-width:none; }
+  .mini-example .example-frame { min-height: 90px; }
 </style>
 </head>
 <body>
@@ -77,6 +86,7 @@
     <nav>
       <a href="/">Home</a>
       <a href="/editor">The editor</a>
+      <a href="/guitar-pro">Guitar Pro import</a>
       {{if .Person}}<a href="/home" class="btn">My Songbooks</a>{{else}}<a href="/login" class="btn">Sign in</a>{{end}}
     </nav>
   </header>
@@ -135,7 +145,7 @@ The [Am]one that makes me [F]scream, she said</code></pre>
                from what a real song page shows. Same-origin, so the
                inline script below can read its content height and size
                the iframe to it instead of guessing a fixed height. */}}
-          <iframe class="example-frame" src="/docs/song-format/example" title="Rendered example" loading="lazy" onload="this.style.height=(this.contentDocument.documentElement.scrollHeight+4)+'px'"></iframe>
+          <iframe class="example-frame" src="/docs/song-format/example" title="Rendered example" loading="lazy"></iframe>
         </div>
       </div>
       <p class="hint">That's a whole playable song: a header (only <code>title</code> is required) with four <code>chord:</code> diagrams, one section with a four-bar chord grid, and lyrics with inline <code>[Chord]</code> markers. Everything below adds optional depth on top of this same shape — more header fields, more section fields, multi-chord bars, repeats, and real note-level tab/staff notation in place of the plain chord-over-slash grid, like this real riff:</p>
@@ -150,29 +160,12 @@ tempo: 84
 
 [Intro]
 grid: | R | R | R |
-score: riff.ly</code></pre>
-          <p class="hint" style="margin-top:10px;"><code>riff.ly</code>, real LilyPond source from this app's own legacy corpus (unedited — <code>\include</code>/<code>\chordmode</code> noise and all, see <a href="#score">Note-level scores</a> below for the subset this parses):</p>
-          <pre><code>\include "header.ly"
-
-\new ChordNames \with {
-  \override BarLine.bar-extent = #'(-2 . 2)
-  \consists "Bar_engraver"
-}
-
-\new TabStaff {
-   \tabFullNotation
-   \tempo 4 = 84
-   \set TabStaff.minimumFret = 3
-   \set TabStaff.restrainOpenStrings = ##t
-
-   g,4 &lt;d' g'&gt;8. g,16 bes,8 c d f16 g
-   g,4 &lt;d' g'&gt;8. bes16( c'4) bes8 \tuplet 3/2 { g16 f d } g,4
-}
-
-\markup \vspace #1</code></pre>
+score[guitar]: g,4 &lt;d' g'&gt;8. g,16 bes,8 c d f16 g
+  g,4 &lt;d' g'&gt;8. bes16( c'4) bes8 \tuplet 3/2 { g16 f d } g,4</code></pre>
+          <p class="hint" style="margin-top:10px;">Real LilyPond source, note for note, from this app's own legacy corpus (<code>Mercy/bad-spell/intro.ly</code>) — just written the way a <code>score[label]:</code> block actually holds it: inline, right in the <code>.song</code> file, no <code>\include</code>/<code>\chordmode</code>/<code>\new TabStaff</code> boilerplate to copy in first. See <a href="#score">Note-level scores</a> below for the full subset this parses.</p>
         </div>
         <div>
-          <iframe class="example-frame" src="/docs/song-format/example-tab" title="Rendered tab example" loading="lazy" onload="this.style.height=(this.contentDocument.documentElement.scrollHeight+4)+'px'"></iframe>
+          <iframe class="example-frame" src="/docs/song-format/example/riff" title="Rendered tab example" loading="lazy"></iframe>
         </div>
       </div>
 
@@ -274,10 +267,14 @@ chord: Ab 8:X4312X</code></pre>
           <tr><td><code>\tuplet 3/2 { g16 f d }</code></td><td>A triplet (or any N-in-the-time-of-M grouping).</td></tr>
           <tr><td><code>\relative { ... }</code></td><td>Wraps a passage in relative-pitch mode. Riffs may also be written in plain absolute pitch with no wrapper.</td></tr>
         </table>
+        <p class="hint">See it rendered in the "Bad Spell" riff above.</p>
 
         <h3 id="score-tuning">Tuning &amp; frets</h3>
         <p>Fret and string numbers are never written explicitly — they're computed the same way real LilyPond does, from the written pitch, the tuning, and the minimum-fret preference. The label itself picks the default tuning, so the common case needs no boilerplate at all:</p>
-        <pre><code>score[bass]: d,4 d d d d d d d</code></pre>
+        <div class="mini-example">
+          <div><pre><code>score[bass]: d,4 d d d d d d d</code></pre></div>
+          <div><iframe class="example-frame" src="/docs/song-format/example/bass" title="Rendered bass example" loading="lazy"></iframe></div>
+        </div>
         <p><code>bass</code> gets standard 4-string bass tuning; any other label (a custom name like <code>guitar-1</code>, or no label at all) gets standard 6-string guitar. A bare sequence like that is read in absolute pitch — real LilyPond's own default absent a <code>\relative</code> wrapper. For anything the shortcut can't express (an unusual tuning, an explicit minimum fret), fall back to the full form, same as the guitar example above:</p>
         <pre><code>score[bass]: \new TabStaff \with { stringTunings = #bass-tuning } {
   \set TabStaff.minimumFret = 7
@@ -287,11 +284,18 @@ chord: Ab 8:X4312X</code></pre>
 
         <h3 id="score-hammer">Hammer-on / pull-off</h3>
         <p>A real LilyPond slur across two notes, on a tab staff, is how a hammer-on (ascending) or pull-off (descending) is written — the direction (and the printed "H"/"P" letter) is worked out automatically from the two pitches:</p>
-        <pre><code>g,( a,) a, a,</code></pre>
+        <div class="mini-example">
+          <div><pre><code>score[guitar]: \set TabStaff.minimumFret = 3
+  g,4( a,) a, a,</code></pre></div>
+          <div><iframe class="example-frame" src="/docs/song-format/example/hammer" title="Rendered hammer-on example" loading="lazy"></iframe></div>
+        </div>
 
         <h3 id="score-slide">Slides</h3>
         <p>A grace note slurred-and-glissando'd into the main note is a slide — the grace note's own duration doesn't matter (it borrows time), only its pitch:</p>
-        <pre><code>f~ f8 ees8~ \grace f16( \glissando g8)</code></pre>
+        <div class="mini-example">
+          <div><pre><code>score[guitar]: f4~ f8 ees8~ \grace f16( \glissando g8)</code></pre></div>
+          <div><iframe class="example-frame" src="/docs/song-format/example/slide" title="Rendered slide example" loading="lazy"></iframe></div>
+        </div>
 
         <h3 id="score-bend">Bends &amp; palm mute</h3>
         <p class="callout">This part of the grammar is this app's own addition — it doesn't appear in real LilyPond. It's for a riff you type or paste in by hand; the <a href="/guitar-pro">Guitar Pro importer</a> doesn't go through this text form at all — a GP file's own bend amount and palm-mute flag land as plain data on the imported riff directly, so an imported bend and a hand-typed <code>^"full"</code> end up meaning the exact same thing underneath, just reaching it by two different doors. This syntax reuses LilyPond's own genuine text-articulation form (<code>note^"label"</code>) rather than inventing a new token.</p>
@@ -303,22 +307,21 @@ chord: Ab 8:X4312X</code></pre>
           <tr><td><code>^"full (release)"</code></td><td>Bends up, then releases back down before the beat ends.</td></tr>
           <tr><td><code>^"PM"</code> / <code>^"P.M."</code></td><td>Palm mute. Consecutive muted notes draw one "P.M." label with a dashed line, not one label per note.</td></tr>
         </table>
-        <pre><code>e8^"full" e8 e8^"PM" e8^"PM" e4</code></pre>
+        <div class="mini-example">
+          <div><pre><code>score[guitar]: e8^"full" e8 e8^"PM" e8^"PM" e4</code></pre></div>
+          <div><iframe class="example-frame" src="/docs/song-format/example/bend" title="Rendered bend example" loading="lazy"></iframe></div>
+        </div>
 
         <h3 id="score-drums">Drum notation</h3>
-        <p>Real LilyPond's own percussion grammar — no fret or string numbers, just a fixed vocabulary of drum-piece names and the same duration syntax as above. The <code>drum</code> (or <code>drums</code>) label goes straight to the content, no <code>\new DrumStaff</code>/<code>\drummode</code> boilerplate needed. Written alongside a <code>grid:</code>, the section's chord names float above the drum staff's own bars (first beat of each bar only), exactly like a real chart hands a drummer the changes without asking them to read a chord grid:</p>
-        <pre><code>[Chorus]
+        <p>Real LilyPond's own percussion grammar — no fret or string numbers, just a fixed vocabulary of drum-piece names and the same duration syntax as above. The <code>drum</code> (or <code>drums</code>) label goes straight to the content: no <code>\new DrumStaff</code>, no <code>\drummode</code> — those are implicit in a <code>score[drum]:</code> block, never written out by hand. Written alongside a <code>grid:</code>, the section's chord names float above the drum staff's own bars (first beat of each bar only), exactly like a real chart hands a drummer the changes without asking them to read a chord grid:</p>
+        <div class="mini-example">
+          <div><pre><code>[Chorus]
 grid: |: D | % | % | % :|
 score[drum]: bd4 hh8 hh8 sn4 hh8 hh8
-  bd4 hh8 bd8 sn4 hh8 hh8</code></pre>
+  bd4 hh8 bd8 sn4 hh8 hh8</code></pre></div>
+          <div><iframe class="example-frame" src="/docs/song-format/example/drum" title="Rendered drum notation example" loading="lazy"></iframe></div>
+        </div>
         <p class="hint">That's a "D" over bar 1, nothing on the bars after it — same convention a real chord-grid row uses (a chord only prints again when it actually changes).</p>
-        <p>The full form still works, for consistency with the other voices or when pasting in real LilyPond as-is:</p>
-        <pre><code>score[drum]: \new DrumStaff {
-  \drummode {
-    bd4 hh8 hh8 sn4 hh8 hh8
-    bd4 hh8 bd8 sn4 hh8 hh8
-  }
-}</code></pre>
         <table>
           <tr><th>Name</th><th>Drum piece</th></tr>
           <tr><td><code>bd</code></td><td>Bass drum (kick)</td></tr>
@@ -338,12 +341,15 @@ score[drum]: bd4 hh8 hh8 sn4 hh8 hh8
 
         <h3 id="score-multitrack">Multiple voices (drums, bass, guitars...)</h3>
         <p>A section can carry several <code>score[label]:</code> blocks side by side — one per instrument, each edited and previewed on its own:</p>
-        <pre><code>score[drum]: bd4 hh8 hh8 sn4 hh8 hh8
+        <div class="mini-example">
+          <div><pre><code>score[drum]: bd4 hh8 hh8 sn4 hh8 hh8
   bd4 hh8 bd8 sn4 hh8 hh8
 score[bass]: d,4 d d d d d d d
 score[guitar-1]: &lt;e, b e&gt;4 &lt;e b e&gt; &lt;e b e&gt; &lt;e b e&gt;
-score[guitar-2]: e'8 g e g e g e g</code></pre>
-        <p class="hint">These voices show up two ways. A section with exactly ONE melodic (non-drum) voice has it overlay the chord chart automatically — the common case for a hand-written riff. A section with SEVERAL (a full Guitar Pro import, typically) keeps the chart as pure chords instead of guessing, and a reader picks which one's full notation to see from the instrument picker beside the view-mode tabs (Song and Song map both read the same choice; pick "Chords" to go back to the plain grid). <code>drum</code> never goes through that picker — Drummer view shows it on its own, continuously across the whole song. Every voice is preserved and live-previewed in Source regardless of which one is currently showing elsewhere.</p>
+score[guitar-2]: e'8 g e g e g e g</code></pre></div>
+          <div><iframe class="example-frame" src="/docs/song-format/example/multitrack" title="Rendered multi-voice example" loading="lazy"></iframe></div>
+        </div>
+        <p class="hint">These voices show up two ways. A section with exactly ONE melodic (non-drum) voice has it overlay the chord chart automatically — the common case for a hand-written riff. A section with SEVERAL (a full Guitar Pro import, typically) keeps the chart as pure chords instead of guessing, and a reader picks which one's full notation to see from the instrument picker beside the view-mode tabs (Song and Song map both read the same choice; pick "Chords" to go back to the plain grid) — the render above picks <code>bass</code> for illustration, since a real reader would make that same choice from the picker. <code>drum</code> never goes through that picker — Drummer view shows it on its own, continuously across the whole song. Every voice is preserved and live-previewed in Source regardless of which one is currently showing elsewhere.</p>
 
         <h3 id="score-mixed">Mixing a melodic voice with the chord grid</h3>
         <p>A melodic voice (bass, guitar) and the section's own <code>grid:</code> describe the <em>same bars</em> two ways — the voice is the detailed notation, the grid is the chord changes. They don't need to agree on every bar:</p>
@@ -352,12 +358,18 @@ score[guitar-2]: e'8 g e g e g e g</code></pre>
           <li>If only some bars in a row have riff data, those bars show the riff as a smaller overlay above their own normal chord-grid bar — "detailed here, plain changes there," on the <em>same</em> line.</li>
           <li>A later row with no riff data at all for any of its bars prints as an ordinary chord-grid row — the chart naturally switches back to plain changes on the next line.</li>
         </ul>
-        <p class="hint">In other words: an intro with a real riff and a verse that's just chord changes can sit in the same section-less chart, each rendered the way it actually has data for — no separate toggle needed anywhere. A drum voice doesn't follow this rule — see above.</p>
+        <div class="mini-example">
+          <div><pre><code>grid: | D | D | G | G |
+score[guitar]: &lt;a, d fis&gt;4 &lt;a d fis&gt; &lt;a d fis&gt; &lt;a d fis&gt;</code></pre></div>
+          <div><iframe class="example-frame" src="/docs/song-format/example/mixed" title="Rendered mixed voice/grid example" loading="lazy"></iframe></div>
+        </div>
+        <p class="hint">Only the first bar has riff data here, so just that bar prints as real notation — the rest of the row stays a plain chord-grid bar, same row. An intro with a real riff and a verse that's just chord changes can likewise sit in the same section-less chart, each rendered the way it actually has data for — no separate toggle needed anywhere. A drum voice doesn't follow this rule — see above.</p>
       </section>
 
       <section id="rendering">
         <h2>How it renders</h2>
         <p>Chord-grid rows render as HTML/CSS in the browser and as pure-Go vector drawing in the PDF export — no shared third-party engine. A fully riff-covered row renders differently per target: on the web it's handed to a vendored copy of <a href="https://www.alphatab.net/" target="_blank" rel="noopener">alphaTab</a> as real engraved notation (proper stems, beams, hammer-on/pull-off slurs, bends); in the PDF export it's drawn by this app's own native tab engraver, built from the same real engraving proportions (stem length, beam thickness, logarithmic note spacing) rather than guessed numbers.</p>
+        <p>A song can also carry real reference audio alongside its notation — not a file attached separately, but an MP3 stored against the song itself and played back right from the page: a YouTube reference, a band's own recording, or (most relevant here) a Guitar Pro file's own embedded backing track, carried in by the <a href="/guitar-pro">Guitar Pro importer</a> with the same bar sync the imported notation uses, so playback and the chart stay lined up as you listen.</p>
       </section>
     </main>
   </div>
