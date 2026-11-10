@@ -1299,8 +1299,15 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    straight to the single alphaTab mount. Confirmed live: a GP-imported
    song (one giant tab-only section, no lyrics/sections of its own) had
    a completely empty Jazz chart and Song Map — not a rendering bug,
-   nothing was ever emitted for those modes to show. */
-#sheet:not([data-render-mode="normal"]) .alphatab-row { display: none; }
+   nothing was ever emitted for those modes to show. Scoped to
+   .sheet-section (where this melodic overlay actually lives), NOT a
+   bare ".alphatab-row" — Drummer view's own rows (.drum-map, a sibling
+   of .sheet-section, never inside one) carry that same class for an
+   unrelated reason and must stay visible in "drummer" mode specifically,
+   which this rule's un-scoped first version blocked outright (confirmed
+   live at merge time: a bare selector here hid every Drummer row too,
+   leaving only its section labels on screen). */
+#sheet:not([data-render-mode="normal"]) .sheet-section .alphatab-row { display: none; }
 #sheet[data-render-mode="normal"] .tab-only-chords-fallback { display: none; }
 /* Same base layout .staff-line itself declares (flex row, bars aligned
    to the baseline, room above for a chord label) — deliberately
