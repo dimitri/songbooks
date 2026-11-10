@@ -166,7 +166,7 @@ func (st *Store) ListBandsForPerson(ctx context.Context, personID int64) ([]Band
 	rows, err := st.db.Query(ctx, `
 		SELECT DISTINCT b.id, b.name, b.created_at
 		FROM bands b JOIN band_members m ON m.band_id = b.id
-		WHERE m.person_id = $1 AND m.left_at IS NULL
+		WHERE m.person_id = $1 AND upper_inf(m.validity)
 		ORDER BY b.name`, personID)
 	if err != nil {
 		return nil, err
@@ -229,7 +229,7 @@ func (st *Store) IsCurrentBandMember(ctx context.Context, bandID, personID int64
 func isCurrentBandMember(ctx context.Context, q dbtx, bandID, personID int64) (bool, error) {
 	var ok bool
 	err := q.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM band_members WHERE band_id = $1 AND person_id = $2 AND left_at IS NULL)`,
+		SELECT EXISTS(SELECT 1 FROM band_members WHERE band_id = $1 AND person_id = $2 AND upper_inf(validity))`,
 		bandID, personID).Scan(&ok)
 	return ok, err
 }
@@ -243,7 +243,7 @@ func (st *Store) IsCurrentBandCore(ctx context.Context, bandID, personID int64) 
 	var ok bool
 	err := st.db.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM band_members
-		              WHERE band_id = $1 AND person_id = $2 AND left_at IS NULL AND status = 'core')`,
+		              WHERE band_id = $1 AND person_id = $2 AND upper_inf(validity) AND status = 'core')`,
 		bandID, personID).Scan(&ok)
 	return ok, err
 }
@@ -254,15 +254,16 @@ func (st *Store) IsCurrentBandCore(ctx context.Context, bandID, personID int64) 
 func (st *Store) ListBandMembers(ctx context.Context, bandID int64, includePast bool) ([]BandMember, error) {
 	q := `
 		SELECT m.id, m.band_id, m.person_id, p.username, p.display_name, m.status::text,
-		       m.joined_at, m.left_at, m.invited_by_person_id, coalesce(ip.username, ''), p.instruments
+		       lower(m.validity), CASE WHEN upper_inf(m.validity) THEN NULL ELSE upper(m.validity) END,
+		       m.invited_by_person_id, coalesce(ip.username, ''), p.instruments
 		FROM band_members m
 		JOIN people p ON p.id = m.person_id
 		LEFT JOIN people ip ON ip.id = m.invited_by_person_id
 		WHERE m.band_id = $1`
 	if !includePast {
-		q += ` AND m.left_at IS NULL`
+		q += ` AND upper_inf(m.validity)`
 	}
-	q += ` ORDER BY m.joined_at DESC, m.id DESC`
+	q += ` ORDER BY lower(m.validity) DESC, m.id DESC`
 	rows, err := st.db.Query(ctx, q, bandID)
 	if err != nil {
 		return nil, err
@@ -285,6 +286,13 @@ func (st *Store) ListBandMembers(ctx context.Context, bandID int64, includePast 
 // reuse of a past one even if personID left and is rejoining (see
 // migration 0010's comment). Errors if personID is already a current
 // member of the band.
+//
+// If bandID is currently linked to any community (see
+// LinkBandToCommunity/migration 0060), personID is also granted
+// ordinary individual membership in every one of those communities
+// (see ensureCommunityMembershipForBandMember) — the "auto-join"
+// decision: band membership in a JamSpace-linked band always implies
+// community membership, with no pending-invite step.
 func (st *Store) AddBandMember(ctx context.Context, bandID, personID int64, status string, invitedByPersonID int64) (int64, error) {
 	if status != "core" && status != "guest" {
 		return 0, fmt.Errorf("invalid band member status %q", status)
@@ -323,6 +331,35 @@ func (st *Store) AddBandMember(ctx context.Context, bandID, personID int64, stat
 		return 0, err
 	}
 
+	// Lock bandID's current community links so a concurrent
+	// UnlinkBandFromCommunity can't slip in between this SELECT and the
+	// membership grants it drives below — the same race LinkBandToCommunity
+	// guards against in the other direction (community_bands.go).
+	linkRows, err := tx.Query(ctx, `
+		SELECT community_id FROM community_band_members WHERE band_id = $1 AND upper_inf(validity) FOR UPDATE`, bandID)
+	if err != nil {
+		return 0, err
+	}
+	var linkedCommunityIDs []int64
+	for linkRows.Next() {
+		var communityID int64
+		if err := linkRows.Scan(&communityID); err != nil {
+			linkRows.Close()
+			return 0, err
+		}
+		linkedCommunityIDs = append(linkedCommunityIDs, communityID)
+	}
+	if err := linkRows.Err(); err != nil {
+		return 0, err
+	}
+	linkRows.Close()
+
+	for _, communityID := range linkedCommunityIDs {
+		if err := ensureCommunityMembershipForBandMember(ctx, tx, communityID, personID, bandID); err != nil {
+			return 0, err
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return 0, err
 	}
@@ -350,7 +387,7 @@ func (st *Store) RemoveBandMember(ctx context.Context, bandID, personID, actorPe
 		return err
 	}
 
-	if _, err := tx.Exec(ctx, `UPDATE band_members SET left_at = now() WHERE id = $1`, row.ID); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE band_members SET validity = tstzrange(lower(validity), now()) WHERE id = $1`, row.ID); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -405,8 +442,9 @@ func (row currentMembershipRow) snapshot() BandMemberSnapshot {
 func lockCurrentMembership(ctx context.Context, tx pgx.Tx, bandID, personID int64) (currentMembershipRow, error) {
 	var row currentMembershipRow
 	err := tx.QueryRow(ctx, `
-		SELECT id, band_id, person_id, status::text, joined_at, left_at, invited_by_person_id
-		FROM band_members WHERE band_id = $1 AND person_id = $2 AND left_at IS NULL
+		SELECT id, band_id, person_id, status::text, lower(validity),
+		       CASE WHEN upper_inf(validity) THEN NULL ELSE upper(validity) END, invited_by_person_id
+		FROM band_members WHERE band_id = $1 AND person_id = $2 AND upper_inf(validity)
 		FOR UPDATE`, bandID, personID).
 		Scan(&row.ID, &row.BandID, &row.PersonID, &row.Status, &row.JoinedAt, &row.LeftAt, &row.InvitedByPersonID)
 	if errors.Is(err, pgx.ErrNoRows) {

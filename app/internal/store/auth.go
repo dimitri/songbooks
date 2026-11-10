@@ -585,13 +585,13 @@ func (st *Store) GetPersonMemberships(ctx context.Context, personID int64) ([]Pe
 	rows, err := st.db.Query(ctx, `
 		SELECT 'band', b.id, b.name, bm.status::text
 		FROM band_members bm JOIN bands b ON b.id = bm.band_id
-		WHERE bm.person_id = $1 AND bm.left_at IS NULL
+		WHERE bm.person_id = $1 AND upper_inf(bm.validity)
 		UNION ALL
 		SELECT 'community', sc.id, sc.name, cr.name
 		FROM community_members sm
 		JOIN communities sc ON sc.id = sm.community_id
 		JOIN community_roles cr ON cr.id = sm.role_id
-		WHERE sm.person_id = $1 AND sm.left_at IS NULL
+		WHERE sm.person_id = $1 AND upper_inf(sm.validity)
 		ORDER BY 1, 3`, personID)
 	if err != nil {
 		return nil, err
@@ -679,14 +679,14 @@ func (st *Store) ListShellPeople(ctx context.Context) ([]ShellPersonRow, error) 
 // of this app's band pages already follow.
 func (st *Store) ListShellPeopleForBand(ctx context.Context, bandID int64) ([]ShellPersonRow, error) {
 	return st.listShellPeople(ctx, fmt.Sprintf(
-		"p.id IN (SELECT person_id FROM band_members WHERE band_id = %d AND left_at IS NULL)", bandID))
+		"p.id IN (SELECT person_id FROM band_members WHERE band_id = %d AND upper_inf(validity))", bandID))
 }
 
 // ListShellPeopleForCommunity is ListShellPeopleForBand's community/community
 // counterpart — the community admin page's own "pending" section.
 func (st *Store) ListShellPeopleForCommunity(ctx context.Context, communityID int64) ([]ShellPersonRow, error) {
 	return st.listShellPeople(ctx, fmt.Sprintf(
-		"p.id IN (SELECT person_id FROM community_members WHERE community_id = %d AND left_at IS NULL)", communityID))
+		"p.id IN (SELECT person_id FROM community_members WHERE community_id = %d AND upper_inf(validity))", communityID))
 }
 
 func (st *Store) listShellPeople(ctx context.Context, memberOfSQL string) ([]ShellPersonRow, error) {

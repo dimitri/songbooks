@@ -44,6 +44,14 @@ type CommunityMember struct {
 	LeftAt            *time.Time
 	InvitedByPersonID *int64
 	InvitedByUsername string
+	// JoinedViaBandID/JoinedViaBandName: non-nil when this stint was
+	// granted automatically because the person joined a band linked to
+	// this community (see community_bands.go's
+	// ensureCommunityMembershipForBandMember) rather than joined
+	// directly. Nil forever after, even if that band later unlinks or
+	// the person leaves it — see migration 0060's doc comment.
+	JoinedViaBandID   *int64
+	JoinedViaBandName string
 }
 
 // IsCurrent reports whether m is an active (not left) membership row.
@@ -158,8 +166,8 @@ type CommunityAdminRow struct {
 func (st *Store) ListAllCommunitiesWithCounts(ctx context.Context) ([]CommunityAdminRow, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT sc.id, sc.name, sc.created_at,
-		       count(*) FILTER (WHERE cr.builtin_key = 'staff' AND sm.left_at IS NULL),
-		       count(*) FILTER (WHERE cr.builtin_key != 'staff' AND sm.left_at IS NULL)
+		       count(*) FILTER (WHERE cr.builtin_key = 'staff' AND upper_inf(sm.validity)),
+		       count(*) FILTER (WHERE cr.builtin_key != 'staff' AND upper_inf(sm.validity))
 		FROM communities sc
 		LEFT JOIN community_members sm ON sm.community_id = sc.id
 		LEFT JOIN community_roles cr ON cr.id = sm.role_id
@@ -184,7 +192,7 @@ func (st *Store) ListCommunitiesForPerson(ctx context.Context, personID int64) (
 	rows, err := st.db.Query(ctx, `
 		SELECT DISTINCT sc.id, sc.name, sc.created_at
 		FROM communities sc JOIN community_members m ON m.community_id = sc.id
-		WHERE m.person_id = $1 AND m.left_at IS NULL
+		WHERE m.person_id = $1 AND upper_inf(m.validity)
 		ORDER BY sc.name`, personID)
 	if err != nil {
 		return nil, err
@@ -219,10 +227,10 @@ type CommunityCardRow struct {
 func (st *Store) ListCommunityCardsForPerson(ctx context.Context, personID int64) ([]CommunityCardRow, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT sc.id, sc.name, my_role.name,
-		       count(DISTINCT cm.person_id) FILTER (WHERE cm.left_at IS NULL),
+		       count(DISTINCT cm.person_id) FILTER (WHERE upper_inf(cm.validity)),
 		       count(DISTINCT se.variant_id)
 		FROM communities sc
-		JOIN community_members my ON my.community_id = sc.id AND my.person_id = $1 AND my.left_at IS NULL
+		JOIN community_members my ON my.community_id = sc.id AND my.person_id = $1 AND upper_inf(my.validity)
 		JOIN community_roles my_role ON my_role.id = my.role_id
 		LEFT JOIN community_members cm ON cm.community_id = sc.id
 		LEFT JOIN songbooks sb ON sb.owner_community_id = sc.id AND sb.is_default
@@ -273,7 +281,7 @@ func isCurrentCommunityMember(ctx context.Context, q dbtx, communityID, personID
 	err := q.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM community_members cm
 		              JOIN community_roles cr ON cr.id = cm.role_id
-		              WHERE cm.community_id = $1 AND cm.person_id = $2 AND cm.left_at IS NULL
+		              WHERE cm.community_id = $1 AND cm.person_id = $2 AND upper_inf(cm.validity)
 		                AND ($3 = '' OR cr.builtin_key = $3))`,
 		communityID, personID, builtinKey).Scan(&ok)
 	return ok, err
@@ -285,16 +293,18 @@ func isCurrentCommunityMember(ctx context.Context, q dbtx, communityID, personID
 func (st *Store) ListCommunityMembers(ctx context.Context, communityID int64, includePast bool) ([]CommunityMember, error) {
 	q := `
 		SELECT m.id, m.community_id, m.person_id, p.username, p.display_name, m.role_id, cr.name,
-		       m.joined_at, m.left_at, m.invited_by_person_id, coalesce(ip.username, '')
+		       lower(m.validity), CASE WHEN upper_inf(m.validity) THEN NULL ELSE upper(m.validity) END,
+		       m.invited_by_person_id, coalesce(ip.username, ''), m.joined_via_band_id, coalesce(vb.name, '')
 		FROM community_members m
 		JOIN people p ON p.id = m.person_id
 		JOIN community_roles cr ON cr.id = m.role_id
 		LEFT JOIN people ip ON ip.id = m.invited_by_person_id
+		LEFT JOIN bands vb ON vb.id = m.joined_via_band_id
 		WHERE m.community_id = $1`
 	if !includePast {
-		q += ` AND m.left_at IS NULL`
+		q += ` AND upper_inf(m.validity)`
 	}
-	q += ` ORDER BY m.joined_at DESC, m.id DESC`
+	q += ` ORDER BY lower(m.validity) DESC, m.id DESC`
 	rows, err := st.db.Query(ctx, q, communityID)
 	if err != nil {
 		return nil, err
@@ -304,7 +314,7 @@ func (st *Store) ListCommunityMembers(ctx context.Context, communityID int64, in
 	for rows.Next() {
 		var m CommunityMember
 		if err := rows.Scan(&m.ID, &m.CommunityID, &m.PersonID, &m.Username, &m.DisplayName, &m.RoleID, &m.Role,
-			&m.JoinedAt, &m.LeftAt, &m.InvitedByPersonID, &m.InvitedByUsername); err != nil {
+			&m.JoinedAt, &m.LeftAt, &m.InvitedByPersonID, &m.InvitedByUsername, &m.JoinedViaBandID, &m.JoinedViaBandName); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
@@ -389,7 +399,7 @@ func (st *Store) RemoveCommunityMember(ctx context.Context, communityID, personI
 		}
 	}
 
-	if _, err := tx.Exec(ctx, `UPDATE community_members SET left_at = now() WHERE id = $1`, row.ID); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE community_members SET validity = tstzrange(lower(validity), now()) WHERE id = $1`, row.ID); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -451,7 +461,7 @@ func requireAnotherManager(ctx context.Context, tx pgx.Tx, communityID, exceptPe
 		SELECT EXISTS(
 			SELECT 1 FROM community_members cm
 			JOIN community_role_privileges crp ON crp.role_id = cm.role_id
-			WHERE cm.community_id = $1 AND cm.left_at IS NULL AND cm.person_id != $2
+			WHERE cm.community_id = $1 AND upper_inf(cm.validity) AND cm.person_id != $2
 			  AND crp.privilege = $3)`,
 		communityID, exceptPersonID, PrivManageMembers).Scan(&ok)
 	if err != nil {
@@ -477,7 +487,7 @@ func lockCurrentCommunityMembership(ctx context.Context, tx pgx.Tx, communityID,
 	var row currentCommunityMembershipRow
 	err := tx.QueryRow(ctx, `
 		SELECT id, community_id, person_id, role_id
-		FROM community_members WHERE community_id = $1 AND person_id = $2 AND left_at IS NULL
+		FROM community_members WHERE community_id = $1 AND person_id = $2 AND upper_inf(validity)
 		FOR UPDATE`, communityID, personID).
 		Scan(&row.ID, &row.CommunityID, &row.PersonID, &row.RoleID)
 	if errors.Is(err, pgx.ErrNoRows) {

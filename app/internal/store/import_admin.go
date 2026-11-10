@@ -41,7 +41,7 @@ func (st *Store) SetMemberLeftAt(ctx context.Context, kind string, groupID, pers
 	default:
 		return ErrNotFound
 	}
-	_, err := st.db.Exec(ctx, `UPDATE `+table+` SET left_at = $1::timestamptz WHERE `+col+` = $2 AND person_id = $3 AND left_at IS NULL`,
+	_, err := st.db.Exec(ctx, `UPDATE `+table+` SET validity = tstzrange(lower(validity), $1::timestamptz) WHERE `+col+` = $2 AND person_id = $3 AND upper_inf(validity)`,
 		leftAt, groupID, personID)
 	return err
 }
