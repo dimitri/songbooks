@@ -177,11 +177,35 @@
       resizeGuard._t = setTimeout(() => {
         if (hadContent && !container.querySelector('svg text')) {
           resizeGuard.disconnect();
+          clearInterval(pollGuard);
           recover();
         }
       }, 600 * Math.pow(2, attemptNum - 1));
     });
     resizeGuard.observe(container);
+
+    // pollGuard: a second, trigger-AGNOSTIC safety net alongside
+    // resizeGuard above. Confirmed this session (a second screen
+    // recording, after shipping the resize-based recovery): the chart
+    // went blank and then stayed blank for the full several-second
+    // clip with NO sign of any retry attempt ever firing — meaning
+    // resizeGuard's own ResizeObserver, which only watches THIS
+    // container's own box, never fired at all for whatever actually
+    // caused this. Rather than keep guessing at the exact DOM event
+    // responsible (two guesses — player.scrollMode, then a
+    // container-resize — have both been wrong, or at least incomplete),
+    // this just polls plainly: once a row has shown real content, check
+    // every 1.5s whether it's still there, independent of any specific
+    // event. Guaranteed to catch the problem within 1.5s of it
+    // happening no matter what causes it, at the cost of a trivial,
+    // infrequent DOM query while content is healthy.
+    const pollGuard = setInterval(() => {
+      if (!hadContent) return;
+      if (container.querySelector('svg text')) return;
+      clearInterval(pollGuard);
+      resizeGuard.disconnect();
+      recover();
+    }, 1500);
 
     const api = new alphaTab.AlphaTabApi(container, settings);
     api.renderFinished.on(() => pollForChordFix(container, tex, 0, () => {
@@ -203,6 +227,8 @@
     api.renderFinished.on(() => { finished = true; });
     setTimeout(() => {
       if (finished || container.querySelector('svg text')) return;
+      clearInterval(pollGuard);
+      resizeGuard.disconnect();
       recover();
     }, 8000);
   }
