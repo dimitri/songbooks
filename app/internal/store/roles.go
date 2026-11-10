@@ -219,7 +219,7 @@ func (st *Store) DeleteCommunityRole(ctx context.Context, roleID int64) error {
 	var inUse bool
 	err := st.db.QueryRow(ctx, `
 		SELECT builtin_key IS NOT NULL,
-		       EXISTS(SELECT 1 FROM community_members WHERE role_id = $1 AND left_at IS NULL)
+		       EXISTS(SELECT 1 FROM community_members WHERE role_id = $1 AND upper_inf(validity))
 		FROM community_roles WHERE id = $1`, roleID).Scan(&builtin, &inUse)
 	if err == pgx.ErrNoRows {
 		return fmt.Errorf("no such role %d: %w", roleID, ErrNotFound)
@@ -246,7 +246,7 @@ func (st *Store) HasCommunityPrivilege(ctx context.Context, communityID, personI
 		SELECT EXISTS(
 			SELECT 1 FROM community_members cm
 			JOIN community_role_privileges crp ON crp.role_id = cm.role_id
-			WHERE cm.community_id = $1 AND cm.person_id = $2 AND cm.left_at IS NULL AND crp.privilege = $3
+			WHERE cm.community_id = $1 AND cm.person_id = $2 AND upper_inf(cm.validity) AND crp.privilege = $3
 		)`, communityID, personID, priv).Scan(&ok)
 	return ok, err
 }
@@ -263,7 +263,7 @@ func (st *Store) HasAnyCommunityManagePrivilege(ctx context.Context, communityID
 		SELECT EXISTS(
 			SELECT 1 FROM community_members cm
 			JOIN community_role_privileges crp ON crp.role_id = cm.role_id
-			WHERE cm.community_id = $1 AND cm.person_id = $2 AND cm.left_at IS NULL
+			WHERE cm.community_id = $1 AND cm.person_id = $2 AND upper_inf(cm.validity)
 			  AND crp.privilege IN ($3, $4, $5, $6)
 		)`, communityID, personID, PrivManageMembers, PrivManageEvents, PrivManageSubmissions, PrivManageSettings).Scan(&ok)
 	return ok, err
@@ -278,7 +278,7 @@ func hasCommunityPrivilege(ctx context.Context, q dbtx, communityID, personID in
 		SELECT EXISTS(
 			SELECT 1 FROM community_members cm
 			JOIN community_role_privileges crp ON crp.role_id = cm.role_id
-			WHERE cm.community_id = $1 AND cm.person_id = $2 AND cm.left_at IS NULL AND crp.privilege = $3
+			WHERE cm.community_id = $1 AND cm.person_id = $2 AND upper_inf(cm.validity) AND crp.privilege = $3
 		)`, communityID, personID, priv).Scan(&ok)
 	return ok, err
 }

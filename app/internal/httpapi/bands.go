@@ -446,8 +446,8 @@ func (s *Server) handleAddBandMember(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleRemoveBandMember ends personID's current membership in the band
-// (sets left_at — history is kept, see migration 0010). Any current
-// member may remove any other member, or themselves.
+// (closes the validity range — history is kept, see migrations 0010 and
+// 0059). Any current member may remove any other member, or themselves.
 func (s *Server) handleRemoveBandMember(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)

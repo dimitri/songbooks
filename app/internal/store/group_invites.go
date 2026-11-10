@@ -226,10 +226,10 @@ func (st *Store) SharesMembershipWith(ctx context.Context, actorID, targetID int
 	err := st.db.QueryRow(ctx, `
 		SELECT EXISTS (
 			SELECT 1 FROM band_members a JOIN band_members b ON a.band_id = b.band_id
-			WHERE a.person_id = $1 AND a.left_at IS NULL AND b.person_id = $2 AND b.left_at IS NULL
+			WHERE a.person_id = $1 AND upper_inf(a.validity) AND b.person_id = $2 AND upper_inf(b.validity)
 			UNION ALL
 			SELECT 1 FROM community_members a JOIN community_members b ON a.community_id = b.community_id
-			WHERE a.person_id = $1 AND a.left_at IS NULL AND b.person_id = $2 AND b.left_at IS NULL
+			WHERE a.person_id = $1 AND upper_inf(a.validity) AND b.person_id = $2 AND upper_inf(b.validity)
 		)`, actorID, targetID).Scan(&ok)
 	return ok, err
 }
