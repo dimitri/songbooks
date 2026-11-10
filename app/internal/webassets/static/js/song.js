@@ -1021,6 +1021,16 @@ const ICONS = {
       return;
     }
     sheet.dataset.renderMode = v;
+    // Instrument picker (#instrument-picker, play.html) only makes sense
+    // for Song view and Song map — both read the SAME attachTabRiffs-
+    // mutated sections and so share one chosen track — not Jazz chart
+    // (chords only, "any instrument", no per-track overlay at all),
+    // Drummer (its own instrument, not pickable), Lyrics only, or
+    // Reference. The server renders it unconditionally whenever the song
+    // has any melodic track at all (so it's there for the common normal-
+    // mode case on load without a round trip), so hiding it outside
+    // those two modes is this handler's job, not the template's.
+    document.getElementById('instrument-picker')?.toggleAttribute('hidden', v !== 'normal' && v !== 'map');
     // Leaving jazz mode: its own fit search (applyPageBox) can leave
     // #sheet's font-size shrunk from whatever it set last — reflow below
     // measures bar widths at #sheet's CURRENT font-size, so switching
