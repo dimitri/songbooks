@@ -51,7 +51,7 @@ func TestToAlphaTexDrums(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseScore: %v", err)
 	}
-	tex := ToAlphaTexDrums(riff, nil, nil)
+	tex := ToAlphaTexDrums(riff, nil, nil, 113)
 	for _, want := range []string{
 		`\track "Drums" { instrument percussion multiBarRest }`,
 		`\articulation (Kick 36)`,
@@ -73,7 +73,7 @@ func TestToAlphaTexDrums_ChordLabels(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseScore: %v", err)
 	}
-	tex := ToAlphaTexDrums(riff, []string{"Dm", "G7"}, nil)
+	tex := ToAlphaTexDrums(riff, []string{"Dm", "G7"}, nil, 113)
 	if !strings.Contains(tex, `Kick.4{ch "Dm"}`) {
 		t.Errorf("expected bar 1's first beat to carry the Dm chord label; got:\n%s", tex)
 	}
@@ -98,14 +98,40 @@ func TestToAlphaTexDrums_Boundaries(t *testing.T) {
 	}
 	boundaries := make([]bool, 8)
 	boundaries[2] = true
-	tex := ToAlphaTexDrums(riff, nil, boundaries)
-	if !strings.Contains(tex, `\section "" "" r.1`) {
-		t.Errorf("expected an empty-text \\section marker right before bar index 2; got:\n%s", tex)
+	tex := ToAlphaTexDrums(riff, nil, boundaries, 113)
+	if !strings.Contains(tex, `\tempo 114 r.1`) {
+		t.Errorf("expected a \\tempo marker (tempo+1, so it genuinely differs from the riff's own 113) right before bar index 2; got:\n%s", tex)
 	}
 	// Exactly one marker — not on bar 0 (nothing precedes it to merge
 	// with) and not on any other bar.
-	if strings.Count(tex, `\section`) != 1 {
-		t.Errorf("expected exactly one \\section marker; got:\n%s", tex)
+	if strings.Count(tex, `\tempo`) != 1 {
+		t.Errorf("expected exactly one \\tempo marker; got:\n%s", tex)
+	}
+}
+
+func TestToAlphaTexDrums_MultipleBoundaries(t *testing.T) {
+	// Three sections' worth of bars sharing one line (2 | 2 | 4) —
+	// confirmed live this is exactly the case a single reused "\tempo"
+	// value gets wrong: the second boundary's marker is a silent no-op
+	// (the value hasn't actually changed since the first marker set it),
+	// silently re-merging the middle and last runs into one "2 | 6"
+	// instead of three distinct, readable counts.
+	riff := &Riff{Drums: true, Bars: make([]Bar, 8)}
+	for i := range riff.Bars {
+		riff.Bars[i] = Bar{Beats: []Beat{{Rest: true, Duration: "1"}}}
+	}
+	boundaries := make([]bool, 8)
+	boundaries[2] = true
+	boundaries[4] = true
+	tex := ToAlphaTexDrums(riff, nil, boundaries, 113)
+	if !strings.Contains(tex, `\tempo 114 r.1`) {
+		t.Errorf("expected the first boundary (bar 2) to use tempo+1 (114); got:\n%s", tex)
+	}
+	if !strings.Contains(tex, `\tempo 113 r.1`) {
+		t.Errorf("expected the second boundary (bar 4) to alternate back to the riff's own 113, not repeat 114; got:\n%s", tex)
+	}
+	if strings.Count(tex, `\tempo`) != 2 {
+		t.Errorf("expected exactly two \\tempo markers; got:\n%s", tex)
 	}
 }
 

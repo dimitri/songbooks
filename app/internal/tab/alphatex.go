@@ -287,24 +287,44 @@ var drumArticulationName = map[int]string{
 //
 // boundaries, when non-nil, marks which bars start a DIFFERENT section
 // than the one before it (see buildDrumMap, handlers_pages.go, which
-// builds one alphaTab mount per LINE — several sections' worth of bars
-// can share a line, flowing straight from one into the next). Without a
-// boundary there, two adjacent sections' own all-rest runs silently
-// consolidate into ONE combined multiBarRest glyph with no indication
-// of where one ends and the other begins — confirmed live and flagged
+// builds ONE alphaTab mount per LINE, always — several sections' worth
+// of bars share a line, flowing straight from one into the next, with
+// NO per-section mount boundary: that's what keeps the clef and time
+// signature drawn exactly once, at the very start of the line, instead
+// of once per section like two earlier versions of this did). Without a
+// boundary marked, two adjacent sections' own all-rest runs silently
+// consolidate into ONE combined multiBarRest glyph with no indication of
+// where one ends and the other begins — confirmed live and flagged
 // directly (Belle of the Ball: a line showing "Pickup"/"Intro" labels
 // above a single unbroken "8", no way to tell 2 bars of Pickup from 6 of
-// Intro). A boundary bar gets an alphaTeX "\section "" "" " directive —
-// empty mark AND label text, confirmed live to draw NO visible text at
-// all (this view's own labels are plain HTML, drawn separately — see
-// buildDrumMap's own doc comment for why alphaTeX's native marker is
-// otherwise avoided) — purely for multiBarRest's own break condition,
-// which checks only whether a bar carries a section object, never its
-// text. The marked bar itself can't join either neighboring rest run
-// (confirmed live: it renders as its own single-bar rest, "2 | - | 5"
-// for an 8-bar line split at bar 3), so a boundary is correct information
-// — "a new section starts exactly here" — not a cosmetic artifact.
-func ToAlphaTexDrums(riff *Riff, chordLabels []string, boundaries []bool) string {
+// Intro).
+//
+// A boundary bar gets an alphaTeX "\tempo N " directive right before it
+// — tempo, not "\section "" "" ", a thing this function tried first and
+// which looked right in isolation (confirmed: an empty-text marker draws
+// no visible label) but has a real side effect confirmed live against
+// this exact multi-boundary case: the bar the marker sits on can't join
+// EITHER neighboring run — "2 | 1 | 5" for an 8-bar line split after bar
+// 2, not the clean "2 | 6" a reader needs to actually tell the two
+// sections' own counts apart. A tempo marking breaks multiBarRest's own
+// consolidation the same way (confirmed against the vendored source:
+// multiBarRest's break condition checks a bar-level "tempo changed"
+// flag, same mechanism as the section check, just a different trigger)
+// WITHOUT that side effect — the marked bar rejoins whichever run
+// follows it cleanly. Visually invisible as long as the caller also
+// disables NotationElement.EffectTempo (alphatab-tab.js): this value
+// never reaches the song's own tempo/metronome, which lives in the
+// .song file's "tempo:" field, nowhere near this per-line alphaTeX.
+//
+// tempo alone, reused unchanged at every boundary, does NOT work: a
+// "\tempo" directive whose value matches what's already in effect is a
+// silent no-op (confirmed live — two boundaries both declaring the same
+// value merge their three runs into two, "2 | 2 | 4" collapsing to
+// "2 | 6"), so each successive boundary alternates tempo/tempo+1 to
+// guarantee it always genuinely differs from the one right before it —
+// confirmed live as reliable across any number of boundaries in one
+// line.
+func ToAlphaTexDrums(riff *Riff, chordLabels []string, boundaries []bool, tempo int) string {
 	var b strings.Builder
 	b.WriteString("\\track \"Drums\" { instrument percussion multiBarRest }\n")
 	b.WriteString("\\clef neutral\n")
@@ -335,12 +355,19 @@ func ToAlphaTexDrums(riff *Riff, chordLabels []string, boundaries []bool) string
 	}
 	b.WriteString(".\n")
 
+	if tempo <= 0 {
+		tempo = 120
+	}
+	boundaryTempo := tempo + 1 // alternates with tempo at each successive boundary — see this function's own doc comment
 	for bi, bar := range riff.Bars {
 		if bi > 0 {
 			b.WriteString(" | ")
 		}
 		if bi < len(boundaries) && boundaries[bi] {
-			b.WriteString(`\section "" "" `)
+			b.WriteString(`\tempo `)
+			b.WriteString(strconv.Itoa(boundaryTempo))
+			b.WriteByte(' ')
+			boundaryTempo = tempo + tempo + 1 - boundaryTempo // swap between tempo and tempo+1
 		}
 		var label string
 		if bi < len(chordLabels) {

@@ -2038,66 +2038,53 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 /* ---- Drummer view: one continuous, full-width chart, like Song Map --
    Same design Song Map already settled on for the chord grid (bars flow
    continuously, nothing independently boxed): ONE sheet, every line the
-   same width AND the same height. .drum-map (built from .DrumMap — see
-   buildDrumMap, handlers_pages.go) is a column of ROWS (.drum-row) — a
-   plain SECTION-scoped line is one mount filling the row alone; a row
-   only holds several .drum-cell mounts side by side where a section
-   boundary falls mid-line (see buildDrumMap's own doc comment for the
-   two earlier versions this corrects — a shared document with
-   alphaTeX "\section" markers split an otherwise-clean count into
-   "1 | N-1" at every boundary; one mount per section regardless of
-   line-sharing could render visibly TALLER than its row neighbors
-   whenever a multi-bar riff wrapped across two internal lines inside
-   its own narrow cell). What makes a row (whether one cell or several)
-   read as one continuous, uniform line instead of disconnected chips:
-   each cell's width is a server-computed PERCENTAGE of its row
-   (.WidthPct, inline style) — the exact "--cap" idea the chord grid's
-   own bars already use (a row always sums to 100%) — AND its HEIGHT is
-   pinned to exactly one system line via settings.display.barsPerRow
-   (alphatab-tab.js, data-bars), so a cramped cell compresses its notes
-   horizontally rather than wrapping to a second internal line. The old
-   per-section markup (chip, grid, lyrics — shared by every mode) stays
-   hidden in this mode entirely, same as it already is for Song Map. */
+   same width AND the same height, with its clef and time signature drawn
+   exactly ONCE per line. .drum-map (built from .DrumMap — see
+   buildDrumMap, handlers_pages.go) is a column of ROWS (.drum-row),
+   EVERY one of them exactly one alphaTab mount at the full line width —
+   even a row a section boundary falls mid-line of (see buildDrumMap's
+   own doc comment for the two earlier, each-wrong-differently versions
+   this replaces: one mount per section always drew a separate clef per
+   section, read as disconnected chips stapled together, not one
+   continuous staff — confirmed directly: "that looks like a patchwork to
+   me"; one mount per line but split into several per-section cells
+   sharing a row via CSS percentages fixed THAT but kept the same
+   patchwork look and needed three separate, increasingly narrow CSS
+   fixes before the cells even packed correctly). A boundary only ever
+   adds a floated .drum-row-label (position:absolute, LeftPct from Go) —
+   never a second mount, so there's never a sibling cell in the row to
+   share width or wrap against, and none of the CSS machinery either
+   earlier version needed (gap-vs-percentage math, a min-width override)
+   has anything left to do here. HEIGHT is pinned to exactly one system
+   line via settings.display.barsPerRow (alphatab-tab.js, data-bars), so
+   a line compresses its notes horizontally on a narrow viewport rather
+   than wrapping to a second internal line. The old per-section markup
+   (chip, grid, lyrics — shared by every mode) stays hidden in this mode
+   entirely, same as it already is for Song Map. */
 #sheet[data-render-mode="drummer"] .sheet-section { display: none; }
 .drum-map { display: none; }
 #sheet[data-render-mode="drummer"] .drum-map {
   display: flex; flex-direction: column; gap: 0.9rem;
 }
-/* flex-wrap is a safety net, not the packing mechanism — buildDrumMap's
-   own row-grouping (Go) already decided which sections share a row and
-   each cell's WidthPct already sums its row to 100%. It only matters
-   when a cell's own min-width (alphatab-tab.js, scaled to its bar count
-   and whether it's a consolidated rest or real notation) pushes a row's
-   real total past 100%: without it the overflow would just spill past
-   the page edge instead of dropping to a second line. */
-.drum-row { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-start; }
-/* min-width: 0 overrides the flex item default (min-width: auto, i.e.
-   "never shrink below your own content's width") — confirmed live as
-   the real remaining cause of a shared row's cells still wrapping
-   apart even once their own flex-basis math (FlexBasis, handlers_
-   pages.go) correctly left room for the gap: alphaTab doesn't always
-   draw the alphaTeX row to the exact pixel width its container asked
-   for, and WITHOUT this, that wider-than-asked rendered SVG's own
-   intrinsic width become EVERY cell's automatic minimum size, which
-   silently overrides the intended percentage split and pushes the
-   row's real total past 100% again. overflow: hidden is what actually
-   acts on that override: it stops the now-deliberately-too-narrow box
-   from just letting the oversized SVG bleed out past its own edge. */
-.drum-cell { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; overflow: hidden; }
-.drum-chip-label {
-  font-family: var(--font-chart); font-weight: 700; letter-spacing: 0.04em;
-  text-transform: uppercase; font-size: 0.8rem; color: var(--fg-muted); white-space: nowrap;
+.drum-row { position: relative; }
+/* Same overlay technique as Song Map's own .map-sec-badge (floats above
+   a single bar at left:0, relative to that bar's own cell): there's no
+   per-bar cell here to anchor to (the row is one alphaTab mount, not a
+   grid of per-bar elements), so LeftPct (buildDrumMap) is the boundary
+   bar's own position as a percentage of the WHOLE row instead. */
+.drum-row-label {
+  position: absolute; bottom: 100%; margin-bottom: 0.3em;
+  font-family: Georgia, serif; font-style: italic; font-weight: 700; font-size: 0.8em; color: var(--accent);
+  white-space: nowrap;
 }
-.drum-chip-label .rehearsal-mark { margin-right: 0.35em; }
+.drum-row-label .rehearsal-mark { margin-right: 0.35em; }
 /* No extra width rule needed here: the global ".staff-line.alphatab-row
    { width: 100% }" rule (unscoped — applies in every render mode)
-   already fills each cell (.drum-cell, already sized to its own
-   WidthPct share of the row) — the same role it already plays for a
-   melodic TabOnly row filling ITS OWN row. An alphaTab row with NO
-   width at all measures 0 and alphaTab silently skips rendering into it
-   ("width=0 (element invisible)") even though its parent is visible —
-   confirmed live earlier this session — which is what that global rule
-   exists to prevent. */
+   already fills the row. An alphaTab row with NO width at all measures 0
+   and alphaTab silently skips rendering into it ("width=0 (element
+   invisible)") even though its parent is visible — confirmed live
+   earlier this session — which is what that global rule exists to
+   prevent. */
 
 #sheet[data-render-mode="map"] .chord-legend { display: none; }
 .chord-legend {

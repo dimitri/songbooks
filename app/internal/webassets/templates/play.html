@@ -184,45 +184,40 @@
      this repo's own history: "Song Map: one continuous engraved sheet,
      not disconnected floating chips") applied to real drum notation
      instead of chord slashes: ONE sheet, every line the same width AND
-     the same height. Lines flow continuously (buildDrumMap flattens
-     every section's bars into one sequence, chunked into 8-bar lines,
-     same idea buildMapLines already uses for the chord grid) and the
-     DEFAULT case — a line belongs to just one section — is one alphaTab
-     mount at the full line width: no alphaTeX "\section" marker
-     anywhere, so that section's own bars always consolidate into one
-     clean count. A row only holds MORE than one cell when a section
-     boundary falls mid-line — split into one mount per section's own
-     portion (still no "\section" marker: each is its own small
-     document) so neither section's count ever merges with its
-     neighbor's. See buildDrumMap's own doc comment for the two earlier
-     versions this corrects: a shared document with "\section" markers
-     split an otherwise-clean count into "1 | N-1" at every boundary;
-     one mount per SECTION regardless of line-sharing drew a separate
-     clef/time-signature per section and could render visibly TALLER
-     than its row neighbors whenever a multi-bar riff wrapped across two
-     internal lines inside its own narrow cell (confirmed live).
-     data-bars (alphatab-tab.js) pins settings.display.barsPerRow to
-     each cell's own bar count specifically to prevent that: it stops
-     alphaTab's own auto-wrap from ever drawing a cell across two
-     internal lines, which is what makes every cell in a row the same
-     height regardless of how little width it's given. WidthPct alone
-     isn't enough for FULL width either — flex-grow defaults to 0, so a
-     cell sized only by width stops exactly there and never claims space
-     left over once its siblings' own min-width floors (app.css,
-     alphatab-tab.js) are satisfied; the cell's own "flex" style below
-     (Bars as the grow weight, WidthPct as the basis) gives it a grow
-     weight too, so a short row still reaches 100%. Hidden outside
-     drummer mode by CSS. */}}
+     the same height, with its clef and time signature drawn exactly
+     ONCE per line. Lines flow continuously (buildDrumMap flattens every
+     section's bars into one sequence, chunked into 8-bar lines, same
+     idea buildMapLines already uses for the chord grid) and EVERY row —
+     even one a section boundary falls mid-line of — is exactly ONE
+     alphaTab mount, never split into several: see buildDrumMap's own
+     doc comment for the two earlier, each-wrong-in-a-different-way
+     versions this replaces (one mount per section always drew a
+     separate clef per section, reading as disconnected chips stapled
+     together rather than one continuous staff — confirmed directly:
+     "that looks like a patchwork to me"; one mount per LINE but split
+     into several per-section cells sharing a row via CSS fixed THAT but
+     still drew a clef per cell, same patchwork look, and needed three
+     separate, increasingly narrow CSS fixes before the cells even
+     packed correctly). A section boundary mid-line only ever adds a
+     floated label (.drum-row-label, positioned at the boundary's own
+     LeftPct — buildDrumMap) — the single shared alphaTeX document
+     itself gets a "\tempo" marker right there (ToAlphaTexDrums's own
+     boundaries param) so that section's own bars still consolidate into
+     their own clean, separately-readable multi-bar-rest count instead
+     of silently merging into their neighbor's, with no second clef and
+     no CSS width-sharing problem to solve at all: there's never a
+     sibling cell in the row to share space or wrap against. data-bars
+     (alphatab-tab.js) pins settings.display.barsPerRow to the row's own
+     bar count so alphaTab's own auto-wrap never draws it across two
+     internal lines. Hidden outside drummer mode by CSS. */}}
 {{if .DrumMap}}
 <div class="drum-map">
   {{range .DrumMap}}
   <div class="drum-row">
-    {{range .Cells}}
-    <div class="drum-cell" style="flex: {{.Bars}} 1 {{.FlexBasis}}">
-      <div class="drum-chip-label">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
-      <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}" data-restonly="{{if .RestOnly}}1{{end}}"></div>
-    </div>
+    {{range .Labels}}
+    <div class="drum-row-label" style="left: {{.LeftPct}}%">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
     {{end}}
+    <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}" data-restonly="{{if .RestOnly}}1{{end}}"></div>
   </div>
   {{end}}
 </div>
