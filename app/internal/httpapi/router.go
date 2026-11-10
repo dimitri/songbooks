@@ -107,6 +107,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// site is public the same way, for the same reason.
 	mux.HandleFunc("GET /", s.optionalPerson(s.handleMarketingHome))
 	mux.HandleFunc("GET /editor", s.optionalPerson(s.handleMarketingEditor))
+	mux.HandleFunc("GET /guitar-pro", s.optionalPerson(s.handleMarketingGuitarPro))
 	mux.HandleFunc("GET /docs/song-format", s.optionalPerson(s.handleDocsSongFormat))
 	mux.HandleFunc("GET /docs/song-format/example", s.handleDocsSongFormatExample)
 	mux.HandleFunc("GET /docs/song-format/example-tab", s.handleDocsSongFormatExampleTab)
