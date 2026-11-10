@@ -2057,9 +2057,21 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	}
 	if communityParam := r.URL.Query().Get("community"); communityParam != "" {
 		if communityID, err := strconv.ParseInt(communityParam, 10, 64); err == nil {
-			if c, err := s.store.GetCommunity(r.Context(), communityID); err == nil {
-				data["CommunityRef"] = c.ID
-				data["CommunityName"] = c.Name
+			if _, err := s.store.GetCommunity(r.Context(), communityID); err == nil {
+				data["CommunityRef"] = communityID
+				// CommunityName is the community's own DEFAULT SONGBOOK
+				// name, not the community's own name — a community's
+				// repertoire IS a real songbook (owner_kind='community'),
+				// and the reader came from browsing it by that name
+				// ("La Nouvelle Méthode Blues Rock"), not by the
+				// community's own name ("Florent Passamonti"); showing
+				// the latter here read as the wrong/generic label.
+				data["CommunityName"] = "songbook"
+				if sbID, err := s.store.GetDefaultSongbook(r.Context(), "community", communityID); err == nil {
+					if sb, err := s.store.GetSongbook(r.Context(), sbID); err == nil {
+						data["CommunityName"] = sb.Name
+					}
+				}
 			}
 		}
 	}
