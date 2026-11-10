@@ -790,8 +790,23 @@ func collectInstrumentNames(scoreTracks map[int][]tab.NamedRiff) []string {
 // extraction attachTabRiffs does for its own chord overlay) when the
 // section has a matching riff, or a synthetic all-rest run (and no
 // labels — nothing to hang them on) otherwise.
+//
+// A riff SHORTER than the section's own BarCount (a drummer writing
+// just the first couple of bars of an 8-bar section, say) is padded
+// with trailing rest bars rather than returned as-is: confirmed live as
+// a real bug, not a hypothetical — a 2-bar riff on an 8-bar section
+// rendered as a 2-bar chip with the other 6 bars simply gone, no rest
+// indication at all, visibly inconsistent with that same section's own
+// "8" shown everywhere else on the page (the top bar-count strip,
+// Song/Song-map/Jazz-chart). A riff LONGER than BarCount (a bad save,
+// not a case the UI can create today) is left untouched — truncating
+// written notation would be a worse failure than showing extra bars.
 func chipSource(sec *viewerSection, riff *tab.Riff) (bars []tab.Bar, chordLabels []string, restOnly bool) {
 	if riff != nil && len(riff.Bars) > 0 {
+		bars = riff.Bars
+		for len(bars) < sec.BarCount {
+			bars = append(bars, tab.Bar{Beats: []tab.Beat{{Rest: true, Duration: "1"}}})
+		}
 		chordLabels = make([]string, 0, len(sec.Measures))
 		for bi := range sec.Measures {
 			m := &sec.Measures[bi]
@@ -801,7 +816,7 @@ func chipSource(sec *viewerSection, riff *tab.Riff) (bars []tab.Bar, chordLabels
 			}
 			chordLabels = append(chordLabels, cl)
 		}
-		return riff.Bars, chordLabels, false
+		return bars, chordLabels, false
 	}
 	bars = make([]tab.Bar, sec.BarCount)
 	for i := range bars {
@@ -810,36 +825,36 @@ func chipSource(sec *viewerSection, riff *tab.Riff) (bars []tab.Bar, chordLabels
 	return bars, nil, true
 }
 
-// viewerDrumMapCell is one SECTION's own alphaTab mount within Drummer
-// view's continuous flow (viewerDrumMapRow) — see buildDrumMap's own doc
-// comment for the overall design. WidthPct is this cell's percentage
-// share of its row, server-computed from its own SLOT count against the
-// row's total — the exact same idea the chord grid's own "--cap" CSS
-// variable already uses (every row stretches to 100% regardless of
-// actual content, each bar gets 100%/cap of it) — just computed in Go
-// instead of CSS, since a cell's width here depends on OTHER cells
-// sharing the same row, something CSS alone can't express per element
-// without a shared custom property this app's existing --cap convention
-// already standardizes on at the ROW level, not per child.
+// viewerDrumMapCell is one CONTIGUOUS SECTION-SCOPED run of bars within
+// a line (viewerDrumMapRow) — see buildDrumMap's own doc comment for the
+// overall design. The common case is one cell per row (Bars equals the
+// whole line's bar count, WidthPct 100) — a plain, single-section line,
+// exactly like a real sheet-music system. A row only has MORE than one
+// cell when a section boundary falls mid-line, splitting it into one
+// cell per section's own portion so neither one's count ever merges
+// with (or gets marked off from) its neighbor's.
 //
-// Slots is that same share expressed as a flex-grow weight (play.html:
-// "flex: {{.Slots}} 1 {{.WidthPct}}%"), not just the width basis — a
-// flex item's default flex-grow is 0, so a cell sized ONLY by width
-// stops exactly at that width and never claims any space left over once
-// its siblings' own min-width floors are satisfied, which is exactly
-// "not full width" again (confirmed live: a row of several rest-only
-// cells, all equal 1-slot weight, each clamped to its own 11rem
-// min-width floor rather than the tiny percentage WidthPct alone would
-// give it — the row's real total then falls well short of 100%, and
-// with flex-grow:0 that shortfall just sits there as dead space instead
-// of being redistributed). Weighting grow by Slots (not a flat 1) keeps
-// a real-content cell expanding proportionally more than a rest-only
-// neighbor when there IS slack to hand out.
+// Bars is this cell's own real bar count — not an abstract "slot" — and
+// doubles as a flex-grow weight (play.html: "flex: {{.Bars}} 1
+// {{.WidthPct}}%") and as alphaTab's own barsPerRow pin (alphatab-tab.js,
+// via data-bars): a flex item's default flex-grow is 0, so a cell sized
+// only by width never claims space left over once its siblings' own
+// min-width floors are satisfied ("not full width" again); barsPerRow
+// stops alphaTab's own auto-wrap from ever drawing this cell's bars
+// across TWO internal lines when the row gives it less room than its
+// content wants — confirmed live as the actual cause of a visibly taller
+// cell sitting next to normal single-line ones in the very same row
+// (Belle of the Ball: a 2-bar riff wrapped line-by-line inside its own
+// mount while a neighboring rest-only cell stayed one line tall).
+// RestOnly picks which legibility floor applies (alphatab-tab.js): a
+// consolidated multi-bar rest needs much less width than the same
+// bar count drawn with real notes and chord labels would.
 type viewerDrumMapCell struct {
 	Mark, Label string
 	AlphaTex    string
+	Bars        int
 	WidthPct    float64
-	Slots       int
+	RestOnly    bool
 }
 
 type viewerDrumMapRow struct {
@@ -849,47 +864,40 @@ type viewerDrumMapRow struct {
 // buildDrumMap builds Drummer view's own continuous, full-width chart —
 // Song Map's own design ("one continuous engraved sheet, not disconnected
 // floating chips" — see that exact commit title in this repo's history)
-// applied to real drum notation instead of chord slashes.
+// applied to real drum notation instead of chord slashes: ONE sheet,
+// several lines, every line the same width AND the same height.
 //
-// One alphaTab mount per SECTION, never one shared document (whole-song
-// OR per-line): a shared document needs a real alphaTeX "\section"
-// marker to label where each section starts (ToAlphaTexDrums's own
-// boundaries parameter, unused here — passed nil below), and alphaTab
-// ALWAYS excludes a "\section"-marked bar from multiBarRest
-// consolidation (confirmed live — a rehearsal mark needs an actual
-// drawn measure to anchor to). A per-LINE version of this (several
-// sections' bars flattened into one shared mount, tried right before
-// this one) needed exactly that marker whenever two different sections
-// shared a line, and paid for it directly: a clean "6" count split into
-// "1 | 5" at the boundary, which is correct math but reads as two
-// numbers for one section instead of one. One mount per SECTION
-// bypasses "\section" entirely — nothing to merge across section lines
-// in the first place, so nothing needs a marker, so every section's own
-// bars always consolidate into its own single clean count. This view's
-// label is plain HTML (not alphaTab's) either way.
-//
-// What that costs — each mount draws its OWN clef and time signature,
-// so several short sections sharing a row read as separate fragments
-// rather than one unbroken staff line — is handled by PACKING and
-// SIZING them the way the rest of this app already packs variable-width
-// content into full rows, not by merging them: section SLOTS (a section
-// with real notation costs one slot per bar — same as a real bar's own
-// width budget everywhere else in this app; an all-rest section costs
-// exactly ONE slot regardless of its bar count, since a correctly
-// consolidated multi-bar rest draws about as wide as a single ordinary
-// bar, same visual footprint Song Map's own recall cells already have)
-// are greedily packed into rows against an 8-slot target
-// (groupMeasures/groupMapCells' own row-size default), and each cell's
-// mount gets a PERCENTAGE width — its own slot share of the row's
-// ACTUAL total, not the 8-slot target — the exact "--cap" idea (a short
-// row still stretches to the full line width) just computed server-side
-// since it depends on sibling cells sharing the row.
+// Every section's bars (real notation where written, a synthetic
+// all-rest run otherwise — chipSource) are flattened into one continuous
+// sequence, same idea buildMapLines already uses for the chord grid,
+// then chunked into lines of 8 bars (groupMeasures/groupMapCells' own
+// row-size default). The DEFAULT case — a line belongs to just one
+// section — is one alphaTab mount at the full line width, no alphaTeX
+// "\section" marker anywhere (nothing shares the document, so nothing
+// needs one), which is also why a plain section's own bars always
+// consolidate into one clean count. Only when a section boundary falls
+// MID-LINE does that line split into separate per-section cells sharing
+// the row (still no "\section" marker — each cell is its OWN small
+// document instead, the thing two earlier versions of this got wrong in
+// opposite directions: one shared whole-song/per-line document with
+// "\section" markers split an otherwise-clean count into "1 | N-1" at
+// every boundary; one mount per SECTION regardless of line sharing drew
+// a separate clef/time-signature per section, visibly taller wherever a
+// multi-bar riff's own internal wrap made its cell taller than its
+// single-line neighbors in the same row). This version only pays that
+// "several mounts in one row" cost exactly where a boundary actually
+// falls — every other line is one full-width, one-line-tall mount, same
+// as Song Map's own chord grid.
 func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff) []viewerDrumMapRow {
-	type cell struct {
-		mark, label, alphaTex string
-		slots                 int
+	type flatBar struct {
+		bar               tab.Bar
+		chordLabel        string
+		sectionIdx        int
+		mark, label       string
+		isSectionStart    bool
+		sectionIsRestOnly bool
 	}
-	var all []cell
+	var flat []flatBar
 	for si := range sections {
 		sec := &sections[si]
 		if sec.BarCount <= 0 {
@@ -905,46 +913,65 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff)
 			}
 		}
 		bars, chordLabels, restOnly := chipSource(sec, riff)
-		slots := len(bars)
-		if restOnly {
-			slots = 1
+		for bi, b := range bars {
+			fb := flatBar{bar: b, sectionIdx: si, sectionIsRestOnly: restOnly}
+			if bi < len(chordLabels) {
+				fb.chordLabel = chordLabels[bi]
+			}
+			if bi == 0 {
+				fb.isSectionStart, fb.mark, fb.label = true, sec.Mark, sec.Label
+			}
+			flat = append(flat, fb)
 		}
-		all = append(all, cell{
-			mark: sec.Mark, label: sec.Label, slots: slots,
-			alphaTex: tab.ToAlphaTexDrums(&tab.Riff{Drums: true, Bars: bars}, chordLabels, nil),
-		})
 	}
-	if len(all) == 0 {
+	if len(flat) == 0 {
 		return nil
 	}
-	const rowTarget = 8
+	const perLine = 8
 	var rows []viewerDrumMapRow
-	var cur []cell
-	curSlots := 0
-	flush := func() {
-		if len(cur) == 0 {
-			return
+	for i := 0; i < len(flat); i += perLine {
+		end := i + perLine
+		if end > len(flat) {
+			end = len(flat)
 		}
-		row := viewerDrumMapRow{Cells: make([]viewerDrumMapCell, len(cur))}
-		for i, c := range cur {
-			row.Cells[i] = viewerDrumMapCell{
-				Mark: c.mark, Label: c.label, AlphaTex: c.alphaTex,
-				WidthPct: 100 * float64(c.slots) / float64(curSlots),
-				Slots:    c.slots,
+		chunk := flat[i:end]
+		// Split the chunk into contiguous same-section runs — one run
+		// in the common (single-section-per-line) case, more only where
+		// a boundary falls inside this chunk.
+		var runs [][]flatBar
+		for _, fb := range chunk {
+			if len(runs) == 0 || runs[len(runs)-1][0].sectionIdx != fb.sectionIdx {
+				runs = append(runs, []flatBar{fb})
+			} else {
+				runs[len(runs)-1] = append(runs[len(runs)-1], fb)
+			}
+		}
+		row := viewerDrumMapRow{Cells: make([]viewerDrumMapCell, len(runs))}
+		for ri, run := range runs {
+			bars := make([]tab.Bar, 0, len(run))
+			chordLabels := make([]string, 0, len(run))
+			for _, fb := range run {
+				bars = append(bars, fb.bar)
+				chordLabels = append(chordLabels, fb.chordLabel)
+			}
+			// A continuation run (this section's bars already started
+			// on an earlier line) carries no label — Starts-style
+			// labeling happens only once, where the section actually
+			// begins, same as every other mode's section header.
+			var mark, label string
+			if run[0].isSectionStart {
+				mark, label = run[0].mark, run[0].label
+			}
+			row.Cells[ri] = viewerDrumMapCell{
+				Mark: mark, Label: label,
+				AlphaTex: tab.ToAlphaTexDrums(&tab.Riff{Drums: true, Bars: bars}, chordLabels, nil),
+				Bars:     len(bars),
+				WidthPct: 100 * float64(len(bars)) / float64(len(chunk)),
+				RestOnly: run[0].sectionIsRestOnly,
 			}
 		}
 		rows = append(rows, row)
-		cur = nil
-		curSlots = 0
 	}
-	for _, c := range all {
-		if curSlots > 0 && curSlots+c.slots > rowTarget {
-			flush()
-		}
-		cur = append(cur, c)
-		curSlots += c.slots
-	}
-	flush()
 	return rows
 }
 

@@ -2037,25 +2037,27 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .map-score { display: none; }
 /* ---- Drummer view: one continuous, full-width chart, like Song Map --
    Same design Song Map already settled on for the chord grid (bars flow
-   continuously, nothing independently boxed) — different MECHANISM:
-   .drum-map (built from .DrumMap — see buildDrumMap, handlers_pages.go)
-   is a column of ROWS (.drum-row), each a flex row of per-SECTION cells
-   (.drum-cell), not one shared alphaTab document for the whole song OR
-   for one line (see buildDrumMap's own doc comment for why: a real
-   alphaTeX "\section" marker on a shared document always excludes its
-   own bar from multiBarRest consolidation — a per-line version of this,
-   tried right before this one, paid for that directly whenever two
-   sections shared a line: a clean "6" split into "1 | 5"). What makes a
-   row of independent alphaTab mounts read as one continuous full-width
-   line instead of disconnected chips: each cell's width is a server-
-   computed PERCENTAGE of its row (.WidthPct, inline style — see
-   buildDrumMap) rather than a fixed pixel budget, the exact "--cap"
-   idea the chord grid's own bars already use (a row always sums to
-   100% regardless of how little content it holds) just computed in Go
-   instead of CSS, since a cell's width here depends on its siblings
-   sharing the row. The old per-section markup (chip, grid, lyrics —
-   shared by every mode) stays hidden in this mode entirely, same as it
-   already is for Song Map. */
+   continuously, nothing independently boxed): ONE sheet, every line the
+   same width AND the same height. .drum-map (built from .DrumMap — see
+   buildDrumMap, handlers_pages.go) is a column of ROWS (.drum-row) — a
+   plain SECTION-scoped line is one mount filling the row alone; a row
+   only holds several .drum-cell mounts side by side where a section
+   boundary falls mid-line (see buildDrumMap's own doc comment for the
+   two earlier versions this corrects — a shared document with
+   alphaTeX "\section" markers split an otherwise-clean count into
+   "1 | N-1" at every boundary; one mount per section regardless of
+   line-sharing could render visibly TALLER than its row neighbors
+   whenever a multi-bar riff wrapped across two internal lines inside
+   its own narrow cell). What makes a row (whether one cell or several)
+   read as one continuous, uniform line instead of disconnected chips:
+   each cell's width is a server-computed PERCENTAGE of its row
+   (.WidthPct, inline style) — the exact "--cap" idea the chord grid's
+   own bars already use (a row always sums to 100%) — AND its HEIGHT is
+   pinned to exactly one system line via settings.display.barsPerRow
+   (alphatab-tab.js, data-bars), so a cramped cell compresses its notes
+   horizontally rather than wrapping to a second internal line. The old
+   per-section markup (chip, grid, lyrics — shared by every mode) stays
+   hidden in this mode entirely, same as it already is for Song Map. */
 #sheet[data-render-mode="drummer"] .sheet-section { display: none; }
 .drum-map { display: none; }
 #sheet[data-render-mode="drummer"] .drum-map {
@@ -2064,21 +2066,12 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 /* flex-wrap is a safety net, not the packing mechanism — buildDrumMap's
    own row-grouping (Go) already decided which sections share a row and
    each cell's WidthPct already sums its row to 100%. It only matters
-   when min-width (below) pushes a row's real total past 100%: without
-   it the overflow would just spill past the page edge instead of
-   dropping to a second line. */
+   when a cell's own min-width (alphatab-tab.js, scaled to its bar count
+   and whether it's a consolidated rest or real notation) pushes a row's
+   real total past 100%: without it the overflow would just spill past
+   the page edge instead of dropping to a second line. */
 .drum-row { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-start; }
-/* 11rem (176px), not an arbitrary floor: a multiBarRest glyph's own
-   count number needs real room to draw at all — measured live down to
-   120px (the consolidated rest glyph still drew, but alphaTab silently
-   omitted the count number entirely) and up through a 2-digit count
-   ("16") needing ~150-160px before it stopped clipping; 11rem clears
-   both with margin. A rest-only cell's own WidthPct can compute well
-   under this on a narrow viewport or a crowded row (several short
-   sections sharing one 8-slot budget) — min-width is what keeps its
-   count legible when that happens, at the cost of the row's total
-   occasionally running past 100% (see flex-wrap above). */
-.drum-cell { display: flex; flex-direction: column; gap: 0.2rem; min-width: 11rem; }
+.drum-cell { display: flex; flex-direction: column; gap: 0.2rem; }
 .drum-chip-label {
   font-family: var(--font-chart); font-weight: 700; letter-spacing: 0.04em;
   text-transform: uppercase; font-size: 0.8rem; color: var(--fg-muted); white-space: nowrap;
