@@ -32,6 +32,42 @@
     if (!tex) return;
     retriesLeft = retriesLeft === undefined ? 5 : retriesLeft;
 
+    try {
+      renderInner(container, tex, retriesLeft);
+    } catch (e) {
+      // Catches a throw ANYWHERE in renderInner — Settings construction
+      // included, not just the AlphaTabApi construction/.tex() call a
+      // narrower try/catch covered before. A code study of the vendored
+      // bundle (this session) found the real DOM-clearing mechanism is
+      // resizeRender()'s append/clear/reuseViewport pipeline, driven by
+      // a SHARED, page-lifetime singleton ResizeObserver reused across
+      // every AlphaTabApi instance on the page — if the iOS Safari
+      // toolbar event leaves that shared observer/engine state
+      // corrupted, a RETRY's own construction can throw synchronously.
+      // Before any try/catch existed here, that throw aborted render()
+      // immediately, which — critically — meant the 8-second watchdog
+      // (only ever registered AFTER construction/.tex() succeeded)
+      // never even got set up, and the poll/resize guards only act once
+      // real content has painted at least once. Net effect: a
+      // construction-time throw left NOTHING watching for the failure
+      // at all, which is almost certainly why every previous recovery
+      // attempt this session appeared to do nothing — not that the
+      // retry logic itself was wrong, but that it never ran. This is
+      // the outermost safety net: whatever throws, however early,
+      // retry (with the same backoff-free immediacy the construction-
+      // time watchdog would eventually reach anyway) or, once
+      // retriesLeft is exhausted, fall back to location.reload() — the
+      // one thing proven 100% reliable this session.
+      if (retriesLeft <= 0) {
+        location.reload();
+        return;
+      }
+      container.innerHTML = '';
+      render(container, retriesLeft - 1);
+    }
+  }
+
+  function renderInner(container, tex, retriesLeft) {
     const settings = new alphaTab.Settings();
     settings.core.fontDirectory = '/static/js/vendor/alphatab/font/';
     settings.core.useWorkers = false; // small, synchronous riffs — no benefit from a background worker, and it avoids a console error when the worker script can't resolve under this app's own static path
@@ -207,12 +243,38 @@
       recover();
     }, 1500);
 
-    const api = new alphaTab.AlphaTabApi(container, settings);
-    api.renderFinished.on(() => pollForChordFix(container, tex, 0, () => {
-      hadContent = true;
-      clearReservedHeight();
-    }));
-    api.tex(tex);
+    // Construction and .tex() are wrapped: a code study of the vendored
+    // bundle (this session) found the real DOM-clearing mechanism is
+    // resizeRender()'s append/clear/reuseViewport pipeline, driven by a
+    // SHARED, page-lifetime singleton ResizeObserver reused across every
+    // AlphaTabApi instance — if the iOS Safari toolbar event leaves that
+    // shared observer/engine state corrupted, a RETRY's own construction
+    // can throw synchronously. Before this try/catch, that throw aborted
+    // render() immediately, which — critically — meant the 8-second
+    // watchdog below (registered only AFTER construction/`.tex()`
+    // succeed) never even got set up, and pollGuard/resizeGuard above
+    // only act once hadContent has been true at least once. Net effect:
+    // a construction-time throw left NOTHING watching for the failure at
+    // all, which is almost certainly why every previous recovery attempt
+    // this session appeared to do nothing — not that the retry logic was
+    // wrong, but that it never ran.
+    let finished = false;
+    try {
+      const api = new alphaTab.AlphaTabApi(container, settings);
+      api.renderFinished.on(() => {
+        finished = true;
+        pollForChordFix(container, tex, 0, () => {
+          hadContent = true;
+          clearReservedHeight();
+        });
+      });
+      api.tex(tex);
+    } catch (e) {
+      clearInterval(pollGuard);
+      resizeGuard.disconnect();
+      recover();
+      return;
+    }
 
     // Construction-time watchdog: the vendored bundle's "AlphaTab
     // container was invisible while autosizing" case, when the
@@ -223,8 +285,6 @@
     // legitimately take a few seconds to lay out on a slower device,
     // and destroying a still-in-progress render to "retry" it only
     // makes a slow render look like a permanently blank one.
-    let finished = false;
-    api.renderFinished.on(() => { finished = true; });
     setTimeout(() => {
       if (finished || container.querySelector('svg text')) return;
       clearInterval(pollGuard);
