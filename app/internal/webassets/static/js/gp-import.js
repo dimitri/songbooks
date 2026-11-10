@@ -500,8 +500,22 @@
       if (gpBarIndex === undefined) break;
       const gpBar = staff.bars[gpBarIndex];
       const voice = gpBar.voices[0];
+      const isSoleRest = voice && voice.beats.length === 1 && voice.beats[0].isRest;
       const beats = (voice ? voice.beats : []).map(b => {
-        if (b.isRest) return { Rest: true, Duration: String(b.duration) + '.'.repeat(b.dots) };
+        // A bar whose ONLY event is a rest is, by definition, a full
+        // bar of silence — but real GP files routinely encode that rest
+        // with whatever short duration (often a quarter) regardless of
+        // the actual time signature, since it doesn't affect playback
+        // and GP's own alphaTab-side isFullBarRest only special-cases a
+        // LITERAL Whole-duration rest (confirmed against the vendored
+        // bundle: isFullBarRest = isRest && 1 beat && duration===Whole).
+        // Taking the encoded duration at face value here would print a
+        // single quarter-rest glyph sitting in an otherwise-empty bar
+        // instead of the full-bar rest mark the bar obviously means —
+        // confirmed live against a real imported file (bars with
+        // duration=4/dots=0, isFullBarRest false, in a 4/4 bar that's
+        // musically just "rest here").
+        if (b.isRest) return { Rest: true, Duration: isSoleRest ? '1' : String(b.duration) + '.'.repeat(b.dots) };
         const notes = b.notes.map(n => ({
           MIDI: n.realValue,
           String: numStrings + 1 - n.string,
