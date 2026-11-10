@@ -604,6 +604,25 @@
   <button type="button" data-value="drummer" title="drummer view">{{template "icon-mode-drummer"}} Drummer</button>
   <button type="button" data-value="reference" title="reference">{{template "icon-reference"}} Reference</button>
 </div>
+{{/* Instrument picker — Song view's own chord-grid chart (and Song
+     map, which reads the SAME attachTabRiffs-mutated sections) stays
+     pure chords by default once a section carries more than one
+     melodic track (firstMelodicRiff's own doc comment, handlers_pages.go
+     — auto-picking one would be a guess). This lets a reader force which
+     one overlays the chart instead, server-rendered via a plain query
+     param (?instrument=NAME, handleSong) rather than a client-side
+     re-render, so it works identically for Song and Song map without
+     threading per-track alphaTeX through the page for every instrument
+     up front. Hidden entirely when the song has no melodic score track
+     at all — nothing to pick. */}}
+{{if .Instruments}}
+<select class="instrument-picker" id="instrument-picker" title="which instrument's notation to show">
+  <option value=""{{if not .SelectedInstrument}} selected{{end}}>Chords</option>
+  {{range .Instruments}}
+  <option value="{{.}}"{{if eq . $.SelectedInstrument}} selected{{end}}>{{.}}</option>
+  {{end}}
+</select>
+{{end}}
 </div>
 
 <div class="edit-drawer-backdrop" id="edit-drawer-backdrop" hidden></div>

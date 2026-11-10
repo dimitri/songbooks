@@ -1088,6 +1088,23 @@ const ICONS = {
     }
   } catch (e) { /* ignore */ }
 
+  // Instrument picker (#instrument-picker, play.html) — server-rendered,
+  // not a client-side re-render: Song view's own chord-chart overlay and
+  // Song map (both built from the SAME attachTabRiffs-mutated sections,
+  // handlers_pages.go) only know which track to show once the page is
+  // rendered with ?instrument=NAME, so picking a different one just
+  // updates that query param and reloads, rather than threading every
+  // available track's own alphaTeX through the page up front for a
+  // client-side swap. URLSearchParams, not string-splicing the query
+  // string by hand, so this doesn't clobber ?setlist=/?band=/?songbook=
+  // or any other param already on the URL.
+  document.getElementById('instrument-picker')?.addEventListener('change', e => {
+    const url = new URL(location.href);
+    if (e.target.value) url.searchParams.set('instrument', e.target.value);
+    else url.searchParams.delete('instrument');
+    location.href = url.toString();
+  });
+
   // ---- Reference video (YouTube) ----------------------------------------
   // Extracts a video id from any common YouTube URL shape (watch?v=,
   // youtu.be/, shorts/, embed/) so the band can all pull up the exact same

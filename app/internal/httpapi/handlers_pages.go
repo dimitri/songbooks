@@ -244,7 +244,7 @@ func (s *Server) handleDocsSongFormatExampleTab(w http.ResponseWriter, r *http.R
 	}
 	sections := buildSections(sg)
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
-	attachTabRiffs(sections, map[int][]tab.NamedRiff{0: {{Name: "guitar", Riff: riff}}}, atoiOr(num, 4), atoiOr(den, 4))
+	attachTabRiffs(sections, map[int][]tab.NamedRiff{0: {{Name: "guitar", Riff: riff}}}, atoiOr(num, 4), atoiOr(den, 4), "")
 	s.renderDocsExamplePage(w, sg, sections)
 }
 
@@ -726,11 +726,9 @@ func atoiOr(s string, fallback int) int {
 // chart too, both of which read the same grid-replaced sections and
 // render as empty/bar-count-only once the grid is gone (see
 // #sheet[data-render-mode="jazz"] .sheet-section:not(.is-compact):not(
-// :has(.grid)), app.css). An instrument picker beside the view-mode tabs
-// (planned, not yet built) will let a reader choose which melodic track
-// overlays the shared chart when there's more than one — until then the
-// chart just stays pure chords whenever picking automatically would be
-// a guess.
+// :has(.grid)), app.css). The instrument picker (#instrument-picker,
+// play.html) is the escape hatch: pickRiff below uses this function only
+// when nothing was explicitly picked.
 func firstMelodicRiff(tracks []tab.NamedRiff) *tab.Riff {
 	var found *tab.Riff
 	for _, t := range tracks {
@@ -743,6 +741,47 @@ func firstMelodicRiff(tracks []tab.NamedRiff) *tab.Riff {
 		found = t.Riff
 	}
 	return found
+}
+
+// pickRiff is attachTabRiffs' own track-selection step: want empty falls
+// back to firstMelodicRiff's own ambiguous-skip default (today's
+// behavior, unchanged); want non-empty looks for a track whose Name
+// matches it exactly (case-insensitive — a GP track's own name, e.g.
+// "Electric Bass", is free text this app never rewrites) and returns nil
+// if THIS section doesn't happen to carry a track by that name — no
+// overlay for that one section rather than falling back to a guess, same
+// as the no-score case already does.
+func pickRiff(tracks []tab.NamedRiff, want string) *tab.Riff {
+	if want == "" {
+		return firstMelodicRiff(tracks)
+	}
+	for _, t := range tracks {
+		if !t.Riff.Drums && strings.EqualFold(t.Name, want) {
+			return t.Riff
+		}
+	}
+	return nil
+}
+
+// collectInstrumentNames lists the distinct melodic (non-drum) track
+// names across every section's score — the instrument picker's own
+// option list (#instrument-picker, play.html). Sorted for a stable
+// order: scoreTracks is keyed by section index and Go map iteration is
+// randomized, so "first seen" isn't a meaningful order here anyway.
+func collectInstrumentNames(scoreTracks map[int][]tab.NamedRiff) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, tracks := range scoreTracks {
+		for _, t := range tracks {
+			if t.Riff.Drums || t.Name == "" || seen[t.Name] {
+				continue
+			}
+			seen[t.Name] = true
+			out = append(out, t.Name)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // chipSource is buildDrumMap's "what does this section actually draw"
@@ -905,13 +944,16 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff)
 	return rows
 }
 
-func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff, timeNum, timeDen int) {
+// instrument, when non-empty, is the #instrument-picker's own selection
+// (play.html) — see pickRiff's own doc comment for how it overrides
+// firstMelodicRiff's default ambiguous-skip behavior.
+func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff, timeNum, timeDen int, instrument string) {
 	for si := range sections {
 		tracks, ok := scoreTracks[sections[si].Index]
 		if !ok {
 			continue
 		}
-		riff := firstMelodicRiff(tracks)
+		riff := pickRiff(tracks, instrument)
 		if riff == nil {
 			continue
 		}
@@ -1129,7 +1171,6 @@ type viewerLyricLine struct {
 }
 
 type viewerSection struct {
-
 	Index    int
 	Label    string
 	Repeat   bool
@@ -2207,7 +2248,8 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	sections := buildSections(sg)
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
 	riffs, scoreErrs := tab.LoadScores(sg)
-	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4))
+	instrument := r.URL.Query().Get("instrument")
+	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), instrument)
 	drumMap := buildDrumMap(sections, riffs)
 	for _, e := range scoreErrs {
 		log.Printf("variant %d: %v", variantID, e)
@@ -2241,14 +2283,16 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
 		"TimeNum": num, "TimeDen": den,
 		"Capo": sg.Get("capo"), "Reference": sg.Get("reference"),
-		"TimeBeats":       timeSigBeats(sg.Get("time")),
-		"Sections":        sections,
-		"MapLines":        buildMapLines(sections),
-		"DrumMap":         drumMap,
-		"Chords":          sg.Chords,
-		"HasAlphaTab": anyTabOnlyLine(sections),
-		"HasLyrics":   anySectionHasLyrics(sections),
-		"Text":        text, "Version": version,
+		"TimeBeats":          timeSigBeats(sg.Get("time")),
+		"Sections":           sections,
+		"MapLines":           buildMapLines(sections),
+		"DrumMap":            drumMap,
+		"Instruments":        collectInstrumentNames(riffs),
+		"SelectedInstrument": instrument,
+		"Chords":             sg.Chords,
+		"HasAlphaTab":        anyTabOnlyLine(sections),
+		"HasLyrics":          anySectionHasLyrics(sections),
+		"Text":               text, "Version": version,
 	}
 	if gpMeta, err := s.store.GetSongGPSourceFileMeta(r.Context(), variantID); err == nil {
 		data["GPFileName"] = gpMeta.Filename
@@ -2476,16 +2520,16 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 	// buildDrumMap call handleSong itself makes.
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
 	riffs, scoreErrs := tab.LoadScores(sg)
-	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4))
+	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), "")
 	drumMap := buildDrumMap(sections, riffs)
 	for _, e := range scoreErrs {
 		log.Printf("preview: %v", e)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := webassets.Templates.ExecuteTemplate(w, "sheet-body", map[string]any{
-		"Sections":        sections,
-		"MapLines":        buildMapLines(sections),
-		"DrumMap":         drumMap,
+		"Sections": sections,
+		"MapLines": buildMapLines(sections),
+		"DrumMap":  drumMap,
 	}); err != nil {
 		log.Printf("render preview: %v", err)
 	}

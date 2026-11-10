@@ -810,7 +810,20 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
      included) visible on mobile as a row of near-illegible icon squares
      (a direct report, matching a live screenshot). */
   .view-tabs { display: none; }
+  .instrument-picker { display: none; }
 }
+/* Instrument picker (#instrument-picker, play.html) — a plain native
+   select, not a second pill: it's a one-off choice that only exists at
+   all for a song with more than one melodic track, unlike the always-
+   present view-mode row, so it doesn't earn the same permanent chrome.
+   Sits beside .view-tabs (same inline-flex/text-align:center parent,
+   .song-topzone) rather than inside it. */
+.instrument-picker {
+  margin: 0.6rem 0 0.7rem 0.5rem; padding: 0.45rem 1.8rem 0.45rem 0.8rem;
+  font-size: 0.85rem; color: var(--fg); background: var(--bg-raised);
+  border: 1px solid var(--border); border-radius: 999px; cursor: pointer;
+}
+.instrument-picker:hover { border-color: var(--border-strong); }
 .topbar-cell { display: flex; align-items: center; gap: 0.5rem; min-width: 0; color: var(--fg); }
 .topbar-cell.empty { visibility: hidden; }
 a.topbar-cell { padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid var(--border); }
