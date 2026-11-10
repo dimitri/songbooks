@@ -57,6 +57,17 @@
     // autosizing" case, when the container's width isn't resolved yet
     // at construction time.
     settings.core.enableLazyLoading = false;
+    // player.scrollMode defaults to Continuous, targeting "html,body" —
+    // the WHOLE PAGE — even though player.enablePlayer is false and
+    // this app never uses alphaTab's own playback/cursor system (chart
+    // following is this app's own clock.js-driven highlightTick, a
+    // completely separate mechanism — see play.js/song.js). Confirmed
+    // this session as the real cause of an "auto-scroll" complaint that
+    // survived two earlier, narrower fixes to our OWN scroll code:
+    // alphaTab's library default was scrolling the page on its own,
+    // underneath whatever we do. Off entirely — nothing in this app
+    // wants alphaTab touching page scroll position, ever.
+    settings.player.scrollMode = alphaTab.ScrollMode.Off;
     settings.display.staveProfile = alphaTab.StaveProfile.Tab;
     settings.notation.rhythmMode = alphaTab.TabRhythmMode.ShowWithBars;
     // The "Guitar/Bass Standard Tuning" caption above the staff — this

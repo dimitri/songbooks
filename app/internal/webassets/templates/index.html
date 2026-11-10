@@ -88,6 +88,41 @@
   </section>
   {{end}}
 
+  {{/* ---- Your communities: same card language as Your bands above —
+       previously only reachable from the sidebar's "Communities" link,
+       not surfaced here the way bands already were. ---- */}}
+  {{if .Communities}}
+  <section class="home-section">
+    <div class="home-section-head">
+      <h3>Your communities</h3>
+      <a href="/communities">all communities &rarr;</a>
+    </div>
+    <div class="band-grid">
+    {{range .Communities}}
+      <div class="band-card">
+        <div class="band-card-head">
+          <div>
+            <h4><a class="band-card-title-link" href="/communities/{{.ID}}">{{.Name}}</a></h4>
+            <div class="band-card-members">{{.MemberCount}} member{{if ne .MemberCount 1}}s{{end}} &middot; {{.MyRole}}</div>
+          </div>
+        </div>
+        <div class="band-card-digest">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}} in the repertoire</div>
+        {{if .HasNextEvent}}
+        <div class="band-card-gig">
+          <a href="/communities/{{.ID}}/events">{{template "icon-presentation"}} {{.NextEventDate.Format "Jan 2"}} &middot; {{.NextEventName}}</a>
+        </div>
+        {{end}}
+        <div class="band-card-actions">
+          <a href="/communities/{{.ID}}/repertoire">repertoire</a>
+          <a href="/communities/{{.ID}}/events">events</a>
+          {{if eq .MyRole "staff"}}<a href="/communities/{{.ID}}/admin">staff admin</a>{{end}}
+        </div>
+      </div>
+    {{end}}
+    </div>
+  </section>
+  {{end}}
+
   {{/* ---- Coming up: next gig, if any. ---- */}}
   <section class="home-section">
     <div class="home-section-head"><h3>Coming up</h3></div>

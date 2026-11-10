@@ -346,6 +346,40 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// "Your communities" home teaser — same communityCardView shape
+	// (member count, repertoire size, next-upcoming-event digest) the
+	// /communities listing itself already builds in handleCommunitiesPage,
+	// just reused here rather than duplicated: a community a person
+	// belongs to was previously only reachable from the sidebar's
+	// "Communities" link, not surfaced on the dashboard the way "Your
+	// bands" already is.
+	communityRows, err := s.store.ListCommunityCardsForPerson(r.Context(), person.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	communityCards := make([]communityCardView, len(communityRows))
+	for i, row := range communityRows {
+		communityCards[i] = communityCardView{CommunityCardRow: row}
+		events, err := s.store.ListEventsForCommunity(r.Context(), row.ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		now := time.Now()
+		for _, e := range events {
+			if e.IsPast(now) {
+				continue
+			}
+			if !communityCards[i].HasNextEvent || e.StartsAt.Before(communityCards[i].NextEventDate) {
+				communityCards[i].HasNextEvent = true
+				communityCards[i].NextEventID = e.ID
+				communityCards[i].NextEventName = e.Name
+				communityCards[i].NextEventDate = e.StartsAt
+			}
+		}
+	}
+
 	notifs, err := s.store.ListNotifications(r.Context(), person.ID, true)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -370,7 +404,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	s.render(w, "index", map[string]any{
 		"Books": views, "Me": person, "Greeting": homeGreeting(),
-		"Bands": bandCards, "Attention": attention, "NextGig": nextGig,
+		"Bands": bandCards, "Communities": communityCards, "Attention": attention, "NextGig": nextGig,
 	})
 }
 

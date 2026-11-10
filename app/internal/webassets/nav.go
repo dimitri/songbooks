@@ -17,7 +17,7 @@ type NavEntry struct {
 
 // navDesktopPrimary is the desktop sidebar's primary destination list.
 var navDesktopPrimary = []NavEntry{
-	{Label: "Home", Path: "/", Icon: "icon-home"},
+	{Label: "Home", Path: "/home", Icon: "icon-home"},
 	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog"},
 	{Label: "Catalog", Path: "/catalog", Icon: "icon-view"},
 	{Label: "Bands", Path: "/bands", Icon: "icon-bands"},
@@ -31,7 +31,7 @@ var navDesktopPrimary = []NavEntry{
 // normal, not drift, as long as the full destination set (desktop
 // primary ∪ mobile tab ∪ mobile more) is declared once.
 var navMobileTab = []NavEntry{
-	{Label: "Home", Path: "/", Icon: "icon-home"},
+	{Label: "Home", Path: "/home", Icon: "icon-home"},
 	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog"},
 	{Label: "Catalog", Path: "/catalog", Icon: "icon-view"},
 	{Label: "Bands", Path: "/bands", Icon: "icon-bands"},
@@ -42,7 +42,7 @@ var navMobileTab = []NavEntry{
 // items (Metronome, Profile) desktop reaches via its own secondary/
 // account areas rather than the primary list.
 var navMobileMore = []NavEntry{
-	{Label: "Home", Path: "/", Icon: "icon-home"},
+	{Label: "Home", Path: "/home", Icon: "icon-home"},
 	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog"},
 	{Label: "Catalog", Path: "/catalog", Icon: "icon-view"},
 	{Label: "Bands", Path: "/bands", Icon: "icon-bands"},
