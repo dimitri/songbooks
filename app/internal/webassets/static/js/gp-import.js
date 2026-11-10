@@ -505,9 +505,13 @@
   // and could silently pick the wrong chord). Only the FIRST chord-
   // bearing beat in a bar sets that bar's chord — a mid-bar chord change
   // isn't representable in this app's one-chord-per-bar grid grammar
-  // (same granularity the chart's own grid: line always has). A bar
-  // whose chord repeats the previous bar's becomes "." (grid's own
-  // sustain token), exactly how a hand-typed grid already works.
+  // (same granularity the chart's own grid: line always has). A GP
+  // author only ever stamps a diagram on the bar where the chord
+  // CHANGES, confirmed live against a real course file — most bars
+  // carry no diagram at all and mean "keep sustaining," not "unknown."
+  // Both that case and an explicit repeat of the same name become "."
+  // (grid's own sustain token), exactly how a hand-typed grid already
+  // works.
   function extractChordGrid(track, realBarStart, barCount) {
     const staff = track.staves[0];
     const chords = staff.chords;
@@ -526,14 +530,20 @@
       if (barChord) {
         tokens.push(barChord === lastChord ? '.' : barChord);
         lastChord = barChord;
+      } else if (lastChord) {
+        // No chord diagram on THIS bar is the normal case, not a gap —
+        // confirmed live against a real course file: a GP author only
+        // ever stamps a diagram on the bar where the chord CHANGES, not
+        // on every bar it's sustained over. Same "." sustain token as an
+        // explicit repeat gets, just reached by absence instead of a
+        // matching name.
+        tokens.push('.');
       } else {
-        // No chord diagram on this bar at all — not even a repeat of
-        // the last one (a real gap in the file's own chord authoring,
-        // not something to guess at). "?" keeps the bar count right and
-        // is visibly wrong at a glance, for a quick manual fix, instead
-        // of silently repeating whatever chord came before.
+        // No chord has been seen AT ALL yet (the song's very first
+        // bar(s), before any diagram) — nothing to sustain. "?" keeps
+        // the bar count right and is visibly wrong at a glance, for a
+        // quick manual fix, instead of guessing a chord out of thin air.
         tokens.push('?');
-        lastChord = null;
       }
     }
     return tokens;
