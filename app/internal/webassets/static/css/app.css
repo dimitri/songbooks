@@ -1289,6 +1289,15 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    nothing was ever emitted for those modes to show. */
 #sheet:not([data-render-mode="normal"]) .alphatab-row { display: none; }
 #sheet[data-render-mode="normal"] .tab-only-chords-fallback { display: none; }
+/* Same base layout .staff-line itself declares (flex row, bars aligned
+   to the baseline, room above for a chord label) — deliberately
+   repeated under its own class rather than also given the "staff-line"
+   class, which song.js's reflow logic scans for independently of this
+   row's own mode-gated visibility (see the comment above and in
+   play.html). */
+.tab-only-chords-fallback { display: flex; align-items: flex-end; padding-top: 3.3em; position: relative; }
+#sheet[data-render-mode="map"] .tab-only-chords-fallback { width: 100%; }
+#sheet[data-render-mode="jazz"] .tab-only-chords-fallback { flex-wrap: wrap; }
 /* ---- One staff-drawing engine, reused everywhere a chart actually wants
    a 5-line staff (normal/chords+lyrics mode and Song Map; jazz is
    deliberately staff-less by its own real-iReal-Pro-fidelity convention,

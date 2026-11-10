@@ -257,7 +257,17 @@
          empty Jazz chart — not a broken render, nothing to render at
          all. This repeats that same chord-label-only fallback at the
          LINE level instead, CSS-visible only where the real tab isn't. */}}
-    <div class="staff-line tab-only-chords-fallback" style="--cap: {{.Capacity}}">
+    {{/* Deliberately NOT the "staff-line" class every other row (real
+         or alphaTab) carries: song.js's captureStaffLineOriginals scans
+         "> .staff-line" direct children of .grid.spans-full to decide
+         what a narrow viewport needs to reflow, with no concept of an
+         alphaTab-mounted or fallback row to skip over — confirmed live,
+         giving this the same class made it get swept into that reflow
+         right alongside the real alphaTab row, which rebuilt a SECOND,
+         separately-laid-out, duplicate copy of this row's own chord
+         labels and bars as freshly-cloned plain HTML, visibly
+         disconnected from the real tab notation above it. */}}
+    <div class="tab-only-chords-fallback" style="--cap: {{.Capacity}}">
       {{range .Measures}}
       <span class="bar{{if .TabOnly}} tab-only{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}" style="--slots: {{len .Beats}}">
         <span class="bar-body bar-body-tab-only">
