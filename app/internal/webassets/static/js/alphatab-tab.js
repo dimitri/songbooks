@@ -159,37 +159,40 @@
     // lines when the viewport is narrow.
     // min-width is a legibility floor, not the row's primary width
     // (which is simply the full page width) — a backstop for a genuinely
-    // narrow viewport: a consolidated multi-bar rest's own count number
-    // needs real room to draw at all (measured live down to ~120px — the
-    // rest glyph still drew, but alphaTab silently omitted the count
-    // text), while real notes and chord labels need noticeably more room
-    // per bar than a rest does (measured live against 2/4/6-bar riffs at
-    // varying note density: roughly 0.95rem/bar on top of a ~9.5rem
-    // clef+time-signature overhead before chord labels start to overlap).
+    // narrow viewport.
     //
-    // A row carrying BOTH (a section boundary mid-line — buildDrumMap —
-    // so real notation sits right next to a consolidated rest from a
-    // different section) needs noticeably more than that per-bar formula
-    // alone gives: confirmed live on a real 8-bar row (2 bars rest, 2 of
-    // real notes+chords, 4 more rest) — the formula's own 17.1rem was
-    // nowhere near enough; the rest run's own count number crowded right
-    // up against the very next bar's chord name because the REST portion
-    // of a short, unevenly-split row gets squeezed far more than the
-    // formula (calibrated against evenly-dense content alone) accounts
-    // for. 30rem (480px) clears that exact case with real margin — a
-    // pixel-level check (canvas ImageData, not a screenshot) at the
-    // previous 26.25rem floor found the glyphs technically not touching,
-    // but only by a few px, thin enough that a compressed screenshot at
-    // phone width reads as a dead collision; this floor is kept well
-    // past the point that stopped mattering, as an explicit minimum
-    // under the per-bar formula rather than baked into it, since a long,
-    // evenly-dense real row already clears it on the formula alone.
+    // TOTAL bar count turned out to be the wrong signal for a mixed row
+    // (buildDrumMap — real notation sharing a line with a consolidated
+    // rest from a different section): an 8-bar row split 2 real/6 rest
+    // and one split 6 real/2 rest both carry the same "Bars", but need
+    // very different widths — each real bar's own notation needs its
+    // own real room, while a consolidated rest's glyph needs roughly the
+    // same small, fixed room regardless of how many bars it folds in.
+    // Two rounds of this chasing a flat bars-based floor (confirmed live
+    // against two different real rows on the actual re-imported song,
+    // not just one) is why this is keyed on RealBars/RestRuns
+    // (data-realbars/data-restruns, buildDrumMap) instead: each real bar
+    // adds its own width, each separate consolidated-rest glyph adds its
+    // own roughly-fixed floor, once each, regardless of how many bars
+    // it represents. Coefficients fitted against two real measured
+    // cases — a 2-real/2-rest-run row needing ~480px clean and a
+    // 4-real/2-rest-run row (busier content: toms, a crash, more
+    // syncopation) needing ~700px — with real margin kept on both: a
+    // pixel-level check (canvas ImageData, not a screenshot) on an
+    // earlier, narrower floor found the glyphs technically not
+    // touching, but only by a few px, thin enough that a compressed
+    // phone-width screenshot still read as a dead collision.
+    const restFloorRem = (n) => n < 10 ? 8.5 : 11;
     if (container.dataset.bars) {
       const bars = parseInt(container.dataset.bars, 10);
       settings.display.barsPerRow = bars;
-      container.style.minWidth = container.dataset.restonly
-        ? (bars < 10 ? '8.5rem' : '11rem')
-        : Math.max(9.5 + bars * 0.95, 30) + 'rem';
+      if (container.dataset.restonly) {
+        container.style.minWidth = restFloorRem(bars) + 'rem';
+      } else {
+        const realBars = parseInt(container.dataset.realbars, 10) || bars;
+        const restRuns = parseInt(container.dataset.restruns, 10) || 0;
+        container.style.minWidth = (9.5 + realBars * 4.5 + restRuns * 8.5) + 'rem';
+      }
     }
 
     const fg = color('--fg', new alphaTab.model.Color(0x24, 0x1e, 0x18));
