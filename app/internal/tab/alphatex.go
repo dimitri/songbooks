@@ -158,6 +158,17 @@ func writeBeat(b *strings.Builder, beat Beat, chordLabel string) {
 		if beat.PalmMute {
 			noteProps = append(noteProps, "pm")
 		}
+		if n.Tied {
+			// alphaTeX's "{t}" note effect — marks this note as tied to
+			// the same-pitch note immediately before it, so alphaTab
+			// draws a tie curve and suppresses the re-attack rather than
+			// rendering a second freshly-picked note. GP import already
+			// extracts this correctly (gp-import.js reads alphaTab's own
+			// note.isTieDestination into Note.Tied), but writeBeat never
+			// read it back out until now — every tied note was silently
+			// rendered as an ordinary struck note.
+			noteProps = append(noteProps, "t")
+		}
 		if len(noteProps) > 0 {
 			b.WriteByte('(')
 			b.WriteString(strconv.Itoa(n.Fret))
@@ -184,6 +195,9 @@ func writeBeat(b *strings.Builder, beat Beat, chordLabel string) {
 			b.WriteString(strconv.Itoa(n.Fret))
 			b.WriteByte('.')
 			b.WriteString(strconv.Itoa(n.String))
+			if n.Tied {
+				b.WriteString("{t}")
+			}
 		}
 		b.WriteString(").")
 		b.WriteString(dur)
