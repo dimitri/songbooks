@@ -30,7 +30,7 @@
   function render(container, retriesLeft) {
     const tex = container.dataset.tex;
     if (!tex) return;
-    retriesLeft = retriesLeft === undefined ? 2 : retriesLeft;
+    retriesLeft = retriesLeft === undefined ? 5 : retriesLeft;
 
     const settings = new alphaTab.Settings();
     settings.core.fontDirectory = '/static/js/vendor/alphatab/font/';
@@ -128,40 +128,58 @@
     container.style.minHeight = (estSystems * 150) + 'px';
     const clearReservedHeight = () => { container.style.minHeight = ''; };
 
-    // Resize-triggered vanish guard: alphaTab's own container-width
-    // watcher (separate from, and not covered by, the construction-time
-    // watchdog below) re-renders a row WHENEVER it thinks the
-    // container's width changed — confirmed this session as a real,
-    // reproducible bug on an iPad specifically (not reproducible on a
-    // desktop browser, which has no equivalent trigger): scrolling up
-    // and down made a chart that had rendered correctly go permanently
-    // blank, every time, with no further recovery — almost certainly
-    // iOS Safari's dynamic toolbar (the address bar that collapses and
-    // re-expands as you scroll) causing alphaTab to see a width change
-    // that isn't real, re-render, and hit the same "container invisible
-    // during autosizing" failure the construction-time watchdog exists
-    // for, just on a code path that watchdog was never wired to catch.
-    // Rather than patching the vendored bundle's own resize-watcher
-    // (fragile against a future vendor update, and its exact trigger
-    // condition is undocumented), this is a general safety net: once a
-    // row has successfully shown real content, any later resize that's
-    // followed by the row going BACK to empty gets treated exactly like
-    // the already-handled construction-time failure — a full
-    // reconstruction from scratch, reusing the proven recovery path
-    // rather than trusting alphaTab's own resize-render to recover
-    // itself.
+    // attemptNum (1 on the very first render() call, climbing on each
+    // recursive retry) drives both the backoff delay and when to give
+    // up on in-place retrying — threaded through retriesLeft on every
+    // recursive render() call, not a fresh per-call counter, so it
+    // actually accumulates across the whole retry chain instead of
+    // resetting to 0 every time render() re-runs.
+    const attemptNum = 6 - retriesLeft; // retriesLeft starts at 5 → attemptNum starts at 1
+
+    // recover is the one retry path EVERY failure mode below funnels
+    // into — construction-time ("container invisible while
+    // autosizing", no width yet) and resize-triggered (confirmed this
+    // session via screen recording: alphaTab's own container-width
+    // watcher re-renders a row whenever it thinks the width changed,
+    // and iOS Safari's dynamic toolbar collapsing/re-expanding as you
+    // scroll fires that essentially instantly, far faster than a
+    // user's own scroll gesture — the row goes blank in the SAME frame
+    // the toolbar animation completes, not gradually). A single retry
+    // attempt wasn't enough: confirmed live, pinch-zoom/rotation/window
+    // resize (all of which SHOULD have re-triggered a one-shot retry)
+    // did nothing, and only a full page reload reliably recovered it —
+    // consistent with iOS Safari's viewport geometry getting stuck
+    // wrong for a while after that animation, not instantly correct
+    // again. So: more attempts, growing backoff between them (give the
+    // browser's own geometry time to resettle rather than retrying into
+    // the same bad state), and — since a real reload is the only thing
+    // proven 100% reliable — an actual location.reload() as the final
+    // fallback if every in-place attempt still comes up empty, rather
+    // than leaving a reader staring at a permanently blank chart.
+    function recover() {
+      if (container.querySelector('svg text')) return; // already fine
+      if (retriesLeft <= 0) {
+        location.reload();
+        return;
+      }
+      container.innerHTML = '';
+      container.style.minHeight = (estSystems * 150) + 'px';
+      render(container, retriesLeft - 1);
+    }
+
     let hadContent = false;
     const resizeGuard = new ResizeObserver(() => {
       if (!hadContent) return;
       clearTimeout(resizeGuard._t);
+      // Backoff grows with each attempt (600ms, 1.2s, 2.4s, ...) — a
+      // fixed short delay kept retrying into the SAME still-unsettled
+      // geometry right after a toolbar animation, confirmed live.
       resizeGuard._t = setTimeout(() => {
         if (hadContent && !container.querySelector('svg text')) {
           resizeGuard.disconnect();
-          container.innerHTML = '';
-          container.style.minHeight = (estSystems * 150) + 'px';
-          render(container, 2);
+          recover();
         }
-      }, 400);
+      }, 600 * Math.pow(2, attemptNum - 1));
     });
     resizeGuard.observe(container);
 
@@ -172,31 +190,21 @@
     }));
     api.tex(tex);
 
-    // Watchdog: with lazy loading off (see above), the remaining known
-    // failure mode is the vendored bundle logging "AlphaTab container
-    // was invisible while autosizing" and never painting anything —
-    // happens when the container's width isn't resolved yet at
-    // construction (renderAll's own requestAnimationFrame delay usually
-    // avoids this, but isn't a hard guarantee across every layout
-    // path). Gated on renderFinished rather than a short fixed delay:
-    // a long continuous riff can legitimately take a few seconds to lay
-    // out on a slower device, and destroying a still-in-progress render
-    // to "retry" it only makes a slow render look like a permanently
-    // blank one — confirmed this session as the likely cause of
-    // intermittent blank charts on an iPad. A full reconstruction, not
-    // a same-instance api.render() call, is what reliably recovers the
-    // genuine zero-width case.
+    // Construction-time watchdog: the vendored bundle's "AlphaTab
+    // container was invisible while autosizing" case, when the
+    // container's width isn't resolved yet at construction (renderAll's
+    // own requestAnimationFrame delay usually avoids this, but isn't a
+    // hard guarantee across every layout path). Gated on renderFinished
+    // rather than a short fixed delay: a long continuous riff can
+    // legitimately take a few seconds to lay out on a slower device,
+    // and destroying a still-in-progress render to "retry" it only
+    // makes a slow render look like a permanently blank one.
     let finished = false;
     api.renderFinished.on(() => { finished = true; });
-    const watchdog = () => {
-      if (retriesLeft <= 0) return;
+    setTimeout(() => {
       if (finished || container.querySelector('svg text')) return;
-      container.innerHTML = '';
-      container.style.minHeight = (estSystems * 150) + 'px';
-      retriesLeft--;
-      render(container, retriesLeft);
-    };
-    setTimeout(watchdog, 8000);
+      recover();
+    }, 8000);
   }
 
   // pollForChordFix retries fixChordNameSpacing across a few animation
