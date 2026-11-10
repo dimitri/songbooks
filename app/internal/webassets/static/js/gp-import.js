@@ -199,6 +199,7 @@
   let ourSections = []; // [{index, label, barCount, startBar}]
   let realIdx = [];     // real-bar-position -> GP-authored masterBar index
   let barTimes = [];    // real-bar-position -> seconds (interpolated where GP has no sync point for it)
+  let syncedPositions = new Set(); // real-bar-positions that carry a REAL GP sync point (buildBarTimes) — every other position in barTimes is interpolated/estimated, not authored data
   let audioEl = null;   // <audio>, source = a Blob URL of the embedded backing track
   let audioDuration = 0;
   let boundaries = [];  // length ourSections.length+1, each a real-bar-position (float, fractional between bars while dragging is in progress is never stored — always snapped to an integer bar)
@@ -297,9 +298,10 @@
     nominal[realIdx.length] = t;
 
     const known = []; // [{pos, t}]
+    syncedPositions = new Set();
     realIdx.forEach((gpBarIdx, pos) => {
       const sp = score.masterBars[gpBarIdx].syncPoints && score.masterBars[gpBarIdx].syncPoints[0];
-      if (sp) known.push({ pos, t: sp.syncPointValue.millisecondOffset / 1000 });
+      if (sp) { known.push({ pos, t: sp.syncPointValue.millisecondOffset / 1000 }); syncedPositions.add(pos); }
     });
     if (known.length === 0) return nominal;
 
@@ -461,8 +463,48 @@
       const { alphaTex } = await res.json();
       contentPreviewEl.dataset.tex = alphaTex;
       if (window.AlphaTabTab) window.AlphaTabTab.render(contentPreviewEl);
+      wireContentPreviewClicks();
     } catch (e) {
       contentPreviewEl.textContent = 'Preview failed: ' + e.message;
+    }
+  }
+
+  // render() (alphatab-tab.js) stashes its AlphaTabApi on the container
+  // as container._alphaTabApi once construction succeeds — but it's
+  // still async underneath (a rAF, possibly a retry or two), so it isn't
+  // there yet the instant render() returns. Polling briefly for it
+  // rather than assuming either "immediately" or "never" is the same
+  // call this wizard already makes elsewhere (waiting for a container to
+  // actually have content before trusting it).
+  function wireContentPreviewClicks(attempt) {
+    attempt = attempt || 0;
+    const api = contentPreviewEl._alphaTabApi;
+    if (!api) {
+      if (attempt < 40) setTimeout(() => wireContentPreviewClicks(attempt + 1), 250);
+      return;
+    }
+    // beatMouseDown's own payload shape varies by how it's reached
+    // (direct API call vs. the DOM event this ALSO fires under the same
+    // name) — confirmed live only that a Beat object is reachable one
+    // way or the other, not which; checking both rather than assuming
+    // is cheap and avoids silently never firing.
+    api.beatMouseDown.on(e => {
+      const beat = e?.beat || e;
+      const pos = beat?.voice?.bar?.index; // index WITHIN this alphaTeX doc — same as realIdx's own "pos", since extractRiff walked the real bars in that same order, one beat per real bar's position
+      if (pos == null) return;
+      jumpTimelineTo(pos);
+    });
+  }
+
+  // jumpTimelineTo seeks playback (when there's audio to seek) and/or
+  // scrolls the waveform/bar-grid timeline to center on a real-bar
+  // position — the other half of "click a bar in the real notation
+  // instead of guessing from the waveform": clicking there is now a
+  // real way to GET somewhere on the timeline, not just look at notes.
+  function jumpTimelineTo(pos) {
+    if (audioEl && barTimes[pos] != null) { audioEl.currentTime = barTimes[pos]; }
+    if (!scrollWrap.hidden && barTimes[pos] != null) {
+      scrollWrap.scrollLeft = Math.max(0, barTimes[pos] * pxPerSec - scrollWrap.clientWidth / 2);
     }
   }
 
@@ -552,6 +594,15 @@
   // them, else one collapsed block per section (the chart's own
   // "multi-rest" idea, applied to the timeline instead of the staff).
   const TICK_THRESHOLD_PX = 10; // below this px-per-bar, stop drawing individual ticks
+  // Guitar Pro's own tempo-map/sync editor marks three distinct things on
+  // its ruler: a solid tick at every measure its own sync data actually
+  // anchors, a lighter tick at every measure it only interpolated
+  // between two anchors (or extrapolated past the last one), and a
+  // beat subdivision within each measure — not just one tick per bar.
+  // This mirrors that directly: .synced vs plain .beat1 is REAL file
+  // data vs this wizard's own estimate (syncedPositions, buildBarTimes),
+  // and .beatN below is new — reusing a class this file already defined
+  // but never actually drew a tick for.
   function renderBarGrid() {
     bargridEl.innerHTML = '';
     if (!barTimes.length) return;
@@ -561,9 +612,28 @@
         const x = barTimes[pos] * pxPerSec;
         const mb = score.masterBars[gpBarIdx];
         const line = document.createElement('div');
-        line.className = 'beat1';
+        line.className = 'beat1' + (syncedPositions.has(pos) ? ' synced' : '');
+        line.title = syncedPositions.has(pos)
+          ? 'Real sync point from this file'
+          : 'Estimated — no sync point here, interpolated from nearby ones';
         line.style.left = x + 'px';
         bargridEl.appendChild(line);
+        // Beat subdivisions within this bar — interior ticks only (the
+        // bar's own beat1 line above already marks the first beat), evenly
+        // spaced across this bar's real duration (next bar's time minus
+        // this one's): the file's sync points are per-BAR, never finer,
+        // so a beat tick is this wizard's own even split, same honest
+        // estimate groupMeasures/buildBarTimes already makes for anything
+        // between two known points, not real sub-bar sync data.
+        const barDur = (barTimes[pos + 1] ?? x / pxPerSec) - barTimes[pos];
+        const beatsPerBar = mb.timeSignatureNumerator || 4;
+        for (let b = 1; b < beatsPerBar; b++) {
+          const bx = x + (barDur * b / beatsPerBar) * pxPerSec;
+          const btick = document.createElement('div');
+          btick.className = 'beatN';
+          btick.style.left = bx + 'px';
+          bargridEl.appendChild(btick);
+        }
         const num = document.createElement('div');
         num.className = 'barnum';
         num.style.left = (x + 2) + 'px';

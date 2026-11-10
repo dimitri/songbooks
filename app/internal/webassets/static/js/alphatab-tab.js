@@ -476,6 +476,14 @@
     lastMissingPx = 0;
     try {
       const api = new alphaTab.AlphaTabApi(container, settings);
+      // Stashed on the container itself — not returned, since render()'s
+      // own callers never awaited a return value before this and a
+      // retry/reconstruction can replace this same api instance later
+      // (the container is the one thing that stays stable across that);
+      // reading it straight off the container when needed (the GP
+      // import wizard's own click-to-seek, gp-import.js) beats changing
+      // this function's call signature for one caller's extra need.
+      container._alphaTabApi = api;
       api.renderFinished.on(() => {
         finished = true;
         pollForChordFix(container, tex, 0, () => {
