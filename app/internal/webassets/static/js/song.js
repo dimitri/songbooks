@@ -1059,9 +1059,21 @@ const ICONS = {
     // that it's actually visible if it hasn't been already; harmless/
     // idempotent to call again for a row alphaTab already painted (it
     // just reconstructs the same SVG from the same data-tex).
+    //
+    // refreshDrumMap first: renderAll's own call ran while .drum-map was
+    // still width=0/hidden for exactly this reader (same trap as above),
+    // so it measured nothing and skipped — this is that same width-aware
+    // re-fetch getting its real first chance, now that the container is
+    // actually visible and has a real width to measure. Self-guarded
+    // (data-width-fetched), so this is a no-op on every mode switch after
+    // the first. Re-queries the row list after it resolves: a successful
+    // refetch replaces .drum-map's innerHTML wholesale, so the elements
+    // captured before awaiting it would be stale/detached.
     if (v === 'drummer' && window.AlphaTabTab) {
-      sheet.querySelectorAll('.drum-map .alphatab-row[data-tex]').forEach(row => {
-        if (!row.querySelector('svg')) window.AlphaTabTab.render(row);
+      window.AlphaTabTab.refreshDrumMap().finally(() => {
+        sheet.querySelectorAll('.drum-map .alphatab-row[data-tex]').forEach(row => {
+          if (!row.querySelector('svg')) window.AlphaTabTab.render(row);
+        });
       });
     }
     // Never save "reference" as the reader's default mode — unlike the
