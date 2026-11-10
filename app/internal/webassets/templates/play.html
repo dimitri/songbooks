@@ -246,6 +246,28 @@
          internally across the whole string it's given, so a bar-by-bar
          mount would fight its own layout rather than use it. */}}
     <div class="staff-line alphatab-row" style="--cap: {{.Capacity}}" data-tex="{{.AlphaTex}}"></div>
+    {{/* Jazz chart / Song map / Lyrics only never show the real tab
+         notation (CSS hides .alphatab-row outside "normal" mode) — but
+         a fully riff-covered line has no OTHER markup at all otherwise,
+         since the per-bar chart-bar template (which is where a PARTLY
+         tab-covered bar's own .tab-only-chords fallback already lives)
+         never runs for a line that skipped straight to the single
+         alphaTab mount above. Confirmed live: a GP-imported song (one
+         giant tab-only section, the common case) showed a completely
+         empty Jazz chart — not a broken render, nothing to render at
+         all. This repeats that same chord-label-only fallback at the
+         LINE level instead, CSS-visible only where the real tab isn't. */}}
+    <div class="staff-line tab-only-chords-fallback" style="--cap: {{.Capacity}}">
+      {{range .Measures}}
+      <span class="bar{{if .TabOnly}} tab-only{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}" style="--slots: {{len .Beats}}">
+        <span class="bar-body bar-body-tab-only">
+          <span class="tab-only-chords">
+            {{range .Beats}}<span class="beat-slot tab-only-slot{{if .IsTie}} tie{{end}}" style="--span: {{.Span}}">{{if not .IsTie}}<span class="chord-label"><span class="chord-std">{{chord .Text}}</span><span class="chord-jazz">{{chordJazz .Text}}</span></span>{{end}}</span>{{end}}
+          </span>
+        </span>
+      </span>
+      {{end}}
+    </div>
     {{else}}
     <div class="staff-line" style="--cap: {{.Capacity}}">
       {{range .Measures}}
@@ -422,7 +444,7 @@
         <option value="">Song</option>
         <option value="jazz">Jazz chart</option>
         <option value="map">Song map</option>
-        <option value="lyrics">Lyrics only</option>
+        {{if $.HasLyrics}}<option value="lyrics">Lyrics only</option>{{end}}
       </select>
       <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
     </span>
@@ -520,7 +542,7 @@
 <div class="view-tabs" id="mode-segmented" data-value="normal">
   <button type="button" data-value="normal" class="active" title="song">{{template "icon-mode-normal"}} Song</button>
   <button type="button" data-value="jazz" title="jazz chart">{{template "icon-mode-jazz"}} Jazz chart</button>
-  <button type="button" data-value="lyrics" title="lyrics only">{{template "icon-mode-lyrics"}} Lyrics only</button>
+  {{if .HasLyrics}}<button type="button" data-value="lyrics" title="lyrics only">{{template "icon-mode-lyrics"}} Lyrics only</button>{{end}}
   <button type="button" data-value="map" title="song map">{{template "icon-mode-map"}} Song map</button>
   <button type="button" data-value="reference" title="reference">{{template "icon-reference"}} Reference</button>
 </div>
@@ -919,7 +941,7 @@
   <div class="stack-sheet" id="view-stack" role="dialog" aria-label="View">
     <button type="button" class="stack-sheet-row" data-forward="normal">{{template "icon-mode-normal"}} Song</button>
     <button type="button" class="stack-sheet-row" data-forward="jazz">{{template "icon-mode-jazz"}} Jazz chart</button>
-    <button type="button" class="stack-sheet-row" data-forward="lyrics">{{template "icon-mode-lyrics"}} Lyrics only</button>
+    {{if .HasLyrics}}<button type="button" class="stack-sheet-row" data-forward="lyrics">{{template "icon-mode-lyrics"}} Lyrics only</button>{{end}}
     <button type="button" class="stack-sheet-row" data-forward="map">{{template "icon-mode-map"}} Song map</button>
     <button type="button" class="stack-sheet-row" data-forward="edit">{{template "icon-edit"}} Edit</button>
     {{if .VariantID}}<button type="button" class="stack-sheet-row" id="notes-stack-row">{{template "icon-notes"}} Notes</button>{{end}}
@@ -951,7 +973,7 @@
         <option value="">Song</option>
         <option value="jazz">Jazz chart</option>
         <option value="map">Song map</option>
-        <option value="lyrics">Lyrics only</option>
+        {{if $.HasLyrics}}<option value="lyrics">Lyrics only</option>{{end}}
       </select>
       <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
     </div>

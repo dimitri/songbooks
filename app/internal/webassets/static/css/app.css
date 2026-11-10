@@ -1276,6 +1276,19 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    to recover after the fact. */
 .staff-line.alphatab-row { display: block; padding-top: 0; width: 100%; transform: translateZ(0); }
 .staff-line.alphatab-row svg { max-width: 100%; height: auto; }
+/* Real tab notation is a "normal" mode thing only — jazz/map/lyrics
+   never showed it (jazz is deliberately staff-less, see above; map and
+   lyrics have their own simpler conventions) — but a FULLY tab-only
+   line had NOTHING ELSE at all outside normal mode until this pair of
+   rules: the per-bar chord-label fallback (.tab-only-chords-fallback,
+   play.html) that every OTHER tab-covered bar already gets via
+   chart-bar's own .tab-only-chords never ran for a line that skipped
+   straight to the single alphaTab mount. Confirmed live: a GP-imported
+   song (one giant tab-only section, no lyrics/sections of its own) had
+   a completely empty Jazz chart and Song Map — not a rendering bug,
+   nothing was ever emitted for those modes to show. */
+#sheet:not([data-render-mode="normal"]) .alphatab-row { display: none; }
+#sheet[data-render-mode="normal"] .tab-only-chords-fallback { display: none; }
 /* ---- One staff-drawing engine, reused everywhere a chart actually wants
    a 5-line staff (normal/chords+lyrics mode and Song Map; jazz is
    deliberately staff-less by its own real-iReal-Pro-fidelity convention,
@@ -1323,7 +1336,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 }
 #sheet[data-render-mode="normal"] .bar-body:not(.bar-body-tab-only)::before,
 #sheet[data-render-mode="normal"] .staff-timesig-cell::before,
-#sheet[data-render-mode="map"] .bar-body:not(.bar-body-tab-only)::before,
+#sheet[data-render-mode="map"] .bar-body::before,
 #sheet[data-render-mode="map"] .staff-timesig-cell::before {
   content: ""; position: absolute; left: -0.5em; right: -0.5em; bottom: 0; height: 1.7em; z-index: 0;
   background-image: var(--staff-5lines);
@@ -1614,6 +1627,20 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    read as real notation rather than a small annotation. */
 .tab-block.tab-replaces-staff .tab-beats { display: grid; grid-auto-flow: column; }
 .tab-block.tab-replaces-staff .tab-beat { position: relative; min-width: 0; }
+/* Song Map is an OVERVIEW — chords and structure, the same reduced
+   detail every other section already gets there (a 5-line staff behind
+   chords/slashes, no actual notes), never real fretted note-by-note
+   notation. A GP-imported bar's .tab-block.tab-replaces-staff (real tab
+   notation, correct and wanted in "normal" mode) was rendering
+   unconditionally in every mode including map, showing fret-by-fret
+   detail nothing else on the map does — confirmed live, a single-track
+   GP import's Song Map was a dense grid of real tab numbers instead of
+   the chord-progression overview every other song's map already is.
+   Hide the real notation and extend the same 5-line-staff background
+   every normal bar gets (the :not(.bar-body-tab-only) exclusion right
+   above this block is for "normal" mode only) so a tab-only bar reads
+   exactly like any other bar here: chords over a staff. */
+#sheet[data-render-mode="map"] .tab-block.tab-replaces-staff { display: none; }
 
 /* Beamed runs: 2+ consecutive eighth/sixteenth notes joined by a shared
    horizontal bar instead of each drawing its own hooked flag — standard

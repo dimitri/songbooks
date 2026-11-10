@@ -826,6 +826,21 @@ func anyTabOnlyLine(sections []viewerSection) bool {
 	return false
 }
 
+// anySectionHasLyrics reports whether any section actually carries lyric
+// lines — used to hide the "Lyrics only" mode entirely for a song that
+// has none at all (every GP import, for one: a riff has no words), same
+// reasoning as anyTabOnlyLine above deciding whether to load alphaTab.
+// Selecting a mode with nothing to show isn't a real mode, just an empty
+// page with the normal chrome missing.
+func anySectionHasLyrics(sections []viewerSection) bool {
+	for _, sec := range sections {
+		if len(sec.Lyrics) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // gridColsCSS renders a CSS grid-template-columns value, one "<w>fr"
 // term per beat's duration weight — real engraving spaces notes
 // proportionally to how long they last (reviewed against real LilyPond
@@ -2030,6 +2045,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"MapLines":    buildMapLines(sections),
 		"Chords":      sg.Chords,
 		"HasAlphaTab": anyTabOnlyLine(sections),
+		"HasLyrics":   anySectionHasLyrics(sections),
 		"Text":        text, "Version": version,
 	}
 	if setlistRef := r.URL.Query().Get("setlist"); setlistRef != "" {
