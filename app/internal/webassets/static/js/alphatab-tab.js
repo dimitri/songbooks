@@ -285,6 +285,28 @@
     renderAll();
   }
 
+  // Fallback repaint nudge, belt-and-suspenders alongside the CSS
+  // compositing-layer hint on .alphatab-row (app.css) — the real WebKit
+  // bug this works around (tall SVG content scrolled off-screen and
+  // back not repainting, confirmed iPad-only, DOM content intact, only
+  // a full reload otherwise recovers it) was reported by the compositing
+  // layer hint alone NOT being sufficient in every case historically for
+  // this bug class, so this adds an explicit forced-reflow nudge
+  // (toggling a sub-pixel transform forces WebKit to recompute the
+  // layer) on scroll, debounced to the scroll settling rather than
+  // firing every frame.
+  let scrollNudgeTimer = null;
+  window.addEventListener('scroll', () => {
+    clearTimeout(scrollNudgeTimer);
+    scrollNudgeTimer = setTimeout(() => {
+      document.querySelectorAll('.alphatab-row[data-tex]').forEach(row => {
+        if (!row.querySelector('svg')) return;
+        row.style.transform = 'translateZ(0.01px)';
+        requestAnimationFrame(() => { row.style.transform = 'translateZ(0)'; });
+      });
+    }, 150);
+  }, { passive: true });
+
   // Exposed for the score editor's live preview (score-editor.js): it
   // writes a fresh data-tex onto its own preview container on every
   // edit and needs to re-trigger this same renderer on demand, not just

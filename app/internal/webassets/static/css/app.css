@@ -1254,7 +1254,17 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    SVG into directly — opt out of .staff-line's flex/align-items (meant
    for laying out several .bar children side by side), which would
    otherwise apply to alphaTab's injected SVG root as a flex item. */
-.staff-line.alphatab-row { display: block; padding-top: 0; width: 100%; }
+/* transform: translateZ(0) promotes this row to its own GPU compositing
+   layer — the standard, well-documented mitigation for a real WebKit/
+   Safari bug class where tall, complex SVG content scrolled off-screen
+   and back fails to repaint (confirmed this session, iPad-only,
+   reload-only fix, not reproducible on a desktop browser, and NOT a DOM
+   content loss — resize/rotation/zoom, which would recover real DOM
+   loss via alphatab-tab.js's own resize-vanish guard, do nothing here).
+   Keeping the content in its own layer is reported to prevent WebKit
+   from ever dropping the paint in the first place, rather than needing
+   to recover after the fact. */
+.staff-line.alphatab-row { display: block; padding-top: 0; width: 100%; transform: translateZ(0); }
 .staff-line.alphatab-row svg { max-width: 100%; height: auto; }
 /* ---- One staff-drawing engine, reused everywhere a chart actually wants
    a 5-line staff (normal/chords+lyrics mode and Song Map; jazz is
