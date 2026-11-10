@@ -183,43 +183,40 @@
      right above — same DESIGN Song Map itself already settled on (see
      this repo's own history: "Song Map: one continuous engraved sheet,
      not disconnected floating chips") applied to real drum notation
-     instead of chord slashes. One alphaTab mount per SECTION, never one
-     shared document for the whole song: a shared document needs a real
-     alphaTeX "\section" marker to label where a section starts, and
-     alphaTab ALWAYS excludes a "\section"-marked bar from multiBarRest
-     consolidation (confirmed live), splitting an all-rest section into
-     a lone marked bar plus a shorter rest instead of one clean count —
-     and this view's own label is plain HTML, so there's no marker to
-     need in the first place (buildDrumMap, handlers_pages.go).
-     What actually fixes "disconnected floating chips" isn't dropping
-     per-section mounts — it's PACKING and SIZING them the way the rest
-     of this app already packs variable-width content into full rows:
-     buildDrumMap groups sections into rows against an 8-slot target
-     (groupMeasures/groupMapCells' own row-size default) and gives each
-     cell a server-computed WidthPct — its own slot share of the row's
-     ACTUAL total, not the 8-slot target — the same "a short row still
-     stretches to the full line width" idea the chord grid's own --cap
-     CSS variable already encodes, just computed here since it depends
-     on sibling cells sharing the row. WidthPct alone isn't enough
-     though — flex-grow defaults to 0, so a cell sized ONLY by width
-     stops exactly there and never claims space left over once its
-     siblings' own min-width floors (app.css) are satisfied; the cell's
-     own "flex" style below (Slots as the grow weight, WidthPct as the
-     basis) gives it a grow weight too, so a short row still reaches
-     100% instead of leaving dead space on the right (confirmed live:
-     several equal-weight rest-only cells, each clamped to its own
-     min-width rather than its own tiny WidthPct, otherwise just stopped
-     short with flex-grow:0). Hidden outside drummer mode by CSS. */}}
+     instead of chord slashes: ONE sheet, several LINES, every line the
+     same width — not a row of several independent mini-staff fragments
+     (an earlier version of this packed several sections' own mounts
+     onto a shared row, each drawing its OWN clef and time signature,
+     which read as a cluster of disconnected fragments rather than one
+     continuous sheet).
+     One alphaTab mount per LINE now (buildDrumMap, handlers_pages.go):
+     every section's bars are flattened into one continuous sequence —
+     bars from one section flow straight into the next's, same idea
+     buildMapLines already uses for the chord grid — then chunked into
+     8-bar lines (groupMeasures/groupMapCells' own row-size default).
+     No alphaTeX "\section" marker anywhere (alphaTab always excludes a
+     "\section"-marked bar from multiBarRest consolidation, confirmed
+     live, splitting an all-rest section into a lone marked bar plus a
+     shorter rest instead of one clean count) — a line's own label strip
+     (.drum-line-labels, plain HTML, not alphaTab's) names whichever
+     section(s) begin within it instead. Every line is width:100% (the
+     global ".staff-line.alphatab-row" rule, the same one every melodic
+     TabOnly row already uses), so every line is the same width
+     regardless of how little content it holds — exactly Song Map's own
+     "a short row still stretches to the full line width" rule, just
+     reaching it through one full-width mount per line instead of
+     percentage-sized siblings sharing a row. Hidden outside drummer
+     mode by CSS. */}}
 {{if .DrumMap}}
 <div class="drum-map">
   {{range .DrumMap}}
-  <div class="drum-row">
-    {{range .Cells}}
-    <div class="drum-cell" style="flex: {{.Slots}} 1 {{.WidthPct}}%">
-      <div class="drum-chip-label">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
-      <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}"></div>
+  <div class="drum-line">
+    {{if .Starts}}
+    <div class="drum-line-labels">
+      {{range .Starts}}<span class="drum-chip-label">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</span>{{end}}
     </div>
     {{end}}
+    <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}"></div>
   </div>
   {{end}}
 </div>
