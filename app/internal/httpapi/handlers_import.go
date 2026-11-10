@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"app/internal/importer"
 	"app/internal/irealpro"
+	"app/internal/tab"
 )
 
 type importRequest struct {
@@ -305,4 +307,118 @@ func (s *Server) handleImportUGConvert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"text": song.ToSongText(req.Selected)})
+}
+
+// gpCandidateJSON is one GProTab.net search result, shaped for the GP
+// import wizard's own search step (gp-import.js) — a reader picks one
+// of these, not an auto-chosen best guess (see importer.FindGPCandidates'
+// own doc comment for why: unlike the UG find flow, there's no plain-
+// text lyrics cross-check to verify a binary GP file against, so a
+// human pick is the substitute, not a weaker auto-pick).
+type gpCandidateJSON struct {
+	Title, Artist, URL string
+	Format             string
+	SizeKB             float64
+	Rating             float64
+	Votes, Downloads   int
+	MetaErr            string `json:"MetaErr,omitempty"`
+}
+
+// handleImportGPFind is GET /api/import/gp/find?title=...&artist=... —
+// the GP import wizard's own search step, searching GProTab.net (see
+// importer.FindGPCandidates' own doc comment for why that site, not
+// Ultimate Guitar: UG's robots.txt explicitly disallows /tab-pro/download
+// and /pro/, exactly the paths a Guitar Pro file download would need;
+// GProTab.net has no such restriction and serves every result as a
+// plain, anonymous, directly downloadable file).
+func (s *Server) handleImportGPFind(w http.ResponseWriter, r *http.Request) {
+	title := r.URL.Query().Get("title")
+	artist := r.URL.Query().Get("artist")
+	if title == "" {
+		httpError(w, http.StatusBadRequest, "missing title")
+		return
+	}
+	candidates, err := importer.FindGPCandidates(title, artist)
+	if err != nil {
+		httpError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	out := make([]gpCandidateJSON, len(candidates))
+	for i, c := range candidates {
+		out[i] = gpCandidateJSON{
+			Title: c.SongName, Artist: c.ArtistName, URL: c.URL,
+			Format: c.Format, SizeKB: c.SizeKB,
+			Rating: c.Rating, Votes: c.Votes, Downloads: c.Downloads,
+			MetaErr: c.MetaErr,
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"candidates": out})
+}
+
+// gpFetchAllowedHostSuffix restricts handleImportGPFetch to fetching
+// from the one site this app actually knows how to download a Guitar
+// Pro file from — handleImportGPFind only ever returns gprotab.net URLs
+// itself, but this endpoint takes a URL straight from the request query
+// string, so it re-validates rather than trusting that a client only
+// ever echoes back what find handed it.
+const gpFetchAllowedHostSuffix = "gprotab.net"
+
+// handleImportGPFetch is GET /api/import/gp/fetch?url=<tab-page-url> —
+// downloads the actual Guitar Pro binary for a candidate the reader
+// picked from handleImportGPFind's own results, and streams it straight
+// back with the same Content-Type/Content-Disposition the source site
+// itself sent, so the client can read it as raw bytes and hand them to
+// alphaTab's own ScoreLoader.loadScoreFromBytes — exactly the same path
+// a manually-dropped file already takes (gp-import.js), just sourced
+// from a fetch instead of a <input type=file>.
+func (s *Server) handleImportGPFetch(w http.ResponseWriter, r *http.Request) {
+	tabURL := r.URL.Query().Get("url")
+	if tabURL == "" {
+		httpError(w, http.StatusBadRequest, "missing url")
+		return
+	}
+	u, err := url.Parse(tabURL)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || !strings.HasSuffix(u.Hostname(), gpFetchAllowedHostSuffix) {
+		httpError(w, http.StatusBadRequest, "url must be a "+gpFetchAllowedHostSuffix+" tab page")
+		return
+	}
+	data, filename, err := importer.FetchGPFile(tabURL)
+	if err != nil {
+		httpError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	w.Write(data)
+}
+
+// handleGPImportPreview is POST /api/gp-import/preview — the GP import
+// wizard's own "preview before loading" step (gp-import.js): given one
+// section's already-extracted riff (the same JSON shape putScore/
+// handlePutSectionScore stores, produced client-side by extractRiff),
+// renders it to alphaTeX for the vendored alphaTab JS renderer to draw,
+// so a reader sees real notation for exactly what they're about to
+// import before committing to it — not just the bar-count mapping table
+// this wizard showed before. Stateless and variant-agnostic (a pure
+// riff-&gt;alphaTeX transform, same tab.ToAlphaTex call attachTabRiffs
+// already makes for every other TabOnly row in this app), so this needs
+// no variant id and writes nothing.
+func (s *Server) handleGPImportPreview(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Riff string `json:"riff"` // JSON-encoded Riff, as a STRING — same double-encoding putScore (gp-import.js) already sends, not a nested JSON object, so this previews the exact bytes that would be written
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	riff, err := tab.DecodeRiffJSON([]byte(req.Riff))
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid riff: "+err.Error())
+		return
+	}
+	clef := ""
+	if len(riff.Tuning) <= 4 {
+		clef = "F4"
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"alphaTex": tab.ToAlphaTex(riff, clef, nil)})
 }

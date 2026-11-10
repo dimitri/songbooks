@@ -3490,6 +3490,15 @@ textarea {
 .gpimport-bar-card { border: 1px solid var(--border); border-radius: 6px; padding: 0.3rem; cursor: pointer; min-width: 5.5rem; transition: background 0.1s; }
 .gpimport-bar-card:hover { background: var(--bg-sunken); }
 .gpimport-bar-label { font-size: 0.72rem; color: var(--fg-muted); text-align: center; margin-bottom: 0.2rem; }
+/* One of these per included section, inside #gpimport-preview's own flex-
+   wrap row — real notation, not just the bar-count mapping table step 3
+   already showed (see play.html's own comment on #gpimport-preview for
+   why). min-width gives alphaTab's own mount real room to lay out a
+   short riff legibly; growing lets a section with more bars take more
+   of the row instead of every card forcing the same fixed width. */
+.gpimport-preview-row { flex: 1 1 18rem; min-width: 18rem; border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem; background: var(--bg); }
+.gpimport-preview-row .hint { margin: 0 0 0.3rem; font-weight: 600; }
+.gpimport-preview-row .alphatab-row { min-height: 6rem; }
 
 /* ---- GP import: Audacity-style align timeline --------------------------
    Deliberately NOT this app's own cream/light chart styling — a dark

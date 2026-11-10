@@ -771,13 +771,37 @@
          handleGetSongStructure). "Lead-in shift" handles the classic
          case where the embedded backing track starts with a count-in
          or silent bars the chart itself has no bar for. */}}
-    <section class="prep-panel" data-panel="gpimport" id="gpimport-panel" data-variant-id="{{.VariantID}}" hidden>
+    <section class="prep-panel" data-panel="gpimport" id="gpimport-panel" data-variant-id="{{.VariantID}}" data-song-title="{{.Title}}" data-song-artist="{{.Artist}}" hidden>
       <p class="hint">Import a Guitar Pro file's notation into this song's existing sections, plus its embedded backing track (synced to the bars automatically, if the file carries sync points).</p>
       <p id="gpimport-status" class="hint"></p>
 
+      {{/* Step 0: search. GProTab.net, not Ultimate Guitar — confirmed
+           directly against UG's own robots.txt before this was written:
+           it explicitly disallows /tab-pro/download and /pro/, exactly
+           the paths a Guitar Pro file download would need, where
+           GProTab.net has no such restriction and serves every result
+           as a plain, anonymous, directly downloadable file. Search is
+           title-only against GProTab.net itself (see importer.SearchGP's
+           own doc comment: its search silently returns nothing for
+           several real artist+title combinations) — artist is still
+           sent to the find endpoint and used there purely to RANK the
+           results it gets back, never folded into the query string. */}}
+      <div class="gpimport-step" id="gpimport-step-search">
+        <h3>1. Find a file</h3>
+        <p class="hint">Searches <a href="https://gprotab.net" target="_blank" rel="noopener">GProTab.net</a> — a free, anonymous Guitar Pro tab archive. Picking a result downloads that one file and continues below, same as choosing a file by hand.</p>
+        <p>
+          <input type="text" id="gpimport-search-title" placeholder="Song title">
+          <input type="text" id="gpimport-search-artist" placeholder="Artist (optional)">
+          <button type="button" id="gpimport-search-btn" class="primary">Search</button>
+        </p>
+        <div id="gpimport-search-results"></div>
+        <p class="hint">Already have a file? <button type="button" id="gpimport-search-skip" class="link-btn">Choose a file from your computer instead &rarr;</button></p>
+      </div>
+
       {{/* Step 1: file + track. */}}
-      <div class="gpimport-step" id="gpimport-step-file">
-        <h3>1. Choose file</h3>
+      <div class="gpimport-step" id="gpimport-step-file" hidden>
+        <h3>2. Choose file</h3>
+        <p id="gpimport-file-source" class="hint" hidden></p>
         <p><input type="file" id="gpimport-file" accept=".gp,.gp3,.gp4,.gp5,.gpx"></p>
         <p id="gpimport-track-row" hidden>Track: <select id="gpimport-track"></select></p>
         {{/* Shown only when this song has no sections/chords yet — a GP
@@ -811,7 +835,7 @@
            block, the same "multi-rest" idea the chart's own compact
            sections already use. */}}
       <div class="gpimport-step" id="gpimport-step-align" hidden>
-        <h3>2. Align bars</h3>
+        <h3>3. Align bars</h3>
         <p class="hint">Drag a boundary to set where one section ends and the next begins. The first boundary is this song's bar 0 — drag it right past any count-in or silent lead-in.</p>
         <div class="gpimport-toolbar">
           <button type="button" id="gpimport-zoom-out">&minus;</button>
@@ -841,8 +865,19 @@
 
       {{/* Step 3: confirm + commit. */}}
       <div class="gpimport-step" id="gpimport-step-import" hidden>
-        <h3>3. Import</h3>
+        <h3>4. Preview &amp; import</h3>
         <p id="gpimport-summary" class="hint"></p>
+        {{/* Real notation preview, not just the bar-count mapping table
+             step 3 already showed — one alphaTab mount per INCLUDED
+             section (gpimport-include checkbox still checked), built
+             from that section's own already-extracted riff via
+             handleGPImportPreview (handlers_import.go), the exact same
+             tab.ToAlphaTex call attachTabRiffs already makes for every
+             other TabOnly row in this app. So a reader sees real
+             engraved notation for exactly what's about to be written,
+             not a bar-count summary, before the one irreversible-feeling
+             step (Import into song). */}}
+        <div id="gpimport-preview"></div>
         <p><label><input type="checkbox" id="gpimport-include-audio" checked> also import the backing track + bar sync</label></p>
         <p>
           <button type="button" id="gpimport-step3-back">&larr; Back</button>
