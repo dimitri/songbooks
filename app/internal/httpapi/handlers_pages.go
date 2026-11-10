@@ -854,8 +854,17 @@ type viewerDrumMapCell struct {
 	AlphaTex    string
 	Bars        int
 	WidthPct    float64
-	FlexBasis   string
-	RestOnly    bool
+	// FlexBasis is template.CSS, not string: html/template's own CSS
+	// sanitizer doesn't recognize "calc(...)" as a safe value on a
+	// plain string and silently substitutes the literal "ZgotmplZ" in
+	// its place instead — confirmed live, it does not fail loudly, it
+	// just renders invalid CSS ("flex: 2 1 ZgotmplZ"), which drops the
+	// whole shorthand to its initial flex-grow:0/basis:auto and shrinks
+	// every cell down to its own min-width instead of sharing the row.
+	// This value is entirely server-computed from floats (no user
+	// input reaches it), so marking it pre-trusted is safe.
+	FlexBasis template.CSS
+	RestOnly  bool
 }
 
 // drumRowGapPx mirrors .drum-row's own "gap: 1.2rem" (app.css) at this
@@ -996,7 +1005,7 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff)
 				AlphaTex:  tab.ToAlphaTexDrums(&tab.Riff{Drums: true, Bars: bars}, chordLabels, nil),
 				Bars:      len(bars),
 				WidthPct:  widthPct,
-				FlexBasis: fmt.Sprintf("calc(%.4f%% - %.2fpx)", widthPct, gapShare),
+				FlexBasis: template.CSS(fmt.Sprintf("calc(%.4f%% - %.2fpx)", widthPct, gapShare)),
 				RestOnly:  run[0].sectionIsRestOnly,
 			}
 		}
