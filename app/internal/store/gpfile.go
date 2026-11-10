@@ -60,6 +60,12 @@ func (st *Store) GetSongGPSourceFileData(ctx context.Context, variantID int64) (
 // one per variant, so re-running the import wizard with a new upload
 // overwrites the one already there.
 func (st *Store) SetSongGPSourceFile(ctx context.Context, variantID int64, filename, contentType string, data []byte, sha256 string, createdByPersonID int64) error {
+	// Same nullable-FK fix as SetSongAudio: 0 means "unknown/unrecorded"
+	// (cmd/songimport only), never a real literal person id.
+	var creator *int64
+	if createdByPersonID != 0 {
+		creator = &createdByPersonID
+	}
 	_, err := st.db.Exec(ctx, `
 		INSERT INTO song_gp_source_file (variant_id, filename, content_type, byte_size, sha256, data, created_by_person_id)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -67,6 +73,6 @@ func (st *Store) SetSongGPSourceFile(ctx context.Context, variantID int64, filen
 			filename = EXCLUDED.filename, content_type = EXCLUDED.content_type,
 			byte_size = EXCLUDED.byte_size, sha256 = EXCLUDED.sha256,
 			data = EXCLUDED.data, created_at = now(), created_by_person_id = EXCLUDED.created_by_person_id`,
-		variantID, filename, contentType, len(data), sha256, data, createdByPersonID)
+		variantID, filename, contentType, len(data), sha256, data, creator)
 	return err
 }

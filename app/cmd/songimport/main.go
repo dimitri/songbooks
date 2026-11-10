@@ -24,18 +24,31 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"time"
 
 	"app/internal/groupfmt"
+	"app/internal/setlist"
 	"app/internal/store"
 )
 
 type user struct {
-	ID          int64    `json:"id"`
-	Username    string   `json:"username"`
-	DisplayName string   `json:"displayName"`
-	Email       string   `json:"email,omitempty"`
-	IsAdmin     bool     `json:"isAdmin,omitempty"`
-	Instruments []string `json:"instruments,omitempty"`
+	ID              int64           `json:"id"`
+	Username        string          `json:"username"`
+	DisplayName     string          `json:"displayName"`
+	Email           string          `json:"email,omitempty"`
+	IsAdmin         bool            `json:"isAdmin,omitempty"`
+	IsShell         bool            `json:"isShell,omitempty"`
+	Instruments     []string        `json:"instruments,omitempty"`
+	Nickname        string          `json:"nickname,omitempty"`
+	PictureURL      string          `json:"pictureUrl,omitempty"`
+	Phone           string          `json:"phone,omitempty"`
+	ShareEmail      bool            `json:"shareEmail,omitempty"`
+	SharePhone      bool            `json:"sharePhone,omitempty"`
+	GravatarOptOut  bool            `json:"gravatarOptOut,omitempty"`
+	OnboardedAt     string          `json:"onboardedAt,omitempty"`
+	ClickTrackPrefs json.RawMessage `json:"clickTrackPrefs,omitempty"`
+	CreatedAt       string          `json:"createdAt"`
 }
 
 type songbookMembership struct {
@@ -55,6 +68,52 @@ type variantRecord struct {
 	CreatedByUserID    int64                `json:"createdByUserId,omitempty"`
 	ForkedFromID       int64                `json:"forkedFromId,omitempty"`
 	SongbookMembership []songbookMembership `json:"songbookMemberships,omitempty"`
+	Audio              []audioRecord        `json:"audio,omitempty"`
+	GPFile             *gpFileRecord        `json:"gpFile,omitempty"`
+}
+
+type audioRecord struct {
+	Category        string        `json:"category"`
+	File            string        `json:"file"`
+	ContentType     string        `json:"contentType"`
+	SHA256          string        `json:"sha256"`
+	SourceURL       string        `json:"sourceUrl,omitempty"`
+	CreatedByUserID int64         `json:"createdByUserId,omitempty"`
+	SyncPoints      []syncPoint   `json:"syncPoints,omitempty"`
+	Markers         []audioMarker `json:"markers,omitempty"`
+}
+
+type syncPoint struct {
+	BarIndex    int     `json:"barIndex"`
+	TimeSeconds float64 `json:"timeSeconds"`
+}
+
+type audioMarker struct {
+	SectionIndex int     `json:"sectionIndex"`
+	TimeSeconds  float64 `json:"timeSeconds"`
+}
+
+type gpFileRecord struct {
+	File            string `json:"file"`
+	Filename        string `json:"filename"`
+	ContentType     string `json:"contentType"`
+	SHA256          string `json:"sha256"`
+	CreatedByUserID int64  `json:"createdByUserId,omitempty"`
+}
+
+type setlistGigRecord struct {
+	Date  string `json:"date,omitempty"`
+	Venue string `json:"venue,omitempty"`
+	Notes string `json:"notes,omitempty"`
+}
+
+type setlistRecord struct {
+	Title     string             `json:"title"`
+	Notes     string             `json:"notes,omitempty"`
+	Scope     string             `json:"scope"`
+	OwnerName string             `json:"ownerName"`
+	File      string             `json:"file"`
+	Gigs      []setlistGigRecord `json:"gigs,omitempty"`
 }
 
 type songGroup struct {
@@ -91,6 +150,8 @@ func main() {
 	readJSON(filepath.Join(*inDir, "variants.json"), &variants)
 	var songbookRecs []songbookRecord
 	readJSON(filepath.Join(*inDir, "songbooks.json"), &songbookRecs)
+	var setlistRecs []setlistRecord
+	readJSON(filepath.Join(*inDir, "setlists.json"), &setlistRecs)
 
 	ctx := context.Background()
 	st, err := store.New(ctx, *dbURL)
@@ -110,8 +171,9 @@ func main() {
 	run.relinkForks(ctx, variants)
 	run.addSongbookMemberships(ctx, variants)
 	run.restoreSongOrder(ctx, songbookRecs)
+	run.importSetlists(ctx, setlistRecs)
 
-	fmt.Printf("\n%d song(s), %d owner-group(s) processed.\n", len(variants), len(run.ownerID))
+	fmt.Printf("\n%d song(s), %d setlist(s), %d owner-group(s) processed.\n", len(variants), len(setlistRecs), len(run.ownerID))
 	if !*apply {
 		fmt.Println("(dry run — pass --apply to actually write)")
 	}
@@ -136,21 +198,62 @@ func (r *runner) logf(format string, args ...any) { fmt.Printf(format+"\n", args
 func (r *runner) importUsers(ctx context.Context, users []user) {
 	for _, u := range users {
 		r.usernameByOldID[u.ID] = u.Username
-		existing, err := r.st.GetPersonByUsername(ctx, u.Username)
-		if err == nil {
-			r.newUserID[u.ID] = existing.ID
-			r.personIDByUsername[u.Username] = existing.ID
-			continue
+		if !u.IsShell {
+			// A shell's username is a random "pending-..." placeholder
+			// CreateShellPerson generates fresh each time (see its own
+			// doc comment) — there's nothing stable to match an existing
+			// one by, so a shell is always (re)created new; only a real
+			// account is matched against what's already in this database.
+			existing, err := r.st.GetPersonByUsername(ctx, u.Username)
+			if err == nil {
+				r.newUserID[u.ID] = existing.ID
+				r.personIDByUsername[u.Username] = existing.ID
+				continue
+			}
 		}
-		r.logf("person %s: creating (display name %q)", u.Username, u.DisplayName)
+		r.logf("person %s: creating (display name %q, shell=%v)", u.Username, u.DisplayName, u.IsShell)
 		if !r.apply {
 			r.newUserID[u.ID] = -1 // placeholder so a dry run can still walk the rest of the logic
 			r.personIDByUsername[u.Username] = -1
 			continue
 		}
-		newID, err := r.st.CreatePerson(ctx, u.Username, u.DisplayName, u.Email)
+		var newID int64
+		var err error
+		if u.IsShell {
+			newID, err = r.st.CreateShellPerson(ctx, u.DisplayName)
+		} else {
+			newID, err = r.st.CreatePerson(ctx, u.Username, u.DisplayName, u.Email)
+		}
 		if err != nil {
 			log.Fatalf("creating person %s: %v", u.Username, err)
+		}
+		if u.IsAdmin {
+			if err := r.st.SetAdmin(ctx, newID, true); err != nil {
+				log.Fatalf("setting admin for %s: %v", u.Username, err)
+			}
+		}
+		if len(u.Instruments) > 0 {
+			if err := r.st.SetInstruments(ctx, newID, u.Instruments); err != nil {
+				log.Fatalf("setting instruments for %s: %v", u.Username, err)
+			}
+		}
+		if err := r.st.SetPublicProfile(ctx, newID, u.Nickname, u.PictureURL, u.Phone, u.ShareEmail, u.SharePhone, u.GravatarOptOut); err != nil {
+			log.Fatalf("setting public profile for %s: %v", u.Username, err)
+		}
+		createdAt, err := time.Parse(time.RFC3339, u.CreatedAt)
+		if err != nil {
+			log.Fatalf("parsing createdAt for %s: %v", u.Username, err)
+		}
+		var onboardedAt *time.Time
+		if u.OnboardedAt != "" {
+			t, err := time.Parse(time.RFC3339, u.OnboardedAt)
+			if err != nil {
+				log.Fatalf("parsing onboardedAt for %s: %v", u.Username, err)
+			}
+			onboardedAt = &t
+		}
+		if err := r.st.RestorePersonTimestamps(ctx, newID, createdAt, onboardedAt, u.ClickTrackPrefs); err != nil {
+			log.Fatalf("restoring timestamps for %s: %v", u.Username, err)
 		}
 		r.newUserID[u.ID] = newID
 		r.personIDByUsername[u.Username] = newID
@@ -405,6 +508,42 @@ func (r *runner) importSongs(ctx context.Context, variants []variantRecord) {
 			log.Fatalf("writing body for song %q: %v", v.Title, err)
 		}
 		r.newVariantID[v.ID] = newID
+
+		for _, a := range v.Audio {
+			data, err := os.ReadFile(filepath.Join(r.inDir, a.File))
+			if err != nil {
+				log.Fatalf("reading %s: %v", a.File, err)
+			}
+			audioCreator := r.newUserID[a.CreatedByUserID]
+			audioID, err := r.st.SetSongAudio(ctx, newID, store.AudioCategory(a.Category), data, a.ContentType, a.SHA256, a.SourceURL, audioCreator)
+			if err != nil {
+				log.Fatalf("writing %s audio for song %q: %v", a.Category, v.Title, err)
+			}
+			if len(a.SyncPoints) > 0 {
+				points := make([]store.GPBarSyncPoint, len(a.SyncPoints))
+				for i, sp := range a.SyncPoints {
+					points[i] = store.GPBarSyncPoint{BarIndex: sp.BarIndex, TimeSeconds: sp.TimeSeconds}
+				}
+				if err := r.st.SetGPBarSyncPoints(ctx, audioID, points); err != nil {
+					log.Fatalf("writing sync points for song %q: %v", v.Title, err)
+				}
+			}
+			for _, m := range a.Markers {
+				if err := r.st.SetAudioMarker(ctx, audioID, m.SectionIndex, m.TimeSeconds); err != nil {
+					log.Fatalf("writing audio marker for song %q: %v", v.Title, err)
+				}
+			}
+		}
+		if v.GPFile != nil {
+			data, err := os.ReadFile(filepath.Join(r.inDir, v.GPFile.File))
+			if err != nil {
+				log.Fatalf("reading %s: %v", v.GPFile.File, err)
+			}
+			gpCreator := r.newUserID[v.GPFile.CreatedByUserID]
+			if err := r.st.SetSongGPSourceFile(ctx, newID, v.GPFile.Filename, v.GPFile.ContentType, data, v.GPFile.SHA256, gpCreator); err != nil {
+				log.Fatalf("writing GP source file for song %q: %v", v.Title, err)
+			}
+		}
 	}
 }
 
@@ -469,6 +608,65 @@ func (r *runner) restoreSongOrder(ctx context.Context, songbookRecs []songbookRe
 		}
 		if err := r.st.SaveOrder(ctx, sbID, groups); err != nil {
 			log.Fatalf("saving song_order for songbook %q: %v", sb.Name, err)
+		}
+	}
+}
+
+// importSetlists restores every setlist — a distinct artifact from a
+// songbook (a specific, ordered list for a gig), so this runs
+// independently of the song/songbook passes above, after importGroups/
+// importUsers so an owner (person/band/community) always already
+// exists to attach to.
+func (r *runner) importSetlists(ctx context.Context, setlistRecs []setlistRecord) {
+	for _, sl := range setlistRecs {
+		body, err := os.ReadFile(filepath.Join(r.inDir, sl.File))
+		if err != nil {
+			log.Fatalf("reading %s: %v", sl.File, err)
+		}
+		r.logf("setlist %q (%s %q): creating", sl.Title, sl.Scope, sl.OwnerName)
+		if !r.apply {
+			continue
+		}
+		var ownerPersonID, ownerBandID, ownerCommunityID *int64
+		var actorID int64
+		switch sl.Scope {
+		case "person":
+			id := r.resolveOwnerID(ctx, "person", sl.OwnerName)
+			ownerPersonID, actorID = &id, id
+		case "band":
+			id := r.resolveOwnerID(ctx, "band", sl.OwnerName)
+			ownerBandID = &id
+			actorID = r.groupCreator[ownerKey{"band", sl.OwnerName}]
+		case "community":
+			id := r.resolveOwnerID(ctx, "community", sl.OwnerName)
+			ownerCommunityID = &id
+			actorID = r.groupCreator[ownerKey{"community", sl.OwnerName}]
+		default:
+			log.Fatalf("setlist %q: unknown scope %q", sl.Title, sl.Scope)
+		}
+		newID, err := r.st.CreateSetlist(ctx, sl.Scope, sl.Title, sl.Notes, ownerPersonID, ownerBandID, ownerCommunityID, actorID)
+		if err != nil {
+			log.Fatalf("creating setlist %q: %v", sl.Title, err)
+		}
+		meta, err := r.st.GetSetlistMeta(ctx, newID)
+		if err != nil {
+			log.Fatalf("loading fresh setlist %d: %v", newID, err)
+		}
+		if _, err := r.st.SaveSetlistByID(ctx, newID, setlist.Parse(string(body)), sl.Title, sl.Notes, strconv.Itoa(meta.Version), actorID); err != nil {
+			log.Fatalf("writing body for setlist %q: %v", sl.Title, err)
+		}
+		for _, g := range sl.Gigs {
+			var date *time.Time
+			if g.Date != "" {
+				t, err := time.Parse("2006-01-02", g.Date)
+				if err != nil {
+					log.Fatalf("parsing gig date %q for setlist %q: %v", g.Date, sl.Title, err)
+				}
+				date = &t
+			}
+			if _, err := r.st.AddSetlistGig(ctx, newID, date, g.Venue, g.Notes); err != nil {
+				log.Fatalf("adding gig to setlist %q: %v", sl.Title, err)
+			}
 		}
 	}
 }

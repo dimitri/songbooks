@@ -1,6 +1,29 @@
 package store
 
-import "context"
+import (
+	"context"
+	"time"
+)
+
+// RestorePersonTimestamps sets created_at/onboarded_at/click_track_prefs
+// directly — used only by cmd/songimport, right after CreatePerson/
+// CreateShellPerson, to restore a person's original signup date and
+// onboarding/preference state exactly rather than leaving them stamped
+// "now" (CreatePerson's own INSERT has no path for any of these; every
+// other caller is a real signup, where "now" is correct).
+func (st *Store) RestorePersonTimestamps(ctx context.Context, personID int64, createdAt time.Time, onboardedAt *time.Time, clickTrackPrefs []byte) error {
+	_, err := st.db.Exec(ctx, `
+		UPDATE people SET created_at = $1, onboarded_at = $2, click_track_prefs = coalesce($3, click_track_prefs)
+		WHERE id = $4`, createdAt, onboardedAt, nullIfEmpty(clickTrackPrefs), personID)
+	return err
+}
+
+func nullIfEmpty(b []byte) []byte {
+	if len(b) == 0 {
+		return nil
+	}
+	return b
+}
 
 // SetMemberLeftAt marks a band or community member as having departed
 // at a specific time — used by cmd/songimport to restore a departed

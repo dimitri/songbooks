@@ -49,13 +49,28 @@ import (
 	"app/internal/groupfmt"
 )
 
+// user carries every profile field EXCEPT password_hash and WebAuthn
+// passkeys — deliberately excluded: a portable backup file containing
+// login credentials is its own security liability, and both have a
+// normal in-app recovery path (password reset, re-registering a
+// passkey) that doesn't depend on this export at all.
 type user struct {
-	ID          int64    `json:"id"`
-	Username    string   `json:"username"`
-	DisplayName string   `json:"displayName"`
-	Email       string   `json:"email,omitempty"`
-	IsAdmin     bool     `json:"isAdmin,omitempty"`
-	Instruments []string `json:"instruments,omitempty"`
+	ID              int64           `json:"id"`
+	Username        string          `json:"username"`
+	DisplayName     string          `json:"displayName"`
+	Email           string          `json:"email,omitempty"`
+	IsAdmin         bool            `json:"isAdmin,omitempty"`
+	IsShell         bool            `json:"isShell,omitempty"`
+	Instruments     []string        `json:"instruments,omitempty"`
+	Nickname        string          `json:"nickname,omitempty"`
+	PictureURL      string          `json:"pictureUrl,omitempty"`
+	Phone           string          `json:"phone,omitempty"`
+	ShareEmail      bool            `json:"shareEmail,omitempty"`
+	SharePhone      bool            `json:"sharePhone,omitempty"`
+	GravatarOptOut  bool            `json:"gravatarOptOut,omitempty"`
+	OnboardedAt     string          `json:"onboardedAt,omitempty"`
+	ClickTrackPrefs json.RawMessage `json:"clickTrackPrefs,omitempty"`
+	CreatedAt       string          `json:"createdAt"`
 }
 
 type band struct {
@@ -143,6 +158,66 @@ type variantRecord struct {
 	ForkedFromID       int64                `json:"forkedFromId,omitempty"`
 	ForkedFromFile     string               `json:"forkedFromFile,omitempty"`
 	SongbookMembership []songbookMembership `json:"songbookMemberships,omitempty"`
+	Audio              []audioRecord        `json:"audio,omitempty"`
+	GPFile             *gpFileRecord        `json:"gpFile,omitempty"`
+}
+
+// audioRecord is one song_audio row (reference recording), its bytes
+// written alongside the .song file. SyncPoints/Markers are gp_bar_
+// sync_point/song_audio_markers rows for this same audio row — only
+// ever non-empty for category "gp" (sync points) or any category with
+// manually-tapped section markers.
+type audioRecord struct {
+	Category        string        `json:"category"` // youtube, band, gp
+	File            string        `json:"file"`
+	ContentType     string        `json:"contentType"`
+	SHA256          string        `json:"sha256"`
+	SourceURL       string        `json:"sourceUrl,omitempty"`
+	CreatedByUserID int64         `json:"createdByUserId,omitempty"`
+	CreatedAt       string        `json:"createdAt"`
+	SyncPoints      []syncPoint   `json:"syncPoints,omitempty"`
+	Markers         []audioMarker `json:"markers,omitempty"`
+}
+
+type syncPoint struct {
+	BarIndex    int     `json:"barIndex"`
+	TimeSeconds float64 `json:"timeSeconds"`
+}
+
+type audioMarker struct {
+	SectionIndex int     `json:"sectionIndex"`
+	TimeSeconds  float64 `json:"timeSeconds"`
+}
+
+// gpFileRecord is a song's song_gp_source_file row — the original
+// uploaded Guitar Pro file, bytes written alongside the .song file.
+type gpFileRecord struct {
+	File            string `json:"file"`
+	Filename        string `json:"filename"`
+	ContentType     string `json:"contentType"`
+	SHA256          string `json:"sha256"`
+	CreatedByUserID int64  `json:"createdByUserId,omitempty"`
+	CreatedAt       string `json:"createdAt"`
+}
+
+type setlistGigRecord struct {
+	Date  string `json:"date,omitempty"`
+	Venue string `json:"venue,omitempty"`
+	Notes string `json:"notes,omitempty"`
+}
+
+// setlistRecord is one setlist's entry in setlists.json — a distinct
+// artifact from a songbook (a specific, ordered song list for a gig,
+// not a repertoire binder), not covered by anything else this tool
+// exports.
+type setlistRecord struct {
+	Title     string             `json:"title"`
+	Notes     string             `json:"notes,omitempty"`
+	Scope     string             `json:"scope"` // person, band, community
+	OwnerName string             `json:"ownerName"`
+	File      string             `json:"file"`
+	CreatedAt string             `json:"createdAt"`
+	Gigs      []setlistGigRecord `json:"gigs,omitempty"`
 }
 
 // rfc3339 formats a timestamp the way every date in this export is
@@ -212,11 +287,25 @@ func main() {
 	// ---- Load every reference table up front; small, fits in memory. ----
 
 	users := map[int64]user{}
-	rows, err := pool.Query(ctx, `SELECT id, username, display_name, coalesce(email,''), is_admin, instruments FROM people`)
+	rows, err := pool.Query(ctx, `
+		SELECT id, username, display_name, coalesce(email,''), is_admin, is_shell, instruments,
+		       nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out,
+		       onboarded_at, click_track_prefs, created_at
+		FROM people`)
 	must(err, "query people")
 	for rows.Next() {
 		var u user
-		must(rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Email, &u.IsAdmin, &u.Instruments), "scan user")
+		var onboardedAt *time.Time
+		var clickTrackPrefs []byte
+		var createdAt time.Time
+		must(rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Email, &u.IsAdmin, &u.IsShell, &u.Instruments,
+			&u.Nickname, &u.PictureURL, &u.Phone, &u.ShareEmail, &u.SharePhone, &u.GravatarOptOut,
+			&onboardedAt, &clickTrackPrefs, &createdAt), "scan user")
+		u.OnboardedAt = rfc3339Null(onboardedAt)
+		if len(clickTrackPrefs) > 0 && string(clickTrackPrefs) != "{}" {
+			u.ClickTrackPrefs = clickTrackPrefs
+		}
+		u.CreatedAt = rfc3339(createdAt)
 		users[u.ID] = u
 	}
 	rows.Close()
@@ -397,12 +486,15 @@ func main() {
 				SongbookName: sb.Name,
 			})
 		}
+		audio := exportSongAudio(ctx, pool, must, s.ID, dir, usedPaths, *outDir)
+		gpFile := exportGPFile(ctx, pool, must, s.ID, dir, usedPaths, *outDir)
 		variants = append(variants, variantRecord{
 			ID: s.ID, File: relPath, Title: s.Title, Artist: s.Artist, Visibility: s.Visibility,
 			OwnerKind: trueOwnerKind, OwnerName: trueOwnerName,
 			WorkTitle: w.Title, WorkArtist: w.Artist, WorkGenre: w.Genre, WorkAlbum: w.Album,
 			CreatedByUserID: createdByUserID, CreatedAt: rfc3339(s.CreatedAt),
 			SongbookMembership: memberships,
+			Audio:              audio, GPFile: gpFile,
 		})
 	}
 	// Second pass: resolve forkedFromFile now that every file path is known.
@@ -513,8 +605,154 @@ func main() {
 	}
 	writeJSON(filepath.Join(*outDir, "songbooks.json"), songbookList)
 
-	fmt.Printf("Exported %d songs, %d people, %d bands, %d communities, %d songbooks to %s\n",
-		len(variants), len(users), len(bands), len(communities), len(songbooks), *outDir)
+	// ---- setlists.json: a distinct artifact from a songbook (a
+	// specific, ordered list for a gig, not a repertoire binder) — its
+	// own top-level directory, not nested under songbooks/. ----
+
+	setlistUsedPaths := map[string]bool{}
+	var setlistList []setlistRecord
+	rows, err = pool.Query(ctx, `
+		SELECT id, title, notes, scope::text, owner_person_id, owner_band_id, owner_community_id, body, created_at
+		FROM setlists ORDER BY id`)
+	must(err, "query setlists")
+	type setlistRow struct {
+		ID                                           int64
+		Title, Notes, Scope                          string
+		OwnerPersonID, OwnerBandID, OwnerCommunityID *int64
+		Body                                         string
+		CreatedAt                                    time.Time
+	}
+	var setlistRows []setlistRow
+	for rows.Next() {
+		var sl setlistRow
+		must(rows.Scan(&sl.ID, &sl.Title, &sl.Notes, &sl.Scope, &sl.OwnerPersonID, &sl.OwnerBandID, &sl.OwnerCommunityID, &sl.Body, &sl.CreatedAt), "scan setlist")
+		setlistRows = append(setlistRows, sl)
+	}
+	rows.Close()
+	for _, sl := range setlistRows {
+		var ownerName string
+		switch sl.Scope {
+		case "person":
+			ownerName = ownerDirName("person", *sl.OwnerPersonID)
+		case "band":
+			ownerName = ownerDirName("band", *sl.OwnerBandID)
+		case "community":
+			ownerName = ownerDirName("community", *sl.OwnerCommunityID)
+		default:
+			continue // "project" scope: the old pre-songbooks model, none left in practice
+		}
+		dir := filepath.Join(*outDir, "setlists", ownerName)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			log.Fatalf("mkdir %s: %v", dir, err)
+		}
+		path := uniquePath(setlistUsedPaths, dir, slugify(sl.Title), ".setlist")
+		if err := os.WriteFile(path, []byte(sl.Body), 0o644); err != nil {
+			log.Fatalf("write %s: %v", path, err)
+		}
+		relPath, _ := filepath.Rel(*outDir, path)
+
+		var gigs []setlistGigRecord
+		gigRows, err := pool.Query(ctx, `SELECT coalesce(date::text,''), venue, notes FROM setlist_gigs WHERE setlist_id = $1 ORDER BY id`, sl.ID)
+		must(err, "query setlist_gigs")
+		for gigRows.Next() {
+			var g setlistGigRecord
+			must(gigRows.Scan(&g.Date, &g.Venue, &g.Notes), "scan setlist_gig")
+			gigs = append(gigs, g)
+		}
+		gigRows.Close()
+
+		setlistList = append(setlistList, setlistRecord{
+			Title: sl.Title, Notes: sl.Notes, Scope: sl.Scope, OwnerName: ownerName,
+			File: relPath, CreatedAt: rfc3339(sl.CreatedAt), Gigs: gigs,
+		})
+	}
+	writeJSON(filepath.Join(*outDir, "setlists.json"), setlistList)
+
+	fmt.Printf("Exported %d songs, %d people, %d bands, %d communities, %d songbooks, %d setlists to %s\n",
+		len(variants), len(users), len(bands), len(communities), len(songbooks), len(setlistList), *outDir)
+}
+
+// exportSongAudio writes every song_audio row for variantID as a sibling
+// file next to its .song (one per category — youtube/band/gp — a
+// variant can have at most one of each, per song_audio's own unique
+// index), plus that row's gp_bar_sync_point/song_audio_markers rows.
+func exportSongAudio(ctx context.Context, pool *pgxpool.Pool, must func(error, string), variantID int64, dir string, usedPaths map[string]bool, outDir string) []audioRecord {
+	rows, err := pool.Query(ctx, `
+		SELECT id, category, content_type, sha256, coalesce(source_url,''), coalesce(created_by_person_id,0), created_at, data
+		FROM song_audio WHERE variant_id = $1`, variantID)
+	must(err, "query song_audio")
+	defer rows.Close()
+	var out []audioRecord
+	for rows.Next() {
+		var audioID int64
+		var a audioRecord
+		var createdByUserID int64
+		var createdAt time.Time
+		var data []byte
+		must(rows.Scan(&audioID, &a.Category, &a.ContentType, &a.SHA256, &a.SourceURL, &createdByUserID, &createdAt, &data), "scan song_audio")
+		a.CreatedByUserID, a.CreatedAt = createdByUserID, rfc3339(createdAt)
+
+		ext := ".bin"
+		switch a.ContentType {
+		case "audio/mpeg":
+			ext = ".mp3"
+		case "audio/wav", "audio/x-wav":
+			ext = ".wav"
+		}
+		path := uniquePath(usedPaths, dir, "audio-"+a.Category, ext)
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			log.Fatalf("write %s: %v", path, err)
+		}
+		a.File, _ = filepath.Rel(outDir, path)
+
+		if a.Category == "gp" {
+			spRows, err := pool.Query(ctx, `SELECT bar_index, time_seconds FROM gp_bar_sync_point WHERE song_audio_id = $1 ORDER BY bar_index`, audioID)
+			must(err, "query gp_bar_sync_point")
+			for spRows.Next() {
+				var sp syncPoint
+				must(spRows.Scan(&sp.BarIndex, &sp.TimeSeconds), "scan gp_bar_sync_point")
+				a.SyncPoints = append(a.SyncPoints, sp)
+			}
+			spRows.Close()
+		}
+		mkRows, err := pool.Query(ctx, `SELECT section_index, time_seconds FROM song_audio_markers WHERE song_audio_id = $1 ORDER BY section_index`, audioID)
+		must(err, "query song_audio_markers")
+		for mkRows.Next() {
+			var mk audioMarker
+			must(mkRows.Scan(&mk.SectionIndex, &mk.TimeSeconds), "scan song_audio_markers")
+			a.Markers = append(a.Markers, mk)
+		}
+		mkRows.Close()
+
+		out = append(out, a)
+	}
+	return out
+}
+
+// exportGPFile writes variantID's song_gp_source_file row (0 or 1), if
+// any, as a sibling file next to its .song.
+func exportGPFile(ctx context.Context, pool *pgxpool.Pool, must func(error, string), variantID int64, dir string, usedPaths map[string]bool, outDir string) *gpFileRecord {
+	var g gpFileRecord
+	var createdByUserID int64
+	var createdAt time.Time
+	var data []byte
+	err := pool.QueryRow(ctx, `
+		SELECT filename, content_type, sha256, coalesce(created_by_person_id,0), created_at, data
+		FROM song_gp_source_file WHERE variant_id = $1`, variantID).
+		Scan(&g.Filename, &g.ContentType, &g.SHA256, &createdByUserID, &createdAt, &data)
+	if err != nil {
+		return nil // no row (pgx.ErrNoRows) — not an error worth stopping the export for
+	}
+	g.CreatedByUserID, g.CreatedAt = createdByUserID, rfc3339(createdAt)
+
+	ext := filepath.Ext(g.Filename)
+	base := strings.TrimSuffix(filepath.Base(g.Filename), ext)
+	path := uniquePath(usedPaths, dir, base, ext)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		log.Fatalf("write %s: %v", path, err)
+	}
+	g.File, _ = filepath.Rel(outDir, path)
+	return &g
 }
 
 func sortedKeys(m map[int64]songbook) []int64 {

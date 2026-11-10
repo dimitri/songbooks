@@ -108,6 +108,17 @@ func (st *Store) GetSongAudioData(ctx context.Context, audioID int64) ([]byte, s
 // so re-uploading the same category overwrites it, but uploading the
 // other category doesn't touch this one.
 func (st *Store) SetSongAudio(ctx context.Context, variantID int64, category AudioCategory, data []byte, contentType, sha256, sourceURL string, createdByPersonID int64) (int64, error) {
+	// createdByPersonID==0 means "unknown/unrecorded" (every normal
+	// caller is a real logged-in actorID(r), never 0 — only
+	// cmd/songimport restoring an old row whose creator didn't resolve
+	// hits this) — inserted as a literal 0 this violated
+	// song_audio_created_by_person_id_fkey outright, since the column is
+	// a nullable FK, not a "0 means none" convention. Same class of bug
+	// as CreatePerson's own email-uniqueness fix.
+	var creator *int64
+	if createdByPersonID != 0 {
+		creator = &createdByPersonID
+	}
 	var id int64
 	err := st.db.QueryRow(ctx, `
 		INSERT INTO song_audio (variant_id, category, content_type, byte_size, sha256, source_url, data, created_by_person_id)
@@ -117,7 +128,7 @@ func (st *Store) SetSongAudio(ctx context.Context, variantID int64, category Aud
 			sha256 = EXCLUDED.sha256, source_url = EXCLUDED.source_url,
 			data = EXCLUDED.data, created_at = now(), created_by_person_id = EXCLUDED.created_by_person_id
 		RETURNING id`,
-		variantID, category, contentType, len(data), sha256, sourceURL, data, createdByPersonID).Scan(&id)
+		variantID, category, contentType, len(data), sha256, sourceURL, data, creator).Scan(&id)
 	return id, err
 }
 

@@ -176,7 +176,16 @@ func (st *Store) CreateSetlist(ctx context.Context, scope, title, notes string, 
 		return 0, err
 	}
 
-	actor := &actorPersonID
+	// actorPersonID==0 means "unknown" (cmd/songimport, restoring a
+	// setlist whose owning band/community has no member to attribute it
+	// to — same gap importSongs already falls back around for a song)
+	// — passing &actorPersonID unconditionally inserted a literal 0 into
+	// a nullable people(id) FK, the same class of bug SetSongAudio/
+	// SetSongGPSourceFile/CreatePerson already had.
+	var actor *int64
+	if actorPersonID != 0 {
+		actor = &actorPersonID
+	}
 	if err := st.RecordRevision(ctx, tx, "setlist", strconv.FormatInt(id, 10), actor, SetlistSnapshot{Exists: false}); err != nil {
 		return 0, err
 	}
