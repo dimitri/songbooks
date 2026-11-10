@@ -183,47 +183,44 @@
      right above — same DESIGN Song Map itself already settled on (see
      this repo's own history: "Song Map: one continuous engraved sheet,
      not disconnected floating chips") applied to real drum notation
-     instead of chord slashes. One alphaTab mount per SECTION, never one
-     shared document (whole-song OR per-line): a shared document needs a
-     real alphaTeX "\section" marker to label where a section starts,
-     and alphaTab ALWAYS excludes a "\section"-marked bar from
-     multiBarRest consolidation (confirmed live) — a per-LINE version of
-     this (several sections' bars flattened into one shared mount, tried
-     right before this one) needed exactly that marker whenever two
-     different sections shared a line, splitting an otherwise-clean "6"
-     count into "1 | 5" at the boundary: correct math, but two numbers
-     for one section instead of one (buildDrumMap's own doc comment has
-     the full history). One mount per SECTION bypasses "\section"
-     entirely instead — nothing to merge across section lines in the
-     first place, so every section's own bars always consolidate into
-     its own single clean count; this view's own label is plain HTML
-     either way, not alphaTab's.
-     What that costs — each mount draws its OWN clef and time signature,
-     so several short sections sharing a row could read as separate
-     fragments instead of one unbroken staff line — is handled by
-     PACKING and SIZING them the way the rest of this app already packs
-     variable-width content into full rows: buildDrumMap groups sections
-     into rows against an 8-slot target (groupMeasures/groupMapCells'
-     own row-size default) and gives each cell a server-computed
-     WidthPct — its own slot share of the row's ACTUAL total, not the
-     8-slot target — the same "a short row still stretches to the full
-     line width" idea the chord grid's own --cap CSS variable already
-     encodes, just computed here since it depends on sibling cells
-     sharing the row. WidthPct alone isn't enough though — flex-grow
-     defaults to 0, so a cell sized ONLY by width stops exactly there
-     and never claims space left over once its siblings' own min-width
-     floors (app.css) are satisfied; the cell's own "flex" style below
-     (Slots as the grow weight, WidthPct as the basis) gives it a grow
-     weight too, so a short row still reaches 100% instead of leaving
-     dead space on the right. Hidden outside drummer mode by CSS. */}}
+     instead of chord slashes: ONE sheet, every line the same width AND
+     the same height. Lines flow continuously (buildDrumMap flattens
+     every section's bars into one sequence, chunked into 8-bar lines,
+     same idea buildMapLines already uses for the chord grid) and the
+     DEFAULT case — a line belongs to just one section — is one alphaTab
+     mount at the full line width: no alphaTeX "\section" marker
+     anywhere, so that section's own bars always consolidate into one
+     clean count. A row only holds MORE than one cell when a section
+     boundary falls mid-line — split into one mount per section's own
+     portion (still no "\section" marker: each is its own small
+     document) so neither section's count ever merges with its
+     neighbor's. See buildDrumMap's own doc comment for the two earlier
+     versions this corrects: a shared document with "\section" markers
+     split an otherwise-clean count into "1 | N-1" at every boundary;
+     one mount per SECTION regardless of line-sharing drew a separate
+     clef/time-signature per section and could render visibly TALLER
+     than its row neighbors whenever a multi-bar riff wrapped across two
+     internal lines inside its own narrow cell (confirmed live).
+     data-bars (alphatab-tab.js) pins settings.display.barsPerRow to
+     each cell's own bar count specifically to prevent that: it stops
+     alphaTab's own auto-wrap from ever drawing a cell across two
+     internal lines, which is what makes every cell in a row the same
+     height regardless of how little width it's given. WidthPct alone
+     isn't enough for FULL width either — flex-grow defaults to 0, so a
+     cell sized only by width stops exactly there and never claims space
+     left over once its siblings' own min-width floors (app.css,
+     alphatab-tab.js) are satisfied; the cell's own "flex" style below
+     (Bars as the grow weight, WidthPct as the basis) gives it a grow
+     weight too, so a short row still reaches 100%. Hidden outside
+     drummer mode by CSS. */}}
 {{if .DrumMap}}
 <div class="drum-map">
   {{range .DrumMap}}
   <div class="drum-row">
     {{range .Cells}}
-    <div class="drum-cell" style="flex: {{.Slots}} 1 {{.WidthPct}}%">
+    <div class="drum-cell" style="flex: {{.Bars}} 1 {{.WidthPct}}%">
       <div class="drum-chip-label">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
-      <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}"></div>
+      <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}" data-restonly="{{if .RestOnly}}1{{end}}"></div>
     </div>
     {{end}}
   </div>
