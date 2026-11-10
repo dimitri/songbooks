@@ -648,7 +648,7 @@ const ICONS = {
       if (lineEl !== currentLineEl) {
         currentLineEl?.classList.remove('current');
         lineEl?.classList.add('current');
-        if (lineEl) lineEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        if (lineEl && clock.running) lineEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
         currentLineEl = lineEl;
       }
     } else if (currentLineEl) {
