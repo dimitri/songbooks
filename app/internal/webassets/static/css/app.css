@@ -1304,7 +1304,17 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    bars themselves stopped being 100%/--cap-wide and switched to
    content-sized (see the jazz .bar override below). */
 .tab-only-chords-fallback { display: flex; align-items: flex-end; padding-top: 3.3em; position: relative; width: 100%; }
-#sheet[data-render-mode="jazz"] .tab-only-chords-fallback { flex-wrap: wrap; }
+/* Real chord rows (reflowStaffLines' output) get one .staff-line PER
+   visual row, each carrying its own 3.3em padding-top — originally
+   sized for a floating .chord-label, but in jazz mode (.chord-label is
+   position:static there) it's mostly unused slack that happens to
+   double as row spacing. This fallback is ONE flex-wrap container for
+   all its bars, not one element per row, so that padding-top only ever
+   applies once, above the first row — every wrapped row after it had
+   zero spacing, so taller glyphs (jazz's bold root + superscript
+   extension) visibly bled into the row below. row-gap gives every
+   wrapped row the same breathing room a real .staff-line gets. */
+#sheet[data-render-mode="jazz"] .tab-only-chords-fallback { flex-wrap: wrap; row-gap: 1.2em; }
 /* ---- One staff-drawing engine, reused everywhere a chart actually wants
    a 5-line staff (normal/chords+lyrics mode and Song Map; jazz is
    deliberately staff-less by its own real-iReal-Pro-fidelity convention,
