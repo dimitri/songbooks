@@ -252,6 +252,7 @@ chord: Ab 8:X4312X</code></pre>
       <section id="score">
         <h2>Note-level scores (<code>score[label]:</code>)</h2>
         <p>A section can carry one or more <code>score[label]:</code> blocks — real note-level tab/notation for a named voice (<code>drum</code>, <code>bass</code>, a custom name like <code>guitar-1</code>), not just chord changes. The content is plain text, right in the <code>.song</code> file, the same as <code>grid:</code> or lyrics — no separate database row, nothing to look up: the file is meant to be the whole song, readable and git-diffable on its own, notation included. Edited directly in Source, with a live preview as you type. Only a clean, intentionally bounded subset of real LilyPond is understood:</p>
+        <p class="hint">A <code>score[label]:</code> body doesn't have to be hand-typed LilyPond-subset text — the <a href="/guitar-pro">Guitar Pro importer</a> writes a plain JSON encoding of the same riff into this exact field instead (you'll see it if you open Source on an imported track). Both forms decode to the same underlying notes/tuning/bends; the grammar below is what a human typing or pasting a riff by hand actually writes.</p>
         <pre><code>score[guitar-1]: \new TabStaff {
   \set TabStaff.minimumFret = 3
   \relative {
@@ -293,7 +294,7 @@ chord: Ab 8:X4312X</code></pre>
         <pre><code>f~ f8 ees8~ \grace f16( \glissando g8)</code></pre>
 
         <h3 id="score-bend">Bends &amp; palm mute</h3>
-        <p class="callout">This part of the grammar is this app's own addition — it doesn't appear in real LilyPond, and no real legacy score in this app's own library happens to use it yet. It exists ahead of a planned Guitar Pro importer, which carries a bend amount and a palm-mute flag on every note and needs some text form to round-trip through this format. It reuses LilyPond's own genuine text-articulation syntax (<code>note^"label"</code>) rather than inventing a new token.</p>
+        <p class="callout">This part of the grammar is this app's own addition — it doesn't appear in real LilyPond. It's for a riff you type or paste in by hand; the <a href="/guitar-pro">Guitar Pro importer</a> doesn't go through this text form at all — a GP file's own bend amount and palm-mute flag land as plain data on the imported riff directly, so an imported bend and a hand-typed <code>^"full"</code> end up meaning the exact same thing underneath, just reaching it by two different doors. This syntax reuses LilyPond's own genuine text-articulation form (<code>note^"label"</code>) rather than inventing a new token.</p>
         <table>
           <tr><th>Label</th><th>Meaning</th></tr>
           <tr><td><code>^"full"</code></td><td>A whole-step bend.</td></tr>
@@ -342,7 +343,7 @@ score[drum]: bd4 hh8 hh8 sn4 hh8 hh8
 score[bass]: d,4 d d d d d d d
 score[guitar-1]: &lt;e, b e&gt;4 &lt;e b e&gt; &lt;e b e&gt; &lt;e b e&gt;
 score[guitar-2]: e'8 g e g e g e g</code></pre>
-        <p class="hint">Today two of those voices show up on their own: the chord chart overlays the first non-drum voice written (bass or a guitar), and Drummer view shows <code>drum</code>. Every voice is preserved and live-previewed in Source either way, even one with no dedicated view of its own yet.</p>
+        <p class="hint">These voices show up two ways. A section with exactly ONE melodic (non-drum) voice has it overlay the chord chart automatically — the common case for a hand-written riff. A section with SEVERAL (a full Guitar Pro import, typically) keeps the chart as pure chords instead of guessing, and a reader picks which one's full notation to see from the instrument picker beside the view-mode tabs (Song and Song map both read the same choice; pick "Chords" to go back to the plain grid). <code>drum</code> never goes through that picker — Drummer view shows it on its own, continuously across the whole song. Every voice is preserved and live-previewed in Source regardless of which one is currently showing elsewhere.</p>
 
         <h3 id="score-mixed">Mixing a melodic voice with the chord grid</h3>
         <p>A melodic voice (bass, guitar) and the section's own <code>grid:</code> describe the <em>same bars</em> two ways — the voice is the detailed notation, the grid is the chord changes. They don't need to agree on every bar:</p>
