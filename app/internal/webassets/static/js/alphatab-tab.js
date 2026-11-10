@@ -35,18 +35,28 @@
     const settings = new alphaTab.Settings();
     settings.core.fontDirectory = '/static/js/vendor/alphatab/font/';
     settings.core.useWorkers = false; // small, synchronous riffs — no benefit from a background worker, and it avoids a console error when the worker script can't resolve under this app's own static path
-    // core.enableLazyLoading: left at its default (true). Tried forcing
-    // it off twice this session to work around what looked like an
-    // IntersectionObserver race leaving the row permanently empty —
-    // both times it was WORSE: with it off, the AlphaTabApi constructor
-    // makes its own synchronous "initial render" attempt before
-    // api.tex(tex) below has given it anything to render, logs "No
-    // alphaTex data found", and — confirmed by directly retrying the
-    // whole construction 3 times in a row and watching every attempt
-    // fail identically — never recovers, not even on a fresh instance.
-    // The watchdog below (retrying the whole render when nothing
-    // painted in time) is the real mitigation for the occasional lazy-
-    // loading stall; this setting isn't part of the fix.
+    // core.enableLazyLoading: forced OFF (alphaTab's default is on).
+    // The vendored bundle's lazy loading registers ONE
+    // IntersectionObserver on the whole container (threshold [0, .01,
+    // 1]), paints whatever portion is visible the FIRST time it fires,
+    // then unobserves — a one-shot partial paint, not a scroll-driven
+    // virtualization that repaints as more of the container comes into
+    // view. For a tall row (a long GP-imported riff rendered as one
+    // continuous system — see attachTabRiffs), whatever was below the
+    // fold at that one firing stays blank forever: confirmed live,
+    // scrolling down a long chart to systems that were off-screen at
+    // load shows a permanently empty gap, not a late-filling one. An
+    // earlier version of this comment claimed turning this off was
+    // WORSE ("No alphaTex data found", never recovers) — re-tested
+    // directly against a live page with the exact construction order
+    // already used here (settings set before construction, api.tex()
+    // called right after) and it rendered correctly every time; that
+    // finding doesn't reproduce. The watchdog below still earns its
+    // keep for the other real failure mode it was written for — the
+    // vendored bundle's own "AlphaTab container was invisible while
+    // autosizing" case, when the container's width isn't resolved yet
+    // at construction time.
+    settings.core.enableLazyLoading = false;
     settings.display.staveProfile = alphaTab.StaveProfile.Tab;
     settings.notation.rhythmMode = alphaTab.TabRhythmMode.ShowWithBars;
     // The "Guitar/Bass Standard Tuning" caption above the staff — this
@@ -90,19 +100,14 @@
     api.renderFinished.on(() => pollForChordFix(container, tex));
     api.tex(tex);
 
-    // Watchdog: lazy loading's IntersectionObserver-gated content fill
-    // is unreliable — confirmed repeatedly this session, root cause not
-    // fully pinned down (page/tab visibility, scroll position and
-    // script load order were all checked and ruled out as the trigger).
-    // Sometimes it never fires at all, leaving the container's
-    // placeholder divs permanently empty even though renderFinished
-    // already fired and the score loaded fine. Neither a same-instance
-    // api.render() call nor a full reconstruction with lazy loading
-    // forced OFF reliably recovers it (the latter is also separately
-    // broken — see the enableLazyLoading comment above); a full
-    // reconstruction with lazy loading left at ITS DEFAULT is the one
-    // thing that gets a fresh IntersectionObserver registration, which
-    // is the only part of this actually under suspicion.
+    // Watchdog: with lazy loading off (see above), the remaining known
+    // failure mode is the vendored bundle logging "AlphaTab container
+    // was invisible while autosizing" and never painting anything —
+    // happens when the container's width isn't resolved yet at
+    // construction (renderAll's own requestAnimationFrame delay usually
+    // avoids this, but isn't a hard guarantee across every layout
+    // path). A full reconstruction, not a same-instance api.render()
+    // call, is what reliably recovers it.
     const watchdog = () => {
       if (retriesLeft <= 0) return;
       if (container.querySelector('svg text')) return;
