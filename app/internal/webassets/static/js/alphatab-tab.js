@@ -176,16 +176,20 @@
     // up against the very next bar's chord name because the REST portion
     // of a short, unevenly-split row gets squeezed far more than the
     // formula (calibrated against evenly-dense content alone) accounts
-    // for. 26.25rem (420px) is the measured clean threshold for that
-    // exact case, kept as an explicit floor under the per-bar formula
-    // rather than baked into it, since a long, evenly-dense real row
-    // already clears it on the formula alone.
+    // for. 30rem (480px) clears that exact case with real margin — a
+    // pixel-level check (canvas ImageData, not a screenshot) at the
+    // previous 26.25rem floor found the glyphs technically not touching,
+    // but only by a few px, thin enough that a compressed screenshot at
+    // phone width reads as a dead collision; this floor is kept well
+    // past the point that stopped mattering, as an explicit minimum
+    // under the per-bar formula rather than baked into it, since a long,
+    // evenly-dense real row already clears it on the formula alone.
     if (container.dataset.bars) {
       const bars = parseInt(container.dataset.bars, 10);
       settings.display.barsPerRow = bars;
       container.style.minWidth = container.dataset.restonly
         ? (bars < 10 ? '8.5rem' : '11rem')
-        : Math.max(9.5 + bars * 0.95, 26.25) + 'rem';
+        : Math.max(9.5 + bars * 0.95, 30) + 'rem';
     }
 
     const fg = color('--fg', new alphaTab.model.Color(0x24, 0x1e, 0x18));
