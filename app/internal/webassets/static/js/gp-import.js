@@ -77,6 +77,10 @@
   const searchResults = document.getElementById('gpimport-search-results');
   const searchSkip = document.getElementById('gpimport-search-skip');
 
+  const contentPreviewEl = document.getElementById('gpimport-content-preview');
+  const useMarkersRow = document.getElementById('gpimport-use-markers-row');
+  const useMarkersBtn = document.getElementById('gpimport-use-markers');
+
   const scrollWrap = document.getElementById('gpimport-scroll');
   const timeline = document.getElementById('gpimport-timeline');
   const waveformCanvas = document.getElementById('gpimport-waveform');
@@ -374,9 +378,11 @@
   // an <audio> element from it for playback/seeking, then lay out.
   async function prepareTimeline() {
     if (!score) return;
+    renderNotationPreview();
+    setUpSectionMarkers();
     if (!score.backingTrack || !score.backingTrack.rawAudioFile) {
       scrollWrap.hidden = true;
-      setStatus('This file has no embedded backing track — nothing to align against. Sections will map in their own default order; the import still writes note data for each, just without audio sync.');
+      setStatus('This file has no embedded backing track — nothing to align against. Sections will map in their own default order; the import still writes note data for each, just without audio sync. Use the notation preview above to see where sections actually change.');
       renderMappingTableOnly();
       return;
     }
@@ -399,6 +405,102 @@
     if (!isFinite(t)) return '0:00';
     const m = Math.floor(t / 60), s = Math.floor(t % 60);
     return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  // ---- Real notation preview: the GP file's OWN content, rendered by
+  // alphaTab's own renderScore straight from the already-parsed Score
+  // object (score, from loadFile's ScoreLoader call) — never through
+  // this app's own Riff/alphaTeX conversion (extractRiff/tab.ToAlphaTex,
+  // used by renderPreview below for the FINAL extracted sections). The
+  // two previews answer different questions: this one is "what does
+  // this file actually contain, so I can align it" (step 3, before any
+  // extraction has happened); that one is "what did we just extract for
+  // THIS section" (step 4, after alignment). Rebuilt (not reused) on
+  // every track change, since a different track is different notation
+  // entirely, not a restyle of the same one.
+  // Renders via THIS app's own extractRiff -> tab.ToAlphaTex round trip
+  // (the exact same /api/gp-import/preview call and alphaTeX-rendering
+  // path the step-4 per-section preview below already uses, proven live
+  // against this exact file) rather than alphaTab's own renderScore
+  // straight off the raw parsed Score object. A first version did that
+  // instead — simpler in principle, no server round trip — and it
+  // reliably produced garbled "MNaN,NaN" SVG paths on a real file with
+  // bends: alphaTab's native bend-curve rendering off raw GP curve data
+  // is a code path nothing else in this app has ever exercised (every
+  // OTHER riff shown anywhere here is always OUR OWN re-encoded
+  // BendSemitones/BendRelease form, via extractRiff, never the file's
+  // raw native curve points) — going through that same re-encoding here
+  // sidesteps whatever's actually broken there, rather than fighting it.
+  //
+  // Mounted via window.AlphaTabTab.render (alphatab-tab.js) — the SAME
+  // data-tex/.staff-line.alphatab-row convention every other TabOnly row
+  // in this app uses — rather than a hand-rolled AlphaTabApi construction
+  // here. A hand-rolled version (tried first) hit the exact "skipped
+  // rendering because of width=0" race this app has hit before in every
+  // OTHER context a row can appear in right as its own [hidden] toggle
+  // clears: alphatab-tab.js's own render() already has the full retry/
+  // watchdog machinery proven against that (resizeGuard, pollGuard, an
+  // 8-second construction-time watchdog) — reusing it beats re-fighting
+  // the same race with a bare single requestAnimationFrame. The one
+  // thing given up by not holding the AlphaTabApi instance directly is
+  // click-a-bar-to-jump (beatMouseDown) — left for a follow-up rather
+  // than trading away reliability to get it in this pass.
+  async function renderNotationPreview() {
+    contentPreviewEl.innerHTML = '';
+    delete contentPreviewEl.dataset.tex;
+    contentPreviewEl.className = 'staff-line alphatab-row';
+    const trackIndex = Number(trackSelect.value) || 0;
+    const track = score.tracks[trackIndex];
+    try {
+      const riff = extractRiff(track, 0, realIdx.length);
+      const res = await fetch('/api/gp-import/preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ riff: JSON.stringify(riff) }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const { alphaTex } = await res.json();
+      contentPreviewEl.dataset.tex = alphaTex;
+      if (window.AlphaTabTab) window.AlphaTabTab.render(contentPreviewEl);
+    } catch (e) {
+      contentPreviewEl.textContent = 'Preview failed: ' + e.message;
+    }
+  }
+
+  // ---- GP's own section markers (Guitar Pro's real "rehearsal mark"
+  // concept — alphaTab exposes it as masterBar.section/isSectionStart):
+  // when the file's own author already named real sections, that's
+  // actual data, not a guess by ear — offering it as a one-click
+  // boundary-setting shortcut beats re-discovering the same thing by
+  // dragging against a waveform.
+  function gpSectionMarkers() {
+    const out = [];
+    realIdx.forEach((gpBarIdx, pos) => {
+      const mb = score.masterBars[gpBarIdx];
+      if (mb.section) out.push({ pos, text: mb.section.text || mb.section.marker || '' });
+    });
+    return out;
+  }
+
+  function setUpSectionMarkers() {
+    const markers = gpSectionMarkers();
+    useMarkersRow.hidden = markers.length < 2;
+    useMarkersBtn.onclick = () => {
+      // Exactly ourSections.length + 1 boundaries are needed (one past
+      // each section's own start, plus the final end) — the file may
+      // carry more or fewer real markers than this song has sections
+      // (an intro/outro the file's author marked that this song's own
+      // section list doesn't split out separately, say), so this maps
+      // the first N markers straight across and leaves any remaining
+      // sections at their current (default sequential) positions rather
+      // than guessing — still real progress, not an all-or-nothing deal.
+      const n = Math.min(markers.length, boundaries.length - 2);
+      for (let i = 0; i < n; i++) boundaries[i + 1] = markers[i].pos;
+      renderBarGrid();
+      renderLabelTrack();
+      renderBoundaries();
+      renderMappingTableOnly();
+      setStatus(`set ${n} boundary/boundaries from this file's own section markers.`, 'ok');
+    };
   }
 
   function drawWaveform() {
@@ -467,6 +569,16 @@
         num.style.left = (x + 2) + 'px';
         num.textContent = pos;
         bargridEl.appendChild(num);
+        // The file's own section marker, when it has one — a real
+        // reference point ("the author called this bar X"), not a
+        // guess from the waveform shape alone.
+        if (mb.section) {
+          const tag = document.createElement('div');
+          tag.className = 'gpimport-gp-marker';
+          tag.style.left = x + 'px';
+          tag.textContent = mb.section.text || mb.section.marker || '•';
+          bargridEl.appendChild(tag);
+        }
       });
     } else {
       // Collapsed: one tinted block per CURRENT section mapping (not
