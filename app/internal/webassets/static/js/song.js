@@ -58,7 +58,23 @@ const ICONS = {
   // converge on the same layout a fresh load at that width would produce.
   let staffLineOriginals = null;
   function captureStaffLineOriginals() {
-    staffLineOriginals = [...sheet.querySelectorAll('.grid.spans-full')].map(grid => ({
+    // A TabOnly grid's real content is an .alphatab-row, not a
+    // .staff-line — this system has no model of alphaTab's own live SVG
+    // and nothing useful to reflow it into. Excluding it here (not just
+    // giving it an empty `lines` array) keeps reflowStaffLines()'s loop
+    // below from ever reaching it, so it never calls replaceChildren()
+    // on this grid and never wipes the real alphaTab row — confirmed
+    // live as the cause of both the Jazz-chart-empty regression and the
+    // disconnected-duplicate-grid bug: every reflow (any mode switch or
+    // resize) rebuilt this grid's children from whatever it had
+    // captured as `.staff-line`, which never included the alphaTab row
+    // itself. CSS alone handles showing/hiding .alphatab-row vs
+    // .tab-only-chords-fallback per mode, and the fallback's own
+    // flex-wrap handles its jazz-mode wrapping — neither needs this JS
+    // reflow pass at all.
+    staffLineOriginals = [...sheet.querySelectorAll('.grid.spans-full')]
+      .filter(grid => !grid.querySelector(':scope > .alphatab-row'))
+      .map(grid => ({
       grid,
       lines: [...grid.querySelectorAll(':scope > .staff-line')].map(line => {
         const barEls = [...line.querySelectorAll(':scope > .bar')];
