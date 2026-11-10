@@ -245,10 +245,20 @@ func (st *Store) ListAllPeople(ctx context.Context) ([]PersonAdminRow, error) {
 // which is the one actually wired to the accept flow; this is kept as
 // the plain non-transactional equivalent for any future direct caller).
 func (st *Store) CreatePerson(ctx context.Context, username, displayName, email string) (int64, error) {
+	// email is UNIQUE but nullable — a literal "" (no caller ever passed
+	// one until cmd/songimport started restoring people with no email on
+	// file) collides with itself on the SECOND such person, since two
+	// empty strings are equal under a unique constraint while two SQL
+	// NULLs are not. Store "no email" as NULL, same as every other no-
+	// email person already in the table.
+	var emailArg *string
+	if email != "" {
+		emailArg = &email
+	}
 	var id int64
 	err := st.db.QueryRow(ctx,
 		`INSERT INTO people (username, display_name, email) VALUES ($1, $2, $3) RETURNING id`,
-		username, displayName, email).Scan(&id)
+		username, displayName, emailArg).Scan(&id)
 	return id, err
 }
 

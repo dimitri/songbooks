@@ -161,6 +161,28 @@ const (
 // OwnerBand) — "a variant that isn't in its owner's own songbook doesn't
 // make sense."
 func (st *Store) CreateVariant(ctx context.Context, ownerKind OwnerKind, ownerID int64, title, artist string, creatorPersonID int64) (int64, error) {
+	// Resolved before the transaction, same fix CreateBandVariant/
+	// CreateCommunityVariant already needed: GetDefaultSongbook isn't
+	// tx-scoped and may itself need to INSERT a songbook row. Without
+	// this, the raw "... AND is_default" SELECT further down 404'd with
+	// a bare "no rows in result set" for anyone whose default songbook
+	// hadn't been created yet — confirmed live for a brand-new person's
+	// very first personal song (cmd/songimport creating a fresh person's
+	// first variant hit this immediately; the band/community branches
+	// were already fixed, person never was).
+	var defaultSbID int64
+	if ownerKind == OwnerPerson || ownerKind == OwnerBand {
+		kind := "person"
+		if ownerKind == OwnerBand {
+			kind = "band"
+		}
+		var err error
+		defaultSbID, err = st.GetDefaultSongbook(ctx, kind, ownerID)
+		if err != nil {
+			return 0, err
+		}
+	}
+
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, err
@@ -217,19 +239,9 @@ func (st *Store) CreateVariant(ctx context.Context, ownerKind OwnerKind, ownerID
 	}
 
 	if ownerKind == OwnerPerson || ownerKind == OwnerBand {
-		kind := "person"
-		if ownerKind == OwnerBand {
-			kind = "band"
-		}
-		var sbID int64
-		if err := tx.QueryRow(ctx, `
-			SELECT id FROM songbooks WHERE owner_kind = $1 AND owner_`+kind+`_id = $2 AND is_default`,
-			kind, ownerID).Scan(&sbID); err != nil {
-			return 0, err
-		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO songbook_entries (songbook_id, variant_id, added_by_person_id) VALUES ($1, $2, $3)`,
-			sbID, newID, creator); err != nil {
+			defaultSbID, newID, creator); err != nil {
 			return 0, err
 		}
 	}
