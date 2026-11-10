@@ -1295,8 +1295,15 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    class, which song.js's reflow logic scans for independently of this
    row's own mode-gated visibility (see the comment above and in
    play.html). */
-.tab-only-chords-fallback { display: flex; align-items: flex-end; padding-top: 3.3em; position: relative; }
-#sheet[data-render-mode="map"] .tab-only-chords-fallback { width: 100%; }
+/* width: 100% unconditionally, not just for map mode: a wrapping flex
+   container with no explicit width shrink-to-fits to the narrowest
+   width that still satisfies its children, which for a flex-wrap row
+   collapses toward one bar per line — confirmed live in jazz mode as a
+   columnar pile-up (each "row" one bar tall, wrapping into new columns
+   instead of flowing left-to-right across the real row width) once the
+   bars themselves stopped being 100%/--cap-wide and switched to
+   content-sized (see the jazz .bar override below). */
+.tab-only-chords-fallback { display: flex; align-items: flex-end; padding-top: 3.3em; position: relative; width: 100%; }
 #sheet[data-render-mode="jazz"] .tab-only-chords-fallback { flex-wrap: wrap; }
 /* ---- One staff-drawing engine, reused everywhere a chart actually wants
    a 5-line staff (normal/chords+lyrics mode and Song Map; jazz is
