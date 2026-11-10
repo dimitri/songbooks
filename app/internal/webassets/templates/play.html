@@ -837,6 +837,36 @@
       <div class="gpimport-step" id="gpimport-step-align" hidden>
         <h3>3. Align bars</h3>
         <p class="hint">Drag a boundary to set where one section ends and the next begins. The first boundary is this song's bar 0 — drag it right past any count-in or silent lead-in.</p>
+        {{/* Dragging a boundary against a bare waveform, with no idea
+             what's actually playing at that point, is exactly the
+             "how would we do that blind?!" problem direct feedback
+             flagged — a fair complaint, not a nitpick: the waveform
+             alone (and NOTHING at all for a file with no embedded
+             backing track — see the hint text below) gives no real
+             reference for where a section actually starts. This real
+             notation preview (gp-import.js's own renderNotationPreview,
+             alphaTab's native api.renderScore against the ORIGINAL
+             parsed Score — not this app's own Riff/alphaTeX conversion,
+             which would show what WE extracted, not what the file
+             itself actually has) is the fix: scroll it to read the
+             real music, click a bar in it to jump the timeline/
+             playhead there instead of guessing from a waveform shape
+             alone. */}}
+        <div id="gpimport-content-preview-wrap">
+          <p class="hint">Click a bar below to jump the timeline to it — this is the file's own real notation, not a summary.</p>
+          <div id="gpimport-content-preview"></div>
+        </div>
+        {{/* Shown only when the file's own author marked real sections
+             (Guitar Pro's own "rehearsal mark" concept — alphaTab
+             exposes it as masterBar.section/isSectionStart) — the OTHER
+             way this avoids blind dragging: when a file already says
+             "bar 17 is the Chorus", that's real data, not a guess, and
+             worth offering as a one-click starting point instead of
+             making a reader re-discover it by ear. */}}
+        <p id="gpimport-use-markers-row" hidden class="hint">
+          This file has its own section markers.
+          <button type="button" id="gpimport-use-markers" class="primary">Use the file's own section markers</button>
+        </p>
         <div class="gpimport-toolbar">
           <button type="button" id="gpimport-zoom-out">&minus;</button>
           <span class="gpimport-zoom-label" id="gpimport-zoom-label">100%</span>
