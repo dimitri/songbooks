@@ -1621,6 +1621,20 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .bar-body-tab-only {
   height: calc(var(--strings) * 1.1em + 0.9em) !important;
 }
+/* The chord-label-only fallback (.tab-only-chords-fallback — jazz/map/
+   lyrics modes, no .tab-block at all) reuses .bar-body-tab-only just to
+   drop the normal 5-line staff background, but never sets --strings —
+   that's only ever written per-bar for a REAL tab riff. var(--strings)
+   with nothing set is the guaranteed-invalid value, making the whole
+   calc() above invalid at compute time; since height isn't inherited,
+   that resets it to 'auto', not a graceful fallback to the plain
+   .bar-body rule's 1.7em — and 'auto' on a flex item whose only content
+   is position:absolute (.tab-only-chords, contributing nothing to
+   intrinsic height) measured as literally 0px live. Give the no-riff
+   case back a real height explicitly. */
+.bar-body-tab-only:not(:has(.tab-block)) {
+  height: 1.7em !important;
+}
 .tab-only-chords { position: absolute; inset: 0; display: flex; z-index: 1; }
 .tab-only-slot { flex: 1 1 0; min-width: 0; position: relative; }
 .tab-block.tab-replaces-staff {
