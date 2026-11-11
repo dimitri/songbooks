@@ -1182,62 +1182,160 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .reference-page { display: none; max-width: 42rem; margin: 0 auto; padding: 1rem 0; }
 #sheet[data-render-mode="reference"] ~ .reference-page { display: block; }
 
-/* ---- Mixer page -----------------------------------------------------------
-   Same sibling convention as .reference-page above, for the OTHER
-   transport: AlphaSynth-driven score playback (per-track mute/solo)
-   instead of the reference recording. The structure strip and the
-   reference-audio player both stay visible above this page in every
-   mode, mixer included — see play.html's own comment. */
-.mixer-page { display: none; max-width: 52rem; margin: 0 auto; padding: 1rem 0; }
+/* ---- Mixer (DAW view) ----------------------------------------------------
+   Same sibling convention as .reference-page. Layout and palette follow
+   Audacity 4's own (src/projectscene QML + light.cfg): light track
+   headers, a dark track canvas, a beats-and-measures ruler, colored
+   clips with a 20px header, a pentagon playhead; mute/solo follow the
+   Logic/GarageBand blue/yellow convention. The structure strip and the
+   reference player are hidden here: both live on this timeline instead. */
+.mixer-page { display: none; padding: 0.4rem 0 1rem; }
 #sheet[data-render-mode="mixer"] ~ .mixer-page { display: block; }
-/* Transport: a single pill-shaped module, centered controls grouped
-   together — the one DAW convention (Logic/GarageBand/Audacity 4's own
-   transport bars) this view borrows most directly, since a transport is
-   exactly the same job everywhere: play/stop/loop/speed for whatever's
-   loaded, nothing song-specific about its own layout. */
-.mixer-transport {
-  display: flex; align-items: center; gap: 0.6rem; margin: 0 0 1rem;
-  background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 999px;
-  padding: 0.35rem 0.5rem 0.35rem 0.25rem; width: fit-content;
-}
-.mixer-transport-btn {
-  width: 2rem; height: 2rem; display: flex; align-items: center; justify-content: center;
-  border-radius: 50%; background: var(--bg-raised); border: 1px solid var(--border);
-}
-.mixer-transport-btn:hover { border-color: var(--border-strong); }
-#mixer-play-btn.mixer-transport-btn { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
-.mixer-loop-label { display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; color: var(--fg-muted); padding-left: 0.3rem; }
-#mixer-tempo-select { font-size: 0.78rem; height: 1.8rem; padding: 0 0.4rem; }
+body:has(#sheet[data-render-mode="mixer"]) #song-structure-strip,
+body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !important; }
 
-/* Channel strip: one card per playable track, laid out like a real
-   mixer's channel column (name, then its own M/S buttons) rather than a
-   plain row of chips — intentionally keeping this app's own muted,
-   single-accent palette (no per-track rainbow colors, unlike a typical
-   DAW) rather than importing a visual language this app doesn't use
-   anywhere else. */
-.mixer-channel-strip { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1rem; }
-.mixer-channel {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem;
-  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 0.6rem;
-  padding: 0.5rem 0.65rem; min-width: 6.5rem; box-shadow: var(--shadow);
+.daw {
+  --daw-bg: #F8F8F9; --daw-header: #EEEEF1; --daw-header-hover: #F3F3F5; --daw-sep: #E3E3E7;
+  --daw-stroke: #D4D5D9; --daw-text: #14151A; --daw-muted: #5B5E6B;
+  --daw-ruler: #DFDFE3; --daw-ruler-stroke: #BFC0C5; --daw-lane-light: #E9E9EE;
+  --daw-canvas: #212433; --daw-accent: #A09EEF; --daw-play: #18A999;
+  --daw-mute: #4A8FE7; --daw-solo: #F2C744;
+  border: 1px solid var(--daw-stroke); border-radius: 8px; overflow: hidden;
+  background: var(--daw-bg); color: var(--daw-text); font-family: var(--font-ui); font-size: 12px;
 }
-.mixer-channel-name { font-weight: 700; font-size: 0.82rem; }
-.mixer-channel-name.mixer-channel-drums { color: var(--fg-muted); }
-.mixer-channel-name.mixer-channel-drums::after { content: ' (drums)'; font-weight: 400; opacity: 0.7; }
-.mixer-ms-row { display: flex; gap: 0.3rem; }
-.mixer-ms-btn {
-  width: 1.6rem; height: 1.6rem; padding: 0; font-size: 0.72rem; font-weight: 700;
-  border-radius: 0.3rem; border: 1px solid var(--border-strong); background: var(--bg);
+@media (prefers-color-scheme: dark) {
+  .daw {
+    --daw-bg: #1B1D29; --daw-header: #262938; --daw-header-hover: #2C3042; --daw-sep: #33374A;
+    --daw-stroke: #3A3E52; --daw-text: #E6E7EE; --daw-muted: #A4A7B8;
+    --daw-ruler: #2C2F40; --daw-ruler-stroke: #45495E; --daw-lane-light: #262938; --daw-canvas: #15171F;
+  }
 }
-.mixer-mute-btn.active { background: var(--danger); color: #fff; border-color: var(--danger); }
-.mixer-solo-btn.active { background: var(--warn); color: #fff; border-color: var(--warn); }
+.daw .icon { width: 16px; height: 16px; }
+/* A desktop DAW is dense by design: opt out of the app-wide 44px touch
+   minimum for buttons and fields inside it. */
+.daw button, .daw select { min-height: 0; margin: 0; font-size: 12px; line-height: 1; }
+.daw select { height: 22px; padding: 0 4px; border-radius: 4px; border: 1px solid var(--daw-stroke); background: var(--daw-bg); color: var(--daw-text); }
+.daw-align-bar[hidden] { display: none; }
+.daw-toolbar { display: flex; align-items: center; gap: 12px; padding: 6px 10px; border-bottom: 1px solid var(--daw-stroke); flex-wrap: wrap; }
+.daw-tb-group { display: flex; align-items: center; gap: 2px; }
+.daw-btn {
+  width: 28px; height: 28px; padding: 0; border: none; border-radius: 4px; background: transparent;
+  color: var(--daw-text); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.daw-btn:hover { background: rgba(127, 127, 140, 0.16); }
+.daw-btn.daw-play { color: var(--daw-play); }
+.daw-btn.daw-play .icon { width: 20px; height: 20px; }
+.daw-btn[aria-pressed="true"] { background: var(--daw-accent); color: #fff; }
+.daw-btn-sm { width: 22px; height: 22px; font-size: 15px; line-height: 1; }
+.daw-lcd {
+  display: flex; flex-direction: column; justify-content: center; min-width: 6.5rem; padding: 2px 10px; border-radius: 4px;
+  background: #212433; color: #DCE9FF; font-family: var(--font-mono); line-height: 1.15;
+}
+.daw-lcd-main { font-size: 15px; letter-spacing: 0.02em; }
+.daw-lcd-sub { font-size: 10.5px; opacity: 0.7; }
+.daw-meta span { padding: 0 8px; color: var(--daw-muted); font-variant-numeric: tabular-nums; }
+.daw-meta span + span { border-left: 1px solid var(--daw-stroke); }
+.daw-speed { display: flex; align-items: center; gap: 5px; color: var(--daw-muted); }
 
-/* The combined notation (every track's own staff, stacked — a real
-   score reads this way too, not just a DAW) sits in its own "paper"
-   panel below the channel strip, same visual separation Logic's Score
-   Editor and a plain print chart both use between the mixer/transport
-   chrome and the actual music. */
-#mixer-score { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 0.6rem; padding: 0.5rem; }
+.daw-tb-spacer { flex: 1; }
+.daw-btn-text {
+  height: 28px; padding: 0 10px; border-radius: 4px; border: 1px solid var(--daw-stroke);
+  background: var(--daw-header); color: var(--daw-text); font-size: 12px; cursor: pointer;
+}
+.daw-btn-text[aria-pressed="true"] { background: var(--daw-accent); border-color: var(--daw-accent); color: #fff; }
+.daw-zoom { display: flex; align-items: center; gap: 4px; }
+.daw-zoom input { width: 110px; }
+.daw-align-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 10px;
+  background: rgba(160, 158, 239, 0.18); border-bottom: 1px solid var(--daw-stroke);
+}
+.daw-align-bar kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--daw-stroke); border-radius: 3px; padding: 0 3px; }
+.daw-align-status { color: var(--daw-muted); }
+.daw-status { margin: 0; padding: 6px 10px; color: var(--daw-muted); border-top: 1px solid var(--daw-stroke); }
+.daw-status:empty { display: none; }
+
+.daw-main { display: grid; grid-template-columns: 236px minmax(0, 1fr); }
+.daw-headers { background: var(--daw-header); border-right: 1px solid var(--daw-stroke); }
+.daw-scroll { overflow-x: auto; overflow-y: hidden; background: var(--daw-canvas); }
+.daw-content { position: relative; }
+
+/* Header cells and lanes share one fixed height per row (set by mixer.js). */
+.daw-hdr { display: flex; box-sizing: border-box; border-bottom: 1px solid var(--daw-sep); position: relative; }
+.daw-hdr:hover { background: var(--daw-header-hover); }
+.daw-hdr.is-meta { background: var(--daw-ruler); color: var(--daw-muted); font-size: 11px; align-items: center; padding: 0 10px; gap: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.daw-hdr-stripe { width: 6px; flex: none; }
+.daw-hdr-body { flex: 1; min-width: 0; padding: 7px 8px 6px 9px; display: flex; flex-direction: column; gap: 7px; }
+.daw-hdr-top, .daw-hdr-row { display: flex; align-items: center; gap: 6px; }
+.daw-hdr-icon { width: 16px; height: 16px; flex: none; color: var(--daw-muted); }
+.daw-hdr-name { flex: 1; min-width: 0; font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.daw-hdr-sub { font-size: 10.5px; color: var(--daw-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.daw-hdr select { font-size: 11px; max-width: 100%; }
+.daw-ms {
+  width: 20px; height: 20px; padding: 0; border-radius: 4px; border: 1px solid #C2C4CF; background: #fff;
+  color: #3A3D4A; font-size: 10.5px; font-weight: 700; line-height: 18px; cursor: pointer; flex: none;
+}
+.daw-ms.is-mute[aria-pressed="true"] { background: var(--daw-mute); border-color: var(--daw-mute); color: #fff; }
+.daw-ms.is-solo[aria-pressed="true"] { background: var(--daw-solo); border-color: #D9AE2B; color: #14151A; }
+.daw-vol { flex: 1; min-width: 0; height: 14px; accent-color: var(--daw-muted); }
+.daw-vol-label { font-size: 10px; color: var(--daw-muted); width: 2.4em; text-align: right; font-variant-numeric: tabular-nums; }
+
+.daw-lane { position: relative; box-sizing: border-box; border-bottom: 1px solid rgba(0, 0, 0, 0.35); }
+.daw-lane.is-meta { background: var(--daw-lane-light); border-bottom-color: var(--daw-stroke); }
+.daw-lane.is-ruler { background: var(--daw-ruler); border-bottom-color: var(--daw-ruler-stroke); cursor: pointer; }
+.daw-lane.is-dimmed > .daw-clip, .daw-lane.is-dimmed > .daw-notation { opacity: 0.4; }
+
+.daw-tick { position: absolute; bottom: 0; width: 1px; background: var(--daw-text); opacity: 0.55; pointer-events: none; }
+.daw-tick.is-bar { height: 15px; opacity: 0.8; }
+.daw-tick.is-beat { height: 6px; opacity: 0.35; }
+.daw-tick-label { position: absolute; top: 5px; font-size: 11px; font-variant-numeric: tabular-nums; transform: translateX(3px); pointer-events: none; white-space: nowrap; }
+.daw-tick-label.is-time { top: auto; bottom: 17px; font-size: 9.5px; color: var(--daw-muted); }
+.daw-loop-region { position: absolute; top: 0; height: 9px; background: #D0D0D7; pointer-events: none; }
+.daw.is-looping .daw-loop-region { background: #A0A9DC; }
+
+.daw-section {
+  position: absolute; top: 3px; bottom: 3px; box-sizing: border-box; border-radius: 4px; border: 1px solid rgba(0, 0, 0, 0.28);
+  color: #14151A; font-size: 11.5px; font-weight: 600; line-height: 20px; padding: 0 6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+}
+.daw-section .daw-section-bars { font-weight: 400; opacity: 0.65; margin-left: 4px; }
+.daw-section.is-selected { box-shadow: inset 0 0 0 2px #14151A; }
+.daw-chord {
+  position: absolute; top: 3px; bottom: 3px; box-sizing: border-box; border-left: 2px solid #6E6BD8;
+  padding-left: 5px; font-family: var(--font-chart); font-style: italic; font-size: 15px; line-height: 21px;
+  white-space: nowrap; overflow: hidden; background: rgba(160, 158, 239, 0.14); color: var(--daw-text);
+}
+.daw-chord:nth-child(even) { background: rgba(160, 158, 239, 0.26); }
+
+.daw-grid { position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 1; }
+.daw-gl { position: absolute; top: 0; bottom: 0; width: 1px; }
+.daw-gl.is-bar { background: rgba(255, 255, 255, 0.10); }
+.daw-gl.is-beat { background: rgba(255, 255, 255, 0.05); }
+.daw-gl.is-section { background: rgba(255, 255, 255, 0.30); }
+
+.daw-clip { position: absolute; top: 3px; bottom: 3px; box-sizing: border-box; border-radius: 4px; border: 1px solid #000; overflow: hidden; z-index: 2; }
+.daw-clip-hdr { height: 20px; line-height: 20px; font-size: 11px; font-weight: 600; color: #14151A; white-space: nowrap; overflow: hidden; }
+.daw-clip-hdr span { position: sticky; left: 0; padding: 0 6px; }
+.daw-clip-body { position: absolute; top: 20px; left: 0; right: 0; bottom: 0; }
+.daw-wave { position: absolute; top: 23px; height: calc(100% - 26px); pointer-events: none; z-index: 3; }
+.daw-notation { position: absolute; left: 0; overflow: hidden; pointer-events: none; z-index: 3; }
+.daw-notation .at-surface, .daw-notation svg { pointer-events: none; }
+.daw-lane-empty { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: rgba(255, 255, 255, 0.55); font-size: 12px; z-index: 3; }
+
+.daw-playhead {
+  position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; box-sizing: border-box; z-index: 20;
+  background: #fff; border-left: 1px solid #000; border-right: 1px solid #000; pointer-events: none;
+}
+.daw-playhead-head { position: absolute; top: 0; width: 13px; height: 16px; margin-left: -6px; z-index: 21; pointer-events: none; }
+
+.daw-anchor { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #FF9E65; z-index: 15; cursor: ew-resize; }
+.daw-anchor::before { content: ''; position: absolute; top: 0; bottom: 0; left: -6px; width: 14px; }
+.daw-anchor.is-estimated { background: repeating-linear-gradient(#FF9E65 0 5px, transparent 5px 9px); }
+.daw-anchor-flag {
+  position: absolute; top: 2px; left: 0; padding: 1px 6px; border-radius: 0 3px 3px 0; background: #FF9E65; color: #14151A;
+  font-size: 10.5px; font-weight: 700; white-space: nowrap; cursor: ew-resize; user-select: none;
+}
+.daw-anchor.is-estimated .daw-anchor-flag { background: #FFD0A8; }
+.daw-anchor.is-dragging .daw-anchor-flag { background: #fff; outline: 2px solid #FF9E65; }
 
 /* Layout is automatic, not a manual toggle: the viewport decides.
    - Below 761px: single stacked column (chords above lyrics) — the only
@@ -4619,3 +4717,6 @@ input.matrix-slot:hover, input.matrix-slot:focus {
    class's rule) and gets a second, mobile-only instance inside the new
    #song-stack sheet instead — this selector needs no width override any
    more, inline-flex + flex-wrap already reads fine at a sheet's width. */
+.daw-lane.is-compact .daw-notation { display: none; }
+.daw-hdr.is-compact .daw-hdr-sub { display: none; }
+.daw-hdr.is-compact .daw-hdr-body { gap: 4px; padding-top: 5px; }

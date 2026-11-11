@@ -175,20 +175,6 @@
     // underneath whatever we do. Off entirely — nothing in this app
     // wants alphaTab touching page scroll position, ever.
     settings.player.scrollMode = alphaTab.ScrollMode.Off;
-    // Mixer rows (mixer.js) are the ONE place in this app that actually
-    // plays audio through alphaTab's own AlphaSynth engine, instead of
-    // just drawing notation — every other mount here leaves
-    // player.enablePlayer at its default false. Gated per-container
-    // (data-enable-player, set only by mixer.js before calling render())
-    // rather than flipped on globally: AlphaSynth fetches the soundFont
-    // file (~1.3MB, TinySoundFont — see vendor/alphatab/soundfont) as
-    // soon as a Score is loaded with the player enabled, and a chart
-    // overlay/Drummer-view reader who never opens the Mixer tab has no
-    // reason to pay for that download.
-    if (container.dataset.enablePlayer === '1') {
-      settings.player.enablePlayer = true;
-      settings.player.soundFont = '/static/js/vendor/alphatab/soundfont/sonivox.sf2';
-    }
     // A percussion track (internal/tab.ToAlphaTexDrums — detected here by
     // its own literal "instrument percussion" directive, the one marker
     // every drum alphaTeX block carries) has no tab staff at all: there
@@ -199,21 +185,8 @@
     // vendored library's own StaveProfile enum — "Default", "ScoreTab",
     // "Score", "Tab", "TabMixed"; there is no "ScoreDefault") renders the
     // standard-notation-only staff alphaTab already draws percussion on.
-    // A Mixer mount (data-enable-player, above) can combine a drum track
-    // AND one or more fretted tracks in the SAME document
-    // (tab.ToAlphaTexMulti) — the single binary choice below would be
-    // wrong for one or the other, so it's skipped there in favor of
-    // StaveProfile.Default, which lets alphaTab pick the right staff
-    // PER TRACK on its own (confirmed against the vendored library: a
-    // percussion track gets a standard-notation staff, a fretted one
-    // gets its tab staff, same result as the explicit choice below for
-    // either kind on its own, but correct for a document mixing both).
-    if (container.dataset.enablePlayer === '1') {
-      settings.display.staveProfile = alphaTab.StaveProfile.Default;
-    } else {
-      const isDrumTrack = tex.includes('instrument percussion');
-      settings.display.staveProfile = isDrumTrack ? alphaTab.StaveProfile.Score : alphaTab.StaveProfile.Tab;
-    }
+    const isDrumTrack = tex.includes('instrument percussion');
+    settings.display.staveProfile = isDrumTrack ? alphaTab.StaveProfile.Score : alphaTab.StaveProfile.Tab;
     // Every row this app hands to alphaTab is its OWN separate document
     // (one bar, or a handful) — meaning every one of them is, as far as
     // alphaTab's own layout is concerned, the LAST (and only) system of

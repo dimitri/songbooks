@@ -15,12 +15,33 @@
 // a per-browser preference (localStorage, keyed by book/stem), not song
 // data — two listeners can prefer different reference versions of the
 // same song without fighting over a shared setting.
+
+// Shared by audio-player.js and mixer.js: one cached download per
+// (song, category, size) — the size changes when a recording is replaced.
+window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
+  const cache = new Map();
+  return function (variantId, category, meta) {
+    const url = `/song/${variantId}/audio.mp3?category=${category}&v=${(meta && meta.byteSize) || ''}`;
+    if (!cache.has(url)) {
+      cache.set(url, fetch(url).then((r) => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.arrayBuffer();
+      }).catch((e) => { cache.delete(url); throw e; }));
+    }
+    return cache.get(url);
+  };
+})();
+
 (function () {
   const root = document.getElementById('audio-player');
   if (!root) return; // not on a page with the player
   const variantId = root.dataset.variantId;
   const canEdit = root.dataset.canEdit === 'true';
-  const prefKey = `songbooks:audio-category:${variantId}`;
+  // "-choice": only an explicit toggle click is remembered. The old key
+  // also saved whatever category was auto-picked on load, so a song that
+  // once had only a band clip kept preferring it after a real Guitar Pro
+  // recording was added.
+  const prefKey = `songbooks:audio-category-choice:${variantId}`;
 
   const categoryToggle = document.getElementById('audio-category-toggle');
   const emptyState = document.getElementById('audio-empty-state');
@@ -53,11 +74,23 @@
   // fixed-width bucket array (independent of canvas pixel width, which
   // can change on resize) so a resize just re-renders from cached peaks,
   // no re-decode. ------------------------------------------------------
+  // One download per recording, shared with the Mixer (mixer.js): the
+  // bytes feed both the <audio> element (as a blob URL) and the waveform.
+  // Streaming the URL into <audio> AND fetching it again for the waveform
+  // left half-read media connections open, exhausting the browser's six
+  // connections per host until every other request on the page stalled.
   async function decodeWaveform() {
     peaks = null;
-    const res = await fetch(`/song/${variantId}/audio.mp3?category=${activeCategory}`);
-    if (!res.ok) return;
-    const arrayBuffer = await res.arrayBuffer();
+    const cat = activeCategory;
+    let bytes;
+    try { bytes = await window.songbooksAudioBytes(variantId, cat, categories[cat]); } catch (e) { return; }
+    if (cat !== activeCategory) return;
+    if (audio.dataset.blobFor !== cat) {
+      if (audio.src.startsWith('blob:')) URL.revokeObjectURL(audio.src);
+      audio.src = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
+      audio.dataset.blobFor = cat;
+    }
+    const arrayBuffer = bytes.slice(0);
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     let audioBuffer;
     try {
@@ -259,12 +292,12 @@
   // ---- Category toggle / load -------------------------------------------
   function categoryLabel(c) { return c === 'youtube' ? 'YouTube' : c === 'gp' ? 'Guitar Pro' : 'Band recording'; }
 
-  function selectCategory(cat) {
+  function selectCategory(cat, remember) {
     activeCategory = cat;
-    try { localStorage.setItem(prefKey, cat); } catch (e) {}
+    if (remember) { try { localStorage.setItem(prefKey, cat); } catch (e) {} }
     categoryToggle?.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.category === cat));
     audio.pause();
-    audio.src = `/song/${variantId}/audio.mp3?category=${cat}`;
+    audio.dataset.blobFor = '';
     duration = 0;
     decodeWaveform();
     wireBarClickToPlay();
@@ -305,7 +338,7 @@
 
   categoryToggle?.addEventListener('click', e => {
     const btn = e.target.closest('button[data-category]');
-    if (btn && categories[btn.dataset.category]) selectCategory(btn.dataset.category);
+    if (btn && categories[btn.dataset.category]) selectCategory(btn.dataset.category, true);
   });
 
   window.addEventListener('resize', () => { drawWaveform(); renderBarGrid(); });
@@ -342,6 +375,11 @@
   // upload) — moved here from the main player per direct request. Both
   // just call loadMeta() again afterward so the player above picks up
   // the new category without a full page reload. --------------------------
+  // The Mixer (mixer.js) plays its own copy of the recording: stop this
+  // one when it starts, and reload markers/sync points it edited.
+  document.addEventListener('songbooks:pause-reference', () => audio.pause());
+  document.addEventListener('songbooks:audio-changed', () => loadMeta());
+
   if (!canEdit) { loadMeta(); return; }
 
   function uploadFile(category, file, onDone) {
