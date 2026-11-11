@@ -74,6 +74,23 @@
     return new alphaTab.model.Color(parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16));
   }
 
+  // How much room a bar's notation needs, relative to its neighbours:
+  // mostly how many things it prints — one unit per beat, growing only
+  // slightly with its length (a quarter about 1.5 sixteenths), grace
+  // notes a little less — plus a small base for the barline and margins.
+  function barContentWeight(bar) {
+    let w = 0;
+    for (const v of bar.voices) {
+      let vw = 1;
+      for (const b of v.beats) {
+        if (b.graceType) { vw += 0.7; continue; }
+        vw += 1 + 0.25 * Math.log2(Math.max(1, (b.playbackDuration || 960) / 240));
+      }
+      w = Math.max(w, vw);
+    }
+    return w;
+  }
+
   function render(container, retriesLeft) {
     const tex = container.dataset.tex;
     if (!tex) return;
@@ -503,6 +520,20 @@
       if (systems.length) {
         api.scoreLoaded.on((score) => {
           for (const t of score.tracks) { t.systemsLayout = systems; t.defaultSystemsLayout = systems[systems.length - 1]; }
+          // The model layout gives every bar of a system the same width
+          // unless told otherwise: weight each bar by what it holds, as
+          // alphaTab's automatic layout does, so a run of sixteenths gets
+          // room and a held note or a pickup doesn't hog it. Each system
+          // still fills the row.
+          score.masterBars.forEach((mb, i) => {
+            let weight = 0;
+            for (const t of score.tracks) for (const st of t.staves) {
+              const bar = st.bars[i];
+              if (bar) weight = Math.max(weight, barContentWeight(bar));
+            }
+            mb.displayScale = weight;
+            for (const t of score.tracks) for (const st of t.staves) if (st.bars[i]) st.bars[i].displayScale = weight;
+          });
         });
       }
       // Stashed on the container itself — not returned, since render()'s
