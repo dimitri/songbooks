@@ -106,7 +106,7 @@
             <div class="band-card-members">{{.MemberCount}} member{{if ne .MemberCount 1}}s{{end}} &middot; {{.MyRole}}</div>
           </div>
         </div>
-        <div class="band-card-digest">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}} in the repertoire</div>
+        <div class="band-card-digest">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}} in the default songbook</div>
         {{if .HasNextEvent}}
         <div class="band-card-gig">
           <a href="/communities/{{.ID}}/events">{{template "icon-presentation"}} {{.NextEventDate.Format "Jan 2"}} &middot; {{.NextEventName}}</a>

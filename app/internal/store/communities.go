@@ -211,7 +211,7 @@ func (st *Store) ListCommunitiesForPerson(ctx context.Context, personID int64) (
 
 // CommunityCardRow is one community as the person's own "My communities"
 // listing needs it — same digest shape bands.html's own card uses
-// (member count, repertoire size, the viewer's own role) so the two
+// (member count, default songbook size, the viewer's own role) so the two
 // listing pages read as one consistent picture, not two different UIs.
 type CommunityCardRow struct {
 	ID          int64
