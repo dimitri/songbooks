@@ -1365,6 +1365,13 @@
         <span class="hint">No band recording uploaded yet.</span>
         {{end}}
       </div>
+      {{if .CanEdit}}
+      {{/* What each recording is, shown in song listings and used by the
+           player: the whole song, or a backing track with the practised
+           part left out (audio-player.js fills this in). */}}
+      <h3 class="reference-section-head">What's in each recording</h3>
+      <div class="reference-block audio-kind-list" id="audio-kind-list"><span class="hint">No recording yet.</span></div>
+      {{end}}
       <p class="hint">The reference-audio player above (under the structure strip) plays whichever category you pick — useful here to validate an upload right after it finishes.</p>
     </div>
 

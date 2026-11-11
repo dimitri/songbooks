@@ -174,6 +174,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/songs/{id}/audio/{category}", s.requireVariantRole("editor", s.handlePutSongAudio))
 	mux.HandleFunc("POST /api/songs/{id}/audio/youtube", s.requireVariantRole("editor", s.handlePostSongAudioYouTube))
 	mux.HandleFunc("DELETE /api/songs/{id}/audio/{category}", s.requireVariantRole("editor", s.handleDeleteSongAudio))
+	mux.HandleFunc("PUT /api/songs/{id}/audio/{category}/kind", s.requireVariantRole("editor", s.handlePutSongAudioKind))
 	mux.HandleFunc("PUT /api/songs/{id}/audio/{category}/markers/{sectionIndex}", s.requireVariantRole("editor", s.handlePutAudioMarker))
 	mux.HandleFunc("DELETE /api/songs/{id}/audio/{category}/markers/{sectionIndex}", s.requireVariantRole("editor", s.handleDeleteAudioMarker))
 	mux.HandleFunc("PUT /api/songs/{id}/audio/gp/sync-points", s.requireVariantRole("editor", s.handlePutGPBarSyncPoints))

@@ -813,8 +813,12 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 		albumGroups = groupByAlbum(rows, covers)
 	}
 
+	ids := make([]int64, len(rows))
+	for i, row := range rows {
+		ids[i] = row.VariantID
+	}
 	s.render(w, "band_catalog", map[string]any{
-		"Me": person, "Band": band, "Entries": rows,
+		"Me": person, "Band": band, "Entries": rows, "Badges": s.songBadgesFor(r.Context(), ids),
 		"AlbumGroups": albumGroups,
 		"ContextualGroup": webassets.ContextualGroup{
 			Label: "This band", PDFExportPath: fmt.Sprintf("/bands/%d/export-songbook.pdf", bandID),

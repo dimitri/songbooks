@@ -1,0 +1,11 @@
+{{/* What a song holds, as a row of small icons in song listings (see
+     httpapi.songBadges): chords, lyrics, one instrument icon per score
+     track, the attached Guitar Pro file, and each reference recording —
+     marked as a backing track or the full performance when known. */}}
+{{define "song-badges"}}<span class="song-badges">
+  {{- if .Chords}}<span class="song-badge" title="chords">{{template "icon-chord-grid"}}</span>{{end -}}
+  {{- if .Lyrics}}<span class="song-badge" title="lyrics">{{template "icon-mode-lyrics"}}</span>{{end -}}
+  {{- range .Tracks}}<span class="song-badge" title="{{.}} score">{{template "instrument-icon" .}}</span>{{end -}}
+  {{- if .GPFile}}<span class="song-badge song-badge-gp" title="Guitar Pro file attached">GP</span>{{end -}}
+  {{- range .Audio}}<span class="song-badge song-badge-audio{{if eq .Kind "backing"}} is-backing{{else if eq .Kind "full"}} is-full{{end}}" title="{{.Label}}">{{template "icon-speaker"}}{{if eq .Kind "backing"}}<small>backing</small>{{else if eq .Kind "full"}}<small>full</small>{{end}}</span>{{end -}}
+</span>{{end}}

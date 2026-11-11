@@ -4919,3 +4919,23 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .staff-line > .bar.bar-pickup { flex: 0 0 3.4em !important; min-width: 3.4em; padding: 0 0.3em; }
 .staff-line:has(> .bar-pickup) > .bar:not(.bar-pickup) { flex-basis: calc((100% - 3.4em) / var(--cap, 4)) !important; }
 .staff-line:has(> .staff-timesig-cell):has(> .bar-pickup) > .bar:not(.bar-pickup) { flex-basis: calc((100% - 5.9em) / var(--cap, 4)) !important; }
+
+/* Song listings: what each song holds, as small icons (song_badges.html). */
+.song-badges { display: inline-flex; align-items: center; gap: 0.3rem; margin-left: 0.6rem; vertical-align: middle; flex-wrap: wrap; }
+.song-badges:empty { display: none; }
+.song-badge {
+  display: inline-flex; align-items: center; gap: 0.25rem; height: 1.55rem; padding: 0 0.35rem;
+  border-radius: 4px; border: 1px solid var(--border); background: var(--bg-raised);
+  color: var(--fg-muted); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em; line-height: 1;
+}
+.song-badge .icon { width: 1rem; height: 1rem; }
+.song-badge small { font-size: 0.66rem; font-weight: 600; text-transform: uppercase; }
+.song-badge-gp { color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.song-badge-audio { color: #3d6fb8; border-color: color-mix(in srgb, #3d6fb8 35%, var(--border)); }
+.song-badge-audio.is-backing { background: color-mix(in srgb, #3d6fb8 10%, var(--bg-raised)); }
+.song-badge-audio.is-full { background: color-mix(in srgb, #3d6fb8 18%, var(--bg-raised)); }
+.repertoire-row .gig-title .song-badges, .catalog-card .song-badges { margin-left: 0; margin-top: 0.3rem; display: flex; }
+.repertoire-row .gig-title .song-badges:empty, .catalog-card .song-badges:empty { display: none; }
+.audio-kind-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.audio-kind-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: 0.88rem; }
+.audio-kind-row > span:first-child { min-width: 11rem; font-weight: 600; }

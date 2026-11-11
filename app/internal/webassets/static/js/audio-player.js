@@ -1206,9 +1206,37 @@ window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
   // upload/replace/remove button visibility (upload hidden once present,
   // replace/remove shown instead) — re-run whenever loadMeta() refreshes
   // categories, not just once at load.
+  // "What's in each recording": full performance or backing track, per
+  // category (PUT /api/songs/{id}/audio/{category}/kind).
+  const kindList = $('audio-kind-list');
+  function renderKinds() {
+    if (!kindList) return;
+    const cats = Object.keys(categories);
+    if (!cats.length) { kindList.innerHTML = '<span class="hint">No recording yet.</span>'; return; }
+    const names = { gp: 'Guitar Pro recording', youtube: 'YouTube recording', band: 'Band recording' };
+    kindList.innerHTML = '';
+    for (const cat of cats) {
+      const row = document.createElement('label');
+      row.className = 'audio-kind-row';
+      row.innerHTML = `<span>${names[cat] || cat}</span><select><option value="">not set</option><option value="full">full performance — every part playing</option><option value="backing">backing track — the part to practise left out</option></select><span class="hint"></span>`;
+      const sel = row.querySelector('select');
+      const note = row.querySelector('.hint');
+      sel.value = categories[cat].kind || '';
+      sel.addEventListener('change', async () => {
+        const res = await fetch(`/api/songs/${variantId}/audio/${cat}/kind`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: sel.value }),
+        });
+        note.textContent = res.ok ? 'saved' : 'could not save';
+        if (res.ok) categories[cat].kind = sel.value;
+      });
+      kindList.appendChild(row);
+    }
+  }
+
   const origLoadMeta = loadMeta;
   loadMeta = async function () {
     await origLoadMeta();
+    renderKinds();
     const hasYouTube = !!categories.youtube;
     const hasBand = !!categories.band;
     if (ytDownloadBtn) ytDownloadBtn.hidden = hasYouTube;

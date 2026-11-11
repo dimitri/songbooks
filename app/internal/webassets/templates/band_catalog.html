@@ -54,6 +54,7 @@
     <div class="gig-row repertoire-row" data-variant-id="{{.VariantID}}" data-search="{{.Title}} {{.Artist}}">
       <a class="gig-title" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
         {{.Title}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
+        {{template "song-badges" (index $.Badges .VariantID)}}
       </a>
       <span class="gig-key">{{.Key}}</span>
       <span class="gig-tempo">{{.Tempo}}</span>
@@ -76,6 +77,7 @@
     <div class="gig-row repertoire-row" data-variant-id="{{.VariantID}}" data-search="{{.Title}} {{.Artist}}">
       <a class="gig-title" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
         {{.Title}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
+        {{template "song-badges" (index $.Badges .VariantID)}}
       </a>
       <span class="gig-key">{{.Key}}</span>
       <span class="gig-tempo">{{.Tempo}}</span>

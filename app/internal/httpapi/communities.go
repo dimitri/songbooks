@@ -390,8 +390,12 @@ func (s *Server) handleCommunityDefaultSongbookPage(w http.ResponseWriter, r *ht
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	ids := make([]int64, len(catalog))
+	for i, e := range catalog {
+		ids[i] = e.VariantID
+	}
 	s.render(w, "community_default_songbook", map[string]any{
-		"Me": person, "Community": community, "Entries": entries,
+		"Me": person, "Community": community, "Entries": entries, "Badges": s.songBadgesFor(r.Context(), ids),
 		"IsStaff": canManage || person.IsAdmin, "CanEdit": canEdit || person.IsAdmin,
 		"ContextualGroup": webassets.ContextualGroup{
 			Label: "This community", PDFExportPath: fmt.Sprintf("/communities/%d/export-songbook.pdf", communityID),
