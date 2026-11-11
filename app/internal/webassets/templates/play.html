@@ -1314,10 +1314,13 @@
           </label>
           <span class="daw-tb-spacer"></span>
           {{if .CanEdit}}<button type="button" class="daw-btn-text" id="daw-align" aria-pressed="false" title="align the reference recording to the song's bars and sections">Align recording</button>{{end}}
-          <div class="daw-zoom" title="zoom">
-            <button type="button" class="daw-btn daw-btn-sm" id="daw-zoom-out" aria-label="zoom out">−</button>
-            <input type="range" id="daw-zoom" min="25" max="400" step="5" value="110" aria-label="zoom">
-            <button type="button" class="daw-btn daw-btn-sm" id="daw-zoom-in" aria-label="zoom in">+</button>
+          <div class="daw-zoom" role="group" aria-label="zoom">
+            <button type="button" class="daw-btn-text" id="daw-zoom-fit" title="fit the whole song to the window (F)">Fit</button>
+            <button type="button" class="daw-btn daw-btn-sm" id="daw-zoom-out" title="zoom out (−)" aria-label="zoom out">−</button>
+            <input type="range" id="daw-zoom" min="0" max="1000" step="1" value="500" aria-label="zoom" title="zoom (⌘/Ctrl + scroll or pinch over the tracks)">
+            <button type="button" class="daw-btn daw-btn-sm" id="daw-zoom-in" title="zoom in (+)" aria-label="zoom in">+</button>
+            <button type="button" class="daw-btn-text" id="daw-zoom-bars" title="zoom to two bars at the playhead (B)">2 bars</button>
+            <span class="daw-zoom-label" id="daw-zoom-label" aria-live="polite"></span>
           </div>
         </div>
         <div class="daw-align-bar" id="daw-align-bar" hidden>

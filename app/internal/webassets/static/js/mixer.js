@@ -69,7 +69,7 @@
   let peaks = null;             // {min, max: Float32Array, perSec}
   let barTimes = [];            // totalBars + 1 entries, seconds
   let realBars = new Set();     // bars whose time is authored (sync point / marker), not estimated
-  let pxPerSec = Number(zoomInput?.value) || 110;
+  let pxPerSec = 110;           // default zoom: about a bar per 230px at 113 bpm, legible notation
   let tracks = [];              // rows that make sound: {kind, name, color, muted, solo, volume, ...}
   let playerApi = null;
   let synthReady = false;
@@ -797,28 +797,86 @@
   }
 
   // ---- Zoom --------------------------------------------------------------
+  // The range runs from "the whole song fits the window" to "two bars fill
+  // it" (or 400 px/s, whichever is closer), on a log scale so each slider
+  // step feels the same at both ends. Zooming keeps a point fixed on
+  // screen: the mouse for ⌘/Ctrl-wheel and pinch, the playhead while
+  // playing, otherwise the middle of the view.
   let zoomTimer = null;
-  function setZoom(v) {
-    const w = scrollEl.clientWidth;
-    const center = tOf(scrollEl.scrollLeft + w / 2);
-    pxPerSec = Math.max(25, Math.min(400, v));
-    zoomInput.value = pxPerSec;
-    layout(true);
-    scrollEl.scrollLeft = Math.max(0, xOf(center) - w / 2);
-    drawWave();
-    clearTimeout(zoomTimer);
-    zoomTimer = setTimeout(() => { for (const tr of tracks) if (tr.wrap) tr.mount.style.width = contentEl.style.width; renderNotationLanes(); }, 250);
+  const viewWidth = () => Math.max(100, scrollEl.clientWidth - 2 * PAD);
+  const avgBarSec = () => (N() ? (barTimes[N()] - barTimes[0]) / N() : nominalBarSec());
+
+  function zoomBounds() {
+    const min = viewWidth() / timelineEnd();
+    const max = Math.max(400, viewWidth() / (2 * avgBarSec()));
+    return [min, Math.max(min * 1.05, max)];
   }
-  zoomInput.addEventListener('input', () => setZoom(Number(zoomInput.value)));
-  $('daw-zoom-in').addEventListener('click', () => setZoom(pxPerSec * 1.25));
-  $('daw-zoom-out').addEventListener('click', () => setZoom(pxPerSec / 1.25));
+
+  function sliderFor(v) {
+    const [lo, hi] = zoomBounds();
+    return Math.round(1000 * Math.log(v / lo) / Math.log(hi / lo));
+  }
+
+  function zoomFromSlider(s) {
+    const [lo, hi] = zoomBounds();
+    return lo * Math.pow(hi / lo, s / 1000);
+  }
+
+  function setZoom(v, anchorT, anchorPx) {
+    if (!built) return;
+    const w = scrollEl.clientWidth;
+    if (anchorT === undefined) {
+      const playheadPx = xOf(position) - scrollEl.scrollLeft;
+      if (playing && playheadPx >= 0 && playheadPx <= w) { anchorT = position; anchorPx = playheadPx; }
+      else { anchorT = tOf(scrollEl.scrollLeft + w / 2); anchorPx = w / 2; }
+    }
+    const [lo, hi] = zoomBounds();
+    pxPerSec = Math.max(lo, Math.min(hi, v));
+    zoomInput.value = sliderFor(pxPerSec);
+    layout(true);
+    scrollEl.scrollLeft = Math.max(0, xOf(anchorT) - anchorPx);
+    drawWave();
+    updateZoomLabel();
+    clearTimeout(zoomTimer);
+    zoomTimer = setTimeout(() => {
+      for (const tr of tracks) if (tr.wrap) tr.mount.style.width = contentEl.style.width;
+      if (!isCompact()) renderNotationLanes();
+    }, 250);
+  }
+
+  function updateZoomLabel() {
+    const label = $('daw-zoom-label');
+    const [lo] = zoomBounds();
+    if (pxPerSec <= lo * 1.001) { label.textContent = 'whole song'; return; }
+    const bars = viewWidth() / pxPerSec / avgBarSec();
+    label.textContent = bars < 10 ? `${bars.toFixed(1).replace(/\.0$/, '')} bars` : `${Math.round(bars)} bars`;
+  }
+
+  function zoomToFit() {
+    setZoom(0);
+    scrollEl.scrollLeft = 0;
+    drawWave();
+  }
+
+  function zoomToTwoBars() {
+    const b = Math.max(0, Math.min(N() - 1, Math.floor(barAt(position))));
+    const span = N() ? barTimes[Math.min(N(), b + 2)] - barTimes[b] : 2 * nominalBarSec();
+    setZoom(viewWidth() / span, N() ? barTimes[b] : position, PAD);
+  }
+
+  zoomInput.addEventListener('input', () => setZoom(zoomFromSlider(Number(zoomInput.value))));
+  $('daw-zoom-in').addEventListener('click', () => setZoom(pxPerSec * 1.4));
+  $('daw-zoom-out').addEventListener('click', () => setZoom(pxPerSec / 1.4));
+  $('daw-zoom-fit').addEventListener('click', zoomToFit);
+  $('daw-zoom-bars').addEventListener('click', zoomToTwoBars);
   scrollEl.addEventListener('wheel', (e) => {
-    if (!(e.ctrlKey || e.metaKey)) return;
+    if (!(e.ctrlKey || e.metaKey)) return; // trackpad pinch arrives as ctrl+wheel too
     e.preventDefault();
-    setZoom(pxPerSec * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
+    const px = e.clientX - scrollEl.getBoundingClientRect().left;
+    setZoom(pxPerSec * Math.exp(-e.deltaY * 0.01), tOf(scrollEl.scrollLeft + px), px);
   }, { passive: false });
   scrollEl.addEventListener('scroll', drawWave, { passive: true });
-  window.addEventListener('resize', () => { if (built) drawWave(); });
+  window.addEventListener('resize', () => { if (built) setZoom(pxPerSec); });
 
   // ---- Align recording ---------------------------------------------------
   // Flags on the recording at each section start. Dragging one stretches
@@ -955,6 +1013,11 @@
     if (e.code === 'Space') { e.preventDefault(); playing ? pause() : play(); }
     else if (e.key === 'Home') { e.preventDefault(); seek(barTimes[0] || 0); followPlayhead(); }
     else if (e.key === 'l' || e.key === 'L') toggleLoop();
+    else if (e.metaKey || e.ctrlKey || e.altKey) return;
+    else if (e.key === 'f' || e.key === 'F') zoomToFit();
+    else if (e.key === 'b' || e.key === 'B') zoomToTwoBars();
+    else if (e.key === '+' || e.key === '=') setZoom(pxPerSec * 1.4);
+    else if (e.key === '-' || e.key === '_') setZoom(pxPerSec / 1.4);
   });
 
   // ---- Loading -------------------------------------------------------------
@@ -1019,7 +1082,11 @@
       (au.categories || []).forEach((c) => { audioCats[c.category] = c; });
       await loadAudio(pickReference());
       computeBarTimes();
+      const [zlo, zhi] = zoomBounds();
+      pxPerSec = Math.max(zlo, Math.min(zhi, pxPerSec));
       build();
+      zoomInput.value = sliderFor(pxPerSec);
+      updateZoomLabel();
       if (hasAudio() && barTimes[0] > 3) scrollEl.scrollLeft = Math.max(0, xOf(barTimes[0]) - 80);
       seek(hasAudio() ? 0 : barTimes[0]);
       drawWave();
