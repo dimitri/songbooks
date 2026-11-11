@@ -115,8 +115,48 @@ window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
       out[i] = max;
     }
     peaks = out;
+    detectBars(audioBuffer, cat);
     drawWaveform();
     renderBarGrid();
+  }
+
+  // ---- Unaligned recordings: no per-bar sync points and no section
+  // markers. Rather than leave the chart without a playing bar, find the
+  // count-in and downbeats the way the Mixer's Auto-align does
+  // (mixer-autoalign.js) and follow that, in memory only: saving an
+  // alignment stays an explicit choice in the Mixer.
+  let detected = null; // [{barIndex, timeSeconds}] for the active category
+  function detectBars(audioBuffer, cat) {
+    detected = null;
+    const meta = categories[cat] || {};
+    if ((meta.barSyncPoints && meta.barSyncPoints.length) || (meta.markers && meta.markers.length)) return;
+    if (!window.SongbooksAutoAlign || !transportEl) return;
+    const num = parseInt(transportEl.dataset.timeNum, 10) || 4;
+    const den = parseInt(transportEl.dataset.timeDen, 10) || 4;
+    let total = 0;
+    document.querySelectorAll('.sheet-section[data-start-bar]').forEach((el) => {
+      total = Math.max(total, (parseInt(el.dataset.startBar, 10) || 0) + (parseInt(el.dataset.barCount, 10) || 0));
+    });
+    if (!total || !bpm) return;
+    try {
+      const f = Math.max(1, Math.round(audioBuffer.sampleRate / 11025));
+      const c0 = audioBuffer.getChannelData(0);
+      const c1 = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : c0;
+      const x = new Float32Array(Math.floor(audioBuffer.length / f));
+      for (let i = 0, j = 0; i < x.length; i++) {
+        let sum = 0;
+        for (let k = 0; k < f; k++, j++) sum += c0[j] + c1[j];
+        x[i] = sum / (2 * f);
+      }
+      const ticksPerBar = (num * 3840) / den;
+      const barTicks = [];
+      for (let b = 0; b <= total; b++) barTicks.push(b * ticksPerBar);
+      const res = window.SongbooksAutoAlign.analyze({ x, sr: audioBuffer.sampleRate / f }, {
+        tempo: bpm, barTicks, onsets: [], barChords: [],
+        firstFull: document.querySelector('#sheet .bar-pickup') ? 1 : 0,
+      });
+      if (cat === activeCategory && res && res.barTimes) detected = res.barTimes.map((t, i) => ({ barIndex: i, timeSeconds: t }));
+    } catch (e) { /* no highlight beats a wrong one */ }
   }
 
   function drawWaveform() {
@@ -173,7 +213,8 @@ window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
     return Number.isNaN(b) ? null : b;
   }
   function barAtTime(t) {
-    const sync = (categories[activeCategory] && categories[activeCategory].barSyncPoints) || [];
+    const synced = (categories[activeCategory] && categories[activeCategory].barSyncPoints) || [];
+    const sync = synced.length ? synced : detected || [];
     if (sync.length > 1) {
       const pts = sync.slice().sort((a, b) => a.barIndex - b.barIndex);
       let i = 0;
@@ -234,7 +275,8 @@ window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
     // auto-align) already knows where every bar is: draw exactly those,
     // continuing past the last one at its own spacing. The tempo-derived
     // grid below is only for recordings aligned by section markers.
-    const sync = (categories[activeCategory] && categories[activeCategory].barSyncPoints) || [];
+    const synced = (categories[activeCategory] && categories[activeCategory].barSyncPoints) || [];
+    const sync = synced.length ? synced : detected || [];
     if (sync.length) {
       const times = sync.map((p) => p.timeSeconds).sort((a, b) => a - b);
       const step = times.length > 1 ? times[times.length - 1] - times[times.length - 2] : secondsPerBar;
@@ -395,6 +437,9 @@ window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
   });
 
   window.addEventListener('resize', () => { drawWaveform(); renderBarGrid(); });
+  // Also when the player itself appears: a page opened on another view
+  // (e.g. the Mixer) decodes the waveform while the canvas is 0px wide.
+  if (canvas && window.ResizeObserver) new ResizeObserver(() => drawWaveform()).observe(canvas);
 
   // ---- Bar click-to-play (GP sync points only) ---------------------------
   // A GP import's bar sync points are real audio-frame-derived timestamps
