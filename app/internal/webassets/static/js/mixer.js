@@ -1169,7 +1169,7 @@
       if (!aligning) alignBtn.click();
       $('daw-align-undo').hidden = false;
       const first = pickup() ? 1 : 0;
-      alignStatus.textContent = `Auto-aligned by ${res.how}: ${res.bpm.toFixed(1)} bpm, bar ${barLabel(first)} at ${fmtTime(barTimes[first])}. Check by playing it; drag a flag to correct, or undo.`;
+      alignStatus.textContent = `Auto-aligned and saved (${res.how}: ${res.bpm.toFixed(1)} bpm, bar ${barLabel(first)} at ${fmtTime(barTimes[first])}). The Song view follows it too. Check by playing; drag a flag to correct (saved as you drop it), or undo.`;
       seek(Math.max(0, barTimes[first] - 2 * nominalBarSec()));
       followPlayhead();
     } catch (err) {
