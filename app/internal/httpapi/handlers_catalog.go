@@ -41,8 +41,12 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ids := make([]int64, len(variants))
+	for i, v := range variants {
+		ids[i] = v.VariantID
+	}
 	s.render(w, "catalog", map[string]any{
-		"Me": person, "Variants": variants, "Filter": filter, "Genres": genres,
+		"Me": person, "Variants": variants, "Filter": filter, "Genres": genres, "Badges": s.songBadgesFor(r.Context(), ids),
 		"DefaultSongbookID": defaultSongbookID,
 	})
 }

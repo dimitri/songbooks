@@ -40,9 +40,10 @@
   const ICON_WAVE = '<svg class="daw-hdr-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 10h2M5 6v8M8 3v14M11 7v6M14 5v10M17 9v2"/></svg>';
   const ICON_NOTE = '<svg class="daw-hdr-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 15V4l9-2v11"/><circle cx="5.5" cy="15" r="2.5"/><circle cx="14.5" cy="13" r="2.5"/></svg>';
   const ICON_DRUM = '<svg class="daw-hdr-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><ellipse cx="10" cy="8" rx="7" ry="3"/><path d="M3 8v5c0 1.7 3.1 3 7 3s7-1.3 7-3V8M5 3l4 4M15 3l-4 4"/></svg>';
+  const ICON_CLICK = '<svg class="daw-hdr-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 3h5l3 14h-11z"/><path d="M10 13l4.5-7"/><path d="M5 13.5h10"/></svg>';
   const HEAD_SVG = '<svg class="daw-playhead-head" viewBox="0 0 13 16" aria-hidden="true"><path d="M0.5 0.5h12v9l-6 6-6-6z" fill="#fff" stroke="#000"/></svg>';
 
-  const COLOR = { audio: '#66A3FF', melodic: '#74BE59', drums: '#E8C050' };
+  const COLOR = { audio: '#66A3FF', melodic: '#74BE59', drums: '#E8C050', click: '#A0A0B4' };
   const BODY = { melodic: '#E4F3DC', drums: '#FAF1D2' };
   const GM = { 0: 'Piano', 4: 'Electric piano', 16: 'Organ', 24: 'Nylon guitar', 25: 'Steel guitar', 26: 'Jazz guitar', 27: 'Clean guitar', 28: 'Muted guitar', 29: 'Overdrive guitar', 30: 'Distortion guitar', 32: 'Acoustic bass', 33: 'Finger bass', 34: 'Pick bass', 35: 'Fretless bass', 36: 'Slap bass', 48: 'Strings', 56: 'Trumpet', 65: 'Alto sax', 66: 'Tenor sax', 73: 'Flute', '-1': 'Drum kit' };
   const CAT_LABEL = { gp: 'Guitar Pro recording', youtube: 'YouTube', band: 'Band recording' };
@@ -184,7 +185,9 @@
 
   // ---- Mix (mute / solo / volume) --------------------------------------
   const audible = (tr) => !tr.muted && (!tracks.some((t) => t.solo) || tr.solo);
-  const synthWanted = () => tracks.some((t) => t.kind === 'midi' && audible(t));
+  const synthWanted = () => tracks.some((t) => t.kind === 'midi' && audible(t))
+    // With no recording the synth is the clock: keep it running (muted) for the click.
+    || (!hasAudio() && tracks.some((t) => t.kind === 'click' && audible(t)));
 
   function applyMix() {
     for (const tr of tracks) {
@@ -255,8 +258,9 @@
 
   // ---- Personal preferences ------------------------------------------------
   // Each person's own mix for this song — volume, mute and solo per track
-  // (by name), zoom, speed, loop — saved on the server as they change
+  // (by name), zoom, speed — saved on the server as they change
   // (GET/PUT /api/songs/{id}/mixer/prefs) and restored on the next visit.
+  // Not the loop: that is for the sitting at hand.
   let prefs = {};
   let prefsTimer = null;
 
@@ -284,7 +288,6 @@
       speed = prefs.speed;
       $('daw-speed').value = String(speed);
     }
-    if (prefs.loop && !loop) toggleLoop(true);
     applyMix();
   }
 
@@ -292,7 +295,8 @@
     if (!built) return;
     clearTimeout(prefsTimer);
     prefsTimer = setTimeout(() => {
-      const out = { zoom: Math.round(pxPerSec * 10) / 10, speed, loop, tracks: {} };
+      // Not the loop: a fresh visit plays the song straight.
+      const out = { zoom: Math.round(pxPerSec * 10) / 10, speed, tracks: {} };
       for (const tr of tracks) out.tracks[tr.name] = { volume: tr.volume, mute: tr.muted, solo: tr.solo };
       prefs = out;
       fetch(`/api/songs/${variantId}/mixer/prefs`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) }).catch(() => {});
@@ -335,6 +339,17 @@
       wireTrackHeader(tr);
     });
 
+    // Click: the metronome on the bar grid, a track like any other —
+    // muted to begin with, mute / solo / volume from there.
+    if (N()) {
+      const tr = { kind: 'click', name: 'Click', color: COLOR.click, icon: ICON_CLICK, muted: true, solo: false, volume: 1 };
+      const row = addRow('click', 56, trackHeader(tr, 'metronome · follows the bars'), { laneClass: 'is-click' });
+      tr.hdr = row.hdr; tr.lane = row.lane;
+      tracks.push(tr);
+      wireTrackHeader(tr);
+      syncTrackControls(tr);
+    }
+
     if (!refCat && !(data.tracks || []).length) {
       const row = addRow('empty', 64, '<span>Tracks</span>', { meta: true });
       row.lane.innerHTML = '<span class="daw-lane-empty">No reference recording and no score yet — add a recording from the Reference tab, or import a Guitar Pro file.</span>';
@@ -369,6 +384,7 @@
     renderChords();
     renderGrid();
     renderAudioLane();
+    renderClickLane();
     if (!skipNotation) renderNotationLanes(true);
     else {
       tracks.forEach(placeNotation);
@@ -441,8 +457,23 @@
       el.style.background = sectionColor(s.label);
       el.title = `${s.label} — ${s.barCount} bars (${barLabel(s.startBar)}–${barLabel(s.startBar + s.barCount - 1)})`;
       el.innerHTML = `${escapeHTML(s.label)}<span class="daw-section-bars">${s.barCount}</span>`;
+      if (aligning && canEdit) {
+        // The section's start, draggable here too (same as its flag on
+        // the recording).
+        const grip = document.createElement('span');
+        grip.className = 'daw-section-grip';
+        grip.title = `drag to move where ${s.label} starts — everything after follows (⌥: only this boundary, ⇧: whole grid)`;
+        grip.addEventListener('mousedown', (e) => startAnchorDrag(e, anchorList().find((x) => x.i === i)));
+        grip.addEventListener('click', (e) => e.stopPropagation());
+        el.appendChild(grip);
+      }
+      if (canEdit) el.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.daw-section-grip')) return;
+        startAnchorDrag(e, anchorList().find((x) => x.i === i), 5);
+      });
       el.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (justDragged) return;
         selected = selected === i && !aligning ? -1 : i;
         renderSections();
         renderRuler();
@@ -510,6 +541,55 @@
     contentEl.insertBefore(grid, contentEl.firstChild);
   }
 
+  // ---- Click lane: a mark per beat, bigger on the downbeat ---------------
+  // Main pulses: 12/8 clicks four dotted quarters (its eighths softer).
+  const compound = () => !!data && data.timeDen === 8 && data.timeNum % 3 === 0 && data.timeNum > 3;
+  const pulsesPerBar = () => (compound() ? data.timeNum / 3 : beatsPerBar());
+  function renderClickLane() {
+    if (!rows.click) return;
+    const lane = rows.click.lane;
+    lane.innerHTML = '';
+    const n = N();
+    const frag = document.createDocumentFragment();
+    const pulsePx = n ? (barTimes[n] - barTimes[0]) / n * pxPerSec / pulsesPerBar() : 0;
+    for (let b = 0; b < n; b++) {
+      const p = pulsePx >= 6 ? pulsesPerBar() : 1;
+      for (let k = 0; k < p; k++) {
+        const e = document.createElement('div');
+        e.className = 'daw-click-beat' + (k === 0 ? ' is-down' : '');
+        e.style.left = xOf(barTimes[b] + k / pulsesPerBar() * (barTimes[b + 1] - barTimes[b])) + 'px';
+        frag.appendChild(e);
+      }
+    }
+    lane.appendChild(frag);
+  }
+
+  // ---- Click scheduling: the metronome's sounds (clock.js), each beat
+  // placed from barTimes so it follows the recording's own tempo ------------
+  /* global Metronome */
+  const clicker = typeof Metronome === 'function' ? new Metronome({}) : null;
+  let clicksUntil = null; // timeline seconds up to which clicks are scheduled
+  function scheduleClicks(t) {
+    const tr = tracks.find((x) => x.kind === 'click');
+    if (!clicker || !tr || !audible(tr) || !N()) { clicksUntil = null; return; }
+    const ctx = clicker._ensureCtx();
+    const until = t + 0.12 * speed;
+    const from = clicksUntil === null ? t : Math.max(clicksUntil, t);
+    const pulses = pulsesPerBar();
+    const subs = compound() ? 3 : 1;
+    const b0 = Math.max(0, Math.floor(barAt(from)));
+    for (let b = b0; b < N() && barTimes[b] < until; b++) {
+      const dur = barTimes[b + 1] - barTimes[b];
+      for (let k = 0; k < pulses * subs; k++) {
+        const bt = barTimes[b] + (k / (pulses * subs)) * dur;
+        if (bt < from || bt >= until) continue;
+        const soft = k % subs !== 0;
+        clicker._click(ctx.currentTime + (bt - t) / speed, k === 0, soft, tr.volume);
+      }
+    }
+    clicksUntil = until;
+  }
+
   // ---- Reference recording lane ----------------------------------------
   function renderAudioLane() {
     if (!rows.audio) return;
@@ -522,6 +602,7 @@
       clip.style.width = audioDuration * pxPerSec + 'px';
       clip.style.background = COLOR.audio;
       clip.innerHTML = `<div class="daw-clip-hdr" style="background:${COLOR.audio}"><span>${escapeHTML(document.title.replace(/ — Songbooks$/, ''))} — ${CAT_LABEL[refCat] || refCat}</span></div>`;
+      if (canEdit) clip.title = 'drag left or right to slide the recording against the bars';
       lane.insertBefore(clip, lane.firstChild);
     }
     if (!waveCanvas || waveCanvas.parentNode !== lane) {
@@ -567,7 +648,7 @@
   async function decodePeaks(buf) {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const decoded = await ctx.decodeAudioData(buf);
+      const decoded = await ctx.decodeAudioData(window.songbooksDecodable ? window.songbooksDecodable(buf) : buf);
       ctx.close();
       const ch = decoded.getChannelData(0);
       const perSec = 200;
@@ -780,6 +861,7 @@
   }
 
   function seek(t) {
+    clicksUntil = null;
     position = Math.max(0, Math.min(timelineEnd(), t));
     if (hasAudio()) audio.currentTime = Math.min(position, audioDuration);
     if (playerApi && synthReady) {
@@ -794,6 +876,7 @@
     if (!hasAudio() && !(playerApi && synthReady)) return;
     document.dispatchEvent(new CustomEvent('songbooks:pause-reference'));
     playing = true;
+    clicksUntil = null;
     playStartPos = position;
     playBtn.innerHTML = ICON_PAUSE;
     if (hasAudio()) {
@@ -865,6 +948,7 @@
       t = span[0];
     }
     position = t;
+    scheduleClicks(t);
     updatePlayhead();
     followPlayhead();
   }
@@ -891,8 +975,11 @@
   });
 
   function wireLaneSeeking() {
+    contentEl.addEventListener('mousedown', (e) => {
+      if (rows.audio && rows.audio.lane.contains(e.target)) startClipDrag(e);
+    });
     contentEl.addEventListener('click', (e) => {
-      if (e.target.closest('.daw-section, .daw-anchor')) return;
+      if (justDragged || e.target.closest('.daw-section, .daw-anchor')) return;
       const rect = contentEl.getBoundingClientRect();
       seek(tOf(e.clientX - rect.left));
     });
@@ -1005,46 +1092,116 @@
     }
   }
 
-  function movedTimes(orig, a, newT, whole) {
+  // Where the bars go when a section's start moves to newT. Sections are
+  // the handles here, not bars (a Guitar Pro recording has a sync point on
+  // every bar, which would leave nothing to stretch):
+  //   'ripple'   (drag)   — this section and everything after it move
+  //                         together; the previous section stretches.
+  //   'boundary' (⌥-drag) — only this boundary moves; the sections on
+  //                         either side stretch, the rest stays put.
+  //   'whole'    (⇧-drag) — the whole grid moves.
+  function movedTimes(orig, a, newT, mode) {
     const n = N();
-    const delta = newT - orig[a.bar];
-    if (whole) return orig.map((t) => t + delta);
-    const realAnchors = anchorList().filter((x) => x.real && x.bar !== a.bar);
-    const prev = realAnchors.filter((x) => x.bar < a.bar).pop();
-    const next = realAnchors.find((x) => x.bar > a.bar);
-    if (!prev && !next) return orig.map((t) => t + delta);
-    const lo = prev ? orig[prev.bar] + 0.05 * (a.bar - prev.bar) : -Infinity;
-    const hi = next ? orig[next.bar] - 0.05 * (next.bar - a.bar) : Infinity;
-    newT = Math.max(lo, Math.min(hi, newT));
-    const out = orig.slice();
-    const remap = (b, s0, s1, d0, d1) => d0 + (orig[b] - s0) / (s1 - s0) * (d1 - d0);
-    for (let b = 0; b <= n; b++) {
-      if (b === a.bar) out[b] = newT;
-      else if (b < a.bar) out[b] = prev ? (b > prev.bar ? remap(b, orig[prev.bar], orig[a.bar], orig[prev.bar], newT) : orig[b]) : orig[b] + (newT - orig[a.bar]);
-      else out[b] = next ? (b < next.bar ? remap(b, orig[a.bar], orig[next.bar], newT, orig[next.bar]) : orig[b]) : orig[b] + (newT - orig[a.bar]);
+    if (mode === true) mode = 'whole';
+    const starts = [...new Set(data.sections.map((s) => s.startBar).concat([0, n]))].sort((x, y) => x - y);
+    const prev = starts.filter((b) => b < a.bar).pop();
+    const next = starts.find((b) => b > a.bar);
+    if (mode === 'whole' || prev === undefined) {
+      const d = newT - orig[a.bar];
+      return orig.map((t) => t + d);
     }
-    return out;
+    const minGap = 0.05;
+    newT = Math.max(orig[prev] + minGap * (a.bar - prev), newT);
+    if (mode === 'boundary' && next !== undefined) newT = Math.min(orig[next] - minGap * (next - a.bar), newT);
+    const d = newT - orig[a.bar];
+    const remap = (b, s0, s1, d0, d1) => d0 + (orig[b] - orig[s0]) / (orig[s1] - orig[s0]) * (d1 - d0);
+    return orig.map((t, b) => {
+      if (b <= prev) return t;
+      if (b < a.bar) return remap(b, prev, a.bar, orig[prev], newT);
+      if (b === a.bar) return newT;
+      if (mode === 'boundary' && next !== undefined) return b < next ? remap(b, a.bar, next, newT, orig[next]) : t;
+      return t + d;
+    });
   }
 
-  function startAnchorDrag(e, a) {
-    if (!canEdit) return;
+  // A drag that is a click until it moves a few pixels: section blocks
+  // and the recording itself only start moving things once dragged.
+  let justDragged = false;
+  function swallowClick() {
+    justDragged = true;
+    setTimeout(() => { justDragged = false; }, 0);
+  }
+  function beginAlignEdit() {
+    snapshotForUndo();
+    if (!aligning) alignBtn.click();
+  }
+
+  function startAnchorDrag(e, a, threshold = 0) {
+    if (!canEdit || !hasAudio() || e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
     const orig = barTimes.slice();
     const x0 = e.clientX;
     const whole = e.shiftKey;
     const el = e.currentTarget;
-    el.classList.add('is-dragging');
+    let moved = threshold === 0;
+    if (moved) beginAlignEdit();
     const onMove = (ev) => {
-      barTimes = movedTimes(orig, a, orig[a.bar] + (ev.clientX - x0) / pxPerSec, whole || ev.shiftKey);
+      if (!moved) {
+        if (Math.abs(ev.clientX - x0) < threshold) return;
+        moved = true;
+        beginAlignEdit();
+      }
+      el.classList.add('is-dragging');
+      const mode = whole || ev.shiftKey ? 'whole' : ev.altKey ? 'boundary' : 'ripple';
+      barTimes = movedTimes(orig, a, orig[a.bar] + (ev.clientX - x0) / pxPerSec, mode);
       layout(true);
       alignStatus.textContent = `${a.label} → ${fmtTime(barTimes[a.bar])}`;
     };
     const onUp = async () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      if (!moved) return;
+      swallowClick();
       if (barTimes[a.bar] === orig[a.bar] && barTimes[0] === orig[0]) { renderAnchors(); return; }
       await saveAlignment(a, orig);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  // Drag the recording itself, like Audacity's time-shift tool: it slides
+  // against the bars (the whole grid moves the other way in its time).
+  function startClipDrag(e) {
+    if (!canEdit || !hasAudio() || e.button !== 0 || e.target.closest('.daw-anchor')) return;
+    const orig = barTimes.slice();
+    const x0 = e.clientX;
+    const lane = rows.audio.lane;
+    let moved = false;
+    const shiftEls = () => [...lane.querySelectorAll('.daw-clip'), waveCanvas].filter(Boolean);
+    const onMove = (ev) => {
+      const dx = ev.clientX - x0;
+      if (!moved) {
+        if (Math.abs(dx) < 5) return;
+        moved = true;
+        beginAlignEdit();
+        lane.classList.add('is-sliding');
+      }
+      shiftEls().forEach((el) => { el.style.transform = `translateX(${dx}px)`; });
+      alignStatus.textContent = `recording ${dx >= 0 ? 'later' : 'earlier'} by ${Math.abs(dx / pxPerSec).toFixed(2)}s against the bars`;
+    };
+    const onUp = async (ev) => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (!moved) return;
+      swallowClick();
+      lane.classList.remove('is-sliding');
+      shiftEls().forEach((el) => { el.style.transform = ''; });
+      const d = (ev.clientX - x0) / pxPerSec;
+      barTimes = orig.map((t) => t - d);
+      layout(true);
+      const first = pickup() ? 1 : 0;
+      await saveAlignment({ bar: first, label: `Bar ${barLabel(first)}`, i: 0 }, orig);
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -1096,6 +1253,7 @@
     aligning = !aligning;
     alignBtn.setAttribute('aria-pressed', aligning);
     alignBar.hidden = !aligning;
+    renderSections();
     renderAudioLane();
     updateAlignStatus();
   });
@@ -1104,7 +1262,7 @@
     const s = data.sections[selected];
     const a = anchorList().find((x) => x.i === selected);
     const orig = barTimes.slice();
-    barTimes = movedTimes(orig, a, position, false);
+    barTimes = movedTimes(orig, a, position, 'ripple');
     layout(true);
     await saveAlignment({ ...a, label: s.label }, orig);
   });
@@ -1114,6 +1272,17 @@
   // song's bar positions and score onsets (in ticks), applies the result,
   // saves it like a manual alignment, and keeps the previous one for Undo.
   let undoSnapshot = null;
+  // The alignment as it was before an edit (a drag or Auto-align), for Undo.
+  function snapshotForUndo() {
+    const meta = audioCats[refCat] || {};
+    undoSnapshot = {
+      cat: refCat,
+      sync: (meta.barSyncPoints || []).map((p) => ({ ...p })),
+      markers: (meta.markers || []).map((m) => ({ ...m })),
+    };
+    const btn = $('daw-align-undo');
+    if (btn) btn.hidden = false;
+  }
 
   function songForAlign() {
     const n = N();
@@ -1158,12 +1327,7 @@
       if (!analysis) throw new Error('the recording could not be decoded');
       await new Promise((r) => setTimeout(r, 30));
       const res = window.SongbooksAutoAlign.analyze(analysis, songForAlign());
-      const meta = audioCats[refCat];
-      undoSnapshot = {
-        cat: refCat,
-        sync: (meta.barSyncPoints || []).map((p) => ({ ...p })),
-        markers: (meta.markers || []).map((m) => ({ ...m })),
-      };
+      snapshotForUndo();
       barTimes = res.barTimes;
       await saveAllAnchors();
       if (!aligning) alignBtn.click();
@@ -1224,7 +1388,7 @@
       }
       undoSnapshot = null;
       $('daw-align-undo').hidden = true;
-      alignStatus.textContent = 'Auto-align undone.';
+      alignStatus.textContent = 'Undone — back to the previous alignment.';
       document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
       computeBarTimes();
       rows.audio.hdr.querySelector('.daw-hdr-sub').textContent = refSubtitle();

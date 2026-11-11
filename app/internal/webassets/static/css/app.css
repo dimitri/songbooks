@@ -791,7 +791,7 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
    win over a class-only rule here, squashing these text tabs back down to
    2.1rem squares. */
 #mode-segmented.view-tabs button {
-  display: flex; align-items: center; width: auto; height: auto;
+  display: flex; align-items: center; width: auto; height: auto; min-height: 0;
   background: none; border: none; border-radius: 999px;
   padding: 0.5rem 0.9rem; font-size: 0.85rem; color: var(--fg-muted); cursor: pointer;
 }
@@ -828,7 +828,7 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
    specificity over a class-only rule here). */
 #instrument-picker.view-tabs button,
 #source-preview-instruments.view-tabs button {
-  display: flex; align-items: center; width: auto; height: auto;
+  display: flex; align-items: center; width: auto; height: auto; min-height: 0;
   background: none; border: none; border-radius: 999px;
   padding: 0.5rem 0.9rem; font-size: 0.85rem; color: var(--fg-muted); cursor: pointer;
 }
@@ -941,31 +941,173 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 }
 .audio-pill-btn:hover { border-color: var(--border-strong); }
 .audio-pill-btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
-.audio-waveform-wrap { position: relative; height: 72px; cursor: pointer; }
+/* Practice player (audio-player.js): GarageBand-style control bar on
+   top — transport, LCD, then Cycle / Count-in / Click / Speed / Trainer —
+   and the waveform under a ruler that carries bar numbers, section names
+   and the yellow cycle range. */
+.audio-player { --waveform-color: color-mix(in srgb, var(--fg-muted) 45%, transparent); --waveform-played: var(--accent); --cycle: #e9b500; }
+.audio-transport { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.45rem; position: relative; }
+.audio-buttons { display: flex; align-items: center; gap: 0.15rem; }
+.audio-buttons .icon-btn { width: 2.1rem; height: 2.1rem; }
+.audio-play-btn { width: 2.5rem !important; height: 2.5rem !important; background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+.audio-play-btn:hover { background: var(--accent-ink); }
+.audio-lcd {
+  display: flex; align-items: baseline; gap: 0.5rem; min-width: 11rem;
+  padding: 0.25rem 0.7rem; border-radius: 8px; background: var(--bg-sunken);
+  font-variant-numeric: tabular-nums; line-height: 1.2;
+}
+.audio-lcd-pos { font-size: 1.15rem; font-weight: 700; min-width: 3.2ch; }
+.audio-lcd-section { font-size: 0.82rem; font-weight: 600; color: var(--accent-ink); max-width: 10rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.audio-lcd-time { font-size: 0.75rem; color: var(--fg-muted); margin-left: auto; white-space: nowrap; }
+.audio-opts { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; margin-left: auto; }
+.audio-transport .audio-opts-btn { display: none; margin-left: auto; }
+.audio-toggle {
+  display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap;
+  padding: 0 0.55rem; height: 1.75rem; box-sizing: border-box; font-size: 0.78rem; border-radius: 4px;
+  border: 1px solid var(--border); background: var(--bg-raised); color: var(--fg-muted); cursor: pointer;
+}
+.audio-toggle:hover { border-color: var(--border-strong); color: var(--fg); }
+.audio-toggle.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+#audio-cycle-btn.active { background: color-mix(in srgb, var(--cycle) 30%, var(--bg-raised)); border-color: var(--cycle); color: var(--fg); }
+.audio-toggle:disabled { opacity: 0.45; cursor: default; }
+.audio-speed { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; color: var(--fg-muted); }
+.audio-speed select { font-size: 0.78rem; height: 1.75rem; box-sizing: border-box; padding: 0 0.3rem; border-radius: 4px; }
+.audio-speed-bpm { font-variant-numeric: tabular-nums; font-size: 0.75rem; }
+/* Split buttons: the option toggles, with a ▾ opening their panel. */
+.audio-split { display: inline-flex; align-items: stretch; }
+.audio-split .audio-toggle { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.audio-toggle .icon { width: 0.9rem; height: 0.9rem; }
+.audio-caret {
+  display: inline-flex; align-items: center; padding: 0 0.35rem; margin-left: -1px; cursor: pointer;
+  height: 1.75rem; box-sizing: border-box;
+  border: 1px solid var(--border); border-radius: 0 4px 4px 0; background: var(--bg-raised); color: var(--fg-muted);
+}
+.audio-caret .icon { width: 0.85rem; height: 0.85rem; }
+.audio-caret[aria-expanded="true"], .audio-caret:hover { color: var(--fg); border-color: var(--border-strong); }
+.audio-trainer-btn { position: relative; overflow: hidden; }
+.audio-trainer-meter { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--accent); transition: width 0.3s; }
+/* Option panels: a card under the control bar, aligned under the button
+   that opened it. */
+.audio-player { position: relative; }
+.audio-pop:not([hidden]) {
+  display: flex; flex-direction: column; gap: 0.6rem; position: absolute; z-index: 15;
+  top: var(--pop-top, 3.4rem); left: var(--pop-left, 0.8rem); width: max-content; max-width: calc(100% - 1.6rem);
+  padding: 0.75rem 0.9rem; border-radius: 10px; background: var(--bg-raised);
+  border: 1px solid var(--border); box-shadow: var(--shadow); font-size: 0.85rem;
+}
+.audio-pop-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+.audio-pop-head strong { font-size: 0.95rem; }
+.audio-pop-head .hint { font-size: 0.78rem; }
+.audio-pop-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.audio-seg { display: inline-flex; gap: 0.15rem; padding: 0.15rem; border-radius: 5px; background: var(--bg-sunken); align-self: flex-start; }
+.audio-seg button {
+  display: inline-flex; align-items: center; gap: 0.3rem; border: none; background: none; cursor: pointer;
+  padding: 0.3rem 0.7rem; border-radius: 3px; color: var(--fg-muted); font-size: 0.8rem;
+}
+.audio-seg button .icon { width: 0.9rem; height: 0.9rem; }
+.audio-seg button.active { background: var(--bg-raised); color: var(--fg); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.audio-check, .audio-range { display: inline-flex; align-items: center; gap: 0.45rem; }
+.audio-range input { width: 10rem; }
+.audio-switch { display: inline-flex; align-items: center; gap: 0.4rem; margin-left: auto; font-weight: 600; cursor: pointer; }
+.audio-switch input { position: absolute; opacity: 0; }
+.audio-switch span { width: 2.2rem; height: 1.25rem; border-radius: 999px; background: var(--border-strong); position: relative; transition: background 0.2s; opacity: 0.5; }
+.audio-switch span::after { content: ""; position: absolute; top: 2px; left: 2px; width: calc(1.25rem - 4px); height: calc(1.25rem - 4px); border-radius: 50%; background: #fff; transition: transform 0.2s; }
+.audio-switch input:checked + span { background: var(--accent); opacity: 1; }
+.audio-switch input:checked + span::after { transform: translateX(0.95rem); }
+.audio-switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.audio-trainer-grid { display: grid; grid-template-columns: repeat(4, auto); gap: 0.5rem 1rem; }
+.audio-stepper { display: grid; grid-template-columns: 2.2rem minmax(4.6rem, auto) 2.2rem; grid-template-rows: auto auto; align-items: center; gap: 0.15rem 0.25rem; }
+.audio-stepper-label { grid-column: 1 / -1; font-size: 0.75rem; color: var(--fg-muted); text-align: center; }
+.audio-stepper button {
+  height: 2.2rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-raised);
+  font-size: 1.1rem; line-height: 1; cursor: pointer; color: var(--fg);
+}
+.audio-stepper button:hover { border-color: var(--border-strong); }
+.audio-stepper output { text-align: center; font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.audio-stairs { display: flex; align-items: flex-end; gap: 3px; height: 3.2rem; padding-top: 0.2rem; }
+.audio-stair {
+  flex: 1; min-width: 1rem; position: relative; border-radius: 3px 3px 0 0;
+  background: color-mix(in srgb, var(--fg-muted) 25%, transparent);
+}
+.audio-stair span { position: absolute; bottom: 2px; left: 0; right: 0; text-align: center; font-size: 0.62rem; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.audio-stair.reached { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+.audio-stair.reached span { color: var(--accent-ink); }
+.audio-stair.now { background: var(--accent); }
+.audio-stair.now span { color: var(--accent-contrast); font-weight: 700; }
+.audio-pop .audio-pill-btn:not([hidden]), .audio-pop .primary { border-radius: 4px; padding: 0 0.6rem; height: 1.75rem; font-size: 0.78rem; box-sizing: border-box; }
+.audio-stepper button { border-radius: 4px; }
+/* The app's 44px touch minimum is for phones (restored below); on a
+   desktop these are compact, Logic-style controls. */
+.audio-toggle, .audio-caret, .audio-seg button, .audio-stepper button, .audio-speed select,
+.audio-pop .audio-pill-btn, .audio-pop .primary { min-height: 0; }
+.audio-trainer-summary { margin: 0; font-size: 0.82rem; color: var(--fg-muted); }
+@media (max-width: 720px) {
+  .audio-pop:not([hidden]) { left: 0.5rem; right: 0.5rem; width: auto; max-width: none; }
+  .audio-trainer-grid { grid-template-columns: repeat(2, auto); justify-content: space-between; }
+  .audio-split { width: 100%; }
+  .audio-split .audio-toggle { flex: 1; }
+}
+.audio-waveform-wrap { position: relative; user-select: none; -webkit-user-select: none; }
+.audio-ruler {
+  position: relative; height: 1.25rem; border-bottom: 1px solid var(--border);
+  cursor: crosshair; touch-action: none; overflow: hidden;
+}
+.audio-ruler-marks { position: absolute; inset: 0; pointer-events: none; }
+.audio-ruler-bar, .audio-ruler-section {
+  position: absolute; bottom: 2px; padding-left: 3px; white-space: nowrap;
+  font-size: 0.65rem; line-height: 1; color: var(--fg-muted); font-variant-numeric: tabular-nums;
+}
+.audio-ruler-section {
+  pointer-events: auto; cursor: pointer; font-weight: 700; color: var(--fg); top: 2px; bottom: auto;
+  border-left: 2px solid var(--accent); padding: 1px 4px; background: var(--bg-raised); z-index: 2;
+}
+.audio-ruler-section:hover { color: var(--accent-ink); }
+.audio-cycle {
+  position: absolute; top: 2px; bottom: 2px; border-radius: 3px; z-index: 1; cursor: grab;
+  background: color-mix(in srgb, var(--fg-muted) 30%, transparent);
+}
+.audio-cycle.on { background: color-mix(in srgb, var(--cycle) 75%, transparent); }
+.audio-cycle-edge { position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; }
+.audio-cycle-edge.start { left: -3px; }
+.audio-cycle-edge.end { right: -3px; }
+.audio-wave { position: relative; height: 64px; cursor: pointer; touch-action: none; }
 .audio-waveform { width: 100%; height: 100%; display: block; }
+.audio-played { position: absolute; top: 0; bottom: 0; left: 0; width: 0; overflow: hidden; pointer-events: none; }
+.audio-played .audio-waveform { width: auto; max-width: none; }
+.audio-cycle-shade { position: absolute; top: 0; bottom: 0; pointer-events: none; background: color-mix(in srgb, var(--cycle) 14%, transparent); border-left: 1px solid var(--cycle); border-right: 1px solid var(--cycle); }
 .audio-playhead {
-  position: absolute; top: 0; bottom: 0; left: 0; width: 2px;
-  background: var(--accent); pointer-events: none;
+  position: absolute; top: 0; bottom: 0; left: 0; width: 2px; margin-left: -1px;
+  background: var(--fg); pointer-events: none; z-index: 2;
 }
 .audio-bargrid { position: absolute; inset: 0; pointer-events: none; }
 .audio-bargrid-tick {
   position: absolute; top: 0; bottom: 0; width: 1px;
-  background: var(--border-strong); opacity: 0.55; pointer-events: none;
+  background: var(--border-strong); opacity: 0.18; pointer-events: none;
 }
-.audio-bargrid-start {
-  width: 3px; margin-left: -1px; background: var(--accent); opacity: 1;
-  cursor: ew-resize; pointer-events: auto;
+.audio-bargrid-tick.section { opacity: 0.6; background: var(--accent); }
+.audio-hover:not([hidden]) { position: absolute; top: 0; bottom: 0; pointer-events: none; z-index: 3; }
+.audio-hover-line { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--fg-muted); opacity: 0.6; }
+.audio-hover-label {
+  position: absolute; top: 2px; left: 5px; white-space: nowrap; font-size: 0.7rem; padding: 1px 5px;
+  border-radius: 4px; background: var(--fg); color: var(--bg-raised); font-variant-numeric: tabular-nums;
 }
-.audio-bargrid-start::after {
-  content: ''; position: absolute; top: -5px; left: 50%; transform: translateX(-50%);
-  width: 9px; height: 9px; border-radius: 50%; background: var(--accent);
+.audio-hover.flip .audio-hover-label { left: auto; right: 5px; }
+/* Narrow screens: transport and LCD stay; every practice option folds
+   into the ⋯ panel, with roomier touch targets. */
+@media (max-width: 720px) {
+  .audio-transport .audio-opts-btn { display: inline-flex; }
+  .audio-opts { display: none; }
+  .audio-opts.open {
+    display: flex; position: absolute; right: 0; top: calc(100% + 0.3rem); z-index: 20;
+    flex-direction: column; align-items: stretch; gap: 0.4rem; padding: 0.6rem;
+    background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
+  }
+  .audio-toggle, .audio-caret, .audio-speed select { height: 2.75rem; min-height: 2.75rem; }
+  .audio-buttons .icon-btn { width: 2.75rem; height: 2.75rem; }
+  .audio-lcd { order: 3; flex: 1 1 100%; min-width: 0; }
+  .audio-wave { height: 56px; }
+  .audio-ruler { height: 1.5rem; }
 }
-.audio-controls { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.4rem; flex-wrap: wrap; }
-.audio-play-btn { font-size: 1rem; }
-.audio-time-label {
-  font-variant-numeric: tabular-nums; font-size: 0.78rem; color: var(--fg-muted); margin-left: 0.3rem;
-}
-.audio-controls-spacer { flex: 1; }
 
 /* ---- Transport -------------------------------------------------------------
    Lives inside the structure rail (.timeline), not floating above the chart
@@ -1292,6 +1434,15 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
 .daw-vol { flex: 1; min-width: 0; height: 14px; accent-color: var(--daw-muted); }
 .daw-vol-label { font-size: 10px; color: var(--daw-muted); width: 2.4em; text-align: right; font-variant-numeric: tabular-nums; }
 
+/* Mixer click lane: a mark per beat, taller on the downbeat. */
+.daw-lane.is-click { background: #EDEDF3; }
+.daw-section-grip { position: absolute; left: 0; top: 0; bottom: 0; width: 10px; cursor: ew-resize; background: linear-gradient(90deg, rgba(0,0,0,.35) 0 3px, transparent 3px); }
+.daw-section-grip:hover { background: linear-gradient(90deg, rgba(0,0,0,.6) 0 4px, transparent 4px); }
+.daw-lane .daw-clip { cursor: grab; }
+.daw-lane.is-sliding, .daw-lane.is-sliding .daw-clip { cursor: grabbing; }
+.daw-section.is-dragging { cursor: grabbing; outline: 2px solid #14151A; }
+.daw-click-beat { position: absolute; top: 38%; height: 24%; width: 2px; margin-left: -1px; border-radius: 1px; background: #A0A0B4; }
+.daw-click-beat.is-down { top: 22%; height: 56%; width: 3px; background: #5E5E78; }
 .daw-lane { position: relative; box-sizing: border-box; border-bottom: 1px solid rgba(0, 0, 0, 0.35); }
 .daw-lane.is-meta { background: var(--daw-lane-light); border-bottom-color: var(--daw-stroke); }
 .daw-lane.is-ruler { background: var(--daw-ruler); border-bottom-color: var(--daw-ruler-stroke); cursor: pointer; }
@@ -1812,6 +1963,13 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
   --ph: calc(var(--playhead, 0) * 100%);
   background-image: linear-gradient(to right, transparent calc(var(--ph) - 1px), var(--accent) calc(var(--ph) - 1px), var(--accent) calc(var(--ph) + 1px), transparent calc(var(--ph) + 1px));
 }
+/* The player's cycle range on the chart (audio-player.js): yellow like
+   Logic's cycle area, stronger while a drag is selecting bars. */
+.bar.range-cycle { box-shadow: inset 0 -3px 0 #e9b500, inset 0 0 0 1px color-mix(in srgb, #e9b500 45%, transparent); }
+.bar.range-select { background-color: color-mix(in srgb, #e9b500 30%, transparent); }
+.tab-range { position: absolute; pointer-events: none; z-index: 0; border-radius: 2px; }
+.tab-range.cycle { background: color-mix(in srgb, #e9b500 12%, transparent); border-bottom: 3px solid #e9b500; }
+.tab-range.select { background: color-mix(in srgb, #e9b500 30%, transparent); }
 /* Tab rows' playback cursor (alphatab-tab.js tabCursor), Guitar Pro style:
    the playing bar tinted like .bar.current, a line sweeping its beats. */
 .alphatab-row[data-first-bar] { position: relative; }
@@ -4761,3 +4919,23 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .staff-line > .bar.bar-pickup { flex: 0 0 3.4em !important; min-width: 3.4em; padding: 0 0.3em; }
 .staff-line:has(> .bar-pickup) > .bar:not(.bar-pickup) { flex-basis: calc((100% - 3.4em) / var(--cap, 4)) !important; }
 .staff-line:has(> .staff-timesig-cell):has(> .bar-pickup) > .bar:not(.bar-pickup) { flex-basis: calc((100% - 5.9em) / var(--cap, 4)) !important; }
+
+/* Song listings: what each song holds, as small icons (song_badges.html). */
+.song-badges { display: inline-flex; align-items: center; gap: 0.3rem; margin-left: 0.6rem; vertical-align: middle; flex-wrap: wrap; }
+.song-badges:empty { display: none; }
+.song-badge {
+  display: inline-flex; align-items: center; gap: 0.25rem; height: 1.55rem; padding: 0 0.35rem;
+  border-radius: 4px; border: 1px solid var(--border); background: var(--bg-raised);
+  color: var(--fg-muted); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em; line-height: 1;
+}
+.song-badge .icon { width: 1rem; height: 1rem; }
+.song-badge small { font-size: 0.66rem; font-weight: 600; text-transform: uppercase; }
+.song-badge-gp { color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.song-badge-audio { color: #3d6fb8; border-color: color-mix(in srgb, #3d6fb8 35%, var(--border)); }
+.song-badge-audio.is-backing { background: color-mix(in srgb, #3d6fb8 10%, var(--bg-raised)); }
+.song-badge-audio.is-full { background: color-mix(in srgb, #3d6fb8 18%, var(--bg-raised)); }
+.repertoire-row .gig-title .song-badges, .catalog-card .song-badges { margin-left: 0; margin-top: 0.3rem; display: flex; }
+.repertoire-row .gig-title .song-badges:empty, .catalog-card .song-badges:empty { display: none; }
+.audio-kind-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.audio-kind-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: 0.88rem; }
+.audio-kind-row > span:first-child { min-width: 11rem; font-weight: 600; }

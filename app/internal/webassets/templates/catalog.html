@@ -47,6 +47,7 @@
       <a class="catalog-card-main" href="/song/{{.VariantID}}">
         <div class="catalog-card-title">{{.Title}}</div>
         <div class="catalog-card-meta">{{.Artist}}{{if .Genre}} &middot; {{.Genre}}{{end}}</div>
+        {{template "song-badges" (index $.Badges .VariantID)}}
       </a>
       <div class="catalog-card-actions">
         <a href="/works/{{.WorkID}}">all versions</a>

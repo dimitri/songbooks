@@ -37,6 +37,7 @@
           <a class="song-link" href="/song/{{.VariantID}}?songbook={{$.Songbook.ID}}">
             <span class="song-title">{{.Title}}</span>
             <span class="song-meta">{{if .Tempo}}{{.Tempo}} bpm{{end}}{{if and .Tempo .Key}} &middot; {{end}}{{.Key}}</span>
+            {{template "song-badges" (index $.Badges .VariantID)}}
           </a>
           <button type="button" class="remove-song-btn icon-btn danger" data-songbook-id="{{$.Songbook.ID}}" data-variant-id="{{.VariantID}}" title="remove from this songbook">{{template "icon-trash"}}</button>
         </li>

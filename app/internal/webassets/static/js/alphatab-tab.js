@@ -493,7 +493,21 @@
     // with a pickup (viewerLine.Systems, handlers_pages.go), so the tab
     // keeps the chord grid's pickup + 4s phrasing instead of alphaTab's
     // own automatic line breaks.
-    const systems = (container.dataset.systems || '').split(',').map(Number).filter((v) => v > 0);
+    let systems = (container.dataset.systems || '').split(',').map(Number).filter((v) => v > 0);
+    // The server's 4 bars a row (pickup + 4 on the first) is a page
+    // layout; a phone can't fit that many bars of tab, so narrow rows
+    // regroup the same bars into fewer per system.
+    if (systems.length) {
+      const avail = container.parentElement ? container.parentElement.getBoundingClientRect().width : 0;
+      const perRow = avail && avail < 520 ? 2 : avail && avail < 760 ? 3 : 4;
+      if (perRow < 4) {
+        const total = systems.reduce((a, b) => a + b, 0);
+        const pickup = /\\ac\b/.test(tex) ? 1 : 0;
+        const regrouped = [Math.min(total, pickup + perRow)];
+        for (let left = total - regrouped[0]; left > 0; left -= perRow) regrouped.push(Math.min(perRow, left));
+        systems = regrouped;
+      }
+    }
     if (systems.length) settings.display.systemsLayoutMode = alphaTab.SystemsLayoutMode.UseModelLayout;
 
     let finished = false;
@@ -849,6 +863,49 @@
     return true;
   }
   window.songbooksTabCursor = tabCursor;
+
+  // ---- Bar ranges on tab rows, for the player's cycle (audio-player.js):
+  // which performed bar is under a point, and a tint over a bar range.
+  function tabRows() {
+    return [...document.querySelectorAll('.alphatab-row[data-first-bar]')].filter((r) => r.offsetParent && r._alphaTabApi && r._alphaTabApi.score && r._alphaTabApi.renderer.boundsLookup);
+  }
+  window.songbooksTabBarAt = function (clientX, clientY) {
+    for (const row of tabRows()) {
+      const rect = row.getBoundingClientRect();
+      if (clientY < rect.top || clientY > rect.bottom || clientX < rect.left || clientX > rect.right) continue;
+      const x = clientX - rect.left, y = clientY - rect.top;
+      const api = row._alphaTabApi;
+      const lookup = api.renderer.boundsLookup;
+      for (let i = 0; i < api.score.masterBars.length; i++) {
+        const mb = lookup.findMasterBarByIndex(i);
+        if (!mb) continue;
+        const r = mb.realBounds, sys = mb.lineAlignedBounds || mb.visualBounds || r;
+        if (x >= r.x && x < r.x + r.w && y >= sys.y && y < sys.y + sys.h) return parseInt(row.dataset.firstBar, 10) + i;
+      }
+    }
+    return null;
+  };
+  // kind: 'cycle' (the loop range, kept) or 'select' (a drag in progress).
+  window.songbooksTabMarkRange = function (from, to, kind) {
+    document.querySelectorAll(`.tab-range.${kind}`).forEach((e) => e.remove());
+    if (from === null || from === undefined || to <= from) return;
+    for (const row of tabRows()) {
+      const first = parseInt(row.dataset.firstBar, 10);
+      const api = row._alphaTabApi;
+      const lookup = api.renderer.boundsLookup;
+      for (let i = 0; i < api.score.masterBars.length; i++) {
+        const b = first + i;
+        if (b < from || b >= to) continue;
+        const mb = lookup.findMasterBarByIndex(i);
+        if (!mb) continue;
+        const r = mb.realBounds, sys = mb.lineAlignedBounds || mb.visualBounds || r;
+        const el = document.createElement('div');
+        el.className = `tab-range ${kind}`;
+        Object.assign(el.style, { left: `${r.x}px`, top: `${sys.y}px`, width: `${r.w}px`, height: `${sys.h}px` });
+        row.appendChild(el);
+      }
+    }
+  };
 
   // Exposed for the score editor's live preview (score-editor.js): it
   // writes a fresh data-tex onto its own preview container on every

@@ -38,6 +38,8 @@ type SongAudio struct {
 	SourceURL         string
 	CreatedAt         time.Time
 	CreatedByPersonID *int64
+	// Kind: "full", "backing" or "" (unknown) — see migration 0063.
+	Kind string
 }
 
 // AudioMarker ties a playback timestamp to one of the song's own sections
@@ -54,7 +56,7 @@ type AudioMarker struct {
 // bytes themselves, for pages that just need to know "what's available."
 func (st *Store) ListSongAudio(ctx context.Context, variantID int64) ([]SongAudio, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT id, variant_id, category, content_type, byte_size, sha256, source_url, created_at, created_by_person_id
+		SELECT id, variant_id, category, content_type, byte_size, sha256, source_url, created_at, created_by_person_id, content_kind
 		FROM song_audio WHERE variant_id = $1 ORDER BY category`, variantID)
 	if err != nil {
 		return nil, err
@@ -63,7 +65,7 @@ func (st *Store) ListSongAudio(ctx context.Context, variantID int64) ([]SongAudi
 	var out []SongAudio
 	for rows.Next() {
 		var a SongAudio
-		if err := rows.Scan(&a.ID, &a.VariantID, &a.Category, &a.ContentType, &a.ByteSize, &a.SHA256, &a.SourceURL, &a.CreatedAt, &a.CreatedByPersonID); err != nil {
+		if err := rows.Scan(&a.ID, &a.VariantID, &a.Category, &a.ContentType, &a.ByteSize, &a.SHA256, &a.SourceURL, &a.CreatedAt, &a.CreatedByPersonID, &a.Kind); err != nil {
 			return nil, err
 		}
 		out = append(out, a)

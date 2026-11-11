@@ -592,7 +592,7 @@
       const bytes = score.backingTrack.rawAudioFile;
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-      const audioBuffer = await ctx.decodeAudioData(ab);
+      const audioBuffer = await ctx.decodeAudioData(window.songbooksDecodable ? window.songbooksDecodable(ab) : ab);
       ctx.close();
       const channel = audioBuffer.getChannelData(0);
       const buckets = 2000;

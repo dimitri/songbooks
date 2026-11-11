@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -46,6 +47,7 @@ func parseAudioCategory(s string) (store.AudioCategory, bool) {
 type audioCategoryMeta struct {
 	Category      string          `json:"category"`
 	ByteSize      int64           `json:"byteSize"`
+	Kind          string          `json:"kind,omitempty"` // "full", "backing", "" unknown
 	SourceURL     string          `json:"sourceUrl,omitempty"`
 	Markers       []jsonAudioMark `json:"markers,omitempty"`
 	BarSyncPoints []jsonGPBarSync `json:"barSyncPoints,omitempty"`
@@ -86,7 +88,7 @@ func (s *Server) handleGetSongAudioMeta(w http.ResponseWriter, r *http.Request) 
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		cm := audioCategoryMeta{Category: string(a.Category), ByteSize: a.ByteSize, SourceURL: a.SourceURL}
+		cm := audioCategoryMeta{Category: string(a.Category), ByteSize: a.ByteSize, SourceURL: a.SourceURL, Kind: a.Kind}
 		for _, m := range markers {
 			cm.Markers = append(cm.Markers, jsonAudioMark{SectionIndex: m.SectionIndex, TimeSeconds: m.TimeSeconds})
 		}
@@ -348,4 +350,41 @@ func (s *Server) handleDeleteAudioMarker(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handlePutSongAudioKind is PUT /api/songs/{id}/audio/{category}/kind,
+// body {"kind": "full" | "backing" | ""}: what this reference recording
+// is — the whole song, or a backing track with the practised part left
+// out (see migration 0063).
+func (s *Server) handlePutSongAudioKind(w http.ResponseWriter, r *http.Request) {
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	cat, ok := parseAudioCategory(r.PathValue("category"))
+	if !ok {
+		httpError(w, http.StatusBadRequest, "unknown audio category")
+		return
+	}
+	var req struct {
+		Kind string `json:"kind"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if req.Kind != "" && req.Kind != "full" && req.Kind != "backing" {
+		httpError(w, http.StatusBadRequest, `kind must be "full", "backing" or ""`)
+		return
+	}
+	if err := s.store.SetSongAudioKind(r.Context(), variantID, cat, req.Kind); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }

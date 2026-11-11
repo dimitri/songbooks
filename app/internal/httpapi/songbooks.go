@@ -138,8 +138,12 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 			{Label: "Playlist", Path: sb.PlaylistURL, Icon: "icon-reference", External: true},
 		}, contextual.Entries...)
 	}
+	var ids []int64
+	for _, g := range groups {
+		ids = append(ids, g.VariantIDs...)
+	}
 	s.render(w, "songbook", map[string]any{
-		"Me": p, "Songbook": sb, "Groups": out,
+		"Me": p, "Songbook": sb, "Groups": out, "Badges": s.songBadgesFor(r.Context(), ids),
 		"ContextualGroup": contextual,
 	})
 }
