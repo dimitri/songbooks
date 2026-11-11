@@ -472,10 +472,22 @@
     // all, which is almost certainly why every previous recovery attempt
     // this session appeared to do nothing — not that the retry logic was
     // wrong, but that it never ran.
+    // data-systems ("5,4,4,4"): bars per system for a row whose song opens
+    // with a pickup (viewerLine.Systems, handlers_pages.go), so the tab
+    // keeps the chord grid's pickup + 4s phrasing instead of alphaTab's
+    // own automatic line breaks.
+    const systems = (container.dataset.systems || '').split(',').map(Number).filter((v) => v > 0);
+    if (systems.length) settings.display.systemsLayoutMode = alphaTab.SystemsLayoutMode.UseModelLayout;
+
     let finished = false;
     lastMissingPx = 0;
     try {
       const api = new alphaTab.AlphaTabApi(container, settings);
+      if (systems.length) {
+        api.scoreLoaded.on((score) => {
+          for (const t of score.tracks) { t.systemsLayout = systems; t.defaultSystemsLayout = systems[systems.length - 1]; }
+        });
+      }
       // Stashed on the container itself — not returned, since render()'s
       // own callers never awaited a return value before this and a
       // retry/reconstruction can replace this same api instance later

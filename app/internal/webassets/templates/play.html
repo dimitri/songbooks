@@ -31,7 +31,7 @@
      that floor (reflowStaffLines(), song.js, only ever narrows rows
      down TO it) — each one just collided with its neighbor instead
      of the row ever being flagged as needing to wrap further. */}}
-<span class="bar{{if .Open}} bar-open{{end}}{{if .Close}} bar-close{{end}}{{if .IsRepeat}} bar-pct{{end}}{{if .Volta}} has-volta{{end}}{{if and .Volta (not .VoltaFirst)}} volta-continues{{end}}{{if .Placeholder}} bar-placeholder{{end}}{{if .Tab}} has-tab{{end}}{{if .TabOnly}} tab-only{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}" style="--slots: {{len .Beats}}">
+<span class="bar{{if .Open}} bar-open{{end}}{{if .Close}} bar-close{{end}}{{if .IsRepeat}} bar-pct{{end}}{{if .Volta}} has-volta{{end}}{{if and .Volta (not .VoltaFirst)}} volta-continues{{end}}{{if .Placeholder}} bar-placeholder{{end}}{{if .Pickup}} bar-pickup{{end}}{{if .Tab}} has-tab{{end}}{{if .TabOnly}} tab-only{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}" style="--slots: {{len .Beats}}">
   {{/* The bar's "score:" riff, if this bar has one. When its whole
        display row is fully covered (.TabOnly), the riff REPLACES the
        normal staff/slash content below — real tab notation, not an
@@ -300,7 +300,7 @@
          row, not per bar — alphaTab lays out its own bars/spacing
          internally across the whole string it's given, so a bar-by-bar
          mount would fight its own layout rather than use it. */}}
-    <div class="staff-line alphatab-row" style="--cap: {{.Capacity}}" data-tex="{{.AlphaTex}}"></div>
+    <div class="staff-line alphatab-row" style="--cap: {{.Capacity}}" data-tex="{{.AlphaTex}}"{{if .Systems}} data-systems="{{.Systems}}"{{end}}></div>
     {{/* Jazz chart / Song map / Lyrics only never show the real tab
          notation (CSS hides .alphatab-row outside "normal" mode) — but
          a fully riff-covered line has no OTHER markup at all otherwise,

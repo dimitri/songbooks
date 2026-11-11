@@ -739,6 +739,12 @@ type viewerMeasure struct {
 	// the same amount of page space as the section it solos over, instead
 	// of collapsing to a one-line note. Rendered as empty, dimmed slashes.
 	Placeholder bool
+	// Pickup marks the song's very first bar when it is a pickup — an
+	// anacrusis or a silent count-in bar a Guitar Pro import starts with
+	// (songStartsWithPickup). The chart puts it in the first row ON TOP of
+	// that row's usual bar count, so the rest keeps its natural phrasing:
+	// a 16-bar blues reads 5 / 4 / 4 / 4, not ? B E B / . . . F# / ….
+	Pickup bool
 	// MapAnnotate/MapMark/MapLabel are set ONLY by buildMapLines, on
 	// whichever measure is the first bar of its section in Song Map's
 	// flattened continuous score — every other mode's per-section
@@ -1369,7 +1375,22 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 				if numStrings <= 4 {
 					clef = "F4"
 				}
-				sections[si].Lines[li].AlphaTex = tab.ToAlphaTex(rowRiff, clef, chordLabels)
+				tex := tab.ToAlphaTex(rowRiff, clef, chordLabels)
+				if line := &sections[si].Lines[li]; len(sections[si].Measures) > 0 && sections[si].Measures[0].Pickup {
+					n := len(line.Measures)
+					var systems []string
+					first := 0
+					if line.Measures[0].Pickup {
+						tex = strings.Replace(tex, ".\n", ".\n\\ac ", 1) // alphaTeX anacrusis: a short bar, not a full one
+						systems = append(systems, strconv.Itoa(min(n, 5)))
+						first = min(n, 5)
+					}
+					for i := first; i < n; i += 4 {
+						systems = append(systems, strconv.Itoa(min(4, n-i)))
+					}
+					line.Systems = strings.Join(systems, ",")
+				}
+				sections[si].Lines[li].AlphaTex = tex
 			}
 		}
 	}
@@ -1678,6 +1699,10 @@ type viewerLine struct {
 	// this app's hand-rolled CSS/SVG tab drawing for the TabOnly case).
 	// Only set alongside TabOnly; "" otherwise.
 	AlphaTex string
+	// Systems, for a TabOnly row in a section that starts with a pickup,
+	// is alphaTab's bars-per-system list ("5,4,4,4"): the same pickup + 4s
+	// phrasing the chord grid gets (see viewerMeasure.Pickup).
+	Systems string
 }
 
 // groupMeasures chunks a section's measures into display rows — "systems",
@@ -2104,6 +2129,7 @@ func buildSections(sg *song.Song) []viewerSection {
 	tempo := orDefault(sg.Get("tempo"), "120")
 	num, den := timeSigParts(globalTime)
 	clefDrawn := false
+	pickupSeen := false
 
 	var sections []viewerSection
 	// dupSrc[i] is the source section index GridDuplicateOf's label was
@@ -2213,8 +2239,18 @@ func buildSections(sg *song.Song) []viewerSection {
 				orig[len(orig)-1].Close = true
 			}
 		}
+		barsPerLine := sec.BarsPerLine
+		if !pickupSeen && len(vs.Measures) > 0 {
+			pickupSeen = true
+			if songStartsWithPickup(sg, si) {
+				vs.Measures[0].Pickup = true
+				if len(barsPerLine) == 0 {
+					barsPerLine = []int{9, 8} // the pickup + the default 8, then 8s
+				}
+			}
+		}
 		if vs.GridDuplicateOf == "" {
-			vs.Lines = groupMeasures(vs.Measures, sec.BarsPerLine)
+			vs.Lines = groupMeasures(vs.Measures, barsPerLine)
 			vs.ExplicitBarsPerLine = len(sec.BarsPerLine) > 0
 		}
 		for li, l := range sec.Lyrics {
@@ -2904,4 +2940,47 @@ func (s *Server) render(w http.ResponseWriter, name string, data any) {
 	if err := webassets.Templates.ExecuteTemplate(w, name, data); err != nil {
 		log.Printf("render %s: %v", name, err)
 	}
+}
+
+// songStartsWithPickup reports whether sg.Sections[si] — the song's first
+// section with a grid — opens with a pickup bar: its score writes a first
+// bar shorter than the time signature (an anacrusis, as a Guitar Pro
+// import keeps it), or its grid's first bar carries no chord at all ("?",
+// "." or "R": a count-in bar).
+func songStartsWithPickup(sg *song.Song, si int) bool {
+	sec := sg.Sections[si]
+	if len(sec.Measures) == 0 {
+		return false
+	}
+	silent := len(sec.Measures[0].Tokens) > 0
+	for _, t := range sec.Measures[0].Tokens {
+		switch strings.TrimSpace(t) {
+		case "?", ".", "R", "N.C.", "NC":
+		default:
+			silent = false
+		}
+	}
+	if silent {
+		return true
+	}
+	timeSig := orDefault(sec.Time, orDefault(sg.Get("time"), "4/4"))
+	num, den := timeSigParts(timeSig)
+	full := float64(atoiOr(num, 4)) * 4 / float64(atoiOr(den, 4))
+	for _, sv := range sec.Scores {
+		riff, err := tab.ParseVoice(sv.Label, sv.Body)
+		if err != nil || len(riff.Bars) == 0 {
+			continue
+		}
+		bar := riff.Bars[0]
+		rest := true
+		for _, b := range bar.Beats {
+			if !b.Rest {
+				rest = false
+			}
+		}
+		if !rest && tab.BarBeats(bar) < full-1e-9 {
+			return true
+		}
+	}
+	return false
 }

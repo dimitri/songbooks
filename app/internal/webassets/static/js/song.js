@@ -365,7 +365,12 @@ const ICONS = {
         }
         const cells = [...template.children]; // clef cell (maybe) + .bar elements, in order
         const actualBarCount = cells.filter(el => el.classList.contains('bar')).length;
-        if (useCap >= actualBarCount) {
+        // A pickup bar (.bar-pickup — an anacrusis or count-in bar the song
+        // opens with, see viewerMeasure.Pickup) rides along in the first row
+        // on top of its usual count, so the grid keeps its phrasing: a
+        // 16-bar blues reads 5 / 4 / 4 / 4.
+        const pickup = cells.find(el => el.classList.contains('bar'))?.classList.contains('bar-pickup') ? 1 : 0;
+        if (useCap + pickup >= actualBarCount) {
           const line = template.cloneNode(true);
           if (lineBarWpx) line.style.setProperty('--bar-w', lineBarWpx + 'px');
           // The ORIGINAL authored `cap` can itself already be larger than
@@ -406,19 +411,22 @@ const ICONS = {
         // happen — and even then, that lone chunk gets its OWN --cap
         // (its own bar count) below, so it fills its row instead of
         // leaving blank staff behind it.
+        const body = barEls.length - pickup;
         let effUseCap = useCap;
-        if (barEls.length % useCap !== 0) {
+        if (body % useCap !== 0) {
           for (let d = useCap - 1; d > 1; d--) {
-            if (barEls.length % d === 0) { effUseCap = d; break; }
+            if (body % d === 0) { effUseCap = d; break; }
           }
         }
-        for (let i = 0; i < barEls.length; i += effUseCap) {
-          const chunk = barEls.slice(i, i + effUseCap);
+        for (let i = 0, row = 0; i < barEls.length; row++) {
+          const size = effUseCap + (row === 0 ? pickup : 0);
+          const chunk = barEls.slice(i, i + size);
+          i += size;
           const line = document.createElement('div');
           line.className = 'staff-line';
-          line.style.setProperty('--cap', String(chunk.length < effUseCap ? chunk.length : effUseCap));
+          line.style.setProperty('--cap', String(chunk.length < size ? chunk.length : size));
           if (lineBarWpx) line.style.setProperty('--bar-w', lineBarWpx + 'px');
-          if (i === 0 && clefEl) line.appendChild(clefEl.cloneNode(true));
+          if (row === 0 && clefEl) line.appendChild(clefEl.cloneNode(true));
           for (const bar of chunk) line.appendChild(bar.cloneNode(true));
           newLines.push(line);
         }
