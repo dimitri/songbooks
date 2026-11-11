@@ -1335,6 +1335,14 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 // (play.html) — see pickRiff's own doc comment for how it overrides
 // firstMelodicRiff's default ambiguous-skip behavior.
 func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff, timeNum, timeDen int, swing, instrument string) {
+	// A song opening with a pickup numbers it 0 (see viewerMeasure.Pickup).
+	songPickup := false
+	for _, sec := range sections {
+		if len(sec.Measures) > 0 {
+			songPickup = sec.Measures[0].Pickup
+			break
+		}
+	}
 	for si := range sections {
 		tracks, ok := scoreTracks[sections[si].Index]
 		if !ok {
@@ -1438,6 +1446,12 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 				// its own time signature reads as overfull 4/4 bars.
 				if meta := tab.FirstBarMeta(timeNum, timeDen, swing); meta != "" {
 					tex = strings.Replace(tex, ".\n", ".\n"+meta, 1)
+				}
+				if line := &sections[si].Lines[li]; len(line.Measures) > 0 {
+					line.BarShift = line.Measures[0].GlobalBar
+					if songPickup {
+						line.BarShift--
+					}
 				}
 				if line := &sections[si].Lines[li]; len(sections[si].Measures) > 0 && sections[si].Measures[0].Pickup {
 					n := len(line.Measures)
@@ -1769,6 +1783,11 @@ type viewerLine struct {
 	// is alphaTab's bars-per-system list ("5,4,4,4"): the same pickup + 4s
 	// phrasing the chord grid gets (see viewerMeasure.Pickup).
 	Systems string
+	// BarShift turns alphaTab's own bar numbers (1, 2, … in every row,
+	// each row being its own score) into the song's: added to each one
+	// (see alphatab-tab.js). The row's first performed bar, less one in a
+	// song whose pickup is bar 0 and its first full bar 1.
+	BarShift int
 }
 
 // groupMeasures chunks a section's measures into display rows — "systems",
