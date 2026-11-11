@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Catalog — Songbooks</title>
+<title>Library — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,14 +13,14 @@
 <div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
-  <h1>Catalog</h1>
+  <h1>Library</h1>
   <nav class="song-nav">
     <a href="/songbooks">songbooks</a>
     {{template "notif-bell"}}
   </nav>
 </header>
 <main class="index">
-  <p class="catalog-intro">Every song available to you, searchable by title, artist, or lyrics — the shared pool every songbook draws from.</p>
+  <p class="catalog-intro">Every public song, plus your own — searchable by title, artist, or lyrics. Band- and community-private songs aren't included; see that band's or community's own songbooks for those.</p>
 
   <form class="card catalog-filters" method="get" action="/catalog">
     <label>Search <input type="text" name="q" value="{{.Filter.Query}}" placeholder="title, artist, or lyrics"></label>

@@ -19,7 +19,7 @@ type NavEntry struct {
 var navDesktopPrimary = []NavEntry{
 	{Label: "Home", Path: "/home", Icon: "icon-home"},
 	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog"},
-	{Label: "Catalog", Path: "/catalog", Icon: "icon-view"},
+	{Label: "Library", Path: "/catalog", Icon: "icon-view"},
 	{Label: "Bands", Path: "/bands", Icon: "icon-bands"},
 	{Label: "Communities", Path: "/communities", Icon: "icon-community"},
 }
@@ -33,7 +33,7 @@ var navDesktopPrimary = []NavEntry{
 var navMobileTab = []NavEntry{
 	{Label: "Home", Path: "/home", Icon: "icon-home"},
 	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog"},
-	{Label: "Catalog", Path: "/catalog", Icon: "icon-view"},
+	{Label: "Library", Path: "/catalog", Icon: "icon-view"},
 	{Label: "Bands", Path: "/bands", Icon: "icon-bands"},
 }
 
@@ -44,7 +44,7 @@ var navMobileTab = []NavEntry{
 var navMobileMore = []NavEntry{
 	{Label: "Home", Path: "/home", Icon: "icon-home"},
 	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog"},
-	{Label: "Catalog", Path: "/catalog", Icon: "icon-view"},
+	{Label: "Library", Path: "/catalog", Icon: "icon-view"},
 	{Label: "Bands", Path: "/bands", Icon: "icon-bands"},
 	{Label: "Communities", Path: "/communities", Icon: "icon-community"},
 	{Label: "Metronome", Path: "/metronome", Icon: "icon-metro-full"},
