@@ -791,7 +791,7 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
    win over a class-only rule here, squashing these text tabs back down to
    2.1rem squares. */
 #mode-segmented.view-tabs button {
-  display: flex; align-items: center; width: auto; height: auto;
+  display: flex; align-items: center; width: auto; height: auto; min-height: 0;
   background: none; border: none; border-radius: 999px;
   padding: 0.5rem 0.9rem; font-size: 0.85rem; color: var(--fg-muted); cursor: pointer;
 }
@@ -828,7 +828,7 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
    specificity over a class-only rule here). */
 #instrument-picker.view-tabs button,
 #source-preview-instruments.view-tabs button {
-  display: flex; align-items: center; width: auto; height: auto;
+  display: flex; align-items: center; width: auto; height: auto; min-height: 0;
   background: none; border: none; border-radius: 999px;
   padding: 0.5rem 0.9rem; font-size: 0.85rem; color: var(--fg-muted); cursor: pointer;
 }
