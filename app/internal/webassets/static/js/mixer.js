@@ -318,27 +318,12 @@
     renderChords();
     renderGrid();
     renderAudioLane();
-    applyCompact();
-    if (!skipNotation) renderNotationLanes();
-    else positionNotationClips();
-    updatePlayhead();
-  }
-
-  // Below ~150px per bar engraved notation can't fit without glyphs
-  // colliding, so score lanes collapse to plain regions (GarageBand's
-  // zoomed-out look) until zoomed back in.
-  function isCompact() {
-    const n = N();
-    return n > 0 && (barTimes[n] - barTimes[0]) / n * pxPerSec < 150;
-  }
-  function applyCompact() {
-    const compact = isCompact();
-    for (const tr of tracks) {
-      if (tr.kind !== 'midi') continue;
-      tr.lane.classList.toggle('is-compact', compact);
-      tr.hdr.classList.toggle('is-compact', compact);
-      setRowHeight('midi' + tr.index, compact ? 58 : (tr.fullHeight || 96));
+    if (!skipNotation) renderNotationLanes(true);
+    else {
+      tracks.forEach(placeNotation);
+      positionNotationClips();
     }
+    updatePlayhead();
   }
 
   function renderRuler() {
@@ -575,10 +560,20 @@
     return s;
   }
 
-  function applyBarWidths(score) {
+  // Notation is engraved at a legible scale — never below NOTATION_MIN_PX
+  // pixels per second — and squeezed horizontally to the current zoom
+  // with a CSS transform. Zooming out (down to Fit) shows that engraving
+  // as a faithful preview at once, at the same height, instead of
+  // re-engraving cramped bars; zooming in stretches it until a sharper
+  // engraving at the new scale replaces it.
+  const NOTATION_MIN_PX = 110;
+  const notationPx = () => Math.max(pxPerSec, NOTATION_MIN_PX);
+  const mountWidth = (px) => Math.ceil(2 * PAD + timelineEnd() * px) + 'px';
+
+  function applyBarWidths(score, px) {
     const n = Math.min(N(), score.masterBars.length);
     for (let b = 0; b < n; b++) {
-      const w = Math.max(12, (barTimes[b + 1] - barTimes[b]) * pxPerSec);
+      const w = Math.max(12, (barTimes[b + 1] - barTimes[b]) * px);
       score.masterBars[b].displayWidth = w;
       for (const t of score.tracks) for (const st of t.staves) if (st.bars[b]) st.bars[b].displayWidth = w;
     }
@@ -592,12 +587,18 @@
     return false;
   }
 
-  function renderNotationLanes() {
+  // force: bar times changed (alignment), so engrave again even at the
+  // same scale.
+  function renderNotationLanes(force) {
     if (typeof alphaTab === 'undefined' || !data.alphaTex) return;
+    const target = notationPx();
     for (const tr of tracks) {
       if (tr.kind !== 'midi') continue;
       if (tr.api) {
-        applyBarWidths(tr.api.score);
+        if (!force && tr.renderedPx === target) { placeNotation(tr); continue; }
+        tr.renderedPx = target;
+        applyBarWidths(tr.api.score, target);
+        tr.mount.style.width = mountWidth(target);
         tr.api.render();
         continue;
       }
@@ -607,11 +608,13 @@
       imp.initFromString(data.alphaTex, settings);
       const score = imp.readScore();
       score.tracks.forEach((st, i) => { const p = data.tracks[i] && data.tracks[i].program; if (p >= 0) st.playbackInfo.program = p; });
-      applyBarWidths(score);
+      applyBarWidths(score, target);
+      tr.renderedPx = target;
       const wrap = document.createElement('div');
       wrap.className = 'daw-notation';
       const mount = document.createElement('div');
-      mount.style.width = contentEl.style.width;
+      mount.style.width = mountWidth(target);
+      mount.style.transformOrigin = '0 0';
       wrap.appendChild(mount);
       tr.lane.appendChild(wrap);
       tr.wrap = wrap;
@@ -636,18 +639,25 @@
     const bl = tr.api.renderer.boundsLookup;
     const sys = bl && bl.staffSystems && bl.staffSystems[0];
     if (!sys || !sys.bars.length) return;
-    const bar0x = sys.bars[0].realBounds.x;
-    const top = sys.realBounds.y;
-    const h = Math.ceil(sys.realBounds.h) + 6;
-    tr.wrap.style.left = (xOf(barTimes[0]) - bar0x) + 'px';
+    tr.bar0x = sys.bars[0].realBounds.x;
+    tr.sysRight = sys.realBounds.x + sys.realBounds.w;
+    // Heights only ever grow, so rows never jump between zoom levels.
+    tr.notationH = Math.max(tr.notationH || 0, Math.ceil(sys.realBounds.h) + 6);
     tr.wrap.style.top = '24px';
-    tr.wrap.style.height = h + 'px';
-    tr.wrap.style.width = (Math.ceil(sys.realBounds.x + sys.realBounds.w) + 4) + 'px';
-    tr.mount.style.marginTop = (3 - top) + 'px';
-    tr.fullHeight = h + 32;
-    if (!isCompact()) setRowHeight('midi' + tr.index, tr.fullHeight);
+    tr.wrap.style.height = tr.notationH + 'px';
+    tr.mount.style.marginTop = (3 - sys.realBounds.y) + 'px';
+    setRowHeight('midi' + tr.index, tr.notationH + 32);
+    placeNotation(tr);
     positionNotationClips();
     renderGrid();
+  }
+
+  function placeNotation(tr) {
+    if (tr.kind !== 'midi' || !tr.wrap || tr.bar0x === undefined) return;
+    const k = pxPerSec / tr.renderedPx;
+    tr.mount.style.transform = Math.abs(k - 1) < 1e-6 ? '' : `scaleX(${k})`;
+    tr.wrap.style.left = (xOf(barTimes[0]) - tr.bar0x * k) + 'px';
+    tr.wrap.style.width = Math.ceil(tr.sysRight * k + 4) + 'px';
   }
 
   function positionNotationClips() {
@@ -857,8 +867,7 @@
     updateZoomLabel();
     clearTimeout(zoomTimer);
     zoomTimer = setTimeout(() => {
-      for (const tr of tracks) if (tr.wrap) tr.mount.style.width = contentEl.style.width;
-      if (!isCompact()) renderNotationLanes();
+      renderNotationLanes();
     }, 250);
   }
 

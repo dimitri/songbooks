@@ -4717,9 +4717,6 @@ input.matrix-slot:hover, input.matrix-slot:focus {
    class's rule) and gets a second, mobile-only instance inside the new
    #song-stack sheet instead — this selector needs no width override any
    more, inline-flex + flex-wrap already reads fine at a sheet's width. */
-.daw-lane.is-compact .daw-notation { display: none; }
-.daw-hdr.is-compact .daw-hdr-sub { display: none; }
-.daw-hdr.is-compact .daw-hdr-body { gap: 4px; padding-top: 5px; }
 .daw-zoom input[type="range"] { width: 150px; }
 .daw-zoom .daw-btn-text { height: 24px; padding: 0 8px; }
 .daw-zoom-label { min-width: 5.5em; font-size: 11px; color: var(--daw-muted); font-variant-numeric: tabular-nums; }
