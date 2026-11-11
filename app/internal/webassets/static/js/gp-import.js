@@ -904,7 +904,15 @@
         // confirmed live against a real imported file (bars with
         // duration=4/dots=0, isFullBarRest false, in a 4/4 bar that's
         // musically just "rest here").
-        if (b.isRest) return { Rest: true, Duration: isSoleRest ? '1' : String(b.duration) + '.'.repeat(b.dots) };
+        // A tuplet (a triplet is 3 in the time of 2) keeps its ratio and a
+        // grace note takes no time: without them a bar of triplet eighths,
+        // or one with grace notes, reads as overfull.
+        const tuplet = (beat) => {
+          if (b.tupletNumerator > 1 && b.tupletDenominator > 0) { beat.TupletNum = b.tupletNumerator; beat.TupletDen = b.tupletDenominator; }
+          if (b.graceType) beat.Grace = true;
+          return beat;
+        };
+        if (b.isRest) return tuplet({ Rest: true, Duration: isSoleRest ? '1' : String(b.duration) + '.'.repeat(b.dots) });
         const notes = b.notes.map(n => ({
           MIDI: n.realValue,
           String: numStrings + 1 - n.string,
@@ -928,7 +936,7 @@
           beat.BendSemitones = maxVal * 0.5;
           if (lastVal < maxVal) beat.BendRelease = true;
         }
-        return beat;
+        return tuplet(beat);
       });
       bars.push({ Beats: beats });
     }

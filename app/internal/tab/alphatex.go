@@ -341,23 +341,43 @@ func writeBeat(b *strings.Builder, beat Beat, chordLabel string) {
 		b.WriteString(").")
 		b.WriteString(dur)
 	}
-	if dotted || chordLabel != "" {
+	writeBeatEffects(b, dotted, beat, chordLabel)
+}
+
+// writeBeatEffects writes a beat's "{...}" effect list: dotted, tuplet,
+// grace and chord label, in that order; nothing when it has none.
+func writeBeatEffects(b *strings.Builder, dotted bool, beat Beat, chordLabel string) {
+	var effects []string
+	if dotted {
+		effects = append(effects, "d")
+	}
+	if t := tupletEffect(beat); t != "" {
+		effects = append(effects, t)
+	}
+	if beat.Grace {
+		effects = append(effects, "gr")
+	}
+	if chordLabel != "" {
+		effects = append(effects, `ch "`+escapeAlphaTexString(chordLabel)+`"`)
+	}
+	if len(effects) > 0 {
 		b.WriteByte('{')
-		wrote := false
-		if dotted {
-			b.WriteString("d")
-			wrote = true
-		}
-		if chordLabel != "" {
-			if wrote {
-				b.WriteByte(' ')
-			}
-			b.WriteString(`ch "`)
-			b.WriteString(escapeAlphaTexString(chordLabel))
-			b.WriteByte('"')
-		}
+		b.WriteString(strings.Join(effects, " "))
 		b.WriteByte('}')
 	}
+}
+
+// tupletEffect is a beat's alphaTeX tuplet effect: "tu 3" for a triplet
+// (alphaTeX's own shorthand, the usual ratio implied), "tu (5 4)" when the
+// ratio needs spelling out; "" for a plain beat.
+func tupletEffect(beat Beat) string {
+	if beat.TupletNum <= 1 || beat.TupletDen <= 0 {
+		return ""
+	}
+	if beat.TupletNum == 3 && beat.TupletDen == 2 {
+		return "tu 3"
+	}
+	return fmt.Sprintf("tu (%d %d)", beat.TupletNum, beat.TupletDen)
 }
 
 // escapeAlphaTexString escapes a chord symbol for alphaTeX's own quoted
@@ -546,23 +566,7 @@ func writeDrumBeat(b *strings.Builder, beat Beat, chordLabel string) {
 		b.WriteString(").")
 		b.WriteString(dur)
 	}
-	if dotted || chordLabel != "" {
-		b.WriteByte('{')
-		wrote := false
-		if dotted {
-			b.WriteString("d")
-			wrote = true
-		}
-		if chordLabel != "" {
-			if wrote {
-				b.WriteByte(' ')
-			}
-			b.WriteString(`ch "`)
-			b.WriteString(escapeAlphaTexString(chordLabel))
-			b.WriteByte('"')
-		}
-		b.WriteByte('}')
-	}
+	writeBeatEffects(b, dotted, beat, chordLabel)
 }
 
 // splitDuration splits a LilyPond duration token ("4", "4.", "16") into
@@ -585,9 +589,7 @@ func splitDuration(d string) (dur string, dotted bool) {
 func BarBeats(bar Bar) float64 {
 	total := 0.0
 	for _, b := range bar.Beats {
-		if d, err := durationBeats(b.Duration); err == nil {
-			total += d
-		}
+		total += b.Beats()
 	}
 	return total
 }

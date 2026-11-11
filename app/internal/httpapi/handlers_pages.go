@@ -1358,8 +1358,8 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 				}
 				flags, dotted := tab.DurationGlyph(beat.Duration)
 				vb = append(vb, viewerTabBeat{Notes: notes, Rest: beat.Rest, Flags: flags, Dotted: dotted})
-				w, err := tab.DurationBeats(beat.Duration)
-				if err != nil || w <= 0 {
+				w := beat.Beats()
+				if w <= 0 {
 					w = 1
 				}
 				weights = append(weights, w)
@@ -1434,6 +1434,11 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 					clef = "F4"
 				}
 				tex := tab.ToAlphaTex(rowRiff, clef, chordLabels)
+				// alphaTab assumes 4/4: a 12/8 shuffle drawn without its own
+				// time signature reads as overfull 4/4 bars.
+				if timeNum > 0 && timeDen > 0 && (timeNum != 4 || timeDen != 4) {
+					tex = strings.Replace(tex, ".\n", fmt.Sprintf(".\n\\ts %d %d ", timeNum, timeDen), 1)
+				}
 				if line := &sections[si].Lines[li]; len(sections[si].Measures) > 0 && sections[si].Measures[0].Pickup {
 					n := len(line.Measures)
 					var systems []string
