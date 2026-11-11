@@ -338,7 +338,7 @@ func (st *Store) CanEditVariant(ctx context.Context, personID, variantID int64) 
 		if ownerCommunityID == nil {
 			return false, nil
 		}
-		return st.IsCurrentCommunityMember(ctx, *ownerCommunityID, personID)
+		return st.canViewCommunityVariant(ctx, *ownerCommunityID, variantID, personID)
 	case "setlist":
 		if ownerSetlistID == nil {
 			return false, nil
@@ -399,7 +399,7 @@ func (st *Store) CanViewVariant(ctx context.Context, personID, variantID int64) 
 		if ownerCommunityID == nil {
 			return false, nil
 		}
-		return st.IsCurrentCommunityMember(ctx, *ownerCommunityID, personID)
+		return st.canViewCommunityVariant(ctx, *ownerCommunityID, variantID, personID)
 	case "setlist":
 		if ownerSetlistID == nil {
 			return false, nil
@@ -408,6 +408,64 @@ func (st *Store) CanViewVariant(ctx context.Context, personID, variantID int64) 
 	default: // "user"
 		return ownerID != nil && *ownerID == personID, nil
 	}
+}
+
+// canViewCommunityVariant is CanViewVariant/CanEditVariant's shared
+// "community"-visibility case: plain community membership, UNLESS every
+// songbook that actually contains this variant is gated (RequiresGrant —
+// the paywall case), in which case personID also needs a grant on at
+// least one of them (or a manage-type privilege — staff can always see
+// what they administer). A variant with no songbook_entries row at all
+// (shouldn't normally happen, but CreateVariant/ImportVariant don't
+// strictly guarantee one) falls back to plain membership — there's no
+// containing songbook to gate on.
+func (st *Store) canViewCommunityVariant(ctx context.Context, communityID, variantID, personID int64) (bool, error) {
+	isMember, err := st.IsCurrentCommunityMember(ctx, communityID, personID)
+	if err != nil || !isMember {
+		return false, err
+	}
+	rows, err := st.db.Query(ctx, `
+		SELECT sb.id, sb.requires_grant
+		FROM songbook_entries se JOIN songbooks sb ON sb.id = se.songbook_id
+		WHERE se.variant_id = $1 AND sb.owner_kind = 'community' AND sb.owner_community_id = $2`,
+		variantID, communityID)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	var anyGated bool
+	var gatedIDs []int64
+	for rows.Next() {
+		var sbID int64
+		var requiresGrant bool
+		if err := rows.Scan(&sbID, &requiresGrant); err != nil {
+			return false, err
+		}
+		if !requiresGrant {
+			return true, nil // open songbook contains it — access via that one
+		}
+		anyGated = true
+		gatedIDs = append(gatedIDs, sbID)
+	}
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+	if !anyGated {
+		return true, nil // no containing songbook at all, or none gated
+	}
+	if isStaff, err := st.HasAnyCommunityManagePrivilege(ctx, communityID, personID); err != nil {
+		return false, err
+	} else if isStaff {
+		return true, nil
+	}
+	for _, sbID := range gatedIDs {
+		if granted, err := st.HasSongbookAccessGrant(ctx, sbID, personID); err != nil {
+			return false, err
+		} else if granted {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // GetVariant loads one variant's full catalog row by id (not scoped to a

@@ -27,10 +27,13 @@
 
   <div class="catalog-book-cards">
   {{range .Songbooks}}
-    <a class="catalog-book-card" href="{{if .IsDefault}}/communities/{{$.Community.ID}}/songbooks/default{{else}}/songbooks/{{.ID}}{{end}}">
-      <div class="catalog-book-card-title">{{.Name}}{{if .IsDefault}} <span class="hint">(default)</span>{{end}}</div>
-      <div class="catalog-book-card-meta">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}}</div>
-    </a>
+    <div style="position:relative;">
+      <a class="catalog-book-card" href="{{if .IsDefault}}/communities/{{$.Community.ID}}/songbooks/default{{else}}/songbooks/{{.ID}}{{end}}">
+        <div class="catalog-book-card-title">{{.Name}}{{if .IsDefault}} <span class="hint">(default)</span>{{end}}{{if .RequiresGrant}} <span class="hint" title="members need an explicit grant to access this songbook">&#128274; gated</span>{{end}}</div>
+        <div class="catalog-book-card-meta">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}}</div>
+      </a>
+      {{if $.IsStaff}}<a class="hint" href="/communities/{{$.Community.ID}}/songbooks/{{.ID}}/access" style="display:block; margin-top:0.3rem;">manage access &rarr;</a>{{end}}
+    </div>
   {{else}}
     <p class="hint">No songbooks yet.</p>
   {{end}}

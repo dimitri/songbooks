@@ -1,15 +1,15 @@
 package httpapi
 
 import (
-	"regexp"
-	"math"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
+	"math"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -2751,7 +2751,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"Title": orDefault(sg.Get("title"), "untitled"), "Artist": sg.Get("artist"),
 		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
 		"TimeNum": num, "TimeDen": den,
-		"Capo": sg.Get("capo"), "Reference": sg.Get("reference"),
+		"Capo": sg.Get("capo"), "Reference": sg.Get("reference"), "GPSource": sg.Get("gp_source"),
 		"TimeBeats":          timeSigBeats(sg.Get("time")),
 		"Sections":           sections,
 		"MapLines":           buildMapLines(sections),
@@ -2965,8 +2965,9 @@ func timeSigParts(t string) (num, den string) {
 // the song actually looks like.
 func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Text string    `json:"text"`
-		Song *jsonSong `json:"song"`
+		Text       string    `json:"text"`
+		Song       *jsonSong `json:"song"`
+		Instrument string    `json:"instrument"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -2997,7 +2998,7 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 	// buildDrumMap call handleSong itself makes.
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
 	riffs, scoreErrs := tab.LoadScores(sg)
-	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), sg.Get("swing"), "")
+	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), sg.Get("swing"), req.Instrument)
 	drumMap := buildDrumMap(sections, riffs, atoiOr(orDefault(sg.Get("tempo"), "120"), 120), 0)
 	for _, e := range scoreErrs {
 		log.Printf("preview: %v", e)
