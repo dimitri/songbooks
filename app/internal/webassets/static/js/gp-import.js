@@ -805,6 +805,21 @@
   // Both that case and an explicit repeat of the same name become "."
   // (grid's own sustain token), exactly how a hand-typed grid already
   // works.
+  // Guitar Pro's chord names, in this app's chord notation: GP writes
+  // major sevenths "7M"/"M7" and altered tensions as "/9+" or "/9#" —
+  // and this app reads any "/" as a slash chord, so "F#7/9+" would show
+  // as F#7 over a bass note "9+". A "/" followed by a note stays a bass.
+  function normalizeChordName(name) {
+    let n = String(name || '').replace(/\s+/g, '');
+    n = n.replace(/(?:7M|M7|Maj7|MAJ7)/, 'maj7');
+    n = n.replace(/\/?\(?([#+b-])?(5|9|11|13)([#+b-])?\)?/g, (m, pre, deg, post) => {
+      const alt = pre || post;
+      if (!alt) return m.startsWith('/') && /^[A-G]/.test(m.slice(1)) ? m : m;
+      return (alt === '+' || alt === '#' ? '#' : 'b') + deg;
+    });
+    return n;
+  }
+
   function extractChordGrid(track, realBarStart, barCount) {
     const staff = track.staves[0];
     const chords = staff.chords;
@@ -814,15 +829,26 @@
       const gpBarIndex = realIdx[r];
       if (gpBarIndex === undefined) break;
       const voice = staff.bars[gpBarIndex].voices[0];
-      let barChord = null;
+      // Every chord change in the bar, with where it falls (0..1).
+      const changes = [];
       if (voice && chords) {
+        const len = voice.bar.masterBar.calculateDuration() || 3840;
         for (const b of voice.beats) {
-          if (b.chordId != null && chords.has(b.chordId)) { barChord = chords.get(b.chordId).name; break; }
+          if (b.chordId == null || !chords.has(b.chordId)) continue;
+          const name = normalizeChordName(chords.get(b.chordId).name);
+          if (!changes.length || changes[changes.length - 1].name !== name) changes.push({ name, at: b.playbackStart / len });
         }
       }
-      if (barChord) {
-        tokens.push(barChord === lastChord ? '.' : barChord);
-        lastChord = barChord;
+      if (changes.length > 1) {
+        // Two chords in the bar: half each, as the grid's slots split it.
+        const first = changes[0].at > 0.01 ? (lastChord || '?') : changes[0].name;
+        const second = changes[changes.length - 1].name;
+        tokens.push(`${first === lastChord && changes[0].at > 0.01 ? '.' : first} ${second}`);
+        lastChord = second;
+      } else if (changes.length === 1) {
+        const c = changes[0].name;
+        tokens.push(c === lastChord ? '.' : c);
+        lastChord = c;
       } else if (lastChord) {
         // No chord diagram on THIS bar is the normal case, not a gap —
         // confirmed live against a real course file: a GP author only
@@ -841,6 +867,7 @@
     }
     return tokens;
   }
+
 
   // Writes a brand-new "[Song]" section from the derived chord grid —
   // for a song with no sections/chords yet (see gpimport-derive-row in

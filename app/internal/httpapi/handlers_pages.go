@@ -3050,26 +3050,58 @@ func songStartsWithPickup(sg *song.Song, si int) bool {
 	if len(sec.Measures) == 0 {
 		return false
 	}
-	if isSilentBar(sec.Measures[0].Tokens) {
-		return true
-	}
 	timeSig := orDefault(sec.Time, orDefault(sg.Get("time"), "4/4"))
 	num, den := timeSigParts(timeSig)
 	full := float64(atoiOr(num, 4)) * 4 / float64(atoiOr(den, 4))
+	// The score decides when there is one. A track playing from the first
+	// beat of a full bar makes it bar 1; one whose notes only come in late
+	// (a first bar shorter than a full one, or opening with rests over at
+	// least half of it — an anacrusis padded to a full bar) makes it a
+	// pickup, as does a first bar silent in every track under a silent
+	// grid bar (a count-in).
+	scored, late, fromStart := false, false, false
 	for _, sv := range sec.Scores {
 		riff, err := tab.ParseVoice(sv.Label, sv.Body)
 		if err != nil || len(riff.Bars) == 0 {
 			continue
 		}
+		scored = true
 		bar := riff.Bars[0]
-		rest := true
+		lead, notes := 0.0, false
 		for _, b := range bar.Beats {
 			if !b.Rest {
-				rest = false
+				notes = true
+				break
 			}
+			lead += b.Beats()
 		}
-		if !rest && tab.BarBeats(bar) < full-1e-9 {
-			return true
+		if !notes {
+			continue
+		}
+		if tab.BarBeats(bar) < full-1e-9 || lead >= full/2-1e-9 {
+			late = true
+		} else {
+			fromStart = true
+		}
+	}
+	if scored {
+		// A first bar silent in every track is a count-in only under a
+		// silent grid bar too: silence under a chord is an intro bar.
+		return !fromStart && (late || isSilentBar(sec.Measures[0].Tokens))
+	}
+	// No score: a silent first grid bar ("?", "R", N.C.) — but only in a
+	// grid that names chords somewhere; one that names none ("R" in every
+	// bar, e.g. a Guitar Pro import without chord diagrams) says nothing.
+	return isSilentBar(sec.Measures[0].Tokens) && gridNamesChords(sg)
+}
+
+// gridNamesChords: some bar of the song's chord grid names a chord.
+func gridNamesChords(sg *song.Song) bool {
+	for _, sec := range sg.Sections {
+		for _, m := range sec.Measures {
+			if len(m.Tokens) > 0 && !isSilentBar(m.Tokens) && !allSimile(m.Tokens) {
+				return true
+			}
 		}
 	}
 	return false

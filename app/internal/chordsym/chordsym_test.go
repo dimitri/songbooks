@@ -87,3 +87,16 @@ func TestTranspose(t *testing.T) {
 		}
 	}
 }
+
+func TestSplitSlashOnlyBeforeANote(t *testing.T) {
+	for sym, want := range map[string]Parts{
+		"Bb6/9":   {Root: "Bb", Quality: "6/9"},
+		"C7/G":    {Root: "C", Quality: "7", Bass: "G"},
+		"Eb6/9/G": {Root: "Eb", Quality: "6/9", Bass: "G"},
+		"A7/C#":   {Root: "A", Quality: "7", Bass: "C#"},
+	} {
+		if got := Split(sym); got != want {
+			t.Errorf("Split(%q) = %+v, want %+v", sym, got, want)
+		}
+	}
+}
