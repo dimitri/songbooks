@@ -195,7 +195,26 @@ window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
   function renderBarGrid() {
     if (!bargridEl) return;
     bargridEl.innerHTML = '';
-    if (!duration || !secondsPerBar) return;
+    if (!duration) return;
+    // A recording with per-bar sync points (a Guitar Pro import, or an
+    // auto-align) already knows where every bar is: draw exactly those,
+    // continuing past the last one at its own spacing. The tempo-derived
+    // grid below is only for recordings aligned by section markers.
+    const sync = (categories[activeCategory] && categories[activeCategory].barSyncPoints) || [];
+    if (sync.length) {
+      const times = sync.map((p) => p.timeSeconds).sort((a, b) => a - b);
+      const step = times.length > 1 ? times[times.length - 1] - times[times.length - 2] : secondsPerBar;
+      for (let t = times[times.length - 1] + step; step > 0 && t <= duration; t += step) times.push(t);
+      for (const t of times) {
+        if (t < 0 || t > duration) continue;
+        const tick = document.createElement('div');
+        tick.className = 'audio-bargrid-tick';
+        tick.style.left = `${(t / duration) * 100}%`;
+        bargridEl.appendChild(tick);
+      }
+      return;
+    }
+    if (!secondsPerBar) return;
     const offset = gridOffset();
     // Count-in bars: start enumeration from the first grid line AT OR
     // BEFORE 0, not from the anchor itself — a pickup/count-in before

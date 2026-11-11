@@ -322,23 +322,41 @@
     const duration = env.n / FPS;
     const beatSec = 60 / (song.tempo || 120);
     const N = song.barTicks.length - 1;
-    const firstFull = N > 1 && song.barTicks[1] - song.barTicks[0] < song.barTicks[2] - song.barTicks[1] ? 1 : 0;
+    // Bar 1 is the first full bar: after a pickup (which in time is a whole
+    // count-in bar with its notes at the end) that's bar index 1.
+    const firstFull = song.firstFull !== undefined ? song.firstFull : 0;
     const start = musicStart(env);
-    const countIn = detectCountIn(env, beatSec, start + 0.05);
+    // Count-in clicks can fall on every beat, every other beat, or on a
+    // compound metre's dotted beats (12/8: one click per 3 eighths): try
+    // each and keep the longest run of clicks.
+    let countIn = null;
+    for (const c of [1, 1.5, 2, 0.5, 3]) {
+      const ci = detectCountIn(env, beatSec * c, start + 0.05);
+      if (ci && (!countIn || ci.clicks > countIn.clicks)) countIn = { ...ci, per: c };
+    }
     const probeBars = Math.min(N, 12);
     const candidates = [];
     let period, t0, how;
 
     if (countIn) {
-      // Bar 1 lands on a beat of the click grid, normally the band's entry.
-      period = countIn.period;
-      const entryK = Math.round((start - countIn.phase) / period);
-      // The downbeat of bar 1 comes after the last click, never on it.
-      const lastK = Math.round((countIn.last - countIn.phase) / period);
+      // Bar 1 lands on a click of the grid after the count-in, which
+      // fills the (full-length) pickup bar along with any anacrusis notes.
+      const click = countIn.period;
+      period = click / countIn.per;
+      const anchor = firstFull;
+      const firstTick = song.onsets.length ? Math.min(...song.onsets.map((o) => o.tick)) : song.barTicks[anchor];
+      const anacrusis = firstTick < song.barTicks[anchor];
+      const entryK = Math.round((start - countIn.phase) / click);
+      // That downbeat comes after the last click, never on it.
+      const lastK = Math.round((countIn.last - countIn.phase) / click);
       let best = -1;
       for (let k = Math.max(lastK + 1, entryK - 4); k <= entryK + 4; k++) {
-        const cand = countIn.phase + k * period - (song.barTicks[firstFull] / TPQ) * period;
-        const sc = windowScore(cand, period, 0, probeBars) + (k === entryK ? 0.5 : 0);
+        const cand = countIn.phase + k * click - (song.barTicks[anchor] / TPQ) * period;
+        // The music starts on the anacrusis, or else on that downbeat (a
+        // backing band) or the score's first note (a late entry).
+        const at = (tick) => Math.abs(cand + (tick / TPQ) * period - start);
+        const entry = anacrusis ? at(firstTick) : Math.min(at(song.barTicks[anchor]), at(firstTick));
+        const sc = windowScore(cand, period, 0, probeBars) + (entry < click / 2 ? 0.5 : 0);
         if (sc > best) { best = sc; t0 = cand; }
       }
       how = `count-in of ${countIn.clicks} clicks`;
@@ -393,6 +411,31 @@
         p = Math.max(period * 0.96, Math.min(period * 1.04, (times[b] - times[b - back]) / span));
       }
       times[b + 1] = times[b] + beats * p;
+    }
+    // Studio and Guitar Pro recordings keep a steady tempo, and the tracker
+    // can creep after a score that doesn't match the recording note for
+    // note: keep the tracked bars only when they fit clearly better than a
+    // steady grid (with its period fine-tuned over the whole song).
+    let steadyP = period, steadyS = -1;
+    for (let f = -0.015; f <= 0.0151; f += 0.001) {
+      const sc = windowScore(t0, period * (1 + f), 0, N);
+      if (sc > steadyS) { steadyS = sc; steadyP = period * (1 + f); }
+    }
+    const tracked = (() => {
+      let s = 0, c = 0;
+      for (let b = 0; b < N; b++) {
+        if (times[b + 1] > duration) break;
+        const beats = (song.barTicks[b + 1] - song.barTicks[b]) / TPQ;
+        const pb = (times[b + 1] - times[b]) / beats;
+        s += patternScore(env, song, times[b] - (song.barTicks[b] / TPQ) * pb, pb, b, b + 1);
+        c++;
+      }
+      return c ? s / c : 0;
+    })();
+    const steadyPattern = patternScore(env, song, t0, steadyP, 0, N);
+    if (tracked < steadyPattern * 1.25) {
+      for (let b = 0; b <= N; b++) times[b] = t0 + (song.barTicks[b] / TPQ) * steadyP;
+      period = steadyP;
     }
     candidates.sort((x, y) => y.score - x.score);
     return { barTimes: times, period, bpm: 60 / period, countIn, musicStart: start, how, candidates: candidates.slice(0, 8) };

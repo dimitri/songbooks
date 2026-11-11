@@ -156,6 +156,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /api/songs/{id}/structure", s.requireVariantRole("viewer", s.handleGetSongStructure))
 	mux.HandleFunc("GET /api/songs/{id}/drummer-rows", s.requireVariantRole("viewer", s.handleGetDrummerRows))
 	mux.HandleFunc("GET /api/songs/{id}/mixer", s.requireVariantRole("viewer", s.handleGetSongMixer))
+	mux.HandleFunc("GET /api/songs/{id}/mixer/prefs", s.requireVariantRole("viewer", s.handleGetMixerPrefs))
+	mux.HandleFunc("PUT /api/songs/{id}/mixer/prefs", s.requireVariantRole("viewer", s.handlePutMixerPrefs))
 	mux.HandleFunc("PUT /api/songs/{id}/raw", s.requireVariantRole("editor", s.handlePutRaw))
 	mux.HandleFunc("DELETE /api/songs/{id}", s.requireVariantRole("editor", s.handleDeleteSong))
 	mux.HandleFunc("PUT /api/songs/{id}/redo", s.requireVariantRole("editor", s.handleRedoSong))

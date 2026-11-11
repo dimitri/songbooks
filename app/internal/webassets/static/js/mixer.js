@@ -94,20 +94,18 @@
   const beatsPerBar = () => (data ? data.timeNum : 4);
   const nominalBarSec = () => (data ? data.timeNum * (4 / data.timeDen) * 60 / (data.tempo || 120) : 2);
   const ticksPerBar = () => (data ? 960 * 4 * data.timeNum / data.timeDen : 3840);
-  // A pickup (anacrusis) makes bar 0 shorter than the others: its length
-  // in quarter-note beats comes from the score (handleGetSongMixer).
+  // A pickup (anacrusis) is, in time, a whole count-in bar with its notes
+  // on the last beats — Guitar Pro's own convention, which its bar sync
+  // points follow — so every bar keeps the same length here (the server
+  // pads the pickup with leading rests); it only changes the numbering:
+  // full bars count from 1, the pickup is bar 0 and unlabeled.
   const pickup = () => (data && data.pickupBeats > 0 ? data.pickupBeats : 0);
-  const barNomSec = (b) => (b === 0 && pickup() ? pickup() * 60 / (data.tempo || 120) : nominalBarSec());
-  const beatsIn = (b) => (b === 0 && pickup() ? Math.max(1, Math.round(pickup())) : beatsPerBar());
-  const barLabel = (b) => String(pickup() ? b : b + 1); // full bars count from 1, a pickup is bar 0
-  const barStartTick = (b) => (b <= 0 ? 0 : (pickup() ? pickup() * 960 + (b - 1) * ticksPerBar() : b * ticksPerBar()));
-  const barLenTicks = (b) => (b === 0 && pickup() ? pickup() * 960 : ticksPerBar());
-  const tickAtBar = (pos) => { const i = Math.floor(pos); return barStartTick(i) + (pos - i) * barLenTicks(i); };
-  function barAtTick(tick) {
-    if (pickup() && tick < pickup() * 960) return tick / (pickup() * 960);
-    const rest = pickup() ? tick - pickup() * 960 : tick;
-    return (pickup() ? 1 : 0) + rest / ticksPerBar();
-  }
+  const barNomSec = () => nominalBarSec();
+  const beatsIn = () => beatsPerBar();
+  const barLabel = (b) => String(pickup() ? b : b + 1);
+  const barStartTick = (b) => Math.max(0, b) * ticksPerBar();
+  const tickAtBar = (pos) => pos * ticksPerBar();
+  const barAtTick = (tick) => tick / ticksPerBar();
   const xOf = (t) => PAD + t * pxPerSec;
   const tOf = (px) => (px - PAD) / pxPerSec;
   const hasAudio = () => !!(audio && audioDuration);
@@ -242,11 +240,63 @@
     const hdr = tr.hdr;
     const mute = hdr.querySelector('.is-mute');
     const solo = hdr.querySelector('.is-solo');
-    mute.onclick = () => { tr.muted = !tr.muted; mute.setAttribute('aria-pressed', tr.muted); applyMix(); };
-    solo.onclick = () => { tr.solo = !tr.solo; solo.setAttribute('aria-pressed', tr.solo); applyMix(); };
+    mute.onclick = () => { tr.muted = !tr.muted; syncTrackControls(tr); applyMix(); savePrefs(); };
+    solo.onclick = () => { tr.solo = !tr.solo; syncTrackControls(tr); applyMix(); savePrefs(); };
     const vol = hdr.querySelector('.daw-vol');
-    const lbl = hdr.querySelector('.daw-vol-label');
-    vol.oninput = () => { tr.volume = Number(vol.value); lbl.textContent = Math.round(tr.volume * 100) + '%'; applyMix(); };
+    vol.oninput = () => { tr.volume = Number(vol.value); syncTrackControls(tr); applyMix(); savePrefs(); };
+  }
+
+  function syncTrackControls(tr) {
+    tr.hdr.querySelector('.is-mute').setAttribute('aria-pressed', tr.muted);
+    tr.hdr.querySelector('.is-solo').setAttribute('aria-pressed', tr.solo);
+    tr.hdr.querySelector('.daw-vol').value = tr.volume;
+    tr.hdr.querySelector('.daw-vol-label').textContent = Math.round(tr.volume * 100) + '%';
+  }
+
+  // ---- Personal preferences ------------------------------------------------
+  // Each person's own mix for this song — volume, mute and solo per track
+  // (by name), zoom, speed, loop — saved on the server as they change
+  // (GET/PUT /api/songs/{id}/mixer/prefs) and restored on the next visit.
+  let prefs = {};
+  let prefsTimer = null;
+
+  async function loadPrefs() {
+    try {
+      const res = await fetch(`/api/songs/${variantId}/mixer/prefs`);
+      prefs = res.ok ? await res.json() : {};
+    } catch (e) {
+      prefs = {};
+    }
+  }
+
+  function applyTrackPrefs() {
+    const saved = (prefs && prefs.tracks) || {};
+    for (const tr of tracks) {
+      const p = saved[tr.name];
+      if (!p) continue;
+      const max = tr.kind === 'audio' ? 1 : 2;
+      if (typeof p.volume === 'number') tr.volume = Math.max(0, Math.min(max, p.volume));
+      tr.muted = !!p.mute;
+      tr.solo = !!p.solo;
+      syncTrackControls(tr);
+    }
+    if (typeof prefs.speed === 'number' && $('daw-speed').querySelector(`option[value="${prefs.speed}"]`)) {
+      speed = prefs.speed;
+      $('daw-speed').value = String(speed);
+    }
+    if (prefs.loop && !loop) toggleLoop(true);
+    applyMix();
+  }
+
+  function savePrefs() {
+    if (!built) return;
+    clearTimeout(prefsTimer);
+    prefsTimer = setTimeout(() => {
+      const out = { zoom: Math.round(pxPerSec * 10) / 10, speed, loop, tracks: {} };
+      for (const tr of tracks) out.tracks[tr.name] = { volume: tr.volume, mute: tr.muted, solo: tr.solo };
+      prefs = out;
+      fetch(`/api/songs/${variantId}/mixer/prefs`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) }).catch(() => {});
+    }, 600);
   }
 
   function escapeHTML(s) {
@@ -567,7 +617,15 @@
     s.player.enablePlayer = isPlayer;
     s.player.enableCursor = false;
     s.player.scrollMode = alphaTab.ScrollMode.Off;
-    if (isPlayer) s.player.soundFont = '/static/js/vendor/alphatab/soundfont/sonivox.sf2';
+    if (isPlayer) {
+      s.player.soundFont = '/static/js/vendor/alphatab/soundfont/sonivox.sf2';
+      // alphaTab's default output is an AudioWorklet loaded from its own
+      // script URL; that fetch fails for this vendored bundle ("An unknown
+      // error occurred when fetching the script"), leaving the synth's
+      // clock running with no sound at all. The script-processor output
+      // runs on the page itself and needs no extra file.
+      s.player.outputMode = alphaTab.PlayerOutputMode.WebAudioScriptProcessor;
+    }
     return s;
   }
 
@@ -704,8 +762,7 @@
     else if (b >= N()) lcdBar.textContent = 'end';
     else {
       const bar = Math.floor(b);
-      const beat = Math.floor((b - bar) * beatsIn(bar)) + 1 + (bar === 0 && pickup() ? beatsPerBar() - beatsIn(0) : 0);
-      lcdBar.textContent = `${barLabel(bar)}.${beat}`;
+      lcdBar.textContent = `${barLabel(bar)}.${Math.floor((b - bar) * beatsPerBar()) + 1}`;
     }
     lcdTime.textContent = fmtTime(position);
   }
@@ -818,17 +875,19 @@
     seek(position > barTimes[0] + 0.5 ? barTimes[0] : 0);
     followPlayhead();
   });
-  $('daw-loop').addEventListener('click', toggleLoop);
-  function toggleLoop() {
+  $('daw-loop').addEventListener('click', () => toggleLoop());
+  function toggleLoop(fromPrefs) {
     loop = !loop;
     $('daw-loop').setAttribute('aria-pressed', loop);
     dawEl.classList.toggle('is-looping', loop);
     renderRuler();
+    if (fromPrefs !== true) savePrefs();
   }
   $('daw-speed').addEventListener('change', (e) => {
     speed = Number(e.target.value) || 1;
     if (audio) audio.playbackRate = speed;
     if (playerApi && !hasAudio()) playerApi.playbackSpeed = speed;
+    savePrefs();
   });
 
   function wireLaneSeeking() {
@@ -880,6 +939,7 @@
     scrollEl.scrollLeft = Math.max(0, xOf(anchorT) - anchorPx);
     drawWave();
     updateZoomLabel();
+    savePrefs();
     clearTimeout(zoomTimer);
     zoomTimer = setTimeout(() => {
       renderNotationLanes();
@@ -1080,7 +1140,7 @@
     }
     const barChords = [];
     for (const sec of data.sections) sec.chords.forEach((c, i) => { barChords[sec.startBar + i] = c || []; });
-    return { tempo: data.tempo || 120, barTicks, onsets, barChords };
+    return { tempo: data.tempo || 120, barTicks, onsets, barChords, firstFull: pickup() ? 1 : 0 };
   }
 
   async function autoAlign() {
@@ -1229,6 +1289,7 @@
     await loadAudio(cat);
     computeBarTimes();
     build();
+    applyTrackPrefs();
   }
 
   function pickReference() {
@@ -1244,7 +1305,7 @@
   // track's real instrument, which the score riffs don't store, so the
   // server's guess from the track name is only the fallback.
   async function applyGPInstruments() {
-    if (typeof alphaTab === 'undefined' || !data.tracks.length) return;
+    if (typeof alphaTab === 'undefined' || !data.tracks.length || !data.hasGPFile) return;
     try {
       const res = await fetch(`/song/${variantId}/gp-file`);
       if (!res.ok) return;
@@ -1265,14 +1326,16 @@
         fetch(`/api/songs/${variantId}/audio`).then((r) => (r.ok ? r.json() : { categories: [] })),
       ]);
       data = mx;
-      await applyGPInstruments();
+      await Promise.all([applyGPInstruments(), loadPrefs()]);
       audioCats = {};
       (au.categories || []).forEach((c) => { audioCats[c.category] = c; });
       await loadAudio(pickReference());
       computeBarTimes();
       const [zlo, zhi] = zoomBounds();
+      if (typeof prefs.zoom === 'number' && prefs.zoom > 0) pxPerSec = prefs.zoom;
       pxPerSec = Math.max(zlo, Math.min(zhi, pxPerSec));
       build();
+      applyTrackPrefs();
       zoomInput.value = sliderFor(pxPerSec);
       updateZoomLabel();
       if (hasAudio() && barTimes[0] > 3) scrollEl.scrollLeft = Math.max(0, xOf(barTimes[0]) - 80);

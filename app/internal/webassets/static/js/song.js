@@ -384,7 +384,7 @@ const ICONS = {
           // test section. Only fall back to the line's own bar count when
           // it's genuinely short; a full line (actualBarCount === cap)
           // keeps rendering at exactly the declared "bars:" hint, unchanged.
-          line.style.setProperty('--cap', String(actualBarCount < cap ? actualBarCount : cap));
+          line.style.setProperty('--cap', String(Math.max(1, (actualBarCount < cap ? actualBarCount : cap) - pickup)));
           newLines.push(line);
           continue;
         }
@@ -424,7 +424,11 @@ const ICONS = {
           i += size;
           const line = document.createElement('div');
           line.className = 'staff-line';
-          line.style.setProperty('--cap', String(chunk.length < size ? chunk.length : size));
+          // --cap counts the row's regular bars: a pickup has its own
+          // narrow width (.bar-pickup, app.css), so the four bars next to
+          // it stay as wide as every other row's.
+          const regular = chunk.length - (row === 0 ? pickup : 0);
+          line.style.setProperty('--cap', String(regular < effUseCap ? Math.max(1, regular) : effUseCap));
           if (lineBarWpx) line.style.setProperty('--bar-w', lineBarWpx + 'px');
           if (row === 0 && clefEl) line.appendChild(clefEl.cloneNode(true));
           for (const bar of chunk) line.appendChild(bar.cloneNode(true));
@@ -1130,8 +1134,7 @@ const ICONS = {
   // or any other param already on the URL.
   document.getElementById('instrument-picker')?.addEventListener('change', e => {
     const url = new URL(location.href);
-    if (e.target.value) url.searchParams.set('instrument', e.target.value);
-    else url.searchParams.delete('instrument');
+    url.searchParams.set('instrument', e.target.value || 'chords');
     location.href = url.toString();
   });
 

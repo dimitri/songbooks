@@ -145,19 +145,14 @@ func gmProgramFor(name string, numStrings int) int {
 // alphaTab's player can play them on a single clock (the Mixer view).
 // Every track must have the same bar count. No multiBarRest anywhere:
 // the Mixer gives every bar its own fixed width to line notation up with
-// the reference recording, so bars must never be merged. pickup marks
-// bar 0 as an anacrusis (alphaTeX "\ac"), so alphaTab plays it at its
-// written length instead of a full bar.
-func ToAlphaTexMulti(tracks []NamedRiff, tempo, timeNum, timeDen int, pickup bool) (tex string, meta []MixerTrack) {
+// the reference recording, so bars must never be merged.
+func ToAlphaTexMulti(tracks []NamedRiff, tempo, timeNum, timeDen int) (tex string, meta []MixerTrack) {
 	if tempo <= 0 {
 		tempo = 120
 	}
 	ts := ""
 	if timeNum > 0 && timeDen > 0 && !(timeNum == 4 && timeDen == 4) {
 		ts = fmt.Sprintf(`\ts %d %d `, timeNum, timeDen)
-	}
-	if pickup {
-		ts += `\ac `
 	}
 	var b strings.Builder
 	b.WriteString(`\tempo `)

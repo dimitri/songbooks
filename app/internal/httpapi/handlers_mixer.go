@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -79,8 +81,11 @@ func (s *Server) handleGetSongMixer(w http.ResponseWriter, r *http.Request) {
 		"totalBars": totalBars, "sections": outSections, "tracks": []mixerTrackJSON{},
 		"pickupBeats": pickup,
 	}
+	if _, err := s.store.GetSongGPSourceFileMeta(r.Context(), variantID); err == nil {
+		resp["hasGPFile"] = true
+	}
 	if len(tracks) > 0 {
-		tex, meta := tab.ToAlphaTexMulti(tracks, tempo, timeNum, timeDen, pickup > 0)
+		tex, meta := tab.ToAlphaTexMulti(tracks, tempo, timeNum, timeDen)
 		out := make([]mixerTrackJSON, len(meta))
 		for i, m := range meta {
 			out[i] = mixerTrackJSON{Name: m.Name, Drums: m.Drums, Program: m.Program}
@@ -127,7 +132,7 @@ func writtenChords(sec *viewerSection) [][]mixerChordJSON {
 		var bar []mixerChordJSON
 		if !m.IsRest && len(m.Beats) > 0 {
 			for bi, beat := range m.Beats {
-				if beat.IsTie || strings.TrimSpace(beat.Text) == "" {
+				if txt := strings.TrimSpace(beat.Text); beat.IsTie || txt == "" || txt == "?" {
 					continue
 				}
 				bar = append(bar, mixerChordJSON{Pos: float64(bi) / float64(len(m.Beats)), Name: chordsym.Glyphs(beat.Text)})
@@ -264,8 +269,14 @@ var labelUnescaper = strings.NewReplacer(`\&`, "&", `\%`, "%", `\#`, "#", `\_`, 
 // pickupBeats detects a pickup (anacrusis) bar: when every track whose
 // first bar has notes writes it shorter than a full bar — a Guitar Pro
 // import keeps the file's own short first bar — the song starts with a
-// pickup of that many quarter-note beats. Tracks with only rests there
-// get a rest of the same length, so all tracks agree. 0 means none.
+// pickup of that many quarter-note beats (0 means none).
+//
+// In time, the pickup bar is a FULL bar with its notes at the end — the
+// convention Guitar Pro's own sync points use (its bar 1 starts one whole
+// bar after bar 0, whatever the pickup's written length) — so bar 0 of
+// every track is padded with leading rests to a full bar here: playback,
+// bar widths and alignment then all count whole bars, and the notes land
+// on the last beats of the count-in bar where they belong.
 func pickupBeats(tracks []tab.NamedRiff, num, den int) float64 {
 	full := float64(num) * 4 / float64(den)
 	pickup := 0.0
@@ -285,11 +296,63 @@ func pickupBeats(tracks []tab.NamedRiff, num, den int) float64 {
 		return 0
 	}
 	for _, t := range tracks {
-		if len(t.Riff.Bars) > 0 && isRestBar(t.Riff.Bars[0]) {
-			t.Riff.Bars[0] = tab.Bar{Beats: tab.RestBeats(pickup)}
+		if len(t.Riff.Bars) == 0 {
+			continue
 		}
+		if isRestBar(t.Riff.Bars[0]) {
+			t.Riff.Bars[0] = restBar(num, den)
+			continue
+		}
+		short := full - tab.BarBeats(t.Riff.Bars[0])
+		t.Riff.Bars[0] = tab.Bar{Beats: append(tab.RestBeats(short), t.Riff.Bars[0].Beats...)}
 	}
 	return pickup
+}
+
+// maxMixerPrefs bounds a person's saved Mixer settings for one song: a few
+// numbers per track, so a few KB is generous.
+const maxMixerPrefs = 16 << 10
+
+// handleGetMixerPrefs is GET /api/songs/{id}/mixer/prefs — the logged-in
+// person's own Mixer settings for this song ({} when none yet).
+func (s *Server) handleGetMixerPrefs(w http.ResponseWriter, r *http.Request) {
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	prefs, err := s.store.GetMixerPrefs(r.Context(), actorID(r), variantID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(prefs)
+}
+
+// handlePutMixerPrefs is PUT /api/songs/{id}/mixer/prefs — replaces them;
+// the body must be a JSON object (its shape is the client's own).
+func (s *Server) handlePutMixerPrefs(w http.ResponseWriter, r *http.Request) {
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxMixerPrefs+1))
+	if err != nil || len(body) > maxMixerPrefs {
+		httpError(w, http.StatusRequestEntityTooLarge, "prefs too large")
+		return
+	}
+	var obj map[string]any
+	if err := json.Unmarshal(body, &obj); err != nil {
+		httpError(w, http.StatusBadRequest, "prefs must be a JSON object")
+		return
+	}
+	if err := s.store.SetMixerPrefs(r.Context(), actorID(r), variantID, body); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func isRestBar(b tab.Bar) bool {

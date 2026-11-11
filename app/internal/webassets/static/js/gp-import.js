@@ -277,56 +277,74 @@
   // this a file's last bar could never be included in any section's
   // count (confirmed live: a 13-real-bar file could only ever reach 12
   // mapped bars).
+  // Positions are tracked in quarter beats rather than bar indexes: a GP
+  // sync point can sit part-way through a bar (its ratioPosition — e.g.
+  // ¾ of the way into bar 7 in Florent Passamonti's BB Box lesson), and an
+  // anacrusis first bar lasts only as long as its notes, so counting it
+  // as a whole bar pushes every later bar a pickup-length late.
+  function barBeats(mb) {
+    // A free-time bar (mb.isFreeTime — a rubato intro/outro with no
+    // fixed tempo, confirmed present in a real file this session)
+    // has no well-defined duration to estimate from time signature
+    // and tempo alone; a 0-length guess would stack several of them
+    // at the same x position on the timeline, so fall back to one
+    // nominal 4-beat bar's worth of time instead — still wrong, but
+    // spread out and draggable rather than invisible.
+    if (mb.isFreeTime) return 4;
+    if (mb.isAnacrusis && mb.calculateDuration) return mb.calculateDuration() / 960 || 4;
+    return (mb.timeSignatureNumerator || 4) * (4 / (mb.timeSignatureDenominator || 4)) || 4;
+  }
+
   function buildBarTimes() {
-    const nominal = new Array(realIdx.length + 1).fill(0);
+    const n = realIdx.length;
+    const beatAt = new Array(n + 1).fill(0);  // real-bar-position -> quarter beats from the start
+    const nominal = new Array(n + 1).fill(0); // ... -> seconds at the file's own tempo map
+    const secPerBeat = [];
     let tempo = score.tempo || 120;
-    let t = 0;
-    for (let pos = 0; pos < realIdx.length; pos++) {
+    for (let pos = 0; pos < n; pos++) {
       const mb = score.masterBars[realIdx[pos]];
       if (mb.tempoAutomations && mb.tempoAutomations.length) tempo = mb.tempoAutomations[0].value || tempo;
-      nominal[pos] = t;
-      // A free-time bar (mb.isFreeTime — a rubato intro/outro with no
-      // fixed tempo, confirmed present in a real file this session)
-      // has no well-defined duration to estimate from time signature
-      // and tempo alone; a 0-length guess would stack several of them
-      // at the same x position on the timeline, so fall back to one
-      // nominal 4-beat bar's worth of time instead — still wrong, but
-      // spread out and draggable rather than invisible.
-      const beats = mb.isFreeTime ? 4 : (mb.timeSignatureNumerator || 4) * (4 / (mb.timeSignatureDenominator || 4));
-      t += (beats || 4) * 60 / tempo;
+      secPerBeat[pos] = 60 / tempo;
+      beatAt[pos + 1] = beatAt[pos] + barBeats(mb);
+      nominal[pos + 1] = nominal[pos] + barBeats(mb) * secPerBeat[pos];
     }
-    nominal[realIdx.length] = t;
+    const nominalAt = (beat) => {
+      let pos = 0;
+      while (pos < n - 1 && beatAt[pos + 1] <= beat) pos++;
+      return nominal[pos] + (beat - beatAt[pos]) * (secPerBeat[pos] || 0.5);
+    };
 
-    const known = []; // [{pos, t}]
+    // Every sync point of every pass through a repeated bar: GP numbers
+    // the passes (barOccurence), realIdx lists the bar once per pass.
+    const known = []; // [{beat, t}]
+    const seen = new Map();
     syncedPositions = new Set();
     realIdx.forEach((gpBarIdx, pos) => {
-      const sp = score.masterBars[gpBarIdx].syncPoints && score.masterBars[gpBarIdx].syncPoints[0];
-      if (sp) { known.push({ pos, t: sp.syncPointValue.millisecondOffset / 1000 }); syncedPositions.add(pos); }
+      const occ = seen.get(gpBarIdx) || 0;
+      seen.set(gpBarIdx, occ + 1);
+      for (const sp of score.masterBars[gpBarIdx].syncPoints || []) {
+        if ((sp.syncPointValue.barOccurence || 0) !== occ) continue;
+        const ratio = sp.ratioPosition || 0;
+        known.push({ beat: beatAt[pos] + ratio * (beatAt[pos + 1] - beatAt[pos]), t: sp.syncPointValue.millisecondOffset / 1000 });
+        if (ratio === 0) syncedPositions.add(pos);
+      }
     });
+    known.sort((a, b) => a.beat - b.beat);
     if (known.length === 0) return nominal;
 
-    const times = nominal.slice();
-    if (known.length === 1) {
-      const offset = known[0].t - nominal[known[0].pos];
-      for (let pos = 0; pos <= realIdx.length; pos++) times[pos] = nominal[pos] + offset;
-      return times;
-    }
-    for (let i = 0; i < known.length - 1; i++) {
-      const a = known[i], b = known[i + 1];
-      for (let pos = a.pos; pos <= b.pos; pos++) {
-        const frac = b.pos > a.pos ? (pos - a.pos) / (b.pos - a.pos) : 0;
-        times[pos] = a.t + frac * (b.t - a.t);
-      }
-    }
-    // Before the first / after the last known point: shift the nominal
-    // timeline's own shape so it passes exactly through that point,
+    // Between two sync points GP plays at a steady tempo, so bars are
+    // linear in beats there; before the first / after the last, shift the
+    // nominal timeline's own shape so it passes exactly through that point
     // rather than extrapolating a single borrowed interval's rate.
-    const offsetStart = known[0].t - nominal[known[0].pos];
-    for (let pos = 0; pos < known[0].pos; pos++) times[pos] = nominal[pos] + offsetStart;
-    const lastK = known[known.length - 1];
-    const offsetEnd = lastK.t - nominal[lastK.pos];
-    for (let pos = lastK.pos + 1; pos <= realIdx.length; pos++) times[pos] = nominal[pos] + offsetEnd;
-    return times;
+    const first = known[0], last = known[known.length - 1];
+    return beatAt.map((beat) => {
+      if (beat <= first.beat) return nominalAt(beat) + first.t - nominalAt(first.beat);
+      if (beat >= last.beat) return nominalAt(beat) + last.t - nominalAt(last.beat);
+      let i = 0;
+      while (known[i + 1].beat < beat) i++;
+      const a = known[i], b = known[i + 1];
+      return b.beat > a.beat ? a.t + ((beat - a.beat) / (b.beat - a.beat)) * (b.t - a.t) : a.t;
+    });
   }
 
   function nearestBarForTime(t) {
@@ -975,7 +993,17 @@
     const points = [];
     for (let pos = boundaries[0]; pos < realIdx.length; pos++) {
       const ourBar = pos - boundaries[0];
-      points.push({ barIndex: ourBar, timeSeconds: barTimes[pos] });
+      let t = barTimes[pos];
+      // Songbooks times a pickup as a whole bar with its notes at the end
+      // (the Mixer pads it with leading rests), so bar 0 starts a full
+      // bar before bar 1, not where the anacrusis notes start.
+      const mb = score.masterBars[realIdx[pos]];
+      if (mb.isAnacrusis && barTimes[pos + 1] != null) {
+        const full = (mb.timeSignatureNumerator || 4) * (4 / (mb.timeSignatureDenominator || 4));
+        const short = barBeats(mb);
+        if (short > 0 && short < full) t = barTimes[pos + 1] - (barTimes[pos + 1] - t) * (full / short);
+      }
+      points.push({ barIndex: ourBar, timeSeconds: t });
     }
     if (points.length) {
       const spRes = await fetch(`/api/songs/${variantId}/audio/gp/sync-points`, {

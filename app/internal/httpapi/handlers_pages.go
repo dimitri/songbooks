@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"regexp"
+	"math"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -912,6 +914,62 @@ func pickRiff(tracks []tab.NamedRiff, want string) *tab.Riff {
 // option list (#instrument-picker, play.html). Sorted for a stable
 // order: scoreTracks is keyed by section index and Go map iteration is
 // randomized, so "first seen" isn't a meaningful order here anyway.
+// mostInterestingInstrument picks, among a song's melodic score tracks,
+// the one a reader most likely wants to see by default: the most varied
+// line (distinct pitches weigh most, then how many notes it plays), with
+// a clear preference for tracks named as the lead part (solo, lead,
+// melody, theme, vocal) and against accompaniment (rhythm, comping).
+// "" when the song has no melodic track.
+func mostInterestingInstrument(scoreTracks map[int][]tab.NamedRiff) string {
+	type stat struct {
+		events  int
+		pitches map[int]bool
+	}
+	stats := map[string]*stat{}
+	for _, tracks := range scoreTracks {
+		for _, t := range tracks {
+			if t.Riff.Drums || t.Name == "" {
+				continue
+			}
+			st := stats[t.Name]
+			if st == nil {
+				st = &stat{pitches: map[int]bool{}}
+				stats[t.Name] = st
+			}
+			for _, bar := range t.Riff.Bars {
+				for _, beat := range bar.Beats {
+					if beat.Rest || len(beat.Notes) == 0 {
+						continue
+					}
+					st.events++
+					for _, n := range beat.Notes {
+						st.pitches[n.MIDI*100+n.String*10+n.Fret] = true
+					}
+				}
+			}
+		}
+	}
+	lead := regexp.MustCompile(`(?i)solo|lead|melod|th[eè]me|chant|voix|vocal|guitar|guitare`)
+	accomp := regexp.MustCompile(`(?i)rythm|rhythm|comp|accomp|bass|basse`)
+	best, bestScore := "", -1.0
+	for name, st := range stats {
+		if st.events == 0 {
+			continue
+		}
+		score := 2*float64(len(st.pitches)) + math.Log1p(float64(st.events))
+		if lead.MatchString(name) {
+			score += 20
+		}
+		if accomp.MatchString(name) {
+			score -= 10
+		}
+		if score > bestScore || (score == bestScore && name < best) {
+			best, bestScore = name, score
+		}
+	}
+	return best
+}
+
 func collectInstrumentNames(scoreTracks map[int][]tab.NamedRiff) []string {
 	seen := map[string]bool{}
 	var out []string
@@ -2247,6 +2305,11 @@ func buildSections(sg *song.Song) []viewerSection {
 			pickupSeen = true
 			if songStartsWithPickup(sg, si) {
 				vs.Measures[0].Pickup = true
+				// A chordless count-in bar ("?", ".") reads as what it is in
+				// print: a whole-bar rest, not an unknown chord.
+				if isSilentBar(sec.Measures[0].Tokens) {
+					vs.Measures[0].IsRest = true
+				}
 				if len(barsPerLine) == 0 {
 					barsPerLine = []int{9, 8} // the pickup + the default 8, then 8s
 				}
@@ -2643,6 +2706,13 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
 	riffs, scoreErrs := tab.LoadScores(sg)
 	instrument := r.URL.Query().Get("instrument")
+	// A song with no lyrics has nothing for a plain chord chart to add
+	// over the score itself, so it opens on its most interesting
+	// instrument (e.g. Sarbacane's Solo rather than its Rythmique);
+	// ?instrument=chords still asks for the chords explicitly.
+	if instrument == "" && !anySectionHasLyrics(sections) {
+		instrument = mostInterestingInstrument(riffs)
+	}
 	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), instrument)
 	drumMap := buildDrumMap(sections, riffs, atoiOr(orDefault(sg.Get("tempo"), "120"), 120), 0)
 	for _, e := range scoreErrs {
@@ -2955,15 +3025,7 @@ func songStartsWithPickup(sg *song.Song, si int) bool {
 	if len(sec.Measures) == 0 {
 		return false
 	}
-	silent := len(sec.Measures[0].Tokens) > 0
-	for _, t := range sec.Measures[0].Tokens {
-		switch strings.TrimSpace(t) {
-		case "?", ".", "R", "N.C.", "NC":
-		default:
-			silent = false
-		}
-	}
-	if silent {
+	if isSilentBar(sec.Measures[0].Tokens) {
 		return true
 	}
 	timeSig := orDefault(sec.Time, orDefault(sg.Get("time"), "4/4"))
@@ -2986,4 +3048,20 @@ func songStartsWithPickup(sg *song.Song, si int) bool {
 		}
 	}
 	return false
+}
+
+// isSilentBar: a grid bar that names no chord at all — "?" (unknown), "."
+// (nothing new), "R" (rest) or N.C.
+func isSilentBar(tokens []string) bool {
+	if len(tokens) == 0 {
+		return false
+	}
+	for _, t := range tokens {
+		switch strings.TrimSpace(t) {
+		case "?", ".", "R", "N.C.", "NC":
+		default:
+			return false
+		}
+	}
+	return true
 }

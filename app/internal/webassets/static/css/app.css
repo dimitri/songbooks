@@ -4720,3 +4720,13 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .daw-zoom input[type="range"] { width: 150px; }
 .daw-zoom .daw-btn-text { height: 24px; padding: 0 8px; }
 .daw-zoom-label { min-width: 5.5em; font-size: 11px; color: var(--daw-muted); font-variant-numeric: tabular-nums; }
+
+/* A pickup / count-in bar (.bar-pickup, song.js's reflow keeps it in the
+   first row on top of that row's usual bars): a narrow cell holding a
+   whole-bar rest, with the row's regular bars sharing what's left so they
+   stay as wide as the rows below. */
+/* !important: the per-mode #sheet[data-render-mode=…] .bar rules (an ID
+   selector) would otherwise win over these, and they apply in every mode. */
+.staff-line > .bar.bar-pickup { flex: 0 0 3.4em !important; min-width: 3.4em; padding: 0 0.3em; }
+.staff-line:has(> .bar-pickup) > .bar:not(.bar-pickup) { flex-basis: calc((100% - 3.4em) / var(--cap, 4)) !important; }
+.staff-line:has(> .staff-timesig-cell):has(> .bar-pickup) > .bar:not(.bar-pickup) { flex-basis: calc((100% - 5.9em) / var(--cap, 4)) !important; }

@@ -627,7 +627,7 @@
      at all — nothing to pick. */}}
 {{if .Instruments}}
 <select class="instrument-picker" id="instrument-picker" title="which instrument's notation to show">
-  <option value=""{{if not .SelectedInstrument}} selected{{end}}>Chords</option>
+  <option value="chords"{{if or (not .SelectedInstrument) (eq .SelectedInstrument "chords")}} selected{{end}}>Chords</option>
   {{range .Instruments}}
   <option value="{{.}}"{{if eq . $.SelectedInstrument}} selected{{end}}>{{.}}</option>
   {{end}}
