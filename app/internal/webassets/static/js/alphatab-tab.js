@@ -739,6 +739,86 @@
     }, 150);
   }, { passive: true });
 
+  // ---- Playback cursor, Guitar Pro style: the playing bar is tinted and
+  // a vertical line sweeps across it from note to note. song.js calls this
+  // every frame with the song position as a fractional performed bar
+  // (from the reference recording or the metronome clock); each row knows
+  // its first bar (data-first-bar) and alphaTab's boundsLookup knows where
+  // every bar and beat was engraved. Returns true when a visible tab row
+  // holds that bar, so song.js leaves the scrolling to this.
+  let cursorRow = null;
+  let cursorSystem = null;
+  function cursorEls(row) {
+    let bar = row.querySelector(':scope > .tab-cursor-bar');
+    let beat = row.querySelector(':scope > .tab-cursor-beat');
+    if (!bar) { bar = document.createElement('div'); bar.className = 'tab-cursor-bar'; row.appendChild(bar); }
+    if (!beat) { beat = document.createElement('div'); beat.className = 'tab-cursor-beat'; row.appendChild(beat); }
+    return { bar, beat };
+  }
+  function hideCursor() {
+    if (!cursorRow) return;
+    cursorRow.querySelectorAll(':scope > .tab-cursor-bar, :scope > .tab-cursor-beat').forEach((el) => { el.hidden = true; });
+    cursorRow = null;
+  }
+  function tabCursor(position, following) {
+    if (position === null || position === undefined || position < 0) { hideCursor(); return false; }
+    const barNo = Math.floor(position);
+    let row = null, api = null, local = -1;
+    for (const r of document.querySelectorAll('.alphatab-row[data-first-bar]')) {
+      const a = r._alphaTabApi;
+      if (!r.offsetParent || !a || !a.score || !a.renderer || !a.renderer.boundsLookup) continue;
+      const i = barNo - parseInt(r.dataset.firstBar, 10);
+      if (i >= 0 && i < a.score.masterBars.length) { row = r; api = a; local = i; break; }
+    }
+    if (!row) { hideCursor(); return false; }
+    const lookup = api.renderer.boundsLookup;
+    const mbBounds = lookup.findMasterBarByIndex(local);
+    if (!mbBounds) { hideCursor(); return false; }
+    if (cursorRow !== row) {
+      hideCursor();
+      cursorRow = row;
+    }
+
+    // Position inside the bar in ticks. A pickup is timed as a whole bar
+    // with its notes at the end, but engraved only as long as its notes.
+    const mb = api.score.masterBars[local];
+    const full = (mb.timeSignatureNumerator * 3840) / mb.timeSignatureDenominator;
+    const len = mb.calculateDuration ? mb.calculateDuration() : full;
+    const tick = Math.max(0, (position - barNo) * full - (full - len));
+
+    // x of the beat being played, sliding towards the next one.
+    const r = mbBounds.realBounds;
+    let x = r.x;
+    const staffBar = api.score.tracks[0] && api.score.tracks[0].staves[0] && api.score.tracks[0].staves[0].bars[local];
+    const beats = staffBar && staffBar.voices[0] ? staffBar.voices[0].beats : [];
+    const xOf = (b) => { const bb = lookup.findBeat(b); return bb ? (bb.onNotesX || bb.visualBounds.x) : null; };
+    for (let i = 0; i < beats.length; i++) {
+      const b = beats[i];
+      if (b.playbackStart > tick) break;
+      const x0 = xOf(b);
+      if (x0 === null) continue;
+      const next = beats[i + 1];
+      const x1 = next ? xOf(next) : r.x + r.w - 4;
+      const end = next ? next.playbackStart : len;
+      const f = end > b.playbackStart ? Math.min(1, (tick - b.playbackStart) / (end - b.playbackStart)) : 0;
+      x = x0 + (x1 !== null ? (x1 - x0) * f : 0);
+    }
+
+    const { bar, beat } = cursorEls(row);
+    const sys = mbBounds.lineAlignedBounds || mbBounds.visualBounds || r;
+    Object.assign(bar.style, { left: `${r.x}px`, top: `${sys.y}px`, width: `${r.w}px`, height: `${sys.h}px` });
+    Object.assign(beat.style, { left: `${x}px`, top: `${sys.y}px`, height: `${sys.h}px` });
+    bar.hidden = false;
+    beat.hidden = false;
+    // One alphaTab row can hold several systems: follow the system (line
+    // of music) being played, not just the row.
+    const system = `${row.dataset.firstBar}:${Math.round(sys.y)}`;
+    if (following && system !== cursorSystem && window.songbooksKeepInView) window.songbooksKeepInView(bar);
+    cursorSystem = system;
+    return true;
+  }
+  window.songbooksTabCursor = tabCursor;
+
   // Exposed for the score editor's live preview (score-editor.js): it
   // writes a fresh data-tex onto its own preview container on every
   // edit and needs to re-trigger this same renderer on demand, not just

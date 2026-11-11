@@ -1791,7 +1791,21 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
 }
 .bar.current .chord-label { color: var(--current-fg); }
 .bar.current .simile-mark, .bar.current .simile-count { color: var(--current-fg); }
-.bar.current { background: color-mix(in srgb, var(--current-bg) 55%, transparent); border-radius: 3px; }
+.bar.current { background: color-mix(in srgb, #f2c400 22%, transparent); border-radius: 3px; }
+/* The beat line sweeping the playing bar (song.js sets --playhead, 0..1).
+   Drawn as a background so it can't collide with the barline glyphs'
+   own ::before/::after. */
+.bar.playhead {
+  --ph: calc(var(--playhead, 0) * 100%);
+  background-image: linear-gradient(to right, transparent calc(var(--ph) - 1px), var(--accent) calc(var(--ph) - 1px), var(--accent) calc(var(--ph) + 1px), transparent calc(var(--ph) + 1px));
+}
+/* Tab rows' playback cursor (alphatab-tab.js tabCursor), Guitar Pro style:
+   the playing bar tinted like .bar.current, a line sweeping its beats. */
+.alphatab-row[data-first-bar] { position: relative; }
+.tab-cursor-bar, .tab-cursor-beat { position: absolute; pointer-events: none; z-index: 1; }
+.tab-cursor-bar { background: color-mix(in srgb, #f2c400 22%, transparent); border-radius: 3px; }
+.tab-cursor-beat { width: 2px; margin-left: -1px; background: var(--accent); opacity: 0.85; border-radius: 1px; }
+.tab-cursor-bar[hidden], .tab-cursor-beat[hidden] { display: none; }
 
 /* A real 5-line staff, not a single rule — drawn per bar-body as five 1px
    lines at 0/25/50/75/100% of a fixed height. Every bar-body shares the

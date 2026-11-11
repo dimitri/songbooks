@@ -162,6 +162,40 @@ window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
     });
   });
 
+  // ---- Bar position: where the recording is in the chart, as a
+  // fractional performed bar (2.5 = halfway through bar index 2). Per-bar
+  // sync points place every bar exactly; otherwise the latest section
+  // marker plus the song's tempo. song.js reads it to highlight the
+  // current bar and drive the tab cursor while the recording plays.
+  function sectionStartBar(idx) {
+    const el = document.querySelector(`.sheet-section[data-section-index="${idx}"]`);
+    const b = el ? parseInt(el.dataset.startBar, 10) : NaN;
+    return Number.isNaN(b) ? null : b;
+  }
+  function barAtTime(t) {
+    const sync = (categories[activeCategory] && categories[activeCategory].barSyncPoints) || [];
+    if (sync.length > 1) {
+      const pts = sync.slice().sort((a, b) => a.barIndex - b.barIndex);
+      let i = 0;
+      while (i < pts.length - 2 && pts[i + 1].timeSeconds <= t) i++;
+      const a = pts[i], b = pts[i + 1];
+      const span = b.timeSeconds - a.timeSeconds;
+      return span > 0 ? a.barIndex + ((t - a.timeSeconds) / span) * (b.barIndex - a.barIndex) : a.barIndex;
+    }
+    if (!secondsPerBar) return null;
+    const marks = currentMarkers().filter((m) => sectionStartBar(m.sectionIndex) !== null);
+    if (!marks.length) return null;
+    let m = marks[0];
+    for (const k of marks) if (k.timeSeconds <= t) m = k;
+    return sectionStartBar(m.sectionIndex) + (t - m.timeSeconds) / secondsPerBar;
+  }
+  // null when the recording isn't playing or hasn't been started.
+  window.songbooksReferencePosition = () => {
+    if (!duration || (audio.paused && audio.currentTime === 0)) return null;
+    const bar = barAtTime(audio.currentTime);
+    return bar === null ? null : { bar, playing: !audio.paused };
+  };
+
   function renderPlayheadAndMarkers() {
     if (!duration) return;
     const pct = Math.max(0, Math.min(1, audio.currentTime / duration));

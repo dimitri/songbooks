@@ -579,12 +579,29 @@ const ICONS = {
     playPauseBtn.classList.add('active');
   }
 
+  // Scroll only when el leaves the comfortable middle of the viewport,
+  // bringing it to a quarter from the top: the next rows stay readable.
+  window.songbooksKeepInView = function keepInView(el) {
+    const r = el.getBoundingClientRect();
+    if (r.top >= 0 && r.bottom <= window.innerHeight * 0.8) return;
+    window.scrollBy({ top: r.top - window.innerHeight * 0.25, behavior: 'smooth' });
+  };
+  const keepInView = window.songbooksKeepInView;
+
   let currentBarEl = null;
   let currentSectionEl = null;
   let currentLineEl = null;
   const structureFillEl = document.getElementById('structure-fill');
   function highlightTick() {
-    const bar = clock.currentBar();
+    // The reference recording (audio-player.js), once started, leads the
+    // highlight; the metronome clock otherwise.
+    const ref = !clock.running && window.songbooksReferencePosition ? window.songbooksReferencePosition() : null;
+    const position = ref ? ref.bar : clock.currentBeat() / clock.beatsPerBar;
+    const following = clock.running || !!(ref && ref.playing);
+    const bar = Math.floor(position);
+    // Tab rows (alphatab-tab.js) draw their own Guitar Pro style cursor.
+    const started = following || !!ref || clock.currentBeat() > 0;
+    const tabFollowed = window.songbooksTabCursor ? window.songbooksTabCursor(started ? position : null, following) : false;
     // Recomputed every tick, not cached at load — rebindSheet() (which
     // populates `sections`) can run after this point (e.g. on first
     // load, it's called at the very end of the script), so a one-time
@@ -596,12 +613,21 @@ const ICONS = {
         structureFillEl.style.width = `calc((100% - 0.4rem) * ${pct})`;
       }
     }
-    const barEl = bars.find(b => parseInt(b.dataset.globalBar, 10) === bar) || null;
+    // A reflowed row keeps its hidden original next to the visible copy:
+    // highlight the copy on screen.
+    const matches = bars.filter(b => parseInt(b.dataset.globalBar, 10) === bar);
+    const barEl = matches.find(b => b.offsetParent) || matches[0] || null;
+    if (barEl && started) barEl.style.setProperty('--playhead', String(Math.min(1, position - bar)));
     if (barEl !== currentBarEl) {
-      currentBarEl?.classList.remove('current');
+      currentBarEl?.classList.remove('current', 'playhead');
       barEl?.classList.add('current');
       currentBarEl = barEl;
+      // Keep the playing row on screen, turning the page a row early.
+      if (barEl && following && !tabFollowed && barEl.offsetParent) keepInView(barEl);
     }
+    // Smooth (Guitar Pro style) line only for bars engraved at even
+    // beat spacing: the pickup cell is a compact rest glyph.
+    currentBarEl?.classList.toggle('playhead', started && !currentBarEl.classList.contains('bar-pickup'));
     // Section lookup no longer rides on barEl existing — a compact/
     // reference section has no .bar of its own (just a chip + multi-rest
     // bar), so deriving "current section" from "current bar's closest
@@ -647,7 +673,7 @@ const ICONS = {
       // view before the reader had done anything. Highlighting (above)
       // still updates either way — it's only the forced scroll that's
       // playback-only now.
-      if (sectionEl && clock.running) sectionEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      if (sectionEl && following && !tabFollowed && !(barEl && barEl.offsetParent)) sectionEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
       currentSectionEl = sectionEl;
     }
     // Lyrics mode's own finer-grained position indicator: which LINE
@@ -676,7 +702,7 @@ const ICONS = {
       if (lineEl !== currentLineEl) {
         currentLineEl?.classList.remove('current');
         lineEl?.classList.add('current');
-        if (lineEl && clock.running) lineEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        if (lineEl && following) lineEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
         currentLineEl = lineEl;
       }
     } else if (currentLineEl) {
