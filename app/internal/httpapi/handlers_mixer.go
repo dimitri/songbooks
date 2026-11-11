@@ -85,7 +85,7 @@ func (s *Server) handleGetSongMixer(w http.ResponseWriter, r *http.Request) {
 		resp["hasGPFile"] = true
 	}
 	if len(tracks) > 0 {
-		tex, meta := tab.ToAlphaTexMulti(tracks, tempo, timeNum, timeDen)
+		tex, meta := tab.ToAlphaTexMulti(tracks, tempo, timeNum, timeDen, sg.Get("swing"))
 		out := make([]mixerTrackJSON, len(meta))
 		for i, m := range meta {
 			out[i] = mixerTrackJSON{Name: m.Name, Drums: m.Drums, Program: m.Program}

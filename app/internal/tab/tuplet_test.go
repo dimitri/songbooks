@@ -55,3 +55,21 @@ func TestTupletLilyPond(t *testing.T) {
 		t.Errorf("beat after the tuplet carries %d:%d", b.TupletNum, b.TupletDen)
 	}
 }
+
+func TestFirstBarMeta(t *testing.T) {
+	for _, c := range []struct {
+		num, den int
+		swing    string
+		want     string
+	}{
+		{4, 4, "", ""},
+		{12, 8, "", `\ts 12 8 `},
+		{4, 4, "8", `\tf triplet-8th `},
+		{4, 4, "16", `\tf triplet-16th `},
+		{12, 8, "no", `\ts 12 8 `},
+	} {
+		if got := FirstBarMeta(c.num, c.den, c.swing); got != c.want {
+			t.Errorf("FirstBarMeta(%d, %d, %q) = %q, want %q", c.num, c.den, c.swing, got, c.want)
+		}
+	}
+}

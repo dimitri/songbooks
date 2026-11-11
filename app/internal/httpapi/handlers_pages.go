@@ -360,7 +360,7 @@ func (s *Server) handleDocsScoreExample(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
-	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), ex.Instrument)
+	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), sg.Get("swing"), ex.Instrument)
 	s.renderDocsExamplePage(w, sg, sections, nil, "normal")
 }
 
@@ -1334,7 +1334,7 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 // instrument, when non-empty, is the #instrument-picker's own selection
 // (play.html) — see pickRiff's own doc comment for how it overrides
 // firstMelodicRiff's default ambiguous-skip behavior.
-func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff, timeNum, timeDen int, instrument string) {
+func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff, timeNum, timeDen int, swing, instrument string) {
 	for si := range sections {
 		tracks, ok := scoreTracks[sections[si].Index]
 		if !ok {
@@ -1434,10 +1434,10 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 					clef = "F4"
 				}
 				tex := tab.ToAlphaTex(rowRiff, clef, chordLabels)
-				// alphaTab assumes 4/4: a 12/8 shuffle drawn without its own
-				// time signature reads as overfull 4/4 bars.
-				if timeNum > 0 && timeDen > 0 && (timeNum != 4 || timeDen != 4) {
-					tex = strings.Replace(tex, ".\n", fmt.Sprintf(".\n\\ts %d %d ", timeNum, timeDen), 1)
+				// alphaTab assumes straight 4/4: a 12/8 shuffle drawn without
+				// its own time signature reads as overfull 4/4 bars.
+				if meta := tab.FirstBarMeta(timeNum, timeDen, swing); meta != "" {
+					tex = strings.Replace(tex, ".\n", ".\n"+meta, 1)
 				}
 				if line := &sections[si].Lines[li]; len(sections[si].Measures) > 0 && sections[si].Measures[0].Pickup {
 					n := len(line.Measures)
@@ -2718,7 +2718,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	if instrument == "" && !anySectionHasLyrics(sections) {
 		instrument = mostInterestingInstrument(riffs)
 	}
-	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), instrument)
+	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), sg.Get("swing"), instrument)
 	drumMap := buildDrumMap(sections, riffs, atoiOr(orDefault(sg.Get("tempo"), "120"), 120), 0)
 	for _, e := range scoreErrs {
 		log.Printf("variant %d: %v", variantID, e)
@@ -2997,7 +2997,7 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 	// buildDrumMap call handleSong itself makes.
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
 	riffs, scoreErrs := tab.LoadScores(sg)
-	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), "")
+	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), sg.Get("swing"), "")
 	drumMap := buildDrumMap(sections, riffs, atoiOr(orDefault(sg.Get("tempo"), "120"), 120), 0)
 	for _, e := range scoreErrs {
 		log.Printf("preview: %v", e)

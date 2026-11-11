@@ -141,19 +141,44 @@ func gmProgramFor(name string, numStrings int) int {
 	return 27 // clean electric guitar
 }
 
+// FirstBarMeta is the alphaTeX bar metadata a score's first bar needs
+// for the song's own header: its time signature when it isn't alphaTab's
+// default 4/4, and its swing feel (see SwingFeel). "" when neither.
+func FirstBarMeta(timeNum, timeDen int, swing string) string {
+	meta := ""
+	if timeNum > 0 && timeDen > 0 && !(timeNum == 4 && timeDen == 4) {
+		meta = fmt.Sprintf(`\ts %d %d `, timeNum, timeDen)
+	}
+	if feel := SwingFeel(swing); feel != "" {
+		meta += `\tf ` + feel + " "
+	}
+	return meta
+}
+
+// SwingFeel reads a song's "swing:" header — "8" for swung eighths (a
+// shuffle: written eighths played as a triplet's 2+1, Guitar Pro's
+// "Triplet 8th" feel), "16" for swung sixteenths — as alphaTeX's triplet
+// feel name. "" for no swing or an unknown value.
+func SwingFeel(swing string) string {
+	switch strings.ToLower(strings.TrimSpace(swing)) {
+	case "8", "8th", "eighths", "yes", "shuffle":
+		return "triplet-8th"
+	case "16", "16th", "sixteenths":
+		return "triplet-16th"
+	}
+	return ""
+}
+
 // ToAlphaTexMulti renders several tracks into ONE alphaTeX document so
 // alphaTab's player can play them on a single clock (the Mixer view).
 // Every track must have the same bar count. No multiBarRest anywhere:
 // the Mixer gives every bar its own fixed width to line notation up with
 // the reference recording, so bars must never be merged.
-func ToAlphaTexMulti(tracks []NamedRiff, tempo, timeNum, timeDen int) (tex string, meta []MixerTrack) {
+func ToAlphaTexMulti(tracks []NamedRiff, tempo, timeNum, timeDen int, swing string) (tex string, meta []MixerTrack) {
 	if tempo <= 0 {
 		tempo = 120
 	}
-	ts := ""
-	if timeNum > 0 && timeDen > 0 && !(timeNum == 4 && timeDen == 4) {
-		ts = fmt.Sprintf(`\ts %d %d `, timeNum, timeDen)
-	}
+	ts := FirstBarMeta(timeNum, timeDen, swing)
 	var b strings.Builder
 	b.WriteString(`\tempo `)
 	b.WriteString(strconv.Itoa(tempo))

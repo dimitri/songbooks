@@ -18,7 +18,7 @@ package song
 var MetaKeys = []string{
 	"title", "artist", "key", "tempo", "time", "capo",
 	"transpose", "map", "idiom", "flats", "reference",
-	"cover", "cover-credit",
+	"cover", "cover-credit", "swing",
 }
 
 func isMetaKey(k string) bool {

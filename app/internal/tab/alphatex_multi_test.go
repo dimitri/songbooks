@@ -9,7 +9,7 @@ func TestToAlphaTexMulti(t *testing.T) {
 	bass := &Riff{Tuning: []int{43, 38, 33, 28}, Bars: []Bar{{Beats: []Beat{{Rest: true, Duration: "1"}}}}}
 	gtr := &Riff{Tuning: []int{64, 59, 55, 50, 45, 40}, Bars: []Bar{{Beats: []Beat{{Rest: true, Duration: "1"}}}}}
 	drums := &Riff{Drums: true, Bars: []Bar{{Beats: []Beat{{Duration: "4", Notes: []Note{{MIDI: 36}}}, {Rest: true, Duration: "2."}}}}}
-	tex, meta := ToAlphaTexMulti([]NamedRiff{{Name: "Electric Bass", Riff: bass}, {Name: "Jazz Guitar", Riff: gtr}, {Name: "Drum", Riff: drums}}, 113, 3, 4)
+	tex, meta := ToAlphaTexMulti([]NamedRiff{{Name: "Electric Bass", Riff: bass}, {Name: "Jazz Guitar", Riff: gtr}, {Name: "Drum", Riff: drums}}, 113, 3, 4, "")
 
 	for _, want := range []string{
 		`\tempo 113`,
