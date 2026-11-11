@@ -456,6 +456,16 @@
       el.style.background = sectionColor(s.label);
       el.title = `${s.label} — ${s.barCount} bars (${barLabel(s.startBar)}–${barLabel(s.startBar + s.barCount - 1)})`;
       el.innerHTML = `${escapeHTML(s.label)}<span class="daw-section-bars">${s.barCount}</span>`;
+      if (aligning && canEdit) {
+        // The section's start, draggable here too (same as its flag on
+        // the recording).
+        const grip = document.createElement('span');
+        grip.className = 'daw-section-grip';
+        grip.title = `drag to move where ${s.label} starts — everything after follows (⌥: only this boundary, ⇧: whole grid)`;
+        grip.addEventListener('mousedown', (e) => startAnchorDrag(e, anchorList().find((x) => x.i === i)));
+        grip.addEventListener('click', (e) => e.stopPropagation());
+        el.appendChild(grip);
+      }
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         selected = selected === i && !aligning ? -1 : i;
@@ -1072,25 +1082,36 @@
     }
   }
 
-  function movedTimes(orig, a, newT, whole) {
+  // Where the bars go when a section's start moves to newT. Sections are
+  // the handles here, not bars (a Guitar Pro recording has a sync point on
+  // every bar, which would leave nothing to stretch):
+  //   'ripple'   (drag)   — this section and everything after it move
+  //                         together; the previous section stretches.
+  //   'boundary' (⌥-drag) — only this boundary moves; the sections on
+  //                         either side stretch, the rest stays put.
+  //   'whole'    (⇧-drag) — the whole grid moves.
+  function movedTimes(orig, a, newT, mode) {
     const n = N();
-    const delta = newT - orig[a.bar];
-    if (whole) return orig.map((t) => t + delta);
-    const realAnchors = anchorList().filter((x) => x.real && x.bar !== a.bar);
-    const prev = realAnchors.filter((x) => x.bar < a.bar).pop();
-    const next = realAnchors.find((x) => x.bar > a.bar);
-    if (!prev && !next) return orig.map((t) => t + delta);
-    const lo = prev ? orig[prev.bar] + 0.05 * (a.bar - prev.bar) : -Infinity;
-    const hi = next ? orig[next.bar] - 0.05 * (next.bar - a.bar) : Infinity;
-    newT = Math.max(lo, Math.min(hi, newT));
-    const out = orig.slice();
-    const remap = (b, s0, s1, d0, d1) => d0 + (orig[b] - s0) / (s1 - s0) * (d1 - d0);
-    for (let b = 0; b <= n; b++) {
-      if (b === a.bar) out[b] = newT;
-      else if (b < a.bar) out[b] = prev ? (b > prev.bar ? remap(b, orig[prev.bar], orig[a.bar], orig[prev.bar], newT) : orig[b]) : orig[b] + (newT - orig[a.bar]);
-      else out[b] = next ? (b < next.bar ? remap(b, orig[a.bar], orig[next.bar], newT, orig[next.bar]) : orig[b]) : orig[b] + (newT - orig[a.bar]);
+    if (mode === true) mode = 'whole';
+    const starts = [...new Set(data.sections.map((s) => s.startBar).concat([0, n]))].sort((x, y) => x - y);
+    const prev = starts.filter((b) => b < a.bar).pop();
+    const next = starts.find((b) => b > a.bar);
+    if (mode === 'whole' || prev === undefined) {
+      const d = newT - orig[a.bar];
+      return orig.map((t) => t + d);
     }
-    return out;
+    const minGap = 0.05;
+    newT = Math.max(orig[prev] + minGap * (a.bar - prev), newT);
+    if (mode === 'boundary' && next !== undefined) newT = Math.min(orig[next] - minGap * (next - a.bar), newT);
+    const d = newT - orig[a.bar];
+    const remap = (b, s0, s1, d0, d1) => d0 + (orig[b] - orig[s0]) / (orig[s1] - orig[s0]) * (d1 - d0);
+    return orig.map((t, b) => {
+      if (b <= prev) return t;
+      if (b < a.bar) return remap(b, prev, a.bar, orig[prev], newT);
+      if (b === a.bar) return newT;
+      if (mode === 'boundary' && next !== undefined) return b < next ? remap(b, a.bar, next, newT, orig[next]) : t;
+      return t + d;
+    });
   }
 
   function startAnchorDrag(e, a) {
@@ -1103,7 +1124,8 @@
     const el = e.currentTarget;
     el.classList.add('is-dragging');
     const onMove = (ev) => {
-      barTimes = movedTimes(orig, a, orig[a.bar] + (ev.clientX - x0) / pxPerSec, whole || ev.shiftKey);
+      const mode = whole || ev.shiftKey ? 'whole' : ev.altKey ? 'boundary' : 'ripple';
+      barTimes = movedTimes(orig, a, orig[a.bar] + (ev.clientX - x0) / pxPerSec, mode);
       layout(true);
       alignStatus.textContent = `${a.label} → ${fmtTime(barTimes[a.bar])}`;
     };
@@ -1163,6 +1185,7 @@
     aligning = !aligning;
     alignBtn.setAttribute('aria-pressed', aligning);
     alignBar.hidden = !aligning;
+    renderSections();
     renderAudioLane();
     updateAlignStatus();
   });
@@ -1171,7 +1194,7 @@
     const s = data.sections[selected];
     const a = anchorList().find((x) => x.i === selected);
     const orig = barTimes.slice();
-    barTimes = movedTimes(orig, a, position, false);
+    barTimes = movedTimes(orig, a, position, 'ripple');
     layout(true);
     await saveAlignment({ ...a, label: s.label }, orig);
   });

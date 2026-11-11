@@ -73,8 +73,6 @@ window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
   const speedBpm = $('audio-speed-bpm');
   const trainerBtn = $('audio-trainer-btn');
   const trainerLabel = $('audio-trainer-label');
-  const settingsBtn = $('audio-settings-btn');
-  const settingsEl = $('audio-settings');
   const iconPlay = playBtn ? playBtn.innerHTML : '▶';
   const iconPause = '<svg class="icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="3.5" height="12" rx="1"/><rect x="11.5" y="4" width="3.5" height="12" rx="1"/></svg>';
 
@@ -412,7 +410,14 @@ window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
     press(trainerBtn, prefs.trainer.on);
     if (cycleBtn) cycleBtn.disabled = !hasBars();
     if (countInLabel) countInLabel.textContent = prefs.countIn ? `${prefs.countIn} bar${prefs.countIn > 1 ? 's' : ''}` : 'Count-in';
-    if (trainerLabel) trainerLabel.textContent = prefs.trainer.on ? `Trainer ${Math.round(prefs.speed * 100)}%${passes ? ` · ${passes}` : ''}` : 'Trainer';
+    if (trainerLabel) trainerLabel.textContent = prefs.trainer.on ? `Trainer ${Math.round(prefs.speed * 100)}% → ${prefs.trainer.end}%` : 'Trainer';
+    const meter = $('audio-trainer-meter');
+    if (meter) {
+      const tr = prefs.trainer;
+      const span = Math.max(1, tr.end - tr.start);
+      meter.style.width = tr.on ? `${Math.max(4, Math.min(100, ((prefs.speed * 100 - tr.start) / span) * 100))}%` : '0';
+    }
+    renderTrainer();
   }
 
   // ---- Speed (pitch kept) ---------------------------------------------------
@@ -644,11 +649,139 @@ window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
     updateButtons();
   }
   clickBtn?.addEventListener('click', toggleClick);
-  trainerBtn?.addEventListener('click', () => {
-    prefs.trainer.on = !prefs.trainer.on;
+  // ---- Option panels: one open at a time, under the control bar -------
+  const pops = [...document.querySelectorAll('#audio-player .audio-pop')];
+  function openPop(id, opener) {
+    const el = $(id);
+    const show = el.hidden;
+    pops.forEach((p) => { p.hidden = true; });
+    document.querySelectorAll('#audio-player [data-pop]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+    if (!show) return;
+    el.hidden = false;
+    opener.setAttribute('aria-expanded', 'true');
+    // Under its button where there's room; full width on a phone (CSS).
+    const wrap = root.getBoundingClientRect(), r = opener.getBoundingClientRect();
+    el.style.setProperty('--pop-top', `${r.bottom - wrap.top + 6}px`);
+    el.style.setProperty('--pop-left', `${Math.max(8, Math.min(wrap.width - el.offsetWidth - 8, r.right - wrap.left - el.offsetWidth))}px`);
+    if (id === 'audio-pop-trainer') renderTrainer();
+  }
+  document.querySelectorAll('#audio-player [data-pop]').forEach((b) => b.addEventListener('click', () => openPop(b.dataset.pop, b)));
+  document.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('#audio-player .audio-pop, #audio-player [data-pop]')) return;
+    pops.forEach((p) => { p.hidden = true; });
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') pops.forEach((p) => { p.hidden = true; }); });
+
+  function wireSeg(id, get, set) {
+    const seg = $(id);
+    if (!seg) return () => {};
+    const sync = () => seg.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.v === String(get())));
+    seg.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-v]');
+      if (!b) return;
+      set(b.dataset.v);
+      savePrefs();
+      sync();
+      updateButtons();
+    });
+    sync();
+    return sync;
+  }
+  const syncCountInSeg = wireSeg('audio-countin-seg', () => prefs.countIn, (v) => { prefs.countIn = Number(v); });
+  countInBtn?.addEventListener('click', syncCountInSeg);
+  const countInEach = $('audio-countin-each');
+  if (countInEach) {
+    countInEach.checked = !!prefs.countInEach;
+    countInEach.addEventListener('change', () => { prefs.countInEach = countInEach.checked; savePrefs(); });
+  }
+  wireSeg('audio-click-sound-seg', () => prefs.clickSound, (v) => { prefs.clickSound = v; testClick(); });
+  const clickVolume = $('audio-click-volume');
+  if (clickVolume) {
+    clickVolume.value = prefs.clickVolume;
+    clickVolume.addEventListener('input', () => { prefs.clickVolume = Number(clickVolume.value); savePrefs(); });
+    clickVolume.addEventListener('change', testClick);
+  }
+  function testClick() {
+    if (!clicker) return;
+    const ctx = clicker._ensureCtx();
+    const beat = 60 / (bpm || 100);
+    for (let i = 0; i < beatsPerBar; i++) clickAt(ctx.currentTime + 0.05 + i * beat, i, false);
+  }
+  $('audio-click-test')?.addEventListener('click', testClick);
+
+  // ---- Speed trainer, as Guitar Pro has it: loop the cycle, starting at
+  // one speed and going up by a step every few passes until the target.
+  const TRAINER_LIMITS = { start: [25, 150], step: [1, 25], every: [1, 16], end: [25, 150] };
+  function trainerSteps() {
+    const tr = prefs.trainer;
+    const out = [];
+    for (let v = tr.start; v < tr.end && out.length < 40; v += tr.step) out.push(v);
+    out.push(tr.end);
+    return out;
+  }
+  function renderTrainer() {
+    const pop = $('audio-pop-trainer');
+    if (!pop) return;
+    const tr = prefs.trainer;
+    pop.querySelectorAll('.audio-stepper').forEach((st) => {
+      const k = st.dataset.key;
+      st.querySelector('output').textContent = k === 'every' ? `${tr.every} loop${tr.every > 1 ? 's' : ''}` : k === 'step' ? `+${tr.step}%` : `${tr[k]}%`;
+    });
+    const on = $('audio-trainer-on');
+    if (on) on.checked = !!tr.on;
+    const steps = trainerSteps();
+    const cur = Math.round(prefs.speed * 100);
+    const stairs = $('audio-trainer-stairs');
+    if (stairs) {
+      stairs.innerHTML = '';
+      const lo = Math.min(...steps), hi = Math.max(...steps);
+      steps.forEach((v, i) => {
+        const bar = document.createElement('div');
+        const reached = tr.on && v <= cur;
+        bar.className = 'audio-stair' + (reached ? ' reached' : '') + (tr.on && v === cur ? ' now' : '');
+        bar.style.height = `${30 + (hi > lo ? ((v - lo) / (hi - lo)) * 70 : 70)}%`;
+        bar.title = `${v}%`;
+        bar.innerHTML = `<span>${v}</span>`;
+        if (steps.length > 12 && i % 2 && i !== steps.length - 1) bar.querySelector('span').textContent = '';
+        stairs.appendChild(bar);
+      });
+    }
+    const summary = $('audio-trainer-summary');
+    if (summary) {
+      const loops = (steps.length - 1) * tr.every;
+      const loopSec = cycleRange() ? (cycleRange().t1 - cycleRange().t0) : 0;
+      let est = 0;
+      steps.slice(0, -1).forEach((v) => { est += (tr.every * loopSec) / (v / 100); });
+      const time = loopSec ? ` · about ${Math.max(1, Math.round(est / 60))} min` : '';
+      const where = prefs.cycle ? `bars ${barLabel(prefs.cycle.from)}–${barLabel(prefs.cycle.to - 1)}` : 'the section being played';
+      summary.textContent = tr.on && passes
+        ? `Now ${cur}% · loop ${(passes % tr.every) + 1} of ${tr.every} at this speed${cur < tr.end ? `, then ${Math.min(tr.end, cur + tr.step)}%` : ' — target reached'}.`
+        : `${steps.length} speeds, ${loops} loop${loops === 1 ? '' : 's'} to reach ${tr.end}%${time}, on ${where}.`;
+    }
+  }
+  $('audio-pop-trainer')?.addEventListener('click', (e) => {
+    const b = e.target.closest('.audio-stepper button[data-d]');
+    const preset = e.target.closest('[data-preset]');
+    const tr = prefs.trainer;
+    if (b) {
+      const k = b.closest('.audio-stepper').dataset.key;
+      const [lo, hi] = TRAINER_LIMITS[k];
+      tr[k] = Math.max(lo, Math.min(hi, tr[k] + Number(b.dataset.d)));
+      if (k === 'start' && tr.end <= tr.start) tr.end = Math.min(150, tr.start + 5);
+      if (k === 'end' && tr.end <= tr.start) tr.start = Math.max(25, tr.end - 5);
+    } else if (preset) {
+      const [st, step, every, end] = preset.dataset.preset.split(',').map(Number);
+      Object.assign(tr, { start: st, step, every, end });
+    } else return;
+    if (tr.on) { passes = 0; setSpeed(tr.start / 100, false); }
+    savePrefs();
+    renderTrainer();
+  });
+  function setTrainer(on) {
+    prefs.trainer.on = on;
     passes = 0;
-    if (prefs.trainer.on) {
-      // Guitar Pro's speed trainer works on a loop: make sure there is one.
+    if (on) {
+      // It works on a loop: make sure there is one.
       if (!prefs.cycle || !prefs.cycle.on) toggleCycle();
       setSpeed(prefs.trainer.start / 100);
     } else {
@@ -656,43 +789,15 @@ window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
     }
     savePrefs();
     updateButtons();
-  });
-  optsBtn?.addEventListener('click', () => {
-    const open = !optsEl.classList.contains('open');
-    optsEl.classList.toggle('open', open);
-    optsBtn.setAttribute('aria-expanded', String(open));
-  });
-  settingsBtn?.addEventListener('click', () => {
-    settingsEl.hidden = !settingsEl.hidden;
-    settingsBtn.setAttribute('aria-expanded', String(!settingsEl.hidden));
-  });
-  function bindNumber(id, get, set) {
-    const el = $(id);
-    if (!el) return;
-    el.value = get();
-    el.addEventListener('change', () => {
-      const v = parseFloat(el.value);
-      if (!Number.isNaN(v)) set(v);
-      el.value = get();
-      savePrefs();
-      updateButtons();
-    });
   }
-  bindNumber('audio-trainer-start', () => prefs.trainer.start, (v) => { prefs.trainer.start = Math.max(25, Math.min(150, v)); });
-  bindNumber('audio-trainer-end', () => prefs.trainer.end, (v) => { prefs.trainer.end = Math.max(25, Math.min(150, v)); });
-  bindNumber('audio-trainer-step', () => prefs.trainer.step, (v) => { prefs.trainer.step = Math.max(1, Math.min(50, v)); });
-  bindNumber('audio-trainer-every', () => prefs.trainer.every, (v) => { prefs.trainer.every = Math.max(1, Math.min(16, Math.round(v))); });
-  bindNumber('audio-click-volume', () => prefs.clickVolume, (v) => { prefs.clickVolume = Math.max(0, Math.min(100, v)); });
-  const countInEach = $('audio-countin-each');
-  if (countInEach) {
-    countInEach.checked = !!prefs.countInEach;
-    countInEach.addEventListener('change', () => { prefs.countInEach = countInEach.checked; savePrefs(); });
-  }
-  const clickSound = $('audio-click-sound');
-  if (clickSound) {
-    clickSound.value = prefs.clickSound;
-    clickSound.addEventListener('change', () => { prefs.clickSound = clickSound.value; savePrefs(); });
-  }
+  $('audio-trainer-on')?.addEventListener('change', (e) => setTrainer(e.target.checked));
+  $('audio-trainer-start')?.addEventListener('click', () => {
+    setTrainer(true);
+    pops.forEach((p) => { p.hidden = true; });
+    const cyc = cycleRange();
+    if (cyc) seek(cyc.t0);
+    if (!isPlaying()) play();
+  });
 
   // ---- Ruler: the cycle range, Logic / GarageBand style. Drag across the
   // ruler to set it (snapped to bars), drag its edges to resize it, drag
