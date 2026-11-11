@@ -2221,6 +2221,26 @@ const ICONS = {
     tempoInput.addEventListener('input', () => { markDirty(); metaSet('tempo', tempoInput.value.trim()); });
     tempoField.append(tempoInput, ' bpm');
 
+    // Swing: written straight notes played as a shuffle — the song
+    // header's "swing:" (8 or 16; see the song format docs).
+    const swingField = document.createElement('label');
+    swingField.className = 'header-field';
+    swingField.append('swing ');
+    const swingSelect = document.createElement('select');
+    swingSelect.className = 'header-field-input';
+    swingSelect.title = 'plays written eighths (or sixteenths) as a shuffle, like Guitar Pro\'s triplet feel';
+    for (const [value, text] of [['', 'straight'], ['8', 'swung 8ths'], ['16', 'swung 16ths']]) {
+      swingSelect.add(new Option(text, value));
+    }
+    swingSelect.value = ['8', '16'].includes(metaGet('swing')) ? metaGet('swing') : '';
+    swingSelect.addEventListener('change', () => {
+      markDirty();
+      // Straight is no header line at all, not an empty "swing:".
+      if (swingSelect.value) metaSet('swing', swingSelect.value);
+      else structMeta = structMeta.filter((f) => f.key !== 'swing');
+    });
+    swingField.appendChild(swingSelect);
+
     // Genre lives on the song's parent WORK, not in the raw .song body
     // (see migration 0030), so it saves independently via its own
     // endpoint on blur rather than going through structMeta/the
@@ -2249,7 +2269,7 @@ const ICONS = {
 
     const chipsRow = document.createElement('div');
     chipsRow.className = 'song-meta-chips-row';
-    chipsRow.append(timeField, tempoField, genreField);
+    chipsRow.append(timeField, tempoField, swingField, genreField);
 
     host.append(titleArtistRow, chipsRow);
   }

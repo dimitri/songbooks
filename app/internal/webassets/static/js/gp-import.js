@@ -68,6 +68,7 @@
   const includeAudio = document.getElementById('gpimport-include-audio');
   const summary = document.getElementById('gpimport-summary');
   const previewHolder = document.getElementById('gpimport-preview');
+  const headerHolder = document.getElementById('gpimport-header');
   const deriveRow = document.getElementById('gpimport-derive-row');
   const deriveBtn = document.getElementById('gpimport-derive-chords');
 
@@ -1035,8 +1036,107 @@
       ? `Importing ${rows.length} section(s): ${rows.map(tr => tr.children[1].textContent).join(', ')}.`
       : 'No sections selected — nothing will be imported.';
     goToStep('import');
+    await prepareHeader();
     await renderPreview();
   });
+
+  // ---- Song header: the file's tempo, time signature and swing ------
+  // A Guitar Pro file knows all three; a song created by hand or from
+  // another import usually doesn't, and the chart then falls back to
+  // 4/4 at 120 — every bar's length, the bar grid and the Mixer's
+  // playback go wrong with it. The import step offers each value the
+  // song doesn't already have, checked by default; unchecking keeps the
+  // song's own (a deliberate edit wins).
+  let headerChoices = []; // [{key, label, gp, song, input}]
+  function gpHeader() {
+    const mbs = score.masterBars;
+    const full = mbs.find((m) => !m.isAnacrusis) || mbs[0];
+    const feels = mbs.map((m) => m.tripletFeel);
+    const most = (v) => feels.filter((f) => f === v).length;
+    // alphaTab's TripletFeel: 2 = triplet 8th (a shuffle), 1 = triplet 16th.
+    const swing = most(2) > feels.length / 2 ? '8' : most(1) > feels.length / 2 ? '16' : '';
+    return {
+      tempo: String(Math.round(score.tempo || 120)),
+      time: `${full.timeSignatureNumerator}/${full.timeSignatureDenominator}`,
+      swing,
+    };
+  }
+  function headerValue(text, key) {
+    const m = new RegExp(`^${key}:[ \\t]*(.*)$`, 'm').exec(text.split(/\n\[/)[0]);
+    return m ? m[1].trim() : '';
+  }
+  // Sets (or with an empty value removes) one header line, keeping every
+  // other line as written; a new line goes after the existing header.
+  function setHeader(text, key, value) {
+    const lines = text.split('\n');
+    let end = lines.findIndex((l) => /^\[/.test(l));
+    if (end < 0) end = lines.length;
+    const at = lines.slice(0, end).findIndex((l) => new RegExp(`^${key}:`).test(l));
+    if (at >= 0) {
+      if (value) lines[at] = `${key}: ${value}`; else lines.splice(at, 1);
+      return lines.join('\n');
+    }
+    if (!value) return text;
+    let last = -1;
+    for (let i = 0; i < end; i++) if (/^[a-z-]+:/.test(lines[i])) last = i;
+    lines.splice(last + 1, 0, `${key}: ${value}`);
+    return lines.join('\n');
+  }
+  async function prepareHeader() {
+    headerChoices = [];
+    if (!headerHolder || !score) return;
+    headerHolder.innerHTML = '';
+    let text = '';
+    try { text = (await (await fetch(`/api/songs/${variantId}/raw`)).json()).text || ''; } catch (e) { return; }
+    const gp = gpHeader();
+    const rows = [
+      { key: 'tempo', label: 'Tempo', show: (v) => (v ? `${v} bpm` : 'none (120)') },
+      { key: 'time', label: 'Time signature', show: (v) => v || 'none (4/4)' },
+      { key: 'swing', label: 'Swing', show: (v) => (v === '8' ? 'swung eighths' : v === '16' ? 'swung sixteenths' : 'straight') },
+    ];
+    const list = document.createElement('div');
+    list.className = 'gpimport-header-list';
+    for (const r of rows) {
+      const song = headerValue(text, r.key);
+      const same = song === gp[r.key];
+      const p = document.createElement('p');
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = true;
+      input.disabled = same;
+      label.append(input, ` ${r.label}: ${r.show(gp[r.key])}`);
+      p.appendChild(label);
+      const was = document.createElement('span');
+      was.className = 'hint';
+      was.textContent = same ? ' (already in the song)' : ` (song has ${r.show(song)})`;
+      p.appendChild(was);
+      input.addEventListener('change', () => renderPreview());
+      list.appendChild(p);
+      headerChoices.push({ key: r.key, gp: gp[r.key], song, input });
+    }
+    const h = document.createElement('p');
+    h.className = 'hint';
+    h.textContent = 'From the Guitar Pro file — checked values are written to the song header:';
+    headerHolder.append(h, list);
+  }
+  // The header the song will have after the import.
+  function chosenHeader(key) {
+    const c = headerChoices.find((x) => x.key === key);
+    return c ? (c.input.checked ? c.gp : c.song) : '';
+  }
+  async function writeHeader() {
+    const todo = headerChoices.filter((c) => c.input.checked && !c.input.disabled);
+    if (!todo.length) return;
+    const raw = await (await fetch(`/api/songs/${variantId}/raw`)).json();
+    let text = raw.text;
+    for (const c of todo) text = setHeader(text, c.key, c.gp);
+    const res = await fetch(`/api/songs/${variantId}/raw`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, version: raw.version }),
+    });
+    if (!res.ok) throw new Error('saving the song header failed: ' + (await res.text()));
+  }
 
   // ---- Preview: real notation for exactly the sections currently
   // checked, before the one commit step — see handleGPImportPreview's
@@ -1064,7 +1164,7 @@
       try {
         const res = await fetch('/api/gp-import/preview', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ riff: JSON.stringify(riff) }),
+          body: JSON.stringify({ riff: JSON.stringify(riff), time: chosenHeader('time'), swing: chosenHeader('swing') }),
         });
         if (!res.ok) throw new Error(await res.text());
         const { alphaTex } = await res.json();
@@ -1084,6 +1184,8 @@
     const checks = [...mappingBody.querySelectorAll('.gpimport-include')];
     importBtn.disabled = true;
     try {
+      setStatus('writing the song header…');
+      await writeHeader();
       for (let i = 0; i < ourSections.length; i++) {
         if (!checks[i] || !checks[i].checked) continue;
         const sec = ourSections[i];
