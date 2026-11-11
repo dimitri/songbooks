@@ -68,10 +68,30 @@
       scoreContainer.dataset.tex = data.alphaTex;
       scoreContainer.innerHTML = '';
       window.AlphaTabTab && window.AlphaTabTab.render(scoreContainer);
+      wirePlayIconSwap();
     } catch (e) {
       scoreContainer.hidden = true;
       emptyEl.hidden = false;
     }
+  }
+
+  // Polls briefly for the container's _alphaTabApi (render() can retry/
+  // reconstruct it — same race gp-import.js's own wireContentPreviewClicks
+  // already handles for the same reason) then attaches the play/pause
+  // icon swap and resets it to "play" for whatever NEW api instance this
+  // section just got — a stale listener on a previous, now-discarded api
+  // would otherwise leave the icon out of sync after switching sections.
+  function wirePlayIconSwap(attempt) {
+    attempt = attempt || 0;
+    if (playBtn) playBtn.innerHTML = ICON_PLAY;
+    const a = api();
+    if (!a) {
+      if (attempt < 40) setTimeout(() => wirePlayIconSwap(attempt + 1), 250);
+      return;
+    }
+    a.playerStateChanged.on(e => {
+      if (playBtn) playBtn.innerHTML = e.state === 1 ? ICON_PAUSE : ICON_PLAY;
+    });
   }
 
   function buildChannelStrip() {
@@ -81,12 +101,17 @@
       const name = document.createElement('span');
       name.className = 'mixer-channel-name';
       name.textContent = t.name;
+      name.classList.toggle('mixer-channel-drums', !!t.drums);
       const muteBtn = document.createElement('button');
       muteBtn.type = 'button';
-      muteBtn.textContent = 'mute';
+      muteBtn.className = 'mixer-ms-btn mixer-mute-btn';
+      muteBtn.textContent = 'M';
+      muteBtn.title = 'mute ' + t.name;
       const soloBtn = document.createElement('button');
       soloBtn.type = 'button';
-      soloBtn.textContent = 'solo';
+      soloBtn.className = 'mixer-ms-btn mixer-solo-btn';
+      soloBtn.textContent = 'S';
+      soloBtn.title = 'solo ' + t.name;
       muteBtn.addEventListener('click', () => {
         const a = api();
         if (!a || !a.score) return;
@@ -105,10 +130,19 @@
         a.changeTrackSolo([track], nowSolo);
         soloBtn.classList.toggle('active', nowSolo);
       });
-      chip.append(name, muteBtn, soloBtn);
+      const msRow = document.createElement('div');
+      msRow.className = 'mixer-ms-row';
+      msRow.append(muteBtn, soloBtn);
+      chip.append(name, msRow);
       channelStrip.appendChild(chip);
     });
   }
+
+  // Same two glyphs as icons.html's icon-play/icon-pause templates —
+  // inlined here since this swap happens client-side on alphaTab's own
+  // playerStateChanged, not through a server render.
+  const ICON_PLAY = '<svg class="icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M6 4.5v11l9-5.5-9-5.5z"/></svg>';
+  const ICON_PAUSE = '<svg class="icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="3.4" height="12" rx="1"/><rect x="11.6" y="4" width="3.4" height="12" rx="1"/></svg>';
 
   playBtn?.addEventListener('click', () => {
     const a = api();

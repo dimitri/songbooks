@@ -83,6 +83,7 @@
     }
     peaks = out;
     drawWaveform();
+    renderBarGrid();
   }
 
   function drawWaveform() {
@@ -136,6 +137,85 @@
     highlightFromTime(audio.currentTime);
   }
 
+  // ---- Bar grid: a tempo-derived tick per bar, "like Logic/Audacity's
+  // own bar ruler" (direct request) — anchored wherever section 0's own
+  // marker sits (the SAME marker setMarkerBtn, above, already writes;
+  // no new storage needed — a bar grid is just that one marker plus the
+  // song's own tempo, drawn out continuously instead of once). The
+  // anchor tick doubles as a drag handle: dragging it live-previews the
+  // whole grid shifting, and dropping it persists through the existing
+  // markers PUT endpoint — "the start at least" (direct request): only
+  // a single global offset is adjustable, not a per-bar warp.
+  const bargridEl = document.getElementById('audio-bargrid');
+  const transportEl = document.getElementById('transport');
+  const bpm = transportEl ? parseFloat(transportEl.dataset.bpm) || 0 : 0;
+  const beatsPerBar = transportEl ? parseInt(transportEl.dataset.beatsPerBar, 10) || 4 : 4;
+  const secondsPerBar = bpm > 0 ? (60 / bpm) * beatsPerBar : 0;
+  let liveOffset = null; // non-null only while actively dragging the start handle
+
+  function gridOffset() {
+    if (liveOffset !== null) return liveOffset;
+    const m = markerForSection(0);
+    return m ? m.timeSeconds : 0;
+  }
+
+  function renderBarGrid() {
+    if (!bargridEl) return;
+    bargridEl.innerHTML = '';
+    if (!duration || !secondsPerBar) return;
+    const offset = gridOffset();
+    // Count-in bars: start enumeration from the first grid line AT OR
+    // BEFORE 0, not from the anchor itself — a pickup/count-in before
+    // bar 1 still gets its own bar lines instead of a blank lead-in.
+    let bar = -Math.floor(offset / secondsPerBar);
+    let t = offset + bar * secondsPerBar;
+    while (t <= duration + 0.001) {
+      if (t >= -0.001) {
+        const tick = document.createElement('div');
+        tick.className = 'audio-bargrid-tick' + (bar === 0 ? ' audio-bargrid-start' : '');
+        tick.style.left = `${Math.max(0, Math.min(100, (t / duration) * 100))}%`;
+        if (bar === 0) {
+          tick.title = 'drag to align bar 1 with this recording';
+          tick.addEventListener('mousedown', startDragHandle);
+        }
+        bargridEl.appendChild(tick);
+      }
+      bar += 1;
+      t += secondsPerBar;
+    }
+  }
+
+  function startDragHandle(e) {
+    e.preventDefault();
+    liveOffset = gridOffset();
+    const onMove = (ev) => {
+      if (!duration) return;
+      const rect = canvas.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+      liveOffset = pct * duration;
+      renderBarGrid();
+    };
+    const onUp = async () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      const t = liveOffset;
+      liveOffset = null;
+      const res = await fetch(`/api/songs/${variantId}/audio/${activeCategory}/markers/0`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timeSeconds: t }),
+      });
+      if (res.ok) {
+        const list = categories[activeCategory].markers || (categories[activeCategory].markers = []);
+        const existing = list.find(m => m.sectionIndex === 0);
+        if (existing) existing.timeSeconds = t; else list.push({ sectionIndex: 0, timeSeconds: t });
+        list.sort((a, b) => a.timeSeconds - b.timeSeconds);
+      }
+      renderBarGrid();
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
   // ---- Transport -----------------------------------------------------------
   playBtn?.addEventListener('click', () => {
     if (audio.paused) { audio.play(); } else { audio.pause(); }
@@ -147,7 +227,7 @@
   back10Btn?.addEventListener('click', () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
   fwd10Btn?.addEventListener('click', () => { audio.currentTime = Math.min(duration || Infinity, audio.currentTime + 10); });
   audio.addEventListener('timeupdate', renderPlayheadAndMarkers);
-  audio.addEventListener('loadedmetadata', () => { duration = audio.duration; renderPlayheadAndMarkers(); });
+  audio.addEventListener('loadedmetadata', () => { duration = audio.duration; renderPlayheadAndMarkers(); renderBarGrid(); });
 
   canvas?.addEventListener('click', e => {
     if (!duration) return;
@@ -173,6 +253,7 @@
     else list.push({ sectionIndex: pendingSectionIndex, timeSeconds: t });
     list.sort((a, b) => a.timeSeconds - b.timeSeconds);
     renderPlayheadAndMarkers();
+    renderBarGrid();
   });
 
   // ---- Category toggle / load -------------------------------------------
@@ -227,7 +308,7 @@
     if (btn && categories[btn.dataset.category]) selectCategory(btn.dataset.category);
   });
 
-  window.addEventListener('resize', drawWaveform);
+  window.addEventListener('resize', () => { drawWaveform(); renderBarGrid(); });
 
   // ---- Bar click-to-play (GP sync points only) ---------------------------
   // A GP import's bar sync points are real audio-frame-derived timestamps

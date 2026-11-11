@@ -963,6 +963,26 @@ func chipSource(sec *viewerSection, riff *tab.Riff) (bars []tab.Bar, chordLabels
 	return bars, nil, true
 }
 
+// sectionChordBars is chipSource's own chordLabels loop (same guard, same
+// chordsym.Glyphs call), lifted out so the always-visible structure strip
+// (play.html) can show a section's chord sequence WITHOUT needing a riff
+// at all — chipSource only ever runs for a section that has one, while a
+// section with nothing but a plain chord grid (no "score:" voice, the
+// common case for most of this app's songs) still has a real chord
+// sequence worth showing above its bar count.
+func sectionChordBars(sec *viewerSection) []string {
+	bars := make([]string, 0, len(sec.Measures))
+	for bi := range sec.Measures {
+		m := &sec.Measures[bi]
+		cl := ""
+		if !m.IsRest && !m.IsRepeat && len(m.Beats) > 0 && !m.Beats[0].IsTie {
+			cl = chordsym.Glyphs(m.Beats[0].Text)
+		}
+		bars = append(bars, cl)
+	}
+	return bars
+}
+
 // isWholeBarRest reports whether bar is a single whole-bar rest — the
 // exact shape both chipSource's own all-rest fallback and its padding
 // (a real riff shorter than its section's BarCount) produce. Used to
@@ -1478,6 +1498,22 @@ type viewerSection struct {
 	Label    string
 	Repeat   bool
 	Measures []viewerMeasure // flat, used for the "first bar of this section" lookup
+	// ChordBars is this section's own chord sequence, one entry per bar
+	// in Measures, "" for a bar with no new chord (a tie, a rest, a "%"
+	// simile repeat) — set by sectionChordBars, a read-only pass over
+	// Measures run AFTER buildSections/attachTabRiffs (handleSong), not
+	// inside buildSections itself: this is purely a DISPLAY summary for
+	// the always-visible structure strip (play.html, "always show
+	// sections/chords as reference" — the Mixer view's own request),
+	// independent of whether the section has any tab/riff coverage at
+	// all (attachTabRiffs' own chordLabels, by contrast, only exist for
+	// a fully tab-covered row).
+	ChordBars []string
+	// ChordSummary is ChordBars' own non-empty entries, joined for the
+	// structure strip's compact one-line display ("Am · C · G · Am") —
+	// a separate field rather than a template-side join/filter, which Go
+	// templates can't do cleanly.
+	ChordSummary string
 	// Times mirrors song.Section.Times (0/1 = a single pass; > 1 means
 	// this section — its own grid, or, when bare, whatever grid it
 	// inherits below — is actually played that many times through). Used
@@ -2549,6 +2585,22 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sections := buildSections(sg)
+	for i := range sections {
+		sections[i].ChordBars = sectionChordBars(&sections[i])
+		// Collapse consecutive repeats of the SAME chord into one entry —
+		// a held vamp ("Dm Am Dm Am...", one bar each) reads as "Dm · Am"
+		// in a real lead sheet's own shorthand, not spelled out bar by
+		// bar; the structure strip has nowhere near the width for the
+		// latter anyway (direct request: "a tab-like view of the chords
+		// above the bars", not a full per-bar grid here).
+		var dedup []string
+		for _, c := range sections[i].ChordBars {
+			if c != "" && (len(dedup) == 0 || dedup[len(dedup)-1] != c) {
+				dedup = append(dedup, c)
+			}
+		}
+		sections[i].ChordSummary = strings.Join(dedup, " · ")
+	}
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
 	riffs, scoreErrs := tab.LoadScores(sg)
 	instrument := r.URL.Query().Get("instrument")

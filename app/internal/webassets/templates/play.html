@@ -1152,6 +1152,7 @@
         <button class="structure-seg{{if or .Repeat .IsReference}} is-reference{{end}}" type="button"
           data-section-index="{{.Index}}" style="--bars: {{if .BarCount}}{{.BarCount}}{{else}}1{{end}}"
           title="{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if .BarCount}} — {{.BarCount}} bars{{end}}">
+          {{if .ChordSummary}}<span class="structure-seg-chords" title="{{.ChordSummary}}">{{.ChordSummary}}</span>{{end}}
           <span class="structure-seg-tick"></span>
           <span class="structure-seg-label">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if .BarCount}}<span class="structure-seg-bars">{{.BarCount}}</span>{{end}}</span>
         </button>
@@ -1188,6 +1189,17 @@
       <div id="audio-player-body" class="audio-player-body" hidden>
         <div class="audio-waveform-wrap">
           <canvas id="audio-waveform" class="audio-waveform"></canvas>
+          {{/* Bar-grid overlay — a tempo-derived tick per bar (tempo/time
+               signature already on #transport, above), anchored at
+               wherever the CURRENT category's own section-0 marker sits
+               (the same marker "set marker" already writes — see
+               audio-player.js's own doc comment on why this needed no
+               new storage). The first tick doubles as a drag handle: drag
+               it to where bar 1 actually starts in this recording and the
+               rest of the grid follows at the song's own tempo, same
+               effect as tapping section 0's structure-strip tick then
+               "set marker" at that instant, just direct and visual. */}}
+          <div id="audio-bargrid" class="audio-bargrid"></div>
           <div id="audio-playhead" class="audio-playhead"></div>
         </div>
         <div class="audio-controls">
@@ -1280,9 +1292,9 @@
     <div class="mixer-page" id="mixer-page" data-variant-id="{{.VariantID}}">
       <p class="hint">Click a section in the strip above, then play its score — mute or solo a track to hear it on its own.</p>
       <div class="mixer-transport">
-        <button type="button" id="mixer-play-btn" class="icon-btn" title="play/pause score">&#9654;</button>
-        <button type="button" id="mixer-stop-btn" class="icon-btn" title="stop">&#9632;</button>
-        <label class="mixer-loop-label"><input type="checkbox" id="mixer-loop-toggle"> loop this section</label>
+        <button type="button" id="mixer-play-btn" class="icon-btn mixer-transport-btn" title="play/pause score">{{template "icon-play"}}</button>
+        <button type="button" id="mixer-stop-btn" class="icon-btn mixer-transport-btn" title="stop">{{template "icon-stop"}}</button>
+        <label class="mixer-loop-label"><input type="checkbox" id="mixer-loop-toggle"> loop</label>
         <select id="mixer-tempo-select" title="playback speed">
           <option value="1">100%</option>
           <option value="0.75">75%</option>
