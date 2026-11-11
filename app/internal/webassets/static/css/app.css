@@ -1438,6 +1438,9 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
 .daw-lane.is-click { background: #EDEDF3; }
 .daw-section-grip { position: absolute; left: 0; top: 0; bottom: 0; width: 10px; cursor: ew-resize; background: linear-gradient(90deg, rgba(0,0,0,.35) 0 3px, transparent 3px); }
 .daw-section-grip:hover { background: linear-gradient(90deg, rgba(0,0,0,.6) 0 4px, transparent 4px); }
+.daw-lane .daw-clip { cursor: grab; }
+.daw-lane.is-sliding, .daw-lane.is-sliding .daw-clip { cursor: grabbing; }
+.daw-section.is-dragging { cursor: grabbing; outline: 2px solid #14151A; }
 .daw-click-beat { position: absolute; top: 38%; height: 24%; width: 2px; margin-left: -1px; border-radius: 1px; background: #A0A0B4; }
 .daw-click-beat.is-down { top: 22%; height: 56%; width: 3px; background: #5E5E78; }
 .daw-lane { position: relative; box-sizing: border-box; border-bottom: 1px solid rgba(0, 0, 0, 0.35); }

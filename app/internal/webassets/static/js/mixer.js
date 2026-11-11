@@ -467,8 +467,13 @@
         grip.addEventListener('click', (e) => e.stopPropagation());
         el.appendChild(grip);
       }
+      if (canEdit) el.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.daw-section-grip')) return;
+        startAnchorDrag(e, anchorList().find((x) => x.i === i), 5);
+      });
       el.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (justDragged) return;
         selected = selected === i && !aligning ? -1 : i;
         renderSections();
         renderRuler();
@@ -597,6 +602,7 @@
       clip.style.width = audioDuration * pxPerSec + 'px';
       clip.style.background = COLOR.audio;
       clip.innerHTML = `<div class="daw-clip-hdr" style="background:${COLOR.audio}"><span>${escapeHTML(document.title.replace(/ — Songbooks$/, ''))} — ${CAT_LABEL[refCat] || refCat}</span></div>`;
+      if (canEdit) clip.title = 'drag left or right to slide the recording against the bars';
       lane.insertBefore(clip, lane.firstChild);
     }
     if (!waveCanvas || waveCanvas.parentNode !== lane) {
@@ -969,8 +975,11 @@
   });
 
   function wireLaneSeeking() {
+    contentEl.addEventListener('mousedown', (e) => {
+      if (rows.audio && rows.audio.lane.contains(e.target)) startClipDrag(e);
+    });
     contentEl.addEventListener('click', (e) => {
-      if (e.target.closest('.daw-section, .daw-anchor')) return;
+      if (justDragged || e.target.closest('.daw-section, .daw-anchor')) return;
       const rect = contentEl.getBoundingClientRect();
       seek(tOf(e.clientX - rect.left));
     });
@@ -1115,16 +1124,35 @@
     });
   }
 
-  function startAnchorDrag(e, a) {
-    if (!canEdit) return;
+  // A drag that is a click until it moves a few pixels: section blocks
+  // and the recording itself only start moving things once dragged.
+  let justDragged = false;
+  function swallowClick() {
+    justDragged = true;
+    setTimeout(() => { justDragged = false; }, 0);
+  }
+  function beginAlignEdit() {
+    snapshotForUndo();
+    if (!aligning) alignBtn.click();
+  }
+
+  function startAnchorDrag(e, a, threshold = 0) {
+    if (!canEdit || !hasAudio() || e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
     const orig = barTimes.slice();
     const x0 = e.clientX;
     const whole = e.shiftKey;
     const el = e.currentTarget;
-    el.classList.add('is-dragging');
+    let moved = threshold === 0;
+    if (moved) beginAlignEdit();
     const onMove = (ev) => {
+      if (!moved) {
+        if (Math.abs(ev.clientX - x0) < threshold) return;
+        moved = true;
+        beginAlignEdit();
+      }
+      el.classList.add('is-dragging');
       const mode = whole || ev.shiftKey ? 'whole' : ev.altKey ? 'boundary' : 'ripple';
       barTimes = movedTimes(orig, a, orig[a.bar] + (ev.clientX - x0) / pxPerSec, mode);
       layout(true);
@@ -1133,8 +1161,47 @@
     const onUp = async () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      if (!moved) return;
+      swallowClick();
       if (barTimes[a.bar] === orig[a.bar] && barTimes[0] === orig[0]) { renderAnchors(); return; }
       await saveAlignment(a, orig);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  // Drag the recording itself, like Audacity's time-shift tool: it slides
+  // against the bars (the whole grid moves the other way in its time).
+  function startClipDrag(e) {
+    if (!canEdit || !hasAudio() || e.button !== 0 || e.target.closest('.daw-anchor')) return;
+    const orig = barTimes.slice();
+    const x0 = e.clientX;
+    const lane = rows.audio.lane;
+    let moved = false;
+    const shiftEls = () => [...lane.querySelectorAll('.daw-clip'), waveCanvas].filter(Boolean);
+    const onMove = (ev) => {
+      const dx = ev.clientX - x0;
+      if (!moved) {
+        if (Math.abs(dx) < 5) return;
+        moved = true;
+        beginAlignEdit();
+        lane.classList.add('is-sliding');
+      }
+      shiftEls().forEach((el) => { el.style.transform = `translateX(${dx}px)`; });
+      alignStatus.textContent = `recording ${dx >= 0 ? 'later' : 'earlier'} by ${Math.abs(dx / pxPerSec).toFixed(2)}s against the bars`;
+    };
+    const onUp = async (ev) => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (!moved) return;
+      swallowClick();
+      lane.classList.remove('is-sliding');
+      shiftEls().forEach((el) => { el.style.transform = ''; });
+      const d = (ev.clientX - x0) / pxPerSec;
+      barTimes = orig.map((t) => t - d);
+      layout(true);
+      const first = pickup() ? 1 : 0;
+      await saveAlignment({ bar: first, label: `Bar ${barLabel(first)}`, i: 0 }, orig);
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -1205,6 +1272,17 @@
   // song's bar positions and score onsets (in ticks), applies the result,
   // saves it like a manual alignment, and keeps the previous one for Undo.
   let undoSnapshot = null;
+  // The alignment as it was before an edit (a drag or Auto-align), for Undo.
+  function snapshotForUndo() {
+    const meta = audioCats[refCat] || {};
+    undoSnapshot = {
+      cat: refCat,
+      sync: (meta.barSyncPoints || []).map((p) => ({ ...p })),
+      markers: (meta.markers || []).map((m) => ({ ...m })),
+    };
+    const btn = $('daw-align-undo');
+    if (btn) btn.hidden = false;
+  }
 
   function songForAlign() {
     const n = N();
@@ -1249,12 +1327,7 @@
       if (!analysis) throw new Error('the recording could not be decoded');
       await new Promise((r) => setTimeout(r, 30));
       const res = window.SongbooksAutoAlign.analyze(analysis, songForAlign());
-      const meta = audioCats[refCat];
-      undoSnapshot = {
-        cat: refCat,
-        sync: (meta.barSyncPoints || []).map((p) => ({ ...p })),
-        markers: (meta.markers || []).map((m) => ({ ...m })),
-      };
+      snapshotForUndo();
       barTimes = res.barTimes;
       await saveAllAnchors();
       if (!aligning) alignBtn.click();
@@ -1315,7 +1388,7 @@
       }
       undoSnapshot = null;
       $('daw-align-undo').hidden = true;
-      alignStatus.textContent = 'Auto-align undone.';
+      alignStatus.textContent = 'Undone — back to the previous alignment.';
       document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
       computeBarTimes();
       rows.audio.hdr.querySelector('.daw-hdr-sub').textContent = refSubtitle();
