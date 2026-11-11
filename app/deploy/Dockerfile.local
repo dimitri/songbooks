@@ -1,0 +1,24 @@
+# syntax=docker/dockerfile:1
+# Local development image for docker-compose.local.yml: same Go build as
+# deploy/Dockerfile, native to the host's architecture (Apple Silicon
+# included), with only the runtime tools the app actually calls into —
+# ffmpeg (audio transcoding: GP backing tracks, uploads) and yt-dlp
+# (YouTube reference audio). The production image's LilyPond tarball is
+# x86_64-only and its export path is unused, so it's left out here.
+FROM golang:1.26-bookworm AS builder
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o /out/songbooks ./cmd/songbooks
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl python3 ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl -fsSL -o /usr/local/bin/yt-dlp \
+        https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp \
+    && chmod a+rx /usr/local/bin/yt-dlp
+COPY --from=builder /out/songbooks /usr/local/bin/songbooks
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/songbooks"]
