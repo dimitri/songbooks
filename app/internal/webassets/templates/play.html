@@ -672,6 +672,9 @@
     </section>
 
     <section class="prep-panel" data-panel="raw" id="editor" data-version="{{.Version}}" data-variant-id="{{.VariantID}}" data-can-edit="{{.CanEdit}}" hidden>
+      {{if .GPSource}}
+      <p class="hint gpimport-reimport-note"><strong>This song was imported from {{.GPSource}}</strong> (<a href="/song/{{.VariantID}}/gp-file" download>download it</a>). The <code>score[...]:</code> lines below are that file's own exact notation — hand-editing this JSON works but is easy to get wrong; for a real change, edit the Guitar Pro file itself and bring it back in via the <strong>GP Import</strong> tab instead.</p>
+      {{end}}
       <div class="code-toolbar" id="code-toolbar">
         {{/* One menu, not one button per label — six separate [Verse]/
              [Chorus]/... buttons ate a full toolbar row on their own and
