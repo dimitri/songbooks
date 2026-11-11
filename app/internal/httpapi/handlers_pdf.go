@@ -351,7 +351,7 @@ func (s *Server) handleExportCommunitySongbookPDF(w http.ResponseWriter, r *http
 		refs = append(refs, pdfnative.SongRef{Stem: strconv.FormatInt(e.VariantID, 10), Body: song.Write(sg)})
 	}
 	if len(refs) == 0 {
-		httpError(w, http.StatusNotFound, "this community's repertoire has no songs yet")
+		httpError(w, http.StatusNotFound, "this community's songbook has no songs yet")
 		return
 	}
 

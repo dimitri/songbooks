@@ -66,7 +66,7 @@ type ContextualGroup struct {
 	Entries []NavEntry
 	// PDFExportPath, when set, renders the standard "export this as one
 	// PDF" cluster (link + jazz/map/lyrics mode select + notes toggle) —
-	// the exact same widget band_catalog.html/community_repertoire.html/
+	// the exact same widget band_catalog.html/community_default_songbook.html/
 	// project.html/setlist_overview.html each used to hand-roll their
 	// own copy of, varying only in this URL.
 	PDFExportPath string

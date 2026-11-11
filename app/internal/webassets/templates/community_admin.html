@@ -19,7 +19,6 @@
 <main class="index">
   <nav class="band-tabs band-tabs-row">
     <a class="band-tab" href="/communities/{{.Community.ID}}">Overview</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/repertoire">Repertoire</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">Songbooks</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/events">Events</a>
     <a href="/communities/{{.Community.ID}}/admin" class="band-tab active">Admin</a>
@@ -306,7 +305,7 @@
     </div>
   </div>
 
-  <h2>Community repertoire</h2>
+  <h2>Default songbook</h2>
   <div class="card">
     <h3>Write a new original song</h3>
     <div class="form-stack">
@@ -322,7 +321,7 @@
     <div class="form-stack">
       <div class="field"><label for="variant-id-input">Variant id</label><input type="number" id="variant-id-input"></div>
       <div class="form-actions">
-        <button type="button" id="add-existing-btn">+ add to repertoire</button>
+        <button type="button" id="add-existing-btn">+ add to songbook</button>
         <button type="button" id="fork-into-community-btn">fork into this community</button>
       </div>
       <p id="add-result" class="hint"></p>
@@ -343,7 +342,7 @@
         </td>
       </tr>
     {{else}}
-      <tr><td colspan="5" class="hint">No repertoire yet.</td></tr>
+      <tr><td colspan="5" class="hint">No songs yet.</td></tr>
     {{end}}
     </tbody>
   </table></div>

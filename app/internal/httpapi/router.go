@@ -317,7 +317,12 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /communities", s.requireAuth(s.handleCommunitiesPage))
 	mux.HandleFunc("POST /api/communities", s.requireAuth(s.handleCreateCommunity))
 	mux.HandleFunc("GET /communities/{id}", s.requireCommunityMember(s.handleCommunityPage))
-	mux.HandleFunc("GET /communities/{id}/repertoire", s.requireCommunityMember(s.handleCommunityRepertoirePage))
+	mux.HandleFunc("GET /communities/{id}/songbooks/default", s.requireCommunityMember(s.handleCommunityDefaultSongbookPage))
+	// Old "Repertoire" tab URL — kept as a redirect for existing
+	// bookmarks/links now that it's reached only via the Songbooks list.
+	mux.HandleFunc("GET /communities/{id}/repertoire", s.requireCommunityMember(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/communities/"+r.PathValue("id")+"/songbooks/default", http.StatusMovedPermanently)
+	}))
 	mux.HandleFunc("GET /communities/{id}/songbooks", s.requireCommunityMember(s.handleCommunitySongbooksPage))
 	mux.HandleFunc("GET /communities/{id}/admin", s.requireCommunityAnyManagePrivilege(s.handleCommunityAdminPage))
 	mux.HandleFunc("POST /api/communities/{id}/rename", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleRenameCommunity))

@@ -309,7 +309,7 @@ func (st *Store) notifyCommunitySubmissionDecided(ctx context.Context, sub *Comm
 	var what string
 	switch sub.Kind {
 	case "new_song":
-		what = fmt.Sprintf("your submission of %q to %s's repertoire", title, community.Name)
+		what = fmt.Sprintf("your submission of %q to %s's songbook", title, community.Name)
 	case "edit":
 		what = fmt.Sprintf("your submitted edit of %q in %s", title, community.Name)
 	default:

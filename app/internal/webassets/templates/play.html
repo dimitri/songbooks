@@ -453,7 +453,7 @@
     {{else if .BandRef}}
     <a href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} <span title="{{.BandName}}">{{.BandName}}</span></a>
     {{else if .CommunityRef}}
-    <a href="/communities/{{.CommunityRef}}/repertoire">{{template "icon-back"}} <span title="{{.CommunityName}}">{{.CommunityName}}</span></a>
+    <a href="/communities/{{.CommunityRef}}/songbooks/default">{{template "icon-back"}} <span title="{{.CommunityName}}">{{.CommunityName}}</span></a>
     {{else if .SongbookRef}}
     <a href="/songbooks/{{.SongbookRef}}">{{template "icon-back"}} <span>songbook</span></a>
     {{else}}
@@ -557,7 +557,7 @@
   {{else if .BandRef}}
   <a class="back-link" href="/bands/{{.BandRef}}/catalog" title="{{.BandName}}">{{template "icon-back"}} {{.BandName}}</a>
   {{else if .CommunityRef}}
-  <a class="back-link" href="/communities/{{.CommunityRef}}/repertoire" title="{{.CommunityName}}">{{template "icon-back"}} {{.CommunityName}}</a>
+  <a class="back-link" href="/communities/{{.CommunityRef}}/songbooks/default" title="{{.CommunityName}}">{{template "icon-back"}} {{.CommunityName}}</a>
   {{else if .SongbookRef}}
   <a class="back-link" href="/songbooks/{{.SongbookRef}}">{{template "icon-back"}} songbook</a>
   {{else}}

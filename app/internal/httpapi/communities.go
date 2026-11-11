@@ -222,8 +222,8 @@ type communityCatalogRow struct {
 // handleCommunityPage is the community's real home page: who runs it,
 // how many members, a songbooks summary (this community can have more
 // than one — see handleCommunitySongbooksPage), and an upcoming-events
-// teaser. The actual repertoire listing/editing UI lives at its own
-// /communities/{id}/repertoire tab (handleCommunityRepertoirePage).
+// teaser. The default songbook's own listing/editing UI lives at
+// /communities/{id}/songbooks/default (handleCommunityDefaultSongbookPage).
 func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	person := personFromContext(r)
@@ -339,11 +339,14 @@ func (s *Server) handleCommunitySongbooksPage(w http.ResponseWriter, r *http.Req
 	})
 }
 
-// handleCommunityRepertoirePage is the community's default songbook,
-// with the richer add/fork/remove dialog UI (the content that used to
-// live at /communities/{id} itself before it became the real home page
-// — see handleCommunityPage).
-func (s *Server) handleCommunityRepertoirePage(w http.ResponseWriter, r *http.Request) {
+// handleCommunityDefaultSongbookPage is the community's default
+// songbook, with the richer add/fork/remove dialog UI (the content that
+// used to live at /communities/{id} itself before it became the real
+// home page — see handleCommunityPage). No longer a separate top-level
+// "Repertoire" tab — reached from the Songbooks list like any other
+// songbook, just with this richer UI instead of the generic songbook
+// page's (see /songbooks/{id}, handleSongbookPage).
+func (s *Server) handleCommunityDefaultSongbookPage(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	person := personFromContext(r)
 	community, err := s.store.GetCommunity(r.Context(), communityID)
@@ -381,7 +384,7 @@ func (s *Server) handleCommunityRepertoirePage(w http.ResponseWriter, r *http.Re
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.render(w, "community_repertoire", map[string]any{
+	s.render(w, "community_default_songbook", map[string]any{
 		"Me": person, "Community": community, "Entries": entries,
 		"IsStaff": canManage || person.IsAdmin, "CanEdit": canEdit || person.IsAdmin,
 		"ContextualGroup": webassets.ContextualGroup{

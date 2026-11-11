@@ -19,16 +19,15 @@
 <main class="index">
   <nav class="band-tabs band-tabs-row">
     <a class="band-tab" href="/communities/{{.Community.ID}}">Overview</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/repertoire">Repertoire</a>
     <a href="/communities/{{.Community.ID}}/songbooks" class="band-tab active">Songbooks</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/events">Events</a>
   </nav>
 
-  <p class="hint">A community can keep more than one songbook — the default repertoire, plus any others you want: a seasonal set, a jam-night book, an event's own prep material (an event's own "manage" page can also create or attach one directly).</p>
+  <p class="hint">A community can keep more than one songbook — the default one, plus any others you want: a seasonal set, a jam-night book, an event's own prep material (an event's own "manage" page can also create or attach one directly).</p>
 
   <div class="catalog-book-cards">
   {{range .Songbooks}}
-    <a class="catalog-book-card" href="{{if .IsDefault}}/communities/{{$.Community.ID}}/repertoire{{else}}/songbooks/{{.ID}}{{end}}">
+    <a class="catalog-book-card" href="{{if .IsDefault}}/communities/{{$.Community.ID}}/songbooks/default{{else}}/songbooks/{{.ID}}{{end}}">
       <div class="catalog-book-card-title">{{.Name}}{{if .IsDefault}} <span class="hint">(default)</span>{{end}}</div>
       <div class="catalog-book-card-meta">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}}</div>
     </a>

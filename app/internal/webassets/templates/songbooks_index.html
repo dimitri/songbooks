@@ -58,13 +58,13 @@
   <p class="hint">You're not in a band yet — <a href="/bands">start one</a> to get a shared repertoire.</p>
   {{end}}
 
-  <h2 class="catalog-books-heading">Community repertoires</h2>
+  <h2 class="catalog-books-heading">Community songbooks</h2>
   {{if .CommunityCards}}
   <div class="catalog-book-cards">
   {{range .CommunityCards}}
-    <a class="catalog-book-card" href="/communities/{{.ID}}/repertoire">
+    <a class="catalog-book-card" href="/communities/{{.ID}}/songbooks">
       <div class="catalog-book-card-title">{{.Name}}</div>
-      <div class="catalog-book-card-meta">{{.Members}} member{{if ne .Members 1}}s{{end}} &middot; repertoire</div>
+      <div class="catalog-book-card-meta">{{.Members}} member{{if ne .Members 1}}s{{end}} &middot; songbooks</div>
     </a>
   {{end}}
   </div>

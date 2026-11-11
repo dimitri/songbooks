@@ -19,7 +19,6 @@
 <main class="index">
   <nav class="band-tabs band-tabs-row">
     <a href="/communities/{{.Community.ID}}" class="band-tab active">Overview</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/repertoire">Repertoire</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">Songbooks</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/events">Events</a>
     {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/admin">Admin</a>{{end}}
@@ -40,7 +39,7 @@
   </section>
 
   {{/* ---- Songbooks summary: this community can have more than one —
-       its default repertoire plus any additional named ones (an
+       its default songbook plus any additional named ones (an
        event-specific prep book, a seasonal set, etc). ---- */}}
   <section class="home-section">
     <div class="home-section-head">
@@ -49,7 +48,7 @@
     </div>
     <div class="attention-list">
     {{range .Songbooks}}
-      <a class="attention-row" href="{{if .IsDefault}}/communities/{{$.Community.ID}}/repertoire{{else}}/songbooks/{{.ID}}{{end}}">
+      <a class="attention-row" href="{{if .IsDefault}}/communities/{{$.Community.ID}}/songbooks/default{{else}}/songbooks/{{.ID}}{{end}}">
         <div class="attention-title">{{.Name}}{{if .IsDefault}} <span class="hint">(default)</span>{{end}}</div>
         <div class="attention-subtitle">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}}</div>
       </a>
