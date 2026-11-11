@@ -363,6 +363,7 @@ window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
   }
 
   function renderCycle() {
+    if (typeof markCycleInChart === 'function') markCycleInChart();
     const c = prefs.cycle;
     const show = c && hasBars() && duration;
     if (cycleEl) cycleEl.hidden = !show;
@@ -897,24 +898,103 @@ window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
   // click on a chart bar does the same. True when handled.
   window.songbooksReferenceSeekBar = (bar) => {
     if (!duration || !hasBars()) return false;
+    // Asking for a bar outside the cycle means "play from here": switch
+    // the cycle off (it stays drawn) rather than snapping back into it.
+    const c = prefs.cycle;
+    if (c && c.on && (bar < c.from || bar >= c.to)) {
+      c.on = false;
+      savePrefs();
+      renderCycle();
+      updateButtons();
+    }
     seekToBar(bar);
     if (!isPlaying()) play();
     return true;
   };
-  let barClickHandler = null;
-  function wireBarClickToPlay() {
-    const sheet = $('sheet');
-    if (!sheet) return;
-    if (barClickHandler) sheet.removeEventListener('click', barClickHandler);
-    sheet.classList.toggle('bar-click-to-play', hasBars());
-    if (!hasBars()) return;
-    barClickHandler = (e) => {
-      const barEl = e.target.closest('.bar[data-global-bar]');
-      if (!barEl || $('edit-drawer')?.hidden === false) return;
-      window.songbooksReferenceSeekBar(Number(barEl.dataset.globalBar));
-    };
-    sheet.addEventListener('click', barClickHandler);
+  // ---- Chart: click a bar to play from it; press on a bar and drag
+  // across others to cycle them (Soundslice / Logic style); Shift-click
+  // extends the cycle to that bar. Chord-grid bars and tab rows alike.
+  const sheetEl = $('sheet');
+  function chartBarAt(e) {
+    const el = e.target && e.target.closest ? e.target.closest('.bar[data-global-bar]') : null;
+    if (el && el.offsetParent) return Number(el.dataset.globalBar);
+    return window.songbooksTabBarAt ? window.songbooksTabBarAt(e.clientX, e.clientY) : null;
   }
+  // kind: 'cycle' (the loop, kept on screen) or 'select' (a drag in progress).
+  function markChartRange(from, to, kind) {
+    document.querySelectorAll(`#sheet .bar.range-${kind}`).forEach((el) => el.classList.remove(`range-${kind}`));
+    if (from !== null && to > from) {
+      document.querySelectorAll('#sheet .bar[data-global-bar]').forEach((el) => {
+        const b = Number(el.dataset.globalBar);
+        if (b >= from && b < to) el.classList.add(`range-${kind}`);
+      });
+    }
+    if (window.songbooksTabMarkRange) window.songbooksTabMarkRange(from, to, kind);
+  }
+  function markCycleInChart() {
+    const c = prefs.cycle;
+    if (c && c.on && hasBars()) markChartRange(c.from, c.to, 'cycle');
+    else markChartRange(null, 0, 'cycle');
+  }
+  // Tab rows engrave after the page loads (and re-engrave on resize):
+  // keep their cycle tint in step.
+  setInterval(() => { if (prefs.cycle && prefs.cycle.on && hasBars()) markCycleInChart(); }, 1000);
+
+  function setCycle(from, to) {
+    prefs.cycle = { from: Math.max(0, from), to: Math.max(from + 1, to), on: true };
+    passes = 0;
+    savePrefs();
+    renderCycle();
+    updateButtons();
+    const cyc = cycleRange();
+    if (cyc && (audio.currentTime < cyc.t0 - 0.05 || audio.currentTime >= cyc.t1)) seek(cyc.t0);
+  }
+
+  let drag = null;
+  let suppressClick = false;
+  sheetEl?.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || !hasBars() || $('edit-drawer')?.hidden === false) return;
+    const b = chartBarAt(e);
+    if (b === null) return;
+    drag = { start: b, end: b, x: e.clientX, y: e.clientY, moved: false };
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
+    drag.moved = true;
+    window.getSelection()?.removeAllRanges();
+    const b = chartBarAt(e);
+    if (b !== null) drag.end = b;
+    markChartRange(Math.min(drag.start, drag.end), Math.max(drag.start, drag.end) + 1, 'select');
+  });
+  document.addEventListener('pointerup', (e) => {
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    markChartRange(null, 0, 'select');
+    if (d.moved) {
+      setCycle(Math.min(d.start, d.end), Math.max(d.start, d.end) + 1);
+    } else if (e.shiftKey) {
+      const c = prefs.cycle;
+      setCycle(c ? Math.min(c.from, d.start) : d.start, c ? Math.max(c.to, d.start + 1) : d.start + 1);
+    } else {
+      return; // a plain click: the click handler below plays from that bar
+    }
+    window.getSelection()?.removeAllRanges();
+    suppressClick = true;
+    setTimeout(() => { suppressClick = false; }, 0);
+  });
+  document.addEventListener('pointercancel', () => { drag = null; markChartRange(null, 0, 'select'); });
+
+  function wireBarClickToPlay() {
+    if (sheetEl) sheetEl.classList.toggle('bar-click-to-play', hasBars());
+    markCycleInChart();
+  }
+  sheetEl?.addEventListener('click', (e) => {
+    if (suppressClick || !hasBars() || e.shiftKey || $('edit-drawer')?.hidden === false) return;
+    const b = chartBarAt(e);
+    if (b !== null) window.songbooksReferenceSeekBar(b);
+  });
 
   setSpeed(prefs.speed, false);
   updateButtons();

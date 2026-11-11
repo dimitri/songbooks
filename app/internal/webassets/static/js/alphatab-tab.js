@@ -864,6 +864,49 @@
   }
   window.songbooksTabCursor = tabCursor;
 
+  // ---- Bar ranges on tab rows, for the player's cycle (audio-player.js):
+  // which performed bar is under a point, and a tint over a bar range.
+  function tabRows() {
+    return [...document.querySelectorAll('.alphatab-row[data-first-bar]')].filter((r) => r.offsetParent && r._alphaTabApi && r._alphaTabApi.score && r._alphaTabApi.renderer.boundsLookup);
+  }
+  window.songbooksTabBarAt = function (clientX, clientY) {
+    for (const row of tabRows()) {
+      const rect = row.getBoundingClientRect();
+      if (clientY < rect.top || clientY > rect.bottom || clientX < rect.left || clientX > rect.right) continue;
+      const x = clientX - rect.left, y = clientY - rect.top;
+      const api = row._alphaTabApi;
+      const lookup = api.renderer.boundsLookup;
+      for (let i = 0; i < api.score.masterBars.length; i++) {
+        const mb = lookup.findMasterBarByIndex(i);
+        if (!mb) continue;
+        const r = mb.realBounds, sys = mb.lineAlignedBounds || mb.visualBounds || r;
+        if (x >= r.x && x < r.x + r.w && y >= sys.y && y < sys.y + sys.h) return parseInt(row.dataset.firstBar, 10) + i;
+      }
+    }
+    return null;
+  };
+  // kind: 'cycle' (the loop range, kept) or 'select' (a drag in progress).
+  window.songbooksTabMarkRange = function (from, to, kind) {
+    document.querySelectorAll(`.tab-range.${kind}`).forEach((e) => e.remove());
+    if (from === null || from === undefined || to <= from) return;
+    for (const row of tabRows()) {
+      const first = parseInt(row.dataset.firstBar, 10);
+      const api = row._alphaTabApi;
+      const lookup = api.renderer.boundsLookup;
+      for (let i = 0; i < api.score.masterBars.length; i++) {
+        const b = first + i;
+        if (b < from || b >= to) continue;
+        const mb = lookup.findMasterBarByIndex(i);
+        if (!mb) continue;
+        const r = mb.realBounds, sys = mb.lineAlignedBounds || mb.visualBounds || r;
+        const el = document.createElement('div');
+        el.className = `tab-range ${kind}`;
+        Object.assign(el.style, { left: `${r.x}px`, top: `${sys.y}px`, width: `${r.w}px`, height: `${sys.h}px` });
+        row.appendChild(el);
+      }
+    }
+  };
+
   // Exposed for the score editor's live preview (score-editor.js): it
   // writes a fresh data-tex onto its own preview container on every
   // edit and needs to re-trigger this same renderer on demand, not just
