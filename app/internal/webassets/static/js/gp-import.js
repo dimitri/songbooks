@@ -931,13 +931,21 @@
   // separate from importAudioAndSync below, which only ever extracts and
   // uploads the backing track audio GP embeds, never the source file
   // itself. Best-effort: a failure here shouldn't block the data import
-  // that's the actual point of this wizard.
+  // that's the actual point of this wizard. Also stamps "gp_source:
+  // <filename>" into the song's own header (song.MetaKeys), so "this
+  // came from a GP import, and which file" is visible in the plain text
+  // itself — not just in the separate song_gp_source_file row — and the
+  // Play page can show the "GP import" badge/re-import hint from it.
   async function uploadSourceFile() {
     if (!rawFile) return;
     const form = new FormData();
     form.append('file', rawFile, rawFile.name);
     const res = await fetch(`/api/songs/${variantId}/gp-file`, { method: 'PUT', body: form });
     if (!res.ok) throw new Error('source file upload failed: ' + (await res.text()));
+    await fetch(`/api/songs/${variantId}/meta`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'gp_source', value: rawFile.name }),
+    });
   }
 
   // Writes straight into the section's own score[label]: field in the

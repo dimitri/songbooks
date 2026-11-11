@@ -810,20 +810,30 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
      included) visible on mobile as a row of near-illegible icon squares
      (a direct report, matching a live screenshot). */
   .view-tabs { display: none; }
-  .instrument-picker { display: none; }
+  #instrument-picker { display: none; }
 }
-/* Instrument picker (#instrument-picker, play.html) — a plain native
-   select, not a second pill: it's a one-off choice that only exists at
-   all for a song with more than one melodic track, unlike the always-
-   present view-mode row, so it doesn't earn the same permanent chrome.
-   Sits beside .view-tabs (same inline-flex/text-align:center parent,
-   .song-topzone) rather than inside it. */
-.instrument-picker {
-  margin: 0.6rem 0 0.7rem 0.5rem; padding: 0.45rem 1.8rem 0.45rem 0.8rem;
-  font-size: 0.85rem; color: var(--fg); background: var(--bg-raised);
-  border: 1px solid var(--border); border-radius: 999px; cursor: pointer;
+/* Instrument picker (#instrument-picker, play.html) — same pill-of-icon-
+   buttons look as #mode-segmented just above (was a plain native
+   <select>: taller than the mode row, easy to miss entirely, which hid
+   real GP-imported notation behind the default "Chords" view — a direct
+   report). Still its own, smaller row rather than merged into
+   #mode-segmented itself: it's a one-off choice that only exists at all
+   for a song with more than one melodic track, unlike the always-present
+   view-mode row, so it doesn't earn the same permanent chrome. Sits
+   beside .view-tabs (same inline-flex/text-align:center parent,
+   .song-topzone) rather than inside it — the ID-qualified selectors
+   mirror #mode-segmented.view-tabs's own (see that rule's comment for
+   why the ID is needed: #mode-segmented's plain icon-square rule,
+   mobile's hidden copy of the view-mode row, would otherwise win on
+   specificity over a class-only rule here). */
+#instrument-picker.view-tabs button,
+#source-preview-instruments.view-tabs button {
+  display: flex; align-items: center; width: auto; height: auto;
+  background: none; border: none; border-radius: 999px;
+  padding: 0.5rem 0.9rem; font-size: 0.85rem; color: var(--fg-muted); cursor: pointer;
 }
-.instrument-picker:hover { border-color: var(--border-strong); }
+#instrument-picker.view-tabs .icon,
+#source-preview-instruments.view-tabs .icon { width: 0.95rem; height: 0.95rem; margin-right: 0.3em; vertical-align: -0.15em; }
 .topbar-cell { display: flex; align-items: center; gap: 0.5rem; min-width: 0; color: var(--fg); }
 .topbar-cell.empty { visibility: hidden; }
 a.topbar-cell { padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid var(--border); }
@@ -843,6 +853,9 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    first (artist, key or tempo can each be absent independently) — the
    adjacent-sibling pattern handles that without caring which one it is. */
 .topbar-meta > * + *::before { content: "\00b7"; margin-right: 0.5rem; }
+.gp-source-badge { display: inline-flex; align-items: center; gap: 0.3em; color: var(--fg-muted); }
+.gp-source-badge:hover { color: var(--fg); }
+.gp-source-badge .icon { width: 0.85rem; height: 0.85rem; }
 .topbar-current .segmented { margin-top: 0.5rem; flex-wrap: wrap; justify-content: center; }
 @media (max-width: 640px) {
   .song-topbar { grid-template-columns: 1fr; }
@@ -3444,14 +3457,18 @@ textarea {
    for a real second column, so it stacks there instead, same as the
    .code-editor above it already does at phone width). */
 .code-editor-row { display: flex; flex-direction: column; gap: 0.75rem; min-height: 0; flex: 1; }
+.source-preview-pane { display: none; flex-direction: column; gap: 0.4rem; min-width: 0; }
+.source-preview-pane #source-preview-instruments { margin: 0; align-self: flex-start; }
 .source-preview {
-  display: none; overflow: auto; padding: 0.75rem; border: 1px solid var(--border);
-  border-radius: 8px; background: var(--bg-raised);
+  flex: 1; overflow: auto; padding: 0.75rem; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--bg-sunken); /* matches #sheet's own
+    real background (.song-topzone) — was --bg-raised (card white),
+    visibly wrong next to the real chart's cream, a direct report. */
 }
 @media (min-width: 960px) {
   .code-editor-row { flex-direction: row; }
   .code-editor-row .code-editor { flex: 1 1 50%; min-width: 0; }
-  .source-preview { display: block; flex: 1 1 50%; min-width: 0; }
+  .source-preview-pane { display: flex; flex: 1 1 50%; min-width: 0; }
 }
 
 /* Scores tab: per-section score editor + chord-diagram builder. */

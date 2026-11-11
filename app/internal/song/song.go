@@ -19,6 +19,14 @@ var MetaKeys = []string{
 	"title", "artist", "key", "tempo", "time", "capo",
 	"transpose", "map", "idiom", "flats", "reference",
 	"cover", "cover-credit",
+	// gp_source: the original Guitar Pro filename this song's score[...]
+	// voices were imported from (see internal/httpapi/gpfile.go's
+	// song_gp_source_file table for the actual file bytes) — kept here
+	// too, in the song's own plain text, so "this came from a GP import"
+	// and the exact file it came from are visible/diffable in the
+	// format itself, not only in a side table a reader of the raw .song
+	// text would never see.
+	"gp_source",
 }
 
 func isMetaKey(k string) bool {

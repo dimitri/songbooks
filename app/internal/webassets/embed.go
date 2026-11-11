@@ -115,7 +115,7 @@ var funcMap = template.FuncMap{
 			return "drums"
 		case strings.Contains(v, "bass"):
 			return "bass"
-		case strings.Contains(v, "guitar"):
+		case strings.Contains(v, "guitar"), strings.Contains(v, "solo"), strings.Contains(v, "rythmique"):
 			return "guitar"
 		case strings.Contains(v, "sing") || strings.Contains(v, "vocal") || strings.Contains(v, "chant"):
 			return "vocals"

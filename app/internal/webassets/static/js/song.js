@@ -1110,19 +1110,26 @@ const ICONS = {
     }
   } catch (e) { /* ignore */ }
 
-  // Instrument picker (#instrument-picker, play.html) — server-rendered,
-  // not a client-side re-render: Song view's own chord-chart overlay and
-  // Song map (both built from the SAME attachTabRiffs-mutated sections,
-  // handlers_pages.go) only know which track to show once the page is
-  // rendered with ?instrument=NAME, so picking a different one just
-  // updates that query param and reloads, rather than threading every
-  // available track's own alphaTeX through the page up front for a
-  // client-side swap. URLSearchParams, not string-splicing the query
-  // string by hand, so this doesn't clobber ?setlist=/?band=/?songbook=
-  // or any other param already on the URL.
-  document.getElementById('instrument-picker')?.addEventListener('change', e => {
+  // Instrument picker (#instrument-picker, play.html) — a pill row of
+  // icon buttons now (same view-tabs look as the mode row above it, see
+  // the UX complaint this replaced: the old native <select> was both
+  // visually mismatched — taller, misaligned — and easy to miss, which
+  // silently hid real GP-imported notation behind the default "Chords"
+  // view). Still server-rendered, not a client-side re-render: Song
+  // view's own chord-chart overlay and Song map (both built from the
+  // SAME attachTabRiffs-mutated sections, handlers_pages.go) only know
+  // which track to show once the page is rendered with
+  // ?instrument=NAME, so picking a different one just updates that
+  // query param and reloads, rather than threading every available
+  // track's own alphaTeX through the page up front for a client-side
+  // swap. URLSearchParams, not string-splicing the query string by
+  // hand, so this doesn't clobber ?setlist=/?band=/?songbook= or any
+  // other param already on the URL.
+  document.getElementById('instrument-picker')?.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-instrument]');
+    if (!btn) return;
     const url = new URL(location.href);
-    if (e.target.value) url.searchParams.set('instrument', e.target.value);
+    if (btn.dataset.instrument) url.searchParams.set('instrument', btn.dataset.instrument);
     else url.searchParams.delete('instrument');
     location.href = url.toString();
   });
@@ -1603,12 +1610,14 @@ const ICONS = {
   });
 
   const sourcePreview = document.getElementById('source-preview');
+  const sourcePreviewInstruments = document.getElementById('source-preview-instruments');
+  let previewInstrument = '';
   let previewTimer = null;
   async function renderPreview() {
     try {
       const res = await fetch('/api/preview', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: rawTextarea.value }),
+        body: JSON.stringify({ text: rawTextarea.value, instrument: previewInstrument }),
       });
       const html = await res.text();
       sheet.innerHTML = html;
@@ -1625,6 +1634,17 @@ const ICONS = {
     } catch (e) { /* leave the last good render in place */ }
   }
   rawTextarea.addEventListener('input', () => { clearTimeout(previewTimer); previewTimer = setTimeout(renderPreview, 400); });
+  // Instrument picker for the Source panel's own live preview — client-
+  // side only (no page reload, unlike the real Play page's own picker:
+  // there's no saved page to reload mid-edit), just re-renders the same
+  // preview with a different track selected.
+  sourcePreviewInstruments?.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-instrument]');
+    if (!btn) return;
+    previewInstrument = btn.dataset.instrument;
+    sourcePreviewInstruments.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+    renderPreview();
+  });
 
   document.getElementById('save-btn').addEventListener('click', async () => {
     const status = document.getElementById('save-status');

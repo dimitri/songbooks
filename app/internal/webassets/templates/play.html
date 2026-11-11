@@ -578,6 +578,7 @@
       {{if .Artist}}<span class="topbar-artist">{{.Artist}}</span>{{end}}
       {{if .Key}}<span class="topbar-meta-item">key {{.Key}}</span>{{end}}
       {{if .Tempo}}<span class="topbar-meta-item">{{.Tempo}} bpm</span>{{end}}
+      {{if .GPSource}}<a class="topbar-meta-item gp-source-badge" href="/song/{{.VariantID}}/gp-file" download title="imported from this Guitar Pro file — download it, edit in Guitar Pro, then re-import your changes from the Edit drawer's GP Import tab">{{template "icon-instrument-guitar"}} GP import: {{.GPSource}}</a>{{end}}
     </div>
     {{/* mini-metro-play/-fade/-tap stay in the DOM but hidden, not deleted
          — jumpToSection()/setPlaying() (song.js) operate on these exact
@@ -625,12 +626,12 @@
      up front. Hidden entirely when the song has no melodic score track
      at all — nothing to pick. */}}
 {{if .Instruments}}
-<select class="instrument-picker" id="instrument-picker" title="which instrument's notation to show">
-  <option value=""{{if not .SelectedInstrument}} selected{{end}}>Chords</option>
+<div class="view-tabs instrument-tabs" id="instrument-picker" title="which instrument's notation to show">
+  <button type="button" data-instrument="" class="{{if not .SelectedInstrument}}active{{end}}" title="chord grid">{{template "icon-chord-grid"}} Chords</button>
   {{range .Instruments}}
-  <option value="{{.}}"{{if eq . $.SelectedInstrument}} selected{{end}}>{{.}}</option>
+  <button type="button" data-instrument="{{.}}" class="{{if eq . $.SelectedInstrument}}active{{end}}" title="{{.}}">{{template "instrument-icon" .}} {{.}}</button>
   {{end}}
-</select>
+</div>
 {{end}}
 </div>
 
@@ -724,7 +725,25 @@
           <pre class="code-backdrop" id="code-backdrop" aria-hidden="true"><code id="code-highlight"></code></pre>
           <textarea id="raw-text" rows="22" spellcheck="false">{{.Text}}</textarea>
         </div>
-        <div class="sheet source-preview" id="source-preview" aria-label="live preview"></div>
+        <div class="source-preview-pane">
+          {{/* Same instrument picker as the real Play page (view-tabs,
+               above), so Source's live preview can show a GP-imported
+               song's actual notation too, not just the chord grid every
+               preview silently defaulted to before — the exact gap that
+               made a tab-only import look empty/broken here. Client-side
+               only (no page reload like the real picker's own
+               ?instrument= — there's no saved page to reload mid-edit):
+               see wireSourcePreviewInstruments, song.js. */}}
+          {{if .Instruments}}
+          <div class="view-tabs instrument-tabs" id="source-preview-instruments" title="which instrument's notation to preview">
+            <button type="button" data-instrument="" class="active" title="chord grid">{{template "icon-chord-grid"}} Chords</button>
+            {{range .Instruments}}
+            <button type="button" data-instrument="{{.}}" title="{{.}}">{{template "instrument-icon" .}} {{.}}</button>
+            {{end}}
+          </div>
+          {{end}}
+          <div class="sheet source-preview" id="source-preview" aria-label="live preview"></div>
+        </div>
       </div>
       <div class="editor-actions">
         <button id="save-btn" type="button" class="primary" hidden>Save</button>
