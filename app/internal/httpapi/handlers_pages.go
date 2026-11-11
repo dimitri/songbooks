@@ -2594,6 +2594,14 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"SelectedInstrument": instrument,
 		"Chords":             sg.Chords,
 		"HasAlphaTab":        anyTabOnlyLine(sections),
+		// HasAnyScore gates the Mixer tab (play.html) — deliberately NOT
+		// the same as HasAlphaTab above: that one only covers the Normal
+		// chart's own fully-riff-covered-row overlay case
+		// (anyTabOnlyLine), while a song can carry a playable score
+		// (e.g. a drum-only voice, Drummer view's own domain) without
+		// ever tripping that condition — len(riffs) > 0 is the actual
+		// "does this song have anything for the Mixer to play" signal.
+		"HasAnyScore":        len(riffs) > 0,
 		"HasLyrics":          anySectionHasLyrics(sections),
 		"Text":               text, "Version": version,
 	}

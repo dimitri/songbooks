@@ -611,6 +611,7 @@
   {{if .HasLyrics}}<button type="button" data-value="lyrics" title="lyrics only">{{template "icon-mode-lyrics"}} Lyrics only</button>{{end}}
   <button type="button" data-value="map" title="song map">{{template "icon-mode-map"}} Song map</button>
   <button type="button" data-value="drummer" title="drummer view">{{template "icon-mode-drummer"}} Drummer</button>
+  {{if .HasAnyScore}}<button type="button" data-value="mixer" title="mixer: play the score">{{template "icon-mode-drummer"}} Mixer</button>{{end}}
   <button type="button" data-value="reference" title="reference">{{template "icon-reference"}} Reference</button>
 </div>
 {{/* Instrument picker — Song view's own chord-grid chart (and Song
@@ -1089,6 +1090,7 @@
     {{if .HasLyrics}}<button type="button" class="stack-sheet-row" data-forward="lyrics">{{template "icon-mode-lyrics"}} Lyrics only</button>{{end}}
     <button type="button" class="stack-sheet-row" data-forward="map">{{template "icon-mode-map"}} Song map</button>
     <button type="button" class="stack-sheet-row" data-forward="drummer">{{template "icon-mode-drummer"}} Drummer</button>
+    {{if .HasAnyScore}}<button type="button" class="stack-sheet-row" data-forward="mixer">{{template "icon-mode-drummer"}} Mixer</button>{{end}}
     <button type="button" class="stack-sheet-row" data-forward="edit">{{template "icon-edit"}} Edit</button>
     {{if .VariantID}}<button type="button" class="stack-sheet-row" id="notes-stack-row">{{template "icon-notes"}} Notes</button>{{end}}
   </div>
@@ -1264,6 +1266,33 @@
       </div>
       <p class="hint">The reference-audio player above (under the structure strip) plays whichever category you pick — useful here to validate an upload right after it finishes.</p>
     </div>
+
+    {{/* Mixer: play the SCORE (AlphaSynth/MIDI) rather than the reference
+         recording above — a sibling page, same convention as
+         #reference-page, shown only when #sheet carries this render mode.
+         The structure strip and the reference-audio player (both above,
+         OUTSIDE #sheet) stay visible in every mode including this one —
+         "always show sections/chords and the sync tooling as reference"
+         comes for free rather than being rebuilt here. Clicking a section
+         in the strip while this mode is active loads that section's score
+         (mixer.js); the strip's own existing jump-to-bar/metronome click
+         behavior (song.js) is untouched. */}}
+    <div class="mixer-page" id="mixer-page" data-variant-id="{{.VariantID}}">
+      <p class="hint">Click a section in the strip above, then play its score — mute or solo a track to hear it on its own.</p>
+      <div class="mixer-transport">
+        <button type="button" id="mixer-play-btn" class="icon-btn" title="play/pause score">&#9654;</button>
+        <button type="button" id="mixer-stop-btn" class="icon-btn" title="stop">&#9632;</button>
+        <label class="mixer-loop-label"><input type="checkbox" id="mixer-loop-toggle"> loop this section</label>
+        <select id="mixer-tempo-select" title="playback speed">
+          <option value="1">100%</option>
+          <option value="0.75">75%</option>
+          <option value="0.5">50%</option>
+        </select>
+      </div>
+      <div id="mixer-channel-strip" class="mixer-channel-strip"></div>
+      <div id="mixer-score" class="alphatab-row" data-enable-player="1"></div>
+      <p id="mixer-empty" class="hint" hidden>This section has no score to play yet.</p>
+    </div>
   </div>
 </div>
 </div><!-- /.app-content -->
@@ -1272,14 +1301,17 @@
 <script src="/static/js/song.js?v={{staticVersion}}"></script>
 <script src="/static/js/audio-player.js?v={{staticVersion}}"></script>
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
-{{if or .HasAlphaTab .CanEdit}}
+{{if or .HasAlphaTab .HasAnyScore .CanEdit}}
 {{/* Loaded whenever the page already has a riff-covered row to draw
-     (see .HasAlphaTab, handleSong), OR the viewer can edit — the Scores
-     tab's live preview needs it even on a song with no score: yet (that's
-     exactly what the tab is for). The vendored library is ~1.5MB, not
-     worth shipping to a read-only viewer who'll never open that tab. */}}
+     (see .HasAlphaTab, handleSong), OR there's any score at all for the
+     Mixer tab to play (.HasAnyScore — a drum-only voice trips this but
+     not .HasAlphaTab), OR the viewer can edit — the Scores tab's live
+     preview needs it even on a song with no score: yet (that's exactly
+     what the tab is for). The vendored library is ~1.5MB, not worth
+     shipping to a read-only viewer who'll never open any of those tabs. */}}
 <script src="/static/js/vendor/alphatab/alphaTab.min.js?v={{staticVersion}}"></script>
 <script src="/static/js/alphatab-tab.js?v={{staticVersion}}"></script>
+<script src="/static/js/mixer.js?v={{staticVersion}}"></script>
 {{end}}
 {{if .CanEdit}}
 <script src="/static/js/score-editor.js?v={{staticVersion}}"></script>

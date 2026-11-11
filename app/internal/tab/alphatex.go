@@ -100,6 +100,152 @@ func ToAlphaTexBass(riff *Riff, chordLabels []string) string {
 	return ToAlphaTex(riff, clef, chordLabels)
 }
 
+// MixerTrack is one playable channel the Mixer view's AlphaSynth-driven
+// transport can mute/solo independently — ToAlphaTexMulti's own return
+// shape for the caller (handlers_mixer.go) to hand straight to the
+// client as JSON, in the same order the alphaTeX document declares its
+// \track blocks (alphaTab assigns Score.tracks indexes in that same
+// declaration order, so this slice's index IS the track index the
+// client's api.changeTrackMute/changeTrackSolo calls need).
+type MixerTrack struct {
+	Name  string
+	Drums bool
+}
+
+// ToAlphaTexMulti combines a section's named riffs into ONE multi-track
+// alphaTeX document, so alphaTab's own player (AlphaSynth) can play every
+// track on one shared clock and mute/solo between them — the Mixer
+// view's whole reason for existing. ToAlphaTex/ToAlphaTexBass/
+// ToAlphaTexDrums each emit their OWN implicit single-track document,
+// fine for rendering one riff's notation independently of the others
+// (every other mount in this app), but useless for playback that needs
+// several tracks sharing one clock — alphaTeX only lets later tracks
+// line up against earlier ones within the SAME document.
+//
+// tempo is the song's own real tempo (the ".song" file's "tempo:"
+// field), not this package's "invisible boundary tempo" trick
+// (ToAlphaTexDrums's own doc comment) — this is the one place in this
+// package a "\tempo" directive is meant to actually reach alphaTab's
+// playback engine, not just manipulate multiBarRest consolidation, so
+// the caller must NOT suppress NotationElement.EffectTempo the way
+// every other alphaTab mount in this app does (alphatab-tab.js checks
+// for this case).
+func ToAlphaTexMulti(tracks []NamedRiff, tempo int) (tex string, meta []MixerTrack) {
+	if tempo <= 0 {
+		tempo = 120
+	}
+	var b strings.Builder
+	b.WriteString(`\tempo `)
+	b.WriteString(strconv.Itoa(tempo))
+	b.WriteString("\n")
+	for _, t := range tracks {
+		name := t.Name
+		if name == "" {
+			name = "Track"
+		}
+		if t.Riff.Drums {
+			name = "Drums"
+			writeDrumTrackBlock(&b, name, t.Riff)
+		} else {
+			writeMelodicTrackBlock(&b, name, t.Riff)
+		}
+		meta = append(meta, MixerTrack{Name: name, Drums: t.Riff.Drums})
+	}
+	return b.String(), meta
+}
+
+// writeMelodicTrackBlock is ToAlphaTex's own body (tuning + bars), just
+// wrapped in an explicit "\track" header — required once a document has
+// more than one track (alphaTab infers a single implicit track only when
+// there is none at all, the convention every OTHER melodic alphaTeX this
+// package emits relies on).
+func writeMelodicTrackBlock(b *strings.Builder, name string, riff *Riff) {
+	b.WriteString(`\track "`)
+	b.WriteString(escapeAlphaTexString(name))
+	b.WriteString("\"\n")
+	b.WriteString(`\tuning (`)
+	for i, midi := range riff.Tuning {
+		if i > 0 {
+			b.WriteByte(' ')
+		}
+		b.WriteString(midiToAlphaTexNote(midi))
+	}
+	b.WriteString(")\n.\n")
+	clef := ""
+	if len(riff.Tuning) <= 4 {
+		clef = "F4" // same bass heuristic as ToAlphaTexBass
+	}
+	for bi, bar := range riff.Bars {
+		if bi > 0 {
+			b.WriteString(" | ")
+		}
+		if bi == 0 && clef != "" {
+			b.WriteString(`\clef `)
+			b.WriteString(clef)
+			b.WriteByte(' ')
+		}
+		for i, beat := range bar.Beats {
+			if i > 0 {
+				b.WriteByte(' ')
+			}
+			writeBeat(b, beat, "")
+		}
+	}
+	b.WriteString(" |\n")
+}
+
+// writeDrumTrackBlock is ToAlphaTexDrums's own body (articulations +
+// bars), minus its boundary/alternating-tempo trick — that trick exists
+// only for buildDrumMap's own per-line multiBarRest consolidation
+// (handlers_pages.go), irrelevant here: the Mixer view renders one
+// section's drum riff on its own, with no adjacent section sharing its
+// line.
+func writeDrumTrackBlock(b *strings.Builder, name string, riff *Riff) {
+	b.WriteString(`\track "`)
+	b.WriteString(escapeAlphaTexString(name))
+	b.WriteString("\" { instrument percussion multiBarRest }\n")
+	used := map[int]bool{}
+	var order []int
+	for _, bar := range riff.Bars {
+		for _, beat := range bar.Beats {
+			for _, n := range beat.Notes {
+				if !used[n.MIDI] {
+					used[n.MIDI] = true
+					order = append(order, n.MIDI)
+				}
+			}
+		}
+	}
+	sort.Ints(order)
+	for _, midi := range order {
+		articName := drumArticulationName[midi]
+		if articName == "" {
+			continue
+		}
+		b.WriteString(`\articulation (`)
+		b.WriteString(articName)
+		b.WriteByte(' ')
+		b.WriteString(strconv.Itoa(midi))
+		b.WriteString(")\n")
+	}
+	b.WriteString(".\n")
+	for bi, bar := range riff.Bars {
+		if bi > 0 {
+			b.WriteString(" | ")
+		}
+		if bi == 0 {
+			b.WriteString(`\clef neutral `)
+		}
+		for i, beat := range bar.Beats {
+			if i > 0 {
+				b.WriteByte(' ')
+			}
+			writeDrumBeat(b, beat, "")
+		}
+	}
+	b.WriteString(" |\n")
+}
+
 func writeBeat(b *strings.Builder, beat Beat, chordLabel string) {
 	dur, dotted := splitDuration(beat.Duration)
 	switch {

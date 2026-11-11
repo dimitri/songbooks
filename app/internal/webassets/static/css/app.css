@@ -1155,6 +1155,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    it the way jazz/lyrics/map do — a video/audio reference page has
    nothing in common with the chart layout underneath it. */
 #sheet[data-render-mode="reference"] { display: none; }
+#sheet[data-render-mode="mixer"] { display: none; }
 
 /* ---- Reference page (app/docs/mp3-reference-audio.md) ---------------------
    A plain sibling of #sheet (see play.html's own comment on why), shown
@@ -1162,6 +1163,22 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    the mirror image of the rule just above. */
 .reference-page { display: none; max-width: 42rem; margin: 0 auto; padding: 1rem 0; }
 #sheet[data-render-mode="reference"] ~ .reference-page { display: block; }
+
+/* ---- Mixer page -----------------------------------------------------------
+   Same sibling convention as .reference-page above, for the OTHER
+   transport: AlphaSynth-driven score playback (per-track mute/solo)
+   instead of the reference recording. The structure strip and the
+   reference-audio player both stay visible above this page in every
+   mode, mixer included — see play.html's own comment. */
+.mixer-page { display: none; max-width: 48rem; margin: 0 auto; padding: 1rem 0; }
+#sheet[data-render-mode="mixer"] ~ .mixer-page { display: block; }
+.mixer-transport { display: flex; align-items: center; gap: 0.8rem; margin: 0.6rem 0 1rem; }
+.mixer-loop-label { display: flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; color: var(--fg-muted); }
+.mixer-channel-strip { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.8rem; }
+.mixer-channel { display: flex; align-items: center; gap: 0.3rem; border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.3rem 0.6rem; }
+.mixer-channel-name { font-weight: 600; margin-right: 0.2rem; }
+.mixer-channel button { font-size: 0.8rem; padding: 0.15rem 0.5rem; }
+.mixer-channel button.active { background: var(--accent); color: var(--accent-contrast); }
 
 /* Layout is automatic, not a manual toggle: the viewport decides.
    - Below 761px: single stacked column (chords above lyrics) — the only
