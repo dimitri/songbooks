@@ -1381,7 +1381,10 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 					var systems []string
 					first := 0
 					if line.Measures[0].Pickup {
-						tex = strings.Replace(tex, ".\n", ".\n\\ac ", 1) // alphaTeX anacrusis: a short bar, not a full one
+						// alphaTeX anacrusis (a short bar, not a full one), left
+						// unnumbered like a printed pickup; alphatab-tab.js
+						// renumbers the rest so the first full bar is 1.
+						tex = strings.Replace(tex, ".\n", ".\n\\ac \\barnumberdisplay hide ", 1)
 						systems = append(systems, strconv.Itoa(min(n, 5)))
 						first = min(n, 5)
 					}

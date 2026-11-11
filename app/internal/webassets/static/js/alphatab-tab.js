@@ -483,6 +483,23 @@
     lastMissingPx = 0;
     try {
       const api = new alphaTab.AlphaTabApi(container, settings);
+      // A row opening with a pickup (\\ac, see attachTabRiffs) hides that
+      // bar's number; alphaTab always prints bar index + 1, so shift the
+      // rest down by one after every render: the first full bar reads 1,
+      // as in print. Bar numbers are the only text drawn in the bar-number
+      // colour (fret numbers have no fill).
+      if (/\\ac\b/.test(tex)) {
+        const numberColor = settings.display.resources.barNumberColor.rgba.toLowerCase();
+        api.postRenderFinished.on(() => {
+          for (const t of container.querySelectorAll('svg text[fill]')) {
+            if (t.dataset.renumbered || (t.getAttribute('fill') || '').toLowerCase() !== numberColor) continue;
+            const m = /^(\s*)(\d+)(\s*)$/.exec(t.textContent);
+            if (!m) continue;
+            t.textContent = m[1] + (Number(m[2]) - 1) + m[3];
+            t.dataset.renumbered = '1';
+          }
+        });
+      }
       if (systems.length) {
         api.scoreLoaded.on((score) => {
           for (const t of score.tracks) { t.systemsLayout = systems; t.defaultSystemsLayout = systems[systems.length - 1]; }
