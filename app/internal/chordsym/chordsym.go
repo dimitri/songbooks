@@ -69,9 +69,11 @@ func Split(sym string) Parts {
 	}
 	quality := rest
 	bass := ""
-	if i := strings.IndexByte(rest, '/'); i >= 0 {
-		quality = rest[:i]
+	// A "/" only introduces a bass note when a note follows it: "6/9" is
+	// one quality (a six-nine chord), not a sixth over a bass "9".
+	if i := strings.LastIndexByte(rest, '/'); i >= 0 {
 		if b, _, ok := splitRoot(rest[i+1:]); ok {
+			quality = rest[:i]
 			bass = b
 		}
 	}

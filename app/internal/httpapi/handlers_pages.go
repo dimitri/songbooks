@@ -1335,6 +1335,14 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 // (play.html) — see pickRiff's own doc comment for how it overrides
 // firstMelodicRiff's default ambiguous-skip behavior.
 func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff, timeNum, timeDen int, swing, instrument string) {
+	// A song opening with a pickup numbers it 0 (see viewerMeasure.Pickup).
+	songPickup := false
+	for _, sec := range sections {
+		if len(sec.Measures) > 0 {
+			songPickup = sec.Measures[0].Pickup
+			break
+		}
+	}
 	for si := range sections {
 		tracks, ok := scoreTracks[sections[si].Index]
 		if !ok {
@@ -1439,7 +1447,17 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 				if meta := tab.FirstBarMeta(timeNum, timeDen, swing); meta != "" {
 					tex = strings.Replace(tex, ".\n", ".\n"+meta, 1)
 				}
-				if line := &sections[si].Lines[li]; len(sections[si].Measures) > 0 && sections[si].Measures[0].Pickup {
+				if line := &sections[si].Lines[li]; len(line.Measures) > 0 {
+					line.BarShift = line.Measures[0].GlobalBar
+					if songPickup {
+						line.BarShift--
+					}
+				}
+				// Fixed rows of 4 bars, like the chord chart (a 12-bar blues
+				// reads as three rows of four), a pickup riding along in the
+				// first; alphaTab's own automatic line breaks fit however
+				// many bars happen to fit (3 here, 5 there).
+				if line := &sections[si].Lines[li]; len(line.Measures) > 0 {
 					n := len(line.Measures)
 					var systems []string
 					first := 0
@@ -1765,10 +1783,15 @@ type viewerLine struct {
 	// this app's hand-rolled CSS/SVG tab drawing for the TabOnly case).
 	// Only set alongside TabOnly; "" otherwise.
 	AlphaTex string
-	// Systems, for a TabOnly row in a section that starts with a pickup,
-	// is alphaTab's bars-per-system list ("5,4,4,4"): the same pickup + 4s
+	// Systems, for a TabOnly row, is alphaTab's bars-per-system list:
+	// "4,4,4" — or "5,4,4" when the row opens with a pickup — the same
 	// phrasing the chord grid gets (see viewerMeasure.Pickup).
 	Systems string
+	// BarShift turns alphaTab's own bar numbers (1, 2, … in every row,
+	// each row being its own score) into the song's: added to each one
+	// (see alphatab-tab.js). The row's first performed bar, less one in a
+	// song whose pickup is bar 0 and its first full bar 1.
+	BarShift int
 }
 
 // groupMeasures chunks a section's measures into display rows — "systems",
@@ -3031,26 +3054,58 @@ func songStartsWithPickup(sg *song.Song, si int) bool {
 	if len(sec.Measures) == 0 {
 		return false
 	}
-	if isSilentBar(sec.Measures[0].Tokens) {
-		return true
-	}
 	timeSig := orDefault(sec.Time, orDefault(sg.Get("time"), "4/4"))
 	num, den := timeSigParts(timeSig)
 	full := float64(atoiOr(num, 4)) * 4 / float64(atoiOr(den, 4))
+	// The score decides when there is one. A track playing from the first
+	// beat of a full bar makes it bar 1; one whose notes only come in late
+	// (a first bar shorter than a full one, or opening with rests over at
+	// least half of it — an anacrusis padded to a full bar) makes it a
+	// pickup, as does a first bar silent in every track under a silent
+	// grid bar (a count-in).
+	scored, late, fromStart := false, false, false
 	for _, sv := range sec.Scores {
 		riff, err := tab.ParseVoice(sv.Label, sv.Body)
 		if err != nil || len(riff.Bars) == 0 {
 			continue
 		}
+		scored = true
 		bar := riff.Bars[0]
-		rest := true
+		lead, notes := 0.0, false
 		for _, b := range bar.Beats {
 			if !b.Rest {
-				rest = false
+				notes = true
+				break
 			}
+			lead += b.Beats()
 		}
-		if !rest && tab.BarBeats(bar) < full-1e-9 {
-			return true
+		if !notes {
+			continue
+		}
+		if tab.BarBeats(bar) < full-1e-9 || lead >= full/2-1e-9 {
+			late = true
+		} else {
+			fromStart = true
+		}
+	}
+	if scored {
+		// A first bar silent in every track is a count-in only under a
+		// silent grid bar too: silence under a chord is an intro bar.
+		return !fromStart && (late || isSilentBar(sec.Measures[0].Tokens))
+	}
+	// No score: a silent first grid bar ("?", "R", N.C.) — but only in a
+	// grid that names chords somewhere; one that names none ("R" in every
+	// bar, e.g. a Guitar Pro import without chord diagrams) says nothing.
+	return isSilentBar(sec.Measures[0].Tokens) && gridNamesChords(sg)
+}
+
+// gridNamesChords: some bar of the song's chord grid names a chord.
+func gridNamesChords(sg *song.Song) bool {
+	for _, sec := range sg.Sections {
+		for _, m := range sec.Measures {
+			if len(m.Tokens) > 0 && !isSilentBar(m.Tokens) && !allSimile(m.Tokens) {
+				return true
+			}
 		}
 	}
 	return false
