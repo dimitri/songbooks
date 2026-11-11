@@ -1313,7 +1313,8 @@
             </select>
           </label>
           <span class="daw-tb-spacer"></span>
-          {{if .CanEdit}}<button type="button" class="daw-btn-text" id="daw-align" aria-pressed="false" title="align the reference recording to the song's bars and sections">Align recording</button>{{end}}
+          {{if .CanEdit}}<button type="button" class="daw-btn-text" id="daw-autoalign" title="find the count-in and downbeats in the recording and place every bar automatically">Auto-align</button>
+          <button type="button" class="daw-btn-text" id="daw-align" aria-pressed="false" title="align the reference recording to the song's bars and sections by hand">Align recording</button>{{end}}
           <div class="daw-zoom" role="group" aria-label="zoom">
             <button type="button" class="daw-btn-text" id="daw-zoom-fit" title="fit the whole song to the window (F)">Fit</button>
             <button type="button" class="daw-btn daw-btn-sm" id="daw-zoom-out" title="zoom out (−)" aria-label="zoom out">−</button>
@@ -1328,6 +1329,7 @@
           <span>Drag a section flag on the recording to where that section really starts — the bars between flags follow. <kbd>Shift</kbd>-drag moves the whole grid. Or select a section and</span>
           <button type="button" class="daw-btn-text" id="daw-align-here">set its start at the playhead</button>
           <span class="daw-align-status" id="daw-align-status"></span>
+          <button type="button" class="daw-btn-text" id="daw-align-undo" hidden>Undo auto-align</button>
         </div>
         <div class="daw-main" id="daw-main">
           <div class="daw-headers" id="daw-headers"></div>
@@ -1344,6 +1346,7 @@
 <script src="/static/js/song.js?v={{staticVersion}}"></script>
 <script src="/static/js/audio-player.js?v={{staticVersion}}"></script>
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
+<script src="/static/js/mixer-autoalign.js?v={{staticVersion}}" defer></script>
 <script src="/static/js/mixer.js?v={{staticVersion}}" defer></script>
 {{if or .HasAlphaTab .HasAnyScore .CanEdit}}
 {{/* Loaded whenever the page already has a riff-covered row to draw

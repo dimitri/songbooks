@@ -67,6 +67,7 @@
   let audio = null;
   let audioDuration = 0;
   let peaks = null;             // {min, max: Float32Array, perSec}
+  let analysis = null;          // {x: mono Float32Array at ~11 kHz, sr} for auto-align
   let barTimes = [];            // totalBars + 1 entries, seconds
   let realBars = new Set();     // bars whose time is authored (sync point / marker), not estimated
   let pxPerSec = 110;           // default zoom: about a bar per 230px at 113 bpm, legible notation
@@ -534,6 +535,16 @@
       }
       peaks = { min, max, perSec };
       drawWave();
+      const f = Math.max(1, Math.round(decoded.sampleRate / 11025));
+      const c0 = decoded.getChannelData(0);
+      const c1 = decoded.numberOfChannels > 1 ? decoded.getChannelData(1) : c0;
+      const x = new Float32Array(Math.floor(decoded.length / f));
+      for (let i = 0, j = 0; i < x.length; i++) {
+        let sum = 0;
+        for (let k = 0; k < f; k++, j++) sum += c0[j] + c1[j];
+        x[i] = sum / (2 * f);
+      }
+      analysis = { x, sr: decoded.sampleRate / f };
     } catch (e) {
       setStatus('Could not decode the recording for its waveform (playback still works).');
     }
@@ -639,6 +650,10 @@
     const bl = tr.api.renderer.boundsLookup;
     const sys = bl && bl.staffSystems && bl.staffSystems[0];
     if (!sys || !sys.bars.length) return;
+    // The crop below is meant to drop alphaTab's "rendered by alphaTab"
+    // line under the system; in a short single-track score it can still
+    // sit inside the cropped band, so remove it outright.
+    tr.mount.querySelectorAll('svg text').forEach((t) => { if (/rendered by alphaTab/i.test(t.textContent)) t.remove(); });
     tr.bar0x = sys.bars[0].realBounds.x;
     tr.sysRight = sys.realBounds.x + sys.realBounds.w;
     // Heights only ever grow, so rows never jump between zoom levels.
@@ -1034,6 +1049,134 @@
     await saveAlignment({ ...a, label: s.label }, orig);
   });
 
+  // ---- Auto-align ------------------------------------------------------------
+  // mixer-autoalign.js finds the count-in and downbeats; this feeds it the
+  // song's bar positions and score onsets (in ticks), applies the result,
+  // saves it like a manual alignment, and keeps the previous one for Undo.
+  let undoSnapshot = null;
+
+  function songForAlign() {
+    const n = N();
+    const barTicks = [];
+    for (let b = 0; b <= n; b++) barTicks.push(barStartTick(b));
+    const onsets = [];
+    const score = playerApi && playerApi.score;
+    if (score) {
+      const byTick = new Map();
+      for (const t of score.tracks) {
+        for (const st of t.staves) {
+          for (let b = 0; b < Math.min(n, st.bars.length); b++) {
+            for (const v of st.bars[b].voices) {
+              for (const beat of v.beats) {
+                if (beat.isRest || !beat.notes.length) continue;
+                const tick = barStartTick(b) + beat.playbackStart;
+                byTick.set(tick, Math.min(3, (byTick.get(tick) || 0) + 1));
+              }
+            }
+          }
+        }
+      }
+      for (const [tick, w] of byTick) onsets.push({ tick, w });
+    }
+    const barChords = [];
+    for (const sec of data.sections) sec.chords.forEach((c, i) => { barChords[sec.startBar + i] = c || []; });
+    return { tempo: data.tempo || 120, barTicks, onsets, barChords };
+  }
+
+  async function autoAlign() {
+    const btn = $('daw-autoalign');
+    if (!hasAudio()) { setStatus('Add a reference recording first (Reference tab) — there is nothing to align yet.'); return; }
+    if (!window.SongbooksAutoAlign) { setStatus('Auto-align did not load.'); return; }
+    const existing = audioCats[refCat] || {};
+    const authored = (existing.barSyncPoints || []).length || (existing.markers || []).length;
+    if (authored && !window.confirm(`This recording is already aligned (${refSubtitle().split(' · ').pop()}). Replace that with an automatic alignment? You can undo it afterwards.`)) return;
+    pause();
+    btn.disabled = true;
+    btn.textContent = 'Analysing…';
+    try {
+      for (let i = 0; !analysis && i < 100; i++) await new Promise((r) => setTimeout(r, 100));
+      if (!analysis) throw new Error('the recording could not be decoded');
+      await new Promise((r) => setTimeout(r, 30));
+      const res = window.SongbooksAutoAlign.analyze(analysis, songForAlign());
+      const meta = audioCats[refCat];
+      undoSnapshot = {
+        cat: refCat,
+        sync: (meta.barSyncPoints || []).map((p) => ({ ...p })),
+        markers: (meta.markers || []).map((m) => ({ ...m })),
+      };
+      barTimes = res.barTimes;
+      await saveAllAnchors();
+      if (!aligning) alignBtn.click();
+      $('daw-align-undo').hidden = false;
+      const first = pickup() ? 1 : 0;
+      alignStatus.textContent = `Auto-aligned by ${res.how}: ${res.bpm.toFixed(1)} bpm, bar ${barLabel(first)} at ${fmtTime(barTimes[first])}. Check by playing it; drag a flag to correct, or undo.`;
+      seek(Math.max(0, barTimes[first] - 2 * nominalBarSec()));
+      followPlayhead();
+    } catch (err) {
+      alignStatus.textContent = 'Auto-align failed: ' + err.message;
+      setStatus('Auto-align failed: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Auto-align';
+    }
+  }
+
+  // Saves the current barTimes as this recording's alignment: every bar for
+  // the Guitar Pro recording (bar sync points), every section start for
+  // any other recording (section markers).
+  async function saveAllAnchors() {
+    const meta = audioCats[refCat];
+    if (refCat === 'gp') {
+      const points = [];
+      for (let b = 0; b < N(); b++) points.push({ barIndex: b, timeSeconds: barTimes[b] });
+      await put(`/api/songs/${variantId}/audio/gp/sync-points`, { points });
+      meta.barSyncPoints = points;
+    } else {
+      meta.markers = [];
+      for (const s of data.sections) {
+        const t = barTimes[s.startBar];
+        await put(`/api/songs/${variantId}/audio/${refCat}/markers/${s.index}`, { timeSeconds: t });
+        meta.markers.push({ sectionIndex: s.index, timeSeconds: t });
+      }
+    }
+    document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
+    computeBarTimes();
+    rows.audio.hdr.querySelector('.daw-hdr-sub').textContent = refSubtitle();
+    layout();
+  }
+
+  async function undoAutoAlign() {
+    const snap = undoSnapshot;
+    if (!snap || snap.cat !== refCat) return;
+    const meta = audioCats[refCat];
+    try {
+      if (refCat === 'gp') {
+        await put(`/api/songs/${variantId}/audio/gp/sync-points`, { points: snap.sync });
+        meta.barSyncPoints = snap.sync;
+      }
+      if (refCat !== 'gp' || snap.markers.length) {
+        for (const s of data.sections) {
+          const old = snap.markers.find((m) => m.sectionIndex === s.index);
+          if (old) await put(`/api/songs/${variantId}/audio/${refCat}/markers/${s.index}`, { timeSeconds: old.timeSeconds });
+          else if (refCat !== 'gp') await fetch(`/api/songs/${variantId}/audio/${refCat}/markers/${s.index}`, { method: 'DELETE' });
+        }
+        meta.markers = snap.markers;
+      }
+      undoSnapshot = null;
+      $('daw-align-undo').hidden = true;
+      alignStatus.textContent = 'Auto-align undone.';
+      document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
+      computeBarTimes();
+      rows.audio.hdr.querySelector('.daw-hdr-sub').textContent = refSubtitle();
+      layout();
+    } catch (err) {
+      alignStatus.textContent = 'Could not undo: ' + err.message;
+    }
+  }
+
+  $('daw-autoalign')?.addEventListener('click', autoAlign);
+  $('daw-align-undo')?.addEventListener('click', undoAutoAlign);
+
   // ---- Keyboard ------------------------------------------------------------
   document.addEventListener('keydown', (e) => {
     if (!isActive() || e.target.closest('input, select, textarea, [contenteditable]')) return;
@@ -1160,6 +1303,8 @@
     bar: barAt(position), synthBar: playerApi && synthReady ? barAtTick(playerApi.tickPosition) : null,
     synthPlaying, synthSpeed: playerApi ? playerApi.playbackSpeed : null,
   });
+  // Dry run of auto-align for debugging: the analysis without applying it.
+  page.mixerAnalyze = () => (analysis && window.SongbooksAutoAlign ? window.SongbooksAutoAlign.analyze(analysis, songForAlign()) : null);
   if (sheet) new MutationObserver(onModeChange).observe(sheet, { attributes: true, attributeFilter: ['data-render-mode'] });
   onModeChange();
 })();
