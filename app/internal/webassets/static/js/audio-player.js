@@ -32,6 +32,20 @@ window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
   };
 })();
 
+// The bytes Web Audio's decodeAudioData will take. Some MP3s — Guitar
+// Pro embeds them like this — open with a few KB of zero padding before
+// the first frame: <audio> skips it, decodeAudioData rejects the whole
+// file (no waveform, no auto-align). Padding is not audio, so dropping it
+// shifts nothing in time.
+window.songbooksDecodable = function (buf) {
+  const bytes = new Uint8Array(buf);
+  if (bytes.length === 0 || bytes[0] !== 0) return buf;
+  let i = 0;
+  const limit = Math.min(bytes.length, 1 << 20);
+  while (i < limit && bytes[i] === 0) i++;
+  return i < limit ? buf.slice(i) : buf;
+};
+
 (function () {
   const root = document.getElementById('audio-player');
   if (!root) return; // not on a page with the player
@@ -161,7 +175,7 @@ window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
       audio.dataset.blobFor = cat;
       audio.playbackRate = prefs.speed;
     }
-    const arrayBuffer = bytes.slice(0);
+    const arrayBuffer = window.songbooksDecodable(bytes.slice(0));
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     let audioBuffer;
     try {

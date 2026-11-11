@@ -648,7 +648,7 @@
   async function decodePeaks(buf) {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const decoded = await ctx.decodeAudioData(buf);
+      const decoded = await ctx.decodeAudioData(window.songbooksDecodable ? window.songbooksDecodable(buf) : buf);
       ctx.close();
       const ch = decoded.getChannelData(0);
       const perSec = 200;
