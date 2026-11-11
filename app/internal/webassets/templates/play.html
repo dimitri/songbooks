@@ -695,12 +695,7 @@
         <details class="toolbar-menu" id="section-menu">
           <summary>+ Section</summary>
           <div class="toolbar-menu-body">
-            <button type="button" data-insert-label="Verse">Verse</button>
-            <button type="button" data-insert-label="Chorus">Chorus</button>
-            <button type="button" data-insert-label="Bridge">Bridge</button>
-            <button type="button" data-insert-label="Intro">Intro</button>
-            <button type="button" data-insert-label="Outro">Outro</button>
-            <button type="button" data-insert-label="Solo">Solo</button>
+            <div id="section-menu-presets" class="toolbar-menu-presets"></div>
             <div class="toolbar-menu-custom">
               <input type="text" id="section-menu-custom" placeholder="Custom label&hellip;" maxlength="40">
               <button type="button" id="section-menu-custom-add">Add</button>
@@ -767,8 +762,51 @@
          previewed there the same way the real chart renders it, not a
          separate save step here any more. */}}
     <section class="prep-panel" data-panel="scores" id="scores-panel" data-variant-id="{{.VariantID}}" hidden>
-      <p class="hint">A section's own note-level tab/staff notation is written directly in Source now, as a <code>score[label]:</code> line — see the <a href="/docs/song-format#score" target="_blank" rel="noopener">syntax reference</a> for the drum/bass shortcuts and the full form. It live-previews there as you type. The chord-diagram builder below generates a <code>chord:</code> header line to paste into Source.</p>
+      {{/* Guitar Pro–style tab editor (tab-editor.js): edits one section's
+           score[label] voice in the drawer's in-memory song, so the top
+           bar's Save/Discard/Undo cover it like any Chart edit. */}}
+      <div class="tab-editor" id="tab-editor">
+        <div class="te-head">
+        <div class="te-pickers">
+          <label>Section <select id="te-section"></select></label>
+          <label>Track <select id="te-voice"></select></label>
+          <select id="te-new-voice" aria-label="Add a track to this section">
+            <option value="">+ New track…</option>
+            <option value="Guitar">Guitar (6 strings, standard tuning)</option>
+            <option value="Bass">Bass (4 strings, standard tuning)</option>
+          </select>
+          <button type="button" id="te-delete-voice" class="te-quiet">Delete track</button>
+          {{if .GPSource}}<a class="te-gp-link" href="/song/{{.VariantID}}/gp-file" download title="The Guitar Pro file this song was imported from">Download {{.GPSource}}</a>{{end}}
+        </div>
+        <p class="hint" id="te-empty" hidden>This section has no tab yet. Add a track to start writing one.</p>
+        <p class="hint te-notice" id="te-notice" hidden></p>
+        <div class="te-toolbar" id="te-toolbar" role="toolbar" aria-label="Note tools"></div>
+        <div class="te-statusline"><span class="te-status" id="te-status"></span> <span class="te-note" id="te-note"></span></div>
+        </div>
+        <div class="te-canvas-wrap" id="te-canvas-wrap" tabindex="0" aria-label="Tab editor: click a note, or use the arrow keys, then type a fret number">
+          <div id="te-canvas"></div>
+          <div class="te-bar-hl" id="te-bar-hl" hidden></div>
+          <div class="te-cursor" id="te-cursor" hidden></div>
+        </div>
+        <details class="te-keys">
+          <summary>Keyboard</summary>
+          <dl>
+            <dt>← → ↑ ↓</dt><dd>beat, string (→ past the end of a bar that isn't full adds a beat)</dd>
+            <dt>Ctrl/⌘ ← →</dt><dd>previous / next bar</dd>
+            <dt>0–24</dt><dd>fret on the current string (type two digits quickly for 10–24)</dd>
+            <dt>Backspace</dt><dd>remove the note; on an empty beat, remove the beat</dd>
+            <dt>Insert or I</dt><dd>insert a beat</dd>
+            <dt>+ / −</dt><dd>shorter / longer note</dd>
+            <dt>. &nbsp; T</dt><dd>dotted, triplet</dd>
+            <dt>R &nbsp; L</dt><dd>rest, tie</dd>
+            <dt>H &nbsp; S &nbsp; B &nbsp; P</dt><dd>hammer-on/pull-off, slide, bend, palm mute</dd>
+            <dt>Ctrl/⌘ C / V</dt><dd>copy / paste a bar</dd>
+            <dt>Ctrl/⌘ Z</dt><dd>undo</dd>
+          </dl>
+        </details>
+      </div>
       <h3>Chord diagram</h3>
+      <p class="hint">The builder below makes a <code>chord:</code> header line for the chart's chord diagrams and adds it to Source.</p>
       <p class="hint">Click a fret cell to mark it, click again to cycle fret &rarr; mute &rarr; open. Drag across a row at the same fret to mark a barre.</p>
       <div class="chord-diagram-editor" id="chord-diagram-editor">
         <div class="cde-controls">
@@ -1457,6 +1495,7 @@
 {{end}}
 {{if .CanEdit}}
 <script src="/static/js/score-editor.js?v={{staticVersion}}"></script>
+<script src="/static/js/tab-editor.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-import.js?v={{staticVersion}}"></script>
 {{end}}
 {{if .PracticeStepMode}}

@@ -774,13 +774,17 @@
 
   function renderMappingTableOnly() {
     if (!ourSections.length) { mappingTable.hidden = true; return; }
+    // Rebuilt after every drag, zoom or marker click: keep the sections
+    // the user unticked unticked, or a partial re-import would silently
+    // overwrite them.
+    const prev = [...mappingBody.querySelectorAll('.gpimport-include')].map((c) => c.checked);
     mappingBody.innerHTML = '';
     ourSections.forEach((sec, i) => {
       const mapped = sectionBarCount(i);
       const tr = document.createElement('tr');
       tr.style.borderLeft = `4px solid ${SECTION_COLORS[i % SECTION_COLORS.length]}`;
       tr.innerHTML = `
-        <td><input type="checkbox" class="gpimport-include" checked></td>
+        <td><input type="checkbox" class="gpimport-include"${prev.length === ourSections.length && !prev[i] ? '' : ' checked'}></td>
         <td>${sec.label}</td>
         <td>${sec.barCount}</td>
         <td${mapped !== sec.barCount ? ' style="color:#b8860b;font-weight:600"' : ''}>${mapped}</td>
@@ -1131,6 +1135,7 @@
     ];
     const list = document.createElement('div');
     list.className = 'gpimport-header-list';
+    const reimport = !!document.querySelector('.gpimport-reimport-note');
     for (const r of rows) {
       const song = headerValue(text, r.key);
       const same = song === gp[r.key];
@@ -1138,7 +1143,10 @@
       const label = document.createElement('label');
       const input = document.createElement('input');
       input.type = 'checkbox';
-      input.checked = true;
+      // Re-importing a song that came from Guitar Pro keeps the header
+      // values the song already has (they may have been set on purpose
+      // since): only empty ones are filled in unless ticked.
+      input.checked = !(reimport && song);
       input.disabled = same;
       label.append(input, ` ${r.label}: ${r.show(gp[r.key])}`);
       p.appendChild(label);

@@ -351,6 +351,9 @@ func writeBeat(b *strings.Builder, beat Beat, chordLabel string) {
 			b.WriteString(dur)
 		}
 	default:
+		// A chord carries the beat's techniques on every one of its notes
+		// (a hammered or palm-muted double stop), as the single-note case
+		// does; the tab editor (tab-editor.js) draws them the same way.
 		b.WriteByte('(')
 		for i, n := range beat.Notes {
 			if i > 0 {
@@ -359,8 +362,23 @@ func writeBeat(b *strings.Builder, beat Beat, chordLabel string) {
 			b.WriteString(strconv.Itoa(n.Fret))
 			b.WriteByte('.')
 			b.WriteString(strconv.Itoa(n.String))
+			var props []string
+			if beat.HammerPull {
+				props = append(props, "h")
+			}
+			if beat.BendSemitones > 0 {
+				props = append(props, fmt.Sprintf("b (0 %d)", int(beat.BendSemitones*2)))
+			}
+			if beat.PalmMute {
+				props = append(props, "pm")
+			}
 			if n.Tied {
-				b.WriteString("{t}")
+				props = append(props, "t")
+			}
+			if len(props) > 0 {
+				b.WriteByte('{')
+				b.WriteString(strings.Join(props, " "))
+				b.WriteByte('}')
 			}
 		}
 		b.WriteString(").")

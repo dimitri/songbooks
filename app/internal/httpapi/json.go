@@ -57,8 +57,17 @@ type jsonSection struct {
 	Notes       []string         `json:"notes,omitempty"`
 }
 
+// jsonChordRef mirrors song.ChordRef — one "chord: Name Spec" diagram line.
+// Carried through the JSON shape so a Chart save (which re-serializes the
+// whole song from this shape) keeps the song's chord diagrams.
+type jsonChordRef struct {
+	Name string `json:"name"`
+	Spec string `json:"spec"`
+}
+
 type jsonSong struct {
 	Meta     []jsonMetaField `json:"meta"`
+	Chords   []jsonChordRef  `json:"chords,omitempty"`
 	Sections []jsonSection   `json:"sections"`
 }
 
@@ -66,6 +75,9 @@ func toJSON(s *song.Song) jsonSong {
 	out := jsonSong{}
 	for _, f := range s.Meta {
 		out.Meta = append(out.Meta, jsonMetaField{Key: f.Key, Value: f.Value})
+	}
+	for _, c := range s.Chords {
+		out.Chords = append(out.Chords, jsonChordRef{Name: c.Name, Spec: c.Spec})
 	}
 	for _, sec := range s.Sections {
 		js := jsonSection{
@@ -101,6 +113,9 @@ func fromJSON(in jsonSong) *song.Song {
 	out := &song.Song{}
 	for _, f := range in.Meta {
 		out.Meta = append(out.Meta, song.MetaField{Key: f.Key, Value: f.Value})
+	}
+	for _, c := range in.Chords {
+		out.Chords = append(out.Chords, song.ChordRef{Name: c.Name, Spec: c.Spec})
 	}
 	for _, js := range in.Sections {
 		sec := song.Section{

@@ -22,7 +22,7 @@ func DecodeRiffJSON(data []byte) (*Riff, error) {
 	if err := json.Unmarshal(data, &riff); err != nil {
 		return nil, err
 	}
-	if len(riff.Tuning) == 0 {
+	if len(riff.Tuning) == 0 && !riff.Drums {
 		return nil, fmt.Errorf("score: imported riff has no Tuning")
 	}
 	if len(riff.Bars) == 0 {
@@ -39,8 +39,18 @@ func DecodeRiffJSON(data []byte) (*Riff, error) {
 // (every real riff opens with "\new TabStaff" or a bare note), and valid
 // JSON never starts with "\".
 func DecodeScoreSource(src string) (*Riff, error) {
-	if strings.HasPrefix(strings.TrimSpace(src), "{") {
+	if isRiffJSON(src) {
 		return DecodeRiffJSON([]byte(src))
 	}
 	return ParseScore(src)
+}
+
+// isRiffJSON: a body is a GP-imported riff's JSON when it starts with "{"
+// AND is valid JSON. LilyPond's own braced form — "{ c'4 d' }", the most
+// natural way to write a short riff — also starts with "{" but is never
+// valid JSON, so it goes on to the LilyPond-subset parser instead of
+// failing as broken JSON.
+func isRiffJSON(src string) bool {
+	t := strings.TrimSpace(src)
+	return strings.HasPrefix(t, "{") && json.Valid([]byte(t))
 }

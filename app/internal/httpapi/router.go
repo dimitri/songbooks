@@ -197,6 +197,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// server-side instead, where it already has song.Parse/song.Write.
 	mux.HandleFunc("PUT /api/songs/{id}/sections/{index}/score/{label}", s.requireVariantRole("editor", s.handlePutSectionScore))
 	mux.HandleFunc("POST /api/chord-diagrams/preview", s.requireAuth(s.handleChordDiagramPreview))
+	mux.HandleFunc("POST /api/score/riff", s.requireAuth(s.handleScoreRiff))
 
 	mux.HandleFunc("GET /metronome", s.requireAuth(s.handleMetronomePage))
 
