@@ -53,8 +53,8 @@ func GroupBeams(beats []Beat, timeNum, timeDen int) []BeamGroup {
 	i := 0
 	for i < len(beats) {
 		flags, _ := DurationGlyph(beats[i].Duration)
-		w, err := DurationBeats(beats[i].Duration)
-		if err != nil || w <= 0 {
+		w := beats[i].Beats()
+		if w <= 0 {
 			w = 1
 		}
 		if beats[i].Rest || flags == 0 {
@@ -71,8 +71,8 @@ func GroupBeams(beats []Beat, timeNum, timeDen int) []BeamGroup {
 			if beats[j+1].Rest || nf == 0 || cellOf(p) != startCell {
 				break
 			}
-			nw, err := DurationBeats(beats[j+1].Duration)
-			if err != nil || nw <= 0 {
+			nw := beats[j+1].Beats()
+			if nw <= 0 {
 				nw = 1
 			}
 			j++

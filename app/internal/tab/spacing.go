@@ -27,8 +27,8 @@ func SpacingWeights(beats []Beat) []float64 {
 	durs := make([]float64, len(beats))
 	shortest := math.Inf(1)
 	for i, b := range beats {
-		w, err := DurationBeats(b.Duration)
-		if err != nil || w <= 0 {
+		w := b.Beats()
+		if w <= 0 {
 			w = 1
 		}
 		durs[i] = w

@@ -275,14 +275,15 @@ bodyDone:
 		return err
 	}
 	sub.flushBar()
-	scale := den / num // e.g. 3 notes "in the time of 2" each take 2/3 of their written duration
+	// e.g. 3 notes "in the time of 2" each take 2/3 of their written
+	// duration — Beat.Beats applies the ratio recorded here.
 	for _, bar := range sub.bars {
 		for _, beat := range bar.Beats {
-			beats, err := durationBeats(beat.Duration)
-			if err != nil {
+			if _, err := durationBeats(beat.Duration); err != nil {
 				return err
 			}
-			p.addBeat(beat, beats*scale)
+			beat.TupletNum, beat.TupletDen = int(num), int(den)
+			p.addBeat(beat, beat.Beats())
 		}
 	}
 	p.lastPitch, p.lastDur = sub.lastPitch, sub.lastDur

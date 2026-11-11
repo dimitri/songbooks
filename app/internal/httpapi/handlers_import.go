@@ -406,6 +406,11 @@ func (s *Server) handleImportGPFetch(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGPImportPreview(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Riff string `json:"riff"` // JSON-encoded Riff, as a STRING — same double-encoding putScore (gp-import.js) already sends, not a nested JSON object, so this previews the exact bytes that would be written
+		// The song header the import is about to write (gp-import.js's
+		// header choices): the preview is drawn in that time signature
+		// and swing, as the Song view will draw it.
+		Time  string `json:"time"`
+		Swing string `json:"swing"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -420,5 +425,10 @@ func (s *Server) handleGPImportPreview(w http.ResponseWriter, r *http.Request) {
 	if len(riff.Tuning) <= 4 {
 		clef = "F4"
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"alphaTex": tab.ToAlphaTex(riff, clef, nil)})
+	tex := tab.ToAlphaTex(riff, clef, nil)
+	num, den := timeSigParts(orDefault(req.Time, "4/4"))
+	if meta := tab.FirstBarMeta(atoiOr(num, 4), atoiOr(den, 4), req.Swing); meta != "" {
+		tex = strings.Replace(tex, ".\n", ".\n"+meta, 1)
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"alphaTex": tex})
 }

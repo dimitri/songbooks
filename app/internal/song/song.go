@@ -18,7 +18,7 @@ package song
 var MetaKeys = []string{
 	"title", "artist", "key", "tempo", "time", "capo",
 	"transpose", "map", "idiom", "flats", "reference",
-	"cover", "cover-credit",
+	"cover", "cover-credit", "swing",
 	// gp_source: the original Guitar Pro filename this song's score[...]
 	// voices were imported from (see internal/httpapi/gpfile.go's
 	// song_gp_source_file table for the actual file bytes) — kept here

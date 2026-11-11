@@ -74,6 +74,23 @@
     return new alphaTab.model.Color(parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16));
   }
 
+  // How much room a bar's notation needs, relative to its neighbours:
+  // mostly how many things it prints — one unit per beat, growing only
+  // slightly with its length (a quarter about 1.5 sixteenths), grace
+  // notes a little less — plus a small base for the barline and margins.
+  function barContentWeight(bar) {
+    let w = 0;
+    for (const v of bar.voices) {
+      let vw = 1;
+      for (const b of v.beats) {
+        if (b.graceType) { vw += 0.7; continue; }
+        vw += 1 + 0.25 * Math.log2(Math.max(1, (b.playbackDuration || 960) / 240));
+      }
+      w = Math.max(w, vw);
+    }
+    return w;
+  }
+
   function render(container, retriesLeft) {
     const tex = container.dataset.tex;
     if (!tex) return;
@@ -472,10 +489,53 @@
     // all, which is almost certainly why every previous recovery attempt
     // this session appeared to do nothing — not that the retry logic was
     // wrong, but that it never ran.
+    // data-systems ("5,4,4,4"): bars per system for a row whose song opens
+    // with a pickup (viewerLine.Systems, handlers_pages.go), so the tab
+    // keeps the chord grid's pickup + 4s phrasing instead of alphaTab's
+    // own automatic line breaks.
+    const systems = (container.dataset.systems || '').split(',').map(Number).filter((v) => v > 0);
+    if (systems.length) settings.display.systemsLayoutMode = alphaTab.SystemsLayoutMode.UseModelLayout;
+
     let finished = false;
     lastMissingPx = 0;
     try {
       const api = new alphaTab.AlphaTabApi(container, settings);
+      // A row opening with a pickup (\\ac, see attachTabRiffs) hides that
+      // bar's number; alphaTab always prints bar index + 1, so shift the
+      // rest down by one after every render: the first full bar reads 1,
+      // as in print. Bar numbers are the only text drawn in the bar-number
+      // colour (fret numbers have no fill).
+      if (/\\ac\b/.test(tex)) {
+        const numberColor = settings.display.resources.barNumberColor.rgba.toLowerCase();
+        api.postRenderFinished.on(() => {
+          for (const t of container.querySelectorAll('svg text[fill]')) {
+            if (t.dataset.renumbered || (t.getAttribute('fill') || '').toLowerCase() !== numberColor) continue;
+            const m = /^(\s*)(\d+)(\s*)$/.exec(t.textContent);
+            if (!m) continue;
+            t.textContent = m[1] + (Number(m[2]) - 1) + m[3];
+            t.dataset.renumbered = '1';
+          }
+        });
+      }
+      if (systems.length) {
+        api.scoreLoaded.on((score) => {
+          for (const t of score.tracks) { t.systemsLayout = systems; t.defaultSystemsLayout = systems[systems.length - 1]; }
+          // The model layout gives every bar of a system the same width
+          // unless told otherwise: weight each bar by what it holds, as
+          // alphaTab's automatic layout does, so a run of sixteenths gets
+          // room and a held note or a pickup doesn't hog it. Each system
+          // still fills the row.
+          score.masterBars.forEach((mb, i) => {
+            let weight = 0;
+            for (const t of score.tracks) for (const st of t.staves) {
+              const bar = st.bars[i];
+              if (bar) weight = Math.max(weight, barContentWeight(bar));
+            }
+            mb.displayScale = weight;
+            for (const t of score.tracks) for (const st of t.staves) if (st.bars[i]) st.bars[i].displayScale = weight;
+          });
+        });
+      }
       // Stashed on the container itself — not returned, since render()'s
       // own callers never awaited a return value before this and a
       // retry/reconstruction can replace this same api instance later
@@ -709,6 +769,86 @@
       });
     }, 150);
   }, { passive: true });
+
+  // ---- Playback cursor, Guitar Pro style: the playing bar is tinted and
+  // a vertical line sweeps across it from note to note. song.js calls this
+  // every frame with the song position as a fractional performed bar
+  // (from the reference recording or the metronome clock); each row knows
+  // its first bar (data-first-bar) and alphaTab's boundsLookup knows where
+  // every bar and beat was engraved. Returns true when a visible tab row
+  // holds that bar, so song.js leaves the scrolling to this.
+  let cursorRow = null;
+  let cursorSystem = null;
+  function cursorEls(row) {
+    let bar = row.querySelector(':scope > .tab-cursor-bar');
+    let beat = row.querySelector(':scope > .tab-cursor-beat');
+    if (!bar) { bar = document.createElement('div'); bar.className = 'tab-cursor-bar'; row.appendChild(bar); }
+    if (!beat) { beat = document.createElement('div'); beat.className = 'tab-cursor-beat'; row.appendChild(beat); }
+    return { bar, beat };
+  }
+  function hideCursor() {
+    if (!cursorRow) return;
+    cursorRow.querySelectorAll(':scope > .tab-cursor-bar, :scope > .tab-cursor-beat').forEach((el) => { el.hidden = true; });
+    cursorRow = null;
+  }
+  function tabCursor(position, following) {
+    if (position === null || position === undefined || position < 0) { hideCursor(); return false; }
+    const barNo = Math.floor(position);
+    let row = null, api = null, local = -1;
+    for (const r of document.querySelectorAll('.alphatab-row[data-first-bar]')) {
+      const a = r._alphaTabApi;
+      if (!r.offsetParent || !a || !a.score || !a.renderer || !a.renderer.boundsLookup) continue;
+      const i = barNo - parseInt(r.dataset.firstBar, 10);
+      if (i >= 0 && i < a.score.masterBars.length) { row = r; api = a; local = i; break; }
+    }
+    if (!row) { hideCursor(); return false; }
+    const lookup = api.renderer.boundsLookup;
+    const mbBounds = lookup.findMasterBarByIndex(local);
+    if (!mbBounds) { hideCursor(); return false; }
+    if (cursorRow !== row) {
+      hideCursor();
+      cursorRow = row;
+    }
+
+    // Position inside the bar in ticks. A pickup is timed as a whole bar
+    // with its notes at the end, but engraved only as long as its notes.
+    const mb = api.score.masterBars[local];
+    const full = (mb.timeSignatureNumerator * 3840) / mb.timeSignatureDenominator;
+    const len = mb.calculateDuration ? mb.calculateDuration() : full;
+    const tick = Math.max(0, (position - barNo) * full - (full - len));
+
+    // x of the beat being played, sliding towards the next one.
+    const r = mbBounds.realBounds;
+    let x = r.x;
+    const staffBar = api.score.tracks[0] && api.score.tracks[0].staves[0] && api.score.tracks[0].staves[0].bars[local];
+    const beats = staffBar && staffBar.voices[0] ? staffBar.voices[0].beats : [];
+    const xOf = (b) => { const bb = lookup.findBeat(b); return bb ? (bb.onNotesX || bb.visualBounds.x) : null; };
+    for (let i = 0; i < beats.length; i++) {
+      const b = beats[i];
+      if (b.playbackStart > tick) break;
+      const x0 = xOf(b);
+      if (x0 === null) continue;
+      const next = beats[i + 1];
+      const x1 = next ? xOf(next) : r.x + r.w - 4;
+      const end = next ? next.playbackStart : len;
+      const f = end > b.playbackStart ? Math.min(1, (tick - b.playbackStart) / (end - b.playbackStart)) : 0;
+      x = x0 + (x1 !== null ? (x1 - x0) * f : 0);
+    }
+
+    const { bar, beat } = cursorEls(row);
+    const sys = mbBounds.lineAlignedBounds || mbBounds.visualBounds || r;
+    Object.assign(bar.style, { left: `${r.x}px`, top: `${sys.y}px`, width: `${r.w}px`, height: `${sys.h}px` });
+    Object.assign(beat.style, { left: `${x}px`, top: `${sys.y}px`, height: `${sys.h}px` });
+    bar.hidden = false;
+    beat.hidden = false;
+    // One alphaTab row can hold several systems: follow the system (line
+    // of music) being played, not just the row.
+    const system = `${row.dataset.firstBar}:${Math.round(sys.y)}`;
+    if (following && system !== cursorSystem && window.songbooksKeepInView) window.songbooksKeepInView(bar);
+    cursorSystem = system;
+    return true;
+  }
+  window.songbooksTabCursor = tabCursor;
 
   // Exposed for the score editor's live preview (score-editor.js): it
   // writes a fresh data-tex onto its own preview container on every

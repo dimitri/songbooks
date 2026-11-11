@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"math"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -358,7 +360,7 @@ func (s *Server) handleDocsScoreExample(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
-	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), ex.Instrument)
+	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), sg.Get("swing"), ex.Instrument)
 	s.renderDocsExamplePage(w, sg, sections, nil, "normal")
 }
 
@@ -739,6 +741,12 @@ type viewerMeasure struct {
 	// the same amount of page space as the section it solos over, instead
 	// of collapsing to a one-line note. Rendered as empty, dimmed slashes.
 	Placeholder bool
+	// Pickup marks the song's very first bar when it is a pickup — an
+	// anacrusis or a silent count-in bar a Guitar Pro import starts with
+	// (songStartsWithPickup). The chart puts it in the first row ON TOP of
+	// that row's usual bar count, so the rest keeps its natural phrasing:
+	// a 16-bar blues reads 5 / 4 / 4 / 4, not ? B E B / . . . F# / ….
+	Pickup bool
 	// MapAnnotate/MapMark/MapLabel are set ONLY by buildMapLines, on
 	// whichever measure is the first bar of its section in Song Map's
 	// flattened continuous score — every other mode's per-section
@@ -906,6 +914,62 @@ func pickRiff(tracks []tab.NamedRiff, want string) *tab.Riff {
 // option list (#instrument-picker, play.html). Sorted for a stable
 // order: scoreTracks is keyed by section index and Go map iteration is
 // randomized, so "first seen" isn't a meaningful order here anyway.
+// mostInterestingInstrument picks, among a song's melodic score tracks,
+// the one a reader most likely wants to see by default: the most varied
+// line (distinct pitches weigh most, then how many notes it plays), with
+// a clear preference for tracks named as the lead part (solo, lead,
+// melody, theme, vocal) and against accompaniment (rhythm, comping).
+// "" when the song has no melodic track.
+func mostInterestingInstrument(scoreTracks map[int][]tab.NamedRiff) string {
+	type stat struct {
+		events  int
+		pitches map[int]bool
+	}
+	stats := map[string]*stat{}
+	for _, tracks := range scoreTracks {
+		for _, t := range tracks {
+			if t.Riff.Drums || t.Name == "" {
+				continue
+			}
+			st := stats[t.Name]
+			if st == nil {
+				st = &stat{pitches: map[int]bool{}}
+				stats[t.Name] = st
+			}
+			for _, bar := range t.Riff.Bars {
+				for _, beat := range bar.Beats {
+					if beat.Rest || len(beat.Notes) == 0 {
+						continue
+					}
+					st.events++
+					for _, n := range beat.Notes {
+						st.pitches[n.MIDI*100+n.String*10+n.Fret] = true
+					}
+				}
+			}
+		}
+	}
+	lead := regexp.MustCompile(`(?i)solo|lead|melod|th[eè]me|chant|voix|vocal|guitar|guitare`)
+	accomp := regexp.MustCompile(`(?i)rythm|rhythm|comp|accomp|bass|basse`)
+	best, bestScore := "", -1.0
+	for name, st := range stats {
+		if st.events == 0 {
+			continue
+		}
+		score := 2*float64(len(st.pitches)) + math.Log1p(float64(st.events))
+		if lead.MatchString(name) {
+			score += 20
+		}
+		if accomp.MatchString(name) {
+			score -= 10
+		}
+		if score > bestScore || (score == bestScore && name < best) {
+			best, bestScore = name, score
+		}
+	}
+	return best
+}
+
 func collectInstrumentNames(scoreTracks map[int][]tab.NamedRiff) []string {
 	seen := map[string]bool{}
 	var out []string
@@ -961,6 +1025,26 @@ func chipSource(sec *viewerSection, riff *tab.Riff) (bars []tab.Bar, chordLabels
 		bars[i] = tab.Bar{Beats: []tab.Beat{{Rest: true, Duration: "1"}}}
 	}
 	return bars, nil, true
+}
+
+// sectionChordBars is chipSource's own chordLabels loop (same guard, same
+// chordsym.Glyphs call), lifted out so the always-visible structure strip
+// (play.html) can show a section's chord sequence WITHOUT needing a riff
+// at all — chipSource only ever runs for a section that has one, while a
+// section with nothing but a plain chord grid (no "score:" voice, the
+// common case for most of this app's songs) still has a real chord
+// sequence worth showing above its bar count.
+func sectionChordBars(sec *viewerSection) []string {
+	bars := make([]string, 0, len(sec.Measures))
+	for bi := range sec.Measures {
+		m := &sec.Measures[bi]
+		cl := ""
+		if !m.IsRest && !m.IsRepeat && len(m.Beats) > 0 && !m.Beats[0].IsTie {
+			cl = chordsym.Glyphs(m.Beats[0].Text)
+		}
+		bars = append(bars, cl)
+	}
+	return bars
 }
 
 // isWholeBarRest reports whether bar is a single whole-bar rest — the
@@ -1250,7 +1334,7 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 // instrument, when non-empty, is the #instrument-picker's own selection
 // (play.html) — see pickRiff's own doc comment for how it overrides
 // firstMelodicRiff's default ambiguous-skip behavior.
-func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff, timeNum, timeDen int, instrument string) {
+func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff, timeNum, timeDen int, swing, instrument string) {
 	for si := range sections {
 		tracks, ok := scoreTracks[sections[si].Index]
 		if !ok {
@@ -1274,8 +1358,8 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 				}
 				flags, dotted := tab.DurationGlyph(beat.Duration)
 				vb = append(vb, viewerTabBeat{Notes: notes, Rest: beat.Rest, Flags: flags, Dotted: dotted})
-				w, err := tab.DurationBeats(beat.Duration)
-				if err != nil || w <= 0 {
+				w := beat.Beats()
+				if w <= 0 {
 					w = 1
 				}
 				weights = append(weights, w)
@@ -1349,7 +1433,30 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 				if numStrings <= 4 {
 					clef = "F4"
 				}
-				sections[si].Lines[li].AlphaTex = tab.ToAlphaTex(rowRiff, clef, chordLabels)
+				tex := tab.ToAlphaTex(rowRiff, clef, chordLabels)
+				// alphaTab assumes straight 4/4: a 12/8 shuffle drawn without
+				// its own time signature reads as overfull 4/4 bars.
+				if meta := tab.FirstBarMeta(timeNum, timeDen, swing); meta != "" {
+					tex = strings.Replace(tex, ".\n", ".\n"+meta, 1)
+				}
+				if line := &sections[si].Lines[li]; len(sections[si].Measures) > 0 && sections[si].Measures[0].Pickup {
+					n := len(line.Measures)
+					var systems []string
+					first := 0
+					if line.Measures[0].Pickup {
+						// alphaTeX anacrusis (a short bar, not a full one), left
+						// unnumbered like a printed pickup; alphatab-tab.js
+						// renumbers the rest so the first full bar is 1.
+						tex = strings.Replace(tex, ".\n", ".\n\\ac \\barnumberdisplay hide ", 1)
+						systems = append(systems, strconv.Itoa(min(n, 5)))
+						first = min(n, 5)
+					}
+					for i := first; i < n; i += 4 {
+						systems = append(systems, strconv.Itoa(min(4, n-i)))
+					}
+					line.Systems = strings.Join(systems, ",")
+				}
+				sections[si].Lines[li].AlphaTex = tex
 			}
 		}
 	}
@@ -1478,6 +1585,22 @@ type viewerSection struct {
 	Label    string
 	Repeat   bool
 	Measures []viewerMeasure // flat, used for the "first bar of this section" lookup
+	// ChordBars is this section's own chord sequence, one entry per bar
+	// in Measures, "" for a bar with no new chord (a tie, a rest, a "%"
+	// simile repeat) — set by sectionChordBars, a read-only pass over
+	// Measures run AFTER buildSections/attachTabRiffs (handleSong), not
+	// inside buildSections itself: this is purely a DISPLAY summary for
+	// the always-visible structure strip (play.html, "always show
+	// sections/chords as reference" — the Mixer view's own request),
+	// independent of whether the section has any tab/riff coverage at
+	// all (attachTabRiffs' own chordLabels, by contrast, only exist for
+	// a fully tab-covered row).
+	ChordBars []string
+	// ChordSummary is ChordBars' own non-empty entries, joined for the
+	// structure strip's compact one-line display ("Am · C · G · Am") —
+	// a separate field rather than a template-side join/filter, which Go
+	// templates can't do cleanly.
+	ChordSummary string
 	// Times mirrors song.Section.Times (0/1 = a single pass; > 1 means
 	// this section — its own grid, or, when bare, whatever grid it
 	// inherits below — is actually played that many times through). Used
@@ -1642,6 +1765,10 @@ type viewerLine struct {
 	// this app's hand-rolled CSS/SVG tab drawing for the TabOnly case).
 	// Only set alongside TabOnly; "" otherwise.
 	AlphaTex string
+	// Systems, for a TabOnly row in a section that starts with a pickup,
+	// is alphaTab's bars-per-system list ("5,4,4,4"): the same pickup + 4s
+	// phrasing the chord grid gets (see viewerMeasure.Pickup).
+	Systems string
 }
 
 // groupMeasures chunks a section's measures into display rows — "systems",
@@ -2068,6 +2195,7 @@ func buildSections(sg *song.Song) []viewerSection {
 	tempo := orDefault(sg.Get("tempo"), "120")
 	num, den := timeSigParts(globalTime)
 	clefDrawn := false
+	pickupSeen := false
 
 	var sections []viewerSection
 	// dupSrc[i] is the source section index GridDuplicateOf's label was
@@ -2177,8 +2305,23 @@ func buildSections(sg *song.Song) []viewerSection {
 				orig[len(orig)-1].Close = true
 			}
 		}
+		barsPerLine := sec.BarsPerLine
+		if !pickupSeen && len(vs.Measures) > 0 {
+			pickupSeen = true
+			if songStartsWithPickup(sg, si) {
+				vs.Measures[0].Pickup = true
+				// A chordless count-in bar ("?", ".") reads as what it is in
+				// print: a whole-bar rest, not an unknown chord.
+				if isSilentBar(sec.Measures[0].Tokens) {
+					vs.Measures[0].IsRest = true
+				}
+				if len(barsPerLine) == 0 {
+					barsPerLine = []int{9, 8} // the pickup + the default 8, then 8s
+				}
+			}
+		}
 		if vs.GridDuplicateOf == "" {
-			vs.Lines = groupMeasures(vs.Measures, sec.BarsPerLine)
+			vs.Lines = groupMeasures(vs.Measures, barsPerLine)
 			vs.ExplicitBarsPerLine = len(sec.BarsPerLine) > 0
 		}
 		for li, l := range sec.Lyrics {
@@ -2549,10 +2692,33 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sections := buildSections(sg)
+	for i := range sections {
+		sections[i].ChordBars = sectionChordBars(&sections[i])
+		// Collapse consecutive repeats of the SAME chord into one entry —
+		// a held vamp ("Dm Am Dm Am...", one bar each) reads as "Dm · Am"
+		// in a real lead sheet's own shorthand, not spelled out bar by
+		// bar; the structure strip has nowhere near the width for the
+		// latter anyway (direct request: "a tab-like view of the chords
+		// above the bars", not a full per-bar grid here).
+		var dedup []string
+		for _, c := range sections[i].ChordBars {
+			if c != "" && (len(dedup) == 0 || dedup[len(dedup)-1] != c) {
+				dedup = append(dedup, c)
+			}
+		}
+		sections[i].ChordSummary = strings.Join(dedup, " · ")
+	}
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
 	riffs, scoreErrs := tab.LoadScores(sg)
 	instrument := r.URL.Query().Get("instrument")
-	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), instrument)
+	// A song with no lyrics has nothing for a plain chord chart to add
+	// over the score itself, so it opens on its most interesting
+	// instrument (e.g. Sarbacane's Solo rather than its Rythmique);
+	// ?instrument=chords still asks for the chords explicitly.
+	if instrument == "" && !anySectionHasLyrics(sections) {
+		instrument = mostInterestingInstrument(riffs)
+	}
+	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), sg.Get("swing"), instrument)
 	drumMap := buildDrumMap(sections, riffs, atoiOr(orDefault(sg.Get("tempo"), "120"), 120), 0)
 	for _, e := range scoreErrs {
 		log.Printf("variant %d: %v", variantID, e)
@@ -2594,6 +2760,14 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"SelectedInstrument": instrument,
 		"Chords":             sg.Chords,
 		"HasAlphaTab":        anyTabOnlyLine(sections),
+		// HasAnyScore gates the Mixer tab (play.html) — deliberately NOT
+		// the same as HasAlphaTab above: that one only covers the Normal
+		// chart's own fully-riff-covered-row overlay case
+		// (anyTabOnlyLine), while a song can carry a playable score
+		// (e.g. a drum-only voice, Drummer view's own domain) without
+		// ever tripping that condition — len(riffs) > 0 is the actual
+		// "does this song have anything for the Mixer to play" signal.
+		"HasAnyScore":        len(riffs) > 0,
 		"HasLyrics":          anySectionHasLyrics(sections),
 		"Text":               text, "Version": version,
 	}
@@ -2824,7 +2998,7 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 	// buildDrumMap call handleSong itself makes.
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
 	riffs, scoreErrs := tab.LoadScores(sg)
-	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), req.Instrument)
+	attachTabRiffs(sections, riffs, atoiOr(num, 4), atoiOr(den, 4), sg.Get("swing"), req.Instrument)
 	drumMap := buildDrumMap(sections, riffs, atoiOr(orDefault(sg.Get("tempo"), "120"), 120), 0)
 	for _, e := range scoreErrs {
 		log.Printf("preview: %v", e)
@@ -2845,4 +3019,55 @@ func (s *Server) render(w http.ResponseWriter, name string, data any) {
 	if err := webassets.Templates.ExecuteTemplate(w, name, data); err != nil {
 		log.Printf("render %s: %v", name, err)
 	}
+}
+
+// songStartsWithPickup reports whether sg.Sections[si] — the song's first
+// section with a grid — opens with a pickup bar: its score writes a first
+// bar shorter than the time signature (an anacrusis, as a Guitar Pro
+// import keeps it), or its grid's first bar carries no chord at all ("?",
+// "." or "R": a count-in bar).
+func songStartsWithPickup(sg *song.Song, si int) bool {
+	sec := sg.Sections[si]
+	if len(sec.Measures) == 0 {
+		return false
+	}
+	if isSilentBar(sec.Measures[0].Tokens) {
+		return true
+	}
+	timeSig := orDefault(sec.Time, orDefault(sg.Get("time"), "4/4"))
+	num, den := timeSigParts(timeSig)
+	full := float64(atoiOr(num, 4)) * 4 / float64(atoiOr(den, 4))
+	for _, sv := range sec.Scores {
+		riff, err := tab.ParseVoice(sv.Label, sv.Body)
+		if err != nil || len(riff.Bars) == 0 {
+			continue
+		}
+		bar := riff.Bars[0]
+		rest := true
+		for _, b := range bar.Beats {
+			if !b.Rest {
+				rest = false
+			}
+		}
+		if !rest && tab.BarBeats(bar) < full-1e-9 {
+			return true
+		}
+	}
+	return false
+}
+
+// isSilentBar: a grid bar that names no chord at all — "?" (unknown), "."
+// (nothing new), "R" (rest) or N.C.
+func isSilentBar(tokens []string) bool {
+	if len(tokens) == 0 {
+		return false
+	}
+	for _, t := range tokens {
+		switch strings.TrimSpace(t) {
+		case "?", ".", "R", "N.C.", "NC":
+		default:
+			return false
+		}
+	}
+	return true
 }

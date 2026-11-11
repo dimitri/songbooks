@@ -889,6 +889,11 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   align-items: flex-start; position: relative; background: none; border: none; text-align: left;
   padding: 0 0.3rem 0 0;
 }
+.structure-seg-chords {
+  font-size: 0.62rem; font-family: var(--font-mono, monospace); color: var(--fg-muted); opacity: 0.85;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; margin-bottom: 0.15rem;
+}
+.structure-seg.current .structure-seg-chords { color: var(--accent); opacity: 1; }
 .structure-seg-tick { width: 2px; height: 10px; background: var(--border-strong); margin-bottom: 0.3rem; border-radius: 1px; }
 .structure-seg-label {
   font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em;
@@ -941,6 +946,19 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .audio-playhead {
   position: absolute; top: 0; bottom: 0; left: 0; width: 2px;
   background: var(--accent); pointer-events: none;
+}
+.audio-bargrid { position: absolute; inset: 0; pointer-events: none; }
+.audio-bargrid-tick {
+  position: absolute; top: 0; bottom: 0; width: 1px;
+  background: var(--border-strong); opacity: 0.55; pointer-events: none;
+}
+.audio-bargrid-start {
+  width: 3px; margin-left: -1px; background: var(--accent); opacity: 1;
+  cursor: ew-resize; pointer-events: auto;
+}
+.audio-bargrid-start::after {
+  content: ''; position: absolute; top: -5px; left: 50%; transform: translateX(-50%);
+  width: 9px; height: 9px; border-radius: 50%; background: var(--accent);
 }
 .audio-controls { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.4rem; flex-wrap: wrap; }
 .audio-play-btn { font-size: 1rem; }
@@ -1168,6 +1186,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    it the way jazz/lyrics/map do — a video/audio reference page has
    nothing in common with the chart layout underneath it. */
 #sheet[data-render-mode="reference"] { display: none; }
+#sheet[data-render-mode="mixer"] { display: none; }
 
 /* ---- Reference page (app/docs/mp3-reference-audio.md) ---------------------
    A plain sibling of #sheet (see play.html's own comment on why), shown
@@ -1175,6 +1194,161 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    the mirror image of the rule just above. */
 .reference-page { display: none; max-width: 42rem; margin: 0 auto; padding: 1rem 0; }
 #sheet[data-render-mode="reference"] ~ .reference-page { display: block; }
+
+/* ---- Mixer (DAW view) ----------------------------------------------------
+   Same sibling convention as .reference-page. Layout and palette follow
+   Audacity 4's own (src/projectscene QML + light.cfg): light track
+   headers, a dark track canvas, a beats-and-measures ruler, colored
+   clips with a 20px header, a pentagon playhead; mute/solo follow the
+   Logic/GarageBand blue/yellow convention. The structure strip and the
+   reference player are hidden here: both live on this timeline instead. */
+.mixer-page { display: none; padding: 0.4rem 0 1rem; }
+#sheet[data-render-mode="mixer"] ~ .mixer-page { display: block; }
+body:has(#sheet[data-render-mode="mixer"]) #song-structure-strip,
+body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !important; }
+
+.daw {
+  --daw-bg: #F8F8F9; --daw-header: #EEEEF1; --daw-header-hover: #F3F3F5; --daw-sep: #E3E3E7;
+  --daw-stroke: #D4D5D9; --daw-text: #14151A; --daw-muted: #5B5E6B;
+  --daw-ruler: #DFDFE3; --daw-ruler-stroke: #BFC0C5; --daw-lane-light: #E9E9EE;
+  --daw-canvas: #212433; --daw-accent: #A09EEF; --daw-play: #18A999;
+  --daw-mute: #4A8FE7; --daw-solo: #F2C744;
+  border: 1px solid var(--daw-stroke); border-radius: 8px; overflow: hidden;
+  background: var(--daw-bg); color: var(--daw-text); font-family: var(--font-ui); font-size: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  .daw {
+    --daw-bg: #1B1D29; --daw-header: #262938; --daw-header-hover: #2C3042; --daw-sep: #33374A;
+    --daw-stroke: #3A3E52; --daw-text: #E6E7EE; --daw-muted: #A4A7B8;
+    --daw-ruler: #2C2F40; --daw-ruler-stroke: #45495E; --daw-lane-light: #262938; --daw-canvas: #15171F;
+  }
+}
+.daw .icon { width: 16px; height: 16px; }
+/* A desktop DAW is dense by design: opt out of the app-wide 44px touch
+   minimum for buttons and fields inside it. */
+.daw button, .daw select { min-height: 0; margin: 0; font-size: 12px; line-height: 1; }
+.daw select { height: 22px; padding: 0 4px; border-radius: 4px; border: 1px solid var(--daw-stroke); background: var(--daw-bg); color: var(--daw-text); }
+.daw-align-bar[hidden] { display: none; }
+.daw-toolbar { display: flex; align-items: center; gap: 12px; padding: 6px 10px; border-bottom: 1px solid var(--daw-stroke); flex-wrap: wrap; }
+.daw-tb-group { display: flex; align-items: center; gap: 2px; }
+.daw-btn {
+  width: 28px; height: 28px; padding: 0; border: none; border-radius: 4px; background: transparent;
+  color: var(--daw-text); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.daw-btn:hover { background: rgba(127, 127, 140, 0.16); }
+.daw-btn.daw-play { color: var(--daw-play); }
+.daw-btn.daw-play .icon { width: 20px; height: 20px; }
+.daw-btn[aria-pressed="true"] { background: var(--daw-accent); color: #fff; }
+.daw-btn-sm { width: 22px; height: 22px; font-size: 15px; line-height: 1; }
+.daw-lcd {
+  display: flex; flex-direction: column; justify-content: center; min-width: 6.5rem; padding: 2px 10px; border-radius: 4px;
+  background: #212433; color: #DCE9FF; font-family: var(--font-mono); line-height: 1.15;
+}
+.daw-lcd-main { font-size: 15px; letter-spacing: 0.02em; }
+.daw-lcd-sub { font-size: 10.5px; opacity: 0.7; }
+.daw-meta span { padding: 0 8px; color: var(--daw-muted); font-variant-numeric: tabular-nums; }
+.daw-meta span + span { border-left: 1px solid var(--daw-stroke); }
+.daw-speed { display: flex; align-items: center; gap: 5px; color: var(--daw-muted); }
+
+.daw-tb-spacer { flex: 1; }
+.daw-btn-text {
+  height: 28px; padding: 0 10px; border-radius: 4px; border: 1px solid var(--daw-stroke);
+  background: var(--daw-header); color: var(--daw-text); font-size: 12px; cursor: pointer;
+}
+.daw-btn-text[aria-pressed="true"] { background: var(--daw-accent); border-color: var(--daw-accent); color: #fff; }
+.daw-zoom { display: flex; align-items: center; gap: 4px; }
+
+.daw-align-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 10px;
+  background: rgba(160, 158, 239, 0.18); border-bottom: 1px solid var(--daw-stroke);
+}
+.daw-align-bar kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--daw-stroke); border-radius: 3px; padding: 0 3px; }
+.daw-align-status { color: var(--daw-muted); }
+.daw-status { margin: 0; padding: 6px 10px; color: var(--daw-muted); border-top: 1px solid var(--daw-stroke); }
+.daw-status:empty { display: none; }
+
+.daw-main { display: grid; grid-template-columns: 236px minmax(0, 1fr); }
+.daw-headers { background: var(--daw-header); border-right: 1px solid var(--daw-stroke); }
+.daw-scroll { overflow-x: auto; overflow-y: hidden; background: var(--daw-canvas); }
+.daw-content { position: relative; }
+
+/* Header cells and lanes share one fixed height per row (set by mixer.js). */
+.daw-hdr { display: flex; box-sizing: border-box; border-bottom: 1px solid var(--daw-sep); position: relative; }
+.daw-hdr:hover { background: var(--daw-header-hover); }
+.daw-hdr.is-meta { background: var(--daw-ruler); color: var(--daw-muted); font-size: 11px; align-items: center; padding: 0 10px; gap: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.daw-hdr-stripe { width: 6px; flex: none; }
+.daw-hdr-body { flex: 1; min-width: 0; padding: 7px 8px 6px 9px; display: flex; flex-direction: column; gap: 7px; }
+.daw-hdr-top, .daw-hdr-row { display: flex; align-items: center; gap: 6px; }
+.daw-hdr-icon { width: 16px; height: 16px; flex: none; color: var(--daw-muted); }
+.daw-hdr-name { flex: 1; min-width: 0; font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.daw-hdr-sub { font-size: 10.5px; color: var(--daw-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.daw-hdr select { font-size: 11px; max-width: 100%; }
+.daw-ms {
+  width: 20px; height: 20px; padding: 0; border-radius: 4px; border: 1px solid #C2C4CF; background: #fff;
+  color: #3A3D4A; font-size: 10.5px; font-weight: 700; line-height: 18px; cursor: pointer; flex: none;
+}
+.daw-ms.is-mute[aria-pressed="true"] { background: var(--daw-mute); border-color: var(--daw-mute); color: #fff; }
+.daw-ms.is-solo[aria-pressed="true"] { background: var(--daw-solo); border-color: #D9AE2B; color: #14151A; }
+.daw-vol { flex: 1; min-width: 0; height: 14px; accent-color: var(--daw-muted); }
+.daw-vol-label { font-size: 10px; color: var(--daw-muted); width: 2.4em; text-align: right; font-variant-numeric: tabular-nums; }
+
+.daw-lane { position: relative; box-sizing: border-box; border-bottom: 1px solid rgba(0, 0, 0, 0.35); }
+.daw-lane.is-meta { background: var(--daw-lane-light); border-bottom-color: var(--daw-stroke); }
+.daw-lane.is-ruler { background: var(--daw-ruler); border-bottom-color: var(--daw-ruler-stroke); cursor: pointer; }
+.daw-lane.is-dimmed > .daw-clip, .daw-lane.is-dimmed > .daw-notation { opacity: 0.4; }
+
+.daw-tick { position: absolute; bottom: 0; width: 1px; background: var(--daw-text); opacity: 0.55; pointer-events: none; }
+.daw-tick.is-bar { height: 15px; opacity: 0.8; }
+.daw-tick.is-beat { height: 6px; opacity: 0.35; }
+.daw-tick-label { position: absolute; top: 5px; font-size: 11px; font-variant-numeric: tabular-nums; transform: translateX(3px); pointer-events: none; white-space: nowrap; }
+.daw-tick-label.is-time { top: auto; bottom: 17px; font-size: 9.5px; color: var(--daw-muted); }
+.daw-loop-region { position: absolute; top: 0; height: 9px; background: #D0D0D7; pointer-events: none; }
+.daw.is-looping .daw-loop-region { background: #A0A9DC; }
+
+.daw-section {
+  position: absolute; top: 3px; bottom: 3px; box-sizing: border-box; border-radius: 4px; border: 1px solid rgba(0, 0, 0, 0.28);
+  color: #14151A; font-size: 11.5px; font-weight: 600; line-height: 20px; padding: 0 6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+}
+.daw-section .daw-section-bars { font-weight: 400; opacity: 0.65; margin-left: 4px; }
+.daw-section.is-selected { box-shadow: inset 0 0 0 2px #14151A; }
+.daw-chord {
+  position: absolute; top: 3px; bottom: 3px; box-sizing: border-box; border-left: 2px solid #6E6BD8;
+  padding-left: 5px; font-family: var(--font-chart); font-style: italic; font-size: 15px; line-height: 21px;
+  white-space: nowrap; overflow: hidden; background: rgba(160, 158, 239, 0.14); color: var(--daw-text);
+}
+.daw-chord:nth-child(even) { background: rgba(160, 158, 239, 0.26); }
+
+.daw-grid { position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 1; }
+.daw-gl { position: absolute; top: 0; bottom: 0; width: 1px; }
+.daw-gl.is-bar { background: rgba(255, 255, 255, 0.10); }
+.daw-gl.is-beat { background: rgba(255, 255, 255, 0.05); }
+.daw-gl.is-section { background: rgba(255, 255, 255, 0.30); }
+
+.daw-clip { position: absolute; top: 3px; bottom: 3px; box-sizing: border-box; border-radius: 4px; border: 1px solid #000; overflow: hidden; z-index: 2; }
+.daw-clip-hdr { height: 20px; line-height: 20px; font-size: 11px; font-weight: 600; color: #14151A; white-space: nowrap; overflow: hidden; }
+.daw-clip-hdr span { position: sticky; left: 0; padding: 0 6px; }
+.daw-clip-body { position: absolute; top: 20px; left: 0; right: 0; bottom: 0; }
+.daw-wave { position: absolute; top: 23px; height: calc(100% - 26px); pointer-events: none; z-index: 3; }
+.daw-notation { position: absolute; left: 0; overflow: hidden; pointer-events: none; z-index: 3; }
+.daw-notation .at-surface, .daw-notation svg { pointer-events: none; }
+.daw-lane-empty { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: rgba(255, 255, 255, 0.55); font-size: 12px; z-index: 3; }
+
+.daw-playhead {
+  position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; box-sizing: border-box; z-index: 20;
+  background: #fff; border-left: 1px solid #000; border-right: 1px solid #000; pointer-events: none;
+}
+.daw-playhead-head { position: absolute; top: 0; width: 13px; height: 16px; margin-left: -6px; z-index: 21; pointer-events: none; }
+
+.daw-anchor { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #FF9E65; z-index: 15; cursor: ew-resize; }
+.daw-anchor::before { content: ''; position: absolute; top: 0; bottom: 0; left: -6px; width: 14px; }
+.daw-anchor.is-estimated { background: repeating-linear-gradient(#FF9E65 0 5px, transparent 5px 9px); }
+.daw-anchor-flag {
+  position: absolute; top: 2px; left: 0; padding: 1px 6px; border-radius: 0 3px 3px 0; background: #FF9E65; color: #14151A;
+  font-size: 10.5px; font-weight: 700; white-space: nowrap; cursor: ew-resize; user-select: none;
+}
+.daw-anchor.is-estimated .daw-anchor-flag { background: #FFD0A8; }
+.daw-anchor.is-dragging .daw-anchor-flag { background: #fff; outline: 2px solid #FF9E65; }
 
 /* Layout is automatic, not a manual toggle: the viewport decides.
    - Below 761px: single stacked column (chords above lyrics) — the only
@@ -1630,7 +1804,21 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 }
 .bar.current .chord-label { color: var(--current-fg); }
 .bar.current .simile-mark, .bar.current .simile-count { color: var(--current-fg); }
-.bar.current { background: color-mix(in srgb, var(--current-bg) 55%, transparent); border-radius: 3px; }
+.bar.current { background: color-mix(in srgb, #f2c400 22%, transparent); border-radius: 3px; }
+/* The beat line sweeping the playing bar (song.js sets --playhead, 0..1).
+   Drawn as a background so it can't collide with the barline glyphs'
+   own ::before/::after. */
+.bar.playhead {
+  --ph: calc(var(--playhead, 0) * 100%);
+  background-image: linear-gradient(to right, transparent calc(var(--ph) - 1px), var(--accent) calc(var(--ph) - 1px), var(--accent) calc(var(--ph) + 1px), transparent calc(var(--ph) + 1px));
+}
+/* Tab rows' playback cursor (alphatab-tab.js tabCursor), Guitar Pro style:
+   the playing bar tinted like .bar.current, a line sweeping its beats. */
+.alphatab-row[data-first-bar] { position: relative; }
+.tab-cursor-bar, .tab-cursor-beat { position: absolute; pointer-events: none; z-index: 1; }
+.tab-cursor-bar { background: color-mix(in srgb, #f2c400 22%, transparent); border-radius: 3px; }
+.tab-cursor-beat { width: 2px; margin-left: -1px; background: var(--accent); opacity: 0.85; border-radius: 1px; }
+.tab-cursor-bar[hidden], .tab-cursor-beat[hidden] { display: none; }
 
 /* A real 5-line staff, not a single rule — drawn per bar-body as five 1px
    lines at 0/25/50/75/100% of a fixed height. Every bar-body shares the
@@ -4560,3 +4748,16 @@ input.matrix-slot:hover, input.matrix-slot:focus {
    class's rule) and gets a second, mobile-only instance inside the new
    #song-stack sheet instead — this selector needs no width override any
    more, inline-flex + flex-wrap already reads fine at a sheet's width. */
+.daw-zoom input[type="range"] { width: 150px; }
+.daw-zoom .daw-btn-text { height: 24px; padding: 0 8px; }
+.daw-zoom-label { min-width: 5.5em; font-size: 11px; color: var(--daw-muted); font-variant-numeric: tabular-nums; }
+
+/* A pickup / count-in bar (.bar-pickup, song.js's reflow keeps it in the
+   first row on top of that row's usual bars): a narrow cell holding a
+   whole-bar rest, with the row's regular bars sharing what's left so they
+   stay as wide as the rows below. */
+/* !important: the per-mode #sheet[data-render-mode=…] .bar rules (an ID
+   selector) would otherwise win over these, and they apply in every mode. */
+.staff-line > .bar.bar-pickup { flex: 0 0 3.4em !important; min-width: 3.4em; padding: 0 0.3em; }
+.staff-line:has(> .bar-pickup) > .bar:not(.bar-pickup) { flex-basis: calc((100% - 3.4em) / var(--cap, 4)) !important; }
+.staff-line:has(> .staff-timesig-cell):has(> .bar-pickup) > .bar:not(.bar-pickup) { flex-basis: calc((100% - 5.9em) / var(--cap, 4)) !important; }

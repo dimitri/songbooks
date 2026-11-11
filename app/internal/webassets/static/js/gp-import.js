@@ -68,6 +68,7 @@
   const includeAudio = document.getElementById('gpimport-include-audio');
   const summary = document.getElementById('gpimport-summary');
   const previewHolder = document.getElementById('gpimport-preview');
+  const headerHolder = document.getElementById('gpimport-header');
   const deriveRow = document.getElementById('gpimport-derive-row');
   const deriveBtn = document.getElementById('gpimport-derive-chords');
 
@@ -277,56 +278,74 @@
   // this a file's last bar could never be included in any section's
   // count (confirmed live: a 13-real-bar file could only ever reach 12
   // mapped bars).
+  // Positions are tracked in quarter beats rather than bar indexes: a GP
+  // sync point can sit part-way through a bar (its ratioPosition — e.g.
+  // ¾ of the way into bar 7 in Florent Passamonti's BB Box lesson), and an
+  // anacrusis first bar lasts only as long as its notes, so counting it
+  // as a whole bar pushes every later bar a pickup-length late.
+  function barBeats(mb) {
+    // A free-time bar (mb.isFreeTime — a rubato intro/outro with no
+    // fixed tempo, confirmed present in a real file this session)
+    // has no well-defined duration to estimate from time signature
+    // and tempo alone; a 0-length guess would stack several of them
+    // at the same x position on the timeline, so fall back to one
+    // nominal 4-beat bar's worth of time instead — still wrong, but
+    // spread out and draggable rather than invisible.
+    if (mb.isFreeTime) return 4;
+    if (mb.isAnacrusis && mb.calculateDuration) return mb.calculateDuration() / 960 || 4;
+    return (mb.timeSignatureNumerator || 4) * (4 / (mb.timeSignatureDenominator || 4)) || 4;
+  }
+
   function buildBarTimes() {
-    const nominal = new Array(realIdx.length + 1).fill(0);
+    const n = realIdx.length;
+    const beatAt = new Array(n + 1).fill(0);  // real-bar-position -> quarter beats from the start
+    const nominal = new Array(n + 1).fill(0); // ... -> seconds at the file's own tempo map
+    const secPerBeat = [];
     let tempo = score.tempo || 120;
-    let t = 0;
-    for (let pos = 0; pos < realIdx.length; pos++) {
+    for (let pos = 0; pos < n; pos++) {
       const mb = score.masterBars[realIdx[pos]];
       if (mb.tempoAutomations && mb.tempoAutomations.length) tempo = mb.tempoAutomations[0].value || tempo;
-      nominal[pos] = t;
-      // A free-time bar (mb.isFreeTime — a rubato intro/outro with no
-      // fixed tempo, confirmed present in a real file this session)
-      // has no well-defined duration to estimate from time signature
-      // and tempo alone; a 0-length guess would stack several of them
-      // at the same x position on the timeline, so fall back to one
-      // nominal 4-beat bar's worth of time instead — still wrong, but
-      // spread out and draggable rather than invisible.
-      const beats = mb.isFreeTime ? 4 : (mb.timeSignatureNumerator || 4) * (4 / (mb.timeSignatureDenominator || 4));
-      t += (beats || 4) * 60 / tempo;
+      secPerBeat[pos] = 60 / tempo;
+      beatAt[pos + 1] = beatAt[pos] + barBeats(mb);
+      nominal[pos + 1] = nominal[pos] + barBeats(mb) * secPerBeat[pos];
     }
-    nominal[realIdx.length] = t;
+    const nominalAt = (beat) => {
+      let pos = 0;
+      while (pos < n - 1 && beatAt[pos + 1] <= beat) pos++;
+      return nominal[pos] + (beat - beatAt[pos]) * (secPerBeat[pos] || 0.5);
+    };
 
-    const known = []; // [{pos, t}]
+    // Every sync point of every pass through a repeated bar: GP numbers
+    // the passes (barOccurence), realIdx lists the bar once per pass.
+    const known = []; // [{beat, t}]
+    const seen = new Map();
     syncedPositions = new Set();
     realIdx.forEach((gpBarIdx, pos) => {
-      const sp = score.masterBars[gpBarIdx].syncPoints && score.masterBars[gpBarIdx].syncPoints[0];
-      if (sp) { known.push({ pos, t: sp.syncPointValue.millisecondOffset / 1000 }); syncedPositions.add(pos); }
+      const occ = seen.get(gpBarIdx) || 0;
+      seen.set(gpBarIdx, occ + 1);
+      for (const sp of score.masterBars[gpBarIdx].syncPoints || []) {
+        if ((sp.syncPointValue.barOccurence || 0) !== occ) continue;
+        const ratio = sp.ratioPosition || 0;
+        known.push({ beat: beatAt[pos] + ratio * (beatAt[pos + 1] - beatAt[pos]), t: sp.syncPointValue.millisecondOffset / 1000 });
+        if (ratio === 0) syncedPositions.add(pos);
+      }
     });
+    known.sort((a, b) => a.beat - b.beat);
     if (known.length === 0) return nominal;
 
-    const times = nominal.slice();
-    if (known.length === 1) {
-      const offset = known[0].t - nominal[known[0].pos];
-      for (let pos = 0; pos <= realIdx.length; pos++) times[pos] = nominal[pos] + offset;
-      return times;
-    }
-    for (let i = 0; i < known.length - 1; i++) {
-      const a = known[i], b = known[i + 1];
-      for (let pos = a.pos; pos <= b.pos; pos++) {
-        const frac = b.pos > a.pos ? (pos - a.pos) / (b.pos - a.pos) : 0;
-        times[pos] = a.t + frac * (b.t - a.t);
-      }
-    }
-    // Before the first / after the last known point: shift the nominal
-    // timeline's own shape so it passes exactly through that point,
+    // Between two sync points GP plays at a steady tempo, so bars are
+    // linear in beats there; before the first / after the last, shift the
+    // nominal timeline's own shape so it passes exactly through that point
     // rather than extrapolating a single borrowed interval's rate.
-    const offsetStart = known[0].t - nominal[known[0].pos];
-    for (let pos = 0; pos < known[0].pos; pos++) times[pos] = nominal[pos] + offsetStart;
-    const lastK = known[known.length - 1];
-    const offsetEnd = lastK.t - nominal[lastK.pos];
-    for (let pos = lastK.pos + 1; pos <= realIdx.length; pos++) times[pos] = nominal[pos] + offsetEnd;
-    return times;
+    const first = known[0], last = known[known.length - 1];
+    return beatAt.map((beat) => {
+      if (beat <= first.beat) return nominalAt(beat) + first.t - nominalAt(first.beat);
+      if (beat >= last.beat) return nominalAt(beat) + last.t - nominalAt(last.beat);
+      let i = 0;
+      while (known[i + 1].beat < beat) i++;
+      const a = known[i], b = known[i + 1];
+      return b.beat > a.beat ? a.t + ((beat - a.beat) / (b.beat - a.beat)) * (b.t - a.t) : a.t;
+    });
   }
 
   function nearestBarForTime(t) {
@@ -886,7 +905,15 @@
         // confirmed live against a real imported file (bars with
         // duration=4/dots=0, isFullBarRest false, in a 4/4 bar that's
         // musically just "rest here").
-        if (b.isRest) return { Rest: true, Duration: isSoleRest ? '1' : String(b.duration) + '.'.repeat(b.dots) };
+        // A tuplet (a triplet is 3 in the time of 2) keeps its ratio and a
+        // grace note takes no time: without them a bar of triplet eighths,
+        // or one with grace notes, reads as overfull.
+        const tuplet = (beat) => {
+          if (b.tupletNumerator > 1 && b.tupletDenominator > 0) { beat.TupletNum = b.tupletNumerator; beat.TupletDen = b.tupletDenominator; }
+          if (b.graceType) beat.Grace = true;
+          return beat;
+        };
+        if (b.isRest) return tuplet({ Rest: true, Duration: isSoleRest ? '1' : String(b.duration) + '.'.repeat(b.dots) });
         const notes = b.notes.map(n => ({
           MIDI: n.realValue,
           String: numStrings + 1 - n.string,
@@ -910,7 +937,7 @@
           beat.BendSemitones = maxVal * 0.5;
           if (lastVal < maxVal) beat.BendRelease = true;
         }
-        return beat;
+        return tuplet(beat);
       });
       bars.push({ Beats: beats });
     }
@@ -983,7 +1010,17 @@
     const points = [];
     for (let pos = boundaries[0]; pos < realIdx.length; pos++) {
       const ourBar = pos - boundaries[0];
-      points.push({ barIndex: ourBar, timeSeconds: barTimes[pos] });
+      let t = barTimes[pos];
+      // Songbooks times a pickup as a whole bar with its notes at the end
+      // (the Mixer pads it with leading rests), so bar 0 starts a full
+      // bar before bar 1, not where the anacrusis notes start.
+      const mb = score.masterBars[realIdx[pos]];
+      if (mb.isAnacrusis && barTimes[pos + 1] != null) {
+        const full = (mb.timeSignatureNumerator || 4) * (4 / (mb.timeSignatureDenominator || 4));
+        const short = barBeats(mb);
+        if (short > 0 && short < full) t = barTimes[pos + 1] - (barTimes[pos + 1] - t) * (full / short);
+      }
+      points.push({ barIndex: ourBar, timeSeconds: t });
     }
     if (points.length) {
       const spRes = await fetch(`/api/songs/${variantId}/audio/gp/sync-points`, {
@@ -1007,8 +1044,107 @@
       ? `Importing ${rows.length} section(s): ${rows.map(tr => tr.children[1].textContent).join(', ')}.`
       : 'No sections selected — nothing will be imported.';
     goToStep('import');
+    await prepareHeader();
     await renderPreview();
   });
+
+  // ---- Song header: the file's tempo, time signature and swing ------
+  // A Guitar Pro file knows all three; a song created by hand or from
+  // another import usually doesn't, and the chart then falls back to
+  // 4/4 at 120 — every bar's length, the bar grid and the Mixer's
+  // playback go wrong with it. The import step offers each value the
+  // song doesn't already have, checked by default; unchecking keeps the
+  // song's own (a deliberate edit wins).
+  let headerChoices = []; // [{key, label, gp, song, input}]
+  function gpHeader() {
+    const mbs = score.masterBars;
+    const full = mbs.find((m) => !m.isAnacrusis) || mbs[0];
+    const feels = mbs.map((m) => m.tripletFeel);
+    const most = (v) => feels.filter((f) => f === v).length;
+    // alphaTab's TripletFeel: 2 = triplet 8th (a shuffle), 1 = triplet 16th.
+    const swing = most(2) > feels.length / 2 ? '8' : most(1) > feels.length / 2 ? '16' : '';
+    return {
+      tempo: String(Math.round(score.tempo || 120)),
+      time: `${full.timeSignatureNumerator}/${full.timeSignatureDenominator}`,
+      swing,
+    };
+  }
+  function headerValue(text, key) {
+    const m = new RegExp(`^${key}:[ \\t]*(.*)$`, 'm').exec(text.split(/\n\[/)[0]);
+    return m ? m[1].trim() : '';
+  }
+  // Sets (or with an empty value removes) one header line, keeping every
+  // other line as written; a new line goes after the existing header.
+  function setHeader(text, key, value) {
+    const lines = text.split('\n');
+    let end = lines.findIndex((l) => /^\[/.test(l));
+    if (end < 0) end = lines.length;
+    const at = lines.slice(0, end).findIndex((l) => new RegExp(`^${key}:`).test(l));
+    if (at >= 0) {
+      if (value) lines[at] = `${key}: ${value}`; else lines.splice(at, 1);
+      return lines.join('\n');
+    }
+    if (!value) return text;
+    let last = -1;
+    for (let i = 0; i < end; i++) if (/^[a-z-]+:/.test(lines[i])) last = i;
+    lines.splice(last + 1, 0, `${key}: ${value}`);
+    return lines.join('\n');
+  }
+  async function prepareHeader() {
+    headerChoices = [];
+    if (!headerHolder || !score) return;
+    headerHolder.innerHTML = '';
+    let text = '';
+    try { text = (await (await fetch(`/api/songs/${variantId}/raw`)).json()).text || ''; } catch (e) { return; }
+    const gp = gpHeader();
+    const rows = [
+      { key: 'tempo', label: 'Tempo', show: (v) => (v ? `${v} bpm` : 'none (120)') },
+      { key: 'time', label: 'Time signature', show: (v) => v || 'none (4/4)' },
+      { key: 'swing', label: 'Swing', show: (v) => (v === '8' ? 'swung eighths' : v === '16' ? 'swung sixteenths' : 'straight') },
+    ];
+    const list = document.createElement('div');
+    list.className = 'gpimport-header-list';
+    for (const r of rows) {
+      const song = headerValue(text, r.key);
+      const same = song === gp[r.key];
+      const p = document.createElement('p');
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = true;
+      input.disabled = same;
+      label.append(input, ` ${r.label}: ${r.show(gp[r.key])}`);
+      p.appendChild(label);
+      const was = document.createElement('span');
+      was.className = 'hint';
+      was.textContent = same ? ' (already in the song)' : ` (song has ${r.show(song)})`;
+      p.appendChild(was);
+      input.addEventListener('change', () => renderPreview());
+      list.appendChild(p);
+      headerChoices.push({ key: r.key, gp: gp[r.key], song, input });
+    }
+    const h = document.createElement('p');
+    h.className = 'hint';
+    h.textContent = 'From the Guitar Pro file — checked values are written to the song header:';
+    headerHolder.append(h, list);
+  }
+  // The header the song will have after the import.
+  function chosenHeader(key) {
+    const c = headerChoices.find((x) => x.key === key);
+    return c ? (c.input.checked ? c.gp : c.song) : '';
+  }
+  async function writeHeader() {
+    const todo = headerChoices.filter((c) => c.input.checked && !c.input.disabled);
+    if (!todo.length) return;
+    const raw = await (await fetch(`/api/songs/${variantId}/raw`)).json();
+    let text = raw.text;
+    for (const c of todo) text = setHeader(text, c.key, c.gp);
+    const res = await fetch(`/api/songs/${variantId}/raw`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, version: raw.version }),
+    });
+    if (!res.ok) throw new Error('saving the song header failed: ' + (await res.text()));
+  }
 
   // ---- Preview: real notation for exactly the sections currently
   // checked, before the one commit step — see handleGPImportPreview's
@@ -1036,7 +1172,7 @@
       try {
         const res = await fetch('/api/gp-import/preview', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ riff: JSON.stringify(riff) }),
+          body: JSON.stringify({ riff: JSON.stringify(riff), time: chosenHeader('time'), swing: chosenHeader('swing') }),
         });
         if (!res.ok) throw new Error(await res.text());
         const { alphaTex } = await res.json();
@@ -1056,6 +1192,8 @@
     const checks = [...mappingBody.querySelectorAll('.gpimport-include')];
     importBtn.disabled = true;
     try {
+      setStatus('writing the song header…');
+      await writeHeader();
       for (let i = 0; i < ourSections.length; i++) {
         if (!checks[i] || !checks[i].checked) continue;
         const sec = ourSections[i];

@@ -100,6 +100,169 @@ func ToAlphaTexBass(riff *Riff, chordLabels []string) string {
 	return ToAlphaTex(riff, clef, chordLabels)
 }
 
+// MixerTrack describes one \track block of a ToAlphaTexMulti document, in
+// declaration order — alphaTab assigns Score.tracks indexes in that same
+// order, so a slice index here IS the client's track index.
+type MixerTrack struct {
+	Name    string
+	Drums   bool
+	Program int // General MIDI program (0-based); -1 for percussion
+}
+
+// gmProgramFor guesses a General MIDI program from a track's own name —
+// a riff stores tuning and frets, not the instrument it was written for,
+// and without this every track plays as GM program 0 (piano).
+func gmProgramFor(name string, numStrings int) int {
+	n := strings.ToLower(name)
+	switch {
+	case strings.Contains(n, "bass") || numStrings <= 4:
+		if strings.Contains(n, "fretless") {
+			return 35
+		}
+		if strings.Contains(n, "pick") {
+			return 34
+		}
+		return 33
+	case strings.Contains(n, "nylon") || strings.Contains(n, "classical"):
+		return 24
+	case strings.Contains(n, "acoustic") || strings.Contains(n, "steel"):
+		return 25
+	case strings.Contains(n, "jazz"):
+		return 26
+	case strings.Contains(n, "dist") || strings.Contains(n, "lead") || strings.Contains(n, "metal"):
+		return 30
+	case strings.Contains(n, "overdrive") || strings.Contains(n, "crunch") || strings.Contains(n, "rock"):
+		return 29
+	case strings.Contains(n, "piano") || strings.Contains(n, "keys"):
+		return 0
+	case strings.Contains(n, "organ"):
+		return 16
+	}
+	return 27 // clean electric guitar
+}
+
+// FirstBarMeta is the alphaTeX bar metadata a score's first bar needs
+// for the song's own header: its time signature when it isn't alphaTab's
+// default 4/4, and its swing feel (see SwingFeel). "" when neither.
+func FirstBarMeta(timeNum, timeDen int, swing string) string {
+	meta := ""
+	if timeNum > 0 && timeDen > 0 && !(timeNum == 4 && timeDen == 4) {
+		meta = fmt.Sprintf(`\ts %d %d `, timeNum, timeDen)
+	}
+	if feel := SwingFeel(swing); feel != "" {
+		meta += `\tf ` + feel + " "
+	}
+	return meta
+}
+
+// SwingFeel reads a song's "swing:" header — "8" for swung eighths (a
+// shuffle: written eighths played as a triplet's 2+1, Guitar Pro's
+// "Triplet 8th" feel), "16" for swung sixteenths — as alphaTeX's triplet
+// feel name. "" for no swing or an unknown value.
+func SwingFeel(swing string) string {
+	switch strings.ToLower(strings.TrimSpace(swing)) {
+	case "8", "8th", "eighths", "yes", "shuffle":
+		return "triplet-8th"
+	case "16", "16th", "sixteenths":
+		return "triplet-16th"
+	}
+	return ""
+}
+
+// ToAlphaTexMulti renders several tracks into ONE alphaTeX document so
+// alphaTab's player can play them on a single clock (the Mixer view).
+// Every track must have the same bar count. No multiBarRest anywhere:
+// the Mixer gives every bar its own fixed width to line notation up with
+// the reference recording, so bars must never be merged.
+func ToAlphaTexMulti(tracks []NamedRiff, tempo, timeNum, timeDen int, swing string) (tex string, meta []MixerTrack) {
+	if tempo <= 0 {
+		tempo = 120
+	}
+	ts := FirstBarMeta(timeNum, timeDen, swing)
+	var b strings.Builder
+	b.WriteString(`\tempo `)
+	b.WriteString(strconv.Itoa(tempo))
+	b.WriteString("\n")
+	for _, t := range tracks {
+		name := t.Name
+		if name == "" {
+			name = "Track"
+		}
+		if t.Riff.Drums {
+			writeDrumTrackBlock(&b, name, t.Riff, ts)
+			meta = append(meta, MixerTrack{Name: name, Drums: true, Program: -1})
+			continue
+		}
+		prog := gmProgramFor(name, len(t.Riff.Tuning))
+		writeMelodicTrackBlock(&b, name, prog, t.Riff, ts)
+		meta = append(meta, MixerTrack{Name: name, Program: prog})
+	}
+	return b.String(), meta
+}
+
+func writeMelodicTrackBlock(b *strings.Builder, name string, program int, riff *Riff, ts string) {
+	fmt.Fprintf(b, "\\track \"%s\" { instrument %d }\n\\staff {tabs}\n\\tuning (", escapeAlphaTexString(name), program)
+	for i, midi := range riff.Tuning {
+		if i > 0 {
+			b.WriteByte(' ')
+		}
+		b.WriteString(midiToAlphaTexNote(midi))
+	}
+	b.WriteString(")\n.\n")
+	for bi, bar := range riff.Bars {
+		if bi > 0 {
+			b.WriteString(" | ")
+		} else {
+			b.WriteString(ts)
+		}
+		for i, beat := range bar.Beats {
+			if i > 0 {
+				b.WriteByte(' ')
+			}
+			writeBeat(b, beat, "")
+		}
+	}
+	b.WriteString(" |\n")
+}
+
+func writeDrumTrackBlock(b *strings.Builder, name string, riff *Riff, ts string) {
+	fmt.Fprintf(b, "\\track \"%s\" { instrument percussion }\n\\staff {score}\n", escapeAlphaTexString(name))
+	used := map[int]bool{}
+	var order []int
+	for _, bar := range riff.Bars {
+		for _, beat := range bar.Beats {
+			for _, n := range beat.Notes {
+				if !used[n.MIDI] {
+					used[n.MIDI] = true
+					order = append(order, n.MIDI)
+				}
+			}
+		}
+	}
+	sort.Ints(order)
+	for _, midi := range order {
+		if a := drumArticulationName[midi]; a != "" {
+			fmt.Fprintf(b, "\\articulation (%s %d)\n", a, midi)
+		}
+	}
+	b.WriteString(".\n")
+	for bi, bar := range riff.Bars {
+		if bi > 0 {
+			b.WriteString(" | ")
+		} else {
+			b.WriteString(ts)
+			b.WriteString(`\clef neutral `)
+		}
+		for i, beat := range bar.Beats {
+			if i > 0 {
+				b.WriteByte(' ')
+			}
+			writeDrumBeat(b, beat, "")
+		}
+	}
+	b.WriteString(" |\n")
+}
+
 func writeBeat(b *strings.Builder, beat Beat, chordLabel string) {
 	dur, dotted := splitDuration(beat.Duration)
 	switch {
@@ -203,23 +366,43 @@ func writeBeat(b *strings.Builder, beat Beat, chordLabel string) {
 		b.WriteString(").")
 		b.WriteString(dur)
 	}
-	if dotted || chordLabel != "" {
+	writeBeatEffects(b, dotted, beat, chordLabel)
+}
+
+// writeBeatEffects writes a beat's "{...}" effect list: dotted, tuplet,
+// grace and chord label, in that order; nothing when it has none.
+func writeBeatEffects(b *strings.Builder, dotted bool, beat Beat, chordLabel string) {
+	var effects []string
+	if dotted {
+		effects = append(effects, "d")
+	}
+	if t := tupletEffect(beat); t != "" {
+		effects = append(effects, t)
+	}
+	if beat.Grace {
+		effects = append(effects, "gr")
+	}
+	if chordLabel != "" {
+		effects = append(effects, `ch "`+escapeAlphaTexString(chordLabel)+`"`)
+	}
+	if len(effects) > 0 {
 		b.WriteByte('{')
-		wrote := false
-		if dotted {
-			b.WriteString("d")
-			wrote = true
-		}
-		if chordLabel != "" {
-			if wrote {
-				b.WriteByte(' ')
-			}
-			b.WriteString(`ch "`)
-			b.WriteString(escapeAlphaTexString(chordLabel))
-			b.WriteByte('"')
-		}
+		b.WriteString(strings.Join(effects, " "))
 		b.WriteByte('}')
 	}
+}
+
+// tupletEffect is a beat's alphaTeX tuplet effect: "tu 3" for a triplet
+// (alphaTeX's own shorthand, the usual ratio implied), "tu (5 4)" when the
+// ratio needs spelling out; "" for a plain beat.
+func tupletEffect(beat Beat) string {
+	if beat.TupletNum <= 1 || beat.TupletDen <= 0 {
+		return ""
+	}
+	if beat.TupletNum == 3 && beat.TupletDen == 2 {
+		return "tu 3"
+	}
+	return fmt.Sprintf("tu (%d %d)", beat.TupletNum, beat.TupletDen)
 }
 
 // escapeAlphaTexString escapes a chord symbol for alphaTeX's own quoted
@@ -408,23 +591,7 @@ func writeDrumBeat(b *strings.Builder, beat Beat, chordLabel string) {
 		b.WriteString(").")
 		b.WriteString(dur)
 	}
-	if dotted || chordLabel != "" {
-		b.WriteByte('{')
-		wrote := false
-		if dotted {
-			b.WriteString("d")
-			wrote = true
-		}
-		if chordLabel != "" {
-			if wrote {
-				b.WriteByte(' ')
-			}
-			b.WriteString(`ch "`)
-			b.WriteString(escapeAlphaTexString(chordLabel))
-			b.WriteByte('"')
-		}
-		b.WriteByte('}')
-	}
+	writeBeatEffects(b, dotted, beat, chordLabel)
 }
 
 // splitDuration splits a LilyPond duration token ("4", "4.", "16") into
@@ -440,4 +607,31 @@ func splitDuration(d string) (dur string, dotted bool) {
 		return strings.TrimSuffix(d, "."), true
 	}
 	return d, false
+}
+
+// BarBeats is a bar's written length in quarter-note beats (grace notes,
+// which take no time of their own, aside).
+func BarBeats(bar Bar) float64 {
+	total := 0.0
+	for _, b := range bar.Beats {
+		total += b.Beats()
+	}
+	return total
+}
+
+// RestBeats is a run of rests lasting exactly beats quarter notes, longest
+// values first (down to a 32nd).
+func RestBeats(beats float64) []Beat {
+	values := []struct {
+		dur   string
+		beats float64
+	}{{"1", 4}, {"2.", 3}, {"2", 2}, {"4.", 1.5}, {"4", 1}, {"8.", 0.75}, {"8", 0.5}, {"16.", 0.375}, {"16", 0.25}, {"32", 0.125}}
+	var out []Beat
+	for _, v := range values {
+		for beats >= v.beats-1e-9 {
+			out = append(out, Beat{Rest: true, Duration: v.dur})
+			beats -= v.beats
+		}
+	}
+	return out
 }

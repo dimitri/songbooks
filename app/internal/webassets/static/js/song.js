@@ -365,7 +365,12 @@ const ICONS = {
         }
         const cells = [...template.children]; // clef cell (maybe) + .bar elements, in order
         const actualBarCount = cells.filter(el => el.classList.contains('bar')).length;
-        if (useCap >= actualBarCount) {
+        // A pickup bar (.bar-pickup — an anacrusis or count-in bar the song
+        // opens with, see viewerMeasure.Pickup) rides along in the first row
+        // on top of its usual count, so the grid keeps its phrasing: a
+        // 16-bar blues reads 5 / 4 / 4 / 4.
+        const pickup = cells.find(el => el.classList.contains('bar'))?.classList.contains('bar-pickup') ? 1 : 0;
+        if (useCap + pickup >= actualBarCount) {
           const line = template.cloneNode(true);
           if (lineBarWpx) line.style.setProperty('--bar-w', lineBarWpx + 'px');
           // The ORIGINAL authored `cap` can itself already be larger than
@@ -379,7 +384,7 @@ const ICONS = {
           // test section. Only fall back to the line's own bar count when
           // it's genuinely short; a full line (actualBarCount === cap)
           // keeps rendering at exactly the declared "bars:" hint, unchanged.
-          line.style.setProperty('--cap', String(actualBarCount < cap ? actualBarCount : cap));
+          line.style.setProperty('--cap', String(Math.max(1, (actualBarCount < cap ? actualBarCount : cap) - pickup)));
           newLines.push(line);
           continue;
         }
@@ -406,19 +411,26 @@ const ICONS = {
         // happen — and even then, that lone chunk gets its OWN --cap
         // (its own bar count) below, so it fills its row instead of
         // leaving blank staff behind it.
+        const body = barEls.length - pickup;
         let effUseCap = useCap;
-        if (barEls.length % useCap !== 0) {
+        if (body % useCap !== 0) {
           for (let d = useCap - 1; d > 1; d--) {
-            if (barEls.length % d === 0) { effUseCap = d; break; }
+            if (body % d === 0) { effUseCap = d; break; }
           }
         }
-        for (let i = 0; i < barEls.length; i += effUseCap) {
-          const chunk = barEls.slice(i, i + effUseCap);
+        for (let i = 0, row = 0; i < barEls.length; row++) {
+          const size = effUseCap + (row === 0 ? pickup : 0);
+          const chunk = barEls.slice(i, i + size);
+          i += size;
           const line = document.createElement('div');
           line.className = 'staff-line';
-          line.style.setProperty('--cap', String(chunk.length < effUseCap ? chunk.length : effUseCap));
+          // --cap counts the row's regular bars: a pickup has its own
+          // narrow width (.bar-pickup, app.css), so the four bars next to
+          // it stay as wide as every other row's.
+          const regular = chunk.length - (row === 0 ? pickup : 0);
+          line.style.setProperty('--cap', String(regular < effUseCap ? Math.max(1, regular) : effUseCap));
           if (lineBarWpx) line.style.setProperty('--bar-w', lineBarWpx + 'px');
-          if (i === 0 && clefEl) line.appendChild(clefEl.cloneNode(true));
+          if (row === 0 && clefEl) line.appendChild(clefEl.cloneNode(true));
           for (const bar of chunk) line.appendChild(bar.cloneNode(true));
           newLines.push(line);
         }
@@ -567,12 +579,29 @@ const ICONS = {
     playPauseBtn.classList.add('active');
   }
 
+  // Scroll only when el leaves the comfortable middle of the viewport,
+  // bringing it to a quarter from the top: the next rows stay readable.
+  window.songbooksKeepInView = function keepInView(el) {
+    const r = el.getBoundingClientRect();
+    if (r.top >= 0 && r.bottom <= window.innerHeight * 0.8) return;
+    window.scrollBy({ top: r.top - window.innerHeight * 0.25, behavior: 'smooth' });
+  };
+  const keepInView = window.songbooksKeepInView;
+
   let currentBarEl = null;
   let currentSectionEl = null;
   let currentLineEl = null;
   const structureFillEl = document.getElementById('structure-fill');
   function highlightTick() {
-    const bar = clock.currentBar();
+    // The reference recording (audio-player.js), once started, leads the
+    // highlight; the metronome clock otherwise.
+    const ref = !clock.running && window.songbooksReferencePosition ? window.songbooksReferencePosition() : null;
+    const position = ref ? ref.bar : clock.currentBeat() / clock.beatsPerBar;
+    const following = clock.running || !!(ref && ref.playing);
+    const bar = Math.floor(position);
+    // Tab rows (alphatab-tab.js) draw their own Guitar Pro style cursor.
+    const started = following || !!ref || clock.currentBeat() > 0;
+    const tabFollowed = window.songbooksTabCursor ? window.songbooksTabCursor(started ? position : null, following) : false;
     // Recomputed every tick, not cached at load — rebindSheet() (which
     // populates `sections`) can run after this point (e.g. on first
     // load, it's called at the very end of the script), so a one-time
@@ -584,12 +613,21 @@ const ICONS = {
         structureFillEl.style.width = `calc((100% - 0.4rem) * ${pct})`;
       }
     }
-    const barEl = bars.find(b => parseInt(b.dataset.globalBar, 10) === bar) || null;
+    // A reflowed row keeps its hidden original next to the visible copy:
+    // highlight the copy on screen.
+    const matches = bars.filter(b => parseInt(b.dataset.globalBar, 10) === bar);
+    const barEl = matches.find(b => b.offsetParent) || matches[0] || null;
+    if (barEl && started) barEl.style.setProperty('--playhead', String(Math.min(1, position - bar)));
     if (barEl !== currentBarEl) {
-      currentBarEl?.classList.remove('current');
+      currentBarEl?.classList.remove('current', 'playhead');
       barEl?.classList.add('current');
       currentBarEl = barEl;
+      // Keep the playing row on screen, turning the page a row early.
+      if (barEl && following && !tabFollowed && barEl.offsetParent) keepInView(barEl);
     }
+    // Smooth (Guitar Pro style) line only for bars engraved at even
+    // beat spacing: the pickup cell is a compact rest glyph.
+    currentBarEl?.classList.toggle('playhead', started && !currentBarEl.classList.contains('bar-pickup'));
     // Section lookup no longer rides on barEl existing — a compact/
     // reference section has no .bar of its own (just a chip + multi-rest
     // bar), so deriving "current section" from "current bar's closest
@@ -635,7 +673,7 @@ const ICONS = {
       // view before the reader had done anything. Highlighting (above)
       // still updates either way — it's only the forced scroll that's
       // playback-only now.
-      if (sectionEl && clock.running) sectionEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      if (sectionEl && following && !tabFollowed && !(barEl && barEl.offsetParent)) sectionEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
       currentSectionEl = sectionEl;
     }
     // Lyrics mode's own finer-grained position indicator: which LINE
@@ -664,7 +702,7 @@ const ICONS = {
       if (lineEl !== currentLineEl) {
         currentLineEl?.classList.remove('current');
         lineEl?.classList.add('current');
-        if (lineEl && clock.running) lineEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        if (lineEl && following) lineEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
         currentLineEl = lineEl;
       }
     } else if (currentLineEl) {
@@ -1129,8 +1167,9 @@ const ICONS = {
     const btn = e.target.closest('button[data-instrument]');
     if (!btn) return;
     const url = new URL(location.href);
-    if (btn.dataset.instrument) url.searchParams.set('instrument', btn.dataset.instrument);
-    else url.searchParams.delete('instrument');
+    // Always explicit, "chords" included: with no instrument at all a
+    // song without lyrics opens on its most interesting score track.
+    url.searchParams.set('instrument', btn.dataset.instrument || 'chords');
     location.href = url.toString();
   });
 
@@ -2204,6 +2243,26 @@ const ICONS = {
     tempoInput.addEventListener('input', () => { markDirty(); metaSet('tempo', tempoInput.value.trim()); });
     tempoField.append(tempoInput, ' bpm');
 
+    // Swing: written straight notes played as a shuffle — the song
+    // header's "swing:" (8 or 16; see the song format docs).
+    const swingField = document.createElement('label');
+    swingField.className = 'header-field';
+    swingField.append('swing ');
+    const swingSelect = document.createElement('select');
+    swingSelect.className = 'header-field-input';
+    swingSelect.title = 'plays written eighths (or sixteenths) as a shuffle, like Guitar Pro\'s triplet feel';
+    for (const [value, text] of [['', 'straight'], ['8', 'swung 8ths'], ['16', 'swung 16ths']]) {
+      swingSelect.add(new Option(text, value));
+    }
+    swingSelect.value = ['8', '16'].includes(metaGet('swing')) ? metaGet('swing') : '';
+    swingSelect.addEventListener('change', () => {
+      markDirty();
+      // Straight is no header line at all, not an empty "swing:".
+      if (swingSelect.value) metaSet('swing', swingSelect.value);
+      else structMeta = structMeta.filter((f) => f.key !== 'swing');
+    });
+    swingField.appendChild(swingSelect);
+
     // Genre lives on the song's parent WORK, not in the raw .song body
     // (see migration 0030), so it saves independently via its own
     // endpoint on blur rather than going through structMeta/the
@@ -2232,7 +2291,7 @@ const ICONS = {
 
     const chipsRow = document.createElement('div');
     chipsRow.className = 'song-meta-chips-row';
-    chipsRow.append(timeField, tempoField, genreField);
+    chipsRow.append(timeField, tempoField, swingField, genreField);
 
     host.append(titleArtistRow, chipsRow);
   }

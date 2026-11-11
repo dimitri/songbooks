@@ -102,6 +102,33 @@ type Beat struct {
 	BendSemitones float64
 	BendRelease   bool // "full (release)" — bends back down to the written pitch before the beat ends
 	PalmMute      bool
+
+	// TupletNum/TupletDen: this beat belongs to a tuplet, TupletNum notes
+	// in the time of TupletDen — a triplet is 3:2, LilyPond's
+	// "\tuplet 3/2 { ... }", Guitar Pro's tupletNumerator/Denominator —
+	// so it lasts its written Duration × TupletDen/TupletNum. Zero for a
+	// plain beat. See Beats, the one place that applies it.
+	TupletNum int `json:",omitempty"`
+	TupletDen int `json:",omitempty"`
+
+	// Grace: an ornamental note played just before the next beat, taking
+	// no time of its own (Guitar Pro's grace beats). Its Duration is only
+	// the written note value.
+	Grace bool `json:",omitempty"`
+}
+
+// Beats is how long the beat lasts in quarter notes: its written
+// duration, scaled by its tuplet ratio. 0 for a grace note or a
+// malformed duration.
+func (b Beat) Beats() float64 {
+	d, err := durationBeats(b.Duration)
+	if err != nil || b.Grace {
+		return 0
+	}
+	if b.TupletNum > 0 && b.TupletDen > 0 {
+		d *= float64(b.TupletDen) / float64(b.TupletNum)
+	}
+	return d
 }
 
 // Note is one fretted note within a Beat.
