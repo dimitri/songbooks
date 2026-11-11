@@ -25,6 +25,13 @@ type Songbook struct {
 	IsDefault     bool
 	PlaylistURL   string
 	CreatedAt     time.Time
+	// RequiresGrant marks a community songbook as gated: a current
+	// community member needs an explicit songbook_access_grants row (see
+	// migration 0061) to view or edit it, on top of plain membership —
+	// the paywall case, where a member may have bought access to one
+	// songbook/course but not the community's others. Always false
+	// (meaningless) for a person/band songbook.
+	RequiresGrant bool
 }
 
 // songbookOwnerCol maps an ownerKind to its songbooks column — the one
@@ -46,7 +53,7 @@ func songbookOwnerCol(ownerKind string) string {
 func (st *Store) ListSongbooks(ctx context.Context, ownerKind string, ownerID int64) ([]Songbook, error) {
 	col := songbookOwnerCol(ownerKind)
 	rows, err := st.db.Query(ctx, `
-		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at
+		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at, requires_grant
 		FROM songbooks WHERE owner_kind = $1 AND `+col+` = $2
 		ORDER BY (NOT is_default), name`, ownerKind, ownerID)
 	if err != nil {
@@ -56,7 +63,7 @@ func (st *Store) ListSongbooks(ctx context.Context, ownerKind string, ownerID in
 	var out []Songbook
 	for rows.Next() {
 		var sb Songbook
-		if err := rows.Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt); err != nil {
+		if err := rows.Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt, &sb.RequiresGrant); err != nil {
 			return nil, err
 		}
 		out = append(out, sb)
@@ -68,9 +75,9 @@ func (st *Store) ListSongbooks(ctx context.Context, ownerKind string, ownerID in
 func (st *Store) GetSongbook(ctx context.Context, songbookID int64) (*Songbook, error) {
 	var sb Songbook
 	err := st.db.QueryRow(ctx, `
-		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at
+		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at, requires_grant
 		FROM songbooks WHERE id = $1`, songbookID).
-		Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt)
+		Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt, &sb.RequiresGrant)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such songbook %d: %w", songbookID, ErrNotFound)
 	}
@@ -83,7 +90,13 @@ func (st *Store) GetSongbook(ctx context.Context, songbookID int64) (*Songbook, 
 // as everything else band/community-owned — a read-only community
 // member still has full read-write access to the community's own
 // songbooks, same as a band's guest; the read-only/write-only split the
-// user asked for is about MEMBERSHIP MANAGEMENT, not song content).
+// user asked for is about MEMBERSHIP MANAGEMENT, not song content) —
+// UNLESS the songbook itself is gated (RequiresGrant, the paywall case:
+// a member may belong to the community but not have paid for this
+// particular songbook/course), in which case membership alone isn't
+// enough: personID also needs an explicit songbook_access_grants row, or
+// to hold a manage-type privilege (staff administer the grants, so they
+// can always see what they're granting).
 func (st *Store) CanAccessSongbook(ctx context.Context, personID, songbookID int64) (bool, error) {
 	sb, err := st.GetSongbook(ctx, songbookID)
 	if err != nil {
@@ -93,10 +106,89 @@ func (st *Store) CanAccessSongbook(ctx context.Context, personID, songbookID int
 	case "band":
 		return st.IsCurrentBandMember(ctx, sb.OwnerBandID, personID)
 	case "community":
-		return isCurrentCommunityMember(ctx, st.db, sb.OwnerCommunityID, personID, "")
+		isMember, err := isCurrentCommunityMember(ctx, st.db, sb.OwnerCommunityID, personID, "")
+		if err != nil || !isMember {
+			return false, err
+		}
+		if !sb.RequiresGrant {
+			return true, nil
+		}
+		if isStaff, err := st.HasAnyCommunityManagePrivilege(ctx, sb.OwnerCommunityID, personID); err != nil {
+			return false, err
+		} else if isStaff {
+			return true, nil
+		}
+		return st.HasSongbookAccessGrant(ctx, songbookID, personID)
 	default:
 		return sb.OwnerPersonID == personID, nil
 	}
+}
+
+// HasSongbookAccessGrant reports whether personID holds an explicit
+// grant on songbookID (see migration 0061) — the paywall check, only
+// meaningful for a RequiresGrant songbook; irrelevant otherwise.
+func (st *Store) HasSongbookAccessGrant(ctx context.Context, songbookID, personID int64) (bool, error) {
+	var exists bool
+	err := st.db.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM songbook_access_grants WHERE songbook_id = $1 AND person_id = $2)`,
+		songbookID, personID).Scan(&exists)
+	return exists, err
+}
+
+// SongbookAccessGrant is one row of a gated songbook's grant list.
+type SongbookAccessGrant struct {
+	PersonID        int64
+	Username        string
+	GrantedAt       time.Time
+	GrantedByPersonID *int64
+}
+
+// ListSongbookAccessGrants lists everyone currently granted access to
+// songbookID, most recently granted first.
+func (st *Store) ListSongbookAccessGrants(ctx context.Context, songbookID int64) ([]SongbookAccessGrant, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT g.person_id, p.username, g.granted_at, g.granted_by_person_id
+		FROM songbook_access_grants g JOIN people p ON p.id = g.person_id
+		WHERE g.songbook_id = $1 ORDER BY g.granted_at DESC`, songbookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []SongbookAccessGrant
+	for rows.Next() {
+		var g SongbookAccessGrant
+		if err := rows.Scan(&g.PersonID, &g.Username, &g.GrantedAt, &g.GrantedByPersonID); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+// GrantSongbookAccess gives personID access to a gated songbookID — a
+// no-op if already granted.
+func (st *Store) GrantSongbookAccess(ctx context.Context, songbookID, personID, grantedByPersonID int64) error {
+	var grantedBy *int64
+	if grantedByPersonID != 0 {
+		grantedBy = &grantedByPersonID
+	}
+	_, err := st.db.Exec(ctx, `
+		INSERT INTO songbook_access_grants (songbook_id, person_id, granted_by_person_id)
+		VALUES ($1, $2, $3) ON CONFLICT (songbook_id, person_id) DO NOTHING`,
+		songbookID, personID, grantedBy)
+	return err
+}
+
+// RevokeSongbookAccess drops personID's grant on songbookID, if any.
+func (st *Store) RevokeSongbookAccess(ctx context.Context, songbookID, personID int64) error {
+	_, err := st.db.Exec(ctx, `DELETE FROM songbook_access_grants WHERE songbook_id = $1 AND person_id = $2`, songbookID, personID)
+	return err
+}
+
+// SetSongbookRequiresGrant flips songbookID's gate on or off.
+func (st *Store) SetSongbookRequiresGrant(ctx context.Context, songbookID int64, requiresGrant bool) error {
+	_, err := st.db.Exec(ctx, `UPDATE songbooks SET requires_grant = $1 WHERE id = $2`, requiresGrant, songbookID)
+	return err
 }
 
 // CanEditSongbook reports whether personID may change songbookID itself

@@ -1,0 +1,81 @@
+{{define "songbook_access"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Songbook.Name}} — access — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/communities/{{.Community.ID}}/songbooks">{{template "icon-back"}} Songbooks</a>
+  <h1>{{.Songbook.Name}} — access</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index">
+  <div class="card">
+    <h3>Gated (requires a grant)</h3>
+    <p class="hint">Off: every current community member can open this songbook, same as any other. On: a current member also needs an explicit grant below — the paywall case, where billing/payment is handled some other way (for now, manually) and this is just the access lever.</p>
+    <label class="form-actions"><input type="checkbox" id="requires-grant-toggle" {{if .Songbook.RequiresGrant}}checked{{end}}> Requires a grant to access</label>
+    <p id="toggle-result" class="hint"></p>
+  </div>
+
+  <div class="table-scroll"><table class="card table-stack" style="width:100%">
+    <thead><tr><th>Member</th><th>Role</th><th>Access</th></tr></thead>
+    <tbody>
+    {{range .Members}}
+      <tr data-person-id="{{.PersonID}}">
+        <td data-label="Member">{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Username}}{{end}}</td>
+        <td data-label="Role">{{.Role}}</td>
+        <td data-label="Access">
+          <label><input type="checkbox" class="grant-checkbox" data-person-id="{{.PersonID}}" {{if index $.Granted .PersonID}}checked{{end}}> granted</label>
+        </td>
+      </tr>
+    {{else}}
+      <tr><td colspan="3" class="hint">No current members.</td></tr>
+    {{end}}
+    </tbody>
+  </table></div>
+  <p class="hint">The checkbox above is a plain allow-list, checked only when the songbook is gated — it has no effect while "Requires a grant" is off.</p>
+</main>
+<script>
+const communityId = {{.Community.ID}};
+const songbookId = {{.Songbook.ID}};
+
+document.getElementById('requires-grant-toggle').addEventListener('change', async (e) => {
+  const out = document.getElementById('toggle-result');
+  const res = await fetch(`/api/communities/${communityId}/songbooks/${songbookId}/requires-grant`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({requiresGrant: e.target.checked}),
+  });
+  if (!res.ok) {
+    out.textContent = 'failed to save';
+    e.target.checked = !e.target.checked;
+  } else {
+    out.textContent = 'saved';
+  }
+});
+
+document.querySelectorAll('.grant-checkbox').forEach(cb => {
+  cb.addEventListener('change', async (e) => {
+    const personId = cb.dataset.personId;
+    const url = `/api/communities/${communityId}/songbooks/${songbookId}/grants` + (e.target.checked ? '' : `/${personId}`);
+    const res = await fetch(url, {
+      method: e.target.checked ? 'POST' : 'DELETE',
+      headers: e.target.checked ? {'Content-Type': 'application/json'} : undefined,
+      body: e.target.checked ? JSON.stringify({personId: Number(personId)}) : undefined,
+    });
+    if (!res.ok) e.target.checked = !e.target.checked;
+  });
+});
+</script>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

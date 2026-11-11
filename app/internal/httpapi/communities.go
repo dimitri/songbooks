@@ -334,8 +334,14 @@ func (s *Server) handleCommunitySongbooksPage(w http.ResponseWriter, r *http.Req
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	canManage, err := s.store.HasAnyCommunityManagePrivilege(r.Context(), communityID, person.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "community_songbooks", map[string]any{
 		"Me": person, "Community": community, "Songbooks": rows, "CanEdit": canEdit || person.IsAdmin,
+		"IsStaff": canManage || person.IsAdmin,
 	})
 }
 
@@ -391,6 +397,137 @@ func (s *Server) handleCommunityDefaultSongbookPage(w http.ResponseWriter, r *ht
 			Label: "This community", PDFExportPath: fmt.Sprintf("/communities/%d/export-songbook.pdf", communityID),
 		},
 	})
+}
+
+// handleSongbookAccessPage is the staff-only grant-management page for
+// one songbook (see migration 0061): toggle it gated/open, and
+// grant/revoke individual current members' access when it's gated — the
+// paywall case (a member may be in the community but not have bought
+// this particular songbook/course). Billing itself is a later phase;
+// this is just the manual lever staff pull until that's wired up.
+func (s *Server) handleSongbookAccessPage(w http.ResponseWriter, r *http.Request) {
+	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	sbID, err := pathID(r, "sbID")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid songbook id")
+		return
+	}
+	sb, err := s.store.GetSongbook(r.Context(), sbID)
+	if errors.Is(err, store.ErrNotFound) || sb.OwnerKind != "community" || sb.OwnerCommunityID != communityID {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	community, err := s.store.GetCommunity(r.Context(), communityID)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	members, err := s.store.ListCommunityMembers(r.Context(), communityID, false)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	grants, err := s.store.ListSongbookAccessGrants(r.Context(), sbID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	granted := make(map[int64]bool, len(grants))
+	for _, g := range grants {
+		granted[g.PersonID] = true
+	}
+	person := personFromContext(r)
+	s.render(w, "songbook_access", map[string]any{
+		"Me": person, "Community": community, "Songbook": sb, "Members": members, "Granted": granted,
+	})
+}
+
+// handleSetSongbookRequiresGrant is POST /api/communities/{id}/songbooks/{sbID}/requires-grant.
+func (s *Server) handleSetSongbookRequiresGrant(w http.ResponseWriter, r *http.Request) {
+	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	sbID, err := pathID(r, "sbID")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid songbook id")
+		return
+	}
+	sb, err := s.store.GetSongbook(r.Context(), sbID)
+	if err != nil || sb.OwnerKind != "community" || sb.OwnerCommunityID != communityID {
+		httpError(w, http.StatusNotFound, "no such songbook")
+		return
+	}
+	var req struct {
+		RequiresGrant bool `json:"requiresGrant"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if err := s.store.SetSongbookRequiresGrant(r.Context(), sbID, req.RequiresGrant); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"requiresGrant": req.RequiresGrant})
+}
+
+// handleGrantSongbookAccess is POST /api/communities/{id}/songbooks/{sbID}/grants.
+func (s *Server) handleGrantSongbookAccess(w http.ResponseWriter, r *http.Request) {
+	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	sbID, err := pathID(r, "sbID")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid songbook id")
+		return
+	}
+	sb, err := s.store.GetSongbook(r.Context(), sbID)
+	if err != nil || sb.OwnerKind != "community" || sb.OwnerCommunityID != communityID {
+		httpError(w, http.StatusNotFound, "no such songbook")
+		return
+	}
+	var req struct {
+		PersonID int64 `json:"personId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PersonID == 0 {
+		httpError(w, http.StatusBadRequest, "missing personId")
+		return
+	}
+	actor := personFromContext(r)
+	if err := s.store.GrantSongbookAccess(r.Context(), sbID, req.PersonID, actor.ID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"granted": true})
+}
+
+// handleRevokeSongbookAccess is DELETE /api/communities/{id}/songbooks/{sbID}/grants/{personID}.
+func (s *Server) handleRevokeSongbookAccess(w http.ResponseWriter, r *http.Request) {
+	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	sbID, err := pathID(r, "sbID")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid songbook id")
+		return
+	}
+	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid person id")
+		return
+	}
+	sb, err := s.store.GetSongbook(r.Context(), sbID)
+	if err != nil || sb.OwnerKind != "community" || sb.OwnerCommunityID != communityID {
+		httpError(w, http.StatusNotFound, "no such songbook")
+		return
+	}
+	if err := s.store.RevokeSongbookAccess(r.Context(), sbID, personID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"revoked": true})
 }
 
 // handleCommunityAdminPage is the instructor-only management page:
