@@ -40,9 +40,10 @@
   const ICON_WAVE = '<svg class="daw-hdr-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 10h2M5 6v8M8 3v14M11 7v6M14 5v10M17 9v2"/></svg>';
   const ICON_NOTE = '<svg class="daw-hdr-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 15V4l9-2v11"/><circle cx="5.5" cy="15" r="2.5"/><circle cx="14.5" cy="13" r="2.5"/></svg>';
   const ICON_DRUM = '<svg class="daw-hdr-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><ellipse cx="10" cy="8" rx="7" ry="3"/><path d="M3 8v5c0 1.7 3.1 3 7 3s7-1.3 7-3V8M5 3l4 4M15 3l-4 4"/></svg>';
+  const ICON_CLICK = '<svg class="daw-hdr-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 3h5l3 14h-11z"/><path d="M10 13l4.5-7"/><path d="M5 13.5h10"/></svg>';
   const HEAD_SVG = '<svg class="daw-playhead-head" viewBox="0 0 13 16" aria-hidden="true"><path d="M0.5 0.5h12v9l-6 6-6-6z" fill="#fff" stroke="#000"/></svg>';
 
-  const COLOR = { audio: '#66A3FF', melodic: '#74BE59', drums: '#E8C050' };
+  const COLOR = { audio: '#66A3FF', melodic: '#74BE59', drums: '#E8C050', click: '#A0A0B4' };
   const BODY = { melodic: '#E4F3DC', drums: '#FAF1D2' };
   const GM = { 0: 'Piano', 4: 'Electric piano', 16: 'Organ', 24: 'Nylon guitar', 25: 'Steel guitar', 26: 'Jazz guitar', 27: 'Clean guitar', 28: 'Muted guitar', 29: 'Overdrive guitar', 30: 'Distortion guitar', 32: 'Acoustic bass', 33: 'Finger bass', 34: 'Pick bass', 35: 'Fretless bass', 36: 'Slap bass', 48: 'Strings', 56: 'Trumpet', 65: 'Alto sax', 66: 'Tenor sax', 73: 'Flute', '-1': 'Drum kit' };
   const CAT_LABEL = { gp: 'Guitar Pro recording', youtube: 'YouTube', band: 'Band recording' };
@@ -184,7 +185,9 @@
 
   // ---- Mix (mute / solo / volume) --------------------------------------
   const audible = (tr) => !tr.muted && (!tracks.some((t) => t.solo) || tr.solo);
-  const synthWanted = () => tracks.some((t) => t.kind === 'midi' && audible(t));
+  const synthWanted = () => tracks.some((t) => t.kind === 'midi' && audible(t))
+    // With no recording the synth is the clock: keep it running (muted) for the click.
+    || (!hasAudio() && tracks.some((t) => t.kind === 'click' && audible(t)));
 
   function applyMix() {
     for (const tr of tracks) {
@@ -335,6 +338,17 @@
       wireTrackHeader(tr);
     });
 
+    // Click: the metronome on the bar grid, a track like any other —
+    // muted to begin with, mute / solo / volume from there.
+    if (N()) {
+      const tr = { kind: 'click', name: 'Click', color: COLOR.click, icon: ICON_CLICK, muted: true, solo: false, volume: 1 };
+      const row = addRow('click', 56, trackHeader(tr, 'metronome · follows the bars'), { laneClass: 'is-click' });
+      tr.hdr = row.hdr; tr.lane = row.lane;
+      tracks.push(tr);
+      wireTrackHeader(tr);
+      syncTrackControls(tr);
+    }
+
     if (!refCat && !(data.tracks || []).length) {
       const row = addRow('empty', 64, '<span>Tracks</span>', { meta: true });
       row.lane.innerHTML = '<span class="daw-lane-empty">No reference recording and no score yet — add a recording from the Reference tab, or import a Guitar Pro file.</span>';
@@ -369,6 +383,7 @@
     renderChords();
     renderGrid();
     renderAudioLane();
+    renderClickLane();
     if (!skipNotation) renderNotationLanes(true);
     else {
       tracks.forEach(placeNotation);
@@ -508,6 +523,55 @@
       }
     }
     contentEl.insertBefore(grid, contentEl.firstChild);
+  }
+
+  // ---- Click lane: a mark per beat, bigger on the downbeat ---------------
+  // Main pulses: 12/8 clicks four dotted quarters (its eighths softer).
+  const compound = () => !!data && data.timeDen === 8 && data.timeNum % 3 === 0 && data.timeNum > 3;
+  const pulsesPerBar = () => (compound() ? data.timeNum / 3 : beatsPerBar());
+  function renderClickLane() {
+    if (!rows.click) return;
+    const lane = rows.click.lane;
+    lane.innerHTML = '';
+    const n = N();
+    const frag = document.createDocumentFragment();
+    const pulsePx = n ? (barTimes[n] - barTimes[0]) / n * pxPerSec / pulsesPerBar() : 0;
+    for (let b = 0; b < n; b++) {
+      const p = pulsePx >= 6 ? pulsesPerBar() : 1;
+      for (let k = 0; k < p; k++) {
+        const e = document.createElement('div');
+        e.className = 'daw-click-beat' + (k === 0 ? ' is-down' : '');
+        e.style.left = xOf(barTimes[b] + k / pulsesPerBar() * (barTimes[b + 1] - barTimes[b])) + 'px';
+        frag.appendChild(e);
+      }
+    }
+    lane.appendChild(frag);
+  }
+
+  // ---- Click scheduling: the metronome's sounds (clock.js), each beat
+  // placed from barTimes so it follows the recording's own tempo ------------
+  /* global Metronome */
+  const clicker = typeof Metronome === 'function' ? new Metronome({}) : null;
+  let clicksUntil = null; // timeline seconds up to which clicks are scheduled
+  function scheduleClicks(t) {
+    const tr = tracks.find((x) => x.kind === 'click');
+    if (!clicker || !tr || !audible(tr) || !N()) { clicksUntil = null; return; }
+    const ctx = clicker._ensureCtx();
+    const until = t + 0.12 * speed;
+    const from = clicksUntil === null ? t : Math.max(clicksUntil, t);
+    const pulses = pulsesPerBar();
+    const subs = compound() ? 3 : 1;
+    const b0 = Math.max(0, Math.floor(barAt(from)));
+    for (let b = b0; b < N() && barTimes[b] < until; b++) {
+      const dur = barTimes[b + 1] - barTimes[b];
+      for (let k = 0; k < pulses * subs; k++) {
+        const bt = barTimes[b] + (k / (pulses * subs)) * dur;
+        if (bt < from || bt >= until) continue;
+        const soft = k % subs !== 0;
+        clicker._click(ctx.currentTime + (bt - t) / speed, k === 0, soft, tr.volume);
+      }
+    }
+    clicksUntil = until;
   }
 
   // ---- Reference recording lane ----------------------------------------
@@ -780,6 +844,7 @@
   }
 
   function seek(t) {
+    clicksUntil = null;
     position = Math.max(0, Math.min(timelineEnd(), t));
     if (hasAudio()) audio.currentTime = Math.min(position, audioDuration);
     if (playerApi && synthReady) {
@@ -794,6 +859,7 @@
     if (!hasAudio() && !(playerApi && synthReady)) return;
     document.dispatchEvent(new CustomEvent('songbooks:pause-reference'));
     playing = true;
+    clicksUntil = null;
     playStartPos = position;
     playBtn.innerHTML = ICON_PAUSE;
     if (hasAudio()) {
@@ -865,6 +931,7 @@
       t = span[0];
     }
     position = t;
+    scheduleClicks(t);
     updatePlayhead();
     followPlayhead();
   }

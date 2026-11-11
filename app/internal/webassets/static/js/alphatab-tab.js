@@ -493,7 +493,21 @@
     // with a pickup (viewerLine.Systems, handlers_pages.go), so the tab
     // keeps the chord grid's pickup + 4s phrasing instead of alphaTab's
     // own automatic line breaks.
-    const systems = (container.dataset.systems || '').split(',').map(Number).filter((v) => v > 0);
+    let systems = (container.dataset.systems || '').split(',').map(Number).filter((v) => v > 0);
+    // The server's 4 bars a row (pickup + 4 on the first) is a page
+    // layout; a phone can't fit that many bars of tab, so narrow rows
+    // regroup the same bars into fewer per system.
+    if (systems.length) {
+      const avail = container.parentElement ? container.parentElement.getBoundingClientRect().width : 0;
+      const perRow = avail && avail < 520 ? 2 : avail && avail < 760 ? 3 : 4;
+      if (perRow < 4) {
+        const total = systems.reduce((a, b) => a + b, 0);
+        const pickup = /\\ac\b/.test(tex) ? 1 : 0;
+        const regrouped = [Math.min(total, pickup + perRow)];
+        for (let left = total - regrouped[0]; left > 0; left -= perRow) regrouped.push(Math.min(perRow, left));
+        systems = regrouped;
+      }
+    }
     if (systems.length) settings.display.systemsLayoutMode = alphaTab.SystemsLayoutMode.UseModelLayout;
 
     let finished = false;

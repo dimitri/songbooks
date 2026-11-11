@@ -1364,6 +1364,10 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
 .daw-vol { flex: 1; min-width: 0; height: 14px; accent-color: var(--daw-muted); }
 .daw-vol-label { font-size: 10px; color: var(--daw-muted); width: 2.4em; text-align: right; font-variant-numeric: tabular-nums; }
 
+/* Mixer click lane: a mark per beat, taller on the downbeat. */
+.daw-lane.is-click { background: #EDEDF3; }
+.daw-click-beat { position: absolute; top: 38%; height: 24%; width: 2px; margin-left: -1px; border-radius: 1px; background: #A0A0B4; }
+.daw-click-beat.is-down { top: 22%; height: 56%; width: 3px; background: #5E5E78; }
 .daw-lane { position: relative; box-sizing: border-box; border-bottom: 1px solid rgba(0, 0, 0, 0.35); }
 .daw-lane.is-meta { background: var(--daw-lane-light); border-bottom-color: var(--daw-stroke); }
 .daw-lane.is-ruler { background: var(--daw-ruler); border-bottom-color: var(--daw-ruler-stroke); cursor: pointer; }
