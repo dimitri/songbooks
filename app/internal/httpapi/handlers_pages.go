@@ -1453,7 +1453,11 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 						line.BarShift--
 					}
 				}
-				if line := &sections[si].Lines[li]; len(sections[si].Measures) > 0 && sections[si].Measures[0].Pickup {
+				// Fixed rows of 4 bars, like the chord chart (a 12-bar blues
+				// reads as three rows of four), a pickup riding along in the
+				// first; alphaTab's own automatic line breaks fit however
+				// many bars happen to fit (3 here, 5 there).
+				if line := &sections[si].Lines[li]; len(line.Measures) > 0 {
 					n := len(line.Measures)
 					var systems []string
 					first := 0
@@ -1779,8 +1783,8 @@ type viewerLine struct {
 	// this app's hand-rolled CSS/SVG tab drawing for the TabOnly case).
 	// Only set alongside TabOnly; "" otherwise.
 	AlphaTex string
-	// Systems, for a TabOnly row in a section that starts with a pickup,
-	// is alphaTab's bars-per-system list ("5,4,4,4"): the same pickup + 4s
+	// Systems, for a TabOnly row, is alphaTab's bars-per-system list:
+	// "4,4,4" — or "5,4,4" when the row opens with a pickup — the same
 	// phrasing the chord grid gets (see viewerMeasure.Pickup).
 	Systems string
 	// BarShift turns alphaTab's own bar numbers (1, 2, … in every row,
