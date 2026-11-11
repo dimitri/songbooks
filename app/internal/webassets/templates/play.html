@@ -578,7 +578,7 @@
       {{if .Artist}}<span class="topbar-artist">{{.Artist}}</span>{{end}}
       {{if .Key}}<span class="topbar-meta-item">key {{.Key}}</span>{{end}}
       {{if .Tempo}}<span class="topbar-meta-item">{{.Tempo}} bpm</span>{{end}}
-      {{if .GPSource}}<a class="topbar-meta-item gp-source-badge" href="/song/{{.VariantID}}/gp-file" download title="imported from this Guitar Pro file — download it, edit in Guitar Pro, then re-import your changes from the Edit drawer's GP Import tab">{{template "icon-instrument-guitar"}} GP import: {{.GPSource}}</a>{{end}}
+      {{if .GPSource}}<a class="topbar-meta-item gp-source-badge" href="/song/{{.VariantID}}/gp-file" download title="download the original Guitar Pro file — see Edit &rarr; GP Import to bring edits back in">{{template "icon-instrument-guitar"}} GP import: {{.GPSource}}</a>{{end}}
     </div>
     {{/* mini-metro-play/-fade/-tap stay in the DOM but hidden, not deleted
          — jumpToSection()/setPlaying() (song.js) operate on these exact
@@ -792,6 +792,9 @@
          or silent bars the chart itself has no bar for. */}}
     <section class="prep-panel" data-panel="gpimport" id="gpimport-panel" data-variant-id="{{.VariantID}}" data-song-title="{{.Title}}" data-song-artist="{{.Artist}}" hidden>
       <p class="hint">Import a Guitar Pro file's notation into this song's existing sections, plus its embedded backing track (synced to the bars automatically, if the file carries sync points).</p>
+      {{if .GPSource}}
+      <p class="hint gpimport-reimport-note"><strong>This song was imported from {{.GPSource}}</strong> (<a href="/song/{{.VariantID}}/gp-file" download>download it</a>). To bring edits back in: edit that file in Guitar Pro, then pick the updated file below — importing again replaces this song's existing notation section by section, it doesn't add a copy.</p>
+      {{end}}
       <p id="gpimport-status" class="hint"></p>
 
       {{/* Step 0: search. GProTab.net, not Ultimate Guitar — confirmed
