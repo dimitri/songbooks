@@ -73,12 +73,14 @@ func (s *Server) handleGetSongMixer(w http.ResponseWriter, r *http.Request) {
 
 	riffs, _ := tab.LoadScores(sg)
 	tracks := wholeSongTracks(sections, riffs, timeNum, timeDen)
+	pickup := pickupBeats(tracks, timeNum, timeDen)
 	resp := map[string]any{
 		"tempo": tempo, "timeNum": timeNum, "timeDen": timeDen, "key": sg.Get("key"),
 		"totalBars": totalBars, "sections": outSections, "tracks": []mixerTrackJSON{},
+		"pickupBeats": pickup,
 	}
 	if len(tracks) > 0 {
-		tex, meta := tab.ToAlphaTexMulti(tracks, tempo, timeNum, timeDen)
+		tex, meta := tab.ToAlphaTexMulti(tracks, tempo, timeNum, timeDen, pickup > 0)
 		out := make([]mixerTrackJSON, len(meta))
 		for i, m := range meta {
 			out[i] = mixerTrackJSON{Name: m.Name, Drums: m.Drums, Program: m.Program}
@@ -258,3 +260,43 @@ func wholeSongTracks(sections []viewerSection, riffs map[int][]tab.NamedRiff, nu
 // labelUnescaper mirrors the "label" template func (webassets.unescapeTypst):
 // section labels are stored Typst-escaped.
 var labelUnescaper = strings.NewReplacer(`\&`, "&", `\%`, "%", `\#`, "#", `\_`, "_", `\*`, "*")
+
+// pickupBeats detects a pickup (anacrusis) bar: when every track whose
+// first bar has notes writes it shorter than a full bar — a Guitar Pro
+// import keeps the file's own short first bar — the song starts with a
+// pickup of that many quarter-note beats. Tracks with only rests there
+// get a rest of the same length, so all tracks agree. 0 means none.
+func pickupBeats(tracks []tab.NamedRiff, num, den int) float64 {
+	full := float64(num) * 4 / float64(den)
+	pickup := 0.0
+	for _, t := range tracks {
+		if len(t.Riff.Bars) == 0 || isRestBar(t.Riff.Bars[0]) {
+			continue
+		}
+		b := tab.BarBeats(t.Riff.Bars[0])
+		if b >= full-1e-9 {
+			return 0
+		}
+		if b > pickup {
+			pickup = b
+		}
+	}
+	if pickup == 0 {
+		return 0
+	}
+	for _, t := range tracks {
+		if len(t.Riff.Bars) > 0 && isRestBar(t.Riff.Bars[0]) {
+			t.Riff.Bars[0] = tab.Bar{Beats: tab.RestBeats(pickup)}
+		}
+	}
+	return pickup
+}
+
+func isRestBar(b tab.Bar) bool {
+	for _, beat := range b.Beats {
+		if !beat.Rest {
+			return false
+		}
+	}
+	return true
+}

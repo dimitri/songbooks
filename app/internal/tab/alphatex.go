@@ -145,14 +145,19 @@ func gmProgramFor(name string, numStrings int) int {
 // alphaTab's player can play them on a single clock (the Mixer view).
 // Every track must have the same bar count. No multiBarRest anywhere:
 // the Mixer gives every bar its own fixed width to line notation up with
-// the reference recording, so bars must never be merged.
-func ToAlphaTexMulti(tracks []NamedRiff, tempo, timeNum, timeDen int) (tex string, meta []MixerTrack) {
+// the reference recording, so bars must never be merged. pickup marks
+// bar 0 as an anacrusis (alphaTeX "\ac"), so alphaTab plays it at its
+// written length instead of a full bar.
+func ToAlphaTexMulti(tracks []NamedRiff, tempo, timeNum, timeDen int, pickup bool) (tex string, meta []MixerTrack) {
 	if tempo <= 0 {
 		tempo = 120
 	}
 	ts := ""
 	if timeNum > 0 && timeDen > 0 && !(timeNum == 4 && timeDen == 4) {
 		ts = fmt.Sprintf(`\ts %d %d `, timeNum, timeDen)
+	}
+	if pickup {
+		ts += `\ac `
 	}
 	var b strings.Builder
 	b.WriteString(`\tempo `)
@@ -237,7 +242,6 @@ func writeDrumTrackBlock(b *strings.Builder, name string, riff *Riff, ts string)
 	}
 	b.WriteString(" |\n")
 }
-
 
 func writeBeat(b *strings.Builder, beat Beat, chordLabel string) {
 	dur, dotted := splitDuration(beat.Duration)
@@ -579,4 +583,33 @@ func splitDuration(d string) (dur string, dotted bool) {
 		return strings.TrimSuffix(d, "."), true
 	}
 	return d, false
+}
+
+// BarBeats is a bar's written length in quarter-note beats (grace notes,
+// which take no time of their own, aside).
+func BarBeats(bar Bar) float64 {
+	total := 0.0
+	for _, b := range bar.Beats {
+		if d, err := durationBeats(b.Duration); err == nil {
+			total += d
+		}
+	}
+	return total
+}
+
+// RestBeats is a run of rests lasting exactly beats quarter notes, longest
+// values first (down to a 32nd).
+func RestBeats(beats float64) []Beat {
+	values := []struct {
+		dur   string
+		beats float64
+	}{{"1", 4}, {"2.", 3}, {"2", 2}, {"4.", 1.5}, {"4", 1}, {"8.", 0.75}, {"8", 0.5}, {"16.", 0.375}, {"16", 0.25}, {"32", 0.125}}
+	var out []Beat
+	for _, v := range values {
+		for beats >= v.beats-1e-9 {
+			out = append(out, Beat{Rest: true, Duration: v.dur})
+			beats -= v.beats
+		}
+	}
+	return out
 }

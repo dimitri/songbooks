@@ -44,7 +44,7 @@
 
   const COLOR = { audio: '#66A3FF', melodic: '#74BE59', drums: '#E8C050' };
   const BODY = { melodic: '#E4F3DC', drums: '#FAF1D2' };
-  const GM = { 0: 'Piano', 16: 'Organ', 24: 'Nylon guitar', 25: 'Steel guitar', 26: 'Jazz guitar', 27: 'Clean guitar', 29: 'Overdrive guitar', 30: 'Distortion guitar', 33: 'Finger bass', 34: 'Pick bass', 35: 'Fretless bass', '-1': 'Drum kit' };
+  const GM = { 0: 'Piano', 4: 'Electric piano', 16: 'Organ', 24: 'Nylon guitar', 25: 'Steel guitar', 26: 'Jazz guitar', 27: 'Clean guitar', 28: 'Muted guitar', 29: 'Overdrive guitar', 30: 'Distortion guitar', 32: 'Acoustic bass', 33: 'Finger bass', 34: 'Pick bass', 35: 'Fretless bass', 36: 'Slap bass', 48: 'Strings', 56: 'Trumpet', 65: 'Alto sax', 66: 'Tenor sax', 73: 'Flute', '-1': 'Drum kit' };
   const CAT_LABEL = { gp: 'Guitar Pro recording', youtube: 'YouTube', band: 'Band recording' };
   const PAD = 16;               // px before t = 0
   const ROW = { ruler: 40, sections: 30, chords: 30, audio: 116 };
@@ -93,6 +93,20 @@
   const beatsPerBar = () => (data ? data.timeNum : 4);
   const nominalBarSec = () => (data ? data.timeNum * (4 / data.timeDen) * 60 / (data.tempo || 120) : 2);
   const ticksPerBar = () => (data ? 960 * 4 * data.timeNum / data.timeDen : 3840);
+  // A pickup (anacrusis) makes bar 0 shorter than the others: its length
+  // in quarter-note beats comes from the score (handleGetSongMixer).
+  const pickup = () => (data && data.pickupBeats > 0 ? data.pickupBeats : 0);
+  const barNomSec = (b) => (b === 0 && pickup() ? pickup() * 60 / (data.tempo || 120) : nominalBarSec());
+  const beatsIn = (b) => (b === 0 && pickup() ? Math.max(1, Math.round(pickup())) : beatsPerBar());
+  const barLabel = (b) => String(pickup() ? b : b + 1); // full bars count from 1, a pickup is bar 0
+  const barStartTick = (b) => (b <= 0 ? 0 : (pickup() ? pickup() * 960 + (b - 1) * ticksPerBar() : b * ticksPerBar()));
+  const barLenTicks = (b) => (b === 0 && pickup() ? pickup() * 960 : ticksPerBar());
+  const tickAtBar = (pos) => { const i = Math.floor(pos); return barStartTick(i) + (pos - i) * barLenTicks(i); };
+  function barAtTick(tick) {
+    if (pickup() && tick < pickup() * 960) return tick / (pickup() * 960);
+    const rest = pickup() ? tick - pickup() * 960 : tick;
+    return (pickup() ? 1 : 0) + rest / ticksPerBar();
+  }
   const xOf = (t) => PAD + t * pxPerSec;
   const tOf = (px) => (px - PAD) / pxPerSec;
   const hasAudio = () => !!(audio && audioDuration);
@@ -107,11 +121,13 @@
   }
 
   // ---- Bar <-> time map ------------------------------------------------
-  // From known (bar, time) pairs: linear between neighbors, the song's
-  // nominal tempo outside them, bar 0 at 0s when nothing is known.
+  // From known (bar, time) pairs: between two of them, bars keep their
+  // nominal proportions (a pickup stays short) stretched to fit; outside
+  // them, the song's nominal tempo; bar 0 at 0s when nothing is known.
   function interpolateBars(known) {
     const n = N();
-    const spb = nominalBarSec();
+    const nom = [0];
+    for (let b = 0; b < n; b++) nom.push(nom[b] + barNomSec(b));
     const out = new Array(n + 1);
     known = known.filter((k) => k.bar >= 0 && k.bar <= n).sort((a, b) => a.bar - b.bar);
     if (!known.length) known = [{ bar: 0, t: 0 }];
@@ -121,9 +137,9 @@
       const a = known[ki];
       const c = known.find((k) => k.bar > b);
       if (a.bar === b) out[b] = a.t;
-      else if (a.bar < b && c) out[b] = a.t + (b - a.bar) / (c.bar - a.bar) * (c.t - a.t);
-      else if (a.bar < b) out[b] = a.t + (b - a.bar) * spb;
-      else out[b] = a.t - (a.bar - b) * spb;
+      else if (a.bar < b && c) out[b] = a.t + (nom[b] - nom[a.bar]) / (nom[c.bar] - nom[a.bar]) * (c.t - a.t);
+      else if (a.bar < b) out[b] = a.t + (nom[b] - nom[a.bar]);
+      else out[b] = a.t - (nom[a.bar] - nom[b]);
     }
     return out;
   }
@@ -335,9 +351,9 @@
     for (let b = 0; b <= n; b++) {
       const x = xOf(barTimes[b]);
       frag.appendChild(tick(x, 'is-bar'));
-      if (b < n && b % labelEvery === 0) frag.appendChild(label(x, String(b + 1)));
+      if (b < n && b % labelEvery === 0 && !(b === 0 && pickup())) frag.appendChild(label(x, barLabel(b)));
       if (b < n && avgBarPx / beatsPerBar() >= 9) {
-        for (let k = 1; k < beatsPerBar(); k++) frag.appendChild(tick(xOf(barTimes[b] + k / beatsPerBar() * (barTimes[b + 1] - barTimes[b])), 'is-beat'));
+        for (let k = 1; k < beatsIn(b); k++) frag.appendChild(tick(xOf(barTimes[b] + k / beatsIn(b) * (barTimes[b + 1] - barTimes[b])), 'is-beat'));
       }
     }
     // Time labels across the lead-in before bar 1 (a recording's count-in,
@@ -387,7 +403,7 @@
       el.style.left = xOf(t0) + 'px';
       el.style.width = Math.max(4, (t1 - t0) * pxPerSec - 2) + 'px';
       el.style.background = sectionColor(s.label);
-      el.title = `${s.label} — ${s.barCount} bars (${s.startBar + 1}–${s.startBar + s.barCount})`;
+      el.title = `${s.label} — ${s.barCount} bars (${barLabel(s.startBar)}–${barLabel(s.startBar + s.barCount - 1)})`;
       el.innerHTML = `${escapeHTML(s.label)}<span class="daw-section-bars">${s.barCount}</span>`;
       el.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -447,10 +463,10 @@
       gl.style.left = xOf(barTimes[b]) + 'px';
       grid.appendChild(gl);
       if (b < n && beatPx >= 12) {
-        for (let k = 1; k < beatsPerBar(); k++) {
+        for (let k = 1; k < beatsIn(b); k++) {
           const bl = document.createElement('div');
           bl.className = 'daw-gl is-beat';
-          bl.style.left = xOf(barTimes[b] + k / beatsPerBar() * (barTimes[b + 1] - barTimes[b])) + 'px';
+          bl.style.left = xOf(barTimes[b] + k / beatsIn(b) * (barTimes[b + 1] - barTimes[b])) + 'px';
           grid.appendChild(bl);
         }
       }
@@ -590,6 +606,7 @@
       const imp = new alphaTab.importer.AlphaTexImporter();
       imp.initFromString(data.alphaTex, settings);
       const score = imp.readScore();
+      score.tracks.forEach((st, i) => { const p = data.tracks[i] && data.tracks[i].program; if (p >= 0) st.playbackInfo.program = p; });
       applyBarWidths(score);
       const wrap = document.createElement('div');
       wrap.className = 'daw-notation';
@@ -662,7 +679,8 @@
     else if (b >= N()) lcdBar.textContent = 'end';
     else {
       const bar = Math.floor(b);
-      lcdBar.textContent = `${bar + 1}.${Math.floor((b - bar) * beatsPerBar()) + 1}`;
+      const beat = Math.floor((b - bar) * beatsIn(bar)) + 1 + (bar === 0 && pickup() ? beatsPerBar() - beatsIn(0) : 0);
+      lcdBar.textContent = `${barLabel(bar)}.${beat}`;
     }
     lcdTime.textContent = fmtTime(position);
   }
@@ -684,7 +702,7 @@
     if (hasAudio()) audio.currentTime = Math.min(position, audioDuration);
     if (playerApi && synthReady) {
       const b = barAt(position);
-      if (b >= 0 && b < N()) playerApi.tickPosition = b * ticksPerBar();
+      if (b >= 0 && b < N()) playerApi.tickPosition = tickAtBar(b);
       synthGuardUntil = performance.now() + 400;
     }
     updatePlayhead();
@@ -704,7 +722,7 @@
     } else {
       if (position >= barTimes[N()]) seek(barTimes[0]);
       playerApi.playbackSpeed = speed;
-      playerApi.tickPosition = Math.max(0, barAt(position)) * ticksPerBar();
+      playerApi.tickPosition = tickAtBar(Math.max(0, barAt(position)));
       playerApi.play();
     }
     clearInterval(ticker);
@@ -731,9 +749,9 @@
     }
     const i = Math.floor(b);
     const barDur = barTimes[i + 1] - barTimes[i];
-    const target = speed * nominalBarSec() / barDur;
+    const target = speed * barNomSec(i) / barDur;
     if (Math.abs(playerApi.playbackSpeed - target) > 0.004) playerApi.playbackSpeed = target;
-    const expected = b * ticksPerBar();
+    const expected = tickAtBar(b);
     const now = performance.now();
     if (!synthPlaying) {
       playerApi.tickPosition = expected;
@@ -742,7 +760,7 @@
       return;
     }
     if (now < synthGuardUntil) return;
-    const driftSec = (playerApi.tickPosition / ticksPerBar() - b) * barDur;
+    const driftSec = (barAtTick(playerApi.tickPosition) - b) * barDur;
     if (Math.abs(driftSec) > 0.09) {
       playerApi.tickPosition = expected;
       synthGuardUntil = now + 400;
@@ -757,7 +775,7 @@
       if (audio.ended) { pause(); return; }
       syncSynth(t);
     } else {
-      t = timeAt(playerApi.tickPosition / ticksPerBar());
+      t = timeAt(barAtTick(playerApi.tickPosition));
     }
     const span = loop ? loopSpan() : null;
     if (span && t >= span[1]) {
@@ -1070,6 +1088,23 @@
     return pref && audioCats[pref] ? pref : cats[0];
   }
 
+  // A song imported from a Guitar Pro file keeps that file: it knows each
+  // track's real instrument, which the score riffs don't store, so the
+  // server's guess from the track name is only the fallback.
+  async function applyGPInstruments() {
+    if (typeof alphaTab === 'undefined' || !data.tracks.length) return;
+    try {
+      const res = await fetch(`/song/${variantId}/gp-file`);
+      if (!res.ok) return;
+      const gp = alphaTab.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(await res.arrayBuffer()));
+      const byName = new Map(gp.tracks.map((t) => [String(t.name).trim().toLowerCase(), t]));
+      for (const t of data.tracks) {
+        const g = byName.get(String(t.name).trim().toLowerCase());
+        if (g && !t.drums && !(g.staves[0] && g.staves[0].isPercussion)) t.program = g.playbackInfo.program;
+      }
+    } catch (e) { /* keep the name-based guess */ }
+  }
+
   async function init() {
     setStatus('Loading…');
     try {
@@ -1078,6 +1113,7 @@
         fetch(`/api/songs/${variantId}/audio`).then((r) => (r.ok ? r.json() : { categories: [] })),
       ]);
       data = mx;
+      await applyGPInstruments();
       audioCats = {};
       (au.categories || []).forEach((c) => { audioCats[c.category] = c; });
       await loadAudio(pickReference());
@@ -1112,7 +1148,7 @@
   // Read-only snapshot for debugging playback sync from the console.
   page.mixerState = () => ({
     playing, position, refCat, audioTime: audio ? audio.currentTime : null,
-    bar: barAt(position), synthBar: playerApi && synthReady ? playerApi.tickPosition / ticksPerBar() : null,
+    bar: barAt(position), synthBar: playerApi && synthReady ? barAtTick(playerApi.tickPosition) : null,
     synthPlaying, synthSpeed: playerApi ? playerApi.playbackSpeed : null,
   });
   if (sheet) new MutationObserver(onModeChange).observe(sheet, { attributes: true, attributeFilter: ['data-render-mode'] });
