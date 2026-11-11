@@ -1213,32 +1213,66 @@
         <span class="hint">No reference audio yet — add one from the <button type="button" id="audio-empty-reference-link" class="link-btn">Reference</button> tab.</span>
       </div>
       <div id="audio-player-body" class="audio-player-body" hidden>
-        <div class="audio-waveform-wrap">
-          <canvas id="audio-waveform" class="audio-waveform"></canvas>
-          {{/* Bar-grid overlay — a tempo-derived tick per bar (tempo/time
-               signature already on #transport, above), anchored at
-               wherever the CURRENT category's own section-0 marker sits
-               (the same marker "set marker" already writes — see
-               audio-player.js's own doc comment on why this needed no
-               new storage). The first tick doubles as a drag handle: drag
-               it to where bar 1 actually starts in this recording and the
-               rest of the grid follows at the song's own tempo, same
-               effect as tapping section 0's structure-strip tick then
-               "set marker" at that instant, just direct and visual. */}}
-          <div id="audio-bargrid" class="audio-bargrid"></div>
-          <div id="audio-playhead" class="audio-playhead"></div>
+        {{/* A practice player, laid out like GarageBand / Logic's control
+             bar: transport, an LCD reading bar.beat and section, then
+             Cycle, Count-in, Click and Speed. Alignment editing lives in
+             the Mixer; this only plays. See audio-player.js. */}}
+        <div class="audio-transport">
+          <div class="audio-buttons">
+            <button type="button" id="audio-start-btn" class="icon-btn" title="go to start (Home)">{{template "icon-to-start"}}</button>
+            <button type="button" id="audio-prev-btn" class="icon-btn" title="previous bar (, or ←; ⌥← previous section)">{{template "icon-prev-bar"}}</button>
+            <button type="button" id="audio-play-btn" class="icon-btn audio-play-btn" title="play/pause (Space)">{{template "icon-play"}}</button>
+            <button type="button" id="audio-next-btn" class="icon-btn" title="next bar (. or →; ⌥→ next section)">{{template "icon-next-bar"}}</button>
+          </div>
+          <div class="audio-lcd" id="audio-lcd" title="bar.beat · section — time">
+            <span class="audio-lcd-pos" id="audio-lcd-pos">1.1</span>
+            <span class="audio-lcd-section" id="audio-lcd-section"></span>
+            <span class="audio-lcd-time" id="audio-time-label">0:00 / 0:00</span>
+          </div>
+          <button type="button" id="audio-opts-btn" class="icon-btn audio-opts-btn" aria-expanded="false" aria-controls="audio-opts" title="practice options">{{template "icon-more"}}</button>
+          <div class="audio-opts" id="audio-opts">
+            <button type="button" id="audio-cycle-btn" class="audio-toggle" aria-pressed="false" title="cycle: loop the yellow bar range — drag in the ruler to set it (C)">{{template "icon-cycle"}}<span>Cycle</span></button>
+            <button type="button" id="audio-countin-btn" class="audio-toggle" aria-pressed="false" title="count-in before playing: off, 1 bar, 2 bars">{{template "icon-count-in"}}<span id="audio-countin-label">Count-in</span></button>
+            <button type="button" id="audio-click-btn" class="audio-toggle" aria-pressed="false" title="click on every beat, following the recording (K)">{{template "icon-metronome"}}<span>Click</span></button>
+            <label class="audio-speed" title="speed without changing pitch ([ slower, ] faster)">{{template "icon-speed"}}
+              <select id="audio-speed"></select>
+              <span id="audio-speed-bpm" class="audio-speed-bpm"></span>
+            </label>
+            <button type="button" id="audio-trainer-btn" class="audio-toggle" aria-pressed="false" title="speed trainer: speed up a little every few loops">{{template "icon-trainer"}}<span id="audio-trainer-label">Trainer</span></button>
+            <button type="button" id="audio-settings-btn" class="icon-btn" aria-expanded="false" aria-controls="audio-settings" title="count-in, click and trainer settings">{{template "icon-settings"}}</button>
+          </div>
         </div>
-        <div class="audio-controls">
-          <button type="button" id="audio-back10-btn" class="audio-pill-btn" title="back 10s">&#8634;10</button>
-          <button type="button" id="audio-play-btn" class="icon-btn audio-play-btn" title="play/pause">&#9654;</button>
-          <button type="button" id="audio-stop-btn" class="icon-btn" title="stop">&#9632;</button>
-          <button type="button" id="audio-restart-btn" class="icon-btn" title="restart">&#8634;</button>
-          <button type="button" id="audio-fwd10-btn" class="audio-pill-btn" title="forward 10s">10&#8635;</button>
-          <span id="audio-time-label" class="audio-time-label">0:00 / 0:00</span>
-          {{if .CanEdit}}
-          <span class="audio-controls-spacer"></span>
-          <button type="button" id="audio-set-marker-btn" class="audio-pill-btn" title="click a section in the strip above, then set its marker to the current playback position">set marker</button>
-          {{end}}
+        <div class="audio-settings" id="audio-settings" hidden>
+          <fieldset>
+            <legend>Speed trainer</legend>
+            <label>from <input type="number" id="audio-trainer-start" min="25" max="150" step="5"> %</label>
+            <label>to <input type="number" id="audio-trainer-end" min="25" max="150" step="5"> %</label>
+            <label>+<input type="number" id="audio-trainer-step" min="1" max="50" step="1"> %</label>
+            <label>every <input type="number" id="audio-trainer-every" min="1" max="16" step="1"> loop(s)</label>
+          </fieldset>
+          <fieldset>
+            <legend>Count-in</legend>
+            <label><input type="checkbox" id="audio-countin-each"> before every loop</label>
+          </fieldset>
+          <fieldset>
+            <legend>Click</legend>
+            <label>sound <select id="audio-click-sound"><option value="click">click</option><option value="wood">wood</option><option value="beep">beep</option><option value="tick">tick</option></select></label>
+            <label>volume <input type="range" id="audio-click-volume" min="0" max="100" step="5"></label>
+          </fieldset>
+        </div>
+        <div class="audio-waveform-wrap">
+          <div class="audio-ruler" id="audio-ruler" title="drag to set the cycle range; click it to switch cycling on or off">
+            <div class="audio-ruler-marks" id="audio-ruler-marks"></div>
+            <div class="audio-cycle" id="audio-cycle" hidden><span class="audio-cycle-edge start"></span><span class="audio-cycle-edge end"></span></div>
+          </div>
+          <div class="audio-wave" id="audio-wave">
+            <canvas id="audio-waveform" class="audio-waveform"></canvas>
+            <div class="audio-played" id="audio-played"><canvas id="audio-waveform-played" class="audio-waveform"></canvas></div>
+            <div id="audio-bargrid" class="audio-bargrid"></div>
+            <div class="audio-cycle-shade" id="audio-cycle-shade" hidden></div>
+            <div id="audio-playhead" class="audio-playhead"></div>
+            <div id="audio-hover" class="audio-hover" hidden><span class="audio-hover-line"></span><span class="audio-hover-label" id="audio-hover-label"></span></div>
+          </div>
         </div>
       </div>
     </div>

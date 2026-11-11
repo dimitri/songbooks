@@ -567,6 +567,9 @@ const ICONS = {
   function jumpToSection(i) {
     const sec = sections[i];
     if (!sec || sec.startBar == null) return;
+    // With a reference recording, play it from there (audio-player.js)
+    // rather than starting the silent follow-along clock.
+    if (window.songbooksReferenceSeekBar && window.songbooksReferenceSeekBar(sec.startBar)) return;
     // No count-in, no click — the in-page quick player is always "no
     // click" now (see metronome.enabled = false above), so a reader
     // clicking a section to follow along moves there immediately instead

@@ -941,31 +941,103 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 }
 .audio-pill-btn:hover { border-color: var(--border-strong); }
 .audio-pill-btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
-.audio-waveform-wrap { position: relative; height: 72px; cursor: pointer; }
+/* Practice player (audio-player.js): GarageBand-style control bar on
+   top — transport, LCD, then Cycle / Count-in / Click / Speed / Trainer —
+   and the waveform under a ruler that carries bar numbers, section names
+   and the yellow cycle range. */
+.audio-player { --waveform-color: color-mix(in srgb, var(--fg-muted) 45%, transparent); --waveform-played: var(--accent); --cycle: #e9b500; }
+.audio-transport { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.45rem; position: relative; }
+.audio-buttons { display: flex; align-items: center; gap: 0.15rem; }
+.audio-buttons .icon-btn { width: 2.1rem; height: 2.1rem; }
+.audio-play-btn { width: 2.5rem !important; height: 2.5rem !important; background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+.audio-play-btn:hover { background: var(--accent-ink); }
+.audio-lcd {
+  display: flex; align-items: baseline; gap: 0.5rem; min-width: 11rem;
+  padding: 0.25rem 0.7rem; border-radius: 8px; background: var(--bg-sunken);
+  font-variant-numeric: tabular-nums; line-height: 1.2;
+}
+.audio-lcd-pos { font-size: 1.15rem; font-weight: 700; min-width: 3.2ch; }
+.audio-lcd-section { font-size: 0.82rem; font-weight: 600; color: var(--accent-ink); max-width: 10rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.audio-lcd-time { font-size: 0.75rem; color: var(--fg-muted); margin-left: auto; white-space: nowrap; }
+.audio-opts { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; margin-left: auto; }
+.audio-transport .audio-opts-btn { display: none; margin-left: auto; }
+.audio-toggle {
+  display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap;
+  padding: 0.3rem 0.6rem; min-height: 2.1rem; font-size: 0.8rem; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--bg-raised); color: var(--fg-muted); cursor: pointer;
+}
+.audio-toggle:hover { border-color: var(--border-strong); color: var(--fg); }
+.audio-toggle.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+#audio-cycle-btn.active { background: color-mix(in srgb, var(--cycle) 30%, var(--bg-raised)); border-color: var(--cycle); color: var(--fg); }
+.audio-toggle:disabled { opacity: 0.45; cursor: default; }
+.audio-speed { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; color: var(--fg-muted); }
+.audio-speed select { font-size: 0.8rem; padding: 0.2rem 0.3rem; border-radius: 6px; }
+.audio-speed-bpm { font-variant-numeric: tabular-nums; font-size: 0.75rem; }
+.audio-settings:not([hidden]) { display: flex; flex-wrap: wrap; gap: 0.6rem 1.2rem; margin: 0 0 0.5rem; padding: 0.5rem 0.7rem; border-radius: 8px; background: var(--bg-sunken); font-size: 0.8rem; }
+.audio-settings fieldset { border: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.audio-settings legend { float: left; font-weight: 600; margin-right: 0.3rem; padding: 0; }
+.audio-settings input[type="number"] { width: 3.6rem; }
+.audio-waveform-wrap { position: relative; user-select: none; -webkit-user-select: none; }
+.audio-ruler {
+  position: relative; height: 1.25rem; border-bottom: 1px solid var(--border);
+  cursor: crosshair; touch-action: none; overflow: hidden;
+}
+.audio-ruler-marks { position: absolute; inset: 0; pointer-events: none; }
+.audio-ruler-bar, .audio-ruler-section {
+  position: absolute; bottom: 2px; padding-left: 3px; white-space: nowrap;
+  font-size: 0.65rem; line-height: 1; color: var(--fg-muted); font-variant-numeric: tabular-nums;
+}
+.audio-ruler-section {
+  pointer-events: auto; cursor: pointer; font-weight: 700; color: var(--fg); top: 2px; bottom: auto;
+  border-left: 2px solid var(--accent); padding: 1px 4px; background: var(--bg-raised); z-index: 2;
+}
+.audio-ruler-section:hover { color: var(--accent-ink); }
+.audio-cycle {
+  position: absolute; top: 2px; bottom: 2px; border-radius: 3px; z-index: 1; cursor: grab;
+  background: color-mix(in srgb, var(--fg-muted) 30%, transparent);
+}
+.audio-cycle.on { background: color-mix(in srgb, var(--cycle) 75%, transparent); }
+.audio-cycle-edge { position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; }
+.audio-cycle-edge.start { left: -3px; }
+.audio-cycle-edge.end { right: -3px; }
+.audio-wave { position: relative; height: 64px; cursor: pointer; touch-action: none; }
 .audio-waveform { width: 100%; height: 100%; display: block; }
+.audio-played { position: absolute; top: 0; bottom: 0; left: 0; width: 0; overflow: hidden; pointer-events: none; }
+.audio-played .audio-waveform { width: auto; max-width: none; }
+.audio-cycle-shade { position: absolute; top: 0; bottom: 0; pointer-events: none; background: color-mix(in srgb, var(--cycle) 14%, transparent); border-left: 1px solid var(--cycle); border-right: 1px solid var(--cycle); }
 .audio-playhead {
-  position: absolute; top: 0; bottom: 0; left: 0; width: 2px;
-  background: var(--accent); pointer-events: none;
+  position: absolute; top: 0; bottom: 0; left: 0; width: 2px; margin-left: -1px;
+  background: var(--fg); pointer-events: none; z-index: 2;
 }
 .audio-bargrid { position: absolute; inset: 0; pointer-events: none; }
 .audio-bargrid-tick {
   position: absolute; top: 0; bottom: 0; width: 1px;
-  background: var(--border-strong); opacity: 0.55; pointer-events: none;
+  background: var(--border-strong); opacity: 0.18; pointer-events: none;
 }
-.audio-bargrid-start {
-  width: 3px; margin-left: -1px; background: var(--accent); opacity: 1;
-  cursor: ew-resize; pointer-events: auto;
+.audio-bargrid-tick.section { opacity: 0.6; background: var(--accent); }
+.audio-hover:not([hidden]) { position: absolute; top: 0; bottom: 0; pointer-events: none; z-index: 3; }
+.audio-hover-line { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--fg-muted); opacity: 0.6; }
+.audio-hover-label {
+  position: absolute; top: 2px; left: 5px; white-space: nowrap; font-size: 0.7rem; padding: 1px 5px;
+  border-radius: 4px; background: var(--fg); color: var(--bg-raised); font-variant-numeric: tabular-nums;
 }
-.audio-bargrid-start::after {
-  content: ''; position: absolute; top: -5px; left: 50%; transform: translateX(-50%);
-  width: 9px; height: 9px; border-radius: 50%; background: var(--accent);
+.audio-hover.flip .audio-hover-label { left: auto; right: 5px; }
+/* Narrow screens: transport and LCD stay; every practice option folds
+   into the ⋯ panel, with roomier touch targets. */
+@media (max-width: 720px) {
+  .audio-transport .audio-opts-btn { display: inline-flex; }
+  .audio-opts { display: none; }
+  .audio-opts.open {
+    display: flex; position: absolute; right: 0; top: calc(100% + 0.3rem); z-index: 20;
+    flex-direction: column; align-items: stretch; gap: 0.4rem; padding: 0.6rem;
+    background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
+  }
+  .audio-toggle { min-height: 2.75rem; }
+  .audio-buttons .icon-btn { width: 2.75rem; height: 2.75rem; }
+  .audio-lcd { order: 3; flex: 1 1 100%; min-width: 0; }
+  .audio-wave { height: 56px; }
+  .audio-ruler { height: 1.5rem; }
 }
-.audio-controls { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.4rem; flex-wrap: wrap; }
-.audio-play-btn { font-size: 1rem; }
-.audio-time-label {
-  font-variant-numeric: tabular-nums; font-size: 0.78rem; color: var(--fg-muted); margin-left: 0.3rem;
-}
-.audio-controls-spacer { flex: 1; }
 
 /* ---- Transport -------------------------------------------------------------
    Lives inside the structure rail (.timeline), not floating above the chart
