@@ -258,8 +258,9 @@
 
   // ---- Personal preferences ------------------------------------------------
   // Each person's own mix for this song — volume, mute and solo per track
-  // (by name), zoom, speed, loop — saved on the server as they change
+  // (by name), zoom, speed — saved on the server as they change
   // (GET/PUT /api/songs/{id}/mixer/prefs) and restored on the next visit.
+  // Not the loop: that is for the sitting at hand.
   let prefs = {};
   let prefsTimer = null;
 
@@ -287,7 +288,6 @@
       speed = prefs.speed;
       $('daw-speed').value = String(speed);
     }
-    if (prefs.loop && !loop) toggleLoop(true);
     applyMix();
   }
 
@@ -295,7 +295,8 @@
     if (!built) return;
     clearTimeout(prefsTimer);
     prefsTimer = setTimeout(() => {
-      const out = { zoom: Math.round(pxPerSec * 10) / 10, speed, loop, tracks: {} };
+      // Not the loop: a fresh visit plays the song straight.
+      const out = { zoom: Math.round(pxPerSec * 10) / 10, speed, tracks: {} };
       for (const tr of tracks) out.tracks[tr.name] = { volume: tr.volume, mute: tr.muted, solo: tr.solo };
       prefs = out;
       fetch(`/api/songs/${variantId}/mixer/prefs`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) }).catch(() => {});

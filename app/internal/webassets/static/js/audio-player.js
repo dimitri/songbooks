@@ -124,9 +124,15 @@ window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
   };
   try {
     const saved = JSON.parse(localStorage.getItem(optsKey) || '{}');
-    Object.assign(prefs, saved, { trainer: { ...prefs.trainer, ...(saved.trainer || {}) } });
+    Object.assign(prefs, saved, { trainer: { ...prefs.trainer, ...(saved.trainer || {}), on: false }, cycle: null });
   } catch (e) { /* defaults */ }
-  const savePrefs = () => { try { localStorage.setItem(optsKey, JSON.stringify(prefs)); } catch (e) { /* ignore */ } };
+  // A loop — the cycle range, and the trainer that runs on it — is for
+  // this sitting only: every visit starts playing the song straight.
+  const savePrefs = () => {
+    const keep = { ...prefs, cycle: null, trainer: { ...prefs.trainer, on: false } };
+    if (prefs.trainer.on) keep.speed = 1;
+    try { localStorage.setItem(optsKey, JSON.stringify(keep)); } catch (e) { /* ignore */ }
+  };
 
   function fmtTime(s) {
     if (!isFinite(s) || s < 0) s = 0;

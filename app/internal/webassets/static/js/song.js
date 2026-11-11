@@ -1121,8 +1121,9 @@ const ICONS = {
     // other four (a real, lasting preference: "I always want the jazz
     // chart"), landing on the video/audio page by default on every song
     // opened next would replace the chart nobody asked to stop seeing.
-    // Same reasoning edit's own early return above already applies.
-    if (v !== 'reference') {
+    // Same reasoning edit's own early return above already applies, and
+    // for the Mixer: a workbench opened for a task, not a way of reading.
+    if (v !== 'reference' && v !== 'mixer') {
       try { localStorage.setItem('songbooks-default-mode', v); } catch (e) { /* ignore */ }
     }
   });
@@ -1146,7 +1147,7 @@ const ICONS = {
   // every song in a set. Per-device (localStorage), not song data.
   try {
     const saved = localStorage.getItem('songbooks-default-mode');
-    if (saved && saved !== 'normal' && saved !== 'reference') {
+    if (saved && saved !== 'normal' && saved !== 'reference' && saved !== 'mixer') {
       document.querySelector(`#mode-segmented button[data-value="${saved}"]`)?.click();
     }
   } catch (e) { /* ignore */ }
