@@ -254,26 +254,22 @@ func (s *Server) handleCreateSongInSongbook(w http.ResponseWriter, r *http.Reque
 		httpError(w, http.StatusBadRequest, "missing title")
 		return
 	}
-	// A community has no owner_person_id/owner_band_id of its own to give
-	// the new variant (songs.owner_* is strictly person/band — see
-	// store.OwnerKind) — confirmed live as a foreign-key violation
-	// (owner_person_id=0 doesn't exist) before this fix. A community
-	// songbook's songs are public catalogue entries instead, same
-	// visibility a band or person's own non-default songbook would want:
 	// CreateVariant only ever auto-adds to the OWNER's DEFAULT songbook
 	// (see its own doc comment), which is this songbook ONLY when it
-	// happens to be that default — never true for a community, and not
-	// guaranteed for a person/band's other songbooks either. Explicitly
-	// adding to the REQUESTED songbook below (AddToSongbook is
-	// ON CONFLICT DO NOTHING, so it's harmless when CreateVariant's own
-	// implicit add already covered it) is what actually makes "create a
-	// song in THIS songbook" true regardless of which songbook that is.
+	// happens to be that default — not guaranteed for a person/band/
+	// community's other songbooks. Explicitly adding to the REQUESTED
+	// songbook below (AddToSongbook is ON CONFLICT DO NOTHING, so it's
+	// harmless when CreateVariant's own implicit add already covered it)
+	// is what actually makes "create a song in THIS songbook" true
+	// regardless of which songbook that is.
 	ownerKind, ownerID := store.OwnerCatalog, int64(0)
 	switch sb.OwnerKind {
 	case "person":
 		ownerKind, ownerID = store.OwnerPerson, sb.OwnerPersonID
 	case "band":
 		ownerKind, ownerID = store.OwnerBand, sb.OwnerBandID
+	case "community":
+		ownerKind, ownerID = store.OwnerCommunity, sb.OwnerCommunityID
 	}
 	variantID, err := s.store.CreateVariant(r.Context(), ownerKind, ownerID, req.Title, req.Artist, p.ID)
 	if err != nil {

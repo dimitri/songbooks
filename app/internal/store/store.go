@@ -145,9 +145,10 @@ func (st *Store) DeleteVariant(variantID int64) error {
 type OwnerKind string
 
 const (
-	OwnerCatalog OwnerKind = "catalog" // public: visibility='global', no owner
-	OwnerPerson  OwnerKind = "person"  // private: visibility='user', owner_person_id
-	OwnerBand    OwnerKind = "band"    // band-private: visibility='band', owner_band_id
+	OwnerCatalog   OwnerKind = "catalog"   // public: visibility='global', no owner
+	OwnerPerson    OwnerKind = "person"    // private: visibility='user', owner_person_id
+	OwnerBand      OwnerKind = "band"      // band-private: visibility='band', owner_band_id
+	OwnerCommunity OwnerKind = "community" // community-private: visibility='community', owner_community_id
 )
 
 // CreateVariant makes a brand-new, from-scratch variant (title/artist
@@ -171,10 +172,13 @@ func (st *Store) CreateVariant(ctx context.Context, ownerKind OwnerKind, ownerID
 	// first variant hit this immediately; the band/community branches
 	// were already fixed, person never was).
 	var defaultSbID int64
-	if ownerKind == OwnerPerson || ownerKind == OwnerBand {
+	if ownerKind == OwnerPerson || ownerKind == OwnerBand || ownerKind == OwnerCommunity {
 		kind := "person"
-		if ownerKind == OwnerBand {
+		switch ownerKind {
+		case OwnerBand:
 			kind = "band"
+		case OwnerCommunity:
+			kind = "community"
 		}
 		var err error
 		defaultSbID, err = st.GetDefaultSongbook(ctx, kind, ownerID)
@@ -228,6 +232,11 @@ func (st *Store) CreateVariant(ctx context.Context, ownerKind OwnerKind, ownerID
 			INSERT INTO songs (title, artist, body, work_id, visibility, owner_band_id, created_by_person_id)
 			VALUES ($1, $2, $3, $4, 'band', $5, $6) RETURNING id`,
 			title, artist, b.String(), workID, ownerID, creator).Scan(&newID)
+	case OwnerCommunity:
+		err = tx.QueryRow(ctx, `
+			INSERT INTO songs (title, artist, body, work_id, visibility, owner_community_id, created_by_person_id)
+			VALUES ($1, $2, $3, $4, 'community', $5, $6) RETURNING id`,
+			title, artist, b.String(), workID, ownerID, creator).Scan(&newID)
 	default: // OwnerCatalog
 		err = tx.QueryRow(ctx, `
 			INSERT INTO songs (title, artist, body, work_id, created_by_person_id)
@@ -238,7 +247,7 @@ func (st *Store) CreateVariant(ctx context.Context, ownerKind OwnerKind, ownerID
 		return 0, err
 	}
 
-	if ownerKind == OwnerPerson || ownerKind == OwnerBand {
+	if ownerKind == OwnerPerson || ownerKind == OwnerBand || ownerKind == OwnerCommunity {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO songbook_entries (songbook_id, variant_id, added_by_person_id) VALUES ($1, $2, $3)`,
 			defaultSbID, newID, creator); err != nil {
