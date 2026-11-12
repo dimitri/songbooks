@@ -126,12 +126,17 @@ and the songs opened from them are drawn in that look: the brand
 overrides the app's design tokens on `<body>`, so no layout changes.
 
 - **Who sets it:** a community's admins (Admin tab, *Look & feel*); a
-  band's core members (Members tab).
+  band's core members (Settings tab).
 - **Presets:**
   - *Blues & Rock*, after florentpassamonti.fr: black header, white
     pages, Assistant, square black buttons, the red of his covers.
   - *Night*, after otherlies.fr: ink blue, ice blue and rose, Fraunces
     titles over Space Grotesk, pill buttons, the crescent mark.
+  - *Camp*, after bands-camp.com (Bands Camp, its Futuradio stream and
+    the Châtel All Stars course share it): grey header, black Anton
+    titles over Inter, hot pink, square buttons, the "since 2012" stamp.
+  - *Jam*, after app.jamspace.co: white pages, teal and slate, Bebas
+    Neue titles over Nunito Sans, soft corners.
   - *Stage* and *Paper* as starting points for others.
 - **Safety:** only hex colors, fonts from the list (loaded from Google
   Fonts), https links, short texts (`internal/brand.Clean`).

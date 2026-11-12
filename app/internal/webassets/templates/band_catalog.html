@@ -111,6 +111,8 @@
           <label for="new-variant-artist">Artist <span class="field-optional">(optional)</span></label>
           <input type="text" id="new-variant-artist" autocomplete="off">
         </div>
+        {{/* "Already in the library" list, see library-match.js. */}}
+        <div id="new-variant-library-match"></div>
         <div class="form-actions">
           <button type="submit" id="new-variant-btn" class="primary">Create song</button>
         </div>
@@ -133,11 +135,34 @@
     </div>
   </dialog>
 </main>
+<script src="/static/js/library-match.js?v={{staticVersion}}"></script>
 <script>
 const bandId = {{.Band.ID}};
-document.getElementById('new-variant-form').addEventListener('submit', (e) => {
+// As the title is typed, songs already in the library with that title,
+// each with one button that adds it to the repertoire instead of
+// writing a duplicate. "None of these" creates the new song.
+const bandLibrary = window.LibraryMatch ? LibraryMatch.attach({
+  title: document.getElementById('new-variant-title'),
+  artist: document.getElementById('new-variant-artist'),
+  host: document.getElementById('new-variant-library-match'),
+  addLabel: 'Add to the repertoire',
+  add: async (hit) => {
+    const res = await fetch(`/api/bands/${bandId}/catalog`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({variantId: hit.variantId}),
+    }).catch(() => null);
+    if (!res || !res.ok) throw new Error(`Couldn't add “${hit.title}” to the repertoire. Try again.`);
+    location.href = `/song/${hit.variantId}?band=${bandId}`;
+  },
+  isInList: (id) => !!document.querySelector(`[data-repertoire-list] [data-variant-id="${id}"]`),
+  openHref: (hit) => `/song/${hit.variantId}?band=${bandId}`,
+  onNone: () => document.getElementById('new-variant-form').requestSubmit(),
+}) : null;
+document.getElementById('new-variant-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const form = e.target;
+  // Pressed Create before the list had a chance to show: show it first.
+  if (bandLibrary && !(await bandLibrary.guard())) return;
   const title = document.getElementById('new-variant-title').value.trim();
   const artist = document.getElementById('new-variant-artist').value.trim();
   Forms.run(form, document.getElementById('new-variant-btn'), async () => {

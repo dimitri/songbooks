@@ -152,9 +152,9 @@
 // "Add a passkey" button, duplicated rather than shared across two
 // separate pages' inline scripts (the wizard's success path also
 // auto-advances to the next step, which the profile page has no
-// equivalent of). Prompts for a nickname right after the platform
-// ceremony succeeds, same as profile.html, so the management list under
-// /profile reads "iPhone"/"MacBook" from the start.
+// equivalent of). No naming step: the server names the passkey after its
+// provider (or this browser), so the platform's own sheet is the only
+// thing between "Add a passkey" and the next step.
 (function() {
   const btn = document.getElementById('webauthn-register-btn');
   if (!btn) return;
@@ -186,8 +186,7 @@
       const cred = await navigator.credentials.create({
         publicKey: PublicKeyCredential.parseCreationOptionsFromJSON(options.publicKey),
       });
-      const nickname = (window.prompt('Name this passkey so you can tell it apart later (e.g. "MacBook" or "iPhone"):', '') || '').trim();
-      const finishRes = await fetch('/api/webauthn/register/finish?nickname=' + encodeURIComponent(nickname), {
+      const finishRes = await fetch('/api/webauthn/register/finish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cred.toJSON()),

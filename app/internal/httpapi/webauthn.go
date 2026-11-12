@@ -18,12 +18,15 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -276,10 +279,12 @@ func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Requ
 // PublicKeyCredential JSON produced by the browser's credential.toJSON()
 // (matching protocol.CredentialCreationResponse's own JSON shape) — passed
 // straight through to FinishRegistration below, which reads r.Body itself.
-// The nickname the person was prompted for client-side right after
-// navigator.credentials.create() succeeded (see profile.html's script)
-// travels as a query param instead, so this handler can read it without
-// consuming/re-wrapping the body FinishRegistration needs verbatim.
+// Nothing is asked of the person once the platform's own sheet closes: the
+// new passkey is named from its AAGUID (the provider: "Apple Passwords",
+// "Google Password Manager"…) or, when that's unknown or zeroed, from this
+// request's User-Agent — the current passkey-management guidance
+// (web.dev, Chrome, Android), since most people skip a naming prompt and a
+// typed "iPhone" goes stale once the passkey syncs elsewhere.
 func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Request) {
 	p := personFromContext(r)
 	session, ok := s.webauthn.takeReg(p.ID)
@@ -292,8 +297,6 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
-	nickname := r.URL.Query().Get("nickname")
 
 	creds, err := s.store.ListWebAuthnCredentials(r.Context(), p.ID)
 	if err != nil {
@@ -315,7 +318,7 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 	if _, err := s.store.AddWebAuthnCredential(r.Context(), p.ID,
 		credential.ID, credential.PublicKey, credential.AttestationType, transports, credential.Authenticator.SignCount,
 		credential.Flags.BackupEligible, credential.Flags.BackupState, credential.Flags.UserPresent, credential.Flags.UserVerified,
-		nickname); err != nil {
+		aaguidString(credential.Authenticator.AAGUID), passkeyDeviceLabel(r.UserAgent())); err != nil {
 		httpError(w, http.StatusInternalServerError, "saving new passkey: "+err.Error())
 		return
 	}
@@ -325,8 +328,9 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 // handleSetWebAuthnNickname is POST /profile/passkeys/{id}/nickname — a
 // plain HTML form post from the profile page's management list (not a
 // JSON API endpoint, consistent with every other /profile/* mutation in
-// this file's sibling profile.go), letting a person rename a passkey after
-// the fact (not just at registration time).
+// this file's sibling profile.go). Renaming is optional, tucked behind a
+// "Rename" disclosure on each row; an empty name goes back to the
+// automatic one.
 func (s *Server) handleSetWebAuthnNickname(w http.ResponseWriter, r *http.Request) {
 	p := personFromContext(r)
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -338,7 +342,11 @@ func (s *Server) handleSetWebAuthnNickname(w http.ResponseWriter, r *http.Reques
 		httpError(w, http.StatusBadRequest, "invalid form")
 		return
 	}
-	if err := s.store.SetWebAuthnCredentialNickname(r.Context(), p.ID, id, r.FormValue("nickname")); err != nil {
+	nickname := strings.TrimSpace(r.FormValue("nickname"))
+	if utf8.RuneCountInString(nickname) > passkeyNicknameMax {
+		nickname = string([]rune(nickname)[:passkeyNicknameMax])
+	}
+	if err := s.store.SetWebAuthnCredentialNickname(r.Context(), p.ID, id, nickname); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			httpError(w, http.StatusNotFound, "no such passkey")
 			return
@@ -429,8 +437,18 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	}
 
 	ctx := r.Context()
-	user, credential, err := wa.FinishPasskeyLogin(s.webauthnDiscoverableHandler(ctx), *session, r)
+	unknown := false
+	user, credential, err := wa.FinishPasskeyLogin(s.webauthnDiscoverableHandler(ctx, &unknown), *session, r)
 	if err != nil {
+		if unknown {
+			// 404, not 401: the browser offered a passkey this server has
+			// no record of (removed from the profile page, or made against
+			// a wiped dev database). login.html then tells the provider
+			// via PublicKeyCredential.signalUnknownCredential, so it stops
+			// offering it.
+			httpError(w, http.StatusNotFound, "passkey login failed: unknown credential")
+			return
+		}
 		httpError(w, http.StatusUnauthorized, "passkey login failed: "+err.Error())
 		return
 	}
@@ -453,7 +471,8 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := s.store.UpdateWebAuthnCredentialAfterLogin(ctx, credential.ID, credential.Authenticator.SignCount,
-		credential.Flags.BackupEligible, credential.Flags.BackupState, credential.Flags.UserPresent, credential.Flags.UserVerified); err != nil {
+		credential.Flags.BackupEligible, credential.Flags.BackupState, credential.Flags.UserPresent, credential.Flags.UserVerified,
+		passkeyDeviceLabel(r.UserAgent())); err != nil {
 		log.Printf("updating passkey after login for person %d: %v", wu.person.ID, err)
 	}
 
@@ -479,11 +498,13 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 // webauthnUser); rawID is cross-checked against the credential actually
 // stored for that person (GetWebAuthnCredentialByCredentialID), so a
 // userHandle that doesn't actually own that credential id is rejected
-// rather than trusted outright.
-func (s *Server) webauthnDiscoverableHandler(ctx context.Context) webauthn.DiscoverableUserHandler {
+// rather than trusted outright. *unknown is set when rawID isn't stored
+// at all, so the caller can tell that apart from a bad signature.
+func (s *Server) webauthnDiscoverableHandler(ctx context.Context, unknown *bool) webauthn.DiscoverableUserHandler {
 	return func(rawID, userHandle []byte) (webauthn.User, error) {
 		stored, err := s.store.GetWebAuthnCredentialByCredentialID(ctx, rawID)
 		if err != nil {
+			*unknown = errors.Is(err, store.ErrNotFound)
 			return nil, err
 		}
 		personID, ok := personIDFromBytes(userHandle)
@@ -500,4 +521,74 @@ func (s *Server) webauthnDiscoverableHandler(ctx context.Context) webauthn.Disco
 		}
 		return webauthnUser{person: p, creds: creds}, nil
 	}
+}
+
+// passkeyNicknameMax caps a typed passkey name; the profile input's
+// maxlength says the same.
+const passkeyNicknameMax = 60
+
+// aaguidString formats a 16-byte AAGUID in canonical UUID text form for
+// the uuid column, or "" when the authenticator sent none.
+func aaguidString(b []byte) string {
+	if len(b) != 16 {
+		return ""
+	}
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+// passkeyDeviceLabel turns a User-Agent into "Safari on iPhone" — the
+// fallback name for a passkey whose AAGUID doesn't say which provider made
+// it (all zeros, or not in store/passkey_providers.json). Only the coarse
+// browser and platform: enough to tell two passkeys apart, nothing worth
+// fingerprinting. Order matters: Edge, Opera and Samsung Internet also
+// claim "Chrome", Chrome also claims "Safari", and every iOS browser is
+// Safari underneath with its own token (CriOS, FxiOS, EdgiOS).
+func passkeyDeviceLabel(ua string) string {
+	has := func(tokens ...string) bool {
+		for _, t := range tokens {
+			if strings.Contains(ua, t) {
+				return true
+			}
+		}
+		return false
+	}
+	var browser string
+	switch {
+	case has("Edg/", "EdgA/", "EdgiOS/"):
+		browser = "Edge"
+	case has("OPR/", "OPT/"):
+		browser = "Opera"
+	case has("SamsungBrowser/"):
+		browser = "Samsung Internet"
+	case has("Firefox/", "FxiOS/"):
+		browser = "Firefox"
+	case has("Chrome/", "CriOS/"):
+		browser = "Chrome"
+	case has("Safari/"):
+		browser = "Safari"
+	}
+	var platform string
+	switch {
+	case has("iPhone"):
+		platform = "iPhone"
+	case has("iPad"):
+		platform = "iPad"
+	case has("Android"):
+		platform = "Android"
+	case has("CrOS"):
+		platform = "ChromeOS"
+	case has("Windows"):
+		platform = "Windows"
+	case has("Macintosh", "Mac OS X"):
+		platform = "Mac"
+	case has("Linux"):
+		platform = "Linux"
+	}
+	switch {
+	case browser != "" && platform != "":
+		return browser + " on " + platform
+	case platform != "":
+		return platform
+	}
+	return browser
 }

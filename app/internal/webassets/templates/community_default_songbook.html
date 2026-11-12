@@ -82,6 +82,8 @@
           <label for="new-variant-artist">Artist <span class="field-optional">(optional)</span></label>
           <input type="text" id="new-variant-artist" name="artist" autocomplete="off">
         </div>
+        {{/* "Already in the library" list, see library-match.js. */}}
+        <div id="new-variant-library-match"></div>
         <div class="form-actions">
           <button type="submit" id="new-variant-btn" class="primary">Create song</button>
         </div>
@@ -104,6 +106,7 @@
     </div>
   </dialog>
 </main>
+<script src="/static/js/library-match.js?v={{staticVersion}}"></script>
 <script>
 const communityId = {{.Community.ID}};
 // A 4xx's own sentence is worth showing; anything else gets the plain
@@ -113,9 +116,32 @@ function errText(res, data, fallback) {
   return msg && !/invalid|json|sql/i.test(msg) ? msg.charAt(0).toUpperCase() + msg.slice(1) : fallback;
 }
 const newVariantForm = document.getElementById('new-variant-form');
+// As the title is typed, songs already in the library with that title,
+// each with one button that adds it to this songbook instead of writing
+// a duplicate. "None of these" creates the new song.
+const communityLibrary = window.LibraryMatch ? LibraryMatch.attach({
+  title: document.getElementById('new-variant-title'),
+  artist: document.getElementById('new-variant-artist'),
+  host: document.getElementById('new-variant-library-match'),
+  addLabel: 'Add to this songbook',
+  add: async (hit) => {
+    const res = await fetch(`/api/communities/${communityId}/catalog`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({variantId: hit.variantId}),
+    }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
+    if (!res || !res.ok) throw new Error(res ? errText(res, data, `Couldn’t add “${hit.title}”. Try again.`) : 'Couldn’t reach the server. Try again.');
+    location.href = `/song/${hit.variantId}?community=${communityId}`;
+  },
+  isInList: (id) => !!document.querySelector(`[data-repertoire-list] [data-variant-id="${id}"]`),
+  openHref: (hit) => `/song/${hit.variantId}?community=${communityId}`,
+  onNone: () => newVariantForm.requestSubmit(),
+}) : null;
 newVariantForm.addEventListener('submit', (e) => {
   e.preventDefault();
   Forms.run(newVariantForm, document.getElementById('new-variant-btn'), async () => {
+    // Pressed Create before the list had a chance to show: show it first.
+    if (communityLibrary && !(await communityLibrary.guard())) return;
     const title = document.getElementById('new-variant-title').value.trim();
     const artist = document.getElementById('new-variant-artist').value.trim();
     const res = await fetch(`/api/communities/${communityId}/variants`, {

@@ -99,7 +99,11 @@
         <li><a href="#sections">Sections</a></li>
         <li><a href="#grid">Chord grid</a></li>
         <li><a href="#lyrics">Lyrics</a></li>
-        <li><a href="#chords">Chord diagrams</a></li>
+        <li><a href="#chords">Chord diagrams</a>
+          <ul>
+            <li class="sub"><a href="#chords-keys">Diagrams for several keys</a></li>
+          </ul>
+        </li>
         <li><a href="#score">Note-level scores (<code>score[label]:</code>)</a>
           <ul>
             <li class="sub"><a href="#score-pitch">Pitch &amp; duration</a></li>
@@ -176,17 +180,18 @@ score[guitar]: g,4 &lt;d' g'&gt;8. g,16 bes,8 c d f16 g
           <tr><th>Key</th><th>Meaning</th></tr>
           <tr><td><code>title</code></td><td>Song title.</td></tr>
           <tr><td><code>artist</code></td><td>Artist/band name.</td></tr>
-          <tr><td><code>key</code></td><td>Key signature, e.g. <code>Bb</code>, <code>F#m</code>.</td></tr>
+          <tr><td><code>key</code></td><td>Key signature, e.g. <code>Bb</code>, <code>F#m</code>. The song's plain <code>chord:</code> diagrams are for this key.</td></tr>
           <tr><td><code>tempo</code></td><td>Beats per minute, e.g. <code>96</code>.</td></tr>
           <tr><td><code>swing</code></td><td>Swung playback for written straight notes: <code>8</code> plays eighths as a shuffle (the triplet's long-short), <code>16</code> does the same for sixteenths. Leave it out for straight time.</td></tr>
           <tr><td><code>time</code></td><td>Time signature, e.g. <code>4/4</code>, <code>6/8</code>.</td></tr>
           <tr><td><code>capo</code></td><td>Capo fret, printed as an annotation.</td></tr>
-          <tr><td><code>transpose</code></td><td>Semitones to transpose for display — never changes the chord text itself.</td></tr>
+          <tr><td><code>transpose</code></td><td>Semitones to transpose for display — never changes the chord text itself. To rewrite the song in another key, use <a href="#chords-keys">Transpose in the editor</a> instead.</td></tr>
           <tr><td><code>map</code></td><td>A short "&middot;"-separated overview of the song's structure (e.g. <code>Verse &middot; Chorus &middot; Verse</code>).</td></tr>
           <tr><td><code>reference</code></td><td>A reference URL (usually YouTube) for this song.</td></tr>
-          <tr><td><code>flats</code></td><td><code>yes</code> to spell transposed chords with flats instead of sharps.</td></tr>
+          <tr><td><code>flats</code></td><td><code>yes</code> to spell transposed chords with flats instead of sharps. When the song itself is transposed, chords are spelled for the new key (flats in <code>Bb</code>, sharps in <code>E</code>); this only decides for <code>C</code> and <code>Am</code>.</td></tr>
           <tr><td><code>cover</code> / <code>cover-credit</code></td><td>A cover image URL and its photo credit.</td></tr>
           <tr><td><code>chord:</code></td><td>One fretboard diagram — see <a href="#chords">Chord diagrams</a>. Repeatable.</td></tr>
+          <tr><td><code>chord[Key]:</code></td><td>One fretboard diagram entered for another key of the song — see <a href="#chords-keys">Diagrams for several keys</a>. Repeatable.</td></tr>
         </table>
       </section>
 
@@ -241,6 +246,16 @@ chord: Ab 8:X4312X</code></pre>
           <tr><td><code>(digits)</code></td><td>A barre across those strings, drawn at the lowest enclosed row.</td></tr>
         </table>
         <p class="hint">This spec is byte-compatible with the legacy LaTeX <code>songs</code> package's own <code>\gtab</code> grid notation — real legacy diagrams paste in unchanged.</p>
+
+        <h3 id="chords-keys">Diagrams for several keys</h3>
+        <p>A chord shape only fits one key. Plain <code>chord:</code> lines are for the song's own <code>key:</code>. A diagram entered for another key names that key in brackets, the same way <code>score[label]:</code> names its voice:</p>
+        <pre><code>key: G
+chord: G 320003
+chord: C X32010
+chord[A]: A X02220
+chord[A]: D XX0232</code></pre>
+        <p>Here the chart shows the <code>G</code> and <code>C</code> boxes. The <code>A</code> set is kept for when the song is played in A: transpose the view up two semitones on the song page and its diagrams swap to that set. A key with no set of its own shows no diagrams, with a short note instead. <code>chord[Bb]:</code> and <code>chord[A#]:</code> mean the same key; <code>chord[G]:</code> in a song whose <code>key:</code> is <code>G</code> is the same as a plain <code>chord:</code>.</p>
+        <p><strong>Transpose</strong> in the editor (Source tab) rewrites the song into a new key for real: every chord in the grids and in <code>[Chord]</code> lyric markers, slash basses included, and the <code>key:</code> line. Chords are spelled the way the new key reads (<code>Bb</code> in F, <code>A#</code> in E). <code>N.C.</code>, <code>%</code>, rests, repeat and volta marks, durations, comments, notes and <code>score[label]:</code> voices are left exactly as written. The old key's plain <code>chord:</code> lines become <code>chord[Old]:</code> lines, and lines already marked with the new key become the song's plain set. The change is saved like any other edit, so the song's history keeps the previous version. Transposing back gives the original text.</p>
       </section>
 
       <section id="score">

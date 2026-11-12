@@ -29,20 +29,26 @@ type WebAuthnCredential struct {
 	FlagUserVerified   bool
 	CreatedAt          time.Time
 	LastUsedAt         *time.Time
-	Nickname           string
+	Nickname           string // optional, set by the person; overrides the automatic name
+	AAGUID             string // provider id, canonical text form; "" for passkeys added before 0068
+	DeviceLabel        string // "Safari on iPhone": fallback name when the AAGUID says nothing
 }
 
 // AddWebAuthnCredential inserts a newly-registered passkey for personID.
-func (st *Store) AddWebAuthnCredential(ctx context.Context, personID int64, credentialID, publicKey []byte, attestationType string, transports []string, signCount uint32, backupEligible, backupState, userPresent, userVerified bool, nickname string) (int64, error) {
+// There is no nickname at this point: the list names it from aaguid (the
+// provider) or deviceLabel, and the person can rename it later.
+func (st *Store) AddWebAuthnCredential(ctx context.Context, personID int64, credentialID, publicKey []byte, attestationType string, transports []string, signCount uint32, backupEligible, backupState, userPresent, userVerified bool, aaguid, deviceLabel string) (int64, error) {
 	var id int64
 	err := st.db.QueryRow(ctx, `
 		INSERT INTO webauthn_credentials
 			(person_id, credential_id, public_key, attestation_type, transports, sign_count,
-			 flag_backup_eligible, flag_backup_state, flag_user_present, flag_user_verified, nickname)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			 flag_backup_eligible, flag_backup_state, flag_user_present, flag_user_verified,
+			 aaguid, device_label)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::uuid, $12)
 		RETURNING id`,
 		personID, credentialID, publicKey, attestationType, transports, signCount,
-		backupEligible, backupState, userPresent, userVerified, nullableString(nickname)).Scan(&id)
+		backupEligible, backupState, userPresent, userVerified,
+		nullableString(aaguid), nullableString(deviceLabel)).Scan(&id)
 	return id, err
 }
 
@@ -55,13 +61,13 @@ func nullableString(s string) *string {
 
 const webauthnCredentialColumns = `id, person_id, credential_id, public_key, attestation_type, transports, sign_count,
 	flag_backup_eligible, flag_backup_state, flag_user_present, flag_user_verified,
-	created_at, last_used_at, coalesce(nickname, '')`
+	created_at, last_used_at, coalesce(nickname, ''), coalesce(aaguid::text, ''), coalesce(device_label, '')`
 
 func scanWebAuthnCredential(row pgx.Row) (*WebAuthnCredential, error) {
 	var c WebAuthnCredential
 	if err := row.Scan(&c.ID, &c.PersonID, &c.CredentialID, &c.PublicKey, &c.AttestationType, &c.Transports, &c.SignCount,
 		&c.FlagBackupEligible, &c.FlagBackupState, &c.FlagUserPresent, &c.FlagUserVerified,
-		&c.CreatedAt, &c.LastUsedAt, &c.Nickname); err != nil {
+		&c.CreatedAt, &c.LastUsedAt, &c.Nickname, &c.AAGUID, &c.DeviceLabel); err != nil {
 		return nil, err
 	}
 	return &c, nil
@@ -103,14 +109,17 @@ func (st *Store) GetWebAuthnCredentialByCredentialID(ctx context.Context, creden
 // go-webauthn's FinishPasskeyLogin/FinishDiscoverableLogin hands back:
 // the (possibly advanced) sign count and the current flag values, plus
 // last_used_at — called once per successful passkey login, never on a
-// failed one.
-func (st *Store) UpdateWebAuthnCredentialAfterLogin(ctx context.Context, credentialID []byte, signCount uint32, backupEligible, backupState, userPresent, userVerified bool) error {
+// failed one. deviceLabel ("Safari on Mac", from this login's User-Agent)
+// only fills a passkey that has no way to be named yet — one added before
+// migration 0068, with neither AAGUID nor label — and never overwrites.
+func (st *Store) UpdateWebAuthnCredentialAfterLogin(ctx context.Context, credentialID []byte, signCount uint32, backupEligible, backupState, userPresent, userVerified bool, deviceLabel string) error {
 	tag, err := st.db.Exec(ctx, `
 		UPDATE webauthn_credentials
 		SET sign_count = $2, flag_backup_eligible = $3, flag_backup_state = $4,
-		    flag_user_present = $5, flag_user_verified = $6, last_used_at = now()
+		    flag_user_present = $5, flag_user_verified = $6, last_used_at = now(),
+		    device_label = CASE WHEN aaguid IS NULL AND device_label IS NULL THEN $7 ELSE device_label END
 		WHERE credential_id = $1`,
-		credentialID, signCount, backupEligible, backupState, userPresent, userVerified)
+		credentialID, signCount, backupEligible, backupState, userPresent, userVerified, nullableString(deviceLabel))
 	if err != nil {
 		return err
 	}
@@ -120,9 +129,9 @@ func (st *Store) UpdateWebAuthnCredentialAfterLogin(ctx context.Context, credent
 	return nil
 }
 
-// SetWebAuthnCredentialNickname sets a passkey's user-given label (e.g.
-// "MacBook", "iPhone") — scoped to personID so a person can only rename
-// their own passkeys.
+// SetWebAuthnCredentialNickname sets a passkey's optional user-given name
+// (e.g. "Work laptop"); "" goes back to the automatic name. Scoped to
+// personID so a person can only rename their own passkeys.
 func (st *Store) SetWebAuthnCredentialNickname(ctx context.Context, personID, credentialDBID int64, nickname string) error {
 	tag, err := st.db.Exec(ctx, `UPDATE webauthn_credentials SET nickname = $1 WHERE id = $2 AND person_id = $3`,
 		nullableString(nickname), credentialDBID, personID)

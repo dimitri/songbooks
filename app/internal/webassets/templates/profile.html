@@ -117,29 +117,37 @@
     </form>
   </section>
 
-  <section class="card book-card">
+  <section class="card book-card" id="passkeys" data-user-id="{{.Me.ID}}">
     <h3>Passkeys</h3>
-    <p class="hint">Touch ID, Face ID, Windows Hello, or a security key — a third way to log in, alongside your password and login links. A passkey only works on the web address where you added it.</p>
+    <p class="hint">Touch ID, Face ID, Windows Hello, a password manager or a security key — a third way to log in, alongside your password and login links. A passkey only works on the web address where you added it.</p>
     {{if .Passkeys}}
+    {{/* Each passkey is named for whoever keeps it (Apple Passwords,
+         Google Password Manager, 1Password…, from its AAGUID), else the
+         browser it was added on — see store.WebAuthnCredential.Label.
+         Nobody is asked to type a name; renaming is there if wanted. */}}
     <table class="card passkeys-table">
-      <thead><tr><th>Name</th><th>Added</th><th>Last used</th><th></th></tr></thead>
+      <thead><tr><th>Passkey</th><th>Added</th><th>Last used</th><th></th></tr></thead>
       <tbody>
       {{range .Passkeys}}
-        <tr>
-          <td data-label="Name">
-            {{/* The column header (or, stacked on a phone, the cell's
-                 data-label) is the visible label; aria-label carries it
-                 for screen readers. */}}
-            <form method="post" action="/profile/passkeys/{{.ID}}/nickname" style="display:flex; gap:4px">
-              <input type="text" name="nickname" value="{{.Nickname}}" placeholder="e.g. MacBook, iPhone" size="18" aria-label="Passkey name" autocomplete="off">
-              <button type="submit">Rename</button>
-            </form>
+        <tr data-credential-id="{{.CredentialIDBase64URL}}">
+          <td data-label="Passkey">
+            <strong class="passkey-name">{{.Label}}</strong>
+            <p class="field-hint">{{if and .Nickname (ne .Nickname .AutomaticLabel)}}{{.AutomaticLabel}} · {{end}}{{if .FlagBackupEligible}}Synced across your devices{{else}}Only on the device or key it was made on{{end}}</p>
+            <details class="passkey-rename">
+              <summary>Rename<span class="sr-only"> {{.Label}}</span></summary>
+              <form method="post" action="/profile/passkeys/{{.ID}}/nickname" class="passkey-rename-form">
+                <label for="passkey-name-{{.ID}}" class="sr-only">Name for this passkey</label>
+                <input id="passkey-name-{{.ID}}" type="text" name="nickname" value="{{.Nickname}}" placeholder="{{.AutomaticLabel}}" maxlength="60" autocomplete="off" aria-describedby="passkey-name-hint-{{.ID}}">
+                <button type="submit">Save</button>
+              </form>
+              <p class="field-hint" id="passkey-name-hint-{{.ID}}">Leave it empty to go back to “{{.AutomaticLabel}}”.</p>
+            </details>
           </td>
           <td data-label="Added">{{.CreatedAt.Format "Jan 2, 2006"}}</td>
-          <td data-label="Last used">{{if .LastUsedAt}}{{.LastUsedAt.Format "Jan 2, 2006"}}{{else}}never{{end}}</td>
+          <td data-label="Last used">{{if .LastUsedAt}}{{.LastUsedAt.Format "Jan 2, 2006"}}{{else}}Not yet{{end}}</td>
           <td>
-            <form method="post" action="/profile/passkeys/{{.ID}}/remove" data-confirm="Remove the passkey {{if .Nickname}}“{{.Nickname}}”{{else}}added {{.CreatedAt.Format "Jan 2, 2006"}}{{end}}? You won't be able to log in with it any more.">
-              <button type="submit" class="danger">Remove<span class="sr-only"> passkey {{.Nickname}}</span></button>
+            <form method="post" action="/profile/passkeys/{{.ID}}/remove" data-confirm="Remove the passkey “{{.Label}}”, added {{.CreatedAt.Format "Jan 2, 2006"}}? You won't be able to log in with it any more.{{if and (eq (len $.Passkeys) 1) (not $.HasPassword)}} It's your only passkey and you have no password, so next time you'll need a login link by email.{{end}}">
+              <button type="submit" class="danger">Remove<span class="sr-only"> {{.Label}}</span></button>
             </form>
           </td>
         </tr>
@@ -268,12 +276,31 @@ if (new URLSearchParams(location.search).has('instsaved')) {
   });
 })();
 
+// Tell the browser's passkey provider which of this person's passkeys the
+// server still accepts, so one removed here also disappears from the
+// phone's or password manager's own list instead of being offered at the
+// next login (WebAuthn Signal API; Chrome 132+, others ignore it). Runs on
+// every load, which includes the reload right after a removal. The rpId is
+// this page's hostname: the server pins its RP ID to the same host
+// (webauthnForRequest), so the two can't differ.
+(function() {
+  const section = document.getElementById('passkeys');
+  if (!section || !window.PublicKeyCredential || !PublicKeyCredential.signalAllAcceptedCredentials) return;
+  // The WebAuthn user id is the person id as 8 bytes big-endian (see
+  // webauthnUser.WebAuthnID), sent as unpadded base64url.
+  const bytes = new Uint8Array(8);
+  new DataView(bytes.buffer).setBigUint64(0, BigInt(section.dataset.userId));
+  const userId = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const ids = Array.from(section.querySelectorAll('[data-credential-id]'), el => el.dataset.credentialId);
+  PublicKeyCredential.signalAllAcceptedCredentials({ rpId: location.hostname, userId, allAcceptedCredentialIds: ids })
+    .catch(err => console.warn('passkey signal failed', err));
+})();
+
 // Add a passkey: navigator.credentials.create() registers a new
 // discoverable credential (see internal/httpapi/webauthn.go's
-// handleWebAuthnRegisterBegin), then — right after that succeeds — the
-// person is prompted for a short nickname before the result is saved, so
-// the management list above reads "MacBook"/"iPhone" rather than a bare
-// creation date. Success reloads the page, where the new one is listed.
+// handleWebAuthnRegisterBegin) and it's saved straight away, no naming
+// step: the server names it from the provider (or this browser). Success
+// reloads the page, where the new one is listed.
 (function() {
   const btn = document.getElementById('webauthn-register-btn');
   const statusEl = document.getElementById('webauthn-register-status');
@@ -307,8 +334,7 @@ if (new URLSearchParams(location.search).has('instsaved')) {
       const cred = await navigator.credentials.create({
         publicKey: PublicKeyCredential.parseCreationOptionsFromJSON(options.publicKey),
       });
-      const nickname = (window.prompt('Name this passkey so you can tell it apart later (e.g. "MacBook" or "iPhone"):', '') || '').trim();
-      const finishRes = await fetch('/api/webauthn/register/finish?nickname=' + encodeURIComponent(nickname), {
+      const finishRes = await fetch('/api/webauthn/register/finish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cred.toJSON()),

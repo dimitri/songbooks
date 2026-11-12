@@ -82,13 +82,10 @@
     </div>
     <div class="reference-embed" id="wiz-reference-embed"></div>
 
-    {{/* Catches the common "didn't realize this was already in the
-         catalog" case before a duplicate gets created — search-as-
-         you-type over the exact same /api/catalog/search the band
-         repertoire's "From the catalog" tab already uses, offering to
-         add the existing song to this songbook instead of continuing
-         the wizard. */}}
-    <div id="wiz-catalog-matches" class="attention-list" hidden></div>
+    {{/* "Already in the library" list (library-match.js): catches a
+         duplicate before it's created and offers to add the existing
+         song to this songbook instead of continuing the wizard. */}}
+    <div id="wiz-library-match"></div>
   </section>
 
   <section class="wizard-panel" data-step="1" hidden>
@@ -130,6 +127,9 @@
 
   <section class="wizard-panel" data-step="3" hidden>
     <p class="hint">Fetch a chord/lyric tab from Ultimate Guitar and pick which sections to bring in, or skip straight to pasting/typing text yourself. Ultimate Guitar tabs are often wrong, and bar placement is always a guess — treat this as a starting point to correct, not a finished chart.</p>
+    {{/* Same "Already in the library" list, for when a fetched chart is
+         what supplied the title. */}}
+    <div id="wiz-import-library-match"></div>
 
     <div class="ug-import-substep" id="ug-step-url">
       <div class="wizard-fields">
@@ -191,6 +191,7 @@
 </dialog>
 
 <script src="/static/js/clock.js?v={{staticVersion}}"></script>
+<script src="/static/js/library-match.js?v={{staticVersion}}"></script>
 <script src="/static/js/project.js?v={{staticVersion}}"></script>
 {{template "desktop-sidebar-script"}}
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>

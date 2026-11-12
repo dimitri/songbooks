@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"app/internal/chordsym"
 )
 
 // sectionHeaderRE matches a line that is ENTIRELY one "[Label]" or
@@ -90,6 +92,10 @@ func Parse(src string) *Song {
 	var curScore *rawScore
 	var scoreBraceDepth int
 
+	// Every diagram line in source order; split into the song's own set
+	// and other keys' sets once the whole header (and so "key:") is read.
+	var diagrams []ChordRef
+
 	for _, raw := range strings.Split(src, "\n") {
 		line := strings.TrimSpace(raw)
 		if strings.HasPrefix(line, "#") {
@@ -108,9 +114,10 @@ func Parse(src string) *Song {
 			if line == "" {
 				continue
 			}
-			if strings.HasPrefix(line, "chord:") {
-				if ref, ok := parseChordRef(line[len("chord:"):]); ok {
-					song.Chords = append(song.Chords, ref)
+			if key, rest, ok := splitChordLine(line); ok {
+				if ref, ok := parseChordRef(rest); ok {
+					ref.Key = key
+					diagrams = append(diagrams, ref)
 				}
 				continue
 			}
@@ -191,7 +198,33 @@ func Parse(src string) *Song {
 	}
 	flush()
 
+	songKey := song.Get("key")
+	for _, ref := range diagrams {
+		if ref.Key == "" || chordsym.SameKey(ref.Key, songKey) {
+			song.Chords = append(song.Chords, ref)
+		} else {
+			song.OtherChords = append(song.OtherChords, ref)
+		}
+	}
+
 	return song
+}
+
+// splitChordLine recognizes a diagram header line: "chord: Name Spec"
+// (key "", the song's own key) or "chord[K]: Name Spec" (entered for key
+// K). rest is what follows the colon.
+func splitChordLine(line string) (key, rest string, ok bool) {
+	if strings.HasPrefix(line, "chord:") {
+		return "", line[len("chord:"):], true
+	}
+	if !strings.HasPrefix(line, "chord[") {
+		return "", "", false
+	}
+	end := strings.Index(line, "]:")
+	if end < 0 {
+		return "", "", false
+	}
+	return strings.TrimSpace(line[len("chord["):end]), line[end+2:], true
 }
 
 // parseScoreHeader splits a "score[label]: value" line into its label
