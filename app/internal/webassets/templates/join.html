@@ -63,9 +63,21 @@
         </div>
         <div class="field">
           <label for="join-email">Email</label>
-          <p class="field-hint" id="join-email-hint">No password needed — we'll email you a login link next time.</p>
-          <input id="join-email" type="email" name="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="join-email-hint" required>
+          <input id="join-email" type="email" name="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" required>
         </div>
+        <div class="field">
+          <label for="join-password">Password</label>
+          <p class="field-hint" id="join-password-hint">At least 8 characters.</p>
+          <div class="pw-field">
+            <input id="join-password" type="password" name="password" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="join-password-hint" required minlength="8">
+            <button type="button" class="pw-toggle" aria-controls="join-password join-confirm" aria-pressed="false" hidden><span class="pw-toggle-text">Show</span><span class="sr-only"> passwords</span></button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="join-confirm">Password again</label>
+          <input id="join-confirm" type="password" name="confirm" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" data-match="join-password" required minlength="8">
+        </div>
+        <p class="hint">You'll be offered a passkey (Touch ID, Face ID, Windows Hello) right after this, as a faster alternative for next time — your password still works either way.</p>
         <p class="form-status" role="status"></p>
         <div class="form-actions"><button type="submit" class="primary">Create account and join</button></div>
       </div>
@@ -75,7 +87,21 @@
       <p class="hint">Already use Songbooks for something else? Log in instead — joining won't touch anything else in your account.</p>
       <button type="button" id="login-instead-btn">Log in to join</button>
     </div>
+    <script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
     <script>
+      // Picking a name on the roster fills in "Your name" while it is
+      // still empty or still the last name picked.
+      (function() {
+        const name = document.getElementById('join-display-name');
+        let filled = '';
+        document.querySelectorAll('input[name="slot_choice"]').forEach((radio) => {
+          radio.addEventListener('change', () => {
+            if (name.value !== '' && name.value !== filled) return;
+            filled = radio.value === 'unlisted' ? '' : radio.parentElement.textContent.replace(/\s*\(.*\)\s*$/, '').trim();
+            name.value = filled;
+          });
+        });
+      })();
       document.getElementById('login-instead-btn').addEventListener('click', () => {
         const checked = document.querySelector('input[name="slot_choice"]:checked');
         const slot = checked ? checked.value : 'unlisted';
