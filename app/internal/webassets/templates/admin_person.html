@@ -27,9 +27,9 @@
       <tr><td class="hint">Email</td><td>{{if .Person.Email}}{{.Person.Email}}{{else}}<em>none</em>{{end}}</td></tr>
       <tr><td class="hint">Site admin</td><td>
         {{if eq .Person.ID .Me.ID}}<em>you</em>{{else}}
-        <form method="post" action="/admin/people/{{.Person.ID}}/admin" style="display:inline">
+        <form method="post" action="/admin/people/{{.Person.ID}}/admin" style="display:inline"{{if .Person.IsAdmin}} onsubmit="return confirm('Remove site admin rights from {{.Person.Username}}?')"{{end}}>
           <input type="hidden" name="is_admin" value="{{if .Person.IsAdmin}}0{{else}}1{{end}}">
-          <button type="submit">{{if .Person.IsAdmin}}revoke admin{{else}}make admin{{end}}</button>
+          <button type="submit">{{if .Person.IsAdmin}}Remove admin{{else}}Make admin{{end}}</button>
         </form>
         {{end}}
       </td></tr>
@@ -45,19 +45,19 @@
     <p class="hint">Adjusting a role here takes effect immediately, same as doing it from the band/community's own Members page.</p>
     <div id="membership-rows" class="form-stack">
     {{range .Memberships}}
-      <div class="import-row" data-kind="{{.Kind}}" data-target-id="{{.ID}}">
-        <strong class="membership-row-label">{{if eq .Kind "band"}}band{{else}}community{{end}}: {{.Name}}</strong>
-        <select class="membership-role-select">
+      <div class="import-row" data-kind="{{.Kind}}" data-target-id="{{.ID}}" data-name="{{.Name}}">
+        <strong class="membership-row-label">{{if eq .Kind "band"}}Band{{else}}Community{{end}}: {{.Name}}</strong>
+        <select class="membership-role-select" aria-label="Role in {{.Name}}">
           {{if eq .Kind "band"}}
-          <option value="core" {{if eq .Status "core"}}selected{{end}}>core</option>
-          <option value="guest" {{if eq .Status "guest"}}selected{{end}}>guest</option>
+          <option value="core" {{if eq .Status "core"}}selected{{end}}>Core</option>
+          <option value="guest" {{if eq .Status "guest"}}selected{{end}}>Guest</option>
           {{else}}
-          <option value="staff" {{if eq .Status "staff"}}selected{{end}}>staff</option>
-          <option value="member" {{if eq .Status "member"}}selected{{end}}>member</option>
+          <option value="staff" {{if eq .Status "staff"}}selected{{end}}>Staff</option>
+          <option value="member" {{if eq .Status "member"}}selected{{end}}>Member</option>
           {{end}}
         </select>
-        <button type="button" class="membership-remove-btn danger">remove</button>
-        <span class="membership-row-status hint"></span>
+        <button type="button" class="membership-remove-btn danger">Remove</button>
+        <span class="membership-row-status form-status" role="status"></span>
       </div>
     {{else}}
       <p class="hint">Not on any band or community roster yet.</p>
@@ -67,9 +67,9 @@
 
   <div class="card card--narrow-lg">
     <h3>Add a membership</h3>
-    <div class="form-stack">
+    <form class="form-stack" id="add-membership-form">
       <div class="field">
-        <label for="add-membership-kind">Kind</label>
+        <label for="add-membership-kind">Type</label>
         <select id="add-membership-kind">
           <option value="band">Band</option>
           <option value="community">Community</option>
@@ -90,19 +90,20 @@
       <div class="field">
         <label for="add-membership-role">Role</label>
         <select id="add-membership-role">
-          <option value="core" data-kind="band" selected>core</option>
-          <option value="guest" data-kind="band">guest</option>
-          <option value="member" data-kind="community">member</option>
-          <option value="staff" data-kind="community">staff</option>
+          <option value="core" data-kind="band" selected>Core</option>
+          <option value="guest" data-kind="band">Guest</option>
+          <option value="member" data-kind="community">Member</option>
+          <option value="staff" data-kind="community">Staff</option>
         </select>
       </div>
-      <button type="button" id="add-membership-btn" class="primary">Add</button>
-      <span id="add-membership-status" class="hint"></span>
-    </div>
+      <div class="form-actions"><button type="submit" id="add-membership-btn" class="primary">Add membership</button></div>
+      <p id="add-membership-status" class="form-status" role="status"></p>
+    </form>
   </div>
 </main>
 <script>
 const personId = {{.Person.ID}};
+const personName = {{.Person.DisplayName}};
 
 function reload() { location.reload(); }
 
@@ -110,21 +111,23 @@ document.querySelectorAll('.membership-role-select').forEach(sel => {
   sel.addEventListener('change', async () => {
     const row = sel.closest('[data-kind]');
     const status = row.querySelector('.membership-row-status');
-    status.textContent = 'saving…'; status.className = 'membership-row-status hint';
+    Forms.status(status, 'Saving…', '');
     const res = await fetch(`/admin/people/${personId}/memberships/${row.dataset.kind}/${row.dataset.targetId}/role`,
-      {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({role: sel.value})});
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) { status.textContent = 'saved'; status.className = 'membership-row-status hint ok'; }
-    else { status.textContent = data.error || 'failed'; status.className = 'membership-row-status hint err'; }
+      {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({role: sel.value})}).catch(() => null);
+    if (res && res.ok) Forms.status(status, 'Saved.', 'ok');
+    else Forms.status(status, 'Couldn’t change the role. Try again.', 'error');
   });
 });
 
 document.querySelectorAll('.membership-remove-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const row = btn.closest('[data-kind]');
-    if (!confirm('Remove this membership?')) return;
-    const res = await fetch(`/admin/people/${personId}/memberships/${row.dataset.kind}/${row.dataset.targetId}/remove`, {method: 'POST'});
-    if (res.ok) row.remove(); else alert('failed to remove');
+    if (!confirm(`Remove ${personName} from ${row.dataset.name}?`)) return;
+    Forms.busy(btn, true);
+    const res = await fetch(`/admin/people/${personId}/memberships/${row.dataset.kind}/${row.dataset.targetId}/remove`, {method: 'POST'}).catch(() => null);
+    if (res && res.ok) { row.remove(); return; }
+    Forms.busy(btn, false);
+    Forms.status(row.querySelector('.membership-row-status'), 'Couldn’t remove this membership. Try again.', 'error');
   });
 });
 
@@ -143,18 +146,25 @@ function syncAddFormKind() {
 kindSel.addEventListener('change', syncAddFormKind);
 syncAddFormKind();
 
-document.getElementById('add-membership-btn').addEventListener('click', async () => {
+const addForm = document.getElementById('add-membership-form');
+addForm.addEventListener('submit', (e) => {
+  e.preventDefault();
   const kind = kindSel.value;
   const targetSel = kind === 'band' ? document.getElementById('add-membership-target') : document.getElementById('add-membership-target-community');
-  const status = document.getElementById('add-membership-status');
-  if (!targetSel.value) { status.textContent = 'nothing left to add'; status.className = 'hint err'; return; }
-  status.textContent = 'adding…'; status.className = 'hint';
-  const res = await fetch(`/admin/people/${personId}/memberships`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({kind, targetID: parseInt(targetSel.value, 10), role: roleSel.value}),
+  if (!targetSel.value) {
+    Forms.fieldError(targetSel, kind === 'band' ? 'They’re already in every band.' : 'They’re already in every community.');
+    return;
+  }
+  Forms.fieldError(targetSel, '');
+  Forms.run(addForm, document.getElementById('add-membership-btn'), async () => {
+    const res = await fetch(`/admin/people/${personId}/memberships`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({kind, targetID: parseInt(targetSel.value, 10), role: roleSel.value}),
+    }).catch(() => { throw new Error('Couldn’t reach the server. Check your connection and try again.'); });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(res.status < 500 && data.error ? data.error : 'Couldn’t add the membership. Try again.');
+    reload();
   });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) { reload(); } else { status.textContent = data.error || 'failed to add'; status.className = 'hint err'; }
 });
 </script>
 </div>

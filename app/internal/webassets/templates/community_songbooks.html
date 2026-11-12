@@ -31,10 +31,10 @@
   {{range .Songbooks}}
     <div style="position:relative;">
       <a class="catalog-book-card" href="{{if .IsDefault}}/communities/{{$.Community.ID}}/songbooks/default{{else}}/songbooks/{{.ID}}{{end}}">
-        <div class="catalog-book-card-title">{{.Name}}{{if .IsDefault}} <span class="hint">(default)</span>{{end}}{{if .RequiresGrant}} <span class="hint" title="members need an explicit grant to access this songbook">&#128274; gated</span>{{end}}</div>
+        <div class="catalog-book-card-title">{{.Name}}{{if .IsDefault}} <span class="hint">(default)</span>{{end}}{{if .RequiresGrant}} <span class="hint">&#128274; members need access</span>{{end}}</div>
         <div class="catalog-book-card-meta">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}}</div>
       </a>
-      {{if $.IsStaff}}<a class="hint" href="/communities/{{$.Community.ID}}/songbooks/{{.ID}}/access" style="display:block; margin-top:0.3rem;">manage access &rarr;</a>{{end}}
+      {{if $.IsStaff}}<a class="hint" href="/communities/{{$.Community.ID}}/songbooks/{{.ID}}/access" style="display:block; margin-top:0.3rem;">Manage access &rarr;</a>{{end}}
     </div>
   {{else}}
     <p class="hint">No songbooks yet.</p>
@@ -42,24 +42,27 @@
   </div>
 
   {{if .CanEdit}}
-  <div class="form-actions" style="margin-top:1.2rem;">
-    <input type="text" id="new-songbook-name" placeholder="New songbook name">
-    <button type="button" id="create-songbook-btn">+ create songbook</button>
-  </div>
-  <p id="create-songbook-result" class="hint"></p>
+  <form class="form-stack" id="create-songbook-form" style="margin-top:1.2rem;">
+    <div class="field"><label for="new-songbook-name">New songbook name</label><input type="text" id="new-songbook-name" name="name" placeholder="e.g. Jam night book" required autocomplete="off"></div>
+    <div class="form-actions"><button type="submit" id="create-songbook-btn" class="primary">Create songbook</button></div>
+    <p id="create-songbook-result" class="form-status" role="status"></p>
+  </form>
   {{end}}
 </main>
 <script>
-document.getElementById('create-songbook-btn')?.addEventListener('click', async () => {
-  const name = document.getElementById('new-songbook-name').value.trim();
-  const out = document.getElementById('create-songbook-result');
-  if (!name) { out.textContent = 'enter a name'; return; }
-  const res = await fetch('/api/songbooks', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({name, ownerCommunityId: {{.Community.ID}}}),
+const createForm = document.getElementById('create-songbook-form');
+createForm?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  Forms.run(createForm, document.getElementById('create-songbook-btn'), async () => {
+    const name = document.getElementById('new-songbook-name').value.trim();
+    const res = await fetch('/api/songbooks', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name, ownerCommunityId: {{.Community.ID}}}),
+    }).catch(() => { throw new Error('Couldn’t reach the server. Check your connection and try again.'); });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(res.status < 500 && data.error ? data.error : 'Couldn’t create the songbook. Try again.');
+    location.href = `/songbooks/${data.id}`;
   });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) { location.href = `/songbooks/${data.id}`; } else { out.textContent = data.error || 'failed to create songbook'; }
 });
 </script>
 </div>

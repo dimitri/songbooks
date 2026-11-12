@@ -22,14 +22,36 @@
 </header>
 <main class="index">
   <div class="card">
-    <p><strong>{{.Event.StartsAt.Format "Monday, January 2, 2006 · 15:04"}}</strong>{{if .Event.Location}} — {{.Event.Location}}{{end}}</p>
+    <p><strong>{{.Event.StartsAt.Format "Monday 2 January 2006 · 15:04"}}{{with .Event.EndsAt}}–{{.Format "15:04"}}{{end}}</strong>{{if .Event.Location}} — {{.Event.Location}}{{end}}</p>
     {{if .Event.Description}}<p>{{.Event.Description}}</p>{{end}}
     <div class="import-row">
       <a href="/events/{{.Event.ID}}/ics" class="event-ics-btn">{{template "icon-download"}} Add to calendar</a>
-      {{if .Me}}<a href="/events/{{.Event.ID}}/manage" class="hint">manage this event</a>{{end}}
+      {{if .Me}}<a href="/events/{{.Event.ID}}/manage" class="hint">Manage this event</a>{{end}}
     </div>
   </div>
 
+  {{if eq .Event.OwnerKind "band"}}
+  {{/* A band's own date (a rehearsal, a gig): everyone in it is coming,
+       so no registration; what matters is the set list to work on. */}}
+  <div class="card">
+    <h3>{{if eq .Event.EventType "rehearsal"}}Set list to practise{{else}}Set list{{end}}</h3>
+    {{if .Event.SetlistID}}
+    <div class="next-up-actions">
+      {{if .SongRows}}<a class="chip-link primary" href="/setlists/{{.Event.SetlistID}}/practice">{{template "icon-play"}} Practice the set</a>{{end}}
+      <a class="chip-link" href="/setlists/{{.Event.SetlistID}}">{{template "icon-setlists"}} {{if .SongRows}}Open the set list{{else}}Add songs{{end}}</a>
+    </div>
+    <ol class="event-setlist">
+    {{range .SongRows}}
+      <li><a href="/song/{{.VariantID}}?setlist={{$.Event.SetlistID}}">{{.Title}}</a>{{if and .Artist (ne .Artist $.Event.OwnerName)}} <span class="hint">{{.Artist}}</span>{{end}}</li>
+    {{else}}
+      <li class="hint">No songs on it yet.</li>
+    {{end}}
+    </ol>
+    {{else}}
+    <p class="hint">No set list for this one.</p>
+    {{end}}
+  </div>
+  {{else}}
   <div class="card">
     <h3>Who's coming</h3>
     <div class="form-stack">
@@ -42,25 +64,42 @@
   </div>
 
   {{if not .AlreadyRegistered}}
-  <div class="card" style="max-width:480px" id="register-card">
+  <div class="card card--narrow-lg" id="register-card">
     <h3>Register</h3>
-    <form method="post" action="/events/{{.Event.ID}}/register" class="form-stack">
+    {{/* Still a plain POST form (works without JS); the script below
+         sends it with fetch so a refused registration ("username taken")
+         shows here instead of replacing the page and losing what was
+         typed. */}}
+    <form method="post" action="/events/{{.Event.ID}}/register" class="form-stack" id="register-form">
       {{if not .Me}}
-      <div class="field"><label for="reg-username">Username</label><input type="text" id="reg-username" name="username" required></div>
-      <div class="field"><label for="reg-display-name">Your name</label><input type="text" id="reg-display-name" name="display_name" required></div>
-      <div class="field"><label for="reg-email">Email <span class="hint">(optional)</span></label><input type="email" id="reg-email" name="email"></div>
-      <div class="field"><label for="reg-password">Password <span class="hint">(optional — leave blank to use an emailed login link instead)</span></label><input type="password" id="reg-password" name="password"></div>
+      <p class="hint">Registering also creates your account.</p>
+      <div class="field">
+        <label for="reg-username">Username</label>
+        <p class="field-hint" id="reg-username-hint">What you'll log in with.</p>
+        <input type="text" id="reg-username" name="username" required autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="reg-username-hint">
+      </div>
+      <div class="field"><label for="reg-display-name">Your name</label><input type="text" id="reg-display-name" name="display_name" required autocomplete="name"></div>
+      <div class="field">
+        <label for="reg-email">Email <span class="field-optional">(optional)</span></label>
+        <input type="email" id="reg-email" name="email" autocomplete="email" autocapitalize="none" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="reg-password">Password <span class="field-optional">(optional)</span></label>
+        <p class="field-hint" id="reg-password-hint">Leave it empty to log in with a link sent to your email instead.</p>
+        <input type="password" id="reg-password" name="password" autocomplete="new-password" aria-describedby="reg-password-hint">
+      </div>
       {{end}}
       {{if and (not .AlreadyRegistered) .MyBands}}
       <div class="field">
-        <label for="reg-band">Registering as a band? <span class="hint">(optional)</span></label>
+        <label for="reg-band">Registering as</label>
         <select id="reg-band" name="band_id">
           <option value="">Just me</option>
           {{range .MyBands}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
         </select>
       </div>
       {{end}}
-      <button type="submit" class="primary">Register</button>
+      <div class="form-actions"><button type="submit" class="primary">Register</button></div>
+      <p class="form-status" role="status"></p>
     </form>
   </div>
   {{else}}
@@ -76,7 +115,7 @@
          is true, which would otherwise make it impossible to pick a
          band when claiming a song after already registering. */}}
     {{if .MyBands}}
-    <div class="field" style="max-width:320px">
+    <div class="field" style="max-width:320px; display:flex; flex-direction:column; gap:0.3rem;">
       <label for="song-reg-band">Playing as</label>
       <select id="song-reg-band">
         <option value="">Just me</option>
@@ -85,6 +124,7 @@
     </div>
     {{end}}
     <div class="form-stack" id="event-songs-list">
+    <p class="form-status" id="song-claim-status" role="status"></p>
     {{range .SongRows}}
       <div class="import-row" data-variant-id="{{.VariantID}}">
         <div>
@@ -94,7 +134,7 @@
           {{if not .Registrations}}nobody signed up yet{{end}}
           </div>
         </div>
-        {{if $.Me}}<button type="button" class="event-song-register-btn" data-variant-id="{{.VariantID}}">I'll play this</button>{{end}}
+        {{if $.Me}}<button type="button" class="event-song-register-btn" data-variant-id="{{.VariantID}}" aria-label="I'll play {{.Title}}">I'll play this</button>{{end}}
       </div>
     {{else}}
       <p class="hint">No songs on the setlist yet.</p>
@@ -102,19 +142,43 @@
     </div>
   </div>
   {{end}}
+  {{end}}
 </main>
 <script>
+// The handler's own refusals ("that username is already taken — try
+// another") are written for people; a 500's text isn't.
+function errText(res, data, fallback) {
+  const msg = res && res.status < 500 && data && data.error;
+  return msg && !/invalid|json|sql/i.test(msg) ? msg.charAt(0).toUpperCase() + msg.slice(1) : fallback;
+}
+const registerForm = document.getElementById('register-form');
+registerForm?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  Forms.run(registerForm, registerForm.querySelector('button[type="submit"]'), async () => {
+    const res = await fetch(registerForm.action, {method: 'POST', body: new URLSearchParams(new FormData(registerForm))}).catch(() => { throw new Error('Couldn’t reach the server. Check your connection and try again.'); });
+    // Success is the handler's redirect back to this page, now registered.
+    if (res.ok) { location.reload(); return; }
+    const data = await res.json().catch(() => ({}));
+    throw new Error(errText(res, data, 'Couldn’t register you. Try again.'));
+  });
+});
 document.querySelectorAll('.event-song-register-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const variantId = Number(btn.dataset.variantId);
     let bandId = 0;
     const bandSel = document.getElementById('song-reg-band');
     if (bandSel && bandSel.value) bandId = Number(bandSel.value);
+    const status = document.getElementById('song-claim-status');
+    Forms.status(status, '');
+    Forms.busy(btn, true);
     const res = await fetch(`/events/{{.Event.ID}}/songs`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({variantId, bandId}),
-    });
-    if (res.ok) location.reload(); else btn.textContent = 'failed — try again';
+    }).catch(() => null);
+    if (res && res.ok) { location.reload(); return; }
+    Forms.busy(btn, false);
+    const data = res ? await res.json().catch(() => ({})) : {};
+    Forms.status(status, errText(res, data, 'Couldn’t sign you up for that song. Try again.'), 'error');
   });
 });
 </script>

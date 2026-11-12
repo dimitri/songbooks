@@ -25,19 +25,26 @@
   <div class="card">
     <h3>Songbook</h3>
     {{if .Event.SongbookID}}
-      <p><a href="/songbooks/{{.Event.SongbookID}}">Open this event's songbook</a> — prep material here ahead of building the setlist above.</p>
+      <p><a href="/songbooks/{{.Event.SongbookID}}">Open this event's songbook</a> — gather songs there before building the setlist below.</p>
     {{else}}
       <div class="attention-empty">No dedicated songbook yet.</div>
       <div class="form-actions">
-        <button type="button" id="create-songbook-btn" class="primary">Create a new songbook for this event</button>
-        {{if .OwnerSongbooks}}
-        <select id="attach-songbook-select">
-          <option value="">— or attach an existing one —</option>
-          {{range .OwnerSongbooks}}<option value="{{.ID}}">{{.Name}}{{if .IsDefault}} (default){{end}}</option>{{end}}
-        </select>
-        {{end}}
+        <button type="button" id="create-songbook-btn" class="primary">Create a songbook for this event</button>
       </div>
-      <p id="songbook-result" class="hint"></p>
+      <p id="songbook-result" class="form-status" role="status"></p>
+      {{if .OwnerSongbooks}}
+      <form class="form-stack form-subsection" id="attach-songbook-form">
+        <div class="field">
+          <label for="attach-songbook-select">Or use an existing songbook</label>
+          <select id="attach-songbook-select" name="songbookId" required>
+            <option value="">Choose a songbook…</option>
+            {{range .OwnerSongbooks}}<option value="{{.ID}}">{{.Name}}{{if .IsDefault}} (default){{end}}</option>{{end}}
+          </select>
+        </div>
+        <div class="form-actions"><button type="submit">Use this songbook</button></div>
+        <p class="form-status" role="status"></p>
+      </form>
+      {{end}}
     {{end}}
   </div>
 
@@ -47,7 +54,8 @@
       <p><a href="/setlists/{{.Event.SetlistID}}">Open and edit the running order</a> — add or remove songs there; they'll show up on this event's own page for people to sign up to play.</p>
     {{else}}
       <div class="attention-empty">No setlist yet — create one to start building the bill.</div>
-      <button type="button" id="create-setlist-btn" class="primary">Create setlist</button>
+      <div class="form-actions"><button type="button" id="create-setlist-btn" class="primary">Create setlist</button></div>
+      <p id="setlist-result" class="form-status" role="status"></p>
     {{end}}
   </div>
 
@@ -58,12 +66,14 @@
       <thead><tr><th>Song</th><th>Registered</th></tr></thead>
       <tbody>
       {{range .SongRows}}
+        {{$song := .}}
         <tr>
           <td data-label="Song">{{.Title}}{{if .Artist}} <span class="hint">— {{.Artist}}</span>{{end}}</td>
           <td data-label="Registered">
           {{range .Registrations}}
-            <span class="roster-instrument-badge">{{if .BandName}}{{.BandName}}{{else}}{{.PersonName}}{{end}}
-              <button type="button" class="song-reg-remove-btn" data-reg-id="{{.ID}}" title="remove">&times;</button>
+            {{$who := .PersonName}}{{if .BandName}}{{$who = .BandName}}{{end}}
+            <span class="roster-instrument-badge">{{$who}}
+              <button type="button" class="song-reg-remove-btn" data-reg-id="{{.ID}}" data-who="{{$who}}" data-song="{{$song.Title}}" aria-label="Remove {{$who}} from {{$song.Title}}">&times;</button>
             </span>
           {{else}}<span class="hint">nobody yet</span>{{end}}
           </td>
@@ -73,6 +83,7 @@
       {{end}}
       </tbody>
     </table></div>
+    <p id="song-regs-status" class="form-status" role="status"></p>
   </div>
   {{end}}
 
@@ -90,31 +101,47 @@
 </main>
 <script>
 const eventId = {{.Event.ID}};
-document.getElementById('create-songbook-btn')?.addEventListener('click', async () => {
-  const res = await fetch(`/events/${eventId}/songbook`, {method: 'POST'});
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) { location.href = `/songbooks/${data.songbookId}`; } else { document.getElementById('songbook-result').textContent = data.error || 'failed to create songbook'; }
-});
-document.getElementById('attach-songbook-select')?.addEventListener('change', async (e) => {
-  const songbookId = Number(e.target.value);
-  if (!songbookId) return;
-  const res = await fetch(`/events/${eventId}/songbook/attach`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({songbookId}),
+// POST and return the JSON, or throw an Error with a plain message for
+// Forms.run / Forms.status (a 500's text is a developer string).
+async function post(url, body, fallback) {
+  const opts = {method: 'POST'};
+  if (body) { opts.headers = {'Content-Type': 'application/json'}; opts.body = JSON.stringify(body); }
+  const res = await fetch(url, opts).catch(() => null);
+  const data = res ? await res.json().catch(() => ({})) : {};
+  if (res && res.ok) return data;
+  const msg = res && res.status < 500 && data.error;
+  throw new Error(msg && !/invalid|json|sql/i.test(msg) ? msg.charAt(0).toUpperCase() + msg.slice(1) : fallback);
+}
+document.getElementById('create-songbook-btn')?.addEventListener('click', (e) => {
+  Forms.run(document.getElementById('songbook-result'), e.currentTarget, async () => {
+    const data = await post(`/events/${eventId}/songbook`, null, 'Couldn’t create the songbook. Try again.');
+    location.href = `/songbooks/${data.songbookId}`;
   });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) { location.reload(); } else { document.getElementById('songbook-result').textContent = data.error || 'failed to attach'; }
 });
-document.getElementById('create-setlist-btn')?.addEventListener('click', async () => {
-  const res = await fetch(`/events/${eventId}/setlist`, {method: 'POST'});
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) { location.href = `/setlists/${data.setlistId}`; } else { alert(data.error || 'failed to create setlist'); }
+const attachForm = document.getElementById('attach-songbook-form');
+attachForm?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  Forms.run(attachForm, attachForm.querySelector('button[type="submit"]'), async () => {
+    const songbookId = Number(document.getElementById('attach-songbook-select').value);
+    await post(`/events/${eventId}/songbook/attach`, {songbookId}, 'Couldn’t use that songbook. Try again.');
+    location.reload();
+  });
+});
+document.getElementById('create-setlist-btn')?.addEventListener('click', (e) => {
+  Forms.run(document.getElementById('setlist-result'), e.currentTarget, async () => {
+    const data = await post(`/events/${eventId}/setlist`, null, 'Couldn’t create the setlist. Try again.');
+    location.href = `/setlists/${data.setlistId}`;
+  });
 });
 document.querySelectorAll('.song-reg-remove-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    const regId = btn.dataset.regId;
-    const res = await fetch(`/events/${eventId}/songs/${regId}`, {method: 'DELETE'});
-    if (res.ok) location.reload();
+    if (!confirm(`Take ${btn.dataset.who} off “${btn.dataset.song}”?`)) return;
+    const status = document.getElementById('song-regs-status');
+    Forms.busy(btn, true);
+    const res = await fetch(`/events/${eventId}/songs/${btn.dataset.regId}`, {method: 'DELETE'}).catch(() => null);
+    if (res && res.ok) { location.reload(); return; }
+    Forms.busy(btn, false);
+    Forms.status(status, `Couldn’t take ${btn.dataset.who} off that song. Try again.`, 'error');
   });
 });
 </script>

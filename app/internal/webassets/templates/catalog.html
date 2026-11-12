@@ -24,25 +24,25 @@
 
   {{/* Songs first on a phone: one search field, the rest folded into
        Filters (open when one of them is in use). */}}
-  <form class="card catalog-filters" method="get" action="/catalog">
+  <form class="card catalog-filters" method="get" action="/catalog" role="search">
     <div class="catalog-search">
-      <input type="search" name="q" value="{{.Filter.Query}}" placeholder="Search title, artist, lyrics" aria-label="Search">
+      <input type="search" name="q" value="{{.Filter.Query}}" placeholder="Title, artist or words from the song" aria-label="Search songs" enterkeyhint="search" autocomplete="off">
       <button type="submit">Search</button>
     </div>
     <details class="catalog-more"{{if or .Filter.Artist .Filter.Genre (eq .Filter.Sort "artist")}} open{{end}}>
       <summary>Filters{{if or .Filter.Artist .Filter.Genre}} &middot; on{{end}}</summary>
       <div class="catalog-more-fields">
-        <label>Artist <input type="text" name="artist" value="{{.Filter.Artist}}" placeholder="any"></label>
+        <label>Artist <input type="text" name="artist" value="{{.Filter.Artist}}" placeholder="e.g. Nina Simone" autocomplete="off" enterkeyhint="search"></label>
         <label>Genre
           <select name="genre">
-            <option value="" {{if eq .Filter.Genre ""}}selected{{end}}>all genres</option>
+            <option value="" {{if eq .Filter.Genre ""}}selected{{end}}>All genres</option>
             {{range .Genres}}<option value="{{.}}" {{if eq $.Filter.Genre .}}selected{{end}}>{{.}}</option>{{end}}
           </select>
         </label>
-        <label>Sort
+        <label>Sort by
           <select name="sort">
-            <option value="" {{if ne .Filter.Sort "artist"}}selected{{end}}>by title</option>
-            <option value="artist" {{if eq .Filter.Sort "artist"}}selected{{end}}>by artist</option>
+            <option value="" {{if ne .Filter.Sort "artist"}}selected{{end}}>Title</option>
+            <option value="artist" {{if eq .Filter.Sort "artist"}}selected{{end}}>Artist</option>
           </select>
         </label>
       </div>
@@ -59,9 +59,9 @@
         {{template "song-badges" (index $.Badges .VariantID)}}
       </a>
       <div class="catalog-card-actions">
-        <a href="/works/{{.WorkID}}">all versions</a>
-        <button type="button" class="add-catalog-btn" data-variant-id="{{.VariantID}}">+ my songbook</button>
-        <button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">fork</button>
+        <a href="/works/{{.WorkID}}">All versions</a>
+        <button type="button" class="add-catalog-btn" data-variant-id="{{.VariantID}}">Add to my songbook</button>
+        <button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">Make my own copy</button>
       </div>
     </div>
   {{end}}
@@ -75,22 +75,28 @@ const defaultSongbookId = {{.DefaultSongbookID}};
 document.querySelectorAll('.add-catalog-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const variantId = Number(btn.dataset.variantId);
+    Forms.busy(btn, true);
     const res = await fetch(`/api/songbooks/${defaultSongbookId}/entries`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({variantId}),
-    });
-    btn.textContent = res.ok ? 'added' : 'failed';
+    }).catch(() => null);
+    Forms.busy(btn, false);
+    // Added stays disabled so it can't be added twice.
+    if (res && res.ok) { btn.textContent = 'Added'; btn.disabled = true; }
+    else btn.textContent = 'Couldn’t add — try again';
   });
 });
 document.querySelectorAll('.fork-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const variantId = Number(btn.dataset.variantId);
-    const res = await fetch(`/api/variants/${variantId}/fork`, {method: 'POST'});
-    const data = await res.json();
-    if (res.ok) {
+    Forms.busy(btn, true);
+    const res = await fetch(`/api/variants/${variantId}/fork`, {method: 'POST'}).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
+    if (res && res.ok) {
       location.href = `/song/${data.variantId}`;
     } else {
-      btn.textContent = data.error || 'fork failed';
+      Forms.busy(btn, false);
+      btn.textContent = 'Couldn’t copy — try again';
     }
   });
 });

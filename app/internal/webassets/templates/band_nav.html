@@ -1,0 +1,15 @@
+{{/* The band's sections, as tabs on a wide screen. A phone doesn't show
+     them: the band's overview lists the sections instead, and each
+     section's header leads back to it. Called with (bandTabs ID "key"). */}}
+{{define "band-tabs"}}
+<nav class="band-tabs band-tabs-row band-section-tabs" aria-label="Band sections">
+  <a class="band-tab{{if eq .Active ""}} active{{end}}" href="/bands/{{.ID}}"{{if eq .Active ""}} aria-current="page"{{end}}>Overview</a>
+  <a class="band-tab{{if eq .Active "catalog"}} active{{end}}" href="/bands/{{.ID}}/catalog"{{if eq .Active "catalog"}} aria-current="page"{{end}}>Repertoire</a>
+  <a class="band-tab{{if eq .Active "setlists"}} active{{end}}" href="/bands/{{.ID}}/setlists"{{if eq .Active "setlists"}} aria-current="page"{{end}}>Set lists</a>
+  <a class="band-tab{{if eq .Active "events"}} active{{end}}" href="/bands/{{.ID}}/events"{{if eq .Active "events"}} aria-current="page"{{end}}>Calendar</a>
+  <a class="band-tab{{if eq .Active "proposals"}} active{{end}}" href="/bands/{{.ID}}/proposals"{{if eq .Active "proposals"}} aria-current="page"{{end}}>Proposals</a>
+  <a class="band-tab{{if eq .Active "discover"}} active{{end}}" href="/bands/{{.ID}}/listening-party"{{if eq .Active "discover"}} aria-current="page"{{end}}>Discover</a>
+  <a class="band-tab{{if eq .Active "members"}} active{{end}}" href="/bands/{{.ID}}/members"{{if eq .Active "members"}} aria-current="page"{{end}}>Members</a>
+  <a class="band-tab{{if eq .Active "settings"}} active{{end}}" href="/bands/{{.ID}}/settings"{{if eq .Active "settings"}} aria-current="page"{{end}}>Settings</a>
+</nav>
+{{end}}

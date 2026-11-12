@@ -20,11 +20,11 @@
   {{range .Variants}}
   <section class="card" data-variant-id="{{.VariantID}}">
     <h2><a href="/song/{{.VariantID}}">{{.Title}}</a> — {{.Artist}}</h2>
-    <p class="hint">{{.Visibility}}{{if .ForkedFromID}} &middot; forked from <a href="/variants/{{deref64 .ForkedFromID}}/history">variant {{deref64 .ForkedFromID}}</a>{{end}}</p>
+    <p class="hint">{{.Visibility}}{{if .ForkedFromID}} &middot; a copy of <a href="/variants/{{deref64 .ForkedFromID}}/history">version {{deref64 .ForkedFromID}}</a>{{end}}</p>
     <div class="variant-actions">
-      <button type="button" class="add-catalog-btn" data-variant-id="{{.VariantID}}">+ my songbook</button>
-      <button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">fork</button>
-      <a href="/variants/{{.VariantID}}/history">revision history</a>
+      <button type="button" class="add-catalog-btn" data-variant-id="{{.VariantID}}">Add to my songbook</button>
+      <button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">Make my own copy</button>
+      <a href="/variants/{{.VariantID}}/history">Revision history</a>
     </div>
 
     <h3>Notes</h3>
@@ -35,9 +35,13 @@
       <li class="hint">No notes yet.</li>
       {{end}}
     </ul>
-    <form class="annotate-form" data-variant-id="{{.VariantID}}">
-      <textarea name="body" rows="2" placeholder="Leave a note on this version..." required></textarea>
-      <button type="submit">Add note</button>
+    <form class="annotate-form form-stack" data-variant-id="{{.VariantID}}">
+      <div class="field">
+        <label for="note-{{.VariantID}}">Your note on this version</label>
+        <textarea id="note-{{.VariantID}}" name="body" rows="2" class="prose" required></textarea>
+      </div>
+      <div class="form-actions"><button type="submit" class="primary">Add note</button></div>
+      <p class="form-status" role="status"></p>
     </form>
   </section>
   {{end}}
@@ -46,22 +50,28 @@
 document.querySelectorAll('.add-catalog-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const variantId = Number(btn.dataset.variantId);
+    Forms.busy(btn, true);
     const res = await fetch('/api/catalog', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({variantId}),
-    });
-    btn.textContent = res.ok ? 'added' : 'failed';
+    }).catch(() => null);
+    Forms.busy(btn, false);
+    // Added stays disabled so it can't be added twice.
+    if (res && res.ok) { btn.textContent = 'Added'; btn.disabled = true; }
+    else btn.textContent = 'Couldn’t add — try again';
   });
 });
 document.querySelectorAll('.fork-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const variantId = Number(btn.dataset.variantId);
-    const res = await fetch(`/api/variants/${variantId}/fork`, {method: 'POST'});
-    const data = await res.json();
-    if (res.ok) {
+    Forms.busy(btn, true);
+    const res = await fetch(`/api/variants/${variantId}/fork`, {method: 'POST'}).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
+    if (res && res.ok) {
       location.href = `/b/${encodeURIComponent(data.book)}/${encodeURIComponent(data.stem)}`;
     } else {
-      btn.textContent = data.error || 'fork failed';
+      Forms.busy(btn, false);
+      btn.textContent = 'Couldn’t copy — try again';
     }
   });
 });
@@ -70,11 +80,14 @@ document.querySelectorAll('.annotate-form').forEach(form => {
     e.preventDefault();
     const variantId = Number(form.dataset.variantId);
     const body = form.elements.body.value;
-    const res = await fetch(`/api/variants/${variantId}/annotations`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({body}),
+    await Forms.run(form, form.querySelector('button[type="submit"]'), async () => {
+      const res = await fetch(`/api/variants/${variantId}/annotations`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({body}),
+      }).catch(() => { throw new Error('Couldn’t reach the server. Check your connection and try again.'); });
+      if (!res.ok) throw new Error('Couldn’t add your note. Try again.');
+      location.reload();
     });
-    if (res.ok) location.reload();
   });
 });
 </script>

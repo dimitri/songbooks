@@ -90,6 +90,33 @@ Status: first round **built** in PR #8, the phone plan of §1 in the
   the song page's button), since a phone on stage and a laptop at home
   often want different ones.
 
+### Sections, home and the calendar (built)
+
+- [x] **Band sections on a phone.** Seven tabs scrolled out of sight at 375px.
+  On a phone the band's overview now lists its sections, each with where it
+  stands (30 songs · 2 to vote on · next rehearsal Wednesday), grouped as
+  playing / deciding / running the band; section pages drop the tab row and
+  their header leads back. Desktop keeps the tabs (one shared partial,
+  `band_nav.html`). Rule for the rest of the app: tabs when they fit without
+  scrolling (community, set list, profile), a list to tap into when they don't.
+- [x] **Settings split from Members.** Name, what the band plays, its look and
+  deleting it moved to `/bands/{id}/settings`; the music-type select left the
+  cramped header.
+- [x] **Rehearsals.** A band's Calendar (was Events) plans a rehearsal: date,
+  times, place, notes and a set list to practise (a new empty one named after
+  the date, or an existing one). The rehearsal page shows that set list with
+  Practice; band events no longer show the community registration blocks.
+- [x] **Set lists can take songs.** The running-order page had no way to add
+  songs; it now has a picker (the band's repertoire, or a library search).
+- [x] **Home answers "what now?"** Next up (the next gig or rehearsal, with
+  Practice), Needs you (hidden when empty), the month's calendar (gigs from set
+  lists, band and community events, rehearsals), Continue (the last songs
+  opened, server-side in `song_visits`, so it follows you between devices),
+  New in your bands, and one row of links to your groups. The full band,
+  community and songbook cards stay on their own tabs.
+- [x] **Time zone.** Times are shown in `TZ` (Europe/Paris by default in the
+  deploy files); they were shown in UTC.
+
 ## 2. Branding (built)
 
 A community or a band has a **look**: colors, a title font and a text

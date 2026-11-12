@@ -38,11 +38,11 @@
        — creating an extra personal songbook (beyond the one default
        every profile already has) belongs right here, not behind its
        own top-level destination. */}}
-  <div class="form-actions" style="margin-top:0.4rem; margin-bottom:1.2rem;">
-    <input type="text" id="new-songbook-name" placeholder="New songbook name">
-    <button type="button" id="create-songbook-btn">+ create songbook</button>
-  </div>
-  <p id="create-songbook-result" class="hint"></p>
+  <form class="form-stack" id="create-songbook-form" style="margin-top:0.4rem; margin-bottom:1.2rem;">
+    <div class="field"><label for="new-songbook-name">New songbook name</label><input type="text" id="new-songbook-name" name="name" placeholder="e.g. Wedding gigs" required autocomplete="off"></div>
+    <div class="form-actions"><button type="submit" id="create-songbook-btn" class="primary">Create songbook</button></div>
+    <p id="create-songbook-result" class="form-status" role="status"></p>
+  </form>
 
   <h2 class="catalog-books-heading">Band repertoires</h2>
   {{if .BandCards}}
@@ -73,16 +73,19 @@
   {{end}}
 </main>
 <script>
-document.getElementById('create-songbook-btn').addEventListener('click', async () => {
-  const name = document.getElementById('new-songbook-name').value.trim();
-  const out = document.getElementById('create-songbook-result');
-  if (!name) { out.textContent = 'enter a name'; return; }
-  const res = await fetch('/api/songbooks', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({name}),
+const createForm = document.getElementById('create-songbook-form');
+createForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  Forms.run(createForm, document.getElementById('create-songbook-btn'), async () => {
+    const name = document.getElementById('new-songbook-name').value.trim();
+    const res = await fetch('/api/songbooks', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name}),
+    }).catch(() => { throw new Error('Couldn’t reach the server. Check your connection and try again.'); });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(res.status < 500 && data.error ? data.error : 'Couldn’t create the songbook. Try again.');
+    location.href = `/songbooks/${data.id}`;
   });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) { location.href = `/songbooks/${data.id}`; } else { out.textContent = data.error || 'failed to create songbook'; }
 });
 </script>
 </div>

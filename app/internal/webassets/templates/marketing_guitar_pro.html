@@ -76,10 +76,13 @@
   @media (max-width: 720px) {
     h1{font-size:32px;} .block h2{font-size:22px;}
     header { flex-wrap:wrap; }
-    .hamburger { display:flex; flex-direction:column; justify-content:center; gap:5px; width:34px; height:34px; cursor:pointer; order:2; }
+    .hamburger { display:flex; flex-direction:column; justify-content:center; gap:5px; width:44px; height:44px; padding:0 6px; box-sizing:border-box; cursor:pointer; order:2; }
     .hamburger span { display:block; height:2px; width:100%; background:var(--fg); border-radius:2px; }
     nav { order:3; flex-basis:100%; display:none; flex-direction:column; align-items:flex-start; gap:16px; padding-top:18px; }
     .nav-toggle:checked ~ nav { display:flex; }
+    /* The checkbox stays in the tab order (visually hidden, not display:none) so the menu opens from a keyboard too. */
+    .nav-toggle { display:block; position:absolute; width:1px; height:1px; margin:0; opacity:0; }
+    .nav-toggle:focus-visible + .hamburger { outline:2px solid var(--accent); outline-offset:2px; border-radius:6px; }
   }
 </style>
 </head>
@@ -100,8 +103,8 @@
       </svg>
       Songbooks
     </div>
-    <input type="checkbox" id="nav-toggle" class="nav-toggle">
-    <label for="nav-toggle" class="hamburger" aria-label="Menu"><span></span><span></span><span></span></label>
+    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Menu">
+    <label for="nav-toggle" class="hamburger" aria-hidden="true"><span></span><span></span><span></span></label>
     <nav>
       <a href="/">Home</a>
       <a href="/editor">The editor</a>

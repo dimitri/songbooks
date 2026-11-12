@@ -34,7 +34,7 @@
   </div>
   {{else}}
   <div class="repertoire-toolbar">
-    <input type="search" id="repertoire-search" placeholder="Search this songbook…" aria-label="Search this songbook">
+    <input type="search" id="repertoire-search" placeholder="Search this songbook…" aria-label="Search this songbook" autocomplete="off" enterkeyhint="search">
     {{if .CanEdit}}<button type="button" id="open-add-song">{{template "icon-plus"}} Add song</button>{{end}}
   </div>
   {{end}}
@@ -55,17 +55,17 @@
           <a href="/variants/{{.VariantID}}/history">History</a>
           {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">Forked from</a>{{end}}
           <p class="hint">{{.Visibility}} &middot; added by {{.AddedByUsername}}</p>
-          {{if $.CanEdit}}<button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}">Remove</button>{{end}}
+          {{if $.CanEdit}}<button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">Remove</button>{{end}}
         </div>
       </details>
     </div>
   {{end}}
   </div>
   <p class="hint repertoire-empty-filtered" id="repertoire-empty-filtered">No songs match that search.</p>
+  <p class="form-status" id="entries-status" role="status"></p>
 
   <dialog id="add-song-dialog">
     <h2>Add a song</h2>
-    <p class="hint">Adding a song from the catalog links to it as it is; forking makes the community's own copy.</p>
     <div class="add-song-tabs">
       <button type="button" class="add-song-tab active" data-panel="write">Write new</button>
       <button type="button" class="add-song-tab" data-panel="catalog">From the catalog</button>
@@ -73,30 +73,30 @@
 
     <div class="add-song-panel" data-panel="write">
       <p class="hint">A blank song, private to the community.</p>
-      <div class="form-stack">
+      <form class="form-stack" id="new-variant-form">
         <div class="field">
           <label for="new-variant-title">Title</label>
-          <input type="text" id="new-variant-title">
+          <input type="text" id="new-variant-title" name="title" required autocomplete="off">
         </div>
         <div class="field">
-          <label for="new-variant-artist">Artist</label>
-          <input type="text" id="new-variant-artist">
+          <label for="new-variant-artist">Artist <span class="field-optional">(optional)</span></label>
+          <input type="text" id="new-variant-artist" name="artist" autocomplete="off">
         </div>
         <div class="form-actions">
-          <button type="button" id="new-variant-btn">+ create</button>
+          <button type="submit" id="new-variant-btn" class="primary">Create song</button>
         </div>
-        <p id="new-variant-result" class="hint"></p>
-      </div>
+        <p id="new-variant-result" class="form-status" role="status"></p>
+      </form>
     </div>
 
     <div class="add-song-panel" data-panel="catalog" hidden>
-      <p class="hint">Add links the song as it is; Fork makes the community's own copy.</p>
-      <div class="field">
-        <label for="catalog-search-input">Search</label>
-        <input type="search" id="catalog-search-input" placeholder="Title or artist…">
-      </div>
-      <div id="catalog-search-results" class="attention-list"></div>
-      <p id="add-result" class="hint"></p>
+      <p class="hint">"Add" links to the song as it is; "Make a copy" gives the community its own copy to edit.</p>
+      <form class="field" id="catalog-search-form" role="search">
+        <label for="catalog-search-input">Title or artist</label>
+        <input type="search" id="catalog-search-input" autocomplete="off" enterkeyhint="search">
+      </form>
+      <div id="catalog-search-results" class="attention-list" aria-live="polite"></div>
+      <p id="add-result" class="form-status" role="status"></p>
     </div>
 
     <div class="form-actions" style="margin-top:1rem;">
@@ -106,22 +106,28 @@
 </main>
 <script>
 const communityId = {{.Community.ID}};
-document.getElementById('new-variant-btn').addEventListener('click', async () => {
-  const title = document.getElementById('new-variant-title').value.trim();
-  const artist = document.getElementById('new-variant-artist').value.trim();
-  if (!title) return;
-  const res = await fetch(`/api/communities/${communityId}/variants`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({title, artist}),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) {
+// A 4xx's own sentence is worth showing; anything else gets the plain
+// fallback rather than a developer string.
+function errText(res, data, fallback) {
+  const msg = res.status < 500 && data && data.error;
+  return msg && !/invalid|json|sql/i.test(msg) ? msg.charAt(0).toUpperCase() + msg.slice(1) : fallback;
+}
+const newVariantForm = document.getElementById('new-variant-form');
+newVariantForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  Forms.run(newVariantForm, document.getElementById('new-variant-btn'), async () => {
+    const title = document.getElementById('new-variant-title').value.trim();
+    const artist = document.getElementById('new-variant-artist').value.trim();
+    const res = await fetch(`/api/communities/${communityId}/variants`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({title, artist}),
+    }).catch(() => { throw new Error('Couldn’t reach the server. Check your connection and try again.'); });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(errText(res, data, 'Couldn’t create the song. Try again.'));
     // Straight into edit mode, not the Play page — a brand-new original
     // has an empty [Verse] placeholder and nothing to play yet.
     location.href = `/song/${data.variantId}?edit=1`;
-  } else {
-    document.getElementById('new-variant-result').textContent = data.error || 'failed to create';
-  }
+  });
 });
 // ---- "From the catalog": search-as-you-type over /api/catalog/search,
 // add points at the variant as-is, fork makes this community's own copy —
@@ -133,18 +139,20 @@ document.getElementById('new-variant-btn').addEventListener('click', async () =>
   if (!input) return;
   let debounceTimer;
 
-  async function doAdd(variantId, fork) {
-    resultMsg.textContent = '';
+  async function doAdd(variantId, fork, btn) {
+    Forms.status(resultMsg, '');
+    Forms.busy(btn, true);
     const url = fork ? `/api/communities/${communityId}/catalog/fork/${variantId}` : `/api/communities/${communityId}/catalog`;
     const opts = fork
       ? {method: 'POST'}
       : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({variantId})};
-    const res = await fetch(url, opts);
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
+    const res = await fetch(url, opts).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
+    if (res && res.ok) {
       location.reload();
     } else {
-      resultMsg.textContent = data.error || (fork ? 'failed to fork' : 'failed to add');
+      Forms.busy(btn, false);
+      Forms.status(resultMsg, res ? errText(res, data, fork ? 'Couldn’t copy that song. Try again.' : 'Couldn’t add that song. Try again.') : 'Couldn’t reach the server. Try again.', 'error');
     }
   }
 
@@ -161,11 +169,17 @@ document.getElementById('new-variant-btn').addEventListener('click', async () =>
     for (const hit of hits) {
       const row = document.createElement('div');
       row.className = 'attention-row';
-      row.innerHTML = `
-        <div>
-          <div class="attention-title">${hit.title}</div>
-          ${hit.artist ? `<div class="attention-subtitle">${hit.artist}</div>` : ''}
-        </div>`;
+      // textContent, not innerHTML: titles are user-written.
+      const text = document.createElement('div');
+      const t = document.createElement('div');
+      t.className = 'attention-title'; t.textContent = hit.title;
+      text.appendChild(t);
+      if (hit.artist) {
+        const a = document.createElement('div');
+        a.className = 'attention-subtitle'; a.textContent = hit.artist;
+        text.appendChild(a);
+      }
+      row.appendChild(text);
       const actions = document.createElement('span');
       actions.style.marginLeft = 'auto';
       actions.style.display = 'flex';
@@ -173,12 +187,15 @@ document.getElementById('new-variant-btn').addEventListener('click', async () =>
       const addBtn = document.createElement('button');
       addBtn.type = 'button';
       addBtn.textContent = 'Add';
-      addBtn.addEventListener('click', () => doAdd(hit.variantId, false));
+      addBtn.className = 'primary';
+      addBtn.setAttribute('aria-label', `Add ${hit.title}`);
+      addBtn.addEventListener('click', () => doAdd(hit.variantId, false, addBtn));
       const forkBtn = document.createElement('button');
       forkBtn.type = 'button';
-      forkBtn.textContent = 'Fork';
-      forkBtn.addEventListener('click', () => doAdd(hit.variantId, true));
-      actions.append(addBtn, forkBtn);
+      forkBtn.textContent = 'Make a copy';
+      forkBtn.setAttribute('aria-label', `Make a copy of ${hit.title}`);
+      forkBtn.addEventListener('click', () => doAdd(hit.variantId, true, forkBtn));
+      actions.append(forkBtn, addBtn);
       row.appendChild(actions);
       results.appendChild(row);
     }
@@ -188,12 +205,27 @@ document.getElementById('new-variant-btn').addEventListener('click', async () =>
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(search, 250);
   });
+  // Enter (the keyboard's Search key) searches straight away.
+  document.getElementById('catalog-search-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    clearTimeout(debounceTimer);
+    search();
+  });
 })();
 document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
+    if (!confirm(`Remove “${btn.dataset.title}” from this songbook? The song itself isn't deleted.`)) return;
     const variantId = btn.dataset.variantId;
-    await fetch(`/api/communities/${communityId}/catalog/${variantId}`, {method: 'DELETE'});
-    btn.closest('.gig-row').remove();
+    const status = document.getElementById('entries-status');
+    Forms.busy(btn, true);
+    const res = await fetch(`/api/communities/${communityId}/catalog/${variantId}`, {method: 'DELETE'}).catch(() => null);
+    if (res && res.ok) {
+      btn.closest('.gig-row').remove();
+      Forms.status(status, `Removed “${btn.dataset.title}”.`, 'ok');
+    } else {
+      Forms.busy(btn, false);
+      Forms.status(status, 'Couldn’t remove that song. Try again.', 'error');
+    }
   });
 });
 

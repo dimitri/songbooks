@@ -501,19 +501,19 @@
          settings link both moved out of the top row; the settings link
          belongs here with everything else that's a "this song" action,
          not a global nav item). */}}
-    <a class="sidebar-song-row" title="metronome &amp; transport settings" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-metro-full"}} Metronome</a>
+    <a class="sidebar-song-row" title="metronome &amp; transport settings" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-metronome"}} Metronome</a>
     {{if .VariantID}}
     <button id="notes-toggle" class="sidebar-song-row" type="button" title="notes: personal or shared, per section">{{template "icon-notes"}} Notes</button>
     {{end}}
     <span class="pdf-mode-row">
       <a class="pdf-export-link sidebar-song-row" href="/song/{{.VariantID}}/export.pdf" title="export PDF (chart)" download>{{template "icon-download"}} Export PDF</a>
-      <select class="pdf-mode-select" title="PDF view mode">
+      <select class="pdf-mode-select" aria-label="PDF layout">
         <option value="">Song</option>
         <option value="jazz">Jazz chart</option>
         <option value="map">Song map</option>
         {{if $.HasLyrics}}<option value="lyrics">Lyrics only</option>{{end}}
       </select>
-      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
+      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> Include notes</label>
     </span>
     {{if .GPFileName}}<a class="sidebar-song-row" href="/song/{{.VariantID}}/gp-file" title="download the original Guitar Pro file ({{.GPFileName}})" download>{{template "icon-download"}} Guitar Pro file</a>{{end}}
     {{if .HasAnyScore}}<a class="sidebar-song-row gp-export-btn" href="#" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="the song as it is now, edits made here included, as a Guitar Pro file">{{template "icon-download"}} Export as Guitar Pro</a>{{end}}
@@ -701,7 +701,7 @@
           <div class="toolbar-menu-body">
             <div id="section-menu-presets" class="toolbar-menu-presets"></div>
             <div class="toolbar-menu-custom">
-              <input type="text" id="section-menu-custom" placeholder="Custom label&hellip;" maxlength="40">
+              <input type="text" id="section-menu-custom" aria-label="Other section name" placeholder="Other name&hellip;" maxlength="40" enterkeyhint="done">
               <button type="button" id="section-menu-custom-add">Add</button>
             </div>
           </div>
@@ -726,7 +726,7 @@
       <div class="code-editor-row">
         <div class="code-editor">
           <pre class="code-backdrop" id="code-backdrop" aria-hidden="true"><code id="code-highlight"></code></pre>
-          <textarea id="raw-text" rows="22" spellcheck="false">{{.Text}}</textarea>
+          <textarea id="raw-text" rows="22" spellcheck="false" autocapitalize="off" aria-label="Song source">{{.Text}}</textarea>
         </div>
         <div class="source-preview-pane">
           {{/* Same instrument picker as the real Play page (view-tabs,
@@ -755,7 +755,8 @@
       <details class="danger-zone">
         <summary>Start this song over</summary>
         <p class="hint">Erases the current lyrics and chords for this song (not the song itself — title, artist and other metadata stay) and drops you back into a blank Source editor to fill in again. Can't be undone.</p>
-        <button id="redo-song-btn" type="button" class="danger">Erase lyrics &amp; chords, start over</button>
+        <button id="redo-song-btn" type="button" class="danger">Erase lyrics and chords</button>
+        <p class="form-status" id="redo-song-status" role="status"></p>
       </details>
     </section>
 
@@ -826,9 +827,9 @@
       <p class="hint">Click a fret cell to mark it, click again to cycle fret &rarr; mute &rarr; open. Drag across a row at the same fret to mark a barre.</p>
       <div class="chord-diagram-editor" id="chord-diagram-editor">
         <div class="cde-controls">
-          <label>Name <input type="text" id="cde-name" placeholder="Cm" maxlength="12"></label>
-          <label>Base fret <input type="number" id="cde-base-fret" value="1" min="1" max="20"></label>
-          <label>Strings <input type="number" id="cde-num-strings" value="6" min="4" max="6"></label>
+          <label>Name <input type="text" id="cde-name" placeholder="e.g. Cm" maxlength="12" autocapitalize="off" spellcheck="false"></label>
+          <label>Base fret <input type="number" id="cde-base-fret" value="1" min="1" max="20" inputmode="numeric"></label>
+          <label>Strings <input type="number" id="cde-num-strings" value="6" min="4" max="6" inputmode="numeric"></label>
         </div>
         <div class="cde-grid" id="cde-grid"></div>
         <div class="cde-preview" id="cde-preview"></div>
@@ -853,7 +854,7 @@
       {{if .GPSource}}
       <p class="hint gpimport-reimport-note"><strong>This song was imported from {{.GPSource}}</strong>. To edit it in Guitar Pro: <a href="#" class="gp-export-btn" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">export it as Guitar Pro</a> (the saved song, with any fixes made here), or <a href="/song/{{.VariantID}}/gp-file" download>download the original file</a> as uploaded; then pick the edited file below. Importing again replaces this song's notation section by section, it doesn't add a copy, and the previous Guitar Pro file stays in the song's <a href="/variants/{{.VariantID}}/history">history</a>.</p>
       {{end}}
-      <p id="gpimport-status" class="hint"></p>
+      <p id="gpimport-status" class="hint" role="status"></p>
 
       {{/* Step 0: search. GProTab.net, not Ultimate Guitar — confirmed
            directly against UG's own robots.txt before this was written:
@@ -869,11 +870,18 @@
       <div class="gpimport-step" id="gpimport-step-search">
         <h3>1. Find a file</h3>
         <p class="hint">Searches <a href="https://gprotab.net" target="_blank" rel="noopener">GProTab.net</a> — a free, anonymous Guitar Pro tab archive. Picking a result downloads that one file and continues below, same as choosing a file by hand.</p>
-        <p>
-          <input type="text" id="gpimport-search-title" placeholder="Song title">
-          <input type="text" id="gpimport-search-artist" placeholder="Artist (optional)">
-          <button type="button" id="gpimport-search-btn" class="primary">Search</button>
-        </p>
+        <form class="form-stack" id="gpimport-search-form">
+          <div class="field">
+            <label for="gpimport-search-title">Song title</label>
+            <input type="text" id="gpimport-search-title" required autocomplete="off" enterkeyhint="search">
+          </div>
+          <div class="field">
+            <label for="gpimport-search-artist">Artist <span class="field-optional">(optional)</span></label>
+            <p class="field-hint" id="gpimport-search-artist-hint">Puts that artist's files first in the results.</p>
+            <input type="text" id="gpimport-search-artist" aria-describedby="gpimport-search-artist-hint" autocomplete="off" enterkeyhint="search">
+          </div>
+          <div class="form-actions"><button type="submit" id="gpimport-search-btn" class="primary">Search GProTab.net</button></div>
+        </form>
         <div id="gpimport-search-results"></div>
         <p class="hint">Already have a file? <button type="button" id="gpimport-search-skip" class="link-btn">Choose a file from your computer instead &rarr;</button></p>
       </div>
@@ -882,8 +890,10 @@
       <div class="gpimport-step" id="gpimport-step-file" hidden>
         <h3>2. Choose file</h3>
         <p id="gpimport-file-source" class="hint" hidden></p>
-        <p><input type="file" id="gpimport-file" accept=".gp,.gp3,.gp4,.gp5,.gpx"></p>
-        <p id="gpimport-track-row" hidden>Track: <select id="gpimport-track"></select></p>
+        <p><label for="gpimport-file">Guitar Pro file</label></p>
+        <p class="field-hint" id="gpimport-file-hint">A .gp, .gp3, .gp4, .gp5 or .gpx file.</p>
+        <p><input type="file" id="gpimport-file" accept=".gp,.gp3,.gp4,.gp5,.gpx" aria-describedby="gpimport-file-hint"></p>
+        <p id="gpimport-track-row" hidden><label for="gpimport-track">Track</label> <select id="gpimport-track"></select></p>
         {{/* Shown only when this song has no sections/chords yet — a GP
              file's own chord diagrams (real, human-authored chord names
              attached to specific beats, not re-derived from the notes)
@@ -948,9 +958,9 @@
           <button type="button" id="gpimport-use-markers" class="primary">Use the file's own section markers</button>
         </p>
         <div class="gpimport-toolbar">
-          <button type="button" id="gpimport-zoom-out">&minus;</button>
+          <button type="button" id="gpimport-zoom-out" aria-label="Zoom out">&minus;</button>
           <span class="gpimport-zoom-label" id="gpimport-zoom-label">100%</span>
-          <button type="button" id="gpimport-zoom-in">+</button>
+          <button type="button" id="gpimport-zoom-in" aria-label="Zoom in">+</button>
           <button type="button" id="gpimport-play">&#9654; Play</button>
           <span class="gpimport-zoom-label" id="gpimport-time-label">0:00 / 0:00</span>
         </div>
@@ -989,7 +999,7 @@
              step (Import into song). */}}
         <div id="gpimport-header"></div>
         <div id="gpimport-preview"></div>
-        <p><label><input type="checkbox" id="gpimport-include-audio" checked> also import the backing track + bar sync</label></p>
+        <p><label class="check"><input type="checkbox" id="gpimport-include-audio" checked> Also import the backing track and its bar sync</label></p>
         <p>
           <button type="button" id="gpimport-step3-back">&larr; Back</button>
           <button type="button" id="gpimport-run" class="primary">Import into song</button>
@@ -1015,26 +1025,31 @@
         <p class="hint">Pulls a chord+lyric chart in from Ultimate Guitar, reviews the draft, then applies it — nothing is written until you confirm.</p>
         <div class="import-row">
           <button type="button" id="import-auto-find-btn" class="primary">{{template "icon-view"}} Find &amp; fetch automatically</button>
-          <span id="import-auto-find-status" class="hint"></span>
+          <span id="import-auto-find-status" class="hint" role="status"></span>
         </div>
         <details class="import-manual-details">
           <summary>Or find it yourself</summary>
           <div class="import-search-links" id="import-search-links"></div>
-          <label class="import-url-label">paste a tab URL directly
-            <input type="url" id="import-url-input" placeholder="https://...">
-          </label>
-          <div class="import-row">
-            <button type="button" id="import-fetch-btn">Fetch</button>
-            <span id="import-fetch-status" class="hint"></span>
-          </div>
+          <form class="form-stack" id="import-url-form">
+            <div class="field">
+              <label for="import-url-input">Tab page address</label>
+              <p class="field-hint" id="import-url-hint">Open the chart on Ultimate Guitar and copy the address from your browser.</p>
+              <input type="url" id="import-url-input" required aria-describedby="import-url-hint" placeholder="e.g. https://tabs.ultimate-guitar.com/tab/…" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
+            </div>
+            <div class="import-row">
+              <button type="submit" id="import-fetch-btn">Fetch chart</button>
+              <span id="import-fetch-status" class="hint" role="status"></span>
+            </div>
+          </form>
         </details>
       </div>
 
       <div class="import-step" data-step="review" hidden>
-        <button type="button" class="import-back" data-back="find">{{template "icon-back"}} back</button>
+        <button type="button" class="import-back" data-back="find">{{template "icon-back"}} Back</button>
         <p class="hint" id="import-review-hint">Review the draft below — nothing is applied yet. You can edit it here before applying.</p>
-        <textarea id="import-review-text" class="import-review-text" rows="14" spellcheck="false"></textarea>
-        <label class="import-strip-chords-label"><input type="checkbox" id="import-strip-chords"> keep chords in the grid only, remove them from the lyrics</label>
+        <label class="import-url-label" for="import-review-text">Draft chart</label>
+        <textarea id="import-review-text" class="import-review-text" rows="14" spellcheck="false" autocapitalize="off" aria-describedby="import-review-hint"></textarea>
+        <label class="import-strip-chords-label"><input type="checkbox" id="import-strip-chords"> Keep chords in the grid only, and take them out of the lyrics</label>
 
         {{/* iReal Pro bar-accurate chord reference — an enrichment of
              the UG draft above, never a replacement: iReal has no
@@ -1081,11 +1096,18 @@
     <section class="prep-panel notes-section" data-section-index="{{.Index}}">
       <h3>{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}</h3>
       <ul class="notes-list" data-section-index="{{.Index}}"></ul>
-      <form class="note-add-form" data-section-index="{{.Index}}">
-        <textarea class="note-body" rows="2" placeholder="e.g. watch the key change here"></textarea>
-        <label><input type="radio" name="visibility-{{.Index}}" value="private" checked> private</label>
-        <label><input type="radio" name="visibility-{{.Index}}" value="shared"> shared</label>
-        <button type="submit">add note</button>
+      <form class="note-add-form form-stack" data-section-index="{{.Index}}">
+        <div class="field">
+          <label for="note-body-{{.Index}}">New note</label>
+          <textarea id="note-body-{{.Index}}" class="note-body prose" rows="2" required placeholder="e.g. watch the key change here"></textarea>
+        </div>
+        <fieldset class="field-group">
+          <legend>Who can see it</legend>
+          <label class="check"><input type="radio" name="visibility-{{.Index}}" value="private" checked> Only me</label>
+          <label class="check"><input type="radio" name="visibility-{{.Index}}" value="shared"> Anyone who can view this song</label>
+        </fieldset>
+        <p class="form-status" role="status"></p>
+        <div class="form-actions"><button type="submit">Add note</button></div>
       </form>
     </section>
     {{end}}
@@ -1147,7 +1169,7 @@
          this song's own tempo/time signature and a link back here.
          Desktop is untouched: the sidebar's own transport panel stays
          in-flow exactly as before. */}}
-    <a id="metronome-stack-btn" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-metro-full"}} Metronome</a>
+    <a id="metronome-stack-btn" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-metronome"}} Metronome</a>
     <button type="button" id="song-stack-btn">{{template "icon-song-actions"}} Song</button>
     <button type="button" id="site-nav-fullpage-btn">{{template "icon-more"}} More</button>
     {{/* Last entry: next song in this same list (setlist step order, or
@@ -1209,13 +1231,13 @@
     <button type="button" class="stack-sheet-row" data-forward="reference">{{template "icon-reference"}} Reference</button>
     <div class="stack-sheet-row pdf-mode-row" style="flex-wrap:wrap;gap:0.6rem 0.9rem;">
       <a class="pdf-export-link" href="/song/{{.VariantID}}/export.pdf" title="export PDF (chart)" download>{{template "icon-download"}} Export PDF</a>
-      <select class="pdf-mode-select" title="PDF view mode">
+      <select class="pdf-mode-select" aria-label="PDF layout">
         <option value="">Song</option>
         <option value="jazz">Jazz chart</option>
         <option value="map">Song map</option>
         {{if $.HasLyrics}}<option value="lyrics">Lyrics only</option>{{end}}
       </select>
-      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
+      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> Include notes</label>
     </div>
     {{if .GPFileName}}<a class="stack-sheet-row" href="/song/{{.VariantID}}/gp-file" title="download the original Guitar Pro file ({{.GPFileName}})" download>{{template "icon-download"}} Guitar Pro file</a>{{end}}
     {{if .HasAnyScore}}<a class="stack-sheet-row gp-export-btn" href="#" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="the song as it is now, edits made here included, as a Guitar Pro file">{{template "icon-download"}} Export as Guitar Pro</a>{{end}}
@@ -1308,7 +1330,7 @@
               <button type="button" class="audio-caret" data-pop="audio-pop-click" aria-expanded="false" title="click sound and volume">{{template "icon-down"}}</button>
             </span>
             <label class="audio-speed" title="speed without changing pitch ([ slower, ] faster)">{{template "icon-speed"}}
-              <select id="audio-speed"></select>
+              <select id="audio-speed" aria-label="Playback speed"></select>
               <span id="audio-speed-bpm" class="audio-speed-bpm"></span>
             </label>
             <button type="button" id="audio-trainer-btn" class="audio-toggle audio-trainer-btn" data-pop="audio-pop-trainer" aria-expanded="false" title="speed trainer: speed up a little every few loops">{{template "icon-trainer"}}<span id="audio-trainer-label">Trainer</span><span class="audio-trainer-meter" id="audio-trainer-meter"></span></button>
@@ -1400,19 +1422,24 @@
       <div class="reference-block" id="reference-block" data-url="{{.Reference}}" data-variant-id="{{.VariantID}}">
         <div class="reference-row">
           <a id="reference-link" class="meta-row" href="{{.Reference}}" target="_blank" rel="noopener"{{if not .Reference}} hidden{{end}}>reference &#8599;</a>
-          <button id="reference-edit-btn" type="button" class="icon-btn" title="{{if .Reference}}change reference{{else}}add a reference video{{end}}">{{template "icon-edit"}}</button>
+          <button id="reference-edit-btn" type="button" class="icon-btn" aria-expanded="false" aria-controls="reference-edit-row" title="{{if .Reference}}Change the reference video{{else}}Add a reference video{{end}}" aria-label="{{if .Reference}}Change the reference video{{else}}Add a reference video{{end}}">{{template "icon-edit"}}</button>
         </div>
-        <div class="reference-edit-row" id="reference-edit-row" hidden>
-          <input type="url" id="reference-url-input" placeholder="https://youtube.com/watch?v=..." value="{{.Reference}}">
-          <button id="reference-save-btn" type="button" class="primary">Save</button>
-        </div>
+        <form class="reference-edit-row form-stack" id="reference-edit-row" hidden>
+          <div class="field">
+            <label for="reference-url-input">YouTube link <span class="field-optional">(optional)</span></label>
+            <p class="field-hint" id="reference-url-hint">So the whole band listens to the same version. Clear it and save to remove the video.</p>
+            <input type="url" id="reference-url-input" aria-describedby="reference-url-hint" placeholder="e.g. https://youtube.com/watch?v=…" value="{{.Reference}}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="done">
+          </div>
+          <p class="form-status" role="status"></p>
+          <div class="form-actions"><button id="reference-save-btn" type="submit" class="primary">Save link</button></div>
+        </form>
         <div class="reference-embed" id="reference-embed"></div>
         {{if .CanEdit}}
         <div class="audio-category-upload" id="audio-youtube-controls">
           <button type="button" id="audio-youtube-download-btn" class="audio-pill-btn">{{template "icon-reference"}} Download audio from this video (MP3)</button>
-          <button type="button" id="audio-youtube-replace-btn" class="audio-pill-btn" hidden>replace audio</button>
-          <button type="button" id="audio-youtube-delete-btn" class="audio-pill-btn danger" hidden>remove audio</button>
-          <span id="audio-youtube-status" class="hint"></span>
+          <button type="button" id="audio-youtube-replace-btn" class="audio-pill-btn" hidden>Download the audio again</button>
+          <button type="button" id="audio-youtube-delete-btn" class="audio-pill-btn danger" hidden>Remove audio</button>
+          <span id="audio-youtube-status" class="hint form-status" role="status"></span>
         </div>
         {{end}}
       </div>
@@ -1425,8 +1452,9 @@
         <input type="file" id="audio-band-file" accept="audio/*" hidden>
         <div class="audio-category-upload" id="audio-band-controls">
           <button type="button" id="audio-band-upload-btn" class="audio-pill-btn">{{template "icon-reference"}} Upload a recording (MP3)</button>
-          <button type="button" id="audio-band-replace-btn" class="audio-pill-btn" hidden>replace</button>
-          <button type="button" id="audio-band-delete-btn" class="audio-pill-btn danger" hidden>remove</button>
+          <button type="button" id="audio-band-replace-btn" class="audio-pill-btn" hidden>Replace recording</button>
+          <button type="button" id="audio-band-delete-btn" class="audio-pill-btn danger" hidden>Remove recording</button>
+          <span id="audio-band-status" class="hint form-status" role="status"></span>
         </div>
         {{else}}
         <span class="hint">No band recording uploaded yet.</span>
@@ -1481,7 +1509,7 @@
           <div class="daw-zoom" role="group" aria-label="zoom">
             <button type="button" class="daw-btn-text" id="daw-zoom-fit" title="fit the whole song to the window (F)">Fit</button>
             <button type="button" class="daw-btn daw-btn-sm" id="daw-zoom-out" title="zoom out (−)" aria-label="zoom out">−</button>
-            <input type="range" id="daw-zoom" min="0" max="1000" step="1" value="500" aria-label="zoom" title="zoom (⌘/Ctrl + scroll or pinch over the tracks)">
+            <input type="range" id="daw-zoom" min="0" max="1000" step="1" value="500" aria-label="Zoom" title="zoom (⌘/Ctrl + scroll or pinch over the tracks)">
             <button type="button" class="daw-btn daw-btn-sm" id="daw-zoom-in" title="zoom in (+)" aria-label="zoom in">+</button>
             <button type="button" class="daw-btn-text" id="daw-zoom-bars" title="zoom to two bars at the playhead (B)">2 bars</button>
             <span class="daw-zoom-label" id="daw-zoom-label" aria-live="polite"></span>
@@ -1593,19 +1621,23 @@
       e.preventDefault();
       if (!variantId) return;
       const sectionIndex = form.dataset.sectionIndex;
-      const bodyText = form.querySelector('.note-body').value.trim();
-      if (!bodyText) return;
+      const box = form.querySelector('.note-body');
+      const bodyText = box.value.trim();
+      // Only spaces passes `required`; treat it the same as empty.
+      if (!bodyText) { Forms.fieldError(box, 'Write the note first.'); box.focus(); return; }
       const visibility = form.querySelector('input[type=radio]:checked').value;
-      const res = await fetch(`/api/variants/${variantId}/sections/${sectionIndex}/annotations`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({body: bodyText, visibility}),
-      });
-      if (res.ok) {
-        form.querySelector('.note-body').value = '';
+      await Forms.run(form, form.querySelector('button[type=submit]'), async () => {
+        const res = await fetch(`/api/variants/${variantId}/sections/${sectionIndex}/annotations`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({body: bodyText, visibility}),
+        });
+        // The API's error strings are developer-facing ("missing body").
+        if (res.status === 401) throw new Error('Sign in again to add notes.');
+        if (!res.ok) throw new Error("Couldn't save that note. Your text is still here; try again.");
+        box.value = '';
+        Forms.status(form, 'Note added.', 'ok');
         loadNotes();
-      } else {
-        alert((await res.json().catch(() => ({}))).error || "couldn't save that note");
-      }
+      });
     });
   });
 })();

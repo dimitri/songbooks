@@ -19,35 +19,29 @@
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/bands/{{.Band.ID}}">Overview</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/setlists">Setlists</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/proposals">Proposals</a>
-    <a href="/bands/{{.Band.ID}}/listening-party" class="band-tab active">Discover</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/events">Events</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/members">Members</a>
-  </nav>
+  {{template "band-tabs" (bandTabs .Band.ID "discover")}}
 
-  <p class="hint">Throw in songs you'd like the band to check out, then vote right here — this is just a focused view over the band's normal proposal/vote mechanism (see <a href="/bands/{{.Band.ID}}/proposals">all proposals</a>), filtered to open "new song" proposals so a session doesn't get lost in the full list. A single veto rejects a song immediately; otherwise it auto-accepts into the repertoire once more than half of the band's {{.MemberCount}} current members vote yes.</p>
+  <p class="hint">Throw in songs you'd like the band to check out, then vote right here — these are the band's open song proposals on their own (see <a href="/bands/{{.Band.ID}}/proposals">all proposals</a>), so a session doesn't get lost in the full list. A single veto rejects a song immediately; otherwise it auto-accepts into the repertoire once more than half of the band's {{.MemberCount}} current members vote yes.</p>
 
   <div class="card" style="max-width:520px">
     <h2>Throw in a song</h2>
-    <p class="hint">Pick a variant id from the <a href="/catalog">catalog</a> or the band's own <a href="/bands/{{.Band.ID}}/catalog">repertoire</a> page.</p>
-    <div class="form-stack">
+    <form class="form-stack" id="submit-form">
       <div class="field">
-        <label for="variant-id-input">Variant id</label>
-        <input type="number" id="variant-id-input">
+        <label for="song-input">Song</label>
+        <p class="field-hint" id="song-input-hint">Type a title or an artist, then pick the song from the list.</p>
+        <input type="search" id="song-input" aria-describedby="song-input-hint" autocomplete="off" enterkeyhint="search">
+        <input type="hidden" id="variant-id-input">
+        <div id="song-results" class="attention-list song-pick-results" aria-live="polite"></div>
       </div>
       <div class="field">
-        <label for="note-input">Note (optional)</label>
-        <input type="text" id="note-input">
+        <label for="note-input">Note <span class="field-optional">(optional)</span></label>
+        <input type="text" id="note-input" placeholder="e.g. great for the second set" autocomplete="off">
       </div>
       <div class="form-actions">
-        <button type="button" id="submit-btn">Add to the queue</button>
+        <button type="submit" id="submit-btn" class="primary">Add to the queue</button>
       </div>
-      <p id="submit-result" class="hint"></p>
-    </div>
+      <p id="submit-result" class="form-status" role="status"></p>
+    </form>
   </div>
 
   <div class="table-scroll"><table class="card" style="width:100%">
@@ -55,12 +49,13 @@
     <tbody>
     {{range .Proposals}}
       <tr data-proposal-id="{{.ID}}">
-        <td><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}variant {{deref64 .TargetVariantID}}{{end}}</a></td>
+        <td><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}Song {{deref64 .TargetVariantID}}{{end}}</a></td>
         <td>{{.ProposerUsername}}</td>
         <td class="vote-tally">{{.YesVotes}} yes / {{.VetoVotes}} veto</td>
         <td>
-          <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="yes">yes</button>
-          <button type="button" class="vote-btn danger" data-proposal-id="{{.ID}}" data-vote="veto">veto</button>
+          <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="yes">Vote yes</button>
+          <button type="button" class="vote-btn danger" data-proposal-id="{{.ID}}" data-vote="veto" data-title="{{.TargetTitle}}">Veto</button>
+          <p class="form-status" role="status"></p>
         </td>
       </tr>
     {{else}}
@@ -71,30 +66,95 @@
 </main>
 <script>
 const bandId = {{.Band.ID}};
-document.getElementById('submit-btn').addEventListener('click', async () => {
+
+// Song picker: search the catalog as you type and pick a result (same
+// as the Proposals tab's). The picked song's id goes in the hidden
+// field; typing again clears it.
+function songPicker(input, hidden, list) {
+  let timer;
+  async function search() {
+    const q = input.value.trim();
+    list.replaceChildren();
+    if (!q) return;
+    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`).catch(() => null);
+    const hits = res && res.ok ? await res.json().catch(() => []) : [];
+    if (!hits.length) {
+      const p = document.createElement('p');
+      p.className = 'attention-empty';
+      p.textContent = res && res.ok ? 'No songs match that.' : 'Couldn’t search the catalog. Try again.';
+      list.append(p);
+      return;
+    }
+    for (const hit of hits) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'attention-row';
+      const t = document.createElement('span');
+      t.className = 'attention-title';
+      t.textContent = hit.title;
+      b.append(t);
+      if (hit.artist) {
+        const a = document.createElement('span');
+        a.className = 'attention-subtitle';
+        a.textContent = hit.artist;
+        b.append(a);
+      }
+      b.addEventListener('click', () => {
+        hidden.value = hit.variantId;
+        input.value = hit.artist ? `${hit.title} — ${hit.artist}` : hit.title;
+        list.replaceChildren();
+        Forms.fieldError(input, '');
+        input.focus();
+      });
+      list.append(b);
+    }
+  }
+  input.addEventListener('input', () => {
+    hidden.value = '';
+    clearTimeout(timer);
+    timer = setTimeout(search, 250);
+  });
+  // Enter searches until a song is picked, then submits the form.
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !hidden.value) { e.preventDefault(); clearTimeout(timer); search(); }
+  });
+}
+songPicker(document.getElementById('song-input'), document.getElementById('variant-id-input'), document.getElementById('song-results'));
+
+document.getElementById('submit-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const songInput = document.getElementById('song-input');
   const targetVariantId = Number(document.getElementById('variant-id-input').value);
   const note = document.getElementById('note-input').value.trim();
-  const out = document.getElementById('submit-result');
-  if (!targetVariantId) { out.textContent = 'variant id is required'; return; }
-  const res = await fetch(`/api/bands/${bandId}/proposals`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({kind: 'new_song', targetVariantId, payload: {note}}),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) {
-    location.reload();
-  } else {
-    out.textContent = data.error || 'failed to submit';
+  if (!targetVariantId) {
+    Forms.fieldError(songInput, songInput.value.trim() ? 'Pick the song from the list under the field.' : 'Enter a song title or artist, then pick the song.');
+    songInput.focus();
+    return;
   }
+  Forms.run(form, document.getElementById('submit-btn'), async () => {
+    const res = await fetch(`/api/bands/${bandId}/proposals`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({kind: 'new_song', targetVariantId, payload: {note}}),
+    });
+    if (!res.ok) throw new Error("Couldn't add it to the queue. Try again.");
+    location.reload();
+  });
 });
 document.querySelectorAll('.vote-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
+    if (btn.dataset.vote === 'veto' && !confirm(`Veto ${btn.dataset.title ? `“${btn.dataset.title}”` : 'this song'}? One veto turns it down straight away.`)) return;
+    const st = btn.parentElement.querySelector('.form-status');
+    Forms.status(st, '');
+    Forms.busy(btn, true);
     const res = await fetch(`/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/votes`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({vote: btn.dataset.vote}),
-    });
-    if (res.ok) location.reload();
-    else { const data = await res.json().catch(() => ({})); alert(data.error || 'vote failed'); }
+    }).catch(() => null);
+    if (res && res.ok) { location.reload(); return; }
+    Forms.busy(btn, false);
+    // 409: someone else's vote or decision got there first.
+    Forms.status(st, res && res.status === 409 ? 'This one has already been decided. Reload to see how.' : "Couldn't record your vote. Try again.", 'error');
   });
 });
 </script>

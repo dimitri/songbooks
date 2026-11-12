@@ -28,19 +28,21 @@
 
   <div class="card">
     <h2>Community name</h2>
-    <div class="form-stack">
-      <div class="field"><label for="rename-input">Name</label><input type="text" id="rename-input" value="{{.Community.Name}}"></div>
-      <div class="form-actions"><button type="button" id="rename-btn">Save</button></div>
-      <p id="rename-result" class="hint"></p>
-    </div>
+    <form class="form-stack" id="rename-form">
+      <div class="field"><label for="rename-input">Name</label><input type="text" id="rename-input" name="name" value="{{.Community.Name}}" required autocomplete="off"></div>
+      <div class="form-actions"><button type="submit" class="primary">Save name</button></div>
+      <p id="rename-result" class="form-status" role="status"></p>
+    </form>
+    {{/* Saves on change, like the other selects on this page. */}}
     <div class="form-stack" style="margin-top:0.8rem">
       <div class="field">
-        <label for="default-join-role-select">When someone joins by registering for an event, their role is</label>
-        <select id="default-join-role-select">
+        <label for="default-join-role-select">Role for people who join through an event</label>
+        <p class="field-hint" id="default-join-role-hint">Someone who registers for one of your events without being a member joins with this role.</p>
+        <select id="default-join-role-select" aria-describedby="default-join-role-hint">
           {{range .Roles}}<option value="{{.Name}}" {{if eq $.Community.DefaultJoinRole .Name}}selected{{end}}>{{.Name}}</option>{{end}}
         </select>
       </div>
-      <p id="default-join-role-result" class="hint"></p>
+      <p id="default-join-role-result" class="form-status" role="status"></p>
     </div>
   </div>
 
@@ -53,31 +55,32 @@
        page's instant-save pattern. */}}
   <div class="card">
     <h2>Roles</h2>
-    <p class="hint">A role is a name plus a set of privileges. The 3 built-in roles always exist; create more for anything in between.</p>
+    <p class="hint">A role is a name plus what it lets people do. The 3 built-in roles always exist; create more for anything in between. Changes here save straight away.</p>
     <div class="table-scroll"><table class="table-stack" style="width:100%" id="roles-table">
-      <thead><tr><th>Role</th>{{range $.AllPrivileges}}<th>{{.}}</th>{{end}}<th></th></tr></thead>
+      <thead><tr><th>Role</th>{{range $.AllPrivileges}}<th>{{template "community-priv-label" .}}</th>{{end}}<th></th></tr></thead>
       <tbody>
       {{range .Roles}}
         {{$role := .}}
         <tr data-role-id="{{.ID}}">
           <td data-label="Role">
             {{if .IsBuiltin}}{{.Name}}
-            {{else}}<input type="text" class="role-name-input" value="{{.Name}}" data-role-id="{{.ID}}">
+            {{else}}<input type="text" class="role-name-input" value="{{.Name}}" data-role-id="{{.ID}}" aria-label="Role name" autocomplete="off">
             {{end}}
           </td>
           {{range $.AllPrivileges}}
-          <td data-label="{{.}}"><input type="checkbox" class="role-priv-checkbox" data-role-id="{{$role.ID}}" data-privilege="{{.}}" {{if $role.HasPrivilege .}}checked{{end}}></td>
+          <td data-label="{{template "community-priv-label" .}}"><input type="checkbox" class="role-priv-checkbox" data-role-id="{{$role.ID}}" data-privilege="{{.}}" aria-label="{{$role.Name}}: {{template "community-priv-label" .}}" {{if $role.HasPrivilege .}}checked{{end}}></td>
           {{end}}
-          <td>{{if not .IsBuiltin}}<button type="button" class="delete-role-btn danger" data-role-id="{{.ID}}">delete</button>{{end}}</td>
+          <td>{{if not .IsBuiltin}}<button type="button" class="delete-role-btn danger" data-role-id="{{.ID}}" data-role-name="{{.Name}}">Delete</button>{{end}}</td>
         </tr>
       {{end}}
       </tbody>
     </table></div>
-    <div class="form-stack" style="margin-top:0.8rem">
-      <div class="field"><label for="new-role-name">New role name</label><input type="text" id="new-role-name" placeholder="e.g. Events coordinator"></div>
-      <div class="form-actions"><button type="button" id="create-role-btn">+ create role</button></div>
-      <p id="create-role-result" class="hint"></p>
-    </div>
+    <p id="roles-status" class="form-status" role="status"></p>
+    <form class="form-stack" id="create-role-form" style="margin-top:0.8rem">
+      <div class="field"><label for="new-role-name">New role name</label><input type="text" id="new-role-name" name="name" placeholder="e.g. Events coordinator" required autocomplete="off"></div>
+      <div class="form-actions"><button type="submit" id="create-role-btn" class="primary">Create role</button></div>
+      <p id="create-role-result" class="form-status" role="status"></p>
+    </form>
   </div>
 
   {{/* Events: community-hosted jam/scène ouverte, meetup, listening
@@ -89,10 +92,10 @@
        staff," the user's own explicit spec). */}}
   <div class="card">
     <h2>Events <a href="/communities/{{.Community.ID}}/events" class="hint">(public page)</a></h2>
-    <div class="form-stack">
-      <div class="field"><label for="ev-name">Name</label><input type="text" id="ev-name"></div>
+    <form class="form-stack" id="create-event-form">
+      <div class="field"><label for="ev-name">Event name</label><input type="text" id="ev-name" name="name" required autocomplete="off"></div>
       <div class="field"><label for="ev-type">Type</label>
-        <select id="ev-type">
+        <select id="ev-type" name="eventType">
           <option value="jam" selected>Jam</option>
           <option value="meetup">Meetup</option>
           <option value="listening_party">Listening party</option>
@@ -102,37 +105,45 @@
       </div>
       <div class="field" id="ev-audience-field">
         <label for="ev-audience">Open to</label>
-        <select id="ev-audience">
+        <select id="ev-audience" name="audienceScope">
           <option value="members" selected>Musicians (members)</option>
           <option value="bands">Bands only (scène ouverte)</option>
           <option value="both">Both</option>
         </select>
       </div>
-      <div class="field"><label for="ev-starts">Date &amp; time</label><input type="datetime-local" id="ev-starts"></div>
-      <div class="field"><label for="ev-location">Place</label><input type="text" id="ev-location"></div>
-      <div class="field"><label for="ev-description">Description <span class="hint">(optional)</span></label><textarea id="ev-description" rows="2"></textarea></div>
-      <button type="button" id="create-event-btn" class="primary">Create</button>
-      <p id="create-event-result" class="hint"></p>
-    </div>
+      {{/* The browser's own local time, sent as UTC (toISOString) — the
+           hint names the time zone so nobody types a time for the wrong
+           one. */}}
+      <div class="field">
+        <label for="ev-starts">Date and time</label>
+        <p class="field-hint" id="ev-starts-hint">In your time zone<span id="ev-starts-tz"></span>.</p>
+        <input type="datetime-local" id="ev-starts" name="startsAt" required aria-describedby="ev-starts-hint">
+      </div>
+      <div class="field"><label for="ev-location">Venue <span class="field-optional">(optional)</span></label><input type="text" id="ev-location" name="location" placeholder="e.g. The Blue Note, back room" autocomplete="off"></div>
+      <div class="field"><label for="ev-description">Description <span class="field-optional">(optional)</span></label><textarea id="ev-description" name="description" rows="2" class="prose"></textarea></div>
+      <div class="form-actions"><button type="submit" id="create-event-btn" class="primary">Create event</button></div>
+      <p id="create-event-result" class="form-status" role="status"></p>
+    </form>
 
     <div class="form-stack" style="margin-top:1rem">
     {{range .Events}}
       <div class="import-row" data-event-id="{{.ID}}">
         <div>
           <a href="/events/{{.ID}}"><strong>{{.Name}}</strong></a>
-          <div class="hint">{{.StartsAt.Format "Mon, Jan 2 2006 · 15:04"}}{{if .Location}} — {{.Location}}{{end}} — {{.EventType}}</div>
-          <div class="hint">managers:
+          <div class="hint">{{.StartsAt.Format "Mon, Jan 2 2006 · 15:04"}}{{if .Location}} — {{.Location}}{{end}} — {{template "community-event-type-label" .EventType}}</div>
+          <div class="hint">Managers:
           {{range index $.EventManagers .ID}}{{.DisplayName}} {{else}}<em>none assigned</em>{{end}}
           </div>
         </div>
-        <select class="assign-manager-select" data-event-id="{{.ID}}">
-          <option value="">assign a manager…</option>
+        <select class="assign-manager-select" data-event-id="{{.ID}}" aria-label="Assign a manager to {{.Name}}">
+          <option value="">Assign a manager…</option>
           {{range $.Members}}{{if .IsCurrent}}<option value="{{.PersonID}}">{{.DisplayName}}</option>{{end}}{{end}}
         </select>
       </div>
     {{else}}
       <div class="attention-empty">No events yet — create one above.</div>
     {{end}}
+    <p id="events-status" class="form-status" role="status"></p>
     </div>
   </div>
 
@@ -143,13 +154,13 @@
     {{range .PendingSubmissions}}
       <tr data-submission-id="{{.ID}}">
         <td data-label="Submitted by">{{.StudentUsername}}</td>
-        <td data-label="Kind">{{.Kind}}</td>
+        <td data-label="Kind">{{if eq .Kind "new_song"}}New song{{else if eq .Kind "edit"}}Edit{{else}}{{.Kind}}{{end}}</td>
         <td data-label="Submitted">{{.SubmittedTitle}}</td>
         <td data-label="Source">{{if .SourceVariantID}}{{.SourceTitle}} (#{{deref64 .SourceVariantID}}){{end}}</td>
         <td data-label="Note">{{.Note}}</td>
         <td>
-          <button type="button" class="accept-btn primary" data-id="{{.ID}}">accept</button>
-          <button type="button" class="reject-btn danger" data-id="{{.ID}}">reject</button>
+          <button type="button" class="reject-btn danger" data-id="{{.ID}}" data-title="{{.SubmittedTitle}}" data-who="{{.StudentUsername}}">Reject</button>
+          <button type="button" class="accept-btn primary" data-id="{{.ID}}">Accept</button>
         </td>
       </tr>
     {{else}}
@@ -157,6 +168,7 @@
     {{end}}
     </tbody>
   </table></div>
+  <p id="submissions-status" class="form-status" role="status"></p>
 
   <h2>All submissions</h2>
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
@@ -165,7 +177,7 @@
     {{range .AllSubmissions}}
       <tr>
         <td data-label="Submitted by">{{.StudentUsername}}</td>
-        <td data-label="Kind">{{.Kind}}</td>
+        <td data-label="Kind">{{if eq .Kind "new_song"}}New song{{else if eq .Kind "edit"}}Edit{{else}}{{.Kind}}{{end}}</td>
         <td data-label="Submitted">{{.SubmittedTitle}}</td>
         <td data-label="Status">{{.Status}}</td>
         <td data-label="Decided by">{{.DecidedByUsername}}</td>
@@ -177,7 +189,7 @@
   </table></div>
 
   {{if .ShellPeople}}
-  <h2>Pending (not yet joined)</h2>
+  <h2>Invited, not joined yet</h2>
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>Name</th><th>Role</th><th>Invited by</th><th>Added</th><th></th></tr></thead>
     <tbody>
@@ -191,8 +203,8 @@
           {{if .OpenInviteToken}}
           <span class="invite-link-row">
             <code class="invite-link-url" data-url="/invite/{{.OpenInviteToken}}">/invite/{{.OpenInviteToken}}</code>
-            <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}">copy</button>
-            <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}">QR</button>
+            <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}">Copy link</button>
+            <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}">QR code</button>
           </span>
           {{else}}
           <button type="button" class="create-shell-invite-btn" data-person-id="{{.PersonID}}">Get invite link</button>
@@ -204,7 +216,8 @@
   </table></div>
   {{end}}
 
-  <label><input type="checkbox" id="show-past-toggle"> Show past members</label>
+  <h2>Members</h2>
+  <label class="check"><input type="checkbox" id="show-past-toggle"> Show past members</label>
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Joined</th><th>Left</th><th></th></tr></thead>
     <tbody id="members-body">
@@ -215,119 +228,127 @@
         <td data-label="Role">
           {{if .IsCurrent}}
           {{$memberRole := .Role}}
-          <select class="role-select" data-person-id="{{.PersonID}}">
+          <select class="role-select" data-person-id="{{.PersonID}}" aria-label="Role for {{.DisplayName}}">
             {{range $.Roles}}<option value="{{.Name}}" {{if eq $memberRole .Name}}selected{{end}}>{{.Name}}</option>{{end}}
           </select>
           {{else}}{{.Role}}{{end}}
         </td>
         <td data-label="Joined">{{.JoinedAt.Format "2006-01-02"}}</td>
         <td data-label="Left">{{if .LeftAt}}{{.LeftAt.Format "2006-01-02"}}{{end}}</td>
-        <td>{{if .IsCurrent}}<button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}">remove</button>{{end}}</td>
+        <td>{{if .IsCurrent}}<button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">Remove</button>{{end}}</td>
       </tr>
     {{end}}
     </tbody>
   </table></div>
+  <p id="members-status" class="form-status" role="status"></p>
 
   <div class="card">
     <h2>Add people to this community</h2>
 
     <div class="form-subsection">
       <h3>Quick add (personal invite)</h3>
-      <p class="hint">Type a name, get a personal invite link immediately — they're on the roster right away, the link just finishes their account. For someone not yet in the system at all.</p>
-      <div class="form-stack">
+      <p class="hint">For someone who has no account yet: they're on the roster straight away, and the personal link you get lets them finish their account.</p>
+      <form class="form-stack" id="quick-add-form">
         <div class="field">
           <label for="quick-add-name">Name</label>
-          <input type="text" id="quick-add-name" placeholder="e.g. Alex">
+          <input type="text" id="quick-add-name" name="displayName" placeholder="e.g. Alex" required autocomplete="off" autocapitalize="words">
         </div>
         <div class="field">
           <label for="quick-add-role">Role</label>
-          <select id="quick-add-role">
+          <select id="quick-add-role" name="role">
             {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{.Name}}</option>{{end}}
           </select>
         </div>
         <div class="form-actions">
-          <button type="button" id="quick-add-btn">Add &amp; get invite link</button>
+          <button type="submit" id="quick-add-btn" class="primary">Add and get invite link</button>
         </div>
-        <p id="quick-add-result" class="hint"></p>
-      </div>
+        <p id="quick-add-result" class="form-status" role="status"></p>
+      </form>
     </div>
 
     <div class="form-subsection">
       <h3>Add an existing account</h3>
-      <div class="form-stack">
+      <form class="form-stack" id="add-member-form">
         <div class="field">
           <label for="add-username">Username</label>
-          <input type="text" id="add-username" placeholder="existing account">
+          <p class="field-hint" id="add-username-hint">The username they log in with.</p>
+          <input type="text" id="add-username" name="username" placeholder="e.g. marcguitar" required aria-describedby="add-username-hint" autocomplete="off" autocapitalize="none" spellcheck="false">
         </div>
         <div class="field">
           <label for="add-role">Role</label>
-          <select id="add-role">
+          <select id="add-role" name="role">
             {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{.Name}}</option>{{end}}
           </select>
         </div>
         <div class="form-actions">
-          <button type="button" id="add-member-btn">Add to community</button>
+          <button type="submit" id="add-member-btn" class="primary">Add to community</button>
         </div>
-        <p id="add-member-result" class="hint"></p>
-      </div>
+        <p id="add-member-result" class="form-status" role="status"></p>
+      </form>
     </div>
 
     <div class="form-subsection">
       <h3>Group invite link</h3>
-      <p class="hint">Type the names you expect, then get ONE link to share — on WhatsApp, say. Each person who opens it picks their own name (or "someone else"), then creates an account or logs in, joining at the role picked below; reassign afterwards via the members table above if needed.</p>
-      <div class="form-stack" id="group-invite-rows">
-        <div class="group-invite-row">
-          <div class="field">
-            <label>Name</label>
-            <input type="text" class="group-invite-name" placeholder="e.g. Alex">
+      <p class="hint">Type the names you expect, then get one link to share — on WhatsApp, say. Each person who opens it picks their name, then creates an account or logs in, and joins with the role below. You can change anyone's role afterwards in the members table.</p>
+      <form class="form-stack" id="group-invite-form">
+        <div id="group-invite-rows" class="form-stack">
+          <div class="group-invite-row">
+            <div class="field">
+              <label for="group-invite-name-1">Name</label>
+              <input type="text" class="group-invite-name" id="group-invite-name-1" placeholder="e.g. Alex" required autocomplete="off" autocapitalize="words">
+            </div>
           </div>
         </div>
-      </div>
-      <div class="field">
-        <label for="group-invite-role">Role</label>
-        <select id="group-invite-role">
-          {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{.Name}}</option>{{end}}
-        </select>
-      </div>
-      <div class="form-actions" style="margin-top:0.7rem">
-        <button type="button" id="group-invite-add-row-btn">+ add another name</button>
-        <button type="button" id="create-group-invite-btn">Create group invite link</button>
-        <button type="button" id="close-group-invite-btn" hidden>Close this invite link</button>
-      </div>
-      <p id="group-invite-result" class="hint"></p>
+        <div class="field">
+          <label for="group-invite-role">Role</label>
+          <select id="group-invite-role" name="role">
+            {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{.Name}}</option>{{end}}
+          </select>
+        </div>
+        <div class="form-actions" style="flex-wrap:wrap">
+          <button type="button" id="group-invite-add-row-btn">{{template "icon-plus"}} Add another name</button>
+          <button type="submit" id="create-group-invite-btn" class="primary">Create group invite link</button>
+        </div>
+        <p id="group-invite-result" class="form-status" role="status"></p>
+        <div class="form-actions"><button type="button" id="close-group-invite-btn" class="danger" hidden>Close this link</button></div>
+      </form>
     </div>
 
     <div class="form-subsection">
-      <h3>Community link / QR code</h3>
-      <p class="hint">One open link (and QR code), no names needed — anyone who follows it creates an account (or logs into one they already have) and joins immediately, holding whichever role you pick here. Mint a separate link per role rather than share one and promote people after, so you never hand out a more-privileged link by mistake. A "guest" link is the read-only role meant for an open/anonymous-feeling signup, e.g. a jam event's door QR code.</p>
-      <div class="form-actions">
-        {{range .Roles}}<button type="button" class="community-link-btn" data-role="{{.Name}}">Get a "{{.Name}}" link</button>{{end}}
+      <h3>Community link or QR code</h3>
+      <p class="hint">One open link, no names needed: anyone who follows it creates an account (or logs in) and joins straight away with the role on the link. Make one link per role rather than promoting people afterwards, so you never hand out a more powerful link by mistake. A "guest" link only lets people read — handy for a QR code on the door at a jam.</p>
+      <div class="form-actions" style="flex-wrap:wrap">
+        {{range .Roles}}<button type="button" class="community-link-btn" data-role="{{.Name}}">Get {{.Name}} link</button>{{end}}
       </div>
-      <p id="community-link-result" class="hint"></p>
+      <p id="community-link-result" class="form-status" role="status"></p>
     </div>
   </div>
 
   <h2>Default songbook</h2>
   <div class="card">
     <h3>Write a new original song</h3>
-    <div class="form-stack">
-      <div class="field"><label for="new-variant-title">Title</label><input type="text" id="new-variant-title"></div>
-      <div class="field"><label for="new-variant-artist">Artist</label><input type="text" id="new-variant-artist"></div>
-      <div class="form-actions"><button type="button" id="new-variant-btn">+ create</button></div>
-      <p id="new-variant-result" class="hint"></p>
-    </div>
+    <form class="form-stack" id="new-variant-form">
+      <div class="field"><label for="new-variant-title">Title</label><input type="text" id="new-variant-title" name="title" required autocomplete="off"></div>
+      <div class="field"><label for="new-variant-artist">Artist <span class="field-optional">(optional)</span></label><input type="text" id="new-variant-artist" name="artist" autocomplete="off"></div>
+      <div class="form-actions"><button type="submit" id="new-variant-btn" class="primary">Create song</button></div>
+      <p id="new-variant-result" class="form-status" role="status"></p>
+    </form>
   </div>
 
   <div class="card">
     <h3>Add a song by its number</h3>
-    <div class="form-stack">
-      <div class="field"><label for="variant-id-input">Song number <span class="hint">(the 123 in /song/123)</span></label><input type="number" id="variant-id-input"></div>
-      <div class="form-actions">
-        <button type="button" id="add-existing-btn">+ add to songbook</button>
-        <button type="button" id="fork-into-community-btn">fork into this community</button>
+    <form class="form-stack" id="add-existing-form">
+      <div class="field">
+        <label for="variant-id-input">Song number</label>
+        <p class="field-hint" id="variant-id-hint">The number at the end of the song's address — the 123 in /song/123. "Add" links to the song as it is; a community copy can be edited without changing the original.</p>
+        <input type="number" id="variant-id-input" name="variantId" inputmode="numeric" min="1" step="1" required aria-describedby="variant-id-hint" enterkeyhint="done">
       </div>
-      <p id="add-result" class="hint"></p>
-    </div>
+      <div class="form-actions" style="flex-wrap:wrap">
+        <button type="button" id="fork-into-community-btn">Make a community copy</button>
+        <button type="submit" id="add-existing-btn" class="primary">Add to songbook</button>
+      </div>
+      <p id="add-result" class="form-status" role="status"></p>
+    </form>
   </div>
 
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
@@ -339,19 +360,55 @@
         <td data-label="Artist">{{.Artist}}</td>
         <td data-label="Added by">{{.AddedByUsername}}</td>
         <td>
-          <a href="/variants/{{.VariantID}}/history">history</a>
-          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}">remove</button>
+          <a href="/variants/{{.VariantID}}/history">History</a>
+          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">Remove</button>
         </td>
       </tr>
     {{else}}
-      <tr><td colspan="5" class="hint">No songs yet.</td></tr>
+      <tr><td colspan="4" class="hint">No songs yet.</td></tr>
     {{end}}
     </tbody>
   </table></div>
+  <p id="entries-status" class="form-status" role="status"></p>
   {{template "brand-editor" (printf "/api/communities/%d/brand" .Community.ID)}}
 </main>
 <script>
+// Scoped: the brand-editor partial shares this page's global scope.
+(function () {
 const communityId = {{.Community.ID}};
+const $ = (id) => document.getElementById(id);
+
+// A 4xx's own sentence ("name is required") is worth showing; a 500's
+// text or a parse error isn't, so those get the plain fallback.
+function errText(res, data, fallback) {
+  const msg = res && res.status < 500 && data && data.error;
+  if (!msg || /invalid|json|sql|constraint/i.test(msg)) return fallback;
+  return msg.charAt(0).toUpperCase() + msg.slice(1).replace(/([^.!?])$/, '$1.');
+}
+// POST/DELETE as JSON; throws an Error carrying a readable message, so
+// it drops straight into Forms.run's .form-status.
+async function api(url, body, fallback, method = 'POST') {
+  const opts = {method};
+  if (body !== undefined) { opts.headers = {'Content-Type': 'application/json'}; opts.body = JSON.stringify(body); }
+  let res;
+  try { res = await fetch(url, opts); } catch { throw new Error(fallback); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(errText(res, data, fallback));
+  return data;
+}
+function onSubmit(form, fn) {
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    Forms.run(form, form.querySelector('button[type="submit"]'), () => fn(form));
+  });
+}
+// For the save-on-change controls (table rows, selects): one status line.
+async function saveInline(statusEl, fn, okMsg) {
+  Forms.status(statusEl, 'Saving…', '');
+  try { await fn(); Forms.status(statusEl, okMsg || 'Saved.', 'ok'); return true; }
+  catch (e) { Forms.status(statusEl, e.message, 'error'); return false; }
+}
+
 // ---- Roles: privilege checkboxes save immediately on toggle (collect
 // every currently-checked privilege for that role and PUT the whole
 // set, matching store.SetCommunityRolePrivileges' "replace the set"
@@ -360,132 +417,105 @@ document.querySelectorAll('.role-priv-checkbox').forEach(cb => {
   cb.addEventListener('change', async () => {
     const roleId = cb.dataset.roleId;
     const privileges = Array.from(document.querySelectorAll(`.role-priv-checkbox[data-role-id="${roleId}"]:checked`)).map(c => c.dataset.privilege);
-    const res = await fetch(`/api/communities/${communityId}/roles/${roleId}/privileges`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({privileges}),
-    });
-    if (!res.ok) { cb.checked = !cb.checked; alert('failed to save'); }
+    const ok = await saveInline($('roles-status'), () => api(`/api/communities/${communityId}/roles/${roleId}/privileges`, {privileges}, 'Couldn’t save that change. Try again.'));
+    if (!ok) cb.checked = !cb.checked;
   });
 });
+// Rename on change (not blur, which fired even when nothing changed).
 document.querySelectorAll('.role-name-input').forEach(inp => {
-  inp.addEventListener('blur', async () => {
-    const roleId = inp.dataset.roleId;
+  const original = inp.value;
+  inp.addEventListener('change', async () => {
     const name = inp.value.trim();
-    if (!name) return;
-    const res = await fetch(`/api/communities/${communityId}/roles/${roleId}/rename`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name}),
-    });
-    if (res.ok) location.reload();
+    if (!name) { Forms.fieldError(inp, 'Enter a role name.'); return; }
+    Forms.fieldError(inp, '');
+    const ok = await saveInline($('roles-status'), () => api(`/api/communities/${communityId}/roles/${inp.dataset.roleId}/rename`, {name}, 'Couldn’t rename that role. Try again.'));
+    if (ok) location.reload(); else inp.value = original;
   });
 });
 document.querySelectorAll('.delete-role-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (!confirm('Delete this role? Members currently holding it must be reassigned first.')) return;
-    const roleId = btn.dataset.roleId;
-    const res = await fetch(`/api/communities/${communityId}/roles/${roleId}`, {method: 'DELETE'});
-    if (res.ok) { location.reload(); } else { const d = await res.json().catch(() => ({})); alert(d.error || 'failed to delete'); }
+    if (!confirm(`Delete the “${btn.dataset.roleName}” role? Anyone who has it must be given another role first.`)) return;
+    Forms.busy(btn, true);
+    const ok = await saveInline($('roles-status'), () => api(`/api/communities/${communityId}/roles/${btn.dataset.roleId}`, undefined, 'Couldn’t delete that role. Give its members another role first, then try again.', 'DELETE'));
+    if (ok) location.reload(); else Forms.busy(btn, false);
   });
 });
-document.getElementById('create-role-btn').addEventListener('click', async () => {
-  const name = document.getElementById('new-role-name').value.trim();
-  const out = document.getElementById('create-role-result');
-  if (!name) { out.textContent = 'enter a name'; return; }
-  const res = await fetch(`/api/communities/${communityId}/roles`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({name, privileges: []}),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) { location.reload(); } else { out.textContent = data.error || 'failed to create role'; }
+onSubmit($('create-role-form'), async () => {
+  const name = $('new-role-name').value.trim();
+  await api(`/api/communities/${communityId}/roles`, {name, privileges: []}, 'Couldn’t create that role. Try a different name.');
+  location.reload();
 });
-document.getElementById('rename-btn').addEventListener('click', async () => {
-  const name = document.getElementById('rename-input').value.trim();
-  if (!name) return;
-  const res = await fetch(`/api/communities/${communityId}/rename`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({name}),
-  });
-  const data = await res.json().catch(() => ({}));
-  document.getElementById('rename-result').textContent = res.ok ? 'saved' : (data.error || 'failed');
-  if (res.ok) document.title = name + ' — staff admin';
+onSubmit($('rename-form'), async () => {
+  const name = $('rename-input').value.trim();
+  await api(`/api/communities/${communityId}/rename`, {name}, 'Couldn’t save the name. Try again.');
+  Forms.status($('rename-result'), 'Saved.', 'ok');
+  document.title = name + ' — staff admin';
 });
-document.getElementById('default-join-role-select').addEventListener('change', async (e) => {
-  const res = await fetch(`/api/communities/${communityId}/default-join-role`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({role: e.target.value}),
-  });
-  const data = await res.json().catch(() => ({}));
-  document.getElementById('default-join-role-result').textContent = res.ok ? 'saved' : (data.error || 'failed');
+$('default-join-role-select').addEventListener('change', (e) => {
+  saveInline($('default-join-role-result'), () => api(`/api/communities/${communityId}/default-join-role`, {role: e.target.value}, 'Couldn’t save that. Try again.'));
 });
-const evTypeSel = document.getElementById('ev-type');
-const evAudienceField = document.getElementById('ev-audience-field');
+
+// ---- Events ----
+const evTypeSel = $('ev-type');
+const evAudienceField = $('ev-audience-field');
 function syncEventAudienceVisibility() { evAudienceField.hidden = evTypeSel.value !== 'jam'; }
 evTypeSel.addEventListener('change', syncEventAudienceVisibility);
 syncEventAudienceVisibility();
-document.getElementById('create-event-btn').addEventListener('click', async () => {
-  const name = document.getElementById('ev-name').value.trim();
-  const eventType = evTypeSel.value;
-  const audienceScope = document.getElementById('ev-audience').value;
-  const startsLocal = document.getElementById('ev-starts').value;
-  const location = document.getElementById('ev-location').value.trim();
-  const description = document.getElementById('ev-description').value.trim();
-  const out = document.getElementById('create-event-result');
-  if (!name || !startsLocal) { out.textContent = 'name and date/time are required'; return; }
-  const startsAt = new Date(startsLocal).toISOString();
-  const res = await fetch(`/api/communities/${communityId}/events`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({name, eventType, audienceScope, startsAt, location, description}),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) { location.href = `/events/${data.eventId}`; } else { out.textContent = data.error || 'failed to create event'; }
+try { $('ev-starts-tz').textContent = ' (' + Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, ' ') + ')'; } catch {}
+onSubmit($('create-event-form'), async () => {
+  const body = {
+    name: $('ev-name').value.trim(),
+    eventType: evTypeSel.value,
+    audienceScope: $('ev-audience').value,
+    startsAt: new Date($('ev-starts').value).toISOString(),
+    location: $('ev-location').value.trim(),
+    description: $('ev-description').value.trim(),
+  };
+  const data = await api(`/api/communities/${communityId}/events`, body, 'Couldn’t create the event. Check the details and try again.');
+  location.href = `/events/${data.eventId}`;
 });
 document.querySelectorAll('.assign-manager-select').forEach(sel => {
   sel.addEventListener('change', async () => {
     if (!sel.value) return;
-    const eventId = sel.dataset.eventId;
-    const res = await fetch(`/api/communities/${communityId}/events/${eventId}/managers`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({personId: parseInt(sel.value, 10)}),
-    });
-    if (res.ok) location.reload(); else sel.value = '';
+    const ok = await saveInline($('events-status'), () => api(`/api/communities/${communityId}/events/${sel.dataset.eventId}/managers`, {personId: parseInt(sel.value, 10)}, 'Couldn’t assign that manager. Try again.'));
+    if (ok) location.reload(); else sel.value = '';
   });
 });
+
+// ---- Submissions ----
 document.querySelectorAll('.accept-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    const id = btn.dataset.id;
-    const res = await fetch(`/api/communities/${communityId}/submissions/${id}/accept`, {method: 'POST'});
-    if (res.ok) location.reload();
+    Forms.busy(btn, true);
+    const ok = await saveInline($('submissions-status'), () => api(`/api/communities/${communityId}/submissions/${btn.dataset.id}/accept`, undefined, 'Couldn’t accept that submission. Try again.'));
+    if (ok) location.reload(); else Forms.busy(btn, false);
   });
 });
 document.querySelectorAll('.reject-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    const id = btn.dataset.id;
-    const res = await fetch(`/api/communities/${communityId}/submissions/${id}/reject`, {method: 'POST'});
-    if (res.ok) location.reload();
+    if (!confirm(`Reject “${btn.dataset.title}” from ${btn.dataset.who}?`)) return;
+    Forms.busy(btn, true);
+    const ok = await saveInline($('submissions-status'), () => api(`/api/communities/${communityId}/submissions/${btn.dataset.id}/reject`, undefined, 'Couldn’t reject that submission. Try again.'));
+    if (ok) location.reload(); else Forms.busy(btn, false);
   });
 });
-document.getElementById('show-past-toggle').addEventListener('change', (e) => {
+
+// ---- Members ----
+$('show-past-toggle').addEventListener('change', (e) => {
   document.querySelectorAll('.past-member').forEach(tr => {
     tr.style.display = e.target.checked ? '' : 'none';
   });
 });
-document.getElementById('quick-add-btn').addEventListener('click', async () => {
-  const displayName = document.getElementById('quick-add-name').value.trim();
-  const role = document.getElementById('quick-add-role').value;
-  const out = document.getElementById('quick-add-result');
-  if (!displayName) { out.textContent = 'enter a name'; return; }
-  const res = await fetch(`/api/communities/${communityId}/personal-invites`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({displayName, role}),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) { location.reload(); } else { out.textContent = data.error || 'failed to add'; }
+onSubmit($('quick-add-form'), async () => {
+  const displayName = $('quick-add-name').value.trim();
+  const role = $('quick-add-role').value;
+  await api(`/api/communities/${communityId}/personal-invites`, {displayName, role}, 'Couldn’t add them. Try again.');
+  location.reload();
 });
 document.querySelectorAll('.create-shell-invite-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    btn.disabled = true;
-    const res = await fetch(`/api/people/${btn.dataset.personId}/personal-invites`, {method: 'POST'});
-    if (res.ok) { location.reload(); } else { btn.disabled = false; }
+    Forms.busy(btn, true);
+    const ok = await saveInline($('members-status'), () => api(`/api/people/${btn.dataset.personId}/personal-invites`, undefined, 'Couldn’t make an invite link. Try again.'));
+    if (ok) location.reload(); else Forms.busy(btn, false);
   });
 });
 document.querySelectorAll('.copy-link-btn').forEach(btn => {
@@ -493,7 +523,7 @@ document.querySelectorAll('.copy-link-btn').forEach(btn => {
     const url = location.origin + btn.dataset.url;
     navigator.clipboard.writeText(url).then(() => {
       const prev = btn.textContent;
-      btn.textContent = 'copied!';
+      btn.textContent = 'Copied';
       setTimeout(() => { btn.textContent = prev; }, 1500);
     }).catch(() => {});
   });
@@ -501,144 +531,123 @@ document.querySelectorAll('.copy-link-btn').forEach(btn => {
 document.querySelectorAll('.qr-link-btn').forEach(btn => {
   btn.addEventListener('click', () => showQR(location.origin + btn.dataset.url));
 });
-document.getElementById('add-member-btn').addEventListener('click', async () => {
-  const username = document.getElementById('add-username').value.trim();
-  const role = document.getElementById('add-role').value;
-  if (!username) return;
-  const res = await fetch(`/api/communities/${communityId}/members`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({username, role}),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) {
-    location.reload();
-  } else {
-    document.getElementById('add-member-result').textContent = data.error || 'failed to add member';
-  }
+onSubmit($('add-member-form'), async () => {
+  const username = $('add-username').value.trim();
+  const role = $('add-role').value;
+  await api(`/api/communities/${communityId}/members`, {username, role}, 'Couldn’t add them. Check the username and try again.');
+  location.reload();
 });
 document.querySelectorAll('.role-select').forEach(sel => {
+  const original = sel.value;
   sel.addEventListener('change', async () => {
-    const personID = sel.dataset.personId;
-    const res = await fetch(`/api/communities/${communityId}/members/${personID}/role`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({role: sel.value}),
-    });
-    if (!res.ok) location.reload();
+    const ok = await saveInline($('members-status'), () => api(`/api/communities/${communityId}/members/${sel.dataset.personId}/role`, {role: sel.value}, 'Couldn’t change that role. Try again.'));
+    if (!ok) sel.value = original;
   });
 });
 document.querySelectorAll('.remove-member-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (!confirm('Remove this member from the community?')) return;
-    const personID = btn.dataset.personId;
-    await fetch(`/api/communities/${communityId}/members/${personID}`, {method: 'DELETE'});
+    if (!confirm(`Remove ${btn.dataset.name} from the community? They'll move to past members.`)) return;
+    Forms.busy(btn, true);
+    const ok = await saveInline($('members-status'), () => api(`/api/communities/${communityId}/members/${btn.dataset.personId}`, undefined, 'Couldn’t remove them. Try again.', 'DELETE'));
+    if (ok) location.reload(); else Forms.busy(btn, false);
+  });
+});
+
+// ---- Default songbook ----
+onSubmit($('new-variant-form'), async () => {
+  const title = $('new-variant-title').value.trim();
+  const artist = $('new-variant-artist').value.trim();
+  const data = await api(`/api/communities/${communityId}/variants`, {title, artist}, 'Couldn’t create the song. Try again.');
+  location.href = `/song/${data.variantId}`;
+});
+const addExistingForm = $('add-existing-form');
+onSubmit(addExistingForm, async () => {
+  const variantId = Number($('variant-id-input').value);
+  await api(`/api/communities/${communityId}/catalog`, {variantId}, 'Couldn’t add that song. Check the number and try again.');
+  location.reload();
+});
+$('fork-into-community-btn').addEventListener('click', (e) => {
+  if (!Forms.validate(addExistingForm)) return;
+  const variantId = Number($('variant-id-input').value);
+  Forms.run(addExistingForm, e.currentTarget, async () => {
+    await api(`/api/communities/${communityId}/catalog/fork/${variantId}`, undefined, 'Couldn’t copy that song. Check the number and try again.');
     location.reload();
-  });
-});
-document.getElementById('new-variant-btn').addEventListener('click', async () => {
-  const title = document.getElementById('new-variant-title').value.trim();
-  const artist = document.getElementById('new-variant-artist').value.trim();
-  if (!title) return;
-  const res = await fetch(`/api/communities/${communityId}/variants`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({title, artist}),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) {
-    location.href = `/song/${data.variantId}`;
-  } else {
-    document.getElementById('new-variant-result').textContent = data.error || 'failed to create';
-  }
-});
-document.getElementById('add-existing-btn').addEventListener('click', async () => {
-  const variantId = Number(document.getElementById('variant-id-input').value);
-  if (!variantId) return;
-  const res = await fetch(`/api/communities/${communityId}/catalog`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({variantId}),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) {
-    location.reload();
-  } else {
-    document.getElementById('add-result').textContent = data.error || 'failed to add';
-  }
-});
-document.getElementById('fork-into-community-btn').addEventListener('click', async () => {
-  const variantId = Number(document.getElementById('variant-id-input').value);
-  if (!variantId) return;
-  const res = await fetch(`/api/communities/${communityId}/catalog/fork/${variantId}`, {method: 'POST'});
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) {
-    location.reload();
-  } else {
-    document.getElementById('add-result').textContent = data.error || 'failed to fork';
-  }
-});
-document.getElementById('group-invite-add-row-btn').addEventListener('click', () => {
-  const row = document.createElement('div');
-  row.className = 'group-invite-row';
-  row.innerHTML = '<div class="field"><label>Name</label><input type="text" class="group-invite-name" placeholder="e.g. Alex"></div>';
-  document.getElementById('group-invite-rows').appendChild(row);
-});
-document.getElementById('create-group-invite-btn').addEventListener('click', async () => {
-  const slots = [];
-  document.querySelectorAll('.group-invite-row').forEach(row => {
-    const displayName = row.querySelector('.group-invite-name').value.trim();
-    if (displayName) slots.push({displayName});
-  });
-  const role = document.getElementById('group-invite-role').value;
-  const res = await fetch(`/api/communities/${communityId}/group-invites`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({slots, role}),
-  });
-  const data = await res.json().catch(() => ({}));
-  const out = document.getElementById('group-invite-result');
-  const closeBtn = document.getElementById('close-group-invite-btn');
-  if (res.ok) {
-    const url = location.origin + data.url;
-    out.innerHTML = `Share this link: <a href="${url}">${url}</a>`;
-    navigator.clipboard.writeText(url).catch(() => {});
-    closeBtn.hidden = false;
-    closeBtn.onclick = async () => {
-      if (!confirm('Close this invite link? No further claims will be possible.')) return;
-      const r = await fetch(`/api/communities/${communityId}/group-invites/${data.id}/close`, {method: 'POST'});
-      if (r.ok) {
-        out.textContent = 'Closed.';
-        closeBtn.hidden = true;
-      }
-    };
-  } else {
-    out.textContent = data.error || 'failed to create group invite';
-    closeBtn.hidden = true;
-  }
-});
-document.querySelectorAll('.community-link-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const role = btn.dataset.role;
-    const out = document.getElementById('community-link-result');
-    out.textContent = 'creating…';
-    const res = await fetch(`/api/communities/${communityId}/community-link`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({role}),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      const url = location.origin + data.url;
-      out.innerHTML = `"${data.role}" link: <a href="${url}">${url}</a> <button type="button" class="community-link-qr-btn">QR</button>`;
-      out.querySelector('.community-link-qr-btn').addEventListener('click', () => showQR(url));
-      navigator.clipboard.writeText(url).catch(() => {});
-    } else {
-      out.textContent = data.error || 'failed to create link';
-    }
   });
 });
 document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    const variantId = btn.dataset.variantId;
-    await fetch(`/api/communities/${communityId}/catalog/${variantId}`, {method: 'DELETE'});
-    btn.closest('tr').remove();
+    if (!confirm(`Remove “${btn.dataset.title}” from the default songbook? The song itself isn't deleted.`)) return;
+    Forms.busy(btn, true);
+    const ok = await saveInline($('entries-status'), () => api(`/api/communities/${communityId}/catalog/${btn.dataset.variantId}`, undefined, 'Couldn’t remove that song. Try again.', 'DELETE'), 'Removed.');
+    if (ok) btn.closest('tr').remove(); else Forms.busy(btn, false);
   });
 });
+
+// ---- Group invite ----
+let groupInviteRowCount = 1;
+$('group-invite-add-row-btn').addEventListener('click', () => {
+  groupInviteRowCount++;
+  const id = 'group-invite-name-' + groupInviteRowCount;
+  const row = document.createElement('div');
+  row.className = 'group-invite-row';
+  row.innerHTML = `<div class="field"><label for="${id}">Name</label><input type="text" class="group-invite-name" id="${id}" placeholder="e.g. Sam" autocomplete="off" autocapitalize="words"></div>`;
+  $('group-invite-rows').appendChild(row);
+  row.querySelector('input').focus();
+});
+const groupInviteForm = $('group-invite-form');
+onSubmit(groupInviteForm, async () => {
+  const slots = [];
+  document.querySelectorAll('.group-invite-name').forEach(inp => {
+    const displayName = inp.value.trim();
+    if (displayName) slots.push({displayName});
+  });
+  const role = $('group-invite-role').value;
+  const closeBtn = $('close-group-invite-btn');
+  closeBtn.hidden = true;
+  const data = await api(`/api/communities/${communityId}/group-invites`, {slots, role}, 'Couldn’t create the link. Try again.');
+  const url = location.origin + data.url;
+  const out = $('group-invite-result');
+  out.className = 'form-status is-ok';
+  out.textContent = 'Share this link (copied): ';
+  const a = document.createElement('a');
+  a.href = url; a.textContent = url;
+  out.appendChild(a);
+  navigator.clipboard.writeText(url).catch(() => {});
+  closeBtn.hidden = false;
+  closeBtn.onclick = async () => {
+    if (!confirm('Close this group invite link? Anyone who hasn’t used it yet won’t be able to join with it.')) return;
+    await Forms.run(groupInviteForm, closeBtn, async () => {
+      await api(`/api/communities/${communityId}/group-invites/${data.id}/close`, undefined, 'Couldn’t close the link. Try again.');
+      Forms.status(groupInviteForm, 'Link closed.', 'ok');
+      closeBtn.hidden = true;
+    });
+  };
+});
+
+// ---- Community link (one per role) ----
+document.querySelectorAll('.community-link-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const out = $('community-link-result');
+    Forms.status(out, '');
+    Forms.busy(btn, true);
+    try {
+      const data = await api(`/api/communities/${communityId}/community-link`, {role: btn.dataset.role}, 'Couldn’t create the link. Try again.');
+      const url = location.origin + data.url;
+      out.className = 'form-status is-ok';
+      out.textContent = `${data.role} link (copied): `;
+      const a = document.createElement('a');
+      a.href = url; a.textContent = url;
+      const qr = document.createElement('button');
+      qr.type = 'button'; qr.textContent = 'QR code'; qr.style.marginLeft = '0.5rem';
+      qr.addEventListener('click', () => showQR(url));
+      out.append(a, qr);
+      navigator.clipboard.writeText(url).catch(() => {});
+    } catch (e) {
+      Forms.status(out, e.message, 'error');
+    } finally { Forms.busy(btn, false); }
+  });
+});
+})();
 </script>
 <script src="/static/js/qr.js?v={{staticVersion}}"></script>
 </div>
@@ -647,3 +656,9 @@ document.querySelectorAll('.remove-entry-btn').forEach(btn => {
 </body>
 </html>
 {{end}}
+
+{{/* Plain names for the privilege keys in store.AllCommunityPrivileges;
+     an unknown key falls through as itself. */}}
+{{define "community-priv-label"}}{{if eq . "edit_repertoire"}}Edit songs{{else if eq . "manage_members"}}Manage members{{else if eq . "manage_events"}}Manage events{{else if eq . "manage_submissions"}}Review submissions{{else if eq . "manage_settings"}}Change settings{{else}}{{.}}{{end}}{{end}}
+
+{{define "community-event-type-label"}}{{if eq . "jam"}}Jam{{else if eq . "concert"}}Concert{{else if eq . "meetup"}}Meetup{{else if eq . "listening_party"}}Listening party{{else if eq . "dinner"}}Dinner{{else if eq . "show_together"}}Going to a show together{{else}}{{.}}{{end}}{{end}}

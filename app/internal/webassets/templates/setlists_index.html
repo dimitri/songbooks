@@ -31,10 +31,16 @@
     {{end}}
     <details class="setlist-new">
       <summary>{{template "icon-plus"}} New set list</summary>
-      <div class="structure-actions">
-        <input type="text" class="band-setlist-title" placeholder="Title, e.g. Spring Rehearsal" aria-label="Title">
-        <button type="button" class="primary new-band-setlist-btn" data-band-id="{{.Band.ID}}">Create</button>
-      </div>
+      <form class="form-stack new-band-setlist-form" data-band-id="{{.Band.ID}}">
+        <div class="field">
+          <label for="band-setlist-title-{{.Band.ID}}">Title</label>
+          <input type="text" class="band-setlist-title" id="band-setlist-title-{{.Band.ID}}" placeholder="e.g. Spring rehearsal" autocomplete="off" enterkeyhint="go" required>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="primary new-band-setlist-btn">Create set list</button>
+        </div>
+        <p class="form-status" role="status"></p>
+      </form>
     </details>
   </section>
   {{end}}
@@ -51,40 +57,42 @@
     {{end}}
     <details class="setlist-new">
       <summary>{{template "icon-plus"}} New set list</summary>
-      <div class="structure-actions">
-        <input type="text" id="my-setlist-title" placeholder="Title, e.g. Spring Rehearsal" aria-label="Title">
-        <button id="new-my-setlist-btn" type="button" class="primary">Create</button>
-      </div>
+      <form class="form-stack" id="new-my-setlist-form">
+        <div class="field">
+          <label for="my-setlist-title">Title</label>
+          <input type="text" id="my-setlist-title" placeholder="e.g. Spring rehearsal" autocomplete="off" enterkeyhint="go" required>
+        </div>
+        <div class="form-actions">
+          <button id="new-my-setlist-btn" type="submit" class="primary">Create set list</button>
+        </div>
+        <p class="form-status" role="status"></p>
+      </form>
     </details>
   </section>
 </main>
 <script>
-async function createScopedSetlist(scope, title, bandID) {
-  if (!title) return;
-  const res = await fetch('/api/setlists', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({scope, title, band_id: bandID || 0}),
-  });
-  const data = await res.json();
-  if (res.ok) {
+function createScopedSetlist(form, scope, bandID) {
+  const title = form.querySelector('input[type="text"]').value.trim();
+  Forms.run(form, form.querySelector('button[type="submit"]'), async () => {
+    const res = await fetch('/api/setlists', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({scope, title, band_id: bandID || 0}),
+    });
+    if (!res.ok) throw new Error(`Couldn't create “${title}”. Try again.`);
     window.location.reload();
-  } else {
-    alert(data.error || 'create failed');
-  }
+  });
 }
 
-document.getElementById('new-my-setlist-btn').addEventListener('click', () => {
-  const title = document.getElementById('my-setlist-title').value.trim();
-  createScopedSetlist('person', title, 0);
+document.getElementById('new-my-setlist-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  createScopedSetlist(e.target, 'person', 0);
 });
 
-document.querySelectorAll('.new-band-setlist-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const bandID = Number(btn.dataset.bandId);
-    const card = btn.closest('.book-card');
-    const title = card.querySelector('.band-setlist-title').value.trim();
-    createScopedSetlist('band', title, bandID);
+document.querySelectorAll('.new-band-setlist-form').forEach(form => {
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    createScopedSetlist(form, 'band', Number(form.dataset.bandId));
   });
 });
 </script>

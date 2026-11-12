@@ -197,63 +197,34 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 	// system"). So a proposal's own Kind IS its listening-party-ness;
 	// no separate query, just a per-item label below in the template.
 
-	var repertoireCount int
-	var repertoirePreview []store.CatalogVariant
 	repertoire, err := s.store.ListBandCatalog(r.Context(), bandID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	repertoireCount = len(repertoire)
-	for _, e := range repertoire {
-		repertoirePreview = append(repertoirePreview, e.CatalogVariant)
-	}
-	if len(repertoirePreview) > 5 {
-		repertoirePreview = repertoirePreview[:5]
-	}
-
-	// Same per-album grouping the Repertoire tab uses (handleBandCatalogPage),
-	// applied to the already-trimmed preview slice — an "original" act's
-	// Overview card should read as album groups too, not a flat 5-song
-	// list that happens to mix records together.
-	var repertoirePreviewAlbums []albumGroup
-	if band.MusicType == "original" {
-		covers, err := s.store.GetAlbumCovers(r.Context(), bandID)
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		previewEntries := make([]bandCatalogRow, len(repertoirePreview))
-		for i, v := range repertoirePreview {
-			previewEntries[i] = bandCatalogRow{BandCatalogEntry: store.BandCatalogEntry{CatalogVariant: v}}
-		}
-		repertoirePreviewAlbums = groupByAlbum(previewEntries, covers)
-	}
+	repertoireCount := len(repertoire)
 
 	setlists, err := s.store.ListSetlistsForBand(r.Context(), bandID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
-	gigs, err := s.store.ListUpcomingGigsForPerson(r.Context(), person.ID, 200)
+	members, err := s.store.ListBandMembers(r.Context(), bandID, false)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	var nextGig *store.UpcomingGig
-	for i := range gigs {
-		if gigs[i].BandID != nil && *gigs[i].BandID == bandID {
-			nextGig = &gigs[i]
-			break // ListUpcomingGigsForPerson is already soonest-first
-		}
+	nextUp, err := s.bandNextUp(r.Context(), person.ID, bandID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
 	contextual := webassets.ContextualGroup{Label: "This band", Entries: []webassets.NavEntry{
 		{Label: "Propose a song", Path: fmt.Sprintf("/bands/%d/proposals", bandID), Icon: "icon-plus"},
 		{Label: "Discover a song", Path: fmt.Sprintf("/bands/%d/listening-party", bandID), Icon: "icon-play"},
 	}}
-	if repertoireCount > 0 || len(repertoirePreview) > 0 {
+	if repertoireCount > 0 {
 		contextual.Entries = append(contextual.Entries, webassets.NavEntry{
 			Label: "Edit a song", Path: fmt.Sprintf("/bands/%d/catalog", bandID), Icon: "icon-edit",
 		})
@@ -261,10 +232,8 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 
 	s.render(w, "band", map[string]any{
 		"Me": person, "Band": band, "Changes": changes, "HasLastSeen": since != nil,
-		"OpenProposals": openProposals,
-		"Repertoire":    repertoirePreview, "RepertoireCount": repertoireCount,
-		"RepertoirePreviewAlbums": repertoirePreviewAlbums,
-		"Setlists":                setlists, "NextGig": nextGig,
+		"OpenProposals": openProposals, "RepertoireCount": repertoireCount,
+		"Setlists": setlists, "MemberCount": len(members), "NextUp": nextUp,
 		"ContextualGroup": contextual,
 	})
 }
@@ -967,4 +936,28 @@ func (s *Server) handleForkVariantIntoBand(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})
+}
+
+// handleBandSettingsPage is the band's Settings section: its name, what
+// it plays, its look (core members) and deleting it.
+func (s *Server) handleBandSettingsPage(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	person := personFromContext(r)
+	band, err := s.store.GetBand(r.Context(), bandID)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	isCore, err := s.store.IsCurrentBandCore(r.Context(), bandID, person.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.render(w, "band_settings", map[string]any{
+		"Me": person, "Band": band, "IsCore": isCore || person.IsAdmin,
+	})
 }

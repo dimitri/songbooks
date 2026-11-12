@@ -16,12 +16,38 @@ function wizShowStep(i) {
   document.getElementById('wiz-next').hidden = i === WIZ_STEPS - 1;
   document.getElementById('wiz-create').hidden = i !== WIZ_STEPS - 1;
 }
-document.getElementById('wiz-next')?.addEventListener('click', () => {
-  if (wizStep === 0 && !document.getElementById('wiz-title').value.trim()) {
-    document.getElementById('wiz-title').focus();
-    return;
+// Next and Create are the form's submit buttons, so Enter in a field
+// moves on too. Enter in one of the address fields fetches that page
+// instead, which is what someone who just pasted a link means.
+function wizCheckTitle() {
+  const titleInput = document.getElementById('wiz-title');
+  if (titleInput.value.trim()) return true;
+  wizShowStep(0);
+  Forms.fieldError(titleInput, 'Enter the song title.');
+  titleInput.focus();
+  return false;
+}
+document.getElementById('wiz-form')?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const active = document.activeElement;
+  if (active && active.id === 'wiz-lyrics-url') { document.getElementById('wiz-lyrics-fetch').click(); return; }
+  if (active && active.id === 'wiz-chords-url') { document.getElementById('wiz-chords-fetch').click(); return; }
+  // Only steps 1 and 2 hold fields the new song is made from (the
+  // address fields later on are checked by their own Fetch buttons).
+  // The step dots let someone skip ahead, so creating checks both.
+  const checkSteps = wizStep < WIZ_STEPS - 1 ? [wizStep].filter((i) => i <= 1) : [0, 1];
+  for (const i of checkSteps) {
+    const panel = document.querySelector(`.wizard-panel[data-step="${i}"]`);
+    // validity.valid, not checkValidity(): no events, nothing shown yet.
+    if ([...panel.querySelectorAll('input, select, textarea')].some((el) => !el.validity.valid)) {
+      wizShowStep(i);
+      Forms.validate(panel);
+      return;
+    }
   }
-  wizShowStep(Math.min(WIZ_STEPS - 1, wizStep + 1));
+  if (!wizCheckTitle()) return;
+  if (wizStep < WIZ_STEPS - 1) wizShowStep(wizStep + 1);
+  else wizCreate();
 });
 document.getElementById('wiz-back')?.addEventListener('click', () => wizShowStep(Math.max(0, wizStep - 1)));
 document.querySelectorAll('.wizard-step-dot').forEach(dot => {
@@ -62,7 +88,7 @@ document.getElementById('wiz-reference-url')?.addEventListener('change', e => {
 const wizTapClock = new Clock(120, 4);
 document.getElementById('wiz-tap-btn')?.addEventListener('click', () => {
   const bpm = wizTapClock.tapDetermine();
-  if (bpm) document.getElementById('wiz-tempo').value = bpm;
+  if (bpm) { const t = document.getElementById('wiz-tempo'); t.value = bpm; Forms.fieldError(t, ''); }
 });
 
 document.getElementById('open-wizard-btn')?.addEventListener('click', () => {
@@ -78,6 +104,7 @@ document.getElementById('open-wizard-btn')?.addEventListener('click', () => {
   document.getElementById('ug-preview-sections').innerHTML = '';
   document.getElementById('wiz-catalog-matches').hidden = true;
   document.getElementById('wiz-catalog-matches').innerHTML = '';
+  wizard.querySelectorAll('[aria-invalid]').forEach((el) => Forms.fieldError(el, ''));
   ugLastURL = '';
   ugShowSubstep('ug-step-url');
   wizShowStep(0);
@@ -181,16 +208,25 @@ async function wizFetch(kind, endpoint) {
   const url = document.getElementById(`wiz-${kind}-url`).value.trim();
   const status = document.getElementById(`wiz-${kind}-status`);
   const preview = document.getElementById(`wiz-${kind}-preview`);
-  if (!url) { status.textContent = 'paste a URL first'; status.className = 'hint err'; return; }
-  status.textContent = 'fetching…'; status.className = 'hint';
-  const res = await fetch(endpoint, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }),
-  });
-  const data = await res.json();
-  if (!res.ok) { status.textContent = data.error || 'fetch failed — paste the text instead'; status.className = 'hint err'; return; }
-  preview.value = data.text;
-  status.textContent = data.source ? `fetched from ${data.source} — review below before creating` : 'fetched — review below before creating';
-  status.className = 'hint ok';
+  const input = document.getElementById(`wiz-${kind}-url`);
+  status.textContent = ''; status.className = 'hint';
+  if (!url) { Forms.fieldError(input, 'Paste the page address first.'); input.focus(); return; }
+  if (!Forms.validate(input.parentElement)) return;
+  const btn = document.getElementById(`wiz-${kind}-fetch`);
+  Forms.busy(btn, true);
+  status.textContent = 'Fetching…';
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { status.textContent = "Couldn't get the lyrics from that page. Paste them into the box below instead."; status.className = 'hint err'; return; }
+    preview.value = data.text;
+    status.textContent = data.source ? `Fetched from ${data.source}. Check them below before creating the song.` : 'Fetched. Check them below before creating the song.';
+    status.className = 'hint ok';
+  } finally {
+    Forms.busy(btn, false);
+  }
 }
 document.getElementById('wiz-lyrics-fetch')?.addEventListener('click', () => wizFetch('lyrics', '/api/import/lyrics'));
 
@@ -209,21 +245,26 @@ document.getElementById('ug-raw-back')?.addEventListener('click', () => ugShowSu
 document.getElementById('ug-preview-back')?.addEventListener('click', () => ugShowSubstep('ug-step-url'));
 
 document.getElementById('wiz-chords-fetch')?.addEventListener('click', async () => {
-  const url = document.getElementById('wiz-chords-url').value.trim();
+  const input = document.getElementById('wiz-chords-url');
+  const url = input.value.trim();
   const status = document.getElementById('wiz-chords-status');
-  if (!url) { status.textContent = 'paste a URL first'; status.className = 'hint err'; return; }
-  status.textContent = 'fetching & parsing…'; status.className = 'hint';
+  const btn = document.getElementById('wiz-chords-fetch');
+  status.textContent = ''; status.className = 'hint';
+  if (!url) { Forms.fieldError(input, 'Paste the Ultimate Guitar page address first.'); input.focus(); return; }
+  if (!Forms.validate(input.parentElement)) return;
+  status.textContent = 'Fetching the chart…';
+  Forms.busy(btn, true);
   const res = await fetch('/api/import/ultimate-guitar/parse', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }),
-  });
-  const data = await res.json();
-  if (!res.ok) { status.textContent = data.error || 'fetch failed — try "skip" and paste the text instead'; status.className = 'hint err'; return; }
+  }).finally(() => Forms.busy(btn, false));
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { status.textContent = "Couldn't read a chart from that page. Check the address, or choose \u201cPaste text instead\u201d."; status.className = 'hint err'; return; }
   status.textContent = '';
   ugLastURL = url;
   if (data.title && !document.getElementById('wiz-title').value.trim()) document.getElementById('wiz-title').value = data.title;
   if (data.artist && !document.getElementById('wiz-artist').value.trim()) document.getElementById('wiz-artist').value = data.artist;
   const titleEl = document.getElementById('ug-preview-title');
-  titleEl.textContent = `${data.sections.length} section${data.sections.length === 1 ? '' : 's'} found — pick which ones to bring in (bar placement is a naive guess, fix it in the editor after).`;
+  titleEl.textContent = `Found ${data.sections.length} section${data.sections.length === 1 ? '' : 's'}. Tick the ones to bring in. Where the bars fall is a rough guess; fix it in the editor afterwards.`;
   const list = document.getElementById('ug-preview-sections');
   list.innerHTML = '';
   data.sections.forEach((sec, i) => {
@@ -270,7 +311,7 @@ document.getElementById('ug-preview-use')?.addEventListener('click', async () =>
     body: JSON.stringify({ url: ugLastURL, selected }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) { status.textContent = data.error || 'import failed'; status.className = 'hint err'; ugShowSubstep('ug-step-url'); return; }
+  if (!res.ok) { status.textContent = "Couldn't bring those sections in. Try again, or paste the text instead."; status.className = 'hint err'; ugShowSubstep('ug-step-url'); return; }
   document.getElementById('wiz-chords-preview').value = data.text;
   ugShowSubstep('ug-step-raw');
 });
@@ -290,27 +331,27 @@ document.getElementById('wiz-ireal-check-btn')?.addEventListener('click', async 
   const host = document.getElementById('wiz-ireal-candidates');
   const btn = document.getElementById('wiz-ireal-check-btn');
   const currentText = document.getElementById('wiz-chords-preview').value.trim();
-  if (!title) { status.textContent = 'set a title first'; status.className = 'hint err'; return; }
-  if (!currentText) { status.textContent = 'nothing to check yet — import or paste a draft first'; status.className = 'hint err'; return; }
-  btn.disabled = true;
-  status.textContent = 'checking iReal Pro…'; status.className = 'hint';
+  if (!title) { wizCheckTitle(); return; }
+  if (!currentText) { status.textContent = 'Nothing to check yet. Import or paste the chords first.'; status.className = 'hint err'; return; }
+  Forms.busy(btn, true);
+  status.textContent = 'Checking iReal Pro…'; status.className = 'hint';
   host.innerHTML = '';
   try {
     const res = await fetch('/api/import/ireal/merge', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ currentText, title, artist: artist || '' }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'no iReal chart found for this song');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(res.status === 404 ? 'No iReal Pro chart found for this song.' : "Couldn't check iReal Pro just now. Try again.");
     wizRenderIRealCandidates(data.candidates || []);
     status.textContent = (data.candidates || []).length
-      ? 'found a chart — review each section below before accepting.'
-      : 'found a chart, but nothing new to propose.';
+      ? 'Found a chart. Check each section below before accepting it.'
+      : 'Found a chart, but it has nothing new to add.';
     status.className = 'hint';
   } catch (e) {
     status.textContent = e.message; status.className = 'hint err';
   } finally {
-    btn.disabled = false;
+    Forms.busy(btn, false);
   }
 });
 
@@ -334,7 +375,7 @@ function wizRenderIRealCandidates(candidates) {
         <div><span class="label">iReal Pro</span>${wizEscapeHtml(c.ProposedGrid)}</div>
       </div>
       <div class="import-ireal-candidate-actions">
-        <label><input type="checkbox" class="wiz-ireal-accept" ${c.Safe ? 'checked' : ''}> accept this section</label>
+        <label><input type="checkbox" class="wiz-ireal-accept" ${c.Safe ? 'checked' : ''}> Accept this section</label>
       </div>`;
     row.querySelector('.wiz-ireal-accept').dataset.label = c.Label;
     host.appendChild(row);
@@ -352,40 +393,46 @@ function wizRenderIRealCandidates(candidates) {
     const title = document.getElementById('wiz-title').value.trim();
     const artist = document.getElementById('wiz-artist').value.trim();
     const acceptLabels = Array.from(host.querySelectorAll('.wiz-ireal-accept:checked')).map(el => el.dataset.label);
-    if (!acceptLabels.length) { applyStatus.textContent = 'tick at least one section first'; applyStatus.className = 'hint err'; return; }
-    applyBtn.disabled = true;
-    applyStatus.textContent = 'applying…'; applyStatus.className = 'hint';
+    if (!acceptLabels.length) { applyStatus.textContent = 'Tick at least one section first.'; applyStatus.className = 'hint err'; return; }
+    Forms.busy(applyBtn, true);
+    applyStatus.textContent = ''; applyStatus.className = 'hint';
     try {
       const preview = document.getElementById('wiz-chords-preview');
       const res = await fetch('/api/import/ireal/merge', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentText: preview.value.trim(), title, artist: artist || '', apply: true, acceptLabels }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'apply failed');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error("Couldn't apply those sections. Try again.");
       preview.value = data.text;
       host.innerHTML = '';
-      document.getElementById('wiz-ireal-status').textContent = 'applied — accepted sections now use the iReal Pro grid.';
+      document.getElementById('wiz-ireal-status').textContent = 'Done. The sections you accepted now use the iReal Pro chords.';
       document.getElementById('wiz-ireal-status').className = 'hint';
     } catch (e) {
       applyStatus.textContent = e.message; applyStatus.className = 'hint err';
     } finally {
-      applyBtn.disabled = false;
+      Forms.busy(applyBtn, false);
     }
   });
 }
 
-document.getElementById('wiz-create')?.addEventListener('click', async () => {
+async function wizCreate() {
   const title = document.getElementById('wiz-title').value.trim();
   const artist = document.getElementById('wiz-artist').value.trim();
   const status = document.getElementById('wiz-status');
-  if (!title) { document.getElementById('wiz-title').focus(); return; }
-  status.textContent = 'creating…'; status.className = 'hint';
+  const createBtn = document.getElementById('wiz-create');
+  status.textContent = ''; status.className = 'hint';
+  Forms.busy(createBtn, true);
   const res = await fetch(`/api/songbooks/${wizSongbookId}/songs`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, artist }),
-  });
-  const data = await res.json();
-  if (!res.ok) { status.textContent = 'could not create: ' + data.error; status.className = 'hint err'; return; }
+  }).catch(() => null);
+  const data = res ? await res.json().catch(() => ({})) : {};
+  if (!res || !res.ok) {
+    Forms.busy(createBtn, false);
+    status.textContent = "Couldn't create the song. Everything you entered is still here; try again.";
+    status.className = 'hint err';
+    return;
+  }
   const variantId = data.variantId;
 
   const key = document.getElementById('wiz-key').value.trim();
@@ -416,14 +463,20 @@ document.getElementById('wiz-create')?.addEventListener('click', async () => {
     });
   }
   window.location.href = `/song/${variantId}?songbook=${wizSongbookId}`;
-});
+}
 
 document.querySelectorAll('.remove-song-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const { songbookId, variantId } = btn.dataset;
-    if (!confirm('Remove this song from the songbook?')) return;
+    const title = btn.closest('li')?.querySelector('.song-title')?.textContent.trim();
+    const name = title ? `“${title}”` : 'this song';
+    if (!confirm(`Remove ${name} from this songbook? The song itself isn't deleted.`)) return;
     const res = await fetch(`/api/songbooks/${songbookId}/entries/${variantId}`, { method: 'DELETE' });
-    if (!res.ok) { alert('Could not remove song'); return; }
+    if (!res.ok) {
+      const status = document.getElementById('catalog-save-status');
+      status.textContent = `Couldn't remove ${name}. Try again.`; status.className = 'hint err';
+      return;
+    }
     window.location.reload();
   });
 });
@@ -455,16 +508,16 @@ document.querySelectorAll('.remove-song-btn').forEach(btn => {
       label: ul.dataset.groupLabel,
       variantIds: [...ul.children].map(li => parseInt(li.dataset.variantId, 10)),
     }));
-    status.textContent = 'saving…';
+    status.textContent = 'Saving…'; status.className = 'hint';
     try {
       const res = await fetch(`/api/songbooks/${songbookId}/order`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ groups }),
       });
       if (!res.ok) throw new Error(await res.text());
-      status.textContent = 'saved';
+      status.textContent = 'Order saved.';
       setTimeout(() => { status.textContent = ''; }, 1500);
     } catch (e) {
-      status.textContent = 'could not save order';
+      status.textContent = "Couldn't save the new order. Reload the page and try again."; status.className = 'hint err';
     }
   }
 

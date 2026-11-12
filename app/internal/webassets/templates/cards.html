@@ -78,16 +78,20 @@
   <details class="setlist-row-export">
     <summary>Export</summary>
     <span class="pdf-mode-row">
-      <a class="pdf-export-link" href="/setlists/{{.ID}}/export.pdf" title="the whole set list as one PDF" download>{{template "icon-download"}} PDF</a>
-      <select class="pdf-mode-select" title="PDF view mode">
-        <option value="">Song</option>
-        <option value="jazz">Jazz chart</option>
-        <option value="map">Song map</option>
-        <option value="lyrics">Lyrics only</option>
-      </select>
-      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
+      {{/* The layout and notes choices rewrite the link (pdf-export.js),
+           so they come first and the download last. */}}
+      <label class="pdf-notes-label">Layout
+        <select class="pdf-mode-select">
+          <option value="">Song</option>
+          <option value="jazz">Jazz chart</option>
+          <option value="map">Song map</option>
+          <option value="lyrics">Lyrics only</option>
+        </select>
+      </label>
+      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> Include notes</label>
+      <a class="pdf-export-link" href="/setlists/{{.ID}}/export.pdf" download>{{template "icon-download"}} Every song (PDF)</a>
     </span>
-    <a href="/setlists/{{.ID}}/export-setlist-page.pdf" title="just the running order, on one page" download>{{template "icon-download"}} Running order</a>
+    <a href="/setlists/{{.ID}}/export-setlist-page.pdf" download>{{template "icon-download"}} Running order, one page (PDF)</a>
   </details>
 </div>
 {{end}}

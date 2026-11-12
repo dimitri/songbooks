@@ -24,7 +24,7 @@
   <section class="book-card card" id="catalog-section" data-songbook-id="{{.Songbook.ID}}">
     <div class="catalog-head">
       <button type="button" id="catalog-edit-toggle">{{template "icon-edit"}} Edit order</button>
-      <span id="catalog-save-status" class="hint"></span>
+      <span id="catalog-save-status" class="hint" role="status"></span>
     </div>
     {{range .Groups}}
     <div class="set-group">
@@ -41,35 +41,44 @@
             <span class="song-meta">{{if .Tempo}}{{.Tempo}} bpm{{end}}{{if and .Tempo .Key}} &middot; {{end}}{{.Key}}</span>
             {{template "song-badges" (index $.Badges .VariantID)}}
           </a>
-          <button type="button" class="remove-song-btn icon-btn danger" data-songbook-id="{{$.Songbook.ID}}" data-variant-id="{{.VariantID}}" title="remove from this songbook">{{template "icon-trash"}}</button>
+          <button type="button" class="remove-song-btn icon-btn danger" data-songbook-id="{{$.Songbook.ID}}" data-variant-id="{{.VariantID}}" title="Remove from this songbook" aria-label="Remove {{.Title}} from this songbook">{{template "icon-trash"}}</button>
         </li>
         {{end}}
       </ul>
     </div>
     {{end}}
     <div class="add-row">
-      <button type="button" id="open-wizard-btn" data-songbook-id="{{.Songbook.ID}}" class="primary">{{template "icon-plus"}} song</button>
+      <button type="button" id="open-wizard-btn" data-songbook-id="{{.Songbook.ID}}" class="primary">{{template "icon-plus"}} New song</button>
     </div>
   </section>
 </main>
 
-<dialog id="song-wizard" data-songbook-id="{{.Songbook.ID}}">
-  <h2>New song</h2>
+<dialog id="song-wizard" data-songbook-id="{{.Songbook.ID}}" aria-labelledby="song-wizard-title">
+  {{/* One <form> around every step: Enter in a field moves to the next
+       step (or creates the song on the last), see project.js. novalidate:
+       project.js checks only the step on screen (Forms.validate), since a
+       field on a hidden step can't be pointed at. */}}
+  <form id="wiz-form" novalidate>
+  <h2 id="song-wizard-title">New song</h2>
   <div class="wizard-steps" id="wizard-steps">
-    <span class="wizard-step-dot active" data-step="0">1 &middot; title</span>
-    <span class="wizard-step-dot" data-step="1">2 &middot; key &amp; tempo</span>
-    <span class="wizard-step-dot" data-step="2">3 &middot; lyrics</span>
-    <span class="wizard-step-dot" data-step="3">4 &middot; chords</span>
+    <span class="wizard-step-dot active" data-step="0">1 &middot; Title</span>
+    <span class="wizard-step-dot" data-step="1">2 &middot; Key and tempo</span>
+    <span class="wizard-step-dot" data-step="2">3 &middot; Lyrics</span>
+    <span class="wizard-step-dot" data-step="3">4 &middot; Chords</span>
   </div>
 
   <section class="wizard-panel" data-step="0">
     <p class="hint">Start from a title. A reference video is optional but makes the rest of this easier — the whole band pulls up the same version, and you can tap tempo along with it on the next step.</p>
     <div class="wizard-fields">
-      <label>Title <input type="text" id="wiz-title" required></label>
-      <label>Artist <input type="text" id="wiz-artist"></label>
+      <label>Title <input type="text" id="wiz-title" required autocomplete="off" enterkeyhint="next"></label>
+      <label>Artist <span class="field-optional">(optional)</span> <input type="text" id="wiz-artist" autocomplete="off" enterkeyhint="next"></label>
     </div>
-    <div class="import-row">
-      <input type="url" id="wiz-reference-url" placeholder="https://youtube.com/watch?v=... (optional)">
+    <div class="wizard-fields">
+      <div class="field">
+        <label for="wiz-reference-url">Reference video <span class="field-optional">(optional)</span></label>
+        <p class="field-hint" id="wiz-reference-hint">A YouTube link, so everyone learns the same version.</p>
+        <input type="url" id="wiz-reference-url" aria-describedby="wiz-reference-hint" placeholder="e.g. https://youtube.com/watch?v=…" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="next">
+      </div>
     </div>
     <div class="reference-embed" id="wiz-reference-embed"></div>
 
@@ -85,54 +94,74 @@
   <section class="wizard-panel" data-step="1" hidden>
     <p class="hint">Key and tempo — both optional, both editable later. Tap along with the reference video above if you set one.</p>
     <div class="wizard-fields">
-      <label>Key
+      <label>Key <span class="field-optional">(optional)</span>
         <select id="wiz-key">
-          <option value=""></option>
+          <option value="">Not set</option>
           <option>C</option><option>G</option><option>D</option><option>A</option><option>E</option><option>B</option>
           <option>F</option><option>Bb</option><option>Eb</option><option>Ab</option><option>Db</option>
           <option>Am</option><option>Em</option><option>Bm</option><option>F#m</option><option>C#m</option>
           <option>Dm</option><option>Gm</option><option>Cm</option><option>Fm</option><option>Bbm</option>
         </select>
       </label>
-      <label>Tempo (bpm) <input type="number" id="wiz-tempo" min="20" max="300"></label>
-      <button type="button" id="wiz-tap-btn">{{template "icon-tap"}} tap tempo</button>
+      <label>Tempo in bpm <span class="field-optional">(optional)</span> <input type="number" id="wiz-tempo" min="20" max="300" step="1" inputmode="numeric" placeholder="e.g. 96" enterkeyhint="next"></label>
+      <button type="button" id="wiz-tap-btn">{{template "icon-tap"}} Tap tempo</button>
     </div>
   </section>
 
   <section class="wizard-panel" data-step="2" hidden>
     <p class="hint">Fetch lyrics from a URL, or just paste them below — either way, review/edit before creating.</p>
-    <div class="import-row">
-      <input type="url" id="wiz-lyrics-url" placeholder="https://genius.com/... (or any lyrics page)">
-      <button type="button" id="wiz-lyrics-fetch">Fetch</button>
+    <div class="wizard-fields">
+      <label>Lyrics page address <span class="field-optional">(optional)</span>
+        <input type="url" id="wiz-lyrics-url" placeholder="e.g. https://genius.com/…" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
+      </label>
     </div>
-    <span id="wiz-lyrics-status" class="hint"></span>
-    <textarea id="wiz-lyrics-preview" class="wizard-preview" rows="8" placeholder="fetched lyrics will appear here, editable before you create the song"></textarea>
+    <div class="import-row">
+      <button type="button" id="wiz-lyrics-fetch">Fetch lyrics</button>
+      <span id="wiz-lyrics-status" class="hint" role="status"></span>
+    </div>
+    <div class="wizard-fields">
+      <div class="field">
+        <label for="wiz-lyrics-preview">Lyrics <span class="field-optional">(optional)</span></label>
+        <p class="field-hint" id="wiz-lyrics-hint">Fetched lyrics land here; you can edit them before creating the song.</p>
+        <textarea id="wiz-lyrics-preview" class="wizard-preview prose" rows="8" aria-describedby="wiz-lyrics-hint"></textarea>
+      </div>
+    </div>
   </section>
 
   <section class="wizard-panel" data-step="3" hidden>
     <p class="hint">Fetch a chord/lyric tab from Ultimate Guitar and pick which sections to bring in, or skip straight to pasting/typing text yourself. Ultimate Guitar tabs are often wrong, and bar placement is always a guess — treat this as a starting point to correct, not a finished chart.</p>
 
     <div class="ug-import-substep" id="ug-step-url">
-      <div class="import-row">
-        <input type="url" id="wiz-chords-url" placeholder="https://tabs.ultimate-guitar.com/tab/...">
-        <button type="button" id="wiz-chords-fetch" class="primary">Fetch &amp; parse</button>
-        <button type="button" id="ug-skip-to-raw">Skip — paste text instead</button>
+      <div class="wizard-fields">
+        <label>Ultimate Guitar page address <span class="field-optional">(optional)</span>
+          <input type="url" id="wiz-chords-url" placeholder="e.g. https://tabs.ultimate-guitar.com/tab/…" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
+        </label>
       </div>
-      <span id="wiz-chords-status" class="hint"></span>
+      <div class="import-row">
+        <button type="button" id="ug-skip-to-raw">Paste text instead</button>
+        <button type="button" id="wiz-chords-fetch" class="primary">Fetch chart</button>
+      </div>
+      <span id="wiz-chords-status" class="hint" role="status"></span>
     </div>
 
     <div class="ug-import-substep" id="ug-step-preview" hidden>
       <p class="hint" id="ug-preview-title"></p>
       <div id="ug-preview-sections" class="ug-preview-sections"></div>
       <div class="form-actions" style="margin-top:0.6rem">
-        <button type="button" id="ug-preview-back">&larr; back</button>
+        <button type="button" id="ug-preview-back">&larr; Back</button>
         <button type="button" id="ug-preview-use" class="primary">Use selected sections</button>
       </div>
     </div>
 
     <div class="ug-import-substep" id="ug-step-raw" hidden>
       <p class="hint">Paste chords+lyrics, or whatever the import above produced — this is the exact text that will be saved.</p>
-      <textarea id="wiz-chords-preview" class="wizard-preview" rows="8" placeholder="chords + lyrics, [Chord]word syntax, one [Section] at a time"></textarea>
+      <div class="wizard-fields">
+        <div class="field">
+          <label for="wiz-chords-preview">Chords and lyrics</label>
+          <p class="field-hint" id="wiz-chords-hint">A [Chord] right before the word it falls on, and a [Section] line before each part.</p>
+          <textarea id="wiz-chords-preview" class="wizard-preview" rows="8" autocapitalize="off" spellcheck="false" aria-describedby="wiz-chords-hint"></textarea>
+        </div>
+      </div>
 
       {{/* iReal Pro bar-accurate chord reference, same backend/UX as
            the editor's Import tab (play.html) — see that file's own
@@ -140,13 +169,13 @@
       <div class="import-ireal-block">
         <div class="import-row">
           <button type="button" id="wiz-ireal-check-btn">{{template "icon-view"}} Check iReal Pro for bar-accurate chords</button>
-          <span id="wiz-ireal-status" class="hint"></span>
+          <span id="wiz-ireal-status" class="hint" role="status"></span>
         </div>
         <div id="wiz-ireal-candidates" class="import-ireal-candidates"></div>
       </div>
 
       <div class="form-actions" style="margin-top:0.4rem">
-        <button type="button" id="ug-raw-back">&larr; back to import</button>
+        <button type="button" id="ug-raw-back">&larr; Back to import</button>
       </div>
     </div>
   </section>
@@ -154,10 +183,11 @@
   <div class="wizard-actions">
     <button type="button" id="wiz-cancel">Cancel</button>
     <button type="button" id="wiz-back" hidden>Back</button>
-    <button type="button" id="wiz-next" class="primary">Next</button>
-    <button type="button" id="wiz-create" class="primary" hidden>Create song</button>
-    <span id="wiz-status" class="hint"></span>
+    <button type="submit" id="wiz-next" class="primary">Next</button>
+    <button type="submit" id="wiz-create" class="primary" hidden>Create song</button>
+    <span id="wiz-status" class="hint" role="status"></span>
   </div>
+  </form>
 </dialog>
 
 <script src="/static/js/clock.js?v={{staticVersion}}"></script>

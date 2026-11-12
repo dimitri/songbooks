@@ -6,44 +6,50 @@
   const root = document.getElementById('brand-editor');
   if (!root) return;
   const endpoint = root.dataset.endpoint;
-  const status = document.getElementById('brand-status');
-  const fields = () => root.querySelectorAll('[name]');
+  const form = document.getElementById('brand-form');
+  const fields = () => form.querySelectorAll('[name]');
 
   function fill(b) {
     for (const el of fields()) el.value = b[el.name] || '';
-    for (const picker of root.querySelectorAll('[data-color-for]')) {
-      const text = root.querySelector(`[name="${picker.dataset.colorFor}"]`);
+    for (const picker of form.querySelectorAll('[data-color-for]')) {
+      const text = form.querySelector(`[name="${picker.dataset.colorFor}"]`);
       picker.value = text.value || '#888888';
       picker.classList.toggle('unset', !text.value);
     }
   }
 
-  root.addEventListener('input', (e) => {
+  form.addEventListener('input', (e) => {
     const picker = e.target.closest('[data-color-for]');
     if (picker) {
-      root.querySelector(`[name="${picker.dataset.colorFor}"]`).value = picker.value;
+      const text = form.querySelector(`[name="${picker.dataset.colorFor}"]`);
+      text.value = picker.value;
+      Forms.fieldError(text, '');
       picker.classList.remove('unset');
     }
   });
 
-  async function save(b) {
-    status.textContent = 'saving…';
-    const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      status.textContent = data.error || 'could not save';
-      return;
-    }
-    location.reload();
+  async function save(b, btn) {
+    await Forms.run(form, btn, async () => {
+      const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
+      if (!res.ok) {
+        throw new Error(res.status === 400
+          ? 'Some of these settings aren’t valid. Check the colors and links, then try again.'
+          : 'Couldn’t save the look. Try again.');
+      }
+      location.reload();
+    });
   }
 
-  document.getElementById('brand-save').addEventListener('click', () => {
+  // Submit runs only once the browser's checks pass (forms.js shows a bad
+  // hex code or link under its field).
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
     const b = {};
     for (const el of fields()) if (el.value.trim()) b[el.name] = el.value.trim();
-    save(b);
+    save(b, document.getElementById('brand-save'));
   });
-  document.getElementById('brand-reset').addEventListener('click', () => {
-    if (confirm('Go back to the app’s own look?')) save({});
+  document.getElementById('brand-reset').addEventListener('click', (e) => {
+    if (confirm('Reset to the app’s own look? This clears the preset, colors, fonts, logo, tagline and website for everyone here.')) save({}, e.currentTarget);
   });
 
   fetch(endpoint).then((r) => (r.ok ? r.json() : {})).then(fill).catch(() => {});

@@ -178,6 +178,11 @@ var funcMap = template.FuncMap{
 	// contains reports whether a string slice holds v — e.g. "is this
 	// instrument already checked on the person's profile."
 	"hasPrefix": strings.HasPrefix,
+	// bandTabs is the band-tabs partial's argument: the band and which
+	// section is open.
+	"bandTabs": func(id int64, active string) map[string]any {
+		return map[string]any{"ID": id, "Active": active}
+	},
 	"contains": func(list []string, v string) bool {
 		for _, s := range list {
 			if s == v {

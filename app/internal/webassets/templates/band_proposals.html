@@ -19,15 +19,7 @@
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/bands/{{.Band.ID}}">Overview</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/setlists">Setlists</a>
-    <a href="/bands/{{.Band.ID}}/proposals" class="band-tab active">Proposals</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/listening-party">Discover</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/events">Events</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/members">Members</a>
-  </nav>
+  {{template "band-tabs" (bandTabs .Band.ID "proposals")}}
 
   {{/* Proposals and Discover (née "listening party") are two real tabs
        now, each its own route, even though they share the same
@@ -39,49 +31,52 @@
   <div class="form-with-list">
     <div class="card">
       <h2>New proposal</h2>
-      <div class="form-stack">
+      <form class="form-stack" id="create-proposal-form">
+        <fieldset class="field-group">
+          <legend>What are you suggesting?</legend>
+          <label class="check"><input type="radio" name="proposal-kind" value="new_song" checked> A song for the repertoire</label>
+          <label class="check"><input type="radio" name="proposal-kind" value="new_reference"> A reference recording for a song already in it</label>
+        </fieldset>
         <div class="field">
-          <label for="proposal-kind">Kind</label>
-          <select id="proposal-kind">
-            <option value="new_song">a song for the repertoire</option>
-            <option value="new_reference">a reference recording for a song already in it</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="proposal-variant-id">Variant id</label>
-          <input type="number" id="proposal-variant-id" placeholder="e.g. 42 — from /catalog or a repertoire entry">
+          <label for="proposal-song">Song</label>
+          <p class="field-hint" id="proposal-song-hint">Type a title or an artist, then pick the song from the list.</p>
+          <input type="search" id="proposal-song" aria-describedby="proposal-song-hint" autocomplete="off" enterkeyhint="search">
+          <input type="hidden" id="proposal-variant-id">
+          <div id="proposal-song-results" class="attention-list song-pick-results" aria-live="polite"></div>
         </div>
         <div class="field" id="proposal-url-field">
-          <label for="proposal-url">Proposed reference URL</label>
-          <input type="text" id="proposal-url" placeholder="https://...">
+          <label for="proposal-url">Link to the recording</label>
+          <p class="field-hint" id="proposal-url-hint">A YouTube, Spotify or other web link.</p>
+          <input type="url" id="proposal-url" placeholder="https://…" aria-describedby="proposal-url-hint" autocomplete="off" autocapitalize="none" spellcheck="false" required>
         </div>
         <div class="field">
-          <label for="proposal-note">Note <span class="hint">(optional)</span></label>
-          <input type="text" id="proposal-note">
+          <label for="proposal-note">Note <span class="field-optional">(optional)</span></label>
+          <input type="text" id="proposal-note" placeholder="e.g. would work as an opener" autocomplete="off">
         </div>
         <div class="form-actions">
-          <button type="button" id="create-proposal-btn" class="primary">Propose</button>
+          <button type="submit" id="create-proposal-btn" class="primary">Propose</button>
         </div>
-        <p id="create-proposal-result" class="hint"></p>
-      </div>
+        <p id="create-proposal-result" class="form-status" role="status"></p>
+      </form>
     </div>
 
     <div class="table-scroll"><table class="card table-stack" style="width:100%">
-      <thead><tr><th>Kind</th><th>Variant</th><th>Proposer</th><th>Status</th><th>Votes</th><th></th></tr></thead>
+      <thead><tr><th>Kind</th><th>Song</th><th>Proposer</th><th>Status</th><th>Votes</th><th></th></tr></thead>
       <tbody>
       {{range .Proposals}}
         <tr data-proposal-id="{{.ID}}">
-          <td data-label="Kind">{{.Kind}}</td>
-          <td data-label="Variant"><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}variant {{deref64 .TargetVariantID}}{{end}}</a></td>
+          <td data-label="Kind">{{if eq .Kind "new_song"}}New song{{else if eq .Kind "new_reference"}}Reference recording{{else}}{{.Kind}}{{end}}</td>
+          <td data-label="Song"><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}Song {{deref64 .TargetVariantID}}{{end}}</a></td>
           <td data-label="Proposer">{{.ProposerUsername}}</td>
           <td data-label="Status">{{.Status}}</td>
           <td data-label="Votes">{{.YesVotes}} yes / {{.VetoVotes}} veto</td>
           <td>
           {{if eq .Status "open"}}
-            <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="yes">vote yes</button>
-            <button type="button" class="vote-btn danger" data-proposal-id="{{.ID}}" data-vote="veto">veto</button>
-            <button type="button" class="accept-btn primary" data-proposal-id="{{.ID}}">accept</button>
-            <button type="button" class="reject-btn danger" data-proposal-id="{{.ID}}">reject</button>
+            <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="yes">Vote yes</button>
+            <button type="button" class="vote-btn danger" data-proposal-id="{{.ID}}" data-vote="veto" data-title="{{.TargetTitle}}">Veto</button>
+            <button type="button" class="accept-btn primary" data-proposal-id="{{.ID}}">Accept</button>
+            <button type="button" class="reject-btn danger" data-proposal-id="{{.ID}}" data-title="{{.TargetTitle}}">Reject</button>
+            <p class="form-status" role="status"></p>
           {{end}}
           </td>
         </tr>
@@ -94,58 +89,122 @@
 </main>
 <script>
 const bandId = {{.Band.ID}};
-document.getElementById('proposal-kind').addEventListener('change', (e) => {
-  document.getElementById('proposal-url-field').style.display = e.target.value === 'new_reference' ? '' : 'none';
-});
-document.getElementById('proposal-url-field').style.display = 'none';
 
-document.getElementById('create-proposal-btn').addEventListener('click', async () => {
-  const kind = document.getElementById('proposal-kind').value;
+// Song picker: search the catalog as you type and pick a result. The
+// picked song's id goes in the hidden field; typing again clears it.
+function songPicker(input, hidden, list) {
+  let timer;
+  async function search() {
+    const q = input.value.trim();
+    list.replaceChildren();
+    if (!q) return;
+    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`).catch(() => null);
+    const hits = res && res.ok ? await res.json().catch(() => []) : [];
+    if (!hits.length) {
+      const p = document.createElement('p');
+      p.className = 'attention-empty';
+      p.textContent = res && res.ok ? 'No songs match that.' : 'Couldn’t search the catalog. Try again.';
+      list.append(p);
+      return;
+    }
+    for (const hit of hits) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'attention-row';
+      const t = document.createElement('span');
+      t.className = 'attention-title';
+      t.textContent = hit.title;
+      b.append(t);
+      if (hit.artist) {
+        const a = document.createElement('span');
+        a.className = 'attention-subtitle';
+        a.textContent = hit.artist;
+        b.append(a);
+      }
+      b.addEventListener('click', () => {
+        hidden.value = hit.variantId;
+        input.value = hit.artist ? `${hit.title} — ${hit.artist}` : hit.title;
+        list.replaceChildren();
+        Forms.fieldError(input, '');
+        input.focus();
+      });
+      list.append(b);
+    }
+  }
+  input.addEventListener('input', () => {
+    hidden.value = '';
+    clearTimeout(timer);
+    timer = setTimeout(search, 250);
+  });
+  // Enter searches until a song is picked, then submits the form.
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !hidden.value) { e.preventDefault(); clearTimeout(timer); search(); }
+  });
+}
+songPicker(document.getElementById('proposal-song'), document.getElementById('proposal-variant-id'), document.getElementById('proposal-song-results'));
+
+// The link field only applies to a reference recording; disabled, it's
+// also left out of the form's checks.
+function syncKind() {
+  const isRef = document.querySelector('input[name="proposal-kind"]:checked').value === 'new_reference';
+  const field = document.getElementById('proposal-url-field');
+  field.style.display = isRef ? '' : 'none';
+  document.getElementById('proposal-url').disabled = !isRef;
+}
+document.querySelectorAll('input[name="proposal-kind"]').forEach(r => r.addEventListener('change', syncKind));
+syncKind();
+
+document.getElementById('create-proposal-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const kind = document.querySelector('input[name="proposal-kind"]:checked').value;
+  const songInput = document.getElementById('proposal-song');
   const targetVariantId = Number(document.getElementById('proposal-variant-id').value);
   const note = document.getElementById('proposal-note').value.trim();
-  const out = document.getElementById('create-proposal-result');
-  if (!targetVariantId) { out.textContent = 'variant id is required'; return; }
-  let payload = {note};
-  if (kind === 'new_reference') {
-    const url = document.getElementById('proposal-url').value.trim();
-    if (!url) { out.textContent = 'a proposed URL is required for a new-reference proposal'; return; }
-    payload = {url, note};
+  if (!targetVariantId) {
+    Forms.fieldError(songInput, songInput.value.trim() ? 'Pick the song from the list under the field.' : 'Enter a song title or artist, then pick the song.');
+    songInput.focus();
+    return;
   }
-  const res = await fetch(`/api/bands/${bandId}/proposals`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({kind, targetVariantId, payload}),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) {
+  const payload = kind === 'new_reference' ? {url: document.getElementById('proposal-url').value.trim(), note} : {note};
+  Forms.run(form, document.getElementById('create-proposal-btn'), async () => {
+    const res = await fetch(`/api/bands/${bandId}/proposals`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({kind, targetVariantId, payload}),
+    });
+    if (!res.ok) throw new Error("Couldn't send the proposal. Check the song and link, then try again.");
     location.reload();
-  } else {
-    out.textContent = data.error || 'failed to propose';
-  }
+  });
 });
 
-async function vote(proposalId, voteValue) {
-  const res = await fetch(`/api/bands/${bandId}/proposals/${proposalId}/votes`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({vote: voteValue}),
-  });
-  if (res.ok) location.reload();
-  else { const data = await res.json().catch(() => ({})); alert(data.error || 'vote failed'); }
+// Vote / accept / reject: each reloads on success, or says what failed
+// in the proposal's own row.
+async function act(btn, url, body, failMsg) {
+  const st = btn.parentElement.querySelector('.form-status');
+  Forms.status(st, '');
+  Forms.busy(btn, true);
+  const res = await fetch(url, body ? {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+  } : {method: 'POST'}).catch(() => null);
+  if (res && res.ok) { location.reload(); return; }
+  Forms.busy(btn, false);
+  // 409: someone else's vote or decision got there first.
+  Forms.status(st, res && res.status === 409 ? 'This one has already been decided. Reload to see how.' : failMsg, 'error');
 }
+const titleOf = (btn) => btn.dataset.title ? `“${btn.dataset.title}”` : 'this song';
 document.querySelectorAll('.vote-btn').forEach(btn => {
-  btn.addEventListener('click', () => vote(btn.dataset.proposalId, btn.dataset.vote));
+  btn.addEventListener('click', () => {
+    if (btn.dataset.vote === 'veto' && !confirm(`Veto ${titleOf(btn)}? One veto turns the proposal down straight away.`)) return;
+    act(btn, `/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/votes`, {vote: btn.dataset.vote}, "Couldn't record your vote. Try again.");
+  });
 });
 document.querySelectorAll('.accept-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const res = await fetch(`/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/accept`, {method: 'POST'});
-    if (res.ok) location.reload();
-    else { const data = await res.json().catch(() => ({})); alert(data.error || 'accept failed'); }
-  });
+  btn.addEventListener('click', () => act(btn, `/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/accept`, null, "Couldn't accept it. Try again."));
 });
 document.querySelectorAll('.reject-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const res = await fetch(`/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/reject`, {method: 'POST'});
-    if (res.ok) location.reload();
-    else { const data = await res.json().catch(() => ({})); alert(data.error || 'reject failed'); }
+  btn.addEventListener('click', () => {
+    if (!confirm(`Reject ${titleOf(btn)} without waiting for the vote?`)) return;
+    act(btn, `/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/reject`, null, "Couldn't reject it. Try again.");
   });
 });
 </script>

@@ -58,6 +58,11 @@ type eventRequestBody struct {
 	StartsAt      string `json:"startsAt"` // RFC3339
 	EndsAt        string `json:"endsAt"`   // RFC3339, optional
 	AudienceScope string `json:"audienceScope"`
+	// A band rehearsal's set list to practise: an existing one of the
+	// band's (SetlistID), or a new empty one named after the rehearsal
+	// (NewSetlist).
+	SetlistID  int64 `json:"setlistId"`
+	NewSetlist bool  `json:"newSetlist"`
 }
 
 func parseEventTimes(startsAt, endsAt string) (time.Time, *time.Time, error) {
@@ -129,7 +134,7 @@ func (s *Server) handleCreateBandEvent(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "name is required")
 		return
 	}
-	if !validEventTypes[req.EventType] {
+	if !validEventTypes[req.EventType] && req.EventType != "rehearsal" {
 		httpError(w, http.StatusBadRequest, "invalid eventType")
 		return
 	}
@@ -138,13 +143,35 @@ func (s *Server) handleCreateBandEvent(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if req.SetlistID != 0 {
+		meta, err := s.store.GetSetlistMeta(r.Context(), req.SetlistID)
+		if err != nil || meta.OwnerBandID == nil || *meta.OwnerBandID != bandID {
+			httpError(w, http.StatusBadRequest, "that set list isn't one of this band's")
+			return
+		}
+	}
 	actor := personFromContext(r)
 	id, err := s.store.CreateEvent(r.Context(), "band", bandID, req.EventType, req.Name, req.Description, req.Location, startsAt, endsAt, "members", actor.ID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]int64{"eventId": id})
+	setlistID := req.SetlistID
+	if setlistID == 0 && req.NewSetlist {
+		bid := bandID
+		setlistID, err = s.store.CreateSetlist(r.Context(), "band", req.Name+" — "+startsAt.Format("Mon 2 Jan"), "", nil, &bid, nil, actor.ID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	if setlistID != 0 {
+		if err := s.store.SetEventSetlist(r.Context(), id, setlistID); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]int64{"eventId": id, "setlistId": setlistID})
 }
 
 // handleCommunityEventsPage is the public (no auth) "upcoming events /
@@ -202,22 +229,23 @@ func (s *Server) handleBandEventsPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	events, err := s.store.ListEventsForBand(r.Context(), bandID)
+	person := personFromContext(r)
+	now := time.Now()
+	first := parseMonth(r.URL.Query().Get("month"), now)
+	from, to := monthRange(first)
+	items, err := s.bandCalendar(r.Context(), person.ID, bandID, from, to)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	now := time.Now()
-	var upcoming, past []store.Event
-	for _, ev := range events {
-		if ev.IsPast(now) {
-			past = append(past, ev)
-		} else {
-			upcoming = append(upcoming, ev)
-		}
+	setlists, err := s.store.ListSetlistsForBand(r.Context(), bandID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 	s.render(w, "band_events", map[string]any{
-		"Me": personFromContext(r), "Band": band, "Upcoming": upcoming, "Past": past,
+		"Me": person, "Band": band, "Setlists": setlists,
+		"Calendar": buildCalendarMonth(fmt.Sprintf("/bands/%d/events", bandID), first, items, now),
 	})
 }
 
