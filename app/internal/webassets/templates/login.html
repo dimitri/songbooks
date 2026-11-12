@@ -106,8 +106,8 @@
   function friendly(err, status) {
     if (err && err.name === 'NotAllowedError') return 'The passkey request was cancelled or timed out.' + FALLBACK;
     if (status === 400) return 'That took too long.' + FALLBACK;
-    if (status === 401) return 'That passkey isn’t registered for an account here.' + FALLBACK;
-    return 'Couldn’t log in with a passkey.' + FALLBACK;
+    if (status === 404) return 'That passkey isn’t linked to an account here any more — it may have been removed.' + FALLBACK;
+    return 'Couldn’t log in with that passkey.' + FALLBACK;
   }
 
   btn.addEventListener('click', async () => {
@@ -126,6 +126,13 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cred.toJSON()),
       });
+      if (finishRes.status === 404 && PublicKeyCredential.signalUnknownCredential) {
+        // The server has no such passkey (removed from a profile page, say):
+        // tell the provider, so it stops offering it here (WebAuthn Signal
+        // API; browsers without it skip this).
+        PublicKeyCredential.signalUnknownCredential({ rpId: options.publicKey.rpId || location.hostname, credentialId: cred.id })
+          .catch(e => console.warn('passkey signal failed', e));
+      }
       if (!finishRes.ok) { status = finishRes.status; throw new Error(); }
       const body = await finishRes.json();
       window.location.href = body.redirect || '/';

@@ -65,6 +65,8 @@ var Fonts = map[string]Font{
 	"playfair":      {"Playfair Display", `"Playfair Display", Georgia, serif`, "Playfair+Display:ital,wght@0,400;0,700;1,400"},
 	"eb-garamond":   {"EB Garamond", `"EB Garamond", Georgia, serif`, ""},
 	"bebas":         {"Bebas Neue", `"Bebas Neue", "Arial Narrow", sans-serif`, "Bebas+Neue"},
+	"anton":         {"Anton", `"Anton", Impact, "Arial Narrow", sans-serif`, "Anton"},
+	"nunito-sans":   {"Nunito Sans", `"Nunito Sans", Avenir, "Avenir Next", "Helvetica Neue", Arial, sans-serif`, "Nunito+Sans:wght@400;600;700"},
 }
 
 // FontKeys is Fonts' keys in label order, for a picker.
@@ -83,14 +85,38 @@ type Preset struct {
 	Brand Brand
 }
 
-// Presets are the looks offered as starting points. The first two follow
-// the websites of the community and band they were made for.
+// Presets are the looks offered as starting points. Most follow the
+// website of the community or band they were made for; their colors are
+// the site's own, darkened only where white or black text on the header
+// or on an accent button would miss WCAG AA (brand_test.go checks it).
 var Presets = map[string]Preset{
+	// bands-camp.com: light grey pages under a grey top bar, black Anton
+	// titles, hot pink highlights, red eyebrows, square black buttons.
+	// Their pink #ed1566 is darkened to #cc1259 for white button text
+	// (4.3:1 → 5.5:1), and their red #fe2525 to #931515 so the tagline
+	// reads on the grey header (2.3:1 → 5.3:1). Inter stands in for the
+	// site's text fonts.
+	"bands-camp": {"Camp (grey, black and hot pink, square)", Brand{
+		Background: "#edebeb", Surface: "#ffffff", Text: "#111111", Muted: "#424242",
+		Accent: "#cc1259", Accent2: "#931515", Header: "#c7c7c7",
+		FontDisplay: "anton", FontUI: "inter", Shape: "square",
+	}},
+	// app.jamspace.co: white pages, Bebas Kai titles (Bebas Neue here),
+	// Avenir text (Nunito Sans), teal buttons with soft corners, the slate
+	// of their logo. Their teal #0099aa is darkened to #007a87 for white
+	// button text (3.4:1 → 5.1:1).
+	"jamspace": {"Jam (white, teal and slate)", Brand{
+		Background: "#f3fafb", Surface: "#ffffff", Text: "#002023", Muted: "#4a546d",
+		Accent: "#007a87", Accent2: "#4a546d", Header: "#ffffff",
+		FontDisplay: "bebas", FontUI: "nunito-sans", Shape: "soft",
+	}},
 	// florentpassamonti.fr: black header, white pages, Assistant, square
-	// black buttons, the warm red of his blues-rock covers.
+	// black buttons, the warm red of his blues-rock covers, lightened from
+	// #c8281e to #e0402f so the tagline reads on the black header
+	// (3.8:1 → 4.9:1).
 	"florent-passamonti": {"Blues & Rock (black and white, square)", Brand{
 		Background: "#ffffff", Surface: "#f3f3f3", Text: "#121212", Muted: "#5c5c5c",
-		Accent: "#121212", Accent2: "#c8281e", Header: "#000000",
+		Accent: "#121212", Accent2: "#e0402f", Header: "#000000",
 		FontDisplay: "assistant", FontUI: "assistant", Shape: "square",
 	}},
 	// otherlies.fr: night-blue ink, ice-blue and rose, Fraunces over

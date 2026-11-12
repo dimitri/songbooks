@@ -27,7 +27,7 @@ function wizCheckTitle() {
   titleInput.focus();
   return false;
 }
-document.getElementById('wiz-form')?.addEventListener('submit', (e) => {
+document.getElementById('wiz-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const active = document.activeElement;
   if (active && active.id === 'wiz-lyrics-url') { document.getElementById('wiz-lyrics-fetch').click(); return; }
@@ -46,6 +46,14 @@ document.getElementById('wiz-form')?.addEventListener('submit', (e) => {
     }
   }
   if (!wizCheckTitle()) return;
+  // Leaving the title step, or creating: someone who typed fast and
+  // pressed Enter still sees "Already in the library" once (shown on
+  // whichever step holds the list).
+  if ((wizStep === 0 || wizStep === WIZ_STEPS - 1) && wizLibrary && !(await wizLibrary.guard())) {
+    const panel = wizard.querySelector('.library-match')?.closest('.wizard-panel');
+    if (panel && panel.hidden) wizShowStep(parseInt(panel.dataset.step, 10));
+    return;
+  }
   if (wizStep < WIZ_STEPS - 1) wizShowStep(wizStep + 1);
   else wizCreate();
 });
@@ -102,8 +110,7 @@ document.getElementById('open-wizard-btn')?.addEventListener('click', () => {
   document.getElementById('wiz-ireal-status').textContent = '';
   document.getElementById('wiz-ireal-candidates').innerHTML = '';
   document.getElementById('ug-preview-sections').innerHTML = '';
-  document.getElementById('wiz-catalog-matches').hidden = true;
-  document.getElementById('wiz-catalog-matches').innerHTML = '';
+  wizLibrary?.reset();
   wizard.querySelectorAll('[aria-invalid]').forEach((el) => Forms.fieldError(el, ''));
   ugLastURL = '';
   ugShowSubstep('ug-step-url');
@@ -113,96 +120,30 @@ document.getElementById('open-wizard-btn')?.addEventListener('click', () => {
 });
 document.getElementById('wiz-cancel')?.addEventListener('click', () => wizard.close());
 
-// ---- Step 1's "is this already in the catalog?" search-as-you-type —
-// same /api/catalog/search the band repertoire's "From the catalog" tab
-// uses, offered right where a duplicate would otherwise get created.
-// "Add to this songbook" short-circuits the rest of the wizard entirely
-// (closes the dialog, lands on the existing song) rather than letting
-// title/key/lyrics/chords steps keep collecting data for a song that's
-// about to be thrown away.
-(function () {
-  const titleInput = document.getElementById('wiz-title');
-  const artistInput = document.getElementById('wiz-artist');
-  const matchesHost = document.getElementById('wiz-catalog-matches');
-  if (!titleInput || !matchesHost) return;
-  let debounceTimer;
-
-  async function search() {
-    const q = `${titleInput.value.trim()} ${artistInput.value.trim()}`.trim();
-    if (q.length < 2) { matchesHost.hidden = true; matchesHost.innerHTML = ''; return; }
-    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`);
-    const hits = await res.json().catch(() => []);
-    matchesHost.innerHTML = '';
-    if (!hits.length) { matchesHost.hidden = true; return; }
-    matchesHost.hidden = false;
-    const heading = document.createElement('p');
-    heading.className = 'hint';
-    heading.textContent = 'Already in the catalog — add it instead of creating a new song. You can still edit it either way: "Add as-is" shares your edits back to the catalog for everyone, "Fork a private copy" keeps your edits to yourself.';
-    matchesHost.appendChild(heading);
-    for (const hit of hits.slice(0, 5)) {
-      const row = document.createElement('div');
-      row.className = 'attention-row';
-      row.innerHTML = `
-        <div>
-          <div class="attention-title">${hit.title}</div>
-          ${hit.artist ? `<div class="attention-subtitle">${hit.artist}</div>` : ''}
-        </div>`;
-      const actions = document.createElement('span');
-      actions.style.marginLeft = 'auto';
-      actions.style.display = 'flex';
-      actions.style.gap = '0.4rem';
-
-      const addBtn = document.createElement('button');
-      addBtn.type = 'button';
-      addBtn.title = 'Adds the catalog song as-is — editing it afterward updates the catalog version for everyone, same as fixing a typo for the whole band.';
-      addBtn.textContent = 'Add as-is (contribute edits)';
-      addBtn.addEventListener('click', async () => {
-        addBtn.disabled = true; forkBtn.disabled = true;
-        const res = await fetch(`/api/songbooks/${wizSongbookId}/entries`, {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({variantId: hit.variantId}),
-        });
-        if (res.ok) {
-          wizard.close();
-          location.href = `/song/${hit.variantId}`;
-        } else {
-          addBtn.disabled = false; forkBtn.disabled = false;
-        }
-      });
-
-      const forkBtn = document.createElement('button');
-      forkBtn.type = 'button';
-      forkBtn.title = 'Makes your own private copy in this songbook — your edits stay yours, the catalog version is untouched.';
-      forkBtn.textContent = 'Fork a private copy';
-      forkBtn.addEventListener('click', async () => {
-        addBtn.disabled = true; forkBtn.disabled = true;
-        const forkRes = await fetch(`/api/variants/${hit.variantId}/fork`, {method: 'POST'});
-        const forkData = await forkRes.json().catch(() => ({}));
-        if (!forkRes.ok) { addBtn.disabled = false; forkBtn.disabled = false; return; }
-        const res = await fetch(`/api/songbooks/${wizSongbookId}/entries`, {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({variantId: forkData.variantId}),
-        });
-        if (res.ok) {
-          wizard.close();
-          location.href = `/song/${forkData.variantId}`;
-        } else {
-          addBtn.disabled = false; forkBtn.disabled = false;
-        }
-      });
-
-      actions.append(addBtn, forkBtn);
-      row.appendChild(actions);
-      matchesHost.appendChild(row);
-    }
-  }
-  [titleInput, artistInput].forEach(el => {
-    el.addEventListener('input', () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(search, 300);
-    });
-  });
-})();
+// ---- Step 1's "Already in the library" list (library-match.js): as the
+// title is typed, songs already in the library with that title, each
+// with one button that adds it to this songbook and lands on it, which
+// short-circuits the rest of the wizard rather than letting the later
+// steps collect data for a song that's about to be thrown away.
+const wizLibrary = wizard && window.LibraryMatch ? LibraryMatch.attach({
+  title: document.getElementById('wiz-title'),
+  artist: document.getElementById('wiz-artist'),
+  host: document.getElementById('wiz-library-match'),
+  addLabel: 'Add to this songbook',
+  add: async (hit) => {
+    const res = await fetch(`/api/songbooks/${wizSongbookId}/entries`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ variantId: hit.variantId }),
+    }).catch(() => null);
+    if (!res || !res.ok) throw new Error(`Couldn't add “${hit.title}” to this songbook. Try again.`);
+    wizard.close();
+    location.href = `/song/${hit.variantId}?songbook=${wizSongbookId}`;
+  },
+  isInList: (id) => !!document.querySelector(`#catalog-section li[data-variant-id="${id}"]`),
+  openHref: (hit) => `/song/${hit.variantId}?songbook=${wizSongbookId}`,
+  // "None of these" on the first step moves on, same as Next.
+  onNone: () => { if (wizStep === 0) document.getElementById('wiz-form').requestSubmit(document.getElementById('wiz-next')); },
+}) : null;
 
 async function wizFetch(kind, endpoint) {
   const url = document.getElementById(`wiz-${kind}-url`).value.trim();
@@ -261,8 +202,12 @@ document.getElementById('wiz-chords-fetch')?.addEventListener('click', async () 
   if (!res.ok) { status.textContent = "Couldn't read a chart from that page. Check the address, or choose \u201cPaste text instead\u201d."; status.className = 'hint err'; return; }
   status.textContent = '';
   ugLastURL = url;
-  if (data.title && !document.getElementById('wiz-title').value.trim()) document.getElementById('wiz-title').value = data.title;
+  const titleFromChart = data.title && !document.getElementById('wiz-title').value.trim();
+  if (titleFromChart) document.getElementById('wiz-title').value = data.title;
   if (data.artist && !document.getElementById('wiz-artist').value.trim()) document.getElementById('wiz-artist').value = data.artist;
+  // The chart named the song: check the library for it here, on this
+  // step, since step 1's list never saw that title.
+  if (titleFromChart) wizLibrary?.check({ host: document.getElementById('wiz-import-library-match') });
   const titleEl = document.getElementById('ug-preview-title');
   titleEl.textContent = `Found ${data.sections.length} section${data.sections.length === 1 ? '' : 's'}. Tick the ones to bring in. Where the bars fall is a rough guess; fix it in the editor afterwards.`;
   const list = document.getElementById('ug-preview-sections');

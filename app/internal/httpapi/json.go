@@ -63,12 +63,16 @@ type jsonSection struct {
 type jsonChordRef struct {
 	Name string `json:"name"`
 	Spec string `json:"spec"`
+	Key  string `json:"key,omitempty"` // set on a diagram kept for another key
 }
 
 type jsonSong struct {
-	Meta     []jsonMetaField `json:"meta"`
-	Chords   []jsonChordRef  `json:"chords,omitempty"`
-	Sections []jsonSection   `json:"sections"`
+	Meta   []jsonMetaField `json:"meta"`
+	Chords []jsonChordRef  `json:"chords,omitempty"`
+	// Diagrams registered for other keys ("chord[K]:" lines), carried
+	// so a Chart save doesn't drop them.
+	OtherChords []jsonChordRef `json:"otherChords,omitempty"`
+	Sections    []jsonSection  `json:"sections"`
 }
 
 func toJSON(s *song.Song) jsonSong {
@@ -78,6 +82,9 @@ func toJSON(s *song.Song) jsonSong {
 	}
 	for _, c := range s.Chords {
 		out.Chords = append(out.Chords, jsonChordRef{Name: c.Name, Spec: c.Spec})
+	}
+	for _, c := range s.OtherChords {
+		out.OtherChords = append(out.OtherChords, jsonChordRef{Name: c.Name, Spec: c.Spec, Key: c.Key})
 	}
 	for _, sec := range s.Sections {
 		js := jsonSection{
@@ -116,6 +123,9 @@ func fromJSON(in jsonSong) *song.Song {
 	}
 	for _, c := range in.Chords {
 		out.Chords = append(out.Chords, song.ChordRef{Name: c.Name, Spec: c.Spec})
+	}
+	for _, c := range in.OtherChords {
+		out.OtherChords = append(out.OtherChords, song.ChordRef{Name: c.Name, Spec: c.Spec, Key: c.Key})
 	}
 	for _, js := range in.Sections {
 		sec := song.Section{

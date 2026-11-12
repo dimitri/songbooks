@@ -147,7 +147,7 @@
      own legacy LaTeX corpus's \gtab rows, e.g. Mercy/gone/gone.tex).
      Hidden in song-map mode (CSS below), same as every other non-map
      chrome in this template. */}}
-<div class="chord-legend">
+<div class="chord-legend chord-legend-own">
   {{range .Chords}}
   <div class="chord-legend-item">{{chordDiagram .}}</div>
   {{end}}
@@ -580,7 +580,18 @@
     <h1>{{.Title}}</h1>
     <div class="topbar-meta">
       {{if .Artist}}<span class="topbar-artist">{{.Artist}}</span>{{end}}
-      {{if .Key}}<span class="topbar-meta-item">key {{.Key}}</span>{{end}}
+      {{if .Key}}<span class="topbar-meta-item topbar-key">
+        {{/* View-only transpose: shifts the chords on screen for tonight,
+             never the saved song (Edit → Source → Transpose does that).
+             Swaps the chord diagrams for the displayed key's set when the
+             song has one — see song.js "Transpose (view only)". */}}
+        <span id="key-display">key <span id="key-original">{{.Key}}</span><span id="key-transposed" hidden></span></span>
+        <span class="transpose-control" title="Play in another key: only changes what's on screen">
+          <button id="transpose-down" type="button" aria-label="Down a semitone">&minus;</button>
+          <span id="transpose-amount">0</span>
+          <button id="transpose-up" type="button" aria-label="Up a semitone">+</button>
+        </span>
+      </span>{{end}}
       {{if .Tempo}}<span class="topbar-meta-item">{{.Tempo}} bpm</span>{{end}}
       {{if .GPSource}}<a class="topbar-meta-item gp-source-badge" href="/song/{{.VariantID}}/gp-file" download title="download the original Guitar Pro file — see Edit &rarr; GP Import to bring edits back in">{{template "icon-instrument-guitar"}} GP import: {{.GPSource}}</a>{{end}}
     </div>
@@ -712,6 +723,7 @@
         <button type="button" data-insert="chord">chord:</button>
         <button type="button" data-wrap="chord">[Chord]</button>
         <button type="button" data-insert="comment"># comment</button>
+        <button type="button" id="transpose-open" aria-expanded="false" aria-controls="transpose-panel">Transpose…</button>
         <a href="/docs/song-format" target="_blank" rel="noopener" class="code-toolbar-help" title="full .song syntax reference">Syntax help &#8599;</a>
       </div>
       {{/* Two panes on desktop (source left, live computed output right) —
@@ -723,6 +735,37 @@
            same response; CSS (app.css) only turns this into a real
            side-by-side layout at desktop widths — on narrow viewports it
            stacks, since a real second column has no room there. */}}
+      {{/* Transpose the song for real: the server rewrites this Source
+           text into the new key (song.TransposeText), the result lands
+           here unsaved, and Save records it in the song's history like
+           any edit. Chord diagrams of the old key stay, marked with it. */}}
+      <div class="transpose-panel card" id="transpose-panel" hidden>
+        <div id="transpose-ask">
+        <form class="form-stack" id="transpose-form">
+          <div id="transpose-from-field" hidden>
+            <div class="field">
+              <label for="transpose-from">Key the song is in now</label>
+              <p class="field-hint" id="transpose-from-hint">This song has no key yet. We guessed it from the first chord.</p>
+              <select id="transpose-from" aria-describedby="transpose-from-hint"></select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="transpose-to">New key</label>
+            <p class="field-hint" id="transpose-to-hint">Every chord changes, in the grids and in the lyrics. Chord diagrams stay saved for the old key.</p>
+            <select id="transpose-to" aria-describedby="transpose-to-hint" required></select>
+          </div>
+          <p class="form-status" id="transpose-status" role="status"></p>
+          <div class="form-actions">
+            <button type="submit" class="primary" id="transpose-apply">Transpose</button>
+            <button type="button" class="ghost-btn" id="transpose-cancel">Cancel</button>
+          </div>
+        </form>
+        </div>
+        <div class="transpose-done" id="transpose-done" hidden>
+          <p id="transpose-done-text"></p>
+          <button type="button" class="chip-link" id="transpose-diagrams-btn" hidden></button>
+        </div>
+      </div>
       <div class="code-editor-row">
         <div class="code-editor">
           <pre class="code-backdrop" id="code-backdrop" aria-hidden="true"><code id="code-highlight"></code></pre>
@@ -822,8 +865,15 @@
           </dl>
         </details>
       </div>
-      <h3>Chord diagram</h3>
+      <h3 id="chord-diagram-heading">Chord diagram</h3>
       <p class="hint">The builder below makes a <code>chord:</code> header line for the chart's chord diagrams and adds it to Source.</p>
+      {{/* Filled by song.js from POST /api/transpose (analysis only): the
+           chords the song plays that have no diagram yet for its key.
+           Tapping one puts its name in the builder. */}}
+      <div class="cde-todo" id="cde-todo" hidden>
+        <p class="hint" id="cde-todo-text"></p>
+        <div class="cde-todo-chips" id="cde-todo-chips"></div>
+      </div>
       <p class="hint">Click a fret cell to mark it, click again to cycle fret &rarr; mute &rarr; open. Drag across a row at the same fret to mark a barre.</p>
       <div class="chord-diagram-editor" id="chord-diagram-editor">
         <div class="cde-controls">
@@ -1394,9 +1444,21 @@
         </div>
       </div>
     </div>
-    <main class="sheet" id="sheet" data-render-mode="normal" data-key="{{.Key}}" data-flats="{{if .Flats}}1{{else}}0{{end}}">
+    <main class="sheet" id="sheet" data-render-mode="normal" data-key="{{.Key}}" data-flats="{{if .Flats}}1{{else}}0{{end}}" data-has-diagrams="{{if or .Chords (chordDiagramSets .Text)}}1{{end}}">
     {{template "sheet-body" .}}
     </main>
+    {{/* Chord diagrams entered for other keys ("chord[G]: ..." lines). Kept
+         out of #sheet (live previews re-render it) and inert until the
+         view-only transpose lands on one of these keys. */}}
+    {{with chordDiagramSets .Text}}
+    <template id="chord-diagram-sets">
+      {{range .}}
+      <div class="chord-legend chord-legend-other" data-key="{{.Key}}" data-key-pc="{{.PC}}" data-key-minor="{{if .Minor}}1{{end}}">
+        {{range .Chords}}<div class="chord-legend-item">{{chordDiagram .}}</div>{{end}}
+      </div>
+      {{end}}
+    </template>
+    {{end}}
     {{/* Reference is a real page/view mode (data-render-mode="reference" on
          #sheet, set by #mode-segmented like every other mode) instead of a
          drawer popup — per direct request, "a normal song view page." A

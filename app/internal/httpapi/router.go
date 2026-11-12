@@ -145,6 +145,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /song/{id}", s.requireVariantRole("viewer", s.handleSong))
 	mux.HandleFunc("GET /api/qr", s.requireAuth(s.handleQRCode))
 	mux.HandleFunc("POST /api/preview", s.requireAuth(s.handlePreview))
+	mux.HandleFunc("POST /api/transpose", s.requireAuth(s.handleTranspose))
 	mux.HandleFunc("POST /api/import/lyrics", s.requireAuth(s.handleImportLyrics))
 	mux.HandleFunc("GET /api/import/lyrics/find", s.requireAuth(s.handleImportLyricsFindFetch))
 	mux.HandleFunc("POST /api/import/chords", s.requireAuth(s.handleImportChords))
@@ -252,6 +253,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /songbooks", s.requireAuth(s.handleSongbooksIndexPage))
 	mux.HandleFunc("GET /catalog", s.requireAuth(s.handleCatalogPage))
 	mux.HandleFunc("GET /api/catalog/search", s.requireAuth(s.handleCatalogSearch))
+	mux.HandleFunc("GET /api/catalog/match", s.requireAuth(s.handleCatalogMatch))
 	mux.HandleFunc("GET /works/{id}", s.requireAuth(s.handleWorkVersionsPage))
 	mux.HandleFunc("GET /variants/{id}/history", s.requireAuth(s.handleVariantHistoryPage))
 

@@ -25,6 +25,15 @@ import (
 //go:embed templates
 var templatesFS embed.FS
 
+// chordDiagramSet is one key's diagrams for the "chordDiagramSets"
+// template func.
+type chordDiagramSet struct {
+	Key    string
+	PC     int
+	Minor  bool
+	Chords []song.ChordRef
+}
+
 //go:embed static
 var staticFSRaw embed.FS
 
@@ -74,6 +83,27 @@ var funcMap = template.FuncMap{
 	"chordDiagram": func(ref song.ChordRef) template.HTML {
 		d := chorddiagram.ParseSpec(ref.Spec)
 		return template.HTML(chorddiagram.RenderSVG(d, chordsym.GlyphName(ref.Name)))
+	},
+	// chordDiagramSets reads the diagrams a song registers for keys other
+	// than its own ("chord[K]:" lines, see song.Song.OtherChords) from its
+	// source text, so the song page can swap the diagram row when someone
+	// transposes the view. PC/Minor let song.js match the displayed key
+	// without parsing key names itself. Takes any: a page rendered
+	// without the song's text (a set list's practice view) just gets none.
+	"chordDiagramSets": func(v any) []chordDiagramSet {
+		text, _ := v.(string)
+		if !strings.Contains(text, "chord[") {
+			return nil
+		}
+		var out []chordDiagramSet
+		for _, set := range song.Parse(text).DiagramSets() {
+			k, ok := chordsym.ParseKey(set.Key)
+			if !ok {
+				continue
+			}
+			out = append(out, chordDiagramSet{Key: set.Key, PC: k.PitchClass(), Minor: k.Minor, Chords: set.Chords})
+		}
+		return out
 	},
 	"add1": func(n int) int { return n + 1 },
 	// navGlobal returns the global nav's declared entry list for one

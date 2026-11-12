@@ -2,8 +2,9 @@
 // app's one text representation for a song's header, structure, chord
 // grid and lyrics.
 //
-// This package never interprets or transposes chord text: it only pulls
-// apart the structural syntax (bars, sections, lyric brackets, score
+// Apart from TransposeText (transpose.go), which rewrites a song into
+// another key on request, this package never interprets or transposes
+// chord text: it only pulls apart the structural syntax (bars, sections, lyric brackets, score
 // voices) it needs to drive an editor and viewer, and keeps every
 // token's text byte-for-byte as written. That keeps round-tripping safe
 // for content this package doesn't itself understand (duration tags, a
@@ -11,6 +12,8 @@
 // comment, and internal/tab.ParseVoice, where that one actually gets
 // resolved).
 package song
+
+import "app/internal/chordsym"
 
 // MetaKeys are the header fields recognized by v2/lib/song.typ's META-KEYS,
 // plus "reference" (a companion field this app adds; v2/lib/song.typ must
@@ -46,9 +49,16 @@ type MetaField struct {
 
 // Song is the whole parsed .song file.
 type Song struct {
-	Meta     []MetaField
-	Chords   []ChordRef
-	Sections []Section
+	Meta []MetaField
+	// Chords are the diagrams for the song's own key: every plain
+	// "chord:" line, plus any "chord[K]:" line whose K is the "key:"
+	// header. This is the set every renderer shows.
+	Chords []ChordRef
+	// OtherChords are diagrams registered for other keys ("chord[K]:"
+	// lines), kept so a song transposed away and back, or played in
+	// another key, still has them. See DiagramsFor.
+	OtherChords []ChordRef
+	Sections    []Section
 }
 
 // ChordRef is one "chord: Name Spec" header line — a fretboard-diagram
@@ -60,9 +70,57 @@ type Song struct {
 // structural syntax, never interprets it — see internal/chorddiagram for
 // the actual grid grammar (fret position + per-string X/O/digit/barre)
 // and the real legacy source it's compatible with.
+//
+// Key is the K of a "chord[K]: Name Spec" line, the key the diagram was
+// entered for; "" for a plain "chord:" line, which belongs to whatever the
+// song's "key:" header says. A song transposed in the editor keeps its old
+// diagrams under their old key this way (see TransposeText).
 type ChordRef struct {
 	Name string
 	Spec string
+	Key  string
+}
+
+// DiagramsFor returns the diagrams registered for key: the song's own set
+// when key is the song's key (or empty), otherwise the "chord[key]:" lines
+// that name that key in any spelling ("A#m" finds "chord[Bbm]:").
+func (s *Song) DiagramsFor(key string) []ChordRef {
+	if key == "" || chordsym.SameKey(key, s.Get("key")) {
+		return s.Chords
+	}
+	var out []ChordRef
+	for _, c := range s.OtherChords {
+		if chordsym.SameKey(c.Key, key) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// DiagramSet is the diagrams entered for one key.
+type DiagramSet struct {
+	Key    string
+	Chords []ChordRef
+}
+
+// DiagramSets groups OtherChords by key, in order of first appearance —
+// the sets a viewer can switch to when playing the song in another key.
+func (s *Song) DiagramSets() []DiagramSet {
+	var out []DiagramSet
+	for _, c := range s.OtherChords {
+		found := false
+		for i := range out {
+			if chordsym.SameKey(out[i].Key, c.Key) {
+				out[i].Chords = append(out[i].Chords, c)
+				found = true
+				break
+			}
+		}
+		if !found {
+			out = append(out, DiagramSet{Key: c.Key, Chords: []ChordRef{c}})
+		}
+	}
+	return out
 }
 
 // Get returns the value of the first occurrence of key, or "" if absent.

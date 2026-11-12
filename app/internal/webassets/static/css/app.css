@@ -5444,3 +5444,61 @@ a.calendar-day:hover { text-decoration: none; background: var(--bg-sunken); }
 }
 .event-setlist { margin: 0.9rem 0 0; padding-left: 1.4rem; display: flex; flex-direction: column; gap: 0.35rem; }
 .event-setlist a { font-weight: 500; }
+
+/* Anton and Bebas Neue only come in one weight: stop the browser from faking a bold over them on branded titles. */
+body.branded h1, body.branded h2, body.branded .brand-name { font-synthesis-weight: none; }
+
+/* Profile → Passkeys: each row names the passkey automatically (provider or
+   browser); renaming is an optional disclosure under the name, not a
+   permanent text box. Place next to the existing .passkeys-table rules. */
+/* The name reads as the row's title, with its provider/sync line under it. */
+.passkey-name { display: block; }
+.passkeys-table .field-hint { margin-top: 0.1rem; }
+/* "Rename" stays quiet until wanted; padding gives it a finger-sized target. */
+.passkey-rename summary { display: inline-block; cursor: pointer; color: var(--fg-muted); font-size: 0.85rem; padding: 0.35rem 0; }
+.passkey-rename summary:hover { color: var(--fg); }
+/* Input and Save on one line, the input taking whatever width is left (phone too). */
+.passkey-rename-form { display: flex; gap: 0.4rem; align-items: center; margin-top: 0.2rem; }
+.passkey-rename-form input { flex: 1 1 auto; min-width: 0; max-width: 18rem; }
+
+/* "Already in the library" list on new-song forms (static/js/library-match.js). */
+/* Panel: spaced off the fields above, stacked heading/hint/list/"None of these". */
+.library-match { display: flex; flex-direction: column; gap: 0.45rem; margin: 0.8rem 0; }
+/* Heading sized like a form section label, not a page heading. */
+.library-match-title { margin: 0; font-size: 0.95rem; font-weight: 600; }
+/* Hint sits tight under the heading. */
+.library-match .hint { margin: 0; }
+/* Rows tighter than a dashboard attention-row, and on a phone the button wraps under long titles. */
+.library-match-row { padding: 0.6rem 0.8rem; gap: 0.6rem; flex-wrap: wrap; }
+/* Title/details take the room and may shrink; the action keeps its size. */
+.library-match-text { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; }
+/* The row's action never squeezes into two lines. */
+.library-match-row > button, .library-match-row > .chip-link { flex: none; white-space: nowrap; }
+/* "None of these — create a new song": a plain link-style button, left-aligned, comfortable tap height. */
+.library-match-none { align-self: flex-start; min-height: 2.2rem; }
+
+/* ---- Transpose and chord diagrams per key (song page + editor) ---- */
+/* The song's own diagram row is hidden while the view is transposed; its display:flex would beat [hidden]. */
+.chord-legend[hidden] { display: none; }
+/* "No chord diagrams for G yet": sits where the diagram row would. */
+.chord-legend-note { margin: 0 0 1.2em; }
+/* Song map hides diagram rows; hide the note with them. */
+#sheet[data-render-mode="map"] .chord-legend-note { display: none; }
+/* Top bar: key, its transposed name and the -/+ buttons on one line. */
+.topbar-key { display: inline-flex; align-items: center; gap: 0.4rem; }
+/* Bigger -/+ targets for phones than the old 1.6rem panel buttons. */
+.topbar-key .transpose-control button { width: 2rem; height: 2rem; }
+/* Editor: the transpose panel opens between the Source toolbar and the text. */
+.transpose-panel { margin: 0 0 0.6rem; }
+/* After a transpose: the summary, then the "Enter chord diagrams for G" button. */
+.transpose-done { display: flex; flex-direction: column; align-items: flex-start; gap: 0.6rem; }
+/* Its display:flex would beat [hidden]. */
+.transpose-done[hidden] { display: none; }
+/* No extra paragraph margin inside the summary. */
+.transpose-done p { margin: 0; }
+/* Scores tab: chords with no diagram yet, above the builder. */
+.cde-todo { margin: 0.4rem 0 0.8rem; }
+/* The list's intro line sits close to its chips. */
+.cde-todo .hint { margin: 0 0 0.4rem; }
+/* Chord chips wrap in a row (.chip-list is a column). */
+.cde-todo-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }

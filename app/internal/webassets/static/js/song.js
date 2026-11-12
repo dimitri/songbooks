@@ -1303,6 +1303,38 @@ const ICONS = {
 
     const transposeAmount = document.getElementById('transpose-amount');
     const keyTransposed = document.getElementById('key-transposed');
+    // Diagrams registered for other keys ("chord[G]:" lines), rendered by
+    // the server into an inert <template> outside #sheet (play.html).
+    const diagramSets = document.getElementById('chord-diagram-sets');
+    // Same reading of a key as chordsym.ParseKey: a root, then nothing or
+    // a major/minor marker.
+    const origKeyParts = origKey.match(/^([A-G][b#]?)\s*(m|mi|min|minor|-|maj|major)?\s*$/i);
+
+    // A chord diagram only fits the key it was entered for: the song's own
+    // row shows at its written key (or a whole octave away), another key's
+    // row when the song has one for the displayed key, otherwise a short
+    // note rather than shapes that no longer match the chords.
+    function applyDiagrams(displayedKey) {
+      sheet.querySelectorAll('.chord-legend-other, .chord-legend-note').forEach(el => el.remove());
+      const own = sheet.querySelector('.chord-legend-own');
+      const shifted = ((offset % 12) + 12) % 12 !== 0;
+      if (own) own.hidden = shifted;
+      if (!shifted || sheet.dataset.hasDiagrams !== '1') return;
+      let node = null;
+      if (origKeyParts && diagramSets) {
+        const pc = ((rootPitchClass(origKeyParts[1]) + offset) % 12 + 12) % 12;
+        const minor = /^(m|mi|min|minor|-)$/i.test(origKeyParts[2] || '');
+        const set = [...diagramSets.content.querySelectorAll('.chord-legend-other')]
+          .find(el => parseInt(el.dataset.keyPc, 10) === pc && (el.dataset.keyMinor === '1') === minor);
+        if (set) node = set.cloneNode(true);
+      }
+      if (!node) {
+        node = document.createElement('p');
+        node.className = 'hint chord-legend-note';
+        node.textContent = displayedKey ? `No chord diagrams for ${displayedKey} yet.` : 'No chord diagrams for this key yet.';
+      }
+      if (own) own.after(node); else sheet.prepend(node);
+    }
 
     function applyTranspose() {
       transposeAmount.textContent = (offset > 0 ? '+' : '') + offset;
@@ -1314,17 +1346,19 @@ const ICONS = {
       if (offset === 0 || !origKey) {
         keyTransposed.hidden = true;
         keyTransposed.textContent = '';
+        applyDiagrams('');
         return;
       }
       // The key string is "root + everything else" (e.g. "F#m" -> root
       // "F#", suffix "m") — only the root needs transposing, the suffix
       // (minor marker, anything else written after it) carries over as-is.
       const m = origKey.match(/^([A-G][b#]?)(.*)$/);
-      if (!m) { keyTransposed.hidden = true; return; }
+      if (!m) { keyTransposed.hidden = true; applyDiagrams(''); return; }
       const pc = rootPitchClass(m[1]);
-      if (pc < 0) { keyTransposed.hidden = true; return; }
+      if (pc < 0) { keyTransposed.hidden = true; applyDiagrams(''); return; }
       keyTransposed.textContent = spell(pc + offset) + m[2];
       keyTransposed.hidden = false;
+      applyDiagrams(keyTransposed.textContent);
     }
     transposeUp.addEventListener('click', () => { offset++; applyTranspose(); });
     document.getElementById('transpose-down').addEventListener('click', () => { offset--; applyTranspose(); });
@@ -1535,7 +1569,7 @@ const ICONS = {
       // Source is first opened, same lazy trigger the Scores tab below
       // uses for its own per-section fetches.
       if (btn.dataset.tab === 'raw' && sourcePreview && !sourcePreview.innerHTML) renderPreview();
-      if (btn.dataset.tab === 'scores') { window.ScoreEditor?.init(); window.TabEditor?.init(); }
+      if (btn.dataset.tab === 'scores') { window.ScoreEditor?.init(); window.TabEditor?.init(); refreshDiagramTodo(); }
     });
   });
 
@@ -1719,6 +1753,7 @@ const ICONS = {
     const data = await res.json();
     rawVersion = data.version;
     status.className = 'ok'; status.textContent = 'Saved.';
+    window.SongStructure?.reload();
     await renderPreview();
     savedSheetHTML = sheet.innerHTML; // this is now the saved state
     clearDirty();
@@ -1788,6 +1823,176 @@ const ICONS = {
     const caret = at + insertion.length;
     rawTextarea.selectionStart = rawTextarea.selectionEnd = caret;
     rawTextarea.dispatchEvent(new Event('input'));
+  }
+
+  // ---- Transpose the song (Source) ---------------------------------------------
+  // Rewrites the Source text into another key for real, unlike the view-only
+  // transpose above. The rewrite runs on the server (POST /api/transpose,
+  // song.TransposeText): the .song parser lives in Go, and a JS copy of its
+  // line rules (which lines are grids, lyrics, score voices) would drift
+  // from it. The new text lands here unsaved: the preview shows it, Discard
+  // or Cmd/Ctrl+Z drops it, Save stores it in the song's history like any
+  // edit. Chord diagrams of the old key stay, marked "chord[Old]:".
+  async function postTranspose(body) {
+    const res = await fetch('/api/transpose', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: rawTextarea.value, ...body }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Couldn't transpose the song. Try again.");
+    return data;
+  }
+  function signed(n) { return n > 0 ? '+' + n : '−' + Math.abs(n); }
+
+  const transposeOpen = document.getElementById('transpose-open');
+  const transposePanel = document.getElementById('transpose-panel');
+  if (transposeOpen && transposePanel) {
+    const form = document.getElementById('transpose-form');
+    // The form's wrapper, not the form, gets hidden: .form-stack's own
+    // display:flex would beat the [hidden] attribute.
+    const ask = document.getElementById('transpose-ask');
+    const fromField = document.getElementById('transpose-from-field');
+    const fromSel = document.getElementById('transpose-from');
+    const toSel = document.getElementById('transpose-to');
+    const applyBtn = document.getElementById('transpose-apply');
+    const done = document.getElementById('transpose-done');
+    const doneText = document.getElementById('transpose-done-text');
+    const diagramsBtn = document.getElementById('transpose-diagrams-btn');
+
+    function fillTargets(targets) {
+      toSel.innerHTML = '';
+      toSel.add(new Option('Choose a key', ''));
+      targets.forEach(t => toSel.add(new Option(`${t.key} (${signed(t.semitones)})`, t.key)));
+    }
+    async function analyze(from) {
+      Forms.status(form, '');
+      try {
+        const data = await postTranspose(from ? { from } : {});
+        fromField.hidden = !data.keyGuessed;
+        if (data.keyGuessed && !from) {
+          fromSel.innerHTML = '';
+          data.allKeys.forEach(k => fromSel.add(new Option(k, k, false, k === data.key)));
+        }
+        fillTargets(data.targets);
+        if (!data.key) Forms.status(form, 'This song has no chords to transpose yet.', 'error');
+      } catch (e) { Forms.status(form, e.message, 'error'); }
+    }
+    function setOpen(open) {
+      transposePanel.hidden = !open;
+      transposeOpen.setAttribute('aria-expanded', String(open));
+      if (!open) return;
+      ask.hidden = false;
+      done.hidden = true;
+      analyze('');
+      toSel.focus();
+    }
+    transposeOpen.addEventListener('click', () => setOpen(transposePanel.hidden));
+    document.getElementById('transpose-cancel').addEventListener('click', () => setOpen(false));
+    fromSel.addEventListener('change', () => analyze(fromSel.value));
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      Forms.run(form, applyBtn, async () => {
+        const data = await postTranspose({ from: fromField.hidden ? '' : fromSel.value, to: toSel.value });
+        replaceSource(data.text);
+        ask.hidden = true;
+        done.hidden = false;
+        let msg = `Transposed from ${data.from} to ${data.to} (${signed(data.semitones)}). Check the preview, then save.`;
+        if (data.kept) msg += ` The chord diagrams for ${data.from} stay saved, for when you play it in ${data.from}.`;
+        doneText.textContent = msg;
+        // Diagrams for the new key: the song's chords, already transposed,
+        // that have no shape yet ("missing" may be empty when the song held
+        // a set for this key from an earlier transpose).
+        diagramsBtn.hidden = !data.missing.length;
+        diagramsBtn.textContent = `Enter chord diagrams for ${data.to}`;
+        diagramsBtn.dataset.first = data.missing[0] || '';
+      });
+    });
+
+    diagramsBtn.addEventListener('click', () => {
+      document.querySelector('.prep-tab[data-tab="scores"]')?.click();
+      const name = document.getElementById('cde-name');
+      if (name && diagramsBtn.dataset.first) {
+        name.value = diagramsBtn.dataset.first;
+        name.dispatchEvent(new Event('input'));
+      }
+      document.getElementById('chord-diagram-heading')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  // replaceSource swaps the whole Source text through the editing API
+  // rather than assigning .value, so the textarea's own undo (Cmd/Ctrl+Z)
+  // can take it back; the assignment is the fallback where that API
+  // doesn't apply.
+  function replaceSource(text) {
+    rawTextarea.focus();
+    rawTextarea.select();
+    let ok = false;
+    try { ok = document.execCommand('insertText', false, text); } catch (e) { ok = false; }
+    if (!ok || rawTextarea.value !== text) {
+      rawTextarea.value = text;
+      rawTextarea.dispatchEvent(new Event('input'));
+    }
+    rawTextarea.setSelectionRange(0, 0);
+    rawTextarea.scrollTop = 0;
+  }
+
+  // ---- Chord diagrams still to enter (Scores tab, next to the builder) --------
+  // The chords the song plays with no diagram yet for its key, as chips;
+  // tapping one puts its name in the builder (score-editor.js).
+  const cdeTodo = document.getElementById('cde-todo');
+  async function refreshDiagramTodo() {
+    if (!cdeTodo) return;
+    let data;
+    try { data = await postTranspose({}); } catch (e) { return; }
+    const chips = document.getElementById('cde-todo-chips');
+    chips.innerHTML = '';
+    cdeTodo.hidden = !data.missing.length;
+    if (!data.missing.length) return;
+    document.getElementById('cde-todo-text').textContent = data.key && !data.keyGuessed
+      ? `Chords in this song with no diagram for ${data.key} yet:`
+      : 'Chords in this song with no diagram yet:';
+    data.missing.forEach(sym => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip-link';
+      b.textContent = sym;
+      b.addEventListener('click', () => {
+        const name = document.getElementById('cde-name');
+        if (!name) return;
+        name.value = sym;
+        name.dispatchEvent(new Event('input'));
+        document.getElementById('cde-grid')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+      chips.appendChild(b);
+    });
+  }
+  // A "chord:" line only counts in the header, before the first [Section],
+  // but the builder inserts at the Source caret wherever it was left. This
+  // runs first (capture phase on document) and puts the caret after the
+  // header's last diagram line; the list refreshes once the line is in.
+  document.addEventListener('click', e => {
+    if (!e.target.closest || !e.target.closest('#cde-insert')) return;
+    placeCaretForDiagram();
+    setTimeout(refreshDiagramTodo, 0);
+  }, true);
+  function placeCaretForDiagram() {
+    const text = rawTextarea.value;
+    let pos = 0, slot = 0, lastDiagram = -1;
+    for (const line of text.split('\n')) {
+      const t = line.trim();
+      if (/^\[[^\[\]]+\](\s*\(repeat\))?$/.test(t)) break;
+      const end = pos + line.length + 1;
+      if (/^chord(\[[^\]]*\])?:/.test(t)) lastDiagram = end;
+      if (t && !t.startsWith('#')) slot = end;
+      pos = end;
+    }
+    let at = lastDiagram >= 0 ? lastDiagram : slot;
+    if (at > text.length) {
+      rawTextarea.value = text + '\n';
+      at = rawTextarea.value.length;
+    }
+    rawTextarea.selectionStart = rawTextarea.selectionEnd = at;
   }
 
   // ---- Import wizard — Ultimate Guitar only (a UG tab already carries
@@ -2068,6 +2273,9 @@ const ICONS = {
   // Chart save (the server re-serializes the whole song from this JSON)
   // doesn't drop them.
   let structChords = [];
+  // Diagrams entered for other keys ("chord[A]:" lines): carried through
+  // the same way, or a Chart save would lose them.
+  let structOtherChords = [];
 
   // ---- Undo/redo — a bounded-depth snapshot stack over structMeta/
   // structSections, the same in-memory state Save/Discard already work
@@ -4006,7 +4214,7 @@ const ICONS = {
     const sectionsForSave = structSections.map(sec => ({ ...sec, measures: joinVoltaGroups(sec), endings: undefined }));
     const res = await fetch(`/api/songs/${pageVariantId}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ version: structVersion, song: { meta: structMeta, chords: structChords, sections: sectionsForSave } }),
+      body: JSON.stringify({ version: structVersion, song: { meta: structMeta, chords: structChords, otherChords: structOtherChords, sections: sectionsForSave } }),
     });
     if (res.status === 409) { status.className = 'err'; status.textContent = 'Not saved: this song changed since you opened it. Reload the page, then make your changes again.'; return; }
     if (!res.ok) { status.className = 'err'; status.textContent = "Couldn't save. Your changes are still here; try again."; return; }
@@ -4021,7 +4229,11 @@ const ICONS = {
     clearDirty();
     setTimeout(() => window.location.reload(), 600);
   });
-  (async function loadStructure() {
+  // Also run again after a Source save (window.SongStructure.reload), so
+  // the Chart tab edits the text just saved rather than the one the page
+  // opened with — a Chart save over a transposed song would hit a version
+  // conflict otherwise.
+  async function loadStructure() {
     const res = await fetch(`/api/songs/${pageVariantId}`);
     const data = await res.json();
     // A brand-new song (created blank, never saved through the structure
@@ -4030,7 +4242,7 @@ const ICONS = {
     // (no title/time/tempo/genre fields rendered at all, not just title)
     // for exactly this "editing a song that's never been touched" case —
     // reported directly as "can't edit the title," caught here instead.
-    structVersion = data.version; structMeta = data.song.meta || []; structChords = data.song.chords || [];
+    structVersion = data.version; structMeta = data.song.meta || []; structChords = data.song.chords || []; structOtherChords = data.song.otherChords || [];
     // Split each section's flat measures into {common, endings} once, up
     // front — see splitVoltaGroups. Every editing function from here on
     // (renderMatrix, the Alternatives panel) only ever deals with that
@@ -4042,7 +4254,9 @@ const ICONS = {
     renderHeaderFields();
     if (!structureEl.hidden) renderStructureUI();
     window.TabEditor?.refresh();
-  })();
+  }
+  loadStructure();
+  window.SongStructure = { reload: loadStructure };
 
   // ---- Keyboard & handheld-pedal navigation ---------------------------------
   // Space = play/pause; Up/Down = previous/next section in this song;
