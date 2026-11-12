@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -158,20 +159,29 @@ type communityCardView struct {
 // (either role), with a "start a community" action.
 func (s *Server) handleCommunitiesPage(w http.ResponseWriter, r *http.Request) {
 	person := personFromContext(r)
-	rows, err := s.store.ListCommunityCardsForPerson(r.Context(), person.ID)
+	cards, err := s.buildCommunityCards(r.Context(), person.ID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.render(w, "communities", map[string]any{"Me": person, "Communities": cards})
+}
+
+// buildCommunityCards is one card per community personID belongs to,
+// with its next upcoming event: shared by Home, My communities and Groups.
+func (s *Server) buildCommunityCards(ctx context.Context, personID int64) ([]communityCardView, error) {
+	rows, err := s.store.ListCommunityCardsForPerson(ctx, personID)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
 	cards := make([]communityCardView, len(rows))
 	for i, row := range rows {
 		cards[i] = communityCardView{CommunityCardRow: row}
-		events, err := s.store.ListEventsForCommunity(r.Context(), row.ID)
+		events, err := s.store.ListEventsForCommunity(ctx, row.ID)
 		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
+			return nil, err
 		}
-		now := time.Now()
 		for _, e := range events {
 			if e.IsPast(now) {
 				continue
@@ -184,7 +194,7 @@ func (s *Server) handleCommunitiesPage(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	s.render(w, "communities", map[string]any{"Me": person, "Communities": cards})
+	return cards, nil
 }
 
 // handleCreateCommunity makes a brand-new community, with the creator as its

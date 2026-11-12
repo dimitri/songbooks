@@ -4,7 +4,7 @@
 // tempo/time/structure.
 (() => {
   const themeBtn = document.getElementById('theme-toggle');
-  function applyTheme(t) { document.body.dataset.theme = t || ''; }
+  function applyTheme(t) { document.body.dataset.theme = document.documentElement.dataset.theme = t || ''; }
   try { applyTheme(localStorage.getItem('songbooks-theme') || ''); } catch (e) { /* ignore */ }
   themeBtn.addEventListener('click', () => {
     const order = ['', 'light', 'dark'];

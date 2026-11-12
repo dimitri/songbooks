@@ -48,15 +48,20 @@
     const kinds = [...new Set([...document.querySelectorAll('.alphatab-row[data-instrument]')].map((r) => r.dataset.instrument))]
       .filter((k) => k in DEFAULTS);
     if (!kinds.length) return;
-    const bar = document.createElement('div');
-    bar.className = 'notation-pickers';
-    for (const kind of kinds) {
-      const label = document.createElement('label');
-      label.append(kind.charAt(0).toUpperCase() + kind.slice(1) + ' as ', picker(kind, () => location.reload()));
-      bar.appendChild(label);
-    }
+    const pickers = () => {
+      const bar = document.createElement('div');
+      bar.className = 'notation-pickers';
+      for (const kind of kinds) {
+        const label = document.createElement('label');
+        label.append(kind.charAt(0).toUpperCase() + kind.slice(1) + ' as ', picker(kind, () => location.reload()));
+        bar.appendChild(label);
+      }
+      return bar;
+    };
     const anchor = document.getElementById('instrument-picker');
-    if (anchor) anchor.insertAdjacentElement('afterend', bar);
-    else document.getElementById('sheet')?.insertAdjacentElement('beforebegin', bar);
+    if (anchor) anchor.insertAdjacentElement('afterend', pickers());
+    else document.getElementById('sheet')?.insertAdjacentElement('beforebegin', pickers());
+    // On a phone the same choice sits in the View sheet (play.html).
+    document.getElementById('view-stack-notation')?.appendChild(pickers());
   });
 })();

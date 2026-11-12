@@ -1336,7 +1336,7 @@ const ICONS = {
   };
   const THEME_TITLES = { '': 'theme: auto (click for light)', light: 'theme: light (click for dark)', dark: 'theme: dark (click for auto)' };
   function applyTheme(t) {
-    document.body.dataset.theme = t || '';
+    document.body.dataset.theme = document.documentElement.dataset.theme = t || '';
     themeBtn.innerHTML = THEME_ICONS[t] || THEME_ICONS[''];
     themeBtn.title = THEME_TITLES[t] || THEME_TITLES[''];
   }

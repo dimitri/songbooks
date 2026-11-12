@@ -177,6 +177,7 @@ var funcMap = template.FuncMap{
 	},
 	// contains reports whether a string slice holds v — e.g. "is this
 	// instrument already checked on the person's profile."
+	"hasPrefix": strings.HasPrefix,
 	"contains": func(list []string, v string) bool {
 		for _, s := range list {
 			if s == v {

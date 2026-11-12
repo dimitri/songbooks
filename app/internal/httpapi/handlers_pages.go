@@ -493,31 +493,10 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	// belongs to was previously only reachable from the sidebar's
 	// "Communities" link, not surfaced on the dashboard the way "Your
 	// bands" already is.
-	communityRows, err := s.store.ListCommunityCardsForPerson(r.Context(), person.ID)
+	communityCards, err := s.buildCommunityCards(r.Context(), person.ID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-	communityCards := make([]communityCardView, len(communityRows))
-	for i, row := range communityRows {
-		communityCards[i] = communityCardView{CommunityCardRow: row}
-		events, err := s.store.ListEventsForCommunity(r.Context(), row.ID)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		now := time.Now()
-		for _, e := range events {
-			if e.IsPast(now) {
-				continue
-			}
-			if !communityCards[i].HasNextEvent || e.StartsAt.Before(communityCards[i].NextEventDate) {
-				communityCards[i].HasNextEvent = true
-				communityCards[i].NextEventID = e.ID
-				communityCards[i].NextEventName = e.Name
-				communityCards[i].NextEventDate = e.StartsAt
-			}
-		}
 	}
 
 	notifs, err := s.store.ListNotifications(r.Context(), person.ID, true)
@@ -618,7 +597,10 @@ func (s *Server) buildBandCards(ctx context.Context, personID int64, bands []sto
 		if err != nil {
 			return nil, nil, err
 		}
-		digest := fmt.Sprintf("%d change%s since your last visit", len(changes), plural(len(changes)))
+		digest := ""
+		if len(changes) > 0 {
+			digest = fmt.Sprintf("%d change%s since your last visit", len(changes), plural(len(changes)))
+		}
 		if lastSeen == nil {
 			digest = "you haven't visited yet"
 		}

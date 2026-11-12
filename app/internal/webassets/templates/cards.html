@@ -1,0 +1,93 @@
+{{/* One band's or community's card: Home, My bands, My communities and
+     Groups all show the same card, from bandCardView/communityCardView. */}}
+{{define "band-card"}}
+<div class="band-card">
+  <div class="band-card-head">
+    <div>
+      <h4><a class="band-card-title-link" href="/bands/{{.ID}}">{{.Name}}</a></h4>
+      <div class="band-card-members">{{.Members}} member{{if ne .Members 1}}s{{end}}</div>
+    </div>
+  </div>
+  {{with .Digest}}<div class="band-card-digest">{{.}}</div>{{end}}
+  {{if .HasNextGig}}
+  <div class="band-card-gig">
+    <a href="/setlists/{{.NextGigSetlist}}/practice">{{template "icon-presentation"}} {{.NextGigDate.Format "Jan 2"}}{{if .NextGigVenue}} &middot; {{.NextGigVenue}}{{end}}</a>
+  </div>
+  {{end}}
+  <div class="band-card-actions">
+    <a href="/bands/{{.ID}}/catalog">songbook</a>
+    {{if eq .SetlistCount 1}}
+    <a href="/setlists/{{.FirstSetlistID}}">set list</a>
+    {{else if gt .SetlistCount 1}}
+    <a href="/bands/{{.ID}}/setlists">{{.SetlistCount}} set lists</a>
+    {{else}}
+    <a href="/bands/{{.ID}}/setlists">set lists</a>
+    {{end}}
+    {{if .OpenVotes}}<a class="votes" href="/bands/{{.ID}}/proposals">{{.OpenVotes}} to vote on</a>{{end}}
+  </div>
+</div>
+{{end}}
+
+{{define "community-card"}}
+<div class="band-card">
+  <div class="band-card-head">
+    <div>
+      <h4><a class="band-card-title-link" href="/communities/{{.ID}}">{{.Name}}</a></h4>
+      <div class="band-card-members">{{.MemberCount}} member{{if ne .MemberCount 1}}s{{end}} &middot; {{.MyRole}}</div>
+    </div>
+  </div>
+  <div class="band-card-digest">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}} in the default songbook</div>
+  {{if .HasNextEvent}}
+  <div class="band-card-gig">
+    <a href="/events/{{.NextEventID}}">{{template "icon-presentation"}} {{.NextEventDate.Format "Jan 2"}} &middot; {{.NextEventName}}</a>
+  </div>
+  {{end}}
+  <div class="band-card-actions">
+    <a href="/communities/{{.ID}}/songbooks">songbooks</a>
+    <a href="/communities/{{.ID}}/events">events</a>
+    {{if eq .MyRole "staff"}}<a href="/communities/{{.ID}}/admin">staff admin</a>{{end}}
+  </div>
+</div>
+{{end}}
+
+{{/* One upcoming gig (store.UpcomingGig): its date, band and set list,
+     and venue; opens the set list. */}}
+{{define "gig-card"}}
+<a class="coming-up-card" href="/setlists/{{.SetlistID}}">
+  <div class="coming-up-date">
+    <span class="month">{{.Date.Format "Jan"}}</span>
+    <span class="day">{{.Date.Format "2"}}</span>
+  </div>
+  <div class="coming-up-text">
+    <div class="coming-up-title">{{if .BandName}}{{.BandName}} &mdash; {{end}}{{.SetlistTitle}}</div>
+    <div class="coming-up-venue">{{if .Venue}}{{.Venue}}{{else}}venue TBD{{end}}</div>
+  </div>
+</a>
+{{end}}
+
+{{/* One set list in a list: its title (opens the running order), the
+     three ways to use it, and the exports folded away. */}}
+{{define "setlist-row"}}
+<div class="setlist-row">
+  <a class="setlist-row-title" href="/setlists/{{.ID}}">{{.Title}}</a>
+  <div class="setlist-row-actions">
+    <a class="chip-link" href="/setlists/{{.ID}}/practice">{{template "icon-play"}} Practice</a>
+    <a class="chip-link" href="/setlists/{{.ID}}/listening">Listen</a>
+    <a class="chip-link" href="/setlists/{{.ID}}/clicktrack">{{template "icon-tap"}} Click track</a>
+  </div>
+  <details class="setlist-row-export">
+    <summary>Export</summary>
+    <span class="pdf-mode-row">
+      <a class="pdf-export-link" href="/setlists/{{.ID}}/export.pdf" title="the whole set list as one PDF" download>{{template "icon-download"}} PDF</a>
+      <select class="pdf-mode-select" title="PDF view mode">
+        <option value="">Song</option>
+        <option value="jazz">Jazz chart</option>
+        <option value="map">Song map</option>
+        <option value="lyrics">Lyrics only</option>
+      </select>
+      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
+    </span>
+    <a href="/setlists/{{.ID}}/export-setlist-page.pdf" title="just the running order, on one page" download>{{template "icon-download"}} Running order</a>
+  </details>
+</div>
+{{end}}
