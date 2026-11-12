@@ -20,10 +20,10 @@
 </header>
 <main class="index">
   <div class="card">
-    <h3>Gated (requires a grant)</h3>
-    <p class="hint">Off: every current community member can open this songbook, same as any other. On: a current member also needs an explicit grant below — the paywall case, where billing/payment is handled some other way (for now, manually) and this is just the access lever.</p>
-    <label class="form-actions"><input type="checkbox" id="requires-grant-toggle" {{if .Songbook.RequiresGrant}}checked{{end}}> Requires a grant to access</label>
-    <p id="toggle-result" class="hint"></p>
+    <h3>Who can open this songbook</h3>
+    <p class="hint" id="requires-grant-hint">Unticked, every current member can open it. Ticked, only the members you give access to below can — for paid material, say (payment itself is handled outside the app). Changes save straight away.</p>
+    <label class="check"><input type="checkbox" id="requires-grant-toggle" aria-describedby="requires-grant-hint" {{if .Songbook.RequiresGrant}}checked{{end}}> Only members given access</label>
+    <p id="toggle-result" class="form-status" role="status"></p>
   </div>
 
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
@@ -34,7 +34,7 @@
         <td data-label="Member">{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Username}}{{end}}</td>
         <td data-label="Role">{{.Role}}</td>
         <td data-label="Access">
-          <label><input type="checkbox" class="grant-checkbox" data-person-id="{{.PersonID}}" {{if index $.Granted .PersonID}}checked{{end}}> granted</label>
+          <label class="check"><input type="checkbox" class="grant-checkbox" data-person-id="{{.PersonID}}" aria-label="{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Username}}{{end}} has access" {{if index $.Granted .PersonID}}checked{{end}}> Has access</label>
         </td>
       </tr>
     {{else}}
@@ -42,7 +42,8 @@
     {{end}}
     </tbody>
   </table></div>
-  <p class="hint">The checkbox above is a plain allow-list, checked only when the songbook is gated — it has no effect while "Requires a grant" is off.</p>
+  <p id="grants-status" class="form-status" role="status"></p>
+  <p class="hint">Access only matters while "Only members given access" is ticked; otherwise every member can open the songbook.</p>
 </main>
 <script>
 const communityId = {{.Community.ID}};
@@ -50,15 +51,16 @@ const songbookId = {{.Songbook.ID}};
 
 document.getElementById('requires-grant-toggle').addEventListener('change', async (e) => {
   const out = document.getElementById('toggle-result');
+  Forms.status(out, 'Saving…', '');
   const res = await fetch(`/api/communities/${communityId}/songbooks/${songbookId}/requires-grant`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({requiresGrant: e.target.checked}),
-  });
-  if (!res.ok) {
-    out.textContent = 'failed to save';
+  }).catch(() => null);
+  if (!res || !res.ok) {
+    Forms.status(out, 'Couldn’t save that. Try again.', 'error');
     e.target.checked = !e.target.checked;
   } else {
-    out.textContent = 'saved';
+    Forms.status(out, 'Saved.', 'ok');
   }
 });
 
@@ -70,8 +72,14 @@ document.querySelectorAll('.grant-checkbox').forEach(cb => {
       method: e.target.checked ? 'POST' : 'DELETE',
       headers: e.target.checked ? {'Content-Type': 'application/json'} : undefined,
       body: e.target.checked ? JSON.stringify({personId: Number(personId)}) : undefined,
-    });
-    if (!res.ok) e.target.checked = !e.target.checked;
+    }).catch(() => null);
+    const out = document.getElementById('grants-status');
+    if (!res || !res.ok) {
+      e.target.checked = !e.target.checked;
+      Forms.status(out, 'Couldn’t save that change. Try again.', 'error');
+    } else {
+      Forms.status(out, 'Saved.', 'ok');
+    }
   });
 });
 </script>

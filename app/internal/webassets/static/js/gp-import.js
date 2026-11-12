@@ -121,25 +121,26 @@
 
   async function runSearch() {
     const title = searchTitleInput.value.trim();
-    if (!title) { setStatus('enter a song title to search for', 'err'); return; }
-    searchBtn.disabled = true;
+    // `required` (checked by forms.js before submit) lets only-spaces through.
+    if (!title) { Forms.fieldError(searchTitleInput, 'Enter the song title to search for.'); searchTitleInput.focus(); return; }
+    Forms.busy(searchBtn, true);
     searchResults.innerHTML = '';
-    setStatus('searching GProTab.net…');
+    setStatus('Searching GProTab.net…');
     try {
       const qs = new URLSearchParams({ title, artist: searchArtistInput.value.trim() });
       const res = await fetch(`/api/import/gp/find?${qs}`);
       if (!res.ok) throw new Error(await res.text());
       const { candidates } = await res.json();
       if (!candidates || !candidates.length) {
-        setStatus('no results on GProTab.net for that title — try a different spelling, or choose a file by hand below.', 'err');
+        setStatus('Nothing on GProTab.net for that title. Try a different spelling, or choose a file from your computer.', 'err');
         return;
       }
-      setStatus(`found ${candidates.length} result(s).`, 'ok');
+      setStatus(candidates.length === 1 ? 'Found 1 file.' : `Found ${candidates.length} files.`, 'ok');
       renderSearchResults(candidates);
     } catch (e) {
-      setStatus('search failed: ' + e.message, 'err');
+      setStatus("Couldn't search GProTab.net just now. Try again, or choose a file from your computer.", 'err');
     } finally {
-      searchBtn.disabled = false;
+      Forms.busy(searchBtn, false);
     }
   }
 
@@ -172,7 +173,7 @@
   }
 
   async function useSearchResult(c) {
-    setStatus(`fetching "${c.Title}" from GProTab.net…`);
+    setStatus(`Downloading “${c.Title}” from GProTab.net…`);
     try {
       const res = await fetch(`/api/import/gp/fetch?url=${encodeURIComponent(c.URL)}`);
       if (!res.ok) throw new Error(await res.text());
@@ -186,11 +187,11 @@
       goToStep('file');
       await loadFile({ name: filename, arrayBuffer: async () => buf });
     } catch (e) {
-      setStatus('fetching that file failed: ' + e.message, 'err');
+      setStatus("Couldn't download that file. Try another result, or choose a file from your computer.", 'err');
     }
   }
 
-  searchBtn.addEventListener('click', runSearch);
+  document.getElementById('gpimport-search-form').addEventListener('submit', (e) => { e.preventDefault(); runSearch(); });
   searchSkip.addEventListener('click', () => { fileSourceNote.hidden = true; goToStep('file'); });
 
   let score = null;
@@ -361,13 +362,13 @@
   }
 
   async function loadFile(file) {
-    setStatus('parsing…');
+    setStatus('Reading the file…');
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
       score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(buf);
       rawFile = file;
     } catch (e) {
-      setStatus('could not parse this file: ' + e.message, 'err');
+      setStatus("Couldn't read this file. Check it's a Guitar Pro file (.gp, .gp3, .gp4, .gp5 or .gpx).", 'err');
       score = null;
       return;
     }
@@ -383,13 +384,13 @@
     barTimes = buildBarTimes();
     step1Next.disabled = false;
     const res = await fetch(`/api/songs/${variantId}/structure`);
-    if (!res.ok) { setStatus('could not load this song\'s sections', 'err'); return; }
+    if (!res.ok) { setStatus("Couldn't load this song's sections. Reload the page and try again.", 'err'); return; }
     const data = await res.json();
     ourSections = (data.sections || []).filter(s => s.barCount > 0);
     boundaries = [0];
     ourSections.forEach(sec => boundaries.push(Math.min(realIdx.length, boundaries[boundaries.length - 1] + sec.barCount)));
     deriveRow.hidden = ourSections.length > 0;
-    setStatus(`parsed "${score.title || file.name}" — ${score.tracks.length} track(s), ${realIdx.length} real bar(s), ${ourSections.length} section(s) to map.`, 'ok');
+    setStatus(`Read “${score.title || file.name}”: ${score.tracks.length} track(s), ${realIdx.length} bar(s), ${ourSections.length} section(s) to match up.`, 'ok');
   }
 
   trackSelect.addEventListener('change', () => { if (steps.align.hidden === false) prepareTimeline(); });
@@ -560,7 +561,7 @@
       renderLabelTrack();
       renderBoundaries();
       renderMappingTableOnly();
-      setStatus(`set ${n} boundary/boundaries from this file's own section markers.`, 'ok');
+      setStatus(`Placed ${n} section start(s) from the file's own markers.`, 'ok');
     };
   }
 
@@ -784,7 +785,7 @@
       const tr = document.createElement('tr');
       tr.style.borderLeft = `4px solid ${SECTION_COLORS[i % SECTION_COLORS.length]}`;
       tr.innerHTML = `
-        <td><input type="checkbox" class="gpimport-include"${prev.length === ourSections.length && !prev[i] ? '' : ' checked'}></td>
+        <td><input type="checkbox" class="gpimport-include" aria-label="Import ${escapeHTML(sec.label)}"${prev.length === ourSections.length && !prev[i] ? '' : ' checked'}></td>
         <td>${sec.label}</td>
         <td>${sec.barCount}</td>
         <td${mapped !== sec.barCount ? ' style="color:#b8860b;font-weight:600"' : ''}>${mapped}</td>
@@ -883,7 +884,7 @@
   async function deriveAndCreateSection() {
     deriveBtn.disabled = true;
     try {
-      setStatus('deriving chord grid from this file…');
+      setStatus('Making a chord grid from this file…');
       const track = score.tracks[Number(trackSelect.value) || 0];
       const tokens = extractChordGrid(track, 0, realIdx.length);
       const rawRes = await fetch(`/api/songs/${variantId}/raw`);
@@ -902,9 +903,9 @@
       boundaries = [0];
       ourSections.forEach(sec => boundaries.push(Math.min(realIdx.length, boundaries[boundaries.length - 1] + sec.barCount)));
       deriveRow.hidden = true;
-      setStatus(`created a chord grid from this file's own chord diagrams — ${ourSections.length} section(s) ready to map.`, 'ok');
+      setStatus(`Made a chord grid from the file's chord diagrams: ${ourSections.length} section(s) ready to match up.`, 'ok');
     } catch (e) {
-      setStatus('deriving chord grid failed: ' + e.message, 'err');
+      setStatus("Couldn't make the chord grid: " + e.message, 'err');
     } finally {
       deriveBtn.disabled = false;
     }
@@ -1221,32 +1222,32 @@
   step3Back.addEventListener('click', () => goToStep('align'));
 
   importBtn.addEventListener('click', async () => {
-    if (!score) { setStatus('parse a file first', 'err'); return; }
+    if (!score) { setStatus('Choose a Guitar Pro file first.', 'err'); return; }
     const track = score.tracks[Number(trackSelect.value) || 0];
     const label = track.name || 'Guitar';
     const checks = [...mappingBody.querySelectorAll('.gpimport-include')];
-    importBtn.disabled = true;
+    Forms.busy(importBtn, true);
     try {
-      setStatus('writing the song header…');
+      setStatus('Writing the song header…');
       await writeHeader();
       for (let i = 0; i < ourSections.length; i++) {
         if (!checks[i] || !checks[i].checked) continue;
         const sec = ourSections[i];
-        setStatus(`importing section ${i + 1}/${ourSections.length}: ${sec.label}…`);
+        setStatus(`Importing section ${i + 1} of ${ourSections.length}: ${sec.label}…`);
         const riff = extractRiff(track, boundaries[i], sectionBarCount(i));
         await putScore(sec.index, label, riff);
       }
       if (includeAudio.checked) {
-        setStatus('uploading backing track + sync points…');
+        setStatus('Uploading the backing track and bar sync…');
         await importAudioAndSync();
       }
-      setStatus('uploading the Guitar Pro file itself (for download)…');
+      setStatus('Keeping a copy of the Guitar Pro file for download…');
       await uploadSourceFile();
-      setStatus('imported. Reload the Chart tab to see it.', 'ok');
+      setStatus('Imported. Reload the page to see it on the chart.', 'ok');
     } catch (e) {
-      setStatus('import failed: ' + e.message, 'err');
+      setStatus("The import stopped part-way: " + e.message, 'err');
     } finally {
-      importBtn.disabled = false;
+      Forms.busy(importBtn, false);
     }
   });
 })();

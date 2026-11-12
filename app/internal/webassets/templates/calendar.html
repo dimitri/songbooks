@@ -1,0 +1,52 @@
+{{/* One month of a calendar (httpapi.calendarMonth): the grid, then the
+     same items as a list. A phone reads the list; the grid shows how the
+     month is laid out, a dot per item, and a day with items jumps to them
+     in the list. On a wide screen the grid has room for the titles. */}}
+{{define "calendar-month"}}
+<section class="home-section calendar" id="calendar" aria-labelledby="calendar-title">
+  <div class="home-section-head calendar-head">
+    <h3 id="calendar-title">{{.Title}}</h3>
+    <nav class="calendar-nav" aria-label="Month">
+      <a class="calendar-nav-btn" href="{{.Base}}?month={{.Prev}}#calendar" aria-label="Previous month">{{template "icon-back"}}</a>
+      {{if not .IsCurrent}}<a class="calendar-nav-today" href="{{.Base}}#calendar">This month</a>{{end}}
+      <a class="calendar-nav-btn" href="{{.Base}}?month={{.Next}}#calendar" aria-label="Next month">{{template "icon-forward"}}</a>
+    </nav>
+  </div>
+  <table class="calendar-grid">
+    <thead><tr>
+      <th scope="col"><abbr title="Monday">M</abbr></th><th scope="col"><abbr title="Tuesday">T</abbr></th><th scope="col"><abbr title="Wednesday">W</abbr></th><th scope="col"><abbr title="Thursday">T</abbr></th><th scope="col"><abbr title="Friday">F</abbr></th><th scope="col"><abbr title="Saturday">S</abbr></th><th scope="col"><abbr title="Sunday">S</abbr></th>
+    </tr></thead>
+    <tbody>
+    {{range .Weeks}}<tr>
+      {{range .}}<td class="{{if not .InMonth}}is-other{{end}}{{if .IsToday}} is-today{{end}}{{if .IsPast}} is-past{{end}}">
+        {{if and .Items .InMonth}}<a class="calendar-day" href="#day-{{.Date.Format "2006-01-02"}}" aria-label="{{.Date.Format "Monday 2 January"}}: {{len .Items}} planned">{{else}}<span class="calendar-day">{{end}}
+          <span class="calendar-date"{{if .IsToday}} aria-current="date"{{end}}>{{.Date.Day}}</span>
+          {{range .Items}}<span class="calendar-item kind-{{.Kind}}"><span class="calendar-dot" aria-hidden="true"></span><span class="calendar-item-title">{{.Title}}</span></span>{{end}}
+        {{if and .Items .InMonth}}</a>{{else}}</span>{{end}}
+      </td>{{end}}
+    </tr>{{end}}
+    </tbody>
+  </table>
+  <ul class="calendar-legend" aria-hidden="true">
+    <li class="kind-gig"><span class="calendar-dot"></span> Gig</li>
+    <li class="kind-rehearsal"><span class="calendar-dot"></span> Rehearsal</li>
+    <li class="kind-event"><span class="calendar-dot"></span> Event</li>
+  </ul>
+  {{$today := .Today}}
+  <ol class="calendar-agenda">
+  {{range .Items}}
+    <li{{with .Anchor}} id="{{.}}"{{end}} class="calendar-agenda-row kind-{{.Kind}}{{if .Starts.Before $today}} is-past{{end}}">
+      <div class="coming-up-date"><span class="month">{{.Starts.Format "Mon"}}</span><span class="day">{{.Starts.Day}}</span></div>
+      <div class="calendar-agenda-text">
+        <a class="calendar-agenda-title" href="{{.Link}}">{{.Title}}</a>
+        <div class="calendar-agenda-meta"><span class="calendar-kind">{{.KindLabel}}</span>{{if not .AllDay}} &middot; {{.Starts.Format "15:04"}}{{end}}{{if .GroupName}} &middot; {{.GroupName}}{{end}}{{if .Place}} &middot; {{.Place}}{{end}}</div>
+      </div>
+      {{if and .SetlistID (not (.Starts.Before $today))}}<a class="chip-link" href="/setlists/{{.SetlistID}}/practice">{{template "icon-play"}} Practice</a>{{end}}
+    </li>
+  {{else}}
+    <li class="attention-empty">Nothing planned in {{.Title}}.</li>
+  {{end}}
+  </ol>
+</section>
+{{end}}
+

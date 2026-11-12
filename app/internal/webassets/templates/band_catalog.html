@@ -21,15 +21,7 @@
   </nav>
 </header>
 <main class="index">
-  <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/bands/{{.Band.ID}}">Overview</a>
-    <a href="/bands/{{.Band.ID}}/catalog" class="band-tab active">Repertoire</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/setlists">Setlists</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/proposals">Proposals</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/listening-party">Discover</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/events">Events</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/members">Members</a>
-  </nav>
+  {{template "band-tabs" (bandTabs .Band.ID "catalog")}}
 
   {{if not .Entries}}
   <div class="attention-empty" style="border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:1.2rem; font-size:0.95rem;">
@@ -37,7 +29,7 @@
   </div>
   {{else}}
   <div class="repertoire-toolbar">
-    <input type="search" id="repertoire-search" placeholder="Search this repertoire…" aria-label="Search this repertoire">
+    <input type="search" id="repertoire-search" placeholder="Search this repertoire…" aria-label="Search this repertoire" enterkeyhint="search">
     <button type="button" id="open-add-song">{{template "icon-plus"}} Add song</button>
   </div>
   {{end}}
@@ -61,11 +53,11 @@
       <span class="gig-key">{{.Key}}</span>
       <span class="gig-tempo">{{.Tempo}}</span>
       <details class="row-menu">
-        <summary title="more">{{template "icon-more"}}</summary>
+        <summary aria-label="More for {{.Title}}">{{template "icon-more"}}</summary>
         <div class="row-menu-panel">
           <a href="/works/{{.WorkID}}">All versions</a>
           <a href="/variants/{{.VariantID}}/history">History</a>
-          {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">Forked from</a>{{end}}
+          {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">Copied from</a>{{end}}
           <p class="hint">{{.Visibility}}</p>
         </div>
       </details>
@@ -84,13 +76,14 @@
       <span class="gig-key">{{.Key}}</span>
       <span class="gig-tempo">{{.Tempo}}</span>
       <details class="row-menu">
-        <summary title="more">{{template "icon-more"}}</summary>
+        <summary aria-label="More for {{.Title}}">{{template "icon-more"}}</summary>
         <div class="row-menu-panel">
           <a href="/works/{{.WorkID}}">All versions</a>
           <a href="/variants/{{.VariantID}}/history">History</a>
-          {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">Forked from</a>{{end}}
+          {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">Copied from</a>{{end}}
           <p class="hint">{{.Visibility}} &middot; added by {{.AddedByUsername}}</p>
-          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}">Remove</button>
+          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">Remove from repertoire</button>
+          <p class="form-status" role="status"></p>
         </div>
       </details>
     </div>
@@ -101,7 +94,7 @@
 
   <dialog id="add-song-dialog">
     <h2>Add a song</h2>
-    <p class="hint">Adding a song from the catalog links to it as it is; forking makes the band's own copy, which any member can edit.</p>
+    <p class="hint">Write a new song, or bring one in from the catalog: as it is, or as the band's own copy that any member can edit.</p>
     <div class="add-song-tabs">
       <button type="button" class="add-song-tab active" data-panel="write">Write new</button>
       <button type="button" class="add-song-tab" data-panel="catalog">From the catalog</button>
@@ -109,30 +102,30 @@
 
     <div class="add-song-panel" data-panel="write">
       <p class="hint">A blank song, private to the band.</p>
-      <div class="form-stack">
+      <form class="form-stack" id="new-variant-form">
         <div class="field">
           <label for="new-variant-title">Title</label>
-          <input type="text" id="new-variant-title">
+          <input type="text" id="new-variant-title" autocomplete="off" required>
         </div>
         <div class="field">
-          <label for="new-variant-artist">Artist</label>
-          <input type="text" id="new-variant-artist">
+          <label for="new-variant-artist">Artist <span class="field-optional">(optional)</span></label>
+          <input type="text" id="new-variant-artist" autocomplete="off">
         </div>
         <div class="form-actions">
-          <button type="button" id="new-variant-btn">+ create</button>
+          <button type="submit" id="new-variant-btn" class="primary">Create song</button>
         </div>
-        <p id="new-variant-result" class="hint"></p>
-      </div>
+        <p id="new-variant-result" class="form-status" role="status"></p>
+      </form>
     </div>
 
     <div class="add-song-panel" data-panel="catalog" hidden>
-      <p class="hint">Add links the song as it is; Fork makes the band's own copy.</p>
-      <div class="field">
-        <label for="catalog-search-input">Search</label>
-        <input type="search" id="catalog-search-input" placeholder="Title or artist…">
-      </div>
-      <div id="catalog-search-results" class="attention-list"></div>
-      <p id="add-result" class="hint"></p>
+      <p class="hint">“Add” links to the song as it is. “Add a copy” gives the band its own version that any member can edit.</p>
+      <form class="field" id="catalog-search-form" role="search">
+        <label for="catalog-search-input">Find a song in the catalog</label>
+        <input type="search" id="catalog-search-input" placeholder="e.g. a title or an artist" autocomplete="off" enterkeyhint="search">
+      </form>
+      <div id="catalog-search-results" class="attention-list" aria-live="polite"></div>
+      <p id="add-result" class="form-status" role="status"></p>
     </div>
 
     <div class="form-actions" style="margin-top:1rem;">
@@ -142,22 +135,22 @@
 </main>
 <script>
 const bandId = {{.Band.ID}};
-document.getElementById('new-variant-btn').addEventListener('click', async () => {
+document.getElementById('new-variant-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const form = e.target;
   const title = document.getElementById('new-variant-title').value.trim();
   const artist = document.getElementById('new-variant-artist').value.trim();
-  if (!title) return;
-  const res = await fetch(`/api/bands/${bandId}/variants`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({title, artist}),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) {
+  Forms.run(form, document.getElementById('new-variant-btn'), async () => {
+    const res = await fetch(`/api/bands/${bandId}/variants`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({title, artist}),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(`Couldn't create “${title}”. Try again.`);
     // Straight into edit mode, not the Play page — a brand-new original
     // has an empty [Verse] placeholder and nothing to play yet.
     location.href = `/song/${data.variantId}?edit=1`;
-  } else {
-    document.getElementById('new-variant-result').textContent = data.error || 'failed to create';
-  }
+  });
 });
 // ---- "From the catalog": search-as-you-type over /api/catalog/search,
 // replacing the old "paste a variant id you found on another page"
@@ -170,39 +163,49 @@ document.getElementById('new-variant-btn').addEventListener('click', async () =>
   if (!input) return;
   let debounceTimer;
 
-  async function doAdd(variantId, fork) {
-    resultMsg.textContent = '';
-    const url = fork ? `/api/bands/${bandId}/catalog/fork/${variantId}` : `/api/bands/${bandId}/catalog`;
+  async function doAdd(hit, fork, btn) {
+    const url = fork ? `/api/bands/${bandId}/catalog/fork/${hit.variantId}` : `/api/bands/${bandId}/catalog`;
     const opts = fork
       ? {method: 'POST'}
-      : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({variantId})};
-    const res = await fetch(url, opts);
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      location.reload();
-    } else {
-      resultMsg.textContent = data.error || (fork ? 'failed to fork' : 'failed to add');
-    }
+      : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({variantId: hit.variantId})};
+    Forms.status(resultMsg, '');
+    Forms.busy(btn, true);
+    const res = await fetch(url, opts).catch(() => null);
+    if (res && res.ok) { location.reload(); return; }
+    Forms.busy(btn, false);
+    Forms.status(resultMsg, `Couldn't add “${hit.title}”. It may already be in the repertoire; if not, try again.`, 'error');
   }
 
   async function search() {
     const q = input.value.trim();
     results.innerHTML = '';
     if (!q) return;
-    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`);
-    const hits = await res.json().catch(() => []);
+    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`).catch(() => null);
+    const hits = res && res.ok ? await res.json().catch(() => []) : null;
+    if (!hits) {
+      results.innerHTML = '<p class="hint">Couldn\'t search the catalog. Try again.</p>';
+      return;
+    }
     if (!hits.length) {
-      results.innerHTML = '<p class="hint">No matches.</p>';
+      results.innerHTML = '<p class="hint">No songs match that.</p>';
       return;
     }
     for (const hit of hits) {
       const row = document.createElement('div');
       row.className = 'attention-row';
-      row.innerHTML = `
-        <div>
-          <div class="attention-title">${hit.title}</div>
-          ${hit.artist ? `<div class="attention-subtitle">${hit.artist}</div>` : ''}
-        </div>`;
+      // Titles and artists go in as text, never as markup.
+      const text = document.createElement('div');
+      const title = document.createElement('div');
+      title.className = 'attention-title';
+      title.textContent = hit.title;
+      text.appendChild(title);
+      if (hit.artist) {
+        const artist = document.createElement('div');
+        artist.className = 'attention-subtitle';
+        artist.textContent = hit.artist;
+        text.appendChild(artist);
+      }
+      row.appendChild(text);
       const actions = document.createElement('span');
       actions.style.marginLeft = 'auto';
       actions.style.display = 'flex';
@@ -210,17 +213,25 @@ document.getElementById('new-variant-btn').addEventListener('click', async () =>
       const addBtn = document.createElement('button');
       addBtn.type = 'button';
       addBtn.textContent = 'Add';
-      addBtn.addEventListener('click', () => doAdd(hit.variantId, false));
+      addBtn.setAttribute('aria-label', `Add ${hit.title}`);
+      addBtn.addEventListener('click', () => doAdd(hit, false, addBtn));
       const forkBtn = document.createElement('button');
       forkBtn.type = 'button';
-      forkBtn.textContent = 'Fork';
-      forkBtn.addEventListener('click', () => doAdd(hit.variantId, true));
+      forkBtn.textContent = 'Add a copy';
+      forkBtn.setAttribute('aria-label', `Add a copy of ${hit.title}`);
+      forkBtn.addEventListener('click', () => doAdd(hit, true, forkBtn));
       actions.append(addBtn, forkBtn);
       row.appendChild(actions);
       results.appendChild(row);
     }
   }
 
+  // Enter searches straight away rather than waiting out the debounce.
+  document.getElementById('catalog-search-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    clearTimeout(debounceTimer);
+    search();
+  });
   input.addEventListener('input', () => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(search, 250);
@@ -228,9 +239,12 @@ document.getElementById('new-variant-btn').addEventListener('click', async () =>
 })();
 document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    const variantId = btn.dataset.variantId;
-    await fetch(`/api/bands/${bandId}/catalog/${variantId}`, {method: 'DELETE'});
-    btn.closest('.gig-row').remove();
+    if (!confirm(`Remove “${btn.dataset.title}” from the band's repertoire?`)) return;
+    Forms.busy(btn, true);
+    const res = await fetch(`/api/bands/${bandId}/catalog/${btn.dataset.variantId}`, {method: 'DELETE'}).catch(() => null);
+    if (res && res.ok) { btn.closest('.gig-row').remove(); return; }
+    Forms.busy(btn, false);
+    Forms.status(btn.parentElement.querySelector('.form-status'), "Couldn't remove it. Try again.", 'error');
   });
 });
 

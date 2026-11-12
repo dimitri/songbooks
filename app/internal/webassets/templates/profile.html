@@ -42,60 +42,84 @@
     {{end}}
     <h3>Instruments you play</h3>
     <p class="hint">Picked here pre-fill your instrument choice when you join a jam.</p>
-    <form method="post" action="/profile/instruments">
-      <div class="instrument-icon-row">
-        {{range .CommonInstruments}}
-        <label class="instrument-icon-btn{{if index $.Checked .}} active{{end}}">
-          <input type="checkbox" name="instrument" value="{{.}}"{{if index $.Checked .}} checked{{end}} style="display:none">
-          {{template "instrument-icon" .}}
-          <span class="instrument-icon-label">{{.}}</span>
-        </label>
-        {{end}}
+    {{/* "next" (honoured by handleUpdateInstruments) brings the person
+         back with a flag the script below turns into "Instruments saved." */}}
+    <form method="post" action="/profile/instruments" class="form-stack" id="instruments-form">
+      <input type="hidden" name="next" value="/profile?instsaved=1">
+      {{/* sr-only, not display:none, so each icon is still a checkbox a
+           keyboard can reach (the label shows its focus ring). */}}
+      <fieldset class="field-group">
+        <legend>Pick any that apply</legend>
+        <div class="instrument-icon-row">
+          {{range .CommonInstruments}}
+          <label class="instrument-icon-btn{{if index $.Checked .}} active{{end}}">
+            <input type="checkbox" name="instrument" value="{{.}}"{{if index $.Checked .}} checked{{end}} class="sr-only">
+            {{template "instrument-icon" .}}
+            <span class="instrument-icon-label">{{.}}</span>
+          </label>
+          {{end}}
+        </div>
+      </fieldset>
+      <div class="field">
+        <label for="profile-other-instruments">Other instruments <span class="field-optional">(optional)</span></label>
+        <p class="field-hint" id="profile-other-instruments-hint">Separate them with commas, e.g. keyboard, sax.</p>
+        <input id="profile-other-instruments" type="text" name="other" value="{{.Other}}" aria-describedby="profile-other-instruments-hint">
       </div>
-      <p><label>Other instruments (comma separated)<br>
-        <input type="text" name="other" value="{{.Other}}" placeholder="e.g. keyboard, sax">
-      </label></p>
-      <button type="submit" class="primary">Save</button>
+      <p class="form-status" role="status"></p>
+      <div class="form-actions"><button type="submit" class="primary">Save instruments</button></div>
     </form>
   </section>
 
   <section class="card book-card">
     <h3>Email</h3>
     {{if .Me.Email}}
-      <p class="hint">Login identifier for magic-link login (and password login — either username or email works there). Currently: <strong>{{.Me.Email}}</strong>.</p>
+      <p class="hint">You can log in with this email or your username, and login links are sent here. Currently: <strong>{{.Me.Email}}</strong>.</p>
     {{else}}
-      <p class="hint">No email on file yet — magic-link login won't work until you set one.</p>
+      <p class="hint">No email yet — add one to be able to get login links by email.</p>
     {{end}}
-    {{if .EmailSaved}}<p style="color:var(--ok)">Email saved.</p>{{end}}
-    {{if .EmailError}}<p style="color:var(--danger)">{{.EmailError}}</p>{{end}}
-    <form method="post" action="/profile/email">
-      <p><label>{{if .Me.Email}}New email{{else}}Email{{end}}<br>
-        <input type="email" name="email" value="" placeholder="you@example.com" required></label></p>
-      <button type="submit" class="primary">{{if .Me.Email}}Change email{{else}}Set email{{end}}</button>
+    <form method="post" action="/profile/email" class="form-stack" id="email-form">
+      {{if .EmailSaved}}<p class="form-status is-ok" role="status">Email saved.</p>{{end}}
+      {{if .EmailError}}<p class="form-status is-error server-error" role="alert" data-for="profile-email">{{.EmailError}}</p>{{end}}
+      <div class="field">
+        <label for="profile-email">{{if .Me.Email}}New email{{else}}Email{{end}}</label>
+        <input id="profile-email" type="email" name="email" value="" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+      </div>
+      <div class="form-actions"><button type="submit" class="primary">{{if .Me.Email}}Change email{{else}}Set email{{end}}</button></div>
     </form>
   </section>
 
   <section class="card book-card">
     <h3>Password</h3>
     {{if .HasPassword}}
-      <p class="hint">A password is set on this account — you can log in with it or with a magic link.</p>
+      <p class="hint">A password is set — you can log in with it, a passkey, or a login link.</p>
     {{else}}
-      <p class="hint">No password set — you're currently magic-link-only. Set one below to also be able to log in with a password.</p>
+      <p class="hint">No password yet — you log in with emailed login links. Set one to log in with a password too.</p>
     {{end}}
-    {{if .PwSaved}}<p style="color:var(--ok)">Password saved.</p>{{end}}
-    {{if .PwError}}<p style="color:var(--danger)">{{.PwError}}</p>{{end}}
-    <form method="post" action="/profile/password">
-      <p><label>{{if .HasPassword}}New password{{else}}Password{{end}}<br>
-        <input type="password" name="password" autocomplete="new-password" required minlength="8"></label></p>
-      <p><label>Confirm password<br>
-        <input type="password" name="confirm" autocomplete="new-password" required minlength="8"></label></p>
-      <button type="submit" class="primary">{{if .HasPassword}}Change password{{else}}Set password{{end}}</button>
+    <form method="post" action="/profile/password" class="form-stack" id="password-form">
+      {{if .PwSaved}}<p class="form-status is-ok" role="status">Password saved.</p>{{end}}
+      {{if .PwError}}<p class="form-status is-error server-error" role="alert" data-for="profile-password">{{.PwError}}</p>{{end}}
+      {{/* Not sent: tells password managers which account the new
+           password belongs to. */}}
+      <input type="text" autocomplete="username" value="{{.Me.Username}}" hidden readonly>
+      <div class="field">
+        <label for="profile-password">{{if .HasPassword}}New password{{else}}Password{{end}}</label>
+        <p class="field-hint" id="profile-password-hint">At least 8 characters.</p>
+        <div class="pw-field">
+          <input id="profile-password" type="password" name="password" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="profile-password-hint" required minlength="8">
+          <button type="button" class="pw-toggle" aria-controls="profile-password profile-confirm" aria-pressed="false" hidden><span class="pw-toggle-text">Show</span><span class="sr-only"> passwords</span></button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="profile-confirm">{{if .HasPassword}}New password again{{else}}Password again{{end}}</label>
+        <input id="profile-confirm" type="password" name="confirm" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" data-match="profile-password" required minlength="8">
+      </div>
+      <div class="form-actions"><button type="submit" class="primary">{{if .HasPassword}}Change password{{else}}Set password{{end}}</button></div>
     </form>
   </section>
 
   <section class="card book-card">
     <h3>Passkeys</h3>
-    <p class="hint">Touch ID, Face ID, Windows Hello, or a security key — a third way to log in, alongside your password and login links. A passkey registered here only works on the site/origin you registered it on (a passkey made on your laptop at a local dev address won't work on the live site, and vice versa — that's WebAuthn working as designed, not a bug).</p>
+    <p class="hint">Touch ID, Face ID, Windows Hello, or a security key — a third way to log in, alongside your password and login links. A passkey only works on the web address where you added it.</p>
     {{if .Passkeys}}
     <table class="card passkeys-table">
       <thead><tr><th>Name</th><th>Added</th><th>Last used</th><th></th></tr></thead>
@@ -103,16 +127,19 @@
       {{range .Passkeys}}
         <tr>
           <td data-label="Name">
+            {{/* The column header (or, stacked on a phone, the cell's
+                 data-label) is the visible label; aria-label carries it
+                 for screen readers. */}}
             <form method="post" action="/profile/passkeys/{{.ID}}/nickname" style="display:flex; gap:4px">
-              <input type="text" name="nickname" value="{{.Nickname}}" placeholder="e.g. MacBook, iPhone" size="18">
+              <input type="text" name="nickname" value="{{.Nickname}}" placeholder="e.g. MacBook, iPhone" size="18" aria-label="Passkey name" autocomplete="off">
               <button type="submit">Rename</button>
             </form>
           </td>
           <td data-label="Added">{{.CreatedAt.Format "Jan 2, 2006"}}</td>
           <td data-label="Last used">{{if .LastUsedAt}}{{.LastUsedAt.Format "Jan 2, 2006"}}{{else}}never{{end}}</td>
           <td>
-            <form method="post" action="/profile/passkeys/{{.ID}}/remove" onsubmit="return confirm('Remove this passkey? You will no longer be able to log in with it.')">
-              <button type="submit" class="danger">Remove</button>
+            <form method="post" action="/profile/passkeys/{{.ID}}/remove" data-confirm="Remove the passkey {{if .Nickname}}“{{.Nickname}}”{{else}}added {{.CreatedAt.Format "Jan 2, 2006"}}{{end}}? You won't be able to log in with it any more.">
+              <button type="submit" class="danger">Remove<span class="sr-only"> passkey {{.Nickname}}</span></button>
             </form>
           </td>
         </tr>
@@ -122,9 +149,9 @@
     {{else}}
     <p class="hint">No passkeys registered yet.</p>
     {{end}}
-    <p id="webauthn-register-error" style="color:var(--danger); display:none"></p>
-    <button type="button" id="webauthn-register-btn">Add a passkey</button>
-    <p class="hint" id="webauthn-register-unsupported" style="display:none">Your browser doesn't support passkeys.</p>
+    <div class="form-actions"><button type="button" id="webauthn-register-btn">Add a passkey</button></div>
+    <p class="form-status" id="webauthn-register-status" role="status"></p>
+    <p class="hint" id="webauthn-register-unsupported" hidden>This browser can't use passkeys. Your password and login links still work.</p>
   </section>
   </div>
 
@@ -132,8 +159,8 @@
   <section class="card book-card">
     <h3>Public profile</h3>
     <p class="hint">A nickname and picture people see instead of your real name/username, and opt-in toggles for whether your email or phone show alongside it.</p>
-    {{if .PublicSaved}}<p style="color:var(--ok)">Public profile saved.</p>{{end}}
-    <form method="post" action="/profile/public">
+    <form method="post" action="/profile/public" class="form-stack">
+      {{if .PublicSaved}}<p class="form-status is-ok" role="status">Public profile saved.</p>{{end}}
       {{/* No picture_url set: fall back to a Gravatar for the account's
            email (EffectivePictureURL, d=404 so onerror can tell "no
            Gravatar registered" apart from "fetch failed") — opt out via
@@ -141,19 +168,30 @@
            just to suppress it. A real picture_url always wins outright. */}}
       {{$eff := .Me.EffectivePictureURL}}
       {{if $eff}}<p><img src="{{$eff}}" alt="" class="profile-picture-preview" onerror="this.style.display='none'"></p>{{end}}
-      <p><label>Nickname<br>
-        <input type="text" name="nickname" value="{{.Me.Nickname}}" placeholder="shown instead of your display name" maxlength="60"></label></p>
-      <p><label>Picture URL<br>
-        <input type="url" name="picture_url" value="{{.Me.PictureURL}}" placeholder="https://..."></label>
-        <br><span class="hint">A link to an image — no upload here, paste a URL (e.g. from a photo you already host somewhere). Left blank, your <a href="https://gravatar.com" target="_blank" rel="noopener">Gravatar</a> for this account's email is used instead, if you have one.</span></p>
+      <div class="field">
+        <label for="public-nickname">Nickname <span class="field-optional">(optional)</span></label>
+        <p class="field-hint" id="public-nickname-hint">Shown instead of your name.</p>
+        <input id="public-nickname" type="text" name="nickname" value="{{.Me.Nickname}}" autocomplete="nickname" aria-describedby="public-nickname-hint" maxlength="60">
+      </div>
+      <div class="field">
+        <label for="public-picture-url">Picture link <span class="field-optional">(optional)</span></label>
+        <p class="field-hint" id="public-picture-url-hint">A link to an image you already have online — there's no upload here. Left blank, your <a href="https://gravatar.com" target="_blank" rel="noopener">Gravatar</a> for this account's email is used instead, if you have one.</p>
+        <input id="public-picture-url" type="url" name="picture_url" value="{{.Me.PictureURL}}" placeholder="https://example.com/me.jpg" autocomplete="photo" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="public-picture-url-hint">
+      </div>
       {{if not .Me.PictureURL}}
-      <p><label><input type="checkbox" name="gravatar_opt_out" {{if .Me.GravatarOptOut}}checked{{end}}> Don't use my Gravatar — show no picture instead</label></p>
+      <label class="check"><input type="checkbox" name="gravatar_opt_out" {{if .Me.GravatarOptOut}}checked{{end}}> Don't use my Gravatar — show no picture instead</label>
       {{end}}
-      <p><label>Phone <span class="hint">(e.g. for WhatsApp)</span><br>
-        <input type="tel" name="phone" value="{{.Me.Phone}}" placeholder="+1 555 123 4567"></label></p>
-      <p><label><input type="checkbox" name="share_email" {{if .Me.ShareEmail}}checked{{end}}> Show my email on my public profile</label></p>
-      <p><label><input type="checkbox" name="share_phone" {{if .Me.SharePhone}}checked{{end}}> Show my phone on my public profile</label></p>
-      <button type="submit" class="primary">Save</button>
+      <div class="field">
+        <label for="public-phone">Phone <span class="field-optional">(optional)</span></label>
+        <p class="field-hint" id="public-phone-hint">So people can reach you, e.g. on WhatsApp. Include the country code.</p>
+        <input id="public-phone" type="tel" name="phone" value="{{.Me.Phone}}" placeholder="+1 555 123 4567" autocomplete="tel" aria-describedby="public-phone-hint">
+      </div>
+      <fieldset class="field-group">
+        <legend>On your public profile</legend>
+        <label class="check"><input type="checkbox" name="share_email" {{if .Me.ShareEmail}}checked{{end}}> Show my email</label>
+        <label class="check"><input type="checkbox" name="share_phone" {{if .Me.SharePhone}}checked{{end}}> Show my phone</label>
+      </fieldset>
+      <div class="form-actions"><button type="submit" class="primary">Save public profile</button></div>
     </form>
   </section>
   </div>
@@ -177,70 +215,114 @@ document.querySelectorAll('.instrument-icon-btn input[type=checkbox]').forEach(c
   cb.addEventListener('change', () => cb.closest('.instrument-icon-btn').classList.toggle('active', cb.checked));
 });
 
+// Every settings form here is a plain POST that comes back to this page:
+// the submit button goes busy meanwhile (and back if the page is restored
+// from the back/forward cache), and a destructive one asks first.
+document.querySelectorAll('form[data-confirm]').forEach(f => {
+  f.addEventListener('submit', (e) => { if (!confirm(f.dataset.confirm)) e.preventDefault(); });
+});
+document.addEventListener('submit', (e) => {
+  if (!e.defaultPrevented && e.submitter) Forms.busy(e.submitter, true);
+});
+window.addEventListener('pageshow', () => {
+  document.querySelectorAll('form button[aria-busy]').forEach(b => Forms.busy(b, false));
+});
+
+// The instruments form comes back via ?instsaved=1 (its hidden "next").
+if (new URLSearchParams(location.search).has('instsaved')) {
+  Forms.status(document.getElementById('instruments-form'), 'Instruments saved.', 'ok');
+}
+
+// The email and password forms come back with ?emailerror=/?pwerror= and
+// a lower-case reason; a reason about one field goes under that field.
+// A rejected email is put back (stashed for this tab on submit), so it
+// can be fixed rather than retyped.
+(function() {
+  const emailInput = document.getElementById('profile-email');
+  const KEY = 'songbooks-profile-email';
+  document.getElementById('email-form').addEventListener('submit', () => {
+    try { sessionStorage.setItem(KEY, emailInput.value); } catch (e) {}
+  });
+  const byField = [
+    [/already registered/, 'profile-email', 'That email already belongs to another account. Use a different one.'],
+    [/valid email/, 'profile-email', 'Enter an email address like name@example.com.'],
+    [/at least 8/, 'profile-password', 'Use at least 8 characters.'],
+    [/didn't match/, 'profile-confirm', 'The two passwords didn\u2019t match. Type the same one in both.'],
+  ];
+  document.querySelectorAll('.server-error').forEach(el => {
+    if (el.dataset.for === 'profile-email') {
+      try { emailInput.value = sessionStorage.getItem(KEY) || ''; } catch (e) {}
+    }
+    const msg = el.textContent.trim();
+    for (const [re, id, text] of byField) {
+      if (re.test(msg)) {
+        el.remove();
+        const input = document.getElementById(id);
+        Forms.fieldError(input, text);
+        input.focus();
+        return;
+      }
+    }
+    el.textContent = 'That didn\u2019t save. Try again.';
+    document.getElementById(el.dataset.for).focus();
+  });
+})();
+
 // Add a passkey: navigator.credentials.create() registers a new
 // discoverable credential (see internal/httpapi/webauthn.go's
 // handleWebAuthnRegisterBegin), then — right after that succeeds — the
 // person is prompted for a short nickname before the result is saved, so
 // the management list above reads "MacBook"/"iPhone" rather than a bare
-// creation date.
+// creation date. Success reloads the page, where the new one is listed.
 (function() {
   const btn = document.getElementById('webauthn-register-btn');
-  const errEl = document.getElementById('webauthn-register-error');
-  const unsupportedEl = document.getElementById('webauthn-register-unsupported');
+  const statusEl = document.getElementById('webauthn-register-status');
   if (!btn) return;
 
   if (!window.PublicKeyCredential || !window.PublicKeyCredential.parseCreationOptionsFromJSON) {
     btn.disabled = true;
-    unsupportedEl.style.display = '';
+    document.getElementById('webauthn-register-unsupported').hidden = false;
     return;
   }
 
-  function showError(msg) {
-    errEl.textContent = msg;
-    errEl.style.display = '';
+  // The server's error strings are written for logs; these say what to
+  // do next.
+  function friendly(err, status) {
+    if (err && err.name === 'NotAllowedError') return 'The passkey request was cancelled or timed out. Try again when you\u2019re ready.';
+    if (err && err.name === 'InvalidStateError') return 'This device already has a passkey for your account — it\u2019s in the list above.';
+    if (status === 400) return 'That took too long. Try again.';
+    return 'Couldn\u2019t add a passkey. Try again.';
   }
 
   btn.addEventListener('click', async () => {
-    errEl.style.display = 'none';
-    btn.disabled = true;
-    // .btn-loading/.spinner (app.css) — navigator.credentials.create()
-    // waits on the OS's own Touch ID/security-key prompt, which can sit
-    // for several seconds with nothing else on the page indicating the
-    // click registered at all.
-    const spinner = document.createElement('span');
-    spinner.className = 'spinner';
-    btn.classList.add('btn-loading');
-    btn.appendChild(spinner);
+    Forms.status(statusEl, '');
+    // Busy while the OS's own Touch ID/security-key prompt is up, which
+    // can sit for several seconds with nothing else on the page changing.
+    Forms.busy(btn, true);
+    let status = 0;
     try {
       const beginRes = await fetch('/api/webauthn/register/begin', { method: 'POST' });
-      if (!beginRes.ok) {
-        const body = await beginRes.json().catch(() => ({}));
-        throw new Error(body.error || 'could not start passkey registration');
-      }
+      if (!beginRes.ok) { status = beginRes.status; throw new Error(); }
       const options = await beginRes.json();
       const cred = await navigator.credentials.create({
         publicKey: PublicKeyCredential.parseCreationOptionsFromJSON(options.publicKey),
       });
-      const nickname = (window.prompt('Name this passkey (e.g. "MacBook" or "iPhone"):', '') || '').trim();
+      const nickname = (window.prompt('Name this passkey so you can tell it apart later (e.g. "MacBook" or "iPhone"):', '') || '').trim();
       const finishRes = await fetch('/api/webauthn/register/finish?nickname=' + encodeURIComponent(nickname), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cred.toJSON()),
       });
-      if (!finishRes.ok) {
-        const body = await finishRes.json().catch(() => ({}));
-        throw new Error(body.error || 'passkey registration failed');
-      }
+      if (!finishRes.ok) { status = finishRes.status; throw new Error(); }
       window.location.reload();
     } catch (err) {
-      showError(err.message || 'passkey registration failed.');
-      btn.disabled = false;
-      btn.classList.remove('btn-loading');
-      spinner.remove();
+      Forms.status(statusEl, friendly(err, status), 'error');
+      Forms.busy(btn, false);
     }
   });
 })();
 </script>
+<script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
 {{template "pwa-register"}}
 </div>
 {{template "global-tabbar"}}

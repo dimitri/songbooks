@@ -6,21 +6,21 @@
 {{define "metronome-widget"}}
   <section class="card book-card metronome-standalone" id="metronome">
     <div class="metro-bpm-row">
-      <button id="bpm-down" type="button" class="icon-btn" aria-label="slower">&minus;</button>
+      <button id="bpm-down" type="button" class="icon-btn" aria-label="Slower">&minus;</button>
       <div class="metro-bpm-display">
         <div class="metro-bpm-marking" id="bpm-marking" aria-hidden="true"></div>
-        <input type="text" id="bpm-input" value="100" inputmode="numeric">
+        <input type="text" id="bpm-input" value="100" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" aria-label="Tempo in bpm">
         <span class="bpm-unit">bpm</span>
       </div>
-      <button id="bpm-up" type="button" class="icon-btn" aria-label="faster">+</button>
+      <button id="bpm-up" type="button" class="icon-btn" aria-label="Faster">+</button>
     </div>
-    <input type="range" id="bpm-slider" class="metro-bpm-slider" min="20" max="300" value="100" aria-label="tempo">
+    <input type="range" id="bpm-slider" class="metro-bpm-slider" min="20" max="300" value="100" aria-label="Tempo">
 
     <div class="beat-dots metro-beat-dots" id="beat-dots" aria-hidden="true"></div>
 
     <div class="metro-transport-controls">
-      <button id="play-pause-btn" type="button" title="start" class="primary icon-btn">{{template "icon-play"}}</button>
-      <button id="tap-btn" type="button" title="tap tempo" class="icon-btn">{{template "icon-tap"}}</button>
+      <button id="play-pause-btn" type="button" title="Start" aria-label="Start" class="primary icon-btn">{{template "icon-play"}}</button>
+      <button id="tap-btn" type="button" title="Tap tempo" aria-label="Tap tempo" class="icon-btn">{{template "icon-tap"}}</button>
     </div>
 
     {{/* Three tabs, same tool, one underlying clock/metronome engine
@@ -57,9 +57,9 @@
       <div class="metro-section">
         <h3>Practice mode</h3>
         <div class="metro-icon-row" id="practice-mode-picker" data-value="none">
-          <button type="button" data-value="none" class="active">off</button>
-          <button type="button" data-value="gap">gap click</button>
-          <button type="button" data-value="random">random mute</button>
+          <button type="button" data-value="none" class="active">Off</button>
+          <button type="button" data-value="gap">Gap click</button>
+          <button type="button" data-value="random">Random mute</button>
         </div>
       </div>
 
@@ -67,16 +67,16 @@
         <h3>Gap click</h3>
         <p class="hint">Play for N beats, then go silent for M beats, repeating.</p>
         <div class="metro-field-row">
-          <label for="gap-on">Play (beats) <input type="number" id="gap-on" min="1" max="32" value="4"></label>
-          <label for="gap-off">Silence (beats) <input type="number" id="gap-off" min="1" max="32" value="4"></label>
+          <label for="gap-on">Beats played <input type="number" id="gap-on" min="1" max="32" step="1" value="4" inputmode="numeric"></label>
+          <label for="gap-off">Beats silent <input type="number" id="gap-off" min="1" max="32" step="1" value="4" inputmode="numeric"></label>
         </div>
       </div>
 
       <div class="metro-section" id="random-mute-controls" hidden>
         <h3>Random mute</h3>
         <p class="hint">Each beat — and optionally each subdivision — has a chance of being silenced at random.</p>
-        <label class="metro-slider-row" for="random-mute-beats">Beats <input type="range" id="random-mute-beats" min="0" max="100" value="30"><span id="random-mute-beats-val">30%</span></label>
-        <label class="metro-slider-row" for="random-mute-subs">Subdivisions <input type="range" id="random-mute-subs" min="0" max="100" value="0"><span id="random-mute-subs-val">0%</span></label>
+        <label class="metro-slider-row" for="random-mute-beats">Beats <input type="range" id="random-mute-beats" min="0" max="100" value="30"><span id="random-mute-beats-val" aria-hidden="true">30%</span></label>
+        <label class="metro-slider-row" for="random-mute-subs">Subdivisions <input type="range" id="random-mute-subs" min="0" max="100" value="0"><span id="random-mute-subs-val" aria-hidden="true">0%</span></label>
       </div>
     </div>
 
@@ -84,10 +84,10 @@
       <div class="metro-section">
         <h3>Accent</h3>
         <div class="metro-icon-row" id="accent-preset">
-          <button type="button" data-value="downbeat" class="active">downbeat</button>
-          <button type="button" data-value="backbeat">backbeat (2 &amp; 4)</button>
-          <button type="button" data-value="every">every beat</button>
-          <button type="button" data-value="none">none</button>
+          <button type="button" data-value="downbeat" class="active">Downbeat</button>
+          <button type="button" data-value="backbeat">Backbeat (2 &amp; 4)</button>
+          <button type="button" data-value="every">Every beat</button>
+          <button type="button" data-value="none">None</button>
         </div>
         <p class="hint">Or tap individual beats below to build a custom accent pattern — handy for groove practice (e.g. just the "and" of 2).</p>
         <div class="metro-beat-picker" id="beat-picker"></div>

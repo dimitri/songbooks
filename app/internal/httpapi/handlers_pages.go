@@ -469,12 +469,6 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	views, err := s.buildBookStats(r.Context(), person.ID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	bands, err := s.store.ListBandsForPerson(r.Context(), person.ID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -511,19 +505,43 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.SliceStable(attention, func(i, j int) bool { return i < j }) // already newest-first per source; a true merge-sort by time isn't worth it for a handful of items
 
-	gigs, err := s.store.ListUpcomingGigsForPerson(r.Context(), person.ID, 1)
+	// The calendar: the month asked for (?month=2026-12), and the next
+	// thing coming up, whatever month it falls in.
+	now := time.Now()
+	first := parseMonth(r.URL.Query().Get("month"), now)
+	from, to := monthRange(first)
+	monthItems, err := s.store.ListCalendarForPerson(r.Context(), person.ID, from, to)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	var nextGig *store.UpcomingGig
-	if len(gigs) > 0 {
-		nextGig = &gigs[0]
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	soon, err := s.store.ListCalendarForPerson(r.Context(), person.ID, today, today.AddDate(0, 3, 0))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	nextUp := firstUpcoming(soon, now)
+
+	recent, err := s.store.ListRecentSongs(r.Context(), person.ID, 6)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// "New in your bands": only the bands with something new.
+	var bandNews []bandCardView
+	for _, b := range bandCards {
+		if b.Digest != "" {
+			bandNews = append(bandNews, b)
+		}
 	}
 
 	s.render(w, "index", map[string]any{
-		"Books": views, "Me": person, "Greeting": homeGreeting(),
-		"Bands": bandCards, "Communities": communityCards, "Attention": attention, "NextGig": nextGig,
+		"Me": person, "Greeting": homeGreeting(),
+		"Bands": bandCards, "Communities": communityCards, "Attention": attention,
+		"NextUp": nextUp, "Calendar": buildCalendarMonth("/home", first, monthItems, now),
+		"Recent": recent, "BandNews": bandNews,
 	})
 }
 
@@ -2824,6 +2842,8 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	var canEdit bool
 	if person != nil {
 		canEdit, _ = s.store.CanEditVariant(r.Context(), person.ID, variantID)
+		// Home's "Continue" list; a failure here mustn't cost the page.
+		_ = s.store.RecordSongVisit(r.Context(), person.ID, variantID, songContextQuery(r.URL.Query()))
 	}
 	var genre string
 	if workID != 0 {

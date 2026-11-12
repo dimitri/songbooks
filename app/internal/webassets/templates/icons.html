@@ -11,6 +11,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="theme-color" content="#0b0c0e">
 <script>try { var t = localStorage.getItem('songbooks-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<script src="/static/js/forms.js?v={{staticVersion}}"></script>
 {{end}}
 {{define "pwa-register"}}
 <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});</script>
@@ -219,7 +220,7 @@
 {{- else if eq . "icon-bands"}}{{template "icon-bands"}}
 {{- else if eq . "icon-community"}}{{template "icon-community"}}
 {{- else if eq . "icon-setlists"}}{{template "icon-setlists"}}
-{{- else if eq . "icon-metro-full"}}{{template "icon-metro-full"}}
+{{- else if eq . "icon-metronome"}}{{template "icon-metronome"}}
 {{- else if eq . "icon-profile"}}{{template "icon-profile"}}
 {{- else if eq . "icon-plus"}}{{template "icon-plus"}}
 {{- else if eq . "icon-play"}}{{template "icon-play"}}
@@ -234,7 +235,7 @@
     {{range navGlobal "desktop"}}<a href="{{.Path}}" data-path="{{.Path}}" data-label="{{.Label}}">{{template "nav-icon" .Icon}} {{.Label}}</a>{{end}}
   </div>
   <div class="sidebar-secondary">
-    <a href="/metronome" data-path="/metronome">{{template "icon-metro-full"}} Metronome</a>
+    <a href="/metronome" data-path="/metronome">{{template "icon-metronome"}} Metronome</a>
   </div>
   {{if .Me}}
   {{if .Me.IsAdmin}}
@@ -249,13 +250,13 @@
     {{if .PDFExportPath}}
     <span class="pdf-mode-row sidebar-song-row" style="flex-wrap:wrap;">
       <a class="pdf-export-link" href="{{.PDFExportPath}}" title="export the whole songbook as one PDF — cover, title page, contents, every song" download>{{template "icon-download"}} {{if .PDFExportLabel}}{{.PDFExportLabel}}{{else}}Export songbook (PDF){{end}}</a>
-      <select class="pdf-mode-select" title="PDF view mode">
+      <select class="pdf-mode-select" aria-label="PDF layout">
         <option value="">Song</option>
         <option value="jazz">Jazz chart</option>
         <option value="map">Song map</option>
         <option value="lyrics">Lyrics only</option>
       </select>
-      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
+      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> Include notes</label>
     </span>
     {{end}}
   </div>
@@ -308,6 +309,7 @@
 {{define "icon-theme-light"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="3.6" fill="currentColor" stroke="none"/><path d="M10 2v1.8M10 16.2V18M18 10h-1.8M3.8 10H2M15.4 4.6l-1.3 1.3M5.9 14.1l-1.3 1.3M15.4 15.4l-1.3-1.3M5.9 5.9 4.6 4.6"/></svg>{{end}}
 {{define "icon-theme-dark"}}<svg class="icon" viewBox="0 0 20 20" fill="currentColor" stroke="none" aria-hidden="true"><path d="M16.5 12.8A7 7 0 0 1 7.2 3.5a7 7 0 1 0 9.3 9.3z"/></svg>{{end}}
 
+{{define "icon-calendar"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12.5" rx="1.8"/><path d="M3 8.5h14M7 2.8v3.2M13 2.8v3.2"/></svg>{{end}}
 {{define "icon-bell"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8.5a5 5 0 0 1 10 0v2.8l1.3 2.2H3.7L5 11.3Z"/><path d="M8 15.8a2 2 0 0 0 4 0"/></svg>{{end}}
 
 {{/* notif-bell/notif-bell-script: the nav bell + unread-count badge,
@@ -420,7 +422,7 @@
      document-with-corner-fold glyph, distinct from icon-download (a
      plain arrow-into-tray) so the bottom bar's "Song" button reads as
      "this song's own actions," not literally "download." */}}
-{{define "icon-song-actions"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2.5h6l3 3v12H6z"/><path d="M12 2.5v3h3"/><path d="M8 11h5M8 13.5h5M8 8.5h2.5"/></svg>{{end}}
+{{define "icon-song-actions"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 2.5h7l3 3v12H5z"/><path d="M12 2.5v3h3"/><path d="M10.8 13.6V7.3c1.1.2 2.2.9 2.4 2.1"/><ellipse cx="9.2" cy="13.8" rx="1.7" ry="1.3" fill="currentColor" stroke="none"/></svg>{{end}}
 
 {{/* Phase 27: self-hosted instrument icons, replacing emoji — same
      20x20/stroke-1.5-ish line-weight convention as the icons above. */}}
@@ -468,27 +470,35 @@
 <div class="card brand-editor" id="brand-editor" data-endpoint="{{.}}">
   <h2>Look &amp; feel</h2>
   <p class="hint">How this space looks to everyone in it: its pages, its songbooks and setlists, and the songs opened from them. Start from a preset, then change what you like; leave a field empty to keep the preset's.</p>
-  <div class="form-stack">
+  <form class="form-stack" id="brand-form">
     <div class="field"><label for="brand-preset">Preset</label>
       <select id="brand-preset" name="preset"><option value="">None (the app's own look)</option>{{range brandPresets}}<option value="{{.}}">{{(brandPreset .).Label}}</option>{{end}}</select></div>
-    <div class="brand-colors">
-      {{range brandColorFields}}
-      <label class="brand-color"><span>{{index . 1}}</span><input type="color" data-color-for="{{index . 0}}"><input type="text" name="{{index . 0}}" placeholder="preset" maxlength="7" pattern="#[0-9a-fA-F]{6}"></label>
-      {{end}}
-    </div>
+    <fieldset class="field-group">
+      <legend>Colors <span class="field-optional">(optional)</span></legend>
+      <p class="field-hint">Pick one, or type it like #3a6ea5. Empty keeps the preset's.</p>
+      <div class="brand-colors">
+        {{range brandColorFields}}
+        <div class="brand-color"><label for="brand-color-{{index . 0}}">{{index . 1}}</label><input type="color" data-color-for="{{index . 0}}" aria-label="{{index . 1}}: pick a color"><input type="text" id="brand-color-{{index . 0}}" name="{{index . 0}}" placeholder="#rrggbb" maxlength="7" pattern="#[0-9a-fA-F]{6}" title="Enter a color like #3a6ea5, or leave it empty." autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+        {{end}}
+      </div>
+    </fieldset>
     <div class="field"><label for="brand-font-display">Title font</label>
       <select id="brand-font-display" name="fontDisplay"><option value="">Preset's</option>{{range brandFonts}}<option value="{{.}}">{{(brandFont .).Label}}</option>{{end}}</select></div>
     <div class="field"><label for="brand-font-ui">Text font</label>
       <select id="brand-font-ui" name="fontUI"><option value="">Preset's</option>{{range brandFonts}}<option value="{{.}}">{{(brandFont .).Label}}</option>{{end}}</select></div>
     <div class="field"><label for="brand-shape">Buttons</label>
       <select id="brand-shape" name="shape"><option value="">Preset's</option><option value="square">Square</option><option value="soft">Rounded</option><option value="pill">Pills</option></select></div>
-    <div class="field"><label for="brand-mark">Mark (a letter or a symbol)</label><input type="text" id="brand-mark" name="mark" maxlength="3" placeholder="☾"></div>
-    <div class="field"><label for="brand-logo">Logo image (https link)</label><input type="url" id="brand-logo" name="logoURL" placeholder="https://…"></div>
-    <div class="field"><label for="brand-tagline">Tagline</label><input type="text" id="brand-tagline" name="tagline" maxlength="140"></div>
-    <div class="field"><label for="brand-website">Website</label><input type="url" id="brand-website" name="website" placeholder="https://…"></div>
-    <div class="form-actions"><button type="button" class="primary" id="brand-save">Save and reload</button> <button type="button" id="brand-reset">Back to the app's look</button></div>
-    <p class="hint" id="brand-status"></p>
-  </div>
+    <div class="field"><label for="brand-mark">Mark <span class="field-optional">(optional)</span></label>
+      <p class="field-hint" id="brand-mark-hint">A letter or symbol shown beside the name when there's no logo.</p>
+      <input type="text" id="brand-mark" name="mark" maxlength="3" placeholder="e.g. ☾" aria-describedby="brand-mark-hint" autocomplete="off"></div>
+    <div class="field"><label for="brand-logo">Logo image <span class="field-optional">(optional)</span></label>
+      <p class="field-hint" id="brand-logo-hint">A link to an image that starts with https://.</p>
+      <input type="url" id="brand-logo" name="logoURL" placeholder="https://…" aria-describedby="brand-logo-hint" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+    <div class="field"><label for="brand-tagline">Tagline <span class="field-optional">(optional)</span></label><input type="text" id="brand-tagline" name="tagline" maxlength="140" autocomplete="off"></div>
+    <div class="field"><label for="brand-website">Website <span class="field-optional">(optional)</span></label><input type="url" id="brand-website" name="website" placeholder="https://…" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+    <div class="form-actions"><button type="button" class="danger" id="brand-reset">Reset to the app's look</button> <button type="submit" class="primary" id="brand-save">Save look</button></div>
+    <p class="form-status" id="brand-status" role="status"></p>
+  </form>
 </div>
 <script src="/static/js/brand-editor.js?v={{staticVersion}}"></script>
 {{end}}

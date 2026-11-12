@@ -1,0 +1,93 @@
+{{define "band_settings"}}
+{{$brand := brandFor "band" .Band.ID}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Band.Name}} — settings</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
+  <h1>Settings</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index">
+  {{template "band-tabs" (bandTabs .Band.ID "settings")}}
+
+  <div class="card card--md">
+    <h2>The band</h2>
+    <form class="form-stack" id="band-settings-form">
+      <div class="field">
+        <label for="settings-name">Band name</label>
+        <input type="text" id="settings-name" value="{{.Band.Name}}" required maxlength="120" autocomplete="off" enterkeyhint="done">
+      </div>
+      <fieldset class="field-group">
+        <legend>What the band plays</legend>
+        <p class="field-hint" id="music-type-hint">An original band's repertoire is grouped by album.</p>
+        <label class="check"><input type="radio" name="musicType" value="covers" aria-describedby="music-type-hint"{{if eq .Band.MusicType "covers"}} checked{{end}}> Covers</label>
+        <label class="check"><input type="radio" name="musicType" value="original" aria-describedby="music-type-hint"{{if eq .Band.MusicType "original"}} checked{{end}}> Original music</label>
+        <label class="check"><input type="radio" name="musicType" value="" aria-describedby="music-type-hint"{{if eq .Band.MusicType ""}} checked{{end}}> Not set</label>
+      </fieldset>
+      <div class="form-actions">
+        <button type="submit" id="band-settings-save" class="primary">Save changes</button>
+      </div>
+      <p class="form-status" role="status"></p>
+    </form>
+  </div>
+
+  {{if .IsCore}}{{template "brand-editor" (printf "/api/bands/%d/brand" .Band.ID)}}{{else}}
+  <p class="hint">Core members can change the band's look.</p>
+  {{end}}
+
+  <div class="card card--narrow danger-zone">
+    <h2>Delete the band</h2>
+    <p class="hint">Deletes {{.Band.Name}}, its repertoire, set lists and calendar, for every member. This can't be undone.</p>
+    <button type="button" id="delete-band-btn" class="danger">Delete {{.Band.Name}}</button>
+    <p id="delete-band-result" class="form-status" role="status"></p>
+  </div>
+</main>
+<script>
+const bandId = {{.Band.ID}};
+const bandName = {{.Band.Name}};
+document.getElementById('band-settings-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const name = document.getElementById('settings-name').value.trim();
+  const musicType = form.querySelector('input[name="musicType"]:checked')?.value ?? '';
+  Forms.run(form, document.getElementById('band-settings-save'), async () => {
+    const post = (path, body) => fetch(`/api/bands/${bandId}/${path}`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+    }).catch(() => null);
+    if (name !== bandName) {
+      const res = await post('name', {name});
+      if (!res || !res.ok) throw new Error("Couldn't rename the band. Try again.");
+    }
+    const res = await post('music-type', {musicType});
+    if (!res || !res.ok) throw new Error("Couldn't save what the band plays. Try again.");
+    location.reload();
+  });
+});
+document.getElementById('delete-band-btn').addEventListener('click', async (e) => {
+  if (!confirm(`Delete ${bandName} and its whole repertoire for every member? This can't be undone.`)) return;
+  const btn = e.currentTarget;
+  Forms.busy(btn, true);
+  const res = await fetch(`/api/bands/${bandId}`, {method: 'DELETE'}).catch(() => null);
+  if (res && res.ok) { location.href = '/bands'; return; }
+  Forms.busy(btn, false);
+  Forms.status(document.getElementById('delete-band-result'), `Couldn't delete ${bandName}. Try again.`, 'error');
+});
+</script>
+{{template "notif-bell-script"}}
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

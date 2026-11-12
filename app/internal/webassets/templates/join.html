@@ -9,73 +9,73 @@
 {{template "pwa-head"}}
 </head>
 <body>
-<main class="index">
+<main class="index auth-page">
   <div class="hero">
     <div>
       <h2>Join {{.TargetName}}</h2>
       {{if eq .Kind "band"}}
-        <p>Pick your name below, or "someone else" if you're not on the list.</p>
+        <p>Pick your name below, or "Someone else" if you're not on the list.</p>
       {{else}}
-        <p>Pick your name below, or "someone else" if you're not on the list. You'll join this community.</p>
+        <p>Pick your name below, or "Someone else" if you're not on the list. You'll join this community.</p>
       {{end}}
     </div>
   </div>
 
   {{if .Closed}}
-    <div class="card" style="max-width:420px">
+    <div class="card card--narrow">
       <p>This invite link has been closed by {{if eq .Kind "band"}}the band{{else}}the community{{end}} — no further claims are possible. Ask for a fresh link.</p>
     </div>
   {{else}}
-  <div class="card" style="max-width:420px">
-    <p class="hint">Who are you?</p>
-    {{range .Slots}}
-      {{if not .ClaimedAt}}
-      <p>
-        <label>
-          <input type="radio" name="slot_choice" value="{{.ID}}">
-          {{.DisplayName}}{{if .Instrument}} ({{.Instrument}}){{end}}
-        </label>
-      </p>
-      {{else}}
-      <p class="hint" style="text-decoration:line-through">{{.DisplayName}}{{if .Instrument}} ({{.Instrument}}){{end}} — already joined</p>
+  <div class="card card--narrow">
+    <fieldset class="field-group">
+      <legend>Who are you?</legend>
+      {{range .Slots}}
+        {{if not .ClaimedAt}}
+        <label class="check"><input type="radio" name="slot_choice" value="{{.ID}}"> {{.DisplayName}}{{if .Instrument}} ({{.Instrument}}){{end}}</label>
+        {{else}}
+        <p class="hint" style="text-decoration:line-through">{{.DisplayName}}{{if .Instrument}} ({{.Instrument}}){{end}} — already joined</p>
+        {{end}}
       {{end}}
-    {{end}}
-    <p><label><input type="radio" name="slot_choice" value="unlisted" checked> Someone else (not on this list)</label></p>
+      <label class="check"><input type="radio" name="slot_choice" value="unlisted" checked> Someone else (not on this list)</label>
+    </fieldset>
   </div>
 
   {{if .LoggedIn}}
-    <form class="card" method="post" action="/join/{{.Token}}" style="max-width:360px" id="claim-form">
+    <form class="card card--narrow" method="post" action="/join/{{.Token}}" id="claim-form">
       <input type="hidden" name="slot_id" id="claim-slot-id" value="unlisted">
       <p>Continue as <strong>{{.LoggedInAs}}</strong>?</p>
-      <button type="submit">Join</button>
+      <div class="form-actions"><button type="submit" class="primary">Join {{.TargetName}}</button></div>
+      <p class="form-status" role="status"></p>
     </form>
-    <script>
-      const claimForm = document.getElementById('claim-form');
-      claimForm.addEventListener('submit', () => {
-        const checked = document.querySelector('input[name="slot_choice"]:checked');
-        document.getElementById('claim-slot-id').value = checked ? checked.value : 'unlisted';
-      });
-    </script>
   {{else}}
-    <form class="card" method="post" action="/join/{{.Token}}" style="max-width:360px" id="create-account-form">
+    <form class="card card--narrow" method="post" action="/join/{{.Token}}" id="create-account-form">
       <input type="hidden" name="slot_id" id="create-slot-id" value="unlisted">
-      <p><label>Username<br><input type="text" name="username" autocomplete="username" required autofocus></label></p>
-      <p><label>Your name<br><input type="text" name="display_name" required></label></p>
-      <p><label>Email<br><input type="email" name="email" autocomplete="email" required></label></p>
-      <p class="hint">No password needed — we'll email you a login link next time.</p>
-      <button type="submit">Create account &amp; join</button>
+      <div class="form-stack">
+        <div class="field">
+          <label for="join-username">Username</label>
+          <p class="field-hint" id="join-username-hint">What you'll log in with, e.g. marcguitar.</p>
+          <input id="join-username" type="text" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="join-username-hint" required autofocus>
+        </div>
+        <div class="field">
+          <label for="join-display-name">Your name</label>
+          <p class="field-hint" id="join-display-name-hint">How the others will see you.</p>
+          <input id="join-display-name" type="text" name="display_name" autocomplete="name" autocapitalize="words" aria-describedby="join-display-name-hint" required>
+        </div>
+        <div class="field">
+          <label for="join-email">Email</label>
+          <p class="field-hint" id="join-email-hint">No password needed — we'll email you a login link next time.</p>
+          <input id="join-email" type="email" name="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="join-email-hint" required>
+        </div>
+        <p class="form-status" role="status"></p>
+        <div class="form-actions"><button type="submit" class="primary">Create account and join</button></div>
+      </div>
     </form>
 
-    <div class="card" style="max-width:360px">
+    <div class="card card--narrow">
       <p class="hint">Already use Songbooks for something else? Log in instead — joining won't touch anything else in your account.</p>
-      <button type="button" id="login-instead-btn">Log in to claim this slot</button>
+      <button type="button" id="login-instead-btn">Log in to join</button>
     </div>
     <script>
-      const createForm = document.getElementById('create-account-form');
-      createForm.addEventListener('submit', () => {
-        const checked = document.querySelector('input[name="slot_choice"]:checked');
-        document.getElementById('create-slot-id').value = checked ? checked.value : 'unlisted';
-      });
       document.getElementById('login-instead-btn').addEventListener('click', () => {
         const checked = document.querySelector('input[name="slot_choice"]:checked');
         const slot = checked ? checked.value : 'unlisted';
@@ -83,6 +83,42 @@
       });
     </script>
   {{end}}
+  <script>
+    // Both forms post the same fields as before, but through fetch: the
+    // server answers a failure with a bare error page, which would throw
+    // away everything typed. Success is a redirect, followed here.
+    (function() {
+      const form = document.getElementById('claim-form') || document.getElementById('create-account-form');
+      const btn = form.querySelector('button[type=submit]');
+      const username = document.getElementById('join-username');
+      const email = document.getElementById('join-email');
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const checked = document.querySelector('input[name="slot_choice"]:checked');
+        form.querySelector('input[name="slot_id"]').value = checked ? checked.value : 'unlisted';
+        Forms.run(form, btn, async () => {
+          const res = await fetch(form.action, { method: 'POST', body: new URLSearchParams(new FormData(form)) });
+          // Busy until the next page arrives.
+          if (res.redirected || res.ok) { location.href = res.url; return new Promise(() => {}); }
+          const text = (await res.text()).toLowerCase();
+          if (username && text.includes('username already')) {
+            Forms.fieldError(username, 'That username is taken. Try another.');
+            username.focus();
+            return;
+          }
+          if (email && text.includes('email already')) {
+            Forms.fieldError(email, 'That email already has an account. Use “Log in to join” below instead.');
+            email.focus();
+            return;
+          }
+          if (res.status === 404) throw new Error('This invite link isn’t valid any more. Ask for a fresh one.');
+          if (res.status === 410) throw new Error('This invite link has been closed. Ask for a fresh one.');
+          if (res.status === 409) throw new Error('Someone has just joined under that name. Pick another, or choose Someone else.');
+          throw new Error('Couldn’t join just now. Try again.');
+        });
+      });
+    })();
+  </script>
   {{end}}
 </main>
 </body>

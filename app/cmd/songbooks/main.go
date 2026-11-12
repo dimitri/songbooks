@@ -14,6 +14,10 @@ import (
 	"os"
 	"strings"
 	"time"
+	// The image has no zoneinfo: TZ (the deploy files set Europe/Paris)
+	// is read from the copy embedded here. Event and rehearsal times are
+	// shown in that zone.
+	_ "time/tzdata"
 
 	"golang.org/x/crypto/bcrypt"
 

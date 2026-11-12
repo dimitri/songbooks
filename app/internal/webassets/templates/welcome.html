@@ -46,30 +46,37 @@
     {{else}}
     <p class="hint">Touch ID, Face ID, Windows Hello, or a security key — sign in next time with no password to type and no email to wait for. Takes a few seconds, and your password still works as a fallback either way.</p>
     {{end}}
-    <p id="webauthn-register-error" style="color:var(--danger); display:none"></p>
     <div class="wizard-actions">
-      <button type="button" id="webauthn-register-btn" class="primary">Add a passkey</button>
+      <button type="button" id="webauthn-register-btn" class="primary">{{if .AlreadyDone}}Add another passkey{{else}}Add a passkey{{end}}</button>
       <a class="link-btn" href="/welcome?step=3{{if .Next}}&amp;next={{.Next}}{{end}}">{{if .AlreadyDone}}Continue{{else}}Skip this step{{end}}</a>
     </div>
-    <p class="hint" id="webauthn-register-unsupported" style="display:none">Your browser doesn't support passkeys — no problem, skip this step and use your password instead.</p>
+    <p class="form-status" id="webauthn-register-status" role="status"></p>
+    <p class="hint" id="webauthn-register-unsupported" hidden>This browser can't use passkeys — no problem, skip this step and use your password instead.</p>
 
     {{else if eq .Step 3}}
     <h2>What do you play?</h2>
     {{if .AlreadyDone}}<p class="hint">Already set — pick again any time, or just move on.</p>{{end}}
-    <form method="post" action="/profile/instruments">
+    <form method="post" action="/profile/instruments" class="form-stack">
       <input type="hidden" name="next" value="/welcome?step=4{{if .Next}}&amp;next={{.Next}}{{end}}">
-      <div class="instrument-icon-row">
-        {{range .CommonInstruments}}
-        <label class="instrument-icon-btn{{if index $.Checked .}} active{{end}}">
-          <input type="checkbox" name="instrument" value="{{.}}"{{if index $.Checked .}} checked{{end}} style="display:none">
-          {{template "instrument-icon" .}}
-          <span class="instrument-icon-label">{{.}}</span>
-        </label>
-        {{end}}
+      {{/* sr-only, not display:none, so each icon is still a checkbox a
+           keyboard can reach (the label shows its focus ring). */}}
+      <fieldset class="field-group">
+        <legend>Pick any that apply</legend>
+        <div class="instrument-icon-row">
+          {{range .CommonInstruments}}
+          <label class="instrument-icon-btn{{if index $.Checked .}} active{{end}}">
+            <input type="checkbox" name="instrument" value="{{.}}"{{if index $.Checked .}} checked{{end}} class="sr-only">
+            {{template "instrument-icon" .}}
+            <span class="instrument-icon-label">{{.}}</span>
+          </label>
+          {{end}}
+        </div>
+      </fieldset>
+      <div class="field">
+        <label for="wizard-other-instruments">Other instruments <span class="field-optional">(optional)</span></label>
+        <p class="field-hint" id="wizard-other-instruments-hint">Separate them with commas, e.g. keyboard, sax.</p>
+        <input id="wizard-other-instruments" type="text" name="other" value="{{.Other}}" aria-describedby="wizard-other-instruments-hint">
       </div>
-      <p><label>Other instruments (comma separated)<br>
-        <input type="text" name="other" value="{{.Other}}" placeholder="e.g. keyboard, sax">
-      </label></p>
       <div class="wizard-actions">
         <button type="submit" class="primary">Continue</button>
         <a class="link-btn" href="/welcome?step=4{{if .Next}}&amp;next={{.Next}}{{end}}">Skip this step</a>
@@ -86,12 +93,17 @@
     {{else}}
     <p class="hint">Playing solo for now is perfectly fine — you can always create or join a band later from the Bands page.</p>
     <div class="wizard-option-row">
-      <div class="wizard-option">
+      <form class="wizard-option" id="wizard-band-form">
         <h3>Create a band</h3>
-        <input type="text" id="wizard-band-name" placeholder="e.g. The Fretless">
-        <button type="button" id="wizard-create-band-btn" class="primary">Create</button>
-        <p id="wizard-band-result" class="hint"></p>
-      </div>
+        <div class="form-stack">
+          <div class="field">
+            <label for="wizard-band-name">Band name</label>
+            <input type="text" id="wizard-band-name" placeholder="e.g. The Fretless" autocomplete="off" autocapitalize="words" enterkeyhint="done" required>
+          </div>
+          <p class="form-status" role="status"></p>
+          <div class="form-actions"><button type="submit" id="wizard-create-band-btn" class="primary">Create band</button></div>
+        </div>
+      </form>
       <div class="wizard-option">
         <h3>Join a band</h3>
         <p class="hint">Open the invite link someone sent you (WhatsApp, email…) — it'll bring you right back here once you're in.</p>
@@ -114,7 +126,7 @@
       <div class="wizard-pick" data-variant-id="{{.VariantID}}">
         <div class="wizard-pick-title">{{.Title}}</div>
         <div class="wizard-pick-artist hint">{{.Artist}}</div>
-        <button type="button" class="wizard-pick-add">+ add</button>
+        <button type="button" class="wizard-pick-add"><span class="wizard-pick-add-text">Add</span><span class="sr-only"> {{.Title}}</span></button>
       </div>
       {{end}}
     </div>
@@ -146,82 +158,90 @@
 (function() {
   const btn = document.getElementById('webauthn-register-btn');
   if (!btn) return;
-  const errEl = document.getElementById('webauthn-register-error');
-  const unsupportedEl = document.getElementById('webauthn-register-unsupported');
+  const statusEl = document.getElementById('webauthn-register-status');
 
   if (!window.PublicKeyCredential || !window.PublicKeyCredential.parseCreationOptionsFromJSON) {
     btn.disabled = true;
-    unsupportedEl.style.display = '';
+    document.getElementById('webauthn-register-unsupported').hidden = false;
     return;
   }
 
-  function showError(msg) {
-    errEl.textContent = msg;
-    errEl.style.display = '';
+  // The server's error strings are written for logs; these say what to
+  // do next.
+  function friendly(err, status) {
+    if (err && err.name === 'NotAllowedError') return 'The passkey request was cancelled or timed out. Try again, or skip this step.';
+    if (err && err.name === 'InvalidStateError') return 'This device already has a passkey for your account. You can move on.';
+    if (status === 400) return 'That took too long. Try again.';
+    return 'Couldn\u2019t add a passkey. Try again, or skip this step.';
   }
 
   btn.addEventListener('click', async () => {
-    errEl.style.display = 'none';
-    btn.disabled = true;
+    Forms.status(statusEl, '');
+    Forms.busy(btn, true);
+    let status = 0;
     try {
       const beginRes = await fetch('/api/webauthn/register/begin', { method: 'POST' });
-      if (!beginRes.ok) {
-        const body = await beginRes.json().catch(() => ({}));
-        throw new Error(body.error || 'could not start passkey registration');
-      }
+      if (!beginRes.ok) { status = beginRes.status; throw new Error(); }
       const options = await beginRes.json();
       const cred = await navigator.credentials.create({
         publicKey: PublicKeyCredential.parseCreationOptionsFromJSON(options.publicKey),
       });
-      const nickname = (window.prompt('Name this passkey (e.g. "MacBook" or "iPhone"):', '') || '').trim();
+      const nickname = (window.prompt('Name this passkey so you can tell it apart later (e.g. "MacBook" or "iPhone"):', '') || '').trim();
       const finishRes = await fetch('/api/webauthn/register/finish?nickname=' + encodeURIComponent(nickname), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cred.toJSON()),
       });
-      if (!finishRes.ok) {
-        const body = await finishRes.json().catch(() => ({}));
-        throw new Error(body.error || 'passkey registration failed');
-      }
+      if (!finishRes.ok) { status = finishRes.status; throw new Error(); }
       location.href = '/welcome?step=3{{if .Next}}&next={{.Next}}{{end}}';
     } catch (err) {
-      showError(err.message || 'passkey registration failed.');
-      btn.disabled = false;
+      Forms.status(statusEl, friendly(err, status), 'error');
+      Forms.busy(btn, false);
     }
   });
 })();
 
 (function() {
-  const btn = document.getElementById('wizard-create-band-btn');
-  if (btn) {
-    btn.addEventListener('click', async () => {
+  const form = document.getElementById('wizard-band-form');
+  if (form) {
+    const btn = document.getElementById('wizard-create-band-btn');
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
       const name = document.getElementById('wizard-band-name').value.trim();
-      if (!name) return;
-      const res = await fetch('/api/bands', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({name}),
-      });
-      const data = await res.json();
-      const out = document.getElementById('wizard-band-result');
-      if (res.ok) {
+      Forms.run(form, btn, async () => {
+        const res = await fetch('/api/bands', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name}),
+        });
+        if (!res.ok) throw new Error('Couldn\u2019t create the band. Try again.');
         location.href = '/welcome?step=5{{if .Next}}&next={{.Next}}{{end}}';
-      } else {
-        out.textContent = data.error || 'failed to create band';
-      }
+        return new Promise(() => {}); // busy until the next step loads
+      });
     });
   }
+  // Same icon-checkbox look as profile.html: the label shows whether its
+  // (visually hidden) checkbox is ticked.
+  document.querySelectorAll('.instrument-icon-btn input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => cb.closest('.instrument-icon-btn').classList.toggle('active', cb.checked));
+  });
+  // Each pick says what happened on its own card: "Added", or why not.
   document.querySelectorAll('.wizard-pick-add').forEach(b => {
+    const card = b.closest('.wizard-pick');
+    const text = b.querySelector('.wizard-pick-add-text');
     b.addEventListener('click', async () => {
-      const id = b.closest('.wizard-pick').dataset.variantId;
-      b.disabled = true;
-      b.textContent = '…';
-      const res = await fetch(`/api/variants/${id}/fork`, {method: 'POST'});
-      if (res.ok) {
-        b.textContent = 'added';
-        b.closest('.wizard-pick').classList.add('wizard-pick-added');
+      Forms.status(card, '');
+      Forms.busy(b, true);
+      let ok = false;
+      try {
+        ok = (await fetch(`/api/variants/${card.dataset.variantId}/fork`, {method: 'POST'})).ok;
+      } catch (e) {}
+      Forms.busy(b, false);
+      if (ok) {
+        text.textContent = 'Added';
+        b.disabled = true;
+        card.classList.add('wizard-pick-added');
       } else {
-        b.disabled = false;
-        b.textContent = '+ add';
+        Forms.status(card, 'Couldn\u2019t add it. Try again.', 'error');
       }
     });
   });

@@ -1239,28 +1239,35 @@ const ICONS = {
       if (sheet.dataset.renderMode === 'reference') ensureEmbedBuilt();
     }).observe(sheet, { attributes: true, attributeFilter: ['data-render-mode'] });
 
-    editBtn.addEventListener('click', () => { editRow.hidden = !editRow.hidden; if (!editRow.hidden) urlInput.focus(); });
-    saveBtn.addEventListener('click', async () => {
+    function setEditOpen(open) {
+      editRow.hidden = !open;
+      editBtn.setAttribute('aria-expanded', String(open));
+      if (open) urlInput.focus();
+    }
+    editBtn.addEventListener('click', () => setEditOpen(editRow.hidden));
+    // A real <form>: Enter in the field saves, and forms.js checks the
+    // type="url" before this runs.
+    editRow.addEventListener('submit', async (e) => {
+      e.preventDefault();
       const url = urlInput.value.trim();
-      saveBtn.disabled = true;
-      try {
+      await Forms.run(editRow, saveBtn, async () => {
         const res = await fetch(`/api/songs/${variantId}/meta`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key: 'reference', value: url }),
         });
-        if (!res.ok) throw new Error(await res.text());
+        if (res.status === 403) throw new Error("You can't change this song's reference video.");
+        if (res.status === 409) throw new Error('This song changed since you opened it. Reload the page, then save the link again.');
+        if (!res.ok) throw new Error("Couldn't save the link. Try again.");
         block.dataset.url = url;
         linkEl.href = url;
         linkEl.hidden = !url;
-        editBtn.title = url ? 'change reference' : 'add a reference video';
+        const label = url ? 'Change the reference video' : 'Add a reference video';
+        editBtn.title = label;
+        editBtn.setAttribute('aria-label', label);
         renderEmbed(url);
         embedBuilt = true;
-        editRow.hidden = true;
-      } catch (e) {
-        alert('Could not save reference: ' + e.message);
-      } finally {
-        saveBtn.disabled = false;
-      }
+        setEditOpen(false);
+      });
     });
   })();
 
@@ -1389,7 +1396,7 @@ const ICONS = {
   // whether it's safe to leave.
   function confirmDiscardIfDirty() {
     if (!isDirty) return true;
-    return confirm('You have unsaved changes in the editor. Discard them and close, or Cancel to go back and save?');
+    return confirm('Close the editor and lose your unsaved changes? Choose Cancel to go back and save them.');
   }
   window.addEventListener('beforeunload', e => {
     if (!isDirty) return;
@@ -1468,8 +1475,9 @@ const ICONS = {
       editToggle.disabled = true;
       try {
         const res = await fetch(`/api/variants/${pageVariantId}/fork`, {method: 'POST'});
-        const data = await res.json();
-        if (!res.ok) { alert(data.error || "couldn't create your own copy to edit"); return; }
+        const data = await res.json().catch(() => ({}));
+        // Not a form: nowhere on the page to show this but a dialog.
+        if (!res.ok) { alert("Couldn't make your own copy of this song to edit. Try again."); return; }
         location.href = `/song/${data.variantId}?edit=1`;
         return;
       } finally {
@@ -1548,7 +1556,7 @@ const ICONS = {
   });
   document.getElementById('edit-discard-btn')?.addEventListener('click', () => {
     if (!isDirty) return;
-    if (!confirm('Discard all unsaved changes in this editor?')) return;
+    if (!confirm("Throw away all your unsaved changes to this song? This can't be undone.")) return;
     clearDirty();
     window.location.reload();
   });
@@ -1701,16 +1709,16 @@ const ICONS = {
 
   document.getElementById('save-btn').addEventListener('click', async () => {
     const status = document.getElementById('save-status');
-    status.className = ''; status.textContent = 'saving…';
+    status.className = ''; status.textContent = 'Saving…';
     const res = await fetch(`/api/songs/${pageVariantId}/raw`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version: rawVersion, text: rawTextarea.value }),
     });
-    if (res.status === 409) { status.className = 'err'; status.textContent = 'conflict: this song changed on disk — reload before saving'; return; }
-    if (!res.ok) { status.className = 'err'; status.textContent = 'save failed'; return; }
+    if (res.status === 409) { status.className = 'err'; status.textContent = 'Not saved: this song changed since you opened it. Copy your changes, reload the page, then save again.'; return; }
+    if (!res.ok) { status.className = 'err'; status.textContent = "Couldn't save. Your changes are still here; try again."; return; }
     const data = await res.json();
     rawVersion = data.version;
-    status.className = 'ok'; status.textContent = 'saved';
+    status.className = 'ok'; status.textContent = 'Saved.';
     await renderPreview();
     savedSheetHTML = sheet.innerHTML; // this is now the saved state
     clearDirty();
@@ -1719,14 +1727,18 @@ const ICONS = {
   // ---- Redo this song (destructive: erases body, keeps book/stem identity) --
   document.getElementById('redo-song-btn')?.addEventListener('click', async () => {
     const title = document.querySelector('.topbar-current h1')?.textContent?.trim() || 'untitled';
-    if (!confirm(`This will erase the current lyrics/chords for ${title} — continue?`)) return;
+    if (!confirm(`Erase all the lyrics and chords of “${title}”? Its title, artist and other details stay. This can't be undone.`)) return;
     const status = document.getElementById('save-status');
+    const redoStatus = document.getElementById('redo-song-status');
+    const redoBtn = document.getElementById('redo-song-btn');
+    Forms.busy(redoBtn, true);
     const res = await fetch(`/api/songs/${pageVariantId}/redo`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, version: rawVersion }),
-    });
-    if (res.status === 409) { alert('conflict: this song changed since it was loaded — reload before redoing it'); return; }
-    if (!res.ok) { alert("couldn't redo this song"); return; }
+    }).finally(() => Forms.busy(redoBtn, false));
+    if (res.status === 409) { Forms.status(redoStatus, 'This song changed since you opened it. Reload the page, then start over again.', 'error'); return; }
+    if (!res.ok) { Forms.status(redoStatus, "Couldn't erase the song. Try again.", 'error'); return; }
+    Forms.status(redoStatus, '');
     const data = await res.json();
     rawVersion = data.version;
     rawTextarea.value = data.text;
@@ -1740,7 +1752,7 @@ const ICONS = {
     await renderPreview();
     savedSheetHTML = sheet.innerHTML;
     clearDirty();
-    if (status) { status.className = 'ok'; status.textContent = 'redone — fill it back in'; }
+    if (status) { status.className = 'ok'; status.textContent = 'Erased. Fill the song back in here.'; }
   });
 
   // ---- Importers --------------------------------------------------------------
@@ -1841,18 +1853,18 @@ const ICONS = {
       const a = document.createElement('a');
       a.href = `https://www.ultimate-guitar.com/search.php?search_type=title&value=${encodeURIComponent(q)}`;
       a.target = '_blank'; a.rel = 'noopener'; a.className = 'import-search-link';
-      a.textContent = 'search on Ultimate Guitar ↗';
+      a.textContent = 'Search on Ultimate Guitar ↗';
       searchLinksHost.appendChild(a);
     })();
     autoFindBtn.addEventListener('click', async () => {
       const { title, artist } = titleArtist();
-      if (!title) { autoFindStatus.textContent = 'set a title first (Chart tab)'; autoFindStatus.className = 'err'; return; }
-      autoFindBtn.disabled = true;
-      autoFindStatus.textContent = 'searching Ultimate Guitar…'; autoFindStatus.className = 'hint';
+      if (!title) { autoFindStatus.textContent = 'Give the song a title first (in the Chart tab), then search.'; autoFindStatus.className = 'err'; return; }
+      Forms.busy(autoFindBtn, true);
+      autoFindStatus.textContent = 'Searching Ultimate Guitar…'; autoFindStatus.className = 'hint';
       try {
         const res = await fetch(`/api/import/ug/find?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist || '')}`);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'search failed');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error("Couldn't find this song on Ultimate Guitar. Try finding it yourself below.");
         importSourceURL = data.url;
         importMeta = { title: data.title, artist: data.artist, capo: data.capo };
         urlInput.value = data.url;
@@ -1863,20 +1875,22 @@ const ICONS = {
       } catch (e) {
         autoFindStatus.textContent = e.message; autoFindStatus.className = 'err';
       } finally {
-        autoFindBtn.disabled = false;
+        Forms.busy(autoFindBtn, false);
       }
     });
     wizard.querySelectorAll('.import-back').forEach(btn => {
       btn.addEventListener('click', () => showStep(btn.dataset.back));
     });
-    fetchBtn.addEventListener('click', async () => {
+    // A real <form>: Enter fetches, and forms.js has already checked the
+    // field is a filled-in URL.
+    document.getElementById('import-url-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
       const url = urlInput.value.trim();
-      if (!url) { fetchStatus.textContent = 'paste a URL first'; fetchStatus.className = 'err'; return; }
-      fetchBtn.disabled = true; fetchStatus.textContent = 'fetching…'; fetchStatus.className = 'hint';
+      Forms.busy(fetchBtn, true); fetchStatus.textContent = 'Fetching…'; fetchStatus.className = 'hint';
       try {
         const res = await fetch('/api/import/chords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'fetch failed');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error("Couldn't fetch that page. Check it's an Ultimate Guitar chords or tab page and try again.");
         importSourceURL = url;
         importMeta = { title: data.title, artist: data.artist, capo: data.capo };
         reviewText.value = data.text;
@@ -1886,7 +1900,7 @@ const ICONS = {
       } catch (e) {
         fetchStatus.textContent = e.message; fetchStatus.className = 'err';
       } finally {
-        fetchBtn.disabled = false;
+        Forms.busy(fetchBtn, false);
       }
     });
     // A header field counts as "already set" only if it has a real
@@ -1933,23 +1947,23 @@ const ICONS = {
     // was confirmed WRONG on real songs this session).
     irealCheckBtn.addEventListener('click', async () => {
       const { title, artist } = titleArtist();
-      if (!title) { irealStatus.textContent = 'set a title first (Chart tab)'; irealStatus.className = 'err'; return; }
+      if (!title) { irealStatus.textContent = 'Give the song a title first (in the Chart tab).'; irealStatus.className = 'err'; return; }
       const currentText = reviewText.value.trim();
-      if (!currentText) { irealStatus.textContent = 'nothing to check yet — fetch or paste a draft first'; irealStatus.className = 'err'; return; }
+      if (!currentText) { irealStatus.textContent = 'Nothing to check yet. Fetch or paste a draft first.'; irealStatus.className = 'err'; return; }
       irealCheckBtn.disabled = true;
-      irealStatus.textContent = 'checking iReal Pro…'; irealStatus.className = 'hint';
+      irealStatus.textContent = 'Checking iReal Pro…'; irealStatus.className = 'hint';
       irealCandidatesHost.innerHTML = '';
       try {
         const res = await fetch('/api/import/ireal/merge', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ currentText, title, artist: artist || '' }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'no iReal chart found for this song');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(res.status === 404 ? 'No iReal Pro chart found for this song.' : "Couldn't check iReal Pro just now. Try again.");
         renderIRealCandidates(data.candidates || []);
         irealStatus.textContent = (data.candidates || []).length
-          ? 'found a chart — review each section below before accepting.'
-          : 'found a chart, but nothing new to propose.';
+          ? 'Found a chart. Check each section below before accepting it.'
+          : 'Found a chart, but it has nothing new to add.';
         irealStatus.className = 'hint';
       } catch (e) {
         irealStatus.textContent = e.message; irealStatus.className = 'err';
@@ -1981,7 +1995,7 @@ const ICONS = {
             <div><span class="label">iReal Pro</span>${escapeHtml(c.ProposedGrid)}</div>
           </div>
           <div class="import-ireal-candidate-actions">
-            <label><input type="checkbox" class="import-ireal-accept" ${c.Safe ? 'checked' : ''}> accept this section</label>
+            <label><input type="checkbox" class="import-ireal-accept" ${c.Safe ? 'checked' : ''}> Accept this section</label>
           </div>`;
         row.querySelector('.import-ireal-accept').dataset.label = c.Label;
         irealCandidatesHost.appendChild(row);
@@ -1998,19 +2012,19 @@ const ICONS = {
       applyIrealBtn.addEventListener('click', async () => {
         const { title, artist } = titleArtist();
         const acceptLabels = Array.from(irealCandidatesHost.querySelectorAll('.import-ireal-accept:checked')).map(el => el.dataset.label);
-        if (!acceptLabels.length) { applyIrealStatus.textContent = 'tick at least one section first'; applyIrealStatus.className = 'err'; return; }
+        if (!acceptLabels.length) { applyIrealStatus.textContent = 'Tick at least one section first.'; applyIrealStatus.className = 'err'; return; }
         applyIrealBtn.disabled = true;
-        applyIrealStatus.textContent = 'applying…'; applyIrealStatus.className = 'hint';
+        applyIrealStatus.textContent = 'Applying…'; applyIrealStatus.className = 'hint';
         try {
           const res = await fetch('/api/import/ireal/merge', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ currentText: reviewText.value.trim(), title, artist: artist || '', apply: true, acceptLabels }),
           });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'apply failed');
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error("Couldn't apply those sections. Try again.");
           reviewText.value = data.text;
           irealCandidatesHost.innerHTML = '';
-          irealStatus.textContent = 'applied — accepted sections now use the iReal Pro grid.'; irealStatus.className = 'hint';
+          irealStatus.textContent = 'Done. The sections you accepted now use the iReal Pro chords.'; irealStatus.className = 'hint';
         } catch (e) {
           applyIrealStatus.textContent = e.message; applyIrealStatus.className = 'err';
         } finally {
@@ -2252,7 +2266,7 @@ const ICONS = {
     const titleInput = document.createElement('input');
     titleInput.id = 'song-title-input';
     titleInput.type = 'text';
-    titleInput.placeholder = 'Song title';
+    titleInput.autocomplete = 'off';
     titleInput.value = metaGet('title');
     titleInput.addEventListener('input', () => { markDirty(); metaSet('title', titleInput.value.trim()); });
     titleField.appendChild(titleInput);
@@ -2263,17 +2277,19 @@ const ICONS = {
     const artistInput = document.createElement('input');
     artistInput.id = 'song-artist-input';
     artistInput.type = 'text';
-    artistInput.placeholder = 'Artist';
+    artistInput.autocomplete = 'off';
     artistInput.value = metaGet('artist');
     artistInput.addEventListener('input', () => { markDirty(); metaSet('artist', artistInput.value.trim()); });
     artistField.appendChild(artistInput);
 
     const timeField = document.createElement('label');
     timeField.className = 'header-field';
-    timeField.append('time signature ');
+    timeField.append('Time signature ');
     const timeInput = document.createElement('input');
-    timeInput.type = 'text'; timeInput.inputMode = 'numeric'; timeInput.className = 'header-field-input';
-    timeInput.placeholder = '4/4';
+    // No inputmode="numeric": the phone number pad has no "/" key.
+    timeInput.type = 'text'; timeInput.className = 'header-field-input';
+    timeInput.autocomplete = 'off'; timeInput.spellcheck = false;
+    timeInput.placeholder = 'e.g. 4/4';
     timeInput.value = metaGet('time');
     timeInput.title = 'e.g. 4/4, 3/4, 6/8 — affects beat slots and bar-fullness below';
     timeInput.addEventListener('input', () => { markDirty(); metaSet('time', timeInput.value.trim()); renderStructureUI(); });
@@ -2281,10 +2297,11 @@ const ICONS = {
 
     const tempoField = document.createElement('label');
     tempoField.className = 'header-field';
-    tempoField.append('tempo ');
+    tempoField.append('Tempo ');
     const tempoInput = document.createElement('input');
     tempoInput.type = 'text'; tempoInput.inputMode = 'numeric'; tempoInput.className = 'header-field-input';
-    tempoInput.placeholder = '120';
+    tempoInput.autocomplete = 'off';
+    tempoInput.placeholder = 'e.g. 120';
     tempoInput.value = metaGet('tempo');
     tempoInput.title = 'beats per minute, saved to the song header';
     tempoInput.addEventListener('input', () => { markDirty(); metaSet('tempo', tempoInput.value.trim()); });
@@ -2294,11 +2311,11 @@ const ICONS = {
     // header's "swing:" (8 or 16; see the song format docs).
     const swingField = document.createElement('label');
     swingField.className = 'header-field';
-    swingField.append('swing ');
+    swingField.append('Swing ');
     const swingSelect = document.createElement('select');
     swingSelect.className = 'header-field-input';
     swingSelect.title = 'plays written eighths (or sixteenths) as a shuffle, like Guitar Pro\'s triplet feel';
-    for (const [value, text] of [['', 'straight'], ['8', 'swung 8ths'], ['16', 'swung 16ths']]) {
+    for (const [value, text] of [['', 'Straight'], ['8', 'Swung 8ths'], ['16', 'Swung 16ths']]) {
       swingSelect.add(new Option(text, value));
     }
     swingSelect.value = ['8', '16'].includes(metaGet('swing')) ? metaGet('swing') : '';
@@ -2316,19 +2333,25 @@ const ICONS = {
     // structure-tab "Save" button like time/tempo above.
     const genreField = document.createElement('label');
     genreField.className = 'header-field';
-    genreField.append('genre ');
+    genreField.append('Genre ');
     const genreInput = document.createElement('input');
-    genreInput.type = 'text'; genreInput.className = 'header-field-input';
-    genreInput.placeholder = 'e.g. Rock, Soul, Jazz';
+    genreInput.type = 'text'; genreInput.className = 'header-field-input header-field-genre';
+    genreInput.placeholder = 'e.g. Soul';
+    genreInput.autocomplete = 'off';
     genreInput.value = structureEl?.dataset.genre || '';
-    genreInput.title = 'free text — saved as soon as you leave this field';
+    genreInput.title = 'Saved as soon as you leave this field';
+    // Saves on its own (no Save button), so it says when it has.
+    const genreStatus = document.createElement('span');
+    genreStatus.className = 'hint form-status';
+    genreStatus.setAttribute('role', 'status');
     genreInput.addEventListener('change', async () => {
       const variantId = structureEl?.dataset.variantId;
       if (!variantId) return;
-      await fetch(`/api/variants/${variantId}/genre`, {
+      const res = await fetch(`/api/variants/${variantId}/genre`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ genre: genreInput.value.trim() }),
-      });
+      }).catch(() => null);
+      Forms.status(genreStatus, res && res.ok ? 'Genre saved.' : "Couldn't save the genre. Try again.", res && res.ok ? 'ok' : 'error');
     });
     genreField.appendChild(genreInput);
 
@@ -2338,7 +2361,7 @@ const ICONS = {
 
     const chipsRow = document.createElement('div');
     chipsRow.className = 'song-meta-chips-row';
-    chipsRow.append(timeField, tempoField, swingField, genreField);
+    chipsRow.append(timeField, tempoField, swingField, genreField, genreStatus);
 
     host.append(titleArtistRow, chipsRow);
   }
@@ -2980,6 +3003,8 @@ const ICONS = {
       input.type = 'text'; input.className = 'matrix-slot'; input.value = tok;
       input.dataset.mi = String(mi); input.dataset.ti = String(ti);
       input.placeholder = ti === 0 ? '%' : '.';
+      input.setAttribute('aria-label', `Bar ${mi + 1}, beat ${ti + 1} chord`);
+      input.autocapitalize = 'off'; input.spellcheck = false;
       trackTextEdits(input);
       input.addEventListener('input', () => { m.tokens[ti] = input.value; updateLabel(input.value); updateFullness(); refreshToolbarHighlight(sec, secIndexOf(sec)); });
       // Tapping/focusing a slot selects it — the toolbar above reflects
@@ -3116,7 +3141,7 @@ const ICONS = {
     toolbar.className = 'matrix-toolbar';
     const perLine = document.createElement('label');
     perLine.className = 'hint';
-    perLine.textContent = 'bars per line ';
+    perLine.textContent = 'Bars per line ';
     const perLineInput = document.createElement('input');
     perLineInput.type = 'text'; perLineInput.inputMode = 'numeric'; perLineInput.style.width = '3rem';
     perLineInput.value = (sec.barsPerLine && sec.barsPerLine[0]) || 4;
@@ -3415,14 +3440,16 @@ const ICONS = {
 
       const endHead = document.createElement('div');
       endHead.className = 'alt-ending-head';
-      const playsOn = document.createElement('label'); playsOn.className = 'hint'; playsOn.textContent = 'plays on';
+      const playsOn = document.createElement('label'); playsOn.className = 'hint'; playsOn.textContent = 'Plays on';
       const labelInput = document.createElement('input');
       labelInput.type = 'text'; labelInput.className = 'alt-label-input'; labelInput.value = end.label;
+      labelInput.id = `alt-label-${i}-${ei}`; playsOn.htmlFor = labelInput.id;
       labelInput.title = 'which repeat pass(es) — e.g. "1." or "1,2,3." (LilyPond\'s own volta numberlist)';
       trackTextEdits(labelInput);
       labelInput.addEventListener('input', () => { end.label = labelInput.value; });
       const removeEnding = document.createElement('button');
-      removeEnding.type = 'button'; removeEnding.className = 'icon-btn'; removeEnding.innerHTML = ICONS.close; removeEnding.title = 'remove this ending';
+      removeEnding.type = 'button'; removeEnding.className = 'icon-btn'; removeEnding.innerHTML = ICONS.close; removeEnding.title = 'Remove this ending';
+      removeEnding.setAttribute('aria-label', `Remove ending ${ei + 1}`);
       removeEnding.addEventListener('click', () => { edited(); sec.endings.splice(ei, 1); renderMatrix(sec, i); });
       endHead.append(playsOn, labelInput, removeEnding);
       box.appendChild(endHead);
@@ -3439,6 +3466,8 @@ const ICONS = {
         // this keeps full round-trip fidelity without needing the full
         // density-select sub-editor the common-bar grid has.
         input.type = 'text'; input.value = (m.tokens || []).join(' '); input.placeholder = 'chord (space-separate for sub-beats, e.g. Eb . Bb .)';
+        input.setAttribute('aria-label', `Ending ${ei + 1}, bar ${bi + 1} chords`);
+        input.autocapitalize = 'off'; input.spellcheck = false;
         trackTextEdits(input);
         input.addEventListener('input', () => { m.tokens = input.value.split(/\s+/).filter(Boolean); if (!m.tokens.length) m.tokens = ['']; });
         cell.appendChild(input);
@@ -3586,6 +3615,7 @@ const ICONS = {
     menu.appendChild(presets);
     const custom = document.createElement('input');
     custom.type = 'text'; custom.className = 'insert-menu-custom'; custom.placeholder = 'Other name… ⏎'; custom.maxLength = 40;
+    custom.setAttribute('aria-label', 'Other section name'); custom.enterKeyHint = 'done';
     custom.addEventListener('keydown', e => {
       if (e.key !== 'Enter') return;
       e.preventDefault();
@@ -3688,6 +3718,7 @@ const ICONS = {
       const head = document.createElement('div');
       head.className = 'block-head';
       const label = document.createElement('input'); label.type = 'text'; label.className = 'block-label'; label.value = sec.label;
+      label.setAttribute('aria-label', 'Section name');
       trackTextEdits(label);
       label.addEventListener('input', () => { sec.label = label.value; });
       const repeatToggle = document.createElement('button');
@@ -3763,6 +3794,7 @@ const ICONS = {
           const notesBox = document.createElement('textarea');
           notesBox.className = 'block-notes';
           notesBox.placeholder = 'performance directions — one per line, e.g. "GTR + claviers only"';
+          notesBox.setAttribute('aria-label', 'Performance notes for this section');
           notesBox.value = sec.notes.join('\n');
           notesBox.rows = Math.max(2, Math.min(6, sec.notes.length + 1));
           trackTextEdits(notesBox);
@@ -3773,6 +3805,7 @@ const ICONS = {
         const lyricsBox = document.createElement('textarea');
         lyricsBox.className = 'block-lyrics';
         lyricsBox.placeholder = 'words for this section — [Chord] before a word attaches it there';
+        lyricsBox.setAttribute('aria-label', 'Lyrics for this section');
         lyricsBox.value = lyricsToText(sec.lyrics);
         lyricsBox.rows = Math.max(2, Math.min(10, (sec.lyrics || []).length + 1));
         lyricsBox.addEventListener('input', () => { markDirty(); sec.lyrics = textToLyrics(lyricsBox.value); });
@@ -3857,6 +3890,7 @@ const ICONS = {
     headRow.className = 'focus-section-head';
     const labelInput = document.createElement('input');
     labelInput.type = 'text'; labelInput.className = 'block-label'; labelInput.value = sec.label;
+    labelInput.setAttribute('aria-label', 'Section name');
     trackTextEdits(labelInput);
     labelInput.addEventListener('input', () => {
       sec.label = labelInput.value;
@@ -3936,6 +3970,7 @@ const ICONS = {
       const notesBox = document.createElement('textarea');
       notesBox.className = 'block-notes';
       notesBox.placeholder = 'performance directions — one per line, e.g. "GTR + claviers only"';
+      notesBox.setAttribute('aria-label', 'Performance notes for this section');
       if (!sec.notes) sec.notes = [];
       notesBox.value = sec.notes.join('\n');
       notesBox.rows = Math.max(2, Math.min(6, sec.notes.length + 1));
@@ -3945,6 +3980,7 @@ const ICONS = {
       const lyricsBox = document.createElement('textarea');
       lyricsBox.className = 'block-lyrics';
       lyricsBox.placeholder = 'words for this section — [Chord] before a word attaches it there';
+      lyricsBox.setAttribute('aria-label', 'Lyrics for this section');
       lyricsBox.value = lyricsToText(sec.lyrics);
       lyricsBox.rows = Math.max(3, Math.min(12, (sec.lyrics || []).length + 1));
       lyricsBox.addEventListener('input', () => { markDirty(); sec.lyrics = textToLyrics(lyricsBox.value); });
@@ -3962,7 +3998,7 @@ const ICONS = {
   addSectionBtn.addEventListener('click', () => openInsertMenu(addSectionBtn, structSections.length));
   document.getElementById('save-structure').addEventListener('click', async () => {
     const status = document.getElementById('structure-status');
-    status.className = ''; status.textContent = 'saving…';
+    status.className = ''; status.textContent = 'Saving…';
     // joinVoltaGroups flattens each section's {common, endings} editing
     // shape back into the plain measures array the API/grammar actually
     // stores — built fresh for the request only, so the live sections
@@ -3972,11 +4008,11 @@ const ICONS = {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version: structVersion, song: { meta: structMeta, chords: structChords, sections: sectionsForSave } }),
     });
-    if (res.status === 409) { status.className = 'err'; status.textContent = 'conflict: reload before saving'; return; }
-    if (!res.ok) { status.className = 'err'; status.textContent = 'save failed'; return; }
+    if (res.status === 409) { status.className = 'err'; status.textContent = 'Not saved: this song changed since you opened it. Reload the page, then make your changes again.'; return; }
+    if (!res.ok) { status.className = 'err'; status.textContent = "Couldn't save. Your changes are still here; try again."; return; }
     const data = await res.json();
     structVersion = data.version;
-    status.className = 'ok'; status.textContent = 'saved — reloading chart…';
+    status.className = 'ok'; status.textContent = 'Saved. Reloading the chart…';
     // Clear BEFORE the reload, not after — isDirty was still true at the
     // moment of this save, and leaving it true would trip the beforeunload
     // guard on the very reload that just confirmed the save succeeded (a

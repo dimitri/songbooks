@@ -19,6 +19,7 @@ const CORE_ASSETS = [
   '/static/js/project.js',
   '/static/js/setlist.js',
   '/static/js/gig.js',
+  '/static/js/forms.js',
   '/static/fonts/EBGaramond.ttf',
   '/static/fonts/EBGaramond-Italic.ttf',
   '/static/icon.svg',

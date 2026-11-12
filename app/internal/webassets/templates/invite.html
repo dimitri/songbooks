@@ -31,18 +31,8 @@
       {{end}}
     </div>
   </div>
-  <form class="card" method="post" action="/invite/{{.Token}}">
-    {{if eq .Kind "personal"}}
-      {{if .Error}}<p style="color:var(--danger)">{{.Error}}</p>{{end}}
-      <div class="form-stack">
-        <div class="field"><label for="f-username">Username</label><input id="f-username" type="text" name="username" value="{{.Username}}" autocomplete="username" required autofocus></div>
-        <div class="field"><label for="f-email">Email</label><input id="f-email" type="email" name="email" value="{{.Email}}" autocomplete="email" required></div>
-        <div class="field"><label for="f-password">Password</label><input id="f-password" type="password" name="password" autocomplete="new-password" required minlength="8"></div>
-        <div class="field"><label for="f-confirm">Confirm password</label><input id="f-confirm" type="password" name="confirm" autocomplete="new-password" required minlength="8"></div>
-        <p class="hint">You'll be offered a passkey (Touch ID, Face ID, Windows Hello) right after this, as a faster alternative for next time — your password still works either way.</p>
-        <div class="form-actions"><button type="submit" class="primary">Finish setting up my account</button></div>
-      </div>
-    {{else if .LoggedInAs}}
+  <form class="card" method="post" action="/invite/{{.Token}}" id="invite-form">
+    {{if .LoggedInAs}}{{if ne .Kind "personal"}}
       <p>
       {{if eq .Kind "band"}}Join {{.BandName}} as <strong>{{.LoggedInAs}}</strong>?
       {{else}}Continue as <strong>{{.LoggedInAs}}</strong>?{{end}}
@@ -51,20 +41,80 @@
       {{if eq .Kind "band"}}Join {{.BandName}}
       {{else}}Continue{{end}}
       </button>
-    {{else}}
-      {{if .Error}}<p style="color:var(--danger)">{{.Error}}</p>{{end}}
+    {{end}}{{end}}
+    {{if or (eq .Kind "personal") (not .LoggedInAs)}}
       <div class="form-stack">
-        <div class="field"><label for="f-username">Username</label><input id="f-username" type="text" name="username" value="{{.Username}}" autocomplete="username" required autofocus></div>
-        <div class="field"><label for="f-display-name">Your name</label><input id="f-display-name" type="text" name="display_name" value="{{.DisplayName}}" required></div>
-        <div class="field"><label for="f-email">Email</label><input id="f-email" type="email" name="email" value="{{.Email}}" autocomplete="email" required></div>
-        <div class="field"><label for="f-password">Password</label><input id="f-password" type="password" name="password" autocomplete="new-password" required minlength="8"></div>
-        <div class="field"><label for="f-confirm">Confirm password</label><input id="f-confirm" type="password" name="confirm" autocomplete="new-password" required minlength="8"></div>
+        {{/* The server re-renders this page with what was typed (minus
+             the passwords) and a one-line reason; the script below moves
+             a reason it recognises under its own field. */}}
+        {{if .Error}}<p class="form-status is-error" role="alert" id="invite-error">{{.Error}}</p>{{end}}
+        <div class="field">
+          <label for="f-username">Username</label>
+          <p class="field-hint" id="f-username-hint">What you'll log in with, e.g. marcguitar.</p>
+          <input id="f-username" type="text" name="username" value="{{.Username}}" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="f-username-hint" required autofocus>
+        </div>
+        {{if ne .Kind "personal"}}
+        <div class="field">
+          <label for="f-display-name">Your name</label>
+          <p class="field-hint" id="f-display-name-hint">How your bandmates will see you.</p>
+          <input id="f-display-name" type="text" name="display_name" value="{{.DisplayName}}" autocomplete="name" autocapitalize="words" aria-describedby="f-display-name-hint" required>
+        </div>
+        {{end}}
+        <div class="field">
+          <label for="f-email">Email</label>
+          <input id="f-email" type="email" name="email" value="{{.Email}}" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+        </div>
+        <div class="field">
+          <label for="f-password">Password</label>
+          <p class="field-hint" id="f-password-hint">At least 8 characters.</p>
+          <div class="pw-field">
+            <input id="f-password" type="password" name="password" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="f-password-hint" required minlength="8">
+            <button type="button" class="pw-toggle" aria-controls="f-password f-confirm" aria-pressed="false" hidden><span class="pw-toggle-text">Show</span><span class="sr-only"> passwords</span></button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="f-confirm">Password again</label>
+          <input id="f-confirm" type="password" name="confirm" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" data-match="f-password" required minlength="8">
+        </div>
         <p class="hint">You'll be offered a passkey (Touch ID, Face ID, Windows Hello) right after this, as a faster alternative for next time — your password still works either way.</p>
-        <div class="form-actions"><button type="submit" class="primary">Create account{{if ne .Kind "plain"}} &amp; join{{end}}</button></div>
+        <div class="form-actions"><button type="submit" class="primary">{{if eq .Kind "personal"}}Finish setting up my account{{else}}Create account{{if ne .Kind "plain"}} and join{{end}}{{end}}</button></div>
       </div>
     {{end}}
   </form>
 </main>
+<script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
+<script>
+(function() {
+  const form = document.getElementById('invite-form');
+  // A full page load follows, so the button just goes busy (and comes
+  // back if the browser restores this page from its back/forward cache).
+  const submitBtn = form.querySelector('button[type=submit]');
+  form.addEventListener('submit', () => Forms.busy(submitBtn, true));
+  window.addEventListener('pageshow', () => Forms.busy(submitBtn, false));
+  // The server's reasons are lower-case one-liners; ones that are about a
+  // single field go under that field instead of above the form.
+  const errEl = document.getElementById('invite-error');
+  if (!errEl) return;
+  const msg = errEl.textContent.trim();
+  const byField = [
+    [/username is already taken/, 'f-username', 'That username is taken. Try another.'],
+    [/email is already registered/, 'f-email', 'That email already belongs to another account. Use a different one, or log in with it instead.'],
+    [/valid email/, 'f-email', 'Enter an email address like name@example.com.'],
+    [/at least 8/, 'f-password', 'Use at least 8 characters.'],
+    [/didn't match/, 'f-confirm', 'The two passwords didn’t match. Type the same one in both.'],
+  ];
+  for (const [re, id, text] of byField) {
+    const input = document.getElementById(id);
+    if (re.test(msg) && input) {
+      errEl.remove();
+      Forms.fieldError(input, text);
+      input.focus();
+      return;
+    }
+  }
+  errEl.textContent = msg.charAt(0).toUpperCase() + msg.slice(1) + (/[.!?]$/.test(msg) ? '' : '.');
+})();
+</script>
 </body>
 </html>
 {{end}}

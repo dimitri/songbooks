@@ -1136,32 +1136,49 @@ window.songbooksDecodable = function (buf) {
 
   if (!canEdit) { loadMeta(); return; }
 
-  function uploadFile(category, file, onDone) {
-    const fd = new FormData();
-    fd.append('file', file);
-    fetch(`/api/songs/${variantId}/audio/${category}`, { method: 'PUT', body: fd })
-      .then(async res => {
-        if (!res.ok) { alert('Upload failed: ' + (await res.text())); return; }
-        loadMeta();
-      })
-      .finally(() => onDone && onDone());
-  }
+  // Outcome lines under each category's buttons (Forms.status, forms.js).
+  // The API's own error strings are developer-facing, so each failure is
+  // reworded here by status code.
+  const say = (el, msg, kind) => { if (el && window.Forms) Forms.status(el, msg, kind); };
+  const songTitle = document.getElementById('gpimport-panel')?.dataset.songTitle;
+  const songName = songTitle ? `“${songTitle}”` : 'this song';
 
   // Band recording: plain file upload.
   const bandFileInput = document.getElementById('audio-band-file');
   const bandUploadBtn = document.getElementById('audio-band-upload-btn');
   const bandReplaceBtn = document.getElementById('audio-band-replace-btn');
   const bandDeleteBtn = document.getElementById('audio-band-delete-btn');
+  const bandStatus = document.getElementById('audio-band-status');
+  async function uploadBand(file) {
+    const btn = (bandReplaceBtn && !bandReplaceBtn.hidden) ? bandReplaceBtn : bandUploadBtn;
+    const fd = new FormData();
+    fd.append('file', file);
+    Forms.busy(btn, true);
+    say(bandStatus, 'Uploading ' + file.name + '…');
+    try {
+      const res = await fetch(`/api/songs/${variantId}/audio/band`, { method: 'PUT', body: fd });
+      if (res.status === 413) { say(bandStatus, 'That file is too big. Use an audio file under 250 MB.', 'error'); return; }
+      if (!res.ok) { say(bandStatus, "Couldn't upload that recording. Check it's an audio file (MP3 works best) and try again.", 'error'); return; }
+      say(bandStatus, 'Recording uploaded.', 'ok');
+      loadMeta();
+    } catch (e) {
+      say(bandStatus, "Couldn't upload that recording. Check your connection and try again.", 'error');
+    } finally {
+      Forms.busy(btn, false);
+      bandFileInput.value = '';
+    }
+  }
   bandUploadBtn?.addEventListener('click', () => bandFileInput?.click());
   bandReplaceBtn?.addEventListener('click', () => bandFileInput?.click());
   bandFileInput?.addEventListener('change', () => {
     const f = bandFileInput.files && bandFileInput.files[0];
-    if (f) uploadFile('band', f, () => { bandFileInput.value = ''; });
+    if (f) uploadBand(f);
   });
   bandDeleteBtn?.addEventListener('click', async () => {
-    if (!confirm('Remove the band recording?')) return;
+    if (!confirm(`Remove the band recording from ${songName}? This can't be undone.`)) return;
     const res = await fetch(`/api/songs/${variantId}/audio/band`, { method: 'DELETE' });
-    if (res.ok) loadMeta();
+    if (res.ok) { say(bandStatus, 'Band recording removed.', 'ok'); loadMeta(); }
+    else say(bandStatus, "Couldn't remove the recording. Try again.", 'error');
   });
 
   // YouTube: downloads audio from the video URL already saved as this
@@ -1175,45 +1192,46 @@ window.songbooksDecodable = function (buf) {
 
   async function downloadFromReference() {
     const url = referenceBlock && referenceBlock.dataset.url;
-    if (!url) { alert('Add the YouTube video link above first, then download its audio.'); return; }
+    if (!url) {
+      // No link saved yet: open the link field above instead of a popup.
+      say(ytStatus, 'Add the YouTube link first, then download its audio.', 'error');
+      const editRow = document.getElementById('reference-edit-row');
+      if (editRow && editRow.hidden) document.getElementById('reference-edit-btn')?.click();
+      document.getElementById('reference-url-input')?.focus();
+      return;
+    }
     ytDownloadBtn && (ytDownloadBtn.disabled = true);
     ytReplaceBtn && (ytReplaceBtn.disabled = true);
-    // .btn-loading/.spinner (app.css) — this download can take a real
-    // minute (yt-dlp fetch + transcode), and the only in-progress cue
-    // before this was the status line's own text, easy to miss below the
-    // fold on a long page. A spinner on whichever button was actually
-    // clicked makes "it's working" visible right where the person is
-    // looking.
+    // A spinner on whichever button was clicked: the download can take a
+    // real minute (yt-dlp fetch + transcode), and the status line alone
+    // is easy to miss below the fold on a long page.
     const activeBtn = (ytReplaceBtn && !ytReplaceBtn.hidden) ? ytReplaceBtn : ytDownloadBtn;
-    const spinner = document.createElement('span');
-    spinner.className = 'spinner';
-    activeBtn && activeBtn.classList.add('btn-loading');
-    activeBtn && activeBtn.appendChild(spinner);
-    if (ytStatus) ytStatus.textContent = 'Downloading… this can take a minute.';
+    Forms.busy(activeBtn, true);
+    say(ytStatus, 'Downloading… this can take a minute.');
     try {
       const res = await fetch(`/api/songs/${variantId}/audio/youtube`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       });
-      if (!res.ok) {
-        if (ytStatus) ytStatus.textContent = 'Download failed: ' + (await res.text());
-        return;
-      }
-      if (ytStatus) ytStatus.textContent = '';
+      if (res.status === 413) { say(ytStatus, 'That video is too long to keep as audio here.', 'error'); return; }
+      if (!res.ok) { say(ytStatus, "Couldn't get the audio from that video. Check the link opens on YouTube, then try again.", 'error'); return; }
+      say(ytStatus, 'Audio downloaded.', 'ok');
       loadMeta();
+    } catch (e) {
+      say(ytStatus, "Couldn't reach the server. Check your connection and try again.", 'error');
     } finally {
       ytDownloadBtn && (ytDownloadBtn.disabled = false);
       ytReplaceBtn && (ytReplaceBtn.disabled = false);
-      activeBtn && activeBtn.classList.remove('btn-loading');
-      spinner.remove();
+      Forms.busy(activeBtn, false);
     }
   }
   ytDownloadBtn?.addEventListener('click', downloadFromReference);
   ytReplaceBtn?.addEventListener('click', downloadFromReference);
   ytDeleteBtn?.addEventListener('click', async () => {
-    if (!confirm('Remove the downloaded YouTube audio?')) return;
+    if (!confirm(`Remove the audio downloaded from the YouTube video for ${songName}? The video link stays. This can't be undone.`)) return;
     const res = await fetch(`/api/songs/${variantId}/audio/youtube`, { method: 'DELETE' });
-    if (res.ok) loadMeta();
+    if (res.ok) { say(ytStatus, 'Downloaded audio removed.', 'ok'); loadMeta(); }
+    else say(ytStatus, "Couldn't remove the audio. Try again.", 'error');
   });
 
   // Reflect which categories already exist in the drawer's own
@@ -1230,18 +1248,22 @@ window.songbooksDecodable = function (buf) {
     const names = { gp: 'Guitar Pro recording', youtube: 'YouTube recording', band: 'Band recording' };
     kindList.innerHTML = '';
     for (const cat of cats) {
-      const row = document.createElement('label');
+      // A div, not a wrapping <label>: the status text beside the select
+      // would otherwise become part of its name.
+      const row = document.createElement('div');
       row.className = 'audio-kind-row';
-      row.innerHTML = `<span>${names[cat] || cat}</span><select><option value="">not set</option><option value="full">full performance — every part playing</option><option value="backing">backing track — the part to practise left out</option></select><span class="hint"></span>`;
+      row.innerHTML = `<span><label for="audio-kind-${cat}">${names[cat] || cat}</label></span><select id="audio-kind-${cat}"><option value="">Not set</option><option value="full">Full performance — every part playing</option><option value="backing">Backing track — the part to practise left out</option></select><span class="hint form-status" role="status"></span>`;
       const sel = row.querySelector('select');
-      const note = row.querySelector('.hint');
+      const note = row.querySelector('.form-status');
       sel.value = categories[cat].kind || '';
+      // Saves on change: no form, so the outcome shows right beside it.
       sel.addEventListener('change', async () => {
         const res = await fetch(`/api/songs/${variantId}/audio/${cat}/kind`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: sel.value }),
-        });
-        note.textContent = res.ok ? 'saved' : 'could not save';
-        if (res.ok) categories[cat].kind = sel.value;
+        }).catch(() => null);
+        say(note, res && res.ok ? 'Saved.' : "Couldn't save. Try again.", res && res.ok ? 'ok' : 'error');
+        if (res && res.ok) categories[cat].kind = sel.value;
+        else sel.value = categories[cat].kind || '';
       });
       kindList.appendChild(row);
     }

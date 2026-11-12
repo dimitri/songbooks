@@ -415,6 +415,47 @@ table.card { padding: 0; }
   .form-with-list { grid-template-columns: 1fr; }
 }
 
+/* ---- Form conventions (forms pass, Nov 2026) ----------------------------
+   One pattern for every form, used with static/js/forms.js:
+   - a visible <label for> above each control; placeholders only ever show
+     an example, never stand in for the label;
+   - optional fields say "(optional)" in the label; required ones carry
+     `required` and no asterisk;
+   - help text sits under the label (.field-hint, tied with
+     aria-describedby), the error under the control (.field-error, which
+     forms.js writes and ties the same way, with aria-invalid);
+   - one .form-status line per form for the outcome (role="status");
+   - related radios/checkboxes in a <fieldset class="field-group"> whose
+     <legend> reads like a label. */
+.field-optional { font-weight: 400; color: var(--fg-muted); }
+.field-hint { margin: 0; font-size: 0.82rem; color: var(--fg-muted); }
+.field-error { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--danger); }
+.field-error:empty { display: none; }
+input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] {
+  border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger);
+}
+.form-status { margin: 0; font-size: 0.88rem; color: var(--fg-muted); }
+.form-status:empty { display: none; }
+.form-status.is-error { color: var(--danger); font-weight: 600; }
+.form-status.is-ok { color: var(--accent); font-weight: 600; }
+fieldset.field-group { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+fieldset.field-group > legend { padding: 0; margin-bottom: 0.3rem; font-size: 0.82rem; font-weight: 600; color: var(--fg-muted); }
+/* An inline checkbox or radio with its label: the whole row is the
+   target, at least as tall as a button. */
+label.check { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; cursor: pointer; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); width: 1.1rem; height: 1.1rem; margin: 0; flex: none; }
+input[type="tel"], input[type="datetime-local"], input[type="time"] {
+  background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.4rem 0.6rem; min-height: 2.75rem; max-width: 100%;
+}
+textarea { min-height: 5.5rem; resize: vertical; }
+textarea.prose { font-family: inherit; }
+/* iOS zooms the page into any field under 16px when it takes focus, and
+   doesn't zoom back out: on touch screens every field is 16px. */
+@media (pointer: coarse) {
+  input, select, textarea { font-size: 1rem; }
+}
+
 /* Every data table in the app (catalog, band/community rosters and
    repertoire, admin, notifications, submissions...) is `width:100%` with
    ordinary (auto) table layout — on a phone, a handful of columns (even
@@ -5128,8 +5169,14 @@ body.branded .app-header { background: var(--brand-header, var(--bg-raised)); co
 body.branded .app-header a, body.branded .app-header .back-link { color: inherit; }
 body.branded .app-header .back-link { opacity: 0.8; }
 body.branded button, body.branded select, body.branded input:not([type=checkbox]):not([type=radio]),
-body.branded .band-tabs, body.branded .band-tabs .band-tab, body.branded .chip-link, body.branded .card {
+body.branded .band-tabs, body.branded .band-tabs .band-tab, body.branded .chip-link {
   border-radius: var(--radius-control, 8px);
+}
+/* A card is a box of content, not a control: pill-shaped buttons would
+   turn a tall card into an oval, so it only follows the brand's shape up
+   to a soft corner. */
+body.branded .card, body.branded .next-up-card, body.branded .calendar-agenda-row, body.branded .calendar-grid {
+  border-radius: min(var(--radius-control, 8px), 1.25rem);
 }
 body.branded.branded-square .card, body.branded.branded-square .attention-card { border-radius: 0; }
 body.branded.branded-pill .band-tabs { padding: 0.25rem; }
@@ -5142,7 +5189,7 @@ body.branded-dark img.logo-mark, body.branded-dark .logo-mark rect { filter: non
 .brand-banner {
   display: flex; align-items: center; gap: 1rem; margin: 0 0 1.2rem;
   padding: 1.1rem 1.2rem; background: var(--brand-header, var(--bg-raised)); color: var(--brand-header-fg, var(--fg));
-  border-radius: var(--radius-control, var(--radius));
+  border-radius: min(var(--radius-control, var(--radius)), 1.25rem);
 }
 .brand-mark {
   flex: none; width: 3rem; height: 3rem; display: grid; place-items: center;
@@ -5208,3 +5255,192 @@ body.stage .stage-foot {
 }
 /* Hints about hovering mean nothing on a touch screen. */
 @media (hover: none) { .hint.hover-only { display: none; } }
+
+/* ==== Forms pass (Nov 2026): page-specific fixes ==================== */
+
+/* ---- auth group (login, invite, join, welcome, profile) ---- */
+
+/* A password input with its Show/Hide button (static/js/password-fields.js) side by side; the input takes the room. */
+.pw-field { display: flex; gap: 0.4rem; align-items: stretch; }
+.pw-field > input { flex: 1 1 auto; min-width: 0; }
+/* The toggle never shrinks or wraps its label. */
+.pw-toggle { flex: none; white-space: nowrap; }
+
+/* Instrument icon checkboxes are now .sr-only (were display:none, unreachable by keyboard): anchor them and show focus on the visible label. */
+.instrument-icon-btn { position: relative; }
+.instrument-icon-btn:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The getting-started "Create a band" card is now a form; its field stack fills the card instead of shrinking to the input. */
+.wizard-option > .form-stack { align-self: stretch; }
+/* Stacked on a phone, the wizard's option boxes size to their content (flex-basis 220px was meant as a width, became a height). */
+@media (max-width: 760px) { .wizard-option { flex-basis: auto; } }
+
+/* Roster quick-add: a field error (forms.js puts it after the input) goes on its own row under the form's grid instead of taking a column. */
+.roster-quick-add .field-error { grid-column: 1 / -1; order: 1; }
+/* Roster rows: the saved/failed line after a role change, remove or new link stays small. */
+.roster-row > .form-status { font-size: 0.8rem; }
+/* A not-yet-joined row is a grid: its status line takes a full row of its own. */
+.roster-row-pending > .form-status { grid-column: 1 / -1; }
+/* Band header (it wraps): the music-type/rename status takes its own line under the title row. */
+.app-header #band-header-status { font-size: 0.8rem; flex-basis: 100%; order: 10; }
+/* Song picker (proposals, Discover): the result list only shows a box once it has results. */
+.song-pick-results:empty { display: none; }
+/* Each result is a full-width button styled as a list row, title over artist. */
+.song-pick-results button.attention-row { width: 100%; flex-direction: column; align-items: flex-start; gap: 0; text-align: left; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: none; font: inherit; color: var(--fg); }
+.song-pick-results button.attention-row:last-child { border-bottom: none; }
+/* Set lists page: the "New set list" form opens under its summary with a little air. */
+.setlist-new > .form-stack { margin-top: 0.6rem; }
+/* Look & feel: each color's name is now a real <label> (was a span), spanning the picker + hex field row. */
+.brand-color > label { grid-column: 1 / -1; }
+/* Look & feel: a bad hex code's error spans the color cell too. */
+.brand-color > .field-error { grid-column: 1 / -1; }
+
+/* ---- community group (forms pass) ---- */
+
+/* .create-row (communities.html, now a <form>): the outcome line takes its own row under the field + buttons. */
+.create-row .form-status { flex-basis: 100%; }
+/* On a phone the create-row's field takes the full row instead of holding a 16rem minimum beside the buttons. */
+@media (max-width: 600px) {
+  .create-row .field { flex: 1 1 100%; }
+  .create-row .field input { min-width: 0; width: 100%; }
+}
+
+/* datetime-local (community_admin event form): iOS gives it an intrinsic min width that can push past a 375px card, and centres the value; keep it inside the column and left-aligned like the other fields. */
+.form-stack input[type="datetime-local"] { display: block; min-width: 0; }
+input[type="datetime-local"]::-webkit-date-and-time-value { text-align: left; }
+
+/* A save-on-change status inside a flex row (admin_person membership rows) wraps under the row's controls. */
+.import-row .form-status { flex-basis: 100%; }
+
+/* play.html reference link form: .reference-edit-row's display:flex (now also .form-stack) beat the [hidden] UA rule, so the edit field never hid. */
+.reference-edit-row[hidden] { display: none; }
+/* play.html reference link form: room above the form now it stacks label, hint, field and button. */
+.reference-edit-row.form-stack { margin-top: 0.6rem; }
+/* song.js header fields: genre is free text, so its chip field is wider than the 4.5rem tempo/time ones. */
+.song-meta-chips-row .header-field-genre { width: 8rem; text-align: left; }
+/* song.js header fields: the genre "Saved." line sits in the chip row, vertically centred with the fields. */
+.song-meta-chips-row .form-status { align-self: center; }
+/* project.html new-song wizard: a field with help text (label, hint, control as siblings) stacks like the wrapping-label fields beside it. */
+.wizard-fields .field { display: flex; flex-direction: column; gap: 0.25rem; flex: 1; min-width: 10rem; }
+.wizard-fields .field > label { font-size: 0.85rem; color: var(--fg-muted); }
+.wizard-fields .field > input, .wizard-fields .field > textarea { width: 100%; }
+
+/* ==== Calendar, Next up, band overview (Nov 2026) ===================== */
+/* What kind of date it is, the same color everywhere: gigs in the
+   accent, rehearsals in the olive "ok" tone, anything else muted. */
+.kind-gig { --kind: var(--accent); }
+.kind-rehearsal { --kind: var(--ok); }
+.kind-event { --kind: var(--fg-muted); }
+
+.next-up-card {
+  border: 1px solid var(--border); border-left: 4px solid var(--kind, var(--accent));
+  border-radius: var(--radius); background: var(--bg-raised); padding: 0.9rem 1.1rem;
+  display: flex; flex-direction: column; gap: 0.25rem;
+}
+.next-up-when { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--kind, var(--accent)); }
+.next-up-title { font-size: 1.2rem; font-weight: 700; color: var(--fg); }
+.next-up-meta { font-size: 0.88rem; color: var(--fg-muted); }
+.next-up-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+.chip-link.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); font-weight: 600; }
+
+.calendar-head { align-items: center; }
+.calendar-nav { display: flex; align-items: center; gap: 0.25rem; }
+.calendar-nav-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 2.75rem; height: 2.75rem;
+  border-radius: 999px; color: var(--fg); border: 1px solid var(--border); background: var(--bg-raised);
+}
+.calendar-nav-btn:hover { text-decoration: none; border-color: var(--accent); }
+.calendar-nav-today { font-size: 0.85rem; padding: 0 0.5rem; }
+.calendar-grid { width: 100%; border-collapse: collapse; table-layout: fixed; background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.calendar-grid th { padding: 0.4rem 0; font-size: 0.75rem; font-weight: 600; color: var(--fg-faint); }
+.calendar-grid abbr { text-decoration: none; }
+.calendar-grid td { border-top: 1px solid var(--border); vertical-align: top; padding: 0; height: 3rem; }
+.calendar-grid td.is-other { background: var(--bg-sunken); }
+.calendar-grid td.is-other .calendar-date { color: var(--fg-faint); }
+.calendar-day { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 3px; height: 100%; min-height: 3rem; padding: 0.3rem; color: var(--fg); }
+a.calendar-day:hover { text-decoration: none; background: var(--bg-sunken); }
+.calendar-date { flex: 0 0 100%; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.calendar-grid td.is-past .calendar-date { color: var(--fg-faint); }
+.calendar-date[aria-current="date"] {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; width: 1.7rem; height: 1.7rem;
+  margin-right: calc(100% - 1.7rem); border-radius: 999px; background: var(--fg); color: var(--bg); font-weight: 700;
+}
+.calendar-dot { display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--kind); flex: none; }
+.calendar-item { display: inline-flex; align-items: center; }
+/* Titles in the cells only where there's room for them. */
+.calendar-item-title { display: none; }
+.calendar-legend { display: flex; gap: 1rem; list-style: none; margin: 0.5rem 0 0.8rem; padding: 0; font-size: 0.78rem; color: var(--fg-muted); }
+.calendar-legend li { display: inline-flex; align-items: center; gap: 0.35rem; }
+.calendar-agenda { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.calendar-agenda-row {
+  display: flex; align-items: center; gap: 0.9rem; padding: 0.6rem 0.8rem; border: 1px solid var(--border);
+  border-left: 4px solid var(--kind); border-radius: var(--radius); background: var(--bg-raised); scroll-margin-top: 5rem;
+}
+.calendar-agenda-row:target { box-shadow: 0 0 0 2px var(--accent); }
+.calendar-agenda-row.is-past { opacity: 0.6; }
+.calendar-agenda-row .coming-up-date { background: var(--bg-sunken); color: var(--kind); }
+.calendar-agenda-text { flex: 1; min-width: 0; }
+.calendar-agenda-title { font-weight: 600; color: var(--fg); }
+.calendar-agenda-meta { font-size: 0.82rem; color: var(--fg-muted); }
+.calendar-kind { color: var(--kind); font-weight: 600; }
+@media (min-width: 901px) {
+  .calendar-grid td { height: 5.5rem; }
+  .calendar-day { min-height: 5.5rem; flex-direction: column; flex-wrap: nowrap; gap: 2px; }
+  .calendar-item { width: 100%; gap: 0.3rem; font-size: 0.72rem; line-height: 1.2; }
+  .calendar-item-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* Continue: the songs opened last, as a short scrolling row on a phone
+   and a grid on a wide screen. */
+.recent-songs { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.6rem; }
+.recent-song {
+  display: flex; flex-direction: column; gap: 0.1rem; padding: 0.7rem 0.9rem; min-height: 2.75rem;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); color: var(--fg);
+}
+.recent-song:hover { text-decoration: none; border-color: var(--accent); }
+.recent-song-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent-song-artist { font-size: 0.82rem; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+/* Fields side by side that belong together (a date and its times). */
+.field-row { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.field-row > .field { flex: 1 1 7rem; }
+/* A card whose form is folded away until asked for. */
+.fold-card > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.7rem; }
+.fold-card > summary::-webkit-details-marker { display: none; }
+.fold-card > summary h2 { margin: 0; }
+.fold-card > summary h2::before { content: "+ "; color: var(--accent); }
+.fold-card[open] > summary h2::before { content: "− "; }
+.fold-card[open] > summary { margin-bottom: 1rem; }
+.index > .card + .card, .index > .card + .fold-card, .index > section + .card { margin-top: 1.25rem; }
+.danger-zone { border-color: var(--danger); }
+
+/* The band's sections on a phone: a list on the overview instead of a
+   row of tabs that scrolls out of sight; each section's header leads
+   back. Desktop keeps the tabs and doesn't show the list. */
+.band-hub { display: none; }
+@media (max-width: 600px) {
+  .band-section-tabs { display: none; }
+  .band-overview-wide { display: none; }
+  .band-hub { display: flex; flex-direction: column; gap: 0.9rem; margin-bottom: 1.4rem; }
+  .band-hub-group { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; }
+  .band-hub-group li + li { border-top: 1px solid var(--border); }
+  .band-hub-group a { display: flex; align-items: center; gap: 0.75rem; min-height: 3.1rem; padding: 0.5rem 0.9rem; color: var(--fg); }
+  .band-hub-group a:hover { text-decoration: none; background: var(--bg-sunken); }
+  .band-hub-group a::after { content: "›"; color: var(--fg-faint); font-size: 1.3rem; line-height: 1; }
+  .band-hub-group .icon { width: 1.2rem; height: 1.2rem; color: var(--accent); }
+  .band-hub-label { flex: 1; font-weight: 500; }
+  .band-hub-state { font-size: 0.85rem; color: var(--fg-muted); }
+  .band-hub-state.is-due { color: var(--accent); font-weight: 600; }
+}
+
+/* Add songs to a set list: one row per song, its Add button at the end. */
+.add-songs-results { list-style: none; margin: 0.8rem 0 0; padding: 0; max-height: 22rem; overflow-y: auto; }
+.add-songs-results:empty { display: none; }
+.add-songs-results li { display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 0; border-top: 1px solid var(--border); }
+.add-songs-results li > div { flex: 1; min-width: 0; }
+@media (max-width: 600px) {
+  .calendar-grid td, .calendar-day { height: 2.6rem; min-height: 2.6rem; }
+}
+.event-setlist { margin: 0.9rem 0 0; padding-left: 1.4rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.event-setlist a { font-weight: 500; }

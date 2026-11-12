@@ -17,39 +17,74 @@
     </div>
   </div>
 
-  <section class="card">
+  <section class="card" id="passkey-login">
     <h3>Log in with a passkey</h3>
     <p class="hint">Touch ID, Face ID, Windows Hello, or a security key — no password to remember or email to wait for.</p>
-    <p id="webauthn-login-error" style="color:var(--danger); display:none"></p>
-    <button type="button" id="webauthn-login-btn" class="primary">Sign in with a passkey</button>
-    <p class="hint" id="webauthn-unsupported" style="display:none">Your browser doesn't support passkeys — use a password or a login link below instead.</p>
+    <button type="button" id="webauthn-login-btn" class="primary">Log in with a passkey</button>
+    <p class="form-status" id="webauthn-login-status" role="status"></p>
+    <p class="hint" id="webauthn-unsupported" hidden>This browser can't use passkeys — use your password or a login link below instead.</p>
   </section>
 
   <section class="card">
     <h3>Log in with a password</h3>
-    {{if .InvalidCredentials}}<p style="color:var(--danger)">Invalid username/email or password.</p>{{end}}
-    <form method="post" action="/login">
+    {{/* Deliberately one message for every failure (no such account, no
+         password set, wrong password) — see handlePasswordLogin. */}}
+    <form method="post" action="/login" class="form-stack" id="password-login-form">
+      {{if .InvalidCredentials}}<p class="form-status is-error" role="alert">That username or email and password don't match. Check both and try again.</p>{{end}}
       <input type="hidden" name="mode" value="password">
-      <p><label>Username or email<br><input type="text" name="identifier" autocomplete="username" required autofocus></label></p>
-      <p><label>Password<br><input type="password" name="password" autocomplete="current-password" required></label></p>
-      <button type="submit">Log in</button>
+      <div class="field">
+        <label for="login-identifier">Username or email</label>
+        <input id="login-identifier" type="text" name="identifier" inputmode="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next" required {{if not .InvalidCredentials}}autofocus{{end}}>
+      </div>
+      <div class="field">
+        <label for="login-password">Password</label>
+        <div class="pw-field">
+          <input id="login-password" type="password" name="password" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go" required>
+          <button type="button" class="pw-toggle" aria-controls="login-password" aria-pressed="false" hidden><span class="pw-toggle-text">Show</span><span class="sr-only"> password</span></button>
+        </div>
+      </div>
+      <div class="form-actions"><button type="submit" class="primary">Log in</button></div>
     </form>
-    <p class="hint"><a href="#email-link">Forgot your password?</a> Use "email me a link" below, then set a new one from your profile page.</p>
+    <p class="hint"><a href="#email-link">Forgot your password?</a> Get a login link by email below, then set a new password from your profile page.</p>
   </section>
 
   <section class="card" id="email-link">
     <h3>Email me a login link</h3>
-    {{if .Error}}<p style="color:var(--danger)">Something went wrong — please try again.</p>{{end}}
-    <form method="post" action="/login">
-      <p><label>Email<br><input type="email" name="email" autocomplete="email" required></label></p>
-      <button type="submit">Send me a login link</button>
+    <form method="post" action="/login" class="form-stack">
+      {{if .Error}}<p class="form-status is-error" role="alert">We couldn't send a login link. Try again in a minute.</p>{{end}}
+      <div class="field">
+        <label for="login-email">Email</label>
+        <input id="login-email" type="email" name="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="send" required>
+      </div>
+      <div class="form-actions"><button type="submit">Email me a login link</button></div>
     </form>
   </section>
 
   <p class="hint" style="text-align:center">New here? You'll need an invite link to create an account.</p>
 </main>
+<script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
 <script>
-// Passkey ("sign in with a passkey") login: a fully passwordless,
+// A failed password login is a redirect to /login?badlogin=1 (the server
+// keeps nothing), so the username or email typed is stashed for this tab
+// and put back, and focus goes to the password, the field to retype.
+// Never the password itself.
+(function() {
+  const form = document.getElementById('password-login-form');
+  const idInput = document.getElementById('login-identifier');
+  const KEY = 'songbooks-login-identifier';
+  const submitBtn = form.querySelector('button[type=submit]');
+  form.addEventListener('submit', () => {
+    try { sessionStorage.setItem(KEY, idInput.value); } catch (e) {}
+    Forms.busy(submitBtn, true);
+  });
+  window.addEventListener('pageshow', () => Forms.busy(submitBtn, false));
+  {{if .InvalidCredentials}}
+  try { idInput.value = sessionStorage.getItem(KEY) || ''; } catch (e) {}
+  (idInput.value ? document.getElementById('login-password') : idInput).focus();
+  {{end}}
+})();
+
+// Passkey ("log in with a passkey") login: a fully passwordless,
 // discoverable-credential ceremony — no identifier typed anywhere on this
 // page, navigator.credentials.get() with no allowCredentials just asks the
 // platform to show its own picker over every passkey registered for this
@@ -57,26 +92,31 @@
 // comment for why this UX was chosen over identifier-then-passkey.
 (function() {
   const btn = document.getElementById('webauthn-login-btn');
-  const errEl = document.getElementById('webauthn-login-error');
-  const unsupportedEl = document.getElementById('webauthn-unsupported');
+  const statusEl = document.getElementById('webauthn-login-status');
 
   if (!window.PublicKeyCredential || !window.PublicKeyCredential.parseRequestOptionsFromJSON) {
     btn.disabled = true;
-    unsupportedEl.style.display = '';
+    document.getElementById('webauthn-unsupported').hidden = false;
     return;
   }
 
-  function showError(msg) {
-    errEl.textContent = msg;
-    errEl.style.display = '';
+  // The server's own error strings are written for logs; these say what
+  // to do next.
+  const FALLBACK = ' Try again, or use your password or a login link below.';
+  function friendly(err, status) {
+    if (err && err.name === 'NotAllowedError') return 'The passkey request was cancelled or timed out.' + FALLBACK;
+    if (status === 400) return 'That took too long.' + FALLBACK;
+    if (status === 401) return 'That passkey isn’t registered for an account here.' + FALLBACK;
+    return 'Couldn’t log in with a passkey.' + FALLBACK;
   }
 
   btn.addEventListener('click', async () => {
-    errEl.style.display = 'none';
-    btn.disabled = true;
+    Forms.status(statusEl, '');
+    Forms.busy(btn, true);
+    let status = 0;
     try {
       const beginRes = await fetch('/api/webauthn/login/begin', { method: 'POST' });
-      if (!beginRes.ok) throw new Error('could not start passkey login');
+      if (!beginRes.ok) { status = beginRes.status; throw new Error(); }
       const options = await beginRes.json();
       const cred = await navigator.credentials.get({
         publicKey: PublicKeyCredential.parseRequestOptionsFromJSON(options.publicKey),
@@ -86,15 +126,12 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cred.toJSON()),
       });
-      if (!finishRes.ok) {
-        const body = await finishRes.json().catch(() => ({}));
-        throw new Error(body.error || 'passkey login failed');
-      }
+      if (!finishRes.ok) { status = finishRes.status; throw new Error(); }
       const body = await finishRes.json();
       window.location.href = body.redirect || '/';
     } catch (err) {
-      showError(err.message || 'passkey login failed — try a password or login link instead.');
-      btn.disabled = false;
+      Forms.status(statusEl, friendly(err, status), 'error');
+      Forms.busy(btn, false);
     }
   });
 })();

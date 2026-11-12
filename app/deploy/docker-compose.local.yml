@@ -34,6 +34,9 @@ services:
       db:
         condition: service_healthy
     environment:
+      # The zone dates and times are shown in (events, rehearsals, the
+      # home calendar); the people using this play around Paris.
+      TZ: ${SONGBOOKS_TZ:-Europe/Paris}
       DATABASE_URL: postgres://songbooks:songbooks-local@db:5432/songbooks?sslmode=disable
       SONGBOOKS_DEV_AUTO_LOGIN: ${SONGBOOKS_DEV_AUTO_LOGIN:-tapoueh}
     command: ["--addr", "0.0.0.0:8080"]

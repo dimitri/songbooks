@@ -183,9 +183,40 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 		}
 		sets = append(sets, gigSet{Label: set.Label, Rows: rows})
 	}
+	// The songs that can be added: a band's set list picks from the
+	// band's repertoire, listed here; any other one searches the catalog.
+	var repertoire []map[string]any
+	if canEdit && meta.OwnerBandID != nil {
+		entries, err := s.store.ListBandCatalog(r.Context(), *meta.OwnerBandID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		inList := map[int64]bool{}
+		for _, set := range l.Sets {
+			for _, e := range set.Entries {
+				inList[e.VariantID] = true
+			}
+		}
+		bandName := ""
+		if b, err := s.store.GetBand(r.Context(), *meta.OwnerBandID); err == nil {
+			bandName = b.Name
+		}
+		for _, e := range entries {
+			if inList[e.VariantID] {
+				continue
+			}
+			artist := e.Artist
+			if artist == bandName {
+				artist = "" // the band's own songs: the artist says nothing
+			}
+			repertoire = append(repertoire, map[string]any{"variantId": e.VariantID, "title": e.Title, "artist": artist})
+		}
+	}
 	s.render(w, "setlist-overview", map[string]any{
 		"Me": person, "SetlistID": id, "Version": version, "CanEdit": canEdit,
-		"Title": orDefault(l.Get("title"), "Setlist"), "Date": l.Get("date"), "Venue": l.Get("venue"),
+		"Title": orDefault(l.Get("title"), orDefault(meta.Title, "Set list")), "Date": l.Get("date"), "Venue": l.Get("venue"),
+		"IsEmpty": n == 0, "Repertoire": repertoire, "IsBand": meta.OwnerBandID != nil,
 		"Sets": sets, "BrandKind": brandKind, "BrandID": brandID,
 		"ContextualGroup": webassets.ContextualGroup{Label: "This setlist", Entries: []webassets.NavEntry{
 			{Label: "Print one-pager", Path: fmt.Sprintf("/setlists/%d/export-setlist-page.pdf", id), Icon: "icon-download"},

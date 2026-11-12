@@ -22,15 +22,15 @@
     <button type="button" class="primary" id="new-community-toggle-btn">{{template "icon-plus"}} New community</button>
   </div>
 
-  <div class="create-row" id="new-community-row" hidden>
+  <form class="create-row" id="new-community-row" hidden>
     <div class="field">
       <label for="new-community-name">Community name</label>
-      <input type="text" id="new-community-name" placeholder="e.g. Riverside Music Community">
+      <input type="text" id="new-community-name" name="name" placeholder="e.g. Riverside Music Community" required autocomplete="off">
     </div>
-    <button type="button" class="primary" id="create-community-btn">Create community</button>
     <button type="button" class="create-row-cancel" id="new-community-cancel-btn">Cancel</button>
-    <p id="create-community-result" class="hint"></p>
-  </div>
+    <button type="submit" class="primary" id="create-community-btn">Create community</button>
+    <p id="create-community-result" class="form-status" role="status"></p>
+  </form>
 
   {{/* Same card language as bands.html's own listing (member count,
        repertoire size, next-upcoming-event teaser) — one consistent
@@ -52,19 +52,19 @@ document.getElementById('new-community-toggle-btn').addEventListener('click', ()
 document.getElementById('new-community-cancel-btn').addEventListener('click', () => {
   document.getElementById('new-community-row').hidden = true;
 });
-document.getElementById('create-community-btn').addEventListener('click', async () => {
-  const name = document.getElementById('new-community-name').value.trim();
-  if (!name) return;
-  const res = await fetch('/api/communities', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({name}),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) {
+const createForm = document.getElementById('new-community-row');
+createForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  Forms.run(createForm, document.getElementById('create-community-btn'), async () => {
+    const name = document.getElementById('new-community-name').value.trim();
+    const res = await fetch('/api/communities', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name}),
+    }).catch(() => { throw new Error('Couldn’t reach the server. Check your connection and try again.'); });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(res.status < 500 && data.error ? data.error : 'Couldn’t create the community. Try again.');
     location.href = `/communities/${data.id}/admin`;
-  } else {
-    document.getElementById('create-community-result').textContent = data.error || 'failed to create community';
-  }
+  });
 });
 </script>
 </div>

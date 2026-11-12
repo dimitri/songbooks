@@ -17,7 +17,7 @@
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  {{if not .CanEdit}}<p class="hint">You don't have edit rights on this variant, so reverting is disabled here.</p>{{end}}
+  {{if not .CanEdit}}<p class="hint">You can't edit this song, so you can look at its history but not restore an earlier version.</p>{{end}}
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>When</th><th>By</th><th>What changed</th><th></th></tr></thead>
     <tbody>
@@ -36,7 +36,7 @@
           </details>
           {{end}}
         </td>
-        <td>{{if $.CanEdit}}<button type="button" class="revert-btn" data-revision-id="{{.ID}}" title="Go back to the song as it was before this change (this can be undone too)">restore the version before this</button>{{end}}</td>
+        <td>{{if $.CanEdit}}<button type="button" class="revert-btn" data-revision-id="{{.ID}}" >Restore the version before this</button>{{end}}</td>
       </tr>
     {{else}}
       <tr><td colspan="4" class="hint">No edits recorded yet.</td></tr>
@@ -74,13 +74,15 @@ document.querySelectorAll('.revert-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     if (!confirm('Restore the song as it was before this change? Later changes are undone too, and the restore itself shows up here, so it can be undone.')) return;
     const id = btn.dataset.revisionId;
-    const res = await fetch(`/api/revisions/${id}/revert`, {method: 'POST'});
-    if (res.ok) {
+    // The outcome goes in the same table cell as the button.
+    await Forms.run(btn.parentElement, btn, async () => {
+      const res = await fetch(`/api/revisions/${id}/revert`, {method: 'POST'});
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Couldn’t restore that version. Try again.');
+      }
       location.reload();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      alert(data.error || 'revert failed');
-    }
+    });
   });
 });
 </script>

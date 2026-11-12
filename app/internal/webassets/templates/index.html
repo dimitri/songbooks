@@ -18,35 +18,40 @@
 <main class="index">
   <div class="home-greeting">
     <h2>{{.Greeting}}, {{.Me.DisplayName}}</h2>
-    <p>Here's where your bands and songs stand.</p>
   </div>
 
-  {{/* ---- Coming up first when there is a gig: on a phone it's the
-       most time-critical thing on the page. ---- */}}
-  {{with .NextGig}}
-  <section class="home-section">
-    <div class="home-section-head"><h3>Coming up</h3><a href="/groups">all dates &rarr;</a></div>
-    {{template "gig-card" .}}
+  {{/* Home answers "what do I do now?": the next date, what needs you,
+       the month, the songs you were on, what changed in your bands.
+       Lists of bands, communities and songbooks live on their own tabs
+       (Groups, Songbooks, Library); here they're one row of links. */}}
+  {{with .NextUp}}
+  <section class="home-section" aria-labelledby="next-up-title">
+    <div class="home-section-head"><h3 id="next-up-title">Next up</h3></div>
+    <div class="next-up-card kind-{{.Kind}}">
+      <div class="next-up-when">{{.When}}{{if not .AllDay}} &middot; {{.Starts.Format "15:04"}}{{end}}</div>
+      <a class="next-up-title" href="{{.Link}}">{{.Title}}</a>
+      <div class="next-up-meta">{{.Details true}}</div>
+      <div class="next-up-actions">
+        {{if .Practice}}<a class="chip-link primary" href="{{.Practice}}">{{template "icon-play"}} Practice the set</a>
+        <a class="chip-link" href="/setlists/{{.SetlistID}}">{{template "icon-setlists"}} Set list</a>{{end}}
+        <a class="chip-link" href="{{.Link}}">Details</a>
+      </div>
+    </div>
   </section>
   {{end}}
 
-  {{/* ---- Needs your attention: open band proposals + unread
-       notifications, merged. Group-invite slot claims and "N edits
-       since you last looked" are NOT duplicated in here — the former
-       doesn't fire a notification today, the latter already has its own
-       home in the "your bands" digest line just below — so this feed
-       only covers the two categories the real data actually supports
-       well, rather than faking a third. */}}
-  <section class="home-section">
+  {{/* Open band votes and unread notifications, merged; the section
+       only shows when there's something in it. */}}
+  {{if .Attention}}
+  <section class="home-section" aria-labelledby="attention-title">
     <div class="home-section-head">
-      <h3>Needs your attention</h3>
-      {{if .Attention}}<span class="count">{{len .Attention}} item{{if ne (len .Attention) 1}}s{{end}}</span>{{else}}<span class="count">nothing right now</span>{{end}}
+      <h3 id="attention-title">Needs you</h3>
+      <span class="count">{{len .Attention}} item{{if ne (len .Attention) 1}}s{{end}}</span>
     </div>
-    {{if .Attention}}
     <div class="attention-filters" id="attention-filters">
-      <button type="button" class="active" data-filter="all">All</button>
-      <button type="button" data-filter="votes">Votes</button>
-      <button type="button" data-filter="notifications">Notifications</button>
+      <button type="button" class="active" data-filter="all" aria-pressed="true">All</button>
+      <button type="button" data-filter="votes" aria-pressed="false">Votes</button>
+      <button type="button" data-filter="notifications" aria-pressed="false">Notifications</button>
     </div>
     <div class="attention-list" id="attention-list">
     {{range .Attention}}
@@ -57,84 +62,69 @@
       </a>
     {{end}}
     </div>
-    {{end}}
   </section>
+  {{end}}
 
-  {{/* ---- Your bands: activity, not just inventory. ---- */}}
-  {{if .Bands}}
-  <section class="home-section">
-    <div class="home-section-head">
-      <h3>Your bands</h3>
-      <a href="/bands">all bands &rarr;</a>
-    </div>
-    <div class="band-grid">
-    {{range .Bands}}
-      {{template "band-card" .}}
+  {{if or .Bands .Communities}}
+  {{template "calendar-month" .Calendar}}
+  {{end}}
+
+  {{if .Recent}}
+  <section class="home-section" aria-labelledby="recent-title">
+    <div class="home-section-head"><h3 id="recent-title">Continue</h3></div>
+    <div class="recent-songs">
+    {{range .Recent}}
+      <a class="recent-song" href="/song/{{.SongID}}{{if .Query}}?{{.Query}}{{end}}">
+        <span class="recent-song-title">{{.Title}}</span>
+        {{if .Artist}}<span class="recent-song-artist">{{.Artist}}</span>{{end}}
+      </a>
     {{end}}
     </div>
   </section>
   {{end}}
 
-  {{/* ---- Your communities: same card language as Your bands above —
-       previously only reachable from the sidebar's "Communities" link,
-       not surfaced here the way bands already were. ---- */}}
-  {{if .Communities}}
-  <section class="home-section">
-    <div class="home-section-head">
-      <h3>Your communities</h3>
-      <a href="/communities">all communities &rarr;</a>
-    </div>
-    <div class="band-grid">
-    {{range .Communities}}
-      {{template "community-card" .}}
+  {{if .BandNews}}
+  <section class="home-section" aria-labelledby="news-title">
+    <div class="home-section-head"><h3 id="news-title">New in your bands</h3><span class="count">since your last visit</span></div>
+    <div class="attention-list">
+    {{range .BandNews}}
+      <a class="attention-row" href="/bands/{{.ID}}">
+        <div class="attention-title">{{.Name}}</div>
+        <div class="attention-subtitle">{{.Digest}}</div>
+      </a>
     {{end}}
     </div>
   </section>
   {{end}}
 
-  {{if not .NextGig}}
+  {{if or .Bands .Communities}}
+  <section class="home-section" aria-labelledby="groups-title">
+    <div class="home-section-head"><h3 id="groups-title">Your groups</h3><a href="/groups">all groups &rarr;</a></div>
+    <div class="group-chips">
+    {{range .Bands}}<a class="chip-link" href="/bands/{{.ID}}">{{template "icon-bands"}} {{.Name}}</a>{{end}}
+    {{range .Communities}}<a class="chip-link" href="/communities/{{.ID}}">{{template "icon-community"}} {{.Name}}</a>{{end}}
+    </div>
+  </section>
+  {{else}}
+  {{/* Nobody to play with yet: the way in, instead of empty sections. */}}
   <section class="home-section">
-    <div class="home-section-head"><h3>Coming up</h3></div>
-    <a class="coming-up-card empty" href="/setlists">No gig scheduled — open set lists to plan one &rarr;</a>
+    <div class="home-section-head"><h3>Get started</h3></div>
+    <div class="attention-list">
+      <a class="attention-row" href="/bands"><div class="attention-title">Start a band, or join one</div><div class="attention-subtitle">Share songs, set lists and rehearsals with the people you play with.</div></a>
+      <a class="attention-row" href="/catalog"><div class="attention-title">Find a song in the library</div><div class="attention-subtitle">Search by title, artist or lyrics.</div></a>
+      <a class="attention-row" href="/welcome"><div class="attention-title">Set up your profile</div><div class="attention-subtitle">Your instruments, and how you like to read music.</div></a>
+    </div>
   </section>
   {{end}}
-
-  {{/* ---- Your songbooks: the existing project-card inventory, kept as
-       data, restyled and demoted below the activity sections above. ---- */}}
-  <section class="home-section">
-    <div class="home-section-head"><h3>Your songbooks</h3></div>
-    <div class="project-grid">
-    {{range .Books}}
-      <a class="project-card card" href="/songbooks/{{.ID}}">
-        <h2>{{.Name}}</h2>
-        <div class="project-stats">
-          <span>{{.SongCount}} song{{if ne .SongCount 1}}s{{end}}</span>
-          {{if .HasOrder}}<span>{{.SetCount}} set{{if ne .SetCount 1}}s{{end}}</span>{{end}}
-        </div>
-      </a>
-    {{end}}
-    </div>
-  </section>
-
-  <section class="home-section">
-    <div class="home-section-head"><h3>Browse</h3></div>
-    <div class="browse-row">
-      <a class="browse-card" href="/catalog">
-        <h4>Global catalog</h4>
-        <p>searchable by title, artist, or lyrics — free to reuse in any jam</p>
-      </a>
-      <a class="browse-card" href="/songbooks/mine">
-        <h4>My songbook</h4>
-        <p>songs you've forked or written, just for you</p>
-      </a>
-    </div>
-  </section>
 </main>
 <script>
 document.getElementById('attention-filters')?.addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-filter]');
   if (!btn) return;
-  document.querySelectorAll('#attention-filters button').forEach(b => b.classList.toggle('active', b === btn));
+  document.querySelectorAll('#attention-filters button').forEach(b => {
+    b.classList.toggle('active', b === btn);
+    b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+  });
   const filter = btn.dataset.filter;
   document.querySelectorAll('#attention-list .attention-row').forEach(row => {
     row.hidden = filter !== 'all' && row.dataset.kind !== filter;

@@ -17,23 +17,12 @@
   <a class="back-link" href="/bands">{{template "icon-back"}} My bands</a>
   <span class="band-name-row">
     <h1 id="band-name-display" tabindex="0" role="button" title="Click to rename">{{.Band.Name}}</h1>
-    <input type="text" id="band-name-input" class="band-name-input" value="{{.Band.Name}}" hidden>
+    <input type="text" id="band-name-input" class="band-name-input" value="{{.Band.Name}}" aria-label="Band name" autocomplete="off" enterkeyhint="done" hidden>
   </span>
-  <select id="music-type-select" class="music-type-select" title="Covers or original music?">
-    <option value="" {{if eq .Band.MusicType ""}}selected{{end}}>Music type: not set</option>
-    <option value="covers" {{if eq .Band.MusicType "covers"}}selected{{end}}>Covers band</option>
-    <option value="original" {{if eq .Band.MusicType "original"}}selected{{end}}>Original music</option>
-  </select>
+  <span id="band-header-status" class="form-status" role="status"></span>
   {{template "notif-bell"}}
 </header>
 <script>
-document.getElementById('music-type-select').addEventListener('change', async (e) => {
-  await fetch('/api/bands/{{.Band.ID}}/music-type', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({musicType: e.target.value}),
-  });
-  location.reload();
-});
 (function () {
   const display = document.getElementById('band-name-display');
   const input = document.getElementById('band-name-input');
@@ -44,6 +33,7 @@ document.getElementById('music-type-select').addEventListener('change', async (e
   }
   function cancelEdit() {
     input.hidden = true; display.hidden = false;
+    Forms.status(document.getElementById('band-header-status'), '', '');
   }
   async function saveEdit() {
     const name = input.value.trim();
@@ -51,8 +41,12 @@ document.getElementById('music-type-select').addEventListener('change', async (e
     const res = await fetch('/api/bands/{{.Band.ID}}/name', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({name}),
-    });
-    if (!res.ok) { alert('Could not rename the band.'); cancelEdit(); return; }
+    }).catch(() => null);
+    if (!res || !res.ok) {
+      // Keep the field open with what they typed; Escape gives up.
+      Forms.status(document.getElementById('band-header-status'), "Couldn't rename the band. Press Enter to try again.", 'error');
+      return;
+    }
     document.title = name + ' — Songbooks';
     display.textContent = name;
     cancelEdit();
@@ -79,32 +73,56 @@ document.getElementById('music-type-select').addEventListener('change', async (e
        section), so this is a tab-styled nav bar linking between full
        pages rather than one giant client-side-tabbed page. */}}
   {{template "brand-banner" $brand}}
-  <nav class="band-tabs band-tabs-row">
-    <a href="/bands/{{.Band.ID}}" class="band-tab active">Overview</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/setlists">Setlists</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/proposals">Proposals</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/listening-party">Discover</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/events">Events</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/members">Members</a>
+  {{template "band-tabs" (bandTabs .Band.ID "")}}
+
+  {{with .NextUp}}
+  <section class="home-section" aria-labelledby="band-next-title">
+    <div class="home-section-head"><h3 id="band-next-title">Next up</h3><a href="/bands/{{$.Band.ID}}/events">calendar &rarr;</a></div>
+    <div class="next-up-card kind-{{.Kind}}">
+      <div class="next-up-when">{{.When}}{{if not .AllDay}} &middot; {{.Starts.Format "15:04"}}{{end}}</div>
+      <a class="next-up-title" href="{{.Link}}">{{.Title}}</a>
+      <div class="next-up-meta">{{.Details false}}</div>
+      <div class="next-up-actions">
+        {{if .Practice}}<a class="chip-link primary" href="{{.Practice}}">{{template "icon-play"}} Practice the set</a>
+        <a class="chip-link" href="/setlists/{{.SetlistID}}">{{template "icon-setlists"}} Set list</a>{{end}}
+        <a class="chip-link" href="{{.Link}}">Details</a>
+      </div>
+    </div>
+  </section>
+  {{end}}
+
+  {{/* On a phone the band's sections are this list rather than tabs:
+       each row says where that section stands. Grouped by how often
+       they're used: playing, deciding, running the band. */}}
+  <nav class="band-hub" aria-label="Band sections">
+    <ul class="band-hub-group">
+      <li><a href="/bands/{{.Band.ID}}/catalog">{{template "icon-catalog"}}<span class="band-hub-label">Repertoire</span><span class="band-hub-state">{{.RepertoireCount}} song{{if ne .RepertoireCount 1}}s{{end}}</span></a></li>
+      <li><a href="/bands/{{.Band.ID}}/setlists">{{template "icon-setlists"}}<span class="band-hub-label">Set lists</span><span class="band-hub-state">{{len .Setlists}}</span></a></li>
+      <li><a href="/bands/{{.Band.ID}}/events">{{template "icon-presentation"}}<span class="band-hub-label">Calendar</span><span class="band-hub-state">{{if .NextUp}}{{.NextUp.When}}{{else}}plan a rehearsal{{end}}</span></a></li>
+    </ul>
+    <ul class="band-hub-group">
+      <li><a href="/bands/{{.Band.ID}}/proposals">{{template "icon-plus"}}<span class="band-hub-label">Proposals</span><span class="band-hub-state{{if .OpenProposals}} is-due{{end}}">{{if .OpenProposals}}{{len .OpenProposals}} to vote on{{else}}none open{{end}}</span></a></li>
+      <li><a href="/bands/{{.Band.ID}}/listening-party">{{template "icon-play"}}<span class="band-hub-label">Discover</span><span class="band-hub-state">listen and pick</span></a></li>
+    </ul>
+    <ul class="band-hub-group">
+      <li><a href="/bands/{{.Band.ID}}/members">{{template "icon-bands"}}<span class="band-hub-label">Members</span><span class="band-hub-state">{{.MemberCount}}</span></a></li>
+      <li><a href="/bands/{{.Band.ID}}/settings">{{template "icon-settings"}}<span class="band-hub-label">Settings</span><span class="band-hub-state">name, look</span></a></li>
+    </ul>
   </nav>
 
-  {{/* ---- Recent activity: band-change digest (edits, repertoire
-       adds/removes, member changes, proposal decisions — ListBandChanges)
-       merged with currently-OPEN proposals (votes awaiting; a 'new_song'
-       one is also a listening-party pick, labeled as such since that
-       feature reuses this same proposal/vote queue, not a separate
-       log). Same attention-row look the home page's own feed uses. ---- */}}
+  {{/* What changed since you last looked (edits, repertoire adds and
+       removes, member changes, decisions — ListBandChanges), after the
+       votes still open. */}}
   <section class="home-section">
     <div class="home-section-head">
-      <h3>Recent activity</h3>
+      <h3>What's new</h3>
       <span class="count">{{if .HasLastSeen}}since your last visit{{else}}all time{{end}}</span>
     </div>
     <div class="attention-list">
     {{range .OpenProposals}}
       <a class="attention-row" href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">
         <div class="attention-title">
-          {{if eq .Kind "new_song"}}Discover pick: {{.TargetTitle}}{{else}}Vote: new reference for {{.TargetTitle}}{{end}}
+          {{if eq .Kind "new_song"}}Vote on a new song: {{.TargetTitle}}{{else}}Vote on a new recording for {{.TargetTitle}}{{end}}
         </div>
         <div class="attention-subtitle">proposed by {{.ProposerUsername}} &middot; {{.YesVotes}} yes, {{.VetoVotes}} veto so far</div>
       </a>
@@ -116,82 +134,27 @@ document.getElementById('music-type-select').addEventListener('change', async (e
       </div>
     {{end}}
     {{if and (not .OpenProposals) (not .Changes)}}
-      <div class="attention-empty">Nothing new{{if .HasLastSeen}} since your last visit{{end}} — propose a song or start a listening party above to get things going.</div>
+      <div class="attention-empty">Nothing new{{if .HasLastSeen}} since your last visit{{end}}.</div>
     {{end}}
     </div>
   </section>
 
-  {{/* ---- Repertoire preview: a handful of the most recently added
-       songs, not the full list (that's still /bands/{id}/catalog). ---- */}}
-  <section class="home-section">
-    <div class="home-section-head">
-      <h3>Repertoire</h3>
-      <a href="/bands/{{.Band.ID}}/catalog">{{.RepertoireCount}} song{{if ne .RepertoireCount 1}}s{{end}} &rarr;</a>
-    </div>
-    {{if .RepertoirePreviewAlbums}}
-    <div class="attention-list album-preview-list">
-    {{range .RepertoirePreviewAlbums}}
-      <div class="album-preview-group">
-        <div class="album-preview-head">
-          {{if .CoverURL}}<img class="album-preview-cover" src="{{.CoverURL}}" alt="{{.Album}} cover">{{end}}
-          <span class="album-preview-name">{{.Album}}{{if .ReleaseYear}} <span class="album-preview-year">({{.ReleaseYear}})</span>{{end}}</span>
-        </div>
-        {{range .Entries}}
-          <a class="attention-row" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
-            <div class="attention-title">{{.Title}}</div>
-            {{if and .Artist (ne .Artist $.Band.Name)}}<div class="attention-subtitle">{{.Artist}}</div>{{end}}
-          </a>
-        {{end}}
-      </div>
-    {{end}}
-    </div>
-    {{else}}
-    <div class="attention-list">
-    {{range .Repertoire}}
-      <a class="attention-row" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
-        <div class="attention-title">{{.Title}}</div>
-        {{if and .Artist (ne .Artist $.Band.Name)}}<div class="attention-subtitle">{{.Artist}}</div>{{end}}
-      </a>
-    {{else}}
-      <a class="attention-empty" href="/bands/{{.Band.ID}}/catalog">No songs yet — add one from the repertoire page &rarr;</a>
-    {{end}}
-    </div>
-    {{end}}
-  </section>
-
-  {{/* ---- Setlists preview: this band's own setlists, soonest gig
-       first if there is one. ---- */}}
-  <section class="home-section">
+  {{/* Desktop only (a phone has the list above): the band's set lists. */}}
+  <section class="home-section band-overview-wide">
     <div class="home-section-head">
       <h3>Set lists</h3>
       <a href="/bands/{{.Band.ID}}/setlists">all set lists &rarr;</a>
     </div>
-    {{if .NextGig}}
-    <a class="coming-up-card" href="/setlists/{{.NextGig.SetlistID}}">
-      <div class="coming-up-date">
-        <span class="month">{{.NextGig.Date.Format "Jan"}}</span>
-        <span class="day">{{.NextGig.Date.Format "2"}}</span>
-      </div>
-      <div>
-        <div style="font-weight:600;">{{.NextGig.SetlistTitle}}</div>
-        <div style="font-size:0.85rem;color:var(--fg-faint);">{{if .NextGig.Venue}}{{.NextGig.Venue}}{{else}}venue TBD{{end}}</div>
-      </div>
-    </a>
-    {{end}}
     <div class="attention-list">
     {{range .Setlists}}
-      {{if not (and $.NextGig (eq .ID $.NextGig.SetlistID))}}
       <a class="attention-row" href="/setlists/{{.ID}}">
         <div class="attention-title">{{.Title}}</div>
       </a>
-      {{end}}
     {{else}}
       <div class="attention-empty">No set lists yet.</div>
     {{end}}
     </div>
   </section>
-
-  <p class="hint">Members, invites and roles are on the <a href="/bands/{{.Band.ID}}/members">Members</a> tab.</p>
 </main>
 </div>
 {{template "global-tabbar"}}

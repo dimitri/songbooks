@@ -59,17 +59,16 @@
             <td data-label="Admin">{{if .IsAdmin}}yes{{else}}no{{end}}</td>
             <td>
               {{if ne .ID $.Me.ID}}
-              <form method="post" action="/admin/people/{{.ID}}/admin" style="display:inline">
+              <form method="post" action="/admin/people/{{.ID}}/admin" style="display:inline"{{if .IsAdmin}} onsubmit="return confirm('Remove site admin rights from {{.Username}}?')"{{end}}>
                 <input type="hidden" name="is_admin" value="{{if .IsAdmin}}0{{else}}1{{end}}">
-                <button type="submit">{{if .IsAdmin}}revoke admin{{else}}make admin{{end}}</button>
+                <button type="submit">{{if .IsAdmin}}Remove admin{{else}}Make admin{{end}}</button>
               </form>
               {{/* handleAdminRemovePerson (handlers_admin.go) is a deliberate
                    501 stub — removing a person needs a real policy for what
                    happens to projects they solely own, which doesn't exist
-                   yet. Shipping a confirm() dialog that only admits that
-                   after the admin clicks OK reads as a broken button, not
-                   an honest one; disable it instead until removal is real. */}}
-              <button type="button" class="danger" disabled title="Not implemented yet — removing a person needs a data-ownership policy first">remove</button>
+                   yet. No button until removal is real: a disabled one only
+                   explained itself in a hover tooltip, which a phone never
+                   shows; the note under the table says it instead. */}}
               {{else}}
               <em>you</em>
               {{end}}
@@ -78,6 +77,7 @@
         {{end}}
         </tbody>
       </table></div>
+      <p class="hint">Removing people isn't available yet: it needs a rule for what happens to the projects they own.</p>
     </div>
   </section>
 
@@ -93,7 +93,7 @@
             <td data-label="Staff">{{.StaffCount}}</td>
             <td data-label="Members">{{.MemberCount}}</td>
             <td data-label="Created">{{.CreatedAt.Format "2006-01-02"}}</td>
-            <td><a href="/communities/{{.ID}}">open</a></td>
+            <td><a href="/communities/{{.ID}}">Open</a></td>
           </tr>
         {{else}}
           <tr><td colspan="5" class="hint">No communities on this instance yet.</td></tr>
@@ -125,8 +125,8 @@
               {{if .OpenInviteToken}}
               <span class="invite-link-row">
                 <code class="invite-link-url" data-url="/invite/{{.OpenInviteToken}}">/invite/{{.OpenInviteToken}}</code>
-                <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}">copy</button>
-                <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}">QR</button>
+                <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}">Copy link</button>
+                <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}">QR code</button>
               </span>
               {{else}}
               <span class="hint">no live link</span>
@@ -143,9 +143,11 @@
     <div class="card card--narrow">
       <h3>Plain signup invite</h3>
       <p class="hint">No self-serve registration exists yet — this is the only way to let someone in with no project or band attached.</p>
-      <button type="button" id="create-plain-invite-btn">Create invite link</button>
-      <button type="button" id="copy-plain-invite-btn" hidden>Copy link</button>
-      <p id="plain-invite-result" class="hint"></p>
+      <div class="form-actions" style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+        <button type="button" id="create-plain-invite-btn" class="primary">Create invite link</button>
+        <button type="button" id="copy-plain-invite-btn" hidden>Copy link</button>
+      </div>
+      <p id="plain-invite-result" class="form-status" role="status" style="overflow-wrap:anywhere;"></p>
     </div>
 
     {{/* The gap a direct report flagged: no way to see who was invited,
@@ -179,8 +181,8 @@
             </td>
             <td>
               {{if not .ClosedAt}}
-              <form method="post" action="/admin/group-invites/{{.ID}}/close" onsubmit="return confirm('Close this invite link? Anyone still holding it won\'t be able to join through it.')">
-                <button type="submit" class="danger">close</button>
+              <form method="post" action="/admin/group-invites/{{.ID}}/close" onsubmit="return confirm('Close the invite link for {{.TargetName}}? Anyone still holding it won’t be able to join through it.')">
+                <button type="submit" class="danger">Close link</button>
               </form>
               {{end}}
             </td>
@@ -233,19 +235,26 @@
   });
   activate(location.hash.slice(1), false);
 })();
-document.getElementById('create-plain-invite-btn').addEventListener('click', async () => {
-  const res = await fetch('/admin/invites/plain', {method: 'POST'});
-  const data = await res.json();
+document.getElementById('create-plain-invite-btn').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
   const out = document.getElementById('plain-invite-result');
   const copyBtn = document.getElementById('copy-plain-invite-btn');
-  if (res.ok) {
+  copyBtn.hidden = true;
+  Forms.status(out, '');
+  Forms.busy(btn, true);
+  const res = await fetch('/admin/invites/plain', {method: 'POST'}).catch(() => null);
+  const data = res ? await res.json().catch(() => ({})) : {};
+  Forms.busy(btn, false);
+  if (res && res.ok) {
     const url = location.origin + data.url;
-    out.textContent = url;
+    Forms.status(out, url, 'ok');
     copyBtn.hidden = false;
-    copyBtn.onclick = () => navigator.clipboard.writeText(url).catch(() => {});
+    copyBtn.onclick = () => navigator.clipboard.writeText(url).then(() => {
+      copyBtn.textContent = 'Copied';
+      setTimeout(() => { copyBtn.textContent = 'Copy link'; }, 1500);
+    }).catch(() => {});
   } else {
-    out.textContent = data.error || 'failed to create invite';
-    copyBtn.hidden = true;
+    Forms.status(out, 'Couldn’t create an invite link. Try again.', 'error');
   }
 });
 document.querySelectorAll('.copy-link-btn').forEach(btn => {
@@ -253,7 +262,7 @@ document.querySelectorAll('.copy-link-btn').forEach(btn => {
     const url = location.origin + btn.dataset.url;
     navigator.clipboard.writeText(url).then(() => {
       const prev = btn.textContent;
-      btn.textContent = 'copied!';
+      btn.textContent = 'Copied';
       setTimeout(() => { btn.textContent = prev; }, 1500);
     }).catch(() => {});
   });

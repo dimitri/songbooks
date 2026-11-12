@@ -19,15 +19,7 @@
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/bands/{{.Band.ID}}">Overview</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
-    <a href="/bands/{{.Band.ID}}/setlists" class="band-tab active">Setlists</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/proposals">Proposals</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/listening-party">Discover</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/events">Events</a>
-    <a class="band-tab" href="/bands/{{.Band.ID}}/members">Members</a>
-  </nav>
+  {{template "band-tabs" (bandTabs .Band.ID "setlists")}}
 
   <p class="hint">New set lists are made on the <a href="/setlists">Set lists</a> page.</p>
 

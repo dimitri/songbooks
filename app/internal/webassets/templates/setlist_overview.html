@@ -31,7 +31,8 @@
 <main class="index">
   <nav class="band-tabs band-tabs-row">
     <a href="/setlists/{{.SetlistID}}" class="band-tab active">{{template "icon-setlists"}} Running order</a>
-    <a href="/setlists/{{.SetlistID}}/clicktrack" class="band-tab">{{template "icon-metro-full"}} Metronome</a>
+    {{if not .IsEmpty}}<a href="/setlists/{{.SetlistID}}/practice" class="band-tab">{{template "icon-play"}} Practice</a>{{end}}
+    <a href="/setlists/{{.SetlistID}}/clicktrack" class="band-tab">{{template "icon-metronome"}} Metronome</a>
     <details class="band-tab-menu">
       <summary title="export PDF">{{template "icon-download"}} PDF</summary>
       <div class="row-menu-panel">
@@ -42,6 +43,9 @@
     {{if .CanEdit}}<button type="button" id="reorder-toggle" class="band-tab">{{template "icon-edit"}} <span id="reorder-toggle-label">Reorder</span></button>{{end}}
   </nav>
 
+  {{if .IsEmpty}}
+  <p class="attention-empty">No songs yet.{{if .CanEdit}} Add the ones to play below.{{end}}</p>
+  {{end}}
   {{range $setIdx, $set := .Sets}}
   <section class="gig-set" data-set-index="{{$setIdx}}">
     <h2>{{$set.Label}}</h2>
@@ -63,6 +67,22 @@
       {{end}}
     </div>
   </section>
+  {{end}}
+
+  {{if .CanEdit}}
+  <div class="card card--md" id="add-songs">
+    <h2>Add songs</h2>
+    <form class="form-stack" id="add-songs-form" role="search">
+      <div class="field">
+        <label for="add-songs-q">{{if .IsBand}}Song from the repertoire{{else}}Song from the library{{end}}</label>
+        <p class="field-hint" id="add-songs-hint">{{if .IsBand}}Type part of a title or artist.{{else}}Type a title or an artist, then search.{{end}}</p>
+        <input type="search" id="add-songs-q" aria-describedby="add-songs-hint" autocomplete="off" enterkeyhint="search">
+      </div>
+      {{if not .IsBand}}<div class="form-actions"><button type="submit" id="add-songs-search" class="primary">Search</button></div>{{end}}
+      <p class="form-status" role="status"></p>
+    </form>
+    <ul class="add-songs-results" id="add-songs-results" aria-label="Songs to add"></ul>
+  </div>
   {{end}}
 </main>
 </div>
@@ -126,13 +146,76 @@
     });
     const put = await fetch(`/api/setlists/${setlistID}`, {
       method: 'PUT', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({version, setlist: data.setlist}),
+      body: JSON.stringify({version, title: data.meta.title, notes: data.meta.notes, setlist: data.setlist}),
     });
     if (put.ok) {
       const putData = await put.json();
       version = putData.version;
       location.reload();
     }
+  }
+
+  // Add songs: a band's repertoire is filtered as you type; anything
+  // else searches the library. Each one goes at the end of the last set.
+  const repertoire = {{.Repertoire}} || [];
+  const isBand = {{.IsBand}};
+  const addForm = document.getElementById('add-songs-form');
+  const q = document.getElementById('add-songs-q');
+  const results = document.getElementById('add-songs-results');
+  function show(songs) {
+    results.replaceChildren();
+    for (const song of songs.slice(0, 12)) {
+      const li = document.createElement('li');
+      const text = document.createElement('div');
+      const t = document.createElement('div'); t.className = 'attention-title'; t.textContent = song.title;
+      text.appendChild(t);
+      if (song.artist) { const a = document.createElement('div'); a.className = 'attention-subtitle'; a.textContent = song.artist; text.appendChild(a); }
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.textContent = 'Add';
+      btn.setAttribute('aria-label', `Add ${song.title}`);
+      btn.addEventListener('click', () => addSong(song, btn));
+      li.append(text, btn);
+      results.appendChild(li);
+    }
+  }
+  async function addSong(song, btn) {
+    Forms.busy(btn, true);
+    const res = await fetch(`/api/setlists/${setlistID}`).catch(() => null);
+    const data = res && res.ok ? await res.json() : null;
+    if (data) {
+      const sets = data.setlist.sets || (data.setlist.sets = []);
+      if (!sets.length) sets.push({label: 'Set 1', entries: []});
+      const last = sets[sets.length - 1];
+      (last.entries || (last.entries = [])).push({book: '', stem: '', variant_id: song.variantId, note: ''});
+      const put = await fetch(`/api/setlists/${setlistID}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({version: data.meta.version, title: data.meta.title, notes: data.meta.notes, setlist: data.setlist}),
+      }).catch(() => null);
+      if (put && put.ok) { location.reload(); return; }
+    }
+    Forms.busy(btn, false);
+    Forms.status(addForm, `Couldn't add “${song.title}”. Try again.`, 'error');
+  }
+  if (isBand) {
+    q.addEventListener('input', () => {
+      const term = q.value.trim().toLowerCase();
+      show(term ? repertoire.filter(s => (s.title + ' ' + s.artist).toLowerCase().includes(term)) : repertoire);
+    });
+    addForm.addEventListener('submit', (e) => e.preventDefault());
+    show(repertoire);
+  } else {
+    addForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const term = q.value.trim();
+      if (!term) { Forms.fieldError(q, 'Type a title or an artist.'); return; }
+      Forms.run(addForm, document.getElementById('add-songs-search'), async () => {
+        const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(term)}`);
+        if (!res.ok) throw new Error("Couldn't search the library. Try again.");
+        const hits = await res.json();
+        if (!hits.length) Forms.status(addForm, 'No songs match that.', '');
+        show(hits);
+      });
+    });
   }
 
   document.querySelectorAll('.setlist-overview-row').forEach(row => {
