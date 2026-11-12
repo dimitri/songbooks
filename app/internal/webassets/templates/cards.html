@@ -11,7 +11,7 @@
   {{with .Digest}}<div class="band-card-digest">{{.}}</div>{{end}}
   {{if .HasNextGig}}
   <div class="band-card-gig">
-    <a href="/setlists/{{.NextGigSetlist}}/practice">{{template "icon-presentation"}} {{.NextGigDate.Format "Jan 2"}}{{if .NextGigVenue}} &middot; {{.NextGigVenue}}{{end}}</a>
+    <a href="/setlists/{{.NextGigSetlist}}">{{template "icon-presentation"}} {{.NextGigDate.Format "Jan 2"}}{{if .NextGigVenue}} &middot; {{.NextGigVenue}}{{end}}</a>
   </div>
   {{end}}
   <div class="band-card-actions">
@@ -65,14 +65,13 @@
 </a>
 {{end}}
 
-{{/* One set list in a list: its title (opens the running order), the
-     three ways to use it, and the exports folded away. */}}
+{{/* One set list in a list: its title (opens the running order, where
+     each song opens with Previous/Next through the set), the click
+     track, and the exports folded away. */}}
 {{define "setlist-row"}}
 <div class="setlist-row">
   <a class="setlist-row-title" href="/setlists/{{.ID}}">{{.Title}}</a>
   <div class="setlist-row-actions">
-    <a class="chip-link" href="/setlists/{{.ID}}/practice">{{template "icon-play"}} Practice</a>
-    <a class="chip-link" href="/setlists/{{.ID}}/listening">Listen</a>
     <a class="chip-link" href="/setlists/{{.ID}}/clicktrack">{{template "icon-tap"}} Click track</a>
   </div>
   <details class="setlist-row-export">

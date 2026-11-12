@@ -37,7 +37,7 @@
     <h3>{{if eq .Event.EventType "rehearsal"}}Set list to practise{{else}}Set list{{end}}</h3>
     {{if .Event.SetlistID}}
     <div class="next-up-actions">
-      {{if .SongRows}}<a class="chip-link primary" href="/setlists/{{.Event.SetlistID}}/practice">{{template "icon-play"}} Practice the set</a>{{end}}
+      {{if .SongRows}}<a class="chip-link primary" href="/setlists/{{.Event.SetlistID}}">{{template "icon-setlists"}} Open the set list</a>{{end}}
       <a class="chip-link" href="/setlists/{{.Event.SetlistID}}">{{template "icon-setlists"}} {{if .SongRows}}Open the set list{{else}}Add songs{{end}}</a>
     </div>
     <ol class="event-setlist">

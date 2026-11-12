@@ -446,9 +446,7 @@
        about this specific song, so it belongs with the rest of the
        sidebar's nav, same as every other page's own back-link. */}}
   <div class="sidebar-crumb">
-    {{if .PracticeMode}}
-    <a href="/setlists">{{template "icon-back"}} <span title="{{.PracticeStepMode}}: {{.PracticeTitle}}">{{.PracticeStepMode}}: {{.PracticeTitle}}</span></a>
-    {{else if .GigMode}}
+    {{if .GigMode}}
     <a href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} <span>set list</span></a>
     {{else if .SetlistRef}}
     <a href="/setlists/{{.SetlistRef}}">{{template "icon-back"}} <span>set list</span></a>
@@ -552,9 +550,7 @@
      desktop (.sidebar-crumb) needs its own copy here — hidden on desktop
      (CSS, min-width:901px) where the sidebar's own copy takes over. */}}
 <div class="topbar-utility-mobile">
-  {{if .PracticeMode}}
-  <a class="back-link" href="/setlists">{{template "icon-back"}} {{.PracticeStepMode}}: {{.PracticeTitle}}</a>
-  {{else if .GigMode}}
+  {{if .GigMode}}
   <a class="back-link" href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} set list</a>
   {{else if .SetlistRef}}
   <a class="back-link" href="/setlists/{{.SetlistRef}}">{{template "icon-back"}} set list</a>
@@ -570,7 +566,7 @@
 </div>
 <div class="song-topbar">
   {{if .Prev}}
-  <a class="topbar-cell topbar-prev setlist-nav-card prev" href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.PrevIndex}}{{else}}/song/{{.Prev.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{else if $.SongbookRef}}?songbook={{$.SongbookRef}}{{end}}{{end}}">
+  <a class="topbar-cell topbar-prev setlist-nav-card prev" href="/song/{{.Prev.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{else if $.SongbookRef}}?songbook={{$.SongbookRef}}{{end}}">
     {{template "icon-back"}}
     <span class="topbar-nav-info"><small>previous</small><strong>{{.Prev.Title}}</strong><small>{{if .Prev.Tempo}}{{.Prev.Tempo}} bpm{{end}}{{if and .Prev.Tempo .Prev.Key}} &middot; {{end}}{{.Prev.Key}}</small></span>
   </a>
@@ -610,7 +606,7 @@
   </div>
 
   {{if .Next}}
-  <a class="topbar-cell topbar-next setlist-nav-card next" href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.NextIndex}}{{else}}/song/{{.Next.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{else if $.SongbookRef}}?songbook={{$.SongbookRef}}{{end}}{{end}}">
+  <a class="topbar-cell topbar-next setlist-nav-card next" href="/song/{{.Next.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{else if $.SongbookRef}}?songbook={{$.SongbookRef}}{{end}}">
     <span class="topbar-nav-info"><small>next</small><strong>{{.Next.Title}}</strong><small>{{if .Next.Tempo}}{{.Next.Tempo}} bpm{{end}}{{if and .Next.Tempo .Next.Key}} &middot; {{end}}{{.Next.Key}}</small></span>
     {{template "icon-forward"}}
   </a>
@@ -1132,7 +1128,7 @@
      httpapi.canAnnotateVariant's doc comment). Per-section personal or
      shared notes, independent of jam mode — the "build annotation editor
      (take notes) with personal or shared notes" brief item. Rendered for
-     any book/stem/practice/listening use of this same "song" template, not
+     any book/stem use of this same "song" template, not
      just the plain /b/{book}/{stem} page. */}}
 <div class="edit-drawer-backdrop" id="notes-drawer-backdrop" hidden></div>
 <div class="edit-drawer card" id="notes-drawer" role="dialog" aria-modal="true" aria-label="Notes on {{.Title}}" hidden>
@@ -1200,13 +1196,11 @@
     {{/* First entry, replacing the old top-of-page "< Mercy" breadcrumb
          (.topbar-utility-mobile, now hidden on mobile — see its own
          comment below) — same destination logic it already had (the
-         setlist in practice/gig mode, else the book/catalogue), just
+         setlist in gig mode, else the book/catalogue), just
          relocated into the bottom bar as a clear "up a level" icon
          instead of a small text link competing with the title for the
          very top of the screen. */}}
-    {{if .PracticeMode}}
-    <a href="/setlists" title="back to set list">{{template "icon-up"}} Up</a>
-    {{else if .GigMode}}
+    {{if .GigMode}}
     <a href="/setlists/{{.SetlistRef}}/gig" title="back to set list">{{template "icon-up"}} Up</a>
     {{else}}
     {{if .SongbookRef}}<a href="/songbooks/{{.SongbookRef}}" title="back to songbook">{{template "icon-up"}} Up</a>{{else if .BandRef}}<a href="/bands/{{.BandRef}}/catalog" title="back to {{.BandName}}">{{template "icon-up"}} Up</a>{{else}}<a href="/catalog" title="back to catalog">{{template "icon-up"}} Up</a>{{end}}
@@ -1230,7 +1224,7 @@
          before this. Disabled, not hidden, when there's no next song, so
          the bar keeps its 6 even slots rather than reflowing. */}}
     {{if .Next}}
-    <a href="{{if $.PracticeMode}}/setlists/{{$.PracticeSetlistID}}/{{$.PracticeStepMode}}?i={{$.NextIndex}}{{else}}/song/{{.Next.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{else if $.SongbookRef}}?songbook={{$.SongbookRef}}{{end}}{{end}}" title="next: {{.Next.Title}}">{{template "icon-forward"}} Next</a>
+    <a href="/song/{{.Next.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{else if $.SongbookRef}}?songbook={{$.SongbookRef}}{{end}}" title="next: {{.Next.Title}}">{{template "icon-forward"}} Next</a>
     {{else}}
     <span class="context-bar-disabled">{{template "icon-forward"}} Next</span>
     {{end}}
@@ -1619,19 +1613,6 @@
 <script src="/static/js/score-editor.js?v={{staticVersion}}"></script>
 <script src="/static/js/tab-editor.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-import.js?v={{staticVersion}}"></script>
-{{end}}
-{{if .PracticeStepMode}}
-<script>
-// Practice/listening mode forces a specific view mode (full chart for
-// practice, the existing lyrics-only mode for listening) regardless of
-// the reader's own saved default-mode preference (song.js applies that
-// preference right before this script runs, since it's a later,
-// synchronous <script> tag in document order).
-(function() {
-  const target = {{if eq .PracticeStepMode "listening"}}'lyrics'{{else}}'normal'{{end}};
-  document.querySelector(`#mode-segmented button[data-value="${target}"]`)?.click();
-})();
-</script>
 {{end}}
 <script>
 // Notes editor: per-section personal/shared annotations, independent of

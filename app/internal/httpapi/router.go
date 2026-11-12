@@ -427,8 +427,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 
 	// Person/band-scoped setlists, addressed by their own id (see
 	// internal/store/setlists.go's SetlistMeta/CreateSetlist/
-	// CanEditSetlistByID), plus setlist_gigs and practice/listening
-	// mode. All requireAuth only, not a role middleware — a setlist's
+	// CanEditSetlistByID), plus setlist_gigs; /practice and /listening
+	// only redirect to the running order now. All requireAuth only, not a role middleware — a setlist's
 	// own scope (person/band) governs who may view/edit it, checked
 	// inside each handler via CanViewSetlistByID/CanEditSetlistByID,
 	// same division of responsibility CanEditVariant/requireBandMember
@@ -441,8 +441,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/setlists/{id}/gigs", s.requireAuth(s.handleAddSetlistGig))
 	mux.HandleFunc("DELETE /api/setlists/{id}/gigs/{gigID}", s.requireAuth(s.handleRemoveSetlistGig))
 	mux.HandleFunc("GET /setlists/{id}", s.requireAuth(s.handleSetlistOverview))
-	mux.HandleFunc("GET /setlists/{id}/practice", s.requireAuth(s.handleSetlistPractice))
-	mux.HandleFunc("GET /setlists/{id}/listening", s.requireAuth(s.handleSetlistListening))
+	mux.HandleFunc("GET /setlists/{id}/practice", s.handleSetlistOldStep)
+	mux.HandleFunc("GET /setlists/{id}/listening", s.handleSetlistOldStep)
 	mux.HandleFunc("GET /setlists/{id}/clicktrack", s.requireAuth(s.handleSetlistClicktrack))
 	mux.HandleFunc("GET /api/me/click-track-prefs", s.requireAuth(s.handleGetClickTrackPrefs))
 	mux.HandleFunc("PUT /api/me/click-track-prefs", s.requireAuth(s.handleSetClickTrackPrefs))

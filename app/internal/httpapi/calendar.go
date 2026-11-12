@@ -103,13 +103,13 @@ func buildCalendarMonth(base string, first time.Time, items []store.CalendarItem
 	return cm
 }
 
-// practiceLink is where a calendar item's set list is practised, "" when
-// it has none.
-func practiceLink(it store.CalendarItem) string {
+// setlistLink is the running order of a calendar item's set list, ""
+// when it has none.
+func setlistLink(it store.CalendarItem) string {
 	if it.SetlistID == nil {
 		return ""
 	}
-	return fmt.Sprintf("/setlists/%d/practice", *it.SetlistID)
+	return fmt.Sprintf("/setlists/%d", *it.SetlistID)
 }
 
 // songContextQuery keeps the parts of a song page's query string that say
@@ -133,7 +133,7 @@ func songContextQuery(q url.Values) string {
 // nextUpView is the home page's "Next up" card.
 type nextUpView struct {
 	store.CalendarItem
-	Practice string // the set list's practice link, "" without one
+	SetlistLink string // the set list's running order, "" without one
 	When     string // "Today", "Tomorrow", "Saturday", "Sat 6 Dec"
 }
 
@@ -188,7 +188,7 @@ func (s *Server) bandNextUp(ctx context.Context, personID, bandID int64) (*nextU
 func firstUpcoming(items []store.CalendarItem, now time.Time) *nextUpView {
 	for _, it := range items {
 		if it.AllDay || it.Starts.After(now.Add(-2*time.Hour)) {
-			return &nextUpView{CalendarItem: it, Practice: practiceLink(it), When: humanDay(it.Starts, now)}
+			return &nextUpView{CalendarItem: it, SetlistLink: setlistLink(it), When: humanDay(it.Starts, now)}
 		}
 	}
 	return nil

@@ -34,7 +34,7 @@
       <div class="field"><label for="reh-place">Place <span class="field-optional">(optional)</span></label><input type="text" id="reh-place" autocomplete="off" placeholder="e.g. Studio Bleu, room 2"></div>
       <div class="field">
         <label for="reh-setlist">Set list to practise</label>
-        <p class="field-hint" id="reh-setlist-hint">Everyone gets it on the calendar with a Practice button, to work on the songs before you meet.</p>
+        <p class="field-hint" id="reh-setlist-hint">Everyone gets it on the calendar with a link to the set list, to work on the songs before you meet.</p>
         <select id="reh-setlist" aria-describedby="reh-setlist-hint">
           <option value="new" selected>A new set list for this rehearsal</option>
           {{range .Setlists}}<option value="{{.ID}}">{{.Title}}</option>{{end}}

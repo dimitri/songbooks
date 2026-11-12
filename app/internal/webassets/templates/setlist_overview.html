@@ -31,7 +31,6 @@
 <main class="index">
   <nav class="band-tabs band-tabs-row">
     <a href="/setlists/{{.SetlistID}}" class="band-tab active">{{template "icon-setlists"}} Running order</a>
-    {{if not .IsEmpty}}<a href="/setlists/{{.SetlistID}}/practice" class="band-tab">{{template "icon-play"}} Practice</a>{{end}}
     <a href="/setlists/{{.SetlistID}}/clicktrack" class="band-tab">{{template "icon-metronome"}} Metronome</a>
     <details class="band-tab-menu">
       <summary title="export PDF">{{template "icon-download"}} PDF</summary>

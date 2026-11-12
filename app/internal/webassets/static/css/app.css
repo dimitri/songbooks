@@ -4774,7 +4774,7 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .band-card-actions a.votes { border-color: var(--accent); background: var(--accent-bg); color: var(--accent-ink); }
 
 /* Set list rows (cards.html "setlist-row"): the title opens the running
-   order; Practice / Listen / Click track as pills; exports folded. */
+   order; Click track as a pill; exports folded. */
 .setlist-rows { list-style: none; margin: 0; padding: 0; }
 .setlist-rows > li { padding: 0.7rem 0; border-top: 1px solid var(--border); }
 .setlist-rows > li:first-child { border-top: none; padding-top: 0.2rem; }
