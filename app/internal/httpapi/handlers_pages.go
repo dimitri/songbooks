@@ -1522,7 +1522,7 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 					line.Systems = strings.Join(systems, ",")
 				}
 				sections[si].Lines[li].AlphaTex = tex
-				sections[si].Lines[li].Notation = riff.ShownAs()
+				sections[si].Lines[li].Instrument = riff.Instrument()
 			}
 		}
 	}
@@ -1868,9 +1868,10 @@ type viewerLine struct {
 	// (see alphatab-tab.js). The row's first performed bar, less one in a
 	// song whose pickup is bar 0 and its first full bar 1.
 	BarShift int
-	// Notation is the row's riff's "tab", "staff" or "both"
-	// (tab.Riff.ShownAs), read by alphatab-tab.js.
-	Notation string
+	// Instrument is the row's riff's kind ("guitar", "bass"): alphatab-tab.js
+	// draws it the way the viewer reads that instrument (tab, staff or both,
+	// store.NotationPrefs).
+	Instrument string
 }
 
 // groupMeasures chunks a section's measures into display rows — "systems",
@@ -2861,6 +2862,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"DrumMap":            drumMap,
 		"Instruments":        collectInstrumentNames(riffs),
 		"SelectedInstrument": instrument,
+		"NotationPrefs":      s.notationPrefsFor(r),
 		"Chords":             sg.Chords,
 		"HasAlphaTab":        anyTabOnlyLine(sections),
 		// HasAnyScore gates the Mixer tab (play.html) — deliberately NOT

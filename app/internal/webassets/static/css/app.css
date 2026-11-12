@@ -5003,3 +5003,8 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .history-diff .diff-del { display: block; background: var(--danger-bg); }
 .history-diff .diff-skip { display: block; color: var(--fg-muted); }
 .history-diff .diff-ctx { display: block; color: var(--fg-muted); }
+
+/* The chart's "how I read guitar / bass" pickers (notation-prefs.js). */
+.notation-pickers { display: flex; justify-content: center; gap: 1rem; margin: 0.4rem 0 0; font-size: 0.85rem; color: var(--fg-muted); }
+.notation-pickers label { display: flex; align-items: center; gap: 0.35rem; }
+.notation-pickers select { min-height: 0; padding: 0.2rem 0.4rem; font-size: 0.85rem; }

@@ -283,12 +283,6 @@
       tr.muted = !!p.mute;
       tr.solo = !!p.solo;
       syncTrackControls(tr);
-      const sel = tr.hdr && tr.hdr.querySelector('.daw-notation');
-      if (sel && ['tab', 'staff', 'both'].includes(p.notation) && p.notation !== tr.notation) {
-        tr.notation = p.notation;
-        sel.value = p.notation;
-        applyNotation(tr);
-      }
     }
     if (typeof prefs.speed === 'number' && $('daw-speed').querySelector(`option[value="${prefs.speed}"]`)) {
       speed = prefs.speed;
@@ -305,7 +299,6 @@
       const out = { zoom: Math.round(pxPerSec * 10) / 10, speed, tracks: {} };
       for (const tr of tracks) {
         out.tracks[tr.name] = { volume: tr.volume, mute: tr.muted, solo: tr.solo };
-        if (tr.kind === 'midi' && !tr.drums) out.tracks[tr.name].notation = tr.notation;
       }
       prefs = out;
       fetch(`/api/songs/${variantId}/mixer/prefs`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) }).catch(() => {});
@@ -341,10 +334,13 @@
 
     (data.tracks || []).forEach((t, i) => {
       const kind = t.drums ? 'drums' : 'melodic';
-      const tr = { kind: 'midi', index: i, name: t.name, drums: t.drums, color: COLOR[kind], body: BODY[kind], icon: t.drums ? ICON_DRUM : ICON_NOTE, muted: false, solo: false, volume: 1, notation: t.notation || 'tab', strings: t.strings || 6 };
-      // A guitar or bass lane shows its track's own notation (tab, staff or
-      // both, tab.Riff.ShownAs); each person can switch it for their own view.
-      const pick = t.drums ? '' : `<div class="daw-hdr-row"><select class="daw-notation" aria-label="notation" title="show this track as tab, staff or both (just for you)">
+      const tr = { kind: 'midi', index: i, name: t.name, drums: t.drums, color: COLOR[kind], body: BODY[kind], icon: t.drums ? ICON_DRUM : ICON_NOTE, muted: false, solo: false, volume: 1, strings: t.strings || 6 };
+      // A guitar or bass lane is drawn the way this person reads that
+      // instrument (notation-prefs.js); the lane's picker changes it for
+      // every song, and for every lane of the same instrument here.
+      tr.instrument = tr.strings <= 4 ? 'bass' : 'guitar';
+      tr.notation = notationOf(tr.instrument);
+      const pick = t.drums ? '' : `<div class="daw-hdr-row"><select class="daw-notation" aria-label="notation" title="how you read ${tr.instrument} parts, on every song (just for you)">
           <option value="tab">Tab</option><option value="staff">Staff</option><option value="both">Staff + tab</option></select></div>`;
       const row = addRow('midi' + i, t.drums ? 96 : 112, trackHeader(tr, `${GM[t.program] || 'MIDI'} · score (MIDI)`, pick));
       tr.hdr = row.hdr; tr.lane = row.lane;
@@ -353,7 +349,7 @@
       const sel = tr.hdr.querySelector('.daw-notation');
       if (sel) {
         sel.value = tr.notation;
-        sel.onchange = () => { tr.notation = sel.value; applyNotation(tr); savePrefs(); };
+        sel.onchange = () => { window.songbooksNotation?.set(tr.instrument, sel.value); };
       }
     });
 
@@ -760,6 +756,19 @@
       if (tr.strings <= 4) for (const bar of st.bars) bar.clef = alphaTab.model.Clef.F4;
     }
   }
+
+  function notationOf(instrument) {
+    return window.songbooksNotation ? window.songbooksNotation.get(instrument) : instrument === 'bass' ? 'both' : 'tab';
+  }
+  document.addEventListener('songbooks:notation', (e) => {
+    for (const tr of tracks) {
+      if (tr.kind !== 'midi' || tr.drums || tr.instrument !== e.detail.kind) continue;
+      tr.notation = e.detail.value;
+      const sel = tr.hdr && tr.hdr.querySelector('.daw-notation');
+      if (sel) sel.value = tr.notation;
+      applyNotation(tr);
+    }
+  });
 
   function applyNotation(tr) {
     if (!tr.api || !tr.api.score) return;

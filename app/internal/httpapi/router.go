@@ -429,6 +429,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /setlists/{id}/clicktrack", s.requireAuth(s.handleSetlistClicktrack))
 	mux.HandleFunc("GET /api/me/click-track-prefs", s.requireAuth(s.handleGetClickTrackPrefs))
 	mux.HandleFunc("PUT /api/me/click-track-prefs", s.requireAuth(s.handleSetClickTrackPrefs))
+	mux.HandleFunc("GET /api/me/notation-prefs", s.requireAuth(s.handleGetNotationPrefs))
+	mux.HandleFunc("PUT /api/me/notation-prefs", s.requireAuth(s.handleSetNotationPrefs))
 
 	mux.HandleFunc("GET /song/{id}/export.pdf", s.requireVariantRole("viewer", s.handleExportSongPDF))
 	mux.HandleFunc("GET /setlists/{id}/export.pdf", s.requireAuth(s.handleExportSetlistByIDPDF))

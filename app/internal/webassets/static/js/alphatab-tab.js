@@ -203,10 +203,10 @@
     // "Score", "Tab", "TabMixed"; there is no "ScoreDefault") renders the
     // standard-notation-only staff alphaTab already draws percussion on.
     const isDrumTrack = tex.includes('instrument percussion');
-    // A melodic row shows what its track asks for (data-notation, see
-    // tab.Riff.ShownAs): tab, a standard staff, or both — by default a bass
-    // gets both and a guitar tab only.
-    const notation = container.dataset.notation || (/\\clef F4\b/.test(tex) ? 'both' : 'tab');
+    // A guitar or bass row is drawn the way this reader likes that
+    // instrument (notation-prefs.js): tab, a standard staff, or both.
+    const instrument = container.dataset.instrument || (/\\clef F4\b/.test(tex) ? 'bass' : 'guitar');
+    const notation = window.songbooksNotation ? window.songbooksNotation.get(instrument) : (instrument === 'bass' ? 'both' : 'tab');
     const showsStaff = !isDrumTrack && notation !== 'tab';
     settings.display.staveProfile = isDrumTrack || notation === 'staff' ? alphaTab.StaveProfile.Score
       : notation === 'both' ? alphaTab.StaveProfile.ScoreTab : alphaTab.StaveProfile.Tab;

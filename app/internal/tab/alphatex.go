@@ -121,9 +121,7 @@ type MixerTrack struct {
 	Name    string
 	Drums   bool
 	Program int // General MIDI program (0-based); -1 for percussion
-	// Notation is the track's own "tab", "staff" or "both" (Riff.ShownAs).
-	Notation string
-	Strings  int // the tuning's string count; 0 for drums
+	Strings int // the tuning's string count; 0 for drums
 }
 
 // gmProgramFor guesses a General MIDI program from a track's own name —
@@ -207,12 +205,12 @@ func ToAlphaTexMulti(tracks []NamedRiff, tempo, timeNum, timeDen int, swing stri
 		}
 		if t.Riff.Drums {
 			writeDrumTrackBlock(&b, name, t.Riff, ts)
-			meta = append(meta, MixerTrack{Name: name, Drums: true, Program: -1, Notation: "staff"})
+			meta = append(meta, MixerTrack{Name: name, Drums: true, Program: -1})
 			continue
 		}
 		prog := gmProgramFor(name, len(t.Riff.Tuning))
 		writeMelodicTrackBlock(&b, name, prog, t.Riff, ts)
-		meta = append(meta, MixerTrack{Name: name, Program: prog, Notation: t.Riff.ShownAs(), Strings: len(t.Riff.Tuning)})
+		meta = append(meta, MixerTrack{Name: name, Program: prog, Strings: len(t.Riff.Tuning)})
 	}
 	return b.String(), meta
 }

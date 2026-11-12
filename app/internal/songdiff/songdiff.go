@@ -345,9 +345,6 @@ func riffChanges(where string, a, b *tab.Riff) []Change {
 			add("no longer repeats through its section")
 		}
 	}
-	if a.ShownAs() != b.ShownAs() {
-		add("now shown as " + map[string]string{"tab": "tab", "staff": "staff", "both": "staff and tab"}[b.ShownAs()])
-	}
 	if fmt.Sprint(a.Tuning) != fmt.Sprint(b.Tuning) {
 		add("tuning changed")
 	}

@@ -72,3 +72,48 @@ func (s *Store) SetClickTrackPrefs(ctx context.Context, personID int64, prefs Cl
 	_, err = s.db.Exec(ctx, `UPDATE people SET click_track_prefs = $2 WHERE id = $1`, personID, raw)
 	return err
 }
+
+// NotationPrefs is how a person likes guitar and bass parts drawn: "tab",
+// "staff" or "both". Personal, not part of the song: reading tab or a
+// staff is training and habit, and band members differ.
+type NotationPrefs struct {
+	Guitar string `json:"guitar,omitempty"`
+	Bass   string `json:"bass,omitempty"`
+}
+
+var validNotation = map[string]bool{"tab": true, "staff": true, "both": true}
+
+// WithDefaults fills what the person hasn't chosen: guitar as tab, bass
+// as a staff over its tab.
+func (p NotationPrefs) WithDefaults() NotationPrefs {
+	if !validNotation[p.Guitar] {
+		p.Guitar = "tab"
+	}
+	if !validNotation[p.Bass] {
+		p.Bass = "both"
+	}
+	return p
+}
+
+// GetNotationPrefs returns the person's notation choices, defaults filled.
+func (s *Store) GetNotationPrefs(ctx context.Context, personID int64) (NotationPrefs, error) {
+	var raw []byte
+	if err := s.db.QueryRow(ctx, `SELECT notation_prefs FROM people WHERE id = $1`, personID).Scan(&raw); err != nil {
+		return NotationPrefs{}.WithDefaults(), err
+	}
+	var p NotationPrefs
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &p)
+	}
+	return p.WithDefaults(), nil
+}
+
+// SetNotationPrefs saves the person's notation choices.
+func (s *Store) SetNotationPrefs(ctx context.Context, personID int64, p NotationPrefs) error {
+	raw, err := json.Marshal(p.WithDefaults())
+	if err != nil {
+		return err
+	}
+	_, err = s.db.Exec(ctx, `UPDATE people SET notation_prefs = $2 WHERE id = $1`, personID, raw)
+	return err
+}

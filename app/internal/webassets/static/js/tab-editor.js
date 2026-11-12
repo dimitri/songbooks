@@ -146,12 +146,11 @@
   }
   function drumNote(beat, midi) { return beat && !beat.Rest ? (beat.Notes || []).find((n) => n.MIDI === midi) : null; }
   function editable() { return !!st.riff && !st.error; }
-  // shownAs is internal/tab's Riff.ShownAs: the track's own notation, or
-  // the instrument's usual one (bass: staff and tab, guitar: tab).
+  // shownAs is how this person reads the instrument (notation-prefs.js):
+  // a personal choice, not part of the song.
   function shownAs() {
     if (!st.riff || st.riff.Drums) return 'staff';
-    if (['tab', 'staff', 'both'].includes(st.riff.Notation)) return st.riff.Notation;
-    return st.kind === 'bass' ? 'both' : 'tab';
+    return window.songbooksNotation ? window.songbooksNotation.get(st.kind) : st.kind === 'bass' ? 'both' : 'tab';
   }
   function onStaff() { return st.kind !== 'drums' && cursorStaff() === 'staff'; }
   function kindOf(riff) { return riff.Drums ? 'drums' : (riff.Tuning || []).length <= 4 ? 'bass' : 'guitar'; }
@@ -172,7 +171,6 @@
     if (r.Drums) out.Drums = true;
     else { out.Tuning = r.Tuning; out.MinimumFret = r.MinimumFret || 0; }
     if (r.Pattern) out.Pattern = true;
-    if (r.Notation) out.Notation = r.Notation;
     out.Bars = r.Bars.map((bar) => ({
       Beats: bar.Beats.map((b) => {
         const o = {};
@@ -474,9 +472,9 @@
     edit(() => { st.riff.Bars[st.bar] = clip; st.beat = 0; });
   }
   function setNotation(v) {
-    edit(() => { if (v) st.riff.Notation = v; else delete st.riff.Notation; });
-    const n = shownAs();
-    st.mode = n === 'tab' ? 'tab' : n === 'staff' ? 'staff' : st.mode;
+    window.songbooksNotation?.set(st.kind, v);
+    st.mode = v === 'tab' ? 'tab' : v === 'staff' ? 'staff' : st.mode;
+    render();
   }
   function togglePattern(on) {
     edit(() => { if (on) st.riff.Pattern = true; else delete st.riff.Pattern; });
@@ -868,8 +866,7 @@
     });
     const nsel = $('te-notation');
     nsel.hidden = !st.riff || st.kind === 'drums';
-    nsel.value = (st.riff && st.riff.Notation) || '';
-    nsel.disabled = !editable();
+    nsel.value = shownAs();
     const pat = $('te-pattern');
     pat.checked = !!(st.riff && st.riff.Pattern);
     pat.disabled = !editable();
@@ -1118,6 +1115,7 @@
       $('te-delete-voice').addEventListener('click', deleteVoice);
       $('te-pattern').addEventListener('change', (e) => togglePattern(e.target.checked));
       $('te-notation').addEventListener('change', (e) => setNotation(e.target.value));
+      document.addEventListener('songbooks:notation', () => { if (st.riff) render(); });
       const wrap = $('te-canvas-wrap');
       wrap.addEventListener('keydown', onKey);
       wrap.addEventListener('mousedown', (e) => { pickAt(e); });

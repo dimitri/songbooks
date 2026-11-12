@@ -318,10 +318,10 @@ What's missing, in the order it would help a band most:
    one revision per import, and import drum tracks.
 6. **Typing chords** (phase 3) on desktop: `Bbm7/F` + Enter.
 7. **Small gaps in what was built:**
-   - [x] each track says how it's shown (`"Notation"`: tab, staff, or
-     both; by default bass both, guitar tab), set in the Scores tab; the
-     chart, the editor and the Mixer follow it, and each person can
-     switch a Mixer lane for themselves;
+   - [x] tab, staff or both is a personal choice per instrument (reading
+     tab or a staff is training and habit, not part of the song): kept on
+     the person (`people.notation_prefs`, default guitar tab and bass
+     both) and changed from the chart, the Scores tab or a Mixer lane;
    - [x] ride bell, cowbell and the low floor tom in the drum editor;
    - [x] the Drummer view sizes each bar by how busy it is, puts 1, 2, 4
      or 8 written bars on a line, numbers bars from where the song is,
