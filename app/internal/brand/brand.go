@@ -111,10 +111,12 @@ var Presets = map[string]Preset{
 		FontDisplay: "bebas", FontUI: "nunito-sans", Shape: "soft",
 	}},
 	// florentpassamonti.fr: black header, white pages, Assistant, square
-	// black buttons, the warm red of his blues-rock covers.
+	// black buttons, the warm red of his blues-rock covers, lightened from
+	// #c8281e to #e0402f so the tagline reads on the black header
+	// (3.8:1 → 4.9:1).
 	"florent-passamonti": {"Blues & Rock (black and white, square)", Brand{
 		Background: "#ffffff", Surface: "#f3f3f3", Text: "#121212", Muted: "#5c5c5c",
-		Accent: "#121212", Accent2: "#c8281e", Header: "#000000",
+		Accent: "#121212", Accent2: "#e0402f", Header: "#000000",
 		FontDisplay: "assistant", FontUI: "assistant", Shape: "square",
 	}},
 	// otherlies.fr: night-blue ink, ice-blue and rose, Fraunces over

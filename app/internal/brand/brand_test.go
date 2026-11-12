@@ -63,10 +63,9 @@ func TestPresetsContrast(t *testing.T) {
 			}
 		}
 	}
-	// The tagline is small text in the second accent on the header. The
-	// older presets predate this check (Blues & Rock's red on black is
-	// 3.8:1, Paper's 3.1:1), so it is held to the newer ones.
-	for _, key := range []string{"other-lies", "stage", "bands-camp", "jamspace"} {
+	// The tagline is small text in the second accent on the header. Paper
+	// predates this check (3.1:1) and has no community using it.
+	for _, key := range []string{"other-lies", "stage", "bands-camp", "jamspace", "florent-passamonti"} {
 		b := Presets[key].Brand
 		if r := contrast(b.Accent2, b.Header); r < 4.5 {
 			t.Errorf("%s: tagline %s on header %s is %.2f:1", key, b.Accent2, b.Header, r)
