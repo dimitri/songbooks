@@ -27,9 +27,9 @@
   <ul class="setlist-rows">
   {{range .Setlists}}
     <li class="setlist-row">
-      <a class="setlist-row-title" href="/setlists/{{.ID}}">{{.Title}}</a>
+      <a class="setlist-row-title" href="/bands/{{$.Band.ID}}/setlists/{{.ID}}">{{.Title}}</a>
       <div class="setlist-row-actions">
-        <a class="chip-link" href="/setlists/{{.ID}}/clicktrack">{{template "icon-tap"}} Click track</a>
+        <a class="chip-link" href="/bands/{{$.Band.ID}}/setlists/{{.ID}}/clicktrack">{{template "icon-tap"}} Click track</a>
       </div>
     </li>
   {{end}}

@@ -160,8 +160,18 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if !s.atSetlistPath(w, r, meta, "") {
+		return
+	}
 	brandKind, brandID := setlistOwner(meta)
 	canEdit, _ := s.store.CanEditSetlistByID(r.Context(), person.ID, id)
+	backURL, backLabel := "/setlists", "Set lists"
+	if meta.OwnerBandID != nil {
+		backURL = fmt.Sprintf("/bands/%d/setlists", *meta.OwnerBandID)
+		if b, err := s.store.GetBand(r.Context(), *meta.OwnerBandID); err == nil {
+			backLabel = b.Name
+		}
+	}
 	var sets []gigSet
 	n := 0
 	for _, set := range l.Sets {
@@ -214,6 +224,7 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 	}
 	s.render(w, "setlist-overview", map[string]any{
 		"Me": person, "SetlistID": id, "Version": version, "CanEdit": canEdit,
+		"Path": setlistPath(meta), "BackURL": backURL, "BackLabel": backLabel,
 		"Title": orDefault(l.Get("title"), orDefault(meta.Title, "Set list")), "Date": l.Get("date"), "Venue": l.Get("venue"),
 		"IsEmpty": n == 0, "Repertoire": repertoire, "IsBand": meta.OwnerBandID != nil,
 		"Sets": sets, "BrandKind": brandKind, "BrandID": brandID,
@@ -533,6 +544,32 @@ func (s *Server) handleRemoveSetlistGig(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
 }
 
+// setlistPath is where a set list's page lives: inside its band
+// (/bands/{band}/setlists/{id}) when a band owns it, so the band's look,
+// back links and tabs stay around it; at /setlists/{id} otherwise.
+func setlistPath(meta *store.SetlistMeta) string {
+	if meta.OwnerBandID != nil {
+		return fmt.Sprintf("/bands/%d/setlists/%d", *meta.OwnerBandID, meta.ID)
+	}
+	return fmt.Sprintf("/setlists/%d", meta.ID)
+}
+
+// atSetlistPath sends a request for a set list's page (suffix "" or
+// "/clicktrack") to its setlistPath when it came in by another one —
+// /setlists/{id} for a band's set list, or another band's URL — and
+// reports whether the request is already there.
+func (s *Server) atSetlistPath(w http.ResponseWriter, r *http.Request, meta *store.SetlistMeta, suffix string) bool {
+	want := setlistPath(meta) + suffix
+	if r.URL.Path == want {
+		return true
+	}
+	if r.URL.RawQuery != "" {
+		want += "?" + r.URL.RawQuery
+	}
+	http.Redirect(w, r, want, http.StatusMovedPermanently)
+	return false
+}
+
 // handleSetlistOldStep is GET /setlists/{id}/practice and /listening:
 // the practice and listening step-throughs are gone (a song opened from
 // the running order already steps through the set with Previous/Next),
@@ -590,6 +627,9 @@ func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request)
 		http.NotFound(w, r)
 		return
 	}
+	if !s.atSetlistPath(w, r, meta, "/clicktrack") {
+		return
+	}
 
 	var songs []clicktrackSong
 	n := 0
@@ -625,7 +665,7 @@ func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request)
 	songsJSON, _ := json.Marshal(songs)
 
 	s.render(w, "setlist-clicktrack", map[string]any{
-		"Me": person, "SetlistID": id, "Title": orDefault(meta.Title, "set list"),
+		"Me": person, "SetlistID": id, "Title": orDefault(meta.Title, "set list"), "Path": setlistPath(meta),
 		"SongsJSON": template.JS(songsJSON),
 	})
 }

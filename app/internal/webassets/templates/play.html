@@ -449,7 +449,7 @@
     {{if .GigMode}}
     <a href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} <span>set list</span></a>
     {{else if .SetlistRef}}
-    <a href="/setlists/{{.SetlistRef}}">{{template "icon-back"}} <span>set list</span></a>
+    <a href="{{.SetlistURL}}">{{template "icon-back"}} <span>set list</span></a>
     {{else if .BandRef}}
     <a href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} <span title="{{.BandName}}">{{.BandName}}</span></a>
     {{else if .CommunityRef}}
@@ -553,7 +553,7 @@
   {{if .GigMode}}
   <a class="back-link" href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} set list</a>
   {{else if .SetlistRef}}
-  <a class="back-link" href="/setlists/{{.SetlistRef}}">{{template "icon-back"}} set list</a>
+  <a class="back-link" href="{{.SetlistURL}}">{{template "icon-back"}} set list</a>
   {{else if .BandRef}}
   <a class="back-link" href="/bands/{{.BandRef}}/catalog" title="{{.BandName}}">{{template "icon-back"}} {{.BandName}}</a>
   {{else if .CommunityRef}}
@@ -1202,6 +1202,8 @@
          very top of the screen. */}}
     {{if .GigMode}}
     <a href="/setlists/{{.SetlistRef}}/gig" title="back to set list">{{template "icon-up"}} Up</a>
+    {{else if .SetlistRef}}
+    <a href="{{.SetlistURL}}" title="back to set list">{{template "icon-up"}} Up</a>
     {{else}}
     {{if .SongbookRef}}<a href="/songbooks/{{.SongbookRef}}" title="back to songbook">{{template "icon-up"}} Up</a>{{else if .BandRef}}<a href="/bands/{{.BandRef}}/catalog" title="back to {{.BandName}}">{{template "icon-up"}} Up</a>{{else}}<a href="/catalog" title="back to catalog">{{template "icon-up"}} Up</a>{{end}}
     {{end}}

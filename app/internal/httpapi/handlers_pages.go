@@ -2883,6 +2883,12 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	}
 	if setlistRef := r.URL.Query().Get("setlist"); setlistRef != "" {
 		data["SetlistRef"] = setlistRef
+		data["SetlistURL"] = "/setlists/" + setlistRef
+		if id, err := strconv.ParseInt(setlistRef, 10, 64); err == nil {
+			if _, meta, _, err := s.store.LoadSetlistByID(r.Context(), id); err == nil {
+				data["SetlistURL"] = setlistPath(meta)
+			}
+		}
 		data["Prev"], data["Next"] = s.setlistNeighbors(r.Context(), setlistRef, variantID)
 		// Arrived from the gig view (not the editable setlist page): keep the
 		// back link and prev/next pointed at that read-only list instead of
