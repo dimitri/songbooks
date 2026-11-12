@@ -74,7 +74,10 @@ func ToAlphaTex(riff *Riff, clef string, chordLabels []string) string {
 		if bi < len(chordLabels) {
 			label = chordLabels[bi]
 		}
-		for i, beat := range bar.Beats {
+		if bar.Simile {
+			b.WriteString(`\simile simple `)
+		}
+		for i, beat := range simileBeats(bar) {
 			if i > 0 {
 				b.WriteByte(' ')
 			}
@@ -84,6 +87,17 @@ func ToAlphaTex(riff *Riff, clef string, chordLabels []string) string {
 	}
 	b.WriteString(" |")
 	return b.String()
+}
+
+// simileBeats is what a bar draws: its own beats, or for a Simile bar
+// rests of the same length, under its "\simile simple" mark — alphaTab
+// draws the "%" cleanly over a silent bar only; over notes it draws both
+// on top of each other.
+func simileBeats(bar Bar) []Beat {
+	if !bar.Simile {
+		return bar.Beats
+	}
+	return RestBeats(BarBeats(bar))
 }
 
 // ToAlphaTexBass is ToAlphaTex with the one per-riff hint this app's own
@@ -107,6 +121,7 @@ type MixerTrack struct {
 	Name    string
 	Drums   bool
 	Program int // General MIDI program (0-based); -1 for percussion
+	Strings int // the tuning's string count; 0 for drums
 }
 
 // gmProgramFor guesses a General MIDI program from a track's own name —
@@ -195,7 +210,7 @@ func ToAlphaTexMulti(tracks []NamedRiff, tempo, timeNum, timeDen int, swing stri
 		}
 		prog := gmProgramFor(name, len(t.Riff.Tuning))
 		writeMelodicTrackBlock(&b, name, prog, t.Riff, ts)
-		meta = append(meta, MixerTrack{Name: name, Program: prog})
+		meta = append(meta, MixerTrack{Name: name, Program: prog, Strings: len(t.Riff.Tuning)})
 	}
 	return b.String(), meta
 }
@@ -351,6 +366,9 @@ func writeBeat(b *strings.Builder, beat Beat, chordLabel string) {
 			b.WriteString(dur)
 		}
 	default:
+		// A chord carries the beat's techniques on every one of its notes
+		// (a hammered or palm-muted double stop), as the single-note case
+		// does; the tab editor (tab-editor.js) draws them the same way.
 		b.WriteByte('(')
 		for i, n := range beat.Notes {
 			if i > 0 {
@@ -359,8 +377,23 @@ func writeBeat(b *strings.Builder, beat Beat, chordLabel string) {
 			b.WriteString(strconv.Itoa(n.Fret))
 			b.WriteByte('.')
 			b.WriteString(strconv.Itoa(n.String))
+			var props []string
+			if beat.HammerPull {
+				props = append(props, "h")
+			}
+			if beat.BendSemitones > 0 {
+				props = append(props, fmt.Sprintf("b (0 %d)", int(beat.BendSemitones*2)))
+			}
+			if beat.PalmMute {
+				props = append(props, "pm")
+			}
 			if n.Tied {
-				b.WriteString("{t}")
+				props = append(props, "t")
+			}
+			if len(props) > 0 {
+				b.WriteByte('{')
+				b.WriteString(strings.Join(props, " "))
+				b.WriteByte('}')
 			}
 		}
 		b.WriteString(").")
@@ -558,6 +591,9 @@ func ToAlphaTexDrums(riff *Riff, chordLabels []string, boundaries []bool, tempo 
 		if bi < len(chordLabels) {
 			label = chordLabels[bi]
 		}
+		// A pattern's repeats are written out in full here: this staff
+		// consolidates rest bars (multiBarRest), and alphaTab merges a
+		// silent "%" bar into those runs.
 		for i, beat := range bar.Beats {
 			if i > 0 {
 				b.WriteByte(' ')

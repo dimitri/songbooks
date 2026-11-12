@@ -180,6 +180,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/songs/{id}/audio/gp/sync-points", s.requireVariantRole("editor", s.handlePutGPBarSyncPoints))
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file", s.requireVariantRole("editor", s.handlePutSongGPFile))
 	mux.HandleFunc("GET /song/{id}/gp-file", s.requireVariantRole("viewer", s.handleGetSongGPFile))
+	mux.HandleFunc("GET /song/{id}/gp-file/versions/{vid}", s.requireVariantRole("viewer", s.handleGetSongGPFileVersion))
 
 	// A section's "score[label]:" voices (internal/tab's LilyPond-
 	// compatible subset, or a GP-imported riff's own JSON encoding — see
@@ -197,6 +198,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// server-side instead, where it already has song.Parse/song.Write.
 	mux.HandleFunc("PUT /api/songs/{id}/sections/{index}/score/{label}", s.requireVariantRole("editor", s.handlePutSectionScore))
 	mux.HandleFunc("POST /api/chord-diagrams/preview", s.requireAuth(s.handleChordDiagramPreview))
+	mux.HandleFunc("POST /api/score/riff", s.requireAuth(s.handleScoreRiff))
 
 	mux.HandleFunc("GET /metronome", s.requireAuth(s.handleMetronomePage))
 
@@ -427,6 +429,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /setlists/{id}/clicktrack", s.requireAuth(s.handleSetlistClicktrack))
 	mux.HandleFunc("GET /api/me/click-track-prefs", s.requireAuth(s.handleGetClickTrackPrefs))
 	mux.HandleFunc("PUT /api/me/click-track-prefs", s.requireAuth(s.handleSetClickTrackPrefs))
+	mux.HandleFunc("GET /api/me/notation-prefs", s.requireAuth(s.handleGetNotationPrefs))
+	mux.HandleFunc("PUT /api/me/notation-prefs", s.requireAuth(s.handleSetNotationPrefs))
 
 	mux.HandleFunc("GET /song/{id}/export.pdf", s.requireVariantRole("viewer", s.handleExportSongPDF))
 	mux.HandleFunc("GET /setlists/{id}/export.pdf", s.requireAuth(s.handleExportSetlistByIDPDF))

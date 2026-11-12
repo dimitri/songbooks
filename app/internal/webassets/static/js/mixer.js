@@ -297,7 +297,9 @@
     prefsTimer = setTimeout(() => {
       // Not the loop: a fresh visit plays the song straight.
       const out = { zoom: Math.round(pxPerSec * 10) / 10, speed, tracks: {} };
-      for (const tr of tracks) out.tracks[tr.name] = { volume: tr.volume, mute: tr.muted, solo: tr.solo };
+      for (const tr of tracks) {
+        out.tracks[tr.name] = { volume: tr.volume, mute: tr.muted, solo: tr.solo };
+      }
       prefs = out;
       fetch(`/api/songs/${variantId}/mixer/prefs`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) }).catch(() => {});
     }, 600);
@@ -332,11 +334,23 @@
 
     (data.tracks || []).forEach((t, i) => {
       const kind = t.drums ? 'drums' : 'melodic';
-      const tr = { kind: 'midi', index: i, name: t.name, drums: t.drums, color: COLOR[kind], body: BODY[kind], icon: t.drums ? ICON_DRUM : ICON_NOTE, muted: false, solo: false, volume: 1 };
-      const row = addRow('midi' + i, 96, trackHeader(tr, `${GM[t.program] || 'MIDI'} · score (MIDI)`));
+      const tr = { kind: 'midi', index: i, name: t.name, drums: t.drums, color: COLOR[kind], body: BODY[kind], icon: t.drums ? ICON_DRUM : ICON_NOTE, muted: false, solo: false, volume: 1, strings: t.strings || 6 };
+      // A guitar or bass lane is drawn the way this person reads that
+      // instrument (notation-prefs.js); the lane's picker changes it for
+      // every song, and for every lane of the same instrument here.
+      tr.instrument = tr.strings <= 4 ? 'bass' : 'guitar';
+      tr.notation = notationOf(tr.instrument);
+      const pick = t.drums ? '' : `<div class="daw-hdr-row"><select class="daw-notation" aria-label="notation" title="how you read ${tr.instrument} parts, on every song (just for you)">
+          <option value="tab">Tab</option><option value="staff">Staff</option><option value="both">Staff + tab</option></select></div>`;
+      const row = addRow('midi' + i, t.drums ? 96 : 112, trackHeader(tr, `${GM[t.program] || 'MIDI'} · score (MIDI)`, pick));
       tr.hdr = row.hdr; tr.lane = row.lane;
       tracks.push(tr);
       wireTrackHeader(tr);
+      const sel = tr.hdr.querySelector('.daw-notation');
+      if (sel) {
+        sel.value = tr.notation;
+        sel.onchange = () => { window.songbooksNotation?.set(tr.instrument, sel.value); };
+      }
     });
 
     // Click: the metronome on the bar grid, a track like any other —
@@ -692,7 +706,7 @@
     s.display.staveProfile = alphaTab.StaveProfile.Default;
     s.notation.rhythmMode = alphaTab.TabRhythmMode.ShowWithBars;
     const E = alphaTab.NotationElement;
-    for (const el of [E.TrackNames, E.GuitarTuning, E.EffectTempo, E.BarNumber, E.EffectChordNames, E.ScoreTitle, E.ScoreSubTitle, E.ScoreArtist, E.ScoreAlbum, E.ScoreWords, E.ScoreMusic, E.ScoreWordsAndMusic, E.ScoreCopyright]) {
+    for (const el of [E.TrackNames, E.GuitarTuning, E.EffectTempo, E.EffectDynamics, E.BarNumber, E.EffectChordNames, E.ScoreTitle, E.ScoreSubTitle, E.ScoreArtist, E.ScoreAlbum, E.ScoreWords, E.ScoreMusic, E.ScoreWordsAndMusic, E.ScoreCopyright]) {
       if (el !== undefined) s.notation.elements.set(el, false);
     }
     s.player.enablePlayer = isPlayer;
@@ -729,6 +743,40 @@
     }
   }
 
+  // setStaffNotation shows a lane's track as tab, staff or both. The staff
+  // is written an octave above where it sounds (the usual guitar and bass
+  // convention), in F clef for a bass.
+  function setStaffNotation(score, tr) {
+    const t = score.tracks[tr.index];
+    if (!t || tr.drums) return;
+    for (const st of t.staves) {
+      st.showTablature = tr.notation !== 'staff';
+      st.showStandardNotation = tr.notation !== 'tab';
+      st.displayTranspositionPitch = tr.notation === 'tab' ? 0 : -12;
+      if (tr.strings <= 4) for (const bar of st.bars) bar.clef = alphaTab.model.Clef.F4;
+    }
+  }
+
+  function notationOf(instrument) {
+    return window.songbooksNotation ? window.songbooksNotation.get(instrument) : instrument === 'bass' ? 'both' : 'tab';
+  }
+  document.addEventListener('songbooks:notation', (e) => {
+    for (const tr of tracks) {
+      if (tr.kind !== 'midi' || tr.drums || tr.instrument !== e.detail.kind) continue;
+      tr.notation = e.detail.value;
+      const sel = tr.hdr && tr.hdr.querySelector('.daw-notation');
+      if (sel) sel.value = tr.notation;
+      applyNotation(tr);
+    }
+  });
+
+  function applyNotation(tr) {
+    if (!tr.api || !tr.api.score) return;
+    setStaffNotation(tr.api.score, tr);
+    tr.notationH = 0; // the lane may get shorter now
+    tr.api.render();
+  }
+
   function hasNotes(score, trackIdx, from, to) {
     const st = score.tracks[trackIdx].staves[0];
     for (let b = from; b < to && b < st.bars.length; b++) {
@@ -758,6 +806,7 @@
       imp.initFromString(data.alphaTex, settings);
       const score = imp.readScore();
       score.tracks.forEach((st, i) => { const p = data.tracks[i] && data.tracks[i].program; if (p >= 0) st.playbackInfo.program = p; });
+      setStaffNotation(score, tr);
       applyBarWidths(score, target);
       tr.renderedPx = target;
       const wrap = document.createElement('div');
@@ -796,11 +845,12 @@
     tr.bar0x = sys.bars[0].realBounds.x;
     tr.sysRight = sys.realBounds.x + sys.realBounds.w;
     // Heights only ever grow, so rows never jump between zoom levels.
-    tr.notationH = Math.max(tr.notationH || 0, Math.ceil(sys.realBounds.h) + 6);
+    // A staff's clef reaches above its system bounds: keep a few pixels.
+    tr.notationH = Math.max(tr.notationH || 0, Math.ceil(sys.realBounds.h) + 14);
     tr.wrap.style.top = '24px';
     tr.wrap.style.height = tr.notationH + 'px';
-    tr.mount.style.marginTop = (3 - sys.realBounds.y) + 'px';
-    setRowHeight('midi' + tr.index, tr.notationH + 32);
+    tr.mount.style.marginTop = (10 - sys.realBounds.y) + 'px';
+    setRowHeight('midi' + tr.index, Math.max(tr.notationH + 32, tr.drums ? 0 : 112)); // room for the notation picker
     placeNotation(tr);
     positionNotationClips();
     renderGrid();

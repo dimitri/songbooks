@@ -1425,6 +1425,7 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
 .daw-hdr-name { flex: 1; min-width: 0; font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .daw-hdr-sub { font-size: 10.5px; color: var(--daw-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .daw-hdr select { font-size: 11px; max-width: 100%; }
+.daw-hdr .daw-notation { position: static; margin: 0; min-height: 0; height: 20px; padding: 0 4px; border-radius: 4px; }
 .daw-ms {
   width: 20px; height: 20px; padding: 0; border-radius: 4px; border: 1px solid #C2C4CF; background: #fff;
   color: #3A3D4A; font-size: 10.5px; font-weight: 700; line-height: 18px; cursor: pointer; flex: none;
@@ -3831,6 +3832,57 @@ textarea {
 .score-track-preview + .score-track-preview { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed var(--border); }
 .score-track-label { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 0.3rem; }
 
+/* Tab editor (tab-editor.js): Guitar Pro–style cursor on an alphaTab
+   rendering. The cursor and bar highlight are absolutely placed from
+   alphaTab's own bounds lookup, in the canvas's coordinates. */
+.tab-editor { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1.5rem; }
+.te-head { position: sticky; top: 0; z-index: 2; background: var(--bg); display: flex; flex-direction: column; gap: 0.5rem; padding: 0.4rem 0; }
+.te-pickers { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+.te-pickers label { display: flex; gap: 0.4rem; align-items: center; font-size: 0.85rem; color: var(--fg-muted); }
+.te-pickers select, .te-pickers button { min-height: 0; padding: 0.3rem 0.5rem; font-size: 0.85rem; }
+.te-quiet { background: none; border: 1px solid var(--border); border-radius: 3px; color: var(--fg-muted); cursor: pointer; }
+.te-gp-link { font-size: 0.85rem; margin-left: auto; }
+.te-notice { background: var(--warn-bg); color: var(--fg); padding: 0.4rem 0.6rem; border-radius: 3px; }
+.te-toolbar { display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; }
+.te-toolbar button {
+  min-height: 0; padding: 0.25rem 0.5rem; font-size: 0.8rem; line-height: 1.2;
+  border: 1px solid var(--border); border-radius: 3px; background: var(--bg-raised); color: var(--fg); cursor: pointer;
+}
+.te-toolbar button.active { background: var(--accent); color: var(--accent-contrast, var(--bg)); border-color: var(--accent); }
+.te-toolbar button:disabled { opacity: 0.45; cursor: default; }
+.te-toolbar button.te-selected:not(.active) { border-color: var(--accent); }
+.te-pattern { font-size: 0.85rem; color: var(--fg-muted); display: flex; gap: 0.3rem; align-items: center; }
+.te-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 0.3rem; }
+.te-canvas-wrap {
+  position: relative; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-raised);
+  padding: 0.25rem; min-height: 8rem; cursor: text; outline: none;
+}
+.te-canvas-wrap.focused { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-bg); }
+.te-canvas-wrap > #te-canvas { position: relative; }
+.te-bar-hl { position: absolute; pointer-events: none; background: var(--accent-bg); opacity: 0.45; border-radius: 2px; margin: 0.25rem; }
+.te-bar-hl.over { background: var(--danger-bg); opacity: 0.7; }
+.te-cursor { position: absolute; pointer-events: none; border: 2px solid var(--accent); border-radius: 2px; margin: 0.25rem; }
+.te-canvas-wrap:not(.focused) .te-cursor { opacity: 0.5; }
+.te-statusline { font-size: 0.8rem; color: var(--fg-muted); font-variant-numeric: tabular-nums; min-height: 1.2em; }
+.te-status.warn { color: var(--warn); }
+.te-status.err { color: var(--danger); }
+.te-note { color: var(--ok); }
+.te-pad { position: sticky; bottom: 0; z-index: 2; display: grid; grid-template-columns: repeat(auto-fill, minmax(3rem, 1fr)); gap: 0.35rem; padding: 0.5rem; background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 4px; }
+.te-pad button { min-height: 2.75rem; font-size: 1.1rem; font-variant-numeric: tabular-nums; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-raised); color: var(--fg); touch-action: manipulation; }
+.te-pad button.te-pad-move { background: var(--bg); }
+#te-pad-toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+/* A phone has no room for a pinned header and a pinned keypad: the
+   header scrolls away, the keypad stays, in one or two compact rows. */
+@media (max-width: 700px) {
+  .te-head { position: static; }
+  .te-pad { grid-template-columns: repeat(auto-fill, minmax(2.6rem, 1fr)); gap: 0.25rem; padding: 0.35rem; }
+  .te-pad button { min-height: 2.5rem; }
+}
+.te-keys summary { cursor: pointer; font-size: 0.85rem; color: var(--fg-muted); }
+.te-keys dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 1rem; font-size: 0.8rem; margin: 0.5rem 0 0; }
+.te-keys dt { font-family: var(--font-mono); color: var(--fg); }
+.te-keys dd { margin: 0; color: var(--fg-muted); }
+
 .chord-diagram-editor { display: flex; flex-direction: column; gap: 0.75rem; max-width: 32rem; }
 .cde-controls { display: flex; gap: 1rem; flex-wrap: wrap; }
 .cde-controls label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; color: var(--fg-muted); }
@@ -4263,6 +4315,8 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 }
 .insert-menu-item:hover, .insert-menu-item.active { background: var(--bg-sunken); }
 .insert-menu-item .icon { width: 1em; height: 1em; color: var(--fg-muted); flex: none; }
+.insert-menu-grid, .toolbar-menu-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 0.1rem; }
+.insert-menu-custom { display: block; width: calc(100% - 0.6rem); margin: 0.25rem 0.3rem; font-size: 0.85rem; padding: 0.3rem 0.45rem; border: 1px solid var(--border); border-radius: 5px; }
 .insert-menu-sep { height: 1px; background: var(--border); margin: 0.3rem 0.2rem; }
 
 /* ---- Bar-matrix beat labels -----------------------------------------------
@@ -4939,3 +4993,18 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .audio-kind-list { display: flex; flex-direction: column; gap: 0.4rem; }
 .audio-kind-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: 0.88rem; }
 .audio-kind-row > span:first-child { min-width: 11rem; font-weight: 600; }
+
+/* Song history: what each edit changed (internal/songdiff). */
+.history-changes ul { margin: 0; padding-left: 1.1rem; }
+.history-changes li { margin: 0.1rem 0; }
+.history-diff summary { cursor: pointer; font-size: 0.85rem; color: var(--fg-muted); margin-top: 0.3rem; }
+.history-diff pre { margin: 0.4rem 0 0; padding: 0.5rem; max-height: 24rem; overflow: auto; font-size: 0.8rem; line-height: 1.4; background: var(--bg-sunken); border-radius: 4px; white-space: pre-wrap; word-break: break-word; }
+.history-diff .diff-add { display: block; background: var(--ok-bg); }
+.history-diff .diff-del { display: block; background: var(--danger-bg); }
+.history-diff .diff-skip { display: block; color: var(--fg-muted); }
+.history-diff .diff-ctx { display: block; color: var(--fg-muted); }
+
+/* The chart's "how I read guitar / bass" pickers (notation-prefs.js). */
+.notation-pickers { display: flex; justify-content: center; gap: 1rem; margin: 0.4rem 0 0; font-size: 0.85rem; color: var(--fg-muted); }
+.notation-pickers label { display: flex; align-items: center; gap: 0.35rem; }
+.notation-pickers select { min-height: 0; padding: 0.2rem 0.4rem; font-size: 0.85rem; }

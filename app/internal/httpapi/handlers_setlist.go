@@ -619,6 +619,7 @@ func (s *Server) handleSetlistStep(w http.ResponseWriter, r *http.Request, mode 
 		"PracticeStepMode":  mode, // "practice" or "listening"
 		"PracticeSetlistID": id,
 		"PracticeTitle":     orDefault(meta.Title, "set list"),
+		"NotationPrefs":     s.notationPrefsFor(r),
 	}
 	if i > 0 {
 		if n := s.loadSongNeighbor(steps[i-1].VariantID); n != nil {

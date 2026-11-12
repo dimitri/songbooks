@@ -64,7 +64,7 @@ func ParseScore(src string) (*Riff, error) {
 // its own exact Tuning/fret choices.
 func ParseVoice(label, raw string) (*Riff, error) {
 	trimmed := strings.TrimSpace(raw)
-	if strings.HasPrefix(trimmed, `\new`) || strings.HasPrefix(trimmed, "{") {
+	if strings.HasPrefix(trimmed, `\new`) || isRiffJSON(trimmed) {
 		return DecodeScoreSource(raw)
 	}
 	toks, err := lex(raw)

@@ -1485,7 +1485,13 @@ const ICONS = {
     setDrawerOpen(false);
   });
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && !drawer.hidden) setDrawerOpen(false);
+    // Escape closes whatever is open on top first (a popup menu, the
+    // section menu, a focused field): each of those handlers calls
+    // preventDefault, and only a bare Escape closes the drawer.
+    if (e.key !== 'Escape' || drawer.hidden || e.defaultPrevented) return;
+    const t = document.activeElement;
+    if (t && t !== document.body && drawer.contains(t) && (t.matches('input, textarea, select') || t.isContentEditable)) { t.blur(); return; }
+    setDrawerOpen(false);
   });
   // ?edit=1 on load (a direct link, a reload mid-edit, or landing here
   // straight from the implicit-fork redirect above) opens the editor AND
@@ -1511,14 +1517,14 @@ const ICONS = {
       // own show/hide here: cleared on Source, rebuilt on switching back
       // (structSections itself is untouched by the tab switch, only the
       // sidebar DOM was emptied).
-      if (btn.dataset.tab === 'structure') { if (focusModeActive) renderFocusEditor(); }
+      if (btn.dataset.tab === 'structure') renderStructureUI();
       else { document.getElementById('toolbox-sections').innerHTML = ''; document.getElementById('toolbox-toolbar').innerHTML = ''; }
       // Two-pane preview starts empty (it's only worth the round trip
       // once the panel is actually visible) — fill it in the moment
       // Source is first opened, same lazy trigger the Scores tab below
       // uses for its own per-section fetches.
       if (btn.dataset.tab === 'raw' && sourcePreview && !sourcePreview.innerHTML) renderPreview();
-      if (btn.dataset.tab === 'scores') window.ScoreEditor?.init();
+      if (btn.dataset.tab === 'scores') { window.ScoreEditor?.init(); window.TabEditor?.init(); }
     });
   });
 
@@ -1645,6 +1651,7 @@ const ICONS = {
       e.preventDefault();
       document.getElementById('section-menu-custom-add').click();
     } else if (e.key === 'Escape') {
+      e.preventDefault();
       sectionMenu.open = false;
     }
   });
@@ -2040,6 +2047,10 @@ const ICONS = {
   // ---- Structure editor -------------------------------------------------------
   const structureEl = document.getElementById('structure');
   let structVersion = null, structMeta = [], structSections = [];
+  // chord: diagram lines — not edited here, only carried through so a
+  // Chart save (the server re-serializes the whole song from this JSON)
+  // doesn't drop them.
+  let structChords = [];
 
   // ---- Undo/redo — a bounded-depth snapshot stack over structMeta/
   // structSections, the same in-memory state Save/Discard already work
@@ -2060,13 +2071,30 @@ const ICONS = {
     redoStack.length = 0;
     updateUndoRedoButtons();
   }
+  // edited: the one call every Chart mutation makes before changing
+  // anything — an undo step to come back to, and the unsaved marker.
+  function edited() { pushUndo(); markDirty(); }
+  // A text field records one undo step per focus, at its first keystroke,
+  // rather than one per character.
+  function trackTextEdits(el) {
+    let armed = true;
+    el.addEventListener('focus', () => { armed = true; });
+    el.addEventListener('input', () => { if (armed) { pushUndo(); armed = false; } markDirty(); });
+  }
+  function confirmDeleteSection(sec) {
+    const filled = (sec.measures || []).some(m => (m.tokens || []).some(t => t && t !== '.')) || (sec.lyrics || []).length || (sec.scores || []).length;
+    return !filled || confirm(`Delete the section “${sec.label || 'Untitled'}”? (Undo brings it back.)`);
+  }
   function restoreSnapshot(snap) {
     structMeta = snap.meta;
     structSections = snap.sections;
     markDirty();
     renderHeaderFields();
-    renderStructureUI();
+    // The Chart re-renders when it is showing; the Scores tab's undo must
+    // not fill the Chart's sidebar toolbox (switching back renders it).
+    if (!structureEl.hidden) renderStructureUI();
     updateUndoRedoButtons();
+    window.TabEditor?.refresh();
   }
   function undoEdit() {
     if (!undoStack.length) return;
@@ -2083,6 +2111,18 @@ const ICONS = {
     if (u) u.disabled = !undoStack.length;
     if (r) r.disabled = !redoStack.length;
   }
+  // The Scores tab's tab editor (tab-editor.js) edits the same in-memory
+  // song: each score voice's body lives in structSections[i].scores, so it
+  // saves, discards and undoes with everything else here.
+  window.SongEditorBridge = {
+    sections: () => structSections,
+    meta: () => structMeta,
+    measures: (sec) => joinVoltaGroups(sec),
+    begin: () => { pushUndo(); markDirty(); },
+    dirty: markDirty,
+    undo: undoEdit,
+    redo: redoEdit,
+  };
   document.getElementById('edit-undo-btn')?.addEventListener('click', undoEdit);
   document.getElementById('edit-redo-btn')?.addEventListener('click', redoEdit);
   document.addEventListener('keydown', e => {
@@ -2434,7 +2474,7 @@ const ICONS = {
   // always means "the bar I'm leaving balances", mirroring how Guitar Pro
   // never lets you walk away from an underfull measure.
   function applyDuration(sec, mi, ti, n) {
-    markDirty();
+    edited();
     const m = sec.measures[mi];
     const end = n === 'bar' ? m.tokens.length : Math.min(m.tokens.length, ti + n);
     for (let k = ti + 1; k < end; k++) m.tokens[k] = '.';
@@ -2455,10 +2495,19 @@ const ICONS = {
   function setBarSplit(sec, mi, n) {
     const m = sec.measures[mi];
     if (!m) return;
-    markDirty();
-    const old = m.tokens.filter(t => t !== '' && t !== '.');
+    edited();
+    // Each chord keeps its place in the bar: slot k of L lands on slot
+    // k*n/L of n (the next free one when two meet), so C . G . split in
+    // two is C G, and C G split in four is C . G . — not C G . .
+    const old = m.tokens, L = old.length || 1;
     const next = new Array(n).fill('.');
-    for (let k = 0; k < n; k++) next[k] = old[k] || (k === 0 ? '' : '.');
+    next[0] = '';
+    old.forEach((t, k) => {
+      if (!t || t === '.') return;
+      let j = Math.floor(k * n / L + 1e-9);
+      while (j < n && next[j] !== '.' && next[j] !== '') j++;
+      if (j < n) next[j] = t;
+    });
     m.tokens = next;
     renderMatrix(sec, secIndexOf(sec));
     focusSlot(sec, mi, 0);
@@ -2809,7 +2858,7 @@ const ICONS = {
     sustainBtn.addEventListener('click', () => { if (sec._sel) { setSlotToken(sec, i, '.'); moveSelection(sec, i, 1); } });
     const repeatBarBtn = document.createElement('button'); repeatBarBtn.type = 'button'; repeatBarBtn.className = 'toolbar-btn'; repeatBarBtn.textContent = '%';
     repeatBarBtn.title = 'repeat the previous bar';
-    repeatBarBtn.addEventListener('click', () => { if (!sec._sel) return; sec.measures[sec._sel.mi].tokens = ['%']; renderMatrix(sec, i); focusSlot(sec, Math.min(sec._sel.mi + 1, sec.measures.length - 1), 0); });
+    repeatBarBtn.addEventListener('click', () => { if (!sec._sel) return; edited(); sec.measures[sec._sel.mi].tokens = ['%']; renderMatrix(sec, i); focusSlot(sec, Math.min(sec._sel.mi + 1, sec.measures.length - 1), 0); });
     const clearBtn = document.createElement('button'); clearBtn.type = 'button'; clearBtn.className = 'toolbar-btn toolbar-clear'; clearBtn.textContent = 'clear';
     clearBtn.title = 'clear the selected slot';
     clearBtn.addEventListener('click', () => { if (sec._sel) setSlotToken(sec, i, ''); });
@@ -2928,7 +2977,8 @@ const ICONS = {
       input.type = 'text'; input.className = 'matrix-slot'; input.value = tok;
       input.dataset.mi = String(mi); input.dataset.ti = String(ti);
       input.placeholder = ti === 0 ? '%' : '.';
-      input.addEventListener('input', () => { markDirty(); m.tokens[ti] = input.value; updateLabel(input.value); updateFullness(); refreshToolbarHighlight(sec, secIndexOf(sec)); });
+      trackTextEdits(input);
+      input.addEventListener('input', () => { m.tokens[ti] = input.value; updateLabel(input.value); updateFullness(); refreshToolbarHighlight(sec, secIndexOf(sec)); });
       // Tapping/focusing a slot selects it — the toolbar above reflects
       // and acts on whichever slot was last focused, whether that focus
       // came from a click, a Tab, or an arrow-key move (see below): one
@@ -2986,7 +3036,7 @@ const ICONS = {
     row2.className = 'matrix-cell-bottom';
     const delBar = document.createElement('button');
     delBar.type = 'button'; delBar.innerHTML = ICONS.close; delBar.title = 'remove this bar';
-    delBar.addEventListener('click', () => { markDirty(); sec.measures.splice(mi, 1); renderMatrix(sec, secIndexOf(sec)); });
+    delBar.addEventListener('click', () => { edited(); sec.measures.splice(mi, 1); renderMatrix(sec, secIndexOf(sec)); });
     row2.appendChild(delBar);
     cell.appendChild(row2);
 
@@ -3041,7 +3091,7 @@ const ICONS = {
     // (the earlier .bar-matrix.focus-mode grid hack this replaces). Mobile
     // keeps it inline, first child of host, exactly as before.
     const toolbarEl = buildChordToolbar(sec, i);
-    const toolboxToolbar = focusModeActive ? document.getElementById('toolbox-toolbar') : null;
+    const toolboxToolbar = focusModeActive && !structureEl.hidden ? document.getElementById('toolbox-toolbar') : null;
     if (toolboxToolbar) { toolboxToolbar.innerHTML = ''; toolboxToolbar.appendChild(toolbarEl); }
     else host.appendChild(toolbarEl);
 
@@ -3068,7 +3118,7 @@ const ICONS = {
     perLineInput.type = 'text'; perLineInput.inputMode = 'numeric'; perLineInput.style.width = '3rem';
     perLineInput.value = (sec.barsPerLine && sec.barsPerLine[0]) || 4;
     perLineInput.addEventListener('change', () => {
-      markDirty();
+      edited();
       const n = parseInt(perLineInput.value, 10);
       sec.barsPerLine = n > 0 ? [n] : undefined;
       renderMatrix(sec, i);
@@ -3147,7 +3197,7 @@ const ICONS = {
       repeatToggle.title = 'this section has no common bars before its endings — edit the repeat bracket in Source';
     }
     repeatCheckbox.addEventListener('change', () => {
-      markDirty();
+      edited();
       if (sec.measures.length === 0) { repeatCheckbox.checked = false; return; }
       sec.measures.forEach(m => { m.open = false; m.close = false; });
       if (repeatCheckbox.checked) {
@@ -3257,7 +3307,7 @@ const ICONS = {
     try {
       const res = await fetch('/api/preview', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ song: { meta: structMeta, sections: sectionsForPreview } }),
+        body: JSON.stringify({ song: { meta: structMeta, chords: structChords, sections: sectionsForPreview } }),
       });
       html = await res.text();
     } catch (e) {
@@ -3341,6 +3391,7 @@ const ICONS = {
     addEnding.addEventListener('click', () => {
       const barCount = sec.endings.length ? sec.endings[0].measures.length : 1;
       const measures = []; for (let b = 0; b < barCount; b++) measures.push(emptyMeasure());
+      edited();
       sec.endings.push({ label: nextVoltaLabel(sec.endings), measures });
       renderMatrix(sec, i);
     });
@@ -3365,10 +3416,11 @@ const ICONS = {
       const labelInput = document.createElement('input');
       labelInput.type = 'text'; labelInput.className = 'alt-label-input'; labelInput.value = end.label;
       labelInput.title = 'which repeat pass(es) — e.g. "1." or "1,2,3." (LilyPond\'s own volta numberlist)';
+      trackTextEdits(labelInput);
       labelInput.addEventListener('input', () => { end.label = labelInput.value; });
       const removeEnding = document.createElement('button');
       removeEnding.type = 'button'; removeEnding.className = 'icon-btn'; removeEnding.innerHTML = ICONS.close; removeEnding.title = 'remove this ending';
-      removeEnding.addEventListener('click', () => { sec.endings.splice(ei, 1); renderMatrix(sec, i); });
+      removeEnding.addEventListener('click', () => { edited(); sec.endings.splice(ei, 1); renderMatrix(sec, i); });
       endHead.append(playsOn, labelInput, removeEnding);
       box.appendChild(endHead);
 
@@ -3384,11 +3436,12 @@ const ICONS = {
         // this keeps full round-trip fidelity without needing the full
         // density-select sub-editor the common-bar grid has.
         input.type = 'text'; input.value = (m.tokens || []).join(' '); input.placeholder = 'chord (space-separate for sub-beats, e.g. Eb . Bb .)';
-        input.addEventListener('input', () => { markDirty(); m.tokens = input.value.split(/\s+/).filter(Boolean); if (!m.tokens.length) m.tokens = ['']; });
+        trackTextEdits(input);
+        input.addEventListener('input', () => { m.tokens = input.value.split(/\s+/).filter(Boolean); if (!m.tokens.length) m.tokens = ['']; });
         cell.appendChild(input);
         if (end.measures.length > 1) {
           const rm = document.createElement('button'); rm.type = 'button'; rm.innerHTML = ICONS.close; rm.title = 'remove this bar';
-          rm.addEventListener('click', () => { end.measures.splice(bi, 1); renderMatrix(sec, i); });
+          rm.addEventListener('click', () => { edited(); end.measures.splice(bi, 1); renderMatrix(sec, i); });
           cell.appendChild(rm);
         }
         cells.appendChild(cell);
@@ -3447,7 +3500,7 @@ const ICONS = {
     document.removeEventListener('keydown', onMenuEscape, true);
   }
   function onOutsideMenuClick(e) { if (openMenuEl && !openMenuEl.contains(e.target)) closeAnyMenu(); }
-  function onMenuEscape(e) { if (e.key === 'Escape') closeAnyMenu(); }
+  function onMenuEscape(e) { if (e.key === 'Escape') { e.preventDefault(); closeAnyMenu(); } }
   function positionMenu(menu, anchorEl) {
     document.body.appendChild(menu);
     const r = anchorEl.getBoundingClientRect();
@@ -3462,7 +3515,28 @@ const ICONS = {
     }, 0);
   }
 
-  const SECTION_QUICK_LABELS = ['Verse', 'Chorus', 'Pre-Chorus', 'Bridge', 'Intro', 'Outro', 'Solo'];
+  // One preset list, in the order sections usually come in a song, for
+  // both the Chart's insert menu and Source's "+ Section" menu.
+  const SECTION_QUICK_LABELS = ['Intro', 'Verse', 'Pre-Chorus', 'Chorus', 'Post-Chorus', 'Bridge', 'Solo', 'Interlude', 'Break', 'Outro', 'Coda', 'Tag'];
+  (function fillSourceSectionMenu() {
+    const host = document.getElementById('section-menu-presets');
+    if (!host) return;
+    for (const label of SECTION_QUICK_LABELS) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.dataset.insertLabel = label; b.textContent = label;
+      host.appendChild(b);
+    }
+  })();
+
+  // A label the song already has is usually that section coming back:
+  // a bare repeat of it (the chart shows the earlier one's bars and
+  // lyrics again, numbered "Chorus 2"), not a new empty one.
+  function insertRepeatAt(i, label) {
+    edited();
+    structSections.splice(i, 0, emptySection(label, true));
+    focusIndex = i;
+    renderStructureUI();
+  }
 
   function insertSectionAt(i, label, openChords) {
     pushUndo(); markDirty();
@@ -3484,7 +3558,7 @@ const ICONS = {
     focusIndex = i;
     renderStructureUI();
     requestAnimationFrame(() => {
-      const row = document.querySelector(`.block-row[data-index="${i}"] .block-label`);
+      const row = document.querySelector(`.block-row[data-index="${i}"] .block-label`) || document.querySelector('.focus-section-head .block-label');
       if (row) { row.focus(); if (!openChords) row.select(); }
     });
   }
@@ -3499,16 +3573,39 @@ const ICONS = {
     menu.className = 'insert-menu';
     const groupLabel = document.createElement('div'); groupLabel.className = 'insert-menu-group-label'; groupLabel.textContent = 'Section';
     menu.appendChild(groupLabel);
+    const presets = document.createElement('div'); presets.className = 'insert-menu-grid';
     SECTION_QUICK_LABELS.forEach(label => {
       const item = document.createElement('button');
       item.type = 'button'; item.className = 'insert-menu-item'; item.textContent = label;
       item.addEventListener('click', () => { closeAnyMenu(); insertSectionAt(i, label, false); });
-      menu.appendChild(item);
+      presets.appendChild(item);
     });
-    const customItem = document.createElement('button');
-    customItem.type = 'button'; customItem.className = 'insert-menu-item'; customItem.textContent = 'Custom label…';
-    customItem.addEventListener('click', () => { closeAnyMenu(); insertSectionAt(i, 'New', false); });
-    menu.appendChild(customItem);
+    menu.appendChild(presets);
+    const custom = document.createElement('input');
+    custom.type = 'text'; custom.className = 'insert-menu-custom'; custom.placeholder = 'Other name… ⏎'; custom.maxLength = 40;
+    custom.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const label = custom.value.trim();
+      if (!label) return;
+      closeAnyMenu();
+      insertSectionAt(i, label, false);
+    });
+    menu.appendChild(custom);
+
+    const existing = [...new Set(structSections.filter(s => !s.repeat).map(s => s.label).filter(Boolean))];
+    if (existing.length) {
+      const rsep = document.createElement('div'); rsep.className = 'insert-menu-sep'; menu.appendChild(rsep);
+      const rlabel = document.createElement('div'); rlabel.className = 'insert-menu-group-label'; rlabel.textContent = 'Play again';
+      menu.appendChild(rlabel);
+      existing.forEach(label => {
+        const item = document.createElement('button');
+        item.type = 'button'; item.className = 'insert-menu-item'; item.textContent = '↻ ' + label;
+        item.title = `the ${label} again: same bars and lyrics, no new content to fill in`;
+        item.addEventListener('click', () => { closeAnyMenu(); insertRepeatAt(i, label); });
+        menu.appendChild(item);
+      });
+    }
 
     const sep = document.createElement('div'); sep.className = 'insert-menu-sep'; menu.appendChild(sep);
     const contentLabel = document.createElement('div'); contentLabel.className = 'insert-menu-group-label'; contentLabel.textContent = 'Content';
@@ -3560,6 +3657,7 @@ const ICONS = {
         e.preventDefault();
         row.classList.remove('drag-over');
         if (dragFrom === null || dragFrom === i) return;
+        edited();
         const [moved] = structSections.splice(dragFrom, 1);
         // Re-inserting at the target's own original index i is correct in
         // both directions without any further adjustment: dragging down
@@ -3587,21 +3685,22 @@ const ICONS = {
       const head = document.createElement('div');
       head.className = 'block-head';
       const label = document.createElement('input'); label.type = 'text'; label.className = 'block-label'; label.value = sec.label;
+      trackTextEdits(label);
       label.addEventListener('input', () => { sec.label = label.value; });
       const repeatToggle = document.createElement('button');
       repeatToggle.type = 'button'; repeatToggle.className = 'block-repeat-toggle';
       repeatToggle.textContent = sec.repeat ? 'repeat marker' : 'has content';
       repeatToggle.title = sec.repeat ? 'make this its own section with real content' : 'turn into a bare repeat marker (no content of its own)';
-      repeatToggle.addEventListener('click', () => { sec.repeat = !sec.repeat; renderStructureUI(); });
+      repeatToggle.addEventListener('click', () => { edited(); sec.repeat = !sec.repeat; renderStructureUI(); });
       const bars_ = (sec.measures || []).length;
       const barsBadge = document.createElement('span'); barsBadge.className = 'block-bars-badge';
       barsBadge.textContent = bars_ ? `${bars_} bars` : '';
       const actions = document.createElement('div'); actions.className = 'block-row-actions';
       const dup = document.createElement('button'); dup.type = 'button'; dup.className = 'icon-btn'; dup.innerHTML = ICONS.duplicate; dup.title = 'duplicate as a repeat marker';
-      dup.addEventListener('click', () => { structSections.splice(i + 1, 0, emptySection(sec.label, true)); renderStructureUI(); });
+      dup.addEventListener('click', () => { edited(); structSections.splice(i + 1, 0, emptySection(sec.label, true)); renderStructureUI(); });
       const del = document.createElement('button'); del.type = 'button'; del.className = 'icon-btn'; del.title = 'delete this section';
       del.innerHTML = ICONS.close;
-      del.addEventListener('click', () => { pushUndo(); markDirty(); structSections.splice(i, 1); renderStructureUI(); });
+      del.addEventListener('click', () => { if (!confirmDeleteSection(sec)) return; edited(); structSections.splice(i, 1); renderStructureUI(); });
       actions.append(dup, del);
       head.append(label, repeatToggle, barsBadge, actions);
       row.appendChild(head);
@@ -3663,6 +3762,7 @@ const ICONS = {
           notesBox.placeholder = 'performance directions — one per line, e.g. "GTR + claviers only"';
           notesBox.value = sec.notes.join('\n');
           notesBox.rows = Math.max(2, Math.min(6, sec.notes.length + 1));
+          trackTextEdits(notesBox);
           notesBox.addEventListener('input', () => { sec.notes = notesBox.value.split('\n').map(s => s.trim()).filter(Boolean); });
           body.appendChild(notesBox);
         }
@@ -3694,6 +3794,9 @@ const ICONS = {
   // renderMatrix/buildChordToolbar) switches the row-chunking and
   // split-progression behavior. No parallel chart-rendering code exists.
   function renderFocusEditor() {
+    // Its toolbox lives in the page's sidebar, shared with every tab:
+    // drawn only while the Chart shows (switching back re-renders it).
+    if (structureEl.hidden) return;
     const list = document.getElementById('chip-list');
     list.innerHTML = '';
 
@@ -3751,6 +3854,7 @@ const ICONS = {
     headRow.className = 'focus-section-head';
     const labelInput = document.createElement('input');
     labelInput.type = 'text'; labelInput.className = 'block-label'; labelInput.value = sec.label;
+    trackTextEdits(labelInput);
     labelInput.addEventListener('input', () => {
       sec.label = labelInput.value;
       const row = sectionsList.children[i];
@@ -3759,10 +3863,12 @@ const ICONS = {
     const repeatToggle = document.createElement('button');
     repeatToggle.type = 'button'; repeatToggle.className = 'block-repeat-toggle';
     repeatToggle.textContent = sec.repeat ? 'repeat marker' : 'has content';
-    repeatToggle.addEventListener('click', () => { sec.repeat = !sec.repeat; renderFocusEditor(); });
+    repeatToggle.addEventListener('click', () => { edited(); sec.repeat = !sec.repeat; renderFocusEditor(); });
     const delBtn = document.createElement('button');
     delBtn.type = 'button'; delBtn.className = 'icon-btn'; delBtn.title = 'delete this section'; delBtn.innerHTML = ICONS.close;
     delBtn.addEventListener('click', () => {
+      if (!confirmDeleteSection(sec)) return;
+      edited();
       structSections.splice(i, 1);
       if (focusIndex >= structSections.length) focusIndex = structSections.length - 1;
       renderFocusEditor();
@@ -3780,6 +3886,18 @@ const ICONS = {
         chartHost.className = 'real-chart-host';
         main.appendChild(chartHost);
         requestAnimationFrame(() => renderRealChart(sec, i, chartHost, true));
+      } else if ((!sec.measures || sec.measures.length === 0) && (sec.scores || []).length) {
+        // A score with no chord bars (an intro riff, a drum groove) takes
+        // its bars from the score: giving it blank chord bars here would
+        // hide it on the chart after the next save.
+        const notice = document.createElement('p');
+        notice.className = 'hint';
+        notice.textContent = 'This section is a score only (edit it in the Scores tab): the chart takes its bars from the score. ';
+        const addChords = document.createElement('button');
+        addChords.type = 'button'; addChords.textContent = 'Add chord bars';
+        addChords.addEventListener('click', () => { edited(); sec.measures = Array.from({ length: 4 }, () => emptyMeasure()); renderFocusEditor(); });
+        notice.appendChild(addChords);
+        main.appendChild(notice);
       } else {
         if (!sec.measures || sec.measures.length === 0) {
           sec.measures = Array.from({ length: 8 }, () => emptyMeasure());
@@ -3818,6 +3936,7 @@ const ICONS = {
       if (!sec.notes) sec.notes = [];
       notesBox.value = sec.notes.join('\n');
       notesBox.rows = Math.max(2, Math.min(6, sec.notes.length + 1));
+      trackTextEdits(notesBox);
       notesBox.addEventListener('input', () => { sec.notes = notesBox.value.split('\n').map(s => s.trim()).filter(Boolean); });
 
       const lyricsBox = document.createElement('textarea');
@@ -3836,7 +3955,8 @@ const ICONS = {
     wrap.appendChild(main);
     list.appendChild(wrap);
   }
-  document.getElementById('add-section').addEventListener('click', () => insertSectionAt(structSections.length, 'New', false));
+  const addSectionBtn = document.getElementById('add-section');
+  addSectionBtn.addEventListener('click', () => openInsertMenu(addSectionBtn, structSections.length));
   document.getElementById('save-structure').addEventListener('click', async () => {
     const status = document.getElementById('structure-status');
     status.className = ''; status.textContent = 'saving…';
@@ -3847,7 +3967,7 @@ const ICONS = {
     const sectionsForSave = structSections.map(sec => ({ ...sec, measures: joinVoltaGroups(sec), endings: undefined }));
     const res = await fetch(`/api/songs/${pageVariantId}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ version: structVersion, song: { meta: structMeta, sections: sectionsForSave } }),
+      body: JSON.stringify({ version: structVersion, song: { meta: structMeta, chords: structChords, sections: sectionsForSave } }),
     });
     if (res.status === 409) { status.className = 'err'; status.textContent = 'conflict: reload before saving'; return; }
     if (!res.ok) { status.className = 'err'; status.textContent = 'save failed'; return; }
@@ -3871,7 +3991,7 @@ const ICONS = {
     // (no title/time/tempo/genre fields rendered at all, not just title)
     // for exactly this "editing a song that's never been touched" case —
     // reported directly as "can't edit the title," caught here instead.
-    structVersion = data.version; structMeta = data.song.meta || [];
+    structVersion = data.version; structMeta = data.song.meta || []; structChords = data.song.chords || [];
     // Split each section's flat measures into {common, endings} once, up
     // front — see splitVoltaGroups. Every editing function from here on
     // (renderMatrix, the Alternatives panel) only ever deals with that
@@ -3881,7 +4001,8 @@ const ICONS = {
       return { ...sec, measures: common, endings };
     });
     renderHeaderFields();
-    renderStructureUI();
+    if (!structureEl.hidden) renderStructureUI();
+    window.TabEditor?.refresh();
   })();
 
   // ---- Keyboard & handheld-pedal navigation ---------------------------------

@@ -1004,6 +1004,8 @@ func collectInstrumentNames(scoreTracks map[int][]tab.NamedRiff) []string {
 // not a case the UI can create today) is left untouched — truncating
 // written notation would be a worse failure than showing extra bars.
 func chipSource(sec *viewerSection, riff *tab.Riff) (bars []tab.Bar, chordLabels []string, restOnly bool) {
+	// A pattern keeps going through every played bar, repeats included.
+	riff = tab.FillPattern(riff, sec.BarCount)
 	if riff != nil && len(riff.Bars) > 0 {
 		bars = riff.Bars
 		for len(bars) < sec.BarCount {
@@ -1098,9 +1100,15 @@ type viewerDrumMapRow struct {
 	AlphaTex string
 	Bars     int
 	RealBars int
+	// RealRem (data-realrem) is the room the row's written bars need
+	// together, each by how busy it is (drumBarRem).
+	RealRem  float64
 	RestRuns int
 	RestOnly bool
 	Labels   []viewerDrumMapLabel
+	// BarShift (data-bar-shift) is how many bars come before this row, so
+	// alphatab-tab.js numbers its bars from where the song is, not from 1.
+	BarShift int
 }
 
 // buildDrumMap builds Drummer view's own continuous, full-width chart —
@@ -1181,7 +1189,23 @@ const (
 	// fetch itself fails) still gets a reasonable, if not perfectly
 	// width-matched, rendering rather than an empty or broken one.
 	defaultDrumRowTargetRem = 56.0
+	// drumRowRemPerBeat is the extra room each written beat of a bar
+	// needs: a bar of eighths with hi-hat, snare and kick on them needs
+	// far more than drumRowRealBarRem, the room of a sparse bar.
+	drumRowRemPerBeat = 1.25
 )
+
+// drumBarRem is the room one bar of drums needs on a line, by how many
+// beats it writes out: never less than a sparse bar's drumRowRealBarRem.
+func drumBarRem(bar tab.Bar) float64 {
+	beats := 0
+	for _, b := range bar.Beats {
+		if !b.Grace {
+			beats++
+		}
+	}
+	return max(drumRowRealBarRem, 1.6+drumRowRemPerBeat*float64(beats))
+}
 
 // packDrumRowBounds decides where each printed line of Drummer view
 // breaks: a GREEDY walk that keeps adding bars to the current line while
@@ -1202,38 +1226,57 @@ const (
 // naturally avoids.
 func packDrumRowBounds(flat []flatDrumBar, targetRem float64) [][2]int {
 	var bounds [][2]int
-	start := 0
-	realBars, restRuns := 0, 0
+	for start := 0; start < len(flat); {
+		end := fitDrumRow(flat, start, targetRem)
+		// A line of written bars holds 1, 2, 4 or 8 of them, so phrases line
+		// up from one line to the next (a 4-bar groove never splits 3 + 1);
+		// the last line keeps whatever is left.
+		if n := end - start; end < len(flat) && n > 2 && !rowHasRest(flat[start:end]) {
+			p := 1
+			for p*2 <= n {
+				p *= 2
+			}
+			end = start + p
+		}
+		bounds = append(bounds, [2]int{start, end})
+		start = end
+	}
+	return bounds
+}
+
+// fitDrumRow is where a line starting at flat[start] has to end: the
+// greedy walk described on packDrumRowBounds, never an empty line.
+func fitDrumRow(flat []flatDrumBar, start int, targetRem float64) int {
+	realRem, restRuns := 0.0, 0
 	inRestRun := false
-	for i, fb := range flat {
+	for i := start; i < len(flat); i++ {
+		fb := flat[i]
 		isBoundary := fb.isSectionStart && i > start
-		addReal, addRestRun := 0, 0
+		addReal, addRestRun := 0.0, 0
 		if isWholeBarRest(fb.bar) {
 			if !inRestRun || isBoundary {
 				addRestRun = 1
 			}
 		} else {
-			addReal = 1
+			addReal = drumBarRem(fb.bar)
 		}
-		projected := drumRowBaseRem + float64(realBars+addReal)*drumRowRealBarRem + float64(restRuns+addRestRun)*drumRowRestRunRem
-		if i > start && projected > targetRem {
-			bounds = append(bounds, [2]int{start, i})
-			start = i
-			realBars, restRuns, inRestRun = 0, 0, false
-			if isWholeBarRest(fb.bar) {
-				addReal, addRestRun = 0, 1
-			} else {
-				addReal, addRestRun = 1, 0
-			}
+		if i > start && drumRowBaseRem+realRem+addReal+float64(restRuns+addRestRun)*drumRowRestRunRem > targetRem {
+			return i
 		}
-		realBars += addReal
+		realRem += addReal
 		restRuns += addRestRun
 		inRestRun = isWholeBarRest(fb.bar)
 	}
-	if start < len(flat) {
-		bounds = append(bounds, [2]int{start, len(flat)})
+	return len(flat)
+}
+
+func rowHasRest(row []flatDrumBar) bool {
+	for _, fb := range row {
+		if isWholeBarRest(fb.bar) {
+			return true
+		}
 	}
-	return bounds
+	return false
 }
 
 // flatDrumBar is one bar of buildDrumMap's own flattened, whole-song bar
@@ -1290,6 +1333,7 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 		boundaries := make([]bool, len(chunk))
 		restOnly := true
 		realBars := 0
+		realRem := 0.0
 		restRuns := 0
 		inRestRun := false
 		var labels []viewerDrumMapLabel
@@ -1310,6 +1354,7 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 				}
 			} else {
 				realBars++
+				realRem += drumBarRem(fb.bar)
 				inRestRun = false
 			}
 			if fb.isSectionStart {
@@ -1323,6 +1368,8 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 			AlphaTex: tab.ToAlphaTexDrums(&tab.Riff{Drums: true, Bars: bars}, chordLabels, boundaries, tempo),
 			Bars:     len(chunk),
 			RealBars: realBars,
+			RealRem:  realRem,
+			BarShift: bound[0],
 			RestRuns: restRuns,
 			RestOnly: restOnly,
 			Labels:   labels,
@@ -1475,9 +1522,38 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 					line.Systems = strings.Join(systems, ",")
 				}
 				sections[si].Lines[li].AlphaTex = tex
+				sections[si].Lines[li].Instrument = riff.Instrument()
 			}
 		}
 	}
+}
+
+// withRiffOnlyBars gives a section that has a score but no chord bars
+// (an intro riff, a drum pattern written down on its own) as many empty
+// bars as its first voice has, so the chart has bars to draw the score
+// on. The song itself is left untouched: the copy shares everything but
+// the filled sections' measures.
+func withRiffOnlyBars(sg *song.Song) *song.Song {
+	var out *song.Song
+	for i, sec := range sg.Sections {
+		if len(sec.Measures) > 0 || sec.Repeat || len(sec.Scores) == 0 {
+			continue
+		}
+		riff, err := tab.ParseVoice(sec.Scores[0].Label, sec.Scores[0].Body)
+		if err != nil || len(riff.Bars) == 0 {
+			continue
+		}
+		if out == nil {
+			cp := *sg
+			cp.Sections = append([]song.Section(nil), sg.Sections...)
+			out = &cp
+		}
+		out.Sections[i].Measures = make([]song.Measure, len(riff.Bars))
+	}
+	if out == nil {
+		return sg
+	}
+	return out
 }
 
 // anyTabOnlyLine reports whether any display row across sections needs
@@ -1792,6 +1868,10 @@ type viewerLine struct {
 	// (see alphatab-tab.js). The row's first performed bar, less one in a
 	// song whose pickup is bar 0 and its first full bar 1.
 	BarShift int
+	// Instrument is the row's riff's kind ("guitar", "bass"): alphatab-tab.js
+	// draws it the way the viewer reads that instrument (tab, staff or both,
+	// store.NotationPrefs).
+	Instrument string
 }
 
 // groupMeasures chunks a section's measures into display rows — "systems",
@@ -2213,6 +2293,7 @@ func segnoMatchBetter(a, b segnoMatch, n int) bool {
 }
 
 func buildSections(sg *song.Song) []viewerSection {
+	sg = withRiffOnlyBars(sg)
 	globalTime := orDefault(sg.Get("time"), "4/4")
 	globalBeats := timeSigBeats(globalTime)
 	tempo := orDefault(sg.Get("tempo"), "120")
@@ -2781,6 +2862,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"DrumMap":            drumMap,
 		"Instruments":        collectInstrumentNames(riffs),
 		"SelectedInstrument": instrument,
+		"NotationPrefs":      s.notationPrefsFor(r),
 		"Chords":             sg.Chords,
 		"HasAlphaTab":        anyTabOnlyLine(sections),
 		// HasAnyScore gates the Mixer tab (play.html) — deliberately NOT

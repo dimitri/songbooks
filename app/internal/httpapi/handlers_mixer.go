@@ -26,9 +26,10 @@ type mixerSectionJSON struct {
 }
 
 type mixerTrackJSON struct {
-	Name    string `json:"name"`
-	Drums   bool   `json:"drums"`
-	Program int    `json:"program"`
+	Name     string `json:"name"`
+	Drums    bool   `json:"drums"`
+	Program  int    `json:"program"`
+	Strings  int    `json:"strings"` // 4 or fewer: a bass (drawn the way the viewer reads bass, see store.NotationPrefs)
 }
 
 // handleGetSongMixer is GET /api/songs/{id}/mixer — the Mixer view's whole
@@ -80,6 +81,7 @@ func (s *Server) handleGetSongMixer(w http.ResponseWriter, r *http.Request) {
 		"tempo": tempo, "timeNum": timeNum, "timeDen": timeDen, "key": sg.Get("key"),
 		"totalBars": totalBars, "sections": outSections, "tracks": []mixerTrackJSON{},
 		"pickupBeats": pickup,
+		"notation":    s.notationPrefsFor(r),
 	}
 	if _, err := s.store.GetSongGPSourceFileMeta(r.Context(), variantID); err == nil {
 		resp["hasGPFile"] = true
@@ -88,7 +90,7 @@ func (s *Server) handleGetSongMixer(w http.ResponseWriter, r *http.Request) {
 		tex, meta := tab.ToAlphaTexMulti(tracks, tempo, timeNum, timeDen, sg.Get("swing"))
 		out := make([]mixerTrackJSON, len(meta))
 		for i, m := range meta {
-			out[i] = mixerTrackJSON{Name: m.Name, Drums: m.Drums, Program: m.Program}
+			out[i] = mixerTrackJSON{Name: m.Name, Drums: m.Drums, Program: m.Program, Strings: m.Strings}
 		}
 		resp["alphaTex"] = tex
 		resp["tracks"] = out

@@ -19,25 +19,60 @@
 <main class="index">
   {{if not .CanEdit}}<p class="hint">You don't have edit rights on this variant, so reverting is disabled here.</p>{{end}}
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>When</th><th>By</th><th>Change</th><th></th></tr></thead>
+    <thead><tr><th>When</th><th>By</th><th>What changed</th><th></th></tr></thead>
     <tbody>
     {{range .Revisions}}
+      {{$e := index $.Edits .ID}}
       <tr data-revision-id="{{.ID}}">
         <td data-label="When">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
         <td data-label="By">{{if .ActorName}}{{.ActorName}}{{else}}&mdash;{{end}}</td>
-        <td data-label="Change">~{{.LinesChanged}} line{{if ne .LinesChanged 1}}s{{end}} changed</td>
-        <td>{{if $.CanEdit}}<button type="button" class="revert-btn" data-revision-id="{{.ID}}">revert to this</button>{{end}}</td>
+        <td data-label="What changed" class="history-changes">
+          {{if $e.Changes}}
+          <ul>{{range $e.Changes}}<li><strong>{{.Where}}</strong> {{.What}}</li>{{end}}{{if $e.More}}<li class="hint">and {{$e.More}} more</li>{{end}}</ul>
+          {{else}}<span class="hint">nothing</span>{{end}}
+          {{if $e.Lines}}
+          <details class="history-diff"><summary>Show the text</summary>
+            <pre>{{range $e.Lines}}<span class="diff-{{if eq .Op "+"}}add{{else if eq .Op "-"}}del{{else if eq .Op "…"}}skip{{else}}ctx{{end}}">{{if eq .Op "…"}}…{{else}}{{.Op}} {{.Text}}{{end}}</span>{{end}}</pre>
+          </details>
+          {{end}}
+        </td>
+        <td>{{if $.CanEdit}}<button type="button" class="revert-btn" data-revision-id="{{.ID}}" title="Go back to the song as it was before this change (this can be undone too)">restore the version before this</button>{{end}}</td>
       </tr>
     {{else}}
       <tr><td colspan="4" class="hint">No edits recorded yet.</td></tr>
     {{end}}
     </tbody>
   </table></div>
+  {{if or .GPFile .GPVersions}}
+  <h2>Guitar Pro files</h2>
+  <p class="hint">Every Guitar Pro file this song was imported from. Re-importing a new one keeps the previous file here.</p>
+  <div class="table-scroll"><table class="card table-stack" style="width:100%">
+    <thead><tr><th>File</th><th>Uploaded</th><th>Until</th><th></th></tr></thead>
+    <tbody>
+    {{with .GPFile}}
+      <tr>
+        <td data-label="File">{{.Filename}}</td>
+        <td data-label="Uploaded">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+        <td data-label="Until">current</td>
+        <td><a href="/song/{{$.Variant.VariantID}}/gp-file" download>download</a></td>
+      </tr>
+    {{end}}
+    {{range .GPVersions}}
+      <tr>
+        <td data-label="File">{{.Filename}}</td>
+        <td data-label="Uploaded">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+        <td data-label="Until">{{.ReplacedAt.Format "2006-01-02 15:04"}}</td>
+        <td><a href="/song/{{$.Variant.VariantID}}/gp-file/versions/{{.ID}}" download>download</a></td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table></div>
+  {{end}}
 </main>
 <script>
 document.querySelectorAll('.revert-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (!confirm('Revert to this revision? This creates a new revision too, so it can itself be undone.')) return;
+    if (!confirm('Restore the song as it was before this change? Later changes are undone too, and the restore itself shows up here, so it can be undone.')) return;
     const id = btn.dataset.revisionId;
     const res = await fetch(`/api/revisions/${id}/revert`, {method: 'POST'});
     if (res.ok) {

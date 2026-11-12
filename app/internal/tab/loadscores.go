@@ -23,6 +23,7 @@ func LoadScores(sg *song.Song) (scores map[int][]NamedRiff, errs []error) {
 				errs = append(errs, fmt.Errorf("section %d (%s) score[%s]: %w", i, sec.Label, sv.Label, err))
 				continue
 			}
+			riff = FillPattern(riff, len(sec.Measures))
 			if scores == nil {
 				scores = make(map[int][]NamedRiff)
 			}
