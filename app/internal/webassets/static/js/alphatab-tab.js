@@ -203,7 +203,11 @@
     // "Score", "Tab", "TabMixed"; there is no "ScoreDefault") renders the
     // standard-notation-only staff alphaTab already draws percussion on.
     const isDrumTrack = tex.includes('instrument percussion');
-    settings.display.staveProfile = isDrumTrack ? alphaTab.StaveProfile.Score : alphaTab.StaveProfile.Tab;
+    // A bass part (internal/tab.ToAlphaTexBass marks it with "\clef F4")
+    // shows the F-clef staff above its tab, as bass parts are printed;
+    // guitar stays tab only.
+    const isBass = !isDrumTrack && /\\clef F4\b/.test(tex);
+    settings.display.staveProfile = isDrumTrack ? alphaTab.StaveProfile.Score : isBass ? alphaTab.StaveProfile.ScoreTab : alphaTab.StaveProfile.Tab;
     // Every row this app hands to alphaTab is its OWN separate document
     // (one bar, or a handful) — meaning every one of them is, as far as
     // alphaTab's own layout is concerned, the LAST (and only) system of
@@ -560,6 +564,9 @@
       // import wizard's own click-to-seek, gp-import.js) beats changing
       // this function's call signature for one caller's extra need.
       container._alphaTabApi = api;
+      // Bass is written an octave above where it sounds, so its staff
+      // isn't buried under ledger lines (Guitar Pro's own bass default).
+      if (isBass) api.scoreLoaded.on((score) => { for (const t of score.tracks) for (const st of t.staves) st.displayTranspositionPitch = -12; });
       api.renderFinished.on(() => {
         finished = true;
         pollForChordFix(container, tex, 0, () => {

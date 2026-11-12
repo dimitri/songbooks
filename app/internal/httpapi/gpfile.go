@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"mime"
 	"net/http"
 	"path/filepath"
 	"time"
@@ -77,7 +78,38 @@ func (s *Server) handleGetSongGPFile(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	serveGPFile(w, r, data, contentType, filename)
+}
+
+// handleGetSongGPFileVersion is GET /song/{id}/gp-file/versions/{vid}: an
+// earlier Guitar Pro file of the song, kept when a newer one replaced it.
+func (s *Server) handleGetSongGPFileVersion(w http.ResponseWriter, r *http.Request) {
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	versionID, err := pathID(r, "vid")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid version id")
+		return
+	}
+	data, contentType, filename, err := s.store.GetSongGPSourceFileVersionData(r.Context(), variantID, versionID)
+	if err != nil {
+		if err == store.ErrNotFound {
+			http.NotFound(w, r)
+			return
+		}
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	serveGPFile(w, r, data, contentType, filename)
+}
+
+func serveGPFile(w http.ResponseWriter, r *http.Request, data []byte, contentType, filename string) {
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	// FormatMediaType quotes or RFC 2231-encodes the name as needed (an
+	// accented title, a quote in it).
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 	http.ServeContent(w, r, filename, time.Time{}, bytes.NewReader(data))
 }

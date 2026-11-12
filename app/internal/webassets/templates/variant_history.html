@@ -33,6 +33,31 @@
     {{end}}
     </tbody>
   </table></div>
+  {{if or .GPFile .GPVersions}}
+  <h2>Guitar Pro files</h2>
+  <p class="hint">Every Guitar Pro file this song was imported from. Re-importing a new one keeps the previous file here.</p>
+  <div class="table-scroll"><table class="card table-stack" style="width:100%">
+    <thead><tr><th>File</th><th>Uploaded</th><th>Until</th><th></th></tr></thead>
+    <tbody>
+    {{with .GPFile}}
+      <tr>
+        <td data-label="File">{{.Filename}}</td>
+        <td data-label="Uploaded">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+        <td data-label="Until">current</td>
+        <td><a href="/song/{{$.Variant.VariantID}}/gp-file" download>download</a></td>
+      </tr>
+    {{end}}
+    {{range .GPVersions}}
+      <tr>
+        <td data-label="File">{{.Filename}}</td>
+        <td data-label="Uploaded">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+        <td data-label="Until">{{.ReplacedAt.Format "2006-01-02 15:04"}}</td>
+        <td><a href="/song/{{$.Variant.VariantID}}/gp-file/versions/{{.ID}}" download>download</a></td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table></div>
+  {{end}}
 </main>
 <script>
 document.querySelectorAll('.revert-btn').forEach(btn => {

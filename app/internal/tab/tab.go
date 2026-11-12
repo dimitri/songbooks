@@ -36,6 +36,12 @@ type Riff struct {
 	// see drumPitchNames and ToAlphaTexDrums.
 	Drums bool
 
+	// Pattern: a short groove or riff written once that repeats through
+	// its whole section — how a band notes "this beat, all verse long".
+	// LoadScores repeats its bars to the section's length; the repeats
+	// are drawn as "%" bars (see Bar.Simile) and played in full.
+	Pattern bool `json:",omitempty"`
+
 	Bars []Bar
 }
 
@@ -45,6 +51,29 @@ type Riff struct {
 // cumulative duration against the time signature).
 type Bar struct {
 	Beats []Beat
+
+	// Simile: this bar repeats the one before it (a Pattern's repeat,
+	// see FillPattern), drawn as a "%" bar rather than written out again.
+	// Display only, never stored.
+	Simile bool `json:"-"`
+}
+
+// FillPattern repeats a Pattern riff's bars until it has n bars, marking
+// every repeated bar Simile. A riff that isn't a pattern, or already has
+// n bars or more, comes back unchanged.
+func FillPattern(r *Riff, n int) *Riff {
+	if r == nil || !r.Pattern || len(r.Bars) == 0 || len(r.Bars) >= n {
+		return r
+	}
+	out := *r
+	out.Bars = make([]Bar, 0, n)
+	out.Bars = append(out.Bars, r.Bars...)
+	for i := len(r.Bars); i < n; i++ {
+		b := r.Bars[i%len(r.Bars)]
+		b.Simile = true
+		out.Bars = append(out.Bars, b)
+	}
+	return &out
 }
 
 // Beat is one rhythmic event: a rest, or 1+ simultaneous fretted notes.

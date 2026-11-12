@@ -634,6 +634,10 @@ func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, sco
 		return 0, err
 	}
 
+	if err := copySongMedia(ctx, tx, variantID, newID); err != nil {
+		return 0, err
+	}
+
 	switch scope {
 	case "user":
 		if _, err := tx.Exec(ctx, `DELETE FROM songbook_entries WHERE songbook_id = $1 AND variant_id = $2`, defaultSongbookID, variantID); err != nil {

@@ -1,5 +1,7 @@
-// Scores tab: a Guitar Pro–style tab editor for one section's
-// "score[label]:" voice at a time (see docs/editor-plan.md, phase 1).
+// Scores tab: a Guitar Pro–style editor for one section's "score[label]:"
+// voice at a time (see docs/editor-plan.md) — guitar as tab, bass as an
+// F-clef staff over its tab (notes entered on either), drums on a
+// percussion staff, one piece at a time.
 //
 // The model is the voice's tab.Riff (internal/tab/tab.go), edited in place
 // and written back into the drawer's in-memory song — the same
@@ -7,8 +9,8 @@
 // window.SongEditorBridge (song.js) — so Save, Discard, Undo and the
 // unsaved-changes guard all work exactly as they do for chords. alphaTab is
 // only the view: every edit re-emits alphaTeX (a port of internal/tab's
-// writeBeat) and re-renders, and its boundsLookup places the cursor and
-// answers clicks.
+// writeBeat and writeDrumBeat) and re-renders, and its boundsLookup places
+// the cursor and answers clicks.
 //
 // A voice written in the LilyPond subset is decoded by the server
 // (POST /api/score/riff) for display; the first edit stores it as Riff
@@ -23,6 +25,38 @@
   const MAX_FRET = 24;
   const DIGIT_WINDOW_MS = 600; // a second digit this soon makes a two-digit fret, as in Guitar Pro
 
+  // The drum kit, top of the staff to the bottom. line is alphaTab's staff
+  // position for that General MIDI piece (0 = top line, one step = half a
+  // line space), art its alphaTeX articulation name (the same names
+  // internal/tab's drumArticulationName declares), key its shortcut.
+  const DRUM_PIECES = [
+    { midi: 49, name: 'Crash', art: 'Crash', key: 'c', line: -2 },
+    { midi: 46, name: 'Hi-hat open', art: 'HiHatOpen', key: 'o', line: -1 },
+    { midi: 42, name: 'Hi-hat', art: 'HiHatClosed', key: 'h', line: -1 },
+    { midi: 51, name: 'Ride', art: 'Ride', key: 'y', line: 0 },
+    { midi: 50, name: 'High tom', art: 'TomHigh', key: '1', line: 1 },
+    { midi: 38, name: 'Snare', art: 'Snare', key: 's', line: 3 },
+    { midi: 37, name: 'Side stick', art: 'SideStick', key: 'x', line: 3 },
+    { midi: 47, name: 'Mid tom', art: 'TomMid', key: '2', line: 4 },
+    { midi: 45, name: 'Low tom', art: 'TomLow', key: '3', line: 5 },
+    { midi: 43, name: 'Floor tom', art: 'TomFloorHigh', key: '4', line: 6 },
+    { midi: 36, name: 'Kick', art: 'Kick', key: 'k', line: 7 },
+    { midi: 44, name: 'Hi-hat pedal', art: 'HiHatPedal', key: 'f', line: 9 },
+  ];
+  // Pieces a voice may already hold (from Guitar Pro or LilyPond) without
+  // being in the editor's own list.
+  const DRUM_ART_EXTRA = { 41: 'TomFloorLow', 53: 'RideBell', 56: 'Cowbell' };
+  const drumArt = (midi) => (DRUM_PIECES.find((p) => p.midi === midi) || {}).art || DRUM_ART_EXTRA[midi] || '';
+
+  // Bass staff: notes are written an octave above where they sound, the
+  // F clef's top line is A3 (diatonic step 26 = octave 3 × 7 + A).
+  const BASS_WRITTEN_OFFSET = 12;
+  const F_CLEF_TOP_STEP = 26;
+  const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const PC_LETTER = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6]; // pitch class → letter index (sharps)
+  const LETTER_PC = [0, 2, 4, 5, 7, 9, 11];
+  const LETTERS = 'CDEFGAB';
+
   const $ = (id) => document.getElementById(id);
   let bridge = null;
   let initialized = false;
@@ -32,11 +66,15 @@
     riff: null,        // the Riff being edited (decoded from the voice body)
     body: null,        // the voice body st.riff was decoded from
     source: '',        // 'json' | 'lilypond'
+    kind: 'guitar',    // 'guitar' | 'bass' | 'drums'
+    mode: 'tab',       // bass only: 'tab' or 'staff' — which staff the cursor is on
     error: '',
     bar: 0, beat: 0, string: 1,
+    piece: 10,         // drums: index into DRUM_PIECES (Kick)
+    staffStep: 22,     // bass staff cursor on an empty beat (written D3, the middle line)
     digit: null,       // { bar, beat, string, val, t } — the last fret digit typed
     clip: null,        // a copied bar
-    api: null,
+    api: null, apiKind: '',
     tex: '',
     map: [],           // map[bar][alphaTab beat index] = riff beat index
     loadSeq: 0,
@@ -78,6 +116,12 @@
   }
   function barCapacity() { const [n, d] = timeSig(); return n * 4 / d; }
 
+  // ---- Pitch -----------------------------------------------------------------
+
+  function noteName(midi) { return NOTE_NAMES[midi % 12] + (Math.floor(midi / 12) - 1); }
+  function diatonicStep(midi) { return (Math.floor(midi / 12) - 1) * 7 + PC_LETTER[midi % 12]; }
+  function naturalMidi(step) { const o = Math.floor(step / 7), l = ((step % 7) + 7) % 7; return 12 * (o + 1) + LETTER_PC[l]; }
+
   // ---- Model access ----------------------------------------------------------
 
   function currentSection() { return bridge.sections()[st.sec] || null; }
@@ -88,9 +132,17 @@
   function bars() { return st.riff ? st.riff.Bars : []; }
   function curBar() { return bars()[st.bar]; }
   function curBeat() { const b = curBar(); return b ? b.Beats[st.beat] : null; }
-  function numStrings() { return st.riff ? st.riff.Tuning.length : 6; }
+  function numStrings() { return st.riff && st.riff.Tuning ? st.riff.Tuning.length : 6; }
   function noteOn(beat, s) { return beat && !beat.Rest ? (beat.Notes || []).find((n) => n.String === s) : null; }
-  function editable() { return st.riff && !st.riff.Drums && !st.error; }
+  // The note the bass staff cursor is on: the one on the cursor's string,
+  // or else the beat's lowest (a bass line is mostly one note at a time).
+  function staffNote(beat) {
+    if (!beat || beat.Rest || !(beat.Notes || []).length) return null;
+    return noteOn(beat, st.string) || beat.Notes.reduce((a, b) => (b.MIDI < a.MIDI ? b : a));
+  }
+  function drumNote(beat, midi) { return beat && !beat.Rest ? (beat.Notes || []).find((n) => n.MIDI === midi) : null; }
+  function editable() { return !!st.riff && !st.error; }
+  function kindOf(riff) { return riff.Drums ? 'drums' : (riff.Tuning || []).length <= 4 ? 'bass' : 'guitar'; }
 
   function clampCursor() {
     const bs = bars();
@@ -98,19 +150,23 @@
     const n = bs[st.bar] ? bs[st.bar].Beats.length : 1;
     st.beat = Math.max(0, Math.min(st.beat, n - 1));
     st.string = Math.max(1, Math.min(st.string, numStrings()));
+    st.piece = Math.max(0, Math.min(st.piece, DRUM_PIECES.length - 1));
   }
 
   // The stored form: Go's own field names (internal/tab decodes it with
   // encoding/json), zero values left out to keep the line short.
   function encodeRiff(r) {
-    const out = { Tuning: r.Tuning, MinimumFret: r.MinimumFret || 0 };
+    const out = {};
     if (r.Drums) out.Drums = true;
+    else { out.Tuning = r.Tuning; out.MinimumFret = r.MinimumFret || 0; }
+    if (r.Pattern) out.Pattern = true;
     out.Bars = r.Bars.map((bar) => ({
       Beats: bar.Beats.map((b) => {
         const o = {};
         if (b.Rest) o.Rest = true;
         o.Duration = b.Duration;
         if (!b.Rest) o.Notes = (b.Notes || []).map((n) => {
+          if (r.Drums) return { MIDI: n.MIDI };
           const no = { MIDI: n.MIDI, String: n.String, Fret: n.Fret };
           if (n.Tied) no.Tied = true;
           return no;
@@ -142,14 +198,16 @@
     render();
   }
 
+  function sounding(beat) { if (beat.Rest) { beat.Rest = false; beat.Notes = []; } beat.Notes = beat.Notes || []; }
+
   function setFret(fret, joinPrevious) {
+    if (fret > MAX_FRET) return;
     edit(() => {
       const beat = curBeat();
       const s = st.string;
-      const midi = st.riff.Tuning[s - 1] + fret;
-      if (beat.Rest) { beat.Rest = false; beat.Notes = []; }
-      beat.Notes = beat.Notes || [];
+      sounding(beat);
       const n = noteOn(beat, s);
+      const midi = st.riff.Tuning[s - 1] + fret;
       if (n) { n.Fret = fret; n.MIDI = midi; n.Tied = false; }
       else beat.Notes.push({ MIDI: midi, String: s, Fret: fret });
       beat.Notes.sort((a, b) => a.String - b.String);
@@ -159,22 +217,86 @@
   function typeDigit(d) {
     const now = Date.now();
     const p = st.digit;
-    if (p && p.bar === st.bar && p.beat === st.beat && p.string === st.string && now - p.t < DIGIT_WINDOW_MS && p.val * 10 + d <= MAX_FRET && p.val > 0) {
-      const val = p.val * 10 + d;
+    if (p && p.bar === st.bar && p.beat === st.beat && p.string === st.string && now - p.t < DIGIT_WINDOW_MS && p.val > 0 && p.val * 10 + d <= MAX_FRET) {
       st.digit = null;
-      setFret(val, true);
+      setFret(p.val * 10 + d, true);
       return;
     }
     st.digit = { bar: st.bar, beat: st.beat, string: st.string, val: d, t: now };
     setFret(d, false);
   }
 
+  // placePitch puts a sounding pitch on the beat — the bass staff's way in:
+  // it replaces the note under the cursor, on that string when the fret
+  // fits, otherwise on the string whose fret is closest to where the hand
+  // already is.
+  function placePitch(midi, joinPrevious) {
+    const beat = curBeat();
+    if (!beat) return;
+    const old = st.kind === 'bass' && st.mode === 'staff' ? staffNote(beat) : noteOn(beat, st.string);
+    const prev = previousNote();
+    const ref = old ? old.Fret : prev ? prev.Fret : 3;
+    let best = null;
+    st.riff.Tuning.forEach((open, i) => {
+      const s = i + 1, fret = midi - open;
+      if (fret < 0 || fret > MAX_FRET) return;
+      const cost = (old && s === old.String ? -3 : 0) + Math.abs(fret - ref); // stay on the string unless the hand would have to move
+      if (!best || cost < best.cost) best = { s, fret, cost };
+    });
+    if (!best) { setStatusNote(noteName(midi) + ' is out of this instrument’s range'); return; }
+    edit(() => {
+      sounding(beat);
+      beat.Notes = beat.Notes.filter((n) => n !== old && n.String !== best.s);
+      beat.Notes.push({ MIDI: midi, String: best.s, Fret: best.fret });
+      beat.Notes.sort((a, b) => a.String - b.String);
+      st.string = best.s;
+      st.staffStep = diatonicStep(midi + BASS_WRITTEN_OFFSET);
+    }, { joinPrevious });
+  }
+
+  // A letter on the bass staff: that note, in the octave nearest the note
+  // being replaced (or the one before it, or the staff cursor).
+  function typeLetter(letter) {
+    const beat = curBeat();
+    const cur = staffNote(beat) || previousNote();
+    const ref = cur ? cur.MIDI : naturalMidi(st.staffStep) - BASS_WRITTEN_OFFSET;
+    const pc = LETTER_PC[LETTERS.indexOf(letter)];
+    let best = null;
+    for (let o = 0; o <= 8; o++) {
+      const m = 12 * o + pc;
+      if (!best || Math.abs(m - ref) < Math.abs(best - ref)) best = m;
+    }
+    placePitch(best);
+  }
+
+  function stepPitch(d) {
+    const n = staffNote(curBeat());
+    if (n) { placePitch(n.MIDI + d); return; }
+    st.staffStep += d;
+    render();
+  }
+
+  function toggleDrum(midi) {
+    const beat = curBeat();
+    if (!beat) return;
+    edit(() => {
+      if (drumNote(beat, midi)) {
+        beat.Notes = beat.Notes.filter((n) => n.MIDI !== midi);
+        if (!beat.Notes.length) clearBeat(beat);
+      } else {
+        sounding(beat);
+        beat.Notes.push({ MIDI: midi, String: 0, Fret: 0 });
+      }
+    });
+  }
+
   function deleteAtCursor() {
     const beat = curBeat();
     if (!beat) return;
-    if (noteOn(beat, st.string)) {
+    const here = st.kind === 'drums' ? drumNote(beat, DRUM_PIECES[st.piece].midi) : noteOn(beat, st.string);
+    if (here) {
       edit(() => {
-        beat.Notes = beat.Notes.filter((n) => n.String !== st.string);
+        beat.Notes = beat.Notes.filter((n) => n !== here);
         if (!beat.Notes.length) clearBeat(beat);
       });
     } else if (curBar().Beats.length > 1) {
@@ -227,7 +349,8 @@
   function previousNote() {
     let bi = st.bar, i = st.beat - 1;
     if (i < 0) { bi--; if (bi < 0) return null; i = bars()[bi].Beats.length - 1; }
-    return noteOn(bars()[bi].Beats[i], st.string);
+    const b = bars()[bi].Beats[i];
+    return st.kind === 'bass' && st.mode === 'staff' ? staffNote(b) : noteOn(b, st.string);
   }
 
   function toggleTie() {
@@ -237,7 +360,7 @@
     const p = previousNote();
     if (!p) return;
     edit(() => {
-      if (beat.Rest) { beat.Rest = false; beat.Notes = []; }
+      sounding(beat);
       beat.Notes.push({ MIDI: p.MIDI, String: st.string, Fret: p.Fret, Tied: true });
       beat.Notes.sort((a, b) => a.String - b.String);
     });
@@ -282,6 +405,7 @@
   function moveRight() {
     const bar = curBar();
     if (!bar) return;
+    st.digit = null;
     if (st.beat < bar.Beats.length - 1) { st.beat++; return render(); }
     const left = barCapacity() - barBeats(bar);
     if (left > 1e-9 && editable()) {
@@ -299,6 +423,7 @@
     if (st.bar < bars().length - 1) { st.bar++; st.beat = 0; render(); }
   }
   function moveLeft() {
+    st.digit = null;
     if (st.beat > 0) st.beat--;
     else if (st.bar > 0) { st.bar--; st.beat = curBar().Beats.length - 1; }
     render();
@@ -306,6 +431,13 @@
   function moveBar(d) {
     st.bar = Math.max(0, Math.min(bars().length - 1, st.bar + d));
     st.beat = 0;
+    render();
+  }
+  function moveVertical(d) { // -1 up, +1 down
+    st.digit = null;
+    if (st.kind === 'drums') st.piece = Math.max(0, Math.min(DRUM_PIECES.length - 1, st.piece + d));
+    else if (st.kind === 'bass' && st.mode === 'staff') { stepPitch(-d); return; }
+    else st.string = Math.max(1, Math.min(numStrings(), st.string + d));
     render();
   }
 
@@ -316,27 +448,27 @@
     if (bars().length <= 1) return;
     edit(() => { st.riff.Bars.splice(st.bar, 1); st.beat = 0; });
   }
-  function copyBar() { if (curBar()) { st.clip = JSON.parse(JSON.stringify(curBar())); setStatusNote('bar copied'); } }
+  function copyBar() { if (curBar()) { st.clip = { kind: st.kind, bar: JSON.parse(JSON.stringify(curBar())) }; setStatusNote('bar copied'); } }
   function pasteBar() {
     if (!st.clip) return;
-    const clip = JSON.parse(JSON.stringify(st.clip));
+    if ((st.clip.kind === 'drums') !== (st.kind === 'drums')) { setStatusNote('a drum bar only pastes into a drum track'); return; }
+    const clip = JSON.parse(JSON.stringify(st.clip.bar));
     // A bar copied from another track keeps its frets; its pitches follow this track's tuning.
-    for (const b of clip.Beats) for (const n of b.Notes || []) {
+    if (st.kind !== 'drums') for (const b of clip.Beats) for (const n of b.Notes || []) {
       if (n.String > numStrings()) n.String = numStrings();
       n.MIDI = st.riff.Tuning[n.String - 1] + n.Fret;
     }
     edit(() => { st.riff.Bars[st.bar] = clip; st.beat = 0; });
   }
+  function togglePattern(on) {
+    edit(() => { if (on) st.riff.Pattern = true; else delete st.riff.Pattern; });
+  }
 
   // ---- alphaTeX --------------------------------------------------------------
-  // A port of internal/tab's writeBeat/writeBeatEffects, recording for each
+  // A port of internal/tab's writeBeat/writeDrumBeat, recording for each
   // bar which riff beat every alphaTab beat comes from (a slide adds a
   // grace beat in front of its note).
 
-  function midiToNote(midi) {
-    const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    return names[midi % 12] + (Math.floor(midi / 12) - 1);
-  }
   function esc(s) { return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"'); }
 
   function noteProps(beat, n) {
@@ -353,8 +485,11 @@
     const dur = m[1];
     let out = '';
     let extra = 0;
-    if (beat.Rest || !(beat.Notes || []).length) {
+    const drumNames = st.kind === 'drums' ? (beat.Notes || []).map((n) => drumArt(n.MIDI)).filter(Boolean) : null;
+    if (beat.Rest || !(beat.Notes || []).length || (drumNames && !drumNames.length)) {
       out = 'r.' + dur;
+    } else if (drumNames) {
+      out = drumNames.length === 1 ? `${drumNames[0]}.${dur}` : `(${drumNames.join(' ')}).${dur}`;
     } else {
       if (beat.HasSlideFrom && beat.Notes.length === 1) {
         out += `(${beat.SlideFromFret}.${beat.Notes[0].String}{sl}).32{gr} `;
@@ -385,13 +520,25 @@
     const r = st.riff;
     const labels = chordLabels();
     const [tn, td] = timeSig();
-    let tex = `\\tuning (${r.Tuning.map(midiToNote).join(' ')})\n`;
-    if (r.Tuning.length <= 4) tex += '\\clef F4\n';
-    tex += '.\n';
+    let tex;
+    if (st.kind === 'drums') {
+      tex = '\\track "Drums" { instrument percussion }\n';
+      const arts = new Map(DRUM_PIECES.map((p) => [p.art, p.midi]));
+      for (const [m, a] of Object.entries(DRUM_ART_EXTRA)) arts.set(a, Number(m));
+      for (const [a, m] of arts) tex += `\\articulation (${a} ${m})\n`;
+      tex += '.\n';
+    } else {
+      tex = `\\tuning (${r.Tuning.map(noteName).join(' ')})\n`;
+      if (st.kind === 'bass') tex += '\\clef F4\n';
+      tex += '.\n';
+    }
     st.map = [];
     r.Bars.forEach((bar, bi) => {
       if (bi > 0) tex += ' | ';
-      else if (!(tn === 4 && td === 4)) tex += `\\ts ${tn} ${td} `;
+      else {
+        if (!(tn === 4 && td === 4)) tex += `\\ts ${tn} ${td} `;
+        if (st.kind === 'drums') tex += '\\clef neutral ';
+      }
       const map = [];
       bar.Beats.forEach((beat, i) => {
         const { tex: t, extra } = beatTex(beat, i === 0 ? labels[bi] : '');
@@ -410,16 +557,20 @@
     try { return v ? alphaTab.model.Color.fromJson(v) : fallback; } catch (e) { return fallback; }
   }
 
+  // One alphaTab instance per kind of staff: guitar is tab only, bass an
+  // F-clef staff over its tab, drums a percussion staff.
   function ensureApi() {
-    if (st.api) return st.api;
+    if (st.api && st.apiKind === st.kind) return st.api;
+    if (st.api) { try { st.api.destroy(); } catch (e) { /* already gone */ } st.api = null; }
     const host = $('te-canvas');
+    host.innerHTML = '';
     const settings = new alphaTab.Settings();
     settings.core.fontDirectory = '/static/js/vendor/alphatab/font/';
     settings.core.useWorkers = false;
     settings.core.enableLazyLoading = false;
     settings.core.includeNoteBounds = true;
     settings.player.enablePlayer = false;
-    settings.display.staveProfile = alphaTab.StaveProfile.Tab;
+    settings.display.staveProfile = st.kind === 'drums' ? alphaTab.StaveProfile.Score : st.kind === 'bass' ? alphaTab.StaveProfile.ScoreTab : alphaTab.StaveProfile.Tab;
     settings.display.layoutMode = alphaTab.LayoutMode.Page;
     settings.display.barsPerRow = 4;
     settings.display.justifyLastSystem = true;
@@ -427,6 +578,7 @@
     settings.notation.elements.set(alphaTab.NotationElement.GuitarTuning, false);
     settings.notation.elements.set(alphaTab.NotationElement.ScoreTitle, false);
     settings.notation.elements.set(alphaTab.NotationElement.EffectDynamics, false);
+    settings.notation.elements.set(alphaTab.NotationElement.TrackNames, false);
     const fg = color('--fg', new alphaTab.model.Color(0x24, 0x1e, 0x18));
     settings.display.resources.staffLineColor = color('--fg-muted', fg);
     settings.display.resources.mainGlyphColor = fg;
@@ -435,6 +587,10 @@
     settings.display.resources.barSeparatorColor = fg;
     settings.display.resources.barNumberColor = color('--fg-muted', fg);
     st.api = new alphaTab.AlphaTabApi(host, settings);
+    st.apiKind = st.kind;
+    if (st.kind === 'bass') {
+      st.api.scoreLoaded.on((score) => { for (const t of score.tracks) for (const s of t.staves) s.displayTranspositionPitch = -BASS_WRITTEN_OFFSET; });
+    }
     st.api.postRenderFinished.on(drawCursor);
     return st.api;
   }
@@ -442,14 +598,14 @@
   function render() {
     renderToolbar();
     renderStatus();
-    if (!st.riff || st.riff.Drums || st.error) {
+    if (!st.riff || st.error) {
       $('te-canvas-wrap').hidden = true;
       return;
     }
     $('te-canvas-wrap').hidden = false;
     clampCursor();
     const tex = buildTex();
-    if (tex === st.tex && st.api) { drawCursor(); return; }
+    if (tex === st.tex && st.api && st.apiKind === st.kind) { drawCursor(); return; }
     st.tex = tex;
     try {
       ensureApi().tex(tex);
@@ -459,28 +615,36 @@
     }
   }
 
-  // The bar's tab staff in the bounds lookup; string s's line sits at an
-  // even spacing from its top (string 1) to its bottom (the last string).
-  function barBounds(barIndex) {
+  // The bar's bounds on one staff: 'tab', or 'staff' (the F-clef staff of a
+  // bass, a drum track's only staff).
+  function barBounds(barIndex, which) {
     const lookup = st.api && st.api.renderer.boundsLookup;
     if (!lookup) return null;
     for (const sys of lookup.staffSystems) {
       for (const mb of sys.bars) {
-        if (mb.index === barIndex && mb.bars[0]) return mb.bars[0];
+        if (mb.index !== barIndex || !mb.bars.length) continue;
+        return which === 'tab' ? mb.bars[mb.bars.length - 1] : mb.bars[0];
       }
     }
     return null;
   }
+  // Tab: string s's line, evenly spaced from string 1 (top) to the last.
   function stringY(bb, s) {
     const v = bb.visualBounds;
     const n = numStrings();
     return v.y + (n > 1 ? (s - 1) * v.h / (n - 1) : v.h / 2);
   }
+  // Five-line staff: one step (line to space) is an eighth of its height.
+  function staffStepPx(bb) { return bb.visualBounds.h / 8; }
+  function drumY(bb, piece) { return bb.visualBounds.y + DRUM_PIECES[piece].line * staffStepPx(bb); }
+  function bassStaffY(bb, step) { return bb.visualBounds.y + (F_CLEF_TOP_STEP - step) * staffStepPx(bb); }
+  function cursorStaff() { return st.kind === 'guitar' || (st.kind === 'bass' && st.mode === 'tab') ? 'tab' : 'staff'; }
 
   function drawCursor() {
     const cursor = $('te-cursor'), barHl = $('te-bar-hl');
-    const bb = barBounds(st.bar);
-    if (!bb) { cursor.hidden = true; barHl.hidden = true; return; }
+    const which = cursorStaff();
+    const bb = barBounds(st.bar, which);
+    if (!bb || !curBar()) { cursor.hidden = true; barHl.hidden = true; return; }
     const map = st.map[st.bar] || [];
     let beatB = null;
     bb.beats.forEach((b) => { if (map[b.beat.index] === st.beat) beatB = b; });
@@ -491,8 +655,18 @@
     if (!beatB) { cursor.hidden = true; return; }
     const bv = beatB.visualBounds;
     const w = Math.max(16, bv.w + 8);
-    const h = Math.min(16, v.h / Math.max(1, numStrings() - 1) + 2);
-    const y = stringY(bb, st.string);
+    let y, h;
+    if (which === 'tab') {
+      y = stringY(bb, st.string);
+      h = Math.min(16, v.h / Math.max(1, numStrings() - 1) + 2);
+    } else {
+      h = staffStepPx(bb) * 2 + 2;
+      if (st.kind === 'drums') y = drumY(bb, st.piece);
+      else {
+        const n = staffNote(curBeat());
+        y = bassStaffY(bb, n ? diatonicStep(n.MIDI + BASS_WRITTEN_OFFSET) : st.staffStep);
+      }
+    }
     Object.assign(cursor.style, { left: (bv.x + bv.w / 2 - w / 2) + 'px', top: (y - h / 2) + 'px', width: w + 'px', height: h + 'px' });
     cursor.hidden = false;
     if (document.activeElement === $('te-canvas-wrap')) cursor.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -500,7 +674,7 @@
 
   function pickAt(ev) {
     const lookup = st.api && st.api.renderer.boundsLookup;
-    if (!lookup) return;
+    if (!lookup || !st.riff) return;
     const rect = $('te-canvas').getBoundingClientRect();
     const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
     const beat = lookup.getBeatAtPos(x, y);
@@ -510,54 +684,88 @@
     if (!map) return;
     st.bar = barIndex;
     st.beat = map[beat.index] ?? 0;
-    const bb = barBounds(barIndex);
-    if (bb) {
-      let best = 1, bestD = Infinity;
-      for (let s = 1; s <= numStrings(); s++) {
-        const d = Math.abs(stringY(bb, s) - y);
-        if (d < bestD) { bestD = d; best = s; }
-      }
-      st.string = best;
-    }
     st.digit = null;
+    if (st.kind === 'bass') {
+      // Which staff was clicked: the nearer of the two.
+      const sb = barBounds(barIndex, 'staff'), tb = barBounds(barIndex, 'tab');
+      const dist = (bb) => { const v = bb.visualBounds; return y < v.y ? v.y - y : y > v.y + v.h ? y - v.y - v.h : 0; };
+      if (sb && tb) st.mode = dist(sb) < dist(tb) ? 'staff' : 'tab';
+    }
+    const which = cursorStaff();
+    const bb = barBounds(barIndex, which);
+    if (bb) {
+      if (which === 'tab') {
+        let best = 1, bestD = Infinity;
+        for (let s = 1; s <= numStrings(); s++) {
+          const d = Math.abs(stringY(bb, s) - y);
+          if (d < bestD) { bestD = d; best = s; }
+        }
+        st.string = best;
+      } else if (st.kind === 'drums') {
+        const b = curBeat();
+        let best = st.piece, bestD = Infinity;
+        DRUM_PIECES.forEach((p, i) => {
+          const d = Math.abs(drumY(bb, i) - y) - (drumNote(b, p.midi) ? 0.5 : 0); // a piece already on the beat wins a tie
+          if (d < bestD) { bestD = d; best = i; }
+        });
+        st.piece = best;
+      } else {
+        st.staffStep = F_CLEF_TOP_STEP - Math.round((y - bb.visualBounds.y) / staffStepPx(bb));
+        // Clicking a note head selects that note (its string).
+        const b = curBeat();
+        let near = null;
+        for (const n of (b && !b.Rest ? b.Notes : [])) {
+          const d = Math.abs(bassStaffY(bb, diatonicStep(n.MIDI + BASS_WRITTEN_OFFSET)) - y);
+          if (d <= staffStepPx(bb) * 1.5 && (!near || d < near.d)) near = { n, d };
+        }
+        if (near) st.string = near.n.String;
+        else if (b && !b.Rest && b.Notes.length === 1) st.string = b.Notes[0].String;
+      }
+    }
     render();
   }
 
   // ---- Toolbar, pickers, status ---------------------------------------------
 
+  const MELODIC = ['guitar', 'bass'], ALL = ['guitar', 'bass', 'drums'];
   const TOOLS = [
-    ...DURATIONS.slice(0, 6).map((d) => ({ act: 'dur', arg: d, label: d === '1' ? '1' : '1/' + d, title: `${DURATION_LABEL[d]} note` })),
-    { act: 'dot', label: '•', title: 'Dotted (.)' },
-    { act: 'triplet', label: '3', title: 'Triplet (T)' },
-    { sep: true },
-    { act: 'rest', label: 'Rest', title: 'Rest (R)' },
-    { act: 'tie', label: 'Tie', title: 'Tie to the previous note (L)' },
-    { act: 'hammer', label: 'H/P', title: 'Hammer-on / pull-off (H)' },
-    { act: 'slide', label: 'Slide', title: 'Slide in from the previous fret (S)' },
-    { act: 'bend', label: 'Bend', title: 'Bend: ½, full, off (B)' },
-    { act: 'pm', label: 'P.M.', title: 'Palm mute (P)' },
-    { sep: true },
-    { act: 'insert', label: '+ beat', title: 'Insert a beat before the cursor (Insert or I)' },
-    { act: 'addbar', label: '+ bar', title: 'Add an empty bar after this one' },
-    { act: 'dupbar', label: 'Duplicate bar', title: 'Duplicate this bar' },
-    { act: 'clearbar', label: 'Clear bar', title: 'Replace this bar with rests' },
-    { act: 'delbar', label: 'Delete bar', title: 'Delete this bar' },
+    { act: 'mode', arg: 'staff', label: 'Staff', title: 'Enter notes on the staff: A–G, ↑ ↓ by semitone', kinds: ['bass'] },
+    { act: 'mode', arg: 'tab', label: 'Tab', title: 'Enter notes on the tab: fret numbers', kinds: ['bass'] },
+    { sep: true, kinds: ['bass'] },
+    ...DURATIONS.slice(0, 6).map((d) => ({ act: 'dur', arg: d, label: d === '1' ? '1' : '1/' + d, title: `${DURATION_LABEL[d]} note`, kinds: ALL })),
+    { act: 'dot', label: '•', title: 'Dotted (.)', kinds: ALL },
+    { act: 'triplet', label: '3', title: 'Triplet (T)', kinds: ALL },
+    { sep: true, kinds: ALL },
+    { act: 'rest', label: 'Rest', title: 'Rest (R)', kinds: ALL },
+    { act: 'tie', label: 'Tie', title: 'Tie to the previous note (L)', kinds: MELODIC },
+    { act: 'hammer', label: 'H/P', title: 'Hammer-on / pull-off (H)', kinds: MELODIC },
+    { act: 'slide', label: 'Slide', title: 'Slide in from the previous fret (S)', kinds: MELODIC },
+    { act: 'bend', label: 'Bend', title: 'Bend: ½, full, off (B)', kinds: MELODIC },
+    { act: 'pm', label: 'P.M.', title: 'Palm mute (P)', kinds: MELODIC },
+    ...DRUM_PIECES.map((p, i) => ({ act: 'drum', arg: String(i), label: p.name, title: `${p.name} (${p.key.toUpperCase()})`, kinds: ['drums'] })),
+    { sep: true, kinds: ALL },
+    { act: 'insert', label: '+ beat', title: 'Insert a beat before the cursor (Insert or I)', kinds: ALL },
+    { act: 'addbar', label: '+ bar', title: 'Add an empty bar after this one', kinds: ALL },
+    { act: 'dupbar', label: 'Duplicate bar', title: 'Duplicate this bar', kinds: ALL },
+    { act: 'clearbar', label: 'Clear bar', title: 'Replace this bar with rests', kinds: ALL },
+    { act: 'delbar', label: 'Delete bar', title: 'Delete this bar', kinds: ALL },
   ];
 
   function renderToolbar() {
     const tb = $('te-toolbar');
     if (!tb.childElementCount) {
       for (const t of TOOLS) {
-        if (t.sep) { const s = document.createElement('span'); s.className = 'te-sep'; tb.appendChild(s); continue; }
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.dataset.act = t.act;
-        if (t.arg) b.dataset.arg = t.arg;
-        b.textContent = t.label;
-        b.title = t.title;
-        tb.appendChild(b);
+        const el = document.createElement(t.sep ? 'span' : 'button');
+        el.dataset.kinds = t.kinds.join(' ');
+        if (t.sep) { el.className = 'te-sep'; tb.appendChild(el); continue; }
+        el.type = 'button';
+        el.dataset.act = t.act;
+        if (t.arg) el.dataset.arg = t.arg;
+        el.textContent = t.label;
+        el.title = t.title;
+        tb.appendChild(el);
       }
-      tb.addEventListener('mousedown', (e) => e.preventDefault()); // keep the keyboard focus on the tab
+      tb.addEventListener('mousedown', (e) => e.preventDefault()); // keep the keyboard focus on the score
       tb.addEventListener('click', (e) => {
         const b = e.target.closest('button[data-act]');
         if (b) { runAction(b.dataset.act, b.dataset.arg); $('te-canvas-wrap').focus({ preventScroll: true }); }
@@ -568,6 +776,7 @@
     const base = beat ? beat.Duration.replace(/\.+$/, '') : '';
     const n = noteOn(beat, st.string);
     const on = {
+      mode: (b) => b.dataset.arg === st.mode,
       dur: (b) => b.dataset.arg === base,
       dot: () => !!beat && beat.Duration.endsWith('.'),
       triplet: () => !!beat && !!beat.TupletNum,
@@ -577,11 +786,18 @@
       slide: () => !!beat && !!beat.HasSlideFrom,
       bend: () => !!beat && beat.BendSemitones > 0,
       pm: () => !!beat && !!beat.PalmMute,
+      drum: (b) => !!drumNote(beat, DRUM_PIECES[Number(b.dataset.arg)].midi),
     };
+    tb.querySelectorAll('[data-kinds]').forEach((el) => { el.hidden = !el.dataset.kinds.split(' ').includes(st.kind); });
     tb.querySelectorAll('button[data-act]').forEach((b) => {
-      b.disabled = !ok;
+      b.disabled = !ok && b.dataset.act !== 'mode';
       b.classList.toggle('active', ok && !!on[b.dataset.act] && on[b.dataset.act](b));
+      b.classList.toggle('te-selected', b.dataset.act === 'drum' && Number(b.dataset.arg) === st.piece);
     });
+    const pat = $('te-pattern');
+    pat.checked = !!(st.riff && st.riff.Pattern);
+    pat.disabled = !editable();
+    $('te-pattern-label').hidden = !st.riff;
   }
 
   let noteTimer = null;
@@ -589,7 +805,7 @@
     const el = $('te-note');
     el.textContent = msg;
     clearTimeout(noteTimer);
-    noteTimer = setTimeout(() => { el.textContent = ''; }, 1500);
+    noteTimer = setTimeout(() => { el.textContent = ''; }, 1800);
   }
 
   function renderStatus() {
@@ -597,15 +813,21 @@
     el.className = 'te-status';
     if (st.error) { el.textContent = st.error; el.classList.add('err'); return; }
     if (!st.riff) { el.textContent = ''; return; }
-    if (st.riff.Drums) { el.textContent = 'Drum tracks can’t be edited here yet: use Source, or edit the Guitar Pro file.'; return; }
     const bar = curBar();
     const used = bar ? barBeats(bar) : 0, cap = barCapacity();
     const fmt = (x) => (Math.round(x * 100) / 100).toString();
     const secBars = bridge.measures(currentSection()).length;
-    let msg = `Bar ${st.bar + 1} of ${bars().length} · beat ${st.beat + 1} · string ${st.string} · ${fmt(used)} of ${fmt(cap)} beats`;
+    let where;
+    if (st.kind === 'drums') where = DRUM_PIECES[st.piece].name;
+    else if (st.kind === 'bass' && st.mode === 'staff') {
+      const n = staffNote(curBeat());
+      where = 'staff · ' + (n ? `${noteName(n.MIDI)} (string ${n.String}, fret ${n.Fret})` : noteName(naturalMidi(st.staffStep) - BASS_WRITTEN_OFFSET));
+    } else where = `string ${st.string}`;
+    let msg = `Bar ${st.bar + 1} of ${bars().length} · beat ${st.beat + 1} · ${where} · ${fmt(used)} of ${fmt(cap)} beats`;
     if (used > cap + 1e-9) { msg += ' — too long'; el.classList.add('err'); }
     else if (used < cap - 1e-9) { msg += ' — not full'; el.classList.add('warn'); }
-    if (secBars && secBars !== bars().length) msg += ` · the section has ${secBars} bars`;
+    if (st.riff.Pattern) msg += secBars > bars().length ? ` · repeats through the section’s ${secBars} bars` : '';
+    else if (secBars && secBars !== bars().length) msg += ` · the section has ${secBars} bars`;
     el.textContent = msg;
   }
 
@@ -618,7 +840,7 @@
   function sectionTitle(sec, i) {
     const n = bridge.sections().slice(0, i + 1).filter((s) => s.label === sec.label).length;
     const total = bridge.sections().filter((s) => s.label === sec.label).length;
-    return `${i + 1}. ${sec.label || 'Untitled'}${total > 1 ? ' ' + n : ''}` + (sec.scores && sec.scores.length ? '' : ' (no tab)');
+    return `${i + 1}. ${sec.label || 'Untitled'}${total > 1 ? ' ' + n : ''}` + (sec.scores && sec.scores.length ? '' : ' (no score)');
   }
 
   function renderPickers() {
@@ -668,7 +890,13 @@
       }
     }
     if (riff && !riff.Drums && !(riff.Tuning || []).length) { st.error = 'This track has no tuning.'; riff = null; }
-    if (riff) for (const bar of riff.Bars || []) bar.Beats = bar.Beats || [];
+    if (riff) {
+      riff.Bars = riff.Bars || [];
+      if (!riff.Bars.length) riff.Bars.push({ Beats: [{ Rest: true, Duration: '1' }] });
+      for (const bar of riff.Bars) bar.Beats = bar.Beats || [];
+      const kind = kindOf(riff);
+      if (kind !== st.kind) { st.kind = kind; st.mode = kind === 'bass' ? 'staff' : 'tab'; }
+    }
     st.riff = riff;
     clampCursor();
     renderNotice();
@@ -676,23 +904,30 @@
   }
 
   function selectSection(i) {
-    st.sec = i; st.voice = 0; st.bar = 0; st.beat = 0; st.string = 1;
+    st.sec = i; st.voice = 0; st.bar = 0; st.beat = 0;
     loadVoice();
   }
 
+  // newVoice adds a track to the section: kind is Guitar, Bass, Drums, or
+  // Pattern (one bar of drums that repeats through the section).
   function newVoice(kind) {
     const sec = currentSection();
     if (!sec) return;
+    const base = kind === 'Pattern' ? 'Drums' : kind;
     const labels = new Set((sec.scores || []).map((v) => (v.label || '').toLowerCase()));
-    let label = kind, n = 2;
-    while (labels.has(label.toLowerCase())) label = `${kind} ${n++}`;
-    const count = Math.max(1, bridge.measures(sec).length);
-    const riff = { Tuning: STANDARD_TUNING[kind].slice(), MinimumFret: 0, Bars: Array.from({ length: count }, () => ({ Beats: restBeats(barCapacity()) })) };
+    let label = base, n = 2;
+    while (labels.has(label.toLowerCase())) label = `${base} ${n++}`;
+    const count = kind === 'Pattern' ? 1 : Math.max(1, bridge.measures(sec).length);
+    const blank = () => Array.from({ length: count }, () => ({ Beats: restBeats(barCapacity()) }));
+    const riff = base === 'Drums' ? { Drums: true, Bars: blank() } : { Tuning: STANDARD_TUNING[kind].slice(), MinimumFret: 0, Bars: blank() };
+    if (kind === 'Pattern') riff.Pattern = true;
     bridge.begin();
     sec.scores = sec.scores || [];
     sec.scores.push({ label, body: JSON.stringify(encodeRiff(riff)) });
     st.voice = sec.scores.length - 1;
-    st.bar = 0; st.beat = 0; st.string = kind === 'Bass' ? 4 : 6;
+    st.bar = 0; st.beat = 0;
+    st.string = kind === 'Bass' ? 4 : 6;
+    st.piece = DRUM_PIECES.findIndex((p) => p.midi === 42);
     loadVoice().then(() => $('te-canvas-wrap').focus());
   }
 
@@ -709,6 +944,7 @@
 
   function runAction(act, arg) {
     switch (act) {
+      case 'mode': st.mode = arg; render(); break;
       case 'dur': setDuration(arg); break;
       case 'dot': toggleDot(); break;
       case 'triplet': toggleTriplet(); break;
@@ -718,6 +954,7 @@
       case 'slide': toggleSlide(); break;
       case 'bend': cycleBend(); break;
       case 'pm': toggleFlag('PalmMute'); break;
+      case 'drum': st.piece = Number(arg); toggleDrum(DRUM_PIECES[st.piece].midi); break;
       case 'insert': insertBeat(); break;
       case 'addbar': addBar(); break;
       case 'dupbar': duplicateBar(); break;
@@ -726,12 +963,55 @@
     }
   }
 
+  // Keys every kind of track shares; each kind's own keys come first.
+  function commonKey(k) {
+    switch (k) {
+      case 'ArrowRight': moveRight(); return true;
+      case 'ArrowLeft': moveLeft(); return true;
+      case 'ArrowUp': moveVertical(-1); return true;
+      case 'ArrowDown': moveVertical(1); return true;
+      case 'Home': st.beat = 0; render(); return true;
+      case 'End': st.beat = curBar().Beats.length - 1; render(); return true;
+      case 'Backspace': case 'Delete': deleteAtCursor(); return true;
+      case 'Insert': case 'i': case 'I': insertBeat(); return true;
+      case '+': case '=': changeDuration(1); return true;
+      case '-': case '_': changeDuration(-1); return true;
+      case '.': toggleDot(); return true;
+      case 'r': case 'R': makeRest(); return true;
+      case 't': case 'T': toggleTriplet(); return true;
+      case 'Escape': $('te-canvas-wrap').blur(); return true;
+    }
+    return false;
+  }
+
+  function drumKey(k) {
+    const lk = k.toLowerCase();
+    if (k === ' ' || k === 'Enter') { toggleDrum(DRUM_PIECES[st.piece].midi); return true; }
+    const i = DRUM_PIECES.findIndex((p) => p.key === lk);
+    if (i < 0) return false;
+    st.piece = i;
+    toggleDrum(DRUM_PIECES[i].midi);
+    return true;
+  }
+
+  function melodicKey(k) {
+    if (/^[0-9]$/.test(k)) { if (editable()) typeDigit(Number(k)); return true; }
+    if (st.kind === 'bass' && st.mode === 'staff' && /^[a-gA-G]$/.test(k)) { typeLetter(k.toUpperCase()); return true; }
+    switch (k) {
+      case 'l': case 'L': toggleTie(); return true;
+      case 'h': case 'H': toggleFlag('HammerPull'); return true;
+      case 's': case 'S': toggleSlide(); return true;
+      case 'b': case 'B': cycleBend(); return true;
+      case 'p': case 'P': toggleFlag('PalmMute'); return true;
+    }
+    return false;
+  }
+
   function onKey(e) {
     if (!st.riff) return;
-    const mod = e.metaKey || e.ctrlKey;
     const k = e.key;
     let handled = true;
-    if (mod) {
+    if (e.metaKey || e.ctrlKey) {
       const lk = k.toLowerCase();
       if (lk === 'z' && !e.shiftKey) bridge.undo();
       else if ((lk === 'z' && e.shiftKey) || lk === 'y') bridge.redo();
@@ -742,31 +1022,8 @@
       else handled = false;
     } else if (e.altKey) {
       handled = false;
-    } else if (/^[0-9]$/.test(k)) {
-      if (editable()) typeDigit(Number(k));
     } else {
-      switch (k) {
-        case 'ArrowRight': moveRight(); break;
-        case 'ArrowLeft': moveLeft(); break;
-        case 'ArrowUp': st.string = Math.max(1, st.string - 1); st.digit = null; render(); break;
-        case 'ArrowDown': st.string = Math.min(numStrings(), st.string + 1); st.digit = null; render(); break;
-        case 'Home': st.beat = 0; render(); break;
-        case 'End': st.beat = curBar().Beats.length - 1; render(); break;
-        case 'Backspace': case 'Delete': deleteAtCursor(); break;
-        case 'Insert': case 'i': case 'I': insertBeat(); break;
-        case '+': case '=': changeDuration(1); break;
-        case '-': case '_': changeDuration(-1); break;
-        case '.': toggleDot(); break;
-        case 'r': case 'R': makeRest(); break;
-        case 't': case 'T': toggleTriplet(); break;
-        case 'l': case 'L': toggleTie(); break;
-        case 'h': case 'H': toggleFlag('HammerPull'); break;
-        case 's': case 'S': toggleSlide(); break;
-        case 'b': case 'B': cycleBend(); break;
-        case 'p': case 'P': toggleFlag('PalmMute'); break;
-        case 'Escape': $('te-canvas-wrap').blur(); break;
-        default: handled = false;
-      }
+      handled = (st.kind === 'drums' ? drumKey(k) : melodicKey(k)) || commonKey(k);
     }
     if (handled) { e.preventDefault(); e.stopPropagation(); }
   }
@@ -782,6 +1039,7 @@
       $('te-voice').addEventListener('change', (e) => { st.voice = Number(e.target.value); st.bar = 0; st.beat = 0; loadVoice(); });
       $('te-new-voice').addEventListener('change', (e) => { const k = e.target.value; e.target.value = ''; if (k) newVoice(k); });
       $('te-delete-voice').addEventListener('click', deleteVoice);
+      $('te-pattern').addEventListener('change', (e) => togglePattern(e.target.checked));
       const wrap = $('te-canvas-wrap');
       wrap.addEventListener('keydown', onKey);
       wrap.addEventListener('mousedown', (e) => { pickAt(e); });

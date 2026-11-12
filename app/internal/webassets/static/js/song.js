@@ -3091,7 +3091,7 @@ const ICONS = {
     // (the earlier .bar-matrix.focus-mode grid hack this replaces). Mobile
     // keeps it inline, first child of host, exactly as before.
     const toolbarEl = buildChordToolbar(sec, i);
-    const toolboxToolbar = focusModeActive ? document.getElementById('toolbox-toolbar') : null;
+    const toolboxToolbar = focusModeActive && !structureEl.hidden ? document.getElementById('toolbox-toolbar') : null;
     if (toolboxToolbar) { toolboxToolbar.innerHTML = ''; toolboxToolbar.appendChild(toolbarEl); }
     else host.appendChild(toolbarEl);
 
@@ -3794,6 +3794,9 @@ const ICONS = {
   // renderMatrix/buildChordToolbar) switches the row-chunking and
   // split-progression behavior. No parallel chart-rendering code exists.
   function renderFocusEditor() {
+    // Its toolbox lives in the page's sidebar, shared with every tab:
+    // drawn only while the Chart shows (switching back re-renders it).
+    if (structureEl.hidden) return;
     const list = document.getElementById('chip-list');
     list.innerHTML = '';
 
@@ -3883,6 +3886,18 @@ const ICONS = {
         chartHost.className = 'real-chart-host';
         main.appendChild(chartHost);
         requestAnimationFrame(() => renderRealChart(sec, i, chartHost, true));
+      } else if ((!sec.measures || sec.measures.length === 0) && (sec.scores || []).length) {
+        // A score with no chord bars (an intro riff, a drum groove) takes
+        // its bars from the score: giving it blank chord bars here would
+        // hide it on the chart after the next save.
+        const notice = document.createElement('p');
+        notice.className = 'hint';
+        notice.textContent = 'This section is a score only (edit it in the Scores tab): the chart takes its bars from the score. ';
+        const addChords = document.createElement('button');
+        addChords.type = 'button'; addChords.textContent = 'Add chord bars';
+        addChords.addEventListener('click', () => { edited(); sec.measures = Array.from({ length: 4 }, () => emptyMeasure()); renderFocusEditor(); });
+        notice.appendChild(addChords);
+        main.appendChild(notice);
       } else {
         if (!sec.measures || sec.measures.length === 0) {
           sec.measures = Array.from({ length: 8 }, () => emptyMeasure());

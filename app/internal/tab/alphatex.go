@@ -74,7 +74,10 @@ func ToAlphaTex(riff *Riff, clef string, chordLabels []string) string {
 		if bi < len(chordLabels) {
 			label = chordLabels[bi]
 		}
-		for i, beat := range bar.Beats {
+		if bar.Simile {
+			b.WriteString(`\simile simple `)
+		}
+		for i, beat := range simileBeats(bar) {
 			if i > 0 {
 				b.WriteByte(' ')
 			}
@@ -84,6 +87,17 @@ func ToAlphaTex(riff *Riff, clef string, chordLabels []string) string {
 	}
 	b.WriteString(" |")
 	return b.String()
+}
+
+// simileBeats is what a bar draws: its own beats, or for a Simile bar
+// rests of the same length, under its "\simile simple" mark — alphaTab
+// draws the "%" cleanly over a silent bar only; over notes it draws both
+// on top of each other.
+func simileBeats(bar Bar) []Beat {
+	if !bar.Simile {
+		return bar.Beats
+	}
+	return RestBeats(BarBeats(bar))
 }
 
 // ToAlphaTexBass is ToAlphaTex with the one per-riff hint this app's own
@@ -576,6 +590,9 @@ func ToAlphaTexDrums(riff *Riff, chordLabels []string, boundaries []bool, tempo 
 		if bi < len(chordLabels) {
 			label = chordLabels[bi]
 		}
+		// A pattern's repeats are written out in full here: this staff
+		// consolidates rest bars (multiBarRest), and alphaTab merges a
+		// silent "%" bar into those runs.
 		for i, beat := range bar.Beats {
 			if i > 0 {
 				b.WriteByte(' ')

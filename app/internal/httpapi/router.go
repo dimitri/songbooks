@@ -180,6 +180,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/songs/{id}/audio/gp/sync-points", s.requireVariantRole("editor", s.handlePutGPBarSyncPoints))
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file", s.requireVariantRole("editor", s.handlePutSongGPFile))
 	mux.HandleFunc("GET /song/{id}/gp-file", s.requireVariantRole("viewer", s.handleGetSongGPFile))
+	mux.HandleFunc("GET /song/{id}/gp-file/versions/{vid}", s.requireVariantRole("viewer", s.handleGetSongGPFileVersion))
 
 	// A section's "score[label]:" voices (internal/tab's LilyPond-
 	// compatible subset, or a GP-imported riff's own JSON encoding — see

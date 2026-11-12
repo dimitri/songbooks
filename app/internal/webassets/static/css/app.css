@@ -3849,6 +3849,8 @@ textarea {
 }
 .te-toolbar button.active { background: var(--accent); color: var(--accent-contrast, var(--bg)); border-color: var(--accent); }
 .te-toolbar button:disabled { opacity: 0.45; cursor: default; }
+.te-toolbar button.te-selected:not(.active) { border-color: var(--accent); }
+.te-pattern { font-size: 0.85rem; color: var(--fg-muted); display: flex; gap: 0.3rem; align-items: center; }
 .te-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 0.3rem; }
 .te-canvas-wrap {
   position: relative; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-raised);

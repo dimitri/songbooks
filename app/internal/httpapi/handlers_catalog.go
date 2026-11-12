@@ -203,8 +203,13 @@ func (s *Server) handleVariantHistoryPage(w http.ResponseWriter, r *http.Request
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// The Guitar Pro files the song was imported from, current and earlier
+	// (best effort: a failure just leaves the section out).
+	gpCurrent, _ := s.store.GetSongGPSourceFileMeta(r.Context(), variantID)
+	gpVersions, _ := s.store.ListSongGPSourceFileVersions(r.Context(), variantID)
 	s.render(w, "variant_history", map[string]any{
 		"Me": person, "Variant": variant, "Revisions": revisions, "CanEdit": canEdit,
+		"GPFile": gpCurrent, "GPVersions": gpVersions,
 	})
 }
 

@@ -1004,6 +1004,8 @@ func collectInstrumentNames(scoreTracks map[int][]tab.NamedRiff) []string {
 // not a case the UI can create today) is left untouched — truncating
 // written notation would be a worse failure than showing extra bars.
 func chipSource(sec *viewerSection, riff *tab.Riff) (bars []tab.Bar, chordLabels []string, restOnly bool) {
+	// A pattern keeps going through every played bar, repeats included.
+	riff = tab.FillPattern(riff, sec.BarCount)
 	if riff != nil && len(riff.Bars) > 0 {
 		bars = riff.Bars
 		for len(bars) < sec.BarCount {
@@ -1478,6 +1480,34 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 			}
 		}
 	}
+}
+
+// withRiffOnlyBars gives a section that has a score but no chord bars
+// (an intro riff, a drum pattern written down on its own) as many empty
+// bars as its first voice has, so the chart has bars to draw the score
+// on. The song itself is left untouched: the copy shares everything but
+// the filled sections' measures.
+func withRiffOnlyBars(sg *song.Song) *song.Song {
+	var out *song.Song
+	for i, sec := range sg.Sections {
+		if len(sec.Measures) > 0 || sec.Repeat || len(sec.Scores) == 0 {
+			continue
+		}
+		riff, err := tab.ParseVoice(sec.Scores[0].Label, sec.Scores[0].Body)
+		if err != nil || len(riff.Bars) == 0 {
+			continue
+		}
+		if out == nil {
+			cp := *sg
+			cp.Sections = append([]song.Section(nil), sg.Sections...)
+			out = &cp
+		}
+		out.Sections[i].Measures = make([]song.Measure, len(riff.Bars))
+	}
+	if out == nil {
+		return sg
+	}
+	return out
 }
 
 // anyTabOnlyLine reports whether any display row across sections needs
@@ -2213,6 +2243,7 @@ func segnoMatchBetter(a, b segnoMatch, n int) bool {
 }
 
 func buildSections(sg *song.Song) []viewerSection {
+	sg = withRiffOnlyBars(sg)
 	globalTime := orDefault(sg.Get("time"), "4/4")
 	globalBeats := timeSigBeats(globalTime)
 	tempo := orDefault(sg.Get("tempo"), "120")

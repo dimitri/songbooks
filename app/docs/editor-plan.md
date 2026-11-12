@@ -1,9 +1,14 @@
 # Song editor — review and plan
 
-Status: **phase 0 and phase 1 built** on branch `gp-editor`. The
-rest is scoped and not built yet.
+Status: **phase 0 and phase 1 built**, and part of phase 2 (GP file
+history, export with web edits, forks keep their media) on branch
+`gp-editor`. See §9 for where that leaves us against the goal.
 
-Guitar Pro is the reference for how editing notation should feel. The
+**The goal is not a web Guitar Pro.** It is for a band to take notes and
+share them easily: the changes, a riff, a bass line, a groove, a fix to a
+transcription. Guitar Pro stays the tool for real transcription work, and
+the round trip with it has to be safe. Guitar Pro is still the reference
+for how editing notation should feel. The
 `.song` text stays the single source of truth. It is still the file we
 store, diff, revise and export, and every editor below reads and writes
 it.
@@ -126,16 +131,35 @@ the drawer's Save, Discard and Undo already handle.
 **New bars:** "+ bar" appends a whole-bar rest. A bar can be deleted or
 duplicated from the toolbar.
 
-**New voices:** "New voice" creates a `score[Guitar]` or `score[Bass]`
-voice with one rest bar per measure in the section, in standard tuning.
+**New voices:** "New track" creates a guitar, bass or drum voice with one
+rest bar per measure in the section, or a one-bar drum pattern.
+
+**Bass:** an F-clef staff over the tab, in the chart and in the editor,
+written an octave above where it sounds (the usual bass convention).
+Guitar stays tab only. In the editor, click the staff to enter notes by
+name (A–G, then ↑ ↓ by semitone; the editor picks the string and fret
+nearest the hand), or the tab to type frets.
+
+**Drums:** a percussion staff with a piece cursor (↑ ↓, or click). Keys
+toggle a piece on the beat: K kick, S snare, H hi-hat, O open hi-hat,
+C crash, Y ride, X side stick, F hi-hat pedal, 1–4 toms; Space toggles
+the piece under the cursor.
+
+**Patterns:** "Repeats through the section" (`"Pattern": true` in the
+voice) marks a short groove or riff written once. `tab.LoadScores`
+repeats it to the section's length. Tab rows draw the repeats as "%"
+bars; the Drummer view and the Mixer write and play them in full. A
+section with a score and no chord bars (an intro riff, a groove written
+on its own) gets its bars from the score.
 
 **LilyPond voices:** a voice written in the LilyPond subset is converted
 to a Riff (`POST /api/score/riff`) on first edit. A notice says it will
 be saved as tab data from then on. Read-only viewing doesn't convert it.
 
-**What the subset leaves out for now:** multiple voices per staff,
-per-bar time signatures, tempo changes, vibrato, harmonics, dead or ghost
-notes, let-ring, dynamics, a drum editor. These come in phase 4.
+**What the subset leaves out:** multiple voices per staff, per-bar time
+signatures, tempo changes, vibrato, harmonics, dead or ghost notes,
+let-ring, dynamics, drum accents and flams. Most of it belongs in Guitar
+Pro, not here (see §9).
 
 ## 5. Phase 2 — the Guitar Pro round trip
 
@@ -143,13 +167,14 @@ The goal: "this came from a GP file — download, edit in Guitar Pro,
 upload again" must be safe and quick.
 
 1. **Download what you'll edit.**
-   - "Download .gp" offers the stored original.
-   - "Export current .gp" exports what the song holds now: load the stored
-     original with alphaTab, replace the edited tracks' bars from the
-     Riffs, then `alphaTab.exporter.Gp7Exporter`. Rebuild from the Riffs
-     alone when there is no original. This way edits made in the web
-     editor are never lost by a round trip.
-   - Section names go in as GP markers, and the chords as chord names.
+   - [x] "Original .gp" downloads the stored original.
+   - [x] "Export as Guitar Pro" (`gp-export.js`) writes what the song
+     holds now: every track over the whole song from the Mixer's alphaTeX,
+     sections as markers, chords as chord names, tempo and swing, plus the
+     original file's backing track and sync points when the bar counts
+     still match. Edits made on the web are not lost by a round trip.
+   - [ ] Patch the original instead of rebuilding, to keep the tracks and
+     Guitar Pro effects the import never brought in.
 2. **Remember the mapping.** Store the GP bar range and lead-in that fed
    each section and track, plus the source file sha256, in a
    `gp_mapping` table. On re-upload, pre-fill the alignment from it.
@@ -161,12 +186,15 @@ upload again" must be safe and quick.
    - chords from GP diagrams are an opt-in grid diff;
    - a hand-written (LilyPond) voice is never replaced without an
      explicit tick.
-4. **Apply in one request, one transaction, one revision.** The new GP
-   file is kept in a history (`gp_files` gains a version), and the old
-   one stays downloadable. A same-sha upload says "nothing changed".
+4. **Apply in one request, one transaction, one revision.**
+   - [x] A new GP file keeps the one it replaces
+     (`song_gp_source_file_version`), listed and downloadable on the
+     song's History page; uploading the same file again changes nothing.
+   - [ ] The import itself still writes one revision per section.
 5. **Audio stays aligned:** recompute sync points from the stored
    mapping, and drop section markers that no longer land on a bar.
-6. **Forks copy the GP file and the audio rows.**
+6. [x] **Forks copy the GP file (and its earlier versions), the
+   recordings, their markers and bar sync points.**
 7. **Robustness:** key voices on a stable GP track id (stored next to the
    label) rather than its display name; read every staff and voice;
    import drum tracks.
@@ -232,7 +260,7 @@ The Chart tab becomes a fast, keyboard-first iReal-style editor.
 - a time signature per bar;
 - several voices;
 - double dots;
-- a drum editor (GP drum-map keys).
+- [x] a drum editor.
 
 ## 8. Review notes (condensed)
 
@@ -261,3 +289,39 @@ The Chart tab becomes a fast, keyboard-first iReal-style editor.
 - A body starting with `{` is always read as JSON.
 - Raw save doesn't validate.
 - The client only ever says "save failed".
+
+## 9. Review against the goal — what's missing
+
+What a band can do now: write or fix a guitar, bass or drum part in a
+section from the browser, keep a groove as a one-bar pattern, take a GP
+file into Guitar Pro and back without losing web fixes or earlier files,
+and undo or revert any of it from History.
+
+What's missing, in the order it would help a band most:
+
+1. **Hearing it.** The Scores tab can't play what you wrote. alphaTab's
+   player (already used by the Mixer) should play the section, or the
+   pattern on loop, at the song's tempo.
+2. **Phone and tablet entry.** The editor is keyboard-first. At rehearsal
+   it needs an on-screen pad: frets 0–24 for guitar and bass, the kit
+   pieces for drums, durations, and arrows.
+3. **Notes on the music itself.** A short text note on a bar ("stop on
+   4", "bass alone here") drawn above the staff, for the things a band
+   actually writes down. Section notes exist; bar notes don't.
+4. **Showing who changed what.** History lists "~N lines changed". A band
+   needs "Verse 2, bass, bars 3–4 changed by Sam" and a before/after.
+5. **The rest of the GP round trip** (phase 2): remember the bar mapping
+   so a re-import doesn't need re-aligning, show a diff before applying,
+   one revision per import, and import drum tracks.
+6. **Typing chords** (phase 3) on desktop: `Bbm7/F` + Enter.
+7. **Small gaps in what was built:**
+   - the Mixer still shows bass as tab only;
+   - no per-viewer "tab only" switch for bass;
+   - drum pieces beyond the twelve in the editor (cowbell, ride bell) show
+     but can't be added;
+   - the Drummer view packs dense patterns tightly on narrow rows;
+   - the chord names in an export sit on the first track only.
+
+Deliberately not planned: several voices per staff, tempo and meter
+automation, the full Guitar Pro effect set, print-quality engraving. For
+those, export to Guitar Pro, edit there, and import again.

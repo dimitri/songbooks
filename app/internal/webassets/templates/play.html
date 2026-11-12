@@ -514,6 +514,7 @@
       <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
     </span>
     {{if .GPFileName}}<a class="sidebar-song-row" href="/song/{{.VariantID}}/gp-file" title="download the original Guitar Pro file ({{.GPFileName}})" download>{{template "icon-download"}} Guitar Pro file</a>{{end}}
+    {{if .HasAnyScore}}<a class="sidebar-song-row gp-export-btn" href="#" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="the song as it is now, edits made here included, as a Guitar Pro file">{{template "icon-download"}} Export as Guitar Pro</a>{{end}}
     {{if .WorkID}}<a class="sidebar-song-row" href="/works/{{.WorkID}}" title="all versions of this song">{{template "icon-mode-map"}} Versions</a>{{end}}
     {{if .VariantID}}<a class="sidebar-song-row" href="/variants/{{.VariantID}}/history" title="revision history">{{template "icon-notes"}} History</a>{{end}}
     <button id="reference-toggle" class="sidebar-song-row" type="button" title="reference video">{{template "icon-reference"}} Reference</button>
@@ -773,12 +774,15 @@
           <select id="te-new-voice" aria-label="Add a track to this section">
             <option value="">+ New track…</option>
             <option value="Guitar">Guitar (6 strings, standard tuning)</option>
-            <option value="Bass">Bass (4 strings, standard tuning)</option>
+            <option value="Bass">Bass (4 strings, staff and tab)</option>
+            <option value="Drums">Drums (the whole section)</option>
+            <option value="Pattern">Drum pattern (one bar, repeats through the section)</option>
           </select>
+          <label class="te-pattern" id="te-pattern-label" title="Write a groove or riff once: the chart and the Mixer repeat it through the whole section, drawn as % bars"><input type="checkbox" id="te-pattern"> Repeats through the section</label>
           <button type="button" id="te-delete-voice" class="te-quiet">Delete track</button>
-          {{if .GPSource}}<a class="te-gp-link" href="/song/{{.VariantID}}/gp-file" download title="The Guitar Pro file this song was imported from">Download {{.GPSource}}</a>{{end}}
+          <span class="te-gp-link">{{if .GPSource}}<a href="/song/{{.VariantID}}/gp-file" download title="The Guitar Pro file this song was imported from, as uploaded">Original .gp</a> · {{end}}<a href="#" class="gp-export-btn" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="The saved song as a Guitar Pro file, web edits included (save first)">Export as Guitar Pro</a></span>
         </div>
-        <p class="hint" id="te-empty" hidden>This section has no tab yet. Add a track to start writing one.</p>
+        <p class="hint" id="te-empty" hidden>This section has no score yet. Add a track to start writing one: a guitar or bass part, or a drum groove.</p>
         <p class="hint te-notice" id="te-notice" hidden></p>
         <div class="te-toolbar" id="te-toolbar" role="toolbar" aria-label="Note tools"></div>
         <div class="te-statusline"><span class="te-status" id="te-status"></span> <span class="te-note" id="te-note"></span></div>
@@ -794,12 +798,14 @@
             <dt>← → ↑ ↓</dt><dd>beat, string (→ past the end of a bar that isn't full adds a beat)</dd>
             <dt>Ctrl/⌘ ← →</dt><dd>previous / next bar</dd>
             <dt>0–24</dt><dd>fret on the current string (type two digits quickly for 10–24)</dd>
+            <dt>A–G &nbsp; ↑ ↓</dt><dd>bass, on the staff: that note, then up or down a semitone (click the staff or the tab to choose where you type)</dd>
+            <dt>K S H O C Y X F 1–4</dt><dd>drums: kick, snare, hi-hat, open hi-hat, crash, ride, side stick, hi-hat pedal, toms; Space adds the piece under the cursor (↑ ↓ to choose it)</dd>
             <dt>Backspace</dt><dd>remove the note; on an empty beat, remove the beat</dd>
             <dt>Insert or I</dt><dd>insert a beat</dd>
             <dt>+ / −</dt><dd>shorter / longer note</dd>
             <dt>. &nbsp; T</dt><dd>dotted, triplet</dd>
             <dt>R &nbsp; L</dt><dd>rest, tie</dd>
-            <dt>H &nbsp; S &nbsp; B &nbsp; P</dt><dd>hammer-on/pull-off, slide, bend, palm mute</dd>
+            <dt>H &nbsp; S &nbsp; B &nbsp; P</dt><dd>guitar and bass tab: hammer-on/pull-off, slide, bend, palm mute</dd>
             <dt>Ctrl/⌘ C / V</dt><dd>copy / paste a bar</dd>
             <dt>Ctrl/⌘ Z</dt><dd>undo</dd>
           </dl>
@@ -835,7 +841,7 @@
     <section class="prep-panel" data-panel="gpimport" id="gpimport-panel" data-variant-id="{{.VariantID}}" data-song-title="{{.Title}}" data-song-artist="{{.Artist}}" hidden>
       <p class="hint">Import a Guitar Pro file's notation into this song's existing sections, plus its embedded backing track (synced to the bars automatically, if the file carries sync points).</p>
       {{if .GPSource}}
-      <p class="hint gpimport-reimport-note"><strong>This song was imported from {{.GPSource}}</strong> (<a href="/song/{{.VariantID}}/gp-file" download>download it</a>). To bring edits back in: edit that file in Guitar Pro, then pick the updated file below — importing again replaces this song's existing notation section by section, it doesn't add a copy.</p>
+      <p class="hint gpimport-reimport-note"><strong>This song was imported from {{.GPSource}}</strong>. To edit it in Guitar Pro: <a href="#" class="gp-export-btn" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">export it as Guitar Pro</a> (the saved song, with any fixes made here), or <a href="/song/{{.VariantID}}/gp-file" download>download the original file</a> as uploaded; then pick the edited file below. Importing again replaces this song's notation section by section, it doesn't add a copy, and the previous Guitar Pro file stays in the song's <a href="/variants/{{.VariantID}}/history">history</a>.</p>
       {{end}}
       <p id="gpimport-status" class="hint"></p>
 
@@ -1190,6 +1196,7 @@
       <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
     </div>
     {{if .GPFileName}}<a class="stack-sheet-row" href="/song/{{.VariantID}}/gp-file" title="download the original Guitar Pro file ({{.GPFileName}})" download>{{template "icon-download"}} Guitar Pro file</a>{{end}}
+    {{if .HasAnyScore}}<a class="stack-sheet-row gp-export-btn" href="#" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="the song as it is now, edits made here included, as a Guitar Pro file">{{template "icon-download"}} Export as Guitar Pro</a>{{end}}
     {{if .WorkID}}<a class="stack-sheet-row" href="/works/{{.WorkID}}">{{template "icon-mode-map"}} All versions of this song</a>{{end}}
     {{if .VariantID}}<a class="stack-sheet-row" href="/variants/{{.VariantID}}/history">{{template "icon-notes"}} Revision history</a>{{end}}
   </div>
@@ -1492,6 +1499,7 @@
      shipping to a read-only viewer who'll never open any of those tabs. */}}
 <script src="/static/js/vendor/alphatab/alphaTab.min.js?v={{staticVersion}}"></script>
 <script src="/static/js/alphatab-tab.js?v={{staticVersion}}"></script>
+<script src="/static/js/gp-export.js?v={{staticVersion}}"></script>
 {{end}}
 {{if .CanEdit}}
 <script src="/static/js/score-editor.js?v={{staticVersion}}"></script>
