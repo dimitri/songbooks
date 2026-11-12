@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"app/internal/songdiff"
 	"app/internal/store"
 )
 
@@ -210,6 +211,7 @@ func (s *Server) handleVariantHistoryPage(w http.ResponseWriter, r *http.Request
 	s.render(w, "variant_history", map[string]any{
 		"Me": person, "Variant": variant, "Revisions": revisions, "CanEdit": canEdit,
 		"GPFile": gpCurrent, "GPVersions": gpVersions,
+		"Edits": s.describeEdits(variantID, revisions),
 	})
 }
 
@@ -484,4 +486,38 @@ func (s *Server) handlePutVariantGenre(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"genre": req.Genre})
+}
+
+// historyEdit is one row of a song's History: the edit recorded by a
+// revision (its snapshot is the song before the edit; after it comes the
+// next revision's snapshot, or the song as it is now), described in the
+// song's own terms by internal/songdiff.
+type historyEdit struct {
+	Changes []songdiff.Change
+	More    int // changes left out of Changes
+	Lines   []songdiff.Line
+}
+
+const historyMaxChanges = 8
+
+func (s *Server) describeEdits(variantID int64, revisions []store.Revision) map[int64]historyEdit {
+	out := map[int64]historyEdit{}
+	after, _, err := s.store.LoadVariantRaw(variantID)
+	if err != nil {
+		return out
+	}
+	for _, rv := range revisions { // newest first
+		var snap store.VariantSnapshot
+		if json.Unmarshal(rv.Snapshot, &snap) != nil {
+			continue
+		}
+		changes := songdiff.Describe(snap.Body, after)
+		e := historyEdit{Changes: changes, Lines: songdiff.Lines(snap.Body, after)}
+		if len(changes) > historyMaxChanges {
+			e.Changes, e.More = changes[:historyMaxChanges], len(changes)-historyMaxChanges
+		}
+		out[rv.ID] = e
+		after = snap.Body
+	}
+	return out
 }

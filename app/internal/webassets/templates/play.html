@@ -135,7 +135,7 @@
   {{range .Labels}}
   <div class="drum-row-label" style="left: {{.LeftPct}}%">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}</div>
   {{end}}
-  <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}" data-realbars="{{.RealBars}}" data-restruns="{{.RestRuns}}" data-restonly="{{if .RestOnly}}1{{end}}"></div>
+  <div class="staff-line alphatab-row" data-tex="{{.AlphaTex}}" data-bars="{{.Bars}}" data-realbars="{{.RealBars}}" data-realrem="{{.RealRem}}" data-bar-shift="{{.BarShift}}" data-restruns="{{.RestRuns}}" data-restonly="{{if .RestOnly}}1{{end}}"></div>
 </div>
 {{end}}
 {{end}}
@@ -300,7 +300,7 @@
          row, not per bar — alphaTab lays out its own bars/spacing
          internally across the whole string it's given, so a bar-by-bar
          mount would fight its own layout rather than use it. */}}
-    <div class="staff-line alphatab-row" style="--cap: {{.Capacity}}" data-tex="{{.AlphaTex}}"{{if .Systems}} data-systems="{{.Systems}}"{{end}}{{with .Measures}} data-first-bar="{{(index . 0).GlobalBar}}"{{end}} data-bar-shift="{{.BarShift}}"></div>
+    <div class="staff-line alphatab-row" style="--cap: {{.Capacity}}" data-tex="{{.AlphaTex}}"{{if .Systems}} data-systems="{{.Systems}}"{{end}}{{with .Measures}} data-first-bar="{{(index . 0).GlobalBar}}"{{end}} data-bar-shift="{{.BarShift}}"{{with .Notation}} data-notation="{{.}}"{{end}}></div>
     {{/* Jazz chart / Song map / Lyrics only never show the real tab
          notation (CSS hides .alphatab-row outside "normal" mode) — but
          a fully riff-covered line has no OTHER markup at all otherwise,
@@ -778,8 +778,15 @@
             <option value="Drums">Drums (the whole section)</option>
             <option value="Pattern">Drum pattern (one bar, repeats through the section)</option>
           </select>
+          <select id="te-notation" aria-label="Show this track as" title="How this track is shown on the chart, for everyone (the Mixer lets each person switch)">
+            <option value="">Usual notation</option>
+            <option value="tab">Tab</option>
+            <option value="staff">Staff</option>
+            <option value="both">Staff + tab</option>
+          </select>
           <label class="te-pattern" id="te-pattern-label" title="Write a groove or riff once: the chart and the Mixer repeat it through the whole section, drawn as % bars"><input type="checkbox" id="te-pattern"> Repeats through the section</label>
           <button type="button" id="te-delete-voice" class="te-quiet">Delete track</button>
+          <button type="button" id="te-pad-toggle" class="te-quiet" aria-pressed="false" title="Show a keypad under the score, for touch screens">Keypad</button>
           <span class="te-gp-link">{{if .GPSource}}<a href="/song/{{.VariantID}}/gp-file" download title="The Guitar Pro file this song was imported from, as uploaded">Original .gp</a> · {{end}}<a href="#" class="gp-export-btn" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="The saved song as a Guitar Pro file, web edits included (save first)">Export as Guitar Pro</a></span>
         </div>
         <p class="hint" id="te-empty" hidden>This section has no score yet. Add a track to start writing one: a guitar or bass part, or a drum groove.</p>
@@ -792,14 +799,15 @@
           <div class="te-bar-hl" id="te-bar-hl" hidden></div>
           <div class="te-cursor" id="te-cursor" hidden></div>
         </div>
+        <div class="te-pad" id="te-pad" hidden></div>
         <details class="te-keys">
           <summary>Keyboard</summary>
           <dl>
             <dt>← → ↑ ↓</dt><dd>beat, string (→ past the end of a bar that isn't full adds a beat)</dd>
             <dt>Ctrl/⌘ ← →</dt><dd>previous / next bar</dd>
             <dt>0–24</dt><dd>fret on the current string (type two digits quickly for 10–24)</dd>
-            <dt>A–G &nbsp; ↑ ↓</dt><dd>bass, on the staff: that note, then up or down a semitone (click the staff or the tab to choose where you type)</dd>
-            <dt>K S H O C Y X F 1–4</dt><dd>drums: kick, snare, hi-hat, open hi-hat, crash, ride, side stick, hi-hat pedal, toms; Space adds the piece under the cursor (↑ ↓ to choose it)</dd>
+            <dt>A–G &nbsp; ↑ ↓</dt><dd>on the staff (guitar or bass shown with a staff): that note, then up or down a semitone; with staff and tab, click either one to choose where you type</dd>
+            <dt>K S H O C Y X F 1–5</dt><dd>drums: kick, snare, hi-hat, open hi-hat, crash, ride, side stick, hi-hat pedal, toms (1–5); ride bell and cowbell from the toolbar; Space adds the piece under the cursor (↑ ↓ to choose it)</dd>
             <dt>Backspace</dt><dd>remove the note; on an empty beat, remove the beat</dd>
             <dt>Insert or I</dt><dd>insert a beat</dd>
             <dt>+ / −</dt><dd>shorter / longer note</dd>

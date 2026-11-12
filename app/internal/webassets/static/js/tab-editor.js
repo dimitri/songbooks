@@ -34,24 +34,28 @@
     { midi: 46, name: 'Hi-hat open', art: 'HiHatOpen', key: 'o', line: -1 },
     { midi: 42, name: 'Hi-hat', art: 'HiHatClosed', key: 'h', line: -1 },
     { midi: 51, name: 'Ride', art: 'Ride', key: 'y', line: 0 },
+    { midi: 53, name: 'Ride bell', art: 'RideBell', key: '', line: 0 },
+    { midi: 56, name: 'Cowbell', art: 'Cowbell', key: '', line: 0 },
     { midi: 50, name: 'High tom', art: 'TomHigh', key: '1', line: 1 },
     { midi: 38, name: 'Snare', art: 'Snare', key: 's', line: 3 },
     { midi: 37, name: 'Side stick', art: 'SideStick', key: 'x', line: 3 },
     { midi: 47, name: 'Mid tom', art: 'TomMid', key: '2', line: 4 },
     { midi: 45, name: 'Low tom', art: 'TomLow', key: '3', line: 5 },
     { midi: 43, name: 'Floor tom', art: 'TomFloorHigh', key: '4', line: 6 },
+    { midi: 41, name: 'Low floor tom', art: 'TomFloorLow', key: '5', line: 5 },
     { midi: 36, name: 'Kick', art: 'Kick', key: 'k', line: 7 },
     { midi: 44, name: 'Hi-hat pedal', art: 'HiHatPedal', key: 'f', line: 9 },
   ];
-  // Pieces a voice may already hold (from Guitar Pro or LilyPond) without
-  // being in the editor's own list.
-  const DRUM_ART_EXTRA = { 41: 'TomFloorLow', 53: 'RideBell', 56: 'Cowbell' };
+  // Every piece internal/tab's drumArticulationName knows is in the list
+  // above; a General MIDI piece outside it (from Guitar Pro) isn't drawn.
+  const DRUM_ART_EXTRA = {};
   const drumArt = (midi) => (DRUM_PIECES.find((p) => p.midi === midi) || {}).art || DRUM_ART_EXTRA[midi] || '';
 
-  // Bass staff: notes are written an octave above where they sound, the
-  // F clef's top line is A3 (diatonic step 26 = octave 3 × 7 + A).
-  const BASS_WRITTEN_OFFSET = 12;
-  const F_CLEF_TOP_STEP = 26;
+  // The staff: guitar and bass are written an octave above where they
+  // sound. A clef's top line as a diatonic step (octave × 7 + letter):
+  // the F clef's is A3 (26), the treble clef's F5 (38).
+  const WRITTEN_OFFSET = 12;
+  const topStep = () => (st.kind === 'bass' ? 26 : 38);
   const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const PC_LETTER = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6]; // pitch class → letter index (sharps)
   const LETTER_PC = [0, 2, 4, 5, 7, 9, 11];
@@ -67,10 +71,10 @@
     body: null,        // the voice body st.riff was decoded from
     source: '',        // 'json' | 'lilypond'
     kind: 'guitar',    // 'guitar' | 'bass' | 'drums'
-    mode: 'tab',       // bass only: 'tab' or 'staff' — which staff the cursor is on
+    mode: 'tab',       // 'tab' or 'staff': where the cursor is when both are shown
     error: '',
     bar: 0, beat: 0, string: 1,
-    piece: 10,         // drums: index into DRUM_PIECES (Kick)
+    piece: DRUM_PIECES.findIndex((p) => p.midi === 36), // drums: index into DRUM_PIECES (the kick)
     staffStep: 22,     // bass staff cursor on an empty beat (written D3, the middle line)
     digit: null,       // { bar, beat, string, val, t } — the last fret digit typed
     clip: null,        // a copied bar
@@ -142,6 +146,14 @@
   }
   function drumNote(beat, midi) { return beat && !beat.Rest ? (beat.Notes || []).find((n) => n.MIDI === midi) : null; }
   function editable() { return !!st.riff && !st.error; }
+  // shownAs is internal/tab's Riff.ShownAs: the track's own notation, or
+  // the instrument's usual one (bass: staff and tab, guitar: tab).
+  function shownAs() {
+    if (!st.riff || st.riff.Drums) return 'staff';
+    if (['tab', 'staff', 'both'].includes(st.riff.Notation)) return st.riff.Notation;
+    return st.kind === 'bass' ? 'both' : 'tab';
+  }
+  function onStaff() { return st.kind !== 'drums' && cursorStaff() === 'staff'; }
   function kindOf(riff) { return riff.Drums ? 'drums' : (riff.Tuning || []).length <= 4 ? 'bass' : 'guitar'; }
 
   function clampCursor() {
@@ -160,6 +172,7 @@
     if (r.Drums) out.Drums = true;
     else { out.Tuning = r.Tuning; out.MinimumFret = r.MinimumFret || 0; }
     if (r.Pattern) out.Pattern = true;
+    if (r.Notation) out.Notation = r.Notation;
     out.Bars = r.Bars.map((bar) => ({
       Beats: bar.Beats.map((b) => {
         const o = {};
@@ -233,7 +246,7 @@
   function placePitch(midi, joinPrevious) {
     const beat = curBeat();
     if (!beat) return;
-    const old = st.kind === 'bass' && st.mode === 'staff' ? staffNote(beat) : noteOn(beat, st.string);
+    const old = onStaff() ? staffNote(beat) : noteOn(beat, st.string);
     const prev = previousNote();
     const ref = old ? old.Fret : prev ? prev.Fret : 3;
     let best = null;
@@ -250,7 +263,7 @@
       beat.Notes.push({ MIDI: midi, String: best.s, Fret: best.fret });
       beat.Notes.sort((a, b) => a.String - b.String);
       st.string = best.s;
-      st.staffStep = diatonicStep(midi + BASS_WRITTEN_OFFSET);
+      st.staffStep = diatonicStep(midi + WRITTEN_OFFSET);
     }, { joinPrevious });
   }
 
@@ -259,7 +272,7 @@
   function typeLetter(letter) {
     const beat = curBeat();
     const cur = staffNote(beat) || previousNote();
-    const ref = cur ? cur.MIDI : naturalMidi(st.staffStep) - BASS_WRITTEN_OFFSET;
+    const ref = cur ? cur.MIDI : naturalMidi(st.staffStep) - WRITTEN_OFFSET;
     const pc = LETTER_PC[LETTERS.indexOf(letter)];
     let best = null;
     for (let o = 0; o <= 8; o++) {
@@ -350,7 +363,7 @@
     let bi = st.bar, i = st.beat - 1;
     if (i < 0) { bi--; if (bi < 0) return null; i = bars()[bi].Beats.length - 1; }
     const b = bars()[bi].Beats[i];
-    return st.kind === 'bass' && st.mode === 'staff' ? staffNote(b) : noteOn(b, st.string);
+    return onStaff() ? staffNote(b) : noteOn(b, st.string);
   }
 
   function toggleTie() {
@@ -436,7 +449,7 @@
   function moveVertical(d) { // -1 up, +1 down
     st.digit = null;
     if (st.kind === 'drums') st.piece = Math.max(0, Math.min(DRUM_PIECES.length - 1, st.piece + d));
-    else if (st.kind === 'bass' && st.mode === 'staff') { stepPitch(-d); return; }
+    else if (onStaff()) { stepPitch(-d); return; }
     else st.string = Math.max(1, Math.min(numStrings(), st.string + d));
     render();
   }
@@ -459,6 +472,11 @@
       n.MIDI = st.riff.Tuning[n.String - 1] + n.Fret;
     }
     edit(() => { st.riff.Bars[st.bar] = clip; st.beat = 0; });
+  }
+  function setNotation(v) {
+    edit(() => { if (v) st.riff.Notation = v; else delete st.riff.Notation; });
+    const n = shownAs();
+    st.mode = n === 'tab' ? 'tab' : n === 'staff' ? 'staff' : st.mode;
   }
   function togglePattern(on) {
     edit(() => { if (on) st.riff.Pattern = true; else delete st.riff.Pattern; });
@@ -560,7 +578,8 @@
   // One alphaTab instance per kind of staff: guitar is tab only, bass an
   // F-clef staff over its tab, drums a percussion staff.
   function ensureApi() {
-    if (st.api && st.apiKind === st.kind) return st.api;
+    const key = st.kind + ':' + shownAs() + ':' + narrow();
+    if (st.api && st.apiKind === key) return st.api;
     if (st.api) { try { st.api.destroy(); } catch (e) { /* already gone */ } st.api = null; }
     const host = $('te-canvas');
     host.innerHTML = '';
@@ -570,9 +589,10 @@
     settings.core.enableLazyLoading = false;
     settings.core.includeNoteBounds = true;
     settings.player.enablePlayer = false;
-    settings.display.staveProfile = st.kind === 'drums' ? alphaTab.StaveProfile.Score : st.kind === 'bass' ? alphaTab.StaveProfile.ScoreTab : alphaTab.StaveProfile.Tab;
+    const shown = shownAs();
+    settings.display.staveProfile = shown === 'staff' ? alphaTab.StaveProfile.Score : shown === 'both' ? alphaTab.StaveProfile.ScoreTab : alphaTab.StaveProfile.Tab;
     settings.display.layoutMode = alphaTab.LayoutMode.Page;
-    settings.display.barsPerRow = 4;
+    settings.display.barsPerRow = narrow() ? 2 : 4;
     settings.display.justifyLastSystem = true;
     settings.notation.rhythmMode = alphaTab.TabRhythmMode.ShowWithBars;
     settings.notation.elements.set(alphaTab.NotationElement.GuitarTuning, false);
@@ -587,15 +607,60 @@
     settings.display.resources.barSeparatorColor = fg;
     settings.display.resources.barNumberColor = color('--fg-muted', fg);
     st.api = new alphaTab.AlphaTabApi(host, settings);
-    st.apiKind = st.kind;
-    if (st.kind === 'bass') {
-      st.api.scoreLoaded.on((score) => { for (const t of score.tracks) for (const s of t.staves) s.displayTranspositionPitch = -BASS_WRITTEN_OFFSET; });
+    st.apiKind = key;
+    if (st.kind !== 'drums' && shown !== 'tab') {
+      st.api.scoreLoaded.on((score) => { for (const t of score.tracks) for (const s of t.staves) s.displayTranspositionPitch = -WRITTEN_OFFSET; });
     }
     st.api.postRenderFinished.on(drawCursor);
     return st.api;
   }
 
+  // A phone-width editor draws two bars per row, so notes stay big enough
+  // to tap.
+  function narrow() { return ($('te-canvas-wrap').clientWidth || 800) < 560; }
+
+  // ---- Touch keypad ----------------------------------------------------------
+  // The editor is keyboard-first; on a phone or tablet (or on request) a
+  // keypad under the score sends the same keys: frets, note names on a
+  // staff, the cursor moves, delete. The toolbar above already holds
+  // durations, techniques and drum pieces.
+  const coarse = window.matchMedia('(pointer: coarse)');
+  function padWanted() {
+    let saved = null;
+    try { saved = localStorage.getItem('songbooks:tab-editor:pad'); } catch (e) { /* storage off */ }
+    return saved === null ? coarse.matches : saved === '1';
+  }
+  function padKeys() {
+    const move = [['ArrowLeft', '←'], ['ArrowRight', '→'], ['ArrowUp', '↑'], ['ArrowDown', '↓'], ['Backspace', '⌫']];
+    if (st.kind === 'drums') return [...move, [' ', 'Hit']];
+    if (onStaff()) return [...'CDEFGAB'.split('').map((l) => [l, l]), ...move];
+    return [...'0123456789'.split('').map((d) => [d, d]), ...move];
+  }
+  function renderPad() {
+    const pad = $('te-pad');
+    $('te-pad-toggle').setAttribute('aria-pressed', padWanted() ? 'true' : 'false');
+    pad.hidden = !padWanted() || !st.riff || !!st.error;
+    if (pad.hidden) return;
+    const keys = padKeys();
+    const sig = keys.map((k) => k[0]).join('|');
+    if (pad.dataset.sig === sig) return;
+    pad.dataset.sig = sig;
+    pad.innerHTML = '';
+    for (const [key, label] of keys) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.key = key;
+      b.textContent = label;
+      if (key.startsWith('Arrow') || key === 'Backspace' || key === ' ') b.className = 'te-pad-move';
+      pad.appendChild(b);
+    }
+  }
+  function pressPad(key) {
+    onKey({ key, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, preventDefault() {}, stopPropagation() {} });
+  }
+
   function render() {
+    renderPad();
     renderToolbar();
     renderStatus();
     if (!st.riff || st.error) {
@@ -605,7 +670,7 @@
     $('te-canvas-wrap').hidden = false;
     clampCursor();
     const tex = buildTex();
-    if (tex === st.tex && st.api && st.apiKind === st.kind) { drawCursor(); return; }
+    if (tex === st.tex && st.api && st.apiKind === st.kind + ':' + shownAs() + ':' + narrow()) { drawCursor(); return; }
     st.tex = tex;
     try {
       ensureApi().tex(tex);
@@ -637,8 +702,12 @@
   // Five-line staff: one step (line to space) is an eighth of its height.
   function staffStepPx(bb) { return bb.visualBounds.h / 8; }
   function drumY(bb, piece) { return bb.visualBounds.y + DRUM_PIECES[piece].line * staffStepPx(bb); }
-  function bassStaffY(bb, step) { return bb.visualBounds.y + (F_CLEF_TOP_STEP - step) * staffStepPx(bb); }
-  function cursorStaff() { return st.kind === 'guitar' || (st.kind === 'bass' && st.mode === 'tab') ? 'tab' : 'staff'; }
+  function bassStaffY(bb, step) { return bb.visualBounds.y + (topStep() - step) * staffStepPx(bb); }
+  function cursorStaff() {
+    if (st.kind === 'drums') return 'staff';
+    const n = shownAs();
+    return n === 'both' ? st.mode : n;
+  }
 
   function drawCursor() {
     const cursor = $('te-cursor'), barHl = $('te-bar-hl');
@@ -664,7 +733,7 @@
       if (st.kind === 'drums') y = drumY(bb, st.piece);
       else {
         const n = staffNote(curBeat());
-        y = bassStaffY(bb, n ? diatonicStep(n.MIDI + BASS_WRITTEN_OFFSET) : st.staffStep);
+        y = bassStaffY(bb, n ? diatonicStep(n.MIDI + WRITTEN_OFFSET) : st.staffStep);
       }
     }
     Object.assign(cursor.style, { left: (bv.x + bv.w / 2 - w / 2) + 'px', top: (y - h / 2) + 'px', width: w + 'px', height: h + 'px' });
@@ -685,7 +754,7 @@
     st.bar = barIndex;
     st.beat = map[beat.index] ?? 0;
     st.digit = null;
-    if (st.kind === 'bass') {
+    if (st.kind !== 'drums' && shownAs() === 'both') {
       // Which staff was clicked: the nearer of the two.
       const sb = barBounds(barIndex, 'staff'), tb = barBounds(barIndex, 'tab');
       const dist = (bb) => { const v = bb.visualBounds; return y < v.y ? v.y - y : y > v.y + v.h ? y - v.y - v.h : 0; };
@@ -710,12 +779,12 @@
         });
         st.piece = best;
       } else {
-        st.staffStep = F_CLEF_TOP_STEP - Math.round((y - bb.visualBounds.y) / staffStepPx(bb));
+        st.staffStep = topStep() - Math.round((y - bb.visualBounds.y) / staffStepPx(bb));
         // Clicking a note head selects that note (its string).
         const b = curBeat();
         let near = null;
         for (const n of (b && !b.Rest ? b.Notes : [])) {
-          const d = Math.abs(bassStaffY(bb, diatonicStep(n.MIDI + BASS_WRITTEN_OFFSET)) - y);
+          const d = Math.abs(bassStaffY(bb, diatonicStep(n.MIDI + WRITTEN_OFFSET)) - y);
           if (d <= staffStepPx(bb) * 1.5 && (!near || d < near.d)) near = { n, d };
         }
         if (near) st.string = near.n.String;
@@ -729,9 +798,9 @@
 
   const MELODIC = ['guitar', 'bass'], ALL = ['guitar', 'bass', 'drums'];
   const TOOLS = [
-    { act: 'mode', arg: 'staff', label: 'Staff', title: 'Enter notes on the staff: A–G, ↑ ↓ by semitone', kinds: ['bass'] },
-    { act: 'mode', arg: 'tab', label: 'Tab', title: 'Enter notes on the tab: fret numbers', kinds: ['bass'] },
-    { sep: true, kinds: ['bass'] },
+    { act: 'mode', arg: 'staff', label: 'Staff', title: 'Enter notes on the staff: A–G, ↑ ↓ by semitone', kinds: MELODIC, both: true },
+    { act: 'mode', arg: 'tab', label: 'Tab', title: 'Enter notes on the tab: fret numbers', kinds: MELODIC, both: true },
+    { sep: true, kinds: MELODIC, both: true },
     ...DURATIONS.slice(0, 6).map((d) => ({ act: 'dur', arg: d, label: d === '1' ? '1' : '1/' + d, title: `${DURATION_LABEL[d]} note`, kinds: ALL })),
     { act: 'dot', label: '•', title: 'Dotted (.)', kinds: ALL },
     { act: 'triplet', label: '3', title: 'Triplet (T)', kinds: ALL },
@@ -742,7 +811,7 @@
     { act: 'slide', label: 'Slide', title: 'Slide in from the previous fret (S)', kinds: MELODIC },
     { act: 'bend', label: 'Bend', title: 'Bend: ½, full, off (B)', kinds: MELODIC },
     { act: 'pm', label: 'P.M.', title: 'Palm mute (P)', kinds: MELODIC },
-    ...DRUM_PIECES.map((p, i) => ({ act: 'drum', arg: String(i), label: p.name, title: `${p.name} (${p.key.toUpperCase()})`, kinds: ['drums'] })),
+    ...DRUM_PIECES.map((p, i) => ({ act: 'drum', arg: String(i), label: p.name, title: p.key ? `${p.name} (${p.key.toUpperCase()})` : p.name, kinds: ['drums'] })),
     { sep: true, kinds: ALL },
     { act: 'insert', label: '+ beat', title: 'Insert a beat before the cursor (Insert or I)', kinds: ALL },
     { act: 'addbar', label: '+ bar', title: 'Add an empty bar after this one', kinds: ALL },
@@ -757,6 +826,7 @@
       for (const t of TOOLS) {
         const el = document.createElement(t.sep ? 'span' : 'button');
         el.dataset.kinds = t.kinds.join(' ');
+        if (t.both) el.dataset.both = '1';
         if (t.sep) { el.className = 'te-sep'; tb.appendChild(el); continue; }
         el.type = 'button';
         el.dataset.act = t.act;
@@ -788,12 +858,18 @@
       pm: () => !!beat && !!beat.PalmMute,
       drum: (b) => !!drumNote(beat, DRUM_PIECES[Number(b.dataset.arg)].midi),
     };
-    tb.querySelectorAll('[data-kinds]').forEach((el) => { el.hidden = !el.dataset.kinds.split(' ').includes(st.kind); });
+    tb.querySelectorAll('[data-kinds]').forEach((el) => {
+      el.hidden = !el.dataset.kinds.split(' ').includes(st.kind) || (!!el.dataset.both && shownAs() !== 'both');
+    });
     tb.querySelectorAll('button[data-act]').forEach((b) => {
       b.disabled = !ok && b.dataset.act !== 'mode';
       b.classList.toggle('active', ok && !!on[b.dataset.act] && on[b.dataset.act](b));
       b.classList.toggle('te-selected', b.dataset.act === 'drum' && Number(b.dataset.arg) === st.piece);
     });
+    const nsel = $('te-notation');
+    nsel.hidden = !st.riff || st.kind === 'drums';
+    nsel.value = (st.riff && st.riff.Notation) || '';
+    nsel.disabled = !editable();
     const pat = $('te-pattern');
     pat.checked = !!(st.riff && st.riff.Pattern);
     pat.disabled = !editable();
@@ -819,9 +895,9 @@
     const secBars = bridge.measures(currentSection()).length;
     let where;
     if (st.kind === 'drums') where = DRUM_PIECES[st.piece].name;
-    else if (st.kind === 'bass' && st.mode === 'staff') {
+    else if (onStaff()) {
       const n = staffNote(curBeat());
-      where = 'staff · ' + (n ? `${noteName(n.MIDI)} (string ${n.String}, fret ${n.Fret})` : noteName(naturalMidi(st.staffStep) - BASS_WRITTEN_OFFSET));
+      where = 'staff · ' + (n ? `${noteName(n.MIDI)} (string ${n.String}, fret ${n.Fret})` : noteName(naturalMidi(st.staffStep) - WRITTEN_OFFSET));
     } else where = `string ${st.string}`;
     let msg = `Bar ${st.bar + 1} of ${bars().length} · beat ${st.beat + 1} · ${where} · ${fmt(used)} of ${fmt(cap)} beats`;
     if (used > cap + 1e-9) { msg += ' — too long'; el.classList.add('err'); }
@@ -895,9 +971,10 @@
       if (!riff.Bars.length) riff.Bars.push({ Beats: [{ Rest: true, Duration: '1' }] });
       for (const bar of riff.Bars) bar.Beats = bar.Beats || [];
       const kind = kindOf(riff);
-      if (kind !== st.kind) { st.kind = kind; st.mode = kind === 'bass' ? 'staff' : 'tab'; }
+      if (kind !== st.kind) { st.kind = kind; st.staffStep = topStep() - 4; } // the staff's middle line
     }
     st.riff = riff;
+    if (riff && !riff.Drums) { const n = shownAs(); st.mode = n === 'tab' ? 'tab' : 'staff'; }
     clampCursor();
     renderNotice();
     render();
@@ -987,7 +1064,7 @@
   function drumKey(k) {
     const lk = k.toLowerCase();
     if (k === ' ' || k === 'Enter') { toggleDrum(DRUM_PIECES[st.piece].midi); return true; }
-    const i = DRUM_PIECES.findIndex((p) => p.key === lk);
+    const i = DRUM_PIECES.findIndex((p) => p.key && p.key === lk);
     if (i < 0) return false;
     st.piece = i;
     toggleDrum(DRUM_PIECES[i].midi);
@@ -996,7 +1073,7 @@
 
   function melodicKey(k) {
     if (/^[0-9]$/.test(k)) { if (editable()) typeDigit(Number(k)); return true; }
-    if (st.kind === 'bass' && st.mode === 'staff' && /^[a-gA-G]$/.test(k)) { typeLetter(k.toUpperCase()); return true; }
+    if (onStaff() && /^[a-gA-G]$/.test(k)) { typeLetter(k.toUpperCase()); return true; }
     switch (k) {
       case 'l': case 'L': toggleTie(); return true;
       case 'h': case 'H': toggleFlag('HammerPull'); return true;
@@ -1040,9 +1117,24 @@
       $('te-new-voice').addEventListener('change', (e) => { const k = e.target.value; e.target.value = ''; if (k) newVoice(k); });
       $('te-delete-voice').addEventListener('click', deleteVoice);
       $('te-pattern').addEventListener('change', (e) => togglePattern(e.target.checked));
+      $('te-notation').addEventListener('change', (e) => setNotation(e.target.value));
       const wrap = $('te-canvas-wrap');
       wrap.addEventListener('keydown', onKey);
       wrap.addEventListener('mousedown', (e) => { pickAt(e); });
+      const pad = $('te-pad');
+      pad.addEventListener('pointerdown', (e) => e.preventDefault()); // keep the focus (and no on-screen keyboard)
+      pad.addEventListener('click', (e) => { const b = e.target.closest('button[data-key]'); if (b) pressPad(b.dataset.key); });
+      $('te-pad-toggle').addEventListener('click', () => {
+        try { localStorage.setItem('songbooks:tab-editor:pad', padWanted() ? '0' : '1'); } catch (e) { /* storage off */ }
+        render();
+      });
+      let wasNarrow = null;
+      window.addEventListener('resize', () => {
+        if (!st.riff || $('te-canvas-wrap').hidden) return;
+        const n = narrow();
+        if (wasNarrow !== null && n !== wasNarrow) render();
+        wasNarrow = n;
+      });
       wrap.addEventListener('focus', () => wrap.classList.add('focused'));
       wrap.addEventListener('blur', () => wrap.classList.remove('focused'));
     }

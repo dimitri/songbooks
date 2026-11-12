@@ -1100,9 +1100,15 @@ type viewerDrumMapRow struct {
 	AlphaTex string
 	Bars     int
 	RealBars int
+	// RealRem (data-realrem) is the room the row's written bars need
+	// together, each by how busy it is (drumBarRem).
+	RealRem  float64
 	RestRuns int
 	RestOnly bool
 	Labels   []viewerDrumMapLabel
+	// BarShift (data-bar-shift) is how many bars come before this row, so
+	// alphatab-tab.js numbers its bars from where the song is, not from 1.
+	BarShift int
 }
 
 // buildDrumMap builds Drummer view's own continuous, full-width chart —
@@ -1183,7 +1189,23 @@ const (
 	// fetch itself fails) still gets a reasonable, if not perfectly
 	// width-matched, rendering rather than an empty or broken one.
 	defaultDrumRowTargetRem = 56.0
+	// drumRowRemPerBeat is the extra room each written beat of a bar
+	// needs: a bar of eighths with hi-hat, snare and kick on them needs
+	// far more than drumRowRealBarRem, the room of a sparse bar.
+	drumRowRemPerBeat = 1.25
 )
+
+// drumBarRem is the room one bar of drums needs on a line, by how many
+// beats it writes out: never less than a sparse bar's drumRowRealBarRem.
+func drumBarRem(bar tab.Bar) float64 {
+	beats := 0
+	for _, b := range bar.Beats {
+		if !b.Grace {
+			beats++
+		}
+	}
+	return max(drumRowRealBarRem, 1.6+drumRowRemPerBeat*float64(beats))
+}
 
 // packDrumRowBounds decides where each printed line of Drummer view
 // breaks: a GREEDY walk that keeps adding bars to the current line while
@@ -1204,38 +1226,57 @@ const (
 // naturally avoids.
 func packDrumRowBounds(flat []flatDrumBar, targetRem float64) [][2]int {
 	var bounds [][2]int
-	start := 0
-	realBars, restRuns := 0, 0
+	for start := 0; start < len(flat); {
+		end := fitDrumRow(flat, start, targetRem)
+		// A line of written bars holds 1, 2, 4 or 8 of them, so phrases line
+		// up from one line to the next (a 4-bar groove never splits 3 + 1);
+		// the last line keeps whatever is left.
+		if n := end - start; end < len(flat) && n > 2 && !rowHasRest(flat[start:end]) {
+			p := 1
+			for p*2 <= n {
+				p *= 2
+			}
+			end = start + p
+		}
+		bounds = append(bounds, [2]int{start, end})
+		start = end
+	}
+	return bounds
+}
+
+// fitDrumRow is where a line starting at flat[start] has to end: the
+// greedy walk described on packDrumRowBounds, never an empty line.
+func fitDrumRow(flat []flatDrumBar, start int, targetRem float64) int {
+	realRem, restRuns := 0.0, 0
 	inRestRun := false
-	for i, fb := range flat {
+	for i := start; i < len(flat); i++ {
+		fb := flat[i]
 		isBoundary := fb.isSectionStart && i > start
-		addReal, addRestRun := 0, 0
+		addReal, addRestRun := 0.0, 0
 		if isWholeBarRest(fb.bar) {
 			if !inRestRun || isBoundary {
 				addRestRun = 1
 			}
 		} else {
-			addReal = 1
+			addReal = drumBarRem(fb.bar)
 		}
-		projected := drumRowBaseRem + float64(realBars+addReal)*drumRowRealBarRem + float64(restRuns+addRestRun)*drumRowRestRunRem
-		if i > start && projected > targetRem {
-			bounds = append(bounds, [2]int{start, i})
-			start = i
-			realBars, restRuns, inRestRun = 0, 0, false
-			if isWholeBarRest(fb.bar) {
-				addReal, addRestRun = 0, 1
-			} else {
-				addReal, addRestRun = 1, 0
-			}
+		if i > start && drumRowBaseRem+realRem+addReal+float64(restRuns+addRestRun)*drumRowRestRunRem > targetRem {
+			return i
 		}
-		realBars += addReal
+		realRem += addReal
 		restRuns += addRestRun
 		inRestRun = isWholeBarRest(fb.bar)
 	}
-	if start < len(flat) {
-		bounds = append(bounds, [2]int{start, len(flat)})
+	return len(flat)
+}
+
+func rowHasRest(row []flatDrumBar) bool {
+	for _, fb := range row {
+		if isWholeBarRest(fb.bar) {
+			return true
+		}
 	}
-	return bounds
+	return false
 }
 
 // flatDrumBar is one bar of buildDrumMap's own flattened, whole-song bar
@@ -1292,6 +1333,7 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 		boundaries := make([]bool, len(chunk))
 		restOnly := true
 		realBars := 0
+		realRem := 0.0
 		restRuns := 0
 		inRestRun := false
 		var labels []viewerDrumMapLabel
@@ -1312,6 +1354,7 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 				}
 			} else {
 				realBars++
+				realRem += drumBarRem(fb.bar)
 				inRestRun = false
 			}
 			if fb.isSectionStart {
@@ -1325,6 +1368,8 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 			AlphaTex: tab.ToAlphaTexDrums(&tab.Riff{Drums: true, Bars: bars}, chordLabels, boundaries, tempo),
 			Bars:     len(chunk),
 			RealBars: realBars,
+			RealRem:  realRem,
+			BarShift: bound[0],
 			RestRuns: restRuns,
 			RestOnly: restOnly,
 			Labels:   labels,
@@ -1477,6 +1522,7 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 					line.Systems = strings.Join(systems, ",")
 				}
 				sections[si].Lines[li].AlphaTex = tex
+				sections[si].Lines[li].Notation = riff.ShownAs()
 			}
 		}
 	}
@@ -1822,6 +1868,9 @@ type viewerLine struct {
 	// (see alphatab-tab.js). The row's first performed bar, less one in a
 	// song whose pickup is bar 0 and its first full bar 1.
 	BarShift int
+	// Notation is the row's riff's "tab", "staff" or "both"
+	// (tab.Riff.ShownAs), read by alphatab-tab.js.
+	Notation string
 }
 
 // groupMeasures chunks a section's measures into display rows — "systems",

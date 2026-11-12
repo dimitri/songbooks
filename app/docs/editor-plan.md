@@ -302,25 +302,31 @@ What's missing, in the order it would help a band most:
 1. **Hearing it.** The Scores tab can't play what you wrote. alphaTab's
    player (already used by the Mixer) should play the section, or the
    pattern on loop, at the song's tempo.
-2. **Phone and tablet entry.** The editor is keyboard-first. At rehearsal
-   it needs an on-screen pad: frets 0–24 for guitar and bass, the kit
-   pieces for drums, durations, and arrows.
+2. [x] **Phone and tablet entry.** A keypad under the score (on by
+   default on touch screens, "Keypad" elsewhere): frets, note names on a
+   staff, the moves and delete; the toolbar holds the rest. A phone-width
+   editor draws two bars per row. Still keyboard-first on a computer.
 3. **Notes on the music itself.** A short text note on a bar ("stop on
    4", "bass alone here") drawn above the staff, for the things a band
    actually writes down. Section notes exist; bar notes don't.
-4. **Showing who changed what.** History lists "~N lines changed". A band
-   needs "Verse 2, bass, bars 3–4 changed by Sam" and a before/after.
+4. [x] **Showing who changed what.** History describes each edit in the
+   song's terms (`internal/songdiff`: header values, sections added or
+   removed, chords per bar, lyric line counts, score tracks per bar),
+   with the text diff one click away.
 5. **The rest of the GP round trip** (phase 2): remember the bar mapping
    so a re-import doesn't need re-aligning, show a diff before applying,
    one revision per import, and import drum tracks.
 6. **Typing chords** (phase 3) on desktop: `Bbm7/F` + Enter.
 7. **Small gaps in what was built:**
-   - the Mixer still shows bass as tab only;
-   - no per-viewer "tab only" switch for bass;
-   - drum pieces beyond the twelve in the editor (cowbell, ride bell) show
-     but can't be added;
-   - the Drummer view packs dense patterns tightly on narrow rows;
-   - the chord names in an export sit on the first track only.
+   - [x] each track says how it's shown (`"Notation"`: tab, staff, or
+     both; by default bass both, guitar tab), set in the Scores tab; the
+     chart, the editor and the Mixer follow it, and each person can
+     switch a Mixer lane for themselves;
+   - [x] ride bell, cowbell and the low floor tom in the drum editor;
+   - [x] the Drummer view sizes each bar by how busy it is, puts 1, 2, 4
+     or 8 written bars on a line, numbers bars from where the song is,
+     and drops alphaTab's stray "f" and tagline;
+   - [ ] the chord names in an export sit on the first track only.
 
 Deliberately not planned: several voices per staff, tempo and meter
 automation, the full Guitar Pro effect set, print-quality engraving. For

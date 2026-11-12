@@ -42,7 +42,29 @@ type Riff struct {
 	// are drawn as "%" bars (see Bar.Simile) and played in full.
 	Pattern bool `json:",omitempty"`
 
+	// Notation is how the part is shown: "tab", "staff" or "both" (a
+	// standard staff over the tab). Empty means the instrument's usual
+	// way, see ShownAs.
+	Notation string `json:",omitempty"`
+
 	Bars []Bar
+}
+
+// ShownAs is the riff's notation: its own Notation when set, otherwise
+// tab and staff for a bass (four strings or fewer) and tab alone for a
+// guitar. A drum part is always "staff".
+func (r *Riff) ShownAs() string {
+	if r.Drums {
+		return "staff"
+	}
+	switch r.Notation {
+	case "tab", "staff", "both":
+		return r.Notation
+	}
+	if len(r.Tuning) <= 4 {
+		return "both"
+	}
+	return "tab"
 }
 
 // Bar is one inferred bar's worth of beats — see inferBars' doc comment

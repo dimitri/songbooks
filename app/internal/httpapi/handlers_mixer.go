@@ -26,9 +26,11 @@ type mixerSectionJSON struct {
 }
 
 type mixerTrackJSON struct {
-	Name    string `json:"name"`
-	Drums   bool   `json:"drums"`
-	Program int    `json:"program"`
+	Name     string `json:"name"`
+	Drums    bool   `json:"drums"`
+	Program  int    `json:"program"`
+	Notation string `json:"notation"` // "tab", "staff" or "both", the track's own (tab.Riff.ShownAs)
+	Strings  int    `json:"strings"`  // 4 or fewer: a bass, shown in F clef
 }
 
 // handleGetSongMixer is GET /api/songs/{id}/mixer — the Mixer view's whole
@@ -88,7 +90,7 @@ func (s *Server) handleGetSongMixer(w http.ResponseWriter, r *http.Request) {
 		tex, meta := tab.ToAlphaTexMulti(tracks, tempo, timeNum, timeDen, sg.Get("swing"))
 		out := make([]mixerTrackJSON, len(meta))
 		for i, m := range meta {
-			out[i] = mixerTrackJSON{Name: m.Name, Drums: m.Drums, Program: m.Program}
+			out[i] = mixerTrackJSON{Name: m.Name, Drums: m.Drums, Program: m.Program, Notation: m.Notation, Strings: m.Strings}
 		}
 		resp["alphaTex"] = tex
 		resp["tracks"] = out

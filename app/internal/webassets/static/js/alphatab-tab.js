@@ -203,11 +203,13 @@
     // "Score", "Tab", "TabMixed"; there is no "ScoreDefault") renders the
     // standard-notation-only staff alphaTab already draws percussion on.
     const isDrumTrack = tex.includes('instrument percussion');
-    // A bass part (internal/tab.ToAlphaTexBass marks it with "\clef F4")
-    // shows the F-clef staff above its tab, as bass parts are printed;
-    // guitar stays tab only.
-    const isBass = !isDrumTrack && /\\clef F4\b/.test(tex);
-    settings.display.staveProfile = isDrumTrack ? alphaTab.StaveProfile.Score : isBass ? alphaTab.StaveProfile.ScoreTab : alphaTab.StaveProfile.Tab;
+    // A melodic row shows what its track asks for (data-notation, see
+    // tab.Riff.ShownAs): tab, a standard staff, or both — by default a bass
+    // gets both and a guitar tab only.
+    const notation = container.dataset.notation || (/\\clef F4\b/.test(tex) ? 'both' : 'tab');
+    const showsStaff = !isDrumTrack && notation !== 'tab';
+    settings.display.staveProfile = isDrumTrack || notation === 'staff' ? alphaTab.StaveProfile.Score
+      : notation === 'both' ? alphaTab.StaveProfile.ScoreTab : alphaTab.StaveProfile.Tab;
     // Every row this app hands to alphaTab is its OWN separate document
     // (one bar, or a handful) — meaning every one of them is, as far as
     // alphaTab's own layout is concerned, the LAST (and only) system of
@@ -239,6 +241,9 @@
     // "♩ = N" marking. Every OTHER mount in this app is unaffected —
     // nothing else ever emits a "\tempo" directive.
     settings.notation.elements.set(alphaTab.NotationElement.EffectTempo, false);
+    // No dynamics are ever written in this app's scores: alphaTab's default
+    // "f" on the first note of every row is noise.
+    settings.notation.elements.set(alphaTab.NotationElement.EffectDynamics, false);
     // Drummer view's own rows (data-bars/data-restonly, set only there —
     // see buildDrumMap, handlers_pages.go) are always exactly ONE mount
     // per line, full page width, even where a section boundary falls
@@ -324,7 +329,10 @@
       const realBars = parseInt(container.dataset.realbars, 10) || 0;
       const restRuns = parseInt(container.dataset.restruns, 10) || 0;
       settings.display.barsPerRow = Math.max(1, realBars + restRuns);
-      const idealRem = container.dataset.restonly ? restFloorRem(bars) : (9.5 + realBars * 4.5 + restRuns * 8.5);
+      // data-realrem weighs each written bar by how busy it is (drumBarRem,
+      // handlers_pages.go); a page rendered before it existed counts 4.5 each.
+      const realRem = parseFloat(container.dataset.realrem) || realBars * 4.5;
+      const idealRem = container.dataset.restonly ? restFloorRem(bars) : (9.5 + realRem + restRuns * 8.5);
       const idealPx = idealRem * remPx;
       // A width-compression retry (below, driven by alphaTab's own "do
       // not fit" warning) already left container.style.minWidth at the
@@ -564,9 +572,19 @@
       // import wizard's own click-to-seek, gp-import.js) beats changing
       // this function's call signature for one caller's extra need.
       container._alphaTabApi = api;
-      // Bass is written an octave above where it sounds, so its staff
-      // isn't buried under ledger lines (Guitar Pro's own bass default).
-      if (isBass) api.scoreLoaded.on((score) => { for (const t of score.tracks) for (const st of t.staves) st.displayTranspositionPitch = -12; });
+      // alphaTab signs every score with a "rendered by alphaTab" line; on a
+      // chart of many small rows it repeats under each one (the Mixer drops
+      // it the same way).
+      api.postRenderFinished.on(() => {
+        // Only when something else is drawn: the blank-row watchdogs below
+        // look for any SVG text at all.
+        const texts = [...container.querySelectorAll('svg text')];
+        const tag = texts.filter((t) => /rendered by alphaTab/i.test(t.textContent));
+        if (tag.length < texts.length) tag.forEach((t) => t.closest('svg').remove());
+      });
+      // Guitar and bass are written an octave above where they sound, so
+      // the staff isn't buried under ledger lines (Guitar Pro's default).
+      if (showsStaff) api.scoreLoaded.on((score) => { for (const t of score.tracks) for (const st of t.staves) st.displayTranspositionPitch = -12; });
       api.renderFinished.on(() => {
         finished = true;
         pollForChordFix(container, tex, 0, () => {
