@@ -18,7 +18,7 @@
 </header>
 <main class="index">
   <div class="list-page-head">
-    <p class="hint" style="margin:0;">A community is a named group with read-write staff and read-only members, sharing a set of songbooks and setlists — a community, a choir, any group that isn't quite a band.</p>
+    <p class="hint" style="margin:0;">A class, a choir, a jam: a group sharing songbooks and events, run by its staff.</p>
     <button type="button" class="primary" id="new-community-toggle-btn">{{template "icon-plus"}} New community</button>
   </div>
 
@@ -37,25 +37,7 @@
        picture across both group types, not two different UIs. */}}
   <div class="band-grid">
   {{range .Communities}}
-    <div class="band-card">
-      <div class="band-card-head">
-        <div>
-          <h4><a class="band-card-title-link" href="/communities/{{.ID}}">{{.Name}}</a></h4>
-          <div class="band-card-members">{{.MemberCount}} member{{if ne .MemberCount 1}}s{{end}} &middot; {{.MyRole}}</div>
-        </div>
-      </div>
-      <div class="band-card-digest">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}} in the default songbook</div>
-      {{if .HasNextEvent}}
-      <div class="band-card-gig">
-        <a href="/communities/{{.ID}}/events">{{template "icon-presentation"}} {{.NextEventDate.Format "Jan 2"}} &middot; {{.NextEventName}}</a>
-      </div>
-      {{end}}
-      <div class="band-card-actions">
-        <a href="/communities/{{.ID}}/songbooks">songbooks</a>
-        <a href="/communities/{{.ID}}/events">events</a>
-        {{if eq .MyRole "staff"}}<a href="/communities/{{.ID}}/admin">staff admin</a>{{end}}
-      </div>
-    </div>
+    {{template "community-card" .}}
   {{else}}
     <p class="hint">You're not in any communities yet.</p>
   {{end}}

@@ -20,24 +20,33 @@
   </nav>
 </header>
 <main class="index">
-  <p class="catalog-intro">Every public song, plus your own — searchable by title, artist, or lyrics. Band- and community-private songs aren't included; see that band's or community's own songbooks for those.</p>
+  <p class="catalog-intro">Every public song, plus your own. A band's or community's private songs are in its own songbooks.</p>
 
+  {{/* Songs first on a phone: one search field, the rest folded into
+       Filters (open when one of them is in use). */}}
   <form class="card catalog-filters" method="get" action="/catalog">
-    <label>Search <input type="text" name="q" value="{{.Filter.Query}}" placeholder="title, artist, or lyrics"></label>
-    <label>Artist <input type="text" name="artist" value="{{.Filter.Artist}}" placeholder="any"></label>
-    <label>Genre
-      <select name="genre">
-        <option value="" {{if eq .Filter.Genre ""}}selected{{end}}>all genres</option>
-        {{range .Genres}}<option value="{{.}}" {{if eq $.Filter.Genre .}}selected{{end}}>{{.}}</option>{{end}}
-      </select>
-    </label>
-    <label>Sort
-      <select name="sort">
-        <option value="" {{if ne .Filter.Sort "artist"}}selected{{end}}>alphabetical (title)</option>
-        <option value="artist" {{if eq .Filter.Sort "artist"}}selected{{end}}>by artist</option>
-      </select>
-    </label>
-    <button type="submit">Filter</button>
+    <div class="catalog-search">
+      <input type="search" name="q" value="{{.Filter.Query}}" placeholder="Search title, artist, lyrics" aria-label="Search">
+      <button type="submit">Search</button>
+    </div>
+    <details class="catalog-more"{{if or .Filter.Artist .Filter.Genre (eq .Filter.Sort "artist")}} open{{end}}>
+      <summary>Filters{{if or .Filter.Artist .Filter.Genre}} &middot; on{{end}}</summary>
+      <div class="catalog-more-fields">
+        <label>Artist <input type="text" name="artist" value="{{.Filter.Artist}}" placeholder="any"></label>
+        <label>Genre
+          <select name="genre">
+            <option value="" {{if eq .Filter.Genre ""}}selected{{end}}>all genres</option>
+            {{range .Genres}}<option value="{{.}}" {{if eq $.Filter.Genre .}}selected{{end}}>{{.}}</option>{{end}}
+          </select>
+        </label>
+        <label>Sort
+          <select name="sort">
+            <option value="" {{if ne .Filter.Sort "artist"}}selected{{end}}>by title</option>
+            <option value="artist" {{if eq .Filter.Sort "artist"}}selected{{end}}>by artist</option>
+          </select>
+        </label>
+      </div>
+    </details>
   </form>
 
   {{if .Variants}}

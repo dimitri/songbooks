@@ -17,77 +17,46 @@
   {{template "notif-bell"}}
 </header>
 <main>
+  {{range .Bands}}
+  <section class="card book-card">
+    <h2><a href="/bands/{{.Band.ID}}">{{.Band.Name}}</a></h2>
+    {{if .Setlists}}
+    <ul class="setlist-rows">
+      {{range .Setlists}}
+      <li>{{template "setlist-row" .}}</li>
+      {{end}}
+    </ul>
+    {{else}}
+    <p class="hint">None yet.</p>
+    {{end}}
+    <details class="setlist-new">
+      <summary>{{template "icon-plus"}} New set list</summary>
+      <div class="structure-actions">
+        <input type="text" class="band-setlist-title" placeholder="Title, e.g. Spring Rehearsal" aria-label="Title">
+        <button type="button" class="primary new-band-setlist-btn" data-band-id="{{.Band.ID}}">Create</button>
+      </div>
+    </details>
+  </section>
+  {{end}}
   <section class="card book-card">
     <h2>My set lists</h2>
     {{if .MySetlists}}
-    <ul class="song-list">
+    <ul class="setlist-rows">
       {{range .MySetlists}}
-      <li>
-        <strong>{{.Title}}</strong>
-        <a class="gig-link" href="/setlists/{{.ID}}/practice">practice</a>
-        <a class="gig-link" href="/setlists/{{.ID}}/listening">listening</a>
-        <a class="gig-link" href="/setlists/{{.ID}}/clicktrack">{{template "icon-tap"}} click track</a>
-        <span class="pdf-mode-row">
-          <a class="pdf-export-link gig-link" href="/setlists/{{.ID}}/export.pdf" title="export the whole setlist as one PDF" download>PDF</a>
-          <select class="pdf-mode-select" title="PDF view mode">
-            <option value="">Song</option>
-            <option value="jazz">Jazz chart</option>
-            <option value="map">Song map</option>
-            <option value="lyrics">Lyrics only</option>
-          </select>
-          <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
-        </span>
-        <a class="gig-link" href="/setlists/{{.ID}}/export-setlist-page.pdf" title="export just the running order as a single page" download>setlist page</a>
-      </li>
+      <li>{{template "setlist-row" .}}</li>
       {{end}}
     </ul>
     {{else}}
-    <div class="attention-empty">No personal set lists yet — create one below.</div>
+    <p class="hint">None yet.</p>
     {{end}}
-    <div class="structure-actions">
-      <label>title
-        <input type="text" id="my-setlist-title" placeholder="e.g. Spring Rehearsal">
-      </label>
-      <button id="new-my-setlist-btn" type="button" class="primary">{{template "icon-plus"}} Create personal set list</button>
-    </div>
+    <details class="setlist-new">
+      <summary>{{template "icon-plus"}} New set list</summary>
+      <div class="structure-actions">
+        <input type="text" id="my-setlist-title" placeholder="Title, e.g. Spring Rehearsal" aria-label="Title">
+        <button id="new-my-setlist-btn" type="button" class="primary">Create</button>
+      </div>
+    </details>
   </section>
-
-  {{range .Bands}}
-  <section class="card book-card">
-    <h2>{{.Band.Name}} set lists</h2>
-    {{if .Setlists}}
-    <ul class="song-list">
-      {{range .Setlists}}
-      <li>
-        <strong>{{.Title}}</strong>
-        <a class="gig-link" href="/setlists/{{.ID}}/practice">practice</a>
-        <a class="gig-link" href="/setlists/{{.ID}}/listening">listening</a>
-        <a class="gig-link" href="/setlists/{{.ID}}/clicktrack">{{template "icon-tap"}} click track</a>
-        <span class="pdf-mode-row">
-          <a class="pdf-export-link gig-link" href="/setlists/{{.ID}}/export.pdf" title="export the whole setlist as one PDF" download>PDF</a>
-          <select class="pdf-mode-select" title="PDF view mode">
-            <option value="">Song</option>
-            <option value="jazz">Jazz chart</option>
-            <option value="map">Song map</option>
-            <option value="lyrics">Lyrics only</option>
-          </select>
-          <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> notes</label>
-        </span>
-        <a class="gig-link" href="/setlists/{{.ID}}/export-setlist-page.pdf" title="export just the running order as a single page" download>setlist page</a>
-      </li>
-      {{end}}
-    </ul>
-    {{else}}
-    <div class="attention-empty">No set lists yet for this band — create one below.</div>
-    {{end}}
-    <div class="structure-actions">
-      <label>title
-        <input type="text" class="band-setlist-title" placeholder="e.g. Spring Rehearsal">
-      </label>
-      <button type="button" class="primary new-band-setlist-btn" data-band-id="{{.Band.ID}}">{{template "icon-plus"}} Create band set list</button>
-    </div>
-  </section>
-  {{end}}
 </main>
 <script>
 async function createScopedSetlist(scope, title, bandID) {

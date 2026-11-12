@@ -21,6 +21,15 @@
     <p>Here's where your bands and songs stand.</p>
   </div>
 
+  {{/* ---- Coming up first when there is a gig: on a phone it's the
+       most time-critical thing on the page. ---- */}}
+  {{with .NextGig}}
+  <section class="home-section">
+    <div class="home-section-head"><h3>Coming up</h3><a href="/groups">all dates &rarr;</a></div>
+    {{template "gig-card" .}}
+  </section>
+  {{end}}
+
   {{/* ---- Needs your attention: open band proposals + unread
        notifications, merged. Group-invite slot claims and "N edits
        since you last looked" are NOT duplicated in here — the former
@@ -31,8 +40,9 @@
   <section class="home-section">
     <div class="home-section-head">
       <h3>Needs your attention</h3>
-      <span class="count">{{len .Attention}} item{{if ne (len .Attention) 1}}s{{end}}</span>
+      {{if .Attention}}<span class="count">{{len .Attention}} item{{if ne (len .Attention) 1}}s{{end}}</span>{{else}}<span class="count">nothing right now</span>{{end}}
     </div>
+    {{if .Attention}}
     <div class="attention-filters" id="attention-filters">
       <button type="button" class="active" data-filter="all">All</button>
       <button type="button" data-filter="votes">Votes</button>
@@ -45,10 +55,9 @@
         {{if .Subtitle}}<div class="attention-subtitle">{{.Subtitle}}</div>{{end}}
         <span class="attention-when">{{.When}}</span>
       </a>
-    {{else}}
-      <div class="attention-empty">Nothing needs your attention right now.</div>
     {{end}}
     </div>
+    {{end}}
   </section>
 
   {{/* ---- Your bands: activity, not just inventory. ---- */}}
@@ -60,29 +69,7 @@
     </div>
     <div class="band-grid">
     {{range .Bands}}
-      <div class="band-card">
-        <div class="band-card-head">
-          <div>
-            <h4><a class="band-card-title-link" href="/bands/{{.ID}}">{{.Name}}</a></h4>
-            <div class="band-card-members">{{.Members}} member{{if ne .Members 1}}s{{end}}</div>
-          </div>
-        </div>
-        <div class="band-card-digest">{{.Digest}}</div>
-        {{if .HasNextGig}}
-        <div class="band-card-gig">
-          <a href="/setlists/{{.NextGigSetlist}}/practice">{{template "icon-presentation"}} {{.NextGigDate.Format "Jan 2"}}{{if .NextGigVenue}} &middot; {{.NextGigVenue}}{{end}}</a>
-        </div>
-        {{end}}
-        <div class="band-card-actions">
-          <a href="/bands/{{.ID}}/catalog">songbook</a>
-          {{if eq .SetlistCount 1}}
-          <a href="/setlists/{{.FirstSetlistID}}">set list</a>
-          {{else if gt .SetlistCount 1}}
-          <a href="/setlists">{{.SetlistCount}} set lists</a>
-          {{end}}
-          {{if .OpenVotes}}<a class="votes" href="/bands/{{.ID}}/proposals">{{.OpenVotes}} to vote on</a>{{end}}
-        </div>
-      </div>
+      {{template "band-card" .}}
     {{end}}
     </div>
   </section>
@@ -99,48 +86,18 @@
     </div>
     <div class="band-grid">
     {{range .Communities}}
-      <div class="band-card">
-        <div class="band-card-head">
-          <div>
-            <h4><a class="band-card-title-link" href="/communities/{{.ID}}">{{.Name}}</a></h4>
-            <div class="band-card-members">{{.MemberCount}} member{{if ne .MemberCount 1}}s{{end}} &middot; {{.MyRole}}</div>
-          </div>
-        </div>
-        <div class="band-card-digest">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}} in the default songbook</div>
-        {{if .HasNextEvent}}
-        <div class="band-card-gig">
-          <a href="/communities/{{.ID}}/events">{{template "icon-presentation"}} {{.NextEventDate.Format "Jan 2"}} &middot; {{.NextEventName}}</a>
-        </div>
-        {{end}}
-        <div class="band-card-actions">
-          <a href="/communities/{{.ID}}/songbooks">songbooks</a>
-          <a href="/communities/{{.ID}}/events">events</a>
-          {{if eq .MyRole "staff"}}<a href="/communities/{{.ID}}/admin">staff admin</a>{{end}}
-        </div>
-      </div>
+      {{template "community-card" .}}
     {{end}}
     </div>
   </section>
   {{end}}
 
-  {{/* ---- Coming up: next gig, if any. ---- */}}
+  {{if not .NextGig}}
   <section class="home-section">
     <div class="home-section-head"><h3>Coming up</h3></div>
-    {{if .NextGig}}
-    <a class="coming-up-card" href="/setlists">
-      <div class="coming-up-date">
-        <span class="month">{{.NextGig.Date.Format "Jan"}}</span>
-        <span class="day">{{.NextGig.Date.Format "2"}}</span>
-      </div>
-      <div>
-        <div style="font-weight:600;">{{if .NextGig.BandName}}{{.NextGig.BandName}} &mdash; {{end}}{{.NextGig.SetlistTitle}}</div>
-        <div style="font-size:0.85rem;color:var(--fg-faint);">{{if .NextGig.Venue}}{{.NextGig.Venue}}{{else}}venue TBD{{end}}</div>
-      </div>
-    </a>
-    {{else}}
     <a class="coming-up-card empty" href="/setlists">No gig scheduled — open set lists to plan one &rarr;</a>
-    {{end}}
   </section>
+  {{end}}
 
   {{/* ---- Your songbooks: the existing project-card inventory, kept as
        data, restyled and demoted below the activity sections above. ---- */}}

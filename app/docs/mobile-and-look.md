@@ -1,7 +1,7 @@
 # Phone experience, branding, and look & feel
 
-Status: first round **built** on branch `mobile-branding` (marked [x]); the
-rest is the plan.
+Status: first round **built** in PR #8, the phone plan of §1 in the
+`mobile-phase2` branch (marked [x]); §2's next steps and §3 are the plan.
 
 ## 1. Phone review (375 × 812, every main page)
 
@@ -11,23 +11,27 @@ rest is the plan.
   lists only what the tab bar doesn't have (Communities, Metronome,
   Profile, Admin), except on the song page, whose own bar replaces the
   tab bar there.
-- [ ] **Communities are buried in More.** For someone whose music lives in
-  a community (Florent's students), it's their main space. The fourth tab
-  should be *Bands* or *Communities* depending on what the person belongs
-  to, or one *Groups* tab listing both.
-- [ ] **Songbooks and Bands overlap.** Songbooks lists "Band repertoires",
-  Bands lists the same bands with their songbook. One "My music" hub
-  (my songbook, my bands' and communities' songbooks, recent songs) would
-  replace both tabs and free a slot for Communities or Setlists.
-- [ ] **Setlists have no entry point** on a phone except through a band.
-  A band's next gig is the most time-critical thing on a phone.
+- [x] **Communities were buried in More.** The fourth tab is now
+  **Groups** (`/groups`): the gigs coming up, then the person's bands and
+  communities, as the same cards Home uses. It stays lit on a band's,
+  a community's, a set list's and an event's pages.
+- [x] **Songbooks and Bands overlapped.** With Groups in the tab bar,
+  Songbooks is the music and Groups the people and dates. The full Bands
+  and Communities lists are in More, with Set lists.
+- [x] **Set lists had no entry point** on a phone. The next gig now opens
+  Home (and Groups); set lists are in More; the Set lists page shows each
+  list as its title (the running order), Practice / Listen / Click track,
+  and its exports folded under *Export*, with *New set list* folded too.
 
 ### Page headers
 
 - [x] Headers showed the app logo, the page title, a link and the bell on
   one line. The logo link is gone on phones (the Home tab does that).
-- [ ] One header pattern everywhere: back · title · one action. Today
-  each template writes its own (37 copies of the head and header).
+- [x] One header pattern on phones: back arrow · title on one line · the
+  page's one action and the bell, applied by CSS to every page's header
+  (the back link keeps its text for screen readers). Header links to tab
+  bar destinations are dropped. The shared layout partial (37 copies of
+  the head and header) is still §3.1.
 
 ### Lists
 
@@ -38,41 +42,53 @@ rest is the plan.
 - [x] A band's seven tabs wrapped onto two rows; they scroll on one.
 - [x] A band's repertoire repeated the band's own name as the artist of
   every original.
-- [ ] Band cards on Home say "0 changes since your last visit": hide when
-  there's nothing.
-- [ ] The Library opens on a four-field filter form that fills the first
-  screen. A search field with a *Filters* sheet would put songs first.
-- [ ] Badge icons and chips are under the 44 px tap size and mostly
-  decorative on a phone.
+- [x] Band cards said "0 changes since your last visit"; the line only
+  shows when there are changes. Home, My bands, My communities and Groups
+  share one card partial (`cards.html`). Home shows *Coming up* first when
+  there's a gig, and an empty *Needs your attention* is one line.
+- [x] The Library opens on one search field; artist, genre and sort are
+  folded under *Filters* (open when one is in use).
+- [x] Song badges are drawn as bare icons on phones, so they no longer
+  look like buttons.
+- [x] The members page: pending people and the quick-add form stack
+  instead of squeezing six columns into a line; internal `pending-…`
+  usernames are no longer shown.
 
 ### Song page (the one that matters most on stage)
 
 - [x] A saved *Drummer* view opened every song as empty staves when the
   song had no drum part; such songs now open as a chart.
 - [x] The tab/staff picker is labelled ("Guitar as …") and personal.
-- [ ] The structure strip's chord list is 8 px text: on a phone, keep the
-  section names and bar counts, drop the chords.
-- [ ] The *View* sheet mixes views (Song, Jazz chart…) and actions (Edit,
-  Notes); the instrument picker (Chords / Guitar / Bass) isn't in it.
-  Split it: *View* (views + instrument + tab/staff), *Song* (edit,
-  notes, versions, export).
-- [ ] A **stage mode**: larger type, no chrome, screen kept awake, swipe
-  to the next song of the setlist.
+- [x] The structure strip keeps section names and bar counts on phones,
+  in larger type and tap-sized; the chord list is dropped.
+- [x] *View* holds how the song is drawn: the views, the **Part**
+  (Chords / each instrument — it had no phone entry at all before), the
+  tab/staff choice, and Stage mode. *Song* holds what you do with it:
+  Edit, Notes, Reference, exports, versions, history.
+- [x] **Stage mode** (`stage.js`), from the View sheet or the desktop
+  sidebar: larger type, no sidebar/bars/player/pickers, the screen kept
+  awake (Wake Lock), a swipe or the pedal keys for the next or previous
+  song, their names at the bottom, a close button and Escape. It stays on
+  from song to song in that tab.
 
 ### Editing on a phone
 
 - [x] The score editor has a keypad and two bars per row (previous PR).
-- [ ] The editor's own header (title, undo, save, close, five tabs) takes
-  a third of the screen; on a phone it should fold into one row with a
-  tab menu.
-- [ ] Hints written for developers ("No owner/admin role here — any
-  current member…", internal names) are still on several pages; a
-  content pass should keep one short sentence where one is needed.
+- [x] The editor's header is one row on phones (title, undo, redo, Save,
+  close; Discard only when there is something to discard) with the five
+  tabs scrolling on one line under it. "Hover a section…" is hidden on
+  touch screens.
+- [x] Content pass: the members, repertoire, proposals, set lists,
+  events and communities hints are one plain sentence each; no more
+  "variant", "band-visibility" or role jargon on those pages.
 
 ### Theme
 
-- [ ] The light/dark choice is only applied on the song page; every other
-  page ignores it. It should be a profile setting applied everywhere.
+- [x] The light/dark choice applies on every page: it's set on `<html>`
+  before the page draws, and *Appearance* (Auto / Light / Dark) is in the
+  More sheet. It stays a per-device choice (the same localStorage key as
+  the song page's button), since a phone on stage and a laptop at home
+  often want different ones.
 
 ## 2. Branding (built)
 

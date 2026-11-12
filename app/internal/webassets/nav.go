@@ -14,6 +14,9 @@ type NavEntry struct {
 	RequiresAdmin bool
 	External      bool // opens in a new tab (target=_blank rel=noopener) — an external link, e.g. a songbook's playlist URL
 	InTabBar      bool // also a mobile tab bar slot: the "More" sheet leaves it out wherever that tab bar shows
+	// Also lists the other path prefixes this tab stands for, so it stays
+	// highlighted below them (Groups on a band's or community's pages).
+	Also string
 }
 
 // navDesktopPrimary is the desktop sidebar's primary destination list.
@@ -31,11 +34,16 @@ var navDesktopPrimary = []NavEntry{
 // "fewer fixed items on a narrower surface, the rest in overflow" as
 // normal, not drift, as long as the full destination set (desktop
 // primary ∪ mobile tab ∪ mobile more) is declared once.
+//
+// The fourth slot is Groups (bands, communities and the gigs coming up
+// in one page) rather than Bands: on a phone a student's community is
+// as much "their" space as a band, and a band's next gig is the most
+// time-critical thing to reach.
 var navMobileTab = []NavEntry{
 	{Label: "Home", Path: "/home", Icon: "icon-home"},
 	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog"},
 	{Label: "Library", Path: "/catalog", Icon: "icon-view"},
-	{Label: "Bands", Path: "/bands", Icon: "icon-bands"},
+	{Label: "Groups", Path: "/groups", Icon: "icon-bands", Also: "/bands /communities /setlists /events"},
 }
 
 // navMobileMore is the mobile "More" full-page sheet's row list —
@@ -46,8 +54,10 @@ var navMobileMore = []NavEntry{
 	{Label: "Home", Path: "/home", Icon: "icon-home", InTabBar: true},
 	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog", InTabBar: true},
 	{Label: "Library", Path: "/catalog", Icon: "icon-view", InTabBar: true},
-	{Label: "Bands", Path: "/bands", Icon: "icon-bands", InTabBar: true},
+	{Label: "Groups", Path: "/groups", Icon: "icon-bands", InTabBar: true},
+	{Label: "Bands", Path: "/bands", Icon: "icon-bands"},
 	{Label: "Communities", Path: "/communities", Icon: "icon-community"},
+	{Label: "Set lists", Path: "/setlists", Icon: "icon-setlists"},
 	{Label: "Metronome", Path: "/metronome", Icon: "icon-metro-full"},
 	{Label: "Profile", Path: "/profile", Icon: "icon-profile"},
 	{Label: "Admin", Path: "/admin", RequiresAdmin: true},

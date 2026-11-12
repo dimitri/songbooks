@@ -26,7 +26,7 @@
     {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/admin">Admin</a>{{end}}
   </nav>
 
-  <p class="hint">This community's default songbook{{if .CanEdit}} — any member whose role grants it can add, fork, or remove a song here, same as a band's{{else}} — read-only with your current role{{end}}. See <a href="/communities/{{.Community.ID}}/songbooks">Songbooks</a> for this community's other books.</p>
+  <p class="hint">{{if not .CanEdit}}Read-only for your role. {{end}}The community's other books are under <a href="/communities/{{.Community.ID}}/songbooks">Songbooks</a>.</p>
 
   {{if not .Entries}}
   <div class="attention-empty" style="border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:1.2rem; font-size:0.95rem;">
@@ -65,14 +65,14 @@
 
   <dialog id="add-song-dialog">
     <h2>Add a song</h2>
-    <p class="hint">Pointers into the catalog, same as a band's songbook — adding here doesn't copy a song; forking does, and makes it this community's own "community"-visibility variant that any current member can edit in place.</p>
+    <p class="hint">Adding a song from the catalog links to it as it is; forking makes the community's own copy.</p>
     <div class="add-song-tabs">
       <button type="button" class="add-song-tab active" data-panel="write">Write new</button>
       <button type="button" class="add-song-tab" data-panel="catalog">From the catalog</button>
     </div>
 
     <div class="add-song-panel" data-panel="write">
-      <p class="hint">Starts from scratch — no existing variant to fork from — straight into this community's own private ("community"-visibility) songbook.</p>
+      <p class="hint">A blank song, private to the community.</p>
       <div class="form-stack">
         <div class="field">
           <label for="new-variant-title">Title</label>
@@ -90,7 +90,7 @@
     </div>
 
     <div class="add-song-panel" data-panel="catalog" hidden>
-      <p class="hint">Search the whole catalog — adding points at that variant as-is (any current member can still edit it); forking makes this community's own copy instead.</p>
+      <p class="hint">Add links the song as it is; Fork makes the community's own copy.</p>
       <div class="field">
         <label for="catalog-search-input">Search</label>
         <input type="search" id="catalog-search-input" placeholder="Title or artist…">

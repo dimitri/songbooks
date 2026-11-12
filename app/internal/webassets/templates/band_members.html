@@ -29,7 +29,7 @@
     <a href="/bands/{{.Band.ID}}/members" class="band-tab active">Members</a>
   </nav>
 
-  <p class="hint">No "owner"/"admin" role here — any current member (core or guest) can add or remove members or delete the whole band. Promoting/demoting between core and guest is core-only.</p>
+  <p class="hint">Any member can add or remove people. Only core members change who is core or guest.</p>
 
   {{/* Phase 27: one roster — current members (with instrument) AND every
        unclaimed group-invite slot ("hasn't joined yet"), instead of two
@@ -41,7 +41,7 @@
       {{if .IsCurrent}}
       <div class="roster-row" data-person-id="{{.PersonID}}">
         <div class="roster-row-main">
-          <div class="roster-name">{{.DisplayName}} <span class="hint">({{.Username}})</span></div>
+          <div class="roster-name">{{.DisplayName}} {{if not (hasPrefix .Username "pending-")}}<span class="hint">({{.Username}})</span>{{end}}</div>
           <div class="roster-instruments">
           {{range .Instruments}}<span class="roster-instrument-badge">{{template "instrument-icon" .}} {{.}}</span>{{else}}<span class="hint">no instrument set</span>{{end}}
           </div>
@@ -93,7 +93,7 @@
       <button type="submit" id="roster-add-btn" class="primary">Add</button>
     </form>
     </div>
-    <p class="hint">Adding a name creates a real roster entry right away (not a placeholder) with its own personal invite link — share that link with them directly; it completes their account and nothing else, whatever other bands or communities they're already on the roster for.</p>
+    <p class="hint">They're on the roster right away, with a personal invite link to send them.</p>
   </section>
 
   <label><input type="checkbox" id="show-past-toggle"> Show past members</label>
@@ -115,11 +115,11 @@
   </table></div>
 
   <div class="home-section-head" style="margin-top:0.4rem;"><h3>Add people to this band</h3></div>
-  <p class="hint">The quick-add above the roster covers the common case: name someone, they're on the roster immediately with their own personal invite link. Use this for someone who already has a Songbooks account, or to send an unnamed one-off link.</p>
+  <p class="hint">For someone who already has an account, or a link anyone can use once.</p>
   <div class="card-grid">
     <div class="card">
       <h2>Add an existing account, or send a one-off link</h2>
-      <p class="hint">For someone who already has a Songbooks account (type their username, they're added immediately) — or, to invite someone not yet on the roster by name, a single-use link with no name attached.</p>
+      <p class="hint">Type their username to add them now, or leave it blank for a one-time link.</p>
       {{range .OpenInvites}}
       <div class="invite-link-row">
         <code class="invite-link-url" data-url="/invite/{{.Token}}">/invite/{{.Token}}</code>

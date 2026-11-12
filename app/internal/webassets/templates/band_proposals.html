@@ -34,7 +34,7 @@
        underlying proposal/vote queue (Discover is just open 'new_song'
        proposals) — see listening_party.html's own comment for why. */}}
 
-  <p class="hint">Propose adding an existing catalog variant to the repertoire ("new song"), or a new reference URL for a variant already in it ("new reference"). Any current member may vote yes/veto, or just accept/reject directly — a single veto rejects immediately no matter how many yes votes exist; otherwise a proposal auto-accepts once more than half of the band's {{.MemberCount}} current members have voted yes.</p>
+  <p class="hint">Suggest a song for the repertoire, or a new reference recording. It goes in once more than half of the {{.MemberCount}} members vote yes; one veto turns it down. Any member can also accept or reject it directly.</p>
 
   <div class="form-with-list">
     <div class="card">
@@ -43,8 +43,8 @@
         <div class="field">
           <label for="proposal-kind">Kind</label>
           <select id="proposal-kind">
-            <option value="new_song">new song (add an existing variant to the repertoire)</option>
-            <option value="new_reference">new reference URL (for a variant already in the repertoire)</option>
+            <option value="new_song">a song for the repertoire</option>
+            <option value="new_reference">a reference recording for a song already in it</option>
           </select>
         </div>
         <div class="field">

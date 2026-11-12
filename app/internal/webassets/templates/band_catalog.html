@@ -101,14 +101,14 @@
 
   <dialog id="add-song-dialog">
     <h2>Add a song</h2>
-    <p class="hint">Pointers into the catalog, same as a personal songbook — adding here doesn't copy a song; forking does, and makes it this band's own "band"-visibility variant that any current member (core or guest) can edit in place.</p>
+    <p class="hint">Adding a song from the catalog links to it as it is; forking makes the band's own copy, which any member can edit.</p>
     <div class="add-song-tabs">
       <button type="button" class="add-song-tab active" data-panel="write">Write new</button>
       <button type="button" class="add-song-tab" data-panel="catalog">From the catalog</button>
     </div>
 
     <div class="add-song-panel" data-panel="write">
-      <p class="hint">Starts from scratch — no existing variant to fork from — straight into this band's own private ("band"-visibility) repertoire.</p>
+      <p class="hint">A blank song, private to the band.</p>
       <div class="form-stack">
         <div class="field">
           <label for="new-variant-title">Title</label>
@@ -126,7 +126,7 @@
     </div>
 
     <div class="add-song-panel" data-panel="catalog" hidden>
-      <p class="hint">Search the whole catalog — adding points at that variant as-is (any current member can still edit it); forking makes this band's own copy instead.</p>
+      <p class="hint">Add links the song as it is; Fork makes the band's own copy.</p>
       <div class="field">
         <label for="catalog-search-input">Search</label>
         <input type="search" id="catalog-search-input" placeholder="Title or artist…">

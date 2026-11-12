@@ -1,0 +1,58 @@
+{{define "groups"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Groups — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  {{template "home-link"}}
+  <h1>Groups</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index">
+  <section class="home-section">
+    <div class="home-section-head"><h3>Coming up</h3><a href="/setlists">set lists &rarr;</a></div>
+    {{range .Gigs}}
+      {{template "gig-card" .}}
+    {{else}}
+      <a class="coming-up-card empty" href="/setlists">No gig scheduled — open set lists to plan one &rarr;</a>
+    {{end}}
+  </section>
+
+  <section class="home-section">
+    <div class="home-section-head"><h3>Bands</h3><a href="/bands">all bands &rarr;</a></div>
+    <div class="band-grid">
+    {{range .Bands}}
+      {{template "band-card" .}}
+    {{else}}
+      <p class="hint">You're not in a band yet. <a href="/bands">Start one</a>.</p>
+    {{end}}
+    </div>
+  </section>
+
+  <section class="home-section">
+    <div class="home-section-head"><h3>Communities</h3><a href="/communities">all communities &rarr;</a></div>
+    <div class="band-grid">
+    {{range .Communities}}
+      {{template "community-card" .}}
+    {{else}}
+      <p class="hint">You're not in a community yet. <a href="/communities">Start one</a>.</p>
+    {{end}}
+    </div>
+  </section>
+</main>
+{{template "notif-bell-script"}}
+{{template "pwa-register"}}
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

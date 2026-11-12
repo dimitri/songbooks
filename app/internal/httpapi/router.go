@@ -276,6 +276,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// requireBandMember: any CURRENT member (core or guest alike) may
 	// add/remove/promote/demote members, add/fork/remove repertoire
 	// entries, or delete the whole band. See internal/httpapi/bands.go.
+	mux.HandleFunc("GET /groups", s.requireAuth(s.handleGroupsPage))
 	mux.HandleFunc("GET /bands", s.requireAuth(s.handleBandsPage))
 	mux.HandleFunc("POST /api/bands", s.requireAuth(s.handleCreateBand))
 	mux.HandleFunc("GET /bands/{id}", s.requireBandMember(s.handleBandPage))

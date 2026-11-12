@@ -46,31 +46,7 @@
        UIs. */}}
   <div class="band-grid">
   {{range .Bands}}
-    <div class="band-card">
-      <div class="band-card-head">
-        <div>
-          <h4><a class="band-card-title-link" href="/bands/{{.ID}}">{{.Name}}</a></h4>
-          <div class="band-card-members">{{.Members}} member{{if ne .Members 1}}s{{end}}</div>
-        </div>
-      </div>
-      <div class="band-card-digest">{{.Digest}}</div>
-      {{if .HasNextGig}}
-      <div class="band-card-gig">
-        <a href="/setlists/{{.NextGigSetlist}}/practice">{{template "icon-presentation"}} {{.NextGigDate.Format "Jan 2"}}{{if .NextGigVenue}} &middot; {{.NextGigVenue}}{{end}}</a>
-      </div>
-      {{end}}
-      <div class="band-card-actions">
-        <a href="/bands/{{.ID}}/catalog">songbook</a>
-        {{if eq .SetlistCount 1}}
-        <a href="/setlists/{{.FirstSetlistID}}">set list</a>
-        {{else if gt .SetlistCount 1}}
-        <a href="/setlists">{{.SetlistCount}} set lists</a>
-        {{else}}
-        <a href="/setlists">set lists</a>
-        {{end}}
-        {{if .OpenVotes}}<a class="votes" href="/bands/{{.ID}}/proposals">{{.OpenVotes}} to vote on</a>{{end}}
-      </div>
-    </div>
+    {{template "band-card" .}}
   {{else}}
     <p class="hint">{{if eq .Tab "all"}}No bands on this instance yet.{{else}}You're not in any bands yet.{{end}}</p>
   {{end}}

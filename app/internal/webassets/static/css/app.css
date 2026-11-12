@@ -170,13 +170,17 @@
    above exactly — same post-audit contrast fixes apply here too, since
    these win over prefers-color-scheme whenever a viewer picks a theme
    explicitly via the toggle button. */
-body[data-theme="light"] {
+/* The choice is set on <html> before the page draws (pwa-head reads it
+   from localStorage), so every page follows it, not just the song page. */
+:root[data-theme="light"], body[data-theme="light"] {
+  color-scheme: light;
   --bg: #f6f1e7; --bg-raised: #fff; --bg-sunken: #efe6d3; --fg: #241e18; --fg-muted: #5f554a; --fg-faint: #6f675b;
   --border: #e7dfcf; --border-strong: #241e18; --accent: #af4e39; --accent-bg: #f3ddd4; --accent-ink: #8a3d2c; --accent-contrast: #ffffff;
   --current-bg: #f2ebc6; --current-fg: #4a3f14;
   --danger: #a52f2f; --danger-bg: #f7e0dc; --ok: #685c23; --ok-bg: #f2ebc6; --warn: #8a5920; --warn-bg: #f5e3c4;
 }
-body[data-theme="dark"] {
+:root[data-theme="dark"], body[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #1d1712; --bg-raised: #241d16; --bg-sunken: #140f0b; --fg: #f2e9dd; --fg-muted: #c4b8a0; --fg-faint: #9c8f78;
   --border: #3a322b; --border-strong: #f2e9dd; --accent: #d9684a; --accent-bg: #3a221a; --accent-ink: #f0a98c; --accent-contrast: #fff8f0;
   --current-bg: #e2d165; --current-fg: #241c08;
@@ -1359,11 +1363,16 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
   background: var(--daw-bg); color: var(--daw-text); font-family: var(--font-ui); font-size: 12px;
 }
 @media (prefers-color-scheme: dark) {
-  .daw {
+  :root:not([data-theme="light"]) .daw {
     --daw-bg: #1B1D29; --daw-header: #262938; --daw-header-hover: #2C3042; --daw-sep: #33374A;
     --daw-stroke: #3A3E52; --daw-text: #E6E7EE; --daw-muted: #A4A7B8;
     --daw-ruler: #2C2F40; --daw-ruler-stroke: #45495E; --daw-lane-light: #262938; --daw-canvas: #15171F;
   }
+}
+:root[data-theme="dark"] .daw {
+  --daw-bg: #1B1D29; --daw-header: #262938; --daw-header-hover: #2C3042; --daw-sep: #33374A;
+  --daw-stroke: #3A3E52; --daw-text: #E6E7EE; --daw-muted: #A4A7B8;
+  --daw-ruler: #2C2F40; --daw-ruler-stroke: #45495E; --daw-lane-light: #262938; --daw-canvas: #15171F;
 }
 .daw .icon { width: 16px; height: 16px; }
 /* A desktop DAW is dense by design: opt out of the app-wide 44px touch
@@ -3335,6 +3344,7 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
     transition: transform 0.2s ease;
     background: var(--bg); border-radius: 16px 16px 0 0; box-shadow: var(--shadow-lg, var(--shadow));
     padding: 0.6rem 0 calc(0.6rem + env(safe-area-inset-bottom, 0px));
+    max-height: calc(100dvh - var(--context-h) - 2.5rem); overflow-y: auto; overscroll-behavior: contain;
   }
   .stack-sheet.open { transform: translateY(0); }
   .stack-sheet-row {
@@ -3343,6 +3353,26 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
     font-size: 0.95rem; color: var(--fg);
   }
   .stack-sheet-row.active { color: var(--accent); font-weight: 600; }
+  .stack-sheet-label {
+    padding: 0.7rem 1.1rem 0.3rem; border-top: 1px solid var(--border); margin-top: 0.3rem;
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-faint);
+  }
+  .stack-sheet-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.2rem 1.1rem 0.4rem; }
+  .stack-sheet-chips button { display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 999px; padding: 0.4rem 0.8rem; font-size: 0.88rem; text-transform: capitalize; }
+  .stack-sheet-chips button.active { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-bg); font-weight: 600; }
+  .stack-sheet-notation .notation-pickers { justify-content: flex-start; padding: 0.3rem 1.1rem 0.4rem; margin: 0; flex-wrap: wrap; font-size: 0.9rem; }
+  .stack-sheet-notation:empty { display: none; }
+  .stack-sheet-row.stage-mode-toggle { border-top: 1px solid var(--border); margin-top: 0.3rem; }
+  /* The inline tab/staff pickers move into the View sheet on phones. */
+  .song-topzone .notation-pickers { display: none; }
+  /* The structure strip on a phone: section names and bar counts, big
+     enough to tap; the chord list under each is too small to read. */
+  .structure-seg-chords { display: none; }
+  .song-structure-strip { padding-top: 0.6rem; }
+  .structure-line, .structure-fill { top: 0.75rem; }
+  .structure-seg { flex: var(--bars, 1) 0 auto; min-width: max-content; min-height: 2.6rem; padding-right: 0.8rem; }
+  .structure-seg-label { overflow: visible; }
+  .structure-seg-label { font-size: 0.74rem; }
   .stack-sheet-row .icon { width: 1.25rem; height: 1.25rem; flex: none; }
   /* #song-stack reuses .stack-sheet-row for its versions/history <a>
      rows, but its PDF-export row is a <div> wrapper around three
@@ -3378,6 +3408,12 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
   }
   .site-nav-fullpage-row .icon { width: 1.5rem; height: 1.5rem; flex: none; color: var(--accent); }
   .site-nav-fullpage-row[hidden] { display: none; } /* its own display:flex would otherwise beat the [hidden] UA rule */
+  .site-nav-fullpage-theme {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: 1rem 1.3rem; font-weight: 600; color: var(--fg);
+  }
+  .site-nav-fullpage-theme > span { display: flex; align-items: center; gap: 1rem; }
+  .site-nav-fullpage-theme > span .icon { width: 1.5rem; height: 1.5rem; color: var(--accent); }
 
   /* The transport FAB is retired on mobile -- its old role (open the
      .timeline sheet) is now the Metronome button in .song-context-bar,
@@ -4696,6 +4732,25 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .band-card-actions a { font-size: 0.78rem; padding: 0.3rem 0.6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-raised); }
 .band-card-actions a.votes { border-color: var(--accent); background: var(--accent-bg); color: var(--accent-ink); }
 
+/* Set list rows (cards.html "setlist-row"): the title opens the running
+   order; Practice / Listen / Click track as pills; exports folded. */
+.setlist-rows { list-style: none; margin: 0; padding: 0; }
+.setlist-rows > li { padding: 0.7rem 0; border-top: 1px solid var(--border); }
+.setlist-rows > li:first-child { border-top: none; padding-top: 0.2rem; }
+.setlist-row { display: flex; flex-direction: column; gap: 0.45rem; }
+.setlist-row-title { font-weight: 600; font-size: 1.02rem; color: var(--fg); }
+.setlist-row-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.chip-link {
+  display: inline-flex; align-items: center; gap: 0.3rem; min-height: 2.2rem; padding: 0.3rem 0.75rem;
+  font-size: 0.85rem; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-raised); color: var(--accent-ink);
+}
+.chip-link:hover { text-decoration: none; border-color: var(--accent); }
+.setlist-row-export summary, .setlist-new summary { cursor: pointer; font-size: 0.85rem; color: var(--fg-muted); display: inline-flex; align-items: center; gap: 0.3rem; }
+.setlist-row-export[open] { display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem; }
+.setlist-new { margin-top: 0.6rem; }
+.setlist-new .structure-actions { margin-top: 0.5rem; display: flex; gap: 0.5rem; }
+.setlist-new .structure-actions input { flex: 1; min-width: 0; }
+
 /* List-page header: title/tabs on the left, the primary "create" action
    top-right — the standard list-page layout, so "+ New band" stops
    competing with real bands for grid space as its own lopsided card. */
@@ -4807,9 +4862,13 @@ input.matrix-slot:hover, input.matrix-slot:focus {
    for the same persistent-label reasoning as the rest of the app's
    forms, and a consistent min-width keeps short fields from feeling
    cramped at narrow desktop widths. */
-.catalog-filters { display: flex; gap: 1.1em; align-items: end; flex-wrap: wrap; padding: 1rem 1.1rem; margin-bottom: 1.1rem; }
-.catalog-filters label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.82rem; font-weight: 600; color: var(--fg-muted); min-width: 9rem; }
-.catalog-filters button[type="submit"] { padding: 0.45rem 1.1rem; }
+.catalog-filters { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.8rem 1rem; margin-bottom: 1.1rem; }
+.catalog-search { display: flex; gap: 0.5rem; }
+.catalog-search input { flex: 1; min-width: 0; }
+.catalog-filters button[type="submit"] { padding: 0.45rem 1.1rem; flex: none; }
+.catalog-more summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; color: var(--fg-muted); padding: 0.2rem 0; }
+.catalog-more-fields { display: flex; gap: 1.1em; align-items: end; flex-wrap: wrap; padding-top: 0.6rem; }
+.catalog-more-fields label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.82rem; font-weight: 600; color: var(--fg-muted); min-width: 9rem; flex: 1; }
 
 .catalog-cards {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.9rem;
@@ -5021,6 +5080,27 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 }
 @media (max-width: 600px) {
   .app-header > a.back-link[href="/home"] { display: none; }
+  /* One header pattern on phones: back arrow · title on one line · the
+     page's one action and the bell. The back link keeps its text for
+     screen readers but shows only its arrow. */
+  .app-header { flex-wrap: nowrap; gap: 0.5rem; min-height: 3.2rem; }
+  .app-header > a.back-link { flex: none; font-size: 0; min-width: 2.2rem; min-height: 2.2rem; justify-content: center; margin-left: -0.4rem; }
+  .app-header > a.back-link .icon { width: 1.35rem; height: 1.35rem; }
+  .app-header h1, .app-header .band-name-row { flex: 1; min-width: 0; }
+  .app-header h1 { font-size: 1.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-header .song-nav { flex: none; flex-wrap: nowrap; }
+  .app-header .notif-bell { flex: none; min-width: 2.2rem; min-height: 2.2rem; justify-content: center; }
+  .app-header .song-nav a[href="/songbooks"], .app-header .song-nav a[href="/catalog"] { display: none; }
+  .catalog-card-actions { align-items: center; }
+  /* Roster: a pending person and the quick-add form stack on a phone
+     instead of squeezing six grid columns into one line. */
+  .roster-pending-header { display: none; }
+  .roster-row-pending, .roster-quick-add { grid-template-columns: 1fr 1fr; row-gap: 0.4rem; padding-top: 0.6rem; padding-bottom: 0.6rem; }
+  .roster-row-pending .roster-name, .roster-row-pending .invite-link-row { grid-column: 1 / -1; }
+  .roster-row-pending .invite-link-row { margin: 0; }
+  .roster-row-pending .invite-link-url { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .roster-quick-add #roster-add-name { grid-column: 1 / -1; }
+  .roster-quick-add #roster-add-result { grid-column: 1 / -1; justify-self: start; }
   .band-tabs-row { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; -webkit-overflow-scrolling: touch; }
   .band-tabs-row::-webkit-scrollbar { display: none; }
   .band-tabs-row .band-tab { flex: none; }
@@ -5029,6 +5109,11 @@ input.matrix-slot:hover, input.matrix-slot:focus {
   .song-link .song-title { white-space: normal; flex-basis: 100%; }
   .song-link .song-meta { margin-left: 0; }
   .song-link .song-badges { margin-left: 0; }
+  /* Song badges are a glance at what a song holds, not buttons: drawn
+     as bare icons so they don't read as tap targets. */
+  .song-badge { border-color: transparent; background: none; padding: 0; min-width: 0; }
+  .song-badge-audio.is-backing, .song-badge-audio.is-full { background: none; }
+  .catalog-intro { font-size: 0.9rem; margin-bottom: 0.8rem; }
 }
 
 /* ==== Brands (internal/brand) =============================================
@@ -5077,3 +5162,49 @@ body.branded-dark img.logo-mark, body.branded-dark .logo-mark rect { filter: non
 .brand-color input[type=color].unset { opacity: 0.35; }
 .brand-color input[type=text] { font-family: var(--font-mono); }
 body.branded .sidebar-crumb, body.branded .sidebar-crumb a { color: var(--sidebar-fg); opacity: 0.75; }
+
+/* ==== Stage mode (stage.js) ===============================================
+   The song page for playing: no sidebar, bars, player or pickers; larger
+   type; a close button and the previous/next songs' names. */
+.stage-exit, .stage-foot { display: none; }
+html:has(body.stage) { font-size: 118%; }
+body.stage .desktop-sidebar, body.stage .song-context-bar, body.stage .global-tabbar,
+body.stage #song-structure-strip, body.stage #audio-player, body.stage .notation-pickers,
+body.stage #mode-segmented, body.stage #instrument-picker, body.stage .topbar-utility-mobile,
+body.stage .song-topbar .topbar-prev, body.stage .song-topbar .topbar-next,
+body.stage .stack-sheet, body.stage .stack-backdrop, body.stage .sidebar-transport { display: none !important; }
+body.stage .song-topzone { padding-top: 0.4rem; padding-bottom: 0.2rem; }
+body.stage .content-row, body.stage .content-main { padding-bottom: 3rem; }
+body.stage .stage-exit {
+  display: inline-flex; position: fixed; z-index: 70;
+  top: calc(env(safe-area-inset-top, 0px) + 0.4rem); right: 0.5rem;
+  background: var(--bg-raised); border: 1px solid var(--border); opacity: 0.85;
+}
+body.stage .stage-foot {
+  display: flex; justify-content: space-between; gap: 1rem; position: fixed; z-index: 69; left: 0; right: 0; bottom: 0;
+  padding: 0.5rem 0.9rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--bg) 92%, transparent); border-top: 1px solid var(--border); font-size: 0.85rem;
+}
+.stage-foot a { color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 48%; }
+.stage-foot-next { margin-left: auto; text-align: right; }
+
+/* ==== The editor's header on a phone ======================================
+   One row: the song's title, undo/redo, Save and close (Discard only once
+   there is something to discard); the five tabs scroll on one line under
+   it instead of wrapping into a second block. */
+@media (max-width: 600px) {
+  .edit-title-row { flex-wrap: nowrap; padding: 0.4rem 0.5rem 0.3rem 0.8rem; gap: 0.3rem; }
+  .edit-title-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.3rem; }
+  .edit-title-main h2 { font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
+  .edit-title-prefix { display: none; }
+  .edit-dirty-text { display: none; }
+  .edit-title-actions { gap: 0.2rem; flex: none; }
+  .edit-title-actions .icon-btn { width: 2.4rem; height: 2.4rem; min-width: 2.4rem; min-height: 2.4rem; }
+  .edit-title-actions #edit-discard-btn:disabled { display: none; }
+  .edit-title-actions .primary { padding: 0.45rem 0.8rem; }
+  .edit-topzone .prep-tabs { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; justify-content: flex-start; margin: 0; padding: 0 0.5rem 0.4rem; }
+  .edit-topzone .prep-tabs::-webkit-scrollbar { display: none; }
+  .edit-topzone .prep-tab { flex: none; padding: 0.4rem 0.75rem; }
+}
+/* Hints about hovering mean nothing on a touch screen. */
+@media (hover: none) { .hint.hover-only { display: none; } }

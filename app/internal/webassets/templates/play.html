@@ -520,6 +520,7 @@
     {{if .WorkID}}<a class="sidebar-song-row" href="/works/{{.WorkID}}" title="all versions of this song">{{template "icon-mode-map"}} Versions</a>{{end}}
     {{if .VariantID}}<a class="sidebar-song-row" href="/variants/{{.VariantID}}/history" title="revision history">{{template "icon-notes"}} History</a>{{end}}
     <button id="reference-toggle" class="sidebar-song-row" type="button" title="reference video">{{template "icon-reference"}} Reference</button>
+    <button class="sidebar-song-row stage-mode-toggle" type="button" title="larger type, no menus, the screen kept awake">{{template "icon-presentation"}} Stage mode</button>
   </div>
   <div class="sidebar-secondary">
     {{if and .Me .Me.IsAdmin}}<a href="/admin" data-path="/admin">Admin</a>{{end}}
@@ -644,8 +645,8 @@
   <div class="edit-topzone">
     <div class="edit-title-row">
       <div class="edit-title-main">
-        <h2>Editing &mdash; {{.Title}}</h2>
-        <span id="edit-dirty-indicator" class="edit-dirty-indicator" hidden>&#9679; unsaved changes</span>
+        <h2><span class="edit-title-prefix">Editing &mdash; </span>{{.Title}}</h2>
+        <span id="edit-dirty-indicator" class="edit-dirty-indicator" title="unsaved changes" hidden>&#9679;<span class="edit-dirty-text"> unsaved changes</span></span>
       </div>
       <div class="edit-title-actions">
         <button id="edit-undo-btn" class="icon-btn" type="button" title="undo (Cmd/Ctrl+Z)" disabled>{{template "icon-undo"}}<span class="sr-only">undo</span></button>
@@ -665,7 +666,7 @@
   </div>
   <div class="edit-drawer-body">
     <section class="prep-panel" data-panel="structure" id="structure" data-variant-id="{{.VariantID}}" data-genre="{{.Genre}}">
-      <p class="hint">Hover a section for its handle (drag to reorder) and + (insert after it) — pick a label, a custom one, or a bare chord sequence. Each section holds its own chords and lyrics; a duplicated section starts as a bare "repeat marker" until you give it real content.</p>
+      <p class="hint hover-only">Hover a section for its handle (drag to reorder) and + (insert after it) — pick a label, a custom one, or a bare chord sequence. Each section holds its own chords and lyrics; a duplicated section starts as a bare "repeat marker" until you give it real content.</p>
       <div id="song-header-fields" class="song-header-fields"></div>
       <div id="chip-list" class="chip-list"></div>
       <div class="structure-actions">
@@ -1163,6 +1164,9 @@
     {{end}}
   </div>
   <div class="stack-backdrop" id="view-stack-backdrop"></div>
+  {{/* View: how the song is drawn, for this reader — the view, which
+       instrument's part, tab or staff, and stage mode. Doing things to
+       the song (edit, notes, exports, history) is the Song sheet's. */}}
   <div class="stack-sheet" id="view-stack" role="dialog" aria-label="View">
     <button type="button" class="stack-sheet-row" data-forward="normal">{{template "icon-mode-normal"}} Song</button>
     <button type="button" class="stack-sheet-row" data-forward="jazz">{{template "icon-mode-jazz"}} Jazz chart</button>
@@ -1170,8 +1174,15 @@
     <button type="button" class="stack-sheet-row" data-forward="map">{{template "icon-mode-map"}} Song map</button>
     <button type="button" class="stack-sheet-row" data-forward="drummer">{{template "icon-mode-drummer"}} Drummer</button>
     <button type="button" class="stack-sheet-row" data-forward="mixer">{{template "icon-mode-mixer"}} Mixer</button>
-    <button type="button" class="stack-sheet-row" data-forward="edit">{{template "icon-edit"}} Edit</button>
-    {{if .VariantID}}<button type="button" class="stack-sheet-row" id="notes-stack-row">{{template "icon-notes"}} Notes</button>{{end}}
+    {{if .Instruments}}
+    <div class="stack-sheet-label">Part</div>
+    <div class="stack-sheet-chips" id="view-stack-instruments">
+      <button type="button" data-instrument="chords" class="{{if or (not .SelectedInstrument) (eq .SelectedInstrument "chords")}}active{{end}}">{{template "icon-chord-grid"}} Chords</button>
+      {{range .Instruments}}<button type="button" data-instrument="{{.}}" class="{{if eq . $.SelectedInstrument}}active{{end}}">{{template "instrument-icon" .}} {{.}}</button>{{end}}
+    </div>
+    {{end}}
+    <div class="stack-sheet-notation" id="view-stack-notation"></div>
+    <button type="button" class="stack-sheet-row stage-mode-toggle" id="stage-mode-row">{{template "icon-presentation"}} Stage mode</button>
   </div>
 
   {{/* Song-actions sheet: everything that used to crowd the mobile top
@@ -1193,6 +1204,8 @@
          row below/above already uses — no special-casing needed now
          that Reference is a real mode, not a drawer this row had its
          own bespoke open logic for. */}}
+    <button type="button" class="stack-sheet-row" data-forward="edit">{{template "icon-edit"}} Edit</button>
+    {{if .VariantID}}<button type="button" class="stack-sheet-row" id="notes-stack-row">{{template "icon-notes"}} Notes</button>{{end}}
     <button type="button" class="stack-sheet-row" data-forward="reference">{{template "icon-reference"}} Reference</button>
     <div class="stack-sheet-row pdf-mode-row" style="flex-wrap:wrap;gap:0.6rem 0.9rem;">
       <a class="pdf-export-link" href="/song/{{.VariantID}}/export.pdf" title="export PDF (chart)" download>{{template "icon-download"}} Export PDF</a>
@@ -1508,6 +1521,7 @@
      shipping to a read-only viewer who'll never open any of those tabs. */}}
 <script src="/static/js/vendor/alphatab/alphaTab.min.js?v={{staticVersion}}"></script>
 <script src="/static/js/notation-prefs.js?v={{staticVersion}}"></script>
+<script src="/static/js/stage.js?v={{staticVersion}}"></script>
 <script src="/static/js/alphatab-tab.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-export.js?v={{staticVersion}}"></script>
 {{end}}
@@ -1634,25 +1648,34 @@
   // #edit-toggle directly instead, the same real desktop button Notes/
   // Reference already forward to (see their own toggles-array wiring
   // below) rather than reimplement the drawer-open logic here too.
-  viewSheet.querySelectorAll('.stack-sheet-row').forEach(function (row) {
+  viewSheet.querySelectorAll('.stack-sheet-row[data-forward]').forEach(function (row) {
     row.addEventListener('click', function () {
-      var real = row.dataset.forward === 'edit'
-        ? document.getElementById('edit-toggle')
-        : document.querySelector('#mode-segmented button[data-value="' + row.dataset.forward + '"]');
+      var real = document.querySelector('#mode-segmented button[data-value="' + row.dataset.forward + '"]');
       if (real) real.click();
       setViewOpen(false);
     });
   });
+  // Part: the same server-rendered choice as the desktop #instrument-picker
+  // (hidden on phones), forwarded to it.
+  document.getElementById('view-stack-instruments')?.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-instrument]');
+    if (!b) return;
+    var real = document.querySelector('#instrument-picker button[data-instrument="' + b.dataset.instrument + '"]');
+    if (real) real.click();
+  });
+  document.getElementById('stage-mode-row')?.addEventListener('click', function () { setViewOpen(false); });
   // Keep the sheet's own active row in sync with the real mode switcher,
   // including the saved-default restore that runs on load.
   var modeSegmented = document.getElementById('mode-segmented');
   if (modeSegmented) {
-    new MutationObserver(function () {
-      var value = modeSegmented.dataset.value;
-      viewSheet.querySelectorAll('.stack-sheet-row').forEach(function (row) {
+    var markView = function () {
+      var value = modeSegmented.dataset.value || 'normal';
+      viewSheet.querySelectorAll('.stack-sheet-row[data-forward]').forEach(function (row) {
         row.classList.toggle('active', row.dataset.forward === value);
       });
-    }).observe(modeSegmented, {attributes: true, attributeFilter: ['data-value']});
+    };
+    new MutationObserver(markView).observe(modeSegmented, {attributes: true, attributeFilter: ['data-value']});
+    markView();
   }
 
   // Metronome: a plain <a href="/metronome?..."> now (see the markup),
@@ -1677,13 +1700,19 @@
     // data-forward mechanism) is the one BUTTON row here that still
     // needs to forward into the real #mode-segmented switch and close
     // this sheet afterward, same shape as the View sheet's own rows.
+    // "edit" goes to the standalone #edit-toggle (no longer part of the
+    // #mode-segmented pill, see song.js's "Phase 46" comment); Notes is
+    // wired by its own toggles array, this only closes the sheet.
     songSheet.querySelectorAll('.stack-sheet-row[data-forward]').forEach(function (row) {
       row.addEventListener('click', function () {
-        var real = document.querySelector('#mode-segmented button[data-value="' + row.dataset.forward + '"]');
+        var real = row.dataset.forward === 'edit'
+          ? document.getElementById('edit-toggle')
+          : document.querySelector('#mode-segmented button[data-value="' + row.dataset.forward + '"]');
         if (real) real.click();
         setSongOpen(false);
       });
     });
+    document.getElementById('notes-stack-row')?.addEventListener('click', function () { setSongOpen(false); });
   }
 
   // "..." full-page site navigation is now wired by the shared
