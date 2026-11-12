@@ -408,6 +408,7 @@
 {{end}}
 
 {{define "song"}}
+{{$brand := brandFor .BrandKind .BrandID}}
 <!doctype html>
 <html lang="en">
 <head>
@@ -416,8 +417,9 @@
 <title>{{.Title}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
+{{template "brand-head" $brand}}
 </head>
-<body data-mode="view"{{with .NotationPrefs}} data-notation-guitar="{{.Guitar}}" data-notation-bass="{{.Bass}}"{{end}}>
+<body data-mode="view"{{with .NotationPrefs}} data-notation-guitar="{{.Guitar}}" data-notation-bass="{{.Bass}}"{{end}}{{template "brand-body" $brand}}>
 {{/* Phase 44: the desktop sidebar (Home/Songbooks/Bands/Setlists/Profile,
      plus a "This song" group) that every other top-level page already
      renders — Play used to be the one page that opted out of it entirely

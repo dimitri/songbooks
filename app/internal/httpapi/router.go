@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 
+	"app/internal/brand"
 	"app/internal/lilypond"
 	"app/internal/mailer"
 	"app/internal/pdfnative"
@@ -65,6 +67,13 @@ type Server struct {
 // --webauthn-rp-id flag).
 func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, webauthnRPID, adminFileDir string) http.Handler {
 	s := &Server{store: st, mailer: m, pdf: pdfnative.New(), ly: lilypond.NewBridge(), devAutoLogin: devAutoLogin, webauthnRPID: webauthnRPID, webauthn: newWebAuthnState(), adminFileDir: adminFileDir}
+	webassets.BrandLookup = func(kind string, id int64) *brand.Theme {
+		b, name, err := st.GetBrand(context.Background(), kind, id)
+		if err != nil {
+			return nil
+		}
+		return brand.Resolve(b, name)
+	}
 	mux := http.NewServeMux()
 
 	// Auth itself: reachable without a session (that's the point).
@@ -272,6 +281,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /bands/{id}", s.requireBandMember(s.handleBandPage))
 	mux.HandleFunc("DELETE /api/bands/{id}", s.requireBandMember(s.handleDeleteBand))
 	mux.HandleFunc("POST /api/bands/{id}/name", s.requireBandMember(s.handleSetBandName))
+	mux.HandleFunc("GET /api/bands/{id}/brand", s.requireBandMember(s.handleGetBrand("band")))
+	mux.HandleFunc("POST /api/bands/{id}/brand", s.requireBandCore(s.handleSetBrand("band")))
 	mux.HandleFunc("POST /api/bands/{id}/music-type", s.requireBandMember(s.handleSetBandMusicType))
 	mux.HandleFunc("POST /api/bands/{id}/members", s.requireBandMember(s.handleAddBandMember))
 	mux.HandleFunc("POST /api/bands/{id}/members/{personID}/status", s.requireBandCore(s.handleSetBandMemberStatus))
@@ -338,6 +349,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("DELETE /api/communities/{id}/songbooks/{sbID}/grants/{personID}", s.requireCommunityAnyManagePrivilege(s.handleRevokeSongbookAccess))
 	mux.HandleFunc("GET /communities/{id}/admin", s.requireCommunityAnyManagePrivilege(s.handleCommunityAdminPage))
 	mux.HandleFunc("POST /api/communities/{id}/rename", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleRenameCommunity))
+	mux.HandleFunc("GET /api/communities/{id}/brand", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleGetBrand("community")))
+	mux.HandleFunc("POST /api/communities/{id}/brand", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleSetBrand("community")))
 	mux.HandleFunc("POST /api/communities/{id}/default-join-role", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleSetCommunityDefaultJoinRole))
 	mux.HandleFunc("POST /api/communities/{id}/members", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleAddCommunityMember))
 	mux.HandleFunc("POST /api/communities/{id}/personal-invites", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleCreateCommunityPersonalInvite))

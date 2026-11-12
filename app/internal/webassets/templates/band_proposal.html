@@ -1,4 +1,5 @@
 {{define "band_proposal"}}
+{{$brand := brandFor "band" .Band.ID}}
 <!doctype html>
 <html lang="en">
 <head>
@@ -7,8 +8,9 @@
 <title>Proposal — {{.Band.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
+{{template "brand-head" $brand}}
 </head>
-<body>
+<body{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">

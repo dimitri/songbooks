@@ -1,4 +1,5 @@
 {{define "band"}}
+{{$brand := brandFor "band" .Band.ID}}
 <!doctype html>
 <html lang="en">
 <head>
@@ -7,8 +8,9 @@
 <title>{{.Band.Name}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
+{{template "brand-head" $brand}}
 </head>
-<body>
+<body{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
@@ -76,6 +78,7 @@ document.getElementById('music-type-select').addEventListener('change', async (e
        still its own route/handler (real, separate server logic per
        section), so this is a tab-styled nav bar linking between full
        pages rather than one giant client-side-tabbed page. */}}
+  {{template "brand-banner" $brand}}
   <nav class="band-tabs band-tabs-row">
     <a href="/bands/{{.Band.ID}}" class="band-tab active">Overview</a>
     <a class="band-tab" href="/bands/{{.Band.ID}}/catalog">Repertoire</a>
@@ -136,7 +139,7 @@ document.getElementById('music-type-select').addEventListener('change', async (e
         {{range .Entries}}
           <a class="attention-row" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
             <div class="attention-title">{{.Title}}</div>
-            {{if .Artist}}<div class="attention-subtitle">{{.Artist}}</div>{{end}}
+            {{if and .Artist (ne .Artist $.Band.Name)}}<div class="attention-subtitle">{{.Artist}}</div>{{end}}
           </a>
         {{end}}
       </div>
@@ -147,7 +150,7 @@ document.getElementById('music-type-select').addEventListener('change', async (e
     {{range .Repertoire}}
       <a class="attention-row" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
         <div class="attention-title">{{.Title}}</div>
-        {{if .Artist}}<div class="attention-subtitle">{{.Artist}}</div>{{end}}
+        {{if and .Artist (ne .Artist $.Band.Name)}}<div class="attention-subtitle">{{.Artist}}</div>{{end}}
       </a>
     {{else}}
       <a class="attention-empty" href="/bands/{{.Band.ID}}/catalog">No songs yet — add one from the repertoire page &rarr;</a>
@@ -188,7 +191,7 @@ document.getElementById('music-type-select').addEventListener('change', async (e
     </div>
   </section>
 
-  <p class="hint">No "owner"/"admin" role here — any current member (core or guest) can add or remove members or delete the whole band. Promoting/demoting a member between core and guest is core-only. Full roster and invites are on the <a href="/bands/{{.Band.ID}}/members">Members</a> tab.</p>
+  <p class="hint">Members, invites and roles are on the <a href="/bands/{{.Band.ID}}/members">Members</a> tab.</p>
 </main>
 </div>
 {{template "global-tabbar"}}

@@ -5008,3 +5008,72 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .notation-pickers { display: flex; justify-content: center; gap: 1rem; margin: 0.4rem 0 0; font-size: 0.85rem; color: var(--fg-muted); }
 .notation-pickers label { display: flex; align-items: center; gap: 0.35rem; }
 .notation-pickers select { min-height: 0; padding: 0.2rem 0.4rem; font-size: 0.85rem; }
+
+/* ==== Phones (≤ 600px): the mobile review of Nov 2026 ====================
+   - the "More" sheet leaves out what the bottom tab bar already shows
+     (it keeps everything on the song page, whose own bar replaces it);
+   - page headers drop the "Songbooks" home link (the tab bar's Home);
+   - a section's tab row scrolls sideways on one line instead of wrapping
+     into two rows of pills;
+   - song rows keep the whole title, with tempo and badges underneath. */
+@media (max-width: 900px) {
+  body:not(:has(.song-context-bar)) .site-nav-fullpage-row.is-tab { display: none; }
+}
+@media (max-width: 600px) {
+  .app-header > a.back-link[href="/home"] { display: none; }
+  .band-tabs-row { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; -webkit-overflow-scrolling: touch; }
+  .band-tabs-row::-webkit-scrollbar { display: none; }
+  .band-tabs-row .band-tab { flex: none; }
+  .song-list li { align-items: flex-start; }
+  .song-link { flex-wrap: wrap; row-gap: 0.15rem; }
+  .song-link .song-title { white-space: normal; flex-basis: 100%; }
+  .song-link .song-meta { margin-left: 0; }
+  .song-link .song-badges { margin-left: 0; }
+}
+
+/* ==== Brands (internal/brand) =============================================
+   A community's or band's look, applied on <body class="branded"> by
+   overriding the design tokens inline (--bg, --fg, --accent, --font-ui,
+   --font-display, --radius-control, --brand-header...). These rules only
+   say where the brand's display font, header color and control shape go;
+   colors come through the tokens every rule already uses. */
+body.branded { font-family: var(--font-ui); }
+body.branded h1, body.branded h2, body.branded .brand-name { font-family: var(--font-display, var(--font-ui)); letter-spacing: -0.01em; }
+body.branded .app-header { background: var(--brand-header, var(--bg-raised)); color: var(--brand-header-fg, var(--fg)); border-bottom-color: transparent; }
+body.branded .app-header a, body.branded .app-header .back-link { color: inherit; }
+body.branded .app-header .back-link { opacity: 0.8; }
+body.branded button, body.branded select, body.branded input:not([type=checkbox]):not([type=radio]),
+body.branded .band-tabs, body.branded .band-tabs .band-tab, body.branded .chip-link, body.branded .card {
+  border-radius: var(--radius-control, 8px);
+}
+body.branded.branded-square .card, body.branded.branded-square .attention-card { border-radius: 0; }
+body.branded.branded-pill .band-tabs { padding: 0.25rem; }
+body.branded .band-tabs .band-tab.active { background: var(--accent); color: var(--accent-contrast); box-shadow: none; }
+body.branded-dark .card, body.branded-dark .attention-card { box-shadow: none; }
+body.branded-dark img.logo-mark, body.branded-dark .logo-mark rect { filter: none; }
+
+/* The band's or community's banner on its home page: its mark or logo,
+   its name in its display font, tagline in its second accent, website. */
+.brand-banner {
+  display: flex; align-items: center; gap: 1rem; margin: 0 0 1.2rem;
+  padding: 1.1rem 1.2rem; background: var(--brand-header, var(--bg-raised)); color: var(--brand-header-fg, var(--fg));
+  border-radius: var(--radius-control, var(--radius));
+}
+.brand-mark {
+  flex: none; width: 3rem; height: 3rem; display: grid; place-items: center;
+  border: 1.5px solid var(--accent); border-radius: 50%; color: var(--accent); font-size: 1.4rem;
+}
+.brand-logo { flex: none; width: 3.5rem; height: 3.5rem; object-fit: cover; border-radius: 50%; }
+.brand-banner-text { min-width: 0; }
+.brand-name { font-size: 1.6rem; font-weight: 600; line-height: 1.1; }
+.brand-tagline { margin: 0.25rem 0 0; color: var(--accent-2, var(--fg-muted)); font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.brand-website { display: inline-block; margin-top: 0.3rem; font-size: 0.85rem; color: inherit; opacity: 0.75; }
+
+/* Look & feel form (brand-editor.js). */
+.brand-colors { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.5rem 1rem; }
+.brand-color { display: grid; grid-template-columns: 2.4rem 1fr; grid-template-rows: auto auto; gap: 0.2rem 0.4rem; font-size: 0.85rem; color: var(--fg-muted); }
+.brand-color span { grid-column: 1 / -1; }
+.brand-color input[type=color] { width: 2.4rem; height: 2.2rem; padding: 0.1rem; border: 1px solid var(--border); background: none; }
+.brand-color input[type=color].unset { opacity: 0.35; }
+.brand-color input[type=text] { font-family: var(--font-mono); }
+body.branded .sidebar-crumb, body.branded .sidebar-crumb a { color: var(--sidebar-fg); opacity: 0.75; }

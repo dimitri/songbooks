@@ -1147,7 +1147,10 @@ const ICONS = {
   // every song in a set. Per-device (localStorage), not song data.
   try {
     const saved = localStorage.getItem('songbooks-default-mode');
-    if (saved && saved !== 'normal' && saved !== 'reference' && saved !== 'mixer') {
+    // Drummer view only for a song that has a drum part: on any other it
+    // is a page of empty staves, so the song opens as a chart instead.
+    const hasDrums = [...document.querySelectorAll('[data-realbars]')].some((e) => !e.dataset.restonly);
+    if (saved && saved !== 'normal' && saved !== 'reference' && saved !== 'mixer' && (saved !== 'drummer' || hasDrums)) {
       document.querySelector(`#mode-segmented button[data-value="${saved}"]`)?.click();
     }
   } catch (e) { /* ignore */ }

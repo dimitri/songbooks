@@ -52,7 +52,7 @@
     bar.className = 'notation-pickers';
     for (const kind of kinds) {
       const label = document.createElement('label');
-      label.append(kinds.length > 1 ? kind.charAt(0).toUpperCase() + kind.slice(1) + ' ' : '', picker(kind, () => location.reload()));
+      label.append(kind.charAt(0).toUpperCase() + kind.slice(1) + ' as ', picker(kind, () => location.reload()));
       bar.appendChild(label);
     }
     const anchor = document.getElementById('instrument-picker');
