@@ -1,4 +1,5 @@
 {{define "community"}}
+{{$brand := brandFor "community" .Community.ID}}
 <!doctype html>
 <html lang="en">
 <head>
@@ -7,8 +8,9 @@
 <title>{{.Community.Name}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
+{{template "brand-head" $brand}}
 </head>
-<body>
+<body{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
@@ -17,6 +19,7 @@
   {{template "notif-bell"}}
 </header>
 <main class="index">
+  {{template "brand-banner" $brand}}
   <nav class="band-tabs band-tabs-row">
     <a href="/communities/{{.Community.ID}}" class="band-tab active">Overview</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">Songbooks</a>

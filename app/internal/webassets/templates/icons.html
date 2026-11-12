@@ -110,7 +110,7 @@
   </div>
   {{range navGlobal "mobileMore"}}
   {{if not .RequiresAdmin}}
-  <a class="site-nav-fullpage-row" href="{{.Path}}">{{template "nav-icon" .Icon}} {{.Label}}</a>
+  <a class="site-nav-fullpage-row{{if .InTabBar}} is-tab{{end}}" href="{{.Path}}">{{template "nav-icon" .Icon}} {{.Label}}</a>
   {{end}}
   {{end}}
   {{/* The one admin-gated entry is still rendered hidden-by-default and
@@ -423,3 +423,44 @@
      mechanism (see instrumentIcon's doc comment in embed.go). Every
      call site uses {{template "instrument-icon" .}}. */}}
 {{define "instrument-icon"}}{{$k := instrumentIcon .}}{{if eq $k "drums"}}{{template "icon-instrument-drums"}}{{else if eq $k "bass"}}{{template "icon-instrument-bass"}}{{else if eq $k "guitar"}}{{template "icon-instrument-guitar"}}{{else if eq $k "vocals"}}{{template "icon-instrument-vocals"}}{{else if eq $k "keys"}}{{template "icon-instrument-keys"}}{{else}}{{template "icon-instrument-other"}}{{end}}{{end}}
+
+{{/* Branding (internal/brand): a community's or band's look on the pages
+     seen in its context. Each such template sets
+     {{$brand := brandFor "band" .Band.ID}} (or brandOwner / brandFor
+     with the song's context) and calls these three with it; with no
+     brand ($brand nil) they render nothing and the page keeps the app's
+     own look. */}}
+{{define "brand-head"}}{{with .}}{{if .FontsURL}}<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="{{.FontsURL}}">{{end}}{{if .Header}}<meta name="theme-color" content="{{.Header}}">{{end}}{{end}}{{end}}
+{{define "brand-body"}}{{with .}} class="branded{{if .Dark}} branded-dark{{end}}{{with .Shape}} branded-{{.}}{{end}}" style="{{.Style}}"{{end}}{{end}}
+{{define "brand-banner"}}{{with .}}<div class="brand-banner">{{if .LogoURL}}<img class="brand-logo" src="{{.LogoURL}}" alt="">{{else if .Mark}}<span class="brand-mark" aria-hidden="true">{{.Mark}}</span>{{end}}<div class="brand-banner-text"><div class="brand-name">{{.Name}}</div>{{if .Tagline}}<p class="brand-tagline">{{.Tagline}}</p>{{end}}{{if .Website}}<a class="brand-website" href="{{.Website}}" target="_blank" rel="noopener">{{.WebsiteHost}}</a>{{end}}</div></div>{{end}}{{end}}
+
+{{/* The look & feel form (brand-editor.js) for a community's or band's
+     brand, given its GET/POST endpoint. */}}
+{{define "brand-editor"}}
+<div class="card brand-editor" id="brand-editor" data-endpoint="{{.}}">
+  <h2>Look &amp; feel</h2>
+  <p class="hint">How this space looks to everyone in it: its pages, its songbooks and setlists, and the songs opened from them. Start from a preset, then change what you like; leave a field empty to keep the preset's.</p>
+  <div class="form-stack">
+    <div class="field"><label for="brand-preset">Preset</label>
+      <select id="brand-preset" name="preset"><option value="">None (the app's own look)</option>{{range brandPresets}}<option value="{{.}}">{{(brandPreset .).Label}}</option>{{end}}</select></div>
+    <div class="brand-colors">
+      {{range brandColorFields}}
+      <label class="brand-color"><span>{{index . 1}}</span><input type="color" data-color-for="{{index . 0}}"><input type="text" name="{{index . 0}}" placeholder="preset" maxlength="7" pattern="#[0-9a-fA-F]{6}"></label>
+      {{end}}
+    </div>
+    <div class="field"><label for="brand-font-display">Title font</label>
+      <select id="brand-font-display" name="fontDisplay"><option value="">Preset's</option>{{range brandFonts}}<option value="{{.}}">{{(brandFont .).Label}}</option>{{end}}</select></div>
+    <div class="field"><label for="brand-font-ui">Text font</label>
+      <select id="brand-font-ui" name="fontUI"><option value="">Preset's</option>{{range brandFonts}}<option value="{{.}}">{{(brandFont .).Label}}</option>{{end}}</select></div>
+    <div class="field"><label for="brand-shape">Buttons</label>
+      <select id="brand-shape" name="shape"><option value="">Preset's</option><option value="square">Square</option><option value="soft">Rounded</option><option value="pill">Pills</option></select></div>
+    <div class="field"><label for="brand-mark">Mark (a letter or a symbol)</label><input type="text" id="brand-mark" name="mark" maxlength="3" placeholder="☾"></div>
+    <div class="field"><label for="brand-logo">Logo image (https link)</label><input type="url" id="brand-logo" name="logoURL" placeholder="https://…"></div>
+    <div class="field"><label for="brand-tagline">Tagline</label><input type="text" id="brand-tagline" name="tagline" maxlength="140"></div>
+    <div class="field"><label for="brand-website">Website</label><input type="url" id="brand-website" name="website" placeholder="https://…"></div>
+    <div class="form-actions"><button type="button" class="primary" id="brand-save">Save and reload</button> <button type="button" id="brand-reset">Back to the app's look</button></div>
+    <p class="hint" id="brand-status"></p>
+  </div>
+</div>
+<script src="/static/js/brand-editor.js?v={{staticVersion}}"></script>
+{{end}}

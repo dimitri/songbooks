@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"app/internal/brand"
 	"app/internal/chorddiagram"
 	"app/internal/chordsym"
 	"app/internal/song"
@@ -26,6 +27,32 @@ var templatesFS embed.FS
 
 //go:embed static
 var staticFSRaw embed.FS
+
+// brandFor is the look of the community or band a page is seen in
+// ("community"/"band" and its id, an int64 or *int64), nil for the app's
+// own — see internal/brand and the "brand-head"/"brand-body" partials
+// (icons.html).
+func brandFor(kind string, id any) *brand.Theme {
+	var n int64
+	switch v := id.(type) {
+	case int64:
+		n = v
+	case *int64:
+		if v != nil {
+			n = *v
+		}
+	case int:
+		n = int64(v)
+	}
+	if n == 0 || BrandLookup == nil {
+		return nil
+	}
+	return BrandLookup(kind, n)
+}
+
+// BrandLookup resolves a community's or band's brand for the brandFor
+// template function; the HTTP server sets it (it needs the store).
+var BrandLookup func(kind string, id int64) *brand.Theme
 
 var funcMap = template.FuncMap{
 	// chord renders one chord symbol in chart style (bold root, raised
@@ -48,13 +75,36 @@ var funcMap = template.FuncMap{
 		d := chorddiagram.ParseSpec(ref.Spec)
 		return template.HTML(chorddiagram.RenderSVG(d, chordsym.GlyphName(ref.Name)))
 	},
-	"add1":      func(n int) int { return n + 1 },
+	"add1": func(n int) int { return n + 1 },
 	// navGlobal returns the global nav's declared entry list for one
 	// surface ("desktop"/"mobileTab"/"mobileMore") — see nav.go, the
 	// single source of truth desktop-sidebar/global-tabbar/
 	// site-nav-fullpage all render from instead of each hardcoding its
 	// own list.
 	"navGlobal": navGlobal,
+	// brandFor is the look of the community or band a page is seen in
+	// ("community"/"band" and its id, an int64 or *int64), nil for the
+	// app's own — see internal/brand and the "brand-head"/"brand-body"
+	// partials (icons.html).
+	"brandFor": brandFor,
+	// brandOwner is brandFor for something owned by a band or a community
+	// (a songbook, a setlist): its owner kind and both possible owner ids.
+	"brandOwner": func(kind string, bandID, communityID any) *brand.Theme {
+		switch kind {
+		case "band":
+			return brandFor("band", bandID)
+		case "community":
+			return brandFor("community", communityID)
+		}
+		return nil
+	},
+	"brandColorFields": func() [][2]string {
+		return [][2]string{{"background", "Background"}, {"surface", "Cards"}, {"text", "Text"}, {"muted", "Secondary text"}, {"accent", "Accent"}, {"accent2", "Second accent"}, {"header", "Header"}}
+	},
+	"brandFonts":   func() []string { return brand.FontKeys() },
+	"brandFont":    func(k string) brand.Font { return brand.Fonts[k] },
+	"brandPresets": func() []string { return brand.PresetKeys() },
+	"brandPreset":  func(k string) brand.Preset { return brand.Presets[k] },
 	// now gives a template a current timestamp to compare against —
 	// e.g. the admin panel's invite list, which needs "is this expiry
 	// in the future" rather than any value computed once at render time

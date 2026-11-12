@@ -2922,7 +2922,60 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	data["BrandKind"], data["BrandID"] = s.songBrandContext(r, data, variant)
 	s.render(w, "song", data)
+}
+
+// songBrandContext is whose look a song page takes (internal/brand): the
+// band or community it was opened from — directly, or through one of
+// their songbooks or setlists — else the band or community that owns the
+// song; "" for neither.
+func (s *Server) songBrandContext(r *http.Request, data map[string]any, variant *store.CatalogVariant) (string, int64) {
+	if id, ok := data["BandRef"].(int64); ok {
+		return "band", id
+	}
+	if id, ok := data["CommunityRef"].(int64); ok {
+		return "community", id
+	}
+	if id, ok := data["SongbookRef"].(int64); ok {
+		if sb, err := s.store.GetSongbook(r.Context(), id); err == nil {
+			switch {
+			case sb.OwnerKind == "band" && sb.OwnerBandID != 0:
+				return "band", sb.OwnerBandID
+			case sb.OwnerKind == "community" && sb.OwnerCommunityID != 0:
+				return "community", sb.OwnerCommunityID
+			}
+		}
+	}
+	if ref, ok := data["SetlistRef"].(string); ok {
+		if id, err := strconv.ParseInt(ref, 10, 64); err == nil {
+			if meta, err := s.store.GetSetlistMeta(r.Context(), id); err == nil {
+				if kind, owner := setlistOwner(meta); kind != "" {
+					return kind, owner
+				}
+			}
+		}
+	}
+	if variant != nil {
+		switch {
+		case variant.OwnerBandID != nil:
+			return "band", *variant.OwnerBandID
+		case variant.OwnerCommunityID != nil:
+			return "community", *variant.OwnerCommunityID
+		}
+	}
+	return "", 0
+}
+
+// setlistOwner is the band or community a setlist belongs to, if any.
+func setlistOwner(meta *store.SetlistMeta) (string, int64) {
+	switch {
+	case meta.OwnerBandID != nil:
+		return "band", *meta.OwnerBandID
+	case meta.OwnerCommunityID != nil:
+		return "community", *meta.OwnerCommunityID
+	}
+	return "", 0
 }
 
 // songNeighbor is the prev/next-in-setlist card: just enough to glance at

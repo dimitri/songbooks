@@ -156,11 +156,12 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusForbidden, "no view rights on this setlist")
 		return
 	}
-	l, _, version, err := s.store.LoadSetlistByID(r.Context(), id)
+	l, meta, version, err := s.store.LoadSetlistByID(r.Context(), id)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
+	brandKind, brandID := setlistOwner(meta)
 	canEdit, _ := s.store.CanEditSetlistByID(r.Context(), person.ID, id)
 	var sets []gigSet
 	n := 0
@@ -185,7 +186,7 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "setlist-overview", map[string]any{
 		"Me": person, "SetlistID": id, "Version": version, "CanEdit": canEdit,
 		"Title": orDefault(l.Get("title"), "Setlist"), "Date": l.Get("date"), "Venue": l.Get("venue"),
-		"Sets": sets,
+		"Sets": sets, "BrandKind": brandKind, "BrandID": brandID,
 		"ContextualGroup": webassets.ContextualGroup{Label: "This setlist", Entries: []webassets.NavEntry{
 			{Label: "Print one-pager", Path: fmt.Sprintf("/setlists/%d/export-setlist-page.pdf", id), Icon: "icon-download"},
 			{Label: "Export PDF", Path: fmt.Sprintf("/setlists/%d/export.pdf", id), Icon: "icon-download"},
@@ -621,6 +622,7 @@ func (s *Server) handleSetlistStep(w http.ResponseWriter, r *http.Request, mode 
 		"PracticeTitle":     orDefault(meta.Title, "set list"),
 		"NotationPrefs":     s.notationPrefsFor(r),
 	}
+	data["BrandKind"], data["BrandID"] = setlistOwner(meta)
 	if i > 0 {
 		if n := s.loadSongNeighbor(steps[i-1].VariantID); n != nil {
 			data["Prev"] = n

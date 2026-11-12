@@ -20,8 +20,8 @@
   <div class="list-page-head">
     {{if .ShowAllTab}}
     <nav class="band-tabs">
-      <a href="/bands" class="{{if eq .Tab "mine"}}active{{end}}">My bands</a>
-      <a href="/bands?tab=all" class="{{if eq .Tab "all"}}active{{end}}">All bands</a>
+      <a href="/bands" class="band-tab{{if eq .Tab "mine"}} active{{end}}">My bands</a>
+      <a href="/bands?tab=all" class="band-tab{{if eq .Tab "all"}} active{{end}}">All bands</a>
     </nav>
     {{else}}
     <div></div>

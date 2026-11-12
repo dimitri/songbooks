@@ -1,4 +1,5 @@
 {{define "band_members"}}
+{{$brand := brandFor "band" .Band.ID}}
 <!doctype html>
 <html lang="en">
 <head>
@@ -7,8 +8,9 @@
 <title>{{.Band.Name}} — members</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
+{{template "brand-head" $brand}}
 </head>
-<body>
+<body{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
@@ -151,6 +153,7 @@
     <p class="hint">Deletes the band and its whole repertoire. This cannot be undone.</p>
     <button type="button" id="delete-band-btn" class="danger">Delete this band</button>
   </div>
+  {{if .IsCore}}{{template "brand-editor" (printf "/api/bands/%d/brand" .Band.ID)}}{{end}}
 </main>
 <script src="/static/js/qr.js?v={{staticVersion}}"></script>
 <script>

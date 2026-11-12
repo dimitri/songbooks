@@ -13,6 +13,7 @@ type NavEntry struct {
 	Icon          string // an icon-* template name, dispatched via the "nav-icon" template below
 	RequiresAdmin bool
 	External      bool // opens in a new tab (target=_blank rel=noopener) — an external link, e.g. a songbook's playlist URL
+	InTabBar      bool // also a mobile tab bar slot: the "More" sheet leaves it out wherever that tab bar shows
 }
 
 // navDesktopPrimary is the desktop sidebar's primary destination list.
@@ -42,10 +43,10 @@ var navMobileTab = []NavEntry{
 // items (Metronome, Profile) desktop reaches via its own secondary/
 // account areas rather than the primary list.
 var navMobileMore = []NavEntry{
-	{Label: "Home", Path: "/home", Icon: "icon-home"},
-	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog"},
-	{Label: "Library", Path: "/catalog", Icon: "icon-view"},
-	{Label: "Bands", Path: "/bands", Icon: "icon-bands"},
+	{Label: "Home", Path: "/home", Icon: "icon-home", InTabBar: true},
+	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog", InTabBar: true},
+	{Label: "Library", Path: "/catalog", Icon: "icon-view", InTabBar: true},
+	{Label: "Bands", Path: "/bands", Icon: "icon-bands", InTabBar: true},
 	{Label: "Communities", Path: "/communities", Icon: "icon-community"},
 	{Label: "Metronome", Path: "/metronome", Icon: "icon-metro-full"},
 	{Label: "Profile", Path: "/profile", Icon: "icon-profile"},
