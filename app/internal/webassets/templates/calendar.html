@@ -41,7 +41,7 @@
         <a class="calendar-agenda-title" href="{{.Link}}">{{.Title}}</a>
         <div class="calendar-agenda-meta"><span class="calendar-kind">{{.KindLabel}}</span>{{if not .AllDay}} &middot; {{.Starts.Format "15:04"}}{{end}}{{if .GroupName}} &middot; {{.GroupName}}{{end}}{{if .Place}} &middot; {{.Place}}{{end}}</div>
       </div>
-      {{if and .SetlistID (not (.Starts.Before $today))}}<a class="chip-link" href="/setlists/{{.SetlistID}}/practice">{{template "icon-play"}} Practice</a>{{end}}
+      {{if and .SetlistID (not (.Starts.Before $today))}}<a class="chip-link" href="/setlists/{{.SetlistID}}">{{template "icon-setlists"}} Set list</a>{{end}}
     </li>
   {{else}}
     <li class="attention-empty">Nothing planned in {{.Title}}.</li>

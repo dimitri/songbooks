@@ -23,20 +23,20 @@
 
   <p class="hint">New set lists are made on the <a href="/setlists">Set lists</a> page.</p>
 
-  <div class="attention-list">
+  {{if .Setlists}}
+  <ul class="setlist-rows">
   {{range .Setlists}}
-    <div class="attention-row">
-      <div style="flex:1">
-        <a class="attention-title" href="/setlists/{{.ID}}">{{.Title}}</a>
+    <li class="setlist-row">
+      <a class="setlist-row-title" href="/setlists/{{.ID}}">{{.Title}}</a>
+      <div class="setlist-row-actions">
+        <a class="chip-link" href="/setlists/{{.ID}}/clicktrack">{{template "icon-tap"}} Click track</a>
       </div>
-      <a href="/setlists/{{.ID}}/practice">practice</a>
-      <a href="/setlists/{{.ID}}/listening">listening</a>
-      <a href="/setlists/{{.ID}}/clicktrack">{{template "icon-play"}} clicktrack</a>
-    </div>
+    </li>
+  {{end}}
+  </ul>
   {{else}}
     <a class="attention-empty" href="/setlists">No set lists yet — create one &rarr;</a>
   {{end}}
-  </div>
 </main>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}

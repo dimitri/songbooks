@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -134,7 +133,7 @@ type gigSet struct {
 // (reusing gigRow/gigSet, same fields the read-only gig page already
 // shows), a print link to the existing one-pager PDF export, a Reorder
 // toggle (client-side, saving through the existing PUT /api/setlists/{id}
-// entries array), and links into the practice/listening/clicktrack views.
+// entries array), and a link to the click track.
 // A song's own reference: URL (if set) becomes that row's "play it" link.
 func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -225,8 +224,7 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- person/band-scoped setlists (id-addressed), gigs, and
-// practice/listening mode ------------------------------------------------
+// --- person/band-scoped setlists (id-addressed) and gigs ------------------
 
 type jsonSetlistMeta struct {
 	ID            int64  `json:"id"`
@@ -535,138 +533,17 @@ func (s *Server) handleRemoveSetlistGig(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
 }
 
-// --- Practice / listening mode -------------------------------------------
-
-// setlistStep is one resolved step of a practice/listening play-through.
-type setlistStep struct {
-	VariantID int64
-	Note      string
-}
-
-// resolveSetlistSteps flattens every set's entries, in order, into a
-// single run of variant-id steps; a non-variant (legacy book/stem) entry
-// is skipped.
-func (s *Server) resolveSetlistSteps(ctx context.Context, l *setlist.Setlist) []setlistStep {
-	var out []setlistStep
-	for _, set := range l.Sets {
-		for _, e := range set.Entries {
-			if !e.IsVariant() {
-				continue
-			}
-			out = append(out, setlistStep{VariantID: e.VariantID, Note: e.Note})
-		}
-	}
-	return out
-}
-
-// handleSetlistPractice is GET /setlists/{id}/practice — steps through
-// the setlist's entries in order, full chord+lyric chart per song
-// (reusing the normal single-song "song" template/render path, same as
-// handleSetlistStep below). ?i=N picks the step (default 0).
-func (s *Server) handleSetlistPractice(w http.ResponseWriter, r *http.Request) {
-	s.handleSetlistStep(w, r, "practice")
-}
-
-// handleSetlistListening is GET /setlists/{id}/listening — same
-// sequential step-through, but forced into the "song" page's existing
-// lyrics-only view mode (large type, no chord grid) rather than the
-// default chords+lyrics one.
-func (s *Server) handleSetlistListening(w http.ResponseWriter, r *http.Request) {
-	s.handleSetlistStep(w, r, "listening")
-}
-
-// handleSetlistStep is the shared practice/listening implementation: it
-// resolves setlistID's entries to a run of steps, picks step i, and
-// renders it with the exact same "song" template/data shape handleSong
-// uses for a normal single-song page — buildSections, time-signature
-// parsing, prev/next cards and all — just with Prev/Next pointed back
-// into this same practice/listening run (via ?i=N) instead of at the
-// project/setlist-gig neighbors handleSong itself offers.
-func (s *Server) handleSetlistStep(w http.ResponseWriter, r *http.Request, mode string) {
-	// no-store: this renders the same "song" template/chart as
-	// handleSong, which got this header in 055d787 to defeat bfcache
-	// restores serving a stale pre-deploy chart. This handler shares
-	// the exact same chart-rendering path (see the doc comment above)
-	// but had been missed, leaving practice/listening open to the same
-	// stale-bfcache class of bug.
-	w.Header().Set("Cache-Control", "no-store")
+// handleSetlistOldStep is GET /setlists/{id}/practice and /listening:
+// the practice and listening step-throughs are gone (a song opened from
+// the running order already steps through the set with Previous/Next),
+// so links people kept land on the running order.
+func (s *Server) handleSetlistOldStep(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	person := personFromContext(r)
-	canView, err := s.store.CanViewSetlistByID(r.Context(), person.ID, id)
-	if err != nil || !canView {
-		// Same "don't leak whether it exists" reasoning requireRole uses.
-		http.NotFound(w, r)
-		return
-	}
-	l, meta, _, err := s.store.LoadSetlistByID(r.Context(), id)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	steps := s.resolveSetlistSteps(r.Context(), l)
-	if len(steps) == 0 {
-		http.NotFound(w, r)
-		return
-	}
-	i, _ := strconv.Atoi(r.URL.Query().Get("i"))
-	if i < 0 {
-		i = 0
-	}
-	if i >= len(steps) {
-		i = len(steps) - 1
-	}
-	step := steps[i]
-	variantID := step.VariantID
-
-	sg, _, err := s.store.LoadVariant(variantID)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	sections := buildSections(sg)
-	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
-	var workID int64
-	if v, err := s.store.GetVariant(r.Context(), variantID); err == nil {
-		workID = v.WorkID
-	}
-	// Same implicit-fork-on-edit signal as handleSong — see its comment.
-	canEdit, _ := s.store.CanEditVariant(r.Context(), person.ID, variantID)
-
-	data := map[string]any{
-		"Me": person,
-		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit,
-		"Title": orDefault(sg.Get("title"), "untitled"), "Artist": sg.Get("artist"),
-		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
-		"TimeNum": num, "TimeDen": den,
-		"Capo": sg.Get("capo"), "Reference": sg.Get("reference"),
-		"TimeBeats": timeSigBeats(sg.Get("time")),
-		"Sections":  sections,
-		"MapLines":  buildMapLines(sections),
-
-		"PracticeMode":      true,
-		"PracticeStepMode":  mode, // "practice" or "listening"
-		"PracticeSetlistID": id,
-		"PracticeTitle":     orDefault(meta.Title, "set list"),
-		"NotationPrefs":     s.notationPrefsFor(r),
-	}
-	data["BrandKind"], data["BrandID"] = setlistOwner(meta)
-	if i > 0 {
-		if n := s.loadSongNeighbor(steps[i-1].VariantID); n != nil {
-			data["Prev"] = n
-			data["PrevIndex"] = i - 1
-		}
-	}
-	if i < len(steps)-1 {
-		if n := s.loadSongNeighbor(steps[i+1].VariantID); n != nil {
-			data["Next"] = n
-			data["NextIndex"] = i + 1
-		}
-	}
-	s.render(w, "song", data)
+	http.Redirect(w, r, fmt.Sprintf("/setlists/%d", id), http.StatusMovedPermanently)
 }
 
 // clicktrackSong is one flattened row for the setlist click-track mode —
@@ -690,7 +567,7 @@ type clicktrackSong struct {
 // handleSetlistClicktrack is GET /setlists/{id}/clicktrack — the
 // metronome (same widget/engine as the standalone page and Phase 30's
 // advanced controls), pre-loaded with this setlist's songs in order.
-// Unlike practice/listening (handleSetlistStep), this never renders a
+// It never renders a
 // song's chart — the click is the point, not the chart — so it flattens
 // every set's entries into a small JSON array (tempo/time-sig per song,
 // set boundaries marked) for the client to step through without a page

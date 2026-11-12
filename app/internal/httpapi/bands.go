@@ -356,7 +356,7 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleBandSetlistsPage is the Setlists tab: every setlist owned by this
-// band, linking to practice/listening/clicktrack for each — a per-band
+// band, linking to its running order and click track — a per-band
 // view over the same data /setlists shows globally (ListSetlistsForBand).
 func (s *Server) handleBandSetlistsPage(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)

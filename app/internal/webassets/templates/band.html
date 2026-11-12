@@ -83,7 +83,7 @@
       <a class="next-up-title" href="{{.Link}}">{{.Title}}</a>
       <div class="next-up-meta">{{.Details false}}</div>
       <div class="next-up-actions">
-        {{if .Practice}}<a class="chip-link primary" href="{{.Practice}}">{{template "icon-play"}} Practice the set</a>
+        {{if .SetlistLink}}<a class="chip-link primary" href="{{.SetlistLink}}">{{template "icon-setlists"}} The set list</a>
         <a class="chip-link" href="/setlists/{{.SetlistID}}">{{template "icon-setlists"}} Set list</a>{{end}}
         <a class="chip-link" href="{{.Link}}">Details</a>
       </div>
