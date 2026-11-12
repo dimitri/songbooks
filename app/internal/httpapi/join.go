@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"app/internal/store"
 )
 
@@ -79,12 +81,11 @@ func (s *Server) handleJoinLoginRedirect(w http.ResponseWriter, r *http.Request)
 // handlePostJoin accepts a group invite's slot (or an unlisted "someone
 // else" join). A logged-in visitor just gets the membership added to
 // their existing account on top of whatever they already have; an
-// anonymous one must supply username/display name/email, which creates
-// a brand-new, passwordless account in the same transaction as the
-// claim — same "accepting IS this account's first authentication"
-// convention as the single-use /invite/{token} flow (see
-// store.CreatePersonAndClaimGroupInviteSlot's doc comment for the note
-// on the parallel optional-password auth work).
+// anonymous one must supply username/display name/email and a password,
+// which creates a brand-new account in the same transaction as the
+// claim. The password is required for the same reason as on the
+// single-use /invite/{token} flow: no login emails are sent, so the
+// passkey offered next can't be the only way back in.
 func (s *Server) handlePostJoin(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
 	if err := r.ParseForm(); err != nil {
@@ -112,19 +113,32 @@ func (s *Server) handlePostJoin(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "username, display name and email are all required")
 		return
 	}
+	password := r.FormValue("password")
+	if len(password) < 8 {
+		httpError(w, http.StatusBadRequest, "password must be at least 8 characters")
+		return
+	}
+	if password != r.FormValue("confirm") {
+		httpError(w, http.StatusBadRequest, "passwords didn't match")
+		return
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, "couldn't create the account, try again")
+		return
+	}
 
 	var personID int64
 	var dest string
-	var err error
 	if slotParam == "" || slotParam == "unlisted" {
-		personID, dest, err = s.store.CreatePersonAndClaimGroupInviteUnlisted(r.Context(), token, username, displayName, email)
+		personID, dest, err = s.store.CreatePersonAndClaimGroupInviteUnlisted(r.Context(), token, username, displayName, email, string(hash))
 	} else {
 		slotID, perr := strconv.ParseInt(slotParam, 10, 64)
 		if perr != nil {
 			httpError(w, http.StatusBadRequest, "invalid slot")
 			return
 		}
-		personID, dest, err = s.store.CreatePersonAndClaimGroupInviteSlot(r.Context(), token, slotID, username, displayName, email)
+		personID, dest, err = s.store.CreatePersonAndClaimGroupInviteSlot(r.Context(), token, slotID, username, displayName, email, string(hash))
 	}
 	if err != nil {
 		writeJoinError(w, err)

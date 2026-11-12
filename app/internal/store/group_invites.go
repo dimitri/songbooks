@@ -493,13 +493,12 @@ func (st *Store) ClaimGroupInviteUnlisted(ctx context.Context, token string, per
 }
 
 // CreatePersonAndClaimGroupInviteSlot is ClaimGroupInviteSlot's
-// counterpart for a brand-new visitor: creates the person row (email
-// only, no password — same "accepting is this account's first auth
-// step" convention as CreatePersonAndAcceptInvite; see that function's
-// doc comment for the note on the parallel optional-password auth work),
-// then claims the named slot as them, all in one transaction so a failed
+// counterpart for a brand-new visitor: creates the person row with
+// their email and passwordHash (required by the handler: this deployment
+// sends no login emails, so a password-less account skipping the passkey
+// step would be locked out once its session ends), then claims the named slot as them, all in one transaction so a failed
 // claim never leaves an orphan account behind.
-func (st *Store) CreatePersonAndClaimGroupInviteSlot(ctx context.Context, token string, slotID int64, username, displayName, email string) (personID int64, dest string, err error) {
+func (st *Store) CreatePersonAndClaimGroupInviteSlot(ctx context.Context, token string, slotID int64, username, displayName, email, passwordHash string) (personID int64, dest string, err error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, "", err
@@ -507,8 +506,8 @@ func (st *Store) CreatePersonAndClaimGroupInviteSlot(ctx context.Context, token 
 	defer tx.Rollback(ctx)
 
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO people (username, display_name, email) VALUES ($1, $2, $3) RETURNING id`,
-		username, displayName, email).Scan(&personID); err != nil {
+		`INSERT INTO people (username, display_name, email, password_hash) VALUES ($1, $2, $3, nullif($4, '')) RETURNING id`,
+		username, displayName, email, passwordHash).Scan(&personID); err != nil {
 		return 0, "", err
 	}
 
@@ -529,7 +528,7 @@ func (st *Store) CreatePersonAndClaimGroupInviteSlot(ctx context.Context, token 
 
 // CreatePersonAndClaimGroupInviteUnlisted is ClaimGroupInviteUnlisted's
 // counterpart for a brand-new visitor joining as "someone else".
-func (st *Store) CreatePersonAndClaimGroupInviteUnlisted(ctx context.Context, token, username, displayName, email string) (personID int64, dest string, err error) {
+func (st *Store) CreatePersonAndClaimGroupInviteUnlisted(ctx context.Context, token, username, displayName, email, passwordHash string) (personID int64, dest string, err error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, "", err
@@ -537,8 +536,8 @@ func (st *Store) CreatePersonAndClaimGroupInviteUnlisted(ctx context.Context, to
 	defer tx.Rollback(ctx)
 
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO people (username, display_name, email) VALUES ($1, $2, $3) RETURNING id`,
-		username, displayName, email).Scan(&personID); err != nil {
+		`INSERT INTO people (username, display_name, email, password_hash) VALUES ($1, $2, $3, nullif($4, '')) RETURNING id`,
+		username, displayName, email, passwordHash).Scan(&personID); err != nil {
 		return 0, "", err
 	}
 
