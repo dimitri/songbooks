@@ -8,7 +8,8 @@ import (
 	"strings"
 
 	"app/internal/chordsym"
-
+	"app/internal/gpfacts"
+	"app/internal/song"
 	"app/internal/tab"
 )
 
@@ -26,10 +27,10 @@ type mixerSectionJSON struct {
 }
 
 type mixerTrackJSON struct {
-	Name     string `json:"name"`
-	Drums    bool   `json:"drums"`
-	Program  int    `json:"program"`
-	Strings  int    `json:"strings"` // 4 or fewer: a bass (drawn the way the viewer reads bass, see store.NotationPrefs)
+	Name    string `json:"name"`
+	Drums   bool   `json:"drums"`
+	Program int    `json:"program"`
+	Strings int    `json:"strings"` // 4 or fewer: a bass (drawn the way the viewer reads bass, see store.NotationPrefs)
 }
 
 // handleGetSongMixer is GET /api/songs/{id}/mixer — the Mixer view's whole
@@ -49,7 +50,8 @@ func (s *Server) handleGetSongMixer(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	sections := buildSections(sg)
+	gp := s.loadSongGP(r.Context(), variantID)
+	sections := buildSections(withGPOnlyBars(sg, gp.Facts))
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
 	timeNum, timeDen := atoiOr(num, 4), atoiOr(den, 4)
 	tempo := atoiOr(orDefault(sg.Get("tempo"), "120"), 120)
@@ -83,8 +85,25 @@ func (s *Server) handleGetSongMixer(w http.ResponseWriter, r *http.Request) {
 		"pickupBeats": pickup,
 		"notation":    s.notationPrefsFor(r),
 	}
-	if _, err := s.store.GetSongGPSourceFileMeta(r.Context(), variantID); err == nil {
+	if gp.Meta != nil {
 		resp["hasGPFile"] = true
+	}
+	// A song that points into its Guitar Pro file plays the file itself:
+	// gpOrder says which written bar of the file each performed bar is
+	// (0 for none), and mixer.js unrolls the file into that order.
+	if order := gpBarOrder(sg, sections, gp.Facts, totalBars); order != nil {
+		resp["gpOrder"] = order
+		out := make([]mixerTrackJSON, len(gp.Facts.Tracks))
+		for i, t := range gp.Facts.Tracks {
+			prog := t.Program
+			if t.Drums {
+				prog = -1
+			}
+			out[i] = mixerTrackJSON{Name: t.Name, Drums: t.Drums, Program: prog, Strings: len(t.Tuning)}
+		}
+		resp["tracks"] = out
+		writeJSON(w, http.StatusOK, resp)
+		return
 	}
 	if len(tracks) > 0 {
 		tex, meta := tab.ToAlphaTexMulti(tracks, tempo, timeNum, timeDen, sg.Get("swing"))
@@ -96,6 +115,45 @@ func (s *Server) handleGetSongMixer(w http.ResponseWriter, r *http.Request) {
 		resp["tracks"] = out
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// gpBarOrder maps each performed bar of the song to the written bar
+// (1-based) of its Guitar Pro file it plays, from each section's first
+// "gp[...]" line; 0 where a section has none. nil when no section points
+// into the file.
+func gpBarOrder(sg *song.Song, sections []viewerSection, f *gpfacts.Facts, total int) []int {
+	if f == nil {
+		return nil
+	}
+	order := make([]int, total)
+	any := false
+	for i := range sections {
+		sec := &sections[i]
+		src := sec
+		if j := definingSection(sections, i); j >= 0 {
+			src = &sections[j]
+		}
+		if src.Index < 0 || src.Index >= len(sg.Sections) || len(sg.Sections[src.Index].GP) == 0 {
+			continue
+		}
+		g := sg.Sections[src.Index].GP[0]
+		ref, err := gpfacts.ParseRef(g.Track, g.Spec)
+		if err != nil {
+			continue
+		}
+		bars := f.PlayedBars(ref)
+		if len(bars) == 0 {
+			continue
+		}
+		any = true
+		for b := 0; b < sec.BarCount && sec.StartBar+b < total; b++ {
+			order[sec.StartBar+b] = bars[b%len(bars)]
+		}
+	}
+	if !any {
+		return nil
+	}
+	return order
 }
 
 // definingSection is the section a bare reference section (IsReference —

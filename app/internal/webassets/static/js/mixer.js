@@ -788,7 +788,7 @@
   // force: bar times changed (alignment), so engrave again even at the
   // same scale.
   function renderNotationLanes(force) {
-    if (typeof alphaTab === 'undefined' || !data.alphaTex) return;
+    if (typeof alphaTab === 'undefined' || !(data.alphaTex || data.gpScoreJson)) return;
     const target = notationPx();
     for (const tr of tracks) {
       if (tr.kind !== 'midi') continue;
@@ -802,10 +802,15 @@
       }
       const isPlayer = tr.index === 0;
       const settings = laneSettings(isPlayer);
-      const imp = new alphaTab.importer.AlphaTexImporter();
-      imp.initFromString(data.alphaTex, settings);
-      const score = imp.readScore();
-      score.tracks.forEach((st, i) => { const p = data.tracks[i] && data.tracks[i].program; if (p >= 0) st.playbackInfo.program = p; });
+      let score;
+      if (data.gpScoreJson) {
+        score = alphaTab.model.JsonConverter.jsonToScore(data.gpScoreJson, settings);
+      } else {
+        const imp = new alphaTab.importer.AlphaTexImporter();
+        imp.initFromString(data.alphaTex, settings);
+        score = imp.readScore();
+        score.tracks.forEach((st, i) => { const p = data.tracks[i] && data.tracks[i].program; if (p >= 0) st.playbackInfo.program = p; });
+      }
       setStaffNotation(score, tr);
       applyBarWidths(score, target);
       tr.renderedPx = target;
@@ -1515,11 +1520,86 @@
     return pref && audioCats[pref] ? pref : cats[0];
   }
 
+  // A song that points into its Guitar Pro file (data.gpOrder: the
+  // written bar of the file each performed bar plays, 0 for none) plays
+  // the file itself, unrolled into the song's bar order: repeats played
+  // out, a bar the song has and the file doesn't left silent. Kept as
+  // alphaTab's JSON so each lane parses its own copy.
+  async function loadGPScore() {
+    if (typeof alphaTab === 'undefined' || !data.gpOrder) return;
+    const res = await fetch(`/song/${variantId}/gp-file`);
+    if (!res.ok) throw new Error('could not load the Guitar Pro file');
+    const file = alphaTab.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(await res.arrayBuffer()), new alphaTab.Settings());
+    const obj = JSON.parse(alphaTab.model.JsonConverter.scoreToJson(file));
+    const copy = (x) => JSON.parse(JSON.stringify(x));
+    const order = data.gpOrder.map((n) => n - 1);
+    // Each played copy of a bar gets its own ids (offset by its position);
+    // a tie or hammer-on into another bar points at the copy played next
+    // to it, or is dropped when that bar isn't played there.
+    const ID_STEP = 1000000;
+    const noteBar = new Map(); // original note id -> written bar index
+    for (const t of obj.tracks) for (const st of t.staves) st.bars.forEach((bar, bi) => {
+      for (const v of bar.voices) for (const be of v.beats) for (const n of be.notes) noteBar.set(n.id, bi);
+    });
+    const refKeys = ['hammerpulldestinationnoteid', 'hammerpulloriginnoteid', 'tiedestinationnoteid', 'tieoriginnoteid', 'slidetargetnoteid', 'slideoriginnoteid'];
+    // A slide from a bar's last beat into the next bar needs that next
+    // bar to be the one written after it.
+    const SLIDE_TO_NEXT = [1, 2]; // alphaTab SlideOutType Shift, Legato
+    const placeBar = (bar, pos) => {
+      const off = (pos + 1) * ID_STEP;
+      const flowsOn = order[pos] >= 0 && order[pos + 1] === order[pos] + 1;
+      for (const v of bar.voices) {
+        if (v.id != null) v.id += off;
+        if (!flowsOn && v.beats.length) {
+          for (const n of v.beats[v.beats.length - 1].notes) if (SLIDE_TO_NEXT.includes(n.slideouttype)) n.slideouttype = 0;
+        }
+        for (const be of v.beats) {
+          if (be.id != null) be.id += off;
+          for (const n of be.notes) {
+            for (const k of refKeys) {
+              if (n[k] == null || n[k] < 0) continue;
+              const w = noteBar.get(n[k]);
+              const at = [pos, pos + 1, pos - 1].find((q) => order[q] === w);
+              if (at === undefined) {
+                delete n[k];
+                if (k === 'tieoriginnoteid') n.istiedestination = false;
+                if (k === 'hammerpulldestinationnoteid') n.ishammerpullorigin = false;
+                if (k === 'slidetargetnoteid' && SLIDE_TO_NEXT.includes(n.slideouttype)) n.slideouttype = 0;
+              }
+              else n[k] += (at + 1) * ID_STEP;
+            }
+            n.id += off;
+          }
+        }
+      }
+      if (bar.id != null) bar.id += off;
+      return bar;
+    };
+    obj.masterbars = order.map((i) => {
+      const m = copy(obj.masterbars[Math.max(0, i)]);
+      delete m.isrepeatstart; delete m.repeatcount; delete m.alternateendings;
+      if (i < 0) { delete m.section; delete m.tempoautomations; }
+      return m;
+    });
+    for (const t of obj.tracks) {
+      for (const st of t.staves) {
+        const bars = st.bars;
+        st.bars = order.map((i, pos) => {
+          if (i >= 0) return placeBar(copy(bars[i]), pos);
+          const b = placeBar(copy(bars[0]), pos);
+          b.voices = b.voices.map((v) => ({ ...v, beats: [{ duration: 1, notes: [] }] }));
+          return b;
+        });
+      }
+    }
+    data.gpScoreJson = JSON.stringify(obj);
+  }
+
   // A song imported from a Guitar Pro file keeps that file: it knows each
   // track's real instrument, which the score riffs don't store, so the
   // server's guess from the track name is only the fallback.
   async function applyGPInstruments() {
-    if (typeof alphaTab === 'undefined' || !data.tracks.length || !data.hasGPFile) return;
+    if (typeof alphaTab === 'undefined' || !data.tracks.length || !data.hasGPFile || data.gpOrder) return;
     try {
       const res = await fetch(`/song/${variantId}/gp-file`);
       if (!res.ok) return;
@@ -1540,7 +1620,7 @@
         fetch(`/api/songs/${variantId}/audio`).then((r) => (r.ok ? r.json() : { categories: [] })),
       ]);
       data = mx;
-      await Promise.all([applyGPInstruments(), loadPrefs()]);
+      await Promise.all([applyGPInstruments(), loadGPScore(), loadPrefs()]);
       audioCats = {};
       (au.categories || []).forEach((c) => { audioCats[c.category] = c; });
       await loadAudio(pickReference());
