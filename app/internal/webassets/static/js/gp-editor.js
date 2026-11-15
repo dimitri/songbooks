@@ -201,9 +201,7 @@
       v.beats.splice(st.beat, 0, restBeat(beatJ() ? beatJ().duration : st.dur));
     });
   }
-  function makeRest() {
-    edit(() => { const b = beatJ(); if (!b || !b.notes.length) return false; b.notes = []; });
-  }
+
   function setDuration(d) {
     st.dur = d;
     edit(() => { ensureVoice(); const b = beatJ(); if (!b) return false; b.duration = d; });
@@ -215,44 +213,11 @@
     const next = DURATIONS[Math.max(0, Math.min(DURATIONS.length - 1, (i < 0 ? 2 : i) + dir))];
     setDuration(next);
   }
-  function toggleBeat(fn) { edit(() => { ensureVoice(); const b = beatJ(); if (!b) return false; return fn(b); }); }
-  const toggleDot = () => toggleBeat((b) => { b.dots = b.dots ? 0 : 1; });
-  const toggleTriplet = () => toggleBeat((b) => {
-    if (b.tupletnumerator === 3) { b.tupletnumerator = -1; b.tupletdenominator = -1; } else { b.tupletnumerator = 3; b.tupletdenominator = 2; }
-  });
-  // A technique on the note on the current string (every note of the beat
-  // for a beat-wide one).
-  function toggleNote(fn) {
-    edit(() => {
-      const b = beatJ();
-      const n = b && (isDrums() ? drumNote(b, DRUM_PIECES[st.piece]) : noteOnString(b, st.string));
-      if (!n) return false;
-      return fn(n, b);
-    });
+  // The note on the current string (the current kit piece on drums).
+  function curNote() {
+    const b = beatJ();
+    return b && (isDrums() ? drumNote(b, DRUM_PIECES[st.piece]) : noteOnString(b, st.string));
   }
-  const TECHNIQUES = {
-    tie: { label: 'Tie', key: 'l', title: 'Tie to the note before (L)', on: (n) => n.istiedestination, set: (n) => { n.istiedestination = !n.istiedestination; } },
-    hammer: { label: 'H/P', key: 'h', title: 'Hammer-on / pull-off to the next note (H)', on: (n) => n.ishammerpullorigin, set: (n) => { n.ishammerpullorigin = !n.ishammerpullorigin; } },
-    slide: { label: 'Slide', key: 's', title: 'Slide to the next note (S)', on: (n) => n.slideouttype === 1, set: (n) => { n.slideouttype = n.slideouttype === 1 ? 0 : 1; } },
-    bend: {
-      label: 'Bend', key: 'b', title: 'Bend: full tone, half tone, off (B)', on: (n) => !!n.bendtype,
-      set: (n) => {
-        const top = n.bendpoints && n.bendpoints.length ? Math.max(...n.bendpoints.map((p) => p.value)) : 0;
-        const next = !n.bendtype ? 4 : top === 4 ? 2 : 0;
-        if (!next) { n.bendtype = 0; n.bendpoints = []; return; }
-        n.bendtype = 2;
-        n.bendpoints = [{ offset: 0, value: 0 }, { offset: 15, value: next }, { offset: 60, value: next }];
-      },
-    },
-    vibrato: { label: 'Vib.', key: 'v', title: 'Vibrato (V)', on: (n) => !!n.vibrato, set: (n) => { n.vibrato = n.vibrato ? 0 : 1; } },
-    palm: { label: 'P.M.', key: 'p', title: 'Palm mute (P)', on: (n) => n.ispalmmute, set: (n) => { n.ispalmmute = !n.ispalmmute; } },
-    letring: { label: 'Let ring', key: 'n', title: 'Let ring (N)', on: (n) => n.isletring, set: (n) => { n.isletring = !n.isletring; } },
-    dead: { label: 'Dead', key: 'x', title: 'Dead note (X)', on: (n) => n.isdead, set: (n) => { n.isdead = !n.isdead; } },
-    ghost: { label: 'Ghost', key: 'g', title: 'Ghost note (G)', on: (n) => n.isghost, set: (n) => { n.isghost = !n.isghost; } },
-    accent: { label: 'Accent', key: 'a', title: 'Accent (A)', on: (n) => !!n.accentuated, set: (n) => { n.accentuated = n.accentuated ? 0 : 1; } },
-    staccato: { label: 'Stacc.', key: '', title: 'Staccato', on: (n) => n.isstaccato, set: (n) => { n.isstaccato = !n.isstaccato; } },
-    harmonic: { label: 'Harm.', key: '', title: 'Natural harmonic', on: (n) => !!n.harmonictype, set: (n) => { n.harmonictype = n.harmonictype ? 0 : 1; n.harmonicvalue = n.harmonictype ? n.fret : 0; } },
-  };
 
   // ---- Bars ----------------------------------------------------------------------
 
@@ -302,6 +267,34 @@
       }
     });
   }
+  // Key signatures by name: sharps (> 0) or flats (< 0).
+  const KEYS = { C: 0, G: 1, D: 2, A: 3, E: 4, B: 5, 'F#': 6, 'C#': 7, F: -1, Bb: -2, Eb: -3, Ab: -4, Db: -5, Gb: -6, Cb: -7 };
+  const MINOR = { A: 0, E: 1, B: 2, 'F#': 3, 'C#': 4, 'G#': 5, 'D#': 6, 'A#': 7, D: -1, G: -2, C: -3, F: -4, Bb: -5, Eb: -6, Ab: -7 };
+  function keyName(sig, minor) {
+    const t = minor ? MINOR : KEYS;
+    return (Object.keys(t).find((k) => t[k] === sig) || '?') + (minor ? 'm' : '');
+  }
+  function askKey() {
+    const bar = barJ();
+    const v = prompt('Key signature from this bar on (like E, Bb, F#m):', keyName(bar.keysignature || 0, bar.keysignaturetype === 1));
+    if (v === null) return;
+    const m = v.trim().match(/^([A-G][b#]?)(m)?$/);
+    const sig = m ? (m[2] ? MINOR : KEYS)[m[1]] : undefined;
+    if (sig === undefined) { setStatus('A key like E, Bb or F#m, please.', true); return; }
+    edit(() => {
+      for (const t of tracksJ()) {
+        for (const sf of t.staves) {
+          if (sf.ispercussion) continue;
+          const old = sf.bars[st.bar] && (sf.bars[st.bar].keysignature + '/' + sf.bars[st.bar].keysignaturetype);
+          for (let b = st.bar; b < sf.bars.length; b++) {
+            if (b > st.bar && sf.bars[b].keysignature + '/' + sf.bars[b].keysignaturetype !== old) break;
+            sf.bars[b].keysignature = sig;
+            sf.bars[b].keysignaturetype = m[2] ? 1 : 0;
+          }
+        }
+      }
+    });
+  }
   function askTempo() {
     const mb = masterJ();
     const cur = (mb.tempoautomations && mb.tempoautomations[0] && mb.tempoautomations[0].value) || '';
@@ -320,7 +313,6 @@
     if (v === null) return;
     edit(() => { if (v.trim()) mb.section = { marker: '', text: v.trim() }; else delete mb.section; });
   }
-  const toggleRepeatStart = () => edit(() => { masterJ().isrepeatstart = !masterJ().isrepeatstart; });
   function askRepeatEnd() {
     const mb = masterJ();
     const v = prompt('Repeat this bar back to the opening repeat — how many times in all? (empty: no repeat)', mb.repeatcount || 2);
@@ -424,6 +416,10 @@
     if (st.drawing) { st.drawAgain = true; return; }
     st.drawing = true;
     st.drawAgain = false;
+    // alphaTab adds a new drawing's parts next to the previous ones
+    // rather than replacing them: clear the surface first.
+    const surface = $('gpe-canvas').querySelector('.at-surface');
+    if (surface) surface.replaceChildren();
     st.api.renderScore(st.score, [st.track]);
   }
   function drawn() {
@@ -548,64 +544,47 @@
   function renderPanels() {
     const beat = beatJ();
     const mb = masterJ();
-    // Durations.
-    document.querySelectorAll('#gpe-durations button').forEach((b) => b.setAttribute('aria-pressed', beat && +b.dataset.dur === beat.duration ? 'true' : 'false'));
-    $('gpe-dot').setAttribute('aria-pressed', beat && beat.dots ? 'true' : 'false');
-    $('gpe-triplet').setAttribute('aria-pressed', beat && beat.tupletnumerator === 3 ? 'true' : 'false');
-    // Techniques on the note under the cursor.
-    const n = beat && (isDrums() ? drumNote(beat, DRUM_PIECES[st.piece]) : noteOnString(beat, st.string));
-    document.querySelectorAll('#gpe-techniques button').forEach((b) => {
-      const t = TECHNIQUES[b.dataset.tech];
-      b.disabled = !n || isDrums();
-      b.setAttribute('aria-pressed', n && t.on(n) ? 'true' : 'false');
-    });
-    $('gpe-techniques').hidden = isDrums();
+    if (palette) palette.refresh();
     $('gpe-drums').hidden = !isDrums();
     document.querySelectorAll('#gpe-drums button').forEach((b, i) => {
       b.setAttribute('aria-pressed', beat && drumNote(beat, DRUM_PIECES[i]) ? 'true' : 'false');
       b.classList.toggle('current', i === st.piece);
     });
-    document.querySelectorAll('#gpe-voices button').forEach((b) => b.setAttribute('aria-pressed', +b.dataset.voice === st.voice ? 'true' : 'false'));
-    $('gpe-repeat-start').setAttribute('aria-pressed', mb.isrepeatstart ? 'true' : 'false');
-    $('gpe-repeat-end').setAttribute('aria-pressed', mb.repeatcount ? 'true' : 'false');
     $('gpe-delete-track').disabled = tracksJ().length < 2;
     // Where the cursor is.
     const fill = barFill();
-    const where = [`Bar ${st.bar + 1} of ${st.doc.masterbars.length}`, `${mb.timesignaturenumerator}/${mb.timesignaturedenominator}`];
+    const where = [`Bar ${st.bar + 1} of ${st.doc.masterbars.length}`, `${mb.timesignaturenumerator}/${mb.timesignaturedenominator}`, `voice ${st.voice + 1}`];
     if (mb.section && mb.section.text) where.push(`“${mb.section.text}”`);
     if (fill > 1 + 1e-9) where.push('too full');
     else if (fill < 1 - 1e-9) where.push('not full yet');
     if (beat) {
-      where.push(`beat ${st.beat + 1}: ${DURATION_LABEL[beat.duration] || beat.duration}${beat.dots ? ' dotted' : ''}${beat.tupletnumerator === 3 ? ' triplet' : ''}`);
+      where.push(`beat ${st.beat + 1}: ${DURATION_LABEL[beat.duration] || beat.duration}${beat.dots ? ' dotted' : ''}${beat.tupletnumerator > 0 ? ` (${beat.tupletnumerator}:${beat.tupletdenominator})` : ''}`);
       if (isDrums()) where.push(DRUM_PIECES[st.piece].name);
       else {
         where.push(`string ${numStrings() - st.string + 1}`);
+        const n = curNote();
         if (n) where.push(`fret ${n.fret}`);
       }
     }
     $('gpe-where').textContent = where.join(' · ');
   }
 
+  let palette = null;
   function buildToolbar() {
-    const durs = $('gpe-durations');
-    for (const d of DURATIONS) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.dataset.dur = d;
-      b.textContent = '1/' + d;
-      b.title = DURATION_LABEL[d];
-      b.addEventListener('click', () => setDuration(d));
-      durs.appendChild(b);
-    }
-    const tech = $('gpe-techniques');
-    for (const [k, t] of Object.entries(TECHNIQUES)) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.dataset.tech = k;
-      b.textContent = t.label;
-      b.title = t.title;
-      b.addEventListener('click', () => toggleNote(t.set));
-      tech.appendChild(b);
+    palette = GPPalette({
+      st, edit, beatJ, beatM, curNote, ensureVoice, staffJ, masterJ, barJ, tracksJ, isDrums, tuning, numStrings,
+      setDuration, setStatus, askKey, askTimeSignature, askTempo, askSection, askRepeatEnd, askEnding,
+      setVoice: (v) => { st.voice = v; st.beat = 0; renderPanels(); drawCursor(); },
+      focus: () => $('gpe-canvas-wrap').focus(),
+    });
+    palette.build($('gpe-palette'));
+    const keys = $('gpe-palette-keys');
+    for (const [k, name] of palette.shortcuts()) {
+      const dt = document.createElement('dt');
+      dt.textContent = k;
+      const dd = document.createElement('dd');
+      dd.textContent = name;
+      keys.append(dt, dd);
     }
     const drums = $('gpe-drums');
     for (const p of DRUM_PIECES) {
@@ -617,9 +596,6 @@
       drums.appendChild(b);
     }
     const on = (id, fn) => $(id).addEventListener('click', fn);
-    on('gpe-dot', toggleDot);
-    on('gpe-triplet', toggleTriplet);
-    on('gpe-rest', makeRest);
     on('gpe-insert-beat', insertBeat);
     on('gpe-delete', deleteAtCursor);
     on('gpe-bar-before', addBarBefore);
@@ -627,12 +603,6 @@
     on('gpe-bar-delete', deleteBar);
     on('gpe-bar-copy', copyBar);
     on('gpe-bar-paste', pasteBar);
-    on('gpe-time', askTimeSignature);
-    on('gpe-tempo', askTempo);
-    on('gpe-section', askSection);
-    on('gpe-repeat-start', toggleRepeatStart);
-    on('gpe-repeat-end', askRepeatEnd);
-    on('gpe-ending', askEnding);
     on('gpe-undo', undo);
     on('gpe-redo', redo);
     on('gpe-save', save);
@@ -642,7 +612,6 @@
     on('gpe-delete-track', deleteTrack);
     $('gpe-add-track').addEventListener('change', (e) => { const v = e.target.value; e.target.value = ''; if (v) addTrack(v); });
     $('gpe-track').addEventListener('change', (e) => { st.track = +e.target.value; st.voice = 0; st.beat = 0; rebuild(); });
-    document.querySelectorAll('#gpe-voices button').forEach((b) => b.addEventListener('click', () => { st.voice = +b.dataset.voice; st.beat = 0; renderPanels(); drawCursor(); }));
     $('gpe-notation').addEventListener('change', (e) => { st.notation = e.target.value; rebuild(); });
   }
 
@@ -682,57 +651,53 @@
     drawCursor();
   }
 
+  // Keys: moving and typing frets first, then the drum kit on a drum
+  // track, then the palette's Guitar Pro shortcuts.
   function onKey(e) {
     const mod = e.metaKey || e.ctrlKey;
     const k = e.key;
-    if (mod && (k === 'z' || k === 'Z')) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
-    if (mod && k === 'y') { e.preventDefault(); redo(); return; }
-    if (mod && k === 's') { e.preventDefault(); save(); return; }
-    if (mod && k === 'c') { e.preventDefault(); copyBar(); return; }
-    if (mod && k === 'v') { e.preventDefault(); pasteBar(); return; }
+    if (mod && !e.altKey && (k === 'z' || k === 'Z')) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+    if (mod && !e.altKey && k === 'y') { e.preventDefault(); redo(); return; }
+    if (mod && !e.altKey && k === 's') { e.preventDefault(); save(); return; }
+    if (mod && !e.altKey && !e.shiftKey && k === 'c') { e.preventDefault(); copyBar(); return; }
+    if (mod && !e.altKey && !e.shiftKey && k === 'v') { e.preventDefault(); pasteBar(); return; }
     if (mod && k === 'ArrowRight') { e.preventDefault(); moveBar(1); return; }
     if (mod && k === 'ArrowLeft') { e.preventDefault(); moveBar(-1); return; }
-    if (mod || e.altKey) return;
-    if (k === 'ArrowRight') { e.preventDefault(); moveBeat(1); return; }
-    if (k === 'ArrowLeft') { e.preventDefault(); moveBeat(-1); return; }
-    if (k === 'ArrowUp' || k === 'ArrowDown') {
-      e.preventDefault();
-      const up = k === 'ArrowUp';
-      if (isDrums()) st.piece = Math.max(0, Math.min(DRUM_PIECES.length - 1, st.piece + (up ? -1 : 1)));
-      else st.string = Math.max(1, Math.min(numStrings(), st.string + (up ? 1 : -1)));
-      st.digit = null;
-      renderPanels();
-      drawCursor();
-      return;
-    }
-    if (k === 'Backspace' || k === 'Delete') { e.preventDefault(); deleteAtCursor(); return; }
-    if (k === 'Insert' || k === 'i' || k === 'I') { e.preventDefault(); insertBeat(); return; }
-    if (k === '+' || k === '=') { e.preventDefault(); stepDuration(1); return; }
-    if (k === '-' || k === '_') { e.preventDefault(); stepDuration(-1); return; }
-    if (k === ' ') { e.preventDefault(); if (isDrums()) toggleDrum(DRUM_PIECES[st.piece]); else playPause(); return; }
-    if (isDrums()) {
-      const p = DRUM_PIECES.find((x) => x.key && x.key === k.toLowerCase());
-      if (p) { e.preventDefault(); toggleDrum(p); return; }
-    } else if (/^[0-9]$/.test(k)) {
-      e.preventDefault();
-      const now = Date.now();
-      let fret = +k;
-      if (st.digit && now - st.digit.at < DIGIT_WINDOW_MS && st.digit.bar === st.bar && st.digit.beat === st.beat) {
-        const two = st.digit.value * 10 + fret;
-        if (two <= MAX_FRET) fret = two;
+    if (!mod && !e.altKey) {
+      if (k === 'ArrowRight') { e.preventDefault(); moveBeat(1); return; }
+      if (k === 'ArrowLeft') { e.preventDefault(); moveBeat(-1); return; }
+      if ((k === 'ArrowUp' || k === 'ArrowDown') && !e.shiftKey) {
+        e.preventDefault();
+        const up = k === 'ArrowUp';
+        if (isDrums()) st.piece = Math.max(0, Math.min(DRUM_PIECES.length - 1, st.piece + (up ? -1 : 1)));
+        else st.string = Math.max(1, Math.min(numStrings(), st.string + (up ? 1 : -1)));
+        st.digit = null;
+        renderPanels();
+        drawCursor();
+        return;
       }
-      st.digit = { value: fret, at: now, bar: st.bar, beat: st.beat };
-      setFret(fret);
-      return;
+      if (k === 'Backspace' || k === 'Delete') { e.preventDefault(); deleteAtCursor(); return; }
+      if (k === 'Insert') { e.preventDefault(); insertBeat(); return; }
+      if (k === '+' || k === '=') { e.preventDefault(); stepDuration(1); return; }
+      if (k === '-' || k === '_') { e.preventDefault(); stepDuration(-1); return; }
+      if (k === ' ') { e.preventDefault(); if (isDrums()) toggleDrum(DRUM_PIECES[st.piece]); else playPause(); return; }
+      if (isDrums()) {
+        const p = DRUM_PIECES.find((x) => x.key && x.key === k.toLowerCase() && !e.shiftKey);
+        if (p) { e.preventDefault(); toggleDrum(p); return; }
+      } else if (/^[0-9]$/.test(k)) {
+        e.preventDefault();
+        const now = Date.now();
+        let fret = +k;
+        if (st.digit && now - st.digit.at < DIGIT_WINDOW_MS && st.digit.bar === st.bar && st.digit.beat === st.beat) {
+          const two = st.digit.value * 10 + fret;
+          if (two <= MAX_FRET) fret = two;
+        }
+        st.digit = { value: fret, at: now, bar: st.bar, beat: st.beat };
+        setFret(fret);
+        return;
+      }
     }
-    const lower = k.toLowerCase();
-    if (lower === '.') { e.preventDefault(); toggleDot(); return; }
-    if (lower === 't') { e.preventDefault(); toggleTriplet(); return; }
-    if (lower === 'r') { e.preventDefault(); makeRest(); return; }
-    if (!isDrums()) {
-      const tech = Object.values(TECHNIQUES).find((t) => t.key && t.key === lower);
-      if (tech) { e.preventDefault(); toggleNote(tech.set); }
-    }
+    if (palette) palette.onKey(e);
   }
 
   // ---- Load, save --------------------------------------------------------------------

@@ -1414,8 +1414,27 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .gp-drift-hint, .gp-drift-kept { font-size: 0.85rem; color: var(--fg-muted); }
 .gp-drift-error { color: var(--danger); font-size: 0.85rem; }
 
-/* The Guitar Pro file editor (gp_edit.html, gp-editor.js). */
+/* The Guitar Pro file editor (gp_edit.html, gp-editor.js, gp-palette.js).
+   The palette is Guitar Pro 8's: a column of grouped symbol buttons left
+   of the score, drawn with Bravura, the SMuFL music font alphaTab ships. */
+@font-face { font-family: "Bravura"; src: url("/static/js/vendor/alphatab/font/Bravura.woff2") format("woff2"); font-display: swap; }
+.gpe-workspace { display: grid; grid-template-columns: 13.5rem minmax(0, 1fr); gap: 0.6rem; align-items: start; }
+.gpe-palette { position: sticky; top: 0.5rem; max-height: calc(100vh - 12rem); overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-raised, var(--bg)); padding: 0.2rem 0.3rem 0.4rem; }
+.gpe-pal-group summary { cursor: pointer; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); padding: 0.35rem 0.2rem 0.2rem; }
+.gpe-pal-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; }
+.gpe-pal-grid button { min-width: 0; min-height: 2.3rem; padding: 0; border-radius: 4px; font-size: 0.78rem; line-height: 1; white-space: nowrap; overflow: hidden; }
+.gpe-pal-grid button.smufl { font-family: "Bravura", serif; font-size: 1.35rem; line-height: 2.3rem; }
+.gpe-pal-grid button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast, #fff); }
+.gpe-pal-grid button:disabled { opacity: 0.35; }
+@media (max-width: 760px) {
+  .gpe-workspace { grid-template-columns: 1fr; }
+  /* One strip, scrolling sideways: each group two rows high. */
+  .gpe-palette { position: static; max-height: none; display: flex; align-items: flex-start; overflow-x: auto; gap: 0.5rem; }
+  .gpe-pal-group { flex: none; }
+  .gpe-pal-grid { grid-template-columns: none; grid-auto-flow: column; grid-template-rows: repeat(2, 2.4rem); grid-auto-columns: 2.4rem; }
+}
 .gpe { padding-bottom: 2rem; }
+.gpe-bar[hidden] { display: none; }
 .gpe-bar { display: flex; flex-wrap: wrap; gap: 0.35rem 0.6rem; align-items: center; margin: 0.35rem 0; }
 .gpe-bar button, .gpe-group button { min-height: 2.1rem; min-width: 2.1rem; padding: 0.15rem 0.55rem; font-size: 0.9rem; }
 .gpe-bar button[aria-pressed="true"], .gpe-group button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast, #fff); }
