@@ -4,6 +4,11 @@ Status: **phase 0 and phase 1 built**, and part of phase 2 (GP file
 history, export with web edits, forks keep their media) on branch
 `gp-editor`. See §9 for where that leaves us against the goal.
 
+**Superseded for notation** by [gp-file-model.md](gp-file-model.md):
+songs point into an attached Guitar Pro file instead of copying its
+notes as Riff JSON, and the Riff editor of phase 1 goes away. The chord
+work (phases 0, 3) and the text work (phase 4) still stand.
+
 **The goal is not a web Guitar Pro.** It is for a band to take notes and
 share them easily: the changes, a riff, a bass line, a groove, a fix to a
 transcription. Guitar Pro stays the tool for real transcription work, and
