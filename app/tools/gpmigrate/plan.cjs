@@ -170,6 +170,44 @@ async function withFile(song) {
   return { item, replaced: lines.size };
 }
 
+// addChords writes the song's chords (the Mixer's per-bar chords of each
+// section, in performed order — the made file's bar order) onto the first
+// melodic track's beats, as chord names without diagrams, so the file
+// carries them like a Guitar Pro file would.
+function addChords(score, sections) {
+  const track = score.tracks.find((t) => !t.staves[0].isPercussion);
+  if (!track) return;
+  const staff = track.staves[0];
+  const ids = new Map();
+  const plain = (n) => String(n).replace(/♭/g, 'b').replace(/♯/g, '#');
+  for (const sec of sections) {
+    (sec.chords || []).forEach((list, b) => {
+      const bar = staff.bars[sec.startBar + b];
+      const voice = bar && bar.voices[0];
+      if (!voice || !voice.beats.length) return;
+      const len = bar.masterBar.calculateDuration() || 3840;
+      for (const c of list || []) {
+        const name = plain(c.name);
+        if (!name) continue;
+        // The beat nearest to where the chord starts.
+        let best = voice.beats[0];
+        for (const beat of voice.beats) if (Math.abs(beat.playbackStart / len - c.pos) < Math.abs(best.playbackStart / len - c.pos)) best = beat;
+        if (!ids.has(name)) {
+          const ch = new alphaTab.model.Chord();
+          ch.name = name;
+          ch.strings = staff.tuning.map(() => -1);
+          ch.showDiagram = false;
+          ch.showName = true;
+          const id = String(ids.size);
+          staff.addChord(id, ch);
+          ids.set(name, id);
+        }
+        best.chordId = ids.get(name);
+      }
+    });
+  }
+}
+
 async function withoutFile(song) {
   if (!mixer) throw new Error('needs --mixer to make a file');
   const res = await fetch(`${mixer}/api/songs/${song.id}/mixer`);
@@ -187,6 +225,7 @@ async function withoutFile(song) {
     if (p >= 0) t.playbackInfo.program = p;
     if (mx.tracks[i] && mx.tracks[i].name) t.name = mx.tracks[i].name;
   });
+  addChords(score, mx.sections || []);
   const bytes = Buffer.from(new alphaTab.exporter.Gp7Exporter().export(score, settings));
   const written = load(bytes);
   const facts = GPFacts.extract(written);
