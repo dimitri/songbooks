@@ -195,6 +195,7 @@
   searchSkip.addEventListener('click', () => { fileSourceNote.hidden = true; goToStep('file'); });
 
   let score = null;
+  let rawBytes = null;  // the file's bytes, re-parsed for each drawing
   let rawFile = null;   // the originally-selected .gp/.gp3/.gp4/.gp5/.gpx File — kept so the
                          // import step can also upload the source file itself for download,
                          // alongside the data it extracts from it (see uploadSourceFile)
@@ -213,40 +214,11 @@
     status.className = 'hint' + (cls ? ' ' + cls : '');
   }
 
-  // ---- GP's own "real played bar count" expansion, mirroring
-  // realBarCount (handlers_pages.go) on the GP side — a flat array
-  // mapping each REAL (as-played) bar position to the GP-AUTHORED
-  // masterBar index it plays. Repeat-free files (every file checked
-  // this session) just come back as the identity mapping; a "|: :|"
-  // bracket replays its bars repeatCount times (2 if unmarked); an
-  // alternate ending only plays on the pass(es) its own bitmask names.
-  // Not exhaustively tested against every possible multi-ending shape —
-  // same pragmatic scope realBarCount itself documents on our side.
+  // ---- The order the file's bars are played in, as positions into
+  // score.masterBars: GPFacts.played (gp-facts.js), the same expansion the
+  // server counts a "gp[...]" line's bars with.
   function expandGPBars(masterBars) {
-    const real = [];
-    let i = 0;
-    while (i < masterBars.length) {
-      if (masterBars[i].isRepeatStart || !masterBars[i].isRepeatEnd) {
-        let j = i;
-        const openedAt = i;
-        while (j < masterBars.length && !masterBars[j].isRepeatEnd) j++;
-        if (j < masterBars.length && masterBars[j].isRepeatEnd) {
-          const count = Math.max(2, masterBars[j].repeatCount || 2);
-          for (let pass = 1; pass <= count; pass++) {
-            for (let k = openedAt; k <= j; k++) {
-              const mb = masterBars[k];
-              if (mb.alternateEndings && !(mb.alternateEndings & (1 << (pass - 1)))) continue;
-              real.push(k);
-            }
-          }
-          i = j + 1;
-          continue;
-        }
-      }
-      real.push(i);
-      i++;
-    }
-    return real;
+    return GPFacts.played(masterBars).map((n) => n - 1);
   }
 
   // ---- Real-bar -> seconds. Two layers:
@@ -367,6 +339,7 @@
       const buf = new Uint8Array(await file.arrayBuffer());
       score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(buf);
       rawFile = file;
+      rawBytes = buf;
     } catch (e) {
       setStatus("Couldn't read this file. Check it's a Guitar Pro file (.gp, .gp3, .gp4, .gp5 or .gpx).", 'err');
       score = null;
@@ -429,60 +402,43 @@
     return `${m}:${String(s).padStart(2, '0')}`;
   }
 
-  // ---- Real notation preview: the GP file's OWN content, rendered by
-  // alphaTab's own renderScore straight from the already-parsed Score
-  // object (score, from loadFile's ScoreLoader call) — never through
-  // this app's own Riff/alphaTeX conversion (extractRiff/tab.ToAlphaTex,
-  // used by renderPreview below for the FINAL extracted sections). The
-  // two previews answer different questions: this one is "what does
-  // this file actually contain, so I can align it" (step 3, before any
-  // extraction has happened); that one is "what did we just extract for
-  // THIS section" (step 4, after alignment). Rebuilt (not reused) on
-  // every track change, since a different track is different notation
-  // entirely, not a restyle of the same one.
-  // Renders via THIS app's own extractRiff -> tab.ToAlphaTex round trip
-  // (the exact same /api/gp-import/preview call and alphaTeX-rendering
-  // path the step-4 per-section preview below already uses, proven live
-  // against this exact file) rather than alphaTab's own renderScore
-  // straight off the raw parsed Score object. A first version did that
-  // instead — simpler in principle, no server round trip — and it
-  // reliably produced garbled "MNaN,NaN" SVG paths on a real file with
-  // bends: alphaTab's native bend-curve rendering off raw GP curve data
-  // is a code path nothing else in this app has ever exercised (every
-  // OTHER riff shown anywhere here is always OUR OWN re-encoded
-  // BendSemitones/BendRelease form, via extractRiff, never the file's
-  // raw native curve points) — going through that same re-encoding here
-  // sidesteps whatever's actually broken there, rather than fighting it.
-  //
-  // Mounted via window.AlphaTabTab.render (alphatab-tab.js) — the SAME
-  // data-tex/.staff-line.alphatab-row convention every other TabOnly row
-  // in this app uses — rather than a hand-rolled AlphaTabApi construction
-  // here. A hand-rolled version (tried first) hit the exact "skipped
-  // rendering because of width=0" race this app has hit before in every
-  // OTHER context a row can appear in right as its own [hidden] toggle
-  // clears: alphatab-tab.js's own render() already has the full retry/
-  // watchdog machinery proven against that (resizeGuard, pollGuard, an
-  // 8-second construction-time watchdog) — reusing it beats re-fighting
-  // the same race with a bare single requestAnimationFrame. The one
-  // thing given up by not holding the AlphaTabApi instance directly is
-  // click-a-bar-to-jump (beatMouseDown) — left for a follow-up rather
-  // than trading away reliability to get it in this pass.
+  // ---- Notation previews, straight from the file: the whole track while
+  // aligning (step 3), each section's bars before importing (step 4).
+  // alphaTab draws Guitar Pro's own bend curves cleanly since 1.8 (all
+  // 296 bent notes of the Florent lessons checked); the earlier detour
+  // through this app's own alphaTeX is gone with the Riff format.
+  // drawFileBars draws bars of one track straight from the file (a fresh
+  // parse each time: alphaTab's model is changed by what it draws), from
+  // written bar `from` (0-based), `count` bars or all of them.
+  function drawFileBars(container, trackIndex, from, count) {
+    const sc = alphaTab.importer.ScoreLoader.loadScoreFromBytes(rawBytes, new alphaTab.Settings());
+    const s = new alphaTab.Settings();
+    s.core.fontDirectory = '/static/js/vendor/alphatab/font/';
+    s.core.useWorkers = false;
+    s.core.enableLazyLoading = false;
+    s.player.enablePlayer = false;
+    s.display.startBar = from + 1;
+    if (count) s.display.barCount = count;
+    for (const n of ['ScoreTitle', 'ScoreSubTitle', 'ScoreArtist', 'ScoreAlbum', 'ScoreWords', 'ScoreMusic', 'ScoreWordsAndMusic', 'ScoreCopyright', 'GuitarTuning', 'TrackNames', 'ChordDiagrams']) {
+      if (alphaTab.NotationElement[n] !== undefined) s.notation.elements.set(alphaTab.NotationElement[n], false);
+    }
+    // alphaTab skips a container that has no width yet (a step that was
+    // just un-hidden): wait for it to be laid out.
+    const draw = (tries) => {
+      if (!container.clientWidth && tries > 0) { requestAnimationFrame(() => draw(tries - 1)); return; }
+      const api = new alphaTab.AlphaTabApi(container, s);
+      api.renderScore(sc, [trackIndex]);
+      container._alphaTabApi = api;
+    };
+    draw(60);
+  }
+
   async function renderNotationPreview() {
     contentPreviewEl.innerHTML = '';
     delete contentPreviewEl.dataset.tex;
-    contentPreviewEl.className = 'staff-line alphatab-row';
-    const trackIndex = Number(trackSelect.value) || 0;
-    const track = score.tracks[trackIndex];
+    contentPreviewEl.className = 'gpimport-file-preview';
     try {
-      const riff = extractRiff(track, 0, realIdx.length);
-      const res = await fetch('/api/gp-import/preview', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ riff: JSON.stringify(riff) }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const { alphaTex } = await res.json();
-      contentPreviewEl.dataset.tex = alphaTex;
-      if (window.AlphaTabTab) window.AlphaTabTab.render(contentPreviewEl);
+      drawFileBars(contentPreviewEl, Number(trackSelect.value) || 0, 0, 0);
       wireContentPreviewClicks();
     } catch (e) {
       contentPreviewEl.textContent = 'Preview failed: ' + e.message;
@@ -510,9 +466,10 @@
     // is cheap and avoids silently never firing.
     api.beatMouseDown.on(e => {
       const beat = e?.beat || e;
-      const pos = beat?.voice?.bar?.index; // index WITHIN this alphaTeX doc — same as realIdx's own "pos", since extractRiff walked the real bars in that same order, one beat per real bar's position
-      if (pos == null) return;
-      jumpTimelineTo(pos);
+      const written = beat?.voice?.bar?.index; // a written bar of the file: jump to where it's first played
+      if (written == null) return;
+      const pos = realIdx.indexOf(written);
+      if (pos >= 0) jumpTimelineTo(pos);
     });
   }
 
@@ -913,92 +870,33 @@
   deriveBtn.addEventListener('click', deriveAndCreateSection);
 
   // ---- Per-section extraction: GP real-bar range -> our Riff JSON ----
-  function extractRiff(track, realBarStart, barCount) {
-    const staff = track.staves[0];
-    const numStrings = staff.tuning.length;
-    const bars = [];
-    for (let r = realBarStart; r < realBarStart + barCount; r++) {
-      const gpBarIndex = realIdx[r];
-      if (gpBarIndex === undefined) break;
-      const gpBar = staff.bars[gpBarIndex];
-      const voice = gpBar.voices[0];
-      const isSoleRest = voice && voice.beats.length === 1 && voice.beats[0].isRest;
-      const beats = (voice ? voice.beats : []).map(b => {
-        // A bar whose ONLY event is a rest is, by definition, a full
-        // bar of silence — but real GP files routinely encode that rest
-        // with whatever short duration (often a quarter) regardless of
-        // the actual time signature, since it doesn't affect playback
-        // and GP's own alphaTab-side isFullBarRest only special-cases a
-        // LITERAL Whole-duration rest (confirmed against the vendored
-        // bundle: isFullBarRest = isRest && 1 beat && duration===Whole).
-        // Taking the encoded duration at face value here would print a
-        // single quarter-rest glyph sitting in an otherwise-empty bar
-        // instead of the full-bar rest mark the bar obviously means —
-        // confirmed live against a real imported file (bars with
-        // duration=4/dots=0, isFullBarRest false, in a 4/4 bar that's
-        // musically just "rest here").
-        // A tuplet (a triplet is 3 in the time of 2) keeps its ratio and a
-        // grace note takes no time: without them a bar of triplet eighths,
-        // or one with grace notes, reads as overfull.
-        const tuplet = (beat) => {
-          if (b.tupletNumerator > 1 && b.tupletDenominator > 0) { beat.TupletNum = b.tupletNumerator; beat.TupletDen = b.tupletDenominator; }
-          if (b.graceType) beat.Grace = true;
-          return beat;
-        };
-        if (b.isRest) return tuplet({ Rest: true, Duration: isSoleRest ? '1' : String(b.duration) + '.'.repeat(b.dots) });
-        const notes = b.notes.map(n => ({
-          MIDI: n.realValue,
-          String: numStrings + 1 - n.string,
-          Fret: n.fret,
-          Tied: !!n.isTieDestination,
-        }));
-        const beat = { Duration: String(b.duration) + '.'.repeat(b.dots), Notes: notes };
-        if (b.notes.some(n => n.isHammerPullOrigin)) beat.HammerPull = true;
-        if (b.notes.some(n => n.isPalmMute)) beat.PalmMute = true;
-        if (b.notes.length === 1 && b.notes[0].slideOutType) beat._slideOut = true;
-        const bendNote = b.notes.find(n => n.hasBend && n.bendPoints && n.bendPoints.length > 1);
-        if (bendNote) {
-          const pts = bendNote.bendPoints;
-          const maxVal = Math.max(...pts.map(p => p.value));
-          const lastVal = pts[pts.length - 1].value;
-          // alphaTab's BendPoint.value is documented in quarter-tone
-          // units (1 = a quarter tone = 0.5 semitone) — not independently
-          // re-verified against a known "full step" example this
-          // session; flagged here so a visibly-wrong bend width on a
-          // real import is easy to trace back to this one conversion.
-          beat.BendSemitones = maxVal * 0.5;
-          if (lastVal < maxVal) beat.BendRelease = true;
-        }
-        return tuplet(beat);
-      });
-      bars.push({ Beats: beats });
+  // The written bars (1-based) section i plays, as "gp[...]" ranges:
+  // "9-12" or "1-4, 9-12". Repeats inside them are played as written.
+  function writtenRanges(i) {
+    const bars = [...new Set(realIdx.slice(boundaries[i], boundaries[i + 1]))].map((x) => x + 1).sort((x, y) => x - y);
+    const ranges = [];
+    for (const n of bars) {
+      const last = ranges[ranges.length - 1];
+      if (last && n === last[1] + 1) last[1] = n; else ranges.push([n, n]);
     }
-    for (let bi = 0; bi < bars.length; bi++) {
-      for (let i = 0; i < bars[bi].Beats.length; i++) {
-        const prev = i > 0 ? bars[bi].Beats[i - 1] : (bi > 0 ? bars[bi - 1].Beats[bars[bi - 1].Beats.length - 1] : null);
-        if (prev && prev.Notes && prev.Notes.length === 1 && prev._slideOut) {
-          bars[bi].Beats[i].HasSlideFrom = true;
-          bars[bi].Beats[i].SlideFromFret = prev.Notes[0].Fret;
-        }
-      }
-    }
-    for (const bar of bars) for (const beat of bar.Beats) delete beat._slideOut;
-    return { Tuning: staff.tuning.slice(), MinimumFret: 0, Bars: bars };
+    return ranges;
+  }
+  function rangesSpec(ranges) {
+    return ranges.map(([a, b]) => (a === b ? String(a) : `${a}-${b}`)).join(', ');
+  }
+  // The name a "gp[...]" line uses for a track: its name, or "#N" when it
+  // has none or another track has the same.
+  function trackLabel(index) {
+    const name = (score.tracks[index].name || '').trim();
+    const same = score.tracks.filter((t) => (t.name || '').trim().toLowerCase() === name.toLowerCase()).length;
+    return name && same === 1 ? name : `#${index + 1}`;
   }
 
-  // Keeps the ORIGINAL file downloadable (see internal/store/gpfile.go) —
-  // separate from importAudioAndSync below, which only ever extracts and
-  // uploads the backing track audio GP embeds, never the source file
-  // itself. Best-effort: a failure here shouldn't block the data import
-  // that's the actual point of this wizard. Also stamps "gp_source:
-  // <filename>" into the song's own header (song.MetaKeys), so "this
-  // came from a GP import, and which file" is visible in the plain text
-  // itself — not just in the separate song_gp_source_file row — and the
-  // Play page can show the "GP import" badge/re-import hint from it.
   async function uploadSourceFile() {
     if (!rawFile) return;
     const form = new FormData();
     form.append('file', rawFile, rawFile.name);
+    form.append('facts', JSON.stringify(GPFacts.extract(alphaTab.importer.ScoreLoader.loadScoreFromBytes(rawBytes, new alphaTab.Settings()))));
     const res = await fetch(`/api/songs/${variantId}/gp-file`, { method: 'PUT', body: form });
     if (!res.ok) throw new Error('source file upload failed: ' + (await res.text()));
     await fetch(`/api/songs/${variantId}/meta`, {
@@ -1007,21 +905,13 @@
     });
   }
 
-  // Writes straight into the section's own score[label]: field in the
-  // song's raw text (handlePutSectionScore, handlers_api.go) — the same
-  // storage a hand-written score[Drum]: ... line uses, not a separate
-  // per-section database row. label is the GP file's own track name
-  // (falling back to "Guitar", same default prepareTimeline/trackSelect
-  // use when a GP track carries no name of its own); it's a display/key
-  // name only — the imported riff already carries its own exact
-  // Tuning/fret choices (extractRiff), so nothing here depends on the
-  // label itself being "guitar"/"bass"/"drum" the way a hand-typed
-  // score[label]: shortcut body would (tab.ParseVoice dispatches a JSON
-  // riff straight to tab.DecodeRiffJSON, bypassing that lookup).
-  async function putScore(sectionIndex, label, riff) {
-    const res = await fetch(`/api/songs/${variantId}/sections/${sectionIndex}/score/${encodeURIComponent(label)}`, {
+  // Writes the section's "gp[Track]: bars" line (handlePutSectionGP,
+  // gpview.go), replacing one for the same track and the notes an earlier
+  // import copied into the text for it.
+  async function putGPRef(sectionIndex, track, spec) {
+    const res = await fetch(`/api/songs/${variantId}/sections/${sectionIndex}/gp`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ body: JSON.stringify(riff) }),
+      body: JSON.stringify({ track, spec }),
     });
     if (!res.ok) throw new Error(`section ${sectionIndex}: ` + (await res.text()));
   }
@@ -1088,6 +978,7 @@
   // song doesn't already have, checked by default; unchecking keeps the
   // song's own (a deliberate edit wins).
   let headerChoices = []; // [{key, label, gp, song, input}]
+  let diagramChoices = []; // [{name, fact, input}]
   function gpHeader() {
     const mbs = score.masterBars;
     const full = mbs.find((m) => !m.isAnacrusis) || mbs[0];
@@ -1163,6 +1054,38 @@
     h.className = 'hint';
     h.textContent = 'From the Guitar Pro file — checked values are written to the song header:';
     headerHolder.append(h, list);
+
+    // The file's chord diagrams: new ones ticked, ones that differ from
+    // the song's not (the song's may be on purpose).
+    diagramChoices = [];
+    const have = new Map();
+    for (const m of text.split(/\n\[/)[0].matchAll(/^chord:\s*(\S+)\s+(\S+)/gm)) have.set(m[1], m[2]);
+    const facts = GPFacts.extract(score);
+    const seen = new Set();
+    const dl = document.createElement('div');
+    dl.className = 'gpimport-header-list';
+    for (const d of facts.diagrams) {
+      const name = normalizeChordName(d.name);
+      const fold = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      if (seen.has(fold)) continue;
+      seen.add(fold);
+      const p = document.createElement('p');
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = !have.has(name);
+      label.append(input, ` Chord diagram ${name}`);
+      p.appendChild(label);
+      if (have.has(name)) {
+        const was = document.createElement('span');
+        was.className = 'hint';
+        was.textContent = ` (the song has its own: ${have.get(name)})`;
+        p.appendChild(was);
+      }
+      dl.appendChild(p);
+      diagramChoices.push({ name, fact: 'diagram:' + fold, input });
+    }
+    if (diagramChoices.length) headerHolder.appendChild(dl);
   }
   // The header the song will have after the import.
   function chosenHeader(key) {
@@ -1194,28 +1117,22 @@
   async function renderPreview() {
     previewHolder.innerHTML = '';
     if (!score) return;
-    const track = score.tracks[Number(trackSelect.value) || 0];
+    const ti = Number(trackSelect.value) || 0;
     const checks = [...mappingBody.querySelectorAll('.gpimport-include')];
     for (let i = 0; i < ourSections.length; i++) {
       if (!checks[i] || !checks[i].checked) continue;
-      const sec = ourSections[i];
-      const riff = extractRiff(track, boundaries[i], sectionBarCount(i));
+      const ranges = writtenRanges(i);
       const row = document.createElement('div');
       row.className = 'gpimport-preview-row';
-      row.innerHTML = `<p class="hint">${escapeHTML(sec.label)}</p><div class="staff-line alphatab-row"></div>`;
+      const p = document.createElement('p');
+      p.className = 'hint';
+      p.textContent = `${ourSections[i].label}: gp[${trackLabel(ti)}]: ${rangesSpec(ranges)}`;
+      row.appendChild(p);
       previewHolder.appendChild(row);
-      const mount = row.querySelector('.alphatab-row');
-      try {
-        const res = await fetch('/api/gp-import/preview', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ riff: JSON.stringify(riff), time: chosenHeader('time'), swing: chosenHeader('swing') }),
-        });
-        if (!res.ok) throw new Error(await res.text());
-        const { alphaTex } = await res.json();
-        mount.dataset.tex = alphaTex;
-        if (window.AlphaTabTab) window.AlphaTabTab.render(mount);
-      } catch (e) {
-        row.querySelector('.hint').textContent += ` — preview failed: ${e.message}`;
+      for (const [a, b] of ranges) {
+        const mount = document.createElement('div');
+        row.appendChild(mount);
+        try { drawFileBars(mount, ti, a - 1, b - a + 1); } catch (e) { p.textContent += ` — preview failed: ${e.message}`; }
       }
     }
   }
@@ -1223,26 +1140,34 @@
 
   importBtn.addEventListener('click', async () => {
     if (!score) { setStatus('Choose a Guitar Pro file first.', 'err'); return; }
-    const track = score.tracks[Number(trackSelect.value) || 0];
-    const label = track.name || 'Guitar';
+    const ti = Number(trackSelect.value) || 0;
+    const label = trackLabel(ti);
     const checks = [...mappingBody.querySelectorAll('.gpimport-include')];
     Forms.busy(importBtn, true);
     try {
+      // The file first: the "gp[...]" lines point into it.
+      setStatus('Keeping the Guitar Pro file with the song…');
+      await uploadSourceFile();
       setStatus('Writing the song header…');
       await writeHeader();
       for (let i = 0; i < ourSections.length; i++) {
         if (!checks[i] || !checks[i].checked) continue;
         const sec = ourSections[i];
-        setStatus(`Importing section ${i + 1} of ${ourSections.length}: ${sec.label}…`);
-        const riff = extractRiff(track, boundaries[i], sectionBarCount(i));
-        await putScore(sec.index, label, riff);
+        setStatus(`Section ${i + 1} of ${ourSections.length}: ${sec.label}…`);
+        await putGPRef(sec.index, label, rangesSpec(writtenRanges(i)));
       }
       if (includeAudio.checked) {
         setStatus('Uploading the backing track and bar sync…');
         await importAudioAndSync();
       }
-      setStatus('Keeping a copy of the Guitar Pro file for download…');
-      await uploadSourceFile();
+      const diagrams = diagramChoices.filter((c) => c.input.checked);
+      for (const c of diagrams) {
+        setStatus(`Chord diagram ${c.name}…`);
+        await fetch(`/api/songs/${variantId}/gp-drift/take`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fact: c.fact }),
+        });
+      }
       setStatus('Imported. Reload the page to see it on the chart.', 'ok');
     } catch (e) {
       setStatus("The import stopped part-way: " + e.message, 'err');

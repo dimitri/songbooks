@@ -2,7 +2,9 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -133,4 +135,73 @@ func viewGPRef(r song.GPRef, gp songGP) viewerGPRef {
 		}
 	}
 	return v
+}
+
+// handlePutSectionGP is PUT /api/songs/{id}/sections/{index}/gp
+// {track, spec}: sets the section's "gp[Track]:" line for that track (the
+// GP import wizard), replacing one already there for it and dropping the
+// notes an earlier import copied into the text as a "score[Track]:"
+// voice of the same name.
+func (s *Server) handlePutSectionGP(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	index, err := strconv.Atoi(r.PathValue("index"))
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid section index")
+		return
+	}
+	var req struct {
+		Track string `json:"track"`
+		Spec  string `json:"spec"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	ref, err := gpfacts.ParseRef(req.Track, req.Spec)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	sg, version, err := s.store.LoadVariant(id)
+	if err != nil {
+		httpError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if index < 0 || index >= len(sg.Sections) {
+		httpError(w, http.StatusBadRequest, "invalid section index")
+		return
+	}
+	setSectionGP(&sg.Sections[index], ref.Track, ref.String())
+	newVersion, err := s.store.SaveVariant(id, sg, version, actorID(r))
+	if err != nil {
+		writeSaveErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"version": newVersion})
+}
+
+// setSectionGP sets sec's "gp[track]:" line and drops a "score[track]:"
+// voice of the same name (an earlier import's copy of those notes).
+func setSectionGP(sec *song.Section, track, spec string) {
+	replaced := false
+	for i := range sec.GP {
+		if gpfacts.Fold(sec.GP[i].Track) == gpfacts.Fold(track) {
+			sec.GP[i].Spec = spec
+			replaced = true
+		}
+	}
+	if !replaced {
+		sec.GP = append(sec.GP, song.GPRef{Track: track, Spec: spec})
+	}
+	kept := sec.Scores[:0]
+	for _, sv := range sec.Scores {
+		if gpfacts.Fold(sv.Label) != gpfacts.Fold(track) {
+			kept = append(kept, sv)
+		}
+	}
+	sec.Scores = kept
 }
