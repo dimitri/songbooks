@@ -191,6 +191,39 @@ func compareSection(where string, a, b *song.Section) []Change {
 		add("notes edited")
 	}
 	out = append(out, voiceChanges(where, a.Scores, b.Scores)...)
+	out = append(out, gpChanges(where, a.GP, b.GP)...)
+	return out
+}
+
+// gpChanges compares a section's "gp[Track]:" lines by track.
+func gpChanges(where string, a, b []song.GPRef) []Change {
+	var out []Change
+	name := func(r song.GPRef) string {
+		if r.Track == "" {
+			return "All tracks"
+		}
+		return r.Track
+	}
+	old := map[string]song.GPRef{}
+	for _, r := range a {
+		old[strings.ToLower(r.Track)] = r
+	}
+	for _, r := range b {
+		key := strings.ToLower(r.Track)
+		prev, ok := old[key]
+		delete(old, key)
+		switch {
+		case !ok:
+			out = append(out, Change{Where: name(r) + " · " + where, What: "bars from the Guitar Pro file added (" + r.Spec + ")"})
+		case prev.Spec != r.Spec:
+			out = append(out, Change{Where: name(r) + " · " + where, What: "bars from the Guitar Pro file " + prev.Spec + " → " + r.Spec})
+		}
+	}
+	for _, r := range a {
+		if _, ok := old[strings.ToLower(r.Track)]; ok {
+			out = append(out, Change{Where: name(r) + " · " + where, What: "bars from the Guitar Pro file removed"})
+		}
+	}
 	return out
 }
 

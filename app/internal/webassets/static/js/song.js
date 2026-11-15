@@ -1571,7 +1571,7 @@ const ICONS = {
       // Source is first opened, same lazy trigger the Scores tab below
       // uses for its own per-section fetches.
       if (btn.dataset.tab === 'raw' && sourcePreview && !sourcePreview.innerHTML) renderPreview();
-      if (btn.dataset.tab === 'scores') { window.ScoreEditor?.init(); window.TabEditor?.init(); refreshDiagramTodo(); }
+      if (btn.dataset.tab === 'scores') { window.ScoreEditor?.init(); refreshDiagramTodo(); }
     });
   });
 
@@ -2317,11 +2317,10 @@ const ICONS = {
     structSections = snap.sections;
     markDirty();
     renderHeaderFields();
-    // The Chart re-renders when it is showing; the Scores tab's undo must
-    // not fill the Chart's sidebar toolbox (switching back renders it).
+    // The Chart re-renders when it is showing; an undo from another tab
+    // must not fill the Chart's sidebar toolbox (switching back renders it).
     if (!structureEl.hidden) renderStructureUI();
     updateUndoRedoButtons();
-    window.TabEditor?.refresh();
   }
   function undoEdit() {
     if (!undoStack.length) return;
@@ -2338,9 +2337,8 @@ const ICONS = {
     if (u) u.disabled = !undoStack.length;
     if (r) r.disabled = !redoStack.length;
   }
-  // The Scores tab's tab editor (tab-editor.js) edits the same in-memory
-  // song: each score voice's body lives in structSections[i].scores, so it
-  // saves, discards and undoes with everything else here.
+  // The drawer's in-memory song, for other editors on the page to edit
+  // with the same save, discard and undo.
   window.SongEditorBridge = {
     sections: () => structSections,
     meta: () => structMeta,
@@ -4255,7 +4253,6 @@ const ICONS = {
     });
     renderHeaderFields();
     if (!structureEl.hidden) renderStructureUI();
-    window.TabEditor?.refresh();
   }
   loadStructure();
   window.SongStructure = { reload: loadStructure };

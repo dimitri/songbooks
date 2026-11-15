@@ -1,0 +1,101 @@
+{{define "gp-edit"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} — Guitar Pro file — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body class="gp-edit-page">
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/song/{{.VariantID}}">{{template "icon-back"}} {{.Title}}</a>
+  <h1>{{if .GPFileName}}{{.GPFileName}}{{else}}New Guitar Pro file{{end}}</h1>
+  <nav class="song-nav">
+    <button type="button" id="gpe-undo" class="gp-btn" title="Undo (Ctrl/⌘ Z)" disabled>↶</button>
+    <button type="button" id="gpe-redo" class="gp-btn" title="Redo (Ctrl/⌘ ⇧ Z)" disabled>↷</button>
+    <button type="button" id="gpe-save" class="primary" title="Save a new version of the file (Ctrl/⌘ S)" disabled>Save</button>
+  </nav>
+</header>
+<main class="gpe" id="gp-editor" data-variant-id="{{.VariantID}}" data-gp-name="{{.GPFileName}}"{{with .Track}} data-track="{{.}}"{{end}}{{with .Bar}} data-bar="{{.}}"{{end}}{{if .Blank}} data-blank="1" data-title="{{.Title}}" data-artist="{{.Artist}}" data-tempo="{{.Tempo}}" data-num="{{.Num}}" data-den="{{.Den}}" data-bars="{{.Bars}}" data-parts="{{.Parts}}"{{end}}>
+  {{if .Blank}}<p class="hint">A new file with {{.Bars}} empty bars, as many as the song has. It becomes the song’s Guitar Pro file when you save it.</p>{{end}}
+  <div class="gpe-bar">
+    <label>Track <select id="gpe-track"></select></label>
+    <button type="button" class="gp-btn" id="gpe-rename-track" title="Rename this track">Rename</button>
+    <button type="button" class="gp-btn" id="gpe-delete-track" title="Delete this track">Delete</button>
+    <select id="gpe-add-track" aria-label="Add a track">
+      <option value="">+ Track…</option>
+      <option value="guitar">Guitar</option>
+      <option value="bass">Bass</option>
+      <option value="drums">Drums</option>
+    </select>
+    <span class="gpe-group" id="gpe-voices" role="group" aria-label="Voice">
+      <button type="button" data-voice="0" title="Voice 1">1</button><button type="button" data-voice="1" title="Voice 2">2</button><button type="button" data-voice="2" title="Voice 3">3</button><button type="button" data-voice="3" title="Voice 4">4</button>
+    </span>
+    <label>Show <select id="gpe-notation"><option value="">as in the file</option><option value="tab">Tab</option><option value="staff">Staff</option><option value="both">Staff + tab</option></select></label>
+    <button type="button" class="gp-btn" id="gpe-play" title="Play from the cursor (Space)" disabled>▶</button>
+    <button type="button" class="gp-btn" id="gpe-stop" title="Stop">■</button>
+  </div>
+  <div class="gpe-bar" role="toolbar" aria-label="Notes">
+    <span class="gpe-group" id="gpe-durations" role="group" aria-label="Duration (+ shorter, − longer)"></span>
+    <button type="button" id="gpe-dot" title="Dotted (.)">•</button>
+    <button type="button" id="gpe-triplet" title="Triplet (T)">3</button>
+    <button type="button" id="gpe-rest" title="Rest (R)">Rest</button>
+    <button type="button" id="gpe-insert-beat" title="Insert a beat (Insert or I)">+ Beat</button>
+    <button type="button" id="gpe-delete" title="Delete the note, or an empty beat (Backspace)">Delete</button>
+  </div>
+  <div class="gpe-bar" role="toolbar" aria-label="Techniques">
+    <span class="gpe-group" id="gpe-techniques"></span>
+    <span class="gpe-group gpe-drums" id="gpe-drums" hidden></span>
+  </div>
+  <div class="gpe-bar" role="toolbar" aria-label="Bars">
+    <button type="button" id="gpe-bar-before" title="Insert a bar before this one">+ Bar before</button>
+    <button type="button" id="gpe-bar-after" title="Insert a bar after this one">+ Bar after</button>
+    <button type="button" id="gpe-bar-delete" title="Delete this bar in every track">− Bar</button>
+    <button type="button" id="gpe-bar-copy" title="Copy this bar (Ctrl/⌘ C)">Copy</button>
+    <button type="button" id="gpe-bar-paste" title="Paste over this bar (Ctrl/⌘ V)">Paste</button>
+    <button type="button" id="gpe-time" title="Time signature from this bar on">Time</button>
+    <button type="button" id="gpe-tempo" title="Tempo from this bar on">Tempo</button>
+    <button type="button" id="gpe-section" title="Section name on this bar">Section</button>
+    <button type="button" id="gpe-repeat-start" title="Opening repeat">|:</button>
+    <button type="button" id="gpe-repeat-end" title="Closing repeat">:|</button>
+    <button type="button" id="gpe-ending" title="Alternate ending">1. 2.</button>
+  </div>
+  <p class="gpe-where" id="gpe-where" aria-live="polite"></p>
+  <p class="gpe-status" id="gpe-status" aria-live="polite"></p>
+  <div class="gpe-canvas-wrap" id="gpe-canvas-wrap" tabindex="0" aria-label="The score: click a note or use the arrow keys, then type a fret">
+    <div id="gpe-canvas"></div>
+    <div class="gpe-bar-hl" id="gpe-bar-hl" hidden></div>
+    <div class="gpe-cursor" id="gpe-cursor" hidden></div>
+  </div>
+  <details class="gpe-keys">
+    <summary>Keyboard</summary>
+    <dl>
+      <dt>← →</dt><dd>beat (past the end of a bar that isn’t full adds a beat, past a full one goes on to the next bar)</dd>
+      <dt>↑ ↓</dt><dd>string; on drums, the kit piece</dd>
+      <dt>Ctrl/⌘ ← →</dt><dd>previous / next bar</dd>
+      <dt>0–24</dt><dd>fret on the string (two quick digits for 10–24)</dd>
+      <dt>+ / −</dt><dd>shorter / longer</dd>
+      <dt>. &nbsp; T &nbsp; R</dt><dd>dotted, triplet, rest</dd>
+      <dt>Insert or I &nbsp; Backspace</dt><dd>insert a beat, delete the note (or an empty beat)</dd>
+      <dt>L H S B V P N X G A</dt><dd>tie, hammer-on/pull-off, slide, bend, vibrato, palm mute, let ring, dead note, ghost note, accent</dd>
+      <dt>K S H O C Y X F 1–5</dt><dd>drums: kick, snare, hi-hat, open hi-hat, crash, ride, side stick, hi-hat pedal, toms; Space adds the piece under the cursor</dd>
+      <dt>Space</dt><dd>play from the cursor (guitar and bass)</dd>
+      <dt>Ctrl/⌘ C V Z S</dt><dd>copy and paste a bar, undo, save</dd>
+    </dl>
+  </details>
+</main>
+</div>
+<script src="/static/js/vendor/alphatab/alphaTab.min.js?v={{staticVersion}}"></script>
+<script src="/static/js/gp-facts.js?v={{staticVersion}}"></script>
+<script src="/static/js/gp-file.js?v={{staticVersion}}"></script>
+<script src="/static/js/gp-editor.js?v={{staticVersion}}"></script>
+{{template "pwa-register"}}
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

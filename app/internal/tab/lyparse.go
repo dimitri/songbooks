@@ -56,16 +56,15 @@ func ParseScore(src string) (*Riff, error) {
 // form instead — delegated to ParseScore unchanged, so a voice that
 // needs something the shortcut can't express (an unusual tuning, an
 // explicit minimumFret, two staves in one voice) still has an escape
-// hatch. If raw starts with "{", it's a GP-imported riff's own JSON
-// encoding instead (see DecodeRiffJSON's doc comment for why an
-// imported riff is never round-tripped through this package's own
-// LilyPond-subset grammar) — label is then just a display/key name,
-// irrelevant to how the content decodes, since the JSON already carries
-// its own exact Tuning/fret choices.
+// hatch. Notes copied from a Guitar Pro file as JSON are refused
+// (ErrRiffJSON).
 func ParseVoice(label, raw string) (*Riff, error) {
 	trimmed := strings.TrimSpace(raw)
-	if strings.HasPrefix(trimmed, `\new`) || isRiffJSON(trimmed) {
-		return DecodeScoreSource(raw)
+	if isRiffJSON(trimmed) {
+		return nil, ErrRiffJSON
+	}
+	if strings.HasPrefix(trimmed, `\new`) {
+		return ParseScore(raw)
 	}
 	toks, err := lex(raw)
 	if err != nil {

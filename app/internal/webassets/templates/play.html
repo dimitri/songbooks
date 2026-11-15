@@ -816,60 +816,26 @@
          previewed there the same way the real chart renders it, not a
          separate save step here any more. */}}
     <section class="prep-panel" data-panel="scores" id="scores-panel" data-variant-id="{{.VariantID}}" hidden>
-      {{/* Guitar Pro–style tab editor (tab-editor.js): edits one section's
-           score[label] voice in the drawer's in-memory song, so the top
-           bar's Save/Discard/Undo cover it like any Chart edit. */}}
-      <div class="tab-editor" id="tab-editor">
-        <div class="te-head">
-        <div class="te-pickers">
-          <label>Section <select id="te-section"></select></label>
-          <label>Track <select id="te-voice"></select></label>
-          <select id="te-new-voice" aria-label="Add a track to this section">
-            <option value="">+ New track…</option>
-            <option value="Guitar">Guitar (6 strings, standard tuning)</option>
-            <option value="Bass">Bass (4 strings, staff and tab)</option>
-            <option value="Drums">Drums (the whole section)</option>
-            <option value="Pattern">Drum pattern (one bar, repeats through the section)</option>
-          </select>
-          <select id="te-notation" aria-label="Show as" title="How you read this instrument, on every song (just for you)">
-            <option value="tab">Tab</option>
-            <option value="staff">Staff</option>
-            <option value="both">Staff + tab</option>
-          </select>
-          <label class="te-pattern" id="te-pattern-label" title="Write a groove or riff once: the chart and the Mixer repeat it through the whole section, drawn as % bars"><input type="checkbox" id="te-pattern"> Repeats through the section</label>
-          <button type="button" id="te-delete-voice" class="te-quiet">Delete track</button>
-          <button type="button" id="te-pad-toggle" class="te-quiet" aria-pressed="false" title="Show a keypad under the score, for touch screens">Keypad</button>
-          <span class="te-gp-link">{{if .GPSource}}<a href="/song/{{.VariantID}}/gp-file" download title="The Guitar Pro file this song was imported from, as uploaded">Original .gp</a> · {{end}}<a href="#" class="gp-export-btn" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="The saved song as a Guitar Pro file, web edits included (save first)">Export as Guitar Pro</a></span>
-        </div>
-        <p class="hint" id="te-empty" hidden>This section has no score yet. Add a track to start writing one: a guitar or bass part, or a drum groove.</p>
-        <p class="hint te-notice" id="te-notice" hidden></p>
-        <div class="te-toolbar" id="te-toolbar" role="toolbar" aria-label="Note tools"></div>
-        <div class="te-statusline"><span class="te-status" id="te-status"></span> <span class="te-note" id="te-note"></span></div>
-        </div>
-        <div class="te-canvas-wrap" id="te-canvas-wrap" tabindex="0" aria-label="Tab editor: click a note, or use the arrow keys, then type a fret number">
-          <div id="te-canvas"></div>
-          <div class="te-bar-hl" id="te-bar-hl" hidden></div>
-          <div class="te-cursor" id="te-cursor" hidden></div>
-        </div>
-        <div class="te-pad" id="te-pad" hidden></div>
-        <details class="te-keys">
-          <summary>Keyboard</summary>
-          <dl>
-            <dt>← → ↑ ↓</dt><dd>beat, string (→ past the end of a bar that isn't full adds a beat)</dd>
-            <dt>Ctrl/⌘ ← →</dt><dd>previous / next bar</dd>
-            <dt>0–24</dt><dd>fret on the current string (type two digits quickly for 10–24)</dd>
-            <dt>A–G &nbsp; ↑ ↓</dt><dd>on the staff (guitar or bass shown with a staff): that note, then up or down a semitone; with staff and tab, click either one to choose where you type</dd>
-            <dt>K S H O C Y X F 1–5</dt><dd>drums: kick, snare, hi-hat, open hi-hat, crash, ride, side stick, hi-hat pedal, toms (1–5); ride bell and cowbell from the toolbar; Space adds the piece under the cursor (↑ ↓ to choose it)</dd>
-            <dt>Backspace</dt><dd>remove the note; on an empty beat, remove the beat</dd>
-            <dt>Insert or I</dt><dd>insert a beat</dd>
-            <dt>+ / −</dt><dd>shorter / longer note</dd>
-            <dt>. &nbsp; T</dt><dd>dotted, triplet</dd>
-            <dt>R &nbsp; L</dt><dd>rest, tie</dd>
-            <dt>H &nbsp; S &nbsp; B &nbsp; P</dt><dd>guitar and bass tab: hammer-on/pull-off, slide, bend, palm mute</dd>
-            <dt>Ctrl/⌘ C / V</dt><dd>copy / paste a bar</dd>
-            <dt>Ctrl/⌘ Z</dt><dd>undo</dd>
-          </dl>
-        </details>
+      {{/* Notation lives in the song's Guitar Pro file (docs/gp-file-model.md):
+           edited in the file editor (gp-editor.js), pointed at from the
+           song's sections with "gp[Track]: bars" lines in Source. */}}
+      <div class="scores-gp">
+        <h3>Notation</h3>
+        {{if .GPFileName}}
+        <p class="hint">The notes are in this song’s Guitar Pro file, <strong>{{.GPFileName}}</strong>. A section shows some of its bars with a line like <code>gp[{{or .FirstGPTrack "Lead guitar"}}]: 9-12</code> in Source, or <code>gp: 9-12</code> for every track.</p>
+        <p class="gp-actions">
+          <a class="button primary" href="/song/{{.VariantID}}/gp-edit">Edit the file</a>
+          <a href="/song/{{.VariantID}}/gp-file" download>Download it</a>
+          <span class="hint">· a new version from Guitar Pro goes in through GP Import</span>
+        </p>
+        {{else}}
+        <p class="hint">Notes are written in a Guitar Pro file kept with the song: import one (GP Import), or start one here with an empty bar for each bar of the song. A short riff can also be written in Source in LilyPond, as <code>score[Riff]: e'8 g' a' b'</code>.</p>
+        <p class="gp-actions">
+          <a class="button primary" href="/song/{{.VariantID}}/gp-edit?parts=guitar">Start a Guitar Pro file</a>
+          <a href="/song/{{.VariantID}}/gp-edit?parts=guitar,bass,drums">with guitar, bass and drums</a>
+          {{if .HasAnyScore}}<a href="#" class="gp-export-btn" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="The song’s LilyPond riffs as a Guitar Pro file">Export the riffs as Guitar Pro</a>{{end}}
+        </p>
+        {{end}}
       </div>
       <h3 id="chord-diagram-heading">Chord diagram</h3>
       <p class="hint">The builder below makes a <code>chord:</code> header line for the chart's chord diagrams and adds it to Source.</p>
@@ -1582,7 +1548,7 @@
         <label class="gp-opt"><input type="checkbox" class="gp-metronome"> Metronome</label>
         <label class="gp-opt"><input type="checkbox" class="gp-countin"> Count-in</label>
         <label class="gp-opt">Show <select class="gp-notation"><option value="">as I read it</option><option value="tab">Tab</option><option value="staff">Staff</option><option value="both">Staff + tab</option></select></label>
-        {{if .CanEdit}}<button type="button" class="gp-btn gp-edit-file" id="gp-edit-file">Edit the file</button>{{end}}
+        {{if .CanEdit}}<a class="gp-btn" href="/song/{{.VariantID}}/gp-edit">Edit the file</a>{{end}}
         <a class="gp-btn" href="/song/{{.VariantID}}/gp-file" download>Download</a>
       </div>
       <div class="gp-tracks" role="group" aria-label="Tracks shown"></div>
@@ -1666,12 +1632,12 @@
 <script src="/static/js/alphatab-tab.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-export.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-facts.js?v={{staticVersion}}"></script>
+<script src="/static/js/gp-file.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-view.js?v={{staticVersion}}"></script>
 {{if .GPDrift}}<script src="/static/js/gp-drift.js?v={{staticVersion}}"></script>{{end}}
 {{end}}
 {{if .CanEdit}}
 <script src="/static/js/score-editor.js?v={{staticVersion}}"></script>
-<script src="/static/js/tab-editor.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-import.js?v={{staticVersion}}"></script>
 {{end}}
 <script>

@@ -205,3 +205,51 @@ func setSectionGP(sec *song.Section, track, spec string) {
 	}
 	sec.Scores = kept
 }
+
+// handleGPEditPage is GET /song/{id}/gp-edit: the Guitar Pro file editor
+// (gp-editor.js). ?track= and ?bar= put the cursor there; a song with no
+// file yet starts a blank one as long as the song (?parts=guitar,bass,drums).
+func (s *Server) handleGPEditPage(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	sg, _, err := s.store.LoadVariant(variantID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	q := r.URL.Query()
+	data := map[string]any{
+		"Me": personFromContext(r), "VariantID": variantID,
+		"Title": orDefault(sg.Get("title"), "untitled"), "Artist": sg.Get("artist"),
+		"Track": q.Get("track"), "Bar": q.Get("bar"),
+	}
+	gp := s.loadSongGP(r.Context(), variantID)
+	if gp.Meta != nil {
+		data["GPFileName"] = gp.Meta.Filename
+	} else {
+		num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
+		bars := 0
+		for _, sec := range buildSections(sg) {
+			bars += sec.BarCount
+		}
+		parts := []string{}
+		for _, p := range strings.Split(q.Get("parts"), ",") {
+			if p == "guitar" || p == "bass" || p == "drums" {
+				parts = append(parts, p)
+			}
+		}
+		if len(parts) == 0 {
+			parts = []string{"guitar"}
+		}
+		data["Blank"] = true
+		data["Tempo"] = atoiOr(orDefault(sg.Get("tempo"), "120"), 120)
+		data["Num"], data["Den"] = atoiOr(num, 4), atoiOr(den, 4)
+		data["Bars"] = max(bars, 4)
+		data["Parts"] = strings.Join(parts, ",")
+	}
+	s.render(w, "gp-edit", data)
+}

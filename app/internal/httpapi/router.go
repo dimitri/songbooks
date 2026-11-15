@@ -152,7 +152,6 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /api/import/ug/find", s.requireAuth(s.handleImportUGFind))
 	mux.HandleFunc("GET /api/import/gp/find", s.requireAuth(s.handleImportGPFind))
 	mux.HandleFunc("GET /api/import/gp/fetch", s.requireAuth(s.handleImportGPFetch))
-	mux.HandleFunc("POST /api/gp-import/preview", s.requireAuth(s.handleGPImportPreview))
 	mux.HandleFunc("GET /api/import/ireal/find", s.requireAuth(s.handleImportIRealFind))
 	mux.HandleFunc("POST /api/import/ireal/merge", s.requireAuth(s.handleImportIRealMerge))
 	mux.HandleFunc("POST /api/import/ultimate-guitar/parse", s.requireAuth(s.handleImportUGParse))
@@ -195,25 +194,15 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/songs/{id}/gp-drift/keep", s.requireVariantRole("editor", s.handlePostGPDriftKeep))
 	mux.HandleFunc("POST /api/songs/{id}/gp-drift/take", s.requireVariantRole("editor", s.handlePostGPDriftTake))
 	mux.HandleFunc("GET /song/{id}/gp-file", s.requireVariantRole("viewer", s.handleGetSongGPFile))
+	mux.HandleFunc("GET /song/{id}/gp-edit", s.requireVariantRole("editor", s.handleGPEditPage))
 	mux.HandleFunc("GET /song/{id}/gp-file/versions/{vid}", s.requireVariantRole("viewer", s.handleGetSongGPFileVersion))
 
 	// A section's "score[label]:" voices (internal/tab's LilyPond-
-	// compatible subset, or a GP-imported riff's own JSON encoding — see
-	// tab.DecodeScoreSource) are plain text in the body itself now (see
-	// song.ScoreVoice's own doc comment) — no separate route to read a
-	// voice, or for a human to write or preview one: Source's existing
-	// raw-text save/preview already covers that (/api/songs/{id}/raw,
-	// /api/preview), the same way any other "grid:"/"note:" content is
-	// edited. The GP import wizard (gp-import.js) is the one exception:
-	// it writes several sections' worth of imported riffs in a tight
-	// machine-driven sequence, where round-tripping the WHOLE raw text
-	// through the browser for every single section would mean threading
-	// a save/reload/re-slice cycle through its own import loop for no
-	// real benefit — handlePutSectionScore does that same splice
-	// server-side instead, where it already has song.Parse/song.Write.
-	mux.HandleFunc("PUT /api/songs/{id}/sections/{index}/score/{label}", s.requireVariantRole("editor", s.handlePutSectionScore))
+	// compatible subset) are plain text in the body itself, edited in
+	// Source like any "grid:" or "note:" line (/api/songs/{id}/raw,
+	// /api/preview). The GP import wizard writes a section's "gp[Track]:"
+	// line server-side, where song.Parse/song.Write already are.
 	mux.HandleFunc("POST /api/chord-diagrams/preview", s.requireAuth(s.handleChordDiagramPreview))
-	mux.HandleFunc("POST /api/score/riff", s.requireAuth(s.handleScoreRiff))
 
 	mux.HandleFunc("GET /metronome", s.requireAuth(s.handleMetronomePage))
 

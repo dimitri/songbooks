@@ -1414,6 +1414,31 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .gp-drift-hint, .gp-drift-kept { font-size: 0.85rem; color: var(--fg-muted); }
 .gp-drift-error { color: var(--danger); font-size: 0.85rem; }
 
+/* The Guitar Pro file editor (gp_edit.html, gp-editor.js). */
+.gpe { padding-bottom: 2rem; }
+.gpe-bar { display: flex; flex-wrap: wrap; gap: 0.35rem 0.6rem; align-items: center; margin: 0.35rem 0; }
+.gpe-bar button, .gpe-group button { min-height: 2.1rem; min-width: 2.1rem; padding: 0.15rem 0.55rem; font-size: 0.9rem; }
+.gpe-bar button[aria-pressed="true"], .gpe-group button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast, #fff); }
+.gpe-group { display: inline-flex; flex-wrap: wrap; gap: 0.2rem; }
+.gpe-group[hidden] { display: none; }
+.gpe-drums button.current { outline: 2px solid var(--accent); outline-offset: 1px; }
+.gpe-where { margin: 0.4rem 0 0; font-size: 0.9rem; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.gpe-status { margin: 0.1rem 0 0.4rem; font-size: 0.9rem; min-height: 1.2em; }
+.gpe-status.bad { color: var(--danger); }
+.gpe-canvas-wrap { position: relative; border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem; overflow: auto; max-height: calc(100vh - 18rem); min-height: 12rem; }
+.gpe-canvas-wrap:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.gpe-cursor { position: absolute; border: 2px solid var(--accent); border-radius: 3px; pointer-events: none; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.gpe-bar-hl { position: absolute; pointer-events: none; background: color-mix(in srgb, var(--accent) 6%, transparent); border-radius: 3px; }
+.gpe-bar-hl.over { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.gpe-bar-hl.under { background: color-mix(in srgb, #d9a400 12%, transparent); }
+.gpe-canvas-wrap .at-cursor-bar { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.gpe-canvas-wrap .at-cursor-beat { background: var(--accent); width: 3px; }
+.gpe-keys { margin-top: 0.8rem; font-size: 0.9rem; }
+.gpe-keys dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 1rem; }
+.gpe-keys dt { font-weight: 600; }
+.scores-gp { margin-bottom: 1.2rem; }
+.scores-gp .gp-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+
 .gp-score-page { display: none; padding: 0.4rem 0 1rem; }
 #sheet[data-render-mode="score"] ~ .gp-score-page { display: block; }
 .gp-toolbar { display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem; align-items: center; padding: 0.4rem 0; position: sticky; top: 0; background: var(--bg); z-index: 2; }
