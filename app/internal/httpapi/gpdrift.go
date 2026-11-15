@@ -29,8 +29,8 @@ type driftItem struct {
 	File  string     `json:"file"` // the file's value, "" when it has none
 	Sig   string     `json:"sig"`
 	Kept  bool       `json:"kept"`
-	Take  bool       `json:"take"`           // "Use the file's" applies
-	Bar   int        `json:"bar,omitempty"`  // the file's bar it's about, for the editor link
+	Take  bool       `json:"take"`          // "Use the file's" applies
+	Bar   int        `json:"bar,omitempty"` // the file's bar it's about, for the editor link
 	Track string     `json:"track,omitempty"`
 	Push  *driftPush `json:"push,omitempty"` // "Use this one" applies
 }
