@@ -4,11 +4,12 @@
 // Chart tab, from a section on the song page, and from a selection in the
 // file editor.
 //
-// The map is a strip of the file's bars (number, chord, markers, repeat
+// The map is the file itself, drawn by alphaTab on one long line (the
+// chosen track, or every track, with its chords, markers and repeat
 // signs), with a band under the bars each section already uses. Drag to
 // choose bars, shift-click to extend, Ctrl/⌘-click to add a second range,
 // or drag the selection's handles. It checks the bars play as many bars
-// as the section has, previews them with alphaTab, and offers shortcuts:
+// as the section has, and offers shortcuts:
 // the same bars as an earlier section of the same name, the bars right
 // after the previous section, or every section from the file's markers.
 //
@@ -63,7 +64,7 @@
       return name && tracks.filter((t) => fold(t.name) === fold(name)).length === 1 ? name : `#${i + 1}`;
     };
 
-    const st = { cur: opts.current || 0, track: '', notation: '', ranges: [], cellW: 46, changed: false };
+    const st = { cur: opts.current || 0, track: '', notation: '', ranges: [], scale: 0.8, changed: false, drawn: null };
 
     // ---- Layout -------------------------------------------------------------
     const overlay = el('div', 'gpbp-overlay');
@@ -82,12 +83,15 @@
     const stripTools = el('div', 'gpbp-striptools');
     const stripWrap = el('div', 'gpbp-stripwrap');
     const strip = el('div', 'gpbp-strip');
+    const ruler = el('div', 'gpbp-ruler');
+    const scoreHost = el('div', 'gpbp-score');
+    const over = el('div', 'gpbp-over');
+    strip.append(ruler, scoreHost, over);
     const bands = el('div', 'gpbp-bands');
     stripWrap.append(strip, bands);
     const pick = el('div', 'gpbp-pick');
-    const preview = el('div', 'gpbp-preview');
     const foot = el('div', 'gpbp-foot');
-    dlg.append(head, secRow, stripTools, stripWrap, pick, preview, foot);
+    dlg.append(head, secRow, stripTools, stripWrap, pick, foot);
     document.body.appendChild(overlay);
     document.body.classList.add('gpbp-open');
 
@@ -116,93 +120,133 @@
       });
     }
 
-    // ---- The strip ----------------------------------------------------------
-    const marker = (n) => (facts.markers.find((m) => m.bar === n) || {}).text || '';
-    const rep = (n) => facts.repeats.find((r) => r.bar === n) || {};
-    function chordOf(n) {
-      const c = (facts.chords[n - 1] || [])[0];
-      return c ? c.name : '';
-    }
-    const cells = [];
-    function buildStrip() {
-      strip.replaceChildren();
-      for (let n = 1; n <= facts.bars; n++) {
-        const c = el('div', 'gpbp-cell');
-        c.dataset.bar = n;
-        const r = rep(n);
-        if (r.start) c.classList.add('rs');
-        if (r.count) c.classList.add('re');
-        const m = marker(n);
-        if (m) { const mk = el('span', 'mk', m); c.appendChild(mk); }
-        c.append(el('span', 'b', String(n)), el('span', 'ch', chordOf(n)));
-        if (r.endings) { let e = []; for (let k = 0; k < 8; k++) if (r.endings & (1 << k)) e.push(k + 1); c.appendChild(el('span', 've', e.join(',') + '.')); }
-        if (r.count) c.appendChild(el('span', 'rc', '×' + r.count));
-        strip.appendChild(c);
-        cells[n] = c;
+    // ---- The strip: the file itself, drawn by alphaTab on one line -----------
+    // The chosen track (or every track) in tab, staff or both, with its
+    // chord names, markers and repeat signs; the selection, its handles and
+    // the bar numbers are laid over it at the bars' real positions.
+    let api = null;
+    let rects = []; // bar (1-based) → { x, w } in the drawing
+    const ink = (name) => { const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(getComputedStyle(document.body).getPropertyValue(name).trim()); return m ? new alphaTab.model.Color(parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)) : null; };
+    function drawScore() {
+      st.drawn = st.track + '|' + st.notation + '|' + st.scale;
+      if (api) { try { api.destroy(); } catch (e) { /* gone */ } api = null; }
+      scoreHost.replaceChildren();
+      rects = [];
+      over.replaceChildren();
+      ruler.replaceChildren();
+      strip.classList.add('loading');
+      const score = GPFile.parse(file.bytes);
+      for (const t of score.tracks) for (const sf of t.staves) if (sf.chords) for (const c of sf.chords.values()) if (!(c.strings || []).some((f) => f >= 0)) c.showDiagram = false;
+      let idx = score.tracks.map((t, i) => i);
+      if (st.track) { const i = GPFacts.findTrack(score.tracks, st.track); if (i >= 0) idx = [i]; }
+      const n = st.notation;
+      if (n) for (const i of idx) for (const sf of score.tracks[i].staves) if (!sf.isPercussion) { sf.showTablature = n === 'tab' || n === 'tab+staff'; sf.showStandardNotation = n === 'staff' || n === 'tab+staff'; sf.showSlash = n === 'slash'; }
+      const s = new alphaTab.Settings();
+      s.core.fontDirectory = '/static/js/vendor/alphatab/font/';
+      s.core.useWorkers = false;
+      s.core.enableLazyLoading = false;
+      s.player.enablePlayer = false;
+      s.display.layoutMode = alphaTab.LayoutMode.Horizontal;
+      s.display.scale = st.scale;
+      s.notation.rhythmMode = alphaTab.TabRhythmMode.ShowWithBars;
+      const hide = ['ScoreTitle', 'ScoreSubTitle', 'ScoreArtist', 'ScoreAlbum', 'ScoreWords', 'ScoreMusic', 'ScoreWordsAndMusic', 'ScoreCopyright', 'GuitarTuning', 'ChordDiagrams', 'EffectTempo', 'EffectDynamics', 'BarNumber'];
+      if (idx.length === 1) hide.push('TrackNames');
+      for (const e of hide) if (alphaTab.NotationElement[e] !== undefined) s.notation.elements.set(alphaTab.NotationElement[e], false);
+      const fg = ink('--fg');
+      if (fg) { const r = s.display.resources; r.mainGlyphColor = r.secondaryGlyphColor = r.scoreInfoColor = r.barSeparatorColor = fg; r.staffLineColor = ink('--fg-muted') || fg; }
+      try {
+        api = new alphaTab.AlphaTabApi(scoreHost, s);
+        api.postRenderFinished.on(measure);
+        api.renderScore(score, idx);
+      } catch (e) {
+        scoreHost.textContent = 'Couldn’t draw the file.';
       }
-      const lh = el('span', 'gpbp-handle l');
-      const rh = el('span', 'gpbp-handle r');
-      lh.title = rh.title = 'Drag to change';
-      strip.append(lh, rh);
-      strip.style.setProperty('--cw', st.cellW + 'px');
+    }
+    // Where each bar is in the drawing, then the overlay over it.
+    function measure() {
+      const look = api && api.renderer.boundsLookup;
+      const sys = look && look.staffSystems && look.staffSystems[0];
+      if (!sys) return;
+      rects = [];
+      for (const mb of sys.bars) rects[mb.index + 1] = { x: mb.realBounds.x, w: mb.realBounds.w };
+      strip.classList.remove('loading');
+      scoreHost.querySelectorAll('svg text').forEach((t) => { if (/rendered by alphaTab/i.test(t.textContent)) t.remove(); });
+      ruler.replaceChildren();
+      for (let n = 1; n < rects.length; n++) {
+        if (!rects[n]) continue;
+        const num = el('span', 'gpbp-num', String(n));
+        num.style.left = rects[n].x + 'px';
+        ruler.appendChild(num);
+      }
+      strip.style.width = scoreHost.scrollWidth + 'px';
+      renderStrip();
+      scrollToSelection();
+    }
+    const rectOf = (n) => rects[Math.max(1, Math.min(n, rects.length - 1))];
+    function span(a, b) { const r1 = rectOf(a), r2 = rectOf(b); return r1 && r2 ? { left: r1.x, width: r2.x + r2.w - r1.x } : null; }
+    function scrollToSelection() {
+      if (!st.ranges.length) return;
+      const r = rectOf(st.ranges[0][0]);
+      if (r) stripWrap.scrollLeft = Math.max(0, r.x - 80);
     }
     function renderStrip() {
-      const inSel = (n) => st.ranges.some(([a, b]) => n >= a && n <= b);
-      for (let n = 1; n <= facts.bars; n++) cells[n].classList.toggle('sel', inSel(n));
-      const [lh, rh] = strip.querySelectorAll('.gpbp-handle');
-      if (st.ranges.length) {
-        const first = st.ranges[0][0], last = st.ranges[st.ranges.length - 1][1];
-        lh.hidden = rh.hidden = false;
-        lh.style.left = cells[first].offsetLeft - 4 + 'px';
-        rh.style.left = cells[last].offsetLeft + cells[last].offsetWidth - 3 + 'px';
-      } else lh.hidden = rh.hidden = true;
+      over.replaceChildren();
+      if (rects.length) {
+        for (const [a, b] of st.ranges) {
+          const sp = span(a, b);
+          if (!sp) continue;
+          const box = el('div', 'gpbp-sel');
+          Object.assign(box.style, { left: sp.left + 'px', width: sp.width + 'px' });
+          over.appendChild(box);
+        }
+        if (st.ranges.length) {
+          const sp = span(st.ranges[0][0], st.ranges[st.ranges.length - 1][1]);
+          const lh = el('span', 'gpbp-handle l');
+          const rh = el('span', 'gpbp-handle r');
+          lh.title = rh.title = 'Drag to change';
+          lh.style.left = sp.left - 4 + 'px';
+          rh.style.left = sp.left + sp.width - 3 + 'px';
+          over.append(lh, rh);
+        }
+      }
       // Bands: every other section's bars for this track (or every track).
       bands.replaceChildren();
+      if (!rects.length) return;
       const lanes = [];
-      sections.forEach((s, i) => {
+      const band = (label, a, b, cls, title, onClick) => {
+        const sp = span(a, b);
+        if (!sp) return;
+        let lane = lanes.findIndex((end) => end < a);
+        if (lane < 0) { lane = lanes.length; lanes.push(0); }
+        lanes[lane] = b;
+        const d = el('div', 'gpbp-band' + (cls ? ' ' + cls : ''), label);
+        if (title) d.title = title;
+        Object.assign(d.style, { left: sp.left + 'px', width: sp.width + 'px', top: lane * 18 + 'px' });
+        if (onClick) d.addEventListener('click', onClick);
+        bands.appendChild(d);
+      };
+      sections.forEach((sec, i) => {
         if (i === st.cur) return;
-        for (const g of s.gp || []) {
+        for (const g of sec.gp || []) {
           if (st.track && g.track && !sameTrack(g.track, st.track)) continue;
-          const p = GPFacts.parseRef(g.spec);
-          if (p.error) continue;
-          for (const [a, b] of p.ranges) {
-            let lane = lanes.findIndex((end) => end < a);
-            if (lane < 0) { lane = lanes.length; lanes.push(0); }
-            lanes[lane] = b;
-            const band = el('div', 'gpbp-band', s.label);
-            band.title = `${s.label}: ${g.track ? 'gp[' + g.track + ']' : 'gp'} ${g.spec}`;
-            band.style.left = cells[Math.min(a, facts.bars)].offsetLeft + 'px';
-            band.style.width = cells[Math.min(b, facts.bars)].offsetLeft + cells[Math.min(b, facts.bars)].offsetWidth - cells[Math.min(a, facts.bars)].offsetLeft + 'px';
-            band.style.top = lane * 18 + 'px';
-            band.addEventListener('click', () => { st.cur = i; loadSelection(); render(); });
-            bands.appendChild(band);
-          }
+          const pr = GPFacts.parseRef(g.spec);
+          if (pr.error) continue;
+          for (const [a, b] of pr.ranges) band(sec.label, a, b, '', `${sec.label}: ${g.track ? 'gp[' + g.track + ']' : 'gp'} ${g.spec}`, () => { st.cur = i; loadSelection(); render(); });
         }
       });
-      if (st.ranges.length) {
-        const [a] = st.ranges[0], b = st.ranges[st.ranges.length - 1][1];
-        const band = el('div', 'gpbp-band cur', cur().label);
-        band.style.left = cells[a].offsetLeft + 'px';
-        band.style.width = cells[b].offsetLeft + cells[b].offsetWidth - cells[a].offsetLeft + 'px';
-        band.style.top = lanes.length * 18 + 'px';
-        bands.appendChild(band);
-        lanes.push(0);
-      }
+      for (const [a, b] of st.ranges) band(cur().label, a, b, 'cur');
       bands.style.height = Math.max(1, lanes.length) * 18 + 'px';
     }
 
     // Choosing bars with the pointer.
     let drag = null;
     const barAt = (e) => {
-      const r = strip.getBoundingClientRect();
-      const x = e.clientX - r.left + strip.scrollLeft;
-      for (let n = 1; n <= facts.bars; n++) {
-        const c = cells[n];
-        if (x < c.offsetLeft + c.offsetWidth) return n;
-      }
-      return facts.bars;
+      const x = e.clientX - over.getBoundingClientRect().left;
+      for (let n = 1; n < rects.length; n++) if (rects[n] && x < rects[n].x + rects[n].w) return n;
+      return Math.max(1, rects.length - 1);
     };
-    strip.addEventListener('pointerdown', (e) => {
+    over.addEventListener('pointerdown', (e) => {
+      if (!rects.length) return;
       const handle = e.target.closest('.gpbp-handle');
       const n = barAt(e);
       if (handle && st.ranges.length) {
@@ -216,7 +260,7 @@
       } else {
         drag = { anchor: n, keep: [] };
       }
-      strip.setPointerCapture(e.pointerId);
+      over.setPointerCapture(e.pointerId);
       move(e);
       e.preventDefault();
     });
@@ -227,9 +271,9 @@
       renderStrip();
       renderPick();
     }
-    strip.addEventListener('pointermove', move);
-    strip.addEventListener('pointerup', () => { if (drag) { drag = null; schedulePreview(); } });
-    strip.addEventListener('pointercancel', () => { drag = null; });
+    over.addEventListener('pointermove', move);
+    over.addEventListener('pointerup', () => { drag = null; });
+    over.addEventListener('pointercancel', () => { drag = null; });
 
     // ---- Track, notation, length check, shortcuts --------------------------
     function renderPick() {
@@ -247,7 +291,7 @@
       for (const [v, l] of [['', 'As each reader reads it'], ['tab', 'Tab'], ['staff', 'Staff'], ['tab+staff', 'Staff and tab'], ['slash', 'Slashes']]) sel.add(new Option(l, v));
       sel.value = st.notation;
       sel.setAttribute('aria-label', 'Drawn as');
-      sel.addEventListener('change', () => { st.notation = sel.value; renderPick(); schedulePreview(); });
+      sel.addEventListener('change', () => { st.notation = sel.value; render(); });
       row.appendChild(sel);
       pick.appendChild(row);
 
@@ -311,37 +355,6 @@
       render();
     }
 
-    // ---- Preview ------------------------------------------------------------
-    let previewTimer = null, api = null;
-    function schedulePreview() { clearTimeout(previewTimer); previewTimer = setTimeout(drawPreview, 250); }
-    function drawPreview() {
-      preview.replaceChildren();
-      if (!st.ranges.length) return;
-      const score = GPFile.parse(file.bytes);
-      let tracksIdx = score.tracks.map((t, i) => i);
-      if (st.track) { const i = GPFacts.findTrack(score.tracks, st.track); if (i >= 0) tracksIdx = [i]; }
-      const n = st.notation;
-      if (n) for (const i of tracksIdx) for (const sf of score.tracks[i].staves) if (!sf.isPercussion) { sf.showTablature = n === 'tab' || n === 'tab+staff'; sf.showStandardNotation = n === 'staff' || n === 'tab+staff'; sf.showSlash = n === 'slash'; }
-      const [a] = st.ranges[0];
-      const b = st.ranges[st.ranges.length - 1][1];
-      const host = el('div', 'gpbp-preview-host');
-      preview.appendChild(host);
-      const s = new alphaTab.Settings();
-      s.core.fontDirectory = '/static/js/vendor/alphatab/font/';
-      s.core.useWorkers = false;
-      s.core.enableLazyLoading = false;
-      s.player.enablePlayer = false;
-      const ink = (name) => { const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(getComputedStyle(document.body).getPropertyValue(name).trim()); return m ? new alphaTab.model.Color(parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)) : null; };
-      const fg = ink('--fg');
-      if (fg) { const r = s.display.resources; r.mainGlyphColor = r.secondaryGlyphColor = r.scoreInfoColor = r.barSeparatorColor = fg; r.staffLineColor = ink('--fg-muted') || fg; }
-      s.display.startBar = a;
-      s.display.barCount = Math.min(b - a + 1, 16);
-      for (const e of ['ScoreTitle', 'ScoreSubTitle', 'ScoreArtist', 'ScoreAlbum', 'ScoreWords', 'ScoreMusic', 'ScoreWordsAndMusic', 'ScoreCopyright', 'GuitarTuning', 'ChordDiagrams', 'EffectTempo', 'EffectDynamics']) {
-        if (alphaTab.NotationElement[e] !== undefined) s.notation.elements.set(alphaTab.NotationElement[e], false);
-      }
-      try { api = new alphaTab.AlphaTabApi(host, s); api.renderScore(score, tracksIdx); } catch (e) { host.textContent = 'Couldn’t draw these bars.'; }
-    }
-
     // ---- Apply, remove, close ------------------------------------------------
     const status = el('span', 'gpbp-status');
     function say(msg) { status.textContent = msg; }
@@ -389,24 +402,24 @@
     });
     foot.append(status, removeBtn, doneBtn, useBtn);
 
-    // Zoom.
-    const zoom = (d) => { st.cellW = Math.max(30, Math.min(90, st.cellW + d)); strip.style.setProperty('--cw', st.cellW + 'px'); requestAnimationFrame(renderStrip); };
+    // Zoom: the drawing's scale.
+    const zoom = (d) => { st.scale = Math.round(Math.max(0.5, Math.min(1.3, st.scale + d)) * 10) / 10; render(); };
     stripTools.append(el('span', 'gpbp-hint', 'Drag across bars · shift-click to extend · Ctrl/⌘-click for another range'));
-    const zo = el('button', 'gpbp-ghost', '−'); zo.type = 'button'; zo.setAttribute('aria-label', 'Narrower bars'); zo.addEventListener('click', () => zoom(-8));
-    const zi = el('button', 'gpbp-ghost', '+'); zi.type = 'button'; zi.setAttribute('aria-label', 'Wider bars'); zi.addEventListener('click', () => zoom(8));
+    const zo = el('button', 'gpbp-ghost', '−'); zo.type = 'button'; zo.setAttribute('aria-label', 'Smaller'); zo.addEventListener('click', () => zoom(-0.1));
+    const zi = el('button', 'gpbp-ghost', '+'); zi.type = 'button'; zi.setAttribute('aria-label', 'Larger'); zi.addEventListener('click', () => zoom(0.1));
     stripTools.append(zo, zi);
 
     function render() {
       renderSections();
-      renderStrip();
       renderPick();
       removeBtn.hidden = !refOf(cur(), st.track);
-      schedulePreview();
-      const first = st.ranges.length ? cells[st.ranges[0][0]] : null;
-      if (first) stripWrap.scrollLeft = Math.max(0, first.offsetLeft - 60);
+      // A different track, notation or scale is a new drawing.
+      if (st.drawn !== st.track + '|' + st.notation + '|' + st.scale) drawScore();
+      else { renderStrip(); scrollToSelection(); }
     }
 
     function close() {
+      if (api) { try { api.destroy(); } catch (e) { /* gone */ } }
       overlay.remove();
       document.body.classList.remove('gpbp-open');
       document.removeEventListener('keydown', onKey, true);
@@ -426,7 +439,6 @@
       if (opts.track !== undefined) st.track = opts.track;
       if (opts.ranges) st.ranges = normalize(opts.ranges); else loadSelection();
     }
-    buildStrip();
     requestAnimationFrame(render);
   }
 

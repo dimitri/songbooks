@@ -1598,19 +1598,16 @@ body.gpbp-open { overflow: hidden; }
 .gpbp-striptools { display: flex; align-items: center; gap: 0.4rem; }
 .gpbp-hint { flex: 1; font-size: 0.8rem; color: var(--fg-faint); }
 .gpbp-ghost { min-height: 1.9rem; padding: 0 0.7rem; border-radius: 6px; font-size: 0.85rem; background: none; }
-.gpbp-stripwrap { overflow-x: auto; padding: 1.1rem 0.4rem 0.3rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); scrollbar-width: thin; }
-.gpbp-strip { --cw: 46px; position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: var(--cw); gap: 2px; width: max-content; touch-action: none; user-select: none; cursor: crosshair; }
-.gpbp-cell { position: relative; height: 3.1rem; padding: 0.2rem 0.25rem 0; border-radius: 4px; background: var(--bg-raised); box-shadow: inset 0 0 0 1px var(--border); overflow: visible; }
-.gpbp-cell .b { display: block; font-size: 0.68rem; color: var(--fg-faint); font-variant-numeric: tabular-nums; }
-.gpbp-cell .ch { display: block; margin-top: 0.15rem; font-family: var(--font-chart); font-style: italic; font-size: 0.9rem; white-space: nowrap; overflow: hidden; }
-.gpbp-cell .mk { position: absolute; top: -1.05rem; left: 0; font-size: 0.7rem; font-weight: 700; color: var(--fg-muted); white-space: nowrap; }
-.gpbp-cell .ve { position: absolute; top: 0.15rem; right: 0.25rem; font-size: 0.66rem; color: var(--fg-muted); }
-.gpbp-cell .rc { position: absolute; bottom: 0.1rem; right: 0.2rem; font-size: 0.66rem; color: var(--fg-muted); }
-.gpbp-cell.rs { box-shadow: inset 3px 0 0 var(--fg), inset 0 0 0 1px var(--border); }
-.gpbp-cell.re { box-shadow: inset -3px 0 0 var(--fg), inset 0 0 0 1px var(--border); }
-.gpbp-cell.sel { background: var(--accent-bg); box-shadow: inset 0 0 0 1.5px var(--accent); }
-.gpbp-handle { position: absolute; top: -0.3rem; width: 7px; height: 3.7rem; border-radius: 4px; background: var(--accent); cursor: ew-resize; }
-.gpbp-handle[hidden] { display: none; }
+.gpbp-stripwrap { overflow-x: auto; padding: 0.3rem 0.4rem 0.4rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-raised); scrollbar-width: thin; }
+.gpbp-strip { position: relative; min-width: 100%; user-select: none; }
+.gpbp-strip.loading { min-height: 9rem; background: repeating-linear-gradient(90deg, transparent 0 7rem, var(--border) 7rem calc(7rem + 1px)); }
+.gpbp-ruler { position: relative; height: 1.1rem; }
+.gpbp-num { position: absolute; top: 0; font-size: 0.7rem; font-variant-numeric: tabular-nums; color: var(--fg-faint); padding-left: 0.2rem; border-left: 1px solid var(--border); line-height: 1.1rem; }
+.gpbp-score { min-height: 6rem; }
+.gpbp-score svg { max-width: none; }
+.gpbp-over { position: absolute; inset: 0; cursor: crosshair; touch-action: none; }
+.gpbp-sel { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: color-mix(in srgb, var(--accent) 13%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 70%, transparent); pointer-events: none; }
+.gpbp-handle { position: absolute; top: 0; bottom: 0; width: 7px; border-radius: 4px; background: var(--accent); cursor: ew-resize; }
 .gpbp-bands { position: relative; margin-top: 0.3rem; min-height: 18px; }
 .gpbp-band { position: absolute; height: 15px; padding: 0 0.35rem; border-radius: 4px; background: var(--bg-sunken); color: var(--fg-muted); font-size: 0.68rem; line-height: 15px; white-space: nowrap; overflow: hidden; cursor: pointer; }
 .gpbp-band.cur { background: var(--accent); color: var(--accent-contrast); cursor: default; }
@@ -1626,15 +1623,12 @@ body.gpbp-open { overflow: hidden; }
 .gpbp-check.muted { color: var(--fg-faint); }
 .gpbp-line { justify-self: start; font-family: var(--font-mono); font-size: 0.85rem; padding: 0.2rem 0.5rem; border-radius: 4px; background: var(--bg-sunken); }
 .gpbp-line:empty { display: none; }
-.gpbp-preview { min-height: 2rem; border-top: 1px solid var(--border); padding-top: 0.4rem; }
-.gpbp-preview svg { max-width: 100%; height: auto; }
 .gpbp-foot { position: sticky; bottom: -1rem; display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; padding: 0.6rem 0 0; background: var(--bg-raised); border-top: 1px solid var(--border); }
 .gpbp-status { flex: 1; font-size: 0.85rem; color: var(--fg-muted); }
 @media (max-width: 760px) {
   .gpbp-overlay { align-items: flex-end; padding: 0; }
   .gpbp { width: 100%; max-height: 88vh; border-radius: 14px 14px 0 0; padding: 0.7rem 0.8rem 0.8rem; }
   .gpbp-hint { display: none; }
-  .gpbp-strip { --cw: 52px; }
   .gpbp-notation { margin-left: 0; }
 }
 
