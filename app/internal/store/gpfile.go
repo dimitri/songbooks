@@ -257,3 +257,40 @@ func copySongMedia(ctx context.Context, tx pgx.Tx, fromID, toID int64) error {
 	}
 	return nil
 }
+
+// RiffSong is a song whose text still holds notes copied in as Riff JSON
+// ("score[Track]: {...}"), with its Guitar Pro file when it has one: what
+// cmd/gpmigrate moves to "gp[Track]:" lines.
+type RiffSong struct {
+	ID       int64  `json:"id"`
+	Version  string `json:"version"`
+	Title    string `json:"title"`
+	Artist   string `json:"artist"`
+	Body     string `json:"body"`
+	Filename string `json:"filename,omitempty"`
+	File     []byte `json:"file,omitempty"`
+}
+
+// ListRiffSongs lists every song with a Riff JSON score line, and every
+// song whose Guitar Pro file has no facts yet.
+func (st *Store) ListRiffSongs(ctx context.Context) ([]RiffSong, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT s.id, s.version::text, coalesce(s.title, ''), coalesce(s.artist, ''), s.body,
+		       coalesce(g.filename, ''), g.data
+		FROM songs s LEFT JOIN song_gp_source_file g ON g.variant_id = s.id
+		WHERE s.body ~ '(?n)^score\[[^]]*\]:\s*\{"' OR (g.data IS NOT NULL AND g.facts IS NULL)
+		ORDER BY s.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []RiffSong
+	for rows.Next() {
+		var s RiffSong
+		if err := rows.Scan(&s.ID, &s.Version, &s.Title, &s.Artist, &s.Body, &s.Filename, &s.File); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}

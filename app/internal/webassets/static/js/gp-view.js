@@ -138,7 +138,7 @@
       s.player.enablePlayer = false;
       s.display.startBar = from;
       s.display.barCount = to - from + 1;
-      hide(s, SCORE_INFO.concat(['GuitarTuning', 'ChordDiagrams', tracks.length === 1 ? 'TrackNames' : '', 'EffectTempo']));
+      hide(s, SCORE_INFO.concat(['GuitarTuning', 'ChordDiagrams', tracks.length === 1 ? 'TrackNames' : '', 'EffectTempo', 'EffectDynamics']));
       try {
         const api = new alphaTab.AlphaTabApi(host, s);
         api.renderScore(score, tracks);

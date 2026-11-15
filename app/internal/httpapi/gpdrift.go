@@ -71,7 +71,7 @@ func computeDrift(sg *song.Song, sections []viewerSection, f *gpfacts.Facts, kep
 	// 4/4, so those are what it says.
 	if f.Tempo > 0 {
 		text := strings.TrimSpace(sg.Get("tempo"))
-		if n, err := strconv.Atoi(text); err != nil || n != f.Tempo {
+		if n, err := strconv.Atoi(orDefault(text, "120")); err != nil || n != f.Tempo {
 			p := &driftPush{Kind: "tempo", Tempo: n}
 			if err != nil {
 				p = nil
@@ -176,7 +176,7 @@ func computeDrift(sg *song.Song, sections []viewerSection, f *gpfacts.Facts, kep
 		}
 		if sec.BarCount != len(played) {
 			add(driftItem{Fact: fmt.Sprintf("bars:%d", si), Title: "Bar count", Where: where,
-				Text: countOf(sec.BarCount, "bar"), File: countOf(len(played), "bar") + " (bars " + first.String() + ")"})
+				Text: countOf(sec.BarCount, "bar"), File: countOf(len(played), "bar") + " (bars " + first.String() + ")", Take: true})
 			continue
 		}
 		if len(f.Chords) == 0 {
@@ -356,7 +356,14 @@ func specFrets(spec string) (frets []int, base int, barres []int) {
 		case chorddiagram.Open:
 			v = 0
 		case chorddiagram.Fretted:
-			v = d.BaseFret + sp.Row - 1
+			row := sp.Row
+			// A string held only by a barre has no row of its own.
+			for _, b := range d.Barres {
+				if row == 0 && i >= b.FromString && i <= b.ToString {
+					row = b.Row
+				}
+			}
+			v = d.BaseFret + row - 1
 		}
 		frets[n-1-i] = v
 	}
@@ -517,7 +524,7 @@ func (s *Server) handlePostGPDriftTake(w http.ResponseWriter, r *http.Request) {
 		if !replaced {
 			sg.Chords = append(sg.Chords, song.ChordRef{Name: name, Spec: it.File})
 		}
-	case strings.HasPrefix(it.Fact, "marker:"), strings.HasPrefix(it.Fact, "chords:"):
+	case strings.HasPrefix(it.Fact, "marker:"), strings.HasPrefix(it.Fact, "chords:"), strings.HasPrefix(it.Fact, "bars:"):
 		si, _ := strconv.Atoi(it.Fact[strings.IndexByte(it.Fact, ':')+1:])
 		if si < 0 || si >= len(sg.Sections) {
 			httpError(w, http.StatusConflict, "that section is gone; reload the page")
