@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
+	"encoding/json"
 	"html/template"
 	"io"
 	"io/fs"
@@ -208,6 +209,11 @@ var funcMap = template.FuncMap{
 	// contains reports whether a string slice holds v — e.g. "is this
 	// instrument already checked on the person's profile."
 	"hasPrefix": strings.HasPrefix,
+	// json encodes v for a data- attribute (html/template escapes it).
+	"json": func(v any) string {
+		b, _ := json.Marshal(v)
+		return string(b)
+	},
 	// bandTabs is the band-tabs partial's argument: the band and which
 	// section is open.
 	"bandTabs": func(id int64, active string) map[string]any {

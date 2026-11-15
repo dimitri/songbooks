@@ -117,6 +117,12 @@ func definingSection(sections []viewerSection, i int) int {
 // writtenChords is a section's chords per WRITTEN bar, with "%"/"%%"
 // simile bars resolved to the bar(s) they repeat.
 func writtenChords(sec *viewerSection) [][]mixerChordJSON {
+	return writtenChordsAs(sec, chordsym.Glyphs)
+}
+
+// writtenChordsAs is writtenChords with each chord's name passed through
+// name (the Mixer wants glyphs, the drift check the text as written).
+func writtenChordsAs(sec *viewerSection, name func(string) string) [][]mixerChordJSON {
 	var out [][]mixerChordJSON
 	for _, m := range sec.Measures {
 		if m.IsRepeat {
@@ -137,7 +143,7 @@ func writtenChords(sec *viewerSection) [][]mixerChordJSON {
 				if txt := strings.TrimSpace(beat.Text); beat.IsTie || txt == "" || txt == "?" {
 					continue
 				}
-				bar = append(bar, mixerChordJSON{Pos: float64(bi) / float64(len(m.Beats)), Name: chordsym.Glyphs(beat.Text)})
+				bar = append(bar, mixerChordJSON{Pos: float64(bi) / float64(len(m.Beats)), Name: name(beat.Text)})
 			}
 		}
 		out = append(out, bar)
@@ -151,6 +157,10 @@ func writtenChords(sec *viewerSection) [][]mixerChordJSON {
 // fill BarCount — which covers a "times: N" section and a bare reference
 // borrowing an earlier section's grid. Volta endings are not modeled.
 func performedChords(sections []viewerSection, i int) [][]mixerChordJSON {
+	return performedChordsAs(sections, i, chordsym.Glyphs)
+}
+
+func performedChordsAs(sections []viewerSection, i int, name func(string) string) [][]mixerChordJSON {
 	sec := &sections[i]
 	src := sec
 	if len(sec.Measures) == 0 {
@@ -158,7 +168,7 @@ func performedChords(sections []viewerSection, i int) [][]mixerChordJSON {
 			src = &sections[j]
 		}
 	}
-	written := writtenChords(src)
+	written := writtenChordsAs(src, name)
 	var expanded [][]mixerChordJSON
 	for k := 0; k < len(src.Measures); k++ {
 		if src.Measures[k].Open {

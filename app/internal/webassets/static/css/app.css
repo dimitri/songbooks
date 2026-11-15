@@ -1401,6 +1401,19 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .gp-score-body svg { max-width: 100%; height: auto; }
 #sheet:not([data-render-mode="normal"]) .gp-score { display: none; }
 
+.gp-drift { margin: 0.4rem 0 0.8rem; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 6px; padding: 0.5rem 0.8rem; background: var(--bg-raised, var(--bg)); }
+.gp-drift:not([open]) { border-left-color: var(--border); }
+.gp-drift summary { cursor: pointer; font-weight: 600; }
+.gp-drift-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.6rem; }
+.gp-drift-item { display: grid; gap: 0.2rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+.gp-drift-item.is-kept { opacity: 0.65; }
+.gp-drift-values { display: flex; flex-wrap: wrap; gap: 0.2rem 1.2rem; font-size: 0.9rem; color: var(--fg-muted); }
+.gp-drift-values code { color: var(--fg); }
+.gp-drift-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.gp-drift-actions button { padding: 0.25rem 0.7rem; font-size: 0.85rem; }
+.gp-drift-hint, .gp-drift-kept { font-size: 0.85rem; color: var(--fg-muted); }
+.gp-drift-error { color: var(--danger); font-size: 0.85rem; }
+
 .gp-score-page { display: none; padding: 0.4rem 0 1rem; }
 #sheet[data-render-mode="score"] ~ .gp-score-page { display: block; }
 .gp-toolbar { display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem; align-items: center; padding: 0.4rem 0; position: sticky; top: 0; background: var(--bg); z-index: 2; }

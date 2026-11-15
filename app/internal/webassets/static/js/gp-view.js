@@ -30,9 +30,11 @@
     return bytesPromise;
   }
   // Guitar Pro files often mark chords "show diagram" with no fingering
-  // at all (only the name was wanted): drawn, those are empty boxes.
-  async function loadScore() {
+  // at all (only the name was wanted): drawn, those are empty boxes. raw
+  // leaves the model as the file has it, for editing and saving.
+  async function loadScore(raw) {
     const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(await fileBytes(), new alphaTab.Settings());
+    if (raw) return score;
     for (const t of score.tracks) {
       for (const st of t.staves) {
         if (!st.chords) continue;
@@ -262,5 +264,29 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 
-  window.GPView = { showFull, drawSections, fileBytes, loadScore };
+  // saveScore writes score as a new version of the song's file (Guitar
+  // Pro 7 format, which Guitar Pro 7 and 8 open), with its facts read back
+  // from the written bytes, and keeps "gp_source:" naming it. Earlier
+  // versions stay on the song's History page.
+  async function saveScore(score) {
+    const settings = new alphaTab.Settings();
+    const bytes = new alphaTab.exporter.Gp7Exporter().export(score, settings);
+    const facts = GPFacts.extract(alphaTab.importer.ScoreLoader.loadScoreFromBytes(bytes, new alphaTab.Settings()));
+    const current = (sheet.dataset.gpName || 'song.gp').replace(/\.(gp[345x]?|gpx)$/i, '');
+    const name = current + '.gp';
+    const form = new FormData();
+    form.append('file', new Blob([bytes], { type: 'application/octet-stream' }), name);
+    form.append('facts', JSON.stringify(facts));
+    const res = await fetch(`/api/songs/${variantId}/gp-file`, { method: 'PUT', credentials: 'same-origin', body: form });
+    if (!res.ok) throw new Error('Saving the file failed (' + res.status + ')');
+    if (name !== sheet.dataset.gpName) {
+      await fetch(`/api/songs/${variantId}/meta`, {
+        method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'gp_source', value: name }),
+      });
+    }
+    return res.json();
+  }
+
+  window.GPView = { showFull, drawSections, fileBytes, loadScore, saveScore };
 })();

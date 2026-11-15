@@ -1451,7 +1451,31 @@
         </div>
       </div>
     </div>
-    <main class="sheet" id="sheet" data-render-mode="normal" data-variant-id="{{.VariantID}}"{{if .GPFileName}} data-gp-file="/song/{{.VariantID}}/gp-file" data-gp-sha="{{.GPFileSHA}}"{{if .GPFactsMissing}} data-gp-facts-missing="1"{{end}}{{if .GPOnly}} data-gp-only="1"{{end}}{{end}} data-key="{{.Key}}" data-flats="{{if .Flats}}1{{else}}0{{end}}" data-has-diagrams="{{if or .Chords (chordDiagramSets .Text)}}1{{end}}">
+    {{if .GPDrift}}
+    {{/* Where the song's text and its Guitar Pro file disagree (gpdrift.go,
+         docs/gp-file-model.md §4): editors only, never fixed on its own. */}}
+    <details class="gp-drift" id="gp-drift" data-variant-id="{{.VariantID}}"{{if .GPDriftOpen}} open{{end}}>
+      <summary>{{if .GPDriftOpen}}Out of step with the Guitar Pro file ({{.GPDriftOpen}}){{else}}In step with the Guitar Pro file{{end}}</summary>
+      <ul class="gp-drift-list">
+        {{range .GPDrift}}
+        <li class="gp-drift-item{{if .Kept}} is-kept{{end}}" data-fact="{{.Fact}}" data-sig="{{.Sig}}"{{with .Push}} data-push="{{json .}}"{{end}}>
+          <div class="gp-drift-what"><strong>{{.Title}}</strong>{{with .Where}} · {{.}}{{end}}</div>
+          <div class="gp-drift-values"><span>Here: <code>{{or .Text "—"}}</code></span> <span>In the file: <code>{{or .File "—"}}</code></span></div>
+          <div class="gp-drift-actions">
+            {{if .Kept}}<span class="gp-drift-kept">Kept both</span> <button type="button" class="ghost-btn" data-act="unkeep">Undo</button>
+            {{else}}
+            {{if .Take}}<button type="button" data-act="take">Use the file’s</button>{{end}}
+            {{if .Push}}<button type="button" data-act="push">Use this one</button>{{end}}
+            <button type="button" data-act="keep">Keep both</button>
+            {{if and (not .Take) (not .Push)}}<span class="gp-drift-hint">Fix it in Source.</span>{{end}}
+            {{end}}
+          </div>
+        </li>
+        {{end}}
+      </ul>
+    </details>
+    {{end}}
+    <main class="sheet" id="sheet" data-render-mode="normal" data-variant-id="{{.VariantID}}"{{if .GPFileName}} data-gp-file="/song/{{.VariantID}}/gp-file" data-gp-name="{{.GPFileName}}" data-gp-sha="{{.GPFileSHA}}"{{if .GPFactsMissing}} data-gp-facts-missing="1"{{end}}{{if .GPOnly}} data-gp-only="1"{{end}}{{end}} data-key="{{.Key}}" data-flats="{{if .Flats}}1{{else}}0{{end}}" data-has-diagrams="{{if or .Chords (chordDiagramSets .Text)}}1{{end}}">
     {{template "sheet-body" .}}
     </main>
     {{/* Chord diagrams entered for other keys ("chord[G]: ..." lines). Kept
@@ -1643,6 +1667,7 @@
 <script src="/static/js/gp-export.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-facts.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-view.js?v={{staticVersion}}"></script>
+{{if .GPDrift}}<script src="/static/js/gp-drift.js?v={{staticVersion}}"></script>{{end}}
 {{end}}
 {{if .CanEdit}}
 <script src="/static/js/score-editor.js?v={{staticVersion}}"></script>

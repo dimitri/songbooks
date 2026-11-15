@@ -2901,6 +2901,17 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		data["GPFactsMissing"] = gp.Facts == nil
 		data["GPOnly"] = isGPOnly(sg)
 		data["HasGPView"] = isGPOnly(sg) || anyGPRef(sections)
+		if canEdit && gp.Facts != nil {
+			kept, _ := s.store.GPDriftAcks(r.Context(), variantID)
+			drift := computeDrift(sg, buildSections(withGPOnlyBars(sg, gp.Facts)), gp.Facts, kept)
+			open := 0
+			for _, it := range drift {
+				if !it.Kept {
+					open++
+				}
+			}
+			data["GPDrift"], data["GPDriftOpen"] = drift, open
+		}
 	}
 	if setlistRef := r.URL.Query().Get("setlist"); setlistRef != "" {
 		data["SetlistRef"] = setlistRef

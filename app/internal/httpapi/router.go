@@ -190,6 +190,9 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/songs/{id}/audio/gp/sync-points", s.requireVariantRole("editor", s.handlePutGPBarSyncPoints))
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file", s.requireVariantRole("editor", s.handlePutSongGPFile))
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file/facts", s.requireVariantRole("viewer", s.handlePutSongGPFileFacts))
+	mux.HandleFunc("GET /api/songs/{id}/gp-drift", s.requireVariantRole("editor", s.handleGetGPDrift))
+	mux.HandleFunc("POST /api/songs/{id}/gp-drift/keep", s.requireVariantRole("editor", s.handlePostGPDriftKeep))
+	mux.HandleFunc("POST /api/songs/{id}/gp-drift/take", s.requireVariantRole("editor", s.handlePostGPDriftTake))
 	mux.HandleFunc("GET /song/{id}/gp-file", s.requireVariantRole("viewer", s.handleGetSongGPFile))
 	mux.HandleFunc("GET /song/{id}/gp-file/versions/{vid}", s.requireVariantRole("viewer", s.handleGetSongGPFileVersion))
 
