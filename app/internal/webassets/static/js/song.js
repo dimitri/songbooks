@@ -1123,7 +1123,7 @@ const ICONS = {
     // opened next would replace the chart nobody asked to stop seeing.
     // Same reasoning edit's own early return above already applies, and
     // for the Mixer: a workbench opened for a task, not a way of reading.
-    if (v !== 'reference' && v !== 'mixer') {
+    if (v !== 'reference' && v !== 'mixer' && v !== 'score') {
       try { localStorage.setItem('songbooks-default-mode', v); } catch (e) { /* ignore */ }
     }
   });
@@ -1146,7 +1146,9 @@ const ICONS = {
   // singer who always wants lyrics-only, shouldn't have to re-pick it on
   // every song in a set. Per-device (localStorage), not song data.
   try {
-    const saved = localStorage.getItem('songbooks-default-mode');
+    // A song whose content is all in its Guitar Pro file ("content: gp")
+    // opens on that file.
+    const saved = sheet.dataset.gpOnly ? 'score' : localStorage.getItem('songbooks-default-mode');
     // Drummer view only for a song that has a drum part: on any other it
     // is a page of empty staves, so the song opens as a chart instead.
     const hasDrums = [...document.querySelectorAll('[data-realbars]')].some((e) => !e.dataset.restonly);

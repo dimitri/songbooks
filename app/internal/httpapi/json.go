@@ -45,11 +45,18 @@ type jsonScoreVoice struct {
 	Body  string `json:"body"`
 }
 
+// jsonGPRef mirrors song.GPRef — one "gp[Track]: bars" line.
+type jsonGPRef struct {
+	Track string `json:"track"`
+	Spec  string `json:"spec"`
+}
+
 type jsonSection struct {
 	Label       string           `json:"label"`
 	Repeat      bool             `json:"repeat"`
 	Time        string           `json:"time"`
 	Scores      []jsonScoreVoice `json:"scores,omitempty"`
+	GP          []jsonGPRef      `json:"gp,omitempty"`
 	Times       int              `json:"times,omitempty"`
 	BarsPerLine []int            `json:"barsPerLine,omitempty"`
 	Measures    []jsonMeasure    `json:"measures"`
@@ -98,6 +105,9 @@ func toJSON(s *song.Song) jsonSong {
 		for _, sv := range sec.Scores {
 			js.Scores = append(js.Scores, jsonScoreVoice{Label: sv.Label, Body: sv.Body})
 		}
+		for _, r := range sec.GP {
+			js.GP = append(js.GP, jsonGPRef{Track: r.Track, Spec: r.Spec})
+		}
 		for _, m := range sec.Measures {
 			js.Measures = append(js.Measures, jsonMeasure{
 				Tokens: m.Tokens, Open: m.Open, Close: m.Close, Volta: m.Volta, Meter: m.Meter,
@@ -138,6 +148,9 @@ func fromJSON(in jsonSong) *song.Song {
 		}
 		for _, sv := range js.Scores {
 			sec.Scores = append(sec.Scores, song.ScoreVoice{Label: sv.Label, Body: sv.Body})
+		}
+		for _, r := range js.GP {
+			sec.GP = append(sec.GP, song.GPRef{Track: r.Track, Spec: r.Spec})
 		}
 		for _, m := range js.Measures {
 			sec.Measures = append(sec.Measures, song.Measure{

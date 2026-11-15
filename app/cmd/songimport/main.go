@@ -540,7 +540,7 @@ func (r *runner) importSongs(ctx context.Context, variants []variantRecord) {
 				log.Fatalf("reading %s: %v", v.GPFile.File, err)
 			}
 			gpCreator := r.newUserID[v.GPFile.CreatedByUserID]
-			if err := r.st.SetSongGPSourceFile(ctx, newID, v.GPFile.Filename, v.GPFile.ContentType, data, v.GPFile.SHA256, gpCreator); err != nil {
+			if err := r.st.SetSongGPSourceFile(ctx, newID, v.GPFile.Filename, v.GPFile.ContentType, data, v.GPFile.SHA256, gpCreator, nil); err != nil {
 				log.Fatalf("writing GP source file for song %q: %v", v.Title, err)
 			}
 		}

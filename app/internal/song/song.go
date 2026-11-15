@@ -30,6 +30,11 @@ var MetaKeys = []string{
 	// format itself, not only in a side table a reader of the raw .song
 	// text would never see.
 	"gp_source",
+	// content: "gp" when the attached Guitar Pro file is the whole song
+	// (an instrumental, a lesson): the page opens on the file's own score
+	// and sections, grid and lyrics are optional. See
+	// docs/gp-file-model.md §3.2.
+	"content",
 }
 
 func isMetaKey(k string) bool {
@@ -157,6 +162,16 @@ type ScoreVoice struct {
 	Body  string
 }
 
+// GPRef is one "gp[Track]: bars [notation]" line: a part of the song's
+// attached Guitar Pro file drawn in this section instead of notes copied
+// into the text. Track is the track's name in the file, "#N" by number,
+// or "" (a bare "gp:" line) for every track. Spec is the rest of the
+// line kept as written ("9-12 staff"); internal/gpfacts reads it.
+type GPRef struct {
+	Track string
+	Spec  string
+}
+
 // Section is one [Label] or [Label] (repeat) block.
 //
 // A (repeat) section carries no measures/lyrics of its own, mirroring
@@ -176,6 +191,9 @@ type Section struct {
 	// resolves each one's Body into a Riff). One entry per "score[...]:"
 	// line, in source order; a section with none has Scores == nil.
 	Scores []ScoreVoice
+
+	// GP are this section's "gp[Track]:" lines, in source order.
+	GP []GPRef
 
 	// Times is the section's "times:" line — how many passes through its
 	// grid it actually takes (its own, when it has one, or an inherited

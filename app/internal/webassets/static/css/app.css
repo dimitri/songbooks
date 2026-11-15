@@ -1374,6 +1374,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    nothing in common with the chart layout underneath it. */
 #sheet[data-render-mode="reference"] { display: none; }
 #sheet[data-render-mode="mixer"] { display: none; }
+#sheet[data-render-mode="score"] { display: none; }
 
 /* ---- Reference page (app/docs/mp3-reference-audio.md) ---------------------
    A plain sibling of #sheet (see play.html's own comment on why), shown
@@ -1389,6 +1390,33 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    clips with a 20px header, a pentagon playhead; mute/solo follow the
    Logic/GarageBand blue/yellow convention. The structure strip and the
    reference player are hidden here: both live on this timeline instead. */
+/* ---- Guitar Pro file (docs/gp-file-model.md §5) --------------------------
+   .gp-score: a section's "gp[Track]: bars" drawn from the song's file,
+   in the Song view only (like .alphatab-row). .gp-score-page: the whole
+   file, the Score view, a sibling of #sheet like the Mixer. */
+.gp-score { margin: 0.6rem 0 0.4rem; }
+.gp-score-label { font-size: 0.8rem; color: var(--fg-muted); margin: 0 0 0.2rem; }
+.gp-score-error { font-size: 0.85rem; color: var(--danger, #b3261e); margin: 0.2rem 0; }
+.gp-score-range + .gp-score-range { margin-top: 0.4rem; }
+.gp-score-body svg { max-width: 100%; height: auto; }
+#sheet:not([data-render-mode="normal"]) .gp-score { display: none; }
+
+.gp-score-page { display: none; padding: 0.4rem 0 1rem; }
+#sheet[data-render-mode="score"] ~ .gp-score-page { display: block; }
+.gp-toolbar { display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem; align-items: center; padding: 0.4rem 0; position: sticky; top: 0; background: var(--bg); z-index: 2; }
+.gp-btn { min-width: 2.4rem; min-height: 2.2rem; padding: 0.2rem 0.7rem; border: 1px solid var(--border); border-radius: var(--radius-control, 6px); background: var(--bg-elev, var(--bg)); color: var(--fg); font: inherit; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+.gp-btn:disabled { opacity: 0.5; cursor: default; }
+.gp-time { font-variant-numeric: tabular-nums; color: var(--fg-muted); min-width: 6.5rem; }
+.gp-opt { display: inline-flex; gap: 0.3rem; align-items: center; font-size: 0.9rem; }
+.gp-tracks { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.2rem 0 0.6rem; }
+.gp-track-chip { border: 1px solid var(--border); border-radius: 999px; padding: 0.25rem 0.75rem; background: none; color: var(--fg-muted); font: inherit; font-size: 0.9rem; cursor: pointer; }
+.gp-track-chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg, #fff); }
+.gp-score-viewport { overflow: auto; max-height: calc(100vh - 9rem); }
+.gp-score-canvas .at-cursor-bar { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.gp-score-canvas .at-cursor-beat { background: var(--accent); width: 3px; }
+.gp-score-canvas .at-selection div { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.gp-score-canvas .at-highlight * { fill: var(--accent); stroke: var(--accent); }
+
 .mixer-page { display: none; padding: 0.4rem 0 1rem; }
 #sheet[data-render-mode="mixer"] ~ .mixer-page { display: block; }
 body:has(#sheet[data-render-mode="mixer"]) #song-structure-strip,
@@ -1572,7 +1600,7 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
      same "staff width" every bar-row already spans (see viewerLine's own
      doc comment) — it belongs in this full-span list too, not its own
      narrower column. */
-  .sheet-section h3, .sheet-section .grid.spans-full, .sheet-section .multi-rest-row, .sheet-section .lyrics { grid-column: 1 / -1; }
+  .sheet-section h3, .sheet-section .grid.spans-full, .sheet-section .multi-rest-row, .sheet-section .lyrics, .sheet-section .gp-score { grid-column: 1 / -1; }
 }
 @media (min-width: 1150px) {
   #sheet { column-count: 2; column-gap: 2.4rem; }

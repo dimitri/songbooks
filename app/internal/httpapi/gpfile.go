@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"io"
 	"mime"
 	"net/http"
 	"path/filepath"
 	"time"
 
+	"app/internal/gpfacts"
 	"app/internal/store"
 )
 
@@ -52,12 +54,64 @@ func (s *Server) handlePutSongGPFile(w http.ResponseWriter, r *http.Request) {
 	if filename == "" || filename == "." {
 		filename = "import.gp"
 	}
+	facts, ok := factsField(w, r.FormValue("facts"))
+	if !ok {
+		return
+	}
 	sum := sha256.Sum256(data)
-	if err := s.store.SetSongGPSourceFile(r.Context(), variantID, filename, "application/octet-stream", data, hex.EncodeToString(sum[:]), actorID(r)); err != nil {
+	sha := hex.EncodeToString(sum[:])
+	if err := s.store.SetSongGPSourceFile(r.Context(), variantID, filename, "application/octet-stream", data, sha, actorID(r), facts); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"filename": filename, "byteSize": len(data)})
+	writeJSON(w, http.StatusOK, map[string]any{"filename": filename, "byteSize": len(data), "sha256": sha})
+}
+
+// factsField checks a file's facts as sent by gp-facts.js: "" is none,
+// anything else must decode. ok is false once an error is written.
+func factsField(w http.ResponseWriter, raw string) ([]byte, bool) {
+	if raw == "" {
+		return nil, true
+	}
+	if len(raw) > 2<<20 {
+		httpError(w, http.StatusBadRequest, "facts too large")
+		return nil, false
+	}
+	if _, err := gpfacts.Parse([]byte(raw)); err != nil {
+		httpError(w, http.StatusBadRequest, "bad facts: "+err.Error())
+		return nil, false
+	}
+	return []byte(raw), true
+}
+
+// handlePutSongGPFileFacts is PUT /api/songs/{id}/gp-file/facts
+// {sha256, facts}: the facts a browser read from a stored file that had
+// none yet (files stored before facts existed). Ignored when the file has
+// changed since.
+func (s *Server) handlePutSongGPFileFacts(w http.ResponseWriter, r *http.Request) {
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var req struct {
+		SHA256 string          `json:"sha256"`
+		Facts  json.RawMessage `json:"facts"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4<<20)).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	facts, ok := factsField(w, string(req.Facts))
+	if !ok {
+		return
+	}
+	stored, err := s.store.SetSongGPSourceFileFacts(r.Context(), variantID, req.SHA256, facts)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"stored": stored})
 }
 
 // handleGetSongGPFile is GET /song/{id}/gp-file — a direct download of
@@ -107,6 +161,11 @@ func (s *Server) handleGetSongGPFileVersion(w http.ResponseWriter, r *http.Reque
 }
 
 func serveGPFile(w http.ResponseWriter, r *http.Request, data []byte, contentType, filename string) {
+	// The song page loads the file to draw its "gp[...]" bars: let the
+	// browser keep it and only ask whether it changed.
+	sum := sha256.Sum256(data)
+	w.Header().Set("ETag", `"`+hex.EncodeToString(sum[:16])+`"`)
+	w.Header().Set("Cache-Control", "private, no-cache")
 	w.Header().Set("Content-Type", contentType)
 	// FormatMediaType quotes or RFC 2231-encodes the name as needed (an
 	// accented title, a quote in it).

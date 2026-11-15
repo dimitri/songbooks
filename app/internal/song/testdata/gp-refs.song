@@ -1,0 +1,14 @@
+title: Hommage
+artist: Someone
+tempo: 100
+gp_source: hommage.gp
+
+[Intro]
+gp: 1-4
+grid: |E7 | A7 | E7 | . |
+
+[Verse 1]
+score[Riff]: c4 d e f
+gp[Lead guitar]: 5-8 staff
+gp[#2]: 5-8
+grid: |E7 | A7 | E7 | . |
