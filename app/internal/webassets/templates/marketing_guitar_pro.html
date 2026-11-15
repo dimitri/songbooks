@@ -210,15 +210,14 @@
   </section>
 
   <section class="block">
-    <h2>It's still your song file</h2>
-    <p class="sub">An imported track isn't a separate attachment living outside the song &mdash; it's written straight into the same plain-text <code>.song</code> file as everything else, the same <code>score[label]:</code> field a hand-written riff uses.</p>
+    <h2>The file stays with the song</h2>
+    <p class="sub">The Guitar Pro file is kept with the song, whole &mdash; every track, voice and effect as Guitar Pro wrote it. The song's sections point into it with one plain line each, <code>gp[Lead guitar]: 9-12</code>, next to their chords and lyrics.</p>
     <div class="callouts" style="margin-top:0;">
-      <div class="callout"><h4>Edit it like anything else</h4><p>Open Source and the imported notation is right there, in the same file as the chords and lyrics &mdash; nothing locked behind a special importer-only format.</p></div>
-      <div class="callout"><h4>One format, every source</h4><p>A Guitar Pro import, a hand-typed riff, and a plain chord grid all use the exact same <code>score[label]:</code> grammar underneath.</p></div>
-      <div class="callout"><h4>Read the full grammar</h4><p>See the <a href="/docs/song-format#score">.song format reference</a> for the note-level syntax every imported (and hand-written) riff shares.</p></div>
+      <div class="callout"><h4>Edit it on the web, or in Guitar Pro</h4><p>Change notes, durations, techniques, bars and tracks in the browser with Guitar Pro's keys, or download the file, edit it in Guitar Pro and bring it back. Each save is a new version; the earlier ones stay in the song's history.</p></div>
+      <div class="callout"><h4>Kept in step</h4><p>Tempo, time signature, key, section names, chords and chord diagrams live in both the song and the file. Where they disagree, editors see it, and choose which one is right.</p></div>
+      <div class="callout"><h4>Read the full grammar</h4><p>See the <a href="/docs/song-format#gp">.song format reference</a> for the <code>gp[...]</code> lines, and the <code>score[label]:</code> riffs you can still write by hand.</p></div>
     </div>
   </section>
-
   <section class="block">
     <div class="ctaband">
       <div>

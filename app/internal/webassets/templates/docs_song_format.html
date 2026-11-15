@@ -104,6 +104,7 @@
             <li class="sub"><a href="#chords-keys">Diagrams for several keys</a></li>
           </ul>
         </li>
+        <li><a href="#gp">Guitar Pro file (<code>gp[Track]:</code>)</a></li>
         <li><a href="#score">Note-level scores (<code>score[label]:</code>)</a>
           <ul>
             <li class="sub"><a href="#score-pitch">Pitch &amp; duration</a></li>
@@ -186,6 +187,8 @@ score[guitar]: g,4 &lt;d' g'&gt;8. g,16 bes,8 c d f16 g
           <tr><td><code>time</code></td><td>Time signature, e.g. <code>4/4</code>, <code>6/8</code>.</td></tr>
           <tr><td><code>capo</code></td><td>Capo fret, printed as an annotation.</td></tr>
           <tr><td><code>transpose</code></td><td>Semitones to transpose for display — never changes the chord text itself. To rewrite the song in another key, use <a href="#chords-keys">Transpose in the editor</a> instead.</td></tr>
+          <tr><td><code>gp_source</code></td><td>The name of the Guitar Pro file kept with the song (set when one is imported or saved). See <a href="#gp">Guitar Pro file</a>.</td></tr>
+          <tr><td><code>content</code></td><td><code>gp</code> when the Guitar Pro file is the whole song (an instrumental, a lesson): the page opens on the file's score, and sections, grid and lyrics are optional.</td></tr>
           <tr><td><code>map</code></td><td>A short "&middot;"-separated overview of the song's structure (e.g. <code>Verse &middot; Chorus &middot; Verse</code>).</td></tr>
           <tr><td><code>reference</code></td><td>A reference URL (usually YouTube) for this song.</td></tr>
           <tr><td><code>flats</code></td><td><code>yes</code> to spell transposed chords with flats instead of sharps. When the song itself is transposed, chords are spelled for the new key (flats in <code>Bb</code>, sharps in <code>E</code>); this only decides for <code>C</code> and <code>Am</code>.</td></tr>
@@ -258,10 +261,27 @@ chord[A]: D XX0232</code></pre>
         <p><strong>Transpose</strong> in the editor (Source tab) rewrites the song into a new key for real: every chord in the grids and in <code>[Chord]</code> lyric markers, slash basses included, and the <code>key:</code> line. Chords are spelled the way the new key reads (<code>Bb</code> in F, <code>A#</code> in E). <code>N.C.</code>, <code>%</code>, rests, repeat and volta marks, durations, comments, notes and <code>score[label]:</code> voices are left exactly as written. The old key's plain <code>chord:</code> lines become <code>chord[Old]:</code> lines, and lines already marked with the new key become the song's plain set. The change is saved like any other edit, so the song's history keeps the previous version. Transposing back gives the original text.</p>
       </section>
 
+      <section id="gp">
+        <h2>Guitar Pro file (<code>gp[Track]:</code>)</h2>
+        <p>A song can keep one Guitar Pro file (earlier versions stay in its history). Its notes are never copied into the text: a section points at bars of the file instead, and the song page draws them there.</p>
+        <pre><code>[Verse 1]
+grid: |E7 | A7 | E7 | . |
+gp[Lead guitar]: 9-12
+gp[Bass]: 9-12 staff
+gp: 13-16</code></pre>
+        <table>
+          <tr><th>Part</th><th>Meaning</th></tr>
+          <tr><td><code>gp[Lead guitar]</code></td><td>A track of the file, by its name in Guitar Pro (case and accents don't matter), or by number: <code>gp[#2]</code>. A bare <code>gp:</code> means every track, as Guitar Pro's multi-track view shows them.</td></tr>
+          <tr><td><code>9-12</code>, <code>9</code>, <code>1-4, 9-12</code></td><td>Bars, numbered as Guitar Pro numbers them. Repeat signs inside the bars are played as written, so <code>1-12</code> with a repeat around it lasts 24 bars.</td></tr>
+          <tr><td><code>tab</code>, <code>staff</code>, <code>tab+staff</code>, <code>slash</code></td><td>Optional: how to draw it. Left out, each reader gets the notation they chose for guitar or bass; a reader's own choice also wins over the line's.</td></tr>
+        </table>
+        <p>Tempo, time signature, key, swing, section names, chords and chord diagrams are in both the text and the file. When they disagree, editors see it on the song page and pick: the file's value, the text's (written into a new version of the file), or both kept as they are. Nothing is changed on its own.</p>
+      </section>
+
       <section id="score">
         <h2>Note-level scores (<code>score[label]:</code>)</h2>
         <p>A section can carry one or more <code>score[label]:</code> blocks — real note-level tab/notation for a named voice (<code>drum</code>, <code>bass</code>, a custom name like <code>guitar-1</code>), not just chord changes. The content is plain text, right in the <code>.song</code> file, the same as <code>grid:</code> or lyrics — no separate database row, nothing to look up: the file is meant to be the whole song, readable and git-diffable on its own, notation included. Edited directly in Source, with a live preview as you type. Only a clean, intentionally bounded subset of real LilyPond is understood:</p>
-        <p class="hint">A <code>score[label]:</code> body doesn't have to be hand-typed LilyPond-subset text — the <a href="/guitar-pro">Guitar Pro importer</a> writes a plain JSON encoding of the same riff into this exact field instead (you'll see it if you open Source on an imported track). Both forms decode to the same underlying notes/tuning/bends; the grammar below is what a human typing or pasting a riff by hand actually writes.</p>
+        <p class="hint">For anything longer than a riff, keep the notes in the song's <a href="#gp">Guitar Pro file</a> instead: it holds every technique, and has its own editor.</p>
         <pre><code>score[guitar-1]: \new TabStaff {
   \set TabStaff.minimumFret = 3
   \relative {
@@ -314,7 +334,7 @@ chord[A]: D XX0232</code></pre>
         </div>
 
         <h3 id="score-bend">Bends &amp; palm mute</h3>
-        <p class="callout">This part of the grammar is this app's own addition — it doesn't appear in real LilyPond. It's for a riff you type or paste in by hand; the <a href="/guitar-pro">Guitar Pro importer</a> doesn't go through this text form at all — a GP file's own bend amount and palm-mute flag land as plain data on the imported riff directly, so an imported bend and a hand-typed <code>^"full"</code> end up meaning the exact same thing underneath, just reaching it by two different doors. This syntax reuses LilyPond's own genuine text-articulation form (<code>note^"label"</code>) rather than inventing a new token.</p>
+        <p class="callout">This part of the grammar is this app's own addition — it doesn't appear in real LilyPond. It's for a riff you type or paste in by hand. This syntax reuses LilyPond's own genuine text-articulation form (<code>note^"label"</code>) rather than inventing a new token.</p>
         <table>
           <tr><th>Label</th><th>Meaning</th></tr>
           <tr><td><code>^"full"</code></td><td>A whole-step bend.</td></tr>
@@ -365,7 +385,7 @@ score[guitar-1]: &lt;e, b e&gt;4 &lt;e b e&gt; &lt;e b e&gt; &lt;e b e&gt;
 score[guitar-2]: e'8 g e g e g e g</code></pre></div>
           <div><iframe class="example-frame" src="/docs/song-format/example/multitrack" title="Rendered multi-voice example" loading="lazy"></iframe></div>
         </div>
-        <p class="hint">These voices show up two ways. A section with exactly ONE melodic (non-drum) voice has it overlay the chord chart automatically — the common case for a hand-written riff. A section with SEVERAL (a full Guitar Pro import, typically) keeps the chart as pure chords instead of guessing, and a reader picks which one's full notation to see from the instrument picker beside the view-mode tabs (Song and Song map both read the same choice; pick "Chords" to go back to the plain grid) — the render above picks <code>bass</code> for illustration, since a real reader would make that same choice from the picker. <code>drum</code> never goes through that picker — Drummer view shows it on its own, continuously across the whole song. Every voice is preserved and live-previewed in Source regardless of which one is currently showing elsewhere.</p>
+        <p class="hint">These voices show up two ways. A section with exactly ONE melodic (non-drum) voice has it overlay the chord chart automatically — the common case for a hand-written riff. A section with SEVERAL keeps the chart as pure chords instead of guessing, and a reader picks which one's full notation to see from the instrument picker beside the view-mode tabs (Song and Song map both read the same choice; pick "Chords" to go back to the plain grid) — the render above picks <code>bass</code> for illustration, since a real reader would make that same choice from the picker. <code>drum</code> never goes through that picker — Drummer view shows it on its own, continuously across the whole song. Every voice is preserved and live-previewed in Source regardless of which one is currently showing elsewhere.</p>
 
         <h3 id="score-mixed">Mixing a melodic voice with the chord grid</h3>
         <p>A melodic voice (bass, guitar) and the section's own <code>grid:</code> describe the <em>same bars</em> two ways — the voice is the detailed notation, the grid is the chord changes. They don't need to agree on every bar:</p>

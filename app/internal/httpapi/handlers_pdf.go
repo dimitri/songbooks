@@ -58,6 +58,7 @@ func (s *Server) handleExportSongPDF(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusNotFound, "no such song")
 		return
 	}
+	sg = withGPNotes(sg)
 	scoreTracks, scoreErrs := tab.LoadScores(sg)
 	for _, e := range scoreErrs {
 		log.Printf("variant %d: %v", id, e)
@@ -361,4 +362,35 @@ func (s *Server) handleExportCommunitySongbookPDF(w http.ResponseWriter, r *http
 		return
 	}
 	writePDF(w, community.Name+"-songbook", data)
+}
+
+// withGPNotes names, in a section note, the bars of the Guitar Pro file a
+// section shows on the song page: the PDF is drawn here in Go, which
+// can't read the file, so it prints the chart and lyrics and says where
+// the notes are. The song itself is left untouched.
+func withGPNotes(sg *song.Song) *song.Song {
+	var out *song.Song
+	for i, sec := range sg.Sections {
+		if len(sec.GP) == 0 {
+			continue
+		}
+		if out == nil {
+			cp := *sg
+			cp.Sections = append([]song.Section(nil), sg.Sections...)
+			out = &cp
+		}
+		notes := append([]string(nil), sec.Notes...)
+		for _, r := range sec.GP {
+			what := r.Track
+			if what == "" {
+				what = "every track"
+			}
+			notes = append(notes, "Guitar Pro file: "+what+", bars "+r.Spec)
+		}
+		out.Sections[i].Notes = notes
+	}
+	if out == nil {
+		return sg
+	}
+	return out
 }
