@@ -1,7 +1,20 @@
 # Guitar Pro files in songs — the model
 
-Status: **plan**. Replaces the Riff editor of [editor-plan.md](editor-plan.md)
-phase 1 and the rest of its phase 2.
+Status: **built**, in two steps. The first (facts, `gp[...]` lines,
+`content: gp`, the Score view, drift, the import writing references, the
+Mixer playing the file, `cmd/gpmigrate`) still reads Riff JSON, so it can
+ship before the songs move. The second (Riff JSON retired, the file
+editor, docs, PDF notes) ships once production has no Riff JSON left.
+Replaces the Riff editor of [editor-plan.md](editor-plan.md) phase 1 and
+the rest of its phase 2.
+
+Checked along the way: all 32 stored Guitar Pro files come back from
+alphaTab's Guitar Pro 7 writer with the same tracks, notes, effects,
+repeats, markers, backing tracks and sync points; their 296 bent notes
+draw cleanly in alphaTab 1.8; every one of the 85 Riff voices in
+production matches its file bar for bar, except two copied with the old
+import's repeat reading (one bar too many, flagged as drift after the
+move).
 
 ## 1. The model in one paragraph
 
@@ -187,8 +200,21 @@ bars, notes, effects, automations, sync points).
 
 ## 8. Moving the existing songs
 
-Each step is a production write, so it runs after a backup, one
-transaction per song, and only once you've approved it.
+Each step is a production write, so it runs after a backup, one song at
+a time, and only once you've approved it:
+
+```
+gpmigrate dump --db URL > songs.jsonl            # every song to move
+node tools/gpmigrate/plan.cjs songs.jsonl --mixer URL > plan.jsonl
+gpmigrate apply --db URL --actor NAME --dry-run < plan.jsonl
+gpmigrate apply --db URL --actor NAME < plan.jsonl
+```
+
+`plan.cjs` needs a server that still reads Riff JSON for the songs with
+no file (their Mixer alphaTeX becomes the new file); `apply` saves each
+song through the app's own save path (a revision each), skips any song
+edited since the dump, and fills in the facts of stored files that have
+none.
 
 1. **The 31 songs with a file and Riff voices.** The wizard didn't
    store which bars fed which section, so find each voice's bars in its
