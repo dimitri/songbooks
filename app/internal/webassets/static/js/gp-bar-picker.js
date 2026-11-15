@@ -64,7 +64,7 @@
       return name && tracks.filter((t) => fold(t.name) === fold(name)).length === 1 ? name : `#${i + 1}`;
     };
 
-    const st = { cur: opts.current || 0, track: '', notation: '', ranges: [], scale: 0.8, changed: false, drawn: null };
+    const st = { cur: opts.current || 0, track: '', notation: '', ranges: [], scale: 0.9, changed: false, drawn: null };
 
     // ---- Layout -------------------------------------------------------------
     const overlay = el('div', 'gpbp-overlay');
@@ -154,6 +154,10 @@
       for (const e of hide) if (alphaTab.NotationElement[e] !== undefined) s.notation.elements.set(alphaTab.NotationElement[e], false);
       const fg = ink('--fg');
       if (fg) { const r = s.display.resources; r.mainGlyphColor = r.secondaryGlyphColor = r.scoreInfoColor = r.barSeparatorColor = fg; r.staffLineColor = ink('--fg-muted') || fg; }
+      // Chord names in the chart's own font, large enough to read at a
+      // glance (alphaTab's default is a small italic serif).
+      s.display.resources.elementFonts.set(alphaTab.NotationElement.EffectChordNames,
+        new alphaTab.model.Font('EB Garamond', 19, alphaTab.model.FontStyle.Italic, alphaTab.model.FontWeight.Bold));
       try {
         api = new alphaTab.AlphaTabApi(scoreHost, s);
         api.postRenderFinished.on(measure);

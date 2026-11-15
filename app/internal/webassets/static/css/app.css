@@ -1518,7 +1518,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .gpe-rail.folded .gpe-pal-head .icon { width: 1.35rem; height: 1.35rem; }
 
 /* Popovers, forms, tooltips (gp-ui.js) */
-.gpe-pop { position: absolute; z-index: 60; min-width: 12rem; max-width: min(24rem, calc(100vw - 16px)); background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 30px rgba(28, 22, 12, 0.18), 0 2px 6px rgba(28, 22, 12, 0.08); padding: 0.6rem; animation: gpe-pop 120ms ease-out; }
+.gpe-pop { position: absolute; z-index: 320; min-width: 12rem; max-width: min(24rem, calc(100vw - 16px)); background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 30px rgba(28, 22, 12, 0.18), 0 2px 6px rgba(28, 22, 12, 0.08); padding: 0.6rem; animation: gpe-pop 120ms ease-out; }
 @keyframes gpe-pop { from { opacity: 0; transform: translateY(-3px); } }
 .gpe-pop-title { display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem; font-weight: 600; color: var(--fg-muted); margin: 0 0 0.45rem; }
 .gpe-pop-title kbd, .gpe-tip kbd, .gpe-keys-list kbd { font-family: var(--font-mono); font-size: 0.72rem; padding: 0.05rem 0.35rem; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; background: var(--bg); color: var(--fg-muted); }
@@ -1534,7 +1534,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .gpe-form-error { color: var(--danger); font-size: 0.82rem; margin: 0; }
 .gpe-form-error[hidden] { display: none; }
 .gpe-form-actions { display: flex; justify-content: flex-end; gap: 0.4rem; margin-top: 0.2rem; }
-.gpe-tip { position: absolute; z-index: 70; max-width: 18rem; padding: 0.35rem 0.55rem; border-radius: 6px; background: var(--fg); color: var(--bg); font-size: 0.8rem; line-height: 1.35; pointer-events: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.gpe-tip { position: absolute; z-index: 330; max-width: 18rem; padding: 0.35rem 0.55rem; border-radius: 6px; background: var(--fg); color: var(--bg); font-size: 0.8rem; line-height: 1.35; pointer-events: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
 .gpe-tip[hidden] { display: none; }
 .gpe-tip kbd { background: transparent; color: inherit; border-color: color-mix(in srgb, var(--bg) 40%, transparent); }
 .gpe-tip small { flex-basis: 100%; opacity: 0.75; }
@@ -1584,7 +1584,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 
 /* The bar picker (gp-bar-picker.js): a strip of the file's bars, each
    section's bars as a band under it, the current choice in the accent. */
-.gpbp-overlay { position: fixed; inset: 0; z-index: 50; background: rgba(28, 22, 12, 0.35); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.gpbp-overlay { position: fixed; inset: 0; z-index: 300; background: rgba(28, 22, 12, 0.35); display: flex; align-items: center; justify-content: center; padding: 1rem; }
 body.gpbp-open { overflow: hidden; }
 .gpbp { width: min(64rem, 100%); max-height: calc(100vh - 2rem); overflow: auto; background: var(--bg-raised); color: var(--fg); border-radius: 12px; box-shadow: 0 18px 50px rgba(28, 22, 12, 0.25); padding: 0.9rem 1.1rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
 .gpbp-head { display: flex; align-items: center; justify-content: space-between; }
