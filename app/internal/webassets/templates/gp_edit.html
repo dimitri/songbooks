@@ -29,13 +29,14 @@
   </div>
 </header>
 {{if .Blank}}<p class="gpe-note">A new file with {{.Bars}} empty bars, as many as the song has. It becomes the song’s Guitar Pro file when you save it.</p>{{end}}
-<main class="gpe" id="gp-editor" data-variant-id="{{.VariantID}}" data-gp-name="{{.GPFileName}}" data-sections="{{.SectionsJSON}}"{{with .Track}} data-track="{{.}}"{{end}}{{with .Bar}} data-bar="{{.}}"{{end}}{{if .Blank}} data-blank="1" data-title="{{.Title}}" data-artist="{{.Artist}}" data-tempo="{{.Tempo}}" data-num="{{.Num}}" data-den="{{.Den}}" data-bars="{{.Bars}}" data-parts="{{.Parts}}"{{end}} data-voice="1">
+<main class="gpe" id="gp-editor" data-variant-id="{{.VariantID}}" data-gp-name="{{.GPFileName}}" data-sections="{{.SectionsJSON}}" data-picker-sections="{{.PickerSectionsJSON}}"{{with .Track}} data-track="{{.}}"{{end}}{{with .Bar}} data-bar="{{.}}"{{end}}{{if .Blank}} data-blank="1" data-title="{{.Title}}" data-artist="{{.Artist}}" data-tempo="{{.Tempo}}" data-num="{{.Num}}" data-den="{{.Den}}" data-bars="{{.Bars}}" data-parts="{{.Parts}}"{{end}} data-voice="1">
   <aside class="gpe-rail" id="gpe-palette" aria-label="Editing palette"></aside>
   <div class="gpe-stage">
     <div class="gpe-paper" id="gpe-canvas-wrap" tabindex="0" aria-label="The score: click a note or use the arrow keys, then type a fret">
       <div id="gpe-canvas"></div>
       <div class="gpe-bar-hl" id="gpe-bar-hl" hidden></div>
       <div class="gpe-cursor" id="gpe-cursor" hidden></div>
+      <div class="gpe-sel-layer" id="gpe-sel-layer"></div>
     </div>
   </div>
   <div class="gpe-keypad" id="gpe-keypad" hidden aria-label="Keypad"></div>
@@ -46,6 +47,7 @@
     <span class="gpe-voicechip"><span class="dot"></span><span id="gpe-voice"></span></span>
     <span id="gpe-what"></span>
     <span class="gpe-secchip" id="gpe-section" data-tip="The song’s section here" hidden></span>
+    <span class="gpe-selbar" id="gpe-selbar" hidden><span id="gpe-seltxt"></span><button type="button" class="gpe-usefor" id="gpe-usefor" data-tip="Show these bars in a section of the song">Use for a section…</button></span>
     <span class="gpe-msg" id="gpe-status" aria-live="polite"></span>
   </div>
   <div class="gpe-st-tools">
@@ -69,6 +71,7 @@
 <script src="/static/js/gp-file.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-ui.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-palette.js?v={{staticVersion}}"></script>
+<script src="/static/js/gp-bar-picker.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-editor.js?v={{staticVersion}}"></script>
 {{template "pwa-register"}}
 {{template "global-tabbar"}}

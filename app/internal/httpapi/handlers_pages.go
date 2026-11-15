@@ -2901,6 +2901,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		data["GPFactsMissing"] = gp.Facts == nil
 		data["GPOnly"] = isGPOnly(sg)
 		data["HasGPView"] = isGPOnly(sg) || anyGPRef(sections)
+		if canEdit {
+			data["PickerSectionsJSON"] = pickerSections(sg, gp)
+		}
 		for _, sec := range sections {
 			for _, g := range sec.GP {
 				if g.Track != "" && data["FirstGPTrack"] == nil {

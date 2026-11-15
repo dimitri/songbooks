@@ -233,6 +233,7 @@ func (s *Server) handleGPEditPage(w http.ResponseWriter, r *http.Request) {
 	}
 	gp := s.loadSongGP(r.Context(), variantID)
 	data["SectionsJSON"] = editorSections(sg, gp)
+	data["PickerSectionsJSON"] = pickerSections(sg, gp)
 	if gp.Meta != nil {
 		data["GPFileName"] = gp.Meta.Filename
 	} else {
@@ -289,5 +290,78 @@ func editorSections(sg *song.Song, gp songGP) string {
 	if out == nil {
 		return "[]"
 	}
+	return string(b)
+}
+
+// handleDeleteSectionGP is DELETE /api/songs/{id}/sections/{index}/gp?track=:
+// drops the section's "gp[track]:" line ("" for the bare "gp:" one).
+func (s *Server) handleDeleteSectionGP(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	index, err := strconv.Atoi(r.PathValue("index"))
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid section index")
+		return
+	}
+	track := r.URL.Query().Get("track")
+	sg, version, err := s.store.LoadVariant(id)
+	if err != nil {
+		httpError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if index < 0 || index >= len(sg.Sections) {
+		httpError(w, http.StatusBadRequest, "invalid section index")
+		return
+	}
+	sec := &sg.Sections[index]
+	kept := sec.GP[:0]
+	for _, g := range sec.GP {
+		if gpfacts.Fold(g.Track) != gpfacts.Fold(track) {
+			kept = append(kept, g)
+		}
+	}
+	sec.GP = kept
+	newVersion, err := s.store.SaveVariant(id, sg, version, actorID(r))
+	if err != nil {
+		writeSaveErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"version": newVersion})
+}
+
+// pickerSection is a song section as the bar picker (gp-bar-picker.js)
+// needs it: its name, how many bars it plays (nil when its bars come from
+// the file), and its "gp[...]" lines.
+type pickerSection struct {
+	Index    int         `json:"index"`
+	Label    string      `json:"label"`
+	BarCount *int        `json:"barCount"`
+	GP       []jsonGPRef `json:"gp"`
+}
+
+// pickerSections lists every section of the song for the bar picker, as
+// JSON for a data- attribute.
+func pickerSections(sg *song.Song, gp songGP) string {
+	out := []pickerSection{}
+	sections := buildSections(withGPOnlyBars(sg, gp.Facts))
+	attachGPRefs(sections, sg, gp)
+	for _, sec := range sections {
+		if sec.Index < 0 || sec.Index >= len(sg.Sections) {
+			continue
+		}
+		ps := pickerSection{Index: sec.Index, Label: sectionName(&sec), GP: []jsonGPRef{}}
+		if !sec.GPOnly {
+			n := sec.BarCount
+			ps.BarCount = &n
+		}
+		for _, g := range sg.Sections[sec.Index].GP {
+			ps.GP = append(ps.GP, jsonGPRef{Track: g.Track, Spec: g.Spec})
+		}
+		out = append(out, ps)
+	}
+	b, _ := json.Marshal(out)
 	return string(b)
 }

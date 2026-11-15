@@ -1575,7 +1575,78 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .gpe-keypad[hidden] { display: none; }
 .gpe-keypad button { min-height: 2.8rem; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
 
+/* Bars selected in the file editor, for a section of the song */
+.gpe-sel-layer { position: absolute; inset: 0; pointer-events: none; }
+.gpe-sel { position: absolute; border-radius: 4px; background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent); }
+.gpe-selbar { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.1rem 0.25rem 0.1rem 0.6rem; border-radius: 999px; background: var(--accent-bg); color: var(--accent-ink); font-weight: 600; }
+.gpe-selbar[hidden] { display: none; }
+.gpe-usefor { min-height: 1.8rem; padding: 0 0.7rem; border-radius: 999px; font-size: 0.8rem; }
+
+/* The bar picker (gp-bar-picker.js): a strip of the file's bars, each
+   section's bars as a band under it, the current choice in the accent. */
+.gpbp-overlay { position: fixed; inset: 0; z-index: 50; background: rgba(28, 22, 12, 0.35); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+body.gpbp-open { overflow: hidden; }
+.gpbp { width: min(64rem, 100%); max-height: calc(100vh - 2rem); overflow: auto; background: var(--bg-raised); color: var(--fg); border-radius: 12px; box-shadow: 0 18px 50px rgba(28, 22, 12, 0.25); padding: 0.9rem 1.1rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.gpbp-head { display: flex; align-items: center; justify-content: space-between; }
+.gpbp-head h2 { margin: 0; font-size: 1.05rem; }
+.gpbp-x { min-width: 2.2rem; min-height: 2.2rem; padding: 0; border: 0; background: none; font-size: 1.5rem; color: var(--fg-muted); }
+.gpbp-sections { display: flex; gap: 0.35rem; overflow-x: auto; padding-bottom: 0.2rem; scrollbar-width: thin; }
+.gpbp-sec { flex: none; display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2rem; padding: 0 0.75rem; border: 1px solid var(--border); border-radius: 999px; background: none; color: var(--fg); font: inherit; font-size: 0.88rem; }
+.gpbp-sec .n { color: var(--fg-faint); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.gpbp-sec.none { border-style: dashed; color: var(--fg-muted); }
+.gpbp-sec[aria-selected="true"] { border: 1.5px solid var(--accent); background: var(--accent-bg); color: var(--accent-ink); font-weight: 600; }
+.gpbp-striptools { display: flex; align-items: center; gap: 0.4rem; }
+.gpbp-hint { flex: 1; font-size: 0.8rem; color: var(--fg-faint); }
+.gpbp-ghost { min-height: 1.9rem; padding: 0 0.7rem; border-radius: 6px; font-size: 0.85rem; background: none; }
+.gpbp-stripwrap { overflow-x: auto; padding: 1.1rem 0.4rem 0.3rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); scrollbar-width: thin; }
+.gpbp-strip { --cw: 46px; position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: var(--cw); gap: 2px; width: max-content; touch-action: none; user-select: none; cursor: crosshair; }
+.gpbp-cell { position: relative; height: 3.1rem; padding: 0.2rem 0.25rem 0; border-radius: 4px; background: var(--bg-raised); box-shadow: inset 0 0 0 1px var(--border); overflow: visible; }
+.gpbp-cell .b { display: block; font-size: 0.68rem; color: var(--fg-faint); font-variant-numeric: tabular-nums; }
+.gpbp-cell .ch { display: block; margin-top: 0.15rem; font-family: var(--font-chart); font-style: italic; font-size: 0.9rem; white-space: nowrap; overflow: hidden; }
+.gpbp-cell .mk { position: absolute; top: -1.05rem; left: 0; font-size: 0.7rem; font-weight: 700; color: var(--fg-muted); white-space: nowrap; }
+.gpbp-cell .ve { position: absolute; top: 0.15rem; right: 0.25rem; font-size: 0.66rem; color: var(--fg-muted); }
+.gpbp-cell .rc { position: absolute; bottom: 0.1rem; right: 0.2rem; font-size: 0.66rem; color: var(--fg-muted); }
+.gpbp-cell.rs { box-shadow: inset 3px 0 0 var(--fg), inset 0 0 0 1px var(--border); }
+.gpbp-cell.re { box-shadow: inset -3px 0 0 var(--fg), inset 0 0 0 1px var(--border); }
+.gpbp-cell.sel { background: var(--accent-bg); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.gpbp-handle { position: absolute; top: -0.3rem; width: 7px; height: 3.7rem; border-radius: 4px; background: var(--accent); cursor: ew-resize; }
+.gpbp-handle[hidden] { display: none; }
+.gpbp-bands { position: relative; margin-top: 0.3rem; min-height: 18px; }
+.gpbp-band { position: absolute; height: 15px; padding: 0 0.35rem; border-radius: 4px; background: var(--bg-sunken); color: var(--fg-muted); font-size: 0.68rem; line-height: 15px; white-space: nowrap; overflow: hidden; cursor: pointer; }
+.gpbp-band.cur { background: var(--accent); color: var(--accent-contrast); cursor: default; }
+.gpbp-pick { display: grid; gap: 0.5rem; }
+.gpbp-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.gpbp-lbl { font-size: 0.82rem; color: var(--fg-muted); margin-right: 0.2rem; }
+.gpbp-chip { min-height: 1.9rem; padding: 0 0.7rem; border: 1px solid var(--border); border-radius: 999px; background: none; color: var(--fg-muted); font: inherit; font-size: 0.85rem; }
+.gpbp-chip.on { background: var(--accent-bg); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent-ink); font-weight: 600; }
+.gpbp-notation { margin-left: auto; font-size: 0.85rem; }
+.gpbp-check { font-size: 0.88rem; }
+.gpbp-check.ok { color: var(--ok); }
+.gpbp-check.warn { color: var(--warn); }
+.gpbp-check.muted { color: var(--fg-faint); }
+.gpbp-line { justify-self: start; font-family: var(--font-mono); font-size: 0.85rem; padding: 0.2rem 0.5rem; border-radius: 4px; background: var(--bg-sunken); }
+.gpbp-line:empty { display: none; }
+.gpbp-preview { min-height: 2rem; border-top: 1px solid var(--border); padding-top: 0.4rem; }
+.gpbp-preview svg { max-width: 100%; height: auto; }
+.gpbp-foot { position: sticky; bottom: -1rem; display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; padding: 0.6rem 0 0; background: var(--bg-raised); border-top: 1px solid var(--border); }
+.gpbp-status { flex: 1; font-size: 0.85rem; color: var(--fg-muted); }
+@media (max-width: 760px) {
+  .gpbp-overlay { align-items: flex-end; padding: 0; }
+  .gpbp { width: 100%; max-height: 88vh; border-radius: 14px 14px 0 0; padding: 0.7rem 0.8rem 0.8rem; }
+  .gpbp-hint { display: none; }
+  .gpbp-strip { --cw: 52px; }
+  .gpbp-notation { margin-left: 0; }
+}
+
+/* The Chart tab's "Bars from the file" row */
+.gp-bars-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0.4rem 0 0.6rem; }
+.gp-bars-label { font-size: 0.82rem; color: var(--fg-muted); }
+.gp-bars-chip { min-height: 1.9rem; padding: 0 0.7rem; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); background: var(--accent-bg); color: var(--accent-ink); font: inherit; font-size: 0.85rem; }
+.gp-bars-pick { min-height: 1.9rem; padding: 0 0.7rem; border-radius: 999px; border-style: dashed; font-size: 0.85rem; }
+
 /* Song page links into the editor */
+.gp-score-add { margin: 0.4rem 0; font-size: 0.85rem; }
+button.link-like { border: 0; background: none; padding: 0; min-height: 0; min-width: 0; color: var(--accent-ink); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .gp-score-edit { margin-left: 0.4rem; font-size: 0.8rem; }
 .gp-drift-open { font-size: 0.85rem; margin-left: auto; }
 

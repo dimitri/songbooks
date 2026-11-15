@@ -53,6 +53,7 @@
     track: 0, voice: 0, bar: 0, beat: 0, string: 1, piece: 13,
     dur: 8, dirty: false, undo: [], redo: [], digit: null, clip: null,
     notation: '', playing: false,
+    sel: null, // bars selected for the song (0-based, inclusive): { from, to }
   };
 
   // ---- The JSON model --------------------------------------------------------
@@ -506,6 +507,69 @@
     Object.assign(cursor.style, { left: (ox + bv.x + bv.w / 2 - w / 2) + 'px', top: (oy + y - h / 2) + 'px', width: w + 'px', height: h + 'px' });
     cursor.hidden = false;
     cursor.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    drawSelection();
+  }
+
+  // Bars selected to show in the song: a band over each, across systems.
+  function drawSelection() {
+    const layer = $('gpe-sel-layer');
+    layer.replaceChildren();
+    const box = $('gpe-selbar');
+    if (!st.sel) { box.hidden = true; return; }
+    const canvas = $('gpe-canvas');
+    const ox = canvas.offsetLeft, oy = canvas.offsetTop;
+    for (let b = st.sel.from; b <= st.sel.to; b++) {
+      const bb = barBounds(b, isDrums() ? 'staff' : 'tab');
+      if (!bb) continue;
+      const v = bb.visualBounds;
+      const d = document.createElement('div');
+      d.className = 'gpe-sel';
+      Object.assign(d.style, { left: (ox + v.x) + 'px', top: (oy + v.y - 10) + 'px', width: v.w + 'px', height: (v.h + 20) + 'px' });
+      layer.appendChild(d);
+    }
+    box.hidden = false;
+    const a = st.sel.from + 1, z = st.sel.to + 1;
+    $('gpe-seltxt').textContent = a === z ? `Bar ${a} selected` : `Bars ${a}–${z} selected`;
+  }
+  function extendSelection(toBar) {
+    const anchor = st.sel ? (st.sel.anchor ?? st.sel.from) : st.bar;
+    st.sel = { anchor, from: Math.min(anchor, toBar), to: Math.max(anchor, toBar) };
+  }
+  // The selected bars, for a section of the song: the bar picker opens on
+  // that section with them chosen, to check their length and apply.
+  async function useSelectionFor(anchor) {
+    if (!st.sel || !window.GPBarPicker) return;
+    let sections = [];
+    try { sections = JSON.parse(root.dataset.pickerSections || '[]'); } catch (e) { /* none */ }
+    if (!sections.length) { setStatus('The song has no sections yet: add them in its Chart tab.', 'hint'); return; }
+    const pickIdx = await GPUI.choose(anchor, { title: 'Use these bars for', columns: 1, options: sections.map((x, i) => ({
+      value: i, label: x.label + (x.gp.length ? ' · ' + x.gp.map((g) => (g.track || 'all') + ' ' + g.spec).join(', ') : ''),
+    })) });
+    if (pickIdx === null) return;
+    if (st.dirty) setStatus('Save first if these bars changed: the song shows the saved file.', 'hint');
+    const t = tracksJ()[st.track];
+    const same = tracksJ().filter((x) => (x.name || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase()).length;
+    const label = t.name && same === 1 ? t.name : `#${st.track + 1}`;
+    const req = (method, index, body, track) => fetch(`/api/songs/${variantId}/sections/${index}/gp${method === 'DELETE' ? '?track=' + encodeURIComponent(track || '') : ''}`, {
+      method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined,
+    }).then(async (r) => { if (!r.ok) throw new Error((await r.text()) || 'Saving failed'); });
+    GPBarPicker.open({
+      variantId, sections, current: pickIdx, track: label, ranges: [[st.sel.from + 1, st.sel.to + 1]],
+      onApply: async ({ index, track, spec }) => {
+        await req('PUT', index, { track, spec });
+        const x = sections.find((y) => y.index === index);
+        const g = x.gp.find((y) => (y.track || '').toLowerCase() === (track || '').toLowerCase());
+        if (g) g.spec = spec; else x.gp.push({ track, spec });
+        root.dataset.pickerSections = JSON.stringify(sections);
+      },
+      onRemove: async ({ index, track }) => {
+        await req('DELETE', index, null, track);
+        const x = sections.find((y) => y.index === index);
+        x.gp = x.gp.filter((y) => (y.track || '').toLowerCase() !== (track || '').toLowerCase());
+        root.dataset.pickerSections = JSON.stringify(sections);
+      },
+      onClose: (changed) => { if (changed) setStatus('The song shows the new bars.', 'ok'); },
+    });
   }
 
   // How full the bar is in this voice: 1 when it holds its time signature.
@@ -523,6 +587,8 @@
     const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
     const beat = lookup.getBeatAtPos(x, y);
     if (!beat) return;
+    if (ev.shiftKey) extendSelection(beat.voice.bar.index);
+    else st.sel = null;
     st.bar = beat.voice.bar.index;
     st.voice = beat.voice.index;
     st.beat = beat.index;
@@ -706,6 +772,7 @@
     on('gpe-countin', (b) => { const on2 = b.getAttribute('aria-pressed') !== 'true'; st.api.countInVolume = on2 ? 1 : 0; b.setAttribute('aria-pressed', on2 ? 'true' : 'false'); });
     on('gpe-metronome', (b) => { const on2 = b.getAttribute('aria-pressed') !== 'true'; st.api.metronomeVolume = on2 ? 1 : 0; b.setAttribute('aria-pressed', on2 ? 'true' : 'false'); });
     on('gpe-help', showKeys);
+    on('gpe-usefor', useSelectionFor);
     on('gpe-keypad-toggle', (b) => { const show = $('gpe-keypad').hidden; $('gpe-keypad').hidden = !show; b.setAttribute('aria-pressed', show ? 'true' : 'false'); });
     $('gpe-speed').addEventListener('change', (e) => { st.api.playbackSpeed = Number(e.target.value) || 1; });
     $('gpe-notation').addEventListener('change', (e) => { st.notation = e.target.value; rebuild(); });
@@ -721,7 +788,7 @@
       const rows = [
         ['← →', 'Beat; past the end of a bar that isn’t full adds a beat'], ['↑ ↓', 'String; on drums, the kit piece'], ['Ctrl/⌘ ← →', 'Previous or next bar'],
         ['0–24', 'Fret on the string (two quick digits for 10–24)'], ['+ / −', 'Shorter or longer'], ['Space', 'Play from the cursor; on drums, add the piece'],
-        ['Ctrl/⌘ Z, ⇧Z, S', 'Undo, redo, save'], ...palette.shortcuts(),
+        ['⇧ ← →, ⇧-click', 'Select bars, to show them in a section of the song'], ['Ctrl/⌘ Z, ⇧Z, S', 'Undo, redo, save'], ...palette.shortcuts(),
       ];
       for (const [k, n] of rows) {
         const dt = document.createElement('dt');
@@ -788,6 +855,17 @@
     if (mod && !e.altKey && !e.shiftKey && k === 'v') { e.preventDefault(); pasteBar(); return; }
     if (mod && k === 'ArrowRight') { e.preventDefault(); moveBar(1); return; }
     if (mod && k === 'ArrowLeft') { e.preventDefault(); moveBar(-1); return; }
+    if (!mod && !e.altKey && e.shiftKey && (k === 'ArrowRight' || k === 'ArrowLeft')) {
+      e.preventDefault();
+      const to = Math.max(0, Math.min(staffJ().bars.length - 1, (st.sel ? (st.bar) : st.bar) + (k === 'ArrowRight' ? 1 : -1)));
+      if (!st.sel) st.sel = { anchor: st.bar, from: st.bar, to: st.bar };
+      extendSelection(to);
+      st.bar = to; st.beat = 0;
+      renderPanels();
+      drawCursor();
+      return;
+    }
+    if (k === 'Escape' && st.sel) { e.preventDefault(); st.sel = null; drawSelection(); return; }
     if (!mod && !e.altKey) {
       if (k === 'ArrowRight') { e.preventDefault(); moveBeat(1); return; }
       if (k === 'ArrowLeft') { e.preventDefault(); moveBeat(-1); return; }

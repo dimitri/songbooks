@@ -277,5 +277,24 @@
     return out;
   }
 
+  // "Change bars" / "+ Bars from the Guitar Pro file" on a section (editors):
+  // the bar picker, saving each choice to the song's text right away.
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-gp-pick]');
+    if (!b || !window.GPBarPicker) return;
+    let sections = [];
+    try { sections = JSON.parse(sheet.dataset.pickerSections || '[]'); } catch (err) { return; }
+    const at = sections.findIndex((x) => String(x.index) === b.dataset.gpPick);
+    const req = (method, index, body, track) => fetch(`/api/songs/${variantId}/sections/${index}/gp${method === 'DELETE' ? '?track=' + encodeURIComponent(track || '') : ''}`, {
+      method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined,
+    }).then(async (r) => { if (!r.ok) throw new Error((await r.text()) || 'Saving failed'); });
+    GPBarPicker.open({
+      variantId, sections, current: Math.max(0, at), track: b.dataset.track !== undefined && b.hasAttribute('data-track') ? b.dataset.track : undefined,
+      onApply: ({ index, track, spec }) => req('PUT', index, { track, spec }),
+      onRemove: ({ index, track }) => req('DELETE', index, null, track),
+      onClose: (changed) => { if (changed) location.reload(); },
+    });
+  });
+
   window.GPView = { showFull, drawSections, fileBytes, loadScore, saveScore };
 })();
