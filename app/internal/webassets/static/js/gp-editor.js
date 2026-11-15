@@ -31,21 +31,21 @@
   // The drum kit, top of the staff to the bottom: General MIDI number,
   // name, alphaTeX articulation name, key.
   const DRUM_PIECES = [
-    { midi: 49, name: 'Crash', art: 'Crash', key: 'c' },
-    { midi: 46, name: 'Hi-hat open', art: 'HiHatOpen', key: 'o' },
-    { midi: 42, name: 'Hi-hat', art: 'HiHatClosed', key: 'h' },
-    { midi: 51, name: 'Ride', art: 'Ride', key: 'y' },
-    { midi: 53, name: 'Ride bell', art: 'RideBell', key: '' },
-    { midi: 56, name: 'Cowbell', art: 'Cowbell', key: '' },
-    { midi: 50, name: 'High tom', art: 'TomHigh', key: '1' },
-    { midi: 38, name: 'Snare', art: 'Snare', key: 's' },
-    { midi: 37, name: 'Side stick', art: 'SideStick', key: 'x' },
-    { midi: 47, name: 'Mid tom', art: 'TomMid', key: '2' },
-    { midi: 45, name: 'Low tom', art: 'TomLow', key: '3' },
-    { midi: 43, name: 'Floor tom', art: 'TomFloorHigh', key: '4' },
-    { midi: 41, name: 'Low floor tom', art: 'TomFloorLow', key: '5' },
-    { midi: 36, name: 'Kick', art: 'Kick', key: 'k' },
-    { midi: 44, name: 'Hi-hat pedal', art: 'HiHatPedal', key: 'f' },
+    { midi: 49, name: 'Crash', short: 'Cr', art: 'Crash', key: 'c' },
+    { midi: 46, name: 'Hi-hat open', short: 'OH', art: 'HiHatOpen', key: 'o' },
+    { midi: 42, name: 'Hi-hat', short: 'HH', art: 'HiHatClosed', key: 'h' },
+    { midi: 51, name: 'Ride', short: 'Rd', art: 'Ride', key: 'y' },
+    { midi: 53, name: 'Ride bell', short: 'Bl', art: 'RideBell', key: '' },
+    { midi: 56, name: 'Cowbell', short: 'Cb', art: 'Cowbell', key: '' },
+    { midi: 50, name: 'High tom', short: 'T1', art: 'TomHigh', key: '1' },
+    { midi: 38, name: 'Snare', short: 'SD', art: 'Snare', key: 's' },
+    { midi: 37, name: 'Side stick', short: 'SS', art: 'SideStick', key: 'x' },
+    { midi: 47, name: 'Mid tom', short: 'T2', art: 'TomMid', key: '2' },
+    { midi: 45, name: 'Low tom', short: 'T3', art: 'TomLow', key: '3' },
+    { midi: 43, name: 'Floor tom', short: 'FT', art: 'TomFloorHigh', key: '4' },
+    { midi: 41, name: 'Low floor tom', short: 'FT2', art: 'TomFloorLow', key: '5' },
+    { midi: 36, name: 'Kick', short: 'BD', art: 'Kick', key: 'k' },
+    { midi: 44, name: 'Hi-hat pedal', short: 'HP', art: 'HiHatPedal', key: 'f' },
   ];
 
   const st = {
@@ -152,6 +152,7 @@
     $('gpe-save').disabled = !d;
     $('gpe-undo').disabled = !st.undo.length;
     $('gpe-redo').disabled = !st.redo.length;
+    $('gpe-dirty').hidden = !d;
     document.title = (d ? '• ' : '') + document.title.replace(/^• /, '');
   }
 
@@ -236,15 +237,17 @@
   }
   const addBarAfter = () => edit(() => { newBarAt(st.bar + 1, st.bar); st.bar++; st.beat = 0; });
   const addBarBefore = () => edit(() => { newBarAt(st.bar, st.bar); st.beat = 0; });
-  const deleteBar = () => edit(() => {
-    if (st.doc.masterbars.length < 2) return false;
-    if (!confirm(`Delete bar ${st.bar + 1} in every track?`)) return false;
-    st.doc.masterbars.splice(st.bar, 1);
-    for (const t of tracksJ()) for (const s of t.staves) s.bars.splice(st.bar, 1);
-    st.bar = Math.min(st.bar, st.doc.masterbars.length - 1);
-    st.beat = 0;
-  });
-  const copyBar = () => { st.clip = JSON.parse(JSON.stringify(barJ())); setStatus(`Bar ${st.bar + 1} copied.`); };
+  async function deleteBar(anchor) {
+    if (st.doc.masterbars.length < 2) { setStatus('A file keeps at least one bar.', 'hint'); return; }
+    if (!(await GPUI.confirm(anchor || $('gpe-cursor'), { title: `Delete bar ${st.bar + 1}?`, body: 'It goes from every track. Undo brings it back.' }))) return;
+    edit(() => {
+      st.doc.masterbars.splice(st.bar, 1);
+      for (const t of tracksJ()) for (const s of t.staves) s.bars.splice(st.bar, 1);
+      st.bar = Math.min(st.bar, st.doc.masterbars.length - 1);
+      st.beat = 0;
+    });
+  }
+  const copyBar = () => { st.clip = JSON.parse(JSON.stringify(barJ())); setStatus(`Bar ${st.bar + 1} copied: Ctrl/⌘ V pastes it over another bar.`, 'ok'); };
   const pasteBar = () => {
     if (!st.clip) return;
     edit(() => {
@@ -252,18 +255,21 @@
       staffJ().bars[st.bar] = strip(JSON.parse(JSON.stringify(st.clip)));
     });
   };
-  function askTimeSignature() {
+  const ask = (anchor, spec) => GPUI.ask(anchor || $('gpe-cursor'), spec);
+  async function askTimeSignature(anchor) {
     const mb = masterJ();
-    const v = prompt('Time signature from this bar on (like 3/4, 6/8, 12/8):', `${mb.timesignaturenumerator}/${mb.timesignaturedenominator}`);
-    const m = v && v.trim().match(/^(\d{1,2})\s*\/\s*(1|2|4|8|16|32)$/);
-    if (!m) return;
+    const v = await ask(anchor, { title: 'Time signature', hint: 'From this bar until the next change.', fields: [
+      { name: 'num', label: 'Beats', type: 'number', min: 1, max: 32, value: mb.timesignaturenumerator },
+      { name: 'den', label: 'Beat value', type: 'select', options: [['1', '1'], ['2', '2'], ['4', '4'], ['8', '8'], ['16', '16'], ['32', '32']], value: String(mb.timesignaturedenominator) }],
+      check: (x) => (x.num >= 1 && x.num <= 32 ? '' : 'From 1 to 32 beats.') });
+    if (!v) return;
     edit(() => {
       const on = mb.timesignaturenumerator + '/' + mb.timesignaturedenominator;
       for (let b = st.bar; b < st.doc.masterbars.length; b++) {
         const x = st.doc.masterbars[b];
         if (b > st.bar && x.timesignaturenumerator + '/' + x.timesignaturedenominator !== on) break;
-        x.timesignaturenumerator = +m[1];
-        x.timesignaturedenominator = +m[2];
+        x.timesignaturenumerator = v.num;
+        x.timesignaturedenominator = +v.den;
       }
     });
   }
@@ -274,13 +280,15 @@
     const t = minor ? MINOR : KEYS;
     return (Object.keys(t).find((k) => t[k] === sig) || '?') + (minor ? 'm' : '');
   }
-  function askKey() {
+  async function askKey(anchor) {
     const bar = barJ();
-    const v = prompt('Key signature from this bar on (like E, Bb, F#m):', keyName(bar.keysignature || 0, bar.keysignaturetype === 1));
-    if (v === null) return;
-    const m = v.trim().match(/^([A-G][b#]?)(m)?$/);
-    const sig = m ? (m[2] ? MINOR : KEYS)[m[1]] : undefined;
-    if (sig === undefined) { setStatus('A key like E, Bb or F#m, please.', true); return; }
+    const minor = bar.keysignaturetype === 1;
+    const v = await ask(anchor, { title: 'Key signature', hint: 'From this bar until the next change, in every track.', fields: [
+      { name: 'root', label: 'Key', type: 'select', options: Object.keys(minor ? MINOR : KEYS).map((k) => [k, k]).concat(Object.keys(minor ? KEYS : MINOR).filter((k) => !(k in (minor ? MINOR : KEYS))).map((k) => [k, k])), value: keyName(bar.keysignature || 0, minor).replace(/m$/, '') },
+      { name: 'mode', label: 'Mode', type: 'select', options: [['major', 'Major'], ['minor', 'Minor']], value: minor ? 'minor' : 'major' }],
+      check: (x) => ((x.mode === 'minor' ? MINOR : KEYS)[x.root] === undefined ? `${x.root} ${x.mode} isn’t a written key; try its other spelling.` : '') });
+    if (!v) return;
+    const sig = (v.mode === 'minor' ? MINOR : KEYS)[v.root];
     edit(() => {
       for (const t of tracksJ()) {
         for (const sf of t.staves) {
@@ -289,45 +297,44 @@
           for (let b = st.bar; b < sf.bars.length; b++) {
             if (b > st.bar && sf.bars[b].keysignature + '/' + sf.bars[b].keysignaturetype !== old) break;
             sf.bars[b].keysignature = sig;
-            sf.bars[b].keysignaturetype = m[2] ? 1 : 0;
+            sf.bars[b].keysignaturetype = v.mode === 'minor' ? 1 : 0;
           }
         }
       }
     });
   }
-  function askTempo() {
+  async function askTempo(anchor) {
     const mb = masterJ();
-    const cur = (mb.tempoautomations && mb.tempoautomations[0] && mb.tempoautomations[0].value) || '';
-    const v = prompt('Tempo from this bar on, in beats per minute (empty: none here):', cur);
-    if (v === null) return;
-    const n = parseInt(v, 10);
-    edit(() => {
-      if (!v.trim()) { mb.tempoautomations = []; return; }
-      if (!(n >= 20 && n <= 400)) return false;
-      mb.tempoautomations = [{ islinear: false, type: 0, value: n, ratioposition: 0, text: '', isvisible: true }];
-    });
+    const cur = mb.tempoautomations && mb.tempoautomations[0] && mb.tempoautomations[0].value;
+    const v = await ask(anchor, { title: 'Tempo', hint: 'From this bar on.', clearable: !!cur, fields: [{ name: 'bpm', label: 'Beats per minute', type: 'number', min: 20, max: 400, value: cur || tempoAt(st.bar) }],
+      check: (x) => (x.bpm >= 20 && x.bpm <= 400 ? '' : 'From 20 to 400.') });
+    if (!v) return;
+    edit(() => { mb.tempoautomations = v.cleared ? [] : [{ islinear: false, type: 0, value: v.bpm, ratioposition: 0, text: '', isvisible: true }]; });
   }
-  function askSection() {
+  async function askSection(anchor) {
     const mb = masterJ();
-    const v = prompt('Section name on this bar (empty: none):', (mb.section && mb.section.text) || '');
-    if (v === null) return;
-    edit(() => { if (v.trim()) mb.section = { marker: '', text: v.trim() }; else delete mb.section; });
+    const cur = (mb.section && mb.section.text) || '';
+    const v = await ask(anchor, { title: 'Section', clearable: !!cur, fields: [{ name: 'text', label: 'Name', value: cur || songSectionAt(st.bar) || '', placeholder: 'Verse' }] });
+    if (!v) return;
+    edit(() => { if (!v.cleared && v.text) mb.section = { marker: '', text: v.text }; else delete mb.section; });
   }
-  function askRepeatEnd() {
+  async function askRepeatEnd(anchor) {
     const mb = masterJ();
-    const v = prompt('Repeat this bar back to the opening repeat — how many times in all? (empty: no repeat)', mb.repeatcount || 2);
-    if (v === null) return;
-    edit(() => { mb.repeatcount = v.trim() ? Math.max(2, parseInt(v, 10) || 2) : 0; });
+    const v = await ask(anchor, { title: 'Repeat close', hint: 'Back to the repeat start; the number of times played in all.', clearable: !!mb.repeatcount,
+      fields: [{ name: 'n', label: 'Times', type: 'number', min: 2, max: 16, value: mb.repeatcount || 2 }], check: (x) => (x.n >= 2 ? '' : 'At least 2.') });
+    if (!v) return;
+    edit(() => { mb.repeatcount = v.cleared ? 0 : v.n; });
   }
-  function askEnding() {
+  async function askEnding(anchor) {
     const mb = masterJ();
     const cur = [];
     for (let i = 0; i < 8; i++) if (mb.alternateendings & (1 << i)) cur.push(i + 1);
-    const v = prompt('Alternate ending: which passes play this bar (like 1 or 1,2; empty: every pass)?', cur.join(','));
-    if (v === null) return;
+    const v = await ask(anchor, { title: 'Alternate ending', clearable: !!cur.length, fields: [{ name: 'passes', label: 'Played on passes', value: cur.join(', ') || '1', placeholder: '1, 2' }],
+      check: (x) => (/^\s*\d(\s*,\s*\d)*\s*$/.test(x.passes) ? '' : 'Pass numbers, like 1 or 1, 2.') });
+    if (!v) return;
     edit(() => {
       let mask = 0;
-      for (const p of v.split(',').map((x) => parseInt(x, 10)).filter((x) => x >= 1 && x <= 8)) mask |= 1 << (p - 1);
+      if (!v.cleared) for (const p of v.passes.split(',').map((x) => parseInt(x, 10)).filter((x) => x >= 1 && x <= 8)) mask |= 1 << (p - 1);
       mb.alternateendings = mask;
     });
   }
@@ -351,20 +358,29 @@
       st.track = tracksJ().length - 1;
       st.bar = 0; st.beat = 0; st.voice = 0;
     });
-    fillTracks();
   }
-  function renameTrack() {
+  async function renameTrack(anchor) {
     const t = tracksJ()[st.track];
-    const v = prompt('Track name (what the song’s gp[…] lines call it):', t.name);
-    if (!v || !v.trim() || v.trim() === t.name) return;
-    edit(() => { t.name = v.trim(); t.shortname = v.trim().slice(0, 10); });
-    fillTracks();
+    const v = await ask(anchor, { title: 'Rename the track', hint: 'The song’s gp[…] lines call it by this name.', fields: [{ name: 'name', label: 'Name', value: t.name }],
+      check: (x) => (x.name ? '' : 'A track needs a name.') });
+    if (!v || v.name === t.name) return;
+    edit(() => { t.name = v.name; t.shortname = v.name.slice(0, 10); });
   }
-  function deleteTrack() {
-    if (tracksJ().length < 2) return;
-    if (!confirm(`Delete the track “${tracksJ()[st.track].name}”?`)) return;
-    edit(() => { tracksJ().splice(st.track, 1); st.track = Math.max(0, st.track - 1); });
-    fillTracks();
+  async function deleteTrack(anchor) {
+    if (tracksJ().length < 2) { setStatus('A file keeps at least one track.', 'hint'); return; }
+    if (!(await GPUI.confirm(anchor, { title: `Delete “${tracksJ()[st.track].name}”?`, body: 'Its notes go with it. Undo brings it back.' }))) return;
+    edit(() => { tracksJ().splice(st.track, 1); st.track = Math.max(0, st.track - 1); st.voice = 0; });
+  }
+  async function trackMenu(anchor) {
+    const v = await GPUI.choose(anchor, { title: tracksJ()[st.track].name, columns: 1, options: [
+      { value: 'rename', label: 'Rename' }, { value: 'delete', label: 'Delete' }] });
+    if (v === 'rename') renameTrack(anchor);
+    if (v === 'delete') deleteTrack(anchor);
+  }
+  async function addTrackMenu(anchor) {
+    const v = await GPUI.choose(anchor, { title: 'Add a track', columns: 3, options: [
+      { value: 'guitar', label: 'Guitar' }, { value: 'bass', label: 'Bass' }, { value: 'drums', label: 'Drums' }] });
+    if (v) addTrack(v);
   }
 
   // ---- Drawing ---------------------------------------------------------------------
@@ -466,6 +482,7 @@
 
   function drawCursor() {
     const cursor = $('gpe-cursor'), hl = $('gpe-bar-hl');
+    hl.classList.remove('over', 'under');
     const bb = barBounds(st.bar, isDrums() ? 'staff' : 'tab');
     if (!bb) { cursor.hidden = true; hl.hidden = true; return; }
     // Bounds are the canvas's; the boxes sit in its padded wrapper.
@@ -474,8 +491,6 @@
     const v = bb.visualBounds;
     Object.assign(hl.style, { left: (ox + v.x) + 'px', top: (oy + v.y - 8) + 'px', width: v.w + 'px', height: (v.h + 16) + 'px' });
     hl.hidden = false;
-    hl.classList.toggle('over', barFill() > 1 + 1e-9);
-    hl.classList.toggle('under', barFill() < 1 - 1e-9);
     let beatB = null;
     for (const b of bb.beats) if (b.beat.index === st.beat && b.beat.voice.index === st.voice) beatB = b;
     if (!beatB) { cursor.hidden = true; return; }
@@ -528,98 +543,208 @@
 
   // ---- Panels --------------------------------------------------------------------
 
-  function setStatus(msg, bad) {
+  // The status line's message: kind 'hint' and 'ok' fade after a while,
+  // true (a problem) stays until the next message.
+  let statusTimer = null;
+  function setStatus(msg, kind) {
     const el = $('gpe-status');
-    el.textContent = msg || '';
-    el.classList.toggle('bad', !!bad);
+    clearTimeout(statusTimer);
+    el.replaceChildren();
+    if (msg instanceof Node) el.appendChild(msg); else el.textContent = msg || '';
+    el.className = 'gpe-msg' + (kind === true ? ' bad' : kind ? ' ' + kind : '');
+    if (msg && (kind === 'hint' || kind === 'ok')) statusTimer = setTimeout(() => { el.textContent = ''; }, 6000);
   }
 
-  function fillTracks() {
-    const sel = $('gpe-track');
-    sel.innerHTML = '';
-    tracksJ().forEach((t, i) => sel.add(new Option(t.name || `Track ${i + 1}`, i)));
-    sel.value = st.track;
+  // The tempo in effect at bar b.
+  function tempoAt(b) {
+    let t = st.score ? Math.round(st.score.tempo) : 120;
+    for (let i = 0; i <= b && i < st.doc.masterbars.length; i++) {
+      const a = st.doc.masterbars[i].tempoautomations;
+      if (a && a.length) t = Math.round(a[0].value);
+    }
+    return t;
+  }
+  // The song's sections that show bar b (1-based) of this track, from its
+  // gp[…] lines (gpview.go puts them on the page).
+  const songSections = (() => { try { return JSON.parse(root.dataset.sections || '[]'); } catch (e) { return []; } })();
+  function songSectionAt(b) {
+    const name = (tracksJ()[st.track].name || '').toLowerCase();
+    const hit = songSections.find((x) => (!x.track || x.track.toLowerCase() === name || x.track === '#' + (st.track + 1)) && x.bars.some(([lo, hi]) => b + 1 >= lo && b + 1 <= hi));
+    return hit ? hit.label : '';
+  }
+  function songSectionIndexAt(b) {
+    const name = (tracksJ()[st.track].name || '').toLowerCase();
+    const hit = songSections.find((x) => (!x.track || x.track.toLowerCase() === name) && x.bars.some(([lo, hi]) => b + 1 >= lo && b + 1 <= hi));
+    return hit ? hit.index : -1;
+  }
+
+  // Beats as a musician says them: 3½, not 3.5.
+  function beats(x) {
+    const q = Math.round(x * 4) / 4;
+    const whole = Math.floor(q), frac = q - whole;
+    const f = { 0: '', 0.25: '¼', 0.5: '½', 0.75: '¾' }[frac];
+    return f === undefined ? x.toFixed(2) : (whole || !f ? String(whole) : '') + f;
+  }
+
+  // Track colours: the file's own, unless several tracks share one; then a
+  // colour each, in the app's palette.
+  const TRACK_COLOURS = ['#c2553a', '#1d8a6a', '#5b4fb5', '#b07418', '#2f6fb5', '#b0446e'];
+  function trackColour(i) {
+    const t = tracksJ()[i];
+    const own = typeof t.color === 'number' ? '#' + ((t.color >>> 0) & 0xffffff).toString(16).padStart(6, '0') : '';
+    const shared = own && tracksJ().some((x, j) => j !== i && x.color === t.color);
+    return own && !shared ? own : TRACK_COLOURS[i % TRACK_COLOURS.length];
+  }
+  function trackKind(i) {
+    const sf = tracksJ()[i].staves[0];
+    if (sf.ispercussion) return 'drums';
+    const tun = (sf.stringtuning && sf.stringtuning.tunings) || [];
+    return tun.length && tun.length <= 5 && Math.min(...tun) < 40 ? 'bass' : 'guitar';
+  }
+
+  function renderTabs() {
+    const box = $('gpe-tabs');
+    box.replaceChildren();
+    tracksJ().forEach((t, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'gpe-tab' + (i === st.track ? ' on' : '');
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', i === st.track ? 'true' : 'false');
+      b.style.setProperty('--tc', trackColour(i));
+      b.innerHTML = `<span class="sw"></span>${GPUI.icon(trackKind(i))}<span class="nm"></span>`;
+      b.querySelector('.nm').textContent = t.name || `Track ${i + 1}`;
+      b.addEventListener('click', () => { if (i === st.track) { trackMenu(b); return; } st.track = i; st.voice = 0; st.beat = 0; rebuild(); });
+      if (i === st.track) {
+        b.dataset.tip = 'Rename or delete this track';
+        const more = document.createElement('span');
+        more.className = 'more';
+        more.innerHTML = GPUI.icon('more');
+        b.appendChild(more);
+      }
+      box.appendChild(b);
+    });
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'gpe-tab add';
+    add.innerHTML = GPUI.icon('plus');
+    add.dataset.tip = 'Add a track';
+    add.setAttribute('aria-label', 'Add a track');
+    add.addEventListener('click', () => addTrackMenu(add));
+    box.appendChild(add);
   }
 
   function renderPanels() {
     const beat = beatJ();
     const mb = masterJ();
     if (palette) palette.refresh();
-    $('gpe-drums').hidden = !isDrums();
-    document.querySelectorAll('#gpe-drums button').forEach((b, i) => {
-      b.setAttribute('aria-pressed', beat && drumNote(beat, DRUM_PIECES[i]) ? 'true' : 'false');
-      b.classList.toggle('current', i === st.piece);
-    });
-    $('gpe-delete-track').disabled = tracksJ().length < 2;
+    renderTabs();
+    root.dataset.voice = st.voice + 1;
     // Where the cursor is.
-    const fill = barFill();
-    const where = [`Bar ${st.bar + 1} of ${st.doc.masterbars.length}`, `${mb.timesignaturenumerator}/${mb.timesignaturedenominator}`, `voice ${st.voice + 1}`];
-    if (mb.section && mb.section.text) where.push(`“${mb.section.text}”`);
-    if (fill > 1 + 1e-9) where.push('too full');
-    else if (fill < 1 - 1e-9) where.push('not full yet');
+    const pos = $('gpe-pos');
+    pos.replaceChildren();
+    const barTxt = document.createElement('span');
+    barTxt.textContent = `Bar ${st.bar + 1}/${st.doc.masterbars.length}`;
+    const more = document.createElement('span');
+    more.className = 'gpe-pos-more';
+    more.textContent = ` · ${mb.timesignaturenumerator}/${mb.timesignaturedenominator} · ♩ = ${tempoAt(st.bar)}`;
+    pos.append(barTxt, more);
+    $('gpe-voice').textContent = `voice ${st.voice + 1}`;
+    const what = [];
     if (beat) {
-      where.push(`beat ${st.beat + 1}: ${DURATION_LABEL[beat.duration] || beat.duration}${beat.dots ? ' dotted' : ''}${beat.tupletnumerator > 0 ? ` (${beat.tupletnumerator}:${beat.tupletdenominator})` : ''}`);
-      if (isDrums()) where.push(DRUM_PIECES[st.piece].name);
+      what.push(`${DURATION_LABEL[beat.duration] || beat.duration}${beat.dots ? (beat.dots === 2 ? ' double-dotted' : ' dotted') : ''}${beat.tupletnumerator > 0 ? ` ${beat.tupletnumerator}:${beat.tupletdenominator}` : ''}${beat.notes.length ? '' : ' rest'}`);
+      if (isDrums()) what.push(DRUM_PIECES[st.piece].name);
       else {
-        where.push(`string ${numStrings() - st.string + 1}`);
+        what.push(`string ${numStrings() - st.string + 1}`);
         const n = curNote();
-        if (n) where.push(`fret ${n.fret}`);
+        if (n) what.push(`fret ${n.fret}`);
       }
     }
-    $('gpe-where').textContent = where.join(' · ');
+    $('gpe-what').textContent = what.join(' · ');
+    const sec = [songSectionAt(st.bar), mb.section && mb.section.text].filter(Boolean);
+    $('gpe-section').textContent = sec.length ? [...new Set(sec)].join(' / ') : '';
+    $('gpe-section').hidden = !sec.length;
+    // How full the bar is.
+    const bm = barM(), v = bm && bm.voices[st.voice];
+    const cap = bm ? bm.masterBar.calculateDuration() : 3840;
+    const has = v && !v.isEmpty ? v.calculateDuration() : 0;
+    const unit = 3840 / (mb.timesignaturedenominator || 4);
+    const meter = $('gpe-fill');
+    meter.querySelector('.txt').textContent = `${beats(has / unit)} of ${beats(cap / unit)}`;
+    meter.querySelector('.bar > span').style.width = Math.min(100, (has / cap) * 100) + '%';
+    meter.dataset.state = has > cap + 1 ? 'over' : has < cap - 1 ? 'under' : 'full';
+    meter.dataset.tip = has > cap + 1 ? 'This bar holds more than its time signature' : has < cap - 1 ? 'This bar isn’t full yet' : 'This bar is full';
   }
 
   let palette = null;
   function buildToolbar() {
+    document.querySelectorAll('.gpe-shell [data-icon]').forEach((el) => { el.insertAdjacentHTML('afterbegin', GPUI.icon(el.dataset.icon)); });
     palette = GPPalette({
-      st, edit, beatJ, beatM, curNote, ensureVoice, staffJ, masterJ, barJ, tracksJ, isDrums, tuning, numStrings,
+      st, edit, beatJ, beatM, curNote, ensureVoice, staffJ, masterJ, barJ, tracksJ, isDrums, tuning, numStrings, DRUM_PIECES, drumNote, toggleDrum,
       setDuration, setStatus, askKey, askTimeSignature, askTempo, askSection, askRepeatEnd, askEnding,
+      insertBeat, deleteAtCursor, addBarBefore, addBarAfter, deleteBar, copyBar, pasteBar,
       setVoice: (v) => { st.voice = v; st.beat = 0; renderPanels(); drawCursor(); },
-      focus: () => $('gpe-canvas-wrap').focus(),
+      focus: () => $('gpe-canvas-wrap').focus({ preventScroll: true }),
     });
     palette.build($('gpe-palette'));
-    const keys = $('gpe-palette-keys');
-    for (const [k, name] of palette.shortcuts()) {
-      const dt = document.createElement('dt');
-      dt.textContent = k;
-      const dd = document.createElement('dd');
-      dd.textContent = name;
-      keys.append(dt, dd);
-    }
-    const drums = $('gpe-drums');
-    for (const p of DRUM_PIECES) {
+    // Phone keypad: frets, moves and delete, the keyboard's keys.
+    const pad = $('gpe-keypad');
+    for (const [key, label] of [...'1234567890'.split('').map((d) => [d, d]), ['ArrowLeft', '←'], ['ArrowUp', '↑'], ['ArrowDown', '↓'], ['ArrowRight', '→'], ['Backspace', '⌫']]) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.textContent = p.name;
-      b.title = p.key ? `${p.name} (${p.key.toUpperCase()})` : p.name;
-      b.addEventListener('click', () => toggleDrum(p));
-      drums.appendChild(b);
+      b.textContent = label;
+      b.addEventListener('click', () => onKey({ key, code: '', metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, preventDefault() {} }));
+      pad.appendChild(b);
     }
-    const on = (id, fn) => $(id).addEventListener('click', fn);
-    on('gpe-insert-beat', insertBeat);
-    on('gpe-delete', deleteAtCursor);
-    on('gpe-bar-before', addBarBefore);
-    on('gpe-bar-after', addBarAfter);
-    on('gpe-bar-delete', deleteBar);
-    on('gpe-bar-copy', copyBar);
-    on('gpe-bar-paste', pasteBar);
+    const on = (id, fn) => $(id).addEventListener('click', (e) => fn(e.currentTarget));
     on('gpe-undo', undo);
     on('gpe-redo', redo);
     on('gpe-save', save);
     on('gpe-play', playPause);
     on('gpe-stop', () => st.api.stop());
-    on('gpe-rename-track', renameTrack);
-    on('gpe-delete-track', deleteTrack);
-    $('gpe-add-track').addEventListener('change', (e) => { const v = e.target.value; e.target.value = ''; if (v) addTrack(v); });
-    $('gpe-track').addEventListener('change', (e) => { st.track = +e.target.value; st.voice = 0; st.beat = 0; rebuild(); });
+    on('gpe-loop', (b) => { st.api.isLooping = !st.api.isLooping; b.setAttribute('aria-pressed', st.api.isLooping ? 'true' : 'false'); });
+    on('gpe-countin', (b) => { const on2 = b.getAttribute('aria-pressed') !== 'true'; st.api.countInVolume = on2 ? 1 : 0; b.setAttribute('aria-pressed', on2 ? 'true' : 'false'); });
+    on('gpe-metronome', (b) => { const on2 = b.getAttribute('aria-pressed') !== 'true'; st.api.metronomeVolume = on2 ? 1 : 0; b.setAttribute('aria-pressed', on2 ? 'true' : 'false'); });
+    on('gpe-help', showKeys);
+    on('gpe-keypad-toggle', (b) => { const show = $('gpe-keypad').hidden; $('gpe-keypad').hidden = !show; b.setAttribute('aria-pressed', show ? 'true' : 'false'); });
+    $('gpe-speed').addEventListener('change', (e) => { st.api.playbackSpeed = Number(e.target.value) || 1; });
     $('gpe-notation').addEventListener('change', (e) => { st.notation = e.target.value; rebuild(); });
+    GPUI.tooltips(root.closest('.gpe-shell') || document.body);
+  }
+
+  // The keyboard help, in a popover: the editor's own keys, then the
+  // palette's (Guitar Pro's).
+  function showKeys(anchor) {
+    GPUI.popover(anchor, (el) => {
+      const dl = document.createElement('dl');
+      dl.className = 'gpe-keys-list';
+      const rows = [
+        ['← →', 'Beat; past the end of a bar that isn’t full adds a beat'], ['↑ ↓', 'String; on drums, the kit piece'], ['Ctrl/⌘ ← →', 'Previous or next bar'],
+        ['0–24', 'Fret on the string (two quick digits for 10–24)'], ['+ / −', 'Shorter or longer'], ['Space', 'Play from the cursor; on drums, add the piece'],
+        ['Ctrl/⌘ Z, ⇧Z, S', 'Undo, redo, save'], ...palette.shortcuts(),
+      ];
+      for (const [k, n] of rows) {
+        const dt = document.createElement('dt');
+        const kb = document.createElement('kbd');
+        kb.textContent = k;
+        dt.appendChild(kb);
+        const dd = document.createElement('dd');
+        dd.textContent = n;
+        dl.append(dt, dd);
+      }
+      el.appendChild(dl);
+      const p = document.createElement('p');
+      p.className = 'gpe-form-hint';
+      p.textContent = 'Shortcuts are Guitar Pro’s. A few, like Ctrl/⌘ T, stay with the browser: use the palette for those.';
+      el.appendChild(p);
+    }, { title: 'Keyboard', className: 'gpe-pop-keys' });
   }
 
   // ---- Playback ------------------------------------------------------------------
 
   function playPause() {
     const api = st.api;
-    if (!api.isReadyForPlayback) { setStatus('The sounds are still loading…'); return; }
+    if (!api.isReadyForPlayback) { setStatus('The sounds are still loading…', 'hint'); return; }
     if (st.playing) { api.pause(); return; }
     const b = beatM();
     if (b) api.tickPosition = b.absolutePlaybackStart;
@@ -697,6 +822,7 @@
         return;
       }
     }
+    if (k === '?' && !mod) { e.preventDefault(); showKeys($('gpe-help')); return; }
     if (palette) palette.onKey(e);
   }
 
@@ -711,7 +837,14 @@
       const out = await GPFile.save(variantId, JC.jsonToScore(JSON.stringify(st.doc), new alphaTab.Settings()), fileName);
       fileName = out.name;
       markDirty(false);
-      setStatus('Saved. The earlier version is on the song’s History page.');
+      const msg = document.createElement('span');
+      msg.append('Saved as a new version. ');
+      const back = document.createElement('a');
+      const si = songSectionIndexAt(st.bar);
+      back.href = `/song/${variantId}${si >= 0 ? '#section-' + si : ''}`;
+      back.textContent = 'Back to the song';
+      msg.appendChild(back);
+      setStatus(msg, 'ok');
     } catch (e) {
       btn.disabled = false;
       setStatus(e.message, true);
@@ -739,13 +872,13 @@
     st.string = Math.min(3, numStrings()) || 1;
     st.api = new alphaTab.AlphaTabApi($('gpe-canvas'), settings());
     st.api.postRenderFinished.on(drawn);
-    st.api.playerReady.on(() => { $('gpe-play').disabled = false; });
+    st.api.playerReady.on(() => { $('gpe-play').classList.remove('loading'); });
     st.api.playerStateChanged.on((e) => {
       st.playing = e.state === 1;
-      $('gpe-play').textContent = st.playing ? '❚❚' : '▶';
+      $('gpe-play').innerHTML = GPUI.icon(st.playing ? 'pause' : 'play');
+      $('gpe-play').dataset.tip = st.playing ? 'Pause' : 'Play from the cursor';
     });
     buildToolbar();
-    fillTracks();
     markDirty(st.dirty);
     rebuild();
     const wrap = $('gpe-canvas-wrap');

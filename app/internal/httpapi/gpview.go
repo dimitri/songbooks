@@ -20,6 +20,7 @@ type viewerGPRef struct {
 	Track      string // as written; "" for every track
 	TrackIndex int    // 0-based index in the file, -1 for every track or unknown
 	Bars       string // "9-12,13-14", for data-bars
+	FirstBar   int    // the first bar it shows, for the editor link
 	Notation   string // "tab", "staff", "tab+staff", "slash", or "" for the reader's own
 	Label      string // "Lead guitar · bars 9–12"
 	Error      string // why it can't be drawn, for editors
@@ -108,6 +109,9 @@ func viewGPRef(r song.GPRef, gp songGP) viewerGPRef {
 		bars = append(bars, fmt.Sprintf("%d-%d", rg[0], rg[1]))
 	}
 	v.Bars = strings.Join(bars, ",")
+	if len(ref.Ranges) > 0 {
+		v.FirstBar = ref.Ranges[0][0]
+	}
 	what := r.Track
 	if what == "" {
 		what = "All tracks"
@@ -228,6 +232,7 @@ func (s *Server) handleGPEditPage(w http.ResponseWriter, r *http.Request) {
 		"Track": q.Get("track"), "Bar": q.Get("bar"),
 	}
 	gp := s.loadSongGP(r.Context(), variantID)
+	data["SectionsJSON"] = editorSections(sg, gp)
 	if gp.Meta != nil {
 		data["GPFileName"] = gp.Meta.Filename
 	} else {
@@ -252,4 +257,37 @@ func (s *Server) handleGPEditPage(w http.ResponseWriter, r *http.Request) {
 		data["Parts"] = strings.Join(parts, ",")
 	}
 	s.render(w, "gp-edit", data)
+}
+
+// editorSection is a song section the editor shows the name of, on the
+// bars of the file it points at.
+type editorSection struct {
+	Index int      `json:"index"`
+	Label string   `json:"label"`
+	Track string   `json:"track"`
+	Bars  [][2]int `json:"bars"`
+}
+
+// editorSections lists, as JSON, the song's sections with their
+// "gp[...]" lines: the editor names the section a bar belongs to, and
+// links back to it.
+func editorSections(sg *song.Song, gp songGP) string {
+	var out []editorSection
+	for _, sec := range buildSections(withGPOnlyBars(sg, gp.Facts)) {
+		if sec.Index < 0 || sec.Index >= len(sg.Sections) {
+			continue
+		}
+		for _, r := range sg.Sections[sec.Index].GP {
+			ref, err := gpfacts.ParseRef(r.Track, r.Spec)
+			if err != nil {
+				continue
+			}
+			out = append(out, editorSection{Index: sec.Index, Label: sectionName(&sec), Track: r.Track, Bars: ref.Ranges})
+		}
+	}
+	b, _ := json.Marshal(out)
+	if out == nil {
+		return "[]"
+	}
+	return string(b)
 }

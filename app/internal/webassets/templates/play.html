@@ -245,7 +245,7 @@
      count" case a bare Verse repeat already is, inconsistent with how
      every other non-defining section renders. Dropping the "(not .Lines)"
      condition for the InferredNote case fixes that. */}}
-<section class="sheet-section{{if or .InferredNote .Repeat .IsReference .Compact}} is-compact{{end}}{{if .JazzSegno}} jazz-segno{{end}}{{if .JazzDSAlCoda}} jazz-ds{{end}}{{if .JazzCoda}} jazz-coda{{end}}{{if .JazzHidden}} jazz-hidden{{end}}" data-section-index="{{.Index}}" data-label="{{label .Label}}" data-start-bar="{{.StartBar}}" data-bar-count="{{.BarCount}}" data-has-lyrics="{{if .Lyrics}}true{{else}}false{{end}}" data-has-note="{{if .InferredNote}}true{{else}}false{{end}}" data-is-solo="{{if .IsSolo}}true{{else}}false{{end}}" style="--bars: {{.BarCount}}">
+<section class="sheet-section{{if or .InferredNote .Repeat .IsReference .Compact}} is-compact{{end}}{{if .JazzSegno}} jazz-segno{{end}}{{if .JazzDSAlCoda}} jazz-ds{{end}}{{if .JazzCoda}} jazz-coda{{end}}{{if .JazzHidden}} jazz-hidden{{end}}" id="section-{{.Index}}" data-section-index="{{.Index}}" data-label="{{label .Label}}" data-start-bar="{{.StartBar}}" data-bar-count="{{.BarCount}}" data-has-lyrics="{{if .Lyrics}}true{{else}}false{{end}}" data-has-note="{{if .InferredNote}}true{{else}}false{{end}}" data-is-solo="{{if .IsSolo}}true{{else}}false{{end}}" style="--bars: {{.BarCount}}">
   {{/* Segno/D.S. al Coda/Coda — jazz mode only (CSS below scopes all
        three to #sheet[data-render-mode="jazz"]; every other mode's CSS
        simply never shows them, same technique the recall chip/multi-
@@ -348,7 +348,7 @@
   {{/* Bars of the song's Guitar Pro file, drawn by gp-view.js (see
        gpview.go and docs/gp-file-model.md). */}}
   <figure class="gp-score" data-track="{{.TrackIndex}}" data-track-name="{{.Track}}" data-bars="{{.Bars}}" data-notation="{{.Notation}}">
-    <figcaption class="gp-score-label">{{.Label}}</figcaption>
+    <figcaption class="gp-score-label">{{.Label}}{{if $.CanEdit}} <a class="gp-score-edit" href="/song/{{$.VariantID}}/gp-edit?{{with .Track}}track={{.}}&amp;{{end}}bar={{.FirstBar}}">Edit</a>{{end}}</figcaption>
     {{if .Error}}<p class="gp-score-error">{{.Error}}</p>{{else}}<div class="gp-score-body"></div>{{end}}
   </figure>
   {{end}}
@@ -1434,6 +1434,7 @@
             {{if .Push}}<button type="button" data-act="push">Use this one</button>{{end}}
             <button type="button" data-act="keep">Keep both</button>
             {{if and (not .Take) (not .Push)}}<span class="gp-drift-hint">Fix it in Source.</span>{{end}}
+            {{if .Bar}}<a class="gp-drift-open" href="/song/{{$.VariantID}}/gp-edit?{{with .Track}}track={{.}}&amp;{{end}}bar={{.Bar}}">Open bar {{.Bar}} in the editor</a>{{end}}
             {{end}}
           </div>
         </li>
@@ -1548,7 +1549,7 @@
         <label class="gp-opt"><input type="checkbox" class="gp-metronome"> Metronome</label>
         <label class="gp-opt"><input type="checkbox" class="gp-countin"> Count-in</label>
         <label class="gp-opt">Show <select class="gp-notation"><option value="">as I read it</option><option value="tab">Tab</option><option value="staff">Staff</option><option value="both">Staff + tab</option></select></label>
-        {{if .CanEdit}}<a class="gp-btn" href="/song/{{.VariantID}}/gp-edit">Edit the file</a>{{end}}
+        {{if .CanEdit}}<a class="gp-btn gp-edit-link" href="/song/{{.VariantID}}/gp-edit">Edit the file</a>{{end}}
         <a class="gp-btn" href="/song/{{.VariantID}}/gp-file" download>Download</a>
       </div>
       <div class="gp-tracks" role="group" aria-label="Tracks shown"></div>

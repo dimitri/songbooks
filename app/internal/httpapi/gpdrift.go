@@ -30,6 +30,8 @@ type driftItem struct {
 	Sig   string     `json:"sig"`
 	Kept  bool       `json:"kept"`
 	Take  bool       `json:"take"`           // "Use the file's" applies
+	Bar   int        `json:"bar,omitempty"`  // the file's bar it's about, for the editor link
+	Track string     `json:"track,omitempty"`
 	Push  *driftPush `json:"push,omitempty"` // "Use this one" applies
 }
 
@@ -168,7 +170,7 @@ func computeDrift(sg *song.Song, sections []viewerSection, f *gpfacts.Facts, kep
 		}
 		played := f.PlayedBars(*first)
 		if m := f.MarkerAt(first.Ranges[0][0]); m != "" && gpfacts.Fold(m) != gpfacts.Fold(sec.Label) {
-			add(driftItem{Fact: fmt.Sprintf("marker:%d", si), Title: "Section name", Where: where, Text: sec.Label, File: m, Take: true,
+			add(driftItem{Fact: fmt.Sprintf("marker:%d", si), Title: "Section name", Where: where, Text: sec.Label, File: m, Take: true, Bar: first.Ranges[0][0], Track: first.Track,
 				Push: &driftPush{Kind: "marker", Name: sec.Label, Bar: first.Ranges[0][0]}})
 		}
 		if len(sg.Sections[si].Measures) == 0 {
@@ -176,7 +178,7 @@ func computeDrift(sg *song.Song, sections []viewerSection, f *gpfacts.Facts, kep
 		}
 		if sec.BarCount != len(played) {
 			add(driftItem{Fact: fmt.Sprintf("bars:%d", si), Title: "Bar count", Where: where,
-				Text: countOf(sec.BarCount, "bar"), File: countOf(len(played), "bar") + " (bars " + first.String() + ")", Take: true})
+				Text: countOf(sec.BarCount, "bar"), File: countOf(len(played), "bar") + " (bars " + first.String() + ")", Take: true, Bar: first.Ranges[0][0], Track: first.Track})
 			continue
 		}
 		if len(f.Chords) == 0 {
@@ -184,6 +186,7 @@ func computeDrift(sg *song.Song, sections []viewerSection, f *gpfacts.Facts, kep
 		}
 		text := performedChordsAs(sections, i, func(s string) string { return strings.TrimSpace(s) })
 		var differ []string
+		firstBar := 0
 		var tPrev, fPrev string
 		var tShow, fShow []string
 		for b, gpBar := range played {
@@ -195,6 +198,9 @@ func computeDrift(sg *song.Song, sections []viewerSection, f *gpfacts.Facts, kep
 			}
 			fSeq, fPrev = effectiveChords(barChordsJSON(fc), fPrev, gpfacts.ChordName)
 			if !sameChordSeq(tSeq, fSeq) {
+				if firstBar == 0 {
+					firstBar = gpBar
+				}
 				differ = append(differ, strconv.Itoa(b+1))
 				if len(tShow) < 4 {
 					tShow = append(tShow, strings.Join(tSeq, " "))
@@ -208,7 +214,7 @@ func computeDrift(sg *song.Song, sections []viewerSection, f *gpfacts.Facts, kep
 				what = "bars " + strings.Join(differ, ", ")
 			}
 			add(driftItem{Fact: fmt.Sprintf("chords:%d", si), Title: "Chords, " + what, Where: where,
-				Text: strings.Join(tShow, " | "), File: strings.Join(fShow, " | "), Take: true})
+				Text: strings.Join(tShow, " | "), File: strings.Join(fShow, " | "), Take: true, Bar: firstBar, Track: first.Track})
 		}
 	}
 	return out

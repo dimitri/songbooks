@@ -229,6 +229,9 @@
       applyNotation(t, pick && pick.value ? (kindOf(t) === 'drums' ? 'staff' : pick.value) : notationFor(t, ''));
     }
     // alphaTab adds a new drawing's parts next to the previous ones.
+    // "Edit the file" opens on the first track shown.
+    const edit = page.querySelector('.gp-edit-link');
+    if (edit) edit.href = `/song/${variantId}/gp-edit?track=%23${tracks[0] + 1}`;
     const surface = page.querySelector('.gp-score-canvas .at-surface');
     if (surface) surface.replaceChildren();
     full.api.renderScore(full.score, tracks);
