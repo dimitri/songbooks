@@ -66,8 +66,12 @@ The player, on a phone, is a mini player over the tab bar (the day's date,
 the title, play, +15 s, a thin progress line); tapping it opens the full
 player: the stars, the scrubber, previous, −15 s, play, +15 s, next, Restart,
 the speed (0.5× to 1.25×, the pitch kept) and a loop between two points
-(Loop A–B: a tap marks A, the next B, the next stops looping). A wide screen
-shows it all in one bar. Keys: space or K plays and pauses, ←/→ or J/L
+(Loop A–B: a tap marks A, the next B, the next stops looping), and the
+day's recordings to pick from. A wide screen shows it all in one bar, which
+opens (its title, or its ⤢ button) into the same full player as a panel in
+the middle of the screen: on a tablet in portrait, one column; on a
+landscape screen (an iPad held sideways, a desktop), the player and the
+recordings side by side. Escape, its × or a tap beside it closes it. Keys: space or K plays and pauses, ←/→ or J/L
 skip 15 s, shift ←/→ the recording before or after, 0 restarts. The lock
 screen keeps previous and next, and scrubbing.
 
