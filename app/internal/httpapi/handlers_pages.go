@@ -2864,8 +2864,11 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		if !canEdit {
 			canCopy, _ = s.store.CanCopyVariant(r.Context(), person.ID, variantID, "user", 0)
 		}
-		// Home's "Continue" list; a failure here mustn't cost the page.
-		_ = s.store.RecordSongVisit(r.Context(), person.ID, variantID, songContextQuery(r.URL.Query()))
+		// Home's "Continue" list; a failure here mustn't cost the page. A
+		// playlist showing the song beside its player isn't a visit.
+		if r.URL.Query().Get("embed") != "playlist" {
+			_ = s.store.RecordSongVisit(r.Context(), person.ID, variantID, songContextQuery(r.URL.Query()))
+		}
 	}
 	var genre string
 	if workID != 0 {
@@ -2876,6 +2879,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"Me":        person,
 		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "CanCopy": canCopy, "Genre": genre,
+		"Embed": r.URL.Query().Get("embed") == "playlist",
 		"Title": orDefault(sg.Get("title"), "untitled"), "Artist": sg.Get("artist"),
 		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
 		"TimeNum": num, "TimeDen": den,

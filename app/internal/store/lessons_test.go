@@ -115,7 +115,7 @@ func TestLessonsFromFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	num := 7
-	if err := st.UpdateLesson(ctx, lessons[1].ID, &num, "Chicago", "Écoutez d'abord.\n\nPuis jouez."); err != nil {
+	if err := st.UpdateLesson(ctx, lessons[1].ID, &num, "Chicago", "Écoutez d'abord.\n\nPuis jouez.", ""); err != nil {
 		t.Fatal(err)
 	}
 	if created, placed, err := st.LessonsFromFiles(ctx, sb); err != nil || created != 0 || placed != 0 {

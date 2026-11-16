@@ -430,7 +430,7 @@
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
 </head>
-<body data-mode="view"{{with .NotationPrefs}} data-notation-guitar="{{.Guitar}}" data-notation-bass="{{.Bass}}" data-notation-chosen="{{.Chosen}}"{{end}}{{template "brand-body" $brand}}>
+<body data-mode="view"{{if .Embed}} class="embed-playlist"{{end}}{{with .NotationPrefs}} data-notation-guitar="{{.Guitar}}" data-notation-bass="{{.Bass}}" data-notation-chosen="{{.Chosen}}"{{end}}{{template "brand-body" $brand}}>
 {{/* Phase 44: the desktop sidebar (Home/Songbooks/Bands/Setlists/Profile,
      plus a "This song" group) that every other top-level page already
      renders — Play used to be the one page that opted out of it entirely

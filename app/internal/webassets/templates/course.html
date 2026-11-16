@@ -109,7 +109,7 @@ async function courseApi(method, url, body) {
     {{if .Community}}
     <div class="course-from-files">
       <button type="button" id="lessons-from-files" class="secondary">Make lessons from the files</button>
-      <p class="hint">A lesson for each number the course’s files start with (“07_Plan Chicago Blues”), with the songs those files go with. Lessons and songs already in place stay as they are.</p>
+      <p class="hint">A lesson for each number the course’s files start with (“07_Plan Chicago Blues”), with the songs those files go with, and the video the book’s PDF links each lesson to. Lessons, songs and videos already in place stay as they are.</p>
       <p class="form-status" role="status"></p>
     </div>
     {{end}}
@@ -132,8 +132,8 @@ async function courseApi(method, url, body) {
       const box = fromFiles.parentElement;
       Forms.run(box, fromFiles, async () => {
         const data = await courseApi('POST', `/api/songbooks/${sb}/lessons/from-files`);
-        Forms.status(box, `${data.created} lesson${data.created === 1 ? '' : 's'} made, ${data.placed} song${data.placed === 1 ? '' : 's'} and files placed.`, 'ok');
-        if (data.created || data.placed) setTimeout(() => location.reload(), 800);
+        Forms.status(box, `${data.created} lesson${data.created === 1 ? '' : 's'} made, ${data.placed} song${data.placed === 1 ? '' : 's'} and files placed, ${data.videos} video${data.videos === 1 ? '' : 's'} found in the book.`, 'ok');
+        if (data.created || data.placed || data.videos) setTimeout(() => location.reload(), 800);
       });
     });
     document.querySelectorAll('select.course-place').forEach((sel) => sel.addEventListener('change', async () => {
@@ -166,6 +166,10 @@ async function courseApi(method, url, body) {
     <button type="button" id="lesson-done" class="{{if .Progress.Done}}secondary{{else}}primary{{end}}" aria-pressed="{{if .Progress.Done}}true{{else}}false{{end}}">{{if .Progress.Done}}Done ✓{{else}}Mark as done{{end}}</button>
     <span class="hint" id="lesson-done-hint">{{if .Progress.Done}}Tap again if you want to come back to it.{{end}}</span>
   </div>
+
+  {{with .VideoID}}
+  <div class="lesson-video"><iframe src="https://www.youtube-nocookie.com/embed/{{.}}?rel=0" title="The lesson’s video" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>
+  {{end}}
 
   {{with .Lesson.Paragraphs}}
   <section class="lesson-text">
@@ -237,6 +241,7 @@ async function courseApi(method, url, body) {
     <form id="lesson-edit" class="course-form">
       <div class="field course-field-num"><label for="lesson-number">Number</label><input id="lesson-number" name="number" inputmode="numeric" pattern="[0-9]*" value="{{with .Lesson.Number}}{{.}}{{end}}" autocomplete="off"></div>
       <div class="field"><label for="lesson-title">Title</label><input id="lesson-title" name="title" value="{{.Lesson.Title}}" required autocomplete="off"></div>
+      <div class="field course-field-wide"><label for="lesson-video">Video</label><input id="lesson-video" name="video" type="url" inputmode="url" value="{{.Lesson.VideoURL}}" placeholder="https://youtu.be/…" aria-describedby="lesson-video-hint" autocomplete="off"><p class="hint" id="lesson-video-hint">A YouTube link. Left empty, the lesson shows the first video its songs link to.</p></div>
       <div class="field course-field-wide"><label for="lesson-body">Text</label><textarea id="lesson-body" name="body" rows="6" aria-describedby="lesson-body-hint">{{.Lesson.Body}}</textarea><p class="hint" id="lesson-body-hint">What to work on, in what order. A blank line starts a new paragraph.</p></div>
       <div class="form-actions"><button type="submit" class="primary">Save</button> <button type="button" id="lesson-delete" class="danger">Delete the lesson</button></div>
       <p class="form-status" role="status"></p>
@@ -269,7 +274,7 @@ async function courseApi(method, url, body) {
   edit.addEventListener('submit', (e) => {
     e.preventDefault();
     Forms.run(edit, edit.querySelector('button[type=submit]'), async () => {
-      await courseApi('PUT', base, {number: edit.elements.number.value, title: edit.elements.title.value, body: edit.elements.body.value});
+      await courseApi('PUT', base, {number: edit.elements.number.value, title: edit.elements.title.value, body: edit.elements.body.value, video: edit.elements.video.value});
       location.reload();
     });
   });

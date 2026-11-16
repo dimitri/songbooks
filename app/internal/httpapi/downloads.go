@@ -670,6 +670,18 @@ func (s *Server) handleUploadSongbookFiles(w http.ResponseWriter, r *http.Reques
 		httpError(w, http.StatusBadRequest, "no file")
 		return
 	}
+	// A course's book, added on its own: its lessons' videos (a zip's
+	// import does it itself).
+	if sb.IsCourse() {
+		for _, f := range out {
+			if f.Status != "skipped" && f.SongID == nil && store.FileKind(f.Name, false) == "book" {
+				if _, err := s.store.LessonVideosFromBooks(r.Context(), sb.ID); err != nil {
+					log.Printf("songbook %d: lesson videos: %v", sb.ID, err)
+				}
+				break
+			}
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"files": out})
 }
 

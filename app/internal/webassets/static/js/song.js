@@ -1123,7 +1123,7 @@ const ICONS = {
     // opened next would replace the chart nobody asked to stop seeing.
     // Same reasoning edit's own early return above already applies, and
     // for the Mixer: a workbench opened for a task, not a way of reading.
-    if (v !== 'reference' && v !== 'mixer' && v !== 'score') {
+    if (v !== 'reference' && v !== 'mixer' && v !== 'score' && !document.body.classList.contains('embed-playlist')) {
       try { localStorage.setItem('songbooks-default-mode', v); } catch (e) { /* ignore */ }
     }
   });
@@ -1148,7 +1148,9 @@ const ICONS = {
   try {
     // A song whose content is all in its Guitar Pro file ("content: gp")
     // opens on that file.
-    const saved = sheet.dataset.gpOnly ? 'score' : localStorage.getItem('songbooks-default-mode');
+    // Beside a playlist's player (playlist.html), the song shows as its map.
+    const embedded = document.body.classList.contains('embed-playlist');
+    const saved = embedded ? 'map' : sheet.dataset.gpOnly ? 'score' : localStorage.getItem('songbooks-default-mode');
     // Drummer view only for a song that has a drum part: on any other it
     // is a page of empty staves, so the song opens as a chart instead.
     const hasDrums = [...document.querySelectorAll('[data-realbars]')].some((e) => !e.dataset.restonly);

@@ -149,6 +149,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/songbooks/{id}/entries", s.requireAuth(s.handleAddSongbookEntry))
 	mux.HandleFunc("DELETE /api/songbooks/{id}/entries/{variantID}", s.requireAuth(s.handleRemoveSongbookEntry))
 	mux.HandleFunc("GET /songbooks/{id}/playlist/metronome", s.requireAuth(s.handleMetronomePlaylist))
+	mux.HandleFunc("GET /songbooks/{id}/playlist", s.requireAuth(s.handlePlaylistPage))
 	mux.HandleFunc("GET /songbooks/{id}/playlist/mp3", s.requireAuth(s.handleMP3Playlist))
 
 	// Songs: addressed by their own variant id from here on — see
@@ -415,6 +416,17 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/communities/{id}/events/{eventID}/managers", s.requireCommunityPrivilege(store.PrivManageEvents, s.handleAssignEventManager))
 	mux.HandleFunc("DELETE /api/communities/{id}/events/{eventID}/managers/{personID}", s.requireCommunityPrivilege(store.PrivManageEvents, s.handleRemoveEventManager))
 	mux.HandleFunc("GET /bands/{id}/events", s.requireBandMember(s.handleBandEventsPage))
+	// A band's recordings, from the folder it shares (band_recordings.go).
+	mux.HandleFunc("GET /bands/{id}/rehearsals", s.requireBandMember(s.handleBandRehearsalsPage))
+	mux.HandleFunc("GET /bands/{id}/concerts", s.requireBandMember(s.handleBandConcertsPage))
+	mux.HandleFunc("GET /bands/{id}/recordings/songs/{variantID}", s.requireBandMember(s.handleBandSongRecordingsPage))
+	mux.HandleFunc("GET /bands/{id}/recordings/fixes", s.requireBandMember(s.handleBandRecordingFixesPage))
+	mux.HandleFunc("POST /api/bands/{id}/recordings/source", s.requireBandMember(s.handleSetBandRecordingSource))
+	mux.HandleFunc("POST /api/bands/{id}/recordings/sync", s.requireBandMember(s.handleSyncBandRecordings))
+	mux.HandleFunc("PUT /api/bands/{id}/recordings/{recID}/stars", s.requireBandMember(s.handleRateBandRecording))
+	mux.HandleFunc("PUT /api/bands/{id}/songs/{variantID}/recording", s.requireBandMember(s.handleSetBandSongRecording))
+	mux.HandleFunc("POST /api/bands/{id}/recordings/fixes", s.requireBandMember(s.handleSetBandRecordingFix))
+	mux.HandleFunc("DELETE /api/bands/{id}/recordings/fixes/{fixID}", s.requireBandMember(s.handleDeleteBandRecordingFix))
 	mux.HandleFunc("POST /api/bands/{id}/events", s.requireBandMember(s.handleCreateBandEvent))
 	mux.HandleFunc("GET /events/{id}", s.optionalPerson(s.handleEventPage))
 	mux.HandleFunc("GET /events/{id}/ics", s.optionalPerson(s.handleEventICS))
