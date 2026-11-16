@@ -75,13 +75,16 @@ Staff choose shared or private on the songbook's *Sharing and access* page.
 
 `/communities/{id}/downloads`, a tab of every community page.
 
-- One list, songbook by songbook, of the songbooks the reader has; a
-  songbook they don't have isn't shown, nor are its files.
-- Per songbook: *Everything · zip*, *Browse the folders*, the book (PDFs
-  that go with no song and aren't numbered as a lesson) with *Open* and
-  *Download*, then one row per lesson — the song's files (Guitar Pro first,
-  then audio, a play button for audio), or loose files grouped by the
-  author's lesson number (`20_Same old Blues.pdf`, `20_Same old Blues PB.mp3`).
+- One list of the songbooks and courses the reader has, with their main
+  downloads: *Everything · zip* and the book (PDFs that go with no song and
+  aren't numbered as a lesson) with *Open* and *Download*. A songbook they
+  don't have isn't shown, nor are its files.
+- A page per songbook or course (`…/downloads/songbooks/{sbID}`, from its
+  name or its *N lessons, file by file*): the same, then one row per lesson
+  — the song's files (Guitar Pro first, then audio, a play button for
+  audio), or loose files grouped by the author's lesson number
+  (`20_Same old Blues.pdf`, `20_Same old Blues PB.mp3`) — *Browse the
+  folders*, and, for who manages the files, *Add files or a zip*.
 - **Browsing** (`…/downloads/songbooks/{sbID}/browse/{folder…}`): the
   songbook's files as in its zip, folder by folder, each folder also as a
   zip of its own.
@@ -93,8 +96,8 @@ Staff choose shared or private on the songbook's *Sharing and access* page.
   a 404 for anyone without the songbook or the privilege, range requests
   answered, `?view=1` to open in the browser.
 - Who manages the files also sees every songbook, whether it's open or
-  sold (and to how many people), *Add files or a zip* (in the folder
-  shown), which lesson each file goes with (a menu per file in the
+  sold (and to how many people), *Add files or a zip* (on its page, and in
+  the folder shown), which lesson each file goes with (a menu per file in the
   folders), remove a file or a folder.
 - Files are stored in Postgres once per content (`file_blobs`, by hash) in
   1 MiB chunks, streamed, never read whole. The same content in two places

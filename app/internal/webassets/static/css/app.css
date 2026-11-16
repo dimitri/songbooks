@@ -5842,6 +5842,11 @@ body.branded h1, body.branded h2, body.branded .brand-name { font-synthesis-weig
 .dl-songbook { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); padding: 1rem 1.1rem; margin: 0 0 1.2rem; }
 .dl-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 0.9rem; margin-bottom: 0.8rem; }
 .dl-head h2 { margin: 0; font-size: 1.15rem; font-family: var(--font-chart, inherit); }
+.dl-head h2 a { color: inherit; text-decoration: none; }
+.dl-head h2 a:hover { color: var(--accent); text-decoration: underline; }
+.dl-back { margin: 0 0 0.8rem; }
+.dl-back a { display: inline-flex; align-items: center; gap: 0.3rem; min-height: 2.75rem; }
+.dl-back .icon { width: 1em; height: 1em; }
 .dl-meta { font-size: 0.82rem; color: var(--fg-faint); }
 .dl-access { font-size: 0.78rem; padding: 0.1rem 0.5rem; border-radius: 999px; background: var(--ok-bg); color: var(--ok); }
 .dl-access.sold { background: var(--warn-bg); color: var(--warn); }
@@ -5858,6 +5863,21 @@ body.branded h1, body.branded h2, body.branded .brand-name { font-synthesis-weig
 .dl-lesson-title { flex: 1 1 14rem; min-width: 0; display: flex; align-items: baseline; gap: 0.6rem; }
 .dl-num { flex: none; width: 1.6rem; text-align: right; font: 600 0.78rem var(--font-mono, monospace); color: var(--fg-faint); }
 .dl-files { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.dl-lesson-title a { color: inherit; text-decoration: none; }
+.dl-lesson-title a:hover { color: var(--accent); text-decoration: underline; }
+.dl-lessons-head { display: none; }
+/* A wide screen: the lessons as a table, a column per kind of file
+   (Guitar Pro, backing track, the rest), so they line up. */
+@media (min-width: 760px) {
+  .dl-lessons-head, .dl-lesson { display: grid; grid-template-columns: minmax(0, 1fr) 11rem 11rem 11rem; column-gap: 0.8rem; align-items: center; }
+  .dl-lessons-head { padding: 0 0 0.35rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-faint); }
+  .dl-lessons-head span:first-child { padding-left: 2.2rem; }
+  .dl-files { display: contents; }
+  .dl-file { grid-column: 4; justify-self: start; }
+  .dl-file.kind-gp { grid-column: 2; }
+  .dl-file.kind-audio { grid-column: 3; }
+  .dl-lesson-title { grid-column: 1; grid-row: 1 / span 3; }
+}
 .dl-file { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 999px; font-size: 0.82rem; background: var(--bg); overflow: hidden; }
 .dl-file a { display: inline-flex; align-items: center; min-height: 2.25rem; padding: 0 0.7rem; color: inherit; text-decoration: none; white-space: nowrap; }
 .dl-file a:hover { color: var(--accent); background: var(--accent-bg); }
