@@ -30,6 +30,8 @@ type SongbookFile struct {
 	SongbookID  int64
 	VariantID   *int64
 	SongTitle   string // the song it goes with, if any
+	// LessonID is the course lesson it's in: its own, or its song's.
+	LessonID *int64
 	Kind        string // "book", "gp", "audio" or "other"
 	Path        string
 	Filename    string
@@ -230,15 +232,16 @@ func (st *Store) AddSongbookFile(ctx context.Context, nf NewSongbookFile, r io.R
 	return id, status, tx.Commit(ctx)
 }
 
-const songbookFileCols = `f.id, f.songbook_id, f.variant_id, coalesce(s.title, ''), f.kind, f.path, f.filename, f.title,
+const songbookFileCols = `f.id, f.songbook_id, f.variant_id, coalesce(s.title, ''), coalesce(f.lesson_id, fe.lesson_id), f.kind, f.path, f.filename, f.title,
 	f.content_type, f.blob_id, b.byte_size, b.sha256, b.crc32, f.modified_at, f.created_at`
 
-const songbookFileFrom = `songbook_files f JOIN file_blobs b ON b.id = f.blob_id LEFT JOIN songs s ON s.id = f.variant_id`
+const songbookFileFrom = `songbook_files f JOIN file_blobs b ON b.id = f.blob_id LEFT JOIN songs s ON s.id = f.variant_id
+	LEFT JOIN songbook_entries fe ON fe.songbook_id = f.songbook_id AND fe.variant_id = f.variant_id`
 
 func scanSongbookFile(row pgx.Row) (SongbookFile, error) {
 	var f SongbookFile
 	var crc int64
-	err := row.Scan(&f.ID, &f.SongbookID, &f.VariantID, &f.SongTitle, &f.Kind, &f.Path, &f.Filename, &f.Title,
+	err := row.Scan(&f.ID, &f.SongbookID, &f.VariantID, &f.SongTitle, &f.LessonID, &f.Kind, &f.Path, &f.Filename, &f.Title,
 		&f.ContentType, &f.BlobID, &f.ByteSize, &f.SHA256, &crc, &f.ModifiedAt, &f.CreatedAt)
 	f.CRC32 = uint32(crc)
 	return f, err
@@ -284,7 +287,8 @@ func (st *Store) SongbookHasVariant(ctx context.Context, songbookID, variantID i
 }
 
 // SetSongbookFileSong says which song of its songbook a file goes with
-// (nil: none), which may make a PDF the book or a lesson's.
+// (nil: none), which may make a PDF the book or a lesson's. With a song,
+// the file is in that song's lesson.
 func (st *Store) SetSongbookFileSong(ctx context.Context, id int64, variantID *int64) error {
 	f, err := st.GetSongbookFile(ctx, id)
 	if err != nil {
@@ -294,7 +298,7 @@ func (st *Store) SetSongbookFileSong(ctx context.Context, id int64, variantID *i
 	if kind == "book" || kind == "other" {
 		kind = FileKind(f.Filename, variantID != nil)
 	}
-	_, err = st.db.Exec(ctx, `UPDATE songbook_files SET variant_id = $2, kind = $3 WHERE id = $1`, id, variantID, kind)
+	_, err = st.db.Exec(ctx, `UPDATE songbook_files SET variant_id = $2, kind = $3, lesson_id = CASE WHEN $2::bigint IS NULL THEN lesson_id END WHERE id = $1`, id, variantID, kind)
 	return err
 }
 

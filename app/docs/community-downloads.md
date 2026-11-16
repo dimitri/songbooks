@@ -23,6 +23,8 @@ community ── songbooks ── songs
 - **A songbook is the product.** A community's songbook is either open to
   every member, or *sold separately* (`requires_grant`): then a member needs
   a grant on it.
+- **A songbook can be a course** ([courses.md](courses.md)): the same
+  product, its songs grouped in lessons, with each member's progress.
 - **A songbook is shared or private** (`shared`, migration 0072), whether
   sold or not. A shared songbook's songs can be copied by whoever can open
   them: into their own songbook, a band's, another community's. A private

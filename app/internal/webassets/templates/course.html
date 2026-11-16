@@ -1,0 +1,310 @@
+{{/* A course: a songbook whose songs are in lessons (internal/httpapi/courses.go). */}}
+
+{{define "course-head"}}
+{{$brand := brandOwner .Songbook.OwnerKind .Songbook.OwnerBandID .Songbook.OwnerCommunityID}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{with .Lesson}}{{.Label}} — {{end}}{{.Songbook.Name}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+{{end}}
+
+{{/* course-api: fetch with JSON, throwing the server's message. */}}
+{{define "course-api"}}
+<script>
+async function courseApi(method, url, body) {
+  const res = await fetch(url, {
+    method, headers: body === undefined ? undefined : {'Content-Type': 'application/json'},
+    body: body === undefined ? undefined : JSON.stringify(body),
+  }).catch(() => null);
+  if (!res) throw new Error('Couldn’t reach the server. Try again.');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ? data.error.charAt(0).toUpperCase() + data.error.slice(1) : 'That didn’t work. Try again.');
+  return data;
+}
+</script>
+{{end}}
+
+{{define "course"}}
+{{template "course-head" .}}
+<header class="app-header">
+  {{if .Community}}<a class="back-link" href="/communities/{{.Community.ID}}/songbooks">{{template "icon-back"}} Songbooks</a>{{else}}{{template "home-link"}}{{end}}
+  <h1>{{.Songbook.Name}}</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index course">
+  {{with .Community}}
+  <nav class="band-tabs band-tabs-row">
+    <a class="band-tab" href="/communities/{{.ID}}">Overview</a>
+    <a class="band-tab active" href="/communities/{{.ID}}/songbooks">Songbooks</a>
+    <a class="band-tab" href="/communities/{{.ID}}/downloads">Downloads</a>
+    <a class="band-tab" href="/communities/{{.ID}}/events">Events</a>
+  </nav>
+  {{end}}
+
+  {{if .Lessons}}
+  <section class="course-progress card" aria-label="Your progress">
+    <div class="course-progress-text">
+      <strong>{{.Done}} of {{.Total}} lesson{{if ne .Total 1}}s{{end}} done</strong>
+      <div class="course-bar" role="progressbar" aria-valuemin="0" aria-valuemax="{{.Total}}" aria-valuenow="{{.Done}}" aria-label="Lessons done"><span style="width: {{.Percent}}%"></span></div>
+    </div>
+    {{with .Next}}<a class="dl-btn primary" href="{{.Href}}">{{if .Progress.Started}}Continue{{else if eq $.Done 0}}Start{{else}}Next{{end}}: {{.Label}}</a>{{end}}
+  </section>
+
+  <ol class="course-lessons">
+    {{range .Lessons}}
+    <li class="course-lesson{{if .Progress.Done}} done{{else if .Progress.Started}} started{{end}}">
+      <span class="course-num" aria-hidden="true">{{with .Number}}{{.}}{{else}}·{{end}}</span>
+      <a class="course-lesson-main" href="{{.Href}}">
+        <strong>{{.Title}}</strong>
+        <span class="dl-meta">{{range $i, $s := .Songs}}{{if $i}} · {{end}}{{$s.Title}}{{end}}{{if and .Songs .Files}} — {{end}}{{if .Files}}{{.Files}} file{{if ne .Files 1}}s{{end}}{{end}}</span>
+      </a>
+      <span class="course-state">{{if .Progress.Done}}Done{{else if .Progress.Started}}Started{{end}}</span>
+    </li>
+    {{end}}
+  </ol>
+  {{else}}
+  <p class="dl-empty">This course has no lessons yet.{{if .CanEdit}} Make them from its files, or one at a time, below.{{end}}</p>
+  {{end}}
+
+  {{if .Loose}}
+  <section class="card course-loose">
+    <h2>Not in a lesson</h2>
+    <ul class="dl-tree">
+      {{range .Loose}}
+      <li class="dl-row">
+        <a class="dl-row-name" href="/song/{{.VariantID}}?songbook={{$.Songbook.ID}}">{{.Title}}</a>
+        {{if and $.CanEdit $.Lessons}}
+        <span class="dl-row-song">
+          <select class="course-place" data-variant="{{.VariantID}}" aria-label="Lesson for {{.Title}}">
+            <option value="">No lesson</option>
+            {{range $.Lessons}}<option value="{{.ID}}">{{.Label}}</option>{{end}}
+          </select>
+          <span class="form-status" role="status"></span>
+        </span>
+        {{end}}
+      </li>
+      {{end}}
+    </ul>
+  </section>
+  {{end}}
+
+  {{if .CanEdit}}
+  <section class="card course-tools">
+    <h2>Organize the course</h2>
+    <form id="new-lesson" class="course-form">
+      <div class="field course-field-num"><label for="new-lesson-number">Number</label><input id="new-lesson-number" name="number" inputmode="numeric" pattern="[0-9]*" autocomplete="off"></div>
+      <div class="field"><label for="new-lesson-title">Title</label><input id="new-lesson-title" name="title" required autocomplete="off"></div>
+      <div class="form-actions"><button type="submit" class="primary">{{template "icon-plus"}} New lesson</button></div>
+      <p class="form-status" role="status"></p>
+    </form>
+    {{if .Community}}
+    <div class="course-from-files">
+      <button type="button" id="lessons-from-files" class="secondary">Make lessons from the files</button>
+      <p class="hint">A lesson for each number the course’s files start with (“07_Plan Chicago Blues”), with the songs those files go with. Lessons and songs already in place stay as they are.</p>
+      <p class="form-status" role="status"></p>
+    </div>
+    {{end}}
+    <p class="hint"><a href="/songbooks/{{.Songbook.ID}}?view=songs">All the songs, as a list</a>{{with .Community}} · <a href="/communities/{{.ID}}/downloads#songbook-{{$.Songbook.ID}}">Its files</a>{{end}}</p>
+  </section>
+  {{template "course-api"}}
+  <script>
+  (() => {
+    const sb = {{.Songbook.ID}};
+    const form = document.getElementById('new-lesson');
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      Forms.run(form, form.querySelector('button'), async () => {
+        const data = await courseApi('POST', `/api/songbooks/${sb}/lessons`, {number: form.elements.number.value, title: form.elements.title.value});
+        location.href = data.href;
+      });
+    });
+    const fromFiles = document.getElementById('lessons-from-files');
+    fromFiles?.addEventListener('click', () => {
+      const box = fromFiles.parentElement;
+      Forms.run(box, fromFiles, async () => {
+        const data = await courseApi('POST', `/api/songbooks/${sb}/lessons/from-files`);
+        Forms.status(box, `${data.created} lesson${data.created === 1 ? '' : 's'} made, ${data.placed} song${data.placed === 1 ? '' : 's'} and files placed.`, 'ok');
+        if (data.created || data.placed) setTimeout(() => location.reload(), 800);
+      });
+    });
+    document.querySelectorAll('select.course-place').forEach((sel) => sel.addEventListener('change', async () => {
+      const status = sel.parentElement.querySelector('.form-status');
+      try {
+        await courseApi('PUT', `/api/songbooks/${sb}/entries/${sel.dataset.variant}/lesson`, {lesson: sel.value ? Number(sel.value) : null});
+        Forms.status(status, 'Saved', 'ok');
+      } catch (e) { Forms.status(status, e.message, 'error'); }
+    }));
+  })();
+  </script>
+  {{end}}
+</main>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}
+
+{{define "lesson"}}
+{{template "course-head" .}}
+<header class="app-header">
+  <a class="back-link" href="/songbooks/{{.Songbook.ID}}">{{template "icon-back"}} {{.Songbook.Name}}</a>
+  <h1>{{.Lesson.Label}}</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index course lesson">
+  <div class="lesson-done">
+    <button type="button" id="lesson-done" class="{{if .Progress.Done}}secondary{{else}}primary{{end}}" aria-pressed="{{if .Progress.Done}}true{{else}}false{{end}}">{{if .Progress.Done}}Done ✓{{else}}Mark as done{{end}}</button>
+    <span class="hint" id="lesson-done-hint">{{if .Progress.Done}}Tap again if you want to come back to it.{{end}}</span>
+  </div>
+
+  {{with .Lesson.Paragraphs}}
+  <section class="lesson-text">
+    {{range .}}<p>{{.}}</p>{{end}}
+  </section>
+  {{end}}
+
+  <section class="card">
+    <h2>{{if eq (len .Lesson.Songs) 1}}The song{{else}}The songs{{end}}</h2>
+    {{if .Lesson.Songs}}
+    <ul class="dl-tree lesson-songs">
+      {{range $i, $s := .Lesson.Songs}}
+      <li class="dl-row">
+        <a class="dl-row-name" href="/song/{{$s.VariantID}}?songbook={{$.Songbook.ID}}"><strong>{{$s.Title}}</strong>{{with $s.Artist}}<span class="dl-meta">{{.}}</span>{{end}}</a>
+        {{if $.CanEdit}}
+        <span class="dl-row-actions">
+          {{if $i}}<button type="button" class="dl-btn lesson-move" data-variant="{{$s.VariantID}}" data-by="-1" aria-label="Move {{$s.Title}} up">{{template "icon-up"}}</button>{{end}}
+          {{if lt (add1 $i) (len $.Lesson.Songs)}}<button type="button" class="dl-btn lesson-move" data-variant="{{$s.VariantID}}" data-by="1" aria-label="Move {{$s.Title}} down">{{template "icon-down"}}</button>{{end}}
+          <button type="button" class="dl-btn lesson-unplace" data-variant="{{$s.VariantID}}" aria-label="Take {{$s.Title}} out of this lesson">{{template "icon-close"}}</button>
+        </span>
+        {{end}}
+      </li>
+      {{end}}
+    </ul>
+    {{else}}
+    <p class="hint">No song in this lesson{{if .Files}}: its files are below{{end}}.</p>
+    {{end}}
+    {{if and .CanEdit .OtherSongs}}
+    <form id="lesson-add-song" class="course-form">
+      <div class="field"><label for="lesson-add-song-select">Add a song to this lesson</label>
+        <select id="lesson-add-song-select" name="song" required>
+          <option value=""></option>
+          {{range .OtherSongs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}
+        </select>
+      </div>
+      <div class="form-actions"><button type="submit" class="secondary">{{template "icon-plus"}} Add</button></div>
+      <p class="form-status" role="status"></p>
+    </form>
+    {{end}}
+  </section>
+
+  {{if .Files}}
+  <section class="card">
+    <h2>Files</h2>
+    <ul class="dl-tree">
+      {{range .Files}}
+      <li class="dl-row kind-{{.Kind}}">
+        <span class="dl-ext">{{if eq .Kind "gp"}}GP{{else}}{{or .Ext "FILE"}}{{end}}</span>
+        <span class="dl-row-name"><a href="{{.Href}}" download>{{.Filename}}</a><span class="dl-meta">{{fileSize .ByteSize}}{{with .SongTitle}} · {{.}}{{end}}</span></span>
+        <span class="dl-row-actions">
+          {{if eq .Kind "audio"}}<button type="button" class="dl-btn dl-play" data-src="{{.Href}}?view=1" aria-label="Play {{.Filename}}">{{template "icon-play"}}</button>{{end}}
+          {{if eq .Ext "PDF"}}<a class="dl-btn" href="{{.Href}}?view=1" target="_blank" rel="noopener">Open</a>{{end}}
+          <a class="dl-btn" href="{{.Href}}" download aria-label="Download {{.Filename}}">{{template "icon-download"}}</a>
+        </span>
+      </li>
+      {{end}}
+    </ul>
+  </section>
+  {{end}}
+
+  <nav class="lesson-nav" aria-label="Lessons">
+    {{with .Prev}}<a class="dl-btn" href="{{.Href}}">{{template "icon-back"}} {{.Label}}</a>{{end}}
+    {{with .Next}}<a class="dl-btn lesson-next" href="{{.Href}}">{{.Label}} {{template "icon-forward"}}</a>{{end}}
+  </nav>
+
+  {{if .CanEdit}}
+  <section class="card course-tools">
+    <h2>Edit the lesson</h2>
+    <form id="lesson-edit" class="course-form">
+      <div class="field course-field-num"><label for="lesson-number">Number</label><input id="lesson-number" name="number" inputmode="numeric" pattern="[0-9]*" value="{{with .Lesson.Number}}{{.}}{{end}}" autocomplete="off"></div>
+      <div class="field"><label for="lesson-title">Title</label><input id="lesson-title" name="title" value="{{.Lesson.Title}}" required autocomplete="off"></div>
+      <div class="field course-field-wide"><label for="lesson-body">Text</label><textarea id="lesson-body" name="body" rows="6" aria-describedby="lesson-body-hint">{{.Lesson.Body}}</textarea><p class="hint" id="lesson-body-hint">What to work on, in what order. A blank line starts a new paragraph.</p></div>
+      <div class="form-actions"><button type="submit" class="primary">Save</button> <button type="button" id="lesson-delete" class="danger">Delete the lesson</button></div>
+      <p class="form-status" role="status"></p>
+    </form>
+  </section>
+  {{end}}
+</main>
+</div>
+{{with .Community}}{{template "dl-script" .ID}}{{end}}
+{{template "course-api"}}
+<script>
+(() => {
+  const sb = {{.Songbook.ID}}, lesson = {{.Lesson.ID}};
+  const base = `/api/songbooks/${sb}/lessons/${lesson}`;
+  const done = document.getElementById('lesson-done');
+  done.addEventListener('click', async () => {
+    const now = done.getAttribute('aria-pressed') !== 'true';
+    Forms.busy(done, true);
+    try {
+      await courseApi('PUT', `${base}/done`, {done: now});
+      done.setAttribute('aria-pressed', String(now));
+      done.textContent = now ? 'Done ✓' : 'Mark as done';
+      done.className = now ? 'secondary' : 'primary';
+      document.getElementById('lesson-done-hint').textContent = now ? 'Tap again if you want to come back to it.' : '';
+    } catch (e) { alert(e.message); }
+    Forms.busy(done, false);
+  });
+  {{if .CanEdit}}
+  const edit = document.getElementById('lesson-edit');
+  edit.addEventListener('submit', (e) => {
+    e.preventDefault();
+    Forms.run(edit, edit.querySelector('button[type=submit]'), async () => {
+      await courseApi('PUT', base, {number: edit.elements.number.value, title: edit.elements.title.value, body: edit.elements.body.value});
+      location.reload();
+    });
+  });
+  document.getElementById('lesson-delete').addEventListener('click', () => {
+    if (!confirm('Delete this lesson? Its songs and files stay in the course, in no lesson.')) return;
+    Forms.run(edit, null, async () => {
+      await courseApi('DELETE', base);
+      location.href = `/songbooks/${sb}`;
+    });
+  });
+  const add = document.getElementById('lesson-add-song');
+  add?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    Forms.run(add, add.querySelector('button'), async () => {
+      await courseApi('PUT', `/api/songbooks/${sb}/entries/${add.elements.song.value}/lesson`, {lesson});
+      location.reload();
+    });
+  });
+  document.querySelectorAll('.lesson-move').forEach((b) => b.addEventListener('click', async () => {
+    try {
+      await courseApi('POST', `${base}/songs/${b.dataset.variant}/move`, {by: Number(b.dataset.by)});
+      location.reload();
+    } catch (e) { alert(e.message); }
+  }));
+  document.querySelectorAll('.lesson-unplace').forEach((b) => b.addEventListener('click', async () => {
+    try {
+      await courseApi('PUT', `/api/songbooks/${sb}/entries/${b.dataset.variant}/lesson`, {lesson: null});
+      location.reload();
+    } catch (e) { alert(e.message); }
+  }));
+  {{end}}
+})();
+</script>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

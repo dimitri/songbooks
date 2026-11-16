@@ -30,7 +30,7 @@ func newTestStore(t *testing.T) *Store {
 	}
 	t.Cleanup(st.Close)
 
-	if _, err := st.db.Exec(ctx, `TRUNCATE people, bands, communities RESTART IDENTITY CASCADE`); err != nil {
+	if _, err := st.db.Exec(ctx, `TRUNCATE people, bands, communities, file_blobs RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatalf("resetting test database: %v", err)
 	}
 	return st

@@ -205,6 +205,18 @@ func (s *Server) handleCommunityDownloadsPage(w http.ResponseWriter, r *http.Req
 	for _, sb := range open {
 		part := downloadSongbook{Songbook: sb, ZipHref: zipHref(communityID, &sb, "")}
 		lessonAt := map[string]int{}
+		// A course's files are listed by its lessons.
+		lessons := map[int64]store.Lesson{}
+		if sb.IsCourse() {
+			ls, _, err := s.store.ListLessons(r.Context(), sb.ID)
+			if err != nil {
+				httpError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			for _, l := range ls {
+				lessons[l.ID] = l
+			}
+		}
 		for _, f := range bySongbook[sb.ID] {
 			part.Bytes += f.ByteSize
 			part.Files++
@@ -214,7 +226,17 @@ func (s *Server) handleCommunityDownloadsPage(w http.ResponseWriter, r *http.Req
 				continue
 			}
 			key, l := "", downloadLesson{Number: f.Number(), Title: f.Label()}
+			lesson, inLesson := store.Lesson{}, false
+			if f.LessonID != nil {
+				lesson, inLesson = lessons[*f.LessonID]
+			}
 			switch {
+			case inLesson:
+				key = fmt.Sprintf("lessonid:%d", lesson.ID)
+				l.Number, l.Title, l.Href = "", lesson.Title, lessonHref(sb.ID, lesson.ID)
+				if lesson.Number != nil {
+					l.Number = strconv.Itoa(*lesson.Number)
+				}
 			case f.VariantID != nil:
 				key = fmt.Sprintf("song:%d", *f.VariantID)
 				l.Title, l.Href = f.SongTitle, fmt.Sprintf("/song/%d", *f.VariantID)
@@ -222,7 +244,7 @@ func (s *Server) handleCommunityDownloadsPage(w http.ResponseWriter, r *http.Req
 				key = "lesson:" + l.Number
 			}
 			i, seen := lessonAt[key]
-			if seen && key != "" && len(l.Title) < len(part.Lessons[i].Title) && f.VariantID == nil {
+			if seen && key != "" && len(l.Title) < len(part.Lessons[i].Title) && f.VariantID == nil && !inLesson {
 				part.Lessons[i].Title = l.Title // "Same old Blues", not "Same old Blues PB"
 			}
 			if !seen || key == "" {

@@ -34,7 +34,12 @@ func (st *Store) rawSongOrder(ctx context.Context, songbookID int64) ([]SongGrou
 // ListSongsOrdered returns songbookID's entries grouped and ordered
 // exactly as its song_order lists them, falling back to a single
 // alphabetical group (by title) of every entry when none is set.
+//
+// A course with lessons is in its lessons' order instead (courseOrder).
 func (st *Store) ListSongsOrdered(ctx context.Context, songbookID int64) ([]SongGroup, error) {
+	if groups, ok, err := st.courseOrder(ctx, songbookID); err != nil || ok {
+		return groups, err
+	}
 	groups, err := st.rawSongOrder(ctx, songbookID)
 	if err != nil {
 		return nil, err

@@ -381,6 +381,13 @@ func (s *Server) handleCommunityDefaultSongbookPage(w http.ResponseWriter, r *ht
 		httpError(w, http.StatusForbidden, "this songbook is sold separately: ask the community for access")
 		return
 	}
+	// A course has its own page (courses.go); ?view=songs stays here.
+	if sbID, err := s.store.GetDefaultSongbook(r.Context(), "community", communityID); err == nil && r.URL.Query().Get("view") != "songs" {
+		if sb, err := s.store.GetSongbook(r.Context(), sbID); err == nil && sb.IsCourse() {
+			http.Redirect(w, r, fmt.Sprintf("/songbooks/%d", sbID), http.StatusSeeOther)
+			return
+		}
+	}
 	catalog, err := s.store.ListCommunityCatalog(r.Context(), communityID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())

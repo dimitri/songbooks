@@ -4,6 +4,10 @@
 //
 //	sbfiles add --db URL --songbook 12 [--path F] [--song 251] [--title T] [--kind K] [--actor NAME] --name "01_Mon premier blues.gp" < file
 //	sbfiles import --db URL --songbook 12 [--path F] [--actor NAME] --name "Lessons.zip" < Lessons.zip
+//	sbfiles course --db URL --songbook 12
+//
+// course makes the songbook a course (docs/courses.md) and its lessons
+// from its files; a course's import does the latter by itself.
 //
 // A file of the same name in the same folder is replaced. In production it
 // runs inside the app container:
@@ -21,16 +25,18 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"app/internal/store"
 )
 
 const usage = `usage:
   sbfiles add --db URL --songbook ID [--path F] [--song ID] [--title T] [--kind K] [--actor NAME] --name FILE < file
-  sbfiles import --db URL --songbook ID [--path F] [--actor NAME] --name ZIP < zip`
+  sbfiles import --db URL --songbook ID [--path F] [--actor NAME] --name ZIP < zip
+  sbfiles course --db URL --songbook ID`
 
 func main() {
-	if len(os.Args) < 2 || (os.Args[1] != "add" && os.Args[1] != "import") {
+	if len(os.Args) < 2 || (os.Args[1] != "add" && os.Args[1] != "import" && os.Args[1] != "course") {
 		log.Fatal(usage)
 	}
 	cmd := os.Args[1]
@@ -44,7 +50,7 @@ func main() {
 	actor := fs.String("actor", "", "username the files are added as")
 	kind := fs.String("kind", "", "book, gp, audio or other (default: from the name)")
 	fs.Parse(os.Args[2:])
-	if *dbURL == "" || *songbookID == 0 || *name == "" {
+	if *dbURL == "" || *songbookID == 0 || (*name == "" && cmd != "course") {
 		log.Fatal("--db, --songbook and --name are required")
 	}
 	ctx := context.Background()
@@ -63,6 +69,32 @@ func main() {
 		actorID = p.ID
 	}
 	base := filepath.Base(*name)
+
+	if cmd == "course" {
+		if err := st.SetSongbookKind(ctx, *songbookID, store.SongbookKindCourse); err != nil {
+			log.Fatal(err)
+		}
+		created, placed, err := st.LessonsFromFiles(ctx, *songbookID)
+		if err != nil {
+			log.Fatal(err)
+		}
+		lessons, loose, err := st.ListLessons(ctx, *songbookID)
+		if err != nil {
+			log.Fatal(err)
+		}
+		for _, l := range lessons {
+			var songs []string
+			for _, s := range l.Songs {
+				songs = append(songs, s.Title)
+			}
+			fmt.Printf("%s\t%s\n", l.Label(), strings.Join(songs, " | "))
+		}
+		for _, s := range loose {
+			fmt.Printf("(no lesson)\t%s\n", s.Title)
+		}
+		fmt.Printf("%d lessons made, %d songs and files placed\n", created, placed)
+		return
+	}
 
 	if cmd == "import" {
 		// A zip is read from its end: keep it on disk while it's read.

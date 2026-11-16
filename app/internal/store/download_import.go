@@ -130,6 +130,12 @@ func (st *Store) ImportSongbookZip(ctx context.Context, songbookID int64, zr *zi
 		}
 		out = append(out, res)
 	}
+	// A course's lessons follow its files: new ones get their lesson.
+	if sb, err := st.GetSongbook(ctx, songbookID); err == nil && sb.IsCourse() {
+		if _, _, err := st.LessonsFromFiles(ctx, songbookID); err != nil {
+			return out, err
+		}
+	}
 	return out, nil
 }
 

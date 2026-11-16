@@ -97,6 +97,11 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	// A course opens on its lessons; ?view=songs is its songs as a list.
+	if sb.IsCourse() && r.URL.Query().Get("view") != "songs" {
+		s.handleCoursePage(w, r, sb)
+		return
+	}
 	groups, err := s.store.ListSongsOrdered(r.Context(), id)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())

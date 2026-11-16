@@ -2950,6 +2950,12 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		if songbookID, err := strconv.ParseInt(songbookParam, 10, 64); err == nil {
 			data["SongbookRef"] = songbookID
 			data["Prev"], data["Next"] = s.songbookNeighbors(r.Context(), songbookID, variantID)
+			// In a course, back is to the song's lesson.
+			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil && sb.IsCourse() {
+				if l, err := s.store.LessonOfSong(r.Context(), songbookID, variantID); err == nil && l != nil {
+					data["LessonHref"], data["LessonLabel"] = lessonHref(songbookID, l.ID), l.Label()
+				}
+			}
 		}
 	}
 	if bandParam := r.URL.Query().Get("band"); bandParam != "" {

@@ -9,14 +9,16 @@ import (
 	"app/internal/store"
 )
 
-// A community's stats, for its staff: who viewed which lesson and
-// downloaded which file, per member, per file, per lesson.
+// A community's stats, for its staff: who viewed which song and
+// downloaded which file, per member, per file, per song, and for a course
+// per lesson.
 
-// statsSongbook is one songbook's part of the stats: its lessons and its
-// files.
+// statsSongbook is one songbook's part of the stats: its lessons (a
+// course's), its songs and its files.
 type statsSongbook struct {
 	store.Songbook
-	Lessons []store.LessonStats
+	Lessons []store.CourseLessonStats
+	Songs   []store.SongStats
 	Files   []store.FileStats
 	Zips    []store.ZipStats
 }
@@ -49,6 +51,11 @@ func (s *Server) handleCommunityStatsPage(w http.ResponseWriter, r *http.Request
 		at[sb.ID] = len(parts)
 		parts = append(parts, statsSongbook{Songbook: sb})
 	}
+	for _, l := range stats.Songs {
+		if i, ok := at[l.SongbookID]; ok {
+			parts[i].Songs = append(parts[i].Songs, l)
+		}
+	}
 	for _, l := range stats.Lessons {
 		if i, ok := at[l.SongbookID]; ok {
 			parts[i].Lessons = append(parts[i].Lessons, l)
@@ -65,11 +72,12 @@ func (s *Server) handleCommunityStatsPage(w http.ResponseWriter, r *http.Request
 		}
 	}
 	for _, p := range parts {
-		// The most viewed lessons first.
-		sort.SliceStable(p.Lessons, func(i, j int) bool { return p.Lessons[i].Views > p.Lessons[j].Views })
+		// The most viewed songs first; lessons stay in their course's order.
+		sort.SliceStable(p.Songs, func(i, j int) bool { return p.Songs[i].Views > p.Songs[j].Views })
 	}
 	s.render(w, "community_stats", map[string]any{
 		"Me": personFromContext(r), "Community": community, "Stats": stats, "Songbooks": parts,
+		"HasCourses": len(stats.Lessons) > 0,
 	})
 }
 
@@ -111,6 +119,11 @@ func (s *Server) handleCommunityMemberStatsPage(w http.ResponseWriter, r *http.R
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	done, err := s.store.GetMemberLessonsDone(r.Context(), communityID, personID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	songbooks, err := s.store.ListSongbooks(r.Context(), "community", communityID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
@@ -122,6 +135,6 @@ func (s *Server) handleCommunityMemberStatsPage(w http.ResponseWriter, r *http.R
 	}
 	s.render(w, "community_stats_member", map[string]any{
 		"Me": personFromContext(r), "Community": community, "Member": member,
-		"Views": views, "Downloads": downloads, "SongbookNames": names,
+		"Views": views, "Downloads": downloads, "LessonsDone": done, "SongbookNames": names,
 	})
 }
