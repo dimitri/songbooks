@@ -553,3 +553,14 @@ func (st *Store) courseOrder(ctx context.Context, songbookID int64) (groups []So
 	}
 	return groups, true, nil
 }
+
+// ShelfCounts is how many songbooks and how many courses a band or a
+// community ("band", "community") has: what its shelf is called
+// (webassets' shelfLabel).
+func (st *Store) ShelfCounts(ctx context.Context, ownerKind string, id int64) (songbooks, courses int, err error) {
+	err = st.db.QueryRow(ctx, `
+		SELECT count(*) FILTER (WHERE kind <> 'course'), count(*) FILTER (WHERE kind = 'course')
+		  FROM songbooks
+		 WHERE owner_kind = $1 AND (owner_band_id = $2 OR owner_community_id = $2)`, ownerKind, id).Scan(&songbooks, &courses)
+	return songbooks, courses, err
+}

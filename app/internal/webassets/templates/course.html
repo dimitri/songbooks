@@ -44,7 +44,7 @@ async function courseApi(method, url, body) {
   {{with .Community}}
   <nav class="band-tabs band-tabs-row">
     <a class="band-tab" href="/communities/{{.ID}}">Overview</a>
-    <a class="band-tab active" href="/communities/{{.ID}}/songbooks">Songbooks</a>
+    <a class="band-tab active" href="/communities/{{.ID}}/songbooks">{{shelfLabel "community" .ID}}</a>
     <a class="band-tab" href="/communities/{{.ID}}/downloads">Downloads</a>
     <a class="band-tab" href="/communities/{{.ID}}/events">Events</a>
   </nav>

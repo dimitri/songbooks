@@ -62,6 +62,32 @@ func brandFor(kind string, id any) *brand.Theme {
 	return BrandLookup(kind, n)
 }
 
+// ShelfLookup counts a community's or band's songbooks and courses for the
+// shelfLabel template function; the HTTP server sets it (it needs the
+// store).
+var ShelfLookup func(kind string, id int64) (songbooks, courses int)
+
+// shelfLabel is what a community's or band's songbooks are called: its
+// "Courses" when it has only courses, "Songbooks & courses" when both,
+// "Songbooks" otherwise.
+func shelfLabel(kind string, id any) string {
+	n, _ := id.(int64)
+	if v, ok := id.(int); ok {
+		n = int64(v)
+	}
+	if n == 0 || ShelfLookup == nil {
+		return "Songbooks"
+	}
+	books, courses := ShelfLookup(kind, n)
+	switch {
+	case courses > 0 && books == 0:
+		return "Courses"
+	case courses > 0:
+		return "Songbooks & courses"
+	}
+	return "Songbooks"
+}
+
 // BrandLookup resolves a community's or band's brand for the brandFor
 // template function; the HTTP server sets it (it needs the store).
 var BrandLookup func(kind string, id int64) *brand.Theme
@@ -120,6 +146,9 @@ var funcMap = template.FuncMap{
 	// app's own — see internal/brand and the "brand-head"/"brand-body"
 	// partials (icons.html).
 	"brandFor": brandFor,
+	// shelfLabel: "Songbooks", "Courses" or "Songbooks & courses", for a
+	// community's or band's tab and section titles.
+	"shelfLabel": shelfLabel,
 	// brandOwner is brandFor for something owned by a band or a community
 	// (a songbook, a setlist): its owner kind and both possible owner ids.
 	"brandOwner": func(kind string, bandID, communityID any) *brand.Theme {
