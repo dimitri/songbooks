@@ -185,9 +185,13 @@ whether the diagram is shown).
   lines with completion (track names, bar numbers from the facts).
 - **The file**: the web editor works on alphaTab's own model of the file
   (every track, voice and effect it holds) and saves a **new file
-  version** with alphaTab's Guitar Pro 7 writer. Guitar Pro's keys,
-  an effects panel, the multi-track view, bar-level time signature,
-  tempo, repeats and markers, and playback while editing. Earlier
+  version** with alphaTab's Guitar Pro 7 writer. Its palette is Guitar
+  Pro 8's editing palette (gp-palette.js): the same groups in the same
+  order — voice, lyrics, bar, note, effect, notation and automation
+  symbols — with Guitar Pro's shortcuts, 122 buttons. Left out because
+  alphaTab's model can't hold them: master volume and pan automations,
+  pick scrapes, nested tuplets, sustain pedal marks, and design mode.
+  Playback while editing. Earlier
   versions stay downloadable from History, so a save never loses the
   original bytes.
 - **Guitar Pro itself**: download, edit, upload — the facts are

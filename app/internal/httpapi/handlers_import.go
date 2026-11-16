@@ -10,7 +10,6 @@ import (
 
 	"app/internal/importer"
 	"app/internal/irealpro"
-	"app/internal/tab"
 )
 
 type importRequest struct {
@@ -222,11 +221,11 @@ func (s *Server) handleImportIRealFind(w http.ResponseWriter, r *http.Request) {
 // textarea for the user to look at and edit like any other draft.
 func (s *Server) handleImportIRealMerge(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		CurrentText string   `json:"currentText"`
-		Title       string   `json:"title"`
-		Artist      string   `json:"artist"`
-		Apply       bool     `json:"apply"`
-		AcceptLabels  []string `json:"acceptLabels"`
+		CurrentText  string   `json:"currentText"`
+		Title        string   `json:"title"`
+		Artist       string   `json:"artist"`
+		Apply        bool     `json:"apply"`
+		AcceptLabels []string `json:"acceptLabels"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.CurrentText == "" || req.Title == "" {
 		httpError(w, http.StatusBadRequest, "currentText and title are required")
@@ -390,45 +389,4 @@ func (s *Server) handleImportGPFetch(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
 	w.Write(data)
-}
-
-// handleGPImportPreview is POST /api/gp-import/preview — the GP import
-// wizard's own "preview before loading" step (gp-import.js): given one
-// section's already-extracted riff (the same JSON shape putScore/
-// handlePutSectionScore stores, produced client-side by extractRiff),
-// renders it to alphaTeX for the vendored alphaTab JS renderer to draw,
-// so a reader sees real notation for exactly what they're about to
-// import before committing to it — not just the bar-count mapping table
-// this wizard showed before. Stateless and variant-agnostic (a pure
-// riff-&gt;alphaTeX transform, same tab.ToAlphaTex call attachTabRiffs
-// already makes for every other TabOnly row in this app), so this needs
-// no variant id and writes nothing.
-func (s *Server) handleGPImportPreview(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Riff string `json:"riff"` // JSON-encoded Riff, as a STRING — same double-encoding putScore (gp-import.js) already sends, not a nested JSON object, so this previews the exact bytes that would be written
-		// The song header the import is about to write (gp-import.js's
-		// header choices): the preview is drawn in that time signature
-		// and swing, as the Song view will draw it.
-		Time  string `json:"time"`
-		Swing string `json:"swing"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-		return
-	}
-	riff, err := tab.DecodeRiffJSON([]byte(req.Riff))
-	if err != nil {
-		httpError(w, http.StatusBadRequest, "invalid riff: "+err.Error())
-		return
-	}
-	clef := ""
-	if len(riff.Tuning) <= 4 {
-		clef = "F4"
-	}
-	tex := tab.ToAlphaTex(riff, clef, nil)
-	num, den := timeSigParts(orDefault(req.Time, "4/4"))
-	if meta := tab.FirstBarMeta(atoiOr(num, 4), atoiOr(den, 4), req.Swing); meta != "" {
-		tex = strings.Replace(tex, ".\n", ".\n"+meta, 1)
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"alphaTex": tex})
 }

@@ -12,14 +12,3 @@ func TestParseVoiceBracedLilyPond(t *testing.T) {
 		t.Fatalf("want 1 bar of 4 beats, got %+v", riff.Bars)
 	}
 }
-
-// TestDecodeDrumRiffJSON: a drum riff has no tuning and must still decode.
-func TestDecodeDrumRiffJSON(t *testing.T) {
-	riff, err := ParseVoice("drums", `{"Drums":true,"Bars":[{"Beats":[{"Duration":"1","Notes":[{"MIDI":36}]}]}]}`)
-	if err != nil {
-		t.Fatalf("drum riff JSON: %v", err)
-	}
-	if !riff.Drums || len(riff.Bars) != 1 {
-		t.Fatalf("unexpected riff %+v", riff)
-	}
-}

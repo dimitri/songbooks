@@ -1571,7 +1571,7 @@ const ICONS = {
       // Source is first opened, same lazy trigger the Scores tab below
       // uses for its own per-section fetches.
       if (btn.dataset.tab === 'raw' && sourcePreview && !sourcePreview.innerHTML) renderPreview();
-      if (btn.dataset.tab === 'scores') { window.ScoreEditor?.init(); window.TabEditor?.init(); refreshDiagramTodo(); }
+      if (btn.dataset.tab === 'scores') { window.ScoreEditor?.init(); refreshDiagramTodo(); }
     });
   });
 
@@ -2317,11 +2317,10 @@ const ICONS = {
     structSections = snap.sections;
     markDirty();
     renderHeaderFields();
-    // The Chart re-renders when it is showing; the Scores tab's undo must
-    // not fill the Chart's sidebar toolbox (switching back renders it).
+    // The Chart re-renders when it is showing; an undo from another tab
+    // must not fill the Chart's sidebar toolbox (switching back renders it).
     if (!structureEl.hidden) renderStructureUI();
     updateUndoRedoButtons();
-    window.TabEditor?.refresh();
   }
   function undoEdit() {
     if (!undoStack.length) return;
@@ -2338,9 +2337,8 @@ const ICONS = {
     if (u) u.disabled = !undoStack.length;
     if (r) r.disabled = !redoStack.length;
   }
-  // The Scores tab's tab editor (tab-editor.js) edits the same in-memory
-  // song: each score voice's body lives in structSections[i].scores, so it
-  // saves, discards and undoes with everything else here.
+  // The drawer's in-memory song, for other editors on the page to edit
+  // with the same save, discard and undo.
   window.SongEditorBridge = {
     sections: () => structSections,
     meta: () => structMeta,
@@ -2574,6 +2572,33 @@ const ICONS = {
     chipsRow.append(timeField, tempoField, swingField, genreField, genreStatus);
 
     host.append(titleArtistRow, chipsRow);
+
+    // A song with a Guitar Pro file can be all in it ("content: gp": an
+    // instrumental, a lesson): the page opens on the file's score, and the
+    // sections here are extras.
+    if (songHasGPFile()) {
+      const gpRow = document.createElement('label');
+      gpRow.className = 'check song-gp-only';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = (metaGet('content') || '').trim().toLowerCase() === 'gp';
+      box.addEventListener('change', () => {
+        edited();
+        if (box.checked) metaSet('content', 'gp');
+        else structMeta = structMeta.filter((f) => f.key !== 'content');
+        renderHeaderFields();
+      });
+      gpRow.append(box, ' The song is all in its Guitar Pro file');
+      host.appendChild(gpRow);
+      if (box.checked) {
+        const note = document.createElement('p');
+        note.className = 'hint song-gp-only-note';
+        note.textContent = structSections.length
+          ? 'The song opens on the file’s score; the sections below are extras, one tap away in the Song view.'
+          : 'The song opens on the file’s score.';
+        host.appendChild(note);
+      }
+    }
   }
 
   // The song's own beatsPerBar as edited here, read fresh from structMeta
@@ -3968,6 +3993,7 @@ const ICONS = {
           body.appendChild(chartHost);
           requestAnimationFrame(() => renderRealChart(sec, i, chartHost, true));
         } else {
+          if (songHasGPFile()) body.appendChild(gpBarsRow(sec, i));
           const chordToggle = document.createElement('button');
           chordToggle.type = 'button'; chordToggle.className = 'block-chord-toggle';
           chordToggle.textContent = (expanded.has(i) ? '▾ ' : '▸ ') + (bars_ ? `chords (${bars_} bars)` : '+ chord sequence');
@@ -4030,6 +4056,93 @@ const ICONS = {
       const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = 'No sections yet — use the + above to start.';
       list.appendChild(hint);
     }
+  }
+
+  // ---- Bars from the song's Guitar Pro file (gp-bar-picker.js) -----------
+  // A section's "gp[Track]: bars" lines, chosen on a map of the file. They
+  // live in structSections[i].gp, so Save, Discard and Undo cover them.
+  const songHasGPFile = () => !!(document.getElementById('sheet') && document.getElementById('sheet').dataset.gpFile) && !!window.GPBarPicker;
+  // How many bars a section plays, as the chart counts them: "|: :|"
+  // brackets replayed (volta bars once), "times:" passes, a bare repeat
+  // as long as the section it repeats; null when its bars come from the file.
+  function drawerBarCount(i) {
+    const sec = structSections[i];
+    const ms = joinVoltaGroups(sec) || [];
+    if (!ms.length) {
+      if ((sec.gp || []).length) return null;
+      for (let j = i - 1; j >= 0; j--) {
+        if ((structSections[j].label || '').trim().toLowerCase() === (sec.label || '').trim().toLowerCase() && (structSections[j].measures || []).length) return drawerBarCount(j);
+      }
+      return 0;
+    }
+    let n = 0;
+    for (let k = 0; k < ms.length; k++) {
+      if (ms[k].open) {
+        let e = k;
+        while (e < ms.length && !ms[e].close) e++;
+        if (e < ms.length) {
+          const times = ms[e].repeatCount >= 2 ? ms[e].repeatCount : 2;
+          for (let x = k; x <= e; x++) n += ms[x].volta ? 1 : times;
+          k = e;
+          continue;
+        }
+      }
+      n++;
+    }
+    return n * Math.max(1, sec.times || 1);
+  }
+  function pickerSectionsFromDrawer() {
+    const seen = {};
+    const total = {};
+    for (const sec of structSections) { const k = (sec.label || '').trim(); total[k] = (total[k] || 0) + 1; }
+    return structSections.map((sec, i) => {
+      const k = (sec.label || '').trim();
+      seen[k] = (seen[k] || 0) + 1;
+      return { index: i, label: total[k] > 1 ? `${k} ${seen[k]}` : k, barCount: drawerBarCount(i), gp: (sec.gp || []).map((g) => ({ ...g })) };
+    });
+  }
+  function openBarPicker(i, track) {
+    const variantId = document.getElementById('sheet').dataset.variantId;
+    GPBarPicker.open({
+      variantId, sections: pickerSectionsFromDrawer(), current: i, track,
+      onApply: ({ index, track: t, spec }) => {
+        edited();
+        const sec = structSections[index];
+        sec.gp = sec.gp || [];
+        const g = sec.gp.find((x) => (x.track || '').toLowerCase() === (t || '').toLowerCase());
+        if (g) g.spec = spec; else sec.gp.push({ track: t, spec });
+      },
+      onRemove: ({ index, track: t }) => {
+        edited();
+        const sec = structSections[index];
+        sec.gp = (sec.gp || []).filter((x) => (x.track || '').toLowerCase() !== (t || '').toLowerCase());
+      },
+      onClose: (changed) => { if (changed) renderStructureUI(); },
+    });
+  }
+  function gpBarsRow(sec, i) {
+    const row = document.createElement('div');
+    row.className = 'gp-bars-row';
+    const label = document.createElement('span');
+    label.className = 'gp-bars-label';
+    label.textContent = 'Bars from the file';
+    row.appendChild(label);
+    for (const g of sec.gp || []) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'gp-bars-chip';
+      chip.textContent = `${g.track || 'All tracks'} · ${g.spec.replace(/(\d)-(\d)/g, '$1–$2')}`;
+      chip.title = 'Change these bars';
+      chip.addEventListener('click', () => openBarPicker(i, g.track));
+      row.appendChild(chip);
+    }
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'gp-bars-pick';
+    btn.textContent = (sec.gp || []).length ? '+ Another track' : 'Choose bars…';
+    btn.addEventListener('click', () => openBarPicker(i, (sec.gp || []).length ? null : undefined));
+    row.appendChild(btn);
+    return row;
   }
 
   // ---- Desktop focus editor: one section at a time, Guitar Pro-style ----
@@ -4122,6 +4235,7 @@ const ICONS = {
     });
     headRow.append(labelInput, repeatToggle, delBtn);
     main.appendChild(headRow);
+    if (!sec.repeat && songHasGPFile()) main.appendChild(gpBarsRow(sec, i));
 
     if (!sec.repeat) {
       if (sectionHasAdvancedSyntax(sec)) {
@@ -4133,6 +4247,17 @@ const ICONS = {
         chartHost.className = 'real-chart-host';
         main.appendChild(chartHost);
         requestAnimationFrame(() => renderRealChart(sec, i, chartHost, true));
+      } else if ((!sec.measures || sec.measures.length === 0) && (sec.gp || []).length) {
+        // Bars from the Guitar Pro file only: blank chord bars here would
+        // turn it into an empty chart on the next save.
+        const notice = document.createElement('p');
+        notice.className = 'hint';
+        notice.textContent = 'This section’s bars come from the Guitar Pro file. ';
+        const addChords = document.createElement('button');
+        addChords.type = 'button'; addChords.textContent = 'Add chord bars';
+        addChords.addEventListener('click', () => { edited(); sec.measures = Array.from({ length: 4 }, () => emptyMeasure()); renderFocusEditor(); });
+        notice.appendChild(addChords);
+        main.appendChild(notice);
       } else if ((!sec.measures || sec.measures.length === 0) && (sec.scores || []).length) {
         // A score with no chord bars (an intro riff, a drum groove) takes
         // its bars from the score: giving it blank chord bars here would
@@ -4255,7 +4380,6 @@ const ICONS = {
     });
     renderHeaderFields();
     if (!structureEl.hidden) renderStructureUI();
-    window.TabEditor?.refresh();
   }
   loadStructure();
   window.SongStructure = { reload: loadStructure };

@@ -109,3 +109,14 @@ func keys(m map[string]driftItem) []string {
 	}
 	return out
 }
+
+func TestWithGPNotes(t *testing.T) {
+	sg := song.Parse("title: X\n\n[Verse]\nnote: softly\ngp[Lead]: 1-4\ngp: 5\ngrid: |E7 |\n")
+	out := withGPNotes(sg)
+	if got := strings.Join(out.Sections[0].Notes, " / "); got != "softly / Guitar Pro file: Lead, bars 1-4 / Guitar Pro file: every track, bars 5" {
+		t.Errorf("notes = %q", got)
+	}
+	if len(sg.Sections[0].Notes) != 1 {
+		t.Error("the song itself must not change")
+	}
+}

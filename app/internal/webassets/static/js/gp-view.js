@@ -228,6 +228,12 @@
       const t = full.score.tracks[i];
       applyNotation(t, pick && pick.value ? (kindOf(t) === 'drums' ? 'staff' : pick.value) : notationFor(t, ''));
     }
+    // alphaTab adds a new drawing's parts next to the previous ones.
+    // "Edit the file" opens on the first track shown.
+    const edit = page.querySelector('.gp-edit-link');
+    if (edit) edit.href = `/song/${variantId}/gp-edit?track=%23${tracks[0] + 1}`;
+    const surface = page.querySelector('.gp-score-canvas .at-surface');
+    if (surface) surface.replaceChildren();
     full.api.renderScore(full.score, tracks);
   }
 
@@ -264,29 +270,31 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 
-  // saveScore writes score as a new version of the song's file (Guitar
-  // Pro 7 format, which Guitar Pro 7 and 8 open), with its facts read back
-  // from the written bytes, and keeps "gp_source:" naming it. Earlier
-  // versions stay on the song's History page.
+  // saveScore writes score as a new version of the song's file (GPFile.save).
   async function saveScore(score) {
-    const settings = new alphaTab.Settings();
-    const bytes = new alphaTab.exporter.Gp7Exporter().export(score, settings);
-    const facts = GPFacts.extract(alphaTab.importer.ScoreLoader.loadScoreFromBytes(bytes, new alphaTab.Settings()));
-    const current = (sheet.dataset.gpName || 'song.gp').replace(/\.(gp[345x]?|gpx)$/i, '');
-    const name = current + '.gp';
-    const form = new FormData();
-    form.append('file', new Blob([bytes], { type: 'application/octet-stream' }), name);
-    form.append('facts', JSON.stringify(facts));
-    const res = await fetch(`/api/songs/${variantId}/gp-file`, { method: 'PUT', credentials: 'same-origin', body: form });
-    if (!res.ok) throw new Error('Saving the file failed (' + res.status + ')');
-    if (name !== sheet.dataset.gpName) {
-      await fetch(`/api/songs/${variantId}/meta`, {
-        method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: 'gp_source', value: name }),
-      });
-    }
-    return res.json();
+    const out = await GPFile.save(variantId, score, sheet.dataset.gpName);
+    sheet.dataset.gpName = out.name;
+    return out;
   }
+
+  // "Change bars" / "+ Bars from the Guitar Pro file" on a section (editors):
+  // the bar picker, saving each choice to the song's text right away.
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-gp-pick]');
+    if (!b || !window.GPBarPicker) return;
+    let sections = [];
+    try { sections = JSON.parse(sheet.dataset.pickerSections || '[]'); } catch (err) { return; }
+    const at = sections.findIndex((x) => String(x.index) === b.dataset.gpPick);
+    const req = (method, index, body, track) => fetch(`/api/songs/${variantId}/sections/${index}/gp${method === 'DELETE' ? '?track=' + encodeURIComponent(track || '') : ''}`, {
+      method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined,
+    }).then(async (r) => { if (!r.ok) throw new Error((await r.text()) || 'Saving failed'); });
+    GPBarPicker.open({
+      variantId, sections, current: Math.max(0, at), track: b.dataset.track !== undefined && b.hasAttribute('data-track') ? b.dataset.track : undefined,
+      onApply: ({ index, track, spec }) => req('PUT', index, { track, spec }),
+      onRemove: ({ index, track }) => req('DELETE', index, null, track),
+      onClose: (changed) => { if (changed) location.reload(); },
+    });
+  });
 
   window.GPView = { showFull, drawSections, fileBytes, loadScore, saveScore };
 })();

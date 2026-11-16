@@ -1,34 +1,34 @@
 package tab
 
-import "testing"
+import (
+	"encoding/json"
+	"errors"
+	"testing"
+)
 
-func TestDecodeScoreSource_JSON(t *testing.T) {
-	src := `{"Tuning":[64,59,55,50,45,40],"MinimumFret":0,"Bars":[{"Beats":[
-		{"Duration":"4","Notes":[{"MIDI":64,"String":1,"Fret":0}]},
-		{"Duration":"4","Notes":[{"MIDI":67,"String":1,"Fret":3}]}
-	]}]}`
-	riff, err := DecodeScoreSource(src)
-	if err != nil {
-		t.Fatalf("DecodeScoreSource: %v", err)
+// riffFromJSON builds a Riff for a test from Go's JSON encoding of it.
+func riffFromJSON(t *testing.T, src string) *Riff {
+	t.Helper()
+	var r Riff
+	if err := json.Unmarshal([]byte(src), &r); err != nil {
+		t.Fatal(err)
 	}
-	if len(riff.Tuning) != 6 {
-		t.Fatalf("tuning: got %d strings, want 6", len(riff.Tuning))
-	}
-	if len(riff.Bars) != 1 || len(riff.Bars[0].Beats) != 2 {
-		t.Fatalf("bars/beats: %+v", riff.Bars)
-	}
-	if riff.Bars[0].Beats[1].Notes[0].Fret != 3 {
-		t.Fatalf("fret not preserved: got %d, want 3", riff.Bars[0].Beats[1].Notes[0].Fret)
+	return &r
+}
+
+func TestParseVoice_RiffJSONIsRetired(t *testing.T) {
+	_, err := ParseVoice("Guitar", `{"Tuning":[64,59,55,50,45,40],"Bars":[{"Beats":[{"Duration":"4","Rest":true}]}]}`)
+	if !errors.Is(err, ErrRiffJSON) {
+		t.Fatalf("err = %v, want ErrRiffJSON", err)
 	}
 }
 
-func TestDecodeScoreSource_LilyPondStillWorks(t *testing.T) {
-	src := "\\new TabStaff {\n  \\relative {\n    e4 g b e'\n  }\n}"
-	riff, err := DecodeScoreSource(src)
+func TestParseVoice_LilyPondBracesStillWork(t *testing.T) {
+	riff, err := ParseVoice("guitar", "{ c'4 d' e' f' }")
 	if err != nil {
-		t.Fatalf("DecodeScoreSource: %v", err)
+		t.Fatalf("ParseVoice: %v", err)
 	}
-	if len(riff.Bars) == 0 {
-		t.Fatalf("no bars parsed")
+	if len(riff.Bars) != 1 {
+		t.Fatalf("bars = %d", len(riff.Bars))
 	}
 }

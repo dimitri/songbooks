@@ -15,7 +15,8 @@ la di
 
 [Chorus]
 grid: | F | G | C | C |
-score[Bass]: {"Tuning":[43,38,33,28],"Bars":[{"Beats":[{"Duration":"1","Notes":[{"MIDI":29,"String":4,"Fret":1}]}]},{"Beats":[{"Rest":true,"Duration":"1"}]}]}
+score[Bass]: f,1 r1
+gp[Lead]: 1-4
 `
 
 const v2 = `title: T
@@ -31,8 +32,10 @@ grid: | Dm | E |
 
 [Chorus]
 grid: | F | G | C | C |
-score[Bass]: {"Tuning":[43,38,33,28],"Bars":[{"Beats":[{"Duration":"1","Notes":[{"MIDI":29,"String":4,"Fret":1}]}]},{"Beats":[{"Duration":"1","Notes":[{"MIDI":31,"String":4,"Fret":3}]}]}]}
-score[Drums]: {"Drums":true,"Pattern":true,"Bars":[{"Beats":[{"Duration":"1","Notes":[{"MIDI":36}]}]}]}
+score[Bass]: f,1 g,1
+score[Drums]: bd1
+gp[Lead]: 1-8
+gp[Rhythm]: 1-8
 `
 
 func TestDescribe(t *testing.T) {
@@ -47,6 +50,8 @@ func TestDescribe(t *testing.T) {
 		"Bridge: section added (2 bars)",
 		"Bass · Chorus: notes changed in bar 2",
 		"Drums · Chorus: track added (1 bar)",
+		"Lead · Chorus: bars from the Guitar Pro file 1-4 → 1-8",
+		"Rhythm · Chorus: bars from the Guitar Pro file added (1-8)",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("got:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -54,8 +59,11 @@ func TestDescribe(t *testing.T) {
 }
 
 func TestLinesFoldsTabData(t *testing.T) {
+	// Revisions from before gp[...] lines held notes as JSON.
+	a := "[Song]\nscore[Gtr]: {\"Tuning\":[64],\"Bars\":[]}\n"
+	b := "[Song]\nscore[Gtr]: {\"Tuning\":[64,59],\"Bars\":[]}\n"
 	var minus, plus int
-	for _, l := range Lines(v1, v2) {
+	for _, l := range Lines(a, b) {
 		if strings.Contains(l.Text, `{"`) {
 			t.Fatalf("tab data shown as text: %q", l.Text)
 		}

@@ -3,20 +3,12 @@ package tab
 import (
 	"strings"
 	"testing"
-
-	"app/internal/song"
 )
 
 // TestPatternFillsSection: a one-bar drum pattern in a four-bar section
 // is played four times and drawn once, then as three "%" bars.
 func TestPatternFillsSection(t *testing.T) {
-	src := "title: T\n\n[Verse]\ngrid: | A | A | D | A |\n" +
-		`score[Drums]: {"Drums":true,"Pattern":true,"Bars":[{"Beats":[{"Duration":"4","Notes":[{"MIDI":36}]},{"Duration":"4","Notes":[{"MIDI":38}]},{"Duration":"4","Notes":[{"MIDI":36}]},{"Duration":"4","Notes":[{"MIDI":38}]}]}]}` + "\n"
-	scores, errs := LoadScores(song.Parse(src))
-	if len(errs) > 0 {
-		t.Fatal(errs)
-	}
-	riff := scores[0][0].Riff
+	riff := FillPattern(riffFromJSON(t, `{"Drums":true,"Pattern":true,"Bars":[{"Beats":[{"Duration":"4","Notes":[{"MIDI":36}]},{"Duration":"4","Notes":[{"MIDI":38}]},{"Duration":"4","Notes":[{"MIDI":36}]},{"Duration":"4","Notes":[{"MIDI":38}]}]}]}`), 4)
 	if len(riff.Bars) != 4 || riff.Bars[0].Simile || !riff.Bars[3].Simile {
 		t.Fatalf("want 4 bars, the last 3 simile: %+v", riff.Bars)
 	}

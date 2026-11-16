@@ -20,6 +20,7 @@ type viewerGPRef struct {
 	Track      string // as written; "" for every track
 	TrackIndex int    // 0-based index in the file, -1 for every track or unknown
 	Bars       string // "9-12,13-14", for data-bars
+	FirstBar   int    // the first bar it shows, for the editor link
 	Notation   string // "tab", "staff", "tab+staff", "slash", or "" for the reader's own
 	Label      string // "Lead guitar · bars 9–12"
 	Error      string // why it can't be drawn, for editors
@@ -108,6 +109,9 @@ func viewGPRef(r song.GPRef, gp songGP) viewerGPRef {
 		bars = append(bars, fmt.Sprintf("%d-%d", rg[0], rg[1]))
 	}
 	v.Bars = strings.Join(bars, ",")
+	if len(ref.Ranges) > 0 {
+		v.FirstBar = ref.Ranges[0][0]
+	}
 	what := r.Track
 	if what == "" {
 		what = "All tracks"
@@ -204,4 +208,160 @@ func setSectionGP(sec *song.Section, track, spec string) {
 		}
 	}
 	sec.Scores = kept
+}
+
+// handleGPEditPage is GET /song/{id}/gp-edit: the Guitar Pro file editor
+// (gp-editor.js). ?track= and ?bar= put the cursor there; a song with no
+// file yet starts a blank one as long as the song (?parts=guitar,bass,drums).
+func (s *Server) handleGPEditPage(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	sg, _, err := s.store.LoadVariant(variantID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	q := r.URL.Query()
+	data := map[string]any{
+		"Me": personFromContext(r), "VariantID": variantID,
+		"Title": orDefault(sg.Get("title"), "untitled"), "Artist": sg.Get("artist"),
+		"Track": q.Get("track"), "Bar": q.Get("bar"),
+	}
+	gp := s.loadSongGP(r.Context(), variantID)
+	data["SectionsJSON"] = editorSections(sg, gp)
+	data["PickerSectionsJSON"] = pickerSections(sg, gp)
+	if gp.Meta != nil {
+		data["GPFileName"] = gp.Meta.Filename
+	} else {
+		num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
+		bars := 0
+		for _, sec := range buildSections(sg) {
+			bars += sec.BarCount
+		}
+		parts := []string{}
+		for _, p := range strings.Split(q.Get("parts"), ",") {
+			if p == "guitar" || p == "bass" || p == "drums" {
+				parts = append(parts, p)
+			}
+		}
+		if len(parts) == 0 {
+			parts = []string{"guitar"}
+		}
+		data["Blank"] = true
+		data["Tempo"] = atoiOr(orDefault(sg.Get("tempo"), "120"), 120)
+		data["Num"], data["Den"] = atoiOr(num, 4), atoiOr(den, 4)
+		data["Bars"] = max(bars, 4)
+		data["Parts"] = strings.Join(parts, ",")
+	}
+	s.render(w, "gp-edit", data)
+}
+
+// editorSection is a song section the editor shows the name of, on the
+// bars of the file it points at.
+type editorSection struct {
+	Index int      `json:"index"`
+	Label string   `json:"label"`
+	Track string   `json:"track"`
+	Bars  [][2]int `json:"bars"`
+}
+
+// editorSections lists, as JSON, the song's sections with their
+// "gp[...]" lines: the editor names the section a bar belongs to, and
+// links back to it.
+func editorSections(sg *song.Song, gp songGP) string {
+	var out []editorSection
+	for _, sec := range buildSections(withGPOnlyBars(sg, gp.Facts)) {
+		if sec.Index < 0 || sec.Index >= len(sg.Sections) {
+			continue
+		}
+		for _, r := range sg.Sections[sec.Index].GP {
+			ref, err := gpfacts.ParseRef(r.Track, r.Spec)
+			if err != nil {
+				continue
+			}
+			out = append(out, editorSection{Index: sec.Index, Label: sectionName(&sec), Track: r.Track, Bars: ref.Ranges})
+		}
+	}
+	b, _ := json.Marshal(out)
+	if out == nil {
+		return "[]"
+	}
+	return string(b)
+}
+
+// handleDeleteSectionGP is DELETE /api/songs/{id}/sections/{index}/gp?track=:
+// drops the section's "gp[track]:" line ("" for the bare "gp:" one).
+func (s *Server) handleDeleteSectionGP(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	index, err := strconv.Atoi(r.PathValue("index"))
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid section index")
+		return
+	}
+	track := r.URL.Query().Get("track")
+	sg, version, err := s.store.LoadVariant(id)
+	if err != nil {
+		httpError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if index < 0 || index >= len(sg.Sections) {
+		httpError(w, http.StatusBadRequest, "invalid section index")
+		return
+	}
+	sec := &sg.Sections[index]
+	kept := sec.GP[:0]
+	for _, g := range sec.GP {
+		if gpfacts.Fold(g.Track) != gpfacts.Fold(track) {
+			kept = append(kept, g)
+		}
+	}
+	sec.GP = kept
+	newVersion, err := s.store.SaveVariant(id, sg, version, actorID(r))
+	if err != nil {
+		writeSaveErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"version": newVersion})
+}
+
+// pickerSection is a song section as the bar picker (gp-bar-picker.js)
+// needs it: its name, how many bars it plays (nil when its bars come from
+// the file), and its "gp[...]" lines.
+type pickerSection struct {
+	Index    int         `json:"index"`
+	Label    string      `json:"label"`
+	BarCount *int        `json:"barCount"`
+	GP       []jsonGPRef `json:"gp"`
+}
+
+// pickerSections lists every section of the song for the bar picker, as
+// JSON for a data- attribute.
+func pickerSections(sg *song.Song, gp songGP) string {
+	out := []pickerSection{}
+	sections := buildSections(withGPOnlyBars(sg, gp.Facts))
+	attachGPRefs(sections, sg, gp)
+	for _, sec := range sections {
+		if sec.Index < 0 || sec.Index >= len(sg.Sections) {
+			continue
+		}
+		ps := pickerSection{Index: sec.Index, Label: sectionName(&sec), GP: []jsonGPRef{}}
+		if !sec.GPOnly {
+			n := sec.BarCount
+			ps.BarCount = &n
+		}
+		for _, g := range sg.Sections[sec.Index].GP {
+			ps.GP = append(ps.GP, jsonGPRef{Track: g.Track, Spec: g.Spec})
+		}
+		out = append(out, ps)
+	}
+	b, _ := json.Marshal(out)
+	return string(b)
 }

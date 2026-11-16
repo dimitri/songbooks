@@ -22,10 +22,7 @@ func TestTupletJSON(t *testing.T) {
 		{"Duration":"16","TupletNum":5,"TupletDen":4,"Rest":true},
 		{"Duration":"8","Rest":true}
 	]}]}`
-	riff, err := DecodeScoreSource(src)
-	if err != nil {
-		t.Fatalf("DecodeScoreSource: %v", err)
-	}
+	riff := riffFromJSON(t, src)
 	if got := BarBeats(riff.Bars[0]); got < 4-1e-9 || got > 4+1e-9 {
 		t.Fatalf("BarBeats = %v, want 4", got)
 	}

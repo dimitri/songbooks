@@ -2901,6 +2901,19 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		data["GPFactsMissing"] = gp.Facts == nil
 		data["GPOnly"] = isGPOnly(sg)
 		data["HasGPView"] = isGPOnly(sg) || anyGPRef(sections)
+		if canEdit {
+			data["PickerSectionsJSON"] = pickerSections(sg, gp)
+		}
+		for _, sec := range sections {
+			for _, g := range sec.GP {
+				if g.Track != "" && data["FirstGPTrack"] == nil {
+					data["FirstGPTrack"] = g.Track
+				}
+			}
+		}
+		if data["FirstGPTrack"] == nil && gp.Facts != nil && len(gp.Facts.Tracks) > 0 {
+			data["FirstGPTrack"] = gp.Facts.Tracks[0].Name
+		}
 		if canEdit && gp.Facts != nil {
 			kept, _ := s.store.GPDriftAcks(r.Context(), variantID)
 			drift := computeDrift(sg, buildSections(withGPOnlyBars(sg, gp.Facts)), gp.Facts, kept)
