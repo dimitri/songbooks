@@ -31,6 +31,7 @@ type Lesson struct {
 	Number     *int
 	Title      string
 	Body       string
+	VideoURL   string // the lesson's video; "" for its songs' (migration 0074)
 	Songs      []LessonSong
 }
 
@@ -77,7 +78,7 @@ const lessonOrder = `l.number NULLS LAST, l.id`
 // and the songbook's songs that are in no lesson (by title).
 func (st *Store) ListLessons(ctx context.Context, songbookID int64) ([]Lesson, []LessonSong, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT l.id, l.songbook_id, l.number, l.title, l.body FROM lessons l
+		SELECT l.id, l.songbook_id, l.number, l.title, l.body, l.video_url FROM lessons l
 		WHERE l.songbook_id = $1 ORDER BY `+lessonOrder, songbookID)
 	if err != nil {
 		return nil, nil, err
@@ -86,7 +87,7 @@ func (st *Store) ListLessons(ctx context.Context, songbookID int64) ([]Lesson, [
 	at := map[int64]int{}
 	for rows.Next() {
 		var l Lesson
-		if err := rows.Scan(&l.ID, &l.SongbookID, &l.Number, &l.Title, &l.Body); err != nil {
+		if err := rows.Scan(&l.ID, &l.SongbookID, &l.Number, &l.Title, &l.Body, &l.VideoURL); err != nil {
 			rows.Close()
 			return nil, nil, err
 		}
@@ -127,8 +128,8 @@ func (st *Store) ListLessons(ctx context.Context, songbookID int64) ([]Lesson, [
 // GetLesson is one lesson, with its songs.
 func (st *Store) GetLesson(ctx context.Context, id int64) (*Lesson, error) {
 	var l Lesson
-	err := st.db.QueryRow(ctx, `SELECT id, songbook_id, number, title, body FROM lessons WHERE id = $1`, id).
-		Scan(&l.ID, &l.SongbookID, &l.Number, &l.Title, &l.Body)
+	err := st.db.QueryRow(ctx, `SELECT id, songbook_id, number, title, body, video_url FROM lessons WHERE id = $1`, id).
+		Scan(&l.ID, &l.SongbookID, &l.Number, &l.Title, &l.Body, &l.VideoURL)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such lesson %d: %w", id, ErrNotFound)
 	}
@@ -180,14 +181,14 @@ func (st *Store) CreateLesson(ctx context.Context, songbookID int64, number *int
 	return id, err
 }
 
-// UpdateLesson changes a lesson's number, title and text.
-func (st *Store) UpdateLesson(ctx context.Context, id int64, number *int, title, body string) error {
+// UpdateLesson changes a lesson's number, title, text and video.
+func (st *Store) UpdateLesson(ctx context.Context, id int64, number *int, title, body, videoURL string) error {
 	title = strings.TrimSpace(title)
 	if title == "" {
 		return errors.New("a lesson needs a title")
 	}
-	_, err := st.db.Exec(ctx, `UPDATE lessons SET number = $2, title = $3, body = $4 WHERE id = $1`,
-		id, number, title, strings.TrimSpace(body))
+	_, err := st.db.Exec(ctx, `UPDATE lessons SET number = $2, title = $3, body = $4, video_url = $5 WHERE id = $1`,
+		id, number, title, strings.TrimSpace(body), strings.TrimSpace(videoURL))
 	return err
 }
 

@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"app/internal/store"
@@ -104,8 +105,10 @@ func (s *Server) handleMP3Playlist(w http.ResponseWriter, r *http.Request) {
 // taken from YouTube, else the reference video itself — and its sections,
 // with where each starts in that recording when its markers say so.
 type playlistTrack struct {
-	VariantID   int64             `json:"id"`
+	VariantID   int64             `json:"id"` // 0 for a lesson
+	Num         string            `json:"num"`
 	Title       string            `json:"title"`
+	Subtitle    string            `json:"subtitle"`
 	Artist      string            `json:"artist"`
 	Key         string            `json:"key"`
 	Tempo       string            `json:"tempo"`
@@ -240,12 +243,21 @@ func (s *Server) handlePlaylistPage(w http.ResponseWriter, r *http.Request) {
 	prefer := r.URL.Query().Get("prefer")
 	var tracks, silent []playlistTrack
 	choice := false // some song has both recordings: which plays is a choice
+	if sb.IsCourse() {
+		// A course plays its lessons' videos, in order.
+		tracks, silent = s.coursePlaylist(r.Context(), sb)
+	}
 	for _, row := range s.flattenSongbookSongs(r.Context(), id) {
+		if sb.IsCourse() {
+			break
+		}
 		t, ok := s.playlistTrackFor(r.Context(), id, row.VariantID, prefer)
 		if !ok {
 			continue
 		}
 		choice = choice || t.both
+		t.Num = strconv.Itoa(len(tracks) + len(silent) + 1)
+		t.Subtitle = strings.Join(nonEmpty(t.Artist, t.Key), " · ")
 		if t.Source == "" {
 			silent = append(silent, t)
 		} else {
@@ -270,6 +282,52 @@ func (s *Server) handlePlaylistPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "playlist", map[string]any{
 		"Me": person, "Songbook": sb, "Owner": owner, "Back": back,
 		"Tracks": tracks, "Silent": silent, "TracksJSON": template.JS(tracksJSON),
-		"PreferReference": prefer == "reference", "Choice": choice,
+		"PreferReference": prefer == "reference", "Choice": choice, "VideoFirst": sb.IsCourse(),
 	})
+}
+
+func nonEmpty(ss ...string) []string {
+	var out []string
+	for _, s := range ss {
+		if s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// coursePlaylist is a course's lessons as a playlist: each lesson's video
+// (lessonVideo), else the first recording one of its songs has.
+func (s *Server) coursePlaylist(ctx context.Context, sb *store.Songbook) (tracks, silent []playlistTrack) {
+	lessons, _, err := s.store.ListLessons(ctx, sb.ID)
+	if err != nil {
+		return nil, nil
+	}
+	for _, l := range lessons {
+		t := playlistTrack{Title: l.Title, Href: lessonHref(sb.ID, l.ID), Artist: sb.Name, Sections: []playlistSection{}}
+		if l.Number != nil {
+			t.Num = strconv.Itoa(*l.Number)
+		}
+		var titles []string
+		for _, song := range l.Songs {
+			titles = append(titles, song.Title)
+		}
+		t.Subtitle = strings.Join(titles, " · ")
+		if vid := s.lessonVideo(l); vid != "" {
+			t.Source, t.VideoID, t.SourceLabel = "video", vid, "Video"
+		} else {
+			for _, song := range l.Songs {
+				if st, ok := s.playlistTrackFor(ctx, sb.ID, song.VariantID, ""); ok && st.AudioURL != "" {
+					t.Source, t.Category, t.AudioURL, t.SourceLabel = st.Source, st.Category, st.AudioURL, st.SourceLabel
+					break
+				}
+			}
+		}
+		if t.Source == "" {
+			silent = append(silent, t)
+		} else {
+			tracks = append(tracks, t)
+		}
+	}
+	return tracks, silent
 }

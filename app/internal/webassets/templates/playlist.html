@@ -56,33 +56,35 @@
         <a href="?" class="{{if not .PreferReference}}active{{end}}" aria-current="{{if not .PreferReference}}true{{else}}false{{end}}">Our recordings</a>
         <a href="?prefer=reference" class="{{if .PreferReference}}active{{end}}" aria-current="{{if .PreferReference}}true{{else}}false{{end}}">Reference</a>
       </div>{{end}}
-      <a class="pl-open" id="pl-open" href="{{(index .Tracks 0).Href}}">Open the song</a>
+      <a class="pl-open" id="pl-open" href="{{(index .Tracks 0).Href}}">Open the {{if .VideoFirst}}lesson{{else}}song{{end}}</a>
     </div>
   </section>
 
   <section class="pl-queue" aria-label="Playlist">
-    <h2>{{len .Tracks}} songs</h2>
+    <h2>{{len .Tracks}} {{if .VideoFirst}}lessons{{else}}songs{{end}}</h2>
     <ol class="pl-list" id="pl-list">
       {{range $i, $t := .Tracks}}
       <li><button type="button" class="pl-row" data-index="{{$i}}">
-        <span class="pl-row-num">{{add1 $i}}</span>
+        <span class="pl-row-num">{{$t.Num}}</span>
         <span class="pl-row-eq" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span class="pl-row-text"><strong>{{$t.Title}}</strong><small>{{$t.Artist}}{{if and $t.Artist $t.Key}} · {{end}}{{$t.Key}}</small></span>
+        <span class="pl-row-text"><strong>{{$t.Title}}</strong><small>{{$t.Subtitle}}</small></span>
         <span class="pl-row-kind kind-{{$t.Source}}" title="{{$t.SourceLabel}}">{{if eq $t.Source "video"}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8.5 7.5v5l4.2-2.5z" fill="currentColor"/></svg>{{else if eq $t.Source "band"}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="7.5" y="2.5" width="5" height="9" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>{{else}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h1.5M6 7v6M8.5 4.5v11M11 7.5v5M13.5 5.5v9M16 8.5v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>{{end}}</span>
       </button></li>
       {{end}}
     </ol>
     {{if .Silent}}
     <details class="pl-silent">
-      <summary>{{len .Silent}} song{{if ne (len .Silent) 1}}s{{end}} with nothing to play yet</summary>
+      <summary>{{len .Silent}} {{if .VideoFirst}}lesson{{else}}song{{end}}{{if ne (len .Silent) 1}}s{{end}} with nothing to play yet</summary>
       <ul>{{range .Silent}}<li><a href="{{.Href}}">{{.Title}}</a></li>{{end}}</ul>
-      <p class="hint">Add a recording, or a YouTube link, from the song’s Reference view.</p>
+      <p class="hint">{{if .VideoFirst}}Add the lesson’s video from its page.{{else}}Add a recording, or a YouTube link, from the song’s Reference view.{{end}}</p>
     </details>
     {{end}}
   </section>
 
-  <section class="pl-map" aria-label="The song playing">
-    <iframe id="pl-map-frame" title="The song playing" loading="lazy"></iframe>
+  <section class="pl-map{{if .VideoFirst}} pl-stage{{end}}" aria-label="{{if .VideoFirst}}The lesson playing{{else}}The song playing{{end}}">
+    {{if .VideoFirst}}<div class="pl-stage-video"><div id="pl-stage-frame"></div></div>
+    <p class="pl-stage-caption"><strong id="pl-stage-title"></strong> <a id="pl-stage-open" href="#">Open the lesson</a></p>
+    {{else}}<iframe id="pl-map-frame" title="The song playing" loading="lazy"></iframe>{{end}}
   </section>
   {{else}}
   <p class="dl-empty">Nothing to play yet: add a recording, or a YouTube link, from a song’s Reference view.</p>
@@ -104,7 +106,10 @@
   const playBtn = $('pl-play'), seek = $('pl-seek');
   const wide = matchMedia('(min-width: 760px)');
   const frame = $('pl-map-frame');
-  let index = 0, yt = null, ytReady = null, ticking = null;
+  // A course's videos play big beside the list on a wide screen.
+  const videoFirst = {{.VideoFirst}};
+  const videoHost = () => (videoFirst && wide.matches ? 'pl-stage-frame' : 'pl-video-frame');
+  let index = 0, yt = null, ytHost = '', ytReady = null;
 
   const PLAY = '<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3.8v12.4L16.5 10z" fill="currentColor"/></svg>';
   const PAUSE = '<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="4" width="3.4" height="12" rx="1" fill="currentColor"/><rect x="11.6" y="4" width="3.4" height="12" rx="1" fill="currentColor"/></svg>';
@@ -126,7 +131,7 @@
   function drawSections() {
     const box = $('pl-sections');
     box.replaceChildren();
-    for (const s of track().sections) {
+    for (const s of track().sections || []) {
       const seg = document.createElement('button');
       seg.type = 'button';
       seg.className = 'pl-seg' + (s.start < 0 ? ' unmarked' : '');
@@ -137,10 +142,10 @@
       if (s.start >= 0 && !isVideo()) seg.addEventListener('click', () => { audio.currentTime = s.start; });
       box.append(seg);
     }
-    box.hidden = !track().sections.length;
+    box.hidden = !(track().sections || []).length;
   }
   function litSection(t) {
-    const secs = track().sections;
+    const secs = track().sections || [];
     let at = -1;
     secs.forEach((s, i) => { if (s.start >= 0 && s.start <= t + 0.05) at = i; });
     [...$('pl-sections').children].forEach((el, i) => el.classList.toggle('on', i === at));
@@ -158,7 +163,7 @@
     playBtn.innerHTML = on ? PAUSE : PLAY;
     rows.forEach((r, i) => r.classList.toggle('playing', i === index && on));
     // The song beside the player follows the recording (?embed=playlist).
-    if (wide.matches && frame.contentWindow && !isVideo()) {
+    if (wide.matches && frame && frame.contentWindow && !isVideo()) {
       frame.contentWindow.postMessage({type: 'songbooks:playlist', id: track().id, category: track().category, t, playing: on}, location.origin);
     }
     if ('mediaSession' in navigator && isFinite(d) && d > 0) {
@@ -181,17 +186,19 @@
     index = (i + tracks.length) % tracks.length;
     const t = track();
     $('pl-title').textContent = t.title;
-    $('pl-artist').textContent = t.artist;
+    $('pl-artist').textContent = videoFirst ? t.subtitle : t.artist;
     $('pl-source').textContent = t.sourceLabel;
     $('pl-source').className = `pl-source kind-${t.source}`;
-    $('pl-cover-key').textContent = [t.key, t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
+    $('pl-cover-key').textContent = videoFirst ? (t.num ? `Lesson ${t.num}` : '') : [t.key, t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
     $('pl-open').href = t.href;
     rows.forEach((r, j) => r.classList.toggle('current', j === index));
     if (wide.matches) rows[index].scrollIntoView({block: 'nearest'});
     drawSections();
-    $('pl-cover').hidden = isVideo();
-    $('pl-video').hidden = !isVideo();
-    if (wide.matches) frame.src = `/song/${t.id}?songbook={{.Songbook.ID}}&embed=playlist`;
+    const big = videoFirst && wide.matches;
+    $('pl-cover').hidden = isVideo() && !big;
+    $('pl-video').hidden = !isVideo() || big;
+    if (big) { $('pl-stage-title').textContent = [t.num && `Lesson ${t.num}`, t.title].filter(Boolean).join(' · '); $('pl-stage-open').href = t.href; }
+    if (wide.matches && frame) frame.src = `/song/${t.id}?songbook={{.Songbook.ID}}&embed=playlist`;
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: t.title, artist: t.artist, album,
@@ -201,9 +208,13 @@
     if (isVideo()) {
       audio.pause();
       await loadYouTube();
-      if (yt) { yt.loadVideoById({videoId: t.video, startSeconds: at || 0}); if (!autoplay) yt.pauseVideo(); }
+      if (yt && ytHost !== videoHost()) { yt.destroy(); yt = null; }
+      if (yt) { autoplay ? yt.loadVideoById({videoId: t.video, startSeconds: at || 0}) : yt.cueVideoById({videoId: t.video, startSeconds: at || 0}); }
       else {
-        yt = new YT.Player('pl-video-frame', {
+        ytHost = videoHost();
+        const host = $(ytHost).parentElement;
+        host.replaceChildren(Object.assign(document.createElement('div'), {id: ytHost}));
+        yt = new YT.Player(ytHost, {
           videoId: t.video, host: 'https://www.youtube-nocookie.com',
           playerVars: {autoplay: autoplay ? 1 : 0, playsinline: 1, start: Math.floor(at || 0)},
           events: {onStateChange: (e) => { if (e.data === 0) next(); render(); }},
@@ -239,7 +250,7 @@
   ['play', 'pause', 'loadedmetadata', 'timeupdate'].forEach((e) => audio.addEventListener(e, render));
   setInterval(() => { render(); if (playing()) remember(); }, 500);
   wide.addEventListener('change', () => load(index, playing(), now()));
-  frame.addEventListener('load', render);
+  frame?.addEventListener('load', render);
 
   // The lock screen, a car's controls, headphones.
   if ('mediaSession' in navigator) {

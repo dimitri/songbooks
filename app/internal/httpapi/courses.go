@@ -36,6 +36,22 @@ func lessonHref(sbID, lessonID int64) string {
 	return fmt.Sprintf("/songbooks/%d/lessons/%d", sbID, lessonID)
 }
 
+// lessonVideo is a lesson's YouTube video id: its own video, else the
+// first its songs link to; "" when there's none.
+func (s *Server) lessonVideo(l store.Lesson) string {
+	if id := youtubeID(l.VideoURL); id != "" {
+		return id
+	}
+	for _, song := range l.Songs {
+		if sg, _, err := s.store.LoadVariant(song.VariantID); err == nil {
+			if id := youtubeID(sg.Get("reference")); id != "" {
+				return id
+			}
+		}
+	}
+	return ""
+}
+
 // courseFiles is a course's files a viewer may download, by lesson; none
 // outside a community, or for a role that doesn't download.
 func (s *Server) courseFiles(r *http.Request, sb *store.Songbook) (map[int64][]lessonFile, error) {
@@ -232,6 +248,7 @@ func (s *Server) handleLessonPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data["Lesson"], data["Progress"], data["Files"] = lesson, progress[lesson.ID], files[lesson.ID]
+	data["VideoID"] = s.lessonVideo(*lesson)
 	if data["CanEdit"] == true {
 		// Songs that can join this lesson: those in no lesson, then the
 		// other lessons'.
@@ -296,6 +313,7 @@ type lessonRequest struct {
 	Number string `json:"number"`
 	Title  string `json:"title"`
 	Body   string `json:"body"`
+	Video  string `json:"video"`
 }
 
 func (q lessonRequest) number() (*int, error) {
@@ -375,7 +393,11 @@ func (s *Server) handleUpdateLesson(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := s.store.UpdateLesson(r.Context(), l.ID, n, req.Title, req.Body); err != nil {
+	if req.Video != "" && youtubeID(req.Video) == "" {
+		httpError(w, http.StatusBadRequest, "the video is a YouTube link")
+		return
+	}
+	if err := s.store.UpdateLesson(r.Context(), l.ID, n, req.Title, req.Body, req.Video); err != nil {
 		httpError(w, http.StatusBadRequest, err.Error())
 		return
 	}
