@@ -21,6 +21,10 @@ RUN CGO_ENABLED=0 go build -o /out/backfillaudio ./cmd/backfillaudio
 # docker compose run invocation (needs v2/BandsCamp mounted in, not
 # baked into this image — it's reference data, not app code).
 RUN CGO_ENABLED=0 go build -o /out/bandscampredo ./cmd/bandscampredo
+# One-off admin script: moves songs from Riff JSON score lines to
+# "gp[Track]: bars" lines and their Guitar Pro files, from a plan made by
+# tools/gpmigrate/plan.cjs (see cmd/gpmigrate's own doc comment).
+RUN CGO_ENABLED=0 go build -o /out/gpmigrate ./cmd/gpmigrate
 
 # --- runtime -------------------------------------------------------------
 # debian:bookworm-slim, not alpine: the LilyPond release tarball below is a
@@ -104,6 +108,7 @@ RUN which lilypond && lilypond --version
 COPY --from=builder /out/songbooks /usr/local/bin/songbooks
 COPY --from=builder /out/backfillaudio /usr/local/bin/backfillaudio
 COPY --from=builder /out/bandscampredo /usr/local/bin/bandscampredo
+COPY --from=builder /out/gpmigrate /usr/local/bin/gpmigrate
 
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/songbooks"]

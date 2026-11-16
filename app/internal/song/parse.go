@@ -37,6 +37,7 @@ type rawSection struct {
 	repeat  bool
 	time    string
 	scores  []rawScore
+	gp      []GPRef
 	times   int
 	bars    []int
 	gridRaw strings.Builder
@@ -70,6 +71,7 @@ func Parse(src string) *Song {
 			BarsPerLine: cur.bars,
 			Lyrics:      make([]LyricLine, 0, len(cur.lines)),
 			Notes:       cur.notes,
+			GP:          cur.gp,
 		}
 		for _, rs := range cur.scores {
 			sec.Scores = append(sec.Scores, ScoreVoice{Label: rs.label, Body: strings.Join(rs.lines, "\n")})
@@ -171,6 +173,10 @@ func Parse(src string) *Song {
 					}
 				}
 			}
+		case strings.HasPrefix(line, "gp[") || strings.HasPrefix(line, "gp:"):
+			if ref, ok := parseGPRef(line); ok {
+				cur.gp = append(cur.gp, ref)
+			}
 		case strings.HasPrefix(line, "grid:"):
 			cur.gridRaw.WriteString(" " + strings.TrimSpace(line[5:]))
 		case strings.HasPrefix(line, "bars:"):
@@ -242,6 +248,19 @@ func parseScoreHeader(line string) (label, val string, ok bool) {
 	return label, val, true
 }
 
+// parseGPRef splits a "gp[Track]: spec" or "gp: spec" line. ok is false
+// for a "gp[" with no closing "]:".
+func parseGPRef(line string) (GPRef, bool) {
+	if strings.HasPrefix(line, "gp:") {
+		return GPRef{Spec: strings.TrimSpace(line[len("gp:"):])}, true
+	}
+	end := strings.Index(line, "]:")
+	if end < 0 {
+		return GPRef{}, false
+	}
+	return GPRef{Track: strings.TrimSpace(line[len("gp["):end]), Spec: strings.TrimSpace(line[end+2:])}, true
+}
+
 // scoreContinues reports whether line should be treated as more content
 // for an IN-PROGRESS "score[label]:" block that's currently at brace
 // depth 0 (tracked by the caller, Parse's own main loop) — inside a
@@ -259,7 +278,7 @@ func scoreContinues(line string) bool {
 	if line == "" || sectionHeaderRE.MatchString(line) {
 		return false
 	}
-	for _, p := range [...]string{"time:", "grid:", "bars:", "times:", "note:", "score:", "score["} {
+	for _, p := range [...]string{"time:", "grid:", "bars:", "times:", "note:", "score:", "score[", "gp:", "gp["} {
 		if strings.HasPrefix(line, p) {
 			return false
 		}

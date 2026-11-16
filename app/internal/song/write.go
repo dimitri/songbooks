@@ -52,6 +52,13 @@ func Write(s *Song) string {
 				b.WriteString(l + "\n")
 			}
 		}
+		for _, r := range sec.GP {
+			if r.Track == "" {
+				b.WriteString("gp: " + r.Spec + "\n")
+			} else {
+				b.WriteString("gp[" + r.Track + "]: " + r.Spec + "\n")
+			}
+		}
 		if len(sec.BarsPerLine) > 0 {
 			b.WriteString("bars: " + writeBars(sec.BarsPerLine) + "\n")
 		}

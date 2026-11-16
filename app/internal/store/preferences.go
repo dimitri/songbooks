@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"strings"
 )
 
 // ClickTrackPrefs is a person's silently-remembered display settings for
@@ -79,6 +80,10 @@ func (s *Store) SetClickTrackPrefs(ctx context.Context, personID int64, prefs Cl
 type NotationPrefs struct {
 	Guitar string `json:"guitar,omitempty"`
 	Bass   string `json:"bass,omitempty"`
+	// Chosen lists the kinds of part the person has set themselves
+	// ("guitar,bass"), as opposed to defaults: their choice wins over what
+	// a song's "gp[...]" line asks for, a default doesn't.
+	Chosen string `json:"-"`
 }
 
 var validNotation = map[string]bool{"tab": true, "staff": true, "both": true}
@@ -105,6 +110,14 @@ func (s *Store) GetNotationPrefs(ctx context.Context, personID int64) (NotationP
 	if len(raw) > 0 {
 		_ = json.Unmarshal(raw, &p)
 	}
+	var chosen []string
+	if validNotation[p.Guitar] {
+		chosen = append(chosen, "guitar")
+	}
+	if validNotation[p.Bass] {
+		chosen = append(chosen, "bass")
+	}
+	p.Chosen = strings.Join(chosen, ",")
 	return p.WithDefaults(), nil
 }
 

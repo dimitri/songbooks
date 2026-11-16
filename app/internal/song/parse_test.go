@@ -227,3 +227,21 @@ func TestWriteScoreVoiceRoundTrip(t *testing.T) {
 		t.Errorf("round-trip mismatch\n--- first ---\n%+v\n--- again ---\n%+v", s, again)
 	}
 }
+
+func TestParseGPRefs(t *testing.T) {
+	sg := Parse("title: X\ncontent: gp\n\n[Verse]\nscore[Riff]: c4 d e f\ngp[Lead guitar]: 5-8 staff\ngp: 1-4\ngrid: |E7 | A7 |\n")
+	if sg.Get("content") != "gp" {
+		t.Errorf("content = %q", sg.Get("content"))
+	}
+	sec := sg.Sections[0]
+	want := []GPRef{{Track: "Lead guitar", Spec: "5-8 staff"}, {Spec: "1-4"}}
+	if !reflect.DeepEqual(sec.GP, want) {
+		t.Errorf("GP = %+v, want %+v", sec.GP, want)
+	}
+	if len(sec.Scores) != 1 || sec.Scores[0].Body != "c4 d e f" {
+		t.Errorf("a gp line must end the score block before it: %+v", sec.Scores)
+	}
+	if len(sec.Measures) != 2 {
+		t.Errorf("measures = %d", len(sec.Measures))
+	}
+}

@@ -1556,6 +1556,16 @@ func withRiffOnlyBars(sg *song.Song) *song.Song {
 	return out
 }
 
+// anyGPRef reports whether any section draws bars from the GP file.
+func anyGPRef(sections []viewerSection) bool {
+	for _, sec := range sections {
+		if len(sec.GP) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // anyTabOnlyLine reports whether any display row across sections needs
 // the vendored alphaTab JS renderer (see .HasAlphaTab, play.html) — used
 // to skip loading that ~1.5MB library on a song page with no riff-
@@ -1751,6 +1761,11 @@ type viewerSection struct {
 	// times — the chip alone (keeping the section visible in the jazz
 	// chart, which is the part that actually matters) is enough.
 	Compact bool
+	// GP are this section's "gp[Track]:" lines (gpview.go); GPOnly marks a
+	// section whose bars come only from the file, so its empty chord grid
+	// isn't drawn.
+	GP     []viewerGPRef
+	GPOnly bool
 	// IsSolo marks ANY section labeled "Solo..." — set regardless of
 	// whether it's a bare/inferred placeholder or a fully defined section
 	// with its own real grid/lyrics (e.g. a sung ad-lib over a guitar
@@ -2795,7 +2810,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	sections := buildSections(sg)
+	gp := s.loadSongGP(r.Context(), variantID)
+	sections := buildSections(withGPOnlyBars(sg, gp.Facts))
+	attachGPRefs(sections, sg, gp)
 	for i := range sections {
 		sections[i].ChordBars = sectionChordBars(&sections[i])
 		// Collapse consecutive repeats of the SAME chord into one entry —
@@ -2878,8 +2895,23 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"HasLyrics":          anySectionHasLyrics(sections),
 		"Text":               text, "Version": version,
 	}
-	if gpMeta, err := s.store.GetSongGPSourceFileMeta(r.Context(), variantID); err == nil {
-		data["GPFileName"] = gpMeta.Filename
+	if gp.Meta != nil {
+		data["GPFileName"] = gp.Meta.Filename
+		data["GPFileSHA"] = gp.Meta.SHA256
+		data["GPFactsMissing"] = gp.Facts == nil
+		data["GPOnly"] = isGPOnly(sg)
+		data["HasGPView"] = isGPOnly(sg) || anyGPRef(sections)
+		if canEdit && gp.Facts != nil {
+			kept, _ := s.store.GPDriftAcks(r.Context(), variantID)
+			drift := computeDrift(sg, buildSections(withGPOnlyBars(sg, gp.Facts)), gp.Facts, kept)
+			open := 0
+			for _, it := range drift {
+				if !it.Kept {
+					open++
+				}
+			}
+			data["GPDrift"], data["GPDriftOpen"] = drift, open
+		}
 	}
 	if setlistRef := r.URL.Query().Get("setlist"); setlistRef != "" {
 		data["SetlistRef"] = setlistRef
