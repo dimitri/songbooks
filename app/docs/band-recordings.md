@@ -5,7 +5,10 @@ indexes it: each rehearsal and concert, its recordings in the order they were
 played, to listen to, rate and choose from. Nothing is copied. The recordings
 play straight from pCloud: the browser asks pCloud's public API for each file's
 link (`getpublinkdownload`, allowed from any site, the link good for the
-browser's own address), and the audio never goes through the app.
+browser's own address), and the audio never goes through the app. That request
+goes without a Referer (`referrerPolicy: 'no-referrer'`): with an Origin and a
+Referer from another site than pCloud's (localhost aside), pCloud refuses it
+("Invalid link referer", error 7010).
 
 ## Setting it up
 

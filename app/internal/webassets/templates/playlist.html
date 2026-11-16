@@ -172,9 +172,10 @@
   }
 
   // A band's own recording plays straight from its pCloud folder: pCloud
-  // gives the file's link to whoever asks, for their own address.
+  // gives the file's link to whoever asks, for their own address — asked
+  // without a Referer, which pCloud refuses from another site (7010).
   async function remoteLink(r) {
-    const res = await fetch(`https://${r.host}/getpublinkdownload?code=${encodeURIComponent(r.code)}&fileid=${r.file}`);
+    const res = await fetch(`https://${r.host}/getpublinkdownload?code=${encodeURIComponent(r.code)}&fileid=${r.file}`, {referrerPolicy: 'no-referrer'});
     const d = await res.json();
     if (d.result !== 0) throw new Error(d.error || 'pCloud didn’t give the file');
     return `https://${d.hosts[0]}${d.path}`;

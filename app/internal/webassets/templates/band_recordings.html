@@ -71,12 +71,14 @@
   let at = -1;
 
   // pCloud gives a file's link to whoever asks, for their own address: the
-  // browser asks, and the recording streams from pCloud.
+  // browser asks, and the recording streams from pCloud. Asked without a
+  // Referer: with one from another site than pCloud's own, it refuses
+  // ("Invalid link referer", 7010).
   const links = new Map();
   async function linkFor(fileId) {
     const c = links.get(fileId);
     if (c && c.until > Date.now()) return c.url;
-    const res = await fetch(`https://${host}/getpublinkdownload?code=${encodeURIComponent(code)}&fileid=${fileId}`);
+    const res = await fetch(`https://${host}/getpublinkdownload?code=${encodeURIComponent(code)}&fileid=${fileId}`, {referrerPolicy: 'no-referrer'});
     const data = await res.json();
     if (data.result !== 0) throw new Error(data.error || 'pCloud didn’t give the file');
     const url = `https://${data.hosts[0]}${data.path}`;
