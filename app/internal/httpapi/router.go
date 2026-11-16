@@ -149,6 +149,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/songbooks/{id}/entries", s.requireAuth(s.handleAddSongbookEntry))
 	mux.HandleFunc("DELETE /api/songbooks/{id}/entries/{variantID}", s.requireAuth(s.handleRemoveSongbookEntry))
 	mux.HandleFunc("GET /songbooks/{id}/playlist/metronome", s.requireAuth(s.handleMetronomePlaylist))
+	mux.HandleFunc("GET /songbooks/{id}/playlist", s.requireAuth(s.handlePlaylistPage))
 	mux.HandleFunc("GET /songbooks/{id}/playlist/mp3", s.requireAuth(s.handleMP3Playlist))
 
 	// Songs: addressed by their own variant id from here on — see

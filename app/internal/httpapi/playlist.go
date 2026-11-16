@@ -2,7 +2,14 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"html/template"
 	"net/http"
+	"net/url"
+	"strings"
+
+	"app/internal/store"
 )
 
 // playlistRow is the flattened (no Set grouping — a playlist plays straight
@@ -89,5 +96,180 @@ func (s *Server) handleMP3Playlist(w http.ResponseWriter, r *http.Request) {
 	}
 	s.render(w, "mp3-playlist", map[string]any{
 		"Me": person, "SongbookID": id, "Rows": out,
+	})
+}
+
+// playlistTrack is one song of a songbook's playlist (playlist.html):
+// what plays for it — the band's own recording, else the reference audio
+// taken from YouTube, else the reference video itself — and its sections,
+// with where each starts in that recording when its markers say so.
+type playlistTrack struct {
+	VariantID   int64             `json:"id"`
+	Title       string            `json:"title"`
+	Artist      string            `json:"artist"`
+	Key         string            `json:"key"`
+	Tempo       string            `json:"tempo"`
+	Href        string            `json:"href"`
+	Source      string            `json:"source"` // "band", "youtube", "video" or "": nothing to play
+	SourceLabel string            `json:"sourceLabel"`
+	Category    string            `json:"category,omitempty"`
+	AudioURL    string            `json:"audio,omitempty"`
+	VideoID     string            `json:"video,omitempty"`
+	Sections    []playlistSection `json:"sections"`
+	both        bool              // has both its own and a reference recording
+}
+
+// playlistSection is a section of a track: its name, its length in bars
+// (how wide it shows), and its start in the recording (-1: unmarked).
+type playlistSection struct {
+	Label string  `json:"label"`
+	Bars  int     `json:"bars"`
+	Start float64 `json:"start"`
+}
+
+// youtubeID is a YouTube link's video id: watch?v=, youtu.be/, shorts/,
+// embed/ or live/; "" for anything else (song.js's youtubeId).
+func youtubeID(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return ""
+	}
+	host := strings.TrimPrefix(strings.TrimPrefix(u.Hostname(), "www."), "m.")
+	switch host {
+	case "youtu.be":
+		return strings.Split(strings.TrimPrefix(u.Path, "/"), "/")[0]
+	case "youtube.com", "youtube-nocookie.com":
+		if u.Path == "/watch" {
+			return u.Query().Get("v")
+		}
+		parts := strings.Split(strings.TrimPrefix(u.Path, "/"), "/")
+		if len(parts) >= 2 && (parts[0] == "shorts" || parts[0] == "embed" || parts[0] == "live") {
+			return parts[1]
+		}
+	}
+	return ""
+}
+
+// playlistTrackFor is variantID's track; prefer is "reference" to play the
+// reference recording before the band's own.
+func (s *Server) playlistTrackFor(ctx context.Context, songbookID, variantID int64, prefer string) (playlistTrack, bool) {
+	sg, _, err := s.store.LoadVariant(variantID)
+	if err != nil {
+		return playlistTrack{}, false
+	}
+	t := playlistTrack{
+		VariantID: variantID, Title: orDefault(sg.Get("title"), "untitled"), Artist: sg.Get("artist"),
+		Key: sg.Get("key"), Tempo: sg.Get("tempo"),
+		Href: fmt.Sprintf("/song/%d?songbook=%d", variantID, songbookID),
+	}
+	audio, _ := s.store.ListSongAudio(ctx, variantID)
+	byCat := map[store.AudioCategory]store.SongAudio{}
+	for _, a := range audio {
+		byCat[a.Category] = a
+	}
+	order := []store.AudioCategory{store.AudioBand, store.AudioYouTube}
+	if prefer == "reference" {
+		order = []store.AudioCategory{store.AudioYouTube, store.AudioBand}
+	}
+	_, hasBand := byCat[store.AudioBand]
+	_, hasRef := byCat[store.AudioYouTube]
+	t.both = hasBand && hasRef
+	var chosen *store.SongAudio
+	for _, c := range order {
+		if a, ok := byCat[c]; ok {
+			chosen = &a
+			break
+		}
+	}
+	vid := youtubeID(sg.Get("reference"))
+	switch {
+	case chosen != nil:
+		t.Source, t.Category = string(chosen.Category), string(chosen.Category)
+		t.AudioURL = fmt.Sprintf("/song/%d/audio.mp3?category=%s&v=%d", variantID, chosen.Category, chosen.ByteSize)
+		t.SourceLabel = "Reference"
+		if chosen.Category == store.AudioBand {
+			t.SourceLabel = "Ours"
+		}
+	case vid != "":
+		t.Source, t.VideoID, t.SourceLabel = "video", vid, "Video"
+	}
+	starts := map[int]float64{}
+	if chosen != nil {
+		if marks, err := s.store.ListAudioMarkers(ctx, chosen.ID); err == nil {
+			for _, m := range marks {
+				starts[m.SectionIndex] = m.TimeSeconds
+			}
+		}
+	}
+	for _, sec := range buildSections(sg) {
+		label := sec.Label
+		if sec.LabelNumber != 0 {
+			label = fmt.Sprintf("%s %d", label, sec.LabelNumber)
+		}
+		start, ok := starts[sec.Index]
+		if !ok {
+			start = -1
+		}
+		t.Sections = append(t.Sections, playlistSection{Label: label, Bars: max(sec.BarCount, 1), Start: start})
+	}
+	return t, true
+}
+
+// handlePlaylistPage is GET /songbooks/{id}/playlist: the songbook's songs
+// played back to back, in its order — each song's recording, or its
+// reference video — to listen to in the car or around the house. On a
+// tablet or a computer, the song playing shows beside the player, its
+// map following the recording. ?prefer=reference plays the reference
+// recordings before the band's own.
+func (s *Server) handlePlaylistPage(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid songbook id")
+		return
+	}
+	person := personFromContext(r)
+	if ok, err := s.canSeeSongbook(r, id); err != nil || !ok {
+		http.NotFound(w, r)
+		return
+	}
+	sb, err := s.store.GetSongbook(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	prefer := r.URL.Query().Get("prefer")
+	var tracks, silent []playlistTrack
+	choice := false // some song has both recordings: which plays is a choice
+	for _, row := range s.flattenSongbookSongs(r.Context(), id) {
+		t, ok := s.playlistTrackFor(r.Context(), id, row.VariantID, prefer)
+		if !ok {
+			continue
+		}
+		choice = choice || t.both
+		if t.Source == "" {
+			silent = append(silent, t)
+		} else {
+			tracks = append(tracks, t)
+		}
+	}
+	back, owner := fmt.Sprintf("/songbooks/%d", id), sb.Name
+	switch sb.OwnerKind {
+	case "band":
+		if b, err := s.store.GetBand(r.Context(), sb.OwnerBandID); err == nil {
+			owner = b.Name
+			if sb.IsDefault {
+				back = fmt.Sprintf("/bands/%d/catalog", b.ID)
+			}
+		}
+	case "community":
+		if c, err := s.store.GetCommunity(r.Context(), sb.OwnerCommunityID); err == nil {
+			owner = c.Name
+		}
+	}
+	tracksJSON, _ := json.Marshal(tracks)
+	s.render(w, "playlist", map[string]any{
+		"Me": person, "Songbook": sb, "Owner": owner, "Back": back,
+		"Tracks": tracks, "Silent": silent, "TracksJSON": template.JS(tracksJSON),
+		"PreferReference": prefer == "reference", "Choice": choice,
 	})
 }

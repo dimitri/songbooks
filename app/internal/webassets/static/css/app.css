@@ -5947,3 +5947,93 @@ body.branded h1, body.branded h2, body.branded .brand-name { font-synthesis-weig
   .dl-book-name { flex-basis: calc(100% - 3rem); }
   .dl-book .dl-btn { flex: 1; justify-content: center; }
 }
+
+/* ---- A songbook's playlist (playlist.html) ------------------------------
+   Phone: the player, then the songs. Tablet and computer: the player and
+   the songs in a column beside the song playing (.pl-map, the song page
+   at ?embed=playlist), its map following the recording. */
+.pl { display: flex; flex-direction: column; gap: 1rem; padding-bottom: 2rem; }
+.pl-player { background: var(--bg-raised); border: 1px solid var(--border); border-radius: calc(var(--radius) * 1.6); box-shadow: var(--shadow); padding: 1rem; display: flex; flex-direction: column; gap: 0.8rem; }
+.pl-art { position: relative; border-radius: var(--radius); overflow: hidden; aspect-ratio: 16 / 9; background: var(--bg-sunken); }
+.pl-cover { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 1rem 1.1rem;
+  background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 70%, #000 0%) 0%, color-mix(in srgb, var(--accent) 55%, #1a0f0a) 55%, #140c08 100%); color: #fff; }
+.pl-cover[hidden] { display: none; }
+.pl-cover::after { content: ""; position: absolute; right: -12%; bottom: -38%; width: 70%; aspect-ratio: 1; border-radius: 50%;
+  background: repeating-radial-gradient(circle, rgba(255,255,255,0.10) 0 1px, transparent 1px 7px); }
+.pl-cover-owner { font: 700 0.78rem/1 var(--font-ui); letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.85; position: relative; z-index: 1; }
+.pl-cover-key { font-size: 0.95rem; opacity: 0.9; position: relative; z-index: 1; }
+.pl-video { position: absolute; inset: 0; }
+.pl-video[hidden] { display: none; }
+.pl-video iframe, .pl-video > div { width: 100%; height: 100%; border: 0; }
+.pl-now { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6rem; }
+.pl-now-text { min-width: 0; }
+.pl-now h2 { margin: 0; font-size: 1.35rem; line-height: 1.2; font-family: var(--font-chart, inherit); }
+.pl-now p { margin: 0.15rem 0 0; color: var(--fg-muted); }
+.pl-source { flex: none; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.25rem 0.55rem; border-radius: 999px; background: var(--bg-sunken); color: var(--fg-muted); }
+.pl-source.kind-band { background: var(--accent-bg); color: var(--accent); }
+.pl-sections { display: flex; gap: 2px; min-height: 1.9rem; }
+.pl-sections[hidden] { display: none; }
+.pl-seg { flex: 1 1 0; min-width: 0; padding: 0.3rem 0.35rem 0; border: 0; border-top: 3px solid var(--border-strong); border-radius: 0; background: none; text-align: left; font: 600 0.66rem/1.1 var(--font-ui); letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-muted); cursor: pointer; }
+.pl-seg span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-seg.unmarked { cursor: default; }
+.pl-seg.on { border-top-color: var(--accent); color: var(--accent); }
+.pl-scrub { display: flex; align-items: center; gap: 0.6rem; font-size: 0.8rem; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.pl-scrub input { flex: 1; accent-color: var(--accent); min-height: 2.75rem; }
+.pl-controls { display: flex; align-items: center; justify-content: center; gap: 1.4rem; }
+.pl-btn { width: 3.4rem; height: 3.4rem; border-radius: 50%; border: 1px solid var(--border); background: var(--bg); color: var(--fg); display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.pl-btn .icon { width: 1.35rem; height: 1.35rem; }
+.pl-btn.pl-play { width: 4.6rem; height: 4.6rem; background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 35%, transparent); }
+.pl-btn.pl-play .icon { width: 1.8rem; height: 1.8rem; }
+.pl-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.pl-prefer { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; background: var(--bg); }
+.pl-prefer a { padding: 0.45rem 0.8rem; border-radius: 999px; font-size: 0.82rem; color: var(--fg-muted); text-decoration: none; min-height: 2.25rem; display: inline-flex; align-items: center; }
+.pl-prefer a.active { background: var(--fg); color: var(--bg); font-weight: 600; }
+.pl-open { font-size: 0.88rem; }
+.pl-queue h2 { margin: 0 0 0.5rem; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-faint); }
+.pl-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; }
+.pl-list li + li { border-top: 1px solid var(--border); }
+.pl-row { width: 100%; display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0.8rem; min-height: 3.4rem; border: 0; border-radius: 0; background: none; color: inherit; text-align: left; font: inherit; }
+.pl-row:hover { background: var(--bg-sunken); }
+.pl-row.current { background: var(--accent-bg); }
+.pl-row.current strong { color: var(--accent); }
+.pl-row-num { flex: none; width: 1.5rem; text-align: right; font-size: 0.8rem; color: var(--fg-faint); font-variant-numeric: tabular-nums; }
+.pl-row-eq { display: none; flex: none; width: 1.5rem; height: 1rem; align-items: flex-end; justify-content: flex-end; gap: 2px; }
+.pl-row-eq i { width: 3px; background: var(--accent); border-radius: 1px; animation: pl-eq 0.9s ease-in-out infinite; }
+.pl-row-eq i:nth-child(2) { animation-delay: -0.3s; } .pl-row-eq i:nth-child(3) { animation-delay: -0.6s; }
+@keyframes pl-eq { 0%, 100% { height: 25%; } 50% { height: 100%; } }
+@media (prefers-reduced-motion: reduce) { .pl-row-eq i { animation: none; height: 70%; } }
+.pl-row.playing .pl-row-num { display: none; }
+.pl-row.playing .pl-row-eq { display: inline-flex; }
+.pl-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pl-row-text strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-row-text small { color: var(--fg-faint); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-row-kind { flex: none; color: var(--fg-faint); display: inline-flex; }
+.pl-row-kind.kind-band { color: var(--accent); }
+.pl-row-kind .icon { width: 1.1rem; height: 1.1rem; }
+.pl-silent { margin-top: 0.8rem; font-size: 0.88rem; color: var(--fg-muted); }
+.pl-silent summary { cursor: pointer; min-height: 2.75rem; display: flex; align-items: center; }
+.pl-silent ul { margin: 0.2rem 0 0.4rem; padding-left: 1.2rem; columns: 2 12rem; }
+.pl-map { display: none; }
+@media (min-width: 760px) {
+  .pl { display: grid; grid-template-columns: minmax(18rem, 24rem) 1fr; grid-template-rows: auto 1fr; grid-template-areas: "player map" "queue map";
+        gap: 1rem 1.2rem; height: calc(100dvh - 9rem); padding: 0 1rem 1rem; box-sizing: border-box; }
+  .pl-player { grid-area: player; }
+  .pl-queue { grid-area: queue; min-height: 0; overflow: auto; }
+  .pl-map { grid-area: map; display: block; min-height: 0; border: 1px solid var(--border); border-radius: calc(var(--radius) * 1.6); overflow: hidden; background: var(--bg); box-shadow: var(--shadow); }
+  .pl-map iframe { width: 100%; height: 100%; border: 0; display: block; }
+  .pl-controls { gap: 1rem; }
+  .pl-art { aspect-ratio: 16 / 7; }
+  .pl-sections { display: none; } /* the song beside it shows them */
+}
+@media (min-width: 901px) {
+  .playlist-page .app-header { display: none; }
+  .pl { height: 100dvh; padding: 1rem 1.2rem 1rem 1rem; }
+}
+
+/* The song page beside a playlist's player (?embed=playlist): the chart
+   alone, the player around it doing the playing. */
+body.embed-playlist .desktop-sidebar, body.embed-playlist .global-tabbar, body.embed-playlist .song-context-bar,
+body.embed-playlist .topbar-utility-mobile, body.embed-playlist #audio-player, body.embed-playlist #mode-segmented,
+body.embed-playlist .topbar-prev, body.embed-playlist .topbar-next { display: none !important; }
+body.embed-playlist .app-content { margin: 0 !important; padding-bottom: 1rem !important; }
+.pl-h1-sub { font-weight: 400; color: var(--fg-muted); }

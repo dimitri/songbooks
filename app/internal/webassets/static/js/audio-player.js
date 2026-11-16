@@ -1283,4 +1283,21 @@ window.songbooksDecodable = function (buf) {
     if (bandDeleteBtn) bandDeleteBtn.hidden = !hasBand;
   };
   loadMeta();
+
+  // Beside a playlist's player (playlist.html, ?embed=playlist) the
+  // recording plays in the page around this one: this one plays along,
+  // muted, kept in step with it, so the chart follows the song.
+  if (document.body.classList.contains('embed-playlist')) {
+    window.addEventListener('message', (e) => {
+      const m = e.data;
+      if (e.origin !== location.origin || !m || m.type !== 'songbooks:playlist' || String(m.id) !== String(variantId)) return;
+      audio.muted = true;
+      audio.playbackRate = 1;
+      if (m.category && categories[m.category] && activeCategory !== m.category) { selectCategory(m.category); return; }
+      if (!duration) return;
+      if (Math.abs(audio.currentTime - m.t) > 0.3) audio.currentTime = m.t;
+      if (m.playing && audio.paused) audio.play().catch(() => {});
+      if (!m.playing && !audio.paused) audio.pause();
+    });
+  }
 })();

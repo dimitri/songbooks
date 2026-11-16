@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -789,10 +790,18 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "band_catalog", map[string]any{
 		"Me": person, "Band": band, "Entries": rows, "Badges": s.songBadgesFor(r.Context(), ids),
 		"AlbumGroups": albumGroups,
-		"ContextualGroup": webassets.ContextualGroup{
-			Label: "This band", PDFExportPath: fmt.Sprintf("/bands/%d/export-songbook.pdf", bandID),
-		},
+		"ContextualGroup": bandCatalogNav(r.Context(), s, bandID),
 	})
+}
+
+// bandCatalogNav is the band repertoire page's own sidebar group: the
+// songbook PDF, and the playlist of its songs' recordings.
+func bandCatalogNav(ctx context.Context, s *Server, bandID int64) webassets.ContextualGroup {
+	g := webassets.ContextualGroup{Label: "This band", PDFExportPath: fmt.Sprintf("/bands/%d/export-songbook.pdf", bandID)}
+	if sbID, err := s.store.GetDefaultSongbook(ctx, "band", bandID); err == nil {
+		g.Entries = append(g.Entries, webassets.NavEntry{Label: "Playlist", Path: fmt.Sprintf("/songbooks/%d/playlist", sbID), Icon: "icon-play"})
+	}
+	return g
 }
 
 // bandCatalogRow is BandCatalogEntry plus the key/tempo badges the

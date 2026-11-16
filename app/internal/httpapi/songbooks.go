@@ -135,7 +135,7 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 		PDFExportLabel: "Songbook PDF",
 		Entries: []webassets.NavEntry{
 			{Label: "Metronome playlist", Path: fmt.Sprintf("/songbooks/%d/playlist/metronome", id), Icon: "icon-metro-full"},
-			{Label: "MP3 playlist", Path: fmt.Sprintf("/songbooks/%d/playlist/mp3", id), Icon: "icon-play"},
+			{Label: "Playlist", Path: fmt.Sprintf("/songbooks/%d/playlist", id), Icon: "icon-play"},
 		},
 	}
 	if sb.PlaylistURL != "" {
