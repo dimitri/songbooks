@@ -5,7 +5,7 @@
 //	sbfiles add --db URL --songbook 12 [--path F] [--song 251] [--title T] [--kind K] [--actor NAME] --name "01_Mon premier blues.gp" < file
 //	sbfiles import --db URL --songbook 12 [--path F] [--actor NAME] --name "Lessons.zip" < Lessons.zip
 //	sbfiles course --db URL --songbook 12
-//	sbfiles covers --db URL --songbook 12 [--again]
+//	sbfiles covers --db URL --songbook 12 [--again] [--set-look]
 //
 // course makes the songbook a course (docs/courses.md) and its lessons
 // from its files; a course's import does the latter by itself. covers
@@ -39,7 +39,7 @@ const usage = `usage:
   sbfiles add --db URL --songbook ID [--path F] [--song ID] [--title T] [--kind K] [--actor NAME] --name FILE < file
   sbfiles import --db URL --songbook ID [--path F] [--actor NAME] --name ZIP < zip
   sbfiles course --db URL --songbook ID
-  sbfiles covers --db URL --songbook ID [--again]`
+  sbfiles covers --db URL --songbook ID [--again] [--set-look]`
 
 func main() {
 	if len(os.Args) < 2 || (os.Args[1] != "add" && os.Args[1] != "import" && os.Args[1] != "course" && os.Args[1] != "covers") {
@@ -56,6 +56,7 @@ func main() {
 	actor := fs.String("actor", "", "username the files are added as")
 	kind := fs.String("kind", "", "book, gp, audio or other (default: from the name)")
 	again := fs.Bool("again", false, "covers: look again for the songs that got no album cover")
+	setLook := fs.Bool("set-look", false, "covers: make the look of all the owner's songs its brand (the brand form's \"From our songs\"), keeping its logo, tagline and website")
 	fs.Parse(os.Args[2:])
 	if *dbURL == "" || *songbookID == 0 || (*name == "" && cmd != "course" && cmd != "covers") {
 		log.Fatal("--db, --songbook and --name are required")
@@ -124,6 +125,35 @@ func main() {
 		}
 		look := store.CoverLook(songs)
 		fmt.Printf("%d found, %d not found\nlook: %s %+v\ngenres: %s\n", found, missing, look.Mood, look.Brand, strings.Join(look.Genres, ", "))
+		if *setLook {
+			sb, err := st.GetSongbook(ctx, *songbookID)
+			if err != nil {
+				log.Fatal(err)
+			}
+			kind, owner := sb.OwnerKind, sb.OwnerBandID
+			if kind == "community" {
+				owner = sb.OwnerCommunityID
+			} else if kind != "band" {
+				log.Fatalf("songbook %d is a person's: only a band or a community has a look", *songbookID)
+			}
+			all, err := st.OwnerCovers(ctx, kind, owner)
+			if err != nil {
+				log.Fatal(err)
+			}
+			old, name, err := st.GetBrand(ctx, kind, owner)
+			if err != nil {
+				log.Fatal(err)
+			}
+			b := store.CoverLook(all).Brand
+			if b.IsZero() {
+				log.Fatalf("no covers for %s's songs yet", name)
+			}
+			b.LogoURL, b.Tagline, b.Website, b.Mark = old.LogoURL, old.Tagline, old.Website, old.Mark
+			if err := st.SetBrand(ctx, kind, owner, b); err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("%s's look is now its songs': %+v\n", name, b)
+		}
 		return
 	}
 
