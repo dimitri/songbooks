@@ -433,7 +433,12 @@ func (s *Server) handleLessonsFromFiles(w http.ResponseWriter, r *http.Request) 
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]int{"created": created, "placed": placed})
+	videos, err := s.store.LessonVideosFromBooks(r.Context(), sb.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"created": created, "placed": placed, "videos": videos})
 }
 
 // handleSetSongLesson is PUT /api/songbooks/{id}/entries/{variantID}/lesson:

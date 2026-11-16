@@ -109,7 +109,7 @@ async function courseApi(method, url, body) {
     {{if .Community}}
     <div class="course-from-files">
       <button type="button" id="lessons-from-files" class="secondary">Make lessons from the files</button>
-      <p class="hint">A lesson for each number the course’s files start with (“07_Plan Chicago Blues”), with the songs those files go with. Lessons and songs already in place stay as they are.</p>
+      <p class="hint">A lesson for each number the course’s files start with (“07_Plan Chicago Blues”), with the songs those files go with, and the video the book’s PDF links each lesson to. Lessons, songs and videos already in place stay as they are.</p>
       <p class="form-status" role="status"></p>
     </div>
     {{end}}
@@ -132,8 +132,8 @@ async function courseApi(method, url, body) {
       const box = fromFiles.parentElement;
       Forms.run(box, fromFiles, async () => {
         const data = await courseApi('POST', `/api/songbooks/${sb}/lessons/from-files`);
-        Forms.status(box, `${data.created} lesson${data.created === 1 ? '' : 's'} made, ${data.placed} song${data.placed === 1 ? '' : 's'} and files placed.`, 'ok');
-        if (data.created || data.placed) setTimeout(() => location.reload(), 800);
+        Forms.status(box, `${data.created} lesson${data.created === 1 ? '' : 's'} made, ${data.placed} song${data.placed === 1 ? '' : 's'} and files placed, ${data.videos} video${data.videos === 1 ? '' : 's'} found in the book.`, 'ok');
+        if (data.created || data.placed || data.videos) setTimeout(() => location.reload(), 800);
       });
     });
     document.querySelectorAll('select.course-place').forEach((sel) => sel.addEventListener('change', async () => {

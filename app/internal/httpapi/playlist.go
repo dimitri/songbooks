@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -130,28 +129,8 @@ type playlistSection struct {
 	Start float64 `json:"start"`
 }
 
-// youtubeID is a YouTube link's video id: watch?v=, youtu.be/, shorts/,
-// embed/ or live/; "" for anything else (song.js's youtubeId).
-func youtubeID(raw string) string {
-	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil {
-		return ""
-	}
-	host := strings.TrimPrefix(strings.TrimPrefix(u.Hostname(), "www."), "m.")
-	switch host {
-	case "youtu.be":
-		return strings.Split(strings.TrimPrefix(u.Path, "/"), "/")[0]
-	case "youtube.com", "youtube-nocookie.com":
-		if u.Path == "/watch" {
-			return u.Query().Get("v")
-		}
-		parts := strings.Split(strings.TrimPrefix(u.Path, "/"), "/")
-		if len(parts) >= 2 && (parts[0] == "shorts" || parts[0] == "embed" || parts[0] == "live") {
-			return parts[1]
-		}
-	}
-	return ""
-}
+// youtubeID is store.YouTubeID.
+func youtubeID(raw string) string { return store.YouTubeID(raw) }
 
 // playlistTrackFor is variantID's track; prefer is "reference" to play the
 // reference recording before the band's own.

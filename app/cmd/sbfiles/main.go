@@ -78,6 +78,10 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		videos, err := st.LessonVideosFromBooks(ctx, *songbookID)
+		if err != nil {
+			log.Fatal(err)
+		}
 		lessons, loose, err := st.ListLessons(ctx, *songbookID)
 		if err != nil {
 			log.Fatal(err)
@@ -87,12 +91,12 @@ func main() {
 			for _, s := range l.Songs {
 				songs = append(songs, s.Title)
 			}
-			fmt.Printf("%s\t%s\n", l.Label(), strings.Join(songs, " | "))
+			fmt.Printf("%s\t%s\t%s\n", l.Label(), l.VideoURL, strings.Join(songs, " | "))
 		}
 		for _, s := range loose {
 			fmt.Printf("(no lesson)\t%s\n", s.Title)
 		}
-		fmt.Printf("%d lessons made, %d songs and files placed\n", created, placed)
+		fmt.Printf("%d lessons made, %d songs and files placed, %d videos from the book\n", created, placed, videos)
 		return
 	}
 
@@ -143,4 +147,12 @@ func main() {
 		log.Fatalf("%s: %v", base, err)
 	}
 	fmt.Printf("%s: %s (file %d)\n", base, status, id)
+	// A course's book: its lessons' videos.
+	if sb, err := st.GetSongbook(ctx, *songbookID); err == nil && sb.IsCourse() && store.FileKind(base, variantID != nil) == "book" {
+		if n, err := st.LessonVideosFromBooks(ctx, *songbookID); err != nil {
+			log.Print(err)
+		} else {
+			fmt.Printf("%d lesson videos from the book\n", n)
+		}
+	}
 }
