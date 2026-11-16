@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Songbook.Name}} — access — Songbooks</title>
+<title>{{.Songbook.Name}} — sharing and access — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,10 +15,18 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}/songbooks">{{template "icon-back"}} Songbooks</a>
-  <h1>{{.Songbook.Name}} — access</h1>
+  <h1>{{.Songbook.Name}} — sharing and access</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
+  <div class="card">
+    <h3>Shared or private</h3>
+    <p class="hint" id="shared-hint">Shared, whoever can open a song can also copy it into their own songbook, a band’s or another community’s. Private, the songs can be opened, played and downloaded but not copied — an author’s lessons stay theirs. Either way the songbook can be sold separately, below.</p>
+    <label class="check"><input type="radio" name="shared" value="true" aria-describedby="shared-hint" {{if .Songbook.Shared}}checked{{end}}> Shared</label>
+    <label class="check"><input type="radio" name="shared" value="false" aria-describedby="shared-hint" {{if not .Songbook.Shared}}checked{{end}}> Private</label>
+    <p id="shared-result" class="form-status" role="status"></p>
+  </div>
+
   <div class="card">
     <h3>Who can open this songbook</h3>
     <p class="hint" id="requires-grant-hint">Unticked, every current member can open it. Ticked, only the members you give access to below can — for a songbook sold separately (payment itself is handled outside the app for now; a purchase will give access the same way). Changes save straight away.</p>
@@ -49,6 +57,21 @@
 <script>
 const communityId = {{.Community.ID}};
 const songbookId = {{.Songbook.ID}};
+
+document.querySelectorAll('input[name=shared]').forEach(radio => radio.addEventListener('change', async () => {
+  const out = document.getElementById('shared-result');
+  Forms.status(out, 'Saving…', '');
+  const res = await fetch(`/api/communities/${communityId}/songbooks/${songbookId}/shared`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({shared: radio.value === 'true'}),
+  }).catch(() => null);
+  if (!res || !res.ok) {
+    Forms.status(out, 'Couldn’t save that. Try again.', 'error');
+    document.querySelector(`input[name=shared][value="${radio.value !== 'true'}"]`).checked = true;
+  } else {
+    Forms.status(out, 'Saved.', 'ok');
+  }
+}));
 
 document.getElementById('requires-grant-toggle').addEventListener('change', async (e) => {
   const out = document.getElementById('toggle-result');

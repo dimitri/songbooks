@@ -677,6 +677,7 @@ textarea.prose { font-family: inherit; }
 }
 .sidebar-song-row:hover { background: color-mix(in srgb, var(--sidebar-fg) 10%, transparent); text-decoration: none; }
 .sidebar-song-row .icon { width: 1.1rem; height: 1.1rem; flex: none; }
+.sidebar-song-row[hidden], .stack-sheet-row[hidden] { display: none; } /* no Edit on a song that can't be copied */
 .sidebar-song-group .pdf-mode-row { display: flex; flex-direction: column; gap: 0.35rem; }
 .sidebar-song-group .pdf-mode-select {
   margin: 0 0.6rem; background: color-mix(in srgb, var(--sidebar-fg) 10%, transparent);

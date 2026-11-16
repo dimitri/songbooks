@@ -475,6 +475,66 @@ func (st *Store) canViewCommunityVariant(ctx context.Context, communityID, varia
 	return false, nil
 }
 
+// CanCopyVariant reports whether personID may copy variantID (ForkVariant)
+// into scope ("user", "band" or "community") targetID: they must be able
+// to open it, and a community's song must come from one of its shared
+// songbooks they can open (migration 0072) — a private songbook's songs,
+// an author's lessons, are opened, not copied. A community may still copy
+// its own songs into itself. A community song in none of its songbooks
+// follows the plain rule.
+func (st *Store) CanCopyVariant(ctx context.Context, personID, variantID int64, scope string, targetID int64) (bool, error) {
+	if ok, err := st.CanViewVariant(ctx, personID, variantID); err != nil || !ok {
+		return false, err
+	}
+	var visibility string
+	var ownerCommunityID *int64
+	if err := st.db.QueryRow(ctx, `SELECT visibility::text, owner_community_id FROM songs WHERE id = $1`, variantID).
+		Scan(&visibility, &ownerCommunityID); err != nil {
+		return false, err
+	}
+	if visibility != "community" || ownerCommunityID == nil {
+		return true, nil
+	}
+	if scope == "community" && targetID == *ownerCommunityID {
+		return true, nil
+	}
+	rows, err := st.db.Query(ctx, `
+		SELECT sb.id, sb.shared
+		FROM songbook_entries se JOIN songbooks sb ON sb.id = se.songbook_id
+		WHERE se.variant_id = $1 AND sb.owner_kind = 'community' AND sb.owner_community_id = $2`,
+		variantID, *ownerCommunityID)
+	if err != nil {
+		return false, err
+	}
+	var shared []int64
+	var inAny bool
+	for rows.Next() {
+		var sbID int64
+		var isShared bool
+		if err := rows.Scan(&sbID, &isShared); err != nil {
+			rows.Close()
+			return false, err
+		}
+		inAny = true
+		if isShared {
+			shared = append(shared, sbID)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+	if !inAny {
+		return true, nil
+	}
+	for _, sbID := range shared {
+		if ok, err := st.CanAccessSongbook(ctx, personID, sbID); err != nil || ok {
+			return ok, err
+		}
+	}
+	return false, nil
+}
+
 // GetVariant loads one variant's full catalog row by id (not scoped to a
 // book/stem the way LoadSong is) — used by the fork/annotate/"all
 // versions" endpoints, which address a variant by its row id.
@@ -536,6 +596,12 @@ func (st *Store) VariantContent(ctx context.Context, variantID int64) (title, ar
 func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, scope string, bandID int64) (int64, error) {
 	if scope != "user" && scope != "band" && scope != "community" {
 		return 0, fmt.Errorf("invalid fork scope %q", scope)
+	}
+	// Only what forkerID can open, and not out of a private songbook.
+	if ok, err := st.CanCopyVariant(ctx, forkerID, variantID, scope, bandID); err != nil {
+		return 0, err
+	} else if !ok {
+		return 0, fmt.Errorf("person %d may not copy variant %d: %w", forkerID, variantID, ErrForbidden)
 	}
 
 	// Resolved before the transaction (GetDefaultSongbook isn't tx-scoped,

@@ -928,7 +928,7 @@ func (s *Server) handleForkVariantIntoBand(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if errors.Is(err, store.ErrForbidden) {
-		httpError(w, http.StatusForbidden, err.Error())
+		httpError(w, http.StatusForbidden, "this song can't be copied")
 		return
 	}
 	if err != nil {

@@ -471,6 +471,34 @@ func (s *Server) handleSongbookAccessPage(w http.ResponseWriter, r *http.Request
 	})
 }
 
+// handleSetSongbookShared is POST /api/communities/{id}/songbooks/{sbID}/shared:
+// whether the songbook's songs may be copied out of it.
+func (s *Server) handleSetSongbookShared(w http.ResponseWriter, r *http.Request) {
+	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	sbID, err := pathID(r, "sbID")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid songbook id")
+		return
+	}
+	sb, err := s.store.GetSongbook(r.Context(), sbID)
+	if err != nil || sb.OwnerKind != "community" || sb.OwnerCommunityID != communityID {
+		httpError(w, http.StatusNotFound, "no such songbook")
+		return
+	}
+	var req struct {
+		Shared bool `json:"shared"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if err := s.store.SetSongbookShared(r.Context(), sbID, req.Shared); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"shared": req.Shared})
+}
+
 // handleSetSongbookRequiresGrant is POST /api/communities/{id}/songbooks/{sbID}/requires-grant.
 func (s *Server) handleSetSongbookRequiresGrant(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -922,7 +950,7 @@ func (s *Server) handleForkVariantIntoCommunity(w http.ResponseWriter, r *http.R
 		return
 	}
 	if errors.Is(err, store.ErrForbidden) {
-		httpError(w, http.StatusForbidden, err.Error())
+		httpError(w, http.StatusForbidden, "this song can't be copied")
 		return
 	}
 	if err != nil {

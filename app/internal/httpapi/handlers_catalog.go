@@ -165,6 +165,7 @@ func (s *Server) handleWorkVersionsPage(w http.ResponseWriter, r *http.Request) 
 	type variantWithNotes struct {
 		store.CatalogVariant
 		Annotations []store.Annotation
+		CanCopy     bool // not a private songbook's song
 	}
 	var rows []variantWithNotes
 	for _, v := range variants {
@@ -173,7 +174,12 @@ func (s *Server) handleWorkVersionsPage(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		rows = append(rows, variantWithNotes{CatalogVariant: v, Annotations: notes})
+		canCopy, err := s.store.CanCopyVariant(r.Context(), person.ID, v.VariantID, "user", 0)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		rows = append(rows, variantWithNotes{CatalogVariant: v, Annotations: notes, CanCopy: canCopy})
 	}
 	s.render(w, "work_versions", map[string]any{
 		"Me": person, "WorkID": workID, "Variants": rows,
@@ -228,6 +234,10 @@ func (s *Server) handleForkVariant(w http.ResponseWriter, r *http.Request) {
 	newID, err := s.store.ForkVariant(r.Context(), variantID, person.ID, "user", 0)
 	if errors.Is(err, store.ErrNotFound) {
 		httpError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if errors.Is(err, store.ErrForbidden) {
+		httpError(w, http.StatusForbidden, "this song can't be copied")
 		return
 	}
 	if err != nil {

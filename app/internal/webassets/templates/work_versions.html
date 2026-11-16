@@ -23,7 +23,7 @@
     <p class="hint">{{.Visibility}}{{if .ForkedFromID}} &middot; a copy of <a href="/variants/{{deref64 .ForkedFromID}}/history">version {{deref64 .ForkedFromID}}</a>{{end}}</p>
     <div class="variant-actions">
       <button type="button" class="add-catalog-btn" data-variant-id="{{.VariantID}}">Add to my songbook</button>
-      <button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">Make my own copy</button>
+      {{if .CanCopy}}<button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">Make my own copy</button>{{end}}
       <a href="/variants/{{.VariantID}}/history">Revision history</a>
     </div>
 

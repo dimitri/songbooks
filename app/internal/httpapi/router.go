@@ -344,6 +344,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// staff-only, same gate as the admin page.
 	mux.HandleFunc("GET /communities/{id}/songbooks/{sbID}/access", s.requireCommunityAnyManagePrivilege(s.handleSongbookAccessPage))
 	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/requires-grant", s.requireCommunityAnyManagePrivilege(s.handleSetSongbookRequiresGrant))
+	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/shared", s.requireCommunityAnyManagePrivilege(s.handleSetSongbookShared))
 	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/grants", s.requireCommunityAnyManagePrivilege(s.handleGrantSongbookAccess))
 	mux.HandleFunc("DELETE /api/communities/{id}/songbooks/{sbID}/grants/{personID}", s.requireCommunityAnyManagePrivilege(s.handleRevokeSongbookAccess))
 	// The download area (downloads.go): one listing of the files of every

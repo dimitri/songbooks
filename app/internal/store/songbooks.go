@@ -32,6 +32,9 @@ type Songbook struct {
 	// songbook/course but not the community's others. Always false
 	// (meaningless) for a person/band songbook.
 	RequiresGrant bool
+	// Shared says whether a community songbook's songs may be copied out
+	// of it (migration 0072); a private one's can only be opened.
+	Shared bool
 }
 
 // songbookOwnerCol maps an ownerKind to its songbooks column — the one
@@ -53,7 +56,7 @@ func songbookOwnerCol(ownerKind string) string {
 func (st *Store) ListSongbooks(ctx context.Context, ownerKind string, ownerID int64) ([]Songbook, error) {
 	col := songbookOwnerCol(ownerKind)
 	rows, err := st.db.Query(ctx, `
-		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at, requires_grant
+		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at, requires_grant, shared
 		FROM songbooks WHERE owner_kind = $1 AND `+col+` = $2
 		ORDER BY (NOT is_default), name`, ownerKind, ownerID)
 	if err != nil {
@@ -63,7 +66,7 @@ func (st *Store) ListSongbooks(ctx context.Context, ownerKind string, ownerID in
 	var out []Songbook
 	for rows.Next() {
 		var sb Songbook
-		if err := rows.Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt, &sb.RequiresGrant); err != nil {
+		if err := rows.Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt, &sb.RequiresGrant, &sb.Shared); err != nil {
 			return nil, err
 		}
 		out = append(out, sb)
@@ -75,9 +78,9 @@ func (st *Store) ListSongbooks(ctx context.Context, ownerKind string, ownerID in
 func (st *Store) GetSongbook(ctx context.Context, songbookID int64) (*Songbook, error) {
 	var sb Songbook
 	err := st.db.QueryRow(ctx, `
-		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at, requires_grant
+		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at, requires_grant, shared
 		FROM songbooks WHERE id = $1`, songbookID).
-		Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt, &sb.RequiresGrant)
+		Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt, &sb.RequiresGrant, &sb.Shared)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such songbook %d: %w", songbookID, ErrNotFound)
 	}
@@ -215,6 +218,13 @@ func (st *Store) RevokeSongbookAccess(ctx context.Context, songbookID, personID 
 // SetSongbookRequiresGrant flips songbookID's gate on or off.
 func (st *Store) SetSongbookRequiresGrant(ctx context.Context, songbookID int64, requiresGrant bool) error {
 	_, err := st.db.Exec(ctx, `UPDATE songbooks SET requires_grant = $1 WHERE id = $2`, requiresGrant, songbookID)
+	return err
+}
+
+// SetSongbookShared makes songbookID shared (its songs may be copied) or
+// private.
+func (st *Store) SetSongbookShared(ctx context.Context, songbookID int64, shared bool) error {
+	_, err := st.db.Exec(ctx, `UPDATE songbooks SET shared = $1 WHERE id = $2`, shared, songbookID)
 	return err
 }
 

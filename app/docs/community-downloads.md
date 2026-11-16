@@ -23,6 +23,11 @@ community ── songbooks ── songs
 - **A songbook is the product.** A community's songbook is either open to
   every member, or *sold separately* (`requires_grant`): then a member needs
   a grant on it.
+- **A songbook is shared or private** (`shared`, migration 0072), whether
+  sold or not. A shared songbook's songs can be copied by whoever can open
+  them: into their own songbook, a band's, another community's. A private
+  songbook's songs are opened, played and downloaded, never copied: an
+  author's lessons stay the author's.
 - **A file belongs to a songbook**, so the songbook's access is the file's
   access: whose files they are.
 - **Downloading is a privilege of a role** (`download_files`), and so is
@@ -55,6 +60,14 @@ its downloads.
 
 Changing a songbook or its songs takes the `edit_repertoire` privilege *and*
 access to the songbook.
+
+Who can copy a song (`store.CanCopyVariant`, checked by `ForkVariant`, so
+by every way of copying: *Make my own copy*, *Edit* on a song you can't
+change, *Add a copy* to a band or a community): someone who can open it;
+and for a community's song, it must be in one of its shared songbooks they
+can open. A community can still copy its own songs into itself. The song
+page shows no *Edit* when you can neither change the song nor copy it.
+Staff choose shared or private on the songbook's *Sharing and access* page.
 
 ## 2. The download page
 
@@ -125,9 +138,13 @@ Found while reviewing, fixed here:
    whatever their role. It now needs `edit_repertoire` — a guest, or a
    buyer joined as a guest, reads but doesn't change the lessons.
 
+4. Copying a song (`ForkVariant`) checked nothing: anyone signed in could
+   copy any song by its number, a private one included. It now takes being
+   able to open it, and not out of a private songbook (above).
+
 Members of a community without `edit_repertoire` can't change its songs
-(above); they can still propose one (submissions) and copy one into their
-own songbook (fork).
+(above); they can still propose one (submissions), and copy one into their
+own songbook only from a shared songbook.
 
 Still open:
 
@@ -135,8 +152,8 @@ Still open:
   access: its page closes when the grant ends (`CanViewVariant`), but a set
   list's PDF export and a personal songbook's playlist still include it.
 - Files are served as they are: no per-buyer watermark on the PDFs.
-- A member can fork a lesson into their own songbook, which keeps it (and
-  its Guitar Pro file) after their access ends.
+- A copy made from a shared songbook is kept after access ends; that's
+  what shared means.
 
 ## 4. Payments, later
 
@@ -170,8 +187,8 @@ of the song's page (`song_visits.views`, counted from migration 0071 on).
 ## 6. Florent Passamonti's community, today
 
 - Two songbooks: *La Nouvelle Méthode Blues Rock* (34 lessons, the default)
-  and *Jouez le Blues — La méthode ultime* (31). **Both are open to every
-  member.** To sell them separately, tick *Only members given access* on
+  and *Jouez le Blues — La méthode ultime* (31). **Both are private** (the
+  lessons can't be copied) **and open to every member.** To sell them separately, tick *Only members given access* on
   each songbook's access page, and grant the people who bought each.
 - Members join with the `member` role, which there is read-only:
   `download_files` only (no `edit_repertoire`). Staff has every privilege.
