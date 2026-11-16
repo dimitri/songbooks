@@ -15,7 +15,7 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{.Community.Name}} — downloads</h1>
+  <h1>{{if and .One .Songbooks}}{{with index .Songbooks 0}}{{.Name}}{{end}}{{else}}{{.Community.Name}} — downloads{{end}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index dl">
@@ -34,8 +34,8 @@
   {{range .Songbooks}}{{$sb := .}}
   <section class="dl-songbook" id="songbook-{{.ID}}">
     <header class="dl-head">
-      <h2>{{if $.One}}{{.Name}}{{else}}<a href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}">{{.Name}}</a>{{end}}</h2>
-      <span class="dl-meta">{{if .Files}}{{.Files}} file{{if ne .Files 1}}s{{end}} · {{fileSize .Bytes}}{{else}}No files yet{{end}}</span>
+      {{if not $.One}}<h2><a href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}">{{.Name}}</a></h2>{{end}}
+      <span class="dl-meta">{{if .Files}}{{if and .IsCourse .Lessons}}{{len .Lessons}} lesson{{if ne (len .Lessons) 1}}s{{end}} · {{end}}{{.Files}} file{{if ne .Files 1}}s{{end}} · {{fileSize .Bytes}}{{else}}No files yet{{end}}</span>
       {{if $.IsStaff}}
       <span class="dl-access{{if .RequiresGrant}} sold{{end}}">{{if .RequiresGrant}}&#128274; Sold separately · {{.Grants}} {{if eq .Grants 1}}person has{{else}}people have{{end}} it{{else}}Every member{{end}}</span>
       <a class="hint" href="/communities/{{$.Community.ID}}/songbooks/{{.ID}}/access">Access &rarr;</a>
@@ -46,7 +46,7 @@
     <div class="dl-actions">
       <a class="dl-btn primary" href="{{.ZipHref}}" download>{{template "icon-download"}} Everything · zip</a>
       {{if $.One}}<a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}/browse/">{{if .Folders}}Browse the folders{{else}}All the files{{end}} &rarr;</a>
-      {{else}}<a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}">{{if .Lessons}}{{len .Lessons}} {{if .IsCourse}}lesson{{else}}song{{end}}{{if ne (len .Lessons) 1}}s{{end}}, file by file{{else}}All the files{{end}} &rarr;</a>{{end}}
+      {{else}}<a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}">{{if .IsCourse}}Lesson by lesson{{else}}Song by song{{end}} &rarr;</a>{{end}}
     </div>
     {{else if and $.CanManage (not $.One)}}
     <div class="dl-actions"><a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}">Add files &rarr;</a></div>
@@ -61,11 +61,12 @@
       </div>
       <a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/{{.ID}}/{{pathSegment .Filename}}?view=1" target="_blank" rel="noopener">Open</a>
       <a class="primary dl-btn" href="/communities/{{$.Community.ID}}/downloads/{{.ID}}/{{pathSegment .Filename}}" download>{{template "icon-download"}} Download</a>
-      {{if $.CanManage}}<button type="button" class="dl-del" data-del="{{.ID}}" data-name="{{.Filename}}" aria-label="Remove {{.Filename}}">{{template "icon-trash"}}</button>{{end}}
+      {{if and $.One $.CanManage}}<button type="button" class="dl-del" data-del="{{.ID}}" data-name="{{.Filename}}" aria-label="Remove {{.Filename}}">{{template "icon-trash"}}</button>{{end}}
     </div>
     {{end}}
 
     {{if and $.One .Lessons}}
+    <div class="dl-lessons-head" aria-hidden="true"><span>{{if .IsCourse}}Lesson{{else}}Song{{end}}</span><span>Guitar Pro</span><span>Backing track</span><span>Other</span></div>
     <ol class="dl-lessons">
       {{range .Lessons}}
       <li class="dl-lesson">
