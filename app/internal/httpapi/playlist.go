@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"app/internal/covers"
 	"app/internal/store"
 )
 
@@ -119,6 +120,8 @@ type playlistTrack struct {
 	VideoID     string            `json:"video,omitempty"`
 	Remote      *playlistRemote   `json:"remote,omitempty"` // the band's chosen recording, from its pCloud folder
 	Sections    []playlistSection `json:"sections"`
+	Cover       string            `json:"cover,omitempty"` // the song's cover art (docs/covers.md)
+	Album       string            `json:"album,omitempty"`
 	both        bool              // has both its own and a reference recording
 }
 
@@ -235,6 +238,14 @@ func (s *Server) handlePlaylistPage(w http.ResponseWriter, r *http.Request) {
 		// A course plays its lessons' videos, in order.
 		tracks, silent = s.coursePlaylist(r.Context(), sb)
 	}
+	coverOf := map[int64]*covers.Cover{}
+	if !sb.IsCourse() {
+		if scs, err := s.store.SongbookCovers(r.Context(), id); err == nil {
+			for _, sc := range scs {
+				coverOf[sc.VariantID] = sc.Cover
+			}
+		}
+	}
 	for _, row := range s.flattenSongbookSongs(r.Context(), id) {
 		if sb.IsCourse() {
 			break
@@ -242,6 +253,9 @@ func (s *Server) handlePlaylistPage(w http.ResponseWriter, r *http.Request) {
 		t, ok := s.playlistTrackFor(r.Context(), id, row.VariantID, prefer)
 		if !ok {
 			continue
+		}
+		if c := coverOf[row.VariantID]; c != nil && c.Source != "youtube" {
+			t.Cover, t.Album = c.Image, c.Album
 		}
 		// A band's own reference for the song, chosen among its recordings.
 		if sb.OwnerKind == "band" && prefer != "reference" {

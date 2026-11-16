@@ -52,5 +52,21 @@
     if (confirm('Reset to the app’s own look? This clears the preset, colors, fonts, logo, tagline and website for everyone here.')) save({}, e.currentTarget);
   });
 
+  // A look made from the songs' covers: it fills the colors, fonts and
+  // buttons, keeps the logo, tagline and website; nothing is saved yet.
+  document.getElementById('brand-from-songs')?.addEventListener('click', async (e) => {
+    const out = document.getElementById('brand-from-songs-status');
+    const btn = e.currentTarget;
+    Forms.busy(btn, true);
+    const res = await fetch(endpoint + '/from-songs').catch(() => null);
+    Forms.busy(btn, false);
+    const d = res && res.ok ? await res.json() : null;
+    if (!d || !d.covers) { out.textContent = 'No covers found for the songs yet.'; return; }
+    const keep = {};
+    for (const k of ['logoURL', 'tagline', 'website', 'mark']) keep[k] = form.querySelector(`[name="${k}"]`)?.value;
+    fill({...d.brand, ...keep, preset: ''});
+    out.textContent = `Made from ${d.covers} covers of ${d.songs} songs (${d.mood}${d.genres && d.genres.length ? ', ' + d.genres.slice(0, 3).join(', ') : ''}). Save to use it.`;
+  });
+
   fetch(endpoint).then((r) => (r.ok ? r.json() : {})).then(fill).catch(() => {});
 })();

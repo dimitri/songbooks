@@ -37,15 +37,6 @@ func TestResolvePreset(t *testing.T) {
 	}
 }
 
-// contrast is the WCAG contrast ratio of two hex colors.
-func contrast(a, b string) float64 {
-	x, y := luminance(a), luminance(b)
-	if x < y {
-		x, y = y, x
-	}
-	return (x + 0.05) / (y + 0.05)
-}
-
 // Every preset must keep its text readable (WCAG AA, 4.5:1): the page
 // text and secondary text on the background, the header's text, and the
 // label of an accent button, which contrastOn picks.

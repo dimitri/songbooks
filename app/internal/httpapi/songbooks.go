@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"app/internal/covers"
 	"app/internal/store"
 	"app/internal/webassets"
 )
@@ -108,18 +109,43 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type songbookSongRow struct {
-		VariantID            int64
+		VariantID         int64
 		Title, Tempo, Key string
+		Cover             *covers.Cover
 	}
 	type songbookGroup struct {
 		Label string
 		Songs []songbookSongRow
 	}
+	// The covers: the banner's look, and one by each song.
+	songCovers, err := s.store.SongbookCovers(r.Context(), id)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	coverOf := map[int64]*covers.Cover{}
+	for _, sc := range songCovers {
+		coverOf[sc.VariantID] = sc.Cover
+		if !sc.Looked {
+			s.fillCovers(id)
+		}
+	}
+	var look *store.BookLook
+	ownerName := ""
+	if l := store.SongbookLook(songCovers); len(l.Mosaic) >= 4 {
+		look = &l
+		switch sb.OwnerKind {
+		case "band":
+			_, ownerName, _ = s.store.GetBrand(r.Context(), "band", sb.OwnerBandID)
+		case "community":
+			_, ownerName, _ = s.store.GetBrand(r.Context(), "community", sb.OwnerCommunityID)
+		}
+	}
 	var out []songbookGroup
 	for _, g := range groups {
 		sg := songbookGroup{Label: g.Label}
 		for _, vid := range g.VariantIDs {
-			row := songbookSongRow{VariantID: vid, Title: "untitled"}
+			row := songbookSongRow{VariantID: vid, Title: "untitled", Cover: coverOf[vid]}
 			if parsed, _, err := s.store.LoadVariant(vid); err == nil {
 				row.Title = orDefault(parsed.Get("title"), "untitled")
 				row.Tempo = parsed.Get("tempo")
@@ -149,7 +175,7 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 	}
 	s.render(w, "songbook", map[string]any{
 		"Me": p, "Songbook": sb, "Groups": out, "Badges": s.songBadgesFor(r.Context(), ids),
-		"ContextualGroup": contextual,
+		"ContextualGroup": contextual, "Look": look, "OwnerName": ownerName,
 	})
 }
 

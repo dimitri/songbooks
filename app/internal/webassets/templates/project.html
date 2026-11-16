@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
+{{with .Look}}{{with .FontsURL}}<link rel="stylesheet" href="{{.}}">{{end}}{{end}}
 </head>
 <body{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
@@ -21,6 +22,22 @@
   </nav>
 </header>
 <main>
+  {{with .Look}}
+  {{/* The songbook's look, made from its songs' covers (docs/covers.md). */}}
+  <section class="sb-look look-{{.Mood}}" style="{{.Style}}" aria-label="{{$.Songbook.Name}}">
+    <div class="sb-mosaic">{{range .Mosaic}}<a href="{{.Link}}" target="_blank" rel="noopener" title="{{.Album}}{{with .Year}} ({{.}}){{end}}"><img src="{{.Image}}" alt="{{.Album}}" loading="lazy" referrerpolicy="no-referrer"></a>{{end}}</div>
+    <div class="sb-look-text">
+      <p class="sb-look-eyebrow">{{if and $.Songbook.IsDefault $.OwnerName}}Songbook{{else}}{{$.OwnerName}}{{end}} · {{.Songs}} songs</p>
+      <h2>{{if and $.Songbook.IsDefault $.OwnerName}}{{$.OwnerName}}{{else}}{{$.Songbook.Name}}{{end}}</h2>
+      {{with .GenreLine}}<p class="sb-look-genres">{{.}}</p>{{end}}
+      <p class="sb-look-artists">{{.ArtistLine}}</p>
+      <div class="sb-look-foot">
+        <a class="sb-look-play" href="/songbooks/{{$.Songbook.ID}}/playlist">{{template "icon-play"}} Play the songbook</a>
+        <span class="sb-look-hues" aria-hidden="true">{{range .HueStyles}}<i style="{{.}}"></i>{{end}}</span>
+      </div>
+    </div>
+  </section>
+  {{end}}
   <section class="book-card card" id="catalog-section" data-songbook-id="{{.Songbook.ID}}">
     <div class="catalog-head">
       <button type="button" id="catalog-edit-toggle">{{template "icon-edit"}} Edit order</button>
@@ -36,6 +53,7 @@
         <li data-variant-id="{{.VariantID}}">
           <span class="catalog-drag-handle" title="drag to reorder" aria-hidden="true">{{template "icon-grip"}}</span>
           <span class="song-num">{{$n}}.</span>
+          {{if $.Look}}{{with .Cover}}<img class="song-cover" src="{{.Image}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{else}}<span class="song-cover" aria-hidden="true"></span>{{end}}{{end}}
           <a class="song-link" href="/song/{{.VariantID}}?songbook={{$.Songbook.ID}}">
             <span class="song-title">{{.Title}}</span>
             <span class="song-meta">{{if .Tempo}}{{.Tempo}} bpm{{end}}{{if and .Tempo .Key}} &middot; {{end}}{{.Key}}</span>

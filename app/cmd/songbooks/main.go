@@ -21,6 +21,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"app/internal/covers"
 	"app/internal/httpapi"
 	"app/internal/mailer"
 	"app/internal/store"
@@ -164,6 +165,7 @@ func main() {
 	}
 
 	handler := httpapi.NewServer(st, m, devAutoLogin, *webauthnRPID, *adminFileDir)
+	httpapi.Covers = covers.NewFinder()
 
 	log.Printf("songbooks serving %s on http://%s", *dbURL, *addr)
 	log.Fatal(http.ListenAndServe(*addr, handler))
