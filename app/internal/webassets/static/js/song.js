@@ -2572,6 +2572,33 @@ const ICONS = {
     chipsRow.append(timeField, tempoField, swingField, genreField, genreStatus);
 
     host.append(titleArtistRow, chipsRow);
+
+    // A song with a Guitar Pro file can be all in it ("content: gp": an
+    // instrumental, a lesson): the page opens on the file's score, and the
+    // sections here are extras.
+    if (songHasGPFile()) {
+      const gpRow = document.createElement('label');
+      gpRow.className = 'check song-gp-only';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = (metaGet('content') || '').trim().toLowerCase() === 'gp';
+      box.addEventListener('change', () => {
+        edited();
+        if (box.checked) metaSet('content', 'gp');
+        else structMeta = structMeta.filter((f) => f.key !== 'content');
+        renderHeaderFields();
+      });
+      gpRow.append(box, ' The song is all in its Guitar Pro file');
+      host.appendChild(gpRow);
+      if (box.checked) {
+        const note = document.createElement('p');
+        note.className = 'hint song-gp-only-note';
+        note.textContent = structSections.length
+          ? 'The song opens on the file’s score; the sections below are extras, one tap away in the Song view.'
+          : 'The song opens on the file’s score.';
+        host.appendChild(note);
+      }
+    }
   }
 
   // The song's own beatsPerBar as edited here, read fresh from structMeta

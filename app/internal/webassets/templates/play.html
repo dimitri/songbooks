@@ -873,12 +873,39 @@
          handleGetSongStructure). "Lead-in shift" handles the classic
          case where the embedded backing track starts with a count-in
          or silent bars the chart itself has no bar for. */}}
-    <section class="prep-panel" data-panel="gpimport" id="gpimport-panel" data-variant-id="{{.VariantID}}" data-song-title="{{.Title}}" data-song-artist="{{.Artist}}" hidden>
-      <p class="hint">Import a Guitar Pro file's notation into this song's existing sections, plus its embedded backing track (synced to the bars automatically, if the file carries sync points).</p>
+    <section class="prep-panel" data-panel="gpimport" id="gpimport-panel" data-variant-id="{{.VariantID}}" data-song-title="{{.Title}}" data-song-artist="{{.Artist}}" data-song-shape="{{if .GPOnly}}whole{{else if or .HasLyrics (gt (len .Sections) 1)}}parts{{else}}whole{{end}}"{{if .GPOnly}} data-gp-only="1"{{end}} hidden>
+      {{/* The Guitar Pro import, in four steps (gp-import.js): how the file
+           fits the song, the file, lining it up with the song's sections
+           (only when it fills parts of the song), then check and import.
+           The file is kept with the song either way; the song points into
+           it rather than copying its notes (docs/gp-file-model.md). */}}
+      <ol class="gpimport-stepper" id="gpimport-stepper" aria-label="Import steps">
+        <li data-step="fit">How it fits</li>
+        <li data-step="file">The file</li>
+        <li data-step="align">Line up</li>
+        <li data-step="import">Import</li>
+      </ol>
       {{if .GPSource}}
-      <p class="hint gpimport-reimport-note"><strong>This song was imported from {{.GPSource}}</strong>. To edit it in Guitar Pro: <a href="#" class="gp-export-btn" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">export it as Guitar Pro</a> (the saved song, with any fixes made here), or <a href="/song/{{.VariantID}}/gp-file" download>download the original file</a> as uploaded; then pick the edited file below. Importing again replaces this song's notation section by section, it doesn't add a copy, and the previous Guitar Pro file stays in the song's <a href="/variants/{{.VariantID}}/history">history</a>.</p>
+      <p class="hint gpimport-reimport-note"><strong>This song already has a Guitar Pro file, {{.GPSource}}.</strong> To change it in Guitar Pro, <a href="/song/{{.VariantID}}/gp-file" download>download it</a>, edit it, and choose the edited file here: it becomes the song’s file, and the current one stays in the song’s <a href="/variants/{{.VariantID}}/history">history</a>. Small changes can be made on the web in the <a href="/song/{{.VariantID}}/gp-edit">file editor</a>.</p>
       {{end}}
       <p id="gpimport-status" class="hint" role="status"></p>
+
+      <div class="gpimport-step" id="gpimport-step-fit">
+        <h3>1. How does the file fit this song?</h3>
+        <div class="gpimport-fit" role="radiogroup" aria-label="How the file fits the song">
+          <label class="gpimport-fit-card">
+            <input type="radio" name="gpimport-fit" value="whole">
+            <span class="t">The whole song</span>
+            <span class="d">An instrumental, a lesson, a full transcription. The song opens on the file’s score, with playback and every track. Sections, chords and lyrics stay optional.</span>
+          </label>
+          <label class="gpimport-fit-card">
+            <input type="radio" name="gpimport-fit" value="parts">
+            <span class="t">Parts of the song</span>
+            <span class="d">Riffs, a solo, a bass line or drum parts for sections the song already has. You line the file’s bars up with the sections, and each section shows its bars under its chords and lyrics.</span>
+          </label>
+        </div>
+        <p><button type="button" id="gpimport-fit-next" class="primary">Next: the file &rarr;</button></p>
+      </div>
 
       {{/* Step 0: search. GProTab.net, not Ultimate Guitar — confirmed
            directly against UG's own robots.txt before this was written:
@@ -891,8 +918,8 @@
            several real artist+title combinations) — artist is still
            sent to the find endpoint and used there purely to RANK the
            results it gets back, never folded into the query string. */}}
-      <div class="gpimport-step" id="gpimport-step-search">
-        <h3>1. Find a file</h3>
+      <div class="gpimport-step" id="gpimport-step-search" hidden>
+        <h3>2. Find a file</h3>
         <p class="hint">Searches <a href="https://gprotab.net" target="_blank" rel="noopener">GProTab.net</a> — a free, anonymous Guitar Pro tab archive. Picking a result downloads that one file and continues below, same as choosing a file by hand.</p>
         <form class="form-stack" id="gpimport-search-form">
           <div class="field">
@@ -908,11 +935,12 @@
         </form>
         <div id="gpimport-search-results"></div>
         <p class="hint">Already have a file? <button type="button" id="gpimport-search-skip" class="link-btn">Choose a file from your computer instead &rarr;</button></p>
+        <p><button type="button" class="gpimport-back" data-back="fit">&larr; Back</button></p>
       </div>
 
       {{/* Step 1: file + track. */}}
       <div class="gpimport-step" id="gpimport-step-file" hidden>
-        <h3>2. Choose file</h3>
+        <h3>2. Choose the file</h3>
         <p id="gpimport-file-source" class="hint" hidden></p>
         <p><label for="gpimport-file">Guitar Pro file</label></p>
         <p class="field-hint" id="gpimport-file-hint">A .gp, .gp3, .gp4, .gp5 or .gpx file.</p>
@@ -928,7 +956,10 @@
           This song has no chords yet.
           <button type="button" id="gpimport-derive-chords" class="primary">Create chord grid from this file's chord diagrams</button>
         </p>
-        <p><button type="button" id="gpimport-step1-next" class="primary" disabled>Next: align bars &rarr;</button></p>
+        <p>
+          <button type="button" class="gpimport-back" data-back="search">&larr; Back</button>
+          <button type="button" id="gpimport-step1-next" class="primary" disabled>Next: line up the sections &rarr;</button>
+        </p>
       </div>
 
       {{/* Step 2: align GP bars to this song's sections on an Audacity-
@@ -949,7 +980,7 @@
            block, the same "multi-rest" idea the chart's own compact
            sections already use. */}}
       <div class="gpimport-step" id="gpimport-step-align" hidden>
-        <h3>3. Align bars</h3>
+        <h3>3. Line up the file with the song’s sections</h3>
         <p class="hint">Drag a boundary to set where one section ends and the next begins. The first boundary is this song's bar 0 — drag it right past any count-in or silent lead-in.</p>
         {{/* Dragging a boundary against a bare waveform, with no idea
              what's actually playing at that point, is exactly the
@@ -1009,21 +1040,11 @@
 
       {{/* Step 3: confirm + commit. */}}
       <div class="gpimport-step" id="gpimport-step-import" hidden>
-        <h3>4. Preview &amp; import</h3>
+        <h3>4. Check and import</h3>
         <p id="gpimport-summary" class="hint"></p>
-        {{/* Real notation preview, not just the bar-count mapping table
-             step 3 already showed — one alphaTab mount per INCLUDED
-             section (gpimport-include checkbox still checked), built
-             from that section's own already-extracted riff via
-             handleGPImportPreview (handlers_import.go), the exact same
-             tab.ToAlphaTex call attachTabRiffs already makes for every
-             other TabOnly row in this app. So a reader sees real
-             engraved notation for exactly what's about to be written,
-             not a bar-count summary, before the one irreversible-feeling
-             step (Import into song). */}}
         <div id="gpimport-header"></div>
         <div id="gpimport-preview"></div>
-        <p><label class="check"><input type="checkbox" id="gpimport-include-audio" checked> Also import the backing track and its bar sync</label></p>
+        <p id="gpimport-audio-row"><label class="check"><input type="checkbox" id="gpimport-include-audio" checked> Also import the backing track and its bar sync</label></p>
         <p>
           <button type="button" id="gpimport-step3-back">&larr; Back</button>
           <button type="button" id="gpimport-run" class="primary">Import into song</button>
