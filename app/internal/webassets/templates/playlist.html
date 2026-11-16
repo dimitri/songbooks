@@ -48,7 +48,9 @@
     </div>
     <div class="pl-controls">
       <button type="button" class="pl-btn" id="pl-prev" aria-label="Previous song"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 4.5v11L7.5 10z" fill="currentColor"/></svg></button>
+      <button type="button" class="pl-btn pl-skip" id="pl-back" aria-label="Back 15 seconds">{{template "icon-back15"}}</button>
       <button type="button" class="pl-btn pl-play" id="pl-play" aria-label="Play"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3.8v12.4L16.5 10z" fill="currentColor"/></svg></button>
+      <button type="button" class="pl-btn pl-skip" id="pl-fwd" aria-label="Forward 15 seconds">{{template "icon-fwd15"}}</button>
       <button type="button" class="pl-btn" id="pl-next" aria-label="Next song"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M15 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4.5v11L12.5 10z" fill="currentColor"/></svg></button>
     </div>
     <div class="pl-tools">
@@ -56,6 +58,7 @@
         <a href="?" class="{{if not .PreferReference}}active{{end}}" aria-current="{{if not .PreferReference}}true{{else}}false{{end}}">Our recordings</a>
         <a href="?prefer=reference" class="{{if .PreferReference}}active{{end}}" aria-current="{{if .PreferReference}}true{{else}}false{{end}}">Reference</a>
       </div>{{end}}
+      <button type="button" class="rp-chip" id="pl-restart"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 10a5.5 5.5 0 1 0 1.8-4.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M3.5 3.2v4.3h4.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg> Restart</button>
       <a class="pl-open" id="pl-open" href="{{(index .Tracks 0).Href}}">Open the {{if .VideoFirst}}lesson{{else}}song{{end}}</a>
     </div>
   </section>
@@ -246,7 +249,12 @@
     else (audio.paused ? audio.play().catch(() => {}) : audio.pause());
   }
 
+  const seekTo = (t) => { if (isVideo()) yt.seekTo(t, true); else audio.currentTime = t; };
+  const skip = (s) => { const d = dur(); if (isFinite(d)) seekTo(Math.min(d, Math.max(0, now() + s))); render(); };
   playBtn.addEventListener('click', toggle);
+  $('pl-back').addEventListener('click', () => skip(-15));
+  $('pl-fwd').addEventListener('click', () => skip(15));
+  $('pl-restart').addEventListener('click', () => { seekTo(0); render(); });
   $('pl-next').addEventListener('click', next);
   $('pl-prev').addEventListener('click', prev);
   rows.forEach((r, i) => r.addEventListener('click', () => load(i, true)));
