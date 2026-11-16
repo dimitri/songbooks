@@ -6131,11 +6131,11 @@ body.embed-playlist .app-content { margin: 0 !important; padding-bottom: 1rem !i
 .rp-meta small { color: var(--fg-muted); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rp-stars .rec-rating { margin: 0; }
 .rp-btn { flex: none; width: 2.75rem; height: 2.75rem; border-radius: 50%; border: 0; background: none; color: var(--fg); display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
-.rp-btn:hover { background: color-mix(in srgb, var(--fg) 8%, transparent); }
+@media (hover: hover) { .rp-btn:hover { background: color-mix(in srgb, var(--fg) 8%, transparent); } }
 .rp-btn .icon { width: 1.15rem; height: 1.15rem; }
 .rp-btn .icon-skip { width: 1.6rem; height: 1.6rem; }
 .rp-play { width: 3.3rem; height: 3.3rem; background: var(--accent); color: var(--accent-contrast); box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent); }
-.rp-play:hover { background: var(--accent); filter: brightness(1.06); }
+@media (hover: hover) { .rp-play:hover { background: var(--accent); filter: brightness(1.06); } }
 .rp-play .icon { width: 1.35rem; height: 1.35rem; }
 /* The scrubber: a range input over a track filled to --p (0 to 1), the
    A–B loop shaded under it. */
