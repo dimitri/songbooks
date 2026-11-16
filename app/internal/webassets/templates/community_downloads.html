@@ -1,0 +1,147 @@
+{{define "community_downloads"}}
+{{$brand := brandFor "community" .Community.ID}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Community.Name}} — downloads</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
+  <h1>{{.Community.Name}} — downloads</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index dl">
+  <nav class="band-tabs band-tabs-row">
+    <a class="band-tab" href="/communities/{{.Community.ID}}">Overview</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">Songbooks</a>
+    <a href="/communities/{{.Community.ID}}/downloads" class="band-tab active">Downloads</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/events">Events</a>
+  </nav>
+
+  {{if .IsStaff}}
+  <p class="hint">Each songbook’s files: the book, the original Guitar Pro files, the backing tracks. A member sees the files of the songbooks they have — every member for an open songbook, only the people you give access to for one sold separately.</p>
+  {{else if .Songbooks}}
+  <p class="hint">The files of your songbooks: the books, the original Guitar Pro files and the backing tracks.</p>
+  {{end}}
+
+  {{range .Songbooks}}{{$sb := .}}
+  <section class="dl-songbook" id="songbook-{{.ID}}">
+    <header class="dl-head">
+      <h2>{{.Name}}</h2>
+      <span class="dl-meta">{{if .Files}}{{.Files}} file{{if ne .Files 1}}s{{end}} · {{fileSize .Bytes}}{{else}}No files yet{{end}}</span>
+      {{if $.IsStaff}}
+      <span class="dl-access{{if .RequiresGrant}} sold{{end}}">{{if .RequiresGrant}}&#128274; Sold separately · {{.Grants}} {{if eq .Grants 1}}person has{{else}}people have{{end}} it{{else}}Every member{{end}}</span>
+      <a class="hint" href="/communities/{{$.Community.ID}}/songbooks/{{.ID}}/access">Access &rarr;</a>
+      {{end}}
+    </header>
+
+    {{range .Books}}
+    <div class="dl-book">
+      <span class="dl-ext">PDF</span>
+      <div class="dl-book-name">
+        <strong>{{.Label}}</strong>
+        <span class="dl-meta">{{.Filename}} · {{fileSize .ByteSize}}</span>
+      </div>
+      <a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/{{.ID}}/{{.Filename}}?view=1" target="_blank" rel="noopener">Open</a>
+      <a class="primary dl-btn" href="/communities/{{$.Community.ID}}/downloads/{{.ID}}/{{.Filename}}" download>{{template "icon-download"}} Download</a>
+      {{if $.IsStaff}}<button type="button" class="dl-del" data-del="{{.ID}}" data-name="{{.Filename}}" aria-label="Remove {{.Filename}}">{{template "icon-trash"}}</button>{{end}}
+    </div>
+    {{end}}
+
+    {{if .Lessons}}
+    <ol class="dl-lessons">
+      {{range .Lessons}}
+      <li class="dl-lesson">
+        <span class="dl-lesson-title"><span class="dl-num">{{.Number}}</span>{{if .Href}}<a href="{{.Href}}">{{.Title}}</a>{{else}}<span>{{.Title}}</span>{{end}}</span>
+        <span class="dl-files">
+          {{range .Files}}
+          <span class="dl-file kind-{{.Kind}}">
+            {{if eq .Kind "audio"}}<button type="button" class="dl-play" data-src="/communities/{{$.Community.ID}}/downloads/{{.ID}}/{{.Filename}}?view=1" aria-label="Play {{.Filename}}">{{template "icon-play"}}</button>{{end}}
+            <a href="/communities/{{$.Community.ID}}/downloads/{{.ID}}/{{.Filename}}" download title="{{.Filename}}">{{if eq .Kind "gp"}}Guitar Pro{{else}}{{or .Ext "File"}}{{end}}{{if .Named}} · {{.Label}}{{end}} <span class="dl-size">{{fileSize .ByteSize}}</span></a>
+            {{if $.IsStaff}}<button type="button" class="dl-del" data-del="{{.ID}}" data-name="{{.Filename}}" aria-label="Remove {{.Filename}}">&times;</button>{{end}}
+          </span>
+          {{end}}
+        </span>
+      </li>
+      {{end}}
+    </ol>
+    {{end}}
+
+    {{if $.IsStaff}}
+    <form class="dl-upload" data-songbook="{{.ID}}">
+      <label class="dl-pick secondary">{{template "icon-plus"}} Add files<input type="file" name="file" multiple hidden></label>
+      <label>Go with
+        <select name="song">
+          <option value="">the songbook itself</option>
+          {{range .Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}
+        </select>
+      </label>
+      <span class="form-status" role="status"></span>
+    </form>
+    {{end}}
+  </section>
+  {{else}}
+  <p class="dl-empty">Nothing to download yet. The files of a songbook show up here once you have that songbook.</p>
+  {{end}}
+</main>
+</div>
+<audio id="dl-audio" preload="none"></audio>
+<script>
+(() => {
+  // One player for every backing track on the page.
+  const audio = document.getElementById('dl-audio');
+  let playing = null;
+  const stop = () => { if (playing) playing.classList.remove('on'); playing = null; };
+  audio.addEventListener('ended', stop);
+  audio.addEventListener('pause', stop);
+  document.querySelectorAll('.dl-play').forEach((b) => b.addEventListener('click', () => {
+    if (playing === b) { audio.pause(); return; }
+    audio.src = b.dataset.src;
+    audio.play().then(() => { stop(); playing = b; b.classList.add('on'); }).catch(() => {});
+  }));
+
+  document.querySelectorAll('.dl-del').forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm(`Remove ${b.dataset.name} from the downloads?`)) return;
+    const res = await fetch(`/api/communities/{{.Community.ID}}/downloads/${b.dataset.del}`, {method: 'DELETE'});
+    if (res.ok) location.reload(); else alert(await res.text());
+  }));
+
+  // Uploads stream as they're sent; a large book can take a while, so
+  // show how far it got.
+  document.querySelectorAll('.dl-upload').forEach((form) => {
+    const input = form.querySelector('input[type=file]');
+    const status = form.querySelector('.form-status');
+    input.addEventListener('change', () => {
+      if (!input.files.length) return;
+      const fd = new FormData();
+      fd.append('song', form.querySelector('select[name=song]').value);
+      for (const f of input.files) fd.append('file', f, f.name);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api/communities/{{.Community.ID}}/songbooks/${form.dataset.songbook}/files`);
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) status.textContent = `Sending… ${Math.round(e.loaded * 100 / e.total)}%`; };
+      xhr.onload = () => {
+        if (xhr.status !== 200) { status.textContent = xhr.responseText || 'Upload failed'; return; }
+        const n = JSON.parse(xhr.responseText).files.filter((f) => f.existed).length;
+        status.textContent = n ? `Added — ${n} already there` : 'Added';
+        location.reload();
+      };
+      xhr.onerror = () => { status.textContent = 'Upload failed'; };
+      status.textContent = 'Sending…';
+      xhr.send(fd);
+    });
+  });
+})();
+</script>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

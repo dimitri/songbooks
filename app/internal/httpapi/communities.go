@@ -374,6 +374,13 @@ func (s *Server) handleCommunityDefaultSongbookPage(w http.ResponseWriter, r *ht
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if ok, err := s.canSeeDefaultSongbook(r, communityID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	} else if !ok {
+		httpError(w, http.StatusForbidden, "this songbook is sold separately: ask the community for access")
+		return
+	}
 	catalog, err := s.store.ListCommunityCatalog(r.Context(), communityID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
@@ -454,9 +461,9 @@ func (s *Server) handleSongbookAccessPage(w http.ResponseWriter, r *http.Request
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	granted := make(map[int64]bool, len(grants))
-	for _, g := range grants {
-		granted[g.PersonID] = true
+	granted := make(map[int64]*store.SongbookAccessGrant, len(grants))
+	for i, g := range grants {
+		granted[g.PersonID] = &grants[i]
 	}
 	person := personFromContext(r)
 	s.render(w, "songbook_access", map[string]any{

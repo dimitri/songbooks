@@ -21,7 +21,7 @@
 <main class="index">
   <div class="card">
     <h3>Who can open this songbook</h3>
-    <p class="hint" id="requires-grant-hint">Unticked, every current member can open it. Ticked, only the members you give access to below can — for paid material, say (payment itself is handled outside the app). Changes save straight away.</p>
+    <p class="hint" id="requires-grant-hint">Unticked, every current member can open it. Ticked, only the members you give access to below can — for a songbook sold separately (payment itself is handled outside the app for now; a purchase will give access the same way). Changes save straight away.</p>
     <label class="check"><input type="checkbox" id="requires-grant-toggle" aria-describedby="requires-grant-hint" {{if .Songbook.RequiresGrant}}checked{{end}}> Only members given access</label>
     <p id="toggle-result" class="form-status" role="status"></p>
   </div>
@@ -34,7 +34,8 @@
         <td data-label="Member">{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Username}}{{end}}</td>
         <td data-label="Role">{{.Role}}</td>
         <td data-label="Access">
-          <label class="check"><input type="checkbox" class="grant-checkbox" data-person-id="{{.PersonID}}" aria-label="{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Username}}{{end}} has access" {{if index $.Granted .PersonID}}checked{{end}}> Has access</label>
+          <label class="check"><input type="checkbox" class="grant-checkbox" data-person-id="{{.PersonID}}" aria-label="{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Username}}{{end}} has access" {{with index $.Granted .PersonID}}{{if not .Expired}}checked{{end}}{{end}}> Has access</label>
+          {{with index $.Granted .PersonID}}<span class="hint">{{if .Expired}}ended {{.ExpiresAt.Format "2 Jan 2006"}}{{else}}{{if eq .Source "purchase"}}bought{{else if eq .Source "bundle"}}in a bundle{{else}}given{{end}} {{.GrantedAt.Format "2 Jan 2006"}}{{with .ExpiresAt}}, until {{.Format "2 Jan 2006"}}{{end}}{{with .Reference}} · {{.}}{{end}}{{end}}</span>{{end}}
         </td>
       </tr>
     {{else}}

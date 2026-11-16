@@ -25,6 +25,8 @@ RUN CGO_ENABLED=0 go build -o /out/bandscampredo ./cmd/bandscampredo
 # "gp[Track]: bars" lines and their Guitar Pro files, from a plan made by
 # tools/gpmigrate/plan.cjs (see cmd/gpmigrate's own doc comment).
 RUN CGO_ENABLED=0 go build -o /out/gpmigrate ./cmd/gpmigrate
+# sbfiles: adds a file to a songbook's download area (cmd/sbfiles).
+RUN CGO_ENABLED=0 go build -o /out/sbfiles ./cmd/sbfiles
 
 # --- runtime -------------------------------------------------------------
 # debian:bookworm-slim, not alpine: the LilyPond release tarball below is a
@@ -109,6 +111,7 @@ COPY --from=builder /out/songbooks /usr/local/bin/songbooks
 COPY --from=builder /out/backfillaudio /usr/local/bin/backfillaudio
 COPY --from=builder /out/bandscampredo /usr/local/bin/bandscampredo
 COPY --from=builder /out/gpmigrate /usr/local/bin/gpmigrate
+COPY --from=builder /out/sbfiles /usr/local/bin/sbfiles
 
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/songbooks"]

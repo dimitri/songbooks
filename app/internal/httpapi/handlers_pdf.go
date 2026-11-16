@@ -337,6 +337,13 @@ func (s *Server) handleExportCommunitySongbookPDF(w http.ResponseWriter, r *http
 		http.NotFound(w, r)
 		return
 	}
+	if ok, err := s.canSeeDefaultSongbook(r, communityID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	} else if !ok {
+		httpError(w, http.StatusForbidden, "this songbook is sold separately: ask the community for access")
+		return
+	}
 	catalog, err := s.store.ListCommunityCatalog(r.Context(), communityID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())

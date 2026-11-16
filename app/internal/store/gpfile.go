@@ -274,12 +274,22 @@ type RiffSong struct {
 // ListRiffSongs lists every song with a Riff JSON score line, and every
 // song whose Guitar Pro file has no facts yet.
 func (st *Store) ListRiffSongs(ctx context.Context) ([]RiffSong, error) {
+	return st.listRiffSongs(ctx, `s.body ~ '(?n)^score\[[^]]*\]:\s*\{"' OR (g.data IS NOT NULL AND g.facts IS NULL)`)
+}
+
+// ListSongsForMigration lists the given songs, as ListRiffSongs does,
+// whatever their text holds (gpmigrate dump --ids).
+func (st *Store) ListSongsForMigration(ctx context.Context, ids []int64) ([]RiffSong, error) {
+	return st.listRiffSongs(ctx, `s.id = ANY($1)`, ids)
+}
+
+func (st *Store) listRiffSongs(ctx context.Context, where string, args ...any) ([]RiffSong, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT s.id, s.version::text, coalesce(s.title, ''), coalesce(s.artist, ''), s.body,
 		       coalesce(g.filename, ''), g.data
 		FROM songs s LEFT JOIN song_gp_source_file g ON g.variant_id = s.id
-		WHERE s.body ~ '(?n)^score\[[^]]*\]:\s*\{"' OR (g.data IS NOT NULL AND g.facts IS NULL)
-		ORDER BY s.id`)
+		WHERE `+where+`
+		ORDER BY s.id`, args...)
 	if err != nil {
 		return nil, err
 	}

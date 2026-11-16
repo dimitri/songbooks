@@ -5836,3 +5836,46 @@ body.branded h1, body.branded h2, body.branded .brand-name { font-synthesis-weig
 .gpimport-fit-card:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: color-mix(in srgb, var(--accent-bg) 55%, var(--bg-raised)); }
 .song-gp-only { display: inline-flex; align-items: center; gap: 0.45rem; margin-top: 0.5rem; font-size: 0.92rem; }
 .song-gp-only-note { margin: 0.2rem 0 0; }
+
+/* ---- A community's download area (community_downloads.html) ---------- */
+.dl-songbook { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); padding: 1rem 1.1rem; margin: 0 0 1.2rem; }
+.dl-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 0.9rem; margin-bottom: 0.8rem; }
+.dl-head h2 { margin: 0; font-size: 1.15rem; font-family: var(--font-chart, inherit); }
+.dl-meta { font-size: 0.82rem; color: var(--fg-faint); }
+.dl-access { font-size: 0.78rem; padding: 0.1rem 0.5rem; border-radius: 999px; background: var(--ok-bg); color: var(--ok); }
+.dl-access.sold { background: var(--warn-bg); color: var(--warn); }
+.dl-book { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 0.8rem; border-radius: var(--radius); background: var(--bg-sunken); margin-bottom: 0.8rem; }
+.dl-book-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dl-book-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-book-name .dl-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-ext { flex: none; font: 700 0.7rem/1 var(--font-ui); letter-spacing: 0.04em; color: var(--accent-contrast); background: var(--accent); border-radius: 4px; padding: 0.55rem 0.45rem; }
+.dl-btn { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; padding: 0 0.9rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-raised); color: var(--fg); white-space: nowrap; text-decoration: none; font-size: 0.9rem; }
+.dl-btn.primary { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); font-weight: 700; }
+.dl-btn svg { width: 1em; height: 1em; }
+.dl-lessons { list-style: none; margin: 0; padding: 0; }
+.dl-lesson { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.8rem; padding: 0.35rem 0; border-top: 1px solid var(--border); }
+.dl-lesson-title { flex: 1 1 14rem; min-width: 0; display: flex; align-items: baseline; gap: 0.6rem; }
+.dl-num { flex: none; width: 1.6rem; text-align: right; font: 600 0.78rem var(--font-mono, monospace); color: var(--fg-faint); }
+.dl-files { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.dl-file { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 999px; font-size: 0.82rem; background: var(--bg); overflow: hidden; }
+.dl-file a { display: inline-flex; align-items: center; min-height: 2.25rem; padding: 0 0.7rem; color: inherit; text-decoration: none; white-space: nowrap; }
+.dl-file a:hover { color: var(--accent); background: var(--accent-bg); }
+.dl-file.kind-gp { border-color: var(--accent); }
+.dl-size { color: var(--fg-faint); font-size: 0.75rem; margin-left: 0.35rem; }
+.dl-file button, .dl-book .dl-del { min-height: 2.25rem; min-width: 2.25rem; padding: 0; border: 0; border-radius: 0; background: none; color: var(--fg-muted); display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+.dl-file .dl-play { border-right: 1px solid var(--border); }
+.dl-file .dl-del { border-left: 1px solid var(--border); font-size: 1rem; }
+.dl-book .dl-del { min-height: 2.75rem; min-width: 2.75rem; border-radius: 8px; }
+.dl-file button svg, .dl-book .dl-del svg { width: 0.9rem; height: 0.9rem; }
+.dl-play.on { color: var(--accent); background: var(--accent-bg); }
+.dl-del:hover:not(:disabled) { color: var(--danger); }
+.dl-upload { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--border); font-size: 0.88rem; }
+.dl-upload select { max-width: 16rem; }
+.dl-pick { display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; border: 1px solid var(--border-strong); border-radius: 8px; min-height: 2.75rem; padding: 0 0.8rem; }
+.dl-pick svg { width: 1em; height: 1em; }
+.dl-empty { color: var(--fg-muted); padding: 2rem 0; text-align: center; }
+@media (max-width: 560px) {
+  .dl-book { flex-wrap: wrap; }
+  .dl-book-name { flex-basis: calc(100% - 3rem); }
+  .dl-book .dl-btn { flex: 1; justify-content: center; }
+}

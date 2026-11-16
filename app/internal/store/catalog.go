@@ -307,8 +307,9 @@ func scanCatalogVariants(rows pgx.Rows) ([]CatalogVariant, error) {
 //     IsCurrentBandMember) of the owning band. This is this phase's actual
 //     tightening of the placeholder below: band material is no longer
 //     editable by "any logged-in person," only by the band.
-//   - visibility='community': any CURRENT member — matches band's own
-//     model (see the community-page member-level catalog change).
+//   - visibility='community': a CURRENT member whose role grants
+//     edit_repertoire and who can see the song (canViewCommunityVariant:
+//     a sold songbook's song needs its grant too).
 //   - visibility='global': any logged-in person. Still a deliberate,
 //     known-permissive placeholder, same as phase 1 — global variants
 //     have no band/role concept attached to them in THIS phase either;
@@ -337,6 +338,12 @@ func (st *Store) CanEditVariant(ctx context.Context, personID, variantID int64) 
 	case "community":
 		if ownerCommunityID == nil {
 			return false, nil
+		}
+		// Changing a community's song takes edit_repertoire, as changing
+		// its songbooks does; seeing it isn't enough (a guest, or a buyer
+		// of a sold songbook).
+		if ok, err := st.HasCommunityPrivilege(ctx, *ownerCommunityID, personID, PrivEditRepertoire); err != nil || !ok {
+			return false, err
 		}
 		return st.canViewCommunityVariant(ctx, *ownerCommunityID, variantID, personID)
 	case "setlist":

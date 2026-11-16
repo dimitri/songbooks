@@ -346,6 +346,12 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/requires-grant", s.requireCommunityAnyManagePrivilege(s.handleSetSongbookRequiresGrant))
 	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/grants", s.requireCommunityAnyManagePrivilege(s.handleGrantSongbookAccess))
 	mux.HandleFunc("DELETE /api/communities/{id}/songbooks/{sbID}/grants/{personID}", s.requireCommunityAnyManagePrivilege(s.handleRevokeSongbookAccess))
+	// The download area (downloads.go): one listing of the files of every
+	// songbook the viewer has access to; staff add and remove files.
+	mux.HandleFunc("GET /communities/{id}/downloads", s.requireCommunityMember(s.handleCommunityDownloadsPage))
+	mux.HandleFunc("GET /communities/{id}/downloads/{fileID}/{name}", s.requireCommunityMember(s.handleDownloadSongbookFile))
+	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/files", s.requireCommunityAnyManagePrivilege(s.handleUploadSongbookFiles))
+	mux.HandleFunc("DELETE /api/communities/{id}/downloads/{fileID}", s.requireCommunityAnyManagePrivilege(s.handleDeleteSongbookFile))
 	mux.HandleFunc("GET /communities/{id}/admin", s.requireCommunityAnyManagePrivilege(s.handleCommunityAdminPage))
 	mux.HandleFunc("POST /api/communities/{id}/rename", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleRenameCommunity))
 	mux.HandleFunc("GET /api/communities/{id}/brand", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleGetBrand("community")))

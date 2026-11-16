@@ -16,6 +16,13 @@
 //
 // The file's facts (static/js/gp-facts.js) go with it, and with a stored
 // file that has none yet.
+//
+// --originals map.json ({"251": "path/to/01_Mon premier blues acoustique.gp"})
+// takes the author's own file for those songs instead of making one: the
+// voices are found in it as above, the file is stored as the song's new
+// version, and gp_source names it. With --current current.jsonl (a later
+// `gpmigrate dump --ids`), the plan applies on top of that state — the
+// earlier dump still gives the voices to match.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -26,9 +33,14 @@ const alphaTab = require(path.join(js, 'vendor/alphatab/alphaTab.min.js'));
 const GPFacts = require(path.join(js, 'gp-facts.js'));
 
 const args = process.argv.slice(2);
-const input = args.find((a) => !a.startsWith('--') && !/^https?:/.test(a));
+const valued = new Set(['--mixer', '--originals', '--current']);
+const input = args.find((a, i) => !a.startsWith('--') && !valued.has(args[i - 1]));
 const mixerAt = args.indexOf('--mixer');
 const mixer = mixerAt >= 0 ? args[mixerAt + 1] : '';
+const flagValue = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : ''; };
+const originals = flagValue('--originals') ? JSON.parse(fs.readFileSync(flagValue('--originals'), 'utf8')) : {};
+const readJSONL = (f) => fs.readFileSync(f, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
+const current = new Map(flagValue('--current') ? readJSONL(flagValue('--current')).map((s) => [s.id, s]) : []);
 if (!input) {
   console.error('usage: plan.cjs songs.jsonl [--mixer http://host:port]');
   process.exit(2);
@@ -111,8 +123,8 @@ async function mixerOf(song) {
   return res.ok ? res.json() : null;
 }
 
-async function withFile(song) {
-  const bytes = Buffer.from(song.file, 'base64');
+async function withFile(song, original) {
+  const bytes = original ? fs.readFileSync(original) : Buffer.from(song.file, 'base64');
   const score = load(bytes);
   const played = GPFacts.played(score.masterBars).map((n) => n - 1);
   const mx = await mixerOf(song);
@@ -153,7 +165,7 @@ async function withFile(song) {
     const label = `section ${v.si + 1}, ${v.label}`;
     if (best.whole) {
       notes.push(`${label}: ${want.length} bars copied with the old repeat reading, the file plays ${played.length}; pointing at the whole file`);
-      lines.set(`${v.si}\u0000${v.label}`, `gp[${trackLabel(score.tracks, best.ti)}]: ${rangesOf(played.map((i) => i + 1))}`);
+      lines.set(`${v.si}\u0000${v.label}`, `gp[${trackLabel(score.tracks, best.ti)}]: 1-${score.masterBars.length}`);
       continue;
     }
     if (best.hits < want.length * 0.8) {
@@ -163,6 +175,15 @@ async function withFile(song) {
     if (best.hits < want.length) notes.push(`${label}: ${want.length - best.hits} of ${want.length} bars differ from the file (the copy dropped details); pointing at the file`);
     const bars = played.slice(best.off, best.off + want.length).map((i) => i + 1);
     lines.set(`${v.si}\u0000${v.label}`, `gp[${trackLabel(score.tracks, best.ti)}]: ${rangesOf(bars)}`);
+  }
+  if (original) {
+    const name = path.basename(original);
+    const item = {
+      id: song.id, version: song.version, notes,
+      body: rewrite(song.body.replace(/^gp_source:.*\n/m, ''), lines, [`gp_source: ${name}`]),
+      file: { name, data: bytes.toString('base64'), facts: GPFacts.extract(score) },
+    };
+    return { item, replaced: lines.size };
   }
   const item = { id: song.id, version: song.version, body: rewrite(song.body, lines, []), notes };
   item.facts = GPFacts.extract(score);
@@ -247,16 +268,19 @@ async function withoutFile(song) {
 }
 
 (async () => {
-  const songs = fs.readFileSync(input, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  let songs = readJSONL(input);
+  if (Object.keys(originals).length) songs = songs.filter((s) => originals[s.id]);
   let voices = 0, replaced = 0, made = 0;
   for (const song of songs) {
     voices += riffVoices(song.body).length;
+    const original = originals[song.id];
     try {
-      const { item, replaced: n } = song.file ? await withFile(song) : await withoutFile(song);
-      if (!song.file) made++;
+      const { item, replaced: n } = song.file || original ? await withFile(song, original) : await withoutFile(song);
+      if (!song.file && !original) made++;
+      if (current.has(song.id)) item.version = current.get(song.id).version;
       replaced += n;
       process.stdout.write(JSON.stringify(item) + '\n');
-      const what = song.file ? 'its file' : `a new file ${item.file.name}`;
+      const what = original ? `the author's file ${item.file.name}` : song.file ? 'its file' : `a new file ${item.file.name}`;
       console.error(`${song.id} ${song.title}: ${n} voice(s) → ${what}${item.notes.length ? '\n    ' + item.notes.join('\n    ') : ''}`);
     } catch (e) {
       console.error(`${song.id} ${song.title}: NOT PLANNED — ${e.message}`);
