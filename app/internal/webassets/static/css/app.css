@@ -6176,9 +6176,13 @@ body.embed-playlist .app-content { margin: 0 !important; padding-bottom: 1rem !i
   .rec-player:not(.is-open) .rp-tools { grid-area: tools; justify-content: flex-end; }
 }
 
-/* A phone: the mini player, and the sheet it opens into. */
+/* A phone: the mini player, and the sheet it opens into. The mini player
+   is fixed over the tab bar, like the tab bar, not sticky: iOS Safari
+   lost a sticky player once its card had been fixed (the open sheet) and
+   back, and never drew it again. The page keeps room for it. */
 @media (max-width: 900px) {
-  .rec-player { bottom: var(--tabbar-h, 4.2rem); padding: 0.6rem 0.5rem 0.4rem; background: linear-gradient(to bottom, transparent, var(--bg) 1.2rem); }
+  .rec-player { position: fixed; left: 0; right: 0; bottom: var(--tabbar-h, 4.2rem); z-index: 55; margin: 0; padding: 0.6rem 0.5rem 0.4rem; background: linear-gradient(to bottom, transparent, var(--bg) 1.2rem); }
+  body:has(.rec-player:not([hidden])) main { padding-bottom: 5.6rem; }
   .rp-card { border: 1px solid var(--border); border-radius: 14px; padding: 0.5rem 0.4rem 0.5rem 0.5rem; box-shadow: 0 8px 28px rgba(0,0,0,0.22); overflow: hidden; }
   .rp-tile { width: 2.75rem; height: 2.75rem; border-radius: 8px; }
   .rp-tile b { font-size: 1.1rem; }
