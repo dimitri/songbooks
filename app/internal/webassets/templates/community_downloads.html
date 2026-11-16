@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Community.Name}} — downloads</title>
+<title>{{if and .One .Songbooks}}{{with index .Songbooks 0}}{{.Name}}{{end}}{{else}}{{.Community.Name}}{{end}} — downloads</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -29,16 +29,12 @@
   {{if not .CanDownload}}
   <p class="dl-empty">Your role in this community doesn’t include downloads. Ask its staff if you should have them.</p>
   {{else}}
-  {{if .CanManage}}
-  <p class="hint">Each songbook’s files: the book, the original Guitar Pro files, the backing tracks. Add them one by one or as a zip: its folders are kept, and each file goes with its lesson when its name or its Guitar Pro file tells which. A member downloads the files of the songbooks they have — every member for an open songbook, only the people you give access to for one sold separately.</p>
-  {{else if .Songbooks}}
-  <p class="hint">The files of your songbooks: the books, the original Guitar Pro files and the backing tracks — lesson by lesson, or all at once as a zip.</p>
-  {{end}}
+  {{if .One}}<p class="dl-back"><a href="/communities/{{.Community.ID}}/downloads">{{template "icon-back"}} All the downloads</a></p>{{end}}
 
   {{range .Songbooks}}{{$sb := .}}
   <section class="dl-songbook" id="songbook-{{.ID}}">
     <header class="dl-head">
-      <h2>{{.Name}}</h2>
+      <h2>{{if $.One}}{{.Name}}{{else}}<a href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}">{{.Name}}</a>{{end}}</h2>
       <span class="dl-meta">{{if .Files}}{{.Files}} file{{if ne .Files 1}}s{{end}} · {{fileSize .Bytes}}{{else}}No files yet{{end}}</span>
       {{if $.IsStaff}}
       <span class="dl-access{{if .RequiresGrant}} sold{{end}}">{{if .RequiresGrant}}&#128274; Sold separately · {{.Grants}} {{if eq .Grants 1}}person has{{else}}people have{{end}} it{{else}}Every member{{end}}</span>
@@ -49,8 +45,11 @@
     {{if .Files}}
     <div class="dl-actions">
       <a class="dl-btn primary" href="{{.ZipHref}}" download>{{template "icon-download"}} Everything · zip</a>
-      <a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}/browse/">{{if .Folders}}Browse the folders{{else}}All the files{{end}} &rarr;</a>
+      {{if $.One}}<a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}/browse/">{{if .Folders}}Browse the folders{{else}}All the files{{end}} &rarr;</a>
+      {{else}}<a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}">{{if .Lessons}}{{len .Lessons}} {{if .IsCourse}}lesson{{else}}song{{end}}{{if ne (len .Lessons) 1}}s{{end}}, file by file{{else}}All the files{{end}} &rarr;</a>{{end}}
     </div>
+    {{else if and $.CanManage (not $.One)}}
+    <div class="dl-actions"><a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}">Add files &rarr;</a></div>
     {{end}}
 
     {{range .Books}}
@@ -66,7 +65,7 @@
     </div>
     {{end}}
 
-    {{if .Lessons}}
+    {{if and $.One .Lessons}}
     <ol class="dl-lessons">
       {{range .Lessons}}
       <li class="dl-lesson">
@@ -85,7 +84,7 @@
     </ol>
     {{end}}
 
-    {{if $.CanManage}}{{template "dl-upload-form" .}}{{end}}
+    {{if and $.One $.CanManage}}{{template "dl-upload-form" .}}{{end}}
   </section>
   {{else}}
   <p class="dl-empty">Nothing to download yet. The files of a songbook show up here once you have that songbook.</p>

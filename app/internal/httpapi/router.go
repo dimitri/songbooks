@@ -371,6 +371,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// songbook the viewer has access to; staff add and remove files.
 	mux.HandleFunc("GET /communities/{id}/downloads", s.requireCommunityMember(s.handleCommunityDownloadsPage))
 	mux.HandleFunc("GET /communities/{id}/downloads/{fileID}/{name}", s.requireCommunityMember(s.handleDownloadSongbookFile))
+	mux.HandleFunc("GET /communities/{id}/downloads/songbooks/{sbID}", s.requireCommunityMember(s.handleCommunityDownloadsPage))
 	mux.HandleFunc("GET /communities/{id}/downloads/songbooks/{sbID}/zip/{name}", s.requireCommunityMember(s.handleDownloadSongbookZip))
 	mux.HandleFunc("GET /communities/{id}/downloads/songbooks/{sbID}/browse/{path...}", s.requireCommunityMember(s.handleBrowseSongbookFiles))
 	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/files", s.requireCommunityPrivilege(store.PrivManageFiles, s.handleUploadSongbookFiles))

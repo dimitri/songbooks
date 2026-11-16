@@ -139,9 +139,13 @@ func zipHref(communityID int64, sb *store.Songbook, folder string) string {
 	return h
 }
 
-// handleCommunityDownloadsPage is GET /communities/{id}/downloads.
+// handleCommunityDownloadsPage is GET /communities/{id}/downloads: each
+// songbook or course the member has, with its main downloads (its books,
+// everything as a zip); and GET /communities/{id}/downloads/songbooks/{sbID}:
+// one of them, lesson by lesson, every file.
 func (s *Server) handleCommunityDownloadsPage(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	only, _ := strconv.ParseInt(r.PathValue("sbID"), 10, 64)
 	person := personFromContext(r)
 	community, err := s.store.GetCommunity(r.Context(), communityID)
 	if errors.Is(err, store.ErrNotFound) {
@@ -169,6 +173,7 @@ func (s *Server) handleCommunityDownloadsPage(w http.ResponseWriter, r *http.Req
 	}
 	data := map[string]any{
 		"Me": person, "Community": community, "IsStaff": isStaff, "CanManage": canManage, "CanDownload": canDownload,
+		"One": only != 0,
 	}
 	if !canDownload {
 		s.render(w, "community_downloads", data)
@@ -182,6 +187,9 @@ func (s *Server) handleCommunityDownloadsPage(w http.ResponseWriter, r *http.Req
 	var open []store.Songbook
 	var ids []int64
 	for _, sb := range songbooks {
+		if only != 0 && sb.ID != only {
+			continue
+		}
 		ok, err := s.canSeeSongbook(r, sb.ID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
@@ -297,6 +305,10 @@ func (s *Server) handleCommunityDownloadsPage(w http.ResponseWriter, r *http.Req
 			continue // nothing to download from it
 		}
 		parts = append(parts, part)
+	}
+	if only != 0 && len(parts) == 0 {
+		http.NotFound(w, r)
+		return
 	}
 	data["Songbooks"] = parts
 	s.render(w, "community_downloads", data)
