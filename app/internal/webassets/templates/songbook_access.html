@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Songbook.Name}} — access — Songbooks</title>
+<title>{{.Songbook.Name}} — sharing and access — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,13 +15,29 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}/songbooks">{{template "icon-back"}} Songbooks</a>
-  <h1>{{.Songbook.Name}} — access</h1>
+  <h1>{{.Songbook.Name}} — sharing and access</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
   <div class="card">
+    <h3>Songbook or course</h3>
+    <p class="hint" id="kind-hint">A course groups its songs in lessons, in order, each with its text and files, and shows members where they are in it. Access, sharing and downloads stay the same.</p>
+    <label class="check"><input type="radio" name="kind" value="songbook" aria-describedby="kind-hint" {{if not .Songbook.IsCourse}}checked{{end}}> Songbook</label>
+    <label class="check"><input type="radio" name="kind" value="course" aria-describedby="kind-hint" {{if .Songbook.IsCourse}}checked{{end}}> Course</label>
+    <p id="kind-result" class="form-status" role="status"></p>
+  </div>
+
+  <div class="card">
+    <h3>Shared or private</h3>
+    <p class="hint" id="shared-hint">Shared, whoever can open a song can also copy it into their own songbook, a band’s or another community’s. Private, the songs can be opened, played and downloaded but not copied — an author’s lessons stay theirs. Either way the songbook can be sold separately, below.</p>
+    <label class="check"><input type="radio" name="shared" value="true" aria-describedby="shared-hint" {{if .Songbook.Shared}}checked{{end}}> Shared</label>
+    <label class="check"><input type="radio" name="shared" value="false" aria-describedby="shared-hint" {{if not .Songbook.Shared}}checked{{end}}> Private</label>
+    <p id="shared-result" class="form-status" role="status"></p>
+  </div>
+
+  <div class="card">
     <h3>Who can open this songbook</h3>
-    <p class="hint" id="requires-grant-hint">Unticked, every current member can open it. Ticked, only the members you give access to below can — for paid material, say (payment itself is handled outside the app). Changes save straight away.</p>
+    <p class="hint" id="requires-grant-hint">Unticked, every current member can open it. Ticked, only the members you give access to below can — for a songbook sold separately (payment itself is handled outside the app for now; a purchase will give access the same way). Changes save straight away.</p>
     <label class="check"><input type="checkbox" id="requires-grant-toggle" aria-describedby="requires-grant-hint" {{if .Songbook.RequiresGrant}}checked{{end}}> Only members given access</label>
     <p id="toggle-result" class="form-status" role="status"></p>
   </div>
@@ -34,7 +50,8 @@
         <td data-label="Member">{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Username}}{{end}}</td>
         <td data-label="Role">{{.Role}}</td>
         <td data-label="Access">
-          <label class="check"><input type="checkbox" class="grant-checkbox" data-person-id="{{.PersonID}}" aria-label="{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Username}}{{end}} has access" {{if index $.Granted .PersonID}}checked{{end}}> Has access</label>
+          <label class="check"><input type="checkbox" class="grant-checkbox" data-person-id="{{.PersonID}}" aria-label="{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Username}}{{end}} has access" {{with index $.Granted .PersonID}}{{if not .Expired}}checked{{end}}{{end}}> Has access</label>
+          {{with index $.Granted .PersonID}}<span class="hint">{{if .Expired}}ended {{.ExpiresAt.Format "2 Jan 2006"}}{{else}}{{if eq .Source "purchase"}}bought{{else if eq .Source "bundle"}}in a bundle{{else}}given{{end}} {{.GrantedAt.Format "2 Jan 2006"}}{{with .ExpiresAt}}, until {{.Format "2 Jan 2006"}}{{end}}{{with .Reference}} · {{.}}{{end}}{{end}}</span>{{end}}
         </td>
       </tr>
     {{else}}
@@ -48,6 +65,40 @@
 <script>
 const communityId = {{.Community.ID}};
 const songbookId = {{.Songbook.ID}};
+
+document.querySelectorAll('input[name=kind]').forEach(radio => radio.addEventListener('change', async () => {
+  const out = document.getElementById('kind-result');
+  Forms.status(out, 'Saving…', '');
+  const res = await fetch(`/api/songbooks/${songbookId}/kind`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({kind: radio.value}),
+  }).catch(() => null);
+  if (!res || !res.ok) {
+    Forms.status(out, 'Couldn’t save that. Try again.', 'error');
+    document.querySelector(`input[name=kind][value="${radio.value === 'course' ? 'songbook' : 'course'}"]`).checked = true;
+  } else {
+    out.textContent = '';
+    const a = document.createElement('a');
+    a.href = `/songbooks/${songbookId}`;
+    a.textContent = radio.value === 'course' ? 'Saved. See the course →' : 'Saved.';
+    out.append(a);
+  }
+}));
+
+document.querySelectorAll('input[name=shared]').forEach(radio => radio.addEventListener('change', async () => {
+  const out = document.getElementById('shared-result');
+  Forms.status(out, 'Saving…', '');
+  const res = await fetch(`/api/communities/${communityId}/songbooks/${songbookId}/shared`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({shared: radio.value === 'true'}),
+  }).catch(() => null);
+  if (!res || !res.ok) {
+    Forms.status(out, 'Couldn’t save that. Try again.', 'error');
+    document.querySelector(`input[name=shared][value="${radio.value !== 'true'}"]`).checked = true;
+  } else {
+    Forms.status(out, 'Saved.', 'ok');
+  }
+}));
 
 document.getElementById('requires-grant-toggle').addEventListener('change', async (e) => {
   const out = document.getElementById('toggle-result');

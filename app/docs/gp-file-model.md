@@ -233,6 +233,11 @@ none.
    with the original file (Worried Life Blues 273/297, Black Magic Woman
    267/301, ES-335 Blues 279/307, BB King 284/310) — to look at
    together before deciding whether to keep both.
+   Once the author's own files turned up (Florent's pCloud folder), they
+   replaced the made ones: `plan.cjs --originals map.json --current
+   current.jsonl` finds each voice in the author's file instead, and
+   stores it as the song's new file version (the made one stays in its
+   history). All 34 matched bar for bar.
 3. **The 8 LilyPond songs** don't change.
 4. After the move, a check that no song body still holds Riff JSON.
 

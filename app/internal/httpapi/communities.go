@@ -374,6 +374,20 @@ func (s *Server) handleCommunityDefaultSongbookPage(w http.ResponseWriter, r *ht
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if ok, err := s.canSeeDefaultSongbook(r, communityID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	} else if !ok {
+		httpError(w, http.StatusForbidden, "this songbook is sold separately: ask the community for access")
+		return
+	}
+	// A course has its own page (courses.go); ?view=songs stays here.
+	if sbID, err := s.store.GetDefaultSongbook(r.Context(), "community", communityID); err == nil && r.URL.Query().Get("view") != "songs" {
+		if sb, err := s.store.GetSongbook(r.Context(), sbID); err == nil && sb.IsCourse() {
+			http.Redirect(w, r, fmt.Sprintf("/songbooks/%d", sbID), http.StatusSeeOther)
+			return
+		}
+	}
 	catalog, err := s.store.ListCommunityCatalog(r.Context(), communityID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
@@ -454,14 +468,42 @@ func (s *Server) handleSongbookAccessPage(w http.ResponseWriter, r *http.Request
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	granted := make(map[int64]bool, len(grants))
-	for _, g := range grants {
-		granted[g.PersonID] = true
+	granted := make(map[int64]*store.SongbookAccessGrant, len(grants))
+	for i, g := range grants {
+		granted[g.PersonID] = &grants[i]
 	}
 	person := personFromContext(r)
 	s.render(w, "songbook_access", map[string]any{
 		"Me": person, "Community": community, "Songbook": sb, "Members": members, "Granted": granted,
 	})
+}
+
+// handleSetSongbookShared is POST /api/communities/{id}/songbooks/{sbID}/shared:
+// whether the songbook's songs may be copied out of it.
+func (s *Server) handleSetSongbookShared(w http.ResponseWriter, r *http.Request) {
+	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	sbID, err := pathID(r, "sbID")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid songbook id")
+		return
+	}
+	sb, err := s.store.GetSongbook(r.Context(), sbID)
+	if err != nil || sb.OwnerKind != "community" || sb.OwnerCommunityID != communityID {
+		httpError(w, http.StatusNotFound, "no such songbook")
+		return
+	}
+	var req struct {
+		Shared bool `json:"shared"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if err := s.store.SetSongbookShared(r.Context(), sbID, req.Shared); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"shared": req.Shared})
 }
 
 // handleSetSongbookRequiresGrant is POST /api/communities/{id}/songbooks/{sbID}/requires-grant.
@@ -915,7 +957,7 @@ func (s *Server) handleForkVariantIntoCommunity(w http.ResponseWriter, r *http.R
 		return
 	}
 	if errors.Is(err, store.ErrForbidden) {
-		httpError(w, http.StatusForbidden, err.Error())
+		httpError(w, http.StatusForbidden, "this song can't be copied")
 		return
 	}
 	if err != nil {

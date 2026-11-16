@@ -1,0 +1,101 @@
+{{define "community_downloads"}}
+{{$brand := brandFor "community" .Community.ID}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Community.Name}} — downloads</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
+  <h1>{{.Community.Name}} — downloads</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index dl">
+  <nav class="band-tabs band-tabs-row">
+    <a class="band-tab" href="/communities/{{.Community.ID}}">Overview</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">Songbooks</a>
+    <a href="/communities/{{.Community.ID}}/downloads" class="band-tab active">Downloads</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/events">Events</a>
+  </nav>
+
+  {{if not .CanDownload}}
+  <p class="dl-empty">Your role in this community doesn’t include downloads. Ask its staff if you should have them.</p>
+  {{else}}
+  {{if .CanManage}}
+  <p class="hint">Each songbook’s files: the book, the original Guitar Pro files, the backing tracks. Add them one by one or as a zip: its folders are kept, and each file goes with its lesson when its name or its Guitar Pro file tells which. A member downloads the files of the songbooks they have — every member for an open songbook, only the people you give access to for one sold separately.</p>
+  {{else if .Songbooks}}
+  <p class="hint">The files of your songbooks: the books, the original Guitar Pro files and the backing tracks — lesson by lesson, or all at once as a zip.</p>
+  {{end}}
+
+  {{range .Songbooks}}{{$sb := .}}
+  <section class="dl-songbook" id="songbook-{{.ID}}">
+    <header class="dl-head">
+      <h2>{{.Name}}</h2>
+      <span class="dl-meta">{{if .Files}}{{.Files}} file{{if ne .Files 1}}s{{end}} · {{fileSize .Bytes}}{{else}}No files yet{{end}}</span>
+      {{if $.IsStaff}}
+      <span class="dl-access{{if .RequiresGrant}} sold{{end}}">{{if .RequiresGrant}}&#128274; Sold separately · {{.Grants}} {{if eq .Grants 1}}person has{{else}}people have{{end}} it{{else}}Every member{{end}}</span>
+      <a class="hint" href="/communities/{{$.Community.ID}}/songbooks/{{.ID}}/access">Access &rarr;</a>
+      {{end}}
+    </header>
+
+    {{if .Files}}
+    <div class="dl-actions">
+      <a class="dl-btn primary" href="{{.ZipHref}}" download>{{template "icon-download"}} Everything · zip</a>
+      <a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}/browse/">{{if .Folders}}Browse the folders{{else}}All the files{{end}} &rarr;</a>
+    </div>
+    {{end}}
+
+    {{range .Books}}
+    <div class="dl-book">
+      <span class="dl-ext">PDF</span>
+      <div class="dl-book-name">
+        <strong>{{.Label}}</strong>
+        <span class="dl-meta">{{.Filename}} · {{fileSize .ByteSize}}</span>
+      </div>
+      <a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/{{.ID}}/{{pathSegment .Filename}}?view=1" target="_blank" rel="noopener">Open</a>
+      <a class="primary dl-btn" href="/communities/{{$.Community.ID}}/downloads/{{.ID}}/{{pathSegment .Filename}}" download>{{template "icon-download"}} Download</a>
+      {{if $.CanManage}}<button type="button" class="dl-del" data-del="{{.ID}}" data-name="{{.Filename}}" aria-label="Remove {{.Filename}}">{{template "icon-trash"}}</button>{{end}}
+    </div>
+    {{end}}
+
+    {{if .Lessons}}
+    <ol class="dl-lessons">
+      {{range .Lessons}}
+      <li class="dl-lesson">
+        <span class="dl-lesson-title"><span class="dl-num">{{.Number}}</span>{{if .Href}}<a href="{{.Href}}">{{.Title}}</a>{{else}}<span>{{.Title}}</span>{{end}}</span>
+        <span class="dl-files">
+          {{range .Files}}
+          <span class="dl-file kind-{{.Kind}}">
+            {{if eq .Kind "audio"}}<button type="button" class="dl-play" data-src="/communities/{{$.Community.ID}}/downloads/{{.ID}}/{{pathSegment .Filename}}?view=1" aria-label="Play {{.Filename}}">{{template "icon-play"}}</button>{{end}}
+            <a href="/communities/{{$.Community.ID}}/downloads/{{.ID}}/{{pathSegment .Filename}}" download title="{{.FullPath}}">{{if eq .Kind "gp"}}Guitar Pro{{else}}{{or .Ext "File"}}{{end}}{{if .Named}} · {{.Label}}{{end}} <span class="dl-size">{{fileSize .ByteSize}}</span></a>
+            {{if $.CanManage}}<button type="button" class="dl-del" data-del="{{.ID}}" data-name="{{.Filename}}" aria-label="Remove {{.Filename}}">&times;</button>{{end}}
+          </span>
+          {{end}}
+        </span>
+      </li>
+      {{end}}
+    </ol>
+    {{end}}
+
+    {{if $.CanManage}}{{template "dl-upload-form" .}}{{end}}
+  </section>
+  {{else}}
+  <p class="dl-empty">Nothing to download yet. The files of a songbook show up here once you have that songbook.</p>
+  {{end}}
+  {{end}}
+</main>
+</div>
+{{template "dl-script" .Community.ID}}
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

@@ -8,9 +8,11 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"io"
 	"io/fs"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -243,6 +245,18 @@ var funcMap = template.FuncMap{
 	// indefinitely after a deploy (the route has no filename hashing and
 	// previously set no Cache-Control at all). Computed once at startup,
 	// not per-request.
+	// fileSize shows a byte count the way a download list does: "84 MB".
+	"fileSize": func(n int64) string {
+		switch {
+		case n >= 1<<20:
+			return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
+		case n >= 1<<10:
+			return fmt.Sprintf("%d KB", n>>10)
+		}
+		return fmt.Sprintf("%d bytes", n)
+	},
+	// pathSegment escapes a file name for its place in a URL's path.
+	"pathSegment":   url.PathEscape,
 	"staticVersion": func() string { return staticVersion },
 }
 

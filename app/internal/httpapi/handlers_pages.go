@@ -2856,9 +2856,14 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	// song.js's editToggle handler): a viewer without edit rights on this
 	// variant never sees a separate "fork" step — tapping Edit silently
 	// forks it for them first.
-	var canEdit bool
+	// CanCopy: whether that fork is allowed at all — not out of a private
+	// songbook (store.CanCopyVariant); without either, there's no Edit.
+	var canEdit, canCopy bool
 	if person != nil {
 		canEdit, _ = s.store.CanEditVariant(r.Context(), person.ID, variantID)
+		if !canEdit {
+			canCopy, _ = s.store.CanCopyVariant(r.Context(), person.ID, variantID, "user", 0)
+		}
 		// Home's "Continue" list; a failure here mustn't cost the page.
 		_ = s.store.RecordSongVisit(r.Context(), person.ID, variantID, songContextQuery(r.URL.Query()))
 	}
@@ -2870,7 +2875,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	}
 	data := map[string]any{
 		"Me":        person,
-		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "Genre": genre,
+		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "CanCopy": canCopy, "Genre": genre,
 		"Title": orDefault(sg.Get("title"), "untitled"), "Artist": sg.Get("artist"),
 		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
 		"TimeNum": num, "TimeDen": den,
@@ -2945,6 +2950,12 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		if songbookID, err := strconv.ParseInt(songbookParam, 10, 64); err == nil {
 			data["SongbookRef"] = songbookID
 			data["Prev"], data["Next"] = s.songbookNeighbors(r.Context(), songbookID, variantID)
+			// In a course, back is to the song's lesson.
+			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil && sb.IsCourse() {
+				if l, err := s.store.LessonOfSong(r.Context(), songbookID, variantID); err == nil && l != nil {
+					data["LessonHref"], data["LessonLabel"] = lessonHref(songbookID, l.ID), l.Label()
+				}
+			}
 		}
 	}
 	if bandParam := r.URL.Query().Get("band"); bandParam != "" {

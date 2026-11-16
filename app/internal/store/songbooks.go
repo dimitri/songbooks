@@ -32,7 +32,16 @@ type Songbook struct {
 	// songbook/course but not the community's others. Always false
 	// (meaningless) for a person/band songbook.
 	RequiresGrant bool
+	// Shared says whether a community songbook's songs may be copied out
+	// of it (migration 0072); a private one's can only be opened.
+	Shared bool
+	// Kind is "songbook", or "course" for one whose songs are in lessons
+	// (migration 0073, lessons.go).
+	Kind string
 }
+
+// IsCourse reports whether the songbook is a course.
+func (sb Songbook) IsCourse() bool { return sb.Kind == SongbookKindCourse }
 
 // songbookOwnerCol maps an ownerKind to its songbooks column — the one
 // piece of per-kind logic every function below needs, kept in one place
@@ -53,7 +62,7 @@ func songbookOwnerCol(ownerKind string) string {
 func (st *Store) ListSongbooks(ctx context.Context, ownerKind string, ownerID int64) ([]Songbook, error) {
 	col := songbookOwnerCol(ownerKind)
 	rows, err := st.db.Query(ctx, `
-		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at, requires_grant
+		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at, requires_grant, shared, kind
 		FROM songbooks WHERE owner_kind = $1 AND `+col+` = $2
 		ORDER BY (NOT is_default), name`, ownerKind, ownerID)
 	if err != nil {
@@ -63,7 +72,7 @@ func (st *Store) ListSongbooks(ctx context.Context, ownerKind string, ownerID in
 	var out []Songbook
 	for rows.Next() {
 		var sb Songbook
-		if err := rows.Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt, &sb.RequiresGrant); err != nil {
+		if err := rows.Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt, &sb.RequiresGrant, &sb.Shared, &sb.Kind); err != nil {
 			return nil, err
 		}
 		out = append(out, sb)
@@ -75,9 +84,9 @@ func (st *Store) ListSongbooks(ctx context.Context, ownerKind string, ownerID in
 func (st *Store) GetSongbook(ctx context.Context, songbookID int64) (*Songbook, error) {
 	var sb Songbook
 	err := st.db.QueryRow(ctx, `
-		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at, requires_grant
+		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at, requires_grant, shared, kind
 		FROM songbooks WHERE id = $1`, songbookID).
-		Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt, &sb.RequiresGrant)
+		Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt, &sb.RequiresGrant, &sb.Shared, &sb.Kind)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such songbook %d: %w", songbookID, ErrNotFound)
 	}
@@ -130,7 +139,8 @@ func (st *Store) CanAccessSongbook(ctx context.Context, personID, songbookID int
 func (st *Store) HasSongbookAccessGrant(ctx context.Context, songbookID, personID int64) (bool, error) {
 	var exists bool
 	err := st.db.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM songbook_access_grants WHERE songbook_id = $1 AND person_id = $2)`,
+		SELECT EXISTS(SELECT 1 FROM songbook_access_grants
+		              WHERE songbook_id = $1 AND person_id = $2 AND (expires_at IS NULL OR expires_at > now()))`,
 		songbookID, personID).Scan(&exists)
 	return exists, err
 }
@@ -141,13 +151,24 @@ type SongbookAccessGrant struct {
 	Username        string
 	GrantedAt       time.Time
 	GrantedByPersonID *int64
+	// Source is where the grant came from: "manual" (staff, from the
+	// access page), "purchase" or "bundle" (a payment, later); Reference
+	// is the order it came with. ExpiresAt, when set, ends it.
+	Source    string
+	Reference string
+	ExpiresAt *time.Time
+}
+
+// Expired reports whether the grant has ended.
+func (g SongbookAccessGrant) Expired() bool {
+	return g.ExpiresAt != nil && !g.ExpiresAt.After(time.Now())
 }
 
 // ListSongbookAccessGrants lists everyone currently granted access to
 // songbookID, most recently granted first.
 func (st *Store) ListSongbookAccessGrants(ctx context.Context, songbookID int64) ([]SongbookAccessGrant, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT g.person_id, p.username, g.granted_at, g.granted_by_person_id
+		SELECT g.person_id, p.username, g.granted_at, g.granted_by_person_id, g.source, g.reference, g.expires_at
 		FROM songbook_access_grants g JOIN people p ON p.id = g.person_id
 		WHERE g.songbook_id = $1 ORDER BY g.granted_at DESC`, songbookID)
 	if err != nil {
@@ -157,7 +178,7 @@ func (st *Store) ListSongbookAccessGrants(ctx context.Context, songbookID int64)
 	var out []SongbookAccessGrant
 	for rows.Next() {
 		var g SongbookAccessGrant
-		if err := rows.Scan(&g.PersonID, &g.Username, &g.GrantedAt, &g.GrantedByPersonID); err != nil {
+		if err := rows.Scan(&g.PersonID, &g.Username, &g.GrantedAt, &g.GrantedByPersonID, &g.Source, &g.Reference, &g.ExpiresAt); err != nil {
 			return nil, err
 		}
 		out = append(out, g)
@@ -165,17 +186,32 @@ func (st *Store) ListSongbookAccessGrants(ctx context.Context, songbookID int64)
 	return out, rows.Err()
 }
 
-// GrantSongbookAccess gives personID access to a gated songbookID — a
-// no-op if already granted.
+// GrantSongbookAccess gives personID access to a gated songbookID by hand
+// (staff) — a no-op if already granted, except that it renews an expired
+// grant.
 func (st *Store) GrantSongbookAccess(ctx context.Context, songbookID, personID, grantedByPersonID int64) error {
+	return st.GrantSongbookAccessFrom(ctx, songbookID, personID, grantedByPersonID, "manual", "", nil)
+}
+
+// GrantSongbookAccessFrom is GrantSongbookAccess for a grant that comes
+// from somewhere else: source "purchase" or "bundle" with the order's
+// reference, until expiresAt (nil: for good). A grant someone already
+// holds is kept, and extended to the later end of the two.
+func (st *Store) GrantSongbookAccessFrom(ctx context.Context, songbookID, personID, grantedByPersonID int64, source, reference string, expiresAt *time.Time) error {
 	var grantedBy *int64
 	if grantedByPersonID != 0 {
 		grantedBy = &grantedByPersonID
 	}
 	_, err := st.db.Exec(ctx, `
-		INSERT INTO songbook_access_grants (songbook_id, person_id, granted_by_person_id)
-		VALUES ($1, $2, $3) ON CONFLICT (songbook_id, person_id) DO NOTHING`,
-		songbookID, personID, grantedBy)
+		INSERT INTO songbook_access_grants (songbook_id, person_id, granted_by_person_id, source, reference, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (songbook_id, person_id) DO UPDATE SET
+			source = EXCLUDED.source, reference = EXCLUDED.reference,
+			granted_by_person_id = EXCLUDED.granted_by_person_id, granted_at = now(),
+			expires_at = EXCLUDED.expires_at
+		WHERE songbook_access_grants.expires_at IS NOT NULL
+		  AND (EXCLUDED.expires_at IS NULL OR EXCLUDED.expires_at > songbook_access_grants.expires_at)`,
+		songbookID, personID, grantedBy, source, reference, expiresAt)
 	return err
 }
 
@@ -188,6 +224,13 @@ func (st *Store) RevokeSongbookAccess(ctx context.Context, songbookID, personID 
 // SetSongbookRequiresGrant flips songbookID's gate on or off.
 func (st *Store) SetSongbookRequiresGrant(ctx context.Context, songbookID int64, requiresGrant bool) error {
 	_, err := st.db.Exec(ctx, `UPDATE songbooks SET requires_grant = $1 WHERE id = $2`, requiresGrant, songbookID)
+	return err
+}
+
+// SetSongbookShared makes songbookID shared (its songs may be copied) or
+// private.
+func (st *Store) SetSongbookShared(ctx context.Context, songbookID int64, shared bool) error {
+	_, err := st.db.Exec(ctx, `UPDATE songbooks SET shared = $1 WHERE id = $2`, shared, songbookID)
 	return err
 }
 
@@ -204,7 +247,11 @@ func (st *Store) CanEditSongbook(ctx context.Context, personID, songbookID int64
 		return false, err
 	}
 	if sb.OwnerKind == "community" {
-		return st.HasCommunityPrivilege(ctx, sb.OwnerCommunityID, personID, PrivEditRepertoire)
+		// Editing a sold songbook needs both the privilege and the
+		// songbook itself: edit_repertoire alone doesn't open it.
+		if ok, err := st.HasCommunityPrivilege(ctx, sb.OwnerCommunityID, personID, PrivEditRepertoire); err != nil || !ok {
+			return false, err
+		}
 	}
 	return st.CanAccessSongbook(ctx, personID, songbookID)
 }

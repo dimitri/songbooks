@@ -18,12 +18,14 @@ const (
 	PrivManageEvents     = "manage_events"     // create events, assign/remove event managers
 	PrivManageSubmissions = "manage_submissions" // accept/reject a legacy work-review submission
 	PrivManageSettings   = "manage_settings"   // rename the community, set its default join role
+	PrivDownloadFiles    = "download_files"    // download, play and open the files of the songbooks one has
+	PrivManageFiles      = "manage_files"      // add, move and remove a songbook's files
 )
 
 // AllCommunityPrivileges lists every privilege in the catalog, in the
 // order the role-editor UI presents them.
 var AllCommunityPrivileges = []string{
-	PrivEditRepertoire, PrivManageMembers, PrivManageEvents, PrivManageSubmissions, PrivManageSettings,
+	PrivEditRepertoire, PrivDownloadFiles, PrivManageFiles, PrivManageMembers, PrivManageEvents, PrivManageSubmissions, PrivManageSettings,
 }
 
 // CommunityRole is one named, per-community set of privileges. The three
@@ -70,8 +72,10 @@ func seedDefaultCommunityRoles(ctx context.Context, tx pgx.Tx, communityID int64
 			return 0, err
 		}
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO community_role_privileges (role_id, privilege) VALUES ($1, $2)`, memberRoleID, PrivEditRepertoire); err != nil {
-		return 0, err
+	for _, p := range []string{PrivEditRepertoire, PrivDownloadFiles} {
+		if _, err := tx.Exec(ctx, `INSERT INTO community_role_privileges (role_id, privilege) VALUES ($1, $2)`, memberRoleID, p); err != nil {
+			return 0, err
+		}
 	}
 	_ = guestRoleID // no privileges for guest
 	return staffRoleID, nil
@@ -252,7 +256,7 @@ func (st *Store) HasCommunityPrivilege(ctx context.Context, communityID, personI
 }
 
 // HasAnyCommunityManagePrivilege reports whether personID's current role
-// in communityID grants at least one of the 4 management privileges
+// in communityID grants at least one of the 5 management privileges
 // (edit_repertoire deliberately excluded — that's "can edit content,"
 // not "can administer the community") — drives whether a viewer sees
 // the admin page's nav link at all, same set requireCommunityAnyManagePrivilege
@@ -264,8 +268,8 @@ func (st *Store) HasAnyCommunityManagePrivilege(ctx context.Context, communityID
 			SELECT 1 FROM community_members cm
 			JOIN community_role_privileges crp ON crp.role_id = cm.role_id
 			WHERE cm.community_id = $1 AND cm.person_id = $2 AND upper_inf(cm.validity)
-			  AND crp.privilege IN ($3, $4, $5, $6)
-		)`, communityID, personID, PrivManageMembers, PrivManageEvents, PrivManageSubmissions, PrivManageSettings).Scan(&ok)
+			  AND crp.privilege IN ($3, $4, $5, $6, $7)
+		)`, communityID, personID, PrivManageMembers, PrivManageEvents, PrivManageSubmissions, PrivManageSettings, PrivManageFiles).Scan(&ok)
 	return ok, err
 }
 

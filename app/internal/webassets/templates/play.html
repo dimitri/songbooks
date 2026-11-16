@@ -463,6 +463,8 @@
     <a href="{{.SetlistURL}}">{{template "icon-back"}} <span>set list</span></a>
     {{else if .BandRef}}
     <a href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} <span title="{{.BandName}}">{{.BandName}}</span></a>
+    {{else if .LessonHref}}
+    <a href="{{.LessonHref}}">{{template "icon-back"}} <span title="{{.LessonLabel}}">{{.LessonLabel}}</span></a>
     {{else if .CommunityRef}}
     <a href="/communities/{{.CommunityRef}}/songbooks/default">{{template "icon-back"}} <span title="{{.CommunityName}}">{{.CommunityName}}</span></a>
     {{else if .SongbookRef}}
@@ -502,7 +504,7 @@
        vertical sidebar list instead of a horizontal icon pill. */}}
   <div class="sidebar-secondary sidebar-song-group">
     <div class="sidebar-group-label">This song</div>
-    <button type="button" id="edit-toggle" class="sidebar-song-row" title="edit">{{template "icon-edit"}} Edit</button>
+    <button type="button" id="edit-toggle" class="sidebar-song-row" title="edit"{{if not (or .CanEdit .CanCopy)}} hidden{{end}}>{{template "icon-edit"}} Edit</button>
     {{/* A real page link with this song's own context, not a bare nav
          entry — same href the old in-page mini-metro settings icon used,
          now the only way to reach metronome/transport settings from this
@@ -567,6 +569,8 @@
   <a class="back-link" href="{{.SetlistURL}}">{{template "icon-back"}} set list</a>
   {{else if .BandRef}}
   <a class="back-link" href="/bands/{{.BandRef}}/catalog" title="{{.BandName}}">{{template "icon-back"}} {{.BandName}}</a>
+  {{else if .LessonHref}}
+  <a class="back-link" href="{{.LessonHref}}" title="{{.LessonLabel}}">{{template "icon-back"}} {{.LessonLabel}}</a>
   {{else if .CommunityRef}}
   <a class="back-link" href="/communities/{{.CommunityRef}}/songbooks/default" title="{{.CommunityName}}">{{template "icon-back"}} {{.CommunityName}}</a>
   {{else if .SongbookRef}}
@@ -1204,7 +1208,7 @@
     {{else if .SetlistRef}}
     <a href="{{.SetlistURL}}" title="back to set list">{{template "icon-up"}} Up</a>
     {{else}}
-    {{if .SongbookRef}}<a href="/songbooks/{{.SongbookRef}}" title="back to songbook">{{template "icon-up"}} Up</a>{{else if .BandRef}}<a href="/bands/{{.BandRef}}/catalog" title="back to {{.BandName}}">{{template "icon-up"}} Up</a>{{else}}<a href="/catalog" title="back to catalog">{{template "icon-up"}} Up</a>{{end}}
+    {{if .LessonHref}}<a href="{{.LessonHref}}" title="back to {{.LessonLabel}}">{{template "icon-up"}} Up</a>{{else if .SongbookRef}}<a href="/songbooks/{{.SongbookRef}}" title="back to songbook">{{template "icon-up"}} Up</a>{{else if .BandRef}}<a href="/bands/{{.BandRef}}/catalog" title="back to {{.BandName}}">{{template "icon-up"}} Up</a>{{else}}<a href="/catalog" title="back to catalog">{{template "icon-up"}} Up</a>{{end}}
     {{end}}
     <button type="button" id="view-stack-btn">{{template "icon-view"}} View</button>
     {{/* A real page link, not a sheet toggle — the inline off-canvas
@@ -1272,7 +1276,7 @@
          row below/above already uses — no special-casing needed now
          that Reference is a real mode, not a drawer this row had its
          own bespoke open logic for. */}}
-    <button type="button" class="stack-sheet-row" data-forward="edit">{{template "icon-edit"}} Edit</button>
+    <button type="button" class="stack-sheet-row" data-forward="edit"{{if not (or .CanEdit .CanCopy)}} hidden{{end}}>{{template "icon-edit"}} Edit</button>
     {{if .VariantID}}<button type="button" class="stack-sheet-row" id="notes-stack-row">{{template "icon-notes"}} Notes</button>{{end}}
     <button type="button" class="stack-sheet-row" data-forward="reference">{{template "icon-reference"}} Reference</button>
     <div class="stack-sheet-row pdf-mode-row" style="flex-wrap:wrap;gap:0.6rem 0.9rem;">

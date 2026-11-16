@@ -3,6 +3,7 @@
 // pointing into the song's attached file (docs/gp-file-model.md §8).
 //
 //	gpmigrate dump  --db URL > songs.jsonl     every song with Riff JSON
+//	gpmigrate dump  --db URL --ids 251-284     these songs, whatever they hold
 //	node tools/gpmigrate/plan.cjs ...           works out the new texts and files
 //	gpmigrate apply --db URL --actor NAME < plan.jsonl
 //
@@ -28,6 +29,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 
 	"app/internal/gpfacts"
 	"app/internal/store"
@@ -59,6 +62,7 @@ func main() {
 	dbURL := fs.String("db", "", "database connection string (required)")
 	actor := fs.String("actor", "", "username the changes are made as (apply)")
 	dryRun := fs.Bool("dry-run", false, "apply: check every item, write nothing")
+	idList := fs.String("ids", "", "dump: these songs instead (\"251-284,297\")")
 	fs.Parse(os.Args[2:])
 	if *dbURL == "" {
 		log.Fatal("--db is required")
@@ -72,7 +76,16 @@ func main() {
 
 	switch cmd {
 	case "dump":
-		songs, err := st.ListRiffSongs(ctx)
+		var songs []store.RiffSong
+		if *idList != "" {
+			ids, perr := parseIDs(*idList)
+			if perr != nil {
+				log.Fatal(perr)
+			}
+			songs, err = st.ListSongsForMigration(ctx, ids)
+		} else {
+			songs, err = st.ListRiffSongs(ctx)
+		}
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -82,7 +95,11 @@ func main() {
 				log.Fatal(err)
 			}
 		}
-		log.Printf("%d songs with Riff JSON or a file without facts", len(songs))
+		if *idList != "" {
+			log.Printf("%d songs", len(songs))
+		} else {
+			log.Printf("%d songs with Riff JSON or a file without facts", len(songs))
+		}
 	case "apply":
 		var actorID int64
 		if *actor != "" {
@@ -142,7 +159,11 @@ func apply(ctx context.Context, st *store.Store, actorID int64, dryRun bool) {
 			}
 		}
 		if it.Body == current {
-			log.Printf("song %d: facts only", it.ID)
+			if it.File != nil {
+				log.Printf("song %d: new Guitar Pro file %q, text unchanged", it.ID, it.File.Name)
+			} else {
+				log.Printf("song %d: facts only", it.ID)
+			}
 			done++
 			continue
 		}
@@ -161,6 +182,28 @@ func apply(ctx context.Context, st *store.Store, actorID int64, dryRun bool) {
 		log.Fatal(err)
 	}
 	fmt.Printf("%d saved, %d skipped\n", done, skipped)
+}
+
+// parseIDs reads "251-284,297" as the song ids it names.
+func parseIDs(s string) ([]int64, error) {
+	var out []int64
+	for _, part := range strings.Split(s, ",") {
+		a, b, isRange := strings.Cut(strings.TrimSpace(part), "-")
+		lo, err := strconv.ParseInt(a, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("--ids: %q is not a song id", part)
+		}
+		hi := lo
+		if isRange {
+			if hi, err = strconv.ParseInt(b, 10, 64); err != nil || hi < lo {
+				return nil, fmt.Errorf("--ids: %q is not a range of song ids", part)
+			}
+		}
+		for id := lo; id <= hi; id++ {
+			out = append(out, id)
+		}
+	}
+	return out, nil
 }
 
 func fileNote(f *planFile) string {

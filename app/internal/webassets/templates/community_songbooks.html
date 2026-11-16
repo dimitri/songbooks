@@ -22,6 +22,7 @@
   <nav class="band-tabs band-tabs-row">
     <a class="band-tab" href="/communities/{{.Community.ID}}">Overview</a>
     <a href="/communities/{{.Community.ID}}/songbooks" class="band-tab active">Songbooks</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">Downloads</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/events">Events</a>
   </nav>
 
@@ -31,10 +32,10 @@
   {{range .Songbooks}}
     <div style="position:relative;">
       <a class="catalog-book-card" href="{{if .IsDefault}}/communities/{{$.Community.ID}}/songbooks/default{{else}}/songbooks/{{.ID}}{{end}}">
-        <div class="catalog-book-card-title">{{.Name}}{{if .IsDefault}} <span class="hint">(default)</span>{{end}}{{if .RequiresGrant}} <span class="hint">&#128274; members need access</span>{{end}}</div>
+        <div class="catalog-book-card-title">{{.Name}}{{if .IsDefault}} <span class="hint">(default)</span>{{end}}{{if .RequiresGrant}} <span class="hint">&#128274; members need access</span>{{end}}{{if not .Shared}} <span class="hint">private</span>{{end}}{{if .IsCourse}} <span class="hint">course</span>{{end}}</div>
         <div class="catalog-book-card-meta">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}}</div>
       </a>
-      {{if $.IsStaff}}<a class="hint" href="/communities/{{$.Community.ID}}/songbooks/{{.ID}}/access" style="display:block; margin-top:0.3rem;">Manage access &rarr;</a>{{end}}
+      {{if $.IsStaff}}<a class="hint" href="/communities/{{$.Community.ID}}/songbooks/{{.ID}}/access" style="display:block; margin-top:0.3rem;">Sharing and access &rarr;</a>{{end}}
     </div>
   {{else}}
     <p class="hint">No songbooks yet.</p>
