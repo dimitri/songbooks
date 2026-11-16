@@ -6047,3 +6047,99 @@ body.embed-playlist .app-content { margin: 0 !important; padding-bottom: 1rem !i
   .pl-stage-video iframe, .pl-stage-video > div { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
   .pl-stage-caption { margin: 0; padding: 0.7rem 1rem; display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; align-items: baseline; justify-content: space-between; background: var(--bg-raised); border-top: 1px solid var(--border); }
 }
+
+/* ---- A band's recordings (band_recordings.html) ------------------------ */
+.rec-source { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 1rem; margin: 0 0 1rem; font-size: 0.88rem; color: var(--fg-muted); }
+.rec-fixes-link { font-weight: 600; }
+.rec-fixes-link.quiet { font-weight: 400; }
+.rec-layout { display: grid; gap: 1rem; }
+@media (min-width: 900px) { .rec-layout { grid-template-columns: 1fr 19rem; align-items: start; } }
+.rec-session-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; }
+.rec-session-head h2 { margin: 0; font-size: 1.2rem; }
+.rec-session-head .hint { margin: 0.1rem 0 0; }
+.rec-session-nav { display: flex; gap: 0.4rem; }
+.rec-session-nav svg { width: 1em; height: 1em; }
+.rec-list { list-style: none; margin: 0; padding: 0; }
+.rec-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0.2rem; min-height: 3.2rem; }
+.rec-row + .rec-row { border-top: 1px solid var(--border); }
+.rec-row.playing { background: var(--accent-bg); border-radius: 8px; }
+.rec-row.playing strong, .rec-row.playing strong a { color: var(--accent); }
+.rec-play { flex: none; width: 2.75rem; height: 2.75rem; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-raised); color: var(--fg); display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.rec-play .icon { width: 1rem; height: 1rem; }
+.rec-row.playing .rec-play { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.rec-num { flex: none; width: 1.4rem; text-align: right; color: var(--fg-faint); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.rec-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rec-text strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-text strong a { color: inherit; text-decoration: none; }
+.rec-text strong a:hover { color: var(--accent); text-decoration: underline; }
+.rec-text small { color: var(--fg-faint); font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-ref { color: var(--accent); font-weight: 600; }
+.rec-unknown { font-style: italic; }
+.rec-rating { flex: none; margin-right: 0.15rem; display: inline-flex; flex-direction: column; align-items: flex-end; gap: 0.1rem; }
+/* Five stars, filled to --stars (0 to 5, by halves): the outline row, and
+   the filled row over it clipped to the share of five. */
+.rec-stars { position: relative; display: inline-block; font-size: 1.15rem; line-height: 1; letter-spacing: 0.08em; cursor: pointer; color: color-mix(in srgb, var(--fg) 16%, transparent); padding: 0.35rem 0; touch-action: manipulation; }
+.rec-stars::before { content: "★★★★★"; }
+.rec-stars::after { content: "★★★★★"; position: absolute; left: 0; top: 0.35rem; color: #e0a526; overflow: hidden; white-space: nowrap; width: calc(var(--stars, 0) / 5 * 100%); }
+.rec-stars:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.rec-stars-avg { font-size: 0.72rem; color: var(--fg-muted); font-variant-numeric: tabular-nums; min-height: 0.9rem; }
+.rec-side { display: flex; flex-direction: column; gap: 1rem; }
+.rec-calendar-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; }
+.rec-calendar-head h3 { margin: 0; font-size: 1rem; }
+.rec-calendar-head svg { width: 1em; height: 1em; }
+.rec-cal { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 0.82rem; text-align: center; }
+.rec-cal th { color: var(--fg-faint); font-weight: 600; padding: 0.2rem 0; }
+.rec-cal td { padding: 2px; }
+.rec-cal td span, .rec-cal td a { display: flex; align-items: center; justify-content: center; aspect-ratio: 1; border-radius: 50%; color: var(--fg-muted); text-decoration: none; min-height: 2rem; }
+.rec-cal td.is-other span { opacity: 0.35; }
+.rec-cal td.has-session a { background: var(--accent-bg); color: var(--accent); font-weight: 700; }
+.rec-cal td.is-selected a { background: var(--accent); color: var(--accent-contrast); }
+.rec-sessions h3 { margin: 0 0 0.4rem; font-size: 1rem; }
+.rec-sessions ol { list-style: none; margin: 0; padding: 0; max-height: 22rem; overflow: auto; }
+.rec-sessions li a { display: flex; justify-content: space-between; gap: 0.6rem; padding: 0.45rem 0.4rem; border-radius: 6px; color: inherit; text-decoration: none; font-size: 0.88rem; }
+.rec-sessions li a small { color: var(--fg-faint); }
+.rec-sessions li.is-selected a { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+.rec-stats { margin-top: 1.6rem; }
+.rec-stats h2 { font-size: 1.1rem; }
+.rec-stat-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.8rem; }
+.rec-stat-cards .card { padding: 0.9rem 1rem; }
+.rec-stat-cards h3 { margin: 0 0 0.4rem; font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-faint); }
+.rec-stat-cards ol, .rec-stat-cards ul { margin: 0; padding-left: 1.2rem; font-size: 0.9rem; }
+.rec-stat-cards li { padding: 0.15rem 0; }
+.rec-stat-cards li small { color: var(--fg-faint); margin-left: 0.4rem; }
+.rec-all { margin-top: 1rem; }
+.rec-all summary { cursor: pointer; min-height: 2.75rem; display: flex; align-items: center; font-weight: 600; }
+.rec-player { position: sticky; bottom: 0; z-index: 30; display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.8rem; margin-top: 1rem;
+  background: var(--bg-raised); border-top: 1px solid var(--border); box-shadow: 0 -6px 18px rgba(0,0,0,0.08); }
+.rec-player[hidden] { display: none; }
+.rec-player-btn { flex: none; width: 2.75rem; height: 2.75rem; border-radius: 50%; border: 1px solid var(--border); background: var(--bg); color: var(--fg); display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.rec-player-btn .icon { width: 1.05rem; height: 1.05rem; }
+.rec-player-play { width: 3.1rem; height: 3.1rem; background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.rec-player-now { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rec-player-now strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-player-now small { color: var(--fg-faint); font-size: 0.78rem; }
+.rec-player-scrub { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.rec-player-scrub input { flex: 1; accent-color: var(--accent); }
+@media (max-width: 900px) { .rec-player { bottom: var(--tabbar-h, 4.2rem); } }
+.rec-reference { border: 0; padding: 0; margin: 0; }
+.rec-reference legend { font-weight: 700; margin-bottom: 0.4rem; }
+.rec-pick { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 2.2rem; min-height: 2.75rem; }
+.rec-pick input { width: 1.2rem; height: 1.2rem; accent-color: var(--accent); }
+.rec-none { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; margin-top: 0.4rem; }
+.rec-questions { list-style: none; margin: 0; padding: 0; }
+.rec-questions li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem 1rem; padding: 0.6rem 0; }
+.rec-questions li + li { border-top: 1px solid var(--border); }
+.rec-question-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.rec-fixes .card + .card { margin-top: 1rem; }
+.rec-fixes form { margin-top: 1rem; }
+.rec-layout { grid-template-columns: minmax(0, 1fr); }
+.rec-layout > * { min-width: 0; }
+@media (min-width: 900px) { .rec-layout { grid-template-columns: minmax(0, 1fr) 19rem; } }
+@media (max-width: 560px) {
+  .rec .card { padding: 0.9rem 0.8rem; }
+  .rec-row { gap: 0.45rem; padding: 0.4rem 0; }
+  .rec-num { display: none; }
+  .rec-stars { font-size: 1rem; letter-spacing: 0; }
+  .rec-session-head h2 { font-size: 1.05rem; }
+  .rec-player { gap: 0.35rem; padding: 0.5rem; }
+}

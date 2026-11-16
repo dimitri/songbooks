@@ -117,8 +117,17 @@ type playlistTrack struct {
 	Category    string            `json:"category,omitempty"`
 	AudioURL    string            `json:"audio,omitempty"`
 	VideoID     string            `json:"video,omitempty"`
+	Remote      *playlistRemote   `json:"remote,omitempty"` // the band's chosen recording, from its pCloud folder
 	Sections    []playlistSection `json:"sections"`
 	both        bool              // has both its own and a reference recording
+}
+
+// playlistRemote is a recording the browser plays straight from the
+// band's pCloud folder (store.RemoteRecording).
+type playlistRemote struct {
+	Host   string `json:"host"`
+	Code   string `json:"code"`
+	FileID int64  `json:"file"`
 }
 
 // playlistSection is a section of a track: its name, its length in bars
@@ -234,9 +243,23 @@ func (s *Server) handlePlaylistPage(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			continue
 		}
+		// A band's own reference for the song, chosen among its recordings.
+		if sb.OwnerKind == "band" && prefer != "reference" {
+			if rec, err := s.store.ChosenSongRecording(r.Context(), sb.OwnerBandID, row.VariantID); err == nil && rec != nil {
+				t.Source, t.Category, t.AudioURL, t.VideoID, t.SourceLabel = "band", "", "", "", "Ours"
+				t.Remote = &playlistRemote{Host: rec.APIHost, Code: rec.Code, FileID: rec.FileID}
+				t.Subtitle = rec.Label
+				for i := range t.Sections {
+					t.Sections[i].Start = -1
+				}
+				choice = true
+			}
+		}
 		choice = choice || t.both
 		t.Num = strconv.Itoa(len(tracks) + len(silent) + 1)
-		t.Subtitle = strings.Join(nonEmpty(t.Artist, t.Key), " · ")
+		if t.Subtitle == "" {
+			t.Subtitle = strings.Join(nonEmpty(t.Artist, t.Key), " · ")
+		}
 		if t.Source == "" {
 			silent = append(silent, t)
 		} else {

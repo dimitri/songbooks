@@ -163,12 +163,21 @@
     playBtn.innerHTML = on ? PAUSE : PLAY;
     rows.forEach((r, i) => r.classList.toggle('playing', i === index && on));
     // The song beside the player follows the recording (?embed=playlist).
-    if (wide.matches && frame && frame.contentWindow && !isVideo()) {
+    if (wide.matches && frame && frame.contentWindow && !isVideo() && !track().remote) {
       frame.contentWindow.postMessage({type: 'songbooks:playlist', id: track().id, category: track().category, t, playing: on}, location.origin);
     }
     if ('mediaSession' in navigator && isFinite(d) && d > 0) {
       try { navigator.mediaSession.setPositionState({duration: d, position: Math.min(t, d), playbackRate: 1}); } catch (e) {}
     }
+  }
+
+  // A band's own recording plays straight from its pCloud folder: pCloud
+  // gives the file's link to whoever asks, for their own address.
+  async function remoteLink(r) {
+    const res = await fetch(`https://${r.host}/getpublinkdownload?code=${encodeURIComponent(r.code)}&fileid=${r.file}`);
+    const d = await res.json();
+    if (d.result !== 0) throw new Error(d.error || 'pCloud didn’t give the file');
+    return `https://${d.hosts[0]}${d.path}`;
   }
 
   function loadYouTube() {
@@ -222,7 +231,7 @@
       }
     } else {
       if (yt && yt.pauseVideo) yt.pauseVideo();
-      audio.src = t.audio;
+      audio.src = t.remote ? await remoteLink(t.remote) : t.audio;
       if (at) audio.addEventListener('loadedmetadata', () => { audio.currentTime = at; }, {once: true});
       if (autoplay) audio.play().catch(() => {});
     }

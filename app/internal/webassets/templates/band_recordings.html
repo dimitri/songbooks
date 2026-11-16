@@ -1,0 +1,455 @@
+{{/* A band's recordings (internal/httpapi/band_recordings.go): its
+     Rehearsals and Concerts tabs, a song's recordings, the corrections.
+     Recordings play straight from the band's pCloud folder: the browser
+     asks pCloud for each file's link (rec-player), nothing goes through
+     us. */}}
+
+{{define "rec-head"}}
+{{$brand := brandFor "band" .Band.ID}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Band.Name}} — {{.PageTitle}}</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+{{template "brand-head" $brand}}
+</head>
+<body class="rec-page"{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+{{end}}
+
+{{/* rec-stars: a recording's stars — yours to set, by halves, and the
+     band's average. Its data is a store.BandRecording. */}}
+{{define "rec-stars"}}
+<span class="rec-rating">
+  <span class="rec-stars" role="slider" tabindex="0" data-rec="{{.ID}}" aria-label="Your stars for {{.Title}}" aria-valuemin="0" aria-valuemax="5" aria-valuenow="{{.MyStars}}" aria-valuetext="{{if .MyStars}}{{.MyStars}} stars{{else}}not rated{{end}}" style="--stars: {{.MyStars}}"></span>
+  <span class="rec-stars-avg" title="the band's average">{{if .Ratings}}{{printf "%.1f" .Stars}}<small> · {{.Ratings}}</small>{{end}}</span>
+</span>
+{{end}}
+
+{{/* rec-row: a recording in a list; .Rec the recording, .Base the band's
+     id, .Number what to show first (its place, or its date). */}}
+{{define "rec-row"}}
+<li class="rec-row{{if .Rec.Reference}} is-reference{{end}}" data-file="{{.Rec.FileID}}" data-title="{{if .Rec.SongTitle}}{{.Rec.SongTitle}}{{else}}{{.Rec.Title}}{{end}}" data-detail="{{.Detail}}">
+  <button type="button" class="rec-play" aria-label="Play {{.Rec.Title}}">{{template "icon-play"}}</button>
+  <span class="rec-num">{{.Number}}</span>
+  <span class="rec-text">
+    <strong>{{if .Rec.VariantID}}<a href="/bands/{{.Band}}/recordings/songs/{{.Rec.VariantID}}">{{.Rec.SongTitle}}</a>{{else}}{{.Rec.Title}}{{end}}</strong>
+    <small>{{with .Rec.Take}}take {{.}} · {{end}}{{.Rec.Ext}} · {{fileSize .Rec.Size}}{{if .Rec.Reference}} · <span class="rec-ref">the band’s reference</span>{{end}}{{if not .Rec.VariantID}} · <span class="rec-unknown">not a song of the band’s</span>{{end}}</small>
+  </span>
+  {{template "rec-stars" .Rec}}
+</li>
+{{end}}
+
+{{/* rec-player: the player, and what the stars do. Its data is the
+     page's (Band, Source). */}}
+{{define "rec-player"}}
+<div class="rec-player" id="rec-player" hidden>
+  <button type="button" class="rec-player-btn" id="rec-prev" aria-label="Previous recording"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 4.5v11L7.5 10z" fill="currentColor"/></svg></button>
+  <button type="button" class="rec-player-btn rec-player-play" id="rec-toggle" aria-label="Pause"></button>
+  <button type="button" class="rec-player-btn" id="rec-next" aria-label="Next recording"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M15 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4.5v11L12.5 10z" fill="currentColor"/></svg></button>
+  <div class="rec-player-now">
+    <strong id="rec-now-title"></strong>
+    <small id="rec-now-detail"></small>
+    <div class="rec-player-scrub"><span id="rec-pos">0:00</span><input type="range" id="rec-seek" min="0" max="100" step="0.1" value="0" aria-label="Position in the recording"><span id="rec-dur">–:––</span></div>
+  </div>
+</div>
+<script>
+(() => {
+  const bandId = {{.Band.ID}};
+  {{with .Source}}const host = {{.APIHost}}, code = {{.Code}};{{else}}const host = '', code = '';{{end}}
+  const PLAY = '<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3.8v12.4L16.5 10z" fill="currentColor"/></svg>';
+  const PAUSE = '<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="4" width="3.4" height="12" rx="1" fill="currentColor"/><rect x="11.6" y="4" width="3.4" height="12" rx="1" fill="currentColor"/></svg>';
+  const $ = (id) => document.getElementById(id);
+  const rows = [...document.querySelectorAll('.rec-row[data-file]')];
+  const audio = new Audio();
+  const bar = $('rec-player'), toggle = $('rec-toggle'), seek = $('rec-seek');
+  const fmt = (t) => !isFinite(t) ? '–:––' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+  let at = -1;
+
+  // pCloud gives a file's link to whoever asks, for their own address: the
+  // browser asks, and the recording streams from pCloud.
+  const links = new Map();
+  async function linkFor(fileId) {
+    const c = links.get(fileId);
+    if (c && c.until > Date.now()) return c.url;
+    const res = await fetch(`https://${host}/getpublinkdownload?code=${encodeURIComponent(code)}&fileid=${fileId}`);
+    const data = await res.json();
+    if (data.result !== 0) throw new Error(data.error || 'pCloud didn’t give the file');
+    const url = `https://${data.hosts[0]}${data.path}`;
+    links.set(fileId, {url, until: Date.now() + 60 * 60 * 1000});
+    return url;
+  }
+  async function play(i) {
+    if (i < 0 || i >= rows.length) return;
+    at = i;
+    const row = rows[i];
+    rows.forEach((r) => r.classList.toggle('playing', r === row));
+    bar.hidden = false;
+    $('rec-now-title').textContent = row.dataset.title;
+    $('rec-now-detail').textContent = row.dataset.detail || '';
+    try {
+      audio.src = await linkFor(row.dataset.file);
+      await audio.play();
+    } catch (e) {
+      $('rec-now-detail').textContent = 'Couldn’t play it: ' + e.message;
+    }
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({title: row.dataset.title, artist: {{.Band.Name}}, album: row.dataset.detail || ''});
+    }
+  }
+  rows.forEach((row, i) => row.querySelector('.rec-play').addEventListener('click', () => (at === i && !audio.paused ? audio.pause() : at === i ? audio.play() : play(i))));
+  document.querySelectorAll('[data-play-all]').forEach((b) => b.addEventListener('click', () => play(0)));
+  toggle.addEventListener('click', () => (audio.paused ? audio.play() : audio.pause()));
+  $('rec-next').addEventListener('click', () => play(at + 1));
+  $('rec-prev').addEventListener('click', () => (audio.currentTime > 3 ? (audio.currentTime = 0) : play(at - 1)));
+  audio.addEventListener('ended', () => play(at + 1));
+  seek.addEventListener('input', () => { if (isFinite(audio.duration)) audio.currentTime = (seek.value / 100) * audio.duration; });
+  const render = () => {
+    toggle.innerHTML = audio.paused ? PLAY : PAUSE;
+    toggle.setAttribute('aria-label', audio.paused ? 'Play' : 'Pause');
+    rows.forEach((r, i) => { const b = r.querySelector('.rec-play'); b.innerHTML = i === at && !audio.paused ? PAUSE : PLAY; });
+    $('rec-pos').textContent = fmt(audio.currentTime);
+    $('rec-dur').textContent = fmt(audio.duration);
+    if (isFinite(audio.duration) && document.activeElement !== seek) seek.value = (audio.currentTime / audio.duration) * 100;
+  };
+  ['play', 'pause', 'timeupdate', 'loadedmetadata'].forEach((e) => audio.addEventListener(e, render));
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.setActionHandler('play', () => audio.play());
+    navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+    navigator.mediaSession.setActionHandler('nexttrack', () => play(at + 1));
+    navigator.mediaSession.setActionHandler('previoustrack', () => play(at - 1));
+  }
+
+  // Stars: tap where on the five, by halves; arrows step by half; tapping
+  // your stars again takes them back.
+  document.querySelectorAll('.rec-stars').forEach((el) => {
+    const set = async (v) => {
+      const before = Number(el.getAttribute('aria-valuenow')) || 0;
+      if (v === before) v = 0;
+      el.style.setProperty('--stars', v);
+      el.setAttribute('aria-valuenow', v);
+      el.setAttribute('aria-valuetext', v ? `${v} stars` : 'not rated');
+      const res = await fetch(`/api/bands/${bandId}/recordings/${el.dataset.rec}/stars`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({stars: v}),
+      }).catch(() => null);
+      const avg = el.parentElement.querySelector('.rec-stars-avg');
+      if (!res || !res.ok) { el.style.setProperty('--stars', before); el.setAttribute('aria-valuenow', before); avg.textContent = 'Couldn’t save'; return; }
+      const d = await res.json();
+      avg.innerHTML = d.ratings ? `${d.stars.toFixed(1)}<small> · ${d.ratings}</small>` : '';
+    };
+    el.addEventListener('click', (e) => {
+      const r = el.getBoundingClientRect();
+      set(Math.min(5, Math.max(0.5, Math.ceil(((e.clientX - r.left) / r.width) * 10) / 2)));
+    });
+    el.addEventListener('keydown', (e) => {
+      const v = Number(el.getAttribute('aria-valuenow')) || 0;
+      const step = {ArrowRight: 0.5, ArrowUp: 0.5, ArrowLeft: -0.5, ArrowDown: -0.5}[e.key];
+      if (step === undefined) return;
+      e.preventDefault();
+      const n = Math.min(5, Math.max(0.5, v + step));
+      if (n !== v) set(n);
+    });
+  });
+
+  // The band's reference for a song (its recordings' page).
+  document.querySelectorAll('input[name=reference]').forEach((radio) => radio.addEventListener('change', async () => {
+    const out = $('reference-status');
+    const res = await fetch(`/api/bands/${bandId}/songs/${radio.dataset.song}/recording`, {
+      method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({recording: Number(radio.value)}),
+    }).catch(() => null);
+    Forms.status(out, res && res.ok ? (Number(radio.value) ? 'Saved: the playlist plays it.' : 'Saved: no reference.') : 'Couldn’t save that.', res && res.ok ? 'ok' : 'error');
+  }));
+})();
+</script>
+{{end}}
+
+{{define "band_recordings"}}
+{{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" (printf "%ss" .Kind))}}
+<header class="app-header">
+  <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
+  <h1>{{if eq .Kind "rehearsal"}}Rehearsals{{else}}Concerts{{end}}</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index rec">
+  {{template "band-tabs" (bandTabs .Band.ID .Tab)}}
+
+  {{if not .Source}}
+  <section class="card card--md">
+    <h2>The band’s recordings</h2>
+    <p>Share the folder where the band keeps its recordings on pCloud, and paste its link here. Each rehearsal and concert shows here with its recordings, to listen to and rate. Nothing is copied: the recordings play straight from pCloud.</p>
+    <p class="hint">The app reads the folders the way bands file them: <code>Repetes/2025-03-13/07 - Plan Chicago Blues - Take 2 - 2025-03-13.mp3</code>, <code>Concerts/2025-06-14/…</code>.</p>
+    <form class="form-stack" id="source-form">
+      <div class="field"><label for="source-link">pCloud shared link</label><input id="source-link" name="link" type="url" inputmode="url" required placeholder="https://e.pcloud.link/publink/show?code=…" autocomplete="off"></div>
+      <div class="form-actions"><button type="submit" class="primary">Use this folder</button></div>
+      <p class="form-status" role="status"></p>
+    </form>
+  </section>
+  <script>
+  (() => {
+    const form = document.getElementById('source-form');
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      Forms.run(form, form.querySelector('button'), async () => {
+        const res = await fetch(`/api/bands/{{.Band.ID}}/recordings/source`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({link: form.elements.link.value})});
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'That didn’t work.');
+        location.reload();
+      });
+    });
+  })();
+  </script>
+  {{else}}
+
+  <div class="rec-source">
+    <span>From <strong>{{.Source.Name}}</strong> on pCloud{{with .Source.SyncedAt}}, read {{.Format "2 Jan 15:04"}}{{end}}</span>
+    <button type="button" class="link-like" id="rec-sync">Read it again</button>
+    {{if or .Questions .Unmatched}}<a class="rec-fixes-link" href="/bands/{{.Band.ID}}/recordings/fixes">{{if .Questions}}{{.Questions}} date{{if ne .Questions 1}}s{{end}} to check{{end}}{{if and .Questions .Unmatched}} · {{end}}{{if .Unmatched}}{{.Unmatched}} title{{if ne .Unmatched 1}}s{{end}} to match{{end}}</a>{{else}}<a class="rec-fixes-link quiet" href="/bands/{{.Band.ID}}/recordings/fixes">Corrections</a>{{end}}
+    <span class="form-status" role="status" id="rec-sync-status"></span>
+  </div>
+
+  {{if not .Sessions}}
+  <p class="dl-empty">No {{.Kind}} recordings in that folder yet{{if eq .Kind "rehearsal"}} (a <code>Repetes/</code> or <code>Rehearsals/</code> folder of dated folders){{else}} (a <code>Concerts/</code> folder of dated folders){{end}}.</p>
+  {{else}}
+  <div class="rec-layout">
+    <section class="rec-session card" aria-labelledby="rec-session-title">
+      <div class="rec-session-head">
+        <div>
+          <h2 id="rec-session-title">{{.Selected.Format "Monday 2 January 2006"}}</h2>
+          <p class="hint">{{len .Recordings}} recording{{if ne (len .Recordings) 1}}s{{end}}</p>
+        </div>
+        <div class="rec-session-nav">
+          {{with .Older}}<a class="dl-btn" href="{{.}}" aria-label="The {{$.Kind}} before">{{template "icon-back"}}</a>{{end}}
+          <button type="button" class="dl-btn primary" data-play-all>{{template "icon-play"}} Play all</button>
+          {{with .Newer}}<a class="dl-btn" href="{{.}}" aria-label="The {{$.Kind}} after">{{template "icon-forward"}}</a>{{end}}
+        </div>
+      </div>
+      <ol class="rec-list">
+        {{$date := .Selected.Format "2 Jan 2006"}}
+        {{range .Recordings}}{{template "rec-row" (dict "Rec" . "Band" $.Band.ID "Number" (or .Position "·") "Detail" (printf "%s %s" (recKind $.Kind) $date))}}{{end}}
+      </ol>
+    </section>
+
+    <aside class="rec-side">
+      <section class="card rec-calendar" aria-label="Calendar">
+        <div class="rec-calendar-head">
+          {{if .Month.Prev}}<a class="calendar-nav-btn" href="{{.Month.Prev}}" aria-label="Previous month">{{template "icon-back"}}</a>{{else}}<span></span>{{end}}
+          <h3>{{.Month.Title}}</h3>
+          {{if .Month.Next}}<a class="calendar-nav-btn" href="{{.Month.Next}}" aria-label="Next month">{{template "icon-forward"}}</a>{{else}}<span></span>{{end}}
+        </div>
+        <table class="rec-cal">
+          <thead><tr><th>M</th><th>T</th><th>W</th><th>T</th><th>F</th><th>S</th><th>S</th></tr></thead>
+          <tbody>{{range .Month.Weeks}}<tr>{{range .}}<td class="{{if not .InMonth}}is-other{{end}}{{if .Session}} has-session{{end}}{{if .Selected}} is-selected{{end}}">{{if .Href}}<a href="{{.Href}}" aria-label="{{.Date.Format "2 January 2006"}}"{{if .Selected}} aria-current="date"{{end}}>{{.Date.Day}}</a>{{else}}<span>{{.Date.Day}}</span>{{end}}</td>{{end}}</tr>{{end}}</tbody>
+        </table>
+      </section>
+
+      <section class="card rec-sessions">
+        <h3>{{len .Sessions}} {{.Kind}}{{if ne (len .Sessions) 1}}s{{end}}</h3>
+        <ol>
+          {{range .Sessions}}
+          <li{{if .Date.Equal $.Selected}} class="is-selected"{{end}}><a href="{{$.Base}}?date={{.Date.Format "2006-01-02"}}"><span>{{.Date.Format "2 Jan 2006"}}</span><small>{{.Recordings}} · {{.Songs}} song{{if ne .Songs 1}}s{{end}}{{if .Stars}} · {{printf "%.1f" .Stars}} ★{{end}}</small></a></li>
+          {{end}}
+        </ol>
+      </section>
+    </aside>
+  </div>
+  {{end}}
+
+  {{with .Stats}}
+  <section class="rec-stats" aria-labelledby="rec-stats-title">
+    <h2 id="rec-stats-title">The songs, over {{.Rehearsals}} rehearsals</h2>
+    <div class="rec-stat-cards">
+      <div class="card"><h3>Played the most</h3><ol>{{range .Most}}<li><a href="/bands/{{$.Band.ID}}/recordings/songs/{{.VariantID}}">{{.Title}}</a><small>{{.Sessions}}×</small></li>{{end}}</ol></div>
+      <div class="card"><h3>Played the least</h3><ol>{{range .Least}}<li><a href="/bands/{{$.Band.ID}}/recordings/songs/{{.VariantID}}">{{.Title}}</a><small>{{.Sessions}}×</small></li>{{end}}</ol></div>
+      <div class="card"><h3>Not played for the longest</h3><ol>{{range .Longest}}<li><a href="/bands/{{$.Band.ID}}/recordings/songs/{{.VariantID}}">{{.Title}}</a><small>{{.Last.Format "2 Jan 2006"}}</small></li>{{end}}</ol></div>
+      {{if .Best}}<div class="card"><h3>Rated the best</h3><ol>{{range .Best}}<li><a href="/bands/{{$.Band.ID}}/recordings/songs/{{.VariantID}}">{{.Title}}</a><small>{{printf "%.1f" .Stars}} ★</small></li>{{end}}</ol></div>{{end}}
+      {{if .Never}}<div class="card"><h3>Never recorded at a rehearsal</h3><ul>{{range .Never}}<li>{{.Title}}{{if .Concerts}}<small>{{.Concerts}} concert{{if ne .Concerts 1}}s{{end}}</small>{{end}}</li>{{end}}</ul></div>{{end}}
+    </div>
+    <details class="rec-all">
+      <summary>Every song</summary>
+      <div class="table-scroll"><table class="table-stack stats-table">
+        <thead><tr><th>Song</th><th class="num">Rehearsals</th><th class="num">Recordings</th><th>Last played</th><th class="num">Stars</th><th class="num">Concerts</th><th>Reference</th></tr></thead>
+        <tbody>
+        {{range .All}}<tr>
+          <td data-label="Song"><a href="/bands/{{$.Band.ID}}/recordings/songs/{{.VariantID}}">{{.Title}}</a></td>
+          <td data-label="Rehearsals" class="num">{{.Sessions}}</td>
+          <td data-label="Recordings" class="num">{{.Recordings}}</td>
+          <td data-label="Last played">{{with .Last}}{{.Format "2 Jan 2006"}}{{else}}—{{end}}</td>
+          <td data-label="Stars" class="num">{{if .Stars}}{{printf "%.1f" .Stars}}{{else}}—{{end}}</td>
+          <td data-label="Concerts" class="num">{{.Concerts}}</td>
+          <td data-label="Reference">{{if .Chosen}}chosen{{else}}—{{end}}</td>
+        </tr>{{end}}
+        </tbody>
+      </table></div>
+    </details>
+  </section>
+  {{end}}
+
+  <script>
+  document.getElementById('rec-sync')?.addEventListener('click', async (e) => {
+    const out = document.getElementById('rec-sync-status');
+    Forms.busy(e.target, true);
+    Forms.status(out, 'Reading the folder…');
+    const res = await fetch(`/api/bands/{{.Band.ID}}/recordings/sync`, {method: 'POST'}).catch(() => null);
+    Forms.busy(e.target, false);
+    if (res && res.ok) location.reload(); else Forms.status(out, 'Couldn’t read the folder. Try again.', 'error');
+  });
+  </script>
+  {{end}}
+</main>
+{{template "rec-player" .}}
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}
+
+{{define "band_song_recordings"}}
+{{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" .Song.Title)}}
+<header class="app-header">
+  <a class="back-link" href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-back"}} Rehearsals</a>
+  <h1>{{.Song.Title}}</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index rec">
+  <p class="hint">The band’s recordings of the song, the best rated first. The one chosen as the reference is what the band’s playlist plays. <a href="/song/{{.Song.VariantID}}">Open the song</a></p>
+  {{if .Recordings}}
+  <fieldset class="rec-reference">
+    <legend>The band’s reference</legend>
+    <ol class="rec-list">
+      {{range .Recordings}}
+      <li class="rec-row{{if .Reference}} is-reference{{end}}" data-file="{{.FileID}}" data-title="{{$.Song.Title}}" data-detail="{{recKind .Kind}} {{with .SessionDate}}{{.Format "2 Jan 2006"}}{{end}}{{with .Take}}, take {{.}}{{end}}">
+        <label class="rec-pick"><input type="radio" name="reference" value="{{.ID}}" data-song="{{$.Song.VariantID}}"{{if .Reference}} checked{{end}} aria-label="Make it the reference"></label>
+        <button type="button" class="rec-play" aria-label="Play">{{template "icon-play"}}</button>
+        <span class="rec-text">
+          <strong>{{recKind .Kind}} {{with .SessionDate}}{{.Format "2 Jan 2006"}}{{end}}{{with .Take}} · take {{.}}{{end}}</strong>
+          <small>{{.Name}} · {{fileSize .Size}}</small>
+        </span>
+        {{template "rec-stars" .}}
+      </li>
+      {{end}}
+    </ol>
+    <label class="rec-none"><input type="radio" name="reference" value="0" data-song="{{.Song.VariantID}}"> No reference</label>
+    <p class="form-status" role="status" id="reference-status"></p>
+  </fieldset>
+  {{else}}
+  <p class="dl-empty">No recording of this song in the band’s folder.</p>
+  {{end}}
+</main>
+{{template "rec-player" .}}
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}
+
+{{define "band_recording_fixes"}}
+{{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" "corrections")}}
+<header class="app-header">
+  <a class="back-link" href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-back"}} Rehearsals</a>
+  <h1>Corrections</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index rec rec-fixes">
+  <p class="hint">What the recordings’ names get wrong, corrected once: every reading of the folder applies it again.</p>
+
+  <section class="card">
+    <h2>Dates to check</h2>
+    {{if .Questions}}
+    <p class="hint">These folders’ files are named with another date. A folder’s date is taken unless you say otherwise; the one nearest to when the files went up on pCloud is marked likely.</p>
+    <ul class="rec-questions">
+      {{range .Questions}}
+      <li data-from="{{.FolderDate}}">
+        <div><strong>{{.FolderDate}}</strong> <span class="hint">{{.Kind}} · {{.Path}}</span><br>
+          <small>{{.Files}} file{{if ne .Files 1}}s{{end}} named {{range $i, $d := .FileDates}}{{if $i}}, {{end}}{{$d}}{{end}}{{with .Created}} · put on pCloud {{.}}{{end}}</small></div>
+        <div class="rec-question-actions">
+          {{$likely := .Likely}}
+          <button type="button" class="{{if eq $likely .FolderDate}}primary{{else}}secondary{{end}}" data-to="{{.FolderDate}}">{{.FolderDate}} is right{{if eq $likely .FolderDate}} (likely){{end}}</button>
+          {{range .FileDates}}<button type="button" class="{{if eq $likely .}}primary{{else}}secondary{{end}}" data-to="{{.}}">It’s {{.}}{{if eq $likely .}} (likely){{end}}</button>{{end}}
+        </div>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}<p class="hint">None.</p>{{end}}
+  </section>
+
+  <section class="card">
+    <h2>Titles to match</h2>
+    {{if .Unmatched}}
+    <p class="hint">Recordings whose title names none of the band’s songs: a spelling, a song not in the repertoire yet, a jam.</p>
+    <ul class="rec-questions">
+      {{range .Unmatched}}
+      <li>
+        <div><strong>{{.Title}}</strong> <span class="hint">{{.Count}} recording{{if ne .Count 1}}s{{end}} · {{.Example}}</span></div>
+        <div class="rec-question-actions">
+          <select class="rec-title-fix" data-from="{{.Title}}" aria-label="The song “{{.Title}}” is">
+            <option value="">Is the song…</option>
+            {{range $.Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}
+          </select>
+        </div>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}<p class="hint">None.</p>{{end}}
+  </section>
+
+  <section class="card">
+    <h2>The corrections</h2>
+    {{if .Fixes}}
+    <div class="table-scroll"><table class="table-stack stats-table">
+      <thead><tr><th>What</th><th>Written</th><th>Is</th><th></th></tr></thead>
+      <tbody>
+      {{range .Fixes}}<tr>
+        <td data-label="What">{{if eq .Kind "date"}}A date{{else}}A title{{end}}</td>
+        <td data-label="Written">{{.From}}</td>
+        <td data-label="Is">{{if eq .Kind "date"}}{{.To}}{{else}}{{.SongTitle}}{{end}}</td>
+        <td><button type="button" class="link-like danger" data-delete="{{.ID}}">Remove</button></td>
+      </tr>{{end}}
+      </tbody>
+    </table></div>
+    {{else}}<p class="hint">None yet.</p>{{end}}
+    <form class="course-form" id="date-fix-form">
+      <div class="field"><label for="fix-from">A date written</label><input id="fix-from" name="from" placeholder="2024-05-26" pattern="\d{4}-\d{2}(-\d{2})?" required autocomplete="off"></div>
+      <div class="field"><label for="fix-to">is</label><input id="fix-to" name="to" type="date" required></div>
+      <div class="form-actions"><button type="submit" class="secondary">Correct it</button></div>
+      <p class="form-status" role="status"></p>
+    </form>
+  </section>
+</main>
+</div>
+<script>
+(() => {
+  const bandId = {{.Band.ID}};
+  const fix = async (kind, from, to) => {
+    const res = await fetch(`/api/bands/${bandId}/recordings/fixes`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({kind, from, to})}).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
+    if (!res || !res.ok) throw new Error(data.error || 'Couldn’t save that.');
+  };
+  document.querySelectorAll('[data-from] [data-to]').forEach((b) => b.addEventListener('click', async () => {
+    try { await fix('date', b.closest('[data-from]').dataset.from, b.dataset.to); location.reload(); } catch (e) { alert(e.message); }
+  }));
+  document.querySelectorAll('.rec-title-fix').forEach((sel) => sel.addEventListener('change', async () => {
+    if (!sel.value) return;
+    try { await fix('title', sel.dataset.from, sel.value); location.reload(); } catch (e) { alert(e.message); }
+  }));
+  document.querySelectorAll('[data-delete]').forEach((b) => b.addEventListener('click', async () => {
+    const res = await fetch(`/api/bands/${bandId}/recordings/fixes/${b.dataset.delete}`, {method: 'DELETE'}).catch(() => null);
+    if (res && res.ok) location.reload(); else alert('Couldn’t remove it.');
+  }));
+  const form = document.getElementById('date-fix-form');
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    Forms.run(form, form.querySelector('button'), async () => { await fix('date', form.elements.from.value.trim(), form.elements.to.value); location.reload(); });
+  });
+})();
+</script>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

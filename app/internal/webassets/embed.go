@@ -218,6 +218,25 @@ var funcMap = template.FuncMap{
 	},
 	// bandTabs is the band-tabs partial's argument: the band and which
 	// section is open.
+	// dict makes a map of its key, value pairs: a template's data when it
+	// needs several values.
+	"dict": func(kv ...any) map[string]any {
+		m := map[string]any{}
+		for i := 0; i+1 < len(kv); i += 2 {
+			if k, ok := kv[i].(string); ok {
+				m[k] = kv[i+1]
+			}
+		}
+		return m
+	},
+	// recKind names a kind of band recording: "Rehearsal".
+	"recKind": func(kind string) string {
+		if l, ok := map[string]string{"rehearsal": "Rehearsal", "concert": "Concert", "audition": "Audition", "studio": "Studio",
+			"album": "Album", "setlist": "Set list"}[kind]; ok {
+			return l
+		}
+		return "Recording"
+	},
 	"bandTabs": func(id int64, active string) map[string]any {
 		return map[string]any{"ID": id, "Active": active}
 	},
