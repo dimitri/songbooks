@@ -6,9 +6,9 @@
 //
 // The map is the file itself, drawn by alphaTab on one long line (the
 // chosen track, or every track, with its chords, markers and repeat
-// signs), with a band under the bars each section already uses. Drag to
-// choose bars, shift-click to extend, Ctrl/⌘-click to add a second range,
-// or drag the selection's handles. It checks the bars play as many bars
+// signs), with a band under the bars each section already uses. Bars are
+// chosen like a period on a calendar: click the first bar, then the last;
+// "+ Another range" adds bars from elsewhere in the file. It checks the bars play as many bars
 // as the section has, and offers shortcuts:
 // the same bars as an earlier section of the same name, the bars right
 // after the previous section, or every section from the file's markers.
@@ -99,6 +99,8 @@
     const cur = () => sections[st.cur];
     function refOf(sec, track) { return (sec.gp || []).find((g) => sameTrack(g.track, track)); }
     function loadSelection() {
+      st.pending = null;
+      st.adding = false;
       const sec = cur();
       const ref = refOf(sec, st.track) || (sec.gp || [])[0];
       if (ref && !refOf(sec, st.track)) st.track = ref.track;
@@ -203,16 +205,23 @@
           Object.assign(box.style, { left: sp.left + 'px', width: sp.width + 'px' });
           over.appendChild(box);
         }
-        if (st.ranges.length) {
-          const sp = span(st.ranges[0][0], st.ranges[st.ranges.length - 1][1]);
-          const lh = el('span', 'gpbp-handle l');
-          const rh = el('span', 'gpbp-handle r');
-          lh.title = rh.title = 'Drag to change';
-          lh.style.left = sp.left - 4 + 'px';
-          rh.style.left = sp.left + sp.width - 3 + 'px';
-          over.append(lh, rh);
+        // Between the two clicks: from the first bar to the one under the
+        // pointer, as a calendar shows a period being chosen.
+        if (st.pending) {
+          const to = st.hover || st.pending.start;
+          const sp = span(Math.min(st.pending.start, to), Math.max(st.pending.start, to));
+          if (sp) {
+            const box = el('div', 'gpbp-sel pending');
+            Object.assign(box.style, { left: sp.left + 'px', width: sp.width + 'px' });
+            over.appendChild(box);
+          }
+          const first = span(st.pending.start, st.pending.start);
+          const mark = el('div', 'gpbp-start');
+          Object.assign(mark.style, { left: first.left + 'px', width: first.width + 'px' });
+          over.appendChild(mark);
         }
       }
+      renderHint();
       // Bands: every other section's bars for this track (or every track).
       bands.replaceChildren();
       if (!rects.length) return;
@@ -242,42 +251,50 @@
       bands.style.height = Math.max(1, lanes.length) * 18 + 'px';
     }
 
-    // Choosing bars with the pointer.
-    let drag = null;
+    // Choosing bars like a period on a calendar: click the first bar, then
+    // the last one. A new first click starts over, unless "Another range"
+    // asked to add one.
     const barAt = (e) => {
       const x = e.clientX - over.getBoundingClientRect().left;
       for (let n = 1; n < rects.length; n++) if (rects[n] && x < rects[n].x + rects[n].w) return n;
       return Math.max(1, rects.length - 1);
     };
-    over.addEventListener('pointerdown', (e) => {
+    over.addEventListener('click', (e) => {
       if (!rects.length) return;
-      const handle = e.target.closest('.gpbp-handle');
       const n = barAt(e);
-      if (handle && st.ranges.length) {
-        const fixed = handle.classList.contains('l') ? st.ranges[st.ranges.length - 1][1] : st.ranges[0][0];
-        drag = { anchor: fixed, keep: [] };
-      } else if (e.shiftKey && st.ranges.length) {
-        const last = st.ranges[st.ranges.length - 1];
-        drag = { anchor: last[0], keep: st.ranges.slice(0, -1) };
-      } else if (e.metaKey || e.ctrlKey) {
-        drag = { anchor: n, keep: st.ranges.slice() };
+      if (!st.pending) {
+        st.pending = { start: n, keep: st.adding ? st.ranges.slice() : [], before: st.ranges.slice() };
+        if (!st.adding) st.ranges = [];
+        st.hover = n;
       } else {
-        drag = { anchor: n, keep: [] };
+        const a2 = Math.min(st.pending.start, n), b2 = Math.max(st.pending.start, n);
+        st.ranges = normalize([...st.pending.keep, [a2, b2]]);
+        st.pending = null;
+        st.adding = false;
       }
-      over.setPointerCapture(e.pointerId);
-      move(e);
-      e.preventDefault();
-    });
-    function move(e) {
-      if (!drag) return;
-      const n = barAt(e);
-      st.ranges = normalize([...drag.keep, [Math.min(drag.anchor, n), Math.max(drag.anchor, n)]]);
       renderStrip();
       renderPick();
+    });
+    over.addEventListener('pointermove', (e) => {
+      if (!st.pending || !rects.length) return;
+      const n = barAt(e);
+      if (n !== st.hover) { st.hover = n; renderStrip(); }
+    });
+    function cancelPending() {
+      if (!st.pending) return false;
+      st.ranges = st.pending.before;
+      st.pending = null;
+      st.adding = false;
+      renderStrip();
+      renderPick();
+      return true;
     }
-    over.addEventListener('pointermove', move);
-    over.addEventListener('pointerup', () => { drag = null; });
-    over.addEventListener('pointercancel', () => { drag = null; });
+    function renderHint() {
+      if (st.pending) hint.textContent = `From bar ${st.pending.start}: now click the last bar. Esc to cancel.`;
+      else if (st.adding) hint.textContent = 'Click the first bar of the other range.';
+      else if (st.ranges.length) hint.textContent = 'Click a bar to choose again.';
+      else hint.textContent = 'Click the first bar, then the last bar.';
+    }
 
     // ---- Track, notation, length check, shortcuts --------------------------
     function renderPick() {
@@ -304,7 +321,7 @@
       const target = cur().barCount;
       const played = playedCount(facts, st.ranges);
       const check = el('span', 'gpbp-check');
-      if (!st.ranges.length) { check.textContent = 'Choose bars on the strip: drag across them.'; check.classList.add('muted'); }
+      if (!st.ranges.length) { check.textContent = 'Choose bars on the strip: click the first bar, then the last.'; check.classList.add('muted'); }
       else if (target == null) { check.textContent = `These bars play ${played} bars; the section takes its length from them.`; check.classList.add('ok'); }
       else if (played === target) { check.textContent = `Bars ${rangesSpec(st.ranges, '')} play ${played} bars, as the section has.`; check.classList.add('ok'); }
       else { check.textContent = `These bars play ${played} bars; the section has ${target}.`; check.classList.add('warn'); }
@@ -333,6 +350,27 @@
       });
       if (facts.markers.length) btn('Match the file’s markers', matchMarkers, 'Every section without bars gets the bars of the marker with its name');
       if (tools.childElementCount) pick.appendChild(tools);
+      if (st.ranges.length) {
+        const rr = el('div', 'gpbp-row');
+        rr.appendChild(el('span', 'gpbp-lbl', 'Bars'));
+        st.ranges.forEach(([a2, b2], k) => {
+          const chip = el('span', 'gpbp-range', a2 === b2 ? String(a2) : `${a2}–${b2}`);
+          if (st.ranges.length > 1) {
+            const x = el('button', 'gpbp-range-x', '×');
+            x.type = 'button';
+            x.setAttribute('aria-label', `Remove bars ${a2}–${b2}`);
+            x.addEventListener('click', () => { st.ranges.splice(k, 1); render(); });
+            chip.appendChild(x);
+          }
+          rr.appendChild(chip);
+        });
+        const more = el('button', 'gpbp-ghost' + (st.adding ? ' on' : ''), st.adding ? 'Click its first bar…' : '+ Another range');
+        more.type = 'button';
+        more.title = 'Add bars elsewhere in the file to this section';
+        more.addEventListener('click', () => { st.adding = !st.adding; st.pending = null; renderStrip(); renderPick(); });
+        rr.appendChild(more);
+        pick.appendChild(rr);
+      }
       const line = el('code', 'gpbp-line', st.ranges.length ? `${st.track ? 'gp[' + st.track + ']' : 'gp'}: ${rangesSpec(st.ranges, st.notation)}` : '');
       pick.appendChild(line);
     }
@@ -408,7 +446,9 @@
 
     // Zoom: the drawing's scale.
     const zoom = (d) => { st.scale = Math.round(Math.max(0.5, Math.min(1.3, st.scale + d)) * 10) / 10; render(); };
-    stripTools.append(el('span', 'gpbp-hint', 'Drag across bars · shift-click to extend · Ctrl/⌘-click for another range'));
+    const hint = el('span', 'gpbp-hint');
+    hint.setAttribute('aria-live', 'polite');
+    stripTools.append(hint);
     const zo = el('button', 'gpbp-ghost', '−'); zo.type = 'button'; zo.setAttribute('aria-label', 'Smaller'); zo.addEventListener('click', () => zoom(-0.1));
     const zi = el('button', 'gpbp-ghost', '+'); zi.type = 'button'; zi.setAttribute('aria-label', 'Larger'); zi.addEventListener('click', () => zoom(0.1));
     stripTools.append(zo, zi);
@@ -429,7 +469,11 @@
       document.removeEventListener('keydown', onKey, true);
       if (opts.onClose) opts.onClose(st.changed);
     }
-    const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.gpe-pop')) { e.preventDefault(); close(); } };
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || document.querySelector('.gpe-pop')) return;
+      e.preventDefault();
+      if (!cancelPending()) close();
+    };
     document.addEventListener('keydown', onKey, true);
     closeBtn.addEventListener('click', close);
     doneBtn.addEventListener('click', close);
@@ -443,7 +487,7 @@
       if (opts.track !== undefined) st.track = opts.track;
       if (opts.ranges) st.ranges = normalize(opts.ranges); else loadSelection();
     }
-    requestAnimationFrame(render);
+    render();
   }
 
   window.GPBarPicker = { open, loadFile };
