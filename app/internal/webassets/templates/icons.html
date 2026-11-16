@@ -503,3 +503,6 @@
 </div>
 <script src="/static/js/brand-editor.js?v={{staticVersion}}"></script>
 {{end}}
+{{/* Skip back / forward 15 seconds: the round arrow with its seconds in it. */}}
+{{define "icon-back15"}}<svg class="icon icon-skip" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.2 8.5A8 8 0 1 1 4 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4.6 3.8v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><text x="12.6" y="16.2" text-anchor="middle" font-size="8.4" font-weight="700" fill="currentColor" font-family="system-ui, sans-serif">15</text></svg>{{end}}
+{{define "icon-fwd15"}}<svg class="icon icon-skip" viewBox="0 0 24 24" aria-hidden="true"><path d="M18.8 8.5A8 8 0 1 0 20 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M19.4 3.8v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><text x="11.4" y="16.2" text-anchor="middle" font-size="8.4" font-weight="700" fill="currentColor" font-family="system-ui, sans-serif">15</text></svg>{{end}}

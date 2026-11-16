@@ -33,7 +33,7 @@
 {{/* rec-row: a recording in a list; .Rec the recording, .Base the band's
      id, .Number what to show first (its place, or its date). */}}
 {{define "rec-row"}}
-<li class="rec-row{{if .Rec.Reference}} is-reference{{end}}" data-file="{{.Rec.FileID}}" data-title="{{if .Rec.SongTitle}}{{.Rec.SongTitle}}{{else}}{{.Rec.Title}}{{end}}" data-detail="{{.Detail}}">
+<li class="rec-row{{if .Rec.Reference}} is-reference{{end}}" data-file="{{.Rec.FileID}}" data-title="{{if .Rec.SongTitle}}{{.Rec.SongTitle}}{{else}}{{.Rec.Title}}{{end}}" data-detail="{{.Detail}}" data-date="{{.Date}}" data-kind="{{.Rec.Kind}}">
   <button type="button" class="rec-play" aria-label="Play {{.Rec.Title}}">{{template "icon-play"}}</button>
   <span class="rec-num">{{.Number}}</span>
   <span class="rec-text">
@@ -45,16 +45,41 @@
 {{end}}
 
 {{/* rec-player: the player, and what the stars do. Its data is the
-     page's (Band, Source). */}}
+     page's (Band, Source). On a phone it is a mini player over the tab
+     bar that opens into a full sheet; on a wide screen, one bar with
+     everything in it. */}}
 {{define "rec-player"}}
 <div class="rec-player" id="rec-player" hidden>
-  <button type="button" class="rec-player-btn" id="rec-prev" aria-label="Previous recording"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 4.5v11L7.5 10z" fill="currentColor"/></svg></button>
-  <button type="button" class="rec-player-btn rec-player-play" id="rec-toggle" aria-label="Pause"></button>
-  <button type="button" class="rec-player-btn" id="rec-next" aria-label="Next recording"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M15 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4.5v11L12.5 10z" fill="currentColor"/></svg></button>
-  <div class="rec-player-now">
-    <strong id="rec-now-title"></strong>
-    <small id="rec-now-detail"></small>
-    <div class="rec-player-scrub"><span id="rec-pos">0:00</span><input type="range" id="rec-seek" min="0" max="100" step="0.1" value="0" aria-label="Position in the recording"><span id="rec-dur">–:––</span></div>
+  <div class="rp-backdrop" data-rp-close></div>
+  <div class="rp-card" role="region" aria-label="Player">
+    <button type="button" class="rp-grab" data-rp-close aria-label="Close the player"></button>
+    <div class="rp-head">
+      <button type="button" class="rp-open" id="rp-open" aria-expanded="false" aria-label="Open the player">
+        <span class="rp-tile" id="rp-tile" aria-hidden="true"><small id="rp-tile-month"></small><b id="rp-tile-day"></b></span>
+        <span class="rp-meta"><strong id="rec-now-title"></strong><small id="rec-now-detail"></small></span>
+      </button>
+      <span class="rp-stars" id="rp-stars"></span>
+      <button type="button" class="rp-btn rp-mini" data-rp="toggle" aria-label="Play"></button>
+      <button type="button" class="rp-btn rp-mini" data-rp="fwd" aria-label="Forward 15 seconds">{{template "icon-fwd15"}}</button>
+    </div>
+    <div class="rp-scrub">
+      <div class="rp-track" id="rp-track"><i class="rp-loop" id="rp-loop"></i><input type="range" id="rec-seek" min="0" max="1000" step="1" value="0" aria-label="Position in the recording"></div>
+      <span class="rp-time" id="rec-pos">0:00</span><span class="rp-time rp-left" id="rec-dur">–:––</span>
+    </div>
+    <div class="rp-transport">
+      <button type="button" class="rp-btn" data-rp="prev" aria-label="Previous recording"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 4.5v11L7.5 10z" fill="currentColor"/></svg></button>
+      <button type="button" class="rp-btn" data-rp="back" aria-label="Back 15 seconds">{{template "icon-back15"}}</button>
+      <button type="button" class="rp-btn rp-play" data-rp="toggle" aria-label="Play"></button>
+      <button type="button" class="rp-btn" data-rp="fwd" aria-label="Forward 15 seconds">{{template "icon-fwd15"}}</button>
+      <button type="button" class="rp-btn" data-rp="next" aria-label="Next recording"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M15 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4.5v11L12.5 10z" fill="currentColor"/></svg></button>
+    </div>
+    <div class="rp-tools">
+      <button type="button" class="rp-chip" data-rp="restart"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 10a5.5 5.5 0 1 0 1.8-4.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M3.5 3.2v4.3h4.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg> Restart</button>
+      <label class="rp-chip rp-speed"><select id="rp-speed" aria-label="Speed"><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="0.9">0.9×</option><option value="1" selected>1× speed</option><option value="1.1">1.1×</option><option value="1.25">1.25×</option></select></label>
+      <button type="button" class="rp-chip" id="rp-ab" data-rp="loop" aria-pressed="false">Loop A–B</button>
+    </div>
+    <p class="rp-upnext" id="rp-upnext"></p>
+    <div class="rp-line" aria-hidden="true"><i id="rp-line"></i></div>
   </div>
 </div>
 <script>
@@ -63,12 +88,15 @@
   {{with .Source}}const host = {{.APIHost}}, code = {{.Code}};{{else}}const host = '', code = '';{{end}}
   const PLAY = '<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3.8v12.4L16.5 10z" fill="currentColor"/></svg>';
   const PAUSE = '<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="4" width="3.4" height="12" rx="1" fill="currentColor"/><rect x="11.6" y="4" width="3.4" height="12" rx="1" fill="currentColor"/></svg>';
+  const SKIP = 15;
   const $ = (id) => document.getElementById(id);
   const rows = [...document.querySelectorAll('.rec-row[data-file]')];
   const audio = new Audio();
-  const bar = $('rec-player'), toggle = $('rec-toggle'), seek = $('rec-seek');
+  const bar = $('rec-player'), seek = $('rec-seek'), speed = $('rp-speed'), ab = $('rp-ab');
+  const toggles = bar.querySelectorAll('[data-rp=toggle]');
   const fmt = (t) => !isFinite(t) ? '–:––' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
-  let at = -1;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  let at = -1, loop = null; // loop: {a} once A is set, {a, b} once it loops
 
   // pCloud gives a file's link to whoever asks, for their own address: the
   // browser asks, and the recording streams from pCloud. Asked without a
@@ -88,13 +116,25 @@
   async function play(i) {
     if (i < 0 || i >= rows.length) return;
     at = i;
+    loop = null;
     const row = rows[i];
     rows.forEach((r) => r.classList.toggle('playing', r === row));
     bar.hidden = false;
     $('rec-now-title').textContent = row.dataset.title;
     $('rec-now-detail').textContent = row.dataset.detail || '';
+    const [y, m, d] = (row.dataset.date || '').split('-').map(Number);
+    $('rp-tile-month').textContent = m ? months[m - 1] : '';
+    $('rp-tile-day').textContent = d || '♪';
+    bar.classList.toggle('is-concert', row.dataset.kind === 'concert');
+    const after = rows[i + 1];
+    $('rp-upnext').textContent = after ? `${i + 1} of ${rows.length} · next: ${after.dataset.title}` : `${i + 1} of ${rows.length} · the last one`;
+    // The stars of the recording playing, the same as its row's.
+    const stars = row.querySelector('.rec-rating');
+    $('rp-stars').replaceChildren(...(stars ? [stars.cloneNode(true)] : []));
+    $('rp-stars').querySelectorAll('.rec-stars').forEach(wireStars);
     try {
       audio.src = await linkFor(row.dataset.file);
+      audio.playbackRate = Number(speed.value);
       await audio.play();
     } catch (e) {
       $('rec-now-detail').textContent = 'Couldn’t play it: ' + e.message;
@@ -102,46 +142,102 @@
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({title: row.dataset.title, artist: {{.Band.Name}}, album: row.dataset.detail || ''});
     }
+    render();
   }
-  rows.forEach((row, i) => row.querySelector('.rec-play').addEventListener('click', () => (at === i && !audio.paused ? audio.pause() : at === i ? audio.play() : play(i))));
+  const toggle = () => (audio.paused ? audio.play() : audio.pause());
+  const skip = (s) => { if (isFinite(audio.duration)) audio.currentTime = Math.min(audio.duration, Math.max(0, audio.currentTime + s)); };
+  const prev = () => (audio.currentTime > 3 ? (audio.currentTime = 0) : play(at - 1));
+  // Loop A–B: the first tap marks A, the second B and loops, the third
+  // stops looping.
+  function setLoop() {
+    const t = audio.currentTime;
+    if (!loop) loop = {a: t};
+    else if (loop.b === undefined && t > loop.a + 0.5) loop.b = t;
+    else loop = null;
+    render();
+  }
+  const actions = {toggle, prev, next: () => play(at + 1), back: () => skip(-SKIP), fwd: () => skip(SKIP), restart: () => { audio.currentTime = 0; }, loop: setLoop};
+  bar.querySelectorAll('[data-rp]').forEach((b) => b.addEventListener('click', () => actions[b.dataset.rp]()));
+  speed.addEventListener('change', () => { audio.playbackRate = Number(speed.value); });
+  rows.forEach((row, i) => row.querySelector('.rec-play').addEventListener('click', () => (at === i ? toggle() : play(i))));
   document.querySelectorAll('[data-play-all]').forEach((b) => b.addEventListener('click', () => play(0)));
-  toggle.addEventListener('click', () => (audio.paused ? audio.play() : audio.pause()));
-  $('rec-next').addEventListener('click', () => play(at + 1));
-  $('rec-prev').addEventListener('click', () => (audio.currentTime > 3 ? (audio.currentTime = 0) : play(at - 1)));
   audio.addEventListener('ended', () => play(at + 1));
-  seek.addEventListener('input', () => { if (isFinite(audio.duration)) audio.currentTime = (seek.value / 100) * audio.duration; });
-  const render = () => {
-    toggle.innerHTML = audio.paused ? PLAY : PAUSE;
-    toggle.setAttribute('aria-label', audio.paused ? 'Play' : 'Pause');
-    rows.forEach((r, i) => { const b = r.querySelector('.rec-play'); b.innerHTML = i === at && !audio.paused ? PAUSE : PLAY; });
-    $('rec-pos').textContent = fmt(audio.currentTime);
-    $('rec-dur').textContent = fmt(audio.duration);
-    if (isFinite(audio.duration) && document.activeElement !== seek) seek.value = (audio.currentTime / audio.duration) * 100;
+  seek.addEventListener('input', () => { if (isFinite(audio.duration)) audio.currentTime = (seek.value / 1000) * audio.duration; });
+
+  // On a phone the mini player opens into the full one; a wide screen
+  // shows it all at once.
+  const open = (on) => {
+    bar.classList.toggle('is-open', on);
+    document.documentElement.classList.toggle('rp-locked', on);
+    $('rp-open').setAttribute('aria-expanded', on);
   };
-  ['play', 'pause', 'timeupdate', 'loadedmetadata'].forEach((e) => audio.addEventListener(e, render));
+  $('rp-open').addEventListener('click', () => open(!bar.classList.contains('is-open')));
+  bar.querySelectorAll('[data-rp-close]').forEach((el) => el.addEventListener('click', () => open(false)));
+  let y0 = null;
+  bar.querySelector('.rp-card').addEventListener('touchstart', (e) => { y0 = e.target.closest('input, select, .rec-stars') ? null : e.touches[0].clientY; }, {passive: true});
+  bar.querySelector('.rp-card').addEventListener('touchend', (e) => { if (y0 !== null && bar.classList.contains('is-open') && e.changedTouches[0].clientY - y0 > 80) open(false); y0 = null; });
+  document.addEventListener('keydown', (e) => {
+    if (bar.hidden || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, select, textarea, .rec-stars, [contenteditable]')) return;
+    const act = {' ': toggle, k: toggle, ArrowLeft: e.shiftKey ? prev : () => skip(-SKIP), ArrowRight: e.shiftKey ? actions.next : () => skip(SKIP), j: () => skip(-SKIP), l: () => skip(SKIP), '0': actions.restart, Escape: () => open(false)}[e.key];
+    if (!act) return;
+    e.preventDefault();
+    act();
+  });
+
+  const render = () => {
+    const t = audio.currentTime, d = audio.duration;
+    toggles.forEach((b) => { b.innerHTML = audio.paused ? PLAY : PAUSE; b.setAttribute('aria-label', audio.paused ? 'Play' : 'Pause'); });
+    rows.forEach((r, i) => { r.querySelector('.rec-play').innerHTML = i === at && !audio.paused ? PAUSE : PLAY; });
+    $('rec-pos').textContent = fmt(t);
+    $('rec-dur').textContent = isFinite(d) ? '−' + fmt(d - t) : '–:––';
+    const p = isFinite(d) && d > 0 ? t / d : 0;
+    if (document.activeElement !== seek) seek.value = p * 1000;
+    $('rp-track').style.setProperty('--p', p);
+    $('rp-line').style.width = p * 100 + '%';
+    const lp = $('rp-loop');
+    lp.hidden = !loop || !isFinite(d);
+    if (loop && isFinite(d)) { lp.style.left = (loop.a / d) * 100 + '%'; lp.style.width = (((loop.b ?? t) - loop.a) / d) * 100 + '%'; }
+    ab.setAttribute('aria-pressed', !!loop);
+    ab.textContent = !loop ? 'Loop A–B' : loop.b === undefined ? `A ${fmt(loop.a)} · tap for B` : `Loop ${fmt(loop.a)}–${fmt(loop.b)} ✕`;
+    if ('mediaSession' in navigator && isFinite(d) && navigator.mediaSession.setPositionState) {
+      try { navigator.mediaSession.setPositionState({duration: d, position: Math.min(t, d), playbackRate: audio.playbackRate}); } catch (e) {}
+    }
+  };
+  audio.addEventListener('timeupdate', () => {
+    if (loop && loop.b !== undefined && audio.currentTime >= loop.b) audio.currentTime = loop.a;
+    render();
+  });
+  ['play', 'pause', 'loadedmetadata', 'ratechange'].forEach((e) => audio.addEventListener(e, render));
   if ('mediaSession' in navigator) {
-    navigator.mediaSession.setActionHandler('play', () => audio.play());
-    navigator.mediaSession.setActionHandler('pause', () => audio.pause());
-    navigator.mediaSession.setActionHandler('nexttrack', () => play(at + 1));
-    navigator.mediaSession.setActionHandler('previoustrack', () => play(at - 1));
+    const ms = navigator.mediaSession;
+    ms.setActionHandler('play', () => audio.play());
+    ms.setActionHandler('pause', () => audio.pause());
+    ms.setActionHandler('nexttrack', () => play(at + 1));
+    ms.setActionHandler('previoustrack', prev);
+    try { ms.setActionHandler('seekto', (d) => { audio.currentTime = d.seekTime; }); } catch (e) {}
   }
 
   // Stars: tap where on the five, by halves; arrows step by half; tapping
-  // your stars again takes them back.
-  document.querySelectorAll('.rec-stars').forEach((el) => {
+  // your stars again takes them back. The player shows a copy of the
+  // playing row's: both move together.
+  function wireStars(el) {
+    const copies = () => document.querySelectorAll(`.rec-stars[data-rec="${el.dataset.rec}"]`);
+    const show = (v) => copies().forEach((c) => {
+      c.style.setProperty('--stars', v);
+      c.setAttribute('aria-valuenow', v);
+      c.setAttribute('aria-valuetext', v ? `${v} stars` : 'not rated');
+    });
+    const avgs = (html) => copies().forEach((c) => { c.parentElement.querySelector('.rec-stars-avg').innerHTML = html; });
     const set = async (v) => {
       const before = Number(el.getAttribute('aria-valuenow')) || 0;
       if (v === before) v = 0;
-      el.style.setProperty('--stars', v);
-      el.setAttribute('aria-valuenow', v);
-      el.setAttribute('aria-valuetext', v ? `${v} stars` : 'not rated');
+      show(v);
       const res = await fetch(`/api/bands/${bandId}/recordings/${el.dataset.rec}/stars`, {
         method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({stars: v}),
       }).catch(() => null);
-      const avg = el.parentElement.querySelector('.rec-stars-avg');
-      if (!res || !res.ok) { el.style.setProperty('--stars', before); el.setAttribute('aria-valuenow', before); avg.textContent = 'Couldn’t save'; return; }
+      if (!res || !res.ok) { show(before); avgs('Couldn’t save'); return; }
       const d = await res.json();
-      avg.innerHTML = d.ratings ? `${d.stars.toFixed(1)}<small> · ${d.ratings}</small>` : '';
+      avgs(d.ratings ? `${d.stars.toFixed(1)}<small> · ${d.ratings}</small>` : '');
     };
     el.addEventListener('click', (e) => {
       const r = el.getBoundingClientRect();
@@ -155,7 +251,8 @@
       const n = Math.min(5, Math.max(0.5, v + step));
       if (n !== v) set(n);
     });
-  });
+  }
+  document.querySelectorAll('.rec-stars').forEach(wireStars);
 
   // The band's reference for a song (its recordings' page).
   document.querySelectorAll('input[name=reference]').forEach((radio) => radio.addEventListener('change', async () => {
@@ -231,7 +328,7 @@
       </div>
       <ol class="rec-list">
         {{$date := .Selected.Format "2 Jan 2006"}}
-        {{range .Recordings}}{{template "rec-row" (dict "Rec" . "Band" $.Band.ID "Number" (or .Position "·") "Detail" (printf "%s %s" (recKind $.Kind) $date))}}{{end}}
+        {{range .Recordings}}{{template "rec-row" (dict "Rec" . "Band" $.Band.ID "Number" (or .Position "·") "Detail" (printf "%s %s" (recKind $.Kind) $date) "Date" ($.Selected.Format "2006-01-02"))}}{{end}}
       </ol>
     </section>
 
@@ -324,7 +421,7 @@
     <legend>The band’s reference</legend>
     <ol class="rec-list">
       {{range .Recordings}}
-      <li class="rec-row{{if .Reference}} is-reference{{end}}" data-file="{{.FileID}}" data-title="{{$.Song.Title}}" data-detail="{{recKind .Kind}} {{with .SessionDate}}{{.Format "2 Jan 2006"}}{{end}}{{with .Take}}, take {{.}}{{end}}">
+      <li class="rec-row{{if .Reference}} is-reference{{end}}" data-file="{{.FileID}}" data-title="{{$.Song.Title}}" data-detail="{{recKind .Kind}} {{with .SessionDate}}{{.Format "2 Jan 2006"}}{{end}}{{with .Take}}, take {{.}}{{end}}" data-date="{{with .SessionDate}}{{.Format "2006-01-02"}}{{end}}" data-kind="{{.Kind}}">
         <label class="rec-pick"><input type="radio" name="reference" value="{{.ID}}" data-song="{{$.Song.VariantID}}"{{if .Reference}} checked{{end}} aria-label="Make it the reference"></label>
         <button type="button" class="rec-play" aria-label="Play">{{template "icon-play"}}</button>
         <span class="rec-text">

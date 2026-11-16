@@ -62,6 +62,15 @@ month calendar of the days recorded, every day's list, and a player (playing
 the day through, from the lock screen too). Every member gives a recording ½ to
 5 stars; the band's average shows by it.
 
+The player, on a phone, is a mini player over the tab bar (the day's date,
+the title, play, +15 s, a thin progress line); tapping it opens the full
+player: the stars, the scrubber, previous, −15 s, play, +15 s, next, Restart,
+the speed (0.5× to 1.25×, the pitch kept) and a loop between two points
+(Loop A–B: a tap marks A, the next B, the next stops looping). A wide screen
+shows it all in one bar. Keys: space or K plays and pauses, ←/→ or J/L
+skip 15 s, shift ←/→ the recording before or after, 0 restarts. The lock
+screen keeps previous and next, and scrubbing.
+
 The Rehearsals tab also says how the songs were rehearsed: the most and least
 played, the longest not played, the best rated, the songs never recorded at a
 rehearsal, and every song's count, last date, stars and concerts.
