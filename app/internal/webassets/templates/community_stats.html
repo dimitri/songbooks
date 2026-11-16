@@ -1,0 +1,206 @@
+{{define "community_stats"}}
+{{$brand := brandFor "community" .Community.ID}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Community.Name}} — stats</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/communities/{{.Community.ID}}/admin">{{template "icon-back"}} Admin</a>
+  <h1>{{.Community.Name}} — stats</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index stats">
+  <nav class="band-tabs band-tabs-row">
+    <a class="band-tab" href="/communities/{{.Community.ID}}">Overview</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">Songbooks</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">Downloads</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/events">Events</a>
+    <a href="/communities/{{.Community.ID}}/admin" class="band-tab active">Admin</a>
+  </nav>
+
+  {{with .Stats}}
+  <div class="stat-tiles">
+    <div class="stat-tile"><span class="stat-value">{{.Views}}</span><span class="stat-label">lesson views</span></div>
+    <div class="stat-tile"><span class="stat-value">{{.Totals.Downloads}}</span><span class="stat-label">files downloaded</span></div>
+    <div class="stat-tile"><span class="stat-value">{{.Totals.Zips}}</span><span class="stat-label">zips downloaded</span></div>
+    <div class="stat-tile"><span class="stat-value">{{.Totals.Plays}}</span><span class="stat-label">backing tracks played</span></div>
+    <div class="stat-tile"><span class="stat-value">{{.Totals.Opens}}</span><span class="stat-label">files opened</span></div>
+    <div class="stat-tile"><span class="stat-value">{{.Totals.People}}</span><span class="stat-label">people downloading</span></div>
+  </div>
+  <p class="hint">A view is an opening of a lesson’s page; a download, a file or zip taken whole (a resumed download counts once); a play, a backing track started from the download page. Staff count too.</p>
+
+  <section class="card">
+    <h2>Members</h2>
+    <div class="table-scroll"><table class="table-stack stats-table">
+      <thead><tr><th>Member</th><th>Role</th><th class="num">Lessons viewed</th><th class="num">Views</th><th class="num">Files</th><th class="num">Downloads</th><th class="num">Zips</th><th>Last active</th></tr></thead>
+      <tbody>
+      {{range .Members}}
+        <tr>
+          <td data-label="Member"><a href="/communities/{{$.Community.ID}}/admin/stats/members/{{.PersonID}}">{{or .DisplayName .Username}}</a></td>
+          <td data-label="Role">{{.Role}}</td>
+          <td data-label="Lessons viewed" class="num">{{.Lessons}}</td>
+          <td data-label="Views" class="num">{{.Views}}</td>
+          <td data-label="Files" class="num">{{.Files}}</td>
+          <td data-label="Downloads" class="num">{{.Downloads}}</td>
+          <td data-label="Zips" class="num">{{.Zips}}</td>
+          <td data-label="Last active">{{with .LastActivity}}{{.Format "2 Jan 2006 15:04"}}{{else}}—{{end}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table></div>
+  </section>
+  {{end}}
+
+  {{range .Songbooks}}
+  <section class="card">
+    <h2>{{.Name}}</h2>
+    {{if .Zips}}
+    <h3>As a zip</h3>
+    <div class="table-scroll"><table class="table-stack stats-table">
+      <thead><tr><th>Zip</th><th class="num">Downloads</th><th class="num">People</th><th>Last</th></tr></thead>
+      <tbody>
+      {{range .Zips}}
+        <tr>
+          <td data-label="Zip">{{.Name}}</td>
+          <td data-label="Downloads" class="num">{{.Zips}}</td>
+          <td data-label="People" class="num">{{.People}}</td>
+          <td data-label="Last">{{with .Last}}{{.Format "2 Jan 2006 15:04"}}{{end}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table></div>
+    {{end}}
+
+    {{if .Lessons}}
+    <h3>Lessons</h3>
+    <div class="table-scroll"><table class="table-stack stats-table">
+      <thead><tr><th>Lesson</th><th class="num">Views</th><th class="num">Viewers</th><th class="num">File downloads</th><th>Last viewed</th></tr></thead>
+      <tbody>
+      {{range .Lessons}}
+        <tr>
+          <td data-label="Lesson"><a href="/song/{{.VariantID}}">{{.Title}}</a></td>
+          <td data-label="Views" class="num">{{.Views}}</td>
+          <td data-label="Viewers" class="num">{{.Viewers}}</td>
+          <td data-label="File downloads" class="num">{{.Downloads}}</td>
+          <td data-label="Last viewed">{{with .LastViewed}}{{.Format "2 Jan 2006 15:04"}}{{else}}—{{end}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table></div>
+    {{end}}
+
+    {{if .Files}}
+    <h3>Files</h3>
+    <div class="table-scroll"><table class="table-stack stats-table">
+      <thead><tr><th>File</th><th>Lesson</th><th class="num">Downloads</th><th class="num">Plays</th><th class="num">Opens</th><th class="num">People</th><th>Last</th></tr></thead>
+      <tbody>
+      {{range .Files}}
+        <tr>
+          <td data-label="File"><span class="stats-path">{{if .Path}}{{.Path}}/{{end}}</span>{{.Filename}}</td>
+          <td data-label="Lesson">{{if .VariantID}}<a href="/song/{{.VariantID}}">{{.SongTitle}}</a>{{else}}—{{end}}</td>
+          <td data-label="Downloads" class="num">{{.Downloads}}</td>
+          <td data-label="Plays" class="num">{{.Plays}}</td>
+          <td data-label="Opens" class="num">{{.Opens}}</td>
+          <td data-label="People" class="num">{{.People}}</td>
+          <td data-label="Last">{{with .Last}}{{.Format "2 Jan 2006 15:04"}}{{else}}—{{end}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table></div>
+    {{end}}
+  </section>
+  {{end}}
+</main>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}
+
+{{define "community_stats_member"}}
+{{$brand := brandFor "community" .Community.ID}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{or .Member.DisplayName .Member.Username}} — {{.Community.Name}} — stats</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/communities/{{.Community.ID}}/admin/stats">{{template "icon-back"}} Stats</a>
+  <h1>{{or .Member.DisplayName .Member.Username}}</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index stats">
+  {{with .Member}}
+  <p class="hint">@{{.Username}} · {{.Role}}{{with .LastActivity}} · last active {{.Format "2 Jan 2006 15:04"}}{{end}}</p>
+  <div class="stat-tiles">
+    <div class="stat-tile"><span class="stat-value">{{.Lessons}}</span><span class="stat-label">lessons viewed</span></div>
+    <div class="stat-tile"><span class="stat-value">{{.Views}}</span><span class="stat-label">views</span></div>
+    <div class="stat-tile"><span class="stat-value">{{.Files}}</span><span class="stat-label">files</span></div>
+    <div class="stat-tile"><span class="stat-value">{{.Downloads}}</span><span class="stat-label">downloads, plays, opens</span></div>
+    <div class="stat-tile"><span class="stat-value">{{.Zips}}</span><span class="stat-label">zips</span></div>
+  </div>
+  {{end}}
+
+  <section class="card">
+    <h2>Lessons viewed</h2>
+    {{if .Views}}
+    <div class="table-scroll"><table class="table-stack stats-table">
+      <thead><tr><th>Lesson</th><th class="num">Views</th><th>First</th><th>Last</th></tr></thead>
+      <tbody>
+      {{range .Views}}
+        <tr>
+          <td data-label="Lesson"><a href="/song/{{.VariantID}}">{{.Title}}</a></td>
+          <td data-label="Views" class="num">{{.Views}}</td>
+          <td data-label="First">{{.First.Format "2 Jan 2006 15:04"}}</td>
+          <td data-label="Last">{{.Last.Format "2 Jan 2006 15:04"}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table></div>
+    {{else}}<p class="hint">None yet.</p>{{end}}
+  </section>
+
+  <section class="card">
+    <h2>Downloads</h2>
+    {{if .Downloads}}
+    <div class="table-scroll"><table class="table-stack stats-table">
+      <thead><tr><th>When</th><th></th><th>File</th><th>Songbook</th><th>Size</th></tr></thead>
+      <tbody>
+      {{range .Downloads}}
+        <tr>
+          <td data-label="When">{{.At.Format "2 Jan 2006 15:04"}}</td>
+          <td data-label="What">{{if eq .What "download"}}downloaded{{else if eq .What "play"}}played{{else if eq .What "open"}}opened{{else}}zip{{end}}</td>
+          <td data-label="File">{{.Name}}</td>
+          <td data-label="Songbook">{{index $.SongbookNames .SongbookID}}</td>
+          <td data-label="Size">{{fileSize .ByteSize}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table></div>
+    {{else}}<p class="hint">None yet.</p>{{end}}
+  </section>
+</main>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

@@ -1,0 +1,78 @@
+{{define "community_download_browse"}}
+{{$brand := brandFor "community" .Community.ID}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{if .Folder}}{{.Folder}} — {{end}}{{.Songbook.Name}} — downloads</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/communities/{{.Community.ID}}/downloads#songbook-{{.Songbook.ID}}">{{template "icon-back"}} Downloads</a>
+  <h1>{{.Songbook.Name}}</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index dl">
+  <nav class="dl-crumbs" aria-label="Folder">
+    {{range $i, $c := .Crumbs}}{{if $i}}<span aria-hidden="true">/</span>{{end}}<a href="{{$c.Href}}"{{if $c.Current}} aria-current="page"{{end}}>{{$c.Name}}</a>{{end}}
+  </nav>
+
+  <div class="dl-actions">
+    <a class="dl-btn primary" href="{{.ZipHref}}" download>{{template "icon-download"}} {{.ZipName}}</a>
+    <span class="dl-meta">{{.Count}} file{{if ne .Count 1}}s{{end}} · {{fileSize .Bytes}}</span>
+    {{if and .CanManage .Folder}}<button type="button" class="dl-btn dl-del-folder" data-songbook="{{.Songbook.ID}}" data-path="{{.Folder}}" data-count="{{.Count}}" data-back="{{.UpHref}}">{{template "icon-trash"}} Remove this folder</button>{{end}}
+  </div>
+
+  {{if or .Folders .Files}}
+  <ul class="dl-tree">
+    {{range .Folders}}
+    <li class="dl-row dl-folder">
+      <span class="dl-ext dir" aria-hidden="true">DIR</span>
+      <a class="dl-row-name" href="{{.Href}}"><strong>{{.Name}}</strong></a>
+      <span class="dl-meta">{{.Files}} file{{if ne .Files 1}}s{{end}} · {{fileSize .Bytes}}</span>
+    </li>
+    {{end}}
+    {{range .Files}}{{$href := printf "/communities/%d/downloads/%d/%s" $.Community.ID .ID (pathSegment .Filename)}}
+    <li class="dl-row kind-{{.Kind}}">
+      <span class="dl-ext">{{if eq .Kind "gp"}}GP{{else}}{{or .Ext "FILE"}}{{end}}</span>
+      <span class="dl-row-name">
+        <a href="{{$href}}" download>{{.Filename}}</a>
+        <span class="dl-meta">{{fileSize .ByteSize}}{{if and .VariantID (not $.CanManage)}} · <a href="/song/{{.VariantID}}">{{.SongTitle}}</a>{{end}}{{if eq .Kind "book"}} · the book{{end}}</span>
+      </span>
+      {{if $.CanManage}}
+      <span class="dl-row-song">
+        <select class="dl-song" data-file="{{.ID}}" aria-label="Lesson {{.Filename}} goes with">
+          <option value="">{{if eq .Kind "book"}}The book{{else}}No lesson{{end}}</option>
+          {{$v := .SongID}}{{range $.Songs}}<option value="{{.VariantID}}"{{if eq $v .VariantID}} selected{{end}}>{{.Title}}</option>{{end}}
+        </select>
+        <span class="form-status" role="status"></span>
+      </span>
+      {{end}}
+      <span class="dl-row-actions">
+        {{if eq .Kind "audio"}}<button type="button" class="dl-btn dl-play" data-src="{{$href}}?view=1" aria-label="Play {{.Filename}}">{{template "icon-play"}}</button>{{end}}
+        {{if eq .Ext "PDF"}}<a class="dl-btn" href="{{$href}}?view=1" target="_blank" rel="noopener">Open</a>{{end}}
+        <a class="dl-btn" href="{{$href}}" download aria-label="Download {{.Filename}}">{{template "icon-download"}}</a>
+        {{if $.CanManage}}<button type="button" class="dl-btn dl-del" data-del="{{.ID}}" data-name="{{.Filename}}" aria-label="Remove {{.Filename}}">{{template "icon-trash"}}</button>{{end}}
+      </span>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="dl-empty">No files yet.</p>
+  {{end}}
+
+  {{if .CanManage}}{{template "dl-upload-form" .Upload}}{{end}}
+</main>
+</div>
+{{template "dl-script" .Community.ID}}
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

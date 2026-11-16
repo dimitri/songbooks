@@ -12,6 +12,7 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -254,6 +255,8 @@ var funcMap = template.FuncMap{
 		}
 		return fmt.Sprintf("%d bytes", n)
 	},
+	// pathSegment escapes a file name for its place in a URL's path.
+	"pathSegment":   url.PathEscape,
 	"staticVersion": func() string { return staticVersion },
 }
 

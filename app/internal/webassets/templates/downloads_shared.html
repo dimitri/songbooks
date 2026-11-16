@@ -1,0 +1,119 @@
+{{/* The download area's own parts, shared by its pages. */}}
+
+{{/* dl-upload-form: adding files (or a zip) to a songbook's folder; its
+     data is a downloadSongbook (ID, Songs, Folder). */}}
+{{define "dl-upload-form"}}
+<form class="dl-upload" data-songbook="{{.ID}}" data-path="{{.Folder}}">
+  <label class="dl-pick secondary">{{template "icon-plus"}} Add files or a zip<input type="file" name="file" multiple hidden></label>
+  <label>Files go with
+    <select name="song">
+      <option value="">{{if .Folder}}no lesson{{else}}the songbook itself{{end}}</option>
+      {{range .Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}
+    </select>
+  </label>
+  <span class="hint">A zip is unpacked{{if .Folder}} in this folder{{end}}, and each of its files goes with its lesson.</span>
+  <span class="form-status" role="status"></span>
+  <div class="dl-report" hidden></div>
+</form>
+{{end}}
+
+{{/* dl-script: the player, removing, moving and adding files; its data
+     is the community's id. */}}
+{{define "dl-script"}}
+<audio id="dl-audio" preload="none"></audio>
+<script>
+(() => {
+  const communityId = {{.}};
+  // One player for every backing track on the page.
+  const audio = document.getElementById('dl-audio');
+  let playing = null;
+  const stop = () => { if (playing) playing.classList.remove('on'); playing = null; };
+  audio.addEventListener('ended', stop);
+  audio.addEventListener('pause', stop);
+  document.querySelectorAll('.dl-play').forEach((b) => b.addEventListener('click', () => {
+    if (playing === b) { audio.pause(); return; }
+    audio.src = b.dataset.src;
+    audio.play().then(() => { stop(); playing = b; b.classList.add('on'); }).catch(() => {});
+  }));
+
+  document.querySelectorAll('.dl-del').forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm(`Remove ${b.dataset.name} from the downloads?`)) return;
+    const res = await fetch(`/api/communities/${communityId}/downloads/${b.dataset.del}`, {method: 'DELETE'});
+    if (res.ok) location.reload(); else alert(await res.text());
+  }));
+
+  document.querySelectorAll('.dl-del-folder').forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm(`Remove the folder ${b.dataset.path} and its ${b.dataset.count} files from the downloads?`)) return;
+    const res = await fetch(`/api/communities/${communityId}/songbooks/${b.dataset.songbook}/files?path=${encodeURIComponent(b.dataset.path)}`, {method: 'DELETE'});
+    if (res.ok) location.href = b.dataset.back; else alert(await res.text());
+  }));
+
+  // Which lesson a file goes with.
+  document.querySelectorAll('select.dl-song').forEach((sel) => sel.addEventListener('change', async () => {
+    const status = sel.parentElement.querySelector('.form-status');
+    const res = await fetch(`/api/communities/${communityId}/downloads/${sel.dataset.file}`, {
+      method: 'PATCH', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({song: sel.value ? Number(sel.value) : null}),
+    });
+    if (status) status.textContent = res.ok ? 'Saved' : 'Couldn’t save that';
+  }));
+
+  // Uploads stream as they're sent; a zip is then unpacked on the server.
+  // A large book or zip can take a while, so show how far it got, then
+  // what was done with each file.
+  document.querySelectorAll('.dl-upload').forEach((form) => {
+    const input = form.querySelector('input[type=file]');
+    const status = form.querySelector('.form-status');
+    const report = form.querySelector('.dl-report');
+    input.addEventListener('change', () => {
+      if (!input.files.length) return;
+      const fd = new FormData();
+      fd.append('path', form.dataset.path || '');
+      fd.append('song', form.querySelector('select[name=song]').value);
+      for (const f of input.files) fd.append('file', f, f.name);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api/communities/${communityId}/songbooks/${form.dataset.songbook}/files`);
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) status.textContent = `Sending… ${Math.round(e.loaded * 100 / e.total)}%`; };
+      xhr.upload.onload = () => { status.textContent = 'Storing the files…'; };
+      xhr.onload = () => {
+        input.value = '';
+        if (xhr.status !== 200) { status.textContent = xhr.responseText || 'Upload failed'; return; }
+        const files = JSON.parse(xhr.responseText).files;
+        const by = {};
+        for (const f of files) by[f.status] = (by[f.status] || 0) + 1;
+        status.textContent = ['added', 'replaced', 'unchanged', 'skipped'].filter((k) => by[k]).map((k) => `${by[k]} ${k}`).join(' · ');
+        const loose = files.filter((f) => f.status !== 'skipped' && !f.song && !/\.pdf$/i.test(f.name));
+        const skipped = files.filter((f) => f.status === 'skipped');
+        report.replaceChildren();
+        const list = (title, items, note) => {
+          if (!items.length) return;
+          const p = document.createElement('p');
+          p.textContent = title;
+          const ul = document.createElement('ul');
+          for (const f of items) {
+            const li = document.createElement('li');
+            li.textContent = (f.path ? f.path + '/' : '') + f.name + (note && f.note ? ` — ${f.note}` : '');
+            ul.append(li);
+          }
+          report.append(p, ul);
+        };
+        list('Going with no lesson (set it from the folder’s list):', loose, false);
+        list('Not added:', skipped, true);
+        const done = document.createElement('button');
+        done.type = 'button';
+        done.className = 'secondary';
+        done.textContent = 'Show the files';
+        done.addEventListener('click', () => location.reload());
+        report.append(done);
+        report.hidden = false;
+        if (!loose.length && !skipped.length) location.reload();
+      };
+      xhr.onerror = () => { status.textContent = 'Upload failed'; };
+      status.textContent = 'Sending…';
+      report.hidden = true;
+      xhr.send(fd);
+    });
+  });
+})();
+</script>
+{{end}}

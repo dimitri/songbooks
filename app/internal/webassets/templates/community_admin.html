@@ -27,6 +27,8 @@
     <a href="/communities/{{.Community.ID}}/admin" class="band-tab active">Admin</a>
   </nav>
 
+  <p class="admin-links"><a class="dl-btn" href="/communities/{{.Community.ID}}/admin/stats">Stats: who viewed and downloaded what &rarr;</a></p>
+
   <div class="card">
     <h2>Community name</h2>
     <form class="form-stack" id="rename-form">
@@ -681,6 +683,6 @@ document.querySelectorAll('.community-link-btn').forEach(btn => {
 
 {{/* Plain names for the privilege keys in store.AllCommunityPrivileges;
      an unknown key falls through as itself. */}}
-{{define "community-priv-label"}}{{if eq . "edit_repertoire"}}Edit songs{{else if eq . "manage_members"}}Manage members{{else if eq . "manage_events"}}Manage events{{else if eq . "manage_submissions"}}Review submissions{{else if eq . "manage_settings"}}Change settings{{else}}{{.}}{{end}}{{end}}
+{{define "community-priv-label"}}{{if eq . "edit_repertoire"}}Edit songs{{else if eq . "download_files"}}Download files{{else if eq . "manage_files"}}Manage files{{else if eq . "manage_members"}}Manage members{{else if eq . "manage_events"}}Manage events{{else if eq . "manage_submissions"}}Review submissions{{else if eq . "manage_settings"}}Change settings{{else}}{{.}}{{end}}{{end}}
 
 {{define "community-event-type-label"}}{{if eq . "jam"}}Jam{{else if eq . "concert"}}Concert{{else if eq . "meetup"}}Meetup{{else if eq . "listening_party"}}Listening party{{else if eq . "dinner"}}Dinner{{else if eq . "show_together"}}Going to a show together{{else}}{{.}}{{end}}{{end}}

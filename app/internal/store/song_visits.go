@@ -10,7 +10,7 @@ import (
 func (st *Store) RecordSongVisit(ctx context.Context, personID, songID int64, query string) error {
 	_, err := st.db.Exec(ctx, `
 		INSERT INTO song_visits (person_id, song_id, query) VALUES ($1, $2, $3)
-		ON CONFLICT (person_id, song_id) DO UPDATE SET query = EXCLUDED.query, visited_at = now()`,
+		ON CONFLICT (person_id, song_id) DO UPDATE SET query = EXCLUDED.query, visited_at = now(), views = song_visits.views + 1`,
 		personID, songID, query)
 	return err
 }
