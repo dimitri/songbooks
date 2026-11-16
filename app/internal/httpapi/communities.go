@@ -269,7 +269,7 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		songbookRows[i] = communitySongbookRow{Songbook: sb, SongCount: len(entries)}
+		songbookRows[i] = communitySongbookRow{Songbook: sb, SongCount: len(entries), LessonCount: s.lessonCount(r.Context(), sb)}
 	}
 	events, err := s.store.ListEventsForCommunity(r.Context(), communityID)
 	if err != nil {
@@ -303,7 +303,20 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 // overview and songbooks-tab listings.
 type communitySongbookRow struct {
 	store.Songbook
-	SongCount int
+	SongCount   int
+	LessonCount int // a course's
+}
+
+// lessonCount is a course's number of lessons, 0 for a songbook.
+func (s *Server) lessonCount(ctx context.Context, sb store.Songbook) int {
+	if !sb.IsCourse() {
+		return 0
+	}
+	lessons, _, err := s.store.ListLessons(ctx, sb.ID)
+	if err != nil {
+		return 0
+	}
+	return len(lessons)
 }
 
 // handleCommunitySongbooksPage lists every songbook this community has
@@ -337,7 +350,7 @@ func (s *Server) handleCommunitySongbooksPage(w http.ResponseWriter, r *http.Req
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		rows[i] = communitySongbookRow{Songbook: sb, SongCount: len(entries)}
+		rows[i] = communitySongbookRow{Songbook: sb, SongCount: len(entries), LessonCount: s.lessonCount(r.Context(), sb)}
 	}
 	canEdit, err := s.store.HasCommunityPrivilege(r.Context(), communityID, person.ID, store.PrivEditRepertoire)
 	if err != nil {

@@ -67,6 +67,13 @@ type Server struct {
 // --webauthn-rp-id flag).
 func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, webauthnRPID, adminFileDir string) http.Handler {
 	s := &Server{store: st, mailer: m, pdf: pdfnative.New(), ly: lilypond.NewBridge(), devAutoLogin: devAutoLogin, webauthnRPID: webauthnRPID, webauthn: newWebAuthnState(), adminFileDir: adminFileDir}
+	webassets.ShelfLookup = func(kind string, id int64) (int, int) {
+		b, c, err := st.ShelfCounts(context.Background(), kind, id)
+		if err != nil {
+			return 0, 0
+		}
+		return b, c
+	}
 	webassets.BrandLookup = func(kind string, id int64) *brand.Theme {
 		b, name, err := st.GetBrand(context.Background(), kind, id)
 		if err != nil {

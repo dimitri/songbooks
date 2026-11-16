@@ -22,7 +22,7 @@
   {{if .Me}}
   <nav class="band-tabs band-tabs-row">
     <a class="band-tab" href="/communities/{{.Community.ID}}">Overview</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">Songbooks</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{shelfLabel "community" .Community.ID}}</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">Downloads</a>
     <a href="/communities/{{.Community.ID}}/events" class="band-tab active">Events</a>
   </nav>
