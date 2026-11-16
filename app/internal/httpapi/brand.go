@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"app/internal/brand"
+	"app/internal/store"
 )
 
 // handleSetBrand is POST /api/communities/{id}/brand and POST
@@ -48,5 +49,28 @@ func (s *Server) handleGetBrand(kind string) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, b)
+	}
+}
+
+// handleBrandFromSongs is the look a band's or community's songs make
+// (brand.Derive over their covers, docs/covers.md), for the brand form to
+// start from: the brand, and how many of the songs have a cover.
+func (s *Server) handleBrandFromSongs(kind string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil {
+			httpError(w, http.StatusBadRequest, "invalid id")
+			return
+		}
+		songs, err := s.store.OwnerCovers(r.Context(), kind, id)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		look := store.SongbookLook(songs)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"brand": look.Brand, "mood": look.Mood, "genres": look.Genres,
+			"covers": look.Found, "songs": look.Songs,
+		})
 	}
 }

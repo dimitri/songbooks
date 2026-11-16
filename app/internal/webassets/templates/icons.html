@@ -474,6 +474,10 @@
   <form class="form-stack" id="brand-form">
     <div class="field"><label for="brand-preset">Preset</label>
       <select id="brand-preset" name="preset"><option value="">None (the app's own look)</option>{{range brandPresets}}<option value="{{.}}">{{(brandPreset .).Label}}</option>{{end}}</select></div>
+    <div class="brand-from-songs">
+      <button type="button" id="brand-from-songs">From our songs</button>
+      <span class="field-hint" id="brand-from-songs-status">Colors, fonts and buttons made from the covers of the songs: check them, then save.</span>
+    </div>
     <fieldset class="field-group">
       <legend>Colors <span class="field-optional">(optional)</span></legend>
       <p class="field-hint">Pick one, or type it like #3a6ea5. Empty keeps the preset's.</p>

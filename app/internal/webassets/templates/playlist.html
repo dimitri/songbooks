@@ -28,6 +28,8 @@
   <section class="pl-player" id="pl-player" aria-label="Now playing">
     <div class="pl-art" id="pl-art">
       <div class="pl-cover" id="pl-cover" aria-hidden="true">
+        <img class="pl-cover-blur" id="pl-cover-blur" alt="" hidden referrerpolicy="no-referrer">
+        <img class="pl-cover-art" id="pl-cover-art" alt="" hidden referrerpolicy="no-referrer">
         <span class="pl-cover-owner">{{.Owner}}</span>
         <span class="pl-cover-key" id="pl-cover-key"></span>
       </div>
@@ -70,6 +72,7 @@
       <li><button type="button" class="pl-row" data-index="{{$i}}">
         <span class="pl-row-num">{{$t.Num}}</span>
         <span class="pl-row-eq" aria-hidden="true"><i></i><i></i><i></i></span>
+        {{with $t.Cover}}<img class="pl-row-cover" src="{{.}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{end}}
         <span class="pl-row-text"><strong>{{$t.Title}}</strong><small>{{$t.Subtitle}}</small></span>
         <span class="pl-row-kind kind-{{$t.Source}}" title="{{$t.SourceLabel}}">{{if eq $t.Source "video"}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8.5 7.5v5l4.2-2.5z" fill="currentColor"/></svg>{{else if eq $t.Source "band"}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="7.5" y="2.5" width="5" height="9" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>{{else}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h1.5M6 7v6M8.5 4.5v11M11 7.5v5M13.5 5.5v9M16 8.5v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>{{end}}</span>
       </button></li>
@@ -204,6 +207,10 @@
     $('pl-source').className = `pl-source kind-${t.source}`;
     $('pl-cover-key').textContent = videoFirst ? (t.num ? `Lesson ${t.num}` : '') : [t.key, t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
     $('pl-open').href = t.href;
+    // The song's album cover, sharp over a blur of itself; none: the
+    // songbook's own cover.
+    ['pl-cover-blur', 'pl-cover-art'].forEach((id) => { const img = $(id); img.hidden = !t.cover; if (t.cover) img.src = t.cover; });
+    $('pl-cover').classList.toggle('has-art', !!t.cover);
     rows.forEach((r, j) => r.classList.toggle('current', j === index));
     if (wide.matches) rows[index].scrollIntoView({block: 'nearest'});
     drawSections();
@@ -214,8 +221,8 @@
     if (wide.matches && frame) frame.src = `/song/${t.id}?songbook={{.Songbook.ID}}&embed=playlist`;
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: t.title, artist: t.artist, album,
-        artwork: [{src: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png'}],
+        title: t.title, artist: t.artist, album: t.album || album,
+        artwork: [t.cover ? {src: t.cover, sizes: '600x600', type: 'image/jpeg'} : {src: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png'}],
       });
     }
     if (isVideo()) {
