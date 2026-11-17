@@ -577,7 +577,16 @@ type lessonPanelData struct {
 	Href       string // its own page
 	VideoID    string
 	Done       bool
+	DoneCount  int // how many of its lessons the viewer is done with
+	Percent    int // that, of all its lessons
 	Files      []lessonFile
+	Prev, Next *lessonLink // the lessons before and after it
+}
+
+// lessonLink is a link to another lesson: its page, which opens on its
+// song when it has one.
+type lessonLink struct {
+	Href, Label string
 }
 
 // lessonPanel is the lessonPanelData of lesson, in course sb, for the
@@ -595,8 +604,26 @@ func (s *Server) lessonPanel(r *http.Request, sb *store.Songbook, lesson *store.
 	if err != nil {
 		return nil, err
 	}
-	return &lessonPanelData{
+	panel := &lessonPanelData{
 		Lesson: *lesson, SongbookID: sb.ID, Course: sb.Name, Of: len(lessons), Href: lessonHref(sb.ID, lesson.ID) + "?view=lesson",
 		VideoID: s.lessonVideo(*lesson), Done: progress[lesson.ID].Done, Files: files[lesson.ID],
-	}, nil
+	}
+	link := func(l store.Lesson) *lessonLink { return &lessonLink{Href: lessonHref(sb.ID, l.ID), Label: l.Label()} }
+	for i, l := range lessons {
+		if progress[l.ID].Done {
+			panel.DoneCount++
+		}
+		if l.ID == lesson.ID {
+			if i > 0 {
+				panel.Prev = link(lessons[i-1])
+			}
+			if i+1 < len(lessons) {
+				panel.Next = link(lessons[i+1])
+			}
+		}
+	}
+	if len(lessons) > 0 {
+		panel.Percent = panel.DoneCount * 100 / len(lessons)
+	}
+	return panel, nil
 }

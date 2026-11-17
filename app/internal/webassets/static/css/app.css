@@ -1706,6 +1706,8 @@ button.link-like { border: 0; background: none; padding: 0; min-height: 0; min-w
 .gp-link { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--fg-muted); text-decoration: none; }
 .gp-link:hover { color: var(--fg); text-decoration: underline; }
 .gp-view-opts .gp-link:first-of-type { margin-left: auto; }
+.gp-hint { color: var(--fg-faint); font-size: 0.8rem; }
+@media (max-width: 720px) { .gp-hint { display: none; } }
 /* With the file's own recording, the score plays it: the practice player
    and the structure strip above would play the same, without the score. */
 body.gp-own-audio:has(#sheet[data-render-mode="score"]) #song-structure-strip,
@@ -6505,8 +6507,26 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .lesson-panel-files a:hover .lesson-panel-file { text-decoration: underline; }
 .lesson-panel-file { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lesson-panel-files small { color: var(--fg-faint); white-space: nowrap; }
+.lesson-video-close { display: none; }
+.lesson-panel-video.docked { aspect-ratio: 16 / 9; max-width: 56rem; margin: 0.6rem 0 0.2rem; }
+.lesson-panel-video.docked .lesson-video { position: fixed; z-index: 60; right: 1rem; bottom: 1rem; width: min(24rem, 42vw); margin: 0; box-shadow: var(--shadow-lg, var(--shadow)); }
+.lesson-panel-video.docked .lesson-video-close { display: inline-flex; position: absolute; z-index: 1; top: 0.3rem; right: 0.3rem; width: 2.2rem; height: 2.2rem; min-width: 0; min-height: 0; background: rgb(0 0 0 / 0.6); color: #fff; border: none; }
+.lesson-panel-nav { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 0.8rem; margin-top: 0.5rem; padding-top: 0.45rem; border-top: 1px solid var(--border); font-size: 0.85rem; }
+.lesson-panel-prev, .lesson-panel-next { display: inline-flex; align-items: center; gap: 0.3rem; min-width: 0; min-height: 2.2rem; color: var(--fg-muted); text-decoration: none; }
+.lesson-panel-prev span, .lesson-panel-next span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lesson-panel-next { justify-self: end; max-width: 100%; }
+.lesson-panel-prev:hover, .lesson-panel-next:hover { color: var(--fg); }
+.lesson-panel-prev .icon, .lesson-panel-next .icon { flex: none; margin: 0; }
+/* Done: the next lesson is the way on (Teachable's "complete and continue"). */
+.lesson-panel:has(.lesson-panel-done[aria-pressed="true"]) .lesson-panel-next { padding: 0 0.8rem; border-radius: var(--radius-control, 6px); background: var(--accent); color: var(--accent-contrast); font-weight: 600; }
+.lesson-panel-progress { display: inline-flex; align-items: center; gap: 0.45rem; color: var(--fg-muted); white-space: nowrap; }
+.lesson-panel-meter { width: 5rem; height: 0.35rem; border-radius: 999px; background: linear-gradient(to right, var(--ok) var(--done), var(--bg-sunken) var(--done)); }
 @media (max-width: 600px) {
   .lesson-panel-actions { width: 100%; }
   .lesson-panel-btn { flex: 1; justify-content: center; padding: 0 0.5rem; }
   .lesson-panel-name { white-space: normal; }
+  .lesson-panel-meter { width: 3rem; }
+  .lesson-panel-prev span { display: none; }
+  .lesson-panel-nav { grid-template-columns: auto auto minmax(0, 1fr); gap: 0.6rem; }
+  .lesson-panel-video.docked .lesson-video { width: 55vw; bottom: calc(4.6rem + env(safe-area-inset-bottom)); }
 }
