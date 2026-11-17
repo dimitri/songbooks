@@ -44,9 +44,19 @@ What follows from that:
   person's progress, and a *Start*, *Continue* or *Next* button. The
   community's default songbook page sends a course here.
   `?view=songs` shows the plain songbook page.
-- **/songbooks/{id}/lessons/{lessonID}**: *Mark as done*, the lesson's text,
-  its songs (opened in the course, so *back* returns to the lesson), its
-  files (download, play, open), and the previous and next lessons.
+- **/songbooks/{id}/lessons/{lessonID}** opens the lesson's (first) song:
+  a lesson is practised on its song's page, opened on its score (the Guitar
+  Pro file: playback, speed 25–110%, loop, click, count-in; the file's own
+  recording under the cursor, when it has one, in place of the song's audio
+  player). A lesson panel at the top of the song's page gives the course
+  and the lesson (N of M, to its own page), *Video*, *Files* and *Mark as
+  done*; the video, scrolled past, docks in a corner. Under it, the lessons
+  before and after and how many are done; done, the next lesson is the
+  button. The song's *previous* and *next* follow the course's order.
+  What other platforms' lesson pages do: docs/lesson-page-review.md.
+- **…/lessons/{lessonID}?view=lesson** is the lesson's own page: its text,
+  its songs, its files (download, play, open), the previous and next
+  lessons. A lesson without a song, and an editor in edit mode, land there.
 - **The songbook's *Sharing and access* page** lets staff choose Songbook or
   Course.
 - **Downloads** lists a course's files by lesson, each linked to the lesson.

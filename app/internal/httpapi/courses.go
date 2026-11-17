@@ -250,6 +250,13 @@ func (s *Server) handleLessonPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// A lesson with a song is practised on the song's page, which shows
+	// the lesson too (lessonPanel): its score, its playback, its audio.
+	// Its own page stays for its editors, and on ?view=lesson.
+	if len(lesson.Songs) > 0 && data["Editing"] != true && r.URL.Query().Get("view") != "lesson" {
+		http.Redirect(w, r, fmt.Sprintf("/song/%d?songbook=%d", lesson.Songs[0].VariantID, sb.ID), http.StatusFound)
+		return
+	}
 	data["Lesson"], data["Progress"], data["Files"] = lesson, progress[lesson.ID], files[lesson.ID]
 	data["VideoID"] = s.lessonVideo(*lesson)
 	if data["Editing"] == true {
@@ -557,4 +564,66 @@ func (s *Server) handleSetLessonDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"done": req.Done})
+}
+
+// lessonPanelData is what a song's page shows of the lesson it's in, in
+// a course: its name and page, its video, whether the viewer is done
+// with it, its songs (when more than one) and its files.
+type lessonPanelData struct {
+	Lesson     store.Lesson
+	SongbookID int64
+	Course     string // the course's name
+	Of         int    // how many lessons it has
+	Href       string // its own page
+	VideoID    string
+	Done       bool
+	DoneCount  int // how many of its lessons the viewer is done with
+	Percent    int // that, of all its lessons
+	Files      []lessonFile
+	Prev, Next *lessonLink // the lessons before and after it
+}
+
+// lessonLink is a link to another lesson: its page, which opens on its
+// song when it has one.
+type lessonLink struct {
+	Href, Label string
+}
+
+// lessonPanel is the lessonPanelData of lesson, in course sb, for the
+// request's viewer.
+func (s *Server) lessonPanel(r *http.Request, sb *store.Songbook, lesson *store.Lesson) (*lessonPanelData, error) {
+	progress, err := s.store.CourseProgress(r.Context(), sb.ID, personFromContext(r).ID)
+	if err != nil {
+		return nil, err
+	}
+	files, err := s.courseFiles(r, sb)
+	if err != nil {
+		return nil, err
+	}
+	lessons, _, err := s.store.ListLessons(r.Context(), sb.ID)
+	if err != nil {
+		return nil, err
+	}
+	panel := &lessonPanelData{
+		Lesson: *lesson, SongbookID: sb.ID, Course: sb.Name, Of: len(lessons), Href: lessonHref(sb.ID, lesson.ID) + "?view=lesson",
+		VideoID: s.lessonVideo(*lesson), Done: progress[lesson.ID].Done, Files: files[lesson.ID],
+	}
+	link := func(l store.Lesson) *lessonLink { return &lessonLink{Href: lessonHref(sb.ID, l.ID), Label: l.Label()} }
+	for i, l := range lessons {
+		if progress[l.ID].Done {
+			panel.DoneCount++
+		}
+		if l.ID == lesson.ID {
+			if i > 0 {
+				panel.Prev = link(lessons[i-1])
+			}
+			if i+1 < len(lessons) {
+				panel.Next = link(lessons[i+1])
+			}
+		}
+	}
+	if len(lessons) > 0 {
+		panel.Percent = panel.DoneCount * 100 / len(lessons)
+	}
+	return panel, nil
 }

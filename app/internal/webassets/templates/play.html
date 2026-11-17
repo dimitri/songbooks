@@ -605,7 +605,7 @@
         </span>
       </span>{{end}}
       {{if .Tempo}}<span class="topbar-meta-item">{{.Tempo}} bpm</span>{{end}}
-      {{if .GPSource}}<a class="topbar-meta-item gp-source-badge" href="/song/{{.VariantID}}/gp-file" download title="download the original Guitar Pro file — see Edit &rarr; GP Import to bring edits back in">{{template "icon-instrument-guitar"}} GP import: {{.GPSource}}</a>{{end}}
+      {{if and .GPSource .CanEdit}}<a class="topbar-meta-item gp-source-badge" href="/song/{{.VariantID}}/gp-file" download title="download the original Guitar Pro file — see Edit &rarr; GP Import to bring edits back in">{{template "icon-instrument-guitar"}} GP import: {{.GPSource}}</a>{{end}}
     </div>
     {{/* mini-metro-play/-fade/-tap stay in the DOM but hidden, not deleted
          — jumpToSection()/setPlaying() (song.js) operate on these exact
@@ -1304,6 +1304,89 @@
        comment. Removed to avoid a duplicate #site-nav-fullpage id. */}}
 
   <div class="content-main">
+    {{with .LessonPanel}}
+    {{/* The lesson this song is in, in a course (lessonPanel): the song's
+         page is where it's practised — its score, playback and audio —
+         with the lesson's name, its video and files folded away, and done. */}}
+    <section class="lesson-panel" id="lesson-panel" data-songbook="{{.SongbookID}}" data-lesson="{{.Lesson.ID}}">
+      <div class="lesson-panel-head">
+        <a class="lesson-panel-title" href="{{.Href}}">
+          <span class="lesson-panel-kicker">{{.Course}}{{with .Lesson.Number}} · Lesson {{.}}{{if $.LessonPanel.Of}} of {{$.LessonPanel.Of}}{{end}}{{end}}</span>
+          <span class="lesson-panel-name">{{.Lesson.Title}}</span>
+        </a>
+        <div class="lesson-panel-actions">
+          {{if .VideoID}}<button type="button" class="lesson-panel-btn" aria-expanded="false" aria-controls="lesson-panel-video">{{template "icon-play"}}<span>Video</span></button>{{end}}
+          {{if .Files}}<button type="button" class="lesson-panel-btn" aria-expanded="false" aria-controls="lesson-panel-files">{{template "icon-download"}}<span>Files <small>{{len .Files}}</small></span></button>{{end}}
+          <button type="button" id="lesson-panel-done" class="lesson-panel-btn lesson-panel-done" aria-pressed="{{if .Done}}true{{else}}false{{end}}"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10.5l3.5 3.5 7.5-8"/></svg><span>{{if .Done}}Done{{else}}Mark as done{{end}}</span></button>
+        </div>
+      </div>
+      {{/* The video stays in view while the score scrolls: docked in a
+           corner once its place is out of sight (the script below). */}}
+      {{with .VideoID}}<div class="lesson-panel-video" id="lesson-panel-video" data-video="{{.}}" hidden><div class="lesson-video"><button type="button" class="lesson-video-close icon-btn" aria-label="Close the video">{{template "icon-close"}}</button></div></div>{{end}}
+      {{with .Files}}<ul class="lesson-panel-files" id="lesson-panel-files" hidden>{{range .}}<li><a href="{{.Href}}" download><span class="dl-ext">{{if eq .Kind "gp"}}GP{{else}}{{or .Ext "FILE"}}{{end}}</span><span class="lesson-panel-file">{{.Filename}}</span><small>{{fileSize .ByteSize}}</small></a></li>{{end}}</ul>{{end}}
+      {{/* The course around it: the lessons before and after, and how
+           far along the viewer is. Done makes "next" the way on. */}}
+      <nav class="lesson-panel-nav" aria-label="Lessons">
+        {{with .Prev}}<a class="lesson-panel-prev" href="{{.Href}}" title="{{.Label}}">{{template "icon-back"}}<span>{{.Label}}</span></a>{{else}}<span></span>{{end}}
+        <span class="lesson-panel-progress" title="{{.DoneCount}} of {{.Of}} lessons done"><span class="lesson-panel-meter" style="--done: {{.Percent}}%"></span><small>{{.DoneCount}}/{{.Of}} done</small></span>
+        {{with .Next}}<a class="lesson-panel-next" href="{{.Href}}" title="{{.Label}}"><span>{{.Label}}</span>{{template "icon-forward"}}</a>{{else}}<span></span>{{end}}
+      </nav>
+    </section>
+    <script>
+    (() => {
+      const panel = document.getElementById('lesson-panel');
+      // Video and Files open under the row, one at a time; the video
+      // loads when opened, not before.
+      const toggles = panel.querySelectorAll('[aria-controls]');
+      toggles.forEach((b) => b.addEventListener('click', () => {
+        const open = b.getAttribute('aria-expanded') !== 'true';
+        toggles.forEach((o) => {
+          o.setAttribute('aria-expanded', String(o === b && open));
+          document.getElementById(o.getAttribute('aria-controls')).hidden = !(o === b && open);
+        });
+        const video = panel.querySelector('.lesson-panel-video');
+        const box = video?.querySelector('.lesson-video');
+        if (video && !video.hidden && !box.querySelector('iframe')) {
+          const f = document.createElement('iframe');
+          f.src = `https://www.youtube-nocookie.com/embed/${video.dataset.video}?rel=0`;
+          f.title = 'The lesson’s video';
+          f.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+          f.allowFullscreen = true;
+          box.append(f);
+        }
+      }));
+      // Scrolled out of sight, the open video docks in a corner (the same
+      // iframe, so it keeps playing); its × closes it.
+      const video = panel.querySelector('.lesson-panel-video');
+      if (video) {
+        new IntersectionObserver(([e]) => {
+          video.classList.toggle('docked', !video.hidden && !e.isIntersecting && e.boundingClientRect.top < 0);
+        }).observe(video);
+        video.querySelector('.lesson-video-close').addEventListener('click', () => {
+          video.classList.remove('docked');
+          video.querySelector('iframe')?.remove();
+          panel.querySelector('[aria-controls="lesson-panel-video"]').click();
+        });
+      }
+      const done = document.getElementById('lesson-panel-done');
+      done.addEventListener('click', async () => {
+        const now = done.getAttribute('aria-pressed') !== 'true';
+        Forms.busy(done, true);
+        const res = await fetch(`/api/songbooks/${panel.dataset.songbook}/lessons/${panel.dataset.lesson}/done`, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({done: now})}).catch(() => null);
+        Forms.busy(done, false);
+        if (!res || !res.ok) { alert('Couldn’t save that.'); return; }
+        done.setAttribute('aria-pressed', String(now));
+        done.querySelector('span').textContent = now ? 'Done' : 'Mark as done';
+        const progress = panel.querySelector('.lesson-panel-progress');
+        const [n, of] = progress.querySelector('small').textContent.split(/[/ ]/).map(Number);
+        const count = n + (now ? 1 : -1);
+        progress.querySelector('small').textContent = `${count}/${of} done`;
+        progress.title = `${count} of ${of} lessons done`;
+        progress.querySelector('.lesson-panel-meter').style.setProperty('--done', `${Math.floor(count * 100 / of)}%`);
+      });
+    })();
+    </script>
+    {{end}}
     {{/* Single-line song structure overview — a thin progress line with
          one tick + label per section, weighted by its own bar count.
          Lives INSIDE the main pane (not the full page width) so it lines
@@ -1569,19 +1652,30 @@
     {{/* The Score view: the whole Guitar Pro file, drawn and played by
          gp-view.js. Same sibling-of-#sheet convention as the Mixer. */}}
     <div class="gp-score-page" id="gp-score-page">
-      <div class="gp-toolbar">
-        <button type="button" class="gp-btn gp-play" aria-label="Play" disabled>▶</button>
-        <button type="button" class="gp-btn gp-stop" aria-label="Stop">■</button>
-        <span class="gp-time" aria-live="off"></span>
-        <label class="gp-opt">Speed <select class="gp-speed"><option value="0.5">50%</option><option value="0.6">60%</option><option value="0.75">75%</option><option value="0.9">90%</option><option value="1" selected>100%</option></select></label>
-        <label class="gp-opt"><input type="checkbox" class="gp-loop"> Loop</label>
-        <label class="gp-opt"><input type="checkbox" class="gp-metronome"> Metronome</label>
-        <label class="gp-opt"><input type="checkbox" class="gp-countin"> Count-in</label>
-        <label class="gp-opt">Show <select class="gp-notation"><option value="">as I read it</option><option value="tab">Tab</option><option value="staff">Staff</option><option value="both">Staff + tab</option></select></label>
-        {{if .CanEdit}}<a class="gp-btn gp-edit-link" href="/song/{{.VariantID}}/gp-edit">Edit the file</a>{{end}}
-        <a class="gp-btn" href="/song/{{.VariantID}}/gp-file" download>Download</a>
+      {{/* The same control bar as the practice player above (audio-
+           player.js), which it replaces in this view when the file has
+           its own recording (body.gp-own-audio): that recording plays
+           here, under the score's cursor. */}}
+      <div class="gp-toolbar audio-transport">
+        <div class="audio-buttons">
+          <button type="button" class="icon-btn gp-stop" title="back to the start (Home)">{{template "icon-to-start"}}</button>
+          <button type="button" class="icon-btn audio-play-btn gp-play" title="play/pause (Space)" aria-label="Play" disabled>{{template "icon-play"}}</button>
+        </div>
+        <div class="audio-lcd gp-lcd" aria-live="off"><span class="audio-lcd-pos gp-bar" title="bar">1</span><span class="audio-lcd-time gp-time"></span></div>
+        <div class="gp-opts">
+          <label class="audio-speed" title="playback speed">{{template "icon-speed"}}<select class="gp-speed" aria-label="Speed"><option value="0.25">25%</option><option value="0.4">40%</option><option value="0.5">50%</option><option value="0.6">60%</option><option value="0.75">75%</option><option value="0.9">90%</option><option value="1" selected>100%</option><option value="1.1">110%</option></select></label>
+          <button type="button" class="audio-toggle gp-loop" aria-pressed="false" title="loop: the bars selected in the score (drag across them), else the whole song">{{template "icon-cycle"}}<span>Loop</span></button>
+          <button type="button" class="audio-toggle gp-metronome" aria-pressed="false" title="metronome click">{{template "icon-metronome"}}<span>Click</span></button>
+          <button type="button" class="audio-toggle gp-countin" aria-pressed="false" title="a bar of clicks before playing">{{template "icon-count-in"}}<span>Count-in</span></button>
+        </div>
       </div>
-      <div class="gp-tracks" role="group" aria-label="Tracks shown"></div>
+      <div class="gp-view-opts">
+        <div class="gp-tracks" role="group" aria-label="Tracks shown"></div>
+        <span class="gp-hint">Click the score to start there, drag across bars to loop them.</span>
+        <label class="gp-opt">Show <select class="gp-notation"><option value="">as I read it</option><option value="tab">Tab</option><option value="staff">Staff</option><option value="both">Staff + tab</option></select></label>
+        {{if .CanEdit}}<a class="gp-link gp-edit-link" href="/song/{{.VariantID}}/gp-edit">{{template "icon-edit"}} Edit the file</a>{{end}}
+        <a class="gp-link" href="/song/{{.VariantID}}/gp-file" download>{{template "icon-download"}} Guitar Pro file</a>
+      </div>
       <div class="gp-score-viewport"><div class="gp-score-canvas"></div></div>
     </div>
     {{end}}

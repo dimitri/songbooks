@@ -175,11 +175,21 @@
     s.player.enableCursor = true;
     s.player.enableUserInteraction = true;
     s.player.soundFont = '/static/js/vendor/alphatab/soundfont/sonivox.sf2';
-    s.player.scrollElement = page.querySelector('.gp-score-viewport');
+    // On a phone the page itself scrolls (no box in a box, app.css), under
+    // the sticky control bar.
+    const phone = matchMedia('(max-width: 720px)').matches;
+    s.player.scrollElement = phone ? 'html,body' : page.querySelector('.gp-score-viewport');
+    if (phone) s.player.scrollOffsetY = -(page.querySelector('.gp-toolbar').offsetHeight + 16);
     if (alphaTab.PlayerMode) s.player.playerMode = alphaTab.PlayerMode.EnabledAutomatic;
-    hide(s, ['ScoreCopyright']);
+    // A phone has the song's name at the top of the page already, and no
+    // room for it again at the score's size.
+    hide(s, phone ? SCORE_INFO : ['ScoreCopyright']);
     const api = new alphaTab.AlphaTabApi(canvas, s);
     full = { api, score, shown: new Set([0]) };
+    // A file with its own recording plays it here, under the cursor: the
+    // practice player above, the same recording without the score, gives
+    // this view its place (app.css).
+    if (score.backingTrack && score.backingTrack.rawAudioFile) document.body.classList.add('gp-own-audio');
 
     // Start on the tracks the song's own lines name, else the first.
     const named = [...sheet.querySelectorAll('.gp-score[data-track]')].map((f) => Number(f.dataset.track)).filter((i) => i >= 0);
@@ -204,19 +214,42 @@
     play?.addEventListener('click', () => api.playPause());
     page.querySelector('.gp-stop')?.addEventListener('click', () => api.stop());
     page.querySelector('.gp-speed')?.addEventListener('change', (e) => { api.playbackSpeed = Number(e.target.value) || 1; });
-    page.querySelector('.gp-loop')?.addEventListener('change', (e) => { api.isLooping = e.target.checked; });
-    page.querySelector('.gp-metronome')?.addEventListener('change', (e) => { api.metronomeVolume = e.target.checked ? 1 : 0; });
-    page.querySelector('.gp-countin')?.addEventListener('change', (e) => { api.countInVolume = e.target.checked ? 1 : 0; });
+    const toggle = (cls, set) => page.querySelector(cls)?.addEventListener('click', (e) => {
+      const b = e.currentTarget;
+      const on = b.getAttribute('aria-pressed') !== 'true';
+      b.setAttribute('aria-pressed', String(on));
+      b.classList.toggle('active', on);
+      set(on);
+    });
+    toggle('.gp-loop', (on) => { api.isLooping = on; });
+    toggle('.gp-metronome', (on) => { api.metronomeVolume = on ? 1 : 0; });
+    toggle('.gp-countin', (on) => { api.countInVolume = on ? 1 : 0; });
     api.playerReady.on(() => { if (play) play.disabled = false; });
+    const playIcon = play && play.innerHTML;
+    const pauseIcon = '<svg class="icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="3.5" height="12" rx="1"/><rect x="11.5" y="4" width="3.5" height="12" rx="1"/></svg>';
     api.playerStateChanged.on((e) => {
       if (!play) return;
       const playing = e.state === 1;
-      play.textContent = playing ? '❚❚' : '▶';
+      play.innerHTML = playing ? pauseIcon : playIcon;
+      play.classList.toggle('active', playing);
       play.setAttribute('aria-label', playing ? 'Pause' : 'Play');
     });
     const time = page.querySelector('.gp-time');
+    const bar = page.querySelector('.gp-bar');
     const fmt = (ms) => { const t = Math.max(0, Math.round(ms / 1000)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
     api.playerPositionChanged.on((e) => { if (time) time.textContent = fmt(e.currentTime) + ' / ' + fmt(e.endTime); });
+    api.playedBeatChanged.on((beat) => { if (bar && beat) bar.textContent = beat.voice.bar.index + 1; });
+    // Space plays and pauses, Home goes back, while this view is the one
+    // playing (audio-player.js leaves them to it).
+    document.addEventListener('keydown', (e) => {
+      if (sheet.dataset.renderMode !== 'score' || !document.body.classList.contains('gp-own-audio')) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target.closest ? e.target : document.body;
+      if (t.closest('input, select, textarea, [contenteditable]')) return;
+      if (t.closest('button, a') && !t.closest('#gp-score-page')) return;
+      if (e.key === ' ') { e.preventDefault(); if (play && !play.disabled) api.playPause(); }
+      else if (e.key === 'Home') { e.preventDefault(); api.stop(); }
+    });
     renderFull();
   }
 

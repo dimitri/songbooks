@@ -1149,8 +1149,11 @@ const ICONS = {
     // A song whose content is all in its Guitar Pro file ("content: gp")
     // opens on that file.
     // Beside a playlist's player (playlist.html), the song shows as its map.
+    // A course's lesson (the lesson panel above the song) opens on the
+    // song's Guitar Pro file, the score the lesson is practised on.
     const embedded = document.body.classList.contains('embed-playlist');
-    const saved = embedded ? 'map' : sheet.dataset.gpOnly ? 'score' : localStorage.getItem('songbooks-default-mode');
+    const lesson = document.getElementById('lesson-panel') && sheet.dataset.gpFile;
+    const saved = embedded ? 'map' : sheet.dataset.gpOnly || lesson ? 'score' : localStorage.getItem('songbooks-default-mode');
     // Drummer view only for a song that has a drum part: on any other it
     // is a page of empty staves, so the song opens as a chart instead.
     const hasDrums = [...document.querySelectorAll('[data-realbars]')].some((e) => !e.dataset.restonly);
