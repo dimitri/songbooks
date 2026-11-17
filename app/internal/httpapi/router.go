@@ -437,6 +437,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/bands/{id}/recordings/{recID}/stars", s.requireBandMember(s.handleRateBandRecording))
 	mux.HandleFunc("PUT /api/bands/{id}/songs/{variantID}/recording", s.requireBandMember(s.handleSetBandSongRecording))
 	mux.HandleFunc("POST /api/bands/{id}/recordings/fixes", s.requireBandMember(s.handleSetBandRecordingFix))
+	mux.HandleFunc("PUT /api/bands/{id}/recordings/templates", s.requireBandMember(s.handleSetNameTemplates))
+	mux.HandleFunc("POST /api/bands/{id}/recordings/templates/try", s.requireBandMember(s.handleTryNameTemplate))
 	mux.HandleFunc("DELETE /api/bands/{id}/recordings/fixes/{fixID}", s.requireBandMember(s.handleDeleteBandRecordingFix))
 	mux.HandleFunc("POST /api/bands/{id}/events", s.requireBandMember(s.handleCreateBandEvent))
 	mux.HandleFunc("GET /events/{id}", s.optionalPerson(s.handleEventPage))

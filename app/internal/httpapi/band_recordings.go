@@ -290,8 +290,27 @@ func (s *Server) handleBandRecordingFixesPage(w http.ResponseWriter, r *http.Req
 		return
 	}
 	sort.SliceStable(songs, func(i, j int) bool { return songs[i].Title < songs[j].Title })
+	names, err := s.store.NameReport(ctx, band.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	own, err := s.store.NameTemplates(ctx, band.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	// The files no song is found for: the named ones, or (?raw=1) the
+	// recorder's own.
+	showRaw := r.URL.Query().Get("raw") == "1"
+	files, err := s.store.UnmatchedFiles(ctx, band.ID, showRaw)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "band_recording_fixes", map[string]any{
 		"Me": personFromContext(r), "Band": band, "Questions": questions, "Unmatched": unmatched, "Fixes": fixes, "Songs": songs,
+		"Names": names, "Own": own, "Files": files, "ShowRaw": showRaw,
 	})
 }
 
@@ -419,4 +438,42 @@ func (s *Server) handleDeleteBandRecordingFix(w http.ResponseWriter, r *http.Req
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+}
+
+// handleSetNameTemplates is PUT /api/bands/{id}/recordings/templates:
+// {"templates": ["{n} - {title} - {date}"]}, the band's own, read before
+// the built-in ones; the names are read again straight away.
+func (s *Server) handleSetNameTemplates(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := pathID(r, "id")
+	var req struct {
+		Templates []string `json:"templates"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if err := s.store.SetNameTemplates(r.Context(), bandID, req.Templates); err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
+}
+
+// handleTryNameTemplate is POST /api/bands/{id}/recordings/templates/try:
+// {"template": "..."}, what it would read in the band's file names.
+func (s *Server) handleTryNameTemplate(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := pathID(r, "id")
+	var req struct {
+		Template string `json:"template"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	try, err := s.store.TryTemplate(r.Context(), bandID, req.Template)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, try)
 }

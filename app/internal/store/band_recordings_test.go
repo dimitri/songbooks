@@ -29,7 +29,7 @@ func TestParseRecording(t *testing.T) {
 	}
 	for in, w := range cases {
 		dir, name, _ := strings.Cut(in, "|")
-		p, ok := parseRecording(strings.Split(dir, "/"), name, "Other Lies")
+		p, ok := parseRecording(strings.Split(dir, "/"), name, "Other Lies", builtins)
 		if ok != w.ok {
 			t.Errorf("%s: ok %v, want %v", in, ok, w.ok)
 			continue
