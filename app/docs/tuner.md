@@ -25,8 +25,11 @@ warm-ups were looked at and set aside.
   90% of the highest, parabolic interpolation), about 80 lines of plain
   JS, no library, read 20 times a second.
 - **Steady display:** median of the last five readings, eased; a note
-  held within ±3 cents for 0.35 s is "In tune" (green, a short
+  held within ±5 cents for 0.25 s is "In tune" (green, a short
   vibration on phones that have it).
+- **12th-fret harmonics:** a string's harmonic (an octave up, cleaner
+  for the microphone) counts as that string, after the open strings
+  themselves; quiet notes are kept (a harmonic is soft).
 - **Tunings:** the song's own first, when opened from a song
   (`/tuner?song=ID`: each Guitar Pro track's tuning and capo), then the
   ones below.

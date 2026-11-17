@@ -13,6 +13,7 @@
   const root = document.getElementById('tuner');
   if (!root) return;
   const $ = (id) => document.getElementById(id);
+  const TOL = 5; // cents: in tune
   const NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
   const name = (midi) => NAMES[((midi % 12) + 12) % 12];
   const octave = (midi) => Math.floor(midi / 12) - 1;
@@ -188,7 +189,7 @@
     let rms = 0;
     for (let i = 0; i < n; i++) rms += x[i] * x[i];
     rms = Math.sqrt(rms / n);
-    if (rms < 0.008) return null; // silence
+    if (rms < 0.002) return null; // silence (a harmonic is quiet: keep it)
     const maxTau = Math.min(n >> 1, Math.ceil(sr / 22));
     const minTau = Math.floor(sr / 1400);
     const nsdf = new Float32Array(maxTau);
@@ -258,13 +259,16 @@
   function show(m, freq, now) {
     const t = tunings[at];
     // Which string: the nearest of the tuning's, within a fourth; else the
-    // nearest note.
-    let target = Math.round(m);
+    // nearest note. A string's 12th-fret harmonic, an octave up, counts as
+    // that string (a clean note the microphone hears better than the open
+    // string), after the open strings themselves.
+    let target = Math.round(m), harmonic = false;
     const all = notesOf(t).map((n) => n + capo);
-    if (locked !== null) target = locked;
-    else if (all.length) {
-      const near = all.reduce((best, n) => (Math.abs(n - m) < Math.abs(best - m) ? n : best), all[0]);
-      if (Math.abs(near - m) <= 5) target = near;
+    const candidates = (locked !== null ? [locked] : all).flatMap((n) => [[n, false], [n + 12, true]]);
+    if (candidates.length) {
+      const dist = ([n, h]) => Math.abs(n - m) + (h ? 0.01 : 0);
+      const [near, h] = candidates.reduce((best, c) => (dist(c) < dist(best) ? c : best));
+      if (locked !== null || Math.abs(near - m) <= 5) { target = near; harmonic = h; }
     }
     const cents = Math.max(-50, Math.min(50, (m - target) * 100));
     const off = Math.abs(m - target) > 0.5; // a locked string, far off
@@ -274,17 +278,19 @@
     hzEl.textContent = `${freq.toFixed(1)} Hz`;
     needle.style.setProperty('--cents', cents);
     root.classList.add('hearing');
-    const close = Math.abs(cents) <= 3;
+    // In tune within ±5 cents, held a quarter of a second: what a player
+    // can hear; tighter only makes the needle hunt.
+    const close = Math.abs(cents) <= TOL;
     if (close && !inTuneSince) inTuneSince = now;
     if (!close) inTuneSince = 0;
-    const inTune = close && now - inTuneSince > 350;
+    const inTune = close && now - inTuneSince > 250;
     if (inTune && !root.classList.contains('in-tune') && navigator.vibrate) navigator.vibrate(30);
     root.classList.toggle('in-tune', inTune);
-    root.classList.toggle('flat', cents < -3);
-    root.classList.toggle('sharp', cents > 3);
-    stateEl.textContent = inTune ? 'In tune' : off ? `Playing ${name(Math.round(m))}: ${m < target ? 'tighten' : 'loosen'} a lot` : cents < 0 ? 'Too low: tighten' : 'Too high: loosen';
+    root.classList.toggle('flat', cents < -TOL);
+    root.classList.toggle('sharp', cents > TOL);
+    stateEl.textContent = (harmonic ? '12th-fret harmonic · ' : '') + (inTune ? 'In tune' : off) ? `Playing ${name(Math.round(m))}: ${m < target ? 'tighten' : 'loosen'} a lot` : cents < 0 ? 'Too low: tighten' : 'Too high: loosen';
     strings.querySelectorAll('.tuner-string').forEach((s) => {
-      const on = s.dataset.notes.split(' ').map(Number).includes(target);
+      const on = s.dataset.notes.split(' ').map(Number).includes(harmonic ? target - 12 : target);
       s.classList.toggle('current', on);
       s.classList.toggle('tuned', on && inTune);
     });
