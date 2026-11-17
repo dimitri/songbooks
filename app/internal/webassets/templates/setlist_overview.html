@@ -29,7 +29,7 @@
 {{end}}
 
 <main class="index">
-  <nav class="band-tabs band-tabs-row">
+  <nav class="band-tabs band-tabs-row setlist-tabs">
     <a href="{{.Path}}" class="band-tab active">{{template "icon-setlists"}} Running order</a>
     <a href="{{.Path}}/clicktrack" class="band-tab">{{template "icon-metronome"}} Metronome</a>
     {{if .Playable}}<button type="button" class="band-tab" data-play-all>{{template "icon-play"}} Play all</button>{{end}}
