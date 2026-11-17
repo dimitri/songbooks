@@ -311,6 +311,7 @@ func (s *Server) handleBandRecordingFixesPage(w http.ResponseWriter, r *http.Req
 	s.render(w, "band_recording_fixes", map[string]any{
 		"Me": personFromContext(r), "Band": band, "Questions": questions, "Unmatched": unmatched, "Fixes": fixes, "Songs": songs,
 		"Names": names, "Own": own, "Files": files, "ShowRaw": showRaw,
+		"Templates": templateRows(own, names),
 	})
 }
 
@@ -476,4 +477,31 @@ func (s *Server) handleTryNameTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, try)
+}
+
+// templateRow is a template in the order the band's names are read with,
+// and how many names it reads.
+type templateRow struct {
+	Text  string
+	Own   bool
+	Count int
+}
+
+// templateRows is the band's own templates then the built-in ones, in
+// the order they're tried, with the names each reads first.
+func templateRows(own []string, names []store.NameUse) []templateRow {
+	count := map[string]int{}
+	for _, n := range names {
+		if n.Template != "" {
+			count[n.Template] = n.Count
+		}
+	}
+	var out []templateRow
+	for _, t := range own {
+		out = append(out, templateRow{Text: t, Own: true, Count: count[t]})
+	}
+	for _, t := range store.BuiltinTemplates() {
+		out = append(out, templateRow{Text: t, Count: count[t]})
+	}
+	return out
 }

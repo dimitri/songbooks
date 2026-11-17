@@ -38,9 +38,11 @@ Auditions/2024-07-25/1-1 - Thierry - You Know Im No Good - 2024-07-25.mp3
   *Export Multiple* names a file per label: `{n}` the song's place, `{set}`
   the set, `{title}`, `{take}` after "Take" or "Prise", `{date}` (2025-03-13,
   20250313, 250313, 13-03-2025), `{*}` anything else; dashes, underscores and
-  spaces are loose. The band's own templates first (the Corrections page:
-  *Try it* shows what one reads in the folder, *Add it* reads every name
-  again), then the built-in ones, most specific first:
+  spaces are loose. The band's own templates first, in the band's order
+(the Corrections page: a list to add to, first or after the others, to
+  change, to move earlier or later, to remove; *Try it* shows what one
+  reads in the folder; every change reads all the names again), then the
+  built-in ones, most specific first:
   `{set} - {n} - {title} - Take {take} - {date}`,
   `{set} - {n} - {title} - {date}`, `{set}-{n} {title}`,
   `{n} - {title} - Take {take} - {date}`, `{n} - Take {take} - {title} - {date}`,

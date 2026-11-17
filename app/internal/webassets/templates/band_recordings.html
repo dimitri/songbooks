@@ -521,18 +521,38 @@
       </tr>{{end}}
       </tbody>
     </table></div>
+    <h3 class="rec-templates-title">The templates, in the order they’re tried</h3>
+    <p class="hint">A name is read by the first template that reads all of it: the band’s own first, in your order, then the built-in ones.</p>
+    <ol class="rec-templates" id="own-templates">
+      {{range $i, $t := .Templates}}{{if $t.Own}}
+      <li class="rec-template own" data-template="{{$t.Text}}">
+        <code>{{$t.Text}}</code>
+        <span class="rec-template-count">{{$t.Count}} file{{if ne $t.Count 1}}s{{end}}</span>
+        <span class="rec-template-actions">
+          <button type="button" class="dl-btn" data-move="-1" aria-label="Try it earlier">{{template "icon-up"}}</button>
+          <button type="button" class="dl-btn" data-move="1" aria-label="Try it later">{{template "icon-down"}}</button>
+          <button type="button" class="dl-btn" data-edit aria-label="Change it">{{template "icon-edit"}}</button>
+          <button type="button" class="dl-btn danger" data-remove aria-label="Remove it">{{template "icon-trash"}}</button>
+        </span>
+      </li>
+      {{end}}{{end}}
+    </ol>
+    {{if not .Own}}<p class="hint rec-templates-none">No template of the band’s yet: add one below to read names the built-in ones don’t.</p>{{end}}
     <form class="rec-template-form" id="template-form">
-      <div class="field"><label for="template-text">Your own template</label>
+      <div class="field"><label for="template-text" id="template-label">Add a template</label>
         <input id="template-text" name="template" placeholder="{n} - {title} - {date}" autocomplete="off" autocapitalize="off" spellcheck="false" required></div>
-      <div class="form-actions"><button type="button" class="secondary" id="template-try">Try it</button> <button type="submit" class="primary">Add it</button></div>
+      <div class="field rec-template-where"><label for="template-where">Tried</label>
+        <select id="template-where" name="where"><option value="first">first</option><option value="last">after yours</option></select></div>
+      <div class="form-actions"><button type="button" class="secondary" id="template-try">Try it</button> <button type="submit" class="primary" id="template-save">Add it</button> <button type="button" class="link-like" id="template-cancel" hidden>Cancel</button></div>
       <p class="form-status" role="status"></p>
       <div class="rec-template-try" id="template-result" hidden></div>
     </form>
-    {{if .Own}}
-    <ul class="rec-own-templates">
-      {{range .Own}}<li><code>{{.}}</code> <button type="button" class="link-like danger" data-template-remove="{{.}}">Remove</button></li>{{end}}
-    </ul>
-    {{end}}
+    <details class="rec-builtins">
+      <summary>The built-in templates, tried after the band’s</summary>
+      <ol class="rec-templates">
+        {{range .Templates}}{{if not .Own}}<li class="rec-template"><code>{{.Text}}</code> <span class="rec-template-count">{{.Count}} file{{if ne .Count 1}}s{{end}}</span></li>{{end}}{{end}}
+      </ol>
+    </details>
   </section>
 
   <section class="card" id="files">
@@ -639,8 +659,9 @@
     if (!sel.value) return;
     try { await fix('file', sel.dataset.file, sel.value); sel.closest('li').remove(); } catch (e) { alert(e.message); }
   }));
-  // The band's own templates: try one on the folder's names, add it,
-  // remove one. Saving reads every name again.
+  // The band's own templates, in the order they're tried: try one on the
+  // folder's names, add it first or last, change one, move one earlier or
+  // later, remove one. Saving reads every name again.
   const own = {{.Own}} || [];
   const saveTemplates = async (list) => {
     const res = await fetch(`/api/bands/${bandId}/recordings/templates`, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({templates: list})}).catch(() => null);
@@ -649,24 +670,50 @@
   };
   const tform = document.getElementById('template-form');
   const out = document.getElementById('template-result');
+  const label = document.getElementById('template-label'), saveBtn = document.getElementById('template-save'), cancel = document.getElementById('template-cancel');
+  let editing = -1; // the template being changed, -1 when adding
+  const setEditing = (i) => {
+    editing = i;
+    label.textContent = i < 0 ? 'Add a template' : 'Change the template';
+    saveBtn.textContent = i < 0 ? 'Add it' : 'Save it';
+    cancel.hidden = i < 0;
+    document.querySelector('.rec-template-where').hidden = i >= 0;
+    tform.elements.template.value = i < 0 ? '' : own[i];
+    out.hidden = true;
+    if (i >= 0) tform.elements.template.focus();
+  };
+  cancel.addEventListener('click', () => setEditing(-1));
   document.getElementById('template-try').addEventListener('click', (e) => {
     Forms.run(tform, e.currentTarget, async () => {
       const res = await fetch(`/api/bands/${bandId}/recordings/templates/try`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({template: tform.elements.template.value})});
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Couldn’t try it.');
-      const field = (label, v) => (v === null || v === undefined || v === '' ? '' : `<span><b>${label}</b> ${String(v).replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]))}</span>`);
+      const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+      const field = (name, v) => (v === null || v === undefined || v === '' ? '' : `<span><b>${name}</b> ${esc(v)}</span>`);
       out.hidden = false;
-      out.innerHTML = `<p><strong>${data.Count}</strong> of ${data.Total} names read.</p>` + (data.Examples || []).map((x) =>
-        `<div class="rec-try-row"><small>${field('', x.Name)}</small><div>${field('set', x.Set)}${field('n', x.Position)}${field('title', x.Title)}${field('take', x.Take)}${field('date', x.Date)}</div></div>`).join('');
+      out.innerHTML = `<p><strong>${data.Count}</strong> of ${data.Total} names read, alone (in the list, a template before it may read some first).</p>` + (data.Examples || []).map((x) =>
+        `<div class="rec-try-row"><small>${esc(x.Name)}</small><div>${field('set', x.Set)}${field('n', x.Position)}${field('title', x.Title)}${field('take', x.Take)}${field('date', x.Date)}</div></div>`).join('');
     });
   });
   tform.addEventListener('submit', (e) => {
     e.preventDefault();
-    Forms.run(tform, tform.querySelector('button[type=submit]'), async () => { await saveTemplates([tform.elements.template.value.trim(), ...own]); location.reload(); });
+    const t = tform.elements.template.value.trim();
+    const list = [...own];
+    if (editing >= 0) list[editing] = t;
+    else if (tform.elements.where.value === 'last') list.push(t);
+    else list.unshift(t);
+    Forms.run(tform, saveBtn, async () => { await saveTemplates(list); location.reload(); });
   });
-  document.querySelectorAll('[data-template-remove]').forEach((b) => b.addEventListener('click', async () => {
-    try { await saveTemplates(own.filter((t) => t !== b.dataset.templateRemove)); location.reload(); } catch (e) { alert(e.message); }
-  }));
+  document.querySelectorAll('#own-templates .rec-template').forEach((li, i) => {
+    const run = async (list) => { try { await saveTemplates(list); location.reload(); } catch (err) { alert(err.message); } };
+    li.querySelectorAll('[data-move]').forEach((b) => {
+      const j = i + Number(b.dataset.move);
+      b.disabled = j < 0 || j >= own.length;
+      b.addEventListener('click', () => { const list = [...own]; [list[i], list[j]] = [list[j], list[i]]; run(list); });
+    });
+    li.querySelector('[data-edit]').addEventListener('click', () => setEditing(i));
+    li.querySelector('[data-remove]').addEventListener('click', () => { if (confirm(`Remove ${own[i]}?`)) run(own.filter((_, k) => k !== i)); });
+  });
 
   document.querySelectorAll('[data-delete]').forEach((b) => b.addEventListener('click', async () => {
     const res = await fetch(`/api/bands/${bandId}/recordings/fixes/${b.dataset.delete}`, {method: 'DELETE'}).catch(() => null);

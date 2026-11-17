@@ -6446,6 +6446,17 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .rec-try-row { padding: 0.35rem 0; border-bottom: 1px dashed var(--border); }
 .rec-try-row div { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; }
 .rec-try-row b { color: var(--fg-faint); font-weight: 600; margin-right: 0.2rem; }
-.rec-own-templates { list-style: none; padding: 0; margin: 0.8rem 0 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.rec-templates-title { margin: 1.2rem 0 0.2rem; font-size: 1rem; }
+.rec-templates { margin: 0.4rem 0 0; padding-left: 1.6rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.rec-template { padding: 0.3rem 0; }
+.rec-template.own { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.8rem; border-bottom: 1px solid var(--border); }
+.rec-template.own code { flex: 1 1 14rem; }
+.rec-template-count { font-size: 0.8rem; color: var(--fg-faint); font-variant-numeric: tabular-nums; }
+.rec-template-actions { display: inline-flex; gap: 0.25rem; }
+.rec-template-actions .dl-btn { min-width: 2.5rem; justify-content: center; }
+.rec-template-actions .dl-btn:disabled { opacity: 0.35; }
+.rec-template-where { flex: 0 0 9rem !important; }
+.rec-builtins { margin-top: 1rem; }
+.rec-builtins summary { cursor: pointer; min-height: 2.75rem; display: flex; align-items: center; font-weight: 600; }
 .rec-files select { max-width: 16rem; }
 .rec-template-form .field input { width: 100%; }

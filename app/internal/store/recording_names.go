@@ -50,6 +50,10 @@ var builtinTemplates = []string{
 	"{title} Take {take}",
 }
 
+// BuiltinTemplates is the built-in templates, in the order they're tried
+// (after the band's own).
+func BuiltinTemplates() []string { return append([]string(nil), builtinTemplates...) }
+
 // nameTemplate is a template made ready to read names.
 type nameTemplate struct {
 	Text   string
@@ -234,14 +238,17 @@ func (st *Store) NameTemplates(ctx context.Context, bandID int64) ([]string, err
 	return own, err
 }
 
-// SetNameTemplates saves bandID's own name templates (each must compile)
-// and reads its recordings' names again with them.
+// SetNameTemplates saves bandID's own name templates, in the order
+// they're tried (each must compile; a repeat is dropped), and reads its
+// recordings' names again with them.
 func (st *Store) SetNameTemplates(ctx context.Context, bandID int64, templates []string) error {
 	var clean []string
+	seen := map[string]bool{}
 	for _, t := range templates {
-		if t = strings.TrimSpace(t); t == "" {
-			continue
+		if t = strings.TrimSpace(t); t == "" || seen[t] {
+			continue // a template twice: the first place counts
 		}
+		seen[t] = true
 		if _, err := compileTemplate(t); err != nil {
 			return err
 		}
