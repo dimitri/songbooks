@@ -24,7 +24,7 @@ func (s *Server) handleTunerPage(w http.ResponseWriter, r *http.Request) {
 	person := personFromContext(r)
 	q := r.URL.Query()
 	data := map[string]any{"Me": person, "BackURL": q.Get("back"), "BackTitle": q.Get("title")}
-	var song []tunerTuning
+	song := []tunerTuning{}
 	if id, err := strconv.ParseInt(q.Get("song"), 10, 64); err == nil && id > 0 {
 		if ok, err := s.store.CanViewVariant(r.Context(), person.ID, id); err == nil && ok {
 			sg, _, err := s.store.LoadVariant(id)

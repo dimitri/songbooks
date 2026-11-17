@@ -18,24 +18,48 @@
   const octave = (midi) => Math.floor(midi / 12) - 1;
 
   // The tunings: the song's first (from its Guitar Pro file), then the
-  // usual ones, lowest string first, as MIDI notes.
+  // usual ones. A tuning is courses of strings, as MIDI notes, in the
+  // order they're numbered from (the lowest-pitched string first, but for
+  // re-entrant ukulele and banjo): one note a course, two for a 12-string
+  // guitar's or a mandolin's pairs.
+  const one = (...notes) => notes.map((n) => [n]);
   const BUILT_IN = [
-    {group: 'Guitar', name: 'Standard', notes: [40, 45, 50, 55, 59, 64]},
-    {group: 'Guitar', name: 'Drop D', notes: [38, 45, 50, 55, 59, 64]},
-    {group: 'Guitar', name: 'E♭ standard', notes: [39, 44, 49, 54, 58, 63]},
-    {group: 'Guitar', name: 'D standard', notes: [38, 43, 48, 53, 57, 62]},
-    {group: 'Guitar', name: 'Drop C', notes: [36, 43, 48, 53, 57, 62]},
-    {group: 'Guitar', name: 'DADGAD', notes: [38, 45, 50, 55, 57, 62]},
-    {group: 'Guitar', name: 'Open G', notes: [38, 43, 50, 55, 59, 62]},
-    {group: 'Guitar', name: 'Open D', notes: [38, 45, 50, 54, 57, 62]},
-    {group: 'Guitar', name: 'Open E', notes: [40, 47, 52, 56, 59, 64]},
-    {group: 'Bass', name: '4 strings', notes: [28, 33, 38, 43]},
-    {group: 'Bass', name: '5 strings', notes: [23, 28, 33, 38, 43]},
-    {group: 'Ukulele', name: 'Standard (GCEA)', notes: [67, 60, 64, 69]},
-    {group: 'Any instrument', name: 'Chromatic', notes: []},
+    {group: 'Guitar', name: 'Standard', courses: one(40, 45, 50, 55, 59, 64)},
+    {group: 'Guitar', name: 'Drop D', courses: one(38, 45, 50, 55, 59, 64)},
+    {group: 'Guitar', name: 'E♭ standard (half step down)', courses: one(39, 44, 49, 54, 58, 63)},
+    {group: 'Guitar', name: 'D standard', courses: one(38, 43, 48, 53, 57, 62)},
+    {group: 'Guitar', name: 'Drop C♯', courses: one(37, 44, 49, 54, 58, 63)},
+    {group: 'Guitar', name: 'Drop C', courses: one(36, 43, 48, 53, 57, 62)},
+    {group: 'Guitar', name: 'C standard', courses: one(36, 41, 46, 51, 55, 60)},
+    {group: 'Guitar', name: 'Drop B', courses: one(35, 42, 47, 52, 56, 61)},
+    {group: 'Guitar', name: 'B standard', courses: one(35, 40, 45, 50, 54, 59)},
+    {group: 'Guitar', name: 'DADGAD', courses: one(38, 45, 50, 55, 57, 62)},
+    {group: 'Guitar', name: 'Open D', courses: one(38, 45, 50, 54, 57, 62)},
+    {group: 'Guitar', name: 'Open D minor', courses: one(38, 45, 50, 53, 57, 62)},
+    {group: 'Guitar', name: 'Open G', courses: one(38, 43, 50, 55, 59, 62)},
+    {group: 'Guitar', name: 'Open E', courses: one(40, 47, 52, 56, 59, 64)},
+    {group: 'Guitar', name: 'Open A', courses: one(40, 45, 52, 57, 61, 64)},
+    {group: 'Guitar', name: 'Open C', courses: one(36, 43, 48, 55, 60, 64)},
+    {group: 'Guitar', name: 'Nashville (high strung)', courses: one(52, 57, 62, 67, 59, 64)},
+    {group: '7 and 12 strings', name: '7 strings standard', courses: one(35, 40, 45, 50, 55, 59, 64)},
+    {group: '7 and 12 strings', name: '7 strings drop A', courses: one(33, 40, 45, 50, 55, 59, 64)},
+    {group: '7 and 12 strings', name: '12 strings standard', courses: [[40, 52], [45, 57], [50, 62], [55, 67], [59, 59], [64, 64]]},
+    {group: 'Bass', name: '4 strings', courses: one(28, 33, 38, 43)},
+    {group: 'Bass', name: '4 strings drop D', courses: one(26, 33, 38, 43)},
+    {group: 'Bass', name: '4 strings E♭', courses: one(27, 32, 37, 42)},
+    {group: 'Bass', name: '5 strings (low B)', courses: one(23, 28, 33, 38, 43)},
+    {group: 'Bass', name: '5 strings (high C)', courses: one(28, 33, 38, 43, 48)},
+    {group: 'Bass', name: '6 strings', courses: one(23, 28, 33, 38, 43, 48)},
+    {group: 'Ukulele, banjo, mandolin', name: 'Ukulele (GCEA)', courses: one(67, 60, 64, 69)},
+    {group: 'Ukulele, banjo, mandolin', name: 'Ukulele low G', courses: one(55, 60, 64, 69)},
+    {group: 'Ukulele, banjo, mandolin', name: 'Baritone ukulele (DGBE)', courses: one(50, 55, 59, 64)},
+    {group: 'Ukulele, banjo, mandolin', name: 'Banjo open G (gDGBD)', courses: one(67, 50, 55, 59, 62)},
+    {group: 'Ukulele, banjo, mandolin', name: 'Mandolin (GDAE)', courses: [[55, 55], [62, 62], [69, 69], [76, 76]]},
+    {group: 'Any instrument', name: 'Chromatic', courses: []},
   ];
-  const song = JSON.parse(root.dataset.songTunings || '[]').map((t) => ({group: root.dataset.songTitle || 'This song', name: t.name, notes: t.notes, capo: t.capo || 0}));
+  const song = (JSON.parse(root.dataset.songTunings || 'null') || []).map((t) => ({group: root.dataset.songTitle || 'This song', name: t.name, courses: one(...t.notes), capo: t.capo || 0}));
   const tunings = [...song, ...BUILT_IN];
+  const notesOf = (t) => [...new Set(t.courses.flat())];
 
   const select = $('tuner-tuning');
   const groups = {};
@@ -43,7 +67,7 @@
     if (!groups[t.group]) { groups[t.group] = document.createElement('optgroup'); groups[t.group].label = t.group; select.append(groups[t.group]); }
     const o = document.createElement('option');
     o.value = i;
-    o.textContent = t.notes.length ? `${t.name} · ${t.notes.map(name).join(' ')}` : t.name;
+    o.textContent = t.courses.length ? `${t.name} · ${t.courses.map((c) => name(c[0])).join(' ')}` : t.name;
     groups[t.group].append(o);
   });
 
@@ -58,35 +82,55 @@
 
   // ---- Strings: one button each, tap for the reference note. --------
   const strings = $('tuner-strings');
+  const capoSel = $('tuner-capo-fret');
+  let capo = 0;
   function drawStrings() {
     const t = tunings[at];
     strings.replaceChildren();
-    strings.hidden = !t.notes.length;
-    t.notes.forEach((n, i) => {
+    strings.hidden = !t.courses.length;
+    t.courses.forEach((course, i) => {
+      const notes = course.map((n) => n + capo);
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'tuner-string';
-      b.dataset.midi = n;
+      b.dataset.notes = notes.join(' ');
       b.innerHTML = `<b></b><small></small>`;
-      b.querySelector('b').textContent = name(n);
-      b.querySelector('small').textContent = `${t.notes.length - i}`;
-      b.setAttribute('aria-label', `String ${t.notes.length - i}, ${name(n)}${octave(n)}: play the note`);
-      // Stopped: the string's note. Listening: tune that string only (a
-      // tap again lets the tuner pick the string). iOS spoils what a page
-      // plays while the microphone is open, so no note then.
+      b.querySelector('b').textContent = name(notes[0]);
+      const octaved = notes.length > 1 && notes[1] !== notes[0];
+      b.querySelector('small').textContent = octaved ? `${t.courses.length - i} · 8va` : `${t.courses.length - i}`;
+      b.setAttribute('aria-label', `String ${t.courses.length - i}, ${notes.map((n) => name(n) + octave(n)).join(' and ')}`);
+      // Stopped: the string's note. Listening: tune that string only; a
+      // 12-string's pair, its low string then its octave; a tap more and
+      // the tuner picks the string again. iOS spoils what a page plays
+      // while the microphone is open, so no note then.
       b.addEventListener('click', () => {
-        if (!stream) { pluck(n, b); return; }
-        locked = locked === n ? null : n;
-        strings.querySelectorAll('.tuner-string').forEach((s) => s.classList.toggle('locked', Number(s.dataset.midi) === locked));
+        if (!stream) { pluck(notes[0], b); return; }
+        const u = [...new Set(notes)], k = u.indexOf(locked);
+        locked = k + 1 < u.length ? u[k + 1] : null;
+        strings.querySelectorAll('.tuner-string').forEach((s) => s.classList.toggle('locked', locked !== null && s === b));
       });
       strings.append(b);
     });
-    $('tuner-capo').hidden = !t.capo;
-    $('tuner-capo').textContent = t.capo ? `Capo on fret ${t.capo}: tune the open strings, then put it on.` : '';
+    const c = $('tuner-capo');
+    c.hidden = !capo;
+    c.textContent = capo ? `Capo on fret ${capo}: tune with it on. The strings sound ${t.courses.map((x) => name(x[0] + capo)).join(' ')}.` : '';
   }
+  // The capo: the song's, else none. With it on, every string sounds that
+  // many semitones higher, and that's what the tuner listens for.
+  for (let f = 0; f <= 9; f++) {
+    const o = document.createElement('option');
+    o.value = f;
+    o.textContent = f ? `Capo ${f}` : 'No capo';
+    capoSel.append(o);
+  }
+  const songCapo = () => tunings[at].capo || Number(root.dataset.songCapo) || 0;
+  capo = song.length ? songCapo() : 0;
+  capoSel.value = capo;
+  capoSel.addEventListener('change', () => { capo = Number(capoSel.value); locked = null; drawStrings(); });
   select.addEventListener('change', () => {
     at = Number(select.value);
     locked = null;
+    if (tunings[at].capo) { capo = tunings[at].capo; capoSel.value = capo; }
     store('songbooks:tuner:tuning', at);
     drawStrings();
     if (analyser) setWindow();
@@ -105,7 +149,8 @@
   // The window: 4096 samples hold a few periods of a guitar's low E; a
   // bass's low B (31 Hz, about 1550 samples a period at 48 kHz) needs 8192.
   const setWindow = () => {
-    const low = Math.min(...(tunings[at].notes.length ? tunings[at].notes : [40]));
+    const all = notesOf(tunings[at]);
+    const low = Math.min(...(all.length ? all : [40])) + capo;
     analyser.fftSize = low < 36 ? 8192 : 4096;
     buf = new Float32Array(analyser.fftSize);
   };
@@ -144,7 +189,7 @@
     for (let i = 0; i < n; i++) rms += x[i] * x[i];
     rms = Math.sqrt(rms / n);
     if (rms < 0.008) return null; // silence
-    const maxTau = Math.min(n >> 1, Math.ceil(sr / 25));
+    const maxTau = Math.min(n >> 1, Math.ceil(sr / 22));
     const minTau = Math.floor(sr / 1400);
     const nsdf = new Float32Array(maxTau);
     for (let tau = minTau; tau < maxTau; tau++) {
@@ -160,6 +205,8 @@
       if (nsdf[tau - 1] <= 0 && nsdf[tau] > 0) { pos = true; best = tau; } else if (pos && nsdf[tau] <= 0) { pos = false; if (best > 0) peaks.push(best); best = -1; }
       if (pos && nsdf[tau] > nsdf[best]) best = tau;
     }
+    // A peak still rising at the window's end (a bass's lowest note) counts.
+    if (pos && best > 0 && best < maxTau - 2) peaks.push(best);
     if (!peaks.length) return null;
     const top = Math.max(...peaks.map((p) => nsdf[p]));
     const tau = peaks.find((p) => nsdf[p] >= 0.9 * top);
@@ -183,8 +230,13 @@
   const needle = $('tuner-needle'), meter = $('tuner-meter'), stateEl = $('tuner-state');
   let recent = [], shown = null, inTuneSince = 0, lastHeard = 0;
 
+  // A reading every 50 ms: about 6 ms of work for a guitar's window, 16
+  // for a bass's on a laptop, more on a phone, too much for every frame.
+  let lastRead = 0;
   function frame(now) {
     raf = requestAnimationFrame(frame);
+    if (now - lastRead < 50) return;
+    lastRead = now;
     analyser.getFloatTimeDomainData(buf);
     const r = detect(buf, ctx.sampleRate);
     if (r) {
@@ -208,9 +260,10 @@
     // Which string: the nearest of the tuning's, within a fourth; else the
     // nearest note.
     let target = Math.round(m);
+    const all = notesOf(t).map((n) => n + capo);
     if (locked !== null) target = locked;
-    else if (t.notes.length) {
-      const near = t.notes.reduce((best, n) => (Math.abs(n - m) < Math.abs(best - m) ? n : best), t.notes[0]);
+    else if (all.length) {
+      const near = all.reduce((best, n) => (Math.abs(n - m) < Math.abs(best - m) ? n : best), all[0]);
       if (Math.abs(near - m) <= 5) target = near;
     }
     const cents = Math.max(-50, Math.min(50, (m - target) * 100));
@@ -231,7 +284,7 @@
     root.classList.toggle('sharp', cents > 3);
     stateEl.textContent = inTune ? 'In tune' : off ? `Playing ${name(Math.round(m))}: ${m < target ? 'tighten' : 'loosen'} a lot` : cents < 0 ? 'Too low: tighten' : 'Too high: loosen';
     strings.querySelectorAll('.tuner-string').forEach((s) => {
-      const on = Number(s.dataset.midi) === target;
+      const on = s.dataset.notes.split(' ').map(Number).includes(target);
       s.classList.toggle('current', on);
       s.classList.toggle('tuned', on && inTune);
     });

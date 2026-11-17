@@ -59,6 +59,7 @@ var navMobileMore = []NavEntry{
 	{Label: "Communities", Path: "/communities", Icon: "icon-community"},
 	{Label: "Set lists", Path: "/setlists", Icon: "icon-setlists"},
 	{Label: "Metronome", Path: "/metronome", Icon: "icon-metronome"},
+	{Label: "Tuner", Path: "/tuner", Icon: "icon-tuner"},
 	{Label: "Profile", Path: "/profile", Icon: "icon-profile"},
 	{Label: "Admin", Path: "/admin", RequiresAdmin: true},
 }

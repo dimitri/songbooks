@@ -20,10 +20,15 @@
   {{template "notif-bell"}}
 </header>
 <main>
-  <section class="card tuner" id="tuner" data-song-tunings="{{json .SongTunings}}" data-song-title="{{.SongTitle}}">
-    <label class="tuner-pick"><span class="sr-only">Tuning</span>
-      <select id="tuner-tuning" aria-label="Tuning"></select>
-    </label>
+  <section class="card tuner" id="tuner" data-song-tunings="{{json .SongTunings}}" data-song-title="{{.SongTitle}}" data-song-capo="{{.SongCapo}}">
+    <div class="tuner-picks">
+      <label class="tuner-pick"><span class="sr-only">Tuning</span>
+        <select id="tuner-tuning" aria-label="Tuning"></select>
+      </label>
+      <label class="tuner-pick tuner-pick-capo"><span class="sr-only">Capo</span>
+        <select id="tuner-capo-fret" aria-label="Capo"></select>
+      </label>
+    </div>
 
     <div class="tuner-dial">
       <div class="tuner-readout" aria-live="polite">

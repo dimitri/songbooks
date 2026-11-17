@@ -6374,6 +6374,9 @@ body:has(.edit-toggle.on) main { box-shadow: inset 0 3px 0 #e8a33a; }
    the needle at --cents, the ±3 cent zone in the middle, green when the
    note holds there. ---- */
 .tuner { max-width: 34rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.1rem; padding: 1.2rem; --tuner-ok: #2f9e5b; --tuner-off: #d9822b; }
+.tuner-picks { display: flex; gap: 0.5rem; }
+.tuner-pick { flex: 1; min-width: 0; }
+.tuner-pick-capo { flex: 0 0 7.5rem; }
 .tuner-pick select { width: 100%; min-height: 2.75rem; font-size: 1rem; }
 .tuner-dial { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 0.6rem 0 0.2rem; }
 .tuner-readout { display: flex; align-items: baseline; gap: 0.9rem; min-height: 6.2rem; }
