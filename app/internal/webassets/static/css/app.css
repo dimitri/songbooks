@@ -5887,11 +5887,8 @@ body.branded h1, body.branded h2, body.branded .brand-name { font-synthesis-weig
   .dl-get:hover, .dl-file-name:hover strong { color: var(--accent); }
 }
 .dl-file .dl-del { display: none; color: var(--danger); }
-.dl-songbook.editing .dl-file .dl-del { display: inline-flex; }
-.dl-songbook.editing .dl-get { display: none; }
-.dl-edit-bar { display: flex; justify-content: flex-end; margin: 0.6rem 0 0.2rem; }
-.dl-edit-toggle { min-height: 2.5rem; padding: 0 0.9rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--fg-muted); font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
-.dl-edit-bar .dl-edit-toggle[aria-pressed="true"] { background: var(--danger); border-color: var(--danger); color: #fff; }
+.dl.editing .dl-file .dl-del { display: inline-flex; }
+.dl.editing .dl-get { display: none; }
 .dl-lessons-head { display: none; }
 /* A wide screen: the lessons as a table, a column per kind of file
    (Guitar Pro, backing track, the rest), so they line up. */
@@ -6363,3 +6360,12 @@ html.rp-locked { overflow: hidden; }
 .pl-cover.has-art::after { display: none; }
 .pl-row-cover { flex: none; width: 2.2rem; height: 2.2rem; border-radius: 4px; object-fit: cover; }
 .brand-from-songs { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.8rem; }
+
+/* The header's Edit button (edit-toggle): who may edit a course or its
+   downloads sees them as a student does until it's on. */
+.edit-toggle { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.5rem; padding: 0 0.8rem; margin-left: auto; border: 1px solid currentColor; border-radius: 999px;
+  background: transparent; color: inherit; font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; opacity: 0.9; white-space: nowrap; }
+.edit-toggle .icon { width: 0.95rem; height: 0.95rem; }
+.edit-toggle.on { background: #e8a33a; border-color: #e8a33a; color: #1a1205; opacity: 1; }
+.app-header .edit-toggle + .notif-bell, .app-header .edit-toggle ~ * { margin-left: 0; }
+body:has(.edit-toggle.on) main { box-shadow: inset 0 3px 0 #e8a33a; }

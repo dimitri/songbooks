@@ -36,14 +36,6 @@
     audio.play().then(() => { stop(); playing = b; b.classList.add('on'); }).catch(() => {});
   }));
 
-  // A course's files are removed in edit mode only.
-  document.querySelectorAll('.dl-edit-toggle').forEach((b) => b.addEventListener('click', () => {
-    const on = b.getAttribute('aria-pressed') !== 'true';
-    b.setAttribute('aria-pressed', on);
-    b.textContent = on ? 'Done' : 'Edit files';
-    b.closest('.dl-songbook').classList.toggle('editing', on);
-  }));
-
   document.querySelectorAll('.dl-del').forEach((b) => b.addEventListener('click', async () => {
     if (!confirm(`Remove ${b.dataset.name} from the downloads?`)) return;
     const res = await fetch(`/api/communities/${communityId}/downloads/${b.dataset.del}`, {method: 'DELETE'});

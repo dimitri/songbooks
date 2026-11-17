@@ -174,6 +174,9 @@ func (s *Server) handleCommunityDownloadsPage(w http.ResponseWriter, r *http.Req
 	data := map[string]any{
 		"Me": person, "Community": community, "IsStaff": isStaff, "CanManage": canManage, "CanDownload": canDownload,
 		"One": only != 0,
+		// Staff see the downloads as a member does until they turn editing
+		// on: then who has access, and adding and removing files.
+		"Editing": (isStaff || canManage) && editMode(r), "CanEditToggle": isStaff || canManage,
 	}
 	if !canDownload {
 		s.render(w, "community_downloads", data)
@@ -578,7 +581,8 @@ func (s *Server) handleBrowseSongbookFiles(w http.ResponseWriter, r *http.Reques
 	data := map[string]any{
 		"Me": personFromContext(r), "Community": community, "Songbook": sb, "Folder": folder,
 		"Crumbs": crumbs, "Folders": folders, "Files": files, "Count": len(under), "Bytes": bytes,
-		"ZipHref": zipHref(communityID, sb, folder), "ZipName": zipName(sb, folder), "CanManage": canManage, "UpHref": up,
+		"ZipHref": zipHref(communityID, sb, folder), "ZipName": zipName(sb, folder), "CanManage": canManage && editMode(r), "UpHref": up,
+		"CanEditToggle": canManage, "Editing": canManage && editMode(r),
 	}
 	if canManage {
 		songs, err := s.store.ListSongbookEntries(r.Context(), sb.ID)

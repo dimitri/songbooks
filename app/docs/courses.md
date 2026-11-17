@@ -61,7 +61,11 @@ What follows from that:
 ## Organizing a course
 
 People who can change the songbook (`CanEditSongbook`: `edit_repertoire`
-plus access to the songbook) can:
+plus access to the songbook, or a site admin) see the course, its lessons
+and its downloads as a student does until they press **Edit** in the
+header. That turns editing on for every course and download page until
+they press **Done** (the `sb_edit` cookie; every change is still checked
+on the server). Then they can:
 
 - **Make lessons from the files.** There's a button on the course page, and
   `sbfiles course --songbook N` does the same. A lesson is made for each
