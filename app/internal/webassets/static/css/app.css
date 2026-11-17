@@ -1710,13 +1710,6 @@ button.link-like { border: 0; background: none; padding: 0; min-height: 0; min-w
    and the structure strip above would play the same, without the score. */
 body.gp-own-audio:has(#sheet[data-render-mode="score"]) #song-structure-strip,
 body.gp-own-audio:has(#sheet[data-render-mode="score"]) #audio-player { display: none !important; }
-@media (max-width: 720px) {
-  .gp-toolbar .gp-lcd { order: 0; flex: 1 1 auto; min-width: 0; }
-  .gp-opts { flex: 1 1 100%; margin-left: 0; }
-  .gp-opts > * { flex: 1 1 auto; justify-content: center; }
-  .gp-opts .audio-speed select { width: 100%; }
-  .gp-score-viewport { max-height: none; overflow: visible; }
-}
 .gp-btn { min-width: 2.4rem; min-height: 2.2rem; padding: 0.2rem 0.7rem; border: 1px solid var(--border); border-radius: var(--radius-control, 6px); background: var(--bg-elev, var(--bg)); color: var(--fg); font: inherit; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
 .gp-btn:disabled { opacity: 0.5; cursor: default; }
 .gp-time { font-variant-numeric: tabular-nums; color: var(--fg-muted); min-width: 6.5rem; }
@@ -1729,6 +1722,13 @@ body.gp-own-audio:has(#sheet[data-render-mode="score"]) #audio-player { display:
 .gp-score-canvas .at-cursor-beat { background: var(--accent); width: 3px; }
 .gp-score-canvas .at-selection div { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 .gp-score-canvas .at-highlight * { fill: var(--accent); stroke: var(--accent); }
+@media (max-width: 720px) {
+  .gp-toolbar .gp-lcd { order: 0; flex: 1 1 auto; min-width: 0; }
+  .gp-opts { flex: 1 1 100%; margin-left: 0; }
+  .gp-opts > * { flex: 1 1 auto; justify-content: center; }
+  .gp-opts .audio-speed select { width: 100%; }
+  .gp-score-viewport { max-height: none; overflow: visible; }
+}
 
 .mixer-page { display: none; padding: 0.4rem 0 1rem; }
 #sheet[data-render-mode="mixer"] ~ .mixer-page { display: block; }

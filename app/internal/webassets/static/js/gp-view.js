@@ -181,7 +181,9 @@
     s.player.scrollElement = phone ? 'html,body' : page.querySelector('.gp-score-viewport');
     if (phone) s.player.scrollOffsetY = -(page.querySelector('.gp-toolbar').offsetHeight + 16);
     if (alphaTab.PlayerMode) s.player.playerMode = alphaTab.PlayerMode.EnabledAutomatic;
-    hide(s, ['ScoreCopyright']);
+    // A phone has the song's name at the top of the page already, and no
+    // room for it again at the score's size.
+    hide(s, phone ? SCORE_INFO : ['ScoreCopyright']);
     const api = new alphaTab.AlphaTabApi(canvas, s);
     full = { api, score, shown: new Set([0]) };
     // A file with its own recording plays it here, under the cursor: the
