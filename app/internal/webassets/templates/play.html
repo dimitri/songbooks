@@ -513,6 +513,7 @@
          belongs here with everything else that's a "this song" action,
          not a global nav item). */}}
     <a class="sidebar-song-row" title="metronome &amp; transport settings" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-metronome"}} Metronome</a>
+    <a class="sidebar-song-row" title="tune to this song" href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-tuner"}} Tuner</a>
     {{if .VariantID}}
     <button id="notes-toggle" class="sidebar-song-row" type="button" title="notes: personal or shared, per section">{{template "icon-notes"}} Notes</button>
     {{end}}
@@ -1219,6 +1220,7 @@
          Desktop is untouched: the sidebar's own transport panel stays
          in-flow exactly as before. */}}
     <a id="metronome-stack-btn" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-metronome"}} Metronome</a>
+    <a href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-tuner"}} Tuner</a>
     <button type="button" id="song-stack-btn">{{template "icon-song-actions"}} Song</button>
     <button type="button" id="site-nav-fullpage-btn">{{template "icon-more"}} More</button>
     {{/* Last entry: next song in this same list (setlist step order, or
