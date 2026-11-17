@@ -16,9 +16,10 @@
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
   <h1>{{if and .One .Songbooks}}{{with index .Songbooks 0}}{{.Name}}{{end}}{{else}}{{.Community.Name}} — downloads{{end}}</h1>
+  {{if .CanEditToggle}}{{template "edit-toggle" .Editing}}{{end}}
   {{template "notif-bell"}}
 </header>
-<main class="index dl">
+<main class="index dl{{if .Editing}} editing{{end}}">
   <nav class="band-tabs band-tabs-row">
     <a class="band-tab" href="/communities/{{.Community.ID}}">Overview</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{shelfLabel "community" .Community.ID}}</a>
@@ -36,7 +37,7 @@
     <header class="dl-head">
       {{if not $.One}}<h2><a href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}">{{.Name}}</a></h2>{{end}}
       <span class="dl-meta">{{if .Files}}{{if and .IsCourse .Lessons}}{{len .Lessons}} lesson{{if ne (len .Lessons) 1}}s{{end}} · {{end}}{{.Files}} file{{if ne .Files 1}}s{{end}} · {{fileSize .Bytes}}{{else}}No files yet{{end}}</span>
-      {{if $.IsStaff}}
+      {{if and $.IsStaff $.Editing}}
       <span class="dl-access{{if .RequiresGrant}} sold{{end}}">{{if .RequiresGrant}}&#128274; Sold separately · {{.Grants}} {{if eq .Grants 1}}person has{{else}}people have{{end}} it{{else}}Every member{{end}}</span>
       <a class="hint" href="/communities/{{$.Community.ID}}/songbooks/{{.ID}}/access">Access &rarr;</a>
       {{end}}
@@ -48,7 +49,7 @@
       {{if $.One}}<a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}/browse/">{{if .Folders}}Browse the folders{{else}}All the files{{end}} &rarr;</a>
       {{else}}<a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}">{{if .IsCourse}}Lesson by lesson{{else}}Song by song{{end}} &rarr;</a>{{end}}
     </div>
-    {{else if and $.CanManage (not $.One)}}
+    {{else if and $.CanManage $.Editing (not $.One)}}
     <div class="dl-actions"><a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}">Add files &rarr;</a></div>
     {{end}}
 
@@ -61,12 +62,11 @@
       </div>
       <a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/{{.ID}}/{{pathSegment .Filename}}?view=1" target="_blank" rel="noopener">Open</a>
       <a class="primary dl-btn" href="/communities/{{$.Community.ID}}/downloads/{{.ID}}/{{pathSegment .Filename}}" download>{{template "icon-download"}} Download</a>
-      {{if and $.One $.CanManage}}<button type="button" class="dl-del" data-del="{{.ID}}" data-name="{{.Filename}}" aria-label="Remove {{.Filename}}">{{template "icon-trash"}}</button>{{end}}
+      {{if and $.One $.CanManage $.Editing}}<button type="button" class="dl-del" data-del="{{.ID}}" data-name="{{.Filename}}" aria-label="Remove {{.Filename}}">{{template "icon-trash"}}</button>{{end}}
     </div>
     {{end}}
 
     {{if and $.One .Lessons}}
-    {{if $.CanManage}}<div class="dl-edit-bar"><button type="button" class="dl-edit-toggle" aria-pressed="false">Edit files</button></div>{{end}}
     <div class="dl-lessons-head" aria-hidden="true"><span>{{if .IsCourse}}Lesson{{else}}Song{{end}}</span><span>Guitar Pro</span><span>Backing track</span><span>Other</span></div>
     <ol class="dl-lessons">
       {{range .Lessons}}
@@ -80,7 +80,7 @@
             {{else}}<span class="dl-badge" aria-hidden="true">{{if eq .Kind "gp"}}GP{{else}}{{or .Ext "File"}}{{end}}</span>{{end}}
             <a class="dl-file-name" href="{{$href}}" download title="{{.FullPath}}"><strong>{{if .Named}}{{.Label}}{{else if eq .Kind "gp"}}Guitar Pro{{else if eq .Kind "audio"}}Backing track{{else}}{{or .Ext "File"}}{{end}}</strong><small>{{if eq .Kind "audio"}}MP3 · {{end}}{{fileSize .ByteSize}}</small></a>
             <a class="dl-get" href="{{$href}}" download aria-label="Download {{.Filename}}">{{template "icon-download"}}</a>
-            {{if $.CanManage}}<button type="button" class="dl-del" data-del="{{.ID}}" data-name="{{.Filename}}" aria-label="Remove {{.Filename}}">{{template "icon-trash"}}</button>{{end}}
+            {{if and $.CanManage $.Editing}}<button type="button" class="dl-del" data-del="{{.ID}}" data-name="{{.Filename}}" aria-label="Remove {{.Filename}}">{{template "icon-trash"}}</button>{{end}}
           </span>
           {{end}}
         </span>
@@ -89,7 +89,7 @@
     </ol>
     {{end}}
 
-    {{if and $.One $.CanManage}}{{template "dl-upload-form" .}}{{end}}
+    {{if and $.One $.CanManage $.Editing}}{{template "dl-upload-form" .}}{{end}}
   </section>
   {{else}}
   <p class="dl-empty">Nothing to download yet. The files of a songbook show up here once you have that songbook.</p>

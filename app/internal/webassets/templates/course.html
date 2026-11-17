@@ -38,6 +38,7 @@ async function courseApi(method, url, body) {
 <header class="app-header">
   {{if .Community}}<a class="back-link" href="/communities/{{.Community.ID}}/songbooks">{{template "icon-back"}} Songbooks</a>{{else}}{{template "home-link"}}{{end}}
   <h1>{{.Songbook.Name}}</h1>
+  {{if .CanEdit}}{{template "edit-toggle" .Editing}}{{end}}
   {{template "notif-bell"}}
 </header>
 <main class="index course">
@@ -72,7 +73,7 @@ async function courseApi(method, url, body) {
     {{end}}
   </ol>
   {{else}}
-  <p class="dl-empty">This course has no lessons yet.{{if .CanEdit}} Make them from its files, or one at a time, below.{{end}}</p>
+  <p class="dl-empty">This course has no lessons yet.{{if .Editing}} Make them from its files, or one at a time, below.{{end}}</p>
   {{end}}
 
   {{if .Loose}}
@@ -82,7 +83,7 @@ async function courseApi(method, url, body) {
       {{range .Loose}}
       <li class="dl-row">
         <a class="dl-row-name" href="/song/{{.VariantID}}?songbook={{$.Songbook.ID}}">{{.Title}}</a>
-        {{if and $.CanEdit $.Lessons}}
+        {{if and $.Editing $.Lessons}}
         <span class="dl-row-song">
           <select class="course-place" data-variant="{{.VariantID}}" aria-label="Lesson for {{.Title}}">
             <option value="">No lesson</option>
@@ -97,7 +98,7 @@ async function courseApi(method, url, body) {
   </section>
   {{end}}
 
-  {{if .CanEdit}}
+  {{if .Editing}}
   <section class="card course-tools">
     <h2>Organize the course</h2>
     <form id="new-lesson" class="course-form">
@@ -159,6 +160,7 @@ async function courseApi(method, url, body) {
 <header class="app-header">
   <a class="back-link" href="/songbooks/{{.Songbook.ID}}">{{template "icon-back"}} {{.Songbook.Name}}</a>
   <h1>{{.Lesson.Label}}</h1>
+  {{if .CanEdit}}{{template "edit-toggle" .Editing}}{{end}}
   {{template "notif-bell"}}
 </header>
 <main class="index course lesson">
@@ -184,7 +186,7 @@ async function courseApi(method, url, body) {
       {{range $i, $s := .Lesson.Songs}}
       <li class="dl-row">
         <a class="dl-row-name" href="/song/{{$s.VariantID}}?songbook={{$.Songbook.ID}}"><strong>{{$s.Title}}</strong>{{with $s.Artist}}<span class="dl-meta">{{.}}</span>{{end}}</a>
-        {{if $.CanEdit}}
+        {{if $.Editing}}
         <span class="dl-row-actions">
           {{if $i}}<button type="button" class="dl-btn lesson-move" data-variant="{{$s.VariantID}}" data-by="-1" aria-label="Move {{$s.Title}} up">{{template "icon-up"}}</button>{{end}}
           {{if lt (add1 $i) (len $.Lesson.Songs)}}<button type="button" class="dl-btn lesson-move" data-variant="{{$s.VariantID}}" data-by="1" aria-label="Move {{$s.Title}} down">{{template "icon-down"}}</button>{{end}}
@@ -197,7 +199,7 @@ async function courseApi(method, url, body) {
     {{else}}
     <p class="hint">No song in this lesson{{if .Files}}: its files are below{{end}}.</p>
     {{end}}
-    {{if and .CanEdit .OtherSongs}}
+    {{if and .Editing .OtherSongs}}
     <form id="lesson-add-song" class="course-form">
       <div class="field"><label for="lesson-add-song-select">Add a song to this lesson</label>
         <select id="lesson-add-song-select" name="song" required>
@@ -235,7 +237,7 @@ async function courseApi(method, url, body) {
     {{with .Next}}<a class="dl-btn lesson-next" href="{{.Href}}">{{.Label}} {{template "icon-forward"}}</a>{{end}}
   </nav>
 
-  {{if .CanEdit}}
+  {{if .Editing}}
   <section class="card course-tools">
     <h2>Edit the lesson</h2>
     <form id="lesson-edit" class="course-form">
@@ -269,7 +271,7 @@ async function courseApi(method, url, body) {
     } catch (e) { alert(e.message); }
     Forms.busy(done, false);
   });
-  {{if .CanEdit}}
+  {{if .Editing}}
   const edit = document.getElementById('lesson-edit');
   edit.addEventListener('submit', (e) => {
     e.preventDefault();

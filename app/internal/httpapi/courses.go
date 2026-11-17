@@ -111,7 +111,10 @@ func (s *Server) courseBase(r *http.Request, sb *store.Songbook) (map[string]any
 	if err != nil {
 		return nil, err
 	}
-	data := map[string]any{"Me": person, "Songbook": sb, "CanEdit": canEdit || person.IsAdmin}
+	canEdit = canEdit || person.IsAdmin
+	// Who may edit sees the course as a student does until they turn
+	// editing on.
+	data := map[string]any{"Me": person, "Songbook": sb, "CanEdit": canEdit, "Editing": canEdit && editMode(r)}
 	if sb.OwnerKind == "community" {
 		c, err := s.store.GetCommunity(r.Context(), sb.OwnerCommunityID)
 		if err != nil {
@@ -249,7 +252,7 @@ func (s *Server) handleLessonPage(w http.ResponseWriter, r *http.Request) {
 	}
 	data["Lesson"], data["Progress"], data["Files"] = lesson, progress[lesson.ID], files[lesson.ID]
 	data["VideoID"] = s.lessonVideo(*lesson)
-	if data["CanEdit"] == true {
+	if data["Editing"] == true {
 		// Songs that can join this lesson: those in no lesson, then the
 		// other lessons'.
 		var others []store.LessonSong

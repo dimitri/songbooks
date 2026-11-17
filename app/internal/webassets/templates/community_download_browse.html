@@ -16,9 +16,10 @@
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}/downloads#songbook-{{.Songbook.ID}}">{{template "icon-back"}} Downloads</a>
   <h1>{{.Songbook.Name}}</h1>
+  {{if .CanEditToggle}}{{template "edit-toggle" .Editing}}{{end}}
   {{template "notif-bell"}}
 </header>
-<main class="index dl">
+<main class="index dl{{if .Editing}} editing{{end}}">
   <nav class="dl-crumbs" aria-label="Folder">
     {{range $i, $c := .Crumbs}}{{if $i}}<span aria-hidden="true">/</span>{{end}}<a href="{{$c.Href}}"{{if $c.Current}} aria-current="page"{{end}}>{{$c.Name}}</a>{{end}}
   </nav>

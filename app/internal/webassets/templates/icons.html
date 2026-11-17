@@ -510,3 +510,8 @@
 {{/* Skip back / forward 15 seconds: the round arrow with its seconds in it. */}}
 {{define "icon-back15"}}<svg class="icon icon-skip" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.2 8.5A8 8 0 1 1 4 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4.6 3.8v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><text x="12.6" y="16.2" text-anchor="middle" font-size="8.4" font-weight="700" fill="currentColor" font-family="system-ui, sans-serif">15</text></svg>{{end}}
 {{define "icon-fwd15"}}<svg class="icon icon-skip" viewBox="0 0 24 24" aria-hidden="true"><path d="M18.8 8.5A8 8 0 1 0 20 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M19.4 3.8v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><text x="11.4" y="16.2" text-anchor="middle" font-size="8.4" font-weight="700" fill="currentColor" font-family="system-ui, sans-serif">15</text></svg>{{end}}
+{{/* edit-toggle: the header's Edit button, for who may edit a course or
+     its downloads; its data is whether editing is on. Everyone sees the
+     pages as a student does until they press it (the sb_edit cookie,
+     internal/httpapi/editmode.go). */}}
+{{define "edit-toggle"}}<button type="button" class="edit-toggle{{if .}} on{{end}}" aria-pressed="{{if .}}true{{else}}false{{end}}" onclick="document.cookie='sb_edit={{if .}}0{{else}}1{{end}}; path=/; max-age=31536000; samesite=lax'; location.reload()">{{template "icon-edit"}}<span>{{if .}}Done{{else}}Edit{{end}}</span></button>{{end}}
