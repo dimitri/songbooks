@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -89,7 +90,7 @@ func (s *Server) handleSetlistsPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, "setlists-index", map[string]any{
-		"Me": person,
+		"Me":         person,
 		"MySetlists": mySetlists, "Bands": bandRows,
 	})
 }
@@ -115,10 +116,56 @@ func (s *Server) handleMetronomePage(w http.ResponseWriter, r *http.Request) {
 // at before tapping a song: running number, title, key, tempo. Deliberately
 // the same four columns as the band's own LaTeX titlepage set-list tables.
 type gigRow struct {
-	Num                                   int
-	VariantID                             int64
+	Num                                int
+	VariantID                          int64
 	Title, Tempo, Key, Note, Reference string
+	Sound                              *setlistSound // nil: nothing to play here
 }
+
+// setlistSound is what a set list's player can play for a song: our
+// recording (the band's chosen one from its pCloud folder, else the
+// song's own) and the reference (the YouTube video's sound). The page
+// plays the one the listener picks, the other when that's missing.
+type setlistSound struct {
+	Rec *soundSource
+	Ref *soundSource
+}
+
+// soundSource is an mp3 of the app's (Src) or a file of the band's pCloud
+// folder (Host, Code, File).
+type soundSource struct {
+	Src        string
+	Host, Code string
+	File       int64
+	Label      string
+}
+
+// soundFor is variantID's setlistSound, nil when it has neither; bandID 0
+// for a set list that isn't a band's.
+func (s *Server) soundFor(ctx context.Context, bandID, variantID int64) *setlistSound {
+	var snd setlistSound
+	if bandID != 0 {
+		if rec, err := s.store.ChosenSongRecording(ctx, bandID, variantID); err == nil && rec != nil {
+			snd.Rec = &soundSource{Host: rec.APIHost, Code: rec.Code, File: rec.FileID, Label: "the band's recording"}
+		}
+	}
+	if audio, err := s.store.ListSongAudio(ctx, variantID); err == nil {
+		for _, a := range audio {
+			src := fmt.Sprintf("/song/%d/audio.mp3?category=%s&v=%d", variantID, a.Category, a.ByteSize)
+			switch {
+			case a.Category == store.AudioBand && snd.Rec == nil:
+				snd.Rec = &soundSource{Src: src, Label: "our recording"}
+			case a.Category == store.AudioYouTube:
+				snd.Ref = &soundSource{Src: src, Label: "the reference"}
+			}
+		}
+	}
+	if snd.Rec == nil && snd.Ref == nil {
+		return nil
+	}
+	return &snd
+}
+
 type gigSet struct {
 	Label string
 	Rows  []gigRow
@@ -166,12 +213,16 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 	brandKind, brandID := setlistOwner(meta)
 	canEdit, _ := s.store.CanEditSetlistByID(r.Context(), person.ID, id)
 	backURL, backLabel := "/setlists", "Set lists"
+	var band *store.Band
+	var bandID int64
 	if meta.OwnerBandID != nil {
-		backURL = fmt.Sprintf("/bands/%d/setlists", *meta.OwnerBandID)
-		if b, err := s.store.GetBand(r.Context(), *meta.OwnerBandID); err == nil {
-			backLabel = b.Name
+		bandID = *meta.OwnerBandID
+		backURL = fmt.Sprintf("/bands/%d/setlists", bandID)
+		if b, err := s.store.GetBand(r.Context(), bandID); err == nil {
+			backLabel, band = b.Name, b
 		}
 	}
+	playable, choice := 0, false
 	var sets []gigSet
 	n := 0
 	for _, set := range l.Sets {
@@ -188,7 +239,12 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 				key = sg.Get("key")
 				reference = sg.Get("reference")
 			}
-			rows = append(rows, gigRow{Num: n, VariantID: e.VariantID, Title: title, Tempo: tempo, Key: key, Note: e.Note, Reference: reference})
+			row := gigRow{Num: n, VariantID: e.VariantID, Title: title, Tempo: tempo, Key: key, Note: e.Note, Reference: reference}
+			if row.Sound = s.soundFor(r.Context(), bandID, e.VariantID); row.Sound != nil {
+				playable++
+				choice = choice || row.Sound.Rec != nil && row.Sound.Ref != nil
+			}
+			rows = append(rows, row)
 		}
 		sets = append(sets, gigSet{Label: set.Label, Rows: rows})
 	}
@@ -228,6 +284,7 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 		"Title": orDefault(l.Get("title"), orDefault(meta.Title, "Set list")), "Date": l.Get("date"), "Venue": l.Get("venue"),
 		"IsEmpty": n == 0, "Repertoire": repertoire, "IsBand": meta.OwnerBandID != nil,
 		"Sets": sets, "BrandKind": brandKind, "BrandID": brandID,
+		"Band": band, "Playable": playable, "Choice": choice,
 		"ContextualGroup": webassets.ContextualGroup{Label: "This setlist", Entries: []webassets.NavEntry{
 			{Label: "Print one-pager", Path: fmt.Sprintf("/setlists/%d/export-setlist-page.pdf", id), Icon: "icon-download"},
 			{Label: "Export PDF", Path: fmt.Sprintf("/setlists/%d/export.pdf", id), Icon: "icon-download"},
@@ -264,10 +321,10 @@ func setlistMetaToJSON(m *store.SetlistMeta) jsonSetlistMeta {
 // on someone else's behalf").
 func (s *Server) handleCreateSetlist(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Scope    string `json:"scope"`
-		Title    string `json:"title"`
-		Notes    string `json:"notes"`
-		BandID   int64  `json:"band_id"`
+		Scope       string `json:"scope"`
+		Title       string `json:"title"`
+		Notes       string `json:"notes"`
+		BandID      int64  `json:"band_id"`
 		CommunityID int64  `json:"community_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
