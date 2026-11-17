@@ -250,6 +250,13 @@ func (s *Server) handleLessonPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// A lesson with a song is practised on the song's page, which shows
+	// the lesson too (lessonPanel): its score, its playback, its audio.
+	// Its own page stays for its editors, and on ?view=lesson.
+	if len(lesson.Songs) > 0 && data["Editing"] != true && r.URL.Query().Get("view") != "lesson" {
+		http.Redirect(w, r, fmt.Sprintf("/song/%d?songbook=%d", lesson.Songs[0].VariantID, sb.ID), http.StatusFound)
+		return
+	}
 	data["Lesson"], data["Progress"], data["Files"] = lesson, progress[lesson.ID], files[lesson.ID]
 	data["VideoID"] = s.lessonVideo(*lesson)
 	if data["Editing"] == true {
@@ -557,4 +564,33 @@ func (s *Server) handleSetLessonDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"done": req.Done})
+}
+
+// lessonPanelData is what a song's page shows of the lesson it's in, in
+// a course: its name and page, its video, whether the viewer is done
+// with it, its songs (when more than one) and its files.
+type lessonPanelData struct {
+	Lesson     store.Lesson
+	SongbookID int64
+	Href       string // its own page
+	VideoID    string
+	Done       bool
+	Files      []lessonFile
+}
+
+// lessonPanel is the lessonPanelData of lesson, in course sb, for the
+// request's viewer.
+func (s *Server) lessonPanel(r *http.Request, sb *store.Songbook, lesson *store.Lesson) (*lessonPanelData, error) {
+	progress, err := s.store.CourseProgress(r.Context(), sb.ID, personFromContext(r).ID)
+	if err != nil {
+		return nil, err
+	}
+	files, err := s.courseFiles(r, sb)
+	if err != nil {
+		return nil, err
+	}
+	return &lessonPanelData{
+		Lesson: *lesson, SongbookID: sb.ID, Href: lessonHref(sb.ID, lesson.ID) + "?view=lesson",
+		VideoID: s.lessonVideo(*lesson), Done: progress[lesson.ID].Done, Files: files[lesson.ID],
+	}, nil
 }

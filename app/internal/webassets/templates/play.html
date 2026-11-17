@@ -1304,6 +1304,53 @@
        comment. Removed to avoid a duplicate #site-nav-fullpage id. */}}
 
   <div class="content-main">
+    {{with .LessonPanel}}
+    {{/* The lesson this song is in, in a course (lessonPanel): the song's
+         page is where it's practised — its score, playback and audio —
+         with the lesson's name, its video and files folded away, and done. */}}
+    <section class="lesson-panel" id="lesson-panel" data-songbook="{{.SongbookID}}" data-lesson="{{.Lesson.ID}}">
+      <div class="lesson-panel-head">
+        <a class="lesson-panel-title" href="{{.Href}}">{{.Lesson.Label}}</a>
+        <button type="button" id="lesson-panel-done" class="{{if .Done}}secondary{{else}}primary{{end}}" aria-pressed="{{if .Done}}true{{else}}false{{end}}">{{if .Done}}Done ✓{{else}}Mark as done{{end}}</button>
+      </div>
+      {{if or .VideoID .Files}}
+      <div class="lesson-panel-more">
+        {{with .VideoID}}<details class="lesson-panel-video" data-video="{{.}}"><summary>{{template "icon-play"}} The lesson’s video</summary><div class="lesson-video"></div></details>{{end}}
+        {{with .Files}}<details class="lesson-panel-files"><summary>{{template "icon-download"}} Its files ({{len .}})</summary>
+          <ul>{{range .}}<li><a href="{{.Href}}" download><span class="dl-ext">{{if eq .Kind "gp"}}GP{{else}}{{or .Ext "FILE"}}{{end}}</span> {{.Filename}} <small>{{fileSize .ByteSize}}</small></a></li>{{end}}</ul>
+        </details>{{end}}
+      </div>
+      {{end}}
+    </section>
+    <script>
+    (() => {
+      const panel = document.getElementById('lesson-panel');
+      // The video loads when opened, not before.
+      panel.querySelector('.lesson-panel-video')?.addEventListener('toggle', (e) => {
+        const box = e.target.querySelector('.lesson-video');
+        if (e.target.open && !box.firstChild) {
+          const f = document.createElement('iframe');
+          f.src = `https://www.youtube-nocookie.com/embed/${e.target.dataset.video}?rel=0`;
+          f.title = 'The lesson’s video';
+          f.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+          f.allowFullscreen = true;
+          box.append(f);
+        }
+      });
+      const done = document.getElementById('lesson-panel-done');
+      done.addEventListener('click', async () => {
+        const now = done.getAttribute('aria-pressed') !== 'true';
+        Forms.busy(done, true);
+        const res = await fetch(`/api/songbooks/${panel.dataset.songbook}/lessons/${panel.dataset.lesson}/done`, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({done: now})}).catch(() => null);
+        Forms.busy(done, false);
+        if (!res || !res.ok) { alert('Couldn’t save that.'); return; }
+        done.setAttribute('aria-pressed', String(now));
+        done.textContent = now ? 'Done ✓' : 'Mark as done';
+        done.className = now ? 'secondary' : 'primary';
+      });
+    })();
+    </script>
+    {{end}}
     {{/* Single-line song structure overview — a thin progress line with
          one tick + label per section, weighted by its own bar count.
          Lives INSIDE the main pane (not the full page width) so it lines

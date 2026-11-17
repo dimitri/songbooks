@@ -2957,7 +2957,13 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 			// In a course, back is to the song's lesson.
 			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil && sb.IsCourse() {
 				if l, err := s.store.LessonOfSong(r.Context(), songbookID, variantID); err == nil && l != nil {
-					data["LessonHref"], data["LessonLabel"] = lessonHref(songbookID, l.ID), l.Label()
+					// Back is to the lesson's own page (?view=lesson: it
+					// would bring the song back), and the lesson comes
+					// along: its video, done, its files (lessonPanel).
+					data["LessonHref"], data["LessonLabel"] = lessonHref(songbookID, l.ID)+"?view=lesson", l.Label()
+					if panel, err := s.lessonPanel(r, sb, l); err == nil {
+						data["LessonPanel"] = panel
+					}
 				}
 			}
 		}
