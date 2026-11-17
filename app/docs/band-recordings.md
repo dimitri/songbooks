@@ -34,10 +34,28 @@ Auditions/2024-07-25/1-1 - Thierry - You Know Im No Good - 2024-07-25.mp3
 - **Session date**, from the nearest dated folder (`2025-03-13`,
   `2024-03-16 - MJC Fresnes`, a month alone is its first day), else the file's
   own date.
-- **Position**, the number the name starts with; **take**, `Take N`; the
-  **title**, the rest, less the dates and the band's name.
+- **Name**, read with a template (`recording_names.go`), as Audacity's
+  *Export Multiple* names a file per label: `{n}` the song's place, `{set}`
+  the set, `{title}`, `{take}` after "Take" or "Prise", `{date}` (2025-03-13,
+  20250313, 250313, 13-03-2025), `{*}` anything else; dashes, underscores and
+  spaces are loose. The band's own templates first, in the band's order
+(the Corrections page: a list to add to, first or after the others, to
+  change, to move earlier or later, to remove; *Try it* shows what one
+  reads in the folder; every change reads all the names again), then the
+  built-in ones, most specific first:
+  `{set} - {n} - {title} - Take {take} - {date}`,
+  `{set} - {n} - {title} - {date}`, `{set}-{n} {title}`,
+  `{n} - {title} - Take {take} - {date}`, `{n} - Take {take} - {title} - {date}`,
+  `{n} - {title} - {date}`, `{n} - {title}`, `{n}-{title}`, `{n} {title}`,
+  `{title} - {date}`, `{date} {title}`, `{title} Take {take}`… The band's name
+  and a version before the title (`v2-Gone`) say nothing.
+- **A recorder's own names** (`TRACK01`, `MASTER`, `ZOOM0004`, `DR0000_0001`,
+  `250505_220154`, `IMG_2602`, a phone's `New Recording 12`, a copy's `… 2`) and
+  a video whose name numbers no song (a trailer, a stream) are listed but never
+  asked about: raw.
 - **Song**: the band's song (its default songbook and its own songs) the title
-  names, give or take accents, apostrophes and a letter or two; else another
+  names, give or take accents, apostrophes, spaces, a number for a word
+  (`Teens4Today`) and a letter or two; else another
   part of the name (an audition names the candidate first); else the song whose
   every word the name has (`Other Lies-Ultrablanc-Colors_of_Thunder_115_Mix`).
 - Skipped: what isn't audio or video, a DAW session's parts (`Audio Files/`,
@@ -54,6 +72,9 @@ What names get wrong, corrected once and applied at every reading
   marked likely. A date can also be corrected by hand.
 - **Titles**: a title that names none of the band's songs (`Kawazaki`, a song
   not in the repertoire yet, a jam) can be said to be one of them.
+- **Files**, one by one: a recording whose name gives no song (*Files with no
+  song*; the recorder's own files on demand) is said to be one of the band's
+  songs, or not a song. A file's correction comes before its title's.
 
 ## Rehearsals and Concerts
 

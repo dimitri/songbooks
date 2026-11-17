@@ -185,6 +185,7 @@ type parsedRecording struct {
 	Position   *int
 	Take       *int
 	Title      string
+	Raw        bool // a recorder's own name: no song to look for
 }
 
 var (
@@ -217,9 +218,10 @@ func recordingKind(top string) string {
 }
 
 // parseRecording reads what a file's folders (from the shared one) and
-// name say; ok is false for a file that isn't a recording, or a part of
-// one (a DAW session's tracks, a take's stems).
-func parseRecording(folders []string, name, band string) (p parsedRecording, ok bool) {
+// name say, its name with the band's templates (recording_names.go); ok
+// is false for a file that isn't a recording, or a part of one (a DAW
+// session's tracks, a take's stems).
+func parseRecording(folders []string, name, band string, tmpls []*nameTemplate) (p parsedRecording, ok bool) {
 	ext := strings.ToLower(strings.TrimPrefix(path.Ext(name), "."))
 	if !mediaExts[ext] || strings.HasPrefix(name, "._") {
 		return p, false
@@ -243,17 +245,44 @@ func parseRecording(folders []string, name, band string) (p parsedRecording, ok 
 			break
 		}
 	}
-	stem := strings.TrimSuffix(name, path.Ext(name))
+	stem := strings.TrimSpace(strings.TrimSuffix(name, path.Ext(name)))
+	if rawName.MatchString(stem) {
+		p.Raw, p.Title = true, stem
+		return p, true
+	}
+	// The band's name says nothing: "Other Lies - Ultrablanc - Skins".
+	bandKey := matchKey(band)
+	var kept []string
+	for _, tok := range strings.Split(stem, " - ") {
+		if bandKey == "" || matchKey(tok) != bandKey {
+			kept = append(kept, tok)
+		}
+	}
+	stem = strings.Join(kept, " - ")
+	video := ext == "mp4" || ext == "mov"
+	if r, ok := readName(stem, tmpls); ok {
+		p.Position, p.Take, p.Title, p.FileDate = r.Position, r.Take, r.Title, r.Date
+		if p.Title == "" {
+			p.Title = stem
+		}
+		// A video is a song's only when its name numbers it ("07 - Gone"):
+		// else a trailer, a stream, a clip, never asked about.
+		p.Raw = video && p.Position == nil
+		return p, true
+	}
+	if video {
+		p.Raw, p.Title = true, stem
+		return p, true
+	}
 	if m := leadNum.FindStringSubmatch(stem); m != nil {
 		n, _ := strconv.Atoi(m[1])
 		p.Position = &n
 		stem = stem[len(m[0]):]
 	}
-	bandKey := matchKey(band)
 	for _, tok := range strings.Split(stem, " - ") {
 		tok = strings.Trim(strings.TrimSpace(tok), "-_ ")
 		switch {
-		case tok == "", bandKey != "" && matchKey(tok) == bandKey:
+		case tok == "":
 		case isoDate.MatchString(tok):
 			if p.FileDate == "" {
 				p.FileDate = tok
@@ -279,9 +308,11 @@ func parseRecording(folders []string, name, band string) (p parsedRecording, ok 
 // applyRecordingTree records a listing of src's folder.
 func (st *Store) applyRecordingTree(ctx context.Context, src *BandRecordingSource, tree *pcloudItem) error {
 	var band string
-	if err := st.db.QueryRow(ctx, `SELECT name FROM bands WHERE id = $1`, src.BandID).Scan(&band); err != nil {
+	var own []string
+	if err := st.db.QueryRow(ctx, `SELECT b.name, s.name_templates FROM bands b JOIN band_recording_sources s ON s.band_id = b.id WHERE s.id = $1`, src.ID).Scan(&band, &own); err != nil {
 		return err
 	}
+	tmpls := templatesFor(own)
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return err
@@ -298,20 +329,20 @@ func (st *Store) applyRecordingTree(ctx context.Context, src *BandRecordingSourc
 				walk(c, append(append([]string{}, folders...), c.Name))
 				continue
 			}
-			p, ok := parseRecording(folders, c.Name, band)
+			p, ok := parseRecording(folders, c.Name, band, tmpls)
 			if !ok {
 				continue
 			}
 			batch.Queue(`
 				INSERT INTO band_recordings (source_id, band_id, file_id, path, name, size, content_type, created, modified,
-				                             kind, folder_date, file_date, position, title, take)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+				                             kind, folder_date, file_date, position, title, take, raw)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 				ON CONFLICT (source_id, file_id) DO UPDATE SET path = EXCLUDED.path, name = EXCLUDED.name, size = EXCLUDED.size,
 					content_type = EXCLUDED.content_type, created = EXCLUDED.created, modified = EXCLUDED.modified, kind = EXCLUDED.kind,
 					folder_date = EXCLUDED.folder_date, file_date = EXCLUDED.file_date, position = EXCLUDED.position,
-					title = EXCLUDED.title, take = EXCLUDED.take, gone = false`,
+					title = EXCLUDED.title, take = EXCLUDED.take, raw = EXCLUDED.raw, gone = false`,
 				src.ID, src.BandID, c.FileID, strings.Join(folders, "/"), c.Name, c.Size, c.ContentType,
-				pcloudTime(c.Created), pcloudTime(c.Modified), p.Kind, p.FolderDate, p.FileDate, p.Position, p.Title, p.Take)
+				pcloudTime(c.Created), pcloudTime(c.Modified), p.Kind, p.FolderDate, p.FileDate, p.Position, p.Title, p.Take, p.Raw)
 		}
 	}
 	walk(*tree, nil)
@@ -392,10 +423,12 @@ func matchBandSong(title string, songs []bandSong) *int64 {
 		switch {
 		case s.Key == k:
 			score = 1
+		case squash(s.Key) == squash(k):
+			score = 0.95 // "Teens4Today" for "Teens For Today"
 		case strings.HasPrefix(s.Key, k+" ") || strings.HasPrefix(k, s.Key+" "):
 			score = 0.9
 		default:
-			score = similarity(k, s.Key)
+			score = max(similarity(k, s.Key), similarity(squash(k), squash(s.Key)))
 		}
 		if score > bestScore {
 			bestScore, best = score, &songs[i].ID
@@ -405,6 +438,14 @@ func matchBandSong(title string, songs []bandSong) *int64 {
 		return nil
 	}
 	return best
+}
+
+// squash is a title key without its spaces, with the numbers that stand
+// for words as the words: "teens4today" and "teens for today" alike.
+var digitWords = strings.NewReplacer("4", "for", "2", "to", "8", "ate")
+
+func squash(key string) string {
+	return digitWords.Replace(strings.ReplaceAll(key, " ", ""))
 }
 
 // matchRecording is the band's song a recording is of: its title's, else
@@ -488,7 +529,7 @@ func (st *Store) ResolveBandRecordings(ctx context.Context, bandID int64) error 
 	if err != nil {
 		return err
 	}
-	rows, err := st.db.Query(ctx, `SELECT id, name, folder_date, file_date, title, session_date, variant_id FROM band_recordings WHERE band_id = $1`, bandID)
+	rows, err := st.db.Query(ctx, `SELECT id, file_id, name, folder_date, file_date, title, raw, session_date, variant_id FROM band_recordings WHERE band_id = $1`, bandID)
 	if err != nil {
 		return err
 	}
@@ -499,21 +540,28 @@ func (st *Store) ResolveBandRecordings(ctx context.Context, bandID int64) error 
 	}
 	var updates []upd
 	for rows.Next() {
-		var id int64
+		var id, fileID int64
 		var name, folderDate, fileDate, title string
+		var raw bool
 		var curDate *time.Time
 		var curVariant *int64
-		if err := rows.Scan(&id, &name, &folderDate, &fileDate, &title, &curDate, &curVariant); err != nil {
+		if err := rows.Scan(&id, &fileID, &name, &folderDate, &fileDate, &title, &raw, &curDate, &curVariant); err != nil {
 			rows.Close()
 			return err
 		}
 		date := sessionDate(folderDate, fileDate, fixes["date"])
+		// The file's own correction first, then its title's; a recorder's
+		// own name has no song unless it's said.
 		var variant *int64
-		if to, ok := fixes["title"][songKey(title)]; ok {
+		if to, ok := fixes["file"][strconv.FormatInt(fileID, 10)]; ok {
 			if v, err := strconv.ParseInt(to, 10, 64); err == nil {
 				variant = &v
 			}
-		} else {
+		} else if to, ok := fixes["title"][songKey(title)]; ok && !raw {
+			if v, err := strconv.ParseInt(to, 10, 64); err == nil {
+				variant = &v
+			}
+		} else if !raw {
 			variant = matchRecording(title, name, songs)
 		}
 		if !sameDate(date, curDate) || !sameID(variant, curVariant) {
@@ -568,7 +616,7 @@ func sessionDate(folderDate, fileDate string, fixes map[string]string) *time.Tim
 // bandFixes is bandID's corrections, by kind then the value corrected
 // (a title's songKey).
 func (st *Store) bandFixes(ctx context.Context, bandID int64) (map[string]map[string]string, error) {
-	out := map[string]map[string]string{"date": {}, "title": {}}
+	out := map[string]map[string]string{"date": {}, "title": {}, "file": {}}
 	rows, err := st.db.Query(ctx, `SELECT kind, from_value, to_value FROM band_recording_fixes WHERE band_id = $1`, bandID)
 	if err != nil {
 		return nil, err
@@ -587,9 +635,10 @@ func (st *Store) bandFixes(ctx context.Context, bandID int64) (map[string]map[st
 // RecordingFix is one of a band's corrections.
 type RecordingFix struct {
 	ID        int64
-	Kind      string // "date" or "title"
+	Kind      string // "date", "title" or "file"
 	From, To  string
-	SongTitle string // a title's: the song it names
+	SongTitle string // a title's or a file's: the song it names ("" for a file that's none)
+	FileName  string // a file's: its folder and name
 	Files     int    // the recordings it applies to
 }
 
@@ -597,11 +646,12 @@ type RecordingFix struct {
 func (st *Store) ListRecordingFixes(ctx context.Context, bandID int64) ([]RecordingFix, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT f.id, f.kind, f.from_value, f.to_value, coalesce(s.title, ''),
+		       coalesce((SELECT r.path || '/' || r.name FROM band_recordings r WHERE f.kind = 'file' AND r.band_id = f.band_id AND r.file_id::text = f.from_value LIMIT 1), ''),
 		       (SELECT count(*) FROM band_recordings r WHERE r.band_id = f.band_id AND NOT r.gone AND
 		          CASE WHEN f.kind = 'date' THEN coalesce(nullif(r.folder_date, ''), r.file_date) = f.from_value
 		               ELSE false END)
 		FROM band_recording_fixes f
-		LEFT JOIN songs s ON f.kind = 'title' AND s.id::text = f.to_value
+		LEFT JOIN songs s ON f.kind IN ('title', 'file') AND s.id::text = f.to_value
 		WHERE f.band_id = $1 ORDER BY f.kind, f.from_value`, bandID)
 	if err != nil {
 		return nil, err
@@ -610,7 +660,7 @@ func (st *Store) ListRecordingFixes(ctx context.Context, bandID int64) ([]Record
 	var out []RecordingFix
 	for rows.Next() {
 		var f RecordingFix
-		if err := rows.Scan(&f.ID, &f.Kind, &f.From, &f.To, &f.SongTitle, &f.Files); err != nil {
+		if err := rows.Scan(&f.ID, &f.Kind, &f.From, &f.To, &f.SongTitle, &f.FileName, &f.Files); err != nil {
 			return nil, err
 		}
 		out = append(out, f)
@@ -646,6 +696,32 @@ func (st *Store) SetRecordingFix(ctx context.Context, bandID int64, kind, from, 
 		}
 		if !found {
 			return fmt.Errorf("song %d isn't the band's: %w", id, ErrNotFound)
+		}
+	case "file":
+		// A file of the band's folder, to one of its songs or "none".
+		var n int
+		if err := st.db.QueryRow(ctx, `SELECT count(*) FROM band_recordings WHERE band_id = $1 AND file_id::text = $2`, bandID, from).Scan(&n); err != nil {
+			return err
+		}
+		if n == 0 {
+			return fmt.Errorf("no file %s in the band's folder: %w", from, ErrNotFound)
+		}
+		if to != "none" {
+			id, err := strconv.ParseInt(to, 10, 64)
+			if err != nil {
+				return errors.New("a file goes to one of the band's songs, or none")
+			}
+			songs, err := st.bandSongs(ctx, bandID)
+			if err != nil {
+				return err
+			}
+			found := false
+			for _, s := range songs {
+				found = found || s.ID == id
+			}
+			if !found {
+				return fmt.Errorf("song %d isn't the band's: %w", id, ErrNotFound)
+			}
 		}
 	default:
 		return fmt.Errorf("invalid correction kind %q", kind)
@@ -870,7 +946,8 @@ func (st *Store) GetBandRecording(ctx context.Context, bandID, personID, id int6
 func (st *Store) UnmatchedTitles(ctx context.Context, bandID int64) ([]TitleCount, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT title, count(*), max(path) FROM band_recordings
-		WHERE band_id = $1 AND NOT gone AND variant_id IS NULL AND position IS NOT NULL AND kind IN ('rehearsal', 'concert', 'audition')
+		WHERE band_id = $1 AND NOT gone AND NOT raw AND variant_id IS NULL AND position IS NOT NULL AND kind IN ('rehearsal', 'concert', 'audition')
+		  AND file_id::text NOT IN (SELECT from_value FROM band_recording_fixes WHERE band_id = $1 AND kind = 'file')
 		GROUP BY title ORDER BY count(*) DESC, title`, bandID)
 	if err != nil {
 		return nil, err

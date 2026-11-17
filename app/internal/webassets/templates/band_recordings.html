@@ -508,6 +508,74 @@
 <main class="index rec rec-fixes">
   <p class="hint">What the recordings’ names get wrong, corrected once: every reading of the folder applies it again.</p>
 
+  <section class="card" id="names">
+    <h2>How the files are named</h2>
+    <p class="hint">Each file’s name is read with a template, the band’s own first: <code>{n}</code> the song’s place, <code>{set}</code> the set, <code>{title}</code> the song, <code>{take}</code> after “Take”, <code>{date}</code>, <code>{*}</code> anything else. Dashes and spaces are loose, as in Audacity’s exports.</p>
+    <div class="table-scroll"><table class="table-stack stats-table rec-names">
+      <thead><tr><th>Read as</th><th class="num">Files</th><th>For example</th></tr></thead>
+      <tbody>
+      {{range .Names}}<tr>
+        <td data-label="Read as">{{if .Template}}<code>{{.Template}}</code>{{if .Own}} <span class="rec-ref">yours</span>{{end}}{{else if .Raw}}A recorder’s or a camera’s own names{{else}}<strong>No template</strong>{{end}}</td>
+        <td data-label="Files" class="num">{{.Count}}</td>
+        <td data-label="For example"><small>{{range $i, $e := .Examples}}{{if $i}} · {{end}}{{$e}}{{end}}</small></td>
+      </tr>{{end}}
+      </tbody>
+    </table></div>
+    <h3 class="rec-templates-title">The templates, in the order they’re tried</h3>
+    <p class="hint">A name is read by the first template that reads all of it: the band’s own first, in your order, then the built-in ones.</p>
+    <ol class="rec-templates" id="own-templates">
+      {{range $i, $t := .Templates}}{{if $t.Own}}
+      <li class="rec-template own" data-template="{{$t.Text}}">
+        <code>{{$t.Text}}</code>
+        <span class="rec-template-count">{{$t.Count}} file{{if ne $t.Count 1}}s{{end}}</span>
+        <span class="rec-template-actions">
+          <button type="button" class="dl-btn" data-move="-1" aria-label="Try it earlier">{{template "icon-up"}}</button>
+          <button type="button" class="dl-btn" data-move="1" aria-label="Try it later">{{template "icon-down"}}</button>
+          <button type="button" class="dl-btn" data-edit aria-label="Change it">{{template "icon-edit"}}</button>
+          <button type="button" class="dl-btn danger" data-remove aria-label="Remove it">{{template "icon-trash"}}</button>
+        </span>
+      </li>
+      {{end}}{{end}}
+    </ol>
+    {{if not .Own}}<p class="hint rec-templates-none">No template of the band’s yet: add one below to read names the built-in ones don’t.</p>{{end}}
+    <form class="rec-template-form" id="template-form">
+      <div class="field"><label for="template-text" id="template-label">Add a template</label>
+        <input id="template-text" name="template" placeholder="{n} - {title} - {date}" autocomplete="off" autocapitalize="off" spellcheck="false" required></div>
+      <div class="field rec-template-where"><label for="template-where">Tried</label>
+        <select id="template-where" name="where"><option value="first">first</option><option value="last">after yours</option></select></div>
+      <div class="form-actions"><button type="button" class="secondary" id="template-try">Try it</button> <button type="submit" class="primary" id="template-save">Add it</button> <button type="button" class="link-like" id="template-cancel" hidden>Cancel</button></div>
+      <p class="form-status" role="status"></p>
+      <div class="rec-template-try" id="template-result" hidden></div>
+    </form>
+    <details class="rec-builtins">
+      <summary>The built-in templates, tried after the band’s</summary>
+      <ol class="rec-templates">
+        {{range .Templates}}{{if not .Own}}<li class="rec-template"><code>{{.Text}}</code> <span class="rec-template-count">{{.Count}} file{{if ne .Count 1}}s{{end}}</span></li>{{end}}{{end}}
+      </ol>
+    </details>
+  </section>
+
+  <section class="card" id="files">
+    <h2>{{if .ShowRaw}}Recorder files{{else}}Files with no song{{end}}</h2>
+    {{if .Files}}
+    <p class="hint">{{if .ShowRaw}}The files a recorder named itself (TRACK01, ZOOM0004): say which song one is when it’s worth it.{{else}}Recordings whose name gives no song of the band’s, one by one: say which song each is, or that it isn’t one.{{end}} <a href="?{{if not .ShowRaw}}raw=1{{end}}#files">{{if .ShowRaw}}The named files{{else}}The recorder’s own files{{end}}</a></p>
+    <ul class="rec-questions rec-files">
+      {{range .Files}}
+      <li>
+        <div><strong>{{.Name}}</strong><br><small class="hint">{{.Path}}</small></div>
+        <div class="rec-question-actions">
+          <select class="rec-file-fix" data-file="{{.FileID}}" aria-label="The file {{.Name}} is">
+            <option value="">Is the song…</option>
+            <option value="none">Not a song</option>
+            {{range $.Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}
+          </select>
+        </div>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}<p class="hint">None. <a href="?{{if not .ShowRaw}}raw=1{{end}}#files">{{if .ShowRaw}}The named files{{else}}The recorder’s own files{{end}}</a></p>{{end}}
+  </section>
+
   <section class="card">
     <h2>Dates to check</h2>
     {{if .Questions}}
@@ -555,9 +623,9 @@
       <thead><tr><th>What</th><th>Written</th><th>Is</th><th></th></tr></thead>
       <tbody>
       {{range .Fixes}}<tr>
-        <td data-label="What">{{if eq .Kind "date"}}A date{{else}}A title{{end}}</td>
-        <td data-label="Written">{{.From}}</td>
-        <td data-label="Is">{{if eq .Kind "date"}}{{.To}}{{else}}{{.SongTitle}}{{end}}</td>
+        <td data-label="What">{{if eq .Kind "date"}}A date{{else if eq .Kind "file"}}A file{{else}}A title{{end}}</td>
+        <td data-label="Written">{{if eq .Kind "file"}}{{or .FileName .From}}{{else}}{{.From}}{{end}}</td>
+        <td data-label="Is">{{if eq .Kind "date"}}{{.To}}{{else if eq .To "none"}}Not a song{{else}}{{.SongTitle}}{{end}}</td>
         <td><button type="button" class="link-like danger" data-delete="{{.ID}}">Remove</button></td>
       </tr>{{end}}
       </tbody>
@@ -587,6 +655,66 @@
     if (!sel.value) return;
     try { await fix('title', sel.dataset.from, sel.value); location.reload(); } catch (e) { alert(e.message); }
   }));
+  document.querySelectorAll('.rec-file-fix').forEach((sel) => sel.addEventListener('change', async () => {
+    if (!sel.value) return;
+    try { await fix('file', sel.dataset.file, sel.value); sel.closest('li').remove(); } catch (e) { alert(e.message); }
+  }));
+  // The band's own templates, in the order they're tried: try one on the
+  // folder's names, add it first or last, change one, move one earlier or
+  // later, remove one. Saving reads every name again.
+  const own = {{.Own}} || [];
+  const saveTemplates = async (list) => {
+    const res = await fetch(`/api/bands/${bandId}/recordings/templates`, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({templates: list})}).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
+    if (!res || !res.ok) throw new Error(data.error || 'Couldn’t save that.');
+  };
+  const tform = document.getElementById('template-form');
+  const out = document.getElementById('template-result');
+  const label = document.getElementById('template-label'), saveBtn = document.getElementById('template-save'), cancel = document.getElementById('template-cancel');
+  let editing = -1; // the template being changed, -1 when adding
+  const setEditing = (i) => {
+    editing = i;
+    label.textContent = i < 0 ? 'Add a template' : 'Change the template';
+    saveBtn.textContent = i < 0 ? 'Add it' : 'Save it';
+    cancel.hidden = i < 0;
+    document.querySelector('.rec-template-where').hidden = i >= 0;
+    tform.elements.template.value = i < 0 ? '' : own[i];
+    out.hidden = true;
+    if (i >= 0) tform.elements.template.focus();
+  };
+  cancel.addEventListener('click', () => setEditing(-1));
+  document.getElementById('template-try').addEventListener('click', (e) => {
+    Forms.run(tform, e.currentTarget, async () => {
+      const res = await fetch(`/api/bands/${bandId}/recordings/templates/try`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({template: tform.elements.template.value})});
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Couldn’t try it.');
+      const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+      const field = (name, v) => (v === null || v === undefined || v === '' ? '' : `<span><b>${name}</b> ${esc(v)}</span>`);
+      out.hidden = false;
+      out.innerHTML = `<p><strong>${data.Count}</strong> of ${data.Total} names read, alone (in the list, a template before it may read some first).</p>` + (data.Examples || []).map((x) =>
+        `<div class="rec-try-row"><small>${esc(x.Name)}</small><div>${field('set', x.Set)}${field('n', x.Position)}${field('title', x.Title)}${field('take', x.Take)}${field('date', x.Date)}</div></div>`).join('');
+    });
+  });
+  tform.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const t = tform.elements.template.value.trim();
+    const list = [...own];
+    if (editing >= 0) list[editing] = t;
+    else if (tform.elements.where.value === 'last') list.push(t);
+    else list.unshift(t);
+    Forms.run(tform, saveBtn, async () => { await saveTemplates(list); location.reload(); });
+  });
+  document.querySelectorAll('#own-templates .rec-template').forEach((li, i) => {
+    const run = async (list) => { try { await saveTemplates(list); location.reload(); } catch (err) { alert(err.message); } };
+    li.querySelectorAll('[data-move]').forEach((b) => {
+      const j = i + Number(b.dataset.move);
+      b.disabled = j < 0 || j >= own.length;
+      b.addEventListener('click', () => { const list = [...own]; [list[i], list[j]] = [list[j], list[i]]; run(list); });
+    });
+    li.querySelector('[data-edit]').addEventListener('click', () => setEditing(i));
+    li.querySelector('[data-remove]').addEventListener('click', () => { if (confirm(`Remove ${own[i]}?`)) run(own.filter((_, k) => k !== i)); });
+  });
+
   document.querySelectorAll('[data-delete]').forEach((b) => b.addEventListener('click', async () => {
     const res = await fetch(`/api/bands/${bandId}/recordings/fixes/${b.dataset.delete}`, {method: 'DELETE'}).catch(() => null);
     if (res && res.ok) location.reload(); else alert('Couldn’t remove it.');
