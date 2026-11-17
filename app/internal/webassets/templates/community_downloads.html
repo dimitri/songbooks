@@ -66,6 +66,7 @@
     {{end}}
 
     {{if and $.One .Lessons}}
+    {{if $.CanManage}}<div class="dl-edit-bar"><button type="button" class="dl-edit-toggle" aria-pressed="false">Edit files</button></div>{{end}}
     <div class="dl-lessons-head" aria-hidden="true"><span>{{if .IsCourse}}Lesson{{else}}Song{{end}}</span><span>Guitar Pro</span><span>Backing track</span><span>Other</span></div>
     <ol class="dl-lessons">
       {{range .Lessons}}
@@ -73,10 +74,13 @@
         <span class="dl-lesson-title"><span class="dl-num">{{.Number}}</span>{{if .Href}}<a href="{{.Href}}">{{.Title}}</a>{{else}}<span>{{.Title}}</span>{{end}}</span>
         <span class="dl-files">
           {{range .Files}}
+          {{$href := printf "/communities/%d/downloads/%d/%s" $.Community.ID .ID (pathSegment .Filename)}}
           <span class="dl-file kind-{{.Kind}}">
-            {{if eq .Kind "audio"}}<button type="button" class="dl-play" data-src="/communities/{{$.Community.ID}}/downloads/{{.ID}}/{{pathSegment .Filename}}?view=1" aria-label="Play {{.Filename}}">{{template "icon-play"}}</button>{{end}}
-            <a href="/communities/{{$.Community.ID}}/downloads/{{.ID}}/{{pathSegment .Filename}}" download title="{{.FullPath}}">{{if eq .Kind "gp"}}Guitar Pro{{else}}{{or .Ext "File"}}{{end}}{{if .Named}} · {{.Label}}{{end}} <span class="dl-size">{{fileSize .ByteSize}}</span></a>
-            {{if $.CanManage}}<button type="button" class="dl-del" data-del="{{.ID}}" data-name="{{.Filename}}" aria-label="Remove {{.Filename}}">&times;</button>{{end}}
+            {{if eq .Kind "audio"}}<button type="button" class="dl-badge dl-play" data-src="{{$href}}?view=1" aria-label="Play {{.Filename}}">{{template "icon-play"}}{{template "icon-pause"}}</button>
+            {{else}}<span class="dl-badge" aria-hidden="true">{{if eq .Kind "gp"}}GP{{else}}{{or .Ext "File"}}{{end}}</span>{{end}}
+            <a class="dl-file-name" href="{{$href}}" download title="{{.FullPath}}"><strong>{{if .Named}}{{.Label}}{{else if eq .Kind "gp"}}Guitar Pro{{else if eq .Kind "audio"}}Backing track{{else}}{{or .Ext "File"}}{{end}}</strong><small>{{if eq .Kind "audio"}}MP3 · {{end}}{{fileSize .ByteSize}}</small></a>
+            <a class="dl-get" href="{{$href}}" download aria-label="Download {{.Filename}}">{{template "icon-download"}}</a>
+            {{if $.CanManage}}<button type="button" class="dl-del" data-del="{{.ID}}" data-name="{{.Filename}}" aria-label="Remove {{.Filename}}">{{template "icon-trash"}}</button>{{end}}
           </span>
           {{end}}
         </span>
