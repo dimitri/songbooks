@@ -122,40 +122,48 @@ type gigRow struct {
 	Sound                              *setlistSound // nil: nothing to play here
 }
 
-// setlistSound is what a set list's player plays for a song: the band's
-// chosen recording from its pCloud folder, else the song's own recording,
-// else its reference (the YouTube video's sound).
+// setlistSound is what a set list's player can play for a song: our
+// recording (the band's chosen one from its pCloud folder, else the
+// song's own) and the reference (the YouTube video's sound). The page
+// plays the one the listener picks, the other when that's missing.
 type setlistSound struct {
-	Src        string // an mp3 of the app's
-	Host, Code string // or a file of the band's pCloud folder
+	Rec *soundSource
+	Ref *soundSource
+}
+
+// soundSource is an mp3 of the app's (Src) or a file of the band's pCloud
+// folder (Host, Code, File).
+type soundSource struct {
+	Src        string
+	Host, Code string
 	File       int64
 	Label      string
 }
 
-// soundFor is variantID's setlistSound, nil when it has none; bandID 0
+// soundFor is variantID's setlistSound, nil when it has neither; bandID 0
 // for a set list that isn't a band's.
 func (s *Server) soundFor(ctx context.Context, bandID, variantID int64) *setlistSound {
+	var snd setlistSound
 	if bandID != 0 {
 		if rec, err := s.store.ChosenSongRecording(ctx, bandID, variantID); err == nil && rec != nil {
-			return &setlistSound{Host: rec.APIHost, Code: rec.Code, File: rec.FileID, Label: "the band's recording"}
+			snd.Rec = &soundSource{Host: rec.APIHost, Code: rec.Code, File: rec.FileID, Label: "the band's recording"}
 		}
 	}
-	audio, err := s.store.ListSongAudio(ctx, variantID)
-	if err != nil {
-		return nil
-	}
-	for _, c := range []store.AudioCategory{store.AudioBand, store.AudioYouTube} {
+	if audio, err := s.store.ListSongAudio(ctx, variantID); err == nil {
 		for _, a := range audio {
-			if a.Category == c {
-				label := "the reference"
-				if c == store.AudioBand {
-					label = "our recording"
-				}
-				return &setlistSound{Src: fmt.Sprintf("/song/%d/audio.mp3?category=%s&v=%d", variantID, c, a.ByteSize), Label: label}
+			src := fmt.Sprintf("/song/%d/audio.mp3?category=%s&v=%d", variantID, a.Category, a.ByteSize)
+			switch {
+			case a.Category == store.AudioBand && snd.Rec == nil:
+				snd.Rec = &soundSource{Src: src, Label: "our recording"}
+			case a.Category == store.AudioYouTube:
+				snd.Ref = &soundSource{Src: src, Label: "the reference"}
 			}
 		}
 	}
-	return nil
+	if snd.Rec == nil && snd.Ref == nil {
+		return nil
+	}
+	return &snd
 }
 
 type gigSet struct {
@@ -214,7 +222,7 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 			backLabel, band = b.Name, b
 		}
 	}
-	playable := 0
+	playable, choice := 0, false
 	var sets []gigSet
 	n := 0
 	for _, set := range l.Sets {
@@ -234,6 +242,7 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 			row := gigRow{Num: n, VariantID: e.VariantID, Title: title, Tempo: tempo, Key: key, Note: e.Note, Reference: reference}
 			if row.Sound = s.soundFor(r.Context(), bandID, e.VariantID); row.Sound != nil {
 				playable++
+				choice = choice || row.Sound.Rec != nil && row.Sound.Ref != nil
 			}
 			rows = append(rows, row)
 		}
@@ -275,7 +284,7 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 		"Title": orDefault(l.Get("title"), orDefault(meta.Title, "Set list")), "Date": l.Get("date"), "Venue": l.Get("venue"),
 		"IsEmpty": n == 0, "Repertoire": repertoire, "IsBand": meta.OwnerBandID != nil,
 		"Sets": sets, "BrandKind": brandKind, "BrandID": brandID,
-		"Band": band, "Playable": playable,
+		"Band": band, "Playable": playable, "Choice": choice,
 		"ContextualGroup": webassets.ContextualGroup{Label: "This setlist", Entries: []webassets.NavEntry{
 			{Label: "Print one-pager", Path: fmt.Sprintf("/setlists/%d/export-setlist-page.pdf", id), Icon: "icon-download"},
 			{Label: "Export PDF", Path: fmt.Sprintf("/setlists/%d/export.pdf", id), Icon: "icon-download"},

@@ -173,6 +173,9 @@
   rows.forEach((row, i) => row.querySelector('.rec-play').addEventListener('click', () => (at === i ? toggle() : play(i))));
   document.querySelectorAll('[data-play-all]').forEach((b) => b.addEventListener('click', () => play(0)));
   audio.addEventListener('ended', () => play(at + 1));
+  // The page changed which version its tracks play (a set list's "Our
+  // recordings | Reference"): the song playing starts again in the other.
+  document.addEventListener('rp:sources', () => { if (at >= 0) play(at); });
   seek.addEventListener('input', () => { if (isFinite(audio.duration)) audio.currentTime = (seek.value / 1000) * audio.duration; });
 
   // On a phone the mini player opens into the full one; a wide screen
