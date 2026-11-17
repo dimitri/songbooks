@@ -221,6 +221,7 @@
 {{- else if eq . "icon-community"}}{{template "icon-community"}}
 {{- else if eq . "icon-setlists"}}{{template "icon-setlists"}}
 {{- else if eq . "icon-metronome"}}{{template "icon-metronome"}}
+{{- else if eq . "icon-tuner"}}{{template "icon-tuner"}}
 {{- else if eq . "icon-profile"}}{{template "icon-profile"}}
 {{- else if eq . "icon-plus"}}{{template "icon-plus"}}
 {{- else if eq . "icon-play"}}{{template "icon-play"}}
@@ -236,6 +237,7 @@
   </div>
   <div class="sidebar-secondary">
     <a href="/metronome" data-path="/metronome">{{template "icon-metronome"}} Metronome</a>
+    <a href="/tuner" data-path="/tuner">{{template "icon-tuner"}} Tuner</a>
   </div>
   {{if .Me}}
   {{if .Me.IsAdmin}}
@@ -515,3 +517,4 @@
      pages as a student does until they press it (the sb_edit cookie,
      internal/httpapi/editmode.go). */}}
 {{define "edit-toggle"}}<button type="button" class="edit-toggle{{if .}} on{{end}}" aria-pressed="{{if .}}true{{else}}false{{end}}" onclick="document.cookie='sb_edit={{if .}}0{{else}}1{{end}}; path=/; max-age=31536000; samesite=lax'; location.reload()">{{template "icon-edit"}}<span>{{if .}}Done{{else}}Edit{{end}}</span></button>{{end}}
+{{define "icon-tuner"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 14a7 7 0 0 1 14 0"/><path d="M10 14l3-5"/><path d="M5 9.5l.9.9M10 6.5V7.8M15 9.5l-.9.9"/></svg>{{end}}

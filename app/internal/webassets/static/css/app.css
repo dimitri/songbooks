@@ -6369,3 +6369,52 @@ html.rp-locked { overflow: hidden; }
 .edit-toggle.on { background: #e8a33a; border-color: #e8a33a; color: #1a1205; opacity: 1; }
 .app-header .edit-toggle + .notif-bell, .app-header .edit-toggle ~ * { margin-left: 0; }
 body:has(.edit-toggle.on) main { box-shadow: inset 0 3px 0 #e8a33a; }
+
+/* ---- The tuner (tuner.html, tuner.js). A meter from −50 to +50 cents:
+   the needle at --cents, the ±3 cent zone in the middle, green when the
+   note holds there. ---- */
+.tuner { max-width: 34rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.1rem; padding: 1.2rem; --tuner-ok: #2f9e5b; --tuner-off: #d9822b; }
+.tuner-picks { display: flex; gap: 0.5rem; }
+.tuner-pick { flex: 1; min-width: 0; }
+.tuner-pick-capo { flex: 0 0 7.5rem; }
+.tuner-pick select { width: 100%; min-height: 2.75rem; font-size: 1rem; }
+.tuner-dial { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 0.6rem 0 0.2rem; }
+.tuner-readout { display: flex; align-items: baseline; gap: 0.9rem; min-height: 6.2rem; }
+.tuner-note { font: 800 5.4rem/1 var(--font-display, var(--font-ui)); letter-spacing: -0.02em; color: var(--fg-faint); transition: color 0.15s; }
+.tuner-note sub { font-size: 1.6rem; font-weight: 600; margin-left: 0.15rem; vertical-align: baseline; color: var(--fg-faint); }
+.tuner.hearing .tuner-note { color: var(--fg); }
+.tuner.in-tune .tuner-note { color: var(--tuner-ok); }
+.tuner-cents { font: 600 1.3rem var(--font-mono, monospace); color: var(--fg-muted); min-width: 4.5rem; font-variant-numeric: tabular-nums; }
+.tuner.flat .tuner-cents, .tuner.sharp .tuner-cents { color: var(--tuner-off); }
+.tuner.in-tune .tuner-cents { color: var(--tuner-ok); }
+.tuner-meter { position: relative; width: 100%; height: 5.2rem; --cents: 0; }
+.tuner-scale { position: absolute; left: 0; right: 0; top: 0.4rem; height: 2.6rem; }
+.tuner-scale i { position: absolute; left: calc(50% + var(--t) * 1%); width: 2px; height: 0.9rem; margin-left: -1px; background: color-mix(in srgb, var(--fg) 25%, transparent); border-radius: 1px; bottom: 0; }
+.tuner-scale i.major { height: 1.5rem; background: color-mix(in srgb, var(--fg) 45%, transparent); }
+.tuner-scale i.zero { height: 2.6rem; width: 3px; margin-left: -1.5px; background: var(--fg); }
+.tuner-zone { position: absolute; top: 0.2rem; height: 3rem; left: 47%; width: 6%; border-radius: 6px; background: color-mix(in srgb, var(--tuner-ok) 16%, transparent); }
+.tuner.in-tune .tuner-zone { background: color-mix(in srgb, var(--tuner-ok) 38%, transparent); box-shadow: 0 0 22px color-mix(in srgb, var(--tuner-ok) 55%, transparent); }
+.tuner-needle { position: absolute; top: 0; height: 3.4rem; width: 4px; margin-left: -2px; border-radius: 2px; left: calc(50% + var(--cents) * 1%); background: var(--fg-faint); transition: left 0.08s linear, background 0.15s; }
+.tuner.hearing .tuner-needle { background: var(--tuner-off); }
+.tuner.in-tune .tuner-needle { background: var(--tuner-ok); }
+.tuner-needle::after { content: ""; position: absolute; left: 50%; bottom: -7px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: inherit; }
+.tuner-labels { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; font: 600 0.72rem var(--font-mono, monospace); color: var(--fg-faint); }
+.tuner-state { margin: 0.2rem 0 0; font-weight: 600; min-height: 1.4em; text-align: center; }
+.tuner.in-tune .tuner-state { color: var(--tuner-ok); }
+.tuner-hz { margin: 0; font-size: 0.8rem; color: var(--fg-faint); font-variant-numeric: tabular-nums; min-height: 1.2em; }
+.tuner-strings { display: flex; justify-content: center; gap: 0.45rem; flex-wrap: wrap; }
+.tuner-strings[hidden] { display: none; }
+.tuner-string { flex: 1 1 0; max-width: 4.2rem; min-width: 2.9rem; min-height: 3.6rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.1rem; padding: 0; border-radius: 12px;
+  border: 1.5px solid var(--border); background: var(--bg); color: var(--fg); cursor: pointer; }
+.tuner-string b { font-size: 1.25rem; font-weight: 700; }
+.tuner-string small { font-size: 0.68rem; color: var(--fg-faint); }
+.tuner-string.current { border-color: var(--tuner-off); box-shadow: 0 0 0 2px color-mix(in srgb, var(--tuner-off) 35%, transparent); }
+.tuner-string.tuned { border-color: var(--tuner-ok); background: color-mix(in srgb, var(--tuner-ok) 14%, var(--bg)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--tuner-ok) 40%, transparent); }
+.tuner-string.locked { border-style: dashed; border-color: var(--fg); }
+.tuner-string.ringing { background: var(--accent-bg); border-color: var(--accent); }
+.tuner-capo { margin: -0.4rem 0 0; text-align: center; font-size: 0.88rem; color: var(--fg-muted); }
+.tuner-start { min-height: 3.2rem; font-size: 1.05rem; }
+.tuner.listening .tuner-start { background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border-strong); }
+.tuner-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.tuner-cal { display: inline-flex; align-items: center; gap: 0.4rem; font-variant-numeric: tabular-nums; font-weight: 600; }
+.tuner-foot .hint { flex: 1 1 14rem; margin: 0; font-size: 0.8rem; }

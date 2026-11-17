@@ -225,6 +225,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/chord-diagrams/preview", s.requireAuth(s.handleChordDiagramPreview))
 
 	mux.HandleFunc("GET /metronome", s.requireAuth(s.handleMetronomePage))
+	mux.HandleFunc("GET /tuner", s.requireAuth(s.handleTunerPage))
 
 	// In-app notifications: a lightweight inbox, not email/push — see
 	// internal/store/notifications.go. requireAuth only; every store call
