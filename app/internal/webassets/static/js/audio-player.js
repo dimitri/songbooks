@@ -941,6 +941,8 @@ window.songbooksDecodable = function (buf) {
     if (t.closest('button, a') && !t.closest('#audio-player')) return;
     const sheet = $('sheet');
     if (sheet && sheet.dataset.renderMode === 'mixer') return; // the Mixer has its own
+    // So has the Score view, when it plays the file's own recording (gp-view.js).
+    if (sheet && sheet.dataset.renderMode === 'score' && document.body.classList.contains('gp-own-audio')) return;
     const drawer = $('edit-drawer');
     if (drawer && !drawer.hidden) return;
     const songNav = !!document.querySelector('.setlist-nav-card');

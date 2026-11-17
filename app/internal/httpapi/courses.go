@@ -572,6 +572,8 @@ func (s *Server) handleSetLessonDone(w http.ResponseWriter, r *http.Request) {
 type lessonPanelData struct {
 	Lesson     store.Lesson
 	SongbookID int64
+	Course     string // the course's name
+	Of         int    // how many lessons it has
 	Href       string // its own page
 	VideoID    string
 	Done       bool
@@ -589,8 +591,12 @@ func (s *Server) lessonPanel(r *http.Request, sb *store.Songbook, lesson *store.
 	if err != nil {
 		return nil, err
 	}
+	lessons, _, err := s.store.ListLessons(r.Context(), sb.ID)
+	if err != nil {
+		return nil, err
+	}
 	return &lessonPanelData{
-		Lesson: *lesson, SongbookID: sb.ID, Href: lessonHref(sb.ID, lesson.ID) + "?view=lesson",
+		Lesson: *lesson, SongbookID: sb.ID, Course: sb.Name, Of: len(lessons), Href: lessonHref(sb.ID, lesson.ID) + "?view=lesson",
 		VideoID: s.lessonVideo(*lesson), Done: progress[lesson.ID].Done, Files: files[lesson.ID],
 	}, nil
 }
