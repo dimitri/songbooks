@@ -6,11 +6,14 @@
 //	sbfiles import --db URL --songbook 12 [--path F] [--actor NAME] --name "Lessons.zip" < Lessons.zip
 //	sbfiles course --db URL --songbook 12
 //	sbfiles covers --db URL --songbook 12 [--again] [--set-look]
+//	sbfiles recordings --db URL --band 15
 //
 // course makes the songbook a course (docs/courses.md) and its lessons
 // from its files; a course's import does the latter by itself. covers
 // looks for the covers of the songbook's songs not looked for yet (every
 // song with --again) and prints the look they make (docs/covers.md).
+// recordings reads a band's recordings folder again, as its Rehearsals
+// tab's "Read it again" does (docs/band-recordings.md).
 //
 // A file of the same name in the same folder is replaced. In production it
 // runs inside the app container:
@@ -39,10 +42,11 @@ const usage = `usage:
   sbfiles add --db URL --songbook ID [--path F] [--song ID] [--title T] [--kind K] [--actor NAME] --name FILE < file
   sbfiles import --db URL --songbook ID [--path F] [--actor NAME] --name ZIP < zip
   sbfiles course --db URL --songbook ID
-  sbfiles covers --db URL --songbook ID [--again] [--set-look]`
+  sbfiles covers --db URL --songbook ID [--again] [--set-look]
+  sbfiles recordings --db URL --band ID`
 
 func main() {
-	if len(os.Args) < 2 || (os.Args[1] != "add" && os.Args[1] != "import" && os.Args[1] != "course" && os.Args[1] != "covers") {
+	if len(os.Args) < 2 || (os.Args[1] != "add" && os.Args[1] != "import" && os.Args[1] != "course" && os.Args[1] != "covers" && os.Args[1] != "recordings") {
 		log.Fatal(usage)
 	}
 	cmd := os.Args[1]
@@ -55,9 +59,34 @@ func main() {
 	title := fs.String("title", "", "what the file is called in the list, when not its name")
 	actor := fs.String("actor", "", "username the files are added as")
 	kind := fs.String("kind", "", "book, gp, audio or other (default: from the name)")
+	bandID := fs.Int64("band", 0, "recordings: the band whose folder is read again")
 	again := fs.Bool("again", false, "covers: look again for the songs that got no album cover")
 	setLook := fs.Bool("set-look", false, "covers: make the look of all the owner's songs its brand (the brand form's \"From our songs\"), keeping its logo, tagline and website")
 	fs.Parse(os.Args[2:])
+	if cmd == "recordings" {
+		if *dbURL == "" || *bandID == 0 {
+			log.Fatal("--db and --band are required")
+		}
+		ctx := context.Background()
+		st, err := store.New(ctx, *dbURL)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer st.Close()
+		if err := st.SyncBandRecordings(ctx, *bandID); err != nil {
+			log.Fatal(err)
+		}
+		titles, err := st.UnmatchedTitles(ctx, *bandID)
+		if err != nil {
+			log.Fatal(err)
+		}
+		files, err := st.UnmatchedFiles(ctx, *bandID, false)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("band %d read again: %d titles to match, %d files with no song\n", *bandID, len(titles), len(files))
+		return
+	}
 	if *dbURL == "" || *songbookID == 0 || (*name == "" && cmd != "course" && cmd != "covers") {
 		log.Fatal("--db, --songbook and --name are required")
 	}
