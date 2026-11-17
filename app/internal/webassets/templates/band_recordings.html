@@ -45,7 +45,12 @@
 {{end}}
 
 {{/* rec-player: the player, and what the stars do. Its data is the
-     page's (Band, Source). On a phone it is a mini player over the tab
+     page's (Band, Source; Band may be nil, as on a person's set list). It
+     plays the page's tracks: a recording row (.rec-row[data-file], from
+     the band's pCloud folder), or any element with data-rp-src (an mp3 of
+     the app's) or data-rp-file with data-rp-host and data-rp-code (a pCloud
+     file), each with a .rec-play button, data-title and data-detail, and
+     data-date or data-tile ("small big", for the tile). On a phone it is a mini player over the tab
      bar that opens into a full sheet; on a wide screen, one bar with
      everything in it that opens into a panel (two columns, the player and
      the recordings, on a landscape screen). */}}
@@ -88,13 +93,14 @@
 </div>
 <script>
 (() => {
-  const bandId = {{.Band.ID}};
+  const bandId = {{with .Band}}{{.ID}}{{else}}0{{end}};
+  const artist = {{with .Band}}{{.Name}}{{else}}''{{end}};
   {{with .Source}}const host = {{.APIHost}}, code = {{.Code}};{{else}}const host = '', code = '';{{end}}
   const PLAY = '<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3.8v12.4L16.5 10z" fill="currentColor"/></svg>';
   const PAUSE = '<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="4" width="3.4" height="12" rx="1" fill="currentColor"/><rect x="11.6" y="4" width="3.4" height="12" rx="1" fill="currentColor"/></svg>';
   const SKIP = 15;
   const $ = (id) => document.getElementById(id);
-  const rows = [...document.querySelectorAll('.rec-row[data-file]')];
+  const rows = [...document.querySelectorAll('.rec-row[data-file], [data-rp-src], [data-rp-file]')];
   const audio = new Audio();
   const bar = $('rec-player'), seek = $('rec-seek'), speed = $('rp-speed'), ab = $('rp-ab');
   const toggles = bar.querySelectorAll('[data-rp=toggle]');
@@ -107,7 +113,7 @@
   // Referer: with one from another site than pCloud's own, it refuses
   // ("Invalid link referer", 7010).
   const links = new Map();
-  async function linkFor(fileId) {
+  async function linkFor(fileId, host, code) {
     const c = links.get(fileId);
     if (c && c.until > Date.now()) return c.url;
     const res = await fetch(`https://${host}/getpublinkdownload?code=${encodeURIComponent(code)}&fileid=${fileId}`, {referrerPolicy: 'no-referrer'});
@@ -127,8 +133,9 @@
     $('rec-now-title').textContent = row.dataset.title;
     $('rec-now-detail').textContent = row.dataset.detail || '';
     const [y, m, d] = (row.dataset.date || '').split('-').map(Number);
-    $('rp-tile-month').textContent = m ? months[m - 1] : '';
-    $('rp-tile-day').textContent = d || '♪';
+    const [small, big] = row.dataset.tile ? row.dataset.tile.split(' ') : [m ? months[m - 1] : '', d || '♪'];
+    $('rp-tile-month').textContent = small;
+    $('rp-tile-day').textContent = big;
     bar.classList.toggle('is-concert', row.dataset.kind === 'concert');
     const after = rows[i + 1];
     $('rp-upnext').textContent = after ? `${i + 1} of ${rows.length} · next: ${after.dataset.title}` : `${i + 1} of ${rows.length} · the last one`;
@@ -137,14 +144,14 @@
     $('rp-stars').replaceChildren(...(stars ? [stars.cloneNode(true)] : []));
     $('rp-stars').querySelectorAll('.rec-stars').forEach(wireStars);
     try {
-      audio.src = await linkFor(row.dataset.file);
+      audio.src = row.dataset.rpSrc || await linkFor(row.dataset.file || row.dataset.rpFile, row.dataset.rpHost || host, row.dataset.rpCode || code);
       audio.playbackRate = Number(speed.value);
       await audio.play();
     } catch (e) {
       $('rec-now-detail').textContent = 'Couldn’t play it: ' + e.message;
     }
     if ('mediaSession' in navigator) {
-      navigator.mediaSession.metadata = new MediaMetadata({title: row.dataset.title, artist: {{.Band.Name}}, album: row.dataset.detail || ''});
+      navigator.mediaSession.metadata = new MediaMetadata({title: row.dataset.title, artist, album: row.dataset.detail || ''});
     }
     render();
   }

@@ -4927,8 +4927,13 @@ input.matrix-slot:hover, input.matrix-slot:focus {
    view's .gig-row, extended with two more columns for a per-song "play
    it" link (reference: URL, when set) and the reorder up/down buttons
    that only appear once "reorder" mode is toggled on. */
-.setlist-overview-row { grid-template-columns: 2.6rem 1fr 3.5rem 3rem 2.2rem 3.2rem; }
-.setlist-overview-play { text-decoration: none; }
+.setlist-overview-row { grid-template-columns: 2.6rem 1fr 3.5rem 3rem 2.9rem 3.2rem; }
+.setlist-overview-play { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; color: var(--fg-muted); }
+.setlist-overview-play .icon { width: 1.1rem; height: 1.1rem; }
+/* The song playing in the set list's player (rec-player). */
+.gig-row.playing { background: var(--accent-bg); }
+.gig-row.playing .gig-title { color: var(--accent); }
+.gig-row .rec-play { justify-self: end; }
 .setlist-overview-reorder-btns:not([hidden]) { display: flex; gap: 0.15rem; }
 #reorder-toggle.active { background: var(--accent); color: var(--bg); }
 
@@ -4968,7 +4973,7 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 
 @media (max-width: 560px) {
   .gig-row { grid-template-columns: 2rem 1fr 3.4rem; }
-  .setlist-overview-row { grid-template-columns: 2rem 1fr 3.4rem 2rem 2.8rem; }
+  .setlist-overview-row { grid-template-columns: 2rem 1fr 3.4rem 2.9rem 2.8rem; }
   .repertoire-row { grid-template-columns: 1fr 3.4rem 2.2rem; }
   .gig-tempo { display: none; } /* key matters more than tempo at a glance on a phone */
   .gig-title { font-size: 1.1rem; }
@@ -6418,3 +6423,5 @@ body:has(.edit-toggle.on) main { box-shadow: inset 0 3px 0 #e8a33a; }
 .tuner-foot { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; text-align: center; }
 .tuner-cal { display: inline-flex; align-items: center; gap: 0.4rem; font-variant-numeric: tabular-nums; font-weight: 600; }
 .tuner-foot .hint { margin: 0; font-size: 0.8rem; max-width: 26rem; }
+/* The player's round buttons stay round whatever a brand's button shape. */
+body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }

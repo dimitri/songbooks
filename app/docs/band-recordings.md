@@ -72,7 +72,14 @@ opens (its title, or its ⤢ button) into the same full player as a panel in
 the middle of the screen: on a tablet in portrait, one column; on a
 landscape screen (an iPad held sideways, a desktop), the player and the
 recordings side by side. Escape, its × or a tap beside it closes it. Keys: space or K plays and pauses, ←/→ or J/L
-skip 15 s, shift ←/→ the recording before or after, 0 restarts. The lock
+skip 15 s, shift ←/→ the recording before or after, 0 restarts.
+
+The same player plays a set list (its running order page): each song's
+sound in the set's order, *Play all* or a song's own play button. A
+song's sound is the band's chosen recording from its pCloud folder (the
+band's reference, below), else the song's own recording, else its
+reference (the YouTube video's sound); a song with none keeps its link to
+the video. The lock
 screen keeps previous and next, and scrubbing.
 
 The Rehearsals tab also says how the songs were rehearsed: the most and least

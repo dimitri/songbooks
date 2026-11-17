@@ -32,6 +32,7 @@
   <nav class="band-tabs band-tabs-row">
     <a href="{{.Path}}" class="band-tab active">{{template "icon-setlists"}} Running order</a>
     <a href="{{.Path}}/clicktrack" class="band-tab">{{template "icon-metronome"}} Metronome</a>
+    {{if .Playable}}<button type="button" class="band-tab" data-play-all>{{template "icon-play"}} Play all</button>{{end}}
     <details class="band-tab-menu">
       <summary title="export PDF">{{template "icon-download"}} PDF</summary>
       <div class="row-menu-panel">
@@ -50,14 +51,15 @@
     <h2>{{$set.Label}}</h2>
     <div class="gig-table" data-reorder-list>
       {{range $rowIdx, $row := $set.Rows}}
-      <div class="gig-row setlist-overview-row" data-set-index="{{$setIdx}}" data-row-index="{{$rowIdx}}">
+      <div class="gig-row setlist-overview-row{{if $row.Sound}} has-sound{{end}}" data-set-index="{{$setIdx}}" data-row-index="{{$rowIdx}}"{{with $row.Sound}}{{if .Src}} data-rp-src="{{.Src}}"{{else}} data-rp-file="{{.File}}" data-rp-host="{{.Host}}" data-rp-code="{{.Code}}"{{end}} data-title="{{$row.Title}}" data-detail="{{$set.Label}} · {{.Label}}" data-tile="Song {{$row.Num}}"{{end}}>
         <span class="gig-num">{{$row.Num}}</span>
         <a class="gig-title" href="/song/{{$row.VariantID}}?setlist={{$.SetlistID}}">
           {{$row.Title}}{{if $row.Note}}<small class="gig-note">{{$row.Note}}</small>{{end}}
         </a>
         <span class="gig-key">{{$row.Key}}</span>
         <span class="gig-tempo">{{if $row.Tempo}}{{$row.Tempo}}{{end}}</span>
-        {{if $row.Reference}}<a class="icon-btn setlist-overview-play" href="{{$row.Reference}}" target="_blank" rel="noopener" title="play it — {{$row.Reference}}">&#9654;</a>{{end}}
+        {{if $row.Sound}}<button type="button" class="rec-play" aria-label="Play {{$row.Title}} ({{$row.Sound.Label}})">{{template "icon-play"}}</button>
+        {{else if $row.Reference}}<a class="icon-btn setlist-overview-play" href="{{$row.Reference}}" target="_blank" rel="noopener" title="Watch it on YouTube — no recording of it yet">{{template "icon-reference"}}</a>{{end}}
         <span class="setlist-overview-reorder-btns" hidden>
           <button type="button" class="icon-btn" data-move="up" title="move up">&#9650;</button>
           <button type="button" class="icon-btn" data-move="down" title="move down">&#9660;</button>
@@ -84,6 +86,7 @@
   </div>
   {{end}}
 </main>
+{{if .Playable}}{{template "rec-player" .}}{{end}}
 </div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
