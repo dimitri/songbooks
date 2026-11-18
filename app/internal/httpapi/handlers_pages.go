@@ -206,7 +206,7 @@ func (s *Server) handleGetDrummerRows(w http.ResponseWriter, r *http.Request) {
 	drumMap := buildDrumMap(sections, riffs, atoiOr(orDefault(sg.Get("tempo"), "120"), 120), width)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	if err := webassets.Templates.ExecuteTemplate(w, "drummap_rows", drumMap); err != nil {
+	if err := webassets.TemplatesFor(s.langOf(w)).ExecuteTemplate(w, "drummap_rows", drumMap); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 	}
 }
@@ -3246,7 +3246,7 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 		log.Printf("preview: %v", e)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := webassets.Templates.ExecuteTemplate(w, "sheet-body", map[string]any{
+	if err := webassets.TemplatesFor(s.langOf(w)).ExecuteTemplate(w, "sheet-body", map[string]any{
 		"Sections":  sections,
 		"MapLines":  buildMapLines(sections),
 		"DrumMap":   drumMap,
@@ -3258,7 +3258,7 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) render(w http.ResponseWriter, name string, data any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := webassets.Templates.ExecuteTemplate(w, name, data); err != nil {
+	if err := webassets.TemplatesFor(s.langOf(w)).ExecuteTemplate(w, name, data); err != nil {
 		log.Printf("render %s: %v", name, err)
 	}
 }

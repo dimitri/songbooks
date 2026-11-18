@@ -22,6 +22,7 @@ import (
 	"app/internal/brand"
 	"app/internal/chorddiagram"
 	"app/internal/chordsym"
+	"app/internal/i18n"
 	"app/internal/song"
 )
 
@@ -93,6 +94,7 @@ func shelfLabel(kind string, id any) string {
 var BrandLookup func(kind string, id int64) *brand.Theme
 
 var funcMap = template.FuncMap{
+	// t, tn, date and lang are per language: see templatesByLang.
 	// chord renders one chord symbol in chart style (bold root, raised
 	// quality, triangle for maj7, real flat/sharp glyphs) — see
 	// internal/chordsym. Empty/"%"/"N.C." tokens render as plain text.
@@ -315,8 +317,52 @@ var typstEscapes = strings.NewReplacer(`\&`, "&", `\%`, "%", `\#`, "#", `\_`, "_
 func unescapeTypst(s string) string { return typstEscapes.Replace(s) }
 
 // Templates is every *.html template under templates/, parsed once at
-// startup.
-var Templates = template.Must(template.New("").Funcs(funcMap).ParseFS(templatesFS, "templates/*.html"))
+// startup, in English (TemplatesFor for another language).
+var Templates *template.Template
+
+// templatesByLang are the pages parsed once per language (i18n.Langs),
+// their t, tn and date speaking it: docs/i18n.md.
+var templatesByLang = map[string]*template.Template{}
+
+func init() {
+	for _, lang := range i18n.Langs {
+		funcs := template.FuncMap{}
+		for k, v := range funcMap {
+			funcs[k] = v
+		}
+		l := lang
+		// {{t "Add a song"}}, {{t "%d songs" .N}}: the text in the page's
+		// language (the English itself when not translated yet).
+		funcs["t"] = func(msg string, args ...any) string { return i18n.T(l, msg, args...) }
+		// {{tn .N "%d song" "%d songs"}}: singular or plural, the count in it.
+		funcs["tn"] = func(n int, one, other string) string { return i18n.N(l, n, one, other) }
+		// {{date .StartsAt "Monday 2 January"}}: day and month names in the
+		// page's language; a *time.Time nil is "".
+		funcs["date"] = func(t any, layout string) string {
+			switch v := t.(type) {
+			case time.Time:
+				return i18n.Date(l, v, layout)
+			case *time.Time:
+				if v != nil {
+					return i18n.Date(l, *v, layout)
+				}
+			}
+			return ""
+		}
+		// {{lang}}: the page's language, for <html lang> and the scripts.
+		funcs["lang"] = func() string { return l }
+		templatesByLang[lang] = template.Must(template.New("").Funcs(funcs).ParseFS(templatesFS, "templates/*.html"))
+	}
+	Templates = templatesByLang["en"]
+}
+
+// TemplatesFor is the pages in lang, English when lang isn't one.
+func TemplatesFor(lang string) *template.Template {
+	if t, ok := templatesByLang[lang]; ok {
+		return t
+	}
+	return templatesByLang["en"]
+}
 
 // StaticFS serves static/css, static/js etc. rooted at "/".
 func StaticFS() fs.FS {

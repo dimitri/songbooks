@@ -52,6 +52,7 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		// that didn't deliberately opt in, including production.
 		if s.devAutoLogin != nil {
 			ctx := context.WithValue(r.Context(), personCtxKey, s.devAutoLogin)
+			setLangPerson(w, s.devAutoLogin)
 			next(w, r.WithContext(ctx))
 			return
 		}
@@ -66,6 +67,7 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		ctx := context.WithValue(r.Context(), personCtxKey, p)
+		setLangPerson(w, p)
 		next(w, r.WithContext(ctx))
 	}
 }
