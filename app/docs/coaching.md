@@ -58,6 +58,31 @@ A song is the community's song in all of them; only its key differs
 songbook, the song page starts the practice player in that key, the
 chords following. A student's page shows their songs and their groups'.
 
+## Students' songs, and an event's program
+
+The coach's **Students’ songs** tab (`/communities/{id}/student-songs`) lists every song the students and groups
+have (their songbooks), each with who has it and in which key, as chips:
+"Emma A (+2) · Les Voix G (original)". A filter matches title, artist or
+singer. Ticking songs and **Plan for an event…** adds them to an upcoming
+event's program (an open mic, the end-of-year concert, a master class),
+or to a new one made on the spot.
+
+The program (`/communities/{id}/events/{eventID}/program`, tables
+`event_program` and `event_program_singers`, migration 0082) is the songs
+in running order, each in a key, with one lead singer and any backing
+vocals:
+
+- Picking the lead puts the song in the lead's key when they have it; a
+  song only one student has starts with them as lead, in their key.
+- The coach moves the key by a semitone, reorders, takes songs out, adds
+  songs from the repertoire; "Who sings what" counts each singer's leads
+  and backing parts.
+- Students see the program read-only, their own parts marked.
+- A song opened from the program (`/song/{id}?event={eventID}`) plays in
+  the program's key, the chart and the recording, says whose key it is
+  (the event's), goes back to the program, and steps through it with
+  previous and next.
+
 ## Teaching notes
 
 On a student's page, the coach's only: a few lines about the student (who
