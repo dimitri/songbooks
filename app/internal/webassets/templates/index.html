@@ -20,25 +20,36 @@
     <h2>{{t .Greeting}}, {{.Me.DisplayName}}</h2>
   </div>
 
-  {{/* Home answers "what do I do now?": the next date, what needs you,
-       the month, the songs you were on, what changed in your bands.
-       Lists of bands, communities and songbooks live on their own tabs
-       (Groups, Songbooks, Library); here they're one row of links. */}}
-  {{with .NextUp}}
-  <section class="home-section" aria-labelledby="next-up-title">
-    <div class="home-section-head"><h3 id="next-up-title">{{t "Next up"}}</h3></div>
-    <div class="next-up-card kind-{{.Kind}}">
-      <div class="next-up-when">{{if or (eq .When "Today") (eq .When "Tomorrow")}}{{t .When}}{{else if eq .When (.Starts.Format "Monday 2 Jan")}}{{date .Starts "Monday 2 Jan"}}{{else}}{{date .Starts "Mon 2 Jan"}}{{end}}{{if not .AllDay}} &middot; {{.Starts.Format "15:04"}}{{end}}</div>
-      <a class="next-up-title" href="{{.Link}}">{{.Title}}</a>
-      <div class="next-up-meta">{{if ne .KindLabel .Title}}{{t .KindLabel}}{{if or .GroupName .Place}} · {{end}}{{end}}{{.GroupName}}{{if and .GroupName .Place}} · {{end}}{{.Place}}</div>
-      <div class="next-up-actions">
-        {{if .SetlistLink}}<a class="chip-link primary" href="{{.SetlistLink}}">{{template "icon-setlists"}} {{t "The set list"}}</a>
-        <a class="chip-link" href="/setlists/{{.SetlistID}}">{{template "icon-setlists"}} {{t "Set list"}}</a>{{end}}
-        <a class="chip-link" href="{{.Link}}">{{t "Details"}}</a>
-      </div>
+  {{/* Home, in the order that matters when you open the app: what's
+       coming up in all your bands and communities (the month itself is
+       on /calendar, and in your own calendar app by subscribing), what
+       needs you, then your communities, bands and songbooks, each card
+       in that group's own look. */}}
+  <section class="home-section home-upcoming" aria-labelledby="upcoming-title">
+    <div class="home-section-head">
+      <h3 id="upcoming-title">{{t "Coming up"}}</h3>
+      <span class="home-head-links"><a href="/calendar">{{template "icon-calendar"}} {{t "Full calendar"}}</a><a href="/calendar/subscribe">{{t "Subscribe"}}</a></span>
     </div>
+    {{if .Upcoming}}
+    <ol class="upcoming-list">
+    {{range $i, $e := .Upcoming}}
+      <li class="upcoming-row kind-{{.Kind}}{{if eq $i 0}} is-next{{end}}">
+        <div class="coming-up-date"><span class="month">{{date .Starts "Mon"}}</span><span class="day">{{.Starts.Day}}</span></div>
+        <div class="upcoming-text">
+          <a class="upcoming-title" href="{{.Link}}">{{.Title}}</a>
+          <div class="upcoming-meta"><span class="upcoming-kind">{{t .KindLabel}}</span> &middot; {{if or (eq .When "Today") (eq .When "Tomorrow")}}{{t .When}}{{else if eq .When (.Starts.Format "Monday 2 Jan")}}{{date .Starts "Monday"}}{{else}}{{date .Starts "Mon 2 Jan"}}{{end}}{{if not .AllDay}} {{.Starts.Format "15:04"}}{{end}}{{with .GroupName}} &middot; {{.}}{{end}}{{with .Place}} &middot; {{.}}{{end}}</div>
+        </div>
+        <div class="upcoming-actions">
+          {{if eq .LessonMode "online"}}<a class="chip-link primary" href="{{.Link}}">{{t "Join"}}</a>{{end}}
+          {{if .SetlistLink}}<a class="chip-link{{if eq $i 0}} primary{{end}}" href="{{.SetlistLink}}">{{template "icon-setlists"}} {{t "Set list"}}</a>{{end}}
+        </div>
+      </li>
+    {{end}}
+    </ol>
+    {{else}}
+    <p class="home-empty">{{t "Nothing planned in the next three months."}} <a href="/calendar">{{t "Open the calendar"}}</a></p>
+    {{end}}
   </section>
-  {{end}}
 
   {{/* Open band votes and unread notifications, merged; the section
        only shows when there's something in it. */}}
@@ -66,45 +77,54 @@
   {{end}}
 
   {{if or .Bands .Communities}}
-  {{template "calendar-month" .Calendar}}
-  <p class="coach-subscribe"><a href="/calendar/subscribe">{{template "icon-calendar"}} {{t "Your calendar in your calendar app"}}</a></p>
-  {{end}}
-
-  {{if .Recent}}
-  <section class="home-section" aria-labelledby="recent-title">
-    <div class="home-section-head"><h3 id="recent-title">{{t "Continue"}}</h3></div>
-    <div class="recent-songs">
-    {{range .Recent}}
-      <a class="recent-song" href="/song/{{.SongID}}{{if .Query}}?{{.Query}}{{end}}">
-        <span class="recent-song-title">{{.Title}}</span>
-        {{if .Artist}}<span class="recent-song-artist">{{.Artist}}</span>{{end}}
+  {{if .Communities}}
+  <section class="home-section" aria-labelledby="communities-title">
+    <div class="home-section-head"><h3 id="communities-title">{{t "Your communities"}}</h3><a href="/communities">{{t "All communities"}} &rarr;</a></div>
+    <div class="home-cards">
+    {{range .Communities}}{{$c := .Community}}
+      <a class="home-card" href="/communities/{{$c.ID}}" style="{{with .Look.Header}}--card-head: {{.}};{{end}}{{with .Look.Accent2}}--card-tag: {{.}};{{end}}">
+        <div class="home-card-head">
+          <span class="home-card-mark" aria-hidden="true">{{if .Look.LogoURL}}<img src="{{.Look.LogoURL}}" alt="">{{else if .Look.Mark}}{{.Look.Mark}}{{else}}{{template "icon-community"}}{{end}}</span>
+          <span class="home-card-name"><b>{{$c.Name}}</b>{{with .Look.Tagline}}<span class="home-card-tag">{{.}}</span>{{end}}</span>
+        </div>
+        <ul class="home-card-facts">
+          {{if $c.HasNextEvent}}<li>{{t "Next:"}} <b>{{$c.NextEventName}}</b>, {{date $c.NextEventDate "Mon 2 Jan"}}</li>{{end}}
+          <li>{{tn $c.SongCount "%d song" "%d songs"}} &middot; {{tn $c.MemberCount "%d member" "%d members"}}</li>
+        </ul>
       </a>
     {{end}}
     </div>
   </section>
   {{end}}
 
-  {{if .BandNews}}
-  <section class="home-section" aria-labelledby="news-title">
-    <div class="home-section-head"><h3 id="news-title">{{t "New in your bands"}}</h3><span class="count">{{t "since your last visit"}}</span></div>
-    <div class="attention-list">
-    {{range .BandNews}}
-      <a class="attention-row" href="/bands/{{.ID}}">
-        <div class="attention-title">{{.Name}}</div>
-        <div class="attention-subtitle">{{.Digest}}</div>
+  {{if .Bands}}
+  <section class="home-section" aria-labelledby="bands-title">
+    <div class="home-section-head"><h3 id="bands-title">{{t "Your bands"}}</h3><a href="/bands">{{t "All bands"}} &rarr;</a></div>
+    <div class="home-cards home-cards-small">
+    {{range .Bands}}{{$b := .Band}}
+      <a class="home-card home-card-band" href="/bands/{{$b.ID}}" style="{{with .Look.Header}}--card-head: {{.}};{{end}}{{with .Look.Accent}}--card-tag: {{.}};{{end}}">
+        <span class="home-card-mark" aria-hidden="true">{{if .Look.LogoURL}}<img src="{{.Look.LogoURL}}" alt="">{{else if .Look.Mark}}{{.Look.Mark}}{{else}}{{template "icon-bands"}}{{end}}</span>
+        <span class="home-card-name"><b>{{$b.Name}}</b>
+          <span class="home-card-line">{{if $b.HasNextGig}}{{t "Gig"}} {{date $b.NextGigDate "Mon 2 Jan"}}{{with $b.NextGigVenue}} &middot; {{.}}{{end}}{{else if $b.Digest}}{{$b.Digest}}{{else}}{{tn $b.Members "%d member" "%d members"}}{{end}}</span>
+        </span>
       </a>
     {{end}}
     </div>
   </section>
   {{end}}
 
-  {{if or .Bands .Communities}}
-  <section class="home-section" aria-labelledby="groups-title">
-    <div class="home-section-head"><h3 id="groups-title">{{t "Your groups"}}</h3><a href="/groups">{{t "all groups"}} &rarr;</a></div>
-    <div class="group-chips">
-    {{range .Bands}}<a class="chip-link" href="/bands/{{.ID}}">{{template "icon-bands"}} {{.Name}}</a>{{end}}
-    {{range .Communities}}<a class="chip-link" href="/communities/{{.ID}}">{{template "icon-community"}} {{.Name}}</a>{{end}}
+  <section class="home-section" aria-labelledby="songbooks-title">
+    <div class="home-section-head"><h3 id="songbooks-title">{{t "Your songbooks"}}</h3><a href="/songbooks">{{t "All songbooks"}} &rarr;</a></div>
+    {{if .Recent}}
+    <div class="home-recent"><span class="home-recent-label">{{t "Recently played"}}</span>
+    {{range .Recent}}<a class="chip-link" href="/song/{{.SongID}}{{if .Query}}?{{.Query}}{{end}}">{{.Title}}</a>{{end}}
     </div>
+    {{end}}
+    {{if .Songbooks}}
+    <ul class="home-songbooks">
+    {{range .Songbooks}}<li><a href="/songbooks/{{.ID}}">{{.Name}}</a><span>{{tn .SongCount "%d song" "%d songs"}}</span></li>{{end}}
+    </ul>
+    {{end}}
   </section>
   {{else}}
   {{/* Nobody to play with yet: the way in, instead of empty sections. */}}

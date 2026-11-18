@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"app/internal/brand"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -66,6 +67,13 @@ type bandCardView struct {
 	NextGigDate    time.Time
 	NextGigVenue   string
 	NextGigSetlist int64
+}
+
+// homeGroup is a community or a band on the home page, in its own look.
+type homeGroup struct {
+	Community communityCardView
+	Band      bandCardView
+	Look      brand.Brand
 }
 
 // homeGreeting returns a time-of-day greeting line — purely cosmetic,
@@ -508,23 +516,36 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.SliceStable(attention, func(i, j int) bool { return i < j }) // already newest-first per source; a true merge-sort by time isn't worth it for a handful of items
 
-	// The calendar: the month asked for (?month=2026-12), and the next
-	// thing coming up, whatever month it falls in.
+	// Coming up: the next events of every band and community, from the
+	// same query as the calendar page and the iCal feed, so all three
+	// agree. The month itself is on /calendar.
 	now := time.Now()
-	first := parseMonth(r.URL.Query().Get("month"), now)
-	from, to := monthRange(first)
-	monthItems, err := s.store.ListCalendarForPerson(r.Context(), person.ID, from, to)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	soon, err := s.store.ListCalendarForPerson(r.Context(), person.ID, today, today.AddDate(0, 3, 0))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	nextUp := firstUpcoming(soon, now)
+	upcoming := upcomingList(soon, now, 6)
+
+	// Each community and band in its own look (colours, mark, logo).
+	var communities []homeGroup
+	for _, c := range communityCards {
+		g := homeGroup{Community: c}
+		g.Look, _, _ = s.store.GetBrand(r.Context(), "community", c.ID)
+		communities = append(communities, g)
+	}
+	var bandsWithLook []homeGroup
+	for _, b := range bandCards {
+		g := homeGroup{Band: b}
+		g.Look, _, _ = s.store.GetBrand(r.Context(), "band", b.ID)
+		bandsWithLook = append(bandsWithLook, g)
+	}
+	songbooks, err := s.buildBookStats(r.Context(), person.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	recent, err := s.store.ListRecentSongs(r.Context(), person.ID, 6)
 	if err != nil {
@@ -542,8 +563,8 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	s.render(w, "index", map[string]any{
 		"Me": person, "Greeting": homeGreeting(),
-		"Bands": bandCards, "Communities": communityCards, "Attention": attention,
-		"NextUp": nextUp, "Calendar": buildCalendarMonth("/home", first, monthItems, now),
+		"Upcoming": upcoming, "Communities": communities, "Bands": bandsWithLook,
+		"Songbooks": songbooks, "Attention": attention,
 		"Recent": recent, "BandNews": bandNews,
 	})
 }
