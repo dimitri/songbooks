@@ -1896,6 +1896,7 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
 .daw-meta span { padding: 0 8px; color: var(--daw-muted); font-variant-numeric: tabular-nums; }
 .daw-meta span + span { border-left: 1px solid var(--daw-stroke); }
 .daw-speed { display: flex; align-items: center; gap: 5px; color: var(--daw-muted); }
+.daw-key.is-on select { border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
 
 .daw-tb-spacer { flex: 1; }
 .daw-btn-text {
@@ -1988,6 +1989,8 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
   .daw-toolbar .daw-lcd { flex: 1 1 auto; min-width: 0; }
   .daw-toolbar .daw-speed { font-size: 0; }
   .daw-toolbar .daw-speed select { font-size: 14px; height: 40px; }
+  .daw-toolbar #daw-rewind { display: none; }
+  .daw-toolbar .daw-key select { max-width: 6.4rem; }
 }
 .daw-vol { flex: 1; min-width: 0; height: 14px; accent-color: var(--daw-muted); }
 .daw-vol-label { font-size: 10px; color: var(--daw-muted); width: 2.4em; text-align: right; font-variant-numeric: tabular-nums; }

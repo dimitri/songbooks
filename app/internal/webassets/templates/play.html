@@ -1831,6 +1831,12 @@
             <span title="{{t "time signature"}}">{{.TimeNum}}/{{.TimeDen}}</span>
             {{if .Key}}<span title="{{t "key"}}">{{.Key}}</span>{{end}}
           </div>
+          {{/* Key: the recording and its parts up or down (one pitch
+               shifter on their mix), the score tracks too; the same key
+               as the song page's player. See mixer.js "Key". */}}
+          <label class="daw-speed daw-key" title="{{t "play the recording in another key"}}">
+            <select id="daw-key" aria-label="{{t "Key"}}"></select>
+          </label>
           <label class="daw-speed" title="{{t "playback speed"}}">{{t "Speed"}}
             <select id="daw-speed">
               <option value="1">100%</option>

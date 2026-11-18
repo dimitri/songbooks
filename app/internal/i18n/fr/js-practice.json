@@ -209,5 +209,6 @@
   "unmute": "remettre le son",
   "volume": "volume",
   "whole song": "tout le morceau",
-  "“%s”": "« %s »"
+  "“%s”": "« %s »",
+  "Original key": "Tonalité d’origine"
 }
