@@ -93,13 +93,17 @@ func PlaceLyrics(ctx context.Context, body, source, title, artist, input string,
 // Draft is a chart fetched for review: its text, where it came from and
 // what was done to it.
 type Draft struct {
-	Text   string   `json:"text"`
-	URL    string   `json:"url"`
-	Title  string   `json:"title"`
-	Artist string   `json:"artist"`
-	Capo   string   `json:"capo,omitempty"`
-	IReal  string   `json:"ireal,omitempty"` // the iReal Pro chart used, "" when none
-	Notes  []string `json:"notes"`
+	Text   string `json:"text"`
+	URL    string `json:"url"`
+	Title  string `json:"title"`
+	Artist string `json:"artist"`
+	Capo   string `json:"capo,omitempty"`
+	IReal  string `json:"ireal,omitempty"` // the iReal Pro chart used, "" when none
+	// Guide is the fetched chart a song map was made from, lyrics and
+	// all, before they were left out: its sections are the map's, which
+	// importer.AlignOwnLyrics uses to put a song's own lyrics back.
+	Guide string   `json:"-"`
+	Notes []string `json:"notes"`
 }
 
 // VocalDraft is the singer's chart: the lyrics with their sections from

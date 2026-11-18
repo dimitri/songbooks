@@ -31,6 +31,7 @@ func MapDraft(ctx context.Context, st *store.Store, title, artist string) (*Draf
 	d := &Draft{URL: res.URL, Title: title, Artist: artist, Capo: res.Song.Capo}
 	text, notes := importer.CleanSongText(res.Song.ToSongText(all), importer.CleanOptions{StripInlineChords: true})
 	d.Notes = append(d.Notes, notes...)
+	d.Guide = text
 	text = importer.SongMap(text)
 	text = withIReal(ctx, st, d, text, title, artist)
 	text = SetHeader(text, "title", title, true)

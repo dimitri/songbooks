@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,9 +36,10 @@ const songUsage = `
   sbcoach ireal  --db URL --song ID --actor USER [--all] [--dry-run]
   sbcoach key    --db URL --song ID
   sbcoach check  --db URL (--song ID | --songbook ID)
-  sbcoach rebuild --db URL (--song ID | --songbook ID) --actor USER [--no-clip] [--dry-run] [--pause 20s]`
+  sbcoach rebuild --db URL (--song ID | --songbook ID) --actor USER [--no-clip] [--dry-run] [--pause 20s]
+  sbcoach relyric --db URL (--song ID | --songbook ID) --actor USER [--dry-run]`
 
-var songCommands = map[string]bool{"add": true, "sync": true, "lyrics": true, "ireal": true, "key": true, "check": true, "rebuild": true}
+var songCommands = map[string]bool{"add": true, "sync": true, "lyrics": true, "ireal": true, "key": true, "check": true, "rebuild": true, "relyric": true}
 
 func runSongCommand(cmd string, args []string) {
 	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
@@ -177,6 +180,23 @@ func runSongCommand(cmd string, args []string) {
 		}
 		needSong(*songID)
 		syncSong(ctx, st, *songID, actor, *overwrite, *dryRun)
+
+	case "relyric":
+		if (*songID == 0) == (*songbookID == 0) || actor == 0 {
+			log.Fatal("usage:" + songUsage)
+		}
+		ids := []int64{*songID}
+		if *songbookID != 0 {
+			ids = songbookSongs(ctx, st, *songbookID)
+		}
+		var total, placed, unplaced int
+		for _, id := range ids {
+			s, p, u := relyricSong(ctx, st, id, actor, *dryRun)
+			total, placed, unplaced = total+s, placed+p, unplaced+u
+		}
+		if len(ids) > 1 {
+			fmt.Printf("%d songs: %d stanzas, %d placed, %d with no section for them\n", len(ids), total, placed, unplaced)
+		}
 
 	case "rebuild":
 		if (*songID == 0) == (*songbookID == 0) || actor == 0 {
@@ -605,4 +625,86 @@ func printNotes(what string, notes []string) {
 	for _, n := range notes {
 		fmt.Printf("  %s: %s\n", what, strings.TrimSpace(n))
 	}
+}
+
+// relyricSong puts back the lyrics a song had before (the latest earlier
+// revision with lyrics: the one a rebuild into a song map replaced) into
+// its current chart: cut into stanzas (importer.SongStanzas, which finds
+// the chorus of lyrics left in a single section) and placed verse into
+// verse, chorus into every chorus (importer.PlaceLyrics), keeping lyrics
+// already there. It prints counts and section names, never lyrics, and
+// returns the stanzas, how many were placed and how many found no section.
+func relyricSong(ctx context.Context, st *store.Store, id, actor int64, dryRun bool) (int, int, int) {
+	title, artist, ref, body, err := st.VariantContent(ctx, id)
+	if err != nil {
+		fmt.Printf("== %d: %v\n", id, err)
+		return 0, 0, 0
+	}
+	fmt.Printf("== %d %s\n", id, title)
+	revs, err := st.ListRevisions(ctx, "variant", strconv.FormatInt(id, 10))
+	if err != nil {
+		fmt.Printf("  %v\n", err)
+		return 0, 0, 0
+	}
+	var stanzas []importer.Stanza
+	oldBody := ""
+	for _, r := range revs {
+		var snap store.VariantSnapshot
+		if json.Unmarshal(r.Snapshot, &snap) != nil || snap.Body == body {
+			continue
+		}
+		if stanzas = importer.SongStanzas(snap.Body); len(stanzas) > 0 {
+			oldBody = snap.Body
+			fmt.Printf("  lyrics from the version of %s\n", r.CreatedAt.Format("2006-01-02 15:04"))
+			break
+		}
+	}
+	if len(stanzas) == 0 {
+		fmt.Println("  no earlier lyrics")
+		return 0, 0, 0
+	}
+	// First choice: the chart the song map was made from says where
+	// each line goes (importer.AlignOwnLyrics); its sections must still
+	// be the map's.
+	if d, err := songimport.MapDraft(ctx, st, title, artist); err == nil {
+		if text, notes, ok := importer.AlignOwnLyrics(body, d.Guide, oldBody); ok {
+			fmt.Printf("  aligned on %s: %s\n", d.URL, strings.Join(notes, "; "))
+			var where []string
+			for _, sec := range song.Parse(text).Sections {
+				where = append(where, fmt.Sprintf("%s:%d", sec.Label, len(sec.Lyrics)))
+			}
+			fmt.Printf("  lines per section: %s\n", strings.Join(where, " "))
+			if !dryRun && text != body {
+				if _, err := st.SaveVariantByID(ctx, id, title, artist, ref, text, "", actor); err != nil {
+					fmt.Printf("  not saved: %v\n", err)
+				} else {
+					fmt.Println("  saved")
+				}
+			}
+			return len(stanzas), len(stanzas), 0
+		}
+		fmt.Println("  the chart's sections have changed since the map was made: placed by section names instead")
+	}
+	text, ps, unused := importer.PlaceLyrics(body, stanzas, false)
+	var where []string
+	for _, p := range ps {
+		where = append(where, p.Section+"="+p.Status)
+	}
+	placed := len(stanzas) - len(unused)
+	fmt.Printf("  %d stanzas, %d placed: %s\n", len(stanzas), placed, strings.Join(where, " "))
+	if len(unused) > 0 {
+		var labels []string
+		for _, i := range unused {
+			labels = append(labels, stanzas[i].Label)
+		}
+		fmt.Printf("  no section for: %s\n", strings.Join(labels, ", "))
+	}
+	if !dryRun && text != body {
+		if _, err := st.SaveVariantByID(ctx, id, title, artist, ref, text, "", actor); err != nil {
+			fmt.Printf("  not saved: %v\n", err)
+		} else {
+			fmt.Println("  saved")
+		}
+	}
+	return len(stanzas), placed, len(unused)
 }
