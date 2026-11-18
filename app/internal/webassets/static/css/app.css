@@ -1938,6 +1938,57 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
 }
 .daw-ms.is-mute[aria-pressed="true"] { background: var(--daw-mute); border-color: var(--daw-mute); color: #fff; }
 .daw-ms.is-solo[aria-pressed="true"] { background: var(--daw-solo); border-color: #D9AE2B; color: #14151A; }
+
+/* The phone's practice layout (mixer.js renderPhoneBar): aligning a
+   recording by hand is a desktop job, so a phone gets no Align, no zoom
+   and no chords lane. The timeline is one overview, fit to the screen
+   (bars, sections, the recording), above the parts, each a row with big
+   mute/solo and volume; one-tap mixes and the sections as chips that
+   loop above them; the transport a bar fixed over the song's bottom bar,
+   like the song page's dock. */
+.daw-phone { display: none; }
+@media (max-width: 720px) {
+  .mixer-page { padding-bottom: 6.5rem; }
+  .mixer-page .daw { border-radius: 0; border-left: 0; border-right: 0; }
+  .daw-phone { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--daw-stroke); }
+  .daw-presets, .daw-sec-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .daw-presets::-webkit-scrollbar, .daw-sec-chips::-webkit-scrollbar { display: none; }
+  .daw .daw-chip { flex: none; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--daw-stroke); background: var(--daw-bg); color: var(--daw-text); font-size: 13px; font-weight: 600; cursor: pointer; }
+  .daw .daw-chip[aria-pressed="true"] { background: var(--daw-text); border-color: var(--daw-text); color: var(--daw-bg); }
+  .daw .daw-sec-chips .daw-chip { border-left: 5px solid var(--c, var(--daw-stroke)); }
+  #daw-autoalign, #daw-align, .daw-align-bar, .daw-zoom, .daw-meta, .daw-tb-spacer, .daw [data-row="chords"] { display: none !important; }
+  .daw-main { display: flex; flex-direction: column; }
+  .daw-scroll { order: -1; overflow-x: hidden; }
+  .daw-lane:is([data-row^="stem-"], [data-row^="midi"], [data-row="click"], [data-row="empty"]) { display: none; }
+  .daw-headers { border-right: 0; }
+  .daw-hdr.is-meta { display: none; }
+  .daw-hdr { height: auto !important; }
+  /* One row a part: name, volume, M, S (a score track's notation picker
+     and the recording's source under it, full width). */
+  .daw-hdr-body { display: grid; grid-template-columns: 20px minmax(4.5rem, 6.5rem) minmax(0, 1fr) 44px 44px; align-items: center; column-gap: 8px; row-gap: 6px; padding: 8px 12px 8px 12px; }
+  .daw-hdr-top, .daw-hdr-row { display: contents; }
+  .daw-hdr-icon { grid-column: 1; grid-row: 1; width: 20px; height: 20px; }
+  .daw-hdr-name { grid-column: 2; grid-row: 1; font-size: 15px; }
+  .daw-hdr .daw-vol { grid-column: 3; grid-row: 1; width: 100%; height: 32px; margin: 0; }
+  .daw-hdr .is-mute { grid-column: 4; grid-row: 1; }
+  .daw-hdr .is-solo { grid-column: 5; grid-row: 1; }
+  .daw-vol-label, .daw-hdr-sub { display: none; }
+  .daw-hdr-body > :not(.daw-hdr-top):not(.daw-hdr-row):not(.daw-hdr-sub) { grid-column: 1 / -1; }
+  .daw .daw-ms { width: 44px; height: 40px; font-size: 14px; border-radius: 10px; }
+  .daw-toolbar {
+    position: fixed; z-index: 58; left: 0; right: 0; bottom: calc(var(--context-h, 3.4rem) + env(safe-area-inset-bottom, 0px));
+    flex-wrap: nowrap; gap: 10px; padding: 8px 12px; border-top: 1px solid var(--daw-stroke); border-bottom: 0;
+    background: color-mix(in srgb, var(--daw-bg) 94%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.12);
+  }
+  .daw-toolbar .daw-btn { width: 44px; height: 44px; border-radius: 50%; }
+  .daw-toolbar .daw-btn .icon { width: 20px; height: 20px; }
+  .daw-toolbar .daw-play { width: 52px; height: 52px; background: var(--accent); border-color: var(--accent); color: var(--accent-contrast, #fff); }
+  .daw-toolbar #daw-stop { display: none; }
+  .daw-toolbar .daw-lcd { flex: 1 1 auto; min-width: 0; }
+  .daw-toolbar .daw-speed { font-size: 0; }
+  .daw-toolbar .daw-speed select { font-size: 14px; height: 40px; }
+}
 .daw-vol { flex: 1; min-width: 0; height: 14px; accent-color: var(--daw-muted); }
 .daw-vol-label { font-size: 10px; color: var(--daw-muted); width: 2.4em; text-align: right; font-variant-numeric: tabular-nums; }
 

@@ -237,6 +237,7 @@
     const lane = document.createElement('div');
     lane.className = 'daw-lane' + (opts.laneClass ? ' ' + opts.laneClass : '');
     lane.style.height = height + 'px';
+    hdr.dataset.row = lane.dataset.row = name; // app.css's phone layout picks rows by name
     headersEl.appendChild(hdr);
     contentEl.appendChild(lane);
     rows[name] = { hdr, lane };
@@ -268,8 +269,8 @@
     const hdr = tr.hdr;
     const mute = hdr.querySelector('.is-mute');
     const solo = hdr.querySelector('.is-solo');
-    mute.onclick = () => { tr.muted = !tr.muted; syncTrackControls(tr); applyMix(); savePrefs(); };
-    solo.onclick = () => { tr.solo = !tr.solo; syncTrackControls(tr); applyMix(); savePrefs(); };
+    mute.onclick = () => { tr.muted = !tr.muted; syncTrackControls(tr); applyMix(); savePrefs(); renderPhoneBar(); };
+    solo.onclick = () => { tr.solo = !tr.solo; syncTrackControls(tr); applyMix(); savePrefs(); renderPhoneBar(); };
     const vol = hdr.querySelector('.daw-vol');
     vol.oninput = () => { tr.volume = Number(vol.value); syncTrackControls(tr); applyMix(); savePrefs(); };
   }
@@ -353,7 +354,7 @@
       const select = cats.length > 1
         ? `<select class="daw-ref-select" aria-label="${escapeHTML(t('reference recording'))}">${cats.map((c) => `<option value="${c}"${c === refCat ? ' selected' : ''}>${CAT_LABEL[c] || c}</option>`).join('')}</select>`
         : '';
-      const row = addRow('audio', ROW.audio, trackHeader(tr, refSubtitle(), select));
+      const row = addRow('audio', phone.matches ? 72 : ROW.audio, trackHeader(tr, refSubtitle(), select));
       tr.hdr = row.hdr; tr.lane = row.lane;
       tracks.push(tr);
       wireTrackHeader(tr);
@@ -1661,6 +1662,91 @@
     computeBarTimes();
     build();
     applyTrackPrefs();
+    if (phone.matches) zoomToFit();
+    renderPhoneBar();
+  }
+
+  // ---- The phone's practice layout (app.css, max-width 720px) -------------
+  // A phone mixer is for practising, not aligning (that's a desktop job):
+  // the timeline is one overview (bars, sections, the recording), each
+  // part a row with big mute/solo and volume, one-tap mixes over them
+  // (the voice out to sing it, the bass alone to learn it), the sections
+  // as chips that loop, and the transport at the bottom, under the thumb.
+  const phone = window.matchMedia('(max-width: 720px)');
+  let phoneBar = null;
+  const PRESETS = [
+    { label: 'Full mix', on: () => true },
+    { label: 'No voice', on: (stem) => stem !== 'vocals' },
+    { label: 'Voice only', on: (stem) => stem === 'vocals' },
+    { label: 'No drums', on: (stem) => stem !== 'drums', needs: 'drums' },
+    { label: 'No bass', on: (stem) => stem !== 'bass', needs: 'bass' },
+  ];
+  const stemTracks = () => tracks.filter((x) => x.kind === 'stem');
+  function presetActive(p) {
+    const ref = tracks.find((x) => x.kind === 'audio');
+    return (!ref || ref.muted) && stemTracks().every((st) => !st.solo && st.muted === !p.on(st.stem));
+  }
+  function applyPreset(p) {
+    const ref = tracks.find((x) => x.kind === 'audio');
+    if (ref) { ref.muted = true; ref.solo = false; syncTrackControls(ref); }
+    for (const st of stemTracks()) {
+      st.muted = !p.on(st.stem);
+      st.solo = false;
+      syncTrackControls(st);
+    }
+    applyMix();
+    savePrefs();
+    renderPhoneBar();
+  }
+  function chip(label, pressed, onClick, color) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'daw-chip';
+    b.textContent = label;
+    b.setAttribute('aria-pressed', String(!!pressed));
+    if (color) b.style.setProperty('--c', color);
+    b.addEventListener('click', onClick);
+    return b;
+  }
+  function renderPhoneBar() {
+    if (!phoneBar) {
+      phoneBar = document.createElement('div');
+      phoneBar.className = 'daw-phone';
+      dawEl.insertBefore(phoneBar, $('daw-main'));
+    }
+    phoneBar.replaceChildren();
+    const stems = stemTracks().map((st) => st.stem);
+    if (stems.length) {
+      const row = document.createElement('div');
+      row.className = 'daw-presets';
+      row.setAttribute('role', 'group');
+      row.setAttribute('aria-label', t('Mix'));
+      for (const p of PRESETS) {
+        if (p.needs && !stems.includes(p.needs)) continue;
+        row.appendChild(chip(t(p.label), presetActive(p), () => applyPreset(p)));
+      }
+      phoneBar.appendChild(row);
+    }
+    if (data && data.sections.length) {
+      const row = document.createElement('div');
+      row.className = 'daw-sec-chips';
+      row.setAttribute('role', 'group');
+      row.setAttribute('aria-label', t('Sections: tap one to loop it'));
+      data.sections.forEach((sec, i) => {
+        row.appendChild(chip(sec.label, i === selected && loop, () => {
+          const again = selected === i && loop;
+          selected = again ? -1 : i;
+          renderSections();
+          if (again) { if (loop) toggleLoop(); } else {
+            if (!loop) toggleLoop();
+            seek(sectionSpan(sec)[0]);
+          }
+          renderRuler();
+          renderPhoneBar();
+        }, sectionColor(sec.label)));
+      });
+      phoneBar.appendChild(row);
+    }
   }
 
   function pickReference() {
@@ -1787,6 +1873,8 @@
       if (hasAudio() && barTimes[0] > 3) scrollEl.scrollLeft = Math.max(0, xOf(barTimes[0]) - 80);
       seek(hasAudio() ? 0 : barTimes[0]);
       drawWave();
+      if (phone.matches) zoomToFit();
+      renderPhoneBar();
       setStatus(data.tracks.length && typeof alphaTab === 'undefined' ? t('Score tracks need the notation engine, which did not load.') : '');
     } catch (e) {
       setStatus(t('Could not load the mixer: %s', e.message));
