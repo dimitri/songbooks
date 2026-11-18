@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -308,4 +309,30 @@ func (st *Store) ProgramNeighbors(ctx context.Context, eventID, variantID int64)
 		return 0, 0, nil
 	}
 	return prev, next, err
+}
+
+// ProgramParts counts a coaching community's students' parts in the
+// programs of its events from since on: lead and backing, by person.
+func (st *Store) ProgramParts(ctx context.Context, communityID int64, since time.Time) (map[int64][2]int, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT ps.person_id, count(*) FILTER (WHERE ps.role = 'lead'), count(*) FILTER (WHERE ps.role = 'backing')
+		FROM event_program_singers ps
+		JOIN event_program ep ON ep.id = ps.program_id
+		JOIN events e ON e.id = ep.event_id
+		WHERE e.owner_community_id = $1 AND e.starts_at >= $2
+		GROUP BY ps.person_id`, communityID, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64][2]int{}
+	for rows.Next() {
+		var id int64
+		var lead, backing int
+		if err := rows.Scan(&id, &lead, &backing); err != nil {
+			return nil, err
+		}
+		out[id] = [2]int{lead, backing}
+	}
+	return out, rows.Err()
 }

@@ -153,8 +153,42 @@
   {{template "brand-banner" $brand}}
   {{template "community-tabs" .}}
   <section class="home-section">
-    <div class="home-section-head"><h3>{{t "Your students"}}</h3><span class="count">{{len .Students}}</span></div>
+    <div class="home-section-head"><h3>{{t "Your students"}}</h3><span class="count">{{len .Students}}</span>
+      {{if .Students}}<span class="seg students-view" role="group" aria-label="{{t "Show as"}}"><button type="button" data-view="cards">{{t "Cards"}}</button><button type="button" data-view="table">{{t "Table"}}</button></span>{{end}}</div>
     {{if .Students}}
+    {{/* The table: one row a student, every column sortable (a click on
+         its head): range, songs and their keys, lessons so far by kind,
+         the last and the next, the last note, parts in coming events. */}}
+    <div class="students-table-wrap" hidden>
+    <table class="students-table">
+      <thead><tr>
+        <th><button type="button" data-col="0">{{t "Student"}}</button></th>
+        <th><button type="button" data-col="1">{{t "Range"}}</button></th>
+        <th class="num"><button type="button" data-col="2">{{t "Songs"}}</button></th>
+        <th><button type="button" data-col="3" title="{{t "songs moved down and up from the recording’s key, and the furthest each way"}}">{{t "Keys"}}</button></th>
+        <th class="num"><button type="button" data-col="4" title="{{t "lessons so far: alone or in a group, online or in the room"}}">{{t "Lessons"}}</button></th>
+        <th><button type="button" data-col="5">{{t "Last lesson"}}</button></th>
+        <th><button type="button" data-col="6">{{t "Next lesson"}}</button></th>
+        <th><button type="button" data-col="7">{{t "Last note"}}</button></th>
+        <th><button type="button" data-col="8" title="{{t "lead and backing vocals in the programs of the events to come"}}">{{t "Events"}}</button></th>
+      </tr></thead>
+      <tbody>
+      {{range .Students}}
+      <tr>
+        <td data-sort="{{.Name}}"><a href="/communities/{{$.Community.ID}}/students/{{.PersonID}}"><strong>{{.Name}}</strong></a></td>
+        <td data-sort="{{.LowMidi}}">{{if .LowName}}{{.LowName}}–{{.HighName}}{{else}}<span class="hint">—</span>{{end}}</td>
+        <td class="num" data-sort="{{.SongCount}}">{{.SongCount}}</td>
+        <td data-sort="{{.KeyMin}}">{{if or .KeysDown .KeysUp}}{{if .KeysDown}}<span class="key-down">{{.KeysDown}} ↓</span>{{end}}{{if and .KeysDown .KeysUp}} {{end}}{{if .KeysUp}}<span class="key-up">{{.KeysUp}} ↑</span>{{end}} <span class="hint">{{.KeyMin}}…{{if gt .KeyMax 0}}+{{end}}{{.KeyMax}}</span>{{else if .SongCount}}<span class="hint">{{t "all original"}}</span>{{else}}<span class="hint">—</span>{{end}}</td>
+        <td class="num" data-sort="{{.Lessons}}"><strong>{{.Lessons}}</strong>{{if .Lessons}}<div class="hint students-lesson-kinds">{{t "%d alone · %d group" .LessonsAlone .LessonsGroup}}<br>{{t "%d online · %d in the room" .LessonsOnline .LessonsInRoom}}</div>{{end}}</td>
+        <td data-sort="{{with .LastLesson}}{{.StartsAt.Unix}}{{else}}0{{end}}">{{with .LastLesson}}{{date .StartsAt "2 Jan 2006"}}{{else}}<span class="hint">—</span>{{end}}</td>
+        <td data-sort="{{with .NextLesson}}{{.StartsAt.Unix}}{{else}}9999999999{{end}}">{{with .NextLesson}}{{date .StartsAt "Mon 2 Jan, 15:04"}}{{else}}<span class="hint">—</span>{{end}}{{if .MoreToCome}} <span class="hint">{{tn .MoreToCome "+%d more lesson" "+%d more lessons"}}</span>{{end}}</td>
+        <td data-sort="{{with .LastNote}}{{.Unix}}{{else}}0{{end}}">{{with .LastNote}}{{date . "2 Jan 2006"}}{{else}}<span class="hint">—</span>{{end}}</td>
+        <td data-sort="{{.Leads}}">{{if or .Leads .Backings}}{{if .Leads}}{{tn .Leads "%d lead" "%d leads"}}{{end}}{{if and .Leads .Backings}} · {{end}}{{if .Backings}}{{tn .Backings "%d backing" "%d backing"}}{{end}}{{else}}<span class="hint">—</span>{{end}}</td>
+      </tr>
+      {{end}}
+      </tbody>
+    </table>
+    </div>
     <div class="coach-students">
       {{range .Students}}
       <a class="coach-student" href="/communities/{{$.Community.ID}}/students/{{.PersonID}}">
@@ -178,6 +212,46 @@
 </div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
+<script>
+(() => {
+  // Cards or the table, remembered in this browser; the table first on a
+  // wide screen.
+  const wrap = document.querySelector('.students-table-wrap');
+  const cards = document.querySelector('.coach-students');
+  const seg = document.querySelector('.students-view');
+  if (!wrap || !cards || !seg) return;
+  let view = null;
+  try { view = localStorage.getItem('songbooks:students-view'); } catch (e) { /* none */ }
+  const show = (v) => {
+    wrap.hidden = v !== 'table';
+    cards.hidden = v === 'table';
+    seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
+  };
+  show(view || (matchMedia('(min-width: 900px)').matches ? 'table' : 'cards'));
+  seg.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-view]');
+    if (!b) return;
+    show(b.dataset.view);
+    try { localStorage.setItem('songbooks:students-view', b.dataset.view); } catch (err) { /* ignore */ }
+  });
+  // A click on a column's head sorts by it; another, the other way.
+  const body = wrap.querySelector('tbody');
+  let by = 0, dir = 1;
+  const coll = new Intl.Collator(document.documentElement.lang, { sensitivity: 'base', numeric: true });
+  wrap.querySelectorAll('th button').forEach((b) => b.addEventListener('click', () => {
+    const col = Number(b.dataset.col);
+    dir = col === by ? -dir : (col === 0 ? 1 : -1);
+    by = col;
+    const rows = [...body.rows];
+    const val = (r) => r.cells[col].dataset.sort;
+    const num = rows.every((r) => val(r) !== '' && !isNaN(val(r)));
+    rows.sort((a, z) => dir * (num ? Number(val(a)) - Number(val(z)) : coll.compare(val(a), val(z))));
+    body.append(...rows);
+    wrap.querySelectorAll('th').forEach((th) => th.removeAttribute('aria-sort'));
+    b.parentElement.setAttribute('aria-sort', dir > 0 ? 'ascending' : 'descending');
+  }));
+})();
+</script>
 </body>
 </html>
 {{end}}
