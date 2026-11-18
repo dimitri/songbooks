@@ -492,7 +492,7 @@
     <div class="toolbox-toolbar" id="toolbox-toolbar"></div>
   </div>
   <div class="sidebar-primary">
-    {{range navGlobal "desktop"}}<a href="{{.Path}}" data-path="{{.Path}}" data-label="{{.Label}}">{{template "nav-icon" .Icon}} {{.Label}}</a>{{end}}
+    {{range navGlobal "desktop"}}<a href="{{.Path}}" data-path="{{.Path}}" data-label="{{t .Label}}">{{template "nav-icon" .Icon}} {{t .Label}}</a>{{end}}
   </div>
   {{/* This song: every control that used to crowd the top bar, moved here
        — it's contextual to whichever song is open, the same pattern as a
