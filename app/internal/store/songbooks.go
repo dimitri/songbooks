@@ -35,10 +35,16 @@ type Songbook struct {
 	// Shared says whether a community songbook's songs may be copied out
 	// of it (migration 0072); a private one's can only be opened.
 	Shared bool
-	// Kind is "songbook", or "course" for one whose songs are in lessons
-	// (migration 0073, lessons.go).
+	// Kind is "songbook", "course" for one whose songs are in lessons
+	// (migration 0073, lessons.go), or "student" for the songbook a coach
+	// keeps for one of their students (migration 0079, coaching.go).
 	Kind string
+	// StudentPersonID is a student songbook's student.
+	StudentPersonID int64
 }
+
+// IsStudent reports whether the songbook is a coach's for one student.
+func (sb Songbook) IsStudent() bool { return sb.Kind == SongbookKindStudent }
 
 // IsCourse reports whether the songbook is a course.
 func (sb Songbook) IsCourse() bool { return sb.Kind == SongbookKindCourse }
@@ -62,7 +68,7 @@ func songbookOwnerCol(ownerKind string) string {
 func (st *Store) ListSongbooks(ctx context.Context, ownerKind string, ownerID int64) ([]Songbook, error) {
 	col := songbookOwnerCol(ownerKind)
 	rows, err := st.db.Query(ctx, `
-		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at, requires_grant, shared, kind
+		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at, requires_grant, shared, kind, coalesce(student_person_id,0)
 		FROM songbooks WHERE owner_kind = $1 AND `+col+` = $2
 		ORDER BY (NOT is_default), name`, ownerKind, ownerID)
 	if err != nil {
@@ -72,7 +78,7 @@ func (st *Store) ListSongbooks(ctx context.Context, ownerKind string, ownerID in
 	var out []Songbook
 	for rows.Next() {
 		var sb Songbook
-		if err := rows.Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt, &sb.RequiresGrant, &sb.Shared, &sb.Kind); err != nil {
+		if err := rows.Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt, &sb.RequiresGrant, &sb.Shared, &sb.Kind, &sb.StudentPersonID); err != nil {
 			return nil, err
 		}
 		out = append(out, sb)
@@ -84,9 +90,9 @@ func (st *Store) ListSongbooks(ctx context.Context, ownerKind string, ownerID in
 func (st *Store) GetSongbook(ctx context.Context, songbookID int64) (*Songbook, error) {
 	var sb Songbook
 	err := st.db.QueryRow(ctx, `
-		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at, requires_grant, shared, kind
+		SELECT id, owner_kind, coalesce(owner_person_id,0), coalesce(owner_band_id,0), coalesce(owner_community_id,0), name, is_default, playlist_url, created_at, requires_grant, shared, kind, coalesce(student_person_id,0)
 		FROM songbooks WHERE id = $1`, songbookID).
-		Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt, &sb.RequiresGrant, &sb.Shared, &sb.Kind)
+		Scan(&sb.ID, &sb.OwnerKind, &sb.OwnerPersonID, &sb.OwnerBandID, &sb.OwnerCommunityID, &sb.Name, &sb.IsDefault, &sb.PlaylistURL, &sb.CreatedAt, &sb.RequiresGrant, &sb.Shared, &sb.Kind, &sb.StudentPersonID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such songbook %d: %w", songbookID, ErrNotFound)
 	}

@@ -67,6 +67,8 @@ var Fonts = map[string]Font{
 	"bebas":         {"Bebas Neue", `"Bebas Neue", "Arial Narrow", sans-serif`, "Bebas+Neue"},
 	"anton":         {"Anton", `"Anton", Impact, "Arial Narrow", sans-serif`, "Anton"},
 	"nunito-sans":   {"Nunito Sans", `"Nunito Sans", Avenir, "Avenir Next", "Helvetica Neue", Arial, sans-serif`, "Nunito+Sans:wght@400;600;700"},
+	"montserrat":    {"Montserrat", `"Montserrat", "Helvetica Neue", Arial, sans-serif`, "Montserrat:ital,wght@0,300;0,400;0,600;0,700;1,400"},
+	"cormorant":     {"Cormorant Garamond", `"Cormorant Garamond", Garamond, Georgia, serif`, "Cormorant+Garamond:ital,wght@0,500;0,600;1,500"},
 }
 
 // FontKeys is Fonts' keys in label order, for a picker.

@@ -23,7 +23,13 @@ type Community struct {
 	Name            string
 	DefaultJoinRole string
 	CreatedAt       time.Time
+	// Kind is "community", or "coaching" for a voice coach and their
+	// students (migration 0079, coaching.go).
+	Kind string
 }
+
+// IsCoaching reports whether the community is a coach's and their students'.
+func (c Community) IsCoaching() bool { return c.Kind == "coaching" }
 
 // CommunityMember is one row of community_members — one person's one stint of
 // membership in one community, same history-preserving shape as
@@ -101,8 +107,8 @@ func (st *Store) CreateCommunity(ctx context.Context, name string, creatorPerson
 // GetCommunity loads one community by id.
 func (st *Store) GetCommunity(ctx context.Context, communityID int64) (*Community, error) {
 	var sc Community
-	err := st.db.QueryRow(ctx, `SELECT id, name, default_join_role::text, created_at FROM communities WHERE id = $1`, communityID).
-		Scan(&sc.ID, &sc.Name, &sc.DefaultJoinRole, &sc.CreatedAt)
+	err := st.db.QueryRow(ctx, `SELECT id, name, default_join_role::text, created_at, kind FROM communities WHERE id = $1`, communityID).
+		Scan(&sc.ID, &sc.Name, &sc.DefaultJoinRole, &sc.CreatedAt, &sc.Kind)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such community %d: %w", communityID, ErrNotFound)
 	}

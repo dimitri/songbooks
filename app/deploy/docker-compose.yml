@@ -81,7 +81,12 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-songbooks}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-songbooks}?sslmode=disable
-    command: ["--threads", "8"]
+      # One Demucs process, PyTorch on as many threads as cores it gets:
+      # left alone, PyTorch starts a thread per core of the host (24),
+      # and Demucs' --jobs as many processes, all fighting over 8 cores
+      # (a first recording took 9 minutes, 2 on a laptop).
+      OMP_NUM_THREADS: "8"
+      MKL_NUM_THREADS: "8"
     cpus: 8
     mem_limit: 8g
 

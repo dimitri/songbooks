@@ -55,7 +55,14 @@
     { stem: 'drums', name: 'Drums', color: '#E8C050' },
     { stem: 'bass', name: 'Bass', color: '#9C7CF0' },
     { stem: 'other', name: 'Other', color: '#5FB7A0' },
+    // A coaching community's songs keep only the voice and the rest.
+    { stem: 'no_vocals', name: 'Backing', color: '#5FB7A0' },
   ];
+  // The lanes for the parts a recording has: the four, or voice and backing.
+  function stemLanes(have) {
+    const four = ['drums', 'bass', 'other'].some((p) => have.includes(p));
+    return STEMS.filter((s) => have.includes(s.stem) && (four ? s.stem !== 'no_vocals' : true));
+  }
   const PAD = 16;               // px before t = 0
   const ROW = { ruler: 40, sections: 30, chords: 30, audio: 116 };
 
@@ -349,7 +356,7 @@
       row.hdr.querySelector('.daw-ref-select')?.addEventListener('change', (e) => switchReference(e.target.value));
       // Split: its parts play and the whole recording, still the clock,
       // is muted to begin with (they add up to it).
-      const parts = STEMS.filter((s) => stemAudio[s.stem]);
+      const parts = stemLanes(Object.keys(stemAudio));
       if (parts.length) {
         tr.muted = true;
         syncTrackControls(tr);
@@ -1614,7 +1621,7 @@
   // it, its waveform drawn when decoded (one at a time).
   async function loadStems(cat) {
     const have = (audioCats[cat] && audioCats[cat].stems) || [];
-    const parts = STEMS.filter((s) => have.includes(s.stem));
+    const parts = stemLanes(have);
     if (!parts.length || !window.songbooksAudioBytes) return;
     const loaded = await Promise.all(parts.map(async (s) => {
       try {
