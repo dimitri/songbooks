@@ -6954,6 +6954,14 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .coach-group-songs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.6rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
 .coach-group-song-list { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; font-size: 0.9rem; }
 .coach-subscribe { margin: 0.4rem 0 0.8rem; font-size: 0.9rem; }
+/* Live lessons (live.go): an online lesson's Join, lit from 15 minutes
+   before it starts; how the person joins, headphones or not. */
+.live-join-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.4rem; }
+.live-join-btn { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.5rem; padding: 0 0.9rem; border: 1px solid var(--border); border-radius: var(--radius-control, 6px); color: var(--fg); text-decoration: none; font-weight: 600; }
+.live-join-btn.is-open { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.live-headphones { display: flex; align-items: flex-start; gap: 0.5rem; margin: 0 0 0.9rem; font-size: 0.9rem; color: var(--fg-muted); cursor: pointer; }
+.live-headphones input { margin-top: 0.2rem; }
+.live-join-when { font-size: 1.05rem; }
 .coach-subscribe a { display: inline-flex; align-items: center; gap: 0.35rem; }
 .calendar-subscribe-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 1rem 0; }
 .calendar-subscribe-btn { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.75rem; padding: 0 1rem; border: 1px solid var(--border); border-radius: var(--radius-control, 6px); color: var(--fg); text-decoration: none; font-weight: 600; }

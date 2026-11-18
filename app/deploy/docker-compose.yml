@@ -63,6 +63,11 @@ services:
       # operation; ./import-staging (gitignored, see the volumes: entry
       # below) is where files to import are dropped on the host first.
       SONGBOOKS_ADMIN_FILE_DIR: ${SONGBOOKS_ADMIN_FILE_DIR:-}
+      # Live lessons (docs/live-lessons.md): the key Galène checks the
+      # lessons' join tokens with, written by galene/setup.sh; and
+      # Galène's address (production's, by default). No key, no join.
+      SONGBOOKS_GALENE_KEY: ${SONGBOOKS_GALENE_KEY:-}
+      SONGBOOKS_GALENE_URL: ${SONGBOOKS_GALENE_URL:-}
     command: ["--addr", "0.0.0.0:8080"]
     ports:
       # 8102: chosen after checking `ss -tlnp` + `docker ps` on the host —

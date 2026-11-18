@@ -525,5 +525,14 @@
   "lessons so far: alone or in a group, online or in the room": "cours passés : seul ou en groupe, en ligne ou en présentiel",
   "songs moved down and up from the recording’s key, and the furthest each way": "chansons baissées et montées par rapport à la tonalité de l’enregistrement, et l’écart le plus grand de chaque côté",
   "+%d more lesson": "+%d autre cours",
-  "+%d more lessons": "+%d autres cours"
+  "+%d more lessons": "+%d autres cours",
+  "The lesson opens at %s, 15 minutes before it starts. Come back then: this link takes you in.": "Le cours ouvre à %s, 15 minutes avant de commencer. Revenez à ce moment-là : ce lien vous y fait entrer.",
+  "This lesson is over.": "Ce cours est terminé.",
+  "This lesson is in the room, not online.": "Ce cours a lieu en salle, pas en ligne.",
+  "Online lessons aren’t set up on this server yet.": "Les cours en ligne ne sont pas encore en place sur ce serveur.",
+  "Your lessons": "Vos cours",
+  "With headphones, your microphone isn’t cleaned up and sends high-quality audio: your voice as it is, for singing. Without, it removes echo and noise, right for laptop speakers.": "Avec un casque, votre micro n’est pas retraité et envoie un son de haute qualité : votre voix telle qu’elle est, pour chanter. Sans, il retire l’écho et le bruit, ce qu’il faut avec les haut-parleurs d’un ordinateur.",
+  "I join online lessons with headphones (my voice as it is, for singing)": "Je suis les cours en ligne avec un casque (ma voix telle qu’elle est, pour chanter)",
+  "Join the lesson": "Rejoindre le cours",
+  "opens 15 minutes before": "ouvre 15 minutes avant"
 }

@@ -646,6 +646,18 @@ func (s *Server) handleCoachingLessonsPage(w http.ResponseWriter, r *http.Reques
 	}
 	data := s.coachingPageData(r, community, coach, "lessons")
 	data["Days"] = days
+	data["Now"] = time.Now()
+	for _, l := range lessons {
+		if l.Event.LessonMode == "online" && !l.Event.IsPast(time.Now()) {
+			data["HasOnline"] = true
+		}
+	}
+	if data["HasOnline"] != nil {
+		if data["Headphones"], err = s.store.LiveHeadphones(r.Context(), person.ID); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
 	if coach {
 		members, err := s.store.ListCommunityMembers(r.Context(), community.ID, false)
 		if err != nil {

@@ -167,6 +167,21 @@ func main() {
 
 	handler := httpapi.NewServer(st, m, devAutoLogin, *webauthnRPID, *adminFileDir)
 	httpapi.Covers = covers.NewFinder()
+	// Live lessons (docs/live-lessons.md): Galène's address and the key
+	// its lessons group checks our join tokens with (galene/setup.sh
+	// writes it in deploy/.env); no key, no online lessons to join.
+	if k := os.Getenv("SONGBOOKS_GALENE_KEY"); k != "" {
+		key, err := httpapi.ParseGaleneKey(k)
+		if err != nil {
+			log.Fatalf("SONGBOOKS_GALENE_KEY: %v", err)
+		}
+		httpapi.Galene = httpapi.GaleneConfig{
+			URL: strings.TrimRight(envOr("SONGBOOKS_GALENE_URL", "https://live.songbooks.studio"), "/"),
+			Key: key,
+			KID: envOr("SONGBOOKS_GALENE_KID", "songbooks-1"),
+		}
+		log.Printf("live lessons on %s", httpapi.Galene.URL)
+	}
 
 	log.Printf("songbooks serving %s on http://%s", redactURL(*dbURL), *addr)
 	log.Fatal(http.ListenAndServe(*addr, handler))

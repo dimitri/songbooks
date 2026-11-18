@@ -39,6 +39,10 @@ services:
       TZ: ${SONGBOOKS_TZ:-Europe/Paris}
       DATABASE_URL: postgres://songbooks:songbooks-local@db:5432/songbooks?sslmode=disable
       SONGBOOKS_DEV_AUTO_LOGIN: ${SONGBOOKS_DEV_AUTO_LOGIN:-tapoueh}
+      # Live lessons against a local Galène (docs/live-lessons.md): unset,
+      # online lessons say they aren't set up.
+      SONGBOOKS_GALENE_KEY: ${SONGBOOKS_GALENE_KEY:-}
+      SONGBOOKS_GALENE_URL: ${SONGBOOKS_GALENE_URL:-}
     command: ["--addr", "0.0.0.0:8080"]
     ports:
       - "127.0.0.1:${SONGBOOKS_LOCAL_PORT:-8102}:8080"

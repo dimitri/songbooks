@@ -421,6 +421,10 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/communities/{id}/groups/{groupID}/members", s.requireCommunityMember(s.handlePutCoachingGroupMembers))
 	mux.HandleFunc("DELETE /api/communities/{id}/groups/{groupID}", s.requireCommunityMember(s.handleDeleteCoachingGroup))
 	mux.HandleFunc("GET /communities/{id}/lessons", s.requireCommunityMember(s.handleCoachingLessonsPage))
+	// An online lesson's join link (live.go): the logged-in coach or
+	// student, or one known by their calendar feed's address (?f=).
+	mux.HandleFunc("GET /communities/{id}/lessons/{eventID}/join", s.optionalPerson(s.handleLessonJoin))
+	mux.HandleFunc("PUT /api/me/live-headphones", s.requireAuth(s.handlePutLiveHeadphones))
 	// The repertoire: every song the students and groups have, in their
 	// keys; an event's program, planned from it (coach_program.go).
 	mux.HandleFunc("GET /communities/{id}/student-songs", s.requireCommunityMember(s.handleCoachRepertoirePage))

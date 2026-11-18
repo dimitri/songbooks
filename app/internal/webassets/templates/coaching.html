@@ -596,6 +596,11 @@
   {{template "brand-banner" $brand}}
   {{template "community-tabs" .}}
   <p class="coach-subscribe"><a href="/calendar/subscribe">{{template "icon-calendar"}} {{t "Your calendar in your calendar app"}}</a></p>
+  {{if .HasOnline}}
+  <label class="live-headphones" title="{{t "With headphones, your microphone isn’t cleaned up and sends high-quality audio: your voice as it is, for singing. Without, it removes echo and noise, right for laptop speakers."}}">
+    <input type="checkbox" id="live-headphones"{{if .Headphones}} checked{{end}}> {{t "I join online lessons with headphones (my voice as it is, for singing)"}}
+  </label>
+  {{end}}
 
   {{if .IsCoach}}
   <section class="home-section">
@@ -625,6 +630,12 @@
       <div class="coach-lesson-time">{{date .Event.StartsAt "15:04"}}{{with .Event.EndsAt}}<span class="hint">–{{date . "15:04"}}</span>{{end}}</div>
       <div class="coach-lesson-body">
         <div><strong>{{.Event.Name}}</strong> {{template "lesson-tags" .Event}}{{with .Event.Location}} <span class="hint">· {{.}}</span>{{end}}</div>
+        {{if and (eq .Event.LessonMode "online") (not (.Event.IsPast $.Now))}}
+        <div class="live-join-row">
+          {{if .Event.LiveOpen $.Now}}<a class="live-join-btn is-open" href="/communities/{{$.Community.ID}}/lessons/{{.Event.ID}}/join">{{template "icon-video"}} {{t "Join the lesson"}}</a>
+          {{else}}<a class="live-join-btn" href="/communities/{{$.Community.ID}}/lessons/{{.Event.ID}}/join">{{template "icon-video"}} {{t "Join"}}</a> <span class="hint">{{t "opens 15 minutes before"}}</span>{{end}}
+        </div>
+        {{end}}
         <div class="coach-lesson-who">{{range .Students}}<span class="voice-tag">{{.DisplayName}}</span>{{else}}<span class="hint">{{t "no student yet"}}</span>{{end}}</div>
         {{if $.IsCoach}}
         <details class="coach-lesson-edit">
@@ -645,6 +656,12 @@
 </div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
+<script>
+document.getElementById('live-headphones')?.addEventListener('change', (e) => {
+  fetch('/api/me/live-headphones', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: e.target.checked }) })
+    .then((r) => { if (!r.ok) throw new Error(); }).catch(() => { e.target.checked = !e.target.checked; alert(t('Couldn’t save.')); });
+});
+</script>
 {{if .IsCoach}}
 <script>
 (() => {
@@ -674,6 +691,40 @@
 })();
 </script>
 {{end}}
+</body>
+</html>
+{{end}}
+
+{{/* An online lesson's join link, when it isn't time, or the lesson
+     isn't online (live.go): what's what, and back to the lessons. */}}
+{{define "live_join"}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+{{template "coaching-head"}}
+<title>{{.Event.Name}} — {{.Community.Name}}</title>
+</head>
+<body>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="{{.Back}}">{{template "icon-back"}} {{t "Lessons"}}</a>
+  <h1>{{.Event.Name}}</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index live-join-page">
+  <section class="home-section">
+    <p class="live-join-when"><strong>{{date .Event.StartsAt "Monday 2 January"}}, {{date .Event.StartsAt "15:04"}}</strong>{{with .Event.EndsAt}}–{{date . "15:04"}}{{end}} · {{.Community.Name}}</p>
+    {{if eq .Why "early"}}<p>{{t "The lesson opens at %s, 15 minutes before it starts. Come back then: this link takes you in." (date .Opens "15:04")}}</p>
+    {{else if eq .Why "over"}}<p>{{t "This lesson is over."}}</p>
+    {{else if eq .Why "in_person"}}<p>{{t "This lesson is in the room, not online."}}{{with .Event.Location}} {{.}}{{end}}</p>
+    {{else}}<p>{{t "Online lessons aren’t set up on this server yet."}}</p>{{end}}
+    <p><a href="{{.Back}}">{{t "Your lessons"}} →</a></p>
+  </section>
+</main>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
 </body>
 </html>
 {{end}}
