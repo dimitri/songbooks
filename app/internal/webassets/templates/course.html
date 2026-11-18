@@ -1,13 +1,17 @@
 {{/* A course: a songbook whose songs are in lessons (internal/httpapi/courses.go). */}}
 
+{{/* A lesson's name in a list, "Lesson 3 · Title" (store.Lesson.Label),
+     in the page's language. Needs a store.Lesson (or what embeds one). */}}
+{{define "lesson-label"}}{{with .Number}}{{tn . "Lesson %d · " "Lesson %d · "}}{{end}}{{.Title}}{{end}}
+
 {{define "course-head"}}
 {{$brand := brandOwner .Songbook.OwnerKind .Songbook.OwnerBandID .Songbook.OwnerCommunityID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{with .Lesson}}{{.Label}} — {{end}}{{.Songbook.Name}} — Songbooks</title>
+<title>{{with .Lesson}}{{template "lesson-label" .}} — {{end}}{{.Songbook.Name}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -25,9 +29,9 @@ async function courseApi(method, url, body) {
     method, headers: body === undefined ? undefined : {'Content-Type': 'application/json'},
     body: body === undefined ? undefined : JSON.stringify(body),
   }).catch(() => null);
-  if (!res) throw new Error('Couldn’t reach the server. Try again.');
+  if (!res) throw new Error(t('Couldn’t reach the server. Try again.'));
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ? data.error.charAt(0).toUpperCase() + data.error.slice(1) : 'That didn’t work. Try again.');
+  if (!res.ok) throw new Error(data.error ? data.error.charAt(0).toUpperCase() + data.error.slice(1) : t('That didn’t work. Try again.'));
   return data;
 }
 </script>
@@ -36,7 +40,7 @@ async function courseApi(method, url, body) {
 {{define "course"}}
 {{template "course-head" .}}
 <header class="app-header">
-  {{if .Community}}<a class="back-link" href="/communities/{{.Community.ID}}/songbooks">{{template "icon-back"}} Songbooks</a>{{else}}{{template "home-link"}}{{end}}
+  {{if .Community}}<a class="back-link" href="/communities/{{.Community.ID}}/songbooks">{{template "icon-back"}} {{t "Songbooks"}}</a>{{else}}{{template "home-link"}}{{end}}
   <h1>{{.Songbook.Name}}</h1>
   {{if .CanEdit}}{{template "edit-toggle" .Editing}}{{end}}
   {{template "notif-bell"}}
@@ -44,20 +48,20 @@ async function courseApi(method, url, body) {
 <main class="index course">
   {{with .Community}}
   <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/communities/{{.ID}}">Overview</a>
-    <a class="band-tab active" href="/communities/{{.ID}}/songbooks">{{shelfLabel "community" .ID}}</a>
-    <a class="band-tab" href="/communities/{{.ID}}/downloads">Downloads</a>
-    <a class="band-tab" href="/communities/{{.ID}}/events">Events</a>
+    <a class="band-tab" href="/communities/{{.ID}}">{{t "Overview"}}</a>
+    <a class="band-tab active" href="/communities/{{.ID}}/songbooks">{{t (shelfLabel "community" .ID)}}</a>
+    <a class="band-tab" href="/communities/{{.ID}}/downloads">{{t "Downloads"}}</a>
+    <a class="band-tab" href="/communities/{{.ID}}/events">{{t "Events"}}</a>
   </nav>
   {{end}}
 
   {{if .Lessons}}
-  <section class="course-progress card" aria-label="Your progress">
+  <section class="course-progress card" aria-label="{{t "Your progress"}}">
     <div class="course-progress-text">
-      <strong>{{.Done}} of {{.Total}} lesson{{if ne .Total 1}}s{{end}} done</strong>
-      <div class="course-bar" role="progressbar" aria-valuemin="0" aria-valuemax="{{.Total}}" aria-valuenow="{{.Done}}" aria-label="Lessons done"><span style="width: {{.Percent}}%"></span></div>
+      <strong>{{if eq .Total 1}}{{t "%d of %d lesson done" .Done .Total}}{{else}}{{t "%d of %d lessons done" .Done .Total}}{{end}}</strong>
+      <div class="course-bar" role="progressbar" aria-valuemin="0" aria-valuemax="{{.Total}}" aria-valuenow="{{.Done}}" aria-label="{{t "Lessons done"}}"><span style="width: {{.Percent}}%"></span></div>
     </div>
-    {{with .Next}}<a class="dl-btn primary" href="{{.Href}}">{{if .Progress.Started}}Continue{{else if eq $.Done 0}}Start{{else}}Next{{end}}: {{.Label}}</a>{{end}}
+    {{with .Next}}<a class="dl-btn primary" href="{{.Href}}">{{if .Progress.Started}}{{t "Continue:"}}{{else if eq $.Done 0}}{{t "Start:"}}{{else}}{{t "Next:"}}{{end}} {{template "lesson-label" .}}</a>{{end}}
   </section>
 
   <ol class="course-lessons">
@@ -66,28 +70,28 @@ async function courseApi(method, url, body) {
       <span class="course-num" aria-hidden="true">{{with .Number}}{{.}}{{else}}·{{end}}</span>
       <a class="course-lesson-main" href="{{.Href}}">
         <strong>{{.Title}}</strong>
-        <span class="dl-meta">{{range $i, $s := .Songs}}{{if $i}} · {{end}}{{$s.Title}}{{end}}{{if and .Songs .Files}} — {{end}}{{if .Files}}{{.Files}} file{{if ne .Files 1}}s{{end}}{{end}}</span>
+        <span class="dl-meta">{{range $i, $s := .Songs}}{{if $i}} · {{end}}{{$s.Title}}{{end}}{{if and .Songs .Files}} — {{end}}{{if .Files}}{{tn .Files "%d file" "%d files"}}{{end}}</span>
       </a>
-      <span class="course-state">{{if .Progress.Done}}Done{{else if .Progress.Started}}Started{{end}}</span>
+      <span class="course-state">{{if .Progress.Done}}{{t "Done"}}{{else if .Progress.Started}}{{t "Started"}}{{end}}</span>
     </li>
     {{end}}
   </ol>
   {{else}}
-  <p class="dl-empty">This course has no lessons yet.{{if .Editing}} Make them from its files, or one at a time, below.{{end}}</p>
+  <p class="dl-empty">{{t "This course has no lessons yet."}}{{if .Editing}} {{t "Make them from its files, or one at a time, below."}}{{end}}</p>
   {{end}}
 
   {{if .Loose}}
   <section class="card course-loose">
-    <h2>Not in a lesson</h2>
+    <h2>{{t "Not in a lesson"}}</h2>
     <ul class="dl-tree">
       {{range .Loose}}
       <li class="dl-row">
         <a class="dl-row-name" href="/song/{{.VariantID}}?songbook={{$.Songbook.ID}}">{{.Title}}</a>
         {{if and $.Editing $.Lessons}}
         <span class="dl-row-song">
-          <select class="course-place" data-variant="{{.VariantID}}" aria-label="Lesson for {{.Title}}">
-            <option value="">No lesson</option>
-            {{range $.Lessons}}<option value="{{.ID}}">{{.Label}}</option>{{end}}
+          <select class="course-place" data-variant="{{.VariantID}}" aria-label="{{t "Lesson for %s" .Title}}">
+            <option value="">{{t "No lesson"}}</option>
+            {{range $.Lessons}}<option value="{{.ID}}">{{template "lesson-label" .}}</option>{{end}}
           </select>
           <span class="form-status" role="status"></span>
         </span>
@@ -100,21 +104,21 @@ async function courseApi(method, url, body) {
 
   {{if .Editing}}
   <section class="card course-tools">
-    <h2>Organize the course</h2>
+    <h2>{{t "Organize the course"}}</h2>
     <form id="new-lesson" class="course-form">
-      <div class="field course-field-num"><label for="new-lesson-number">Number</label><input id="new-lesson-number" name="number" inputmode="numeric" pattern="[0-9]*" autocomplete="off"></div>
-      <div class="field"><label for="new-lesson-title">Title</label><input id="new-lesson-title" name="title" required autocomplete="off"></div>
-      <div class="form-actions"><button type="submit" class="primary">{{template "icon-plus"}} New lesson</button></div>
+      <div class="field course-field-num"><label for="new-lesson-number">{{t "Number"}}</label><input id="new-lesson-number" name="number" inputmode="numeric" pattern="[0-9]*" autocomplete="off"></div>
+      <div class="field"><label for="new-lesson-title">{{t "Title"}}</label><input id="new-lesson-title" name="title" required autocomplete="off"></div>
+      <div class="form-actions"><button type="submit" class="primary">{{template "icon-plus"}} {{t "New lesson"}}</button></div>
       <p class="form-status" role="status"></p>
     </form>
     {{if .Community}}
     <div class="course-from-files">
-      <button type="button" id="lessons-from-files" class="secondary">Make lessons from the files</button>
-      <p class="hint">A lesson for each number the course’s files start with (“07_Plan Chicago Blues”), with the songs those files go with, and the video the book’s PDF links each lesson to. Lessons, songs and videos already in place stay as they are.</p>
+      <button type="button" id="lessons-from-files" class="secondary">{{t "Make lessons from the files"}}</button>
+      <p class="hint">{{t "A lesson for each number the course’s files start with (“07_Plan Chicago Blues”), with the songs those files go with, and the video the book’s PDF links each lesson to. Lessons, songs and videos already in place stay as they are."}}</p>
       <p class="form-status" role="status"></p>
     </div>
     {{end}}
-    <p class="hint"><a href="/songbooks/{{.Songbook.ID}}?view=songs">All the songs, as a list</a>{{with .Community}} · <a href="/communities/{{.ID}}/downloads#songbook-{{$.Songbook.ID}}">Its files</a>{{end}}</p>
+    <p class="hint"><a href="/songbooks/{{.Songbook.ID}}?view=songs">{{t "All the songs, as a list"}}</a>{{with .Community}} · <a href="/communities/{{.ID}}/downloads#songbook-{{$.Songbook.ID}}">{{t "Its files"}}</a>{{end}}</p>
   </section>
   {{template "course-api"}}
   <script>
@@ -133,7 +137,7 @@ async function courseApi(method, url, body) {
       const box = fromFiles.parentElement;
       Forms.run(box, fromFiles, async () => {
         const data = await courseApi('POST', `/api/songbooks/${sb}/lessons/from-files`);
-        Forms.status(box, `${data.created} lesson${data.created === 1 ? '' : 's'} made, ${data.placed} song${data.placed === 1 ? '' : 's'} and files placed, ${data.videos} video${data.videos === 1 ? '' : 's'} found in the book.`, 'ok');
+        Forms.status(box, tn(data.created, '%d lesson made', '%d lessons made') + ', ' + tn(data.placed, '%d song and files placed', '%d songs and files placed') + ', ' + tn(data.videos, '%d video found in the book.', '%d videos found in the book.'), 'ok');
         if (data.created || data.placed || data.videos) setTimeout(() => location.reload(), 800);
       });
     });
@@ -141,7 +145,7 @@ async function courseApi(method, url, body) {
       const status = sel.parentElement.querySelector('.form-status');
       try {
         await courseApi('PUT', `/api/songbooks/${sb}/entries/${sel.dataset.variant}/lesson`, {lesson: sel.value ? Number(sel.value) : null});
-        Forms.status(status, 'Saved', 'ok');
+        Forms.status(status, t('Saved'), 'ok');
       } catch (e) { Forms.status(status, e.message, 'error'); }
     }));
   })();
@@ -159,18 +163,18 @@ async function courseApi(method, url, body) {
 {{template "course-head" .}}
 <header class="app-header">
   <a class="back-link" href="/songbooks/{{.Songbook.ID}}">{{template "icon-back"}} {{.Songbook.Name}}</a>
-  <h1>{{.Lesson.Label}}</h1>
+  <h1>{{template "lesson-label" .Lesson}}</h1>
   {{if .CanEdit}}{{template "edit-toggle" .Editing}}{{end}}
   {{template "notif-bell"}}
 </header>
 <main class="index course lesson">
   <div class="lesson-done">
-    <button type="button" id="lesson-done" class="{{if .Progress.Done}}secondary{{else}}primary{{end}}" aria-pressed="{{if .Progress.Done}}true{{else}}false{{end}}">{{if .Progress.Done}}Done ✓{{else}}Mark as done{{end}}</button>
-    <span class="hint" id="lesson-done-hint">{{if .Progress.Done}}Tap again if you want to come back to it.{{end}}</span>
+    <button type="button" id="lesson-done" class="{{if .Progress.Done}}secondary{{else}}primary{{end}}" aria-pressed="{{if .Progress.Done}}true{{else}}false{{end}}">{{if .Progress.Done}}{{t "Done ✓"}}{{else}}{{t "Mark as done"}}{{end}}</button>
+    <span class="hint" id="lesson-done-hint">{{if .Progress.Done}}{{t "Tap again if you want to come back to it."}}{{end}}</span>
   </div>
 
   {{with .VideoID}}
-  <div class="lesson-video"><iframe src="https://www.youtube-nocookie.com/embed/{{.}}?rel=0" title="The lesson’s video" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>
+  <div class="lesson-video"><iframe src="https://www.youtube-nocookie.com/embed/{{.}}?rel=0" title="{{t "The lesson’s video"}}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>
   {{end}}
 
   {{with .Lesson.Paragraphs}}
@@ -180,7 +184,7 @@ async function courseApi(method, url, body) {
   {{end}}
 
   <section class="card">
-    <h2>{{if eq (len .Lesson.Songs) 1}}The song{{else}}The songs{{end}}</h2>
+    <h2>{{if eq (len .Lesson.Songs) 1}}{{t "The song"}}{{else}}{{t "The songs"}}{{end}}</h2>
     {{if .Lesson.Songs}}
     <ul class="dl-tree lesson-songs">
       {{range $i, $s := .Lesson.Songs}}
@@ -188,26 +192,26 @@ async function courseApi(method, url, body) {
         <a class="dl-row-name" href="/song/{{$s.VariantID}}?songbook={{$.Songbook.ID}}"><strong>{{$s.Title}}</strong>{{with $s.Artist}}<span class="dl-meta">{{.}}</span>{{end}}</a>
         {{if $.Editing}}
         <span class="dl-row-actions">
-          {{if $i}}<button type="button" class="dl-btn lesson-move" data-variant="{{$s.VariantID}}" data-by="-1" aria-label="Move {{$s.Title}} up">{{template "icon-up"}}</button>{{end}}
-          {{if lt (add1 $i) (len $.Lesson.Songs)}}<button type="button" class="dl-btn lesson-move" data-variant="{{$s.VariantID}}" data-by="1" aria-label="Move {{$s.Title}} down">{{template "icon-down"}}</button>{{end}}
-          <button type="button" class="dl-btn lesson-unplace" data-variant="{{$s.VariantID}}" aria-label="Take {{$s.Title}} out of this lesson">{{template "icon-close"}}</button>
+          {{if $i}}<button type="button" class="dl-btn lesson-move" data-variant="{{$s.VariantID}}" data-by="-1" aria-label="{{t "Move %s up" $s.Title}}">{{template "icon-up"}}</button>{{end}}
+          {{if lt (add1 $i) (len $.Lesson.Songs)}}<button type="button" class="dl-btn lesson-move" data-variant="{{$s.VariantID}}" data-by="1" aria-label="{{t "Move %s down" $s.Title}}">{{template "icon-down"}}</button>{{end}}
+          <button type="button" class="dl-btn lesson-unplace" data-variant="{{$s.VariantID}}" aria-label="{{t "Take %s out of this lesson" $s.Title}}">{{template "icon-close"}}</button>
         </span>
         {{end}}
       </li>
       {{end}}
     </ul>
     {{else}}
-    <p class="hint">No song in this lesson{{if .Files}}: its files are below{{end}}.</p>
+    <p class="hint">{{if .Files}}{{t "No song in this lesson: its files are below."}}{{else}}{{t "No song in this lesson."}}{{end}}</p>
     {{end}}
     {{if and .Editing .OtherSongs}}
     <form id="lesson-add-song" class="course-form">
-      <div class="field"><label for="lesson-add-song-select">Add a song to this lesson</label>
+      <div class="field"><label for="lesson-add-song-select">{{t "Add a song to this lesson"}}</label>
         <select id="lesson-add-song-select" name="song" required>
           <option value=""></option>
           {{range .OtherSongs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}
         </select>
       </div>
-      <div class="form-actions"><button type="submit" class="secondary">{{template "icon-plus"}} Add</button></div>
+      <div class="form-actions"><button type="submit" class="secondary">{{template "icon-plus"}} {{t "Add"}}</button></div>
       <p class="form-status" role="status"></p>
     </form>
     {{end}}
@@ -215,16 +219,16 @@ async function courseApi(method, url, body) {
 
   {{if .Files}}
   <section class="card">
-    <h2>Files</h2>
+    <h2>{{t "Files"}}</h2>
     <ul class="dl-tree">
       {{range .Files}}
       <li class="dl-row kind-{{.Kind}}">
         <span class="dl-ext">{{if eq .Kind "gp"}}GP{{else}}{{or .Ext "FILE"}}{{end}}</span>
         <span class="dl-row-name"><a href="{{.Href}}" download>{{.Filename}}</a><span class="dl-meta">{{fileSize .ByteSize}}{{with .SongTitle}} · {{.}}{{end}}</span></span>
         <span class="dl-row-actions">
-          {{if eq .Kind "audio"}}<button type="button" class="dl-btn dl-play" data-src="{{.Href}}?view=1" aria-label="Play {{.Filename}}">{{template "icon-play"}}</button>{{end}}
-          {{if eq .Ext "PDF"}}<a class="dl-btn" href="{{.Href}}?view=1" target="_blank" rel="noopener">Open</a>{{end}}
-          <a class="dl-btn" href="{{.Href}}" download aria-label="Download {{.Filename}}">{{template "icon-download"}}</a>
+          {{if eq .Kind "audio"}}<button type="button" class="dl-btn dl-play" data-src="{{.Href}}?view=1" aria-label="{{t "Play %s" .Filename}}">{{template "icon-play"}}</button>{{end}}
+          {{if eq .Ext "PDF"}}<a class="dl-btn" href="{{.Href}}?view=1" target="_blank" rel="noopener">{{t "Open"}}</a>{{end}}
+          <a class="dl-btn" href="{{.Href}}" download aria-label="{{t "Download %s" .Filename}}">{{template "icon-download"}}</a>
         </span>
       </li>
       {{end}}
@@ -232,20 +236,20 @@ async function courseApi(method, url, body) {
   </section>
   {{end}}
 
-  <nav class="lesson-nav" aria-label="Lessons">
-    {{with .Prev}}<a class="dl-btn" href="{{.Href}}">{{template "icon-back"}} {{.Label}}</a>{{end}}
-    {{with .Next}}<a class="dl-btn lesson-next" href="{{.Href}}">{{.Label}} {{template "icon-forward"}}</a>{{end}}
+  <nav class="lesson-nav" aria-label="{{t "Lessons"}}">
+    {{with .Prev}}<a class="dl-btn" href="{{.Href}}">{{template "icon-back"}} {{template "lesson-label" .}}</a>{{end}}
+    {{with .Next}}<a class="dl-btn lesson-next" href="{{.Href}}">{{template "lesson-label" .}} {{template "icon-forward"}}</a>{{end}}
   </nav>
 
   {{if .Editing}}
   <section class="card course-tools">
-    <h2>Edit the lesson</h2>
+    <h2>{{t "Edit the lesson"}}</h2>
     <form id="lesson-edit" class="course-form">
-      <div class="field course-field-num"><label for="lesson-number">Number</label><input id="lesson-number" name="number" inputmode="numeric" pattern="[0-9]*" value="{{with .Lesson.Number}}{{.}}{{end}}" autocomplete="off"></div>
-      <div class="field"><label for="lesson-title">Title</label><input id="lesson-title" name="title" value="{{.Lesson.Title}}" required autocomplete="off"></div>
-      <div class="field course-field-wide"><label for="lesson-video">Video</label><input id="lesson-video" name="video" type="url" inputmode="url" value="{{.Lesson.VideoURL}}" placeholder="https://youtu.be/…" aria-describedby="lesson-video-hint" autocomplete="off"><p class="hint" id="lesson-video-hint">A YouTube link. Left empty, the lesson shows the first video its songs link to.</p></div>
-      <div class="field course-field-wide"><label for="lesson-body">Text</label><textarea id="lesson-body" name="body" rows="6" aria-describedby="lesson-body-hint">{{.Lesson.Body}}</textarea><p class="hint" id="lesson-body-hint">What to work on, in what order. A blank line starts a new paragraph.</p></div>
-      <div class="form-actions"><button type="submit" class="primary">Save</button> <button type="button" id="lesson-delete" class="danger">Delete the lesson</button></div>
+      <div class="field course-field-num"><label for="lesson-number">{{t "Number"}}</label><input id="lesson-number" name="number" inputmode="numeric" pattern="[0-9]*" value="{{with .Lesson.Number}}{{.}}{{end}}" autocomplete="off"></div>
+      <div class="field"><label for="lesson-title">{{t "Title"}}</label><input id="lesson-title" name="title" value="{{.Lesson.Title}}" required autocomplete="off"></div>
+      <div class="field course-field-wide"><label for="lesson-video">{{t "Video"}}</label><input id="lesson-video" name="video" type="url" inputmode="url" value="{{.Lesson.VideoURL}}" placeholder="https://youtu.be/…" aria-describedby="lesson-video-hint" autocomplete="off"><p class="hint" id="lesson-video-hint">{{t "A YouTube link. Left empty, the lesson shows the first video its songs link to."}}</p></div>
+      <div class="field course-field-wide"><label for="lesson-body">{{t "Text"}}</label><textarea id="lesson-body" name="body" rows="6" aria-describedby="lesson-body-hint">{{.Lesson.Body}}</textarea><p class="hint" id="lesson-body-hint">{{t "What to work on, in what order. A blank line starts a new paragraph."}}</p></div>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Save"}}</button> <button type="button" id="lesson-delete" class="danger">{{t "Delete the lesson"}}</button></div>
       <p class="form-status" role="status"></p>
     </form>
   </section>
@@ -265,9 +269,9 @@ async function courseApi(method, url, body) {
     try {
       await courseApi('PUT', `${base}/done`, {done: now});
       done.setAttribute('aria-pressed', String(now));
-      done.textContent = now ? 'Done ✓' : 'Mark as done';
+      done.textContent = now ? t('Done ✓') : t('Mark as done');
       done.className = now ? 'secondary' : 'primary';
-      document.getElementById('lesson-done-hint').textContent = now ? 'Tap again if you want to come back to it.' : '';
+      document.getElementById('lesson-done-hint').textContent = now ? t('Tap again if you want to come back to it.') : '';
     } catch (e) { alert(e.message); }
     Forms.busy(done, false);
   });
@@ -281,7 +285,7 @@ async function courseApi(method, url, body) {
     });
   });
   document.getElementById('lesson-delete').addEventListener('click', () => {
-    if (!confirm('Delete this lesson? Its songs and files stay in the course, in no lesson.')) return;
+    if (!confirm(t('Delete this lesson? Its songs and files stay in the course, in no lesson.'))) return;
     Forms.run(edit, null, async () => {
       await courseApi('DELETE', base);
       location.href = `/songbooks/${sb}`;

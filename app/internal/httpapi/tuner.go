@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"app/internal/i18n"
 )
 
 // tunerTuning is a tuning the tuner offers: its name, its strings' open
@@ -48,7 +50,7 @@ func (s *Server) handleTunerPage(w http.ResponseWriter, r *http.Request) {
 					seen[key] = true
 					name := t.Name
 					if name == "" {
-						name = "Track " + strconv.Itoa(t.N)
+						name = i18n.T(s.langOf(w), "Track %d", t.N)
 					}
 					song = append(song, tunerTuning{Name: name, Notes: notes, Capo: t.Capo})
 				}

@@ -1,11 +1,11 @@
 {{define "band_catalog"}}
 {{$brand := brandFor "band" .Band.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Band.Name}} — repertoire</title>
+<title>{{t "%s — repertoire" .Band.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,7 +15,7 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
-  <h1>{{.Band.Name}} — repertoire</h1>
+  <h1>{{t "%s — repertoire" .Band.Name}}</h1>
   <nav class="song-nav">
     {{template "notif-bell"}}
   </nav>
@@ -25,19 +25,19 @@
 
   {{if not .Entries}}
   <div class="attention-empty" style="border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:1.2rem; font-size:0.95rem;">
-    This band's repertoire is empty — songs don't appear here automatically. <button type="button" class="link-button" id="open-add-song-empty">Add your first song</button> to get started.
+    {{t "This band’s repertoire is empty — songs don’t appear here automatically."}} <button type="button" class="link-button" id="open-add-song-empty">{{t "Add your first song"}}</button> {{t "repertoire|to get started."}}
   </div>
   {{else}}
   <div class="repertoire-toolbar">
-    <input type="search" id="repertoire-search" placeholder="Search this repertoire…" aria-label="Search this repertoire" enterkeyhint="search">
-    <button type="button" id="open-add-song">{{template "icon-plus"}} Add song</button>
+    <input type="search" id="repertoire-search" placeholder="{{t "Search this repertoire…"}}" aria-label="{{t "Search this repertoire"}}" enterkeyhint="search">
+    <button type="button" id="open-add-song">{{template "icon-plus"}} {{t "Add song"}}</button>
   </div>
   {{end}}
 
   {{if .AlbumGroups}}
   {{range .AlbumGroups}}
   <div class="album-group-heading-row" data-album-group>
-    {{if .CoverURL}}<img class="album-group-cover" src="{{.CoverURL}}" alt="{{.Album}} cover">{{end}}
+    {{if .CoverURL}}<img class="album-group-cover" src="{{.CoverURL}}" alt="{{t "%s cover" .Album}}">{{end}}
     <div>
       <h2 class="album-group-heading">{{.Album}}{{if .ReleaseYear}} <span class="album-group-year">({{.ReleaseYear}})</span>{{end}}</h2>
       {{if .Credit}}<p class="album-group-credit hint">{{.Credit}}</p>{{end}}
@@ -53,12 +53,12 @@
       <span class="gig-key">{{.Key}}</span>
       <span class="gig-tempo">{{.Tempo}}</span>
       <details class="row-menu">
-        <summary aria-label="More for {{.Title}}">{{template "icon-more"}}</summary>
+        <summary aria-label="{{t "More for %s" .Title}}">{{template "icon-more"}}</summary>
         <div class="row-menu-panel">
-          <a href="/works/{{.WorkID}}">All versions</a>
-          <a href="/variants/{{.VariantID}}/history">History</a>
-          {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">Copied from</a>{{end}}
-          <p class="hint">{{.Visibility}}</p>
+          <a href="/works/{{.WorkID}}">{{t "All versions"}}</a>
+          <a href="/variants/{{.VariantID}}/history">{{t "History"}}</a>
+          {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">{{t "Copied from"}}</a>{{end}}
+          <p class="hint">{{t (printf "visibility|%s" .Visibility)}}</p>
         </div>
       </details>
     </div>
@@ -76,13 +76,13 @@
       <span class="gig-key">{{.Key}}</span>
       <span class="gig-tempo">{{.Tempo}}</span>
       <details class="row-menu">
-        <summary aria-label="More for {{.Title}}">{{template "icon-more"}}</summary>
+        <summary aria-label="{{t "More for %s" .Title}}">{{template "icon-more"}}</summary>
         <div class="row-menu-panel">
-          <a href="/works/{{.WorkID}}">All versions</a>
-          <a href="/variants/{{.VariantID}}/history">History</a>
-          {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">Copied from</a>{{end}}
-          <p class="hint">{{.Visibility}} &middot; added by {{.AddedByUsername}}</p>
-          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">Remove from repertoire</button>
+          <a href="/works/{{.WorkID}}">{{t "All versions"}}</a>
+          <a href="/variants/{{.VariantID}}/history">{{t "History"}}</a>
+          {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">{{t "Copied from"}}</a>{{end}}
+          <p class="hint">{{t (printf "visibility|%s" .Visibility)}} &middot; {{t "added by %s" .AddedByUsername}}</p>
+          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">{{t "Remove from repertoire"}}</button>
           <p class="form-status" role="status"></p>
         </div>
       </details>
@@ -90,48 +90,48 @@
   {{end}}
   </div>
   {{end}}
-  <p class="hint repertoire-empty-filtered" id="repertoire-empty-filtered">No songs match that search.</p>
+  <p class="hint repertoire-empty-filtered" id="repertoire-empty-filtered">{{t "No songs match that search."}}</p>
 
   <dialog id="add-song-dialog">
-    <h2>Add a song</h2>
-    <p class="hint">Write a new song, or bring one in from the catalog: as it is, or as the band's own copy that any member can edit.</p>
+    <h2>{{t "Add a song"}}</h2>
+    <p class="hint">{{t "Write a new song, or bring one in from the catalog: as it is, or as the band’s own copy that any member can edit."}}</p>
     <div class="add-song-tabs">
-      <button type="button" class="add-song-tab active" data-panel="write">Write new</button>
-      <button type="button" class="add-song-tab" data-panel="catalog">From the catalog</button>
+      <button type="button" class="add-song-tab active" data-panel="write">{{t "Write new"}}</button>
+      <button type="button" class="add-song-tab" data-panel="catalog">{{t "From the catalog"}}</button>
     </div>
 
     <div class="add-song-panel" data-panel="write">
-      <p class="hint">A blank song, private to the band.</p>
+      <p class="hint">{{t "A blank song, private to the band."}}</p>
       <form class="form-stack" id="new-variant-form">
         <div class="field">
-          <label for="new-variant-title">Title</label>
+          <label for="new-variant-title">{{t "Title"}}</label>
           <input type="text" id="new-variant-title" autocomplete="off" required>
         </div>
         <div class="field">
-          <label for="new-variant-artist">Artist <span class="field-optional">(optional)</span></label>
+          <label for="new-variant-artist">{{t "Artist"}} <span class="field-optional">{{t "(optional)"}}</span></label>
           <input type="text" id="new-variant-artist" autocomplete="off">
         </div>
         {{/* "Already in the library" list, see library-match.js. */}}
         <div id="new-variant-library-match"></div>
         <div class="form-actions">
-          <button type="submit" id="new-variant-btn" class="primary">Create song</button>
+          <button type="submit" id="new-variant-btn" class="primary">{{t "Create song"}}</button>
         </div>
         <p id="new-variant-result" class="form-status" role="status"></p>
       </form>
     </div>
 
     <div class="add-song-panel" data-panel="catalog" hidden>
-      <p class="hint">“Add” links to the song as it is. “Add a copy” gives the band its own version that any member can edit.</p>
+      <p class="hint">{{t "“Add” links to the song as it is. “Add a copy” gives the band its own version that any member can edit."}}</p>
       <form class="field" id="catalog-search-form" role="search">
-        <label for="catalog-search-input">Find a song in the catalog</label>
-        <input type="search" id="catalog-search-input" placeholder="e.g. a title or an artist" autocomplete="off" enterkeyhint="search">
+        <label for="catalog-search-input">{{t "Find a song in the catalog"}}</label>
+        <input type="search" id="catalog-search-input" placeholder="{{t "e.g. a title or an artist"}}" autocomplete="off" enterkeyhint="search">
       </form>
       <div id="catalog-search-results" class="attention-list" aria-live="polite"></div>
       <p id="add-result" class="form-status" role="status"></p>
     </div>
 
     <div class="form-actions" style="margin-top:1rem;">
-      <button type="button" id="close-add-song">Close</button>
+      <button type="button" id="close-add-song">{{t "Close"}}</button>
     </div>
   </dialog>
 </main>
@@ -145,13 +145,13 @@ const bandLibrary = window.LibraryMatch ? LibraryMatch.attach({
   title: document.getElementById('new-variant-title'),
   artist: document.getElementById('new-variant-artist'),
   host: document.getElementById('new-variant-library-match'),
-  addLabel: 'Add to the repertoire',
+  addLabel: t('Add to the repertoire'),
   add: async (hit) => {
     const res = await fetch(`/api/bands/${bandId}/catalog`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({variantId: hit.variantId}),
     }).catch(() => null);
-    if (!res || !res.ok) throw new Error(`Couldn't add “${hit.title}” to the repertoire. Try again.`);
+    if (!res || !res.ok) throw new Error(t('Couldn’t add “%s” to the repertoire. Try again.', hit.title));
     location.href = `/song/${hit.variantId}?band=${bandId}`;
   },
   isInList: (id) => !!document.querySelector(`[data-repertoire-list] [data-variant-id="${id}"]`),
@@ -171,7 +171,7 @@ document.getElementById('new-variant-form').addEventListener('submit', async (e)
       body: JSON.stringify({title, artist}),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(`Couldn't create “${title}”. Try again.`);
+    if (!res.ok) throw new Error(t('Couldn’t create “%s”. Try again.', title));
     // Straight into edit mode, not the Play page — a brand-new original
     // has an empty [Verse] placeholder and nothing to play yet.
     location.href = `/song/${data.variantId}?edit=1`;
@@ -198,7 +198,7 @@ document.getElementById('new-variant-form').addEventListener('submit', async (e)
     const res = await fetch(url, opts).catch(() => null);
     if (res && res.ok) { location.reload(); return; }
     Forms.busy(btn, false);
-    Forms.status(resultMsg, `Couldn't add “${hit.title}”. It may already be in the repertoire; if not, try again.`, 'error');
+    Forms.status(resultMsg, t('Couldn’t add “%s”. It may already be in the repertoire; if not, try again.', hit.title), 'error');
   }
 
   async function search() {
@@ -208,11 +208,11 @@ document.getElementById('new-variant-form').addEventListener('submit', async (e)
     const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`).catch(() => null);
     const hits = res && res.ok ? await res.json().catch(() => []) : null;
     if (!hits) {
-      results.innerHTML = '<p class="hint">Couldn\'t search the catalog. Try again.</p>';
+      results.innerHTML = '<p class="hint">' + t('Couldn’t search the catalog. Try again.') + '</p>';
       return;
     }
     if (!hits.length) {
-      results.innerHTML = '<p class="hint">No songs match that.</p>';
+      results.innerHTML = '<p class="hint">' + t('No songs match that.') + '</p>';
       return;
     }
     for (const hit of hits) {
@@ -237,13 +237,13 @@ document.getElementById('new-variant-form').addEventListener('submit', async (e)
       actions.style.gap = '0.4rem';
       const addBtn = document.createElement('button');
       addBtn.type = 'button';
-      addBtn.textContent = 'Add';
-      addBtn.setAttribute('aria-label', `Add ${hit.title}`);
+      addBtn.textContent = t('Add');
+      addBtn.setAttribute('aria-label', t('Add %s', hit.title));
       addBtn.addEventListener('click', () => doAdd(hit, false, addBtn));
       const forkBtn = document.createElement('button');
       forkBtn.type = 'button';
-      forkBtn.textContent = 'Add a copy';
-      forkBtn.setAttribute('aria-label', `Add a copy of ${hit.title}`);
+      forkBtn.textContent = t('Add a copy');
+      forkBtn.setAttribute('aria-label', t('Add a copy of %s', hit.title));
       forkBtn.addEventListener('click', () => doAdd(hit, true, forkBtn));
       actions.append(addBtn, forkBtn);
       row.appendChild(actions);
@@ -264,12 +264,12 @@ document.getElementById('new-variant-form').addEventListener('submit', async (e)
 })();
 document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (!confirm(`Remove “${btn.dataset.title}” from the band's repertoire?`)) return;
+    if (!confirm(t('Remove “%s” from the band’s repertoire?', btn.dataset.title))) return;
     Forms.busy(btn, true);
     const res = await fetch(`/api/bands/${bandId}/catalog/${btn.dataset.variantId}`, {method: 'DELETE'}).catch(() => null);
     if (res && res.ok) { btn.closest('.gig-row').remove(); return; }
     Forms.busy(btn, false);
-    Forms.status(btn.parentElement.querySelector('.form-status'), "Couldn't remove it. Try again.", 'error');
+    Forms.status(btn.parentElement.querySelector('.form-status'), t('Couldn’t remove it. Try again.'), 'error');
   });
 });
 
@@ -283,7 +283,7 @@ document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   document.getElementById('close-add-song')?.addEventListener('click', () => dialog.close());
   dialog.querySelectorAll('.add-song-tab').forEach(tab => {
     tab.addEventListener('click', () => {
-      dialog.querySelectorAll('.add-song-tab').forEach(t => t.classList.toggle('active', t === tab));
+      dialog.querySelectorAll('.add-song-tab').forEach(el => el.classList.toggle('active', el === tab));
       dialog.querySelectorAll('.add-song-panel').forEach(p => { p.hidden = p.dataset.panel !== tab.dataset.panel; });
     });
   });

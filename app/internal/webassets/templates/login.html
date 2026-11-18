@@ -1,10 +1,10 @@
 {{define "login"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Log in — Songbooks</title>
+<title>{{t "Log in"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -12,55 +12,55 @@
 <main class="index auth-page">
   <div class="hero">
     <div>
-      <h2>Log in</h2>
-      <p>Three ways in: a passkey, a password, or a one-time emailed link — whichever you've got set up.</p>
+      <h2>{{t "Log in"}}</h2>
+      <p>{{t "Three ways in: a passkey, a password, or a one-time emailed link — whichever you've got set up."}}</p>
     </div>
   </div>
 
   <section class="card" id="passkey-login">
-    <h3>Log in with a passkey</h3>
-    <p class="hint">Touch ID, Face ID, Windows Hello, or a security key — no password to remember or email to wait for.</p>
-    <button type="button" id="webauthn-login-btn" class="primary">Log in with a passkey</button>
+    <h3>{{t "Log in with a passkey"}}</h3>
+    <p class="hint">{{t "Touch ID, Face ID, Windows Hello, or a security key — no password to remember or email to wait for."}}</p>
+    <button type="button" id="webauthn-login-btn" class="primary">{{t "Log in with a passkey"}}</button>
     <p class="form-status" id="webauthn-login-status" role="status"></p>
-    <p class="hint" id="webauthn-unsupported" hidden>This browser can't use passkeys — use your password or a login link below instead.</p>
+    <p class="hint" id="webauthn-unsupported" hidden>{{t "This browser can't use passkeys — use your password or a login link below instead."}}</p>
   </section>
 
   <section class="card">
-    <h3>Log in with a password</h3>
+    <h3>{{t "Log in with a password"}}</h3>
     {{/* Deliberately one message for every failure (no such account, no
          password set, wrong password) — see handlePasswordLogin. */}}
     <form method="post" action="/login" class="form-stack" id="password-login-form">
-      {{if .InvalidCredentials}}<p class="form-status is-error" role="alert">That username or email and password don't match. Check both and try again.</p>{{end}}
+      {{if .InvalidCredentials}}<p class="form-status is-error" role="alert">{{t "That username or email and password don't match. Check both and try again."}}</p>{{end}}
       <input type="hidden" name="mode" value="password">
       <div class="field">
-        <label for="login-identifier">Username or email</label>
+        <label for="login-identifier">{{t "Username or email"}}</label>
         <input id="login-identifier" type="text" name="identifier" inputmode="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next" required {{if not .InvalidCredentials}}autofocus{{end}}>
       </div>
       <div class="field">
-        <label for="login-password">Password</label>
+        <label for="login-password">{{t "Password"}}</label>
         <div class="pw-field">
           <input id="login-password" type="password" name="password" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go" required>
-          <button type="button" class="pw-toggle" aria-controls="login-password" aria-pressed="false" hidden><span class="pw-toggle-text">Show</span><span class="sr-only"> password</span></button>
+          <button type="button" class="pw-toggle" aria-controls="login-password" aria-pressed="false" hidden><span class="pw-toggle-text">{{t "Show"}}</span><span class="sr-only"> {{t "password"}}</span></button>
         </div>
       </div>
-      <div class="form-actions"><button type="submit" class="primary">Log in</button></div>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Log in"}}</button></div>
     </form>
-    <p class="hint"><a href="#email-link">Forgot your password?</a> Get a login link by email below, then set a new password from your profile page.</p>
+    <p class="hint"><a href="#email-link">{{t "Forgot your password?"}}</a> {{t "Get a login link by email below, then set a new password from your profile page."}}</p>
   </section>
 
   <section class="card" id="email-link">
-    <h3>Email me a login link</h3>
+    <h3>{{t "Email me a login link"}}</h3>
     <form method="post" action="/login" class="form-stack">
-      {{if .Error}}<p class="form-status is-error" role="alert">We couldn't send a login link. Try again in a minute.</p>{{end}}
+      {{if .Error}}<p class="form-status is-error" role="alert">{{t "We couldn't send a login link. Try again in a minute."}}</p>{{end}}
       <div class="field">
-        <label for="login-email">Email</label>
+        <label for="login-email">{{t "Email"}}</label>
         <input id="login-email" type="email" name="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="send" required>
       </div>
-      <div class="form-actions"><button type="submit">Email me a login link</button></div>
+      <div class="form-actions"><button type="submit">{{t "Email me a login link"}}</button></div>
     </form>
   </section>
 
-  <p class="hint" style="text-align:center">New here? You'll need an invite link to create an account.</p>
+  <p class="hint" style="text-align:center">{{t "New here? You'll need an invite link to create an account."}}</p>
 </main>
 <script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
 <script>
@@ -102,12 +102,12 @@
 
   // The server's own error strings are written for logs; these say what
   // to do next.
-  const FALLBACK = ' Try again, or use your password or a login link below.';
+  const FALLBACK = ' ' + t('Try again, or use your password or a login link below.');
   function friendly(err, status) {
-    if (err && err.name === 'NotAllowedError') return 'The passkey request was cancelled or timed out.' + FALLBACK;
-    if (status === 400) return 'That took too long.' + FALLBACK;
-    if (status === 404) return 'That passkey isn’t linked to an account here any more — it may have been removed.' + FALLBACK;
-    return 'Couldn’t log in with that passkey.' + FALLBACK;
+    if (err && err.name === 'NotAllowedError') return t('The passkey request was cancelled or timed out.') + FALLBACK;
+    if (status === 400) return t('That took too long.') + FALLBACK;
+    if (status === 404) return t('That passkey isn’t linked to an account here any more — it may have been removed.') + FALLBACK;
+    return t('Couldn’t log in with that passkey.') + FALLBACK;
   }
 
   btn.addEventListener('click', async () => {

@@ -262,7 +262,7 @@ func (s *Server) handlePlaylistPage(w http.ResponseWriter, r *http.Request) {
 			if rec, err := s.store.ChosenSongRecording(r.Context(), sb.OwnerBandID, row.VariantID); err == nil && rec != nil {
 				t.Source, t.Category, t.AudioURL, t.VideoID, t.SourceLabel = "band", "", "", "", "Ours"
 				t.Remote = &playlistRemote{Host: rec.APIHost, Code: rec.Code, FileID: rec.FileID}
-				t.Subtitle = rec.Label
+				t.Subtitle = rec.Label(s.langOf(w))
 				for i := range t.Sections {
 					t.Sections[i].Start = -1
 				}

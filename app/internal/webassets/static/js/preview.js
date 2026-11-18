@@ -16,7 +16,7 @@
       });
       preview.innerHTML = await res.text();
     } catch (e) {
-      preview.innerHTML = '<p class="hint">preview unavailable</p>';
+      preview.innerHTML = '<p class="hint">' + t('preview unavailable') + '</p>';
     }
   }
 

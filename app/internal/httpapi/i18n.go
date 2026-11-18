@@ -133,8 +133,9 @@ func (s *Server) handleI18nJS(w http.ResponseWriter, r *http.Request) {
 }
 
 // jsT is the scripts' t(): t('Saved'), t('%d songs', n) (fmt's %d and %s,
-// in order); tn(n, '%d song', '%d songs').
-const jsT = `window.t=function(m){var s=(window.SB_I18N||{})[m]||m,a=Array.prototype.slice.call(arguments,1),i=0;return s.replace(/%[ds]/g,function(){return String(a[i++])})};` +
+// in order), t('notation|Staff') (a context before the bar); tn(n, '%d
+// song', '%d songs').
+const jsT = `window.t=function(m){var s=(window.SB_I18N||{})[m],b=m.indexOf('|');if(s===undefined)s=(b>0&&m.slice(0,b).indexOf(' ')<0)?m.slice(b+1):m;var a=Array.prototype.slice.call(arguments,1),i=0;return s.replace(/%[ds]/g,function(){return String(a[i++])})};` +
 	`window.tn=function(n,one,other){var single=window.SB_LANG==='fr'?(n===0||n===1):n===1;return window.t(single?one:other,n)};`
 
 // handlePutMyLocale is PUT /api/me/locale: the person's language ("" for

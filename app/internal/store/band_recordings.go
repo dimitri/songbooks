@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"app/internal/i18n"
 )
 
 // A band's recordings (docs/band-recordings.md, migration 0075): the files
@@ -1024,44 +1026,50 @@ type RemoteRecording struct {
 	APIHost     string
 	Code        string
 	FileID      int64
-	Label       string // where it's from: "Rehearsal 13 Mar 2025, take 2"
+	// Where it's from (Label): its kind, date and take.
+	Kind string
+	Date *time.Time
+	Take *int
+}
+
+// Label says where the recording is from, in lang: "Rehearsal 13 Mar
+// 2025, take 2".
+func (r RemoteRecording) Label(lang string) string {
+	return recordingLabel(lang, r.Kind, r.Date, r.Take)
 }
 
 // ChosenSongRecording is the recording bandID chose for a song, ready to
 // play; nil when it chose none.
 func (st *Store) ChosenSongRecording(ctx context.Context, bandID, variantID int64) (*RemoteRecording, error) {
 	var r RemoteRecording
-	var kind string
-	var date *time.Time
-	var take *int
 	err := st.db.QueryRow(ctx, `
 		SELECT r.id, s.api_host, s.code, r.file_id, r.kind, r.session_date, r.take
 		FROM band_song_recordings c JOIN band_recordings r ON r.id = c.recording_id
 		JOIN band_recording_sources s ON s.id = r.source_id
 		WHERE c.band_id = $1 AND c.variant_id = $2 AND NOT r.gone`, bandID, variantID).
-		Scan(&r.RecordingID, &r.APIHost, &r.Code, &r.FileID, &kind, &date, &take)
+		Scan(&r.RecordingID, &r.APIHost, &r.Code, &r.FileID, &r.Kind, &r.Date, &r.Take)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	r.Label = recordingLabel(kind, date, take)
 	return &r, nil
 }
 
-// recordingLabel says where a recording is from.
-func recordingLabel(kind string, date *time.Time, take *int) string {
+// recordingLabel says where a recording is from, in lang.
+func recordingLabel(lang, kind string, date *time.Time, take *int) string {
 	label := map[string]string{"rehearsal": "Rehearsal", "concert": "Concert", "audition": "Audition", "studio": "Studio",
 		"album": "Album", "setlist": "Set list"}[kind]
 	if label == "" {
 		label = "Recording"
 	}
+	label = i18n.T(lang, label)
 	if date != nil {
-		label += " " + date.Format("2 Jan 2006")
+		label += " " + i18n.Date(lang, *date, "2 Jan 2006")
 	}
 	if take != nil {
-		label += fmt.Sprintf(", take %d", *take)
+		label += i18n.T(lang, ", take %d", *take)
 	}
 	return label
 }

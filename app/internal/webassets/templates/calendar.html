@@ -5,21 +5,22 @@
 {{define "calendar-month"}}
 <section class="home-section calendar" id="calendar" aria-labelledby="calendar-title">
   <div class="home-section-head calendar-head">
-    <h3 id="calendar-title">{{.Title}}</h3>
-    <nav class="calendar-nav" aria-label="Month">
-      <a class="calendar-nav-btn" href="{{.Base}}?month={{.Prev}}#calendar" aria-label="Previous month">{{template "icon-back"}}</a>
-      {{if not .IsCurrent}}<a class="calendar-nav-today" href="{{.Base}}#calendar">This month</a>{{end}}
-      <a class="calendar-nav-btn" href="{{.Base}}?month={{.Next}}#calendar" aria-label="Next month">{{template "icon-forward"}}</a>
+    {{$title := .Title}}{{range .Weeks}}{{range .}}{{if and .InMonth (eq .Date.Day 1)}}{{$title = date .Date "January 2006"}}{{end}}{{end}}{{end}}
+    <h3 id="calendar-title" style="text-transform:capitalize">{{$title}}</h3>
+    <nav class="calendar-nav" aria-label="{{t "Month"}}">
+      <a class="calendar-nav-btn" href="{{.Base}}?month={{.Prev}}#calendar" aria-label="{{t "Previous month"}}">{{template "icon-back"}}</a>
+      {{if not .IsCurrent}}<a class="calendar-nav-today" href="{{.Base}}#calendar">{{t "This month"}}</a>{{end}}
+      <a class="calendar-nav-btn" href="{{.Base}}?month={{.Next}}#calendar" aria-label="{{t "Next month"}}">{{template "icon-forward"}}</a>
     </nav>
   </div>
   <table class="calendar-grid">
     <thead><tr>
-      <th scope="col"><abbr title="Monday">M</abbr></th><th scope="col"><abbr title="Tuesday">T</abbr></th><th scope="col"><abbr title="Wednesday">W</abbr></th><th scope="col"><abbr title="Thursday">T</abbr></th><th scope="col"><abbr title="Friday">F</abbr></th><th scope="col"><abbr title="Saturday">S</abbr></th><th scope="col"><abbr title="Sunday">S</abbr></th>
+      {{range index .Weeks 0}}{{$day := date .Date "Monday"}}<th scope="col"><abbr title="{{$day}}" style="text-transform:uppercase">{{slice $day 0 1}}</abbr></th>{{end}}
     </tr></thead>
     <tbody>
     {{range .Weeks}}<tr>
       {{range .}}<td class="{{if not .InMonth}}is-other{{end}}{{if .IsToday}} is-today{{end}}{{if .IsPast}} is-past{{end}}">
-        {{if and .Items .InMonth}}<a class="calendar-day" href="#day-{{.Date.Format "2006-01-02"}}" aria-label="{{.Date.Format "Monday 2 January"}}: {{len .Items}} planned">{{else}}<span class="calendar-day">{{end}}
+        {{if and .Items .InMonth}}<a class="calendar-day" href="#day-{{.Date.Format "2006-01-02"}}" aria-label="{{t "%s: %d planned" (date .Date "Monday 2 January") (len .Items)}}">{{else}}<span class="calendar-day">{{end}}
           <span class="calendar-date"{{if .IsToday}} aria-current="date"{{end}}>{{.Date.Day}}</span>
           {{range .Items}}<span class="calendar-item kind-{{.Kind}}"><span class="calendar-dot" aria-hidden="true"></span><span class="calendar-item-title">{{.Title}}</span></span>{{end}}
         {{if and .Items .InMonth}}</a>{{else}}</span>{{end}}
@@ -28,23 +29,23 @@
     </tbody>
   </table>
   <ul class="calendar-legend" aria-hidden="true">
-    <li class="kind-gig"><span class="calendar-dot"></span> Gig</li>
-    <li class="kind-rehearsal"><span class="calendar-dot"></span> Rehearsal</li>
-    <li class="kind-event"><span class="calendar-dot"></span> Event</li>
+    <li class="kind-gig"><span class="calendar-dot"></span> {{t "Gig"}}</li>
+    <li class="kind-rehearsal"><span class="calendar-dot"></span> {{t "Rehearsal"}}</li>
+    <li class="kind-event"><span class="calendar-dot"></span> {{t "Event"}}</li>
   </ul>
   {{$today := .Today}}
   <ol class="calendar-agenda">
   {{range .Items}}
     <li{{with .Anchor}} id="{{.}}"{{end}} class="calendar-agenda-row kind-{{.Kind}}{{if .Starts.Before $today}} is-past{{end}}">
-      <div class="coming-up-date"><span class="month">{{.Starts.Format "Mon"}}</span><span class="day">{{.Starts.Day}}</span></div>
+      <div class="coming-up-date"><span class="month">{{date .Starts "Mon"}}</span><span class="day">{{.Starts.Day}}</span></div>
       <div class="calendar-agenda-text">
         <a class="calendar-agenda-title" href="{{.Link}}">{{.Title}}</a>
-        <div class="calendar-agenda-meta"><span class="calendar-kind">{{.KindLabel}}</span>{{if not .AllDay}} &middot; {{.Starts.Format "15:04"}}{{end}}{{if .GroupName}} &middot; {{.GroupName}}{{end}}{{if .Place}} &middot; {{.Place}}{{end}}</div>
+        <div class="calendar-agenda-meta"><span class="calendar-kind">{{t .KindLabel}}</span>{{if not .AllDay}} &middot; {{.Starts.Format "15:04"}}{{end}}{{if .GroupName}} &middot; {{.GroupName}}{{end}}{{if .Place}} &middot; {{.Place}}{{end}}</div>
       </div>
-      {{if and .SetlistID (not (.Starts.Before $today))}}<a class="chip-link" href="/setlists/{{.SetlistID}}">{{template "icon-setlists"}} Set list</a>{{end}}
+      {{if and .SetlistID (not (.Starts.Before $today))}}<a class="chip-link" href="/setlists/{{.SetlistID}}">{{template "icon-setlists"}} {{t "Set list"}}</a>{{end}}
     </li>
   {{else}}
-    <li class="attention-empty">Nothing planned in {{.Title}}.</li>
+    <li class="attention-empty">{{t "Nothing planned in %s." $title}}</li>
   {{end}}
   </ol>
 </section>

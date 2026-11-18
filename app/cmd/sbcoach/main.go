@@ -3,6 +3,7 @@
 //
 //	sbcoach community --db URL --name "Chloé Paul" --coach chloepaul [--student tapoueh] [--look look.json]
 //	sbcoach songs --db URL --community 21 --student tapoueh --songs 206,215,228 [--clips clips.tsv]
+//	sbcoach locale --db URL (--community ID | --band ID | --person USER) --locale fr
 //
 // community makes a coaching community, its coach its first member (an
 // account made for them when there's none yet: no password, no email,
@@ -38,10 +39,11 @@ import (
 
 const usage = `usage:
   sbcoach community --db URL --name NAME --coach USER [--student USER] [--look FILE]
-  sbcoach songs --db URL --community ID --student USER --songs ID,ID,... [--actor USER] [--clips FILE]`
+  sbcoach songs --db URL --community ID --student USER --songs ID,ID,... [--actor USER] [--clips FILE]
+  sbcoach locale --db URL (--community ID | --band ID | --person USER) --locale LANG`
 
 func main() {
-	if len(os.Args) < 2 || (os.Args[1] != "community" && os.Args[1] != "songs") {
+	if len(os.Args) < 2 || (os.Args[1] != "community" && os.Args[1] != "songs" && os.Args[1] != "locale") {
 		log.Fatal(usage)
 	}
 	cmd := os.Args[1]
@@ -55,6 +57,9 @@ func main() {
 	student := fs.String("student", "", "a student's username")
 	songs := fs.String("songs", "", "songs: song ids, comma separated")
 	clips := fs.String("clips", "", "songs: a file of songID<TAB>YouTube URL lines")
+	bandID := fs.Int64("band", 0, "locale: a band")
+	personName := fs.String("person", "", "locale: a person's username")
+	locale := fs.String("locale", "", "locale: the language, en or fr (\"\" for automatic); community: the community's and its coach's")
 	fs.Parse(os.Args[2:])
 	ctx := context.Background()
 	st, err := store.New(ctx, *dbURL)
@@ -111,7 +116,35 @@ func main() {
 				log.Fatal(err)
 			}
 		}
+		if *locale != "" {
+			if err := st.SetCommunityLocale(ctx, id, *locale); err != nil {
+				log.Fatal(err)
+			}
+			if err := st.SetPersonLocale(ctx, coachID, *locale); err != nil {
+				log.Fatal(err)
+			}
+		}
 		fmt.Printf("community %d: %s\n", id, *name)
+
+	case "locale":
+		// The language of a community's or band's pages, or a person's.
+		switch {
+		case *communityID != 0:
+			err = st.SetCommunityLocale(ctx, *communityID, *locale)
+		case *bandID != 0:
+			err = st.SetBandLocale(ctx, *bandID, *locale)
+		case *personName != "":
+			var p *store.Person
+			if p, err = st.GetPersonByUsername(ctx, *personName); err == nil {
+				err = st.SetPersonLocale(ctx, p.ID, *locale)
+			}
+		default:
+			log.Fatal(usage)
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("language set to %q\n", *locale)
 
 	case "songs":
 		if *communityID == 0 || *student == "" || *songs == "" {

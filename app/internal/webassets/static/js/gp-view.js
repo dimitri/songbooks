@@ -24,7 +24,7 @@
   function fileBytes() {
     if (!bytesPromise) {
       bytesPromise = fetch(url, { credentials: 'same-origin' })
-        .then((r) => { if (!r.ok) throw new Error('could not load the Guitar Pro file'); return r.arrayBuffer(); })
+        .then((r) => { if (!r.ok) throw new Error(t('Could not load the Guitar Pro file.')); return r.arrayBuffer(); })
         .then((b) => new Uint8Array(b));
     }
     return bytesPromise;
@@ -122,7 +122,7 @@
     if (fig.dataset.trackName) {
       let i = Number(fig.dataset.track);
       if (!(i >= 0)) i = GPFacts.findTrack(score.tracks, fig.dataset.trackName);
-      if (i < 0) { failed(body, 'The file has no track “' + fig.dataset.trackName + '”.'); return; }
+      if (i < 0) { failed(body, t('The file has no track “%s”.', fig.dataset.trackName)); return; }
       tracks = [i];
     } else {
       tracks = score.tracks.map((t, i) => i);
@@ -143,7 +143,7 @@
         const api = new alphaTab.AlphaTabApi(host, s);
         api.renderScore(score, tracks);
       } catch (e) {
-        failed(host, 'Couldn’t draw these bars.');
+        failed(host, t('Couldn’t draw these bars.'));
       }
     }
   }
@@ -196,8 +196,8 @@
     if (named.length) full.shown = new Set(named);
     if (score.tracks.length <= 3 && !named.length) full.shown = new Set(score.tracks.map((t, i) => i));
 
-    score.tracks.forEach((t, i) => {
-      const b = el('button', 'gp-track-chip', t.name || ('Track ' + (i + 1)));
+    score.tracks.forEach((tr, i) => {
+      const b = el('button', 'gp-track-chip', tr.name || t('Track %d', i + 1));
       b.type = 'button';
       b.setAttribute('aria-pressed', full.shown.has(i));
       b.addEventListener('click', () => {
@@ -232,7 +232,7 @@
       const playing = e.state === 1;
       play.innerHTML = playing ? pauseIcon : playIcon;
       play.classList.toggle('active', playing);
-      play.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+      play.setAttribute('aria-label', playing ? t('Pause') : t('Play'));
     });
     const time = page.querySelector('.gp-time');
     const bar = page.querySelector('.gp-bar');
@@ -320,7 +320,7 @@
     const at = sections.findIndex((x) => String(x.index) === b.dataset.gpPick);
     const req = (method, index, body, track) => fetch(`/api/songs/${variantId}/sections/${index}/gp${method === 'DELETE' ? '?track=' + encodeURIComponent(track || '') : ''}`, {
       method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined,
-    }).then(async (r) => { if (!r.ok) throw new Error((await r.text()) || 'Saving failed'); });
+    }).then(async (r) => { if (!r.ok) throw new Error((await r.text()) || t('Saving failed')); });
     GPBarPicker.open({
       variantId, sections, current: Math.max(0, at), track: b.dataset.track !== undefined && b.hasAttribute('data-track') ? b.dataset.track : undefined,
       onApply: ({ index, track, spec }) => req('PUT', index, { track, spec }),

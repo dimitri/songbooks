@@ -1,11 +1,11 @@
 {{define "band_members"}}
 {{$brand := brandFor "band" .Band.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Band.Name}} — members</title>
+<title>{{t "%s — members" .Band.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,19 +15,19 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
-  <h1>{{.Band.Name}} — members</h1>
+  <h1>{{t "%s — members" .Band.Name}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
   {{template "band-tabs" (bandTabs .Band.ID "members")}}
 
-  <p class="hint">Any member can add or remove people. Only core members change who is core or guest.</p>
+  <p class="hint">{{t "Any member can add or remove people. Only core members change who is core or guest."}}</p>
 
   {{/* Phase 27: one roster — current members (with instrument) AND every
        unclaimed group-invite slot ("hasn't joined yet"), instead of two
        disconnected tables. */}}
   <section class="home-section">
-    <div class="home-section-head"><h3>Roster</h3></div>
+    <div class="home-section-head"><h3>{{t "Roster"}}</h3></div>
     <div class="roster-list">
     {{range .Members}}
       {{if .IsCurrent}}
@@ -35,121 +35,121 @@
         <div class="roster-row-main">
           <div class="roster-name">{{.DisplayName}} {{if not (hasPrefix .Username "pending-")}}<span class="hint">({{.Username}})</span>{{end}}</div>
           <div class="roster-instruments">
-          {{range .Instruments}}<span class="roster-instrument-badge">{{template "instrument-icon" .}} {{.}}</span>{{else}}<span class="hint">no instrument set</span>{{end}}
+          {{range .Instruments}}<span class="roster-instrument-badge">{{template "instrument-icon" .}} {{.}}</span>{{else}}<span class="hint">{{t "no instrument set"}}</span>{{end}}
           </div>
         </div>
         {{if $.IsCore}}
         {{/* Saves as soon as it changes, so the row says whether it did. */}}
-        <select class="status-select" data-person-id="{{.PersonID}}" aria-label="Role for {{.DisplayName}}">
-          <option value="core" {{if eq .Status "core"}}selected{{end}}>Core</option>
-          <option value="guest" {{if eq .Status "guest"}}selected{{end}}>Guest</option>
+        <select class="status-select" data-person-id="{{.PersonID}}" aria-label="{{t "Role for %s" .DisplayName}}">
+          <option value="core" {{if eq .Status "core"}}selected{{end}}>{{t "role|Core"}}</option>
+          <option value="guest" {{if eq .Status "guest"}}selected{{end}}>{{t "role|Guest"}}</option>
         </select>
         {{else}}
-        <span class="hint">{{.Status}}</span>
+        <span class="hint">{{t (printf "role|%s" .Status)}}</span>
         {{end}}
         <span class="form-status" role="status"></span>
-        <button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">Remove</button>
+        <button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>
       </div>
       {{end}}
     {{end}}
     {{if .ShellPeople}}
     <div class="roster-pending-header">
-      <span>Name</span><span>Memberships</span><span></span><span></span>
+      <span>{{t "Name"}}</span><span>{{t "Memberships"}}</span><span></span><span></span>
     </div>
     {{end}}
     {{range .ShellPeople}}
       <div class="roster-row roster-row-pending" data-person-id="{{.PersonID}}">
         <div class="roster-name">{{.DisplayName}}</div>
         <div class="roster-instruments">
-          {{range .Memberships}}<span class="roster-instrument-badge">{{.Name}} ({{.Status}})</span>{{end}}
+          {{range .Memberships}}<span class="roster-instrument-badge">{{.Name}} ({{t (printf "role|%s" .Status)}})</span>{{end}}
         </div>
-        <span class="roster-pending-badge">hasn't joined yet</span>
+        <span class="roster-pending-badge">{{t "hasn’t joined yet"}}</span>
         {{if .OpenInviteToken}}
         <span class="invite-link-row">
           <code class="invite-link-url" data-url="/invite/{{.OpenInviteToken}}">/invite/{{.OpenInviteToken}}</code>
-          <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}">Copy</button>
-          <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}">QR code</button>
+          <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}">{{t "Copy"}}</button>
+          <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}">{{t "QR code"}}</button>
         </span>
         {{else}}
-        <button type="button" class="create-shell-invite-btn" data-person-id="{{.PersonID}}">Get invite link</button>
+        <button type="button" class="create-shell-invite-btn" data-person-id="{{.PersonID}}">{{t "Get invite link"}}</button>
         {{end}}
-        <button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">Remove</button>
+        <button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>
         <span class="form-status" role="status"></span>
       </div>
     {{end}}
     {{/* One table-like row, so the labels are for screen readers only;
          the placeholders show what goes where. */}}
     <form class="roster-row roster-quick-add" id="roster-quick-add-form">
-      <label for="roster-add-name" class="sr-only">Name</label>
-      <input type="text" id="roster-add-name" placeholder="+ Add someone by name" autocomplete="off" enterkeyhint="done" required>
-      <label for="roster-add-instrument" class="sr-only">Instrument (optional)</label>
-      <input type="text" id="roster-add-instrument" placeholder="Instrument, e.g. bass" autocomplete="off" enterkeyhint="done">
-      <label for="roster-add-status" class="sr-only">Role</label>
+      <label for="roster-add-name" class="sr-only">{{t "Name"}}</label>
+      <input type="text" id="roster-add-name" placeholder="{{t "+ Add someone by name"}}" autocomplete="off" enterkeyhint="done" required>
+      <label for="roster-add-instrument" class="sr-only">{{t "Instrument (optional)"}}</label>
+      <input type="text" id="roster-add-instrument" placeholder="{{t "Instrument, e.g. bass"}}" autocomplete="off" enterkeyhint="done">
+      <label for="roster-add-status" class="sr-only">{{t "Role"}}</label>
       <select id="roster-add-status">
-        <option value="core" selected>Core</option>
-        <option value="guest">Guest</option>
+        <option value="core" selected>{{t "role|Core"}}</option>
+        <option value="guest">{{t "role|Guest"}}</option>
       </select>
       <span id="roster-add-result" class="form-status" role="status"></span>
-      <button type="submit" id="roster-add-btn" class="primary">Add to roster</button>
+      <button type="submit" id="roster-add-btn" class="primary">{{t "Add to roster"}}</button>
     </form>
     </div>
-    <p class="hint">They're on the roster right away, with a personal invite link to send them.</p>
+    <p class="hint">{{t "They’re on the roster right away, with a personal invite link to send them."}}</p>
   </section>
 
-  <label class="check"><input type="checkbox" id="show-past-toggle"> Show past members</label>
+  <label class="check"><input type="checkbox" id="show-past-toggle"> {{t "Show past members"}}</label>
   <div class="table-scroll" id="past-members-wrap" hidden><table class="card table-stack" style="width:100%">
-    <thead><tr><th>Username</th><th>Name</th><th>Status</th><th>Joined</th><th>Left</th></tr></thead>
+    <thead><tr><th>{{t "Username"}}</th><th>{{t "Name"}}</th><th>{{t "Status"}}</th><th>{{t "member|Joined"}}</th><th>{{t "member|Left"}}</th></tr></thead>
     <tbody>
     {{range .Members}}
       {{if not .IsCurrent}}
       <tr>
-        <td data-label="Username">{{.Username}}</td>
-        <td data-label="Name">{{.DisplayName}}</td>
-        <td data-label="Status">{{.Status}}</td>
-        <td data-label="Joined">{{.JoinedAt.Format "2006-01-02"}}</td>
-        <td data-label="Left">{{if .LeftAt}}{{.LeftAt.Format "2006-01-02"}}{{end}}</td>
+        <td data-label="{{t "Username"}}">{{.Username}}</td>
+        <td data-label="{{t "Name"}}">{{.DisplayName}}</td>
+        <td data-label="{{t "Status"}}">{{t (printf "role|%s" .Status)}}</td>
+        <td data-label="{{t "member|Joined"}}">{{.JoinedAt.Format "2006-01-02"}}</td>
+        <td data-label="{{t "member|Left"}}">{{if .LeftAt}}{{.LeftAt.Format "2006-01-02"}}{{end}}</td>
       </tr>
       {{end}}
     {{end}}
     </tbody>
   </table></div>
 
-  <div class="home-section-head" style="margin-top:0.4rem;"><h3>Add people to this band</h3></div>
-  <p class="hint">For someone who already has an account, or a link anyone can use once.</p>
+  <div class="home-section-head" style="margin-top:0.4rem;"><h3>{{t "Add people to this band"}}</h3></div>
+  <p class="hint">{{t "For someone who already has an account, or a link anyone can use once."}}</p>
   <div class="card-grid">
     <div class="card">
-      <h2>Add an existing account, or send a one-off link</h2>
+      <h2>{{t "Add an existing account, or send a one-off link"}}</h2>
       {{range .OpenInvites}}
       <div class="invite-link-row">
         <code class="invite-link-url" data-url="/invite/{{.Token}}">/invite/{{.Token}}</code>
-        <button type="button" class="copy-link-btn" data-url="/invite/{{.Token}}">Copy</button>
-        <button type="button" class="qr-link-btn" data-url="/invite/{{.Token}}">QR code</button>
-        <span class="hint">({{.Status}}, expires {{.ExpiresAt.Format "2006-01-02"}})</span>
+        <button type="button" class="copy-link-btn" data-url="/invite/{{.Token}}">{{t "Copy"}}</button>
+        <button type="button" class="qr-link-btn" data-url="/invite/{{.Token}}">{{t "QR code"}}</button>
+        <span class="hint">({{t (printf "role|%s" .Status)}}, {{t "expires %s" (.ExpiresAt.Format "2006-01-02")}})</span>
       </div>
       {{end}}
       <form class="form-stack" id="add-member-form">
         <div class="field">
-          <label for="add-username">Username <span class="field-optional">(optional)</span></label>
-          <p class="field-hint" id="add-username-hint">Leave it blank to get a one-time link to send them instead.</p>
-          <input type="text" id="add-username" placeholder="e.g. marcguitar" aria-describedby="add-username-hint" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
+          <label for="add-username">{{t "Username"}} <span class="field-optional">{{t "(optional)"}}</span></label>
+          <p class="field-hint" id="add-username-hint">{{t "Leave it blank to get a one-time link to send them instead."}}</p>
+          <input type="text" id="add-username" placeholder="{{t "e.g. marcguitar"}}" aria-describedby="add-username-hint" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
         </div>
         <div class="field">
-          <label for="add-status">Role</label>
-          <p class="field-hint" id="add-status-hint">Core members can change who is core or guest; guests can't.</p>
+          <label for="add-status">{{t "Role"}}</label>
+          <p class="field-hint" id="add-status-hint">{{t "Core members can change who is core or guest; guests can’t."}}</p>
           <select id="add-status" aria-describedby="add-status-hint">
-            <option value="core" selected>Core</option>
-            <option value="guest">Guest</option>
+            <option value="core" selected>{{t "role|Core"}}</option>
+            <option value="guest">{{t "role|Guest"}}</option>
           </select>
         </div>
         <div class="form-actions">
-          <button type="submit" id="add-member-btn" class="primary">Create invite link</button>
+          <button type="submit" id="add-member-btn" class="primary">{{t "Create invite link"}}</button>
         </div>
         <p id="add-member-result" class="form-status" role="status"></p>
       </form>
     </div>
   </div>
 
-  <p class="hint">The band's name, look and deletion are in <a href="/bands/{{.Band.ID}}/settings">Settings</a>.</p>
+  <p class="hint">{{t "The band’s name, look and deletion are in"}} <a href="/bands/{{.Band.ID}}/settings">{{t "Settings"}}</a>.</p>
 </main>
 <script src="/static/js/qr.js?v={{staticVersion}}"></script>
 <script>
@@ -172,7 +172,7 @@ document.getElementById('show-past-toggle').addEventListener('change', (e) => {
   const form = document.getElementById('add-member-form');
   const userInput = document.getElementById('add-username');
   const btn = document.getElementById('add-member-btn');
-  const label = () => { btn.textContent = userInput.value.trim() ? 'Add to band' : 'Create invite link'; };
+  const label = () => { btn.textContent = userInput.value.trim() ? t('Add to band') : t('Create invite link'); };
   userInput.addEventListener('input', label);
   label();
   form.addEventListener('submit', (e) => {
@@ -186,18 +186,18 @@ document.getElementById('show-past-toggle').addEventListener('change', (e) => {
           body: JSON.stringify({username, status}),
         });
         if (res.status === 404) {
-          Forms.fieldError(userInput, `There's no account called “${username}”. Check the spelling, or leave it blank to get a link instead.`);
+          Forms.fieldError(userInput, t('There’s no account called “%s”. Check the spelling, or leave it blank to get a link instead.', username));
           userInput.focus();
           return;
         }
-        if (!res.ok) throw new Error(`Couldn't add ${username}. Try again.`);
+        if (!res.ok) throw new Error(t('Couldn’t add %s. Try again.', username));
         location.reload();
         return;
       }
       // No username — same action, send a link instead ("we send a link,
       // that's it").
       const res = await fetch(`/api/bands/${bandId}/invites`, {method: 'POST', body: new URLSearchParams({status})});
-      if (!res.ok) throw new Error("Couldn't create the link. Try again.");
+      if (!res.ok) throw new Error(t('Couldn’t create the link. Try again.'));
       location.reload();
     });
   });
@@ -208,30 +208,30 @@ document.querySelectorAll('.status-select').forEach(sel => {
   let clearTimer;
   sel.addEventListener('change', async () => {
     clearTimeout(clearTimer);
-    rowStatus(sel, 'Saving…', '');
+    rowStatus(sel, t('Saving…'), '');
     const res = await fetch(`/api/bands/${bandId}/members/${sel.dataset.personId}/status`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({status: sel.value}),
     }).catch(() => null);
     if (res && res.ok) {
       saved = sel.value;
-      rowStatus(sel, 'Saved', 'ok');
+      rowStatus(sel, t('Saved'), 'ok');
       clearTimer = setTimeout(() => rowStatus(sel, '', ''), 2500);
     } else {
       // Put the select back to what's really stored.
       sel.value = saved;
-      rowStatus(sel, "Couldn't change the role. Try again.", 'error');
+      rowStatus(sel, t('Couldn’t change the role. Try again.'), 'error');
     }
   });
 });
 document.querySelectorAll('.remove-member-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (!confirm(`Remove ${btn.dataset.name} from ${bandName}? They'll stop seeing the band's songs and set lists.`)) return;
+    if (!confirm(t('Remove %s from %s? They’ll stop seeing the band’s songs and set lists.', btn.dataset.name, bandName))) return;
     Forms.busy(btn, true);
     const res = await fetch(`/api/bands/${bandId}/members/${btn.dataset.personId}`, {method: 'DELETE'}).catch(() => null);
     if (res && res.ok) { location.reload(); return; }
     Forms.busy(btn, false);
-    rowStatus(btn, `Couldn't remove ${btn.dataset.name}. Try again.`, 'error');
+    rowStatus(btn, t('Couldn’t remove %s. Try again.', btn.dataset.name), 'error');
   });
 });
 document.querySelectorAll('.copy-link-btn').forEach(btn => {
@@ -239,7 +239,7 @@ document.querySelectorAll('.copy-link-btn').forEach(btn => {
     const url = location.origin + btn.dataset.url;
     const was = btn.textContent;
     const show = (text) => { btn.textContent = text; setTimeout(() => { btn.textContent = was; }, 1500); };
-    navigator.clipboard.writeText(url).then(() => show('Copied'), () => show("Couldn't copy"));
+    navigator.clipboard.writeText(url).then(() => show(t('Copied')), () => show(t('Couldn’t copy')));
   });
 });
 document.querySelectorAll('.qr-link-btn').forEach(btn => {
@@ -256,7 +256,7 @@ document.getElementById('roster-quick-add-form').addEventListener('submit', (e) 
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({displayName, instrument, status}),
     });
-    if (!res.ok) throw new Error(`Couldn't add ${displayName}. Try again.`);
+    if (!res.ok) throw new Error(t('Couldn’t add %s. Try again.', displayName));
     location.reload();
   });
 });
@@ -270,7 +270,7 @@ document.querySelectorAll('.create-shell-invite-btn').forEach(btn => {
     const res = await fetch(`/api/people/${btn.dataset.personId}/personal-invites`, {method: 'POST'}).catch(() => null);
     if (res && res.ok) { location.reload(); return; }
     Forms.busy(btn, false);
-    rowStatus(btn, "Couldn't make a link. Try again.", 'error');
+    rowStatus(btn, t('Couldn’t make a link. Try again.'), 'error');
   });
 });
 </script>

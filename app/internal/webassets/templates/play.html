@@ -55,7 +55,7 @@
        anchors to exactly the bar it annotates via plain CSS, no JS
        positioning needed, and adds no width/height to the row's flow. */}}
   {{if .MapAnnotate}}<span class="map-sec-badge">{{if .MapMark}}<span class="rehearsal-mark">{{.MapMark}}</span>{{end}}{{label .MapLabel}}</span>{{end}}
-  {{if .Open}}<span class="repeat-dots" title="repeat starts"></span>{{end}}
+  {{if .Open}}<span class="repeat-dots" title="{{t "repeat starts"}}"></span>{{end}}
   {{if .Volta}}<span class="volta">{{if .VoltaFirst}}<span class="volta-num">{{.Volta}}</span>{{end}}</span>{{end}}
   <span class="bar-body{{if .TabOnly}} bar-body-tab-only{{end}}"{{if .TabOnly}} style="--strings: {{.Tab.Strings}}"{{end}}>
     {{if .TabOnly}}
@@ -95,19 +95,19 @@
         </span>
       </span>
     {{else if .IsRepeat}}
-      <span class="simile-mark{{if eq .RepeatCount 2}} simile-wide{{end}}" title="{{if eq .RepeatCount 2}}repeat previous 2 bars{{else}}repeat previous bar{{end}}">
+      <span class="simile-mark{{if eq .RepeatCount 2}} simile-wide{{end}}" title="{{if eq .RepeatCount 2}}{{t "repeat previous 2 bars"}}{{else}}{{t "repeat previous bar"}}{{end}}">
         <span class="simile-slash" aria-hidden="true"></span>
         <span class="simile-dot simile-dot-a" aria-hidden="true"></span>
         <span class="simile-dot simile-dot-b" aria-hidden="true"></span>
       </span>
       {{if eq .RepeatCount 2}}<span class="simile-count">2</span>{{end}}
     {{else if .IsRest}}
-      <span class="rest-mark" title="full bar rest" aria-hidden="true"></span>
+      <span class="rest-mark" title="{{t "full bar rest"}}" aria-hidden="true"></span>
     {{else}}
       {{range .Beats}}<span class="beat-slot{{if .IsTie}} tie{{end}}" style="--span: {{.Span}}">{{if not .IsTie}}<span class="chord-label"><span class="chord-std">{{chord .Text}}</span><span class="chord-jazz">{{chordJazz .Text}}</span></span>{{end}}<span class="slash">&#8260;</span></span>{{end}}
     {{end}}
   </span>
-  {{if .Close}}<span class="repeat-dots" title="repeat ends"></span>{{end}}
+  {{if .Close}}<span class="repeat-dots" title="{{t "repeat ends"}}"></span>{{end}}
   {{/* A STATED repeat count ("|:4 ..." — see song.Measure.RepeatCount's
        doc comment) prints next to the CLOSING repeat sign — real
        engraving (checked against LilyPond) places it at the end of the
@@ -116,7 +116,7 @@
        "x2" every "|: :|" already means) prints nothing, same as before
        this existed. BracketRepeatCount is only ever set on a Close bar
        (see buildSections) — no separate Close check needed here. */}}
-  {{if gt .BracketRepeatCount 0}}<span class="bracket-repeat-count" title="played {{.BracketRepeatCount}} times">&times;{{.BracketRepeatCount}}</span>{{end}}
+  {{if gt .BracketRepeatCount 0}}<span class="bracket-repeat-count" title="{{tn .BracketRepeatCount "played %d time" "played %d times"}}">&times;{{.BracketRepeatCount}}</span>{{end}}
 </span>
 {{end}}
 
@@ -262,8 +262,8 @@
   {{if .JazzSegno}}<span class="jazz-segno-mark" title="Segno">{{template "icon-segno"}}</span>{{end}}
   {{if .JazzCoda}}<span class="jazz-coda-mark" title="Coda">{{template "icon-coda"}}</span>{{end}}
   <h3>
-    <button class="section-jump" type="button" data-section-index="{{.Index}}" title="jump here">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if or .Repeat .IsReference}} <span class="repeat-suffix">&middot; repeat</span>{{end}}</button>
-    {{if .InferredNote}}<span class="inferred-note">{{.InferredNote}}</span>{{end}}
+    <button class="section-jump" type="button" data-section-index="{{.Index}}" title="{{t "jump here"}}">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if or .Repeat .IsReference}} <span class="repeat-suffix">&middot; {{t "repeat"}}</span>{{end}}</button>
+    {{if .InferredNote}}<span class="inferred-note">{{tn .SoloBars "%d bar" "%d bars"}} — {{t "%s changes" .SoloOf}}{{if gt .SoloTimes 1}}, x{{.SoloTimes}}{{end}}</span>{{end}}
   </h3>
   {{if .JazzDSAlCoda}}
   {{/* The whole later repeated run (this section plus the JazzHidden
@@ -286,7 +286,7 @@
   </div>
   {{if .GPOnly}}
   {{else if .GridDuplicateOf}}
-  <div class="grid-duplicate-note"><span class="repeat-barline">&#x1D106;</span> same as {{.GridDuplicateOf}} <span class="repeat-barline">&#x1D107;</span></div>
+  <div class="grid-duplicate-note"><span class="repeat-barline">&#x1D106;</span> {{t "same as %s" .GridDuplicateOf}} <span class="repeat-barline">&#x1D107;</span></div>
   {{else if .Lines}}
   <div class="grid spans-full">
     {{range .Lines}}
@@ -345,12 +345,12 @@
     {{end}}
   </div>
   {{end}}
-  {{if and $.CanEdit $.GPFileName (not .GP) (not .Repeat) (not .IsReference)}}<p class="gp-score-add"><button type="button" class="link-like" data-gp-pick="{{.Index}}">+ Bars from the Guitar Pro file</button></p>{{end}}
+  {{if and $.CanEdit $.GPFileName (not .GP) (not .Repeat) (not .IsReference)}}<p class="gp-score-add"><button type="button" class="link-like" data-gp-pick="{{.Index}}">+ {{t "Bars from the Guitar Pro file"}}</button></p>{{end}}
   {{range .GP}}
   {{/* Bars of the song's Guitar Pro file, drawn by gp-view.js (see
        gpview.go and docs/gp-file-model.md). */}}
   <figure class="gp-score" data-track="{{.TrackIndex}}" data-track-name="{{.Track}}" data-bars="{{.Bars}}" data-notation="{{.Notation}}">
-    <figcaption class="gp-score-label">{{.Label}}{{if $.CanEdit}} <button type="button" class="gp-score-edit link-like" data-gp-pick="{{$sec.Index}}" data-track="{{.Track}}">Change bars</button> <a class="gp-score-edit" href="/song/{{$.VariantID}}/gp-edit?{{with .Track}}track={{.}}&amp;{{end}}bar={{.FirstBar}}">Edit the notes</a>{{end}}</figcaption>
+    <figcaption class="gp-score-label">{{.Label}}{{if $.CanEdit}} <button type="button" class="gp-score-edit link-like" data-gp-pick="{{$sec.Index}}" data-track="{{.Track}}">{{t "Change bars"}}</button> <a class="gp-score-edit" href="/song/{{$.VariantID}}/gp-edit?{{with .Track}}track={{.}}&amp;{{end}}bar={{.FirstBar}}">{{t "Edit the notes"}}</a>{{end}}</figcaption>
     {{if .Error}}<p class="gp-score-error">{{.Error}}</p>{{else}}<div class="gp-score-body"></div>{{end}}
   </figure>
   {{end}}
@@ -421,7 +421,7 @@
 {{define "song"}}
 {{$brand := brandFor .BrandKind .BrandID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -450,7 +450,7 @@
      below 901px exactly like the shared partial (same base .desktop-sidebar
      CSS rule) — mobile keeps its own .song-context-bar/"..." nav below,
      completely untouched. */}}
-<nav class="desktop-sidebar" id="desktop-sidebar" aria-label="main navigation">
+<nav class="desktop-sidebar" id="desktop-sidebar" aria-label="{{t "main navigation"}}">
   <a class="sidebar-brand" href="/home">{{template "icon-logo"}} Songbooks</a>
   {{/* Phase 46: the "where did I come from" breadcrumb used to live in the
        top panel (.topbar-utility) — it's site navigation, not something
@@ -458,9 +458,9 @@
        sidebar's nav, same as every other page's own back-link. */}}
   <div class="sidebar-crumb">
     {{if .GigMode}}
-    <a href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} <span>set list</span></a>
+    <a href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} <span>{{t "set list"}}</span></a>
     {{else if .SetlistRef}}
-    <a href="{{.SetlistURL}}">{{template "icon-back"}} <span>set list</span></a>
+    <a href="{{.SetlistURL}}">{{template "icon-back"}} <span>{{t "set list"}}</span></a>
     {{else if .BandRef}}
     <a href="/bands/{{.BandRef}}/catalog">{{template "icon-back"}} <span title="{{.BandName}}">{{.BandName}}</span></a>
     {{else if .LessonHref}}
@@ -468,9 +468,9 @@
     {{else if .CommunityRef}}
     <a href="/communities/{{.CommunityRef}}/songbooks/default">{{template "icon-back"}} <span title="{{.CommunityName}}">{{.CommunityName}}</span></a>
     {{else if .SongbookRef}}
-    <a href="/songbooks/{{.SongbookRef}}">{{template "icon-back"}} <span>songbook</span></a>
+    <a href="/songbooks/{{.SongbookRef}}">{{template "icon-back"}} <span>{{t "songbook"}}</span></a>
     {{else}}
-    <a href="/catalog">{{template "icon-back"}} <span>catalog</span></a>
+    <a href="/catalog">{{template "icon-back"}} <span>{{t "catalog"}}</span></a>
     {{end}}
   </div>
   {{/* Phase 45: while the desktop editor is open, this single row replaces
@@ -479,7 +479,7 @@
        second disconnected fullscreen takeover. Closes the editor the same
        way the drawer's own X/Escape/backdrop do (confirmDiscardIfDirty
        included), via song.js. */}}
-  <a class="sidebar-back-to-play" href="#" id="sidebar-back-to-play">{{template "icon-back"}} Back to Play</a>
+  <a class="sidebar-back-to-play" href="#" id="sidebar-back-to-play">{{template "icon-back"}} {{t "Back to Play"}}</a>
   {{/* Phase 47: the actual GP8-style toolbox — sections list + chord/beat
        entry controls — lives HERE, in the real nav rail, not in a second
        fake column squeezed into the editor's main panel. Filled by
@@ -487,7 +487,7 @@
        structure editor is open (see .sidebar-toolbox in app.css); empty
        and hidden the rest of the time. */}}
   <div class="sidebar-toolbox" id="sidebar-toolbox">
-    <div class="sidebar-group-label">Sections</div>
+    <div class="sidebar-group-label">{{t "Sections"}}</div>
     <div class="toolbox-sections" id="toolbox-sections"></div>
     <div class="toolbox-toolbar" id="toolbox-toolbar"></div>
   </div>
@@ -503,8 +503,8 @@
        relocating them here needed no JS changes, only CSS to read as a
        vertical sidebar list instead of a horizontal icon pill. */}}
   <div class="sidebar-secondary sidebar-song-group">
-    <div class="sidebar-group-label">This song</div>
-    <button type="button" id="edit-toggle" class="sidebar-song-row" title="edit"{{if not (or .CanEdit .CanCopy)}} hidden{{end}}>{{template "icon-edit"}} Edit</button>
+    <div class="sidebar-group-label">{{t "This song"}}</div>
+    <button type="button" id="edit-toggle" class="sidebar-song-row" title="{{t "edit"}}"{{if not (or .CanEdit .CanCopy)}} hidden{{end}}>{{template "icon-edit"}} {{t "Edit"}}</button>
     {{/* A real page link with this song's own context, not a bare nav
          entry — same href the old in-page mini-metro settings icon used,
          now the only way to reach metronome/transport settings from this
@@ -512,35 +512,35 @@
          settings link both moved out of the top row; the settings link
          belongs here with everything else that's a "this song" action,
          not a global nav item). */}}
-    <a class="sidebar-song-row" title="metronome &amp; transport settings" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-metronome"}} Metronome</a>
-    <a class="sidebar-song-row" title="tune to this song" href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-tuner"}} Tuner</a>
+    <a class="sidebar-song-row" title="{{t "metronome & transport settings"}}" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-metronome"}} {{t "Metronome"}}</a>
+    <a class="sidebar-song-row" title="{{t "tune to this song"}}" href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-tuner"}} {{t "Tuner"}}</a>
     {{if .VariantID}}
-    <button id="notes-toggle" class="sidebar-song-row" type="button" title="notes: personal or shared, per section">{{template "icon-notes"}} Notes</button>
+    <button id="notes-toggle" class="sidebar-song-row" type="button" title="{{t "notes: personal or shared, per section"}}">{{template "icon-notes"}} {{t "Notes"}}</button>
     {{end}}
     <span class="pdf-mode-row">
-      <a class="pdf-export-link sidebar-song-row" href="/song/{{.VariantID}}/export.pdf" title="export PDF (chart)" download>{{template "icon-download"}} Export PDF</a>
-      <select class="pdf-mode-select" aria-label="PDF layout">
-        <option value="">Song</option>
-        <option value="jazz">Jazz chart</option>
-        <option value="map">Song map</option>
-        {{if $.HasLyrics}}<option value="lyrics">Lyrics only</option>{{end}}
+      <a class="pdf-export-link sidebar-song-row" href="/song/{{.VariantID}}/export.pdf" title="{{t "export PDF (chart)"}}" download>{{template "icon-download"}} {{t "Export PDF"}}</a>
+      <select class="pdf-mode-select" aria-label="{{t "PDF layout"}}">
+        <option value="">{{t "Song"}}</option>
+        <option value="jazz">{{t "Jazz chart"}}</option>
+        <option value="map">{{t "Song map"}}</option>
+        {{if $.HasLyrics}}<option value="lyrics">{{t "Lyrics only"}}</option>{{end}}
       </select>
-      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> Include notes</label>
+      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> {{t "Include notes"}}</label>
     </span>
-    {{if .GPFileName}}<a class="sidebar-song-row" href="/song/{{.VariantID}}/gp-file" title="download the original Guitar Pro file ({{.GPFileName}})" download>{{template "icon-download"}} Guitar Pro file</a>{{end}}
-    {{if .HasAnyScore}}<a class="sidebar-song-row gp-export-btn" href="#" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="the song as it is now, edits made here included, as a Guitar Pro file">{{template "icon-download"}} Export as Guitar Pro</a>{{end}}
-    {{if .WorkID}}<a class="sidebar-song-row" href="/works/{{.WorkID}}" title="all versions of this song">{{template "icon-mode-map"}} Versions</a>{{end}}
-    {{if .VariantID}}<a class="sidebar-song-row" href="/variants/{{.VariantID}}/history" title="revision history">{{template "icon-notes"}} History</a>{{end}}
-    <button id="reference-toggle" class="sidebar-song-row" type="button" title="reference video">{{template "icon-reference"}} Reference</button>
-    <button class="sidebar-song-row stage-mode-toggle" type="button" title="larger type, no menus, the screen kept awake">{{template "icon-presentation"}} Stage mode</button>
+    {{if .GPFileName}}<a class="sidebar-song-row" href="/song/{{.VariantID}}/gp-file" title="{{t "download the original Guitar Pro file (%s)" .GPFileName}}" download>{{template "icon-download"}} {{t "Guitar Pro file"}}</a>{{end}}
+    {{if .HasAnyScore}}<a class="sidebar-song-row gp-export-btn" href="#" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="{{t "the song as it is now, edits made here included, as a Guitar Pro file"}}">{{template "icon-download"}} {{t "Export as Guitar Pro"}}</a>{{end}}
+    {{if .WorkID}}<a class="sidebar-song-row" href="/works/{{.WorkID}}" title="{{t "all versions of this song"}}">{{template "icon-mode-map"}} {{t "Versions"}}</a>{{end}}
+    {{if .VariantID}}<a class="sidebar-song-row" href="/variants/{{.VariantID}}/history" title="{{t "revision history"}}">{{template "icon-notes"}} {{t "History"}}</a>{{end}}
+    <button id="reference-toggle" class="sidebar-song-row" type="button" title="{{t "reference video"}}">{{template "icon-reference"}} {{t "Reference"}}</button>
+    <button class="sidebar-song-row stage-mode-toggle" type="button" title="{{t "larger type, no menus, the screen kept awake"}}">{{template "icon-presentation"}} {{t "Stage mode"}}</button>
   </div>
   <div class="sidebar-secondary">
-    {{if and .Me .Me.IsAdmin}}<a href="/admin" data-path="/admin">Admin</a>{{end}}
-    <a href="/metronome" data-path="/metronome">Metronome</a>
-    <a href="/songbooks" data-path="/songbooks">My songbooks</a>
+    {{if and .Me .Me.IsAdmin}}<a href="/admin" data-path="/admin">{{t "Admin"}}</a>{{end}}
+    <a href="/metronome" data-path="/metronome">{{t "Metronome"}}</a>
+    <a href="/songbooks" data-path="/songbooks">{{t "My songbooks"}}</a>
   </div>
   <div class="sidebar-song-group" style="border-top:none;padding-top:0;">
-    <button id="theme-toggle" class="sidebar-song-row" type="button" title="theme: auto">{{template "icon-theme"}} Theme</button>
+    <button id="theme-toggle" class="sidebar-song-row" type="button" title="{{t "theme: auto"}}">{{template "icon-theme"}} {{t "Theme"}}</button>
   </div>
   {{if .Me}}
   <a class="sidebar-account" href="/profile">
@@ -565,9 +565,9 @@
      (CSS, min-width:901px) where the sidebar's own copy takes over. */}}
 <div class="topbar-utility-mobile">
   {{if .GigMode}}
-  <a class="back-link" href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} set list</a>
+  <a class="back-link" href="/setlists/{{.SetlistRef}}/gig">{{template "icon-back"}} {{t "set list"}}</a>
   {{else if .SetlistRef}}
-  <a class="back-link" href="{{.SetlistURL}}">{{template "icon-back"}} set list</a>
+  <a class="back-link" href="{{.SetlistURL}}">{{template "icon-back"}} {{t "set list"}}</a>
   {{else if .BandRef}}
   <a class="back-link" href="/bands/{{.BandRef}}/catalog" title="{{.BandName}}">{{template "icon-back"}} {{.BandName}}</a>
   {{else if .LessonHref}}
@@ -575,16 +575,16 @@
   {{else if .CommunityRef}}
   <a class="back-link" href="/communities/{{.CommunityRef}}/songbooks/default" title="{{.CommunityName}}">{{template "icon-back"}} {{.CommunityName}}</a>
   {{else if .SongbookRef}}
-  <a class="back-link" href="/songbooks/{{.SongbookRef}}">{{template "icon-back"}} songbook</a>
+  <a class="back-link" href="/songbooks/{{.SongbookRef}}">{{template "icon-back"}} {{t "songbook"}}</a>
   {{else}}
-  <a class="back-link" href="/catalog">{{template "icon-back"}} catalog</a>
+  <a class="back-link" href="/catalog">{{template "icon-back"}} {{t "catalog"}}</a>
   {{end}}
 </div>
 <div class="song-topbar">
   {{if .Prev}}
   <a class="topbar-cell topbar-prev setlist-nav-card prev" href="/song/{{.Prev.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{else if $.SongbookRef}}?songbook={{$.SongbookRef}}{{end}}">
     {{template "icon-back"}}
-    <span class="topbar-nav-info"><small>previous</small><strong>{{.Prev.Title}}</strong><small>{{if .Prev.Tempo}}{{.Prev.Tempo}} bpm{{end}}{{if and .Prev.Tempo .Prev.Key}} &middot; {{end}}{{.Prev.Key}}</small></span>
+    <span class="topbar-nav-info"><small>{{t "previous"}}</small><strong>{{.Prev.Title}}</strong><small>{{if .Prev.Tempo}}{{.Prev.Tempo}} bpm{{end}}{{if and .Prev.Tempo .Prev.Key}} &middot; {{end}}{{.Prev.Key}}</small></span>
   </a>
   {{else}}<span class="topbar-cell topbar-prev empty"></span>{{end}}
 
@@ -597,15 +597,18 @@
              never the saved song (Edit → Source → Transpose does that).
              Swaps the chord diagrams for the displayed key's set when the
              song has one — see song.js "Transpose (view only)". */}}
-        <span id="key-display">key <span id="key-original">{{.Key}}</span><span id="key-transposed" hidden></span></span>
-        <span class="transpose-control" title="Play in another key: only changes what's on screen">
-          <button id="transpose-down" type="button" aria-label="Down a semitone">&minus;</button>
+        <span id="key-display">{{t "key"}} <span id="key-original">{{.Key}}</span><span id="key-transposed" hidden></span></span>
+        <span class="transpose-control" title="{{t "Play in another key: only changes what's on screen"}}">
+          <button id="transpose-down" type="button" aria-label="{{t "Down a semitone"}}">&minus;</button>
           <span id="transpose-amount">0</span>
-          <button id="transpose-up" type="button" aria-label="Up a semitone">+</button>
+          <button id="transpose-up" type="button" aria-label="{{t "Up a semitone"}}">+</button>
         </span>
       </span>{{end}}
       {{if .Tempo}}<span class="topbar-meta-item">{{.Tempo}} bpm</span>{{end}}
-      {{if and .GPSource .CanEdit}}<a class="topbar-meta-item gp-source-badge" href="/song/{{.VariantID}}/gp-file" download title="download the original Guitar Pro file — see Edit &rarr; GP Import to bring edits back in">{{template "icon-instrument-guitar"}} GP import: {{.GPSource}}</a>{{end}}
+      {{/* Opened from a coaching student's or group's songbook: the key the
+           coach gave it there (data-key-offset), and whose it is. */}}
+      {{if .StudentKeySet}}<span class="topbar-meta-item key-context" title="{{t "the key this song was given for them"}}">{{if .StudentKey}}{{t "%s’s key: %s" .KeyContext (printf "%+d" .StudentKey)}}{{else}}{{t "%s’s key: original" .KeyContext}}{{end}}</span>{{end}}
+      {{if and .GPSource .CanEdit}}<a class="topbar-meta-item gp-source-badge" href="/song/{{.VariantID}}/gp-file" download title="{{t "download the original Guitar Pro file — see Edit → GP Import to bring edits back in"}}">{{template "icon-instrument-guitar"}} {{t "GP import: %s" .GPSource}}</a>{{end}}
     </div>
     {{/* mini-metro-play/-fade/-tap stay in the DOM but hidden, not deleted
          — jumpToSection()/setPlaying() (song.js) operate on these exact
@@ -615,15 +618,15 @@
          (it's the sidebar's new "Metronome" row instead) — only the
          playback-state hooks remain, invisible. */}}
     <div class="mini-metro" id="mini-metro" hidden>
-      <button type="button" id="mini-metro-play" title="click track: play/stop">{{template "icon-play"}}</button>
-      <button type="button" id="mini-metro-fade" title="play one bar, then fade out">{{template "icon-metro-intro"}}</button>
-      <button type="button" id="mini-metro-tap" title="tap tempo">{{template "icon-tap"}}</button>
+      <button type="button" id="mini-metro-play" title="{{t "click track: play/stop"}}">{{template "icon-play"}}</button>
+      <button type="button" id="mini-metro-fade" title="{{t "play one bar, then fade out"}}">{{template "icon-metro-intro"}}</button>
+      <button type="button" id="mini-metro-tap" title="{{t "tap tempo"}}">{{template "icon-tap"}}</button>
     </div>
   </div>
 
   {{if .Next}}
   <a class="topbar-cell topbar-next setlist-nav-card next" href="/song/{{.Next.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{else if $.SongbookRef}}?songbook={{$.SongbookRef}}{{end}}">
-    <span class="topbar-nav-info"><small>next</small><strong>{{.Next.Title}}</strong><small>{{if .Next.Tempo}}{{.Next.Tempo}} bpm{{end}}{{if and .Next.Tempo .Next.Key}} &middot; {{end}}{{.Next.Key}}</small></span>
+    <span class="topbar-nav-info"><small>{{t "next"}}</small><strong>{{.Next.Title}}</strong><small>{{if .Next.Tempo}}{{.Next.Tempo}} bpm{{end}}{{if and .Next.Tempo .Next.Key}} &middot; {{end}}{{.Next.Key}}</small></span>
     {{template "icon-forward"}}
   </a>
   {{else}}<span class="topbar-cell topbar-next empty"></span>{{end}}
@@ -634,14 +637,14 @@
      are, including the mobile View sheet's own forwarding mechanism
      (data-forward="reference" below just works, no special-casing). */}}
 <div class="view-tabs" id="mode-segmented" data-value="normal">
-  <button type="button" data-value="normal" class="active" title="song">{{template "icon-mode-normal"}} Song</button>
-  <button type="button" data-value="jazz" title="jazz chart">{{template "icon-mode-jazz"}} Jazz chart</button>
-  {{if .HasLyrics}}<button type="button" data-value="lyrics" title="lyrics only">{{template "icon-mode-lyrics"}} Lyrics only</button>{{end}}
-  <button type="button" data-value="map" title="song map">{{template "icon-mode-map"}} Song map</button>
-  <button type="button" data-value="drummer" title="drummer view">{{template "icon-mode-drummer"}} Drummer</button>
-  {{if .GPFileName}}<button type="button" data-value="score" title="the Guitar Pro file">{{template "icon-mode-score"}} Score</button>{{end}}
-  <button type="button" data-value="mixer" title="mixer">{{template "icon-mode-mixer"}} Mixer</button>
-  <button type="button" data-value="reference" title="reference">{{template "icon-reference"}} Reference</button>
+  <button type="button" data-value="normal" class="active" title="{{t "song"}}">{{template "icon-mode-normal"}} {{t "Song"}}</button>
+  <button type="button" data-value="jazz" title="{{t "jazz chart"}}">{{template "icon-mode-jazz"}} {{t "Jazz chart"}}</button>
+  {{if .HasLyrics}}<button type="button" data-value="lyrics" title="{{t "lyrics only"}}">{{template "icon-mode-lyrics"}} {{t "Lyrics only"}}</button>{{end}}
+  <button type="button" data-value="map" title="{{t "song map"}}">{{template "icon-mode-map"}} {{t "Song map"}}</button>
+  <button type="button" data-value="drummer" title="{{t "drummer view"}}">{{template "icon-mode-drummer"}} {{t "Drummer"}}</button>
+  {{if .GPFileName}}<button type="button" data-value="score" title="{{t "the Guitar Pro file"}}">{{template "icon-mode-score"}} {{t "Score"}}</button>{{end}}
+  <button type="button" data-value="mixer" title="{{t "mixer"}}">{{template "icon-mode-mixer"}} {{t "Mixer"}}</button>
+  <button type="button" data-value="reference" title="{{t "reference"}}">{{template "icon-reference"}} {{t "Reference"}}</button>
 </div>
 {{/* Instrument picker — Song view's own chord-grid chart (and Song
      map, which reads the SAME attachTabRiffs-mutated sections) stays
@@ -655,8 +658,8 @@
      up front. Hidden entirely when the song has no melodic score track
      at all — nothing to pick. */}}
 {{if .Instruments}}
-<div class="view-tabs instrument-tabs" id="instrument-picker" title="which instrument's notation to show">
-  <button type="button" data-instrument="chords" class="{{if or (not .SelectedInstrument) (eq .SelectedInstrument "chords")}}active{{end}}" title="chord grid">{{template "icon-chord-grid"}} Chords</button>
+<div class="view-tabs instrument-tabs" id="instrument-picker" title="{{t "which instrument's notation to show"}}">
+  <button type="button" data-instrument="chords" class="{{if or (not .SelectedInstrument) (eq .SelectedInstrument "chords")}}active{{end}}" title="{{t "chord grid"}}">{{template "icon-chord-grid"}} {{t "Chords"}}</button>
   {{range .Instruments}}
   <button type="button" data-instrument="{{.}}" class="{{if eq . $.SelectedInstrument}}active{{end}}" title="{{.}}">{{template "instrument-icon" .}} {{.}}</button>
   {{end}}
@@ -665,44 +668,44 @@
 </div>
 
 <div class="edit-drawer-backdrop" id="edit-drawer-backdrop" hidden></div>
-<div class="edit-drawer card" id="edit-drawer" role="dialog" aria-modal="true" aria-label="Edit {{.Title}}" hidden>
+<div class="edit-drawer card" id="edit-drawer" role="dialog" aria-modal="true" aria-label="{{t "Edit %s" .Title}}" hidden>
   <div class="edit-topzone">
     <div class="edit-title-row">
       <div class="edit-title-main">
-        <h2><span class="edit-title-prefix">Editing &mdash; </span>{{.Title}}</h2>
-        <span id="edit-dirty-indicator" class="edit-dirty-indicator" title="unsaved changes" hidden>&#9679;<span class="edit-dirty-text"> unsaved changes</span></span>
+        <h2><span class="edit-title-prefix">{{t "Editing"}} &mdash; </span>{{.Title}}</h2>
+        <span id="edit-dirty-indicator" class="edit-dirty-indicator" title="{{t "unsaved changes"}}" hidden>&#9679;<span class="edit-dirty-text"> {{t "unsaved changes"}}</span></span>
       </div>
       <div class="edit-title-actions">
-        <button id="edit-undo-btn" class="icon-btn" type="button" title="undo (Cmd/Ctrl+Z)" disabled>{{template "icon-undo"}}<span class="sr-only">undo</span></button>
-        <button id="edit-redo-btn" class="icon-btn" type="button" title="redo (Shift+Cmd/Ctrl+Z)" disabled>{{template "icon-redo"}}<span class="sr-only">redo</span></button>
-        <button id="edit-discard-btn" type="button" class="ghost-btn" title="discard unsaved changes" disabled>Discard</button>
-        <button id="edit-save-btn" type="button" class="primary" title="save changes">Save</button>
-        <button id="edit-drawer-close" class="icon-btn" type="button" title="close">{{template "icon-close"}}</button>
+        <button id="edit-undo-btn" class="icon-btn" type="button" title="{{t "undo (Cmd/Ctrl+Z)"}}" disabled>{{template "icon-undo"}}<span class="sr-only">{{t "undo"}}</span></button>
+        <button id="edit-redo-btn" class="icon-btn" type="button" title="{{t "redo (Shift+Cmd/Ctrl+Z)"}}" disabled>{{template "icon-redo"}}<span class="sr-only">{{t "redo"}}</span></button>
+        <button id="edit-discard-btn" type="button" class="ghost-btn" title="{{t "discard unsaved changes"}}" disabled>{{t "Discard"}}</button>
+        <button id="edit-save-btn" type="button" class="primary" title="{{t "save changes"}}">{{t "Save"}}</button>
+        <button id="edit-drawer-close" class="icon-btn" type="button" title="{{t "close"}}">{{template "icon-close"}}</button>
       </div>
     </div>
     <div class="prep-tabs view-tabs" role="tablist">
-      <button class="prep-tab active" data-tab="structure" type="button">Chart</button>
-      <button class="prep-tab" data-tab="raw" type="button">Source</button>
-      <button class="prep-tab" data-tab="scores" type="button">Scores</button>
-      <button class="prep-tab" data-tab="gpimport" type="button">GP Import</button>
-      <button class="prep-tab" data-tab="import" type="button">Import</button>
+      <button class="prep-tab active" data-tab="structure" type="button">{{t "Chart"}}</button>
+      <button class="prep-tab" data-tab="raw" type="button">{{t "Source"}}</button>
+      <button class="prep-tab" data-tab="scores" type="button">{{t "Scores"}}</button>
+      <button class="prep-tab" data-tab="gpimport" type="button">{{t "GP Import"}}</button>
+      <button class="prep-tab" data-tab="import" type="button">{{t "Import"}}</button>
     </div>
   </div>
   <div class="edit-drawer-body">
     <section class="prep-panel" data-panel="structure" id="structure" data-variant-id="{{.VariantID}}" data-genre="{{.Genre}}">
-      <p class="hint hover-only">Hover a section for its handle (drag to reorder) and + (insert after it) — pick a label, a custom one, or a bare chord sequence. Each section holds its own chords and lyrics; a duplicated section starts as a bare "repeat marker" until you give it real content.</p>
+      <p class="hint hover-only">{{t `Hover a section for its handle (drag to reorder) and + (insert after it) — pick a label, a custom one, or a bare chord sequence. Each section holds its own chords and lyrics; a duplicated section starts as a bare "repeat marker" until you give it real content.`}}</p>
       <div id="song-header-fields" class="song-header-fields"></div>
       <div id="chip-list" class="chip-list"></div>
       <div class="structure-actions">
-        <button id="add-section" type="button">{{template "icon-plus"}} add section at the end</button>
-        <button id="save-structure" type="button" class="primary" hidden>Save</button>
+        <button id="add-section" type="button">{{template "icon-plus"}} {{t "add section at the end"}}</button>
+        <button id="save-structure" type="button" class="primary" hidden>{{t "Save"}}</button>
         <span id="structure-status"></span>
       </div>
     </section>
 
     <section class="prep-panel" data-panel="raw" id="editor" data-version="{{.Version}}" data-variant-id="{{.VariantID}}" data-can-edit="{{.CanEdit}}" hidden>
       {{if .GPSource}}
-      <p class="hint gpimport-reimport-note"><strong>This song was imported from {{.GPSource}}</strong> (<a href="/song/{{.VariantID}}/gp-file" download>download it</a>). The <code>score[...]:</code> lines below are that file's own exact notation — hand-editing this JSON works but is easy to get wrong; for a real change, edit the Guitar Pro file itself and bring it back in via the <strong>GP Import</strong> tab instead.</p>
+      <p class="hint gpimport-reimport-note"><strong>{{t "This song was imported from %s" .GPSource}}</strong> (<a href="/song/{{.VariantID}}/gp-file" download>{{t "download it"}}</a>). {{t "The"}} <code>score[...]:</code> {{t "lines below are that file's own exact notation — hand-editing this JSON works but is easy to get wrong; for a real change, edit the Guitar Pro file itself and bring it back in via the"}} <strong>{{t "GP Import"}}</strong> {{t "tab instead."}}</p>
       {{end}}
       <div class="code-toolbar" id="code-toolbar">
         {{/* One menu, not one button per label — six separate [Verse]/
@@ -721,12 +724,12 @@
              annotateStructure/IsSolo), so a tapped-in "[Chorus]" gets
              the same chip/multi-rest treatment as one typed by hand. */}}
         <details class="toolbar-menu" id="section-menu">
-          <summary>+ Section</summary>
+          <summary>+ {{t "Section"}}</summary>
           <div class="toolbar-menu-body">
             <div id="section-menu-presets" class="toolbar-menu-presets"></div>
             <div class="toolbar-menu-custom">
-              <input type="text" id="section-menu-custom" aria-label="Other section name" placeholder="Other name&hellip;" maxlength="40" enterkeyhint="done">
-              <button type="button" id="section-menu-custom-add">Add</button>
+              <input type="text" id="section-menu-custom" aria-label="{{t "Other section name"}}" placeholder="{{t "Other name…"}}" maxlength="40" enterkeyhint="done">
+              <button type="button" id="section-menu-custom-add">{{t "Add"}}</button>
             </div>
           </div>
         </details>
@@ -736,8 +739,8 @@
         <button type="button" data-insert="chord">chord:</button>
         <button type="button" data-wrap="chord">[Chord]</button>
         <button type="button" data-insert="comment"># comment</button>
-        <button type="button" id="transpose-open" aria-expanded="false" aria-controls="transpose-panel">Transpose…</button>
-        <a href="/docs/song-format" target="_blank" rel="noopener" class="code-toolbar-help" title="full .song syntax reference">Syntax help &#8599;</a>
+        <button type="button" id="transpose-open" aria-expanded="false" aria-controls="transpose-panel">{{t "Transpose…"}}</button>
+        <a href="/docs/song-format" target="_blank" rel="noopener" class="code-toolbar-help" title="{{t "full .song syntax reference"}}">{{t "Syntax help"}} &#8599;</a>
       </div>
       {{/* Two panes on desktop (source left, live computed output right) —
            the raw editor already recomputes a full preview on every edit
@@ -757,20 +760,20 @@
         <form class="form-stack" id="transpose-form">
           <div id="transpose-from-field" hidden>
             <div class="field">
-              <label for="transpose-from">Key the song is in now</label>
-              <p class="field-hint" id="transpose-from-hint">This song has no key yet. We guessed it from the first chord.</p>
+              <label for="transpose-from">{{t "Key the song is in now"}}</label>
+              <p class="field-hint" id="transpose-from-hint">{{t "This song has no key yet. We guessed it from the first chord."}}</p>
               <select id="transpose-from" aria-describedby="transpose-from-hint"></select>
             </div>
           </div>
           <div class="field">
-            <label for="transpose-to">New key</label>
-            <p class="field-hint" id="transpose-to-hint">Every chord changes, in the grids and in the lyrics. Chord diagrams stay saved for the old key.</p>
+            <label for="transpose-to">{{t "New key"}}</label>
+            <p class="field-hint" id="transpose-to-hint">{{t "Every chord changes, in the grids and in the lyrics. Chord diagrams stay saved for the old key."}}</p>
             <select id="transpose-to" aria-describedby="transpose-to-hint" required></select>
           </div>
           <p class="form-status" id="transpose-status" role="status"></p>
           <div class="form-actions">
-            <button type="submit" class="primary" id="transpose-apply">Transpose</button>
-            <button type="button" class="ghost-btn" id="transpose-cancel">Cancel</button>
+            <button type="submit" class="primary" id="transpose-apply">{{t "Transpose"}}</button>
+            <button type="button" class="ghost-btn" id="transpose-cancel">{{t "Cancel"}}</button>
           </div>
         </form>
         </div>
@@ -782,7 +785,7 @@
       <div class="code-editor-row">
         <div class="code-editor">
           <pre class="code-backdrop" id="code-backdrop" aria-hidden="true"><code id="code-highlight"></code></pre>
-          <textarea id="raw-text" rows="22" spellcheck="false" autocapitalize="off" aria-label="Song source">{{.Text}}</textarea>
+          <textarea id="raw-text" rows="22" spellcheck="false" autocapitalize="off" aria-label="{{t "Song source"}}">{{.Text}}</textarea>
         </div>
         <div class="source-preview-pane">
           {{/* Same instrument picker as the real Play page (view-tabs,
@@ -794,24 +797,24 @@
                ?instrument= — there's no saved page to reload mid-edit):
                see wireSourcePreviewInstruments, song.js. */}}
           {{if .Instruments}}
-          <div class="view-tabs instrument-tabs" id="source-preview-instruments" title="which instrument's notation to preview">
-            <button type="button" data-instrument="" class="active" title="chord grid">{{template "icon-chord-grid"}} Chords</button>
+          <div class="view-tabs instrument-tabs" id="source-preview-instruments" title="{{t "which instrument's notation to preview"}}">
+            <button type="button" data-instrument="" class="active" title="{{t "chord grid"}}">{{template "icon-chord-grid"}} {{t "Chords"}}</button>
             {{range .Instruments}}
             <button type="button" data-instrument="{{.}}" title="{{.}}">{{template "instrument-icon" .}} {{.}}</button>
             {{end}}
           </div>
           {{end}}
-          <div class="sheet source-preview" id="source-preview" aria-label="live preview"></div>
+          <div class="sheet source-preview" id="source-preview" aria-label="{{t "live preview"}}"></div>
         </div>
       </div>
       <div class="editor-actions">
-        <button id="save-btn" type="button" class="primary" hidden>Save</button>
+        <button id="save-btn" type="button" class="primary" hidden>{{t "Save"}}</button>
         <span id="save-status"></span>
       </div>
       <details class="danger-zone">
-        <summary>Start this song over</summary>
-        <p class="hint">Erases the current lyrics and chords for this song (not the song itself — title, artist and other metadata stay) and drops you back into a blank Source editor to fill in again. Can't be undone.</p>
-        <button id="redo-song-btn" type="button" class="danger">Erase lyrics and chords</button>
+        <summary>{{t "Start this song over"}}</summary>
+        <p class="hint">{{t "Erases the current lyrics and chords for this song (not the song itself — title, artist and other metadata stay) and drops you back into a blank Source editor to fill in again. Can't be undone."}}</p>
+        <button id="redo-song-btn" type="button" class="danger">{{t "Erase lyrics and chords"}}</button>
         <p class="form-status" id="redo-song-status" role="status"></p>
       </details>
     </section>
@@ -827,25 +830,25 @@
            edited in the file editor (gp-editor.js), pointed at from the
            song's sections with "gp[Track]: bars" lines in Source. */}}
       <div class="scores-gp">
-        <h3>Notation</h3>
+        <h3>{{t "Notation"}}</h3>
         {{if .GPFileName}}
-        <p class="hint">The notes are in this song’s Guitar Pro file, <strong>{{.GPFileName}}</strong>. A section shows some of its bars with a line like <code>gp[{{or .FirstGPTrack "Lead guitar"}}]: 9-12</code> in Source, or <code>gp: 9-12</code> for every track.</p>
+        <p class="hint">{{t "The notes are in this song’s Guitar Pro file,"}} <strong>{{.GPFileName}}</strong>. {{t "A section shows some of its bars with a line like"}} <code>gp[{{or .FirstGPTrack "Lead guitar"}}]: 9-12</code> {{t "in Source, or"}} <code>gp: 9-12</code> {{t "for every track."}}</p>
         <p class="gp-actions">
-          <a class="button primary" href="/song/{{.VariantID}}/gp-edit">Edit the file</a>
-          <a href="/song/{{.VariantID}}/gp-file" download>Download it</a>
-          <span class="hint">· a new version from Guitar Pro goes in through GP Import</span>
+          <a class="button primary" href="/song/{{.VariantID}}/gp-edit">{{t "Edit the file"}}</a>
+          <a href="/song/{{.VariantID}}/gp-file" download>{{t "Download it"}}</a>
+          <span class="hint">{{t "· a new version from Guitar Pro goes in through GP Import"}}</span>
         </p>
         {{else}}
-        <p class="hint">Notes are written in a Guitar Pro file kept with the song: import one (GP Import), or start one here with an empty bar for each bar of the song. A short riff can also be written in Source in LilyPond, as <code>score[Riff]: e'8 g' a' b'</code>.</p>
+        <p class="hint">{{t "Notes are written in a Guitar Pro file kept with the song: import one (GP Import), or start one here with an empty bar for each bar of the song. A short riff can also be written in Source in LilyPond, as"}} <code>score[Riff]: e'8 g' a' b'</code>.</p>
         <p class="gp-actions">
-          <a class="button primary" href="/song/{{.VariantID}}/gp-edit?parts=guitar">Start a Guitar Pro file</a>
-          <a href="/song/{{.VariantID}}/gp-edit?parts=guitar,bass,drums">with guitar, bass and drums</a>
-          {{if .HasAnyScore}}<a href="#" class="gp-export-btn" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="The song’s LilyPond riffs as a Guitar Pro file">Export the riffs as Guitar Pro</a>{{end}}
+          <a class="button primary" href="/song/{{.VariantID}}/gp-edit?parts=guitar">{{t "Start a Guitar Pro file"}}</a>
+          <a href="/song/{{.VariantID}}/gp-edit?parts=guitar,bass,drums">{{t "with guitar, bass and drums"}}</a>
+          {{if .HasAnyScore}}<a href="#" class="gp-export-btn" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="{{t "The song’s LilyPond riffs as a Guitar Pro file"}}">{{t "Export the riffs as Guitar Pro"}}</a>{{end}}
         </p>
         {{end}}
       </div>
-      <h3 id="chord-diagram-heading">Chord diagram</h3>
-      <p class="hint">The builder below makes a <code>chord:</code> header line for the chart's chord diagrams and adds it to Source.</p>
+      <h3 id="chord-diagram-heading">{{t "Chord diagram"}}</h3>
+      <p class="hint">{{t "The builder below makes a"}} <code>chord:</code> {{t "header line for the chart's chord diagrams and adds it to Source."}}</p>
       {{/* Filled by song.js from POST /api/transpose (analysis only): the
            chords the song plays that have no diagram yet for its key.
            Tapping one puts its name in the builder. */}}
@@ -853,18 +856,18 @@
         <p class="hint" id="cde-todo-text"></p>
         <div class="cde-todo-chips" id="cde-todo-chips"></div>
       </div>
-      <p class="hint">Click a fret cell to mark it, click again to cycle fret &rarr; mute &rarr; open. Drag across a row at the same fret to mark a barre.</p>
+      <p class="hint">{{t "Click a fret cell to mark it, click again to cycle fret → mute → open. Drag across a row at the same fret to mark a barre."}}</p>
       <div class="chord-diagram-editor" id="chord-diagram-editor">
         <div class="cde-controls">
-          <label>Name <input type="text" id="cde-name" placeholder="e.g. Cm" maxlength="12" autocapitalize="off" spellcheck="false"></label>
-          <label>Base fret <input type="number" id="cde-base-fret" value="1" min="1" max="20" inputmode="numeric"></label>
-          <label>Strings <input type="number" id="cde-num-strings" value="6" min="4" max="6" inputmode="numeric"></label>
+          <label>{{t "Name"}} <input type="text" id="cde-name" placeholder="{{t "e.g. Cm"}}" maxlength="12" autocapitalize="off" spellcheck="false"></label>
+          <label>{{t "Base fret"}} <input type="number" id="cde-base-fret" value="1" min="1" max="20" inputmode="numeric"></label>
+          <label>{{t "Strings"}} <input type="number" id="cde-num-strings" value="6" min="4" max="6" inputmode="numeric"></label>
         </div>
         <div class="cde-grid" id="cde-grid"></div>
         <div class="cde-preview" id="cde-preview"></div>
         <div class="cde-actions">
           <code id="cde-spec"></code>
-          <button type="button" id="cde-insert">Insert chord: line into Source</button>
+          <button type="button" id="cde-insert">{{t "Insert chord: line into Source"}}</button>
           <span id="cde-status" class="hint"></span>
         </div>
       </div>
@@ -884,32 +887,32 @@
            (only when it fills parts of the song), then check and import.
            The file is kept with the song either way; the song points into
            it rather than copying its notes (docs/gp-file-model.md). */}}
-      <ol class="gpimport-stepper" id="gpimport-stepper" aria-label="Import steps">
-        <li data-step="fit">How it fits</li>
-        <li data-step="file">The file</li>
-        <li data-step="align">Line up</li>
-        <li data-step="import">Import</li>
+      <ol class="gpimport-stepper" id="gpimport-stepper" aria-label="{{t "Import steps"}}">
+        <li data-step="fit">{{t "How it fits"}}</li>
+        <li data-step="file">{{t "The file"}}</li>
+        <li data-step="align">{{t "Line up"}}</li>
+        <li data-step="import">{{t "Import"}}</li>
       </ol>
       {{if .GPSource}}
-      <p class="hint gpimport-reimport-note"><strong>This song already has a Guitar Pro file, {{.GPSource}}.</strong> To change it in Guitar Pro, <a href="/song/{{.VariantID}}/gp-file" download>download it</a>, edit it, and choose the edited file here: it becomes the song’s file, and the current one stays in the song’s <a href="/variants/{{.VariantID}}/history">history</a>. Small changes can be made on the web in the <a href="/song/{{.VariantID}}/gp-edit">file editor</a>.</p>
+      <p class="hint gpimport-reimport-note"><strong>{{t "This song already has a Guitar Pro file, %s." .GPSource}}</strong> {{t "To change it in Guitar Pro,"}} <a href="/song/{{.VariantID}}/gp-file" download>{{t "download it"}}</a>{{t ", edit it, and choose the edited file here: it becomes the song’s file, and the current one stays in the song’s"}} <a href="/variants/{{.VariantID}}/history">{{t "history"}}</a>{{t ". Small changes can be made on the web in the"}} <a href="/song/{{.VariantID}}/gp-edit">{{t "file editor"}}</a>.</p>
       {{end}}
       <p id="gpimport-status" class="hint" role="status"></p>
 
       <div class="gpimport-step" id="gpimport-step-fit">
-        <h3>1. How does the file fit this song?</h3>
-        <div class="gpimport-fit" role="radiogroup" aria-label="How the file fits the song">
+        <h3>{{t "1. How does the file fit this song?"}}</h3>
+        <div class="gpimport-fit" role="radiogroup" aria-label="{{t "How the file fits the song"}}">
           <label class="gpimport-fit-card">
             <input type="radio" name="gpimport-fit" value="whole">
-            <span class="t">The whole song</span>
-            <span class="d">An instrumental, a lesson, a full transcription. The song opens on the file’s score, with playback and every track. Sections, chords and lyrics stay optional.</span>
+            <span class="t">{{t "The whole song"}}</span>
+            <span class="d">{{t "An instrumental, a lesson, a full transcription. The song opens on the file’s score, with playback and every track. Sections, chords and lyrics stay optional."}}</span>
           </label>
           <label class="gpimport-fit-card">
             <input type="radio" name="gpimport-fit" value="parts">
-            <span class="t">Parts of the song</span>
-            <span class="d">Riffs, a solo, a bass line or drum parts for sections the song already has. You line the file’s bars up with the sections, and each section shows its bars under its chords and lyrics.</span>
+            <span class="t">{{t "Parts of the song"}}</span>
+            <span class="d">{{t "Riffs, a solo, a bass line or drum parts for sections the song already has. You line the file’s bars up with the sections, and each section shows its bars under its chords and lyrics."}}</span>
           </label>
         </div>
-        <p><button type="button" id="gpimport-fit-next" class="primary">Next: the file &rarr;</button></p>
+        <p><button type="button" id="gpimport-fit-next" class="primary">{{t "Next: the file"}} &rarr;</button></p>
       </div>
 
       {{/* Step 0: search. GProTab.net, not Ultimate Guitar — confirmed
@@ -924,33 +927,33 @@
            sent to the find endpoint and used there purely to RANK the
            results it gets back, never folded into the query string. */}}
       <div class="gpimport-step" id="gpimport-step-search" hidden>
-        <h3>2. Find a file</h3>
-        <p class="hint">Searches <a href="https://gprotab.net" target="_blank" rel="noopener">GProTab.net</a> — a free, anonymous Guitar Pro tab archive. Picking a result downloads that one file and continues below, same as choosing a file by hand.</p>
+        <h3>{{t "2. Find a file"}}</h3>
+        <p class="hint">{{t "Searches"}} <a href="https://gprotab.net" target="_blank" rel="noopener">GProTab.net</a> {{t "— a free, anonymous Guitar Pro tab archive. Picking a result downloads that one file and continues below, same as choosing a file by hand."}}</p>
         <form class="form-stack" id="gpimport-search-form">
           <div class="field">
-            <label for="gpimport-search-title">Song title</label>
+            <label for="gpimport-search-title">{{t "Song title"}}</label>
             <input type="text" id="gpimport-search-title" required autocomplete="off" enterkeyhint="search">
           </div>
           <div class="field">
-            <label for="gpimport-search-artist">Artist <span class="field-optional">(optional)</span></label>
-            <p class="field-hint" id="gpimport-search-artist-hint">Puts that artist's files first in the results.</p>
+            <label for="gpimport-search-artist">{{t "Artist"}} <span class="field-optional">{{t "(optional)"}}</span></label>
+            <p class="field-hint" id="gpimport-search-artist-hint">{{t "Puts that artist's files first in the results."}}</p>
             <input type="text" id="gpimport-search-artist" aria-describedby="gpimport-search-artist-hint" autocomplete="off" enterkeyhint="search">
           </div>
-          <div class="form-actions"><button type="submit" id="gpimport-search-btn" class="primary">Search GProTab.net</button></div>
+          <div class="form-actions"><button type="submit" id="gpimport-search-btn" class="primary">{{t "Search GProTab.net"}}</button></div>
         </form>
         <div id="gpimport-search-results"></div>
-        <p class="hint">Already have a file? <button type="button" id="gpimport-search-skip" class="link-btn">Choose a file from your computer instead &rarr;</button></p>
-        <p><button type="button" class="gpimport-back" data-back="fit">&larr; Back</button></p>
+        <p class="hint">{{t "Already have a file?"}} <button type="button" id="gpimport-search-skip" class="link-btn">{{t "Choose a file from your computer instead"}} &rarr;</button></p>
+        <p><button type="button" class="gpimport-back" data-back="fit">&larr; {{t "Back"}}</button></p>
       </div>
 
       {{/* Step 1: file + track. */}}
       <div class="gpimport-step" id="gpimport-step-file" hidden>
-        <h3>2. Choose the file</h3>
+        <h3>{{t "2. Choose the file"}}</h3>
         <p id="gpimport-file-source" class="hint" hidden></p>
-        <p><label for="gpimport-file">Guitar Pro file</label></p>
-        <p class="field-hint" id="gpimport-file-hint">A .gp, .gp3, .gp4, .gp5 or .gpx file.</p>
+        <p><label for="gpimport-file">{{t "Guitar Pro file"}}</label></p>
+        <p class="field-hint" id="gpimport-file-hint">{{t "A .gp, .gp3, .gp4, .gp5 or .gpx file."}}</p>
         <p><input type="file" id="gpimport-file" accept=".gp,.gp3,.gp4,.gp5,.gpx" aria-describedby="gpimport-file-hint"></p>
-        <p id="gpimport-track-row" hidden><label for="gpimport-track">Track</label> <select id="gpimport-track"></select></p>
+        <p id="gpimport-track-row" hidden><label for="gpimport-track">{{t "Track"}}</label> <select id="gpimport-track"></select></p>
         {{/* Shown only when this song has no sections/chords yet — a GP
              file's own chord diagrams (real, human-authored chord names
              attached to specific beats, not re-derived from the notes)
@@ -958,12 +961,12 @@
              riff on top of chords someone already typed in by hand. See
              gp-import.js's deriveAndCreateSection. */}}
         <p id="gpimport-derive-row" hidden class="hint">
-          This song has no chords yet.
-          <button type="button" id="gpimport-derive-chords" class="primary">Create chord grid from this file's chord diagrams</button>
+          {{t "This song has no chords yet."}}
+          <button type="button" id="gpimport-derive-chords" class="primary">{{t "Create chord grid from this file's chord diagrams"}}</button>
         </p>
         <p>
-          <button type="button" class="gpimport-back" data-back="search">&larr; Back</button>
-          <button type="button" id="gpimport-step1-next" class="primary" disabled>Next: line up the sections &rarr;</button>
+          <button type="button" class="gpimport-back" data-back="search">&larr; {{t "Back"}}</button>
+          <button type="button" id="gpimport-step1-next" class="primary" disabled>{{t "Next: line up the sections"}} &rarr;</button>
         </p>
       </div>
 
@@ -985,8 +988,8 @@
            block, the same "multi-rest" idea the chart's own compact
            sections already use. */}}
       <div class="gpimport-step" id="gpimport-step-align" hidden>
-        <h3>3. Line up the file with the song’s sections</h3>
-        <p class="hint">Drag a boundary to set where one section ends and the next begins. The first boundary is this song's bar 0 — drag it right past any count-in or silent lead-in.</p>
+        <h3>{{t "3. Line up the file with the song’s sections"}}</h3>
+        <p class="hint">{{t "Drag a boundary to set where one section ends and the next begins. The first boundary is this song's bar 0 — drag it right past any count-in or silent lead-in."}}</p>
         {{/* Dragging a boundary against a bare waveform, with no idea
              what's actually playing at that point, is exactly the
              "how would we do that blind?!" problem direct feedback
@@ -1003,7 +1006,7 @@
              playhead there instead of guessing from a waveform shape
              alone. */}}
         <div id="gpimport-content-preview-wrap">
-          <p class="hint">Click a bar below to jump the timeline to it — this is the file's own real notation, not a summary.</p>
+          <p class="hint">{{t "Click a bar below to jump the timeline to it — this is the file's own real notation, not a summary."}}</p>
           <div id="gpimport-content-preview"></div>
         </div>
         {{/* Shown only when the file's own author marked real sections
@@ -1014,14 +1017,14 @@
              worth offering as a one-click starting point instead of
              making a reader re-discover it by ear. */}}
         <p id="gpimport-use-markers-row" hidden class="hint">
-          This file has its own section markers.
-          <button type="button" id="gpimport-use-markers" class="primary">Use the file's own section markers</button>
+          {{t "This file has its own section markers."}}
+          <button type="button" id="gpimport-use-markers" class="primary">{{t "Use the file's own section markers"}}</button>
         </p>
         <div class="gpimport-toolbar">
-          <button type="button" id="gpimport-zoom-out" aria-label="Zoom out">&minus;</button>
+          <button type="button" id="gpimport-zoom-out" aria-label="{{t "Zoom out"}}">&minus;</button>
           <span class="gpimport-zoom-label" id="gpimport-zoom-label">100%</span>
-          <button type="button" id="gpimport-zoom-in" aria-label="Zoom in">+</button>
-          <button type="button" id="gpimport-play">&#9654; Play</button>
+          <button type="button" id="gpimport-zoom-in" aria-label="{{t "Zoom in"}}">+</button>
+          <button type="button" id="gpimport-play">&#9654; {{t "Play"}}</button>
           <span class="gpimport-zoom-label" id="gpimport-time-label">0:00 / 0:00</span>
         </div>
         <div class="gpimport-scroll" id="gpimport-scroll">
@@ -1034,25 +1037,25 @@
           </div>
         </div>
         <table id="gpimport-mapping-table" class="gpimport-mapping-table" hidden>
-          <thead><tr><th></th><th>Section</th><th>Required bars</th><th>Mapped bars</th><th></th></tr></thead>
+          <thead><tr><th></th><th>{{t "Section"}}</th><th>{{t "Required bars"}}</th><th>{{t "Mapped bars"}}</th><th></th></tr></thead>
           <tbody id="gpimport-mapping"></tbody>
         </table>
         <p>
-          <button type="button" id="gpimport-step2-back">&larr; Back</button>
-          <button type="button" id="gpimport-step2-next" class="primary">Next: import &rarr;</button>
+          <button type="button" id="gpimport-step2-back">&larr; {{t "Back"}}</button>
+          <button type="button" id="gpimport-step2-next" class="primary">{{t "Next: import"}} &rarr;</button>
         </p>
       </div>
 
       {{/* Step 3: confirm + commit. */}}
       <div class="gpimport-step" id="gpimport-step-import" hidden>
-        <h3>4. Check and import</h3>
+        <h3>{{t "4. Check and import"}}</h3>
         <p id="gpimport-summary" class="hint"></p>
         <div id="gpimport-header"></div>
         <div id="gpimport-preview"></div>
-        <p id="gpimport-audio-row"><label class="check"><input type="checkbox" id="gpimport-include-audio" checked> Also import the backing track and its bar sync</label></p>
+        <p id="gpimport-audio-row"><label class="check"><input type="checkbox" id="gpimport-include-audio" checked> {{t "Also import the backing track and its bar sync"}}</label></p>
         <p>
-          <button type="button" id="gpimport-step3-back">&larr; Back</button>
-          <button type="button" id="gpimport-run" class="primary">Import into song</button>
+          <button type="button" id="gpimport-step3-back">&larr; {{t "Back"}}</button>
+          <button type="button" id="gpimport-run" class="primary">{{t "Import into song"}}</button>
         </p>
       </div>
     </section>
@@ -1072,22 +1075,22 @@
          fetched draft → apply it into Source. */}}
     <section class="prep-panel import-wizard" data-panel="import" id="import-wizard" hidden>
       <div class="import-step" data-step="find">
-        <p class="hint">Pulls a chord+lyric chart in from Ultimate Guitar, reviews the draft, then applies it — nothing is written until you confirm.</p>
+        <p class="hint">{{t "Pulls a chord+lyric chart in from Ultimate Guitar, reviews the draft, then applies it — nothing is written until you confirm."}}</p>
         <div class="import-row">
-          <button type="button" id="import-auto-find-btn" class="primary">{{template "icon-view"}} Find &amp; fetch automatically</button>
+          <button type="button" id="import-auto-find-btn" class="primary">{{template "icon-view"}} {{t "Find & fetch automatically"}}</button>
           <span id="import-auto-find-status" class="hint" role="status"></span>
         </div>
         <details class="import-manual-details">
-          <summary>Or find it yourself</summary>
+          <summary>{{t "Or find it yourself"}}</summary>
           <div class="import-search-links" id="import-search-links"></div>
           <form class="form-stack" id="import-url-form">
             <div class="field">
-              <label for="import-url-input">Tab page address</label>
-              <p class="field-hint" id="import-url-hint">Open the chart on Ultimate Guitar and copy the address from your browser.</p>
-              <input type="url" id="import-url-input" required aria-describedby="import-url-hint" placeholder="e.g. https://tabs.ultimate-guitar.com/tab/…" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
+              <label for="import-url-input">{{t "Tab page address"}}</label>
+              <p class="field-hint" id="import-url-hint">{{t "Open the chart on Ultimate Guitar and copy the address from your browser."}}</p>
+              <input type="url" id="import-url-input" required aria-describedby="import-url-hint" placeholder="{{t "e.g. https://tabs.ultimate-guitar.com/tab/…"}}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
             </div>
             <div class="import-row">
-              <button type="submit" id="import-fetch-btn">Fetch chart</button>
+              <button type="submit" id="import-fetch-btn">{{t "Fetch chart"}}</button>
               <span id="import-fetch-status" class="hint" role="status"></span>
             </div>
           </form>
@@ -1095,11 +1098,11 @@
       </div>
 
       <div class="import-step" data-step="review" hidden>
-        <button type="button" class="import-back" data-back="find">{{template "icon-back"}} Back</button>
-        <p class="hint" id="import-review-hint">Review the draft below — nothing is applied yet. You can edit it here before applying.</p>
-        <label class="import-url-label" for="import-review-text">Draft chart</label>
+        <button type="button" class="import-back" data-back="find">{{template "icon-back"}} {{t "Back"}}</button>
+        <p class="hint" id="import-review-hint">{{t "Review the draft below — nothing is applied yet. You can edit it here before applying."}}</p>
+        <label class="import-url-label" for="import-review-text">{{t "Draft chart"}}</label>
         <textarea id="import-review-text" class="import-review-text" rows="14" spellcheck="false" autocapitalize="off" aria-describedby="import-review-hint"></textarea>
-        <label class="import-strip-chords-label"><input type="checkbox" id="import-strip-chords"> Keep chords in the grid only, and take them out of the lyrics</label>
+        <label class="import-strip-chords-label"><input type="checkbox" id="import-strip-chords"> {{t "Keep chords in the grid only, and take them out of the lyrics"}}</label>
 
         {{/* iReal Pro bar-accurate chord reference — an enrichment of
              the UG draft above, never a replacement: iReal has no
@@ -1112,14 +1115,14 @@
              high confidence). */}}
         <div class="import-ireal-block">
           <div class="import-row">
-            <button type="button" id="import-ireal-check-btn">{{template "icon-view"}} Check iReal Pro for bar-accurate chords</button>
+            <button type="button" id="import-ireal-check-btn">{{template "icon-view"}} {{t "Check iReal Pro for bar-accurate chords"}}</button>
             <span id="import-ireal-status" class="hint"></span>
           </div>
           <div id="import-ireal-candidates" class="import-ireal-candidates"></div>
         </div>
 
         <div class="import-row">
-          <button type="button" id="import-apply-btn" class="primary">{{template "icon-plus"}} Accept &amp; insert into Source</button>
+          <button type="button" id="import-apply-btn" class="primary">{{template "icon-plus"}} {{t "Accept & insert into Source"}}</button>
           <span id="import-apply-status" class="hint"></span>
         </div>
       </div>
@@ -1135,29 +1138,29 @@
      any book/stem use of this same "song" template, not
      just the plain /b/{book}/{stem} page. */}}
 <div class="edit-drawer-backdrop" id="notes-drawer-backdrop" hidden></div>
-<div class="edit-drawer card" id="notes-drawer" role="dialog" aria-modal="true" aria-label="Notes on {{.Title}}" hidden>
+<div class="edit-drawer card" id="notes-drawer" role="dialog" aria-modal="true" aria-label="{{t "Notes on %s" .Title}}" hidden>
   <div class="edit-drawer-head">
-    <h2>Notes</h2>
-    <button id="notes-drawer-close" class="icon-btn" type="button" title="close">{{template "icon-close"}}</button>
+    <h2>{{t "Notes"}}</h2>
+    <button id="notes-drawer-close" class="icon-btn" type="button" title="{{t "close"}}">{{template "icon-close"}}</button>
   </div>
   <div class="edit-drawer-body" id="notes-drawer-body" data-variant-id="{{.VariantID}}">
-    <p class="hint">Private notes are visible only to you; shared notes are visible to anyone who can view this song.</p>
+    <p class="hint">{{t "Private notes are visible only to you; shared notes are visible to anyone who can view this song."}}</p>
     {{range .Sections}}
     <section class="prep-panel notes-section" data-section-index="{{.Index}}">
       <h3>{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}</h3>
       <ul class="notes-list" data-section-index="{{.Index}}"></ul>
       <form class="note-add-form form-stack" data-section-index="{{.Index}}">
         <div class="field">
-          <label for="note-body-{{.Index}}">New note</label>
-          <textarea id="note-body-{{.Index}}" class="note-body prose" rows="2" required placeholder="e.g. watch the key change here"></textarea>
+          <label for="note-body-{{.Index}}">{{t "New note"}}</label>
+          <textarea id="note-body-{{.Index}}" class="note-body prose" rows="2" required placeholder="{{t "e.g. watch the key change here"}}"></textarea>
         </div>
         <fieldset class="field-group">
-          <legend>Who can see it</legend>
-          <label class="check"><input type="radio" name="visibility-{{.Index}}" value="private" checked> Only me</label>
-          <label class="check"><input type="radio" name="visibility-{{.Index}}" value="shared"> Anyone who can view this song</label>
+          <legend>{{t "Who can see it"}}</legend>
+          <label class="check"><input type="radio" name="visibility-{{.Index}}" value="private" checked> {{t "Only me"}}</label>
+          <label class="check"><input type="radio" name="visibility-{{.Index}}" value="shared"> {{t "Anyone who can view this song"}}</label>
         </fieldset>
         <p class="form-status" role="status"></p>
-        <div class="form-actions"><button type="submit">Add note</button></div>
+        <div class="form-actions"><button type="submit">{{t "Add note"}}</button></div>
       </form>
     </section>
     {{end}}
@@ -1205,13 +1208,13 @@
          instead of a small text link competing with the title for the
          very top of the screen. */}}
     {{if .GigMode}}
-    <a href="/setlists/{{.SetlistRef}}/gig" title="back to set list">{{template "icon-up"}} Up</a>
+    <a href="/setlists/{{.SetlistRef}}/gig" title="{{t "back to set list"}}">{{template "icon-up"}} {{t "Up"}}</a>
     {{else if .SetlistRef}}
-    <a href="{{.SetlistURL}}" title="back to set list">{{template "icon-up"}} Up</a>
+    <a href="{{.SetlistURL}}" title="{{t "back to set list"}}">{{template "icon-up"}} {{t "Up"}}</a>
     {{else}}
-    {{if .LessonHref}}<a href="{{.LessonHref}}" title="back to {{.LessonLabel}}">{{template "icon-up"}} Up</a>{{else if .SongbookRef}}<a href="/songbooks/{{.SongbookRef}}" title="back to songbook">{{template "icon-up"}} Up</a>{{else if .BandRef}}<a href="/bands/{{.BandRef}}/catalog" title="back to {{.BandName}}">{{template "icon-up"}} Up</a>{{else}}<a href="/catalog" title="back to catalog">{{template "icon-up"}} Up</a>{{end}}
+    {{if .LessonHref}}<a href="{{.LessonHref}}" title="{{t "back to %s" .LessonLabel}}">{{template "icon-up"}} {{t "Up"}}</a>{{else if .SongbookRef}}<a href="/songbooks/{{.SongbookRef}}" title="{{t "back to songbook"}}">{{template "icon-up"}} {{t "Up"}}</a>{{else if .BandRef}}<a href="/bands/{{.BandRef}}/catalog" title="{{t "back to %s" .BandName}}">{{template "icon-up"}} {{t "Up"}}</a>{{else}}<a href="/catalog" title="{{t "back to catalog"}}">{{template "icon-up"}} {{t "Up"}}</a>{{end}}
     {{end}}
-    <button type="button" id="view-stack-btn">{{template "icon-view"}} View</button>
+    <button type="button" id="view-stack-btn">{{template "icon-view"}} {{t "View"}}</button>
     {{/* A real page link, not a sheet toggle — the inline off-canvas
          .timeline metronome panel was confusing/broken on mobile (two
          separate reports this session), so mobile metronome access now
@@ -1219,10 +1222,10 @@
          this song's own tempo/time signature and a link back here.
          Desktop is untouched: the sidebar's own transport panel stays
          in-flow exactly as before. */}}
-    <a id="metronome-stack-btn" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-metronome"}} Metronome</a>
-    <a href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-tuner"}} Tuner</a>
-    <button type="button" id="song-stack-btn">{{template "icon-song-actions"}} Song</button>
-    <button type="button" id="site-nav-fullpage-btn">{{template "icon-more"}} More</button>
+    <a id="metronome-stack-btn" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-metronome"}} {{t "Metronome"}}</a>
+    <a href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-tuner"}} {{t "Tuner"}}</a>
+    <button type="button" id="song-stack-btn">{{template "icon-song-actions"}} {{t "Song"}}</button>
+    <button type="button" id="site-nav-fullpage-btn">{{template "icon-more"}} {{t "More"}}</button>
     {{/* Last entry: next song in this same list (setlist step order, or
          the book's own song order) — the desktop topbar-next card's own
          link logic, reused as-is. No prev icon here: Up (above) already
@@ -1231,32 +1234,32 @@
          before this. Disabled, not hidden, when there's no next song, so
          the bar keeps its 6 even slots rather than reflowing. */}}
     {{if .Next}}
-    <a href="/song/{{.Next.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{else if $.SongbookRef}}?songbook={{$.SongbookRef}}{{end}}" title="next: {{.Next.Title}}">{{template "icon-forward"}} Next</a>
+    <a href="/song/{{.Next.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{else if $.SongbookRef}}?songbook={{$.SongbookRef}}{{end}}" title="{{t "next: %s" .Next.Title}}">{{template "icon-forward"}} {{t "Next"}}</a>
     {{else}}
-    <span class="context-bar-disabled">{{template "icon-forward"}} Next</span>
+    <span class="context-bar-disabled">{{template "icon-forward"}} {{t "Next"}}</span>
     {{end}}
   </div>
   <div class="stack-backdrop" id="view-stack-backdrop"></div>
   {{/* View: how the song is drawn, for this reader — the view, which
        instrument's part, tab or staff, and stage mode. Doing things to
        the song (edit, notes, exports, history) is the Song sheet's. */}}
-  <div class="stack-sheet" id="view-stack" role="dialog" aria-label="View">
-    <button type="button" class="stack-sheet-row" data-forward="normal">{{template "icon-mode-normal"}} Song</button>
-    <button type="button" class="stack-sheet-row" data-forward="jazz">{{template "icon-mode-jazz"}} Jazz chart</button>
-    {{if .HasLyrics}}<button type="button" class="stack-sheet-row" data-forward="lyrics">{{template "icon-mode-lyrics"}} Lyrics only</button>{{end}}
-    <button type="button" class="stack-sheet-row" data-forward="map">{{template "icon-mode-map"}} Song map</button>
-    <button type="button" class="stack-sheet-row" data-forward="drummer">{{template "icon-mode-drummer"}} Drummer</button>
-    {{if .GPFileName}}<button type="button" class="stack-sheet-row" data-forward="score">{{template "icon-mode-score"}} Score</button>{{end}}
-    <button type="button" class="stack-sheet-row" data-forward="mixer">{{template "icon-mode-mixer"}} Mixer</button>
+  <div class="stack-sheet" id="view-stack" role="dialog" aria-label="{{t "View"}}">
+    <button type="button" class="stack-sheet-row" data-forward="normal">{{template "icon-mode-normal"}} {{t "Song"}}</button>
+    <button type="button" class="stack-sheet-row" data-forward="jazz">{{template "icon-mode-jazz"}} {{t "Jazz chart"}}</button>
+    {{if .HasLyrics}}<button type="button" class="stack-sheet-row" data-forward="lyrics">{{template "icon-mode-lyrics"}} {{t "Lyrics only"}}</button>{{end}}
+    <button type="button" class="stack-sheet-row" data-forward="map">{{template "icon-mode-map"}} {{t "Song map"}}</button>
+    <button type="button" class="stack-sheet-row" data-forward="drummer">{{template "icon-mode-drummer"}} {{t "Drummer"}}</button>
+    {{if .GPFileName}}<button type="button" class="stack-sheet-row" data-forward="score">{{template "icon-mode-score"}} {{t "Score"}}</button>{{end}}
+    <button type="button" class="stack-sheet-row" data-forward="mixer">{{template "icon-mode-mixer"}} {{t "Mixer"}}</button>
     {{if .Instruments}}
-    <div class="stack-sheet-label">Part</div>
+    <div class="stack-sheet-label">{{t "Part"}}</div>
     <div class="stack-sheet-chips" id="view-stack-instruments">
-      <button type="button" data-instrument="chords" class="{{if or (not .SelectedInstrument) (eq .SelectedInstrument "chords")}}active{{end}}">{{template "icon-chord-grid"}} Chords</button>
+      <button type="button" data-instrument="chords" class="{{if or (not .SelectedInstrument) (eq .SelectedInstrument "chords")}}active{{end}}">{{template "icon-chord-grid"}} {{t "Chords"}}</button>
       {{range .Instruments}}<button type="button" data-instrument="{{.}}" class="{{if eq . $.SelectedInstrument}}active{{end}}">{{template "instrument-icon" .}} {{.}}</button>{{end}}
     </div>
     {{end}}
     <div class="stack-sheet-notation" id="view-stack-notation"></div>
-    <button type="button" class="stack-sheet-row stage-mode-toggle" id="stage-mode-row">{{template "icon-presentation"}} Stage mode</button>
+    <button type="button" class="stack-sheet-row stage-mode-toggle" id="stage-mode-row">{{template "icon-presentation"}} {{t "Stage mode"}}</button>
   </div>
 
   {{/* Song-actions sheet: everything that used to crowd the mobile top
@@ -1267,7 +1270,7 @@
        history links, which lose their desktop-only hiding class here
        since this IS their mobile home now. */}}
   <div class="stack-backdrop" id="song-stack-backdrop"></div>
-  <div class="stack-sheet" id="song-stack" role="dialog" aria-label="Song">
+  <div class="stack-sheet" id="song-stack" role="dialog" aria-label="{{t "Song"}}">
     {{/* Per direct request: "on mobile the reference tab should be in
          the song menu" — moved here from the View sheet (view-stack
          above), which the mode-switch rows are a more natural home for;
@@ -1278,23 +1281,23 @@
          row below/above already uses — no special-casing needed now
          that Reference is a real mode, not a drawer this row had its
          own bespoke open logic for. */}}
-    <button type="button" class="stack-sheet-row" data-forward="edit"{{if not (or .CanEdit .CanCopy)}} hidden{{end}}>{{template "icon-edit"}} Edit</button>
-    {{if .VariantID}}<button type="button" class="stack-sheet-row" id="notes-stack-row">{{template "icon-notes"}} Notes</button>{{end}}
-    <button type="button" class="stack-sheet-row" data-forward="reference">{{template "icon-reference"}} Reference</button>
+    <button type="button" class="stack-sheet-row" data-forward="edit"{{if not (or .CanEdit .CanCopy)}} hidden{{end}}>{{template "icon-edit"}} {{t "Edit"}}</button>
+    {{if .VariantID}}<button type="button" class="stack-sheet-row" id="notes-stack-row">{{template "icon-notes"}} {{t "Notes"}}</button>{{end}}
+    <button type="button" class="stack-sheet-row" data-forward="reference">{{template "icon-reference"}} {{t "Reference"}}</button>
     <div class="stack-sheet-row pdf-mode-row" style="flex-wrap:wrap;gap:0.6rem 0.9rem;">
-      <a class="pdf-export-link" href="/song/{{.VariantID}}/export.pdf" title="export PDF (chart)" download>{{template "icon-download"}} Export PDF</a>
-      <select class="pdf-mode-select" aria-label="PDF layout">
-        <option value="">Song</option>
-        <option value="jazz">Jazz chart</option>
-        <option value="map">Song map</option>
-        {{if $.HasLyrics}}<option value="lyrics">Lyrics only</option>{{end}}
+      <a class="pdf-export-link" href="/song/{{.VariantID}}/export.pdf" title="{{t "export PDF (chart)"}}" download>{{template "icon-download"}} {{t "Export PDF"}}</a>
+      <select class="pdf-mode-select" aria-label="{{t "PDF layout"}}">
+        <option value="">{{t "Song"}}</option>
+        <option value="jazz">{{t "Jazz chart"}}</option>
+        <option value="map">{{t "Song map"}}</option>
+        {{if $.HasLyrics}}<option value="lyrics">{{t "Lyrics only"}}</option>{{end}}
       </select>
-      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> Include notes</label>
+      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> {{t "Include notes"}}</label>
     </div>
-    {{if .GPFileName}}<a class="stack-sheet-row" href="/song/{{.VariantID}}/gp-file" title="download the original Guitar Pro file ({{.GPFileName}})" download>{{template "icon-download"}} Guitar Pro file</a>{{end}}
-    {{if .HasAnyScore}}<a class="stack-sheet-row gp-export-btn" href="#" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="the song as it is now, edits made here included, as a Guitar Pro file">{{template "icon-download"}} Export as Guitar Pro</a>{{end}}
-    {{if .WorkID}}<a class="stack-sheet-row" href="/works/{{.WorkID}}">{{template "icon-mode-map"}} All versions of this song</a>{{end}}
-    {{if .VariantID}}<a class="stack-sheet-row" href="/variants/{{.VariantID}}/history">{{template "icon-notes"}} Revision history</a>{{end}}
+    {{if .GPFileName}}<a class="stack-sheet-row" href="/song/{{.VariantID}}/gp-file" title="{{t "download the original Guitar Pro file (%s)" .GPFileName}}" download>{{template "icon-download"}} {{t "Guitar Pro file"}}</a>{{end}}
+    {{if .HasAnyScore}}<a class="stack-sheet-row gp-export-btn" href="#" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="{{t "the song as it is now, edits made here included, as a Guitar Pro file"}}">{{template "icon-download"}} {{t "Export as Guitar Pro"}}</a>{{end}}
+    {{if .WorkID}}<a class="stack-sheet-row" href="/works/{{.WorkID}}">{{template "icon-mode-map"}} {{t "All versions of this song"}}</a>{{end}}
+    {{if .VariantID}}<a class="stack-sheet-row" href="/variants/{{.VariantID}}/history">{{template "icon-notes"}} {{t "Revision history"}}</a>{{end}}
   </div>
 
   {{/* The "..." full-page site navigation used to be a local copy here;
@@ -1311,24 +1314,24 @@
     <section class="lesson-panel" id="lesson-panel" data-songbook="{{.SongbookID}}" data-lesson="{{.Lesson.ID}}">
       <div class="lesson-panel-head">
         <a class="lesson-panel-title" href="{{.Href}}">
-          <span class="lesson-panel-kicker">{{.Course}}{{with .Lesson.Number}} · Lesson {{.}}{{if $.LessonPanel.Of}} of {{$.LessonPanel.Of}}{{end}}{{end}}</span>
+          <span class="lesson-panel-kicker">{{.Course}}{{with .Lesson.Number}} · {{if $.LessonPanel.Of}}{{t "Lesson %s of %d" . $.LessonPanel.Of}}{{else}}{{t "Lesson %s" .}}{{end}}{{end}}</span>
           <span class="lesson-panel-name">{{.Lesson.Title}}</span>
         </a>
         <div class="lesson-panel-actions">
-          {{if .VideoID}}<button type="button" class="lesson-panel-btn" aria-expanded="false" aria-controls="lesson-panel-video">{{template "icon-play"}}<span>Video</span></button>{{end}}
-          {{if .Files}}<button type="button" class="lesson-panel-btn" aria-expanded="false" aria-controls="lesson-panel-files">{{template "icon-download"}}<span>Files <small>{{len .Files}}</small></span></button>{{end}}
-          <button type="button" id="lesson-panel-done" class="lesson-panel-btn lesson-panel-done" aria-pressed="{{if .Done}}true{{else}}false{{end}}"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10.5l3.5 3.5 7.5-8"/></svg><span>{{if .Done}}Done{{else}}Mark as done{{end}}</span></button>
+          {{if .VideoID}}<button type="button" class="lesson-panel-btn" aria-expanded="false" aria-controls="lesson-panel-video">{{template "icon-play"}}<span>{{t "Video"}}</span></button>{{end}}
+          {{if .Files}}<button type="button" class="lesson-panel-btn" aria-expanded="false" aria-controls="lesson-panel-files">{{template "icon-download"}}<span>{{t "Files"}} <small>{{len .Files}}</small></span></button>{{end}}
+          <button type="button" id="lesson-panel-done" class="lesson-panel-btn lesson-panel-done" aria-pressed="{{if .Done}}true{{else}}false{{end}}"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10.5l3.5 3.5 7.5-8"/></svg><span>{{if .Done}}{{t "Done"}}{{else}}{{t "Mark as done"}}{{end}}</span></button>
         </div>
       </div>
       {{/* The video stays in view while the score scrolls: docked in a
            corner once its place is out of sight (the script below). */}}
-      {{with .VideoID}}<div class="lesson-panel-video" id="lesson-panel-video" data-video="{{.}}" hidden><div class="lesson-video"><button type="button" class="lesson-video-close icon-btn" aria-label="Close the video">{{template "icon-close"}}</button></div></div>{{end}}
-      {{with .Files}}<ul class="lesson-panel-files" id="lesson-panel-files" hidden>{{range .}}<li><a href="{{.Href}}" download><span class="dl-ext">{{if eq .Kind "gp"}}GP{{else}}{{or .Ext "FILE"}}{{end}}</span><span class="lesson-panel-file">{{.Filename}}</span><small>{{fileSize .ByteSize}}</small></a></li>{{end}}</ul>{{end}}
+      {{with .VideoID}}<div class="lesson-panel-video" id="lesson-panel-video" data-video="{{.}}" hidden><div class="lesson-video"><button type="button" class="lesson-video-close icon-btn" aria-label="{{t "Close the video"}}">{{template "icon-close"}}</button></div></div>{{end}}
+      {{with .Files}}<ul class="lesson-panel-files" id="lesson-panel-files" hidden>{{range .}}<li><a href="{{.Href}}" download><span class="dl-ext">{{if eq .Kind "gp"}}GP{{else}}{{or .Ext (t "FILE")}}{{end}}</span><span class="lesson-panel-file">{{.Filename}}</span><small>{{fileSize .ByteSize}}</small></a></li>{{end}}</ul>{{end}}
       {{/* The course around it: the lessons before and after, and how
            far along the viewer is. Done makes "next" the way on. */}}
-      <nav class="lesson-panel-nav" aria-label="Lessons">
+      <nav class="lesson-panel-nav" aria-label="{{t "Lessons"}}">
         {{with .Prev}}<a class="lesson-panel-prev" href="{{.Href}}" title="{{.Label}}">{{template "icon-back"}}<span>{{.Label}}</span></a>{{else}}<span></span>{{end}}
-        <span class="lesson-panel-progress" title="{{.DoneCount}} of {{.Of}} lessons done"><span class="lesson-panel-meter" style="--done: {{.Percent}}%"></span><small>{{.DoneCount}}/{{.Of}} done</small></span>
+        <span class="lesson-panel-progress" title="{{t "%d of %d lessons done" .DoneCount .Of}}"><span class="lesson-panel-meter" style="--done: {{.Percent}}%"></span><small>{{t "%d/%d done" .DoneCount .Of}}</small></span>
         {{with .Next}}<a class="lesson-panel-next" href="{{.Href}}" title="{{.Label}}"><span>{{.Label}}</span>{{template "icon-forward"}}</a>{{else}}<span></span>{{end}}
       </nav>
     </section>
@@ -1349,7 +1352,7 @@
         if (video && !video.hidden && !box.querySelector('iframe')) {
           const f = document.createElement('iframe');
           f.src = `https://www.youtube-nocookie.com/embed/${video.dataset.video}?rel=0`;
-          f.title = 'The lesson’s video';
+          f.title = t('The lesson’s video');
           f.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
           f.allowFullscreen = true;
           box.append(f);
@@ -1374,14 +1377,14 @@
         Forms.busy(done, true);
         const res = await fetch(`/api/songbooks/${panel.dataset.songbook}/lessons/${panel.dataset.lesson}/done`, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({done: now})}).catch(() => null);
         Forms.busy(done, false);
-        if (!res || !res.ok) { alert('Couldn’t save that.'); return; }
+        if (!res || !res.ok) { alert(t('Couldn’t save that.')); return; }
         done.setAttribute('aria-pressed', String(now));
-        done.querySelector('span').textContent = now ? 'Done' : 'Mark as done';
+        done.querySelector('span').textContent = now ? t('Done') : t('Mark as done');
         const progress = panel.querySelector('.lesson-panel-progress');
         const [n, of] = progress.querySelector('small').textContent.split(/[/ ]/).map(Number);
         const count = n + (now ? 1 : -1);
-        progress.querySelector('small').textContent = `${count}/${of} done`;
-        progress.title = `${count} of ${of} lessons done`;
+        progress.querySelector('small').textContent = t('%d/%d done', count, of);
+        progress.title = t('%d of %d lessons done', count, of);
         progress.querySelector('.lesson-panel-meter').style.setProperty('--done', `${Math.floor(count * 100 / of)}%`);
       });
     })();
@@ -1394,14 +1397,14 @@
          the sidebar too. Always visible, every mode — replaces the old
          vertical "timeline" list of section buttons that used to live
          under the metronome/transport panel. */}}
-    <nav class="song-structure-strip" id="song-structure-strip" aria-label="song structure overview">
+    <nav class="song-structure-strip" id="song-structure-strip" aria-label="{{t "song structure overview"}}">
       <div class="structure-line"></div>
       <div class="structure-fill" id="structure-fill"></div>
       <div class="structure-row">
         {{range .Sections}}
         <button class="structure-seg{{if or .Repeat .IsReference}} is-reference{{end}}" type="button"
           data-section-index="{{.Index}}" style="--bars: {{if .BarCount}}{{.BarCount}}{{else}}1{{end}}"
-          title="{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if .BarCount}} — {{.BarCount}} bars{{end}}">
+          title="{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if .BarCount}} — {{tn .BarCount "%d bar" "%d bars"}}{{end}}">
           {{if .ChordSummary}}<span class="structure-seg-chords" title="{{.ChordSummary}}">{{.ChordSummary}}</span>{{end}}
           <span class="structure-seg-tick"></span>
           <span class="structure-seg-label">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if .BarCount}}<span class="structure-seg-bars">{{.BarCount}}</span>{{end}}</span>
@@ -1431,10 +1434,10 @@
       <div id="audio-category-toggle" class="audio-category-toggle" hidden>
         <button type="button" data-category="gp">Guitar Pro</button>
         <button type="button" data-category="youtube">YouTube</button>
-        <button type="button" data-category="band">Band recording</button>
+        <button type="button" data-category="band">{{t "Band recording"}}</button>
       </div>
       <div id="audio-empty-state" class="audio-empty-state" hidden>
-        <span class="hint">No reference audio yet — add one from the <button type="button" id="audio-empty-reference-link" class="link-btn">Reference</button> tab.</span>
+        <span class="hint">{{t "No reference audio yet — add one from the"}} <button type="button" id="audio-empty-reference-link" class="link-btn">{{t "Reference"}}</button> {{t "tab."}}</span>
       </div>
       <div id="audio-player-body" class="audio-player-body" hidden>
         {{/* A practice player, laid out like GarageBand / Logic's control
@@ -1443,107 +1446,107 @@
              the Mixer; this only plays. See audio-player.js. */}}
         <div class="audio-transport">
           <div class="audio-buttons">
-            <button type="button" id="audio-start-btn" class="icon-btn" title="go to start (Home)">{{template "icon-to-start"}}</button>
-            <button type="button" id="audio-prev-btn" class="icon-btn" title="previous bar (, or ←; ⌥← previous section)">{{template "icon-prev-bar"}}</button>
-            <button type="button" id="audio-play-btn" class="icon-btn audio-play-btn" title="play/pause (Space)">{{template "icon-play"}}</button>
-            <button type="button" id="audio-next-btn" class="icon-btn" title="next bar (. or →; ⌥→ next section)">{{template "icon-next-bar"}}</button>
+            <button type="button" id="audio-start-btn" class="icon-btn" title="{{t "go to start (Home)"}}">{{template "icon-to-start"}}</button>
+            <button type="button" id="audio-prev-btn" class="icon-btn" title="{{t "previous bar (, or ←; ⌥← previous section)"}}">{{template "icon-prev-bar"}}</button>
+            <button type="button" id="audio-play-btn" class="icon-btn audio-play-btn" title="{{t "play/pause (Space)"}}">{{template "icon-play"}}</button>
+            <button type="button" id="audio-next-btn" class="icon-btn" title="{{t "next bar (. or →; ⌥→ next section)"}}">{{template "icon-next-bar"}}</button>
           </div>
-          <div class="audio-lcd" id="audio-lcd" title="bar.beat · section — time">
+          <div class="audio-lcd" id="audio-lcd" title="{{t "bar.beat · section — time"}}">
             <span class="audio-lcd-pos" id="audio-lcd-pos">1.1</span>
             <span class="audio-lcd-section" id="audio-lcd-section"></span>
             <span class="audio-lcd-time" id="audio-time-label">0:00 / 0:00</span>
           </div>
-          <button type="button" id="audio-opts-btn" class="icon-btn audio-opts-btn" aria-expanded="false" aria-controls="audio-opts" title="practice options">{{template "icon-more"}}</button>
+          <button type="button" id="audio-opts-btn" class="icon-btn audio-opts-btn" aria-expanded="false" aria-controls="audio-opts" title="{{t "practice options"}}">{{template "icon-more"}}</button>
           <div class="audio-opts" id="audio-opts">
-            <button type="button" id="audio-cycle-btn" class="audio-toggle" aria-pressed="false" title="cycle: loop the yellow bar range — drag in the ruler to set it (C)">{{template "icon-cycle"}}<span>Cycle</span></button>
+            <button type="button" id="audio-cycle-btn" class="audio-toggle" aria-pressed="false" title="{{t "cycle: loop the yellow bar range — drag in the ruler to set it (C)"}}">{{template "icon-cycle"}}<span>{{t "Cycle"}}</span></button>
             <span class="audio-split">
-              <button type="button" id="audio-countin-btn" class="audio-toggle" aria-pressed="false" title="count-in before playing: off, 1 bar, 2 bars">{{template "icon-count-in"}}<span id="audio-countin-label">Count-in</span></button>
-              <button type="button" class="audio-caret" data-pop="audio-pop-countin" aria-expanded="false" title="count-in options">{{template "icon-down"}}</button>
+              <button type="button" id="audio-countin-btn" class="audio-toggle" aria-pressed="false" title="{{t "count-in before playing: off, 1 bar, 2 bars"}}">{{template "icon-count-in"}}<span id="audio-countin-label">{{t "Count-in"}}</span></button>
+              <button type="button" class="audio-caret" data-pop="audio-pop-countin" aria-expanded="false" title="{{t "count-in options"}}">{{template "icon-down"}}</button>
             </span>
             <span class="audio-split">
-              <button type="button" id="audio-click-btn" class="audio-toggle" aria-pressed="false" title="click on every beat, following the recording (K)">{{template "icon-metronome"}}<span>Click</span></button>
-              <button type="button" class="audio-caret" data-pop="audio-pop-click" aria-expanded="false" title="click sound and volume">{{template "icon-down"}}</button>
+              <button type="button" id="audio-click-btn" class="audio-toggle" aria-pressed="false" title="{{t "click on every beat, following the recording (K)"}}">{{template "icon-metronome"}}<span>{{t "Click"}}</span></button>
+              <button type="button" class="audio-caret" data-pop="audio-pop-click" aria-expanded="false" title="{{t "click sound and volume"}}">{{template "icon-down"}}</button>
             </span>
             {{/* Key: the recording in another key (the chords on screen
                  follow); Voice: its voice turned down or off, from its
                  parts (split in the background, cmd/stemsd). See
                  audio-player.js "Key and voice". */}}
-            <button type="button" id="audio-key-btn" class="audio-toggle" data-pop="audio-pop-key" aria-expanded="false" title="play the recording in another key">{{template "icon-tuner"}}<span id="audio-key-label">Key</span></button>
+            <button type="button" id="audio-key-btn" class="audio-toggle" data-pop="audio-pop-key" aria-expanded="false" title="{{t "play the recording in another key"}}">{{template "icon-tuner"}}<span id="audio-key-label">{{t "Key"}}</span></button>
             <span class="audio-split" id="audio-voice-split" hidden>
-              <button type="button" id="audio-voice-btn" class="audio-toggle" aria-pressed="false" title="the voice: on or off (V)">{{template "icon-instrument-vocals"}}<span id="audio-voice-label">Voice</span></button>
-              <button type="button" class="audio-caret" data-pop="audio-pop-voice" aria-expanded="false" title="the voice's volume">{{template "icon-down"}}</button>
+              <button type="button" id="audio-voice-btn" class="audio-toggle" aria-pressed="false" title="{{t "the voice: on or off (V)"}}">{{template "icon-instrument-vocals"}}<span id="audio-voice-label">{{t "Voice"}}</span></button>
+              <button type="button" class="audio-caret" data-pop="audio-pop-voice" aria-expanded="false" title="{{t "the voice's volume"}}">{{template "icon-down"}}</button>
             </span>
-            <label class="audio-speed" title="speed without changing pitch ([ slower, ] faster)">{{template "icon-speed"}}
-              <select id="audio-speed" aria-label="Playback speed"></select>
+            <label class="audio-speed" title="{{t "speed without changing pitch ([ slower, ] faster)"}}">{{template "icon-speed"}}
+              <select id="audio-speed" aria-label="{{t "Playback speed"}}"></select>
               <span id="audio-speed-bpm" class="audio-speed-bpm"></span>
             </label>
-            <button type="button" id="audio-trainer-btn" class="audio-toggle audio-trainer-btn" data-pop="audio-pop-trainer" aria-expanded="false" title="speed trainer: speed up a little every few loops">{{template "icon-trainer"}}<span id="audio-trainer-label">Trainer</span><span class="audio-trainer-meter" id="audio-trainer-meter"></span></button>
+            <button type="button" id="audio-trainer-btn" class="audio-toggle audio-trainer-btn" data-pop="audio-pop-trainer" aria-expanded="false" title="{{t "speed trainer: speed up a little every few loops"}}">{{template "icon-trainer"}}<span id="audio-trainer-label">{{t "Trainer"}}</span><span class="audio-trainer-meter" id="audio-trainer-meter"></span></button>
           </div>
         </div>
         {{/* One panel per option, opened from its ▾ (or from Trainer),
              under the control bar; one open at a time. */}}
         <div class="audio-pop" id="audio-pop-countin" hidden>
-          <div class="audio-pop-head"><strong>Count-in</strong><span class="hint">clicks before the music starts, at its tempo</span></div>
-          <div class="audio-seg" id="audio-countin-seg" role="radiogroup" aria-label="count-in length">
-            <button type="button" data-v="0">Off</button><button type="button" data-v="1">1 bar</button><button type="button" data-v="2">2 bars</button>
+          <div class="audio-pop-head"><strong>{{t "Count-in"}}</strong><span class="hint">{{t "clicks before the music starts, at its tempo"}}</span></div>
+          <div class="audio-seg" id="audio-countin-seg" role="radiogroup" aria-label="{{t "count-in length"}}">
+            <button type="button" data-v="0">{{t "Off"}}</button><button type="button" data-v="1">{{t "1 bar"}}</button><button type="button" data-v="2">{{t "2 bars"}}</button>
           </div>
-          <label class="audio-check"><input type="checkbox" id="audio-countin-each"> Also before every loop pass</label>
+          <label class="audio-check"><input type="checkbox" id="audio-countin-each"> {{t "Also before every loop pass"}}</label>
         </div>
         <div class="audio-pop" id="audio-pop-key" hidden>
-          <div class="audio-pop-head"><strong>Key</strong><span class="hint">the recording up or down, in semitones; the chords follow</span></div>
+          <div class="audio-pop-head"><strong>{{t "Key"}}</strong><span class="hint">{{t "the recording up or down, in semitones; the chords follow"}}</span></div>
           <div class="audio-pop-row">
-            <div class="audio-stepper"><button type="button" id="audio-key-down" aria-label="down a semitone">−</button><output id="audio-key-amount">0</output><button type="button" id="audio-key-up" aria-label="up a semitone">+</button></div>
+            <div class="audio-stepper"><button type="button" id="audio-key-down" aria-label="{{t "down a semitone"}}">−</button><output id="audio-key-amount">0</output><button type="button" id="audio-key-up" aria-label="{{t "up a semitone"}}">+</button></div>
             <span id="audio-key-name" class="hint"></span>
             <span class="audio-controls-spacer"></span>
-            <button type="button" class="audio-pill-btn" id="audio-key-reset">Original key</button>
+            <button type="button" class="audio-pill-btn" id="audio-key-reset">{{t "Original key"}}</button>
           </div>
-          <p class="hint audio-pop-note">Beyond 3 semitones up or down, a voice starts to sound processed.</p>
+          <p class="hint audio-pop-note">{{t "Beyond 3 semitones up or down, a voice starts to sound processed."}}</p>
         </div>
         <div class="audio-pop" id="audio-pop-voice" hidden>
-          <div class="audio-pop-head"><strong>Voice</strong><span class="hint">the singer, from the recording split in its parts</span></div>
-          <div class="audio-seg" id="audio-voice-seg" role="radiogroup" aria-label="voice volume">
-            <button type="button" data-v="0">Off</button><button type="button" data-v="25">Guide</button><button type="button" data-v="60">Soft</button><button type="button" data-v="100">Full</button>
+          <div class="audio-pop-head"><strong>{{t "Voice"}}</strong><span class="hint">{{t "the singer, from the recording split in its parts"}}</span></div>
+          <div class="audio-seg" id="audio-voice-seg" role="radiogroup" aria-label="{{t "voice volume"}}">
+            <button type="button" data-v="0">{{t "Off"}}</button><button type="button" data-v="25">{{t "Guide"}}</button><button type="button" data-v="60">{{t "Soft"}}</button><button type="button" data-v="100">{{t "Full"}}</button>
           </div>
           <div class="audio-pop-row">
-            <label class="audio-range">Volume <input type="range" id="audio-voice-volume" min="0" max="100" step="5"></label>
+            <label class="audio-range">{{t "Volume"}} <input type="range" id="audio-voice-volume" min="0" max="100" step="5"></label>
             <output id="audio-voice-amount"></output>
           </div>
         </div>
         <div class="audio-pop" id="audio-pop-click" hidden>
-          <div class="audio-pop-head"><strong>Click</strong><span class="hint">on every beat, following the recording</span></div>
-          <div class="audio-seg" id="audio-click-sound-seg" role="radiogroup" aria-label="click sound">
-            <button type="button" data-v="click">{{template "icon-sound-click"}} Click</button><button type="button" data-v="wood">{{template "icon-sound-wood"}} Wood</button><button type="button" data-v="beep">{{template "icon-sound-beep"}} Beep</button><button type="button" data-v="tick">{{template "icon-sound-tick"}} Tick</button>
+          <div class="audio-pop-head"><strong>{{t "Click"}}</strong><span class="hint">{{t "on every beat, following the recording"}}</span></div>
+          <div class="audio-seg" id="audio-click-sound-seg" role="radiogroup" aria-label="{{t "click sound"}}">
+            <button type="button" data-v="click">{{template "icon-sound-click"}} {{t "Click"}}</button><button type="button" data-v="wood">{{template "icon-sound-wood"}} {{t "Wood"}}</button><button type="button" data-v="beep">{{template "icon-sound-beep"}} {{t "Beep"}}</button><button type="button" data-v="tick">{{template "icon-sound-tick"}} {{t "Tick"}}</button>
           </div>
           <div class="audio-pop-row">
-            <label class="audio-range">Volume <input type="range" id="audio-click-volume" min="0" max="100" step="5"></label>
-            <button type="button" class="audio-pill-btn" id="audio-click-test">Test</button>
+            <label class="audio-range">{{t "Volume"}} <input type="range" id="audio-click-volume" min="0" max="100" step="5"></label>
+            <button type="button" class="audio-pill-btn" id="audio-click-test">{{t "Test"}}</button>
           </div>
         </div>
         <div class="audio-pop audio-pop-trainer" id="audio-pop-trainer" hidden>
           <div class="audio-pop-head">
-            <strong>Speed trainer</strong>
-            <span class="hint">loops the cycle, a little faster every few passes</span>
-            <label class="audio-switch"><input type="checkbox" id="audio-trainer-on"><span></span> On</label>
+            <strong>{{t "Speed trainer"}}</strong>
+            <span class="hint">{{t "loops the cycle, a little faster every few passes"}}</span>
+            <label class="audio-switch"><input type="checkbox" id="audio-trainer-on"><span></span> {{t "On"}}</label>
           </div>
           <div class="audio-trainer-grid">
-            <div class="audio-stepper" data-key="start"><span class="audio-stepper-label">Start at</span><button type="button" data-d="-5" aria-label="slower start">−</button><output></output><button type="button" data-d="5" aria-label="faster start">+</button></div>
-            <div class="audio-stepper" data-key="step"><span class="audio-stepper-label">Speed up by</span><button type="button" data-d="-1" aria-label="smaller step">−</button><output></output><button type="button" data-d="1" aria-label="bigger step">+</button></div>
-            <div class="audio-stepper" data-key="every"><span class="audio-stepper-label">Every</span><button type="button" data-d="-1" aria-label="fewer loops">−</button><output></output><button type="button" data-d="1" aria-label="more loops">+</button></div>
-            <div class="audio-stepper" data-key="end"><span class="audio-stepper-label">Up to</span><button type="button" data-d="-5" aria-label="lower target">−</button><output></output><button type="button" data-d="5" aria-label="higher target">+</button></div>
+            <div class="audio-stepper" data-key="start"><span class="audio-stepper-label">{{t "Start at"}}</span><button type="button" data-d="-5" aria-label="{{t "slower start"}}">−</button><output></output><button type="button" data-d="5" aria-label="{{t "faster start"}}">+</button></div>
+            <div class="audio-stepper" data-key="step"><span class="audio-stepper-label">{{t "Speed up by"}}</span><button type="button" data-d="-1" aria-label="{{t "smaller step"}}">−</button><output></output><button type="button" data-d="1" aria-label="{{t "bigger step"}}">+</button></div>
+            <div class="audio-stepper" data-key="every"><span class="audio-stepper-label">{{t "Every"}}</span><button type="button" data-d="-1" aria-label="{{t "fewer loops"}}">−</button><output></output><button type="button" data-d="1" aria-label="{{t "more loops"}}">+</button></div>
+            <div class="audio-stepper" data-key="end"><span class="audio-stepper-label">{{t "Up to"}}</span><button type="button" data-d="-5" aria-label="{{t "lower target"}}">−</button><output></output><button type="button" data-d="5" aria-label="{{t "higher target"}}">+</button></div>
           </div>
           <div class="audio-stairs" id="audio-trainer-stairs" aria-hidden="true"></div>
           <p class="audio-trainer-summary" id="audio-trainer-summary"></p>
           <div class="audio-pop-row">
-            <span class="hint">Presets</span>
-            <button type="button" class="audio-pill-btn" data-preset="60,5,2,100">Gentle</button>
-            <button type="button" class="audio-pill-btn" data-preset="70,5,1,100">Steady</button>
-            <button type="button" class="audio-pill-btn" data-preset="80,5,2,110">Push past</button>
+            <span class="hint">{{t "Presets"}}</span>
+            <button type="button" class="audio-pill-btn" data-preset="60,5,2,100">{{t "Gentle"}}</button>
+            <button type="button" class="audio-pill-btn" data-preset="70,5,1,100">{{t "Steady"}}</button>
+            <button type="button" class="audio-pill-btn" data-preset="80,5,2,110">{{t "Push past"}}</button>
             <span class="audio-controls-spacer"></span>
-            <button type="button" class="primary" id="audio-trainer-start">Start practicing</button>
+            <button type="button" class="primary" id="audio-trainer-start">{{t "Start practicing"}}</button>
           </div>
         </div>
         <div class="audio-waveform-wrap">
-          <div class="audio-ruler" id="audio-ruler" title="drag to set the cycle range; click it to switch cycling on or off">
+          <div class="audio-ruler" id="audio-ruler" title="{{t "drag to set the cycle range; click it to switch cycling on or off"}}">
             <div class="audio-ruler-marks" id="audio-ruler-marks"></div>
             <div class="audio-cycle" id="audio-cycle" hidden><span class="audio-cycle-edge start"></span><span class="audio-cycle-edge end"></span></div>
           </div>
@@ -1562,20 +1565,20 @@
     {{/* Where the song's text and its Guitar Pro file disagree (gpdrift.go,
          docs/gp-file-model.md §4): editors only, never fixed on its own. */}}
     <details class="gp-drift" id="gp-drift" data-variant-id="{{.VariantID}}"{{if .GPDriftOpen}} open{{end}}>
-      <summary>{{if .GPDriftOpen}}Out of step with the Guitar Pro file ({{.GPDriftOpen}}){{else}}In step with the Guitar Pro file{{end}}</summary>
+      <summary>{{if .GPDriftOpen}}{{t "Out of step with the Guitar Pro file (%d)" .GPDriftOpen}}{{else}}{{t "In step with the Guitar Pro file"}}{{end}}</summary>
       <ul class="gp-drift-list">
         {{range .GPDrift}}
         <li class="gp-drift-item{{if .Kept}} is-kept{{end}}" data-fact="{{.Fact}}" data-sig="{{.Sig}}"{{with .Push}} data-push="{{json .}}"{{end}}>
-          <div class="gp-drift-what"><strong>{{.Title}}</strong>{{with .Where}} · {{.}}{{end}}</div>
-          <div class="gp-drift-values"><span>Here: <code>{{or .Text "—"}}</code></span> <span>In the file: <code>{{or .File "—"}}</code></span></div>
+          <div class="gp-drift-what"><strong>{{t .Title}}</strong>{{with .Where}} · {{.}}{{end}}</div>
+          <div class="gp-drift-values"><span>{{t "Here:"}} <code>{{or .Text "—"}}</code></span> <span>{{t "In the file:"}} <code>{{or .File "—"}}</code></span></div>
           <div class="gp-drift-actions">
-            {{if .Kept}}<span class="gp-drift-kept">Kept both</span> <button type="button" class="ghost-btn" data-act="unkeep">Undo</button>
+            {{if .Kept}}<span class="gp-drift-kept">{{t "Kept both"}}</span> <button type="button" class="ghost-btn" data-act="unkeep">{{t "Undo"}}</button>
             {{else}}
-            {{if .Take}}<button type="button" data-act="take">Use the file’s</button>{{end}}
-            {{if .Push}}<button type="button" data-act="push">Use this one</button>{{end}}
-            <button type="button" data-act="keep">Keep both</button>
-            {{if and (not .Take) (not .Push)}}<span class="gp-drift-hint">Fix it in Source.</span>{{end}}
-            {{if .Bar}}<a class="gp-drift-open" href="/song/{{$.VariantID}}/gp-edit?{{with .Track}}track={{.}}&amp;{{end}}bar={{.Bar}}">Open bar {{.Bar}} in the editor</a>{{end}}
+            {{if .Take}}<button type="button" data-act="take">{{t "Use the file’s"}}</button>{{end}}
+            {{if .Push}}<button type="button" data-act="push">{{t "Use this one"}}</button>{{end}}
+            <button type="button" data-act="keep">{{t "Keep both"}}</button>
+            {{if and (not .Take) (not .Push)}}<span class="gp-drift-hint">{{t "Fix it in Source."}}</span>{{end}}
+            {{if .Bar}}<a class="gp-drift-open" href="/song/{{$.VariantID}}/gp-edit?{{with .Track}}track={{.}}&amp;{{end}}bar={{.Bar}}">{{t "Open bar %d in the editor" .Bar}}</a>{{end}}
             {{end}}
           </div>
         </li>
@@ -1583,7 +1586,7 @@
       </ul>
     </details>
     {{end}}
-    <main class="sheet" id="sheet" data-render-mode="normal" data-variant-id="{{.VariantID}}"{{if .GPFileName}} data-gp-file="/song/{{.VariantID}}/gp-file" data-gp-name="{{.GPFileName}}" data-gp-sha="{{.GPFileSHA}}"{{if .GPFactsMissing}} data-gp-facts-missing="1"{{end}}{{if .GPOnly}} data-gp-only="1"{{end}}{{with .PickerSectionsJSON}} data-picker-sections="{{.}}"{{end}}{{end}} data-key="{{.Key}}" data-flats="{{if .Flats}}1{{else}}0{{end}}" data-has-diagrams="{{if or .Chords (chordDiagramSets .Text)}}1{{end}}">
+    <main class="sheet" id="sheet" data-render-mode="normal" data-variant-id="{{.VariantID}}"{{if .GPFileName}} data-gp-file="/song/{{.VariantID}}/gp-file" data-gp-name="{{.GPFileName}}" data-gp-sha="{{.GPFileSHA}}"{{if .GPFactsMissing}} data-gp-facts-missing="1"{{end}}{{if .GPOnly}} data-gp-only="1"{{end}}{{with .PickerSectionsJSON}} data-picker-sections="{{.}}"{{end}}{{end}} data-key="{{.Key}}"{{if .StudentKeySet}} data-key-offset="{{.StudentKey}}"{{end}} data-flats="{{if .Flats}}1{{else}}0{{end}}" data-has-diagrams="{{if or .Chords (chordDiagramSets .Text)}}1{{end}}">
     {{template "sheet-body" .}}
     </main>
     {{/* Chord diagrams entered for other keys ("chord[G]: ..." lines). Kept
@@ -1619,27 +1622,27 @@
            audio as this song's "youtube" category MP3
            (app/docs/mp3-reference-audio.md §1). One URL field serves both:
            there's no reason to type the same link twice. */}}
-      <h3 class="reference-section-head">YouTube video</h3>
+      <h3 class="reference-section-head">{{t "YouTube video"}}</h3>
       <div class="reference-block" id="reference-block" data-url="{{.Reference}}" data-variant-id="{{.VariantID}}">
         <div class="reference-row">
-          <a id="reference-link" class="meta-row" href="{{.Reference}}" target="_blank" rel="noopener"{{if not .Reference}} hidden{{end}}>reference &#8599;</a>
-          <button id="reference-edit-btn" type="button" class="icon-btn" aria-expanded="false" aria-controls="reference-edit-row" title="{{if .Reference}}Change the reference video{{else}}Add a reference video{{end}}" aria-label="{{if .Reference}}Change the reference video{{else}}Add a reference video{{end}}">{{template "icon-edit"}}</button>
+          <a id="reference-link" class="meta-row" href="{{.Reference}}" target="_blank" rel="noopener"{{if not .Reference}} hidden{{end}}>{{t "reference"}} &#8599;</a>
+          <button id="reference-edit-btn" type="button" class="icon-btn" aria-expanded="false" aria-controls="reference-edit-row" title="{{if .Reference}}{{t "Change the reference video"}}{{else}}{{t "Add a reference video"}}{{end}}" aria-label="{{if .Reference}}{{t "Change the reference video"}}{{else}}{{t "Add a reference video"}}{{end}}">{{template "icon-edit"}}</button>
         </div>
         <form class="reference-edit-row form-stack" id="reference-edit-row" hidden>
           <div class="field">
-            <label for="reference-url-input">YouTube link <span class="field-optional">(optional)</span></label>
-            <p class="field-hint" id="reference-url-hint">So the whole band listens to the same version. Clear it and save to remove the video.</p>
-            <input type="url" id="reference-url-input" aria-describedby="reference-url-hint" placeholder="e.g. https://youtube.com/watch?v=…" value="{{.Reference}}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="done">
+            <label for="reference-url-input">{{t "YouTube link"}} <span class="field-optional">{{t "(optional)"}}</span></label>
+            <p class="field-hint" id="reference-url-hint">{{t "So the whole band listens to the same version. Clear it and save to remove the video."}}</p>
+            <input type="url" id="reference-url-input" aria-describedby="reference-url-hint" placeholder="{{t "e.g. https://youtube.com/watch?v=…"}}" value="{{.Reference}}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="done">
           </div>
           <p class="form-status" role="status"></p>
-          <div class="form-actions"><button id="reference-save-btn" type="submit" class="primary">Save link</button></div>
+          <div class="form-actions"><button id="reference-save-btn" type="submit" class="primary">{{t "Save link"}}</button></div>
         </form>
         <div class="reference-embed" id="reference-embed"></div>
         {{if .CanEdit}}
         <div class="audio-category-upload" id="audio-youtube-controls">
-          <button type="button" id="audio-youtube-download-btn" class="audio-pill-btn">{{template "icon-reference"}} Download audio from this video (MP3)</button>
-          <button type="button" id="audio-youtube-replace-btn" class="audio-pill-btn" hidden>Download the audio again</button>
-          <button type="button" id="audio-youtube-delete-btn" class="audio-pill-btn danger" hidden>Remove audio</button>
+          <button type="button" id="audio-youtube-download-btn" class="audio-pill-btn">{{template "icon-reference"}} {{t "Download audio from this video (MP3)"}}</button>
+          <button type="button" id="audio-youtube-replace-btn" class="audio-pill-btn" hidden>{{t "Download the audio again"}}</button>
+          <button type="button" id="audio-youtube-delete-btn" class="audio-pill-btn danger" hidden>{{t "Remove audio"}}</button>
           <span id="audio-youtube-status" class="hint form-status" role="status"></span>
         </div>
         {{end}}
@@ -1647,28 +1650,28 @@
 
       {{/* The other category: the band's own practice/live recording — a
            plain file upload, nothing YouTube-specific about it. */}}
-      <h3 class="reference-section-head">Band recording</h3>
+      <h3 class="reference-section-head">{{t "Band recording"}}</h3>
       <div class="reference-block" id="band-audio-block">
         {{if .CanEdit}}
         <input type="file" id="audio-band-file" accept="audio/*" hidden>
         <div class="audio-category-upload" id="audio-band-controls">
-          <button type="button" id="audio-band-upload-btn" class="audio-pill-btn">{{template "icon-reference"}} Upload a recording (MP3)</button>
-          <button type="button" id="audio-band-replace-btn" class="audio-pill-btn" hidden>Replace recording</button>
-          <button type="button" id="audio-band-delete-btn" class="audio-pill-btn danger" hidden>Remove recording</button>
+          <button type="button" id="audio-band-upload-btn" class="audio-pill-btn">{{template "icon-reference"}} {{t "Upload a recording (MP3)"}}</button>
+          <button type="button" id="audio-band-replace-btn" class="audio-pill-btn" hidden>{{t "Replace recording"}}</button>
+          <button type="button" id="audio-band-delete-btn" class="audio-pill-btn danger" hidden>{{t "Remove recording"}}</button>
           <span id="audio-band-status" class="hint form-status" role="status"></span>
         </div>
         {{else}}
-        <span class="hint">No band recording uploaded yet.</span>
+        <span class="hint">{{t "No band recording uploaded yet."}}</span>
         {{end}}
       </div>
       {{if .CanEdit}}
       {{/* What each recording is, shown in song listings and used by the
            player: the whole song, or a backing track with the practised
            part left out (audio-player.js fills this in). */}}
-      <h3 class="reference-section-head">What's in each recording</h3>
-      <div class="reference-block audio-kind-list" id="audio-kind-list"><span class="hint">No recording yet.</span></div>
+      <h3 class="reference-section-head">{{t "What's in each recording"}}</h3>
+      <div class="reference-block audio-kind-list" id="audio-kind-list"><span class="hint">{{t "No recording yet."}}</span></div>
       {{end}}
-      <p class="hint">The reference-audio player above (under the structure strip) plays whichever category you pick — useful here to validate an upload right after it finishes.</p>
+      <p class="hint">{{t "The reference-audio player above (under the structure strip) plays whichever category you pick — useful here to validate an upload right after it finishes."}}</p>
     </div>
 
     {{/* Mixer: a DAW-style multitrack view (Audacity 4 / GarageBand
@@ -1687,23 +1690,23 @@
            here, under the score's cursor. */}}
       <div class="gp-toolbar audio-transport">
         <div class="audio-buttons">
-          <button type="button" class="icon-btn gp-stop" title="back to the start (Home)">{{template "icon-to-start"}}</button>
-          <button type="button" class="icon-btn audio-play-btn gp-play" title="play/pause (Space)" aria-label="Play" disabled>{{template "icon-play"}}</button>
+          <button type="button" class="icon-btn gp-stop" title="{{t "back to the start (Home)"}}">{{template "icon-to-start"}}</button>
+          <button type="button" class="icon-btn audio-play-btn gp-play" title="{{t "play/pause (Space)"}}" aria-label="{{t "Play"}}" disabled>{{template "icon-play"}}</button>
         </div>
-        <div class="audio-lcd gp-lcd" aria-live="off"><span class="audio-lcd-pos gp-bar" title="bar">1</span><span class="audio-lcd-time gp-time"></span></div>
+        <div class="audio-lcd gp-lcd" aria-live="off"><span class="audio-lcd-pos gp-bar" title="{{t "bar"}}">1</span><span class="audio-lcd-time gp-time"></span></div>
         <div class="gp-opts">
-          <label class="audio-speed" title="playback speed">{{template "icon-speed"}}<select class="gp-speed" aria-label="Speed"><option value="0.25">25%</option><option value="0.4">40%</option><option value="0.5">50%</option><option value="0.6">60%</option><option value="0.75">75%</option><option value="0.9">90%</option><option value="1" selected>100%</option><option value="1.1">110%</option></select></label>
-          <button type="button" class="audio-toggle gp-loop" aria-pressed="false" title="loop: the bars selected in the score (drag across them), else the whole song">{{template "icon-cycle"}}<span>Loop</span></button>
-          <button type="button" class="audio-toggle gp-metronome" aria-pressed="false" title="metronome click">{{template "icon-metronome"}}<span>Click</span></button>
-          <button type="button" class="audio-toggle gp-countin" aria-pressed="false" title="a bar of clicks before playing">{{template "icon-count-in"}}<span>Count-in</span></button>
+          <label class="audio-speed" title="{{t "playback speed"}}">{{template "icon-speed"}}<select class="gp-speed" aria-label="{{t "Speed"}}"><option value="0.25">25%</option><option value="0.4">40%</option><option value="0.5">50%</option><option value="0.6">60%</option><option value="0.75">75%</option><option value="0.9">90%</option><option value="1" selected>100%</option><option value="1.1">110%</option></select></label>
+          <button type="button" class="audio-toggle gp-loop" aria-pressed="false" title="{{t "loop: the bars selected in the score (drag across them), else the whole song"}}">{{template "icon-cycle"}}<span>{{t "Loop"}}</span></button>
+          <button type="button" class="audio-toggle gp-metronome" aria-pressed="false" title="{{t "metronome click"}}">{{template "icon-metronome"}}<span>{{t "Click"}}</span></button>
+          <button type="button" class="audio-toggle gp-countin" aria-pressed="false" title="{{t "a bar of clicks before playing"}}">{{template "icon-count-in"}}<span>{{t "Count-in"}}</span></button>
         </div>
       </div>
       <div class="gp-view-opts">
-        <div class="gp-tracks" role="group" aria-label="Tracks shown"></div>
-        <span class="gp-hint">Click the score to start there, drag across bars to loop them.</span>
-        <label class="gp-opt">Show <select class="gp-notation"><option value="">as I read it</option><option value="tab">Tab</option><option value="staff">Staff</option><option value="both">Staff + tab</option></select></label>
-        {{if .CanEdit}}<a class="gp-link gp-edit-link" href="/song/{{.VariantID}}/gp-edit">{{template "icon-edit"}} Edit the file</a>{{end}}
-        <a class="gp-link" href="/song/{{.VariantID}}/gp-file" download>{{template "icon-download"}} Guitar Pro file</a>
+        <div class="gp-tracks" role="group" aria-label="{{t "Tracks shown"}}"></div>
+        <span class="gp-hint">{{t "Click the score to start there, drag across bars to loop them."}}</span>
+        <label class="gp-opt">{{t "Show"}} <select class="gp-notation"><option value="">{{t "as I read it"}}</option><option value="tab">{{t "Tab"}}</option><option value="staff">{{t "notation|Staff"}}</option><option value="both">{{t "Staff + tab"}}</option></select></label>
+        {{if .CanEdit}}<a class="gp-link gp-edit-link" href="/song/{{.VariantID}}/gp-edit">{{template "icon-edit"}} {{t "Edit the file"}}</a>{{end}}
+        <a class="gp-link" href="/song/{{.VariantID}}/gp-file" download>{{template "icon-download"}} {{t "Guitar Pro file"}}</a>
       </div>
       <div class="gp-score-viewport"><div class="gp-score-canvas"></div></div>
     </div>
@@ -1712,21 +1715,21 @@
       <div class="daw" id="daw">
         <div class="daw-toolbar">
           <div class="daw-tb-group">
-            <button type="button" class="daw-btn" id="daw-rewind" title="go to start (Home)"><svg class="icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="4" y="5" width="2.2" height="10" rx="0.6"/><path d="M16 5v10L7.6 10z"/></svg></button>
-            <button type="button" class="daw-btn daw-play" id="daw-play" title="play / pause (Space)">{{template "icon-play"}}</button>
-            <button type="button" class="daw-btn" id="daw-stop" title="stop">{{template "icon-stop"}}</button>
-            <button type="button" class="daw-btn" id="daw-loop" title="loop the selected section (L)" aria-pressed="false"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10V8.5A3.5 3.5 0 0 1 7.5 5H16m0 0-2.5-2.5M16 5l-2.5 2.5M16 10v1.5a3.5 3.5 0 0 1-3.5 3.5H4m0 0 2.5 2.5M4 15l2.5-2.5"/></svg></button>
+            <button type="button" class="daw-btn" id="daw-rewind" title="{{t "go to start (Home)"}}"><svg class="icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="4" y="5" width="2.2" height="10" rx="0.6"/><path d="M16 5v10L7.6 10z"/></svg></button>
+            <button type="button" class="daw-btn daw-play" id="daw-play" title="{{t "play / pause (Space)"}}">{{template "icon-play"}}</button>
+            <button type="button" class="daw-btn" id="daw-stop" title="{{t "stop"}}">{{template "icon-stop"}}</button>
+            <button type="button" class="daw-btn" id="daw-loop" title="{{t "loop the selected section (L)"}}" aria-pressed="false"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10V8.5A3.5 3.5 0 0 1 7.5 5H16m0 0-2.5-2.5M16 5l-2.5 2.5M16 10v1.5a3.5 3.5 0 0 1-3.5 3.5H4m0 0 2.5 2.5M4 15l2.5-2.5"/></svg></button>
           </div>
-          <div class="daw-lcd" title="position: bar.beat · time">
+          <div class="daw-lcd" title="{{t "position: bar.beat · time"}}">
             <span class="daw-lcd-main" id="daw-lcd-bar">1.1</span>
             <span class="daw-lcd-sub" id="daw-lcd-time">0:00.0</span>
           </div>
           <div class="daw-tb-group daw-meta">
-            <span title="tempo" id="daw-tempo">♩ = {{.Tempo}}</span>
-            <span title="time signature">{{.TimeNum}}/{{.TimeDen}}</span>
-            {{if .Key}}<span title="key">{{.Key}}</span>{{end}}
+            <span title="{{t "tempo"}}" id="daw-tempo">♩ = {{.Tempo}}</span>
+            <span title="{{t "time signature"}}">{{.TimeNum}}/{{.TimeDen}}</span>
+            {{if .Key}}<span title="{{t "key"}}">{{.Key}}</span>{{end}}
           </div>
-          <label class="daw-speed" title="playback speed">Speed
+          <label class="daw-speed" title="{{t "playback speed"}}">{{t "Speed"}}
             <select id="daw-speed">
               <option value="1">100%</option>
               <option value="0.9">90%</option>
@@ -1736,29 +1739,29 @@
             </select>
           </label>
           <span class="daw-tb-spacer"></span>
-          {{if .CanEdit}}<button type="button" class="daw-btn-text" id="daw-autoalign" title="find the count-in and downbeats in the recording and place every bar automatically">Auto-align</button>
-          <button type="button" class="daw-btn-text" id="daw-align" aria-pressed="false" title="align the reference recording to the song's bars and sections by hand">Align recording</button>{{end}}
-          <div class="daw-zoom" role="group" aria-label="zoom">
-            <button type="button" class="daw-btn-text" id="daw-zoom-fit" title="fit the whole song to the window (F)">Fit</button>
-            <button type="button" class="daw-btn daw-btn-sm" id="daw-zoom-out" title="zoom out (−)" aria-label="zoom out">−</button>
-            <input type="range" id="daw-zoom" min="0" max="1000" step="1" value="500" aria-label="Zoom" title="zoom (⌘/Ctrl + scroll or pinch over the tracks)">
-            <button type="button" class="daw-btn daw-btn-sm" id="daw-zoom-in" title="zoom in (+)" aria-label="zoom in">+</button>
-            <button type="button" class="daw-btn-text" id="daw-zoom-bars" title="zoom to two bars at the playhead (B)">2 bars</button>
+          {{if .CanEdit}}<button type="button" class="daw-btn-text" id="daw-autoalign" title="{{t "find the count-in and downbeats in the recording and place every bar automatically"}}">{{t "Auto-align"}}</button>
+          <button type="button" class="daw-btn-text" id="daw-align" aria-pressed="false" title="{{t "align the reference recording to the song's bars and sections by hand"}}">{{t "Align recording"}}</button>{{end}}
+          <div class="daw-zoom" role="group" aria-label="{{t "zoom"}}">
+            <button type="button" class="daw-btn-text" id="daw-zoom-fit" title="{{t "fit the whole song to the window (F)"}}">{{t "Fit"}}</button>
+            <button type="button" class="daw-btn daw-btn-sm" id="daw-zoom-out" title="{{t "zoom out (−)"}}" aria-label="{{t "zoom out"}}">−</button>
+            <input type="range" id="daw-zoom" min="0" max="1000" step="1" value="500" aria-label="{{t "Zoom"}}" title="{{t "zoom (⌘/Ctrl + scroll or pinch over the tracks)"}}">
+            <button type="button" class="daw-btn daw-btn-sm" id="daw-zoom-in" title="{{t "zoom in (+)"}}" aria-label="{{t "zoom in"}}">+</button>
+            <button type="button" class="daw-btn-text" id="daw-zoom-bars" title="{{t "zoom to two bars at the playhead (B)"}}">{{t "2 bars"}}</button>
             <span class="daw-zoom-label" id="daw-zoom-label" aria-live="polite"></span>
           </div>
         </div>
         <div class="daw-align-bar" id="daw-align-bar" hidden>
-          <strong>Align recording</strong>
-          <span>Drag the recording left or right to slide it against the bars. Drag a section (in Sections, or its flag on the recording) to where it really starts — it and everything after it follow, the previous one stretches; <kbd>⌥</kbd> moves only that boundary, <kbd>Shift</kbd> the whole grid. Or select a section and</span>
-          <button type="button" class="daw-btn-text" id="daw-align-here">set its start at the playhead</button>
+          <strong>{{t "Align recording"}}</strong>
+          <span>{{t "Drag the recording left or right to slide it against the bars. Drag a section (in Sections, or its flag on the recording) to where it really starts — it and everything after it follow, the previous one stretches;"}} <kbd>⌥</kbd> {{t "moves only that boundary,"}} <kbd>Shift</kbd> {{t "the whole grid. Or select a section and"}}</span>
+          <button type="button" class="daw-btn-text" id="daw-align-here">{{t "set its start at the playhead"}}</button>
           <span class="daw-align-status" id="daw-align-status"></span>
-          <button type="button" class="daw-btn-text" id="daw-align-undo" hidden>Undo</button>
+          <button type="button" class="daw-btn-text" id="daw-align-undo" hidden>{{t "Undo"}}</button>
         </div>
         <div class="daw-main" id="daw-main">
           <div class="daw-headers" id="daw-headers"></div>
           <div class="daw-scroll" id="daw-scroll"><div class="daw-content" id="daw-content"></div></div>
         </div>
-        <p class="daw-status" id="daw-status">Loading…</p>
+        <p class="daw-status" id="daw-status">{{t "Loading…"}}</p>
       </div>
     </div>
   </div>
@@ -1821,8 +1824,8 @@
 
   function renderNote(n) {
     const li = document.createElement('li');
-    const who = n.Nickname || n.PersonName || 'someone';
-    const vis = n.Visibility === 'shared' ? 'shared' : 'private (only you)';
+    const who = n.Nickname || n.PersonName || t('someone');
+    const vis = n.Visibility === 'shared' ? t('shared') : t('private (only you)');
     li.textContent = `${n.Body} — ${who} (${vis})`;
     return li;
   }
@@ -1847,7 +1850,7 @@
       const box = form.querySelector('.note-body');
       const bodyText = box.value.trim();
       // Only spaces passes `required`; treat it the same as empty.
-      if (!bodyText) { Forms.fieldError(box, 'Write the note first.'); box.focus(); return; }
+      if (!bodyText) { Forms.fieldError(box, t('Write the note first.')); box.focus(); return; }
       const visibility = form.querySelector('input[type=radio]:checked').value;
       await Forms.run(form, form.querySelector('button[type=submit]'), async () => {
         const res = await fetch(`/api/variants/${variantId}/sections/${sectionIndex}/annotations`, {
@@ -1855,10 +1858,10 @@
           body: JSON.stringify({body: bodyText, visibility}),
         });
         // The API's error strings are developer-facing ("missing body").
-        if (res.status === 401) throw new Error('Sign in again to add notes.');
-        if (!res.ok) throw new Error("Couldn't save that note. Your text is still here; try again.");
+        if (res.status === 401) throw new Error(t('Sign in again to add notes.'));
+        if (!res.ok) throw new Error(t("Couldn't save that note. Your text is still here; try again."));
         box.value = '';
-        Forms.status(form, 'Note added.', 'ok');
+        Forms.status(form, t('Note added.'), 'ok');
         loadNotes();
       });
     });

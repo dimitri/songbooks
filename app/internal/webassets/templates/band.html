@@ -1,7 +1,7 @@
 {{define "band"}}
 {{$brand := brandFor "band" .Band.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,10 +14,10 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/bands">{{template "icon-back"}} My bands</a>
+  <a class="back-link" href="/bands">{{template "icon-back"}} {{t "My bands"}}</a>
   <span class="band-name-row">
-    <h1 id="band-name-display" tabindex="0" role="button" title="Click to rename">{{.Band.Name}}</h1>
-    <input type="text" id="band-name-input" class="band-name-input" value="{{.Band.Name}}" aria-label="Band name" autocomplete="off" enterkeyhint="done" hidden>
+    <h1 id="band-name-display" tabindex="0" role="button" title="{{t "Click to rename"}}">{{.Band.Name}}</h1>
+    <input type="text" id="band-name-input" class="band-name-input" value="{{.Band.Name}}" aria-label="{{t "Band name"}}" autocomplete="off" enterkeyhint="done" hidden>
   </span>
   <span id="band-header-status" class="form-status" role="status"></span>
   {{template "notif-bell"}}
@@ -44,7 +44,7 @@
     }).catch(() => null);
     if (!res || !res.ok) {
       // Keep the field open with what they typed; Escape gives up.
-      Forms.status(document.getElementById('band-header-status'), "Couldn't rename the band. Press Enter to try again.", 'error');
+      Forms.status(document.getElementById('band-header-status'), t('Couldn’t rename the band. Press Enter to try again.'), 'error');
       return;
     }
     document.title = name + ' — Songbooks';
@@ -77,15 +77,15 @@
 
   {{with .NextUp}}
   <section class="home-section" aria-labelledby="band-next-title">
-    <div class="home-section-head"><h3 id="band-next-title">Next up</h3><a href="/bands/{{$.Band.ID}}/events">calendar &rarr;</a></div>
+    <div class="home-section-head"><h3 id="band-next-title">{{t "Next up"}}</h3><a href="/bands/{{$.Band.ID}}/events">{{t "calendar"}} &rarr;</a></div>
     <div class="next-up-card kind-{{.Kind}}">
-      <div class="next-up-when">{{.When}}{{if not .AllDay}} &middot; {{.Starts.Format "15:04"}}{{end}}</div>
+      <div class="next-up-when">{{if eq .When "Today"}}{{t "Today"}}{{else if eq .When "Tomorrow"}}{{t "Tomorrow"}}{{else if eq .When (.Starts.Format "Monday 2 Jan")}}{{date .Starts "Monday 2 Jan"}}{{else}}{{date .Starts "Mon 2 Jan"}}{{end}}{{if not .AllDay}} &middot; {{.Starts.Format "15:04"}}{{end}}</div>
       <a class="next-up-title" href="{{.Link}}">{{.Title}}</a>
-      <div class="next-up-meta">{{.Details false}}</div>
+      <div class="next-up-meta">{{$k := .KindLabel}}{{if ne $k .Title}}{{t $k}}{{if .Place}} · {{end}}{{end}}{{.Place}}</div>
       <div class="next-up-actions">
-        {{if .SetlistLink}}<a class="chip-link primary" href="{{.SetlistLink}}">{{template "icon-setlists"}} The set list</a>
-        <a class="chip-link" href="/setlists/{{.SetlistID}}">{{template "icon-setlists"}} Set list</a>{{end}}
-        <a class="chip-link" href="{{.Link}}">Details</a>
+        {{if .SetlistLink}}<a class="chip-link primary" href="{{.SetlistLink}}">{{template "icon-setlists"}} {{t "The set list"}}</a>
+        <a class="chip-link" href="/setlists/{{.SetlistID}}">{{template "icon-setlists"}} {{t "Set list"}}</a>{{end}}
+        <a class="chip-link" href="{{.Link}}">{{t "Details"}}</a>
       </div>
     </div>
   </section>
@@ -94,21 +94,21 @@
   {{/* On a phone the band's sections are this list rather than tabs:
        each row says where that section stands. Grouped by how often
        they're used: playing, deciding, running the band. */}}
-  <nav class="band-hub" aria-label="Band sections">
+  <nav class="band-hub" aria-label="{{t "Band sections"}}">
     <ul class="band-hub-group">
-      <li><a href="/bands/{{.Band.ID}}/catalog">{{template "icon-catalog"}}<span class="band-hub-label">Repertoire</span><span class="band-hub-state">{{.RepertoireCount}} song{{if ne .RepertoireCount 1}}s{{end}}</span></a></li>
-      <li><a href="/bands/{{.Band.ID}}/setlists">{{template "icon-setlists"}}<span class="band-hub-label">Set lists</span><span class="band-hub-state">{{len .Setlists}}</span></a></li>
-      <li><a href="/bands/{{.Band.ID}}/events">{{template "icon-presentation"}}<span class="band-hub-label">Calendar</span><span class="band-hub-state">{{if .NextUp}}{{.NextUp.When}}{{else}}plan a rehearsal{{end}}</span></a></li>
-      <li><a href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-play"}}<span class="band-hub-label">Rehearsals</span><span class="band-hub-state">recordings</span></a></li>
-      <li><a href="/bands/{{.Band.ID}}/concerts">{{template "icon-play"}}<span class="band-hub-label">Concerts</span><span class="band-hub-state">recordings</span></a></li>
+      <li><a href="/bands/{{.Band.ID}}/catalog">{{template "icon-catalog"}}<span class="band-hub-label">{{t "Repertoire"}}</span><span class="band-hub-state">{{tn .RepertoireCount "%d song" "%d songs"}}</span></a></li>
+      <li><a href="/bands/{{.Band.ID}}/setlists">{{template "icon-setlists"}}<span class="band-hub-label">{{t "Set lists"}}</span><span class="band-hub-state">{{len .Setlists}}</span></a></li>
+      <li><a href="/bands/{{.Band.ID}}/events">{{template "icon-presentation"}}<span class="band-hub-label">{{t "Calendar"}}</span><span class="band-hub-state">{{with .NextUp}}{{if eq .When "Today"}}{{t "Today"}}{{else if eq .When "Tomorrow"}}{{t "Tomorrow"}}{{else if eq .When (.Starts.Format "Monday 2 Jan")}}{{date .Starts "Monday 2 Jan"}}{{else}}{{date .Starts "Mon 2 Jan"}}{{end}}{{else}}{{t "plan a rehearsal"}}{{end}}</span></a></li>
+      <li><a href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-play"}}<span class="band-hub-label">{{t "Rehearsals"}}</span><span class="band-hub-state">{{t "recordings"}}</span></a></li>
+      <li><a href="/bands/{{.Band.ID}}/concerts">{{template "icon-play"}}<span class="band-hub-label">{{t "Concerts"}}</span><span class="band-hub-state">{{t "recordings"}}</span></a></li>
     </ul>
     <ul class="band-hub-group">
-      <li><a href="/bands/{{.Band.ID}}/proposals">{{template "icon-plus"}}<span class="band-hub-label">Proposals</span><span class="band-hub-state{{if .OpenProposals}} is-due{{end}}">{{if .OpenProposals}}{{len .OpenProposals}} to vote on{{else}}none open{{end}}</span></a></li>
-      <li><a href="/bands/{{.Band.ID}}/listening-party">{{template "icon-play"}}<span class="band-hub-label">Discover</span><span class="band-hub-state">listen and pick</span></a></li>
+      <li><a href="/bands/{{.Band.ID}}/proposals">{{template "icon-plus"}}<span class="band-hub-label">{{t "Proposals"}}</span><span class="band-hub-state{{if .OpenProposals}} is-due{{end}}">{{if .OpenProposals}}{{t "%d to vote on" (len .OpenProposals)}}{{else}}{{t "none open"}}{{end}}</span></a></li>
+      <li><a href="/bands/{{.Band.ID}}/listening-party">{{template "icon-play"}}<span class="band-hub-label">{{t "Discover"}}</span><span class="band-hub-state">{{t "listen and pick"}}</span></a></li>
     </ul>
     <ul class="band-hub-group">
-      <li><a href="/bands/{{.Band.ID}}/members">{{template "icon-bands"}}<span class="band-hub-label">Members</span><span class="band-hub-state">{{.MemberCount}}</span></a></li>
-      <li><a href="/bands/{{.Band.ID}}/settings">{{template "icon-settings"}}<span class="band-hub-label">Settings</span><span class="band-hub-state">name, look</span></a></li>
+      <li><a href="/bands/{{.Band.ID}}/members">{{template "icon-bands"}}<span class="band-hub-label">{{t "Members"}}</span><span class="band-hub-state">{{.MemberCount}}</span></a></li>
+      <li><a href="/bands/{{.Band.ID}}/settings">{{template "icon-settings"}}<span class="band-hub-label">{{t "Settings"}}</span><span class="band-hub-state">{{t "name, look"}}</span></a></li>
     </ul>
   </nav>
 
@@ -117,26 +117,26 @@
        votes still open. */}}
   <section class="home-section">
     <div class="home-section-head">
-      <h3>What's new</h3>
-      <span class="count">{{if .HasLastSeen}}since your last visit{{else}}all time{{end}}</span>
+      <h3>{{t "What’s new"}}</h3>
+      <span class="count">{{if .HasLastSeen}}{{t "since your last visit"}}{{else}}{{t "all time"}}{{end}}</span>
     </div>
     <div class="attention-list">
     {{range .OpenProposals}}
       <a class="attention-row" href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">
         <div class="attention-title">
-          {{if eq .Kind "new_song"}}Vote on a new song: {{.TargetTitle}}{{else}}Vote on a new recording for {{.TargetTitle}}{{end}}
+          {{if eq .Kind "new_song"}}{{t "Vote on a new song: %s" .TargetTitle}}{{else}}{{t "Vote on a new recording for %s" .TargetTitle}}{{end}}
         </div>
-        <div class="attention-subtitle">proposed by {{.ProposerUsername}} &middot; {{.YesVotes}} yes, {{.VetoVotes}} veto so far</div>
+        <div class="attention-subtitle">{{t "proposed by %s" .ProposerUsername}} &middot; {{t "%d yes, %d veto so far" .YesVotes .VetoVotes}}</div>
       </a>
     {{end}}
     {{range .Changes}}
       <div class="attention-row">
-        <div class="attention-title">{{if .ActorName}}{{.ActorName}}{{else}}someone{{end}} {{.Summary}}</div>
-        <span class="attention-when">{{.CreatedAt.Format "Jan 2, 15:04"}}</span>
+        <div class="attention-title">{{if .ActorName}}{{.ActorName}}{{else}}{{t "someone"}}{{end}} {{.Summary}}</div>
+        <span class="attention-when">{{date .CreatedAt "2 Jan, 15:04"}}</span>
       </div>
     {{end}}
     {{if and (not .OpenProposals) (not .Changes)}}
-      <div class="attention-empty">Nothing new{{if .HasLastSeen}} since your last visit{{end}}.</div>
+      <div class="attention-empty">{{if .HasLastSeen}}{{t "Nothing new since your last visit."}}{{else}}{{t "Nothing new."}}{{end}}</div>
     {{end}}
     </div>
   </section>
@@ -144,8 +144,8 @@
   {{/* Desktop only (a phone has the list above): the band's set lists. */}}
   <section class="home-section band-overview-wide">
     <div class="home-section-head">
-      <h3>Set lists</h3>
-      <a href="/bands/{{.Band.ID}}/setlists">all set lists &rarr;</a>
+      <h3>{{t "Set lists"}}</h3>
+      <a href="/bands/{{.Band.ID}}/setlists">{{t "all set lists"}} &rarr;</a>
     </div>
     <div class="attention-list">
     {{range .Setlists}}
@@ -153,7 +153,7 @@
         <div class="attention-title">{{.Title}}</div>
       </a>
     {{else}}
-      <div class="attention-empty">No set lists yet.</div>
+      <div class="attention-empty">{{t "No set lists yet."}}</div>
     {{end}}
     </div>
   </section>

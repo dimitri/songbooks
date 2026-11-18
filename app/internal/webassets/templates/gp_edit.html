@@ -1,10 +1,10 @@
 {{define "gp-edit"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Title}} — Guitar Pro file — Songbooks</title>
+<title>{{.Title}} — {{t "Guitar Pro file"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -16,53 +16,53 @@
      bar (where the cursor is, how full the bar is, playback). */}}
 <div class="app-content gpe-shell">
 <header class="gpe-top">
-  <a class="gpe-back" href="/song/{{.VariantID}}" data-tip="Back to the song" aria-label="Back to the song" data-icon="back"></a>
+  <a class="gpe-back" href="/song/{{.VariantID}}" data-tip="{{t "Back to the song"}}" aria-label="{{t "Back to the song"}}" data-icon="back"></a>
   <div class="gpe-doc">
     <span class="gpe-song">{{.Title}}</span>
-    <span class="gpe-file">{{if .GPFileName}}{{.GPFileName}}{{else}}New Guitar Pro file{{end}}<span class="gpe-dirty" id="gpe-dirty" data-tip="Not saved yet" hidden></span></span>
+    <span class="gpe-file">{{if .GPFileName}}{{.GPFileName}}{{else}}{{t "New Guitar Pro file"}}{{end}}<span class="gpe-dirty" id="gpe-dirty" data-tip="{{t "Not saved yet"}}" hidden></span></span>
   </div>
-  <nav class="gpe-tabs" id="gpe-tabs" role="tablist" aria-label="Tracks"></nav>
+  <nav class="gpe-tabs" id="gpe-tabs" role="tablist" aria-label="{{t "Tracks"}}"></nav>
   <div class="gpe-actions">
-    <button type="button" class="gpe-ib" id="gpe-undo" data-icon="undo" data-tip="Undo" data-kbd="Ctrl/⌘ Z" aria-label="Undo" disabled></button>
-    <button type="button" class="gpe-ib" id="gpe-redo" data-icon="redo" data-tip="Redo" data-kbd="Ctrl/⌘ ⇧Z" aria-label="Redo" disabled></button>
-    <button type="button" class="primary gpe-save" id="gpe-save" data-tip="Save a new version of the file" data-kbd="Ctrl/⌘ S" disabled>Save</button>
+    <button type="button" class="gpe-ib" id="gpe-undo" data-icon="undo" data-tip="{{t "Undo"}}" data-kbd="Ctrl/⌘ Z" aria-label="{{t "Undo"}}" disabled></button>
+    <button type="button" class="gpe-ib" id="gpe-redo" data-icon="redo" data-tip="{{t "Redo"}}" data-kbd="Ctrl/⌘ ⇧Z" aria-label="{{t "Redo"}}" disabled></button>
+    <button type="button" class="primary gpe-save" id="gpe-save" data-tip="{{t "Save a new version of the file"}}" data-kbd="Ctrl/⌘ S" disabled>{{t "Save"}}</button>
   </div>
 </header>
-{{if .Blank}}<p class="gpe-note">A new file with {{.Bars}} empty bars, as many as the song has. It becomes the song’s Guitar Pro file when you save it.</p>{{end}}
+{{if .Blank}}<p class="gpe-note">{{tn .Bars "A new file with %d empty bar, as many as the song has. It becomes the song’s Guitar Pro file when you save it." "A new file with %d empty bars, as many as the song has. It becomes the song’s Guitar Pro file when you save it."}}</p>{{end}}
 <main class="gpe" id="gp-editor" data-variant-id="{{.VariantID}}" data-gp-name="{{.GPFileName}}" data-sections="{{.SectionsJSON}}" data-picker-sections="{{.PickerSectionsJSON}}"{{with .Track}} data-track="{{.}}"{{end}}{{with .Bar}} data-bar="{{.}}"{{end}}{{if .Blank}} data-blank="1" data-title="{{.Title}}" data-artist="{{.Artist}}" data-tempo="{{.Tempo}}" data-num="{{.Num}}" data-den="{{.Den}}" data-bars="{{.Bars}}" data-parts="{{.Parts}}"{{end}} data-voice="1">
-  <aside class="gpe-rail" id="gpe-palette" aria-label="Editing palette"></aside>
+  <aside class="gpe-rail" id="gpe-palette" aria-label="{{t "Editing palette"}}"></aside>
   <div class="gpe-stage">
-    <div class="gpe-paper" id="gpe-canvas-wrap" tabindex="0" aria-label="The score: click a note or use the arrow keys, then type a fret">
+    <div class="gpe-paper" id="gpe-canvas-wrap" tabindex="0" aria-label="{{t "The score: click a note or use the arrow keys, then type a fret"}}">
       <div id="gpe-canvas"></div>
       <div class="gpe-bar-hl" id="gpe-bar-hl" hidden></div>
       <div class="gpe-cursor" id="gpe-cursor" hidden></div>
       <div class="gpe-sel-layer" id="gpe-sel-layer"></div>
     </div>
   </div>
-  <div class="gpe-keypad" id="gpe-keypad" hidden aria-label="Keypad"></div>
+  <div class="gpe-keypad" id="gpe-keypad" hidden aria-label="{{t "Keypad"}}"></div>
 </main>
 <footer class="gpe-statusbar">
   <div class="gpe-st-where">
     <span id="gpe-pos"></span>
     <span class="gpe-voicechip"><span class="dot"></span><span id="gpe-voice"></span></span>
     <span id="gpe-what"></span>
-    <span class="gpe-secchip" id="gpe-section" data-tip="The song’s section here" hidden></span>
-    <span class="gpe-selbar" id="gpe-selbar" hidden><span id="gpe-seltxt"></span><button type="button" class="gpe-usefor" id="gpe-usefor" data-tip="Show these bars in a section of the song">Use for a section…</button></span>
+    <span class="gpe-secchip" id="gpe-section" data-tip="{{t "The song’s section here"}}" hidden></span>
+    <span class="gpe-selbar" id="gpe-selbar" hidden><span id="gpe-seltxt"></span><button type="button" class="gpe-usefor" id="gpe-usefor" data-tip="{{t "Show these bars in a section of the song"}}">{{t "Use for a section…"}}</button></span>
     <span class="gpe-msg" id="gpe-status" aria-live="polite"></span>
   </div>
   <div class="gpe-st-tools">
     <span class="gpe-fill" id="gpe-fill"><span class="txt"></span><span class="bar"><span></span></span></span>
     <span class="gpe-sep"></span>
-    <button type="button" class="gpe-ib gpe-play loading" id="gpe-play" data-icon="play" data-tip="Play from the cursor" data-kbd="Space" aria-label="Play"></button>
-    <button type="button" class="gpe-ib" id="gpe-stop" data-icon="stop" data-tip="Stop" aria-label="Stop"></button>
-    <button type="button" class="gpe-ib" id="gpe-loop" data-icon="loop" data-tip="Loop" aria-label="Loop" aria-pressed="false"></button>
-    <button type="button" class="gpe-ib" id="gpe-countin" data-icon="countin" data-tip="Count-in" aria-label="Count-in" aria-pressed="false"></button>
-    <button type="button" class="gpe-ib" id="gpe-metronome" data-icon="metronome" data-tip="Metronome" aria-label="Metronome" aria-pressed="false"></button>
-    <select id="gpe-speed" aria-label="Speed" data-tip="Speed"><option value="0.5">50%</option><option value="0.75">75%</option><option value="0.9">90%</option><option value="1" selected>100%</option></select>
+    <button type="button" class="gpe-ib gpe-play loading" id="gpe-play" data-icon="play" data-tip="{{t "Play from the cursor"}}" data-kbd="Space" aria-label="{{t "Play"}}"></button>
+    <button type="button" class="gpe-ib" id="gpe-stop" data-icon="stop" data-tip="{{t "Stop"}}" aria-label="{{t "Stop"}}"></button>
+    <button type="button" class="gpe-ib" id="gpe-loop" data-icon="loop" data-tip="{{t "Loop"}}" aria-label="{{t "Loop"}}" aria-pressed="false"></button>
+    <button type="button" class="gpe-ib" id="gpe-countin" data-icon="countin" data-tip="{{t "Count-in"}}" aria-label="{{t "Count-in"}}" aria-pressed="false"></button>
+    <button type="button" class="gpe-ib" id="gpe-metronome" data-icon="metronome" data-tip="{{t "Metronome"}}" aria-label="{{t "Metronome"}}" aria-pressed="false"></button>
+    <select id="gpe-speed" aria-label="{{t "Speed"}}" data-tip="{{t "Speed"}}"><option value="0.5">50%</option><option value="0.75">75%</option><option value="0.9">90%</option><option value="1" selected>100%</option></select>
     <span class="gpe-sep"></span>
-    <select id="gpe-notation" aria-label="Show as" data-tip="How the track is drawn"><option value="">As in the file</option><option value="tab">Tab</option><option value="staff">Staff</option><option value="both">Staff + tab</option></select>
-    <button type="button" class="gpe-ib gpe-touch" id="gpe-keypad-toggle" data-icon="keys" data-tip="Keypad" aria-label="Keypad" aria-pressed="false"></button>
-    <button type="button" class="gpe-ib" id="gpe-help" data-icon="keyboard" data-tip="Keyboard" data-kbd="?" aria-label="Keyboard shortcuts"></button>
+    <select id="gpe-notation" aria-label="{{t "Show as"}}" data-tip="{{t "How the track is drawn"}}"><option value="">{{t "As in the file"}}</option><option value="tab">{{t "Tab"}}</option><option value="staff">{{t "notation|Staff"}}</option><option value="both">{{t "Staff + tab"}}</option></select>
+    <button type="button" class="gpe-ib gpe-touch" id="gpe-keypad-toggle" data-icon="keys" data-tip="{{t "Keypad"}}" aria-label="{{t "Keypad"}}" aria-pressed="false"></button>
+    <button type="button" class="gpe-ib" id="gpe-help" data-icon="keyboard" data-tip="{{t "Keyboard"}}" data-kbd="?" aria-label="{{t "Keyboard shortcuts"}}"></button>
   </div>
 </footer>
 </div>

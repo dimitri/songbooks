@@ -7,7 +7,7 @@
   document.getElementById('save-btn').addEventListener('click', async () => {
     const status = document.getElementById('save-status');
     status.className = '';
-    status.textContent = 'saving…';
+    status.textContent = t('saving…');
     const text = document.getElementById('raw-text').value;
     const res = await fetch(`/api/songs/${variantId}/raw`, {
       method: 'PUT',
@@ -16,17 +16,17 @@
     });
     if (res.status === 409) {
       status.className = 'err';
-      status.textContent = 'conflict: this song changed on disk — reload before saving';
+      status.textContent = t('conflict: this song changed on disk — reload before saving');
       return;
     }
     if (!res.ok) {
       status.className = 'err';
-      status.textContent = 'save failed';
+      status.textContent = t('save failed');
       return;
     }
     const data = await res.json();
     version = data.version;
     status.className = 'ok';
-    status.textContent = 'saved';
+    status.textContent = t('saved');
   });
 })();

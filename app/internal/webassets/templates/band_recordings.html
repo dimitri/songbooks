@@ -7,7 +7,7 @@
 {{define "rec-head"}}
 {{$brand := brandFor "band" .Band.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -25,8 +25,8 @@
      band's average. Its data is a store.BandRecording. */}}
 {{define "rec-stars"}}
 <span class="rec-rating">
-  <span class="rec-stars" role="slider" tabindex="0" data-rec="{{.ID}}" aria-label="Your stars for {{.Title}}" aria-valuemin="0" aria-valuemax="5" aria-valuenow="{{.MyStars}}" aria-valuetext="{{if .MyStars}}{{.MyStars}} stars{{else}}not rated{{end}}" style="--stars: {{.MyStars}}"></span>
-  <span class="rec-stars-avg" title="the band's average">{{if .Ratings}}{{printf "%.1f" .Stars}}<small> · {{.Ratings}}</small>{{end}}</span>
+  <span class="rec-stars" role="slider" tabindex="0" data-rec="{{.ID}}" aria-label="{{t "Your stars for %s" .Title}}" aria-valuemin="0" aria-valuemax="5" aria-valuenow="{{.MyStars}}" aria-valuetext="{{if .MyStars}}{{t "%v stars" .MyStars}}{{else}}{{t "not rated"}}{{end}}" style="--stars: {{.MyStars}}"></span>
+  <span class="rec-stars-avg" title="{{t "the band’s average"}}">{{if .Ratings}}{{printf "%.1f" .Stars}}<small> · {{.Ratings}}</small>{{end}}</span>
 </span>
 {{end}}
 
@@ -34,11 +34,11 @@
      id, .Number what to show first (its place, or its date). */}}
 {{define "rec-row"}}
 <li class="rec-row{{if .Rec.Reference}} is-reference{{end}}" data-file="{{.Rec.FileID}}" data-title="{{if .Rec.SongTitle}}{{.Rec.SongTitle}}{{else}}{{.Rec.Title}}{{end}}" data-detail="{{.Detail}}" data-date="{{.Date}}" data-kind="{{.Rec.Kind}}">
-  <button type="button" class="rec-play" aria-label="Play {{.Rec.Title}}">{{template "icon-play"}}</button>
+  <button type="button" class="rec-play" aria-label="{{t "Play %s" .Rec.Title}}">{{template "icon-play"}}</button>
   <span class="rec-num">{{.Number}}</span>
   <span class="rec-text">
     <strong>{{if .Rec.VariantID}}<a href="/bands/{{.Band}}/recordings/songs/{{.Rec.VariantID}}">{{.Rec.SongTitle}}</a>{{else}}{{.Rec.Title}}{{end}}</strong>
-    <small>{{with .Rec.Take}}take {{.}} · {{end}}{{.Rec.Ext}} · {{fileSize .Rec.Size}}{{if .Rec.Reference}} · <span class="rec-ref">the band’s reference</span>{{end}}{{if not .Rec.VariantID}} · <span class="rec-unknown">not a song of the band’s</span>{{end}}</small>
+    <small>{{with .Rec.Take}}{{t "recording|take"}} {{.}} · {{end}}{{.Rec.Ext}} · {{fileSize .Rec.Size}}{{if .Rec.Reference}} · <span class="rec-ref">{{t "the band’s reference"}}</span>{{end}}{{if not .Rec.VariantID}} · <span class="rec-unknown">{{t "not a song of the band’s"}}</span>{{end}}</small>
   </span>
   {{template "rec-stars" .Rec}}
 </li>
@@ -57,37 +57,37 @@
 {{define "rec-player"}}
 <div class="rec-player" id="rec-player" hidden>
   <div class="rp-backdrop" data-rp-close></div>
-  <div class="rp-card" role="region" aria-label="Player">
-    <button type="button" class="rp-grab" data-rp-close aria-label="Close the player"></button>
-    <button type="button" class="rp-btn rp-close" data-rp-close aria-label="Close the player"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+  <div class="rp-card" role="region" aria-label="{{t "Player"}}">
+    <button type="button" class="rp-grab" data-rp-close aria-label="{{t "Close the player"}}"></button>
+    <button type="button" class="rp-btn rp-close" data-rp-close aria-label="{{t "Close the player"}}"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
     <div class="rp-head">
-      <button type="button" class="rp-open" id="rp-open" aria-expanded="false" aria-label="Open the player">
+      <button type="button" class="rp-open" id="rp-open" aria-expanded="false" aria-label="{{t "Open the player"}}">
         <span class="rp-tile" id="rp-tile" aria-hidden="true"><small id="rp-tile-month"></small><b id="rp-tile-day"></b></span>
         <span class="rp-meta"><strong id="rec-now-title"></strong><small id="rec-now-detail"></small></span>
       </button>
       <span class="rp-stars" id="rp-stars"></span>
-      <button type="button" class="rp-btn rp-mini" data-rp="toggle" aria-label="Play"></button>
-      <button type="button" class="rp-btn rp-mini" data-rp="fwd" aria-label="Forward 15 seconds">{{template "icon-fwd15"}}</button>
+      <button type="button" class="rp-btn rp-mini" data-rp="toggle" aria-label="{{t "Play"}}"></button>
+      <button type="button" class="rp-btn rp-mini" data-rp="fwd" aria-label="{{t "Forward 15 seconds"}}">{{template "icon-fwd15"}}</button>
     </div>
     <div class="rp-scrub">
-      <div class="rp-track" id="rp-track"><i class="rp-loop" id="rp-loop"></i><input type="range" id="rec-seek" min="0" max="1000" step="1" value="0" aria-label="Position in the recording"></div>
+      <div class="rp-track" id="rp-track"><i class="rp-loop" id="rp-loop"></i><input type="range" id="rec-seek" min="0" max="1000" step="1" value="0" aria-label="{{t "Position in the recording"}}"></div>
       <span class="rp-time" id="rec-pos">0:00</span><span class="rp-time rp-left" id="rec-dur">–:––</span>
     </div>
     <div class="rp-transport">
-      <button type="button" class="rp-btn" data-rp="prev" aria-label="Previous recording"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 4.5v11L7.5 10z" fill="currentColor"/></svg></button>
-      <button type="button" class="rp-btn" data-rp="back" aria-label="Back 15 seconds">{{template "icon-back15"}}</button>
-      <button type="button" class="rp-btn rp-play" data-rp="toggle" aria-label="Play"></button>
-      <button type="button" class="rp-btn" data-rp="fwd" aria-label="Forward 15 seconds">{{template "icon-fwd15"}}</button>
-      <button type="button" class="rp-btn" data-rp="next" aria-label="Next recording"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M15 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4.5v11L12.5 10z" fill="currentColor"/></svg></button>
+      <button type="button" class="rp-btn" data-rp="prev" aria-label="{{t "Previous recording"}}"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 4.5v11L7.5 10z" fill="currentColor"/></svg></button>
+      <button type="button" class="rp-btn" data-rp="back" aria-label="{{t "Back 15 seconds"}}">{{template "icon-back15"}}</button>
+      <button type="button" class="rp-btn rp-play" data-rp="toggle" aria-label="{{t "Play"}}"></button>
+      <button type="button" class="rp-btn" data-rp="fwd" aria-label="{{t "Forward 15 seconds"}}">{{template "icon-fwd15"}}</button>
+      <button type="button" class="rp-btn" data-rp="next" aria-label="{{t "Next recording"}}"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M15 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4.5v11L12.5 10z" fill="currentColor"/></svg></button>
     </div>
     <div class="rp-tools">
-      <button type="button" class="rp-chip" data-rp="restart"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 10a5.5 5.5 0 1 0 1.8-4.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M3.5 3.2v4.3h4.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg> Restart</button>
-      <label class="rp-chip rp-speed"><select id="rp-speed" aria-label="Speed"><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="0.9">0.9×</option><option value="1" selected>1× speed</option><option value="1.1">1.1×</option><option value="1.25">1.25×</option></select></label>
-      <button type="button" class="rp-chip" id="rp-ab" data-rp="loop" aria-pressed="false">Loop A–B</button>
-      <button type="button" class="rp-btn rp-expand" data-rp="expand" aria-label="Open the full player"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M11.5 3.5h5v5M8.5 16.5h-5v-5M16.5 3.5l-5.5 5.5M3.5 16.5L9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button type="button" class="rp-chip" data-rp="restart"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 10a5.5 5.5 0 1 0 1.8-4.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M3.5 3.2v4.3h4.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg> {{t "Restart"}}</button>
+      <label class="rp-chip rp-speed"><select id="rp-speed" aria-label="{{t "Speed"}}"><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="0.9">0.9×</option><option value="1" selected>{{t "1× speed"}}</option><option value="1.1">1.1×</option><option value="1.25">1.25×</option></select></label>
+      <button type="button" class="rp-chip" id="rp-ab" data-rp="loop" aria-pressed="false">{{t "Loop A–B"}}</button>
+      <button type="button" class="rp-btn rp-expand" data-rp="expand" aria-label="{{t "Open the full player"}}"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M11.5 3.5h5v5M8.5 16.5h-5v-5M16.5 3.5l-5.5 5.5M3.5 16.5L9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
     <p class="rp-upnext" id="rp-upnext"></p>
-    <ol class="rp-queue" id="rp-queue" aria-label="The recordings"></ol>
+    <ol class="rp-queue" id="rp-queue" aria-label="{{t "The recordings"}}"></ol>
     <div class="rp-line" aria-hidden="true"><i id="rp-line"></i></div>
   </div>
 </div>
@@ -105,7 +105,7 @@
   const bar = $('rec-player'), seek = $('rec-seek'), speed = $('rp-speed'), ab = $('rp-ab');
   const toggles = bar.querySelectorAll('[data-rp=toggle]');
   const fmt = (t) => !isFinite(t) ? '–:––' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const months = [t('month|Jan'), t('month|Feb'), t('month|Mar'), t('month|Apr'), t('month|May'), t('month|Jun'), t('month|Jul'), t('month|Aug'), t('month|Sep'), t('month|Oct'), t('month|Nov'), t('month|Dec')];
   let at = -1, loop = null; // loop: {a} once A is set, {a, b} once it loops
 
   // pCloud gives a file's link to whoever asks, for their own address: the
@@ -118,7 +118,7 @@
     if (c && c.until > Date.now()) return c.url;
     const res = await fetch(`https://${host}/getpublinkdownload?code=${encodeURIComponent(code)}&fileid=${fileId}`, {referrerPolicy: 'no-referrer'});
     const data = await res.json();
-    if (data.result !== 0) throw new Error(data.error || 'pCloud didn’t give the file');
+    if (data.result !== 0) throw new Error(data.error || t('pCloud didn’t give the file'));
     const url = `https://${data.hosts[0]}${data.path}`;
     links.set(fileId, {url, until: Date.now() + 60 * 60 * 1000});
     return url;
@@ -138,7 +138,7 @@
     $('rp-tile-day').textContent = big;
     bar.classList.toggle('is-concert', row.dataset.kind === 'concert');
     const after = rows[i + 1];
-    $('rp-upnext').textContent = after ? `${i + 1} of ${rows.length} · next: ${after.dataset.title}` : `${i + 1} of ${rows.length} · the last one`;
+    $('rp-upnext').textContent = after ? t('%d of %d · next: %s', i + 1, rows.length, after.dataset.title) : t('%d of %d · the last one', i + 1, rows.length);
     // The stars of the recording playing, the same as its row's.
     const stars = row.querySelector('.rec-rating');
     $('rp-stars').replaceChildren(...(stars ? [stars.cloneNode(true)] : []));
@@ -148,7 +148,7 @@
       audio.playbackRate = Number(speed.value);
       await audio.play();
     } catch (e) {
-      $('rec-now-detail').textContent = 'Couldn’t play it: ' + e.message;
+      $('rec-now-detail').textContent = t('Couldn’t play it: %s', e.message);
     }
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({title: row.dataset.title, artist, album: row.dataset.detail || ''});
@@ -232,26 +232,26 @@
   });
 
   const render = () => {
-    const t = audio.currentTime, d = audio.duration;
-    toggles.forEach((b) => { b.innerHTML = audio.paused ? PLAY : PAUSE; b.setAttribute('aria-label', audio.paused ? 'Play' : 'Pause'); });
+    const pos = audio.currentTime, d = audio.duration;
+    toggles.forEach((b) => { b.innerHTML = audio.paused ? PLAY : PAUSE; b.setAttribute('aria-label', audio.paused ? t('Play') : t('Pause')); });
     rows.forEach((r, i) => { r.querySelector('.rec-play').innerHTML = i === at && !audio.paused ? PAUSE : PLAY; });
     queue.querySelectorAll('li').forEach((li, i) => {
       li.classList.toggle('is-current', i === at);
       li.querySelector('button').setAttribute('aria-current', i === at ? 'true' : 'false');
     });
-    $('rec-pos').textContent = fmt(t);
-    $('rec-dur').textContent = isFinite(d) ? '−' + fmt(d - t) : '–:––';
-    const p = isFinite(d) && d > 0 ? t / d : 0;
+    $('rec-pos').textContent = fmt(pos);
+    $('rec-dur').textContent = isFinite(d) ? '−' + fmt(d - pos) : '–:––';
+    const p = isFinite(d) && d > 0 ? pos / d : 0;
     if (document.activeElement !== seek) seek.value = p * 1000;
     $('rp-track').style.setProperty('--p', p);
     $('rp-line').style.width = p * 100 + '%';
     const lp = $('rp-loop');
     lp.hidden = !loop || !isFinite(d);
-    if (loop && isFinite(d)) { lp.style.left = (loop.a / d) * 100 + '%'; lp.style.width = (((loop.b ?? t) - loop.a) / d) * 100 + '%'; }
+    if (loop && isFinite(d)) { lp.style.left = (loop.a / d) * 100 + '%'; lp.style.width = (((loop.b ?? pos) - loop.a) / d) * 100 + '%'; }
     ab.setAttribute('aria-pressed', !!loop);
-    ab.textContent = !loop ? 'Loop A–B' : loop.b === undefined ? `A ${fmt(loop.a)} · tap for B` : `Loop ${fmt(loop.a)}–${fmt(loop.b)} ✕`;
+    ab.textContent = !loop ? t('Loop A–B') : loop.b === undefined ? t('A %s · tap for B', fmt(loop.a)) : t('Loop %s–%s ✕', fmt(loop.a), fmt(loop.b));
     if ('mediaSession' in navigator && isFinite(d) && navigator.mediaSession.setPositionState) {
-      try { navigator.mediaSession.setPositionState({duration: d, position: Math.min(t, d), playbackRate: audio.playbackRate}); } catch (e) {}
+      try { navigator.mediaSession.setPositionState({duration: d, position: Math.min(pos, d), playbackRate: audio.playbackRate}); } catch (e) {}
     }
   };
   audio.addEventListener('timeupdate', () => {
@@ -276,7 +276,7 @@
     const show = (v) => copies().forEach((c) => {
       c.style.setProperty('--stars', v);
       c.setAttribute('aria-valuenow', v);
-      c.setAttribute('aria-valuetext', v ? `${v} stars` : 'not rated');
+      c.setAttribute('aria-valuetext', v ? t('%s stars', v) : t('not rated'));
     });
     const avgs = (html) => copies().forEach((c) => { c.parentElement.querySelector('.rec-stars-avg').innerHTML = html; });
     const set = async (v) => {
@@ -286,7 +286,7 @@
       const res = await fetch(`/api/bands/${bandId}/recordings/${el.dataset.rec}/stars`, {
         method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({stars: v}),
       }).catch(() => null);
-      if (!res || !res.ok) { show(before); avgs('Couldn’t save'); return; }
+      if (!res || !res.ok) { show(before); avgs(t('Couldn’t save')); return; }
       const d = await res.json();
       avgs(d.ratings ? `${d.stars.toFixed(1)}<small> · ${d.ratings}</small>` : '');
     };
@@ -311,17 +311,17 @@
     const res = await fetch(`/api/bands/${bandId}/songs/${radio.dataset.song}/recording`, {
       method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({recording: Number(radio.value)}),
     }).catch(() => null);
-    Forms.status(out, res && res.ok ? (Number(radio.value) ? 'Saved: the playlist plays it.' : 'Saved: no reference.') : 'Couldn’t save that.', res && res.ok ? 'ok' : 'error');
+    Forms.status(out, res && res.ok ? (Number(radio.value) ? t('Saved: the playlist plays it.') : t('Saved: no reference.')) : t('Couldn’t save that.'), res && res.ok ? 'ok' : 'error');
   }));
 })();
 </script>
 {{end}}
 
 {{define "band_recordings"}}
-{{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" (printf "%ss" .Kind))}}
+{{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" (t (printf "%ss" .Kind)))}}
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
-  <h1>{{if eq .Kind "rehearsal"}}Rehearsals{{else}}Concerts{{end}}</h1>
+  <h1>{{if eq .Kind "rehearsal"}}{{t "Rehearsals"}}{{else}}{{t "Concerts"}}{{end}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index rec">
@@ -329,12 +329,12 @@
 
   {{if not .Source}}
   <section class="card card--md">
-    <h2>The band’s recordings</h2>
-    <p>Share the folder where the band keeps its recordings on pCloud, and paste its link here. Each rehearsal and concert shows here with its recordings, to listen to and rate. Nothing is copied: the recordings play straight from pCloud.</p>
-    <p class="hint">The app reads the folders the way bands file them: <code>Repetes/2025-03-13/07 - Plan Chicago Blues - Take 2 - 2025-03-13.mp3</code>, <code>Concerts/2025-06-14/…</code>.</p>
+    <h2>{{t "The band’s recordings"}}</h2>
+    <p>{{t "Share the folder where the band keeps its recordings on pCloud, and paste its link here. Each rehearsal and concert shows here with its recordings, to listen to and rate. Nothing is copied: the recordings play straight from pCloud."}}</p>
+    <p class="hint">{{t "The app reads the folders the way bands file them:"}} <code>Repetes/2025-03-13/07 - Plan Chicago Blues - Take 2 - 2025-03-13.mp3</code>, <code>Concerts/2025-06-14/…</code>.</p>
     <form class="form-stack" id="source-form">
-      <div class="field"><label for="source-link">pCloud shared link</label><input id="source-link" name="link" type="url" inputmode="url" required placeholder="https://e.pcloud.link/publink/show?code=…" autocomplete="off"></div>
-      <div class="form-actions"><button type="submit" class="primary">Use this folder</button></div>
+      <div class="field"><label for="source-link">{{t "pCloud shared link"}}</label><input id="source-link" name="link" type="url" inputmode="url" required placeholder="https://e.pcloud.link/publink/show?code=…" autocomplete="off"></div>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Use this folder"}}</button></div>
       <p class="form-status" role="status"></p>
     </form>
   </section>
@@ -346,7 +346,7 @@
       Forms.run(form, form.querySelector('button'), async () => {
         const res = await fetch(`/api/bands/{{.Band.ID}}/recordings/source`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({link: form.elements.link.value})});
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || 'That didn’t work.');
+        if (!res.ok) throw new Error(data.error || t('That didn’t work.'));
         location.reload();
       });
     });
@@ -355,52 +355,53 @@
   {{else}}
 
   <div class="rec-source">
-    <span>From <strong>{{.Source.Name}}</strong> on pCloud{{with .Source.SyncedAt}}, read {{.Format "2 Jan 15:04"}}{{end}}</span>
-    <button type="button" class="link-like" id="rec-sync">Read it again</button>
-    {{if or .Questions .Unmatched}}<a class="rec-fixes-link" href="/bands/{{.Band.ID}}/recordings/fixes">{{if .Questions}}{{.Questions}} date{{if ne .Questions 1}}s{{end}} to check{{end}}{{if and .Questions .Unmatched}} · {{end}}{{if .Unmatched}}{{.Unmatched}} title{{if ne .Unmatched 1}}s{{end}} to match{{end}}</a>{{else}}<a class="rec-fixes-link quiet" href="/bands/{{.Band.ID}}/recordings/fixes">Corrections</a>{{end}}
+    <span>{{t "source|From"}} <strong>{{.Source.Name}}</strong> {{t "on pCloud"}}{{with .Source.SyncedAt}}, {{t "read %s" (date . "2 Jan 15:04")}}{{end}}</span>
+    <button type="button" class="link-like" id="rec-sync">{{t "Read it again"}}</button>
+    {{if or .Questions .Unmatched}}<a class="rec-fixes-link" href="/bands/{{.Band.ID}}/recordings/fixes">{{if .Questions}}{{tn .Questions "%d date to check" "%d dates to check"}}{{end}}{{if and .Questions .Unmatched}} · {{end}}{{if .Unmatched}}{{tn .Unmatched "%d title to match" "%d titles to match"}}{{end}}</a>{{else}}<a class="rec-fixes-link quiet" href="/bands/{{.Band.ID}}/recordings/fixes">{{t "Corrections"}}</a>{{end}}
     <span class="form-status" role="status" id="rec-sync-status"></span>
   </div>
 
   {{if not .Sessions}}
-  <p class="dl-empty">No {{.Kind}} recordings in that folder yet{{if eq .Kind "rehearsal"}} (a <code>Repetes/</code> or <code>Rehearsals/</code> folder of dated folders){{else}} (a <code>Concerts/</code> folder of dated folders){{end}}.</p>
+  <p class="dl-empty">{{if eq .Kind "rehearsal"}}{{t "No rehearsal recordings in that folder yet (a"}} <code>Repetes/</code> {{t "recordings|or"}} <code>Rehearsals/</code> {{t "folder of dated folders)."}}{{else}}{{t "No concert recordings in that folder yet (a"}} <code>Concerts/</code> {{t "folder of dated folders)."}}{{end}}</p>
   {{else}}
   <div class="rec-layout">
     <section class="rec-session card" aria-labelledby="rec-session-title">
       <div class="rec-session-head">
         <div>
-          <h2 id="rec-session-title">{{.Selected.Format "Monday 2 January 2006"}}</h2>
-          <p class="hint">{{len .Recordings}} recording{{if ne (len .Recordings) 1}}s{{end}}</p>
+          <h2 id="rec-session-title">{{date .Selected "Monday 2 January 2006"}}</h2>
+          <p class="hint">{{tn (len .Recordings) "%d recording" "%d recordings"}}</p>
         </div>
         <div class="rec-session-nav">
-          {{with .Older}}<a class="dl-btn" href="{{.}}" aria-label="The {{$.Kind}} before">{{template "icon-back"}}</a>{{end}}
-          <button type="button" class="dl-btn primary" data-play-all>{{template "icon-play"}} Play all</button>
-          {{with .Newer}}<a class="dl-btn" href="{{.}}" aria-label="The {{$.Kind}} after">{{template "icon-forward"}}</a>{{end}}
+          {{with .Older}}<a class="dl-btn" href="{{.}}" aria-label="{{if eq $.Kind "rehearsal"}}{{t "The rehearsal before"}}{{else}}{{t "The concert before"}}{{end}}">{{template "icon-back"}}</a>{{end}}
+          <button type="button" class="dl-btn primary" data-play-all>{{template "icon-play"}} {{t "Play all"}}</button>
+          {{with .Newer}}<a class="dl-btn" href="{{.}}" aria-label="{{if eq $.Kind "rehearsal"}}{{t "The rehearsal after"}}{{else}}{{t "The concert after"}}{{end}}">{{template "icon-forward"}}</a>{{end}}
         </div>
       </div>
       <ol class="rec-list">
-        {{$date := .Selected.Format "2 Jan 2006"}}
-        {{range .Recordings}}{{template "rec-row" (dict "Rec" . "Band" $.Band.ID "Number" (or .Position "·") "Detail" (printf "%s %s" (recKind $.Kind) $date) "Date" ($.Selected.Format "2006-01-02"))}}{{end}}
+        {{$date := date .Selected "2 Jan 2006"}}
+        {{range .Recordings}}{{template "rec-row" (dict "Rec" . "Band" $.Band.ID "Number" (or .Position "·") "Detail" (printf "%s %s" (t (recKind $.Kind)) $date) "Date" ($.Selected.Format "2006-01-02"))}}{{end}}
       </ol>
     </section>
 
     <aside class="rec-side">
-      <section class="card rec-calendar" aria-label="Calendar">
+      <section class="card rec-calendar" aria-label="{{t "Calendar"}}">
         <div class="rec-calendar-head">
-          {{if .Month.Prev}}<a class="calendar-nav-btn" href="{{.Month.Prev}}" aria-label="Previous month">{{template "icon-back"}}</a>{{else}}<span></span>{{end}}
-          <h3>{{.Month.Title}}</h3>
-          {{if .Month.Next}}<a class="calendar-nav-btn" href="{{.Month.Next}}" aria-label="Next month">{{template "icon-forward"}}</a>{{else}}<span></span>{{end}}
+          {{if .Month.Prev}}<a class="calendar-nav-btn" href="{{.Month.Prev}}" aria-label="{{t "Previous month"}}">{{template "icon-back"}}</a>{{else}}<span></span>{{end}}
+          {{$title := .Month.Title}}{{range .Month.Weeks}}{{range .}}{{if and .InMonth (eq .Date.Day 1)}}{{$title = date .Date "January 2006"}}{{end}}{{end}}{{end}}
+          <h3>{{$title}}</h3>
+          {{if .Month.Next}}<a class="calendar-nav-btn" href="{{.Month.Next}}" aria-label="{{t "Next month"}}">{{template "icon-forward"}}</a>{{else}}<span></span>{{end}}
         </div>
         <table class="rec-cal">
-          <thead><tr><th>M</th><th>T</th><th>W</th><th>T</th><th>F</th><th>S</th><th>S</th></tr></thead>
-          <tbody>{{range .Month.Weeks}}<tr>{{range .}}<td class="{{if not .InMonth}}is-other{{end}}{{if .Session}} has-session{{end}}{{if .Selected}} is-selected{{end}}">{{if .Href}}<a href="{{.Href}}" aria-label="{{.Date.Format "2 January 2006"}}"{{if .Selected}} aria-current="date"{{end}}>{{.Date.Day}}</a>{{else}}<span>{{.Date.Day}}</span>{{end}}</td>{{end}}</tr>{{end}}</tbody>
+          <thead><tr>{{range index .Month.Weeks 0}}{{$day := date .Date "Monday"}}<th><abbr title="{{$day}}" style="text-transform:uppercase">{{slice $day 0 1}}</abbr></th>{{end}}</tr></thead>
+          <tbody>{{range .Month.Weeks}}<tr>{{range .}}<td class="{{if not .InMonth}}is-other{{end}}{{if .Session}} has-session{{end}}{{if .Selected}} is-selected{{end}}">{{if .Href}}<a href="{{.Href}}" aria-label="{{date .Date "2 January 2006"}}"{{if .Selected}} aria-current="date"{{end}}>{{.Date.Day}}</a>{{else}}<span>{{.Date.Day}}</span>{{end}}</td>{{end}}</tr>{{end}}</tbody>
         </table>
       </section>
 
       <section class="card rec-sessions">
-        <h3>{{len .Sessions}} {{.Kind}}{{if ne (len .Sessions) 1}}s{{end}}</h3>
+        <h3>{{if eq .Kind "rehearsal"}}{{tn (len .Sessions) "%d rehearsal" "%d rehearsals"}}{{else}}{{tn (len .Sessions) "%d concert" "%d concerts"}}{{end}}</h3>
         <ol>
           {{range .Sessions}}
-          <li{{if .Date.Equal $.Selected}} class="is-selected"{{end}}><a href="{{$.Base}}?date={{.Date.Format "2006-01-02"}}"><span>{{.Date.Format "2 Jan 2006"}}</span><small>{{.Recordings}} · {{.Songs}} song{{if ne .Songs 1}}s{{end}}{{if .Stars}} · {{printf "%.1f" .Stars}} ★{{end}}</small></a></li>
+          <li{{if .Date.Equal $.Selected}} class="is-selected"{{end}}><a href="{{$.Base}}?date={{.Date.Format "2006-01-02"}}"><span>{{date .Date "2 Jan 2006"}}</span><small>{{.Recordings}} · {{tn .Songs "%d song" "%d songs"}}{{if .Stars}} · {{printf "%.1f" .Stars}} ★{{end}}</small></a></li>
           {{end}}
         </ol>
       </section>
@@ -410,27 +411,27 @@
 
   {{with .Stats}}
   <section class="rec-stats" aria-labelledby="rec-stats-title">
-    <h2 id="rec-stats-title">The songs, over {{.Rehearsals}} rehearsals</h2>
+    <h2 id="rec-stats-title">{{tn .Rehearsals "The songs, over %d rehearsal" "The songs, over %d rehearsals"}}</h2>
     <div class="rec-stat-cards">
-      <div class="card"><h3>Played the most</h3><ol>{{range .Most}}<li><a href="/bands/{{$.Band.ID}}/recordings/songs/{{.VariantID}}">{{.Title}}</a><small>{{.Sessions}}×</small></li>{{end}}</ol></div>
-      <div class="card"><h3>Played the least</h3><ol>{{range .Least}}<li><a href="/bands/{{$.Band.ID}}/recordings/songs/{{.VariantID}}">{{.Title}}</a><small>{{.Sessions}}×</small></li>{{end}}</ol></div>
-      <div class="card"><h3>Not played for the longest</h3><ol>{{range .Longest}}<li><a href="/bands/{{$.Band.ID}}/recordings/songs/{{.VariantID}}">{{.Title}}</a><small>{{.Last.Format "2 Jan 2006"}}</small></li>{{end}}</ol></div>
-      {{if .Best}}<div class="card"><h3>Rated the best</h3><ol>{{range .Best}}<li><a href="/bands/{{$.Band.ID}}/recordings/songs/{{.VariantID}}">{{.Title}}</a><small>{{printf "%.1f" .Stars}} ★</small></li>{{end}}</ol></div>{{end}}
-      {{if .Never}}<div class="card"><h3>Never recorded at a rehearsal</h3><ul>{{range .Never}}<li>{{.Title}}{{if .Concerts}}<small>{{.Concerts}} concert{{if ne .Concerts 1}}s{{end}}</small>{{end}}</li>{{end}}</ul></div>{{end}}
+      <div class="card"><h3>{{t "Played the most"}}</h3><ol>{{range .Most}}<li><a href="/bands/{{$.Band.ID}}/recordings/songs/{{.VariantID}}">{{.Title}}</a><small>{{.Sessions}}×</small></li>{{end}}</ol></div>
+      <div class="card"><h3>{{t "Played the least"}}</h3><ol>{{range .Least}}<li><a href="/bands/{{$.Band.ID}}/recordings/songs/{{.VariantID}}">{{.Title}}</a><small>{{.Sessions}}×</small></li>{{end}}</ol></div>
+      <div class="card"><h3>{{t "Not played for the longest"}}</h3><ol>{{range .Longest}}<li><a href="/bands/{{$.Band.ID}}/recordings/songs/{{.VariantID}}">{{.Title}}</a><small>{{date .Last "2 Jan 2006"}}</small></li>{{end}}</ol></div>
+      {{if .Best}}<div class="card"><h3>{{t "Rated the best"}}</h3><ol>{{range .Best}}<li><a href="/bands/{{$.Band.ID}}/recordings/songs/{{.VariantID}}">{{.Title}}</a><small>{{printf "%.1f" .Stars}} ★</small></li>{{end}}</ol></div>{{end}}
+      {{if .Never}}<div class="card"><h3>{{t "Never recorded at a rehearsal"}}</h3><ul>{{range .Never}}<li>{{.Title}}{{if .Concerts}}<small>{{tn .Concerts "%d concert" "%d concerts"}}</small>{{end}}</li>{{end}}</ul></div>{{end}}
     </div>
     <details class="rec-all">
-      <summary>Every song</summary>
+      <summary>{{t "Every song"}}</summary>
       <div class="table-scroll"><table class="table-stack stats-table">
-        <thead><tr><th>Song</th><th class="num">Rehearsals</th><th class="num">Recordings</th><th>Last played</th><th class="num">Stars</th><th class="num">Concerts</th><th>Reference</th></tr></thead>
+        <thead><tr><th>{{t "Song"}}</th><th class="num">{{t "Rehearsals"}}</th><th class="num">{{t "Recordings"}}</th><th>{{t "Last played"}}</th><th class="num">{{t "Stars"}}</th><th class="num">{{t "Concerts"}}</th><th>{{t "Reference"}}</th></tr></thead>
         <tbody>
         {{range .All}}<tr>
-          <td data-label="Song"><a href="/bands/{{$.Band.ID}}/recordings/songs/{{.VariantID}}">{{.Title}}</a></td>
-          <td data-label="Rehearsals" class="num">{{.Sessions}}</td>
-          <td data-label="Recordings" class="num">{{.Recordings}}</td>
-          <td data-label="Last played">{{with .Last}}{{.Format "2 Jan 2006"}}{{else}}—{{end}}</td>
-          <td data-label="Stars" class="num">{{if .Stars}}{{printf "%.1f" .Stars}}{{else}}—{{end}}</td>
-          <td data-label="Concerts" class="num">{{.Concerts}}</td>
-          <td data-label="Reference">{{if .Chosen}}chosen{{else}}—{{end}}</td>
+          <td data-label="{{t "Song"}}"><a href="/bands/{{$.Band.ID}}/recordings/songs/{{.VariantID}}">{{.Title}}</a></td>
+          <td data-label="{{t "Rehearsals"}}" class="num">{{.Sessions}}</td>
+          <td data-label="{{t "Recordings"}}" class="num">{{.Recordings}}</td>
+          <td data-label="{{t "Last played"}}">{{with .Last}}{{date . "2 Jan 2006"}}{{else}}—{{end}}</td>
+          <td data-label="{{t "Stars"}}" class="num">{{if .Stars}}{{printf "%.1f" .Stars}}{{else}}—{{end}}</td>
+          <td data-label="{{t "Concerts"}}" class="num">{{.Concerts}}</td>
+          <td data-label="{{t "Reference"}}">{{if .Chosen}}{{t "chosen"}}{{else}}—{{end}}</td>
         </tr>{{end}}
         </tbody>
       </table></div>
@@ -442,10 +443,10 @@
   document.getElementById('rec-sync')?.addEventListener('click', async (e) => {
     const out = document.getElementById('rec-sync-status');
     Forms.busy(e.target, true);
-    Forms.status(out, 'Reading the folder…');
+    Forms.status(out, t('Reading the folder…'));
     const res = await fetch(`/api/bands/{{.Band.ID}}/recordings/sync`, {method: 'POST'}).catch(() => null);
     Forms.busy(e.target, false);
-    if (res && res.ok) location.reload(); else Forms.status(out, 'Couldn’t read the folder. Try again.', 'error');
+    if (res && res.ok) location.reload(); else Forms.status(out, t('Couldn’t read the folder. Try again.'), 'error');
   });
   </script>
   {{end}}
@@ -461,33 +462,33 @@
 {{define "band_song_recordings"}}
 {{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" .Song.Title)}}
 <header class="app-header">
-  <a class="back-link" href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-back"}} Rehearsals</a>
+  <a class="back-link" href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-back"}} {{t "Rehearsals"}}</a>
   <h1>{{.Song.Title}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index rec">
-  <p class="hint">The band’s recordings of the song, the best rated first. The one chosen as the reference is what the band’s playlist plays. <a href="/song/{{.Song.VariantID}}">Open the song</a></p>
+  <p class="hint">{{t "The band’s recordings of the song, the best rated first. The one chosen as the reference is what the band’s playlist plays."}} <a href="/song/{{.Song.VariantID}}">{{t "Open the song"}}</a></p>
   {{if .Recordings}}
   <fieldset class="rec-reference">
-    <legend>The band’s reference</legend>
+    <legend>{{t "The band’s reference"}}</legend>
     <ol class="rec-list">
       {{range .Recordings}}
-      <li class="rec-row{{if .Reference}} is-reference{{end}}" data-file="{{.FileID}}" data-title="{{$.Song.Title}}" data-detail="{{recKind .Kind}} {{with .SessionDate}}{{.Format "2 Jan 2006"}}{{end}}{{with .Take}}, take {{.}}{{end}}" data-date="{{with .SessionDate}}{{.Format "2006-01-02"}}{{end}}" data-kind="{{.Kind}}">
-        <label class="rec-pick"><input type="radio" name="reference" value="{{.ID}}" data-song="{{$.Song.VariantID}}"{{if .Reference}} checked{{end}} aria-label="Make it the reference"></label>
-        <button type="button" class="rec-play" aria-label="Play">{{template "icon-play"}}</button>
+      <li class="rec-row{{if .Reference}} is-reference{{end}}" data-file="{{.FileID}}" data-title="{{$.Song.Title}}" data-detail="{{t (recKind .Kind)}} {{with .SessionDate}}{{date . "2 Jan 2006"}}{{end}}{{with .Take}}, {{t "recording|take"}} {{.}}{{end}}" data-date="{{with .SessionDate}}{{.Format "2006-01-02"}}{{end}}" data-kind="{{.Kind}}">
+        <label class="rec-pick"><input type="radio" name="reference" value="{{.ID}}" data-song="{{$.Song.VariantID}}"{{if .Reference}} checked{{end}} aria-label="{{t "Make it the reference"}}"></label>
+        <button type="button" class="rec-play" aria-label="{{t "Play"}}">{{template "icon-play"}}</button>
         <span class="rec-text">
-          <strong>{{recKind .Kind}} {{with .SessionDate}}{{.Format "2 Jan 2006"}}{{end}}{{with .Take}} · take {{.}}{{end}}</strong>
+          <strong>{{t (recKind .Kind)}} {{with .SessionDate}}{{date . "2 Jan 2006"}}{{end}}{{with .Take}} · {{t "recording|take"}} {{.}}{{end}}</strong>
           <small>{{.Name}} · {{fileSize .Size}}</small>
         </span>
         {{template "rec-stars" .}}
       </li>
       {{end}}
     </ol>
-    <label class="rec-none"><input type="radio" name="reference" value="0" data-song="{{.Song.VariantID}}"> No reference</label>
+    <label class="rec-none"><input type="radio" name="reference" value="0" data-song="{{.Song.VariantID}}"> {{t "No reference"}}</label>
     <p class="form-status" role="status" id="reference-status"></p>
   </fieldset>
   {{else}}
-  <p class="dl-empty">No recording of this song in the band’s folder.</p>
+  <p class="dl-empty">{{t "No recording of this song in the band’s folder."}}</p>
   {{end}}
 </main>
 {{template "rec-player" .}}
@@ -499,142 +500,142 @@
 {{end}}
 
 {{define "band_recording_fixes"}}
-{{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" "corrections")}}
+{{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" (t "corrections"))}}
 <header class="app-header">
-  <a class="back-link" href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-back"}} Rehearsals</a>
-  <h1>Corrections</h1>
+  <a class="back-link" href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-back"}} {{t "Rehearsals"}}</a>
+  <h1>{{t "Corrections"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index rec rec-fixes">
-  <p class="hint">What the recordings’ names get wrong, corrected once: every reading of the folder applies it again.</p>
+  <p class="hint">{{t "What the recordings’ names get wrong, corrected once: every reading of the folder applies it again."}}</p>
 
   <section class="card" id="names">
-    <h2>How the files are named</h2>
-    <p class="hint">Each file’s name is read with a template, the band’s own first: <code>{n}</code> the song’s place, <code>{set}</code> the set, <code>{title}</code> the song, <code>{take}</code> after “Take”, <code>{date}</code>, <code>{*}</code> anything else. Dashes and spaces are loose, as in Audacity’s exports.</p>
+    <h2>{{t "How the files are named"}}</h2>
+    <p class="hint">{{t "Each file’s name is read with a template, the band’s own first:"}} <code>{n}</code> {{t "the song’s place,"}} <code>{set}</code> {{t "the set,"}} <code>{title}</code> {{t "the song,"}} <code>{take}</code> {{t "after “Take”,"}} <code>{date}</code>, <code>{*}</code> {{t "anything else. Dashes and spaces are loose, as in Audacity’s exports."}}</p>
     <div class="table-scroll"><table class="table-stack stats-table rec-names">
-      <thead><tr><th>Read as</th><th class="num">Files</th><th>For example</th></tr></thead>
+      <thead><tr><th>{{t "Read as"}}</th><th class="num">{{t "Files"}}</th><th>{{t "For example"}}</th></tr></thead>
       <tbody>
       {{range .Names}}<tr>
-        <td data-label="Read as">{{if .Template}}<code>{{.Template}}</code>{{if .Own}} <span class="rec-ref">yours</span>{{end}}{{else if .Raw}}A recorder’s or a camera’s own names{{else}}<strong>No template</strong>{{end}}</td>
-        <td data-label="Files" class="num">{{.Count}}</td>
-        <td data-label="For example"><small>{{range $i, $e := .Examples}}{{if $i}} · {{end}}{{$e}}{{end}}</small></td>
+        <td data-label="{{t "Read as"}}">{{if .Template}}<code>{{.Template}}</code>{{if .Own}} <span class="rec-ref">{{t "yours"}}</span>{{end}}{{else if .Raw}}{{t "A recorder’s or a camera’s own names"}}{{else}}<strong>{{t "No template"}}</strong>{{end}}</td>
+        <td data-label="{{t "Files"}}" class="num">{{.Count}}</td>
+        <td data-label="{{t "For example"}}"><small>{{range $i, $e := .Examples}}{{if $i}} · {{end}}{{$e}}{{end}}</small></td>
       </tr>{{end}}
       </tbody>
     </table></div>
-    <h3 class="rec-templates-title">The templates, in the order they’re tried</h3>
-    <p class="hint">A name is read by the first template that reads all of it: the band’s own first, in your order, then the built-in ones.</p>
+    <h3 class="rec-templates-title">{{t "The templates, in the order they’re tried"}}</h3>
+    <p class="hint">{{t "A name is read by the first template that reads all of it: the band’s own first, in your order, then the built-in ones."}}</p>
     <ol class="rec-templates" id="own-templates">
       {{range $i, $t := .Templates}}{{if $t.Own}}
       <li class="rec-template own" data-template="{{$t.Text}}">
         <code>{{$t.Text}}</code>
-        <span class="rec-template-count">{{$t.Count}} file{{if ne $t.Count 1}}s{{end}}</span>
+        <span class="rec-template-count">{{tn $t.Count "%d file" "%d files"}}</span>
         <span class="rec-template-actions">
-          <button type="button" class="dl-btn" data-move="-1" aria-label="Try it earlier">{{template "icon-up"}}</button>
-          <button type="button" class="dl-btn" data-move="1" aria-label="Try it later">{{template "icon-down"}}</button>
-          <button type="button" class="dl-btn" data-edit aria-label="Change it">{{template "icon-edit"}}</button>
-          <button type="button" class="dl-btn danger" data-remove aria-label="Remove it">{{template "icon-trash"}}</button>
+          <button type="button" class="dl-btn" data-move="-1" aria-label="{{t "Try it earlier"}}">{{template "icon-up"}}</button>
+          <button type="button" class="dl-btn" data-move="1" aria-label="{{t "Try it later"}}">{{template "icon-down"}}</button>
+          <button type="button" class="dl-btn" data-edit aria-label="{{t "Change it"}}">{{template "icon-edit"}}</button>
+          <button type="button" class="dl-btn danger" data-remove aria-label="{{t "Remove it"}}">{{template "icon-trash"}}</button>
         </span>
       </li>
       {{end}}{{end}}
     </ol>
-    {{if not .Own}}<p class="hint rec-templates-none">No template of the band’s yet: add one below to read names the built-in ones don’t.</p>{{end}}
+    {{if not .Own}}<p class="hint rec-templates-none">{{t "No template of the band’s yet: add one below to read names the built-in ones don’t."}}</p>{{end}}
     <form class="rec-template-form" id="template-form">
-      <div class="field"><label for="template-text" id="template-label">Add a template</label>
+      <div class="field"><label for="template-text" id="template-label">{{t "Add a template"}}</label>
         <input id="template-text" name="template" placeholder="{n} - {title} - {date}" autocomplete="off" autocapitalize="off" spellcheck="false" required></div>
-      <div class="field rec-template-where"><label for="template-where">Tried</label>
-        <select id="template-where" name="where"><option value="first">first</option><option value="last">after yours</option></select></div>
-      <div class="form-actions"><button type="button" class="secondary" id="template-try">Try it</button> <button type="submit" class="primary" id="template-save">Add it</button> <button type="button" class="link-like" id="template-cancel" hidden>Cancel</button></div>
+      <div class="field rec-template-where"><label for="template-where">{{t "template|Tried"}}</label>
+        <select id="template-where" name="where"><option value="first">{{t "template|first"}}</option><option value="last">{{t "after yours"}}</option></select></div>
+      <div class="form-actions"><button type="button" class="secondary" id="template-try">{{t "Try it"}}</button> <button type="submit" class="primary" id="template-save">{{t "Add it"}}</button> <button type="button" class="link-like" id="template-cancel" hidden>{{t "Cancel"}}</button></div>
       <p class="form-status" role="status"></p>
       <div class="rec-template-try" id="template-result" hidden></div>
     </form>
     <details class="rec-builtins">
-      <summary>The built-in templates, tried after the band’s</summary>
+      <summary>{{t "The built-in templates, tried after the band’s"}}</summary>
       <ol class="rec-templates">
-        {{range .Templates}}{{if not .Own}}<li class="rec-template"><code>{{.Text}}</code> <span class="rec-template-count">{{.Count}} file{{if ne .Count 1}}s{{end}}</span></li>{{end}}{{end}}
+        {{range .Templates}}{{if not .Own}}<li class="rec-template"><code>{{.Text}}</code> <span class="rec-template-count">{{tn .Count "%d file" "%d files"}}</span></li>{{end}}{{end}}
       </ol>
     </details>
   </section>
 
   <section class="card" id="files">
-    <h2>{{if .ShowRaw}}Recorder files{{else}}Files with no song{{end}}</h2>
+    <h2>{{if .ShowRaw}}{{t "Recorder files"}}{{else}}{{t "Files with no song"}}{{end}}</h2>
     {{if .Files}}
-    <p class="hint">{{if .ShowRaw}}The files a recorder named itself (TRACK01, ZOOM0004): say which song one is when it’s worth it.{{else}}Recordings whose name gives no song of the band’s, one by one: say which song each is, or that it isn’t one.{{end}} <a href="?{{if not .ShowRaw}}raw=1{{end}}#files">{{if .ShowRaw}}The named files{{else}}The recorder’s own files{{end}}</a></p>
+    <p class="hint">{{if .ShowRaw}}{{t "The files a recorder named itself (TRACK01, ZOOM0004): say which song one is when it’s worth it."}}{{else}}{{t "Recordings whose name gives no song of the band’s, one by one: say which song each is, or that it isn’t one."}}{{end}} <a href="?{{if not .ShowRaw}}raw=1{{end}}#files">{{if .ShowRaw}}{{t "The named files"}}{{else}}{{t "The recorder’s own files"}}{{end}}</a></p>
     <ul class="rec-questions rec-files">
       {{range .Files}}
       <li>
         <div><strong>{{.Name}}</strong><br><small class="hint">{{.Path}}</small></div>
         <div class="rec-question-actions">
-          <select class="rec-file-fix" data-file="{{.FileID}}" aria-label="The file {{.Name}} is">
-            <option value="">Is the song…</option>
-            <option value="none">Not a song</option>
+          <select class="rec-file-fix" data-file="{{.FileID}}" aria-label="{{t "The file %s is" .Name}}">
+            <option value="">{{t "Is the song…"}}</option>
+            <option value="none">{{t "Not a song"}}</option>
             {{range $.Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}
           </select>
         </div>
       </li>
       {{end}}
     </ul>
-    {{else}}<p class="hint">None. <a href="?{{if not .ShowRaw}}raw=1{{end}}#files">{{if .ShowRaw}}The named files{{else}}The recorder’s own files{{end}}</a></p>{{end}}
+    {{else}}<p class="hint">{{t "None."}} <a href="?{{if not .ShowRaw}}raw=1{{end}}#files">{{if .ShowRaw}}{{t "The named files"}}{{else}}{{t "The recorder’s own files"}}{{end}}</a></p>{{end}}
   </section>
 
   <section class="card">
-    <h2>Dates to check</h2>
+    <h2>{{t "Dates to check"}}</h2>
     {{if .Questions}}
-    <p class="hint">These folders’ files are named with another date. A folder’s date is taken unless you say otherwise; the one nearest to when the files went up on pCloud is marked likely.</p>
+    <p class="hint">{{t "These folders’ files are named with another date. A folder’s date is taken unless you say otherwise; the one nearest to when the files went up on pCloud is marked likely."}}</p>
     <ul class="rec-questions">
       {{range .Questions}}
       <li data-from="{{.FolderDate}}">
-        <div><strong>{{.FolderDate}}</strong> <span class="hint">{{.Kind}} · {{.Path}}</span><br>
-          <small>{{.Files}} file{{if ne .Files 1}}s{{end}} named {{range $i, $d := .FileDates}}{{if $i}}, {{end}}{{$d}}{{end}}{{with .Created}} · put on pCloud {{.}}{{end}}</small></div>
+        <div><strong>{{.FolderDate}}</strong> <span class="hint">{{t .Kind}} · {{.Path}}</span><br>
+          <small>{{tn .Files "%d file named" "%d files named"}} {{range $i, $d := .FileDates}}{{if $i}}, {{end}}{{$d}}{{end}}{{with .Created}} · {{t "put on pCloud %s" .}}{{end}}</small></div>
         <div class="rec-question-actions">
           {{$likely := .Likely}}
-          <button type="button" class="{{if eq $likely .FolderDate}}primary{{else}}secondary{{end}}" data-to="{{.FolderDate}}">{{.FolderDate}} is right{{if eq $likely .FolderDate}} (likely){{end}}</button>
-          {{range .FileDates}}<button type="button" class="{{if eq $likely .}}primary{{else}}secondary{{end}}" data-to="{{.}}">It’s {{.}}{{if eq $likely .}} (likely){{end}}</button>{{end}}
+          <button type="button" class="{{if eq $likely .FolderDate}}primary{{else}}secondary{{end}}" data-to="{{.FolderDate}}">{{t "%s is right" .FolderDate}}{{if eq $likely .FolderDate}} {{t "(likely)"}}{{end}}</button>
+          {{range .FileDates}}<button type="button" class="{{if eq $likely .}}primary{{else}}secondary{{end}}" data-to="{{.}}">{{t "It’s %s" .}}{{if eq $likely .}} {{t "(likely)"}}{{end}}</button>{{end}}
         </div>
       </li>
       {{end}}
     </ul>
-    {{else}}<p class="hint">None.</p>{{end}}
+    {{else}}<p class="hint">{{t "None."}}</p>{{end}}
   </section>
 
   <section class="card">
-    <h2>Titles to match</h2>
+    <h2>{{t "Titles to match"}}</h2>
     {{if .Unmatched}}
-    <p class="hint">Recordings whose title names none of the band’s songs: a spelling, a song not in the repertoire yet, a jam.</p>
+    <p class="hint">{{t "Recordings whose title names none of the band’s songs: a spelling, a song not in the repertoire yet, a jam."}}</p>
     <ul class="rec-questions">
       {{range .Unmatched}}
       <li>
-        <div><strong>{{.Title}}</strong> <span class="hint">{{.Count}} recording{{if ne .Count 1}}s{{end}} · {{.Example}}</span></div>
+        <div><strong>{{.Title}}</strong> <span class="hint">{{tn .Count "%d recording" "%d recordings"}} · {{.Example}}</span></div>
         <div class="rec-question-actions">
-          <select class="rec-title-fix" data-from="{{.Title}}" aria-label="The song “{{.Title}}” is">
-            <option value="">Is the song…</option>
+          <select class="rec-title-fix" data-from="{{.Title}}" aria-label="{{t "The song “%s” is" .Title}}">
+            <option value="">{{t "Is the song…"}}</option>
             {{range $.Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}
           </select>
         </div>
       </li>
       {{end}}
     </ul>
-    {{else}}<p class="hint">None.</p>{{end}}
+    {{else}}<p class="hint">{{t "None."}}</p>{{end}}
   </section>
 
   <section class="card">
-    <h2>The corrections</h2>
+    <h2>{{t "The corrections"}}</h2>
     {{if .Fixes}}
     <div class="table-scroll"><table class="table-stack stats-table">
-      <thead><tr><th>What</th><th>Written</th><th>Is</th><th></th></tr></thead>
+      <thead><tr><th>{{t "What"}}</th><th>{{t "Written"}}</th><th>{{t "fix|Is"}}</th><th></th></tr></thead>
       <tbody>
       {{range .Fixes}}<tr>
-        <td data-label="What">{{if eq .Kind "date"}}A date{{else if eq .Kind "file"}}A file{{else}}A title{{end}}</td>
-        <td data-label="Written">{{if eq .Kind "file"}}{{or .FileName .From}}{{else}}{{.From}}{{end}}</td>
-        <td data-label="Is">{{if eq .Kind "date"}}{{.To}}{{else if eq .To "none"}}Not a song{{else}}{{.SongTitle}}{{end}}</td>
-        <td><button type="button" class="link-like danger" data-delete="{{.ID}}">Remove</button></td>
+        <td data-label="{{t "What"}}">{{if eq .Kind "date"}}{{t "A date"}}{{else if eq .Kind "file"}}{{t "A file"}}{{else}}{{t "A title"}}{{end}}</td>
+        <td data-label="{{t "Written"}}">{{if eq .Kind "file"}}{{or .FileName .From}}{{else}}{{.From}}{{end}}</td>
+        <td data-label="{{t "fix|Is"}}">{{if eq .Kind "date"}}{{.To}}{{else if eq .To "none"}}{{t "Not a song"}}{{else}}{{.SongTitle}}{{end}}</td>
+        <td><button type="button" class="link-like danger" data-delete="{{.ID}}">{{t "Remove"}}</button></td>
       </tr>{{end}}
       </tbody>
     </table></div>
-    {{else}}<p class="hint">None yet.</p>{{end}}
+    {{else}}<p class="hint">{{t "None yet."}}</p>{{end}}
     <form class="course-form" id="date-fix-form">
-      <div class="field"><label for="fix-from">A date written</label><input id="fix-from" name="from" placeholder="2024-05-26" pattern="\d{4}-\d{2}(-\d{2})?" required autocomplete="off"></div>
-      <div class="field"><label for="fix-to">is</label><input id="fix-to" name="to" type="date" required></div>
-      <div class="form-actions"><button type="submit" class="secondary">Correct it</button></div>
+      <div class="field"><label for="fix-from">{{t "A date written"}}</label><input id="fix-from" name="from" placeholder="2024-05-26" pattern="\d{4}-\d{2}(-\d{2})?" required autocomplete="off"></div>
+      <div class="field"><label for="fix-to">{{t "fix|is"}}</label><input id="fix-to" name="to" type="date" required></div>
+      <div class="form-actions"><button type="submit" class="secondary">{{t "Correct it"}}</button></div>
       <p class="form-status" role="status"></p>
     </form>
   </section>
@@ -646,7 +647,7 @@
   const fix = async (kind, from, to) => {
     const res = await fetch(`/api/bands/${bandId}/recordings/fixes`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({kind, from, to})}).catch(() => null);
     const data = res ? await res.json().catch(() => ({})) : {};
-    if (!res || !res.ok) throw new Error(data.error || 'Couldn’t save that.');
+    if (!res || !res.ok) throw new Error(data.error || t('Couldn’t save that.'));
   };
   document.querySelectorAll('[data-from] [data-to]').forEach((b) => b.addEventListener('click', async () => {
     try { await fix('date', b.closest('[data-from]').dataset.from, b.dataset.to); location.reload(); } catch (e) { alert(e.message); }
@@ -666,7 +667,7 @@
   const saveTemplates = async (list) => {
     const res = await fetch(`/api/bands/${bandId}/recordings/templates`, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({templates: list})}).catch(() => null);
     const data = res ? await res.json().catch(() => ({})) : {};
-    if (!res || !res.ok) throw new Error(data.error || 'Couldn’t save that.');
+    if (!res || !res.ok) throw new Error(data.error || t('Couldn’t save that.'));
   };
   const tform = document.getElementById('template-form');
   const out = document.getElementById('template-result');
@@ -674,8 +675,8 @@
   let editing = -1; // the template being changed, -1 when adding
   const setEditing = (i) => {
     editing = i;
-    label.textContent = i < 0 ? 'Add a template' : 'Change the template';
-    saveBtn.textContent = i < 0 ? 'Add it' : 'Save it';
+    label.textContent = i < 0 ? t('Add a template') : t('Change the template');
+    saveBtn.textContent = i < 0 ? t('Add it') : t('Save it');
     cancel.hidden = i < 0;
     document.querySelector('.rec-template-where').hidden = i >= 0;
     tform.elements.template.value = i < 0 ? '' : own[i];
@@ -687,11 +688,11 @@
     Forms.run(tform, e.currentTarget, async () => {
       const res = await fetch(`/api/bands/${bandId}/recordings/templates/try`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({template: tform.elements.template.value})});
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Couldn’t try it.');
+      if (!res.ok) throw new Error(data.error || t('Couldn’t try it.'));
       const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
       const field = (name, v) => (v === null || v === undefined || v === '' ? '' : `<span><b>${name}</b> ${esc(v)}</span>`);
       out.hidden = false;
-      out.innerHTML = `<p><strong>${data.Count}</strong> of ${data.Total} names read, alone (in the list, a template before it may read some first).</p>` + (data.Examples || []).map((x) =>
+      out.innerHTML = `<p><strong>${data.Count}</strong> ${esc(t('of %d names read, alone (in the list, a template before it may read some first).', data.Total))}</p>` + (data.Examples || []).map((x) =>
         `<div class="rec-try-row"><small>${esc(x.Name)}</small><div>${field('set', x.Set)}${field('n', x.Position)}${field('title', x.Title)}${field('take', x.Take)}${field('date', x.Date)}</div></div>`).join('');
     });
   });
@@ -712,12 +713,12 @@
       b.addEventListener('click', () => { const list = [...own]; [list[i], list[j]] = [list[j], list[i]]; run(list); });
     });
     li.querySelector('[data-edit]').addEventListener('click', () => setEditing(i));
-    li.querySelector('[data-remove]').addEventListener('click', () => { if (confirm(`Remove ${own[i]}?`)) run(own.filter((_, k) => k !== i)); });
+    li.querySelector('[data-remove]').addEventListener('click', () => { if (confirm(t('Remove %s?', own[i]))) run(own.filter((_, k) => k !== i)); });
   });
 
   document.querySelectorAll('[data-delete]').forEach((b) => b.addEventListener('click', async () => {
     const res = await fetch(`/api/bands/${bandId}/recordings/fixes/${b.dataset.delete}`, {method: 'DELETE'}).catch(() => null);
-    if (res && res.ok) location.reload(); else alert('Couldn’t remove it.');
+    if (res && res.ok) location.reload(); else alert(t('Couldn’t remove it.'));
   }));
   const form = document.getElementById('date-fix-form');
   form.addEventListener('submit', (e) => {

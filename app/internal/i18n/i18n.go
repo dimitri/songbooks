@@ -78,12 +78,20 @@ func Valid(lang string) bool {
 
 // T is msg in lang (msg itself when untranslated); with args, msg is a
 // fmt format, translated first.
+//
+// A word that means two things takes a context before a bar: "notation|Staff"
+// (a staff of five lines) is not "people|Staff" (a community's team); the
+// catalog has the whole key, the English shown is what follows the bar.
 func T(lang, msg string, args ...any) string {
-	if lang != "en" {
-		if v, ok := catalogs[lang][msg]; ok {
-			msg = v
+	v, ok := catalogs[lang][msg]
+	if lang == "en" || !ok {
+		if i := strings.Index(msg, "|"); i > 0 && !strings.Contains(msg[:i], " ") {
+			v = msg[i+1:]
+		} else {
+			v = msg
 		}
 	}
+	msg = v
 	if len(args) > 0 {
 		return fmt.Sprintf(msg, args...)
 	}

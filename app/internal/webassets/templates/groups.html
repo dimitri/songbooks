@@ -1,10 +1,10 @@
 {{define "groups"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Groups — Songbooks</title>
+<title>{{t "Groups"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,37 +13,37 @@
 <div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
-  <h1>Groups</h1>
+  <h1>{{t "Groups"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
   <section class="home-section">
-    <div class="home-section-head"><h3>Coming up</h3><a href="/setlists">set lists &rarr;</a></div>
+    <div class="home-section-head"><h3>{{t "Coming up"}}</h3><a href="/setlists">{{t "set lists"}} &rarr;</a></div>
     {{range .Gigs}}
       {{template "gig-card" .}}
     {{else}}
-      <a class="coming-up-card empty" href="/setlists">No gig scheduled — open set lists to plan one &rarr;</a>
+      <a class="coming-up-card empty" href="/setlists">{{t "No gig scheduled — open set lists to plan one"}} &rarr;</a>
     {{end}}
   </section>
 
   <section class="home-section">
-    <div class="home-section-head"><h3>Bands</h3><a href="/bands">all bands &rarr;</a></div>
+    <div class="home-section-head"><h3>{{t "Bands"}}</h3><a href="/bands">{{t "all bands"}} &rarr;</a></div>
     <div class="band-grid">
     {{range .Bands}}
       {{template "band-card" .}}
     {{else}}
-      <p class="hint">You're not in a band yet. <a href="/bands">Start one</a>.</p>
+      <p class="hint">{{t "You're not in a band yet."}} <a href="/bands">{{t "Start one"}}</a>.</p>
     {{end}}
     </div>
   </section>
 
   <section class="home-section">
-    <div class="home-section-head"><h3>Communities</h3><a href="/communities">all communities &rarr;</a></div>
+    <div class="home-section-head"><h3>{{t "Communities"}}</h3><a href="/communities">{{t "all communities"}} &rarr;</a></div>
     <div class="band-grid">
     {{range .Communities}}
       {{template "community-card" .}}
     {{else}}
-      <p class="hint">You're not in a community yet. <a href="/communities">Start one</a>.</p>
+      <p class="hint">{{t "You're not in a community yet."}} <a href="/communities">{{t "Start one"}}</a>.</p>
     {{end}}
     </div>
   </section>

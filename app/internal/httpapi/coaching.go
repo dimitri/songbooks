@@ -9,27 +9,24 @@ import (
 	"strconv"
 	"time"
 
+	"app/internal/i18n"
 	"app/internal/store"
 )
 
 // A coaching community's pages (docs/coaching.md): its students (each one's
 // voice, songs in their key, lessons) and its lessons.
 
-var noteNames = []string{"C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"}
-
-// noteName is a MIDI note's name: 60 is C4.
-func noteName(midi int) string { return fmt.Sprintf("%s%d", noteNames[midi%12], midi/12-1) }
-
 type noteOption struct {
 	Midi int
 	Name string
 }
 
-// voiceNotes are the notes a range is picked from: C2 to C7.
-func voiceNotes() []noteOption {
+// voiceNotes are the notes a range is picked from: C2 to C7, named in
+// lang (a singer's way: do3 for middle C in French, i18n.NoteName).
+func voiceNotes(lang string) []noteOption {
 	var out []noteOption
 	for m := 36; m <= 96; m++ {
-		out = append(out, noteOption{m, noteName(m)})
+		out = append(out, noteOption{m, i18n.NoteName(lang, m)})
 	}
 	return out
 }
@@ -43,16 +40,18 @@ type rangeView struct {
 	Left, Width float64
 }
 
-func rangeViews(rs []store.VoiceRange) []rangeView {
+// rangeViews are a student's ranges to show, the notes named in lang;
+// the labels stay English, translated where printed ({{t .Label}}).
+func rangeViews(rs []store.VoiceRange, lang string) []rangeView {
 	labels := map[string]string{"chest": "Chest voice", "mixed": "Mixed voice", "head": "Head voice"}
 	out := make([]rangeView, len(rs))
 	for i, r := range rs {
 		out[i] = rangeView{VoiceRange: r, Label: labels[r.Register]}
 		if r.Low != nil {
-			out[i].LowName, out[i].LowMidi = noteName(*r.Low), *r.Low
+			out[i].LowName, out[i].LowMidi = i18n.NoteName(lang, *r.Low), *r.Low
 		}
 		if r.High != nil {
-			out[i].HighName, out[i].HighMidi = noteName(*r.High), *r.High
+			out[i].HighName, out[i].HighMidi = i18n.NoteName(lang, *r.High), *r.High
 		}
 		if r.Low != nil && r.High != nil {
 			out[i].Left = float64(*r.Low-36) * 100 / 60
@@ -115,6 +114,7 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	lang := s.langOfRequest(r)
 	var rows []studentRow
 	for _, m := range members {
 		if m.IsStaff() {
@@ -126,7 +126,7 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		row.Ranges = rangeViews(rs)
+		row.Ranges = rangeViews(rs, lang)
 		if row.SongbookID, err = s.store.FindStudentSongbook(r.Context(), community.ID, m.PersonID); err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -233,12 +233,12 @@ func (s *Server) handleCoachingStudentPage(w http.ResponseWriter, r *http.Reques
 		data["Tab"] = "voice"
 	}
 	data["Student"] = member
-	data["Ranges"] = rangeViews(rs)
+	data["Ranges"] = rangeViews(rs, s.langOfRequest(r))
 	data["SongbookID"] = sbID
 	data["Songs"] = songs
 	data["Groups"] = inGroups
 	data["Lessons"] = lessons
-	data["NoteOptions"] = voiceNotes()
+	data["NoteOptions"] = voiceNotes(s.langOfRequest(r))
 	if coach {
 		if data["Notes"], err = s.store.StudentNotes(ctx, community.ID, studentID); err != nil {
 			fail(err)
@@ -651,7 +651,7 @@ func (s *Server) handlePostCoachingLesson(w http.ResponseWriter, r *http.Request
 		}
 	}
 	if name == "" {
-		name = "Lesson"
+		name = i18n.T(s.langOfRequest(r), "Lesson")
 	}
 	if req.Mode == "" {
 		req.Mode = "in_person"

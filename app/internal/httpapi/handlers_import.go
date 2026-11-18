@@ -3,11 +3,11 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"app/internal/i18n"
 	"app/internal/importer"
 	"app/internal/irealpro"
 )
@@ -124,9 +124,10 @@ func (s *Server) handleImportUGFind(w http.ResponseWriter, r *http.Request) {
 	for i := range all {
 		all[i] = i
 	}
-	confidence := "picked the highest-rated public Ultimate Guitar version — lyrics couldn't be cross-checked, please review"
+	lang := s.langOfRequest(r)
+	confidence := i18n.T(lang, "picked the highest-rated public Ultimate Guitar version — lyrics couldn't be cross-checked, please review")
 	if res.Verified {
-		confidence = fmt.Sprintf("lyrics cross-checked against Genius (%.0f%% match)", res.Similarity*100)
+		confidence = i18n.T(lang, "lyrics cross-checked against Genius (%.0f%% match)", res.Similarity*100)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"text": res.Song.ToSongText(all), "url": res.URL, "confidence": confidence, "verified": res.Verified,

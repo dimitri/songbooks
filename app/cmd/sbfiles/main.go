@@ -128,7 +128,7 @@ func main() {
 			for _, s := range l.Songs {
 				songs = append(songs, s.Title)
 			}
-			fmt.Printf("%s\t%s\t%s\n", l.Label(), l.VideoURL, strings.Join(songs, " | "))
+			fmt.Printf("%s\t%s\t%s\n", l.Label("en"), l.VideoURL, strings.Join(songs, " | "))
 		}
 		for _, s := range loose {
 			fmt.Printf("(no lesson)\t%s\n", s.Title)

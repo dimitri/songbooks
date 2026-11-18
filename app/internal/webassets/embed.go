@@ -296,18 +296,26 @@ var funcMap = template.FuncMap{
 	// previously set no Cache-Control at all). Computed once at startup,
 	// not per-request.
 	// fileSize shows a byte count the way a download list does: "84 MB".
-	"fileSize": func(n int64) string {
-		switch {
-		case n >= 1<<20:
-			return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
-		case n >= 1<<10:
-			return fmt.Sprintf("%d KB", n>>10)
-		}
-		return fmt.Sprintf("%d bytes", n)
-	},
+	"fileSize": func(n int64) string { return fileSize("en", n) },
 	// pathSegment escapes a file name for its place in a URL's path.
 	"pathSegment":   url.PathEscape,
 	"staticVersion": func() string { return staticVersion },
+}
+
+// fileSize shows a byte count the way a download list does, in lang:
+// "84.0 MB" ("84,0 Mo" in French).
+func fileSize(lang string, n int64) string {
+	switch {
+	case n >= 1<<20:
+		mb := fmt.Sprintf("%.1f", float64(n)/(1<<20))
+		if lang == "fr" {
+			mb = strings.Replace(mb, ".", ",", 1)
+		}
+		return i18n.T(lang, "%s MB", mb)
+	case n >= 1<<10:
+		return i18n.T(lang, "%d KB", n>>10)
+	}
+	return i18n.T(lang, "%d bytes", n)
 }
 
 var outboxURLPattern = regexp.MustCompile(`(https?://[^\s<]+)`)
@@ -351,6 +359,8 @@ func init() {
 		}
 		// {{lang}}: the page's language, for <html lang> and the scripts.
 		funcs["lang"] = func() string { return l }
+		// fileSize in the page's language: "84.0 MB", "84,0 Mo".
+		funcs["fileSize"] = func(n int64) string { return fileSize(l, n) }
 		templatesByLang[lang] = template.Must(template.New("").Funcs(funcs).ParseFS(templatesFS, "templates/*.html"))
 	}
 	Templates = templatesByLang["en"]

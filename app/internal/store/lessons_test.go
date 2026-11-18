@@ -79,7 +79,7 @@ func TestLessonsFromFiles(t *testing.T) {
 	}
 	var got []string
 	for _, l := range lessons {
-		got = append(got, l.Label())
+		got = append(got, l.Label("en"))
 	}
 	want := []string{"Lesson 1 · Mon premier Blues 1 et 2", "Lesson 7 · Plan Chicago Blues", "Lesson 20 · Same old Blues", "Lesson 32 · Plan psychédélique"}
 	if len(got) != len(want) {

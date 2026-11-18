@@ -24,7 +24,7 @@
   async function exportGP(variantId, title) {
     const res = await fetch(`/api/songs/${variantId}/mixer`);
     const m = await res.json();
-    if (!res.ok || !m.alphaTex) throw new Error('this song has no score tracks to export');
+    if (!res.ok || !m.alphaTex) throw new Error(t('this song has no score tracks to export'));
     const settings = new alphaTab.Settings();
     const imp = new alphaTab.importer.AlphaTexImporter();
     imp.initFromString(m.alphaTex, settings);
@@ -92,7 +92,7 @@
     try {
       await exportGP(btn.dataset.variantId, btn.dataset.title);
     } catch (err) {
-      alert('Couldn’t export: ' + err.message);
+      alert(t('Couldn’t export: %s', err.message));
     } finally {
       btn.removeAttribute('aria-busy');
       btn.textContent = label;

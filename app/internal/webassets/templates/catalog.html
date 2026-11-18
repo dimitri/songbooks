@@ -1,10 +1,10 @@
 {{define "catalog"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Library — Songbooks</title>
+<title>{{t "Library"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,36 +13,36 @@
 <div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
-  <h1>Library</h1>
+  <h1>{{t "Library"}}</h1>
   <nav class="song-nav">
-    <a href="/songbooks">songbooks</a>
+    <a href="/songbooks">{{t "songbooks"}}</a>
     {{template "notif-bell"}}
   </nav>
 </header>
 <main class="index">
-  <p class="catalog-intro">Every public song, plus your own. A band's or community's private songs are in its own songbooks.</p>
+  <p class="catalog-intro">{{t "Every public song, plus your own. A band's or community's private songs are in its own songbooks."}}</p>
 
   {{/* Songs first on a phone: one search field, the rest folded into
        Filters (open when one of them is in use). */}}
   <form class="card catalog-filters" method="get" action="/catalog" role="search">
     <div class="catalog-search">
-      <input type="search" name="q" value="{{.Filter.Query}}" placeholder="Title, artist or words from the song" aria-label="Search songs" enterkeyhint="search" autocomplete="off">
-      <button type="submit">Search</button>
+      <input type="search" name="q" value="{{.Filter.Query}}" placeholder="{{t "Title, artist or words from the song"}}" aria-label="{{t "Search songs"}}" enterkeyhint="search" autocomplete="off">
+      <button type="submit">{{t "Search"}}</button>
     </div>
     <details class="catalog-more"{{if or .Filter.Artist .Filter.Genre (eq .Filter.Sort "artist")}} open{{end}}>
-      <summary>Filters{{if or .Filter.Artist .Filter.Genre}} &middot; on{{end}}</summary>
+      <summary>{{t "Filters"}}{{if or .Filter.Artist .Filter.Genre}} &middot; {{t "on"}}{{end}}</summary>
       <div class="catalog-more-fields">
-        <label>Artist <input type="text" name="artist" value="{{.Filter.Artist}}" placeholder="e.g. Nina Simone" autocomplete="off" enterkeyhint="search"></label>
-        <label>Genre
+        <label>{{t "Artist"}} <input type="text" name="artist" value="{{.Filter.Artist}}" placeholder="{{t "e.g. Nina Simone"}}" autocomplete="off" enterkeyhint="search"></label>
+        <label>{{t "Genre"}}
           <select name="genre">
-            <option value="" {{if eq .Filter.Genre ""}}selected{{end}}>All genres</option>
+            <option value="" {{if eq .Filter.Genre ""}}selected{{end}}>{{t "All genres"}}</option>
             {{range .Genres}}<option value="{{.}}" {{if eq $.Filter.Genre .}}selected{{end}}>{{.}}</option>{{end}}
           </select>
         </label>
-        <label>Sort by
+        <label>{{t "Sort by"}}
           <select name="sort">
-            <option value="" {{if ne .Filter.Sort "artist"}}selected{{end}}>Title</option>
-            <option value="artist" {{if eq .Filter.Sort "artist"}}selected{{end}}>Artist</option>
+            <option value="" {{if ne .Filter.Sort "artist"}}selected{{end}}>{{t "Title"}}</option>
+            <option value="artist" {{if eq .Filter.Sort "artist"}}selected{{end}}>{{t "Artist"}}</option>
           </select>
         </label>
       </div>
@@ -59,15 +59,15 @@
         {{template "song-badges" (index $.Badges .VariantID)}}
       </a>
       <div class="catalog-card-actions">
-        <a href="/works/{{.WorkID}}">All versions</a>
-        <button type="button" class="add-catalog-btn" data-variant-id="{{.VariantID}}">Add to my songbook</button>
-        <button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">Make my own copy</button>
+        <a href="/works/{{.WorkID}}">{{t "All versions"}}</a>
+        <button type="button" class="add-catalog-btn" data-variant-id="{{.VariantID}}">{{t "Add to my songbook"}}</button>
+        <button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">{{t "Make my own copy"}}</button>
       </div>
     </div>
   {{end}}
   </div>
   {{else}}
-  <p class="hint">No songs match this filter.</p>
+  <p class="hint">{{t "No songs match this filter."}}</p>
   {{end}}
 </main>
 <script>
@@ -82,8 +82,8 @@ document.querySelectorAll('.add-catalog-btn').forEach(btn => {
     }).catch(() => null);
     Forms.busy(btn, false);
     // Added stays disabled so it can't be added twice.
-    if (res && res.ok) { btn.textContent = 'Added'; btn.disabled = true; }
-    else btn.textContent = 'Couldn’t add — try again';
+    if (res && res.ok) { btn.textContent = t('Added'); btn.disabled = true; }
+    else btn.textContent = t('Couldn’t add — try again');
   });
 });
 document.querySelectorAll('.fork-btn').forEach(btn => {
@@ -96,7 +96,7 @@ document.querySelectorAll('.fork-btn').forEach(btn => {
       location.href = `/song/${data.variantId}`;
     } else {
       Forms.busy(btn, false);
-      btn.textContent = 'Couldn’t copy — try again';
+      btn.textContent = t('Couldn’t copy — try again');
     }
   });
 });

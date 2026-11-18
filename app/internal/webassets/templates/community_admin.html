@@ -1,11 +1,11 @@
 {{define "community_admin"}}
 {{$brand := brandFor "community" .Community.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Community.Name}} — staff admin</title>
+<title>{{t "%s — staff admin" .Community.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,38 +15,52 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{.Community.Name}} — staff admin</h1>
+  <h1>{{t "%s — staff admin" .Community.Name}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
   <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/communities/{{.Community.ID}}">Overview</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{shelfLabel "community" .Community.ID}}</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}">{{t "Overview"}}</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{t (shelfLabel "community" .Community.ID)}}</a>
     {{template "coaching-tab-links" .}}
-    <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">Downloads</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/events">Events</a>
-    <a href="/communities/{{.Community.ID}}/admin" class="band-tab active">Admin</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/events">{{t "Events"}}</a>
+    <a href="/communities/{{.Community.ID}}/admin" class="band-tab active">{{t "Admin"}}</a>
   </nav>
 
-  <p class="admin-links"><a class="dl-btn" href="/communities/{{.Community.ID}}/admin/stats">Stats: who viewed and downloaded what &rarr;</a></p>
+  <p class="admin-links"><a class="dl-btn" href="/communities/{{.Community.ID}}/admin/stats">{{t "Stats: who viewed and downloaded what"}} &rarr;</a></p>
 
   <div class="card">
-    <h2>Community name</h2>
+    <h2>{{t "Community name"}}</h2>
     <form class="form-stack" id="rename-form">
-      <div class="field"><label for="rename-input">Name</label><input type="text" id="rename-input" name="name" value="{{.Community.Name}}" required autocomplete="off"></div>
-      <div class="form-actions"><button type="submit" class="primary">Save name</button></div>
+      <div class="field"><label for="rename-input">{{t "Name"}}</label><input type="text" id="rename-input" name="name" value="{{.Community.Name}}" required autocomplete="off"></div>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Save name"}}</button></div>
       <p id="rename-result" class="form-status" role="status"></p>
     </form>
     {{/* Saves on change, like the other selects on this page. */}}
     <div class="form-stack" style="margin-top:0.8rem">
       <div class="field">
-        <label for="default-join-role-select">Role for people who join through an event</label>
-        <p class="field-hint" id="default-join-role-hint">Someone who registers for one of your events without being a member joins with this role.</p>
+        <label for="default-join-role-select">{{t "Role for people who join through an event"}}</label>
+        <p class="field-hint" id="default-join-role-hint">{{t "Someone who registers for one of your events without being a member joins with this role."}}</p>
         <select id="default-join-role-select" aria-describedby="default-join-role-hint">
-          {{range .Roles}}<option value="{{.Name}}" {{if eq $.Community.DefaultJoinRole .Name}}selected{{end}}>{{.Name}}</option>{{end}}
+          {{range .Roles}}<option value="{{.Name}}" {{if eq $.Community.DefaultJoinRole .Name}}selected{{end}}>{{t .Name}}</option>{{end}}
         </select>
       </div>
       <p id="default-join-role-result" class="form-status" role="status"></p>
+    </div>
+    {{/* The community's language: its pages, songbooks and songs are in
+         it for whoever hasn't chosen their own (docs/i18n.md). */}}
+    <div class="form-stack" style="margin-top:0.8rem">
+      <div class="field">
+        <label for="community-locale-select">{{t "Language"}}</label>
+        <p class="field-hint" id="community-locale-hint">{{t "The language of the community’s pages, for members who haven’t chosen their own."}}</p>
+        <select id="community-locale-select" aria-describedby="community-locale-hint">
+          <option value="" {{if eq .Locale ""}}selected{{end}}>{{t "Automatic (from each member’s settings and browser)"}}</option>
+          <option value="en" {{if eq .Locale "en"}}selected{{end}}>English</option>
+          <option value="fr" {{if eq .Locale "fr"}}selected{{end}}>Français</option>
+        </select>
+      </div>
+      <p id="community-locale-result" class="form-status" role="status"></p>
     </div>
   </div>
 
@@ -58,31 +72,31 @@
        (no separate "save" step per row) to match the rest of this
        page's instant-save pattern. */}}
   <div class="card">
-    <h2>Roles</h2>
-    <p class="hint">A role is a name plus what it lets people do. The 3 built-in roles always exist; create more for anything in between. Changes here save straight away.</p>
+    <h2>{{t "Roles"}}</h2>
+    <p class="hint">{{t "A role is a name plus what it lets people do. The 3 built-in roles always exist; create more for anything in between. Changes here save straight away."}}</p>
     <div class="table-scroll"><table class="table-stack" style="width:100%" id="roles-table">
-      <thead><tr><th>Role</th>{{range $.AllPrivileges}}<th>{{template "community-priv-label" .}}</th>{{end}}<th></th></tr></thead>
+      <thead><tr><th>{{t "Role"}}</th>{{range $.AllPrivileges}}<th>{{template "community-priv-label" .}}</th>{{end}}<th></th></tr></thead>
       <tbody>
       {{range .Roles}}
         {{$role := .}}
         <tr data-role-id="{{.ID}}">
-          <td data-label="Role">
-            {{if .IsBuiltin}}{{.Name}}
-            {{else}}<input type="text" class="role-name-input" value="{{.Name}}" data-role-id="{{.ID}}" aria-label="Role name" autocomplete="off">
+          <td data-label="{{t "Role"}}">
+            {{if .IsBuiltin}}{{t .Name}}
+            {{else}}<input type="text" class="role-name-input" value="{{.Name}}" data-role-id="{{.ID}}" aria-label="{{t "Role name"}}" autocomplete="off">
             {{end}}
           </td>
           {{range $.AllPrivileges}}
-          <td data-label="{{template "community-priv-label" .}}"><input type="checkbox" class="role-priv-checkbox" data-role-id="{{$role.ID}}" data-privilege="{{.}}" aria-label="{{$role.Name}}: {{template "community-priv-label" .}}" {{if $role.HasPrivilege .}}checked{{end}}></td>
+          <td data-label="{{template "community-priv-label" .}}"><input type="checkbox" class="role-priv-checkbox" data-role-id="{{$role.ID}}" data-privilege="{{.}}" aria-label="{{t $role.Name}}: {{template "community-priv-label" .}}" {{if $role.HasPrivilege .}}checked{{end}}></td>
           {{end}}
-          <td>{{if not .IsBuiltin}}<button type="button" class="delete-role-btn danger" data-role-id="{{.ID}}" data-role-name="{{.Name}}">Delete</button>{{end}}</td>
+          <td>{{if not .IsBuiltin}}<button type="button" class="delete-role-btn danger" data-role-id="{{.ID}}" data-role-name="{{.Name}}">{{t "Delete"}}</button>{{end}}</td>
         </tr>
       {{end}}
       </tbody>
     </table></div>
     <p id="roles-status" class="form-status" role="status"></p>
     <form class="form-stack" id="create-role-form" style="margin-top:0.8rem">
-      <div class="field"><label for="new-role-name">New role name</label><input type="text" id="new-role-name" name="name" placeholder="e.g. Events coordinator" required autocomplete="off"></div>
-      <div class="form-actions"><button type="submit" id="create-role-btn" class="primary">Create role</button></div>
+      <div class="field"><label for="new-role-name">{{t "New role name"}}</label><input type="text" id="new-role-name" name="name" placeholder="{{t "e.g. Events coordinator"}}" required autocomplete="off"></div>
+      <div class="form-actions"><button type="submit" id="create-role-btn" class="primary">{{t "Create role"}}</button></div>
       <p id="create-role-result" class="form-status" role="status"></p>
     </form>
   </div>
@@ -95,39 +109,39 @@
        to an existing manager — "assigned by the jam staff / community
        staff," the user's own explicit spec). */}}
   <div class="card">
-    <h2>Events <a href="/communities/{{.Community.ID}}/events" class="hint">(public page)</a></h2>
+    <h2>{{t "Events"}} <a href="/communities/{{.Community.ID}}/events" class="hint">{{t "(public page)"}}</a></h2>
     <form class="form-stack" id="create-event-form">
-      <div class="field"><label for="ev-name">Event name</label><input type="text" id="ev-name" name="name" required autocomplete="off"></div>
-      <div class="field"><label for="ev-type">Type</label>
+      <div class="field"><label for="ev-name">{{t "Event name"}}</label><input type="text" id="ev-name" name="name" required autocomplete="off"></div>
+      <div class="field"><label for="ev-type">{{t "Type"}}</label>
         <select id="ev-type" name="eventType">
-          <option value="jam" selected>Jam</option>
-          <option value="meetup">Meetup</option>
-          <option value="listening_party">Listening party</option>
-          <option value="dinner">Dinner</option>
-          <option value="show_together">Going to a show together</option>
-          <option value="open_mic">Open mic</option>
-          <option value="masterclass">Master class, stage</option>
+          <option value="jam" selected>{{t "Jam"}}</option>
+          <option value="meetup">{{t "Meetup"}}</option>
+          <option value="listening_party">{{t "Listening party"}}</option>
+          <option value="dinner">{{t "Dinner"}}</option>
+          <option value="show_together">{{t "Going to a show together"}}</option>
+          <option value="open_mic">{{t "Open mic"}}</option>
+          <option value="masterclass">{{t "Master class, stage"}}</option>
         </select>
       </div>
       <div class="field" id="ev-audience-field">
-        <label for="ev-audience">Open to</label>
+        <label for="ev-audience">{{t "Open to"}}</label>
         <select id="ev-audience" name="audienceScope">
-          <option value="members" selected>Musicians (members)</option>
-          <option value="bands">Bands only (scène ouverte)</option>
-          <option value="both">Both</option>
+          <option value="members" selected>{{t "Musicians (members)"}}</option>
+          <option value="bands">{{t "Bands only (scène ouverte)"}}</option>
+          <option value="both">{{t "Both"}}</option>
         </select>
       </div>
       {{/* The browser's own local time, sent as UTC (toISOString) — the
            hint names the time zone so nobody types a time for the wrong
            one. */}}
       <div class="field">
-        <label for="ev-starts">Date and time</label>
-        <p class="field-hint" id="ev-starts-hint">In your time zone<span id="ev-starts-tz"></span>.</p>
+        <label for="ev-starts">{{t "Date and time"}}</label>
+        <p class="field-hint" id="ev-starts-hint">{{t "In your time zone"}}<span id="ev-starts-tz"></span>.</p>
         <input type="datetime-local" id="ev-starts" name="startsAt" required aria-describedby="ev-starts-hint">
       </div>
-      <div class="field"><label for="ev-location">Venue <span class="field-optional">(optional)</span></label><input type="text" id="ev-location" name="location" placeholder="e.g. The Blue Note, back room" autocomplete="off"></div>
-      <div class="field"><label for="ev-description">Description <span class="field-optional">(optional)</span></label><textarea id="ev-description" name="description" rows="2" class="prose"></textarea></div>
-      <div class="form-actions"><button type="submit" id="create-event-btn" class="primary">Create event</button></div>
+      <div class="field"><label for="ev-location">{{t "Venue"}} <span class="field-optional">{{t "(optional)"}}</span></label><input type="text" id="ev-location" name="location" placeholder="{{t "e.g. The Blue Note, back room"}}" autocomplete="off"></div>
+      <div class="field"><label for="ev-description">{{t "Description"}} <span class="field-optional">{{t "(optional)"}}</span></label><textarea id="ev-description" name="description" rows="2" class="prose"></textarea></div>
+      <div class="form-actions"><button type="submit" id="create-event-btn" class="primary">{{t "Create event"}}</button></div>
       <p id="create-event-result" class="form-status" role="status"></p>
     </form>
 
@@ -136,84 +150,84 @@
       <div class="import-row" data-event-id="{{.ID}}">
         <div>
           <a href="/events/{{.ID}}"><strong>{{.Name}}</strong></a>
-          <div class="hint">{{.StartsAt.Format "Mon, Jan 2 2006 · 15:04"}}{{if .Location}} — {{.Location}}{{end}} — {{template "community-event-type-label" .EventType}}</div>
-          <div class="hint">Managers:
-          {{range index $.EventManagers .ID}}{{.DisplayName}} {{else}}<em>none assigned</em>{{end}}
+          <div class="hint">{{date .StartsAt "Mon 2 Jan 2006 · 15:04"}}{{if .Location}} — {{.Location}}{{end}} — {{template "community-event-type-label" .EventType}}</div>
+          <div class="hint">{{t "Managers:"}}
+          {{range index $.EventManagers .ID}}{{.DisplayName}} {{else}}<em>{{t "none assigned"}}</em>{{end}}
           </div>
         </div>
-        <select class="assign-manager-select" data-event-id="{{.ID}}" aria-label="Assign a manager to {{.Name}}">
-          <option value="">Assign a manager…</option>
+        <select class="assign-manager-select" data-event-id="{{.ID}}" aria-label="{{t "Assign a manager to %s" .Name}}">
+          <option value="">{{t "Assign a manager…"}}</option>
           {{range $.Members}}{{if .IsCurrent}}<option value="{{.PersonID}}">{{.DisplayName}}</option>{{end}}{{end}}
         </select>
       </div>
     {{else}}
-      <div class="attention-empty">No events yet — create one above.</div>
+      <div class="attention-empty">{{t "No events yet — create one above."}}</div>
     {{end}}
     <p id="events-status" class="form-status" role="status"></p>
     </div>
   </div>
 
-  <h2>Pending submissions</h2>
+  <h2>{{t "Pending submissions"}}</h2>
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>Submitted by</th><th>Kind</th><th>Submitted</th><th>Source</th><th>Note</th><th></th></tr></thead>
+    <thead><tr><th>{{t "Submitted by"}}</th><th>{{t "Kind"}}</th><th>{{t "Submitted"}}</th><th>{{t "Source"}}</th><th>{{t "Note"}}</th><th></th></tr></thead>
     <tbody id="pending-body">
     {{range .PendingSubmissions}}
       <tr data-submission-id="{{.ID}}">
-        <td data-label="Submitted by">{{.StudentUsername}}</td>
-        <td data-label="Kind">{{if eq .Kind "new_song"}}New song{{else if eq .Kind "edit"}}Edit{{else}}{{.Kind}}{{end}}</td>
-        <td data-label="Submitted">{{.SubmittedTitle}}</td>
-        <td data-label="Source">{{if .SourceVariantID}}{{.SourceTitle}} (#{{deref64 .SourceVariantID}}){{end}}</td>
-        <td data-label="Note">{{.Note}}</td>
+        <td data-label="{{t "Submitted by"}}">{{.StudentUsername}}</td>
+        <td data-label="{{t "Kind"}}">{{if eq .Kind "new_song"}}{{t "New song"}}{{else if eq .Kind "edit"}}{{t "Edit"}}{{else}}{{.Kind}}{{end}}</td>
+        <td data-label="{{t "Submitted"}}">{{.SubmittedTitle}}</td>
+        <td data-label="{{t "Source"}}">{{if .SourceVariantID}}{{.SourceTitle}} (#{{deref64 .SourceVariantID}}){{end}}</td>
+        <td data-label="{{t "Note"}}">{{.Note}}</td>
         <td>
-          <button type="button" class="reject-btn danger" data-id="{{.ID}}" data-title="{{.SubmittedTitle}}" data-who="{{.StudentUsername}}">Reject</button>
-          <button type="button" class="accept-btn primary" data-id="{{.ID}}">Accept</button>
+          <button type="button" class="reject-btn danger" data-id="{{.ID}}" data-title="{{.SubmittedTitle}}" data-who="{{.StudentUsername}}">{{t "Reject"}}</button>
+          <button type="button" class="accept-btn primary" data-id="{{.ID}}">{{t "Accept"}}</button>
         </td>
       </tr>
     {{else}}
-      <tr><td colspan="6" class="hint">No pending submissions.</td></tr>
+      <tr><td colspan="6" class="hint">{{t "No pending submissions."}}</td></tr>
     {{end}}
     </tbody>
   </table></div>
   <p id="submissions-status" class="form-status" role="status"></p>
 
-  <h2>All submissions</h2>
+  <h2>{{t "All submissions"}}</h2>
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>Submitted by</th><th>Kind</th><th>Submitted</th><th>Status</th><th>Decided by</th></tr></thead>
+    <thead><tr><th>{{t "Submitted by"}}</th><th>{{t "Kind"}}</th><th>{{t "Submitted"}}</th><th>{{t "Status"}}</th><th>{{t "Decided by"}}</th></tr></thead>
     <tbody>
     {{range .AllSubmissions}}
       <tr>
-        <td data-label="Submitted by">{{.StudentUsername}}</td>
-        <td data-label="Kind">{{if eq .Kind "new_song"}}New song{{else if eq .Kind "edit"}}Edit{{else}}{{.Kind}}{{end}}</td>
-        <td data-label="Submitted">{{.SubmittedTitle}}</td>
-        <td data-label="Status">{{.Status}}</td>
-        <td data-label="Decided by">{{.DecidedByUsername}}</td>
+        <td data-label="{{t "Submitted by"}}">{{.StudentUsername}}</td>
+        <td data-label="{{t "Kind"}}">{{if eq .Kind "new_song"}}{{t "New song"}}{{else if eq .Kind "edit"}}{{t "Edit"}}{{else}}{{.Kind}}{{end}}</td>
+        <td data-label="{{t "Submitted"}}">{{.SubmittedTitle}}</td>
+        <td data-label="{{t "Status"}}">{{t .Status}}</td>
+        <td data-label="{{t "Decided by"}}">{{.DecidedByUsername}}</td>
       </tr>
     {{else}}
-      <tr><td colspan="5" class="hint">No submissions yet.</td></tr>
+      <tr><td colspan="5" class="hint">{{t "No submissions yet."}}</td></tr>
     {{end}}
     </tbody>
   </table></div>
 
   {{if .ShellPeople}}
-  <h2>Invited, not joined yet</h2>
+  <h2>{{t "Invited, not joined yet"}}</h2>
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>Name</th><th>Role</th><th>Invited by</th><th>Added</th><th></th></tr></thead>
+    <thead><tr><th>{{t "Name"}}</th><th>{{t "Role"}}</th><th>{{t "Invited by"}}</th><th>{{t "Added"}}</th><th></th></tr></thead>
     <tbody>
     {{range .ShellPeople}}
       <tr data-person-id="{{.PersonID}}">
-        <td data-label="Name">{{.DisplayName}}</td>
-        <td data-label="Role">{{range .Memberships}}{{if eq .Kind "community"}}{{.Status}}{{end}}{{end}}</td>
-        <td data-label="Invited by">{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>unknown</em>{{end}}</td>
-        <td data-label="Added">{{.CreatedAt.Format "2006-01-02"}}</td>
+        <td data-label="{{t "Name"}}">{{.DisplayName}}</td>
+        <td data-label="{{t "Role"}}">{{range .Memberships}}{{if eq .Kind "community"}}{{t .Status}}{{end}}{{end}}</td>
+        <td data-label="{{t "Invited by"}}">{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>{{t "unknown"}}</em>{{end}}</td>
+        <td data-label="{{t "Added"}}">{{date .CreatedAt "2006-01-02"}}</td>
         <td>
           {{if .OpenInviteToken}}
           <span class="invite-link-row">
             <code class="invite-link-url" data-url="/invite/{{.OpenInviteToken}}">/invite/{{.OpenInviteToken}}</code>
-            <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}">Copy link</button>
-            <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}">QR code</button>
+            <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}">{{t "Copy link"}}</button>
+            <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}">{{t "QR code"}}</button>
           </span>
           {{else}}
-          <button type="button" class="create-shell-invite-btn" data-person-id="{{.PersonID}}">Get invite link</button>
+          <button type="button" class="create-shell-invite-btn" data-person-id="{{.PersonID}}">{{t "Get invite link"}}</button>
           {{end}}
         </td>
       </tr>
@@ -222,26 +236,26 @@
   </table></div>
   {{end}}
 
-  <h2>Members</h2>
-  <label class="check"><input type="checkbox" id="show-past-toggle"> Show past members</label>
+  <h2>{{t "Members"}}</h2>
+  <label class="check"><input type="checkbox" id="show-past-toggle"> {{t "Show past members"}}</label>
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Joined</th><th>Left</th><th></th></tr></thead>
+    <thead><tr><th>{{t "Username"}}</th><th>{{t "Name"}}</th><th>{{t "Role"}}</th><th>{{t "Joined"}}</th><th>{{t "Left"}}</th><th></th></tr></thead>
     <tbody id="members-body">
     {{range .Members}}
       <tr data-person-id="{{.PersonID}}" data-current="{{if .IsCurrent}}1{{else}}0{{end}}" {{if not .IsCurrent}}class="past-member" style="display:none"{{end}}>
-        <td data-label="Username">{{.Username}}</td>
-        <td data-label="Name">{{.DisplayName}}</td>
-        <td data-label="Role">
+        <td data-label="{{t "Username"}}">{{.Username}}</td>
+        <td data-label="{{t "Name"}}">{{.DisplayName}}</td>
+        <td data-label="{{t "Role"}}">
           {{if .IsCurrent}}
           {{$memberRole := .Role}}
-          <select class="role-select" data-person-id="{{.PersonID}}" aria-label="Role for {{.DisplayName}}">
-            {{range $.Roles}}<option value="{{.Name}}" {{if eq $memberRole .Name}}selected{{end}}>{{.Name}}</option>{{end}}
+          <select class="role-select" data-person-id="{{.PersonID}}" aria-label="{{t "Role for %s" .DisplayName}}">
+            {{range $.Roles}}<option value="{{.Name}}" {{if eq $memberRole .Name}}selected{{end}}>{{t .Name}}</option>{{end}}
           </select>
-          {{else}}{{.Role}}{{end}}
+          {{else}}{{t .Role}}{{end}}
         </td>
-        <td data-label="Joined">{{.JoinedAt.Format "2006-01-02"}}</td>
-        <td data-label="Left">{{if .LeftAt}}{{.LeftAt.Format "2006-01-02"}}{{end}}</td>
-        <td>{{if .IsCurrent}}<button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">Remove</button>{{end}}</td>
+        <td data-label="{{t "Joined"}}">{{date .JoinedAt "2006-01-02"}}</td>
+        <td data-label="{{t "Left"}}">{{if .LeftAt}}{{date .LeftAt "2006-01-02"}}{{end}}</td>
+        <td>{{if .IsCurrent}}<button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>{{end}}</td>
       </tr>
     {{end}}
     </tbody>
@@ -249,131 +263,131 @@
   <p id="members-status" class="form-status" role="status"></p>
 
   <div class="card">
-    <h2>Add people to this community</h2>
+    <h2>{{t "Add people to this community"}}</h2>
 
     <div class="form-subsection">
-      <h3>Quick add (personal invite)</h3>
-      <p class="hint">For someone who has no account yet: they're on the roster straight away, and the personal link you get lets them finish their account.</p>
+      <h3>{{t "Quick add (personal invite)"}}</h3>
+      <p class="hint">{{t "For someone who has no account yet: they're on the roster straight away, and the personal link you get lets them finish their account."}}</p>
       <form class="form-stack" id="quick-add-form">
         <div class="field">
-          <label for="quick-add-name">Name</label>
-          <input type="text" id="quick-add-name" name="displayName" placeholder="e.g. Alex" required autocomplete="off" autocapitalize="words">
+          <label for="quick-add-name">{{t "Name"}}</label>
+          <input type="text" id="quick-add-name" name="displayName" placeholder="{{t "e.g. Alex"}}" required autocomplete="off" autocapitalize="words">
         </div>
         <div class="field">
-          <label for="quick-add-role">Role</label>
+          <label for="quick-add-role">{{t "Role"}}</label>
           <select id="quick-add-role" name="role">
-            {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{.Name}}</option>{{end}}
+            {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{t .Name}}</option>{{end}}
           </select>
         </div>
         <div class="form-actions">
-          <button type="submit" id="quick-add-btn" class="primary">Add and get invite link</button>
+          <button type="submit" id="quick-add-btn" class="primary">{{t "Add and get invite link"}}</button>
         </div>
         <p id="quick-add-result" class="form-status" role="status"></p>
       </form>
     </div>
 
     <div class="form-subsection">
-      <h3>Add an existing account</h3>
+      <h3>{{t "Add an existing account"}}</h3>
       <form class="form-stack" id="add-member-form">
         <div class="field">
-          <label for="add-username">Username</label>
-          <p class="field-hint" id="add-username-hint">The username they log in with.</p>
-          <input type="text" id="add-username" name="username" placeholder="e.g. marcguitar" required aria-describedby="add-username-hint" autocomplete="off" autocapitalize="none" spellcheck="false">
+          <label for="add-username">{{t "Username"}}</label>
+          <p class="field-hint" id="add-username-hint">{{t "The username they log in with."}}</p>
+          <input type="text" id="add-username" name="username" placeholder="{{t "e.g. marcguitar"}}" required aria-describedby="add-username-hint" autocomplete="off" autocapitalize="none" spellcheck="false">
         </div>
         <div class="field">
-          <label for="add-role">Role</label>
+          <label for="add-role">{{t "Role"}}</label>
           <select id="add-role" name="role">
-            {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{.Name}}</option>{{end}}
+            {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{t .Name}}</option>{{end}}
           </select>
         </div>
         <div class="form-actions">
-          <button type="submit" id="add-member-btn" class="primary">Add to community</button>
+          <button type="submit" id="add-member-btn" class="primary">{{t "Add to community"}}</button>
         </div>
         <p id="add-member-result" class="form-status" role="status"></p>
       </form>
     </div>
 
     <div class="form-subsection">
-      <h3>Group invite link</h3>
-      <p class="hint">Type the names you expect, then get one link to share — on WhatsApp, say. Each person who opens it picks their name, then creates an account or logs in, and joins with the role below. You can change anyone's role afterwards in the members table.</p>
+      <h3>{{t "Group invite link"}}</h3>
+      <p class="hint">{{t "Type the names you expect, then get one link to share — on WhatsApp, say. Each person who opens it picks their name, then creates an account or logs in, and joins with the role below. You can change anyone's role afterwards in the members table."}}</p>
       <form class="form-stack" id="group-invite-form">
         <div id="group-invite-rows" class="form-stack">
           <div class="group-invite-row">
             <div class="field">
-              <label for="group-invite-name-1">Name</label>
-              <input type="text" class="group-invite-name" id="group-invite-name-1" placeholder="e.g. Alex" required autocomplete="off" autocapitalize="words">
+              <label for="group-invite-name-1">{{t "Name"}}</label>
+              <input type="text" class="group-invite-name" id="group-invite-name-1" placeholder="{{t "e.g. Alex"}}" required autocomplete="off" autocapitalize="words">
             </div>
           </div>
         </div>
         <div class="field">
-          <label for="group-invite-role">Role</label>
+          <label for="group-invite-role">{{t "Role"}}</label>
           <select id="group-invite-role" name="role">
-            {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{.Name}}</option>{{end}}
+            {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{t .Name}}</option>{{end}}
           </select>
         </div>
         <div class="form-actions" style="flex-wrap:wrap">
-          <button type="button" id="group-invite-add-row-btn">{{template "icon-plus"}} Add another name</button>
-          <button type="submit" id="create-group-invite-btn" class="primary">Create group invite link</button>
+          <button type="button" id="group-invite-add-row-btn">{{template "icon-plus"}} {{t "Add another name"}}</button>
+          <button type="submit" id="create-group-invite-btn" class="primary">{{t "Create group invite link"}}</button>
         </div>
         <p id="group-invite-result" class="form-status" role="status"></p>
-        <div class="form-actions"><button type="button" id="close-group-invite-btn" class="danger" hidden>Close this link</button></div>
+        <div class="form-actions"><button type="button" id="close-group-invite-btn" class="danger" hidden>{{t "Close this link"}}</button></div>
       </form>
     </div>
 
     <div class="form-subsection">
-      <h3>Community link or QR code</h3>
-      <p class="hint">One open link, no names needed: anyone who follows it creates an account (or logs in) and joins straight away with the role on the link. Make one link per role rather than promoting people afterwards, so you never hand out a more powerful link by mistake. A "guest" link only lets people read — handy for a QR code on the door at a jam.</p>
+      <h3>{{t "Community link or QR code"}}</h3>
+      <p class="hint">{{t "One open link, no names needed: anyone who follows it creates an account (or logs in) and joins straight away with the role on the link. Make one link per role rather than promoting people afterwards, so you never hand out a more powerful link by mistake. A \"guest\" link only lets people read — handy for a QR code on the door at a jam."}}</p>
       <div class="form-actions" style="flex-wrap:wrap">
-        {{range .Roles}}<button type="button" class="community-link-btn" data-role="{{.Name}}">Get {{.Name}} link</button>{{end}}
+        {{range .Roles}}<button type="button" class="community-link-btn" data-role="{{.Name}}">{{t "Get %s link" (t .Name)}}</button>{{end}}
       </div>
       <p id="community-link-result" class="form-status" role="status"></p>
     </div>
   </div>
 
-  <h2>Default songbook</h2>
+  <h2>{{t "Default songbook"}}</h2>
   <div class="card">
-    <h3>Write a new original song</h3>
+    <h3>{{t "Write a new original song"}}</h3>
     <form class="form-stack" id="new-variant-form">
-      <div class="field"><label for="new-variant-title">Title</label><input type="text" id="new-variant-title" name="title" required autocomplete="off"></div>
-      <div class="field"><label for="new-variant-artist">Artist <span class="field-optional">(optional)</span></label><input type="text" id="new-variant-artist" name="artist" autocomplete="off"></div>
+      <div class="field"><label for="new-variant-title">{{t "Title"}}</label><input type="text" id="new-variant-title" name="title" required autocomplete="off"></div>
+      <div class="field"><label for="new-variant-artist">{{t "Artist"}} <span class="field-optional">{{t "(optional)"}}</span></label><input type="text" id="new-variant-artist" name="artist" autocomplete="off"></div>
       {{/* "Already in the library" list, see library-match.js. */}}
       <div id="new-variant-library-match"></div>
-      <div class="form-actions"><button type="submit" id="new-variant-btn" class="primary">Create song</button></div>
+      <div class="form-actions"><button type="submit" id="new-variant-btn" class="primary">{{t "Create song"}}</button></div>
       <p id="new-variant-result" class="form-status" role="status"></p>
     </form>
   </div>
 
   <div class="card">
-    <h3>Add a song by its number</h3>
+    <h3>{{t "Add a song by its number"}}</h3>
     <form class="form-stack" id="add-existing-form">
       <div class="field">
-        <label for="variant-id-input">Song number</label>
-        <p class="field-hint" id="variant-id-hint">The number at the end of the song's address — the 123 in /song/123. "Add" links to the song as it is; a community copy can be edited without changing the original.</p>
+        <label for="variant-id-input">{{t "Song number"}}</label>
+        <p class="field-hint" id="variant-id-hint">{{t "The number at the end of the song's address — the 123 in /song/123. \"Add\" links to the song as it is; a community copy can be edited without changing the original."}}</p>
         <input type="number" id="variant-id-input" name="variantId" inputmode="numeric" min="1" step="1" required aria-describedby="variant-id-hint" enterkeyhint="done">
       </div>
       <div class="form-actions" style="flex-wrap:wrap">
-        <button type="button" id="fork-into-community-btn">Make a community copy</button>
-        <button type="submit" id="add-existing-btn" class="primary">Add to songbook</button>
+        <button type="button" id="fork-into-community-btn">{{t "Make a community copy"}}</button>
+        <button type="submit" id="add-existing-btn" class="primary">{{t "Add to songbook"}}</button>
       </div>
       <p id="add-result" class="form-status" role="status"></p>
     </form>
   </div>
 
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>Title</th><th>Artist</th><th>Added by</th><th></th></tr></thead>
+    <thead><tr><th>{{t "Title"}}</th><th>{{t "Artist"}}</th><th>{{t "Added by"}}</th><th></th></tr></thead>
     <tbody>
     {{range .Entries}}
       <tr data-variant-id="{{.VariantID}}">
-        <td data-label="Title"><a href="/song/{{.VariantID}}">{{.Title}}</a></td>
-        <td data-label="Artist">{{.Artist}}</td>
-        <td data-label="Added by">{{.AddedByUsername}}</td>
+        <td data-label="{{t "Title"}}"><a href="/song/{{.VariantID}}">{{.Title}}</a></td>
+        <td data-label="{{t "Artist"}}">{{.Artist}}</td>
+        <td data-label="{{t "Added by"}}">{{.AddedByUsername}}</td>
         <td>
-          <a href="/variants/{{.VariantID}}/history">History</a>
-          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">Remove</button>
+          <a href="/variants/{{.VariantID}}/history">{{t "History"}}</a>
+          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">{{t "Remove"}}</button>
         </td>
       </tr>
     {{else}}
-      <tr><td colspan="4" class="hint">No songs yet.</td></tr>
+      <tr><td colspan="4" class="hint">{{t "No songs yet."}}</td></tr>
     {{end}}
     </tbody>
   </table></div>
@@ -413,8 +427,8 @@ function onSubmit(form, fn) {
 }
 // For the save-on-change controls (table rows, selects): one status line.
 async function saveInline(statusEl, fn, okMsg) {
-  Forms.status(statusEl, 'Saving…', '');
-  try { await fn(); Forms.status(statusEl, okMsg || 'Saved.', 'ok'); return true; }
+  Forms.status(statusEl, t('Saving…'), '');
+  try { await fn(); Forms.status(statusEl, okMsg || t('Saved.'), 'ok'); return true; }
   catch (e) { Forms.status(statusEl, e.message, 'error'); return false; }
 }
 
@@ -426,7 +440,7 @@ document.querySelectorAll('.role-priv-checkbox').forEach(cb => {
   cb.addEventListener('change', async () => {
     const roleId = cb.dataset.roleId;
     const privileges = Array.from(document.querySelectorAll(`.role-priv-checkbox[data-role-id="${roleId}"]:checked`)).map(c => c.dataset.privilege);
-    const ok = await saveInline($('roles-status'), () => api(`/api/communities/${communityId}/roles/${roleId}/privileges`, {privileges}, 'Couldn’t save that change. Try again.'));
+    const ok = await saveInline($('roles-status'), () => api(`/api/communities/${communityId}/roles/${roleId}/privileges`, {privileges}, t('Couldn’t save that change. Try again.')));
     if (!ok) cb.checked = !cb.checked;
   });
 });
@@ -435,33 +449,43 @@ document.querySelectorAll('.role-name-input').forEach(inp => {
   const original = inp.value;
   inp.addEventListener('change', async () => {
     const name = inp.value.trim();
-    if (!name) { Forms.fieldError(inp, 'Enter a role name.'); return; }
+    if (!name) { Forms.fieldError(inp, t('Enter a role name.')); return; }
     Forms.fieldError(inp, '');
-    const ok = await saveInline($('roles-status'), () => api(`/api/communities/${communityId}/roles/${inp.dataset.roleId}/rename`, {name}, 'Couldn’t rename that role. Try again.'));
+    const ok = await saveInline($('roles-status'), () => api(`/api/communities/${communityId}/roles/${inp.dataset.roleId}/rename`, {name}, t('Couldn’t rename that role. Try again.')));
     if (ok) location.reload(); else inp.value = original;
   });
 });
 document.querySelectorAll('.delete-role-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (!confirm(`Delete the “${btn.dataset.roleName}” role? Anyone who has it must be given another role first.`)) return;
+    if (!confirm(t('Delete the “%s” role? Anyone who has it must be given another role first.', btn.dataset.roleName))) return;
     Forms.busy(btn, true);
-    const ok = await saveInline($('roles-status'), () => api(`/api/communities/${communityId}/roles/${btn.dataset.roleId}`, undefined, 'Couldn’t delete that role. Give its members another role first, then try again.', 'DELETE'));
+    const ok = await saveInline($('roles-status'), () => api(`/api/communities/${communityId}/roles/${btn.dataset.roleId}`, undefined, t('Couldn’t delete that role. Give its members another role first, then try again.'), 'DELETE'));
     if (ok) location.reload(); else Forms.busy(btn, false);
   });
 });
 onSubmit($('create-role-form'), async () => {
   const name = $('new-role-name').value.trim();
-  await api(`/api/communities/${communityId}/roles`, {name, privileges: []}, 'Couldn’t create that role. Try a different name.');
+  await api(`/api/communities/${communityId}/roles`, {name, privileges: []}, t('Couldn’t create that role. Try a different name.'));
   location.reload();
 });
 onSubmit($('rename-form'), async () => {
   const name = $('rename-input').value.trim();
-  await api(`/api/communities/${communityId}/rename`, {name}, 'Couldn’t save the name. Try again.');
-  Forms.status($('rename-result'), 'Saved.', 'ok');
-  document.title = name + ' — staff admin';
+  await api(`/api/communities/${communityId}/rename`, {name}, t('Couldn’t save the name. Try again.'));
+  Forms.status($('rename-result'), t('Saved.'), 'ok');
+  document.title = t('%s — staff admin', name);
 });
 $('default-join-role-select').addEventListener('change', (e) => {
-  saveInline($('default-join-role-result'), () => api(`/api/communities/${communityId}/default-join-role`, {role: e.target.value}, 'Couldn’t save that. Try again.'));
+  saveInline($('default-join-role-result'), () => api(`/api/communities/${communityId}/default-join-role`, {role: e.target.value}, t('Couldn’t save that. Try again.')));
+});
+// The community's language: its pages follow it at the next load.
+$('community-locale-select').addEventListener('change', (e) => {
+  saveInline($('community-locale-result'), async () => {
+    let res;
+    try {
+      res = await fetch('/api/communities/' + communityId + '/locale', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({locale: e.target.value})});
+    } catch { throw new Error(t('Couldn’t save that. Try again.')); }
+    if (!res.ok) throw new Error(t('Couldn’t save that. Try again.'));
+  });
 });
 
 // ---- Events ----
@@ -480,13 +504,13 @@ onSubmit($('create-event-form'), async () => {
     location: $('ev-location').value.trim(),
     description: $('ev-description').value.trim(),
   };
-  const data = await api(`/api/communities/${communityId}/events`, body, 'Couldn’t create the event. Check the details and try again.');
+  const data = await api(`/api/communities/${communityId}/events`, body, t('Couldn’t create the event. Check the details and try again.'));
   location.href = `/events/${data.eventId}`;
 });
 document.querySelectorAll('.assign-manager-select').forEach(sel => {
   sel.addEventListener('change', async () => {
     if (!sel.value) return;
-    const ok = await saveInline($('events-status'), () => api(`/api/communities/${communityId}/events/${sel.dataset.eventId}/managers`, {personId: parseInt(sel.value, 10)}, 'Couldn’t assign that manager. Try again.'));
+    const ok = await saveInline($('events-status'), () => api(`/api/communities/${communityId}/events/${sel.dataset.eventId}/managers`, {personId: parseInt(sel.value, 10)}, t('Couldn’t assign that manager. Try again.')));
     if (ok) location.reload(); else sel.value = '';
   });
 });
@@ -495,15 +519,15 @@ document.querySelectorAll('.assign-manager-select').forEach(sel => {
 document.querySelectorAll('.accept-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     Forms.busy(btn, true);
-    const ok = await saveInline($('submissions-status'), () => api(`/api/communities/${communityId}/submissions/${btn.dataset.id}/accept`, undefined, 'Couldn’t accept that submission. Try again.'));
+    const ok = await saveInline($('submissions-status'), () => api(`/api/communities/${communityId}/submissions/${btn.dataset.id}/accept`, undefined, t('Couldn’t accept that submission. Try again.')));
     if (ok) location.reload(); else Forms.busy(btn, false);
   });
 });
 document.querySelectorAll('.reject-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (!confirm(`Reject “${btn.dataset.title}” from ${btn.dataset.who}?`)) return;
+    if (!confirm(t('Reject “%s” from %s?', btn.dataset.title, btn.dataset.who))) return;
     Forms.busy(btn, true);
-    const ok = await saveInline($('submissions-status'), () => api(`/api/communities/${communityId}/submissions/${btn.dataset.id}/reject`, undefined, 'Couldn’t reject that submission. Try again.'));
+    const ok = await saveInline($('submissions-status'), () => api(`/api/communities/${communityId}/submissions/${btn.dataset.id}/reject`, undefined, t('Couldn’t reject that submission. Try again.')));
     if (ok) location.reload(); else Forms.busy(btn, false);
   });
 });
@@ -517,13 +541,13 @@ $('show-past-toggle').addEventListener('change', (e) => {
 onSubmit($('quick-add-form'), async () => {
   const displayName = $('quick-add-name').value.trim();
   const role = $('quick-add-role').value;
-  await api(`/api/communities/${communityId}/personal-invites`, {displayName, role}, 'Couldn’t add them. Try again.');
+  await api(`/api/communities/${communityId}/personal-invites`, {displayName, role}, t('Couldn’t add them. Try again.'));
   location.reload();
 });
 document.querySelectorAll('.create-shell-invite-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     Forms.busy(btn, true);
-    const ok = await saveInline($('members-status'), () => api(`/api/people/${btn.dataset.personId}/personal-invites`, undefined, 'Couldn’t make an invite link. Try again.'));
+    const ok = await saveInline($('members-status'), () => api(`/api/people/${btn.dataset.personId}/personal-invites`, undefined, t('Couldn’t make an invite link. Try again.')));
     if (ok) location.reload(); else Forms.busy(btn, false);
   });
 });
@@ -532,7 +556,7 @@ document.querySelectorAll('.copy-link-btn').forEach(btn => {
     const url = location.origin + btn.dataset.url;
     navigator.clipboard.writeText(url).then(() => {
       const prev = btn.textContent;
-      btn.textContent = 'Copied';
+      btn.textContent = t('Copied');
       setTimeout(() => { btn.textContent = prev; }, 1500);
     }).catch(() => {});
   });
@@ -543,21 +567,21 @@ document.querySelectorAll('.qr-link-btn').forEach(btn => {
 onSubmit($('add-member-form'), async () => {
   const username = $('add-username').value.trim();
   const role = $('add-role').value;
-  await api(`/api/communities/${communityId}/members`, {username, role}, 'Couldn’t add them. Check the username and try again.');
+  await api(`/api/communities/${communityId}/members`, {username, role}, t('Couldn’t add them. Check the username and try again.'));
   location.reload();
 });
 document.querySelectorAll('.role-select').forEach(sel => {
   const original = sel.value;
   sel.addEventListener('change', async () => {
-    const ok = await saveInline($('members-status'), () => api(`/api/communities/${communityId}/members/${sel.dataset.personId}/role`, {role: sel.value}, 'Couldn’t change that role. Try again.'));
+    const ok = await saveInline($('members-status'), () => api(`/api/communities/${communityId}/members/${sel.dataset.personId}/role`, {role: sel.value}, t('Couldn’t change that role. Try again.')));
     if (!ok) sel.value = original;
   });
 });
 document.querySelectorAll('.remove-member-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (!confirm(`Remove ${btn.dataset.name} from the community? They'll move to past members.`)) return;
+    if (!confirm(t('Remove %s from the community? They’ll move to past members.', btn.dataset.name))) return;
     Forms.busy(btn, true);
-    const ok = await saveInline($('members-status'), () => api(`/api/communities/${communityId}/members/${btn.dataset.personId}`, undefined, 'Couldn’t remove them. Try again.', 'DELETE'));
+    const ok = await saveInline($('members-status'), () => api(`/api/communities/${communityId}/members/${btn.dataset.personId}`, undefined, t('Couldn’t remove them. Try again.'), 'DELETE'));
     if (ok) location.reload(); else Forms.busy(btn, false);
   });
 });
@@ -570,9 +594,9 @@ const communityLibrary = window.LibraryMatch ? LibraryMatch.attach({
   title: $('new-variant-title'),
   artist: $('new-variant-artist'),
   host: $('new-variant-library-match'),
-  addLabel: 'Add to the default songbook',
+  addLabel: t('Add to the default songbook'),
   add: async (hit) => {
-    await api(`/api/communities/${communityId}/catalog`, {variantId: hit.variantId}, `Couldn’t add “${hit.title}”. Try again.`);
+    await api(`/api/communities/${communityId}/catalog`, {variantId: hit.variantId}, t('Couldn’t add “%s”. Try again.', hit.title));
     location.href = `/song/${hit.variantId}?community=${communityId}`;
   },
   isInList: (id) => !!document.querySelector(`tr[data-variant-id="${id}"]`),
@@ -584,28 +608,28 @@ onSubmit($('new-variant-form'), async () => {
   if (communityLibrary && !(await communityLibrary.guard())) return;
   const title = $('new-variant-title').value.trim();
   const artist = $('new-variant-artist').value.trim();
-  const data = await api(`/api/communities/${communityId}/variants`, {title, artist}, 'Couldn’t create the song. Try again.');
+  const data = await api(`/api/communities/${communityId}/variants`, {title, artist}, t('Couldn’t create the song. Try again.'));
   location.href = `/song/${data.variantId}`;
 });
 const addExistingForm = $('add-existing-form');
 onSubmit(addExistingForm, async () => {
   const variantId = Number($('variant-id-input').value);
-  await api(`/api/communities/${communityId}/catalog`, {variantId}, 'Couldn’t add that song. Check the number and try again.');
+  await api(`/api/communities/${communityId}/catalog`, {variantId}, t('Couldn’t add that song. Check the number and try again.'));
   location.reload();
 });
 $('fork-into-community-btn').addEventListener('click', (e) => {
   if (!Forms.validate(addExistingForm)) return;
   const variantId = Number($('variant-id-input').value);
   Forms.run(addExistingForm, e.currentTarget, async () => {
-    await api(`/api/communities/${communityId}/catalog/fork/${variantId}`, undefined, 'Couldn’t copy that song. Check the number and try again.');
+    await api(`/api/communities/${communityId}/catalog/fork/${variantId}`, undefined, t('Couldn’t copy that song. Check the number and try again.'));
     location.reload();
   });
 });
 document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (!confirm(`Remove “${btn.dataset.title}” from the default songbook? The song itself isn't deleted.`)) return;
+    if (!confirm(t('Remove “%s” from the default songbook? The song itself isn’t deleted.', btn.dataset.title))) return;
     Forms.busy(btn, true);
-    const ok = await saveInline($('entries-status'), () => api(`/api/communities/${communityId}/catalog/${btn.dataset.variantId}`, undefined, 'Couldn’t remove that song. Try again.', 'DELETE'), 'Removed.');
+    const ok = await saveInline($('entries-status'), () => api(`/api/communities/${communityId}/catalog/${btn.dataset.variantId}`, undefined, t('Couldn’t remove that song. Try again.'), 'DELETE'), t('Removed.'));
     if (ok) btn.closest('tr').remove(); else Forms.busy(btn, false);
   });
 });
@@ -617,7 +641,7 @@ $('group-invite-add-row-btn').addEventListener('click', () => {
   const id = 'group-invite-name-' + groupInviteRowCount;
   const row = document.createElement('div');
   row.className = 'group-invite-row';
-  row.innerHTML = `<div class="field"><label for="${id}">Name</label><input type="text" class="group-invite-name" id="${id}" placeholder="e.g. Sam" autocomplete="off" autocapitalize="words"></div>`;
+  row.innerHTML = `<div class="field"><label for="${id}">${t('Name')}</label><input type="text" class="group-invite-name" id="${id}" placeholder="${t('e.g. Sam')}" autocomplete="off" autocapitalize="words"></div>`;
   $('group-invite-rows').appendChild(row);
   row.querySelector('input').focus();
 });
@@ -631,21 +655,21 @@ onSubmit(groupInviteForm, async () => {
   const role = $('group-invite-role').value;
   const closeBtn = $('close-group-invite-btn');
   closeBtn.hidden = true;
-  const data = await api(`/api/communities/${communityId}/group-invites`, {slots, role}, 'Couldn’t create the link. Try again.');
+  const data = await api(`/api/communities/${communityId}/group-invites`, {slots, role}, t('Couldn’t create the link. Try again.'));
   const url = location.origin + data.url;
   const out = $('group-invite-result');
   out.className = 'form-status is-ok';
-  out.textContent = 'Share this link (copied): ';
+  out.textContent = t('Share this link (copied): ');
   const a = document.createElement('a');
   a.href = url; a.textContent = url;
   out.appendChild(a);
   navigator.clipboard.writeText(url).catch(() => {});
   closeBtn.hidden = false;
   closeBtn.onclick = async () => {
-    if (!confirm('Close this group invite link? Anyone who hasn’t used it yet won’t be able to join with it.')) return;
+    if (!confirm(t('Close this group invite link? Anyone who hasn’t used it yet won’t be able to join with it.'))) return;
     await Forms.run(groupInviteForm, closeBtn, async () => {
-      await api(`/api/communities/${communityId}/group-invites/${data.id}/close`, undefined, 'Couldn’t close the link. Try again.');
-      Forms.status(groupInviteForm, 'Link closed.', 'ok');
+      await api(`/api/communities/${communityId}/group-invites/${data.id}/close`, undefined, t('Couldn’t close the link. Try again.'));
+      Forms.status(groupInviteForm, t('Link closed.'), 'ok');
       closeBtn.hidden = true;
     });
   };
@@ -658,14 +682,14 @@ document.querySelectorAll('.community-link-btn').forEach(btn => {
     Forms.status(out, '');
     Forms.busy(btn, true);
     try {
-      const data = await api(`/api/communities/${communityId}/community-link`, {role: btn.dataset.role}, 'Couldn’t create the link. Try again.');
+      const data = await api(`/api/communities/${communityId}/community-link`, {role: btn.dataset.role}, t('Couldn’t create the link. Try again.'));
       const url = location.origin + data.url;
       out.className = 'form-status is-ok';
-      out.textContent = `${data.role} link (copied): `;
+      out.textContent = t('%s link (copied): ', t(data.role));
       const a = document.createElement('a');
       a.href = url; a.textContent = url;
       const qr = document.createElement('button');
-      qr.type = 'button'; qr.textContent = 'QR code'; qr.style.marginLeft = '0.5rem';
+      qr.type = 'button'; qr.textContent = t('QR code'); qr.style.marginLeft = '0.5rem';
       qr.addEventListener('click', () => showQR(url));
       out.append(a, qr);
       navigator.clipboard.writeText(url).catch(() => {});
@@ -686,6 +710,6 @@ document.querySelectorAll('.community-link-btn').forEach(btn => {
 
 {{/* Plain names for the privilege keys in store.AllCommunityPrivileges;
      an unknown key falls through as itself. */}}
-{{define "community-priv-label"}}{{if eq . "edit_repertoire"}}Edit songs{{else if eq . "download_files"}}Download files{{else if eq . "manage_files"}}Manage files{{else if eq . "manage_members"}}Manage members{{else if eq . "manage_events"}}Manage events{{else if eq . "manage_submissions"}}Review submissions{{else if eq . "manage_settings"}}Change settings{{else}}{{.}}{{end}}{{end}}
+{{define "community-priv-label"}}{{if eq . "edit_repertoire"}}{{t "Edit songs"}}{{else if eq . "download_files"}}{{t "Download files"}}{{else if eq . "manage_files"}}{{t "Manage files"}}{{else if eq . "manage_members"}}{{t "Manage members"}}{{else if eq . "manage_events"}}{{t "Manage events"}}{{else if eq . "manage_submissions"}}{{t "Review submissions"}}{{else if eq . "manage_settings"}}{{t "Change settings"}}{{else}}{{.}}{{end}}{{end}}
 
-{{define "community-event-type-label"}}{{if eq . "jam"}}Jam{{else if eq . "concert"}}Concert{{else if eq . "meetup"}}Meetup{{else if eq . "listening_party"}}Listening party{{else if eq . "dinner"}}Dinner{{else if eq . "show_together"}}Going to a show together{{else if eq . "open_mic"}}Open mic{{else if eq . "masterclass"}}Master class{{else if eq . "lesson"}}Lesson{{else}}{{.}}{{end}}{{end}}
+{{define "community-event-type-label"}}{{if eq . "jam"}}{{t "Jam"}}{{else if eq . "concert"}}{{t "Concert"}}{{else if eq . "meetup"}}{{t "Meetup"}}{{else if eq . "listening_party"}}{{t "Listening party"}}{{else if eq . "dinner"}}{{t "Dinner"}}{{else if eq . "show_together"}}{{t "Going to a show together"}}{{else if eq . "open_mic"}}{{t "Open mic"}}{{else if eq . "masterclass"}}{{t "Master class"}}{{else if eq . "lesson"}}{{t "Lesson"}}{{else}}{{.}}{{end}}{{end}}

@@ -382,7 +382,7 @@ window.songbooksDecodable = function (buf) {
         m.className = sec ? 'audio-ruler-section' : 'audio-ruler-bar';
         m.style.left = `${pctOf(t)}%`;
         m.textContent = label;
-        if (sec) { m.dataset.startBar = sec.startBar; m.dataset.barCount = sec.barCount; m.title = `${sec.label} — click to cycle it, Shift-click to extend the cycle`; }
+        if (sec) { m.dataset.startBar = sec.startBar; m.dataset.barCount = sec.barCount; m.title = window.t('%s — click to cycle it, Shift-click to extend the cycle', sec.label); }
         rulerMarks.appendChild(m);
       }
     });
@@ -404,7 +404,9 @@ window.songbooksDecodable = function (buf) {
       el.style.width = `${Math.max(0.3, Math.min(100, r) - Math.max(0, l))}%`;
     }
     cycleEl.classList.toggle('on', !!c.on);
-    cycleEl.title = `cycle: bars ${barLabel(c.from)}–${barLabel(c.to - 1)} — click to switch ${c.on ? 'off' : 'on'}, drag to move, drag an edge to resize`;
+    cycleEl.title = c.on
+      ? t('cycle: bars %s–%s — click to switch off, drag to move, drag an edge to resize', barLabel(c.from), barLabel(c.to - 1))
+      : t('cycle: bars %s–%s — click to switch on, drag to move, drag an edge to resize', barLabel(c.from), barLabel(c.to - 1));
   }
 
   function renderPosition() {
@@ -440,8 +442,8 @@ window.songbooksDecodable = function (buf) {
     press(clickBtn, prefs.click);
     press(trainerBtn, prefs.trainer.on);
     if (cycleBtn) cycleBtn.disabled = !hasBars();
-    if (countInLabel) countInLabel.textContent = prefs.countIn ? `${prefs.countIn} bar${prefs.countIn > 1 ? 's' : ''}` : 'Count-in';
-    if (trainerLabel) trainerLabel.textContent = prefs.trainer.on ? `Trainer ${Math.round(prefs.speed * 100)}% → ${prefs.trainer.end}%` : 'Trainer';
+    if (countInLabel) countInLabel.textContent = prefs.countIn ? tn(prefs.countIn, '%d bar', '%d bars') : t('Count-in');
+    if (trainerLabel) trainerLabel.textContent = prefs.trainer.on ? t('Trainer %d% → %d%', Math.round(prefs.speed * 100), prefs.trainer.end) : t('Trainer');
     const meter = $('audio-trainer-meter');
     if (meter) {
       const tr = prefs.trainer;
@@ -734,10 +736,10 @@ window.songbooksDecodable = function (buf) {
   async function applyKey() {
     const n = prefs.semitones;
     const sign = n > 0 ? '+' : '';
-    if (keyLabel) keyLabel.textContent = n ? `Key ${sign}${n}` : 'Key';
+    if (keyLabel) keyLabel.textContent = n ? t('Key %s', `${sign}${n}`) : t('Key');
     keyBtn?.classList.toggle('active', !!n);
     if (keyAmount) keyAmount.textContent = `${sign}${n}`;
-    if (keyName) keyName.textContent = $('key-transposed') && !$('key-transposed').hidden ? `in ${$('key-transposed').textContent}` : '';
+    if (keyName) keyName.textContent = $('key-transposed') && !$('key-transposed').hidden ? t('in %s', $('key-transposed').textContent) : '';
     if (!n && !graph) return;
     const g = ensureGraph();
     if (n && !g.stretch) {
@@ -747,7 +749,7 @@ window.songbooksDecodable = function (buf) {
         g.stretch.connect(g.ctx.destination);
         g.stretch.start();
       } catch (e) {
-        if (keyName) keyName.textContent = 'Couldn’t change the key in this browser.';
+        if (keyName) keyName.textContent = t('Couldn’t change the key in this browser.');
         return;
       }
     }
@@ -769,6 +771,7 @@ window.songbooksDecodable = function (buf) {
     applyKey();
   }
   function shiftChords(delta) {
+    if (window.songbooksShiftChords) { window.songbooksShiftChords(delta); return; }
     const btn = $(delta > 0 ? 'transpose-up' : 'transpose-down');
     for (let i = 0; btn && i < Math.abs(delta); i++) btn.click();
   }
@@ -792,7 +795,7 @@ window.songbooksDecodable = function (buf) {
     const meta = categories[activeCategory] || {};
     if (voiceSplit) {
       voiceSplit.hidden = !hasParts();
-      if (voiceLabel) voiceLabel.textContent = prefs.voice >= 100 ? 'Voice' : prefs.voice === 0 ? 'No voice' : `Voice ${prefs.voice}%`;
+      if (voiceLabel) voiceLabel.textContent = prefs.voice >= 100 ? t('Voice') : prefs.voice === 0 ? t('No voice') : t('Voice %d%', prefs.voice);
       voiceBtn?.classList.toggle('active', prefs.voice < 100);
       voiceBtn?.setAttribute('aria-pressed', String(prefs.voice < 100));
       if (voiceRange) voiceRange.value = String(prefs.voice);
@@ -953,7 +956,7 @@ window.songbooksDecodable = function (buf) {
     const tr = prefs.trainer;
     pop.querySelectorAll('.audio-stepper').forEach((st) => {
       const k = st.dataset.key;
-      st.querySelector('output').textContent = k === 'every' ? `${tr.every} loop${tr.every > 1 ? 's' : ''}` : k === 'step' ? `+${tr.step}%` : `${tr[k]}%`;
+      st.querySelector('output').textContent = k === 'every' ? tn(tr.every, '%d loop', '%d loops') : k === 'step' ? `+${tr.step}%` : `${tr[k]}%`;
     });
     const on = $('audio-trainer-on');
     if (on) on.checked = !!tr.on;
@@ -980,11 +983,13 @@ window.songbooksDecodable = function (buf) {
       const loopSec = cycleRange() ? (cycleRange().t1 - cycleRange().t0) : 0;
       let est = 0;
       steps.slice(0, -1).forEach((v) => { est += (tr.every * loopSec) / (v / 100); });
-      const time = loopSec ? ` · about ${Math.max(1, Math.round(est / 60))} min` : '';
-      const where = prefs.cycle ? `bars ${barLabel(prefs.cycle.from)}–${barLabel(prefs.cycle.to - 1)}` : 'the section being played';
+      const time = loopSec ? ' · ' + t('about %d min', Math.max(1, Math.round(est / 60))) : '';
+      const where = prefs.cycle ? t('bars %s–%s', barLabel(prefs.cycle.from), barLabel(prefs.cycle.to - 1)) : t('the section being played');
       summary.textContent = tr.on && passes
-        ? `Now ${cur}% · loop ${(passes % tr.every) + 1} of ${tr.every} at this speed${cur < tr.end ? `, then ${Math.min(tr.end, cur + tr.step)}%` : ' — target reached'}.`
-        : `${steps.length} speeds, ${loops} loop${loops === 1 ? '' : 's'} to reach ${tr.end}%${time}, on ${where}.`;
+        ? (cur < tr.end
+          ? t('Now %d% · loop %d of %d at this speed, then %d%.', cur, (passes % tr.every) + 1, tr.every, Math.min(tr.end, cur + tr.step))
+          : t('Now %d% · loop %d of %d at this speed — target reached.', cur, (passes % tr.every) + 1, tr.every))
+        : t('%s, %s to reach %s%s, on %s.', tn(steps.length, '%d speed', '%d speeds'), tn(loops, '%d loop', '%d loops'), `${tr.end}%`, time, where);
     }
   }
   $('audio-pop-trainer')?.addEventListener('click', (e) => {
@@ -1113,7 +1118,7 @@ window.songbooksDecodable = function (buf) {
     let text = fmtTime(t);
     if (pos !== null && pos >= 0) {
       const b = Math.floor(pos), sec = sectionAt(b);
-      text = `Bar ${barLabel(b)}${sec ? ` · ${sec.label}` : ''} · ${text}`;
+      text = `${window.t('Bar %s', barLabel(b))}${sec ? ` · ${sec.label}` : ''} · ${text}`;
     }
     hoverLabel.textContent = text;
     hoverEl.classList.toggle('flip', clientX - r.left > r.width - 140);
@@ -1217,7 +1222,13 @@ window.songbooksDecodable = function (buf) {
     const target = (preferred && categories[preferred]) ? preferred : (categories.gp ? 'gp' : available[0]);
     selectCategory(target);
     // A key kept from the last visit: the chords go there too.
-    if (prefs.semitones && !keyRestored) { keyRestored = true; shiftChords(prefs.semitones); applyKey(); }
+    // A student's or group's key (studentKey): the chart is there already
+    // (song.js, data-key-offset); only the recording moves.
+    if (prefs.semitones && !keyRestored) {
+      keyRestored = true;
+      if (studentKey === null) shiftChords(prefs.semitones);
+      applyKey();
+    }
     watchSplit();
   }
   let keyRestored = false;
@@ -1375,7 +1386,7 @@ window.songbooksDecodable = function (buf) {
   // reworded here by status code.
   const say = (el, msg, kind) => { if (el && window.Forms) Forms.status(el, msg, kind); };
   const songTitle = document.getElementById('gpimport-panel')?.dataset.songTitle;
-  const songName = songTitle ? `“${songTitle}”` : 'this song';
+  const songName = songTitle ? t('“%s”', songTitle) : t('this song');
 
   // Band recording: plain file upload.
   const bandFileInput = document.getElementById('audio-band-file');
@@ -1388,15 +1399,15 @@ window.songbooksDecodable = function (buf) {
     const fd = new FormData();
     fd.append('file', file);
     Forms.busy(btn, true);
-    say(bandStatus, 'Uploading ' + file.name + '…');
+    say(bandStatus, t('Uploading %s…', file.name));
     try {
       const res = await fetch(`/api/songs/${variantId}/audio/band`, { method: 'PUT', body: fd });
-      if (res.status === 413) { say(bandStatus, 'That file is too big. Use an audio file under 250 MB.', 'error'); return; }
-      if (!res.ok) { say(bandStatus, "Couldn't upload that recording. Check it's an audio file (MP3 works best) and try again.", 'error'); return; }
-      say(bandStatus, 'Recording uploaded.', 'ok');
+      if (res.status === 413) { say(bandStatus, t('That file is too big. Use an audio file under 250 MB.'), 'error'); return; }
+      if (!res.ok) { say(bandStatus, t("Couldn't upload that recording. Check it's an audio file (MP3 works best) and try again."), 'error'); return; }
+      say(bandStatus, t('Recording uploaded.'), 'ok');
       loadMeta();
     } catch (e) {
-      say(bandStatus, "Couldn't upload that recording. Check your connection and try again.", 'error');
+      say(bandStatus, t("Couldn't upload that recording. Check your connection and try again."), 'error');
     } finally {
       Forms.busy(btn, false);
       bandFileInput.value = '';
@@ -1409,10 +1420,10 @@ window.songbooksDecodable = function (buf) {
     if (f) uploadBand(f);
   });
   bandDeleteBtn?.addEventListener('click', async () => {
-    if (!confirm(`Remove the band recording from ${songName}? This can't be undone.`)) return;
+    if (!confirm(t("Remove the band recording from %s? This can't be undone.", songName))) return;
     const res = await fetch(`/api/songs/${variantId}/audio/band`, { method: 'DELETE' });
-    if (res.ok) { say(bandStatus, 'Band recording removed.', 'ok'); loadMeta(); }
-    else say(bandStatus, "Couldn't remove the recording. Try again.", 'error');
+    if (res.ok) { say(bandStatus, t('Band recording removed.'), 'ok'); loadMeta(); }
+    else say(bandStatus, t("Couldn't remove the recording. Try again."), 'error');
   });
 
   // YouTube: downloads audio from the video URL already saved as this
@@ -1428,7 +1439,7 @@ window.songbooksDecodable = function (buf) {
     const url = referenceBlock && referenceBlock.dataset.url;
     if (!url) {
       // No link saved yet: open the link field above instead of a popup.
-      say(ytStatus, 'Add the YouTube link first, then download its audio.', 'error');
+      say(ytStatus, t('Add the YouTube link first, then download its audio.'), 'error');
       const editRow = document.getElementById('reference-edit-row');
       if (editRow && editRow.hidden) document.getElementById('reference-edit-btn')?.click();
       document.getElementById('reference-url-input')?.focus();
@@ -1441,18 +1452,18 @@ window.songbooksDecodable = function (buf) {
     // is easy to miss below the fold on a long page.
     const activeBtn = (ytReplaceBtn && !ytReplaceBtn.hidden) ? ytReplaceBtn : ytDownloadBtn;
     Forms.busy(activeBtn, true);
-    say(ytStatus, 'Downloading… this can take a minute.');
+    say(ytStatus, t('Downloading… this can take a minute.'));
     try {
       const res = await fetch(`/api/songs/${variantId}/audio/youtube`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       });
-      if (res.status === 413) { say(ytStatus, 'That video is too long to keep as audio here.', 'error'); return; }
-      if (!res.ok) { say(ytStatus, "Couldn't get the audio from that video. Check the link opens on YouTube, then try again.", 'error'); return; }
-      say(ytStatus, 'Audio downloaded.', 'ok');
+      if (res.status === 413) { say(ytStatus, t('That video is too long to keep as audio here.'), 'error'); return; }
+      if (!res.ok) { say(ytStatus, t("Couldn't get the audio from that video. Check the link opens on YouTube, then try again."), 'error'); return; }
+      say(ytStatus, t('Audio downloaded.'), 'ok');
       loadMeta();
     } catch (e) {
-      say(ytStatus, "Couldn't reach the server. Check your connection and try again.", 'error');
+      say(ytStatus, t("Couldn't reach the server. Check your connection and try again."), 'error');
     } finally {
       ytDownloadBtn && (ytDownloadBtn.disabled = false);
       ytReplaceBtn && (ytReplaceBtn.disabled = false);
@@ -1462,10 +1473,10 @@ window.songbooksDecodable = function (buf) {
   ytDownloadBtn?.addEventListener('click', downloadFromReference);
   ytReplaceBtn?.addEventListener('click', downloadFromReference);
   ytDeleteBtn?.addEventListener('click', async () => {
-    if (!confirm(`Remove the audio downloaded from the YouTube video for ${songName}? The video link stays. This can't be undone.`)) return;
+    if (!confirm(t("Remove the audio downloaded from the YouTube video for %s? The video link stays. This can't be undone.", songName))) return;
     const res = await fetch(`/api/songs/${variantId}/audio/youtube`, { method: 'DELETE' });
-    if (res.ok) { say(ytStatus, 'Downloaded audio removed.', 'ok'); loadMeta(); }
-    else say(ytStatus, "Couldn't remove the audio. Try again.", 'error');
+    if (res.ok) { say(ytStatus, t('Downloaded audio removed.'), 'ok'); loadMeta(); }
+    else say(ytStatus, t("Couldn't remove the audio. Try again."), 'error');
   });
 
   // Reflect which categories already exist in the drawer's own
@@ -1478,15 +1489,15 @@ window.songbooksDecodable = function (buf) {
   function renderKinds() {
     if (!kindList) return;
     const cats = Object.keys(categories);
-    if (!cats.length) { kindList.innerHTML = '<span class="hint">No recording yet.</span>'; return; }
-    const names = { gp: 'Guitar Pro recording', youtube: 'YouTube recording', band: 'Band recording' };
+    if (!cats.length) { kindList.innerHTML = `<span class="hint">${t('No recording yet.')}</span>`; return; }
+    const names = { gp: t('Guitar Pro recording'), youtube: t('YouTube recording'), band: t('Band recording') };
     kindList.innerHTML = '';
     for (const cat of cats) {
       // A div, not a wrapping <label>: the status text beside the select
       // would otherwise become part of its name.
       const row = document.createElement('div');
       row.className = 'audio-kind-row';
-      row.innerHTML = `<span><label for="audio-kind-${cat}">${names[cat] || cat}</label></span><select id="audio-kind-${cat}"><option value="">Not set</option><option value="full">Full performance — every part playing</option><option value="backing">Backing track — the part to practise left out</option></select><span class="hint form-status" role="status"></span>`;
+      row.innerHTML = `<span><label for="audio-kind-${cat}">${names[cat] || cat}</label></span><select id="audio-kind-${cat}"><option value="">${t('Not set')}</option><option value="full">${t('Full performance — every part playing')}</option><option value="backing">${t('Backing track — the part to practise left out')}</option></select><span class="hint form-status" role="status"></span>`;
       const sel = row.querySelector('select');
       const note = row.querySelector('.form-status');
       sel.value = categories[cat].kind || '';
@@ -1495,7 +1506,7 @@ window.songbooksDecodable = function (buf) {
         const res = await fetch(`/api/songs/${variantId}/audio/${cat}/kind`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: sel.value }),
         }).catch(() => null);
-        say(note, res && res.ok ? 'Saved.' : "Couldn't save. Try again.", res && res.ok ? 'ok' : 'error');
+        say(note, res && res.ok ? t('Saved.') : t("Couldn't save. Try again."), res && res.ok ? 'ok' : 'error');
         if (res && res.ok) categories[cat].kind = sel.value;
         else sel.value = categories[cat].kind || '';
       });

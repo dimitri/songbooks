@@ -48,7 +48,7 @@
   const COLOR = { audio: '#66A3FF', melodic: '#74BE59', drums: '#E8C050', click: '#A0A0B4' };
   const BODY = { melodic: '#E4F3DC', drums: '#FAF1D2' };
   const GM = { 0: 'Piano', 4: 'Electric piano', 16: 'Organ', 24: 'Nylon guitar', 25: 'Steel guitar', 26: 'Jazz guitar', 27: 'Clean guitar', 28: 'Muted guitar', 29: 'Overdrive guitar', 30: 'Distortion guitar', 32: 'Acoustic bass', 33: 'Finger bass', 34: 'Pick bass', 35: 'Fretless bass', 36: 'Slap bass', 48: 'Strings', 56: 'Trumpet', 65: 'Alto sax', 66: 'Tenor sax', 73: 'Flute', '-1': 'Drum kit' };
-  const CAT_LABEL = { gp: 'Guitar Pro recording', youtube: 'YouTube', band: 'Band recording' };
+  const CAT_LABEL = { gp: t('Guitar Pro recording'), youtube: 'YouTube', band: t('Band recording') };
   // A recording's parts (cmd/stemsd), each a lane under it.
   const STEMS = [
     { stem: 'vocals', name: 'Vocals', color: '#F07C9A' },
@@ -249,14 +249,18 @@
   }
 
   function trackHeader(tr, sub, extra) {
+    // The app's own track names (Reference, Click, the parts) in the
+    // page's language; a score track's is the file's. tr.name stays the
+    // key the person's mix is saved under.
+    const shown = tr.kind === 'midi' ? tr.name : t(tr.name);
     return `<span class="daw-hdr-stripe" style="background:${tr.color}"></span>
       <div class="daw-hdr-body">
-        <div class="daw-hdr-top">${tr.icon}<span class="daw-hdr-name" title="${escapeHTML(tr.name)}">${escapeHTML(tr.name)}</span>
-          <button type="button" class="daw-ms is-mute" aria-pressed="false" title="mute">M</button>
-          <button type="button" class="daw-ms is-solo" aria-pressed="false" title="solo">S</button></div>
+        <div class="daw-hdr-top">${tr.icon}<span class="daw-hdr-name" title="${escapeHTML(shown)}">${escapeHTML(shown)}</span>
+          <button type="button" class="daw-ms is-mute" aria-pressed="false" title="${escapeHTML(t('mute'))}">M</button>
+          <button type="button" class="daw-ms is-solo" aria-pressed="false" title="${escapeHTML(t('solo'))}">S</button></div>
         ${extra || ''}
         <div class="daw-hdr-sub">${sub}</div>
-        <div class="daw-hdr-row"><input type="range" class="daw-vol" min="0" max="${tr.kind === 'audio' || tr.kind === 'stem' ? 1 : 2}" step="0.01" value="1" aria-label="volume"><span class="daw-vol-label">100%</span></div>
+        <div class="daw-hdr-row"><input type="range" class="daw-vol" min="0" max="${tr.kind === 'audio' || tr.kind === 'stem' ? 1 : 2}" step="0.01" value="1" aria-label="${escapeHTML(t('volume'))}"><span class="daw-vol-label">100%</span></div>
       </div>`;
   }
 
@@ -339,15 +343,15 @@
     rows = {};
     tracks = [];
 
-    addRow('ruler', ROW.ruler, '<span>Bars</span>', { meta: true, laneClass: 'is-ruler' });
-    addRow('sections', ROW.sections, '<span>Sections</span>', { meta: true, laneClass: 'is-meta' });
-    addRow('chords', ROW.chords, '<span>Chords</span>', { meta: true, laneClass: 'is-meta' });
+    addRow('ruler', ROW.ruler, `<span>${escapeHTML(t('Bars'))}</span>`, { meta: true, laneClass: 'is-ruler' });
+    addRow('sections', ROW.sections, `<span>${escapeHTML(t('Sections'))}</span>`, { meta: true, laneClass: 'is-meta' });
+    addRow('chords', ROW.chords, `<span>${escapeHTML(t('Chords'))}</span>`, { meta: true, laneClass: 'is-meta' });
 
     if (refCat) {
       const tr = { kind: 'audio', name: 'Reference', color: COLOR.audio, icon: ICON_WAVE, muted: false, solo: false, volume: 1 };
       const cats = Object.keys(audioCats);
       const select = cats.length > 1
-        ? `<select class="daw-ref-select" aria-label="reference recording">${cats.map((c) => `<option value="${c}"${c === refCat ? ' selected' : ''}>${CAT_LABEL[c] || c}</option>`).join('')}</select>`
+        ? `<select class="daw-ref-select" aria-label="${escapeHTML(t('reference recording'))}">${cats.map((c) => `<option value="${c}"${c === refCat ? ' selected' : ''}>${CAT_LABEL[c] || c}</option>`).join('')}</select>`
         : '';
       const row = addRow('audio', ROW.audio, trackHeader(tr, refSubtitle(), select));
       tr.hdr = row.hdr; tr.lane = row.lane;
@@ -378,9 +382,11 @@
       // every song, and for every lane of the same instrument here.
       tr.instrument = tr.strings <= 4 ? 'bass' : 'guitar';
       tr.notation = notationOf(tr.instrument);
-      const pick = t.drums ? '' : `<div class="daw-hdr-row"><select class="daw-notation" aria-label="notation" title="how you read ${tr.instrument} parts, on every song (just for you)">
-          <option value="tab">Tab</option><option value="staff">Staff</option><option value="both">Staff + tab</option></select></div>`;
-      const row = addRow('midi' + i, t.drums ? 96 : 112, trackHeader(tr, `${GM[t.program] || 'MIDI'} · score (MIDI)`, pick));
+      const tt = window.t; // t is the track here
+      const how = tr.instrument === 'bass' ? tt('how you read bass parts, on every song (just for you)') : tt('how you read guitar parts, on every song (just for you)');
+      const pick = t.drums ? '' : `<div class="daw-hdr-row"><select class="daw-notation" aria-label="${escapeHTML(tt('notation'))}" title="${escapeHTML(how)}">
+          <option value="tab">${escapeHTML(tt('Tab'))}</option><option value="staff">${escapeHTML(tt('notation|Staff'))}</option><option value="both">${escapeHTML(tt('Staff + tab'))}</option></select></div>`;
+      const row = addRow('midi' + i, t.drums ? 96 : 112, trackHeader(tr, `${escapeHTML(tt(GM[t.program] || 'MIDI'))} · ${escapeHTML(tt('score (MIDI)'))}`, pick));
       tr.hdr = row.hdr; tr.lane = row.lane;
       tracks.push(tr);
       wireTrackHeader(tr);
@@ -395,7 +401,7 @@
     // muted to begin with, mute / solo / volume from there.
     if (N()) {
       const tr = { kind: 'click', name: 'Click', color: COLOR.click, icon: ICON_CLICK, muted: true, solo: false, volume: 1 };
-      const row = addRow('click', 56, trackHeader(tr, 'metronome · follows the bars'), { laneClass: 'is-click' });
+      const row = addRow('click', 56, trackHeader(tr, escapeHTML(t('metronome · follows the bars'))), { laneClass: 'is-click' });
       tr.hdr = row.hdr; tr.lane = row.lane;
       tracks.push(tr);
       wireTrackHeader(tr);
@@ -403,8 +409,8 @@
     }
 
     if (!refCat && !(data.tracks || []).length) {
-      const row = addRow('empty', 64, '<span>Tracks</span>', { meta: true });
-      row.lane.innerHTML = '<span class="daw-lane-empty">No reference recording and no score yet — add a recording from the Reference tab, or import a Guitar Pro file.</span>';
+      const row = addRow('empty', 64, `<span>${escapeHTML(t('Tracks'))}</span>`, { meta: true });
+      row.lane.innerHTML = `<span class="daw-lane-empty">${escapeHTML(t('No reference recording and no score yet — add a recording from the Reference tab, or import a Guitar Pro file.'))}</span>`;
     }
 
     playheadEl = document.createElement('div');
@@ -421,9 +427,9 @@
   function refSubtitle() {
     const meta = audioCats[refCat];
     const dur = audioDuration ? ' · ' + fmtTime(audioDuration).replace(/\.\d$/, '') : '';
-    let sync = 'not aligned yet';
-    if (meta && meta.barSyncPoints && meta.barSyncPoints.length) sync = `aligned · ${meta.barSyncPoints.length} bar sync points`;
-    else if (meta && meta.markers && meta.markers.length) sync = `aligned · ${meta.markers.length} section marker${meta.markers.length > 1 ? 's' : ''}`;
+    let sync = t('not aligned yet');
+    if (meta && meta.barSyncPoints && meta.barSyncPoints.length) sync = tn(meta.barSyncPoints.length, 'aligned · %d bar sync point', 'aligned · %d bar sync points');
+    else if (meta && meta.markers && meta.markers.length) sync = tn(meta.markers.length, 'aligned · %d section marker', 'aligned · %d section markers');
     return `${CAT_LABEL[refCat] || refCat}${dur} · ${sync}`;
   }
 
@@ -507,14 +513,14 @@
       el.style.left = xOf(t0) + 'px';
       el.style.width = Math.max(4, (t1 - t0) * pxPerSec - 2) + 'px';
       el.style.background = sectionColor(s.label);
-      el.title = `${s.label} — ${s.barCount} bars (${barLabel(s.startBar)}–${barLabel(s.startBar + s.barCount - 1)})`;
+      el.title = `${s.label} — ${tn(s.barCount, '%d bar', '%d bars')} (${barLabel(s.startBar)}–${barLabel(s.startBar + s.barCount - 1)})`;
       el.innerHTML = `${escapeHTML(s.label)}<span class="daw-section-bars">${s.barCount}</span>`;
       if (aligning && canEdit) {
         // The section's start, draggable here too (same as its flag on
         // the recording).
         const grip = document.createElement('span');
         grip.className = 'daw-section-grip';
-        grip.title = `drag to move where ${s.label} starts — everything after follows (⌥: only this boundary, ⇧: whole grid)`;
+        grip.title = t('drag to move where %s starts — everything after follows (⌥: only this boundary, ⇧: whole grid)', s.label);
         grip.addEventListener('mousedown', (e) => startAnchorDrag(e, anchorList().find((x) => x.i === i)));
         grip.addEventListener('click', (e) => e.stopPropagation());
         el.appendChild(grip);
@@ -654,7 +660,7 @@
       clip.style.width = audioDuration * pxPerSec + 'px';
       clip.style.background = COLOR.audio;
       clip.innerHTML = `<div class="daw-clip-hdr" style="background:${COLOR.audio}"><span>${escapeHTML(document.title.replace(/ — Songbooks$/, ''))} — ${CAT_LABEL[refCat] || refCat}</span></div>`;
-      if (canEdit) clip.title = 'drag left or right to slide the recording against the bars';
+      if (canEdit) clip.title = t('drag left or right to slide the recording against the bars');
       lane.insertBefore(clip, lane.firstChild);
     }
     if (!waveCanvas || waveCanvas.parentNode !== lane) {
@@ -780,7 +786,7 @@
       }
       analysis = { x, sr: decoded.sampleRate / f };
     } catch (e) {
-      setStatus('Could not decode the recording for its waveform (playback still works).');
+      setStatus(t('Could not decode the recording for its waveform (playback still works).'));
     }
   }
 
@@ -983,8 +989,8 @@
     playheadEl.style.left = x + 'px';
     headEl.style.left = x + 'px';
     const b = barAt(position);
-    if (b < 0) lcdBar.textContent = 'lead-in';
-    else if (b >= N()) lcdBar.textContent = 'end';
+    if (b < 0) lcdBar.textContent = t('lead-in');
+    else if (b >= N()) lcdBar.textContent = t('end');
     else {
       const bar = Math.floor(b);
       lcdBar.textContent = `${barLabel(bar)}.${Math.floor((b - bar) * beatsPerBar()) + 1}`;
@@ -1199,9 +1205,9 @@
   function updateZoomLabel() {
     const label = $('daw-zoom-label');
     const [lo] = zoomBounds();
-    if (pxPerSec <= lo * 1.001) { label.textContent = 'whole song'; return; }
+    if (pxPerSec <= lo * 1.001) { label.textContent = t('whole song'); return; }
     const bars = viewWidth() / pxPerSec / avgBarSec();
-    label.textContent = bars < 10 ? `${bars.toFixed(1).replace(/\.0$/, '')} bars` : `${Math.round(bars)} bars`;
+    label.textContent = t('%s bars', bars < 10 ? bars.toFixed(1).replace(/\.0$/, '') : Math.round(bars));
   }
 
   function zoomToFit() {
@@ -1248,7 +1254,9 @@
       const el = document.createElement('div');
       el.className = 'daw-anchor' + (a.real ? '' : ' is-estimated');
       el.style.left = xOf(barTimes[a.bar]) + 'px';
-      el.title = `${a.label} starts at ${fmtTime(barTimes[a.bar])}${a.real ? '' : ' (estimated from tempo)'} — drag to align`;
+      el.title = a.real
+        ? t('%s starts at %s — drag to align', a.label, fmtTime(barTimes[a.bar]))
+        : t('%s starts at %s (estimated from tempo) — drag to align', a.label, fmtTime(barTimes[a.bar]));
       el.innerHTML = `<span class="daw-anchor-flag">${escapeHTML(a.label)}</span>`;
       el.addEventListener('mousedown', (e) => startAnchorDrag(e, a));
       lane.appendChild(el);
@@ -1351,7 +1359,9 @@
         lane.classList.add('is-sliding');
       }
       shiftEls().forEach((el) => { el.style.transform = `translateX(${dx}px)`; });
-      alignStatus.textContent = `recording ${dx >= 0 ? 'later' : 'earlier'} by ${Math.abs(dx / pxPerSec).toFixed(2)}s against the bars`;
+      alignStatus.textContent = dx >= 0
+        ? t('recording later by %ss against the bars', Math.abs(dx / pxPerSec).toFixed(2))
+        : t('recording earlier by %ss against the bars', Math.abs(dx / pxPerSec).toFixed(2));
     };
     const onUp = async (ev) => {
       document.removeEventListener('mousemove', onMove);
@@ -1364,7 +1374,7 @@
       barTimes = orig.map((t) => t - d);
       layout(true);
       const first = pickup() ? 1 : 0;
-      await saveAlignment({ bar: first, label: `Bar ${barLabel(first)}`, i: 0 }, orig);
+      await saveAlignment({ bar: first, label: t('Bar %s', barLabel(first)), i: 0 }, orig);
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -1372,7 +1382,7 @@
 
   async function saveAlignment(a, orig) {
     const meta = audioCats[refCat];
-    alignStatus.textContent = 'saving…';
+    alignStatus.textContent = t('saving…');
     try {
       if (meta.barSyncPoints && meta.barSyncPoints.length) {
         const points = [];
@@ -1390,10 +1400,10 @@
           if (m) m.timeSeconds = t; else meta.markers.push({ sectionIndex: s.index, timeSeconds: t });
         }
       }
-      alignStatus.textContent = `saved — ${a.label} at ${fmtTime(barTimes[a.bar])}`;
+      alignStatus.textContent = t('saved — %s at %s', a.label, fmtTime(barTimes[a.bar]));
       document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
     } catch (err) {
-      alignStatus.textContent = 'could not save: ' + err.message;
+      alignStatus.textContent = t('could not save: %s', err.message);
       barTimes = orig;
     }
     computeBarTimes();
@@ -1408,11 +1418,11 @@
 
   function updateAlignStatus() {
     if (!aligning) return;
-    alignStatus.textContent = selected >= 0 ? `selected: ${data.sections[selected].label}` : 'select a section to set its start at the playhead';
+    alignStatus.textContent = selected >= 0 ? t('selected: %s', data.sections[selected].label) : t('select a section to set its start at the playhead');
   }
 
   alignBtn?.addEventListener('click', () => {
-    if (!hasAudio()) { setStatus('Add a reference recording first (Reference tab) — there is nothing to align yet.'); return; }
+    if (!hasAudio()) { setStatus(t('Add a reference recording first (Reference tab) — there is nothing to align yet.')); return; }
     aligning = !aligning;
     alignBtn.setAttribute('aria-pressed', aligning);
     alignBar.hidden = !aligning;
@@ -1421,7 +1431,7 @@
     updateAlignStatus();
   });
   $('daw-align-here')?.addEventListener('click', async () => {
-    if (selected < 0) { alignStatus.textContent = 'select a section first (click it in the Sections row)'; return; }
+    if (selected < 0) { alignStatus.textContent = t('select a section first (click it in the Sections row)'); return; }
     const s = data.sections[selected];
     const a = anchorList().find((x) => x.i === selected);
     const orig = barTimes.slice();
@@ -1477,17 +1487,17 @@
 
   async function autoAlign() {
     const btn = $('daw-autoalign');
-    if (!hasAudio()) { setStatus('Add a reference recording first (Reference tab) — there is nothing to align yet.'); return; }
-    if (!window.SongbooksAutoAlign) { setStatus('Auto-align did not load.'); return; }
+    if (!hasAudio()) { setStatus(t('Add a reference recording first (Reference tab) — there is nothing to align yet.')); return; }
+    if (!window.SongbooksAutoAlign) { setStatus(t('Auto-align did not load.')); return; }
     const existing = audioCats[refCat] || {};
     const authored = (existing.barSyncPoints || []).length || (existing.markers || []).length;
-    if (authored && !window.confirm(`This recording is already aligned (${refSubtitle().split(' · ').pop()}). Replace that with an automatic alignment? You can undo it afterwards.`)) return;
+    if (authored && !window.confirm(t('This recording is already aligned (%s). Replace that with an automatic alignment? You can undo it afterwards.', refSubtitle().split(' · ').pop()))) return;
     pause();
     btn.disabled = true;
-    btn.textContent = 'Analysing…';
+    btn.textContent = t('Analysing…');
     try {
       for (let i = 0; !analysis && i < 100; i++) await new Promise((r) => setTimeout(r, 100));
-      if (!analysis) throw new Error('the recording could not be decoded');
+      if (!analysis) throw new Error(t('the recording could not be decoded'));
       await new Promise((r) => setTimeout(r, 30));
       const res = window.SongbooksAutoAlign.analyze(analysis, songForAlign());
       snapshotForUndo();
@@ -1496,15 +1506,15 @@
       if (!aligning) alignBtn.click();
       $('daw-align-undo').hidden = false;
       const first = pickup() ? 1 : 0;
-      alignStatus.textContent = `Auto-aligned and saved (${res.how}: ${res.bpm.toFixed(1)} bpm, bar ${barLabel(first)} at ${fmtTime(barTimes[first])}). The Song view follows it too. Check by playing; drag a flag to correct (saved as you drop it), or undo.`;
+      alignStatus.textContent = t('Auto-aligned and saved (%s: %s bpm, bar %s at %s). The Song view follows it too. Check by playing; drag a flag to correct (saved as you drop it), or undo.', res.how, res.bpm.toFixed(1), barLabel(first), fmtTime(barTimes[first]));
       seek(Math.max(0, barTimes[first] - 2 * nominalBarSec()));
       followPlayhead();
     } catch (err) {
-      alignStatus.textContent = 'Auto-align failed: ' + err.message;
-      setStatus('Auto-align failed: ' + err.message);
+      alignStatus.textContent = t('Auto-align failed: %s', err.message);
+      setStatus(t('Auto-align failed: %s', err.message));
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Auto-align';
+      btn.textContent = t('Auto-align');
     }
   }
 
@@ -1551,13 +1561,13 @@
       }
       undoSnapshot = null;
       $('daw-align-undo').hidden = true;
-      alignStatus.textContent = 'Undone — back to the previous alignment.';
+      alignStatus.textContent = t('Undone — back to the previous alignment.');
       document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
       computeBarTimes();
       rows.audio.hdr.querySelector('.daw-hdr-sub').textContent = refSubtitle();
       layout();
     } catch (err) {
-      alignStatus.textContent = 'Could not undo: ' + err.message;
+      alignStatus.textContent = t('Could not undo: %s', err.message);
     }
   }
 
@@ -1594,7 +1604,7 @@
     }
     stemAudio = {};
     if (!cat) { audio = null; return; }
-    setStatus('Loading the recording…');
+    setStatus(t('Loading the recording…'));
     let bytes;
     try {
       bytes = window.songbooksAudioBytes
@@ -1602,7 +1612,7 @@
         : await (await fetch(`/song/${variantId}/audio.mp3?category=${cat}`)).arrayBuffer();
     } catch (e) {
       audio = null;
-      setStatus('Could not load the recording: ' + e.message);
+      setStatus(t('Could not load the recording: %s', e.message));
       return;
     }
     audio = new Audio(URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' })));
@@ -1670,7 +1680,7 @@
   async function loadGPScore() {
     if (typeof alphaTab === 'undefined' || !data.gpOrder) return;
     const res = await fetch(`/song/${variantId}/gp-file`);
-    if (!res.ok) throw new Error('could not load the Guitar Pro file');
+    if (!res.ok) throw new Error(t('could not load the Guitar Pro file'));
     const file = alphaTab.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(await res.arrayBuffer()), new alphaTab.Settings());
     const obj = JSON.parse(alphaTab.model.JsonConverter.scoreToJson(file));
     const copy = (x) => JSON.parse(JSON.stringify(x));
@@ -1755,7 +1765,7 @@
   }
 
   async function init() {
-    setStatus('Loading…');
+    setStatus(t('Loading…'));
     try {
       const [mx, au] = await Promise.all([
         fetch(`/api/songs/${variantId}/mixer`).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.statusText)))),
@@ -1777,9 +1787,9 @@
       if (hasAudio() && barTimes[0] > 3) scrollEl.scrollLeft = Math.max(0, xOf(barTimes[0]) - 80);
       seek(hasAudio() ? 0 : barTimes[0]);
       drawWave();
-      setStatus(data.tracks.length && typeof alphaTab === 'undefined' ? 'Score tracks need the notation engine, which did not load.' : '');
+      setStatus(data.tracks.length && typeof alphaTab === 'undefined' ? t('Score tracks need the notation engine, which did not load.') : '');
     } catch (e) {
-      setStatus('Could not load the mixer: ' + e.message);
+      setStatus(t('Could not load the mixer: %s', e.message));
     }
   }
 

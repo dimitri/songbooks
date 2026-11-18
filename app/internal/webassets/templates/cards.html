@@ -5,25 +5,25 @@
   <div class="band-card-head">
     <div>
       <h4><a class="band-card-title-link" href="/bands/{{.ID}}">{{.Name}}</a></h4>
-      <div class="band-card-members">{{.Members}} member{{if ne .Members 1}}s{{end}}</div>
+      <div class="band-card-members">{{tn .Members "%d member" "%d members"}}</div>
     </div>
   </div>
-  {{with .Digest}}<div class="band-card-digest">{{.}}</div>{{end}}
+  {{with .Digest}}<div class="band-card-digest">{{t .}}</div>{{end}}
   {{if .HasNextGig}}
   <div class="band-card-gig">
-    <a href="/setlists/{{.NextGigSetlist}}">{{template "icon-presentation"}} {{.NextGigDate.Format "Jan 2"}}{{if .NextGigVenue}} &middot; {{.NextGigVenue}}{{end}}</a>
+    <a href="/setlists/{{.NextGigSetlist}}">{{template "icon-presentation"}} {{date .NextGigDate "2 Jan"}}{{if .NextGigVenue}} &middot; {{.NextGigVenue}}{{end}}</a>
   </div>
   {{end}}
   <div class="band-card-actions">
-    <a href="/bands/{{.ID}}/catalog">songbook</a>
+    <a href="/bands/{{.ID}}/catalog">{{t "songbook"}}</a>
     {{if eq .SetlistCount 1}}
-    <a href="/setlists/{{.FirstSetlistID}}">set list</a>
+    <a href="/setlists/{{.FirstSetlistID}}">{{t "set list"}}</a>
     {{else if gt .SetlistCount 1}}
-    <a href="/bands/{{.ID}}/setlists">{{.SetlistCount}} set lists</a>
+    <a href="/bands/{{.ID}}/setlists">{{tn .SetlistCount "%d set list" "%d set lists"}}</a>
     {{else}}
-    <a href="/bands/{{.ID}}/setlists">set lists</a>
+    <a href="/bands/{{.ID}}/setlists">{{t "set lists"}}</a>
     {{end}}
-    {{if .OpenVotes}}<a class="votes" href="/bands/{{.ID}}/proposals">{{.OpenVotes}} to vote on</a>{{end}}
+    {{if .OpenVotes}}<a class="votes" href="/bands/{{.ID}}/proposals">{{t "%d to vote on" .OpenVotes}}</a>{{end}}
   </div>
 </div>
 {{end}}
@@ -33,19 +33,19 @@
   <div class="band-card-head">
     <div>
       <h4><a class="band-card-title-link" href="/communities/{{.ID}}">{{.Name}}</a></h4>
-      <div class="band-card-members">{{.MemberCount}} member{{if ne .MemberCount 1}}s{{end}} &middot; {{.MyRole}}</div>
+      <div class="band-card-members">{{tn .MemberCount "%d member" "%d members"}} &middot; {{t (printf "role|%s" .MyRole)}}</div>
     </div>
   </div>
-  <div class="band-card-digest">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}} in the default songbook</div>
+  <div class="band-card-digest">{{tn .SongCount "%d song in the default songbook" "%d songs in the default songbook"}}</div>
   {{if .HasNextEvent}}
   <div class="band-card-gig">
-    <a href="/events/{{.NextEventID}}">{{template "icon-presentation"}} {{.NextEventDate.Format "Jan 2"}} &middot; {{.NextEventName}}</a>
+    <a href="/events/{{.NextEventID}}">{{template "icon-presentation"}} {{date .NextEventDate "2 Jan"}} &middot; {{.NextEventName}}</a>
   </div>
   {{end}}
   <div class="band-card-actions">
-    <a href="/communities/{{.ID}}/songbooks">songbooks</a>
-    <a href="/communities/{{.ID}}/events">events</a>
-    {{if eq .MyRole "staff"}}<a href="/communities/{{.ID}}/admin">staff admin</a>{{end}}
+    <a href="/communities/{{.ID}}/songbooks">{{t "songbooks"}}</a>
+    <a href="/communities/{{.ID}}/events">{{t "events"}}</a>
+    {{if eq .MyRole "staff"}}<a href="/communities/{{.ID}}/admin">{{t "staff admin"}}</a>{{end}}
   </div>
 </div>
 {{end}}
@@ -55,12 +55,12 @@
 {{define "gig-card"}}
 <a class="coming-up-card" href="/setlists/{{.SetlistID}}">
   <div class="coming-up-date">
-    <span class="month">{{.Date.Format "Jan"}}</span>
+    <span class="month">{{date .Date "Jan"}}</span>
     <span class="day">{{.Date.Format "2"}}</span>
   </div>
   <div class="coming-up-text">
     <div class="coming-up-title">{{if .BandName}}{{.BandName}} &mdash; {{end}}{{.SetlistTitle}}</div>
-    <div class="coming-up-venue">{{if .Venue}}{{.Venue}}{{else}}venue TBD{{end}}</div>
+    <div class="coming-up-venue">{{if .Venue}}{{.Venue}}{{else}}{{t "venue TBD"}}{{end}}</div>
   </div>
 </a>
 {{end}}
@@ -72,25 +72,25 @@
 <div class="setlist-row">
   <a class="setlist-row-title" href="/setlists/{{.ID}}">{{.Title}}</a>
   <div class="setlist-row-actions">
-    <a class="chip-link" href="/setlists/{{.ID}}/clicktrack">{{template "icon-tap"}} Click track</a>
+    <a class="chip-link" href="/setlists/{{.ID}}/clicktrack">{{template "icon-tap"}} {{t "Click track"}}</a>
   </div>
   <details class="setlist-row-export">
-    <summary>Export</summary>
+    <summary>{{t "Export"}}</summary>
     <span class="pdf-mode-row">
       {{/* The layout and notes choices rewrite the link (pdf-export.js),
            so they come first and the download last. */}}
-      <label class="pdf-notes-label">Layout
+      <label class="pdf-notes-label">{{t "Layout"}}
         <select class="pdf-mode-select">
-          <option value="">Song</option>
-          <option value="jazz">Jazz chart</option>
-          <option value="map">Song map</option>
-          <option value="lyrics">Lyrics only</option>
+          <option value="">{{t "Song"}}</option>
+          <option value="jazz">{{t "Jazz chart"}}</option>
+          <option value="map">{{t "Song map"}}</option>
+          <option value="lyrics">{{t "Lyrics only"}}</option>
         </select>
       </label>
-      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> Include notes</label>
-      <a class="pdf-export-link" href="/setlists/{{.ID}}/export.pdf" download>{{template "icon-download"}} Every song (PDF)</a>
+      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> {{t "Include notes"}}</label>
+      <a class="pdf-export-link" href="/setlists/{{.ID}}/export.pdf" download>{{template "icon-download"}} {{t "Every song (PDF)"}}</a>
     </span>
-    <a href="/setlists/{{.ID}}/export-setlist-page.pdf" download>{{template "icon-download"}} Running order, one page (PDF)</a>
+    <a href="/setlists/{{.ID}}/export-setlist-page.pdf" download>{{template "icon-download"}} {{t "Running order, one page (PDF)"}}</a>
   </details>
 </div>
 {{end}}

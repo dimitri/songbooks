@@ -1,7 +1,7 @@
 {{define "songbook"}}
 {{$brand := brandOwner .Songbook.OwnerKind .Songbook.OwnerBandID .Songbook.OwnerCommunityID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -27,12 +27,12 @@
   <section class="sb-look look-{{.Mood}}" style="{{.Style}}" aria-label="{{$.Songbook.Name}}">
     <div class="sb-mosaic">{{range .Mosaic}}<a href="{{.Link}}" target="_blank" rel="noopener" title="{{.Album}}{{with .Year}} ({{.}}){{end}}"><img src="{{.Image}}" alt="{{.Album}}" loading="lazy" referrerpolicy="no-referrer"></a>{{end}}</div>
     <div class="sb-look-text">
-      <p class="sb-look-eyebrow">{{if and $.Songbook.IsDefault $.OwnerName}}Songbook{{else}}{{$.OwnerName}}{{end}} · {{.Songs}} songs</p>
+      <p class="sb-look-eyebrow">{{if and $.Songbook.IsDefault $.OwnerName}}{{t "Songbook"}}{{else}}{{$.OwnerName}}{{end}} · {{tn .Songs "%d song" "%d songs"}}</p>
       <h2>{{if and $.Songbook.IsDefault $.OwnerName}}{{$.OwnerName}}{{else}}{{$.Songbook.Name}}{{end}}</h2>
       {{with .GenreLine}}<p class="sb-look-genres">{{.}}</p>{{end}}
       <p class="sb-look-artists">{{.ArtistLine}}</p>
       <div class="sb-look-foot">
-        <a class="sb-look-play" href="/songbooks/{{$.Songbook.ID}}/playlist">{{template "icon-play"}} Play the songbook</a>
+        <a class="sb-look-play" href="/songbooks/{{$.Songbook.ID}}/playlist">{{template "icon-play"}} {{t "Play the songbook"}}</a>
         <span class="sb-look-hues" aria-hidden="true">{{range .HueStyles}}<i style="{{.}}"></i>{{end}}</span>
       </div>
     </div>
@@ -40,33 +40,33 @@
   {{end}}
   <section class="book-card card" id="catalog-section" data-songbook-id="{{.Songbook.ID}}">
     <div class="catalog-head">
-      <button type="button" id="catalog-edit-toggle">{{template "icon-edit"}} Edit order</button>
+      <button type="button" id="catalog-edit-toggle">{{template "icon-edit"}} {{t "Edit order"}}</button>
       <span id="catalog-save-status" class="hint" role="status"></span>
     </div>
     {{range .Groups}}
     <div class="set-group">
-      <h3>{{.Label}}</h3>
+      <h3>{{t .Label}}</h3>
       <ul class="song-list" data-group-label="{{.Label}}">
         {{$n := 0}}
         {{range .Songs}}
         {{$n = add1 $n}}
         <li data-variant-id="{{.VariantID}}">
-          <span class="catalog-drag-handle" title="drag to reorder" aria-hidden="true">{{template "icon-grip"}}</span>
+          <span class="catalog-drag-handle" title="{{t "drag to reorder"}}" aria-hidden="true">{{template "icon-grip"}}</span>
           <span class="song-num">{{$n}}.</span>
           {{if $.Look}}{{with .Cover}}<img class="song-cover" src="{{.Image}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{else}}<span class="song-cover" aria-hidden="true"></span>{{end}}{{end}}
           <a class="song-link" href="/song/{{.VariantID}}?songbook={{$.Songbook.ID}}">
             <span class="song-title">{{.Title}}</span>
-            <span class="song-meta">{{if .Tempo}}{{.Tempo}} bpm{{end}}{{if and .Tempo .Key}} &middot; {{end}}{{.Key}}</span>
+            <span class="song-meta">{{if .Tempo}}{{t "%s bpm" .Tempo}}{{end}}{{if and .Tempo .Key}} &middot; {{end}}{{.Key}}</span>
             {{template "song-badges" (index $.Badges .VariantID)}}
           </a>
-          <button type="button" class="remove-song-btn icon-btn danger" data-songbook-id="{{$.Songbook.ID}}" data-variant-id="{{.VariantID}}" title="Remove from this songbook" aria-label="Remove {{.Title}} from this songbook">{{template "icon-trash"}}</button>
+          <button type="button" class="remove-song-btn icon-btn danger" data-songbook-id="{{$.Songbook.ID}}" data-variant-id="{{.VariantID}}" title="{{t "Remove from this songbook"}}" aria-label="{{t "Remove %s from this songbook" .Title}}">{{template "icon-trash"}}</button>
         </li>
         {{end}}
       </ul>
     </div>
     {{end}}
     <div class="add-row">
-      <button type="button" id="open-wizard-btn" data-songbook-id="{{.Songbook.ID}}" class="primary">{{template "icon-plus"}} New song</button>
+      <button type="button" id="open-wizard-btn" data-songbook-id="{{.Songbook.ID}}" class="primary">{{template "icon-plus"}} {{t "New song"}}</button>
     </div>
   </section>
 </main>
@@ -77,25 +77,25 @@
        project.js checks only the step on screen (Forms.validate), since a
        field on a hidden step can't be pointed at. */}}
   <form id="wiz-form" novalidate>
-  <h2 id="song-wizard-title">New song</h2>
+  <h2 id="song-wizard-title">{{t "New song"}}</h2>
   <div class="wizard-steps" id="wizard-steps">
-    <span class="wizard-step-dot active" data-step="0">1 &middot; Title</span>
-    <span class="wizard-step-dot" data-step="1">2 &middot; Key and tempo</span>
-    <span class="wizard-step-dot" data-step="2">3 &middot; Lyrics</span>
-    <span class="wizard-step-dot" data-step="3">4 &middot; Chords</span>
+    <span class="wizard-step-dot active" data-step="0">1 &middot; {{t "Title"}}</span>
+    <span class="wizard-step-dot" data-step="1">2 &middot; {{t "Key and tempo"}}</span>
+    <span class="wizard-step-dot" data-step="2">3 &middot; {{t "Lyrics"}}</span>
+    <span class="wizard-step-dot" data-step="3">4 &middot; {{t "Chords"}}</span>
   </div>
 
   <section class="wizard-panel" data-step="0">
-    <p class="hint">Start from a title. A reference video is optional but makes the rest of this easier — the whole band pulls up the same version, and you can tap tempo along with it on the next step.</p>
+    <p class="hint">{{t "Start from a title. A reference video is optional but makes the rest of this easier — the whole band pulls up the same version, and you can tap tempo along with it on the next step."}}</p>
     <div class="wizard-fields">
-      <label>Title <input type="text" id="wiz-title" required autocomplete="off" enterkeyhint="next"></label>
-      <label>Artist <span class="field-optional">(optional)</span> <input type="text" id="wiz-artist" autocomplete="off" enterkeyhint="next"></label>
+      <label>{{t "Title"}} <input type="text" id="wiz-title" required autocomplete="off" enterkeyhint="next"></label>
+      <label>{{t "Artist"}} <span class="field-optional">{{t "(optional)"}}</span> <input type="text" id="wiz-artist" autocomplete="off" enterkeyhint="next"></label>
     </div>
     <div class="wizard-fields">
       <div class="field">
-        <label for="wiz-reference-url">Reference video <span class="field-optional">(optional)</span></label>
-        <p class="field-hint" id="wiz-reference-hint">A YouTube link, so everyone learns the same version.</p>
-        <input type="url" id="wiz-reference-url" aria-describedby="wiz-reference-hint" placeholder="e.g. https://youtube.com/watch?v=…" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="next">
+        <label for="wiz-reference-url">{{t "Reference video"}} <span class="field-optional">{{t "(optional)"}}</span></label>
+        <p class="field-hint" id="wiz-reference-hint">{{t "A YouTube link, so everyone learns the same version."}}</p>
+        <input type="url" id="wiz-reference-url" aria-describedby="wiz-reference-hint" placeholder="{{t "e.g. %s" "https://youtube.com/watch?v=…"}}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="next">
       </div>
     </div>
     <div class="reference-embed" id="wiz-reference-embed"></div>
@@ -107,57 +107,57 @@
   </section>
 
   <section class="wizard-panel" data-step="1" hidden>
-    <p class="hint">Key and tempo — both optional, both editable later. Tap along with the reference video above if you set one.</p>
+    <p class="hint">{{t "Key and tempo — both optional, both editable later. Tap along with the reference video above if you set one."}}</p>
     <div class="wizard-fields">
-      <label>Key <span class="field-optional">(optional)</span>
+      <label>{{t "Key"}} <span class="field-optional">{{t "(optional)"}}</span>
         <select id="wiz-key">
-          <option value="">Not set</option>
+          <option value="">{{t "Not set"}}</option>
           <option>C</option><option>G</option><option>D</option><option>A</option><option>E</option><option>B</option>
           <option>F</option><option>Bb</option><option>Eb</option><option>Ab</option><option>Db</option>
           <option>Am</option><option>Em</option><option>Bm</option><option>F#m</option><option>C#m</option>
           <option>Dm</option><option>Gm</option><option>Cm</option><option>Fm</option><option>Bbm</option>
         </select>
       </label>
-      <label>Tempo in bpm <span class="field-optional">(optional)</span> <input type="number" id="wiz-tempo" min="20" max="300" step="1" inputmode="numeric" placeholder="e.g. 96" enterkeyhint="next"></label>
-      <button type="button" id="wiz-tap-btn">{{template "icon-tap"}} Tap tempo</button>
+      <label>{{t "Tempo in bpm"}} <span class="field-optional">{{t "(optional)"}}</span> <input type="number" id="wiz-tempo" min="20" max="300" step="1" inputmode="numeric" placeholder="{{t "e.g. %s" "96"}}" enterkeyhint="next"></label>
+      <button type="button" id="wiz-tap-btn">{{template "icon-tap"}} {{t "Tap tempo"}}</button>
     </div>
   </section>
 
   <section class="wizard-panel" data-step="2" hidden>
-    <p class="hint">Fetch lyrics from a URL, or just paste them below — either way, review/edit before creating.</p>
+    <p class="hint">{{t "Fetch lyrics from a URL, or just paste them below — either way, review/edit before creating."}}</p>
     <div class="wizard-fields">
-      <label>Lyrics page address <span class="field-optional">(optional)</span>
-        <input type="url" id="wiz-lyrics-url" placeholder="e.g. https://genius.com/…" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
+      <label>{{t "Lyrics page address"}} <span class="field-optional">{{t "(optional)"}}</span>
+        <input type="url" id="wiz-lyrics-url" placeholder="{{t "e.g. %s" "https://genius.com/…"}}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
       </label>
     </div>
     <div class="import-row">
-      <button type="button" id="wiz-lyrics-fetch">Fetch lyrics</button>
+      <button type="button" id="wiz-lyrics-fetch">{{t "Fetch lyrics"}}</button>
       <span id="wiz-lyrics-status" class="hint" role="status"></span>
     </div>
     <div class="wizard-fields">
       <div class="field">
-        <label for="wiz-lyrics-preview">Lyrics <span class="field-optional">(optional)</span></label>
-        <p class="field-hint" id="wiz-lyrics-hint">Fetched lyrics land here; you can edit them before creating the song.</p>
+        <label for="wiz-lyrics-preview">{{t "Lyrics"}} <span class="field-optional">{{t "(optional)"}}</span></label>
+        <p class="field-hint" id="wiz-lyrics-hint">{{t "Fetched lyrics land here; you can edit them before creating the song."}}</p>
         <textarea id="wiz-lyrics-preview" class="wizard-preview prose" rows="8" aria-describedby="wiz-lyrics-hint"></textarea>
       </div>
     </div>
   </section>
 
   <section class="wizard-panel" data-step="3" hidden>
-    <p class="hint">Fetch a chord/lyric tab from Ultimate Guitar and pick which sections to bring in, or skip straight to pasting/typing text yourself. Ultimate Guitar tabs are often wrong, and bar placement is always a guess — treat this as a starting point to correct, not a finished chart.</p>
+    <p class="hint">{{t "Fetch a chord/lyric tab from Ultimate Guitar and pick which sections to bring in, or skip straight to pasting/typing text yourself. Ultimate Guitar tabs are often wrong, and bar placement is always a guess — treat this as a starting point to correct, not a finished chart."}}</p>
     {{/* Same "Already in the library" list, for when a fetched chart is
          what supplied the title. */}}
     <div id="wiz-import-library-match"></div>
 
     <div class="ug-import-substep" id="ug-step-url">
       <div class="wizard-fields">
-        <label>Ultimate Guitar page address <span class="field-optional">(optional)</span>
-          <input type="url" id="wiz-chords-url" placeholder="e.g. https://tabs.ultimate-guitar.com/tab/…" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
+        <label>{{t "Ultimate Guitar page address"}} <span class="field-optional">{{t "(optional)"}}</span>
+          <input type="url" id="wiz-chords-url" placeholder="{{t "e.g. %s" "https://tabs.ultimate-guitar.com/tab/…"}}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
         </label>
       </div>
       <div class="import-row">
-        <button type="button" id="ug-skip-to-raw">Paste text instead</button>
-        <button type="button" id="wiz-chords-fetch" class="primary">Fetch chart</button>
+        <button type="button" id="ug-skip-to-raw">{{t "Paste text instead"}}</button>
+        <button type="button" id="wiz-chords-fetch" class="primary">{{t "Fetch chart"}}</button>
       </div>
       <span id="wiz-chords-status" class="hint" role="status"></span>
     </div>
@@ -166,17 +166,17 @@
       <p class="hint" id="ug-preview-title"></p>
       <div id="ug-preview-sections" class="ug-preview-sections"></div>
       <div class="form-actions" style="margin-top:0.6rem">
-        <button type="button" id="ug-preview-back">&larr; Back</button>
-        <button type="button" id="ug-preview-use" class="primary">Use selected sections</button>
+        <button type="button" id="ug-preview-back">&larr; {{t "Back"}}</button>
+        <button type="button" id="ug-preview-use" class="primary">{{t "Use selected sections"}}</button>
       </div>
     </div>
 
     <div class="ug-import-substep" id="ug-step-raw" hidden>
-      <p class="hint">Paste chords+lyrics, or whatever the import above produced — this is the exact text that will be saved.</p>
+      <p class="hint">{{t "Paste chords+lyrics, or whatever the import above produced — this is the exact text that will be saved."}}</p>
       <div class="wizard-fields">
         <div class="field">
-          <label for="wiz-chords-preview">Chords and lyrics</label>
-          <p class="field-hint" id="wiz-chords-hint">A [Chord] right before the word it falls on, and a [Section] line before each part.</p>
+          <label for="wiz-chords-preview">{{t "Chords and lyrics"}}</label>
+          <p class="field-hint" id="wiz-chords-hint">{{t "A [Chord] right before the word it falls on, and a [Section] line before each part."}}</p>
           <textarea id="wiz-chords-preview" class="wizard-preview" rows="8" autocapitalize="off" spellcheck="false" aria-describedby="wiz-chords-hint"></textarea>
         </div>
       </div>
@@ -186,23 +186,23 @@
            comment for why a transposed match is never auto-applied. */}}
       <div class="import-ireal-block">
         <div class="import-row">
-          <button type="button" id="wiz-ireal-check-btn">{{template "icon-view"}} Check iReal Pro for bar-accurate chords</button>
+          <button type="button" id="wiz-ireal-check-btn">{{template "icon-view"}} {{t "Check iReal Pro for bar-accurate chords"}}</button>
           <span id="wiz-ireal-status" class="hint" role="status"></span>
         </div>
         <div id="wiz-ireal-candidates" class="import-ireal-candidates"></div>
       </div>
 
       <div class="form-actions" style="margin-top:0.4rem">
-        <button type="button" id="ug-raw-back">&larr; Back to import</button>
+        <button type="button" id="ug-raw-back">&larr; {{t "Back to import"}}</button>
       </div>
     </div>
   </section>
 
   <div class="wizard-actions">
-    <button type="button" id="wiz-cancel">Cancel</button>
-    <button type="button" id="wiz-back" hidden>Back</button>
-    <button type="submit" id="wiz-next" class="primary">Next</button>
-    <button type="submit" id="wiz-create" class="primary" hidden>Create song</button>
+    <button type="button" id="wiz-cancel">{{t "Cancel"}}</button>
+    <button type="button" id="wiz-back" hidden>{{t "Back"}}</button>
+    <button type="submit" id="wiz-next" class="primary">{{t "Next"}}</button>
+    <button type="submit" id="wiz-create" class="primary" hidden>{{t "Create song"}}</button>
     <span id="wiz-status" class="hint" role="status"></span>
   </div>
   </form>

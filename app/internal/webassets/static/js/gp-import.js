@@ -117,7 +117,7 @@
   const stepper = document.getElementById('gpimport-stepper');
   const ORDER = ['fit', 'file', 'align', 'import'];
   function applyFit() {
-    step1Next.textContent = fit === 'whole' ? 'Next: check and import →' : 'Next: line up the sections →';
+    step1Next.textContent = fit === 'whole' ? t('Next: check and import →') : t('Next: line up the sections →');
     trackRow.hidden = fit === 'whole' || !score || score.tracks.length < 2;
     deriveRow.hidden = fit === 'whole' || !score || ourSections.length > 0;
     stepper.querySelector('[data-step="align"]').classList.toggle('skipped', fit === 'whole');
@@ -148,23 +148,23 @@
   async function runSearch() {
     const title = searchTitleInput.value.trim();
     // `required` (checked by forms.js before submit) lets only-spaces through.
-    if (!title) { Forms.fieldError(searchTitleInput, 'Enter the song title to search for.'); searchTitleInput.focus(); return; }
+    if (!title) { Forms.fieldError(searchTitleInput, t('Enter the song title to search for.')); searchTitleInput.focus(); return; }
     Forms.busy(searchBtn, true);
     searchResults.innerHTML = '';
-    setStatus('Searching GProTab.net…');
+    setStatus(t('Searching GProTab.net…'));
     try {
       const qs = new URLSearchParams({ title, artist: searchArtistInput.value.trim() });
       const res = await fetch(`/api/import/gp/find?${qs}`);
       if (!res.ok) throw new Error(await res.text());
       const { candidates } = await res.json();
       if (!candidates || !candidates.length) {
-        setStatus('Nothing on GProTab.net for that title. Try a different spelling, or choose a file from your computer.', 'err');
+        setStatus(t('Nothing on GProTab.net for that title. Try a different spelling, or choose a file from your computer.'), 'err');
         return;
       }
-      setStatus(candidates.length === 1 ? 'Found 1 file.' : `Found ${candidates.length} files.`, 'ok');
+      setStatus(tn(candidates.length, 'Found %d file.', 'Found %d files.'), 'ok');
       renderSearchResults(candidates);
     } catch (e) {
-      setStatus("Couldn't search GProTab.net just now. Try again, or choose a file from your computer.", 'err');
+      setStatus(t('Couldn’t search GProTab.net just now. Try again, or choose a file from your computer.'), 'err');
     } finally {
       Forms.busy(searchBtn, false);
     }
@@ -174,7 +174,7 @@
     searchResults.innerHTML = '';
     const table = document.createElement('table');
     table.className = 'gpimport-mapping-table';
-    table.innerHTML = '<thead><tr><th>Title</th><th>Artist</th><th>Format</th><th>Size</th><th>Rating</th><th></th></tr></thead>';
+    table.innerHTML = '<thead><tr>' + ['Title', 'Artist', 'Format', 'Size', 'Rating'].map((h) => `<th>${escapeHTML(t(h))}</th>`).join('') + '<th></th></tr></thead>';
     const tbody = document.createElement('tbody');
     for (const c of candidates) {
       const tr = document.createElement('tr');
@@ -186,7 +186,7 @@
         <td>${escapeHTML(c.Format || '?')}</td>
         <td>${sizeText}</td>
         <td>${ratingText}</td>
-        <td><button type="button" class="primary gpimport-use-result">Use this</button></td>`;
+        <td><button type="button" class="primary gpimport-use-result">${escapeHTML(t('Use this'))}</button></td>`;
       tr.querySelector('.gpimport-use-result').addEventListener('click', () => useSearchResult(c));
       tbody.appendChild(tr);
     }
@@ -199,7 +199,7 @@
   }
 
   async function useSearchResult(c) {
-    setStatus(`Downloading “${c.Title}” from GProTab.net…`);
+    setStatus(t('Downloading “%s” from GProTab.net…', c.Title));
     try {
       const res = await fetch(`/api/import/gp/fetch?url=${encodeURIComponent(c.URL)}`);
       if (!res.ok) throw new Error(await res.text());
@@ -209,11 +209,11 @@
       const m = cd && /filename="([^"]+)"/.exec(cd);
       if (m) filename = m[1];
       fileSourceNote.hidden = false;
-      fileSourceNote.innerHTML = `From GProTab.net: <a href="${escapeHTML(c.URL)}" target="_blank" rel="noopener">${escapeHTML(c.Title)} — ${escapeHTML(c.Artist)}</a>`;
+      fileSourceNote.innerHTML = `${escapeHTML(t('From GProTab.net:'))} <a href="${escapeHTML(c.URL)}" target="_blank" rel="noopener">${escapeHTML(c.Title)} — ${escapeHTML(c.Artist)}</a>`;
       goToStep('file');
       await loadFile({ name: filename, arrayBuffer: async () => buf });
     } catch (e) {
-      setStatus("Couldn't download that file. Try another result, or choose a file from your computer.", 'err');
+      setStatus(t('Couldn’t download that file. Try another result, or choose a file from your computer.'), 'err');
     }
   }
 
@@ -360,22 +360,22 @@
   }
 
   async function loadFile(file) {
-    setStatus('Reading the file…');
+    setStatus(t('Reading the file…'));
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
       score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(buf);
       rawFile = file;
       rawBytes = buf;
     } catch (e) {
-      setStatus("Couldn't read this file. Check it's a Guitar Pro file (.gp, .gp3, .gp4, .gp5 or .gpx).", 'err');
+      setStatus(t('Couldn’t read this file. Check it’s a Guitar Pro file (.gp, .gp3, .gp4, .gp5 or .gpx).'), 'err');
       score = null;
       return;
     }
     trackSelect.innerHTML = '';
-    score.tracks.forEach((t, i) => {
+    score.tracks.forEach((tr, i) => {
       const opt = document.createElement('option');
       opt.value = i;
-      opt.textContent = t.name || `Track ${i + 1}`;
+      opt.textContent = tr.name || t('Track %d', i + 1);
       trackSelect.appendChild(opt);
     });
     trackRow.hidden = fit === 'whole' || score.tracks.length < 2;
@@ -383,13 +383,13 @@
     barTimes = buildBarTimes();
     step1Next.disabled = false;
     const res = await fetch(`/api/songs/${variantId}/structure`);
-    if (!res.ok) { setStatus("Couldn't load this song's sections. Reload the page and try again.", 'err'); return; }
+    if (!res.ok) { setStatus(t('Couldn’t load this song’s sections. Reload the page and try again.'), 'err'); return; }
     const data = await res.json();
     ourSections = (data.sections || []).filter(s => s.barCount > 0);
     boundaries = [0];
     ourSections.forEach(sec => boundaries.push(Math.min(realIdx.length, boundaries[boundaries.length - 1] + sec.barCount)));
     deriveRow.hidden = fit === 'whole' || ourSections.length > 0;
-    setStatus(`Read “${score.title || file.name}”: ${score.tracks.length} track(s), ${realIdx.length} bar(s), ${ourSections.length} section(s) to match up.`, 'ok');
+    setStatus(t('Read “%s”: %d track(s), %d bar(s), %d section(s) to match up.', score.title || file.name, score.tracks.length, realIdx.length, ourSections.length), 'ok');
   }
 
   trackSelect.addEventListener('change', () => { if (steps.align.hidden === false) prepareTimeline(); });
@@ -403,7 +403,7 @@
     setUpSectionMarkers();
     if (!score.backingTrack || !score.backingTrack.rawAudioFile) {
       scrollWrap.hidden = true;
-      setStatus('This file has no embedded backing track — nothing to align against. Sections will map in their own default order; the import still writes note data for each, just without audio sync. Use the notation preview above to see where sections actually change.');
+      setStatus(t('This file has no embedded backing track — nothing to align against. Sections will map in their own default order; the import still writes note data for each, just without audio sync. Use the notation preview above to see where sections actually change.'));
       renderMappingTableOnly();
       return;
     }
@@ -417,7 +417,7 @@
         playheadEl.style.left = (audioEl.currentTime * pxPerSec) + 'px';
         timeLabel.textContent = `${fmtTime(audioEl.currentTime)} / ${fmtTime(audioDuration)}`;
       });
-      audioEl.addEventListener('ended', () => { playBtn.textContent = '▶ Play'; });
+      audioEl.addEventListener('ended', () => { playBtn.textContent = t('▶ Play'); });
     }
     layout();
   }
@@ -467,7 +467,7 @@
       drawFileBars(contentPreviewEl, Number(trackSelect.value) || 0, 0, 0);
       wireContentPreviewClicks();
     } catch (e) {
-      contentPreviewEl.textContent = 'Preview failed: ' + e.message;
+      contentPreviewEl.textContent = t('Preview failed: %s', e.message);
     }
   }
 
@@ -544,7 +544,7 @@
       renderLabelTrack();
       renderBoundaries();
       renderMappingTableOnly();
-      setStatus(`Placed ${n} section start(s) from the file's own markers.`, 'ok');
+      setStatus(t('Placed %d section start(s) from the file’s own markers.', n), 'ok');
     };
   }
 
@@ -617,8 +617,8 @@
         const line = document.createElement('div');
         line.className = 'beat1' + (syncedPositions.has(pos) ? ' synced' : '');
         line.title = syncedPositions.has(pos)
-          ? 'Real sync point from this file'
-          : 'Estimated — no sync point here, interpolated from nearby ones';
+          ? t('Real sync point from this file')
+          : t('Estimated — no sync point here, interpolated from nearby ones');
         line.style.left = x + 'px';
         bargridEl.appendChild(line);
         // Beat subdivisions within this bar — interior ticks only (the
@@ -680,8 +680,8 @@
       el.style.left = x0 + 'px';
       el.style.width = Math.max(2, x1 - x0) + 'px';
       el.style.background = mapped === sec.barCount ? '' : '';
-      el.textContent = `${sec.label} (${mapped}/${sec.barCount} bars)`;
-      el.title = mapped === sec.barCount ? 'Matches this section\'s real bar count' : `This section needs ${sec.barCount} bars — currently mapped to ${mapped}`;
+      el.textContent = t('%s (%d/%d bars)', sec.label, mapped, sec.barCount);
+      el.title = mapped === sec.barCount ? t('Matches this section’s real bar count') : t('This section needs %d bars — currently mapped to %d', sec.barCount, mapped);
       labeltrackEl.appendChild(el);
     });
   }
@@ -693,9 +693,9 @@
       const handle = document.createElement('div');
       handle.className = 'gpimport-boundary' + (i === draggingBoundary ? ' dragging' : '');
       handle.style.left = (barTimes[pos] * pxPerSec) + 'px';
-      handle.title = i === 0 ? 'Drag past any count-in/lead-in — this is the song\'s bar 0'
-        : i === boundaries.length - 1 ? 'End of the last mapped section'
-        : `Boundary between "${ourSections[i - 1].label}" and "${ourSections[i].label}"`;
+      handle.title = i === 0 ? t('Drag past any count-in/lead-in — this is the song’s bar 0')
+        : i === boundaries.length - 1 ? t('End of the last mapped section')
+        : t('Boundary between “%s” and “%s”', ourSections[i - 1].label, ourSections[i].label);
       handle.addEventListener('mousedown', ev => startDrag(ev, i));
       boundariesEl.appendChild(handle);
     });
@@ -752,8 +752,8 @@
   zoomOutBtn.addEventListener('click', () => { pxPerSec = Math.max(2, pxPerSec / 1.6); layout(); });
   playBtn.addEventListener('click', () => {
     if (!audioEl) return;
-    if (audioEl.paused) { audioEl.play(); playBtn.textContent = '❚❚ Pause'; }
-    else { audioEl.pause(); playBtn.textContent = '▶ Play'; }
+    if (audioEl.paused) { audioEl.play(); playBtn.textContent = t('❚❚ Pause'); }
+    else { audioEl.pause(); playBtn.textContent = t('▶ Play'); }
   });
 
   function renderMappingTableOnly() {
@@ -768,7 +768,7 @@
       const tr = document.createElement('tr');
       tr.style.borderLeft = `4px solid ${SECTION_COLORS[i % SECTION_COLORS.length]}`;
       tr.innerHTML = `
-        <td><input type="checkbox" class="gpimport-include" aria-label="Import ${escapeHTML(sec.label)}"${prev.length === ourSections.length && !prev[i] ? '' : ' checked'}></td>
+        <td><input type="checkbox" class="gpimport-include" aria-label="${escapeHTML(t('Import %s', sec.label))}"${prev.length === ourSections.length && !prev[i] ? '' : ' checked'}></td>
         <td>${sec.label}</td>
         <td>${sec.barCount}</td>
         <td${mapped !== sec.barCount ? ' style="color:#b8860b;font-weight:600"' : ''}>${mapped}</td>
@@ -867,11 +867,11 @@
   async function deriveAndCreateSection() {
     deriveBtn.disabled = true;
     try {
-      setStatus('Making a chord grid from this file…');
+      setStatus(t('Making a chord grid from this file…'));
       const track = score.tracks[Number(trackSelect.value) || 0];
       const tokens = extractChordGrid(track, 0, realIdx.length);
       const rawRes = await fetch(`/api/songs/${variantId}/raw`);
-      if (!rawRes.ok) throw new Error('could not load this song\'s current source');
+      if (!rawRes.ok) throw new Error(t('could not load this song’s current source'));
       const raw = await rawRes.json();
       const body = raw.text.replace(/\s*$/, '');
       const grid = `[Song]\ngrid: | ${tokens.join(' | ')} |\n`;
@@ -879,16 +879,16 @@
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: body ? body + '\n\n' + grid : grid, version: raw.version }),
       });
-      if (!putRes.ok) throw new Error('saving the chord grid failed: ' + (await putRes.text()));
+      if (!putRes.ok) throw new Error(t('saving the chord grid failed: %s', await putRes.text()));
       const res = await fetch(`/api/songs/${variantId}/structure`);
       const data = await res.json();
       ourSections = (data.sections || []).filter(s => s.barCount > 0);
       boundaries = [0];
       ourSections.forEach(sec => boundaries.push(Math.min(realIdx.length, boundaries[boundaries.length - 1] + sec.barCount)));
       deriveRow.hidden = true;
-      setStatus(`Made a chord grid from the file's chord diagrams: ${ourSections.length} section(s) ready to match up.`, 'ok');
+      setStatus(t('Made a chord grid from the file’s chord diagrams: %d section(s) ready to match up.', ourSections.length), 'ok');
     } catch (e) {
-      setStatus("Couldn't make the chord grid: " + e.message, 'err');
+      setStatus(t('Couldn’t make the chord grid: %s', e.message), 'err');
     } finally {
       deriveBtn.disabled = false;
     }
@@ -924,7 +924,7 @@
     form.append('file', rawFile, rawFile.name);
     form.append('facts', JSON.stringify(GPFacts.extract(alphaTab.importer.ScoreLoader.loadScoreFromBytes(rawBytes, new alphaTab.Settings()))));
     const res = await fetch(`/api/songs/${variantId}/gp-file`, { method: 'PUT', body: form });
-    if (!res.ok) throw new Error('source file upload failed: ' + (await res.text()));
+    if (!res.ok) throw new Error(t('source file upload failed: %s', await res.text()));
     await fetch(`/api/songs/${variantId}/meta`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key: 'gp_source', value: rawFile.name }),
@@ -939,7 +939,7 @@
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ track, spec }),
     });
-    if (!res.ok) throw new Error(`section ${sectionIndex}: ` + (await res.text()));
+    if (!res.ok) throw new Error(t('section %d: %s', sectionIndex, await res.text()));
   }
 
   // Sync points are keyed on the SAME boundaries the score import just
@@ -953,7 +953,7 @@
     const form = new FormData();
     form.append('file', new Blob([bytes], { type: 'audio/mpeg' }), 'gp-backing-track.mp3');
     const upRes = await fetch(`/api/songs/${variantId}/audio/gp`, { method: 'PUT', body: form });
-    if (!upRes.ok) throw new Error('audio upload failed: ' + (await upRes.text()));
+    if (!upRes.ok) throw new Error(t('audio upload failed: %s', await upRes.text()));
 
     const points = [];
     for (let pos = boundaries[0]; pos < realIdx.length; pos++) {
@@ -975,14 +975,14 @@
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ points }),
       });
-      if (!spRes.ok) throw new Error('sync points failed: ' + (await spRes.text()));
+      if (!spRes.ok) throw new Error(t('sync points failed: %s', await spRes.text()));
     }
   }
 
   step1Next.addEventListener('click', async () => {
     if (fit === 'whole') {
       const mbs = score.masterBars.length;
-      summary.textContent = `The song will open on this file’s score: ${score.tracks.length} track${score.tracks.length > 1 ? 's' : ''} (${score.tracks.map((t) => t.name || 'untitled').join(', ')}), ${mbs} bar${mbs > 1 ? 's' : ''}. Its sections, chords and lyrics stay as they are, as extras.`;
+      summary.textContent = t('The song will open on this file’s score: %s (%s), %s. Its sections, chords and lyrics stay as they are, as extras.', tn(score.tracks.length, '%d track', '%d tracks'), score.tracks.map((tr) => tr.name || t('untitled')).join(', '), tn(mbs, '%d bar', '%d bars'));
       previewHolder.replaceChildren();
       previewHolder.hidden = true;
       audioRow.hidden = !(score.backingTrack && score.backingTrack.rawAudioFile);
@@ -999,8 +999,8 @@
     if (audioEl) audioEl.pause();
     const rows = [...mappingBody.querySelectorAll('tr')].filter(tr => tr.querySelector('.gpimport-include').checked);
     summary.textContent = rows.length
-      ? `Importing ${rows.length} section(s): ${rows.map(tr => tr.children[1].textContent).join(', ')}.`
-      : 'No sections selected — nothing will be imported.';
+      ? t('Importing %d section(s): %s.', rows.length, rows.map(tr => tr.children[1].textContent).join(', '))
+      : t('No sections selected — nothing will be imported.');
     previewHolder.hidden = false;
     audioRow.hidden = !(score.backingTrack && score.backingTrack.rawAudioFile);
     goToStep('import');
@@ -1059,9 +1059,9 @@
     try { text = (await (await fetch(`/api/songs/${variantId}/raw`)).json()).text || ''; } catch (e) { return; }
     const gp = gpHeader();
     const rows = [
-      { key: 'tempo', label: 'Tempo', show: (v) => (v ? `${v} bpm` : 'none (120)') },
-      { key: 'time', label: 'Time signature', show: (v) => v || 'none (4/4)' },
-      { key: 'swing', label: 'Swing', show: (v) => (v === '8' ? 'swung eighths' : v === '16' ? 'swung sixteenths' : 'straight') },
+      { key: 'tempo', label: t('Tempo'), show: (v) => (v ? t('%s bpm', v) : t('none (120)')) },
+      { key: 'time', label: t('Time signature'), show: (v) => v || t('none (4/4)') },
+      { key: 'swing', label: t('Swing'), show: (v) => (v === '8' ? t('swung eighths') : v === '16' ? t('swung sixteenths') : t('straight')) },
     ];
     const list = document.createElement('div');
     list.className = 'gpimport-header-list';
@@ -1078,11 +1078,11 @@
       // since): only empty ones are filled in unless ticked.
       input.checked = !(reimport && song);
       input.disabled = same;
-      label.append(input, ` ${r.label}: ${r.show(gp[r.key])}`);
+      label.append(input, ' ' + t('%s: %s', r.label, r.show(gp[r.key])));
       p.appendChild(label);
       const was = document.createElement('span');
       was.className = 'hint';
-      was.textContent = same ? ' (already in the song)' : ` (song has ${r.show(song)})`;
+      was.textContent = ' ' + (same ? t('(already in the song)') : t('(song has %s)', r.show(song)));
       p.appendChild(was);
       input.addEventListener('change', () => renderPreview());
       list.appendChild(p);
@@ -1090,7 +1090,7 @@
     }
     const h = document.createElement('p');
     h.className = 'hint';
-    h.textContent = 'From the Guitar Pro file — checked values are written to the song header:';
+    h.textContent = t('From the Guitar Pro file — checked values are written to the song header:');
     headerHolder.append(h, list);
 
     // The file's chord diagrams: new ones ticked, ones that differ from
@@ -1112,12 +1112,12 @@
       const input = document.createElement('input');
       input.type = 'checkbox';
       input.checked = !have.has(name);
-      label.append(input, ` Chord diagram ${name}`);
+      label.append(input, ' ' + t('Chord diagram %s', name));
       p.appendChild(label);
       if (have.has(name)) {
         const was = document.createElement('span');
         was.className = 'hint';
-        was.textContent = ` (the song has its own: ${have.get(name)})`;
+        was.textContent = ' ' + t('(the song has its own: %s)', have.get(name));
         p.appendChild(was);
       }
       dl.appendChild(p);
@@ -1141,7 +1141,7 @@
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, version: raw.version }),
     });
-    if (!res.ok) throw new Error('saving the song header failed: ' + (await res.text()));
+    if (!res.ok) throw new Error(t('saving the song header failed: %s', await res.text()));
   }
 
   // ---- Preview: real notation for exactly the sections currently
@@ -1171,7 +1171,7 @@
       for (const [a, b] of ranges) {
         const mount = document.createElement('div');
         row.appendChild(mount);
-        try { drawFileBars(mount, ti, a - 1, b - a + 1); } catch (e) { p.textContent += ` — preview failed: ${e.message}`; }
+        try { drawFileBars(mount, ti, a - 1, b - a + 1); } catch (e) { p.textContent += ' — ' + t('preview failed: %s', e.message); }
       }
     }
   }
@@ -1180,7 +1180,7 @@
   // The file's chord diagrams ticked in the header step become the song's.
   async function takeDiagrams() {
     for (const c of diagramChoices.filter((x) => x.input.checked)) {
-      setStatus(`Chord diagram ${c.name}…`);
+      setStatus(t('Chord diagram %s…', c.name));
       await fetch(`/api/songs/${variantId}/gp-drift/take`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fact: c.fact }),
@@ -1189,41 +1189,41 @@
   }
 
   importBtn.addEventListener('click', async () => {
-    if (!score) { setStatus('Choose a Guitar Pro file first.', 'err'); return; }
+    if (!score) { setStatus(t('Choose a Guitar Pro file first.'), 'err'); return; }
     const ti = Number(trackSelect.value) || 0;
     const label = trackLabel(ti);
     const checks = [...mappingBody.querySelectorAll('.gpimport-include')];
     Forms.busy(importBtn, true);
     try {
       // The file first: the "gp[...]" lines point into it.
-      setStatus('Keeping the Guitar Pro file with the song…');
+      setStatus(t('Keeping the Guitar Pro file with the song…'));
       await uploadSourceFile();
-      setStatus('Writing the song header…');
+      setStatus(t('Writing the song header…'));
       await writeHeader(fit === 'whole' ? { content: 'gp' } : {});
       if (fit === 'whole') {
         if (includeAudio.checked) {
-          setStatus('Uploading the backing track and bar sync…');
+          setStatus(t('Uploading the backing track and bar sync…'));
           boundaries = [0];
           await importAudioAndSync();
         }
         await takeDiagrams();
-        setStatus('Imported: the song now opens on the file’s score. Reload the page to see it.', 'ok');
+        setStatus(t('Imported: the song now opens on the file’s score. Reload the page to see it.'), 'ok');
         return;
       }
       for (let i = 0; i < ourSections.length; i++) {
         if (!checks[i] || !checks[i].checked) continue;
         const sec = ourSections[i];
-        setStatus(`Section ${i + 1} of ${ourSections.length}: ${sec.label}…`);
+        setStatus(t('Section %d of %d: %s…', i + 1, ourSections.length, sec.label));
         await putGPRef(sec.index, label, rangesSpec(writtenRanges(i)));
       }
       if (includeAudio.checked) {
-        setStatus('Uploading the backing track and bar sync…');
+        setStatus(t('Uploading the backing track and bar sync…'));
         await importAudioAndSync();
       }
       await takeDiagrams();
-      setStatus('Imported. Reload the page to see it on the chart.', 'ok');
+      setStatus(t('Imported. Reload the page to see it on the chart.'), 'ok');
     } catch (e) {
-      setStatus("The import stopped part-way: " + e.message, 'err');
+      setStatus(t('The import stopped part-way: %s', e.message), 'err');
     } finally {
       Forms.busy(importBtn, false);
     }

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"app/internal/chordsym"
+	"app/internal/i18n"
 	"app/internal/song"
 	"app/internal/store"
 	"app/internal/tab"
@@ -83,19 +84,20 @@ func homeGreeting() string {
 }
 
 // timeAgo renders a short relative-time label ("2h ago", "3d ago") for
-// the attention feed — no need for anything fancier than day/hour/minute
-// granularity on a feed that's capped at a handful of recent items.
-func timeAgo(t time.Time) string {
+// the attention feed, in lang — no need for anything fancier than
+// day/hour/minute granularity on a feed that's capped at a handful of
+// recent items.
+func timeAgo(lang string, t time.Time) string {
 	d := time.Since(t)
 	switch {
 	case d < time.Minute:
-		return "just now"
+		return i18n.T(lang, "just now")
 	case d < time.Hour:
-		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+		return i18n.T(lang, "%dm ago", int(d.Minutes()))
 	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh ago", int(d.Hours()))
+		return i18n.T(lang, "%dh ago", int(d.Hours()))
 	default:
-		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
+		return i18n.T(lang, "%dd ago", int(d.Hours()/24))
 	}
 }
 
@@ -474,7 +476,8 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	bandCards, attention, err := s.buildBandCards(r.Context(), person.ID, bands)
+	lang := s.langOf(w)
+	bandCards, attention, err := s.buildBandCards(r.Context(), lang, person.ID, bands)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -500,7 +503,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, n := range notifs {
 		attention = append(attention, attentionItem{
-			Kind: "notifications", Title: n.Body, When: timeAgo(n.CreatedAt), Link: n.Link,
+			Kind: "notifications", Title: n.Body, When: timeAgo(lang, n.CreatedAt), Link: n.Link,
 		})
 	}
 	sort.SliceStable(attention, func(i, j int) bool { return i < j }) // already newest-first per source; a true merge-sort by time isn't worth it for a handful of items
@@ -580,8 +583,8 @@ func (s *Server) buildBookStats(ctx context.Context, personID int64) ([]bookStat
 // of bands personID currently belongs to. Shared by handleIndex (the
 // home page) and handleBandsPage (the bands listing, Phase 27) so both
 // pages show the exact same activity summary per band rather than two
-// versions that can drift.
-func (s *Server) buildBandCards(ctx context.Context, personID int64, bands []store.Band) ([]bandCardView, []attentionItem, error) {
+// versions that can drift. Its text is in lang.
+func (s *Server) buildBandCards(ctx context.Context, lang string, personID int64, bands []store.Band) ([]bandCardView, []attentionItem, error) {
 	var bandCards []bandCardView
 	var attention []attentionItem
 
@@ -611,16 +614,16 @@ func (s *Server) buildBandCards(ctx context.Context, personID int64, bands []sto
 		if err != nil {
 			return nil, nil, err
 		}
-		changes, err := s.store.ListBandChanges(ctx, b.ID, lastSeen)
+		changes, err := s.store.ListBandChanges(ctx, lang, b.ID, lastSeen)
 		if err != nil {
 			return nil, nil, err
 		}
 		digest := ""
 		if len(changes) > 0 {
-			digest = fmt.Sprintf("%d change%s since your last visit", len(changes), plural(len(changes)))
+			digest = i18n.N(lang, len(changes), "%d change since your last visit", "%d changes since your last visit")
 		}
 		if lastSeen == nil {
-			digest = "you haven't visited yet"
+			digest = i18n.T(lang, "you haven't visited yet")
 		}
 
 		proposals, err := s.store.ListProposals(ctx, b.ID, store.ProposalFilter{Status: "open"})
@@ -649,27 +652,20 @@ func (s *Server) buildBandCards(ctx context.Context, personID int64, bands []sto
 		}
 		bandCards = append(bandCards, card)
 		for _, p := range proposals {
-			title := fmt.Sprintf("Vote: add %q to %s's repertoire", p.TargetTitle, b.Name)
+			title := i18n.T(lang, "Vote: add %q to %s's repertoire", p.TargetTitle, b.Name)
 			if p.Kind == "new_reference" {
-				title = fmt.Sprintf("Vote: new reference for %q", p.TargetTitle)
+				title = i18n.T(lang, "Vote: new reference for %q", p.TargetTitle)
 			}
 			attention = append(attention, attentionItem{
 				Kind: "votes", Title: title,
-				Subtitle: fmt.Sprintf("Proposed by %s · %d yes, %d veto so far", p.ProposerUsername, p.YesVotes, p.VetoVotes),
-				When:     timeAgo(p.CreatedAt),
+				Subtitle: i18n.T(lang, "Proposed by %s · %d yes, %d veto so far", p.ProposerUsername, p.YesVotes, p.VetoVotes),
+				When:     timeAgo(lang, p.CreatedAt),
 				Link:     fmt.Sprintf("/bands/%d/proposals/%d", b.ID, p.ID),
 			})
 		}
 	}
 	sort.Slice(bandCards, func(i, j int) bool { return bandCards[i].Name < bandCards[j].Name })
 	return bandCards, attention, nil
-}
-
-func plural(n int) string {
-	if n == 1 {
-		return ""
-	}
-	return "s"
 }
 
 // handleProject is one book's set list — the numbered Set 1/Set 2/... view
@@ -1732,7 +1728,12 @@ type viewerSection struct {
 	// the normal way these are written: "solo over the changes") with how
 	// long it runs, guessed from the nearest earlier section that actually
 	// has a grid — exactly what a musician reading the chart would assume.
+	// The page writes it in its own language from SoloBars, SoloOf and
+	// SoloTimes; InferredNote is the English, and says there's one.
 	InferredNote string
+	SoloBars     int    // how many bars the solo runs
+	SoloOf       string // the section whose changes it plays over
+	SoloTimes    int    // how many times through (1: once)
 	// IsReference marks a bare section (no grid, no lyrics) that repeats an
 	// earlier *defining* section of the same label — a jazz-chart "DS/DC"
 	// situation in miniature: the content is already written out once
@@ -2609,6 +2610,7 @@ func annotateStructure(sections []viewerSection) {
 						note = fmt.Sprintf("%d %s — %s changes, x%d", bars*times, unit, sections[j].Label, times)
 					}
 					sec.InferredNote = note
+					sec.SoloBars, sec.SoloOf, sec.SoloTimes = bars*times, sections[j].Label, times
 					// Give the solo real (placeholder) bars, not just a text
 					// note — otherwise it reads as a quick aside instead of
 					// the chunk of the song it actually is, and a long solo
@@ -2954,13 +2956,20 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		if songbookID, err := strconv.ParseInt(songbookParam, 10, 64); err == nil {
 			data["SongbookRef"] = songbookID
 			data["Prev"], data["Next"] = s.songbookNeighbors(r.Context(), songbookID, variantID)
-			// A student's or a group's songbook (coaching.go): the
-			// recording plays in their key.
+			// A student's or a group's songbook (coaching.go): the song
+			// opens in the key the coach gave it there — the chart, the
+			// recording — for the coach as for the student, and says whose.
 			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil && (sb.IsStudent() || sb.Kind == store.SongbookKindGroup) {
 				if ok, _ := s.store.CanAccessSongbook(r.Context(), personFromContext(r).ID, songbookID); ok || personFromContext(r).IsAdmin {
 					if n, err := s.store.EntrySemitones(r.Context(), songbookID, variantID); err == nil {
 						data["StudentKey"] = n
 						data["StudentKeySet"] = true
+						data["KeyContext"] = sb.Name
+						if sb.IsStudent() {
+							if p, err := s.store.GetPersonByID(r.Context(), sb.StudentPersonID); err == nil {
+								data["KeyContext"] = p.DisplayName
+							}
+						}
 					}
 				}
 			}
@@ -2970,7 +2979,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 					// Back is to the lesson's own page (?view=lesson: it
 					// would bring the song back), and the lesson comes
 					// along: its video, done, its files (lessonPanel).
-					data["LessonHref"], data["LessonLabel"] = lessonHref(songbookID, l.ID)+"?view=lesson", l.Label()
+					data["LessonHref"], data["LessonLabel"] = lessonHref(songbookID, l.ID)+"?view=lesson", l.Label(s.langOf(w))
 					if panel, err := s.lessonPanel(r, sb, l); err == nil {
 						data["LessonPanel"] = panel
 					}

@@ -31,8 +31,8 @@
   const exit = document.createElement('button');
   exit.type = 'button';
   exit.className = 'stage-exit icon-btn';
-  exit.title = 'Leave stage mode';
-  exit.setAttribute('aria-label', 'Leave stage mode');
+  exit.title = t('Leave stage mode');
+  exit.setAttribute('aria-label', t('Leave stage mode'));
   exit.innerHTML = '<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg>';
   exit.addEventListener('click', () => set(false));
   document.body.appendChild(exit);
@@ -40,7 +40,7 @@
   // The previous and next songs' names, at the bottom of the screen.
   const foot = document.createElement('nav');
   foot.className = 'stage-foot';
-  foot.setAttribute('aria-label', 'previous and next song');
+  foot.setAttribute('aria-label', t('previous and next song'));
   for (const dir of ['prev', 'next']) {
     const card = document.querySelector('.setlist-nav-card.' + dir);
     const a = document.createElement(card ? 'a' : 'span');

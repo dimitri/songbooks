@@ -22,12 +22,12 @@
       chip.className = 'chip';
 
       const up = document.createElement('button');
-      up.type = 'button'; up.textContent = '▲'; up.title = 'move up';
+      up.type = 'button'; up.textContent = '▲'; up.title = t('move up');
       up.disabled = i === 0;
       up.addEventListener('click', () => { [sections[i - 1], sections[i]] = [sections[i], sections[i - 1]]; render(); });
 
       const down = document.createElement('button');
-      down.type = 'button'; down.textContent = '▼'; down.title = 'move down';
+      down.type = 'button'; down.textContent = '▼'; down.title = t('move down');
       down.disabled = i === sections.length - 1;
       down.addEventListener('click', () => { [sections[i + 1], sections[i]] = [sections[i], sections[i + 1]]; render(); });
 
@@ -38,14 +38,14 @@
       const badge = document.createElement('span');
       badge.className = 'chip-badge';
       const bars = (sec.measures || []).length;
-      badge.textContent = sec.repeat ? '(repeat)' : (bars ? `${bars} bars` : 'empty');
+      badge.textContent = sec.repeat ? t('(repeat)') : (bars ? tn(bars, '%d bar', '%d bars') : t('empty'));
 
       const dup = document.createElement('button');
-      dup.type = 'button'; dup.textContent = '⧉'; dup.title = 'duplicate as repeat marker';
+      dup.type = 'button'; dup.textContent = '⧉'; dup.title = t('duplicate as repeat marker');
       dup.addEventListener('click', () => { sections.splice(i + 1, 0, emptySection(sec.label, true)); render(); });
 
       const del = document.createElement('button');
-      del.type = 'button'; del.textContent = '✕'; del.title = 'delete';
+      del.type = 'button'; del.textContent = '✕'; del.title = t('delete');
       del.addEventListener('click', () => { sections.splice(i, 1); render(); });
 
       chip.append(up, down, label, badge, dup, del);
@@ -60,7 +60,7 @@
 
   document.getElementById('save-structure').addEventListener('click', async () => {
     const status = document.getElementById('structure-status');
-    status.className = ''; status.textContent = 'saving…';
+    status.className = ''; status.textContent = t('saving…');
     const res = await fetch(`/api/songs/${variantId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -68,13 +68,13 @@
     });
     if (res.status === 409) {
       status.className = 'err';
-      status.textContent = 'conflict: this song changed on disk — reload before saving';
+      status.textContent = t('conflict: this song changed on disk — reload before saving');
       return;
     }
-    if (!res.ok) { status.className = 'err'; status.textContent = 'save failed'; return; }
+    if (!res.ok) { status.className = 'err'; status.textContent = t('save failed'); return; }
     const data = await res.json();
     version = data.version;
-    status.className = 'ok'; status.textContent = 'saved';
+    status.className = 'ok'; status.textContent = t('saved');
   });
 
   (async function load() {

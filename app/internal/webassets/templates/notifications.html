@@ -1,10 +1,10 @@
 {{define "notifications"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Notifications — Songbooks</title>
+<title>{{t "Notifications"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,30 +13,30 @@
 <div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
-  <h1>Notifications</h1>
+  <h1>{{t "Notifications"}}</h1>
   <nav class="song-nav">
-    <button type="button" id="mark-all-read-btn">Mark all read</button>
+    <button type="button" id="mark-all-read-btn">{{t "Mark all read"}}</button>
   </nav>
 </header>
 <main class="index">
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>When</th><th>Kind</th><th>Message</th><th></th></tr></thead>
+    <thead><tr><th>{{t "When"}}</th><th>{{t "Kind"}}</th><th>{{t "Message"}}</th><th></th></tr></thead>
     <tbody id="notifications-body">
     {{range .Notifications}}
       <tr data-id="{{.ID}}" class="{{if .IsRead}}read{{else}}unread{{end}}">
-        <td data-label="When">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
-        <td data-label="Kind">{{.Kind}}</td>
-        <td data-label="Message">
+        <td data-label="{{t "When"}}">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+        <td data-label="{{t "Kind"}}">{{.Kind}}</td>
+        <td data-label="{{t "Message"}}">
           {{if .Link}}
           <a href="#" class="notif-link" data-id="{{.ID}}" data-href="{{.Link}}">{{.Body}}</a>
           {{else}}
           {{.Body}}
           {{end}}
         </td>
-        <td>{{if not .IsRead}}<button type="button" class="mark-read-btn" data-id="{{.ID}}">mark read</button>{{end}}</td>
+        <td>{{if not .IsRead}}<button type="button" class="mark-read-btn" data-id="{{.ID}}">{{t "mark read"}}</button>{{end}}</td>
       </tr>
     {{else}}
-      <tr><td colspan="4" class="hint">No notifications yet.</td></tr>
+      <tr><td colspan="4" class="hint">{{t "No notifications yet."}}</td></tr>
     {{end}}
     </tbody>
   </table></div>

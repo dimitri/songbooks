@@ -16,6 +16,9 @@
 //                                          Error's message lands in the
 //                                          form's .form-status as an error
 (function () {
+  // The page's language (/i18n/{lang}.js, loaded first); English without it.
+  const t = window.t || function (m) { const a = [].slice.call(arguments, 1); let i = 0; return m.replace(/%[ds]/g, () => String(a[i++])); };
+
   function errorEl(input) {
     const id = (input.id || input.name || 'field') + '-error';
     let el = document.getElementById(id);
@@ -46,23 +49,23 @@
   function labelText(input) {
     const lab = (input.id && document.querySelector('label[for="' + CSS.escape(input.id) + '"]')) || input.closest('label');
     const text = lab ? lab.textContent : (input.getAttribute('aria-label') || '');
-    return text.replace(/\(optional\)/i, '').replace(/\s+/g, ' ').trim();
+    return text.replace(/\(optional\)/i, '').replace(t('(optional)'), '').replace(/\s+/g, ' ').trim();
   }
 
   // The message under a field, in plain words rather than the browser's.
   function message(input) {
     const v = input.validity, name = labelText(input);
     if (v.valueMissing) {
-      if (input.type === 'checkbox') return 'Tick this box to continue.';
-      if (input.tagName === 'SELECT' || input.type === 'radio') return name ? 'Choose ' + name.toLowerCase() + '.' : 'Choose one.';
-      return name ? 'Enter ' + name.toLowerCase() + '.' : 'This can’t be empty.';
+      if (input.type === 'checkbox') return t('Tick this box to continue.');
+      if (input.tagName === 'SELECT' || input.type === 'radio') return name ? t('Choose %s.', name.toLowerCase()) : t('Choose one.');
+      return name ? t('Enter %s.', name.toLowerCase()) : t('This can’t be empty.');
     }
-    if (v.typeMismatch && input.type === 'email') return 'Enter an email address like name@example.com.';
-    if (v.typeMismatch && input.type === 'url') return 'Enter a full web address, starting with https://.';
-    if (v.rangeUnderflow) return 'Enter ' + input.min + ' or more.';
-    if (v.rangeOverflow) return 'Enter ' + input.max + ' or less.';
-    if (v.tooShort) return 'Use at least ' + input.minLength + ' characters.';
-    if (v.stepMismatch || v.badInput) return 'Enter a whole number.';
+    if (v.typeMismatch && input.type === 'email') return t('Enter an email address like name@example.com.');
+    if (v.typeMismatch && input.type === 'url') return t('Enter a full web address, starting with https://.');
+    if (v.rangeUnderflow) return t('Enter %s or more.', input.min);
+    if (v.rangeOverflow) return t('Enter %s or less.', input.max);
+    if (v.tooShort) return t('Use at least %d characters.', input.minLength);
+    if (v.stepMismatch || v.badInput) return t('Enter a whole number.');
     if (v.patternMismatch && input.title) return input.title;
     return input.validationMessage;
   }
@@ -115,7 +118,7 @@
     status(form, '');
     busy(btn, true);
     try { return await fn(); } catch (e) {
-      status(form, (e && e.message) || 'That didn’t work. Try again.', 'error');
+      status(form, (e && e.message) || t('That didn’t work. Try again.'), 'error');
     } finally { busy(btn, false); }
   }
 

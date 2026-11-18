@@ -1,9 +1,9 @@
 {{define "docs_song_format"}}<!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Songbooks — the .song file format</title>
+<title>Songbooks — {{t "the .song file format"}}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,800;0,9..144,900&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -84,48 +84,48 @@
       Songbooks
     </div>
     <nav>
-      <a href="/">Home</a>
-      <a href="/editor">The editor</a>
-      <a href="/guitar-pro">Guitar Pro import</a>
-      {{if .Person}}<a href="/home" class="btn">My Songbooks</a>{{else}}<a href="/login" class="btn">Sign in</a>{{end}}
+      <a href="/">{{t "Home"}}</a>
+      <a href="/editor">{{t "The editor"}}</a>
+      <a href="/guitar-pro">{{t "Guitar Pro import"}}</a>
+      {{if .Person}}<a href="/home" class="btn">{{t "My Songbooks"}}</a>{{else}}<a href="/login" class="btn">{{t "Sign in"}}</a>{{end}}
     </nav>
   </header>
 
   <div class="layout">
     <aside class="toc">
-      <h3>On this page</h3>
+      <h3>{{t "On this page"}}</h3>
       <ul>
-        <li><a href="#header">Header fields</a></li>
-        <li><a href="#sections">Sections</a></li>
-        <li><a href="#grid">Chord grid</a></li>
-        <li><a href="#lyrics">Lyrics</a></li>
-        <li><a href="#chords">Chord diagrams</a>
+        <li><a href="#header">{{t "Header fields"}}</a></li>
+        <li><a href="#sections">{{t "Sections"}}</a></li>
+        <li><a href="#grid">{{t "Chord grid"}}</a></li>
+        <li><a href="#lyrics">{{t "Lyrics"}}</a></li>
+        <li><a href="#chords">{{t "Chord diagrams"}}</a>
           <ul>
-            <li class="sub"><a href="#chords-keys">Diagrams for several keys</a></li>
+            <li class="sub"><a href="#chords-keys">{{t "Diagrams for several keys"}}</a></li>
           </ul>
         </li>
-        <li><a href="#gp">Guitar Pro file (<code>gp[Track]:</code>)</a></li>
-        <li><a href="#score">Note-level scores (<code>score[label]:</code>)</a>
+        <li><a href="#gp">{{t "Guitar Pro file"}} (<code>gp[Track]:</code>)</a></li>
+        <li><a href="#score">{{t "Note-level scores"}} (<code>score[label]:</code>)</a>
           <ul>
-            <li class="sub"><a href="#score-pitch">Pitch &amp; duration</a></li>
-            <li class="sub"><a href="#score-tuning">Tuning &amp; frets</a></li>
-            <li class="sub"><a href="#score-hammer">Hammer-on / pull-off</a></li>
-            <li class="sub"><a href="#score-slide">Slides</a></li>
-            <li class="sub"><a href="#score-bend">Bends &amp; palm mute</a></li>
-            <li class="sub"><a href="#score-drums">Drum notation</a></li>
-            <li class="sub"><a href="#score-multitrack">Multiple tracks (drums, bass, guitars...)</a></li>
-            <li class="sub"><a href="#score-mixed">Mixing with the chord grid</a></li>
+            <li class="sub"><a href="#score-pitch">{{t "Pitch & duration"}}</a></li>
+            <li class="sub"><a href="#score-tuning">{{t "Tuning & frets"}}</a></li>
+            <li class="sub"><a href="#score-hammer">{{t "Hammer-on / pull-off"}}</a></li>
+            <li class="sub"><a href="#score-slide">{{t "Slides"}}</a></li>
+            <li class="sub"><a href="#score-bend">{{t "Bends & palm mute"}}</a></li>
+            <li class="sub"><a href="#score-drums">{{t "Drum notation"}}</a></li>
+            <li class="sub"><a href="#score-multitrack">{{t "Multiple tracks (drums, bass, guitars...)"}}</a></li>
+            <li class="sub"><a href="#score-mixed">{{t "Mixing with the chord grid"}}</a></li>
           </ul>
         </li>
-        <li><a href="#rendering">How it renders</a></li>
+        <li><a href="#rendering">{{t "How it renders"}}</a></li>
       </ul>
     </aside>
 
     <main>
-      <h1>The <code>.song</code> file format</h1>
-      <p class="lede">Every song in Songbooks is one plain-text <code>.song</code> document: a short header, then one or more labeled sections, each holding a chord grid and/or lyrics — and, optionally, a real note-level riff written in a clean LilyPond-compatible subset. This page is the complete grammar.</p>
+      <h1>{{t "The .song file format"}}</h1>
+      <p class="lede">{{t "Every song in Songbooks is one plain-text"}} <code>.song</code> {{t "document: a short header, then one or more labeled sections, each holding a chord grid and/or lyrics — and, optionally, a real note-level riff written in a clean LilyPond-compatible subset. This page is the complete grammar."}}</p>
 
-      <p class="ex-label">A complete example</p>
+      <p class="ex-label">{{t "A complete example"}}</p>
       <div class="worked-example">
         <div>
           <pre><code>title: Just Like Heaven
@@ -150,12 +150,12 @@ The [Am]one that makes me [F]scream, she said</code></pre>
                from what a real song page shows. Same-origin, so the
                inline script below can read its content height and size
                the iframe to it instead of guessing a fixed height. */}}
-          <iframe class="example-frame" src="/docs/song-format/example" title="Rendered example" loading="lazy"></iframe>
+          <iframe class="example-frame" src="/docs/song-format/example" title="{{t "Rendered example"}}" loading="lazy"></iframe>
         </div>
       </div>
-      <p class="hint">That's a whole playable song: a header (only <code>title</code> is required) with four <code>chord:</code> diagrams, one section with a four-bar chord grid, and lyrics with inline <code>[Chord]</code> markers. Everything below adds optional depth on top of this same shape — more header fields, more section fields, multi-chord bars, repeats, and real note-level tab/staff notation in place of the plain chord-over-slash grid, like this real riff:</p>
+      <p class="hint">{{t "That's a whole playable song: a header (only"}} <code>title</code> {{t "is required) with four"}} <code>chord:</code> {{t "diagrams, one section with a four-bar chord grid, and lyrics with inline"}} <code>[Chord]</code> {{t "markers. Everything below adds optional depth on top of this same shape — more header fields, more section fields, multi-chord bars, repeats, and real note-level tab/staff notation in place of the plain chord-over-slash grid, like this real riff:"}}</p>
 
-      <p class="ex-label">A second example: a real riff</p>
+      <p class="ex-label">{{t "A second example: a real riff"}}</p>
       <div class="worked-example">
         <div>
           <pre><code>title: Bad Spell
@@ -167,245 +167,245 @@ tempo: 84
 grid: | R | R | R |
 score[guitar]: g,4 &lt;d' g'&gt;8. g,16 bes,8 c d f16 g
   g,4 &lt;d' g'&gt;8. bes16( c'4) bes8 \tuplet 3/2 { g16 f d } g,4</code></pre>
-          <p class="hint" style="margin-top:10px;">Real LilyPond source, note for note, from this app's own legacy corpus (<code>Mercy/bad-spell/intro.ly</code>) — just written the way a <code>score[label]:</code> block actually holds it: inline, right in the <code>.song</code> file, no <code>\include</code>/<code>\chordmode</code>/<code>\new TabStaff</code> boilerplate to copy in first. See <a href="#score">Note-level scores</a> below for the full subset this parses.</p>
+          <p class="hint" style="margin-top:10px;">{{t "Real LilyPond source, note for note, from this app's own legacy corpus"}} (<code>Mercy/bad-spell/intro.ly</code>) {{t "— just written the way a"}} <code>score[label]:</code> {{t "block actually holds it: inline, right in the"}} <code>.song</code> {{t "file, no"}} <code>\include</code>/<code>\chordmode</code>/<code>\new TabStaff</code> {{t "boilerplate to copy in first. See"}} <a href="#score">{{t "Note-level scores"}}</a> {{t "below for the full subset this parses."}}</p>
         </div>
         <div>
-          <iframe class="example-frame" src="/docs/song-format/example/riff" title="Rendered tab example" loading="lazy"></iframe>
+          <iframe class="example-frame" src="/docs/song-format/example/riff" title="{{t "Rendered tab example"}}" loading="lazy"></iframe>
         </div>
       </div>
 
       <section id="header">
-        <h2>Header fields</h2>
-        <p>Each header line is <code>key: value</code>, before the first <code>[Section]</code>. Every field is optional except <code>title</code>.</p>
+        <h2>{{t "Header fields"}}</h2>
+        <p>{{t "Each header line is"}} <code>key: value</code>{{t ", before the first"}} <code>[Section]</code>{{t ". Every field is optional except"}} <code>title</code>.</p>
         <table>
-          <tr><th>Key</th><th>Meaning</th></tr>
-          <tr><td><code>title</code></td><td>Song title.</td></tr>
-          <tr><td><code>artist</code></td><td>Artist/band name.</td></tr>
-          <tr><td><code>key</code></td><td>Key signature, e.g. <code>Bb</code>, <code>F#m</code>. The song's plain <code>chord:</code> diagrams are for this key.</td></tr>
-          <tr><td><code>tempo</code></td><td>Beats per minute, e.g. <code>96</code>.</td></tr>
-          <tr><td><code>swing</code></td><td>Swung playback for written straight notes: <code>8</code> plays eighths as a shuffle (the triplet's long-short), <code>16</code> does the same for sixteenths. Leave it out for straight time.</td></tr>
-          <tr><td><code>time</code></td><td>Time signature, e.g. <code>4/4</code>, <code>6/8</code>.</td></tr>
-          <tr><td><code>capo</code></td><td>Capo fret, printed as an annotation.</td></tr>
-          <tr><td><code>transpose</code></td><td>Semitones to transpose for display — never changes the chord text itself. To rewrite the song in another key, use <a href="#chords-keys">Transpose in the editor</a> instead.</td></tr>
-          <tr><td><code>gp_source</code></td><td>The name of the Guitar Pro file kept with the song (set when one is imported or saved). See <a href="#gp">Guitar Pro file</a>.</td></tr>
-          <tr><td><code>content</code></td><td><code>gp</code> when the Guitar Pro file is the whole song (an instrumental, a lesson): the page opens on the file's score, and sections, grid and lyrics are optional.</td></tr>
-          <tr><td><code>map</code></td><td>A short "&middot;"-separated overview of the song's structure (e.g. <code>Verse &middot; Chorus &middot; Verse</code>).</td></tr>
-          <tr><td><code>reference</code></td><td>A reference URL (usually YouTube) for this song.</td></tr>
-          <tr><td><code>flats</code></td><td><code>yes</code> to spell transposed chords with flats instead of sharps. When the song itself is transposed, chords are spelled for the new key (flats in <code>Bb</code>, sharps in <code>E</code>); this only decides for <code>C</code> and <code>Am</code>.</td></tr>
-          <tr><td><code>cover</code> / <code>cover-credit</code></td><td>A cover image URL and its photo credit.</td></tr>
-          <tr><td><code>chord:</code></td><td>One fretboard diagram — see <a href="#chords">Chord diagrams</a>. Repeatable.</td></tr>
-          <tr><td><code>chord[Key]:</code></td><td>One fretboard diagram entered for another key of the song — see <a href="#chords-keys">Diagrams for several keys</a>. Repeatable.</td></tr>
+          <tr><th>{{t "Field"}}</th><th>{{t "Meaning"}}</th></tr>
+          <tr><td><code>title</code></td><td>{{t "Song title."}}</td></tr>
+          <tr><td><code>artist</code></td><td>{{t "Artist/band name."}}</td></tr>
+          <tr><td><code>key</code></td><td>{{t "Key signature, e.g."}} <code>Bb</code>, <code>F#m</code>{{t ". The song's plain"}} <code>chord:</code> {{t "diagrams are for this key."}}</td></tr>
+          <tr><td><code>tempo</code></td><td>{{t "Beats per minute, e.g."}} <code>96</code>.</td></tr>
+          <tr><td><code>swing</code></td><td>{{t "Swung playback for written straight notes:"}} <code>8</code> {{t "plays eighths as a shuffle (the triplet's long-short),"}} <code>16</code> {{t "does the same for sixteenths. Leave it out for straight time."}}</td></tr>
+          <tr><td><code>time</code></td><td>{{t "Time signature, e.g."}} <code>4/4</code>, <code>6/8</code>.</td></tr>
+          <tr><td><code>capo</code></td><td>{{t "Capo fret, printed as an annotation."}}</td></tr>
+          <tr><td><code>transpose</code></td><td>{{t "Semitones to transpose for display — never changes the chord text itself. To rewrite the song in another key, use"}} <a href="#chords-keys">{{t "Transpose in the editor"}}</a> {{t "instead."}}</td></tr>
+          <tr><td><code>gp_source</code></td><td>{{t "The name of the Guitar Pro file kept with the song (set when one is imported or saved). See"}} <a href="#gp">{{t "Guitar Pro file"}}</a>.</td></tr>
+          <tr><td><code>content</code></td><td><code>gp</code> {{t "when the Guitar Pro file is the whole song (an instrumental, a lesson): the page opens on the file's score, and sections, grid and lyrics are optional."}}</td></tr>
+          <tr><td><code>map</code></td><td>{{t `A short "·"-separated overview of the song's structure (e.g.`}} <code>Verse &middot; Chorus &middot; Verse</code>).</td></tr>
+          <tr><td><code>reference</code></td><td>{{t "A reference URL (usually YouTube) for this song."}}</td></tr>
+          <tr><td><code>flats</code></td><td><code>yes</code> {{t "to spell transposed chords with flats instead of sharps. When the song itself is transposed, chords are spelled for the new key (flats in"}} <code>Bb</code>{{t ", sharps in"}} <code>E</code>{{t "); this only decides for"}} <code>C</code> {{t "and"}} <code>Am</code>.</td></tr>
+          <tr><td><code>cover</code> / <code>cover-credit</code></td><td>{{t "A cover image URL and its photo credit."}}</td></tr>
+          <tr><td><code>chord:</code></td><td>{{t "One fretboard diagram — see"}} <a href="#chords">{{t "Chord diagrams"}}</a>{{t ". Repeatable."}}</td></tr>
+          <tr><td><code>chord[Key]:</code></td><td>{{t "One fretboard diagram entered for another key of the song — see"}} <a href="#chords-keys">{{t "Diagrams for several keys"}}</a>{{t ". Repeatable."}}</td></tr>
         </table>
       </section>
 
       <section id="sections">
-        <h2>Sections</h2>
-        <p>A section starts with <code>[Label]</code> on its own line — <code>Verse</code>, <code>Chorus</code>, <code>Bridge</code>, or any free text. <code>[Label] (repeat)</code> marks a bare repeat: just the label, no grid or lyrics of its own.</p>
-        <p>Inside a section, before any grid/lyric lines, a few more fields are recognized:</p>
+        <h2>{{t "Sections"}}</h2>
+        <p>{{t "A section starts with"}} <code>[Label]</code> {{t "on its own line —"}} <code>Verse</code>, <code>Chorus</code>, <code>Bridge</code>{{t ", or any free text."}} <code>[Label] (repeat)</code> {{t "marks a bare repeat: just the label, no grid or lyrics of its own."}}</p>
+        <p>{{t "Inside a section, before any grid/lyric lines, a few more fields are recognized:"}}</p>
         <table>
-          <tr><th>Key</th><th>Meaning</th></tr>
-          <tr><td><code>time:</code></td><td>Per-section time-signature override.</td></tr>
-          <tr><td><code>bars:</code></td><td>How many bars per printed row — one number for all rows (<code>bars: 4</code>), or a comma list for different row lengths (<code>bars: 4,5</code>, the last value repeating).</td></tr>
-          <tr><td><code>times:</code></td><td>How many times this section is actually played through (&gt;1 — affects the structure map, not the printed grid).</td></tr>
-          <tr><td><code>note:</code></td><td>A free-text performance direction for this section occurrence (e.g. <code>GTR + claviers only</code>). Repeatable.</td></tr>
-          <tr><td><code>score[label]:</code></td><td>A note-level voice for this section (drum, bass, guitar...) — see <a href="#score">Note-level scores</a>.</td></tr>
+          <tr><th>{{t "Field"}}</th><th>{{t "Meaning"}}</th></tr>
+          <tr><td><code>time:</code></td><td>{{t "Per-section time-signature override."}}</td></tr>
+          <tr><td><code>bars:</code></td><td>{{t "How many bars per printed row — one number for all rows"}} (<code>bars: 4</code>){{t ", or a comma list for different row lengths"}} (<code>bars: 4,5</code>{{t ", the last value repeating)."}}</td></tr>
+          <tr><td><code>times:</code></td><td>{{t "How many times this section is actually played through (>1 — affects the structure map, not the printed grid)."}}</td></tr>
+          <tr><td><code>note:</code></td><td>{{t "A free-text performance direction for this section occurrence (e.g."}} <code>GTR + claviers only</code>{{t "). Repeatable."}}</td></tr>
+          <tr><td><code>score[label]:</code></td><td>{{t "A note-level voice for this section (drum, bass, guitar...) — see"}} <a href="#score">{{t "Note-level scores"}}</a>.</td></tr>
         </table>
       </section>
 
       <section id="grid">
-        <h2>Chord grid</h2>
-        <p>A <code>grid:</code> line (or several, concatenated) holds the chord changes as <code>|</code>-separated bars:</p>
+        <h2>{{t "Chord grid"}}</h2>
+        <p>{{t "A"}} <code>grid:</code> {{t "line (or several, concatenated) holds the chord changes as"}} <code>|</code>{{t "-separated bars:"}}</p>
         <pre><code>grid: | Gm | Bb . D . | Cm7 |</code></pre>
-        <p>Inside a bar, chord tokens are space-separated; <code>.</code> or <code>%</code> repeats the previous chord; a bare chord fills the whole bar.</p>
+        <p>{{t "Inside a bar, chord tokens are space-separated;"}} <code>.</code> {{t "or"}} <code>%</code> {{t "repeats the previous chord; a bare chord fills the whole bar."}}</p>
         <table>
-          <tr><th>Syntax</th><th>Meaning</th></tr>
-          <tr><td><code>|: ... :|</code></td><td>A repeated bracket (plain "x2" implied). <code>|:4 ...</code> states an explicit repeat count.</td></tr>
-          <tr><td><code>(1.)</code> / <code>(1,2.)</code></td><td>A volta (first/second-ending) marker, right after a bar's own opening.</td></tr>
-          <tr><td><code>{2/4}</code></td><td>A one-bar meter override.</td></tr>
-          <tr><td><code>~</code> on a chord token</td><td>Tie — the chord sounds through, not restruck.</td></tr>
-          <tr><td><code>R</code> / <code>r</code></td><td>A full bar of rest.</td></tr>
-          <tr><td><code>Chord:4.</code></td><td>A duration tag — a dotted-quarter hold, for example — stripped for display, kept for rhythm.</td></tr>
+          <tr><th>{{t "Syntax"}}</th><th>{{t "Meaning"}}</th></tr>
+          <tr><td><code>|: ... :|</code></td><td>{{t `A repeated bracket (plain "x2" implied).`}} <code>|:4 ...</code> {{t "states an explicit repeat count."}}</td></tr>
+          <tr><td><code>(1.)</code> / <code>(1,2.)</code></td><td>{{t "A volta (first/second-ending) marker, right after a bar's own opening."}}</td></tr>
+          <tr><td><code>{2/4}</code></td><td>{{t "A one-bar meter override."}}</td></tr>
+          <tr><td><code>~</code> {{t "on a chord token"}}</td><td>{{t "Tie — the chord sounds through, not restruck."}}</td></tr>
+          <tr><td><code>R</code> / <code>r</code></td><td>{{t "A full bar of rest."}}</td></tr>
+          <tr><td><code>Chord:4.</code></td><td>{{t "A duration tag — a dotted-quarter hold, for example — stripped for display, kept for rhythm."}}</td></tr>
         </table>
       </section>
 
       <section id="lyrics">
-        <h2>Lyrics</h2>
-        <p>Any section line that isn't a recognized field is a lyric line, with chords inline as <code>[Chord]</code> right before the syllable they land on:</p>
+        <h2>{{t "Lyrics"}}</h2>
+        <p>{{t "Any section line that isn't a recognized field is a lyric line, with chords inline as"}} <code>[Chord]</code> {{t "right before the syllable they land on:"}}</p>
         <pre><code>Pla[Gm]ceholder words [Bb]here</code></pre>
       </section>
 
       <section id="chords">
-        <h2>Chord diagrams</h2>
-        <p>A <code>chord:</code> header line adds one fretboard box to the legend strip under the title — the same small grid-with-dots diagram a real printed songbook carries:</p>
+        <h2>{{t "Chord diagrams"}}</h2>
+        <p>{{t "A"}} <code>chord:</code> {{t "header line adds one fretboard box to the legend strip under the title — the same small grid-with-dots diagram a real printed songbook carries:"}}</p>
         <pre><code>chord: Cm 8:XX3(111)
 chord: G 7:XX(3121)
 chord: Ab 8:X4312X</code></pre>
-        <p>The name is a normal chord symbol (same grammar as the grid/lyrics). The spec is <code>[fret:]strings</code>, one character per string, left to right = lowest-pitched string to highest:</p>
+        <p>{{t "The name is a normal chord symbol (same grammar as the grid/lyrics). The spec is"}} <code>[fret:]strings</code>{{t ", one character per string, left to right = lowest-pitched string to highest:"}}</p>
         <table>
-          <tr><th>Character</th><th>Meaning</th></tr>
-          <tr><td><code>X</code></td><td>Muted string.</td></tr>
-          <tr><td><code>O</code> / <code>0</code></td><td>Open string.</td></tr>
-          <tr><td>a digit <code>1</code>&ndash;<code>9</code></td><td>A fretted dot at that row (relative to the leading fret number, or row 1 = open position if none given).</td></tr>
-          <tr><td><code>(digits)</code></td><td>A barre across those strings, drawn at the lowest enclosed row.</td></tr>
+          <tr><th>{{t "Character"}}</th><th>{{t "Meaning"}}</th></tr>
+          <tr><td><code>X</code></td><td>{{t "Muted string."}}</td></tr>
+          <tr><td><code>O</code> / <code>0</code></td><td>{{t "Open string."}}</td></tr>
+          <tr><td>{{t "a digit"}} <code>1</code>&ndash;<code>9</code></td><td>{{t "A fretted dot at that row (relative to the leading fret number, or row 1 = open position if none given)."}}</td></tr>
+          <tr><td><code>({{t "digits"}})</code></td><td>{{t "A barre across those strings, drawn at the lowest enclosed row."}}</td></tr>
         </table>
-        <p class="hint">This spec is byte-compatible with the legacy LaTeX <code>songs</code> package's own <code>\gtab</code> grid notation — real legacy diagrams paste in unchanged.</p>
+        <p class="hint">{{t "This spec is byte-compatible with the legacy LaTeX"}} <code>songs</code> {{t "package's own"}} <code>\gtab</code> {{t "grid notation — real legacy diagrams paste in unchanged."}}</p>
 
-        <h3 id="chords-keys">Diagrams for several keys</h3>
-        <p>A chord shape only fits one key. Plain <code>chord:</code> lines are for the song's own <code>key:</code>. A diagram entered for another key names that key in brackets, the same way <code>score[label]:</code> names its voice:</p>
+        <h3 id="chords-keys">{{t "Diagrams for several keys"}}</h3>
+        <p>{{t "A chord shape only fits one key. Plain"}} <code>chord:</code> {{t "lines are for the song's own"}} <code>key:</code>{{t ". A diagram entered for another key names that key in brackets, the same way"}} <code>score[label]:</code> {{t "names its voice:"}}</p>
         <pre><code>key: G
 chord: G 320003
 chord: C X32010
 chord[A]: A X02220
 chord[A]: D XX0232</code></pre>
-        <p>Here the chart shows the <code>G</code> and <code>C</code> boxes. The <code>A</code> set is kept for when the song is played in A: transpose the view up two semitones on the song page and its diagrams swap to that set. A key with no set of its own shows no diagrams, with a short note instead. <code>chord[Bb]:</code> and <code>chord[A#]:</code> mean the same key; <code>chord[G]:</code> in a song whose <code>key:</code> is <code>G</code> is the same as a plain <code>chord:</code>.</p>
-        <p><strong>Transpose</strong> in the editor (Source tab) rewrites the song into a new key for real: every chord in the grids and in <code>[Chord]</code> lyric markers, slash basses included, and the <code>key:</code> line. Chords are spelled the way the new key reads (<code>Bb</code> in F, <code>A#</code> in E). <code>N.C.</code>, <code>%</code>, rests, repeat and volta marks, durations, comments, notes and <code>score[label]:</code> voices are left exactly as written. The old key's plain <code>chord:</code> lines become <code>chord[Old]:</code> lines, and lines already marked with the new key become the song's plain set. The change is saved like any other edit, so the song's history keeps the previous version. Transposing back gives the original text.</p>
+        <p>{{t "Here the chart shows the"}} <code>G</code> {{t "and"}} <code>C</code> {{t "boxes. The"}} <code>A</code> {{t "set is kept for when the song is played in A: transpose the view up two semitones on the song page and its diagrams swap to that set. A key with no set of its own shows no diagrams, with a short note instead."}} <code>chord[Bb]:</code> {{t "and"}} <code>chord[A#]:</code> {{t "mean the same key;"}} <code>chord[G]:</code> {{t "in a song whose"}} <code>key:</code> {{t "is"}} <code>G</code> {{t "is the same as a plain"}} <code>chord:</code>.</p>
+        <p><strong>{{t "Transpose"}}</strong> {{t "in the editor (Source tab) rewrites the song into a new key for real: every chord in the grids and in"}} <code>[Chord]</code> {{t "lyric markers, slash basses included, and the"}} <code>key:</code> {{t "line. Chords are spelled the way the new key reads"}} (<code>Bb</code> {{t "in F,"}} <code>A#</code> {{t "in E)."}} <code>N.C.</code>, <code>%</code>{{t ", rests, repeat and volta marks, durations, comments, notes and"}} <code>score[label]:</code> {{t "voices are left exactly as written. The old key's plain"}} <code>chord:</code> {{t "lines become"}} <code>chord[Old]:</code> {{t "lines, and lines already marked with the new key become the song's plain set. The change is saved like any other edit, so the song's history keeps the previous version. Transposing back gives the original text."}}</p>
       </section>
 
       <section id="gp">
-        <h2>Guitar Pro file (<code>gp[Track]:</code>)</h2>
-        <p>A song can keep one Guitar Pro file (earlier versions stay in its history). Its notes are never copied into the text: a section points at bars of the file instead, and the song page draws them there.</p>
+        <h2>{{t "Guitar Pro file"}} (<code>gp[Track]:</code>)</h2>
+        <p>{{t "A song can keep one Guitar Pro file (earlier versions stay in its history). Its notes are never copied into the text: a section points at bars of the file instead, and the song page draws them there."}}</p>
         <pre><code>[Verse 1]
 grid: |E7 | A7 | E7 | . |
 gp[Lead guitar]: 9-12
 gp[Bass]: 9-12 staff
 gp: 13-16</code></pre>
         <table>
-          <tr><th>Part</th><th>Meaning</th></tr>
-          <tr><td><code>gp[Lead guitar]</code></td><td>A track of the file, by its name in Guitar Pro (case and accents don't matter), or by number: <code>gp[#2]</code>. A bare <code>gp:</code> means every track, as Guitar Pro's multi-track view shows them.</td></tr>
-          <tr><td><code>9-12</code>, <code>9</code>, <code>1-4, 9-12</code></td><td>Bars, numbered as Guitar Pro numbers them. Repeat signs inside the bars are played as written, so <code>1-12</code> with a repeat around it lasts 24 bars.</td></tr>
-          <tr><td><code>tab</code>, <code>staff</code>, <code>tab+staff</code>, <code>slash</code></td><td>Optional: how to draw it. Left out, each reader gets the notation they chose for guitar or bass; a reader's own choice also wins over the line's.</td></tr>
+          <tr><th>{{t "Syntax"}}</th><th>{{t "Meaning"}}</th></tr>
+          <tr><td><code>gp[Lead guitar]</code></td><td>{{t "A track of the file, by its name in Guitar Pro (case and accents don't matter), or by number:"}} <code>gp[#2]</code>{{t ". A bare"}} <code>gp:</code> {{t "means every track, as Guitar Pro's multi-track view shows them."}}</td></tr>
+          <tr><td><code>9-12</code>, <code>9</code>, <code>1-4, 9-12</code></td><td>{{t "Bars, numbered as Guitar Pro numbers them. Repeat signs inside the bars are played as written, so"}} <code>1-12</code> {{t "with a repeat around it lasts 24 bars."}}</td></tr>
+          <tr><td><code>tab</code>, <code>staff</code>, <code>tab+staff</code>, <code>slash</code></td><td>{{t "Optional: how to draw it. Left out, each reader gets the notation they chose for guitar or bass; a reader's own choice also wins over the line's."}}</td></tr>
         </table>
-        <p>Tempo, time signature, key, swing, section names, chords and chord diagrams are in both the text and the file. When they disagree, editors see it on the song page and pick: the file's value, the text's (written into a new version of the file), or both kept as they are. Nothing is changed on its own.</p>
+        <p>{{t "Tempo, time signature, key, swing, section names, chords and chord diagrams are in both the text and the file. When they disagree, editors see it on the song page and pick: the file's value, the text's (written into a new version of the file), or both kept as they are. Nothing is changed on its own."}}</p>
       </section>
 
       <section id="score">
-        <h2>Note-level scores (<code>score[label]:</code>)</h2>
-        <p>A section can carry one or more <code>score[label]:</code> blocks — real note-level tab/notation for a named voice (<code>drum</code>, <code>bass</code>, a custom name like <code>guitar-1</code>), not just chord changes. The content is plain text, right in the <code>.song</code> file, the same as <code>grid:</code> or lyrics — no separate database row, nothing to look up: the file is meant to be the whole song, readable and git-diffable on its own, notation included. Edited directly in Source, with a live preview as you type. Only a clean, intentionally bounded subset of real LilyPond is understood:</p>
-        <p class="hint">For anything longer than a riff, keep the notes in the song's <a href="#gp">Guitar Pro file</a> instead: it holds every technique, and has its own editor.</p>
+        <h2>{{t "Note-level scores"}} (<code>score[label]:</code>)</h2>
+        <p>{{t "A section can carry one or more"}} <code>score[label]:</code> {{t "blocks — real note-level tab/notation for a named voice"}} (<code>drum</code>, <code>bass</code>{{t ", a custom name like"}} <code>guitar-1</code>){{t ", not just chord changes. The content is plain text, right in the"}} <code>.song</code> {{t "file, the same as"}} <code>grid:</code> {{t "or lyrics — no separate database row, nothing to look up: the file is meant to be the whole song, readable and git-diffable on its own, notation included. Edited directly in Source, with a live preview as you type. Only a clean, intentionally bounded subset of real LilyPond is understood:"}}</p>
+        <p class="hint">{{t "For anything longer than a riff, keep the notes in the song's"}} <a href="#gp">{{t "Guitar Pro file"}}</a> {{t "instead: it holds every technique, and has its own editor."}}</p>
         <pre><code>score[guitar-1]: \new TabStaff {
   \set TabStaff.minimumFret = 3
   \relative {
     g,4 &lt;d' g'&gt;8. g,16 bes,8 c d f16 g
   }
 }</code></pre>
-        <p>A block's content continues on following lines until a blank line, the next recognized field, or a new <code>[Section]</code> — <em>unless</em> it's wrapped in a balanced <code>{ ... }</code> (the full form above), in which case it continues until those braces close, blank lines and all.</p>
+        <p>{{t "A block's content continues on following lines until a blank line, the next recognized field, or a new"}} <code>[Section]</code> — <em>{{t "unless"}}</em> {{t "it's wrapped in a balanced"}} <code>{ ... }</code> {{t "(the full form above), in which case it continues until those braces close, blank lines and all."}}</p>
 
-        <h3 id="score-pitch">Pitch &amp; duration</h3>
+        <h3 id="score-pitch">{{t "Pitch & duration"}}</h3>
         <table>
-          <tr><th>Syntax</th><th>Meaning</th></tr>
-          <tr><td><code>c d e f g a b</code></td><td>Note names (Dutch/LilyPond spelling).</td></tr>
-          <tr><td><code>cis</code> / <code>ces</code></td><td>Sharp / flat (<code>-is</code> / <code>-es</code>).</td></tr>
-          <tr><td><code>'</code> / <code>,</code></td><td>Octave up / down, relative to the previous note (real LilyPond "nearest pitch within a fourth" rule).</td></tr>
-          <tr><td><code>4 8 16 ...</code></td><td>Duration (quarter, eighth, sixteenth...); a trailing <code>.</code> dots it. Omitted duration repeats the last one written.</td></tr>
-          <tr><td><code>r4</code></td><td>A rest.</td></tr>
-          <tr><td><code>~</code></td><td>Tie into the next note of the same pitch.</td></tr>
-          <tr><td><code>&lt;c e g&gt;4</code></td><td>A chord cluster.</td></tr>
-          <tr><td><code>\tuplet 3/2 { g16 f d }</code></td><td>A triplet (or any N-in-the-time-of-M grouping).</td></tr>
-          <tr><td><code>\relative { ... }</code></td><td>Wraps a passage in relative-pitch mode. Riffs may also be written in plain absolute pitch with no wrapper.</td></tr>
+          <tr><th>{{t "Syntax"}}</th><th>{{t "Meaning"}}</th></tr>
+          <tr><td><code>c d e f g a b</code></td><td>{{t "Note names (Dutch/LilyPond spelling)."}}</td></tr>
+          <tr><td><code>cis</code> / <code>ces</code></td><td>{{t "Sharp / flat"}} (<code>-is</code> / <code>-es</code>).</td></tr>
+          <tr><td><code>'</code> / <code>,</code></td><td>{{t `Octave up / down, relative to the previous note (real LilyPond "nearest pitch within a fourth" rule).`}}</td></tr>
+          <tr><td><code>4 8 16 ...</code></td><td>{{t "Duration (quarter, eighth, sixteenth...); a trailing"}} <code>.</code> {{t "dots it. Omitted duration repeats the last one written."}}</td></tr>
+          <tr><td><code>r4</code></td><td>{{t "A rest."}}</td></tr>
+          <tr><td><code>~</code></td><td>{{t "Tie into the next note of the same pitch."}}</td></tr>
+          <tr><td><code>&lt;c e g&gt;4</code></td><td>{{t "A chord cluster."}}</td></tr>
+          <tr><td><code>\tuplet 3/2 { g16 f d }</code></td><td>{{t "A triplet (or any N-in-the-time-of-M grouping)."}}</td></tr>
+          <tr><td><code>\relative { ... }</code></td><td>{{t "Wraps a passage in relative-pitch mode. Riffs may also be written in plain absolute pitch with no wrapper."}}</td></tr>
         </table>
-        <p class="hint">See it rendered in the "Bad Spell" riff above.</p>
+        <p class="hint">{{t `See it rendered in the "Bad Spell" riff above.`}}</p>
 
-        <h3 id="score-tuning">Tuning &amp; frets</h3>
-        <p>Fret and string numbers are never written explicitly — they're computed the same way real LilyPond does, from the written pitch, the tuning, and the minimum-fret preference. The label itself picks the default tuning, so the common case needs no boilerplate at all:</p>
+        <h3 id="score-tuning">{{t "Tuning & frets"}}</h3>
+        <p>{{t "Fret and string numbers are never written explicitly — they're computed the same way real LilyPond does, from the written pitch, the tuning, and the minimum-fret preference. The label itself picks the default tuning, so the common case needs no boilerplate at all:"}}</p>
         <div class="mini-example">
           <div><pre><code>score[bass]: d,4 d d d d d d d</code></pre></div>
-          <div><iframe class="example-frame" src="/docs/song-format/example/bass" title="Rendered bass example" loading="lazy"></iframe></div>
+          <div><iframe class="example-frame" src="/docs/song-format/example/bass" title="{{t "Rendered bass example"}}" loading="lazy"></iframe></div>
         </div>
-        <p><code>bass</code> gets standard 4-string bass tuning; any other label (a custom name like <code>guitar-1</code>, or no label at all) gets standard 6-string guitar. A bare sequence like that is read in absolute pitch — real LilyPond's own default absent a <code>\relative</code> wrapper. For anything the shortcut can't express (an unusual tuning, an explicit minimum fret), fall back to the full form, same as the guitar example above:</p>
+        <p><code>bass</code> {{t "gets standard 4-string bass tuning; any other label (a custom name like"}} <code>guitar-1</code>{{t ", or no label at all) gets standard 6-string guitar. A bare sequence like that is read in absolute pitch — real LilyPond's own default absent a"}} <code>\relative</code> {{t "wrapper. For anything the shortcut can't express (an unusual tuning, an explicit minimum fret), fall back to the full form, same as the guitar example above:"}}</p>
         <pre><code>score[bass]: \new TabStaff \with { stringTunings = #bass-tuning } {
   \set TabStaff.minimumFret = 7
   ...
 }</code></pre>
-        <p><code>\set TabStaff.minimumFret = N</code> may appear mid-riff to push a later passage higher up the neck.</p>
+        <p><code>\set TabStaff.minimumFret = N</code> {{t "may appear mid-riff to push a later passage higher up the neck."}}</p>
 
-        <h3 id="score-hammer">Hammer-on / pull-off</h3>
-        <p>A real LilyPond slur across two notes, on a tab staff, is how a hammer-on (ascending) or pull-off (descending) is written — the direction (and the printed "H"/"P" letter) is worked out automatically from the two pitches:</p>
+        <h3 id="score-hammer">{{t "Hammer-on / pull-off"}}</h3>
+        <p>{{t `A real LilyPond slur across two notes, on a tab staff, is how a hammer-on (ascending) or pull-off (descending) is written — the direction (and the printed "H"/"P" letter) is worked out automatically from the two pitches:`}}</p>
         <div class="mini-example">
           <div><pre><code>score[guitar]: \set TabStaff.minimumFret = 3
   g,4( a,) a, a,</code></pre></div>
-          <div><iframe class="example-frame" src="/docs/song-format/example/hammer" title="Rendered hammer-on example" loading="lazy"></iframe></div>
+          <div><iframe class="example-frame" src="/docs/song-format/example/hammer" title="{{t "Rendered hammer-on example"}}" loading="lazy"></iframe></div>
         </div>
 
-        <h3 id="score-slide">Slides</h3>
-        <p>A grace note slurred-and-glissando'd into the main note is a slide — the grace note's own duration doesn't matter (it borrows time), only its pitch:</p>
+        <h3 id="score-slide">{{t "Slides"}}</h3>
+        <p>{{t "A grace note slurred-and-glissando'd into the main note is a slide — the grace note's own duration doesn't matter (it borrows time), only its pitch:"}}</p>
         <div class="mini-example">
           <div><pre><code>score[guitar]: f4~ f8 ees8~ \grace f16( \glissando g8)</code></pre></div>
-          <div><iframe class="example-frame" src="/docs/song-format/example/slide" title="Rendered slide example" loading="lazy"></iframe></div>
+          <div><iframe class="example-frame" src="/docs/song-format/example/slide" title="{{t "Rendered slide example"}}" loading="lazy"></iframe></div>
         </div>
 
-        <h3 id="score-bend">Bends &amp; palm mute</h3>
-        <p class="callout">This part of the grammar is this app's own addition — it doesn't appear in real LilyPond. It's for a riff you type or paste in by hand. This syntax reuses LilyPond's own genuine text-articulation form (<code>note^"label"</code>) rather than inventing a new token.</p>
+        <h3 id="score-bend">{{t "Bends & palm mute"}}</h3>
+        <p class="callout">{{t "This part of the grammar is this app's own addition — it doesn't appear in real LilyPond. It's for a riff you type or paste in by hand. This syntax reuses LilyPond's own genuine text-articulation form"}} (<code>note^"label"</code>) {{t "rather than inventing a new token."}}</p>
         <table>
-          <tr><th>Label</th><th>Meaning</th></tr>
-          <tr><td><code>^"full"</code></td><td>A whole-step bend.</td></tr>
-          <tr><td><code>^"1/2"</code>, <code>^"1/4"</code>, <code>^"3/4"</code></td><td>A fractional-step bend.</td></tr>
-          <tr><td><code>^"1 1/2"</code></td><td>A mixed-number bend (one and a half steps).</td></tr>
-          <tr><td><code>^"full (release)"</code></td><td>Bends up, then releases back down before the beat ends.</td></tr>
-          <tr><td><code>^"PM"</code> / <code>^"P.M."</code></td><td>Palm mute. Consecutive muted notes draw one "P.M." label with a dashed line, not one label per note.</td></tr>
+          <tr><th>{{t "Label"}}</th><th>{{t "Meaning"}}</th></tr>
+          <tr><td><code>^"full"</code></td><td>{{t "A whole-step bend."}}</td></tr>
+          <tr><td><code>^"1/2"</code>, <code>^"1/4"</code>, <code>^"3/4"</code></td><td>{{t "A fractional-step bend."}}</td></tr>
+          <tr><td><code>^"1 1/2"</code></td><td>{{t "A mixed-number bend (one and a half steps)."}}</td></tr>
+          <tr><td><code>^"full (release)"</code></td><td>{{t "Bends up, then releases back down before the beat ends."}}</td></tr>
+          <tr><td><code>^"PM"</code> / <code>^"P.M."</code></td><td>{{t `Palm mute. Consecutive muted notes draw one "P.M." label with a dashed line, not one label per note.`}}</td></tr>
         </table>
         <div class="mini-example">
           <div><pre><code>score[guitar]: e8^"full" e8 e8^"PM" e8^"PM" e4</code></pre></div>
-          <div><iframe class="example-frame" src="/docs/song-format/example/bend" title="Rendered bend example" loading="lazy"></iframe></div>
+          <div><iframe class="example-frame" src="/docs/song-format/example/bend" title="{{t "Rendered bend example"}}" loading="lazy"></iframe></div>
         </div>
 
-        <h3 id="score-drums">Drum notation</h3>
-        <p>Real LilyPond's own percussion grammar — no fret or string numbers, just a fixed vocabulary of drum-piece names and the same duration syntax as above. The <code>drum</code> (or <code>drums</code>) label goes straight to the content: no <code>\new DrumStaff</code>, no <code>\drummode</code> — those are implicit in a <code>score[drum]:</code> block, never written out by hand. Written alongside a <code>grid:</code>, the section's chord names float above the drum staff's own bars (first beat of each bar only), exactly like a real chart hands a drummer the changes without asking them to read a chord grid:</p>
+        <h3 id="score-drums">{{t "Drum notation"}}</h3>
+        <p>{{t "Real LilyPond's own percussion grammar — no fret or string numbers, just a fixed vocabulary of drum-piece names and the same duration syntax as above. The"}} <code>drum</code> ({{t "or"}} <code>drums</code>) {{t "label goes straight to the content: no"}} <code>\new DrumStaff</code>{{t ", no"}} <code>\drummode</code> {{t "— those are implicit in a"}} <code>score[drum]:</code> {{t "block, never written out by hand. Written alongside a"}} <code>grid:</code>{{t ", the section's chord names float above the drum staff's own bars (first beat of each bar only), exactly like a real chart hands a drummer the changes without asking them to read a chord grid:"}}</p>
         <div class="mini-example">
           <div><pre><code>[Chorus]
 grid: |: D | % | % | % :|
 score[drum]: bd4 hh8 hh8 sn4 hh8 hh8
   bd4 hh8 bd8 sn4 hh8 hh8</code></pre></div>
-          <div><iframe class="example-frame" src="/docs/song-format/example/drum" title="Rendered drum notation example" loading="lazy"></iframe></div>
+          <div><iframe class="example-frame" src="/docs/song-format/example/drum" title="{{t "Rendered drum notation example"}}" loading="lazy"></iframe></div>
         </div>
-        <p class="hint">That's a "D" over bar 1, nothing on the bars after it — same convention a real chord-grid row uses (a chord only prints again when it actually changes).</p>
+        <p class="hint">{{t `That's a "D" over bar 1, nothing on the bars after it — same convention a real chord-grid row uses (a chord only prints again when it actually changes).`}}</p>
         <table>
-          <tr><th>Name</th><th>Drum piece</th></tr>
-          <tr><td><code>bd</code></td><td>Bass drum (kick)</td></tr>
-          <tr><td><code>sn</code></td><td>Snare</td></tr>
-          <tr><td><code>ss</code></td><td>Side stick</td></tr>
-          <tr><td><code>hh</code> / <code>hhc</code></td><td>Hi-hat, closed</td></tr>
-          <tr><td><code>hho</code></td><td>Hi-hat, open</td></tr>
-          <tr><td><code>hhp</code></td><td>Hi-hat, pedal</td></tr>
-          <tr><td><code>cymc</code></td><td>Crash cymbal</td></tr>
-          <tr><td><code>cymr</code></td><td>Ride cymbal</td></tr>
-          <tr><td><code>tomfl</code> / <code>tomfh</code></td><td>Floor tom, low / high</td></tr>
-          <tr><td><code>toml</code> / <code>tomm</code> / <code>tomh</code></td><td>Tom, low / mid / high</td></tr>
-          <tr><td><code>cb</code></td><td>Cowbell</td></tr>
+          <tr><th>{{t "Name"}}</th><th>{{t "Drum piece"}}</th></tr>
+          <tr><td><code>bd</code></td><td>{{t "Bass drum (kick)"}}</td></tr>
+          <tr><td><code>sn</code></td><td>{{t "Snare"}}</td></tr>
+          <tr><td><code>ss</code></td><td>{{t "Side stick"}}</td></tr>
+          <tr><td><code>hh</code> / <code>hhc</code></td><td>{{t "Hi-hat, closed"}}</td></tr>
+          <tr><td><code>hho</code></td><td>{{t "Hi-hat, open"}}</td></tr>
+          <tr><td><code>hhp</code></td><td>{{t "Hi-hat, pedal"}}</td></tr>
+          <tr><td><code>cymc</code></td><td>{{t "Crash cymbal"}}</td></tr>
+          <tr><td><code>cymr</code></td><td>{{t "Ride cymbal"}}</td></tr>
+          <tr><td><code>tomfl</code> / <code>tomfh</code></td><td>{{t "Floor tom, low / high"}}</td></tr>
+          <tr><td><code>toml</code> / <code>tomm</code> / <code>tomh</code></td><td>{{t "Tom, low / mid / high"}}</td></tr>
+          <tr><td><code>cb</code></td><td>{{t "Cowbell"}}</td></tr>
         </table>
-        <p>Two or more hits on the same beat (a kick and a closed hi-hat together, say) are written as a chord, same bracket syntax as a pitched one: <code>&lt;bd hh&gt;4</code>. A run of consecutive full-bar rests (<code>r1</code>) draws as one real engraved multi-measure-rest glyph, not one empty bar per rest.</p>
-        <p>Drummer view renders the WHOLE song as one continuous staff, the drum-notation counterpart of Song Map's own continuous chord-grid score — every section's bars flow straight into the next, with a real rehearsal-style marker on each section's own first bar instead of separate per-section blocks. A section with its own <code>score[drum]:</code> shows that real notation (chord names floating above it, as above); a section with none still collapses to a plain bar-count rest, same as it always has, but drawn by the same engraving engine as the real notation around it — so a run of several "just the bar count" sections packs multiple onto the same line instead of each getting its own, often mostly-empty row.</p>
+        <p>{{t "Two or more hits on the same beat (a kick and a closed hi-hat together, say) are written as a chord, same bracket syntax as a pitched one:"}} <code>&lt;bd hh&gt;4</code>{{t ". A run of consecutive full-bar rests"}} (<code>r1</code>) {{t "draws as one real engraved multi-measure-rest glyph, not one empty bar per rest."}}</p>
+        <p>{{t `Drummer view renders the WHOLE song as one continuous staff, the drum-notation counterpart of Song Map's own continuous chord-grid score — every section's bars flow straight into the next, with a real rehearsal-style marker on each section's own first bar instead of separate per-section blocks. A section with its own`}} <code>score[drum]:</code> {{t `shows that real notation (chord names floating above it, as above); a section with none still collapses to a plain bar-count rest, same as it always has, but drawn by the same engraving engine as the real notation around it — so a run of several "just the bar count" sections packs multiple onto the same line instead of each getting its own, often mostly-empty row.`}}</p>
 
-        <h3 id="score-multitrack">Multiple voices (drums, bass, guitars...)</h3>
-        <p>A section can carry several <code>score[label]:</code> blocks side by side — one per instrument, each edited and previewed on its own:</p>
+        <h3 id="score-multitrack">{{t "Multiple voices (drums, bass, guitars...)"}}</h3>
+        <p>{{t "A section can carry several"}} <code>score[label]:</code> {{t "blocks side by side — one per instrument, each edited and previewed on its own:"}}</p>
         <div class="mini-example">
           <div><pre><code>score[drum]: bd4 hh8 hh8 sn4 hh8 hh8
   bd4 hh8 bd8 sn4 hh8 hh8
 score[bass]: d,4 d d d d d d d
 score[guitar-1]: &lt;e, b e&gt;4 &lt;e b e&gt; &lt;e b e&gt; &lt;e b e&gt;
 score[guitar-2]: e'8 g e g e g e g</code></pre></div>
-          <div><iframe class="example-frame" src="/docs/song-format/example/multitrack" title="Rendered multi-voice example" loading="lazy"></iframe></div>
+          <div><iframe class="example-frame" src="/docs/song-format/example/multitrack" title="{{t "Rendered multi-voice example"}}" loading="lazy"></iframe></div>
         </div>
-        <p class="hint">These voices show up two ways. A section with exactly ONE melodic (non-drum) voice has it overlay the chord chart automatically — the common case for a hand-written riff. A section with SEVERAL keeps the chart as pure chords instead of guessing, and a reader picks which one's full notation to see from the instrument picker beside the view-mode tabs (Song and Song map both read the same choice; pick "Chords" to go back to the plain grid) — the render above picks <code>bass</code> for illustration, since a real reader would make that same choice from the picker. <code>drum</code> never goes through that picker — Drummer view shows it on its own, continuously across the whole song. Every voice is preserved and live-previewed in Source regardless of which one is currently showing elsewhere.</p>
+        <p class="hint">{{t `These voices show up two ways. A section with exactly ONE melodic (non-drum) voice has it overlay the chord chart automatically — the common case for a hand-written riff. A section with SEVERAL keeps the chart as pure chords instead of guessing, and a reader picks which one's full notation to see from the instrument picker beside the view-mode tabs (Song and Song map both read the same choice; pick "Chords" to go back to the plain grid) — the render above picks`}} <code>bass</code> {{t "for illustration, since a real reader would make that same choice from the picker."}} <code>drum</code> {{t "never goes through that picker — Drummer view shows it on its own, continuously across the whole song. Every voice is preserved and live-previewed in Source regardless of which one is currently showing elsewhere."}}</p>
 
-        <h3 id="score-mixed">Mixing a melodic voice with the chord grid</h3>
-        <p>A melodic voice (bass, guitar) and the section's own <code>grid:</code> describe the <em>same bars</em> two ways — the voice is the detailed notation, the grid is the chord changes. They don't need to agree on every bar:</p>
+        <h3 id="score-mixed">{{t "Mixing a melodic voice with the chord grid"}}</h3>
+        <p>{{t "A melodic voice (bass, guitar) and the section's own"}} <code>grid:</code> {{t "describe the"}} <em>{{t "same bars"}}</em> {{t "two ways — the voice is the detailed notation, the grid is the chord changes. They don't need to agree on every bar:"}}</p>
         <ul>
-          <li>If every bar in a printed row has riff data, that whole row prints as real tab/notation, replacing the chord-grid row entirely (chord names float above it, read from the grid, positioned independently of the riff's own note timing).</li>
-          <li>If only some bars in a row have riff data, those bars show the riff as a smaller overlay above their own normal chord-grid bar — "detailed here, plain changes there," on the <em>same</em> line.</li>
-          <li>A later row with no riff data at all for any of its bars prints as an ordinary chord-grid row — the chart naturally switches back to plain changes on the next line.</li>
+          <li>{{t "If every bar in a printed row has riff data, that whole row prints as real tab/notation, replacing the chord-grid row entirely (chord names float above it, read from the grid, positioned independently of the riff's own note timing)."}}</li>
+          <li>{{t `If only some bars in a row have riff data, those bars show the riff as a smaller overlay above their own normal chord-grid bar — "detailed here, plain changes there," on the`}} <em>{{t "same"}}</em> {{t "line."}}</li>
+          <li>{{t "A later row with no riff data at all for any of its bars prints as an ordinary chord-grid row — the chart naturally switches back to plain changes on the next line."}}</li>
         </ul>
         <div class="mini-example">
           <div><pre><code>grid: | D | D | G | G |
 score[guitar]: &lt;a, d fis&gt;4 &lt;a d fis&gt; &lt;a d fis&gt; &lt;a d fis&gt;</code></pre></div>
-          <div><iframe class="example-frame" src="/docs/song-format/example/mixed" title="Rendered mixed voice/grid example" loading="lazy"></iframe></div>
+          <div><iframe class="example-frame" src="/docs/song-format/example/mixed" title="{{t "Rendered mixed voice/grid example"}}" loading="lazy"></iframe></div>
         </div>
-        <p class="hint">Only the first bar has riff data here, so just that bar prints as real notation — the rest of the row stays a plain chord-grid bar, same row. An intro with a real riff and a verse that's just chord changes can likewise sit in the same section-less chart, each rendered the way it actually has data for — no separate toggle needed anywhere. A drum voice doesn't follow this rule — see above.</p>
+        <p class="hint">{{t "Only the first bar has riff data here, so just that bar prints as real notation — the rest of the row stays a plain chord-grid bar, same row. An intro with a real riff and a verse that's just chord changes can likewise sit in the same section-less chart, each rendered the way it actually has data for — no separate toggle needed anywhere. A drum voice doesn't follow this rule — see above."}}</p>
       </section>
 
       <section id="rendering">
-        <h2>How it renders</h2>
-        <p>Chord-grid rows render as HTML/CSS in the browser and as pure-Go vector drawing in the PDF export — no shared third-party engine. A fully riff-covered row renders differently per target: on the web it's handed to a vendored copy of <a href="https://www.alphatab.net/" target="_blank" rel="noopener">alphaTab</a> as real engraved notation (proper stems, beams, hammer-on/pull-off slurs, bends); in the PDF export it's drawn by this app's own native tab engraver, built from the same real engraving proportions (stem length, beam thickness, logarithmic note spacing) rather than guessed numbers.</p>
-        <p>A song can also carry real reference audio alongside its notation — not a file attached separately, but an MP3 stored against the song itself and played back right from the page: a YouTube reference, a band's own recording, or (most relevant here) a Guitar Pro file's own embedded backing track, carried in by the <a href="/guitar-pro">Guitar Pro importer</a> with the same bar sync the imported notation uses, so playback and the chart stay lined up as you listen.</p>
+        <h2>{{t "How it renders"}}</h2>
+        <p>{{t "Chord-grid rows render as HTML/CSS in the browser and as pure-Go vector drawing in the PDF export — no shared third-party engine. A fully riff-covered row renders differently per target: on the web it's handed to a vendored copy of"}} <a href="https://www.alphatab.net/" target="_blank" rel="noopener">alphaTab</a> {{t "as real engraved notation (proper stems, beams, hammer-on/pull-off slurs, bends); in the PDF export it's drawn by this app's own native tab engraver, built from the same real engraving proportions (stem length, beam thickness, logarithmic note spacing) rather than guessed numbers."}}</p>
+        <p>{{t "A song can also carry real reference audio alongside its notation — not a file attached separately, but an MP3 stored against the song itself and played back right from the page: a YouTube reference, a band's own recording, or (most relevant here) a Guitar Pro file's own embedded backing track, carried in by the"}} <a href="/guitar-pro">{{t "Guitar Pro importer"}}</a> {{t "with the same bar sync the imported notation uses, so playback and the chart stay lined up as you listen."}}</p>
       </section>
     </main>
   </div>

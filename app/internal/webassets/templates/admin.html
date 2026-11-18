@@ -1,10 +1,10 @@
 {{define "admin"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Admin — Songbooks</title>
+<title>{{t "Admin"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,7 +13,7 @@
 <div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
-  <h1>Admin</h1>
+  <h1>{{t "Admin"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
@@ -24,9 +24,9 @@
        .People/.Projects data the tabs already render; no new handler
        data needed. */}}
   <div class="admin-stats-row">
-    <div class="admin-stat"><strong>{{len .People}}</strong><span>people</span></div>
-    <div class="admin-stat"><strong>{{.AdminCount}}</strong><span>admins</span></div>
-    <div class="admin-stat"><strong>{{len .Communities}}</strong><span>communities</span></div>
+    <div class="admin-stat"><strong>{{len .People}}</strong><span>{{t "people"}}</span></div>
+    <div class="admin-stat"><strong>{{.AdminCount}}</strong><span>{{t "admins"}}</span></div>
+    <div class="admin-stat"><strong>{{len .Communities}}</strong><span>{{t "communities"}}</span></div>
   </div>
 
   {{/* A tab-styled nav (same pattern as the band-detail pages' own
@@ -40,28 +40,28 @@
        tab is kept in the URL hash so a reload or a shared link lands
        back on the same panel. */}}
   <nav class="admin-tabs" id="admin-tabs" role="tablist">
-    <button type="button" data-tab="people" class="active" role="tab">People</button>
-    <button type="button" data-tab="communities" role="tab">Communities</button>
-    <button type="button" data-tab="invites" role="tab">Invites</button>
+    <button type="button" data-tab="people" class="active" role="tab">{{t "People"}}</button>
+    <button type="button" data-tab="communities" role="tab">{{t "Communities"}}</button>
+    <button type="button" data-tab="invites" role="tab">{{t "Invites"}}</button>
   </nav>
 
   <section class="admin-panel" data-panel="people">
     <div class="card">
-      <h3>People</h3>
+      <h3>{{t "People"}}</h3>
       <div class="table-scroll"><table class="table-stack" style="width:100%">
-        <thead><tr><th>Username</th><th>Display name</th><th>Created</th><th>Admin</th><th></th></tr></thead>
+        <thead><tr><th>{{t "Username"}}</th><th>{{t "Display name"}}</th><th>{{t "Created"}}</th><th>{{t "Admin"}}</th><th></th></tr></thead>
         <tbody>
         {{range .People}}
           <tr>
-            <td data-label="Username"><a href="/admin/people/{{.ID}}">{{.Username}}</a></td>
-            <td data-label="Display name">{{.DisplayName}}</td>
-            <td data-label="Created">{{.CreatedAt.Format "2006-01-02"}}</td>
-            <td data-label="Admin">{{if .IsAdmin}}yes{{else}}no{{end}}</td>
+            <td data-label="{{t "Username"}}"><a href="/admin/people/{{.ID}}">{{.Username}}</a></td>
+            <td data-label="{{t "Display name"}}">{{.DisplayName}}</td>
+            <td data-label="{{t "Created"}}">{{.CreatedAt.Format "2006-01-02"}}</td>
+            <td data-label="{{t "Admin"}}">{{if .IsAdmin}}{{t "yes"}}{{else}}{{t "no"}}{{end}}</td>
             <td>
               {{if ne .ID $.Me.ID}}
-              <form method="post" action="/admin/people/{{.ID}}/admin" style="display:inline"{{if .IsAdmin}} onsubmit="return confirm('Remove site admin rights from {{.Username}}?')"{{end}}>
+              <form method="post" action="/admin/people/{{.ID}}/admin" style="display:inline"{{if .IsAdmin}} onsubmit="return confirm('{{t "Remove site admin rights from %s?" .Username}}')"{{end}}>
                 <input type="hidden" name="is_admin" value="{{if .IsAdmin}}0{{else}}1{{end}}">
-                <button type="submit">{{if .IsAdmin}}Remove admin{{else}}Make admin{{end}}</button>
+                <button type="submit">{{if .IsAdmin}}{{t "Remove admin"}}{{else}}{{t "Make admin"}}{{end}}</button>
               </form>
               {{/* handleAdminRemovePerson (handlers_admin.go) is a deliberate
                    501 stub — removing a person needs a real policy for what
@@ -70,33 +70,33 @@
                    explained itself in a hover tooltip, which a phone never
                    shows; the note under the table says it instead. */}}
               {{else}}
-              <em>you</em>
+              <em>{{t "you"}}</em>
               {{end}}
             </td>
           </tr>
         {{end}}
         </tbody>
       </table></div>
-      <p class="hint">Removing people isn't available yet: it needs a rule for what happens to the projects they own.</p>
+      <p class="hint">{{t "Removing people isn't available yet: it needs a rule for what happens to the projects they own."}}</p>
     </div>
   </section>
 
   <section class="admin-panel" data-panel="communities" hidden>
     <div class="card">
-      <h3>Communities</h3>
+      <h3>{{t "Communities"}}</h3>
       <div class="table-scroll"><table class="table-stack" style="width:100%">
-        <thead><tr><th>Name</th><th>Staff</th><th>Members</th><th>Created</th><th></th></tr></thead>
+        <thead><tr><th>{{t "Name"}}</th><th>{{t "Staff"}}</th><th>{{t "Members"}}</th><th>{{t "Created"}}</th><th></th></tr></thead>
         <tbody>
         {{range .Communities}}
           <tr>
-            <td data-label="Name">{{.Name}}</td>
-            <td data-label="Staff">{{.StaffCount}}</td>
-            <td data-label="Members">{{.MemberCount}}</td>
-            <td data-label="Created">{{.CreatedAt.Format "2006-01-02"}}</td>
-            <td><a href="/communities/{{.ID}}">Open</a></td>
+            <td data-label="{{t "Name"}}">{{.Name}}</td>
+            <td data-label="{{t "Staff"}}">{{.StaffCount}}</td>
+            <td data-label="{{t "Members"}}">{{.MemberCount}}</td>
+            <td data-label="{{t "Created"}}">{{.CreatedAt.Format "2006-01-02"}}</td>
+            <td><a href="/communities/{{.ID}}">{{t "Open"}}</a></td>
           </tr>
         {{else}}
-          <tr><td colspan="5" class="hint">No communities on this instance yet.</td></tr>
+          <tr><td colspan="5" class="hint">{{t "No communities on this instance yet."}}</td></tr>
         {{end}}
         </tbody>
       </table></div>
@@ -110,42 +110,42 @@
          site-wide view across every band/community; each band's own
          Members page shows the same thing scoped to itself. */}}
     <div class="card">
-      <h3>Pending accounts</h3>
-      <p class="hint">People already added to a roster (with real memberships) who haven't claimed their account yet — their invite link completes exactly this person, whatever band(s) or community they're already on.</p>
+      <h3>{{t "Pending accounts"}}</h3>
+      <p class="hint">{{t "People already added to a roster (with real memberships) who haven't claimed their account yet — their invite link completes exactly this person, whatever band(s) or community they're already on."}}</p>
       <div class="table-scroll"><table class="table-stack" style="width:100%">
-        <thead><tr><th>Name</th><th>Memberships</th><th>Invited by</th><th>Added</th><th></th></tr></thead>
+        <thead><tr><th>{{t "Name"}}</th><th>{{t "Memberships"}}</th><th>{{t "Invited by"}}</th><th>{{t "Added"}}</th><th></th></tr></thead>
         <tbody>
         {{range .ShellPeople}}
           <tr>
-            <td data-label="Name"><a href="/admin/people/{{.PersonID}}">{{.DisplayName}}</a></td>
-            <td data-label="Memberships">{{range .Memberships}}<span class="roster-instrument-badge">{{.Name}} ({{.Status}})</span> {{end}}</td>
-            <td data-label="Invited by">{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>unknown</em>{{end}}</td>
-            <td data-label="Added">{{.CreatedAt.Format "2006-01-02"}}</td>
-            <td data-label="Invite link">
+            <td data-label="{{t "Name"}}"><a href="/admin/people/{{.PersonID}}">{{.DisplayName}}</a></td>
+            <td data-label="{{t "Memberships"}}">{{range .Memberships}}<span class="roster-instrument-badge">{{.Name}} ({{t .Status}})</span> {{end}}</td>
+            <td data-label="{{t "Invited by"}}">{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>{{t "unknown"}}</em>{{end}}</td>
+            <td data-label="{{t "Added"}}">{{.CreatedAt.Format "2006-01-02"}}</td>
+            <td data-label="{{t "Invite link"}}">
               {{if .OpenInviteToken}}
               <span class="invite-link-row">
                 <code class="invite-link-url" data-url="/invite/{{.OpenInviteToken}}">/invite/{{.OpenInviteToken}}</code>
-                <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}">Copy link</button>
-                <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}">QR code</button>
+                <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}">{{t "Copy link"}}</button>
+                <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}">{{t "QR code"}}</button>
               </span>
               {{else}}
-              <span class="hint">no live link</span>
+              <span class="hint">{{t "no live link"}}</span>
               {{end}}
             </td>
           </tr>
         {{else}}
-          <tr><td colspan="5" class="hint">No pending accounts.</td></tr>
+          <tr><td colspan="5" class="hint">{{t "No pending accounts."}}</td></tr>
         {{end}}
         </tbody>
       </table></div>
     </div>
 
     <div class="card card--narrow">
-      <h3>Plain signup invite</h3>
-      <p class="hint">No self-serve registration exists yet — this is the only way to let someone in with no project or band attached.</p>
+      <h3>{{t "Plain signup invite"}}</h3>
+      <p class="hint">{{t "No self-serve registration exists yet — this is the only way to let someone in with no project or band attached."}}</p>
       <div class="form-actions" style="display:flex; gap:0.6rem; flex-wrap:wrap;">
-        <button type="button" id="create-plain-invite-btn" class="primary">Create invite link</button>
-        <button type="button" id="copy-plain-invite-btn" hidden>Copy link</button>
+        <button type="button" id="create-plain-invite-btn" class="primary">{{t "Create invite link"}}</button>
+        <button type="button" id="copy-plain-invite-btn" hidden>{{t "Copy link"}}</button>
       </div>
       <p id="plain-invite-result" class="form-status" role="status" style="overflow-wrap:anywhere;"></p>
     </div>
@@ -159,57 +159,57 @@
          different enough in shape that they get their own tables rather
          than one forced-common view. */}}
     <div class="card">
-      <h3>Band &amp; community invite links</h3>
-      <p class="hint">Every roster-link invite ever created, newest open ones first. A slot shows who claimed it, or stays open for anyone still on the list.</p>
+      <h3>{{t "Band & community invite links"}}</h3>
+      <p class="hint">{{t "Every roster-link invite ever created, newest open ones first. A slot shows who claimed it, or stays open for anyone still on the list."}}</p>
       <div class="table-scroll"><table class="table-stack" style="width:100%">
-        <thead><tr><th>Target</th><th>Created</th><th>Status</th><th>Slots</th><th></th></tr></thead>
+        <thead><tr><th>{{t "Target"}}</th><th>{{t "Created"}}</th><th>{{t "Status"}}</th><th>{{t "Slots"}}</th><th></th></tr></thead>
         <tbody>
         {{range .GroupInvites}}
           <tr>
-            <td data-label="Target">{{.TargetKind}}: {{if .TargetName}}{{.TargetName}}{{else}}<em>(deleted)</em>{{end}}</td>
-            <td data-label="Created">{{.CreatedAt.Format "2006-01-02"}}</td>
-            <td data-label="Status">{{if .ClosedAt}}closed {{.ClosedAt.Format "2006-01-02"}}{{else}}open{{end}}</td>
-            <td data-label="Slots">
+            <td data-label="{{t "Target"}}">{{t .TargetKind}}{{t ": "}}{{if .TargetName}}{{.TargetName}}{{else}}<em>{{t "(deleted)"}}</em>{{end}}</td>
+            <td data-label="{{t "Created"}}">{{.CreatedAt.Format "2006-01-02"}}</td>
+            <td data-label="{{t "Status"}}">{{if .ClosedAt}}{{t "closed %s" (.ClosedAt.Format "2006-01-02")}}{{else}}{{t "open"}}{{end}}</td>
+            <td data-label="{{t "Slots"}}">
               {{range .Slots}}
                 <div>{{.DisplayName}}{{if .Instrument}} ({{.Instrument}}){{end}}:
-                  {{if .ClaimedByName}}<strong>joined as {{.ClaimedByName}}</strong>{{if .ClaimedAt}} on {{.ClaimedAt.Format "2006-01-02"}}{{end}}
-                  {{else}}<span class="hint">not claimed yet</span>{{end}}
+                  {{if .ClaimedByName}}<strong>{{t "joined as %s" .ClaimedByName}}</strong>{{if .ClaimedAt}} {{t "on %s" (.ClaimedAt.Format "2006-01-02")}}{{end}}
+                  {{else}}<span class="hint">{{t "not claimed yet"}}</span>{{end}}
                 </div>
               {{else}}
-                <span class="hint">unlisted-join link, no named slots</span>
+                <span class="hint">{{t "unlisted-join link, no named slots"}}</span>
               {{end}}
             </td>
             <td>
               {{if not .ClosedAt}}
-              <form method="post" action="/admin/group-invites/{{.ID}}/close" onsubmit="return confirm('Close the invite link for {{.TargetName}}? Anyone still holding it won’t be able to join through it.')">
-                <button type="submit" class="danger">Close link</button>
+              <form method="post" action="/admin/group-invites/{{.ID}}/close" onsubmit="return confirm('{{t "Close the invite link for %s? Anyone still holding it won’t be able to join through it." .TargetName}}')">
+                <button type="submit" class="danger">{{t "Close link"}}</button>
               </form>
               {{end}}
             </td>
           </tr>
         {{else}}
-          <tr><td colspan="5" class="hint">No band/community invite links created yet.</td></tr>
+          <tr><td colspan="5" class="hint">{{t "No band/community invite links created yet."}}</td></tr>
         {{end}}
         </tbody>
       </table></div>
     </div>
 
     <div class="card">
-      <h3>Single-use invites</h3>
-      <p class="hint">Plain signup invites and direct band invites — single-use, and removed from this list the moment they're accepted (so what's left here is either still open or sat unused past its expiry — exactly the "did it expire?" question this answers).</p>
+      <h3>{{t "Single-use invites"}}</h3>
+      <p class="hint">{{t "Plain signup invites and direct band invites — single-use, and removed from this list the moment they're accepted (so what's left here is either still open or sat unused past its expiry — exactly the \"did it expire?\" question this answers)."}}</p>
       <div class="table-scroll"><table class="table-stack" style="width:100%">
-        <thead><tr><th>Kind</th><th>Created by</th><th>Created</th><th>Expires</th><th>Status</th></tr></thead>
+        <thead><tr><th>{{t "Kind"}}</th><th>{{t "Created by"}}</th><th>{{t "Created"}}</th><th>{{t "Expires"}}</th><th>{{t "Status"}}</th></tr></thead>
         <tbody>
         {{range .PlainInvites}}
           <tr>
-            <td data-label="Kind">{{if .BandID}}band: {{.BandName}}{{else}}plain signup{{end}}</td>
-            <td data-label="Created by">{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>unknown</em>{{end}}</td>
-            <td data-label="Created">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
-            <td data-label="Expires">{{.ExpiresAt.Format "2006-01-02 15:04"}}</td>
-            <td data-label="Status">{{if .ExpiresAt.After now}}<strong>still open</strong>{{else}}expired, never used{{end}}</td>
+            <td data-label="{{t "Kind"}}">{{if .BandID}}{{t "band: %s" .BandName}}{{else}}{{t "plain signup"}}{{end}}</td>
+            <td data-label="{{t "Created by"}}">{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>{{t "unknown"}}</em>{{end}}</td>
+            <td data-label="{{t "Created"}}">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+            <td data-label="{{t "Expires"}}">{{.ExpiresAt.Format "2006-01-02 15:04"}}</td>
+            <td data-label="{{t "Status"}}">{{if .ExpiresAt.After now}}<strong>{{t "still open"}}</strong>{{else}}{{t "expired, never used"}}{{end}}</td>
           </tr>
         {{else}}
-          <tr><td colspan="5" class="hint">No single-use invites pending.</td></tr>
+          <tr><td colspan="5" class="hint">{{t "No single-use invites pending."}}</td></tr>
         {{end}}
         </tbody>
       </table></div>
@@ -250,11 +250,11 @@ document.getElementById('create-plain-invite-btn').addEventListener('click', asy
     Forms.status(out, url, 'ok');
     copyBtn.hidden = false;
     copyBtn.onclick = () => navigator.clipboard.writeText(url).then(() => {
-      copyBtn.textContent = 'Copied';
-      setTimeout(() => { copyBtn.textContent = 'Copy link'; }, 1500);
+      copyBtn.textContent = t('Copied');
+      setTimeout(() => { copyBtn.textContent = t('Copy link'); }, 1500);
     }).catch(() => {});
   } else {
-    Forms.status(out, 'Couldn’t create an invite link. Try again.', 'error');
+    Forms.status(out, t('Couldn’t create an invite link. Try again.'), 'error');
   }
 });
 document.querySelectorAll('.copy-link-btn').forEach(btn => {
@@ -262,7 +262,7 @@ document.querySelectorAll('.copy-link-btn').forEach(btn => {
     const url = location.origin + btn.dataset.url;
     navigator.clipboard.writeText(url).then(() => {
       const prev = btn.textContent;
-      btn.textContent = 'Copied';
+      btn.textContent = t('Copied');
       setTimeout(() => { btn.textContent = prev; }, 1500);
     }).catch(() => {});
   });

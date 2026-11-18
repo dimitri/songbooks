@@ -23,7 +23,7 @@ function wizCheckTitle() {
   const titleInput = document.getElementById('wiz-title');
   if (titleInput.value.trim()) return true;
   wizShowStep(0);
-  Forms.fieldError(titleInput, 'Enter the song title.');
+  Forms.fieldError(titleInput, t('Enter the song title.'));
   titleInput.focus();
   return false;
 }
@@ -84,7 +84,7 @@ document.getElementById('wiz-reference-url')?.addEventListener('change', e => {
   if (!vid) return;
   const iframe = document.createElement('iframe');
   iframe.src = `https://www.youtube-nocookie.com/embed/${vid}`;
-  iframe.title = 'reference video';
+  iframe.title = t('reference video');
   iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
   iframe.allowFullscreen = true;
   embed.appendChild(iframe);
@@ -129,13 +129,13 @@ const wizLibrary = wizard && window.LibraryMatch ? LibraryMatch.attach({
   title: document.getElementById('wiz-title'),
   artist: document.getElementById('wiz-artist'),
   host: document.getElementById('wiz-library-match'),
-  addLabel: 'Add to this songbook',
+  addLabel: t('Add to this songbook'),
   add: async (hit) => {
     const res = await fetch(`/api/songbooks/${wizSongbookId}/entries`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ variantId: hit.variantId }),
     }).catch(() => null);
-    if (!res || !res.ok) throw new Error(`Couldn't add “${hit.title}” to this songbook. Try again.`);
+    if (!res || !res.ok) throw new Error(t('Couldn’t add “%s” to this songbook. Try again.', hit.title));
     wizard.close();
     location.href = `/song/${hit.variantId}?songbook=${wizSongbookId}`;
   },
@@ -151,19 +151,19 @@ async function wizFetch(kind, endpoint) {
   const preview = document.getElementById(`wiz-${kind}-preview`);
   const input = document.getElementById(`wiz-${kind}-url`);
   status.textContent = ''; status.className = 'hint';
-  if (!url) { Forms.fieldError(input, 'Paste the page address first.'); input.focus(); return; }
+  if (!url) { Forms.fieldError(input, t('Paste the page address first.')); input.focus(); return; }
   if (!Forms.validate(input.parentElement)) return;
   const btn = document.getElementById(`wiz-${kind}-fetch`);
   Forms.busy(btn, true);
-  status.textContent = 'Fetching…';
+  status.textContent = t('Fetching…');
   try {
     const res = await fetch(endpoint, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { status.textContent = "Couldn't get the lyrics from that page. Paste them into the box below instead."; status.className = 'hint err'; return; }
+    if (!res.ok) { status.textContent = t('Couldn’t get the lyrics from that page. Paste them into the box below instead.'); status.className = 'hint err'; return; }
     preview.value = data.text;
-    status.textContent = data.source ? `Fetched from ${data.source}. Check them below before creating the song.` : 'Fetched. Check them below before creating the song.';
+    status.textContent = data.source ? t('Fetched from %s. Check them below before creating the song.', data.source) : t('Fetched. Check them below before creating the song.');
     status.className = 'hint ok';
   } finally {
     Forms.busy(btn, false);
@@ -191,15 +191,15 @@ document.getElementById('wiz-chords-fetch')?.addEventListener('click', async () 
   const status = document.getElementById('wiz-chords-status');
   const btn = document.getElementById('wiz-chords-fetch');
   status.textContent = ''; status.className = 'hint';
-  if (!url) { Forms.fieldError(input, 'Paste the Ultimate Guitar page address first.'); input.focus(); return; }
+  if (!url) { Forms.fieldError(input, t('Paste the Ultimate Guitar page address first.')); input.focus(); return; }
   if (!Forms.validate(input.parentElement)) return;
-  status.textContent = 'Fetching the chart…';
+  status.textContent = t('Fetching the chart…');
   Forms.busy(btn, true);
   const res = await fetch('/api/import/ultimate-guitar/parse', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }),
   }).finally(() => Forms.busy(btn, false));
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) { status.textContent = "Couldn't read a chart from that page. Check the address, or choose \u201cPaste text instead\u201d."; status.className = 'hint err'; return; }
+  if (!res.ok) { status.textContent = t('Couldn’t read a chart from that page. Check the address, or choose “Paste text instead”.'); status.className = 'hint err'; return; }
   status.textContent = '';
   ugLastURL = url;
   const titleFromChart = data.title && !document.getElementById('wiz-title').value.trim();
@@ -209,7 +209,7 @@ document.getElementById('wiz-chords-fetch')?.addEventListener('click', async () 
   // step, since step 1's list never saw that title.
   if (titleFromChart) wizLibrary?.check({ host: document.getElementById('wiz-import-library-match') });
   const titleEl = document.getElementById('ug-preview-title');
-  titleEl.textContent = `Found ${data.sections.length} section${data.sections.length === 1 ? '' : 's'}. Tick the ones to bring in. Where the bars fall is a rough guess; fix it in the editor afterwards.`;
+  titleEl.textContent = tn(data.sections.length, 'Found %d section.', 'Found %d sections.') + ' ' + t('Tick the ones to bring in. Where the bars fall is a rough guess; fix it in the editor afterwards.');
   const list = document.getElementById('ug-preview-sections');
   list.innerHTML = '';
   data.sections.forEach((sec, i) => {
@@ -227,7 +227,7 @@ document.getElementById('wiz-chords-fetch')?.addEventListener('click', async () 
     body.className = 'ug-preview-section-body';
     const label = document.createElement('div');
     label.className = 'ug-preview-section-label';
-    label.textContent = sec.label || 'Verse';
+    label.textContent = sec.label || t('Verse');
     body.appendChild(label);
     if (sec.grid) {
       const grid = document.createElement('code');
@@ -256,7 +256,7 @@ document.getElementById('ug-preview-use')?.addEventListener('click', async () =>
     body: JSON.stringify({ url: ugLastURL, selected }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) { status.textContent = "Couldn't bring those sections in. Try again, or paste the text instead."; status.className = 'hint err'; ugShowSubstep('ug-step-url'); return; }
+  if (!res.ok) { status.textContent = t('Couldn’t bring those sections in. Try again, or paste the text instead.'); status.className = 'hint err'; ugShowSubstep('ug-step-url'); return; }
   document.getElementById('wiz-chords-preview').value = data.text;
   ugShowSubstep('ug-step-raw');
 });
@@ -277,9 +277,9 @@ document.getElementById('wiz-ireal-check-btn')?.addEventListener('click', async 
   const btn = document.getElementById('wiz-ireal-check-btn');
   const currentText = document.getElementById('wiz-chords-preview').value.trim();
   if (!title) { wizCheckTitle(); return; }
-  if (!currentText) { status.textContent = 'Nothing to check yet. Import or paste the chords first.'; status.className = 'hint err'; return; }
+  if (!currentText) { status.textContent = t('Nothing to check yet. Import or paste the chords first.'); status.className = 'hint err'; return; }
   Forms.busy(btn, true);
-  status.textContent = 'Checking iReal Pro…'; status.className = 'hint';
+  status.textContent = t('Checking iReal Pro…'); status.className = 'hint';
   host.innerHTML = '';
   try {
     const res = await fetch('/api/import/ireal/merge', {
@@ -287,11 +287,11 @@ document.getElementById('wiz-ireal-check-btn')?.addEventListener('click', async 
       body: JSON.stringify({ currentText, title, artist: artist || '' }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(res.status === 404 ? 'No iReal Pro chart found for this song.' : "Couldn't check iReal Pro just now. Try again.");
+    if (!res.ok) throw new Error(res.status === 404 ? t('No iReal Pro chart found for this song.') : t('Couldn’t check iReal Pro just now. Try again.'));
     wizRenderIRealCandidates(data.candidates || []);
     status.textContent = (data.candidates || []).length
-      ? 'Found a chart. Check each section below before accepting it.'
-      : 'Found a chart, but it has nothing new to add.';
+      ? t('Found a chart. Check each section below before accepting it.')
+      : t('Found a chart, but it has nothing new to add.');
     status.className = 'hint';
   } catch (e) {
     status.textContent = e.message; status.className = 'hint err';
@@ -308,19 +308,19 @@ function wizRenderIRealCandidates(candidates) {
     const row = document.createElement('div');
     row.className = 'import-ireal-candidate' + (c.Safe ? ' is-safe' : '');
     const flag = c.Safe
-      ? 'same key — safe to accept'
-      : (c.Offset ? `transposed ${c.Offset > 0 ? '+' : ''}${c.Offset} semitones — please check before accepting` : 'low-confidence match — please check');
+      ? t('same key — safe to accept')
+      : (c.Offset ? t('transposed %s semitones — please check before accepting', (c.Offset > 0 ? '+' : '') + c.Offset) : t('low-confidence match — please check'));
     row.innerHTML = `
       <div class="import-ireal-candidate-head">
         <span class="import-ireal-candidate-label">[${c.Label}]</span>
         <span class="import-ireal-candidate-flag${c.Safe ? ' is-safe' : ''}">${flag}</span>
       </div>
       <div class="import-ireal-candidate-grids">
-        <div><span class="label">current</span>${c.CurrentGrid ? wizEscapeHtml(c.CurrentGrid) : '(none)'}</div>
+        <div><span class="label">${wizEscapeHtml(t('current'))}</span>${c.CurrentGrid ? wizEscapeHtml(c.CurrentGrid) : wizEscapeHtml(t('(none)'))}</div>
         <div><span class="label">iReal Pro</span>${wizEscapeHtml(c.ProposedGrid)}</div>
       </div>
       <div class="import-ireal-candidate-actions">
-        <label><input type="checkbox" class="wiz-ireal-accept" ${c.Safe ? 'checked' : ''}> Accept this section</label>
+        <label><input type="checkbox" class="wiz-ireal-accept" ${c.Safe ? 'checked' : ''}> ${wizEscapeHtml(t('Accept this section'))}</label>
       </div>`;
     row.querySelector('.wiz-ireal-accept').dataset.label = c.Label;
     host.appendChild(row);
@@ -329,7 +329,7 @@ function wizRenderIRealCandidates(candidates) {
   applyRow.className = 'import-row';
   const applyBtn = document.createElement('button');
   applyBtn.type = 'button';
-  applyBtn.textContent = 'Apply accepted sections to draft';
+  applyBtn.textContent = t('Apply accepted sections to draft');
   const applyStatus = document.createElement('span');
   applyStatus.className = 'hint';
   applyRow.append(applyBtn, applyStatus);
@@ -338,7 +338,7 @@ function wizRenderIRealCandidates(candidates) {
     const title = document.getElementById('wiz-title').value.trim();
     const artist = document.getElementById('wiz-artist').value.trim();
     const acceptLabels = Array.from(host.querySelectorAll('.wiz-ireal-accept:checked')).map(el => el.dataset.label);
-    if (!acceptLabels.length) { applyStatus.textContent = 'Tick at least one section first.'; applyStatus.className = 'hint err'; return; }
+    if (!acceptLabels.length) { applyStatus.textContent = t('Tick at least one section first.'); applyStatus.className = 'hint err'; return; }
     Forms.busy(applyBtn, true);
     applyStatus.textContent = ''; applyStatus.className = 'hint';
     try {
@@ -348,10 +348,10 @@ function wizRenderIRealCandidates(candidates) {
         body: JSON.stringify({ currentText: preview.value.trim(), title, artist: artist || '', apply: true, acceptLabels }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error("Couldn't apply those sections. Try again.");
+      if (!res.ok) throw new Error(t('Couldn’t apply those sections. Try again.'));
       preview.value = data.text;
       host.innerHTML = '';
-      document.getElementById('wiz-ireal-status').textContent = 'Done. The sections you accepted now use the iReal Pro chords.';
+      document.getElementById('wiz-ireal-status').textContent = t('Done. The sections you accepted now use the iReal Pro chords.');
       document.getElementById('wiz-ireal-status').className = 'hint';
     } catch (e) {
       applyStatus.textContent = e.message; applyStatus.className = 'hint err';
@@ -374,7 +374,7 @@ async function wizCreate() {
   const data = res ? await res.json().catch(() => ({})) : {};
   if (!res || !res.ok) {
     Forms.busy(createBtn, false);
-    status.textContent = "Couldn't create the song. Everything you entered is still here; try again.";
+    status.textContent = t('Couldn’t create the song. Everything you entered is still here; try again.');
     status.className = 'hint err';
     return;
   }
@@ -414,12 +414,12 @@ document.querySelectorAll('.remove-song-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const { songbookId, variantId } = btn.dataset;
     const title = btn.closest('li')?.querySelector('.song-title')?.textContent.trim();
-    const name = title ? `“${title}”` : 'this song';
-    if (!confirm(`Remove ${name} from this songbook? The song itself isn't deleted.`)) return;
+    const name = title ? `“${title}”` : t('this song');
+    if (!confirm(t('Remove %s from this songbook? The song itself isn’t deleted.', name))) return;
     const res = await fetch(`/api/songbooks/${songbookId}/entries/${variantId}`, { method: 'DELETE' });
     if (!res.ok) {
       const status = document.getElementById('catalog-save-status');
-      status.textContent = `Couldn't remove ${name}. Try again.`; status.className = 'hint err';
+      status.textContent = t('Couldn’t remove %s. Try again.', name); status.className = 'hint err';
       return;
     }
     window.location.reload();
@@ -441,7 +441,7 @@ document.querySelectorAll('.remove-song-btn').forEach(btn => {
     const editing = section.classList.toggle('editing');
     toggle.classList.toggle('active', editing);
     toggle.textContent = '';
-    toggle.append(editing ? 'Done' : 'Edit order');
+    toggle.append(editing ? t('Done') : t('Edit order'));
   });
 
   function renumber(ul) {
@@ -453,16 +453,16 @@ document.querySelectorAll('.remove-song-btn').forEach(btn => {
       label: ul.dataset.groupLabel,
       variantIds: [...ul.children].map(li => parseInt(li.dataset.variantId, 10)),
     }));
-    status.textContent = 'Saving…'; status.className = 'hint';
+    status.textContent = t('Saving…'); status.className = 'hint';
     try {
       const res = await fetch(`/api/songbooks/${songbookId}/order`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ groups }),
       });
       if (!res.ok) throw new Error(await res.text());
-      status.textContent = 'Order saved.';
+      status.textContent = t('Order saved.');
       setTimeout(() => { status.textContent = ''; }, 1500);
     } catch (e) {
-      status.textContent = "Couldn't save the new order. Reload the page and try again."; status.className = 'hint err';
+      status.textContent = t('Couldn’t save the new order. Reload the page and try again.'); status.className = 'hint err';
     }
   }
 

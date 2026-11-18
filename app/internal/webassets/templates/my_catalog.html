@@ -1,10 +1,10 @@
 {{define "my-songbooks"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>My songbooks — Songbooks</title>
+<title>{{t "My songbooks"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,21 +13,21 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/songbooks">{{template "icon-back"}} Songbooks</a>
-  <h1>My songbooks</h1>
+  <h1>{{t "My songbooks"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  <p class="hint">Every profile has a default songbook (can't be deleted, can be renamed) — create more if you want separate collections.</p>
+  <p class="hint">{{t "Every profile has a default songbook (can't be deleted, can be renamed) — create more if you want separate collections."}}</p>
   <div class="card-grid">
   {{range .Songbooks}}
     <a class="card" href="/songbooks/{{.ID}}">
-      <h2>{{.Name}}{{if .IsDefault}} <span class="hint">(default)</span>{{end}}</h2>
+      <h2>{{.Name}}{{if .IsDefault}} <span class="hint">{{t "(default)"}}</span>{{end}}</h2>
     </a>
   {{end}}
   </div>
   <form class="form-stack" id="create-songbook-form" style="margin-top:1rem">
-    <div class="field"><label for="new-songbook-name">New songbook name</label><input type="text" id="new-songbook-name" name="name" placeholder="e.g. Wedding gigs" required autocomplete="off"></div>
-    <div class="form-actions"><button type="submit" id="create-songbook-btn" class="primary">Create songbook</button></div>
+    <div class="field"><label for="new-songbook-name">{{t "New songbook name"}}</label><input type="text" id="new-songbook-name" name="name" placeholder="{{t "e.g. Wedding gigs"}}" required autocomplete="off"></div>
+    <div class="form-actions"><button type="submit" id="create-songbook-btn" class="primary">{{t "Create songbook"}}</button></div>
     <p id="create-songbook-result" class="form-status" role="status"></p>
   </form>
 </main>
@@ -40,9 +40,9 @@ createForm.addEventListener('submit', (e) => {
     const res = await fetch('/api/songbooks', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({name}),
-    }).catch(() => { throw new Error('Couldn’t reach the server. Check your connection and try again.'); });
+    }).catch(() => { throw new Error(t('Couldn’t reach the server. Check your connection and try again.')); });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(res.status < 500 && data.error ? data.error : 'Couldn’t create the songbook. Try again.');
+    if (!res.ok) throw new Error(res.status < 500 && data.error ? data.error : t('Couldn’t create the songbook. Try again.'));
     location.href = `/songbooks/${data.id}`;
   });
 });

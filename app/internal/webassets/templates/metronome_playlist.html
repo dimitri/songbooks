@@ -1,10 +1,10 @@
 {{define "metronome-playlist"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Metronome playlist — Songbooks</title>
+<title>{{t "Metronome playlist"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -12,12 +12,12 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/songbooks/{{.SongbookID}}">{{template "icon-back"}} songbook</a>
-  <h1>Metronome playlist</h1>
+  <a class="back-link" href="/songbooks/{{.SongbookID}}">{{template "icon-back"}} {{t "songbook"}}</a>
+  <h1>{{t "Metronome playlist"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="gig-sets">
-  <p class="hint" style="padding:0.5rem 1rem;">Every song in this songbook, in running order — tap one to open the metronome already set to its own tempo/time signature; the metronome page's own Prev/Next (if the song came from a setlist) won't apply here, so use Up to come back and pick the next one.</p>
+  <p class="hint" style="padding:0.5rem 1rem;">{{t "Every song in this songbook, in running order — tap one to open the metronome already set to its own tempo/time signature; the metronome page's own Prev/Next (if the song came from a setlist) won't apply here, so use Up to come back and pick the next one."}}</p>
   <section class="gig-set">
     <div class="gig-table">
       {{range $i, $row := .Rows}}
@@ -28,7 +28,7 @@
         <span class="gig-tempo">{{if $row.Tempo}}{{$row.Tempo}}{{end}}</span>
       </a>
       {{else}}
-      <div class="attention-empty">No songs in this songbook yet.</div>
+      <div class="attention-empty">{{t "No songs in this songbook yet."}}</div>
       {{end}}
     </div>
   </section>

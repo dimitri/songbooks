@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"app/internal/i18n"
 )
 
 // A course is a songbook whose songs are grouped in lessons (migration
@@ -44,12 +46,12 @@ type LessonSong struct {
 	Artist    string
 }
 
-// Label is how the lesson is named in a list: "Lesson 3 · Title".
-func (l Lesson) Label() string {
+// Label is how the lesson is named in a list, in lang: "Lesson 3 · Title".
+func (l Lesson) Label(lang string) string {
 	if l.Number == nil {
 		return l.Title
 	}
-	return fmt.Sprintf("Lesson %d · %s", *l.Number, l.Title)
+	return i18n.T(lang, "Lesson %d · %s", *l.Number, l.Title)
 }
 
 // Paragraphs is the lesson's text, a paragraph per blank-line-separated
@@ -538,7 +540,7 @@ func (st *Store) courseOrder(ctx context.Context, songbookID int64) (groups []So
 		return nil, false, err
 	}
 	for _, l := range lessons {
-		g := SongGroup{Label: l.Label()}
+		g := SongGroup{Label: l.Label("en"), Lesson: &Lesson{ID: l.ID, Number: l.Number, Title: l.Title}}
 		for _, s := range l.Songs {
 			g.VariantIDs = append(g.VariantIDs, s.VariantID)
 		}

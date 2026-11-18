@@ -1,10 +1,10 @@
 {{define "login_sent"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Check your email — Songbooks</title>
+<title>{{t "Check your email"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -12,9 +12,9 @@
 <main class="index auth-page">
   <div class="hero">
     <div>
-      <h2>Check your email</h2>
-      <p>If that email address has an account, we've sent it a login link. It expires in 15 minutes.</p>
-      <p><a href="/login">Back to login</a></p>
+      <h2>{{t "Check your email"}}</h2>
+      <p>{{t "If that email address has an account, we've sent it a login link. It expires in 15 minutes."}}</p>
+      <p><a href="/login">{{t "Back to login"}}</a></p>
     </div>
   </div>
 </main>

@@ -23,10 +23,11 @@ func TestN(t *testing.T) {
 		n    int
 		want string
 	}{
-		{"en", 0, "0 songs"}, {"en", 1, "1 song"}, {"en", 2, "2 songs"},
-		{"fr", 0, "0 song"}, {"fr", 1, "1 song"}, {"fr", 2, "2 songs"},
+		{"en", 0, "0 widgets"}, {"en", 1, "1 widget"}, {"en", 2, "2 widgets"},
+		{"fr", 0, "0 widget"}, {"fr", 1, "1 widget"}, {"fr", 2, "2 widgets"},
 	} {
-		if got := N(c.lang, c.n, "%d song", "%d songs"); got != c.want {
+		// Untranslated keys: only the plural rule is under test.
+		if got := N(c.lang, c.n, "%d widget", "%d widgets"); got != c.want {
 			t.Errorf("N(%s, %d) = %q", c.lang, c.n, got)
 		}
 	}
@@ -72,5 +73,21 @@ func TestNoteName(t *testing.T) {
 	}
 	if got := NoteName("fr", 69); got != "la3" {
 		t.Errorf("fr A4: %q", got)
+	}
+}
+
+func TestContext(t *testing.T) {
+	catalogs["fr"]["notation|Staff"] = "Portée"
+	if got := T("fr", "notation|Staff"); got != "Portée" {
+		t.Errorf("fr: %q", got)
+	}
+	if got := T("en", "notation|Staff"); got != "Staff" {
+		t.Errorf("en: %q", got)
+	}
+	if got := T("fr", "nowhere|Staff"); got != "Staff" {
+		t.Errorf("untranslated: %q", got)
+	}
+	if got := T("fr", "Bass | treble"); got != "Bass | treble" {
+		t.Errorf("a bar in a sentence: %q", got)
 	}
 }

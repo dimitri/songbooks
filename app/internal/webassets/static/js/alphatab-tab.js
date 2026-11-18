@@ -56,7 +56,13 @@
   function giveUp(container) {
     container.style.minHeight = '';
     container.style.visibility = '';
-    container.innerHTML = '<p class="alphatab-render-failed">Couldn’t render this chart. <a href="javascript:location.reload()">Reload the page</a> to try again.</p>';
+    const p = document.createElement('p');
+    p.className = 'alphatab-render-failed';
+    const a = document.createElement('a');
+    a.href = 'javascript:location.reload()';
+    a.textContent = t('Reload the page');
+    p.append(t('Couldn’t render this chart.') + ' ', a, ' ' + t('to try again.'));
+    container.replaceChildren(p);
   }
 
   const theme = () => getComputedStyle(document.body);

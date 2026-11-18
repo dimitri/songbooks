@@ -103,7 +103,7 @@
       const end = textarea.selectionEnd ?? textarea.value.length;
       textarea.value = textarea.value.slice(0, start) + line + textarea.value.slice(end);
       textarea.dispatchEvent(new Event('input'));
-      status.textContent = 'inserted into Source — switch tabs to see it';
+      status.textContent = t('inserted into Source — switch tabs to see it');
       status.className = 'hint ok';
     });
 

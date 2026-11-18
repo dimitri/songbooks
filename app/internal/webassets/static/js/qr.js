@@ -8,10 +8,12 @@ function showQR(url) {
   overlay.className = 'qr-modal-overlay';
   overlay.innerHTML = `
     <div class="qr-modal">
-      <img class="qr-modal-img" alt="QR code for this link">
+      <img class="qr-modal-img" alt="">
       <p class="hint qr-modal-url"></p>
-      <button type="button" class="qr-modal-close">Close</button>
+      <button type="button" class="qr-modal-close"></button>
     </div>`;
+  overlay.querySelector('.qr-modal-img').alt = t('QR code for this link');
+  overlay.querySelector('.qr-modal-close').textContent = t('Close');
   overlay.querySelector('.qr-modal-img').src = '/api/qr?data=' + encodeURIComponent(url);
   overlay.querySelector('.qr-modal-url').textContent = url;
   const close = () => overlay.remove();
