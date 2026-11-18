@@ -19,6 +19,12 @@ type CalendarItem struct {
 	BandID    *int64
 	Link      string
 	SetlistID *int64 // the set list to play or practise, when there is one
+	// For a calendar feed (iCal): a stable id, the end, what it's about.
+	UID         string
+	Ends        *time.Time
+	Description string
+	LessonMode  string // a lesson's: "in_person" or "online"
+	EventID     int64
 }
 
 // ListCalendarForPerson lists everything on personID's calendar from
@@ -33,7 +39,8 @@ func (st *Store) ListCalendarForPerson(ctx context.Context, personID int64, from
 		  SELECT community_id FROM community_members WHERE person_id = $1 AND upper_inf(validity)
 		)
 		SELECT 'gig', sl.title, g.date::timestamptz, true, g.venue, coalesce(b.name, ''), b.id,
-		       '/setlists/' || sl.id, sl.id
+		       '/setlists/' || sl.id, sl.id,
+		       'gig-' || g.id, NULL::timestamptz, '', '', 0::bigint
 		FROM setlist_gigs g
 		JOIN setlists sl ON sl.id = g.setlist_id
 		LEFT JOIN bands b ON b.id = sl.owner_band_id
@@ -43,7 +50,8 @@ func (st *Store) ListCalendarForPerson(ctx context.Context, personID int64, from
 		SELECT CASE e.event_type WHEN 'rehearsal' THEN 'rehearsal' WHEN 'concert' THEN 'gig' WHEN 'lesson' THEN 'lesson' ELSE 'event' END,
 		       e.name, e.starts_at, false, e.location, coalesce(b.name, c.name, ''), b.id,
 		       CASE WHEN e.event_type = 'lesson' THEN '/communities/' || e.owner_community_id || '/lessons' ELSE '/events/' || e.id END,
-		       e.setlist_id
+		       e.setlist_id,
+		       'event-' || e.id, e.ends_at, e.description, coalesce(e.lesson_mode, ''), e.id
 		FROM events e
 		LEFT JOIN bands b ON b.id = e.owner_band_id
 		LEFT JOIN communities c ON c.id = e.owner_community_id
@@ -61,7 +69,8 @@ func (st *Store) ListCalendarForPerson(ctx context.Context, personID int64, from
 	var out []CalendarItem
 	for rows.Next() {
 		var it CalendarItem
-		if err := rows.Scan(&it.Kind, &it.Title, &it.Starts, &it.AllDay, &it.Place, &it.GroupName, &it.BandID, &it.Link, &it.SetlistID); err != nil {
+		if err := rows.Scan(&it.Kind, &it.Title, &it.Starts, &it.AllDay, &it.Place, &it.GroupName, &it.BandID, &it.Link, &it.SetlistID,
+			&it.UID, &it.Ends, &it.Description, &it.LessonMode, &it.EventID); err != nil {
 			return nil, err
 		}
 		out = append(out, it)

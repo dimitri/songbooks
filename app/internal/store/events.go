@@ -33,6 +33,10 @@ type Event struct {
 	SongbookID        *int64
 	CreatedByPersonID *int64
 	CreatedAt         time.Time
+	// A coaching lesson's (migration 0080): "in_person" or "online", and
+	// the group it's for, if any.
+	LessonMode      string
+	CoachingGroupID *int64
 }
 
 // IsPast reports whether e has already happened (EndsAt if set, else
@@ -49,7 +53,8 @@ const eventSelectCols = `
 	e.id, e.owner_kind::text, coalesce(e.owner_community_id,0), coalesce(e.owner_band_id,0),
 	coalesce(sc.name, bd.name, ''),
 	e.event_type::text, e.name, e.description, e.location, e.starts_at, e.ends_at,
-	e.audience_scope::text, e.setlist_id, e.songbook_id, e.created_by_person_id, e.created_at`
+	e.audience_scope::text, e.setlist_id, e.songbook_id, e.created_by_person_id, e.created_at,
+	coalesce(e.lesson_mode, ''), e.coaching_group_id`
 
 const eventFromJoin = `
 	FROM events e
@@ -63,7 +68,8 @@ func scanEvent(row interface{ Scan(...any) error }) (*Event, error) {
 	var createdBy *int64
 	if err := row.Scan(&ev.ID, &ev.OwnerKind, &communityID, &bandID, &ev.OwnerName,
 		&ev.EventType, &ev.Name, &ev.Description, &ev.Location, &ev.StartsAt, &ev.EndsAt,
-		&ev.AudienceScope, &setlistID, &songbookID, &createdBy, &ev.CreatedAt); err != nil {
+		&ev.AudienceScope, &setlistID, &songbookID, &createdBy, &ev.CreatedAt,
+		&ev.LessonMode, &ev.CoachingGroupID); err != nil {
 		return nil, err
 	}
 	ev.OwnerCommunityID, ev.OwnerBandID = communityID, bandID

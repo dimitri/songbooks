@@ -6584,3 +6584,24 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .coach-lesson-edit summary { cursor: pointer; color: var(--fg-muted); font-size: 0.88rem; min-height: 2rem; display: flex; align-items: center; }
 .coach-lesson-students { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: 0.4rem 0; }
 .coach-lesson-actions { display: flex; gap: 0.5rem; }
+.lesson-tag { display: inline-flex; align-items: center; padding: 0.05rem 0.5rem; border: 1px solid var(--border); border-radius: 999px; color: var(--fg-muted); font-size: 0.75rem; font-weight: 600; white-space: nowrap; vertical-align: middle; }
+.lesson-tag.is-online { border-color: var(--accent); color: var(--accent-ink); }
+.teaching-note-form { display: flex; flex-direction: column; gap: 0.5rem; margin: 1rem 0 0.8rem; }
+.teaching-note-form textarea, .teaching-note textarea { width: 100%; font: inherit; }
+.teaching-note-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.teaching-note-row select { flex: 1 1 14rem; min-height: 2.5rem; }
+.teaching-notes { display: flex; flex-direction: column; }
+.teaching-note { padding: 0.6rem 0; border-top: 1px solid var(--border); }
+.teaching-note-head { display: flex; align-items: baseline; gap: 0.4rem; }
+.teaching-note-head .link-btn { margin-left: auto; }
+.teaching-note-body { margin: 0.3rem 0 0; white-space: pre-wrap; }
+.coach-group-songs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.6rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+.coach-group-song-list { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; font-size: 0.9rem; }
+.coach-subscribe { margin: 0.4rem 0 0.8rem; font-size: 0.9rem; }
+.coach-subscribe a { display: inline-flex; align-items: center; gap: 0.35rem; }
+.calendar-subscribe-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 1rem 0; }
+.calendar-subscribe-btn { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.75rem; padding: 0 1rem; border: 1px solid var(--border); border-radius: var(--radius-control, 6px); color: var(--fg); text-decoration: none; font-weight: 600; }
+.calendar-subscribe-btn.is-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.calendar-subscribe-url { display: flex; flex-direction: column; gap: 0.4rem; margin: 1rem 0 0.4rem; }
+.calendar-subscribe-copy { display: flex; gap: 0.4rem; }
+.calendar-subscribe-copy input { flex: 1; min-width: 0; min-height: 2.5rem; font: inherit; font-size: 0.85rem; }

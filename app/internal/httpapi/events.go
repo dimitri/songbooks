@@ -81,7 +81,7 @@ func parseEventTimes(startsAt, endsAt string) (time.Time, *time.Time, error) {
 }
 
 var validEventTypes = map[string]bool{
-	"jam": true, "concert": true, "meetup": true, "listening_party": true, "dinner": true, "show_together": true, "open_mic": true,
+	"jam": true, "concert": true, "meetup": true, "listening_party": true, "dinner": true, "show_together": true, "open_mic": true, "masterclass": true,
 }
 
 // handleCreateCommunityEvent creates a community-hosted event. Staff-only

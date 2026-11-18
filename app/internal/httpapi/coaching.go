@@ -162,8 +162,8 @@ func (s *Server) coachingPageData(r *http.Request, community *store.Community, c
 }
 
 // handleCoachingStudentPage is GET /communities/{id}/students/{personID}: a
-// student's voice, songs (in their key) and lessons — the coach's to
-// change, the student's to read.
+// student's voice, teaching notes, songs (in their key), groups and
+// lessons — the coach's to change, the student's to read.
 func (s *Server) handleCoachingStudentPage(w http.ResponseWriter, r *http.Request) {
 	community, coach, ok := s.coachingContext(w, r)
 	if !ok {
@@ -184,31 +184,48 @@ func (s *Server) handleCoachingStudentPage(w http.ResponseWriter, r *http.Reques
 		http.NotFound(w, r)
 		return
 	}
-	rs, err := s.store.StudentRanges(r.Context(), community.ID, studentID)
+	ctx := r.Context()
+	fail := func(err error) { httpError(w, http.StatusInternalServerError, err.Error()) }
+	rs, err := s.store.StudentRanges(ctx, community.ID, studentID)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+		fail(err)
 		return
 	}
-	notes, err := s.store.StudentNotes(r.Context(), community.ID, studentID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
+	// The coach's songbook for the student, there from the first visit.
+	var sbID int64
+	if coach {
+		sbID, err = s.store.StudentSongbook(ctx, community.ID, studentID, member.DisplayName+"’s songs", person.ID)
+	} else {
+		sbID, err = s.store.FindStudentSongbook(ctx, community.ID, studentID)
 	}
-	sbID, err := s.store.FindStudentSongbook(r.Context(), community.ID, studentID)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+		fail(err)
 		return
 	}
 	var songs []store.StudentSong
 	if sbID != 0 {
-		if songs, err = s.store.ListStudentSongs(r.Context(), sbID); err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
+		if songs, err = s.store.ListStudentSongs(ctx, sbID); err != nil {
+			fail(err)
 			return
 		}
 	}
-	lessons, err := s.store.ListCoachingLessons(r.Context(), community.ID, time.Now().Add(-24*time.Hour), studentID)
+	groups, err := s.store.ListCoachingGroups(ctx, community.ID, studentID)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+		fail(err)
+		return
+	}
+	var inGroups []groupSongs
+	for _, g := range groups {
+		gs, err := s.store.ListStudentSongs(ctx, g.SongbookID)
+		if err != nil {
+			fail(err)
+			return
+		}
+		inGroups = append(inGroups, groupSongs{Group: g, Songs: gs})
+	}
+	lessons, err := s.store.ListCoachingLessons(ctx, community.ID, time.Now().Add(-24*time.Hour), studentID)
+	if err != nil {
+		fail(err)
 		return
 	}
 	data := s.coachingPageData(r, community, coach, "students")
@@ -217,43 +234,38 @@ func (s *Server) handleCoachingStudentPage(w http.ResponseWriter, r *http.Reques
 	}
 	data["Student"] = member
 	data["Ranges"] = rangeViews(rs)
-	data["Notes"] = notes
 	data["SongbookID"] = sbID
 	data["Songs"] = songs
+	data["Groups"] = inGroups
 	data["Lessons"] = lessons
 	data["NoteOptions"] = voiceNotes()
 	if coach {
-		// Songs to add: the community's other songbooks', not already there.
-		have := map[int64]bool{}
-		for _, s := range songs {
-			have[s.VariantID] = true
-		}
-		var pick []store.StudentSong
-		sbs, err := s.store.ListSongbooks(r.Context(), "community", community.ID)
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
+		if data["Notes"], err = s.store.StudentNotes(ctx, community.ID, studentID); err != nil {
+			fail(err)
 			return
 		}
-		for _, sb := range sbs {
-			if sb.IsStudent() {
-				continue
-			}
-			entries, err := s.store.ListSongbookEntries(r.Context(), sb.ID)
-			if err != nil {
-				httpError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
-			for _, e := range entries {
-				if !have[e.VariantID] {
-					have[e.VariantID] = true
-					pick = append(pick, store.StudentSong{VariantID: e.VariantID, Title: e.Title, Artist: e.Artist})
-				}
-			}
+		if data["TeachingNotes"], err = s.store.ListTeachingNotes(ctx, community.ID, studentID); err != nil {
+			fail(err)
+			return
 		}
-		sort.Slice(pick, func(i, j int) bool { return pick[i].Title < pick[j].Title })
-		data["AddSongs"] = pick
+		past, err := s.store.ListCoachingLessons(ctx, community.ID, time.Now().AddDate(0, -12, 0), studentID)
+		if err != nil {
+			fail(err)
+			return
+		}
+		data["NoteLessons"] = past
+		if data["AddSongs"], err = s.songsToAdd(r, community.ID, songs); err != nil {
+			fail(err)
+			return
+		}
 	}
 	s.render(w, "coaching_student", data)
+}
+
+// groupSongs is a group and its songs, in its key.
+type groupSongs struct {
+	Group store.CoachingGroup
+	Songs []store.StudentSong
 }
 
 // currentStudent is a current member of the community who isn't staff.
@@ -337,10 +349,34 @@ func (s *Server) handlePutStudentNotes(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handlePostStudentSong is POST /api/communities/{id}/students/{personID}/songs:
-// a song of the community in the student's songbook (made the first time).
-func (s *Server) handlePostStudentSong(w http.ResponseWriter, r *http.Request) {
-	community, student, ok := s.coachRequest(w, r)
+// coachSongbook checks a call on a songbook's songs: the coach, and a
+// student's or a group's songbook of this community ({sbID}).
+func (s *Server) coachSongbook(w http.ResponseWriter, r *http.Request) (*store.Songbook, bool) {
+	community, coach, ok := s.coachingContext(w, r)
+	if !ok {
+		return nil, false
+	}
+	if !coach {
+		httpError(w, http.StatusForbidden, "only the coach can do that")
+		return nil, false
+	}
+	sbID, err := pathID(r, "sbID")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid songbook")
+		return nil, false
+	}
+	sb, err := s.store.GetSongbook(r.Context(), sbID)
+	if err != nil || sb.OwnerCommunityID != community.ID || (sb.Kind != store.SongbookKindStudent && sb.Kind != store.SongbookKindGroup) {
+		httpError(w, http.StatusNotFound, "no such songbook")
+		return nil, false
+	}
+	return sb, true
+}
+
+// handlePostCoachingSong is POST /api/communities/{id}/songbooks/{sbID}/songs:
+// a song of the community for a student or a group, in a key.
+func (s *Server) handlePostCoachingSong(w http.ResponseWriter, r *http.Request) {
+	sb, ok := s.coachSongbook(w, r)
 	if !ok {
 		return
 	}
@@ -352,48 +388,28 @@ func (s *Server) handlePostStudentSong(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	actor := personFromContext(r).ID
-	sbID, err := s.store.StudentSongbook(r.Context(), community.ID, student.PersonID, student.DisplayName+"’s songs", actor)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if err := s.store.AddToSongbook(r.Context(), sbID, req.VariantID, actor); err != nil {
+	if err := s.store.AddToSongbook(r.Context(), sb.ID, req.VariantID, personFromContext(r).ID); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if req.Semitones != 0 {
-		if err := s.store.SetEntrySemitones(r.Context(), sbID, req.VariantID, req.Semitones); err != nil {
+		if err := s.store.SetEntrySemitones(r.Context(), sb.ID, req.VariantID, req.Semitones); err != nil {
 			httpError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]int64{"songbookId": sbID})
+	w.WriteHeader(http.StatusNoContent)
 }
 
-// studentSongbook is the student's songbook of a coaching API call.
-func (s *Server) studentSongbook(w http.ResponseWriter, r *http.Request) (int64, int64, bool) {
-	community, student, ok := s.coachRequest(w, r)
+// handlePutCoachingSongKey is PUT /api/communities/{id}/songbooks/{sbID}/songs/{variantID}/key.
+func (s *Server) handlePutCoachingSongKey(w http.ResponseWriter, r *http.Request) {
+	sb, ok := s.coachSongbook(w, r)
 	if !ok {
-		return 0, 0, false
-	}
-	sbID, err := s.store.FindStudentSongbook(r.Context(), community.ID, student.PersonID)
-	if err != nil || sbID == 0 {
-		httpError(w, http.StatusNotFound, "no songbook for this student yet")
-		return 0, 0, false
+		return
 	}
 	variantID, err := pathID(r, "variantID")
 	if err != nil {
 		httpError(w, http.StatusBadRequest, "invalid song")
-		return 0, 0, false
-	}
-	return sbID, variantID, true
-}
-
-// handlePutStudentSongKey is PUT /api/communities/{id}/students/{personID}/songs/{variantID}/key.
-func (s *Server) handlePutStudentSongKey(w http.ResponseWriter, r *http.Request) {
-	sbID, variantID, ok := s.studentSongbook(w, r)
-	if !ok {
 		return
 	}
 	var req struct {
@@ -403,9 +419,9 @@ func (s *Server) handlePutStudentSongKey(w http.ResponseWriter, r *http.Request)
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	if err := s.store.SetEntrySemitones(r.Context(), sbID, variantID, req.Semitones); err != nil {
+	if err := s.store.SetEntrySemitones(r.Context(), sb.ID, variantID, req.Semitones); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			httpError(w, http.StatusNotFound, "not in the student's songbook")
+			httpError(w, http.StatusNotFound, "not in that songbook")
 			return
 		}
 		httpError(w, http.StatusBadRequest, err.Error())
@@ -414,14 +430,108 @@ func (s *Server) handlePutStudentSongKey(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]int{"semitones": req.Semitones})
 }
 
-// handleDeleteStudentSong is DELETE /api/communities/{id}/students/{personID}/songs/{variantID}.
-func (s *Server) handleDeleteStudentSong(w http.ResponseWriter, r *http.Request) {
-	sbID, variantID, ok := s.studentSongbook(w, r)
+// handleDeleteCoachingSong is DELETE /api/communities/{id}/songbooks/{sbID}/songs/{variantID}.
+func (s *Server) handleDeleteCoachingSong(w http.ResponseWriter, r *http.Request) {
+	sb, ok := s.coachSongbook(w, r)
 	if !ok {
 		return
 	}
-	if err := s.store.RemoveFromSongbook(r.Context(), sbID, variantID); err != nil {
+	variantID, err := pathID(r, "variantID")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid song")
+		return
+	}
+	if err := s.store.RemoveFromSongbook(r.Context(), sb.ID, variantID); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// songsToAdd is the community's songs (its songbooks other than students'
+// and groups'), less those already in a songbook.
+func (s *Server) songsToAdd(r *http.Request, communityID int64, have []store.StudentSong) ([]store.StudentSong, error) {
+	in := map[int64]bool{}
+	for _, s := range have {
+		in[s.VariantID] = true
+	}
+	var pick []store.StudentSong
+	sbs, err := s.store.ListSongbooks(r.Context(), "community", communityID)
+	if err != nil {
+		return nil, err
+	}
+	for _, sb := range sbs {
+		if sb.IsStudent() || sb.Kind == store.SongbookKindGroup {
+			continue
+		}
+		entries, err := s.store.ListSongbookEntries(r.Context(), sb.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, e := range entries {
+			if !in[e.VariantID] {
+				in[e.VariantID] = true
+				pick = append(pick, store.StudentSong{VariantID: e.VariantID, Title: e.Title, Artist: e.Artist})
+			}
+		}
+	}
+	sort.Slice(pick, func(i, j int) bool { return pick[i].Title < pick[j].Title })
+	return pick, nil
+}
+
+// Teaching notes -----------------------------------------------------------
+
+// handlePostTeachingNote is POST /api/communities/{id}/students/{personID}/teaching-notes.
+func (s *Server) handlePostTeachingNote(w http.ResponseWriter, r *http.Request) {
+	community, student, ok := s.coachRequest(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Body    string `json:"body"`
+		EventID int64  `json:"eventId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Body == "" {
+		httpError(w, http.StatusBadRequest, "a note needs a text")
+		return
+	}
+	var eventID *int64
+	if req.EventID != 0 {
+		eventID = &req.EventID
+	}
+	id, err := s.store.AddTeachingNote(r.Context(), community.ID, student.PersonID, eventID, req.Body, personFromContext(r).ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int64{"id": id})
+}
+
+// handlePutTeachingNote is PUT /api/communities/{id}/students/{personID}/teaching-notes/{noteID}.
+func (s *Server) handlePutTeachingNote(w http.ResponseWriter, r *http.Request) {
+	community, student, ok := s.coachRequest(w, r)
+	if !ok {
+		return
+	}
+	noteID, err := pathID(r, "noteID")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid note")
+		return
+	}
+	var req struct {
+		Body string `json:"body"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if req.Body == "" {
+		err = s.store.DeleteTeachingNote(r.Context(), community.ID, student.PersonID, noteID)
+	} else {
+		err = s.store.UpdateTeachingNote(r.Context(), community.ID, student.PersonID, noteID, req.Body)
+	}
+	if err != nil {
+		httpError(w, http.StatusNotFound, err.Error())
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -476,6 +586,10 @@ func (s *Server) handleCoachingLessonsPage(w http.ResponseWriter, r *http.Reques
 		}
 		data["Students"] = students
 		data["DefaultStart"] = nextHour().Format("2006-01-02T15:04")
+		if data["Groups"], err = s.store.ListCoachingGroups(r.Context(), community.ID, 0); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 	s.render(w, "coaching_lessons", data)
 }
@@ -491,6 +605,8 @@ type coachingLessonRequest struct {
 	Location string  `json:"location"`
 	Name     string  `json:"name"`
 	Students []int64 `json:"students"`
+	Mode     string  `json:"mode"`    // "in_person" or "online"
+	GroupID  int64   `json:"groupId"` // a group's lesson: its members come
 }
 
 // handlePostCoachingLesson is POST /api/communities/{id}/lessons: a lesson
@@ -519,8 +635,26 @@ func (s *Server) handlePostCoachingLesson(w http.ResponseWriter, r *http.Request
 	}
 	end := start.Add(time.Duration(req.Minutes) * time.Minute)
 	name := req.Name
+	var group *store.CoachingGroup
+	if req.GroupID != 0 {
+		g, err := s.store.GetCoachingGroup(r.Context(), req.GroupID)
+		if err != nil || g.CommunityID != community.ID {
+			httpError(w, http.StatusBadRequest, "no such group")
+			return
+		}
+		group = g
+		for _, m := range g.Members {
+			req.Students = append(req.Students, m.PersonID)
+		}
+		if name == "" {
+			name = g.Name
+		}
+	}
 	if name == "" {
 		name = "Lesson"
+	}
+	if req.Mode == "" {
+		req.Mode = "in_person"
 	}
 	actor := personFromContext(r).ID
 	id, err := s.store.CreateEvent(r.Context(), "community", community.ID, "lesson", name, "", req.Location, start, &end, "members", actor)
@@ -528,7 +662,23 @@ func (s *Server) handlePostCoachingLesson(w http.ResponseWriter, r *http.Request
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if err := s.setLessonStudents(r, community.ID, id, req.Students); err != nil {
+	var groupID *int64
+	if group != nil {
+		groupID = &group.ID
+	}
+	if err := s.store.SetLessonDetails(r.Context(), id, req.Mode, groupID); err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	seen := map[int64]bool{}
+	var students []int64
+	for _, p := range req.Students {
+		if !seen[p] {
+			seen[p] = true
+			students = append(students, p)
+		}
+	}
+	if err := s.setLessonStudents(r, community.ID, id, students); err != nil {
 		httpError(w, http.StatusBadRequest, err.Error())
 		return
 	}

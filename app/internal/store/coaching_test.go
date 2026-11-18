@@ -105,4 +105,65 @@ func TestCoaching(t *testing.T) {
 	if len(cal) != 1 || cal[0].Kind != "lesson" {
 		t.Fatalf("the student's calendar: %+v", cal)
 	}
+
+	// A year group: its members get its songbook and its coming lessons.
+	gid, err := st.CreateCoachingGroup(ctx, c, "Tuesday", "year", nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	glesson, err := st.CreateEvent(ctx, "community", c, "lesson", "Tuesday", "", "", start, &end, "members", coach)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetLessonDetails(ctx, glesson, "online", &gid); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetGroupMembers(ctx, gid, []int64{other}, coach); err != nil {
+		t.Fatal(err)
+	}
+	g, err := st.GetCoachingGroup(ctx, gid)
+	if err != nil || !g.HasMember(other) || g.HasMember(student) {
+		t.Fatalf("group: %+v, %v", g, err)
+	}
+	if ok, _ := st.CanAccessSongbook(ctx, other, g.SongbookID); !ok {
+		t.Fatal("a member can't open the group's songbook")
+	}
+	if ls, _ := st.ListCoachingLessons(ctx, c, time.Now(), other); len(ls) != 1 || ls[0].Event.LessonMode != "online" {
+		t.Fatalf("the member's group lessons: %+v", ls)
+	}
+	if err := st.SetGroupMembers(ctx, gid, nil, coach); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := st.CanAccessSongbook(ctx, other, g.SongbookID); ok {
+		t.Fatal("a former member still opens the group's songbook")
+	}
+	if ls, _ := st.ListCoachingLessons(ctx, c, time.Now(), other); len(ls) != 0 {
+		t.Fatalf("a former member's lessons: %d", len(ls))
+	}
+
+	// Teaching notes, latest first.
+	if _, err := st.AddTeachingNote(ctx, c, student, &ev, "breath", coach); err != nil {
+		t.Fatal(err)
+	}
+	if notes, _ := st.ListTeachingNotes(ctx, c, student); len(notes) != 1 || notes[0].EventName != "Lesson" {
+		t.Fatalf("notes: %+v", notes)
+	}
+
+	// The calendar feed's secret: one per person, a new one replaces it.
+	tok, err := st.CalendarFeedToken(ctx, student)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if who, _ := st.PersonByCalendarToken(ctx, tok); who != student {
+		t.Fatalf("feed owner: %d", who)
+	}
+	if again, _ := st.CalendarFeedToken(ctx, student); again != tok {
+		t.Fatal("a second token")
+	}
+	if _, err := st.ResetCalendarFeed(ctx, student); err != nil {
+		t.Fatal(err)
+	}
+	if who, _ := st.PersonByCalendarToken(ctx, tok); who != 0 {
+		t.Fatal("the old token still works")
+	}
 }

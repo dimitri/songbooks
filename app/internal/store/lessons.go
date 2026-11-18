@@ -22,6 +22,7 @@ const (
 	SongbookKindSongbook = "songbook"
 	SongbookKindCourse   = "course"
 	SongbookKindStudent  = "student"
+	SongbookKindGroup    = "group"
 )
 
 // Lesson is one lesson of a course: the author's number (nil when it has

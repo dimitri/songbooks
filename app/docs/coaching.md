@@ -31,16 +31,59 @@ community's song is split in two parts only, voice and backing (the stems
 worker keeps vocals and no_vocals): the Voice control and the Mixer's
 Vocals and Backing lanes.
 
+## Groups
+
+`/communities/{id}/groups`: a year's class (September to June, the
+dates its own) or a one-off around an event (a master class, a "stage":
+community events of type `masterclass`, which the group's members are
+registered for). A group has its members (the coach's to change), its
+songs in the group's key, and its sessions (lessons for the group). Who
+joins gets the group's songbook and its coming sessions; who leaves loses
+both. A student sees their groups.
+
+## The songbooks
+
+Four places a song can be, each for its own use:
+
+- **The Repertoire** (the community's default songbook): the coach's
+  reference, every song in its original key.
+- **A group's songbook** (kind `group`, its members granted): what the
+  group works on, each song in the group's key.
+- **A student's songbook** (kind `student`, the student granted): what the
+  student is given to work on alone, each song in their key.
+- **The student's own songbooks**, outside the community: theirs.
+
+A song is the community's song in all of them; only its key differs
+(`songbook_entries.semitones`). Opened from a group's or a student's
+songbook, the song page starts the practice player in that key, the
+chords following. A student's page shows their songs and their groups'.
+
+## Teaching notes
+
+On a student's page, the coach's only: a few lines about the student (who
+they are as a singer, goals), and dated notes, each maybe about a lesson
+(what was worked on, what to practise next), the latest first, edited in
+place.
+
 ## Lessons
 
-`/communities/{id}/lessons`: the coach's calendar, day by day; a lesson
-(an event of type `lesson`: when, how long, where, a name) and its
-students, registered by the coach (the registrations are theirs to make,
-for now). A student sees their own lessons there, on their page, and on
-their home calendar; the coach sees them all. Lessons stay off the
-community's Events (and their pages, and its overview), which keep
-everything else: concerts, jams, meetups… and now open mics (event type
-`open_mic`, for any community or band).
+`/communities/{id}/lessons`: the coach's calendar, day by day. A lesson
+(an event of type `lesson`): when, how long, in the room or online, where,
+a name, and either a group (its members come) or students one by one,
+registered by the coach (for now). A student sees their own lessons
+there, on their page, and on their home calendar; the coach sees them
+all. Lessons stay off the community's Events (and their pages, and its
+overview), which keep everything else: concerts, jams, meetups, master
+classes, and open mics (`open_mic`, for any community or band).
+
+## Everyone's calendar, in their calendar app
+
+`/calendar/subscribe`: each person's calendar as an iCal feed (gigs,
+rehearsals, events, lessons, three months back to a year ahead) at a
+secret address (`/calendar/feed/{token}.ics`): *Subscribe on this device*
+(webcal), Google Calendar, or the address to paste; a new address can be
+made, the old one stops. A lesson says whether it's online; its link goes
+to the Lessons page (and, with Galène, would join the lesson).
 
 ## The look
 
