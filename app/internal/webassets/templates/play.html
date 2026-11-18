@@ -1073,28 +1073,48 @@
          search-link + paste-URL stays as the fallback for a song
          automatic search can't find or gets wrong. → review the
          fetched draft → apply it into Source. */}}
-    <section class="prep-panel import-wizard" data-panel="import" id="import-wizard" hidden>
+    {{/* Import: the entry points. "Import a song" walks the whole
+         wizard (the dialog below); the others open it at their step, or
+         work on Source right here (iReal Pro's chords, cleanup). */}}
+    <section class="prep-panel import-wizard" data-panel="import" id="import-launcher" hidden>
+      <p class="hint">{{t "Brings a song in step by step: its chart, a review, its lyrics, its reference recording, then the chart synced to that recording. Nothing is written until you confirm a step."}}</p>
+      <div class="import-row">
+        <button type="button" class="primary" data-goto="find">{{template "icon-plus"}} {{t "Import a song…"}}</button>
+      </div>
+      {{/* The steps that work on the song as it is: lyrics into its
+           sections, its reference recording, tempo/metre/key and
+           sync from that recording, iReal Pro's chords, cleanup
+           (internal/songimport). */}}
+      <h3 class="import-subhead">{{t "On this song as it is"}}</h3>
+      <div class="import-actions">
+        <button type="button" data-goto="lyrics">{{t "Add lyrics only"}}</button>
+        <button type="button" data-goto="recording">{{t "Reference recording"}}</button>
+        <button type="button" data-goto="sync">{{t "Tempo, time, key and sync"}}</button>
+        <button type="button" id="import-source-ireal-btn">{{t "Fix chords with iReal Pro"}}</button>
+        <button type="button" id="import-source-clean-btn">{{t "Clean up the source"}}</button>
+      </div>
+      <p id="import-source-status" class="hint" role="status"></p>
+      <div id="import-source-ireal-candidates" class="import-ireal-candidates"></div>
+    </section>
+
+    {{/* The import wizard, a dialog like the new-song wizard: numbered
+         steps (any can be clicked), Back / Skip / Next below. */}}
+    <dialog id="import-wizard" class="wizard-dialog import-wizard-dialog" aria-labelledby="import-wizard-title">
+      <h2 id="import-wizard-title">{{t "Import"}}</h2>
+      <div class="wizard-steps" id="import-wizard-steps">
+        <button type="button" class="wizard-step-dot" data-step-dot="find">1 &middot; {{t "Chart"}}</button>
+        <button type="button" class="wizard-step-dot" data-step-dot="review">2 &middot; {{t "Review"}}</button>
+        <button type="button" class="wizard-step-dot" data-step-dot="lyrics">3 &middot; {{t "Lyrics"}}</button>
+        <button type="button" class="wizard-step-dot" data-step-dot="recording">4 &middot; {{t "Recording"}}</button>
+        <button type="button" class="wizard-step-dot" data-step-dot="sync">5 &middot; {{t "Sync"}}</button>
+      </div>
       <div class="import-step" data-step="find">
-        <p class="hint">{{t "Pulls a chord+lyric chart in from Ultimate Guitar, reviews the draft, then applies it — nothing is written until you confirm."}}</p>
+        <p class="hint">{{t "Pulls a chord+lyric chart in from Ultimate Guitar for review, or keeps this song's own chart: Next goes on to its lyrics."}}</p>
         <div class="import-row">
           <button type="button" id="import-auto-find-btn" class="primary">{{template "icon-view"}} {{t "Find & fetch automatically"}}</button>
           <button type="button" id="import-vocal-btn">{{template "icon-view"}} {{t "Lyrics and iReal Pro grids, for singers"}}</button>
           <span id="import-auto-find-status" class="hint" role="status"></span>
         </div>
-        {{/* The steps that work on the song as it is: lyrics into its
-             sections, its reference recording, tempo/metre/key and
-             sync from that recording, iReal Pro's chords, cleanup
-             (internal/songimport). */}}
-        <h3 class="import-subhead">{{t "On this song as it is"}}</h3>
-        <div class="import-actions">
-          <button type="button" data-goto="lyrics">{{t "Add lyrics only"}}</button>
-          <button type="button" data-goto="recording">{{t "Reference recording"}}</button>
-          <button type="button" data-goto="sync">{{t "Tempo, time, key and sync"}}</button>
-          <button type="button" id="import-source-ireal-btn">{{t "Fix chords with iReal Pro"}}</button>
-          <button type="button" id="import-source-clean-btn">{{t "Clean up the source"}}</button>
-        </div>
-        <p id="import-source-status" class="hint" role="status"></p>
-        <div id="import-source-ireal-candidates" class="import-ireal-candidates"></div>
         <details class="import-manual-details">
           <summary>{{t "Or find it yourself"}}</summary>
           <div class="import-search-links" id="import-search-links"></div>
@@ -1113,7 +1133,6 @@
       </div>
 
       <div class="import-step" data-step="review" hidden>
-        <button type="button" class="import-back" data-back="find">{{template "icon-back"}} {{t "Back"}}</button>
         <p class="hint" id="import-review-hint">{{t "Review the draft below — nothing is applied yet. You can edit it here before applying."}}</p>
         <label class="import-url-label" for="import-review-text">{{t "Draft chart"}}</label>
         <textarea id="import-review-text" class="import-review-text" rows="14" spellcheck="false" autocapitalize="off" aria-describedby="import-review-hint"></textarea>
@@ -1141,14 +1160,9 @@
           <div id="import-ireal-candidates" class="import-ireal-candidates"></div>
         </div>
 
-        <div class="import-row">
-          <button type="button" id="import-apply-btn" class="primary">{{template "icon-plus"}} {{t "Accept & insert into Source"}}</button>
-          <span id="import-apply-status" class="hint"></span>
-        </div>
       </div>
 
       <div class="import-step" data-step="lyrics" hidden>
-        <button type="button" class="import-back" data-back="find">{{template "icon-back"}} {{t "Back"}}</button>
         <p class="hint">{{t "Puts lyrics into this song's sections: the first verse's into the first verse, the chorus's into every chorus. Grids and everything else stay as they are. Check where each stanza went, then put the result into Source."}}</p>
         <fieldset class="import-lyrics-source">
           <legend>{{t "Lyrics from"}}</legend>
@@ -1164,13 +1178,9 @@
           <span id="import-lyrics-status" class="hint" role="status"></span>
         </div>
         <ul id="import-lyrics-placements" class="import-placements"></ul>
-        <div class="import-row" id="import-lyrics-apply-row" hidden>
-          <button type="button" id="import-lyrics-apply-btn" class="primary">{{template "icon-plus"}} {{t "Put into Source"}}</button>
-        </div>
       </div>
 
       <div class="import-step" data-step="recording" hidden>
-        <button type="button" class="import-back" data-back="find">{{template "icon-back"}} {{t "Back"}}</button>
         <p class="hint">{{t "The recording the chart plays along with: the artist's own studio version is best. Its sound is downloaded and split into voice and backing, which the next step uses."}}</p>
         <p id="import-yt-current" class="hint"></p>
         <div class="import-row">
@@ -1181,8 +1191,7 @@
       </div>
 
       <div class="import-step" data-step="sync" hidden>
-        <button type="button" class="import-back" data-back="find">{{template "icon-back"}} {{t "Back"}}</button>
-        <p class="hint">{{t "Measures the reference recording: its tempo, time signature and key, and where each section starts, so the chart follows the sound from the intro on. Save the chart first: markers go on its saved sections."}}</p>
+        <p class="hint">{{t "Measures the reference recording: its tempo, time signature and key, and where each section starts, so the chart follows the sound from the intro on. The chart is saved first: markers go on its saved sections."}}</p>
         <div class="import-row">
           <button type="button" id="import-sync-analyze-btn" class="primary">{{t "Analyse the recording"}}</button>
           <span id="import-sync-status" class="hint" role="status"></span>
@@ -1194,7 +1203,14 @@
           <span id="import-sync-apply-status" class="hint" role="status"></span>
         </div>
       </div>
-    </section>
+      <div class="wizard-actions">
+        <button type="button" id="import-wiz-back">&larr; {{t "Back"}}</button>
+        <button type="button" id="import-wiz-skip" hidden>{{t "Skip"}}</button>
+        <button type="button" id="import-wiz-next" class="primary">{{t "Next"}} &rarr;</button>
+        <span id="import-apply-status" class="hint" role="status"></span>
+        <button type="button" id="import-wiz-close" class="wizard-close">{{t "Close"}}</button>
+      </div>
+    </dialog>
   </div>
 </div>
 

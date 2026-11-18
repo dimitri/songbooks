@@ -198,7 +198,6 @@
   "Nothing to clean up.": "Rien à nettoyer.",
   "Paste the lyrics first.": "Collez d’abord les paroles.",
   "Recording: %s, sound from %ss. Its own estimate: %s bpm in %s.": "Enregistrement : %s, son à partir de %s s. Son estimation : %s bpm en %s.",
-  "Save the chart first: markers go on its saved sections.": "Enregistrez d’abord la grille : les repères se placent sur ses sections enregistrées.",
   "Saved. Reload the page to play along with the synced chart.": "Enregistré. Rechargez la page pour jouer avec la grille synchronisée.",
   "Searching Ultimate Guitar and iReal Pro…": "Recherche sur Ultimate Guitar et iReal Pro…",
   "Searching YouTube…": "Recherche sur YouTube…",
@@ -232,5 +231,11 @@
   "%d stanzas not placed: the song may need more sections.": "%d strophes non placées : le morceau a peut-être besoin de plus de sections.",
   "%d stanza": "%d strophe",
   "%d stanzas": "%d strophes",
-  "from %s.": "depuis %s."
+  "from %s.": "depuis %s.",
+  "Keep this chart": "Garder cette grille",
+  "Next": "Suivant",
+  "Nothing to put into Source yet.": "Rien à mettre dans Source pour l’instant.",
+  "Put into Source": "Mettre dans Source",
+  "Couldn't save the chart: markers go on its saved sections.": "Impossible d’enregistrer la grille : les repères se placent sur ses sections enregistrées.",
+  "Done": "Terminé"
 }

@@ -1756,15 +1756,17 @@ const ICONS = {
     renderPreview();
   });
 
-  document.getElementById('save-btn').addEventListener('click', async () => {
+  // saveRaw saves Source; the import wizard calls it too, before the
+  // steps that need the chart saved (markers go on saved sections).
+  async function saveRaw() {
     const status = document.getElementById('save-status');
     status.className = ''; status.textContent = t('Saving…');
     const res = await fetch(`/api/songs/${pageVariantId}/raw`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version: rawVersion, text: rawTextarea.value }),
     });
-    if (res.status === 409) { status.className = 'err'; status.textContent = t('Not saved: this song changed since you opened it. Copy your changes, reload the page, then save again.'); return; }
-    if (!res.ok) { status.className = 'err'; status.textContent = t("Couldn't save. Your changes are still here; try again."); return; }
+    if (res.status === 409) { status.className = 'err'; status.textContent = t('Not saved: this song changed since you opened it. Copy your changes, reload the page, then save again.'); return false; }
+    if (!res.ok) { status.className = 'err'; status.textContent = t("Couldn't save. Your changes are still here; try again."); return false; }
     const data = await res.json();
     rawVersion = data.version;
     status.className = 'ok'; status.textContent = t('Saved.');
@@ -1772,7 +1774,9 @@ const ICONS = {
     await renderPreview();
     savedSheetHTML = sheet.innerHTML; // this is now the saved state
     clearDirty();
-  });
+    return true;
+  }
+  document.getElementById('save-btn').addEventListener('click', saveRaw);
 
   // ---- Redo this song (destructive: erases body, keeps book/stem identity) --
   document.getElementById('redo-song-btn')?.addEventListener('click', async () => {
@@ -2040,7 +2044,6 @@ const ICONS = {
     const reviewHint = document.getElementById('import-review-hint');
     const reviewText = document.getElementById('import-review-text');
     const stripChordsCheck = document.getElementById('import-strip-chords');
-    const applyBtn = document.getElementById('import-apply-btn');
     const applyStatus = document.getElementById('import-apply-status');
     const irealCheckBtn = document.getElementById('import-ireal-check-btn');
     const irealStatus = document.getElementById('import-ireal-status');
@@ -2064,10 +2067,46 @@ const ICONS = {
     }
 
     let importSourceURL = '';
-    let importMeta = {}; // { title, artist, capo } from the fetch response, for applyBtn's header merge
+    let importMeta = {}; // { title, artist, capo } from the fetch response, for applyDraft's header merge
 
+    // The wizard's steps, in order, shown in its step bar (any step can
+    // be clicked) with Back / Skip / Next below. Next does each step's
+    // work: Chart keeps the song's chart as it is (a fetched one goes to
+    // Review), Review and Lyrics put their result into Source, Sync's
+    // closes the wizard.
+    const ORDER = ['find', 'review', 'lyrics', 'recording', 'sync'];
+    const dots = wizard.querySelectorAll('[data-step-dot]');
+    const backBtn = document.getElementById('import-wiz-back');
+    const skipBtn = document.getElementById('import-wiz-skip');
+    const nextBtn = document.getElementById('import-wiz-next');
+    let current = 'find';
+    let hasDraft = false; // Review has a fetched draft to go back to
+    const passed = new Set(); // the steps left with Next or Skip: ticked
+    const closeBtn = document.getElementById('import-wiz-close');
+    function nextLabel(name) {
+      switch (name) {
+        case 'find': return t('Keep this chart') + ' →';
+        case 'review': return t('Put into Source') + ' →';
+        case 'lyrics': return (placedText ? t('Put into Source') : t('Next')) + ' →';
+        case 'recording': return t('Next') + ' →';
+        default: return t('Done');
+      }
+    }
     function showStep(name) {
+      current = name;
       Object.entries(steps).forEach(([k, el]) => { if (el) el.hidden = k !== name; });
+      const at = ORDER.indexOf(name);
+      dots.forEach((d, i) => {
+        d.classList.toggle('active', i === at);
+        d.classList.toggle('done', i !== at && passed.has(ORDER[i]));
+        if (i === at) d.setAttribute('aria-current', 'step'); else d.removeAttribute('aria-current');
+      });
+      backBtn.hidden = at === 0;
+      skipBtn.hidden = name !== 'lyrics' && name !== 'recording';
+      closeBtn.hidden = name === 'sync'; // its Next is Done
+      nextBtn.textContent = nextLabel(name);
+      applyStatus.textContent = '';
+      if (name === 'recording') showRecording();
     }
     (function buildSearchLink() {
       const { title, artist } = titleArtist();
@@ -2095,15 +2134,13 @@ const ICONS = {
         reviewHint.textContent = t('From %s — %s.', data.url, data.confidence);
         await cleanDraft();
         applyStatus.textContent = ''; applyStatus.className = 'hint';
+        hasDraft = true;
         showStep('review');
       } catch (e) {
         autoFindStatus.textContent = e.message; autoFindStatus.className = 'err';
       } finally {
         Forms.busy(autoFindBtn, false);
       }
-    });
-    wizard.querySelectorAll('.import-back').forEach(btn => {
-      btn.addEventListener('click', () => showStep(btn.dataset.back));
     });
     // A real <form>: Enter fetches, and forms.js has already checked the
     // field is a filled-in URL.
@@ -2121,6 +2158,7 @@ const ICONS = {
         reviewHint.textContent = t('From %s — pasted manually, not cross-checked.', url);
         await cleanDraft();
         applyStatus.textContent = ''; applyStatus.className = 'hint';
+        hasDraft = true;
         showStep('review');
       } catch (e) {
         fetchStatus.textContent = e.message; fetchStatus.className = 'err';
@@ -2342,6 +2380,7 @@ const ICONS = {
         reviewHint.textContent = t('From %s, for singers: lyrics without chords, iReal Pro grids where its chart matches.', d.url);
         fillList(cleanNotes, d.notes || []);
         autoFindStatus.textContent = '';
+        hasDraft = true;
         showStep('review');
       } catch (err) {
         autoFindStatus.textContent = err.message; autoFindStatus.className = 'err';
@@ -2350,10 +2389,31 @@ const ICONS = {
       }
     });
 
-    wizard.querySelectorAll('[data-goto]').forEach(btn => btn.addEventListener('click', () => {
+    // The Import tab's buttons open the wizard at their step.
+    document.querySelectorAll('[data-goto]').forEach(btn => btn.addEventListener('click', () => {
       showStep(btn.dataset.goto);
-      if (btn.dataset.goto === 'recording') showRecording();
+      if (!wizard.open) wizard.showModal();
     }));
+    dots.forEach(d => d.addEventListener('click', () => showStep(d.dataset.stepDot)));
+    backBtn.addEventListener('click', () => {
+      const at = ORDER.indexOf(current);
+      showStep(current === 'lyrics' && !hasDraft ? 'find' : ORDER[Math.max(0, at - 1)]);
+    });
+    skipBtn.addEventListener('click', () => { passed.add(current); showStep(ORDER[ORDER.indexOf(current) + 1]); });
+    nextBtn.addEventListener('click', () => {
+      if (current !== 'review' || reviewText.value.trim()) passed.add(current);
+      switch (current) {
+        case 'find': showStep('lyrics'); break;
+        case 'review': if (applyDraft()) showStep('lyrics'); break;
+        case 'lyrics': if (placedText) applyPlaced(); showStep('recording'); break;
+        case 'recording': showStep('sync'); break;
+        default: wizard.close();
+      }
+    });
+    closeBtn.addEventListener('click', () => wizard.close());
+    // What the wizard put into Source, to check (and save, if a later
+    // step hasn't already).
+    wizard.addEventListener('close', () => { passed.clear(); hasDraft = false; if (isDirty) showInSource(); });
 
     // Source, as it is: cleanup and iReal Pro's chords.
     const sourceStatus = document.getElementById('import-source-status');
@@ -2384,7 +2444,6 @@ const ICONS = {
     const lyricsText = document.getElementById('import-lyrics-text');
     const lyricsStatus = document.getElementById('import-lyrics-status');
     const lyricsPlacements = document.getElementById('import-lyrics-placements');
-    const lyricsApplyRow = document.getElementById('import-lyrics-apply-row');
     let placedText = '';
     const lyricsSource = () => wizard.querySelector('input[name="import-lyrics-source"]:checked').value;
     wizard.querySelectorAll('input[name="import-lyrics-source"]').forEach(r => r.addEventListener('change', () => {
@@ -2403,7 +2462,7 @@ const ICONS = {
       if (source !== 'ug' && !input) { lyricsStatus.textContent = source === 'url' ? t('Give the address of the lyrics page.') : t('Paste the lyrics first.'); lyricsStatus.className = 'err'; return; }
       Forms.busy(btn, true);
       lyricsStatus.textContent = t('Fetching…'); lyricsStatus.className = 'hint';
-      lyricsApplyRow.hidden = true;
+      placedText = ''; nextBtn.textContent = nextLabel('lyrics');
       try {
         const r = await postJSON('/api/import/lyrics/place', {
           currentText: rawTextarea.value, source, input, title, artist: artist || '',
@@ -2414,20 +2473,17 @@ const ICONS = {
         const items = (r.placements || []).map(p => `${p.Section}: ${(placementWords[p.Status] || (() => p.Status))()}`);
         if ((r.unused || []).length) items.push(tn(r.unused.length, '%d stanza not placed: the song may need more sections.', '%d stanzas not placed: the song may need more sections.'));
         fillList(lyricsPlacements, items);
-        lyricsApplyRow.hidden = false;
+        nextBtn.textContent = nextLabel('lyrics');
       } catch (err) {
         lyricsStatus.textContent = t("Couldn't get lyrics: %s", err.message); lyricsStatus.className = 'err';
       } finally {
         Forms.busy(btn, false);
       }
     });
-    document.getElementById('import-lyrics-apply-btn').addEventListener('click', () => {
-      if (!placedText) return;
+    function applyPlaced() {
       setText(rawTextarea, placedText);
-      placedText = ''; lyricsApplyRow.hidden = true; lyricsPlacements.innerHTML = '';
-      showStep('find');
-      showInSource();
-    });
+      placedText = ''; lyricsPlacements.innerHTML = ''; lyricsStatus.textContent = '';
+    }
 
     // The reference recording: YouTube's candidates, downloaded and split.
     const ytStatus = document.getElementById('import-yt-status');
@@ -2510,8 +2566,12 @@ const ICONS = {
     document.getElementById('import-sync-analyze-btn').addEventListener('click', async (e) => {
       const btn = e.currentTarget; // null once an await has run
       syncApply.hidden = true; syncOverwriteLabel.hidden = true; syncResult.innerHTML = '';
-      if (isDirty) { syncStatus.textContent = t('Save the chart first: markers go on its saved sections.'); syncStatus.className = 'err'; return; }
       Forms.busy(btn, true);
+      if (isDirty && !(await saveRaw())) {
+        Forms.busy(btn, false);
+        syncStatus.textContent = t("Couldn't save the chart: markers go on its saved sections."); syncStatus.className = 'err';
+        return;
+      }
       syncStatus.textContent = t('Listening to the recording… (a few seconds)'); syncStatus.className = 'hint';
       try {
         const p = await postJSON(`/api/songs/${pageVariantId}/audio/youtube/analyze`, {});
@@ -2549,9 +2609,9 @@ const ICONS = {
       }
     });
 
-    applyBtn.addEventListener('click', () => {
+    function applyDraft() {
       let text = reviewText.value.trim();
-      if (!text) return;
+      if (!text) { applyStatus.textContent = t('Nothing to put into Source yet.'); return false; }
       if (stripChordsCheck.checked) text = stripChordMarkers(text).trim();
       mergeHeaderFields(importMeta);
       // Append at the end, not "wherever the cursor happens to be" —
@@ -2562,19 +2622,10 @@ const ICONS = {
       // to the song," cursor position aside.
       rawTextarea.selectionStart = rawTextarea.selectionEnd = rawTextarea.value.length;
       insertAtCursor(`\n\n# imported from ${importSourceURL}\n${text}\n`);
-      applyStatus.textContent = '';
+      markDirty();
       importSourceURL = ''; importMeta = {};
-      showStep('find');
-      // Switch to Source right away — reported directly as "it's
-      // missing the last step from review to the source file," since
-      // staying on Import after Accept left the result invisible
-      // (the textarea it landed in is a different, hidden tab panel)
-      // and made it look like nothing had happened at all. Same
-      // tab-switch redo-song-btn already uses.
-      document.querySelectorAll('.prep-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'raw'));
-      document.querySelectorAll('.prep-panel').forEach(p => { p.hidden = p.dataset.panel !== 'raw'; });
-      rawTextarea.focus();
-    });
+      return true;
+    }
   })();
 
   // ---- Structure editor -------------------------------------------------------

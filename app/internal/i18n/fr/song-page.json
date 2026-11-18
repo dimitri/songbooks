@@ -394,7 +394,6 @@
   "Fix chords with iReal Pro": "Corriger les accords avec iReal Pro",
   "Lyrics and iReal Pro grids, for singers": "Paroles et grilles iReal Pro, pour chanteurs",
   "Lyrics from": "Paroles depuis",
-  "Measures the reference recording: its tempo, time signature and key, and where each section starts, so the chart follows the sound from the intro on. Save the chart first: markers go on its saved sections.": "Mesure l’enregistrement de référence : son tempo, sa signature rythmique et sa tonalité, et le début de chaque section, pour que la grille suive le son dès l’intro. Enregistrez d’abord la grille : les repères se placent sur ses sections enregistrées.",
   "On this song as it is": "Sur ce morceau tel qu’il est",
   "Paste the lyrics, a blank line between stanzas": "Collez les paroles, une ligne vide entre les strophes",
   "Put into Source": "Mettre dans Source",
@@ -405,5 +404,12 @@
   "Tempo, time, key and sync": "Tempo, signature, tonalité et synchro",
   "Text I paste": "Un texte que je colle",
   "The recording the chart plays along with: the artist's own studio version is best. Its sound is downloaded and split into voice and backing, which the next step uses.": "L’enregistrement que la grille accompagne : la version studio de l’artiste est la meilleure. Son son est téléchargé et séparé en voix et accompagnement, ce que l’étape suivante utilise.",
-  "Ultimate Guitar, found automatically": "Ultimate Guitar, trouvé automatiquement"
+  "Ultimate Guitar, found automatically": "Ultimate Guitar, trouvé automatiquement",
+  "Brings a song in step by step: its chart, a review, its lyrics, its reference recording, then the chart synced to that recording. Nothing is written until you confirm a step.": "Fait entrer un morceau étape par étape : sa grille, une relecture, ses paroles, son enregistrement de référence, puis la grille synchronisée sur cet enregistrement. Rien n’est écrit avant que vous confirmiez une étape.",
+  "Import a song…": "Importer un morceau…",
+  "Measures the reference recording: its tempo, time signature and key, and where each section starts, so the chart follows the sound from the intro on. The chart is saved first: markers go on its saved sections.": "Mesure l’enregistrement de référence : son tempo, sa signature rythmique et sa tonalité, et le début de chaque section, pour que la grille suive le son dès l’intro. La grille est d’abord enregistrée : les repères se placent sur ses sections enregistrées.",
+  "Pulls a chord+lyric chart in from Ultimate Guitar for review, or keeps this song's own chart: Next goes on to its lyrics.": "Récupère une grille accords et paroles sur Ultimate Guitar pour la relire, ou garde la grille de ce morceau : Suivant passe à ses paroles.",
+  "Review": "Relecture",
+  "Skip": "Passer",
+  "Sync": "Synchro"
 }

@@ -759,12 +759,21 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
 .add-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.6rem; flex-wrap: wrap; }
 
 /* ---- New-song wizard (native <dialog>) ------------------------------------ */
-#song-wizard {
+#song-wizard, #import-wizard {
   width: min(560px, 92vw); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 1.3rem 1.4rem; background: var(--bg-raised); color: var(--fg); box-shadow: var(--shadow);
 }
-#song-wizard::backdrop { background: rgba(10, 8, 4, 0.45); }
-#song-wizard h2 { margin: 0 0 0.3rem; }
+#song-wizard::backdrop, #import-wizard::backdrop { background: rgba(10, 8, 4, 0.45); }
+#song-wizard h2, #import-wizard h2 { margin: 0 0 0.3rem; }
+/* The import wizard: wider for its draft, its step dots are buttons
+   (any step can be visited), a done step is marked. */
+#import-wizard { width: min(760px, 94vw); max-height: 92vh; }
+#import-wizard .import-step { min-height: 14rem; }
+button.wizard-step-dot { border: 0; font-family: inherit; cursor: pointer; }
+button.wizard-step-dot:hover:not(.active) { color: var(--fg); }
+.wizard-step-dot.done { color: var(--fg); }
+.wizard-step-dot.done::after { content: " ✓"; }
+.wizard-actions .wizard-close { margin-left: auto; }
 .wizard-fields { display: flex; gap: 0.8rem; margin: 0.8rem 0; flex-wrap: wrap; }
 .wizard-fields label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--fg-muted); flex: 1; min-width: 10rem; }
 .wizard-preview { width: 100%; margin-top: 0.4rem; font-family: var(--font-mono); font-size: 0.82rem; }
