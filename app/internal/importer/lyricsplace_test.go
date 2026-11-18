@@ -125,10 +125,18 @@ func checkReparse(t *testing.T, before, after string) [][]string {
 		t.Fatalf("section count %d -> %d", len(a.Sections), len(b.Sections))
 	}
 	var lyrics [][]string
+	firstGrid := map[string][]song.Measure{}
 	for i := range a.Sections {
 		sa, sb := a.Sections[i], b.Sections[i]
+		if len(sa.Measures) > 0 && firstGrid[sa.Label] == nil {
+			firstGrid[sa.Label] = sa.Measures
+		}
+		// The one grid change allowed: a bare section given lyrics takes
+		// the grid of the first section with its label (PlaceLyrics).
+		grids := reflect.DeepEqual(sa.Measures, sb.Measures) ||
+			(len(sa.Measures) == 0 && len(sa.Lyrics) == 0 && len(sb.Lyrics) > 0 && reflect.DeepEqual(sb.Measures, firstGrid[sa.Label]))
 		if sa.Label != sb.Label || sa.Repeat != sb.Repeat || sa.Times != sb.Times || sa.Time != sb.Time ||
-			!reflect.DeepEqual(sa.Measures, sb.Measures) || !reflect.DeepEqual(sa.Notes, sb.Notes) ||
+			!grids || !reflect.DeepEqual(sa.Notes, sb.Notes) ||
 			!reflect.DeepEqual(sa.Scores, sb.Scores) {
 			t.Errorf("section %d changed: %+v -> %+v", i, sa, sb)
 		}
@@ -340,5 +348,30 @@ func TestPlaceLyricsNoStanzasIsNoOp(t *testing.T) {
 	}
 	if len(ps) != 8 || len(unused) != 0 {
 		t.Errorf("placements=%v unused=%v", ps, unused)
+	}
+}
+
+// A song map's bare second verse inherits the first verse's grid; given
+// lyrics of its own it would not any more, so the grid comes with them.
+func TestPlaceLyricsKeepsInheritedGrid(t *testing.T) {
+	body := "title: T\n\n[Intro]\ngrid: | Am | G |\n\n[Verse]\ngrid: | Am | F | C | G |\nwalking down the quiet road\n\n[Chorus]\ngrid: | F | G | C |\n\n[Verse]\n\n[Chorus]\n"
+	stanzas := []Stanza{
+		{Label: "Verse 1", Lines: []string{"walking down the quiet road"}},
+		{Label: "Chorus", Lines: []string{"la la la"}},
+		{Label: "Verse 2", Lines: []string{"counting all the paper stars"}},
+	}
+	got, _, _ := PlaceLyrics(body, stanzas, false)
+	second := got[strings.LastIndex(got, "[Verse]"):]
+	second = second[:strings.Index(second, "[Chorus]")]
+	if !strings.Contains(second, "grid: | Am | F | C | G |") || !strings.Contains(second, "counting all the paper stars") {
+		t.Fatalf("second verse:\n%s", second)
+	}
+	if strings.Count(got, "grid: | Am | F | C | G |") != 2 {
+		t.Fatalf("the grid copied once:\n%s", got)
+	}
+	// Placing again changes nothing.
+	again, _, _ := PlaceLyrics(got, stanzas, false)
+	if again != got {
+		t.Fatalf("not idempotent:\n%s", again)
 	}
 }

@@ -224,3 +224,73 @@ func (s *Server) handlePostKeyCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, songimport.CheckKey(req.Text, irealKey, audioKey, conf))
 }
+
+// handleGetImportAssess is GET /api/songs/{id}/import/assess: what the
+// import wizard would do with the saved song (songimport.Assess) — new,
+// improve or restart, and the steps worth doing. iReal Pro from its
+// cache only; nothing fetched, nothing written.
+func (s *Server) handleGetImportAssess(w http.ResponseWriter, r *http.Request) {
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	title, _, _, body, err := s.store.VariantContent(r.Context(), variantID)
+	if err != nil {
+		httpError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	irealKey := ""
+	if strings.TrimSpace(title) != "" {
+		if cached, err := s.store.FindIRealSong(r.Context(), title); err == nil {
+			irealKey = cached.Key
+		}
+	}
+	var rec songimport.RecordingState
+	if meta, err := s.store.GetSongAudioMeta(r.Context(), variantID, store.AudioYouTube); err == nil {
+		rec.Has = true
+		if st, err := s.store.GetStemStatus(r.Context(), meta.ID); err == nil {
+			rec.StemStatus = st.Status
+		}
+		if m, err := s.store.ListAudioMarkers(r.Context(), meta.ID); err == nil {
+			rec.Markers = len(m)
+		}
+	}
+	writeJSON(w, http.StatusOK, songimport.Assess(body, rec, irealKey))
+}
+
+// handleImportMerge is POST /api/import/merge {currentText, draft, mode}:
+// a fetched draft brought into the song's text. mode "merge" (the
+// default) keeps the song's structure and adds what it lacks
+// (importer.MergeDraft); "replace" takes the draft's sections under the
+// song's header (importer.ReplaceDraft); "append" puts the draft below
+// the song as it is. Nothing is saved.
+func (s *Server) handleImportMerge(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		CurrentText string `json:"currentText"`
+		Draft       string `json:"draft"`
+		Mode        string `json:"mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Draft) == "" {
+		httpError(w, http.StatusBadRequest, "missing draft")
+		return
+	}
+	var text string
+	var notes []string
+	switch req.Mode {
+	case "merge", "":
+		text, notes = importer.MergeDraft(req.CurrentText, req.Draft)
+	case "replace":
+		text, notes = importer.ReplaceDraft(req.CurrentText, req.Draft)
+	case "append":
+		text = req.CurrentText + "\n\n" + req.Draft
+		notes = []string{"Draft appended below the song"}
+	default:
+		httpError(w, http.StatusBadRequest, "mode must be merge, replace or append")
+		return
+	}
+	if notes == nil {
+		notes = []string{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"text": text, "notes": notes})
+}

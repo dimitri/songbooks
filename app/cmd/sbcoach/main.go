@@ -17,7 +17,10 @@
 // add, sync, lyrics, ireal and key (songcmds.go) are the import wizard's
 // steps for one song: a new song with its reference recording, chart,
 // lyrics and sections synced to the recording; or one of those steps on
-// an existing song. In production it runs inside the app container:
+// an existing song. check (read-only) says, for one song or a whole
+// songbook, whether each is new, worth improving or worth restarting,
+// and which of those steps it needs. In production it runs inside the
+// app container:
 //
 //	docker compose exec -T app sbcoach songs --db "$DATABASE_URL" ...
 package main

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -22,6 +23,8 @@ import (
 // Song commands, one song per run, the import wizard's steps from the
 // command line (internal/songimport does the work for both). They print
 // what they did — sections, keys, times, sources — never the lyrics.
+// check is read-only and takes a whole songbook too: what each song
+// needs (songimport.Assess).
 const songUsage = `
   sbcoach add --db URL (--community ID | --band ID | --person USER) --actor USER --title T --artist A
               [--clip URL] [--chart FILE | --vocal] [--ireal] [--lyrics ug|url|text [--input X]]
@@ -29,9 +32,10 @@ const songUsage = `
   sbcoach sync   --db URL --song ID [--actor USER] [--overwrite] [--dry-run]
   sbcoach lyrics --db URL --song ID --actor USER [--source ug|url|text] [--input X] [--replace] [--dry-run]
   sbcoach ireal  --db URL --song ID --actor USER [--all] [--dry-run]
-  sbcoach key    --db URL --song ID`
+  sbcoach key    --db URL --song ID
+  sbcoach check  --db URL (--song ID | --songbook ID)`
 
-var songCommands = map[string]bool{"add": true, "sync": true, "lyrics": true, "ireal": true, "key": true}
+var songCommands = map[string]bool{"add": true, "sync": true, "lyrics": true, "ireal": true, "key": true, "check": true}
 
 func runSongCommand(cmd string, args []string) {
 	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
@@ -53,6 +57,7 @@ func runSongCommand(cmd string, args []string) {
 	input := fs.String("input", "", "lyrics: the page address (url) or a file of lyrics (text)")
 	replace := fs.Bool("replace", false, "lyrics: replace lyrics already in sections")
 	songID := fs.Int64("song", 0, "the song")
+	songbookID := fs.Int64("songbook", 0, "check: every song in this songbook")
 	all := fs.Bool("all", false, "ireal: apply every section, not only the safe matches")
 	overwrite := fs.Bool("overwrite", false, "sync: replace an existing tempo: and time:")
 	dryRun := fs.Bool("dry-run", false, "show, don't save")
@@ -190,7 +195,79 @@ func runSongCommand(cmd string, args []string) {
 			audioKey, conf = a.Key, a.KeyConfidence
 		}
 		printKey(songimport.CheckKey(body, irealKey, audioKey, conf))
+
+	case "check":
+		if (*songID == 0) == (*songbookID == 0) {
+			log.Fatal("usage:" + songUsage)
+		}
+		checkSongs(ctx, st, *songID, *songbookID)
 	}
+}
+
+// checkSongs prints, one line per song, what the import wizard would do
+// with it (songimport.Assess): read-only, iReal Pro from its cache only,
+// never lyrics. A songbook ends with the counts by verdict and step.
+func checkSongs(ctx context.Context, st *store.Store, songID, songbookID int64) {
+	ids := []int64{songID}
+	if songbookID != 0 {
+		entries, err := st.ListSongbookEntries(ctx, songbookID)
+		if err != nil {
+			log.Fatal(err)
+		}
+		ids = ids[:0]
+		for _, e := range entries {
+			ids = append(ids, e.VariantID)
+		}
+		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	}
+	verdicts, steps := map[string]int{}, map[string]int{}
+	for _, id := range ids {
+		title, _, _, body, err := st.VariantContent(ctx, id)
+		if err != nil {
+			fmt.Printf("%5d  %v\n", id, err)
+			continue
+		}
+		irealKey := ""
+		if s, err := st.FindIRealSong(ctx, title); err == nil {
+			irealKey = s.Key
+		}
+		a := songimport.Assess(body, recordingState(ctx, st, id), irealKey)
+		verdicts[a.Verdict]++
+		for _, s := range a.Steps {
+			steps[s]++
+		}
+		fmt.Printf("%5d  %-30.30s  %-7s  %-30s  %s\n", id, title, a.Verdict, strings.Join(a.Steps, ","), strings.Join(a.Summary, "; "))
+		if a.Verdict == songimport.VerdictRestart {
+			fmt.Printf("%5s  why: %s\n", "", strings.Join(a.Reasons, "; "))
+		}
+	}
+	if len(ids) > 1 {
+		fmt.Printf("%d songs:", len(ids))
+		for _, v := range []string{songimport.VerdictNew, songimport.VerdictImprove, songimport.VerdictRestart} {
+			fmt.Printf(" %s %d", v, verdicts[v])
+		}
+		fmt.Print("; steps:")
+		for _, s := range []string{"find", "review", "lyrics", "recording", "sync"} {
+			fmt.Printf(" %s %d", s, steps[s])
+		}
+		fmt.Println()
+	}
+}
+
+// recordingState is the song's reference recording as Assess needs it.
+func recordingState(ctx context.Context, st *store.Store, id int64) songimport.RecordingState {
+	meta, err := st.GetSongAudioMeta(ctx, id, store.AudioYouTube)
+	if err != nil {
+		return songimport.RecordingState{}
+	}
+	r := songimport.RecordingState{Has: true}
+	if s, err := st.GetStemStatus(ctx, meta.ID); err == nil {
+		r.StemStatus = s.Status
+	}
+	if m, err := st.ListAudioMarkers(ctx, meta.ID); err == nil {
+		r.Markers = len(m)
+	}
+	return r
 }
 
 func needSong(id int64) {

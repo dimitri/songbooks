@@ -404,6 +404,11 @@ func PlaceLyrics(body string, stanzas []Stanza, replace bool) (string, []Placeme
 	lastOf := map[string]int{}
 	byLabel := map[string]int{} // stanza last given to a label, for "(repeat)" sections
 	contentful := map[string]bool{}
+	// The grid lines of the first section with each label: a bare
+	// repeat of it inherits them in the viewer, but once it holds
+	// lyrics of its own it no longer does (its chords would come from
+	// whatever grid precedes it), so they're written in with the lyrics.
+	gridOf := map[string][]srcLine{}
 	chorusWritten := false
 	placements := make([]Placement, 0, len(doc.secs))
 
@@ -422,6 +427,13 @@ func PlaceLyrics(body string, stanzas []Stanza, replace bool) (string, []Placeme
 			}
 		}
 		bareRef := !hasGrid && !hasLyrics && contentful[lkey]
+		if hasGrid && gridOf[lkey] == nil {
+			for _, l := range sec.lines {
+				if l.kind == lkGrid {
+					gridOf[lkey] = append(gridOf[lkey], l)
+				}
+			}
+		}
 
 		if sec.repeat {
 			p.Status = PlaceReused
@@ -482,6 +494,10 @@ func PlaceLyrics(body string, stanzas []Stanza, replace bool) (string, []Placeme
 		case idx < 0:
 			p.Status = PlaceMissing
 		default:
+			if g := gridOf[lkey]; !hasGrid && g != nil {
+				sec.lines = append(append([]srcLine{}, g...), sec.lines...)
+				hasGrid = true
+			}
 			writeLyrics(sec, stanzas[idx].Lines)
 			hasLyrics = true
 			p.Status = PlacePlaced
