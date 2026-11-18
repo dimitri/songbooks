@@ -16,6 +16,9 @@ const (
 	LyricsFromUG   = "ug"
 	LyricsFromURL  = "url"
 	LyricsFromText = "text"
+	// LyricsFromOwn moves the lyrics already in the song into the right
+	// sections where an import ran two parts together (importer.ResplitOwn).
+	LyricsFromOwn = "own"
 )
 
 // Stanzas fetches a song's lyrics from source and splits them into
@@ -70,11 +73,15 @@ type LyricsResult struct {
 	Unused     []int                `json:"unused"`
 	Stanzas    int                  `json:"stanzas"`
 	From       string               `json:"from"`
+	Notes      []string             `json:"notes,omitempty"`
 }
 
 // PlaceLyrics fetches lyrics and writes them into body's sections (see
 // importer.PlaceLyrics), keeping the lyrics already there unless replace.
 func PlaceLyrics(ctx context.Context, body, source, title, artist, input string, replace bool) (*LyricsResult, error) {
+	if source == LyricsFromOwn {
+		return resplitOwn(body)
+	}
 	stanzas, from, err := Stanzas(ctx, source, title, artist, input)
 	if err != nil {
 		return nil, err
@@ -144,4 +151,12 @@ func withIReal(ctx context.Context, st *store.Store, d *Draft, text, title, arti
 		merged = SetHeader(merged, "time", info.TimeSig, false)
 	}
 	return merged
+}
+
+// resplitOwn moves the song's own lyrics into the right sections where
+// an import ran two parts together (importer.ResplitOwn): nothing is
+// dropped or rewritten, and a part with nowhere to go stays put.
+func resplitOwn(body string) (*LyricsResult, error) {
+	text, placements, notes := importer.ResplitOwn(body)
+	return &LyricsResult{Text: text, Placements: placements, Stanzas: 0, From: "this song's own lyrics", Notes: notes}, nil
 }

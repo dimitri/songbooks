@@ -30,7 +30,7 @@ const songUsage = `
               [--clip URL] [--chart FILE | --vocal] [--ireal] [--lyrics ug|url|text [--input X]]
               [--student USER] [--wait 20m]
   sbcoach sync   --db URL --song ID [--actor USER] [--overwrite] [--dry-run]
-  sbcoach lyrics --db URL --song ID --actor USER [--source ug|url|text] [--input X] [--replace] [--dry-run]
+  sbcoach lyrics --db URL --song ID --actor USER [--source ug|url|text|own] [--input X] [--replace] [--dry-run]
   sbcoach ireal  --db URL --song ID --actor USER [--all] [--dry-run]
   sbcoach key    --db URL --song ID
   sbcoach check  --db URL (--song ID | --songbook ID)
@@ -54,7 +54,7 @@ func runSongCommand(cmd string, args []string) {
 	vocal := fs.Bool("vocal", false, "add: the singer's chart: lyrics from Ultimate Guitar without chords, grids from iReal Pro")
 	ireal := fs.Bool("ireal", false, "add: apply iReal Pro's grids where they match")
 	lyrics := fs.String("lyrics", "", "add: place lyrics from ug, url or text (with --input)")
-	source := fs.String("source", songimport.LyricsFromUG, "lyrics: ug, url or text")
+	source := fs.String("source", songimport.LyricsFromUG, "lyrics: ug, url, text, or own (the song's own lyrics re-split into its sections)")
 	input := fs.String("input", "", "lyrics: the page address (url) or a file of lyrics (text)")
 	replace := fs.Bool("replace", false, "lyrics: replace lyrics already in sections")
 	songID := fs.Int64("song", 0, "the song")

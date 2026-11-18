@@ -2435,7 +2435,7 @@ const ICONS = {
       const { title, artist } = titleArtist();
       const source = lyricsSource();
       const input = source === 'url' ? lyricsUrl.value.trim() : source === 'text' ? lyricsText.value : '';
-      if (source !== 'ug' && !input) { lyricsStatus.textContent = source === 'url' ? t('Give the address of the lyrics page.') : t('Paste the lyrics first.'); lyricsStatus.className = 'err'; return; }
+      if (source !== 'ug' && source !== 'own' && !input) { lyricsStatus.textContent = source === 'url' ? t('Give the address of the lyrics page.') : t('Paste the lyrics first.'); lyricsStatus.className = 'err'; return; }
       Forms.busy(btn, true);
       lyricsStatus.textContent = t('Fetching…'); lyricsStatus.className = 'hint';
       placedText = ''; lyricsPreview.hidden = true; refreshNav();
@@ -2445,9 +2445,10 @@ const ICONS = {
           replace: $id('import-lyrics-replace').checked,
         });
         placedText = r.text;
-        lyricsStatus.textContent = tn(r.stanzas, '%d stanza', '%d stanzas') + ' ' + t('from %s.', r.from);
+        lyricsStatus.textContent = source === 'own' ? t('Re-split from this song\'s own lyrics: nothing dropped or rewritten.') : tn(r.stanzas, '%d stanza', '%d stanzas') + ' ' + t('from %s.', r.from);
         const items = (r.placements || []).map(p => `${p.Section}: ${(placementWords[p.Status] || (() => p.Status))()}`);
         if ((r.unused || []).length) items.push(tn(r.unused.length, '%d stanza not placed: the song may need more sections.', '%d stanzas not placed: the song may need more sections.'));
+        (r.notes || []).forEach(n => items.push(n));
         fillList(lyricsPlacements, items);
         await previewInto(lyricsPreview, placedText);
         refreshNav();

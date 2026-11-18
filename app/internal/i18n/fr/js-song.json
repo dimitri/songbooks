@@ -260,5 +260,6 @@
   "current step": "étape en cours",
   "done": "faite",
   "suggested": "suggérée",
-  "Step %s of %s: %s": "Étape %s sur %s : %s"
+  "Step %s of %s: %s": "Étape %s sur %s : %s",
+  "Re-split from this song's own lyrics: nothing dropped or rewritten.": "Redécoupé à partir des paroles de ce morceau : rien de supprimé ni de réécrit."
 }
