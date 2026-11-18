@@ -308,7 +308,7 @@ func checkSongs(ctx context.Context, st *store.Store, songID, songbookID int64) 
 		if s, err := st.FindIRealSong(ctx, title); err == nil {
 			irealKey = s.Key
 		}
-		a := songimport.Assess(body, recordingState(ctx, st, id), irealKey)
+		a := songimport.Assess(body, recordingState(ctx, st, id), irealKey, nil)
 		verdicts[a.Verdict]++
 		for _, s := range a.Steps {
 			steps[s]++
