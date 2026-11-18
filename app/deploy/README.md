@@ -224,7 +224,7 @@ Two deployments run on the host from this directory (`target.sh`):
 | compose project | songbooks-prod | songbooks |
 | app port | 127.0.0.1:8103 | 127.0.0.1:8102 |
 | stems worker | yes (`COMPOSE_PROFILES=stems`) | no |
-| live lessons (Galène) | yes (`COMPOSE_PROFILES=stems,live`): each rollout builds it too, and restarts it only when its image changed | no |
+| live lessons (Galène) | yes (`COMPOSE_PROFILES=stems,live`): each rollout builds it too and may restart it: not during a lesson | no |
 | passkeys (RP ID) | app.songbooks.studio | songbooks.tapoueh.org |
 | Docker engine | `default` (data on disk) | `ci-build` (data on a RAM disk) |
 
