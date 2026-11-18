@@ -4,9 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/text/unicode/norm"
 )
 
 // A coaching community (docs/coaching.md, migration 0079): a voice coach
@@ -169,12 +173,13 @@ type StudentSong struct {
 	Title     string
 	Artist    string
 	Semitones int
+	Key       string // the song's own key (its key: header), "" when none
 }
 
 // ListStudentSongs is a student songbook's songs, by title.
 func (st *Store) ListStudentSongs(ctx context.Context, songbookID int64) ([]StudentSong, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT s.id, s.title, s.artist, se.semitones FROM songbook_entries se
+		SELECT s.id, s.title, s.artist, se.semitones, coalesce(substring(s.body from '(?n)^key:[ \t]*([^ \t\r\n]+)'), '') FROM songbook_entries se
 		JOIN songs s ON s.id = se.variant_id
 		WHERE se.songbook_id = $1 ORDER BY lower(s.title)`, songbookID)
 	if err != nil {
@@ -184,7 +189,7 @@ func (st *Store) ListStudentSongs(ctx context.Context, songbookID int64) ([]Stud
 	var out []StudentSong
 	for rows.Next() {
 		var s StudentSong
-		if err := rows.Scan(&s.VariantID, &s.Title, &s.Artist, &s.Semitones); err != nil {
+		if err := rows.Scan(&s.VariantID, &s.Title, &s.Artist, &s.Semitones, &s.Key); err != nil {
 			return nil, err
 		}
 		out = append(out, s)
@@ -246,4 +251,118 @@ func (st *Store) UnregisterFromEvent(ctx context.Context, eventID, personID int6
 func (st *Store) DeleteEvent(ctx context.Context, eventID int64) error {
 	_, err := st.db.Exec(ctx, `DELETE FROM events WHERE id = $1`, eventID)
 	return err
+}
+
+// KeyTarget is someone a coach can give a song's key to: a student of a
+// coaching community the song belongs to, or one of its groups, with the
+// key the song has in their songbook (InSongbook false when it isn't
+// there yet). SongbookID is 0 for a student who has no songbook yet.
+type KeyTarget struct {
+	CommunityID   int64  `json:"communityId"`
+	CommunityName string `json:"communityName"`
+	Kind          string `json:"kind"` // "student" or "group"
+	PersonID      int64  `json:"personId,omitempty"`
+	GroupID       int64  `json:"groupId,omitempty"`
+	Name          string `json:"name"`
+	SongbookID    int64  `json:"songbookId"`
+	InSongbook    bool   `json:"inSongbook"`
+	Semitones     int    `json:"semitones"`
+}
+
+// CoachingCommunitiesOfSong are the coaching communities that have a song
+// in one of their songbooks.
+func (st *Store) CoachingCommunitiesOfSong(ctx context.Context, variantID int64) ([]Community, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT DISTINCT c.id, c.name FROM communities c
+		JOIN songbooks sb ON sb.owner_community_id = c.id
+		JOIN songbook_entries e ON e.songbook_id = sb.id
+		WHERE c.kind = 'coaching' AND e.variant_id = $1 ORDER BY c.name`, variantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Community
+	for rows.Next() {
+		var c Community
+		if err := rows.Scan(&c.ID, &c.Name); err != nil {
+			return nil, err
+		}
+		c.Kind = "coaching"
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// KeyTargets lists a coaching community's students and groups for a song:
+// students first, by name, then groups.
+func (st *Store) KeyTargets(ctx context.Context, community Community, variantID int64) ([]KeyTarget, error) {
+	members, err := st.ListCommunityMembers(ctx, community.ID, false)
+	if err != nil {
+		return nil, err
+	}
+	var out []KeyTarget
+	for _, m := range members {
+		if m.IsStaff() {
+			continue
+		}
+		t := KeyTarget{CommunityID: community.ID, CommunityName: community.Name, Kind: "student", PersonID: m.PersonID, Name: m.DisplayName}
+		if t.SongbookID, err = st.FindStudentSongbook(ctx, community.ID, m.PersonID); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return foldName(out[i].Name) < foldName(out[j].Name) })
+	groups, err := st.ListCoachingGroups(ctx, community.ID, 0)
+	if err != nil {
+		return nil, err
+	}
+	for _, g := range groups {
+		out = append(out, KeyTarget{CommunityID: community.ID, CommunityName: community.Name, Kind: "group", GroupID: g.ID, Name: g.Name, SongbookID: g.SongbookID})
+	}
+	for i := range out {
+		if out[i].SongbookID == 0 {
+			continue
+		}
+		err := st.db.QueryRow(ctx, `SELECT semitones FROM songbook_entries WHERE songbook_id = $1 AND variant_id = $2`, out[i].SongbookID, variantID).Scan(&out[i].Semitones)
+		switch {
+		case err == nil:
+			out[i].InSongbook = true
+		case !errors.Is(err, pgx.ErrNoRows):
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// StudentKeyOf is the key a student was given for a song, in the first
+// of their coaching songbooks that has it: ok false when none does.
+func (st *Store) StudentKeyOf(ctx context.Context, personID, variantID int64) (songbookID int64, semitones int, ok bool, err error) {
+	err = st.db.QueryRow(ctx, `
+		SELECT sb.id, e.semitones FROM songbooks sb
+		JOIN songbook_entries e ON e.songbook_id = sb.id
+		WHERE sb.kind = 'student' AND sb.student_person_id = $1 AND e.variant_id = $2
+		ORDER BY sb.id LIMIT 1`, personID, variantID).Scan(&songbookID, &semitones)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, 0, false, nil
+	}
+	return songbookID, semitones, err == nil, err
+}
+
+// SongBody is a song's text.
+func (st *Store) SongBody(ctx context.Context, variantID int64) (string, error) {
+	var b string
+	err := st.db.QueryRow(ctx, `SELECT body FROM songs WHERE id = $1`, variantID).Scan(&b)
+	return b, err
+}
+
+// foldName is a name to sort by: lower case, accents off ("Léa" with
+// "Lea", before "Lucas").
+func foldName(s string) string {
+	var b strings.Builder
+	for _, r := range norm.NFD.String(strings.ToLower(s)) {
+		if !unicode.Is(unicode.Mn, r) {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }

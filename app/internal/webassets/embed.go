@@ -201,6 +201,8 @@ var funcMap = template.FuncMap{
 	// deref and derefInt: a lesson's *int number as text or as a count
 	// (a function argument isn't dereferenced for you either: "Lesson %s"
 	// would print the pointer).
+	// keyIn names a key moved by semitones ("G" 2 → "A"), "" when none.
+	"keyIn": chordsym.KeyIn,
 	"deref": func(n *int) string {
 		if n == nil {
 			return ""

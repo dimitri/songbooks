@@ -49,6 +49,11 @@
 {{/* A lesson's mode, as a tag. Needs a store.Event. */}}
 {{define "lesson-tags"}}{{if eq .LessonMode "online"}}<span class="lesson-tag is-online">{{t "Online"}}</span>{{else if eq .LessonMode "in_person"}}<span class="lesson-tag">{{t "In the room"}}</span>{{end}}{{end}}
 
+{{/* A song's key for a student: its name and how far from the
+     recording's, "A (+2)", "G (original)"; just the offset for a song
+     with no key: header. */}}
+{{define "coach-key-name"}}{{with keyIn .Key .Semitones}}{{.}} ({{end}}{{if .Semitones}}{{if gt .Semitones 0}}+{{end}}{{.Semitones}}{{else}}{{t "original"}}{{end}}{{if keyIn .Key .Semitones}}){{end}}{{end}}
+
 {{/* A student's or a group's songs, each in its key: the coach's −/+, a
      song added from the community's, one taken out. Needs .Songs,
      .SongbookID, .IsCoach, .AddSongs. */}}
@@ -60,12 +65,12 @@
     {{if $.IsCoach}}
       <span class="coach-key" title="{{t "the key, in semitones from the reference recording"}}">
         <button type="button" class="coach-key-down" aria-label="{{t "down a semitone"}}">−</button>
-        <output>{{if gt .Semitones 0}}+{{end}}{{.Semitones}}</output>
+        <output data-key="{{.Key}}" data-semitones="{{.Semitones}}">{{template "coach-key-name" .}}</output>
         <button type="button" class="coach-key-up" aria-label="{{t "up a semitone"}}">+</button>
       </span>
       <button type="button" class="coach-song-remove icon-btn" aria-label="{{t "Take %s out" .Title}}">{{template "icon-close"}}</button>
     {{else}}
-      <span class="coach-key-label">{{if .Semitones}}{{t "Key"}} {{if gt .Semitones 0}}+{{end}}{{.Semitones}}{{else}}{{t "Original key"}}{{end}}</span>
+      <span class="coach-key-label">{{t "Key"}} {{template "coach-key-name" .}}</span>
     {{end}}
   </div>
   {{else}}
@@ -90,12 +95,24 @@
   const api = `/api/communities/${community}/songbooks/${list.dataset.songbook}/songs`;
   const send = (url, method, body) => fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) })
     .then((r) => { if (!r.ok) throw new Error(); return r; });
+  // "A (+2)": the song's key moved by n, named as the server does
+  // (chordsym.KeyName); just "+2" for a song with no key.
+  const MAJOR = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+  const MINOR = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'G#', 'A', 'Bb', 'B'];
+  const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const keyText = (key, n) => {
+    const off = n ? (n > 0 ? '+' : '') + n : t('original');
+    const m = /^([A-G])([#b]?)(m(?!aj))?/.exec(key || '');
+    if (!m) return off;
+    const pc = (((PC[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + n) % 12) + 12) % 12;
+    return `${m[3] ? MINOR[pc] + 'm' : MAJOR[pc]} (${off})`;
+  };
   list.querySelectorAll('.coach-song').forEach((row) => {
     const out = row.querySelector('output');
     const key = (d) => {
-      const n = Math.max(-12, Math.min(12, (parseInt(out.textContent, 10) || 0) + d));
+      const n = Math.max(-12, Math.min(12, (parseInt(out.dataset.semitones, 10) || 0) + d));
       send(`${api}/${row.dataset.variant}/key`, 'PUT', { semitones: n })
-        .then(() => { out.textContent = (n > 0 ? '+' : '') + n; })
+        .then(() => { out.dataset.semitones = n; out.textContent = keyText(out.dataset.key, n); })
         .catch(() => alert(t('Couldn’t change the key.')));
     };
     row.querySelector('.coach-key-down')?.addEventListener('click', () => key(-1));
@@ -205,6 +222,11 @@
     </div>
   </section>
 
+  <section class="home-section">
+    <div class="home-section-head"><h3>{{if .IsCoach}}{{t "Songs, in %s’s key" .Student.DisplayName}}{{else}}{{t "My songs"}}{{end}}</h3><span class="count">{{len .Songs}}</span></div>
+    {{template "coach-song-list" .}}
+  </section>
+
   {{if .IsCoach}}
   <section class="home-section">
     <div class="home-section-head"><h3>{{t "Teaching notes"}}</h3><span class="hint">{{t "only the coach sees them"}}</span></div>
@@ -228,11 +250,6 @@
     </div>
   </section>
   {{end}}
-
-  <section class="home-section">
-    <div class="home-section-head"><h3>{{if .IsCoach}}{{t "Songs, in %s’s key" .Student.DisplayName}}{{else}}{{t "My songs"}}{{end}}</h3><span class="count">{{len .Songs}}</span></div>
-    {{template "coach-song-list" .}}
-  </section>
 
   {{if .Groups}}
   <section class="home-section">

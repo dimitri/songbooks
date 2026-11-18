@@ -607,7 +607,7 @@
       {{if .Tempo}}<span class="topbar-meta-item">{{.Tempo}} bpm</span>{{end}}
       {{/* Opened from a coaching student's or group's songbook: the key the
            coach gave it there (data-key-offset), and whose it is. */}}
-      {{if .StudentKeySet}}<span class="topbar-meta-item key-context" title="{{t "the key this song was given for them"}}">{{if .StudentKey}}{{t "%s’s key: %s" .KeyContext (printf "%+d" .StudentKey)}}{{else}}{{t "%s’s key: original" .KeyContext}}{{end}}</span>{{end}}
+      {{if .StudentKeySet}}<span class="topbar-meta-item key-context" title="{{t "the key this song was given for them"}}">{{if .KeyMine}}{{if .StudentKeyName}}{{t "Your key: %s" .StudentKeyName}}{{else if .StudentKey}}{{t "Your key: %s" (printf "%+d" .StudentKey)}}{{else}}{{t "Your key: original"}}{{end}}{{else if .StudentKey}}{{if .StudentKeyName}}{{t "%s’s key: %s" .KeyContext (printf "%s (%+d)" .StudentKeyName .StudentKey)}}{{else}}{{t "%s’s key: %s" .KeyContext (printf "%+d" .StudentKey)}}{{end}}{{else}}{{t "%s’s key: original" .KeyContext}}{{end}}</span>{{end}}
       {{if and .GPSource .CanEdit}}<a class="topbar-meta-item gp-source-badge" href="/song/{{.VariantID}}/gp-file" download title="{{t "download the original Guitar Pro file — see Edit → GP Import to bring edits back in"}}">{{template "icon-instrument-guitar"}} {{t "GP import: %s" .GPSource}}</a>{{end}}
     </div>
     {{/* mini-metro-play/-fade/-tap stay in the DOM but hidden, not deleted
@@ -1594,6 +1594,14 @@
             <button type="button" class="audio-pill-btn" id="audio-key-reset">{{t "Original key"}}</button>
           </div>
           <p class="hint audio-pop-note">{{t "Beyond 3 semitones up or down, a voice starts to sound processed."}}</p>
+          {{/* For a coach: this key for a student or a group, saved from
+               here, where the key is tried by ear (coach_keys.go). Filled
+               when the panel first opens; stays hidden for anyone who
+               coaches nobody who has this song. */}}
+          <div class="audio-key-coach" id="audio-key-coach" hidden>
+            <div class="audio-pop-head"><strong>{{t "Save this key for"}}</strong><span class="hint">{{t "the song then opens in it for them, the chart and the recording"}}</span></div>
+            <ul class="audio-key-targets" id="audio-key-targets"></ul>
+          </div>
         </div>
         <div class="audio-pop" id="audio-pop-voice" hidden>
           <div class="audio-pop-head"><strong>{{t "Voice"}}</strong><span class="hint">{{t "the singer, from the recording split in its parts"}}</span></div>
