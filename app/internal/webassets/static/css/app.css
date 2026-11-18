@@ -5186,6 +5186,54 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .home-section-head h3 { margin: 0; font-size: 1.1rem; }
 .home-section-head .count { font-size: 0.82rem; color: var(--fg-faint); }
 
+/* Home: "Coming up" (every band's and community's next events, the
+   first one larger), then cards for communities and bands in their own
+   look, then songbooks. */
+.home-head-links { display: flex; gap: 1rem; font-size: 0.88rem; font-weight: 600; }
+.home-head-links a { display: inline-flex; align-items: center; gap: 0.3rem; }
+.home-head-links .icon { width: 1rem; height: 1rem; }
+.upcoming-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); }
+.upcoming-row { display: flex; align-items: center; gap: 0.9rem; padding: 0.7rem 0.9rem; border-top: 1px solid var(--border); }
+.upcoming-row:first-child { border-top: 0; }
+.upcoming-row .coming-up-date { background: color-mix(in srgb, var(--kind) 14%, transparent); color: var(--kind); }
+.upcoming-text { flex: 1; min-width: 0; }
+.upcoming-title { display: block; font-weight: 600; color: var(--fg); overflow-wrap: anywhere; }
+.upcoming-meta { font-size: 0.84rem; color: var(--fg-muted); overflow-wrap: anywhere; }
+.upcoming-kind { font-weight: 700; color: var(--kind); }
+.upcoming-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; justify-content: flex-end; }
+.upcoming-row.is-next { padding-block: 0.95rem; }
+.upcoming-row.is-next .coming-up-date { width: 3.8rem; height: 3.8rem; }
+.upcoming-row.is-next .upcoming-title { font-size: 1.08rem; }
+.home-empty { margin: 0; padding: 0.9rem 1rem; border: 1px dashed var(--border); border-radius: var(--radius); color: var(--fg-muted); }
+.home-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.8rem; }
+.home-cards-small { grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); }
+.home-card { --card-head: var(--fg); --card-tag: var(--accent); display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); color: var(--fg); overflow: hidden; min-width: 0; }
+.home-card:hover { text-decoration: none; border-color: var(--card-tag); }
+.home-card-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 0.85rem; background: var(--card-head); color: #fff; }
+.home-card-mark { flex: none; width: 2.2rem; height: 2.2rem; border-radius: 8px; display: grid; place-items: center; font-weight: 800; font-size: 0.9rem; background: rgba(255,255,255,.16); overflow: hidden; }
+.home-card-mark img { width: 100%; height: 100%; object-fit: cover; }
+.home-card-mark .icon { width: 1.2rem; height: 1.2rem; }
+.home-card-name { min-width: 0; display: flex; flex-direction: column; }
+.home-card-name b { overflow-wrap: anywhere; line-height: 1.25; }
+.home-card-tag { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--card-tag); filter: brightness(1.35); }
+.home-card-facts { list-style: none; margin: 0; padding: 0.6rem 0.85rem 0.75rem; display: grid; gap: 0.2rem; font-size: 0.84rem; color: var(--fg-muted); }
+.home-card-facts b { color: var(--fg); font-weight: 600; }
+.home-card-band { flex-direction: row; align-items: center; gap: 0.7rem; padding: 0.6rem 0.75rem; }
+.home-card-band .home-card-mark { background: var(--card-head); color: #fff; }
+.home-card-line { font-size: 0.82rem; color: var(--fg-muted); overflow-wrap: anywhere; }
+.home-recent { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-bottom: 0.6rem; }
+.home-recent-label { font-size: 0.82rem; color: var(--fg-faint); margin-right: 0.2rem; }
+.home-songbooks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); column-gap: 1.4rem; }
+.home-songbooks li { display: flex; justify-content: space-between; gap: 0.8rem; padding: 0.5rem 0; border-top: 1px solid var(--border); }
+.home-songbooks span { color: var(--fg-faint); font-size: 0.84rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.calendar-page-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.calendar-page-head h2 { margin: 0; }
+@media (max-width: 560px) {
+  .upcoming-row { flex-wrap: wrap; }
+  .upcoming-actions { width: 100%; justify-content: flex-start; padding-left: 4.1rem; }
+  .upcoming-row.is-next .upcoming-actions { padding-left: 4.7rem; }
+}
+
 .attention-filters { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.7rem; }
 .attention-filters button {
   font-size: 0.82rem; padding: 0.35rem 0.75rem; border-radius: 999px;

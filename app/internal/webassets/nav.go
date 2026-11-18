@@ -22,6 +22,7 @@ type NavEntry struct {
 // navDesktopPrimary is the desktop sidebar's primary destination list.
 var navDesktopPrimary = []NavEntry{
 	{Label: "Home", Path: "/home", Icon: "icon-home"},
+	{Label: "Calendar", Path: "/calendar", Icon: "icon-calendar"},
 	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog"},
 	{Label: "Library", Path: "/catalog", Icon: "icon-view"},
 	{Label: "Bands", Path: "/bands", Icon: "icon-bands"},
@@ -55,6 +56,7 @@ var navMobileMore = []NavEntry{
 	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog", InTabBar: true},
 	{Label: "Library", Path: "/catalog", Icon: "icon-view", InTabBar: true},
 	{Label: "Groups", Path: "/groups", Icon: "icon-bands", InTabBar: true},
+	{Label: "Calendar", Path: "/calendar", Icon: "icon-calendar"},
 	{Label: "Bands", Path: "/bands", Icon: "icon-bands"},
 	{Label: "Communities", Path: "/communities", Icon: "icon-community"},
 	{Label: "Set lists", Path: "/setlists", Icon: "icon-setlists"},

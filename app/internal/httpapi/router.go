@@ -480,6 +480,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /events/{id}/ics", s.optionalPerson(s.handleEventICS))
 	// A person's calendar as an iCal feed, at a secret address (calendar_feed.go).
 	mux.HandleFunc("GET /calendar/feed/{token}", s.handleCalendarFeed)
+	mux.HandleFunc("GET /calendar", s.requireAuth(s.handleCalendarPage))
 	mux.HandleFunc("GET /calendar/subscribe", s.requireAuth(s.handleCalendarSubscribePage))
 	mux.HandleFunc("POST /api/calendar/feed/reset", s.requireAuth(s.handleResetCalendarFeed))
 	mux.HandleFunc("POST /events/{id}/register", s.optionalPerson(s.handleRegisterForEvent))
