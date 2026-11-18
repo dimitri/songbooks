@@ -1,0 +1,102 @@
+// Package stems splits a recording into its parts with Demucs
+// (https://github.com/facebookresearch/demucs): vocals, drums, bass and
+// other, each an MP3, plus no_vocals (the three others mixed), what the
+// practice player plays under a voice turned down. See
+// docs/audio-cast-transpose-stems.md and cmd/stemsd.
+package stems
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+)
+
+// Splitter runs Demucs and ffmpeg.
+type Splitter struct {
+	// Demucs is the command, and its first arguments, that runs Demucs:
+	// "demucs", or "python3 -m demucs".
+	Demucs []string
+	Model  string // "htdemucs"
+	// Threads Demucs may use (its --jobs), 0 for its default.
+	Threads int
+	// Bitrate of the parts, in kbit/s.
+	Bitrate int
+}
+
+// Parts are the four parts Demucs makes, in the order they're mixed.
+var Parts = []string{"vocals", "drums", "bass", "other"}
+
+// Split returns the parts of the recording in audio (any format ffmpeg
+// reads), MP3 encoded, keyed by name.
+func (s Splitter) Split(ctx context.Context, audio []byte) (map[string][]byte, error) {
+	dir, err := os.MkdirTemp("", "stems-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(dir)
+
+	// A WAV first: Demucs reads whatever ffmpeg gives it the same way
+	// every time, and a Guitar Pro recording's zero padding goes.
+	in := filepath.Join(dir, "in.mp3")
+	if err := os.WriteFile(in, audio, 0o600); err != nil {
+		return nil, err
+	}
+	wav := filepath.Join(dir, "track.wav")
+	if err := run(ctx, "ffmpeg", "-nostdin", "-v", "error", "-i", in, "-ac", "2", "-ar", "44100", wav); err != nil {
+		return nil, fmt.Errorf("reading the recording: %w", err)
+	}
+
+	out := filepath.Join(dir, "out")
+	args := append([]string{}, s.Demucs[1:]...)
+	args = append(args, "-n", s.Model, "-d", "cpu", "-o", out)
+	if s.Threads > 0 {
+		args = append(args, "--jobs", strconv.Itoa(s.Threads))
+	}
+	args = append(args, wav)
+	if err := run(ctx, s.Demucs[0], args...); err != nil {
+		return nil, fmt.Errorf("demucs: %w", err)
+	}
+	parts := filepath.Join(out, s.Model, "track")
+
+	kbps := strconv.Itoa(s.Bitrate) + "k"
+	result := map[string][]byte{}
+	for _, p := range Parts {
+		mp3 := filepath.Join(dir, p+".mp3")
+		if err := run(ctx, "ffmpeg", "-nostdin", "-v", "error", "-i", filepath.Join(parts, p+".wav"), "-b:a", kbps, mp3); err != nil {
+			return nil, fmt.Errorf("encoding %s: %w", p, err)
+		}
+		if result[p], err = os.ReadFile(mp3); err != nil {
+			return nil, err
+		}
+	}
+	// no_vocals: the others summed as they are (no level change: they add
+	// back up to the recording).
+	nv := filepath.Join(dir, "no_vocals.mp3")
+	if err := run(ctx, "ffmpeg", "-nostdin", "-v", "error",
+		"-i", filepath.Join(parts, "drums.wav"), "-i", filepath.Join(parts, "bass.wav"), "-i", filepath.Join(parts, "other.wav"),
+		"-filter_complex", "amix=inputs=3:normalize=0", "-b:a", kbps, nv); err != nil {
+		return nil, fmt.Errorf("mixing no_vocals: %w", err)
+	}
+	if result["no_vocals"], err = os.ReadFile(nv); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func run(ctx context.Context, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		msg := stderr.String()
+		if len(msg) > 2000 {
+			msg = msg[len(msg)-2000:]
+		}
+		return fmt.Errorf("%v: %s", err, msg)
+	}
+	return nil
+}

@@ -1816,6 +1816,7 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
 .daw-hdr-top, .daw-hdr-row { display: flex; align-items: center; gap: 6px; }
 .daw-hdr-icon { width: 16px; height: 16px; flex: none; color: var(--daw-muted); }
 .daw-hdr-name { flex: 1; min-width: 0; font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.daw-hdr-sub:empty { display: none; }
 .daw-hdr-sub { font-size: 10.5px; color: var(--daw-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .daw-hdr select { font-size: 11px; max-width: 100%; }
 .daw-hdr .daw-notation { position: static; margin: 0; min-height: 0; height: 20px; padding: 0 4px; border-radius: 4px; }

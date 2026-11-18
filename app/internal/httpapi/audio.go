@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"app/internal/audiotranscode"
@@ -51,6 +52,11 @@ type audioCategoryMeta struct {
 	SourceURL     string          `json:"sourceUrl,omitempty"`
 	Markers       []jsonAudioMark `json:"markers,omitempty"`
 	BarSyncPoints []jsonGPBarSync `json:"barSyncPoints,omitempty"`
+	// Its parts (store.Stems), split in the background (cmd/stemsd):
+	// those there are, and where the split is ("queued", "running",
+	// "done", "failed").
+	Stems      []string `json:"stems,omitempty"`
+	StemStatus string   `json:"stemStatus,omitempty"`
 }
 
 type jsonAudioMark struct {
@@ -89,6 +95,9 @@ func (s *Server) handleGetSongAudioMeta(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		cm := audioCategoryMeta{Category: string(a.Category), ByteSize: a.ByteSize, SourceURL: a.SourceURL, Kind: a.Kind}
+		if ss, err := s.store.GetStemStatus(r.Context(), a.ID); err == nil {
+			cm.Stems, cm.StemStatus = ss.Stems, ss.Status
+		}
 		for _, m := range markers {
 			cm.Markers = append(cm.Markers, jsonAudioMark{SectionIndex: m.SectionIndex, TimeSeconds: m.TimeSeconds})
 		}
@@ -130,6 +139,21 @@ func (s *Server) handleGetSongAudioData(w http.ResponseWriter, r *http.Request) 
 		http.NotFound(w, r)
 		return
 	}
+	// ?stem=vocals: one of its parts.
+	if stem := r.URL.Query().Get("stem"); stem != "" {
+		if !slices.Contains(store.Stems, stem) {
+			http.NotFound(w, r)
+			return
+		}
+		data, contentType, at, err := s.store.GetStemData(r.Context(), meta.ID, stem)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", contentType)
+		http.ServeContent(w, r, strconv.FormatInt(variantID, 10)+"-"+string(category)+"-"+stem+".mp3", at, bytes.NewReader(data))
+		return
+	}
 	data, contentType, err := s.store.GetSongAudioData(r.Context(), meta.ID)
 	if err != nil {
 		http.NotFound(w, r)
@@ -137,6 +161,31 @@ func (s *Server) handleGetSongAudioData(w http.ResponseWriter, r *http.Request) 
 	}
 	w.Header().Set("Content-Type", contentType)
 	http.ServeContent(w, r, strconv.FormatInt(variantID, 10)+"-"+string(category)+".mp3", meta.CreatedAt, bytes.NewReader(data))
+}
+
+// handlePostSongAudioStems is POST /api/songs/{id}/audio/{category}/stems:
+// split the recording again (one that failed, or after a better model).
+func (s *Server) handlePostSongAudioStems(w http.ResponseWriter, r *http.Request) {
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	category, ok := parseAudioCategory(r.PathValue("category"))
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	meta, err := s.store.GetSongAudioMeta(r.Context(), variantID, category)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := s.store.QueueStemJob(r.Context(), meta.ID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"stemStatus": "queued"})
 }
 
 // handlePutSongAudio is PUT /api/songs/{book}/{stem}/audio/{category} — a

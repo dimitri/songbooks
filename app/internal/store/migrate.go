@@ -55,6 +55,20 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		if err != nil {
 			return err
 		}
+		// The app and the stems worker (cmd/stemsd) start side by side:
+		// one applies a migration, the other waits, then finds it applied.
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(7240531)`); err != nil {
+			tx.Rollback(ctx)
+			return err
+		}
+		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version = $1)`, version).Scan(&applied); err != nil {
+			tx.Rollback(ctx)
+			return err
+		}
+		if applied {
+			tx.Rollback(ctx)
+			continue
+		}
 		if _, err := tx.Exec(ctx, string(sql)); err != nil {
 			tx.Rollback(ctx)
 			return fmt.Errorf("applying migration %s: %w", name, err)
