@@ -209,14 +209,8 @@
   function applyMix() {
     for (const tr of tracks) {
       tr.lane.classList.toggle('is-dimmed', !audible(tr));
-      if (tr.kind === 'audio' && audio) {
-        audio.muted = !audible(tr);
-        audio.volume = Math.min(1, tr.volume);
-      }
-      if (tr.kind === 'stem') {
-        tr.el.muted = !audible(tr);
-        tr.el.volume = Math.min(1, tr.volume);
-      }
+      if (tr.kind === 'audio' && audio) setLevel(audio, audible(tr), tr.volume);
+      if (tr.kind === 'stem') setLevel(tr.el, audible(tr), tr.volume);
       if (tr.kind === 'midi' && playerApi && playerApi.score) {
         const st = playerApi.score.tracks[tr.index];
         if (st) {
@@ -565,8 +559,9 @@
       el.className = 'daw-chord';
       el.style.left = xOf(t0) + 'px';
       el.style.width = Math.max(3, (t1 - t0) * pxPerSec - 1) + 'px';
-      el.textContent = e.name;
-      el.title = e.name;
+      const name = window.songbooksChordInView ? window.songbooksChordInView(e.name) : e.name;
+      el.textContent = name;
+      el.title = name;
       lane.appendChild(el);
     });
   }
@@ -627,6 +622,114 @@
   // placed from barTimes so it follows the recording's own tempo ------------
   /* global Metronome */
   const clicker = typeof Metronome === 'function' ? new Metronome({}) : null;
+  // An element's level: its own volume and mute, or, once it goes through
+  // the key's pitch shifter, its gain there (iOS ignores an element's
+  // volume; a gain node it doesn't).
+  function setLevel(el, on, volume) {
+    const g = keyGains.get(el);
+    if (g) {
+      el.muted = false;
+      el.volume = 1;
+      g.gain.value = on ? Math.min(1, volume) : 0;
+    } else {
+      el.muted = !on;
+      el.volume = Math.min(1, volume);
+    }
+  }
+
+  // ---- Key ------------------------------------------------------------------
+  // The recording and its parts, up or down in semitones: their mix goes
+  // through one pitch shifter (Signalsmith Stretch, as on the song page),
+  // the score tracks transpose in AlphaSynth. The key is the song page
+  // player's (audio-player.js songbooksPlayerKey): set here, the chords on
+  // the page follow and the song page plays in it too; a student's key
+  // opens with the song.
+  let semitones = 0;
+  let keyGraph = null; // {ctx, bus, stretch, routed}
+  const keyGains = new WeakMap(); // <audio> -> its GainNode in keyGraph
+  let stretchLib = null;
+  function loadStretch() {
+    stretchLib = stretchLib || new Promise((resolve, reject) => {
+      const el = document.createElement('script');
+      el.src = '/static/js/vendor/signalsmith-stretch/SignalsmithStretch.js';
+      el.onload = () => resolve(window.SignalsmithStretch);
+      el.onerror = () => { stretchLib = null; reject(new Error('could not load the pitch shifter')); };
+      document.head.append(el);
+    });
+    return stretchLib;
+  }
+  const keyDelay = () => (keyGraph && keyGraph.routed && keyGraph.stretch ? keyGraph.stretch.latency() : 0);
+  function routeForKey(el) {
+    if (!keyGraph || !el || keyGains.has(el)) return;
+    const g = keyGraph.ctx.createGain();
+    keyGraph.ctx.createMediaElementSource(el).connect(g).connect(keyGraph.bus);
+    keyGains.set(el, g);
+  }
+  function routeAllForKey() {
+    routeForKey(audio);
+    for (const p of Object.values(stemAudio)) routeForKey(p.el);
+    applyMix();
+  }
+  async function applyKey(n) {
+    semitones = n;
+    renderKey();
+    if (built) renderChords();
+    if (playerApi && playerApi.score && typeof playerApi.changeTrackTranspositionPitch === 'function') {
+      playerApi.changeTrackTranspositionPitch(playerApi.score.tracks, n);
+    }
+    if (!n && !keyGraph) return;
+    if (!keyGraph) {
+      const ctx = clicker ? clicker._ensureCtx() : new (window.AudioContext || window.webkitAudioContext)();
+      const bus = ctx.createGain();
+      bus.connect(ctx.destination);
+      keyGraph = { ctx, bus, stretch: null, routed: false };
+    }
+    routeAllForKey();
+    const g = keyGraph;
+    if (g.ctx.state === 'suspended') g.ctx.resume().catch(() => {});
+    if (n && !g.stretch) {
+      try {
+        const make = await loadStretch();
+        g.stretch = await make(g.ctx);
+        g.stretch.connect(g.ctx.destination);
+        g.stretch.start();
+      } catch (e) {
+        setStatus(t('Couldn’t change the key in this browser.'));
+        return;
+      }
+    }
+    const route = !!(n && g.stretch);
+    if (route !== g.routed) {
+      g.bus.disconnect();
+      g.bus.connect(route ? g.stretch : g.ctx.destination);
+      g.routed = route;
+      clicksUntil = null;
+    }
+    if (g.stretch) g.stretch.schedule({ semitones: semitones, formantCompensation: true });
+  }
+  const keySel = $('daw-key');
+  function renderKey() {
+    if (!keySel) return;
+    if (!keySel.options.length) {
+      for (let n = 7; n >= -7; n--) keySel.add(new Option(n ? t('Key %s', `${n > 0 ? '+' : '−'}${Math.abs(n)}`) : t('Original key'), String(n)));
+    }
+    keySel.value = String(semitones);
+    keySel.closest('.daw-key')?.classList.toggle('is-on', !!semitones);
+  }
+  keySel?.addEventListener('change', () => {
+    const n = Number(keySel.value) || 0;
+    if (window.songbooksPlayerKey) window.songbooksPlayerKey.set(n); // comes back as songbooks:key
+    else applyKey(n);
+  });
+  document.addEventListener('songbooks:key', (e) => {
+    const n = (e.detail && e.detail.semitones) || 0;
+    if (n !== semitones) applyKey(n);
+  });
+  const syncKey = () => {
+    const n = window.songbooksPlayerKey ? window.songbooksPlayerKey.get() || 0 : semitones;
+    if (n !== semitones || !keySel?.options.length) applyKey(n);
+  };
+
   let clicksUntil = null; // timeline seconds up to which clicks are scheduled
   function scheduleClicks(t) {
     const tr = tracks.find((x) => x.kind === 'click');
@@ -643,7 +746,7 @@
         const bt = barTimes[b] + (k / (pulses * subs)) * dur;
         if (bt < from || bt >= until) continue;
         const soft = k % subs !== 0;
-        clicker._click(ctx.currentTime + (bt - t) / speed, k === 0, soft, tr.volume);
+        clicker._click(ctx.currentTime + (bt - t) / speed + keyDelay(), k === 0, soft, tr.volume);
       }
     }
     clicksUntil = until;
@@ -924,7 +1027,7 @@
       api.postRenderFinished.on(() => fitNotation(tr));
       if (isPlayer) {
         playerApi = api;
-        api.playerReady.on(() => { synthReady = true; applyMix(); });
+        api.playerReady.on(() => { synthReady = true; applyMix(); if (semitones && api.score && typeof api.changeTrackTranspositionPitch === 'function') api.changeTrackTranspositionPitch(api.score.tracks, semitones); });
         api.playerStateChanged.on((e) => { synthPlaying = e.state === 1; });
         api.playerFinished.on(() => { if (!hasAudio()) pause(); });
       }
@@ -1031,6 +1134,7 @@
     clicksUntil = null;
     playStartPos = position;
     playBtn.innerHTML = ICON_PAUSE;
+    if (keyGraph && keyGraph.ctx.state === 'suspended') keyGraph.ctx.resume().catch(() => {});
     if (hasAudio()) {
       audio.playbackRate = speed;
       audio.preservesPitch = true;
@@ -1624,6 +1728,7 @@
     });
     audioDuration = isFinite(audio.duration) ? audio.duration : 0;
     audio.addEventListener('ended', () => pause());
+    if (keyGraph) routeForKey(audio);
     decodePeaks(bytes.slice(0));
     await loadStems(cat);
   }
@@ -1647,6 +1752,7 @@
     }));
     if (refCat !== cat) return;
     for (const p of loaded) if (p) stemAudio[p.stem] = { el: p.el, peaks: null };
+    if (keyGraph) routeAllForKey();
     (async () => {
       for (const p of loaded) {
         if (!p || !stemAudio[p.stem]) continue;
@@ -1888,6 +1994,7 @@
   let started = false;
   function onModeChange() {
     if (isActive()) {
+      syncKey();
       if (!started) { started = true; setTimeout(init, 0); }
       else if (built) drawWave();
     } else if (playing) {
@@ -1899,6 +2006,7 @@
     playing, position, refCat, audioTime: audio ? audio.currentTime : null,
     bar: barAt(position), synthBar: playerApi && synthReady ? barAtTick(playerApi.tickPosition) : null,
     synthPlaying, synthSpeed: playerApi ? playerApi.playbackSpeed : null,
+    semitones, keyRouted: !!(keyGraph && keyGraph.routed), keyCtx: keyGraph ? keyGraph.ctx.state : null,
   });
   // Dry run of auto-align for debugging: the analysis without applying it.
   page.mixerAnalyze = () => (analysis && window.SongbooksAutoAlign ? window.SongbooksAutoAlign.analyze(analysis, songForAlign()) : null);

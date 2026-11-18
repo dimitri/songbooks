@@ -760,6 +760,7 @@ window.songbooksDecodable = function (buf) {
   const keyName = $('audio-key-name');
   async function applyKey() {
     const n = prefs.semitones;
+    document.dispatchEvent(new CustomEvent('songbooks:key', { detail: { semitones: n } }));
     const sign = n > 0 ? '+' : '';
     if (keyLabel) keyLabel.textContent = n ? t('Key %s', `${sign}${n}`) : t('Key');
     keyBtn?.classList.toggle('active', !!n);
@@ -878,6 +879,9 @@ window.songbooksDecodable = function (buf) {
     applyKey();
     setTimeout(renderCoachKeys, 0);
   }
+  // The Mixer plays in the same key, and sets it here (mixer.js "Key"):
+  // one key per song, whichever view it was set from.
+  window.songbooksPlayerKey = { get: () => prefs.semitones, set: (n) => setSemitones(n) };
   function shiftChords(delta) {
     if (window.songbooksShiftChords) { window.songbooksShiftChords(delta); return; }
     const btn = $(delta > 0 ? 'transpose-up' : 'transpose-down');

@@ -1297,8 +1297,9 @@ const ICONS = {
   // this is "capo math for tonight," not a saved preference.
   const transposeUp = document.getElementById('transpose-up');
   // A song with no key written has no −/+ (play.html), but a coach's key
-  // (data-key-offset) still moves its chords.
-  if (transposeUp || sheet.dataset.keyOffset) {
+  // (data-key-offset) and the player's Key (audio-player.js, mixer.js)
+  // still move its chords.
+  if (sheet) {
     const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
     const SHARP_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
     const FLAT_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
@@ -1387,6 +1388,13 @@ const ICONS = {
     // The practice player's Key moves the chords with the recording
     // (audio-player.js), −/+ or not.
     window.songbooksShiftChords = (d) => { offset += d; applyTranspose(); };
+    // The Mixer's chord row (mixer.js) names its chords as the page does.
+    window.songbooksChordInView = (name) => {
+      if (!offset || !name) return name;
+      const m = name.match(/^([A-G][b#]?)(.*?)(?:\/([A-G][b#]?))?$/);
+      if (!m || rootPitchClass(m[1]) < 0) return name;
+      return spell(rootPitchClass(m[1]) + offset) + m[2] + (m[3] ? '/' + spell(rootPitchClass(m[3]) + offset) : '');
+    };
   }
 
   const themeBtn = document.getElementById('theme-toggle');
