@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"app/internal/i18n"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -256,7 +257,7 @@ func (s *Server) handleGetImportAssess(w http.ResponseWriter, r *http.Request) {
 			rec.Markers = len(m)
 		}
 	}
-	writeJSON(w, http.StatusOK, songimport.Assess(body, rec, irealKey))
+	writeJSON(w, http.StatusOK, songimport.Assess(body, rec, irealKey, func(f string, args ...any) string { return i18n.T(s.langOf(w), f, args...) }))
 }
 
 // handleImportMerge is POST /api/import/merge {currentText, draft, mode}:

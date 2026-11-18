@@ -84,7 +84,13 @@ var sungKinds = map[string]bool{"verse": true, "chorus": true, "pre-chorus": tru
 // of a kind already seen counts once, with that kind); recording when
 // there is none or its split failed; sync when there is one but no
 // section markers. new and restart always list find, review and lyrics.
-func Assess(body string, rec RecordingState, irealKey string) Assessment {
+//
+// T writes its messages (fmt.Sprintf when nil): the app passes its
+// translation into the visitor's language.
+func Assess(body string, rec RecordingState, irealKey string, T func(format string, args ...any) string) Assessment {
+	if T == nil {
+		T = fmt.Sprintf
+	}
 	var a Assessment
 	sg := song.Parse(body)
 	a.Sections = len(sg.Sections)
@@ -146,51 +152,51 @@ func Assess(body string, rec RecordingState, irealKey string) Assessment {
 	fit := keyFit(chords)
 
 	// Summary.
-	s := fmt.Sprintf("%d sections, %d with their own grid", a.Sections, a.WithGrid)
+	s := T("%d sections, %d with their own grid", a.Sections, a.WithGrid)
 	if inherit > 0 {
-		s += fmt.Sprintf(", %d repeat one", inherit)
+		s += ", " + T("%d repeat one", inherit)
 	}
 	if before > 0 {
-		s += fmt.Sprintf(", %d before any grid", before)
+		s += ", " + T("%d before any grid", before)
 	}
 	a.Summary = append(a.Summary, s)
 	if len(carryOn) > 0 {
-		a.Summary = append(a.Summary, "chords carried on from earlier: "+strings.Join(carryOn, ", "))
+		a.Summary = append(a.Summary, T("chords carried on from earlier: %s", strings.Join(carryOn, ", ")))
 	}
 	if len(noGrid) > 0 {
-		a.Summary = append(a.Summary, "no grid of its own: "+strings.Join(noGrid, ", "))
+		a.Summary = append(a.Summary, T("no grid of its own: %s", strings.Join(noGrid, ", ")))
 	}
 	if a.Sung > 0 {
-		a.Summary = append(a.Summary, fmt.Sprintf("lyrics in %d of %d sung sections", a.WithLyrics, a.Sung))
+		a.Summary = append(a.Summary, T("lyrics in %d of %d sung sections", a.WithLyrics, a.Sung))
 	} else {
-		a.Summary = append(a.Summary, "no sung sections")
+		a.Summary = append(a.Summary, T("no sung sections"))
 	}
-	for _, k := range []string{"key", "tempo", "time"} {
-		if strings.TrimSpace(sg.Get(k)) == "" {
-			a.Summary = append(a.Summary, "no "+k)
+	for _, k := range [][2]string{{"key", "no key"}, {"tempo", "no tempo"}, {"time", "no time signature"}} {
+		if strings.TrimSpace(sg.Get(k[0])) == "" {
+			a.Summary = append(a.Summary, T(k[1]))
 		}
 	}
 	switch {
 	case !rec.Has:
-		a.Summary = append(a.Summary, "no reference recording")
+		a.Summary = append(a.Summary, T("no reference recording"))
 	case rec.StemStatus == "failed":
-		a.Summary = append(a.Summary, "recording: splitting the voice failed")
+		a.Summary = append(a.Summary, T("recording: splitting the voice failed"))
 	case rec.StemStatus != "done":
-		a.Summary = append(a.Summary, "recording: voice not split yet")
+		a.Summary = append(a.Summary, T("recording: voice not split yet"))
 	}
 	if rec.Has {
 		if rec.Markers == 0 {
-			a.Summary = append(a.Summary, "no section markers on the recording")
+			a.Summary = append(a.Summary, T("no section markers on the recording"))
 		} else {
-			a.Summary = append(a.Summary, fmt.Sprintf("%d section markers on the recording", rec.Markers))
+			a.Summary = append(a.Summary, T("%d section markers on the recording", rec.Markers))
 		}
 	}
 	if a.CleanupNotes > 0 {
-		a.Summary = append(a.Summary, fmt.Sprintf("%d cleanup notes", a.CleanupNotes))
+		a.Summary = append(a.Summary, T("%d cleanup notes", a.CleanupNotes))
 	}
 	if irealKey != "" && anyGrid {
 		if k := CheckKey(body, irealKey, "", 0); k.Chart != "" && !k.IRealAgrees {
-			a.Summary = append(a.Summary, fmt.Sprintf("key: the chart says %s (%s), iReal Pro %s", k.Chart, k.ChartFrom, irealKey))
+			a.Summary = append(a.Summary, T("key: the chart says %s (%s), iReal Pro %s", k.Chart, k.ChartFrom, irealKey))
 		}
 	}
 
@@ -198,19 +204,19 @@ func Assess(body string, rec RecordingState, irealKey string) Assessment {
 	switch {
 	case !anyGrid && !anyLyrics && a.Sections <= 1 && strings.TrimSpace(sg.Get("map")) == "":
 		a.Verdict = VerdictNew
-		a.Reasons = append(a.Reasons, "no grid, lyrics or structure yet")
+		a.Reasons = append(a.Reasons, T("no grid, lyrics or structure yet"))
 	default:
 		if !anyGrid && !anyLyrics {
-			a.Reasons = append(a.Reasons, "sections, but no grid and no lyrics in any")
+			a.Reasons = append(a.Reasons, T("sections, but no grid and no lyrics in any"))
 		}
 		if removed >= junkMinLines && float64(removed) >= junkShare*float64(total) {
-			a.Reasons = append(a.Reasons, fmt.Sprintf("cleanup would remove %d of its %d lines", removed, total))
+			a.Reasons = append(a.Reasons, T("cleanup would remove %d of its %d lines", removed, total))
 		}
 		if tokens >= badTokenMin && float64(bad) >= badTokenShare*float64(tokens) {
-			a.Reasons = append(a.Reasons, fmt.Sprintf("%d of %d grid tokens aren't chords", bad, tokens))
+			a.Reasons = append(a.Reasons, T("%d of %d grid tokens aren't chords", bad, tokens))
 		}
 		if irealKey != "" && len(chords) >= keyFitChords && fit < keyFitMin {
-			a.Reasons = append(a.Reasons, fmt.Sprintf("its chords fit no key (%.0f%% at best) while iReal Pro says %s", fit*100, irealKey))
+			a.Reasons = append(a.Reasons, T("its chords fit no key (%.0f%% at best) while iReal Pro says %s", fit*100, irealKey))
 		}
 		if len(a.Reasons) > 0 {
 			a.Verdict = VerdictRestart
@@ -224,29 +230,29 @@ func Assess(body string, rec RecordingState, irealKey string) Assessment {
 	if fresh || len(noGrid) > 0 {
 		a.Steps = append(a.Steps, "find", "review")
 		if !fresh {
-			a.Reasons = append(a.Reasons, "grids missing: "+strings.Join(noGrid, ", "))
+			a.Reasons = append(a.Reasons, T("grids missing: %s", strings.Join(noGrid, ", ")))
 		}
 	}
 	if fresh || a.WithLyrics < a.Sung {
 		a.Steps = append(a.Steps, "lyrics")
 		if !fresh {
-			a.Reasons = append(a.Reasons, fmt.Sprintf("lyrics missing in %d sung sections", a.Sung-a.WithLyrics))
+			a.Reasons = append(a.Reasons, T("lyrics missing in %d sung sections", a.Sung-a.WithLyrics))
 		}
 	}
 	if !rec.Has || rec.StemStatus == "failed" {
 		a.Steps = append(a.Steps, "recording")
 		if !fresh {
-			a.Reasons = append(a.Reasons, "no usable reference recording")
+			a.Reasons = append(a.Reasons, T("no usable reference recording"))
 		}
 	}
 	if rec.Has && rec.Markers == 0 {
 		a.Steps = append(a.Steps, "sync")
 		if !fresh {
-			a.Reasons = append(a.Reasons, "the recording has no section markers")
+			a.Reasons = append(a.Reasons, T("the recording has no section markers"))
 		}
 	}
 	if a.Verdict == VerdictImprove && len(a.Reasons) == 0 {
-		a.Reasons = append(a.Reasons, "nothing missing")
+		a.Reasons = append(a.Reasons, T("nothing missing"))
 	}
 	return a
 }
