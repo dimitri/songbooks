@@ -1535,8 +1535,19 @@
              section are always one tap away, however far the chart has
              scrolled. The waveform and its ruler stay here, under the
              structure strip; the dock's thin line follows the playhead. */}}
+        {{/* On a phone the dock is a card floating over the bottom bar,
+             like the set lists' player: the section and the bar, play,
+             the bar either side, a thin line for the whole recording.
+             Tapping it opens a sheet: the bar big, a scrubber with its
+             sections, a large transport, the sections to loop, then every
+             practice option with its panel in place (audio-player.js
+             "Phone sheet"). */}}
+        <div class="audio-dock-backdrop" id="audio-dock-backdrop" data-dock-close hidden></div>
         <div class="audio-dock" id="audio-dock">
+        <button type="button" class="audio-dock-grab" id="audio-dock-grab" data-dock-close aria-label="{{t "close the player"}}"></button>
+        <div class="audio-dock-title">{{$.Title}}</div>
         <div class="audio-dock-line" id="audio-dock-line" title="{{t "click to go there"}}"><i id="audio-dock-played"></i></div>
+        <div class="audio-dock-sections" id="audio-dock-sections" hidden></div>
         <div class="audio-transport">
           <div class="audio-buttons">
             <button type="button" id="audio-start-btn" class="icon-btn" title="{{t "go to start (Home)"}}">{{template "icon-to-start"}}</button>
@@ -1544,10 +1555,11 @@
             <button type="button" id="audio-play-btn" class="icon-btn audio-play-btn" title="{{t "play/pause (Space)"}}">{{template "icon-play"}}</button>
             <button type="button" id="audio-next-btn" class="icon-btn" title="{{t "next bar (. or →; ⌥→ next section)"}}">{{template "icon-next-bar"}}</button>
           </div>
-          <div class="audio-lcd" id="audio-lcd" title="{{t "bar.beat · section — time"}}">
+          <div class="audio-lcd" id="audio-lcd" title="{{t "bar.beat · section — time"}}" aria-controls="audio-dock">
             <span class="audio-lcd-pos" id="audio-lcd-pos">1.1</span>
-            <span class="audio-lcd-section" id="audio-lcd-section"></span>
+            <span class="audio-lcd-section" id="audio-lcd-section" data-title="{{$.Title}}"></span>
             <span class="audio-lcd-time" id="audio-time-label">0:00 / 0:00</span>
+            <span class="audio-lcd-state" id="audio-lcd-state"></span>
           </div>
           <button type="button" id="audio-opts-btn" class="icon-btn audio-opts-btn" aria-expanded="false" aria-controls="audio-opts" title="{{t "practice options"}}">{{template "icon-more"}}</button>
           <div class="audio-opts" id="audio-opts">

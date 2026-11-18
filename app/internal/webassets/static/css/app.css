@@ -1266,6 +1266,82 @@ body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5re
   .audio-wave { height: 56px; }
   .audio-ruler { height: 1.5rem; }
 }
+/* The dock's phone card and sheet (audio-player.js "Phone sheet"),
+   after the set lists' player: a card floating over the bottom bar
+   (section, bar · what's on, the bar either side of play, ⋯), opening into
+   a sheet. Hidden elsewhere. */
+.audio-dock-backdrop, .audio-dock-grab, .audio-dock-title, .audio-dock-sections, .audio-lcd-state { display: none; }
+@media (max-width: 720px) {
+  .audio-dock {
+    left: 0.5rem; right: 0.5rem; bottom: calc(var(--context-h, 3.4rem) + env(safe-area-inset-bottom, 0px) + 0.4rem);
+    padding: 0.4rem 0.3rem 0.45rem 0.8rem; border: 1px solid var(--border); border-radius: 14px;
+    background: color-mix(in srgb, var(--bg-raised) 96%, transparent); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+  }
+  .audio-dock .audio-transport { gap: 0.15rem; margin: 0; }
+  .audio-dock .audio-lcd {
+    order: 0; flex: 1 1 auto; min-width: 0; padding: 0.1rem 0; background: none; cursor: pointer; border-radius: 0;
+    display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "sec sec" "pos state"; gap: 0.05rem 0.45rem; align-items: baseline;
+  }
+  .audio-dock .audio-lcd-section { grid-area: sec; font-size: 0.98rem; font-weight: 700; color: var(--fg); max-width: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .audio-dock .audio-lcd-section:empty::before { content: attr(data-title); }
+  .audio-dock .audio-lcd-pos { grid-area: pos; font-size: 0.8rem; font-weight: 700; color: var(--accent-ink); min-width: 0; }
+  .audio-dock .audio-lcd-state { display: block; grid-area: state; font-size: 0.75rem; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .audio-dock .audio-buttons { order: 1; gap: 0; }
+  .audio-dock .audio-buttons .icon-btn { width: 2.6rem; height: 2.6rem; border-color: transparent; background: none; }
+  .audio-dock .audio-buttons .audio-play-btn { width: 3rem !important; height: 3rem !important; border-radius: 50%; background: var(--accent); box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent); }
+  .audio-dock .audio-opts-btn { order: 2; margin-left: 0; width: 2.3rem; height: 2.6rem; border-color: transparent; background: none; }
+  .audio-dock-line { top: auto; bottom: 0; left: 0.8rem; right: 0.8rem; height: 2px; pointer-events: none; }
+  .audio-dock-line::before, .audio-dock-line i, .audio-dock-line:hover::before, .audio-dock-line:hover i { top: 0; height: 2px; border-radius: 2px; }
+  .audio-dock-line .audio-dock-tick { display: none; }
+
+  /* Open: a sheet from the bottom, over a dimmed page. */
+  .audio-dock-backdrop:not([hidden]) { display: block; position: fixed; inset: 0; z-index: 89; background: rgba(0, 0, 0, 0.45); }
+  .audio-dock.is-open {
+    z-index: 90; left: 0; right: 0; bottom: 0; max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain;
+    display: flex; flex-direction: column; gap: 1rem; border-radius: 22px 22px 0 0; border-width: 1px 0 0;
+    padding: 0.2rem 1.2rem calc(1.4rem + env(safe-area-inset-bottom, 0px)); background: var(--bg-raised);
+    animation: rp-up 0.22s ease-out;
+  }
+  .audio-dock.is-open .audio-transport { display: contents; }
+  .audio-dock.is-open :is(.audio-dock-grab, .audio-dock-title, .audio-lcd, .audio-dock-line, .audio-buttons, .audio-dock-sections, .audio-opts, .audio-pop) { flex-shrink: 0; }
+  .audio-dock.is-open .audio-dock-grab { display: block; order: 0; align-self: center; position: relative; width: 3rem; height: 1.4rem; min-height: 0; border: 0; padding: 0; background: none; cursor: pointer; }
+  .audio-dock.is-open .audio-dock-grab::before { content: ""; position: absolute; left: 0.6rem; right: 0.6rem; top: 0.5rem; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--fg) 25%, transparent); }
+  .audio-dock.is-open .audio-dock-title { display: block; order: 1; margin-top: -0.7rem; text-align: center; font-size: 0.85rem; font-weight: 600; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .audio-dock.is-open .audio-lcd { order: 2; display: flex; flex-direction: column; align-items: center; gap: 0.15rem; cursor: default; padding: 0; }
+  .audio-dock.is-open .audio-lcd-section { order: -1; font-size: 1.35rem; }
+  .audio-dock.is-open .audio-lcd-pos { font-size: 3rem; font-weight: 800; line-height: 1.05; }
+  .audio-dock.is-open .audio-lcd-time { display: block; margin: 0; font-size: 0.85rem; }
+  .audio-dock.is-open .audio-lcd-state { font-size: 0.8rem; white-space: normal; text-align: center; }
+  .audio-dock.is-open .audio-dock-line { order: 3; position: relative; inset: auto; height: 2rem; pointer-events: auto; touch-action: none; cursor: pointer; }
+  .audio-dock.is-open .audio-dock-line::before, .audio-dock.is-open .audio-dock-line i { top: calc(50% - 3px); height: 6px; border-radius: 3px; }
+  .audio-dock.is-open .audio-dock-line i::after { content: ""; position: absolute; right: -8px; top: 50%; width: 16px; height: 16px; margin-top: -8px; border-radius: 50%; background: var(--fg); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); }
+  .audio-dock.is-open .audio-dock-line .audio-dock-tick { display: block; top: calc(50% - 8px); height: 16px; width: 2px; opacity: 0.55; }
+  .audio-dock.is-open .audio-buttons { order: 4; justify-content: center; gap: 0.8rem; }
+  .audio-dock.is-open #audio-start-btn { display: inline-flex; }
+  .audio-dock.is-open .audio-buttons .icon-btn { width: 3rem; height: 3rem; }
+  .audio-dock.is-open .audio-buttons .audio-play-btn { width: 4.2rem !important; height: 4.2rem !important; }
+  .audio-dock.is-open .audio-buttons .audio-play-btn .icon { width: 1.6rem; height: 1.6rem; }
+  .audio-dock.is-open .audio-dock-sections:not([hidden]) {
+    order: 5; display: flex; gap: 0.4rem; overflow-x: auto; scrollbar-width: none;
+    margin: 0 -1.2rem; padding: 0.1rem 1.2rem;
+  }
+  .audio-dock-sections::-webkit-scrollbar { display: none; }
+  .audio-sec-chip { flex: none; min-height: 2.4rem; padding: 0 0.9rem; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--fg-muted); font: inherit; font-size: 0.82rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
+  .audio-sec-chip.current { color: var(--fg); border-color: var(--border-strong); }
+  .audio-sec-chip.looped { background: color-mix(in srgb, var(--cycle) 30%, var(--bg-raised)); border-color: var(--cycle); color: var(--fg); }
+  .audio-dock.is-open .audio-opts-btn { display: none; }
+  .audio-dock.is-open .audio-opts, .audio-dock.is-open .audio-opts.open {
+    order: 6; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; position: static; margin: 0; padding: 0;
+    max-height: none; overflow: visible; border: 0; border-radius: 0; background: none; box-shadow: none;
+  }
+  .audio-dock.is-open .audio-opts :is(.audio-toggle, .audio-caret) { height: 2.9rem; min-height: 2.9rem; font-size: 0.85rem; }
+  .audio-dock.is-open .audio-opts > .audio-toggle { justify-content: center; border-radius: 10px; }
+  .audio-dock.is-open .audio-split .audio-toggle { justify-content: center; border-radius: 10px 0 0 10px; }
+  .audio-dock.is-open .audio-split .audio-caret { border-radius: 0 10px 10px 0; padding: 0 0.6rem; }
+  .audio-dock.is-open .audio-speed { justify-content: center; height: 2.9rem; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-raised); }
+  .audio-dock.is-open .audio-speed select { height: 2.4rem; min-height: 0; border: 0; background: none; font-size: 0.85rem; }
+  .audio-dock.is-open .audio-pop:not([hidden]) { order: 7; position: static; width: auto; max-width: none; border: 0; box-shadow: none; background: var(--bg-sunken); }
+}
 
 /* ---- Transport -------------------------------------------------------------
    Lives inside the structure rail (.timeline), not floating above the chart

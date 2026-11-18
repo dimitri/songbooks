@@ -210,5 +210,7 @@
   "volume": "volume",
   "whole song": "tout le morceau",
   "“%s”": "« %s »",
-  "Original key": "Tonalité d’origine"
+  "Original key": "Tonalité d’origine",
+  "Cycle": "Boucle",
+  "Player": "Lecteur"
 }
