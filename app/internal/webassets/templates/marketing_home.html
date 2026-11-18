@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Songbooks — {{t "one songbook, everyone's copy"}}</title>
+{{template "public-alternates" .}}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,800;0,9..144,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -128,6 +129,7 @@
       <a href="/login" class="btn">{{t "Sign in"}}</a>
       <span class="invite-note">{{t "invite‑only for now"}}</span>
       {{end}}
+      {{template "public-lang-switch" .}}
     </nav>
   </header>
 

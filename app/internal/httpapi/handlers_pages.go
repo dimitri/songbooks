@@ -108,7 +108,7 @@ func timeAgo(lang string, t time.Time) string {
 // dashboard). / is never the dashboard itself, so it never has to
 // choose between the pitch and your own stuff.
 func (s *Server) handleMarketingHome(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "marketing_home", map[string]any{"Person": personFromContext(r)})
+	s.render(w, "marketing_home", publicPage(w, r, nil))
 }
 
 // handleMarketingEditor and handleMarketingEducators are the rest of the
@@ -116,14 +116,14 @@ func (s *Server) handleMarketingHome(w http.ResponseWriter, r *http.Request) {
 // requireAuth, so an outside link still works for a signed-out visitor,
 // and a signed-in one sees "My Songbooks" in the nav instead of "Sign in".
 func (s *Server) handleMarketingEditor(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "marketing_editor", map[string]any{"Person": personFromContext(r)})
+	s.render(w, "marketing_editor", publicPage(w, r, nil))
 }
 
 // handleMarketingGuitarPro is the dedicated /guitar-pro page: what the GP
 // import wizard (gp-import.js) actually supports and how, linked from the
 // editor marketing page's own "From Guitar Pro" callout.
 func (s *Server) handleMarketingGuitarPro(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "marketing_guitar_pro", map[string]any{"Person": personFromContext(r)})
+	s.render(w, "marketing_guitar_pro", publicPage(w, r, nil))
 }
 
 // handleDocsSongFormat serves the full .song file format reference —
@@ -134,7 +134,7 @@ func (s *Server) handleMarketingGuitarPro(w http.ResponseWriter, r *http.Request
 // editor marketing page and from the Source panel's own inline help
 // (see song.js) so both stay pointed at one single source of truth.
 func (s *Server) handleDocsSongFormat(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "docs_song_format", map[string]any{"Person": personFromContext(r)})
+	s.render(w, "docs_song_format", publicPage(w, r, nil))
 }
 
 type jsonSectionStructure struct {
@@ -445,7 +445,7 @@ func docsExampleAlphaTabScripts(sections []viewerSection, drumMap []viewerDrumMa
 }
 
 func (s *Server) handleMarketingEducators(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "marketing_educators", map[string]any{"Person": personFromContext(r)})
+	s.render(w, "marketing_educators", publicPage(w, r, nil))
 }
 
 // handleIndex is just the project directory: name + a few stats per book,
