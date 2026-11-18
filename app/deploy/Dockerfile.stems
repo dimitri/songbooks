@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1
+
+# stemsd: splits reference recordings into their parts with Demucs, in
+# the background (cmd/stemsd, docs/audio-cast-transpose-stems.md). Its own
+# image, apart from the app's: PyTorch and the model weigh about 1.5 GB,
+# and the CPU it takes is capped in docker-compose.yml.
+
+FROM golang:1.26-bookworm AS builder
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o /out/stemsd ./cmd/stemsd
+
+FROM python:3.11-slim-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+# Pinned together: Demucs 4.0.1 saves its parts with torchaudio.save,
+# which later torchaudio releases moved out; NumPy 1 for the same age.
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
+        torch==2.5.1 torchaudio==2.5.1 \
+    && pip install --no-cache-dir demucs==4.0.1 "numpy<2"
+# The model, fetched once at build rather than at the first recording.
+ENV TORCH_HOME=/opt/torch
+RUN python -c "from demucs.pretrained import get_model; get_model('htdemucs')"
+COPY --from=builder /out/stemsd /usr/local/bin/stemsd
+ENTRYPOINT ["/usr/local/bin/stemsd", "--demucs", "python -m demucs"]

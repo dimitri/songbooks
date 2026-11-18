@@ -67,5 +67,23 @@ services:
     volumes:
       - ./import-staging:/import-staging:ro
 
+  # Splits reference recordings into their parts (Demucs) in the
+  # background: cmd/stemsd, deploy/Dockerfile.stems,
+  # docs/audio-cast-transpose-stems.md. One recording at a time, capped
+  # at 8 of the host's cores so the app and the other stacks keep theirs.
+  stems:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.stems
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-songbooks}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-songbooks}?sslmode=disable
+    command: ["--threads", "8"]
+    cpus: 8
+    mem_limit: 8g
+
 volumes:
   songbooks_db_data:

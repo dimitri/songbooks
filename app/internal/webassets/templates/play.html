@@ -1464,6 +1464,15 @@
               <button type="button" id="audio-click-btn" class="audio-toggle" aria-pressed="false" title="click on every beat, following the recording (K)">{{template "icon-metronome"}}<span>Click</span></button>
               <button type="button" class="audio-caret" data-pop="audio-pop-click" aria-expanded="false" title="click sound and volume">{{template "icon-down"}}</button>
             </span>
+            {{/* Key: the recording in another key (the chords on screen
+                 follow); Voice: its voice turned down or off, from its
+                 parts (split in the background, cmd/stemsd). See
+                 audio-player.js "Key and voice". */}}
+            <button type="button" id="audio-key-btn" class="audio-toggle" data-pop="audio-pop-key" aria-expanded="false" title="play the recording in another key">{{template "icon-tuner"}}<span id="audio-key-label">Key</span></button>
+            <span class="audio-split" id="audio-voice-split" hidden>
+              <button type="button" id="audio-voice-btn" class="audio-toggle" aria-pressed="false" title="the voice: on or off (V)">{{template "icon-instrument-vocals"}}<span id="audio-voice-label">Voice</span></button>
+              <button type="button" class="audio-caret" data-pop="audio-pop-voice" aria-expanded="false" title="the voice's volume">{{template "icon-down"}}</button>
+            </span>
             <label class="audio-speed" title="speed without changing pitch ([ slower, ] faster)">{{template "icon-speed"}}
               <select id="audio-speed" aria-label="Playback speed"></select>
               <span id="audio-speed-bpm" class="audio-speed-bpm"></span>
@@ -1479,6 +1488,26 @@
             <button type="button" data-v="0">Off</button><button type="button" data-v="1">1 bar</button><button type="button" data-v="2">2 bars</button>
           </div>
           <label class="audio-check"><input type="checkbox" id="audio-countin-each"> Also before every loop pass</label>
+        </div>
+        <div class="audio-pop" id="audio-pop-key" hidden>
+          <div class="audio-pop-head"><strong>Key</strong><span class="hint">the recording up or down, in semitones; the chords follow</span></div>
+          <div class="audio-pop-row">
+            <div class="audio-stepper"><button type="button" id="audio-key-down" aria-label="down a semitone">−</button><output id="audio-key-amount">0</output><button type="button" id="audio-key-up" aria-label="up a semitone">+</button></div>
+            <span id="audio-key-name" class="hint"></span>
+            <span class="audio-controls-spacer"></span>
+            <button type="button" class="audio-pill-btn" id="audio-key-reset">Original key</button>
+          </div>
+          <p class="hint audio-pop-note">Beyond 3 semitones up or down, a voice starts to sound processed.</p>
+        </div>
+        <div class="audio-pop" id="audio-pop-voice" hidden>
+          <div class="audio-pop-head"><strong>Voice</strong><span class="hint">the singer, from the recording split in its parts</span></div>
+          <div class="audio-seg" id="audio-voice-seg" role="radiogroup" aria-label="voice volume">
+            <button type="button" data-v="0">Off</button><button type="button" data-v="25">Guide</button><button type="button" data-v="60">Soft</button><button type="button" data-v="100">Full</button>
+          </div>
+          <div class="audio-pop-row">
+            <label class="audio-range">Volume <input type="range" id="audio-voice-volume" min="0" max="100" step="5"></label>
+            <output id="audio-voice-amount"></output>
+          </div>
         </div>
         <div class="audio-pop" id="audio-pop-click" hidden>
           <div class="audio-pop-head"><strong>Click</strong><span class="hint">on every beat, following the recording</span></div>

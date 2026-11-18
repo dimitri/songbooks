@@ -18,10 +18,11 @@
 
 // Shared by audio-player.js and mixer.js: one cached download per
 // (song, category, size) — the size changes when a recording is replaced.
+// With stem, one of the recording's parts (cmd/stemsd).
 window.songbooksAudioBytes = window.songbooksAudioBytes || (function () {
   const cache = new Map();
-  return function (variantId, category, meta) {
-    const url = `/song/${variantId}/audio.mp3?category=${category}&v=${(meta && meta.byteSize) || ''}`;
+  return function (variantId, category, meta, stem) {
+    const url = `/song/${variantId}/audio.mp3?category=${category}${stem ? '&stem=' + stem : ''}&v=${(meta && meta.byteSize) || ''}`;
     if (!cache.has(url)) {
       cache.set(url, fetch(url).then((r) => {
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -135,6 +136,9 @@ window.songbooksDecodable = function (buf) {
     click: false, clickSound: 'click', clickVolume: 70,
     trainer: { on: false, start: 60, end: 100, step: 10, every: 2 },
     cycle: null, // {from, to, on}: bars [from, to)
+    semitones: 0, // the recording's key, up or down
+    voice: 100, // the voice's volume, in %, when the recording has its parts
+    voiceOff: 0, // what Voice's toggle turns it down to
   };
   try {
     const saved = JSON.parse(localStorage.getItem(optsKey) || '{}');
@@ -174,6 +178,7 @@ window.songbooksDecodable = function (buf) {
       audio.src = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
       audio.dataset.blobFor = cat;
       audio.playbackRate = prefs.speed;
+      applyVoice();
     }
     const arrayBuffer = window.songbooksDecodable(bytes.slice(0));
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -496,7 +501,8 @@ window.songbooksDecodable = function (buf) {
     const now = audio.currentTime, rate = audio.playbackRate || 1;
     const until = now + 0.12 * rate;
     const from = clicksUntil === null ? now : Math.max(clicksUntil, now);
-    for (const beat of beatsBetween(from, until)) clickAt(ctx.currentTime + (beat.t - now) / rate, beat.k, beat.soft);
+    const late = outputDelay();
+    for (const beat of beatsBetween(from, until)) clickAt(ctx.currentTime + late + (beat.t - now) / rate, beat.k, beat.soft);
     clicksUntil = until;
   }
 
@@ -528,7 +534,9 @@ window.songbooksDecodable = function (buf) {
     }
     // A start before 0 (a pickup bar starting before the recording does)
     // waits that much longer, from the recording's first sample.
-    const startWall = t0 + bars * barDur + Math.max(0, -t) / rate;
+    // Transposed, the recording comes out of the pitch shifter a little
+    // late: it starts that much earlier.
+    const startWall = t0 + bars * barDur + Math.max(0, -t) / rate - outputDelay();
     audio.currentTime = Math.max(0, t);
     countingIn = true;
     clearTimeout(countInTimer);
@@ -540,6 +548,7 @@ window.songbooksDecodable = function (buf) {
   }
   function startAt(t, already) {
     if (!already) audio.currentTime = Math.max(0, t);
+    if (graph) graph.ctx.resume();
     resetClicks();
     document.dispatchEvent(new CustomEvent('songbooks:reference-playing'));
     audio.play().catch(() => {});
@@ -604,6 +613,7 @@ window.songbooksDecodable = function (buf) {
       if (cyc && audio.currentTime >= cyc.t1 - 0.012) onCycleEnd(cyc);
       scheduleClicks();
     }
+    followVoice();
     renderPosition();
   }
   // A timer, not requestAnimationFrame: the cycle wrap and the click
@@ -669,6 +679,183 @@ window.songbooksDecodable = function (buf) {
     updateButtons();
   }
   clickBtn?.addEventListener('click', toggleClick);
+  // ---- Key and voice --------------------------------------------------------
+  // The recording in another key (Signalsmith Stretch, an AudioWorklet,
+  // static/js/vendor) and its voice turned down (its parts, split in the
+  // background by cmd/stemsd: no_vocals plays, vocals at the voice's
+  // volume beside it). Both go through Web Audio, set up the first time
+  // either is used: until then the plain <audio>, which a locked phone
+  // keeps playing.
+  /* global SignalsmithStretch */
+  const voiceAudio = new Audio();
+  voiceAudio.preload = 'auto';
+  voiceAudio.preservesPitch = true;
+  voiceAudio.webkitPreservesPitch = true;
+  let graph = null; // {ctx, bus, voiceGain, stretch}
+  function ensureGraph() {
+    if (graph) return graph;
+    const ctx = clicker ? clicker._ensureCtx() : new (window.AudioContext || window.webkitAudioContext)();
+    const bus = ctx.createGain();
+    const voiceGain = ctx.createGain();
+    ctx.createMediaElementSource(audio).connect(bus);
+    ctx.createMediaElementSource(voiceAudio).connect(voiceGain).connect(bus);
+    bus.connect(ctx.destination);
+    graph = { ctx, bus, voiceGain, stretch: null };
+    return graph;
+  }
+  let stretchLib = null;
+  function loadStretch() {
+    stretchLib = stretchLib || new Promise((resolve, reject) => {
+      const el = document.createElement('script');
+      el.src = '/static/js/vendor/signalsmith-stretch/SignalsmithStretch.js';
+      el.onload = () => resolve(window.SignalsmithStretch);
+      el.onerror = () => { stretchLib = null; reject(new Error('could not load the pitch shifter')); };
+      document.head.append(el);
+    });
+    return stretchLib;
+  }
+  // How late the sound comes out of the pitch shifter: the click and the
+  // count-in wait for it.
+  const outputDelay = () => (graph && graph.stretch && graph.routed ? graph.stretch.latency() : 0);
+
+  // Key: the chords on screen follow (song.js's view transpose, clicked
+  // as many times); the page's own −/+ doesn't move the recording (it's
+  // also a capo's arithmetic).
+  const keyBtn = $('audio-key-btn');
+  const keyLabel = $('audio-key-label');
+  const keyAmount = $('audio-key-amount');
+  const keyName = $('audio-key-name');
+  async function applyKey() {
+    const n = prefs.semitones;
+    const sign = n > 0 ? '+' : '';
+    if (keyLabel) keyLabel.textContent = n ? `Key ${sign}${n}` : 'Key';
+    keyBtn?.classList.toggle('active', !!n);
+    if (keyAmount) keyAmount.textContent = `${sign}${n}`;
+    if (keyName) keyName.textContent = $('key-transposed') && !$('key-transposed').hidden ? `in ${$('key-transposed').textContent}` : '';
+    if (!n && !graph) return;
+    const g = ensureGraph();
+    if (n && !g.stretch) {
+      try {
+        const make = await loadStretch();
+        g.stretch = await make(g.ctx);
+        g.stretch.connect(g.ctx.destination);
+        g.stretch.start();
+      } catch (e) {
+        if (keyName) keyName.textContent = 'Couldn’t change the key in this browser.';
+        return;
+      }
+    }
+    const route = !!(n && g.stretch);
+    if (route !== !!g.routed) {
+      g.bus.disconnect();
+      g.bus.connect(route ? g.stretch : g.ctx.destination);
+      g.routed = route;
+      resetClicks();
+    }
+    if (g.stretch) g.stretch.schedule({ semitones: n, formantCompensation: true });
+  }
+  function setSemitones(n) {
+    n = Math.max(-7, Math.min(7, Math.round(n)));
+    const delta = n - prefs.semitones;
+    prefs.semitones = n;
+    savePrefs();
+    shiftChords(delta);
+    applyKey();
+  }
+  function shiftChords(delta) {
+    const btn = $(delta > 0 ? 'transpose-up' : 'transpose-down');
+    for (let i = 0; btn && i < Math.abs(delta); i++) btn.click();
+  }
+  $('audio-key-up')?.addEventListener('click', () => setSemitones(prefs.semitones + 1));
+  $('audio-key-down')?.addEventListener('click', () => setSemitones(prefs.semitones - 1));
+  $('audio-key-reset')?.addEventListener('click', () => setSemitones(0));
+
+  // Voice: shown once the recording's parts are there.
+  const voiceSplit = $('audio-voice-split');
+  const voiceBtn = $('audio-voice-btn');
+  const voiceLabel = $('audio-voice-label');
+  const voiceRange = $('audio-voice-volume');
+  const voiceOut = $('audio-voice-amount');
+  const hasParts = () => {
+    const st = (categories[activeCategory] || {}).stems || [];
+    return st.includes('no_vocals') && st.includes('vocals');
+  };
+  const voiceDown = () => hasParts() && prefs.voice < 100;
+  let voiceToken = 0;
+  async function applyVoice() {
+    const meta = categories[activeCategory] || {};
+    if (voiceSplit) {
+      voiceSplit.hidden = !hasParts();
+      if (voiceLabel) voiceLabel.textContent = prefs.voice >= 100 ? 'Voice' : prefs.voice === 0 ? 'No voice' : `Voice ${prefs.voice}%`;
+      voiceBtn?.classList.toggle('active', prefs.voice < 100);
+      voiceBtn?.setAttribute('aria-pressed', String(prefs.voice < 100));
+      if (voiceRange) voiceRange.value = String(prefs.voice);
+      if (voiceOut) voiceOut.textContent = `${prefs.voice}%`;
+      syncVoiceSeg();
+    }
+    const cat = activeCategory, token = ++voiceToken;
+    const down = voiceDown();
+    if (down) ensureGraph();
+    if (graph) graph.voiceGain.gain.value = prefs.voice / 100;
+    // The accompaniment in place of the recording (the same length: the
+    // position carries over), or the recording back.
+    const tag = down ? `${cat}:no_vocals` : cat;
+    if (audio.dataset.blobFor && audio.dataset.blobFor !== tag) {
+      let bytes;
+      try { bytes = await window.songbooksAudioBytes(variantId, cat, meta, down ? 'no_vocals' : ''); } catch (e) { return; }
+      if (token !== voiceToken) return;
+      swapSource(bytes, tag);
+    }
+    if (down && prefs.voice > 0 && voiceAudio.dataset.blobFor !== `${cat}:vocals`) {
+      let bytes;
+      try { bytes = await window.songbooksAudioBytes(variantId, cat, meta, 'vocals'); } catch (e) { return; }
+      if (token !== voiceToken) return;
+      if (voiceAudio.src.startsWith('blob:')) URL.revokeObjectURL(voiceAudio.src);
+      voiceAudio.src = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
+      voiceAudio.dataset.blobFor = `${cat}:vocals`;
+    }
+    if (!down || prefs.voice === 0) voiceAudio.pause();
+  }
+  function swapSource(bytes, tag) {
+    const t = audio.currentTime, playing = !audio.paused;
+    if (audio.src.startsWith('blob:')) URL.revokeObjectURL(audio.src);
+    audio.src = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
+    audio.dataset.blobFor = tag;
+    audio.playbackRate = prefs.speed;
+    audio.addEventListener('loadedmetadata', () => {
+      audio.currentTime = t;
+      if (playing) audio.play().catch(() => {});
+    }, { once: true });
+  }
+  // The voice keeps with the accompaniment: same play, pause, speed and
+  // place (within 80 ms; closer, and it would keep jumping).
+  function followVoice() {
+    if (!voiceDown() || prefs.voice === 0 || !voiceAudio.src) return;
+    if (voiceAudio.playbackRate !== audio.playbackRate) voiceAudio.playbackRate = audio.playbackRate;
+    if (audio.paused) { if (!voiceAudio.paused) voiceAudio.pause(); return; }
+    if (Math.abs(voiceAudio.currentTime - audio.currentTime) > 0.08) voiceAudio.currentTime = audio.currentTime;
+    if (voiceAudio.paused) voiceAudio.play().catch(() => {});
+  }
+  function setVoice(v) {
+    prefs.voice = Math.max(0, Math.min(100, Math.round(v)));
+    if (prefs.voice < 100) prefs.voiceOff = prefs.voice;
+    savePrefs();
+    applyVoice();
+  }
+  function toggleVoice() {
+    if (!hasParts()) return;
+    setVoice(prefs.voice < 100 ? 100 : prefs.voiceOff);
+  }
+  voiceBtn?.addEventListener('click', toggleVoice);
+  voiceRange?.addEventListener('input', () => setVoice(+voiceRange.value));
+  const syncVoiceSeg = wireSegLater('audio-voice-seg', () => prefs.voice, (v) => setVoice(+v));
+  function wireSegLater(id, get, set) {
+    const seg = $(id);
+    if (!seg) return () => {};
+    seg.addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (b) set(b.dataset.v); });
+    return () => seg.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.v === String(get())));
+  }
+
   // ---- Option panels: one open at a time, under the control bar -------
   const pops = [...document.querySelectorAll('#audio-player .audio-pop')];
   function openPop(id, opener) {
@@ -679,8 +866,14 @@ window.songbooksDecodable = function (buf) {
     if (!show) return;
     el.hidden = false;
     opener.setAttribute('aria-expanded', 'true');
+    // From the ⋯ menu (a phone): the menu closes, the panel opens under ⋯.
+    let anchor = opener;
+    if (optsEl && optsEl.classList.contains('open') && optsEl.contains(opener)) {
+      setOptsOpen(false);
+      anchor = optsBtn;
+    }
     // Under its button where there's room; full width on a phone (CSS).
-    const wrap = root.getBoundingClientRect(), r = opener.getBoundingClientRect();
+    const wrap = root.getBoundingClientRect(), r = anchor.getBoundingClientRect();
     el.style.setProperty('--pop-top', `${r.bottom - wrap.top + 6}px`);
     el.style.setProperty('--pop-left', `${Math.max(8, Math.min(wrap.width - el.offsetWidth - 8, r.right - wrap.left - el.offsetWidth))}px`);
     if (id === 'audio-pop-trainer') renderTrainer();
@@ -689,7 +882,16 @@ window.songbooksDecodable = function (buf) {
   document.addEventListener('pointerdown', (e) => {
     if (e.target.closest('#audio-player .audio-pop, #audio-player [data-pop]')) return;
     pops.forEach((p) => { p.hidden = true; });
+    if (!e.target.closest('#audio-opts, #audio-opts-btn')) setOptsOpen(false);
   });
+  // On a phone the options fold into ⋯ (app.css): it opens them under the
+  // control bar.
+  function setOptsOpen(open) {
+    optsEl?.classList.toggle('open', open);
+    optsBtn?.setAttribute('aria-expanded', String(open));
+  }
+  optsBtn?.addEventListener('click', () => setOptsOpen(!optsEl.classList.contains('open')));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOptsOpen(false); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') pops.forEach((p) => { p.hidden = true; }); });
 
   function wireSeg(id, get, set) {
@@ -956,6 +1158,7 @@ window.songbooksDecodable = function (buf) {
       case 'ArrowRight': if (songNav && !e.altKey) handled = false; else if (e.altKey) stepSection(1); else stepBar(1); break;
       case 'c': case 'C': case 'l': case 'L': toggleCycle(); break;
       case 'k': case 'K': toggleClick(); break;
+      case 'v': case 'V': if (!hasParts()) handled = false; else toggleVoice(); break;
       case '[': setSpeed(prefs.speed - (e.shiftKey ? 0.01 : 0.05)); break;
       case ']': setSpeed(prefs.speed + (e.shiftKey ? 0.01 : 0.05)); break;
       default: handled = false;
@@ -1007,6 +1210,29 @@ window.songbooksDecodable = function (buf) {
     // default even on a song that also has a youtube/band recording.
     const target = (preferred && categories[preferred]) ? preferred : (categories.gp ? 'gp' : available[0]);
     selectCategory(target);
+    // A key kept from the last visit: the chords go there too.
+    if (prefs.semitones && !keyRestored) { keyRestored = true; shiftChords(prefs.semitones); applyKey(); }
+    watchSplit();
+  }
+  let keyRestored = false;
+
+  // A recording being split (just added, or replaced): its parts show up
+  // here when they're ready, without a reload.
+  let splitTimer = null;
+  function watchSplit() {
+    clearTimeout(splitTimer);
+    const pending = Object.values(categories).some((c) => c.stemStatus === 'queued' || c.stemStatus === 'running');
+    if (!pending) return;
+    splitTimer = setTimeout(async () => {
+      const res = await fetch(`/api/songs/${variantId}/audio`).catch(() => null);
+      if (!res || !res.ok) return;
+      const data = await res.json();
+      (data.categories || []).forEach((c) => {
+        if (categories[c.category]) Object.assign(categories[c.category], { stems: c.stems, stemStatus: c.stemStatus });
+      });
+      applyVoice();
+      watchSplit();
+    }, 20000);
   }
 
   categoryToggle?.addEventListener('click', e => {

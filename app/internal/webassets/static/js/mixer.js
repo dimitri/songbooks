@@ -5,6 +5,8 @@
 //   ruler (bars/beats) · arrangement (sections) · chords
 //   reference recording (real audio only: Guitar Pro backing track,
 //     YouTube download, band recording — never a MIDI render)
+//   its parts, when it has been split (cmd/stemsd): vocals, drums, bass,
+//     other, each a lane playing beside it, in its time
 //   one lane per score track (alphaTab notation, played by AlphaSynth)
 //
 // barTimes[b] maps performed bar b to seconds in the recording: the Guitar
@@ -47,6 +49,13 @@
   const BODY = { melodic: '#E4F3DC', drums: '#FAF1D2' };
   const GM = { 0: 'Piano', 4: 'Electric piano', 16: 'Organ', 24: 'Nylon guitar', 25: 'Steel guitar', 26: 'Jazz guitar', 27: 'Clean guitar', 28: 'Muted guitar', 29: 'Overdrive guitar', 30: 'Distortion guitar', 32: 'Acoustic bass', 33: 'Finger bass', 34: 'Pick bass', 35: 'Fretless bass', 36: 'Slap bass', 48: 'Strings', 56: 'Trumpet', 65: 'Alto sax', 66: 'Tenor sax', 73: 'Flute', '-1': 'Drum kit' };
   const CAT_LABEL = { gp: 'Guitar Pro recording', youtube: 'YouTube', band: 'Band recording' };
+  // A recording's parts (cmd/stemsd), each a lane under it.
+  const STEMS = [
+    { stem: 'vocals', name: 'Vocals', color: '#F07C9A' },
+    { stem: 'drums', name: 'Drums', color: '#E8C050' },
+    { stem: 'bass', name: 'Bass', color: '#9C7CF0' },
+    { stem: 'other', name: 'Other', color: '#5FB7A0' },
+  ];
   const PAD = 16;               // px before t = 0
   const ROW = { ruler: 40, sections: 30, chords: 30, audio: 116 };
 
@@ -90,6 +99,7 @@
   let headEl = null;
   let waveCanvas = null;
   let rows = {};                // name -> {hdr, lane}
+  let stemAudio = {};           // stem -> {el, peaks}: the reference's parts, when split
 
   const N = () => (data ? data.totalBars : 0);
   const beatsPerBar = () => (data ? data.timeNum : 4);
@@ -196,6 +206,10 @@
         audio.muted = !audible(tr);
         audio.volume = Math.min(1, tr.volume);
       }
+      if (tr.kind === 'stem') {
+        tr.el.muted = !audible(tr);
+        tr.el.volume = Math.min(1, tr.volume);
+      }
       if (tr.kind === 'midi' && playerApi && playerApi.score) {
         const st = playerApi.score.tracks[tr.index];
         if (st) {
@@ -235,7 +249,7 @@
           <button type="button" class="daw-ms is-solo" aria-pressed="false" title="solo">S</button></div>
         ${extra || ''}
         <div class="daw-hdr-sub">${sub}</div>
-        <div class="daw-hdr-row"><input type="range" class="daw-vol" min="0" max="${tr.kind === 'audio' ? 1 : 2}" step="0.01" value="1" aria-label="volume"><span class="daw-vol-label">100%</span></div>
+        <div class="daw-hdr-row"><input type="range" class="daw-vol" min="0" max="${tr.kind === 'audio' || tr.kind === 'stem' ? 1 : 2}" step="0.01" value="1" aria-label="volume"><span class="daw-vol-label">100%</span></div>
       </div>`;
   }
 
@@ -275,12 +289,15 @@
 
   function applyTrackPrefs() {
     const saved = (prefs && prefs.tracks) || {};
+    // A mix saved before the recording was split had the recording on:
+    // kept, it would play twice (the parts add up to it).
+    const splitSince = tracks.some((t) => t.kind === 'stem') && !STEMS.some((s) => saved[s.name]);
     for (const tr of tracks) {
       const p = saved[tr.name];
       if (!p) continue;
-      const max = tr.kind === 'audio' ? 1 : 2;
+      const max = tr.kind === 'audio' || tr.kind === 'stem' ? 1 : 2;
       if (typeof p.volume === 'number') tr.volume = Math.max(0, Math.min(max, p.volume));
-      tr.muted = !!p.mute;
+      if (!(splitSince && tr.kind === 'audio')) tr.muted = !!p.mute;
       tr.solo = !!p.solo;
       syncTrackControls(tr);
     }
@@ -330,6 +347,20 @@
       tracks.push(tr);
       wireTrackHeader(tr);
       row.hdr.querySelector('.daw-ref-select')?.addEventListener('change', (e) => switchReference(e.target.value));
+      // Split: its parts play and the whole recording, still the clock,
+      // is muted to begin with (they add up to it).
+      const parts = STEMS.filter((s) => stemAudio[s.stem]);
+      if (parts.length) {
+        tr.muted = true;
+        syncTrackControls(tr);
+      }
+      for (const s of parts) {
+        const st = { kind: 'stem', stem: s.stem, el: stemAudio[s.stem].el, name: s.name, color: s.color, icon: ICON_WAVE, muted: false, solo: false, volume: 1 };
+        const srow = addRow('stem-' + s.stem, 64, trackHeader(st, ''), { laneClass: 'is-stem' });
+        st.hdr = srow.hdr; st.lane = srow.lane;
+        tracks.push(st);
+        wireTrackHeader(st);
+      }
     }
 
     (data.tracks || []).forEach((t, i) => {
@@ -625,13 +656,38 @@
       lane.appendChild(waveCanvas);
     }
     if (aligning) renderAnchors();
+    for (const s of STEMS) {
+      const row = rows['stem-' + s.stem];
+      if (!row) continue;
+      row.lane.querySelectorAll('.daw-clip').forEach((e) => e.remove());
+      if (audioDuration) {
+        const clip = document.createElement('div');
+        clip.className = 'daw-clip';
+        clip.style.left = xOf(0) + 'px';
+        clip.style.width = audioDuration * pxPerSec + 'px';
+        clip.style.background = s.color;
+        row.lane.insertBefore(clip, row.lane.firstChild);
+      }
+      if (!row.canvas) {
+        row.canvas = document.createElement('canvas');
+        row.canvas.className = 'daw-wave';
+        row.lane.appendChild(row.canvas);
+      }
+    }
     drawWave();
   }
 
   function drawWave() {
     if (!waveCanvas || !rows.audio) return;
+    drawPeaks(waveCanvas, rows.audio.lane.clientHeight - 26, peaks);
+    for (const s of STEMS) {
+      const row = rows['stem-' + s.stem];
+      if (row && row.canvas) drawPeaks(row.canvas, row.lane.clientHeight - 8, stemAudio[s.stem] && stemAudio[s.stem].peaks);
+    }
+  }
+
+  function drawPeaks(waveCanvas, h, peaks) {
     const w = scrollEl.clientWidth;
-    const h = rows.audio.lane.clientHeight - 26;
     const dpr = window.devicePixelRatio || 1;
     waveCanvas.style.left = scrollEl.scrollLeft + 'px';
     waveCanvas.style.width = w + 'px';
@@ -656,6 +712,32 @@
         if (peaks.min[i0] < lo) lo = peaks.min[i0];
       }
       ctx.fillRect(px, mid - hi * mid, 1, Math.max(1, (hi - lo) * mid));
+    }
+  }
+
+  // A part's waveform: decoded once, only its peaks kept.
+  async function stemPeaks(buf) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const decoded = await ctx.decodeAudioData(buf);
+      ctx.close();
+      const ch = decoded.getChannelData(0);
+      const perSec = 200;
+      const n = Math.ceil(decoded.duration * perSec);
+      const step = decoded.sampleRate / perSec;
+      const min = new Float32Array(n), max = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        let lo = 0, hi = 0;
+        const end = Math.min(ch.length, Math.floor((i + 1) * step));
+        for (let j = Math.floor(i * step); j < end; j++) {
+          const v = ch[j];
+          if (v > hi) hi = v; else if (v < lo) lo = v;
+        }
+        min[i] = lo; max[i] = hi;
+      }
+      return { min, max, perSec };
+    } catch (e) {
+      return null;
     }
   }
 
@@ -919,6 +1001,7 @@
     clicksUntil = null;
     position = Math.max(0, Math.min(timelineEnd(), t));
     if (hasAudio()) audio.currentTime = Math.min(position, audioDuration);
+    for (const p of Object.values(stemAudio)) p.el.currentTime = Math.min(position, audioDuration);
     if (playerApi && synthReady) {
       const b = barAt(position);
       if (b >= 0 && b < N()) playerApi.tickPosition = tickAtBar(b);
@@ -939,6 +1022,11 @@
       audio.preservesPitch = true;
       if (position >= audioDuration) seek(0);
       audio.play().catch(() => {});
+      for (const p of Object.values(stemAudio)) {
+        p.el.playbackRate = speed;
+        p.el.currentTime = audio.currentTime;
+        p.el.play().catch(() => {});
+      }
     } else {
       if (position >= barTimes[N()]) seek(barTimes[0]);
       playerApi.playbackSpeed = speed;
@@ -954,7 +1042,18 @@
     clearInterval(ticker);
     playBtn.innerHTML = ICON_PLAY;
     if (audio) audio.pause();
+    for (const p of Object.values(stemAudio)) p.el.pause();
     if (playerApi && synthPlaying) playerApi.pause();
+  }
+
+  // The parts keep with the recording (within 80 ms; closer, and they'd
+  // keep jumping).
+  function syncStems(t) {
+    for (const p of Object.values(stemAudio)) {
+      if (p.el.playbackRate !== audio.playbackRate) p.el.playbackRate = audio.playbackRate;
+      if (Math.abs(p.el.currentTime - t) > 0.08) p.el.currentTime = t;
+      if (p.el.paused) p.el.play().catch(() => {});
+    }
   }
 
   // Keeps AlphaSynth on the recording's clock: each bar plays at the speed
@@ -994,6 +1093,7 @@
       t = audio.currentTime;
       if (audio.ended) { pause(); return; }
       syncSynth(t);
+      syncStems(t);
     } else {
       t = timeAt(barAtTick(playerApi.tickPosition));
     }
@@ -1025,6 +1125,7 @@
   $('daw-speed').addEventListener('change', (e) => {
     speed = Number(e.target.value) || 1;
     if (audio) audio.playbackRate = speed;
+    for (const p of Object.values(stemAudio)) p.el.playbackRate = speed;
     if (playerApi && !hasAudio()) playerApi.playbackSpeed = speed;
     savePrefs();
   });
@@ -1480,6 +1581,11 @@
       audio.pause();
       if (audio.src.startsWith('blob:')) URL.revokeObjectURL(audio.src);
     }
+    for (const p of Object.values(stemAudio)) {
+      p.el.pause();
+      URL.revokeObjectURL(p.el.src);
+    }
+    stemAudio = {};
     if (!cat) { audio = null; return; }
     setStatus('Loading the recording…');
     let bytes;
@@ -1501,6 +1607,35 @@
     audioDuration = isFinite(audio.duration) ? audio.duration : 0;
     audio.addEventListener('ended', () => pause());
     decodePeaks(bytes.slice(0));
+    await loadStems(cat);
+  }
+
+  // The recording's parts, when it has been split: each an <audio> beside
+  // it, its waveform drawn when decoded (one at a time).
+  async function loadStems(cat) {
+    const have = (audioCats[cat] && audioCats[cat].stems) || [];
+    const parts = STEMS.filter((s) => have.includes(s.stem));
+    if (!parts.length || !window.songbooksAudioBytes) return;
+    const loaded = await Promise.all(parts.map(async (s) => {
+      try {
+        const buf = await window.songbooksAudioBytes(variantId, cat, audioCats[cat], s.stem);
+        const el = new Audio(URL.createObjectURL(new Blob([buf], { type: 'audio/mpeg' })));
+        el.preload = 'auto';
+        el.preservesPitch = true;
+        return { stem: s.stem, el, buf };
+      } catch (e) {
+        return null;
+      }
+    }));
+    if (refCat !== cat) return;
+    for (const p of loaded) if (p) stemAudio[p.stem] = { el: p.el, peaks: null };
+    (async () => {
+      for (const p of loaded) {
+        if (!p || !stemAudio[p.stem]) continue;
+        stemAudio[p.stem].peaks = await stemPeaks(p.buf.slice(0));
+        drawWave();
+      }
+    })();
   }
 
   async function switchReference(cat) {
