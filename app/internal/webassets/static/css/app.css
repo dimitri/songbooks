@@ -5774,16 +5774,25 @@ body.branded-dark img.logo-mark, body.branded-dark .logo-mark rect { filter: non
 body.branded .sidebar-crumb, body.branded .sidebar-crumb a { color: var(--sidebar-fg); opacity: 0.75; }
 
 /* ==== Stage mode (stage.js) ===============================================
-   The song page for playing: no sidebar, bars, player or pickers; larger
-   type; a close button and the previous/next songs' names. */
+   The song page for playing: no sidebar, bars or pickers; larger type; a
+   close button and the previous/next songs' names. Of the player, only
+   the dock's transport and position stay, over those names: playing
+   along with the recording, its words lit as it goes, works on stage too. */
 .stage-exit, .stage-foot { display: none; }
 html:has(body.stage) { font-size: 118%; }
 body.stage .desktop-sidebar, body.stage .song-context-bar, body.stage .global-tabbar,
-body.stage #song-structure-strip, body.stage #audio-player, body.stage .notation-pickers,
+body.stage #song-structure-strip, body.stage .notation-pickers,
 body.stage #mode-segmented, body.stage #instrument-picker, body.stage .topbar-utility-mobile,
 body.stage .song-topbar .topbar-prev, body.stage .song-topbar .topbar-next,
 body.stage .stack-sheet, body.stage .stack-backdrop, body.stage .sidebar-transport { display: none !important; }
 body.stage .song-topzone { padding-top: 0.4rem; padding-bottom: 0.2rem; }
+body.stage #audio-player { margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
+body.stage #audio-player > :not(#audio-player-body), body.stage #audio-player-body > :not(.audio-dock),
+body.stage .audio-dock :is(.audio-opts, .audio-opts-btn, .audio-pop) { display: none !important; }
+body.stage .audio-dock { left: 0; bottom: calc(2.3rem + env(safe-area-inset-bottom, 0px)); padding-bottom: 0.4rem; }
+body.stage .audio-dock .audio-transport { justify-content: center; }
+body.stage .audio-dock .audio-lcd { flex: 0 1 20rem; }
+body.stage:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 7.5rem; }
 body.stage .content-row, body.stage .content-main { padding-bottom: 3rem; }
 body.stage .stage-exit {
   display: inline-flex; position: fixed; z-index: 70;
