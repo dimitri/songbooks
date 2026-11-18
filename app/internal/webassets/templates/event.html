@@ -1,6 +1,6 @@
 {{define "event"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -22,11 +22,11 @@
 </header>
 <main class="index">
   <div class="card">
-    <p><strong>{{.Event.StartsAt.Format "Monday 2 January 2006 · 15:04"}}{{with .Event.EndsAt}}–{{.Format "15:04"}}{{end}}</strong>{{if .Event.Location}} — {{.Event.Location}}{{end}}</p>
+    <p><strong>{{date .Event.StartsAt "Monday 2 January 2006 · 15:04"}}{{with .Event.EndsAt}}–{{date . "15:04"}}{{end}}</strong>{{if .Event.Location}} — {{.Event.Location}}{{end}}</p>
     {{if .Event.Description}}<p>{{.Event.Description}}</p>{{end}}
     <div class="import-row">
-      <a href="/events/{{.Event.ID}}/ics" class="event-ics-btn">{{template "icon-download"}} Add to calendar</a>
-      {{if .Me}}<a href="/events/{{.Event.ID}}/manage" class="hint">Manage this event</a>{{end}}
+      <a href="/events/{{.Event.ID}}/ics" class="event-ics-btn">{{template "icon-download"}} {{t "Add to calendar"}}</a>
+      {{if .Me}}<a href="/events/{{.Event.ID}}/manage" class="hint">{{t "Manage this event"}}</a>{{end}}
     </div>
   </div>
 
@@ -34,91 +34,91 @@
   {{/* A band's own date (a rehearsal, a gig): everyone in it is coming,
        so no registration; what matters is the set list to work on. */}}
   <div class="card">
-    <h3>{{if eq .Event.EventType "rehearsal"}}Set list to practise{{else}}Set list{{end}}</h3>
+    <h3>{{if eq .Event.EventType "rehearsal"}}{{t "Set list to practise"}}{{else}}{{t "Set list"}}{{end}}</h3>
     {{if .Event.SetlistID}}
     <div class="next-up-actions">
-      {{if .SongRows}}<a class="chip-link primary" href="/setlists/{{.Event.SetlistID}}">{{template "icon-setlists"}} Open the set list</a>{{end}}
-      <a class="chip-link" href="/setlists/{{.Event.SetlistID}}">{{template "icon-setlists"}} {{if .SongRows}}Open the set list{{else}}Add songs{{end}}</a>
+      {{if .SongRows}}<a class="chip-link primary" href="/setlists/{{.Event.SetlistID}}">{{template "icon-setlists"}} {{t "Open the set list"}}</a>{{end}}
+      <a class="chip-link" href="/setlists/{{.Event.SetlistID}}">{{template "icon-setlists"}} {{if .SongRows}}{{t "Open the set list"}}{{else}}{{t "Add songs"}}{{end}}</a>
     </div>
     <ol class="event-setlist">
     {{range .SongRows}}
       <li><a href="/song/{{.VariantID}}?setlist={{$.Event.SetlistID}}">{{.Title}}</a>{{if and .Artist (ne .Artist $.Event.OwnerName)}} <span class="hint">{{.Artist}}</span>{{end}}</li>
     {{else}}
-      <li class="hint">No songs on it yet.</li>
+      <li class="hint">{{t "No songs on it yet."}}</li>
     {{end}}
     </ol>
     {{else}}
-    <p class="hint">No set list for this one.</p>
+    <p class="hint">{{t "No set list for this one."}}</p>
     {{end}}
   </div>
   {{else}}
   <div class="card">
-    <h3>Who's coming</h3>
+    <h3>{{t "Who's coming"}}</h3>
     <div class="form-stack">
     {{range .Attendees}}
       <div class="import-row"><span>{{.DisplayName}}{{if .BandName}} <span class="hint">({{.BandName}})</span>{{end}}</span></div>
     {{else}}
-      <p class="hint">Nobody's registered yet — be the first!</p>
+      <p class="hint">{{t "Nobody's registered yet — be the first!"}}</p>
     {{end}}
     </div>
   </div>
 
   {{if not .AlreadyRegistered}}
   <div class="card card--narrow-lg" id="register-card">
-    <h3>Register</h3>
+    <h3>{{t "Register"}}</h3>
     {{/* Still a plain POST form (works without JS); the script below
          sends it with fetch so a refused registration ("username taken")
          shows here instead of replacing the page and losing what was
          typed. */}}
     <form method="post" action="/events/{{.Event.ID}}/register" class="form-stack" id="register-form">
       {{if not .Me}}
-      <p class="hint">Registering also creates your account.</p>
+      <p class="hint">{{t "Registering also creates your account."}}</p>
       <div class="field">
-        <label for="reg-username">Username</label>
-        <p class="field-hint" id="reg-username-hint">What you'll log in with.</p>
+        <label for="reg-username">{{t "Username"}}</label>
+        <p class="field-hint" id="reg-username-hint">{{t "What you'll log in with."}}</p>
         <input type="text" id="reg-username" name="username" required autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="reg-username-hint">
       </div>
-      <div class="field"><label for="reg-display-name">Your name</label><input type="text" id="reg-display-name" name="display_name" required autocomplete="name"></div>
+      <div class="field"><label for="reg-display-name">{{t "Your name"}}</label><input type="text" id="reg-display-name" name="display_name" required autocomplete="name"></div>
       <div class="field">
-        <label for="reg-email">Email <span class="field-optional">(optional)</span></label>
+        <label for="reg-email">{{t "Email"}} <span class="field-optional">{{t "(optional)"}}</span></label>
         <input type="email" id="reg-email" name="email" autocomplete="email" autocapitalize="none" spellcheck="false">
       </div>
       <div class="field">
-        <label for="reg-password">Password <span class="field-optional">(optional)</span></label>
-        <p class="field-hint" id="reg-password-hint">Leave it empty to log in with a link sent to your email instead.</p>
+        <label for="reg-password">{{t "Password"}} <span class="field-optional">{{t "(optional)"}}</span></label>
+        <p class="field-hint" id="reg-password-hint">{{t "Leave it empty to log in with a link sent to your email instead."}}</p>
         <input type="password" id="reg-password" name="password" autocomplete="new-password" aria-describedby="reg-password-hint">
       </div>
       {{end}}
       {{if and (not .AlreadyRegistered) .MyBands}}
       <div class="field">
-        <label for="reg-band">Registering as</label>
+        <label for="reg-band">{{t "Registering as"}}</label>
         <select id="reg-band" name="band_id">
-          <option value="">Just me</option>
+          <option value="">{{t "Just me"}}</option>
           {{range .MyBands}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
         </select>
       </div>
       {{end}}
-      <div class="form-actions"><button type="submit" class="primary">Register</button></div>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Register"}}</button></div>
       <p class="form-status" role="status"></p>
     </form>
   </div>
   {{else}}
-  <p class="hint">You're registered for this event.</p>
+  <p class="hint">{{t "You're registered for this event."}}</p>
   {{end}}
 
   {{if .Event.SetlistID}}
   <div class="card">
-    <h3>Songs</h3>
-    <p class="hint">{{if eq .Event.AudienceScope "bands"}}Bands can claim a song to play.{{else if eq .Event.AudienceScope "both"}}Bands or individual musicians can claim a song to play.{{else}}Sign up to play one of these.{{end}}</p>
+    <h3>{{t "Songs"}}</h3>
+    <p class="hint">{{if eq .Event.AudienceScope "bands"}}{{t "Bands can claim a song to play."}}{{else if eq .Event.AudienceScope "both"}}{{t "Bands or individual musicians can claim a song to play."}}{{else}}{{t "Sign up to play one of these."}}{{end}}</p>
     {{/* Always-visible band picker for song registration — the one
          above (inside the register form) disappears once .AlreadyRegistered
          is true, which would otherwise make it impossible to pick a
          band when claiming a song after already registering. */}}
     {{if .MyBands}}
     <div class="field" style="max-width:320px; display:flex; flex-direction:column; gap:0.3rem;">
-      <label for="song-reg-band">Playing as</label>
+      <label for="song-reg-band">{{t "Playing as"}}</label>
       <select id="song-reg-band">
-        <option value="">Just me</option>
+        <option value="">{{t "Just me"}}</option>
         {{range .MyBands}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
       </select>
     </div>
@@ -131,13 +131,13 @@
           <strong>{{.Title}}</strong>{{if .Artist}} <span class="hint">{{.Artist}}</span>{{end}}
           <div class="hint">
           {{range .Registrations}}{{if .BandName}}{{.BandName}}{{else}}{{.PersonName}}{{end}} {{end}}
-          {{if not .Registrations}}nobody signed up yet{{end}}
+          {{if not .Registrations}}{{t "nobody signed up yet"}}{{end}}
           </div>
         </div>
-        {{if $.Me}}<button type="button" class="event-song-register-btn" data-variant-id="{{.VariantID}}" aria-label="I'll play {{.Title}}">I'll play this</button>{{end}}
+        {{if $.Me}}<button type="button" class="event-song-register-btn" data-variant-id="{{.VariantID}}" aria-label="{{t "I’ll play %s" .Title}}">{{t "I’ll play this"}}</button>{{end}}
       </div>
     {{else}}
-      <p class="hint">No songs on the setlist yet.</p>
+      <p class="hint">{{t "No songs on the setlist yet."}}</p>
     {{end}}
     </div>
   </div>
@@ -155,11 +155,11 @@ const registerForm = document.getElementById('register-form');
 registerForm?.addEventListener('submit', (e) => {
   e.preventDefault();
   Forms.run(registerForm, registerForm.querySelector('button[type="submit"]'), async () => {
-    const res = await fetch(registerForm.action, {method: 'POST', body: new URLSearchParams(new FormData(registerForm))}).catch(() => { throw new Error('Couldn’t reach the server. Check your connection and try again.'); });
+    const res = await fetch(registerForm.action, {method: 'POST', body: new URLSearchParams(new FormData(registerForm))}).catch(() => { throw new Error(t('Couldn’t reach the server. Check your connection and try again.')); });
     // Success is the handler's redirect back to this page, now registered.
     if (res.ok) { location.reload(); return; }
     const data = await res.json().catch(() => ({}));
-    throw new Error(errText(res, data, 'Couldn’t register you. Try again.'));
+    throw new Error(errText(res, data, t('Couldn’t register you. Try again.')));
   });
 });
 document.querySelectorAll('.event-song-register-btn').forEach(btn => {
@@ -178,7 +178,7 @@ document.querySelectorAll('.event-song-register-btn').forEach(btn => {
     if (res && res.ok) { location.reload(); return; }
     Forms.busy(btn, false);
     const data = res ? await res.json().catch(() => ({})) : {};
-    Forms.status(status, errText(res, data, 'Couldn’t sign you up for that song. Try again.'), 'error');
+    Forms.status(status, errText(res, data, t('Couldn’t sign you up for that song. Try again.')), 'error');
   });
 });
 </script>

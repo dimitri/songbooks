@@ -7,6 +7,11 @@
 (function () {
   const DEFAULTS = { guitar: 'tab', bass: 'both' };
   const LABELS = { tab: 'Tab', staff: 'Staff', both: 'Staff + tab' };
+  // What the pickers say, per kind of part.
+  const KIND_TEXT = {
+    guitar: { as: 'Guitar as', show: 'Show guitar as', how: 'How you read guitar parts, on every song (just for you)' },
+    bass: { as: 'Bass as', show: 'Show bass as', how: 'How you read bass parts, on every song (just for you)' },
+  };
   const attr = (kind) => 'notation' + kind.charAt(0).toUpperCase() + kind.slice(1);
 
   function get(kind) {
@@ -31,9 +36,9 @@
   function picker(kind, onChange) {
     const sel = document.createElement('select');
     sel.className = 'notation-picker';
-    sel.setAttribute('aria-label', `Show ${kind} as`);
-    sel.title = `How you read ${kind} parts, on every song (just for you)`;
-    for (const [v, label] of Object.entries(LABELS)) sel.add(new Option(label, v));
+    sel.setAttribute('aria-label', KIND_TEXT[kind] ? t(KIND_TEXT[kind].show) : `Show ${kind} as`);
+    sel.title = KIND_TEXT[kind] ? t(KIND_TEXT[kind].how) : `How you read ${kind} parts, on every song (just for you)`;
+    for (const [v, label] of Object.entries(LABELS)) sel.add(new Option(t(label), v));
     sel.value = get(kind);
     sel.addEventListener('change', async () => { await set(kind, sel.value); if (onChange) onChange(sel.value); });
     document.addEventListener('songbooks:notation', (e) => { if (e.detail.kind === kind) sel.value = e.detail.value; });
@@ -53,7 +58,7 @@
       bar.className = 'notation-pickers';
       for (const kind of kinds) {
         const label = document.createElement('label');
-        label.append(kind.charAt(0).toUpperCase() + kind.slice(1) + ' as ', picker(kind, () => location.reload()));
+        label.append(t(KIND_TEXT[kind].as) + ' ', picker(kind, () => location.reload()));
         bar.appendChild(label);
       }
       return bar;

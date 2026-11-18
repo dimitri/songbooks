@@ -1,10 +1,10 @@
 {{define "join"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Join {{.TargetName}} — Songbooks</title>
+<title>{{t "Join %s" .TargetName}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -12,39 +12,39 @@
 <main class="index auth-page">
   <div class="hero">
     <div>
-      <h2>Join {{.TargetName}}</h2>
+      <h2>{{t "Join %s" .TargetName}}</h2>
       {{if eq .Kind "band"}}
-        <p>Pick your name below, or "Someone else" if you're not on the list.</p>
+        <p>{{t "Pick your name below, or \"Someone else\" if you're not on the list."}}</p>
       {{else}}
-        <p>Pick your name below, or "Someone else" if you're not on the list. You'll join this community.</p>
+        <p>{{t "Pick your name below, or \"Someone else\" if you're not on the list."}} {{t "You'll join this community."}}</p>
       {{end}}
     </div>
   </div>
 
   {{if .Closed}}
     <div class="card card--narrow">
-      <p>This invite link has been closed by {{if eq .Kind "band"}}the band{{else}}the community{{end}} — no further claims are possible. Ask for a fresh link.</p>
+      <p>{{if eq .Kind "band"}}{{t "This invite link has been closed by the band — no further claims are possible. Ask for a fresh link."}}{{else}}{{t "This invite link has been closed by the community — no further claims are possible. Ask for a fresh link."}}{{end}}</p>
     </div>
   {{else}}
   <div class="card card--narrow">
     <fieldset class="field-group">
-      <legend>Who are you?</legend>
+      <legend>{{t "Who are you?"}}</legend>
       {{range .Slots}}
         {{if not .ClaimedAt}}
         <label class="check"><input type="radio" name="slot_choice" value="{{.ID}}"> {{.DisplayName}}{{if .Instrument}} ({{.Instrument}}){{end}}</label>
         {{else}}
-        <p class="hint" style="text-decoration:line-through">{{.DisplayName}}{{if .Instrument}} ({{.Instrument}}){{end}} — already joined</p>
+        <p class="hint" style="text-decoration:line-through">{{.DisplayName}}{{if .Instrument}} ({{.Instrument}}){{end}} — {{t "already joined"}}</p>
         {{end}}
       {{end}}
-      <label class="check"><input type="radio" name="slot_choice" value="unlisted" checked> Someone else (not on this list)</label>
+      <label class="check"><input type="radio" name="slot_choice" value="unlisted" checked> {{t "Someone else (not on this list)"}}</label>
     </fieldset>
   </div>
 
   {{if .LoggedIn}}
     <form class="card card--narrow" method="post" action="/join/{{.Token}}" id="claim-form">
       <input type="hidden" name="slot_id" id="claim-slot-id" value="unlisted">
-      <p>Continue as <strong>{{.LoggedInAs}}</strong>?</p>
-      <div class="form-actions"><button type="submit" class="primary">Join {{.TargetName}}</button></div>
+      <p>{{t "Continue as"}} <strong>{{.LoggedInAs}}</strong>{{t "?"}}</p>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Join %s" .TargetName}}</button></div>
       <p class="form-status" role="status"></p>
     </form>
   {{else}}
@@ -52,40 +52,40 @@
       <input type="hidden" name="slot_id" id="create-slot-id" value="unlisted">
       <div class="form-stack">
         <div class="field">
-          <label for="join-username">Username</label>
-          <p class="field-hint" id="join-username-hint">What you'll log in with, e.g. marcguitar.</p>
+          <label for="join-username">{{t "Username"}}</label>
+          <p class="field-hint" id="join-username-hint">{{t "What you'll log in with, e.g. marcguitar."}}</p>
           <input id="join-username" type="text" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="join-username-hint" required autofocus>
         </div>
         <div class="field">
-          <label for="join-display-name">Your name</label>
-          <p class="field-hint" id="join-display-name-hint">How the others will see you.</p>
+          <label for="join-display-name">{{t "Your name"}}</label>
+          <p class="field-hint" id="join-display-name-hint">{{t "How the others will see you."}}</p>
           <input id="join-display-name" type="text" name="display_name" autocomplete="name" autocapitalize="words" aria-describedby="join-display-name-hint" required>
         </div>
         <div class="field">
-          <label for="join-email">Email</label>
+          <label for="join-email">{{t "Email"}}</label>
           <input id="join-email" type="email" name="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" required>
         </div>
         <div class="field">
-          <label for="join-password">Password</label>
-          <p class="field-hint" id="join-password-hint">At least 8 characters.</p>
+          <label for="join-password">{{t "Password"}}</label>
+          <p class="field-hint" id="join-password-hint">{{t "At least 8 characters."}}</p>
           <div class="pw-field">
             <input id="join-password" type="password" name="password" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="join-password-hint" required minlength="8">
-            <button type="button" class="pw-toggle" aria-controls="join-password join-confirm" aria-pressed="false" hidden><span class="pw-toggle-text">Show</span><span class="sr-only"> passwords</span></button>
+            <button type="button" class="pw-toggle" aria-controls="join-password join-confirm" aria-pressed="false" hidden><span class="pw-toggle-text">{{t "Show"}}</span><span class="sr-only"> {{t "passwords"}}</span></button>
           </div>
         </div>
         <div class="field">
-          <label for="join-confirm">Password again</label>
+          <label for="join-confirm">{{t "Password again"}}</label>
           <input id="join-confirm" type="password" name="confirm" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" data-match="join-password" required minlength="8">
         </div>
-        <p class="hint">You'll be offered a passkey (Touch ID, Face ID, Windows Hello) right after this, as a faster alternative for next time — your password still works either way.</p>
+        <p class="hint">{{t "You'll be offered a passkey (Touch ID, Face ID, Windows Hello) right after this, as a faster alternative for next time — your password still works either way."}}</p>
         <p class="form-status" role="status"></p>
-        <div class="form-actions"><button type="submit" class="primary">Create account and join</button></div>
+        <div class="form-actions"><button type="submit" class="primary">{{t "Create account and join"}}</button></div>
       </div>
     </form>
 
     <div class="card card--narrow">
-      <p class="hint">Already use Songbooks for something else? Log in instead — joining won't touch anything else in your account.</p>
-      <button type="button" id="login-instead-btn">Log in to join</button>
+      <p class="hint">{{t "Already use Songbooks for something else? Log in instead — joining won't touch anything else in your account."}}</p>
+      <button type="button" id="login-instead-btn">{{t "Log in to join"}}</button>
     </div>
     <script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
     <script>
@@ -128,19 +128,19 @@
           if (res.redirected || res.ok) { location.href = res.url; return new Promise(() => {}); }
           const text = (await res.text()).toLowerCase();
           if (username && text.includes('username already')) {
-            Forms.fieldError(username, 'That username is taken. Try another.');
+            Forms.fieldError(username, t('That username is taken. Try another.'));
             username.focus();
             return;
           }
           if (email && text.includes('email already')) {
-            Forms.fieldError(email, 'That email already has an account. Use “Log in to join” below instead.');
+            Forms.fieldError(email, t('That email already has an account. Use “Log in to join” below instead.'));
             email.focus();
             return;
           }
-          if (res.status === 404) throw new Error('This invite link isn’t valid any more. Ask for a fresh one.');
-          if (res.status === 410) throw new Error('This invite link has been closed. Ask for a fresh one.');
-          if (res.status === 409) throw new Error('Someone has just joined under that name. Pick another, or choose Someone else.');
-          throw new Error('Couldn’t join just now. Try again.');
+          if (res.status === 404) throw new Error(t('This invite link isn’t valid any more. Ask for a fresh one.'));
+          if (res.status === 410) throw new Error(t('This invite link has been closed. Ask for a fresh one.'));
+          if (res.status === 409) throw new Error(t('Someone has just joined under that name. Pick another, or choose Someone else.'));
+          throw new Error(t('Couldn’t join just now. Try again.'));
         });
       });
     })();

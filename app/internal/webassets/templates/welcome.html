@@ -1,10 +1,10 @@
 {{define "welcome"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Getting started — Songbooks</title>
+<title>{{t "Getting started"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,7 +13,7 @@
 <div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
-  <h1>Getting started</h1>
+  <h1>{{t "Getting started"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
@@ -25,123 +25,123 @@
       <span class="wizard-dot{{if eq .Step 4}} active{{end}}{{if gt .Step 4}} done{{end}}"></span>
       <span class="wizard-dot{{if eq .Step 5}} active{{end}}{{if gt .Step 5}} done{{end}}"></span>
       <span class="wizard-dot{{if eq .Step 6}} active{{end}}"></span>
-      <span class="hint">step {{.Step}} of 6</span>
+      <span class="hint">{{t "step %d of %d" .Step 6}}</span>
     </div>
 
     {{if eq .Step 1}}
-    <h2>Welcome to Songbooks</h2>
-    <p>Chord charts, lyrics, your bands' repertoires, and setlists for the gig — all in one place. A few quick steps to set your profile up: a passkey, your instrument, a band (or not), a few first songs.</p>
+    <h2>{{t "Welcome to Songbooks"}}</h2>
+    <p>{{t "Chord charts, lyrics, your bands' repertoires, and setlists for the gig — all in one place. A few quick steps to set your profile up: a passkey, your instrument, a band (or not), a few first songs."}}</p>
     <div class="wizard-actions">
-      <a class="primary" href="/welcome?step=2{{if .Next}}&amp;next={{.Next}}{{end}}">Let's go</a>
+      <a class="primary" href="/welcome?step=2{{if .Next}}&amp;next={{.Next}}{{end}}">{{t "Let's go"}}</a>
       <form method="post" action="/welcome/finish" style="display:inline">
         {{if .Next}}<input type="hidden" name="next" value="{{.Next}}">{{end}}
-        <button type="submit" class="link-btn">Skip setup</button>
+        <button type="submit" class="link-btn">{{t "Skip setup"}}</button>
       </form>
     </div>
 
     {{else if eq .Step 2}}
-    <h2>Add a passkey</h2>
+    <h2>{{t "Add a passkey"}}</h2>
     {{if .AlreadyDone}}
-    <p class="hint">Already set up — Touch ID, Face ID, or Windows Hello will work next time you log in. Add another below (e.g. a second device), or just move on.</p>
+    <p class="hint">{{t "Already set up — Touch ID, Face ID, or Windows Hello will work next time you log in. Add another below (e.g. a second device), or just move on."}}</p>
     {{else}}
-    <p class="hint">Touch ID, Face ID, Windows Hello, or a security key — sign in next time with no password to type and no email to wait for. Takes a few seconds, and your password still works as a fallback either way.</p>
+    <p class="hint">{{t "Touch ID, Face ID, Windows Hello, or a security key — sign in next time with no password to type and no email to wait for. Takes a few seconds, and your password still works as a fallback either way."}}</p>
     {{end}}
     <div class="wizard-actions">
-      <button type="button" id="webauthn-register-btn" class="primary">{{if .AlreadyDone}}Add another passkey{{else}}Add a passkey{{end}}</button>
-      <a class="link-btn" href="/welcome?step=3{{if .Next}}&amp;next={{.Next}}{{end}}">{{if .AlreadyDone}}Continue{{else}}Skip this step{{end}}</a>
+      <button type="button" id="webauthn-register-btn" class="primary">{{if .AlreadyDone}}{{t "Add another passkey"}}{{else}}{{t "Add a passkey"}}{{end}}</button>
+      <a class="link-btn" href="/welcome?step=3{{if .Next}}&amp;next={{.Next}}{{end}}">{{if .AlreadyDone}}{{t "Continue"}}{{else}}{{t "Skip this step"}}{{end}}</a>
     </div>
     <p class="form-status" id="webauthn-register-status" role="status"></p>
-    <p class="hint" id="webauthn-register-unsupported" hidden>This browser can't use passkeys — no problem, skip this step and use your password instead.</p>
+    <p class="hint" id="webauthn-register-unsupported" hidden>{{t "This browser can't use passkeys — no problem, skip this step and use your password instead."}}</p>
 
     {{else if eq .Step 3}}
-    <h2>What do you play?</h2>
-    {{if .AlreadyDone}}<p class="hint">Already set — pick again any time, or just move on.</p>{{end}}
+    <h2>{{t "What do you play?"}}</h2>
+    {{if .AlreadyDone}}<p class="hint">{{t "Already set — pick again any time, or just move on."}}</p>{{end}}
     <form method="post" action="/profile/instruments" class="form-stack">
       <input type="hidden" name="next" value="/welcome?step=4{{if .Next}}&amp;next={{.Next}}{{end}}">
       {{/* sr-only, not display:none, so each icon is still a checkbox a
            keyboard can reach (the label shows its focus ring). */}}
       <fieldset class="field-group">
-        <legend>Pick any that apply</legend>
+        <legend>{{t "Pick any that apply"}}</legend>
         <div class="instrument-icon-row">
           {{range .CommonInstruments}}
           <label class="instrument-icon-btn{{if index $.Checked .}} active{{end}}">
             <input type="checkbox" name="instrument" value="{{.}}"{{if index $.Checked .}} checked{{end}} class="sr-only">
             {{template "instrument-icon" .}}
-            <span class="instrument-icon-label">{{.}}</span>
+            <span class="instrument-icon-label">{{t .}}</span>
           </label>
           {{end}}
         </div>
       </fieldset>
       <div class="field">
-        <label for="wizard-other-instruments">Other instruments <span class="field-optional">(optional)</span></label>
-        <p class="field-hint" id="wizard-other-instruments-hint">Separate them with commas, e.g. keyboard, sax.</p>
+        <label for="wizard-other-instruments">{{t "Other instruments"}} <span class="field-optional">{{t "(optional)"}}</span></label>
+        <p class="field-hint" id="wizard-other-instruments-hint">{{t "Separate them with commas, e.g. keyboard, sax."}}</p>
         <input id="wizard-other-instruments" type="text" name="other" value="{{.Other}}" aria-describedby="wizard-other-instruments-hint">
       </div>
       <div class="wizard-actions">
-        <button type="submit" class="primary">Continue</button>
-        <a class="link-btn" href="/welcome?step=4{{if .Next}}&amp;next={{.Next}}{{end}}">Skip this step</a>
+        <button type="submit" class="primary">{{t "Continue"}}</button>
+        <a class="link-btn" href="/welcome?step=4{{if .Next}}&amp;next={{.Next}}{{end}}">{{t "Skip this step"}}</a>
       </div>
     </form>
 
     {{else if eq .Step 4}}
-    <h2>Your band</h2>
+    <h2>{{t "Your band"}}</h2>
     {{if .Bands}}
-    <p class="hint">You're already in {{len .Bands}} band{{if ne (len .Bands) 1}}s{{end}}: {{range $i, $b := .Bands}}{{if $i}}, {{end}}<a href="/bands/{{$b.ID}}">{{$b.Name}}</a>{{end}}.</p>
+    <p class="hint">{{tn (len .Bands) "You're already in %d band" "You're already in %d bands"}}{{t ": "}}{{range $i, $b := .Bands}}{{if $i}}, {{end}}<a href="/bands/{{$b.ID}}">{{$b.Name}}</a>{{end}}.</p>
     <div class="wizard-actions">
-      <a class="primary" href="/welcome?step=5{{if .Next}}&amp;next={{.Next}}{{end}}">Continue</a>
+      <a class="primary" href="/welcome?step=5{{if .Next}}&amp;next={{.Next}}{{end}}">{{t "Continue"}}</a>
     </div>
     {{else}}
-    <p class="hint">Playing solo for now is perfectly fine — you can always create or join a band later from the Bands page.</p>
+    <p class="hint">{{t "Playing solo for now is perfectly fine — you can always create or join a band later from the Bands page."}}</p>
     <div class="wizard-option-row">
       <form class="wizard-option" id="wizard-band-form">
-        <h3>Create a band</h3>
+        <h3>{{t "Create a band"}}</h3>
         <div class="form-stack">
           <div class="field">
-            <label for="wizard-band-name">Band name</label>
-            <input type="text" id="wizard-band-name" placeholder="e.g. The Fretless" autocomplete="off" autocapitalize="words" enterkeyhint="done" required>
+            <label for="wizard-band-name">{{t "Band name"}}</label>
+            <input type="text" id="wizard-band-name" placeholder="{{t "e.g. The Fretless"}}" autocomplete="off" autocapitalize="words" enterkeyhint="done" required>
           </div>
           <p class="form-status" role="status"></p>
-          <div class="form-actions"><button type="submit" id="wizard-create-band-btn" class="primary">Create band</button></div>
+          <div class="form-actions"><button type="submit" id="wizard-create-band-btn" class="primary">{{t "Create band"}}</button></div>
         </div>
       </form>
       <div class="wizard-option">
-        <h3>Join a band</h3>
-        <p class="hint">Open the invite link someone sent you (WhatsApp, email…) — it'll bring you right back here once you're in.</p>
+        <h3>{{t "Join a band"}}</h3>
+        <p class="hint">{{t "Open the invite link someone sent you (WhatsApp, email…) — it'll bring you right back here once you're in."}}</p>
       </div>
     </div>
     <div class="wizard-actions">
-      <a class="link-btn" href="/welcome?step=5{{if .Next}}&amp;next={{.Next}}{{end}}">Skip this step</a>
+      <a class="link-btn" href="/welcome?step=5{{if .Next}}&amp;next={{.Next}}{{end}}">{{t "Skip this step"}}</a>
     </div>
     {{end}}
 
     {{else if eq .Step 5}}
-    <h2>A few first songs</h2>
+    <h2>{{t "A few first songs"}}</h2>
     {{if .MyCatalogCount}}
-    <p class="hint">You already have {{.MyCatalogCount}} song{{if ne .MyCatalogCount 1}}s{{end}} in <a href="/songbooks/mine">your songbook</a>. Add a few more below, or move on.</p>
+    <p class="hint">{{tn .MyCatalogCount "You already have %d song in" "You already have %d songs in"}} <a href="/songbooks/mine">{{t "your songbook"}}</a>. {{t "Add a few more below, or move on."}}</p>
     {{else}}
-    <p class="hint">Pick a couple from the global catalog to start your own songbook — one tap, it's yours to edit.</p>
+    <p class="hint">{{t "Pick a couple from the global catalog to start your own songbook — one tap, it's yours to edit."}}</p>
     {{end}}
     <div class="wizard-pick-grid">
       {{range .Picks}}
       <div class="wizard-pick" data-variant-id="{{.VariantID}}">
         <div class="wizard-pick-title">{{.Title}}</div>
         <div class="wizard-pick-artist hint">{{.Artist}}</div>
-        <button type="button" class="wizard-pick-add"><span class="wizard-pick-add-text">Add</span><span class="sr-only"> {{.Title}}</span></button>
+        <button type="button" class="wizard-pick-add"><span class="wizard-pick-add-text">{{t "Add"}}</span><span class="sr-only"> {{.Title}}</span></button>
       </div>
       {{end}}
     </div>
     <div class="wizard-actions">
-      <a class="primary" href="/welcome?step=6{{if .Next}}&amp;next={{.Next}}{{end}}">Continue</a>
-      <a class="link-btn" href="/welcome?step=6{{if .Next}}&amp;next={{.Next}}{{end}}">Skip this step</a>
+      <a class="primary" href="/welcome?step=6{{if .Next}}&amp;next={{.Next}}{{end}}">{{t "Continue"}}</a>
+      <a class="link-btn" href="/welcome?step=6{{if .Next}}&amp;next={{.Next}}{{end}}">{{t "Skip this step"}}</a>
     </div>
 
     {{else if eq .Step 6}}
-    <h2>You're set</h2>
-    <p>That's everything — find your bands and songs any time from the menu. Come back to this setup whenever you like from your Profile page.</p>
+    <h2>{{t "You're set"}}</h2>
+    <p>{{t "That's everything — find your bands and songs any time from the menu. Come back to this setup whenever you like from your Profile page."}}</p>
     <div class="wizard-actions">
       <form method="post" action="/welcome/finish">
         {{if .Next}}<input type="hidden" name="next" value="{{.Next}}">{{end}}
-        <button type="submit" class="primary">Done — take me to {{if .Next}}where I was{{else}}home{{end}}</button>
+        <button type="submit" class="primary">{{if .Next}}{{t "Done — take me to where I was"}}{{else}}{{t "Done — take me to home"}}{{end}}</button>
       </form>
     </div>
     {{end}}
@@ -169,10 +169,10 @@
   // The server's error strings are written for logs; these say what to
   // do next.
   function friendly(err, status) {
-    if (err && err.name === 'NotAllowedError') return 'The passkey request was cancelled or timed out. Try again, or skip this step.';
-    if (err && err.name === 'InvalidStateError') return 'This device already has a passkey for your account. You can move on.';
-    if (status === 400) return 'That took too long. Try again.';
-    return 'Couldn\u2019t add a passkey. Try again, or skip this step.';
+    if (err && err.name === 'NotAllowedError') return t('The passkey request was cancelled or timed out. Try again, or skip this step.');
+    if (err && err.name === 'InvalidStateError') return t('This device already has a passkey for your account. You can move on.');
+    if (status === 400) return t('That took too long. Try again.');
+    return t('Couldn\u2019t add a passkey. Try again, or skip this step.');
   }
 
   btn.addEventListener('click', async () => {
@@ -212,7 +212,7 @@
           method: 'POST', headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({name}),
         });
-        if (!res.ok) throw new Error('Couldn\u2019t create the band. Try again.');
+        if (!res.ok) throw new Error(t('Couldn\u2019t create the band. Try again.'));
         location.href = '/welcome?step=5{{if .Next}}&next={{.Next}}{{end}}';
         return new Promise(() => {}); // busy until the next step loads
       });
@@ -236,11 +236,11 @@
       } catch (e) {}
       Forms.busy(b, false);
       if (ok) {
-        text.textContent = 'Added';
+        text.textContent = t('Added');
         b.disabled = true;
         card.classList.add('wizard-pick-added');
       } else {
-        Forms.status(card, 'Couldn\u2019t add it. Try again.', 'error');
+        Forms.status(card, t('Couldn\u2019t add it. Try again.'), 'error');
       }
     });
   });

@@ -1,6 +1,6 @@
 {{define "index"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -17,7 +17,7 @@
 </header>
 <main class="index">
   <div class="home-greeting">
-    <h2>{{.Greeting}}, {{.Me.DisplayName}}</h2>
+    <h2>{{t .Greeting}}, {{.Me.DisplayName}}</h2>
   </div>
 
   {{/* Home answers "what do I do now?": the next date, what needs you,
@@ -26,15 +26,15 @@
        (Groups, Songbooks, Library); here they're one row of links. */}}
   {{with .NextUp}}
   <section class="home-section" aria-labelledby="next-up-title">
-    <div class="home-section-head"><h3 id="next-up-title">Next up</h3></div>
+    <div class="home-section-head"><h3 id="next-up-title">{{t "Next up"}}</h3></div>
     <div class="next-up-card kind-{{.Kind}}">
-      <div class="next-up-when">{{.When}}{{if not .AllDay}} &middot; {{.Starts.Format "15:04"}}{{end}}</div>
+      <div class="next-up-when">{{if or (eq .When "Today") (eq .When "Tomorrow")}}{{t .When}}{{else if eq .When (.Starts.Format "Monday 2 Jan")}}{{date .Starts "Monday 2 Jan"}}{{else}}{{date .Starts "Mon 2 Jan"}}{{end}}{{if not .AllDay}} &middot; {{.Starts.Format "15:04"}}{{end}}</div>
       <a class="next-up-title" href="{{.Link}}">{{.Title}}</a>
-      <div class="next-up-meta">{{.Details true}}</div>
+      <div class="next-up-meta">{{if ne .KindLabel .Title}}{{t .KindLabel}}{{if or .GroupName .Place}} · {{end}}{{end}}{{.GroupName}}{{if and .GroupName .Place}} · {{end}}{{.Place}}</div>
       <div class="next-up-actions">
-        {{if .SetlistLink}}<a class="chip-link primary" href="{{.SetlistLink}}">{{template "icon-setlists"}} The set list</a>
-        <a class="chip-link" href="/setlists/{{.SetlistID}}">{{template "icon-setlists"}} Set list</a>{{end}}
-        <a class="chip-link" href="{{.Link}}">Details</a>
+        {{if .SetlistLink}}<a class="chip-link primary" href="{{.SetlistLink}}">{{template "icon-setlists"}} {{t "The set list"}}</a>
+        <a class="chip-link" href="/setlists/{{.SetlistID}}">{{template "icon-setlists"}} {{t "Set list"}}</a>{{end}}
+        <a class="chip-link" href="{{.Link}}">{{t "Details"}}</a>
       </div>
     </div>
   </section>
@@ -45,13 +45,13 @@
   {{if .Attention}}
   <section class="home-section" aria-labelledby="attention-title">
     <div class="home-section-head">
-      <h3 id="attention-title">Needs you</h3>
-      <span class="count">{{len .Attention}} item{{if ne (len .Attention) 1}}s{{end}}</span>
+      <h3 id="attention-title">{{t "Needs you"}}</h3>
+      <span class="count">{{tn (len .Attention) "%d item" "%d items"}}</span>
     </div>
     <div class="attention-filters" id="attention-filters">
-      <button type="button" class="active" data-filter="all" aria-pressed="true">All</button>
-      <button type="button" data-filter="votes" aria-pressed="false">Votes</button>
-      <button type="button" data-filter="notifications" aria-pressed="false">Notifications</button>
+      <button type="button" class="active" data-filter="all" aria-pressed="true">{{t "All"}}</button>
+      <button type="button" data-filter="votes" aria-pressed="false">{{t "Votes"}}</button>
+      <button type="button" data-filter="notifications" aria-pressed="false">{{t "Notifications"}}</button>
     </div>
     <div class="attention-list" id="attention-list">
     {{range .Attention}}
@@ -67,12 +67,12 @@
 
   {{if or .Bands .Communities}}
   {{template "calendar-month" .Calendar}}
-  <p class="coach-subscribe"><a href="/calendar/subscribe">{{template "icon-calendar"}} Your calendar in your calendar app</a></p>
+  <p class="coach-subscribe"><a href="/calendar/subscribe">{{template "icon-calendar"}} {{t "Your calendar in your calendar app"}}</a></p>
   {{end}}
 
   {{if .Recent}}
   <section class="home-section" aria-labelledby="recent-title">
-    <div class="home-section-head"><h3 id="recent-title">Continue</h3></div>
+    <div class="home-section-head"><h3 id="recent-title">{{t "Continue"}}</h3></div>
     <div class="recent-songs">
     {{range .Recent}}
       <a class="recent-song" href="/song/{{.SongID}}{{if .Query}}?{{.Query}}{{end}}">
@@ -86,7 +86,7 @@
 
   {{if .BandNews}}
   <section class="home-section" aria-labelledby="news-title">
-    <div class="home-section-head"><h3 id="news-title">New in your bands</h3><span class="count">since your last visit</span></div>
+    <div class="home-section-head"><h3 id="news-title">{{t "New in your bands"}}</h3><span class="count">{{t "since your last visit"}}</span></div>
     <div class="attention-list">
     {{range .BandNews}}
       <a class="attention-row" href="/bands/{{.ID}}">
@@ -100,7 +100,7 @@
 
   {{if or .Bands .Communities}}
   <section class="home-section" aria-labelledby="groups-title">
-    <div class="home-section-head"><h3 id="groups-title">Your groups</h3><a href="/groups">all groups &rarr;</a></div>
+    <div class="home-section-head"><h3 id="groups-title">{{t "Your groups"}}</h3><a href="/groups">{{t "all groups"}} &rarr;</a></div>
     <div class="group-chips">
     {{range .Bands}}<a class="chip-link" href="/bands/{{.ID}}">{{template "icon-bands"}} {{.Name}}</a>{{end}}
     {{range .Communities}}<a class="chip-link" href="/communities/{{.ID}}">{{template "icon-community"}} {{.Name}}</a>{{end}}
@@ -109,11 +109,11 @@
   {{else}}
   {{/* Nobody to play with yet: the way in, instead of empty sections. */}}
   <section class="home-section">
-    <div class="home-section-head"><h3>Get started</h3></div>
+    <div class="home-section-head"><h3>{{t "Get started"}}</h3></div>
     <div class="attention-list">
-      <a class="attention-row" href="/bands"><div class="attention-title">Start a band, or join one</div><div class="attention-subtitle">Share songs, set lists and rehearsals with the people you play with.</div></a>
-      <a class="attention-row" href="/catalog"><div class="attention-title">Find a song in the library</div><div class="attention-subtitle">Search by title, artist or lyrics.</div></a>
-      <a class="attention-row" href="/welcome"><div class="attention-title">Set up your profile</div><div class="attention-subtitle">Your instruments, and how you like to read music.</div></a>
+      <a class="attention-row" href="/bands"><div class="attention-title">{{t "Start a band, or join one"}}</div><div class="attention-subtitle">{{t "Share songs, set lists and rehearsals with the people you play with."}}</div></a>
+      <a class="attention-row" href="/catalog"><div class="attention-title">{{t "Find a song in the library"}}</div><div class="attention-subtitle">{{t "Search by title, artist or lyrics."}}</div></a>
+      <a class="attention-row" href="/welcome"><div class="attention-title">{{t "Set up your profile"}}</div><div class="attention-subtitle">{{t "Your instruments, and how you like to read music."}}</div></a>
     </div>
   </section>
   {{end}}

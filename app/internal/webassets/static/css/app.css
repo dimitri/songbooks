@@ -6605,3 +6605,4 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .calendar-subscribe-url { display: flex; flex-direction: column; gap: 0.4rem; margin: 1rem 0 0.4rem; }
 .calendar-subscribe-copy { display: flex; gap: 0.4rem; }
 .calendar-subscribe-copy input { flex: 1; min-width: 0; min-height: 2.5rem; font: inherit; font-size: 0.85rem; }
+.topbar-meta-item.key-context { color: var(--accent-ink); font-weight: 600; }

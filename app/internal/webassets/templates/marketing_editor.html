@@ -1,9 +1,9 @@
 {{define "marketing_editor"}}<!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Songbooks — the editor &amp; song format</title>
+<title>Songbooks — {{t "the editor & song format"}}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,800;0,9..144,900&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -100,27 +100,27 @@
       </svg>
       Songbooks
     </div>
-    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Menu">
+    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="{{t "Menu"}}">
     <label for="nav-toggle" class="hamburger" aria-hidden="true"><span></span><span></span><span></span></label>
     <nav>
-      <a href="/">Home</a>
-      <a href="#import">Importing a song</a>
-      <a href="/guitar-pro">Guitar Pro import</a>
-      <a href="/for-educators">For educators</a>
+      <a href="/">{{t "Home"}}</a>
+      <a href="#import">{{t "Importing a song"}}</a>
+      <a href="/guitar-pro">{{t "Guitar Pro import"}}</a>
+      <a href="/for-educators">{{t "For educators"}}</a>
       {{if .Person}}
-      <a href="/home" class="btn">My Songbooks</a>
+      <a href="/home" class="btn">{{t "My Songbooks"}}</a>
       {{else}}
-      <a href="/login" class="btn">Sign in</a>
-      <span class="invite-note">invite&#8209;only for now</span>
+      <a href="/login" class="btn">{{t "Sign in"}}</a>
+      <span class="invite-note">{{t "invite‑only for now"}}</span>
       {{end}}
     </nav>
   </header>
 
   <section class="hero">
-    <div class="eyebrow">The editor &amp; the song format</div>
-    <h1>Plain text in.<br>A real chart <span class="hl">out.</span></h1>
-    <p class="lede">No import/export round trip, no "upload a PDF and hope it stays in sync." What you type on the left is exactly what renders on the right &mdash; on screen, in the PDF, on a music stand.</p>
-    <p class="lede"><a href="/docs/song-format">Read the full <code>.song</code> format reference &rarr;</a></p>
+    <div class="eyebrow">{{t "The editor & the song format"}}</div>
+    <h1>{{t "Plain text in."}}<br>{{t "A real chart"}} <span class="hl">{{t "out."}}</span></h1>
+    <p class="lede">{{t `No import/export round trip, no "upload a PDF and hope it stays in sync." What you type on the left is exactly what renders on the right — on screen, in the PDF, on a music stand.`}}</p>
+    <p class="lede"><a href="/docs/song-format">{{t "Read the full"}} <code>.song</code> {{t "format reference"}} &rarr;</a></p>
   </section>
 
   <div class="split">
@@ -137,71 +137,71 @@ grid: |: <span class="c">Gm</span> . . <span class="c">Cm</span> | <span class="
     </div>
     <div class="pane render">
       <div class="r-title">Ain't No Love in the Heart of the City</div>
-      <div class="r-sub">Gov't Mule &middot; 72 bpm</div>
-      <img src="/static/img/marketing/editor-screenshot-chart.png?v={{staticVersion}}" alt="The rendered chart for this exact grid, straight from the app's own Play view">
-      <p class="r-illustrative">(placeholder chorus line, for layout only &mdash; not the song's actual words)</p>
+      <div class="r-sub">Gov't Mule &middot; {{t "%s bpm" "72"}}</div>
+      <img src="/static/img/marketing/editor-screenshot-chart.png?v={{staticVersion}}" alt="{{t "The rendered chart for this exact grid, straight from the app's own Play view"}}">
+      <p class="r-illustrative">{{t "(placeholder chorus line, for layout only — not the song's actual words)"}}</p>
     </div>
   </div>
 
-  <p class="r-illustrative" style="margin:-8px 0 0;">Real header and grid line copied from this song's own entry in the production catalog &mdash; lyrics replaced with a placeholder for this marketing page. The render on the right is a screenshot of the app's own Play view for this exact source, not a hand-built approximation.</p>
+  <p class="r-illustrative" style="margin:-8px 0 0;">{{t "Real header and grid line copied from this song's own entry in the production catalog — lyrics replaced with a placeholder for this marketing page. The render on the right is a screenshot of the app's own Play view for this exact source, not a hand-built approximation."}}</p>
 
   <div class="callouts" style="margin-top:36px;">
     <div class="callout" style="grid-column: 1 / -1;">
-      <h4>Not a mockup &mdash; the actual in-app editor</h4>
-      <p style="margin-bottom:14px;">The bar-by-bar chord builder from the real app: pick a root, a quality, how long it holds, and the chart above updates as you go. No markup to memorize unless you want to drop into the <code>Source</code> tab directly.</p>
-      <img src="/static/img/marketing/editor-screenshot-builder.jpg?v={{staticVersion}}" alt="Screenshot of the real Songbooks chord-grid editor, mid-edit on this song" style="width:100%; border:2px solid var(--fg); border-radius:12px; box-shadow:7px 7px 0 var(--accent); display:block;">
+      <h4>{{t "Not a mockup — the actual in-app editor"}}</h4>
+      <p style="margin-bottom:14px;">{{t "The bar-by-bar chord builder from the real app: pick a root, a quality, how long it holds, and the chart above updates as you go. No markup to memorize unless you want to drop into the"}} <code>{{t "Source"}}</code> {{t "tab directly."}}</p>
+      <img src="/static/img/marketing/editor-screenshot-builder.jpg?v={{staticVersion}}" alt="{{t "Screenshot of the real Songbooks chord-grid editor, mid-edit on this song"}}" style="width:100%; border:2px solid var(--fg); border-radius:12px; box-shadow:7px 7px 0 var(--accent); display:block;">
     </div>
   </div>
 
   <div class="callouts" style="margin-top:28px;">
     <div class="callout" style="grid-column: 1 / -1;">
-      <h4>And when you need paper</h4>
-      <p style="margin-bottom:14px;">The same file drives the PDF export, native to the app &mdash; no separate layout pass, nothing to keep in sync by hand.</p>
-      <img src="/static/img/marketing/pdf-export-page.png?v={{staticVersion}}" alt="Screenshot of the real PDF export for this song" style="width:100%; max-width:420px; border:1px solid var(--border); border-radius:4px; box-shadow:0 10px 30px rgba(0,0,0,.12); display:block;">
+      <h4>{{t "And when you need paper"}}</h4>
+      <p style="margin-bottom:14px;">{{t "The same file drives the PDF export, native to the app — no separate layout pass, nothing to keep in sync by hand."}}</p>
+      <img src="/static/img/marketing/pdf-export-page.png?v={{staticVersion}}" alt="{{t "Screenshot of the real PDF export for this song"}}" style="width:100%; max-width:420px; border:1px solid var(--border); border-radius:4px; box-shadow:0 10px 30px rgba(0,0,0,.12); display:block;">
     </div>
   </div>
 
   <div class="callouts">
-    <div class="callout"><h4>Header fields</h4><p>Title, artist, key, tempo, time signature &mdash; plain <code>key: value</code> lines, nothing to configure in a sidebar first.</p></div>
-    <div class="callout"><h4>Grid or lyrics, same chart</h4><p>A chords-only section renders as a staff; a <code>[Chord]word</code> line puts the chord right above the word it changes on &mdash; not glued to every syllable.</p></div>
-    <div class="callout"><h4>Notes stay with the song</h4><p>An arrangement note &mdash; "let it ring," "capo 2" &mdash; is one line in the file and shows up right where it's relevant, on screen and in the PDF.</p></div>
+    <div class="callout"><h4>{{t "Header fields"}}</h4><p>{{t "Title, artist, key, tempo, time signature — plain"}} <code>key: value</code> {{t "lines, nothing to configure in a sidebar first."}}</p></div>
+    <div class="callout"><h4>{{t "Grid or lyrics, same chart"}}</h4><p>{{t "A chords-only section renders as a staff; a"}} <code>[Chord]word</code> {{t "line puts the chord right above the word it changes on — not glued to every syllable."}}</p></div>
+    <div class="callout"><h4>{{t "Notes stay with the song"}}</h4><p>{{t `An arrangement note — "let it ring," "capo 2" — is one line in the file and shows up right where it's relevant, on screen and in the PDF.`}}</p></div>
   </div>
 
   <section class="block" id="import">
-    <h2>Already have the chords somewhere else?</h2>
-    <p class="sub">Paste a link, drop in a file &mdash; not a blank page. The import wizard reads it and drops the result straight into the editor as a draft &mdash; you fix what it got wrong, you don't start from zero.</p>
+    <h2>{{t "Already have the chords somewhere else?"}}</h2>
+    <p class="sub">{{t "Paste a link, drop in a file — not a blank page. The import wizard reads it and drops the result straight into the editor as a draft — you fix what it got wrong, you don't start from zero."}}</p>
     <div class="callouts" style="margin-top:0;">
-      <div class="callout"><h4>From Ultimate Guitar</h4><p>Paste a tab page URL &mdash; the chord-over-lyric text comes in pre-formatted, ready to clean up.</p></div>
-      <div class="callout"><h4>From iReal Pro</h4><p>Bring in a song or a whole playlist from an iReal Pro forum link &mdash; chords, structure, and key arrive already split into sections.</p></div>
-      <div class="callout"><h4>Always a draft first</h4><p>Nothing imports straight into your songbook unedited &mdash; it lands in the editor so you can fix the inevitable wrong chord before saving.</p></div>
+      <div class="callout"><h4>{{t "From Ultimate Guitar"}}</h4><p>{{t "Paste a tab page URL — the chord-over-lyric text comes in pre-formatted, ready to clean up."}}</p></div>
+      <div class="callout"><h4>{{t "From iReal Pro"}}</h4><p>{{t "Bring in a song or a whole playlist from an iReal Pro forum link — chords, structure, and key arrive already split into sections."}}</p></div>
+      <div class="callout"><h4>{{t "Always a draft first"}}</h4><p>{{t "Nothing imports straight into your songbook unedited — it lands in the editor so you can fix the inevitable wrong chord before saving."}}</p></div>
       <div class="callout" style="grid-column: 1 / -1;">
-        <h4>From Guitar Pro</h4>
-        <p style="margin-bottom:14px;">Drop in a <code>.gp</code>/<code>.gp3</code>&ndash;<code>.gpx</code> file and bring in more than chords &mdash; drums, bass, and every guitar track, each kept as its own real notation (not a generic placeholder), automatically mapped onto your song's own sections, with the file's own embedded backing-track MP3 along with it if you want it. <a href="/guitar-pro">See what's supported &rarr;</a></p>
+        <h4>{{t "From Guitar Pro"}}</h4>
+        <p style="margin-bottom:14px;">{{t "Drop in a"}} <code>.gp</code>/<code>.gp3</code>&ndash;<code>.gpx</code> {{t "file and bring in more than chords — drums, bass, and every guitar track, each kept as its own real notation (not a generic placeholder), automatically mapped onto your song's own sections, with the file's own embedded backing-track MP3 along with it if you want it."}} <a href="/guitar-pro">{{t "See what's supported"}} &rarr;</a></p>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-          <iframe src="/docs/song-format/example/drum" title="Real rendered drum notation" loading="lazy" style="width:100%; min-height:110px; border:1px solid var(--border); border-radius:10px; background:#fff;"></iframe>
-          <iframe src="/docs/song-format/example/bass" title="Real rendered bass tab" loading="lazy" style="width:100%; min-height:110px; border:1px solid var(--border); border-radius:10px; background:#fff;"></iframe>
+          <iframe src="/docs/song-format/example/drum" title="{{t "Real rendered drum notation"}}" loading="lazy" style="width:100%; min-height:110px; border:1px solid var(--border); border-radius:10px; background:#fff;"></iframe>
+          <iframe src="/docs/song-format/example/bass" title="{{t "Real rendered bass tab"}}" loading="lazy" style="width:100%; min-height:110px; border:1px solid var(--border); border-radius:10px; background:#fff;"></iframe>
         </div>
       </div>
     </div>
   </section>
 
   <section class="block">
-    <h2>Why a text format, not a drag-and-drop builder</h2>
-    <p class="sub">A chart is a document, and documents are text &mdash; that gets you three things a purely visual editor can't.</p>
+    <h2>{{t "Why a text format, not a drag-and-drop builder"}}</h2>
+    <p class="sub">{{t "A chart is a document, and documents are text — that gets you three things a purely visual editor can't."}}</p>
     <div class="callouts" style="margin-top:0;">
-      <div class="callout"><h4>One source, every output</h4><p>The same file renders the web chart, the printable PDF, and the setlist export &mdash; there's nothing to keep in sync by hand.</p></div>
-      <div class="callout"><h4>Fast to type, fast to fix</h4><p>Transposing a section, fixing a wrong chord, adding a verse &mdash; it's a text edit, not a sequence of clicks through a toolbar.</p></div>
-      <div class="callout"><h4>Still has a real editor</h4><p>You don't have to hand-write the grammar &mdash; the in-app editor gives you section chips, a bar-by-bar chord builder, and live preview on top of the same format.</p></div>
+      <div class="callout"><h4>{{t "One source, every output"}}</h4><p>{{t "The same file renders the web chart, the printable PDF, and the setlist export — there's nothing to keep in sync by hand."}}</p></div>
+      <div class="callout"><h4>{{t "Fast to type, fast to fix"}}</h4><p>{{t "Transposing a section, fixing a wrong chord, adding a verse — it's a text edit, not a sequence of clicks through a toolbar."}}</p></div>
+      <div class="callout"><h4>{{t "Still has a real editor"}}</h4><p>{{t "You don't have to hand-write the grammar — the in-app editor gives you section chips, a bar-by-bar chord builder, and live preview on top of the same format."}}</p></div>
     </div>
   </section>
 
   <section class="block">
     <div class="ctaband">
       <div>
-        <h2>Bring in a song and see it render.</h2>
-        <p>Paste from a tab site, or start from scratch &mdash; the chart updates as you type.</p>
+        <h2>{{t "Bring in a song and see it render."}}</h2>
+        <p>{{t "Paste from a tab site, or start from scratch — the chart updates as you type."}}</p>
       </div>
-      <a href="{{if .Person}}/home{{else}}/login{{end}}" class="btn">{{if .Person}}My Songbooks{{else}}Start your songbook{{end}}</a>
+      <a href="{{if .Person}}/home{{else}}/login{{end}}" class="btn">{{if .Person}}{{t "My Songbooks"}}{{else}}{{t "Start your songbook"}}{{end}}</a>
     </div>
   </section>
 
@@ -220,8 +220,8 @@ grid: |: <span class="c">Gm</span> . . <span class="c">Cm</span> | <span class="
       Songbooks
     </div>
     <nav style="display:flex;">
-      <a href="/">Home</a>
-      <a href="/for-educators">For educators</a>
+      <a href="/">{{t "Home"}}</a>
+      <a href="/for-educators">{{t "For educators"}}</a>
     </nav>
   </footer>
 </div>

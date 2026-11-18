@@ -1,11 +1,11 @@
 {{define "listening_party"}}
 {{$brand := brandFor "band" .Band.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Band.Name}} — discover</title>
+<title>{{t "%s — discover" .Band.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,51 +15,51 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
-  <h1>{{.Band.Name}} — discover</h1>
+  <h1>{{t "%s — discover" .Band.Name}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
   {{template "band-tabs" (bandTabs .Band.ID "discover")}}
 
-  <p class="hint">Throw in songs you'd like the band to check out, then vote right here — these are the band's open song proposals on their own (see <a href="/bands/{{.Band.ID}}/proposals">all proposals</a>), so a session doesn't get lost in the full list. A single veto rejects a song immediately; otherwise it auto-accepts into the repertoire once more than half of the band's {{.MemberCount}} current members vote yes.</p>
+  <p class="hint">{{t "Throw in songs you’d like the band to check out, then vote right here — these are the band’s open song proposals on their own (see"}} <a href="/bands/{{.Band.ID}}/proposals">{{t "all proposals"}}</a>{{t "), so a session doesn’t get lost in the full list. A single veto rejects a song immediately; otherwise it auto-accepts into the repertoire once more than half of the band’s %d current members vote yes." .MemberCount}}</p>
 
   <div class="card" style="max-width:520px">
-    <h2>Throw in a song</h2>
+    <h2>{{t "Throw in a song"}}</h2>
     <form class="form-stack" id="submit-form">
       <div class="field">
-        <label for="song-input">Song</label>
-        <p class="field-hint" id="song-input-hint">Type a title or an artist, then pick the song from the list.</p>
+        <label for="song-input">{{t "Song"}}</label>
+        <p class="field-hint" id="song-input-hint">{{t "Type a title or an artist, then pick the song from the list."}}</p>
         <input type="search" id="song-input" aria-describedby="song-input-hint" autocomplete="off" enterkeyhint="search">
         <input type="hidden" id="variant-id-input">
         <div id="song-results" class="attention-list song-pick-results" aria-live="polite"></div>
       </div>
       <div class="field">
-        <label for="note-input">Note <span class="field-optional">(optional)</span></label>
-        <input type="text" id="note-input" placeholder="e.g. great for the second set" autocomplete="off">
+        <label for="note-input">{{t "Note"}} <span class="field-optional">{{t "(optional)"}}</span></label>
+        <input type="text" id="note-input" placeholder="{{t "e.g. great for the second set"}}" autocomplete="off">
       </div>
       <div class="form-actions">
-        <button type="submit" id="submit-btn" class="primary">Add to the queue</button>
+        <button type="submit" id="submit-btn" class="primary">{{t "Add to the queue"}}</button>
       </div>
       <p id="submit-result" class="form-status" role="status"></p>
     </form>
   </div>
 
   <div class="table-scroll"><table class="card" style="width:100%">
-    <thead><tr><th>Song</th><th>Submitted by</th><th>Votes</th><th></th></tr></thead>
+    <thead><tr><th>{{t "Song"}}</th><th>{{t "Submitted by"}}</th><th>{{t "Votes"}}</th><th></th></tr></thead>
     <tbody>
     {{range .Proposals}}
       <tr data-proposal-id="{{.ID}}">
-        <td><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}Song {{deref64 .TargetVariantID}}{{end}}</a></td>
+        <td><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}{{t "Song %s" (deref64 .TargetVariantID)}}{{end}}</a></td>
         <td>{{.ProposerUsername}}</td>
-        <td class="vote-tally">{{.YesVotes}} yes / {{.VetoVotes}} veto</td>
+        <td class="vote-tally">{{t "%d yes / %d veto" .YesVotes .VetoVotes}}</td>
         <td>
-          <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="yes">Vote yes</button>
-          <button type="button" class="vote-btn danger" data-proposal-id="{{.ID}}" data-vote="veto" data-title="{{.TargetTitle}}">Veto</button>
+          <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="yes">{{t "Vote yes"}}</button>
+          <button type="button" class="vote-btn danger" data-proposal-id="{{.ID}}" data-vote="veto" data-title="{{.TargetTitle}}">{{t "Veto"}}</button>
           <p class="form-status" role="status"></p>
         </td>
       </tr>
     {{else}}
-      <tr><td colspan="4" class="hint">Nothing in the queue yet — throw in a song above.</td></tr>
+      <tr><td colspan="4" class="hint">{{t "Nothing in the queue yet — throw in a song above."}}</td></tr>
     {{end}}
     </tbody>
   </table></div>
@@ -81,7 +81,7 @@ function songPicker(input, hidden, list) {
     if (!hits.length) {
       const p = document.createElement('p');
       p.className = 'attention-empty';
-      p.textContent = res && res.ok ? 'No songs match that.' : 'Couldn’t search the catalog. Try again.';
+      p.textContent = res && res.ok ? t('No songs match that.') : t('Couldn’t search the catalog. Try again.');
       list.append(p);
       return;
     }
@@ -89,10 +89,10 @@ function songPicker(input, hidden, list) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'attention-row';
-      const t = document.createElement('span');
-      t.className = 'attention-title';
-      t.textContent = hit.title;
-      b.append(t);
+      const ti = document.createElement('span');
+      ti.className = 'attention-title';
+      ti.textContent = hit.title;
+      b.append(ti);
       if (hit.artist) {
         const a = document.createElement('span');
         a.className = 'attention-subtitle';
@@ -128,7 +128,7 @@ document.getElementById('submit-form').addEventListener('submit', (e) => {
   const targetVariantId = Number(document.getElementById('variant-id-input').value);
   const note = document.getElementById('note-input').value.trim();
   if (!targetVariantId) {
-    Forms.fieldError(songInput, songInput.value.trim() ? 'Pick the song from the list under the field.' : 'Enter a song title or artist, then pick the song.');
+    Forms.fieldError(songInput, songInput.value.trim() ? t('Pick the song from the list under the field.') : t('Enter a song title or artist, then pick the song.'));
     songInput.focus();
     return;
   }
@@ -137,13 +137,13 @@ document.getElementById('submit-form').addEventListener('submit', (e) => {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({kind: 'new_song', targetVariantId, payload: {note}}),
     });
-    if (!res.ok) throw new Error("Couldn't add it to the queue. Try again.");
+    if (!res.ok) throw new Error(t('Couldn’t add it to the queue. Try again.'));
     location.reload();
   });
 });
 document.querySelectorAll('.vote-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (btn.dataset.vote === 'veto' && !confirm(`Veto ${btn.dataset.title ? `“${btn.dataset.title}”` : 'this song'}? One veto turns it down straight away.`)) return;
+    if (btn.dataset.vote === 'veto' && !confirm(t('Veto %s? One veto turns it down straight away.', btn.dataset.title ? t('“%s”', btn.dataset.title) : t('this song')))) return;
     const st = btn.parentElement.querySelector('.form-status');
     Forms.status(st, '');
     Forms.busy(btn, true);
@@ -154,7 +154,7 @@ document.querySelectorAll('.vote-btn').forEach(btn => {
     if (res && res.ok) { location.reload(); return; }
     Forms.busy(btn, false);
     // 409: someone else's vote or decision got there first.
-    Forms.status(st, res && res.status === 409 ? 'This one has already been decided. Reload to see how.' : "Couldn't record your vote. Try again.", 'error');
+    Forms.status(st, res && res.status === 409 ? t('This one has already been decided. Reload to see how.') : t('Couldn’t record your vote. Try again.'), 'error');
   });
 });
 </script>

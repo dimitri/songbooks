@@ -1,11 +1,11 @@
 {{define "band_settings"}}
 {{$brand := brandFor "band" .Band.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Band.Name}} — settings</title>
+<title>{{t "%s — settings" .Band.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,41 +15,59 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
-  <h1>Settings</h1>
+  <h1>{{t "Settings"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
   {{template "band-tabs" (bandTabs .Band.ID "settings")}}
 
   <div class="card card--md">
-    <h2>The band</h2>
+    <h2>{{t "The band"}}</h2>
     <form class="form-stack" id="band-settings-form">
       <div class="field">
-        <label for="settings-name">Band name</label>
+        <label for="settings-name">{{t "Band name"}}</label>
         <input type="text" id="settings-name" value="{{.Band.Name}}" required maxlength="120" autocomplete="off" enterkeyhint="done">
       </div>
       <fieldset class="field-group">
-        <legend>What the band plays</legend>
-        <p class="field-hint" id="music-type-hint">An original band's repertoire is grouped by album.</p>
-        <label class="check"><input type="radio" name="musicType" value="covers" aria-describedby="music-type-hint"{{if eq .Band.MusicType "covers"}} checked{{end}}> Covers</label>
-        <label class="check"><input type="radio" name="musicType" value="original" aria-describedby="music-type-hint"{{if eq .Band.MusicType "original"}} checked{{end}}> Original music</label>
-        <label class="check"><input type="radio" name="musicType" value="" aria-describedby="music-type-hint"{{if eq .Band.MusicType ""}} checked{{end}}> Not set</label>
+        <legend>{{t "What the band plays"}}</legend>
+        <p class="field-hint" id="music-type-hint">{{t "An original band’s repertoire is grouped by album."}}</p>
+        <label class="check"><input type="radio" name="musicType" value="covers" aria-describedby="music-type-hint"{{if eq .Band.MusicType "covers"}} checked{{end}}> {{t "Covers"}}</label>
+        <label class="check"><input type="radio" name="musicType" value="original" aria-describedby="music-type-hint"{{if eq .Band.MusicType "original"}} checked{{end}}> {{t "Original music"}}</label>
+        <label class="check"><input type="radio" name="musicType" value="" aria-describedby="music-type-hint"{{if eq .Band.MusicType ""}} checked{{end}}> {{t "Not set"}}</label>
       </fieldset>
       <div class="form-actions">
-        <button type="submit" id="band-settings-save" class="primary">Save changes</button>
+        <button type="submit" id="band-settings-save" class="primary">{{t "Save changes"}}</button>
       </div>
       <p class="form-status" role="status"></p>
     </form>
   </div>
 
+  {{if .IsCore}}
+  <div class="card card--md">
+    <h2>{{t "Language"}}</h2>
+    <form class="form-stack" id="band-locale-form">
+      <div class="field">
+        <label for="band-locale">{{t "Language of the band’s pages"}}</label>
+        <select id="band-locale" aria-describedby="band-locale-hint">
+          <option value=""{{if eq .Locale ""}} selected{{end}}>{{t "Automatic (from each member’s settings and browser)"}}</option>
+          <option value="en"{{if eq .Locale "en"}} selected{{end}}>English</option>
+          <option value="fr"{{if eq .Locale "fr"}} selected{{end}}>Français</option>
+        </select>
+        <p class="field-hint" id="band-locale-hint">{{t "The language of the band’s pages for members who haven’t chosen theirs in their profile."}}</p>
+      </div>
+      <p class="form-status" id="band-locale-status" role="status"></p>
+    </form>
+  </div>
+  {{end}}
+
   {{if .IsCore}}{{template "brand-editor" (printf "/api/bands/%d/brand" .Band.ID)}}{{else}}
-  <p class="hint">Core members can change the band's look.</p>
+  <p class="hint">{{t "Core members can change the band’s look."}}</p>
   {{end}}
 
   <div class="card card--narrow danger-zone">
-    <h2>Delete the band</h2>
-    <p class="hint">Deletes {{.Band.Name}}, its repertoire, set lists and calendar, for every member. This can't be undone.</p>
-    <button type="button" id="delete-band-btn" class="danger">Delete {{.Band.Name}}</button>
+    <h2>{{t "Delete the band"}}</h2>
+    <p class="hint">{{t "Deletes %s, its repertoire, set lists and calendar, for every member. This can’t be undone." .Band.Name}}</p>
+    <button type="button" id="delete-band-btn" class="danger">{{t "Delete %s" .Band.Name}}</button>
     <p id="delete-band-result" class="form-status" role="status"></p>
   </div>
 </main>
@@ -67,21 +85,31 @@ document.getElementById('band-settings-form').addEventListener('submit', (e) => 
     }).catch(() => null);
     if (name !== bandName) {
       const res = await post('name', {name});
-      if (!res || !res.ok) throw new Error("Couldn't rename the band. Try again.");
+      if (!res || !res.ok) throw new Error(t('Couldn’t rename the band. Try again.'));
     }
     const res = await post('music-type', {musicType});
-    if (!res || !res.ok) throw new Error("Couldn't save what the band plays. Try again.");
+    if (!res || !res.ok) throw new Error(t('Couldn’t save what the band plays. Try again.'));
     location.reload();
   });
 });
+const localeSelect = document.getElementById('band-locale');
+if (localeSelect) localeSelect.addEventListener('change', async () => {
+  const locale = localeSelect.value;
+  const status = document.getElementById('band-locale-status');
+  const res = await fetch('/api/bands/' + bandId + '/locale', {
+    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({locale}),
+  }).catch(() => null);
+  if (res && res.ok) { location.reload(); return; }
+  Forms.status(status, t('Couldn’t save the language. Try again.'), 'error');
+});
 document.getElementById('delete-band-btn').addEventListener('click', async (e) => {
-  if (!confirm(`Delete ${bandName} and its whole repertoire for every member? This can't be undone.`)) return;
+  if (!confirm(t('Delete %s and its whole repertoire for every member? This can’t be undone.', bandName))) return;
   const btn = e.currentTarget;
   Forms.busy(btn, true);
   const res = await fetch(`/api/bands/${bandId}`, {method: 'DELETE'}).catch(() => null);
   if (res && res.ok) { location.href = '/bands'; return; }
   Forms.busy(btn, false);
-  Forms.status(document.getElementById('delete-band-result'), `Couldn't delete ${bandName}. Try again.`, 'error');
+  Forms.status(document.getElementById('delete-band-result'), t('Couldn’t delete %s. Try again.', bandName), 'error');
 });
 </script>
 {{template "notif-bell-script"}}

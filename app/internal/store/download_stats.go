@@ -102,9 +102,9 @@ type CourseLessonStats struct {
 	Downloads  int
 }
 
-// Label is the lesson's name as its course lists it.
-func (l CourseLessonStats) Label() string {
-	return Lesson{Number: l.Number, Title: l.Title}.Label()
+// Label is the lesson's name as its course lists it, in lang.
+func (l CourseLessonStats) Label(lang string) string {
+	return Lesson{Number: l.Number, Title: l.Title}.Label(lang)
 }
 
 // communitySongsCTE is the songs of a community's songbooks.
@@ -347,7 +347,8 @@ func (st *Store) GetMemberActivity(ctx context.Context, communityID, personID in
 type MemberLessonDone struct {
 	SongbookID int64
 	LessonID   int64
-	Label      string
+	Number     *int // the lesson's, as Lesson's: a page names it
+	Title      string
 	At         time.Time
 }
 
@@ -366,11 +367,9 @@ func (st *Store) GetMemberLessonsDone(ctx context.Context, communityID, personID
 	var out []MemberLessonDone
 	for rows.Next() {
 		var d MemberLessonDone
-		var l Lesson
-		if err := rows.Scan(&d.SongbookID, &d.LessonID, &l.Number, &l.Title, &d.At); err != nil {
+		if err := rows.Scan(&d.SongbookID, &d.LessonID, &d.Number, &d.Title, &d.At); err != nil {
 			return nil, err
 		}
-		d.Label = l.Label()
 		out = append(out, d)
 	}
 	return out, rows.Err()

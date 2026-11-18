@@ -1,13 +1,13 @@
 {{define "invite"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>
-{{if eq .Kind "personal"}}Welcome, {{.DisplayName}}
-{{else if eq .Kind "band"}}Join {{.BandName}}
-{{else}}Create your account{{end}} — Songbooks</title>
+{{if eq .Kind "personal"}}{{t "Welcome, %s" .DisplayName}}
+{{else if eq .Kind "band"}}{{t "Join %s" .BandName}}
+{{else}}{{t "Create your account"}}{{end}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -16,30 +16,30 @@
   <div class="hero">
     <div>
       {{if eq .Kind "personal"}}
-        <h2>Welcome, {{.DisplayName}}</h2>
-        <p>You're already on the roster for:</p>
+        <h2>{{t "Welcome, %s" .DisplayName}}</h2>
+        <p>{{t "You're already on the roster for:"}}</p>
         <ul>
-        {{range .Memberships}}<li>{{.Name}} <span class="hint">({{.Status}})</span></li>{{end}}
+        {{range .Memberships}}<li>{{.Name}} <span class="hint">({{t .Status}})</span></li>{{end}}
         </ul>
-        <p class="hint">Finish setting up your login below — nothing else changes, these memberships are already yours.</p>
+        <p class="hint">{{t "Finish setting up your login below — nothing else changes, these memberships are already yours."}}</p>
       {{else if eq .Kind "band"}}
-        <h2>Join {{.BandName}}</h2>
-        <p>You've been invited as a <strong>{{.BandStatus}}</strong> member.</p>
+        <h2>{{t "Join %s" .BandName}}</h2>
+        <p>{{t "You've been invited as a"}} <strong>{{t .BandStatus}}</strong>{{t " member."}}</p>
       {{else}}
-        <h2>Create your account</h2>
-        <p>You've been invited to join Songbooks.</p>
+        <h2>{{t "Create your account"}}</h2>
+        <p>{{t "You've been invited to join Songbooks."}}</p>
       {{end}}
     </div>
   </div>
   <form class="card" method="post" action="/invite/{{.Token}}" id="invite-form">
     {{if .LoggedInAs}}{{if ne .Kind "personal"}}
       <p>
-      {{if eq .Kind "band"}}Join {{.BandName}} as <strong>{{.LoggedInAs}}</strong>?
-      {{else}}Continue as <strong>{{.LoggedInAs}}</strong>?{{end}}
+      {{if eq .Kind "band"}}{{t "Join %s as" .BandName}} <strong>{{.LoggedInAs}}</strong>{{t "?"}}
+      {{else}}{{t "Continue as"}} <strong>{{.LoggedInAs}}</strong>{{t "?"}}{{end}}
       </p>
       <button type="submit" class="primary">
-      {{if eq .Kind "band"}}Join {{.BandName}}
-      {{else}}Continue{{end}}
+      {{if eq .Kind "band"}}{{t "Join %s" .BandName}}
+      {{else}}{{t "Continue"}}{{end}}
       </button>
     {{end}}{{end}}
     {{if or (eq .Kind "personal") (not .LoggedInAs)}}
@@ -49,35 +49,35 @@
              a reason it recognises under its own field. */}}
         {{if .Error}}<p class="form-status is-error" role="alert" id="invite-error">{{.Error}}</p>{{end}}
         <div class="field">
-          <label for="f-username">Username</label>
-          <p class="field-hint" id="f-username-hint">What you'll log in with, e.g. marcguitar.</p>
+          <label for="f-username">{{t "Username"}}</label>
+          <p class="field-hint" id="f-username-hint">{{t "What you'll log in with, e.g. marcguitar."}}</p>
           <input id="f-username" type="text" name="username" value="{{.Username}}" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="f-username-hint" required autofocus>
         </div>
         {{if ne .Kind "personal"}}
         <div class="field">
-          <label for="f-display-name">Your name</label>
-          <p class="field-hint" id="f-display-name-hint">How your bandmates will see you.</p>
+          <label for="f-display-name">{{t "Your name"}}</label>
+          <p class="field-hint" id="f-display-name-hint">{{t "How your bandmates will see you."}}</p>
           <input id="f-display-name" type="text" name="display_name" value="{{.DisplayName}}" autocomplete="name" autocapitalize="words" aria-describedby="f-display-name-hint" required>
         </div>
         {{end}}
         <div class="field">
-          <label for="f-email">Email</label>
+          <label for="f-email">{{t "Email"}}</label>
           <input id="f-email" type="email" name="email" value="{{.Email}}" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" required>
         </div>
         <div class="field">
-          <label for="f-password">Password</label>
-          <p class="field-hint" id="f-password-hint">At least 8 characters.</p>
+          <label for="f-password">{{t "Password"}}</label>
+          <p class="field-hint" id="f-password-hint">{{t "At least 8 characters."}}</p>
           <div class="pw-field">
             <input id="f-password" type="password" name="password" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="f-password-hint" required minlength="8">
-            <button type="button" class="pw-toggle" aria-controls="f-password f-confirm" aria-pressed="false" hidden><span class="pw-toggle-text">Show</span><span class="sr-only"> passwords</span></button>
+            <button type="button" class="pw-toggle" aria-controls="f-password f-confirm" aria-pressed="false" hidden><span class="pw-toggle-text">{{t "Show"}}</span><span class="sr-only"> {{t "passwords"}}</span></button>
           </div>
         </div>
         <div class="field">
-          <label for="f-confirm">Password again</label>
+          <label for="f-confirm">{{t "Password again"}}</label>
           <input id="f-confirm" type="password" name="confirm" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" data-match="f-password" required minlength="8">
         </div>
-        <p class="hint">You'll be offered a passkey (Touch ID, Face ID, Windows Hello) right after this, as a faster alternative for next time — your password still works either way.</p>
-        <div class="form-actions"><button type="submit" class="primary">{{if eq .Kind "personal"}}Finish setting up my account{{else}}Create account{{if ne .Kind "plain"}} and join{{end}}{{end}}</button></div>
+        <p class="hint">{{t "You'll be offered a passkey (Touch ID, Face ID, Windows Hello) right after this, as a faster alternative for next time — your password still works either way."}}</p>
+        <div class="form-actions"><button type="submit" class="primary">{{if eq .Kind "personal"}}{{t "Finish setting up my account"}}{{else if ne .Kind "plain"}}{{t "Create account and join"}}{{else}}{{t "Create account"}}{{end}}</button></div>
       </div>
     {{end}}
   </form>
@@ -97,11 +97,11 @@
   if (!errEl) return;
   const msg = errEl.textContent.trim();
   const byField = [
-    [/username is already taken/, 'f-username', 'That username is taken. Try another.'],
-    [/email is already registered/, 'f-email', 'That email already belongs to another account. Use a different one, or log in with it instead.'],
-    [/valid email/, 'f-email', 'Enter an email address like name@example.com.'],
-    [/at least 8/, 'f-password', 'Use at least 8 characters.'],
-    [/didn't match/, 'f-confirm', 'The two passwords didn’t match. Type the same one in both.'],
+    [/username is already taken/, 'f-username', t('That username is taken. Try another.')],
+    [/email is already registered/, 'f-email', t('That email already belongs to another account. Use a different one, or log in with it instead.')],
+    [/valid email/, 'f-email', t('Enter an email address like name@example.com.')],
+    [/at least 8/, 'f-password', t('Use at least %d characters.', 8)],
+    [/didn't match/, 'f-confirm', t('The two passwords didn’t match. Type the same one in both.')],
   ];
   for (const [re, id, text] of byField) {
     const input = document.getElementById(id);

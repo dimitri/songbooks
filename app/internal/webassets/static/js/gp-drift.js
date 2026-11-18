@@ -95,7 +95,7 @@
         break;
       }
       default:
-        throw new Error('This difference can’t be written into the file.');
+        throw new Error(t('This difference can’t be written into the file.'));
     }
   }
 
@@ -120,7 +120,7 @@
         case 'keep': await post('keep', { fact, sig: li.dataset.sig }); break;
         case 'unkeep': await post('keep', { fact, sig: '' }); break;
         case 'push': {
-          if (!window.GPView) throw new Error('The file viewer didn’t load.');
+          if (!window.GPView) throw new Error(t('The file viewer didn’t load.'));
           const score = await window.GPView.loadScore(true);
           pushInto(score, JSON.parse(li.dataset.push));
           await window.GPView.saveScore(score);

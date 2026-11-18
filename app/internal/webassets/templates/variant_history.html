@@ -1,10 +1,10 @@
 {{define "variant_history"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Variant.Title}} — revision history</title>
+<title>{{.Variant.Title}} — {{t "revision history"}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,56 +13,56 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/song/{{.Variant.VariantID}}">{{template "icon-back"}} {{.Variant.Title}}</a>
-  <h1>Revision history</h1>
+  <h1>{{t "Revision history"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  {{if not .CanEdit}}<p class="hint">You can't edit this song, so you can look at its history but not restore an earlier version.</p>{{end}}
+  {{if not .CanEdit}}<p class="hint">{{t "You can't edit this song, so you can look at its history but not restore an earlier version."}}</p>{{end}}
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>When</th><th>By</th><th>What changed</th><th></th></tr></thead>
+    <thead><tr><th>{{t "When"}}</th><th>{{t "By"}}</th><th>{{t "What changed"}}</th><th></th></tr></thead>
     <tbody>
     {{range .Revisions}}
       {{$e := index $.Edits .ID}}
       <tr data-revision-id="{{.ID}}">
-        <td data-label="When">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
-        <td data-label="By">{{if .ActorName}}{{.ActorName}}{{else}}&mdash;{{end}}</td>
-        <td data-label="What changed" class="history-changes">
+        <td data-label="{{t "When"}}">{{date .CreatedAt "2006-01-02 15:04"}}</td>
+        <td data-label="{{t "By"}}">{{if .ActorName}}{{.ActorName}}{{else}}&mdash;{{end}}</td>
+        <td data-label="{{t "What changed"}}" class="history-changes">
           {{if $e.Changes}}
-          <ul>{{range $e.Changes}}<li><strong>{{.Where}}</strong> {{.What}}</li>{{end}}{{if $e.More}}<li class="hint">and {{$e.More}} more</li>{{end}}</ul>
-          {{else}}<span class="hint">nothing</span>{{end}}
+          <ul>{{range $e.Changes}}<li><strong>{{.Where}}</strong> {{.What}}</li>{{end}}{{if $e.More}}<li class="hint">{{t "and %d more" $e.More}}</li>{{end}}</ul>
+          {{else}}<span class="hint">{{t "nothing"}}</span>{{end}}
           {{if $e.Lines}}
-          <details class="history-diff"><summary>Show the text</summary>
+          <details class="history-diff"><summary>{{t "Show the text"}}</summary>
             <pre>{{range $e.Lines}}<span class="diff-{{if eq .Op "+"}}add{{else if eq .Op "-"}}del{{else if eq .Op "…"}}skip{{else}}ctx{{end}}">{{if eq .Op "…"}}…{{else}}{{.Op}} {{.Text}}{{end}}</span>{{end}}</pre>
           </details>
           {{end}}
         </td>
-        <td>{{if $.CanEdit}}<button type="button" class="revert-btn" data-revision-id="{{.ID}}" >Restore the version before this</button>{{end}}</td>
+        <td>{{if $.CanEdit}}<button type="button" class="revert-btn" data-revision-id="{{.ID}}" >{{t "Restore the version before this"}}</button>{{end}}</td>
       </tr>
     {{else}}
-      <tr><td colspan="4" class="hint">No edits recorded yet.</td></tr>
+      <tr><td colspan="4" class="hint">{{t "No edits recorded yet."}}</td></tr>
     {{end}}
     </tbody>
   </table></div>
   {{if or .GPFile .GPVersions}}
-  <h2>Guitar Pro files</h2>
-  <p class="hint">Every Guitar Pro file this song was imported from. Re-importing a new one keeps the previous file here.</p>
+  <h2>{{t "Guitar Pro files"}}</h2>
+  <p class="hint">{{t "Every Guitar Pro file this song was imported from. Re-importing a new one keeps the previous file here."}}</p>
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>File</th><th>Uploaded</th><th>Until</th><th></th></tr></thead>
+    <thead><tr><th>{{t "File"}}</th><th>{{t "Uploaded"}}</th><th>{{t "Until"}}</th><th></th></tr></thead>
     <tbody>
     {{with .GPFile}}
       <tr>
-        <td data-label="File">{{.Filename}}</td>
-        <td data-label="Uploaded">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
-        <td data-label="Until">current</td>
-        <td><a href="/song/{{$.Variant.VariantID}}/gp-file" download>download</a></td>
+        <td data-label="{{t "File"}}">{{.Filename}}</td>
+        <td data-label="{{t "Uploaded"}}">{{date .CreatedAt "2006-01-02 15:04"}}</td>
+        <td data-label="{{t "Until"}}">{{t "current"}}</td>
+        <td><a href="/song/{{$.Variant.VariantID}}/gp-file" download>{{t "download"}}</a></td>
       </tr>
     {{end}}
     {{range .GPVersions}}
       <tr>
-        <td data-label="File">{{.Filename}}</td>
-        <td data-label="Uploaded">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
-        <td data-label="Until">{{.ReplacedAt.Format "2006-01-02 15:04"}}</td>
-        <td><a href="/song/{{$.Variant.VariantID}}/gp-file/versions/{{.ID}}" download>download</a></td>
+        <td data-label="{{t "File"}}">{{.Filename}}</td>
+        <td data-label="{{t "Uploaded"}}">{{date .CreatedAt "2006-01-02 15:04"}}</td>
+        <td data-label="{{t "Until"}}">{{date .ReplacedAt "2006-01-02 15:04"}}</td>
+        <td><a href="/song/{{$.Variant.VariantID}}/gp-file/versions/{{.ID}}" download>{{t "download"}}</a></td>
       </tr>
     {{end}}
     </tbody>
@@ -72,14 +72,14 @@
 <script>
 document.querySelectorAll('.revert-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (!confirm('Restore the song as it was before this change? Later changes are undone too, and the restore itself shows up here, so it can be undone.')) return;
+    if (!confirm(t('Restore the song as it was before this change? Later changes are undone too, and the restore itself shows up here, so it can be undone.'))) return;
     const id = btn.dataset.revisionId;
     // The outcome goes in the same table cell as the button.
     await Forms.run(btn.parentElement, btn, async () => {
       const res = await fetch(`/api/revisions/${id}/revert`, {method: 'POST'});
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Couldn’t restore that version. Try again.');
+        throw new Error(data.error || t('Couldn’t restore that version. Try again.'));
       }
       location.reload();
     });

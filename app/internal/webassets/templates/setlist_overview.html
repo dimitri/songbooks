@@ -1,7 +1,7 @@
 {{define "setlist-overview"}}
 {{$brand := brandFor .BrandKind .BrandID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,7 +14,7 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="{{.BackURL}}">{{template "icon-back"}} {{.BackLabel}}</a>
+  <a class="back-link" href="{{.BackURL}}">{{template "icon-back"}} {{if eq .BackLabel "Set lists"}}{{t "Set lists"}}{{else}}{{.BackLabel}}{{end}}</a>
   <h1>{{.Title}}</h1>
   <nav class="song-nav">
     {{template "notif-bell"}}
@@ -30,45 +30,45 @@
 
 <main class="index">
   <nav class="band-tabs band-tabs-row setlist-tabs">
-    <a href="{{.Path}}" class="band-tab active">{{template "icon-setlists"}} Running order</a>
-    <a href="{{.Path}}/clicktrack" class="band-tab">{{template "icon-metronome"}} Metronome</a>
-    {{if .Playable}}<button type="button" class="band-tab" data-play-all>{{template "icon-play"}} Play all</button>{{end}}
+    <a href="{{.Path}}" class="band-tab active">{{template "icon-setlists"}} {{t "Running order"}}</a>
+    <a href="{{.Path}}/clicktrack" class="band-tab">{{template "icon-metronome"}} {{t "Metronome"}}</a>
+    {{if .Playable}}<button type="button" class="band-tab" data-play-all>{{template "icon-play"}} {{t "Play all"}}</button>{{end}}
     <details class="band-tab-menu">
-      <summary title="export PDF">{{template "icon-download"}} PDF</summary>
+      <summary title="{{t "export PDF"}}">{{template "icon-download"}} PDF</summary>
       <div class="row-menu-panel">
-        <a href="/setlists/{{.SetlistID}}/export-setlist-page.pdf" download>One-pager setlist</a>
-        <a href="/setlists/{{.SetlistID}}/export.pdf" download>Full setlist songbook</a>
+        <a href="/setlists/{{.SetlistID}}/export-setlist-page.pdf" download>{{t "One-pager setlist"}}</a>
+        <a href="/setlists/{{.SetlistID}}/export.pdf" download>{{t "Full setlist songbook"}}</a>
       </div>
     </details>
-    {{if .CanEdit}}<button type="button" id="reorder-toggle" class="band-tab">{{template "icon-edit"}} <span id="reorder-toggle-label">Reorder</span></button>{{end}}
+    {{if .CanEdit}}<button type="button" id="reorder-toggle" class="band-tab">{{template "icon-edit"}} <span id="reorder-toggle-label">{{t "Reorder"}}</span></button>{{end}}
   </nav>
   {{if .Choice}}
-  <div class="pl-prefer setlist-prefer" role="group" aria-label="Play first">
-    <button type="button" data-prefer="rec" aria-pressed="true">Our recordings</button>
-    <button type="button" data-prefer="ref" aria-pressed="false">Reference</button>
+  <div class="pl-prefer setlist-prefer" role="group" aria-label="{{t "Play first"}}">
+    <button type="button" data-prefer="rec" aria-pressed="true">{{t "Our recordings"}}</button>
+    <button type="button" data-prefer="ref" aria-pressed="false">{{t "Reference"}}</button>
   </div>
   {{end}}
 
   {{if .IsEmpty}}
-  <p class="attention-empty">No songs yet.{{if .CanEdit}} Add the ones to play below.{{end}}</p>
+  <p class="attention-empty">{{t "No songs yet."}}{{if .CanEdit}} {{t "Add the ones to play below."}}{{end}}</p>
   {{end}}
   {{range $setIdx, $set := .Sets}}
   <section class="gig-set" data-set-index="{{$setIdx}}">
     <h2>{{$set.Label}}</h2>
     <div class="gig-table" data-reorder-list>
       {{range $rowIdx, $row := $set.Rows}}
-      <div class="gig-row setlist-overview-row{{if $row.Sound}} has-sound{{end}}" data-set-index="{{$setIdx}}" data-row-index="{{$rowIdx}}"{{with $row.Sound}}{{with .Rec}}{{if .Src}} data-rec-src="{{.Src}}"{{else}} data-rec-file="{{.File}}" data-rec-host="{{.Host}}" data-rec-code="{{.Code}}"{{end}} data-rec-label="{{.Label}}"{{end}}{{with .Ref}} data-ref-src="{{.Src}}" data-ref-label="{{.Label}}"{{end}} data-rp-src="" data-title="{{$row.Title}}" data-set="{{$set.Label}}" data-tile="Song {{$row.Num}}"{{end}}>
+      <div class="gig-row setlist-overview-row{{if $row.Sound}} has-sound{{end}}" data-set-index="{{$setIdx}}" data-row-index="{{$rowIdx}}"{{with $row.Sound}}{{with .Rec}}{{if .Src}} data-rec-src="{{.Src}}"{{else}} data-rec-file="{{.File}}" data-rec-host="{{.Host}}" data-rec-code="{{.Code}}"{{end}} data-rec-label="{{t .Label}}"{{end}}{{with .Ref}} data-ref-src="{{.Src}}" data-ref-label="{{t .Label}}"{{end}} data-rp-src="" data-title="{{$row.Title}}" data-set="{{$set.Label}}" data-tile="{{t "Song %s" (printf "%v" $row.Num)}}"{{end}}>
         <span class="gig-num">{{$row.Num}}</span>
         <a class="gig-title" href="/song/{{$row.VariantID}}?setlist={{$.SetlistID}}">
           {{$row.Title}}{{if $row.Note}}<small class="gig-note">{{$row.Note}}</small>{{end}}
         </a>
         <span class="gig-key">{{$row.Key}}</span>
         <span class="gig-tempo">{{if $row.Tempo}}{{$row.Tempo}}{{end}}</span>
-        {{if $row.Sound}}<button type="button" class="rec-play" aria-label="Play {{$row.Title}}">{{template "icon-play"}}</button>
-        {{else if $row.Reference}}<a class="icon-btn setlist-overview-play" href="{{$row.Reference}}" target="_blank" rel="noopener" title="Watch it on YouTube — no recording of it yet">{{template "icon-reference"}}</a>{{end}}
+        {{if $row.Sound}}<button type="button" class="rec-play" aria-label="{{t "Play %s" $row.Title}}">{{template "icon-play"}}</button>
+        {{else if $row.Reference}}<a class="icon-btn setlist-overview-play" href="{{$row.Reference}}" target="_blank" rel="noopener" title="{{t "Watch it on YouTube — no recording of it yet"}}">{{template "icon-reference"}}</a>{{end}}
         <span class="setlist-overview-reorder-btns" hidden>
-          <button type="button" class="icon-btn" data-move="up" title="move up">&#9650;</button>
-          <button type="button" class="icon-btn" data-move="down" title="move down">&#9660;</button>
+          <button type="button" class="icon-btn" data-move="up" title="{{t "move up"}}">&#9650;</button>
+          <button type="button" class="icon-btn" data-move="down" title="{{t "move down"}}">&#9660;</button>
         </span>
       </div>
       {{end}}
@@ -78,17 +78,17 @@
 
   {{if .CanEdit}}
   <div class="card card--md" id="add-songs">
-    <h2>Add songs</h2>
+    <h2>{{t "Add songs"}}</h2>
     <form class="form-stack" id="add-songs-form" role="search">
       <div class="field">
-        <label for="add-songs-q">{{if .IsBand}}Song from the repertoire{{else}}Song from the library{{end}}</label>
-        <p class="field-hint" id="add-songs-hint">{{if .IsBand}}Type part of a title or artist.{{else}}Type a title or an artist, then search.{{end}}</p>
+        <label for="add-songs-q">{{if .IsBand}}{{t "Song from the repertoire"}}{{else}}{{t "Song from the library"}}{{end}}</label>
+        <p class="field-hint" id="add-songs-hint">{{if .IsBand}}{{t "Type part of a title or artist."}}{{else}}{{t "Type a title or an artist, then search."}}{{end}}</p>
         <input type="search" id="add-songs-q" aria-describedby="add-songs-hint" autocomplete="off" enterkeyhint="search">
       </div>
-      {{if not .IsBand}}<div class="form-actions"><button type="submit" id="add-songs-search" class="primary">Search</button></div>{{end}}
+      {{if not .IsBand}}<div class="form-actions"><button type="submit" id="add-songs-search" class="primary">{{t "Search"}}</button></div>{{end}}
       <p class="form-status" role="status"></p>
     </form>
-    <ul class="add-songs-results" id="add-songs-results" aria-label="Songs to add"></ul>
+    <ul class="add-songs-results" id="add-songs-results" aria-label="{{t "Songs to add"}}"></ul>
   </div>
   {{end}}
 </main>
@@ -143,7 +143,7 @@
 
   toggleBtn.addEventListener('click', () => {
     reordering = !reordering;
-    toggleLabel.textContent = reordering ? 'Done' : 'Reorder';
+    toggleLabel.textContent = reordering ? t('Done') : t('Reorder');
     toggleBtn.classList.toggle('active', reordering);
     setRowButtonsVisible(reordering);
   });
@@ -206,12 +206,12 @@
     for (const song of songs.slice(0, 12)) {
       const li = document.createElement('li');
       const text = document.createElement('div');
-      const t = document.createElement('div'); t.className = 'attention-title'; t.textContent = song.title;
-      text.appendChild(t);
+      const ti = document.createElement('div'); ti.className = 'attention-title'; ti.textContent = song.title;
+      text.appendChild(ti);
       if (song.artist) { const a = document.createElement('div'); a.className = 'attention-subtitle'; a.textContent = song.artist; text.appendChild(a); }
       const btn = document.createElement('button');
-      btn.type = 'button'; btn.textContent = 'Add';
-      btn.setAttribute('aria-label', `Add ${song.title}`);
+      btn.type = 'button'; btn.textContent = t('Add');
+      btn.setAttribute('aria-label', t('Add %s', song.title));
       btn.addEventListener('click', () => addSong(song, btn));
       li.append(text, btn);
       results.appendChild(li);
@@ -233,7 +233,7 @@
       if (put && put.ok) { location.reload(); return; }
     }
     Forms.busy(btn, false);
-    Forms.status(addForm, `Couldn't add “${song.title}”. Try again.`, 'error');
+    Forms.status(addForm, t('Couldn’t add “%s”. Try again.', song.title), 'error');
   }
   if (isBand) {
     q.addEventListener('input', () => {
@@ -246,12 +246,12 @@
     addForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const term = q.value.trim();
-      if (!term) { Forms.fieldError(q, 'Type a title or an artist.'); return; }
+      if (!term) { Forms.fieldError(q, t('Type a title or an artist.')); return; }
       Forms.run(addForm, document.getElementById('add-songs-search'), async () => {
         const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(term)}`);
-        if (!res.ok) throw new Error("Couldn't search the library. Try again.");
+        if (!res.ok) throw new Error(t('Couldn’t search the library. Try again.'));
         const hits = await res.json();
-        if (!hits.length) Forms.status(addForm, 'No songs match that.', '');
+        if (!hits.length) Forms.status(addForm, t('No songs match that.'), '');
         show(hits);
       });
     });

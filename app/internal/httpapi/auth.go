@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"app/internal/i18n"
 	"app/internal/store"
 )
 
@@ -52,6 +53,7 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		// that didn't deliberately opt in, including production.
 		if s.devAutoLogin != nil {
 			ctx := context.WithValue(r.Context(), personCtxKey, s.devAutoLogin)
+			setLangPerson(w, s.devAutoLogin)
 			next(w, r.WithContext(ctx))
 			return
 		}
@@ -66,6 +68,7 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		ctx := context.WithValue(r.Context(), personCtxKey, p)
+		setLangPerson(w, p)
 		next(w, r.WithContext(ctx))
 	}
 }
@@ -183,8 +186,14 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		if p, err := s.store.GetPersonByEmail(r.Context(), email); err == nil {
 			if token, err := s.store.CreateLoginToken(r.Context(), p.ID); err == nil {
 				link := s.loginLinkURL(r, token)
-				subject := "Your Songbooks login link"
-				body := fmt.Sprintf("Hi %s,\n\nClick this link to log in to Songbooks (expires in 15 minutes):\n\n%s\n\nIf you didn't request this, you can ignore this email.", p.DisplayName, link)
+				// In the recipient's language: their own choice, else the
+				// browser's that asked for the link.
+				lang, _ := s.store.PersonLocale(r.Context(), p.ID)
+				if lang == "" {
+					lang = s.langOfRequest(r)
+				}
+				subject := i18n.T(lang, "Your Songbooks login link")
+				body := i18n.T(lang, "Hi %s,\n\nClick this link to log in to Songbooks (expires in 15 minutes):\n\n%s\n\nIf you didn't request this, you can ignore this email.", p.DisplayName, link)
 				if err := s.mailer.Send(r.Context(), p.Email, subject, body); err != nil {
 					log.Printf("sending login email: %v", err)
 				}

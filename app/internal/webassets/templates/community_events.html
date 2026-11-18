@@ -1,11 +1,11 @@
 {{define "community_events"}}
 {{$brand := brandFor "community" .Community.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Community.Name}} — Events</title>
+<title>{{t "%s — Events" .Community.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,50 +15,50 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{.Community.Name}} — Events</h1>
+  <h1>{{t "%s — Events" .Community.Name}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
   {{if .Me}}
   <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/communities/{{.Community.ID}}">Overview</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{shelfLabel "community" .Community.ID}}</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}">{{t "Overview"}}</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{t (shelfLabel "community" .Community.ID)}}</a>
     {{template "coaching-tab-links" .}}
-    <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">Downloads</a>
-    <a href="/communities/{{.Community.ID}}/events" class="band-tab active">Events</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
+    <a href="/communities/{{.Community.ID}}/events" class="band-tab active">{{t "Events"}}</a>
   </nav>
   {{end}}
   {{/* Public page, no login required — anyone can see what's on and
        register. Upcoming first (the common case), past kept below for
        reference ("did we already do this jam?"). */}}
   <div class="card">
-    <h3>Upcoming</h3>
+    <h3>{{t "Upcoming"}}</h3>
     <div class="form-stack">
     {{range .Upcoming}}
       <div class="import-row">
         <div>
           <a href="/events/{{.ID}}"><strong>{{.Name}}</strong></a>
-          <div class="hint">{{.StartsAt.Format "Mon, Jan 2 2006 · 15:04"}}{{if .Location}} — {{.Location}}{{end}}</div>
+          <div class="hint">{{date .StartsAt "Mon 2 Jan 2006 · 15:04"}}{{if .Location}} — {{.Location}}{{end}}</div>
         </div>
       </div>
     {{else}}
-      <p class="hint">Nothing scheduled yet.</p>
+      <p class="hint">{{t "Nothing scheduled yet."}}</p>
     {{end}}
     </div>
   </div>
 
   <div class="card">
-    <h3>Past</h3>
+    <h3>{{t "Past"}}</h3>
     <div class="form-stack">
     {{range .Past}}
       <div class="import-row">
         <div>
           <a href="/events/{{.ID}}">{{.Name}}</a>
-          <div class="hint">{{.StartsAt.Format "Mon, Jan 2 2006"}}{{if .Location}} — {{.Location}}{{end}}</div>
+          <div class="hint">{{date .StartsAt "Mon 2 Jan 2006"}}{{if .Location}} — {{.Location}}{{end}}</div>
         </div>
       </div>
     {{else}}
-      <p class="hint">No past events yet.</p>
+      <p class="hint">{{t "No past events yet."}}</p>
     {{end}}
     </div>
   </div>

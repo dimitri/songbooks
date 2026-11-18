@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"app/internal/i18n"
 	"app/internal/setlist"
 	"app/internal/store"
 	"app/internal/webassets"
@@ -222,6 +223,7 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 			backLabel, band = b.Name, b
 		}
 	}
+	lang := s.langOf(w)
 	playable, choice := 0, false
 	var sets []gigSet
 	n := 0
@@ -232,9 +234,9 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			n++
-			title, tempo, key, reference := "untitled", "", "", ""
+			title, tempo, key, reference := i18n.T(lang, "untitled"), "", "", ""
 			if sg, _, err := s.store.LoadVariant(e.VariantID); err == nil {
-				title = orDefault(sg.Get("title"), "untitled")
+				title = orDefault(sg.Get("title"), i18n.T(lang, "untitled"))
 				tempo = sg.Get("tempo")
 				key = sg.Get("key")
 				reference = sg.Get("reference")
@@ -281,7 +283,7 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "setlist-overview", map[string]any{
 		"Me": person, "SetlistID": id, "Version": version, "CanEdit": canEdit,
 		"Path": setlistPath(meta), "BackURL": backURL, "BackLabel": backLabel,
-		"Title": orDefault(l.Get("title"), orDefault(meta.Title, "Set list")), "Date": l.Get("date"), "Venue": l.Get("venue"),
+		"Title": orDefault(l.Get("title"), orDefault(meta.Title, i18n.T(lang, "Set list"))), "Date": l.Get("date"), "Venue": l.Get("venue"),
 		"IsEmpty": n == 0, "Repertoire": repertoire, "IsBand": meta.OwnerBandID != nil,
 		"Sets": sets, "BrandKind": brandKind, "BrandID": brandID,
 		"Band": band, "Playable": playable, "Choice": choice,
@@ -688,6 +690,7 @@ func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	lang := s.langOf(w)
 	var songs []clicktrackSong
 	n := 0
 	for si, set := range l.Sets {
@@ -707,7 +710,7 @@ func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request)
 			songs = append(songs, clicktrackSong{
 				Index: n, SetLabel: set.Label, SetIndex: si, IsFirstInSet: first,
 				VariantID: e.VariantID,
-				Title:     orDefault(sg.Get("title"), "untitled"), Artist: sg.Get("artist"),
+				Title:     orDefault(sg.Get("title"), i18n.T(lang, "untitled")), Artist: sg.Get("artist"),
 				Key: sg.Get("key"), Tempo: tempo, TimeSig: orDefault(sg.Get("time"), "4/4"),
 				Note: e.Note,
 			})
@@ -722,7 +725,7 @@ func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request)
 	songsJSON, _ := json.Marshal(songs)
 
 	s.render(w, "setlist-clicktrack", map[string]any{
-		"Me": person, "SetlistID": id, "Title": orDefault(meta.Title, "set list"), "Path": setlistPath(meta),
+		"Me": person, "SetlistID": id, "Title": orDefault(meta.Title, i18n.T(lang, "set list")), "Path": setlistPath(meta),
 		"SongsJSON": template.JS(songsJSON),
 	})
 }

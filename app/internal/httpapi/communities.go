@@ -673,12 +673,14 @@ func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	locale, _ := s.store.CommunityLocale(r.Context(), communityID) // "" automatic
 	s.render(w, "community_admin", map[string]any{
 		"Me": person, "Community": community, "Members": members,
 		"PendingSubmissions": pending, "AllSubmissions": decided,
 		"Entries": entries, "ShellPeople": shellPeople,
 		"Events": events, "EventManagers": eventManagers,
 		"Roles": roles, "AllPrivileges": store.AllCommunityPrivileges,
+		"Locale": locale,
 	})
 }
 

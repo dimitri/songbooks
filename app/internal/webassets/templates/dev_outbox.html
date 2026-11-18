@@ -1,10 +1,10 @@
 {{define "dev_outbox"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dev outbox — Songbooks</title>
+<title>{{t "Dev outbox"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,18 +13,18 @@
 <div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
-  <h1>Dev outbox</h1>
+  <h1>{{t "Dev outbox"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  <p class="hint">Local dev stand-in for an inbox — every email the console mailer has "sent", newest first. This page is admin-only because it contains live login links.</p>
+  <p class="hint">{{t "Local dev stand-in for an inbox — every email the console mailer has \"sent\", newest first. This page is admin-only because it contains live login links."}}</p>
   <div class="card">
-    {{if not .Entries}}<p>No outbox entries yet.</p>{{end}}
+    {{if not .Entries}}<p>{{t "No outbox entries yet."}}</p>{{end}}
     {{range .Entries}}
       <div class="card" style="margin-bottom:1em">
-        <p><strong>To:</strong> {{.To}}</p>
-        <p><strong>Subject:</strong> {{.Subject}}</p>
-        <p><strong>Sent:</strong> {{.CreatedAt.Format "2006-01-02 15:04:05"}}</p>
+        <p><strong>{{t "To:"}}</strong> {{.To}}</p>
+        <p><strong>{{t "Subject:"}}</strong> {{.Subject}}</p>
+        <p><strong>{{t "Sent:"}}</strong> {{.CreatedAt.Format "2006-01-02 15:04:05"}}</p>
         <pre style="white-space:pre-wrap">{{.Body | autolink}}</pre>
       </div>
     {{end}}

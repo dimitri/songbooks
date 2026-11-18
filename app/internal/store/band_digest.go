@@ -2,15 +2,16 @@ package store
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"time"
+
+	"app/internal/i18n"
 )
 
 // BandChange is one entry in a band's "since your last visit" digest —
 // deliberately as simple as ListRevisions' own "~N lines changed"
-// convention: a timestamp, who (if known), and a plain summary string,
-// no structured diff.
+// convention: a timestamp, who (if known), and a plain summary string
+// (in the reader's language), no structured diff.
 type BandChange struct {
 	CreatedAt time.Time
 	ActorName string // "" if unknown
@@ -23,8 +24,9 @@ type BandChange struct {
 // ever," used the first time someone ever views the band page, before
 // any band_member_last_seen row exists for them). Reverse-chronological,
 // capped at 100 entries — this is a digest, not a full audit log (see
-// /variants/{id}/history and ListRevisions for the latter).
-func (st *Store) ListBandChanges(ctx context.Context, bandID int64, since *time.Time) ([]BandChange, error) {
+// /variants/{id}/history and ListRevisions for the latter). The summaries
+// are in lang.
+func (st *Store) ListBandChanges(ctx context.Context, lang string, bandID int64, since *time.Time) ([]BandChange, error) {
 	var out []BandChange
 
 	variantRows, err := st.db.Query(ctx, `
@@ -45,7 +47,7 @@ func (st *Store) ListBandChanges(ctx context.Context, bandID int64, since *time.
 			variantRows.Close()
 			return nil, err
 		}
-		out = append(out, BandChange{createdAt, actorName, fmt.Sprintf("edited %q", title)})
+		out = append(out, BandChange{createdAt, actorName, i18n.T(lang, "edited %q", title)})
 	}
 	variantRows.Close()
 	if err := variantRows.Err(); err != nil {
@@ -82,11 +84,11 @@ func (st *Store) ListBandChanges(ctx context.Context, bandID int64, since *time.
 		}
 		switch {
 		case !preExisted:
-			out = append(out, BandChange{createdAt, actorName, fmt.Sprintf("%s joined as %s", memberName, status)})
+			out = append(out, BandChange{createdAt, actorName, i18n.T(lang, "%s joined as %s", memberName, i18n.T(lang, status))})
 		case leftAt != nil:
-			out = append(out, BandChange{createdAt, actorName, fmt.Sprintf("%s left the band", memberName)})
+			out = append(out, BandChange{createdAt, actorName, i18n.T(lang, "%s left the band", memberName)})
 		default:
-			out = append(out, BandChange{createdAt, actorName, fmt.Sprintf("%s's status changed to %s", memberName, status)})
+			out = append(out, BandChange{createdAt, actorName, i18n.T(lang, "%s's status changed to %s", memberName, i18n.T(lang, status))})
 		}
 	}
 	memberRows.Close()
@@ -115,19 +117,19 @@ func (st *Store) ListBandChanges(ctx context.Context, bandID int64, since *time.
 			return nil, err
 		}
 		if title == "" {
-			title = "a song"
+			title = i18n.T(lang, "a song")
 		}
-		kindLabel := "a new song"
+		kindLabel := i18n.T(lang, "a new song")
 		if kind == "new_reference" {
-			kindLabel = "a new reference URL"
+			kindLabel = i18n.T(lang, "a new reference URL")
 		}
 		switch {
 		case !preExisted:
-			out = append(out, BandChange{createdAt, actorName, fmt.Sprintf("proposed %s for %q", kindLabel, title)})
+			out = append(out, BandChange{createdAt, actorName, i18n.T(lang, "proposed %s for %q", kindLabel, title)})
 		case status == "accepted":
-			out = append(out, BandChange{createdAt, actorName, fmt.Sprintf("proposal for %q (%s) was accepted", title, kindLabel)})
+			out = append(out, BandChange{createdAt, actorName, i18n.T(lang, "proposal for %q (%s) was accepted", title, kindLabel)})
 		case status == "rejected":
-			out = append(out, BandChange{createdAt, actorName, fmt.Sprintf("proposal for %q (%s) was rejected", title, kindLabel)})
+			out = append(out, BandChange{createdAt, actorName, i18n.T(lang, "proposal for %q (%s) was rejected", title, kindLabel)})
 		}
 	}
 	proposalRows.Close()

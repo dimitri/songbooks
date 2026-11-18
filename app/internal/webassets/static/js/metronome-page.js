@@ -203,13 +203,13 @@
       clock.start();
       metronome.enabled = true;
       metronome.start();
-      playBtn.title = 'Stop'; playBtn.setAttribute('aria-label', 'Stop');
+      playBtn.title = t('Stop'); playBtn.setAttribute('aria-label', t('Stop'));
       playBtn.innerHTML = iconPause;
     } else {
       clock.pause();
       metronome.stop();
       clock.seekToBeat(0);
-      playBtn.title = 'Start'; playBtn.setAttribute('aria-label', 'Start');
+      playBtn.title = t('Start'); playBtn.setAttribute('aria-label', t('Start'));
       playBtn.innerHTML = iconPlay;
     }
   }

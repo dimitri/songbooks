@@ -1,11 +1,11 @@
 {{define "songbook_access"}}
 {{$brand := brandFor "community" .Community.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Songbook.Name}} — sharing and access — Songbooks</title>
+<title>{{t "%s — sharing and access" .Songbook.Name}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -14,53 +14,53 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}/songbooks">{{template "icon-back"}} Songbooks</a>
-  <h1>{{.Songbook.Name}} — sharing and access</h1>
+  <a class="back-link" href="/communities/{{.Community.ID}}/songbooks">{{template "icon-back"}} {{t "Songbooks"}}</a>
+  <h1>{{t "%s — sharing and access" .Songbook.Name}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
   <div class="card">
-    <h3>Songbook or course</h3>
-    <p class="hint" id="kind-hint">A course groups its songs in lessons, in order, each with its text and files, and shows members where they are in it. Access, sharing and downloads stay the same.</p>
-    <label class="check"><input type="radio" name="kind" value="songbook" aria-describedby="kind-hint" {{if not .Songbook.IsCourse}}checked{{end}}> Songbook</label>
-    <label class="check"><input type="radio" name="kind" value="course" aria-describedby="kind-hint" {{if .Songbook.IsCourse}}checked{{end}}> Course</label>
+    <h3>{{t "Songbook or course"}}</h3>
+    <p class="hint" id="kind-hint">{{t "A course groups its songs in lessons, in order, each with its text and files, and shows members where they are in it. Access, sharing and downloads stay the same."}}</p>
+    <label class="check"><input type="radio" name="kind" value="songbook" aria-describedby="kind-hint" {{if not .Songbook.IsCourse}}checked{{end}}> {{t "Songbook"}}</label>
+    <label class="check"><input type="radio" name="kind" value="course" aria-describedby="kind-hint" {{if .Songbook.IsCourse}}checked{{end}}> {{t "Course"}}</label>
     <p id="kind-result" class="form-status" role="status"></p>
   </div>
 
   <div class="card">
-    <h3>Shared or private</h3>
-    <p class="hint" id="shared-hint">Shared, whoever can open a song can also copy it into their own songbook, a band’s or another community’s. Private, the songs can be opened, played and downloaded but not copied — an author’s lessons stay theirs. Either way the songbook can be sold separately, below.</p>
-    <label class="check"><input type="radio" name="shared" value="true" aria-describedby="shared-hint" {{if .Songbook.Shared}}checked{{end}}> Shared</label>
-    <label class="check"><input type="radio" name="shared" value="false" aria-describedby="shared-hint" {{if not .Songbook.Shared}}checked{{end}}> Private</label>
+    <h3>{{t "Shared or private"}}</h3>
+    <p class="hint" id="shared-hint">{{t "Shared, whoever can open a song can also copy it into their own songbook, a band’s or another community’s. Private, the songs can be opened, played and downloaded but not copied — an author’s lessons stay theirs. Either way the songbook can be sold separately, below."}}</p>
+    <label class="check"><input type="radio" name="shared" value="true" aria-describedby="shared-hint" {{if .Songbook.Shared}}checked{{end}}> {{t "Shared"}}</label>
+    <label class="check"><input type="radio" name="shared" value="false" aria-describedby="shared-hint" {{if not .Songbook.Shared}}checked{{end}}> {{t "Private"}}</label>
     <p id="shared-result" class="form-status" role="status"></p>
   </div>
 
   <div class="card">
-    <h3>Who can open this songbook</h3>
-    <p class="hint" id="requires-grant-hint">Unticked, every current member can open it. Ticked, only the members you give access to below can — for a songbook sold separately (payment itself is handled outside the app for now; a purchase will give access the same way). Changes save straight away.</p>
-    <label class="check"><input type="checkbox" id="requires-grant-toggle" aria-describedby="requires-grant-hint" {{if .Songbook.RequiresGrant}}checked{{end}}> Only members given access</label>
+    <h3>{{t "Who can open this songbook"}}</h3>
+    <p class="hint" id="requires-grant-hint">{{t "Unticked, every current member can open it. Ticked, only the members you give access to below can — for a songbook sold separately (payment itself is handled outside the app for now; a purchase will give access the same way). Changes save straight away."}}</p>
+    <label class="check"><input type="checkbox" id="requires-grant-toggle" aria-describedby="requires-grant-hint" {{if .Songbook.RequiresGrant}}checked{{end}}> {{t "Only members given access"}}</label>
     <p id="toggle-result" class="form-status" role="status"></p>
   </div>
 
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>Member</th><th>Role</th><th>Access</th></tr></thead>
+    <thead><tr><th>{{t "Member"}}</th><th>{{t "Role"}}</th><th>{{t "Access"}}</th></tr></thead>
     <tbody>
     {{range .Members}}
       <tr data-person-id="{{.PersonID}}">
-        <td data-label="Member">{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Username}}{{end}}</td>
-        <td data-label="Role">{{.Role}}</td>
-        <td data-label="Access">
-          <label class="check"><input type="checkbox" class="grant-checkbox" data-person-id="{{.PersonID}}" aria-label="{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Username}}{{end}} has access" {{with index $.Granted .PersonID}}{{if not .Expired}}checked{{end}}{{end}}> Has access</label>
-          {{with index $.Granted .PersonID}}<span class="hint">{{if .Expired}}ended {{.ExpiresAt.Format "2 Jan 2006"}}{{else}}{{if eq .Source "purchase"}}bought{{else if eq .Source "bundle"}}in a bundle{{else}}given{{end}} {{.GrantedAt.Format "2 Jan 2006"}}{{with .ExpiresAt}}, until {{.Format "2 Jan 2006"}}{{end}}{{with .Reference}} · {{.}}{{end}}{{end}}</span>{{end}}
+        <td data-label="{{t "Member"}}">{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Username}}{{end}}</td>
+        <td data-label="{{t "Role"}}">{{t .Role}}</td>
+        <td data-label="{{t "Access"}}">
+          <label class="check"><input type="checkbox" class="grant-checkbox" data-person-id="{{.PersonID}}" aria-label="{{t "%s has access" (or .DisplayName .Username)}}" {{with index $.Granted .PersonID}}{{if not .Expired}}checked{{end}}{{end}}> {{t "Has access"}}</label>
+          {{with index $.Granted .PersonID}}<span class="hint">{{if .Expired}}{{t "ended %s" (date .ExpiresAt "2 Jan 2006")}}{{else}}{{if eq .Source "purchase"}}{{t "bought %s" (date .GrantedAt "2 Jan 2006")}}{{else if eq .Source "bundle"}}{{t "in a bundle %s" (date .GrantedAt "2 Jan 2006")}}{{else}}{{t "given %s" (date .GrantedAt "2 Jan 2006")}}{{end}}{{with .ExpiresAt}}{{t ", until %s" (date . "2 Jan 2006")}}{{end}}{{with .Reference}} · {{.}}{{end}}{{end}}</span>{{end}}
         </td>
       </tr>
     {{else}}
-      <tr><td colspan="3" class="hint">No current members.</td></tr>
+      <tr><td colspan="3" class="hint">{{t "No current members."}}</td></tr>
     {{end}}
     </tbody>
   </table></div>
   <p id="grants-status" class="form-status" role="status"></p>
-  <p class="hint">Access only matters while "Only members given access" is ticked; otherwise every member can open the songbook.</p>
+  <p class="hint">{{t "Access only matters while “Only members given access” is ticked; otherwise every member can open the songbook."}}</p>
 </main>
 <script>
 const communityId = {{.Community.ID}};
@@ -68,50 +68,50 @@ const songbookId = {{.Songbook.ID}};
 
 document.querySelectorAll('input[name=kind]').forEach(radio => radio.addEventListener('change', async () => {
   const out = document.getElementById('kind-result');
-  Forms.status(out, 'Saving…', '');
+  Forms.status(out, t('Saving…'), '');
   const res = await fetch(`/api/songbooks/${songbookId}/kind`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({kind: radio.value}),
   }).catch(() => null);
   if (!res || !res.ok) {
-    Forms.status(out, 'Couldn’t save that. Try again.', 'error');
+    Forms.status(out, t('Couldn’t save that. Try again.'), 'error');
     document.querySelector(`input[name=kind][value="${radio.value === 'course' ? 'songbook' : 'course'}"]`).checked = true;
   } else {
     out.textContent = '';
     const a = document.createElement('a');
     a.href = `/songbooks/${songbookId}`;
-    a.textContent = radio.value === 'course' ? 'Saved. See the course →' : 'Saved.';
+    a.textContent = radio.value === 'course' ? t('Saved. See the course →') : t('Saved.');
     out.append(a);
   }
 }));
 
 document.querySelectorAll('input[name=shared]').forEach(radio => radio.addEventListener('change', async () => {
   const out = document.getElementById('shared-result');
-  Forms.status(out, 'Saving…', '');
+  Forms.status(out, t('Saving…'), '');
   const res = await fetch(`/api/communities/${communityId}/songbooks/${songbookId}/shared`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({shared: radio.value === 'true'}),
   }).catch(() => null);
   if (!res || !res.ok) {
-    Forms.status(out, 'Couldn’t save that. Try again.', 'error');
+    Forms.status(out, t('Couldn’t save that. Try again.'), 'error');
     document.querySelector(`input[name=shared][value="${radio.value !== 'true'}"]`).checked = true;
   } else {
-    Forms.status(out, 'Saved.', 'ok');
+    Forms.status(out, t('Saved.'), 'ok');
   }
 }));
 
 document.getElementById('requires-grant-toggle').addEventListener('change', async (e) => {
   const out = document.getElementById('toggle-result');
-  Forms.status(out, 'Saving…', '');
+  Forms.status(out, t('Saving…'), '');
   const res = await fetch(`/api/communities/${communityId}/songbooks/${songbookId}/requires-grant`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({requiresGrant: e.target.checked}),
   }).catch(() => null);
   if (!res || !res.ok) {
-    Forms.status(out, 'Couldn’t save that. Try again.', 'error');
+    Forms.status(out, t('Couldn’t save that. Try again.'), 'error');
     e.target.checked = !e.target.checked;
   } else {
-    Forms.status(out, 'Saved.', 'ok');
+    Forms.status(out, t('Saved.'), 'ok');
   }
 });
 
@@ -127,9 +127,9 @@ document.querySelectorAll('.grant-checkbox').forEach(cb => {
     const out = document.getElementById('grants-status');
     if (!res || !res.ok) {
       e.target.checked = !e.target.checked;
-      Forms.status(out, 'Couldn’t save that change. Try again.', 'error');
+      Forms.status(out, t('Couldn’t save that change. Try again.'), 'error');
     } else {
-      Forms.status(out, 'Saved.', 'ok');
+      Forms.status(out, t('Saved.'), 'ok');
     }
   });
 });

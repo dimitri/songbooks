@@ -1,9 +1,9 @@
 {{define "marketing_educators"}}<!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Songbooks for guitar educators</title>
+<title>{{t "Songbooks for guitar educators"}}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,800;0,9..144,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -113,74 +113,74 @@
       </svg>
       Songbooks
     </div>
-    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Menu">
+    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="{{t "Menu"}}">
     <label for="nav-toggle" class="hamburger" aria-hidden="true"><span></span><span></span><span></span></label>
     <nav>
-      <a href="/">Home</a>
-      <a href="/editor">The editor</a>
-      <a href="#compare">What's out there</a>
-      <a href="#money">How you get paid</a>
+      <a href="/">{{t "Home"}}</a>
+      <a href="/editor">{{t "The editor"}}</a>
+      <a href="#compare">{{t "What's out there"}}</a>
+      <a href="#money">{{t "How you get paid"}}</a>
       {{if .Person}}
-      <a href="/home" class="btn">My Songbooks</a>
+      <a href="/home" class="btn">{{t "My Songbooks"}}</a>
       {{else}}
-      <a href="/login" class="btn">Sign in</a>
+      <a href="/login" class="btn">{{t "Sign in"}}</a>
       {{end}}
     </nav>
   </header>
 
   <section class="hero">
-    <div class="eyebrow">For guitar &amp; music educators on YouTube</div>
-    <h1>You've got the audience.<br>Let's turn it into <span class="hl">income.</span></h1>
-    <p class="lede">You don't need to become a software company to run a paid community. Pick the pieces you want &mdash; private lessons, member uploads, live events &mdash; and we run the platform under your name. You teach and price it; we collect, pay you out, and keep a platform fee for doing the plumbing.</p>
+    <div class="eyebrow">{{t "For guitar & music educators on YouTube"}}</div>
+    <h1>{{t "You've got the audience."}}<br>{{t "Let's turn it into"}} <span class="hl">{{t "income."}}</span></h1>
+    <p class="lede">{{t "You don't need to become a software company to run a paid community. Pick the pieces you want — private lessons, member uploads, live events — and we run the platform under your name. You teach and price it; we collect, pay you out, and keep a platform fee for doing the plumbing."}}</p>
     <div class="cta-row">
-      <span class="btn btn-lg">Talk to us</span>
-      <span class="btn-outline">See the full platform</span>
+      <span class="btn btn-lg">{{t "Talk to us"}}</span>
+      <span class="btn-outline">{{t "See the full platform"}}</span>
     </div>
   </section>
 
   <section class="block" id="compare">
-    <h2>What's already working, and where we fit</h2>
-    <p class="sub">Some educators have built a huge personal library of lesson videos over the years. Others rent a general content platform and point it at a music audience. Both are real, working models &mdash; here's the gap between them that we're built to fill.</p>
+    <h2>{{t "What's already working, and where we fit"}}</h2>
+    <p class="sub">{{t "Some educators have built a huge personal library of lesson videos over the years. Others rent a general content platform and point it at a music audience. Both are real, working models — here's the gap between them that we're built to fill."}}</p>
     <div class="matrix-wrap">
     <table class="matrix">
       <thead>
         <tr>
           <th scope="col"></th>
-          <th scope="col">A big personal video library<small>Years of lessons, a course-site checkout</small></th>
-          <th scope="col">General creator platform<small>Uscreen, Mighty Networks&hellip;</small></th>
+          <th scope="col">{{t "A big personal video library"}}<small>{{t "Years of lessons, a course-site checkout"}}</small></th>
+          <th scope="col">{{t "General creator platform"}}<small>Uscreen, Mighty Networks&hellip;</small></th>
           <th scope="col" class="us">Songbooks</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <th scope="row">Built for music, not video-in-general</th>
-          <td class="no">The content is, the platform isn't</td>
-          <td class="no">No &mdash; music is one content type among many</td>
-          <td class="yes us">Yes</td>
+          <th scope="row">{{t "Built for music, not video-in-general"}}</th>
+          <td class="no">{{t "The content is, the platform isn't"}}</td>
+          <td class="no">{{t "No — music is one content type among many"}}</td>
+          <td class="yes us">{{t "Yes"}}</td>
         </tr>
         <tr>
-          <th scope="row">Chord charts, tabs, a shared repertoire</th>
-          <td class="no">Not part of the platform</td>
-          <td class="no">Not offered</td>
-          <td class="yes us">Built in</td>
+          <th scope="row">{{t "Chord charts, tabs, a shared repertoire"}}</th>
+          <td class="no">{{t "Not part of the platform"}}</td>
+          <td class="no">{{t "Not offered"}}</td>
+          <td class="yes us">{{t "Built in"}}</td>
         </tr>
         <tr>
-          <th scope="row">Click track tied to the actual material</th>
-          <td class="no">Not standard</td>
-          <td class="no">Not offered</td>
-          <td class="yes us">Built in</td>
+          <th scope="row">{{t "Click track tied to the actual material"}}</th>
+          <td class="no">{{t "Not standard"}}</td>
+          <td class="no">{{t "Not offered"}}</td>
+          <td class="yes us">{{t "Built in"}}</td>
         </tr>
         <tr>
-          <th scope="row">Takes years of content to be worth it</th>
-          <td class="no">Yes &mdash; the library <em>is</em> the product</td>
-          <td class="yes">No</td>
-          <td class="yes us">No</td>
+          <th scope="row">{{t "Takes years of content to be worth it"}}</th>
+          <td class="no">{{t "Yes — the library"}} <em>{{t "is"}}</em> {{t "the product"}}</td>
+          <td class="yes">{{t "No"}}</td>
+          <td class="yes us">{{t "No"}}</td>
         </tr>
         <tr>
-          <th scope="row">Someone else runs payments &amp; payouts</th>
-          <td class="no">You do it all yourself</td>
-          <td class="no">You do it all yourself</td>
-          <td class="yes us">We do it for you</td>
+          <th scope="row">{{t "Someone else runs payments & payouts"}}</th>
+          <td class="no">{{t "You do it all yourself"}}</td>
+          <td class="no">{{t "You do it all yourself"}}</td>
+          <td class="yes us">{{t "We do it for you"}}</td>
         </tr>
       </tbody>
     </table>
@@ -188,47 +188,47 @@
   </section>
 
   <section class="block">
-    <h2>Pick what your community needs</h2>
-    <p class="sub">Turn pieces on or off per community &mdash; nothing here is one-size-fits-all.</p>
+    <h2>{{t "Pick what your community needs"}}</h2>
+    <p class="sub">{{t "Turn pieces on or off per community — nothing here is one-size-fits-all."}}</p>
     <div class="picker">
-      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>Private, members-only lessons</h4><p>Video lessons gated to paying members &mdash; nothing public until you decide otherwise.</p></div></div>
-      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>Member uploads</h4><p>Let students post their own practice videos &mdash; for feedback, for a group challenge, or just to show up.</p></div></div>
-      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>Feedback that stays scoped</h4><p>A note on the exact bar or section it's about &mdash; private to one student, or shared with the group. Not an open chat room you have to police.</p></div></div>
-      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>Charts your students edit live</h4><p>The chart editor is right there in the browser &mdash; fix a transcription, add a riff, no re-export, no re-upload.</p></div></div>
-      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>Your own events</h4><p>Schedule a live session for your community, solo or alongside other educators &mdash; a joint masterclass across channels, not just your own.</p></div></div>
-      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>Physical seminars, not just video</h4><p>Take it offline &mdash; a weekend seminar at a partner studio (Studios Sunburst, in Brittany, is one we work with directly) run and promoted through the same community.</p></div></div>
+      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>{{t "Private, members-only lessons"}}</h4><p>{{t "Video lessons gated to paying members — nothing public until you decide otherwise."}}</p></div></div>
+      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>{{t "Member uploads"}}</h4><p>{{t "Let students post their own practice videos — for feedback, for a group challenge, or just to show up."}}</p></div></div>
+      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>{{t "Feedback that stays scoped"}}</h4><p>{{t "A note on the exact bar or section it's about — private to one student, or shared with the group. Not an open chat room you have to police."}}</p></div></div>
+      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>{{t "Charts your students edit live"}}</h4><p>{{t "The chart editor is right there in the browser — fix a transcription, add a riff, no re-export, no re-upload."}}</p></div></div>
+      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>{{t "Your own events"}}</h4><p>{{t "Schedule a live session for your community, solo or alongside other educators — a joint masterclass across channels, not just your own."}}</p></div></div>
+      <div class="pick"><div class="chk"><svg viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg></div><div><h4>{{t "Physical seminars, not just video"}}</h4><p>{{t "Take it offline — a weekend seminar at a partner studio (Studios Sunburst, in Brittany, is one we work with directly) run and promoted through the same community."}}</p></div></div>
     </div>
   </section>
 
   <section class="block" id="money">
-    <h2>You get paid. We run the plumbing.</h2>
-    <p class="sub">You set the price for your own community. We're not a marketplace taking a cut of a sale you don't control &mdash; it's your pricing, your name, your students.</p>
+    <h2>{{t "You get paid. We run the plumbing."}}</h2>
+    <p class="sub">{{t "You set the price for your own community. We're not a marketplace taking a cut of a sale you don't control — it's your pricing, your name, your students."}}</p>
     <div class="flow">
-      <div class="flow-step"><div class="flow-num">1</div><h4>You price it</h4><p>Decide what your community costs, and what each tier includes.</p></div>
-      <div class="flow-step"><div class="flow-num">2</div><h4>We collect</h4><p>Members subscribe through the platform &mdash; one checkout, one login, no separate tools for them to juggle.</p></div>
-      <div class="flow-step"><div class="flow-num">3</div><h4>You invoice us</h4><p>For what your community has brought in, on whatever schedule we agree.</p></div>
-      <div class="flow-step"><div class="flow-num">4</div><h4>We pay you out</h4><p>Minus a platform and service fee for running the infrastructure, the payments, and the support &mdash; you keep teaching, we keep the lights on.</p></div>
+      <div class="flow-step"><div class="flow-num">1</div><h4>{{t "You price it"}}</h4><p>{{t "Decide what your community costs, and what each tier includes."}}</p></div>
+      <div class="flow-step"><div class="flow-num">2</div><h4>{{t "We collect"}}</h4><p>{{t "Members subscribe through the platform — one checkout, one login, no separate tools for them to juggle."}}</p></div>
+      <div class="flow-step"><div class="flow-num">3</div><h4>{{t "You invoice us"}}</h4><p>{{t "For what your community has brought in, on whatever schedule we agree."}}</p></div>
+      <div class="flow-step"><div class="flow-num">4</div><h4>{{t "We pay you out"}}</h4><p>{{t "Minus a platform and service fee for running the infrastructure, the payments, and the support — you keep teaching, we keep the lights on."}}</p></div>
     </div>
   </section>
 
   <section class="block">
-    <h2>What's live today, and what's next</h2>
-    <p class="sub">The practice-and-repertoire side is real and working now. The paid-community layer above is what we're building toward with the first educators who come on board.</p>
+    <h2>{{t "What's live today, and what's next"}}</h2>
+    <p class="sub">{{t "The practice-and-repertoire side is real and working now. The paid-community layer above is what we're building toward with the first educators who come on board."}}</p>
     <div class="roadmap">
       <div class="road-card">
-        <span class="road-tag">Live today</span>
-        <h4>Shared repertoire &amp; chart editor</h4>
-        <p>A real community with a shared songbook, editable in the browser, with a click track tied to each piece.</p>
+        <span class="road-tag">{{t "Live today"}}</span>
+        <h4>{{t "Shared repertoire & chart editor"}}</h4>
+        <p>{{t "A real community with a shared songbook, editable in the browser, with a click track tied to each piece."}}</p>
       </div>
       <div class="road-card">
-        <span class="road-tag">Planned</span>
-        <h4>Private video &amp; member uploads</h4>
-        <p>Members-only lesson hosting and student-submitted practice videos, gated the same way as the chart library.</p>
+        <span class="road-tag">{{t "Planned"}}</span>
+        <h4>{{t "Private video & member uploads"}}</h4>
+        <p>{{t "Members-only lesson hosting and student-submitted practice videos, gated the same way as the chart library."}}</p>
       </div>
       <div class="road-card">
-        <span class="road-tag">Planned</span>
-        <h4>Billing &amp; payout</h4>
-        <p>The pricing, collection, and payout flow described above &mdash; in build, starting with the first educators we work with directly.</p>
+        <span class="road-tag">{{t "Planned"}}</span>
+        <h4>{{t "Billing & payout"}}</h4>
+        <p>{{t "The pricing, collection, and payout flow described above — in build, starting with the first educators we work with directly."}}</p>
       </div>
     </div>
   </section>
@@ -236,10 +236,10 @@
   <section class="block">
     <div class="ctaband">
       <div>
-        <h2>You teach. We'll handle the rest.</h2>
-        <p>Tell us what your community looks like and we'll figure out the right setup together &mdash; no platform fee until you're actually earning.</p>
+        <h2>{{t "You teach. We'll handle the rest."}}</h2>
+        <p>{{t "Tell us what your community looks like and we'll figure out the right setup together — no platform fee until you're actually earning."}}</p>
       </div>
-      <span class="btn btn-lg">Talk to us</span>
+      <span class="btn btn-lg">{{t "Talk to us"}}</span>
     </div>
   </section>
 
@@ -258,8 +258,8 @@
       Songbooks
     </div>
     <nav style="display:flex;">
-      <a href="/">Home</a>
-      <a href="/editor">The editor</a>
+      <a href="/">{{t "Home"}}</a>
+      <a href="/editor">{{t "The editor"}}</a>
     </nav>
   </footer>
 </div>

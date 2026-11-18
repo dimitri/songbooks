@@ -1,9 +1,9 @@
 {{define "marketing_guitar_pro"}}<!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Songbooks — Guitar Pro import</title>
+<title>Songbooks — {{t "Guitar Pro import"}}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,800;0,9..144,900&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -103,128 +103,128 @@
       </svg>
       Songbooks
     </div>
-    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Menu">
+    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="{{t "Menu"}}">
     <label for="nav-toggle" class="hamburger" aria-hidden="true"><span></span><span></span><span></span></label>
     <nav>
-      <a href="/">Home</a>
-      <a href="/editor">The editor</a>
-      <a href="/docs/song-format">Format docs</a>
-      <a href="/for-educators">For educators</a>
+      <a href="/">{{t "Home"}}</a>
+      <a href="/editor">{{t "The editor"}}</a>
+      <a href="/docs/song-format">{{t "Format docs"}}</a>
+      <a href="/for-educators">{{t "For educators"}}</a>
       {{if .Person}}
-      <a href="/home" class="btn">My Songbooks</a>
+      <a href="/home" class="btn">{{t "My Songbooks"}}</a>
       {{else}}
-      <a href="/login" class="btn">Sign in</a>
-      <span class="invite-note">invite&#8209;only for now</span>
+      <a href="/login" class="btn">{{t "Sign in"}}</a>
+      <span class="invite-note">{{t "invite‑only for now"}}</span>
       {{end}}
     </nav>
   </header>
 
   <section class="hero">
-    <div class="eyebrow">Guitar Pro import</div>
-    <h1>Bring in the whole band.<br>Not just the <span class="hl">chords.</span></h1>
-    <p class="lede">A Guitar Pro file already has the drum pattern, the bass line, and every guitar part written out &mdash; the import wizard reads all of it, maps it onto your song's own sections, and keeps each part as real, playable notation instead of flattening everything into one chord grid.</p>
+    <div class="eyebrow">{{t "Guitar Pro import"}}</div>
+    <h1>{{t "Bring in the whole band."}}<br>{{t "Not just the"}} <span class="hl">{{t "chords."}}</span></h1>
+    <p class="lede">{{t "A Guitar Pro file already has the drum pattern, the bass line, and every guitar part written out — the import wizard reads all of it, maps it onto your song's own sections, and keeps each part as real, playable notation instead of flattening everything into one chord grid."}}</p>
   </section>
 
   <div class="callouts" style="margin-top:0;">
     <div class="callout">
-      <h4>{{template "icon-mode-drummer"}} Drums, for real</h4>
-      <p>Every hit comes in as real GM percussion notation &mdash; kick, snare, hi-hat, toms, cymbals &mdash; not a generic "drums" placeholder. Shows up in Drummer view, the whole song as one continuous staff.</p>
+      <h4>{{template "icon-mode-drummer"}} {{t "Drums, for real"}}</h4>
+      <p>{{t `Every hit comes in as real GM percussion notation — kick, snare, hi-hat, toms, cymbals — not a generic "drums" placeholder. Shows up in Drummer view, the whole song as one continuous staff.`}}</p>
     </div>
     <div class="callout">
-      <h4>{{template "icon-mode-jazz"}} Bass, with its own tuning</h4>
-      <p>The bass track keeps its exact tuning and fingering from the file &mdash; nothing re-derived or guessed. Viewable as real tab notation right alongside the chord chart.</p>
+      <h4>{{template "icon-mode-jazz"}} {{t "Bass, with its own tuning"}}</h4>
+      <p>{{t "The bass track keeps its exact tuning and fingering from the file — nothing re-derived or guessed. Viewable as real tab notation right alongside the chord chart."}}</p>
     </div>
     <div class="callout">
-      <h4>{{template "icon-mode-normal"}} Any number of guitars</h4>
-      <p>Rhythm, lead, a second rhythm part &mdash; each guitar track comes in as its own voice, independently viewable, never merged into one.</p>
+      <h4>{{template "icon-mode-normal"}} {{t "Any number of guitars"}}</h4>
+      <p>{{t "Rhythm, lead, a second rhythm part — each guitar track comes in as its own voice, independently viewable, never merged into one."}}</p>
     </div>
   </div>
 
   <div class="live-examples">
     <div>
-      <iframe class="example-frame" src="/docs/song-format/example/drum" title="Real rendered drum notation" loading="lazy"></iframe>
-      <p class="example-caption">Drummer view &mdash; real GM percussion notation, chord names floating above it.</p>
+      <iframe class="example-frame" src="/docs/song-format/example/drum" title="{{t "Real rendered drum notation"}}" loading="lazy"></iframe>
+      <p class="example-caption">{{t "Drummer view — real GM percussion notation, chord names floating above it."}}</p>
     </div>
     <div>
-      <iframe class="example-frame" src="/docs/song-format/example/bass" title="Real rendered bass tab" loading="lazy"></iframe>
-      <p class="example-caption">Bass &mdash; real tab, its own tuning, overlaying the chord chart.</p>
+      <iframe class="example-frame" src="/docs/song-format/example/bass" title="{{t "Real rendered bass tab"}}" loading="lazy"></iframe>
+      <p class="example-caption">{{t "Bass — real tab, its own tuning, overlaying the chord chart."}}</p>
     </div>
     <div>
-      <iframe class="example-frame" src="/docs/song-format/example/riff" title="Real rendered guitar tab" loading="lazy"></iframe>
-      <p class="example-caption">Guitar &mdash; full notation, not a simplified chord-only version.</p>
+      <iframe class="example-frame" src="/docs/song-format/example/riff" title="{{t "Real rendered guitar tab"}}" loading="lazy"></iframe>
+      <p class="example-caption">{{t "Guitar — full notation, not a simplified chord-only version."}}</p>
     </div>
   </div>
 
   <section class="block" id="how">
-    <h2>How it works</h2>
-    <p class="sub">A short, guided wizard &mdash; not a silent all-or-nothing upload. You bring in one track at a time, each time confirming it lines up with the song before anything saves.</p>
+    <h2>{{t "How it works"}}</h2>
+    <p class="sub">{{t "A short, guided wizard — not a silent all-or-nothing upload. You bring in one track at a time, each time confirming it lines up with the song before anything saves."}}</p>
     <div class="steps">
       <div class="step">
         <div class="num"></div>
         <div>
-          <h4>Pick a file and a track</h4>
-          <p>Drop in a <code>.gp</code>, <code>.gp3</code>, <code>.gp4</code>, <code>.gp5</code> or <code>.gpx</code> file &mdash; read entirely in your browser, nothing uploaded until you commit. Choose which one of the file's own tracks to bring in first (drums, bass, a specific guitar &mdash; you run this step again for each additional part you want).</p>
+          <h4>{{t "Pick a file and a track"}}</h4>
+          <p>{{t "Drop in a"}} <code>.gp</code>, <code>.gp3</code>, <code>.gp4</code>, <code>.gp5</code> {{t "or"}} <code>.gpx</code> {{t "file — read entirely in your browser, nothing uploaded until you commit. Choose which one of the file's own tracks to bring in first (drums, bass, a specific guitar — you run this step again for each additional part you want)."}}</p>
         </div>
       </div>
       <div class="step">
         <div class="num"></div>
         <div>
-          <h4>Line it up against the song</h4>
-          <p>Guitar Pro files routinely carry a count-in or a silent intro bar the chart doesn't have &mdash; so this step is a waveform timeline (using the file's own embedded backing track and its real per-bar sync points, not a guess), where you drag section boundaries to match where your song's own sections actually start.</p>
+          <h4>{{t "Line it up against the song"}}</h4>
+          <p>{{t "Guitar Pro files routinely carry a count-in or a silent intro bar the chart doesn't have — so this step is a waveform timeline (using the file's own embedded backing track and its real per-bar sync points, not a guess), where you drag section boundaries to match where your song's own sections actually start."}}</p>
         </div>
       </div>
       <div class="step">
         <div class="num"></div>
         <div>
-          <h4>Preview, then commit</h4>
-          <p>See exactly which bars will land in which section before anything is saved &mdash; including the file's own embedded backing-track audio, if you want it imported alongside the notation, synced to the same bars.</p>
+          <h4>{{t "Preview, then commit"}}</h4>
+          <p>{{t "See exactly which bars will land in which section before anything is saved — including the file's own embedded backing-track audio, if you want it imported alongside the notation, synced to the same bars."}}</p>
         </div>
       </div>
     </div>
     <div class="callout-box">
-      <strong>One track per run, by design.</strong> A GP file's drum, bass and guitar parts each get their own alignment and their own review before saving &mdash; a shared alignment step for every part at once would hide a mismatch in whichever track you weren't looking at. Running the wizard once per part you want takes a minute longer and never silently misaligns one of them.
+      <strong>{{t "One track per run, by design."}}</strong> {{t "A GP file's drum, bass and guitar parts each get their own alignment and their own review before saving — a shared alignment step for every part at once would hide a mismatch in whichever track you weren't looking at. Running the wizard once per part you want takes a minute longer and never silently misaligns one of them."}}
     </div>
   </section>
 
   <section class="block" id="sections">
-    <h2>Section mapping</h2>
-    <p class="sub">The import never invents a song structure of its own &mdash; it maps the file's bars onto the sections your song already has (or that you set up first), bar for bar.</p>
+    <h2>{{t "Section mapping"}}</h2>
+    <p class="sub">{{t "The import never invents a song structure of its own — it maps the file's bars onto the sections your song already has (or that you set up first), bar for bar."}}</p>
     <table class="support">
-      <tr><th>What</th><th>How</th></tr>
-      <tr><td>Section boundaries</td><td>Shared, draggable handles on the alignment timeline &mdash; the end of one section is always the start of the next, so there's no way to leave a gap or an overlap between them.</td></tr>
-      <tr><td>Bar timing</td><td>Read from the file's own per-bar sync points (real, human-authored-and-synced data), not guessed from the audio &mdash; confirmed far more reliable than beat-detection for this.</td></tr>
-      <tr><td>Count-in / silent bars</td><td>Handled by the alignment step itself: drag the first boundary to wherever your song's own bar 1 actually starts in the file.</td></tr>
-      <tr><td>Backing-track audio</td><td>Optional, imported with the same bar sync the notation uses, so playback and the chart stay lined up.</td></tr>
+      <tr><th>{{t "What"}}</th><th>{{t "How"}}</th></tr>
+      <tr><td>{{t "Section boundaries"}}</td><td>{{t "Shared, draggable handles on the alignment timeline — the end of one section is always the start of the next, so there's no way to leave a gap or an overlap between them."}}</td></tr>
+      <tr><td>{{t "Bar timing"}}</td><td>{{t "Read from the file's own per-bar sync points (real, human-authored-and-synced data), not guessed from the audio — confirmed far more reliable than beat-detection for this."}}</td></tr>
+      <tr><td>{{t "Count-in / silent bars"}}</td><td>{{t "Handled by the alignment step itself: drag the first boundary to wherever your song's own bar 1 actually starts in the file."}}</td></tr>
+      <tr><td>{{t "Backing-track audio"}}</td><td>{{t "Optional, imported with the same bar sync the notation uses, so playback and the chart stay lined up."}}</td></tr>
     </table>
   </section>
 
   <section class="block" id="viewing">
-    <h2>Where each part shows up</h2>
-    <p class="sub">No separate "Bass view" or "Guitar view" to hunt for &mdash; every imported part lives inside the same chart you already read.</p>
+    <h2>{{t "Where each part shows up"}}</h2>
+    <p class="sub">{{t `No separate "Bass view" or "Guitar view" to hunt for — every imported part lives inside the same chart you already read.`}}</p>
     <table class="support">
-      <tr><th>Part</th><th>Where to see it</th></tr>
-      <tr><td>Drums</td><td><strong>Drummer</strong> &mdash; a dedicated view, the whole song as one continuous drum staff with chord names floating above it, same as a real drummer's chart.</td></tr>
-      <tr><td>Bass / Guitar</td><td><strong>Song</strong> or <strong>Song map</strong>, via the instrument picker next to the view tabs &mdash; pick which track's full notation overlays the chart. Pick "Chords" to go back to the plain chord grid.</td></tr>
+      <tr><th>{{t "Part"}}</th><th>{{t "Where to see it"}}</th></tr>
+      <tr><td>{{t "Drums"}}</td><td><strong>{{t "Drummer"}}</strong> {{t "— a dedicated view, the whole song as one continuous drum staff with chord names floating above it, same as a real drummer's chart."}}</td></tr>
+      <tr><td>{{t "Bass / Guitar"}}</td><td><strong>{{t "Song"}}</strong> {{t "or"}} <strong>{{t "Song map"}}</strong>{{t `, via the instrument picker next to the view tabs — pick which track's full notation overlays the chart. Pick "Chords" to go back to the plain chord grid.`}}</td></tr>
     </table>
-    <p class="hint" style="color:var(--fg-muted); font-size:14px; max-width:62ch; margin-top:14px;">A section with more than one melodic track (bass AND a guitar, say) keeps its shared chart as pure chords by default &mdash; the instrument picker is what decides which one's detailed notation you're looking at, so nothing gets silently guessed or merged.</p>
+    <p class="hint" style="color:var(--fg-muted); font-size:14px; max-width:62ch; margin-top:14px;">{{t "A section with more than one melodic track (bass AND a guitar, say) keeps its shared chart as pure chords by default — the instrument picker is what decides which one's detailed notation you're looking at, so nothing gets silently guessed or merged."}}</p>
   </section>
 
   <section class="block">
-    <h2>The file stays with the song</h2>
-    <p class="sub">The Guitar Pro file is kept with the song, whole &mdash; every track, voice and effect as Guitar Pro wrote it. The song's sections point into it with one plain line each, <code>gp[Lead guitar]: 9-12</code>, next to their chords and lyrics.</p>
+    <h2>{{t "The file stays with the song"}}</h2>
+    <p class="sub">{{t "The Guitar Pro file is kept with the song, whole — every track, voice and effect as Guitar Pro wrote it. The song's sections point into it with one plain line each,"}} <code>gp[Lead guitar]: 9-12</code>{{t ", next to their chords and lyrics."}}</p>
     <div class="callouts" style="margin-top:0;">
-      <div class="callout"><h4>Edit it on the web, or in Guitar Pro</h4><p>Change notes, durations, techniques, bars and tracks in the browser with Guitar Pro's keys, or download the file, edit it in Guitar Pro and bring it back. Each save is a new version; the earlier ones stay in the song's history.</p></div>
-      <div class="callout"><h4>Kept in step</h4><p>Tempo, time signature, key, section names, chords and chord diagrams live in both the song and the file. Where they disagree, editors see it, and choose which one is right.</p></div>
-      <div class="callout"><h4>Read the full grammar</h4><p>See the <a href="/docs/song-format#gp">.song format reference</a> for the <code>gp[...]</code> lines, and the <code>score[label]:</code> riffs you can still write by hand.</p></div>
+      <div class="callout"><h4>{{t "Edit it on the web, or in Guitar Pro"}}</h4><p>{{t "Change notes, durations, techniques, bars and tracks in the browser with Guitar Pro's keys, or download the file, edit it in Guitar Pro and bring it back. Each save is a new version; the earlier ones stay in the song's history."}}</p></div>
+      <div class="callout"><h4>{{t "Kept in step"}}</h4><p>{{t "Tempo, time signature, key, section names, chords and chord diagrams live in both the song and the file. Where they disagree, editors see it, and choose which one is right."}}</p></div>
+      <div class="callout"><h4>{{t "Read the full grammar"}}</h4><p>{{t "See the"}} <a href="/docs/song-format#gp">{{t ".song format reference"}}</a> {{t "for the"}} <code>gp[...]</code> {{t "lines, and the"}} <code>score[label]:</code> {{t "riffs you can still write by hand."}}</p></div>
     </div>
   </section>
   <section class="block">
     <div class="ctaband">
       <div>
-        <h2>Bring in a real arrangement, not just the changes.</h2>
-        <p>Open a song, head to Edit &rarr; Guitar Pro import, and try it against your own file.</p>
+        <h2>{{t "Bring in a real arrangement, not just the changes."}}</h2>
+        <p>{{t "Open a song, head to Edit → Guitar Pro import, and try it against your own file."}}</p>
       </div>
-      <a href="{{if .Person}}/home{{else}}/login{{end}}" class="btn">{{if .Person}}My Songbooks{{else}}Start your songbook{{end}}</a>
+      <a href="{{if .Person}}/home{{else}}/login{{end}}" class="btn">{{if .Person}}{{t "My Songbooks"}}{{else}}{{t "Start your songbook"}}{{end}}</a>
     </div>
   </section>
 
@@ -243,9 +243,9 @@
       Songbooks
     </div>
     <nav style="display:flex;">
-      <a href="/">Home</a>
-      <a href="/editor">The editor</a>
-      <a href="/for-educators">For educators</a>
+      <a href="/">{{t "Home"}}</a>
+      <a href="/editor">{{t "The editor"}}</a>
+      <a href="/for-educators">{{t "For educators"}}</a>
     </nav>
   </footer>
 </div>

@@ -1,11 +1,11 @@
 {{define "band_events"}}
 {{$brand := brandFor "band" .Band.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Band.Name}} — calendar</title>
+<title>{{t "%s — calendar" .Band.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,7 +15,7 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
-  <h1>Calendar</h1>
+  <h1>{{t "Calendar"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
@@ -24,50 +24,50 @@
   {{template "calendar-month" .Calendar}}
 
   <div class="card card--md" id="plan-rehearsal">
-    <h2>Plan a rehearsal</h2>
+    <h2>{{t "Plan a rehearsal"}}</h2>
     <form class="form-stack" id="rehearsal-form">
       <div class="field-row">
-        <div class="field"><label for="reh-date">Date</label><input type="date" id="reh-date" required></div>
-        <div class="field"><label for="reh-start">Starts</label><input type="time" id="reh-start" value="19:00" step="900" required></div>
-        <div class="field"><label for="reh-end">Ends <span class="field-optional">(optional)</span></label><input type="time" id="reh-end" step="900"></div>
+        <div class="field"><label for="reh-date">{{t "Date"}}</label><input type="date" id="reh-date" required></div>
+        <div class="field"><label for="reh-start">{{t "Starts"}}</label><input type="time" id="reh-start" value="19:00" step="900" required></div>
+        <div class="field"><label for="reh-end">{{t "Ends"}} <span class="field-optional">{{t "(optional)"}}</span></label><input type="time" id="reh-end" step="900"></div>
       </div>
-      <div class="field"><label for="reh-place">Place <span class="field-optional">(optional)</span></label><input type="text" id="reh-place" autocomplete="off" placeholder="e.g. Studio Bleu, room 2"></div>
+      <div class="field"><label for="reh-place">{{t "event|Place"}} <span class="field-optional">{{t "(optional)"}}</span></label><input type="text" id="reh-place" autocomplete="off" placeholder="{{t "e.g. Studio Bleu, room 2"}}"></div>
       <div class="field">
-        <label for="reh-setlist">Set list to practise</label>
-        <p class="field-hint" id="reh-setlist-hint">Everyone gets it on the calendar with a link to the set list, to work on the songs before you meet.</p>
+        <label for="reh-setlist">{{t "Set list to practise"}}</label>
+        <p class="field-hint" id="reh-setlist-hint">{{t "Everyone gets it on the calendar with a link to the set list, to work on the songs before you meet."}}</p>
         <select id="reh-setlist" aria-describedby="reh-setlist-hint">
-          <option value="new" selected>A new set list for this rehearsal</option>
+          <option value="new" selected>{{t "A new set list for this rehearsal"}}</option>
           {{range .Setlists}}<option value="{{.ID}}">{{.Title}}</option>{{end}}
-          <option value="">None for now</option>
+          <option value="">{{t "None for now"}}</option>
         </select>
       </div>
-      <div class="field"><label for="reh-notes">Notes <span class="field-optional">(optional)</span></label><textarea id="reh-notes" class="prose" rows="2" placeholder="e.g. Bring the new pedal, we work on the bridge of the second song"></textarea></div>
+      <div class="field"><label for="reh-notes">{{t "Notes"}} <span class="field-optional">{{t "(optional)"}}</span></label><textarea id="reh-notes" class="prose" rows="2" placeholder="{{t "e.g. Bring the new pedal, we work on the bridge of the second song"}}"></textarea></div>
       <div class="form-actions">
-        <button type="submit" id="rehearsal-btn" class="primary">Plan rehearsal</button>
+        <button type="submit" id="rehearsal-btn" class="primary">{{t "Plan rehearsal"}}</button>
       </div>
       <p class="form-status" role="status"></p>
     </form>
   </div>
 
   <details class="card card--md fold-card">
-    <summary><h2>Add another event</h2><span class="hint">a gig, a meetup, a show to see together…</span></summary>
+    <summary><h2>{{t "Add another event"}}</h2><span class="hint">{{t "a gig, a meetup, a show to see together…"}}</span></summary>
     <form class="form-stack" id="create-event-form">
-      <div class="field"><label for="ev-name">Name</label><input type="text" id="ev-name" placeholder="e.g. Spring gig at the Blue Note" autocomplete="off" required></div>
-      <div class="field"><label for="ev-type">Type</label>
+      <div class="field"><label for="ev-name">{{t "Name"}}</label><input type="text" id="ev-name" placeholder="{{t "e.g. Spring gig at the Blue Note"}}" autocomplete="off" required></div>
+      <div class="field"><label for="ev-type">{{t "Type"}}</label>
         <select id="ev-type">
-          <option value="concert" selected>Gig</option>
-          <option value="meetup">Meetup</option>
-          <option value="listening_party">Listening party</option>
-          <option value="dinner">Dinner</option>
-          <option value="show_together">Going to a show together</option>
-          <option value="open_mic">Open mic</option>
+          <option value="concert" selected>{{t "Gig"}}</option>
+          <option value="meetup">{{t "Meetup"}}</option>
+          <option value="listening_party">{{t "Listening party"}}</option>
+          <option value="dinner">{{t "Dinner"}}</option>
+          <option value="show_together">{{t "Going to a show together"}}</option>
+          <option value="open_mic">{{t "Open mic"}}</option>
         </select>
       </div>
-      <div class="field"><label for="ev-starts">Date and time</label><input type="datetime-local" id="ev-starts" required></div>
-      <div class="field"><label for="ev-location">Place <span class="field-optional">(optional)</span></label><input type="text" id="ev-location" autocomplete="off"></div>
-      <div class="field"><label for="ev-description">Description <span class="field-optional">(optional)</span></label><textarea id="ev-description" class="prose" rows="2"></textarea></div>
+      <div class="field"><label for="ev-starts">{{t "Date and time"}}</label><input type="datetime-local" id="ev-starts" required></div>
+      <div class="field"><label for="ev-location">{{t "event|Place"}} <span class="field-optional">{{t "(optional)"}}</span></label><input type="text" id="ev-location" autocomplete="off"></div>
+      <div class="field"><label for="ev-description">{{t "Description"}} <span class="field-optional">{{t "(optional)"}}</span></label><textarea id="ev-description" class="prose" rows="2"></textarea></div>
       <div class="form-actions">
-        <button type="submit" id="create-event-btn" class="primary">Create event</button>
+        <button type="submit" id="create-event-btn" class="primary">{{t "Create event"}}</button>
       </div>
       <p id="create-event-result" class="form-status" role="status"></p>
     </form>
@@ -87,7 +87,7 @@ document.getElementById('rehearsal-form').addEventListener('submit', (e) => {
   const start = document.getElementById('reh-start').value;
   const end = document.getElementById('reh-end').value;
   const pick = document.getElementById('reh-setlist').value;
-  if (end && end <= start) { Forms.fieldError(document.getElementById('reh-end'), 'The end has to be after the start.'); return; }
+  if (end && end <= start) { Forms.fieldError(document.getElementById('reh-end'), t('The end has to be after the start.')); return; }
   Forms.run(form, document.getElementById('rehearsal-btn'), async () => {
     const body = {
       eventType: 'rehearsal', name: 'Rehearsal',
@@ -101,7 +101,7 @@ document.getElementById('rehearsal-form').addEventListener('submit', (e) => {
       method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
     }).catch(() => null);
     const data = res ? await res.json().catch(() => ({})) : {};
-    if (!res || !res.ok) throw new Error("Couldn't plan the rehearsal. Check the date and times, then try again.");
+    if (!res || !res.ok) throw new Error(t('Couldn’t plan the rehearsal. Check the date and times, then try again.'));
     // A new set list is empty: straight to it, to add the songs.
     if (pick === 'new' && data.setlistId) { window.location.href = `/setlists/${data.setlistId}`; return; }
     window.location.href = `/bands/${bandId}/events?month=${date.slice(0, 7)}#calendar`;
@@ -122,7 +122,7 @@ document.getElementById('create-event-form').addEventListener('submit', (e) => {
       body: JSON.stringify({name, eventType, startsAt, location, description}),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error("Couldn't create the event. Check the date and time, then try again.");
+    if (!res.ok) throw new Error(t('Couldn’t create the event. Check the date and time, then try again.'));
     window.location.href = `/events/${data.eventId}`;
   });
 });

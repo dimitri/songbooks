@@ -13,7 +13,7 @@ func (s *Server) handleGroupsPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	bandCards, _, err := s.buildBandCards(r.Context(), person.ID, bands)
+	bandCards, _, err := s.buildBandCards(r.Context(), s.langOf(w), person.ID, bands)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

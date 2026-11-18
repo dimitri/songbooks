@@ -6,21 +6,21 @@
 {{define "metronome-widget"}}
   <section class="card book-card metronome-standalone" id="metronome">
     <div class="metro-bpm-row">
-      <button id="bpm-down" type="button" class="icon-btn" aria-label="Slower">&minus;</button>
+      <button id="bpm-down" type="button" class="icon-btn" aria-label="{{t "Slower"}}">&minus;</button>
       <div class="metro-bpm-display">
         <div class="metro-bpm-marking" id="bpm-marking" aria-hidden="true"></div>
-        <input type="text" id="bpm-input" value="100" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" aria-label="Tempo in bpm">
+        <input type="text" id="bpm-input" value="100" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" aria-label="{{t "Tempo in bpm"}}">
         <span class="bpm-unit">bpm</span>
       </div>
-      <button id="bpm-up" type="button" class="icon-btn" aria-label="Faster">+</button>
+      <button id="bpm-up" type="button" class="icon-btn" aria-label="{{t "Faster"}}">+</button>
     </div>
-    <input type="range" id="bpm-slider" class="metro-bpm-slider" min="20" max="300" value="100" aria-label="Tempo">
+    <input type="range" id="bpm-slider" class="metro-bpm-slider" min="20" max="300" value="100" aria-label="{{t "Tempo"}}">
 
     <div class="beat-dots metro-beat-dots" id="beat-dots" aria-hidden="true"></div>
 
     <div class="metro-transport-controls">
-      <button id="play-pause-btn" type="button" title="Start" aria-label="Start" class="primary icon-btn">{{template "icon-play"}}</button>
-      <button id="tap-btn" type="button" title="Tap tempo" aria-label="Tap tempo" class="icon-btn">{{template "icon-tap"}}</button>
+      <button id="play-pause-btn" type="button" title="{{t "Start"}}" aria-label="{{t "Start"}}" class="primary icon-btn">{{template "icon-play"}}</button>
+      <button id="tap-btn" type="button" title="{{t "Tap tempo"}}" aria-label="{{t "Tap tempo"}}" class="icon-btn">{{template "icon-tap"}}</button>
     </div>
 
     {{/* Three tabs, same tool, one underlying clock/metronome engine
@@ -31,14 +31,14 @@
          and backbeat patterns), just as this standalone tool's own
          control surface. */}}
     <div class="metro-tabs" role="tablist">
-      <button type="button" class="metro-tab active" data-tab="pulse" role="tab" aria-selected="true">Pulse</button>
-      <button type="button" class="metro-tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
-      <button type="button" class="metro-tab" data-tab="forms" role="tab" aria-selected="false">Forms</button>
+      <button type="button" class="metro-tab active" data-tab="pulse" role="tab" aria-selected="true">{{t "Pulse"}}</button>
+      <button type="button" class="metro-tab" data-tab="practice" role="tab" aria-selected="false">{{t "Practice"}}</button>
+      <button type="button" class="metro-tab" data-tab="forms" role="tab" aria-selected="false">{{t "Forms"}}</button>
     </div>
 
     <div class="metro-tab-panel" data-panel="pulse">
       <div class="metro-section">
-        <h3>Time signature</h3>
+        <h3>{{t "Time signature"}}</h3>
         <div class="metro-icon-row" id="time-sig-picker" data-value="4/4">
           <button type="button" data-value="2/4">2/4</button>
           <button type="button" data-value="3/4">3/4</button>
@@ -52,62 +52,62 @@
     </div>
 
     <div class="metro-tab-panel" data-panel="practice" hidden>
-      <p class="hint">Two ways to train your internal clock: practice keeping time through a planned silence, or against randomly dropped beats.</p>
+      <p class="hint">{{t "Two ways to train your internal clock: practice keeping time through a planned silence, or against randomly dropped beats."}}</p>
 
       <div class="metro-section">
-        <h3>Practice mode</h3>
+        <h3>{{t "Practice mode"}}</h3>
         <div class="metro-icon-row" id="practice-mode-picker" data-value="none">
-          <button type="button" data-value="none" class="active">Off</button>
-          <button type="button" data-value="gap">Gap click</button>
-          <button type="button" data-value="random">Random mute</button>
+          <button type="button" data-value="none" class="active">{{t "Off"}}</button>
+          <button type="button" data-value="gap">{{t "Gap click"}}</button>
+          <button type="button" data-value="random">{{t "Random mute"}}</button>
         </div>
       </div>
 
       <div class="metro-section" id="gap-click-controls" hidden>
-        <h3>Gap click</h3>
-        <p class="hint">Play for N beats, then go silent for M beats, repeating.</p>
+        <h3>{{t "Gap click"}}</h3>
+        <p class="hint">{{t "Play for N beats, then go silent for M beats, repeating."}}</p>
         <div class="metro-field-row">
-          <label for="gap-on">Beats played <input type="number" id="gap-on" min="1" max="32" step="1" value="4" inputmode="numeric"></label>
-          <label for="gap-off">Beats silent <input type="number" id="gap-off" min="1" max="32" step="1" value="4" inputmode="numeric"></label>
+          <label for="gap-on">{{t "Beats played"}} <input type="number" id="gap-on" min="1" max="32" step="1" value="4" inputmode="numeric"></label>
+          <label for="gap-off">{{t "Beats silent"}} <input type="number" id="gap-off" min="1" max="32" step="1" value="4" inputmode="numeric"></label>
         </div>
       </div>
 
       <div class="metro-section" id="random-mute-controls" hidden>
-        <h3>Random mute</h3>
-        <p class="hint">Each beat — and optionally each subdivision — has a chance of being silenced at random.</p>
-        <label class="metro-slider-row" for="random-mute-beats">Beats <input type="range" id="random-mute-beats" min="0" max="100" value="30"><span id="random-mute-beats-val" aria-hidden="true">30%</span></label>
-        <label class="metro-slider-row" for="random-mute-subs">Subdivisions <input type="range" id="random-mute-subs" min="0" max="100" value="0"><span id="random-mute-subs-val" aria-hidden="true">0%</span></label>
+        <h3>{{t "Random mute"}}</h3>
+        <p class="hint">{{t "Each beat — and optionally each subdivision — has a chance of being silenced at random."}}</p>
+        <label class="metro-slider-row" for="random-mute-beats">{{t "Beats"}} <input type="range" id="random-mute-beats" min="0" max="100" value="30"><span id="random-mute-beats-val" aria-hidden="true">30%</span></label>
+        <label class="metro-slider-row" for="random-mute-subs">{{t "Subdivisions"}} <input type="range" id="random-mute-subs" min="0" max="100" value="0"><span id="random-mute-subs-val" aria-hidden="true">0%</span></label>
       </div>
     </div>
 
     <div class="metro-tab-panel" data-panel="forms" hidden>
       <div class="metro-section">
-        <h3>Accent</h3>
+        <h3>{{t "Accent"}}</h3>
         <div class="metro-icon-row" id="accent-preset">
-          <button type="button" data-value="downbeat" class="active">Downbeat</button>
-          <button type="button" data-value="backbeat">Backbeat (2 &amp; 4)</button>
-          <button type="button" data-value="every">Every beat</button>
-          <button type="button" data-value="none">None</button>
+          <button type="button" data-value="downbeat" class="active">{{t "Downbeat"}}</button>
+          <button type="button" data-value="backbeat">{{t "Backbeat (2 & 4)"}}</button>
+          <button type="button" data-value="every">{{t "Every beat"}}</button>
+          <button type="button" data-value="none">{{t "None"}}</button>
         </div>
-        <p class="hint">Or tap individual beats below to build a custom accent pattern — handy for groove practice (e.g. just the "and" of 2).</p>
+        <p class="hint">{{t `Or tap individual beats below to build a custom accent pattern — handy for groove practice (e.g. just the "and" of 2).`}}</p>
         <div class="metro-beat-picker" id="beat-picker"></div>
       </div>
 
       <div class="metro-section">
-        <h3>Sound</h3>
+        <h3>{{t "Sound"}}</h3>
         <div class="metro-icon-row" id="sound-picker" data-value="click">
-          <button type="button" data-value="click" class="active" title="Click">{{template "icon-sound-click"}}</button>
-          <button type="button" data-value="beep" title="Beep">{{template "icon-sound-beep"}}</button>
-          <button type="button" data-value="wood" title="Wood block">{{template "icon-sound-wood"}}</button>
-          <button type="button" data-value="tick" title="Tick">{{template "icon-sound-tick"}}</button>
+          <button type="button" data-value="click" class="active" title="{{t "Click"}}">{{template "icon-sound-click"}}</button>
+          <button type="button" data-value="beep" title="{{t "Beep"}}">{{template "icon-sound-beep"}}</button>
+          <button type="button" data-value="wood" title="{{t "Wood block"}}">{{template "icon-sound-wood"}}</button>
+          <button type="button" data-value="tick" title="{{t "Tick"}}">{{template "icon-sound-tick"}}</button>
           {{/* Phase 25's synthesized patterns (kick+hihat, backbeat) —
                same mechanism the song player's sound-picker uses (see
                song.js); here they're just one more option in the same
                row rather than the song player's separate accent system,
                since this standalone tool has no song sections to key
                pickups/accents off of. */}}
-          <button type="button" data-value="kick-hihat" title="Kick + hi-hat: kick on 1 &amp; 3, hi-hat on 2 &amp; 4 (or the 6/8 / 12/8 equivalent)">{{template "icon-sound-kick-hihat"}}</button>
-          <button type="button" data-value="backbeat" title="Backbeat: click only on 2 &amp; 4 (or the 6/8 / 12/8 equivalent), silent otherwise">{{template "icon-sound-backbeat"}}</button>
+          <button type="button" data-value="kick-hihat" title="{{t "Kick + hi-hat: kick on 1 & 3, hi-hat on 2 & 4 (or the 6/8 / 12/8 equivalent)"}}">{{template "icon-sound-kick-hihat"}}</button>
+          <button type="button" data-value="backbeat" title="{{t "Backbeat: click only on 2 & 4 (or the 6/8 / 12/8 equivalent), silent otherwise"}}">{{template "icon-sound-backbeat"}}</button>
         </div>
       </div>
     </div>
@@ -116,11 +116,11 @@
 
 {{define "metronome"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Metronome — Songbooks</title>
+<title>{{t "Metronome"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -134,10 +134,10 @@
        "three spellings of the same link" pattern home-link's own doc
        comment already called out and fixed once, just not swept here
        too). */}}
-  {{if .BackURL}}<a href="{{.BackURL}}" class="back-link">{{template "icon-back"}} {{if .BackTitle}}{{.BackTitle}}{{else}}back{{end}}</a>{{else}}{{template "home-link"}}{{end}}
-  <h1>Metronome</h1>
+  {{if .BackURL}}<a href="{{.BackURL}}" class="back-link">{{template "icon-back"}} {{if .BackTitle}}{{.BackTitle}}{{else}}{{t "back"}}{{end}}</a>{{else}}{{template "home-link"}}{{end}}
+  <h1>{{t "Metronome"}}</h1>
   <nav class="song-nav">
-    <button id="theme-toggle" class="icon-btn" type="button" title="toggle light/dark">{{template "icon-theme"}}</button>
+    <button id="theme-toggle" class="icon-btn" type="button" title="{{t "toggle light/dark"}}">{{template "icon-theme"}}</button>
     {{template "notif-bell"}}
   </nav>
 </header>

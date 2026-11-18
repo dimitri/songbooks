@@ -7,7 +7,7 @@
 
   async function loadBytes(variantId) {
     const res = await fetch(`/song/${variantId}/gp-file`, { credentials: 'same-origin' });
-    if (!res.ok) throw new Error(res.status === 404 ? 'This song has no Guitar Pro file yet.' : 'Could not load the Guitar Pro file.');
+    if (!res.ok) throw new Error(res.status === 404 ? t('This song has no Guitar Pro file yet.') : t('Could not load the Guitar Pro file.'));
     return new Uint8Array(await res.arrayBuffer());
   }
 
@@ -27,7 +27,7 @@
     form.append('file', new Blob([bytes], { type: 'application/octet-stream' }), newName);
     form.append('facts', JSON.stringify(facts));
     const res = await fetch(`/api/songs/${variantId}/gp-file`, { method: 'PUT', credentials: 'same-origin', body: form });
-    if (!res.ok) throw new Error('Saving the file failed: ' + ((await res.text()) || res.status));
+    if (!res.ok) throw new Error(t('Saving the file failed: %s', (await res.text()) || res.status));
     if (newName !== name) {
       await fetch(`/api/songs/${variantId}/meta`, {
         method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },

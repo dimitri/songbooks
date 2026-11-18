@@ -33,8 +33,8 @@
       const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
       if (!res.ok) {
         throw new Error(res.status === 400
-          ? 'Some of these settings aren’t valid. Check the colors and links, then try again.'
-          : 'Couldn’t save the look. Try again.');
+          ? t('Some of these settings aren’t valid. Check the colors and links, then try again.')
+          : t('Couldn’t save the look. Try again.'));
       }
       location.reload();
     });
@@ -49,7 +49,7 @@
     save(b, document.getElementById('brand-save'));
   });
   document.getElementById('brand-reset').addEventListener('click', (e) => {
-    if (confirm('Reset to the app’s own look? This clears the preset, colors, fonts, logo, tagline and website for everyone here.')) save({}, e.currentTarget);
+    if (confirm(t('Reset to the app’s own look? This clears the preset, colors, fonts, logo, tagline and website for everyone here.'))) save({}, e.currentTarget);
   });
 
   // A look made from the songs' covers: it fills the colors, fonts and
@@ -61,11 +61,11 @@
     const res = await fetch(endpoint + '/from-songs').catch(() => null);
     Forms.busy(btn, false);
     const d = res && res.ok ? await res.json() : null;
-    if (!d || !d.covers) { out.textContent = 'No covers found for the songs yet.'; return; }
+    if (!d || !d.covers) { out.textContent = t('No covers found for the songs yet.'); return; }
     const keep = {};
     for (const k of ['logoURL', 'tagline', 'website', 'mark']) keep[k] = form.querySelector(`[name="${k}"]`)?.value;
     fill({...d.brand, ...keep, preset: ''});
-    out.textContent = `Made from ${d.covers} covers of ${d.songs} songs (${d.mood}${d.genres && d.genres.length ? ', ' + d.genres.slice(0, 3).join(', ') : ''}). Save to use it.`;
+    out.textContent = t('Made from %d covers of %d songs (%s). Save to use it.', d.covers, d.songs, t(d.mood) + (d.genres && d.genres.length ? ', ' + d.genres.slice(0, 3).join(', ') : ''));
   });
 
   fetch(endpoint).then((r) => (r.ok ? r.json() : {})).then(fill).catch(() => {});

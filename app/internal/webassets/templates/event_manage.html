@@ -1,10 +1,10 @@
 {{define "event_manage"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Manage {{.Event.Name}} — Songbooks</title>
+<title>{{t "Manage %s" .Event.Name}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,35 +13,35 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/events/{{.Event.ID}}">{{template "icon-back"}} {{.Event.Name}}</a>
-  <h1>Manage {{.Event.Name}}</h1>
+  <h1>{{t "Manage %s" .Event.Name}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  <p class="hint">Event managers run this one event's songbook and setlist — see the event's own page for attendees and who's registered to play what.</p>
+  <p class="hint">{{t "Event managers run this one event's songbook and setlist — see the event's own page for attendees and who's registered to play what."}}</p>
 
   {{/* A songbook (editable material pool) and a setlist (ordered
        running order) are deliberately separate things an event can
        have — see store.SetEventSongbook's doc comment. */}}
   <div class="card">
-    <h3>Songbook</h3>
+    <h3>{{t "Songbook"}}</h3>
     {{if .Event.SongbookID}}
-      <p><a href="/songbooks/{{.Event.SongbookID}}">Open this event's songbook</a> — gather songs there before building the setlist below.</p>
+      <p><a href="/songbooks/{{.Event.SongbookID}}">{{t "Open this event's songbook"}}</a> — {{t "gather songs there before building the setlist below."}}</p>
     {{else}}
-      <div class="attention-empty">No dedicated songbook yet.</div>
+      <div class="attention-empty">{{t "No dedicated songbook yet."}}</div>
       <div class="form-actions">
-        <button type="button" id="create-songbook-btn" class="primary">Create a songbook for this event</button>
+        <button type="button" id="create-songbook-btn" class="primary">{{t "Create a songbook for this event"}}</button>
       </div>
       <p id="songbook-result" class="form-status" role="status"></p>
       {{if .OwnerSongbooks}}
       <form class="form-stack form-subsection" id="attach-songbook-form">
         <div class="field">
-          <label for="attach-songbook-select">Or use an existing songbook</label>
+          <label for="attach-songbook-select">{{t "Or use an existing songbook"}}</label>
           <select id="attach-songbook-select" name="songbookId" required>
-            <option value="">Choose a songbook…</option>
-            {{range .OwnerSongbooks}}<option value="{{.ID}}">{{.Name}}{{if .IsDefault}} (default){{end}}</option>{{end}}
+            <option value="">{{t "Choose a songbook…"}}</option>
+            {{range .OwnerSongbooks}}<option value="{{.ID}}">{{.Name}}{{if .IsDefault}} {{t "(default)"}}{{end}}</option>{{end}}
           </select>
         </div>
-        <div class="form-actions"><button type="submit">Use this songbook</button></div>
+        <div class="form-actions"><button type="submit">{{t "Use this songbook"}}</button></div>
         <p class="form-status" role="status"></p>
       </form>
       {{end}}
@@ -49,37 +49,37 @@
   </div>
 
   <div class="card">
-    <h3>Setlist</h3>
+    <h3>{{t "Setlist"}}</h3>
     {{if .Event.SetlistID}}
-      <p><a href="/setlists/{{.Event.SetlistID}}">Open and edit the running order</a> — add or remove songs there; they'll show up on this event's own page for people to sign up to play.</p>
+      <p><a href="/setlists/{{.Event.SetlistID}}">{{t "Open and edit the running order"}}</a> — {{t "add or remove songs there; they'll show up on this event's own page for people to sign up to play."}}</p>
     {{else}}
-      <div class="attention-empty">No setlist yet — create one to start building the bill.</div>
-      <div class="form-actions"><button type="button" id="create-setlist-btn" class="primary">Create setlist</button></div>
+      <div class="attention-empty">{{t "No setlist yet — create one to start building the bill."}}</div>
+      <div class="form-actions"><button type="button" id="create-setlist-btn" class="primary">{{t "Create setlist"}}</button></div>
       <p id="setlist-result" class="form-status" role="status"></p>
     {{end}}
   </div>
 
   {{if .Event.SetlistID}}
   <div class="card">
-    <h3>Who's playing what</h3>
+    <h3>{{t "Who's playing what"}}</h3>
     <div class="table-scroll"><table class="table-stack" style="width:100%">
-      <thead><tr><th>Song</th><th>Registered</th></tr></thead>
+      <thead><tr><th>{{t "Song"}}</th><th>{{t "Registered"}}</th></tr></thead>
       <tbody>
       {{range .SongRows}}
         {{$song := .}}
         <tr>
-          <td data-label="Song">{{.Title}}{{if .Artist}} <span class="hint">— {{.Artist}}</span>{{end}}</td>
-          <td data-label="Registered">
+          <td data-label="{{t "Song"}}">{{.Title}}{{if .Artist}} <span class="hint">— {{.Artist}}</span>{{end}}</td>
+          <td data-label="{{t "Registered"}}">
           {{range .Registrations}}
             {{$who := .PersonName}}{{if .BandName}}{{$who = .BandName}}{{end}}
             <span class="roster-instrument-badge">{{$who}}
-              <button type="button" class="song-reg-remove-btn" data-reg-id="{{.ID}}" data-who="{{$who}}" data-song="{{$song.Title}}" aria-label="Remove {{$who}} from {{$song.Title}}">&times;</button>
+              <button type="button" class="song-reg-remove-btn" data-reg-id="{{.ID}}" data-who="{{$who}}" data-song="{{$song.Title}}" aria-label="{{t "Remove %s from %s" $who $song.Title}}">&times;</button>
             </span>
-          {{else}}<span class="hint">nobody yet</span>{{end}}
+          {{else}}<span class="hint">{{t "nobody yet"}}</span>{{end}}
           </td>
         </tr>
       {{else}}
-        <tr><td colspan="2" class="hint">No songs on the setlist yet.</td></tr>
+        <tr><td colspan="2" class="hint">{{t "No songs on the setlist yet."}}</td></tr>
       {{end}}
       </tbody>
     </table></div>
@@ -88,14 +88,14 @@
   {{end}}
 
   <div class="card">
-    <h3>Event managers</h3>
+    <h3>{{t "Event managers"}}</h3>
     {{if eq .Event.OwnerKind "community"}}
     <ul>
-    {{range .Managers}}<li>{{.DisplayName}} <span class="hint">({{.Username}})</span></li>{{else}}<li class="hint">Nobody separately assigned — community staff can already manage this event.</li>{{end}}
+    {{range .Managers}}<li>{{.DisplayName}} <span class="hint">({{.Username}})</span></li>{{else}}<li class="hint">{{t "Nobody separately assigned — community staff can already manage this event."}}</li>{{end}}
     </ul>
-    <p class="hint">Assigning/removing managers is done from the community's own admin page.</p>
+    <p class="hint">{{t "Assigning/removing managers is done from the community's own admin page."}}</p>
     {{else}}
-    <p class="hint">Bands don't need separately assigned managers — any current band member can already manage this event.</p>
+    <p class="hint">{{t "Bands don't need separately assigned managers — any current band member can already manage this event."}}</p>
     {{end}}
   </div>
 </main>
@@ -114,7 +114,7 @@ async function post(url, body, fallback) {
 }
 document.getElementById('create-songbook-btn')?.addEventListener('click', (e) => {
   Forms.run(document.getElementById('songbook-result'), e.currentTarget, async () => {
-    const data = await post(`/events/${eventId}/songbook`, null, 'Couldn’t create the songbook. Try again.');
+    const data = await post(`/events/${eventId}/songbook`, null, t('Couldn’t create the songbook. Try again.'));
     location.href = `/songbooks/${data.songbookId}`;
   });
 });
@@ -123,25 +123,25 @@ attachForm?.addEventListener('submit', (e) => {
   e.preventDefault();
   Forms.run(attachForm, attachForm.querySelector('button[type="submit"]'), async () => {
     const songbookId = Number(document.getElementById('attach-songbook-select').value);
-    await post(`/events/${eventId}/songbook/attach`, {songbookId}, 'Couldn’t use that songbook. Try again.');
+    await post(`/events/${eventId}/songbook/attach`, {songbookId}, t('Couldn’t use that songbook. Try again.'));
     location.reload();
   });
 });
 document.getElementById('create-setlist-btn')?.addEventListener('click', (e) => {
   Forms.run(document.getElementById('setlist-result'), e.currentTarget, async () => {
-    const data = await post(`/events/${eventId}/setlist`, null, 'Couldn’t create the setlist. Try again.');
+    const data = await post(`/events/${eventId}/setlist`, null, t('Couldn’t create the setlist. Try again.'));
     location.href = `/setlists/${data.setlistId}`;
   });
 });
 document.querySelectorAll('.song-reg-remove-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (!confirm(`Take ${btn.dataset.who} off “${btn.dataset.song}”?`)) return;
+    if (!confirm(t('Take %s off “%s”?', btn.dataset.who, btn.dataset.song))) return;
     const status = document.getElementById('song-regs-status');
     Forms.busy(btn, true);
     const res = await fetch(`/events/${eventId}/songs/${btn.dataset.regId}`, {method: 'DELETE'}).catch(() => null);
     if (res && res.ok) { location.reload(); return; }
     Forms.busy(btn, false);
-    Forms.status(status, `Couldn’t take ${btn.dataset.who} off that song. Try again.`, 'error');
+    Forms.status(status, t('Couldn’t take %s off that song. Try again.', btn.dataset.who), 'error');
   });
 });
 </script>

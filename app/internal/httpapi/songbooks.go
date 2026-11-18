@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"app/internal/covers"
+	"app/internal/i18n"
 	"app/internal/store"
 	"app/internal/webassets"
 )
@@ -144,10 +145,13 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 	var out []songbookGroup
 	for _, g := range groups {
 		sg := songbookGroup{Label: g.Label}
+		if g.Lesson != nil { // a course's lesson, named in the page's language
+			sg.Label = g.Lesson.Label(s.langOf(w))
+		}
 		for _, vid := range g.VariantIDs {
-			row := songbookSongRow{VariantID: vid, Title: "untitled", Cover: coverOf[vid]}
+			row := songbookSongRow{VariantID: vid, Title: i18n.T(s.langOf(w), "untitled"), Cover: coverOf[vid]}
 			if parsed, _, err := s.store.LoadVariant(vid); err == nil {
-				row.Title = orDefault(parsed.Get("title"), "untitled")
+				row.Title = orDefault(parsed.Get("title"), row.Title)
 				row.Tempo = parsed.Get("tempo")
 				row.Key = parsed.Get("key")
 			}

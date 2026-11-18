@@ -264,10 +264,11 @@ func (s *Server) handleLessonPage(w http.ResponseWriter, r *http.Request) {
 		// other lessons'.
 		var others []store.LessonSong
 		others = append(others, loose...)
+		lang := s.langOf(w)
 		for _, l := range lessons {
 			if l.ID != lesson.ID {
 				for _, s := range l.Songs {
-					s.Title = fmt.Sprintf("%s (%s)", s.Title, l.Label())
+					s.Title = fmt.Sprintf("%s (%s)", s.Title, l.Label(lang))
 					others = append(others, s)
 				}
 			}
@@ -608,7 +609,10 @@ func (s *Server) lessonPanel(r *http.Request, sb *store.Songbook, lesson *store.
 		Lesson: *lesson, SongbookID: sb.ID, Course: sb.Name, Of: len(lessons), Href: lessonHref(sb.ID, lesson.ID) + "?view=lesson",
 		VideoID: s.lessonVideo(*lesson), Done: progress[lesson.ID].Done, Files: files[lesson.ID],
 	}
-	link := func(l store.Lesson) *lessonLink { return &lessonLink{Href: lessonHref(sb.ID, l.ID), Label: l.Label()} }
+	lang := s.langOfRequest(r)
+	link := func(l store.Lesson) *lessonLink {
+		return &lessonLink{Href: lessonHref(sb.ID, l.ID), Label: l.Label(lang)}
+	}
 	for i, l := range lessons {
 		if progress[l.ID].Done {
 			panel.DoneCount++

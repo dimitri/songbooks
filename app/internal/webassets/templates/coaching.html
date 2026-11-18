@@ -7,25 +7,27 @@
      .IsStaff, .Person, .Tab. */}}
 {{define "community-tabs"}}
   <nav class="band-tabs band-tabs-row">
-    <a href="/communities/{{.Community.ID}}" class="band-tab{{if eq .Tab "overview"}} active{{end}}">Overview</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{shelfLabel "community" .Community.ID}}</a>
+    <a href="/communities/{{.Community.ID}}" class="band-tab{{if eq .Tab "overview"}} active{{end}}">{{t "Overview"}}</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{t (shelfLabel "community" .Community.ID)}}</a>
     {{if .Community.IsCoaching}}
-      {{if .IsStaff}}<a class="band-tab{{if eq .Tab "students"}} active{{end}}" href="/communities/{{.Community.ID}}/students">Students</a>
-      {{else}}<a class="band-tab{{if eq .Tab "voice"}} active{{end}}" href="/communities/{{.Community.ID}}/students/{{.Person.ID}}">My voice</a>{{end}}
-      <a class="band-tab{{if eq .Tab "groups"}} active{{end}}" href="/communities/{{.Community.ID}}/groups">Groups</a>
-      <a class="band-tab{{if eq .Tab "lessons"}} active{{end}}" href="/communities/{{.Community.ID}}/lessons">Lessons</a>
+      {{if .IsStaff}}<a class="band-tab{{if eq .Tab "students"}} active{{end}}" href="/communities/{{.Community.ID}}/students">{{t "Students"}}</a>
+      {{else}}<a class="band-tab{{if eq .Tab "voice"}} active{{end}}" href="/communities/{{.Community.ID}}/students/{{.Person.ID}}">{{t "My voice"}}</a>{{end}}
+      <a class="band-tab{{if eq .Tab "groups"}} active{{end}}" href="/communities/{{.Community.ID}}/groups">{{template "coach-groups-label"}}</a>
+      <a class="band-tab{{if eq .Tab "lessons"}} active{{end}}" href="/communities/{{.Community.ID}}/lessons">{{t "Lessons"}}</a>
     {{end}}
-    <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">Downloads</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/events">Events</a>
-    {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/admin">Admin</a>{{end}}
+    <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/events">{{t "Events"}}</a>
+    {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a>{{end}}
   </nav>
 {{end}}
 
 {{/* The coaching tabs alone, for the community pages with their own tab
      bar. Needs .Community, .IsStaff. */}}
-{{define "coaching-tab-links"}}{{if .Community.IsCoaching}}<a class="band-tab" href="/communities/{{.Community.ID}}/students">{{if .IsStaff}}Students{{else}}My voice{{end}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/groups">Groups</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/lessons">Lessons</a>{{end}}{{end}}
+{{define "coaching-tab-links"}}{{if .Community.IsCoaching}}<a class="band-tab" href="/communities/{{.Community.ID}}/students">{{if .IsStaff}}{{t "Students"}}{{else}}{{t "My voice"}}{{end}}</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/groups">{{template "coach-groups-label"}}</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/lessons">{{t "Lessons"}}</a>{{end}}{{end}}
+
+{{define "coach-groups-label"}}{{t "coaching|Groups"}}{{end}}
 
 {{define "coaching-head"}}
 <meta charset="utf-8">
@@ -37,13 +39,15 @@
 {{/* A voice on a strip from C2 to C7: a bar per register. */}}
 {{define "voice-chart"}}
 <div class="voice-chart" aria-hidden="true">
-  <div class="voice-chart-keys"><span style="left: 0%">C2</span><span style="left: 20%">C3</span><span style="left: 40%">C4</span><span style="left: 60%">C5</span><span style="left: 80%">C6</span><span style="left: 100%">C7</span></div>
+  {{/* A singer's note names: do1 to do6 in French (i18n.NoteName). */}}
+  {{if eq lang "fr"}}<div class="voice-chart-keys"><span style="left: 0%">do1</span><span style="left: 20%">do2</span><span style="left: 40%">do3</span><span style="left: 60%">do4</span><span style="left: 80%">do5</span><span style="left: 100%">do6</span></div>
+  {{else}}<div class="voice-chart-keys"><span style="left: 0%">C2</span><span style="left: 20%">C3</span><span style="left: 40%">C4</span><span style="left: 60%">C5</span><span style="left: 80%">C6</span><span style="left: 100%">C7</span></div>{{end}}
   {{range .}}<div class="voice-chart-row"><span class="voice-chart-bar is-{{.Register}}"{{if .Width}} style="left: {{printf "%.2f" .Left}}%; width: {{printf "%.2f" .Width}}%"{{else}} hidden{{end}}></span></div>{{end}}
 </div>
 {{end}}
 
 {{/* A lesson's mode, as a tag. Needs a store.Event. */}}
-{{define "lesson-tags"}}{{if eq .LessonMode "online"}}<span class="lesson-tag is-online">Online</span>{{else if eq .LessonMode "in_person"}}<span class="lesson-tag">In the room</span>{{end}}{{end}}
+{{define "lesson-tags"}}{{if eq .LessonMode "online"}}<span class="lesson-tag is-online">{{t "Online"}}</span>{{else if eq .LessonMode "in_person"}}<span class="lesson-tag">{{t "In the room"}}</span>{{end}}{{end}}
 
 {{/* A student's or a group's songs, each in its key: the coach's −/+, a
      song added from the community's, one taken out. Needs .Songs,
@@ -54,24 +58,24 @@
   <div class="coach-song" data-variant="{{.VariantID}}">
     <a class="coach-song-title" href="/song/{{.VariantID}}?songbook={{$.SongbookID}}"><strong>{{.Title}}</strong> <span class="hint">{{.Artist}}</span></a>
     {{if $.IsCoach}}
-      <span class="coach-key" title="the key, in semitones from the reference recording">
-        <button type="button" class="coach-key-down" aria-label="down a semitone">−</button>
+      <span class="coach-key" title="{{t "the key, in semitones from the reference recording"}}">
+        <button type="button" class="coach-key-down" aria-label="{{t "down a semitone"}}">−</button>
         <output>{{if gt .Semitones 0}}+{{end}}{{.Semitones}}</output>
-        <button type="button" class="coach-key-up" aria-label="up a semitone">+</button>
+        <button type="button" class="coach-key-up" aria-label="{{t "up a semitone"}}">+</button>
       </span>
-      <button type="button" class="coach-song-remove icon-btn" aria-label="Take {{.Title}} out">{{template "icon-close"}}</button>
+      <button type="button" class="coach-song-remove icon-btn" aria-label="{{t "Take %s out" .Title}}">{{template "icon-close"}}</button>
     {{else}}
-      <span class="coach-key-label">{{if .Semitones}}Key {{if gt .Semitones 0}}+{{end}}{{.Semitones}}{{else}}Original key{{end}}</span>
+      <span class="coach-key-label">{{if .Semitones}}{{t "Key"}} {{if gt .Semitones 0}}+{{end}}{{.Semitones}}{{else}}{{t "Original key"}}{{end}}</span>
     {{end}}
   </div>
   {{else}}
-  <p class="hint">No songs yet.</p>
+  <p class="hint">{{t "No songs yet."}}</p>
   {{end}}
 </div>
 {{if and .IsCoach .AddSongs}}
 <form class="coach-add-song">
-  <select class="coach-add-variant" aria-label="A song to add">{{range .AddSongs}}<option value="{{.VariantID}}">{{.Title}}{{with .Artist}} — {{.}}{{end}}</option>{{end}}</select>
-  <button type="submit" class="primary">Add</button>
+  <select class="coach-add-variant" aria-label="{{t "A song to add"}}">{{range .AddSongs}}<option value="{{.VariantID}}">{{.Title}}{{with .Artist}} — {{.}}{{end}}</option>{{end}}</select>
+  <button type="submit" class="primary">{{t "Add"}}</button>
 </form>
 {{end}}
 {{end}}
@@ -92,18 +96,18 @@
       const n = Math.max(-12, Math.min(12, (parseInt(out.textContent, 10) || 0) + d));
       send(`${api}/${row.dataset.variant}/key`, 'PUT', { semitones: n })
         .then(() => { out.textContent = (n > 0 ? '+' : '') + n; })
-        .catch(() => alert('Couldn’t change the key.'));
+        .catch(() => alert(t('Couldn’t change the key.')));
     };
     row.querySelector('.coach-key-down')?.addEventListener('click', () => key(-1));
     row.querySelector('.coach-key-up')?.addEventListener('click', () => key(1));
     row.querySelector('.coach-song-remove')?.addEventListener('click', () => {
-      send(`${api}/${row.dataset.variant}`, 'DELETE').then(() => row.remove()).catch(() => alert('Couldn’t take it out.'));
+      send(`${api}/${row.dataset.variant}`, 'DELETE').then(() => row.remove()).catch(() => alert(t('Couldn’t take it out.')));
     });
   });
   document.querySelector('.coach-add-song')?.addEventListener('submit', (e) => {
     e.preventDefault();
     const variantId = Number(e.target.querySelector('.coach-add-variant').value);
-    send(api, 'POST', { variantId }).then(() => location.reload()).catch(() => alert('Couldn’t add it.'));
+    send(api, 'POST', { variantId }).then(() => location.reload()).catch(() => alert(t('Couldn’t add it.')));
   });
 })();
 </script>
@@ -112,10 +116,10 @@
 {{define "coaching_students"}}
 {{$brand := brandFor "community" .Community.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>Students — {{.Community.Name}}</title>
+<title>{{t "Students"}} — {{.Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -123,32 +127,32 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>Students</h1>
+  <h1>{{t "Students"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
   {{template "brand-banner" $brand}}
   {{template "community-tabs" .}}
   <section class="home-section">
-    <div class="home-section-head"><h3>Your students</h3><span class="count">{{len .Students}}</span></div>
+    <div class="home-section-head"><h3>{{t "Your students"}}</h3><span class="count">{{len .Students}}</span></div>
     {{if .Students}}
     <div class="coach-students">
       {{range .Students}}
       <a class="coach-student" href="/communities/{{$.Community.ID}}/students/{{.PersonID}}">
         <div class="coach-student-head">
           <strong>{{.Name}}</strong>
-          <span class="hint">{{.SongCount}} song{{if ne .SongCount 1}}s{{end}}</span>
+          <span class="hint">{{tn .SongCount "%d song" "%d songs"}}</span>
         </div>
         {{template "voice-chart" .Ranges}}
         <div class="coach-student-ranges">
-          {{range .Ranges}}{{if .LowName}}<span class="voice-tag is-{{.Register}}">{{.Label}} {{.LowName}}–{{.HighName}}</span>{{end}}{{end}}
+          {{range .Ranges}}{{if .LowName}}<span class="voice-tag is-{{.Register}}">{{t .Label}} {{.LowName}}–{{.HighName}}</span>{{end}}{{end}}
         </div>
-        <div class="hint">{{with .NextLesson}}Next lesson {{.StartsAt.Format "Mon 2 Jan, 15:04"}}{{else}}No lesson planned{{end}}</div>
+        <div class="hint">{{with .NextLesson}}{{t "Next lesson %s" (date .StartsAt "Mon 2 Jan, 15:04")}}{{else}}{{t "No lesson planned"}}{{end}}</div>
       </a>
       {{end}}
     </div>
     {{else}}
-    <p class="hint">No students yet: invite them from the <a href="/communities/{{.Community.ID}}/admin">Admin</a> page; every member who isn't staff is a student.</p>
+    <p class="hint">{{t "No students yet: invite them from the"}} <a href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a> {{t "page; every member who isn't staff is a student."}}</p>
     {{end}}
   </section>
 </main>
@@ -162,7 +166,7 @@
 {{define "coaching_student"}}
 {{$brand := brandFor "community" .Community.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
 <title>{{.Student.DisplayName}} — {{.Community.Name}}</title>
@@ -172,8 +176,8 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}{{if .IsCoach}}/students{{end}}">{{template "icon-back"}} {{if .IsCoach}}Students{{else}}{{.Community.Name}}{{end}}</a>
-  <h1>{{if .IsCoach}}{{.Student.DisplayName}}{{else}}My voice{{end}}</h1>
+  <a class="back-link" href="/communities/{{.Community.ID}}{{if .IsCoach}}/students{{end}}">{{template "icon-back"}} {{if .IsCoach}}{{t "Students"}}{{else}}{{.Community.Name}}{{end}}</a>
+  <h1>{{if .IsCoach}}{{.Student.DisplayName}}{{else}}{{t "My voice"}}{{end}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index coach-student-page" data-community="{{.Community.ID}}" data-student="{{.Student.PersonID}}">
@@ -181,19 +185,19 @@
   {{template "community-tabs" .}}
 
   <section class="home-section">
-    <div class="home-section-head"><h3>Voice</h3><span class="hint">ranges overlap: the mixed voice bridges chest and head</span></div>
+    <div class="home-section-head"><h3>{{t "Voice"}}</h3><span class="hint">{{t "ranges overlap: the mixed voice bridges chest and head"}}</span></div>
     {{template "voice-chart" .Ranges}}
     <div class="voice-ranges">
       {{range .Ranges}}
       <div class="voice-range" data-register="{{.Register}}">
-        <span class="voice-tag is-{{.Register}}">{{.Label}}</span>
+        <span class="voice-tag is-{{.Register}}">{{t .Label}}</span>
         {{if $.IsCoach}}
-          <label>From <select class="voice-low" aria-label="{{.Label}}, lowest note"><option value="">—</option>{{$low := .LowMidi}}{{range $.NoteOptions}}<option value="{{.Midi}}"{{if eq .Midi $low}} selected{{end}}>{{.Name}}</option>{{end}}</select></label>
-          <label>to <select class="voice-high" aria-label="{{.Label}}, highest note"><option value="">—</option>{{$high := .HighMidi}}{{range $.NoteOptions}}<option value="{{.Midi}}"{{if eq .Midi $high}} selected{{end}}>{{.Name}}</option>{{end}}</select></label>
-          <input type="text" class="voice-note" value="{{.Note}}" placeholder="a note on it" aria-label="{{.Label}}, note">
+          <label>{{t "From"}} <select class="voice-low" aria-label="{{t "%s, lowest note" (t .Label)}}"><option value="">—</option>{{$low := .LowMidi}}{{range $.NoteOptions}}<option value="{{.Midi}}"{{if eq .Midi $low}} selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+          <label>{{t "to"}} <select class="voice-high" aria-label="{{t "%s, highest note" (t .Label)}}"><option value="">—</option>{{$high := .HighMidi}}{{range $.NoteOptions}}<option value="{{.Midi}}"{{if eq .Midi $high}} selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+          <input type="text" class="voice-note" value="{{.Note}}" placeholder="{{t "a note on it"}}" aria-label="{{t "%s, note" (t .Label)}}">
           <span class="voice-saved hint" aria-live="polite"></span>
         {{else}}
-          <span>{{if .LowName}}{{.LowName}} to {{.HighName}}{{else}}<span class="hint">not noted yet</span>{{end}}</span>
+          <span>{{if .LowName}}{{t "%s to %s" .LowName .HighName}}{{else}}<span class="hint">{{t "not noted yet"}}</span>{{end}}</span>
           {{with .Note}}<span class="hint">{{.}}</span>{{end}}
         {{end}}
       </div>
@@ -203,21 +207,21 @@
 
   {{if .IsCoach}}
   <section class="home-section">
-    <div class="home-section-head"><h3>Teaching notes</h3><span class="hint">only the coach sees them</span></div>
-    <label class="coach-notes">About {{.Student.DisplayName}}
-      <textarea id="coach-notes" rows="3" placeholder="who they are as a singer, goals, what to watch">{{.Notes}}</textarea></label>
+    <div class="home-section-head"><h3>{{t "Teaching notes"}}</h3><span class="hint">{{t "only the coach sees them"}}</span></div>
+    <label class="coach-notes">{{t "About %s" .Student.DisplayName}}
+      <textarea id="coach-notes" rows="3" placeholder="{{t "who they are as a singer, goals, what to watch"}}">{{.Notes}}</textarea></label>
     <form class="teaching-note-form">
-      <textarea name="body" rows="3" placeholder="What you worked on, what to practise next…" required></textarea>
+      <textarea name="body" rows="3" placeholder="{{t "What you worked on, what to practise next…"}}" required></textarea>
       <div class="teaching-note-row">
-        <select name="eventId" aria-label="About a lesson"><option value="0">No lesson in particular</option>{{range .NoteLessons}}<option value="{{.Event.ID}}">{{.Event.StartsAt.Format "Mon 2 Jan, 15:04"}} · {{.Event.Name}}</option>{{end}}</select>
-        <button type="submit" class="primary">Add the note</button>
+        <select name="eventId" aria-label="{{t "About a lesson"}}"><option value="0">{{t "No lesson in particular"}}</option>{{range .NoteLessons}}<option value="{{.Event.ID}}">{{date .Event.StartsAt "Mon 2 Jan, 15:04"}} · {{.Event.Name}}</option>{{end}}</select>
+        <button type="submit" class="primary">{{t "Add the note"}}</button>
       </div>
     </form>
     <div class="teaching-notes">
       {{range .TeachingNotes}}
       <article class="teaching-note" data-note="{{.ID}}">
-        <div class="teaching-note-head"><strong>{{with .EventStart}}{{.Format "Mon 2 Jan 2006"}}{{else}}{{.CreatedAt.Format "Mon 2 Jan 2006"}}{{end}}</strong>{{with .EventName}} <span class="hint">· {{.}}</span>{{end}}
-          <button type="button" class="link-btn teaching-note-edit">Edit</button></div>
+        <div class="teaching-note-head"><strong>{{with .EventStart}}{{date . "Mon 2 Jan 2006"}}{{else}}{{date .CreatedAt "Mon 2 Jan 2006"}}{{end}}</strong>{{with .EventName}} <span class="hint">· {{.}}</span>{{end}}
+          <button type="button" class="link-btn teaching-note-edit">{{t "Edit"}}</button></div>
         <p class="teaching-note-body">{{.Body}}</p>
       </article>
       {{end}}
@@ -226,17 +230,17 @@
   {{end}}
 
   <section class="home-section">
-    <div class="home-section-head"><h3>{{if .IsCoach}}Songs, in {{.Student.DisplayName}}’s key{{else}}My songs{{end}}</h3><span class="count">{{len .Songs}}</span></div>
+    <div class="home-section-head"><h3>{{if .IsCoach}}{{t "Songs, in %s’s key" .Student.DisplayName}}{{else}}{{t "My songs"}}{{end}}</h3><span class="count">{{len .Songs}}</span></div>
     {{template "coach-song-list" .}}
   </section>
 
   {{if .Groups}}
   <section class="home-section">
-    <div class="home-section-head"><h3>Groups</h3></div>
+    <div class="home-section-head"><h3>{{template "coach-groups-label"}}</h3></div>
     {{range .Groups}}
     <div class="coach-group-songs">
       <a href="/communities/{{$.Community.ID}}/groups/{{.Group.ID}}"><strong>{{.Group.Name}}</strong></a>
-      <span class="hint">{{if .Group.IsYear}}year group{{else}}one-off{{end}} · {{len .Songs}} song{{if ne (len .Songs) 1}}s{{end}}</span>
+      <span class="hint">{{if .Group.IsYear}}{{t "year group"}}{{else}}{{t "one-off"}}{{end}} · {{tn (len .Songs) "%d song" "%d songs"}}</span>
       {{$sb := .Group.SongbookID}}
       <div class="coach-group-song-list">{{range .Songs}}<a href="/song/{{.VariantID}}?songbook={{$sb}}">{{.Title}}</a>{{end}}</div>
     </div>
@@ -245,15 +249,15 @@
   {{end}}
 
   <section class="home-section">
-    <div class="home-section-head"><h3>Lessons</h3><a href="/communities/{{.Community.ID}}/lessons">calendar &rarr;</a></div>
+    <div class="home-section-head"><h3>{{t "Lessons"}}</h3><a href="/communities/{{.Community.ID}}/lessons">{{t "calendar"}} &rarr;</a></div>
     <div class="attention-list">
     {{range .Lessons}}
       <div class="attention-row">
-        <div class="attention-title">{{.Event.StartsAt.Format "Monday 2 January, 15:04"}}{{with .Event.EndsAt}}–{{.Format "15:04"}}{{end}} {{template "lesson-tags" .Event}}</div>
+        <div class="attention-title">{{date .Event.StartsAt "Monday 2 January, 15:04"}}{{with .Event.EndsAt}}–{{date . "15:04"}}{{end}} {{template "lesson-tags" .Event}}</div>
         <div class="attention-subtitle">{{.Event.Name}}{{with .Event.Location}} · {{.}}{{end}}</div>
       </div>
     {{else}}
-      <div class="attention-empty">No lesson planned.</div>
+      <div class="attention-empty">{{t "No lesson planned."}}</div>
     {{end}}
     </div>
   </section>
@@ -276,19 +280,19 @@
       const out = row.querySelector('.voice-saved');
       send(`${api}/ranges/${row.dataset.register}`, 'PUT', {
         low: num(row.querySelector('.voice-low')), high: num(row.querySelector('.voice-high')), note: row.querySelector('.voice-note').value,
-      }).then(() => { out.textContent = 'Saved'; setTimeout(() => location.reload(), 400); })
-        .catch(() => { out.textContent = 'Couldn’t save'; });
+      }).then(() => { out.textContent = t('Saved'); setTimeout(() => location.reload(), 400); })
+        .catch(() => { out.textContent = t('Couldn’t save'); });
     };
     row.querySelectorAll('select').forEach((s) => s.addEventListener('change', save));
     row.querySelector('.voice-note').addEventListener('change', save);
   });
   const notes = document.getElementById('coach-notes');
-  notes?.addEventListener('change', () => send(`${api}/notes`, 'PUT', { notes: notes.value }).catch(() => alert('Couldn’t save the notes.')));
+  notes?.addEventListener('change', () => send(`${api}/notes`, 'PUT', { notes: notes.value }).catch(() => alert(t('Couldn’t save the notes.'))));
   document.querySelector('.teaching-note-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
     send(`${api}/teaching-notes`, 'POST', { body: f.get('body'), eventId: Number(f.get('eventId')) })
-      .then(() => location.reload()).catch(() => alert('Couldn’t add the note.'));
+      .then(() => location.reload()).catch(() => alert(t('Couldn’t add the note.')));
   });
   // A note edited in place: emptied, it goes.
   document.querySelectorAll('.teaching-note').forEach((note) => {
@@ -300,7 +304,7 @@
       body.replaceWith(ta);
       ta.focus();
       ta.addEventListener('blur', () => send(`${api}/teaching-notes/${note.dataset.note}`, 'PUT', { body: ta.value.trim() })
-        .then(() => location.reload()).catch(() => alert('Couldn’t save the note.')));
+        .then(() => location.reload()).catch(() => alert(t('Couldn’t save the note.'))));
     }, { once: true });
   });
 })();
@@ -313,10 +317,10 @@
 {{define "coaching_groups"}}
 {{$brand := brandFor "community" .Community.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>Groups — {{.Community.Name}}</title>
+<title>{{template "coach-groups-label"}} — {{.Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -324,7 +328,7 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>Groups</h1>
+  <h1>{{template "coach-groups-label"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index coach-groups-page" data-community="{{.Community.ID}}">
@@ -334,20 +338,20 @@
   {{if .IsCoach}}
   <section class="home-section">
     <details class="coach-new-lesson"{{if not .Groups}} open{{end}}>
-      <summary>{{template "icon-plus"}} A group</summary>
+      <summary>{{template "icon-plus"}} {{t "A group"}}</summary>
       <form id="coach-group-form" class="coach-lesson-form">
-        <label>Name <input type="text" name="name" required placeholder="Tuesday group, summer stage…"></label>
-        <label>For <select name="kind">
-          <option value="year">the year</option>
-          <option value="oneoff">a master class, a stage</option>
+        <label>{{t "Name"}} <input type="text" name="name" required placeholder="{{t "Tuesday group, summer stage…"}}"></label>
+        <label>{{t "For"}} <select name="kind">
+          <option value="year">{{t "the year"}}</option>
+          <option value="oneoff">{{t "a master class, a stage"}}</option>
         </select></label>
-        <label class="coach-group-dates">From <input type="date" name="startsOn" value="{{.SeasonStart}}"></label>
-        <label class="coach-group-dates">to <input type="date" name="endsOn" value="{{.SeasonEnd}}"></label>
-        {{if .Masterclasses}}<label class="coach-group-event" hidden>The event <select name="eventId"><option value="0">none</option>{{range .Masterclasses}}<option value="{{.ID}}">{{.Name}} · {{.StartsAt.Format "2 Jan"}}</option>{{end}}</select></label>{{end}}
-        <fieldset class="coach-lesson-students"><legend>Students</legend>
-          {{range .Students}}<label><input type="checkbox" name="members" value="{{.PersonID}}"> {{.DisplayName}}</label>{{else}}<span class="hint">No students yet.</span>{{end}}
+        <label class="coach-group-dates">{{t "From"}} <input type="date" name="startsOn" value="{{.SeasonStart}}"></label>
+        <label class="coach-group-dates">{{t "to"}} <input type="date" name="endsOn" value="{{.SeasonEnd}}"></label>
+        {{if .Masterclasses}}<label class="coach-group-event" hidden>{{t "The event"}} <select name="eventId"><option value="0">{{t "none"}}</option>{{range .Masterclasses}}<option value="{{.ID}}">{{.Name}} · {{date .StartsAt "2 Jan"}}</option>{{end}}</select></label>{{end}}
+        <fieldset class="coach-lesson-students"><legend>{{t "Students"}}</legend>
+          {{range .Students}}<label><input type="checkbox" name="members" value="{{.PersonID}}"> {{.DisplayName}}</label>{{else}}<span class="hint">{{t "No students yet."}}</span>{{end}}
         </fieldset>
-        <button type="submit" class="primary">Make the group</button>
+        <button type="submit" class="primary">{{t "Make the group"}}</button>
       </form>
     </details>
   </section>
@@ -357,12 +361,12 @@
     <div class="coach-students">
     {{range .Groups}}
       <a class="coach-student" href="/communities/{{$.Community.ID}}/groups/{{.ID}}">
-        <div class="coach-student-head"><strong>{{.Name}}</strong><span class="lesson-tag">{{if .IsYear}}Year{{else}}One-off{{end}}</span></div>
-        <div class="hint">{{with .StartsOn}}{{.Format "2 Jan 2006"}}{{end}}{{with .EndsOn}} – {{.Format "2 Jan 2006"}}{{end}}</div>
-        <div class="coach-lesson-who">{{range .Members}}<span class="voice-tag">{{.DisplayName}}</span>{{else}}<span class="hint">no student yet</span>{{end}}</div>
+        <div class="coach-student-head"><strong>{{.Name}}</strong><span class="lesson-tag">{{if .IsYear}}{{t "Year"}}{{else}}{{t "One-off"}}{{end}}</span></div>
+        <div class="hint">{{with .StartsOn}}{{date . "2 Jan 2006"}}{{end}}{{with .EndsOn}} – {{date . "2 Jan 2006"}}{{end}}</div>
+        <div class="coach-lesson-who">{{range .Members}}<span class="voice-tag">{{.DisplayName}}</span>{{else}}<span class="hint">{{t "no student yet"}}</span>{{end}}</div>
       </a>
     {{else}}
-      <p class="hint">{{if .IsCoach}}No groups yet: a class that works together for the year, or the students of a master class.{{else}}You're in no group.{{end}}</p>
+      <p class="hint">{{if .IsCoach}}{{t "No groups yet: a class that works together for the year, or the students of a master class."}}{{else}}{{t "You're in no group."}}{{end}}</p>
     {{end}}
     </div>
   </section>
@@ -392,7 +396,7 @@
         eventId: Number(f.get('eventId') || 0), members: f.getAll('members').map(Number),
       }),
     }).then((r) => (r.ok ? r.json() : Promise.reject())).then((g) => { location.href = `/communities/${page.dataset.community}/groups/${g.id}`; })
-      .catch(() => alert('Couldn’t make the group.'));
+      .catch(() => alert(t('Couldn’t make the group.')));
   });
 })();
 </script>
@@ -404,7 +408,7 @@
 {{define "coaching_group"}}
 {{$brand := brandFor "community" .Community.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
 <title>{{.Group.Name}} — {{.Community.Name}}</title>
@@ -414,7 +418,7 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}/groups">{{template "icon-back"}} Groups</a>
+  <a class="back-link" href="/communities/{{.Community.ID}}/groups">{{template "icon-back"}} {{template "coach-groups-label"}}</a>
   <h1>{{.Group.Name}}</h1>
   {{template "notif-bell"}}
 </header>
@@ -422,32 +426,32 @@
   {{template "brand-banner" $brand}}
   {{template "community-tabs" .}}
   <section class="home-section">
-    <div class="home-section-head"><h3>{{if .Group.IsYear}}A year group{{else}}A one-off group{{end}}</h3>
-      <span class="hint">{{with .Group.StartsOn}}{{.Format "2 January 2006"}}{{end}}{{with .Group.EndsOn}} – {{.Format "2 January 2006"}}{{end}}</span></div>
-    {{with .Event}}<p>For <a href="/events/{{.ID}}">{{.Name}}</a>, {{.StartsAt.Format "Monday 2 January"}}.</p>{{end}}
+    <div class="home-section-head"><h3>{{if .Group.IsYear}}{{t "A year group"}}{{else}}{{t "A one-off group"}}{{end}}</h3>
+      <span class="hint">{{with .Group.StartsOn}}{{date . "2 January 2006"}}{{end}}{{with .Group.EndsOn}} – {{date . "2 January 2006"}}{{end}}</span></div>
+    {{with .Event}}<p>{{t "For"}} <a href="/events/{{.ID}}">{{.Name}}</a>, {{date .StartsAt "Monday 2 January"}}.</p>{{end}}
     {{if .IsCoach}}
     <div class="coach-lesson-students coach-group-members">{{$g := .Group}}{{range .Students}}<label><input type="checkbox" value="{{.PersonID}}"{{if $g.HasMember .PersonID}} checked{{end}}> {{.DisplayName}}</label>{{end}}</div>
-    <div class="coach-lesson-actions"><button type="button" id="coach-group-save">Save the members</button><button type="button" id="coach-group-delete" class="danger">Delete the group</button></div>
+    <div class="coach-lesson-actions"><button type="button" id="coach-group-save">{{t "Save the members"}}</button><button type="button" id="coach-group-delete" class="danger">{{t "Delete the group"}}</button></div>
     {{else}}
     <div class="coach-lesson-who">{{range .Group.Members}}<span class="voice-tag">{{.DisplayName}}</span>{{end}}</div>
     {{end}}
   </section>
 
   <section class="home-section">
-    <div class="home-section-head"><h3>Songs, in the group’s key</h3><span class="count">{{len .Songs}}</span></div>
+    <div class="home-section-head"><h3>{{t "Songs, in the group’s key"}}</h3><span class="count">{{len .Songs}}</span></div>
     {{template "coach-song-list" .}}
   </section>
 
   <section class="home-section">
-    <div class="home-section-head"><h3>Sessions</h3><a href="/communities/{{.Community.ID}}/lessons">calendar &rarr;</a></div>
+    <div class="home-section-head"><h3>{{t "Sessions"}}</h3><a href="/communities/{{.Community.ID}}/lessons">{{t "calendar"}} &rarr;</a></div>
     <div class="attention-list">
     {{range .Lessons}}
       <div class="attention-row">
-        <div class="attention-title">{{.Event.StartsAt.Format "Monday 2 January, 15:04"}}{{with .Event.EndsAt}}–{{.Format "15:04"}}{{end}} {{template "lesson-tags" .Event}}</div>
+        <div class="attention-title">{{date .Event.StartsAt "Monday 2 January, 15:04"}}{{with .Event.EndsAt}}–{{date . "15:04"}}{{end}} {{template "lesson-tags" .Event}}</div>
         <div class="attention-subtitle">{{.Event.Name}}{{with .Event.Location}} · {{.}}{{end}}</div>
       </div>
     {{else}}
-      <div class="attention-empty">No session planned{{if .IsCoach}}: add one from the Lessons tab, for this group{{end}}.</div>
+      <div class="attention-empty">{{if .IsCoach}}{{t "No session planned: add one from the Lessons tab, for this group."}}{{else}}{{t "No session planned."}}{{end}}</div>
     {{end}}
     </div>
   </section>
@@ -464,12 +468,12 @@
   document.getElementById('coach-group-save').addEventListener('click', () => {
     const members = [...document.querySelectorAll('.coach-group-members input:checked')].map((i) => Number(i.value));
     fetch(`${api}/members`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ members }) })
-      .then((r) => { if (!r.ok) throw new Error(); location.reload(); }).catch(() => alert('Couldn’t save.'));
+      .then((r) => { if (!r.ok) throw new Error(); location.reload(); }).catch(() => alert(t('Couldn’t save.')));
   });
   document.getElementById('coach-group-delete').addEventListener('click', () => {
-    if (!confirm('Delete this group? Its songs list goes; its sessions stay on the calendar.')) return;
+    if (!confirm(t('Delete this group? Its songs list goes; its sessions stay on the calendar.'))) return;
     fetch(api, { method: 'DELETE' }).then((r) => { if (!r.ok) throw new Error(); location.href = `/communities/${page.dataset.community}/groups`; })
-      .catch(() => alert('Couldn’t delete it.'));
+      .catch(() => alert(t('Couldn’t delete it.')));
   });
 })();
 </script>
@@ -481,10 +485,10 @@
 {{define "coaching_lessons"}}
 {{$brand := brandFor "community" .Community.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>Lessons — {{.Community.Name}}</title>
+<title>{{t "Lessons"}} — {{.Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -492,29 +496,29 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>Lessons</h1>
+  <h1>{{t "Lessons"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index coach-lessons-page" data-community="{{.Community.ID}}">
   {{template "brand-banner" $brand}}
   {{template "community-tabs" .}}
-  <p class="coach-subscribe"><a href="/calendar/subscribe">{{template "icon-calendar"}} Your calendar in your calendar app</a></p>
+  <p class="coach-subscribe"><a href="/calendar/subscribe">{{template "icon-calendar"}} {{t "Your calendar in your calendar app"}}</a></p>
 
   {{if .IsCoach}}
   <section class="home-section">
     <details class="coach-new-lesson"{{if not .Days}} open{{end}}>
-      <summary>{{template "icon-plus"}} A lesson</summary>
+      <summary>{{template "icon-plus"}} {{t "A lesson"}}</summary>
       <form id="coach-lesson-form" class="coach-lesson-form">
-        <label>When <input type="datetime-local" name="startsAt" value="{{.DefaultStart}}" required></label>
-        <label>For <select name="minutes"><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>1 hour</option><option value="90">1 h 30</option><option value="120">2 hours</option><option value="180">3 hours</option></select></label>
-        <label>How <select name="mode"><option value="in_person">In the room</option><option value="online">Online</option></select></label>
-        <label>Where <input type="text" name="location" placeholder="Studio, address…"></label>
-        <label>Name <input type="text" name="name" placeholder="Lesson"></label>
-        {{if .Groups}}<label>A group <select name="groupId"><option value="0">no, students one by one</option>{{range .Groups}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>{{end}}
-        <fieldset class="coach-lesson-students"><legend>Students</legend>
-          {{range .Students}}<label><input type="checkbox" name="students" value="{{.PersonID}}"> {{.DisplayName}}</label>{{else}}<span class="hint">No students yet.</span>{{end}}
+        <label>{{t "When"}} <input type="datetime-local" name="startsAt" value="{{.DefaultStart}}" required></label>
+        <label>{{t "For"}} <select name="minutes"><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>{{t "1 hour"}}</option><option value="90">1 h 30</option><option value="120">{{t "2 hours"}}</option><option value="180">{{t "3 hours"}}</option></select></label>
+        <label>{{t "How"}} <select name="mode"><option value="in_person">{{t "In the room"}}</option><option value="online">{{t "Online"}}</option></select></label>
+        <label>{{t "Where"}} <input type="text" name="location" placeholder="{{t "Studio, address…"}}"></label>
+        <label>{{t "Name"}} <input type="text" name="name" placeholder="{{t "Lesson"}}"></label>
+        {{if .Groups}}<label>{{t "A group"}} <select name="groupId"><option value="0">{{t "no, students one by one"}}</option>{{range .Groups}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>{{end}}
+        <fieldset class="coach-lesson-students"><legend>{{t "Students"}}</legend>
+          {{range .Students}}<label><input type="checkbox" name="students" value="{{.PersonID}}"> {{.DisplayName}}</label>{{else}}<span class="hint">{{t "No students yet."}}</span>{{end}}
         </fieldset>
-        <button type="submit" class="primary">Put it on the calendar</button>
+        <button type="submit" class="primary">{{t "Put it on the calendar"}}</button>
       </form>
     </details>
   </section>
@@ -522,19 +526,19 @@
 
   {{range .Days}}
   <section class="home-section coach-day">
-    <div class="home-section-head"><h3>{{.Day.Format "Monday 2 January"}}</h3></div>
+    <div class="home-section-head"><h3>{{date .Day "Monday 2 January"}}</h3></div>
     {{range .Lessons}}
     <div class="coach-lesson" data-event="{{.Event.ID}}">
-      <div class="coach-lesson-time">{{.Event.StartsAt.Format "15:04"}}{{with .Event.EndsAt}}<span class="hint">–{{.Format "15:04"}}</span>{{end}}</div>
+      <div class="coach-lesson-time">{{date .Event.StartsAt "15:04"}}{{with .Event.EndsAt}}<span class="hint">–{{date . "15:04"}}</span>{{end}}</div>
       <div class="coach-lesson-body">
         <div><strong>{{.Event.Name}}</strong> {{template "lesson-tags" .Event}}{{with .Event.Location}} <span class="hint">· {{.}}</span>{{end}}</div>
-        <div class="coach-lesson-who">{{range .Students}}<span class="voice-tag">{{.DisplayName}}</span>{{else}}<span class="hint">no student yet</span>{{end}}</div>
+        <div class="coach-lesson-who">{{range .Students}}<span class="voice-tag">{{.DisplayName}}</span>{{else}}<span class="hint">{{t "no student yet"}}</span>{{end}}</div>
         {{if $.IsCoach}}
         <details class="coach-lesson-edit">
-          <summary>Students</summary>
+          <summary>{{t "Students"}}</summary>
           {{$regs := .Students}}
           <div class="coach-lesson-students">{{range $.Students}}{{$id := .PersonID}}<label><input type="checkbox" value="{{.PersonID}}"{{range $regs}}{{if eq .PersonID $id}} checked{{end}}{{end}}> {{.DisplayName}}</label>{{end}}</div>
-          <div class="coach-lesson-actions"><button type="button" class="coach-lesson-save">Save</button><button type="button" class="coach-lesson-delete danger">Cancel the lesson</button></div>
+          <div class="coach-lesson-actions"><button type="button" class="coach-lesson-save">{{t "Save"}}</button><button type="button" class="coach-lesson-delete danger">{{t "Cancel the lesson"}}</button></div>
         </details>
         {{end}}
       </div>
@@ -542,7 +546,7 @@
     {{end}}
   </section>
   {{else}}
-  <p class="hint">{{if .IsCoach}}Nothing on the calendar yet.{{else}}No lesson planned yet: your coach puts them here.{{end}}</p>
+  <p class="hint">{{if .IsCoach}}{{t "Nothing on the calendar yet."}}{{else}}{{t "No lesson planned yet: your coach puts them here."}}{{end}}</p>
   {{end}}
 </main>
 </div>
@@ -561,17 +565,17 @@
     send(api, 'POST', {
       startsAt: f.get('startsAt'), minutes: Number(f.get('minutes')), mode: f.get('mode'), location: f.get('location'), name: f.get('name'),
       groupId: Number(f.get('groupId') || 0), students: f.getAll('students').map(Number),
-    }).then(() => location.reload()).catch((err) => alert('Couldn’t add the lesson. ' + err.message));
+    }).then(() => location.reload()).catch((err) => alert(t('Couldn’t add the lesson.') + ' ' + err.message));
   });
   document.querySelectorAll('.coach-lesson').forEach((row) => {
     const id = row.dataset.event;
     row.querySelector('.coach-lesson-save')?.addEventListener('click', () => {
       const students = [...row.querySelectorAll('.coach-lesson-students input:checked')].map((i) => Number(i.value));
-      send(`${api}/${id}/students`, 'PUT', { students }).then(() => location.reload()).catch(() => alert('Couldn’t save.'));
+      send(`${api}/${id}/students`, 'PUT', { students }).then(() => location.reload()).catch(() => alert(t('Couldn’t save.')));
     });
     row.querySelector('.coach-lesson-delete')?.addEventListener('click', () => {
-      if (!confirm('Cancel this lesson? It goes off the calendar.')) return;
-      send(`${api}/${id}`, 'DELETE').then(() => row.remove()).catch(() => alert('Couldn’t cancel it.'));
+      if (!confirm(t('Cancel this lesson? It goes off the calendar.'))) return;
+      send(`${api}/${id}`, 'DELETE').then(() => row.remove()).catch(() => alert(t('Couldn’t cancel it.')));
     });
   });
 })();
@@ -583,30 +587,30 @@
 
 {{define "calendar_subscribe"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>Your calendar — Songbooks</title>
+<title>{{t "Your calendar"}} — Songbooks</title>
 </head>
 <body>
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/home">{{template "icon-back"}} Home</a>
-  <h1>Your calendar</h1>
+  <a class="back-link" href="/home">{{template "icon-back"}} {{t "Home"}}</a>
+  <h1>{{t "Your calendar"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index calendar-subscribe">
   <section class="home-section">
-    <p>Your gigs, rehearsals, events and lessons, in the calendar app on your phone or computer, kept up to date.</p>
+    <p>{{t "Your gigs, rehearsals, events and lessons, in the calendar app on your phone or computer, kept up to date."}}</p>
     <div class="calendar-subscribe-actions">
-      <a class="calendar-subscribe-btn is-primary" href="{{.Webcal}}">{{template "icon-calendar"}} Subscribe on this device</a>
+      <a class="calendar-subscribe-btn is-primary" href="{{.Webcal}}">{{template "icon-calendar"}} {{t "Subscribe on this device"}}</a>
       <a class="calendar-subscribe-btn" href="{{.Google}}" target="_blank" rel="noopener">Google Calendar</a>
     </div>
-    <label class="calendar-subscribe-url">Or paste this address in your calendar app (“subscribe”, “from URL”):
-      <span class="calendar-subscribe-copy"><input type="text" id="feed-url" value="{{.FeedURL}}" readonly><button type="button" id="feed-copy">Copy</button></span></label>
-    <p class="hint">This address is yours: whoever has it sees your calendar. Shared by mistake? Make a new one, the old one stops working.</p>
-    <button type="button" id="feed-reset" class="danger">Make a new address</button>
+    <label class="calendar-subscribe-url">{{t "Or paste this address in your calendar app (“subscribe”, “from URL”):"}}
+      <span class="calendar-subscribe-copy"><input type="text" id="feed-url" value="{{.FeedURL}}" readonly><button type="button" id="feed-copy">{{t "Copy"}}</button></span></label>
+    <p class="hint">{{t "This address is yours: whoever has it sees your calendar. Shared by mistake? Make a new one, the old one stops working."}}</p>
+    <button type="button" id="feed-reset" class="danger">{{t "Make a new address"}}</button>
   </section>
 </main>
 </div>
@@ -620,7 +624,7 @@
     navigator.clipboard?.writeText(input.value).catch(() => document.execCommand('copy'));
   });
   document.getElementById('feed-reset').addEventListener('click', () => {
-    if (!confirm('Make a new address? Calendars subscribed to the old one stop getting updates.')) return;
+    if (!confirm(t('Make a new address? Calendars subscribed to the old one stop getting updates.'))) return;
     fetch('/api/calendar/feed/reset', { method: 'POST' }).then((r) => { if (r.ok) location.reload(); });
   });
 })();

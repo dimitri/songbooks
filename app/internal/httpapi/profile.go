@@ -38,6 +38,7 @@ func (s *Server) handleProfilePage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	locale, _ := s.store.PersonLocale(r.Context(), p.ID)
 	s.render(w, "profile", map[string]any{
 		"Me": p, "CommonInstruments": commonInstruments, "Checked": checked,
 		"Other":       strings.Join(other, ", "),
@@ -49,6 +50,7 @@ func (s *Server) handleProfilePage(w http.ResponseWriter, r *http.Request) {
 		"EmailSaved":  r.URL.Query().Get("emailsaved") != "",
 		"PublicSaved": r.URL.Query().Get("publicsaved") != "",
 		"Tab":         r.URL.Query().Get("tab"),
+		"Locale":      locale,
 	})
 }
 

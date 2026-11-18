@@ -1,7 +1,7 @@
 {{define "community"}}
 {{$brand := brandFor "community" .Community.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,7 +14,7 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities">{{template "icon-back"}} My communities</a>
+  <a class="back-link" href="/communities">{{template "icon-back"}} {{t "My communities"}}</a>
   <h1>{{.Community.Name}}</h1>
   {{template "notif-bell"}}
 </header>
@@ -27,12 +27,12 @@
        glance a band's overview gives via its member-symmetric note. ---- */}}
   <section class="home-section">
     <div class="home-section-head">
-      <h3>Members</h3>
-      <span class="count">{{len .Members}} current</span>
+      <h3>{{t "Members"}}</h3>
+      <span class="count">{{t "%d current" (len .Members)}}</span>
     </div>
     <p class="hint">
-      {{if .StaffNames}}Staff: {{range $i, $n := .StaffNames}}{{if $i}}, {{end}}{{$n}}{{end}}{{else}}No staff members currently.{{end}}
-      {{if .IsStaff}} — full roster and invites are on the <a href="/communities/{{.Community.ID}}/admin">Admin</a> page.{{end}}
+      {{if .StaffNames}}{{t "Staff:"}} {{range $i, $n := .StaffNames}}{{if $i}}, {{end}}{{$n}}{{end}}{{else}}{{t "No staff members currently."}}{{end}}
+      {{if .IsStaff}} — {{t "full roster and invites are on the"}} <a href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a> {{t "page."}}{{end}}
     </p>
   </section>
 
@@ -42,17 +42,17 @@
   <section class="home-section">
     <div class="home-section-head">
       {{$shelf := shelfLabel "community" .Community.ID}}
-      <h3>{{$shelf}}</h3>
-      <a href="/communities/{{.Community.ID}}/songbooks">{{len .Songbooks}} {{if eq $shelf "Courses"}}course{{else}}songbook{{end}}{{if ne (len .Songbooks) 1}}s{{end}} &rarr;</a>
+      <h3>{{t $shelf}}</h3>
+      <a href="/communities/{{.Community.ID}}/songbooks">{{if eq $shelf "Courses"}}{{tn (len .Songbooks) "%d course" "%d courses"}}{{else}}{{tn (len .Songbooks) "%d songbook" "%d songbooks"}}{{end}} &rarr;</a>
     </div>
     <div class="attention-list">
     {{range .Songbooks}}
       <a class="attention-row" href="{{if .IsDefault}}/communities/{{$.Community.ID}}/songbooks/default{{else}}/songbooks/{{.ID}}{{end}}">
-        <div class="attention-title">{{.Name}}{{if .IsDefault}} <span class="hint">(default)</span>{{end}}</div>
-        <div class="attention-subtitle">{{if .IsCourse}}{{.LessonCount}} lesson{{if ne .LessonCount 1}}s{{end}} · {{end}}{{.SongCount}} song{{if ne .SongCount 1}}s{{end}}</div>
+        <div class="attention-title">{{.Name}}{{if .IsDefault}} <span class="hint">{{t "(default)"}}</span>{{end}}</div>
+        <div class="attention-subtitle">{{if .IsCourse}}{{tn .LessonCount "%d lesson" "%d lessons"}} · {{end}}{{tn .SongCount "%d song" "%d songs"}}</div>
       </a>
     {{else}}
-      <div class="attention-empty">Nothing here yet.</div>
+      <div class="attention-empty">{{t "Nothing here yet."}}</div>
     {{end}}
     </div>
   </section>
@@ -61,17 +61,17 @@
        band's "Set lists" section uses for its next gig. ---- */}}
   <section class="home-section">
     <div class="home-section-head">
-      <h3>Events</h3>
-      <a href="/communities/{{.Community.ID}}/events">all events &rarr;</a>
+      <h3>{{t "Events"}}</h3>
+      <a href="/communities/{{.Community.ID}}/events">{{t "all events"}} &rarr;</a>
     </div>
     <div class="attention-list">
     {{range .UpcomingEvents}}
       <a class="attention-row" href="/events/{{.ID}}">
         <div class="attention-title">{{.Name}}</div>
-        <div class="attention-subtitle">{{.StartsAt.Format "Mon, Jan 2 · 15:04"}}{{if .Location}} — {{.Location}}{{end}}</div>
+        <div class="attention-subtitle">{{date .StartsAt "Mon 2 Jan · 15:04"}}{{if .Location}} — {{.Location}}{{end}}</div>
       </a>
     {{else}}
-      <div class="attention-empty">No upcoming events.</div>
+      <div class="attention-empty">{{t "No upcoming events."}}</div>
     {{end}}
     </div>
   </section>

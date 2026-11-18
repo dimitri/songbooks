@@ -1,11 +1,11 @@
 {{define "band_setlists"}}
 {{$brand := brandFor "band" .Band.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Band.Name}} — set lists</title>
+<title>{{t "%s — set lists" .Band.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,13 +15,13 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
-  <h1>{{.Band.Name}} — set lists</h1>
+  <h1>{{t "%s — set lists" .Band.Name}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
   {{template "band-tabs" (bandTabs .Band.ID "setlists")}}
 
-  <p class="hint">New set lists are made on the <a href="/setlists">Set lists</a> page.</p>
+  <p class="hint">{{t "New set lists are made on the"}} <a href="/setlists">{{t "Set lists"}}</a>{{t "setlists| page."}}</p>
 
   {{if .Setlists}}
   <ul class="setlist-rows">
@@ -29,13 +29,13 @@
     <li class="setlist-row">
       <a class="setlist-row-title" href="/bands/{{$.Band.ID}}/setlists/{{.ID}}">{{.Title}}</a>
       <div class="setlist-row-actions">
-        <a class="chip-link" href="/bands/{{$.Band.ID}}/setlists/{{.ID}}/clicktrack">{{template "icon-tap"}} Click track</a>
+        <a class="chip-link" href="/bands/{{$.Band.ID}}/setlists/{{.ID}}/clicktrack">{{template "icon-tap"}} {{t "Click track"}}</a>
       </div>
     </li>
   {{end}}
   </ul>
   {{else}}
-    <a class="attention-empty" href="/setlists">No set lists yet — create one &rarr;</a>
+    <a class="attention-empty" href="/setlists">{{t "No set lists yet — create one"}} &rarr;</a>
   {{end}}
 </main>
 {{template "global-tabbar"}}

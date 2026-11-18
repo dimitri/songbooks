@@ -23,6 +23,9 @@
 (function () {
   const FPS = 200;
   const TPQ = 960;
+  // The page's t() (docs/i18n.md) for the one text this returns, `how`;
+  // without it (analyze is pure, it may run elsewhere), the English.
+  const T = (typeof window !== 'undefined' && window.t) || ((m, ...a) => { let i = 0; return m.replace(/%[ds]/g, () => String(a[i++])); });
 
   function envelope(x, sr) {
     const hop = sr / FPS;
@@ -359,7 +362,7 @@
         const sc = windowScore(cand, period, 0, probeBars) + (entry < click / 2 ? 0.5 : 0);
         if (sc > best) { best = sc; t0 = cand; }
       }
-      how = `count-in of ${countIn.clicks} clicks`;
+      how = T('count-in of %d clicks', countIn.clicks);
     } else {
       const fit = combFit(env, beatSec, start, Math.min(duration, start + 60));
       period = fit.period;
@@ -385,7 +388,7 @@
         candidates.push({ t0: cand, score: sc });
         if (sc > best) { best = sc; t0 = cand; }
       }
-      how = chr ? 'beat, downbeat and chord detection' : 'beat and downbeat detection';
+      how = chr ? T('beat, downbeat and chord detection') : T('beat and downbeat detection');
     }
 
     // Per-bar tracking: start from the previous bar at the local tempo,

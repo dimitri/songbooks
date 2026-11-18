@@ -1,10 +1,10 @@
 {{define "admin_person"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Person.DisplayName}} — Admin — Songbooks</title>
+<title>{{.Person.DisplayName}} — {{t "Admin"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -17,19 +17,19 @@
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  <a href="/admin#people" class="import-back">{{template "icon-back"}} back to Admin</a>
+  <a href="/admin#people" class="import-back">{{template "icon-back"}} {{t "back to Admin"}}</a>
 
   <div class="card">
-    <h3>Identity</h3>
+    <h3>{{t "Identity"}}</h3>
     <table style="width:100%">
-      <tr><td class="hint">Username</td><td>{{.Person.Username}}</td></tr>
-      <tr><td class="hint">Display name</td><td>{{.Person.DisplayName}}</td></tr>
-      <tr><td class="hint">Email</td><td>{{if .Person.Email}}{{.Person.Email}}{{else}}<em>none</em>{{end}}</td></tr>
-      <tr><td class="hint">Site admin</td><td>
-        {{if eq .Person.ID .Me.ID}}<em>you</em>{{else}}
-        <form method="post" action="/admin/people/{{.Person.ID}}/admin" style="display:inline"{{if .Person.IsAdmin}} onsubmit="return confirm('Remove site admin rights from {{.Person.Username}}?')"{{end}}>
+      <tr><td class="hint">{{t "Username"}}</td><td>{{.Person.Username}}</td></tr>
+      <tr><td class="hint">{{t "Display name"}}</td><td>{{.Person.DisplayName}}</td></tr>
+      <tr><td class="hint">{{t "Email"}}</td><td>{{if .Person.Email}}{{.Person.Email}}{{else}}<em>{{t "none"}}</em>{{end}}</td></tr>
+      <tr><td class="hint">{{t "Site admin"}}</td><td>
+        {{if eq .Person.ID .Me.ID}}<em>{{t "you"}}</em>{{else}}
+        <form method="post" action="/admin/people/{{.Person.ID}}/admin" style="display:inline"{{if .Person.IsAdmin}} onsubmit="return confirm('{{t "Remove site admin rights from %s?" .Person.Username}}')"{{end}}>
           <input type="hidden" name="is_admin" value="{{if .Person.IsAdmin}}0{{else}}1{{end}}">
-          <button type="submit">{{if .Person.IsAdmin}}Remove admin{{else}}Make admin{{end}}</button>
+          <button type="submit">{{if .Person.IsAdmin}}{{t "Remove admin"}}{{else}}{{t "Make admin"}}{{end}}</button>
         </form>
         {{end}}
       </td></tr>
@@ -41,62 +41,62 @@
        having to find and open each band/community separately to fix
        one person's role. */}}
   <div class="card">
-    <h3>Memberships &amp; roles</h3>
-    <p class="hint">Adjusting a role here takes effect immediately, same as doing it from the band/community's own Members page.</p>
+    <h3>{{t "Memberships & roles"}}</h3>
+    <p class="hint">{{t "Adjusting a role here takes effect immediately, same as doing it from the band/community's own Members page."}}</p>
     <div id="membership-rows" class="form-stack">
     {{range .Memberships}}
       <div class="import-row" data-kind="{{.Kind}}" data-target-id="{{.ID}}" data-name="{{.Name}}">
-        <strong class="membership-row-label">{{if eq .Kind "band"}}Band{{else}}Community{{end}}: {{.Name}}</strong>
-        <select class="membership-role-select" aria-label="Role in {{.Name}}">
+        <strong class="membership-row-label">{{if eq .Kind "band"}}{{t "Band: %s" .Name}}{{else}}{{t "Community: %s" .Name}}{{end}}</strong>
+        <select class="membership-role-select" aria-label="{{t "Role in %s" .Name}}">
           {{if eq .Kind "band"}}
-          <option value="core" {{if eq .Status "core"}}selected{{end}}>Core</option>
-          <option value="guest" {{if eq .Status "guest"}}selected{{end}}>Guest</option>
+          <option value="core" {{if eq .Status "core"}}selected{{end}}>{{t "Core"}}</option>
+          <option value="guest" {{if eq .Status "guest"}}selected{{end}}>{{t "Guest"}}</option>
           {{else}}
-          <option value="staff" {{if eq .Status "staff"}}selected{{end}}>Staff</option>
-          <option value="member" {{if eq .Status "member"}}selected{{end}}>Member</option>
+          <option value="staff" {{if eq .Status "staff"}}selected{{end}}>{{t "Staff"}}</option>
+          <option value="member" {{if eq .Status "member"}}selected{{end}}>{{t "Member"}}</option>
           {{end}}
         </select>
-        <button type="button" class="membership-remove-btn danger">Remove</button>
+        <button type="button" class="membership-remove-btn danger">{{t "Remove"}}</button>
         <span class="membership-row-status form-status" role="status"></span>
       </div>
     {{else}}
-      <p class="hint">Not on any band or community roster yet.</p>
+      <p class="hint">{{t "Not on any band or community roster yet."}}</p>
     {{end}}
     </div>
   </div>
 
   <div class="card card--narrow-lg">
-    <h3>Add a membership</h3>
+    <h3>{{t "Add a membership"}}</h3>
     <form class="form-stack" id="add-membership-form">
       <div class="field">
-        <label for="add-membership-kind">Type</label>
+        <label for="add-membership-kind">{{t "Type"}}</label>
         <select id="add-membership-kind">
-          <option value="band">Band</option>
-          <option value="community">Community</option>
+          <option value="band">{{t "Band"}}</option>
+          <option value="community">{{t "Community"}}</option>
         </select>
       </div>
       <div class="field" id="add-membership-target-field">
-        <label for="add-membership-target">Band</label>
+        <label for="add-membership-target">{{t "Band"}}</label>
         <select id="add-membership-target">
           {{range .AvailableBands}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
         </select>
       </div>
       <div class="field" id="add-membership-target-field-community" hidden>
-        <label for="add-membership-target-community">Community</label>
+        <label for="add-membership-target-community">{{t "Community"}}</label>
         <select id="add-membership-target-community">
           {{range .AvailableCommunities}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
         </select>
       </div>
       <div class="field">
-        <label for="add-membership-role">Role</label>
+        <label for="add-membership-role">{{t "Role"}}</label>
         <select id="add-membership-role">
-          <option value="core" data-kind="band" selected>Core</option>
-          <option value="guest" data-kind="band">Guest</option>
-          <option value="member" data-kind="community">Member</option>
-          <option value="staff" data-kind="community">Staff</option>
+          <option value="core" data-kind="band" selected>{{t "Core"}}</option>
+          <option value="guest" data-kind="band">{{t "Guest"}}</option>
+          <option value="member" data-kind="community">{{t "Member"}}</option>
+          <option value="staff" data-kind="community">{{t "Staff"}}</option>
         </select>
       </div>
-      <div class="form-actions"><button type="submit" id="add-membership-btn" class="primary">Add membership</button></div>
+      <div class="form-actions"><button type="submit" id="add-membership-btn" class="primary">{{t "Add membership"}}</button></div>
       <p id="add-membership-status" class="form-status" role="status"></p>
     </form>
   </div>
@@ -111,23 +111,23 @@ document.querySelectorAll('.membership-role-select').forEach(sel => {
   sel.addEventListener('change', async () => {
     const row = sel.closest('[data-kind]');
     const status = row.querySelector('.membership-row-status');
-    Forms.status(status, 'Saving…', '');
+    Forms.status(status, t('Saving…'), '');
     const res = await fetch(`/admin/people/${personId}/memberships/${row.dataset.kind}/${row.dataset.targetId}/role`,
       {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({role: sel.value})}).catch(() => null);
-    if (res && res.ok) Forms.status(status, 'Saved.', 'ok');
-    else Forms.status(status, 'Couldn’t change the role. Try again.', 'error');
+    if (res && res.ok) Forms.status(status, t('Saved.'), 'ok');
+    else Forms.status(status, t('Couldn’t change the role. Try again.'), 'error');
   });
 });
 
 document.querySelectorAll('.membership-remove-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const row = btn.closest('[data-kind]');
-    if (!confirm(`Remove ${personName} from ${row.dataset.name}?`)) return;
+    if (!confirm(t('Remove %s from %s?', personName, row.dataset.name))) return;
     Forms.busy(btn, true);
     const res = await fetch(`/admin/people/${personId}/memberships/${row.dataset.kind}/${row.dataset.targetId}/remove`, {method: 'POST'}).catch(() => null);
     if (res && res.ok) { row.remove(); return; }
     Forms.busy(btn, false);
-    Forms.status(row.querySelector('.membership-row-status'), 'Couldn’t remove this membership. Try again.', 'error');
+    Forms.status(row.querySelector('.membership-row-status'), t('Couldn’t remove this membership. Try again.'), 'error');
   });
 });
 
@@ -152,7 +152,7 @@ addForm.addEventListener('submit', (e) => {
   const kind = kindSel.value;
   const targetSel = kind === 'band' ? document.getElementById('add-membership-target') : document.getElementById('add-membership-target-community');
   if (!targetSel.value) {
-    Forms.fieldError(targetSel, kind === 'band' ? 'They’re already in every band.' : 'They’re already in every community.');
+    Forms.fieldError(targetSel, kind === 'band' ? t('They’re already in every band.') : t('They’re already in every community.'));
     return;
   }
   Forms.fieldError(targetSel, '');
@@ -160,9 +160,9 @@ addForm.addEventListener('submit', (e) => {
     const res = await fetch(`/admin/people/${personId}/memberships`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({kind, targetID: parseInt(targetSel.value, 10), role: roleSel.value}),
-    }).catch(() => { throw new Error('Couldn’t reach the server. Check your connection and try again.'); });
+    }).catch(() => { throw new Error(t('Couldn’t reach the server. Check your connection and try again.')); });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(res.status < 500 && data.error ? data.error : 'Couldn’t add the membership. Try again.');
+    if (!res.ok) throw new Error(res.status < 500 && data.error ? data.error : t('Couldn’t add the membership. Try again.'));
     reload();
   });
 });

@@ -70,13 +70,13 @@
     const overlay = el('div', 'gpbp-overlay');
     const dlg = el('div', 'gpbp');
     dlg.setAttribute('role', 'dialog');
-    dlg.setAttribute('aria-label', 'Bars from the Guitar Pro file');
+    dlg.setAttribute('aria-label', t('Bars from the Guitar Pro file'));
     overlay.appendChild(dlg);
     const head = el('div', 'gpbp-head');
-    head.append(el('h2', '', 'Bars from the Guitar Pro file'));
+    head.append(el('h2', '', t('Bars from the Guitar Pro file')));
     const closeBtn = el('button', 'gpbp-x', '×');
     closeBtn.type = 'button';
-    closeBtn.setAttribute('aria-label', 'Close');
+    closeBtn.setAttribute('aria-label', t('Close'));
     head.appendChild(closeBtn);
     const secRow = el('div', 'gpbp-sections');
     secRow.setAttribute('role', 'tablist');
@@ -116,7 +116,7 @@
         b.setAttribute('role', 'tab');
         b.setAttribute('aria-selected', i === st.cur ? 'true' : 'false');
         if (!(s.gp || []).length) b.classList.add('none');
-        b.append(el('span', '', s.label), el('span', 'n', s.barCount == null ? 'file' : String(s.barCount)));
+        b.append(el('span', '', s.label), el('span', 'n', s.barCount == null ? t('file') : String(s.barCount)));
         b.addEventListener('click', () => { st.cur = i; loadSelection(); render(); });
         secRow.appendChild(b);
       });
@@ -165,7 +165,7 @@
         api.postRenderFinished.on(measure);
         api.renderScore(score, idx);
       } catch (e) {
-        scoreHost.textContent = 'Couldn’t draw the file.';
+        scoreHost.textContent = t('Couldn’t draw the file.');
       }
     }
     // Where each bar is in the drawing, then the overlay over it.
@@ -290,18 +290,18 @@
       return true;
     }
     function renderHint() {
-      if (st.pending) hint.textContent = `From bar ${st.pending.start}: now click the last bar. Esc to cancel.`;
-      else if (st.adding) hint.textContent = 'Click the first bar of the other range.';
-      else if (st.ranges.length) hint.textContent = 'Click a bar to choose again.';
-      else hint.textContent = 'Click the first bar, then the last bar.';
+      if (st.pending) hint.textContent = t('From bar %d: now click the last bar. Esc to cancel.', st.pending.start);
+      else if (st.adding) hint.textContent = t('Click the first bar of the other range.');
+      else if (st.ranges.length) hint.textContent = t('Click a bar to choose again.');
+      else hint.textContent = t('Click the first bar, then the last bar.');
     }
 
     // ---- Track, notation, length check, shortcuts --------------------------
     function renderPick() {
       pick.replaceChildren();
       const row = el('div', 'gpbp-row');
-      row.appendChild(el('span', 'gpbp-lbl', 'Track'));
-      const opts = [['', 'All tracks'], ...tracks.map((t, i) => [trackLabel(i), t.name || `Track ${i + 1}`])];
+      row.appendChild(el('span', 'gpbp-lbl', t('Track')));
+      const opts = [['', t('All tracks')], ...tracks.map((tr, i) => [trackLabel(i), tr.name || t('Track %d', i + 1)])];
       for (const [v, l] of opts) {
         const b = el('button', 'gpbp-chip' + (sameTrack(st.track, v) ? ' on' : ''), l);
         b.type = 'button';
@@ -309,9 +309,9 @@
         row.appendChild(b);
       }
       const sel = el('select', 'gpbp-notation');
-      for (const [v, l] of [['', 'As each reader reads it'], ['tab', 'Tab'], ['staff', 'Staff'], ['tab+staff', 'Staff and tab'], ['slash', 'Slashes']]) sel.add(new Option(l, v));
+      for (const [v, l] of [['', t('As each reader reads it')], ['tab', t('Tab')], ['staff', t('notation|Staff')], ['tab+staff', t('Staff and tab')], ['slash', t('Slashes')]]) sel.add(new Option(l, v));
       sel.value = st.notation;
-      sel.setAttribute('aria-label', 'Drawn as');
+      sel.setAttribute('aria-label', t('Drawn as'));
       sel.addEventListener('change', () => { st.notation = sel.value; render(); });
       row.appendChild(sel);
       pick.appendChild(row);
@@ -321,10 +321,10 @@
       const target = cur().barCount;
       const played = playedCount(facts, st.ranges);
       const check = el('span', 'gpbp-check');
-      if (!st.ranges.length) { check.textContent = 'Choose bars on the strip: click the first bar, then the last.'; check.classList.add('muted'); }
-      else if (target == null) { check.textContent = `These bars play ${played} bars; the section takes its length from them.`; check.classList.add('ok'); }
-      else if (played === target) { check.textContent = `Bars ${rangesSpec(st.ranges, '')} play ${played} bars, as the section has.`; check.classList.add('ok'); }
-      else { check.textContent = `These bars play ${played} bars; the section has ${target}.`; check.classList.add('warn'); }
+      if (!st.ranges.length) { check.textContent = t('Choose bars on the strip: click the first bar, then the last.'); check.classList.add('muted'); }
+      else if (target == null) { check.textContent = tn(played, 'These bars play %d bar; the section takes its length from them.', 'These bars play %d bars; the section takes its length from them.'); check.classList.add('ok'); }
+      else if (played === target) { check.textContent = t(played === 1 ? 'Bars %s play %d bar, as the section has.' : 'Bars %s play %d bars, as the section has.', rangesSpec(st.ranges, ''), played); check.classList.add('ok'); }
+      else { check.textContent = t(played === 1 ? 'These bars play %d bar; the section has %d.' : 'These bars play %d bars; the section has %d.', played, target); check.classList.add('warn'); }
       info.appendChild(check);
       pick.appendChild(info);
 
@@ -332,10 +332,10 @@
       const btn = (label, fn, title) => { const b = el('button', 'gpbp-ghost', label); b.type = 'button'; if (title) b.title = title; b.addEventListener('click', fn); tools.appendChild(b); return b; };
       // The same bars as an earlier section of the same name.
       const twin = sections.slice(0, st.cur).reverse().find((s) => baseLabel(s.label) === baseLabel(cur().label) && (s.gp || []).length);
-      if (twin) btn(`Same as ${twin.label}`, () => { const g = refOf(twin, st.track) || twin.gp[0]; const p = GPFacts.parseRef(g.spec); st.track = g.track; st.ranges = p.ranges || []; st.notation = p.notation || ''; render(); });
+      if (twin) btn(t('Same as %s', twin.label), () => { const g = refOf(twin, st.track) || twin.gp[0]; const p = GPFacts.parseRef(g.spec); st.track = g.track; st.ranges = p.ranges || []; st.notation = p.notation || ''; render(); });
       // Right after the previous section's bars.
       const prev = sections.slice(0, st.cur).reverse().find((s) => (s.gp || []).length);
-      if (prev) btn(`Continue after ${prev.label}`, () => {
+      if (prev) btn(t('Continue after %s', prev.label), () => {
         const g = refOf(prev, st.track) || prev.gp[0];
         const p = GPFacts.parseRef(g.spec);
         if (p.error) return;
@@ -348,25 +348,25 @@
         st.ranges = [[start, end]];
         render();
       });
-      if (facts.markers.length) btn('Match the file’s markers', matchMarkers, 'Every section without bars gets the bars of the marker with its name');
+      if (facts.markers.length) btn(t('Match the file’s markers'), matchMarkers, t('Every section without bars gets the bars of the marker with its name'));
       if (tools.childElementCount) pick.appendChild(tools);
       if (st.ranges.length) {
         const rr = el('div', 'gpbp-row');
-        rr.appendChild(el('span', 'gpbp-lbl', 'Bars'));
+        rr.appendChild(el('span', 'gpbp-lbl', t('Bars')));
         st.ranges.forEach(([a2, b2], k) => {
           const chip = el('span', 'gpbp-range', a2 === b2 ? String(a2) : `${a2}–${b2}`);
           if (st.ranges.length > 1) {
             const x = el('button', 'gpbp-range-x', '×');
             x.type = 'button';
-            x.setAttribute('aria-label', `Remove bars ${a2}–${b2}`);
+            x.setAttribute('aria-label', t('Remove bars %d–%d', a2, b2));
             x.addEventListener('click', () => { st.ranges.splice(k, 1); render(); });
             chip.appendChild(x);
           }
           rr.appendChild(chip);
         });
-        const more = el('button', 'gpbp-ghost' + (st.adding ? ' on' : ''), st.adding ? 'Click its first bar…' : '+ Another range');
+        const more = el('button', 'gpbp-ghost' + (st.adding ? ' on' : ''), st.adding ? t('Click its first bar…') : t('+ Another range'));
         more.type = 'button';
-        more.title = 'Add bars elsewhere in the file to this section';
+        more.title = t('Add bars elsewhere in the file to this section');
         more.addEventListener('click', () => { st.adding = !st.adding; st.pending = null; renderStrip(); renderPick(); });
         rr.appendChild(more);
         pick.appendChild(rr);
@@ -392,7 +392,7 @@
         await apply(s, st.track, rangesSpec([[m.bar, m.end]], st.notation));
         done++;
       }
-      say(done ? `${done} section${done > 1 ? 's' : ''} matched to the file’s markers.` : 'No section without bars matches a marker’s name.');
+      say(done ? tn(done, '%d section matched to the file’s markers.', '%d sections matched to the file’s markers.') : t('No section without bars matches a marker’s name.'));
       loadSelection();
       render();
     }
@@ -406,7 +406,7 @@
       if (g) g.spec = spec; else sec.gp.push({ track, spec });
       st.changed = true;
     }
-    const removeBtn = el('button', 'ghost-btn', 'Remove');
+    const removeBtn = el('button', 'ghost-btn', t('Remove'));
     removeBtn.type = 'button';
     removeBtn.addEventListener('click', async () => {
       const sec = cur();
@@ -414,16 +414,16 @@
       await opts.onRemove({ index: sec.index, track: st.track });
       sec.gp = sec.gp.filter((g) => !sameTrack(g.track, st.track));
       st.changed = true;
-      say(`${sec.label}: no bars from the file for ${st.track || 'all tracks'}.`);
+      say(st.track ? t('%s: no bars from the file for %s.', sec.label, st.track) : t('%s: no bars from the file for all tracks.', sec.label));
       loadSelection();
       render();
     });
-    const doneBtn = el('button', 'ghost-btn', 'Done');
+    const doneBtn = el('button', 'ghost-btn', t('Done'));
     doneBtn.type = 'button';
-    const useBtn = el('button', 'primary', 'Use these bars');
+    const useBtn = el('button', 'primary', t('Use these bars'));
     useBtn.type = 'button';
     useBtn.addEventListener('click', async () => {
-      if (!st.ranges.length) { say('Choose bars on the strip first.'); return; }
+      if (!st.ranges.length) { say(t('Choose bars on the strip first.')); return; }
       const sec = cur();
       try { await apply(sec, st.track, rangesSpec(st.ranges, st.notation)); } catch (e) { say(e.message); return; }
       say(`${sec.label}: ${st.track ? 'gp[' + st.track + ']' : 'gp'}: ${rangesSpec(st.ranges, st.notation)}.`);
@@ -449,8 +449,8 @@
     const hint = el('span', 'gpbp-hint');
     hint.setAttribute('aria-live', 'polite');
     stripTools.append(hint);
-    const zo = el('button', 'gpbp-ghost', '−'); zo.type = 'button'; zo.setAttribute('aria-label', 'Smaller'); zo.addEventListener('click', () => zoom(-0.1));
-    const zi = el('button', 'gpbp-ghost', '+'); zi.type = 'button'; zi.setAttribute('aria-label', 'Larger'); zi.addEventListener('click', () => zoom(0.1));
+    const zo = el('button', 'gpbp-ghost', '−'); zo.type = 'button'; zo.setAttribute('aria-label', t('Smaller')); zo.addEventListener('click', () => zoom(-0.1));
+    const zi = el('button', 'gpbp-ghost', '+'); zi.type = 'button'; zi.setAttribute('aria-label', t('Larger')); zi.addEventListener('click', () => zoom(0.1));
     stripTools.append(zo, zi);
 
     function render() {

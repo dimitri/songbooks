@@ -1,10 +1,10 @@
 {{define "mp3-playlist"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MP3 playlist — Songbooks</title>
+<title>{{t "MP3 playlist"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -12,18 +12,18 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/songbooks/{{.SongbookID}}">{{template "icon-back"}} songbook</a>
-  <h1>MP3 playlist</h1>
+  <a class="back-link" href="/songbooks/{{.SongbookID}}">{{template "icon-back"}} {{t "songbook"}}</a>
+  <h1>{{t "MP3 playlist"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="gig-sets">
   <div class="audio-player" id="playlist-player" style="margin:1rem;">
     <div class="audio-player-body" id="playlist-player-body">
       <div class="audio-controls">
-        <button type="button" id="pl-prev-btn" class="audio-pill-btn" title="previous song">&#9664;&#9664;</button>
-        <button type="button" id="pl-play-btn" class="icon-btn audio-play-btn" title="play/pause">&#9654;</button>
-        <button type="button" id="pl-next-btn" class="audio-pill-btn" title="next song">&#9654;&#9654;</button>
-        <span id="pl-now-playing" class="audio-time-label">Pick a song below to start</span>
+        <button type="button" id="pl-prev-btn" class="audio-pill-btn" title="{{t "previous song"}}">&#9664;&#9664;</button>
+        <button type="button" id="pl-play-btn" class="icon-btn audio-play-btn" title="{{t "play/pause"}}">&#9654;</button>
+        <button type="button" id="pl-next-btn" class="audio-pill-btn" title="{{t "next song"}}">&#9654;&#9654;</button>
+        <span id="pl-now-playing" class="audio-time-label">{{t "Pick a song below to start"}}</span>
       </div>
     </div>
   </div>
@@ -37,7 +37,7 @@
         <span class="gig-tempo">{{if $row.Tempo}}{{$row.Tempo}}{{end}}</span>
       </div>
       {{else}}
-      <div class="attention-empty">No songs with reference audio yet — add some from a song's Reference tab.</div>
+      <div class="attention-empty">{{t "No songs with reference audio yet — add some from a song’s Reference tab."}}</div>
       {{end}}
     </div>
   </section>

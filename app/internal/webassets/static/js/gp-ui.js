@@ -75,7 +75,7 @@
   // as numbers or null when empty), { cleared: true } for "Remove" when
   // clearable, or null when dismissed. check(values) may return an error
   // message to keep the form open.
-  function ask(anchor, { title, fields, submit = 'Apply', clearable = false, check, hint }) {
+  function ask(anchor, { title, fields, submit = t('Apply'), clearable = false, check, hint }) {
     return popover(anchor, (el, done) => {
       const form = document.createElement('form');
       form.className = 'gpe-form';
@@ -113,7 +113,7 @@
         const rm = document.createElement('button');
         rm.type = 'button';
         rm.className = 'ghost-btn';
-        rm.textContent = 'Remove';
+        rm.textContent = t('Remove');
         rm.addEventListener('click', () => done({ cleared: true }));
         row.appendChild(rm);
       }
@@ -159,7 +159,7 @@
     }, { title, kbd, className: 'gpe-pop-choose' });
   }
 
-  function confirmAt(anchor, { title, body, ok = 'Delete', danger = true }) {
+  function confirmAt(anchor, { title, body, ok = t('Delete'), danger = true }) {
     return popover(anchor, (el, done) => {
       if (body) { const p = document.createElement('p'); p.className = 'gpe-form-hint'; p.textContent = body; el.appendChild(p); }
       const row = document.createElement('div');
@@ -167,7 +167,7 @@
       const no = document.createElement('button');
       no.type = 'button';
       no.className = 'ghost-btn';
-      no.textContent = 'Cancel';
+      no.textContent = t('Cancel');
       no.addEventListener('click', () => done(false));
       const yes = document.createElement('button');
       yes.type = 'button';

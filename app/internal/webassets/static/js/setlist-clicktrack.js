@@ -108,7 +108,7 @@
     metronome.enabled = !prefs.muted;
     muteBtn.innerHTML = document.getElementById(prefs.muted ? 'icon-speaker-mute-tpl' : 'icon-speaker-tpl').innerHTML;
     muteBtn.setAttribute('aria-pressed', prefs.muted ? 'true' : 'false');
-    muteBtn.title = prefs.muted ? 'unmute' : 'mute sound';
+    muteBtn.title = prefs.muted ? t('unmute') : t('mute sound');
   }
   muteBtn.addEventListener('click', () => {
     prefs.muted = !prefs.muted;
@@ -207,13 +207,13 @@
       metronome._ensureCtx();
       clock.start();
       metronome.start();
-      playBtn.title = 'stop';
+      playBtn.title = t('stop');
       playBtn.innerHTML = iconPause;
     } else {
       clock.pause();
       metronome.stop();
       clock.seekToBeat(0);
-      playBtn.title = 'start';
+      playBtn.title = t('start');
       playBtn.innerHTML = iconPlay;
     }
   }
@@ -236,7 +236,7 @@
       nowPlayingCard.hidden = true;
       metronomeWrap.hidden = true;
       breakCard.hidden = false;
-      breakLabel.textContent = `Before ${step.setLabel || 'the next set'} — take a break, then continue when ready.`;
+      breakLabel.textContent = step.setLabel ? t('Before %s — take a break, then continue when ready.', step.setLabel) : t('Before the next set — take a break, then continue when ready.');
       prevBtn.disabled = i === 0;
       nextBtn.disabled = false;
       return;
@@ -247,9 +247,9 @@
     metronomeWrap.hidden = false;
 
     const song = step.song;
-    posEl.textContent = `${song.setLabel || 'Set'} · song ${song.index + 1} of ${totalSongs}`;
+    posEl.textContent = `${song.setLabel || t('Set')} · ${t('song %d of %d', song.index + 1, totalSongs)}`;
     titleEl.textContent = song.title;
-    metaEl.textContent = [song.artist, song.key ? `key ${song.key}` : '', `${song.tempo} bpm`, song.timeSig]
+    metaEl.textContent = [song.artist, song.key ? t('key %s', song.key) : '', `${song.tempo} bpm`, song.timeSig]
       .filter(Boolean).join(' · ');
     if (song.note) { noteEl.textContent = song.note; noteEl.hidden = false; }
     else { noteEl.hidden = true; }

@@ -10,6 +10,10 @@ import (
 type SongGroup struct {
 	Label      string
 	VariantIDs []int64
+	// Lesson is the course lesson the group is (its Label in English),
+	// for a page to name it in its own language; nil for any other group.
+	// Never stored.
+	Lesson *Lesson `json:"-"`
 }
 
 // HasSongOrder reports whether songbookID has its own song_order set

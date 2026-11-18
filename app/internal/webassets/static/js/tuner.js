@@ -14,9 +14,12 @@
   if (!root) return;
   const $ = (id) => document.getElementById(id);
   const TOL = 5; // cents: in tune
-  const NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+  // Note names as the page's language says them: do ré mi in French,
+  // where middle C is do3 (internal/i18n.NoteName).
+  const FR = window.SB_LANG === 'fr';
+  const NAMES = FR ? ['do', 'do♯', 'ré', 'mi♭', 'mi', 'fa', 'fa♯', 'sol', 'la♭', 'la', 'si♭', 'si'] : ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
   const name = (midi) => NAMES[((midi % 12) + 12) % 12];
-  const octave = (midi) => Math.floor(midi / 12) - 1;
+  const octave = (midi) => Math.floor(midi / 12) - (FR ? 2 : 1);
 
   // The tunings: the song's first (from its Guitar Pro file), then the
   // usual ones. A tuning is courses of strings, as MIDI notes, in the
@@ -57,19 +60,19 @@
     {group: 'Ukulele, banjo, mandolin', name: 'Banjo open G (gDGBD)', courses: one(67, 50, 55, 59, 62)},
     {group: 'Ukulele, banjo, mandolin', name: 'Mandolin (GDAE)', courses: [[55, 55], [62, 62], [69, 69], [76, 76]]},
     {group: 'Any instrument', name: 'Chromatic', courses: []},
-  ];
-  const song = (JSON.parse(root.dataset.songTunings || 'null') || []).map((t) => ({group: root.dataset.songTitle || 'This song', name: t.name, courses: one(...t.notes), capo: t.capo || 0}));
+  ].map((b) => ({...b, group: t(b.group), name: t(b.name)}));
+  const song = (JSON.parse(root.dataset.songTunings || 'null') || []).map((tu) => ({group: root.dataset.songTitle || t('This song'), name: tu.name, courses: one(...tu.notes), capo: tu.capo || 0}));
   const tunings = [...song, ...BUILT_IN];
   const notesOf = (t) => [...new Set(t.courses.flat())];
 
   const select = $('tuner-tuning');
   const groups = {};
-  tunings.forEach((t, i) => {
-    if (!groups[t.group]) { groups[t.group] = document.createElement('optgroup'); groups[t.group].label = t.group; select.append(groups[t.group]); }
+  tunings.forEach((tu, i) => {
+    if (!groups[tu.group]) { groups[tu.group] = document.createElement('optgroup'); groups[tu.group].label = tu.group; select.append(groups[tu.group]); }
     const o = document.createElement('option');
     o.value = i;
-    o.textContent = t.courses.length ? `${t.name} · ${t.courses.map((c) => name(c[0])).join(' ')}` : t.name;
-    groups[t.group].append(o);
+    o.textContent = tu.courses.length ? `${tu.name} · ${tu.courses.map((c) => name(c[0])).join(' ')}` : tu.name;
+    groups[tu.group].append(o);
   });
 
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) {} return null; };
@@ -86,10 +89,10 @@
   const capoSel = $('tuner-capo-fret');
   let capo = 0;
   function drawStrings() {
-    const t = tunings[at];
+    const tu = tunings[at];
     strings.replaceChildren();
-    strings.hidden = !t.courses.length;
-    t.courses.forEach((course, i) => {
+    strings.hidden = !tu.courses.length;
+    tu.courses.forEach((course, i) => {
       const notes = course.map((n) => n + capo);
       const b = document.createElement('button');
       b.type = 'button';
@@ -98,8 +101,9 @@
       b.innerHTML = `<b></b><small></small>`;
       b.querySelector('b').textContent = name(notes[0]);
       const octaved = notes.length > 1 && notes[1] !== notes[0];
-      b.querySelector('small').textContent = octaved ? `${t.courses.length - i} · 8va` : `${t.courses.length - i}`;
-      b.setAttribute('aria-label', `String ${t.courses.length - i}, ${notes.map((n) => name(n) + octave(n)).join(' and ')}`);
+      b.querySelector('small').textContent = octaved ? `${tu.courses.length - i} · 8va` : `${tu.courses.length - i}`;
+      const sounds = notes.map((n) => name(n) + octave(n));
+      b.setAttribute('aria-label', t('String %d, %s', tu.courses.length - i, sounds.length > 1 ? t('%s and %s', sounds[0], sounds[1]) : sounds[0]));
       // Stopped: the string's note. Listening: tune that string only; a
       // 12-string's pair, its low string then its octave; a tap more and
       // the tuner picks the string again. iOS spoils what a page plays
@@ -114,14 +118,14 @@
     });
     const c = $('tuner-capo');
     c.hidden = !capo;
-    c.textContent = capo ? `Capo on fret ${capo}: tune with it on. The strings sound ${t.courses.map((x) => name(x[0] + capo)).join(' ')}.` : '';
+    c.textContent = capo ? t('Capo on fret %d: tune with it on. The strings sound %s.', capo, tu.courses.map((x) => name(x[0] + capo)).join(' ')) : '';
   }
   // The capo: the song's, else none. With it on, every string sounds that
   // many semitones higher, and that's what the tuner listens for.
   for (let f = 0; f <= 9; f++) {
     const o = document.createElement('option');
     o.value = f;
-    o.textContent = f ? `Capo ${f}` : 'No capo';
+    o.textContent = f ? t('Capo %d', f) : t('No capo');
     capoSel.append(o);
   }
   const songCapo = () => tunings[at].capo || Number(root.dataset.songCapo) || 0;
@@ -140,7 +144,7 @@
 
   // ---- A4 calibration. ----------------------------------------------
   const a4Out = $('tuner-a4');
-  const showA4 = () => { a4Out.textContent = `A = ${a4} Hz`; store('songbooks:tuner:a4', a4); };
+  const showA4 = () => { a4Out.textContent = t('A = %d Hz', a4); store('songbooks:tuner:a4', a4); };
   $('tuner-a4-down').addEventListener('click', () => { a4 = Math.max(425, a4 - 1); showA4(); });
   $('tuner-a4-up').addEventListener('click', () => { a4 = Math.min(455, a4 + 1); showA4(); });
   showA4();
@@ -252,18 +256,18 @@
       recent = [];
       shown = null;
       root.classList.remove('hearing', 'in-tune');
-      stateEl.textContent = 'Play a string';
+      stateEl.textContent = t('Play a string');
     }
   }
 
   function show(m, freq, now) {
-    const t = tunings[at];
+    const tu = tunings[at];
     // Which string: the nearest of the tuning's, within a fourth; else the
     // nearest note. A string's 12th-fret harmonic, an octave up, counts as
     // that string (a clean note the microphone hears better than the open
     // string), after the open strings themselves.
     let target = Math.round(m), harmonic = false;
-    const all = notesOf(t).map((n) => n + capo);
+    const all = notesOf(tu).map((n) => n + capo);
     const candidates = (locked !== null ? [locked] : all).flatMap((n) => [[n, false], [n + 12, true]]);
     if (candidates.length) {
       const dist = ([n, h]) => Math.abs(n - m) + (h ? 0.01 : 0);
@@ -288,14 +292,15 @@
     root.classList.toggle('in-tune', inTune);
     root.classList.toggle('flat', cents < -TOL);
     root.classList.toggle('sharp', cents > TOL);
-    stateEl.textContent = (harmonic ? '12th-fret harmonic · ' : '') + (inTune ? 'In tune' : off) ? `Playing ${name(Math.round(m))}: ${m < target ? 'tighten' : 'loosen'} a lot` : cents < 0 ? 'Too low: tighten' : 'Too high: loosen';
+    const verdict = inTune ? t('In tune') : off ? (m < target ? t('Playing %s: tighten a lot', name(Math.round(m))) : t('Playing %s: loosen a lot', name(Math.round(m)))) : cents < 0 ? t('Too low: tighten') : t('Too high: loosen');
+    stateEl.textContent = (harmonic ? t('12th-fret harmonic') + ' · ' : '') + verdict;
     strings.querySelectorAll('.tuner-string').forEach((s) => {
       const on = s.dataset.notes.split(' ').map(Number).includes(harmonic ? target - 12 : target);
       s.classList.toggle('current', on);
       s.classList.toggle('tuned', on && inTune);
     });
     meter.setAttribute('aria-valuenow', Math.round(cents));
-    meter.setAttribute('aria-valuetext', `${name(target)}${octave(target)}, ${Math.round(cents)} cents`);
+    meter.setAttribute('aria-valuetext', t('%s, %d cents', name(target) + octave(target), Math.round(cents)));
   }
 
   // ---- Start and stop. ------------------------------------------------
@@ -310,7 +315,7 @@
       // riding, which bend a note's pitch and level.
       stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: false, noiseSuppression: false, autoGainControl: false}});
     } catch (e) {
-      stateEl.textContent = 'The tuner needs the microphone. Allow it for this site, then try again.';
+      stateEl.textContent = t('The tuner needs the microphone. Allow it for this site, then try again.');
       return;
     }
     await c.resume();
@@ -318,9 +323,9 @@
     setWindow();
     c.createMediaStreamSource(stream).connect(analyser);
     root.classList.add('listening');
-    startBtn.textContent = 'Stop';
+    startBtn.textContent = t('Stop');
     startBtn.setAttribute('aria-pressed', 'true');
-    stateEl.textContent = 'Play a string';
+    stateEl.textContent = t('Play a string');
     try { wake = await navigator.wakeLock?.request('screen'); } catch (e) {}
     raf = requestAnimationFrame(frame);
   }
@@ -333,9 +338,9 @@
     wake?.release?.();
     wake = null;
     root.classList.remove('listening', 'hearing', 'in-tune', 'flat', 'sharp');
-    startBtn.textContent = 'Start the tuner';
+    startBtn.textContent = t('Start the tuner');
     startBtn.setAttribute('aria-pressed', 'false');
-    stateEl.textContent = 'Tap Start, then play a string';
+    stateEl.textContent = t('Tap Start, then play a string');
   }
   startBtn.addEventListener('click', () => (stream ? stop() : start()));
   document.addEventListener('visibilitychange', () => { if (document.hidden && stream) stop(); });

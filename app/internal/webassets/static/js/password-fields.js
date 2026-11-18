@@ -15,6 +15,7 @@
 // own validation until it equals #X, so forms.js shows the mismatch under
 // the field before anything is sent.
 (function () {
+  const t = window.t || ((m) => m);
   document.querySelectorAll('button.pw-toggle[aria-controls]').forEach((btn) => {
     const inputs = btn.getAttribute('aria-controls').split(/\s+/)
       .map((id) => document.getElementById(id)).filter(Boolean);
@@ -24,7 +25,7 @@
     function set(shown) {
       inputs.forEach((i) => { i.type = shown ? 'text' : 'password'; });
       btn.setAttribute('aria-pressed', shown ? 'true' : 'false');
-      label.textContent = shown ? 'Hide' : 'Show';
+      label.textContent = shown ? t('Hide') : t('Show');
     }
     btn.addEventListener('click', () => {
       set(inputs[0].type === 'password');
@@ -40,7 +41,7 @@
     if (!pw) return;
     function check() {
       const bad = confirm.value !== '' && confirm.value !== pw.value;
-      confirm.setCustomValidity(bad ? 'The two passwords don’t match. Type the same one in both.' : '');
+      confirm.setCustomValidity(bad ? t('The two passwords don’t match. Type the same one in both.') : '');
       if (!bad && confirm.getAttribute('aria-invalid') === 'true' && window.Forms) Forms.fieldError(confirm, '');
     }
     pw.addEventListener('input', check);

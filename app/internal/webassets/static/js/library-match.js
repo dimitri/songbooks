@@ -76,11 +76,11 @@
   function details(hit) {
     const bits = [];
     if (hit.artist) bits.push(hit.artist);
-    if (hit.key) bits.push(`Key ${hit.key}`);
-    if (hit.visibility === 'user') bits.push('Only you can see it');
-    else if (hit.madeBy) bits.push(`Shared by ${hit.madeBy}`);
-    if (hit.bands) bits.push(hit.bands === 1 ? 'Played by 1 band' : `Played by ${hit.bands} bands`);
-    else if (hit.songbooks) bits.push(hit.songbooks === 1 ? 'In 1 songbook' : `In ${hit.songbooks} songbooks`);
+    if (hit.key) bits.push(t('Key %s', hit.key));
+    if (hit.visibility === 'user') bits.push(t('Only you can see it'));
+    else if (hit.madeBy) bits.push(t('Shared by %s', hit.madeBy));
+    if (hit.bands) bits.push(tn(hit.bands, 'Played by %d band', 'Played by %d bands'));
+    else if (hit.songbooks) bits.push(tn(hit.songbooks, 'In %d songbook', 'In %d songbooks'));
     return bits.join(' · ');
   }
 
@@ -119,12 +119,12 @@
       const heading = document.createElement('h3');
       heading.className = 'library-match-title';
       heading.id = titleInput.id + '-library-match-title';
-      heading.textContent = 'Already in the library';
+      heading.textContent = t('Already in the library');
       const hint = document.createElement('p');
       hint.className = 'hint';
       hint.textContent = hits.length === 1
-        ? 'This song is already here. Add it instead of starting from scratch.'
-        : 'These songs are already here. Add one instead of starting from scratch.';
+        ? t('This song is already here. Add it instead of starting from scratch.')
+        : t('These songs are already here. Add one instead of starting from scratch.');
       panel.append(heading, hint);
 
       const list = document.createElement('div');
@@ -139,10 +139,10 @@
         // Titles and artists are user-written: text only, never markup.
         const text = document.createElement('div');
         text.className = 'library-match-text';
-        const t = document.createElement('div');
-        t.className = 'attention-title';
-        t.textContent = hit.title;
-        text.appendChild(t);
+        const tt = document.createElement('div');
+        tt.className = 'attention-title';
+        tt.textContent = hit.title;
+        text.appendChild(tt);
         const d = details(hit);
         if (d) {
           const sub = document.createElement('div');
@@ -156,20 +156,20 @@
           const here = document.createElement('a');
           here.className = 'chip-link';
           here.href = opts.openHref ? opts.openHref(hit) : `/song/${hit.variantId}`;
-          here.textContent = 'Already here — open';
+          here.textContent = t('Already here — open');
           row.appendChild(here);
         } else {
           const btn = document.createElement('button');
           btn.type = 'button';
-          btn.textContent = opts.addLabel || 'Add this one';
-          btn.setAttribute('aria-label', `${opts.addLabel || 'Add'}: ${hit.title}${hit.artist ? ', ' + hit.artist : ''}`);
+          btn.textContent = opts.addLabel || t('Add this one');
+          btn.setAttribute('aria-label', t('%s: %s', opts.addLabel || t('Add'), hit.title + (hit.artist ? ', ' + hit.artist : '')));
           btn.addEventListener('click', async () => {
             Forms.status(status, '');
             Forms.busy(btn, true);
             try {
               await opts.add(hit);
             } catch (e) {
-              Forms.status(status, (e && e.message) || `Couldn't add “${hit.title}”. Try again.`, 'error');
+              Forms.status(status, (e && e.message) || t('Couldn’t add “%s”. Try again.', hit.title), 'error');
             } finally {
               Forms.busy(btn, false);
             }
@@ -183,7 +183,7 @@
       const none = document.createElement('button');
       none.type = 'button';
       none.className = 'link-button library-match-none';
-      none.textContent = 'None of these — create a new song';
+      none.textContent = t('None of these — create a new song');
       none.addEventListener('click', () => {
         dismissed = true;
         clear();

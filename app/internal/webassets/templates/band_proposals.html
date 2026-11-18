@@ -1,11 +1,11 @@
 {{define "band_proposals"}}
 {{$brand := brandFor "band" .Band.ID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Band.Name}} — proposals</title>
+<title>{{t "%s — proposals" .Band.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,7 +15,7 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
-  <h1>{{.Band.Name}} — proposals</h1>
+  <h1>{{t "%s — proposals" .Band.Name}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
@@ -26,62 +26,62 @@
        underlying proposal/vote queue (Discover is just open 'new_song'
        proposals) — see listening_party.html's own comment for why. */}}
 
-  <p class="hint">Suggest a song for the repertoire, or a new reference recording. It goes in once more than half of the {{.MemberCount}} members vote yes; one veto turns it down. Any member can also accept or reject it directly.</p>
+  <p class="hint">{{t "Suggest a song for the repertoire, or a new reference recording. It goes in once more than half of the %d members vote yes; one veto turns it down. Any member can also accept or reject it directly." .MemberCount}}</p>
 
   <div class="form-with-list">
     <div class="card">
-      <h2>New proposal</h2>
+      <h2>{{t "New proposal"}}</h2>
       <form class="form-stack" id="create-proposal-form">
         <fieldset class="field-group">
-          <legend>What are you suggesting?</legend>
-          <label class="check"><input type="radio" name="proposal-kind" value="new_song" checked> A song for the repertoire</label>
-          <label class="check"><input type="radio" name="proposal-kind" value="new_reference"> A reference recording for a song already in it</label>
+          <legend>{{t "What are you suggesting?"}}</legend>
+          <label class="check"><input type="radio" name="proposal-kind" value="new_song" checked> {{t "A song for the repertoire"}}</label>
+          <label class="check"><input type="radio" name="proposal-kind" value="new_reference"> {{t "A reference recording for a song already in it"}}</label>
         </fieldset>
         <div class="field">
-          <label for="proposal-song">Song</label>
-          <p class="field-hint" id="proposal-song-hint">Type a title or an artist, then pick the song from the list.</p>
+          <label for="proposal-song">{{t "Song"}}</label>
+          <p class="field-hint" id="proposal-song-hint">{{t "Type a title or an artist, then pick the song from the list."}}</p>
           <input type="search" id="proposal-song" aria-describedby="proposal-song-hint" autocomplete="off" enterkeyhint="search">
           <input type="hidden" id="proposal-variant-id">
           <div id="proposal-song-results" class="attention-list song-pick-results" aria-live="polite"></div>
         </div>
         <div class="field" id="proposal-url-field">
-          <label for="proposal-url">Link to the recording</label>
-          <p class="field-hint" id="proposal-url-hint">A YouTube, Spotify or other web link.</p>
+          <label for="proposal-url">{{t "Link to the recording"}}</label>
+          <p class="field-hint" id="proposal-url-hint">{{t "A YouTube, Spotify or other web link."}}</p>
           <input type="url" id="proposal-url" placeholder="https://…" aria-describedby="proposal-url-hint" autocomplete="off" autocapitalize="none" spellcheck="false" required>
         </div>
         <div class="field">
-          <label for="proposal-note">Note <span class="field-optional">(optional)</span></label>
-          <input type="text" id="proposal-note" placeholder="e.g. would work as an opener" autocomplete="off">
+          <label for="proposal-note">{{t "Note"}} <span class="field-optional">{{t "(optional)"}}</span></label>
+          <input type="text" id="proposal-note" placeholder="{{t "e.g. would work as an opener"}}" autocomplete="off">
         </div>
         <div class="form-actions">
-          <button type="submit" id="create-proposal-btn" class="primary">Propose</button>
+          <button type="submit" id="create-proposal-btn" class="primary">{{t "Propose"}}</button>
         </div>
         <p id="create-proposal-result" class="form-status" role="status"></p>
       </form>
     </div>
 
     <div class="table-scroll"><table class="card table-stack" style="width:100%">
-      <thead><tr><th>Kind</th><th>Song</th><th>Proposer</th><th>Status</th><th>Votes</th><th></th></tr></thead>
+      <thead><tr><th>{{t "Kind"}}</th><th>{{t "Song"}}</th><th>{{t "Proposer"}}</th><th>{{t "Status"}}</th><th>{{t "Votes"}}</th><th></th></tr></thead>
       <tbody>
       {{range .Proposals}}
         <tr data-proposal-id="{{.ID}}">
-          <td data-label="Kind">{{if eq .Kind "new_song"}}New song{{else if eq .Kind "new_reference"}}Reference recording{{else}}{{.Kind}}{{end}}</td>
-          <td data-label="Song"><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}Song {{deref64 .TargetVariantID}}{{end}}</a></td>
-          <td data-label="Proposer">{{.ProposerUsername}}</td>
-          <td data-label="Status">{{.Status}}</td>
-          <td data-label="Votes">{{.YesVotes}} yes / {{.VetoVotes}} veto</td>
+          <td data-label="{{t "Kind"}}">{{if eq .Kind "new_song"}}{{t "New song"}}{{else if eq .Kind "new_reference"}}{{t "Reference recording"}}{{else}}{{.Kind}}{{end}}</td>
+          <td data-label="{{t "Song"}}"><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}{{t "Song %s" (deref64 .TargetVariantID)}}{{end}}</a></td>
+          <td data-label="{{t "Proposer"}}">{{.ProposerUsername}}</td>
+          <td data-label="{{t "Status"}}">{{t (printf "proposal|%s" .Status)}}</td>
+          <td data-label="{{t "Votes"}}">{{t "%d yes / %d veto" .YesVotes .VetoVotes}}</td>
           <td>
           {{if eq .Status "open"}}
-            <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="yes">Vote yes</button>
-            <button type="button" class="vote-btn danger" data-proposal-id="{{.ID}}" data-vote="veto" data-title="{{.TargetTitle}}">Veto</button>
-            <button type="button" class="accept-btn primary" data-proposal-id="{{.ID}}">Accept</button>
-            <button type="button" class="reject-btn danger" data-proposal-id="{{.ID}}" data-title="{{.TargetTitle}}">Reject</button>
+            <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="yes">{{t "Vote yes"}}</button>
+            <button type="button" class="vote-btn danger" data-proposal-id="{{.ID}}" data-vote="veto" data-title="{{.TargetTitle}}">{{t "Veto"}}</button>
+            <button type="button" class="accept-btn primary" data-proposal-id="{{.ID}}">{{t "Accept"}}</button>
+            <button type="button" class="reject-btn danger" data-proposal-id="{{.ID}}" data-title="{{.TargetTitle}}">{{t "Reject"}}</button>
             <p class="form-status" role="status"></p>
           {{end}}
           </td>
         </tr>
       {{else}}
-        <tr><td colspan="6" class="hint">No proposals yet.</td></tr>
+        <tr><td colspan="6" class="hint">{{t "No proposals yet."}}</td></tr>
       {{end}}
       </tbody>
     </table></div>
@@ -103,7 +103,7 @@ function songPicker(input, hidden, list) {
     if (!hits.length) {
       const p = document.createElement('p');
       p.className = 'attention-empty';
-      p.textContent = res && res.ok ? 'No songs match that.' : 'Couldn’t search the catalog. Try again.';
+      p.textContent = res && res.ok ? t('No songs match that.') : t('Couldn’t search the catalog. Try again.');
       list.append(p);
       return;
     }
@@ -111,10 +111,10 @@ function songPicker(input, hidden, list) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'attention-row';
-      const t = document.createElement('span');
-      t.className = 'attention-title';
-      t.textContent = hit.title;
-      b.append(t);
+      const ti = document.createElement('span');
+      ti.className = 'attention-title';
+      ti.textContent = hit.title;
+      b.append(ti);
       if (hit.artist) {
         const a = document.createElement('span');
         a.className = 'attention-subtitle';
@@ -162,7 +162,7 @@ document.getElementById('create-proposal-form').addEventListener('submit', (e) =
   const targetVariantId = Number(document.getElementById('proposal-variant-id').value);
   const note = document.getElementById('proposal-note').value.trim();
   if (!targetVariantId) {
-    Forms.fieldError(songInput, songInput.value.trim() ? 'Pick the song from the list under the field.' : 'Enter a song title or artist, then pick the song.');
+    Forms.fieldError(songInput, songInput.value.trim() ? t('Pick the song from the list under the field.') : t('Enter a song title or artist, then pick the song.'));
     songInput.focus();
     return;
   }
@@ -172,7 +172,7 @@ document.getElementById('create-proposal-form').addEventListener('submit', (e) =
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({kind, targetVariantId, payload}),
     });
-    if (!res.ok) throw new Error("Couldn't send the proposal. Check the song and link, then try again.");
+    if (!res.ok) throw new Error(t('Couldn’t send the proposal. Check the song and link, then try again.'));
     location.reload();
   });
 });
@@ -189,22 +189,22 @@ async function act(btn, url, body, failMsg) {
   if (res && res.ok) { location.reload(); return; }
   Forms.busy(btn, false);
   // 409: someone else's vote or decision got there first.
-  Forms.status(st, res && res.status === 409 ? 'This one has already been decided. Reload to see how.' : failMsg, 'error');
+  Forms.status(st, res && res.status === 409 ? t('This one has already been decided. Reload to see how.') : failMsg, 'error');
 }
-const titleOf = (btn) => btn.dataset.title ? `“${btn.dataset.title}”` : 'this song';
+const titleOf = (btn) => btn.dataset.title ? t('“%s”', btn.dataset.title) : t('this song');
 document.querySelectorAll('.vote-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    if (btn.dataset.vote === 'veto' && !confirm(`Veto ${titleOf(btn)}? One veto turns the proposal down straight away.`)) return;
-    act(btn, `/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/votes`, {vote: btn.dataset.vote}, "Couldn't record your vote. Try again.");
+    if (btn.dataset.vote === 'veto' && !confirm(t('Veto %s? One veto turns the proposal down straight away.', titleOf(btn)))) return;
+    act(btn, `/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/votes`, {vote: btn.dataset.vote}, t('Couldn’t record your vote. Try again.'));
   });
 });
 document.querySelectorAll('.accept-btn').forEach(btn => {
-  btn.addEventListener('click', () => act(btn, `/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/accept`, null, "Couldn't accept it. Try again."));
+  btn.addEventListener('click', () => act(btn, `/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/accept`, null, t('Couldn’t accept it. Try again.')));
 });
 document.querySelectorAll('.reject-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    if (!confirm(`Reject ${titleOf(btn)} without waiting for the vote?`)) return;
-    act(btn, `/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/reject`, null, "Couldn't reject it. Try again.");
+    if (!confirm(t('Reject %s without waiting for the vote?', titleOf(btn)))) return;
+    act(btn, `/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/reject`, null, t('Couldn’t reject it. Try again.'));
   });
 });
 </script>

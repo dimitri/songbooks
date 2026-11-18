@@ -1,10 +1,10 @@
 {{define "setlist-clicktrack"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Title}} — click track — Songbooks</title>
+<title>{{.Title}} — {{t "click track"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,9 +13,9 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="{{.Path}}">{{template "icon-back"}} {{.Title}}</a>
-  <h1>Click track</h1>
+  <h1>{{t "Click track"}}</h1>
   <nav class="song-nav">
-    <button id="theme-toggle" class="icon-btn" type="button" title="toggle light/dark">{{template "icon-theme"}}</button>
+    <button id="theme-toggle" class="icon-btn" type="button" title="{{t "toggle light/dark"}}">{{template "icon-theme"}}</button>
   </nav>
 </header>
 <main>
@@ -30,15 +30,15 @@
     <div class="clicktrack-meta" id="clicktrack-meta"></div>
     <p class="clicktrack-note" id="clicktrack-note" hidden></p>
     <div class="clicktrack-nav">
-      <button type="button" id="clicktrack-prev" class="clicktrack-nav-btn">{{template "icon-back"}} prev</button>
-      <button type="button" id="clicktrack-next" class="clicktrack-nav-btn">next {{template "icon-forward"}}</button>
+      <button type="button" id="clicktrack-prev" class="clicktrack-nav-btn">{{template "icon-back"}} {{t "prev"}}</button>
+      <button type="button" id="clicktrack-next" class="clicktrack-nav-btn">{{t "next"}} {{template "icon-forward"}}</button>
     </div>
   </section>
 
   <div id="clicktrack-break" class="card book-card clicktrack-break" hidden>
-    <h2>Break</h2>
+    <h2>{{t "Break"}}</h2>
     <p class="hint" id="clicktrack-break-label"></p>
-    <button type="button" id="clicktrack-break-continue" class="primary">Start next set</button>
+    <button type="button" id="clicktrack-break-continue" class="primary">{{t "Start next set"}}</button>
   </div>
 
   {{/* A dedicated, deliberately small control surface — not the full
@@ -52,22 +52,22 @@
   <div id="clicktrack-metronome-wrap">
     <section class="card book-card metronome-compact" id="metronome-compact" data-size="md">
       <div class="mc-row">
-        <button id="mc-bpm-down" type="button" class="icon-btn" aria-label="slower">&minus;</button>
+        <button id="mc-bpm-down" type="button" class="icon-btn" aria-label="{{t "slower"}}">&minus;</button>
         <div class="mc-bpm-display"><span id="mc-bpm-value">120</span><span class="bpm-unit">bpm</span></div>
-        <button id="mc-bpm-up" type="button" class="icon-btn" aria-label="faster">+</button>
+        <button id="mc-bpm-up" type="button" class="icon-btn" aria-label="{{t "faster"}}">+</button>
       </div>
 
       <div class="beat-dots mc-beat-dots" id="mc-beat-dots" aria-hidden="true"></div>
 
       <div class="metro-transport-controls">
-        <button id="mc-play" type="button" title="start" class="primary icon-btn">{{template "icon-play"}}</button>
-        <button id="mc-tap" type="button" title="tap tempo" class="icon-btn">{{template "icon-tap"}}</button>
-        <button id="mc-mute" type="button" title="mute sound" class="icon-btn" aria-pressed="false">{{template "icon-speaker"}}</button>
+        <button id="mc-play" type="button" title="{{t "start"}}" class="primary icon-btn">{{template "icon-play"}}</button>
+        <button id="mc-tap" type="button" title="{{t "tap tempo"}}" class="icon-btn">{{template "icon-tap"}}</button>
+        <button id="mc-mute" type="button" title="{{t "mute sound"}}" class="icon-btn" aria-pressed="false">{{template "icon-speaker"}}</button>
       </div>
 
       <div class="mc-options-flat">
         <div class="mc-opt-row">
-          <span class="mc-opt-label">Size</span>
+          <span class="mc-opt-label">{{t "Size"}}</span>
           <div class="metro-icon-row" id="mc-size-picker" data-value="md">
             <button type="button" data-value="sm">S</button>
             <button type="button" data-value="md" class="active">M</button>
@@ -75,25 +75,25 @@
           </div>
         </div>
         <div class="mc-opt-row">
-          <span class="mc-opt-label">Group</span>
+          <span class="mc-opt-label">{{t "Group"}}</span>
           <div class="metro-icon-row" id="mc-group-picker" data-value="1">
-            <button type="button" data-value="1" class="active">1 bar</button>
-            <button type="button" data-value="2">2 bars</button>
-            <button type="button" data-value="4">4 bars</button>
+            <button type="button" data-value="1" class="active">{{t "1 bar"}}</button>
+            <button type="button" data-value="2">{{t "2 bars"}}</button>
+            <button type="button" data-value="4">{{t "4 bars"}}</button>
           </div>
         </div>
         <div class="mc-opt-row">
-          <span class="mc-opt-label">Layout</span>
+          <span class="mc-opt-label">{{t "Layout"}}</span>
           <div class="metro-icon-row" id="mc-orientation-picker" data-value="portrait">
-            <button type="button" data-value="portrait">{{template "icon-portrait"}} Portrait</button>
-            <button type="button" data-value="landscape">{{template "icon-landscape"}} Landscape</button>
+            <button type="button" data-value="portrait">{{template "icon-portrait"}} {{t "Portrait"}}</button>
+            <button type="button" data-value="landscape">{{template "icon-landscape"}} {{t "Landscape"}}</button>
           </div>
         </div>
         <div class="mc-opt-row">
-          <span class="mc-opt-label">Click</span>
+          <span class="mc-opt-label">{{t "Click"}}</span>
           <div class="metro-icon-row" id="mc-click-picker" data-value="every">
-            <button type="button" data-value="every">Every beat</button>
-            <button type="button" data-value="beat1">Beat 1 only</button>
+            <button type="button" data-value="every">{{t "Every beat"}}</button>
+            <button type="button" data-value="beat1">{{t "Beat 1 only"}}</button>
           </div>
         </div>
       </div>

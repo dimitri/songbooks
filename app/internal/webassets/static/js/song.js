@@ -550,7 +550,7 @@ const ICONS = {
     sheet.querySelectorAll('.section-jump').forEach(btn => {
       const sec = sections[parseInt(btn.dataset.sectionIndex, 10)];
       btn.disabled = !sec || sec.startBar == null || sec.barCount === 0;
-      if (btn.disabled) btn.title = 'no chord grid in this section yet — jump unavailable';
+      if (btn.disabled) btn.title = t('no chord grid in this section yet — jump unavailable');
       btn.onclick = () => jumpToSection(parseInt(btn.dataset.sectionIndex, 10));
     });
     document.querySelectorAll('.structure-seg').forEach(btn => {
@@ -578,7 +578,7 @@ const ICONS = {
     clock.start();
     metronome.start();
     playPauseBtn.innerHTML = iconPause;
-    playPauseBtn.title = 'pause';
+    playPauseBtn.title = t('pause');
     playPauseBtn.classList.add('active');
   }
 
@@ -763,7 +763,7 @@ const ICONS = {
       clock.pause(); metronome.stop();
       metronome.enabled = false;
       playPauseBtn.innerHTML = iconPlay;
-      playPauseBtn.title = 'play';
+      playPauseBtn.title = t('play');
       playPauseBtn.classList.remove('active');
       return;
     }
@@ -771,7 +771,7 @@ const ICONS = {
     metronome.enabled = false;
     metronome.start();
     playPauseBtn.innerHTML = iconPause;
-    playPauseBtn.title = 'pause';
+    playPauseBtn.title = t('pause');
     playPauseBtn.classList.add('active');
   }
   playPauseBtn.addEventListener('click', () => setPlaying(!clock.running));
@@ -1230,7 +1230,7 @@ const ICONS = {
       if (!vid) return;
       const iframe = document.createElement('iframe');
       iframe.src = `https://www.youtube-nocookie.com/embed/${vid}`;
-      iframe.title = 'reference video';
+      iframe.title = t('reference video');
       iframe.loading = 'lazy';
       iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
       iframe.allowFullscreen = true;
@@ -1262,13 +1262,13 @@ const ICONS = {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key: 'reference', value: url }),
         });
-        if (res.status === 403) throw new Error("You can't change this song's reference video.");
-        if (res.status === 409) throw new Error('This song changed since you opened it. Reload the page, then save the link again.');
-        if (!res.ok) throw new Error("Couldn't save the link. Try again.");
+        if (res.status === 403) throw new Error(t("You can't change this song's reference video."));
+        if (res.status === 409) throw new Error(t('This song changed since you opened it. Reload the page, then save the link again.'));
+        if (!res.ok) throw new Error(t("Couldn't save the link. Try again."));
         block.dataset.url = url;
         linkEl.href = url;
         linkEl.hidden = !url;
-        const label = url ? 'Change the reference video' : 'Add a reference video';
+        const label = url ? t('Change the reference video') : t('Add a reference video');
         editBtn.title = label;
         editBtn.setAttribute('aria-label', label);
         renderEmbed(url);
@@ -1287,13 +1287,17 @@ const ICONS = {
   // says versus what's being played right now. Resets to 0 on reload —
   // this is "capo math for tonight," not a saved preference.
   const transposeUp = document.getElementById('transpose-up');
-  if (transposeUp) {
+  // A song with no key written has no −/+ (play.html), but a coach's key
+  // (data-key-offset) still moves its chords.
+  if (transposeUp || sheet.dataset.keyOffset) {
     const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
     const SHARP_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
     const FLAT_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
     const flats = sheet.dataset.flats === '1';
     const origKey = sheet.dataset.key || '';
-    let offset = 0;
+    // Opened from a coaching student's or group's songbook, the song is
+    // in the key the coach gave it there (data-key-offset, play.html).
+    let offset = parseInt(sheet.dataset.keyOffset, 10) || 0;
 
     function spell(pc) {
       const arr = flats ? FLAT_NAMES : SHARP_NAMES;
@@ -1338,21 +1342,21 @@ const ICONS = {
       if (!node) {
         node = document.createElement('p');
         node.className = 'hint chord-legend-note';
-        node.textContent = displayedKey ? `No chord diagrams for ${displayedKey} yet.` : 'No chord diagrams for this key yet.';
+        node.textContent = displayedKey ? t('No chord diagrams for %s yet.', displayedKey) : t('No chord diagrams for this key yet.');
       }
       if (own) own.after(node); else sheet.prepend(node);
     }
 
     function applyTranspose() {
-      transposeAmount.textContent = (offset > 0 ? '+' : '') + offset;
+      if (transposeAmount) transposeAmount.textContent = (offset > 0 ? '+' : '') + offset;
       sheet.querySelectorAll('[data-pc]').forEach(el => {
         const pc = parseInt(el.dataset.pc, 10);
         if (pc < 0 || Number.isNaN(pc)) return;
         el.textContent = spell(pc + offset);
       });
-      if (offset === 0 || !origKey) {
-        keyTransposed.hidden = true;
-        keyTransposed.textContent = '';
+      if (offset === 0 || !origKey || !keyTransposed) {
+        if (keyTransposed) keyTransposed.hidden = true;
+        if (keyTransposed) keyTransposed.textContent = '';
         applyDiagrams('');
         return;
       }
@@ -1367,9 +1371,13 @@ const ICONS = {
       keyTransposed.hidden = false;
       applyDiagrams(keyTransposed.textContent);
     }
-    transposeUp.addEventListener('click', () => { offset++; applyTranspose(); });
-    document.getElementById('transpose-down').addEventListener('click', () => { offset--; applyTranspose(); });
+    transposeUp?.addEventListener('click', () => { offset++; applyTranspose(); });
+    document.getElementById('transpose-down')?.addEventListener('click', () => { offset--; applyTranspose(); });
     reapplyTranspose = applyTranspose;
+    if (offset) applyTranspose();
+    // The practice player's Key moves the chords with the recording
+    // (audio-player.js), −/+ or not.
+    window.songbooksShiftChords = (d) => { offset += d; applyTranspose(); };
   }
 
   const themeBtn = document.getElementById('theme-toggle');
@@ -1382,7 +1390,7 @@ const ICONS = {
     light: '<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="3.6" fill="currentColor" stroke="none"/><path d="M10 2v1.8M10 16.2V18M18 10h-1.8M3.8 10H2M15.4 4.6l-1.3 1.3M5.9 14.1l-1.3 1.3M15.4 15.4l-1.3-1.3M5.9 5.9 4.6 4.6"/></svg>',
     dark: '<svg class="icon" viewBox="0 0 20 20" fill="currentColor" stroke="none" aria-hidden="true"><path d="M16.5 12.8A7 7 0 0 1 7.2 3.5a7 7 0 1 0 9.3 9.3z"/></svg>',
   };
-  const THEME_TITLES = { '': 'theme: auto (click for light)', light: 'theme: light (click for dark)', dark: 'theme: dark (click for auto)' };
+  const THEME_TITLES = { '': t('theme: auto (click for light)'), light: t('theme: light (click for dark)'), dark: t('theme: dark (click for auto)') };
   function applyTheme(t) {
     document.body.dataset.theme = document.documentElement.dataset.theme = t || '';
     themeBtn.innerHTML = THEME_ICONS[t] || THEME_ICONS[''];
@@ -1437,7 +1445,7 @@ const ICONS = {
   // whether it's safe to leave.
   function confirmDiscardIfDirty() {
     if (!isDirty) return true;
-    return confirm('Close the editor and lose your unsaved changes? Choose Cancel to go back and save them.');
+    return confirm(t('Close the editor and lose your unsaved changes? Choose Cancel to go back and save them.'));
   }
   window.addEventListener('beforeunload', e => {
     if (!isDirty) return;
@@ -1518,7 +1526,7 @@ const ICONS = {
         const res = await fetch(`/api/variants/${pageVariantId}/fork`, {method: 'POST'});
         const data = await res.json().catch(() => ({}));
         // Not a form: nowhere on the page to show this but a dialog.
-        if (!res.ok) { alert("Couldn't make your own copy of this song to edit. Try again."); return; }
+        if (!res.ok) { alert(t("Couldn't make your own copy of this song to edit. Try again.")); return; }
         location.href = `/song/${data.variantId}?edit=1`;
         return;
       } finally {
@@ -1597,7 +1605,7 @@ const ICONS = {
   });
   document.getElementById('edit-discard-btn')?.addEventListener('click', () => {
     if (!isDirty) return;
-    if (!confirm("Throw away all your unsaved changes to this song? This can't be undone.")) return;
+    if (!confirm(t("Throw away all your unsaved changes to this song? This can't be undone."))) return;
     clearDirty();
     window.location.reload();
   });
@@ -1750,16 +1758,16 @@ const ICONS = {
 
   document.getElementById('save-btn').addEventListener('click', async () => {
     const status = document.getElementById('save-status');
-    status.className = ''; status.textContent = 'Saving…';
+    status.className = ''; status.textContent = t('Saving…');
     const res = await fetch(`/api/songs/${pageVariantId}/raw`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version: rawVersion, text: rawTextarea.value }),
     });
-    if (res.status === 409) { status.className = 'err'; status.textContent = 'Not saved: this song changed since you opened it. Copy your changes, reload the page, then save again.'; return; }
-    if (!res.ok) { status.className = 'err'; status.textContent = "Couldn't save. Your changes are still here; try again."; return; }
+    if (res.status === 409) { status.className = 'err'; status.textContent = t('Not saved: this song changed since you opened it. Copy your changes, reload the page, then save again.'); return; }
+    if (!res.ok) { status.className = 'err'; status.textContent = t("Couldn't save. Your changes are still here; try again."); return; }
     const data = await res.json();
     rawVersion = data.version;
-    status.className = 'ok'; status.textContent = 'Saved.';
+    status.className = 'ok'; status.textContent = t('Saved.');
     window.SongStructure?.reload();
     await renderPreview();
     savedSheetHTML = sheet.innerHTML; // this is now the saved state
@@ -1769,7 +1777,7 @@ const ICONS = {
   // ---- Redo this song (destructive: erases body, keeps book/stem identity) --
   document.getElementById('redo-song-btn')?.addEventListener('click', async () => {
     const title = document.querySelector('.topbar-current h1')?.textContent?.trim() || 'untitled';
-    if (!confirm(`Erase all the lyrics and chords of “${title}”? Its title, artist and other details stay. This can't be undone.`)) return;
+    if (!confirm(t("Erase all the lyrics and chords of “%s”? Its title, artist and other details stay. This can't be undone.", title))) return;
     const status = document.getElementById('save-status');
     const redoStatus = document.getElementById('redo-song-status');
     const redoBtn = document.getElementById('redo-song-btn');
@@ -1778,8 +1786,8 @@ const ICONS = {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, version: rawVersion }),
     }).finally(() => Forms.busy(redoBtn, false));
-    if (res.status === 409) { Forms.status(redoStatus, 'This song changed since you opened it. Reload the page, then start over again.', 'error'); return; }
-    if (!res.ok) { Forms.status(redoStatus, "Couldn't erase the song. Try again.", 'error'); return; }
+    if (res.status === 409) { Forms.status(redoStatus, t('This song changed since you opened it. Reload the page, then start over again.'), 'error'); return; }
+    if (!res.ok) { Forms.status(redoStatus, t("Couldn't erase the song. Try again."), 'error'); return; }
     Forms.status(redoStatus, '');
     const data = await res.json();
     rawVersion = data.version;
@@ -1794,7 +1802,7 @@ const ICONS = {
     await renderPreview();
     savedSheetHTML = sheet.innerHTML;
     clearDirty();
-    if (status) { status.className = 'ok'; status.textContent = 'Erased. Fill the song back in here.'; }
+    if (status) { status.className = 'ok'; status.textContent = t('Erased. Fill the song back in here.'); }
   });
 
   // ---- Importers --------------------------------------------------------------
@@ -1846,7 +1854,7 @@ const ICONS = {
       body: JSON.stringify({ text: rawTextarea.value, ...body }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Couldn't transpose the song. Try again.");
+    if (!res.ok) throw new Error(data.error || t("Couldn't transpose the song. Try again."));
     return data;
   }
   function signed(n) { return n > 0 ? '+' + n : '−' + Math.abs(n); }
@@ -1868,7 +1876,7 @@ const ICONS = {
 
     function fillTargets(targets) {
       toSel.innerHTML = '';
-      toSel.add(new Option('Choose a key', ''));
+      toSel.add(new Option(t('Choose a key'), ''));
       targets.forEach(t => toSel.add(new Option(`${t.key} (${signed(t.semitones)})`, t.key)));
     }
     async function analyze(from) {
@@ -1881,7 +1889,7 @@ const ICONS = {
           data.allKeys.forEach(k => fromSel.add(new Option(k, k, false, k === data.key)));
         }
         fillTargets(data.targets);
-        if (!data.key) Forms.status(form, 'This song has no chords to transpose yet.', 'error');
+        if (!data.key) Forms.status(form, t('This song has no chords to transpose yet.'), 'error');
       } catch (e) { Forms.status(form, e.message, 'error'); }
     }
     function setOpen(open) {
@@ -1904,14 +1912,14 @@ const ICONS = {
         replaceSource(data.text);
         ask.hidden = true;
         done.hidden = false;
-        let msg = `Transposed from ${data.from} to ${data.to} (${signed(data.semitones)}). Check the preview, then save.`;
-        if (data.kept) msg += ` The chord diagrams for ${data.from} stay saved, for when you play it in ${data.from}.`;
+        let msg = t('Transposed from %s to %s (%s). Check the preview, then save.', data.from, data.to, signed(data.semitones));
+        if (data.kept) msg += ' ' + t('The chord diagrams for %s stay saved, for when you play it in %s.', data.from, data.from);
         doneText.textContent = msg;
         // Diagrams for the new key: the song's chords, already transposed,
         // that have no shape yet ("missing" may be empty when the song held
         // a set for this key from an earlier transpose).
         diagramsBtn.hidden = !data.missing.length;
-        diagramsBtn.textContent = `Enter chord diagrams for ${data.to}`;
+        diagramsBtn.textContent = t('Enter chord diagrams for %s', data.to);
         diagramsBtn.dataset.first = data.missing[0] || '';
       });
     });
@@ -1957,8 +1965,8 @@ const ICONS = {
     cdeTodo.hidden = !data.missing.length;
     if (!data.missing.length) return;
     document.getElementById('cde-todo-text').textContent = data.key && !data.keyGuessed
-      ? `Chords in this song with no diagram for ${data.key} yet:`
-      : 'Chords in this song with no diagram yet:';
+      ? t('Chords in this song with no diagram for %s yet:', data.key)
+      : t('Chords in this song with no diagram yet:');
     data.missing.forEach(sym => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -2065,23 +2073,23 @@ const ICONS = {
       const a = document.createElement('a');
       a.href = `https://www.ultimate-guitar.com/search.php?search_type=title&value=${encodeURIComponent(q)}`;
       a.target = '_blank'; a.rel = 'noopener'; a.className = 'import-search-link';
-      a.textContent = 'Search on Ultimate Guitar ↗';
+      a.textContent = t('Search on Ultimate Guitar ↗');
       searchLinksHost.appendChild(a);
     })();
     autoFindBtn.addEventListener('click', async () => {
       const { title, artist } = titleArtist();
-      if (!title) { autoFindStatus.textContent = 'Give the song a title first (in the Chart tab), then search.'; autoFindStatus.className = 'err'; return; }
+      if (!title) { autoFindStatus.textContent = t('Give the song a title first (in the Chart tab), then search.'); autoFindStatus.className = 'err'; return; }
       Forms.busy(autoFindBtn, true);
-      autoFindStatus.textContent = 'Searching Ultimate Guitar…'; autoFindStatus.className = 'hint';
+      autoFindStatus.textContent = t('Searching Ultimate Guitar…'); autoFindStatus.className = 'hint';
       try {
         const res = await fetch(`/api/import/ug/find?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist || '')}`);
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error("Couldn't find this song on Ultimate Guitar. Try finding it yourself below.");
+        if (!res.ok) throw new Error(t("Couldn't find this song on Ultimate Guitar. Try finding it yourself below."));
         importSourceURL = data.url;
         importMeta = { title: data.title, artist: data.artist, capo: data.capo };
         urlInput.value = data.url;
         reviewText.value = data.text;
-        reviewHint.textContent = `From ${data.url} — ${data.confidence}.`;
+        reviewHint.textContent = t('From %s — %s.', data.url, data.confidence);
         applyStatus.textContent = ''; applyStatus.className = 'hint';
         showStep('review');
       } catch (e) {
@@ -2098,15 +2106,15 @@ const ICONS = {
     document.getElementById('import-url-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const url = urlInput.value.trim();
-      Forms.busy(fetchBtn, true); fetchStatus.textContent = 'Fetching…'; fetchStatus.className = 'hint';
+      Forms.busy(fetchBtn, true); fetchStatus.textContent = t('Fetching…'); fetchStatus.className = 'hint';
       try {
         const res = await fetch('/api/import/chords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error("Couldn't fetch that page. Check it's an Ultimate Guitar chords or tab page and try again.");
+        if (!res.ok) throw new Error(t("Couldn't fetch that page. Check it's an Ultimate Guitar chords or tab page and try again."));
         importSourceURL = url;
         importMeta = { title: data.title, artist: data.artist, capo: data.capo };
         reviewText.value = data.text;
-        reviewHint.textContent = `From ${url} — pasted manually, not cross-checked.`;
+        reviewHint.textContent = t('From %s — pasted manually, not cross-checked.', url);
         applyStatus.textContent = ''; applyStatus.className = 'hint';
         showStep('review');
       } catch (e) {
@@ -2159,11 +2167,11 @@ const ICONS = {
     // was confirmed WRONG on real songs this session).
     irealCheckBtn.addEventListener('click', async () => {
       const { title, artist } = titleArtist();
-      if (!title) { irealStatus.textContent = 'Give the song a title first (in the Chart tab).'; irealStatus.className = 'err'; return; }
+      if (!title) { irealStatus.textContent = t('Give the song a title first (in the Chart tab).'); irealStatus.className = 'err'; return; }
       const currentText = reviewText.value.trim();
-      if (!currentText) { irealStatus.textContent = 'Nothing to check yet. Fetch or paste a draft first.'; irealStatus.className = 'err'; return; }
+      if (!currentText) { irealStatus.textContent = t('Nothing to check yet. Fetch or paste a draft first.'); irealStatus.className = 'err'; return; }
       irealCheckBtn.disabled = true;
-      irealStatus.textContent = 'Checking iReal Pro…'; irealStatus.className = 'hint';
+      irealStatus.textContent = t('Checking iReal Pro…'); irealStatus.className = 'hint';
       irealCandidatesHost.innerHTML = '';
       try {
         const res = await fetch('/api/import/ireal/merge', {
@@ -2171,11 +2179,11 @@ const ICONS = {
           body: JSON.stringify({ currentText, title, artist: artist || '' }),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(res.status === 404 ? 'No iReal Pro chart found for this song.' : "Couldn't check iReal Pro just now. Try again.");
+        if (!res.ok) throw new Error(res.status === 404 ? t('No iReal Pro chart found for this song.') : t("Couldn't check iReal Pro just now. Try again."));
         renderIRealCandidates(data.candidates || []);
         irealStatus.textContent = (data.candidates || []).length
-          ? 'Found a chart. Check each section below before accepting it.'
-          : 'Found a chart, but it has nothing new to add.';
+          ? t('Found a chart. Check each section below before accepting it.')
+          : t('Found a chart, but it has nothing new to add.');
         irealStatus.className = 'hint';
       } catch (e) {
         irealStatus.textContent = e.message; irealStatus.className = 'err';
@@ -2195,19 +2203,19 @@ const ICONS = {
         const row = document.createElement('div');
         row.className = 'import-ireal-candidate' + (c.Safe ? ' is-safe' : '');
         const flag = c.Safe
-          ? 'same key — safe to accept'
-          : (c.Offset ? `transposed ${c.Offset > 0 ? '+' : ''}${c.Offset} semitones — please check before accepting` : 'low-confidence match — please check');
+          ? t('same key — safe to accept')
+          : (c.Offset ? t('transposed %s semitones — please check before accepting', (c.Offset > 0 ? '+' : '') + c.Offset) : t('low-confidence match — please check'));
         row.innerHTML = `
           <div class="import-ireal-candidate-head">
             <span class="import-ireal-candidate-label">[${c.Label}]</span>
             <span class="import-ireal-candidate-flag${c.Safe ? ' is-safe' : ''}">${flag}</span>
           </div>
           <div class="import-ireal-candidate-grids">
-            <div><span class="label">current</span>${c.CurrentGrid ? escapeHtml(c.CurrentGrid) : '(none)'}</div>
+            <div><span class="label">${t('current')}</span>${c.CurrentGrid ? escapeHtml(c.CurrentGrid) : t('(none)')}</div>
             <div><span class="label">iReal Pro</span>${escapeHtml(c.ProposedGrid)}</div>
           </div>
           <div class="import-ireal-candidate-actions">
-            <label><input type="checkbox" class="import-ireal-accept" ${c.Safe ? 'checked' : ''}> Accept this section</label>
+            <label><input type="checkbox" class="import-ireal-accept" ${c.Safe ? 'checked' : ''}> ${t('Accept this section')}</label>
           </div>`;
         row.querySelector('.import-ireal-accept').dataset.label = c.Label;
         irealCandidatesHost.appendChild(row);
@@ -2216,7 +2224,7 @@ const ICONS = {
       applyRow.className = 'import-row';
       const applyIrealBtn = document.createElement('button');
       applyIrealBtn.type = 'button';
-      applyIrealBtn.textContent = 'Apply accepted sections to draft';
+      applyIrealBtn.textContent = t('Apply accepted sections to draft');
       const applyIrealStatus = document.createElement('span');
       applyIrealStatus.className = 'hint';
       applyRow.append(applyIrealBtn, applyIrealStatus);
@@ -2224,19 +2232,19 @@ const ICONS = {
       applyIrealBtn.addEventListener('click', async () => {
         const { title, artist } = titleArtist();
         const acceptLabels = Array.from(irealCandidatesHost.querySelectorAll('.import-ireal-accept:checked')).map(el => el.dataset.label);
-        if (!acceptLabels.length) { applyIrealStatus.textContent = 'Tick at least one section first.'; applyIrealStatus.className = 'err'; return; }
+        if (!acceptLabels.length) { applyIrealStatus.textContent = t('Tick at least one section first.'); applyIrealStatus.className = 'err'; return; }
         applyIrealBtn.disabled = true;
-        applyIrealStatus.textContent = 'Applying…'; applyIrealStatus.className = 'hint';
+        applyIrealStatus.textContent = t('Applying…'); applyIrealStatus.className = 'hint';
         try {
           const res = await fetch('/api/import/ireal/merge', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ currentText: reviewText.value.trim(), title, artist: artist || '', apply: true, acceptLabels }),
           });
           const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error("Couldn't apply those sections. Try again.");
+          if (!res.ok) throw new Error(t("Couldn't apply those sections. Try again."));
           reviewText.value = data.text;
           irealCandidatesHost.innerHTML = '';
-          irealStatus.textContent = 'Done. The sections you accepted now use the iReal Pro chords.'; irealStatus.className = 'hint';
+          irealStatus.textContent = t('Done. The sections you accepted now use the iReal Pro chords.'); irealStatus.className = 'hint';
         } catch (e) {
           applyIrealStatus.textContent = e.message; applyIrealStatus.className = 'err';
         } finally {
@@ -2315,7 +2323,7 @@ const ICONS = {
   }
   function confirmDeleteSection(sec) {
     const filled = (sec.measures || []).some(m => (m.tokens || []).some(t => t && t !== '.')) || (sec.lyrics || []).length || (sec.scores || []).length;
-    return !filled || confirm(`Delete the section “${sec.label || 'Untitled'}”? (Undo brings it back.)`);
+    return !filled || confirm(t('Delete the section “%s”? (Undo brings it back.)', sec.label || t('Untitled')));
   }
   function restoreSnapshot(snap) {
     structMeta = snap.meta;
@@ -2475,7 +2483,7 @@ const ICONS = {
     // need of being right here, not buried in Source.
     const titleField = document.createElement('label');
     titleField.className = 'header-field';
-    titleField.append('Title');
+    titleField.append(t('Title'));
     const titleInput = document.createElement('input');
     titleInput.id = 'song-title-input';
     titleInput.type = 'text';
@@ -2486,7 +2494,7 @@ const ICONS = {
 
     const artistField = document.createElement('label');
     artistField.className = 'header-field';
-    artistField.append('Artist');
+    artistField.append(t('Artist'));
     const artistInput = document.createElement('input');
     artistInput.id = 'song-artist-input';
     artistInput.type = 'text';
@@ -2497,26 +2505,26 @@ const ICONS = {
 
     const timeField = document.createElement('label');
     timeField.className = 'header-field';
-    timeField.append('Time signature ');
+    timeField.append(t('Time signature') + ' ');
     const timeInput = document.createElement('input');
     // No inputmode="numeric": the phone number pad has no "/" key.
     timeInput.type = 'text'; timeInput.className = 'header-field-input';
     timeInput.autocomplete = 'off'; timeInput.spellcheck = false;
-    timeInput.placeholder = 'e.g. 4/4';
+    timeInput.placeholder = t('e.g. 4/4');
     timeInput.value = metaGet('time');
-    timeInput.title = 'e.g. 4/4, 3/4, 6/8 — affects beat slots and bar-fullness below';
+    timeInput.title = t('e.g. 4/4, 3/4, 6/8 — affects beat slots and bar-fullness below');
     timeInput.addEventListener('input', () => { markDirty(); metaSet('time', timeInput.value.trim()); renderStructureUI(); });
     timeField.appendChild(timeInput);
 
     const tempoField = document.createElement('label');
     tempoField.className = 'header-field';
-    tempoField.append('Tempo ');
+    tempoField.append(t('Tempo') + ' ');
     const tempoInput = document.createElement('input');
     tempoInput.type = 'text'; tempoInput.inputMode = 'numeric'; tempoInput.className = 'header-field-input';
     tempoInput.autocomplete = 'off';
-    tempoInput.placeholder = 'e.g. 120';
+    tempoInput.placeholder = t('e.g. 120');
     tempoInput.value = metaGet('tempo');
-    tempoInput.title = 'beats per minute, saved to the song header';
+    tempoInput.title = t('beats per minute, saved to the song header');
     tempoInput.addEventListener('input', () => { markDirty(); metaSet('tempo', tempoInput.value.trim()); });
     tempoField.append(tempoInput, ' bpm');
 
@@ -2524,11 +2532,11 @@ const ICONS = {
     // header's "swing:" (8 or 16; see the song format docs).
     const swingField = document.createElement('label');
     swingField.className = 'header-field';
-    swingField.append('Swing ');
+    swingField.append(t('Swing') + ' ');
     const swingSelect = document.createElement('select');
     swingSelect.className = 'header-field-input';
-    swingSelect.title = 'plays written eighths (or sixteenths) as a shuffle, like Guitar Pro\'s triplet feel';
-    for (const [value, text] of [['', 'Straight'], ['8', 'Swung 8ths'], ['16', 'Swung 16ths']]) {
+    swingSelect.title = t('plays written eighths (or sixteenths) as a shuffle, like Guitar Pro\'s triplet feel');
+    for (const [value, text] of [['', t('Straight')], ['8', t('Swung 8ths')], ['16', t('Swung 16ths')]]) {
       swingSelect.add(new Option(text, value));
     }
     swingSelect.value = ['8', '16'].includes(metaGet('swing')) ? metaGet('swing') : '';
@@ -2546,13 +2554,13 @@ const ICONS = {
     // structure-tab "Save" button like time/tempo above.
     const genreField = document.createElement('label');
     genreField.className = 'header-field';
-    genreField.append('Genre ');
+    genreField.append(t('Genre') + ' ');
     const genreInput = document.createElement('input');
     genreInput.type = 'text'; genreInput.className = 'header-field-input header-field-genre';
-    genreInput.placeholder = 'e.g. Soul';
+    genreInput.placeholder = t('e.g. Soul');
     genreInput.autocomplete = 'off';
     genreInput.value = structureEl?.dataset.genre || '';
-    genreInput.title = 'Saved as soon as you leave this field';
+    genreInput.title = t('Saved as soon as you leave this field');
     // Saves on its own (no Save button), so it says when it has.
     const genreStatus = document.createElement('span');
     genreStatus.className = 'hint form-status';
@@ -2564,7 +2572,7 @@ const ICONS = {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ genre: genreInput.value.trim() }),
       }).catch(() => null);
-      Forms.status(genreStatus, res && res.ok ? 'Genre saved.' : "Couldn't save the genre. Try again.", res && res.ok ? 'ok' : 'error');
+      Forms.status(genreStatus, res && res.ok ? t('Genre saved.') : t("Couldn't save the genre. Try again."), res && res.ok ? 'ok' : 'error');
     });
     genreField.appendChild(genreInput);
 
@@ -2593,14 +2601,14 @@ const ICONS = {
         else structMeta = structMeta.filter((f) => f.key !== 'content');
         renderHeaderFields();
       });
-      gpRow.append(box, ' The song is all in its Guitar Pro file');
+      gpRow.append(box, ' ' + t('The song is all in its Guitar Pro file'));
       host.appendChild(gpRow);
       if (box.checked) {
         const note = document.createElement('p');
         note.className = 'hint song-gp-only-note';
         note.textContent = structSections.length
-          ? 'The song opens on the file’s score; the sections below are extras, one tap away in the Song view.'
-          : 'The song opens on the file’s score.';
+          ? t('The song opens on the file’s score; the sections below are extras, one tap away in the Song view.')
+          : t('The song opens on the file’s score.');
         host.appendChild(note);
       }
     }
@@ -2977,10 +2985,10 @@ const ICONS = {
       // already reads unambiguously without the section name repeated (one
       // section is ever expanded/docked at a time there), so this prefix
       // is focus-mode only.
-      const secPart = focusModeActive ? `${sec.label || (sec.repeat ? '(repeat)' : 'Untitled')} · ` : '';
+      const secPart = focusModeActive ? `${sec.label || (sec.repeat ? t('(repeat)') : t('Untitled'))} · ` : '';
       slotLabel.textContent = sel
-        ? `${secPart}bar ${sel.mi + 1} · ${sel.ti + 1}/${sec.measures[sel.mi].tokens.length}${tok ? ' · ' + tok : ''}`
-        : (focusModeActive ? `${sec.label || 'Untitled'} · no bar selected` : 'no bar selected');
+        ? `${secPart}${t('bar %d', sel.mi + 1)} · ${sel.ti + 1}/${sec.measures[sel.mi].tokens.length}${tok ? ' · ' + tok : ''}`
+        : (focusModeActive ? `${sec.label || t('Untitled')} · ${t('no bar selected')}` : t('no bar selected'));
     }
     toolbar.classList.toggle('no-selection', !sel);
   }
@@ -3059,7 +3067,7 @@ const ICONS = {
     const tempoSpan = document.createElement('span'); tempoSpan.className = 'toolbar-meta-chip toolbar-meta-tempo';
     tempoSpan.textContent = metaGet('tempo') ? metaGet('tempo') + ' bpm' : '';
     const slotLabel = document.createElement('span'); slotLabel.className = 'toolbar-slot-label hint';
-    slotLabel.textContent = 'tap a bar slot below to select it';
+    slotLabel.textContent = t('tap a bar slot below to select it');
     meta.append(timeSpan, tempoSpan, slotLabel);
     bar.appendChild(meta);
 
@@ -3074,10 +3082,10 @@ const ICONS = {
     // stays ASCII, same split used for displaying it back (parseChordDisplay
     // below).
     const flat = document.createElement('button'); flat.type = 'button'; flat.className = 'toolbar-btn toolbar-acc'; flat.dataset.acc = 'b'; flat.textContent = '♭';
-    flat.title = 'flat the next root tapped';
+    flat.title = t('flat the next root tapped');
     flat.addEventListener('click', () => { sec._pendingAcc = sec._pendingAcc === 'b' ? '' : 'b'; flat.classList.toggle('pending', sec._pendingAcc === 'b'); sharp.classList.remove('pending'); });
     const sharp = document.createElement('button'); sharp.type = 'button'; sharp.className = 'toolbar-btn toolbar-acc'; sharp.dataset.acc = '#'; sharp.textContent = '♯';
-    sharp.title = 'sharp the next root tapped';
+    sharp.title = t('sharp the next root tapped');
     sharp.addEventListener('click', () => { sec._pendingAcc = sec._pendingAcc === '#' ? '' : '#'; sharp.classList.toggle('pending', sec._pendingAcc === '#'); flat.classList.remove('pending'); });
     rootRow.append(flat);
     ROOTS.forEach(r => {
@@ -3100,33 +3108,33 @@ const ICONS = {
       b.addEventListener('click', () => { if (sec._sel) setChordPart(sec, i, 'quality', q); });
       qualRow.appendChild(b);
     });
-    const moreBtn = document.createElement('button'); moreBtn.type = 'button'; moreBtn.className = 'toolbar-btn toolbar-more'; moreBtn.textContent = 'more…';
-    moreBtn.title = 'more chord qualities';
+    const moreBtn = document.createElement('button'); moreBtn.type = 'button'; moreBtn.className = 'toolbar-btn toolbar-more'; moreBtn.textContent = t('more…');
+    moreBtn.title = t('more chord qualities');
     moreBtn.addEventListener('click', () => openMoreQualities(moreBtn, sec, i));
     qualRow.appendChild(moreBtn);
     bar.appendChild(qualRow);
 
     const utilRow = document.createElement('div'); utilRow.className = 'toolbar-row toolbar-util';
-    const bassBtn = document.createElement('button'); bassBtn.type = 'button'; bassBtn.className = 'toolbar-btn toolbar-bass-btn'; bassBtn.textContent = '/ bass';
-    bassBtn.title = 'next root tapped becomes the bass note, e.g. C/E';
+    const bassBtn = document.createElement('button'); bassBtn.type = 'button'; bassBtn.className = 'toolbar-btn toolbar-bass-btn'; bassBtn.textContent = t('/ bass');
+    bassBtn.title = t('next root tapped becomes the bass note, e.g. C/E');
     bassBtn.addEventListener('click', () => { sec._bassMode = !sec._bassMode; bassBtn.classList.toggle('pending', sec._bassMode); });
-    const oneBeat = document.createElement('button'); oneBeat.type = 'button'; oneBeat.className = 'toolbar-btn'; oneBeat.textContent = '1 beat';
-    oneBeat.title = 'this chord holds for 1 beat-slot, then advance';
+    const oneBeat = document.createElement('button'); oneBeat.type = 'button'; oneBeat.className = 'toolbar-btn'; oneBeat.textContent = t('1 beat');
+    oneBeat.title = t('this chord holds for 1 beat-slot, then advance');
     oneBeat.addEventListener('click', () => { if (sec._sel) applyDuration(sec, sec._sel.mi, sec._sel.ti, 1); });
-    const twoBeat = document.createElement('button'); twoBeat.type = 'button'; twoBeat.className = 'toolbar-btn'; twoBeat.textContent = '2 beats';
-    twoBeat.title = 'this chord holds for 2 beat-slots, then advance';
+    const twoBeat = document.createElement('button'); twoBeat.type = 'button'; twoBeat.className = 'toolbar-btn'; twoBeat.textContent = t('2 beats');
+    twoBeat.title = t('this chord holds for 2 beat-slots, then advance');
     twoBeat.addEventListener('click', () => { if (sec._sel) applyDuration(sec, sec._sel.mi, sec._sel.ti, 2); });
-    const wholeBar = document.createElement('button'); wholeBar.type = 'button'; wholeBar.className = 'toolbar-btn'; wholeBar.textContent = 'whole bar';
-    wholeBar.title = 'this chord sustains through the rest of the bar, then advance to the next bar';
+    const wholeBar = document.createElement('button'); wholeBar.type = 'button'; wholeBar.className = 'toolbar-btn'; wholeBar.textContent = t('whole bar');
+    wholeBar.title = t('this chord sustains through the rest of the bar, then advance to the next bar');
     wholeBar.addEventListener('click', () => { if (sec._sel) applyDuration(sec, sec._sel.mi, sec._sel.ti, 'bar'); });
     const sustainBtn = document.createElement('button'); sustainBtn.type = 'button'; sustainBtn.className = 'toolbar-btn'; sustainBtn.textContent = '.';
-    sustainBtn.title = 'sustain the previous chord into this slot';
+    sustainBtn.title = t('sustain the previous chord into this slot');
     sustainBtn.addEventListener('click', () => { if (sec._sel) { setSlotToken(sec, i, '.'); moveSelection(sec, i, 1); } });
     const repeatBarBtn = document.createElement('button'); repeatBarBtn.type = 'button'; repeatBarBtn.className = 'toolbar-btn'; repeatBarBtn.textContent = '%';
-    repeatBarBtn.title = 'repeat the previous bar';
+    repeatBarBtn.title = t('repeat the previous bar');
     repeatBarBtn.addEventListener('click', () => { if (!sec._sel) return; edited(); sec.measures[sec._sel.mi].tokens = ['%']; renderMatrix(sec, i); focusSlot(sec, Math.min(sec._sel.mi + 1, sec.measures.length - 1), 0); });
-    const clearBtn = document.createElement('button'); clearBtn.type = 'button'; clearBtn.className = 'toolbar-btn toolbar-clear'; clearBtn.textContent = 'clear';
-    clearBtn.title = 'clear the selected slot';
+    const clearBtn = document.createElement('button'); clearBtn.type = 'button'; clearBtn.className = 'toolbar-btn toolbar-clear'; clearBtn.textContent = t('clear');
+    clearBtn.title = t('clear the selected slot');
     clearBtn.addEventListener('click', () => { if (sec._sel) setSlotToken(sec, i, ''); });
     utilRow.append(bassBtn, oneBeat, twoBeat, wholeBar, sustainBtn, repeatBarBtn, clearBtn);
     bar.appendChild(utilRow);
@@ -3135,7 +3143,7 @@ const ICONS = {
     // on sec._sel.mi, replacing the old per-cell "N chord(s)" dropdown
     // that used to sit inside every bar box (see setBarSplit above).
     const splitRow = document.createElement('div'); splitRow.className = 'toolbar-row toolbar-split';
-    const splitLabel = document.createElement('span'); splitLabel.className = 'hint toolbar-split-label'; splitLabel.textContent = 'split bar:';
+    const splitLabel = document.createElement('span'); splitLabel.className = 'hint toolbar-split-label'; splitLabel.textContent = t('split bar:');
     splitRow.appendChild(splitLabel);
     const bpb = editorBeatsPerBar();
     // Desktop focus editor: the default progression is musical, not a
@@ -3149,7 +3157,7 @@ const ICONS = {
     [...new Set(splitOptions)].forEach(n => {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'toolbar-btn toolbar-split-btn'; b.dataset.split = String(n);
       b.textContent = n === 1 ? '1' : String(n);
-      b.title = n === 1 ? 'one chord for the whole bar' : `split into ${n} chords`;
+      b.title = n === 1 ? t('one chord for the whole bar') : t('split into %d chords', n);
       b.addEventListener('click', () => { if (sec._sel) setBarSplit(sec, sec._sel.mi, n); });
       splitRow.appendChild(b);
     });
@@ -3222,7 +3230,7 @@ const ICONS = {
       cell.classList.toggle('bar-complete', complete);
       cell.classList.toggle('bar-underfull', !complete);
       fullness.textContent = complete ? '✓' : `${m.tokens.filter(t => t !== '').length}/${m.tokens.length}`;
-      fullness.title = complete ? 'bar is filled' : 'bar is missing chords/sustains — pick a duration or press Enter to fill the rest';
+      fullness.title = complete ? t('bar is filled') : t('bar is missing chords/sustains — pick a duration or press Enter to fill the rest');
     }
     top.appendChild(fullness);
     cell.appendChild(top);
@@ -3232,9 +3240,9 @@ const ICONS = {
     m.tokens.forEach((tok, ti) => {
       const slotWrap = document.createElement('div');
       const lab = document.createElement('div'); lab.className = 'matrix-beat-label';
-      const updateLabel = t => {
-        const label = slotBeatLabel(ti, m.tokens.length, t);
-        lab.textContent = label != null ? 'beat ' + label : '';
+      const updateLabel = tokv => {
+        const label = slotBeatLabel(ti, m.tokens.length, tokv);
+        lab.textContent = label != null ? t('beat %d', label) : '';
       };
       updateLabel(tok);
       slotWrap.appendChild(lab);
@@ -3243,7 +3251,7 @@ const ICONS = {
       input.type = 'text'; input.className = 'matrix-slot'; input.value = tok;
       input.dataset.mi = String(mi); input.dataset.ti = String(ti);
       input.placeholder = ti === 0 ? '%' : '.';
-      input.setAttribute('aria-label', `Bar ${mi + 1}, beat ${ti + 1} chord`);
+      input.setAttribute('aria-label', t('Bar %d, beat %d chord', mi + 1, ti + 1));
       input.autocapitalize = 'off'; input.spellcheck = false;
       trackTextEdits(input);
       input.addEventListener('input', () => { m.tokens[ti] = input.value; updateLabel(input.value); updateFullness(); refreshToolbarHighlight(sec, secIndexOf(sec)); });
@@ -3303,7 +3311,7 @@ const ICONS = {
     const row2 = document.createElement('div');
     row2.className = 'matrix-cell-bottom';
     const delBar = document.createElement('button');
-    delBar.type = 'button'; delBar.innerHTML = ICONS.close; delBar.title = 'remove this bar';
+    delBar.type = 'button'; delBar.innerHTML = ICONS.close; delBar.title = t('remove this bar');
     delBar.addEventListener('click', () => { edited(); sec.measures.splice(mi, 1); renderMatrix(sec, secIndexOf(sec)); });
     row2.appendChild(delBar);
     cell.appendChild(row2);
@@ -3374,14 +3382,14 @@ const ICONS = {
     // disclosure the way the cramped mobile blocks list needs to.
     if (focusModeActive) toolsDetails.open = true;
     const toolsSummary = document.createElement('summary');
-    toolsSummary.textContent = 'bar tools (insert/repeat, line width)';
+    toolsSummary.textContent = t('bar tools (insert/repeat, line width)');
     toolsDetails.appendChild(toolsSummary);
 
     const toolbar = document.createElement('div');
     toolbar.className = 'matrix-toolbar';
     const perLine = document.createElement('label');
     perLine.className = 'hint';
-    perLine.textContent = 'Bars per line ';
+    perLine.textContent = t('Bars per line') + ' ';
     const perLineInput = document.createElement('input');
     perLineInput.type = 'text'; perLineInput.inputMode = 'numeric'; perLineInput.style.width = '3rem';
     perLineInput.value = (sec.barsPerLine && sec.barsPerLine[0]) || 4;
@@ -3402,8 +3410,8 @@ const ICONS = {
     // the insertion point either way), so you can start typing into it
     // immediately — no extra click to find it.
     const insertBefore = document.createElement('button');
-    insertBefore.type = 'button'; insertBefore.textContent = '+ bar before';
-    insertBefore.title = 'insert a new bar before the selected one';
+    insertBefore.type = 'button'; insertBefore.textContent = t('+ bar before');
+    insertBefore.title = t('insert a new bar before the selected one');
     insertBefore.addEventListener('click', () => {
       pushUndo(); markDirty();
       const at = sec._sel ? sec._sel.mi : sec.measures.length;
@@ -3412,8 +3420,8 @@ const ICONS = {
       focusSlot(sec, at, 0);
     });
     const insertAfter = document.createElement('button');
-    insertAfter.type = 'button'; insertAfter.textContent = '+ bar after';
-    insertAfter.title = 'insert a new bar after the selected one';
+    insertAfter.type = 'button'; insertAfter.textContent = t('+ bar after');
+    insertAfter.title = t('insert a new bar after the selected one');
     insertAfter.addEventListener('click', () => {
       pushUndo(); markDirty();
       const at = sec._sel ? sec._sel.mi + 1 : sec.measures.length;
@@ -3425,8 +3433,8 @@ const ICONS = {
     // take a bar back out again (the only way to shorten a section was
     // deleting the whole thing and starting over).
     const removeBar = document.createElement('button');
-    removeBar.type = 'button'; removeBar.textContent = '− bar';
-    removeBar.title = 'remove the selected bar';
+    removeBar.type = 'button'; removeBar.textContent = t('− bar');
+    removeBar.title = t('remove the selected bar');
     removeBar.addEventListener('click', () => {
       if (!sec._sel || !sec.measures.length) return;
       pushUndo(); markDirty();
@@ -3462,7 +3470,7 @@ const ICONS = {
       // it showing the true state but non-interactive rather than letting
       // a click silently do nothing.
       repeatCheckbox.disabled = true;
-      repeatToggle.title = 'this section has no common bars before its endings — edit the repeat bracket in Source';
+      repeatToggle.title = t('this section has no common bars before its endings — edit the repeat bracket in Source');
     }
     repeatCheckbox.addEventListener('change', () => {
       edited();
@@ -3477,7 +3485,7 @@ const ICONS = {
       }
       renderMatrix(sec, i);
     });
-    repeatToggle.append(repeatCheckbox, document.createTextNode(' repeats (|: :|)'));
+    repeatToggle.append(repeatCheckbox, document.createTextNode(' ' + t('repeats (|: :|)')));
     toolbar.appendChild(repeatToggle);
     toolsDetails.appendChild(toolbar);
     if (toolboxToolbar) toolboxToolbar.appendChild(toolsDetails);
@@ -3525,7 +3533,7 @@ const ICONS = {
         host.appendChild(rowEl);
       });
       if (sec.measures.length === 0) {
-        const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = 'No bars yet — "+ bar" to start, or use fill for a repeating phrase.';
+        const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = t('No bars yet — "+ bar" to start, or use fill for a repeating phrase.');
         host.appendChild(hint);
       }
     }
@@ -3592,7 +3600,7 @@ const ICONS = {
       if (!readOnly) wireRealChartEditing(sec, i, match);
     } else {
       const hint = document.createElement('p'); hint.className = 'hint';
-      hint.textContent = sec.repeat ? '(repeat marker — nothing to show)' : 'No bars yet — "+ bar" to start.';
+      hint.textContent = sec.repeat ? t('(repeat marker — nothing to show)') : t('No bars yet — "+ bar" to start.');
       chartHost.appendChild(hint);
     }
     if (!readOnly) {
@@ -3652,10 +3660,10 @@ const ICONS = {
     panel.className = 'alt-endings-panel';
     const head = document.createElement('div');
     head.className = 'alt-endings-head';
-    const title = document.createElement('span'); title.className = 'hint'; title.textContent = 'alternative endings';
+    const title = document.createElement('span'); title.className = 'hint'; title.textContent = t('alternative endings');
     const addEnding = document.createElement('button');
     addEnding.type = 'button'; addEnding.className = 'alt-add-btn';
-    addEnding.innerHTML = ICONS.plus + ' ending';
+    addEnding.innerHTML = ICONS.plus + ' ' + t('ending');
     addEnding.addEventListener('click', () => {
       const barCount = sec.endings.length ? sec.endings[0].measures.length : 1;
       const measures = []; for (let b = 0; b < barCount; b++) measures.push(emptyMeasure());
@@ -3668,7 +3676,7 @@ const ICONS = {
 
     if (sec.endings.length === 0) {
       const hint = document.createElement('p'); hint.className = 'hint';
-      hint.textContent = 'No alternative endings — the common bars above just repeat identically each time.';
+      hint.textContent = t('No alternative endings — the common bars above just repeat identically each time.');
       panel.appendChild(hint);
     }
 
@@ -3680,16 +3688,16 @@ const ICONS = {
 
       const endHead = document.createElement('div');
       endHead.className = 'alt-ending-head';
-      const playsOn = document.createElement('label'); playsOn.className = 'hint'; playsOn.textContent = 'Plays on';
+      const playsOn = document.createElement('label'); playsOn.className = 'hint'; playsOn.textContent = t('Plays on');
       const labelInput = document.createElement('input');
       labelInput.type = 'text'; labelInput.className = 'alt-label-input'; labelInput.value = end.label;
       labelInput.id = `alt-label-${i}-${ei}`; playsOn.htmlFor = labelInput.id;
-      labelInput.title = 'which repeat pass(es) — e.g. "1." or "1,2,3." (LilyPond\'s own volta numberlist)';
+      labelInput.title = t('which repeat pass(es) — e.g. "1." or "1,2,3." (LilyPond\'s own volta numberlist)');
       trackTextEdits(labelInput);
       labelInput.addEventListener('input', () => { end.label = labelInput.value; });
       const removeEnding = document.createElement('button');
-      removeEnding.type = 'button'; removeEnding.className = 'icon-btn'; removeEnding.innerHTML = ICONS.close; removeEnding.title = 'Remove this ending';
-      removeEnding.setAttribute('aria-label', `Remove ending ${ei + 1}`);
+      removeEnding.type = 'button'; removeEnding.className = 'icon-btn'; removeEnding.innerHTML = ICONS.close; removeEnding.title = t('Remove this ending');
+      removeEnding.setAttribute('aria-label', t('Remove ending %d', ei + 1));
       removeEnding.addEventListener('click', () => { edited(); sec.endings.splice(ei, 1); renderMatrix(sec, i); });
       endHead.append(playsOn, labelInput, removeEnding);
       box.appendChild(endHead);
@@ -3705,21 +3713,21 @@ const ICONS = {
         // would silently drop the rest the moment this field is touched;
         // this keeps full round-trip fidelity without needing the full
         // density-select sub-editor the common-bar grid has.
-        input.type = 'text'; input.value = (m.tokens || []).join(' '); input.placeholder = 'chord (space-separate for sub-beats, e.g. Eb . Bb .)';
-        input.setAttribute('aria-label', `Ending ${ei + 1}, bar ${bi + 1} chords`);
+        input.type = 'text'; input.value = (m.tokens || []).join(' '); input.placeholder = t('chord (space-separate for sub-beats, e.g. Eb . Bb .)');
+        input.setAttribute('aria-label', t('Ending %d, bar %d chords', ei + 1, bi + 1));
         input.autocapitalize = 'off'; input.spellcheck = false;
         trackTextEdits(input);
         input.addEventListener('input', () => { m.tokens = input.value.split(/\s+/).filter(Boolean); if (!m.tokens.length) m.tokens = ['']; });
         cell.appendChild(input);
         if (end.measures.length > 1) {
-          const rm = document.createElement('button'); rm.type = 'button'; rm.innerHTML = ICONS.close; rm.title = 'remove this bar';
+          const rm = document.createElement('button'); rm.type = 'button'; rm.innerHTML = ICONS.close; rm.title = t('remove this bar');
           rm.addEventListener('click', () => { edited(); end.measures.splice(bi, 1); renderMatrix(sec, i); });
           cell.appendChild(rm);
         }
         cells.appendChild(cell);
       });
       const addBarBtn = document.createElement('button');
-      addBarBtn.type = 'button'; addBarBtn.className = 'alt-add-bar'; addBarBtn.textContent = '+ bar';
+      addBarBtn.type = 'button'; addBarBtn.className = 'alt-add-bar'; addBarBtn.textContent = t('+ bar');
       addBarBtn.addEventListener('click', () => { end.measures.push(emptyMeasure()); renderMatrix(sec, i); });
       cells.appendChild(addBarBtn);
       box.appendChild(cells);
@@ -3843,7 +3851,7 @@ const ICONS = {
     closeAnyMenu();
     const menu = document.createElement('div');
     menu.className = 'insert-menu';
-    const groupLabel = document.createElement('div'); groupLabel.className = 'insert-menu-group-label'; groupLabel.textContent = 'Section';
+    const groupLabel = document.createElement('div'); groupLabel.className = 'insert-menu-group-label'; groupLabel.textContent = t('Section');
     menu.appendChild(groupLabel);
     const presets = document.createElement('div'); presets.className = 'insert-menu-grid';
     SECTION_QUICK_LABELS.forEach(label => {
@@ -3854,8 +3862,8 @@ const ICONS = {
     });
     menu.appendChild(presets);
     const custom = document.createElement('input');
-    custom.type = 'text'; custom.className = 'insert-menu-custom'; custom.placeholder = 'Other name… ⏎'; custom.maxLength = 40;
-    custom.setAttribute('aria-label', 'Other section name'); custom.enterKeyHint = 'done';
+    custom.type = 'text'; custom.className = 'insert-menu-custom'; custom.placeholder = t('Other name… ⏎'); custom.maxLength = 40;
+    custom.setAttribute('aria-label', t('Other section name')); custom.enterKeyHint = 'done';
     custom.addEventListener('keydown', e => {
       if (e.key !== 'Enter') return;
       e.preventDefault();
@@ -3869,24 +3877,24 @@ const ICONS = {
     const existing = [...new Set(structSections.filter(s => !s.repeat).map(s => s.label).filter(Boolean))];
     if (existing.length) {
       const rsep = document.createElement('div'); rsep.className = 'insert-menu-sep'; menu.appendChild(rsep);
-      const rlabel = document.createElement('div'); rlabel.className = 'insert-menu-group-label'; rlabel.textContent = 'Play again';
+      const rlabel = document.createElement('div'); rlabel.className = 'insert-menu-group-label'; rlabel.textContent = t('Play again');
       menu.appendChild(rlabel);
       existing.forEach(label => {
         const item = document.createElement('button');
         item.type = 'button'; item.className = 'insert-menu-item'; item.textContent = '↻ ' + label;
-        item.title = `the ${label} again: same bars and lyrics, no new content to fill in`;
+        item.title = t('the %s again: same bars and lyrics, no new content to fill in', label);
         item.addEventListener('click', () => { closeAnyMenu(); insertRepeatAt(i, label); });
         menu.appendChild(item);
       });
     }
 
     const sep = document.createElement('div'); sep.className = 'insert-menu-sep'; menu.appendChild(sep);
-    const contentLabel = document.createElement('div'); contentLabel.className = 'insert-menu-group-label'; contentLabel.textContent = 'Content';
+    const contentLabel = document.createElement('div'); contentLabel.className = 'insert-menu-group-label'; contentLabel.textContent = t('Content');
     menu.appendChild(contentLabel);
     const chordItem = document.createElement('button');
     chordItem.type = 'button'; chordItem.className = 'insert-menu-item';
-    chordItem.textContent = '▦ Chord sequence';
-    chordItem.title = 'a bar/beat grid with no label — a turnaround or interlude';
+    chordItem.textContent = '▦ ' + t('Chord sequence');
+    chordItem.title = t('a bar/beat grid with no label — a turnaround or interlude');
     chordItem.addEventListener('click', () => { closeAnyMenu(); insertSectionAt(i, 'Chords', true); });
     menu.appendChild(chordItem);
 
@@ -3897,7 +3905,7 @@ const ICONS = {
     const seam = document.createElement('div');
     seam.className = 'block-seam';
     const btn = document.createElement('button');
-    btn.type = 'button'; btn.className = 'block-seam-btn'; btn.innerHTML = ICONS.plus; btn.title = 'insert here';
+    btn.type = 'button'; btn.className = 'block-seam-btn'; btn.innerHTML = ICONS.plus; btn.title = t('insert here');
     btn.addEventListener('click', () => openInsertMenu(btn, i));
     seam.appendChild(btn);
     return seam;
@@ -3949,8 +3957,8 @@ const ICONS = {
       // .block-gutter). The gutter's own "+" inserts a new row right after
       // this one, covering every gap except the very first.
       const gutter = document.createElement('div'); gutter.className = 'block-gutter';
-      const handle = document.createElement('span'); handle.className = 'block-handle'; handle.innerHTML = ICONS.grip; handle.title = 'drag to reorder';
-      const addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.className = 'block-add-btn'; addBtn.innerHTML = ICONS.plus; addBtn.title = 'insert after this section';
+      const handle = document.createElement('span'); handle.className = 'block-handle'; handle.innerHTML = ICONS.grip; handle.title = t('drag to reorder');
+      const addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.className = 'block-add-btn'; addBtn.innerHTML = ICONS.plus; addBtn.title = t('insert after this section');
       addBtn.addEventListener('click', () => openInsertMenu(addBtn, i + 1));
       gutter.append(handle, addBtn);
       row.appendChild(gutter);
@@ -3958,21 +3966,21 @@ const ICONS = {
       const head = document.createElement('div');
       head.className = 'block-head';
       const label = document.createElement('input'); label.type = 'text'; label.className = 'block-label'; label.value = sec.label;
-      label.setAttribute('aria-label', 'Section name');
+      label.setAttribute('aria-label', t('Section name'));
       trackTextEdits(label);
       label.addEventListener('input', () => { sec.label = label.value; });
       const repeatToggle = document.createElement('button');
       repeatToggle.type = 'button'; repeatToggle.className = 'block-repeat-toggle';
-      repeatToggle.textContent = sec.repeat ? 'repeat marker' : 'has content';
-      repeatToggle.title = sec.repeat ? 'make this its own section with real content' : 'turn into a bare repeat marker (no content of its own)';
+      repeatToggle.textContent = sec.repeat ? t('repeat marker') : t('has content');
+      repeatToggle.title = sec.repeat ? t('make this its own section with real content') : t('turn into a bare repeat marker (no content of its own)');
       repeatToggle.addEventListener('click', () => { edited(); sec.repeat = !sec.repeat; renderStructureUI(); });
       const bars_ = (sec.measures || []).length;
       const barsBadge = document.createElement('span'); barsBadge.className = 'block-bars-badge';
-      barsBadge.textContent = bars_ ? `${bars_} bars` : '';
+      barsBadge.textContent = bars_ ? tn(bars_, '%d bar', '%d bars') : '';
       const actions = document.createElement('div'); actions.className = 'block-row-actions';
-      const dup = document.createElement('button'); dup.type = 'button'; dup.className = 'icon-btn'; dup.innerHTML = ICONS.duplicate; dup.title = 'duplicate as a repeat marker';
+      const dup = document.createElement('button'); dup.type = 'button'; dup.className = 'icon-btn'; dup.innerHTML = ICONS.duplicate; dup.title = t('duplicate as a repeat marker');
       dup.addEventListener('click', () => { edited(); structSections.splice(i + 1, 0, emptySection(sec.label, true)); renderStructureUI(); });
-      const del = document.createElement('button'); del.type = 'button'; del.className = 'icon-btn'; del.title = 'delete this section';
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'icon-btn'; del.title = t('delete this section');
       del.innerHTML = ICONS.close;
       del.addEventListener('click', () => { if (!confirmDeleteSection(sec)) return; edited(); structSections.splice(i, 1); renderStructureUI(); });
       actions.append(dup, del);
@@ -3986,7 +3994,7 @@ const ICONS = {
         if (sectionHasAdvancedSyntax(sec)) {
           const notice = document.createElement('p');
           notice.className = 'hint advanced-syntax-notice';
-          notice.textContent = `Advanced grid syntax (${bars_} bars) — a per-bar meter override, duration tag, or a repeat bracket this builder can't show as an editable grid. Shown below read-only; edit it precisely in the Source tab.`;
+          notice.textContent = tn(bars_, "Advanced grid syntax (%d bar) — a per-bar meter override, duration tag, or a repeat bracket this builder can't show as an editable grid. Shown below read-only; edit it precisely in the Source tab.", "Advanced grid syntax (%d bars) — a per-bar meter override, duration tag, or a repeat bracket this builder can't show as an editable grid. Shown below read-only; edit it precisely in the Source tab.");
           body.appendChild(notice);
           // Read-only, not just a text notice — same real chart markup
           // Play itself renders (renderRealChart), minus the click-to-
@@ -4001,7 +4009,7 @@ const ICONS = {
           if (songHasGPFile()) body.appendChild(gpBarsRow(sec, i));
           const chordToggle = document.createElement('button');
           chordToggle.type = 'button'; chordToggle.className = 'block-chord-toggle';
-          chordToggle.textContent = (expanded.has(i) ? '▾ ' : '▸ ') + (bars_ ? `chords (${bars_} bars)` : '+ chord sequence');
+          chordToggle.textContent = (expanded.has(i) ? '▾ ' : '▸ ') + (bars_ ? tn(bars_, 'chords (%d bar)', 'chords (%d bars)') : t('+ chord sequence'));
           chordToggle.addEventListener('click', () => {
             if (!bars_ && !expanded.has(i)) { sec.measures = [emptyMeasure(), emptyMeasure(), emptyMeasure(), emptyMeasure()]; }
             if (expanded.has(i)) expanded.delete(i); else expanded.add(i);
@@ -4025,7 +4033,7 @@ const ICONS = {
         if (!sec.notes) sec.notes = [];
         const notesToggle = document.createElement('button');
         notesToggle.type = 'button'; notesToggle.className = 'block-chord-toggle';
-        notesToggle.textContent = (expandedNotes.has(i) ? '▾ ' : '▸ ') + (sec.notes.length ? `notes (${sec.notes.length})` : '+ note');
+        notesToggle.textContent = (expandedNotes.has(i) ? '▾ ' : '▸ ') + (sec.notes.length ? t('notes (%d)', sec.notes.length) : t('+ note'));
         notesToggle.addEventListener('click', () => {
           if (expandedNotes.has(i)) expandedNotes.delete(i); else expandedNotes.add(i);
           renderStructureUI();
@@ -4034,8 +4042,8 @@ const ICONS = {
         if (expandedNotes.has(i) || sec.notes.length) {
           const notesBox = document.createElement('textarea');
           notesBox.className = 'block-notes';
-          notesBox.placeholder = 'performance directions — one per line, e.g. "GTR + claviers only"';
-          notesBox.setAttribute('aria-label', 'Performance notes for this section');
+          notesBox.placeholder = t('performance directions — one per line, e.g. "GTR + claviers only"');
+          notesBox.setAttribute('aria-label', t('Performance notes for this section'));
           notesBox.value = sec.notes.join('\n');
           notesBox.rows = Math.max(2, Math.min(6, sec.notes.length + 1));
           trackTextEdits(notesBox);
@@ -4045,8 +4053,8 @@ const ICONS = {
 
         const lyricsBox = document.createElement('textarea');
         lyricsBox.className = 'block-lyrics';
-        lyricsBox.placeholder = 'words for this section — [Chord] before a word attaches it there';
-        lyricsBox.setAttribute('aria-label', 'Lyrics for this section');
+        lyricsBox.placeholder = t('words for this section — [Chord] before a word attaches it there');
+        lyricsBox.setAttribute('aria-label', t('Lyrics for this section'));
         lyricsBox.value = lyricsToText(sec.lyrics);
         lyricsBox.rows = Math.max(2, Math.min(10, (sec.lyrics || []).length + 1));
         lyricsBox.addEventListener('input', () => { markDirty(); sec.lyrics = textToLyrics(lyricsBox.value); });
@@ -4058,7 +4066,7 @@ const ICONS = {
       list.appendChild(row);
     });
     if (structSections.length === 0) {
-      const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = 'No sections yet — use the + above to start.';
+      const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = t('No sections yet — use the + above to start.');
       list.appendChild(hint);
     }
   }
@@ -4130,21 +4138,21 @@ const ICONS = {
     row.className = 'gp-bars-row';
     const label = document.createElement('span');
     label.className = 'gp-bars-label';
-    label.textContent = 'Bars from the file';
+    label.textContent = t('Bars from the file');
     row.appendChild(label);
     for (const g of sec.gp || []) {
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'gp-bars-chip';
-      chip.textContent = `${g.track || 'All tracks'} · ${g.spec.replace(/(\d)-(\d)/g, '$1–$2')}`;
-      chip.title = 'Change these bars';
+      chip.textContent = `${g.track || t('All tracks')} · ${g.spec.replace(/(\d)-(\d)/g, '$1–$2')}`;
+      chip.title = t('Change these bars');
       chip.addEventListener('click', () => openBarPicker(i, g.track));
       row.appendChild(chip);
     }
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'gp-bars-pick';
-    btn.textContent = (sec.gp || []).length ? '+ Another track' : 'Choose bars…';
+    btn.textContent = (sec.gp || []).length ? t('+ Another track') : t('Choose bars…');
     btn.addEventListener('click', () => openBarPicker(i, (sec.gp || []).length ? null : undefined));
     row.appendChild(btn);
     return row;
@@ -4166,7 +4174,7 @@ const ICONS = {
 
     if (structSections.length === 0) {
       const hint = document.createElement('p'); hint.className = 'hint';
-      hint.textContent = 'No sections yet — use the + above to start.';
+      hint.textContent = t('No sections yet — use the + above to start.');
       list.appendChild(hint);
       document.getElementById('toolbox-sections').innerHTML = '';
       document.getElementById('toolbox-toolbar').innerHTML = '';
@@ -4187,8 +4195,8 @@ const ICONS = {
     structSections.forEach((s, si) => {
       const row = document.createElement('button');
       row.type = 'button'; row.className = 'tbx-sec-row' + (si === i ? ' active' : '');
-      row.title = s.repeat ? 'repeat marker' : `${(s.measures || []).length} bars`;
-      const name = document.createElement('span'); name.textContent = s.label || (s.repeat ? '(repeat)' : 'Untitled');
+      row.title = s.repeat ? t('repeat marker') : tn((s.measures || []).length, '%d bar', '%d bars');
+      const name = document.createElement('span'); name.textContent = s.label || (s.repeat ? t('(repeat)') : t('Untitled'));
       const count = document.createElement('span'); count.className = 'tbx-sec-count';
       count.textContent = s.repeat ? '—' : String((s.measures || []).length);
       row.append(name, count);
@@ -4197,7 +4205,7 @@ const ICONS = {
     });
     const addRow = document.createElement('button');
     addRow.type = 'button'; addRow.className = 'tbx-sec-add';
-    addRow.textContent = '+ add section';
+    addRow.textContent = t('+ add section');
     addRow.addEventListener('click', () => openInsertMenu(addRow, i + 1));
     sectionsList.appendChild(addRow);
 
@@ -4218,19 +4226,19 @@ const ICONS = {
     headRow.className = 'focus-section-head';
     const labelInput = document.createElement('input');
     labelInput.type = 'text'; labelInput.className = 'block-label'; labelInput.value = sec.label;
-    labelInput.setAttribute('aria-label', 'Section name');
+    labelInput.setAttribute('aria-label', t('Section name'));
     trackTextEdits(labelInput);
     labelInput.addEventListener('input', () => {
       sec.label = labelInput.value;
       const row = sectionsList.children[i];
-      if (row) row.firstChild.textContent = labelInput.value || 'Untitled';
+      if (row) row.firstChild.textContent = labelInput.value || t('Untitled');
     });
     const repeatToggle = document.createElement('button');
     repeatToggle.type = 'button'; repeatToggle.className = 'block-repeat-toggle';
-    repeatToggle.textContent = sec.repeat ? 'repeat marker' : 'has content';
+    repeatToggle.textContent = sec.repeat ? t('repeat marker') : t('has content');
     repeatToggle.addEventListener('click', () => { edited(); sec.repeat = !sec.repeat; renderFocusEditor(); });
     const delBtn = document.createElement('button');
-    delBtn.type = 'button'; delBtn.className = 'icon-btn'; delBtn.title = 'delete this section'; delBtn.innerHTML = ICONS.close;
+    delBtn.type = 'button'; delBtn.className = 'icon-btn'; delBtn.title = t('delete this section'); delBtn.innerHTML = ICONS.close;
     delBtn.addEventListener('click', () => {
       if (!confirmDeleteSection(sec)) return;
       edited();
@@ -4246,7 +4254,7 @@ const ICONS = {
       if (sectionHasAdvancedSyntax(sec)) {
         const notice = document.createElement('p');
         notice.className = 'hint advanced-syntax-notice';
-        notice.textContent = 'Advanced grid syntax (a per-bar meter override, duration tag, or a repeat bracket this builder can\'t show as an editable grid) — shown below read-only; edit it precisely in the Source tab.';
+        notice.textContent = t('Advanced grid syntax (a per-bar meter override, duration tag, or a repeat bracket this builder can\'t show as an editable grid) — shown below read-only; edit it precisely in the Source tab.');
         main.appendChild(notice);
         const chartHost = document.createElement('div');
         chartHost.className = 'real-chart-host';
@@ -4257,9 +4265,9 @@ const ICONS = {
         // turn it into an empty chart on the next save.
         const notice = document.createElement('p');
         notice.className = 'hint';
-        notice.textContent = 'This section’s bars come from the Guitar Pro file. ';
+        notice.textContent = t('This section’s bars come from the Guitar Pro file.') + ' ';
         const addChords = document.createElement('button');
-        addChords.type = 'button'; addChords.textContent = 'Add chord bars';
+        addChords.type = 'button'; addChords.textContent = t('Add chord bars');
         addChords.addEventListener('click', () => { edited(); sec.measures = Array.from({ length: 4 }, () => emptyMeasure()); renderFocusEditor(); });
         notice.appendChild(addChords);
         main.appendChild(notice);
@@ -4269,9 +4277,9 @@ const ICONS = {
         // hide it on the chart after the next save.
         const notice = document.createElement('p');
         notice.className = 'hint';
-        notice.textContent = 'This section is a score only (edit it in the Scores tab): the chart takes its bars from the score. ';
+        notice.textContent = t('This section is a score only (edit it in the Scores tab): the chart takes its bars from the score.') + ' ';
         const addChords = document.createElement('button');
-        addChords.type = 'button'; addChords.textContent = 'Add chord bars';
+        addChords.type = 'button'; addChords.textContent = t('Add chord bars');
         addChords.addEventListener('click', () => { edited(); sec.measures = Array.from({ length: 4 }, () => emptyMeasure()); renderFocusEditor(); });
         notice.appendChild(addChords);
         main.appendChild(notice);
@@ -4309,8 +4317,8 @@ const ICONS = {
 
       const notesBox = document.createElement('textarea');
       notesBox.className = 'block-notes';
-      notesBox.placeholder = 'performance directions — one per line, e.g. "GTR + claviers only"';
-      notesBox.setAttribute('aria-label', 'Performance notes for this section');
+      notesBox.placeholder = t('performance directions — one per line, e.g. "GTR + claviers only"');
+      notesBox.setAttribute('aria-label', t('Performance notes for this section'));
       if (!sec.notes) sec.notes = [];
       notesBox.value = sec.notes.join('\n');
       notesBox.rows = Math.max(2, Math.min(6, sec.notes.length + 1));
@@ -4319,8 +4327,8 @@ const ICONS = {
 
       const lyricsBox = document.createElement('textarea');
       lyricsBox.className = 'block-lyrics';
-      lyricsBox.placeholder = 'words for this section — [Chord] before a word attaches it there';
-      lyricsBox.setAttribute('aria-label', 'Lyrics for this section');
+      lyricsBox.placeholder = t('words for this section — [Chord] before a word attaches it there');
+      lyricsBox.setAttribute('aria-label', t('Lyrics for this section'));
       lyricsBox.value = lyricsToText(sec.lyrics);
       lyricsBox.rows = Math.max(3, Math.min(12, (sec.lyrics || []).length + 1));
       lyricsBox.addEventListener('input', () => { markDirty(); sec.lyrics = textToLyrics(lyricsBox.value); });
@@ -4338,7 +4346,7 @@ const ICONS = {
   addSectionBtn.addEventListener('click', () => openInsertMenu(addSectionBtn, structSections.length));
   document.getElementById('save-structure').addEventListener('click', async () => {
     const status = document.getElementById('structure-status');
-    status.className = ''; status.textContent = 'Saving…';
+    status.className = ''; status.textContent = t('Saving…');
     // joinVoltaGroups flattens each section's {common, endings} editing
     // shape back into the plain measures array the API/grammar actually
     // stores — built fresh for the request only, so the live sections
@@ -4348,11 +4356,11 @@ const ICONS = {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version: structVersion, song: { meta: structMeta, chords: structChords, otherChords: structOtherChords, sections: sectionsForSave } }),
     });
-    if (res.status === 409) { status.className = 'err'; status.textContent = 'Not saved: this song changed since you opened it. Reload the page, then make your changes again.'; return; }
-    if (!res.ok) { status.className = 'err'; status.textContent = "Couldn't save. Your changes are still here; try again."; return; }
+    if (res.status === 409) { status.className = 'err'; status.textContent = t('Not saved: this song changed since you opened it. Reload the page, then make your changes again.'); return; }
+    if (!res.ok) { status.className = 'err'; status.textContent = t("Couldn't save. Your changes are still here; try again."); return; }
     const data = await res.json();
     structVersion = data.version;
-    status.className = 'ok'; status.textContent = 'Saved. Reloading the chart…';
+    status.className = 'ok'; status.textContent = t('Saved. Reloading the chart…');
     // Clear BEFORE the reload, not after — isDirty was still true at the
     // moment of this save, and leaving it true would trip the beforeunload
     // guard on the very reload that just confirmed the save succeeded (a

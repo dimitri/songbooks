@@ -6,11 +6,11 @@
 {{define "playlist"}}
 {{$brand := brandOwner .Songbook.OwnerKind .Songbook.OwnerBandID .Songbook.OwnerCommunityID}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Owner}} — playlist</title>
+<title>{{t "%s — playlist" .Owner}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -20,12 +20,12 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="{{.Back}}">{{template "icon-back"}} {{.Owner}}</a>
-  <h1>{{.Owner}} <span class="pl-h1-sub">playlist</span></h1>
+  <h1>{{.Owner}} <span class="pl-h1-sub">{{t "playlist"}}</span></h1>
   {{template "notif-bell"}}
 </header>
 <main class="pl">
   {{if .Tracks}}
-  <section class="pl-player" id="pl-player" aria-label="Now playing">
+  <section class="pl-player" id="pl-player" aria-label="{{t "Now playing"}}">
     <div class="pl-art" id="pl-art">
       <div class="pl-cover" id="pl-cover" aria-hidden="true">
         <img class="pl-cover-blur" id="pl-cover-blur" alt="" hidden referrerpolicy="no-referrer">
@@ -42,31 +42,31 @@
       </div>
       <span class="pl-source" id="pl-source"></span>
     </div>
-    <div class="pl-sections" id="pl-sections" aria-label="Sections"></div>
+    <div class="pl-sections" id="pl-sections" aria-label="{{t "Sections"}}"></div>
     <div class="pl-scrub">
       <span id="pl-pos">0:00</span>
-      <input type="range" id="pl-seek" min="0" max="100" step="0.1" value="0" aria-label="Position in the song">
+      <input type="range" id="pl-seek" min="0" max="100" step="0.1" value="0" aria-label="{{t "Position in the song"}}">
       <span id="pl-dur">–:––</span>
     </div>
     <div class="pl-controls">
-      <button type="button" class="pl-btn" id="pl-prev" aria-label="Previous song"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 4.5v11L7.5 10z" fill="currentColor"/></svg></button>
-      <button type="button" class="pl-btn pl-skip" id="pl-back" aria-label="Back 15 seconds">{{template "icon-back15"}}</button>
-      <button type="button" class="pl-btn pl-play" id="pl-play" aria-label="Play"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3.8v12.4L16.5 10z" fill="currentColor"/></svg></button>
-      <button type="button" class="pl-btn pl-skip" id="pl-fwd" aria-label="Forward 15 seconds">{{template "icon-fwd15"}}</button>
-      <button type="button" class="pl-btn" id="pl-next" aria-label="Next song"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M15 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4.5v11L12.5 10z" fill="currentColor"/></svg></button>
+      <button type="button" class="pl-btn" id="pl-prev" aria-label="{{t "Previous song"}}"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 4.5v11L7.5 10z" fill="currentColor"/></svg></button>
+      <button type="button" class="pl-btn pl-skip" id="pl-back" aria-label="{{t "Back 15 seconds"}}">{{template "icon-back15"}}</button>
+      <button type="button" class="pl-btn pl-play" id="pl-play" aria-label="{{t "Play"}}"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3.8v12.4L16.5 10z" fill="currentColor"/></svg></button>
+      <button type="button" class="pl-btn pl-skip" id="pl-fwd" aria-label="{{t "Forward 15 seconds"}}">{{template "icon-fwd15"}}</button>
+      <button type="button" class="pl-btn" id="pl-next" aria-label="{{t "Next song"}}"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M15 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4.5v11L12.5 10z" fill="currentColor"/></svg></button>
     </div>
     <div class="pl-tools">
-      {{if .Choice}}<div class="pl-prefer" role="group" aria-label="Play first">
-        <a href="?" class="{{if not .PreferReference}}active{{end}}" aria-current="{{if not .PreferReference}}true{{else}}false{{end}}">Our recordings</a>
-        <a href="?prefer=reference" class="{{if .PreferReference}}active{{end}}" aria-current="{{if .PreferReference}}true{{else}}false{{end}}">Reference</a>
+      {{if .Choice}}<div class="pl-prefer" role="group" aria-label="{{t "Play first"}}">
+        <a href="?" class="{{if not .PreferReference}}active{{end}}" aria-current="{{if not .PreferReference}}true{{else}}false{{end}}">{{t "Our recordings"}}</a>
+        <a href="?prefer=reference" class="{{if .PreferReference}}active{{end}}" aria-current="{{if .PreferReference}}true{{else}}false{{end}}">{{t "Reference"}}</a>
       </div>{{end}}
-      <button type="button" class="rp-chip" id="pl-restart"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 10a5.5 5.5 0 1 0 1.8-4.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M3.5 3.2v4.3h4.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg> Restart</button>
-      <a class="pl-open" id="pl-open" href="{{(index .Tracks 0).Href}}">Open the {{if .VideoFirst}}lesson{{else}}song{{end}}</a>
+      <button type="button" class="rp-chip" id="pl-restart"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 10a5.5 5.5 0 1 0 1.8-4.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M3.5 3.2v4.3h4.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg> {{t "Restart"}}</button>
+      <a class="pl-open" id="pl-open" href="{{(index .Tracks 0).Href}}">{{if .VideoFirst}}{{t "Open the lesson"}}{{else}}{{t "Open the song"}}{{end}}</a>
     </div>
   </section>
 
-  <section class="pl-queue" aria-label="Playlist">
-    <h2>{{len .Tracks}} {{if .VideoFirst}}lessons{{else}}songs{{end}}</h2>
+  <section class="pl-queue" aria-label="{{t "Playlist"}}">
+    <h2>{{if .VideoFirst}}{{tn (len .Tracks) "%d lesson" "%d lessons"}}{{else}}{{tn (len .Tracks) "%d song" "%d songs"}}{{end}}</h2>
     <ol class="pl-list" id="pl-list">
       {{range $i, $t := .Tracks}}
       <li><button type="button" class="pl-row" data-index="{{$i}}">
@@ -74,26 +74,26 @@
         <span class="pl-row-eq" aria-hidden="true"><i></i><i></i><i></i></span>
         {{with $t.Cover}}<img class="pl-row-cover" src="{{.}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{end}}
         <span class="pl-row-text"><strong>{{$t.Title}}</strong><small>{{$t.Subtitle}}</small></span>
-        <span class="pl-row-kind kind-{{$t.Source}}" title="{{$t.SourceLabel}}">{{if eq $t.Source "video"}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8.5 7.5v5l4.2-2.5z" fill="currentColor"/></svg>{{else if eq $t.Source "band"}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="7.5" y="2.5" width="5" height="9" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>{{else}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h1.5M6 7v6M8.5 4.5v11M11 7.5v5M13.5 5.5v9M16 8.5v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>{{end}}</span>
+        <span class="pl-row-kind kind-{{$t.Source}}" title="{{t $t.SourceLabel}}">{{if eq $t.Source "video"}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8.5 7.5v5l4.2-2.5z" fill="currentColor"/></svg>{{else if eq $t.Source "band"}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="7.5" y="2.5" width="5" height="9" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>{{else}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h1.5M6 7v6M8.5 4.5v11M11 7.5v5M13.5 5.5v9M16 8.5v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>{{end}}</span>
       </button></li>
       {{end}}
     </ol>
     {{if .Silent}}
     <details class="pl-silent">
-      <summary>{{len .Silent}} {{if .VideoFirst}}lesson{{else}}song{{end}}{{if ne (len .Silent) 1}}s{{end}} with nothing to play yet</summary>
+      <summary>{{if .VideoFirst}}{{tn (len .Silent) "%d lesson with nothing to play yet" "%d lessons with nothing to play yet"}}{{else}}{{tn (len .Silent) "%d song with nothing to play yet" "%d songs with nothing to play yet"}}{{end}}</summary>
       <ul>{{range .Silent}}<li><a href="{{.Href}}">{{.Title}}</a></li>{{end}}</ul>
-      <p class="hint">{{if .VideoFirst}}Add the lesson’s video from its page.{{else}}Add a recording, or a YouTube link, from the song’s Reference view.{{end}}</p>
+      <p class="hint">{{if .VideoFirst}}{{t "Add the lesson’s video from its page."}}{{else}}{{t "Add a recording, or a YouTube link, from the song’s Reference view."}}{{end}}</p>
     </details>
     {{end}}
   </section>
 
-  <section class="pl-map{{if .VideoFirst}} pl-stage{{end}}" aria-label="{{if .VideoFirst}}The lesson playing{{else}}The song playing{{end}}">
+  <section class="pl-map{{if .VideoFirst}} pl-stage{{end}}" aria-label="{{if .VideoFirst}}{{t "The lesson playing"}}{{else}}{{t "The song playing"}}{{end}}">
     {{if .VideoFirst}}<div class="pl-stage-video"><div id="pl-stage-frame"></div></div>
-    <p class="pl-stage-caption"><strong id="pl-stage-title"></strong> <a id="pl-stage-open" href="#">Open the lesson</a></p>
-    {{else}}<iframe id="pl-map-frame" title="The song playing" loading="lazy"></iframe>{{end}}
+    <p class="pl-stage-caption"><strong id="pl-stage-title"></strong> <a id="pl-stage-open" href="#">{{t "Open the lesson"}}</a></p>
+    {{else}}<iframe id="pl-map-frame" title="{{t "The song playing"}}" loading="lazy"></iframe>{{end}}
   </section>
   {{else}}
-  <p class="dl-empty">Nothing to play yet: add a recording, or a YouTube link, from a song’s Reference view.</p>
+  <p class="dl-empty">{{t "Nothing to play yet: add a recording, or a YouTube link, from a song’s Reference view."}}</p>
   {{end}}
 </main>
 </div>
@@ -165,7 +165,7 @@
     litSection(t);
     const on = playing();
     playBtn.classList.toggle('on', on);
-    playBtn.setAttribute('aria-label', on ? 'Pause' : 'Play');
+    playBtn.setAttribute('aria-label', on ? window.t('Pause') : window.t('Play'));
     playBtn.innerHTML = on ? PAUSE : PLAY;
     rows.forEach((r, i) => r.classList.toggle('playing', i === index && on));
     // The song beside the player follows the recording (?embed=playlist).
@@ -183,7 +183,7 @@
   async function remoteLink(r) {
     const res = await fetch(`https://${r.host}/getpublinkdownload?code=${encodeURIComponent(r.code)}&fileid=${r.file}`, {referrerPolicy: 'no-referrer'});
     const d = await res.json();
-    if (d.result !== 0) throw new Error(d.error || 'pCloud didn’t give the file');
+    if (d.result !== 0) throw new Error(d.error || window.t('pCloud didn’t give the file'));
     return `https://${d.hosts[0]}${d.path}`;
   }
 
@@ -203,9 +203,9 @@
     const t = track();
     $('pl-title').textContent = t.title;
     $('pl-artist').textContent = videoFirst ? t.subtitle : t.artist;
-    $('pl-source').textContent = t.sourceLabel;
+    $('pl-source').textContent = window.t(t.sourceLabel);
     $('pl-source').className = `pl-source kind-${t.source}`;
-    $('pl-cover-key').textContent = videoFirst ? (t.num ? `Lesson ${t.num}` : '') : [t.key, t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
+    $('pl-cover-key').textContent = videoFirst ? (t.num ? window.t('Lesson %s', t.num) : '') : [t.key, t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
     $('pl-open').href = t.href;
     // The song's album cover, sharp over a blur of itself; none: the
     // songbook's own cover.
@@ -217,7 +217,7 @@
     const big = videoFirst && wide.matches;
     $('pl-cover').hidden = isVideo() && !big;
     $('pl-video').hidden = !isVideo() || big;
-    if (big) { $('pl-stage-title').textContent = [t.num && `Lesson ${t.num}`, t.title].filter(Boolean).join(' · '); $('pl-stage-open').href = t.href; }
+    if (big) { $('pl-stage-title').textContent = [t.num && window.t('Lesson %s', t.num), t.title].filter(Boolean).join(' · '); $('pl-stage-open').href = t.href; }
     if (wide.matches && frame) frame.src = `/song/${t.id}?songbook={{.Songbook.ID}}&embed=playlist`;
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({

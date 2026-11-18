@@ -21,7 +21,7 @@
     const sec = sections[parseInt(btn.dataset.sectionIndex, 10)];
     if (!sec || sec.startBar == null) {
       btn.disabled = true;
-      btn.title = 'no chord grid in this section yet — jump unavailable';
+      btn.title = t('no chord grid in this section yet — jump unavailable');
     }
   });
 

@@ -302,6 +302,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/bands/{id}/name", s.requireBandMember(s.handleSetBandName))
 	mux.HandleFunc("GET /api/bands/{id}/brand", s.requireBandMember(s.handleGetBrand("band")))
 	mux.HandleFunc("POST /api/bands/{id}/brand", s.requireBandCore(s.handleSetBrand("band")))
+	mux.HandleFunc("PUT /api/bands/{id}/locale", s.requireBandCore(s.handlePutBandLocale))
 	mux.HandleFunc("GET /api/bands/{id}/brand/from-songs", s.requireBandMember(s.handleBrandFromSongs("band")))
 	mux.HandleFunc("POST /api/bands/{id}/music-type", s.requireBandMember(s.handleSetBandMusicType))
 	mux.HandleFunc("POST /api/bands/{id}/members", s.requireBandMember(s.handleAddBandMember))
@@ -561,7 +562,12 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /sw.js", s.handleServiceWorker)
 	mux.HandleFunc("GET /apple-touch-icon.png", s.handleAppIcon)
 
-	return mux
+	// Languages (i18n.go, docs/i18n.md).
+	mux.HandleFunc("GET /i18n/{file}", s.handleI18nJS)
+	mux.HandleFunc("PUT /api/me/locale", s.requireAuth(s.handlePutMyLocale))
+	mux.HandleFunc("PUT /api/communities/{id}/locale", s.requireCommunityPrivilege(store.PrivManageSettings, s.handlePutCommunityLocale))
+
+	return withLang(mux)
 }
 
 // cacheForever sets a one-year, immutable Cache-Control on every response —

@@ -114,7 +114,7 @@ func (s *Server) handleBandsPage(w http.ResponseWriter, r *http.Request) {
 	// query inside buildBandCards is keyed by band id, not membership —
 	// GetBandLastSeen just comes back nil ("you haven't visited yet"),
 	// which is the honest answer for a band you're not in.
-	bandCards, _, err := s.buildBandCards(r.Context(), person.ID, bands)
+	bandCards, _, err := s.buildBandCards(r.Context(), s.langOf(w), person.ID, bands)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -171,7 +171,7 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	changes, err := s.store.ListBandChanges(r.Context(), bandID, since)
+	changes, err := s.store.ListBandChanges(r.Context(), s.langOf(w), bandID, since)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -966,7 +966,13 @@ func (s *Server) handleBandSettingsPage(w http.ResponseWriter, r *http.Request) 
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	locale, err := s.store.BandLocale(r.Context(), bandID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "band_settings", map[string]any{
 		"Me": person, "Band": band, "IsCore": isCore || person.IsAdmin,
+		"Locale": locale,
 	})
 }

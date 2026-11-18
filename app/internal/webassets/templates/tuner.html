@@ -3,11 +3,11 @@
      a song's own tunings first when opened from the song. */}}
 {{define "tuner"}}
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tuner — Songbooks</title>
+<title>{{t "Tuner"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -15,18 +15,18 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  {{if .BackURL}}<a href="{{.BackURL}}" class="back-link">{{template "icon-back"}} {{if .BackTitle}}{{.BackTitle}}{{else}}back{{end}}</a>{{else}}{{template "home-link"}}{{end}}
-  <h1>Tuner</h1>
+  {{if .BackURL}}<a href="{{.BackURL}}" class="back-link">{{template "icon-back"}} {{if .BackTitle}}{{.BackTitle}}{{else}}{{t "back"}}{{end}}</a>{{else}}{{template "home-link"}}{{end}}
+  <h1>{{t "Tuner"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main>
   <section class="card tuner" id="tuner" data-song-tunings="{{json .SongTunings}}" data-song-title="{{.SongTitle}}" data-song-capo="{{.SongCapo}}">
     <div class="tuner-picks">
-      <label class="tuner-pick"><span class="sr-only">Tuning</span>
-        <select id="tuner-tuning" aria-label="Tuning"></select>
+      <label class="tuner-pick"><span class="sr-only">{{t "Tuning"}}</span>
+        <select id="tuner-tuning" aria-label="{{t "Tuning"}}"></select>
       </label>
-      <label class="tuner-pick tuner-pick-capo"><span class="sr-only">Capo</span>
-        <select id="tuner-capo-fret" aria-label="Capo"></select>
+      <label class="tuner-pick tuner-pick-capo"><span class="sr-only">{{t "Capo"}}</span>
+        <select id="tuner-capo-fret" aria-label="{{t "Capo"}}"></select>
       </label>
     </div>
 
@@ -35,28 +35,28 @@
         <span class="tuner-note"><b id="tuner-note">–</b><sub id="tuner-octave"></sub></span>
         <span class="tuner-cents" id="tuner-cents"></span>
       </div>
-      <div class="tuner-meter" id="tuner-meter" role="meter" aria-label="Cents from the note" aria-valuemin="-50" aria-valuemax="50" aria-valuenow="0">
+      <div class="tuner-meter" id="tuner-meter" role="meter" aria-label="{{t "Cents from the note"}}" aria-valuemin="-50" aria-valuemax="50" aria-valuenow="0">
         <div class="tuner-scale" id="tuner-scale" aria-hidden="true"></div>
         <div class="tuner-zone" aria-hidden="true"></div>
         <div class="tuner-needle" id="tuner-needle" aria-hidden="true"></div>
         <div class="tuner-labels" aria-hidden="true"><span>−50</span><span>0</span><span>+50</span></div>
       </div>
-      <p class="tuner-state" id="tuner-state" role="status">Tap Start, then play a string</p>
+      <p class="tuner-state" id="tuner-state" role="status">{{t "Tap Start, then play a string"}}</p>
       <p class="tuner-hz" id="tuner-hz"></p>
     </div>
 
     <div class="tuner-strings" id="tuner-strings"></div>
     <p class="tuner-capo" id="tuner-capo" hidden></p>
 
-    <button type="button" class="primary tuner-start" id="tuner-start" aria-pressed="false">Start the tuner</button>
+    <button type="button" class="primary tuner-start" id="tuner-start" aria-pressed="false">{{t "Start the tuner"}}</button>
 
     <div class="tuner-foot">
       <span class="tuner-cal">
-        <button type="button" class="icon-btn" id="tuner-a4-down" aria-label="Lower the A">−</button>
-        <span id="tuner-a4">A = 440 Hz</span>
-        <button type="button" class="icon-btn" id="tuner-a4-up" aria-label="Raise the A">+</button>
+        <button type="button" class="icon-btn" id="tuner-a4-down" aria-label="{{t "Lower the A"}}">−</button>
+        <span id="tuner-a4">{{t "A = %d Hz" 440}}</span>
+        <button type="button" class="icon-btn" id="tuner-a4-up" aria-label="{{t "Raise the A"}}">+</button>
       </span>
-      <span class="hint">Stopped, tap a string to hear it. Listening, tap one to tune only that string. A 12th-fret harmonic works too.</span>
+      <span class="hint">{{t "Stopped, tap a string to hear it. Listening, tap one to tune only that string. A 12th-fret harmonic works too."}}</span>
     </div>
   </section>
 </main>

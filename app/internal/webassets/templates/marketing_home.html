@@ -1,9 +1,9 @@
 {{define "marketing_home"}}<!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Songbooks — one songbook, everyone's copy</title>
+<title>Songbooks — {{t "one songbook, everyone's copy"}}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,800;0,9..144,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -115,36 +115,36 @@
       </svg>
       Songbooks
     </div>
-    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Menu">
+    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="{{t "Menu"}}">
     <label for="nav-toggle" class="hamburger" aria-hidden="true"><span></span><span></span><span></span></label>
     <nav>
-      <a href="#audiences">Who it's for</a>
-      <a href="#features">Features</a>
-      <a href="/editor">The editor</a>
-      <a href="/for-educators">For educators</a>
+      <a href="#audiences">{{t "Who it's for"}}</a>
+      <a href="#features">{{t "Features"}}</a>
+      <a href="/editor">{{t "The editor"}}</a>
+      <a href="/for-educators">{{t "For educators"}}</a>
       {{if .Person}}
-      <a href="/home" class="btn">My Songbooks</a>
+      <a href="/home" class="btn">{{t "My Songbooks"}}</a>
       {{else}}
-      <a href="/login" class="btn">Sign in</a>
-      <span class="invite-note">invite&#8209;only for now</span>
+      <a href="/login" class="btn">{{t "Sign in"}}</a>
+      <span class="invite-note">{{t "invite‑only for now"}}</span>
       {{end}}
     </nav>
   </header>
 
   <section class="hero">
     <div class="hero-text">
-      <div class="eyebrow">For musicians, bands &amp; communities</div>
-      <h1>One songbook.<br>Everyone's copy,<br><span class="hl">always right.</span></h1>
-      <p class="lede">Chord charts, setlists, and a click track that your band or community edits together &mdash; or keep your own, just for you. No more five different PDFs of the same song.</p>
+      <div class="eyebrow">{{t "For musicians, bands & communities"}}</div>
+      <h1>{{t "One songbook."}}<br>{{t "Everyone's copy,"}}<br><span class="hl">{{t "always right."}}</span></h1>
+      <p class="lede">{{t "Chord charts, setlists, and a click track that your band or community edits together — or keep your own, just for you. No more five different PDFs of the same song."}}</p>
       <div class="cta-row">
-        <a href="{{if .Person}}/home{{else}}/login{{end}}" class="btn btn-lg">{{if .Person}}My Songbooks{{else}}Start your songbook{{end}}</a>
-        <a href="/editor" class="btn-outline">See it in action</a>
+        <a href="{{if .Person}}/home{{else}}/login{{end}}" class="btn btn-lg">{{if .Person}}{{t "My Songbooks"}}{{else}}{{t "Start your songbook"}}{{end}}</a>
+        <a href="/editor" class="btn-outline">{{t "See it in action"}}</a>
       </div>
     </div>
     <div class="card">
       <div class="card-title">Just Like Heaven</div>
-      <div class="card-sub">The Cure &middot; key Bb</div>
-      <div class="mock-section"><span class="mock-badge">A</span><span class="mock-seclabel">Intro</span></div>
+      <div class="card-sub">The Cure &middot; {{t "key %s" "Bb"}}</div>
+      <div class="mock-section"><span class="mock-badge">A</span><span class="mock-seclabel">{{t "Intro"}}</span></div>
       <div class="mock-staffrow">
         <div class="mock-timesig">
           <span class="mock-tempo">&#9833; = 94</span>
@@ -158,63 +158,63 @@
         </div>
       </div>
       <div class="card-foot">
-        <span>3 members editing</span>
+        <span>{{t "3 members editing"}}</span>
         <span class="avatars"><span style="background:#af4e39"></span><span style="background:#8a3d2c"></span><span style="background:#241e18"></span></span>
       </div>
     </div>
   </section>
 
   <section class="block" id="audiences">
-    <h2>Built for how you actually play</h2>
-    <p class="sub">The same chart, the same engine &mdash; what changes is who else can see and touch it.</p>
+    <h2>{{t "Built for how you actually play"}}</h2>
+    <p class="sub">{{t "The same chart, the same engine — what changes is who else can see and touch it."}}</p>
     <div class="audiences">
       <div class="aud">
         <div class="icon">
           <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="6.8" r="3"/><path d="M3.8 16.2a6.3 6.3 0 0 1 12.4 0"/></svg>
         </div>
-        <div class="tag">On your own</div>
-        <h3>Just you</h3>
-        <p>Keep your own charts, fork a song you want to change without touching the original, and practice against a metronome that remembers how you like it. Private by default &mdash; nobody sees it unless you share it.</p>
+        <div class="tag">{{t "On your own"}}</div>
+        <h3>{{t "Just you"}}</h3>
+        <p>{{t "Keep your own charts, fork a song you want to change without touching the original, and practice against a metronome that remembers how you like it. Private by default — nobody sees it unless you share it."}}</p>
       </div>
       <div class="aud">
         <div class="icon">
           <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="6.5" r="2.3"/><circle cx="14" cy="7.3" r="1.9"/><path d="M3 16v-1.3A3.7 3.7 0 0 1 6.7 11h.6A3.7 3.7 0 0 1 11 14.7V16"/><path d="M12.7 11.3a3.2 3.2 0 0 1 3.3 3.2V16"/></svg>
         </div>
-        <div class="tag">Rehearsal to gig</div>
-        <h3>Your band</h3>
-        <p>One shared chart per song &mdash; any member fixes a typo or changes a key, and everyone sees it before the next rehearsal. Setlists, gig notes, and a click track built for the stage, not bolted on after.</p>
+        <div class="tag">{{t "Rehearsal to gig"}}</div>
+        <h3>{{t "Your band"}}</h3>
+        <p>{{t "One shared chart per song — any member fixes a typo or changes a key, and everyone sees it before the next rehearsal. Setlists, gig notes, and a click track built for the stage, not bolted on after."}}</p>
       </div>
       <div class="aud">
         <div class="icon">
           <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="#af4e39" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6.5" r="2.3"/><circle cx="14" cy="6.5" r="2.3"/><circle cx="10" cy="13" r="2.3"/></svg>
         </div>
-        <div class="tag">Beyond one band</div>
-        <h3>Your community</h3>
-        <p>Run a jam night, a worship team, or a teaching studio. Roles decide who can edit the repertoire, manage events, or just read &mdash; invite links carry the right role automatically, so onboarding is one tap.</p>
+        <div class="tag">{{t "Beyond one band"}}</div>
+        <h3>{{t "Your community"}}</h3>
+        <p>{{t "Run a jam night, a worship team, or a teaching studio. Roles decide who can edit the repertoire, manage events, or just read — invite links carry the right role automatically, so onboarding is one tap."}}</p>
       </div>
     </div>
   </section>
 
   <section class="block" id="features">
-    <h2>Everything lives in one place</h2>
-    <p class="sub">Not a chart viewer with a setlist bolted on &mdash; one app, built in that order.</p>
+    <h2>{{t "Everything lives in one place"}}</h2>
+    <p class="sub">{{t "Not a chart viewer with a setlist bolted on — one app, built in that order."}}</p>
     <div class="features">
-      <div class="feature"><span class="dot"></span><div><h4>Shared, not forwarded</h4><p>Every member works from the same variant of a song &mdash; fork it to make your own version, don't duplicate it to edit in secret.</p></div></div>
-      <div class="feature"><span class="dot"></span><div><h4>Click track, built in</h4><p>A metronome that already knows the song's tempo and time signature, with your display preferences remembered across every song in the set.</p></div></div>
-      <div class="feature"><span class="dot"></span><div><h4>Edit in place, get it right</h4><p>A chart editor built into the page itself &mdash; type a chord, add a section, drop in a riff &mdash; backed by a plain text format that renders the same polished chart on screen and in the PDF, with no separate typesetting step.</p></div></div>
-      <div class="feature"><span class="dot"></span><div><h4>PDF for the stand</h4><p>Export a single chart, a full setlist, or a whole songbook &mdash; with each song's tempo and time signature printed where a player actually looks for it.</p></div></div>
-      <div class="feature"><span class="dot"></span><div><h4>Notes, private or shared</h4><p>Leave yourself a reminder on a tricky section, or post one the whole band sees &mdash; your call, per note.</p></div></div>
-      <div class="feature"><span class="dot"></span><div><h4>The original recording, right there</h4><p>Link the YouTube video or an mp3 extract to a song and play it alongside the chart &mdash; scrub to a section, drop a marker, practice against the real thing.</p></div></div>
+      <div class="feature"><span class="dot"></span><div><h4>{{t "Shared, not forwarded"}}</h4><p>{{t "Every member works from the same variant of a song — fork it to make your own version, don't duplicate it to edit in secret."}}</p></div></div>
+      <div class="feature"><span class="dot"></span><div><h4>{{t "Click track, built in"}}</h4><p>{{t "A metronome that already knows the song's tempo and time signature, with your display preferences remembered across every song in the set."}}</p></div></div>
+      <div class="feature"><span class="dot"></span><div><h4>{{t "Edit in place, get it right"}}</h4><p>{{t "A chart editor built into the page itself — type a chord, add a section, drop in a riff — backed by a plain text format that renders the same polished chart on screen and in the PDF, with no separate typesetting step."}}</p></div></div>
+      <div class="feature"><span class="dot"></span><div><h4>{{t "PDF for the stand"}}</h4><p>{{t "Export a single chart, a full setlist, or a whole songbook — with each song's tempo and time signature printed where a player actually looks for it."}}</p></div></div>
+      <div class="feature"><span class="dot"></span><div><h4>{{t "Notes, private or shared"}}</h4><p>{{t "Leave yourself a reminder on a tricky section, or post one the whole band sees — your call, per note."}}</p></div></div>
+      <div class="feature"><span class="dot"></span><div><h4>{{t "The original recording, right there"}}</h4><p>{{t "Link the YouTube video or an mp3 extract to a song and play it alongside the chart — scrub to a section, drop a marker, practice against the real thing."}}</p></div></div>
     </div>
   </section>
 
   <section class="block">
     <div class="ctaband">
       <div>
-        <h2>Bring your band's binder into one book.</h2>
-        <p>Free to start. No credit card, no PDF attachments.</p>
+        <h2>{{t "Bring your band's binder into one book."}}</h2>
+        <p>{{t "Free to start. No credit card, no PDF attachments."}}</p>
       </div>
-      <a href="{{if .Person}}/home{{else}}/login{{end}}" class="btn btn-lg">{{if .Person}}My Songbooks{{else}}Start your songbook{{end}}</a>
+      <a href="{{if .Person}}/home{{else}}/login{{end}}" class="btn btn-lg">{{if .Person}}{{t "My Songbooks"}}{{else}}{{t "Start your songbook"}}{{end}}</a>
     </div>
   </section>
 
@@ -233,8 +233,8 @@
       Songbooks
     </div>
     <nav style="display:flex;">
-      <a href="#audiences">Who it's for</a>
-      <a href="#features">Features</a>
+      <a href="#audiences">{{t "Who it's for"}}</a>
+      <a href="#features">{{t "Features"}}</a>
     </nav>
   </footer>
 </div>
