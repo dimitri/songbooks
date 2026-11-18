@@ -83,6 +83,13 @@ window.songbooksDecodable = function (buf) {
   const dockLine = $('audio-dock-line'), dockPlayed = $('audio-dock-played');
   const optsBtn = $('audio-opts-btn');
   const optsEl = $('audio-opts');
+  // On a phone the dock is a card that opens into a sheet ("Phone sheet").
+  const dock = $('audio-dock');
+  const dockBackdrop = $('audio-dock-backdrop');
+  const dockSections = $('audio-dock-sections');
+  const lcdEl = $('audio-lcd');
+  const lcdState = $('audio-lcd-state');
+  const phoneMQ = matchMedia('(max-width: 720px)');
   const cycleBtn = $('audio-cycle-btn');
   const countInBtn = $('audio-countin-btn');
   const countInLabel = $('audio-countin-label');
@@ -452,6 +459,7 @@ window.songbooksDecodable = function (buf) {
     lcdPos.textContent = b < 0 ? '–' : `${barLabel(b)}.${beat + 1}`;
     const sec = sectionAt(b);
     lcdSection.textContent = sec ? sec.label : '';
+    syncDockSections();
   }
 
   function updateButtons() {
@@ -476,6 +484,8 @@ window.songbooksDecodable = function (buf) {
       meter.style.width = tr.on ? `${Math.max(4, Math.min(100, ((prefs.speed * 100 - tr.start) / span) * 100))}%` : '0';
     }
     renderTrainer();
+    renderDockState();
+    syncDockSections();
   }
 
   // ---- Speed (pitch kept) ---------------------------------------------------
@@ -764,6 +774,7 @@ window.songbooksDecodable = function (buf) {
     const sign = n > 0 ? '+' : '';
     if (keyLabel) keyLabel.textContent = n ? t('Key %s', `${sign}${n}`) : t('Key');
     keyBtn?.classList.toggle('active', !!n);
+    renderDockState();
     if (keyAmount) keyAmount.textContent = `${sign}${n}`;
     if (keyName) keyName.textContent = $('key-transposed') && !$('key-transposed').hidden ? t('in %s', $('key-transposed').textContent) : '';
     if (!n && !graph) return;
@@ -914,6 +925,7 @@ window.songbooksDecodable = function (buf) {
       if (voiceOut) voiceOut.textContent = `${prefs.voice}%`;
       syncVoiceSeg();
     }
+    renderDockState();
     const cat = activeCategory, token = ++voiceToken;
     const down = voiceDown();
     if (down) ensureGraph();
@@ -987,6 +999,9 @@ window.songbooksDecodable = function (buf) {
     if (!show) return;
     el.hidden = false;
     opener.setAttribute('aria-expanded', 'true');
+    if (id === 'audio-pop-trainer') renderTrainer();
+    // In the phone sheet the panel opens in place, under the options.
+    if (sheetOpen()) { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
     // From the ⋯ menu (a phone): the menu closes, the panel opens under ⋯.
     let anchor = opener;
     if (optsEl && optsEl.classList.contains('open') && optsEl.contains(opener)) {
@@ -999,13 +1014,27 @@ window.songbooksDecodable = function (buf) {
     const wrap = (el.offsetParent || root).getBoundingClientRect(), r = anchor.getBoundingClientRect();
     el.style.setProperty('--pop-top', `${r.bottom - wrap.top + 6}px`);
     el.style.setProperty('--pop-left', `${Math.max(8, Math.min(wrap.width - el.offsetWidth - 8, r.right - wrap.left - el.offsetWidth))}px`);
-    if (id === 'audio-pop-trainer') renderTrainer();
   }
   document.querySelectorAll('#audio-player [data-pop]').forEach((b) => b.addEventListener('click', () => openPop(b.dataset.pop, b)));
-  dockLine?.addEventListener('click', (e) => {
-    const r = dockLine.getBoundingClientRect();
-    if (duration && r.width) seek(((e.clientX - r.left) / r.width) * duration);
-  });
+  // The dock's line: a click goes there; in the phone sheet, where it is
+  // a scrubber, a drag too.
+  if (dockLine) {
+    let scrubbing = false;
+    const scrubTo = (e) => {
+      const r = dockLine.getBoundingClientRect();
+      if (duration && r.width) seek(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * duration);
+    };
+    dockLine.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      scrubbing = true;
+      dockLine.setPointerCapture?.(e.pointerId);
+      scrubTo(e);
+    });
+    dockLine.addEventListener('pointermove', (e) => { if (scrubbing) scrubTo(e); });
+    const stop = () => { scrubbing = false; };
+    dockLine.addEventListener('pointerup', stop);
+    dockLine.addEventListener('pointercancel', stop);
+  }
   document.addEventListener('pointerdown', (e) => {
     if (e.target.closest('#audio-player .audio-pop, #audio-player [data-pop]')) return;
     pops.forEach((p) => { p.hidden = true; });
@@ -1017,8 +1046,125 @@ window.songbooksDecodable = function (buf) {
     optsEl?.classList.toggle('open', open);
     optsBtn?.setAttribute('aria-expanded', String(open));
   }
-  optsBtn?.addEventListener('click', () => setOptsOpen(!optsEl.classList.contains('open')));
+  optsBtn?.addEventListener('click', () => (phoneMQ.matches ? setSheet(!sheetOpen()) : setOptsOpen(!optsEl.classList.contains('open'))));
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOptsOpen(false); });
+
+  // ---- Phone sheet ----------------------------------------------------------
+  // On a phone the dock is a card over the bottom bar, like the set lists'
+  // player (app.css): the section and the bar, play, the bar either side.
+  // Tapping it, or ⋯, opens it into a sheet: the bar big, a scrubber, a
+  // large transport, the sections to loop, every option with its panel in
+  // place. Down, the grab handle, the backdrop or Escape close it.
+  function sheetOpen() { return !!dock?.classList.contains('is-open'); }
+  function setSheet(on) {
+    if (!dock || on === sheetOpen()) return;
+    dock.classList.toggle('is-open', on);
+    if (dockBackdrop) dockBackdrop.hidden = !on;
+    document.documentElement.classList.toggle('rp-locked', on);
+    optsBtn?.setAttribute('aria-expanded', String(on));
+    lcdEl?.setAttribute('aria-expanded', String(on));
+    if (on) {
+      setOptsOpen(false);
+      dock.setAttribute('role', 'dialog');
+      dock.setAttribute('aria-modal', 'true');
+      dock.setAttribute('aria-label', t('Player'));
+      dock.scrollTop = 0;
+      renderDockSections();
+      $('audio-dock-grab')?.focus();
+    } else {
+      pops.forEach((p) => { p.hidden = true; });
+      document.querySelectorAll('#audio-player [data-pop]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+      dock.removeAttribute('role');
+      dock.removeAttribute('aria-modal');
+      dock.removeAttribute('aria-label');
+      if (phoneMQ.matches) lcdEl?.focus({ preventScroll: true });
+    }
+  }
+  function syncLcdRole() {
+    if (!lcdEl) return;
+    if (phoneMQ.matches) {
+      lcdEl.setAttribute('role', 'button');
+      lcdEl.tabIndex = 0;
+      lcdEl.setAttribute('aria-expanded', String(sheetOpen()));
+    } else {
+      lcdEl.removeAttribute('role');
+      lcdEl.removeAttribute('tabindex');
+      lcdEl.removeAttribute('aria-expanded');
+    }
+  }
+  syncLcdRole();
+  phoneMQ.addEventListener?.('change', () => { if (!phoneMQ.matches) setSheet(false); syncLcdRole(); });
+  lcdEl?.addEventListener('click', () => { if (phoneMQ.matches && !sheetOpen()) setSheet(true); });
+  lcdEl?.addEventListener('keydown', (e) => {
+    if (phoneMQ.matches && !sheetOpen() && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); setSheet(true); }
+  });
+  document.querySelectorAll('[data-dock-close]').forEach((el) => el.addEventListener('click', () => setSheet(false)));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && sheetOpen() && !pops.some((p) => !p.hidden)) { e.preventDefault(); setSheet(false); }
+  }, true); // before the panels' own Escape: a first one closes the panel
+  // A swipe down from the top of the sheet closes it.
+  if (dock) {
+    let y0 = null;
+    dock.addEventListener('touchstart', (e) => {
+      y0 = sheetOpen() && dock.scrollTop <= 0 && !e.target.closest('input, select, .audio-dock-line, .audio-dock-sections, .audio-stepper, .audio-seg') ? e.touches[0].clientY : null;
+    }, { passive: true });
+    dock.addEventListener('touchend', (e) => {
+      if (y0 !== null && e.changedTouches[0].clientY - y0 > 80) setSheet(false);
+      y0 = null;
+    });
+  }
+  // The sections, as chips: one tap loops that section from its start,
+  // another stops the loop (as in the mixer on a phone).
+  function renderDockSections() {
+    if (!dockSections) return;
+    const secs = hasBars() ? sections() : [];
+    dockSections.hidden = secs.length < 2;
+    dockSections.replaceChildren(...secs.map((sec) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'audio-sec-chip';
+      b.dataset.from = String(sec.startBar);
+      b.dataset.to = String(sec.startBar + sec.barCount);
+      b.textContent = sec.label;
+      b.addEventListener('click', () => {
+        const c = prefs.cycle;
+        if (c && c.on && c.from === sec.startBar && c.to === sec.startBar + sec.barCount) {
+          toggleCycle();
+        } else {
+          setCycle(sec.startBar, sec.startBar + sec.barCount);
+          seekToBar(sec.startBar);
+        }
+      });
+      return b;
+    }));
+    syncDockSections();
+  }
+  function syncDockSections() {
+    if (!dockSections || dockSections.hidden || !sheetOpen()) return;
+    const c = prefs.cycle;
+    const pos = duration && hasBars() ? barAtTime(audio.currentTime) : null;
+    const bar = pos === null ? -1 : Math.floor(pos);
+    dockSections.querySelectorAll('button').forEach((b) => {
+      const from = +b.dataset.from, to = +b.dataset.to;
+      const looped = !!(c && c.on && c.from === from && c.to === to);
+      b.classList.toggle('looped', looped);
+      b.setAttribute('aria-pressed', String(looped));
+      b.classList.toggle('current', bar >= from && bar < to);
+    });
+  }
+  // What's on, under the bar in the card: Key +2 · No voice · 80% · Cycle.
+  function renderDockState() {
+    if (!lcdState) return;
+    const bits = [];
+    if (prefs.semitones) bits.push($('audio-key-label')?.textContent);
+    if ($('audio-voice-split') && !$('audio-voice-split').hidden && prefs.voice < 100) bits.push($('audio-voice-label')?.textContent);
+    const pct = Math.round(prefs.speed * 100);
+    if (pct !== 100) bits.push(`${pct}%`);
+    if (prefs.cycle && prefs.cycle.on && hasBars()) bits.push(t('Cycle'));
+    if (prefs.click) bits.push(t('Click'));
+    if (prefs.countIn) bits.push($('audio-countin-label')?.textContent);
+    lcdState.textContent = bits.filter(Boolean).join(' · ');
+  }
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') pops.forEach((p) => { p.hidden = true; }); });
 
   function wireSeg(id, get, set) {
