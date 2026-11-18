@@ -1188,6 +1188,48 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   background: var(--border-strong); opacity: 0.18; pointer-events: none;
 }
 .audio-bargrid-tick.section { opacity: 0.6; background: var(--accent); }
+/* The dock (play.html): the control bar fixed at the bottom of the song
+   view, beside the sidebar on a wide screen and over the bottom bar on a
+   phone, so pause and the bar.beat · section readout never scroll away.
+   Its thin line is the whole recording (sections ticked, a click goes
+   there); its option panels open above it. The page keeps room for it;
+   editing hides it. */
+.audio-dock {
+  position: fixed; z-index: 58; left: 0; right: 0; bottom: 0;
+  padding: 0.5rem max(1rem, env(safe-area-inset-right, 0px)) calc(0.5rem + env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px));
+  background: color-mix(in srgb, var(--bg-raised) 92%, transparent);
+  -webkit-backdrop-filter: saturate(1.4) blur(12px); backdrop-filter: saturate(1.4) blur(12px);
+  border-top: 1px solid var(--border); box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.10);
+}
+.audio-dock { container-type: inline-size; container-name: audio-dock; }
+.audio-dock .audio-transport { margin: 0 auto; max-width: 72rem; flex-wrap: nowrap; }
+/* Too narrow for every option on one line (a laptop beside the sidebar):
+   they fold into ⋯, as on a phone, opening above the bar. */
+@container audio-dock (max-width: 70rem) {
+  .audio-transport .audio-opts-btn { display: inline-flex; }
+  .audio-opts { display: none; }
+  .audio-opts.open {
+    display: flex; position: absolute; right: 0; top: auto; bottom: calc(100% + 0.6rem); z-index: 20;
+    flex-direction: column; align-items: stretch; gap: 0.4rem; padding: 0.6rem; max-height: 70dvh; overflow-y: auto;
+    background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
+  }
+}
+.audio-dock .audio-opts { flex-wrap: nowrap; }
+.audio-dock-line { position: absolute; left: 0; right: 0; top: -5px; height: 11px; cursor: pointer; }
+.audio-dock-line::before { content: ""; position: absolute; left: 0; right: 0; top: 4px; height: 3px; background: color-mix(in srgb, var(--fg) 12%, transparent); }
+.audio-dock-line i { position: absolute; left: 0; top: 4px; height: 3px; width: 0; background: var(--accent); }
+.audio-dock-line:hover::before, .audio-dock-line:hover i { top: 3px; height: 5px; }
+.audio-dock-tick { position: absolute; top: 2px; width: 2px; height: 7px; margin-left: -1px; border-radius: 1px; background: var(--fg-muted); opacity: 0.5; pointer-events: none; }
+.audio-dock .audio-pop:not([hidden]) { top: auto; bottom: calc(100% + 0.6rem); max-width: calc(100vw - 2rem); }
+body:has(.edit-toggle.on) .audio-dock { display: none; }
+body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5rem; }
+@media (min-width: 901px) {
+  .audio-dock { left: 220px; }
+}
+@media (max-width: 900px) {
+  .audio-dock { bottom: calc(var(--context-h, 3.4rem) + env(safe-area-inset-bottom, 0px)); padding: 0.4rem 0.6rem; }
+  body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: calc(var(--context-h, 3.4rem) + env(safe-area-inset-bottom, 0px) + 5rem); }
+}
 .audio-hover:not([hidden]) { position: absolute; top: 0; bottom: 0; pointer-events: none; z-index: 3; }
 .audio-hover-line { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--fg-muted); opacity: 0.6; }
 .audio-hover-label {
@@ -1208,6 +1250,10 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   .audio-toggle, .audio-caret, .audio-speed select { height: 2.75rem; min-height: 2.75rem; }
   .audio-buttons .icon-btn { width: 2.75rem; height: 2.75rem; }
   .audio-lcd { order: 3; flex: 1 1 100%; min-width: 0; }
+  .audio-dock .audio-lcd { order: 0; flex: 1 1 auto; min-width: 0; padding: 0.25rem 0.55rem; gap: 0.4rem; }
+  .audio-dock .audio-lcd-time, .audio-dock #audio-start-btn { display: none; }
+  .audio-dock .audio-lcd-section { max-width: none; }
+  .audio-dock .audio-opts.open { top: auto; bottom: calc(100% + 0.6rem); max-height: 70dvh; overflow-y: auto; }
   .audio-wave { height: 56px; }
   .audio-ruler { height: 1.5rem; }
 }

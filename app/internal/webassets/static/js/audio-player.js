@@ -78,6 +78,9 @@ window.songbooksDecodable = function (buf) {
   const lcdPos = $('audio-lcd-pos');
   const lcdSection = $('audio-lcd-section');
   const timeLabel = $('audio-time-label');
+  // The dock's thin line (play.html): where the playhead is in the whole
+  // recording, the sections ticked on it; a click goes there.
+  const dockLine = $('audio-dock-line'), dockPlayed = $('audio-dock-played');
   const optsBtn = $('audio-opts-btn');
   const optsEl = $('audio-opts');
   const cycleBtn = $('audio-cycle-btn');
@@ -373,6 +376,7 @@ window.songbooksDecodable = function (buf) {
   function refreshTimeline() {
     if (bargridEl) bargridEl.innerHTML = '';
     if (rulerMarks) rulerMarks.innerHTML = '';
+    dockLine?.querySelectorAll('.audio-dock-tick').forEach((e) => e.remove());
     if (!duration || !hasBars()) { renderCycle(); updateButtons(); wireBarClickToPlay(); return; }
     const starts = new Map(sections().map((s) => [s.startBar, s]));
     const width = waveEl.clientWidth || 600;
@@ -388,6 +392,12 @@ window.songbooksDecodable = function (buf) {
       tick.className = 'audio-bargrid-tick' + (sec ? ' section' : '');
       tick.style.left = `${pctOf(t)}%`;
       bargridEl.appendChild(tick);
+      if (sec && dockLine && b > 0) {
+        const d = document.createElement('span');
+        d.className = 'audio-dock-tick';
+        d.style.left = `${(t / duration) * 100}%`;
+        dockLine.appendChild(d);
+      }
       // Numbers only over the chart's own bars; the recording may run on.
       const numbered = b < chartBars && b % every === (hasPickup() ? 0 : every - 1);
       const label = sec ? sec.label : (numbered ? barLabel(b) : '');
@@ -429,6 +439,7 @@ window.songbooksDecodable = function (buf) {
     const pct = Math.max(0, Math.min(100, pctOf(t)));
     if (playhead) playhead.style.left = `${pct}%`;
     if (playedClip) playedClip.style.width = `${pct}%`;
+    if (dockPlayed) dockPlayed.style.width = `${Math.max(0, Math.min(100, (t / duration) * 100))}%`;
     if (timeLabel) timeLabel.textContent = `${fmtTime(t)} / ${fmtTime(duration)}`;
     const pos = barAtTime(t);
     if (pos === null) {
@@ -896,12 +907,18 @@ window.songbooksDecodable = function (buf) {
       anchor = optsBtn;
     }
     // Under its button where there's room; full width on a phone (CSS).
-    const wrap = root.getBoundingClientRect(), r = anchor.getBoundingClientRect();
+    // In the dock (play.html) the panel opens above the bar (app.css):
+    // only its left is set, against the dock.
+    const wrap = (el.offsetParent || root).getBoundingClientRect(), r = anchor.getBoundingClientRect();
     el.style.setProperty('--pop-top', `${r.bottom - wrap.top + 6}px`);
     el.style.setProperty('--pop-left', `${Math.max(8, Math.min(wrap.width - el.offsetWidth - 8, r.right - wrap.left - el.offsetWidth))}px`);
     if (id === 'audio-pop-trainer') renderTrainer();
   }
   document.querySelectorAll('#audio-player [data-pop]').forEach((b) => b.addEventListener('click', () => openPop(b.dataset.pop, b)));
+  dockLine?.addEventListener('click', (e) => {
+    const r = dockLine.getBoundingClientRect();
+    if (duration && r.width) seek(((e.clientX - r.left) / r.width) * duration);
+  });
   document.addEventListener('pointerdown', (e) => {
     if (e.target.closest('#audio-player .audio-pop, #audio-player [data-pop]')) return;
     pops.forEach((p) => { p.hidden = true; });

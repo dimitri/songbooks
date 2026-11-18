@@ -1528,7 +1528,15 @@
         {{/* A practice player, laid out like GarageBand / Logic's control
              bar: transport, an LCD reading bar.beat and section, then
              Cycle, Count-in, Click and Speed. Alignment editing lives in
-             the Mixer; this only plays. See audio-player.js. */}}
+             the Mixer; this only plays. See audio-player.js.
+             The control bar and its option panels sit in a dock fixed at
+             the bottom of the screen (over the phone's bottom bar), like
+             Soundslice's or a music app's player: pause, the bar and the
+             section are always one tap away, however far the chart has
+             scrolled. The waveform and its ruler stay here, under the
+             structure strip; the dock's thin line follows the playhead. */}}
+        <div class="audio-dock" id="audio-dock">
+        <div class="audio-dock-line" id="audio-dock-line" title="{{t "click to go there"}}"><i id="audio-dock-played"></i></div>
         <div class="audio-transport">
           <div class="audio-buttons">
             <button type="button" id="audio-start-btn" class="icon-btn" title="{{t "go to start (Home)"}}">{{template "icon-to-start"}}</button>
@@ -1630,6 +1638,7 @@
             <button type="button" class="primary" id="audio-trainer-start">{{t "Start practicing"}}</button>
           </div>
         </div>
+        </div>{{/* .audio-dock */}}
         <div class="audio-waveform-wrap">
           <div class="audio-ruler" id="audio-ruler" title="{{t "drag to set the cycle range; click it to switch cycling on or off"}}">
             <div class="audio-ruler-marks" id="audio-ruler-marks"></div>
