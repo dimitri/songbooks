@@ -129,7 +129,8 @@ Not automated: the coach writes and sings them.
 
 ## Review: live lessons with Galène, inside the app
 
-Not built; what it takes. Research of November 2026 against Galène 1.2.2
+Being built (docs/live-lessons.md: the deployment, the firewall, why
+Caddy and no HAProxy). Research of November 2026 against Galène 1.2.2
 (9 November 2026); notes and sources in `research_notes/Galene
 deployment/` (not in the repo). [Galène](https://galene.org/) (MIT, Go,
 Juliusz Chroboczek) is a videoconference server: an SFU, one binary, a
@@ -147,14 +148,14 @@ JWT tokens it checks against keys we give it.
   `-udp-range 40000` (one port, multiplexed, since 1.0), `-turn auto`,
   `-data`, `-groups`, `-recordings` on volumes (recordings shared with the
   app read-only).
-- **Caddy**: a subdomain, `galene.tapoueh.org { reverse_proxy
+- **Caddy**: a subdomain, `live.songbooks.studio { reverse_proxy
   127.0.0.1:8444 }` (the websocket at `/ws` passes as is).
 - **Firewall**: TCP 443 (Caddy), UDP 40000 (media), TCP and UDP 1194
   (TURN); 8444 stays closed.
 - **Config**: `data/config.json` with `proxyURL`, `canonicalHost`, an
   admin user (setup only); one group file `groups/lessons.json`:
   `auto-subgroups` (a lesson is `lessons/<uuid>`, made at its first
-  join), `allow-recording`, Opus, our key in `authKeys` (HS256), no
+  join), no recording for now, Opus, our key in `authKeys` (HS256), no
   users and no wildcard user: only a token gets in.
 - **Resources**: 256–512 MB; a 1:1 lesson costs nothing, 1:10 all on
   camera is about half a core and up to 77 Mbit/s out (simulcast less).
@@ -163,16 +164,16 @@ JWT tokens it checks against keys we give it.
 
 - **The app signs the tokens**, Galène checks them: a JWT (HS256, our
   `kid`), `sub` the person's name, `aud`
-  `https://galene.tapoueh.org/group/lessons/<uuid>/` (exactly, trailing
-  slash), `permissions` `["op","present","message","caption","token","record"]`
+  `https://live.songbooks.studio/group/lessons/<uuid>/` (exactly, trailing
+  slash), `permissions` `["op","present","message","caption","token"]`
   for the coach, `["present","message"]` for a student, `exp` two minutes
   ahead.
 - **The link in the calendar is ours**, not Galène's:
-  `https://songbooks.tapoueh.org/communities/{id}/lessons/{event}/join?f=<calendar feed token>`.
+  `https://app.songbooks.studio/communities/{id}/lessons/{event}/join?f=<calendar feed token>`.
   It checks the person is the lesson's coach or student and that it's
   time (15 minutes before to 30 after; otherwise a page saying when),
   mints the token, and redirects to
-  `https://galene.tapoueh.org/group/lessons/<uuid>/?token=<JWT>`: no
+  `https://live.songbooks.studio/group/lessons/<uuid>/?token=<JWT>`: no
   password, one click to start the media. It works weeks later, follows
   a rescheduled lesson, stops with a new feed address (the feed token
   identifies the person), and no long-lived Galène token sits in
@@ -187,13 +188,16 @@ The built-in client turns on noise suppression (with echo cancellation
 and gain control) and limits Opus to its normal quality, mono. For
 singing: a patched `static/` (`-static`) with preprocessing off, high
 quality audio on (Opus up to 128 kbit/s) and stereo capture; headphones
-then. Our own client later, on Galène's `protocol.js`, beside the song or
+then. Decided: headphones optional, Galène's defaults without them, and
+the singing settings with `?headphones=1` on the join link (the person's
+choice, remembered by the app); everybody joins muted
+(`deploy/galene/client-hook.js`, patched into the client at build). Our own client later, on Galène's `protocol.js`, beside the song or
 the warm-up being worked on (score, key, voice): Galène can be framed
 (no `frame-ancestors`), untested.
 
 ### Recordings
 
-The coach records (`record` permission): a WebM per participant
+Not for now (decided). Later: the coach records (`record` permission): a WebM per participant
 (`recordings/lessons/<uuid>/`), Opus audio; the app reads the shared
 volume, mixes coach and student with ffmpeg, and attaches the result to
 the lesson (and the student's teaching notes).

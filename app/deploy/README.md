@@ -269,5 +269,13 @@ songbooks.tapoueh.org {
 }
 ```
 
-`live.` is for the lessons' videoconference (Galène, docs/coaching.md),
-not deployed yet.
+`live.` is for the lessons' videoconference (Galène), not deployed yet.
+
+## Live lessons (Galène) and the host's firewall
+
+`galene/` builds Galène 1.2.2 with our client defaults (join muted,
+`?headphones=1` for an unprocessed voice); the `galene` service runs in
+the `live` profile, on the host's network, behind Caddy on
+`live.songbooks.studio`. `host/` is the host's firewall, to apply with
+`sudo host/apply-firewall.sh` before Galène (it opens UDP 40000 and
+1194). The why and the steps: docs/live-lessons.md.
