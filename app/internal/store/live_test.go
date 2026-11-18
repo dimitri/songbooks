@@ -35,3 +35,20 @@ func TestLiveRoomAndHeadphones(t *testing.T) {
 		t.Fatal("headphones not remembered")
 	}
 }
+
+func TestSetLessonMode(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	coach, _ := st.CreatePerson(ctx, "coach", "Coach", "coach@example.com")
+	c, _ := st.CreateCommunity(ctx, "Voice", coach)
+	ev, _ := st.CreateEvent(ctx, "community", c, "lesson", "Lesson", "", "", time.Now(), nil, "members", coach)
+	if err := st.SetLessonMode(ctx, ev, "online"); err != nil {
+		t.Fatal(err)
+	}
+	if e, _ := st.GetEvent(ctx, ev); e.LessonMode != "online" {
+		t.Fatalf("mode %q", e.LessonMode)
+	}
+	if err := st.SetLessonMode(ctx, ev, "elsewhere"); err == nil {
+		t.Fatal("a bad mode passed")
+	}
+}

@@ -438,6 +438,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("DELETE /api/communities/{id}/events/{eventID}/program/{programID}", s.requireCommunityMember(s.handleDeleteProgramSong))
 	mux.HandleFunc("POST /api/communities/{id}/lessons", s.requireCommunityMember(s.handlePostCoachingLesson))
 	mux.HandleFunc("PUT /api/communities/{id}/lessons/{eventID}/students", s.requireCommunityMember(s.handlePutCoachingLessonStudents))
+	mux.HandleFunc("PUT /api/communities/{id}/lessons/{eventID}/mode", s.requireCommunityMember(s.handlePutCoachingLessonMode))
 	mux.HandleFunc("DELETE /api/communities/{id}/lessons/{eventID}", s.requireCommunityMember(s.handleDeleteCoachingLesson))
 	mux.HandleFunc("POST /api/communities/{id}/rename", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleRenameCommunity))
 	mux.HandleFunc("GET /api/communities/{id}/brand", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleGetBrand("community")))

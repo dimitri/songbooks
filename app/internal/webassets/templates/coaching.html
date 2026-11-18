@@ -639,8 +639,9 @@
         <div class="coach-lesson-who">{{range .Students}}<span class="voice-tag">{{.DisplayName}}</span>{{else}}<span class="hint">{{t "no student yet"}}</span>{{end}}</div>
         {{if $.IsCoach}}
         <details class="coach-lesson-edit">
-          <summary>{{t "Students"}}</summary>
+          <summary>{{t "Edit"}}</summary>
           {{$regs := .Students}}
+          <label class="coach-lesson-mode">{{t "How"}} <select data-was="{{.Event.LessonMode}}"><option value="in_person"{{if ne .Event.LessonMode "online"}} selected{{end}}>{{t "In the room"}}</option><option value="online"{{if eq .Event.LessonMode "online"}} selected{{end}}>{{t "Online"}}</option></select></label>
           <div class="coach-lesson-students">{{range $.Students}}{{$id := .PersonID}}<label><input type="checkbox" value="{{.PersonID}}"{{range $regs}}{{if eq .PersonID $id}} checked{{end}}{{end}}> {{.DisplayName}}</label>{{end}}</div>
           <div class="coach-lesson-actions"><button type="button" class="coach-lesson-save">{{t "Save"}}</button><button type="button" class="coach-lesson-delete danger">{{t "Cancel the lesson"}}</button></div>
         </details>
@@ -681,7 +682,10 @@ document.getElementById('live-headphones')?.addEventListener('change', (e) => {
     const id = row.dataset.event;
     row.querySelector('.coach-lesson-save')?.addEventListener('click', () => {
       const students = [...row.querySelectorAll('.coach-lesson-students input:checked')].map((i) => Number(i.value));
-      send(`${api}/${id}/students`, 'PUT', { students }).then(() => location.reload()).catch(() => alert(t('Couldn’t save.')));
+      const mode = row.querySelector('.coach-lesson-mode select');
+      send(`${api}/${id}/students`, 'PUT', { students })
+        .then(() => mode && mode.value !== mode.dataset.was && send(`${api}/${id}/mode`, 'PUT', { mode: mode.value }))
+        .then(() => location.reload()).catch(() => alert(t('Couldn’t save.')));
     });
     row.querySelector('.coach-lesson-delete')?.addEventListener('click', () => {
       if (!confirm(t('Cancel this lesson? It goes off the calendar.'))) return;

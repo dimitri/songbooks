@@ -190,7 +190,8 @@ JWT tokens it checks against keys we give it.
 Built (internal/httpapi/live.go, migration 0083). What a coach and a
 student see:
 
-- **The coach** makes a lesson *Online* (the lesson form's *How*). It's
+- **The coach** makes a lesson *Online* (the lesson form's *How*, or
+  later, the lesson's *Edit*: back in the room just as well). It's
   tagged *Online* on the Lessons page, the student's page and the
   calendar.
 - **On the Lessons page**, an online lesson to come has a *Join*

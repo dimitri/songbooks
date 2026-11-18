@@ -844,6 +844,28 @@ func (s *Server) handlePutCoachingLessonStudents(w http.ResponseWriter, r *http.
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// handlePutCoachingLessonMode is PUT /api/communities/{id}/lessons/{eventID}/mode
+// {"mode": "in_person" | "online"}: a lesson moved online, or back in
+// the room.
+func (s *Server) handlePutCoachingLessonMode(w http.ResponseWriter, r *http.Request) {
+	_, eventID, ok := s.coachLesson(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Mode string `json:"mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if err := s.store.SetLessonMode(r.Context(), eventID, req.Mode); err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // handleDeleteCoachingLesson is DELETE /api/communities/{id}/lessons/{eventID}.
 func (s *Server) handleDeleteCoachingLesson(w http.ResponseWriter, r *http.Request) {
 	_, eventID, ok := s.coachLesson(w, r)
