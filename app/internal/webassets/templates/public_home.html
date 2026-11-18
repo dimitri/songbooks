@@ -19,7 +19,7 @@
       {{if .Person}}<a class="btn-outline" href="/home">{{t "My Songbooks"}}</a>{{else}}<a class="btn-outline" href="/login">{{t "Sign in"}}</a>{{end}}
     </div>
   </div>
-  {{template "public-shot" (dict "Src" "mixer" "Alt" (t "A song synced to its recording: sections on the bar ruler, the voice and the backing in their own lanes") "Caption" (t "A song synced to its recording from the intro on, the voice and the backing apart."))}}
+  {{template "public-shot" (dict "Src" "mixer" "Alt" (t "A song synced to its recording: sections on the bar ruler, voice, drums, bass and the rest in their own lanes") "Caption" (t "A song synced to its recording from the intro on, split into voice, drums, bass and the rest, or simply voice and backing."))}}
 </section>
 
 <section class="block" id="doors">
@@ -40,7 +40,7 @@
     <li><b>{{t "Chart"}}</b><span>{{t "Keep yours, or fetch one: chords and sections, cleaned up."}}</span></li>
     <li><b>{{t "Review"}}</b><span>{{t "Merged into your song's own structure, never pasted below it."}}</span></li>
     <li><b>{{t "Lyrics"}}</b><span>{{t "Each verse in its verse, the chorus in every chorus."}}</span></li>
-    <li><b>{{t "Recording"}}</b><span>{{t "The artist's own version, split into voice and backing."}}</span></li>
+    <li><b>{{t "Recording"}}</b><span>{{t "The artist's own version, split into its parts: voice, drums, bass and the rest."}}</span></li>
     <li><b>{{t "Sync"}}</b><span>{{t "Tempo, time signature and key measured; every section on time."}}</span></li>
   </ol>
   {{template "public-shot" (dict "Src" "wizard" "Alt" (t "The import wizard's first step: a check of the song and four ways to get its chart") "Caption" (t "The import wizard checks the song first and says which steps are worth doing."))}}
