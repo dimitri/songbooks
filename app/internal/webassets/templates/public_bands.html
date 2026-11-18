@@ -13,7 +13,7 @@
   <div class="hero-text">
     <div class="eyebrow">{{t "For bands"}}</div>
     <h1>{{t "Every song in the set,"}} <span class="hl">{{t "on every phone."}}</span></h1>
-    <p class="lede">{{t "Charts in the key you play them, set lists that play their running order, your rehearsals and gigs recorded and filed song by song."}}</p>
+    <p class="lede">{{t "Charts in the key you play them, set lists that play their running order, a tuner and a click that know each song."}}</p>
     <div class="cta-row"><a class="btn btn-lg" href="#how">{{t "See how"}}</a>{{if .Person}}<a class="btn-outline" href="/home">{{t "My Songbooks"}}</a>{{else}}<a class="btn-outline" href="/login">{{t "Sign in"}}</a>{{end}}</div>
   </div>
   {{template "public-shot" (dict "Src" "band" "Alt" (t "A band's page: the next gig, rehearsals, the songbook and the set lists") "Caption" (t "Example data."))}}
@@ -24,7 +24,7 @@
   <ul class="pains">
     <li><b>{{t "PDFs in a group chat"}}</b>{{t "Nobody knows which version is the current one."}}</li>
     <li><b>{{t "The wrong key"}}</b>{{t "The singer moved it down a tone; the YouTube link didn't."}}</li>
-    <li><b>{{t "Recordings nobody finds"}}</b>{{t "Rehearsals on someone's phone, never by song."}}</li>
+    <li><b>{{t "The tempo nobody remembers"}}</b>{{t "Was it 96 or 104? And who counts it in?"}}</li>
   </ul>
 </section>
 
@@ -46,13 +46,6 @@
     {{template "public-shot" (dict "Src" "mixer" "Alt" (t "The mixer: the recording, its voice and its backing, sections on the bar ruler"))}}
   </div>
   <div class="feature">
-    <div class="feature-text">
-      <h2>{{t "Your own recordings, filed"}}</h2>
-      <p>{{t "Point Songbooks at the band's recordings folder: every rehearsal and gig take lands under its song, ready to compare with the reference."}}</p>
-    </div>
-    {{template "public-shot" (dict "Src" "recordings" "Alt" (t "A song's recordings: the band's rehearsal and gig takes"))}}
-  </div>
-  <div class="feature flip">
     <div class="feature-text">
       <h2>{{t "A tuner and a metronome that know the song"}}</h2>
       <p>{{t "The tuner opens on the song's own tuning and capo; the metronome on its tempo and time signature."}}</p>
