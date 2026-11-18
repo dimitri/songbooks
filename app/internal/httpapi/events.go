@@ -81,7 +81,7 @@ func parseEventTimes(startsAt, endsAt string) (time.Time, *time.Time, error) {
 }
 
 var validEventTypes = map[string]bool{
-	"jam": true, "concert": true, "meetup": true, "listening_party": true, "dinner": true, "show_together": true,
+	"jam": true, "concert": true, "meetup": true, "listening_party": true, "dinner": true, "show_together": true, "open_mic": true, "masterclass": true,
 }
 
 // handleCreateCommunityEvent creates a community-hosted event. Staff-only
@@ -201,14 +201,20 @@ func (s *Server) handleCommunityEventsPage(w http.ResponseWriter, r *http.Reques
 	now := time.Now()
 	var upcoming, past []store.Event
 	for _, ev := range events {
+		if ev.EventType == "lesson" {
+			continue // a coaching lesson is on the Lessons tab, for its students
+		}
 		if ev.IsPast(now) {
 			past = append(past, ev)
 		} else {
 			upcoming = append(upcoming, ev)
 		}
 	}
+	person := personFromContext(r)
+	staff, _ := s.store.HasAnyCommunityManagePrivilege(r.Context(), communityID, person.ID)
 	s.render(w, "community_events", map[string]any{
-		"Me": personFromContext(r), "Community": community, "Upcoming": upcoming, "Past": past,
+		"Me": person, "Community": community, "Upcoming": upcoming, "Past": past,
+		"IsStaff": staff || person.IsAdmin,
 	})
 }
 

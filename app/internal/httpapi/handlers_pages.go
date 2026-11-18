@@ -2954,6 +2954,16 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		if songbookID, err := strconv.ParseInt(songbookParam, 10, 64); err == nil {
 			data["SongbookRef"] = songbookID
 			data["Prev"], data["Next"] = s.songbookNeighbors(r.Context(), songbookID, variantID)
+			// A student's or a group's songbook (coaching.go): the
+			// recording plays in their key.
+			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil && (sb.IsStudent() || sb.Kind == store.SongbookKindGroup) {
+				if ok, _ := s.store.CanAccessSongbook(r.Context(), personFromContext(r).ID, songbookID); ok || personFromContext(r).IsAdmin {
+					if n, err := s.store.EntrySemitones(r.Context(), songbookID, variantID); err == nil {
+						data["StudentKey"] = n
+						data["StudentKeySet"] = true
+					}
+				}
+			}
 			// In a course, back is to the song's lesson.
 			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil && sb.IsCourse() {
 				if l, err := s.store.LessonOfSong(r.Context(), songbookID, variantID); err == nil && l != nil {

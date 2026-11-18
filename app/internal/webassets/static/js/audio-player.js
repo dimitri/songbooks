@@ -146,8 +146,14 @@ window.songbooksDecodable = function (buf) {
   } catch (e) { /* defaults */ }
   // A loop — the cycle range, and the trainer that runs on it — is for
   // this sitting only: every visit starts playing the song straight.
+  // Opened from a student's songbook (a coaching community): the song is
+  // in the student's key, the coach's to set, not this browser's.
+  const studentKey = root.dataset.studentKey !== undefined ? parseInt(root.dataset.studentKey, 10) || 0 : null;
+  const savedSemitones = prefs.semitones;
+  if (studentKey !== null) prefs.semitones = studentKey;
   const savePrefs = () => {
     const keep = { ...prefs, cycle: null, trainer: { ...prefs.trainer, on: false } };
+    if (studentKey !== null) keep.semitones = savedSemitones;
     if (prefs.trainer.on) keep.speed = 1;
     try { localStorage.setItem(optsKey, JSON.stringify(keep)); } catch (e) { /* ignore */ }
   };

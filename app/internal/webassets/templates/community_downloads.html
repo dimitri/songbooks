@@ -23,6 +23,7 @@
   <nav class="band-tabs band-tabs-row">
     <a class="band-tab" href="/communities/{{.Community.ID}}">Overview</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{shelfLabel "community" .Community.ID}}</a>
+    {{template "coaching-tab-links" .}}
     <a href="/communities/{{.Community.ID}}/downloads" class="band-tab active">Downloads</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/events">Events</a>
   </nav>

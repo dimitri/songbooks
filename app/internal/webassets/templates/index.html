@@ -67,6 +67,7 @@
 
   {{if or .Bands .Communities}}
   {{template "calendar-month" .Calendar}}
+  <p class="coach-subscribe"><a href="/calendar/subscribe">{{template "icon-calendar"}} Your calendar in your calendar app</a></p>
   {{end}}
 
   {{if .Recent}}

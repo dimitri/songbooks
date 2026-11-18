@@ -27,6 +27,8 @@ RUN CGO_ENABLED=0 go build -o /out/bandscampredo ./cmd/bandscampredo
 RUN CGO_ENABLED=0 go build -o /out/gpmigrate ./cmd/gpmigrate
 # sbfiles: adds a file to a songbook's download area (cmd/sbfiles).
 RUN CGO_ENABLED=0 go build -o /out/sbfiles ./cmd/sbfiles
+# sbcoach: sets up a coaching community (cmd/sbcoach, docs/coaching.md).
+RUN CGO_ENABLED=0 go build -o /out/sbcoach ./cmd/sbcoach
 
 # --- runtime -------------------------------------------------------------
 # debian:bookworm-slim, not alpine: the LilyPond release tarball below is a
@@ -112,6 +114,7 @@ COPY --from=builder /out/backfillaudio /usr/local/bin/backfillaudio
 COPY --from=builder /out/bandscampredo /usr/local/bin/bandscampredo
 COPY --from=builder /out/gpmigrate /usr/local/bin/gpmigrate
 COPY --from=builder /out/sbfiles /usr/local/bin/sbfiles
+COPY --from=builder /out/sbcoach /usr/local/bin/sbcoach
 
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/songbooks"]

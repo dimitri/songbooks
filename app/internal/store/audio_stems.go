@@ -18,6 +18,14 @@ type StemJob struct {
 	SongAudioID int64
 	SHA256      string
 	Attempts    int
+	// Parts to keep: "all", or "voice" (vocals and no_vocals only) for a
+	// song of a coaching community, all a singer plays.
+	Parts string
+}
+
+// Keep is whether the job keeps the part named stem.
+func (j StemJob) Keep(stem string) bool {
+	return j.Parts != "voice" || stem == "vocals" || stem == "no_vocals"
 }
 
 // StemStatus is where a recording's split is: "queued", "running",
@@ -47,7 +55,14 @@ func (st *Store) ClaimStemJob(ctx context.Context, model string) (*StemJob, erro
 		WHERE song_audio_id = (
 			SELECT song_audio_id FROM song_audio_stem_jobs WHERE status = 'queued'
 			ORDER BY queued_at LIMIT 1 FOR UPDATE SKIP LOCKED)
-		RETURNING song_audio_id, source_sha256, attempts`, model).Scan(&j.SongAudioID, &j.SHA256, &j.Attempts)
+		RETURNING song_audio_id, source_sha256, attempts,
+			CASE WHEN EXISTS (
+				SELECT 1 FROM song_audio a
+				JOIN songbook_entries se ON se.variant_id = a.variant_id
+				JOIN songbooks sb ON sb.id = se.songbook_id
+				JOIN communities c ON c.id = sb.owner_community_id
+				WHERE a.id = song_audio_stem_jobs.song_audio_id AND c.kind = 'coaching')
+			THEN 'voice' ELSE 'all' END`, model).Scan(&j.SongAudioID, &j.SHA256, &j.Attempts, &j.Parts)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -79,7 +94,7 @@ func (st *Store) SaveStems(ctx context.Context, job StemJob, contentType string,
 	}
 	for _, name := range Stems {
 		data, ok := stems[name]
-		if !ok {
+		if !ok || !job.Keep(name) {
 			continue
 		}
 		if _, err := tx.Exec(ctx, `

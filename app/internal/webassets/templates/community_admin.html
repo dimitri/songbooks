@@ -22,6 +22,7 @@
   <nav class="band-tabs band-tabs-row">
     <a class="band-tab" href="/communities/{{.Community.ID}}">Overview</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{shelfLabel "community" .Community.ID}}</a>
+    {{template "coaching-tab-links" .}}
     <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">Downloads</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/events">Events</a>
     <a href="/communities/{{.Community.ID}}/admin" class="band-tab active">Admin</a>
@@ -104,6 +105,8 @@
           <option value="listening_party">Listening party</option>
           <option value="dinner">Dinner</option>
           <option value="show_together">Going to a show together</option>
+          <option value="open_mic">Open mic</option>
+          <option value="masterclass">Master class, stage</option>
         </select>
       </div>
       <div class="field" id="ev-audience-field">
@@ -685,4 +688,4 @@ document.querySelectorAll('.community-link-btn').forEach(btn => {
      an unknown key falls through as itself. */}}
 {{define "community-priv-label"}}{{if eq . "edit_repertoire"}}Edit songs{{else if eq . "download_files"}}Download files{{else if eq . "manage_files"}}Manage files{{else if eq . "manage_members"}}Manage members{{else if eq . "manage_events"}}Manage events{{else if eq . "manage_submissions"}}Review submissions{{else if eq . "manage_settings"}}Change settings{{else}}{{.}}{{end}}{{end}}
 
-{{define "community-event-type-label"}}{{if eq . "jam"}}Jam{{else if eq . "concert"}}Concert{{else if eq . "meetup"}}Meetup{{else if eq . "listening_party"}}Listening party{{else if eq . "dinner"}}Dinner{{else if eq . "show_together"}}Going to a show together{{else}}{{.}}{{end}}{{end}}
+{{define "community-event-type-label"}}{{if eq . "jam"}}Jam{{else if eq . "concert"}}Concert{{else if eq . "meetup"}}Meetup{{else if eq . "listening_party"}}Listening party{{else if eq . "dinner"}}Dinner{{else if eq . "show_together"}}Going to a show together{{else if eq . "open_mic"}}Open mic{{else if eq . "masterclass"}}Master class{{else if eq . "lesson"}}Lesson{{else}}{{.}}{{end}}{{end}}

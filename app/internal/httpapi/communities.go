@@ -262,14 +262,19 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	songbookRows := make([]communitySongbookRow, len(songbooks))
-	for i, sb := range songbooks {
+	songbookRows := make([]communitySongbookRow, 0, len(songbooks))
+	for _, sb := range songbooks {
+		// The students' songbooks are on their pages (coaching.go): a
+		// student sees their own here.
+		if sb.IsStudent() && sb.StudentPersonID != person.ID {
+			continue
+		}
 		entries, err := s.store.ListSongbookEntries(r.Context(), sb.ID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		songbookRows[i] = communitySongbookRow{Songbook: sb, SongCount: len(entries), LessonCount: s.lessonCount(r.Context(), sb)}
+		songbookRows = append(songbookRows, communitySongbookRow{Songbook: sb, SongCount: len(entries), LessonCount: s.lessonCount(r.Context(), sb)})
 	}
 	events, err := s.store.ListEventsForCommunity(r.Context(), communityID)
 	if err != nil {
@@ -279,7 +284,8 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	var upcoming []store.Event
 	for _, ev := range events {
-		if !ev.IsPast(now) {
+		// A coaching lesson is on the Lessons tab, for its students.
+		if !ev.IsPast(now) && ev.EventType != "lesson" {
 			upcoming = append(upcoming, ev)
 		}
 	}
@@ -295,7 +301,7 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "community", map[string]any{
 		"Me": person, "Community": community, "Members": members, "StaffNames": staffNames,
 		"Songbooks": songbookRows, "UpcomingEvents": upcoming,
-		"IsStaff": canManage || person.IsAdmin,
+		"IsStaff": canManage || person.IsAdmin, "Person": person, "Tab": "overview",
 	})
 }
 
@@ -343,14 +349,17 @@ func (s *Server) handleCommunitySongbooksPage(w http.ResponseWriter, r *http.Req
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	rows := make([]communitySongbookRow, len(songbooks))
-	for i, sb := range songbooks {
+	rows := make([]communitySongbookRow, 0, len(songbooks))
+	for _, sb := range songbooks {
+		if sb.IsStudent() && sb.StudentPersonID != person.ID {
+			continue // on the student's page (coaching.go)
+		}
 		entries, err := s.store.ListSongbookEntries(r.Context(), sb.ID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		rows[i] = communitySongbookRow{Songbook: sb, SongCount: len(entries), LessonCount: s.lessonCount(r.Context(), sb)}
+		rows = append(rows, communitySongbookRow{Songbook: sb, SongCount: len(entries), LessonCount: s.lessonCount(r.Context(), sb)})
 	}
 	canEdit, err := s.store.HasCommunityPrivilege(r.Context(), communityID, person.ID, store.PrivEditRepertoire)
 	if err != nil {
@@ -639,10 +648,16 @@ func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	events, err := s.store.ListEventsForCommunity(r.Context(), communityID)
+	all, err := s.store.ListEventsForCommunity(r.Context(), communityID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	var events []store.Event
+	for _, ev := range all {
+		if ev.EventType != "lesson" { // the Lessons tab's
+			events = append(events, ev)
+		}
 	}
 	eventManagers := map[int64][]store.EventManager{}
 	for _, ev := range events {
