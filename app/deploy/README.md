@@ -257,19 +257,27 @@ app.songbooks.studio {
 songbooks.studio, songbooks.fr, app.songbooks.fr {
 	redir https://app.songbooks.studio{uri} permanent
 }
-live.songbooks.studio, live.songbooks.fr {
-	respond "Live lessons are coming soon." 503
+live.songbooks.studio {
+	reverse_proxy 127.0.0.1:8444
+}
+live.songbooks.fr {
+	redir https://live.songbooks.studio{uri} permanent
 }
 songbooks.tapoueh.org {
 	# staging: kept out of search engines
 	log { … songbooks-access.log … }
+	# staging is for Dimitri only: anyone else goes to production, same path
+	@not_dim not remote_ip 86.238.176.216 127.0.0.1/8 ::1
+	redir @not_dim https://app.songbooks.studio{uri} 302
 	header X-Robots-Tag "noindex, nofollow, noarchive"
 	respond /robots.txt …
 	reverse_proxy 127.0.0.1:8102
 }
 ```
 
-`live.` is for the lessons' videoconference (Galène), not deployed yet.
+`live.` is the lessons' videoconference (Galène, the `live` profile).
+Staging answers only at home: from anywhere else, an ssh tunnel to its
+port 8102.
 
 ## Live lessons (Galène) and the host's firewall
 

@@ -40,10 +40,10 @@ table inet host_firewall {
 		tcp dport { 8890, 9010, 18960 } accept comment "review: python3 dev servers"
 		tcp dport { 18096, 18097, 18099 } accept comment "review: api, app"
 		tcp dport { 18602, 18610, 18620, 18630, 18640, 18650, 18660, 18670, 18680, 18700, 18710, 18720, 18730, 18740, 18750, 18760 } accept comment "review: desk-* dev servers"
-		tcp dport 55433 accept comment "review: pasta (podman)"
-		udp dport 55433 accept comment "review: pasta (podman)"
 		# Closed: Performance Co-Pilot (4330, 44321), LLMNR (5355), mDNS
-		# (5353): local services with no business on the internet.
+		# (5353): local services with no business on the internet. And
+		# 55433, the faits-politiques CI's Postgres (fp/fp, rootless
+		# Docker through pasta): its CI reaches it on localhost.
 	}
 
 	# Containers' published ports, before Docker's own rules: a port
@@ -51,7 +51,9 @@ table inet host_firewall {
 	# the input chain says. Uncomment to close one to outside traffic.
 	chain published_ports {
 		type filter hook prerouting priority dstnat - 1; policy accept;
-		# Postgres published on 0.0.0.0:55432 by a Docker stack.
-		# iifname "eno1" tcp dport 55432 drop comment "public postgres"
+		# faits-politiques' dev Postgres (fp/fp) on 55432: now published on
+		# 127.0.0.1 (faits-politiques.fr#37), closed here too should it
+		# ever be published on 0.0.0.0 again.
+		iifname "eno1" tcp dport 55432 drop comment "public postgres"
 	}
 }
