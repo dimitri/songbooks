@@ -21,6 +21,7 @@ func SongMap(text string) string {
 		}
 	}
 	doc.head = head
+	doc.secs = dropLeadingEmpty(doc.secs)
 	var labels []string
 	for si := range doc.secs {
 		sec := &doc.secs[si]
@@ -70,4 +71,38 @@ func collapseBlankRuns(s string) string {
 		s = strings.ReplaceAll(s, "\n\n\n", "\n\n")
 	}
 	return strings.TrimLeft(s, "\n")
+}
+
+// dropLeadingEmpty leaves out the sections before the first one with
+// anything in it (a grid, lyrics, a score, a directive): an empty label
+// at the very top (a fetched chart's "[Verse]" before its Intro) repeats
+// nothing and carries no chords on. Bare sections after real ones stay:
+// there they mean "again" or "the chords carry on".
+func dropLeadingEmpty(secs []srcSection) []srcSection {
+	for i, sec := range secs {
+		for _, l := range sec.lines {
+			if l.kind != lkBlank && l.kind != lkComment {
+				return secs[i:]
+			}
+		}
+	}
+	return secs
+}
+
+// TidyMap is SongMap's structural cleanup for a song already saved as a
+// song map: the empty sections at the top left out, and its "map:" line
+// redone. Lyrics stay. It reports how many sections went.
+func TidyMap(body string) (string, int) {
+	doc := scanDoc(body)
+	before := len(doc.secs)
+	doc.secs = dropLeadingEmpty(doc.secs)
+	gone := before - len(doc.secs)
+	if gone == 0 {
+		return body, 0
+	}
+	var labels []string
+	for _, sec := range doc.secs {
+		labels = append(labels, strings.TrimSpace(sec.label))
+	}
+	return collapseBlankRuns(setMapHeader(doc.render(), strings.Join(labels, " · "))), gone
 }

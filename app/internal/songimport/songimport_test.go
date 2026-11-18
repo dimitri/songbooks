@@ -73,3 +73,20 @@ func TestBeatsPerBar(t *testing.T) {
 		}
 	}
 }
+
+func TestSameTitle(t *testing.T) {
+	for _, c := range []struct {
+		a, b string
+		same bool
+	}{
+		{"This Love", "So This Is Love", false},
+		{"This Love", "this love", true},
+		{"Girl from Ipanema, The", "The Girl From Ipanema", true},
+		{"Ça c'est vraiment toi", "Ca c'est vraiment toi", true},
+		{"Spain", "Spain (Chick Corea)", false},
+	} {
+		if got := sameTitle(c.a, c.b); got != c.same {
+			t.Errorf("sameTitle(%q, %q) = %v", c.a, c.b, got)
+		}
+	}
+}
