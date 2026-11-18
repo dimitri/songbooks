@@ -1,0 +1,305 @@
+{{/* A coaching community's repertoire and its events' programs
+     (coach_program.go, docs/coaching.md). */}}
+
+{{/* A key and its offset: "A (+2)", "G (original)", or just "+2" for a
+     song in no known key. Needs dict Name, N. */}}
+{{define "key-off"}}{{if .Name}}{{.Name}} ({{end}}{{if .N}}{{if gt .N 0}}+{{end}}{{.N}}{{else}}{{t "original"}}{{end}}{{if .Name}}){{end}}{{end}}
+
+{{define "coaching_repertoire"}}
+{{$brand := brandFor "community" .Community.ID}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+{{template "coaching-head"}}
+<title>{{t "Students’ songs"}} — {{.Community.Name}}</title>
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content" data-community="{{.Community.ID}}">
+<header class="app-header">
+  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
+  <h1>{{t "Students’ songs"}}</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index">
+  {{template "brand-banner" $brand}}
+  {{template "community-tabs" .}}
+  {{if .Events}}
+  <section class="home-section">
+    <div class="home-section-head"><h3>{{t "Coming up"}}</h3></div>
+    <div class="program-events">
+      {{range .Events}}
+      <a class="program-event" href="/communities/{{$.Community.ID}}/events/{{.ID}}/program">
+        <strong>{{.Name}}</strong>
+        <span class="hint">{{date .StartsAt "Mon 2 Jan, 15:04"}}{{with .Location}} · {{.}}{{end}}</span>
+        <span class="program-event-count">{{if .SongCount}}{{tn .SongCount "%d song" "%d songs"}}{{else}}{{t "No program yet"}}{{end}}</span>
+      </a>
+      {{end}}
+    </div>
+  </section>
+  {{end}}
+  <section class="home-section">
+    <div class="home-section-head"><h3>{{t "Your students’ songs"}}</h3><span class="count">{{len .Songs}}</span></div>
+    {{if .Songs}}
+    <p class="hint">{{t "Every song your students and groups have, each in their key. Tick songs to plan them for an open mic or a concert."}}</p>
+    <input type="search" class="repertoire-filter" placeholder="{{t "Filter by song, artist or singer"}}" aria-label="{{t "Filter by song, artist or singer"}}">
+    <ul class="repertoire">
+      {{range .Songs}}
+      <li class="repertoire-song" data-search="{{.Search}}">
+        <label class="repertoire-pick"><input type="checkbox" value="{{.VariantID}}" aria-label="{{t "Pick %s" .Title}}"></label>
+        <div class="repertoire-body">
+          <a class="repertoire-title" href="/song/{{.VariantID}}"><strong>{{.Title}}</strong>{{with .Artist}} <span class="hint">{{.}}</span>{{end}}{{with .Key}} <span class="repertoire-key">{{.}}</span>{{end}}</a>
+          <div class="repertoire-singers">
+            {{range .Singers}}<a class="singer-chip{{if eq .Kind "group"}} is-group{{end}}" href="/communities/{{$.Community.ID}}/{{if eq .Kind "group"}}groups/{{.GroupID}}{{else}}students/{{.PersonID}}{{end}}">{{.Name}} <b>{{template "key-off" (dict "Name" .KeyName "N" .Semitones)}}</b></a>{{end}}
+          </div>
+        </div>
+        <span class="repertoire-count hint">{{len .Singers}}</span>
+      </li>
+      {{end}}
+    </ul>
+    <p class="hint repertoire-none" hidden>{{t "No song matches."}}</p>
+    {{else}}
+    <p class="hint">{{t "No songs yet: give your students songs from their page, or from a song’s Key panel."}}</p>
+    {{end}}
+  </section>
+  <div class="repertoire-bar" hidden>
+    <span class="repertoire-bar-count"></span>
+    <button type="button" class="link-btn repertoire-clear">{{t "Clear"}}</button>
+    <button type="button" class="primary repertoire-plan">{{t "Plan for an event…"}}</button>
+  </div>
+  <dialog class="program-plan-dialog">
+    <form method="dialog" class="form-stack program-plan-form">
+      <h2>{{t "Plan for an event"}}</h2>
+      <p class="hint program-plan-what"></p>
+      <fieldset class="program-plan-events">
+        <legend>{{t "Event"}}</legend>
+        {{range .Events}}<label class="program-plan-choice"><input type="radio" name="event" value="{{.ID}}"> <span><strong>{{.Name}}</strong> <span class="hint">{{date .StartsAt "Mon 2 Jan"}}{{if .SongCount}} · {{tn .SongCount "%d song" "%d songs"}}{{end}}</span></span></label>{{end}}
+        <label class="program-plan-choice"><input type="radio" name="event" value="new"{{if not .Events}} checked{{end}}> <span><strong>{{t "A new event"}}</strong></span></label>
+      </fieldset>
+      <div class="program-plan-new"{{if .Events}} hidden{{end}}>
+        <div class="field"><label for="plan-name">{{t "Name"}}</label><input id="plan-name" name="name" placeholder="{{t "End-of-year concert"}}"></div>
+        <div class="field"><label for="plan-type">{{t "Kind"}}</label>
+          <select id="plan-type" name="type"><option value="concert">{{t "Concert"}}</option><option value="open_mic">{{t "Open mic"}}</option><option value="masterclass">{{t "Master class"}}</option></select></div>
+        <div class="field"><label for="plan-start">{{t "Date and time"}}</label><input id="plan-start" name="start" type="datetime-local"></div>
+        <div class="field"><label for="plan-location">{{t "Place"}}</label><input id="plan-location" name="location"></div>
+      </div>
+      <p class="form-status" role="status"></p>
+      <div class="form-actions">
+        <button type="button" class="link-btn program-plan-cancel">{{t "Cancel"}}</button>
+        <button type="submit" class="primary" value="go">{{t "Plan"}}</button>
+      </div>
+    </form>
+  </dialog>
+</main>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+<script>
+(() => {
+  const community = document.querySelector('[data-community]').dataset.community;
+  const rows = [...document.querySelectorAll('.repertoire-song')];
+  const filter = document.querySelector('.repertoire-filter');
+  const none = document.querySelector('.repertoire-none');
+  const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  filter?.addEventListener('input', () => {
+    const q = fold(filter.value.trim());
+    let shown = 0;
+    rows.forEach((r) => { const on = !q || fold(r.dataset.search).includes(q); r.hidden = !on; shown += on; });
+    if (none) none.hidden = shown > 0;
+  });
+  const bar = document.querySelector('.repertoire-bar');
+  const picked = () => rows.map((r) => r.querySelector('input')).filter((i) => i.checked).map((i) => Number(i.value));
+  const sync = () => {
+    const n = picked().length;
+    bar.hidden = !n;
+    bar.querySelector('.repertoire-bar-count').textContent = tn(n, '%d song picked', '%d songs picked');
+    rows.forEach((r) => r.classList.toggle('is-picked', r.querySelector('input').checked));
+  };
+  rows.forEach((r) => r.querySelector('input').addEventListener('change', sync));
+  bar?.querySelector('.repertoire-clear').addEventListener('click', () => { rows.forEach((r) => { r.querySelector('input').checked = false; }); sync(); });
+  const dlg = document.querySelector('.program-plan-dialog');
+  const form = dlg?.querySelector('form');
+  const fresh = dlg?.querySelector('.program-plan-new');
+  const status = dlg?.querySelector('.form-status');
+  form?.addEventListener('change', (e) => { if (e.target.name === 'event') fresh.hidden = e.target.value !== 'new'; });
+  bar?.querySelector('.repertoire-plan').addEventListener('click', () => {
+    dlg.querySelector('.program-plan-what').textContent = tn(picked().length, '%d song to add to the program.', '%d songs to add to the program.');
+    status.textContent = '';
+    dlg.showModal();
+  });
+  dlg?.querySelector('.program-plan-cancel').addEventListener('click', () => dlg.close());
+  form?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const choice = form.querySelector('input[name="event"]:checked');
+    if (!choice) { status.textContent = t('Pick an event, or a new one.'); return; }
+    const body = { variantIds: picked() };
+    if (choice.value === 'new') {
+      body.name = form.name.value.trim();
+      body.eventType = form.type.value;
+      body.startsAt = form.start.value;
+      body.location = form.location.value.trim();
+      if (!body.name || !body.startsAt) { status.textContent = t('A new event needs a name, a date and a time.'); return; }
+    } else {
+      body.eventId = Number(choice.value);
+    }
+    fetch(`/api/communities/${community}/program-plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+      .then((d) => { location.href = d.url; })
+      .catch(() => { status.textContent = t('Couldn’t plan it. Try again.'); });
+  });
+})();
+</script>
+</body>
+</html>
+{{end}}
+
+{{define "coaching_program"}}
+{{$brand := brandFor "community" .Community.ID}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+{{template "coaching-head"}}
+<title>{{.Event.Name}} — {{t "Program"}}</title>
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content" data-community="{{.Community.ID}}" data-event="{{.Event.ID}}">
+<header class="app-header">
+  {{if .IsCoach}}<a class="back-link" href="/communities/{{.Community.ID}}/student-songs">{{template "icon-back"}} {{t "Students’ songs"}}</a>
+  {{else}}<a class="back-link" href="/events/{{.Event.ID}}">{{template "icon-back"}} {{.Event.Name}}</a>{{end}}
+  <h1>{{.Event.Name}}</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index">
+  {{template "brand-banner" $brand}}
+  <p class="program-when">{{date .Event.StartsAt "Monday 2 January 2006, 15:04"}}{{with .Event.Location}} · {{.}}{{end}} · <a href="/events/{{.Event.ID}}">{{t "The event"}}</a></p>
+  <section class="home-section">
+    <div class="home-section-head"><h3>{{t "Program"}}</h3><span class="count">{{len .Program}}</span></div>
+    {{if .Program}}
+    <ol class="program">
+      {{range $i, $p := .Program}}
+      <li class="program-song{{with .Mine}} is-mine{{end}}" data-id="{{.ID}}" data-key="{{.Key}}">
+        <span class="program-num">{{add1 $i}}</span>
+        <div class="program-body">
+          <div class="program-head">
+            <a class="program-title" href="/song/{{.VariantID}}?event={{$.Event.ID}}"><strong>{{.Title}}</strong>{{with .Artist}} <span class="hint">{{.}}</span>{{end}}</a>
+            {{if $.IsCoach}}
+            <span class="coach-key program-key" title="{{t "the key it will be sung in"}}">
+              <button type="button" class="program-key-down" aria-label="{{t "down a semitone"}}">−</button>
+              <output data-semitones="{{.Semitones}}">{{template "coach-key-name" .}}</output>
+              <button type="button" class="program-key-up" aria-label="{{t "up a semitone"}}">+</button>
+            </span>
+            {{else}}<span class="coach-key-label">{{t "Key"}} {{template "coach-key-name" .}}</span>{{end}}
+          </div>
+          {{with .Mine}}<p class="program-mine">{{if eq . "lead"}}{{t "You sing lead."}}{{else}}{{t "You sing backing vocals."}}{{end}}</p>{{end}}
+          {{if $.IsCoach}}
+          <div class="program-parts">
+            <label class="program-lead">{{t "Lead"}}
+              <select aria-label="{{t "Lead singer of %s" .Title}}">
+                <option value="0">{{t "— nobody yet —"}}</option>
+                {{range .Candidates}}<option value="{{.PersonID}}"{{if .Lead}} selected{{end}}>{{.Name}}{{if .HasIt}} · {{.KeyName}}{{if .KeyName}} {{end}}✓{{end}}</option>{{end}}
+              </select>
+            </label>
+            <div class="program-backing" role="group" aria-label="{{t "Backing vocals"}}">
+              <span class="program-label">{{t "Backing vocals"}}</span>
+              {{$others := 0}}{{range .Candidates}}{{if not (or .HasIt .Backing)}}{{$others = add1 $others}}{{end}}<button type="button" class="singer-chip program-back{{if .HasIt}} has-it{{else if not .Backing}} is-other{{end}}" data-person="{{.PersonID}}" aria-pressed="{{.Backing}}"{{if .Lead}} hidden{{end}}>{{.Name}}</button>{{end}}
+              {{if $others}}<button type="button" class="link-btn program-others" aria-expanded="false">{{tn $others "+%d other" "+%d others"}}</button>{{end}}
+            </div>
+          </div>
+          {{else}}
+          <p class="program-who">{{with .Lead}}<span>{{t "Lead"}}: <strong>{{.Name}}</strong></span>{{end}}{{if .Backing}} <span>{{t "Backing vocals"}}: {{range $j, $b := .Backing}}{{if $j}}, {{end}}{{$b.Name}}{{end}}</span>{{end}}</p>
+          {{end}}
+          {{if and $.IsCoach .Has}}<p class="hint program-has">{{t "Have it:"}} {{range $j, $h := .Has}}{{if $j}} · {{end}}{{$h.Name}} {{template "key-off" (dict "Name" $h.KeyName "N" $h.Semitones)}}{{end}}</p>{{end}}
+        </div>
+        {{if $.IsCoach}}
+        <div class="program-tools">
+          <button type="button" class="icon-btn program-up" aria-label="{{t "Move up"}}"{{if eq $i 0}} disabled{{end}}>↑</button>
+          <button type="button" class="icon-btn program-down" aria-label="{{t "Move down"}}"{{if eq (add1 $i) (len $.Program)}} disabled{{end}}>↓</button>
+          <button type="button" class="icon-btn program-remove" aria-label="{{t "Take %s out" .Title}}">{{template "icon-close"}}</button>
+        </div>
+        {{end}}
+      </li>
+      {{end}}
+    </ol>
+    {{else}}
+    <p class="hint">{{t "No songs yet."}}{{if .IsCoach}} {{t "Pick them from your students’ songs, or add one below."}}{{end}}</p>
+    {{end}}
+    {{if and .IsCoach .AddSongs}}
+    <form class="coach-add-song program-add">
+      <select class="coach-add-variant" aria-label="{{t "A song to add"}}">{{range .AddSongs}}<option value="{{.VariantID}}">{{.Title}}{{with .Artist}} — {{.}}{{end}}</option>{{end}}</select>
+      <button type="submit" class="primary">{{t "Add"}}</button>
+    </form>
+    {{end}}
+  </section>
+  {{if .Tally}}
+  <section class="home-section">
+    <div class="home-section-head"><h3>{{t "Who sings what"}}</h3></div>
+    <ul class="program-tally">
+      {{range .Tally}}<li><strong>{{.Name}}</strong> <span class="hint">{{if .Lead}}{{tn .Lead "lead on %d song" "lead on %d songs"}}{{end}}{{if and .Lead .Backing}} · {{end}}{{if .Backing}}{{tn .Backing "backing on %d" "backing on %d"}}{{end}}</span></li>{{end}}
+    </ul>
+  </section>
+  {{end}}
+</main>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+{{if .IsCoach}}
+<script>
+(() => {
+  const root = document.querySelector('[data-event]');
+  const api = `/api/communities/${root.dataset.community}/events/${root.dataset.event}/program`;
+  const send = (url, method, body) => fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) })
+    .then((r) => { if (!r.ok) throw new Error(); return r.status === 204 ? null : r.json(); });
+  const fail = () => alert(t('Couldn’t save that. Try again.'));
+  const keyText = (name, n) => {
+    const off = n ? (n > 0 ? '+' : '') + n : t('original');
+    return name ? `${name} (${off})` : off;
+  };
+  document.querySelectorAll('.program-song').forEach((row) => {
+    const url = `${api}/${row.dataset.id}`;
+    const out = row.querySelector('.program-key output');
+    const showKey = (d) => { out.dataset.semitones = d.semitones; out.textContent = keyText(d.keyName, d.semitones); };
+    const key = (d) => {
+      const n = Math.max(-12, Math.min(12, (parseInt(out.dataset.semitones, 10) || 0) + d));
+      send(`${url}/key`, 'PUT', { semitones: n }).then(showKey).catch(fail);
+    };
+    row.querySelector('.program-key-down').addEventListener('click', () => key(-1));
+    row.querySelector('.program-key-up').addEventListener('click', () => key(1));
+    const lead = row.querySelector('.program-lead select');
+    lead.addEventListener('change', () => {
+      const personId = Number(lead.value);
+      send(`${url}/lead`, 'PUT', { personId }).then((d) => {
+        showKey(d);
+        row.querySelectorAll('.program-back').forEach((b) => {
+          const isLead = Number(b.dataset.person) === personId;
+          b.hidden = isLead;
+          if (isLead) b.setAttribute('aria-pressed', 'false');
+        });
+      }).catch(fail);
+    });
+    row.querySelector('.program-others')?.addEventListener('click', (e) => {
+      const open = row.classList.toggle('show-others');
+      e.target.setAttribute('aria-expanded', String(open));
+    });
+    row.querySelectorAll('.program-back').forEach((b) => b.addEventListener('click', () => {
+      const on = b.getAttribute('aria-pressed') !== 'true';
+      send(`${url}/backing`, 'PUT', { personId: Number(b.dataset.person), on }).then(() => b.setAttribute('aria-pressed', String(on))).catch(fail);
+    }));
+    const move = (delta) => send(`${url}/move`, 'POST', { delta }).then(() => location.reload()).catch(fail);
+    row.querySelector('.program-up').addEventListener('click', () => move(-1));
+    row.querySelector('.program-down').addEventListener('click', () => move(1));
+    row.querySelector('.program-remove').addEventListener('click', () => send(url, 'DELETE').then(() => location.reload()).catch(fail));
+  });
+  document.querySelector('.program-add')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const variantId = Number(e.target.querySelector('.coach-add-variant').value);
+    send(api, 'POST', { variantIds: [variantId] }).then(() => location.reload()).catch(fail);
+  });
+})();
+</script>
+{{end}}
+</body>
+</html>
+{{end}}

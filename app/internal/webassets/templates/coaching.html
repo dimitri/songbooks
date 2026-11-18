@@ -12,6 +12,7 @@
     {{if .Community.IsCoaching}}
       {{if .IsStaff}}<a class="band-tab{{if eq .Tab "students"}} active{{end}}" href="/communities/{{.Community.ID}}/students">{{t "Students"}}</a>
       {{else}}<a class="band-tab{{if eq .Tab "voice"}} active{{end}}" href="/communities/{{.Community.ID}}/students/{{.Person.ID}}">{{t "My voice"}}</a>{{end}}
+      {{if .IsStaff}}<a class="band-tab{{if eq .Tab "repertoire"}} active{{end}}" href="/communities/{{.Community.ID}}/student-songs">{{t "Students’ songs"}}</a>{{end}}
       <a class="band-tab{{if eq .Tab "groups"}} active{{end}}" href="/communities/{{.Community.ID}}/groups">{{template "coach-groups-label"}}</a>
       <a class="band-tab{{if eq .Tab "lessons"}} active{{end}}" href="/communities/{{.Community.ID}}/lessons">{{t "Lessons"}}</a>
     {{end}}
@@ -24,6 +25,7 @@
 {{/* The coaching tabs alone, for the community pages with their own tab
      bar. Needs .Community, .IsStaff. */}}
 {{define "coaching-tab-links"}}{{if .Community.IsCoaching}}<a class="band-tab" href="/communities/{{.Community.ID}}/students">{{if .IsStaff}}{{t "Students"}}{{else}}{{t "My voice"}}{{end}}</a>
+    {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/student-songs">{{t "Students’ songs"}}</a>{{end}}
     <a class="band-tab" href="/communities/{{.Community.ID}}/groups">{{template "coach-groups-label"}}</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/lessons">{{t "Lessons"}}</a>{{end}}{{end}}
 

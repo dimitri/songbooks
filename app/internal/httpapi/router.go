@@ -416,6 +416,17 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/communities/{id}/groups/{groupID}/members", s.requireCommunityMember(s.handlePutCoachingGroupMembers))
 	mux.HandleFunc("DELETE /api/communities/{id}/groups/{groupID}", s.requireCommunityMember(s.handleDeleteCoachingGroup))
 	mux.HandleFunc("GET /communities/{id}/lessons", s.requireCommunityMember(s.handleCoachingLessonsPage))
+	// The repertoire: every song the students and groups have, in their
+	// keys; an event's program, planned from it (coach_program.go).
+	mux.HandleFunc("GET /communities/{id}/student-songs", s.requireCommunityMember(s.handleCoachRepertoirePage))
+	mux.HandleFunc("POST /api/communities/{id}/program-plan", s.requireCommunityMember(s.handlePostProgramPlan))
+	mux.HandleFunc("GET /communities/{id}/events/{eventID}/program", s.requireCommunityMember(s.handleEventProgramPage))
+	mux.HandleFunc("POST /api/communities/{id}/events/{eventID}/program", s.requireCommunityMember(s.handlePostProgramSongs))
+	mux.HandleFunc("PUT /api/communities/{id}/events/{eventID}/program/{programID}/key", s.requireCommunityMember(s.handlePutProgramKey))
+	mux.HandleFunc("PUT /api/communities/{id}/events/{eventID}/program/{programID}/lead", s.requireCommunityMember(s.handlePutProgramLead))
+	mux.HandleFunc("PUT /api/communities/{id}/events/{eventID}/program/{programID}/backing", s.requireCommunityMember(s.handlePutProgramBacking))
+	mux.HandleFunc("POST /api/communities/{id}/events/{eventID}/program/{programID}/move", s.requireCommunityMember(s.handlePostProgramMove))
+	mux.HandleFunc("DELETE /api/communities/{id}/events/{eventID}/program/{programID}", s.requireCommunityMember(s.handleDeleteProgramSong))
 	mux.HandleFunc("POST /api/communities/{id}/lessons", s.requireCommunityMember(s.handlePostCoachingLesson))
 	mux.HandleFunc("PUT /api/communities/{id}/lessons/{eventID}/students", s.requireCommunityMember(s.handlePutCoachingLessonStudents))
 	mux.HandleFunc("DELETE /api/communities/{id}/lessons/{eventID}", s.requireCommunityMember(s.handleDeleteCoachingLesson))

@@ -6829,3 +6829,66 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .calendar-subscribe-copy { display: flex; gap: 0.4rem; }
 .calendar-subscribe-copy input { flex: 1; min-width: 0; min-height: 2.5rem; font: inherit; font-size: 0.85rem; }
 .topbar-meta-item.key-context { color: var(--accent-ink); font-weight: 600; }
+
+/* A coaching community's repertoire and an event's program
+   (coach_program.html): every song the students have, each singer's key
+   on a chip; the program's songs in order, lead and backing vocals. */
+.singer-chip { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.15rem 0.55rem; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); font: inherit; font-size: 0.8rem; text-decoration: none; white-space: nowrap; }
+.singer-chip b { font-weight: 600; color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+.singer-chip.is-group { border-style: dashed; }
+a.singer-chip:hover { border-color: var(--border-strong); }
+.repertoire-filter { width: 100%; max-width: 26rem; margin: 0.4rem 0 0.8rem; }
+.repertoire { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); }
+.repertoire-song { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 0.7rem; padding: 0.6rem 0.8rem; border-top: 1px solid var(--border); }
+.repertoire-song:first-child { border-top: 0; }
+.repertoire-song[hidden] { display: none; }
+.repertoire-song.is-picked { background: var(--accent-bg); }
+.repertoire-pick { display: flex; align-items: center; min-height: 1.6rem; }
+.repertoire-pick input { width: 1.15rem; height: 1.15rem; }
+.repertoire-body { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+.repertoire-title { color: inherit; text-decoration: none; }
+.repertoire-key { font-size: 0.78rem; font-weight: 700; padding: 0 0.35rem; border-radius: 4px; background: var(--bg-sunken); }
+.repertoire-singers { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.repertoire-count { font-variant-numeric: tabular-nums; }
+.repertoire-bar { position: sticky; bottom: calc(var(--tabbar-h, 0px) + 0.6rem); z-index: 20; display: flex; align-items: center; gap: 0.8rem; margin-top: 0.8rem; padding: 0.6rem 0.8rem; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-raised); box-shadow: var(--shadow); }
+.repertoire-bar[hidden] { display: none; }
+.repertoire-bar-count { flex: 1; font-weight: 600; }
+.program-plan-dialog { max-width: 28rem; width: calc(100vw - 2rem); border: 1px solid var(--border); border-radius: 14px; background: var(--bg-raised); color: var(--fg); padding: 1.2rem; }
+.program-plan-dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
+.program-plan-dialog h2 { margin: 0; font-size: 1.15rem; }
+.program-plan-events { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.program-plan-events legend { font-weight: 600; margin-bottom: 0.3rem; }
+.program-plan-choice { display: flex; align-items: center; gap: 0.55rem; padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.program-plan-choice:has(input:checked) { border-color: var(--accent); background: var(--accent-bg); }
+.program-plan-new[hidden] { display: none; }
+.program-events { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.6rem; }
+.program-event { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.7rem 0.9rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); color: inherit; text-decoration: none; }
+.program-event:hover { border-color: var(--border-strong); }
+.program-event-count { font-size: 0.82rem; font-weight: 600; color: var(--accent-ink); }
+.program-when { color: var(--fg-muted); margin: 0 0 0.6rem; }
+.program { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.program-song { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; gap: 0.6rem; align-items: start; padding: 0.75rem 0.8rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); }
+.program-song.is-mine { border-color: var(--accent); }
+.program-num { font-size: 1.2rem; font-weight: 800; color: var(--fg-muted); text-align: center; font-variant-numeric: tabular-nums; line-height: 1.6rem; }
+.program-body { display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; }
+.program-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.8rem; justify-content: space-between; }
+.program-title { color: inherit; text-decoration: none; min-width: 0; }
+.program-mine { margin: 0; font-weight: 600; color: var(--accent-ink); }
+.program-parts { display: flex; flex-direction: column; gap: 0.4rem; }
+.program-lead { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; }
+.program-lead select { max-width: 100%; }
+.program-backing { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.program-label { font-size: 0.85rem; font-weight: 600; margin-right: 0.2rem; }
+.program-back { cursor: pointer; color: var(--fg-muted); }
+.program-back.has-it { color: var(--fg); }
+.program-back[aria-pressed="true"] { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.program-back[hidden], .program-song:not(.show-others) .program-back.is-other { display: none; }
+.program-others { font-size: 0.8rem; }
+.program-has, .program-who { margin: 0; font-size: 0.82rem; }
+.program-who span + span { margin-left: 0.6rem; }
+.program-tools { display: flex; flex-direction: column; gap: 0.2rem; }
+.program-tally { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+@media (max-width: 720px) {
+  .program-song { grid-template-columns: 1.5rem minmax(0, 1fr); }
+  .program-tools { grid-column: 2; flex-direction: row; justify-content: flex-end; }
+}

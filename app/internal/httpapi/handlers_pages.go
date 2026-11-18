@@ -3008,6 +3008,32 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// From a coaching event's program (coach_program.go): the song in the
+	// key it will be sung in there, back to the program, its running order
+	// for previous and next.
+	if eventParam := r.URL.Query().Get("event"); eventParam != "" && data["SetlistRef"] == nil && data["SongbookRef"] == nil {
+		if eventID, err := strconv.ParseInt(eventParam, 10, 64); err == nil {
+			if ev, err := s.store.GetEvent(r.Context(), eventID); err == nil && ev.OwnerKind == "community" {
+				member := person.IsAdmin
+				if !member {
+					member, _ = s.store.IsCurrentCommunityMember(r.Context(), ev.OwnerCommunityID, person.ID)
+				}
+				if n, ok, err := s.store.ProgramKeyOf(r.Context(), ev.ID, variantID); member && err == nil && ok {
+					data["EventRef"] = ev.ID
+					data["StudentKey"], data["StudentKeySet"], data["KeyContext"] = n, true, ev.Name
+					data["LessonHref"], data["LessonLabel"] = fmt.Sprintf("/communities/%d/events/%d/program", ev.OwnerCommunityID, ev.ID), ev.Name
+					if prev, next, err := s.store.ProgramNeighbors(r.Context(), ev.ID, variantID); err == nil {
+						if prev != 0 {
+							data["Prev"] = s.loadSongNeighbor(prev)
+						}
+						if next != 0 {
+							data["Next"] = s.loadSongNeighbor(next)
+						}
+					}
+				}
+			}
+		}
+	}
 	if bandParam := r.URL.Query().Get("band"); bandParam != "" {
 		if bandID, err := strconv.ParseInt(bandParam, 10, 64); err == nil {
 			if b, err := s.store.GetBand(r.Context(), bandID); err == nil {

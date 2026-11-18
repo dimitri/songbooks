@@ -357,6 +357,9 @@ func (st *Store) SongBody(ctx context.Context, variantID int64) (string, error) 
 
 // foldName is a name to sort by: lower case, accents off ("Léa" with
 // "Lea", before "Lucas").
+// FoldName is a name to sort people by: accents and case left out.
+func FoldName(s string) string { return foldName(s) }
+
 func foldName(s string) string {
 	var b strings.Builder
 	for _, r := range norm.NFD.String(strings.ToLower(s)) {
