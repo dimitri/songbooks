@@ -168,8 +168,15 @@ func runSongCommand(cmd string, args []string) {
 			for _, id := range songbookSongs(ctx, st, *songbookID) {
 				title, _, _, _, _ := st.VariantContent(ctx, id)
 				fmt.Printf("== %d %s\n", id, title)
-				if s := recordingState(ctx, st, id); !s.Has || s.StemStatus != "done" {
+				s := recordingState(ctx, st, id)
+				if !s.Has || s.StemStatus != "done" {
 					fmt.Println("  not split into voice and backing yet: skipped")
+					continue
+				}
+				// A songbook is synced in passes as its songs are split:
+				// those synced already are left as they are.
+				if s.Markers > 0 && !*overwrite {
+					fmt.Println("  synced already: skipped (--overwrite to redo)")
 					continue
 				}
 				if err := syncSongErr(ctx, st, id, actor, *overwrite, *dryRun); err != nil {
