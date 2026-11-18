@@ -1078,8 +1078,23 @@
         <p class="hint">{{t "Pulls a chord+lyric chart in from Ultimate Guitar, reviews the draft, then applies it — nothing is written until you confirm."}}</p>
         <div class="import-row">
           <button type="button" id="import-auto-find-btn" class="primary">{{template "icon-view"}} {{t "Find & fetch automatically"}}</button>
+          <button type="button" id="import-vocal-btn">{{template "icon-view"}} {{t "Lyrics and iReal Pro grids, for singers"}}</button>
           <span id="import-auto-find-status" class="hint" role="status"></span>
         </div>
+        {{/* The steps that work on the song as it is: lyrics into its
+             sections, its reference recording, tempo/metre/key and
+             sync from that recording, iReal Pro's chords, cleanup
+             (internal/songimport). */}}
+        <h3 class="import-subhead">{{t "On this song as it is"}}</h3>
+        <div class="import-actions">
+          <button type="button" data-goto="lyrics">{{t "Add lyrics only"}}</button>
+          <button type="button" data-goto="recording">{{t "Reference recording"}}</button>
+          <button type="button" data-goto="sync">{{t "Tempo, time, key and sync"}}</button>
+          <button type="button" id="import-source-ireal-btn">{{t "Fix chords with iReal Pro"}}</button>
+          <button type="button" id="import-source-clean-btn">{{t "Clean up the source"}}</button>
+        </div>
+        <p id="import-source-status" class="hint" role="status"></p>
+        <div id="import-source-ireal-candidates" class="import-ireal-candidates"></div>
         <details class="import-manual-details">
           <summary>{{t "Or find it yourself"}}</summary>
           <div class="import-search-links" id="import-search-links"></div>
@@ -1103,6 +1118,11 @@
         <label class="import-url-label" for="import-review-text">{{t "Draft chart"}}</label>
         <textarea id="import-review-text" class="import-review-text" rows="14" spellcheck="false" autocapitalize="off" aria-describedby="import-review-hint"></textarea>
         <label class="import-strip-chords-label"><input type="checkbox" id="import-strip-chords"> {{t "Keep chords in the grid only, and take them out of the lyrics"}}</label>
+        <div class="import-row">
+          <button type="button" id="import-clean-btn">{{t "Clean up the draft"}}</button>
+          <button type="button" id="import-key-btn">{{t "Check the key"}}</button>
+        </div>
+        <ul id="import-clean-notes" class="import-notes"></ul>
 
         {{/* iReal Pro bar-accurate chord reference — an enrichment of
              the UG draft above, never a replacement: iReal has no
@@ -1124,6 +1144,54 @@
         <div class="import-row">
           <button type="button" id="import-apply-btn" class="primary">{{template "icon-plus"}} {{t "Accept & insert into Source"}}</button>
           <span id="import-apply-status" class="hint"></span>
+        </div>
+      </div>
+
+      <div class="import-step" data-step="lyrics" hidden>
+        <button type="button" class="import-back" data-back="find">{{template "icon-back"}} {{t "Back"}}</button>
+        <p class="hint">{{t "Puts lyrics into this song's sections: the first verse's into the first verse, the chorus's into every chorus. Grids and everything else stay as they are. Check where each stanza went, then put the result into Source."}}</p>
+        <fieldset class="import-lyrics-source">
+          <legend>{{t "Lyrics from"}}</legend>
+          <label><input type="radio" name="import-lyrics-source" value="ug" checked> {{t "Ultimate Guitar, found automatically"}}</label>
+          <label><input type="radio" name="import-lyrics-source" value="url"> {{t "A lyrics page"}}</label>
+          <label><input type="radio" name="import-lyrics-source" value="text"> {{t "Text I paste"}}</label>
+        </fieldset>
+        <input type="url" id="import-lyrics-url" hidden placeholder="{{t "Address of the lyrics page"}}" autocomplete="off" autocapitalize="none" spellcheck="false">
+        <textarea id="import-lyrics-text" class="import-review-text" rows="8" hidden placeholder="{{t "Paste the lyrics, a blank line between stanzas"}}"></textarea>
+        <label><input type="checkbox" id="import-lyrics-replace"> {{t "Replace the lyrics already in sections"}}</label>
+        <div class="import-row">
+          <button type="button" id="import-lyrics-btn" class="primary">{{t "Fetch and place"}}</button>
+          <span id="import-lyrics-status" class="hint" role="status"></span>
+        </div>
+        <ul id="import-lyrics-placements" class="import-placements"></ul>
+        <div class="import-row" id="import-lyrics-apply-row" hidden>
+          <button type="button" id="import-lyrics-apply-btn" class="primary">{{template "icon-plus"}} {{t "Put into Source"}}</button>
+        </div>
+      </div>
+
+      <div class="import-step" data-step="recording" hidden>
+        <button type="button" class="import-back" data-back="find">{{template "icon-back"}} {{t "Back"}}</button>
+        <p class="hint">{{t "The recording the chart plays along with: the artist's own studio version is best. Its sound is downloaded and split into voice and backing, which the next step uses."}}</p>
+        <p id="import-yt-current" class="hint"></p>
+        <div class="import-row">
+          <button type="button" id="import-yt-find-btn" class="primary">{{template "icon-view"}} {{t "Find it on YouTube"}}</button>
+          <span id="import-yt-status" class="hint" role="status"></span>
+        </div>
+        <ol id="import-yt-candidates" class="import-yt-candidates"></ol>
+      </div>
+
+      <div class="import-step" data-step="sync" hidden>
+        <button type="button" class="import-back" data-back="find">{{template "icon-back"}} {{t "Back"}}</button>
+        <p class="hint">{{t "Measures the reference recording: its tempo, time signature and key, and where each section starts, so the chart follows the sound from the intro on. Save the chart first: markers go on its saved sections."}}</p>
+        <div class="import-row">
+          <button type="button" id="import-sync-analyze-btn" class="primary">{{t "Analyse the recording"}}</button>
+          <span id="import-sync-status" class="hint" role="status"></span>
+        </div>
+        <div id="import-sync-result" class="import-sync-result"></div>
+        <label id="import-sync-overwrite-label" hidden><input type="checkbox" id="import-sync-overwrite"> {{t "Replace the chart's own tempo and time signature"}}</label>
+        <div class="import-row">
+          <button type="button" id="import-sync-apply-btn" class="primary" hidden>{{t "Save tempo, time and section markers"}}</button>
+          <span id="import-sync-apply-status" class="hint" role="status"></span>
         </div>
       </div>
     </section>

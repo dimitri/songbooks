@@ -1,10 +1,12 @@
 // Package importer fetches a single page the user gives a URL for and pulls
 // out a best-effort draft (lyrics text, or an Ultimate Guitar chord/lyric
-// tab) for the prep editor. Nothing here is ever saved automatically — the
-// result always lands in a textarea the user reviews and fixes, since
-// scraped markup varies by site and changes over time. This is a personal,
-// single-fetch convenience (one URL the user already has), not a search
-// crawler or a bulk-scraping tool.
+// tab) for the prep editor. Nothing here saves anything: in the wizard the
+// result lands in a textarea the user reviews and fixes, since scraped
+// markup varies by site and changes over time; sbcoach's song commands
+// save it as a new revision of the one song they're run on, said so, and
+// the song's history keeps the previous one. This is a personal,
+// one-song-at-a-time convenience, not a search crawler or a bulk-scraping
+// tool.
 package importer
 
 import (

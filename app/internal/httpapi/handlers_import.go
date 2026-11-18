@@ -10,6 +10,7 @@ import (
 	"app/internal/i18n"
 	"app/internal/importer"
 	"app/internal/irealpro"
+	"app/internal/songimport"
 )
 
 type importRequest struct {
@@ -157,38 +158,13 @@ type iRealTuneResult struct {
 // real section letters, so segments (what MergePreviewSegments
 // actually needs) is the right shared shape for both paths.
 func (s *Server) findIRealTune(ctx context.Context, title, artist string) (segments []string, res iRealTuneResult, err error) {
-	if cached, cerr := s.store.FindIRealSong(ctx, title); cerr == nil {
-		return []string{cached.GridText}, iRealTuneResult{
-			Title: cached.Title, Key: cached.Key, Style: cached.Style,
-			SourceURL: cached.SourceURL, Cached: true,
-		}, nil
+	segments, info, err := songimport.FindIReal(ctx, s.store, title, artist)
+	if err != nil {
+		return nil, iRealTuneResult{}, err
 	}
-	tunes, threadURL, ferr := irealpro.FindOnForum(title, artist)
-	if ferr != nil {
-		return nil, iRealTuneResult{}, ferr
-	}
-	// Pick whichever parsed tune's own title best matches what was
-	// asked for (a thread can carry several songs' worth of links).
-	var best *irealpro.Tune
-	bestScore := -1.0
-	wantWords := map[string]bool{}
-	for _, w := range strings.Fields(strings.ToLower(title)) {
-		wantWords[w] = true
-	}
-	for _, t := range tunes {
-		score := 0.0
-		for _, w := range strings.Fields(strings.ToLower(t.Title)) {
-			if wantWords[w] {
-				score++
-			}
-		}
-		if score > bestScore {
-			best, bestScore = t, score
-		}
-	}
-	return best.Segments(), iRealTuneResult{
-		Title: best.Title, Key: best.Key, Style: best.Style,
-		SourceURL: threadURL, Cached: false,
+	return segments, iRealTuneResult{
+		Title: info.Title, Key: info.Key, Style: info.Style,
+		SourceURL: info.SourceURL, Cached: info.Cached,
 	}, nil
 }
 

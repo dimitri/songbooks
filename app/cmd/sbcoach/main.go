@@ -12,8 +12,12 @@
 // community (its songbook, the coach's reference) and puts them in the
 // student's songbook; with --clips (lines "songID<TAB>YouTube URL"), it
 // sets each song's reference video and downloads its sound, which the
-// stems worker then splits (voice and backing). In production it runs
-// inside the app container:
+// stems worker then splits (voice and backing).
+//
+// add, sync, lyrics, ireal and key (songcmds.go) are the import wizard's
+// steps for one song: a new song with its reference recording, chart,
+// lyrics and sections synced to the recording; or one of those steps on
+// an existing song. In production it runs inside the app container:
 //
 //	docker compose exec -T app sbcoach songs --db "$DATABASE_URL" ...
 package main
@@ -43,8 +47,12 @@ const usage = `usage:
   sbcoach locale --db URL (--community ID | --band ID | --person USER) --locale LANG`
 
 func main() {
+	if len(os.Args) >= 2 && songCommands[os.Args[1]] {
+		runSongCommand(os.Args[1], os.Args[2:])
+		return
+	}
 	if len(os.Args) < 2 || (os.Args[1] != "community" && os.Args[1] != "songs" && os.Args[1] != "locale") {
-		log.Fatal(usage)
+		log.Fatal(usage + songUsage)
 	}
 	cmd := os.Args[1]
 	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
