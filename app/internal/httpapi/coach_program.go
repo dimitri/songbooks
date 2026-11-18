@@ -271,7 +271,9 @@ func (s *Server) handleEventProgramPage(w http.ResponseWriter, r *http.Request) 
 			students = append(students, m)
 		}
 	}
-	sort.SliceStable(students, func(i, j int) bool { return store.FoldName(students[i].DisplayName) < store.FoldName(students[j].DisplayName) })
+	sort.SliceStable(students, func(i, j int) bool {
+		return store.FoldName(students[i].DisplayName) < store.FoldName(students[j].DisplayName)
+	})
 	me := personFromContext(r).ID
 	totals := map[int64]*programSingerTotal{}
 	var views []programSongView
