@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -167,7 +168,7 @@ func main() {
 	handler := httpapi.NewServer(st, m, devAutoLogin, *webauthnRPID, *adminFileDir)
 	httpapi.Covers = covers.NewFinder()
 
-	log.Printf("songbooks serving %s on http://%s", *dbURL, *addr)
+	log.Printf("songbooks serving %s on http://%s", redactURL(*dbURL), *addr)
 	log.Fatal(http.ListenAndServe(*addr, handler))
 }
 
@@ -176,4 +177,16 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// redactURL is a connection string with its password masked, for logs.
+func redactURL(s string) string {
+	u, err := url.Parse(s)
+	if err != nil || u.User == nil {
+		return s
+	}
+	if _, ok := u.User.Password(); ok {
+		u.User = url.UserPassword(u.User.Username(), "xxxxx")
+	}
+	return u.String()
 }

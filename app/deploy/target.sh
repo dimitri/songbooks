@@ -20,11 +20,16 @@ case "$TARGET" in
     DEFAULT_DIR="/var/www/songbooks"
     DEFAULT_PORT=8103
     DEFAULT_CONTEXT=default
+    # The default engine can't build: its bridge (docker0) is the CI
+    # engine's, so a build has no network. Images are built on ci-build
+    # and copied over (rollout.sh).
+    BUILD_CONTEXT=ci-build
     ;;
   staging)
     DEFAULT_DIR="~/dev/www/songbooks"
     DEFAULT_PORT=8102
     DEFAULT_CONTEXT=ci-build
+    BUILD_CONTEXT=ci-build
     ;;
   *)
     echo "unknown target \"$TARGET\": prod or staging" >&2
@@ -36,4 +41,6 @@ REMOTE_DIR="${SONGBOOKS_DEPLOY_DIR:-$DEFAULT_DIR}"
 HEALTH_URL="${SONGBOOKS_HEALTH_URL:-http://127.0.0.1:$DEFAULT_PORT/}"
 BACKUP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/backups/$TARGET"
 # Every docker command run on the host for the target goes to its engine.
-DOCKER_ENV="DOCKER_CONTEXT=${SONGBOOKS_DOCKER_CONTEXT:-$DEFAULT_CONTEXT}"
+RUN_CONTEXT="${SONGBOOKS_DOCKER_CONTEXT:-$DEFAULT_CONTEXT}"
+DOCKER_ENV="DOCKER_CONTEXT=$RUN_CONTEXT"
+BUILD_ENV="DOCKER_CONTEXT=$BUILD_CONTEXT"
