@@ -2,7 +2,7 @@
 
 {{/* A lesson's name in a list, "Lesson 3 · Title" (store.Lesson.Label),
      in the page's language. Needs a store.Lesson (or what embeds one). */}}
-{{define "lesson-label"}}{{with .Number}}{{tn . "Lesson %d · " "Lesson %d · "}}{{end}}{{.Title}}{{end}}
+{{define "lesson-label"}}{{with .Number}}{{tn (derefInt .) "Lesson %d · " "Lesson %d · "}}{{end}}{{.Title}}{{end}}
 
 {{define "course-head"}}
 {{$brand := brandOwner .Songbook.OwnerKind .Songbook.OwnerBandID .Songbook.OwnerCommunityID}}
