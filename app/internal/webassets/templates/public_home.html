@@ -1,0 +1,77 @@
+{{define "public_home"}}<!doctype html>
+<html lang="{{lang}}">
+<head>
+<title>Songbooks — {{t "the song, ready to play"}}</title>
+<meta name="description" content="{{t "Charts, recordings and practice tools shared with your band, your students or your choir."}}">
+{{template "public-head" .}}
+</head>
+<body>
+<div class="wrap">
+{{template "public-header" .}}
+
+<section class="hero">
+  <div class="hero-text">
+    <div class="eyebrow">{{t "For bands, teachers, vocal coaches and jams"}}</div>
+    <h1>{{t "The song,"}} <span class="hl">{{t "ready to play."}}</span></h1>
+    <p class="lede">{{t "Its chart, its recording and the tools to work on it, shared with your band, your students or your choir."}}</p>
+    <div class="cta-row">
+      <a class="btn btn-lg" href="/tour">{{t "See it in action"}}</a>
+      {{if .Person}}<a class="btn-outline" href="/home">{{t "My Songbooks"}}</a>{{else}}<a class="btn-outline" href="/login">{{t "Sign in"}}</a>{{end}}
+    </div>
+  </div>
+  {{template "public-shot" (dict "Src" "mixer" "Alt" (t "A song synced to its recording: sections on the bar ruler, the voice and the backing in their own lanes") "Caption" (t "A song synced to its recording from the intro on, the voice and the backing apart."))}}
+</section>
+
+<section class="block" id="doors">
+  <h2>{{t "Who it's for"}}</h2>
+  <p class="sub">{{t "One app, four ways in. Each door shows what Songbooks does for you."}}</p>
+  <div class="doors">
+    <a class="door" href="/for/bands"><span class="who">{{t "Bands"}}</span><h3>{{t "Every song in the set, on every phone."}}</h3><p>{{t "Set lists that play their running order, your own recordings, play-along in the key you play it."}}</p><span class="go">{{t "For bands"}} &rarr;</span></a>
+    <a class="door" href="/for/teachers"><span class="who">{{t "Guitar teachers"}}</span><h3>{{t "Your method online."}}</h3><p>{{t "Courses of lessons, each video beside its score, downloads per course, your own space."}}</p><span class="go">{{t "For teachers"}} &rarr;</span></a>
+    <a class="door" href="/for/vocal-coaches"><span class="who">{{t "Vocal coaches"}}</span><h3>{{t "Each student's songs, in their key."}}</h3><p>{{t "Voice ranges, lessons online or in the room, groups for the year, one calendar for everyone."}}</p><span class="go">{{t "For vocal coaches"}} &rarr;</span></a>
+    <a class="door" href="/for/communities"><span class="who">{{t "Jams and camps"}}</span><h3>{{t "One songbook for the whole jam."}}</h3><p>{{t "Song maps with their grids, the recording synced from the intro, open mics and events."}}</p><span class="go">{{t "For jams and camps"}} &rarr;</span></a>
+  </div>
+</section>
+
+<section class="block">
+  <h2>{{t "How a song gets ready"}}</h2>
+  <p class="sub">{{t "Five steps, each one optional, each one previewed before it goes in. Songbooks does the tedious part; you keep the last word."}}</p>
+  <ol class="steps">
+    <li><b>{{t "Chart"}}</b><span>{{t "Keep yours, or fetch one: chords and sections, cleaned up."}}</span></li>
+    <li><b>{{t "Review"}}</b><span>{{t "Merged into your song's own structure, never pasted below it."}}</span></li>
+    <li><b>{{t "Lyrics"}}</b><span>{{t "Each verse in its verse, the chorus in every chorus."}}</span></li>
+    <li><b>{{t "Recording"}}</b><span>{{t "The artist's own version, split into voice and backing."}}</span></li>
+    <li><b>{{t "Sync"}}</b><span>{{t "Tempo, time signature and key measured; every section on time."}}</span></li>
+  </ol>
+  {{template "public-shot" (dict "Src" "wizard" "Alt" (t "The import wizard's first step: a check of the song and four ways to get its chart") "Caption" (t "The import wizard checks the song first and says which steps are worth doing."))}}
+</section>
+
+<section class="block">
+  <div class="feature">
+    <div class="feature-text">
+      <h2>{{t "Made for the phone in your hand"}}</h2>
+      <p>{{t "At rehearsal, at a lesson, on stage: the chart, the player and every step of the wizard work at phone size, and the next event is the first thing you see."}}</p>
+    </div>
+    <div class="phones">
+      {{template "public-phone" (dict "Src" "phone-home" "Alt" (t "The home page on a phone: what's coming up first"))}}
+      {{template "public-phone" (dict "Src" "phone-wizard" "Alt" (t "The import wizard on a phone"))}}
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="feature flip">
+    <div class="feature-text">
+      <h2>{{t "In English and in French"}}</h2>
+      <p>{{t "The whole app speaks both, and each band, community or member picks theirs: a French coaching studio and an English-speaking band share one app."}}</p>
+    </div>
+    {{template "public-shot" (dict "Src" "community" "Alt" (t "A coaching community's page in French, in its own colours") "Caption" (t "A vocal coaching studio in its own colours and language. Example data."))}}
+  </div>
+</section>
+
+{{template "public-cta" .}}
+{{template "public-footer" .}}
+</div>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,60 @@
+{{define "public_communities"}}<!doctype html>
+<html lang="{{lang}}">
+<head>
+<title>{{t "Songbooks for jams and music camps"}} — Songbooks</title>
+<meta name="description" content="{{t "One songbook for the whole jam: song maps with their grids, the recording synced from the intro, open mics and events."}}">
+{{template "public-head" .}}
+</head>
+<body>
+<div class="wrap">
+{{template "public-header" .}}
+
+<section class="hero">
+  <div class="hero-text">
+    <div class="eyebrow">{{t "For jams and music camps"}}</div>
+    <h1>{{t "One songbook"}} <span class="hl">{{t "for the whole jam."}}</span></h1>
+    <p class="lede">{{t "Every song as a map of its sections and chords, its recording synced from the intro, and the jam's events and open mics on everyone's calendar."}}</p>
+    <div class="cta-row"><a class="btn btn-lg" href="#how">{{t "See how"}}</a>{{if .Person}}<a class="btn-outline" href="/home">{{t "My Songbooks"}}</a>{{else}}<a class="btn-outline" href="/login">{{t "Sign in"}}</a>{{end}}</div>
+  </div>
+  {{template "public-shot" (dict "Src" "jam" "Alt" (t "A jam community's page: its next event, its songbook and its members") "Caption" (t "Example data."))}}
+</section>
+
+<section class="block">
+  <h2>{{t "Before Songbooks"}}</h2>
+  <ul class="pains">
+    <li><b>{{t "A list of titles"}}</b>{{t "Everyone learns a different version."}}</li>
+    <li><b>{{t "Charts in every format"}}</b>{{t "Photos, PDFs, links that died."}}</li>
+    <li><b>{{t "Who plays what, when?"}}</b>{{t "Open mic sign-ups on a napkin."}}</li>
+  </ul>
+</section>
+
+<section class="block" id="how">
+  <div class="feature">
+    <div class="feature-text">
+      <h2>{{t "Song maps everyone reads"}}</h2>
+      <p>{{t "Each song as its sections and their grids: intro, verse, chorus, the bars and the chords. Lyrics where they help."}}</p>
+    </div>
+    {{template "public-shot" (dict "Src" "song-map" "Alt" (t "A song map: its sections with their chord grids"))}}
+  </div>
+  <div class="feature flip">
+    <div class="feature-text">
+      <h2>{{t "The recording, on time"}}</h2>
+      <p>{{t "Each song's reference recording is measured: tempo, time signature, key, and where every section starts, from the intro on."}}</p>
+    </div>
+    {{template "public-shot" (dict "Src" "player" "Alt" (t "The song page player: sections on the timeline, the current bar"))}}
+  </div>
+  <div class="feature">
+    <div class="feature-text">
+      <h2>{{t "Events and open mics"}}</h2>
+      <p>{{t "Sessions and open mics on everyone's home page and in their calendar app; members sign up the songs they'll play."}}</p>
+    </div>
+    <div class="phones">{{template "public-phone" (dict "Src" "phone-home" "Alt" (t "The home page on a phone: what's coming up first"))}}</div>
+  </div>
+</section>
+
+{{template "public-cta" .}}
+{{template "public-footer" .}}
+</div>
+</body>
+</html>
+{{end}}

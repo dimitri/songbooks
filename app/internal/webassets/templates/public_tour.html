@@ -1,0 +1,81 @@
+{{define "public_tour"}}<!doctype html>
+<html lang="{{lang}}">
+<head>
+<title>{{t "A tour of Songbooks"}} — Songbooks</title>
+<meta name="description" content="{{t "One song from its chart to the stage: the song page, the import wizard, the mixer, the set list, the calendar."}}">
+{{template "public-head" .}}
+</head>
+<body>
+<div class="wrap">
+{{template "public-header" .}}
+
+{{/* One song's life in the app, from the chart to the stage, each stop
+     with its screenshot. Example data throughout. */}}
+<section class="hero">
+  <div class="hero-text">
+    <div class="eyebrow">{{t "Tour"}}</div>
+    <h1>{{t "One song,"}} <span class="hl">{{t "from the chart to the stage."}}</span></h1>
+    <p class="lede">{{t "Follow a song through Songbooks: how it gets its chart and its recording, how each musician works on it, how it ends up in the set."}}</p>
+  </div>
+  {{template "public-shot" (dict "Src" "song" "Alt" (t "A song page: the chart with its sections, the player above it") "Caption" (t "Example data."))}}
+</section>
+
+<section class="block">
+  <div class="feature">
+    <div class="feature-text">
+      <div class="eyebrow">1</div>
+      <h2>{{t "The song page"}}</h2>
+      <p>{{t "The chart in your key and your instrument's view: chords and grids, lyrics, tablature, or the Guitar Pro score. Its recording plays above it, the current section lit."}}</p>
+      <ul><li>{{t "Transpose, capo, chord diagrams for guitar, ukulele or piano"}}</li><li>{{t "A lyrics-only view for singers"}}</li><li>{{t "Your own notes on the song, private or shared"}}</li></ul>
+    </div>
+    {{template "public-shot" (dict "Src" "player" "Alt" (t "The song page player: sections on the timeline, the current bar"))}}
+  </div>
+  <div class="feature flip">
+    <div class="feature-text">
+      <div class="eyebrow">2</div>
+      <h2>{{t "The import wizard"}}</h2>
+      <p>{{t "Start from a title. The wizard checks what the song already has, then proposes a chart, its lyrics placed section by section, the artist's own recording and its sync, each step previewed before it goes in."}}</p>
+    </div>
+    {{template "public-shot" (dict "Src" "wizard" "Alt" (t "The import wizard's first step: a check of the song and four ways to get its chart"))}}
+  </div>
+  <div class="feature">
+    <div class="feature-text">
+      <div class="eyebrow">3</div>
+      <h2>{{t "The mixer"}}</h2>
+      <p>{{t "The recording split into voice and backing, each on its fader; the sections on the bar ruler; any key, any speed, any loop."}}</p>
+    </div>
+    {{template "public-shot" (dict "Src" "mixer" "Alt" (t "The mixer: the recording, its voice and its backing, sections on the bar ruler"))}}
+  </div>
+  <div class="feature flip">
+    <div class="feature-text">
+      <div class="eyebrow">4</div>
+      <h2>{{t "The editor"}}</h2>
+      <p>{{t "A plain-text song format with live preview: sections, grids, lyrics and riffs. Every save is kept, so nothing is ever lost."}}</p>
+      <p><a href="/editor">{{t "More on the editor"}} &rarr;</a></p>
+    </div>
+    {{template "public-shot" (dict "Src" "editor" "Alt" (t "The song editor: the source on one side, the rendered chart on the other"))}}
+  </div>
+  <div class="feature">
+    <div class="feature-text">
+      <div class="eyebrow">5</div>
+      <h2>{{t "The set list"}}</h2>
+      <p>{{t "The song takes its place in the set, in the key and at the tempo the band plays it, ready to play in running order or to print for the stage."}}</p>
+    </div>
+    {{template "public-shot" (dict "Src" "setlist" "Alt" (t "A band's set list: sets, encore, keys, tempos and play buttons"))}}
+  </div>
+  <div class="feature flip">
+    <div class="feature-text">
+      <div class="eyebrow">6</div>
+      <h2>{{t "The calendar"}}</h2>
+      <p>{{t "Rehearsals, gigs, lessons and jams from all your bands and communities in one calendar, with the set list or the lesson one tap away, and in your own calendar app by subscription."}}</p>
+    </div>
+    {{template "public-shot" (dict "Src" "calendar" "Alt" (t "The calendar: lessons, sessions and events of the month"))}}
+  </div>
+</section>
+
+{{template "public-cta" .}}
+{{template "public-footer" .}}
+</div>
+</body>
+</html>
+{{end}}

@@ -128,6 +128,11 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /docs/song-format/example", s.handleDocsSongFormatExample)
 	mux.HandleFunc("GET /docs/song-format/example/{key}", s.handleDocsScoreExample)
 	mux.HandleFunc("GET /for-educators", s.optionalPerson(s.handleMarketingEducators))
+	mux.HandleFunc("GET /for/bands", s.optionalPerson(s.publicPageHandler("public_bands")))
+	mux.HandleFunc("GET /for/teachers", s.optionalPerson(s.publicPageHandler("public_teachers")))
+	mux.HandleFunc("GET /for/vocal-coaches", s.optionalPerson(s.publicPageHandler("public_vocal")))
+	mux.HandleFunc("GET /for/communities", s.optionalPerson(s.publicPageHandler("public_communities")))
+	mux.HandleFunc("GET /tour", s.optionalPerson(s.publicPageHandler("public_tour")))
 	mux.HandleFunc("GET /home", s.requireAuth(s.handleIndex))
 
 	// Songbooks: a named, ordered collection of variant pointers owned by

@@ -1,0 +1,62 @@
+{{define "public_teachers"}}<!doctype html>
+<html lang="{{lang}}">
+<head>
+<title>{{t "Songbooks for guitar teachers"}} — Songbooks</title>
+<meta name="description" content="{{t "Your method as online courses: each lesson with its video beside the score, downloads per course, your own branded space."}}">
+{{template "public-head" .}}
+</head>
+<body>
+<div class="wrap">
+{{template "public-header" .}}
+
+<section class="hero">
+  <div class="hero-text">
+    <div class="eyebrow">{{t "For guitar teachers"}}</div>
+    <h1>{{t "Your method online,"}} <span class="hl">{{t "lesson by lesson."}}</span></h1>
+    <p class="lede">{{t "Each lesson with its video beside the playable score, your Guitar Pro files and backing tracks, your students' progress, in your own colours."}}</p>
+    <div class="cta-row"><a class="btn btn-lg" href="#how">{{t "See how"}}</a>{{if .Person}}<a class="btn-outline" href="/home">{{t "My Songbooks"}}</a>{{else}}<a class="btn-outline" href="/login">{{t "Sign in"}}</a>{{end}}</div>
+  </div>
+  {{template "public-shot" (dict "Src" "teacher-space" "Alt" (t "A guitar teacher's space in its own colours, with its courses") "Caption" (t "Example data."))}}
+</section>
+
+<section class="block">
+  <h2>{{t "Before Songbooks"}}</h2>
+  <ul class="pains">
+    <li><b>{{t "A PDF with QR codes"}}</b>{{t "Students scan, lose the page, scan again."}}</li>
+    <li><b>{{t "Files by email"}}</b>{{t "Guitar Pro files and MP3s sent one by one, version after version."}}</li>
+    <li><b>{{t "No idea who's where"}}</b>{{t "Which lesson is each student on?"}}</li>
+  </ul>
+</section>
+
+<section class="block" id="how">
+  <div class="feature">
+    <div class="feature-text">
+      <h2>{{t "Courses your students follow"}}</h2>
+      <p>{{t "Group lessons into courses. Each student sees where they are and picks up where they left off."}}</p>
+      <ul><li>{{t "Progress per student, and a button to the next lesson"}}</li><li>{{t "Lessons numbered, renamed, reordered in place"}}</li><li>{{t "Free and paid courses side by side"}}</li></ul>
+    </div>
+    {{template "public-shot" (dict "Src" "course" "Alt" (t "A course: progress, a continue button and the numbered lessons"))}}
+  </div>
+  <div class="feature flip">
+    <div class="feature-text">
+      <h2>{{t "The video beside the score"}}</h2>
+      <p>{{t "Each lesson opens on its score, played and looped, with your video one tap away and its files next to it."}}</p>
+      <ul><li>{{t "Guitar Pro files played in the browser, tab and staff"}}</li><li>{{t "Slow down, loop a bar range, count in"}}</li><li>{{t "The lesson's files to download"}}</li></ul>
+    </div>
+    {{template "public-shot" (dict "Src" "lesson" "Alt" (t "A lesson: the course bar, video and files, the Guitar Pro score with its player"))}}
+  </div>
+  <div class="feature">
+    <div class="feature-text">
+      <h2>{{t "Downloads per course"}}</h2>
+      <p>{{t "Each course has its download area: PDFs, Guitar Pro files, backing tracks, in folders, with who may download what."}}</p>
+    </div>
+    {{template "public-shot" (dict "Src" "downloads" "Alt" (t "A course's download area with its files"))}}
+  </div>
+</section>
+
+{{template "public-cta" .}}
+{{template "public-footer" .}}
+</div>
+</body>
+</html>
+{{end}}

@@ -116,7 +116,7 @@ func timeAgo(lang string, t time.Time) string {
 // dashboard). / is never the dashboard itself, so it never has to
 // choose between the pitch and your own stuff.
 func (s *Server) handleMarketingHome(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "marketing_home", publicPage(w, r, nil))
+	s.render(w, "public_home", publicPage(w, r, nil))
 }
 
 // handleMarketingEditor and handleMarketingEducators are the rest of the
@@ -452,8 +452,23 @@ func docsExampleAlphaTabScripts(sections []viewerSection, drumMap []viewerDrumMa
 		v, v))
 }
 
+// publicPageHandler serves one of the public site's pages (templates/
+// public_*.html): the four audience pages under /for/ and the tour.
+// optionalPerson, like the home page, for the nav's "My Songbooks".
+func (s *Server) publicPageHandler(name string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		s.render(w, name, publicPage(w, r, nil))
+	}
+}
+
+// handleMarketingEducators sends the old /for-educators page to its
+// successor, keeping the language query.
 func (s *Server) handleMarketingEducators(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "marketing_educators", publicPage(w, r, nil))
+	target := "/for/teachers"
+	if q := r.URL.RawQuery; q != "" {
+		target += "?" + q
+	}
+	http.Redirect(w, r, target, http.StatusMovedPermanently)
 }
 
 // handleIndex is just the project directory: name + a few stats per book,
