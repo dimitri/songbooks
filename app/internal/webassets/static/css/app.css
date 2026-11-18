@@ -6088,6 +6088,9 @@ a.calendar-day:hover { text-decoration: none; background: var(--bg-sunken); }
 @media (min-width: 901px) {
   .calendar-grid td { height: 5.5rem; }
   .calendar-day { min-height: 5.5rem; flex-direction: column; flex-wrap: nowrap; gap: 2px; }
+  /* In a column, the date only as tall as itself: a full-height date pushed
+     the day's items down into the week below. */
+  .calendar-date { flex: none; }
   .calendar-item { width: 100%; gap: 0.3rem; font-size: 0.72rem; line-height: 1.2; }
   .calendar-item-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }

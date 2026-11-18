@@ -862,6 +862,13 @@ window.songbooksDecodable = function (buf) {
       li.append(who, now, btn);
       return li;
     }));
+    // The list arrives after the panel opened: keep it on screen now
+    // that it is wider.
+    const pop = $('audio-pop-key');
+    if (pop && !pop.hidden && !sheetOpen()) {
+      const wrap = (pop.offsetParent || root).getBoundingClientRect(), r = pop.getBoundingClientRect();
+      if (r.right > wrap.right - 8) pop.style.setProperty('--pop-left', `${Math.max(8, wrap.width - pop.offsetWidth - 8)}px`);
+    }
   }
   async function loadCoachKeys() {
     if (coachTargets || !coachBox) return;

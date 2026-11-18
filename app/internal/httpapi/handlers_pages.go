@@ -405,6 +405,9 @@ func (s *Server) handleDocsScoreExample(w http.ResponseWriter, r *http.Request) 
 // later resize too — not just alphaTab's async render, but any later
 // reflow — so this is the one general fix for every example this
 // function ever serves, not a timing patch for one of them.
+// It measures #sheet, not the document: the document is never shorter
+// than the iframe itself, so an iframe once tall (a narrow first layout,
+// notation still loading) would never shrink back.
 func (s *Server) renderDocsExamplePage(w http.ResponseWriter, sg *song.Song, sections []viewerSection, drumMap []viewerDrumMapRow, mode string) {
 	var body bytes.Buffer
 	if err := webassets.Templates.ExecuteTemplate(&body, "sheet-body", map[string]any{
@@ -428,7 +431,7 @@ func (s *Server) renderDocsExamplePage(w http.ResponseWriter, sg *song.Song, sec
 <main class="sheet" id="sheet" data-render-mode="%s" data-key="%s">%s</main>
 <script>(function(){
   var sheet = document.getElementById('sheet');
-  function resize(){ try { if (window.frameElement) window.frameElement.style.height = (document.documentElement.scrollHeight + 4) + 'px'; } catch (e) {} }
+  function resize(){ try { if (window.frameElement) window.frameElement.style.height = (Math.ceil(sheet.getBoundingClientRect().height) + 4) + 'px'; } catch (e) {} }
   if (window.ResizeObserver) new ResizeObserver(resize).observe(sheet);
   window.addEventListener('load', resize);
   resize();
