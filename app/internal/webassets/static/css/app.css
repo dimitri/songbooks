@@ -1101,6 +1101,15 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .audio-pop-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
 .audio-pop-head strong { font-size: 0.95rem; }
 .audio-pop-head .hint { font-size: 0.78rem; }
+/* The Key panel's "Save this key for": a coach's students and groups,
+   each with the key they have and a save in the key being tried. */
+.audio-key-coach:not([hidden]) { display: flex; flex-direction: column; gap: 0.4rem; border-top: 1px solid var(--border); padding-top: 0.6rem; }
+.audio-key-targets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; max-height: 14rem; overflow-y: auto; min-width: min(24rem, 80vw); }
+.audio-key-targets li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 0.6rem; min-height: 2.2rem; }
+.audio-key-targets .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.audio-key-targets .who small { font-weight: 400; color: var(--fg-muted); }
+.audio-key-targets .now { color: var(--fg-muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.audio-key-targets button:disabled { opacity: 0.7; cursor: default; }
 .audio-pop-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .audio-seg { display: inline-flex; gap: 0.15rem; padding: 0.15rem; border-radius: 5px; background: var(--bg-sunken); align-self: flex-start; }
 .audio-seg button {

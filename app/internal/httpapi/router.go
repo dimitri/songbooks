@@ -404,6 +404,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/communities/{id}/students/{personID}/notes", s.requireCommunityMember(s.handlePutStudentNotes))
 	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/songs", s.requireCommunityMember(s.handlePostCoachingSong))
 	mux.HandleFunc("PUT /api/communities/{id}/songbooks/{sbID}/songs/{variantID}/key", s.requireCommunityMember(s.handlePutCoachingSongKey))
+	mux.HandleFunc("GET /api/songs/{id}/coach-keys", s.requireAuth(s.handleGetCoachKeys))
+	mux.HandleFunc("POST /api/songs/{id}/coach-keys", s.requireAuth(s.handlePostCoachKey))
 	mux.HandleFunc("DELETE /api/communities/{id}/songbooks/{sbID}/songs/{variantID}", s.requireCommunityMember(s.handleDeleteCoachingSong))
 	mux.HandleFunc("POST /api/communities/{id}/students/{personID}/teaching-notes", s.requireCommunityMember(s.handlePostTeachingNote))
 	mux.HandleFunc("PUT /api/communities/{id}/students/{personID}/teaching-notes/{noteID}", s.requireCommunityMember(s.handlePutTeachingNote))

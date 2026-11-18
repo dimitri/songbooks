@@ -120,3 +120,15 @@ func TestSameChord(t *testing.T) {
 		t.Error("SameChord compares root, quality and bass by pitch")
 	}
 }
+
+func TestKeyIn(t *testing.T) {
+	for _, c := range []struct {
+		key  string
+		n    int
+		want string
+	}{{"G", 2, "A"}, {"G", 1, "Ab"}, {"Em", -2, "Dm"}, {"Bb", 0, "Bb"}, {"F#m", 1, "Gm"}, {"C", -1, "B"}, {"", 2, ""}, {"H", 1, ""}} {
+		if got := KeyIn(c.key, c.n); got != c.want {
+			t.Errorf("KeyIn(%q, %d) = %q, want %q", c.key, c.n, got, c.want)
+		}
+	}
+}

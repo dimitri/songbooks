@@ -235,7 +235,7 @@ func (s *Server) handleCoachingStudentPage(w http.ResponseWriter, r *http.Reques
 	data["Student"] = member
 	data["Ranges"] = rangeViews(rs, s.langOfRequest(r))
 	data["SongbookID"] = sbID
-	data["Songs"] = songs
+	data["Songs"] = s.withKeys(r.Context(), songs)
 	data["Groups"] = inGroups
 	data["Lessons"] = lessons
 	data["NoteOptions"] = voiceNotes(s.langOfRequest(r))

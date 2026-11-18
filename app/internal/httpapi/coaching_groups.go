@@ -125,7 +125,7 @@ func (s *Server) handleCoachingGroupPage(w http.ResponseWriter, r *http.Request)
 	}
 	data := s.coachingPageData(r, community, coach, "groups")
 	data["Group"] = g
-	data["Songs"] = songs
+	data["Songs"] = s.withKeys(ctx, songs)
 	data["SongbookID"] = g.SongbookID
 	data["Lessons"] = lessons
 	if g.EventID != nil {

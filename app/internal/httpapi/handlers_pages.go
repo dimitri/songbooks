@@ -3036,6 +3036,17 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// A student opening one of their songs from anywhere else (home, the
+	// library, a group's list) gets it in their own key too: the key the
+	// coach gave it them follows the song, not the page it was opened from.
+	if data["StudentKeySet"] == nil && data["SetlistRef"] == nil {
+		if _, n, ok, err := s.store.StudentKeyOf(r.Context(), person.ID, variantID); err == nil && ok {
+			data["StudentKey"], data["StudentKeySet"], data["KeyContext"], data["KeyMine"] = n, true, person.DisplayName, true
+		}
+	}
+	if n, ok := data["StudentKey"].(int); ok {
+		data["StudentKeyName"] = chordsym.KeyIn(songKeyName(sg), n)
+	}
 	data["BrandKind"], data["BrandID"] = s.songBrandContext(r, data, variant)
 	s.render(w, "song", data)
 }

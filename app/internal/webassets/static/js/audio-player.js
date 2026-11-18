@@ -787,6 +787,88 @@ window.songbooksDecodable = function (buf) {
     }
     if (g.stretch) g.stretch.schedule({ semitones: n, formantCompensation: true });
   }
+  // A coach saves the key for a student or a group (play.html
+  // #audio-key-coach, coach_keys.go): loaded the first time the Key panel
+  // opens, its buttons following the key being tried.
+  const coachBox = $('audio-key-coach'), coachList = $('audio-key-targets');
+  let coachTargets = null, coachKey = '';
+  // The song's key moved by n, named as the server does (chordsym.KeyName):
+  // coachKey is the song's own key, from its key: header or its chords.
+  const MAJOR = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+  const MINOR = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'G#', 'A', 'Bb', 'B'];
+  const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const keyIn = (key, n) => {
+    const m = /^([A-G])([#b]?)(m(?!aj))?/.exec(key || '');
+    if (!m) return '';
+    const pc = (((PC[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + n) % 12) + 12) % 12;
+    return m[3] ? MINOR[pc] + 'm' : MAJOR[pc];
+  };
+  const keyNow = () => keyIn(coachKey, prefs.semitones);
+  const fmtKey = (name, n) => {
+    const off = n ? `${n > 0 ? '+' : ''}${n}` : t('original');
+    return name ? `${name} (${off})` : off;
+  };
+  function renderCoachKeys() {
+    if (!coachBox || !coachTargets || !coachTargets.length) return;
+    coachBox.hidden = false;
+    const n = prefs.semitones;
+    const many = new Set(coachTargets.map((x) => x.communityId)).size > 1;
+    coachList.replaceChildren(...coachTargets.map((x, i) => {
+      const li = document.createElement('li');
+      const who = document.createElement('span');
+      who.className = 'who';
+      who.textContent = x.name;
+      if (x.kind === 'group' || many) {
+        const tag = document.createElement('small');
+        tag.textContent = [x.kind === 'group' ? t('group') : '', many ? x.communityName : ''].filter(Boolean).join(' · ');
+        who.append(' ', tag);
+      }
+      const now = document.createElement('span');
+      now.className = 'now';
+      now.textContent = x.inSongbook ? fmtKey(x.keyName, x.semitones) : t('not in their songs yet');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'audio-pill-btn';
+      const same = x.inSongbook && x.semitones === n;
+      btn.disabled = same;
+      btn.textContent = same ? '✓' : (x.inSongbook ? t('Save %s', keyNow() || fmtKey('', n)) : t('Add in %s', keyNow() || fmtKey('', n)));
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+          const res = await fetch(`/api/songs/${variantId}/coach-keys`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ communityId: x.communityId, personId: x.personId || 0, groupId: x.groupId || 0, semitones: prefs.semitones }),
+          });
+          if (!res.ok) throw new Error(await res.text());
+          const d = await res.json();
+          coachTargets[i] = { ...x, inSongbook: true, songbookId: d.songbookId, semitones: d.semitones, keyName: d.keyName };
+        } catch (e) {
+          alert(t('Couldn’t save the key.'));
+        }
+        renderCoachKeys();
+      });
+      li.append(who, now, btn);
+      return li;
+    }));
+  }
+  async function loadCoachKeys() {
+    if (coachTargets || !coachBox) return;
+    coachTargets = [];
+    try {
+      const res = await fetch(`/api/songs/${variantId}/coach-keys`);
+      if (res.ok) {
+        const d = await res.json();
+        coachKey = d.key || '';
+        // Who already has the song first, in the server's order; kept as
+        // it is while keys are saved, so rows don't jump.
+        const all = d.targets || [];
+        coachTargets = [...all.filter((x) => x.inSongbook), ...all.filter((x) => !x.inSongbook)];
+      }
+    } catch (e) { /* nobody to coach */ }
+    renderCoachKeys();
+  }
+  $('audio-key-btn')?.addEventListener('click', loadCoachKeys);
+
   function setSemitones(n) {
     n = Math.max(-7, Math.min(7, Math.round(n)));
     const delta = n - prefs.semitones;
@@ -794,6 +876,7 @@ window.songbooksDecodable = function (buf) {
     savePrefs();
     shiftChords(delta);
     applyKey();
+    setTimeout(renderCoachKeys, 0);
   }
   function shiftChords(delta) {
     if (window.songbooksShiftChords) { window.songbooksShiftChords(delta); return; }

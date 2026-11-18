@@ -197,3 +197,13 @@ func SameChord(a, b string) bool {
 	}
 	return PitchClass(ra) == PitchClass(rb) && qa == qb && PitchClass(ba) == PitchClass(bb)
 }
+
+// KeyIn names key moved by semitones ("G", 2 → "A"; "Em", -2 → "Dm"),
+// "" when key isn't one.
+func KeyIn(key string, semitones int) string {
+	k, ok := ParseKey(key)
+	if !ok {
+		return ""
+	}
+	return KeyName(k.PitchClass()+semitones, k.Minor, false)
+}
