@@ -1,125 +1,62 @@
 {{define "marketing_editor"}}<!doctype html>
 <html lang="{{lang}}">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Songbooks — {{t "the editor & song format"}}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,800;0,9..144,900&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+{{template "public-head" .}}
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg:#f6f1e7; --bg-raised:#fff; --bg-sunken:#efe6d3; --border:#e7dfcf; --fg:#241e18; --fg-muted:#5f554a; --accent:#af4e39; --accent-ink:#8a3d2c; --accent-bg:#f3ddd4;
-    --danger:#a52f2f; --accent-contrast:#fff; --font-chart: 'EB Garamond', Georgia, 'Times New Roman', serif;
-    --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --staff-5lines:
-      linear-gradient(var(--fg-muted), var(--fg-muted)), linear-gradient(var(--fg-muted), var(--fg-muted)),
-      linear-gradient(var(--fg-muted), var(--fg-muted)), linear-gradient(var(--fg-muted), var(--fg-muted)),
-      linear-gradient(var(--fg-muted), var(--fg-muted));
-  }
-  * { box-sizing: border-box; }
-  body { margin:0; font-family:'Inter',sans-serif; background:var(--bg); color:var(--fg); }
-  a { color: var(--accent); text-decoration:none; }
-  a:hover { color: var(--accent-ink); }
-  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 28px; }
-  header { display:flex; align-items:center; justify-content:space-between; padding: 20px 0; border-bottom:1px solid var(--border); }
-  .brand { display:flex; align-items:center; gap:10px; font-family:'Fraunces',serif; font-weight:900; font-size:21px; letter-spacing:-0.015em; }
-  nav { display:flex; align-items:center; gap:28px; font-size:14px; font-weight:500; color:var(--fg-muted); }
-  .nav-toggle { display:none; }
-  .hamburger { display:none; }
-  .btn { background:var(--accent); color:#fff; padding:10px 20px; border-radius:8px; font-weight:700; font-size:14px; display:inline-block; }
-  .invite-note { font-size:11.5px; color:var(--fg-muted); margin-left:-14px; }
+  /* The editor page on the public site's layout (public.css): its own
+     source-and-render mockup, callouts and Guitar Pro examples. */
+  .hero.solo { display: block; max-width: 760px; padding: 56px 0 40px; }
+  .hero.solo .lede { max-width: none; margin-bottom: 8px; }
 
-  .hero { padding: 56px 0 40px; max-width: 760px; }
-  .eyebrow { font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); }
-  h1 { font-family:'Fraunces',serif; font-weight:900; font-size:42px; line-height:1.1; letter-spacing:-0.015em; margin: 14px 0 16px; }
-  h1 .hl { color: var(--accent); }
-  .lede { font-size:17px; line-height:1.6; color:var(--fg-muted); margin:0; }
-
-  /* split editor mockup */
-  .split { display:grid; grid-template-columns: 1fr 1fr; border:2px solid var(--fg); border-radius:14px; overflow:hidden; box-shadow:7px 7px 0 var(--accent); margin: 32px 0 20px; }
-  .pane { background:var(--bg-raised); }
+  /* split editor mockup: source and render side by side, stacked on a phone */
+  .split { display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border:2px solid var(--fg); border-radius:14px; overflow:hidden; box-shadow:7px 7px 0 var(--accent); margin: 32px 0 20px; }
+  .pane { background:var(--bg-raised); min-width:0; }
   .pane-head { display:flex; align-items:center; gap:8px; padding:10px 16px; border-bottom:1px solid var(--border); background:var(--bg-sunken); font-size:11.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--fg-muted); }
   .dots { display:flex; gap:5px; margin-right:4px; }
   .dots span { width:8px; height:8px; border-radius:50%; background:var(--border); }
   .src { border-right:1px solid var(--border); }
   .src pre { margin:0; padding:20px 18px; font-family:'JetBrains Mono', ui-monospace, monospace; font-size:13px; line-height:1.85; overflow-x:auto; }
+  code { font-family:'JetBrains Mono', ui-monospace, monospace; font-size:.92em; }
   .k { color: var(--accent-ink); font-weight:600; }     /* header keys */
   .s { color: #4a6b4a; font-weight:600; }                /* [Section] */
   .c { color: var(--accent); font-weight:600; }          /* chords / grid tokens */
-  .n { color: var(--fg-muted); font-style:italic; }      /* note: lines */
   .render { padding: 18px 20px 20px; font-size: 15px; }
-  .r-title { font-family:'Fraunces',serif; font-weight:800; font-size:18px; }
+  .r-title { font-family:var(--display); font-weight:800; font-size:18px; }
   .r-sub { font-size:12.5px; color:var(--fg-muted); margin:1px 0 14px; }
   .r-illustrative { font-size:11px; color:var(--fg-muted); font-style:italic; margin:6px 0 0; }
   .render img { width:100%; display:block; border-radius:6px; }
 
-  .callouts { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin: 36px 0 0; }
-  .callout h4 { font-family:'Fraunces',serif; font-weight:700; font-size:15.5px; margin:0 0 6px; }
+  .callouts { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:24px; margin: 36px 0 0; }
+  .callout { min-width:0; }
+  .callout h4 { font-family:var(--display); font-weight:700; font-size:15.5px; margin:0 0 6px; }
   .callout p { margin:0; font-size:13.5px; line-height:1.6; color:var(--fg-muted); }
+  .gp-examples { display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:16px; }
+  .gp-examples iframe { width:100%; min-height:110px; border:1px solid var(--border); border-radius:10px; background:#fff; }
+  section.block .sub { margin-bottom: 28px; }
 
-  section.block { padding: 48px 0; border-top: 1px solid var(--border); }
-  .block h2 { font-family:'Fraunces',serif; font-weight:800; font-size:26px; margin:0 0 10px; letter-spacing:-0.01em; }
-  .block .sub { color:var(--fg-muted); font-size:15.5px; max-width:62ch; margin:0 0 28px; }
-
-  .ctaband { background: var(--fg); color: var(--bg); border-radius:18px; padding:40px 40px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:24px; }
-  .ctaband h2 { font-family:'Fraunces',serif; font-weight:800; font-size:24px; margin:0 0 6px; color:#fff; }
-  .ctaband p { margin:0; color:#cfc6b6; font-size:14.5px; }
-  .ctaband .btn { background:var(--accent); }
-
-  footer { padding:32px 0 48px; color:var(--fg-muted); font-size:13px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
-  footer .foot-brand { display:flex; align-items:center; gap:8px; font-family:'Fraunces',serif; font-weight:800; color:var(--fg); }
-
-  @media (max-width: 860px) { .split { grid-template-columns:1fr; } .src { border-right:none; border-bottom:1px solid var(--border); } .callouts { grid-template-columns:1fr; } }
-  @media (max-width: 720px) {
-    h1{font-size:32px;} .block h2{font-size:22px;}
-    header { flex-wrap:wrap; }
-    .hamburger { display:flex; flex-direction:column; justify-content:center; gap:5px; width:44px; height:44px; padding:0 6px; box-sizing:border-box; cursor:pointer; order:2; }
-    .hamburger span { display:block; height:2px; width:100%; background:var(--fg); border-radius:2px; }
-    nav { order:3; flex-basis:100%; display:none; flex-direction:column; align-items:flex-start; gap:16px; padding-top:18px; }
-    .nav-toggle:checked ~ nav { display:flex; }
-    /* The checkbox stays in the tab order (visually hidden, not display:none) so the menu opens from a keyboard too. */
-    .nav-toggle { display:block; position:absolute; width:1px; height:1px; margin:0; opacity:0; }
-    .nav-toggle:focus-visible + .hamburger { outline:2px solid var(--accent); outline-offset:2px; border-radius:6px; }
+  @media (max-width: 860px) {
+    .split { grid-template-columns: minmax(0, 1fr); }
+    .src { border-right:none; border-bottom:1px solid var(--border); }
+    .callouts, .gp-examples { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 520px) {
+    .hero.solo { padding: 36px 0 24px; }
+    .src pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.5px; padding: 16px 14px; }
+    .render { padding: 14px 14px 16px; }
+    .split { box-shadow: 5px 5px 0 var(--accent); }
   }
 </style>
 </head>
 <body>
 <div class="wrap">
+{{template "public-header" .}}
 
-  <header>
-    <div class="brand">
-      <svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true">
-        <rect width="100" height="100" rx="22" fill="#241e18"/>
-        <g fill="#af4e39">
-          <circle cx="33" cy="18" r="7"/><circle cx="50" cy="18" r="7"/><circle cx="67" cy="18" r="7"/>
-          <circle cx="33" cy="34" r="7"/>
-          <circle cx="33" cy="50" r="7"/><circle cx="50" cy="50" r="7"/><circle cx="67" cy="50" r="7"/>
-          <circle cx="67" cy="66" r="7"/>
-          <circle cx="33" cy="82" r="7"/><circle cx="50" cy="82" r="7"/><circle cx="67" cy="82" r="7"/>
-        </g>
-      </svg>
-      Songbooks
-    </div>
-    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="{{t "Menu"}}">
-    <label for="nav-toggle" class="hamburger" aria-hidden="true"><span></span><span></span><span></span></label>
-    <nav>
-      <a href="/">{{t "Home"}}</a>
-      <a href="#import">{{t "Importing a song"}}</a>
-      <a href="/guitar-pro">{{t "Guitar Pro import"}}</a>
-      <a href="/for-educators">{{t "For educators"}}</a>
-      {{if .Person}}
-      <a href="/home" class="btn">{{t "My Songbooks"}}</a>
-      {{else}}
-      <a href="/login" class="btn">{{t "Sign in"}}</a>
-      <span class="invite-note">{{t "invite‑only for now"}}</span>
-      {{end}}
-    </nav>
-  </header>
-
-  <section class="hero">
+  <section class="hero solo">
     <div class="eyebrow">{{t "The editor & the song format"}}</div>
     <h1>{{t "Plain text in."}}<br>{{t "A real chart"}} <span class="hl">{{t "out."}}</span></h1>
-    <p class="lede">{{t `No import/export round trip, no "upload a PDF and hope it stays in sync." What you type on the left is exactly what renders on the right — on screen, in the PDF, on a music stand.`}}</p>
+    <p class="lede">{{t `No import/export round trip, no "upload a PDF and hope it stays in sync." What you type is exactly what renders — on screen, in the PDF, on a music stand.`}}</p>
     <p class="lede"><a href="/docs/song-format">{{t "Read the full"}} <code>.song</code> {{t "format reference"}} &rarr;</a></p>
   </section>
 
@@ -143,7 +80,7 @@ grid: |: <span class="c">Gm</span> . . <span class="c">Cm</span> | <span class="
     </div>
   </div>
 
-  <p class="r-illustrative" style="margin:-8px 0 0;">{{t "Real header and grid line copied from this song's own entry in the production catalog — lyrics replaced with a placeholder for this marketing page. The render on the right is a screenshot of the app's own Play view for this exact source, not a hand-built approximation."}}</p>
+  <p class="r-illustrative" style="margin:-8px 0 0;">{{t "Real header and grid line copied from this song's own entry in the production catalog — lyrics replaced with a placeholder for this marketing page. The render is a screenshot of the app's own Play view for this exact source, not a hand-built approximation."}}</p>
 
   <div class="callouts" style="margin-top:36px;">
     <div class="callout" style="grid-column: 1 / -1;">
@@ -177,9 +114,9 @@ grid: |: <span class="c">Gm</span> . . <span class="c">Cm</span> | <span class="
       <div class="callout" style="grid-column: 1 / -1;">
         <h4>{{t "From Guitar Pro"}}</h4>
         <p style="margin-bottom:14px;">{{t "Drop in a"}} <code>.gp</code>/<code>.gp3</code>&ndash;<code>.gpx</code> {{t "file and bring in more than chords — drums, bass, and every guitar track, each kept as its own real notation (not a generic placeholder), automatically mapped onto your song's own sections, with the file's own embedded backing-track MP3 along with it if you want it."}} <a href="/guitar-pro">{{t "See what's supported"}} &rarr;</a></p>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-          <iframe src="/docs/song-format/example/drum" title="{{t "Real rendered drum notation"}}" loading="lazy" style="width:100%; min-height:110px; border:1px solid var(--border); border-radius:10px; background:#fff;"></iframe>
-          <iframe src="/docs/song-format/example/bass" title="{{t "Real rendered bass tab"}}" loading="lazy" style="width:100%; min-height:110px; border:1px solid var(--border); border-radius:10px; background:#fff;"></iframe>
+        <div class="gp-examples">
+          <iframe src="/docs/song-format/example/drum" title="{{t "Real rendered drum notation"}}" loading="lazy"></iframe>
+          <iframe src="/docs/song-format/example/bass" title="{{t "Real rendered bass tab"}}" loading="lazy"></iframe>
         </div>
       </div>
     </div>
@@ -201,29 +138,11 @@ grid: |: <span class="c">Gm</span> . . <span class="c">Cm</span> | <span class="
         <h2>{{t "Bring in a song and see it render."}}</h2>
         <p>{{t "Paste from a tab site, or start from scratch — the chart updates as you type."}}</p>
       </div>
-      <a href="{{if .Person}}/home{{else}}/login{{end}}" class="btn">{{if .Person}}{{t "My Songbooks"}}{{else}}{{t "Start your songbook"}}{{end}}</a>
+      {{if .Person}}<a class="btn btn-lg" href="/home">{{t "My Songbooks"}}</a>{{else}}<a class="btn btn-lg" href="/login">{{t "Sign in"}}</a>{{end}}
     </div>
   </section>
 
-  <footer>
-    <div class="foot-brand">
-      <svg width="20" height="20" viewBox="0 0 100 100" aria-hidden="true">
-        <rect width="100" height="100" rx="22" fill="#241e18"/>
-        <g fill="#af4e39">
-          <circle cx="33" cy="18" r="7"/><circle cx="50" cy="18" r="7"/><circle cx="67" cy="18" r="7"/>
-          <circle cx="33" cy="34" r="7"/>
-          <circle cx="33" cy="50" r="7"/><circle cx="50" cy="50" r="7"/><circle cx="67" cy="50" r="7"/>
-          <circle cx="67" cy="66" r="7"/>
-          <circle cx="33" cy="82" r="7"/><circle cx="50" cy="82" r="7"/><circle cx="67" cy="82" r="7"/>
-        </g>
-      </svg>
-      Songbooks
-    </div>
-    <nav style="display:flex;">
-      <a href="/">{{t "Home"}}</a>
-      <a href="/for-educators">{{t "For educators"}}</a>
-    </nav>
-  </footer>
+{{template "public-footer" .}}
 </div>
 </body>
 </html>

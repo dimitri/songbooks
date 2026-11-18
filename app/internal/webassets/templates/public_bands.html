@@ -1,0 +1,62 @@
+{{define "public_bands"}}<!doctype html>
+<html lang="{{lang}}">
+<head>
+<title>{{t "Songbooks for bands"}} — Songbooks</title>
+<meta name="description" content="{{t "Set lists, charts, your own recordings and play-along in the key you play it, on every phone in the band."}}">
+{{template "public-head" .}}
+</head>
+<body>
+<div class="wrap">
+{{template "public-header" .}}
+
+<section class="hero">
+  <div class="hero-text">
+    <div class="eyebrow">{{t "For bands"}}</div>
+    <h1>{{t "Every song in the set,"}} <span class="hl">{{t "on every phone."}}</span></h1>
+    <p class="lede">{{t "Charts in the key you play them, set lists that play their running order, a tuner and a click that know each song."}}</p>
+    <div class="cta-row"><a class="btn btn-lg" href="#how">{{t "See how"}}</a>{{if .Person}}<a class="btn-outline" href="/home">{{t "My Songbooks"}}</a>{{else}}<a class="btn-outline" href="/login">{{t "Sign in"}}</a>{{end}}</div>
+  </div>
+  {{template "public-shot" (dict "Src" "band" "Alt" (t "A band's page: the next gig, rehearsals, the songbook and the set lists") "Caption" (t "Example data."))}}
+</section>
+
+<section class="block">
+  <h2>{{t "Before Songbooks"}}</h2>
+  <ul class="pains">
+    <li><b>{{t "PDFs in a group chat"}}</b>{{t "Nobody knows which version is the current one."}}</li>
+    <li><b>{{t "The wrong key"}}</b>{{t "The singer moved it down a tone; the YouTube link didn't."}}</li>
+    <li><b>{{t "The tempo nobody remembers"}}</b>{{t "Was it 96 or 104? And who counts it in?"}}</li>
+  </ul>
+</section>
+
+<section class="block" id="how">
+  <div class="feature">
+    <div class="feature-text">
+      <h2>{{t "Set lists that play"}}</h2>
+      <p>{{t "Build the set, then play it in running order: each song's recording, its chart one tap away, a metronome to count it in."}}</p>
+      <ul><li>{{t "Sets, keys and tempos at a glance"}}</li><li>{{t "One tap from the set list to the chart"}}</li><li>{{t "A sheet to print for the stage"}}</li></ul>
+    </div>
+    {{template "public-shot" (dict "Src" "setlist" "Alt" (t "A band's set list: sets, encore, keys, tempos and play buttons"))}}
+  </div>
+  <div class="feature flip">
+    <div class="feature-text">
+      <h2>{{t "Play along, in your key"}}</h2>
+      <p>{{t "The reference recording is split into its parts, voice, drums, bass and the rest, or simply voice and backing: mute the singer to sing it yourself, solo the bass to learn its line. Transpose without changing the speed."}}</p>
+      <ul><li>{{t "Voice, drums, bass and the rest on their own faders"}}</li><li>{{t "Any key, any speed, an A–B loop"}}</li><li>{{t "The chart follows the recording, section by section"}}</li></ul>
+    </div>
+    {{template "public-shot" (dict "Src" "mixer" "Alt" (t "The mixer: the recording and its parts, sections on the bar ruler"))}}
+  </div>
+  <div class="feature">
+    <div class="feature-text">
+      <h2>{{t "A tuner and a metronome that know the song"}}</h2>
+      <p>{{t "The tuner opens on the song's own tuning and capo; the metronome on its tempo and time signature."}}</p>
+    </div>
+    {{template "public-shot" (dict "Src" "tuner" "Alt" (t "The tuner set to the song's tuning, with its string buttons"))}}
+  </div>
+</section>
+
+{{template "public-cta" .}}
+{{template "public-footer" .}}
+</div>
+</body>
+</html>
+{{end}}

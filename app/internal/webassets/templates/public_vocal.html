@@ -1,0 +1,84 @@
+{{define "public_vocal"}}<!doctype html>
+<html lang="{{lang}}">
+<head>
+<title>{{t "Songbooks for vocal coaches"}} — Songbooks</title>
+<meta name="description" content="{{t "Each student's songs in their own key, voice ranges, lessons online or in the room, groups for the year, one calendar for everyone."}}">
+{{template "public-head" .}}
+</head>
+<body>
+<div class="wrap">
+{{template "public-header" .}}
+
+<section class="hero">
+  <div class="hero-text">
+    <div class="eyebrow">{{t "For vocal coaches"}}</div>
+    <h1>{{t "Each student's songs,"}} <span class="hl">{{t "in each student's key."}}</span></h1>
+    <p class="lede">{{t "Voice ranges and notes per student, their songs transposed for them with the voice removable, concert programs planned from their songs, lessons and groups in one calendar your students subscribe to."}}</p>
+    <div class="cta-row"><a class="btn btn-lg" href="#how">{{t "See how"}}</a>{{if .Person}}<a class="btn-outline" href="/home">{{t "My Songbooks"}}</a>{{else}}<a class="btn-outline" href="/login">{{t "Sign in"}}</a>{{end}}</div>
+  </div>
+  {{template "public-shot" (dict "Src" "student-songs" "Alt" (t "Every song a coach's students have, each student's key on it") "Caption" (t "Example data."))}}
+</section>
+
+<section class="block">
+  <h2>{{t "Before Songbooks"}}</h2>
+  <ul class="pains">
+    <li><b>{{t "Backing tracks to transpose"}}</b>{{t "One per student, per key, by hand."}}</li>
+    <li><b>{{t "Notes in a notebook"}}</b>{{t "Ranges and progress nobody else can see."}}</li>
+    <li><b>{{t "Schedules in a chat"}}</b>{{t "Who comes Tuesday, who switched to online?"}}</li>
+  </ul>
+</section>
+
+<section class="block" id="how">
+  <div class="feature">
+    <div class="feature-text">
+      <h2>{{t "Students and their voices"}}</h2>
+      <p>{{t "Each student's chest, mixed and head ranges, overlaps included, their songs in their key, and your teaching notes, lesson after lesson."}}</p>
+    </div>
+    {{template "public-shot" (dict "Src" "student" "Alt" (t "A student's page: voice ranges, their songs in their key, teaching notes"))}}
+  </div>
+  <div class="feature flip">
+    <div class="feature-text">
+      <h2>{{t "Their songs, in their key"}}</h2>
+      <p>{{t "Try keys by ear in the song's player, then save one for a student: the chart and the recording open in that key for them, at the same speed, with the voice removable for practice."}}</p>
+      <ul><li>{{t "Each student's key for the song, listed in its Key panel"}}</li><li>{{t "The original voice to learn from, or the backing alone"}}</li></ul>
+    </div>
+    {{template "public-shot" (dict "Src" "student-key" "Alt" (t "A song in a student's key, its Key panel listing each student's key for it"))}}
+  </div>
+  <div class="feature">
+    <div class="feature-text">
+      <h2>{{t "Open mics and the end-of-year concert"}}</h2>
+      <p>{{t "Pick songs among your students' songs, then plan the program: the running order, who sings lead and who sings backing vocals, each song in its lead singer's key."}}</p>
+      <ul><li>{{t "Who sings what, counted for each student"}}</li><li>{{t "Each student sees their parts and rehearses in the concert's key"}}</li></ul>
+    </div>
+    {{template "public-shot" (dict "Src" "program" "Alt" (t "An end-of-year concert's program: each song's key, lead singer and backing vocals"))}}
+  </div>
+  <div class="feature flip">
+    <div class="feature-text">
+      <h2>{{t "All your students at a glance"}}</h2>
+      <p>{{t "One table: each student's range, songs and how far their keys move, lessons so far alone or in a group, online or in the room, the last and the next, the last note."}}</p>
+    </div>
+    {{template "public-shot" (dict "Src" "students-table" "Alt" (t "A coach's students as a table: range, songs, keys, lessons, notes"))}}
+  </div>
+  <div class="feature">
+    <div class="feature-text">
+      <h2>{{t "Lessons and groups"}}</h2>
+      <p>{{t "Individual lessons online or in the room, groups for the year from September to June, one-off master classes."}}</p>
+      <ul><li>{{t "A group's songbook for its sessions"}}</li><li>{{t "Online lessons joined from the calendar"}}</li></ul>
+    </div>
+    {{template "public-shot" (dict "Src" "groups" "Alt" (t "A coaching studio's groups and lessons"))}}
+  </div>
+  <div class="feature flip">
+    <div class="feature-text">
+      <h2>{{t "One calendar for everyone"}}</h2>
+      <p>{{t "Every lesson, group session and master class in the studio's calendar, which each student adds to their own calendar app in one tap."}}</p>
+    </div>
+    {{template "public-shot" (dict "Src" "lessons" "Alt" (t "A coaching studio's lessons for the coming weeks, online and in the room"))}}
+  </div>
+</section>
+
+{{template "public-cta" .}}
+{{template "public-footer" .}}
+</div>
+</body>
+</html>
+{{end}}

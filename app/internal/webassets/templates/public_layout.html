@@ -1,0 +1,79 @@
+{{/* The public site's shared parts (public_*.html pages): the head (fonts,
+     public.css, the page in both languages), the header (the four
+     audiences, the tour, EN · FR, sign in) and the footer. Each page
+     passes its publicPage data (Person, Origin, Path). */}}
+{{define "public-head"}}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,800;9..144,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/public.css?v={{staticVersion}}">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+{{template "public-alternates" .}}
+{{end}}
+
+{{define "public-header"}}
+<header class="site-header">
+  <a class="brand" href="/{{if eq lang "fr"}}?lang=fr{{end}}">
+    <svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true">
+      <rect width="100" height="100" rx="22" fill="#241e18"/>
+      <g fill="#af4e39">
+        <circle cx="33" cy="18" r="7"/><circle cx="50" cy="18" r="7"/><circle cx="67" cy="18" r="7"/>
+        <circle cx="33" cy="34" r="7"/>
+        <circle cx="33" cy="50" r="7"/><circle cx="50" cy="50" r="7"/><circle cx="67" cy="50" r="7"/>
+        <circle cx="67" cy="66" r="7"/>
+        <circle cx="33" cy="82" r="7"/><circle cx="50" cy="82" r="7"/><circle cx="67" cy="82" r="7"/>
+      </g>
+    </svg>
+    Songbooks
+  </a>
+  <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="{{t "Menu"}}">
+  <label for="nav-toggle" class="hamburger" aria-hidden="true"><span></span><span></span><span></span></label>
+  <nav class="site-nav" aria-label="{{t "Site"}}">
+    <a href="/for/bands"{{if eq .Path "/for/bands"}} aria-current="page"{{end}}>{{t "Bands"}}</a>
+    <a href="/for/teachers"{{if eq .Path "/for/teachers"}} aria-current="page"{{end}}>{{t "Teachers"}}</a>
+    <a href="/for/vocal-coaches"{{if eq .Path "/for/vocal-coaches"}} aria-current="page"{{end}}>{{t "Vocal coaches"}}</a>
+    <a href="/for/communities"{{if eq .Path "/for/communities"}} aria-current="page"{{end}}>{{t "Jams and camps"}}</a>
+    <a href="/tour"{{if eq .Path "/tour"}} aria-current="page"{{end}}>{{t "Tour"}}</a>
+    {{template "public-lang-switch" .}}
+    {{if .Person}}<a href="/home" class="btn">{{t "My Songbooks"}}</a>{{else}}<a href="/login" class="btn">{{t "Sign in"}}</a>{{end}}
+  </nav>
+</header>
+{{end}}
+
+{{define "public-footer"}}
+<footer class="site-footer">
+  <span>Songbooks · songbooks.studio</span>
+  <nav aria-label="{{t "More"}}">
+    <a href="/tour">{{t "Tour"}}</a>
+    <a href="/editor">{{t "The editor"}}</a>
+    <a href="/guitar-pro">{{t "Guitar Pro import"}}</a>
+    <a href="/docs/song-format">{{t "Song format"}}</a>
+    {{template "public-lang-switch" .}}
+  </nav>
+</footer>
+{{end}}
+
+{{/* A screenshot in a window frame: dict "Src" (under
+     /static/img/public/<lang>/, without extension) "Alt" "Caption". */}}
+{{define "public-shot"}}
+<figure class="shot">
+  <div class="frame"><div class="bar" aria-hidden="true"><i></i><i></i><i></i></div><img src="/static/img/public/{{lang}}/{{.Src}}.jpg?v={{staticVersion}}" alt="{{.Alt}}" loading="lazy" width="1600" height="1200"></div>
+  {{with .Caption}}<figcaption>{{.}}</figcaption>{{end}}
+</figure>
+{{end}}
+{{define "public-phone"}}
+<figure class="shot phone">
+  <div class="frame"><img src="/static/img/public/{{lang}}/{{.Src}}.jpg?v={{staticVersion}}" alt="{{.Alt}}" loading="lazy" width="750" height="1624"></div>
+</figure>
+{{end}}
+
+{{/* The closing call: invite-only for now. */}}
+{{define "public-cta"}}
+<section class="block">
+  <div class="ctaband">
+    <div><h2>{{t "Songbooks is invite-only for now."}}</h2><p>{{t "Bands, teachers, vocal coaches and jams join by invitation while we open it up. Already invited? Sign in."}}</p></div>
+    {{if .Person}}<a class="btn btn-lg" href="/home">{{t "My Songbooks"}}</a>{{else}}<a class="btn btn-lg" href="/login">{{t "Sign in"}}</a>{{end}}
+  </div>
+</section>
+{{end}}

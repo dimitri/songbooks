@@ -116,7 +116,7 @@ func timeAgo(lang string, t time.Time) string {
 // dashboard). / is never the dashboard itself, so it never has to
 // choose between the pitch and your own stuff.
 func (s *Server) handleMarketingHome(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "marketing_home", map[string]any{"Person": personFromContext(r)})
+	s.render(w, "public_home", publicPage(w, r, nil))
 }
 
 // handleMarketingEditor and handleMarketingEducators are the rest of the
@@ -124,14 +124,14 @@ func (s *Server) handleMarketingHome(w http.ResponseWriter, r *http.Request) {
 // requireAuth, so an outside link still works for a signed-out visitor,
 // and a signed-in one sees "My Songbooks" in the nav instead of "Sign in".
 func (s *Server) handleMarketingEditor(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "marketing_editor", map[string]any{"Person": personFromContext(r)})
+	s.render(w, "marketing_editor", publicPage(w, r, nil))
 }
 
 // handleMarketingGuitarPro is the dedicated /guitar-pro page: what the GP
 // import wizard (gp-import.js) actually supports and how, linked from the
 // editor marketing page's own "From Guitar Pro" callout.
 func (s *Server) handleMarketingGuitarPro(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "marketing_guitar_pro", map[string]any{"Person": personFromContext(r)})
+	s.render(w, "marketing_guitar_pro", publicPage(w, r, nil))
 }
 
 // handleDocsSongFormat serves the full .song file format reference —
@@ -142,7 +142,7 @@ func (s *Server) handleMarketingGuitarPro(w http.ResponseWriter, r *http.Request
 // editor marketing page and from the Source panel's own inline help
 // (see song.js) so both stay pointed at one single source of truth.
 func (s *Server) handleDocsSongFormat(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "docs_song_format", map[string]any{"Person": personFromContext(r)})
+	s.render(w, "docs_song_format", publicPage(w, r, nil))
 }
 
 type jsonSectionStructure struct {
@@ -405,6 +405,9 @@ func (s *Server) handleDocsScoreExample(w http.ResponseWriter, r *http.Request) 
 // later resize too — not just alphaTab's async render, but any later
 // reflow — so this is the one general fix for every example this
 // function ever serves, not a timing patch for one of them.
+// It measures #sheet, not the document: the document is never shorter
+// than the iframe itself, so an iframe once tall (a narrow first layout,
+// notation still loading) would never shrink back.
 func (s *Server) renderDocsExamplePage(w http.ResponseWriter, sg *song.Song, sections []viewerSection, drumMap []viewerDrumMapRow, mode string) {
 	var body bytes.Buffer
 	if err := webassets.Templates.ExecuteTemplate(&body, "sheet-body", map[string]any{
@@ -428,7 +431,7 @@ func (s *Server) renderDocsExamplePage(w http.ResponseWriter, sg *song.Song, sec
 <main class="sheet" id="sheet" data-render-mode="%s" data-key="%s">%s</main>
 <script>(function(){
   var sheet = document.getElementById('sheet');
-  function resize(){ try { if (window.frameElement) window.frameElement.style.height = (document.documentElement.scrollHeight + 4) + 'px'; } catch (e) {} }
+  function resize(){ try { if (window.frameElement) window.frameElement.style.height = (Math.ceil(sheet.getBoundingClientRect().height) + 4) + 'px'; } catch (e) {} }
   if (window.ResizeObserver) new ResizeObserver(resize).observe(sheet);
   window.addEventListener('load', resize);
   resize();
@@ -452,8 +455,23 @@ func docsExampleAlphaTabScripts(sections []viewerSection, drumMap []viewerDrumMa
 		v, v))
 }
 
+// publicPageHandler serves one of the public site's pages (templates/
+// public_*.html): the four audience pages under /for/ and the tour.
+// optionalPerson, like the home page, for the nav's "My Songbooks".
+func (s *Server) publicPageHandler(name string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		s.render(w, name, publicPage(w, r, nil))
+	}
+}
+
+// handleMarketingEducators sends the old /for-educators page to its
+// successor, keeping the language query.
 func (s *Server) handleMarketingEducators(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "marketing_educators", map[string]any{"Person": personFromContext(r)})
+	target := "/for/teachers"
+	if q := r.URL.RawQuery; q != "" {
+		target += "?" + q
+	}
+	http.Redirect(w, r, target, http.StatusMovedPermanently)
 }
 
 // handleIndex is just the project directory: name + a few stats per book,

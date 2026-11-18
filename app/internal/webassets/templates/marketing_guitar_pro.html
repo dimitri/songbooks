@@ -1,39 +1,19 @@
 {{define "marketing_guitar_pro"}}<!doctype html>
 <html lang="{{lang}}">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Songbooks — {{t "Guitar Pro import"}}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,800;0,9..144,900&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+{{template "public-head" .}}
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg:#f6f1e7; --bg-raised:#fff; --bg-sunken:#efe6d3; --border:#e7dfcf; --fg:#241e18; --fg-muted:#5f554a; --accent:#af4e39; --accent-ink:#8a3d2c; --accent-bg:#f3ddd4;
-    --font-chart: 'EB Garamond', Georgia, 'Times New Roman', serif;
-    --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  }
-  * { box-sizing: border-box; }
-  body { margin:0; font-family:'Inter',sans-serif; background:var(--bg); color:var(--fg); }
-  a { color: var(--accent); text-decoration:none; }
-  a:hover { color: var(--accent-ink); }
-  code { font-family:'JetBrains Mono',monospace; font-size:0.9em; background:var(--bg-sunken); padding:0.1em 0.35em; border-radius:4px; }
-  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 28px; }
-  header { display:flex; align-items:center; justify-content:space-between; padding: 20px 0; border-bottom:1px solid var(--border); }
-  .brand { display:flex; align-items:center; gap:10px; font-family:'Fraunces',serif; font-weight:900; font-size:21px; letter-spacing:-0.015em; }
-  nav { display:flex; align-items:center; gap:28px; font-size:14px; font-weight:500; color:var(--fg-muted); }
-  .nav-toggle { display:none; }
-  .hamburger { display:none; }
-  .btn { background:var(--accent); color:#fff; padding:10px 20px; border-radius:8px; font-weight:700; font-size:14px; display:inline-block; }
-  .invite-note { font-size:11.5px; color:var(--fg-muted); margin-left:-14px; }
+  /* The Guitar Pro page on the public site's layout (public.css): its
+     callouts, live examples, wizard steps and tables. */
+  code { font-family:'JetBrains Mono', ui-monospace, monospace; font-size:0.9em; background:var(--bg-sunken); padding:0.1em 0.35em; border-radius:4px; }
+  .hero.solo { display: block; max-width: 760px; padding: 56px 0 40px; }
+  .hero.solo .lede { max-width: none; margin: 0; }
 
-  .hero { padding: 56px 0 40px; max-width: 760px; }
-  .eyebrow { font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); }
-  h1 { font-family:'Fraunces',serif; font-weight:900; font-size:42px; line-height:1.1; letter-spacing:-0.015em; margin: 14px 0 16px; }
-  h1 .hl { color: var(--accent); }
-  .lede { font-size:17px; line-height:1.6; color:var(--fg-muted); margin:0; }
-
-  .callouts { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin: 36px 0 0; }
-  .callout h4 { font-family:'Fraunces',serif; font-weight:700; font-size:15.5px; margin:0 0 6px; display:flex; align-items:center; gap:8px; }
+  .callouts { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:24px; margin: 36px 0 0; }
+  .callout { min-width:0; }
+  .callout h4 { font-family:var(--display); font-weight:700; font-size:15.5px; margin:0 0 6px; display:flex; align-items:center; gap:8px; }
   .callout h4 .icon { width:1.1rem; height:1.1rem; flex:none; color:var(--accent); }
   .callout p { margin:0; font-size:13.5px; line-height:1.6; color:var(--fg-muted); }
 
@@ -41,17 +21,16 @@
      renderDocsExamplePage — see /docs/song-format's own worked
      examples) under each "what comes in" callout, not a screenshot or a
      hand-drawn mock of the chart's look. */
-  .live-examples { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin: 14px 0 0; }
+  .live-examples { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:24px; margin: 14px 0 0; }
+  .live-examples > div { min-width:0; }
   .live-examples .example-frame { width:100%; min-height:110px; border:1px solid var(--border); border-radius:10px; background:#fff; }
   .live-examples .example-caption { font-size:12.5px; color:var(--fg-muted); margin: 6px 2px 0; }
 
-  section.block { padding: 48px 0; border-top: 1px solid var(--border); }
-  .block h2 { font-family:'Fraunces',serif; font-weight:800; font-size:26px; margin:0 0 10px; letter-spacing:-0.01em; }
-  .block .sub { color:var(--fg-muted); font-size:15.5px; max-width:62ch; margin:0 0 28px; }
+  section.block .sub { margin-bottom: 28px; }
 
-  .steps { counter-reset: step; display:grid; gap:20px; margin-top: 0; }
+  .gp-steps { counter-reset: step; display:grid; gap:20px; margin-top: 0; }
   .step { display:flex; gap:18px; align-items:flex-start; }
-  .step .num { counter-increment: step; flex:none; width:34px; height:34px; border-radius:50%; background:var(--fg); color:var(--bg); font-family:'Fraunces',serif; font-weight:800; display:flex; align-items:center; justify-content:center; font-size:15px; }
+  .step .num { counter-increment: step; flex:none; width:34px; height:34px; border-radius:50%; background:var(--fg); color:var(--bg); font-family:var(--display); font-weight:800; display:flex; align-items:center; justify-content:center; font-size:15px; }
   .step .num::before { content: counter(step); }
   .step h4 { margin:2px 0 4px; font-size:15.5px; }
   .step p { margin:0; font-size:14px; line-height:1.6; color:var(--fg-muted); max-width:58ch; }
@@ -59,67 +38,27 @@
   table.support { border-collapse:collapse; width:100%; max-width:860px; font-size:14px; margin: 8px 0 0; }
   table.support th, table.support td { text-align:left; padding:10px 14px 10px 0; border-bottom:1px solid var(--border); vertical-align:top; }
   table.support th { color:var(--fg-muted); font-weight:600; font-size:12.5px; text-transform:uppercase; letter-spacing:.03em; }
-  table.support td:first-child { font-weight:700; white-space:nowrap; }
+  table.support td:first-child { font-weight:700; }
 
   .callout-box { background:var(--accent-bg); border-left:3px solid var(--accent); padding:14px 18px; border-radius:0 8px 8px 0; font-size:14px; max-width:720px; margin:20px 0 0; }
   .callout-box strong { color: var(--accent-ink); }
 
-  .ctaband { background: var(--fg); color: var(--bg); border-radius:18px; padding:40px 40px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:24px; }
-  .ctaband h2 { font-family:'Fraunces',serif; font-weight:800; font-size:24px; margin:0 0 6px; color:#fff; }
-  .ctaband p { margin:0; color:#cfc6b6; font-size:14.5px; }
-  .ctaband .btn { background:var(--accent); }
-
-  footer { padding:32px 0 48px; color:var(--fg-muted); font-size:13px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
-  footer .foot-brand { display:flex; align-items:center; gap:8px; font-family:'Fraunces',serif; font-weight:800; color:var(--fg); }
-
-  @media (max-width: 860px) { .callouts { grid-template-columns:1fr; } .live-examples { grid-template-columns:1fr; } }
-  @media (max-width: 720px) {
-    h1{font-size:32px;} .block h2{font-size:22px;}
-    header { flex-wrap:wrap; }
-    .hamburger { display:flex; flex-direction:column; justify-content:center; gap:5px; width:44px; height:44px; padding:0 6px; box-sizing:border-box; cursor:pointer; order:2; }
-    .hamburger span { display:block; height:2px; width:100%; background:var(--fg); border-radius:2px; }
-    nav { order:3; flex-basis:100%; display:none; flex-direction:column; align-items:flex-start; gap:16px; padding-top:18px; }
-    .nav-toggle:checked ~ nav { display:flex; }
-    /* The checkbox stays in the tab order (visually hidden, not display:none) so the menu opens from a keyboard too. */
-    .nav-toggle { display:block; position:absolute; width:1px; height:1px; margin:0; opacity:0; }
-    .nav-toggle:focus-visible + .hamburger { outline:2px solid var(--accent); outline-offset:2px; border-radius:6px; }
+  @media (max-width: 860px) { .callouts, .live-examples { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 520px) {
+    .hero.solo { padding: 36px 0 24px; }
+    table.support, table.support tbody, table.support tr, table.support td { display:block; }
+    table.support tr:first-child { display:none; }
+    table.support td { border-bottom:0; padding:0 0 4px; }
+    table.support td:first-child { padding-top:12px; }
+    table.support tr { border-bottom:1px solid var(--border); padding-bottom:10px; }
   }
 </style>
 </head>
 <body>
 <div class="wrap">
+{{template "public-header" .}}
 
-  <header>
-    <div class="brand">
-      <svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true">
-        <rect width="100" height="100" rx="22" fill="#241e18"/>
-        <g fill="#af4e39">
-          <circle cx="33" cy="18" r="7"/><circle cx="50" cy="18" r="7"/><circle cx="67" cy="18" r="7"/>
-          <circle cx="33" cy="34" r="7"/>
-          <circle cx="33" cy="50" r="7"/><circle cx="50" cy="50" r="7"/><circle cx="67" cy="50" r="7"/>
-          <circle cx="67" cy="66" r="7"/>
-          <circle cx="33" cy="82" r="7"/><circle cx="50" cy="82" r="7"/><circle cx="67" cy="82" r="7"/>
-        </g>
-      </svg>
-      Songbooks
-    </div>
-    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="{{t "Menu"}}">
-    <label for="nav-toggle" class="hamburger" aria-hidden="true"><span></span><span></span><span></span></label>
-    <nav>
-      <a href="/">{{t "Home"}}</a>
-      <a href="/editor">{{t "The editor"}}</a>
-      <a href="/docs/song-format">{{t "Format docs"}}</a>
-      <a href="/for-educators">{{t "For educators"}}</a>
-      {{if .Person}}
-      <a href="/home" class="btn">{{t "My Songbooks"}}</a>
-      {{else}}
-      <a href="/login" class="btn">{{t "Sign in"}}</a>
-      <span class="invite-note">{{t "invite‑only for now"}}</span>
-      {{end}}
-    </nav>
-  </header>
-
-  <section class="hero">
+  <section class="hero solo">
     <div class="eyebrow">{{t "Guitar Pro import"}}</div>
     <h1>{{t "Bring in the whole band."}}<br>{{t "Not just the"}} <span class="hl">{{t "chords."}}</span></h1>
     <p class="lede">{{t "A Guitar Pro file already has the drum pattern, the bass line, and every guitar part written out — the import wizard reads all of it, maps it onto your song's own sections, and keeps each part as real, playable notation instead of flattening everything into one chord grid."}}</p>
@@ -158,7 +97,7 @@
   <section class="block" id="how">
     <h2>{{t "How it works"}}</h2>
     <p class="sub">{{t "A short, guided wizard — not a silent all-or-nothing upload. You bring in one track at a time, each time confirming it lines up with the song before anything saves."}}</p>
-    <div class="steps">
+    <div class="gp-steps">
       <div class="step">
         <div class="num"></div>
         <div>
@@ -224,30 +163,11 @@
         <h2>{{t "Bring in a real arrangement, not just the changes."}}</h2>
         <p>{{t "Open a song, head to Edit → Guitar Pro import, and try it against your own file."}}</p>
       </div>
-      <a href="{{if .Person}}/home{{else}}/login{{end}}" class="btn">{{if .Person}}{{t "My Songbooks"}}{{else}}{{t "Start your songbook"}}{{end}}</a>
+      {{if .Person}}<a class="btn btn-lg" href="/home">{{t "My Songbooks"}}</a>{{else}}<a class="btn btn-lg" href="/login">{{t "Sign in"}}</a>{{end}}
     </div>
   </section>
 
-  <footer>
-    <div class="foot-brand">
-      <svg width="20" height="20" viewBox="0 0 100 100" aria-hidden="true">
-        <rect width="100" height="100" rx="22" fill="#241e18"/>
-        <g fill="#af4e39">
-          <circle cx="33" cy="18" r="7"/><circle cx="50" cy="18" r="7"/><circle cx="67" cy="18" r="7"/>
-          <circle cx="33" cy="34" r="7"/>
-          <circle cx="33" cy="50" r="7"/><circle cx="50" cy="50" r="7"/><circle cx="67" cy="50" r="7"/>
-          <circle cx="67" cy="66" r="7"/>
-          <circle cx="33" cy="82" r="7"/><circle cx="50" cy="82" r="7"/><circle cx="67" cy="82" r="7"/>
-        </g>
-      </svg>
-      Songbooks
-    </div>
-    <nav style="display:flex;">
-      <a href="/">{{t "Home"}}</a>
-      <a href="/editor">{{t "The editor"}}</a>
-      <a href="/for-educators">{{t "For educators"}}</a>
-    </nav>
-  </footer>
+{{template "public-footer" .}}
 </div>
 </body>
 </html>

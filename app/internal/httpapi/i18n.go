@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -76,10 +77,18 @@ func (s *Server) langOfRequest(r *http.Request) string {
 }
 
 func (s *Server) resolveLang(ctx context.Context, r *http.Request, p *store.Person) string {
+	// A switch clicked just now (?lang=) wins, for members too; the one
+	// remembered from before comes after a member's own setting.
+	if l := r.URL.Query().Get("lang"); slices.Contains(i18n.Langs, l) {
+		return l
+	}
 	if p != nil {
 		if l, _ := s.store.PersonLocale(ctx, p.ID); l != "" {
 			return l
 		}
+	}
+	if l := chosenLang(r); l != "" {
+		return l
 	}
 	if l := s.contextLang(ctx, r); l != "" {
 		return l
@@ -187,4 +196,49 @@ func (s *Server) handlePutBandLocale(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// langCookie remembers the language a visitor picked on the public pages
+// (their EN · FR switch, ?lang=): it comes before the browser's own.
+const langCookie = "sb_lang"
+
+// chosenLang is the language a visitor picked: ?lang= on this request,
+// else the one they picked before. "" when none, or not one we have.
+func chosenLang(r *http.Request) string {
+	if l := r.URL.Query().Get("lang"); slices.Contains(i18n.Langs, l) {
+		return l
+	}
+	if c, err := r.Cookie(langCookie); err == nil && slices.Contains(i18n.Langs, c.Value) {
+		return c.Value
+	}
+	return ""
+}
+
+// rememberLang keeps a ?lang= choice for the visitor's next pages.
+func rememberLang(w http.ResponseWriter, r *http.Request) {
+	if l := r.URL.Query().Get("lang"); slices.Contains(i18n.Langs, l) {
+		http.SetCookie(w, &http.Cookie{
+			Name: langCookie, Value: l, Path: "/", MaxAge: 365 * 24 * 60 * 60,
+			HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
+		})
+	}
+}
+
+// publicPage is what every public page's template gets: who's signed in,
+// and what the language switch and the alternate links need (the page's
+// address, the site's origin).
+func publicPage(w http.ResponseWriter, r *http.Request, data map[string]any) map[string]any {
+	rememberLang(w, r)
+	if data == nil {
+		data = map[string]any{}
+	}
+	data["Person"] = personFromContext(r)
+	scheme := "https"
+	if r.TLS == nil && r.Header.Get("X-Forwarded-Proto") == "" && strings.HasPrefix(r.Host, "localhost") {
+		scheme = "http"
+	}
+	data["Origin"] = scheme + "://" + r.Host
+	data["Path"] = r.URL.Path
+	data["Langs"] = i18n.Langs
+	return data
 }

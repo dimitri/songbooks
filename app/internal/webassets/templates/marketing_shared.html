@@ -1,0 +1,18 @@
+{{/* Shared by the public pages (marketing_*.html, docs): the page in
+     each language for search engines, and the visitor's EN · FR switch
+     (?lang=, remembered in a cookie: httpapi.chosenLang). Each page
+     passes its publicPage data (Origin, Path). */}}
+{{define "public-alternates"}}
+<link rel="alternate" hreflang="en" href="{{.Origin}}{{.Path}}?lang=en">
+<link rel="alternate" hreflang="fr" href="{{.Origin}}{{.Path}}?lang=fr">
+<link rel="alternate" hreflang="x-default" href="{{.Origin}}{{.Path}}">
+<link rel="canonical" href="{{.Origin}}{{.Path}}?lang={{lang}}">
+<meta property="og:locale" content="{{if eq lang "fr"}}fr_FR{{else}}en_US{{end}}">
+<style>
+  .lang-switch { display:inline-flex; align-items:center; gap:2px; font-size:13px; font-weight:600; border:1px solid var(--border, #e7dfcf); border-radius:999px; padding:2px; }
+  .lang-switch a, .lang-switch span { display:inline-flex; align-items:center; justify-content:center; min-width:34px; min-height:30px; padding:0 8px; border-radius:999px; color:inherit; text-decoration:none; }
+  .lang-switch span[aria-current] { background:var(--fg, #241e18); color:var(--bg, #f6f1e7); }
+  .lang-switch a:hover { background:var(--bg-sunken, #efe6d3); }
+</style>
+{{end}}
+{{define "public-lang-switch"}}<span class="lang-switch" role="group" aria-label="{{t "Language"}}">{{if eq lang "fr"}}<a href="{{.Path}}?lang=en" hreflang="en" lang="en" title="English">EN</a><span aria-current="true" lang="fr" title="Français">FR</span>{{else}}<span aria-current="true" lang="en" title="English">EN</span><a href="{{.Path}}?lang=fr" hreflang="fr" lang="fr" title="Français">FR</a>{{end}}</span>{{end}}
