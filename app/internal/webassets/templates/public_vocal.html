@@ -13,10 +13,10 @@
   <div class="hero-text">
     <div class="eyebrow">{{t "For vocal coaches"}}</div>
     <h1>{{t "Each student's songs,"}} <span class="hl">{{t "in each student's key."}}</span></h1>
-    <p class="lede">{{t "Voice ranges and notes per student, their songs transposed for them with the voice removable, lessons and groups in one calendar your students subscribe to."}}</p>
+    <p class="lede">{{t "Voice ranges and notes per student, their songs transposed for them with the voice removable, concert programs planned from their songs, lessons and groups in one calendar your students subscribe to."}}</p>
     <div class="cta-row"><a class="btn btn-lg" href="#how">{{t "See how"}}</a>{{if .Person}}<a class="btn-outline" href="/home">{{t "My Songbooks"}}</a>{{else}}<a class="btn-outline" href="/login">{{t "Sign in"}}</a>{{end}}</div>
   </div>
-  {{template "public-shot" (dict "Src" "studio" "Alt" (t "A vocal coaching studio's page in its own colours") "Caption" (t "Example data."))}}
+  {{template "public-shot" (dict "Src" "student-songs" "Alt" (t "Every song a coach's students have, each student's key on it") "Caption" (t "Example data."))}}
 </section>
 
 <section class="block">
@@ -32,17 +32,32 @@
   <div class="feature">
     <div class="feature-text">
       <h2>{{t "Students and their voices"}}</h2>
-      <p>{{t "Each student's chest, mixed and head ranges, overlaps included, and your teaching notes, lesson after lesson."}}</p>
+      <p>{{t "Each student's chest, mixed and head ranges, overlaps included, their songs in their key, and your teaching notes, lesson after lesson."}}</p>
     </div>
-    {{template "public-shot" (dict "Src" "students" "Alt" (t "A coach's students, each with their voice ranges and next lesson"))}}
+    {{template "public-shot" (dict "Src" "student" "Alt" (t "A student's page: voice ranges, their songs in their key, teaching notes"))}}
   </div>
   <div class="feature flip">
     <div class="feature-text">
       <h2>{{t "Their songs, in their key"}}</h2>
-      <p>{{t "Give a student a song and its key: the chart opens transposed, the recording too, at the same speed, with the voice removable for practice."}}</p>
-      <ul><li>{{t "The original voice to learn from, or the backing alone"}}</li><li>{{t "The same song in another key for another student"}}</li></ul>
+      <p>{{t "Try keys by ear in the song's player, then save one for a student: the chart and the recording open in that key for them, at the same speed, with the voice removable for practice."}}</p>
+      <ul><li>{{t "Each student's key for the song, listed in its Key panel"}}</li><li>{{t "The original voice to learn from, or the backing alone"}}</li></ul>
     </div>
-    {{template "public-shot" (dict "Src" "mixer" "Alt" (t "The mixer: the recording and its parts, sections on the bar ruler"))}}
+    {{template "public-shot" (dict "Src" "student-key" "Alt" (t "A song in a student's key, its Key panel listing each student's key for it"))}}
+  </div>
+  <div class="feature">
+    <div class="feature-text">
+      <h2>{{t "Open mics and the end-of-year concert"}}</h2>
+      <p>{{t "Pick songs among your students' songs, then plan the program: the running order, who sings lead and who sings backing vocals, each song in its lead singer's key."}}</p>
+      <ul><li>{{t "Who sings what, counted for each student"}}</li><li>{{t "Each student sees their parts and rehearses in the concert's key"}}</li></ul>
+    </div>
+    {{template "public-shot" (dict "Src" "program" "Alt" (t "An end-of-year concert's program: each song's key, lead singer and backing vocals"))}}
+  </div>
+  <div class="feature flip">
+    <div class="feature-text">
+      <h2>{{t "All your students at a glance"}}</h2>
+      <p>{{t "One table: each student's range, songs and how far their keys move, lessons so far alone or in a group, online or in the room, the last and the next, the last note."}}</p>
+    </div>
+    {{template "public-shot" (dict "Src" "students-table" "Alt" (t "A coach's students as a table: range, songs, keys, lessons, notes"))}}
   </div>
   <div class="feature">
     <div class="feature-text">

@@ -73,6 +73,9 @@ section.block { padding: 64px 0; border-top: 1px solid var(--border); }
 .feature-text ul { margin: 12px 0 0; padding-left: 1.1rem; color: var(--fg-muted); }
 .feature-text li { margin: 4px 0; }
 .phones { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+/* Three phones side by side: narrower, still one row beside the text. */
+.phones:has(> :nth-child(3)) { gap: 14px; }
+.phones:has(> :nth-child(3)) .shot.phone .frame { width: 172px; border-radius: 22px; border-width: 6px; }
 
 /* the five steps of a song */
 .steps { list-style: none; padding: 0; margin: 0 0 36px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; counter-reset: s; }
