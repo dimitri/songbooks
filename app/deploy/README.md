@@ -213,12 +213,52 @@ of this (they're plain per-account credentials, not origin-bound) — a
 passkey is purely an additional, optional third way in for whoever sets
 one up on a given origin.
 
+## Production and staging
+
+Two deployments run on the host from this directory (`target.sh`):
+
+| | production | staging |
+|---|---|---|
+| address | app.songbooks.studio | songbooks.tapoueh.org |
+| checkout | `~/dev/www/songbooks-prod` | `~/dev/www/songbooks` |
+| compose project | songbooks-prod | songbooks |
+| app port | 127.0.0.1:8103 | 127.0.0.1:8102 |
+| stems worker | yes (`COMPOSE_PROFILES=stems`) | no |
+| passkeys (RP ID) | app.songbooks.studio | songbooks.tapoueh.org |
+
+Each has its own `.env` (gitignored; `.env.example`), database and
+backups (`deploy/backups/prod/`, `deploy/backups/staging/`, the 3 latest
+kept). Staging is for integration and tests: deploy a branch there by
+checking it out in its clone, or main with `deploy/rollout.sh staging`.
+`deploy/rollout.sh` alone deploys production.
+
 ## Caddy
 
-The host's `/etc/caddy/Caddyfile` has a `songbooks.tapoueh.org` block
-reverse-proxying to `127.0.0.1:8102` (this compose file's published app
-port), added following the existing house style (see the other
-`*.gites.tapoueh.org` blocks). The edit's pre-change backup lives at
-`/etc/caddy/Caddyfile.bak.pre-songbooks-<unixtimestamp>` on the host (see
-the phase report for the exact filename). Caddy config itself is not part
-of this repo — it's host-specific infra, edited directly on `dev-runner`.
+The host's `/etc/caddy/Caddyfile` (host-specific, not in this repo; a
+backup `Caddyfile.bak.pre-<change>-<unixtime>` before each edit):
+
+```
+app.songbooks.studio {
+	log {
+		output file /var/log/caddy/songbooks-prod-access.log
+		format json
+	}
+	reverse_proxy 127.0.0.1:8103
+}
+songbooks.studio, songbooks.fr, app.songbooks.fr {
+	redir https://app.songbooks.studio{uri} permanent
+}
+live.songbooks.studio, live.songbooks.fr {
+	respond "Live lessons are coming soon." 503
+}
+songbooks.tapoueh.org {
+	# staging: kept out of search engines
+	log { … songbooks-access.log … }
+	header X-Robots-Tag "noindex, nofollow, noarchive"
+	respond /robots.txt …
+	reverse_proxy 127.0.0.1:8102
+}
+```
+
+`live.` is for the lessons' videoconference (Galène, docs/coaching.md),
+not deployed yet.

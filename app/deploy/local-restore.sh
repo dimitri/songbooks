@@ -7,11 +7,11 @@ set -euo pipefail
 # contents, never anything on the deploy host.
 #
 # Usage: deploy/local-restore.sh [path-to-dump]
-#   path-to-dump defaults to deploy/backups/latest.dump (backups/ is
+#   path-to-dump defaults to deploy/backups/prod/latest.dump (backups/ is
 #   gitignored: in a worktree, pass the main checkout's dump path).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DUMP="${1:-$SCRIPT_DIR/backups/latest.dump}"
+DUMP="${1:-$SCRIPT_DIR/backups/prod/latest.dump}"
 [[ -f "$DUMP" ]] || { echo "No dump at $DUMP — run backup-db.sh first, or pass a path." >&2; exit 1; }
 
 compose() { docker compose -f "$SCRIPT_DIR/docker-compose.local.yml" "$@"; }

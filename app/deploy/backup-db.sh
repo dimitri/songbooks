@@ -5,20 +5,20 @@ set -euo pipefail
 # compose's "db" service) over SSH and saves it locally, timestamped.
 # Local backups are never committed — see deploy/.gitignore.
 #
-# Usage: deploy/backup-db.sh
-# Env overrides: SONGBOOKS_DEPLOY_HOST (default dev-runner-rsync),
-#                SONGBOOKS_DEPLOY_DIR  (default ~/dev/www/songbooks/app/deploy)
+# Usage: deploy/backup-db.sh [prod|staging]   (prod by default; target.sh)
+# Saved in deploy/backups/<target>/. Env overrides: SONGBOOKS_DEPLOY_HOST,
+# SONGBOOKS_DEPLOY_DIR, SONGBOOKS_DUMP_COMPRESS (default zstd:9),
+# SONGBOOKS_BACKUPS_KEEP (default 3: older dumps of the target are removed).
 
-HOST="${SONGBOOKS_DEPLOY_HOST:-dev-runner-rsync}"
-REMOTE_DIR="${SONGBOOKS_DEPLOY_DIR:-~/dev/www/songbooks/app/deploy}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OUT_DIR="$SCRIPT_DIR/backups"
+source "$SCRIPT_DIR/target.sh"
+OUT_DIR="$BACKUP_DIR"
 mkdir -p "$OUT_DIR"
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 OUT_FILE="$OUT_DIR/songbooks-$TS.dump"
 
-echo "Backing up songbooks DB from $HOST ..."
+echo "Backing up the $TARGET songbooks DB from $HOST ..."
 # Custom format (-Fc), not plain SQL: lets restore-db.sh use pg_restore,
 # which can target a specific role/schema and skip ownership statements
 # (--no-owner) — the role name inside the dump might not exist verbatim
@@ -30,8 +30,24 @@ echo "Backing up songbooks DB from $HOST ..."
 # running deploy — not read from deploy/.env here since docker compose
 # already resolves that file itself when this ssh command runs `exec`
 # from the compose project directory.
-ssh "$HOST" "cd $REMOTE_DIR && docker compose exec -T db pg_dump -U songbooks -d songbooks --format=custom" > "$OUT_FILE"
+#
+# Compressed with zstd (pg_dump 16): most of the database is audio
+# (reference recordings and their parts, MP3, already compressed), so no
+# level gains much on it. Measured on the 1 GB database: gzip (pg_dump's
+# default) 1064 MB, zstd:9 966 MB in the same 160 s; zstd:19 still
+# running after 10 minutes.
+COMPRESS="${SONGBOOKS_DUMP_COMPRESS:-zstd:9}"
+ssh "$HOST" "cd $REMOTE_DIR/app/deploy && docker compose exec -T db pg_dump -U songbooks -d songbooks --format=custom --compress=$COMPRESS" > "$OUT_FILE.part"
+mv "$OUT_FILE.part" "$OUT_FILE"
 
 ln -sf "$(basename "$OUT_FILE")" "$OUT_DIR/latest.dump"
 echo "Backup complete: $OUT_FILE ($(du -h "$OUT_FILE" | cut -f1))"
 echo "Symlinked as $OUT_DIR/latest.dump"
+
+# Only the most recent few are kept: every deploy makes one, each about
+# a gigabyte.
+KEEP="${SONGBOOKS_BACKUPS_KEEP:-3}"
+ls -1t "$OUT_DIR"/songbooks-*.dump 2>/dev/null | tail -n +"$((KEEP + 1))" | while read -r old; do
+  echo "Removing old backup $(basename "$old")"
+  rm -f -- "$old"
+done
