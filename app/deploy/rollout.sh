@@ -40,7 +40,16 @@ echo "==> Fast-forwarding $HOST's checkout to origin/main ..."
 ssh "$HOST" "cd $REMOTE_DIR && git merge --ff-only origin/main"
 
 echo "==> Rebuilding and restarting the stack ..."
-ssh "$HOST" "cd $REMOTE_DIR/app/deploy && $DOCKER_ENV docker compose build && $DOCKER_ENV docker compose up -d"
+if [[ "$BUILD_CONTEXT" == "$RUN_CONTEXT" ]]; then
+  ssh "$HOST" "cd $REMOTE_DIR/app/deploy && $DOCKER_ENV docker compose build && $DOCKER_ENV docker compose up -d"
+else
+  # Built where builds work, then the images copied to the engine that
+  # runs them (target.sh).
+  ssh "$HOST" "cd $REMOTE_DIR/app/deploy && $BUILD_ENV docker compose build \
+    && $BUILD_ENV docker save \$($BUILD_ENV docker compose config --images) | $DOCKER_ENV docker load \
+    && $BUILD_ENV docker compose down --rmi local \
+    && $DOCKER_ENV docker compose up -d --no-build"
+fi
 
 echo "==> Waiting for the app to come back up ..."
 for i in $(seq 1 30); do
