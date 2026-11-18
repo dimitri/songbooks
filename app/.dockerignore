@@ -1,0 +1,8 @@
+# Not part of any image: backups (gigabytes of database dumps), files
+# staged for an import, research notes and reports.
+deploy/backups
+deploy/import-staging
+deploy/.env
+research_notes
+reports
+.claude

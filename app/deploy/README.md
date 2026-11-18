@@ -225,10 +225,19 @@ Two deployments run on the host from this directory (`target.sh`):
 | app port | 127.0.0.1:8103 | 127.0.0.1:8102 |
 | stems worker | yes (`COMPOSE_PROFILES=stems`) | no |
 | passkeys (RP ID) | app.songbooks.studio | songbooks.tapoueh.org |
+| Docker engine | `default` (data on disk) | `ci-build` (data on a RAM disk) |
 
 Each has its own `.env` (gitignored; `.env.example`), database and
 backups (`deploy/backups/prod/`, `deploy/backups/staging/`, the 3 latest
-kept). Staging is for integration and tests: deploy a branch there by
+kept).
+
+The host has two Docker engines: `default` (`/var/run/docker.sock`, its
+data under `/var/lib/docker` on disk) and `ci-build`
+(`/run/docker-ci.sock`, the shell's default context, its data on a 48 GB
+RAM disk at `/mnt/ci-docker`, lost at a reboot). Production runs on
+`default`; staging, whose data can be lost, on `ci-build`. The scripts
+pass the target's engine (`DOCKER_CONTEXT`) to every docker command;
+by hand, in production's directory: `DOCKER_CONTEXT=default docker compose …`. Staging is for integration and tests: deploy a branch there by
 checking it out in its clone, or main with `deploy/rollout.sh staging`.
 `deploy/rollout.sh` alone deploys production.
 

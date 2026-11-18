@@ -40,7 +40,7 @@ echo "==> Fast-forwarding $HOST's checkout to origin/main ..."
 ssh "$HOST" "cd $REMOTE_DIR && git merge --ff-only origin/main"
 
 echo "==> Rebuilding and restarting the stack ..."
-ssh "$HOST" "cd $REMOTE_DIR/app/deploy && docker compose build && docker compose up -d"
+ssh "$HOST" "cd $REMOTE_DIR/app/deploy && $DOCKER_ENV docker compose build && $DOCKER_ENV docker compose up -d"
 
 echo "==> Waiting for the app to come back up ..."
 for i in $(seq 1 30); do
@@ -53,5 +53,5 @@ for i in $(seq 1 30); do
 done
 
 echo "App did not return HTTP 200 at $HEALTH_URL within 30s (last: HTTP $CODE)." >&2
-echo "Check: ssh $HOST 'cd $REMOTE_DIR/app/deploy && docker compose logs app --tail=50'" >&2
+echo "Check: ssh $HOST 'cd $REMOTE_DIR/app/deploy && $DOCKER_ENV docker compose logs app --tail=50'" >&2
 exit 1

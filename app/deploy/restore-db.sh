@@ -35,24 +35,24 @@ if [[ "$AUTO_YES" -ne 1 ]]; then
   [[ "$CONFIRM" == "yes" ]] || { echo "Aborted."; exit 1; }
 fi
 
-echo "Restarting the docker compose stack on $HOST ..."
-ssh "$HOST" "cd $REMOTE_DIR && docker compose up -d --build"
+echo "Restarting the $TARGET stack on $HOST ..."
+ssh "$HOST" "cd $REMOTE_DIR && $DOCKER_ENV docker compose up -d --build"
 
 echo "Waiting for the db service to be healthy ..."
-until ssh "$HOST" "cd $REMOTE_DIR && docker compose exec -T db pg_isready -U songbooks -d songbooks" >/dev/null 2>&1; do
+until ssh "$HOST" "cd $REMOTE_DIR && $DOCKER_ENV docker compose exec -T db pg_isready -U songbooks -d songbooks" >/dev/null 2>&1; do
   sleep 1
 done
 
 echo "Stopping the app and the stems worker so they can't write mid-restore ..."
-ssh "$HOST" "cd $REMOTE_DIR && docker compose stop app && (docker compose stop stems 2>/dev/null || true)"
+ssh "$HOST" "cd $REMOTE_DIR && $DOCKER_ENV docker compose stop app && ($DOCKER_ENV docker compose stop stems 2>/dev/null || true)"
 
 echo "Dropping and recreating the database ..."
-ssh "$HOST" "cd $REMOTE_DIR && docker compose exec -T db psql -U songbooks -d postgres -c 'DROP DATABASE IF EXISTS songbooks;' && docker compose exec -T db psql -U songbooks -d postgres -c 'CREATE DATABASE songbooks OWNER songbooks;'"
+ssh "$HOST" "cd $REMOTE_DIR && $DOCKER_ENV docker compose exec -T db psql -U songbooks -d postgres -c 'DROP DATABASE IF EXISTS songbooks;' && $DOCKER_ENV docker compose exec -T db psql -U songbooks -d postgres -c 'CREATE DATABASE songbooks OWNER songbooks;'"
 
 echo "Restoring from $BACKUP_FILE ..."
-ssh "$HOST" "cd $REMOTE_DIR && docker compose exec -T db pg_restore -U songbooks -d songbooks --no-owner --role=songbooks" < "$BACKUP_FILE"
+ssh "$HOST" "cd $REMOTE_DIR && $DOCKER_ENV docker compose exec -T db pg_restore -U songbooks -d songbooks --no-owner --role=songbooks" < "$BACKUP_FILE"
 
 echo "Starting the app back up ..."
-ssh "$HOST" "cd $REMOTE_DIR && docker compose up -d"
+ssh "$HOST" "cd $REMOTE_DIR && $DOCKER_ENV docker compose up -d"
 
 echo "Done. Verify: ssh $HOST 'curl -s -o /dev/null -w \"%{http_code}\\n\" $HEALTH_URL'"

@@ -37,7 +37,7 @@ echo "Backing up the $TARGET songbooks DB from $HOST ..."
 # default) 1064 MB, zstd:9 966 MB in the same 160 s; zstd:19 still
 # running after 10 minutes.
 COMPRESS="${SONGBOOKS_DUMP_COMPRESS:-zstd:9}"
-ssh "$HOST" "cd $REMOTE_DIR/app/deploy && docker compose exec -T db pg_dump -U songbooks -d songbooks --format=custom --compress=$COMPRESS" > "$OUT_FILE.part"
+ssh "$HOST" "cd $REMOTE_DIR/app/deploy && $DOCKER_ENV docker compose exec -T db pg_dump -U songbooks -d songbooks --format=custom --compress=$COMPRESS" > "$OUT_FILE.part"
 mv "$OUT_FILE.part" "$OUT_FILE"
 
 ln -sf "$(basename "$OUT_FILE")" "$OUT_DIR/latest.dump"
