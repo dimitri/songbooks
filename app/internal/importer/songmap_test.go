@@ -33,3 +33,19 @@ func TestSongMap(t *testing.T) {
 		t.Fatalf("not idempotent")
 	}
 }
+
+func TestSongMapDropsLeadingEmpty(t *testing.T) {
+	got := SongMap("title: T\n\n[Verse]\n\n[Intro]\ngrid: | Am | Dm |\n\n[Verse 1]\ngrid: | Am |\n\n[Chorus]\n")
+	sg := song.Parse(got)
+	if len(sg.Sections) != 3 || sg.Sections[0].Label != "Intro" || sg.Get("map") != "Intro · Verse 1 · Chorus" {
+		t.Fatalf("%s", got)
+	}
+	body := "title: T\nmap: Verse · Intro · Verse 1\n\n[Verse]\n\n[Intro]\ngrid: | Am |\n\n[Verse 1]\ngrid: | Am |\nwalking down the quiet road\n"
+	tidy, gone := TidyMap(body)
+	if gone != 1 || song.Parse(tidy).Get("map") != "Intro · Verse 1" || !strings.Contains(tidy, "walking down the quiet road") {
+		t.Fatalf("gone %d:\n%s", gone, tidy)
+	}
+	if again, n := TidyMap(tidy); n != 0 || again != tidy {
+		t.Fatal("not idempotent")
+	}
+}

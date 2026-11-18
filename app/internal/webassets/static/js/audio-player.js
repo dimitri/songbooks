@@ -271,17 +271,31 @@ window.songbooksDecodable = function (buf) {
         const p = pts[i], q = pts[i + 1];
         return p.timeSeconds + ((b - p.barIndex) / (q.barIndex - p.barIndex)) * (q.timeSeconds - p.timeSeconds);
       };
-    } else if (secondsPerBar) {
+    } else {
+      // Section markers: each section's bars spread evenly up to the next
+      // section's marker (as the mixer draws them), so a chart whose tempo
+      // isn't the recording's still meets every section on time; before
+      // the first marker and after the last, the chart's tempo, else the
+      // pace between the markers.
       const secs = sections();
       const marks = currentMarkers()
         .map((m) => ({ t: m.timeSeconds, start: (secs.find((s) => s.index === m.sectionIndex) || {}).startBar }))
         .filter((m) => m.start !== undefined)
         .sort((a, b) => a.start - b.start);
-      if (marks.length) {
+      let pace = secondsPerBar;
+      if (marks.length > 1) {
+        const first = marks[0], last = marks[marks.length - 1];
+        if (last.start > first.start) pace = pace || (last.t - first.t) / (last.start - first.start);
+      }
+      if (marks.length && pace) {
         at = (b) => {
-          let m = marks[0];
-          for (const k of marks) if (k.start <= b) m = k;
-          return m.t + (b - m.start) * secondsPerBar;
+          let i = 0;
+          while (i < marks.length - 1 && marks[i + 1].start <= b) i++;
+          const m = marks[i], next = marks[i + 1];
+          if (b >= m.start && next && next.start > m.start) {
+            return m.t + ((b - m.start) / (next.start - m.start)) * (next.t - m.t);
+          }
+          return m.t + (b - m.start) * pace;
         };
       }
     }

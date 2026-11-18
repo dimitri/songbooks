@@ -9,6 +9,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode"
+
+	"golang.org/x/text/unicode/norm"
 
 	"app/internal/irealpro"
 	"app/internal/store"
@@ -41,23 +44,19 @@ func FindIReal(ctx context.Context, st *store.Store, title, artist string) ([]st
 	if len(tunes) == 0 {
 		return nil, IRealInfo{}, fmt.Errorf("no iReal Pro chart for %q", title)
 	}
-	// A thread can carry several songs: the one whose title shares the
-	// most words with the one asked for.
-	want := map[string]bool{}
-	for _, w := range strings.Fields(strings.ToLower(title)) {
-		want[w] = true
-	}
-	best, bestScore := tunes[0], -1
+	// A thread carries many songs: only one with the very title asked
+	// for will do. Sharing words isn't enough: "This Love" is not "So
+	// This Is Love", a waltz whose 3/4 and chords would be taken for the
+	// song's.
+	var best *irealpro.Tune
 	for _, t := range tunes {
-		score := 0
-		for _, w := range strings.Fields(strings.ToLower(t.Title)) {
-			if want[w] {
-				score++
-			}
+		if sameTitle(t.Title, title) {
+			best = t
+			break
 		}
-		if score > bestScore {
-			best, bestScore = t, score
-		}
+	}
+	if best == nil {
+		return nil, IRealInfo{}, fmt.Errorf("no iReal Pro chart titled %q", title)
 	}
 	return best.Segments(), IRealInfo{
 		Title: best.Title, Key: best.Key, Style: best.Style,
@@ -92,4 +91,32 @@ func IRealFix(ctx context.Context, st *store.Store, body, title, artist string, 
 		return body, cands, info, nil
 	}
 	return irealpro.ApplyMerge(body, cands, accept), cands, info, nil
+}
+
+// sameTitle compares two song titles as people read them: case, accents,
+// punctuation, a leading "The" or "A" and an iReal-style ", The" at the
+// end set aside.
+func sameTitle(a, b string) bool {
+	return titleKey(a) == titleKey(b) && titleKey(a) != ""
+}
+
+func titleKey(s string) string {
+	var b strings.Builder
+	for _, r := range norm.NFD.String(strings.ToLower(s)) {
+		switch {
+		case unicode.Is(unicode.Mn, r):
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			b.WriteRune(r)
+		default:
+			b.WriteRune(' ')
+		}
+	}
+	words := strings.Fields(b.String())
+	if n := len(words); n > 1 && (words[n-1] == "the" || words[n-1] == "a") {
+		words = words[:n-1]
+	}
+	if len(words) > 1 && (words[0] == "the" || words[0] == "a") {
+		words = words[1:]
+	}
+	return strings.Join(words, " ")
 }

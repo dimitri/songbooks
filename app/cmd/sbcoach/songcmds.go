@@ -37,9 +37,10 @@ const songUsage = `
   sbcoach key    --db URL --song ID
   sbcoach check  --db URL (--song ID | --songbook ID)
   sbcoach rebuild --db URL (--song ID | --songbook ID) --actor USER [--no-clip] [--dry-run] [--pause 20s]
-  sbcoach relyric --db URL (--song ID | --songbook ID) --actor USER [--dry-run]`
+  sbcoach relyric --db URL (--song ID | --songbook ID) --actor USER [--dry-run]
+  sbcoach tidy   --db URL (--song ID | --songbook ID) --actor USER [--dry-run]`
 
-var songCommands = map[string]bool{"add": true, "sync": true, "lyrics": true, "ireal": true, "key": true, "check": true, "rebuild": true, "relyric": true}
+var songCommands = map[string]bool{"add": true, "sync": true, "lyrics": true, "ireal": true, "key": true, "check": true, "rebuild": true, "relyric": true, "tidy": true}
 
 func runSongCommand(cmd string, args []string) {
 	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
@@ -187,6 +188,24 @@ func runSongCommand(cmd string, args []string) {
 		}
 		needSong(*songID)
 		syncSong(ctx, st, *songID, actor, *overwrite, *dryRun)
+
+	case "tidy":
+		if (*songID == 0) == (*songbookID == 0) || actor == 0 {
+			log.Fatal("usage:" + songUsage)
+		}
+		ids := []int64{*songID}
+		if *songbookID != 0 {
+			ids = songbookSongs(ctx, st, *songbookID)
+		}
+		var resync []string
+		for _, id := range ids {
+			if tidySong(ctx, st, id, actor, *dryRun) {
+				resync = append(resync, strconv.FormatInt(id, 10))
+			}
+		}
+		if len(resync) > 0 {
+			fmt.Printf("synced before and changed, to sync again (--overwrite): %s\n", strings.Join(resync, " "))
+		}
 
 	case "relyric":
 		if (*songID == 0) == (*songbookID == 0) || actor == 0 {
@@ -714,4 +733,48 @@ func relyricSong(ctx context.Context, st *store.Store, id, actor int64, dryRun b
 		}
 	}
 	return len(stanzas), placed, len(unused)
+}
+
+// tidySong fixes what an earlier rebuild left in a song map: the empty
+// sections at its top (importer.TidyMap), and a time signature taken
+// from an iReal Pro chart of another song (the lookup matched title
+// words before): set from iReal Pro when a chart of the very title is
+// found, an odd metre otherwise becoming 4/4 (4/4 stays). Saved as a new
+// revision. It reports whether the song was synced already and changed,
+// so its markers need placing again.
+func tidySong(ctx context.Context, st *store.Store, id, actor int64, dryRun bool) bool {
+	title, artist, ref, body, err := st.VariantContent(ctx, id)
+	if err != nil {
+		return false
+	}
+	have := song.Parse(body).Get("time")
+	nb, gone := importer.TidyMap(body)
+	from := "no iReal Pro chart of this title"
+	if _, info, err := songimport.FindIReal(ctx, st, title, artist); err == nil && info.TimeSig != "" {
+		nb = songimport.SetHeader(nb, "time", info.TimeSig, true)
+		from = "iReal Pro: " + info.Title
+	} else if have != "" && have != "4/4" {
+		nb = songimport.SetHeader(nb, "time", "4/4", true)
+	}
+	if nb == body {
+		return false
+	}
+	synced := recordingState(ctx, st, id).Markers > 0
+	fmt.Printf("%4d %-32.32s time %-4s -> %-4s (%s), %d empty sections at the top%s\n",
+		id, title, orDash(have), orDash(song.Parse(nb).Get("time")), from, gone, map[bool]string{true: ", synced", false: ""}[synced])
+	if dryRun {
+		return false
+	}
+	if _, err := st.SaveVariantByID(ctx, id, title, artist, ref, nb, "", actor); err != nil {
+		fmt.Printf("     not saved: %v\n", err)
+		return false
+	}
+	return synced
+}
+
+func orDash(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
 }

@@ -1399,7 +1399,7 @@
     <section class="lesson-panel" id="lesson-panel" data-songbook="{{.SongbookID}}" data-lesson="{{.Lesson.ID}}">
       <div class="lesson-panel-head">
         <a class="lesson-panel-title" href="{{.Href}}">
-          <span class="lesson-panel-kicker">{{.Course}}{{with .Lesson.Number}} · {{if $.LessonPanel.Of}}{{t "Lesson %s of %d" . $.LessonPanel.Of}}{{else}}{{t "Lesson %s" .}}{{end}}{{end}}</span>
+          <span class="lesson-panel-kicker">{{.Course}}{{with .Lesson.Number}} · {{if $.LessonPanel.Of}}{{t "Lesson %s of %d" (deref .) $.LessonPanel.Of}}{{else}}{{t "Lesson %s" (deref .)}}{{end}}{{end}}</span>
           <span class="lesson-panel-name">{{.Lesson.Title}}</span>
         </a>
         <div class="lesson-panel-actions">

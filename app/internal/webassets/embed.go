@@ -198,6 +198,21 @@ var funcMap = template.FuncMap{
 		}
 		return strconv.FormatInt(*n, 10)
 	},
+	// deref and derefInt: a lesson's *int number as text or as a count
+	// (a function argument isn't dereferenced for you either: "Lesson %s"
+	// would print the pointer).
+	"deref": func(n *int) string {
+		if n == nil {
+			return ""
+		}
+		return strconv.Itoa(*n)
+	},
+	"derefInt": func(n *int) int {
+		if n == nil {
+			return 0
+		}
+		return *n
+	},
 	// instrumentIcon classifies a free-text instrument string into one of
 	// a handful of short category keys ("drums"/"bass"/"guitar"/"vocals"/
 	// "keys"/"other"). It does NOT return a template name: Go's
