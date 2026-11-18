@@ -1108,13 +1108,14 @@
         <h2 id="import-wizard-title">{{t "Import"}}</h2>
         <button type="button" id="import-wiz-close" class="icon-btn wizard-x" aria-label="{{t "Close"}}" title="{{t "Close"}}">{{template "icon-close"}}</button>
       </div>
-      <ol class="wizard-steps" id="import-wizard-steps" aria-label="{{t "Steps"}}">
-        <li><button type="button" class="wizard-step-dot" data-step-dot="find">1 &middot; {{t "Chart"}}</button></li>
-        <li><button type="button" class="wizard-step-dot" data-step-dot="review">2 &middot; {{t "Review"}}</button></li>
-        <li><button type="button" class="wizard-step-dot" data-step-dot="lyrics">3 &middot; {{t "Lyrics"}}</button></li>
-        <li><button type="button" class="wizard-step-dot" data-step-dot="recording">4 &middot; {{t "Recording"}}</button></li>
-        <li><button type="button" class="wizard-step-dot" data-step-dot="sync">5 &middot; {{t "Sync"}}</button></li>
+      <ol class="stepper" id="import-wizard-steps" aria-label="{{t "Steps"}}">
+        <li><button type="button" class="stepper-step" data-step-dot="find"><span class="stepper-num" aria-hidden="true">1</span><span class="stepper-label">{{t "Chart"}}</span></button></li>
+        <li><button type="button" class="stepper-step" data-step-dot="review"><span class="stepper-num" aria-hidden="true">2</span><span class="stepper-label">{{t "Review"}}</span></button></li>
+        <li><button type="button" class="stepper-step" data-step-dot="lyrics"><span class="stepper-num" aria-hidden="true">3</span><span class="stepper-label">{{t "Lyrics"}}</span></button></li>
+        <li><button type="button" class="stepper-step" data-step-dot="recording"><span class="stepper-num" aria-hidden="true">4</span><span class="stepper-label">{{t "Recording"}}</span></button></li>
+        <li><button type="button" class="stepper-step" data-step-dot="sync"><span class="stepper-num" aria-hidden="true">5</span><span class="stepper-label">{{t "Sync"}}</span></button></li>
       </ol>
+      <p class="stepper-caption" id="import-wizard-caption" aria-hidden="true"></p>
 
       <div class="import-step" data-step="find">
         <div id="import-assess" class="import-assess" aria-live="polite"></div>

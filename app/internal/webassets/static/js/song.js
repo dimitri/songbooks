@@ -2196,7 +2196,12 @@ const ICONS = {
         d.classList.toggle('done', i !== at && passed.has(name));
         d.classList.toggle('suggested', suggested.has(name) && !passed.has(name) && i !== at);
         if (i === at) d.setAttribute('aria-current', 'step'); else d.removeAttribute('aria-current');
+        // Said to screen readers: its state, not only its colour.
+        const state = i === at ? t('current step') : passed.has(name) ? t('done') : suggested.has(name) ? t('suggested') : '';
+        d.setAttribute('aria-label', `${i + 1}. ${d.querySelector('.stepper-label').textContent}${state ? ', ' + state : ''}`);
       });
+      // Phones show the current step's name under the numbers.
+      $id('import-wizard-caption').textContent = t('Step %s of %s: %s', at + 1, ORDER.length, dots[at].querySelector('.stepper-label').textContent);
       backBtn.hidden = at === 0;
       skipBtn.hidden = !['lyrics', 'recording', 'sync'].includes(current);
       skipBtn.textContent = current === 'sync' ? t('Close without saving') : t('Skip');
@@ -2506,6 +2511,7 @@ const ICONS = {
         candidates = data.candidates || [];
         ytStatus.textContent = candidates.length ? '' : t('Nothing found on YouTube.');
         renderCandidates();
+        if (current === 'recording') refreshNav(); // Next may now use a starred one
       } catch (err) {
         ytStatus.textContent = t("Couldn't search YouTube just now."); ytStatus.className = 'err';
       }

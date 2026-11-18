@@ -114,29 +114,34 @@ func VocalDraft(ctx context.Context, st *store.Store, title, artist string) (*Dr
 	}
 	text, notes := importer.CleanSongText(res.Song.ToSongText(all), importer.CleanOptions{StripInlineChords: true})
 	d.Notes = append(d.Notes, notes...)
+	d.Text = withIReal(ctx, st, d, text, title, artist)
+	return d, nil
+}
+
+// withIReal applies iReal Pro's grids to a draft's sections where its
+// chart is a safe match (Ultimate Guitar's stay elsewhere, said so) and
+// takes its time signature.
+func withIReal(ctx context.Context, st *store.Store, d *Draft, text, title, artist string) string {
 	merged, cands, info, err := IRealFix(ctx, st, text, title, artist, false)
-	switch {
-	case err != nil:
+	if err != nil {
 		d.Notes = append(d.Notes, "no iReal Pro chart found: the grids are Ultimate Guitar's")
-	default:
-		text = merged
-		d.IReal = info.SourceURL
-		used, other := 0, 0
-		for _, c := range cands {
-			if c.Safe {
-				used++
-			} else {
-				other++
-			}
-		}
-		d.Notes = append(d.Notes, fmt.Sprintf("iReal Pro grids used in %d sections", used))
-		if other > 0 {
-			d.Notes = append(d.Notes, fmt.Sprintf("%d sections keep Ultimate Guitar's grid (iReal's differs or is in another key): check them in the iReal step", other))
-		}
-		if info.TimeSig != "" {
-			text = SetHeader(text, "time", info.TimeSig, false)
+		return text
+	}
+	d.IReal = info.SourceURL
+	used, other := 0, 0
+	for _, c := range cands {
+		if c.Safe {
+			used++
+		} else {
+			other++
 		}
 	}
-	d.Text = text
-	return d, nil
+	d.Notes = append(d.Notes, fmt.Sprintf("iReal Pro grids used in %d sections", used))
+	if other > 0 {
+		d.Notes = append(d.Notes, fmt.Sprintf("%d sections keep Ultimate Guitar's grid (iReal's differs or is in another key): check them in the iReal step", other))
+	}
+	if info.TimeSig != "" {
+		merged = SetHeader(merged, "time", info.TimeSig, false)
+	}
+	return merged
 }

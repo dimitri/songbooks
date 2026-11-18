@@ -33,9 +33,10 @@ const songUsage = `
   sbcoach lyrics --db URL --song ID --actor USER [--source ug|url|text] [--input X] [--replace] [--dry-run]
   sbcoach ireal  --db URL --song ID --actor USER [--all] [--dry-run]
   sbcoach key    --db URL --song ID
-  sbcoach check  --db URL (--song ID | --songbook ID)`
+  sbcoach check  --db URL (--song ID | --songbook ID)
+  sbcoach rebuild --db URL (--song ID | --songbook ID) --actor USER [--no-clip] [--dry-run] [--pause 20s]`
 
-var songCommands = map[string]bool{"add": true, "sync": true, "lyrics": true, "ireal": true, "key": true, "check": true}
+var songCommands = map[string]bool{"add": true, "sync": true, "lyrics": true, "ireal": true, "key": true, "check": true, "rebuild": true}
 
 func runSongCommand(cmd string, args []string) {
 	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
@@ -57,7 +58,8 @@ func runSongCommand(cmd string, args []string) {
 	input := fs.String("input", "", "lyrics: the page address (url) or a file of lyrics (text)")
 	replace := fs.Bool("replace", false, "lyrics: replace lyrics already in sections")
 	songID := fs.Int64("song", 0, "the song")
-	songbookID := fs.Int64("songbook", 0, "check: every song in this songbook")
+	songbookID := fs.Int64("songbook", 0, "check, rebuild, sync: every song in this songbook")
+	pause := fs.Duration("pause", 20*time.Second, "rebuild: the wait between two songs of a songbook")
 	all := fs.Bool("all", false, "ireal: apply every section, not only the safe matches")
 	overwrite := fs.Bool("overwrite", false, "sync: replace an existing tempo: and time:")
 	dryRun := fs.Bool("dry-run", false, "show, don't save")
@@ -159,8 +161,37 @@ func runSongCommand(cmd string, args []string) {
 		}
 
 	case "sync":
+		if *songbookID != 0 {
+			for _, id := range songbookSongs(ctx, st, *songbookID) {
+				title, _, _, _, _ := st.VariantContent(ctx, id)
+				fmt.Printf("== %d %s\n", id, title)
+				if s := recordingState(ctx, st, id); !s.Has || s.StemStatus != "done" {
+					fmt.Println("  not split into voice and backing yet: skipped")
+					continue
+				}
+				if err := syncSongErr(ctx, st, id, actor, *overwrite, *dryRun); err != nil {
+					fmt.Printf("  %v\n", err)
+				}
+			}
+			return
+		}
 		needSong(*songID)
 		syncSong(ctx, st, *songID, actor, *overwrite, *dryRun)
+
+	case "rebuild":
+		if (*songID == 0) == (*songbookID == 0) || actor == 0 {
+			log.Fatal("usage:" + songUsage)
+		}
+		ids := []int64{*songID}
+		if *songbookID != 0 {
+			ids = songbookSongs(ctx, st, *songbookID)
+		}
+		for i, id := range ids {
+			if i > 0 {
+				time.Sleep(*pause) // one site request at a time, spaced
+			}
+			rebuildSong(ctx, st, id, actor, !*noClip, *dryRun)
+		}
 
 	case "lyrics":
 		needSong(*songID)
@@ -355,13 +386,19 @@ func waitForStems(ctx context.Context, st *store.Store, audioID int64, wait time
 }
 
 func syncSong(ctx context.Context, st *store.Store, id, actor int64, overwrite, dryRun bool) {
+	if err := syncSongErr(ctx, st, id, actor, overwrite, dryRun); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func syncSongErr(ctx context.Context, st *store.Store, id, actor int64, overwrite, dryRun bool) error {
 	title, artist, _, body, err := st.VariantContent(ctx, id)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	a, ready, err := songimport.Recording(ctx, st, id, store.AudioYouTube)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	irealSig, irealKey := "", ""
 	if _, info, err := songimport.FindIReal(ctx, st, title, artist); err == nil {
@@ -369,7 +406,7 @@ func syncSong(ctx context.Context, st *store.Store, id, actor int64, overwrite, 
 	}
 	p, err := songimport.ProposeSync(a, ready, body, httpapi.SyncSections(song.Parse(body)), irealSig, irealKey)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	fmt.Printf("recording: %.1fs, sound from %.2fs; its own estimate %.0f bpm in %s\n", p.Duration, p.AudioStart, p.AudioTempo, p.AudioTimeSig)
 	fmt.Printf("chart: tempo %d, time %s (from %s), fit %.0f%%\n", p.Tempo, p.TimeSig, p.TimeSigFrom, p.Score*100)
@@ -379,12 +416,116 @@ func syncSong(ctx context.Context, st *store.Store, id, actor int64, overwrite, 
 	printKey(p.Key)
 	printNotes("sync", p.Notes)
 	if dryRun {
-		return
+		return nil
 	}
 	if _, _, err := songimport.ApplySync(ctx, st, id, store.AudioYouTube, p, "", overwrite, actor); err != nil {
-		log.Fatal(err)
+		return err
 	}
 	fmt.Println("saved: tempo, time and section markers")
+	return nil
+}
+
+// songbookSongs is a songbook's songs, in id order.
+func songbookSongs(ctx context.Context, st *store.Store, songbookID int64) []int64 {
+	entries, err := st.ListSongbookEntries(ctx, songbookID)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var ids []int64
+	for _, e := range entries {
+		ids = append(ids, e.VariantID)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
+}
+
+// rebuildSong redoes a song as a song map (songimport.MapDraft) under its
+// own title and artist, saved as a new revision, with the artist's own
+// studio recording as its reference (live takes, covers, lessons passed
+// over), downloaded for its voice/backing split; sync runs once that's
+// done. It prints the sections and sources, never lyrics.
+func rebuildSong(ctx context.Context, st *store.Store, id, actor int64, clip, dryRun bool) {
+	title, artist, oldRef, old, err := st.VariantContent(ctx, id)
+	if err != nil {
+		fmt.Printf("== %d: %v\n", id, err)
+		return
+	}
+	fmt.Printf("== %d %s — %s\n", id, title, artist)
+	d, err := songimport.MapDraft(ctx, st, title, artist)
+	if err != nil {
+		fmt.Printf("  no chart found (%v): kept as it was\n", err)
+		return
+	}
+	sg := song.Parse(d.Text)
+	grids := 0
+	for _, s := range sg.Sections {
+		if len(s.Measures) > 0 {
+			grids++
+		}
+	}
+	fmt.Printf("  chart from %s: %d sections, %d with a grid, key %s", d.URL, len(sg.Sections), grids, sg.Get("key"))
+	if d.IReal != "" {
+		fmt.Printf(", iReal Pro %s", d.IReal)
+	}
+	fmt.Println()
+	fmt.Printf("  map: %s\n", sg.Get("map"))
+	ref := oldRef
+	var pick *ytaudio.Candidate
+	if clip {
+		if list, err := ytaudio.Search(ctx, title, artist); err == nil {
+			for i := range list {
+				if list[i].Note == "" && list[i].Official {
+					pick = &list[i]
+					break
+				}
+			}
+			if pick == nil {
+				for i := range list {
+					if list[i].Note == "" {
+						pick = &list[i]
+						break
+					}
+				}
+			}
+		}
+		if pick != nil {
+			ref = pick.URL
+			fmt.Printf("  reference: %s — %q on %s\n", pick.URL, pick.Title, pick.Channel)
+		} else {
+			fmt.Println("  no studio recording found: reference left as it was")
+		}
+	}
+	text := d.Text
+	if ref != "" {
+		text = songimport.SetHeader(text, "reference", ref, true)
+	}
+	if dryRun {
+		return
+	}
+	if text != old {
+		if _, err := st.SaveVariantByID(ctx, id, title, artist, ref, text, "", actor); err != nil {
+			fmt.Printf("  not saved: %v\n", err)
+			return
+		}
+		fmt.Println("  saved (the song's history has the previous version)")
+	}
+	if pick == nil {
+		return
+	}
+	if cur, err := st.GetSongAudioMeta(ctx, id, store.AudioYouTube); err == nil && cur.SourceURL == pick.URL {
+		return
+	}
+	data, err := ytaudio.Download(ctx, pick.URL)
+	if err != nil {
+		fmt.Printf("  download failed: %v\n", err)
+		return
+	}
+	sum := sha256.Sum256(data)
+	if _, err := st.SetSongAudio(ctx, id, store.AudioYouTube, data, "audio/mpeg", hex.EncodeToString(sum[:]), pick.URL, actor); err != nil {
+		fmt.Printf("  recording not stored: %v\n", err)
+		return
+	}
+	fmt.Printf("  recording: %d KB, queued for its voice and backing parts\n", len(data)>>10)
 }
 
 func placeLyrics(ctx context.Context, body, source, title, artist, input string, replace bool) string {

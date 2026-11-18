@@ -256,5 +256,9 @@
   "This chart is better started again.": "Mieux vaut refaire cette grille.",
   "This chart is worth keeping and improving.": "Cette grille vaut la peine d’être gardée et améliorée.",
   "Use the best-rated": "Prendre le mieux noté",
-  "in use": "utilisé"
+  "in use": "utilisé",
+  "current step": "étape en cours",
+  "done": "faite",
+  "suggested": "suggérée",
+  "Step %s of %s: %s": "Étape %s sur %s : %s"
 }
