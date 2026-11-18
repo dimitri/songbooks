@@ -1,0 +1,57 @@
+#!/usr/sbin/nft -f
+# The host's firewall (dev-runner), loaded by host-firewall.service: its own
+# table, so it never touches Docker's (which manage the containers' NAT and
+# forwarding). Incoming connections to the host are dropped unless listed
+# below. Containers' published ports go through Docker's forwarding, not
+# this input chain: see the "published ports" chain at the end.
+
+table inet host_firewall
+delete table inet host_firewall
+
+table inet host_firewall {
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		ct state established,related accept
+		ct state invalid drop
+		iif lo accept
+		# Docker's bridges: containers reaching services on the host.
+		iifname "docker0" accept
+		iifname "br-*" accept
+
+		# ICMP: ping, path MTU, IPv6 neighbour discovery.
+		ip protocol icmp accept
+		ip6 nexthdr icmpv6 accept
+		# DHCP client replies (IPv4, IPv6).
+		udp dport { 68, 546 } accept
+
+		tcp dport 22 accept comment "ssh"
+		tcp dport { 80, 443 } accept comment "caddy: http, https"
+		udp dport 443 accept comment "caddy: http/3"
+
+		# Galène, live lessons (docs/live-lessons.md).
+		udp dport 40000 accept comment "galene: audio and video"
+		tcp dport 1194 accept comment "galene: turn"
+		udp dport 1194 accept comment "galene: turn"
+
+		# Open today, review: keep what must be reachable from outside,
+		# delete the rest (they stay reachable from the host itself).
+		tcp dport 8080 accept comment "review: guest"
+		tcp dport { 8890, 9010, 18960 } accept comment "review: python3 dev servers"
+		tcp dport { 18096, 18097, 18099 } accept comment "review: api, app"
+		tcp dport { 18602, 18610, 18620, 18630, 18640, 18650, 18660, 18670, 18680, 18700, 18710, 18720, 18730, 18740, 18750, 18760 } accept comment "review: desk-* dev servers"
+		tcp dport 55433 accept comment "review: pasta (podman)"
+		udp dport 55433 accept comment "review: pasta (podman)"
+		# Closed: Performance Co-Pilot (4330, 44321), LLMNR (5355), mDNS
+		# (5353): local services with no business on the internet.
+	}
+
+	# Containers' published ports, before Docker's own rules: a port
+	# published on all addresses is reachable from the internet whatever
+	# the input chain says. Uncomment to close one to outside traffic.
+	chain published_ports {
+		type filter hook prerouting priority dstnat - 1; policy accept;
+		# Postgres published on 0.0.0.0:55432 by a Docker stack.
+		# iifname "eno1" tcp dport 55432 drop comment "public postgres"
+	}
+}

@@ -98,5 +98,24 @@ services:
     cpus: 8
     mem_limit: 8g
 
+  # Live lessons' videoconference server (docs/live-lessons.md): production
+  # only (COMPOSE_PROFILES=stems,live), its configuration from
+  # galene/setup.sh. Host networking: it must offer the host's own address
+  # for audio and video (UDP 40000, its TURN server on 1194), which Docker's
+  # NAT would hide. Its web side listens on 127.0.0.1:8444, behind Caddy
+  # (live.songbooks.studio).
+  galene:
+    profiles: ["live"]
+    build:
+      context: ./galene
+    restart: unless-stopped
+    network_mode: host
+    command: ["-insecure", "-http", "127.0.0.1:8444", "-udp-range", "40000", "-turn", "auto"]
+    volumes:
+      - ./galene/data:/galene/data:ro
+      - ./galene/groups:/galene/groups:ro
+    ulimits:
+      nofile: {soft: 65536, hard: 65536}
+
 volumes:
   songbooks_db_data:

@@ -1,3 +1,5 @@
 .env
 backups/
 import-staging/
+galene/data/
+galene/groups/

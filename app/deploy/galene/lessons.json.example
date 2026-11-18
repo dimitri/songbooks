@@ -1,0 +1,11 @@
+{
+  "description": "Songbooks live lessons: a lesson is lessons/<id>, made at its first join.",
+  "auto-subgroups": true,
+  "allow-recording": false,
+  "codecs": ["opus", "vp8"],
+  "max-history-age": 3600,
+  "authKeys": [
+    {"kty": "oct", "alg": "HS256", "kid": "songbooks-1", "k": "GALENE_KEY"}
+  ],
+  "authPortal": "https://app.songbooks.studio/"
+}
