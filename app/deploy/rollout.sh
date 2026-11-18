@@ -6,23 +6,21 @@ set -euo pipefail
 # forwards the host's checkout, rebuilds the image, restarts the stack,
 # and health-checks the result.
 #
-# Usage: deploy/rollout.sh
-# Env overrides: SONGBOOKS_DEPLOY_HOST (default dev-runner-rsync),
-#                SONGBOOKS_DEPLOY_DIR  (default ~/dev/www/songbooks),
-#                SONGBOOKS_HEALTH_URL  (default http://127.0.0.1:8102/)
+# Usage: deploy/rollout.sh [prod|staging]   (prod by default; target.sh)
+# Env overrides: SONGBOOKS_DEPLOY_HOST, SONGBOOKS_DEPLOY_DIR,
+#                SONGBOOKS_HEALTH_URL
 #
-# Prerequisite (one-time): ~/dev/www/songbooks on the host must be a git
+# Prerequisite (one-time): the target's directory on the host must be a git
 # clone of this repo (remote `origin` = git@github.com:dimitri/songbooks.git,
 # branch `main`), not an rsync'd tree — see README.md. The host needs its
 # own working GitHub access (it does, via ~/.ssh/id_ed25519_github).
 
-HOST="${SONGBOOKS_DEPLOY_HOST:-dev-runner-rsync}"
-REMOTE_DIR="${SONGBOOKS_DEPLOY_DIR:-~/dev/www/songbooks}"
-HEALTH_URL="${SONGBOOKS_HEALTH_URL:-http://127.0.0.1:8102/}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/target.sh"
+echo "==> Deploying to $TARGET ($HOST:$REMOTE_DIR)"
 
 echo "==> Backing up the database before rollout ..."
-"$SCRIPT_DIR/backup-db.sh"
+"$SCRIPT_DIR/backup-db.sh" "$TARGET"
 
 echo "==> Fetching on $HOST ..."
 ssh "$HOST" "cd $REMOTE_DIR && git fetch origin main"

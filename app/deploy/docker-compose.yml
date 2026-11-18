@@ -1,3 +1,8 @@
+# Two deployments run from this file on the host (deploy/target.sh):
+# production (app.songbooks.studio) and staging (songbooks.tapoueh.org),
+# each its own clone with its own .env, which names its compose project
+# (COMPOSE_PROJECT_NAME: songbooks-prod, songbooks), its port
+# (SONGBOOKS_PORT) and whether the stems worker runs (COMPOSE_PROFILES=stems).
 name: songbooks
 
 services:
@@ -63,7 +68,7 @@ services:
       # 8102: chosen after checking `ss -tlnp` + `docker ps` on the host —
       # 8090-8094/8099-8101 and the 18000s are already taken by the gites
       # and pr0 stacks, prlobby and docs-reader; 8102 was free.
-      - "127.0.0.1:8102:8080"
+      - "127.0.0.1:${SONGBOOKS_PORT:-8102}:8080"
     volumes:
       - ./import-staging:/import-staging:ro
 
@@ -72,6 +77,9 @@ services:
   # docs/audio-cast-transpose-stems.md. One recording at a time, capped
   # at 8 of the host's cores so the app and the other stacks keep theirs.
   stems:
+    # Production's only (COMPOSE_PROFILES=stems in its .env): one worker
+    # for the host is enough, and staging's recordings can wait.
+    profiles: ["stems"]
     build:
       context: ..
       dockerfile: deploy/Dockerfile.stems
