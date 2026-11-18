@@ -176,11 +176,8 @@
   "Advanced grid syntax (%d bars) — a per-bar meter override, duration tag, or a repeat bracket this builder can't show as an editable grid. Shown below read-only; edit it precisely in the Source tab.": "Syntaxe de grille avancée (%d mesures) — changement de signature sur une mesure, durée explicite ou reprise que cet éditeur ne peut pas afficher en grille modifiable. Affichée ci-dessous en lecture seule ; modifiez-la précisément dans l’onglet Source.",
   "chords (%d bar)": "accords (%d mesure)",
   "chords (%d bars)": "accords (%d mesures)",
-  "%s stanzas from %s.": "%s strophes depuis %s.",
-  "%s stanzas not placed: the song may need more sections.": "%s strophes non placées : le morceau a peut-être besoin de plus de sections.",
   "(from its chords)": "(d’après ses accords)",
   "Chart: %s": "Grille : %s",
-  "Chart: tempo %s in %s (time signature from %s). Fit with the voice: %s%%.": "Grille : tempo %s en %s (signature rythmique d’après %s). Accord avec la voix : %s %%.",
   "Cleaned up: %s": "Nettoyé : %s",
   "Cleaned up: %s. Check it, then save.": "Nettoyé : %s. Vérifiez, puis enregistrez.",
   "Couldn't analyse the recording: %s": "Impossible d’analyser l’enregistrement : %s",
@@ -200,7 +197,6 @@
   "Nothing found on YouTube.": "Rien trouvé sur YouTube.",
   "Nothing to clean up.": "Rien à nettoyer.",
   "Paste the lyrics first.": "Collez d’abord les paroles.",
-  "Recording: %s (%s%% sure)": "Enregistrement : %s (sûr à %s %%)",
   "Recording: %s, sound from %ss. Its own estimate: %s bpm in %s.": "Enregistrement : %s, son à partir de %s s. Son estimation : %s bpm en %s.",
   "Save the chart first: markers go on its saved sections.": "Enregistrez d’abord la grille : les repères se placent sur ses sections enregistrées.",
   "Saved. Reload the page to play along with the synced chart.": "Enregistré. Rechargez la page pour jouer avec la grille synchronisée.",
@@ -229,5 +225,12 @@
   "a reaction video": "une vidéo de réaction",
   "a live version": "une version live",
   "a lyric video": "une vidéo de paroles",
-  "a remix": "un remix"
+  "a remix": "un remix",
+  "Recording: %s (%s% sure)": "Enregistrement : %s (sûr à %s %)",
+  "Chart: tempo %s in %s (time signature from %s). Fit with the voice: %s%.": "Grille : tempo %s en %s (signature rythmique d’après %s). Accord avec la voix : %s %.",
+  "%d stanza not placed: the song may need more sections.": "%d strophe non placée : le morceau a peut-être besoin de plus de sections.",
+  "%d stanzas not placed: the song may need more sections.": "%d strophes non placées : le morceau a peut-être besoin de plus de sections.",
+  "%d stanza": "%d strophe",
+  "%d stanzas": "%d strophes",
+  "from %s.": "depuis %s."
 }

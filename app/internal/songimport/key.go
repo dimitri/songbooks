@@ -163,9 +163,6 @@ func CheckKey(body, irealKey, audioKey string, audioConf float64) KeyReport {
 	r.Sounding = sounding.String()
 	if ik, ok := parseKey(irealKey); ok {
 		r.IRealAgrees = relative(ik, ck) || relative(ik, sounding)
-		if !r.IRealAgrees {
-			r.Notes = append(r.Notes, "iReal Pro's chart is in "+irealKey+", the chart in "+r.Chart)
-		}
 	}
 	if ak, ok := parseKey(audioKey); ok {
 		r.AudioAgrees = relative(ak, sounding)
@@ -184,7 +181,6 @@ func CheckKey(body, irealKey, audioKey string, audioConf float64) KeyReport {
 				d -= 12
 			}
 			r.ShiftToAudio = d
-			r.Notes = append(r.Notes, "the recording sounds in "+audioKey+", the chart (with its capo) in "+r.Sounding)
 		}
 		if audioConf < 0.15 {
 			r.Notes = append(r.Notes, "the recording's key is uncertain: check by ear")

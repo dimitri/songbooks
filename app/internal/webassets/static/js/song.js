@@ -2306,8 +2306,8 @@ const ICONS = {
       let chart = t('Chart: %s', k.chart || '?') + (k.chartFrom === 'chords' ? ' ' + t('(from its chords)') : '');
       if (k.capo) chart += ' — ' + t('capo %s, sounding %s', k.capo, k.sounding);
       out.push(chart);
-      if (k.ireal) out.push(t('iReal Pro: %s', k.ireal) + (k.irealAgrees ? ' ✓' : ''));
-      if (k.audio) out.push(t('Recording: %s (%s%% sure)', k.audio, Math.round((k.audioConfidence || 0) * 100)) + (k.audioAgrees ? ' ✓' : ''));
+      if (k.ireal) out.push(t('iReal Pro: %s', k.ireal) + (k.irealAgrees ? ' ✓' : ' ✗'));
+      if (k.audio) out.push(t('Recording: %s (%s% sure)', k.audio, Math.round((k.audioConfidence || 0) * 100)) + (k.audioAgrees ? ' ✓' : ' ✗'));
       if (k.shiftToAudio) out.push(t('Transpose the chart %s semitones to match the recording (Chart tab, Transpose).', (k.shiftToAudio > 0 ? '+' : '') + k.shiftToAudio));
       (k.notes || []).forEach(n => out.push(n));
       return out;
@@ -2325,9 +2325,10 @@ const ICONS = {
 
     // The singer's draft: lyrics without chords, iReal Pro's grids.
     document.getElementById('import-vocal-btn').addEventListener('click', async (e) => {
+      const btn = e.currentTarget; // null once an await has run
       const { title, artist } = titleArtist();
       if (!title) { autoFindStatus.textContent = t('Give the song a title first (in the Chart tab), then search.'); autoFindStatus.className = 'err'; return; }
-      Forms.busy(e.currentTarget, true);
+      Forms.busy(btn, true);
       autoFindStatus.textContent = t('Searching Ultimate Guitar and iReal Pro…'); autoFindStatus.className = 'hint';
       try {
         const res = await fetch(`/api/import/vocal?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist || '')}`);
@@ -2345,7 +2346,7 @@ const ICONS = {
       } catch (err) {
         autoFindStatus.textContent = err.message; autoFindStatus.className = 'err';
       } finally {
-        Forms.busy(e.currentTarget, false);
+        Forms.busy(btn, false);
       }
     });
 
@@ -2395,11 +2396,12 @@ const ICONS = {
       missing: () => t('no lyrics found for it'), instrumental: () => t('instrumental'),
     };
     document.getElementById('import-lyrics-btn').addEventListener('click', async (e) => {
+      const btn = e.currentTarget; // null once an await has run
       const { title, artist } = titleArtist();
       const source = lyricsSource();
       const input = source === 'url' ? lyricsUrl.value.trim() : source === 'text' ? lyricsText.value : '';
       if (source !== 'ug' && !input) { lyricsStatus.textContent = source === 'url' ? t('Give the address of the lyrics page.') : t('Paste the lyrics first.'); lyricsStatus.className = 'err'; return; }
-      Forms.busy(e.currentTarget, true);
+      Forms.busy(btn, true);
       lyricsStatus.textContent = t('Fetching…'); lyricsStatus.className = 'hint';
       lyricsApplyRow.hidden = true;
       try {
@@ -2408,15 +2410,15 @@ const ICONS = {
           replace: document.getElementById('import-lyrics-replace').checked,
         });
         placedText = r.text;
-        lyricsStatus.textContent = t('%s stanzas from %s.', r.stanzas, r.from);
+        lyricsStatus.textContent = tn(r.stanzas, '%d stanza', '%d stanzas') + ' ' + t('from %s.', r.from);
         const items = (r.placements || []).map(p => `${p.Section}: ${(placementWords[p.Status] || (() => p.Status))()}`);
-        if ((r.unused || []).length) items.push(t('%s stanzas not placed: the song may need more sections.', r.unused.length));
+        if ((r.unused || []).length) items.push(tn(r.unused.length, '%d stanza not placed: the song may need more sections.', '%d stanzas not placed: the song may need more sections.'));
         fillList(lyricsPlacements, items);
         lyricsApplyRow.hidden = false;
       } catch (err) {
         lyricsStatus.textContent = t("Couldn't get lyrics: %s", err.message); lyricsStatus.className = 'err';
       } finally {
-        Forms.busy(e.currentTarget, false);
+        Forms.busy(btn, false);
       }
     });
     document.getElementById('import-lyrics-apply-btn').addEventListener('click', () => {
@@ -2447,9 +2449,10 @@ const ICONS = {
     }
     function fmtTime(s) { s = Math.round(s || 0); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
     document.getElementById('import-yt-find-btn').addEventListener('click', async (e) => {
+      const btn = e.currentTarget; // null once an await has run
       const { title, artist } = titleArtist();
       if (!title) { ytStatus.textContent = t('Give the song a title first (in the Chart tab), then search.'); ytStatus.className = 'err'; return; }
-      Forms.busy(e.currentTarget, true);
+      Forms.busy(btn, true);
       ytStatus.textContent = t('Searching YouTube…'); ytStatus.className = 'hint';
       ytList.innerHTML = '';
       try {
@@ -2477,7 +2480,7 @@ const ICONS = {
       } catch (err) {
         ytStatus.textContent = t("Couldn't search YouTube just now."); ytStatus.className = 'err';
       } finally {
-        Forms.busy(e.currentTarget, false);
+        Forms.busy(btn, false);
       }
     });
     async function useRecording(c, btn) {
@@ -2505,16 +2508,17 @@ const ICONS = {
     const syncApplyStatus = document.getElementById('import-sync-apply-status');
     const syncOverwriteLabel = document.getElementById('import-sync-overwrite-label');
     document.getElementById('import-sync-analyze-btn').addEventListener('click', async (e) => {
+      const btn = e.currentTarget; // null once an await has run
       syncApply.hidden = true; syncOverwriteLabel.hidden = true; syncResult.innerHTML = '';
       if (isDirty) { syncStatus.textContent = t('Save the chart first: markers go on its saved sections.'); syncStatus.className = 'err'; return; }
-      Forms.busy(e.currentTarget, true);
+      Forms.busy(btn, true);
       syncStatus.textContent = t('Listening to the recording… (a few seconds)'); syncStatus.className = 'hint';
       try {
         const p = await postJSON(`/api/songs/${pageVariantId}/audio/youtube/analyze`, {});
         syncStatus.textContent = '';
         const lines = [
           t('Recording: %s, sound from %ss. Its own estimate: %s bpm in %s.', fmtTime(p.duration), p.audioStart.toFixed(2), Math.round(p.audioTempo), p.audioTimeSig),
-          t('Chart: tempo %s in %s (time signature from %s). Fit with the voice: %s%%.', p.tempo, p.timeSig,
+          t('Chart: tempo %s in %s (time signature from %s). Fit with the voice: %s%.', p.tempo, p.timeSig,
             { chart: t('the chart'), ireal: 'iReal Pro', audio: t('the recording') }[p.timeSigFrom] || p.timeSigFrom, Math.round(p.score * 100)),
           ...keyLines(p.key),
           ...(p.notes || []),
@@ -2528,7 +2532,7 @@ const ICONS = {
       } catch (err) {
         syncStatus.textContent = t("Couldn't analyse the recording: %s", err.message); syncStatus.className = 'err';
       } finally {
-        Forms.busy(e.currentTarget, false);
+        Forms.busy(btn, false);
       }
     });
     syncApply.addEventListener('click', async () => {
