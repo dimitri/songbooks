@@ -220,7 +220,7 @@ Two deployments run on the host from this directory (`target.sh`):
 | | production | staging |
 |---|---|---|
 | address | app.songbooks.studio | songbooks.tapoueh.org |
-| checkout | `~/dev/www/songbooks-prod` | `~/dev/www/songbooks` |
+| checkout | `/var/www/songbooks` | `~/dev/www/songbooks` |
 | compose project | songbooks-prod | songbooks |
 | app port | 127.0.0.1:8103 | 127.0.0.1:8102 |
 | stems worker | yes (`COMPOSE_PROFILES=stems`) | no |

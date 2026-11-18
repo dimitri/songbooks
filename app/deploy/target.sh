@@ -2,9 +2,10 @@
 # deployment on the host a command is for, from its first argument.
 #
 #   prod     app.songbooks.studio (songbooks.studio, songbooks.fr redirect
-#            to it): ~/dev/www/songbooks-prod, port 8103, the stems worker.
+#            to it): /var/www/songbooks, port 8103, the stems worker.
 #   staging  songbooks.tapoueh.org, for integration and tests:
-#            ~/dev/www/songbooks, port 8102, no stems worker.
+#            ~/dev/www/songbooks (the host's dev and test area), port 8102,
+#            no stems worker.
 #
 # Each is its own git clone and its own compose project (its .env sets
 # COMPOSE_PROJECT_NAME and SONGBOOKS_PORT), with its own database.
@@ -14,7 +15,7 @@
 TARGET="${1:-prod}"
 case "$TARGET" in
   prod)
-    DEFAULT_DIR="~/dev/www/songbooks-prod"
+    DEFAULT_DIR="/var/www/songbooks"
     DEFAULT_PORT=8103
     ;;
   staging)
