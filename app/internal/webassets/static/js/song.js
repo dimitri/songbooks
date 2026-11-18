@@ -857,16 +857,23 @@ const ICONS = {
     const availW = sheet.parentElement.clientWidth;
 
     if (mode === 'lyrics') {
-      // A reading mode: single column, A4-width proportioned and centered,
-      // but NOT height-constrained — scrolling is normal here (singing
-      // along, or scanning a long form), so the box just grows with its
-      // content instead of being fit/shrunk to one screen the way jazz
-      // mode's page-box is. The width is "what an A4 page would be if its
-      // height matched the visible viewport" — a deterministic, screen-
-      // proportional single-column width without needing to know the
-      // content's real height up front.
-      const availH = Math.max(200, window.innerHeight - sheet.getBoundingClientRect().top - 32);
-      sheet.style.width = Math.min(availW, availH * A4_RATIO) + 'px';
+      // A reading mode: one centered column that grows with its content
+      // (scrolling while singing is fine), as wide as its longest lyric
+      // line so that every line reads on one line, within the width there
+      // is, and never narrower than a comfortable page. (It used to be an
+      // A4 page as tall as the screen below the sheet: with the player
+      // above, a thin column, and one that changed with the scroll.)
+      sheet.style.width = availW + 'px';
+      sheet.classList.add('measuring-lines');
+      // Each line's need: its own width plus everything around it, the
+      // sheet's padding and border and its section's own indent.
+      let need = 0;
+      sheet.querySelectorAll('.lyric-line').forEach((l) => {
+        need = Math.max(need, l.offsetWidth + sheet.offsetWidth - l.parentElement.clientWidth);
+      });
+      sheet.classList.remove('measuring-lines');
+      const minW = 30 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+      sheet.style.width = Math.min(availW, Math.max(minW, Math.ceil(need + 2))) + 'px';
       sheet.style.margin = '0 auto';
       return;
     }
@@ -1135,6 +1142,8 @@ const ICONS = {
   // re-running here, not just applyPageBox. Debounced — resize fires
   // continuously while dragging/rotating, and rebuilding every .staff-line
   // from scratch on every single event is needless churn.
+  // Lyrics-only measures its lines: again once the web fonts are in.
+  document.fonts?.ready.then(() => { if (sheet.dataset.renderMode === 'lyrics') applyPageBox(); });
   let resizeTimer = null;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);

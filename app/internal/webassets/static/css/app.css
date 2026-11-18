@@ -3297,6 +3297,8 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
    arm's length, and a touch more weight for contrast against the page. */
 #sheet[data-render-mode="lyrics"] .lyrics { font-size: 1.35rem; line-height: 1.55; font-weight: 500; }
 #sheet[data-render-mode="lyrics"] .lyric-line { margin: 0.4rem 0; }
+/* While applyPageBox measures the longest line: each at its natural width. */
+#sheet.measuring-lines .lyric-line { width: max-content; white-space: nowrap; }
 #sheet[data-render-mode="lyrics"] .section-map-chip {
   display: flex; align-items: baseline; gap: 0.5em; margin-bottom: 0.4rem;
 }
