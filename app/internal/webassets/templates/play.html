@@ -1073,60 +1073,145 @@
          search-link + paste-URL stays as the fallback for a song
          automatic search can't find or gets wrong. → review the
          fetched draft → apply it into Source. */}}
-    <section class="prep-panel import-wizard" data-panel="import" id="import-wizard" hidden>
+    {{/* Import: the entry points. "Import a song" walks the whole
+         wizard (the dialog below); the others open it at their step, or
+         work on Source right here (iReal Pro's chords, cleanup). */}}
+    <section class="prep-panel import-wizard" data-panel="import" id="import-launcher" hidden>
+      <p class="hint">{{t "Brings a song in step by step: its chart, a review, its lyrics, its reference recording, then the chart synced to that recording. Nothing is written until you confirm a step."}}</p>
+      <div class="import-row">
+        <button type="button" class="primary" data-goto="find">{{template "icon-plus"}} {{t "Import a song…"}}</button>
+      </div>
+      {{/* The steps that work on the song as it is: lyrics into its
+           sections, its reference recording, tempo/metre/key and
+           sync from that recording, iReal Pro's chords, cleanup
+           (internal/songimport). */}}
+      <h3 class="import-subhead">{{t "On this song as it is"}}</h3>
+      <div class="import-actions">
+        <button type="button" data-goto="lyrics">{{t "Add lyrics only"}}</button>
+        <button type="button" data-goto="recording">{{t "Reference recording"}}</button>
+        <button type="button" data-goto="sync">{{t "Tempo, time, key and sync"}}</button>
+        <button type="button" id="import-source-ireal-btn">{{t "Fix chords with iReal Pro"}}</button>
+        <button type="button" id="import-source-clean-btn">{{t "Clean up the source"}}</button>
+      </div>
+      <p id="import-source-status" class="hint" role="status"></p>
+      <div id="import-source-ireal-candidates" class="import-ireal-candidates"></div>
+    </section>
+
+    {{/* The import wizard, a dialog like the new-song wizard: numbered
+         steps in a bar (any can be visited, the passed ones ticked, the
+         ones the song check suggests marked), one primary action per
+         step in the footer (Next, on the right; Back on the left), the
+         dialog's close button in its corner. Previews show a step's
+         result before it goes into Source. */}}
+    <dialog id="import-wizard" class="wizard-dialog import-wizard-dialog" aria-labelledby="import-wizard-title">
+      <div class="wizard-head">
+        <h2 id="import-wizard-title">{{t "Import"}}</h2>
+        <button type="button" id="import-wiz-close" class="icon-btn wizard-x" aria-label="{{t "Close"}}" title="{{t "Close"}}">{{template "icon-close"}}</button>
+      </div>
+      <ol class="stepper" id="import-wizard-steps" aria-label="{{t "Steps"}}">
+        <li><button type="button" class="stepper-step" data-step-dot="find"><span class="stepper-num" aria-hidden="true">1</span><span class="stepper-label">{{t "Chart"}}</span></button></li>
+        <li><button type="button" class="stepper-step" data-step-dot="review"><span class="stepper-num" aria-hidden="true">2</span><span class="stepper-label">{{t "Review"}}</span></button></li>
+        <li><button type="button" class="stepper-step" data-step-dot="lyrics"><span class="stepper-num" aria-hidden="true">3</span><span class="stepper-label">{{t "Lyrics"}}</span></button></li>
+        <li><button type="button" class="stepper-step" data-step-dot="recording"><span class="stepper-num" aria-hidden="true">4</span><span class="stepper-label">{{t "Recording"}}</span></button></li>
+        <li><button type="button" class="stepper-step" data-step-dot="sync"><span class="stepper-num" aria-hidden="true">5</span><span class="stepper-label">{{t "Sync"}}</span></button></li>
+      </ol>
+      <p class="stepper-caption" id="import-wizard-caption" aria-hidden="true"></p>
+
       <div class="import-step" data-step="find">
-        <p class="hint">{{t "Pulls a chord+lyric chart in from Ultimate Guitar, reviews the draft, then applies it — nothing is written until you confirm."}}</p>
-        <div class="import-row">
-          <button type="button" id="import-auto-find-btn" class="primary">{{template "icon-view"}} {{t "Find & fetch automatically"}}</button>
-          <span id="import-auto-find-status" class="hint" role="status"></span>
+        <div id="import-assess" class="import-assess" aria-live="polite"></div>
+        <fieldset class="choice-cards" id="import-chart-choice">
+          <legend>{{t "The chart"}}</legend>
+          <label class="choice-card"><input type="radio" name="import-chart" value="keep" checked>
+            <span class="choice-title">{{t "Keep this song's chart"}}</span>
+            <span class="choice-hint">{{t "Go on to its lyrics, recording and sync."}}</span></label>
+          <label class="choice-card"><input type="radio" name="import-chart" value="ug">
+            <span class="choice-title">{{t "Fetch from Ultimate Guitar"}}</span>
+            <span class="choice-hint">{{t "Chords and lyrics from the best-rated version, merged into this song or replacing its chart once you've reviewed them."}}</span></label>
+          <label class="choice-card"><input type="radio" name="import-chart" value="vocal">
+            <span class="choice-title">{{t "For singers"}}</span>
+            <span class="choice-hint">{{t "Lyrics from Ultimate Guitar without chords, grids from iReal Pro where its chart matches."}}</span></label>
+          <label class="choice-card"><input type="radio" name="import-chart" value="url">
+            <span class="choice-title">{{t "From an Ultimate Guitar address"}}</span>
+            <span class="choice-hint">{{t "When the automatic search picks the wrong version."}} <span id="import-search-links"></span></span></label>
+        </fieldset>
+        <div class="field" id="import-url-field" hidden>
+          <label for="import-url-input">{{t "Tab page address"}}</label>
+          <input type="url" id="import-url-input" placeholder="{{t "e.g. https://tabs.ultimate-guitar.com/tab/…"}}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
         </div>
-        <details class="import-manual-details">
-          <summary>{{t "Or find it yourself"}}</summary>
-          <div class="import-search-links" id="import-search-links"></div>
-          <form class="form-stack" id="import-url-form">
-            <div class="field">
-              <label for="import-url-input">{{t "Tab page address"}}</label>
-              <p class="field-hint" id="import-url-hint">{{t "Open the chart on Ultimate Guitar and copy the address from your browser."}}</p>
-              <input type="url" id="import-url-input" required aria-describedby="import-url-hint" placeholder="{{t "e.g. https://tabs.ultimate-guitar.com/tab/…"}}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
-            </div>
-            <div class="import-row">
-              <button type="submit" id="import-fetch-btn">{{t "Fetch chart"}}</button>
-              <span id="import-fetch-status" class="hint" role="status"></span>
-            </div>
-          </form>
-        </details>
       </div>
 
       <div class="import-step" data-step="review" hidden>
-        <button type="button" class="import-back" data-back="find">{{template "icon-back"}} {{t "Back"}}</button>
-        <p class="hint" id="import-review-hint">{{t "Review the draft below — nothing is applied yet. You can edit it here before applying."}}</p>
-        <label class="import-url-label" for="import-review-text">{{t "Draft chart"}}</label>
-        <textarea id="import-review-text" class="import-review-text" rows="14" spellcheck="false" autocapitalize="off" aria-describedby="import-review-hint"></textarea>
-        <label class="import-strip-chords-label"><input type="checkbox" id="import-strip-chords"> {{t "Keep chords in the grid only, and take them out of the lyrics"}}</label>
-
-        {{/* iReal Pro bar-accurate chord reference — an enrichment of
-             the UG draft above, never a replacement: iReal has no
-             lyrics or section structure at all, only chords/bars, so
-             it only ever offers to swap ONE section's grid: line at a
-             time, shown here for the user to look at before accepting
-             — see internal/irealpro/merge.go's own doc comment on why
-             this is never silently auto-applied (a transposed match
-             was confirmed wrong on real songs this session even at
-             high confidence). */}}
-        <div class="import-ireal-block">
-          <div class="import-row">
-            <button type="button" id="import-ireal-check-btn">{{template "icon-view"}} {{t "Check iReal Pro for bar-accurate chords"}}</button>
-            <span id="import-ireal-status" class="hint"></span>
-          </div>
-          <div id="import-ireal-candidates" class="import-ireal-candidates"></div>
+        <p class="hint" id="import-review-hint"></p>
+        <fieldset class="segmented-choice" id="import-merge-mode">
+          <legend>{{t "Bring it in by"}}</legend>
+          <label><input type="radio" name="import-merge" value="merge" checked> {{t "Merging into this song"}}</label>
+          <label><input type="radio" name="import-merge" value="replace"> {{t "Replacing its chart"}}</label>
+          <label><input type="radio" name="import-merge" value="append"> {{t "Adding it below"}}</label>
+        </fieldset>
+        <div class="view-tabs import-view-tabs" role="tablist">
+          <button type="button" role="tab" class="active" aria-selected="true" data-view="draft">{{t "Draft"}}</button>
+          <button type="button" role="tab" aria-selected="false" data-view="result">{{t "Result"}}</button>
         </div>
-
-        <div class="import-row">
-          <button type="button" id="import-apply-btn" class="primary">{{template "icon-plus"}} {{t "Accept & insert into Source"}}</button>
-          <span id="import-apply-status" class="hint"></span>
+        <textarea id="import-review-text" class="import-review-text" rows="14" spellcheck="false" autocapitalize="off" aria-label="{{t "Draft chart"}}"></textarea>
+        <div id="import-review-preview" class="source-preview import-preview" hidden></div>
+        <ul id="import-merge-notes" class="import-notes"></ul>
+        <div class="import-tools">
+          <label class="import-strip-chords-label"><input type="checkbox" id="import-strip-chords"> {{t "Keep chords in the grid only, and take them out of the lyrics"}}</label>
+          <button type="button" id="import-clean-btn">{{t "Clean up the draft"}}</button>
+          <button type="button" id="import-key-btn">{{t "Check the key"}}</button>
+          <button type="button" id="import-ireal-check-btn">{{t "Check iReal Pro for bar-accurate chords"}}</button>
         </div>
+        <ul id="import-clean-notes" class="import-notes"></ul>
+        <p id="import-ireal-status" class="hint" role="status"></p>
+        <div id="import-ireal-candidates" class="import-ireal-candidates"></div>
       </div>
-    </section>
+
+      <div class="import-step" data-step="lyrics" hidden>
+        <p class="hint">{{t "Puts lyrics into this song's sections: the first verse's into the first verse, the chorus's into every chorus. Grids and everything else stay as they are."}}</p>
+        <fieldset class="segmented-choice">
+          <legend>{{t "Lyrics from"}}</legend>
+          <label><input type="radio" name="import-lyrics-source" value="own"> {{t "This song's own lyrics, re-split"}}</label>
+          <label><input type="radio" name="import-lyrics-source" value="ug" checked> {{t "Ultimate Guitar, found automatically"}}</label>
+          <label><input type="radio" name="import-lyrics-source" value="url"> {{t "A lyrics page"}}</label>
+          <label><input type="radio" name="import-lyrics-source" value="text"> {{t "Text I paste"}}</label>
+        </fieldset>
+        <input type="url" id="import-lyrics-url" hidden aria-label="{{t "Address of the lyrics page"}}" placeholder="{{t "Address of the lyrics page"}}" autocomplete="off" autocapitalize="none" spellcheck="false">
+        <textarea id="import-lyrics-text" class="import-review-text" rows="8" hidden aria-label="{{t "Lyrics"}}" placeholder="{{t "Paste the lyrics, a blank line between stanzas"}}"></textarea>
+        <div class="import-tools">
+          <label><input type="checkbox" id="import-lyrics-replace"> {{t "Replace the lyrics already in sections"}}</label>
+          <button type="button" id="import-lyrics-btn">{{t "Fetch and place"}}</button>
+        </div>
+        <p id="import-lyrics-status" class="hint" role="status"></p>
+        <ul id="import-lyrics-placements" class="import-placements"></ul>
+        <div id="import-lyrics-preview" class="source-preview import-preview" hidden></div>
+      </div>
+
+      <div class="import-step" data-step="recording" hidden>
+        <p class="hint">{{t "The recording the chart plays along with: the artist's own studio version is best. Listen, star the ones you like, then use one: its sound is downloaded and split into voice and backing for the sync."}}</p>
+        <p id="import-yt-current" class="import-current"></p>
+        <div class="import-tools">
+          <label><input type="checkbox" id="import-yt-sort"> {{t "Starred first"}}</label>
+          <button type="button" id="import-yt-find-btn">{{t "Search again"}}</button>
+        </div>
+        <p id="import-yt-status" class="hint" role="status"></p>
+        <ol id="import-yt-candidates" class="import-yt-candidates"></ol>
+      </div>
+
+      <div class="import-step" data-step="sync" hidden>
+        <p class="hint">{{t "The recording's tempo, time signature and key, and where each section starts, so the chart follows the sound from the intro on. Play a section to check it by ear, then save."}}</p>
+        <p id="import-sync-status" class="hint" role="status"></p>
+        <div id="import-sync-result" class="import-sync-result"></div>
+        <label id="import-sync-overwrite-label" hidden><input type="checkbox" id="import-sync-overwrite"> {{t "Replace the chart's own tempo and time signature"}}</label>
+        <audio id="import-sync-audio" preload="none"></audio>
+      </div>
+
+      <div class="wizard-actions import-wizard-actions">
+        <button type="button" id="import-wiz-back">&larr; {{t "Back"}}</button>
+        <span id="import-apply-status" class="hint" role="status"></span>
+        <button type="button" id="import-wiz-skip" hidden>{{t "Skip"}}</button>
+        <button type="button" id="import-wiz-next" class="primary">{{t "Next"}} &rarr;</button>
+      </div>
+    </dialog>
   </div>
 </div>
 

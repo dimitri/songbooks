@@ -1756,15 +1756,17 @@ const ICONS = {
     renderPreview();
   });
 
-  document.getElementById('save-btn').addEventListener('click', async () => {
+  // saveRaw saves Source; the import wizard calls it too, before the
+  // steps that need the chart saved (markers go on saved sections).
+  async function saveRaw() {
     const status = document.getElementById('save-status');
     status.className = ''; status.textContent = t('Saving…');
     const res = await fetch(`/api/songs/${pageVariantId}/raw`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version: rawVersion, text: rawTextarea.value }),
     });
-    if (res.status === 409) { status.className = 'err'; status.textContent = t('Not saved: this song changed since you opened it. Copy your changes, reload the page, then save again.'); return; }
-    if (!res.ok) { status.className = 'err'; status.textContent = t("Couldn't save. Your changes are still here; try again."); return; }
+    if (res.status === 409) { status.className = 'err'; status.textContent = t('Not saved: this song changed since you opened it. Copy your changes, reload the page, then save again.'); return false; }
+    if (!res.ok) { status.className = 'err'; status.textContent = t("Couldn't save. Your changes are still here; try again."); return false; }
     const data = await res.json();
     rawVersion = data.version;
     status.className = 'ok'; status.textContent = t('Saved.');
@@ -1772,7 +1774,9 @@ const ICONS = {
     await renderPreview();
     savedSheetHTML = sheet.innerHTML; // this is now the saved state
     clearDirty();
-  });
+    return true;
+  }
+  document.getElementById('save-btn').addEventListener('click', saveRaw);
 
   // ---- Redo this song (destructive: erases body, keeps book/stem identity) --
   document.getElementById('redo-song-btn')?.addEventListener('click', async () => {
@@ -2010,48 +2014,77 @@ const ICONS = {
     rawTextarea.selectionStart = rawTextarea.selectionEnd = at;
   }
 
-  // ---- Import wizard — Ultimate Guitar only (a UG tab already carries
-  // both chords AND lyrics together, so splitting "lyrics" and "chords"
-  // into two separate imports the user had to merge by hand added a
-  // step for no benefit — dropped per direct feedback). "Find
-  // automatically" drives /api/import/ug/find: searches UG, ranks every
-  // public result, fetches the best candidates, and cross-checks lyrics
-  // against Genius when that's configured server-side (see
-  // importer.FindBestUGTab) — landing straight in Review with a note on
-  // HOW it was picked. The manual search-link + paste-URL fallback
-  // (/api/import/chords) stays for whatever automatic search can't find
-  // or gets wrong.
+  // ---- Import wizard (play.html #import-wizard): a dialog of five steps,
+  // Chart · Review · Lyrics · Recording · Sync, the song check on the
+  // first one (/api/songs/{id}/import/assess) saying which are worth
+  // doing. One primary action per step, in the footer: Next does that
+  // step's work (fetch the chosen chart, put the reviewed result or the
+  // placed lyrics into Source, use the best-rated recording, save the
+  // sync). Previews show a result before it goes in. The Import tab's
+  // buttons open it at their step; its Source tools (iReal Pro's chords,
+  // cleanup) work on Source right there. Server side: internal/songimport.
   (function wireImportWizard() {
     const wizard = document.getElementById('import-wizard');
     if (!wizard) return;
-    const steps = {
-      find: wizard.querySelector('[data-step="find"]'),
-      review: wizard.querySelector('[data-step="review"]'),
-    };
-    const searchLinksHost = document.getElementById('import-search-links');
-    const urlInput = document.getElementById('import-url-input');
-    const fetchBtn = document.getElementById('import-fetch-btn');
-    const fetchStatus = document.getElementById('import-fetch-status');
-    const autoFindBtn = document.getElementById('import-auto-find-btn');
-    const autoFindStatus = document.getElementById('import-auto-find-status');
-    const reviewHint = document.getElementById('import-review-hint');
-    const reviewText = document.getElementById('import-review-text');
-    const stripChordsCheck = document.getElementById('import-strip-chords');
-    const applyBtn = document.getElementById('import-apply-btn');
-    const applyStatus = document.getElementById('import-apply-status');
-    const irealCheckBtn = document.getElementById('import-ireal-check-btn');
-    const irealStatus = document.getElementById('import-ireal-status');
-    const irealCandidatesHost = document.getElementById('import-ireal-candidates');
+    const $id = (id) => document.getElementById(id);
+    const ORDER = ['find', 'review', 'lyrics', 'recording', 'sync'];
+    const steps = Object.fromEntries(ORDER.map(n => [n, wizard.querySelector(`[data-step="${n}"]`)]));
+    const dots = wizard.querySelectorAll('[data-step-dot]');
+    const backBtn = $id('import-wiz-back');
+    const skipBtn = $id('import-wiz-skip');
+    const nextBtn = $id('import-wiz-next');
+    const applyStatus = $id('import-apply-status');
+    const reviewText = $id('import-review-text');
+    const reviewHint = $id('import-review-hint');
+    const stripChordsCheck = $id('import-strip-chords');
+    const irealCheckBtn = $id('import-ireal-check-btn');
+    const irealStatus = $id('import-ireal-status');
+    const irealCandidatesHost = $id('import-ireal-candidates');
+    const cleanNotes = $id('import-clean-notes');
+    const urlInput = $id('import-url-input');
 
-    // Removes chords from the LYRICS only, in an already-converted
-    // .song-format draft (this app's own "[Section]\ngrid: ...\n
-    // [Chord]word" shape — see ToSongText) — the chord progression
-    // stays exactly where it belongs, the grid: line, which this never
-    // touches; a "[Label]" line entirely on its own is a section
-    // header, also left untouched; every other line has its inline
-    // "[Chord]" markers removed, leaving the lyric text and line breaks
-    // as-is. For a chords-tab import where the grid is useful but
-    // seeing a chord symbol floating mid-lyric isn't.
+    let current = 'find';
+    const passed = new Set(); // the steps left with Next or Skip: ticked
+    let suggested = new Set(); // the steps the song check suggests
+    let hasDraft = false; // Review has a fetched draft to go back to
+    let importSourceURL = '';
+    let importMeta = {}; // { title, artist, capo } from the fetch, for an appended draft's header
+    let assessment = null;
+
+    async function postJSON(url, body) {
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      return data;
+    }
+    function fillList(host, items) {
+      host.innerHTML = '';
+      items.forEach(text => { const li = document.createElement('li'); li.textContent = text; host.appendChild(li); });
+    }
+    // setText puts text into the draft or into Source; Source then needs
+    // saving, and its preview redrawing.
+    function setText(target, text) {
+      target.value = text;
+      if (target === rawTextarea) {
+        markDirty();
+        rawTextarea.dispatchEvent(new Event('input'));
+      }
+    }
+    function showInSource() {
+      document.querySelectorAll('.prep-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'raw'));
+      document.querySelectorAll('.prep-panel').forEach(p => { p.hidden = p.dataset.panel !== 'raw'; });
+      rawTextarea.focus();
+    }
+    // A chart text rendered the way the song page shows it.
+    async function previewInto(el, text) {
+      el.hidden = false;
+      try {
+        const res = await fetch('/api/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+        el.innerHTML = await res.text();
+      } catch (e) { el.textContent = t("Couldn't show the preview just now."); }
+    }
+    function fmtTime(s) { s = Math.round(s || 0); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+
     function stripChordMarkers(text) {
       return text.split('\n').map(line => {
         if (/^grid:\s*/.test(line)) return line;
@@ -2059,87 +2092,9 @@ const ICONS = {
         return line.replace(/\[[^\]\n]*\]/g, '');
       }).join('\n');
     }
-
-    let importSourceURL = '';
-    let importMeta = {}; // { title, artist, capo } from the fetch response, for applyBtn's header merge
-
-    function showStep(name) {
-      Object.entries(steps).forEach(([k, el]) => { if (el) el.hidden = k !== name; });
-    }
-    (function buildSearchLink() {
-      const { title, artist } = titleArtist();
-      const q = `${artist} ${title}`.trim();
-      searchLinksHost.innerHTML = '';
-      const a = document.createElement('a');
-      a.href = `https://www.ultimate-guitar.com/search.php?search_type=title&value=${encodeURIComponent(q)}`;
-      a.target = '_blank'; a.rel = 'noopener'; a.className = 'import-search-link';
-      a.textContent = t('Search on Ultimate Guitar ↗');
-      searchLinksHost.appendChild(a);
-    })();
-    autoFindBtn.addEventListener('click', async () => {
-      const { title, artist } = titleArtist();
-      if (!title) { autoFindStatus.textContent = t('Give the song a title first (in the Chart tab), then search.'); autoFindStatus.className = 'err'; return; }
-      Forms.busy(autoFindBtn, true);
-      autoFindStatus.textContent = t('Searching Ultimate Guitar…'); autoFindStatus.className = 'hint';
-      try {
-        const res = await fetch(`/api/import/ug/find?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist || '')}`);
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(t("Couldn't find this song on Ultimate Guitar. Try finding it yourself below."));
-        importSourceURL = data.url;
-        importMeta = { title: data.title, artist: data.artist, capo: data.capo };
-        urlInput.value = data.url;
-        reviewText.value = data.text;
-        reviewHint.textContent = t('From %s — %s.', data.url, data.confidence);
-        applyStatus.textContent = ''; applyStatus.className = 'hint';
-        showStep('review');
-      } catch (e) {
-        autoFindStatus.textContent = e.message; autoFindStatus.className = 'err';
-      } finally {
-        Forms.busy(autoFindBtn, false);
-      }
-    });
-    wizard.querySelectorAll('.import-back').forEach(btn => {
-      btn.addEventListener('click', () => showStep(btn.dataset.back));
-    });
-    // A real <form>: Enter fetches, and forms.js has already checked the
-    // field is a filled-in URL.
-    document.getElementById('import-url-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const url = urlInput.value.trim();
-      Forms.busy(fetchBtn, true); fetchStatus.textContent = t('Fetching…'); fetchStatus.className = 'hint';
-      try {
-        const res = await fetch('/api/import/chords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(t("Couldn't fetch that page. Check it's an Ultimate Guitar chords or tab page and try again."));
-        importSourceURL = url;
-        importMeta = { title: data.title, artist: data.artist, capo: data.capo };
-        reviewText.value = data.text;
-        reviewHint.textContent = t('From %s — pasted manually, not cross-checked.', url);
-        applyStatus.textContent = ''; applyStatus.className = 'hint';
-        showStep('review');
-      } catch (e) {
-        fetchStatus.textContent = e.message; fetchStatus.className = 'err';
-      } finally {
-        Forms.busy(fetchBtn, false);
-      }
-    });
-    // A header field counts as "already set" only if it has a real
-    // value — an empty "title:" line (the common case right after
-    // "+ create" quick-adds a song) must still get filled in, not be
-    // treated as already-present and skipped.
     function hasHeaderField(key) {
       return new RegExp(`^${key}:\\s*\\S`, 'm').test(rawTextarea.value);
     }
-    // Inserts any of meta.{title,artist,capo} that aren't already set
-    // for real, IN PLACE at the top of the existing header block (the
-    // run of key:value lines before the first [Section] — empty if
-    // there isn't one yet) — never by replacing/reordering the whole
-    // document. An earlier version of this rebuilt the whole textarea
-    // whenever ANY field was missing, which, for a song that already
-    // had a title but no artist, stranded that EXISTING title: line
-    // after the newly-inserted sections — past the first [Section],
-    // outside the header zone this app's own parser reads header
-    // fields from at all, silently breaking it.
     function mergeHeaderFields(meta) {
       const value = rawTextarea.value;
       const m = value.match(/^\[/m);
@@ -2158,45 +2113,13 @@ const ICONS = {
       const trimmed = headerZone.replace(/\s+$/, '');
       rawTextarea.value = (trimmed ? trimmed + '\n' + additions : additions) + '\n' + rest.replace(/^\n+/, '');
     }
-    // iReal Pro step: an enrichment of the draft already in reviewText,
-    // not a separate fetch-and-replace flow like the UG one above — it
-    // only ever proposes swapping individual sections' grid: lines for
-    // a bar-accurate chart, and only once the user ticks which ones to
-    // accept (see internal/irealpro/merge.go's doc comment on why a
-    // transposed match is never auto-applied: a high-confidence match
-    // was confirmed WRONG on real songs this session).
-    irealCheckBtn.addEventListener('click', async () => {
-      const { title, artist } = titleArtist();
-      if (!title) { irealStatus.textContent = t('Give the song a title first (in the Chart tab).'); irealStatus.className = 'err'; return; }
-      const currentText = reviewText.value.trim();
-      if (!currentText) { irealStatus.textContent = t('Nothing to check yet. Fetch or paste a draft first.'); irealStatus.className = 'err'; return; }
-      irealCheckBtn.disabled = true;
-      irealStatus.textContent = t('Checking iReal Pro…'); irealStatus.className = 'hint';
-      irealCandidatesHost.innerHTML = '';
-      try {
-        const res = await fetch('/api/import/ireal/merge', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ currentText, title, artist: artist || '' }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(res.status === 404 ? t('No iReal Pro chart found for this song.') : t("Couldn't check iReal Pro just now. Try again."));
-        renderIRealCandidates(data.candidates || []);
-        irealStatus.textContent = (data.candidates || []).length
-          ? t('Found a chart. Check each section below before accepting it.')
-          : t('Found a chart, but it has nothing new to add.');
-        irealStatus.className = 'hint';
-      } catch (e) {
-        irealStatus.textContent = e.message; irealStatus.className = 'err';
-      } finally {
-        irealCheckBtn.disabled = false;
-      }
-    });
-
     function escapeHtml(s) {
       return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
-
-    function renderIRealCandidates(candidates) {
+    // host shows the candidates; target is the textarea the accepted ones
+    // go into (the draft, or Source itself when fixing the song as it is).
+    function renderIRealCandidates(candidates, host = irealCandidatesHost, target = reviewText, statusEl = irealStatus) {
+      const irealCandidatesHost = host;
       irealCandidatesHost.innerHTML = '';
       if (!candidates.length) return;
       candidates.forEach(c => {
@@ -2238,13 +2161,13 @@ const ICONS = {
         try {
           const res = await fetch('/api/import/ireal/merge', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ currentText: reviewText.value.trim(), title, artist: artist || '', apply: true, acceptLabels }),
+            body: JSON.stringify({ currentText: target.value.trim(), title, artist: artist || '', apply: true, acceptLabels }),
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(t("Couldn't apply those sections. Try again."));
-          reviewText.value = data.text;
+          setText(target, data.text);
           irealCandidatesHost.innerHTML = '';
-          irealStatus.textContent = t('Done. The sections you accepted now use the iReal Pro chords.'); irealStatus.className = 'hint';
+          statusEl.textContent = t('Done. The sections you accepted now use the iReal Pro chords.'); statusEl.className = 'hint';
         } catch (e) {
           applyIrealStatus.textContent = e.message; applyIrealStatus.className = 'err';
         } finally {
@@ -2252,32 +2175,581 @@ const ICONS = {
         }
       });
     }
+    // ---- The steps -----------------------------------------------------
+    function nextLabel(name) {
+      switch (name) {
+        case 'find': {
+          const choice = chartChoice();
+          return (choice === 'keep' ? t('Keep this chart') : t('Fetch')) + ' →';
+        }
+        case 'review': return t('Put into Source') + ' →';
+        case 'lyrics': return (placedText ? t('Put into Source') : t('Next')) + ' →';
+        case 'recording': return (bestUnused() ? t('Use the best-rated') : t('Next')) + ' →';
+        default: return t('Save and finish');
+      }
+    }
+    function refreshNav() {
+      const at = ORDER.indexOf(current);
+      dots.forEach((d, i) => {
+        const name = ORDER[i];
+        d.classList.toggle('active', i === at);
+        d.classList.toggle('done', i !== at && passed.has(name));
+        d.classList.toggle('suggested', suggested.has(name) && !passed.has(name) && i !== at);
+        if (i === at) d.setAttribute('aria-current', 'step'); else d.removeAttribute('aria-current');
+        // Said to screen readers: its state, not only its colour.
+        const state = i === at ? t('current step') : passed.has(name) ? t('done') : suggested.has(name) ? t('suggested') : '';
+        d.setAttribute('aria-label', `${i + 1}. ${d.querySelector('.stepper-label').textContent}${state ? ', ' + state : ''}`);
+      });
+      // Phones show the current step's name under the numbers.
+      $id('import-wizard-caption').textContent = t('Step %s of %s: %s', at + 1, ORDER.length, dots[at].querySelector('.stepper-label').textContent);
+      backBtn.hidden = at === 0;
+      skipBtn.hidden = !['lyrics', 'recording', 'sync'].includes(current);
+      skipBtn.textContent = current === 'sync' ? t('Close without saving') : t('Skip');
+      nextBtn.textContent = nextLabel(current);
+    }
+    function showStep(name) {
+      current = name;
+      Object.entries(steps).forEach(([k, el]) => { el.hidden = k !== name; });
+      applyStatus.textContent = ''; applyStatus.className = 'hint';
+      refreshNav();
+      if (name === 'recording') enterRecording();
+      if (name === 'sync') runAnalysis();
+    }
+    // The step after this one the song check suggests (or simply the
+    // next one).
+    function nextSuggested(from) {
+      const rest = ORDER.slice(ORDER.indexOf(from) + 1).filter(n => n !== 'review');
+      return rest.find(n => suggested.has(n)) || rest[0];
+    }
+    async function busy(on, label) {
+      Forms.busy(nextBtn, on);
+      if (label !== undefined) { applyStatus.textContent = label; applyStatus.className = 'hint'; }
+    }
+    function fail(msg) { applyStatus.textContent = msg; applyStatus.className = 'err'; }
 
-    applyBtn.addEventListener('click', () => {
-      let text = reviewText.value.trim();
+    // ---- 1. Chart: the song check, and where its chart comes from ------
+    const assessHost = $id('import-assess');
+    const chartChoice = () => wizard.querySelector('input[name="import-chart"]:checked').value;
+    wizard.querySelectorAll('input[name="import-chart"]').forEach(r => r.addEventListener('change', () => {
+      $id('import-url-field').hidden = chartChoice() !== 'url';
+      refreshNav();
+    }));
+    (function buildSearchLink() {
+      const { title, artist } = titleArtist();
+      const a = document.createElement('a');
+      a.href = `https://www.ultimate-guitar.com/search.php?search_type=title&value=${encodeURIComponent(`${artist} ${title}`.trim())}`;
+      a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = t('Search on Ultimate Guitar ↗');
+      $id('import-search-links').appendChild(a);
+    })();
+    const verdictWords = {
+      new: () => t('A new song: start with its chart.'),
+      improve: () => t('This chart is worth keeping and improving.'),
+      restart: () => t('This chart is better started again.'),
+    };
+    async function loadAssessment() {
+      assessHost.innerHTML = '';
+      try {
+        const res = await fetch(`/api/songs/${pageVariantId}/import/assess`);
+        if (!res.ok) return;
+        assessment = await res.json();
+      } catch (e) { return; }
+      const head = document.createElement('p');
+      head.className = 'import-assess-verdict is-' + assessment.verdict;
+      head.textContent = (verdictWords[assessment.verdict] || (() => assessment.verdict))();
+      const ul = document.createElement('ul');
+      ul.className = 'import-notes';
+      // The facts; the reasons only when they argue for starting again
+      // (otherwise they restate the facts).
+      [...(assessment.summary || []), ...(assessment.verdict === 'restart' ? assessment.reasons || [] : [])].forEach(s => { const li = document.createElement('li'); li.textContent = s; ul.appendChild(li); });
+      assessHost.append(head, ul);
+      suggested = new Set(assessment.steps || []);
+      // The choices the check points to: keep a chart worth keeping,
+      // fetch one otherwise; merge into a structure worth keeping.
+      const choice = assessment.verdict === 'improve' ? 'keep' : 'ug';
+      wizard.querySelector(`input[name="import-chart"][value="${choice}"]`).checked = true;
+      wizard.querySelector(`input[name="import-merge"][value="${assessment.verdict === 'improve' ? 'merge' : 'replace'}"]`).checked = true;
+      $id('import-url-field').hidden = true;
+      refreshNav();
+    }
+
+    async function fetchChart(choice) {
+      const { title, artist } = titleArtist();
+      if (choice !== 'url' && !title) return fail(t('Give the song a title first (in the Chart tab), then search.'));
+      let url;
+      if (choice === 'ug') url = `/api/import/ug/find?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist || '')}`;
+      if (choice === 'vocal') url = `/api/import/vocal?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist || '')}`;
+      busy(true, choice === 'vocal' ? t('Searching Ultimate Guitar and iReal Pro…') : t('Searching Ultimate Guitar…'));
+      try {
+        let d;
+        if (choice === 'url') {
+          const address = urlInput.value.trim();
+          if (!address) throw new Error(t('Give the address of the Ultimate Guitar page.'));
+          d = await postJSON('/api/import/chords', { url: address });
+          d.url = address;
+          reviewHint.textContent = t('From %s — pasted manually, not cross-checked.', address);
+        } else {
+          const res = await fetch(url);
+          d = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(t("Couldn't find this song on Ultimate Guitar. Try its address instead."));
+          reviewHint.textContent = choice === 'vocal'
+            ? t('From %s, for singers: lyrics without chords, iReal Pro grids where its chart matches.', d.url)
+            : t('From %s — %s.', d.url, d.confidence);
+        }
+        importSourceURL = d.url;
+        importMeta = { title: d.title, artist: d.artist, capo: d.capo };
+        reviewText.value = d.text;
+        stripChordsCheck.checked = choice === 'vocal';
+        fillList(cleanNotes, d.notes || []);
+        if (choice !== 'vocal') await cleanDraft();
+        hasDraft = true;
+        passed.add('find');
+        busy(false, '');
+        showView('draft');
+        showStep('review');
+      } catch (e) {
+        busy(false);
+        fail(e.message);
+      }
+    }
+
+    // ---- 2. Review: the draft, how it comes in, and the result ---------
+    const mergeMode = () => wizard.querySelector('input[name="import-merge"]:checked').value;
+    const reviewPreview = $id('import-review-preview');
+    const mergeNotes = $id('import-merge-notes');
+    const viewTabs = wizard.querySelectorAll('.import-view-tabs [data-view]');
+    function draftText() {
+      const text = reviewText.value.trim();
+      return stripChordsCheck.checked ? stripChordMarkers(text).trim() : text;
+    }
+    // The song as it would be: the draft merged into Source, or
+    // replacing its chart, or added below it.
+    async function mergedResult() {
+      const r = await postJSON('/api/import/merge', { currentText: rawTextarea.value, draft: draftText(), mode: mergeMode() });
+      return r;
+    }
+    async function showView(view) {
+      viewTabs.forEach(b => { const on = b.dataset.view === view; b.classList.toggle('active', on); b.setAttribute('aria-selected', on); });
+      reviewText.hidden = view !== 'draft';
+      reviewPreview.hidden = view !== 'result';
+      if (view !== 'result') { mergeNotes.innerHTML = ''; return; }
+      try {
+        const r = await mergedResult();
+        fillList(mergeNotes, r.notes || []);
+        await previewInto(reviewPreview, r.text);
+      } catch (e) { fillList(mergeNotes, [t("Couldn't build the result: %s", e.message)]); }
+    }
+    viewTabs.forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+    wizard.querySelectorAll('input[name="import-merge"]').forEach(r => r.addEventListener('change', () => {
+      if (!reviewPreview.hidden) showView('result');
+    }));
+    async function applyDraft() {
+      if (!draftText()) { fail(t('Nothing to put into Source yet.')); return false; }
+      try {
+        const r = await mergedResult();
+        if (mergeMode() === 'append') mergeHeaderFields(importMeta);
+        setText(rawTextarea, mergeMode() === 'append'
+          ? rawTextarea.value.replace(/\s+$/, '') + `\n\n# imported from ${importSourceURL}\n${draftText()}\n`
+          : r.text);
+        importSourceURL = ''; importMeta = {};
+        return true;
+      } catch (e) { fail(t("Couldn't build the result: %s", e.message)); return false; }
+    }
+
+    // Cleanup: every fetched draft goes through it, and the button runs
+    // it again (after the chords-out box is ticked, say).
+    async function cleanDraft() {
+      if (!reviewText.value.trim()) return;
+      try {
+        const data = await postJSON('/api/import/cleanup', { text: reviewText.value, stripInlineChords: stripChordsCheck.checked });
+        reviewText.value = data.text;
+        fillList(cleanNotes, (data.notes || []).map(n => t('Cleaned up: %s', n)));
+        if (!reviewPreview.hidden) showView('result');
+      } catch (e) { /* the draft as fetched is still there */ }
+    }
+    $id('import-clean-btn').addEventListener('click', cleanDraft);
+    stripChordsCheck.addEventListener('change', cleanDraft);
+
+    function keyLines(k) {
+      const out = [];
+      let chart = t('Chart: %s', k.chart || '?') + (k.chartFrom === 'chords' ? ' ' + t('(from its chords)') : '');
+      if (k.capo) chart += ' — ' + t('capo %s, sounding %s', k.capo, k.sounding);
+      out.push(chart);
+      if (k.ireal) out.push(t('iReal Pro: %s', k.ireal) + (k.irealAgrees ? ' ✓' : ' ✗'));
+      if (k.audio) out.push(t('Recording: %s (%s% sure)', k.audio, Math.round((k.audioConfidence || 0) * 100)) + (k.audioAgrees ? ' ✓' : ' ✗'));
+      if (k.shiftToAudio) out.push(t('Transpose the chart %s semitones to match the recording (Chart tab, Transpose).', (k.shiftToAudio > 0 ? '+' : '') + k.shiftToAudio));
+      (k.notes || []).forEach(n => out.push(n));
+      return out;
+    }
+    $id('import-key-btn').addEventListener('click', async () => {
+      const text = reviewText.value.trim();
       if (!text) return;
-      if (stripChordsCheck.checked) text = stripChordMarkers(text).trim();
-      mergeHeaderFields(importMeta);
-      // Append at the end, not "wherever the cursor happens to be" —
-      // mergeHeaderFields may have just shifted every later offset by
-      // inserting lines near the top, which would make a cursor
-      // position captured beforehand land somewhere wrong; appending
-      // is also simply the right default for "add this fetched chart
-      // to the song," cursor position aside.
-      rawTextarea.selectionStart = rawTextarea.selectionEnd = rawTextarea.value.length;
-      insertAtCursor(`\n\n# imported from ${importSourceURL}\n${text}\n`);
-      applyStatus.textContent = '';
-      importSourceURL = ''; importMeta = {};
-      showStep('find');
-      // Switch to Source right away — reported directly as "it's
-      // missing the last step from review to the source file," since
-      // staying on Import after Accept left the result invisible
-      // (the textarea it landed in is a different, hidden tab panel)
-      // and made it look like nothing had happened at all. Same
-      // tab-switch redo-song-btn already uses.
-      document.querySelectorAll('.prep-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'raw'));
-      document.querySelectorAll('.prep-panel').forEach(p => { p.hidden = p.dataset.panel !== 'raw'; });
-      rawTextarea.focus();
+      const { title, artist } = titleArtist();
+      const header = `title: ${title}\nartist: ${artist || ''}\n`;
+      try {
+        const k = await postJSON('/api/import/keycheck', { text: /^title:/m.test(text) ? text : header + text, songId: pageVariantId });
+        fillList(cleanNotes, keyLines(k));
+      } catch (e) { fillList(cleanNotes, [t("Couldn't check the key just now.")]); }
+    });
+    // iReal Pro: proposes bar-accurate grids section by section, ticked
+    // ones applied to the draft (see internal/irealpro/merge.go on why a
+    // transposed match is never applied on its own).
+    irealCheckBtn.addEventListener('click', async () => {
+      const { title, artist } = titleArtist();
+      const currentText = reviewText.value.trim();
+      if (!title || !currentText) return;
+      irealCheckBtn.disabled = true;
+      irealStatus.textContent = t('Checking iReal Pro…'); irealStatus.className = 'hint';
+      irealCandidatesHost.innerHTML = '';
+      try {
+        const data = await postJSON('/api/import/ireal/merge', { currentText, title, artist: artist || '' });
+        renderIRealCandidates(data.candidates || []);
+        irealStatus.textContent = (data.candidates || []).length
+          ? t('Found a chart. Check each section below before accepting it.')
+          : t('Found a chart, but it has nothing new to add.');
+      } catch (e) {
+        irealStatus.textContent = t('No iReal Pro chart found for this song.'); irealStatus.className = 'err';
+      } finally {
+        irealCheckBtn.disabled = false;
+      }
+    });
+
+    // ---- 3. Lyrics, into the sections the song already has -------------
+    const lyricsUrl = $id('import-lyrics-url');
+    const lyricsText = $id('import-lyrics-text');
+    const lyricsStatus = $id('import-lyrics-status');
+    const lyricsPlacements = $id('import-lyrics-placements');
+    const lyricsPreview = $id('import-lyrics-preview');
+    let placedText = '';
+    const lyricsSource = () => wizard.querySelector('input[name="import-lyrics-source"]:checked').value;
+    wizard.querySelectorAll('input[name="import-lyrics-source"]').forEach(r => r.addEventListener('change', () => {
+      lyricsUrl.hidden = lyricsSource() !== 'url';
+      lyricsText.hidden = lyricsSource() !== 'text';
+    }));
+    const placementWords = {
+      placed: () => t('placed'), reused: () => t('the chorus again'), kept: () => t('kept its own lyrics'),
+      missing: () => t('no lyrics found for it'), instrumental: () => t('instrumental'),
+    };
+    $id('import-lyrics-btn').addEventListener('click', async (e) => {
+      const btn = e.currentTarget; // null once an await has run
+      const { title, artist } = titleArtist();
+      const source = lyricsSource();
+      const input = source === 'url' ? lyricsUrl.value.trim() : source === 'text' ? lyricsText.value : '';
+      if (source !== 'ug' && source !== 'own' && !input) { lyricsStatus.textContent = source === 'url' ? t('Give the address of the lyrics page.') : t('Paste the lyrics first.'); lyricsStatus.className = 'err'; return; }
+      Forms.busy(btn, true);
+      lyricsStatus.textContent = t('Fetching…'); lyricsStatus.className = 'hint';
+      placedText = ''; lyricsPreview.hidden = true; refreshNav();
+      try {
+        const r = await postJSON('/api/import/lyrics/place', {
+          currentText: rawTextarea.value, source, input, title, artist: artist || '',
+          replace: $id('import-lyrics-replace').checked,
+        });
+        placedText = r.text;
+        lyricsStatus.textContent = source === 'own' ? t('Re-split from this song\'s own lyrics: nothing dropped or rewritten.') : tn(r.stanzas, '%d stanza', '%d stanzas') + ' ' + t('from %s.', r.from);
+        const items = (r.placements || []).map(p => `${p.Section}: ${(placementWords[p.Status] || (() => p.Status))()}`);
+        if ((r.unused || []).length) items.push(tn(r.unused.length, '%d stanza not placed: the song may need more sections.', '%d stanzas not placed: the song may need more sections.'));
+        (r.notes || []).forEach(n => items.push(n));
+        fillList(lyricsPlacements, items);
+        await previewInto(lyricsPreview, placedText);
+        refreshNav();
+      } catch (err) {
+        lyricsStatus.textContent = t("Couldn't get lyrics: %s", err.message); lyricsStatus.className = 'err';
+      } finally {
+        Forms.busy(btn, false);
+      }
+    });
+    function applyPlaced() {
+      setText(rawTextarea, placedText);
+      placedText = ''; lyricsPlacements.innerHTML = ''; lyricsStatus.textContent = ''; lyricsPreview.hidden = true;
+    }
+
+    // ---- 4. Recording: YouTube's candidates, listened to, starred -------
+    const ytStatus = $id('import-yt-status');
+    const ytCurrent = $id('import-yt-current');
+    const ytList = $id('import-yt-candidates');
+    const ytSort = $id('import-yt-sort');
+    const stemWords = { queued: () => t('waiting to be split into voice and backing'), running: () => t('being split into voice and backing'), done: () => t('split into voice and backing'), failed: () => t("couldn't be split into voice and backing") };
+    let candidates = null; // this opening's search results
+    let currentURL = '';
+    let stemTimer = null;
+    // Stars are this browser's notes while choosing (localStorage, per
+    // song): 1 to 3, sorted on when asked, the best one used by Next.
+    const starsKey = `sb-import-stars-${pageVariantId}`;
+    function loadStars() { try { return JSON.parse(localStorage.getItem(starsKey) || '{}'); } catch (e) { return {}; } }
+    function saveStars(st) { try { localStorage.setItem(starsKey, JSON.stringify(st)); } catch (e) { /* stars just don't stick */ } }
+    let stars = loadStars();
+    function bestUnused() {
+      if (!candidates) return null;
+      const best = candidates.filter(c => stars[c.id]).sort((a, b) => stars[b.id] - stars[a.id])[0];
+      return best && best.url !== currentURL ? best : null;
+    }
+    async function showRecording() {
+      clearTimeout(stemTimer);
+      try {
+        const res = await fetch(`/api/songs/${pageVariantId}/audio`);
+        const data = await res.json();
+        const yt = (data.categories || []).find(c => c.category === 'youtube');
+        if (!yt) { currentURL = ''; ytCurrent.textContent = t('No reference recording yet.'); return; }
+        currentURL = yt.sourceUrl || '';
+        ytCurrent.textContent = t('Current recording: %s, %s.', yt.sourceUrl || t('uploaded'), (stemWords[yt.stemStatus] || (() => yt.stemStatus || ''))());
+        if (yt.stemStatus === 'queued' || yt.stemStatus === 'running') stemTimer = setTimeout(showRecording, 15000);
+      } catch (e) { /* the list still works */ }
+      if (current === 'recording') refreshNav();
+    }
+    function enterRecording() {
+      showRecording();
+      if (!candidates) findRecordings();
+    }
+    async function findRecordings() {
+      const { title, artist } = titleArtist();
+      if (!title) { ytStatus.textContent = t('Give the song a title first (in the Chart tab), then search.'); ytStatus.className = 'err'; return; }
+      ytStatus.textContent = t('Searching YouTube…'); ytStatus.className = 'hint';
+      ytList.innerHTML = '';
+      try {
+        const res = await fetch(`/api/import/youtube/find?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist || '')}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error();
+        candidates = data.candidates || [];
+        ytStatus.textContent = candidates.length ? '' : t('Nothing found on YouTube.');
+        renderCandidates();
+        if (current === 'recording') refreshNav(); // Next may now use a starred one
+      } catch (err) {
+        ytStatus.textContent = t("Couldn't search YouTube just now."); ytStatus.className = 'err';
+      }
+    }
+    $id('import-yt-find-btn').addEventListener('click', findRecordings);
+    ytSort.addEventListener('change', renderCandidates);
+    function renderCandidates() {
+      ytList.innerHTML = '';
+      const list = (candidates || []).slice();
+      if (ytSort.checked) list.sort((a, b) => (stars[b.id] || 0) - (stars[a.id] || 0));
+      list.forEach(c => {
+        const li = document.createElement('li');
+        li.className = 'import-yt-candidate' + (c.official ? ' is-official' : '') + (c.url === currentURL ? ' is-current' : '');
+        const title = document.createElement('a');
+        title.href = c.url; title.target = '_blank'; title.rel = 'noopener'; title.className = 'import-yt-title';
+        title.textContent = c.title;
+        const meta = document.createElement('div');
+        meta.className = 'hint';
+        meta.textContent = [c.channel + (c.official ? ' — ' + t("the artist's channel") : ''), fmtTime(c.duration), c.note ? t(c.note) : '', c.url === currentURL ? t('in use') : ''].filter(Boolean).join(' · ');
+        const actions = document.createElement('div');
+        actions.className = 'import-yt-actions';
+        const listen = document.createElement('button');
+        listen.type = 'button'; listen.textContent = '▶ ' + t('Listen');
+        const embed = document.createElement('div');
+        embed.className = 'reference-embed import-yt-embed';
+        listen.addEventListener('click', () => {
+          if (embed.firstChild) { embed.innerHTML = ''; listen.textContent = '▶ ' + t('Listen'); return; }
+          const iframe = document.createElement('iframe');
+          iframe.src = `https://www.youtube-nocookie.com/embed/${c.id}?autoplay=1`;
+          iframe.title = c.title;
+          iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+          iframe.allowFullscreen = true;
+          embed.appendChild(iframe);
+          listen.textContent = '■ ' + t('Stop');
+        });
+        const rate = document.createElement('span');
+        rate.className = 'import-stars';
+        rate.setAttribute('role', 'group');
+        rate.setAttribute('aria-label', t('Stars'));
+        for (let n = 1; n <= 3; n++) {
+          const s = document.createElement('button');
+          s.type = 'button';
+          s.className = 'import-star' + ((stars[c.id] || 0) >= n ? ' on' : '');
+          s.textContent = (stars[c.id] || 0) >= n ? '★' : '☆';
+          s.setAttribute('aria-label', tn(n, '%d star', '%d stars'));
+          s.setAttribute('aria-pressed', (stars[c.id] || 0) >= n);
+          s.addEventListener('click', () => {
+            stars[c.id] = stars[c.id] === n ? 0 : n;
+            if (!stars[c.id]) delete stars[c.id];
+            saveStars(stars);
+            renderCandidates(); refreshNav();
+          });
+          rate.appendChild(s);
+        }
+        const use = document.createElement('button');
+        use.type = 'button'; use.textContent = t('Use this one');
+        use.disabled = c.url === currentURL;
+        use.addEventListener('click', () => useRecording(c, use));
+        actions.append(listen, rate, use);
+        li.append(title, meta, actions, embed);
+        ytList.appendChild(li);
+      });
+    }
+    async function useRecording(c, btn) {
+      if (btn) Forms.busy(btn, true);
+      busy(true, t('Downloading the sound… (up to a minute)'));
+      try {
+        await postJSON(`/api/songs/${pageVariantId}/audio/youtube`, { url: c.url });
+        // The chart names its reference too (its "reference:" line).
+        const m = rawTextarea.value.match(/^reference:.*$/m);
+        setText(rawTextarea, m ? rawTextarea.value.replace(/^reference:.*$/m, `reference: ${c.url}`) : rawTextarea.value.replace(/^(title:.*\n(?:[a-z][\w-]*:.*\n)*)/, `$1reference: ${c.url}\n`));
+        currentURL = c.url;
+        busy(false, t('Downloaded: its voice and backing are being split, then the sync can place the sections.'));
+        await showRecording();
+        renderCandidates();
+        return true;
+      } catch (err) {
+        busy(false);
+        fail(t("Couldn't download it: %s", err.message));
+        return false;
+      } finally {
+        if (btn) Forms.busy(btn, false);
+      }
+    }
+
+    // ---- 5. Sync: tempo, time, key and sections, checked by ear ---------
+    const syncStatus = $id('import-sync-status');
+    const syncResult = $id('import-sync-result');
+    const syncOverwriteLabel = $id('import-sync-overwrite-label');
+    const audio = $id('import-sync-audio');
+    let proposal = null;
+    let auditionTimer = null;
+    function audition(at, btn) {
+      clearTimeout(auditionTimer);
+      wizard.querySelectorAll('.import-sync-play.playing').forEach(b => { b.classList.remove('playing'); b.textContent = '▶'; });
+      if (!audio.src) audio.src = `/song/${pageVariantId}/audio.mp3?category=youtube`;
+      if (btn.dataset.playing === '1') { audio.pause(); btn.dataset.playing = ''; return; }
+      wizard.querySelectorAll('.import-sync-play').forEach(b => { b.dataset.playing = ''; });
+      audio.currentTime = Math.max(0, at - 0.5);
+      audio.play().catch(() => {});
+      btn.dataset.playing = '1'; btn.classList.add('playing'); btn.textContent = '■';
+      auditionTimer = setTimeout(() => { audio.pause(); btn.dataset.playing = ''; btn.classList.remove('playing'); btn.textContent = '▶'; }, 8000);
+    }
+    async function runAnalysis() {
+      syncResult.innerHTML = ''; syncOverwriteLabel.hidden = true; proposal = null;
+      busy(true);
+      if (isDirty && !(await saveRaw())) {
+        busy(false);
+        syncStatus.textContent = t("Couldn't save the chart: markers go on its saved sections."); syncStatus.className = 'err';
+        return;
+      }
+      syncStatus.textContent = t('Listening to the recording… (a few seconds)'); syncStatus.className = 'hint';
+      try {
+        const p = await postJSON(`/api/songs/${pageVariantId}/audio/youtube/analyze`, {});
+        proposal = p;
+        syncStatus.textContent = '';
+        const lines = [
+          t('Recording: %s, sound from %ss. Its own estimate: %s bpm in %s.', fmtTime(p.duration), p.audioStart.toFixed(2), Math.round(p.audioTempo), p.audioTimeSig),
+          t('Chart: tempo %s in %s (time signature from %s). Fit with the voice: %s%.', p.tempo, p.timeSig,
+            { chart: t('the chart'), ireal: 'iReal Pro', audio: t('the recording') }[p.timeSigFrom] || p.timeSigFrom, Math.round(p.score * 100)),
+          ...keyLines(p.key),
+          ...(p.notes || []),
+        ];
+        const ul = document.createElement('ul'); ul.className = 'import-notes';
+        lines.forEach(l => { const li = document.createElement('li'); li.textContent = l; ul.appendChild(li); });
+        const table = document.createElement('table'); table.className = 'import-sync-sections';
+        const head = table.createTHead().insertRow();
+        [t('Section'), t('Starts at'), ''].forEach(h => { const th = document.createElement('th'); th.textContent = h; head.appendChild(th); });
+        const tbody = table.createTBody();
+        (p.sections || []).forEach(s => {
+          const tr = tbody.insertRow();
+          tr.insertCell().textContent = s.label;
+          tr.insertCell().textContent = `${fmtTime(s.time)} (${s.time.toFixed(2)}s)`;
+          const play = document.createElement('button');
+          play.type = 'button'; play.className = 'icon-btn import-sync-play'; play.textContent = '▶';
+          play.setAttribute('aria-label', t('Play %s from its start', s.label));
+          play.addEventListener('click', () => audition(s.time, play));
+          tr.insertCell().appendChild(play);
+        });
+        syncResult.append(ul, table);
+        syncOverwriteLabel.hidden = false;
+      } catch (err) {
+        syncStatus.textContent = t("Couldn't analyse the recording: %s", err.message); syncStatus.className = 'err';
+      } finally {
+        busy(false);
+      }
+    }
+    async function saveSync() {
+      if (!proposal) { wizard.close(); return; }
+      busy(true, t('Saving…'));
+      try {
+        const r = await postJSON(`/api/songs/${pageVariantId}/audio/youtube/sync`, { version: rawVersion, overwrite: $id('import-sync-overwrite').checked });
+        rawTextarea.value = r.text; rawVersion = r.version; clearDirty();
+        busy(false, '');
+        passed.add('sync');
+        wizard.close();
+        Forms.status?.(document.getElementById('save-status'), t('Saved. Reload the page to play along with the synced chart.'), 'ok');
+      } catch (err) {
+        busy(false);
+        fail(t("Couldn't save: %s", err.message));
+      }
+    }
+
+    // ---- Navigation ------------------------------------------------------
+    nextBtn.addEventListener('click', async () => {
+      switch (current) {
+        case 'find': {
+          const choice = chartChoice();
+          if (choice !== 'keep') return fetchChart(choice);
+          passed.add('find');
+          return showStep(nextSuggested('find'));
+        }
+        case 'review':
+          if (await applyDraft()) { passed.add('review'); showStep('lyrics'); }
+          return;
+        case 'lyrics':
+          if (placedText) applyPlaced();
+          passed.add('lyrics');
+          return showStep('recording');
+        case 'recording': {
+          const best = bestUnused();
+          if (best && !(await useRecording(best))) return;
+          passed.add('recording');
+          return showStep('sync');
+        }
+        default:
+          return saveSync();
+      }
+    });
+    skipBtn.addEventListener('click', () => {
+      if (current === 'sync') { wizard.close(); return; }
+      passed.add(current);
+      showStep(ORDER[ORDER.indexOf(current) + 1]);
+    });
+    backBtn.addEventListener('click', () => {
+      const at = ORDER.indexOf(current);
+      showStep(current === 'lyrics' && !hasDraft ? 'find' : ORDER[Math.max(0, at - 1)]);
+    });
+    dots.forEach(d => d.addEventListener('click', () => showStep(d.dataset.stepDot)));
+    $id('import-wiz-close').addEventListener('click', () => wizard.close());
+    // What the wizard put into Source, to check (and save, if the sync
+    // hasn't already).
+    wizard.addEventListener('close', () => {
+      clearTimeout(stemTimer); clearTimeout(auditionTimer); audio.pause();
+      wizard.querySelectorAll('.import-yt-embed').forEach(e => { e.innerHTML = ''; });
+      passed.clear(); hasDraft = false; candidates = null; proposal = null;
+      if (isDirty) showInSource();
+    });
+    // The Import tab's buttons open the wizard at their step.
+    document.querySelectorAll('[data-goto]').forEach(btn => btn.addEventListener('click', async () => {
+      if (!wizard.open) wizard.showModal();
+      showStep(btn.dataset.goto);
+      await loadAssessment();
+    }));
+
+    // ---- The Import tab's tools on Source as it is -----------------------
+    const sourceStatus = $id('import-source-status');
+    $id('import-source-clean-btn').addEventListener('click', async () => {
+      try {
+        const data = await postJSON('/api/import/cleanup', { text: rawTextarea.value, stripInlineChords: false });
+        if (data.text === rawTextarea.value) { sourceStatus.textContent = t('Nothing to clean up.'); return; }
+        setText(rawTextarea, data.text);
+        sourceStatus.textContent = t('Cleaned up: %s. Check it, then save.', (data.notes || []).join(', '));
+        showInSource();
+      } catch (e) { sourceStatus.textContent = t("Couldn't clean up just now."); }
+    });
+    $id('import-source-ireal-btn').addEventListener('click', async () => {
+      const { title, artist } = titleArtist();
+      const host = $id('import-source-ireal-candidates');
+      sourceStatus.textContent = t('Checking iReal Pro…');
+      try {
+        const data = await postJSON('/api/import/ireal/merge', { currentText: rawTextarea.value, title, artist: artist || '' });
+        renderIRealCandidates(data.candidates || [], host, rawTextarea, sourceStatus);
+        sourceStatus.textContent = (data.candidates || []).length
+          ? t('Found a chart. Check each section below before accepting it.')
+          : t('Found a chart, but it has nothing new to add.');
+      } catch (e) { sourceStatus.textContent = t('No iReal Pro chart found for this song.'); }
     });
   })();
 

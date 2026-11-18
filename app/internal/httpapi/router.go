@@ -175,6 +175,15 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/import/ireal/merge", s.requireAuth(s.handleImportIRealMerge))
 	mux.HandleFunc("POST /api/import/ultimate-guitar/parse", s.requireAuth(s.handleImportUGParse))
 	mux.HandleFunc("POST /api/import/ultimate-guitar/convert", s.requireAuth(s.handleImportUGConvert))
+	// The import wizard's reference recording, cleanup, lyrics, singer's
+	// draft, key check and draft merge (handlers_wizard.go,
+	// internal/songimport, internal/importer).
+	mux.HandleFunc("GET /api/import/youtube/find", s.requireAuth(s.handleImportYouTubeFind))
+	mux.HandleFunc("POST /api/import/cleanup", s.requireAuth(s.handleImportCleanup))
+	mux.HandleFunc("POST /api/import/lyrics/place", s.requireAuth(s.handleImportLyricsPlace))
+	mux.HandleFunc("GET /api/import/vocal", s.requireAuth(s.handleImportVocal))
+	mux.HandleFunc("POST /api/import/keycheck", s.requireAuth(s.handlePostKeyCheck))
+	mux.HandleFunc("POST /api/import/merge", s.requireAuth(s.handleImportMerge))
 
 	mux.HandleFunc("GET /api/songs/{id}", s.requireVariantRole("viewer", s.handleGetSong))
 	mux.HandleFunc("PUT /api/songs/{id}", s.requireVariantRole("editor", s.handlePutSong))
@@ -204,6 +213,9 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("DELETE /api/songs/{id}/audio/{category}", s.requireVariantRole("editor", s.handleDeleteSongAudio))
 	mux.HandleFunc("PUT /api/songs/{id}/audio/{category}/kind", s.requireVariantRole("editor", s.handlePutSongAudioKind))
 	mux.HandleFunc("POST /api/songs/{id}/audio/{category}/stems", s.requireVariantRole("editor", s.handlePostSongAudioStems))
+	mux.HandleFunc("GET /api/songs/{id}/import/assess", s.requireVariantRole("editor", s.handleGetImportAssess))
+	mux.HandleFunc("POST /api/songs/{id}/audio/{category}/analyze", s.requireVariantRole("editor", s.handlePostSongAudioAnalyze))
+	mux.HandleFunc("POST /api/songs/{id}/audio/{category}/sync", s.requireVariantRole("editor", s.handlePostSongAudioSync))
 	mux.HandleFunc("PUT /api/songs/{id}/audio/{category}/markers/{sectionIndex}", s.requireVariantRole("editor", s.handlePutAudioMarker))
 	mux.HandleFunc("DELETE /api/songs/{id}/audio/{category}/markers/{sectionIndex}", s.requireVariantRole("editor", s.handleDeleteAudioMarker))
 	mux.HandleFunc("PUT /api/songs/{id}/audio/gp/sync-points", s.requireVariantRole("editor", s.handlePutGPBarSyncPoints))
