@@ -7,7 +7,9 @@ set -euo pipefail
 #
 # Usage: deploy/backup-db.sh
 # Env overrides: SONGBOOKS_DEPLOY_HOST (default dev-runner-rsync),
-#                SONGBOOKS_DEPLOY_DIR  (default ~/dev/www/songbooks/app/deploy)
+#                SONGBOOKS_DEPLOY_DIR  (default ~/dev/www/songbooks/app/deploy),
+#                SONGBOOKS_DUMP_COMPRESS (default zstd:9),
+#                SONGBOOKS_BACKUPS_KEEP (default 3: older dumps are removed)
 
 HOST="${SONGBOOKS_DEPLOY_HOST:-dev-runner-rsync}"
 REMOTE_DIR="${SONGBOOKS_DEPLOY_DIR:-~/dev/www/songbooks/app/deploy}"
@@ -30,8 +32,24 @@ echo "Backing up songbooks DB from $HOST ..."
 # running deploy — not read from deploy/.env here since docker compose
 # already resolves that file itself when this ssh command runs `exec`
 # from the compose project directory.
-ssh "$HOST" "cd $REMOTE_DIR && docker compose exec -T db pg_dump -U songbooks -d songbooks --format=custom" > "$OUT_FILE"
+#
+# Compressed with zstd (pg_dump 16): most of the database is audio
+# (reference recordings and their parts, MP3, already compressed), so
+# no level gains much on it; measured on production (1 GB): gzip, the
+# default, 1064 MB; zstd:9, 966 MB, in the same time. COMPRESS overrides.
+COMPRESS="${SONGBOOKS_DUMP_COMPRESS:-zstd:9}"
+ssh "$HOST" "cd $REMOTE_DIR && docker compose exec -T db pg_dump -U songbooks -d songbooks --format=custom --compress=$COMPRESS" > "$OUT_FILE.part"
+mv "$OUT_FILE.part" "$OUT_FILE"
 
 ln -sf "$(basename "$OUT_FILE")" "$OUT_DIR/latest.dump"
 echo "Backup complete: $OUT_FILE ($(du -h "$OUT_FILE" | cut -f1))"
 echo "Symlinked as $OUT_DIR/latest.dump"
+
+# Only the most recent few are kept (KEEP, 3 by default): every deploy
+# makes one, each about a gigabyte.
+KEEP="${SONGBOOKS_BACKUPS_KEEP:-3}"
+ls -1t "$OUT_DIR"/songbooks-*.dump 2>/dev/null | tail -n +"$((KEEP + 1))" | while read -r old; do
+  echo "Removing old backup $(basename "$old")"
+  rm -f -- "$old"
+done
+rm -f "$OUT_DIR"/songbooks-*.dump.part
