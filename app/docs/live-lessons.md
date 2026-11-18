@@ -123,6 +123,15 @@ DOCKER_CONTEXT=ci-build docker save songbooks-prod-galene | DOCKER_CONTEXT=defau
 DOCKER_CONTEXT=default COMPOSE_PROFILES=stems,live docker compose up -d --no-build galene
 ```
 
+Production's `.env` has `COMPOSE_PROFILES=stems,live`: `deploy/rollout.sh`
+builds Galène with the app and keeps it running.
+
+To change the key: remove `SONGBOOKS_GALENE_KEY` from `.env`, run
+`galene/setup.sh` again (a new key, on both sides), then restart Galène
+and the app (`docker compose up -d --force-recreate --no-build galene
+app`). Join links signed with the old key stop working at once; they
+only last two minutes anyway.
+
 and in the Caddyfile, instead of the 503:
 
 ```
