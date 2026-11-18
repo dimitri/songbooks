@@ -6892,3 +6892,25 @@ a.singer-chip:hover { border-color: var(--border-strong); }
   .program-song { grid-template-columns: 1.5rem minmax(0, 1fr); }
   .program-tools { grid-column: 2; flex-direction: row; justify-content: flex-end; }
 }
+
+/* The coach's students as a table (coaching.html): sortable columns, the
+   whole of it scrolling sideways on a narrow screen. */
+.students-view { display: inline-flex; gap: 0.15rem; padding: 0.15rem; margin-left: auto; border-radius: 6px; background: var(--bg-sunken); }
+.students-view button { border: 0; background: none; padding: 0.25rem 0.7rem; border-radius: 4px; font: inherit; font-size: 0.8rem; color: var(--fg-muted); cursor: pointer; min-height: 0; }
+.students-view button[aria-pressed="true"] { background: var(--bg-raised); color: var(--fg); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.students-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); }
+.students-table-wrap[hidden], .coach-students[hidden] { display: none; }
+.students-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.students-table th, .students-table td { padding: 0.55rem 0.7rem; text-align: left; vertical-align: top; border-top: 1px solid var(--border); white-space: nowrap; }
+.students-table thead th { border-top: 0; background: var(--bg-sunken); position: sticky; top: 0; }
+.students-table th button { border: 0; background: none; padding: 0; font: inherit; font-weight: 600; font-size: 0.8rem; color: var(--fg-muted); cursor: pointer; min-height: 0; }
+.students-table th[aria-sort] button { color: var(--fg); }
+.students-table th[aria-sort="ascending"] button::after { content: " ↑"; }
+.students-table th[aria-sort="descending"] button::after { content: " ↓"; }
+.students-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.students-table td a { color: inherit; text-decoration: none; }
+.students-table td a:hover { text-decoration: underline; }
+.students-table tbody tr:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.students-lesson-kinds { font-size: 0.75rem; line-height: 1.35; margin-top: 0.15rem; }
+.key-down, .key-up { font-weight: 600; font-variant-numeric: tabular-nums; }
+.key-down { color: var(--accent-ink); }

@@ -90,6 +90,24 @@ type studentRow struct {
 	SongbookID int64
 	SongCount  int
 	NextLesson *store.Event
+	// The table view's: the whole range (lowest to highest noted), the
+	// keys of their songs (how many moved, down and up, the furthest
+	// each way), their lessons so far by kind, the last one and the
+	// last note, and their parts in the events' programs to come.
+	LowName, HighName string
+	LowMidi, HighMidi int
+	KeysDown, KeysUp  int
+	KeyMin, KeyMax    int
+	Lessons           int
+	LessonsAlone      int
+	LessonsGroup      int
+	LessonsOnline     int
+	LessonsInRoom     int
+	LessonsToCome     int
+	MoreToCome        int // after the next one
+	LastLesson        *store.Event
+	LastNote          *time.Time
+	Leads, Backings   int
 }
 
 // handleCoachingStudentsPage is GET /communities/{id}/students: the coach's
@@ -109,7 +127,13 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	lessons, err := s.store.ListCoachingLessons(r.Context(), community.ID, time.Now(), 0)
+	now := time.Now()
+	lessons, err := s.store.ListCoachingLessons(r.Context(), community.ID, time.Time{}, 0)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	parts, err := s.store.ProgramParts(r.Context(), community.ID, now)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -127,6 +151,14 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 			return
 		}
 		row.Ranges = rangeViews(rs, lang)
+		for _, rv := range row.Ranges {
+			if rv.LowMidi != 0 && (row.LowMidi == 0 || rv.LowMidi < row.LowMidi) {
+				row.LowMidi, row.LowName = rv.LowMidi, rv.LowName
+			}
+			if rv.HighMidi > row.HighMidi {
+				row.HighMidi, row.HighName = rv.HighMidi, rv.HighName
+			}
+		}
 		if row.SongbookID, err = s.store.FindStudentSongbook(r.Context(), community.ID, m.PersonID); err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -134,18 +166,60 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 		if row.SongbookID != 0 {
 			songs, _ := s.store.ListStudentSongs(r.Context(), row.SongbookID)
 			row.SongCount = len(songs)
-		}
-		for _, l := range lessons {
-			for _, st := range l.Students {
-				if st.PersonID == m.PersonID && row.NextLesson == nil {
-					ev := l.Event
-					row.NextLesson = &ev
+			for _, sg := range songs {
+				switch {
+				case sg.Semitones < 0:
+					row.KeysDown++
+				case sg.Semitones > 0:
+					row.KeysUp++
 				}
+				row.KeyMin, row.KeyMax = min(row.KeyMin, sg.Semitones), max(row.KeyMax, sg.Semitones)
 			}
 		}
+		for _, l := range lessons {
+			mine := false
+			for _, st := range l.Students {
+				mine = mine || st.PersonID == m.PersonID
+			}
+			if !mine {
+				continue
+			}
+			ev := l.Event
+			if !ev.IsPast(now) {
+				row.LessonsToCome++
+				if row.NextLesson == nil {
+					row.NextLesson = &ev
+				}
+				continue
+			}
+			row.Lessons++
+			row.LastLesson = &ev
+			if ev.CoachingGroupID != nil {
+				row.LessonsGroup++
+			} else {
+				row.LessonsAlone++
+			}
+			if ev.LessonMode == "online" {
+				row.LessonsOnline++
+			} else {
+				row.LessonsInRoom++
+			}
+		}
+		if notes, err := s.store.ListTeachingNotes(r.Context(), community.ID, m.PersonID); err == nil && len(notes) > 0 {
+			at := notes[0].CreatedAt
+			for _, n := range notes {
+				if n.CreatedAt.After(at) {
+					at = n.CreatedAt
+				}
+			}
+			row.LastNote = &at
+		}
+		row.MoreToCome = max(0, row.LessonsToCome-1)
+		p := parts[m.PersonID]
+		row.Leads, row.Backings = p[0], p[1]
 		rows = append(rows, row)
 	}
-	sort.Slice(rows, func(i, j int) bool { return rows[i].Name < rows[j].Name })
+	sort.Slice(rows, func(i, j int) bool { return store.FoldName(rows[i].Name) < store.FoldName(rows[j].Name) })
 	data := s.coachingPageData(r, community, coach, "students")
 	data["Students"] = rows
 	s.render(w, "coaching_students", data)
