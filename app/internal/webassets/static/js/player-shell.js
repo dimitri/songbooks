@@ -157,5 +157,111 @@
     return queue;
   }
 
-  window.PlayerShell = { panel, fit, lock };
+  // ---- One keyboard map (player-proposal.md §3.5) ----------------------------
+  // PlayerShell.keys({active(), keys: {spec: fn}, help: [[label, specs…]], title})
+  // listens for a player's keys (capture phase, before the page's): spec is
+  // e.key with its modifiers, "Alt+ArrowLeft", "Shift+C", " " for Space; a
+  // handler returning false lets the key go on to the page. Never in a
+  // field, nor with ⌘ or Ctrl. "?" shows the help: the keys, in a dialog.
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform || '');
+  const keyNames = () => ({
+    ' ': t('Space'), ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Home: t('key|Home'), Escape: t('key|Esc'),
+    Alt: isMac ? '⌥' : 'Alt', Shift: '⇧',
+  });
+  function specOf(e) {
+    let k = e.key;
+    if (k === 'Spacebar') k = ' ';
+    if (k.length === 1 && k !== ' ') k = k.toLowerCase();
+    // Shifted punctuation stays as typed ("?", "{"); letters and named keys take "Shift+".
+    const shiftable = k.length > 1 || /[a-z0-9 ]/.test(k);
+    return (e.altKey ? 'Alt+' : '') + (e.shiftKey && shiftable ? 'Shift+' : '') + k;
+  }
+  function keys(opts) {
+    window.addEventListener('keydown', (e) => {
+      if (e.metaKey || e.ctrlKey || e.defaultPrevented) return;
+      if (opts.active && !opts.active(e)) return;
+      const el = e.target && e.target.closest ? e.target : document.body;
+      if (el.closest('input:not([type="range"]):not([type="checkbox"]), select, textarea, [contenteditable]')) return;
+      const spec = specOf(e);
+      // On a focused button, Space and Enter are the button's (the player's own excepted).
+      if ((spec === ' ' || spec === 'Enter') && el.closest('button, a, summary, [role="button"], [role="tab"]') && !(opts.own && el.closest(opts.own))) return;
+      if (spec === '?' && opts.help) { e.preventDefault(); e.stopImmediatePropagation(); showHelp(opts); return; }
+      // A letter with Alt is often a character on a Mac (⌥C = ç): match by code too.
+      let fn = opts.keys[spec];
+      if (!fn && e.altKey && e.code && /^Key[A-Z]$/.test(e.code)) fn = opts.keys['Alt+' + (e.shiftKey ? 'Shift+' : '') + e.code.slice(3).toLowerCase()];
+      // Punctuation typed with ⌥ or AltGr (a French keyboard's "[", "]", "\"): the character's.
+      if (!fn && e.altKey && e.key.length === 1 && !/[a-z0-9]/i.test(e.key)) fn = opts.keys[e.key];
+      if (!fn) return;
+      if (fn(e) === false) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }, true);
+  }
+  let helpEl = null;
+  function showHelp(opts) {
+    if (!helpEl) {
+      helpEl = document.createElement('div');
+      helpEl.className = 'ps-keys';
+      helpEl.hidden = true;
+      helpEl.innerHTML = '<div class="ps-keys-backdrop" data-close></div><div class="ps-keys-card" role="dialog" aria-modal="true" aria-labelledby="ps-keys-title"><button type="button" class="icon-btn ps-keys-close" data-close></button><h2 id="ps-keys-title"></h2><table class="ps-keys-table"><tbody></tbody></table></div>';
+      document.body.append(helpEl);
+      helpEl.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => hideHelp()));
+      helpEl.querySelector('.ps-keys-close').setAttribute('aria-label', t('Close'));
+      helpEl.querySelector('.ps-keys-close').innerHTML = '<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+      window.addEventListener('keydown', (e) => {
+        if (helpEl.hidden) return;
+        if (e.key === 'Escape' || e.key === '?') { e.preventDefault(); e.stopImmediatePropagation(); hideHelp(); }
+      }, true);
+    }
+    const names = keyNames();
+    const kbd = (spec) => spec.split(/\+(?!$)/).map((p) => `<kbd>${escapeHTML(names[p] || (p.length === 1 ? p.toUpperCase() : p))}</kbd>`).join('');
+    helpEl.querySelector('h2').textContent = opts.title || t('Keyboard shortcuts');
+    helpEl.querySelector('tbody').innerHTML = opts.help.map(([label, ...specs]) => `<tr><td>${specs.map(kbd).join(' ')}</td><td>${escapeHTML(label)}</td></tr>`).join('');
+    helpEl.hidden = false;
+    lock(helpEl, true);
+    helpEl.dataset.returnTo = '';
+    helpEl._return = document.activeElement;
+    helpEl.querySelector('.ps-keys-close').focus();
+  }
+  function hideHelp() {
+    if (!helpEl || helpEl.hidden) return;
+    helpEl.hidden = true;
+    lock(helpEl, false);
+    helpEl._return?.focus?.({ preventScroll: true });
+  }
+  const escapeHTML = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // ---- Media Session: the lock screen, headphones, media keys ---------------
+  // PlayerShell.media({title, artist, album, play, pause, seekTo(s),
+  // seekBy(s), previous, next}) wires what's given; position(d, p, rate)
+  // keeps the lock screen's progress right.
+  function media(o) {
+    if (!('mediaSession' in navigator)) return { position() {}, meta() {} };
+    const ms = navigator.mediaSession;
+    const set = (action, fn) => { try { ms.setActionHandler(action, fn || null); } catch (e) { /* not supported */ } };
+    const meta = (m) => { try { ms.metadata = new MediaMetadata({ title: m.title || '', artist: m.artist || '', album: m.album || '' }); } catch (e) { /* none */ } };
+    meta(o);
+    set('play', o.play);
+    set('pause', o.pause);
+    if (o.seekTo) set('seekto', (d) => o.seekTo(d.seekTime));
+    if (o.seekBy) {
+      set('seekbackward', (d) => o.seekBy(-(d.seekOffset || 10)));
+      set('seekforward', (d) => o.seekBy(d.seekOffset || 10));
+    }
+    set('previoustrack', o.previous);
+    set('nexttrack', o.next);
+    let last = 0;
+    return {
+      meta,
+      position(duration, pos, rate, playing) {
+        try { ms.playbackState = playing ? 'playing' : 'paused'; } catch (e) { /* none */ }
+        const now = Date.now();
+        if (now - last < 1000 || !isFinite(duration) || !duration || !ms.setPositionState) return;
+        last = now;
+        try { ms.setPositionState({ duration, position: Math.max(0, Math.min(pos, duration)), playbackRate: rate || 1 }); } catch (e) { /* none */ }
+      },
+    };
+  }
+
+  window.PlayerShell = { panel, fit, lock, keys, media, help: showHelp };
 })();

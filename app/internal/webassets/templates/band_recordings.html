@@ -205,13 +205,36 @@
     queue.append(li);
   });
   $('rp-open').addEventListener('click', () => open(!shell.isOpen()));
-  document.addEventListener('keydown', (e) => {
-    if (bar.hidden) return;
-    if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest?.('input, select, textarea, .rec-stars, [contenteditable]')) return;
-    const act = {' ': toggle, k: toggle, ArrowLeft: e.shiftKey ? prev : () => skip(-SKIP), ArrowRight: e.shiftKey ? actions.next : () => skip(SKIP), j: () => skip(-SKIP), l: () => skip(SKIP), '0': actions.restart}[e.key];
-    if (!act) return;
-    e.preventDefault();
-    act();
+  // The same keys as every player (player-shell.js, player-proposal.md
+  // §3.5): a recording has no bars, so ←/→ step 5 s and ⌥←/→ 15 s.
+  const speeds = [...speed.options].map((o) => Number(o.value));
+  const setRate = (v) => { speed.value = String(v); audio.playbackRate = v; render(); };
+  const rateBy = (d) => () => { const i = speeds.indexOf(Number(speed.value)); setRate(speeds[Math.max(0, Math.min(speeds.length - 1, i + d))]); };
+  PlayerShell.keys({
+    active: () => !bar.hidden,
+    own: '#rec-player',
+    title: t('The player’s keys'),
+    keys: {
+      ' ': toggle, k: toggle,
+      ArrowLeft: () => skip(-5), ArrowRight: () => skip(5),
+      'Alt+ArrowLeft': () => skip(-SKIP), 'Alt+ArrowRight': () => skip(SKIP),
+      'Shift+ArrowLeft': prev, 'Shift+ArrowRight': actions.next,
+      Home: () => { audio.currentTime = loop && loop.b !== undefined ? loop.a : 0; },
+      0: () => { audio.currentTime = loop && loop.b !== undefined ? loop.a : 0; },
+      c: setLoop,
+      '[': rateBy(-1), ']': rateBy(1), '\\': () => setRate(1),
+      f: () => open(!shell.isOpen()),
+    },
+    help: [
+      [t('Play / pause'), ' ', 'k'],
+      [t('Back / forward 5 s'), 'ArrowLeft', 'ArrowRight'],
+      [t('Back / forward 15 s'), 'Alt+ArrowLeft', 'Alt+ArrowRight'],
+      [t('Previous / next recording'), 'Shift+ArrowLeft', 'Shift+ArrowRight'],
+      [t('Back to the start (of the loop, when looping)'), 'Home', '0'],
+      [t('Loop A–B: A, then B, then off'), 'c'],
+      [t('Slower / faster · back to 1×'), '[', ']', '\\'],
+      [t('Open / close the player · close · these shortcuts'), 'f', 'Escape', '?'],
+    ],
   });
 
   const render = () => {
