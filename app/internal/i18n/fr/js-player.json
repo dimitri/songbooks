@@ -82,5 +82,11 @@
   "Play / stop": "Lecture / arrêt",
   "Tempo −1 / +1 (⇧ for 5) · \\ back to the song’s": "Tempo −1 / +1 (⇧ pour 5) · \\ retour à celui du morceau",
   "The click track’s keys": "Les touches de la piste de clic",
-  "next: %s": "ensuite : %s"
+  "next: %s": "ensuite : %s",
+  "Back to the start": "Retour au début",
+  "Check my singing · the piano": "Vérifier ma justesse · le piano",
+  "Open / close the settings · close · these shortcuts": "Ouvrir / fermer les réglages · fermer · ces raccourcis",
+  "Slower / faster": "Plus lent / plus rapide",
+  "The warm-up’s keys": "Les touches de l’échauffement",
+  "Train / pause": "S’entraîner / pause"
 }
