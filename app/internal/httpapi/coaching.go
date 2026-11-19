@@ -222,6 +222,19 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 	sort.Slice(rows, func(i, j int) bool { return store.FoldName(rows[i].Name) < store.FoldName(rows[j].Name) })
 	data := s.coachingPageData(r, community, coach, "students")
 	data["Students"] = rows
+	// The open link that makes students (role member, no names): the
+	// newest one still open, if the coach made one.
+	invites, err := s.store.ListGroupInvitesForTarget(r.Context(), "community", community.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for _, gi := range invites {
+		if gi.ClosedAt == nil && len(gi.Slots) == 0 && (gi.DefaultStatus == "member" || gi.DefaultStatus == "") {
+			data["StudentLink"] = "/join/" + gi.Token
+			break
+		}
+	}
 	s.render(w, "coaching_students", data)
 }
 
@@ -268,7 +281,7 @@ func (s *Server) handleCoachingStudentPage(w http.ResponseWriter, r *http.Reques
 	// The coach's songbook for the student, there from the first visit.
 	var sbID int64
 	if coach {
-		sbID, err = s.store.StudentSongbook(ctx, community.ID, studentID, member.DisplayName+"’s songs", person.ID)
+		sbID, err = s.store.StudentSongbook(ctx, community.ID, studentID, i18n.T(s.langOfRequest(r), "%s’s songs", member.DisplayName), person.ID)
 	} else {
 		sbID, err = s.store.FindStudentSongbook(ctx, community.ID, studentID)
 	}

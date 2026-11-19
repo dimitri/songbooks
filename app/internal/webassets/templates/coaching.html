@@ -205,8 +205,42 @@
       {{end}}
     </div>
     {{else}}
-    <p class="hint">{{t "No students yet: invite them from the"}} <a href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a> {{t "page; every member who isn't staff is a student."}}</p>
+    <p class="hint">{{t "No students yet: invite them below."}}</p>
     {{end}}
+  </section>
+
+  {{/* Inviting students, where the coach looks for them: one link for
+       all (a WhatsApp group, a QR code on the studio door), or a link for
+       one student, named. Both make them students of the community. */}}
+  <section class="home-section coach-invite" data-community="{{.Community.ID}}">
+    <div class="home-section-head"><h3>{{t "Invite students"}}</h3></div>
+    <div class="coach-invite-way">
+      <h4>{{t "One link for all your students"}}</h4>
+      <p class="hint">{{t "Whoever opens it makes their account and becomes your student. Share it in a group, or show its QR code."}}</p>
+      {{if .StudentLink}}
+      <div class="coach-invite-link" data-url="{{.StudentLink}}">
+        <input type="text" readonly value="{{.StudentLink}}" aria-label="{{t "The link"}}">
+        <button type="button" class="invite-copy">{{t "Copy"}}</button>
+        <button type="button" class="invite-share">{{t "Share"}}</button>
+        <button type="button" class="qr-link-btn" data-url="{{.StudentLink}}">{{t "QR code"}}</button>
+      </div>
+      {{else}}
+      <button type="button" class="primary coach-invite-make">{{t "Make the link"}}</button>
+      {{end}}
+    </div>
+    <div class="coach-invite-way">
+      <h4>{{t "A link for one student"}}</h4>
+      <p class="hint">{{t "Type their name: they appear in your students right away, and finish their account from the link."}}</p>
+      <form class="coach-invite-one" autocomplete="off">
+        <input type="text" name="name" placeholder="{{t "Their name"}}" required autocomplete="off">
+        <button type="submit">{{t "Make their link"}}</button>
+      </form>
+      <div class="coach-invite-link" hidden>
+        <input type="text" readonly aria-label="{{t "The link"}}">
+        <button type="button" class="invite-copy">{{t "Copy"}}</button>
+        <button type="button" class="invite-share">{{t "Share"}}</button>
+      </div>
+    </div>
   </section>
 </main>
 </div>
@@ -250,6 +284,49 @@
     wrap.querySelectorAll('th').forEach((th) => th.removeAttribute('aria-sort'));
     b.parentElement.setAttribute('aria-sort', dir > 0 ? 'ascending' : 'descending');
   }));
+})();
+</script>
+<script src="/static/js/qr.js?v={{staticVersion}}"></script>
+<script>
+(() => {
+  const box = document.querySelector('.coach-invite');
+  if (!box) return;
+  const api = `/api/communities/${box.dataset.community}`;
+  const full = (u) => new URL(u, location.origin).href;
+  const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then((r) => { if (!r.ok) return r.text().then((m) => { throw new Error(m); }); return r.json(); });
+  const wire = (row) => {
+    const input = row.querySelector('input');
+    row.querySelector('.invite-copy')?.addEventListener('click', (e) => {
+      navigator.clipboard?.writeText(input.value).then(() => { e.target.textContent = t('Copied'); }, () => input.select());
+    });
+    row.querySelector('.invite-share')?.addEventListener('click', () => {
+      const text = t('Your voice lessons on Songbooks: %s', input.value);
+      if (navigator.share) navigator.share({ text }).catch(() => {});
+      else window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
+    });
+    row.querySelector('.qr-link-btn')?.addEventListener('click', () => showQR(input.value));
+  };
+  box.querySelectorAll('.coach-invite-link').forEach((row) => {
+    const input = row.querySelector('input');
+    if (input.value) input.value = full(input.value);
+    wire(row);
+  });
+  box.querySelector('.coach-invite-make')?.addEventListener('click', () => {
+    post(`${api}/community-link`, { role: 'member' }).then(() => location.reload()).catch((err) => alert(t('Couldn’t make the link.') + ' ' + err.message));
+  });
+  const one = box.querySelector('.coach-invite-one');
+  one?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = one.name.value.trim();
+    if (!name) return;
+    post(`${api}/personal-invites`, { displayName: name, role: 'member' }).then((res) => {
+      const row = one.nextElementSibling;
+      row.querySelector('input').value = full(res.url);
+      row.hidden = false;
+      one.reset();
+    }).catch((err) => alert(t('Couldn’t make the link.') + ' ' + err.message));
+  });
 })();
 </script>
 </body>
