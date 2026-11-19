@@ -141,6 +141,8 @@ func (s *Server) proposeSync(r *http.Request, variantID int64, category store.Au
 	if err != nil {
 		return nil, http.StatusUnprocessableEntity, err
 	}
+	lang := s.langOfRequest(r)
+	p.Localize(func(msg string, args ...any) string { return i18n.T(lang, msg, args...) })
 	return p, http.StatusOK, nil
 }
 

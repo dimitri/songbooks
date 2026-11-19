@@ -29,6 +29,11 @@ type Fit struct {
 	SecondsPerBar float64
 	Markers       []Marker // one per section, in order
 	Score         float64  // 0..1, how well lyric sections line up with vocal activity
+	// Clamped: the sung sections' starts asked for a bar length outside
+	// the searched range, and SecondsPerBar is that range's edge. The
+	// chart's bar counts then don't match the recording at any tempo
+	// near the hint: a bar count (or the tempo) in the chart is wrong.
+	Clamped bool
 }
 
 const (
@@ -328,6 +333,7 @@ func (f *fitter) refine(spb, t0, lo, hi float64) *Fit {
 
 	// Re-estimate spb from consecutive anchors: bar-weighted median of
 	// their seconds-per-bar, kept inside the searched range.
+	clamped := false
 	if len(anchors) >= 2 {
 		type rate struct{ spb, bars float64 }
 		var rates []rate
@@ -346,6 +352,9 @@ func (f *fitter) refine(spb, t0, lo, hi float64) *Fit {
 			acc += r.bars
 			if acc >= total/2 {
 				spb = min(hi, max(lo, r.spb))
+				// More than a percent outside: the anchors wanted another
+				// bar length than any the search allowed.
+				clamped = r.spb < lo*0.99 || r.spb > hi*1.01
 				break
 			}
 		}
@@ -383,7 +392,7 @@ func (f *fitter) refine(spb, t0, lo, hi float64) *Fit {
 		}
 	}
 
-	fit := &Fit{SecondsPerBar: spb}
+	fit := &Fit{SecondsPerBar: spb, Clamped: clamped}
 	for i, s := range f.sections {
 		fit.Markers = append(fit.Markers, Marker{s.Index, times[i]})
 	}

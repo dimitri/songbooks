@@ -144,6 +144,52 @@ beat-detection/alignment in v1 — a human sets markers by ear, which is
 both simpler to build and more reliable than audio analysis for a rock/
 pop reference track with no guaranteed clean transients.
 
+### Sync state: estimated or set
+
+Three things place a chart on a recording, and the player says which one
+it follows (`audio-player.js`, "Sync state"):
+
+| Where it comes from | Saved? | State |
+|---|---|---|
+| The player's own detection (no markers, no sync points: `mixer-autoalign.js` run in the browser) | no | estimated |
+| A program's proposal: the import wizard's step 5 (`songimport.ApplySync`), the Mixer's Auto-align | yes, `origin = 'auto'` | estimated |
+| A person: a tap or a nudge in the Sync sheet, a flag dragged in the Mixer, a Guitar Pro file's own sync, "It's right: confirm" | yes, `origin = 'set'` | set |
+
+`song_audio_markers.origin` and `gp_bar_sync_point.origin` (migration
+0094) hold it; a recording is "estimated" while any of its markers is. The
+badge by the counter reads **Synchro estimée** or **Synchro réglée**; its
+panel says where the sync comes from and opens the Sync sheet to correct
+it.
+
+The badge also warns when the markers make the bar.beat counter run at
+another tempo than the chart's (more than 8% off): the chart's bars are
+spread evenly between two section starts, so a section with more bars
+written than the recording plays makes the counter run fast. Song 334 was
+the case: its verses are written with 23 bars and sung over 17 (the
+recording is at 90 bpm, the chart says 104), the wizard placed each
+section where the singing starts, and the counter ran at 122 bpm. The
+wizard now says so too, section by section ("23 bars in the chart, about
+17 in the recording") and keeps the chart's tempo rather than proposing
+the 122 its fit implies (`songimport.ProposeSync`, `TempoMismatch`).
+
+### The Sync sheet
+
+`sync-sheet.js`, for editors: tap along while listening. Play, tap the
+big button on the first beat of each section; the tap sets that section
+and moves on, never seeking. A tap snaps to the nearest detected downbeat
+or to the voice coming in (`GET /api/songs/{id}/audio/{category}/voice`:
+the vocals part's phrases) within 0.15 s; the delay left after snapping
+is learnt and taken off later taps. Each section has ▶ 2 s before, ±0.1 s,
+±1 bar, ✓ (right as it is) and "Redo from here". The chart, the counter
+and the click follow the unsaved sync while it's edited. Undo goes back
+step by step; Save writes the whole sync in one request
+(`PUT /api/songs/{id}/audio/{category}/markers`), which keeps the sync it
+replaces (`song_audio_sync_history`, the last 20,
+`GET …/markers/history`) so an earlier one can be taken back.
+
+It opens from the badge's panel and from the import wizard's step 5
+("Adjust by ear…", with the wizard's proposal).
+
 ## 5. Build order
 
 1. `song_audio`/`song_audio_markers` tables + migration.

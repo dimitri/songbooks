@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -49,6 +50,23 @@ type AudioMarker struct {
 	ID           int64
 	SectionIndex int
 	TimeSeconds  float64
+	// Origin is SyncAuto when a program placed it and nobody has checked
+	// it yet, SyncSet when a person placed or confirmed it (migration
+	// 0094). "" means SyncSet when writing.
+	Origin string
+}
+
+// A sync's origin: estimated by a program, or set by a person.
+const (
+	SyncAuto = "auto"
+	SyncSet  = "set"
+)
+
+func syncOrigin(o string) string {
+	if o == SyncAuto {
+		return SyncAuto
+	}
+	return SyncSet
 }
 
 // ListSongAudio loads every category a variant has reference audio for
@@ -146,7 +164,7 @@ func (st *Store) DeleteSongAudio(ctx context.Context, variantID int64, category 
 // in the player actually wants them in.
 func (st *Store) ListAudioMarkers(ctx context.Context, songAudioID int64) ([]AudioMarker, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT id, section_index, time_seconds FROM song_audio_markers
+		SELECT id, section_index, time_seconds, origin FROM song_audio_markers
 		WHERE song_audio_id = $1 ORDER BY time_seconds`, songAudioID)
 	if err != nil {
 		return nil, err
@@ -155,7 +173,7 @@ func (st *Store) ListAudioMarkers(ctx context.Context, songAudioID int64) ([]Aud
 	var out []AudioMarker
 	for rows.Next() {
 		var m AudioMarker
-		if err := rows.Scan(&m.ID, &m.SectionIndex, &m.TimeSeconds); err != nil {
+		if err := rows.Scan(&m.ID, &m.SectionIndex, &m.TimeSeconds, &m.Origin); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
@@ -166,13 +184,119 @@ func (st *Store) ListAudioMarkers(ctx context.Context, songAudioID int64) ([]Aud
 // SetAudioMarker sets (or moves) the marker for one section index —
 // one marker per section per audio row (song_audio_markers_unique), so
 // re-tapping "set marker here" on the same section just updates its time.
+// A person placed it: its origin becomes SyncSet.
 func (st *Store) SetAudioMarker(ctx context.Context, songAudioID int64, sectionIndex int, timeSeconds float64) error {
 	_, err := st.db.Exec(ctx, `
-		INSERT INTO song_audio_markers (song_audio_id, section_index, time_seconds)
-		VALUES ($1, $2, $3)
-		ON CONFLICT (song_audio_id, section_index) DO UPDATE SET time_seconds = EXCLUDED.time_seconds`,
+		INSERT INTO song_audio_markers (song_audio_id, section_index, time_seconds, origin)
+		VALUES ($1, $2, $3, 'set')
+		ON CONFLICT (song_audio_id, section_index) DO UPDATE SET time_seconds = EXCLUDED.time_seconds, origin = 'set'`,
 		songAudioID, sectionIndex, timeSeconds)
 	return err
+}
+
+// ReplaceAudioMarkers makes markers a recording's whole sync, in one
+// transaction: markers not in the list are removed. The sync it replaces
+// is kept in song_audio_sync_history (the last syncHistoryKeep of them)
+// when anything changed. savedBy 0 is unknown.
+func (st *Store) ReplaceAudioMarkers(ctx context.Context, songAudioID int64, markers []AudioMarker, savedBy int64) error {
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	// One save at a time per recording: two phones saving together
+	// mustn't interleave their rows.
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM song_audio WHERE id = $1 FOR UPDATE`, songAudioID); err != nil {
+		return err
+	}
+	var old string
+	if err := tx.QueryRow(ctx, `
+		SELECT coalesce(jsonb_agg(jsonb_build_object('sectionIndex', section_index, 'timeSeconds', time_seconds, 'origin', origin) ORDER BY section_index), '[]'::jsonb)::text
+		FROM song_audio_markers WHERE song_audio_id = $1`, songAudioID).Scan(&old); err != nil {
+		return err
+	}
+	keep := make([]int32, 0, len(markers))
+	for _, m := range markers {
+		keep = append(keep, int32(m.SectionIndex))
+	}
+	tag, err := tx.Exec(ctx, `DELETE FROM song_audio_markers WHERE song_audio_id = $1 AND NOT (section_index = ANY($2))`, songAudioID, keep)
+	if err != nil {
+		return err
+	}
+	changed := tag.RowsAffected() > 0
+	for _, m := range markers {
+		tag, err := tx.Exec(ctx, `
+			INSERT INTO song_audio_markers (song_audio_id, section_index, time_seconds, origin)
+			VALUES ($1, $2, $3, $4)
+			ON CONFLICT (song_audio_id, section_index) DO UPDATE SET time_seconds = EXCLUDED.time_seconds, origin = EXCLUDED.origin
+			WHERE song_audio_markers.time_seconds IS DISTINCT FROM EXCLUDED.time_seconds OR song_audio_markers.origin IS DISTINCT FROM EXCLUDED.origin`,
+			songAudioID, m.SectionIndex, m.TimeSeconds, syncOrigin(m.Origin))
+		if err != nil {
+			return err
+		}
+		changed = changed || tag.RowsAffected() > 0
+	}
+	if changed && old != "[]" {
+		var by *int64
+		if savedBy != 0 {
+			by = &savedBy
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO song_audio_sync_history (song_audio_id, saved_by, markers) VALUES ($1, $2, $3::jsonb)`, songAudioID, by, old); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM song_audio_sync_history WHERE song_audio_id = $1 AND id NOT IN (
+				SELECT id FROM song_audio_sync_history WHERE song_audio_id = $1 ORDER BY saved_at DESC, id DESC LIMIT $2)`,
+			songAudioID, syncHistoryKeep); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+// syncHistoryKeep is how many replaced syncs a recording keeps.
+const syncHistoryKeep = 20
+
+// SyncHistoryEntry is one sync a save replaced: the markers as they were
+// until SavedAt, when SavedBy saved another.
+type SyncHistoryEntry struct {
+	ID      int64
+	SavedAt time.Time
+	SavedBy string // the person's display name, "" when unknown
+	Markers []AudioMarker
+}
+
+// ListSyncHistory returns a recording's replaced syncs, newest first.
+func (st *Store) ListSyncHistory(ctx context.Context, songAudioID int64) ([]SyncHistoryEntry, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT h.id, h.saved_at, coalesce(p.display_name, ''), h.markers::text
+		FROM song_audio_sync_history h LEFT JOIN people p ON p.id = h.saved_by
+		WHERE h.song_audio_id = $1 ORDER BY h.saved_at DESC, h.id DESC`, songAudioID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []SyncHistoryEntry
+	for rows.Next() {
+		var e SyncHistoryEntry
+		var raw string
+		if err := rows.Scan(&e.ID, &e.SavedAt, &e.SavedBy, &raw); err != nil {
+			return nil, err
+		}
+		var ms []struct {
+			SectionIndex int     `json:"sectionIndex"`
+			TimeSeconds  float64 `json:"timeSeconds"`
+			Origin       string  `json:"origin"`
+		}
+		if err := json.Unmarshal([]byte(raw), &ms); err != nil {
+			return nil, err
+		}
+		for _, m := range ms {
+			e.Markers = append(e.Markers, AudioMarker{SectionIndex: m.SectionIndex, TimeSeconds: m.TimeSeconds, Origin: syncOrigin(m.Origin)})
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
 }
 
 // DeleteAudioMarker removes one section's marker.
@@ -188,13 +312,14 @@ func (st *Store) DeleteAudioMarker(ctx context.Context, songAudioID int64, secti
 type GPBarSyncPoint struct {
 	BarIndex    int
 	TimeSeconds float64
+	Origin      string // SyncAuto or SyncSet ("" is SyncSet when writing)
 }
 
 // ListGPBarSyncPoints returns a song_audio row's bar sync points, ordered
 // by bar — the sequence the chart's own click-to-play handler walks.
 func (st *Store) ListGPBarSyncPoints(ctx context.Context, songAudioID int64) ([]GPBarSyncPoint, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT bar_index, time_seconds FROM gp_bar_sync_point
+		SELECT bar_index, time_seconds, origin FROM gp_bar_sync_point
 		WHERE song_audio_id = $1 ORDER BY bar_index`, songAudioID)
 	if err != nil {
 		return nil, err
@@ -203,7 +328,7 @@ func (st *Store) ListGPBarSyncPoints(ctx context.Context, songAudioID int64) ([]
 	var out []GPBarSyncPoint
 	for rows.Next() {
 		var p GPBarSyncPoint
-		if err := rows.Scan(&p.BarIndex, &p.TimeSeconds); err != nil {
+		if err := rows.Scan(&p.BarIndex, &p.TimeSeconds, &p.Origin); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -225,8 +350,8 @@ func (st *Store) SetGPBarSyncPoints(ctx context.Context, songAudioID int64, poin
 		return err
 	}
 	for _, p := range points {
-		if _, err := tx.Exec(ctx, `INSERT INTO gp_bar_sync_point (song_audio_id, bar_index, time_seconds) VALUES ($1, $2, $3)`,
-			songAudioID, p.BarIndex, p.TimeSeconds); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO gp_bar_sync_point (song_audio_id, bar_index, time_seconds, origin) VALUES ($1, $2, $3, $4)`,
+			songAudioID, p.BarIndex, p.TimeSeconds, syncOrigin(p.Origin)); err != nil {
 			return err
 		}
 	}
