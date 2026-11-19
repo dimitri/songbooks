@@ -188,14 +188,25 @@
       }
       const breath = Math.round(Math.max(0, Number(p.breath) || 0) * DIV);
       if (breath) push({ midis: [], divs: breath }, []);
-      repeats.push({ key, start: sec(start), end: sec(t), root, tonic: nameOf(root, flatKey(((root % 12) + 12) % 12)).replace(/-?\d+$/, '') });
+      // the next repeat starts a bar, with its own key signature
+      const BAR = 4 * DIV;
+      if (t % BAR) push({ midis: [], divs: BAR - (t % BAR) }, []);
+      repeats.push({ key, start: sec(start), end: sec(t), startDivs: start, root, tonic: nameOf(root, flatKey(((root % 12) + 12) % 12)).replace(/-?\d+$/, '') });
     }
+    // A repeat's key signature: its tonic's (a minor one, its relative
+    // major's), flats or sharps as the tonic is spelled.
+    const FIFTHS = { 0: 0, 1: -5, 2: 2, 3: -3, 4: 4, 5: -1, 6: -6, 7: 1, 8: -4, 9: 3, 10: -2, 11: 5 };
+    const fifthsOf = (root) => FIFTHS[(((root + (minor ? 3 : 0)) % 12) + 12) % 12];
+    const startsAt = new Map(repeats.map((r) => [r.startDivs, r]));
     const partXML = (id, events, isVoice) => {
       const bars = measures(events);
       let at = 0, rep = 0;
       return bars.map((bar, i) => {
-        const attrs = i === 0 ? `<attributes><divisions>${DIV}</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>${isVoice ? 'G' : 'F'}</sign><line>${isVoice ? 2 : 4}</line></clef></attributes>`
-          + (isVoice ? `<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${tempo}</per-minute></metronome></direction-type><sound tempo="${tempo}"/></direction>` : '') : '';
+        const r = startsAt.get(i * 4 * DIV);
+        const fifths = r ? fifthsOf(tonic + r.key) : null;
+        const attrs = i === 0 ? `<attributes><divisions>${DIV}</divisions><key><fifths>${fifths || 0}</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>${isVoice ? 'G' : 'F'}</sign><line>${isVoice ? 2 : 4}</line></clef></attributes>`
+          + (isVoice ? `<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${tempo}</per-minute></metronome></direction-type><sound tempo="${tempo}"/></direction>` : '')
+          : r ? `<attributes><key><fifths>${fifths}</fifths></key></attributes>` : '';
         const body = bar.map((n) => {
           while (rep < repeats.length - 1 && sec(at) >= repeats[rep].end - 1e-6) rep++;
           const root = tonic + repeats[rep].key;
@@ -248,6 +259,7 @@
     s.player.enableCursor = true;
     s.player.soundFont = '/static/js/vendor/alphatab/soundfont/sonivox.sf2';
     s.player.scrollElement = opts.scrollElement || 'html,body';
+    if (opts.scrollOffsetY) s.player.scrollOffsetY = opts.scrollOffsetY();
     if (alphaTab.PlayerMode) s.player.playerMode = alphaTab.PlayerMode.EnabledSynthesizer;
     for (const n of ['ScoreTitle', 'ScoreSubTitle', 'ScoreArtist', 'ScoreAlbum', 'ScoreWords', 'ScoreMusic', 'ScoreWordsAndMusic', 'ScoreCopyright']) {
       if (alphaTab.NotationElement[n] !== undefined) s.notation.elements.set(alphaTab.NotationElement[n], false);
@@ -260,6 +272,8 @@
     let pos = 0, stamp = 0, playing = false;
     api.playerPositionChanged.on((e) => { pos = e.currentTime / 1000; stamp = performance.now(); });
     api.playerStateChanged.on((e) => { playing = e.state === 1; stamp = performance.now(); });
+    // the offset follows the page (the player card's height) as it starts
+    if (opts.scrollOffsetY) api.playerStateChanged.on((e) => { if (e.state === 1) { api.settings.player.scrollOffsetY = opts.scrollOffsetY(); api.updateSettings(); } });
     return {
       api,
       load: (xml) => api.load(new TextEncoder().encode(xml)),
@@ -275,5 +289,12 @@
     return names[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - (fr ? 2 : 1));
   }
 
-  window.songbooksWarmup = { midiOf, nameOf, label, parse, span, expandPath, defaultPath, build, player, PRESETS };
+  // On an iPhone, web audio goes quiet with the ring switch on silent;
+  // a "playback" session plays it anyway (Safari 16.4+), and a
+  // "play-and-record" one keeps playing while the microphone listens.
+  function audioSession(type) {
+    try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (e) { /* not this browser */ }
+  }
+
+  window.songbooksWarmup = { midiOf, nameOf, label, audioSession, parse, span, expandPath, defaultPath, build, player, PRESETS };
 })();
