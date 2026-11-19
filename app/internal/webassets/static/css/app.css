@@ -1216,19 +1216,20 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
    Where they don't all fit, audio-player.js fitDock measures and, in turn:
    shows the tools that are off as icons only (opts-compact); folds them,
    the last ones first, into "+N" (data-folded, has-more); and last, takes
-   the labels off the ones that are on (opts-tight). A tool that is on
-   (is-on) never folds. */
+   the time, then the labels off the ones that are on, the last first
+   (opts-notime, is-tight). A tool that is on (is-on) never folds. */
 .audio-dock.opts-compact .audio-opts > [data-tool]:not(.is-on) .audio-toggle > span:not(.audio-trainer-meter),
 .audio-dock.opts-compact .audio-opts > .audio-toggle[data-tool]:not(.is-on) > span:not(.audio-trainer-meter),
-.audio-dock.opts-compact .audio-speed:not(.is-on) .audio-speed-bpm,
-.audio-dock.opts-tight .audio-opts .audio-toggle > span:not(.audio-trainer-meter),
-.audio-dock.opts-tight .audio-speed-bpm, .audio-dock.opts-tight .audio-lcd-time,
-.audio-dock:is(.opts-compact, .opts-tight) .audio-sing-btn-label { display: none; }
+.audio-dock.opts-notime .audio-lcd-time,
+.audio-dock .audio-opts > .is-tight .audio-toggle > span:not(.audio-trainer-meter),
+.audio-dock .audio-opts > .audio-toggle.is-tight > span:not(.audio-trainer-meter),
+.audio-dock .audio-opts > .audio-chip-voice.is-tight output,
+.audio-dock .audio-opts > [data-tool].audio-chip-voice:not(.is-on) .audio-chip > span { display: none; }
 .audio-dock.opts-compact .audio-opts > [data-tool]:not(.is-on).audio-toggle,
 .audio-dock.opts-compact .audio-opts > [data-tool]:not(.is-on) .audio-toggle,
-.audio-dock.opts-tight .audio-opts .audio-toggle { padding: 0 0.45rem; }
+.audio-dock .audio-opts > .is-tight .audio-toggle, .audio-dock .audio-opts > .audio-toggle.is-tight { padding: 0 0.45rem; }
+.audio-dock .audio-opts > .audio-chip-voice.is-tight input[type="range"] { width: 4.5rem; }
 .audio-dock .audio-opts > [data-folded] { display: none !important; }
-.audio-speed.active select { border-color: var(--accent); color: var(--accent-ink); font-weight: 600; background: var(--accent-bg); }
 /* Nothing shrinks but the bar.beat display, so that what doesn't fit
    overflows, and fitDock sees it. */
 @media (min-width: 721px) {
@@ -1255,28 +1256,37 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .audio-dock .audio-pop:not([hidden]) { top: auto; bottom: calc(100% + 0.6rem); max-width: calc(100vw - 2rem); }
 body:has(.edit-toggle.on) .audio-dock { display: none; }
 body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5rem; }
-/* A coaching community's player options (play.html #audio-sing-btn and
-   .sing-panel, audio-player.js "Sing"). In the dock, one way in, in place
-   of Key (and of Voice, with the voice's slider): the mic's state and the
-   key with whose it is, "C#m −1 · Poppy". */
-.audio-player.is-sing #audio-key-btn, .audio-player.is-sing-voice #audio-voice-split { display: none !important; }
-.audio-sing-btn {
-  display: inline-flex; align-items: center; gap: 0.4rem; flex: 0 1 auto; min-width: 0; max-width: 24rem;
-  height: 2.1rem; min-height: 0; box-sizing: border-box; padding: 0 0.3rem 0 0.6rem; border-radius: 999px;
-  border: 1px solid var(--accent); background: var(--accent-bg); color: var(--accent-ink);
-  font: inherit; font-size: 0.8rem; font-weight: 600; white-space: nowrap; cursor: pointer;
+/* The tray's chips (play.html .audio-opts): a tool that is on reads what
+   it does, in the brand's accent (the loop in the cycle's yellow); off, it
+   is a quiet icon. Corners from the brand (--radius-control). */
+.audio-dock .audio-opts { gap: 0.35rem; }
+.audio-dock .audio-chip {
+  height: 2rem; padding: 0 0.7rem; gap: 0.35rem; font-size: 0.8rem;
+  border-radius: var(--radius-control, 999px); border-color: transparent; background: none; color: var(--fg-muted);
 }
-.audio-sing-btn:hover { border-color: var(--accent-ink); }
-.audio-sing-btn[aria-expanded="true"] { background: var(--accent); color: var(--accent-contrast); }
-.audio-sing-btn-icon { display: inline-flex; flex: none; }
-.audio-sing-btn .icon { width: 1.05rem; height: 1.05rem; }
-.audio-sing-btn-label { flex: none; }
-.audio-sing-chip { min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0.15rem 0.55rem; border-radius: 999px; background: var(--bg-raised); color: var(--accent-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
-.audio-sing-chip:empty { display: none; }
-.audio-sing-btn:has(.audio-sing-chip:empty) { padding-right: 0.75rem; }
+.audio-dock .audio-chip:hover { background: var(--bg-sunken); color: var(--fg); border-color: transparent; }
+.audio-dock .audio-chip .icon { width: 1.05rem; height: 1.05rem; }
+.audio-dock .audio-chip.active { background: var(--accent-bg); border-color: color-mix(in srgb, var(--accent) 55%, transparent); color: var(--accent-ink); font-weight: 600; }
+.audio-dock .audio-chip-loop.active { background: color-mix(in srgb, var(--cycle) 28%, var(--bg-raised)); border-color: var(--cycle); color: var(--fg); }
+.audio-dock .audio-chip > span { font-variant-numeric: tabular-nums; }
+.audio-dock .audio-split .audio-chip { border-top-right-radius: 0; border-bottom-right-radius: 0; padding-right: 0.45rem; }
+.audio-dock .audio-split .audio-caret {
+  height: 2rem; border-color: transparent; background: none; color: var(--fg-muted);
+  border-radius: 0 var(--radius-control, 999px) var(--radius-control, 999px) 0; padding: 0 0.4rem 0 0.15rem;
+}
+.audio-dock .audio-split:has(.audio-chip.active) .audio-caret { background: var(--accent-bg); border-color: color-mix(in srgb, var(--accent) 55%, transparent); border-left-color: transparent; color: var(--accent-ink); }
+.audio-dock .audio-split:has(.audio-chip.active) .audio-chip { border-right-color: transparent; }
+.audio-dock .audio-split .audio-caret:hover { color: var(--fg); background: var(--bg-sunken); }
+/* The voice: the mic, then while the voice is down, its slider and level. */
+.audio-chip-voice:not([hidden]) { display: inline-flex; align-items: center; gap: 0.35rem; border-radius: var(--radius-control, 999px); }
+.audio-chip-voice.is-on { background: var(--accent-bg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); padding-right: 0.7rem; }
+.audio-chip-voice.is-on .audio-chip { background: none; border-color: transparent; }
+.audio-chip-voice input[type="range"] { width: 5.5rem; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.audio-chip-voice output { min-width: 2.8rem; text-align: right; font-size: 0.8rem; font-weight: 700; color: var(--accent-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.audio-chip-voice:not(.is-on):not(:focus-within) :is(input, output) { display: none; }
+.audio-dock .audio-pop .audio-speed-stepper output { min-width: 4.6rem; }
 .mic-slash { display: none; }
 .is-off .mic-slash { display: inline; }
-.audio-sing-btn-icon.is-off { opacity: 0.7; }
 .audio-transport .audio-card-mic { display: none; } /* the phone card's (below) */
 
 /* The panel, after the rehearsals' player open (rec-player): most of the
@@ -1384,8 +1394,6 @@ body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5re
 @media (max-width: 720px) {
   /* The card: the mic beside play; the sheet: the way into the panel,
      with the options. The panel: a sheet from the bottom. */
-  .audio-dock:not(.is-open) .audio-sing-btn { display: none; }
-  .audio-dock.is-open .audio-sing-btn { order: 6; flex-shrink: 0; justify-content: center; max-width: none; height: 2.9rem; border-radius: 10px; font-size: 0.85rem; }
   .audio-dock:not(.is-open) .audio-card-mic:not([hidden]) { display: inline-flex; order: 2; width: 2.75rem; height: 2.75rem; border-color: transparent; background: none; }
   .audio-dock:not(.is-open) .audio-card-mic.is-off { color: var(--fg-muted); }
   .sp-card {
@@ -1521,15 +1529,19 @@ body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5re
   .audio-sec-chip.looped { background: color-mix(in srgb, var(--cycle) 30%, var(--bg-raised)); border-color: var(--cycle); color: var(--fg); }
   .audio-dock.is-open .audio-opts-btn { display: none; }
   .audio-dock.is-open .audio-opts, .audio-dock.is-open .audio-opts.open {
-    order: 6; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; position: static; margin: 0; padding: 0;
+    order: 6; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; position: static; margin: 0; padding: 0;
     max-height: none; overflow: visible; border: 0; border-radius: 0; background: none; box-shadow: none;
   }
   .audio-dock.is-open .audio-opts :is(.audio-toggle, .audio-caret) { height: 2.9rem; min-height: 2.9rem; font-size: 0.85rem; }
   .audio-dock.is-open .audio-opts > .audio-toggle { justify-content: center; border-radius: 10px; }
   .audio-dock.is-open .audio-split .audio-toggle { justify-content: center; border-radius: 10px 0 0 10px; }
   .audio-dock.is-open .audio-split .audio-caret { border-radius: 0 10px 10px 0; padding: 0 0.6rem; }
-  .audio-dock.is-open .audio-speed { justify-content: center; height: 2.9rem; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-raised); }
-  .audio-dock.is-open .audio-speed select { height: 2.4rem; min-height: 0; border: 0; background: none; font-size: 0.85rem; }
+  .audio-dock.is-open .audio-opts > * { min-width: 0; }
+  .audio-dock.is-open .audio-opts .audio-toggle { min-width: 0; overflow: hidden; border-color: var(--border); }
+  .audio-dock.is-open .audio-opts .audio-toggle > span { overflow: hidden; text-overflow: ellipsis; }
+  .audio-dock.is-open .audio-split .audio-caret { border-color: var(--border); border-left-color: transparent; }
+  .audio-dock.is-open .audio-opts > .audio-chip-voice { grid-column: 1 / -1; border: 1px solid var(--border); border-radius: 10px; padding-right: 0.8rem; }
+  .audio-dock.is-open .audio-chip-voice input[type="range"] { flex: 1; width: auto; height: 2.75rem; }
   .audio-dock.is-open .audio-pop:not([hidden]) { order: 7; position: static; width: auto; max-width: none; border: 0; box-shadow: none; background: var(--bg-sunken); }
 }
 
