@@ -325,6 +325,9 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/bands/{id}/members", s.requireBandMember(s.handleAddBandMember))
 	mux.HandleFunc("POST /api/bands/{id}/members/{personID}/status", s.requireBandCore(s.handleSetBandMemberStatus))
 	mux.HandleFunc("DELETE /api/bands/{id}/members/{personID}", s.requireBandMember(s.handleRemoveBandMember))
+	// Who may edit whose instruments is checked inside (store.MayEditMemberInstruments).
+	mux.HandleFunc("PUT /api/bands/{id}/members/{personID}/instruments", s.requireBandMember(s.handleSetBandMemberInstruments))
+	mux.HandleFunc("POST /api/bands/{id}/members/{personID}/invite-link", s.requireBandMember(s.handleNewBandMemberInviteLink))
 	mux.HandleFunc("POST /api/bands/{id}/invites", s.requireBandMember(s.handleCreateBandInvite))
 	// Group invites (roster link, multi-use — see
 	// internal/store/group_invites.go and join.go): any current band

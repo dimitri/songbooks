@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"app/internal/i18n"
 	"app/internal/store"
 	"app/internal/webassets"
 )
@@ -304,42 +305,22 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Phase 27: show a complete roster picture — current members (with
-	// their instrument) AND anyone named on a still-open group-invite
-	// roster who hasn't claimed their slot yet ("Marc hasn't joined
-	// yet"), plus any already-created, still-shareable invite link, so
-	// the page never again shows a link only once right after creating
-	// it (see ListGroupInvitesForTarget/ListOpenBandInvites doc comments).
-	groupInvites, err := s.store.ListGroupInvitesForTarget(r.Context(), "band", bandID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
+	// The band's still-shareable one-off links, shown up front rather
+	// than only right after creating one (see ListOpenBandInvites).
 	openInvites, err := s.store.ListOpenBandInvites(r.Context(), bandID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// Placeholders' personal links, to show on their own roster row.
 	shellPeople, err := s.store.ListShellPeopleForBand(r.Context(), bandID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
-	// Whether to show the pending-slots column header (Name/Instrument/
-	// Role) at all — computed here rather than in the template, since
-	// "any unclaimed slot across any open group invite" needs a flag a
-	// nested range can't cheaply produce on its own.
-	hasPendingSlots := false
-	for _, gi := range groupInvites {
-		if gi.ClosedAt != nil {
-			continue
-		}
-		for _, sl := range gi.Slots {
-			if sl.ClaimedByPersonID == nil {
-				hasPendingSlots = true
-			}
-		}
+	links := make(map[int64]store.ShellPersonRow, len(shellPeople))
+	for _, sp := range shellPeople {
+		links[sp.PersonID] = sp
 	}
 
 	isCore, err := s.store.IsCurrentBandCore(r.Context(), bandID, person.ID)
@@ -347,14 +328,118 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	isCore = isCore || person.IsAdmin
+
+	// One row per person: a placeholder's invite link sits on the same
+	// row as their name, instruments and role.
+	rows := make([]bandRosterRow, 0, len(members))
+	for _, m := range members {
+		row := bandRosterRow{
+			BandMember:         m,
+			CanEditInstruments: m.IsCurrent() && store.MayEditMemberInstruments(isCore, m.PersonID == person.ID, m.IsShell),
+		}
+		if m.IsShell {
+			row.InviteToken = links[m.PersonID].OpenInviteToken
+			row.InviteUntil = links[m.PersonID].OpenInviteUntil
+		}
+		rows = append(rows, row)
+	}
 
 	s.render(w, "band_members", map[string]any{
-		"Me": person, "Band": band, "Members": members,
-		"GroupInvites": groupInvites, "OpenInvites": openInvites,
-		"HasPendingSlots": hasPendingSlots, "ShellPeople": shellPeople,
-		"IsCore": isCore || person.IsAdmin,
+		"Me": person, "Band": band, "Members": rows,
+		"OpenInvites": openInvites,
+		"IsCore":      isCore,
 	})
 }
+
+// bandRosterRow is one person's line on the band's Members page: their
+// membership, plus (for a placeholder) their personal invite link, and
+// whether the viewer may edit their instruments.
+type bandRosterRow struct {
+	store.BandMember
+	InviteToken        string    // "" when a placeholder has no live link
+	InviteUntil        time.Time // InviteToken's expiry
+	CanEditInstruments bool
+}
+
+// InstrumentsText is the row's instruments as the edit field shows them.
+func (r bandRosterRow) InstrumentsText() string { return strings.Join(r.Instruments, ", ") }
+
+// handleSetBandMemberInstruments is PUT /api/bands/{id}/members/
+// {personID}/instruments, body {"instruments": ["bass", "vocals"]}
+// (entries may be comma separated): replaces that member's instruments,
+// as store.MayEditMemberInstruments allows — any member for a
+// placeholder, core members (and the person) for a real account.
+func (s *Server) handleSetBandMemberInstruments(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid person id")
+		return
+	}
+	var req struct {
+		Instruments []string `json:"instruments"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	actor := personFromContext(r)
+	saved, err := s.store.SetBandMemberInstruments(r.Context(), bandID, actor.ID, personID, actor.IsAdmin, req.Instruments)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		httpError(w, http.StatusNotFound, "not a current member of this band")
+		return
+	case errors.Is(err, store.ErrForbidden):
+		httpError(w, http.StatusForbidden, "only a core member can change the instruments of someone who has joined")
+		return
+	case err != nil:
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"instruments": saved})
+}
+
+// handleNewBandMemberInviteLink is POST /api/bands/{id}/members/
+// {personID}/invite-link: a fresh 30-day personal link for a member who
+// hasn't joined yet, replacing their old one whether or not it expired
+// (store.CreatePersonalInvite). Any band member may; 404 if the person
+// isn't a current member, 409 if they've joined already.
+func (s *Server) handleNewBandMemberInviteLink(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid person id")
+		return
+	}
+	isMember, err := s.store.IsCurrentBandMember(r.Context(), bandID, personID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !isMember {
+		httpError(w, http.StatusNotFound, "not a current member of this band")
+		return
+	}
+	const ttl = 30 * 24 * time.Hour
+	token, err := s.store.CreatePersonalInvite(r.Context(), personID, personFromContext(r).ID, ttl)
+	if errors.Is(err, store.ErrNotShell) {
+		httpError(w, http.StatusConflict, err.Error())
+		return
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	// The row shows the new expiry as the page does (date, in the page's language).
+	writeJSON(w, http.StatusOK, map[string]any{
+		"url":     "/invite/" + token,
+		"expires": i18n.Date(s.langOf(w), time.Now().Add(ttl), inviteUntilLayout),
+	})
+}
+
+// inviteUntilLayout is how a roster row shows when a personal link expires.
+const inviteUntilLayout = "2 January 2006"
 
 // handleBandSetlistsPage is the Setlists tab: every setlist owned by this
 // band, linking to its running order and click track — a per-band
@@ -585,6 +670,10 @@ func (s *Server) handleCreatePersonalInviteForPerson(w http.ResponseWriter, r *h
 		return
 	}
 	token, err := s.store.CreatePersonalInvite(r.Context(), personID, actor.ID, 30*24*time.Hour)
+	if errors.Is(err, store.ErrNotShell) {
+		httpError(w, http.StatusConflict, err.Error())
+		return
+	}
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
