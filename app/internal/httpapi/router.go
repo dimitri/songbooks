@@ -297,12 +297,15 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/revisions/{id}/revert", s.requireAuth(s.handleRevertRevision))
 
 	// Section annotations: lightweight per-section notes ("solo: sax").
-	// requireAuth — jam-session (no-login) annotating was retired along
-	// with the rest of the old jam system (migration 0051).
-	// (any identified viewer, not gated by edit rights).
-	mux.HandleFunc("POST /api/variants/{id}/sections/{index}/annotations", s.requireAuth(s.handleCreateSectionAnnotation))
-	mux.HandleFunc("GET /api/variants/{id}/sections/{index}/annotations", s.requireAuth(s.handleListSectionAnnotations))
-	mux.HandleFunc("GET /api/variants/{id}/annotations", s.requireAuth(s.handleListAllSectionAnnotations))
+	// Any person who can view the variant, not gated by edit rights;
+	// jam-session (no-login) annotating was retired along with the rest
+	// of the old jam system (migration 0051). Only a note's author may
+	// edit or delete it (checked in the store's WHERE clause).
+	mux.HandleFunc("POST /api/variants/{id}/sections/{index}/annotations", s.requireVariantRole("viewer", s.handleCreateSectionAnnotation))
+	mux.HandleFunc("GET /api/variants/{id}/sections/{index}/annotations", s.requireVariantRole("viewer", s.handleListSectionAnnotations))
+	mux.HandleFunc("GET /api/variants/{id}/annotations", s.requireVariantRole("viewer", s.handleListAllSectionAnnotations))
+	mux.HandleFunc("PATCH /api/variants/{id}/annotations/{note}", s.requireVariantRole("viewer", s.handleUpdateSectionAnnotation))
+	mux.HandleFunc("DELETE /api/variants/{id}/annotations/{note}", s.requireVariantRole("viewer", s.handleDeleteSectionAnnotation))
 
 	// Bands (phase 2 of the data-model rewrite): collaborative groups that
 	// own shared, band-visibility catalog material. No band owner/admin

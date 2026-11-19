@@ -4326,14 +4326,136 @@ body.drawer-open { overflow: hidden; }
 .edit-topzone .prep-tab:hover { color: var(--fg); }
 .edit-topzone .prep-tab.active { background: var(--accent); color: var(--bg-raised); border-color: transparent; font-weight: 600; }
 .edit-drawer-body { padding: 1rem; flex: 1; overflow: auto; display: flex; flex-direction: column; min-height: 0; }
-/* Notes drawer (play.html): the drawer header's own <h2> and the per-
-   section notes blocks had their layout as four one-off inline `style=`
-   attributes instead of rules here — moved onto named classes so a
-   future spacing-scale pass can reach them. */
-.edit-drawer-head h2 { margin: 0; }
-.notes-section { display: block; padding: 0.75em 0; border-bottom: 1px solid var(--border); }
-.notes-section h3 { margin: 0.25em 0; }
-.note-body { width: 100%; }
+/* ---- Song notes (play.html #notes-sheet, song-notes.js) -------------------
+   Per-section notes, private or shared. One sheet for every way in: on a
+   phone a bottom sheet whose bottom follows the on-screen keyboard
+   (--notes-kb/--notes-vh, set from visualViewport), on a wide screen a
+   panel at the right of the chart. A floating button opens it on a
+   phone, where the sidebar's Notes row isn't. The notes also show in the
+   chart under their section's heading (.user-notes). */
+.notes-fab { display: none; }
+@media (max-width: 900px) {
+  .notes-fab {
+    display: inline-flex; align-items: center; justify-content: center; position: fixed; z-index: 57;
+    right: max(0.9rem, env(safe-area-inset-right, 0px));
+    bottom: calc(var(--context-h, 3.4rem) + env(safe-area-inset-bottom, 0px) + 0.9rem);
+    width: 3.4rem; height: 3.4rem; min-height: 0; padding: 0; border-radius: 50%;
+    background: var(--bg-raised); color: var(--accent); border: 1px solid var(--border-strong);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  }
+  .notes-fab > .icon { width: 1.5rem; height: 1.5rem; margin: 0; }
+  .notes-fab-plus {
+    position: absolute; right: 0.3rem; top: 0.3rem; width: 1.15rem; height: 1.15rem; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--accent); color: var(--accent-contrast);
+  }
+  .notes-fab-plus .icon { width: 0.8rem; height: 0.8rem; margin: 0; }
+  /* Above the player's card (or bar) when the song has a recording. */
+  body:has(#audio-player-body:not([hidden])) .notes-fab { bottom: calc(var(--context-h, 3.4rem) + env(safe-area-inset-bottom, 0px) + 5.3rem); }
+  /* Not over the editor, stage mode, or a view with no sections to note. */
+  body.stage .notes-fab, body.drawer-open .notes-fab, html.notes-open .notes-fab,
+  body:has(.edit-toggle.on) .notes-fab,
+  body:has(#sheet:is([data-render-mode="mixer"], [data-render-mode="reference"], [data-render-mode="score"])) .notes-fab { display: none; }
+}
+html.notes-open { overflow: hidden; }
+.notes-backdrop:not([hidden]) { position: fixed; inset: 0; z-index: 95; background: rgba(0, 0, 0, 0.4); }
+.notes-sheet:not([hidden]) {
+  position: fixed; z-index: 96; left: 0; right: 0; bottom: var(--notes-kb, 0px);
+  display: flex; flex-direction: column;
+  max-height: calc(var(--notes-vh, 100dvh) - 2.5rem);
+  background: var(--bg-raised); color: var(--fg);
+  border-radius: 18px 18px 0 0; box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.25);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  animation: rp-up 0.2s ease-out;
+}
+.notes-sheet.kb-open { padding-bottom: 0; }
+.notes-sheet-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.5rem 0.6rem 0.1rem 1.1rem; }
+.notes-sheet-head h2 { margin: 0; font-size: 1.15rem; }
+.notes-sec-picker {
+  flex: none; display: flex; gap: 0.4rem; overflow-x: auto; scrollbar-width: none;
+  padding: 0.3rem 1.1rem 0.7rem;
+}
+.notes-sec-picker::-webkit-scrollbar { display: none; }
+button.notes-sec-chip {
+  flex: none; display: inline-flex; align-items: center; gap: 0.4rem;
+  min-height: 2.75rem; padding: 0 1rem; border-radius: 999px; white-space: nowrap;
+  font-size: 0.88rem; font-weight: 600; color: var(--fg-muted); background: var(--bg);
+}
+button.notes-sec-chip[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.notes-sec-count {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 1.3rem; height: 1.3rem; padding: 0 0.3rem;
+  border-radius: 999px; font-size: 0.72rem; background: var(--accent-bg); color: var(--accent-ink);
+}
+.notes-sec-count[hidden] { display: none; }
+.notes-sec-chip[aria-checked="true"] .notes-sec-count { background: var(--accent-contrast); color: var(--accent); }
+.notes-sheet-list {
+  list-style: none; margin: 0; padding: 0 1.1rem; flex: 1 1 auto; min-height: 0;
+  overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid var(--border);
+}
+.note-item { padding: 0.7rem 0; border-bottom: 1px solid var(--border); }
+.note-item:last-child { border-bottom: 0; }
+.note-item.is-editing { margin: 0 -1.1rem; padding: 0.7rem 1.1rem; background: var(--accent-bg); }
+.note-item-body { margin: 0 0 0.35rem; font-size: 1rem; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-item-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; }
+.note-badge { display: inline-flex; align-items: center; gap: 0.3rem; margin-right: auto; font-size: 0.8rem; color: var(--fg-muted); }
+.note-badge .icon { width: 0.95rem; height: 0.95rem; flex: none; }
+.note-item-meta button { display: inline-flex; align-items: center; font-size: 0.85rem; padding: 0.3rem 0.8rem; }
+.note-item-meta button .icon { width: 1rem; height: 1rem; }
+.notes-empty { flex: none; margin: 0; padding: 0.7rem 1.1rem; border-top: 1px solid var(--border); }
+.notes-empty[hidden] { display: none; }
+.notes-composer {
+  flex: none; display: flex; flex-direction: column; gap: 0.5rem;
+  padding: 0.7rem 1.1rem 0.9rem; border-top: 1px solid var(--border); background: var(--bg-raised);
+}
+.notes-composer-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.notes-composer-head label { font-weight: 700; font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notes-cancel-edit[hidden] { display: none; }
+/* 1rem (16px) so iOS doesn't zoom the page on focus. */
+#notes-text {
+  width: 100%; box-sizing: border-box; min-height: 5.5rem; max-height: 40vh; resize: vertical;
+  padding: 0.6rem 0.75rem; border: 1px solid var(--border-strong); border-radius: 10px;
+  background: var(--bg); color: var(--fg); font: inherit; font-size: 1rem; line-height: 1.4;
+}
+.notes-composer-row { display: flex; align-items: center; gap: 0.75rem; }
+.notes-vis { display: flex; border: 1px solid var(--border-strong); border-radius: 10px; overflow: hidden; }
+.notes-vis label { flex: 1; display: flex; position: relative; min-width: 0; }
+.notes-vis label + label { border-left: 1px solid var(--border-strong); }
+.notes-vis input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.notes-vis span {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.35rem; min-height: 2.75rem; padding: 0 0.45rem;
+  font-size: 0.85rem; font-weight: 600; color: var(--fg-muted); text-align: center; cursor: pointer;
+}
+.notes-vis input:checked + span { background: var(--accent-bg); color: var(--accent-ink); }
+.notes-vis input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
+.notes-vis .icon { width: 1rem; height: 1rem; flex: none; }
+button.notes-save { flex: none; min-width: 7rem; min-height: 3rem; font-size: 1rem; }
+.notes-vis-hint { flex: 1; min-width: 0; margin: 0; font-size: 0.8rem; color: var(--fg-muted); }
+@media (min-width: 901px) {
+  .notes-sheet:not([hidden]) {
+    top: 0; bottom: 0; left: auto; right: 0; width: min(26rem, 40vw); max-height: none;
+    border-radius: 0; border-left: 1px solid var(--border); animation: none;
+  }
+  .notes-backdrop:not([hidden]) { background: rgba(0, 0, 0, 0.15); }
+  .notes-sec-picker { flex-wrap: wrap; overflow: visible; }
+  .notes-sheet-head { padding-top: 0.8rem; }
+}
+
+/* In the chart, under the section's heading: yours are tinted, shared
+   ones from others carry their author's name. A tap opens the sheet. */
+.user-notes { display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem; margin: 0.25rem 0 0.6rem; }
+button.user-note {
+  display: inline-flex; align-items: center; gap: 0.45rem; max-width: 100%; min-height: 2.75rem;
+  padding: 0.4rem 0.75rem; text-align: left; border-radius: 8px;
+  border: 1px solid transparent; border-left: 3px solid var(--accent); background: var(--accent-bg);
+  color: var(--fg); font-family: var(--font-ui); font-size: 0.92rem; line-height: 1.35;
+}
+button.user-note.is-shared { border-left-color: var(--border-strong); background: var(--bg-sunken); }
+button.user-note .icon { flex: none; width: 0.95rem; height: 0.95rem; margin: 0; color: var(--fg-muted); }
+.user-note-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.user-note-who { flex: none; font-size: 0.78rem; color: var(--fg-muted); white-space: nowrap; }
+#sheet[data-render-mode="map"] .user-notes { display: none; }
+#sheet[data-render-mode="jazz"] button.user-note { min-height: 0; padding: 0.25rem 0.55rem; font-size: 0.8rem; }
+@media print { .user-notes, .notes-fab { display: none; } }
 /* Tucked away and collapsed by default, well below Save — this erases
    lyrics/chords (not the song itself), which the old icon-only trash
    button in the top bar read as "delete the song" at a glance. */

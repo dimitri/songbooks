@@ -20,6 +20,10 @@ type SectionAnnotation struct {
 	Body         string
 	Visibility   string // "private" (default, author-only) or "shared"
 	CreatedAt    time.Time
+	// Mine is true when the viewer the list was made for wrote this
+	// note: only the author may edit or delete it (see
+	// UpdateSectionAnnotation/DeleteSectionAnnotation).
+	Mine bool
 }
 
 // CreateSectionAnnotation records one note on variantID's sectionIndex.
@@ -83,7 +87,9 @@ func (st *Store) ListSectionAnnotations(ctx context.Context, variantID int64, se
 		return nil, err
 	}
 	defer rows.Close()
-	return scanSectionAnnotations(rows)
+	notes, err := scanSectionAnnotations(rows)
+	markMine(notes, viewerPersonID)
+	return notes, err
 }
 
 // ListAllSectionAnnotations lists every note on variantID that
@@ -101,5 +107,48 @@ func (st *Store) ListAllSectionAnnotations(ctx context.Context, variantID int64,
 		return nil, err
 	}
 	defer rows.Close()
-	return scanSectionAnnotations(rows)
+	notes, err := scanSectionAnnotations(rows)
+	markMine(notes, viewerPersonID)
+	return notes, err
+}
+
+// markMine sets Mine on the notes viewerPersonID wrote.
+func markMine(notes []SectionAnnotation, viewerPersonID int64) {
+	for i := range notes {
+		notes[i].Mine = notes[i].PersonID == viewerPersonID
+	}
+}
+
+// UpdateSectionAnnotation rewrites one of personID's own notes on
+// variantID: its text, who can see it, and — when sectionIndex isn't
+// nil — which section it is on. It reports false when no such note
+// exists or someone else wrote it: a shared note is readable by others,
+// never editable by them.
+func (st *Store) UpdateSectionAnnotation(ctx context.Context, variantID, id, personID int64, sectionIndex *int, body, visibility string) (bool, error) {
+	if visibility != "private" && visibility != "shared" {
+		return false, fmt.Errorf("invalid annotation visibility %q", visibility)
+	}
+	tag, err := st.db.Exec(ctx, `
+		UPDATE section_annotations
+		   SET body = $4, visibility = $5, section_index = coalesce($6, section_index)
+		 WHERE id = $1 AND variant_id = $2 AND person_id = $3`,
+		id, variantID, personID, body, visibility, sectionIndex)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+// DeleteSectionAnnotation removes one of personID's own notes on
+// variantID, reporting false when no such note exists or someone else
+// wrote it.
+func (st *Store) DeleteSectionAnnotation(ctx context.Context, variantID, id, personID int64) (bool, error) {
+	tag, err := st.db.Exec(ctx, `
+		DELETE FROM section_annotations
+		 WHERE id = $1 AND variant_id = $2 AND person_id = $3`,
+		id, variantID, personID)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
 }
