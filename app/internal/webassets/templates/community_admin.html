@@ -62,15 +62,23 @@
       </div>
       <p id="community-locale-result" class="form-status" role="status"></p>
     </div>
-    {{/* The player for singers (migration 0093, store/vocal_slider.go):
-         saves on change, like the selects above. */}}
-    <div class="form-stack" style="margin-top:0.8rem">
+    {{/* A coaching community's song player options (store/vocal_slider.go,
+         migrations 0093 and 0097), each saved on change, like the selects
+         above. Self-contained: its markup and its script (data-player-option). */}}
+    {{if .Community.IsCoaching}}
+    <fieldset class="field-group" style="margin-top:1rem; gap:0.6rem">
+      <legend>{{t "The song player, for singers"}}</legend>
       <div>
-        <label class="check"><input type="checkbox" id="vocal-slider-check" aria-describedby="vocal-slider-hint"{{if .Community.PlayerVocalSlider}} checked{{end}}> <strong>{{t "Voice volume and key in the song player"}}</strong></label>
-        <p class="field-hint" id="vocal-slider-hint">{{t "A mic and a slider beside play turn the song’s voice down or up; the key says whose it is, and the coach sets it for each student."}}</p>
+        <label class="check"><input type="checkbox" id="vocal-slider-check" data-player-option="vocal-slider" aria-describedby="vocal-slider-hint"{{if .Community.PlayerVocalSlider}} checked{{end}}> <strong>{{t "Voice slider in the player"}}</strong></label>
+        <p class="field-hint" id="vocal-slider-hint">{{t "In the player of the community’s songs: a slider to turn the recorded voice down (karaoke), for coaches and students, in the “Voice & key” panel."}}</p>
       </div>
-      <p id="vocal-slider-result" class="form-status" role="status"></p>
-    </div>
+      <div>
+        <label class="check"><input type="checkbox" id="coach-student-keys-check" data-player-option="coach-student-keys" aria-describedby="coach-student-keys-hint"{{if .Community.CoachStudentKeys}} checked{{end}}> <strong>{{t "Key per student"}}</strong></label>
+        <p class="field-hint" id="coach-student-keys-hint">{{t "In the player of the songs opened from the community’s songbooks: the coach picks a student and saves their key, students with a lesson in the coming 7 days first. Coaches only."}}</p>
+      </div>
+      <p id="player-options-result" class="form-status" role="status"></p>
+    </fieldset>
+    {{end}}
   </div>
 
   {{/* Roles: a name plus a chosen set of privileges from the fixed
@@ -496,17 +504,18 @@ $('community-locale-select').addEventListener('change', (e) => {
     if (!res.ok) throw new Error(t('Couldn’t save that. Try again.'));
   });
 });
-// The player for singers: the voice's volume and the key in the song player.
-$('vocal-slider-check').addEventListener('change', async (e) => {
-  const ok = await saveInline($('vocal-slider-result'), async () => {
+// A coaching community's song player options: the voice's slider, the
+// key per student (PUT /api/communities/{id}/<option> {on}).
+document.querySelectorAll('[data-player-option]').forEach((box) => box.addEventListener('change', async (e) => {
+  const ok = await saveInline($('player-options-result'), async () => {
     let res;
     try {
-      res = await fetch('/api/communities/' + communityId + '/vocal-slider', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({on: e.target.checked})});
+      res = await fetch('/api/communities/' + communityId + '/' + box.dataset.playerOption, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({on: e.target.checked})});
     } catch { throw new Error(t('Couldn’t save that. Try again.')); }
     if (!res.ok) throw new Error(t('Couldn’t save that. Try again.'));
   });
   if (!ok) e.target.checked = !e.target.checked;
-});
+}));
 
 // ---- Events ----
 const evTypeSel = $('ev-type');

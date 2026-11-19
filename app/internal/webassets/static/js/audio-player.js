@@ -149,7 +149,7 @@ window.songbooksDecodable = function (buf) {
     semitones: 0, // the recording's key, up or down
     voice: 100, // the voice's volume, in %, when the recording has its parts
     voiceOff: 0, // what Voice's toggle turns it down to
-    voiceLast: 100, // what the player for singers' mic brings it back to
+    voiceLast: 100, // what the "Voice & key" panel's mic brings it back to
   };
   try {
     const saved = JSON.parse(localStorage.getItem(optsKey) || '{}');
@@ -803,12 +803,18 @@ window.songbooksDecodable = function (buf) {
   }
   // A coach saves the key for a student or a group (play.html
   // #audio-key-coach, coach_keys.go): loaded the first time the Key panel
-  // opens, its buttons following the key being tried.
+  // (or the "Voice & key" panel) opens, its buttons following the key
+  // being tried.
   const coachBox = $('audio-key-coach'), coachList = $('audio-key-targets');
   let coachTargets = null, coachKey = root.dataset.songKey || '';
-  // The player for singers (play.html .audio-sing): whose key is shown
-  // and saved, a coach's student or group (coachTargets).
+  // A coaching community's player options (play.html, the "Voice & key"
+  // panel; audio-player.js "Sing"): sing, the panel in place of Key;
+  // singVoiceOn, its voice slider; coachCommunity, its key per student —
+  // that community's students, the coming week's lessons first, a name
+  // picked, the key goes to theirs (singTarget).
   const sing = root.dataset.sing === '1';
+  const singVoiceOn = root.dataset.singVoice === '1';
+  const coachCommunity = parseInt(root.dataset.coachCommunity || '0', 10);
   let singTarget = null, singSaved = null; // singSaved: whose key was just saved here
   // The song's key moved by n, named as the server does (chordsym.KeyName):
   // coachKey is the song's own key, from its key: header or its chords.
@@ -826,21 +832,19 @@ window.songbooksDecodable = function (buf) {
     const off = n ? `${n > 0 ? '+' : ''}${n}` : t('original');
     return name ? `${name} (${off})` : off;
   };
-  // The list: the coming week's lessons first (coach_keys.go
-  // orderByCalendar), the soonest first, their date said; everyone else
-  // folded under "Other students" (open when nobody has a lesson soon).
-  // In the player for singers a name is also a choice: the key shown is
-  // theirs, the inline − + move it, Save keeps it for them ("Sing").
+  // One student or group: who, the key they have, a save in the key being
+  // tried. With the key per student (coachCommunity): their next lesson's
+  // date, and the name is a choice (pickTarget).
   let othersOpen = false;
   function coachRow(x, i) {
     const n = prefs.semitones;
     const many = new Set(coachTargets.map((y) => y.communityId)).size > 1;
     const li = document.createElement('li');
-    const picked = sing && singTarget === x;
+    const picked = !!coachCommunity && singTarget === x;
     li.classList.toggle('picked', picked);
-    const who = document.createElement(sing ? 'button' : 'span');
+    const who = document.createElement(coachCommunity ? 'button' : 'span');
     who.className = 'who';
-    if (sing) {
+    if (coachCommunity) {
       who.type = 'button';
       who.setAttribute('aria-pressed', String(picked));
       who.title = t('Their key, to try and save');
@@ -852,9 +856,6 @@ window.songbooksDecodable = function (buf) {
       tag.textContent = [x.kind === 'group' ? t('group') : '', many ? x.communityName : ''].filter(Boolean).join(' · ');
       who.append(' ', tag);
     }
-    const when = document.createElement('span');
-    when.className = 'when';
-    when.textContent = x.nextSessionLabel || '';
     const now = document.createElement('span');
     now.className = 'now';
     now.textContent = x.inSongbook ? fmtKey(x.keyName, x.semitones) : t('not in their songs yet');
@@ -865,7 +866,14 @@ window.songbooksDecodable = function (buf) {
     btn.disabled = same;
     btn.textContent = same ? '✓' : (x.inSongbook ? t('Save %s', keyNow() || fmtKey('', n)) : t('Add in %s', keyNow() || fmtKey('', n)));
     btn.addEventListener('click', () => saveKeyFor(i, btn));
-    li.append(who, when, now, btn);
+    if (coachCommunity) {
+      const when = document.createElement('span');
+      when.className = 'when';
+      when.textContent = x.nextSessionLabel || '';
+      li.append(who, when, now, btn);
+    } else {
+      li.append(who, now, btn);
+    }
     return li;
   }
   async function saveKeyFor(i, btn) {
@@ -885,34 +893,49 @@ window.songbooksDecodable = function (buf) {
     }
     renderCoachKeys();
   }
+  // The list, in the server's order. With the key per student: the coming
+  // week's lessons first (coach_keys.go orderByCalendar), the soonest
+  // first; everyone else folded under "Other students" (open when nobody
+  // has a lesson soon).
   function renderCoachKeys() {
     renderSing();
     if (!coachBox || !coachTargets || !coachTargets.length) return;
     coachBox.hidden = false;
-    const soon = [], later = [];
-    coachTargets.forEach((x, i) => (x.nextSession ? soon : later).push(coachRow(x, i)));
-    const list = (rows) => { const ul = document.createElement('ul'); ul.append(...rows); return ul; };
-    const parts = [];
-    if (soon.length) {
-      const h = document.createElement('p');
-      h.className = 'audio-key-group';
-      h.textContent = t('Lessons in the coming week');
-      parts.push(h, list(soon));
+    if (!coachCommunity) {
+      const rows = coachTargets.map((x, i) => coachRow(x, i));
+      if (coachList.tagName === 'UL') {
+        coachList.replaceChildren(...rows);
+      } else {
+        const ul = document.createElement('ul');
+        ul.append(...rows);
+        coachList.replaceChildren(ul);
+      }
+    } else {
+      const soon = [], later = [];
+      coachTargets.forEach((x, i) => (x.nextSession ? soon : later).push(coachRow(x, i)));
+      const list = (rows) => { const ul = document.createElement('ul'); ul.append(...rows); return ul; };
+      const parts = [];
+      if (soon.length) {
+        const h = document.createElement('p');
+        h.className = 'audio-key-group';
+        h.textContent = t('Lessons in the coming week');
+        parts.push(h, list(soon));
+      }
+      if (later.length && soon.length) {
+        const d = document.createElement('details');
+        d.className = 'audio-key-others';
+        d.open = othersOpen || later.some((li) => li.classList.contains('picked'));
+        d.addEventListener('toggle', () => { othersOpen = d.open; });
+        const s = document.createElement('summary');
+        s.textContent = t('Other students (%d)', later.length);
+        d.append(s, list(later));
+        parts.push(d);
+      } else if (later.length) {
+        parts.push(list(later));
+      }
+      coachList.replaceChildren(...parts);
     }
-    if (later.length && soon.length) {
-      const d = document.createElement('details');
-      d.className = 'audio-key-others';
-      d.open = othersOpen || later.some((li) => li.classList.contains('picked'));
-      d.addEventListener('toggle', () => { othersOpen = d.open; });
-      const s = document.createElement('summary');
-      s.textContent = t('Other students (%d)', later.length);
-      d.append(s, list(later));
-      parts.push(d);
-    } else if (later.length) {
-      parts.push(list(later));
-    }
-    coachList.replaceChildren(...parts);
-    // The list arrives after the panel opened: keep it on screen now
+    // The list arrives after the Key panel opened: keep it on screen now
     // that it is wider.
     const pop = $('audio-pop-key');
     if (pop && !pop.hidden && !sheetOpen()) {
@@ -926,21 +949,21 @@ window.songbooksDecodable = function (buf) {
     coachLoading = coachLoading || (async () => {
       coachTargets = [];
       try {
-        const res = await fetch(`/api/songs/${variantId}/coach-keys`);
+        const res = await fetch(`/api/songs/${variantId}/coach-keys${coachCommunity ? `?community=${coachCommunity}` : ''}`);
         if (res.ok) {
           const d = await res.json();
           coachKey = d.key || coachKey;
-          // The coming week's lessons first, in the server's order; then
-          // who already has the song. Kept as it is while keys are saved,
-          // so rows don't jump.
+          // The coming week's lessons first, in the server's order (only
+          // with the key per student); then who already has the song.
+          // Kept as it is while keys are saved, so rows don't jump.
           const all = d.targets || [], later = all.filter((x) => !x.nextSession);
           coachTargets = [...all.filter((x) => x.nextSession), ...later.filter((x) => x.inSongbook), ...later.filter((x) => !x.inSongbook)];
         }
       } catch (e) { /* nobody to coach */ }
-      // Opened from a student's (or a group's) songbook: the key is
-      // theirs, saved for them.
+      // Opened from a student's (or a group's) songbook, with the key per
+      // student: the key is theirs, saved for them.
       const sb = parseInt(root.dataset.keySongbook || '0', 10);
-      if (sb && !root.dataset.keyMine) singTarget = coachTargets.find((x) => x.songbookId === sb) || null;
+      if (coachCommunity && sb && !root.dataset.keyMine) singTarget = coachTargets.find((x) => x.songbookId === sb) || null;
       renderCoachKeys();
     })();
     return coachLoading;
@@ -1069,18 +1092,63 @@ window.songbooksDecodable = function (buf) {
     return () => seg.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.v === String(get())));
   }
 
-  // ---- Sing: a community's player for singers -------------------------------
-  // play.html .audio-sing (handlers_pages.go vocalSliderCommunity), as
-  // Apple Music sings: the voice's volume out beside play — the mic turns
-  // it off and back to where it was, the slider anywhere between (0 the
-  // backing alone, 100 the recording as it is) — and the key with whose it
-  // is, a semitone either way, saved for a student by their coach. The
-  // same voice and key as Voice and Key (setVoice, setSemitones, the same
-  // parts and the same Web Audio graph), remembered the same way.
+  // ---- The dock's options: on one line, their icons only, or folded -------
+  // All of them on the bar's line where they fit; their icons only where
+  // that does (opts-compact); folded into ⋯ where not even that does
+  // (opts-fold), as on a phone (app.css). Measured, as laid out, whatever
+  // the browser and its zoom: a container query on the dock's width (70rem)
+  // folded them all away in a 1280px window.
+  const dockTransport = dock ? dock.querySelector('.audio-transport') : null;
+  function fitDock() {
+    if (!dock || !dockTransport) return;
+    const was = dock.classList.contains('opts-fold');
+    dock.classList.remove('opts-compact', 'opts-fold');
+    if (!phoneMQ.matches && !(playerBody && playerBody.hidden)) {
+      const over = () => dockTransport.scrollWidth > dockTransport.clientWidth + 1;
+      if (over()) {
+        dock.classList.add('opts-compact');
+        if (over()) {
+          dock.classList.remove('opts-compact');
+          dock.classList.add('opts-fold');
+        }
+      }
+    }
+    if (was && !dock.classList.contains('opts-fold') && !phoneMQ.matches) setOptsOpen(false);
+  }
+  let fitQueued = false;
+  function queueFit() {
+    if (fitQueued) return;
+    fitQueued = true;
+    requestAnimationFrame(() => { fitQueued = false; fitDock(); });
+  }
+  if (dock && window.ResizeObserver) {
+    const ro = new ResizeObserver(queueFit);
+    ro.observe(dock);
+    if (optsEl) ro.observe(optsEl);
+  }
+  phoneMQ.addEventListener?.('change', queueFit);
+  queueFit();
+
+  // ---- Sing: a coaching community's player options --------------------------
+  // play.html #audio-sing-btn and .sing-panel (handlers_pages.go): in the
+  // dock, one way in, the mic's state and the key with whose it is
+  // ("C#m −1 · Poppy"); it opens a panel, as the rehearsals' player opens
+  // (band_recordings.html rec-player): most of the screen, closed by its
+  // ×, Escape or a click beside it once the setup is right; on a phone, a
+  // sheet. In it, the voice's volume (singVoiceOn) — the mic turns it off
+  // and back to where it was, the slider anywhere between (0 the backing
+  // alone, 100 the recording as it is) — and the key, a semitone either
+  // way, with whose it is; for a coach, their students (coachCommunity:
+  // picked, the key goes to theirs, saved for them). The same voice and
+  // key as Voice and Key (setVoice, setSemitones, the same parts and the
+  // same Web Audio graph), remembered the same way.
+  const singPanel = $('sing-panel'), singBtn = $('audio-sing-btn');
+  const singBtnMic = $('audio-sing-btn-mic'), singChip = $('audio-sing-chip');
   const singVoice = $('audio-sing-voice'), singMic = $('audio-sing-mic'), cardMic = $('audio-card-mic');
   const singRange = $('audio-sing-volume'), singOut = $('audio-sing-amount');
+  const singVoiceHint = $('audio-sing-voice-hint'), singNoVoice = $('audio-sing-novoice');
   const singKeyName = $('audio-sing-keyname'), singFor = $('audio-sing-for');
-  const singSave = $('audio-sing-save'), singReset = $('audio-sing-reset');
+  const singSave = $('audio-sing-save'), singReset = $('audio-sing-reset'), singOriginal = $('audio-sing-original');
   // −1, +2: a semitone count as a singer reads it (a real minus).
   const semis = (n) => (n ? `${n > 0 ? '+' : '−'}${Math.abs(n)}` : t('original'));
   // "Poppy": a first name, unless another student has it too.
@@ -1091,18 +1159,20 @@ window.songbooksDecodable = function (buf) {
   };
   function renderSing() {
     if (!sing) return;
-    const parts = hasParts();
+    const parts = singVoiceOn && hasParts();
     if (singVoice) singVoice.hidden = !parts;
+    if (singVoiceHint) singVoiceHint.hidden = !parts;
+    if (singNoVoice) singNoVoice.hidden = parts;
     if (cardMic) cardMic.hidden = !parts;
+    if (singBtnMic) singBtnMic.hidden = !parts;
     const v = prefs.voice;
-    [singMic, cardMic].forEach((b) => {
+    [singMic, cardMic, singBtnMic].forEach((b) => {
       if (!b) return;
-      b.setAttribute('aria-pressed', String(v > 0));
+      if (b !== singBtnMic) b.setAttribute('aria-pressed', String(v > 0));
       b.classList.toggle('is-off', v === 0);
     });
     if (singRange) {
       if (+singRange.value !== v) singRange.value = String(v);
-      singRange.style.setProperty('--fill', `${v}%`);
       singRange.setAttribute('aria-valuetext', v === 0 ? t('No voice') : t('Voice %d%', v));
     }
     if (singOut) singOut.textContent = `${v}%`;
@@ -1110,19 +1180,22 @@ window.songbooksDecodable = function (buf) {
     const n = prefs.semitones;
     const name = keyIn(coachKey, n);
     if (singKeyName) singKeyName.textContent = name ? `${name} (${semis(n)})` : semis(n);
-    let who = '', save = '', reset = false;
-    const coach = !!(coachTargets && coachTargets.length);
-    if (coach && singTarget) {
+    let who = '', short = '', save = '', reset = false;
+    const picking = !!coachCommunity && !!(coachTargets && coachTargets.length);
+    if (picking && singTarget) {
       who = t('for %s', shortName(singTarget));
+      short = shortName(singTarget);
       if (!singTarget.inSongbook || singTarget.semitones !== n) save = t('Save for %s', shortName(singTarget));
-    } else if (coach) {
+    } else if (picking) {
       who = t('choose a student');
     } else if (root.dataset.keyMine && studentKey !== null) {
       // A student: their key, the coach's; another is only tried.
       who = n === studentKey ? t('key|yours') : t('key|trying');
+      short = who;
       reset = n !== studentKey;
     } else if (root.dataset.keyFor && studentKey !== null && n === studentKey) {
       who = t('for %s', root.dataset.keyFor);
+      short = root.dataset.keyFor.split(/\s+/)[0];
     }
     if (singFor) singFor.textContent = who ? ` · ${who}` : '';
     // Just saved: said so, until the key moves again.
@@ -1133,6 +1206,18 @@ window.songbooksDecodable = function (buf) {
       singSave.disabled = !!saved;
     }
     if (singReset) singReset.hidden = !reset;
+    if (singOriginal) singOriginal.disabled = n === 0;
+    // The dock's way in: "C#m −1 · Poppy".
+    const chip = [name ? (n ? `${name} ${semis(n)}` : name) : semis(n), short].filter(Boolean).join(' · ');
+    if (singChip && singChip.textContent !== chip) {
+      singChip.textContent = chip;
+      queueFit();
+    }
+    if (singBtn) {
+      const label = singBtn.querySelector('.audio-sing-btn-label')?.textContent || '';
+      const voice = parts ? (v === 0 ? t('No voice') : t('Voice %d%', v)) : '';
+      singBtn.setAttribute('aria-label', [label, voice, name ? `${name} (${semis(n)})` : semis(n), who].filter(Boolean).join(', '));
+    }
   }
   // A coach picks whose key it is: the key goes to theirs when they have
   // the song, else stays as it is, to give it them.
@@ -1151,7 +1236,57 @@ window.songbooksDecodable = function (buf) {
       setVoice(prefs.voiceLast || 100);
     }
   }
+  // The panel: opened from the dock, moved to the body (the dock's
+  // backdrop-filter would hold a fixed panel inside it).
+  if (singPanel) document.body.append(singPanel);
+  const panelOpen = () => !!singPanel && !singPanel.hidden;
+  function setPanel(on) {
+    if (!singPanel || on === panelOpen()) return;
+    singPanel.hidden = !on;
+    singBtn?.setAttribute('aria-expanded', String(on));
+    document.documentElement.classList.toggle('rp-locked', on || sheetOpen());
+    if (on) {
+      setOptsOpen(false);
+      document.querySelectorAll('#audio-player .audio-pop').forEach((p) => { p.hidden = true; });
+      loadCoachKeys();
+      renderSing();
+      const card = singPanel.querySelector('.sp-card');
+      if (card) card.scrollTop = 0;
+      (phoneMQ.matches ? singPanel.querySelector('.sp-grab') : singPanel.querySelector('.sp-close'))?.focus({ preventScroll: true });
+    } else if (singBtn && singBtn.offsetParent) {
+      singBtn.focus({ preventScroll: true });
+    }
+  }
   if (sing) {
+    singBtn?.addEventListener('click', () => setPanel(!panelOpen()));
+    singPanel?.querySelectorAll('[data-sp-close]').forEach((el) => el.addEventListener('click', () => setPanel(false)));
+    // Escape closes the panel, before the dock's sheet and its panels
+    // hear it (window, capture phase); Tab stays in it.
+    window.addEventListener('keydown', (e) => {
+      if (!panelOpen()) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setPanel(false);
+      } else if (e.key === 'Tab') {
+        const els = [...singPanel.querySelectorAll('button, input, summary, [tabindex="0"]')].filter((el) => !el.disabled && el.offsetParent !== null);
+        if (!els.length) return;
+        const first = els[0], last = els[els.length - 1];
+        if (!singPanel.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+        else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    }, true);
+    // A swipe down from the top of the phone's sheet closes it.
+    const card = singPanel?.querySelector('.sp-card');
+    let y0 = null;
+    card?.addEventListener('touchstart', (e) => {
+      y0 = card.scrollTop <= 0 && !e.target.closest('input, .audio-key-targets') ? e.touches[0].clientY : null;
+    }, { passive: true });
+    card?.addEventListener('touchend', (e) => {
+      if (y0 !== null && e.changedTouches[0].clientY - y0 > 80) setPanel(false);
+      y0 = null;
+    });
     singMic?.addEventListener('click', toggleMic);
     cardMic?.addEventListener('click', toggleMic);
     singRange?.addEventListener('input', () => setVoice(+singRange.value));
@@ -1160,15 +1295,18 @@ window.songbooksDecodable = function (buf) {
     });
     $('audio-sing-down')?.addEventListener('click', () => setSemitones(prefs.semitones - 1));
     $('audio-sing-up')?.addEventListener('click', () => setSemitones(prefs.semitones + 1));
+    singOriginal?.addEventListener('click', () => setSemitones(0));
     singReset?.addEventListener('click', () => setSemitones(studentKey || 0));
     singSave?.addEventListener('click', () => {
       const i = coachTargets ? coachTargets.indexOf(singTarget) : -1;
       if (i >= 0) saveKeyFor(i, singSave);
     });
-    $('audio-sing-keylabel')?.addEventListener('click', loadCoachKeys);
-    loadCoachKeys();
+    // With the key per student, whose key it is shows in the dock from
+    // the start (a student's songbook: theirs).
+    if (coachCommunity) loadCoachKeys();
     renderSing();
   }
+
 
   // ---- Option panels: one open at a time, under the control bar -------
   const pops = [...document.querySelectorAll('#audio-player .audio-pop')];
@@ -1614,7 +1752,7 @@ window.songbooksDecodable = function (buf) {
       case 'ArrowRight': if (songNav && !e.altKey) handled = false; else if (e.altKey) stepSection(1); else stepBar(1); break;
       case 'c': case 'C': case 'l': case 'L': toggleCycle(); break;
       case 'k': case 'K': toggleClick(); break;
-      case 'v': case 'V': if (!hasParts()) handled = false; else if (sing) toggleMic(); else toggleVoice(); break;
+      case 'v': case 'V': if (!hasParts()) handled = false; else if (singVoiceOn) toggleMic(); else toggleVoice(); break;
       case '[': setSpeed(prefs.speed - (e.shiftKey ? 0.01 : 0.05)); break;
       case ']': setSpeed(prefs.speed + (e.shiftKey ? 0.01 : 0.05)); break;
       default: handled = false;

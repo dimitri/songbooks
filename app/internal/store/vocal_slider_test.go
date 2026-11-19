@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -72,6 +73,61 @@ func TestVocalSlider(t *testing.T) {
 	}
 	if err := st.SetCommunityPlayerVocalSlider(ctx, 999999, true); err == nil {
 		t.Fatal("no such community, no error")
+	}
+
+	// The key per student (migration 0097): its own option, off until
+	// turned on, apart from the voice's slider.
+	if o, _ := st.CommunityPlayerOptions(ctx, c); !o.VocalSlider || o.CoachStudentKeys {
+		t.Fatalf("options: %+v", o)
+	}
+	if err := st.SetCommunityCoachStudentKeys(ctx, c, true); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := st.GetCommunity(ctx, c); !got.CoachStudentKeys {
+		t.Fatal("key per student not on")
+	}
+	if err := st.SetCommunityPlayerVocalSlider(ctx, c, false); err != nil {
+		t.Fatal(err)
+	}
+	if o, _ := st.CommunityPlayerOptions(ctx, c); o.VocalSlider || !o.CoachStudentKeys {
+		t.Fatalf("each its own: %+v", o)
+	}
+	if err := st.SetCommunityPlayerVocalSlider(ctx, c, true); err != nil {
+		t.Fatal(err)
+	}
+	// Neither on for a community that isn't a coaching one; off is fine.
+	band, _ := st.CreateCommunity(ctx, "Jam", coach)
+	for _, set := range []func(context.Context, int64, bool) error{st.SetCommunityPlayerVocalSlider, st.SetCommunityCoachStudentKeys} {
+		if err := set(ctx, band, true); !errors.Is(err, ErrNotCoaching) {
+			t.Errorf("on for a plain community: %v", err)
+		}
+		if err := set(ctx, band, false); err != nil {
+			t.Errorf("off for a plain community: %v", err)
+		}
+	}
+	if o, _ := st.CommunityPlayerOptions(ctx, band); o.VocalSlider || o.CoachStudentKeys {
+		t.Fatalf("a plain community: %+v", o)
+	}
+	// Even set behind its back, a plain community has neither.
+	if _, err := st.db.Exec(ctx, `UPDATE communities SET player_vocal_slider = true, coach_student_keys = true WHERE id = $1`, band); err != nil {
+		t.Fatal(err)
+	}
+	if o, _ := st.CommunityPlayerOptions(ctx, band); o.VocalSlider || o.CoachStudentKeys {
+		t.Fatalf("a plain community, set by hand: %+v", o)
+	}
+
+	// A student's key, within the community only.
+	if err := st.SetEntrySemitones(ctx, sb, song, -1); err != nil {
+		t.Fatal(err)
+	}
+	if id, n, ok, _ := st.StudentKeyIn(ctx, poppy, c, song); !ok || n != -1 || id != sb {
+		t.Fatalf("Poppy's key in her community: %d %d %v", id, n, ok)
+	}
+	if _, _, ok, _ := st.StudentKeyIn(ctx, poppy, band, song); ok {
+		t.Fatal("Poppy's key in another community")
+	}
+	if _, _, ok, _ := st.StudentKeyIn(ctx, george, c, song); ok {
+		t.Fatal("George has no key for it")
 	}
 
 	// Who coaches: the staff, not a student.

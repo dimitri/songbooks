@@ -29,6 +29,10 @@ type Community struct {
 	// PlayerVocalSlider: its songs' player has the voice's volume beside
 	// play and the key out in the open (migration 0093, vocal_slider.go).
 	PlayerVocalSlider bool
+	// CoachStudentKeys: in the songs opened from its songbooks, the coach
+	// picks a student and saves their key from the player, the coming
+	// week's lessons first (migration 0097, vocal_slider.go).
+	CoachStudentKeys bool
 }
 
 // IsCoaching reports whether the community is a coach's and their students'.
@@ -110,8 +114,8 @@ func (st *Store) CreateCommunity(ctx context.Context, name string, creatorPerson
 // GetCommunity loads one community by id.
 func (st *Store) GetCommunity(ctx context.Context, communityID int64) (*Community, error) {
 	var sc Community
-	err := st.db.QueryRow(ctx, `SELECT id, name, default_join_role::text, created_at, kind, player_vocal_slider FROM communities WHERE id = $1`, communityID).
-		Scan(&sc.ID, &sc.Name, &sc.DefaultJoinRole, &sc.CreatedAt, &sc.Kind, &sc.PlayerVocalSlider)
+	err := st.db.QueryRow(ctx, `SELECT id, name, default_join_role::text, created_at, kind, player_vocal_slider, coach_student_keys FROM communities WHERE id = $1`, communityID).
+		Scan(&sc.ID, &sc.Name, &sc.DefaultJoinRole, &sc.CreatedAt, &sc.Kind, &sc.PlayerVocalSlider, &sc.CoachStudentKeys)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such community %d: %w", communityID, ErrNotFound)
 	}

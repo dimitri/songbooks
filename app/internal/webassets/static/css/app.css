@@ -1104,19 +1104,9 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 /* The Key panel's "Save this key for": a coach's students and groups,
    each with the key they have and a save in the key being tried. */
 .audio-key-coach:not([hidden]) { display: flex; flex-direction: column; gap: 0.4rem; border-top: 1px solid var(--border); padding-top: 0.6rem; }
-.audio-key-targets { display: flex; flex-direction: column; gap: 0.3rem; max-height: 16rem; overflow-y: auto; min-width: min(26rem, 80vw); }
-.audio-key-targets ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
-.audio-key-targets li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: 0.6rem; min-height: 2.2rem; }
+.audio-key-targets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; max-height: 14rem; overflow-y: auto; min-width: min(24rem, 80vw); }
+.audio-key-targets li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 0.6rem; min-height: 2.2rem; }
 .audio-key-targets .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-/* In the player for singers a name is a choice (whose key it is). */
-.audio-key-targets button.who { all: unset; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; cursor: pointer; padding: 0.2rem 0.45rem; margin-left: -0.45rem; border-radius: 6px; }
-.audio-key-targets button.who:hover { background: var(--bg-sunken); }
-.audio-key-targets button.who:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.audio-key-targets li.picked button.who { background: var(--accent-bg); color: var(--accent-ink); }
-.audio-key-targets .when { font-size: 0.78rem; font-weight: 600; color: var(--accent-ink); white-space: nowrap; }
-.audio-key-group { margin: 0; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); }
-.audio-key-others > summary { cursor: pointer; font-size: 0.82rem; font-weight: 600; color: var(--fg-muted); padding: 0.3rem 0; }
-.audio-key-others[open] > summary { margin-bottom: 0.2rem; }
 .audio-key-targets .who small { font-weight: 400; color: var(--fg-muted); }
 .audio-key-targets .now { color: var(--fg-muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .audio-key-targets button:disabled { opacity: 0.7; cursor: default; }
@@ -1220,18 +1210,29 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   -webkit-backdrop-filter: saturate(1.4) blur(12px); backdrop-filter: saturate(1.4) blur(12px);
   border-top: 1px solid var(--border); box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.10);
 }
-.audio-dock { container-type: inline-size; container-name: audio-dock; }
-.audio-dock .audio-transport { margin: 0 auto; max-width: 72rem; flex-wrap: nowrap; }
-/* Too narrow for every option on one line (a laptop beside the sidebar):
-   they fold into ⋯, as on a phone, opening above the bar. */
-@container audio-dock (max-width: 70rem) {
-  .audio-transport .audio-opts-btn { display: inline-flex; }
-  .audio-opts { display: none; }
-  .audio-opts.open {
-    display: flex; position: absolute; right: 0; top: auto; bottom: calc(100% + 0.6rem); z-index: 20;
-    flex-direction: column; align-items: stretch; gap: 0.4rem; padding: 0.6rem; max-height: 70dvh; overflow-y: auto;
-    background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
-  }
+.audio-dock .audio-transport { margin: 0 auto; max-width: 90rem; flex-wrap: nowrap; }
+/* The options on the bar's one line where they fit; where they don't (a
+   laptop beside the sidebar), only their icons (opts-compact); where not
+   even those do, folded into ⋯ as on a phone, opening above the bar
+   (opts-fold). audio-player.js fitDock measures it, whatever the browser:
+   a container query on the dock's width (70rem) folded them all away in
+   a 1280px window, or a zoomed one. */
+.audio-dock.opts-compact .audio-opts .audio-toggle > span:not(.audio-trainer-meter),
+.audio-dock.opts-compact .audio-speed-bpm, .audio-dock.opts-compact .audio-lcd-time,
+.audio-dock:is(.opts-compact, .opts-fold) .audio-sing-btn-label { display: none; }
+.audio-dock.opts-compact .audio-opts .audio-toggle { padding: 0 0.45rem; }
+/* Nothing shrinks but the bar.beat display, so that what doesn't fit
+   overflows, and fitDock sees it. */
+@media (min-width: 721px) {
+  .audio-dock .audio-transport > :not(.audio-lcd), .audio-dock .audio-opts > * { flex-shrink: 0; }
+  .audio-dock .audio-speed { white-space: nowrap; }
+}
+.audio-dock.opts-fold .audio-transport .audio-opts-btn { display: inline-flex; }
+.audio-dock.opts-fold .audio-opts { display: none; }
+.audio-dock.opts-fold .audio-opts.open {
+  display: flex; position: absolute; right: 0; top: auto; bottom: calc(100% + 0.6rem); z-index: 20;
+  flex-direction: column; align-items: stretch; gap: 0.4rem; padding: 0.6rem; max-height: 70dvh; overflow-y: auto;
+  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
 }
 .audio-dock .audio-opts { flex-wrap: nowrap; }
 .audio-dock-line { position: absolute; left: 0; right: 0; top: -5px; height: 11px; cursor: pointer; }
@@ -1242,77 +1243,157 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .audio-dock .audio-pop:not([hidden]) { top: auto; bottom: calc(100% + 0.6rem); max-width: calc(100vw - 2rem); }
 body:has(.edit-toggle.on) .audio-dock { display: none; }
 body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5rem; }
-/* A community's player for singers (play.html .audio-sing, audio-player.js
-   "Sing"), as Apple Music sings: under the transport, the voice's volume
-   (a mic, off and back; a slider) and the key with whose it is, a
-   semitone either way, saved for a student. Voice and Key leave the
-   options for it. */
-.audio-player.is-sing #audio-key-btn, .audio-player.is-sing #audio-voice-split { display: none !important; }
-.audio-sing { display: flex; align-items: center; gap: 0.6rem 1.6rem; flex-wrap: wrap; max-width: 72rem; margin: 0.4rem auto 0; }
-.audio-sing-voice:not([hidden]) { display: inline-flex; align-items: center; gap: 0.5rem; }
-.audio-sing-mic, .audio-card-mic {
-  display: inline-flex; align-items: center; justify-content: center; flex: none;
-  width: 2.1rem; height: 2.1rem; min-height: 0; padding: 0; border-radius: 50%;
-  border: 1px solid var(--border); background: var(--bg-raised); color: var(--accent-ink); cursor: pointer;
+/* A coaching community's player options (play.html #audio-sing-btn and
+   .sing-panel, audio-player.js "Sing"). In the dock, one way in, in place
+   of Key (and of Voice, with the voice's slider): the mic's state and the
+   key with whose it is, "C#m −1 · Poppy". */
+.audio-player.is-sing #audio-key-btn, .audio-player.is-sing-voice #audio-voice-split { display: none !important; }
+.audio-sing-btn {
+  display: inline-flex; align-items: center; gap: 0.4rem; flex: 0 1 auto; min-width: 0; max-width: 24rem;
+  height: 2.1rem; min-height: 0; box-sizing: border-box; padding: 0 0.3rem 0 0.6rem; border-radius: 999px;
+  border: 1px solid var(--accent); background: var(--accent-bg); color: var(--accent-ink);
+  font: inherit; font-size: 0.8rem; font-weight: 600; white-space: nowrap; cursor: pointer;
 }
-.audio-sing-mic .icon, .audio-card-mic .icon { width: 1.1rem; height: 1.1rem; }
-.audio-sing-mic:hover { border-color: var(--border-strong); }
-.audio-transport .audio-card-mic { display: none; } /* the phone card's (below) */
+.audio-sing-btn:hover { border-color: var(--accent-ink); }
+.audio-sing-btn[aria-expanded="true"] { background: var(--accent); color: var(--accent-contrast); }
+.audio-sing-btn-icon { display: inline-flex; flex: none; }
+.audio-sing-btn .icon { width: 1.05rem; height: 1.05rem; }
+.audio-sing-btn-label { flex: none; }
+.audio-sing-chip { min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0.15rem 0.55rem; border-radius: 999px; background: var(--bg-raised); color: var(--accent-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.audio-sing-chip:empty { display: none; }
+.audio-sing-btn:has(.audio-sing-chip:empty) { padding-right: 0.75rem; }
 .mic-slash { display: none; }
 .is-off .mic-slash { display: inline; }
-.audio-sing-mic.is-off, .audio-card-mic.is-off { color: var(--fg-muted); background: var(--bg-sunken); }
-.audio-sing-voice input[type="range"] { width: 10rem; accent-color: var(--accent); cursor: pointer; }
-.audio-sing-voice output { min-width: 3.2rem; font-size: 0.8rem; font-variant-numeric: tabular-nums; color: var(--fg-muted); }
-.audio-sing-key { display: inline-flex; align-items: center; gap: 0.3rem; min-width: 0; }
+.audio-sing-btn-icon.is-off { opacity: 0.7; }
+.audio-transport .audio-card-mic { display: none; } /* the phone card's (below) */
+
+/* The panel, after the rehearsals' player open (rec-player): most of the
+   screen, over a dimmed page, closed by its ×, Escape or a click beside
+   it; on a phone, a sheet from the bottom. */
+.sing-panel { position: fixed; inset: 0; z-index: 95; }
+.sing-panel[hidden] { display: none; }
+.sp-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); }
+.sp-card {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); box-sizing: border-box;
+  width: min(40rem, 94vw); max-height: min(92dvh, 52rem); overflow: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 1.2rem;
+  padding: 1.4rem 1.8rem 1.6rem; border: 1px solid var(--border); border-radius: 22px;
+  background: var(--bg-raised); color: var(--fg); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45); animation: rp-in 0.18s ease-out;
+}
+.sp-card:focus { outline: none; }
+.sp-close {
+  position: absolute; top: 0.8rem; right: 0.8rem; z-index: 1; width: 2.75rem; height: 2.75rem; min-height: 0; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: none; color: var(--fg); cursor: pointer;
+}
+.sp-close:hover { background: color-mix(in srgb, var(--fg) 8%, transparent); }
+.sp-close .icon { width: 1.3rem; height: 1.3rem; }
+.sp-grab { display: none; }
+.sp-main { display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
+.sp-head { padding-right: 2.6rem; }
+.sp-head h2 { margin: 0; font-size: 1.35rem; }
+.sp-head .hint { margin: 0.15rem 0 0; }
+.sp-section { display: flex; flex-direction: column; gap: 0.65rem; }
+.sing-panel h3 { margin: 0; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg-muted); }
+.sp-section .hint { margin: 0; font-size: 0.8rem; }
+/* The voice: the mic, off and back; the slider, 0 to 100. */
+.audio-sing-voice:not([hidden]) { display: flex; align-items: center; gap: 0.8rem; }
+.audio-sing-mic, .audio-card-mic {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 3rem; height: 3rem; min-height: 0; padding: 0; border-radius: 50%;
+  border: 1px solid var(--accent); background: var(--accent-bg); color: var(--accent-ink); cursor: pointer;
+}
+.audio-sing-mic .icon, .audio-card-mic .icon { width: 1.3rem; height: 1.3rem; }
+.audio-sing-mic.is-off, .audio-card-mic.is-off { color: var(--fg-muted); background: var(--bg-sunken); border-color: var(--border); }
+.audio-sing-voice input[type="range"] { flex: 1; min-width: 0; height: 2.75rem; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.audio-sing-voice output { min-width: 3.4rem; text-align: right; font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* The key: a semitone either way, its name big, whose it is. */
+.audio-sing-key { display: grid; grid-template-columns: 3rem minmax(0, 1fr) 3rem; align-items: center; gap: 0.6rem; }
 .audio-sing-step {
-  width: 2rem; height: 2rem; min-height: 0; padding: 0; flex: none; border-radius: 6px;
-  border: 1px solid var(--border); background: var(--bg-raised); color: var(--fg); font-size: 1.05rem; line-height: 1; cursor: pointer;
+  width: 3rem; height: 3rem; min-height: 0; padding: 0; border-radius: 12px; font-size: 1.4rem; line-height: 1;
+  border: 1px solid var(--border); background: var(--bg); color: var(--fg); cursor: pointer;
 }
 .audio-sing-step:hover { border-color: var(--border-strong); }
 .audio-sing-keylabel {
-  display: inline-flex; align-items: baseline; gap: 0.3rem; min-width: 0; max-width: 26rem; height: 2rem; min-height: 0; box-sizing: border-box;
-  padding: 0 0.8rem; border-radius: 999px; border: 1px solid var(--accent); background: var(--accent-bg); color: var(--accent-ink);
-  font-size: 0.85rem; line-height: 2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+  display: flex; align-items: baseline; justify-content: center; gap: 0.45rem; min-width: 0; height: 3rem; box-sizing: border-box;
+  padding: 0 0.9rem; border-radius: 12px; background: var(--accent-bg); color: var(--accent-ink);
+  font-size: 0.95rem; line-height: 3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.audio-sing-keylabel strong { font-variant-numeric: tabular-nums; }
+.audio-sing-keylabel strong { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
 .audio-sing-for { overflow: hidden; text-overflow: ellipsis; }
+.sp-key-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .audio-sing-save:not([hidden]) {
-  height: 2rem; min-height: 0; padding: 0 0.8rem; border-radius: 999px; font-size: 0.82rem; font-weight: 600; white-space: nowrap;
+  min-height: 2.6rem; padding: 0 1rem; border-radius: 999px; font-size: 0.88rem; font-weight: 600; white-space: nowrap;
   border: 1px solid var(--accent); background: var(--accent); color: var(--accent-contrast); cursor: pointer;
 }
 .audio-sing-save:disabled { background: none; color: var(--accent-ink); border-color: transparent; cursor: default; opacity: 1; }
 .audio-sing-reset:not([hidden]) {
-  height: 2rem; min-height: 0; padding: 0 0.7rem; border-radius: 999px; font-size: 0.82rem; white-space: nowrap;
-  border: 1px solid var(--border); background: var(--bg-raised); color: var(--fg); cursor: pointer;
+  min-height: 2.6rem; padding: 0 1rem; border-radius: 999px; font-size: 0.88rem; white-space: nowrap;
+  border: 1px solid var(--border); background: var(--bg); color: var(--fg); cursor: pointer;
 }
+.sp-key-actions .audio-pill-btn { min-height: 2.6rem; padding: 0 1rem; }
+/* A coach's students: a name picked, the key goes to theirs. */
+.sp-students:not([hidden]) { display: flex; flex-direction: column; gap: 0.6rem; min-height: 0; border-top: 1px solid var(--border); padding-top: 1rem; }
+.sp-students .audio-pop-head { flex-direction: column; gap: 0.15rem; }
+.sing-panel .audio-key-targets { display: flex; flex-direction: column; gap: 0.4rem; max-height: none; overflow: visible; min-width: 0; }
+.sing-panel .audio-key-targets ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+/* Two lines each: who and their next lesson; the key they have and the
+   save. */
+.sing-panel .audio-key-targets li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "who when" "now btn";
+  align-items: center; gap: 0.1rem 0.6rem; padding: 0.35rem 0.5rem; border-radius: 10px; border-bottom: 1px solid var(--border);
+}
+.sing-panel .audio-key-targets li > .who { grid-area: who; }
+.sing-panel .audio-key-targets li > .when { grid-area: when; }
+.sing-panel .audio-key-targets li > .now { grid-area: now; }
+.sing-panel .audio-key-targets li > .audio-pill-btn { grid-area: btn; justify-self: end; min-height: 2rem; }
+.sing-panel .audio-key-targets li.picked { background: var(--accent-bg); }
+.sing-panel .audio-key-targets .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.sing-panel .audio-key-targets button.who { all: unset; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; cursor: pointer; padding: 0.15rem 0; border-radius: 4px; }
+.sing-panel .audio-key-targets li:has(button.who):hover { background: var(--bg-sunken); }
+.sing-panel .audio-key-targets li.picked:hover { background: var(--accent-bg); }
+.sing-panel .audio-key-targets button.who:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sing-panel .audio-key-targets li.picked button.who { color: var(--accent-ink); }
+.sing-panel .audio-key-targets .when { font-size: 0.78rem; font-weight: 600; color: var(--accent-ink); white-space: nowrap; }
+.sing-panel .audio-key-targets .when:empty { display: none; }
+.audio-key-group { margin: 0; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); }
+.audio-key-others > summary { cursor: pointer; font-size: 0.82rem; font-weight: 600; color: var(--fg-muted); padding: 0.4rem 0; }
+.audio-key-others[open] > summary { margin-bottom: 0.2rem; }
+/* A landscape screen: the voice and the key beside the students. */
+@media (min-width: 1100px) and (min-aspect-ratio: 5/4) {
+  .sing-panel:has(.sp-students:not([hidden])) .sp-card {
+    width: min(64rem, 94vw); height: min(40rem, 88dvh); overflow: hidden;
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(18rem, 27rem); column-gap: 2rem;
+  }
+  .sing-panel:has(.sp-students:not([hidden])) .sp-main { overflow: auto; }
+  .sing-panel:has(.sp-students:not([hidden])) .sp-head { padding-right: 0; }
+  .sing-panel .sp-students:not([hidden]) { overflow: auto; border-top: 0; border-left: 1px solid var(--border); padding: 0 0.2rem 0 1.4rem; margin-top: 2.4rem; }
+}
+@media (prefers-reduced-motion: reduce) { .sp-card { animation: none; } }
 @media (max-width: 720px) {
-  /* The card: the mic beside play; the sheet: the voice and the key in
-     full, under the transport, at the phone's 44px. */
-  .audio-dock:not(.is-open) .audio-sing { display: none; }
+  /* The card: the mic beside play; the sheet: the way into the panel,
+     with the options. The panel: a sheet from the bottom. */
+  .audio-dock:not(.is-open) .audio-sing-btn { display: none; }
+  .audio-dock.is-open .audio-sing-btn { order: 6; flex-shrink: 0; justify-content: center; max-width: none; height: 2.9rem; border-radius: 10px; font-size: 0.85rem; }
   .audio-dock:not(.is-open) .audio-card-mic:not([hidden]) { display: inline-flex; order: 2; width: 2.75rem; height: 2.75rem; border-color: transparent; background: none; }
   .audio-dock:not(.is-open) .audio-card-mic.is-off { color: var(--fg-muted); }
-  .audio-dock.is-open .audio-sing { order: 4; flex-direction: column; align-items: stretch; gap: 0.6rem; margin: 0; flex-shrink: 0; }
-  .audio-dock.is-open .audio-sing-voice:not([hidden]) { display: flex; gap: 0.6rem; }
-  .audio-dock.is-open .audio-sing-mic { width: 2.75rem; height: 2.75rem; }
-  .audio-dock.is-open .audio-sing-voice input[type="range"] { flex: 1; width: auto; min-width: 0; height: 2.75rem; }
-  .audio-dock.is-open .audio-sing-key { display: grid; grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem; gap: 0.4rem; }
-  .audio-dock.is-open .audio-sing-step { width: 2.75rem; height: 2.75rem; border-radius: 10px; font-size: 1.25rem; }
-  .audio-dock.is-open .audio-sing-keylabel { justify-content: center; max-width: none; height: 2.75rem; line-height: 2.75rem; padding: 0 0.5rem; font-size: 0.84rem; }
-  /* The students in the Key panel: the name on its own line, then the
-     lesson, the key and the save, at 44px. */
-  .audio-key-targets { min-width: 0; max-height: none; }
-  .audio-key-targets li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem 0.6rem; padding: 0.3rem 0; border-bottom: 1px solid var(--border); }
-  .audio-key-targets li > .who { flex: 1 1 100%; }
-  .audio-key-targets li > .now { flex: 1; }
-  .audio-key-targets button.who, .audio-key-targets li > .audio-pill-btn { min-height: 2.75rem; }
-  .audio-dock.is-open :is(.audio-sing-save, .audio-sing-reset):not([hidden]) { grid-column: 1 / -1; height: 2.75rem; border-radius: 10px; font-size: 0.9rem; }
+  .sp-card {
+    left: 0; right: 0; top: auto; bottom: 0; transform: none; width: auto; max-height: 92dvh;
+    border-radius: 22px 22px 0 0; border-width: 1px 0 0; padding: 0.3rem 1.2rem calc(1.4rem + env(safe-area-inset-bottom, 0px));
+    animation: rp-up 0.22s ease-out;
+  }
+  .sp-close { display: none; }
+  .sp-head { padding-right: 0; text-align: center; }
+  .sp-grab { display: block; flex: none; align-self: center; position: relative; width: 3rem; height: 1.5rem; min-height: 0; border: 0; padding: 0; background: none; cursor: pointer; }
+  .sp-grab::before { content: ""; position: absolute; left: 0.6rem; right: 0.6rem; top: 0.55rem; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--fg) 25%, transparent); }
+  .sp-key-actions > * { flex: 1 1 auto; }
+  .sing-panel .audio-key-targets li > .audio-pill-btn, .sing-panel .audio-key-targets button.who { min-height: 2.75rem; }
 }
 @media (min-width: 901px) {
   .audio-dock { left: 220px; }
   /* The waveform rides in the dock, over the transport: where it is and
      what plays it, together. The page keeps room for the dock's height
      (--dock-h, audio-player.js). */
-  .audio-dock .audio-waveform-wrap { max-width: 72rem; margin: 0 auto 0.4rem; }
+  .audio-dock .audio-waveform-wrap { max-width: 90rem; margin: 0 auto 0.4rem; }
   .audio-dock .audio-wave { height: 46px; }
   .audio-dock .audio-dock-line { display: none; }
   .audio-dock:has(.pitch-check:not([hidden])) { background: var(--bg-raised); }
@@ -1326,7 +1407,7 @@ body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5re
 }
 /* Checking one's singing, opened from the dock's Pitch option: a row of
    the dock, over the waveform, closed again with it. */
-.audio-dock .pitch-check { max-width: 72rem; margin: 0 auto 0.5rem; padding: 0.4rem 0 0.2rem; border-bottom: 1px solid var(--border); }
+.audio-dock .pitch-check { max-width: 90rem; margin: 0 auto 0.5rem; padding: 0.4rem 0 0.2rem; border-bottom: 1px solid var(--border); }
 .audio-dock .pitch-check-lane { height: 110px; }
 .audio-dock .pitch-check-result, .audio-dock .pitch-check-history, .audio-dock .pitch-check-goal { max-height: 30vh; overflow-y: auto; }
 @media (max-width: 900px) {

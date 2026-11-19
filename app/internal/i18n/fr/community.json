@@ -706,6 +706,9 @@
   "Coach’s tools": "Outils du coach",
   "a usual path": "un chemin type",
   "Octave": "Octave",
-  "Voice volume and key in the song player": "Volume de la voix et tonalité dans le lecteur",
-  "A mic and a slider beside play turn the song’s voice down or up; the key says whose it is, and the coach sets it for each student.": "Un micro et un curseur, à côté de Lecture, baissent ou remontent la voix du morceau ; la tonalité dit pour quel élève elle est, et le coach la règle pour chacun."
+  "The song player, for singers": "Le lecteur des morceaux, pour les chanteurs",
+  "Voice slider in the player": "Curseur de la voix dans le lecteur",
+  "In the player of the community’s songs: a slider to turn the recorded voice down (karaoke), for coaches and students, in the “Voice & key” panel.": "Dans le lecteur des morceaux de la communauté : un curseur pour baisser la voix enregistrée (karaoké), pour les coachs et les élèves, dans le panneau « Voix & tonalité ».",
+  "Key per student": "Tonalité par élève",
+  "In the player of the songs opened from the community’s songbooks: the coach picks a student and saves their key, students with a lesson in the coming 7 days first. Coaches only.": "Dans le lecteur des morceaux ouverts depuis les songbooks de la communauté : le coach choisit l’élève et enregistre sa tonalité, les élèves ayant cours dans les 7 prochains jours en premier. Réservé aux coachs."
 }
