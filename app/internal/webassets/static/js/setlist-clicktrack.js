@@ -1,9 +1,9 @@
 // Setlist click-track mode: a self-contained, deliberately small metronome
 // (Clock/Metronome engines from clock.js, same lookahead scheduler as the
 // standalone practice tool, but its own compact control surface — a
-// performance/rehearsal aid that counts the band in and shows the next
-// song's note, not the standalone tool's full practice-technique/accent/
-// sound-pattern surface) stepping through a pre-loaded setlist.
+// performance/rehearsal aid that counts the band in and shows the song's
+// click-track note, not the standalone tool's full practice-technique/
+// accent/sound-pattern surface) stepping through a pre-loaded setlist.
 (() => {
   const themeBtn = document.getElementById('theme-toggle');
   function applyTheme(t) { document.body.dataset.theme = t || ''; }
@@ -19,6 +19,10 @@
   const songs = JSON.parse(dataEl.textContent || '[]');
   if (!songs.length) return;
 
+  const root = document.getElementById('clicktrack-root');
+  const setlistId = root.dataset.setlistId;
+  const canEdit = root.dataset.canEdit === '1';
+
   // Flatten songs into steps, inserting a "break" pseudo-step right
   // before the first song of every set after the first — an explicit
   // step the user advances through, not a silent jump.
@@ -27,13 +31,14 @@
     if (song.isFirstInSet && song.setIndex > 0) {
       steps.push({ kind: 'break', setLabel: song.setLabel, setIndex: song.setIndex });
     }
+    song.step = steps.length;
     steps.push({ kind: 'song', song });
   });
 
   const posEl = document.getElementById('clicktrack-position');
   const titleEl = document.getElementById('clicktrack-title');
   const metaEl = document.getElementById('clicktrack-meta');
-  const noteEl = document.getElementById('clicktrack-note');
+  const entryNoteEl = document.getElementById('clicktrack-entry-note');
   const prevBtn = document.getElementById('clicktrack-prev');
   const nextBtn = document.getElementById('clicktrack-next');
   const nowPlayingCard = document.getElementById('clicktrack-now-playing');
@@ -41,6 +46,9 @@
   const breakLabel = document.getElementById('clicktrack-break-label');
   const breakContinue = document.getElementById('clicktrack-break-continue');
   const metronomeWrap = document.getElementById('clicktrack-metronome-wrap');
+  const songListEl = document.getElementById('clicktrack-songlist');
+  const songsFold = document.getElementById('clicktrack-songs-fold');
+  const wide = window.matchMedia('(min-width: 960px)');
 
   // ---- Compact metronome engine — same clock.js classes the standalone
   // page uses, own small control surface. ------------------------------
@@ -81,17 +89,19 @@
     if (t) setBpm(t);
   });
 
-  // ---- Display/sound preferences: size, bar-group, portrait/landscape,
-  // every-beat/beat-1-only, mute. These persist across every song in the
-  // setlist (nothing here resets on prev/next — see render() below) AND
-  // silently follow the person's account, not just this browser: a local
-  // copy applies instantly (and covers the offline/logged-out case), a
-  // server copy (GET on load, debounced PUT on every change) is what
-  // actually makes it "recall whatever I last set, on any device." No
+  // ---- Display/sound preferences: size, portrait/landscape, every-beat/
+  // beat-1-only, mute. These persist across every song in the setlist
+  // AND silently follow the person's account, not just this browser: a
+  // local copy applies instantly (and covers the offline/logged-out
+  // case), a server copy (GET on load, debounced PUT on every change) is
+  // what makes it "recall whatever I last set, on any device." No
   // explicit save action — every change writes through on its own.
-  const PREF_DEFAULTS = { size: 'md', group: '1', orientation: 'portrait', clickMode: 'every', muted: false };
+  // (The old 1/2/4-bar grouping of the dots is gone: the dots always
+  // show one bar, as big as the screen allows.)
+  const PREF_DEFAULTS = { size: 'md', orientation: 'portrait', clickMode: 'every', muted: false };
   let prefs = { ...PREF_DEFAULTS };
   try { Object.assign(prefs, JSON.parse(localStorage.getItem('songbooks-clicktrack-prefs') || '{}')); } catch (e) { /* ignore */ }
+  delete prefs.group;
 
   let savePrefsTimer;
   function savePrefs() {
@@ -116,7 +126,6 @@
     savePrefs();
   });
 
-  let groupBars = parseInt(prefs.group, 10) || 1;
   // "Beat 1 only" — both the audible click AND the dot flash fire once
   // per bar instead of every beat, for a drummer who just wants a bar
   // reference, not a full click track. Reuses clock.js's existing
@@ -135,9 +144,8 @@
 
   const pickerEffects = {
     size: v => { compactEl.dataset.size = v; },
-    group: v => { groupBars = parseInt(v, 10) || 1; renderDots(); },
     orientation: v => { compactEl.classList.toggle('mc-landscape', v === 'landscape'); },
-    clickMode: v => { applyClickMode(); },
+    clickMode: () => { applyClickMode(); },
   };
   const pickerApply = {};
   function wireSeg(id, field) {
@@ -158,7 +166,6 @@
     apply(prefs[field]);
   }
   wireSeg('mc-size-picker', 'size');
-  wireSeg('mc-group-picker', 'group');
   wireSeg('mc-orientation-picker', 'orientation');
   wireSeg('mc-click-picker', 'clickMode');
 
@@ -171,30 +178,33 @@
   fetch('/api/me/click-track-prefs').then(r => (r.ok ? r.json() : null)).then(server => {
     if (!server) return;
     let changed = false;
-    for (const field of ['size', 'group', 'orientation', 'clickMode']) {
+    for (const field of ['size', 'orientation', 'clickMode']) {
       if (server[field] && server[field] !== prefs[field]) { prefs[field] = server[field]; pickerApply[field](server[field]); changed = true; }
     }
     if (typeof server.muted === 'boolean' && server.muted !== prefs.muted) { prefs.muted = server.muted; applyMute(); changed = true; }
     if (changed) { try { localStorage.setItem('songbooks-clicktrack-prefs', JSON.stringify(prefs)); } catch (e) { /* ignore */ } }
   }).catch(() => { /* offline/logged-out — local/default prefs already applied */ });
 
+  // One dot per beat of one bar; --beats lets the CSS size them to fill
+  // the width (capped by the Size option).
   function renderDots() {
     dotsEl.innerHTML = '';
-    const n = clock.beatsPerBar * groupBars;
-    for (let i = 0; i < n; i++) {
+    const n = clock.beatsPerBar;
+    dotsEl.style.setProperty('--beats', String(n));
+    for (let k = 0; k < n; k++) {
       const d = document.createElement('span');
-      d.className = 'beat-dot' + (i % clock.beatsPerBar === 0 ? ' downbeat' : '');
+      d.className = 'beat-dot' + (k === 0 ? ' downbeat' : '');
       dotsEl.appendChild(d);
     }
   }
   function tickDots() {
-    const n = clock.beatsPerBar * groupBars;
+    const n = clock.beatsPerBar;
     const dots = dotsEl.children;
     if (dots.length === n) {
       const idx = clock.running ? Math.floor(clock.currentBeat()) % n : -1;
-      for (let i = 0; i < dots.length; i++) {
-        const lit = i === idx && (prefs.clickMode !== 'beat1' || i % clock.beatsPerBar === 0);
-        dots[i].classList.toggle('lit', lit);
+      for (let k = 0; k < dots.length; k++) {
+        const lit = k === idx && (prefs.clickMode !== 'beat1' || k === 0);
+        dots[k].classList.toggle('lit', lit);
       }
     }
     requestAnimationFrame(tickDots);
@@ -216,6 +226,7 @@
       playBtn.title = t('start');
       playBtn.innerHTML = iconPlay;
     }
+    compactEl.classList.toggle('playing', playing);
   }
   playBtn.addEventListener('click', () => setPlaying(!clock.running));
   applyMute();
@@ -223,21 +234,146 @@
   tickDots();
   setBpm(bpm);
 
+  // ---- The song's click-track note: big, right under the title, and —
+  // for whoever may edit the set list — tap to edit in place, saved on
+  // Enter or when the field loses focus (Escape cancels). ---------------
+  const noteEl = document.getElementById('clicktrack-clicknote');
+  const noteInput = document.getElementById('clicktrack-clicknote-input');
+  const noteStatus = document.getElementById('clicktrack-clicknote-status');
+
+  function showNote(song) {
+    const text = song.clickNote || '';
+    if (!canEdit) {
+      noteEl.textContent = text;
+      noteEl.hidden = !text;
+      return;
+    }
+    // Still editing (moved on without the field losing focus): the blur
+    // saves what was typed against the song it was typed for.
+    if (!noteInput.hidden) noteInput.blur();
+    noteEl.textContent = text || t('Tap to add a note for this song');
+    noteEl.classList.toggle('empty', !text);
+    noteStatus.textContent = '';
+  }
+
+  let editingSong = null;
+  let cancelEdit = false;
+  if (canEdit) {
+    noteEl.addEventListener('click', () => {
+      const step = steps[cur];
+      if (step.kind !== 'song') return;
+      editingSong = step.song;
+      cancelEdit = false;
+      noteInput.value = editingSong.clickNote || '';
+      noteEl.hidden = true;
+      noteInput.hidden = false;
+      noteInput.focus();
+      noteInput.setSelectionRange(noteInput.value.length, noteInput.value.length);
+    });
+    noteInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); noteInput.blur(); }
+      else if (e.key === 'Escape') { e.preventDefault(); cancelEdit = true; noteInput.blur(); }
+    });
+    noteInput.addEventListener('blur', () => {
+      const song = editingSong;
+      editingSong = null;
+      noteInput.hidden = true;
+      noteEl.hidden = false;
+      if (!song) return;
+      const value = noteInput.value.trim();
+      if (cancelEdit || value === (song.clickNote || '')) {
+        cancelEdit = false;
+        if (steps[cur].song === song) showNote(song);
+        return;
+      }
+      saveNote(song, value);
+    });
+  }
+
+  function saveNote(song, value) {
+    const previous = song.clickNote || '';
+    // Every entry of this song in the set list shares the note.
+    const same = songs.filter(s => s.variantId === song.variantId);
+    same.forEach(s => { s.clickNote = value; });
+    if (steps[cur].song === song) showNote(song);
+    noteStatus.textContent = '';
+    fetch(`/api/setlists/${setlistId}/clicktrack-notes/${song.variantId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note: value }),
+    }).then(r => (r.ok ? r.json() : Promise.reject(r))).then(res => {
+      same.forEach(s => { s.clickNote = res.note || ''; });
+      if (steps[cur].song === song) { showNote(song); noteStatus.textContent = t('Saved'); }
+      renderSongList();
+    }).catch(() => {
+      same.forEach(s => { s.clickNote = previous; });
+      if (steps[cur].song === song) { showNote(song); noteStatus.textContent = t('Could not save the note.'); }
+    });
+  }
+
+  // ---- The song list: every song in order under its set's name; tap
+  // one to jump there and start the click on it. ------------------------
+  document.getElementById('clicktrack-songs-count').textContent = String(songs.length);
+  function renderSongList() {
+    songListEl.innerHTML = '';
+    let lastSet = -1;
+    songs.forEach(song => {
+      if (song.setIndex !== lastSet && song.setLabel) {
+        const h = document.createElement('li');
+        h.className = 'clicktrack-songlist-set';
+        h.textContent = song.setLabel;
+        songListEl.appendChild(h);
+      }
+      lastSet = song.setIndex;
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'clicktrack-songlist-item';
+      btn.dataset.step = String(song.step);
+      if (song.step === cur) btn.setAttribute('aria-current', 'true');
+      const num = document.createElement('span');
+      num.className = 'clicktrack-songlist-num';
+      num.textContent = String(song.index + 1);
+      const title = document.createElement('span');
+      title.className = 'clicktrack-songlist-title';
+      title.textContent = song.title;
+      const tempo = document.createElement('span');
+      tempo.className = 'clicktrack-songlist-tempo';
+      tempo.textContent = `${song.tempo} bpm`;
+      btn.append(num, title, tempo);
+      li.appendChild(btn);
+      songListEl.appendChild(li);
+    });
+  }
+  songListEl.addEventListener('click', e => {
+    const btn = e.target.closest('.clicktrack-songlist-item');
+    if (!btn) return;
+    goTo(parseInt(btn.dataset.step, 10), true);
+    // On a phone the list sits under the metronome: fold it and bring
+    // the dots back into view.
+    if (!wide.matches) {
+      songsFold.open = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  });
+
   // ---- Stepper: advance through the setlist, re-dialing the compact
   // engine to each song's own tempo/time-signature. ---------------------
   const totalSongs = songs.length;
-  let i = 0;
+  let cur = 0;
 
   function render() {
-    const step = steps[i];
+    const step = steps[cur];
     if (clock.running) setPlaying(false);
+    songListEl.querySelectorAll('.clicktrack-songlist-item').forEach(b => {
+      if (parseInt(b.dataset.step, 10) === cur) b.setAttribute('aria-current', 'true');
+      else b.removeAttribute('aria-current');
+    });
 
     if (step.kind === 'break') {
       nowPlayingCard.hidden = true;
       metronomeWrap.hidden = true;
       breakCard.hidden = false;
       breakLabel.textContent = step.setLabel ? t('Before %s — take a break, then continue when ready.', step.setLabel) : t('Before the next set — take a break, then continue when ready.');
-      prevBtn.disabled = i === 0;
+      prevBtn.disabled = cur === 0;
       nextBtn.disabled = false;
       return;
     }
@@ -251,19 +387,39 @@
     titleEl.textContent = song.title;
     metaEl.textContent = [song.artist, song.key ? t('key %s', song.key) : '', `${song.tempo} bpm`, song.timeSig]
       .filter(Boolean).join(' · ');
-    if (song.note) { noteEl.textContent = song.note; noteEl.hidden = false; }
-    else { noteEl.hidden = true; }
+    if (song.note) { entryNoteEl.textContent = song.note; entryNoteEl.hidden = false; }
+    else { entryNoteEl.hidden = true; }
+    showNote(song);
 
     setBpm(song.tempo);
     setTimeSig(song.timeSig);
 
-    prevBtn.disabled = i === 0;
-    nextBtn.disabled = i === steps.length - 1;
+    prevBtn.disabled = cur === 0;
+    nextBtn.disabled = cur === steps.length - 1;
   }
 
-  prevBtn.addEventListener('click', () => { if (i > 0) { i--; render(); } });
-  nextBtn.addEventListener('click', () => { if (i < steps.length - 1) { i++; render(); } });
-  breakContinue.addEventListener('click', () => { if (i < steps.length - 1) { i++; render(); } });
+  // Moving to another song while the click runs keeps it running, on
+  // the new song from its first beat; picking a song from the list (or
+  // "Start next set" after a break) starts it. A break step always stops.
+  function goTo(idx, start) {
+    if (idx < 0 || idx >= steps.length) return;
+    const wasRunning = clock.running;
+    cur = idx;
+    render();
+    if ((start || wasRunning) && steps[cur].kind === 'song') setPlaying(true);
+  }
 
+  prevBtn.addEventListener('click', () => goTo(cur - 1, false));
+  nextBtn.addEventListener('click', () => goTo(cur + 1, false));
+  breakContinue.addEventListener('click', () => goTo(cur + 1, true));
+
+  // Wide screens have room for the song list and options next to the
+  // metronome: open them there; a phone keeps them folded.
+  if (wide.matches) {
+    songsFold.open = true;
+    document.getElementById('clicktrack-options-fold').open = true;
+  }
+
+  renderSongList();
   render();
 })();

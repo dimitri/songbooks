@@ -291,5 +291,8 @@
   "choose a student": "choisir un élève",
   "key|yours": "la vôtre",
   "key|trying": "essai",
-  "Saved for %s": "Enregistrée pour %s"
+  "Saved for %s": "Enregistrée pour %s",
+  "Tap to add a note for this song": "Touchez pour ajouter une note à ce morceau",
+  "Saved": "Enregistré",
+  "Could not save the note.": "Impossible d’enregistrer la note."
 }
