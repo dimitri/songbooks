@@ -130,6 +130,10 @@ func (s *Server) handleCoachingGroupPage(w http.ResponseWriter, r *http.Request)
 	data["Lessons"] = lessons
 	data["PracticeGroupID"] = g.ID
 	data["Now"] = time.Now()
+	if err := s.checkLevelsData(r, community.ID, data); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	if data["Assignments"], err = s.store.ListGroupAssignments(ctx, g.ID, false); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return

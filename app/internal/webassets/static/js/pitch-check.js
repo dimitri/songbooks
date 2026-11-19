@@ -157,16 +157,55 @@
     return out;
   }
 
-  // How strict, by level: a note in tune within so many cents, on time
-  // within so many milliseconds. Beginner: the right note, give or take a
-  // semitone (the line past which research calls a singer "poor-pitch");
-  // intermediate: research's own "accurate" (±50, half a semitone);
-  // advanced: about what a listener hears as in tune (20–30 cents).
+  // How strict, by level, from what listeners hear (Larrouy-Maestri et
+  // al.: non-musicians call a note out of tune from about 20–30 cents,
+  // experts from about 10). Beginner: research's "accurate" singing, half
+  // a semitone (±50, Pfordresher & Demorest); intermediate: what anyone
+  // would hear (±25); advanced: what a trained ear hears (±15: the
+  // tracking's own error is near 10 cents, a tighter margin would fault
+  // a perfect singer). On time
+  // within 200, 120, 70 ms.
+  // The app's; a coach sets their own (check_settings.go), applied when
+  // the song's progress comes (useCoachSettings).
   const LEVELS = {
-    beginner: { cents: 100, ms: 200, label: () => t('Beginner') },
-    intermediate: { cents: 50, ms: 120, label: () => t('Intermediate') },
-    advanced: { cents: 25, ms: 70, label: () => t('Advanced') },
+    beginner: { cents: 50, ms: 250, label: () => t('Beginner') },
+    intermediate: { cents: 25, ms: 160, label: () => t('Intermediate') },
+    advanced: { cents: 15, ms: 110, label: () => t('Advanced') },
   };
+  function useCoachSettings(settings) {
+    for (const l of (settings && settings.levels) || []) {
+      const lv0 = LEVELS[l.key];
+      if (!lv0) continue;
+      const appLabel = lv0.appLabel || lv0.label;
+      LEVELS[l.key] = { cents: l.cents, ms: l.ms, appLabel, label: l.name ? () => l.name : appLabel };
+    }
+  }
+
+  // The words after a take: the coach's (check_settings.go), else the
+  // app's, with {name}, {cents}, {ms}, {pitch}, {rhythm} filled in.
+  const WORDS = {
+    goal_reached: () => t('Goal reached! Well done, {name}.'),
+    personal_best: () => t('Personal best!'),
+    three_stars: () => t('Three stars: beautifully sung, {name}.'),
+    keep_going: () => t('Keep going: every take counts, and the next one will be better.'),
+    centre: () => t('Right in the middle of the notes.'),
+    flat: () => t('A little flat ({cents} cents): aim a touch higher.'),
+    sharp: () => t('A little sharp ({cents} cents): aim a touch lower.'),
+    far: () => t('The notes are often far: listen to the line again, with the voice up.'),
+    steady: () => t('Steady: your entries fall together.'),
+    uneven: () => t('A little uneven ({ms} ms): count the rests.'),
+    very_uneven: () => t('Uneven ({ms} ms): clap the rhythm, then sing it.'),
+  };
+  let coachSaid = false;
+  function say(key, vars) {
+    const mine = info && info.settings && info.settings.messages && info.settings.messages[key];
+    if (mine) coachSaid = true;
+    const all = Object.assign({ name: (info && info.name) || '' }, vars);
+    const text = (mine || WORDS[key]()).replace(/\{(\w+)\}/g, (m, k) => (all[k] !== undefined ? String(all[k]) : m));
+    const span = document.createElement('span');
+    span.textContent = text.replace(/,\s*\./g, '.').replace(/\s+\./g, '.');
+    return span.outerHTML;
+  }
   const LEVEL_KEY = 'songbooks:pitch-level';
   const storedLevel = () => { try { return localStorage.getItem(LEVEL_KEY); } catch (e) { return null; } };
 
@@ -177,7 +216,7 @@
   function judge(note, frames, lag, key, lv) {
     const target = note.midi + key;
     const fold = (m) => { let d = m - target; d -= 12 * Math.round(d / 12); return d * 100; };
-    const trim = Math.min(0.08, (note.end - note.start) * 0.25);
+    const trim = Math.min(0.1, (note.end - note.start) * 0.25);
     let all = 0, devs = [];
     let onset = null, quiet = 0;
     for (const [tm, m] of frames) {
@@ -188,7 +227,7 @@
         if (isNaN(m) || Math.abs(fold(m)) > 200) quiet += 1;
         else { if (quiet >= 3) onset = rt - note.start; quiet = 0; }
       }
-      if (rt < note.start + trim || rt > note.end) continue;
+      if (rt < note.start + trim || rt > note.end - trim) continue; // the note's middle: its edges carry its neighbours
       all++;
       if (!isNaN(m)) devs.push(fold(m));
     }
@@ -306,7 +345,7 @@
     if (!ctx) return;
     try {
       const r = await fetch(`/api/practice/pitch?songbookId=${ctx.songbookId}&variantId=${ctx.variantId}`);
-      if (r.status === 200) info = await r.json();
+      if (r.status === 200) { info = await r.json(); useCoachSettings(info.settings); }
     } catch (e) { /* no info: still checks, keeps nothing */ }
     renderLevels(); renderGoal(); renderHistory();
   }
@@ -442,6 +481,7 @@
   }
 
   // ---- A take's end: stars, the scores, the goal, kept --------------------
+  const escapeHTML = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const clockTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   const stars = (p, target) => { const goalAt = target || 70; return p >= goalAt ? 3 : p >= goalAt * 0.75 ? 2 : p >= goalAt * 0.4 ? 1 : 0; };
   async function endTake() {
@@ -454,17 +494,19 @@
     if (s.sung < 4) return;
     const target = info && info.pitchTarget;
     const n = stars(s.pitch, target);
-    const tendency = s.pitch < 40 ? t('the notes are often far: listen to the line again, with the voice up')
-      : Math.abs(s.cents) < 10 ? t('right in the middle of the notes')
-      : s.cents < 0 ? t('a little flat (%d cents): aim a touch higher', -s.cents) : t('a little sharp (%d cents): aim a touch lower', s.cents);
-    const timing = s.timed < 3 ? t('not enough entries to tell') : s.ms <= 60 ? t('steady, your entries fall together') : s.ms <= 150 ? t('a little uneven (%d ms): count the rests', s.ms) : t('uneven (%d ms): clap the rhythm, then sing it', s.ms);
+    coachSaid = false;
+    const vars = { cents: Math.abs(s.cents), ms: s.ms, pitch: s.pitch, rhythm: s.rhythm };
+    const tendency = s.pitch < 40 ? say('far', vars) : Math.abs(s.cents) < 10 ? say('centre', vars) : say(s.cents < 0 ? 'flat' : 'sharp', vars);
+    const half = lv().ms / 2;
+    const timing = s.timed < 3 ? '' : say(s.ms <= half ? 'steady' : s.ms <= lv().ms ? 'uneven' : 'very_uneven', vars);
+    const cheer = n === 3 ? say('three_stars', vars) : n === 0 ? say('keep_going', vars) : '';
     result.innerHTML = `
       <div class="take-stars" aria-label="${t('%d stars out of 3', n)}">${[0, 1, 2].map((i) => `<span class="${i < n ? 'is-on' : ''}">★</span>`).join('')}</div>
       <div class="take-scores">
         <div><strong>${s.pitch}%</strong><span>${t('in tune')}</span><small>${t('%d of %d notes', s.hits, s.sung)}</small></div>
         <div><strong>${s.rhythm}%</strong><span>${t('on time')}</span><small>${t('%d of %d notes', s.onTime, s.timed)}</small></div>
       </div>
-      <p>${t('Pitch: %s.', tendency)} ${t('Timing: %s.', timing)}</p>`;
+      <p class="take-words">${cheer ? cheer + ' ' : ''}${tendency} ${timing}${coachSaid && info.coach ? ` <span class="take-coach">— ${escapeHTML(info.coach)}</span>` : ''}</p>`;
     const slips = s.judged.filter((j) => j.sung && !j.hit).map((j) => Math.floor(j.note.start / 5) * 5);
     const counts = {};
     slips.forEach((x0) => { counts[x0] = (counts[x0] || 0) + 1; });
@@ -491,9 +533,10 @@
       if (r.status !== 200) return;
       const before = info;
       info = await r.json();
+      useCoachSettings(info.settings);
       const best = !before || !before.best || s.pitch > (before.best.pitch || 0);
       const reached = info.reached && !(before && before.reached);
-      if (reached || (best && before && before.takes && before.takes.length)) celebrate(reached ? t('Goal reached!') : t('Personal best!'));
+      if (reached || (best && before && before.takes && before.takes.length)) celebrate(reached ? say('goal_reached', vars) : say('personal_best', vars));
       renderLevels(); renderGoal(); renderHistory();
     } catch (e) { /* kept for this page only */ }
   }

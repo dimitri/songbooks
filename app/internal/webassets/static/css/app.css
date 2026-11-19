@@ -7021,6 +7021,22 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .take-party strong { display: block; font-size: 1.2rem; color: var(--pitch-hit); animation: take-star 0.5s ease both; }
 .take-party i { position: absolute; bottom: 0; font-style: normal; font-size: 1.2rem; color: #e8b923; animation: take-float 2.6s ease-out both; }
 @keyframes take-float { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-5.5rem) rotate(25deg); opacity: 0; } }
+.take-words { line-height: 1.5; }
+.take-coach { font-style: italic; color: var(--fg-muted); white-space: nowrap; }
+/* The coach's settings for checking singing (check_settings.go). */
+.check-levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.8rem; }
+.check-level { border: 1px solid var(--border); border-radius: var(--radius-card, 10px); padding: 0.6rem 0.8rem 0.8rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.check-level legend { font-weight: 700; padding: 0 0.3rem; }
+.check-level label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.9rem; }
+.check-range { display: flex; align-items: center; gap: 0.5rem; }
+.check-range input { flex: 1; }
+.check-range output { min-width: 2.2rem; text-align: right; font-weight: 700; }
+.check-messages { display: flex; flex-direction: column; gap: 0.8rem; }
+.check-message { display: flex; flex-direction: column; gap: 0.25rem; }
+.check-message-when { font-weight: 600; font-size: 0.9rem; }
+.check-message textarea { width: 100%; }
+.check-message.is-custom textarea { border-color: var(--accent); }
+.check-save { position: sticky; bottom: 4.5rem; padding: 0.6rem 0; background: var(--bg); }
 @media (prefers-reduced-motion: reduce) { .take-stars .is-on, .take-party strong, .take-party i { animation: none; } .take-party i { display: none; } }
 /* Live lessons (live.go): an online lesson's Join, lit from 15 minutes
    before it starts; how the person joins, headphones or not. */

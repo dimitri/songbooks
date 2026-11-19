@@ -125,21 +125,33 @@ any song whose recording has its voice apart:
   tracked the same way. Drawn as it's sung: the notes as bars, coloured
   once passed, the singer's pitch as dots.
 - **Scored per note**, as research scores singing (a note in tune within
-  so many cents of its target, octave aside): its steady part's median
-  against the note. Three levels: *Beginner* within 100 cents (the
-  right note, give or take a semitone: past it research speaks of
-  "poor-pitch" singers, 10–20% of adults), *Intermediate* within 50
-  (research's "accurate"), *Advanced* within 25 (about what a listener
-  hears as out of tune).
+  so many cents of its target, octave aside): the median of its middle
+  (its edges carry its neighbours) against the note. Three levels, the
+  app's from what listeners hear (non-musicians call a note out of tune
+  from about 20–30 cents, experts from about 10): *Beginner* within 50
+  cents (research's "accurate" singing; past 100, research speaks of
+  "poor-pitch" singers, 10–20% of adults), *Intermediate* within 25 (what
+  anyone hears), *Advanced* within 15 (a trained ear; the tracking's own
+  error is near 10 cents, so a tighter margin faults a perfect take). A
+  note within twice the margin shows amber: close.
 - **Placement**: each entry after a rest, against the take's own median
   (the device's latency, which no browser reports exactly, cancels
-  out): on time within 200, 120 or 70 ms. Steadiness, not early or late.
+  out): on time within 250, 160 or 110 ms (entries are measured to about
+  ±60 ms). Steadiness, not early or late.
 - **A take** ends at a pause: three stars, the notes in tune and on time,
   the tendency (flat, sharp) and the steadiness in words, the passages
   that slip (a click goes there).
 - **Kept** for a coaching student singing a song of their songbook
   (migration 0085): every take (practice_takes), the day's last scores
   on their practice log.
+- **The coach's settings** (`/communities/{id}/checking`, linked from the
+  Students tab and the goal form; migration 0086): each level's name and
+  margins (cents, ms), and the words after a take, by situation (on the
+  notes, flat, sharp, far, steady, uneven, three stars, no star yet, a
+  personal best, the goal reached), the app's filled in as examples to
+  rewrite, with `{name}`, `{cents}`, `{ms}`, `{pitch}`, `{rhythm}`. Words
+  the coach wrote are signed with their first name. A take keeps the
+  margins it was judged with.
 - **The coach's goal**: on an assignment of a song, a level and the share
   of notes in tune and on time to reach. The student sees it as two
   bars filling with their best take; reaching it is marked on the

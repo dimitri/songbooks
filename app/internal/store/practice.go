@@ -249,7 +249,7 @@ func (st *Store) LogPlayed(ctx context.Context, personID, songbookID, variantID 
 }
 
 // Levels of strictness for a checked take (pitch-check.js): in tune
-// within 100, 50 or 25 cents, on time within 200, 120 or 70 ms.
+// within 50, 25 or 12 cents, on time within 200, 120 or 70 ms.
 var takeLevels = map[string]bool{"beginner": true, "intermediate": true, "advanced": true}
 
 // Take is a take checked by pitch-check.js.
@@ -301,10 +301,15 @@ func (st *Store) RecordTake(ctx context.Context, personID, songbookID, variantID
 		return false, err
 	}
 	defer tx.Rollback(ctx)
+	settings, err := st.GetCheckSettings(ctx, communityID)
+	if err != nil {
+		return false, err
+	}
+	margin := settings.Level(tk.Level)
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO practice_takes (person_id, community_id, variant_id, songbook_id, level, pitch, rhythm, cents, ms, notes, hits, seconds)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-		personID, communityID, variantID, songbookID, tk.Level, tk.Pitch, tk.Rhythm, tk.Cents, tk.Ms, tk.Notes, tk.Hits, clamp(tk.Seconds, 0, 3600)); err != nil {
+		INSERT INTO practice_takes (person_id, community_id, variant_id, songbook_id, level, pitch, rhythm, cents, ms, notes, hits, seconds, cents_margin, ms_margin)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+		personID, communityID, variantID, songbookID, tk.Level, tk.Pitch, tk.Rhythm, tk.Cents, tk.Ms, tk.Notes, tk.Hits, clamp(tk.Seconds, 0, 3600), margin.Cents, margin.Ms); err != nil {
 		return false, err
 	}
 	if _, err := tx.Exec(ctx, `
@@ -352,6 +357,11 @@ type SongProgress struct {
 	Best         *TakeScore  `json:"best,omitempty"` // at the goal's level, else any
 	Takes        []TakeScore `json:"takes"`          // the last ones, oldest first
 	Streak       int         `json:"streak"`         // days in a row with practice, to today or yesterday
+	// The coach's settings (levels, messages), the student's first name
+	// and the coach's, for the messages.
+	Settings CheckSettings `json:"settings"`
+	Name     string        `json:"name"`
+	Coach    string        `json:"coach"`
 }
 
 // SongProgressOf is a student's progress on a song of their songbook;
@@ -412,6 +422,20 @@ func (st *Store) SongProgressOf(ctx context.Context, personID, songbookID, varia
 	if p.Streak, err = st.PracticeStreak(ctx, communityID, personID); err != nil {
 		return nil, err
 	}
+	if p.Settings, err = st.GetCheckSettings(ctx, communityID); err != nil {
+		return nil, err
+	}
+	var name, coach string
+	err = st.db.QueryRow(ctx, `
+		SELECT (SELECT display_name FROM people WHERE id = $1),
+		       coalesce((SELECT p.display_name FROM community_members cm JOIN people p ON p.id = cm.person_id
+		                 JOIN community_roles r ON r.id = cm.role_id
+		                 WHERE cm.community_id = $2 AND upper_inf(cm.validity) AND r.name = 'staff' ORDER BY cm.id LIMIT 1),
+		                (SELECT name FROM communities WHERE id = $2))`, personID, communityID).Scan(&name, &coach)
+	if err != nil {
+		return nil, err
+	}
+	p.Name, p.Coach = firstName(name), firstName(coach)
 	return p, nil
 }
 
@@ -532,4 +556,14 @@ func (st *Store) CommunityHasSong(ctx context.Context, communityID, variantID in
 		SELECT EXISTS (SELECT 1 FROM songbook_entries e JOIN songbooks sb ON sb.id = e.songbook_id
 		               WHERE sb.owner_community_id = $1 AND e.variant_id = $2)`, communityID, variantID).Scan(&ok)
 	return ok, err
+}
+
+// firstName is a name's first word ("Chloé Paul": "Chloé").
+func firstName(s string) string {
+	for i, r := range s {
+		if r == ' ' {
+			return s[:i]
+		}
+	}
+	return s
 }

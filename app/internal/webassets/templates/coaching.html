@@ -153,6 +153,7 @@
   {{template "brand-banner" $brand}}
   {{template "community-tabs" .}}
   <section class="home-section">
+    <p class="coach-subscribe"><a href="/communities/{{.Community.ID}}/checking">{{t "Checking singing: your levels and your words"}} →</a></p>
     <div class="home-section-head"><h3>{{t "Your students"}}</h3><span class="count">{{len .Students}}</span>
       {{if .Students}}<span class="seg students-view" role="group" aria-label="{{t "Show as"}}"><button type="button" data-view="cards">{{t "Cards"}}</button><button type="button" data-view="table">{{t "Table"}}</button></span>{{end}}</div>
     {{if .Students}}
@@ -356,7 +357,7 @@
       {{with .Notes}}<p class="practice-notes">{{.}}</p>{{end}}
       {{if .HasGoal}}
       <div class="practice-goal{{if .ReachedAt}} is-reached{{end}}">
-        <span class="practice-goal-title">{{if .ReachedAt}}{{t "Goal reached"}} ★{{else}}{{t "Goal"}}{{end}} <span class="hint">· {{template "pitch-level-name" .Level}}</span></span>
+        <span class="practice-goal-title">{{if .ReachedAt}}{{t "Goal reached"}} ★{{else}}{{t "Goal"}}{{end}} <span class="hint">· {{index $.CheckLevelNames .Level}}</span></span>
         {{if .PitchTarget}}<span class="practice-goal-row"><span>{{t "In tune"}}</span><span class="goal-bar"><i style="width:{{pct .BestPitch .PitchTarget}}%"></i></span><span>{{with .BestPitch}}{{.}}{{else}}0{{end}} / {{.PitchTarget}} %</span></span>{{end}}
         {{if .RhythmTarget}}<span class="practice-goal-row"><span>{{t "On time"}}</span><span class="goal-bar"><i style="width:{{pct .BestRhythm .RhythmTarget}}%"></i></span><span>{{with .BestRhythm}}{{.}}{{else}}0{{end}} / {{.RhythmTarget}} %</span></span>{{end}}
         {{if and (not $.IsCoach) (not .ReachedAt)}}<span class="hint">{{t "Open the song, then Check my singing: your best take counts."}}</span>{{end}}
@@ -391,9 +392,9 @@
       <label>{{t "Or in words"}} <input type="text" name="title" placeholder="{{t "Lip trills, 5 minutes a day"}}"></label>
       <label>{{t "What to work on"}} <textarea name="notes" rows="2" placeholder="{{t "the bridge, breathe before the long note…"}}"></textarea></label>
       <fieldset class="practice-assign-goal">
-        <legend>{{t "A goal to reach, checking their singing (a song only)"}}</legend>
+        <legend>{{t "A goal to reach, checking their singing (a song only)"}} · <a href="/communities/{{.Community.ID}}/checking">{{t "levels and your words"}} →</a></legend>
         <div class="practice-assign-row">
-          <label>{{t "Level"}} <select name="level"><option value="beginner" title="{{t "in tune within 100 cents, on time within 200 ms"}}">{{t "Beginner"}}</option><option value="intermediate" title="{{t "in tune within 50 cents, on time within 120 ms"}}">{{t "Intermediate"}}</option><option value="advanced" title="{{t "in tune within 25 cents, on time within 70 ms"}}">{{t "Advanced"}}</option></select></label>
+          <label>{{t "Level"}} <select name="level">{{range .CheckLevels}}<option value="{{.Key}}" title="{{t "in tune within %d cents, on time within %d ms" .Cents .Ms}}">{{.Label}}</option>{{end}}</select></label>
           <label>{{t "In tune, %"}} <input type="number" name="pitchTarget" min="1" max="100" placeholder="70"></label>
           <label>{{t "On time, %"}} <input type="number" name="rhythmTarget" min="1" max="100" placeholder="60"></label>
         </div>
@@ -483,6 +484,97 @@
   }));
 })();
 </script>
+{{end}}
+
+{{/* The coach's settings for checking singing (check_settings.go): the
+     three levels' margins and names, and the words students get after a
+     take, the app's filled in as examples to rewrite. */}}
+{{define "coaching_checking"}}
+{{$brand := brandFor "community" .Community.ID}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+{{template "coaching-head"}}
+<title>{{t "Checking singing"}} — {{.Community.Name}}</title>
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/communities/{{.Community.ID}}/students">{{template "icon-back"}} {{t "Students"}}</a>
+  <h1>{{t "Checking singing"}}</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index check-settings" data-community="{{.Community.ID}}">
+  {{template "brand-banner" $brand}}
+  <p class="hint">{{t "Your students check their singing on a song’s page: they sing over the recording, and get a score, stars and a word from you. Set how strict each level is, and write those words in your own voice. They apply to every song, and to the exercises."}}</p>
+
+  <section class="home-section">
+    <div class="home-section-head"><h3>{{t "The three levels"}}</h3></div>
+    <p class="hint">{{t "A note is in tune within its margin, in cents (100 cents: a semitone). For reference: listeners who aren’t musicians hear a note as out of tune from about 20 to 30 cents, trained ears from about 10; research counts a singer as accurate within 50. The app measures pitch to about 10 cents, and entries to about 60 ms: a margin under that would fault a perfect take."}}</p>
+    <div class="check-levels">
+    {{range .Levels}}
+      <fieldset class="check-level" data-key="{{.Key}}">
+        <legend>{{.Label}}</legend>
+        <label>{{t "Name"}} <input type="text" name="name" value="{{.Name}}" placeholder="{{.Label}}" maxlength="30"></label>
+        <label>{{t "In tune within"}} <span class="check-range"><input type="range" name="cents" min="5" max="100" step="1" value="{{.Cents}}"><output>{{.Cents}}</output> {{t "cents"}}</span></label>
+        <label>{{t "On time within"}} <span class="check-range"><input type="range" name="ms" min="30" max="400" step="10" value="{{.Ms}}"><output>{{.Ms}}</output> ms</span></label>
+        <button type="button" class="link-btn check-level-reset" data-cents="{{.Default.Cents}}" data-ms="{{.Default.Ms}}">{{t "Back to the app’s (%d cents, %d ms)" .Default.Cents .Default.Ms}}</button>
+      </fieldset>
+    {{end}}
+    </div>
+  </section>
+
+  <section class="home-section">
+    <div class="home-section-head"><h3>{{t "Your words after a take"}}</h3></div>
+    <p class="hint">{{t "Here are the app’s, as examples: rewrite them as you would say them in a lesson. In braces, what the app fills in: {name} the student’s first name, {cents} how far from the notes, {ms} how uneven the entries, {pitch} and {rhythm} the scores."}}</p>
+    <div class="check-messages">
+    {{range .Messages}}
+      <label class="check-message{{if .Custom}} is-custom{{end}}" data-key="{{.Key}}" data-default="{{.Default}}">
+        <span class="check-message-when">{{.When}} {{if .Custom}}<span class="voice-tag">{{t "yours"}}</span>{{end}}</span>
+        <textarea rows="2" name="{{.Key}}">{{.Text}}</textarea>
+        <span class="hint">{{.Vars}} · <button type="button" class="link-btn check-message-reset">{{t "the app’s words"}}</button></span>
+      </label>
+    {{end}}
+    </div>
+  </section>
+
+  <div class="check-save"><button type="button" class="primary check-save-btn">{{t "Save"}}</button> <span class="hint check-saved" aria-live="polite"></span></div>
+</main>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+<script>
+(() => {
+  const page = document.querySelector('.check-settings');
+  page.querySelectorAll('.check-range input').forEach((r) => r.addEventListener('input', () => { r.nextElementSibling.textContent = r.value; }));
+  page.querySelectorAll('.check-level-reset').forEach((b) => b.addEventListener('click', () => {
+    const f = b.closest('.check-level');
+    for (const [name, v] of [['cents', b.dataset.cents], ['ms', b.dataset.ms]]) { const r = f.querySelector(`input[name=${name}]`); r.value = v; r.nextElementSibling.textContent = v; }
+    f.querySelector('input[name=name]').value = '';
+  }));
+  page.querySelectorAll('.check-message-reset').forEach((b) => b.addEventListener('click', () => {
+    const m = b.closest('.check-message');
+    m.querySelector('textarea').value = m.dataset.default;
+  }));
+  page.querySelector('.check-save-btn').addEventListener('click', () => {
+    const levels = [...page.querySelectorAll('.check-level')].map((f) => ({
+      key: f.dataset.key, name: f.querySelector('input[name=name]').value.trim(),
+      cents: Number(f.querySelector('input[name=cents]').value), ms: Number(f.querySelector('input[name=ms]').value),
+    }));
+    const messages = {};
+    // only the words the coach changed: the others stay the app's
+    page.querySelectorAll('.check-message').forEach((m) => { const v = m.querySelector('textarea').value.trim(); if (v !== m.dataset.default.trim()) messages[m.dataset.key] = v; });
+    const out = page.querySelector('.check-saved');
+    fetch(`/api/communities/${page.dataset.community}/check-settings`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ levels, messages }) })
+      .then((r) => { if (!r.ok) throw new Error(); out.textContent = t('Saved'); setTimeout(() => location.reload(), 600); })
+      .catch(() => { out.textContent = t('Couldn’t save'); });
+  });
+})();
+</script>
+</body>
+</html>
 {{end}}
 
 {{define "coaching_student"}}
