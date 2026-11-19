@@ -23,9 +23,10 @@
   const keys = rhythm ? Array(Math.max(1, Number(p.repeats) || 4)).fill(0) : W.expandPath(waypoints, p.step);
 
   let built = null;
-  // alphaTab scrolls the bar being played into view: below the player card
+  // alphaTab scrolls the bar being played into view: below the practice
+  // card while it stays in view
   const card = page.querySelector('.warmup-player');
-  const player = W.player(page.querySelector('.warmup-score-canvas'), { scrollOffsetY: () => -(card.offsetHeight + 16) });
+  const player = W.player(page.querySelector('.warmup-score-canvas'), { scrollOffsetY: () => -((getComputedStyle(card).position === 'sticky' ? card.offsetHeight : 0) + 16) });
   const pathText = page.querySelector('.warmup-path-text');
   const progress = page.querySelector('.warmup-progress');
   function load() {
@@ -41,8 +42,9 @@
     progress.innerHTML = r.map(() => '<i></i>').join('');
     if (checker) checker.refresh();
   }
+  if (rhythm) page.querySelector('.warmup-octave').hidden = true;
   page.querySelectorAll('.warmup-octave button').forEach((b) => {
-    if (rhythm) { b.hidden = true; return; }
+    if (rhythm) return;
     b.addEventListener('click', () => {
       octave = Math.max(-24, Math.min(24, octave + Number(b.dataset.octave)));
       try { localStorage.setItem(OCT_KEY, String(octave)); } catch (e) { /* this page only */ }
@@ -58,12 +60,19 @@
   play.addEventListener('click', () => { W.audioSession('playback'); api.countInVolume = 1; if (rhythm) api.metronomeVolume = 1; api.playPause(); });
   stop.addEventListener('click', () => api.stop());
   page.querySelector('.warmup-speed').addEventListener('change', (e) => { api.playbackSpeed = Number(e.target.value) || 1; });
-  const guide = page.querySelector('.warmup-guide input');
+  // the line on the piano: an option of the transport, on or off
+  const guide = page.querySelector('.warmup-guide');
+  let guideOn = true;
   function applyGuide() {
     if (!api.score || !api.score.tracks.length) return;
-    api.changeTrackVolume([api.score.tracks[0]], guide.checked ? 0.8 : 0);
+    api.changeTrackVolume([api.score.tracks[0]], guideOn ? 0.8 : 0);
   }
-  guide.addEventListener('change', applyGuide);
+  guide.addEventListener('click', () => {
+    guideOn = !guideOn;
+    guide.classList.toggle('active', guideOn);
+    guide.setAttribute('aria-pressed', String(guideOn));
+    applyGuide();
+  });
   const playIcon = play.innerHTML;
   const pauseIcon = '<svg class="icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="3.5" height="12" rx="1"/><rect x="11.5" y="4" width="3.5" height="12" rx="1"/></svg>';
   api.playerStateChanged.on((e) => {
@@ -71,6 +80,7 @@
     play.innerHTML = on ? pauseIcon : playIcon;
     play.setAttribute('aria-label', on ? t('Pause') : t('Train'));
     play.classList.toggle('is-playing', on);
+    page.classList.toggle('is-playing', on);
   });
   // Where it is: the key sung now, the repeat, the time; the repeats done.
   const keyEl = page.querySelector('.warmup-key'), repEl = page.querySelector('.warmup-rep'), timeEl = page.querySelector('.warmup-time');
@@ -93,9 +103,16 @@
   let demo = null;
   if (ex.hasDemo) {
     listen.hidden = false;
-    listen.querySelector('span').textContent = t('Listen to %s', data.coach || t('the coach'));
+    // French elides before a vowel: l’exemple d’Inès
+    let words = data.coach ? t('Listen to %s’s example', data.coach) : t('Listen to the example');
+    if (window.SB_LANG === 'fr') words = words.replace(/ de ([aeiouyàâäéèêëîïôöûü])/i, ' d’$1');
+    listen.querySelector('span').textContent = words;
     listen.addEventListener('click', () => {
-      if (!demo) demo = new Audio(`${demoURL}?v=${encodeURIComponent(ex.demoAt || '')}`);
+      if (!demo) {
+        demo = new Audio(`${demoURL}?v=${encodeURIComponent(ex.demoAt || '')}`);
+        const lit = () => listen.classList.toggle('active', !demo.paused);
+        demo.addEventListener('play', lit); demo.addEventListener('pause', lit); demo.addEventListener('ended', lit);
+      }
       if (demo.paused) { api.stop(); demo.currentTime = 0; demo.play(); } else demo.pause();
     });
   }
@@ -168,14 +185,39 @@
   }
 
   // ---- Checking: against the exercise's own notes -------------------------
-  let checker = null;
+  // The card's Pitch (Rhythm) option: on, the checker's lane opens in the
+  // card under the transport and the microphone listens, a take scored as
+  // it plays; off, the microphone stops and the lane goes. On a phone the
+  // score folds away meanwhile: the lane shows the notes.
+  let checker = null, checking = false;
   const pc = window.songbooksPitchCheck;
+  const checkBtn = page.querySelector('.warmup-check-toggle');
+  const scoreBox = page.querySelector('.warmup-score-box');
+  const phone = matchMedia('(max-width: 900px)');
+  let scoreStale = false;
+  function fold() {
+    const folded = checking && phone.matches;
+    page.classList.toggle('is-checking', checking);
+    page.classList.toggle('is-folded', folded);
+    scoreBox.open = !folded;
+    // the cursor follows the score only while it shows
+    if (window.alphaTab && alphaTab.ScrollMode) {
+      const mode = folded ? alphaTab.ScrollMode.Off : alphaTab.ScrollMode.Continuous;
+      if (api.settings.player.scrollMode !== mode) { api.settings.player.scrollMode = mode; api.updateSettings(); }
+    }
+  }
+  phone.addEventListener?.('change', fold);
+  // a score loaded while folded is drawn again as it opens
+  api.scoreLoaded.on(() => { if (!scoreBox.open) scoreStale = true; });
+  scoreBox.addEventListener('toggle', () => { if (scoreBox.open && scoreStale) { scoreStale = false; api.render(); } });
   if (pc) {
     const student = !data.isCoach && data.studentId;
     checker = pc.create({
       mount: (panel) => document.getElementById('warmup-check').append(panel),
+      toggle: false,
+      onChange: (on) => { checkBtn.classList.toggle('active', on); checkBtn.setAttribute('aria-pressed', String(on)); },
       clock: () => player.clock(),
-      visible: () => !!built,
+      visible: () => !!built && checking,
       notesKey: () => `${octave}:${keys.join(',')}`,
       loadNotes: async () => built.notes.map((n, i, all) => ({ start: n.start, end: n.end, midi: n.midi, afterRest: rhythm || i === 0 || all[i - 1].end < n.start - 0.05 || all[i - 1].repeat !== n.repeat })),
       loading: () => t('Preparing the exercise…'),
@@ -193,6 +235,16 @@
         return got;
       } : null,
       anyPitch: rhythm,
+    });
+    checkBtn.hidden = false;
+    // On: shown, listening (a failed start leaves the panel up with why,
+    // the option off; pressed again, it tries again). Off: stopped, gone.
+    checkBtn.addEventListener('click', () => {
+      const on = checkBtn.classList.contains('active');
+      checking = !on;
+      fold();
+      checker.refresh();
+      if (on) checker.stop(); else checker.start();
     });
   }
 

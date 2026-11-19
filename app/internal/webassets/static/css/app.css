@@ -7338,10 +7338,13 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .pitch-check-head { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem; }
 .pitch-check-toggle { display: inline-flex; align-items: center; min-height: 2.75rem; padding: 0 1rem; border: 1px solid var(--border); border-radius: var(--radius-control, 6px); background: transparent; color: var(--fg); font-weight: 600; cursor: pointer; }
 .pitch-check-toggle.is-on { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
-.pitch-check-levels { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
-.pitch-check-levels button { border: 0; background: transparent; color: var(--fg-muted); padding: 0.3rem 0.7rem; font-size: 0.8rem; cursor: pointer; }
-.pitch-check-levels button[aria-pressed="true"] { background: var(--accent); color: var(--accent-contrast); }
-.pitch-level-fixed { padding: 0.3rem 0.7rem; font-size: 0.8rem; font-weight: 600; }
+/* The goal, said in words, and how strict: a list saying each level's margin. */
+.pitch-check-aim { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.9rem; margin-top: 0.5rem; font-size: 0.88rem; min-width: 0; }
+.pitch-check-objective { font-weight: 600; }
+.pitch-check-levels { display: flex; min-width: 0; max-width: 100%; }
+.pitch-check-levels label { display: flex; align-items: center; gap: 0.4rem; min-width: 0; max-width: 100%; color: var(--fg-muted); font-size: 0.85rem; }
+.pitch-check-levels select { min-width: 0; max-width: 100%; min-height: 2.2rem; font-size: 0.85rem; text-overflow: ellipsis; }
+.pitch-level-fixed { font-size: 0.85rem; color: var(--fg-muted); }
 .pitch-check-lane { display: block; width: 100%; height: 150px; margin-top: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-card, 10px); background: var(--bg-raised, transparent); }
 .pitch-check-goal, .pitch-check-history, .pitch-check-result { margin-top: 0.6rem; }
 .goal-title { margin: 0 0 0.3rem; font-weight: 600; }
@@ -7386,13 +7389,14 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .warmup-preview-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
 .warmup-preview-play { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.5rem; padding: 0 0.9rem; border: 1px solid var(--border); border-radius: var(--radius-control, 6px); background: transparent; color: var(--fg); font-weight: 600; }
 
-/* An exercise's page: the coach's word, the demo, then the player card
-   (the key sung now, the repeats, the controls) kept in view while the
-   score scrolls; the checker; the coach's tools folded at the end. */
+/* An exercise's page: one practice card kept in view over the score (the
+   key sung now, the repeats, the transport and its options, the coach's
+   example; checking, the lane and a take's result in it); the coach's
+   word and the keys' path under it, small; the score, folded on a phone
+   while checking; the coach's tools folded at the end. */
 .warmup-practice { --warmup-gap: 0.7rem; }
 .warmup-practice [hidden] { display: none !important; }
-.warmup-notes { margin: 0 0 var(--warmup-gap); padding: 0.6rem 0.8rem; border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); border-radius: 0 8px 8px 0; white-space: pre-line; }
-.warmup-listen { display: flex; align-items: center; justify-content: center; gap: 0.5rem; width: 100%; min-height: 3rem; margin-bottom: var(--warmup-gap); border: 1px solid var(--accent); border-radius: 999px; background: transparent; color: var(--accent-ink, var(--accent)); font-weight: 700; font-size: 1rem; cursor: pointer; }
+.warmup-notes { margin: 0.6rem 0.2rem 0; padding-left: 0.6rem; border-left: 3px solid var(--accent); font-size: 0.88rem; line-height: 1.45; white-space: pre-line; }
 .warmup-player { position: sticky; top: 0; z-index: 5; display: flex; flex-direction: column; gap: 0.55rem; padding: 0.8rem 0.9rem; border: 1px solid var(--border); border-radius: var(--radius-card, 14px); background: var(--bg-raised, var(--bg)); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06); }
 .warmup-now-row { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
 .warmup-key { font-size: 1.9rem; font-weight: 800; line-height: 1; min-width: 3.5rem; }
@@ -7401,20 +7405,63 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .warmup-progress i { flex: 1; border-radius: 3px; background: color-mix(in srgb, var(--fg) 12%, transparent); transition: background 0.2s; }
 .warmup-progress i.is-done { background: var(--accent); }
 .warmup-progress i.is-now { background: color-mix(in srgb, var(--accent) 55%, transparent); }
-.warmup-controls { display: flex; align-items: center; gap: 0.6rem; }
+.warmup-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 0.6rem; }
 .warmup-play { display: inline-flex; align-items: center; justify-content: center; width: 3.6rem; height: 3.6rem; border: 0; border-radius: 50%; background: var(--accent); color: var(--accent-contrast); cursor: pointer; flex: none; }
 .warmup-play .icon { width: 1.6rem; height: 1.6rem; }
 .warmup-play[disabled] { opacity: 0.45; }
 .warmup-stop { display: inline-flex; align-items: center; justify-content: center; width: 2.6rem; height: 2.6rem; border: 1px solid var(--border); border-radius: 50%; background: transparent; color: var(--fg); cursor: pointer; flex: none; }
-.warmup-octave { display: inline-flex; margin-left: auto; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
-.warmup-octave button { border: 0; background: transparent; padding: 0.4rem 0.65rem; color: var(--fg-muted); font-size: 0.85rem; cursor: pointer; }
+.warmup-octave { display: inline-flex; height: 2.4rem; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.warmup-octave button { border: 0; background: transparent; padding: 0 0.65rem; color: var(--fg-muted); font-size: 0.85rem; cursor: pointer; }
 .warmup-octave button + button { border-left: 1px solid var(--border); }
 .warmup-speed { min-height: 2.4rem; }
-.warmup-guide { display: flex; align-items: center; gap: 0.45rem; font-size: 0.9rem; color: var(--fg-muted); }
-.warmup-path-text { margin: 0.5rem 0.2rem 0; }
+/* The options: Pitch (Rhythm), the piano's line; lit when on. */
+.warmup-opts { display: inline-flex; gap: 0.4rem; }
+.warmup-toggle { display: inline-flex; align-items: center; gap: 0.35rem; height: 2.4rem; padding: 0 0.75rem; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--fg-muted); font-size: 0.85rem; white-space: nowrap; cursor: pointer; }
+.warmup-toggle:hover { border-color: var(--border-strong, var(--border)); color: var(--fg); }
+.warmup-toggle.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.warmup-toggle .icon { width: 1.05rem; height: 1.05rem; flex: none; }
+/* The coach's example: a small link-like button at the row's end. */
+.warmup-listen { display: inline-flex; align-items: center; gap: 0.35rem; margin-left: auto; min-height: 2.4rem; padding: 0 0.2rem; border: 0; background: transparent; color: var(--accent-ink, var(--accent)); font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+.warmup-listen .icon { width: 0.85rem; height: 0.85rem; flex: none; }
+.warmup-listen span { text-decoration: underline; text-underline-offset: 2px; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); }
+.warmup-listen.active span { text-decoration-color: currentColor; }
+.warmup-path-text { margin: 0.35rem 0.2rem 0; font-size: 0.82rem; }
 .warmup-score { margin: var(--warmup-gap) 0; border: 1px solid var(--border); border-radius: var(--radius-card, 10px); background: #fff; overflow: hidden; }
-.warmup-practice .pitch-check { padding: 0.8rem 0.9rem; border: 1px solid var(--border); border-radius: var(--radius-card, 14px); }
-.warmup-practice .pitch-check-toggle { width: 100%; justify-content: center; }
+/* The score's disclosure: only its content, unless folded (a phone, checking). */
+.warmup-score-box > summary { display: none; }
+.warmup-practice.is-folded .warmup-score-box > summary { display: list-item; margin-top: var(--warmup-gap); padding: 0.55rem 0.2rem; font-weight: 600; cursor: pointer; }
+/* The checker, in the card: its lane right under the transport, then the
+   goal and how strict, what it says; a take's result, the coach's goal
+   and the takes so far side by side on a wide screen. */
+.warmup-player .pitch-check { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.45rem; margin: 0; padding-top: 0.6rem; border-top: 1px solid var(--border); }
+.warmup-player .pitch-check-lane { order: -1; height: 110px; margin: 0; }
+.warmup-player .pitch-check-head { gap: 0.4rem; }
+.warmup-player .pitch-check-status:empty { display: none; }
+.warmup-player .pitch-check-aim { margin: 0; }
+.warmup-player :is(.pitch-check-goal, .pitch-check-history, .pitch-check-result) { margin: 0; }
+.warmup-player .pitch-check-result { order: 1; }
+.warmup-player .pitch-check-goal { order: 2; }
+.warmup-player .pitch-check-history { order: 3; }
+/* the coach's goal and the takes so far come with a take's result, and
+   all three step aside while it plays: the lane is what matters then */
+.warmup-player .pitch-check:has(.pitch-check-result[hidden]) :is(.pitch-check-goal, .pitch-check-history),
+.warmup-practice.is-playing .warmup-player :is(.pitch-check-result, .pitch-check-goal, .pitch-check-history) { display: none; }
+.warmup-player .pitch-check-status { font-size: 0.82rem; }
+@media (min-width: 901px) {
+  .warmup-player .pitch-check { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 1.4rem; }
+  .warmup-player .pitch-check > :is(.pitch-check-lane, .pitch-check-head, .pitch-check-aim) { grid-column: 1 / -1; }}
+@media (max-width: 900px) {
+  .warmup-player .pitch-check-lane { height: 90px; }
+  /* checking, the score folded: the card is the page, it needn't stay */
+  .warmup-practice.is-checking .warmup-player { position: relative; }
+}
+@media (max-width: 720px) {
+  .warmup-player { padding: 0.7rem 0.75rem; gap: 0.45rem; }
+  .warmup-key { font-size: 1.6rem; }
+  .warmup-play { width: 3rem; height: 3rem; }
+  .warmup-stop { width: 2.4rem; height: 2.4rem; }
+  .warmup-listen { margin-left: 0; min-height: 2rem; }
+}
 .warmup-coach { margin-top: 1.2rem; border: 1px dashed var(--border); border-radius: var(--radius-card, 10px); padding: 0.6rem 0.8rem; }
 .warmup-coach summary { font-weight: 700; cursor: pointer; }
 .warmup-coach-body { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 0.7rem; }
