@@ -539,11 +539,13 @@
       {{end}}{{end}}
     </ol>
     {{if not .Own}}<p class="hint rec-templates-none">{{t "No template of the band’s yet: add one below to read names the built-in ones don’t."}}</p>{{end}}
-    <form class="rec-template-form" id="template-form">
+    <form class="rec-template-form form-stack form-stack--wide" id="template-form">
+      <div class="field-row rec-template-row">
       <div class="field"><label for="template-text" id="template-label">{{t "Add a template"}}</label>
         <input id="template-text" name="template" placeholder="{n} - {title} - {date}" autocomplete="off" autocapitalize="off" spellcheck="false" required></div>
       <div class="field rec-template-where"><label for="template-where">{{t "template|Tried"}}</label>
         <select id="template-where" name="where"><option value="first">{{t "template|first"}}</option><option value="last">{{t "after yours"}}</option></select></div>
+      </div>
       <div class="form-actions"><button type="button" class="secondary" id="template-try">{{t "Try it"}}</button> <button type="submit" class="primary" id="template-save">{{t "Add it"}}</button> <button type="button" class="link-like" id="template-cancel" hidden>{{t "Cancel"}}</button></div>
       <p class="form-status" role="status"></p>
       <div class="rec-template-try" id="template-result" hidden></div>
@@ -632,10 +634,10 @@
       </tbody>
     </table></div>
     {{else}}<p class="hint">{{t "None yet."}}</p>{{end}}
-    <form class="course-form" id="date-fix-form">
+    <form class="form-inline" id="date-fix-form">
       <div class="field"><label for="fix-from">{{t "A date written"}}</label><input id="fix-from" name="from" placeholder="2024-05-26" pattern="\d{4}-\d{2}(-\d{2})?" required autocomplete="off"></div>
       <div class="field"><label for="fix-to">{{t "fix|is"}}</label><input id="fix-to" name="to" type="date" required></div>
-      <div class="form-actions"><button type="submit" class="secondary">{{t "Correct it"}}</button></div>
+      <button type="submit" class="secondary">{{t "Correct it"}}</button>
       <p class="form-status" role="status"></p>
     </form>
   </section>

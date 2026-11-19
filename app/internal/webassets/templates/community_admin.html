@@ -133,7 +133,7 @@
       <div class="card">
         <h3>{{t "Community link or QR code"}}</h3>
         <p class="hint">{{t "One open link, no names needed: anyone who follows it creates an account (or logs in) and joins straight away with the role on the link. Make one link per role rather than promoting people afterwards, so you never hand out a more powerful link by mistake. A \"guest\" link only lets people read — handy for a QR code on the door at a jam."}}</p>
-        <div class="form-actions">
+        <div class="form-actions form-actions--start">
           {{range .Roles}}<button type="button" class="community-link-btn" data-role="{{.Name}}">{{t "Get %s link" (t .Name)}}</button>{{end}}
         </div>
         <p id="community-link-result" class="form-status" role="status"></p>

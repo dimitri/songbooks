@@ -28,7 +28,7 @@
       <p><a href="/songbooks/{{.Event.SongbookID}}">{{t "Open this event's songbook"}}</a> — {{t "gather songs there before building the setlist below."}}</p>
     {{else}}
       <div class="attention-empty">{{t "No dedicated songbook yet."}}</div>
-      <div class="form-actions">
+      <div class="form-actions form-actions--start">
         <button type="button" id="create-songbook-btn" class="primary">{{t "Create a songbook for this event"}}</button>
       </div>
       <p id="songbook-result" class="form-status" role="status"></p>
@@ -54,7 +54,7 @@
       <p><a href="/setlists/{{.Event.SetlistID}}">{{t "Open and edit the running order"}}</a> — {{t "add or remove songs there; they'll show up on this event's own page for people to sign up to play."}}</p>
     {{else}}
       <div class="attention-empty">{{t "No setlist yet — create one to start building the bill."}}</div>
-      <div class="form-actions"><button type="button" id="create-setlist-btn" class="primary">{{t "Create setlist"}}</button></div>
+      <div class="form-actions form-actions--start"><button type="button" id="create-setlist-btn" class="primary">{{t "Create setlist"}}</button></div>
       <p id="setlist-result" class="form-status" role="status"></p>
     {{end}}
   </div>
