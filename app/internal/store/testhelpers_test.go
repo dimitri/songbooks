@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // newTestStore opens (or reuses) a real Postgres connection and resets
@@ -24,6 +26,16 @@ func newTestStore(t *testing.T) *Store {
 		connString = "postgres://localhost/songbooks_test?sslmode=disable"
 	}
 	ctx := context.Background()
+	// Other packages' tests use this database too (httpapi's
+	// brand_logo_test.go): one test at a time, across packages, as each
+	// empties the tables first. The lock is released when its connection
+	// closes, after the test.
+	if lock, err := pgx.Connect(ctx, connString); err == nil {
+		if _, err := lock.Exec(ctx, `SELECT pg_advisory_lock(7215)`); err != nil {
+			t.Fatalf("locking the test database: %v", err)
+		}
+		t.Cleanup(func() { lock.Close(context.Background()) })
+	}
 	st, err := New(ctx, connString)
 	if err != nil {
 		t.Skipf("no test database available at %s (set SONGBOOKS_TEST_DATABASE_URL to run these tests): %v", connString, err)

@@ -319,6 +319,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/bands/{id}/name", s.requireBandMember(s.handleSetBandName))
 	mux.HandleFunc("GET /api/bands/{id}/brand", s.requireBandMember(s.handleGetBrand("band")))
 	mux.HandleFunc("POST /api/bands/{id}/brand", s.requireBandCore(s.handleSetBrand("band")))
+	mux.HandleFunc("PUT /api/bands/{id}/brand/logo", s.requireBandCore(s.handlePutBrandLogo("band")))
+	mux.HandleFunc("DELETE /api/bands/{id}/brand/logo", s.requireBandCore(s.handleDeleteBrandLogo("band")))
 	mux.HandleFunc("PUT /api/bands/{id}/locale", s.requireBandCore(s.handlePutBandLocale))
 	mux.HandleFunc("GET /api/bands/{id}/brand/from-songs", s.requireBandMember(s.handleBrandFromSongs("band")))
 	mux.HandleFunc("POST /api/bands/{id}/music-type", s.requireBandMember(s.handleSetBandMusicType))
@@ -473,6 +475,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/communities/{id}/rename", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleRenameCommunity))
 	mux.HandleFunc("GET /api/communities/{id}/brand", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleGetBrand("community")))
 	mux.HandleFunc("POST /api/communities/{id}/brand", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleSetBrand("community")))
+	mux.HandleFunc("PUT /api/communities/{id}/brand/logo", s.requireCommunityPrivilege(store.PrivManageSettings, s.handlePutBrandLogo("community")))
+	mux.HandleFunc("DELETE /api/communities/{id}/brand/logo", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleDeleteBrandLogo("community")))
 	mux.HandleFunc("GET /api/communities/{id}/brand/from-songs", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleBrandFromSongs("community")))
 	mux.HandleFunc("POST /api/communities/{id}/default-join-role", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleSetCommunityDefaultJoinRole))
 	mux.HandleFunc("POST /api/communities/{id}/members", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleAddCommunityMember))
@@ -621,6 +625,10 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// changes whenever an asset's bytes do — safe to cache aggressively
 	// and immutably keyed on that URL, rather than relying on the
 	// browser's own (and previously entirely absent) revalidation.
+	// A community's or band's uploaded logo (brand.go): no login, its
+	// address carries its hash and is cached as long.
+	mux.HandleFunc("GET /brand-logos/{kind}/{id}/{file}", s.handleGetBrandLogo)
+
 	mux.Handle("GET /static/", cacheForever(http.StripPrefix("/static/", http.FileServerFS(webassets.StaticFS()))))
 
 	// PWA: served from the root, not /static/, so the service worker's
