@@ -68,6 +68,10 @@ services:
       # Galène's address (production's, by default). No key, no join.
       SONGBOOKS_GALENE_KEY: ${SONGBOOKS_GALENE_KEY:-}
       SONGBOOKS_GALENE_URL: ${SONGBOOKS_GALENE_URL:-}
+      # A demo copy (staging's .env may say 1; production never): the admin
+      # page's Demo data panel, and sbdemo allowed on host db
+      # (docs/demo-data.md).
+      SONGBOOKS_DEMO_DATA: ${SONGBOOKS_DEMO_DATA:-}
     command: ["--addr", "0.0.0.0:8080"]
     ports:
       # 8102: chosen after checking `ss -tlnp` + `docker ps` on the host —

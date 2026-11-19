@@ -547,6 +547,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// Site-wide admin panel — gated by requireAdmin (is_admin on the
 	// person), not requireRole (per-project role): see auth.go.
 	mux.HandleFunc("GET /admin", s.requireAdmin(s.handleAdminPage))
+	// Demo data, on a demo copy only (demo_data.go).
+	mux.HandleFunc("POST /api/admin/demo/{action}", s.requireAdmin(s.handleAdminDemo))
 	mux.HandleFunc("POST /admin/invites/plain", s.requireAdmin(s.handleCreatePlainInvite))
 	mux.HandleFunc("POST /admin/group-invites/{id}/close", s.requireAdmin(s.handleAdminCloseGroupInvite))
 	mux.HandleFunc("POST /admin/people/{personID}/admin", s.requireAdmin(s.handleSetAdmin))

@@ -62,5 +62,7 @@
   "Try again, or use your password or a login link below.": "Réessayez, ou utilisez votre mot de passe ou un lien de connexion ci-dessous.",
   "Use at least %d characters.": "Utilisez au moins %d caractères.",
   "dark": "sombre",
-  "light": "clair"
+  "light": "clair",
+  "Remove every row the fixtures made?": "Retirer toutes les lignes créées par les données d’exemple ?",
+  "Working…": "En cours…"
 }
