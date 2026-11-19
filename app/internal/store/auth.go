@@ -156,16 +156,18 @@ func (st *Store) scanPerson(ctx context.Context, query string, arg any) (*Person
 	return &p, nil
 }
 
-// SetInstruments replaces personID's set of instruments (see Person.Instruments).
+// SetInstruments replaces personID's set of instruments (see
+// Person.Instruments), as they said it themselves: ReplaceOwnInstruments,
+// which keeps people.instruments in step.
 func (st *Store) SetInstruments(ctx context.Context, personID int64, instruments []string) error {
-	tag, err := st.db.Exec(ctx, `UPDATE people SET instruments = $1 WHERE id = $2`, instruments, personID)
-	if err != nil {
+	var exists bool
+	if err := st.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM people WHERE id = $1)`, personID).Scan(&exists); err != nil {
 		return err
 	}
-	if tag.RowsAffected() == 0 {
+	if !exists {
 		return fmt.Errorf("no such person id %d: %w", personID, ErrNotFound)
 	}
-	return nil
+	return st.ReplaceOwnInstruments(ctx, personID, instruments)
 }
 
 // SetPublicProfile replaces personID's public-profile fields wholesale

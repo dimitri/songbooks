@@ -56,7 +56,9 @@
     <h3>{{t "Who's coming"}}</h3>
     <div class="form-stack">
     {{range .Attendees}}
-      <div class="import-row"><span>{{.DisplayName}}{{if .BandName}} <span class="hint">({{.BandName}})</span>{{end}}</span></div>
+      <div class="import-row"><span>{{.DisplayName}}{{if .BandName}} <span class="hint">({{.BandName}})</span>{{end}}
+        {{with index $.Plays .PersonID}}<span class="event-plays">{{range .}}<span class="roster-instrument-badge">{{template "instrument-icon" .Instrument}} {{instrumentName .Instrument}}{{with .Level}} · {{levelName .}}{{end}}</span> {{end}}</span>{{end}}
+      </span></div>
     {{else}}
       <p class="hint">{{t "Nobody's registered yet — be the first!"}}</p>
     {{end}}
@@ -89,6 +91,7 @@
         <input type="password" id="reg-password" name="password" autocomplete="new-password" aria-describedby="reg-password-hint">
       </div>
       {{end}}
+      {{if .Playing}}{{template "event-plays-fields" .}}{{end}}
       {{if and (not .AlreadyRegistered) .MyBands}}
       <div class="field">
         <label for="reg-band">{{t "Registering as"}}</label>
@@ -104,6 +107,15 @@
   </div>
   {{else}}
   <p class="hint">{{t "You're registered for this event."}}</p>
+  {{if .Playing}}
+  <div class="card card--narrow-lg">
+    <h3>{{t "What you'll play"}}</h3>
+    <form method="post" action="/events/{{.Event.ID}}/instruments" class="form-stack">
+      {{template "event-plays-fields" .}}
+      <div class="form-actions"><button type="submit" class="primary">{{t "Save"}}</button></div>
+    </form>
+  </div>
+  {{end}}
   {{end}}
 
   {{if .Event.SetlistID}}
@@ -187,4 +199,27 @@ document.querySelectorAll('.event-song-register-btn').forEach(btn => {
 {{template "global-tabbar-script"}}
 </body>
 </html>
+{{end}}
+
+{{/* What someone will play at a jam: the common instruments and their
+     own (ticked when on their profile, or already said for this event),
+     and any other from a list. Goes on their profile too
+     (httpapi/instruments.go, saveEventPlays). */}}
+{{define "event-plays-fields"}}
+<input type="hidden" name="plays" value="1">
+<fieldset class="field-group">
+  <legend{{if .AlreadyRegistered}} class="sr-only"{{end}}>{{t "What you'll play"}} <span class="field-optional">{{t "(optional)"}}</span></legend>
+  <div class="event-plays-choices">
+  {{range .PlayChoices}}
+  <label class="check"><input type="checkbox" name="instrument" value="{{.}}"{{if index $.MyPlays .}} checked{{end}}> {{instrumentName .}}</label>
+  {{end}}
+  </div>
+</fieldset>
+<div class="field">
+  <label for="reg-instrument-more">{{t "Another instrument"}} <span class="field-optional">{{t "(optional)"}}</span></label>
+  <select id="reg-instrument-more" name="instrument_more">
+    <option value=""></option>
+    {{range instrumentChoices}}{{if and (ne .ID "other") (not (index $.PlayChoiceSet .ID))}}<option value="{{.ID}}">{{instrumentName .ID}}</option>{{end}}{{end}}
+  </select>
+</div>
 {{end}}

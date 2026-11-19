@@ -138,6 +138,15 @@ func TestLabelsAndStems(t *testing.T) {
 	}
 }
 
+func TestLevels(t *testing.T) {
+	if len(Levels) != 4 || !ValidLevel("beginner") || !ValidLevel("expert") || ValidLevel("pro") || ValidLevel("") {
+		t.Errorf("levels: %+v", Levels)
+	}
+	if l, ok := GetLevel("advanced"); !ok || l.Name != "Advanced" {
+		t.Errorf("GetLevel(advanced) = %+v, %v", l, ok)
+	}
+}
+
 func TestSort(t *testing.T) {
 	ids := []string{"zither", "drums", "other", "voice", "accordion", "guitar"}
 	Sort(ids)

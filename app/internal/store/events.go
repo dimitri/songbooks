@@ -371,12 +371,14 @@ type EventRegistration struct {
 	BandID       int64
 	BandName     string
 	RegisteredAt time.Time
+	// Instruments are what they said they'll play (canonical IDs).
+	Instruments []string
 }
 
 // ListEventRegistrations lists everyone registered for eventID.
 func (st *Store) ListEventRegistrations(ctx context.Context, eventID int64) ([]EventRegistration, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT p.id, p.display_name, coalesce(b.id,0), coalesce(b.name,''), r.registered_at
+		SELECT p.id, p.display_name, coalesce(b.id,0), coalesce(b.name,''), r.registered_at, r.instruments
 		FROM event_registrations r
 		JOIN people p ON p.id = r.person_id
 		LEFT JOIN bands b ON b.id = r.band_id
@@ -388,7 +390,7 @@ func (st *Store) ListEventRegistrations(ctx context.Context, eventID int64) ([]E
 	var out []EventRegistration
 	for rows.Next() {
 		var reg EventRegistration
-		if err := rows.Scan(&reg.PersonID, &reg.DisplayName, &reg.BandID, &reg.BandName, &reg.RegisteredAt); err != nil {
+		if err := rows.Scan(&reg.PersonID, &reg.DisplayName, &reg.BandID, &reg.BandName, &reg.RegisteredAt, &reg.Instruments); err != nil {
 			return nil, err
 		}
 		out = append(out, reg)

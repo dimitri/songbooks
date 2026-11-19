@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"app/internal/instruments"
 	"app/internal/store"
 )
 
@@ -327,13 +328,43 @@ func (s *Server) handleEventPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var myBands []store.Band
+	var viewerID int64
 	if person != nil {
+		viewerID = person.ID
 		myBands, _ = s.store.ListBandsForPerson(r.Context(), person.ID)
 	}
 
+	// A jam (or any event people come to play at) asks what one will
+	// play: the person's profile instruments are offered first, ticked,
+	// and the ones registered with show by each name in "Who's coming".
+	playing := ev.OwnerKind == "community" && playingEventTypes[ev.EventType]
+	plays, err := s.eventPlays(r, viewerID, attendees)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var myPlays []string
+	if playing && person != nil {
+		if alreadyRegistered {
+			for _, a := range attendees {
+				if a.PersonID == person.ID {
+					myPlays = a.Instruments
+				}
+			}
+		} else if mine, err := s.store.ListPersonInstruments(r.Context(), person.ID); err == nil {
+			for _, pi := range mine {
+				if pi.Instrument != instruments.Other {
+					myPlays = append(myPlays, pi.Instrument)
+				}
+			}
+		}
+	}
+
+	choices := playChoices(myPlays)
 	s.render(w, "event", map[string]any{
 		"Me": person, "Event": ev, "Attendees": attendees, "AlreadyRegistered": alreadyRegistered,
 		"SongRows": songRows, "MyBands": myBands,
+		"Playing": playing, "Plays": plays, "PlayChoices": choices, "PlayChoiceSet": stringSet(choices), "MyPlays": stringSet(myPlays),
 	})
 }
 
@@ -493,6 +524,10 @@ func (s *Server) handleRegisterForEvent(w http.ResponseWriter, r *http.Request) 
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		if err := s.saveEventPlays(r, eventID, p.ID); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 		http.Redirect(w, r, "/events/"+strconv.FormatInt(eventID, 10), http.StatusFound)
 		return
 	}
@@ -532,6 +567,9 @@ func (s *Server) handleRegisterForEvent(w http.ResponseWriter, r *http.Request) 
 			httpError(w, http.StatusInternalServerError, "couldn't register — try again")
 		}
 		return
+	}
+	if err := s.saveEventPlays(r, eventID, personID); err != nil {
+		log.Printf("event %d: saving what person %d will play: %v", eventID, personID, err)
 	}
 	sessToken, err := s.store.CreateSession(r.Context(), personID)
 	if err != nil {

@@ -543,7 +543,8 @@ func (s *Server) handleCreateBandPersonalInvite(w http.ResponseWriter, r *http.R
 		return
 	}
 	if req.Instrument != "" {
-		if err := s.store.SetInstruments(r.Context(), personID, []string{req.Instrument}); err != nil {
+		// On the new person's profile, as collected from this band.
+		if err := s.store.CollectInstruments(r.Context(), personID, []string{req.Instrument}, store.InstrumentSource{Kind: store.InstrumentFromBand, ID: bandID}); err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

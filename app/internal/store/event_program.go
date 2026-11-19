@@ -273,16 +273,39 @@ func (st *Store) SetProgramLead(ctx context.Context, programID, personID int64) 
 		if _, err := tx.Exec(ctx, `INSERT INTO event_program_singers (program_id, person_id, role) VALUES ($1, $2, 'lead')`, programID, personID); err != nil {
 			return err
 		}
+		if err := collectProgramVoice(ctx, tx, programID, personID); err != nil {
+			return err
+		}
 	}
 	return tx.Commit(ctx)
+}
+
+// collectProgramVoice puts voice on the profile of someone singing in an
+// event's program, collected from that event (CollectInstruments).
+func collectProgramVoice(ctx context.Context, q dbtx, programID, personID int64) error {
+	var eventID int64
+	if err := q.QueryRow(ctx, `SELECT event_id FROM event_program WHERE id = $1`, programID).Scan(&eventID); err != nil {
+		return err
+	}
+	return collectInstruments(ctx, q, personID, []string{"voice"}, InstrumentSource{InstrumentFromEvent, eventID}, true)
 }
 
 // SetProgramBacking adds or takes off a backing singer; the lead stays
 // the lead.
 func (st *Store) SetProgramBacking(ctx context.Context, programID, personID int64, on bool) error {
 	if on {
-		_, err := st.db.Exec(ctx, `INSERT INTO event_program_singers (program_id, person_id, role) VALUES ($1, $2, 'backing') ON CONFLICT (program_id, person_id) DO NOTHING`, programID, personID)
-		return err
+		tx, err := st.db.Begin(ctx)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback(ctx)
+		if _, err := tx.Exec(ctx, `INSERT INTO event_program_singers (program_id, person_id, role) VALUES ($1, $2, 'backing') ON CONFLICT (program_id, person_id) DO NOTHING`, programID, personID); err != nil {
+			return err
+		}
+		if err := collectProgramVoice(ctx, tx, programID, personID); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
 	}
 	_, err := st.db.Exec(ctx, `DELETE FROM event_program_singers WHERE program_id = $1 AND person_id = $2 AND role = 'backing'`, programID, personID)
 	return err

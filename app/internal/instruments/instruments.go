@@ -369,3 +369,38 @@ func Stems(ids []string) []string {
 	}
 	return out
 }
+
+// Level is a self-assessed level on one instrument. Four, each with a
+// "can do" line (the research is in the PR that added them): few enough that
+// neighbours are clearly apart, described by what one can do with others
+// rather than by an adjective alone (self-ratings on vague words run
+// high), and no "pro" level: being paid is a status, not a skill.
+type Level struct {
+	ID   string // stored in person_instruments.level
+	Name string // English; French in internal/i18n/fr/instruments.json, as "skill|Name"
+	Says string // the "can do" line, English
+}
+
+// Levels, lowest first.
+var Levels = []Level{
+	{"beginner", "Beginner", "I play a few chords or simple parts, slowly, on a song I've prepared."},
+	{"intermediate", "Intermediate", "I keep my part and the tempo with a group, on a song I've prepared."},
+	{"advanced", "Advanced", "I follow a song I don't know from a chart or by ear, and can take a short solo."},
+	{"expert", "Expert", "I can lead the band, improvise freely, adapt to any style and help others."},
+}
+
+// GetLevel returns the level with this ID.
+func GetLevel(id string) (Level, bool) {
+	for _, l := range Levels {
+		if l.ID == id {
+			return l, true
+		}
+	}
+	return Level{}, false
+}
+
+// ValidLevel reports whether id is a level's ID.
+func ValidLevel(id string) bool {
+	_, ok := GetLevel(id)
+	return ok
+}
