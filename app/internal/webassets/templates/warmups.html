@@ -1,0 +1,226 @@
+{{/* Warm-ups (exercises.go, warmup.js, docs/coaching.md): a coaching
+     community's exercises and sessions; an exercise's page, played in a
+     student's keys; the coach's pattern form. */}}
+
+{{define "warmup-page-top"}}
+{{$brand := brandFor "community" .Community.ID}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+{{template "coaching-head"}}
+<title>{{with .Exercise}}{{.Name}}{{else}}{{t "Warm-ups"}}{{end}} — {{.Community.Name}}</title>
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+{{end}}
+
+{{define "coaching_warmups"}}
+{{template "warmup-page-top" .}}
+{{$brand := brandFor "community" .Community.ID}}
+<header class="app-header">
+  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
+  <h1>{{t "Warm-ups"}}</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index warmups-page" data-community="{{.Community.ID}}">
+  {{template "brand-banner" $brand}}
+  {{template "community-tabs" .}}
+  <section class="home-section">
+    <div class="home-section-head"><h3>{{t "Exercises"}}</h3><span class="count">{{len .Exercises}}</span>
+      {{if .IsCoach}}<a class="btn-small" href="/communities/{{.Community.ID}}/warmups/new">{{template "icon-plus"}} {{t "An exercise"}}</a>{{end}}</div>
+    <div class="warmup-list">
+    {{range .Exercises}}
+      <a class="warmup-card" href="/communities/{{$.Community.ID}}/warmups/{{.ID}}">
+        <strong>{{.Name}}</strong>
+        <span class="hint">{{if eq .Kind "rhythm"}}{{t "rhythm"}}{{else}}{{t "pitch"}}{{end}}{{if .HasDemo}} · {{t "with %s’s recording" ($.Community.Name)}}{{end}}</span>
+        {{with .Notes}}<span class="warmup-card-notes">{{.}}</span>{{end}}
+      </a>
+    {{else}}
+      <p class="hint">{{if .IsCoach}}{{t "No exercise yet: write your first one, from a classic to adapt or from scratch."}}{{else}}{{t "No exercise yet: your coach adds them here."}}{{end}}</p>
+    {{end}}
+    </div>
+  </section>
+
+  <section class="home-section">
+    <div class="home-section-head"><h3>{{t "Sessions"}}</h3><span class="count">{{len .Sessions}}</span></div>
+    <p class="hint">{{t "A session is exercises played one after another, as one warm-up, stars added up."}}</p>
+    <div class="warmup-list">
+    {{range .Sessions}}
+      <div class="warmup-card warmup-session" data-session="{{.ID}}">
+        <a href="/communities/{{$.Community.ID}}/warmups/{{index .ExerciseIDs 0}}?session={{.ID}}"><strong>{{.Name}}</strong></a>
+        <span class="hint">{{range $i, $id := .ExerciseIDs}}{{if $i}} → {{end}}{{index $.ExerciseNames $id}}{{end}}</span>
+        {{if $.IsCoach}}<button type="button" class="link-btn danger warmup-session-delete">{{t "Remove"}}</button>{{end}}
+      </div>
+    {{end}}
+    </div>
+    {{if and .IsCoach .Exercises}}
+    <details class="warmup-session-new">
+      <summary>{{template "icon-plus"}} {{t "A session"}}</summary>
+      <form class="warmup-session-form" autocomplete="off">
+        <label>{{t "Name"}} <input type="text" name="name" required placeholder="{{t "10-minute warm-up"}}"></label>
+        <fieldset><legend>{{t "Exercises, in the order you tick them"}}</legend>
+          {{range .Exercises}}<label><input type="checkbox" value="{{.ID}}"> {{.Name}}</label>{{end}}
+        </fieldset>
+        <button type="submit" class="primary">{{t "Make the session"}}</button>
+      </form>
+    </details>
+    {{end}}
+  </section>
+</main>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+{{if .IsCoach}}
+<script>
+(() => {
+  const page = document.querySelector('.warmups-page');
+  const api = `/api/communities/${page.dataset.community}/exercise-sessions`;
+  const order = [];
+  const form = page.querySelector('.warmup-session-form');
+  form?.querySelectorAll('input[type=checkbox]').forEach((c) => c.addEventListener('change', () => {
+    const i = order.indexOf(Number(c.value));
+    if (c.checked && i < 0) order.push(Number(c.value)); else if (!c.checked && i >= 0) order.splice(i, 1);
+  }));
+  form?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!order.length) { alert(t('Tick the exercises, in order.')); return; }
+    fetch(api, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.name.value.trim(), exerciseIds: order }) })
+      .then((r) => { if (!r.ok) throw new Error(); form.reset(); location.reload(); }).catch(() => alert(t('Couldn’t save.')));
+  });
+  page.querySelectorAll('.warmup-session-delete').forEach((b) => b.addEventListener('click', () => {
+    if (!confirm(t('Remove this session? Its exercises stay.'))) return;
+    fetch(`${api}/${b.closest('.warmup-session').dataset.session}`, { method: 'DELETE' }).then(() => location.reload());
+  }));
+})();
+</script>
+{{end}}
+</body>
+</html>
+{{end}}
+
+{{define "coaching_exercise"}}
+{{template "warmup-page-top" .}}
+<header class="app-header">
+  <a class="back-link" href="/communities/{{.Community.ID}}/warmups">{{template "icon-back"}} {{t "Warm-ups"}}</a>
+  <h1>{{.Exercise.Name}}</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index warmup-practice" data-community="{{.Community.ID}}">
+  {{with .Exercise.Notes}}<p class="warmup-notes">{{.}}</p>{{end}}
+  <div class="warmup-session-bar" hidden></div>
+  {{if .IsCoach}}
+  <div class="warmup-coach-bar">
+    <label>{{t "In the keys of"}} <select class="warmup-student">
+      <option value="0">{{t "the written key"}}</option>
+      {{range .Students}}<option value="{{.PersonID}}"{{if eq .PersonID $.StudentID}} selected{{end}}>{{.DisplayName}}</option>{{end}}
+    </select></label>
+    <a href="/communities/{{.Community.ID}}/warmups/{{.Exercise.ID}}/edit">{{t "Edit the exercise"}}</a>
+  </div>
+  {{end}}
+
+  <section class="warmup-demo">
+    <button type="button" class="warmup-listen" hidden>{{template "icon-play"}} <span></span></button>
+    {{if .IsCoach}}
+    <span class="warmup-record-tools">
+      <button type="button" class="warmup-record">{{t "Record my demo"}}</button>
+      <button type="button" class="link-btn danger warmup-demo-remove" hidden>{{t "Remove it"}}</button>
+      <span class="hint warmup-record-status" aria-live="polite"></span>
+    </span>
+    {{end}}
+  </section>
+
+  <section class="warmup-path">
+    <div class="warmup-path-line"><span class="warmup-path-text"></span>
+      <span class="warmup-octave"><button type="button" data-octave="-12" title="{{t "an octave lower"}}">−8ve</button><button type="button" data-octave="12" title="{{t "an octave higher"}}">+8ve</button></span></div>
+    {{if .IsCoach}}
+    <form class="warmup-path-form" autocomplete="off" hidden>
+      <label>{{t "Their path, in semitones from the written key"}} <input type="text" name="waypoints" placeholder="-2, +5, -2"></label>
+      <button type="submit">{{t "Save their path"}}</button>
+      <button type="button" class="link-btn warmup-path-default">{{t "the app’s, from their range"}}</button>
+    </form>
+    {{end}}
+  </section>
+
+  <div class="warmup-transport">
+    <button type="button" class="primary warmup-play" disabled>{{template "icon-play"}} <span>{{t "Train"}}</span></button>
+    <button type="button" class="warmup-stop" disabled>{{t "Stop"}}</button>
+    <label>{{t "Tempo"}} <select class="warmup-speed"><option value="0.75">75 %</option><option value="0.9">90 %</option><option value="1" selected>100 %</option><option value="1.1">110 %</option></select></label>
+    <label class="warmup-guide"><input type="checkbox" checked> {{t "the line on the piano"}}</label>
+    <span class="warmup-now hint" aria-live="polite"></span>
+  </div>
+  <div class="warmup-score"><div class="warmup-score-canvas"></div></div>
+  <div id="warmup-check"></div>
+</main>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+<script type="application/json" id="warmup-data">{{.PageJSON}}</script>
+<script src="/static/js/vendor/alphatab/alphaTab.min.js?v={{staticVersion}}"></script>
+<script src="/static/js/warmup.js?v={{staticVersion}}"></script>
+<script src="/static/js/pitch-check.js?v={{staticVersion}}"></script>
+<script src="/static/js/warmup-page.js?v={{staticVersion}}"></script>
+</body>
+</html>
+{{end}}
+
+{{define "coaching_exercise_edit"}}
+{{template "warmup-page-top" .}}
+<header class="app-header">
+  <a class="back-link" href="/communities/{{.Community.ID}}/warmups{{with .Exercise}}/{{.ID}}{{end}}">{{template "icon-back"}} {{with .Exercise}}{{.Name}}{{else}}{{t "Warm-ups"}}{{end}}</a>
+  <h1>{{if .Exercise}}{{t "Edit the exercise"}}{{else}}{{t "An exercise"}}{{end}}</h1>
+  {{template "notif-bell"}}
+</header>
+<main class="index warmup-edit" data-community="{{.Community.ID}}"{{with .Exercise}} data-exercise="{{.ID}}"{{end}}>
+  <form class="warmup-form" autocomplete="off">
+    {{if not .Exercise}}<label>{{t "Start from"}} <select name="preset"><option value="">{{t "an empty one"}}</option></select></label>{{end}}
+    <label>{{t "Name"}} <input type="text" name="name" required></label>
+    <label>{{t "What it’s for"}} <select name="kind"><option value="pitch">{{t "pitch: the notes, in every key"}}</option><option value="rhythm">{{t "rhythm: the entries, on one note"}}</option></select></label>
+    <div class="warmup-form-row">
+      <label>{{t "Written in"}} <select name="tonic"></select></label>
+      <label>{{t "Scale"}} <select name="scale"><option value="major">{{t "major"}}</option><option value="minor">{{t "minor"}}</option><option value="chromatic">{{t "chromatic (semitones)"}}</option></select></label>
+      <label>{{t "Tempo"}} <input type="number" name="tempo" min="30" max="240"></label>
+    </div>
+    <label>{{t "The notes, as degrees"}} <input type="text" name="notes" placeholder="1 2 3 4 5 4 3 2 1"><span class="hint">{{t "1 the key’s note, 8 its octave, r a rest; chromatic: semitones, 0 up."}}</span></label>
+    <label>{{t "Their lengths"}} <input type="text" name="lengths" placeholder="8 8 8 8 8 8 8 8 4"><span class="hint">{{t "4 a quarter, 8 an eighth, 2 a half, 16 a sixteenth, 4. dotted; the last one goes on."}}</span></label>
+    <label>{{t "Sung on"}} <input type="text" name="syllables" placeholder="ma me mi mo mu"><span class="hint">{{t "a syllable a note, round again when they run out."}}</span></label>
+    <div class="warmup-form-row">
+      <label>{{t "The piano"}} <select name="piano"><option value="double">{{t "plays the line"}}</option><option value="chords">{{t "holds the chord"}}</option><option value="none">{{t "silent"}}</option></select></label>
+      <label>{{t "Before each repeat"}} <select name="prep"><option value="I">{{t "the key’s chord"}}</option><option value="V7-I">{{t "V7 then the chord"}}</option><option value="none">{{t "nothing"}}</option></select></label>
+      <label>{{t "Breath after, beats"}} <input type="number" name="breath" min="0" max="8" step="0.5"></label>
+      <label class="warmup-step">{{t "Step between keys"}} <select name="step"><option value="1">{{t "a semitone"}}</option><option value="2">{{t "a tone"}}</option></select></label>
+      <label class="warmup-repeats" hidden>{{t "Repeats"}} <input type="number" name="repeats" min="1" max="20"></label>
+    </div>
+    <label>{{t "A word for your students"}} <textarea name="notes_text" rows="2" placeholder="{{t "Shoulders down, the jaw free; lighter as it goes up."}}"></textarea></label>
+
+    <div class="warmup-preview-bar"><button type="button" class="warmup-preview-play">{{template "icon-play"}} {{t "Listen"}}</button> <span class="hint warmup-preview-status"></span></div>
+    <div class="warmup-score"><div class="warmup-score-canvas"></div></div>
+
+    <details class="warmup-own-words">
+      <summary>{{t "This exercise’s own level and words"}}</summary>
+      <p class="hint">{{t "Left empty, your usual ones (Checking singing). Write here only what this exercise needs, as you would say it."}}</p>
+      <label>{{t "Level"}} <select name="level"><option value="">{{t "the one of each goal"}}</option>{{range .CheckLevels}}<option value="{{.Key}}">{{.Label}}</option>{{end}}</select></label>
+      {{range .Messages}}
+      <label class="check-message" data-key="{{.Key}}"><span class="check-message-when">{{.When}}</span>
+        <textarea rows="2" name="msg-{{.Key}}" placeholder="{{.Text}}"></textarea></label>
+      {{end}}
+    </details>
+
+    <div class="check-save">
+      <button type="submit" class="primary">{{t "Save"}}</button>
+      {{if .Exercise}}<button type="button" class="link-btn danger warmup-delete">{{t "Remove the exercise"}}</button>{{end}}
+      <span class="hint warmup-saved" aria-live="polite"></span>
+    </div>
+  </form>
+</main>
+</div>
+{{template "global-tabbar"}}
+{{template "global-tabbar-script"}}
+{{with .ExerciseJSON}}<script type="application/json" id="warmup-exercise">{{.}}</script>{{end}}
+<script src="/static/js/vendor/alphatab/alphaTab.min.js?v={{staticVersion}}"></script>
+<script src="/static/js/warmup.js?v={{staticVersion}}"></script>
+<script src="/static/js/warmup-edit.js?v={{staticVersion}}"></script>
+</body>
+</html>
+{{end}}

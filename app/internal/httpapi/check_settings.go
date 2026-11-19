@@ -83,19 +83,9 @@ func (s *Server) handleCheckSettingsPage(w http.ResponseWriter, r *http.Request)
 	for _, l := range set.Levels {
 		levels = append(levels, checkLevelView{CheckLevel: l, Label: checkLevelLabel(lang, l), Default: store.DefaultCheckLevels[l.Key]})
 	}
-	var messages []checkMessageView
-	for _, m := range checkMessages {
-		v := checkMessageView{checkMessage: m, Text: i18n.T(lang, m.Default)}
-		if c, ok := set.Messages[m.Key]; ok {
-			v.Text, v.Custom = c, true
-		}
-		v.When = i18n.T(lang, m.When)
-		v.Default = i18n.T(lang, m.Default)
-		messages = append(messages, v)
-	}
 	data := s.coachingPageData(r, community, coach, "students")
 	data["Levels"] = levels
-	data["Messages"] = messages
+	data["Messages"] = s.checkMessageViews(r, set)
 	s.render(w, "coaching_checking", data)
 }
 
@@ -159,4 +149,21 @@ func (s *Server) checkLevelsData(r *http.Request, communityID int64, data map[st
 	data["CheckLevels"] = levels
 	data["CheckLevelNames"] = names
 	return nil
+}
+
+// checkMessageViews are the situations with the community's words (or the
+// app's), for a form that rewrites them.
+func (s *Server) checkMessageViews(r *http.Request, set store.CheckSettings) []checkMessageView {
+	lang := s.langOfRequest(r)
+	var out []checkMessageView
+	for _, m := range checkMessages {
+		v := checkMessageView{checkMessage: m, Text: i18n.T(lang, m.Default)}
+		if c, ok := set.Messages[m.Key]; ok {
+			v.Text, v.Custom = c, true
+		}
+		v.When = i18n.T(lang, m.When)
+		v.Default = i18n.T(lang, m.Default)
+		out = append(out, v)
+	}
+	return out
 }

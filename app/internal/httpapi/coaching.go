@@ -338,6 +338,10 @@ func (s *Server) handleCoachingStudentPage(w http.ResponseWriter, r *http.Reques
 		fail(err)
 		return
 	}
+	if data["Exercises"], err = s.store.ListExercises(r.Context(), community.ID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	if data["Assignments"], err = s.store.ListStudentAssignments(ctx, community.ID, studentID, false); err != nil {
 		fail(err)
 		return

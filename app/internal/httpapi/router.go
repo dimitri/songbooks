@@ -431,9 +431,26 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/practice/played", s.requireAuth(s.handlePostPlayed))
 	mux.HandleFunc("POST /api/practice/pitch", s.requireAuth(s.handlePostPitchTake))
 	mux.HandleFunc("GET /api/practice/pitch", s.requireAuth(s.handleGetPitchProgress))
+	mux.HandleFunc("POST /api/practice/exercise-take", s.requireAuth(s.handlePostExerciseTake))
+	mux.HandleFunc("GET /api/practice/exercise-progress", s.requireAuth(s.handleGetExerciseProgress))
 	// The coach's levels and words for checking singing (check_settings.go).
 	mux.HandleFunc("GET /communities/{id}/checking", s.requireCommunityMember(s.handleCheckSettingsPage))
 	mux.HandleFunc("PUT /api/communities/{id}/check-settings", s.requireCommunityMember(s.handlePutCheckSettings))
+	// Warm-ups (exercises.go).
+	mux.HandleFunc("GET /communities/{id}/warmups", s.requireCommunityMember(s.handleWarmupsPage))
+	mux.HandleFunc("GET /communities/{id}/warmups/new", s.requireCommunityMember(s.handleExerciseEditPage))
+	mux.HandleFunc("GET /communities/{id}/warmups/{exerciseID}", s.requireCommunityMember(s.handleExercisePage))
+	mux.HandleFunc("GET /communities/{id}/warmups/{exerciseID}/edit", s.requireCommunityMember(s.handleExerciseEditPage))
+	mux.HandleFunc("GET /communities/{id}/warmups/{exerciseID}/demo", s.requireCommunityMember(s.handleGetExerciseDemo))
+	mux.HandleFunc("POST /api/communities/{id}/exercises", s.requireCommunityMember(s.handlePostExercise))
+	mux.HandleFunc("PUT /api/communities/{id}/exercises/{exerciseID}", s.requireCommunityMember(s.handlePutExercise))
+	mux.HandleFunc("DELETE /api/communities/{id}/exercises/{exerciseID}", s.requireCommunityMember(s.handleDeleteExercise))
+	mux.HandleFunc("PUT /api/communities/{id}/exercises/{exerciseID}/demo", s.requireCommunityMember(s.handlePutExerciseDemo))
+	mux.HandleFunc("DELETE /api/communities/{id}/exercises/{exerciseID}/demo", s.requireCommunityMember(s.handleDeleteExerciseDemo))
+	mux.HandleFunc("PUT /api/communities/{id}/exercises/{exerciseID}/path", s.requireCommunityMember(s.handlePutExercisePath))
+	mux.HandleFunc("POST /api/communities/{id}/exercise-sessions", s.requireCommunityMember(s.handleSaveExerciseSession))
+	mux.HandleFunc("PUT /api/communities/{id}/exercise-sessions/{sessionID}", s.requireCommunityMember(s.handleSaveExerciseSession))
+	mux.HandleFunc("DELETE /api/communities/{id}/exercise-sessions/{sessionID}", s.requireCommunityMember(s.handleDeleteExerciseSession))
 	// An online lesson's join link (live.go): the logged-in coach or
 	// student, or one known by their calendar feed's address (?f=).
 	mux.HandleFunc("GET /communities/{id}/lessons/{eventID}/join", s.optionalPerson(s.handleLessonJoin))

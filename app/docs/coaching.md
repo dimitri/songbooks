@@ -200,25 +200,44 @@ open them, a person's own songs are private), puts them in the student's
 songbook, and with `--clips` (song id, tab, YouTube URL) sets each one's
 reference video and downloads its sound, which the stems worker splits.
 
-## Next: warm-ups
+## Warm-ups
 
-Not automated: the coach writes and sings them.
+The *Warm-ups* tab (exercises.go, warmup.js; migration 0087): the coach's
+exercises, written once, sung by each student in their own keys.
 
-- **An exercise** is a song of the community with a Guitar Pro file: a
-  piano track, written in the score editor that exists (gp_edit), with
-  the syllables or words to sing under its notes (the file's lyrics), and
-  notes to read beside it. Its starting key is the one it's written in.
-- **The coach's voice**: *Record my demo* plays the exercise and records
-  the coach's microphone over it in the browser (raw microphone, as the
-  tuner does), kept as the exercise's recording, lined up with its bars.
-- **The Mixer** has its two lanes, the piano (MIDI) and the coach's voice,
-  each with its volume, mute and solo.
-- **A student's practice range**, per exercise, set by the coach: a path of
-  keys, as semitones from the written key, through any waypoints (start
-  mid-range, up first, then down past the start, up again…), a semitone
-  a repeat. The practice player walks it: each repeat the piano (alphaTab
-  transposes its playback) and the coach's voice (the Key's pitch
-  shifter) move together.
+- **An exercise** is a pattern: the written key's tonic, a scale (major,
+  minor, chromatic), the notes as degrees (`1 2 3 4 5 4 3 2 1`, 8 the
+  octave, `r` a rest), their lengths (`8 8 8 8 4`, the last one goes
+  on), the syllables sung (cycled), the piano (playing the line, holding
+  the chord, silent), a chord before each repeat (I, or V7 then I), the
+  tempo, a breath after each repeat, a semitone or a tone between keys.
+  Or a *rhythm*: entries on one note, repeated, scored on placement
+  only. Classics to start from (five-note scale, 1-3-5-8-5-3-1, staccato
+  arpeggio, octave scale, siren, lip trill, a syncopation), heard and
+  seen as they're written.
+- **Written out by the browser**: every repeat in its key, as one
+  MusicXML score of two parts, the line with its syllables and the
+  piano, that alphaTab draws and plays with the soundfont; and every
+  note's exact time and pitch for the checker. No file to keep.
+- **The coach's demo**: *Record my demo* plays the written key once and
+  records the coach singing over it (the microphone as it is); students
+  *Listen to* it to hear how it goes. Not to train with: training is the
+  piano, in their keys.
+- **A student's path**: waypoints in semitones from the written key,
+  walked a step a repeat. The app's, from their range: the pattern
+  fitted inside it, up to its top and back, at most eight steps up. The
+  coach sets another per student (*In the keys of …*); the student can
+  move it an octave. Keys named as the page's language says them (do ré
+  mi, middle C do3).
+- **Checked** as songs are (pitch-check.js), against the exercise's own
+  notes: the coach's levels and words, or the exercise's own (its level,
+  and words written for it over the community's); every take kept
+  (practice_takes.exercise_id), the day's practice logged, the goal of
+  an assignment of it reached.
+- **Assigned** like a song: a student's or a group's practice can be an
+  exercise, with a goal.
+- **Sessions**: exercises in order, played through as one (*Next: …*),
+  the stars of the run added up (out of three an exercise).
 
 ## Review: live lessons with Galène, inside the app
 
