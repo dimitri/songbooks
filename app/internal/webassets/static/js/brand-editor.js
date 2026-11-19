@@ -48,8 +48,90 @@
     for (const el of fields()) if (el.value.trim()) b[el.name] = el.value.trim();
     save(b, document.getElementById('brand-save'));
   });
-  document.getElementById('brand-reset').addEventListener('click', (e) => {
-    if (confirm(t('Reset to the app’s own look? This clears the preset, colors, fonts, logo, tagline and website for everyone here.'))) save({}, e.currentTarget);
+  document.getElementById('brand-reset').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    if (!confirm(t('Reset to the app’s own look? This clears the preset, colors, fonts, logo, tagline and website for everyone here.'))) return;
+    if (logoImage) await fetch(endpoint + '/logo', { method: 'DELETE' }).catch(() => {});
+    save({}, btn);
+  });
+
+  // The logo: an image uploaded to the app (kept as soon as it's
+  // picked, PUT {endpoint}/logo), or else an https address saved with the
+  // form. The preview shows the one the pages show.
+  const logoFile = document.getElementById('brand-logo-file');
+  const logoPreview = document.getElementById('brand-logo-preview');
+  const logoUpload = document.getElementById('brand-logo-upload');
+  const logoRemove = document.getElementById('brand-logo-remove');
+  const logoStatus = document.getElementById('brand-logo-status');
+  const logoURL = form.querySelector('[name="logoURL"]');
+  let logoImage = '';
+
+  function showLogo() {
+    const url = logoURL.value.trim();
+    const src = logoImage || (url.startsWith('https://') ? url : '');
+    logoPreview.hidden = !src;
+    if (src) logoPreview.src = src;
+    else logoPreview.removeAttribute('src');
+    logoRemove.hidden = !logoImage;
+    logoUpload.textContent = logoImage ? t('Replace the image') : t('Upload an image');
+  }
+  function setLogo(src) {
+    logoImage = src || '';
+    showLogo();
+  }
+  // Its own status line, not the form's (Forms.run writes to the first
+  // .form-status in the form).
+  function logoMsg(msg, kind) {
+    logoStatus.textContent = msg || '';
+    logoStatus.classList.toggle('brand-logo-error', kind === 'error');
+    logoStatus.classList.toggle('brand-logo-ok', kind === 'ok');
+  }
+  logoPreview.addEventListener('error', () => { logoPreview.hidden = true; });
+  logoURL.addEventListener('input', showLogo);
+  logoUpload.addEventListener('click', () => logoFile.click());
+
+  logoFile.addEventListener('change', async () => {
+    const f = logoFile.files[0];
+    if (!f) return;
+    logoFile.value = '';
+    logoMsg('');
+    if (/svg/i.test(f.type) || /\.svg$/i.test(f.name)) {
+      logoMsg(t('SVG images can’t be used: export the logo as a PNG, then upload that.'), 'error');
+      return;
+    }
+    if (f.size > 2 * 1024 * 1024) {
+      logoMsg(t('This image is larger than 2 MB. Make it smaller, then try again.'), 'error');
+      return;
+    }
+    const body = new FormData();
+    body.append('file', f);
+    Forms.busy(logoUpload, true);
+    const res = await fetch(endpoint + '/logo', { method: 'PUT', body }).catch(() => null);
+    Forms.busy(logoUpload, false);
+    if (!res || !res.ok) {
+      const why = !res ? '' : res.status === 413
+        ? t('This image is larger than 2 MB. Make it smaller, then try again.')
+        : res.status === 415 ? t('This file isn’t an image the app can use. Upload a PNG, JPEG or WebP image.') : '';
+      logoMsg(why || t('Couldn’t upload the image. Try again.'), 'error');
+      return;
+    }
+    const b = await res.json();
+    setLogo(b.logoImage);
+    logoMsg(t('Logo saved: it shows on this space’s pages now.'), 'ok');
+  });
+
+  logoRemove.addEventListener('click', async () => {
+    if (!confirm(t('Remove the uploaded logo? Everyone here stops seeing it.'))) return;
+    logoMsg('');
+    Forms.busy(logoRemove, true);
+    const res = await fetch(endpoint + '/logo', { method: 'DELETE' }).catch(() => null);
+    Forms.busy(logoRemove, false);
+    if (!res || !res.ok) {
+      logoMsg(t('Couldn’t remove the image. Try again.'), 'error');
+      return;
+    }
+    setLogo('');
+    logoMsg(t('Logo removed.'), 'ok');
   });
 
   // A look made from the songs' covers: it fills the colors, fonts and
@@ -65,8 +147,9 @@
     const keep = {};
     for (const k of ['logoURL', 'tagline', 'website', 'mark']) keep[k] = form.querySelector(`[name="${k}"]`)?.value;
     fill({...d.brand, ...keep, preset: ''});
+    showLogo();
     out.textContent = t('Made from %d covers of %d songs (%s). Save to use it.', d.covers, d.songs, t(d.mood) + (d.genres && d.genres.length ? ', ' + d.genres.slice(0, 3).join(', ') : ''));
   });
 
-  fetch(endpoint).then((r) => (r.ok ? r.json() : {})).then(fill).catch(() => {});
+  fetch(endpoint).then((r) => (r.ok ? r.json() : {})).then((b) => { fill(b); setLogo(b.logoImage); }).catch(() => {});
 })();
