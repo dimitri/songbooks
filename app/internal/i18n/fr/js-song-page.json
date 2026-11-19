@@ -30,5 +30,10 @@
   "The line being sung lights up and the page scrolls with the recording.": "La ligne chantée s’allume et la page défile avec l’enregistrement.",
   "Off: no line lit, you scroll yourself. The recording still plays.": "Désactivé : aucune ligne allumée, vous faites défiler vous-même. L’enregistrement continue.",
   "Back to the current line": "Revenir à la ligne en cours",
-  "Back to where the music is": "Revenir où en est la musique"
+  "Back to where the music is": "Revenir où en est la musique",
+  "Follow the music": "Suivre la musique",
+  "Follow the sections": "Suivre les sections",
+  "The page turns a section at a time, as the recording reaches each one.": "La page tourne une section à la fois, quand l’enregistrement y arrive.",
+  "Off: you turn the page — pedal, arrow keys or a tap. The recording still plays.": "Désactivé : c’est vous qui tournez la page — pédale, flèches ou toucher. L’enregistrement continue.",
+  "Back to the current section": "Revenir à la section en cours"
 }
