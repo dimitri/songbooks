@@ -2643,7 +2643,8 @@ const ICONS = {
       }
       syncStatus.textContent = t('Listening to the recording… (a few seconds)'); syncStatus.className = 'hint';
       try {
-        const p = await postJSON(`/api/songs/${pageVariantId}/audio/youtube/analyze`, {});
+        // In the page's language: its notes are said on the server.
+        const p = await postJSON(`/api/songs/${pageVariantId}/audio/youtube/analyze?lang=${encodeURIComponent(document.documentElement.lang || '')}`, {});
         proposal = p;
         syncStatus.textContent = '';
         const lines = [
