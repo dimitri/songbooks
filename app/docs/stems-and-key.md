@@ -63,6 +63,31 @@ Turned down, the player plays no_vocals in place of the recording (same
 length: the position carries over) and the vocals beside it at that
 volume, kept within 80 ms of it. Full, the recording itself.
 
+### The player for singers (a community's option)
+
+A community can have its songs' player made for singers
+(`communities.player_vocal_slider`, migration 0093; its admin page, *Voice
+volume and key in the song player*; on for Chloé Paul's coaching community
+only). As Apple Music sings, a row under the transport: a mic (the voice
+off, and back to where it was; V) and a slider, 0 the backing alone, 100
+the recording; and the key, *Key: C#m (−1) · for Poppy*, a semitone either
+way. Voice and Key leave the options for it. On a phone the card has the
+mic, the sheet the whole row. The same voice and key as above, the same
+parts and graph, kept per song in the browser.
+
+A song page has it when opened from that community (a songbook, set list
+or event of it, its page), or from nowhere in particular by a member of a
+community that has it and has the song, or when the community owns the
+song (`handlers_pages.go` `vocalSliderCommunity`).
+
+The key's label opens the Key panel. A coach (the community's staff) picks
+a student or a group there: the key goes to theirs, − and + move it, *Save
+for Poppy* keeps it (`/api/songs/{id}/coach-keys`, coach_keys.go). The
+list puts first who has a lesson in the coming week, the soonest first,
+its date said, then the others folded under *Other students*. A student
+sees their key, the coach's, and may try others without saving (*Back to
+my key*).
+
 ### Lanes, in the Mixer
 
 A split recording has its four parts as lanes under it (Vocals, Drums,

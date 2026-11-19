@@ -62,6 +62,15 @@
       </div>
       <p id="community-locale-result" class="form-status" role="status"></p>
     </div>
+    {{/* The player for singers (migration 0093, store/vocal_slider.go):
+         saves on change, like the selects above. */}}
+    <div class="form-stack" style="margin-top:0.8rem">
+      <div>
+        <label class="check"><input type="checkbox" id="vocal-slider-check" aria-describedby="vocal-slider-hint"{{if .Community.PlayerVocalSlider}} checked{{end}}> <strong>{{t "Voice volume and key in the song player"}}</strong></label>
+        <p class="field-hint" id="vocal-slider-hint">{{t "A mic and a slider beside play turn the song’s voice down or up; the key says whose it is, and the coach sets it for each student."}}</p>
+      </div>
+      <p id="vocal-slider-result" class="form-status" role="status"></p>
+    </div>
   </div>
 
   {{/* Roles: a name plus a chosen set of privileges from the fixed
@@ -486,6 +495,17 @@ $('community-locale-select').addEventListener('change', (e) => {
     } catch { throw new Error(t('Couldn’t save that. Try again.')); }
     if (!res.ok) throw new Error(t('Couldn’t save that. Try again.'));
   });
+});
+// The player for singers: the voice's volume and the key in the song player.
+$('vocal-slider-check').addEventListener('change', async (e) => {
+  const ok = await saveInline($('vocal-slider-result'), async () => {
+    let res;
+    try {
+      res = await fetch('/api/communities/' + communityId + '/vocal-slider', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({on: e.target.checked})});
+    } catch { throw new Error(t('Couldn’t save that. Try again.')); }
+    if (!res.ok) throw new Error(t('Couldn’t save that. Try again.'));
+  });
+  if (!ok) e.target.checked = !e.target.checked;
 });
 
 // ---- Events ----

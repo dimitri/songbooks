@@ -475,6 +475,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/communities/{id}/brand", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleSetBrand("community")))
 	mux.HandleFunc("GET /api/communities/{id}/brand/from-songs", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleBrandFromSongs("community")))
 	mux.HandleFunc("POST /api/communities/{id}/default-join-role", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleSetCommunityDefaultJoinRole))
+	mux.HandleFunc("PUT /api/communities/{id}/vocal-slider", s.requireCommunityPrivilege(store.PrivManageSettings, s.handlePutCommunityVocalSlider))
 	mux.HandleFunc("POST /api/communities/{id}/members", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleAddCommunityMember))
 	mux.HandleFunc("POST /api/communities/{id}/personal-invites", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleCreateCommunityPersonalInvite))
 	// Group invites (roster link, multi-use): manage_members to create/close.

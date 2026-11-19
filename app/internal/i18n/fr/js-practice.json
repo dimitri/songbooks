@@ -281,5 +281,14 @@
   "%d repeats": "%d reprises",
   "%d min %d s": "%d min %d s",
   "%d repeat · %d min %d s": "%d reprise · %d min %d s",
-  "repeat %d of %d": "reprise %d sur %d"
+  "repeat %d of %d": "reprise %d sur %d",
+  "Their key, to try and save": "Sa tonalité, à essayer et enregistrer",
+  "Lessons in the coming week": "Cours dans les 7 prochains jours",
+  "Other students (%d)": "Autres élèves (%d)",
+  "for %s": "pour %s",
+  "Save for %s": "Enregistrer pour %s",
+  "choose a student": "choisir un élève",
+  "key|yours": "la vôtre",
+  "key|trying": "essai",
+  "Saved for %s": "Enregistrée pour %s"
 }

@@ -3008,6 +3008,8 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 							if p, err := s.store.GetPersonByID(r.Context(), sb.StudentPersonID); err == nil {
 								data["KeyContext"] = p.DisplayName
 							}
+							// The student, in their own songbook: their key.
+							data["KeyMine"] = sb.StudentPersonID == personFromContext(r).ID
 						}
 					}
 				}
@@ -3092,7 +3094,49 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		data["StudentKeyName"] = chordsym.KeyIn(songKeyName(sg), n)
 	}
 	data["BrandKind"], data["BrandID"] = s.songBrandContext(r, data, variant)
+	// A community's player for singers (store/vocal_slider.go): the
+	// voice's volume beside play, the key out in the open with whose it is.
+	if id := s.vocalSliderCommunity(r, data, variant, variantID); id != 0 {
+		data["VocalSlider"] = true
+		data["SongKeyName"] = songKeyName(sg)
+	}
 	s.render(w, "song", data)
+}
+
+// vocalSliderCommunity is the community whose player for singers a song
+// page has, 0 for none: the community it was opened from (one of its
+// songbooks, set lists, events, or its own page) when that has it on;
+// opened from nowhere in particular, a community with it on that the
+// reader belongs to and that has the song (a student, their coach), else
+// the community that owns the song.
+func (s *Server) vocalSliderCommunity(r *http.Request, data map[string]any, variant *store.CatalogVariant, variantID int64) int64 {
+	ctx := r.Context()
+	on := func(id int64) int64 {
+		if ok, err := s.store.CommunityPlayerVocalSlider(ctx, id); err == nil && ok {
+			return id
+		}
+		return 0
+	}
+	if id, ok := data["EventRef"].(int64); ok {
+		if ev, err := s.store.GetEvent(ctx, id); err == nil && ev.OwnerKind == "community" {
+			return on(ev.OwnerCommunityID)
+		}
+	}
+	switch kind, id := s.songBrandContext(r, data, nil); kind {
+	case "community":
+		return on(id)
+	case "band":
+		return 0
+	}
+	if p := personFromContext(r); p != nil {
+		if id, err := s.store.MemberVocalSliderCommunity(ctx, p.ID, variantID); err == nil && id != 0 {
+			return id
+		}
+	}
+	if variant != nil && variant.OwnerCommunityID != nil {
+		return on(*variant.OwnerCommunityID)
+	}
+	return 0
 }
 
 // songBrandContext is whose look a song page takes (internal/brand): the
