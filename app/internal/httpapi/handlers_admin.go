@@ -50,6 +50,7 @@ func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 		"AdminCount": adminCount, "Communities": communities,
 		"GroupInvites": groupInvites, "PlainInvites": plainInvites,
 		"ShellPeople": shellPeople,
+		"Demo":        s.demoStatus(r.Context()),
 	})
 }
 

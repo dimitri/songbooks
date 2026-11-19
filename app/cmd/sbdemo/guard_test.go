@@ -68,4 +68,23 @@ func TestCheckDeployment(t *testing.T) {
 			t.Errorf("host %s, RP ID %q: got %v", c.host, c.rp, err)
 		}
 	}
+	// A deployment marked as a demo copy (the local stack) passes on db;
+	// production's RP ID still wins.
+	demo := func(rp string) func(string) string {
+		return func(k string) string {
+			switch k {
+			case "SONGBOOKS_WEBAUTHN_RP_ID":
+				return rp
+			case "SONGBOOKS_DEMO_DATA":
+				return "1"
+			}
+			return ""
+		}
+	}
+	if err := checkDeployment("db", demo("")); err != nil {
+		t.Errorf("a demo copy on db refused: %v", err)
+	}
+	if err := checkDeployment("db", demo("app.songbooks.studio")); err == nil {
+		t.Error("production passed for being marked a demo copy")
+	}
 }

@@ -43,6 +43,7 @@
     <button type="button" data-tab="people" class="active" role="tab">{{t "People"}}</button>
     <button type="button" data-tab="communities" role="tab">{{t "Communities"}}</button>
     <button type="button" data-tab="invites" role="tab">{{t "Invites"}}</button>
+    {{if .Demo}}<button type="button" data-tab="demo" role="tab">{{t "Demo data"}}</button>{{end}}
   </nav>
 
   <section class="admin-panel" data-panel="people">
@@ -217,6 +218,45 @@
   </section>
 
 
+  {{with .Demo}}
+  {{/* Demo data (demo_data.go, docs/demo-data.md): only on a deployment
+       marked a demo copy (SONGBOOKS_DEMO_DATA=1), never production. */}}
+  <section class="admin-panel demo-panel" data-panel="demo" hidden>
+    <div class="card">
+      <h3>{{t "Demo data"}}</h3>
+      <p class="hint">{{t "This deployment is a demo copy: its data can be rewritten for screenshots and reviews. Production never shows this panel."}}</p>
+      <ol class="demo-steps">
+        <li><strong>{{t "Anonymize this copy"}}</strong> {{if .Anonymized}}<span class="voice-tag">{{t "done"}}</span>{{end}}
+          <p class="hint">{{t "Every name a visitor could recognise becomes an invented one, lyrics and reference links go. It can’t be undone: restore a dump to start again."}}</p>
+          <div class="demo-row"><input type="text" class="demo-confirm" placeholder="{{t "type the copy’s name, e.g. songbooks@db"}}" autocomplete="off"> <button type="button" class="danger demo-run" data-action="anonymize">{{t "Anonymize"}}</button></div></li>
+        <li><strong>{{t "Fixtures"}}</strong> <span class="hint">{{tn .Rows "%d row made" "%d rows made"}}</span>
+          <p class="hint">{{t "Students with their voices and songs, groups, notes, and eight weeks of lessons, jams, rehearsals and gigs. Adding again only adds what’s missing; removing takes away exactly what they made."}}</p>
+          <div class="demo-row"><button type="button" class="primary demo-run" data-action="fixtures">{{t "Add the fixtures"}}</button>
+            <button type="button" class="demo-run" data-action="remove"{{if not .Rows}} disabled{{end}}>{{t "Remove the fixtures"}}</button></div></li>
+      </ol>
+      <pre class="demo-output" hidden></pre>
+      <p class="hint">{{t "After anonymizing or adding fixtures, restart the app where it signs you in automatically: it learned your name at start."}}</p>
+    </div>
+  </section>
+  <script>
+  document.querySelectorAll('.demo-run').forEach((b) => b.addEventListener('click', async () => {
+    const action = b.dataset.action;
+    const out = document.querySelector('.demo-output');
+    const body = action === 'anonymize' ? JSON.stringify({ confirm: document.querySelector('.demo-confirm').value.trim() }) : '{}';
+    if (action === 'remove' && !confirm(t('Remove every row the fixtures made?'))) return;
+    document.querySelectorAll('.demo-run').forEach((x) => { x.disabled = true; });
+    out.hidden = false; out.textContent = t('Working…');
+    try {
+      const r = await fetch(`/api/admin/demo/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      const text = await r.text();
+      let res; try { res = JSON.parse(text); } catch (e) { res = { output: text }; }
+      out.textContent = res.output || text;
+      if (r.ok) setTimeout(() => location.reload(), 1500);
+    } catch (e) { out.textContent = String(e); }
+    document.querySelectorAll('.demo-run').forEach((x) => { x.disabled = false; });
+  }));
+  </script>
+  {{end}}
 </main>
 <script>
 (function () {

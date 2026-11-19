@@ -11,6 +11,8 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o /out/songbooks ./cmd/songbooks
+# sbdemo: the admin page's demo data buttons run it (docs/demo-data.md).
+RUN CGO_ENABLED=0 go build -o /out/sbdemo ./cmd/sbdemo
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -20,5 +22,6 @@ RUN curl -fsSL -o /usr/local/bin/yt-dlp \
         https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp
 COPY --from=builder /out/songbooks /usr/local/bin/songbooks
+COPY --from=builder /out/sbdemo /usr/local/bin/sbdemo
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/songbooks"]

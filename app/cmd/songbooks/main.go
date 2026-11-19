@@ -167,6 +167,10 @@ func main() {
 
 	handler := httpapi.NewServer(st, m, devAutoLogin, *webauthnRPID, *adminFileDir)
 	httpapi.Covers = covers.NewFinder()
+	// A demo copy (the local stack, staging; never production) gets the
+	// admin page's demo data panel (docs/demo-data.md).
+	httpapi.DemoData = os.Getenv("SONGBOOKS_DEMO_DATA") == "1"
+	httpapi.DemoDBURL = *dbURL
 	// Live lessons (docs/live-lessons.md): Galène's address and the key
 	// its lessons group checks our join tokens with (galene/setup.sh
 	// writes it in deploy/.env); no key, no online lessons to join.

@@ -39,6 +39,8 @@ services:
       TZ: ${SONGBOOKS_TZ:-Europe/Paris}
       DATABASE_URL: postgres://songbooks:songbooks-local@db:5432/songbooks?sslmode=disable
       SONGBOOKS_DEV_AUTO_LOGIN: ${SONGBOOKS_DEV_AUTO_LOGIN:-tapoueh}
+      # A demo copy: the admin page's Demo data panel (docs/demo-data.md).
+      SONGBOOKS_DEMO_DATA: "1"
       # Live lessons against a local Galène (docs/live-lessons.md): unset,
       # online lessons say they aren't set up.
       SONGBOOKS_GALENE_KEY: ${SONGBOOKS_GALENE_KEY:-}

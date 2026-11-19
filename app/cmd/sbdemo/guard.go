@@ -28,6 +28,11 @@ func checkDeployment(host string, getenv func(string) string) error {
 	if productionHosts[rp] {
 		return fmt.Errorf("refusing: this is production (SONGBOOKS_WEBAUTHN_RP_ID=%s)", rp)
 	}
+	// A deployment that says it's a demo copy (SONGBOOKS_DEMO_DATA=1: the
+	// local stack, staging) may be rewritten on its compose database.
+	if host == "db" && rp == "" && getenv("SONGBOOKS_DEMO_DATA") == "1" {
+		return nil
+	}
 	if host == "db" && rp == "" {
 		return fmt.Errorf("refusing: on host db, SONGBOOKS_WEBAUTHN_RP_ID must name the deployment (staging's) to tell it from production")
 	}

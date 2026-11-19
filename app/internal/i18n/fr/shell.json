@@ -404,5 +404,19 @@
   "Subscribe in your calendar app": "S’abonner dans votre agenda",
   "Your bands": "Vos groupes",
   "Your communities": "Vos communautés",
-  "Your songbooks": "Vos songbooks"
+  "Your songbooks": "Vos songbooks",
+  "Demo data": "Données de démo",
+  "This deployment is a demo copy: its data can be rewritten for screenshots and reviews. Production never shows this panel.": "Ce déploiement est une copie de démo : ses données peuvent être réécrites pour des captures et des revues. La production n’affiche jamais ce panneau.",
+  "Anonymize this copy": "Anonymiser cette copie",
+  "done": "fait",
+  "Every name a visitor could recognise becomes an invented one, lyrics and reference links go. It can’t be undone: restore a dump to start again.": "Chaque nom reconnaissable devient un nom inventé, les paroles et les liens de référence partent. C’est irréversible : restaurez une sauvegarde pour recommencer.",
+  "type the copy’s name, e.g. songbooks@db": "tapez le nom de la copie, ex. songbooks@db",
+  "Anonymize": "Anonymiser",
+  "Fixtures": "Données d’exemple",
+  "%d row made": "%d ligne créée",
+  "%d rows made": "%d lignes créées",
+  "Students with their voices and songs, groups, notes, and eight weeks of lessons, jams, rehearsals and gigs. Adding again only adds what’s missing; removing takes away exactly what they made.": "Des élèves avec leurs voix et leurs morceaux, des classes, des notes, et huit semaines de cours, de jams, de répétitions et de concerts. Les ajouter à nouveau n’ajoute que ce qui manque ; les retirer enlève exactement ce qu’elles ont créé.",
+  "Add the fixtures": "Ajouter les données d’exemple",
+  "Remove the fixtures": "Retirer les données d’exemple",
+  "After anonymizing or adding fixtures, restart the app where it signs you in automatically: it learned your name at start.": "Après une anonymisation ou un ajout, redémarrez l’appli là où elle vous connecte automatiquement : elle a appris votre nom au démarrage."
 }

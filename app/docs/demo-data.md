@@ -16,6 +16,21 @@ sbdemo fixtures  --db URL --confirm DB@HOST
 `fixtures`. Both print how many rows they changed, table by table, and
 never a name.
 
+`sbdemo remove` takes the fixtures away again: everything they made is
+recorded (`demo_fixture_rows`, migration 0091) and removed, the copy's
+own data left as it was. Anonymizing can't be undone: restore a dump.
+
+## From the admin page
+
+On a deployment marked a demo copy, `SONGBOOKS_DEMO_DATA=1` (the local
+stack always; staging when its `.env` says so; production never), the
+admin page has a **Demo data** tab: *Anonymize this copy* (type the
+copy's name, `songbooks@db`, to confirm), *Add the fixtures*, *Remove
+the fixtures*, each running the image's `sbdemo` with the right
+`--confirm`, and the rows they changed shown back. The flag also lets
+sbdemo run on a compose database (`db`) without
+`SONGBOOKS_WEBAUTHN_RP_ID`; production's RP ID still refuses it.
+
 ## The guard
 
 sbdemo rewrites a whole database, so it refuses to run:

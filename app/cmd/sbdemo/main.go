@@ -42,6 +42,7 @@ import (
 const usage = `usage:
   sbdemo anonymize --db URL --confirm DB@HOST
   sbdemo fixtures  --db URL --confirm DB@HOST
+  sbdemo remove    --db URL --confirm DB@HOST   (the fixtures, not the anonymizing)
 
 --db defaults to $DATABASE_URL. Only a database on localhost, 127.0.0.1
 or db (staging's compose database) is accepted, and --confirm must name
@@ -55,7 +56,7 @@ func main() {
 }
 
 func run(args []string) error {
-	if len(args) < 1 || (args[0] != "anonymize" && args[0] != "fixtures") {
+	if len(args) < 1 || (args[0] != "anonymize" && args[0] != "fixtures" && args[0] != "remove") {
 		return fmt.Errorf("%s", usage)
 	}
 	cmd := args[0]
@@ -93,6 +94,8 @@ func run(args []string) error {
 		c, err = anonymize(ctx, db, st)
 	case "fixtures":
 		c, err = fixtures(ctx, db, st, time.Now())
+	case "remove":
+		c, err = removeFixtures(ctx, db)
 	}
 	if err != nil {
 		return err

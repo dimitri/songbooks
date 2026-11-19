@@ -370,7 +370,7 @@ func (f *fixer) member(ctx context.Context, community, person int64, role string
 		return err
 	}
 	f.c.add("community_members", 1)
-	return nil
+	return f.track(ctx, "membership", community, person)
 }
 
 // repertoire is a community's main songbook's songs, by id.
@@ -398,6 +398,9 @@ func (f *fixer) student(ctx context.Context, community, coach int64, k int, repe
 		return 0, err
 	} else {
 		f.c.add("people (students)", 1)
+		if err := f.track(ctx, "person", id, 0); err != nil {
+			return 0, err
+		}
 	}
 	if err := f.member(ctx, community, id, "member"); err != nil {
 		return 0, err
@@ -409,8 +412,17 @@ func (f *fixer) student(ctx context.Context, community, coach int64, k int, repe
 	if err := f.studentSongs(ctx, community, id, name, coach, vt, k, 3+k%3, repertoire); err != nil {
 		return 0, err
 	}
+	had, err := f.st.StudentNotes(ctx, community, id)
+	if err != nil {
+		return 0, err
+	}
 	if err := f.st.SetStudentNotes(ctx, community, id, StudentProfile(k), coach); err != nil {
 		return 0, err
+	}
+	if had == "" { // the copy's own notes stay when the fixtures go
+		if err := f.track(ctx, "student_notes", community, id); err != nil {
+			return 0, err
+		}
 	}
 	for j := 0; j <= k%2; j++ {
 		if err := f.note(ctx, community, id, coach, TeachingNote(k+j*5)); err != nil {
@@ -423,6 +435,10 @@ func (f *fixer) student(ctx context.Context, community, coach int64, k int, repe
 // voice notes a student's three registers, a voice type's ranges moved a
 // little (k), the registers overlapping.
 func (f *fixer) voice(ctx context.Context, community, person, coach int64, vt, k int) error {
+	had, err := f.st.StudentRanges(ctx, community, person)
+	if err != nil {
+		return err
+	}
 	shift := k%3 - 1
 	for i, reg := range store.Registers {
 		lo, hi := voiceTypes[vt].ranges[i][0]+shift, voiceTypes[vt].ranges[i][1]+shift+(k%2)
@@ -432,15 +448,27 @@ func (f *fixer) voice(ctx context.Context, community, person, coach int64, vt, k
 		}
 		f.c.add("student_voice_ranges", 1)
 	}
-	return nil
+	if len(had) > 0 { // the copy's own ranges: not the fixtures' to remove
+		return nil
+	}
+	return f.track(ctx, "ranges", community, person)
 }
 
 // studentSongs fills a student's songbook: n songs of the repertoire, in
 // keys that suit the voice.
 func (f *fixer) studentSongs(ctx context.Context, community, person int64, name string, coach int64, vt, k, n int, repertoire []int64) error {
+	had, err := f.st.FindStudentSongbook(ctx, community, person)
+	if err != nil {
+		return err
+	}
 	sb, err := f.st.StudentSongbook(ctx, community, person, name+"’s songs", coach)
 	if err != nil {
 		return err
+	}
+	if had == 0 { // the copy's own songbook stays when the fixtures go
+		if err := f.track(ctx, "songbook", sb, 0); err != nil {
+			return err
+		}
 	}
 	return f.fill(ctx, sb, coach, repertoire, k*2, n, voiceTypes[vt].key, "songbook_entries (students)")
 }
@@ -478,11 +506,12 @@ func (f *fixer) note(ctx context.Context, community, person, coach int64, body s
 	if n > 0 {
 		return nil
 	}
-	if _, err := f.st.AddTeachingNote(ctx, community, person, nil, body, coach); err != nil {
+	id, err := f.st.AddTeachingNote(ctx, community, person, nil, body, coach)
+	if err != nil {
 		return err
 	}
 	f.c.add("teaching_notes", 1)
-	return nil
+	return f.track(ctx, "teaching_note", id, 0)
 }
 
 // group finds or makes a coaching group, sets its members and puts four
@@ -496,6 +525,9 @@ func (f *fixer) group(ctx context.Context, community int64, name, kind string, s
 			return 0, err
 		}
 		f.c.add("coaching_groups", 1)
+		if err := f.track(ctx, "group", id, 0); err != nil {
+			return 0, err
+		}
 	} else if err != nil {
 		return 0, err
 	}
@@ -572,7 +604,7 @@ func (f *fixer) event(ctx context.Context, ownerKind string, owner int64, kind, 
 		return 0, err
 	}
 	f.c.add("events ("+kind+")", 1)
-	return id, nil
+	return id, f.track(ctx, "event", id, 0)
 }
 
 // lesson finds or makes a lesson: a group's (its members registered) or
@@ -665,5 +697,46 @@ func (f *fixer) setlist(ctx context.Context, band int64, title, venue string, da
 		return 0, err
 	}
 	f.c.add("setlists", 1)
-	return id, nil
+	return id, f.track(ctx, "setlist", id, 0)
+}
+
+// track notes a row the fixtures made, for `sbdemo remove`.
+func (f *fixer) track(ctx context.Context, kind string, id, ref int64) error {
+	_, err := f.db.Exec(ctx, `INSERT INTO demo_fixture_rows (kind, id, ref) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, kind, id, ref)
+	return err
+}
+
+// removeFixtures takes away every row the fixtures made (demo_fixture_rows),
+// the latest kinds first: events, set lists, groups, notes, ranges,
+// songbooks, memberships, then the invented people.
+func removeFixtures(ctx context.Context, db *pgxpool.Pool) (counts, error) {
+	c := counts{}
+	steps := []struct{ kind, sql string }{
+		{"event", `DELETE FROM events WHERE id IN (SELECT id FROM demo_fixture_rows WHERE kind = 'event')`},
+		{"setlist", `DELETE FROM setlists WHERE id IN (SELECT id FROM demo_fixture_rows WHERE kind = 'setlist')`},
+		{"group", `DELETE FROM songbooks WHERE id IN (SELECT songbook_id FROM coaching_groups WHERE id IN (SELECT id FROM demo_fixture_rows WHERE kind = 'group'))`},
+		{"group", `DELETE FROM coaching_groups WHERE id IN (SELECT id FROM demo_fixture_rows WHERE kind = 'group')`},
+		{"teaching_note", `DELETE FROM teaching_notes WHERE id IN (SELECT id FROM demo_fixture_rows WHERE kind = 'teaching_note')`},
+		{"student_notes", `DELETE FROM student_notes n USING demo_fixture_rows d WHERE d.kind = 'student_notes' AND n.community_id = d.id AND n.person_id = d.ref`},
+		{"ranges", `DELETE FROM student_voice_ranges r USING demo_fixture_rows d WHERE d.kind = 'ranges' AND r.community_id = d.id AND r.person_id = d.ref`},
+		{"songbook", `DELETE FROM songbooks WHERE id IN (SELECT id FROM demo_fixture_rows WHERE kind = 'songbook')`},
+		{"membership", `DELETE FROM community_members m USING demo_fixture_rows d WHERE d.kind = 'membership' AND m.community_id = d.id AND m.person_id = d.ref`},
+		{"person", `DELETE FROM people WHERE id IN (SELECT id FROM demo_fixture_rows WHERE kind = 'person')`},
+	}
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	for _, st := range steps {
+		tag, err := tx.Exec(ctx, st.sql)
+		if err != nil {
+			return nil, fmt.Errorf("removing %s: %w", st.kind, err)
+		}
+		c.add(st.kind, tag.RowsAffected())
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM demo_fixture_rows`); err != nil {
+		return nil, err
+	}
+	return c, tx.Commit(ctx)
 }
