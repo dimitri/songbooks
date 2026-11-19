@@ -1172,6 +1172,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .audio-ruler-section {
   pointer-events: auto; cursor: pointer; font-weight: 700; color: var(--fg); top: 2px; bottom: auto;
   border-left: 2px solid var(--accent); padding: 1px 4px; background: var(--bg-raised); z-index: 2;
+  box-sizing: border-box; overflow: hidden; text-overflow: ellipsis;
 }
 .audio-ruler-section:hover { color: var(--accent-ink); }
 .audio-cycle {
@@ -1211,29 +1212,40 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   border-top: 1px solid var(--border); box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.10);
 }
 .audio-dock .audio-transport { margin: 0 auto; max-width: 90rem; flex-wrap: nowrap; }
-/* The options on the bar's one line where they fit; where they don't (a
-   laptop beside the sidebar), only their icons (opts-compact); where not
-   even those do, folded into ⋯ as on a phone, opening above the bar
-   (opts-fold). audio-player.js fitDock measures it, whatever the browser:
-   a container query on the dock's width (70rem) folded them all away in
-   a 1280px window, or a zoomed one. */
-.audio-dock.opts-compact .audio-opts .audio-toggle > span:not(.audio-trainer-meter),
-.audio-dock.opts-compact .audio-speed-bpm, .audio-dock.opts-compact .audio-lcd-time,
-.audio-dock:is(.opts-compact, .opts-fold) .audio-sing-btn-label { display: none; }
-.audio-dock.opts-compact .audio-opts .audio-toggle { padding: 0 0.45rem; }
+/* The tools on the bar's one line, in their order of priority (play.html).
+   Where they don't all fit, audio-player.js fitDock measures and, in turn:
+   shows the tools that are off as icons only (opts-compact); folds them,
+   the last ones first, into "+N" (data-folded, has-more); and last, takes
+   the labels off the ones that are on (opts-tight). A tool that is on
+   (is-on) never folds. */
+.audio-dock.opts-compact .audio-opts > [data-tool]:not(.is-on) .audio-toggle > span:not(.audio-trainer-meter),
+.audio-dock.opts-compact .audio-opts > .audio-toggle[data-tool]:not(.is-on) > span:not(.audio-trainer-meter),
+.audio-dock.opts-compact .audio-speed:not(.is-on) .audio-speed-bpm,
+.audio-dock.opts-tight .audio-opts .audio-toggle > span:not(.audio-trainer-meter),
+.audio-dock.opts-tight .audio-speed-bpm, .audio-dock.opts-tight .audio-lcd-time,
+.audio-dock:is(.opts-compact, .opts-tight) .audio-sing-btn-label { display: none; }
+.audio-dock.opts-compact .audio-opts > [data-tool]:not(.is-on).audio-toggle,
+.audio-dock.opts-compact .audio-opts > [data-tool]:not(.is-on) .audio-toggle,
+.audio-dock.opts-tight .audio-opts .audio-toggle { padding: 0 0.45rem; }
+.audio-dock .audio-opts > [data-folded] { display: none !important; }
+.audio-speed.active select { border-color: var(--accent); color: var(--accent-ink); font-weight: 600; background: var(--accent-bg); }
 /* Nothing shrinks but the bar.beat display, so that what doesn't fit
    overflows, and fitDock sees it. */
 @media (min-width: 721px) {
   .audio-dock .audio-transport > :not(.audio-lcd), .audio-dock .audio-opts > * { flex-shrink: 0; }
   .audio-dock .audio-speed { white-space: nowrap; }
+  .audio-dock.has-more .audio-transport .audio-opts-btn { display: inline-flex; margin-left: 0; width: auto; min-width: 2.2rem; padding: 0 0.5rem; border-style: dashed; border-radius: 999px; font-size: 0.8rem; font-weight: 700; color: var(--fg-muted); }
+  .audio-dock .audio-opts-btn .audio-opts-icon { display: none; }
 }
-.audio-dock.opts-fold .audio-transport .audio-opts-btn { display: inline-flex; }
-.audio-dock.opts-fold .audio-opts { display: none; }
-.audio-dock.opts-fold .audio-opts.open {
-  display: flex; position: absolute; right: 0; top: auto; bottom: calc(100% + 0.6rem); z-index: 20;
+.audio-more-count:empty { display: none; }
+@media (max-width: 720px) { .audio-more-count { display: none; } }
+.audio-more-menu:not([hidden]) {
+  display: flex; position: absolute; right: 0; bottom: calc(100% + 0.6rem); z-index: 20;
   flex-direction: column; align-items: stretch; gap: 0.4rem; padding: 0.6rem; max-height: 70dvh; overflow-y: auto;
-  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
+  background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
 }
+.audio-more-menu > [data-tool] { display: inline-flex; }
+.audio-more-menu .audio-split .audio-toggle { flex: 1; }
 .audio-dock .audio-opts { flex-wrap: nowrap; }
 .audio-dock-line { position: absolute; left: 0; right: 0; top: -5px; height: 11px; cursor: pointer; }
 .audio-dock-line::before { content: ""; position: absolute; left: 0; right: 0; top: 4px; height: 3px; background: color-mix(in srgb, var(--fg) 12%, transparent); }
