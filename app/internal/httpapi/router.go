@@ -579,6 +579,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /api/setlists/{id}/gigs", s.requireAuth(s.handleListSetlistGigs))
 	mux.HandleFunc("POST /api/setlists/{id}/gigs", s.requireAuth(s.handleAddSetlistGig))
 	mux.HandleFunc("DELETE /api/setlists/{id}/gigs/{gigID}", s.requireAuth(s.handleRemoveSetlistGig))
+	mux.HandleFunc("PUT /api/setlists/{id}/clicktrack-notes/{variantID}", s.requireAuth(s.handlePutClicktrackNote))
 	mux.HandleFunc("GET /setlists/{id}", s.requireAuth(s.handleSetlistOverview))
 	mux.HandleFunc("GET /setlists/{id}/practice", s.handleSetlistOldStep)
 	mux.HandleFunc("GET /setlists/{id}/listening", s.handleSetlistOldStep)

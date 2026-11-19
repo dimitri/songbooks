@@ -281,5 +281,8 @@
   "%d repeats": "%d reprises",
   "%d min %d s": "%d min %d s",
   "%d repeat · %d min %d s": "%d reprise · %d min %d s",
-  "repeat %d of %d": "reprise %d sur %d"
+  "repeat %d of %d": "reprise %d sur %d",
+  "Tap to add a note for this song": "Touchez pour ajouter une note à ce morceau",
+  "Saved": "Enregistré",
+  "Could not save the note.": "Impossible d’enregistrer la note."
 }
