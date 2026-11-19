@@ -518,11 +518,11 @@
         const grip = document.createElement('span');
         grip.className = 'daw-section-grip';
         grip.title = t('drag to move where %s starts — everything after follows (⌥: only this boundary, ⇧: whole grid)', s.label);
-        grip.addEventListener('mousedown', (e) => startAnchorDrag(e, anchorList().find((x) => x.i === i)));
+        grip.addEventListener('pointerdown', (e) => startAnchorDrag(e, anchorList().find((x) => x.i === i)));
         grip.addEventListener('click', (e) => e.stopPropagation());
         el.appendChild(grip);
       }
-      if (canEdit) el.addEventListener('mousedown', (e) => {
+      if (canEdit) el.addEventListener('pointerdown', (e) => {
         if (e.target.closest('.daw-section-grip')) return;
         startAnchorDrag(e, anchorList().find((x) => x.i === i), 5);
       });
@@ -532,7 +532,9 @@
         selected = selected === i && !aligning ? -1 : i;
         renderSections();
         renderRuler();
-        if (selected >= 0) seek(t0);
+        // Aligning, a section is picked to place it while the music
+        // plays on: no jump (M then sets it at the playhead).
+        if (selected >= 0 && !aligning) seek(t0);
         updateAlignStatus();
       });
       lane.appendChild(el);
@@ -748,7 +750,9 @@
         const bt = barTimes[b] + (k / (pulses * subs)) * dur;
         if (bt < from || bt >= until) continue;
         const soft = k % subs !== 0;
-        clicker._click(ctx.currentTime + (bt - t) / speed + keyDelay(), k === 0, soft, tr.volume);
+        // The pitch shifter's latency isn't known until it has loaded.
+        const when = ctx.currentTime + (bt - t) / speed + (keyDelay() || 0);
+        if (isFinite(when)) clicker._click(when, k === 0, soft, tr.volume);
       }
     }
     clicksUntil = until;
@@ -1251,7 +1255,7 @@
   });
 
   function wireLaneSeeking() {
-    contentEl.addEventListener('mousedown', (e) => {
+    contentEl.addEventListener('pointerdown', (e) => {
       if (rows.audio && rows.audio.lane.contains(e.target)) startClipDrag(e);
     });
     contentEl.addEventListener('click', (e) => {
@@ -1365,7 +1369,7 @@
         ? t('%s starts at %s — drag to align', a.label, fmtTime(barTimes[a.bar]))
         : t('%s starts at %s (estimated from tempo) — drag to align', a.label, fmtTime(barTimes[a.bar]));
       el.innerHTML = `<span class="daw-anchor-flag">${escapeHTML(a.label)}</span>`;
-      el.addEventListener('mousedown', (e) => startAnchorDrag(e, a));
+      el.addEventListener('pointerdown', (e) => startAnchorDrag(e, a));
       lane.appendChild(el);
     }
   }
@@ -1414,8 +1418,10 @@
     if (!aligning) alignBtn.click();
   }
 
+  // Pointer events: a mouse, a pen or a finger. A finger only drags while
+  // aligning; otherwise it scrolls the timeline.
   function startAnchorDrag(e, a, threshold = 0) {
-    if (!canEdit || !hasAudio() || e.button !== 0) return;
+    if (!canEdit || !hasAudio() || e.button !== 0 || (e.pointerType === 'touch' && !aligning)) return;
     e.preventDefault();
     e.stopPropagation();
     const orig = barTimes.slice();
@@ -1437,21 +1443,23 @@
       alignStatus.textContent = `${a.label} → ${fmtTime(barTimes[a.bar])}`;
     };
     const onUp = async () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
       if (!moved) return;
       swallowClick();
       if (barTimes[a.bar] === orig[a.bar] && barTimes[0] === orig[0]) { renderAnchors(); return; }
       await saveAlignment(a, orig);
     };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
   }
 
   // Drag the recording itself, like Audacity's time-shift tool: it slides
   // against the bars (the whole grid moves the other way in its time).
   function startClipDrag(e) {
-    if (!canEdit || !hasAudio() || e.button !== 0 || e.target.closest('.daw-anchor')) return;
+    if (!canEdit || !hasAudio() || e.button !== 0 || e.target.closest('.daw-anchor') || (e.pointerType === 'touch' && !aligning)) return;
     const orig = barTimes.slice();
     const x0 = e.clientX;
     const lane = rows.audio.lane;
@@ -1471,8 +1479,9 @@
         : t('recording earlier by %ss against the bars', Math.abs(dx / pxPerSec).toFixed(2));
     };
     const onUp = async (ev) => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
       if (!moved) return;
       swallowClick();
       lane.classList.remove('is-sliding');
@@ -1483,8 +1492,9 @@
       const first = pickup() ? 1 : 0;
       await saveAlignment({ bar: first, label: t('Bar %s', barLabel(first)), i: 0 }, orig);
     };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
   }
 
   async function saveAlignment(a, orig) {
@@ -1498,17 +1508,19 @@
         meta.barSyncPoints = points;
         meta.syncOrigin = 'set';
       } else {
-        const shifted = data.sections.filter((s) => realBars.has(s.startBar) || s.startBar === a.bar);
-        meta.markers = meta.markers || [];
-        for (const s of shifted) {
+        // The whole sync in one request: a drag that ripples through
+        // eight sections is saved, or not, as one. The starts it moved
+        // were placed by hand ("set"); the others keep their origin.
+        const old = meta.markers || [];
+        const markers = data.sections.filter((s) => realBars.has(s.startBar) || s.startBar === a.bar).map((s) => {
           const t = barTimes[s.startBar];
-          if (Math.abs(t - orig[s.startBar]) < 1e-6 && s.startBar !== a.bar) continue;
-          await put(`/api/songs/${variantId}/audio/${refCat}/markers/${s.index}`, { timeSeconds: t });
-          // Placed by hand: set (the server says so too).
-          const m = meta.markers.find((x) => x.sectionIndex === s.index);
-          if (m) Object.assign(m, { timeSeconds: t, origin: 'set' }); else meta.markers.push({ sectionIndex: s.index, timeSeconds: t, origin: 'set' });
-        }
-        meta.syncOrigin = meta.markers.some((m) => m.origin === 'auto') ? 'auto' : 'set';
+          const was = old.find((x) => x.sectionIndex === s.index);
+          const moved = !was || s.startBar === a.bar || Math.abs(t - orig[s.startBar]) > 1e-6;
+          return { sectionIndex: s.index, timeSeconds: t, origin: moved ? 'set' : (was.origin || 'set') };
+        });
+        await put(`/api/songs/${variantId}/audio/${refCat}/markers`, { markers });
+        meta.markers = markers;
+        meta.syncOrigin = markers.some((m) => m.origin === 'auto') ? 'auto' : 'set';
       }
       alignStatus.textContent = t('saved — %s at %s', a.label, fmtTime(barTimes[a.bar]));
       document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
@@ -1528,7 +1540,7 @@
 
   function updateAlignStatus() {
     if (!aligning) return;
-    alignStatus.textContent = selected >= 0 ? t('selected: %s', data.sections[selected].label) : t('select a section to set its start at the playhead');
+    alignStatus.textContent = selected >= 0 ? t('next: %s — press M on its first beat', data.sections[selected].label) : t('select a section to set its start at the playhead');
   }
 
   alignBtn?.addEventListener('click', () => {
@@ -1536,36 +1548,47 @@
     aligning = !aligning;
     alignBtn.setAttribute('aria-pressed', aligning);
     alignBar.hidden = !aligning;
+    dawEl.classList.toggle('is-aligning', aligning);
+    clickWhileAligning(aligning);
     renderSections();
     renderAudioLane();
     updateAlignStatus();
   });
-  $('daw-align-here')?.addEventListener('click', async () => {
+  $('daw-align-here')?.addEventListener('click', () => {
     if (selected < 0) { alignStatus.textContent = t('select a section first (click it in the Sections row)'); return; }
-    const s = data.sections[selected];
-    const a = anchorList().find((x) => x.i === selected);
-    const orig = barTimes.slice();
-    barTimes = movedTimes(orig, a, position, 'ripple');
-    layout(true);
-    await saveAlignment({ ...a, label: s.label }, orig);
+    markAtPlayhead();
+  });
+  // The Sync sheet (sync-sheet.js), the way to sync on a phone too.
+  $('daw-sync-sheet')?.addEventListener('click', () => {
+    if (!window.songbooksSyncSheet) return;
+    pause();
+    window.songbooksSyncSheet.open({ category: refCat });
   });
 
   // ---- Auto-align ------------------------------------------------------------
   // mixer-autoalign.js finds the count-in and downbeats; this feeds it the
   // song's bar positions and score onsets (in ticks), applies the result,
   // saves it like a manual alignment, and keeps the previous one for Undo.
-  let undoSnapshot = null;
-  // The alignment as it was before an edit (a drag or Auto-align), for Undo.
+  // The alignments as they were before each edit (a drag, a nudge, M,
+  // Auto-align), newest last: Undo (or ⌘Z) goes back one at a time.
+  const undoStack = [];
   function snapshotForUndo() {
     const meta = audioCats[refCat] || {};
-    undoSnapshot = {
+    undoStack.push({
       cat: refCat,
       sync: (meta.barSyncPoints || []).map((p) => ({ ...p })),
       markers: (meta.markers || []).map((m) => ({ ...m })),
       origin: meta.syncOrigin || '',
-    };
+    });
+    if (undoStack.length > 50) undoStack.shift();
+    renderUndo();
+  }
+  function renderUndo() {
     const btn = $('daw-align-undo');
-    if (btn) btn.hidden = false;
+    if (!btn) return;
+    const n = undoStack.filter((s) => s.cat === refCat).length;
+    btn.hidden = !n;
+    btn.textContent = n > 1 ? t('Undo (%d)', n) : t('Undo');
   }
 
   function songForAlign() {
@@ -1665,8 +1688,12 @@
   }
 
   async function undoAutoAlign() {
-    const snap = undoSnapshot;
-    if (!snap || snap.cat !== refCat) return;
+    clearTimeout(nudgeTimer);
+    nudgeTimer = null;
+    let i = undoStack.length - 1;
+    while (i >= 0 && undoStack[i].cat !== refCat) i--;
+    if (i < 0) return;
+    const snap = undoStack.splice(i, 1)[0];
     const meta = audioCats[refCat];
     try {
       if (refCat === 'gp') {
@@ -1679,16 +1706,61 @@
         meta.markers = snap.markers;
       }
       meta.syncOrigin = snap.origin;
-      undoSnapshot = null;
-      $('daw-align-undo').hidden = true;
+      renderUndo();
       alignStatus.textContent = t('Undone — back to the previous alignment.');
       document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
       computeBarTimes();
       rows.audio.hdr.querySelector('.daw-hdr-sub').textContent = refSubtitle();
       layout();
     } catch (err) {
+      undoStack.splice(i, 0, snap);
+      renderUndo();
       alignStatus.textContent = t('Could not undo: %s', err.message);
     }
+  }
+
+  // ---- Aligning from the keyboard --------------------------------------------
+  // M: the selected section starts at the playhead, and the next one is
+  // selected — tap along while it plays, as Logic's D or Transcribe!'s M.
+  // ⌥← / ⌥→ move the selected start by 10 ms, ⇧⌥ by a beat; nudges in a
+  // row are saved together, a moment after the last.
+  async function markAtPlayhead() {
+    if (!aligning || selected < 0 || !hasAudio()) return;
+    const s = data.sections[selected];
+    const a = anchorList().find((x) => x.i === selected);
+    const orig = barTimes.slice();
+    snapshotForUndo();
+    barTimes = movedTimes(orig, a, position, 'ripple');
+    selected = Math.min(data.sections.length - 1, selected + 1);
+    layout(true);
+    await saveAlignment({ ...a, label: s.label }, orig);
+    updateAlignStatus();
+  }
+  let nudgeTimer = null;
+  let nudgeFrom = null;
+  function nudge(d) {
+    if (!aligning || selected < 0 || !hasAudio()) return;
+    const a = anchorList().find((x) => x.i === selected);
+    if (!nudgeTimer) { nudgeFrom = barTimes.slice(); snapshotForUndo(); }
+    barTimes = movedTimes(barTimes.slice(), a, barTimes[a.bar] + d, 'boundary');
+    layout(true);
+    alignStatus.textContent = `${a.label} → ${fmtTime(barTimes[a.bar])}`;
+    clearTimeout(nudgeTimer);
+    nudgeTimer = setTimeout(async () => {
+      nudgeTimer = null;
+      await saveAlignment(a, nudgeFrom);
+    }, 700);
+  }
+  // Aligning is done by ear: the click lane plays (as it was after).
+  let clickWasMuted = null;
+  function clickWhileAligning(on) {
+    const tr = tracks.find((x) => x.kind === 'click');
+    if (!tr) return;
+    if (on && tr.muted) { clickWasMuted = true; tr.muted = false; }
+    else if (!on && clickWasMuted) { tr.muted = true; clickWasMuted = null; }
+    else return;
+    syncTrackControls(tr);
+    applyMix();
   }
 
   // A sync saved from the Sync sheet (sync-sheet.js): follow it here too.
@@ -1713,7 +1785,21 @@
     if (e.code === 'Space') { e.preventDefault(); playing ? pause() : play(); }
     else if (e.key === 'Home') { e.preventDefault(); seek(barTimes[0] || 0); followPlayhead(); }
     else if (e.key === 'l' || e.key === 'L') toggleLoop();
+    else if (aligning && (e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); undoAutoAlign(); }
+    else if (aligning && e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && selected >= 0) {
+      e.preventDefault();
+      const b = data.sections[selected].startBar;
+      const beat = ((barTimes[b + 1] ?? barTimes[b] + nominalBarSec()) - barTimes[b]) / beatsPerBar();
+      nudge((e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? beat : 0.01));
+    }
     else if (e.metaKey || e.ctrlKey || e.altKey) return;
+    else if (aligning && (e.key === 'm' || e.key === 'M')) { e.preventDefault(); markAtPlayhead(); }
+    else if (aligning && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      selected = Math.max(0, Math.min(data.sections.length - 1, (selected < 0 ? 0 : selected + (e.key === 'ArrowUp' ? -1 : 1))));
+      renderSections();
+      updateAlignStatus();
+    }
     else if (e.key === 'f' || e.key === 'F') zoomToFit();
     else if (e.key === 'b' || e.key === 'B') zoomToTwoBars();
     else if (e.key === '+' || e.key === '=') setZoom(pxPerSec * 1.4);
@@ -1879,6 +1965,13 @@
           renderPhoneBar();
         }, sectionColor(sec.label)));
       });
+      phoneBar.appendChild(row);
+    }
+    // Syncing on a phone: the Sync sheet (the align tools want a mouse).
+    if (canEdit && refCat && window.songbooksSyncSheet) {
+      const row = document.createElement('div');
+      row.className = 'daw-presets';
+      row.appendChild(chip(t('Sync by ear'), false, () => $('daw-sync-sheet')?.click()));
       phoneBar.appendChild(row);
     }
   }

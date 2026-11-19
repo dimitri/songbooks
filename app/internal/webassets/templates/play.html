@@ -1911,7 +1911,8 @@
           </label>
           <span class="daw-tb-spacer"></span>
           {{if .CanEdit}}<button type="button" class="daw-btn-text" id="daw-autoalign" title="{{t "find the count-in and downbeats in the recording and place every bar automatically"}}">{{t "Auto-align"}}</button>
-          <button type="button" class="daw-btn-text" id="daw-align" aria-pressed="false" title="{{t "align the reference recording to the song's bars and sections by hand"}}">{{t "Align recording"}}</button>{{end}}
+          <button type="button" class="daw-btn-text" id="daw-align" aria-pressed="false" title="{{t "align the reference recording to the song's bars and sections by hand"}}">{{t "Align recording"}}</button>
+          <button type="button" class="daw-btn-text daw-sync-sheet" id="daw-sync-sheet" title="{{t "tap along while listening, at the start of each section (works on a phone)"}}">{{t "Sync by ear"}}</button>{{end}}
           <div class="daw-zoom" role="group" aria-label="{{t "zoom"}}">
             <button type="button" class="daw-btn-text" id="daw-zoom-fit" title="{{t "fit the whole song to the window (F)"}}">{{t "Fit"}}</button>
             <button type="button" class="daw-btn daw-btn-sm" id="daw-zoom-out" title="{{t "zoom out (−)"}}" aria-label="{{t "zoom out"}}">−</button>
@@ -1923,7 +1924,12 @@
         </div>
         <div class="daw-align-bar" id="daw-align-bar" hidden>
           <strong>{{t "Align recording"}}</strong>
-          <span>{{t "Drag the recording left or right to slide it against the bars. Drag a section (in Sections, or its flag on the recording) to where it really starts — it and everything after it follow, the previous one stretches;"}} <kbd>⌥</kbd> {{t "moves only that boundary,"}} <kbd>Shift</kbd> {{t "the whole grid. Or select a section and"}}</span>
+          {{/* Short, one idea each: how to drag, then the keys. */}}
+          <ul class="daw-align-help">
+            <li><span aria-hidden="true">⇆</span> {{t "drag the recording, or a section’s flag: what follows moves too"}}</li>
+            <li><kbd>⌥</kbd> {{t "that boundary only"}} · <kbd>⇧</kbd> {{t "the whole grid"}}</li>
+            <li><kbd>M</kbd> {{t "the selected section starts here, then the next"}} · <kbd>⌥</kbd><kbd>←</kbd><kbd>→</kbd> {{t "±10 ms"}} · <kbd>⇧</kbd><kbd>⌥</kbd><kbd>←</kbd><kbd>→</kbd> {{t "±1 beat"}}</li>
+          </ul>
           <button type="button" class="daw-btn-text" id="daw-align-here">{{t "set its start at the playhead"}}</button>
           <span class="daw-align-status" id="daw-align-status"></span>
           <button type="button" class="daw-btn-text" id="daw-align-undo" hidden>{{t "Undo"}}</button>

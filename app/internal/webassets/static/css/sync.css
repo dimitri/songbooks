@@ -167,3 +167,14 @@ html.sync-sheet-open { overflow: hidden; }
   .sync-row-tools .sync-btn { flex: 1 1 auto; padding: 0 0.45rem; }
   .sync-now { display: none; }
 }
+
+/* ---- The Mixer's "Align recording" (mixer.js) ------------------------------ */
+.daw-align-help { display: flex; flex-wrap: wrap; gap: 2px 14px; margin: 0; padding: 0; list-style: none; font-size: 12px; }
+.daw-align-help li { white-space: nowrap; }
+/* A finger drags a flag, a section or the recording while aligning,
+   instead of scrolling the timeline. */
+.daw.is-aligning :is(.daw-anchor, .daw-section-grip, .daw-section, .daw-clip) { touch-action: none; }
+/* A phone's toolbar has no room: the phone bar's chip opens it. */
+@media (max-width: 720px) {
+  #daw-sync-sheet { display: none; }
+}
