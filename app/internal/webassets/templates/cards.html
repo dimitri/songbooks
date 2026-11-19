@@ -39,7 +39,7 @@
   <div class="band-card-digest">{{tn .SongCount "%d song in the default songbook" "%d songs in the default songbook"}}</div>
   {{if .HasNextEvent}}
   <div class="band-card-gig">
-    <a href="/events/{{.NextEventID}}">{{template "icon-presentation"}} {{date .NextEventDate "2 Jan"}} &middot; {{.NextEventName}}</a>
+    <a href="{{.NextEventLink}}">{{template "icon-presentation"}} {{date .NextEventDate "2 Jan"}} &middot; {{.NextEventName}}</a>
   </div>
   {{end}}
   <div class="band-card-actions">
@@ -48,6 +48,120 @@
     {{if eq .MyRole "staff"}}<a href="/communities/{{.ID}}/admin">{{t "staff admin"}}</a>{{end}}
   </div>
 </div>
+{{end}}
+
+{{/* My bands' and My communities' own cards (httpapi/list_cards.go): the
+     same links as band-card/community-card, more of what a member wants
+     at a glance, each card in its band's or community's look: the
+     brand's tokens (--bg, --fg, --accent, --font-display...) set inline
+     on the card, so they stop at its edge. A phone stacks it; a wide
+     list lays it out as one row (container query, app.css). */}}
+{{define "list-card-open"}}<article class="list-card{{with .Brand}} is-branded{{if .Dark}} is-dark{{end}}{{if .Header}} has-header{{end}}{{with .Shape}} shape-{{.}}{{end}}{{end}}"{{with .Brand}} style="{{.Style}}"{{end}}>{{end}}
+
+{{define "list-card-mark"}}{{if .Logo}}<img class="list-card-mark list-card-logo" src="{{.Logo}}" alt="">{{else}}<span class="list-card-mark{{if .Initials}} is-initials{{end}}" aria-hidden="true">{{.Mark}}</span>{{end}}{{end}}
+
+{{/* The next date (a store.CalendarItem, nil for none): a date tile in
+     the brand's accent, what and when. */}}
+{{define "list-card-next"}}
+<div class="list-card-next">
+  {{with .}}
+  <a class="list-card-when" href="{{.Link}}">
+    <span class="list-card-date"><span class="month">{{date .Starts "Jan"}}</span><span class="day">{{.Starts.Format "2"}}</span></span>
+    <span class="list-card-when-text">
+      <span class="list-card-when-kind">{{t .KindLabel}} &middot; {{if .AllDay}}{{date .Starts "Monday"}}{{else}}{{date .Starts "Mon 15:04"}}{{end}}</span>
+      <span class="list-card-when-title">{{.Title}}</span>
+      {{with .Place}}<span class="list-card-when-place">{{.}}</span>{{end}}
+    </span>
+  </a>
+  {{else}}
+  <p class="list-card-when-none">{{template "icon-calendar"}} {{t "Nothing on the calendar"}}</p>
+  {{end}}
+</div>
+{{end}}
+
+{{define "band-list-card"}}
+{{template "list-card-open" .}}
+  <header class="list-card-head">
+    {{template "list-card-mark" .}}
+    <div class="list-card-name">
+      <h2><a class="list-card-link" href="/bands/{{.ID}}">{{.Name}}</a></h2>
+      {{with .Brand}}{{with .Tagline}}<p class="list-card-tagline">{{.}}</p>{{end}}{{end}}
+    </div>
+  </header>
+  <div class="list-card-body">
+    <ul class="list-card-facts">
+      <li>{{tn .Members "%d member" "%d members"}}</li>
+      <li>{{tn .SongCount "%d song" "%d songs"}}</li>
+      <li>{{tn .SetlistCount "%d set list" "%d set lists"}}</li>
+      {{with .LastActivity}}<li>{{t "active %s" .}}</li>{{end}}
+    </ul>
+    {{if .People}}
+    <ul class="list-card-people" aria-label="{{t "Members"}}">
+      {{range .People}}<li class="list-card-person{{if .Guest}} is-guest{{end}}" title="{{.Name}}{{if .Guest}} ({{t "role|guest"}}){{end}}"><span class="list-card-avatar" aria-hidden="true">{{.Initials}}</span><span class="list-card-person-name">{{.Name}}</span></li>{{end}}
+      {{if .MorePeople}}<li class="list-card-person is-more"><span class="list-card-avatar">+{{.MorePeople}}</span></li>{{end}}
+    </ul>
+    {{end}}
+    {{with .Digest}}<p class="list-card-digest">{{t .}}</p>{{end}}
+  </div>
+  {{template "list-card-next" .Next}}
+  <div class="list-card-actions">
+    <a href="/bands/{{.ID}}/catalog">{{t "songbook"}}</a>
+    {{if eq .SetlistCount 1}}
+    <a href="/setlists/{{.FirstSetlistID}}">{{t "set list"}}</a>
+    {{else if gt .SetlistCount 1}}
+    <a href="/bands/{{.ID}}/setlists">{{tn .SetlistCount "%d set list" "%d set lists"}}</a>
+    {{else}}
+    <a href="/bands/{{.ID}}/setlists">{{t "set lists"}}</a>
+    {{end}}
+    {{if .OpenVotes}}<a class="votes" href="/bands/{{.ID}}/proposals">{{t "%d to vote on" .OpenVotes}}</a>{{end}}
+  </div>
+</article>
+{{end}}
+
+{{define "community-list-card"}}
+{{template "list-card-open" .}}
+  <header class="list-card-head">
+    {{template "list-card-mark" .}}
+    <div class="list-card-name">
+      <h2><a class="list-card-link" href="/communities/{{.ID}}">{{.Name}}</a></h2>
+      {{with .Brand}}{{with .Tagline}}<p class="list-card-tagline">{{.}}</p>{{end}}{{end}}
+    </div>
+    <span class="list-card-role">{{if .IsCoaching}}{{if eq .MyRole "staff"}}{{t "Coach"}}{{else}}{{t "Student"}}{{end}}{{else}}{{t (printf "role|%s" .MyRole)}}{{end}}</span>
+  </header>
+  <div class="list-card-body">
+    <ul class="list-card-facts">
+      {{if .IsCoaching}}<li>{{t "Coaching"}}</li>{{end}}
+      <li>{{tn .MemberCount "%d member" "%d members"}}</li>
+      <li>{{tn .SongCount "%d song in the default songbook" "%d songs in the default songbook"}}</li>
+      {{if .LessonsThisWeek}}<li>{{tn .LessonsThisWeek "%d lesson in the next 7 days" "%d lessons in the next 7 days"}}</li>{{end}}
+    </ul>
+    {{if .Staff}}
+    <div class="list-card-staff">
+      <span class="list-card-label">{{t "Run by"}}</span>
+      <ul class="list-card-people">
+        {{range .Staff}}<li class="list-card-person" title="{{.Name}}"><span class="list-card-avatar" aria-hidden="true">{{.Initials}}</span><span class="list-card-person-name">{{.Name}}</span></li>{{end}}
+        {{if .MoreStaff}}<li class="list-card-person is-more"><span class="list-card-avatar">+{{.MoreStaff}}</span></li>{{end}}
+      </ul>
+    </div>
+    {{end}}
+    {{if .StudentPage}}
+    <div class="list-card-practice">
+      {{if .PracticeCount}}
+      <a class="list-card-practice-head" href="{{.StudentPage}}">{{tn .PracticeCount "%d thing to practise" "%d things to practise"}}</a>
+      <ul>{{range .Practice}}<li>{{.}}</li>{{end}}{{if .MorePractice}}<li class="is-more">{{t "and %d more" .MorePractice}}</li>{{end}}</ul>
+      {{else}}
+      <a class="list-card-practice-head is-empty" href="{{.StudentPage}}">{{t "Nothing to practise right now"}}</a>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+  {{template "list-card-next" .Next}}
+  <div class="list-card-actions">
+    <a href="/communities/{{.ID}}/songbooks">{{t "songbooks"}}</a>
+    <a href="/communities/{{.ID}}/events">{{t "events"}}</a>
+    {{if eq .MyRole "staff"}}<a href="/communities/{{.ID}}/admin">{{t "staff admin"}}</a>{{end}}
+  </div>
+</article>
 {{end}}
 
 {{/* One upcoming gig (store.UpcomingGig): its date, band and set list,

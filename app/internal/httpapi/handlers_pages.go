@@ -67,6 +67,9 @@ type bandCardView struct {
 	NextGigDate    time.Time
 	NextGigVenue   string
 	NextGigSetlist int64
+
+	// MemberList is its current members, for My bands' faces.
+	MemberList []store.BandMember
 }
 
 // homeGroup is a community or a band on the home page, in its own look.
@@ -682,6 +685,7 @@ func (s *Server) buildBandCards(ctx context.Context, lang string, personID int64
 		card := bandCardView{
 			ID: b.ID, Name: b.Name, Members: len(members), Digest: digest, OpenVotes: len(proposals),
 			SetlistCount: len(setlists), FirstSetlistID: firstSetlistID,
+			MemberList: members,
 		}
 		if g, ok := nextGigByBand[b.ID]; ok {
 			card.HasNextGig = true

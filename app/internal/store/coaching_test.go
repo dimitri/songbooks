@@ -105,6 +105,9 @@ func TestCoaching(t *testing.T) {
 	if len(cal) != 1 || cal[0].Kind != "lesson" {
 		t.Fatalf("the student's calendar: %+v", cal)
 	}
+	if cal[0].CommunityID == nil || *cal[0].CommunityID != c || cal[0].BandID != nil {
+		t.Fatalf("the lesson's community: %+v", cal[0])
+	}
 
 	// A year group: its members get its songbook and its coming lessons.
 	gid, err := st.CreateCoachingGroup(ctx, c, "Tuesday", "year", nil, nil, nil)

@@ -17,8 +17,11 @@ type CalendarItem struct {
 	Place     string
 	GroupName string // the band or community, "" for a personal set list
 	BandID    *int64
-	Link      string
-	SetlistID *int64 // the set list to play or practise, when there is one
+	// CommunityID is the community whose event it is, nil for a band's
+	// or a personal date.
+	CommunityID *int64
+	Link        string
+	SetlistID   *int64 // the set list to play or practise, when there is one
 	// For a calendar feed (iCal): a stable id, the end, what it's about.
 	UID         string
 	Ends        *time.Time
@@ -38,7 +41,7 @@ func (st *Store) ListCalendarForPerson(ctx context.Context, personID int64, from
 		), my_communities AS (
 		  SELECT community_id FROM community_members WHERE person_id = $1 AND upper_inf(validity)
 		)
-		SELECT 'gig', sl.title, g.date::timestamptz, true, g.venue, coalesce(b.name, ''), b.id,
+		SELECT 'gig', sl.title, g.date::timestamptz, true, g.venue, coalesce(b.name, ''), b.id, NULL::bigint,
 		       '/setlists/' || sl.id, sl.id,
 		       'gig-' || g.id, NULL::timestamptz, '', '', 0::bigint
 		FROM setlist_gigs g
@@ -48,7 +51,7 @@ func (st *Store) ListCalendarForPerson(ctx context.Context, personID int64, from
 		  AND (sl.owner_person_id = $1 OR sl.owner_band_id IN (SELECT band_id FROM my_bands))
 		UNION ALL
 		SELECT CASE e.event_type WHEN 'rehearsal' THEN 'rehearsal' WHEN 'concert' THEN 'gig' WHEN 'lesson' THEN 'lesson' ELSE 'event' END,
-		       e.name, e.starts_at, false, e.location, coalesce(b.name, c.name, ''), b.id,
+		       e.name, e.starts_at, false, e.location, coalesce(b.name, c.name, ''), b.id, c.id,
 		       CASE WHEN e.event_type = 'lesson' THEN '/communities/' || e.owner_community_id || '/lessons' ELSE '/events/' || e.id END,
 		       e.setlist_id,
 		       'event-' || e.id, e.ends_at, e.description, coalesce(e.lesson_mode, ''), e.id
@@ -69,7 +72,7 @@ func (st *Store) ListCalendarForPerson(ctx context.Context, personID int64, from
 	var out []CalendarItem
 	for rows.Next() {
 		var it CalendarItem
-		if err := rows.Scan(&it.Kind, &it.Title, &it.Starts, &it.AllDay, &it.Place, &it.GroupName, &it.BandID, &it.Link, &it.SetlistID,
+		if err := rows.Scan(&it.Kind, &it.Title, &it.Starts, &it.AllDay, &it.Place, &it.GroupName, &it.BandID, &it.CommunityID, &it.Link, &it.SetlistID,
 			&it.UID, &it.Ends, &it.Description, &it.LessonMode, &it.EventID); err != nil {
 			return nil, err
 		}
