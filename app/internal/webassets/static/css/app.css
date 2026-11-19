@@ -1396,7 +1396,8 @@ body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5re
   .audio-dock .audio-waveform-wrap { max-width: 90rem; margin: 0 auto 0.4rem; }
   .audio-dock .audio-wave { height: 46px; }
   .audio-dock .audio-dock-line { display: none; }
-  .audio-dock:has(.pitch-check:not([hidden])) { background: var(--bg-raised); }
+  /* the dock now carries the waveform: opaque, the chart doesn't show through it */
+  .audio-dock { background: var(--bg-raised); }
   body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: calc(var(--dock-h, 7rem) + 1.5rem); }
 }
 @media (max-width: 900px) {
