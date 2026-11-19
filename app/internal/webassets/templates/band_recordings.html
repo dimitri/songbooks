@@ -74,6 +74,7 @@
       <div class="rp-track" id="rp-track"><i class="rp-loop" id="rp-loop"></i><input type="range" id="rec-seek" min="0" max="1000" step="1" value="0" aria-label="{{t "Position in the recording"}}"></div>
       <span class="rp-time" id="rec-pos">0:00</span><span class="rp-time rp-left" id="rec-dur">–:––</span>
     </div>
+    <p class="rp-error" id="rp-error" role="status" hidden><span id="rp-error-text"></span> <button type="button" class="rp-chip" id="rp-retry">{{t "Try again"}}</button></p>
     <div class="rp-transport">
       <button type="button" class="rp-btn" data-rp="prev" aria-label="{{t "Previous recording"}}"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 4.5v11L7.5 10z" fill="currentColor"/></svg></button>
       <button type="button" class="rp-btn" data-rp="back" aria-label="{{t "Back 15 seconds"}}">{{template "icon-back15"}}</button>
@@ -148,8 +149,14 @@
       audio.src = row.dataset.rpSrc || await linkFor(row.dataset.file || row.dataset.rpFile, row.dataset.rpHost || host, row.dataset.rpCode || code);
       audio.playbackRate = Number(speed.value);
       await audio.play();
+      $('rp-error').hidden = true;
     } catch (e) {
-      $('rec-now-detail').textContent = t('Couldn’t play it: %s', e.message);
+      // One line with a retry, under the title and its date, which stay
+      // (a browser that wants a tap before playing isn't an error).
+      if (e.name === 'NotAllowedError') { render(); return; }
+      $('rp-error-text').textContent = navigator.onLine === false ? t('Offline: this recording can’t be read.') : t('Couldn’t play this file.');
+      $('rp-error').title = e.message || '';
+      $('rp-error').hidden = false;
     }
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({title: row.dataset.title, artist, album: row.dataset.detail || ''});
@@ -170,6 +177,7 @@
   }
   const actions = {expand: () => open(true), toggle, prev, next: () => play(at + 1), back: () => skip(-SKIP), fwd: () => skip(SKIP), restart: () => { audio.currentTime = 0; }, loop: setLoop};
   bar.querySelectorAll('[data-rp]').forEach((b) => b.addEventListener('click', () => actions[b.dataset.rp]()));
+  $('rp-retry').addEventListener('click', () => { if (at >= 0) { links.clear(); play(at); } });
   speed.addEventListener('change', () => { audio.playbackRate = Number(speed.value); });
   rows.forEach((row, i) => row.querySelector('.rec-play').addEventListener('click', () => (at === i ? toggle() : play(i))));
   document.querySelectorAll('[data-play-all]').forEach((b) => b.addEventListener('click', () => play(0)));

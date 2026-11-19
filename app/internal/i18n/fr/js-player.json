@@ -63,5 +63,16 @@
   "Open / close the player · close · these shortcuts": "Ouvrir / fermer le lecteur · fermer · ces raccourcis",
   "Previous / next recording": "Enregistrement précédent / suivant",
   "Slower / faster · back to 1×": "Plus lent / plus rapide · retour à 1×",
-  "Close": "Fermer"
+  "Close": "Fermer",
+  "Couldn’t load this recording.": "Impossible de charger cet enregistrement.",
+  "Couldn’t play this file.": "Impossible de lire ce fichier.",
+  "Estimated: the player placed the bars by listening; they can be off by a beat or a section. Loops still snap to bars.": "Estimée : le lecteur a placé les mesures à l’écoute ; elles peuvent être décalées d’un temps ou d’une section. Les boucles restent calées sur les mesures.",
+  "No bars: the recording plays by time; ←/→ step 5 s.": "Pas de mesures : l’enregistrement se lit au temps ; ←/→ avancent de 5 s.",
+  "Offline: this recording can’t be read.": "Hors ligne : impossible de lire cet enregistrement.",
+  "Set: the bars follow the sync saved for this recording.": "Réglée : les mesures suivent la synchro enregistrée pour cet enregistrement.",
+  "The recording couldn’t be split into its parts.": "L’enregistrement n’a pas pu être séparé en pistes.",
+  "The recording is being split into its parts; the voice comes in a few minutes, without a reload.": "L’enregistrement est en cours de séparation ; la voix arrive dans quelques minutes, sans recharger.",
+  "Voice unavailable": "Voix indisponible",
+  "Voice · splitting…": "Voix · séparation…",
+  "click alone · %d bpm": "clic seul · %d bpm"
 }

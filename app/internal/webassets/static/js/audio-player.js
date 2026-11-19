@@ -187,7 +187,10 @@ window.songbooksDecodable = function (buf) {
     peaks = null;
     const cat = activeCategory;
     let bytes;
-    try { bytes = await window.songbooksAudioBytes(variantId, cat, categories[cat]); } catch (e) { return; }
+    try { bytes = await window.songbooksAudioBytes(variantId, cat, categories[cat]); } catch (e) {
+      if (cat === activeCategory) setState('error', navigator.onLine === false ? t('Offline: this recording can’t be read.') : t('Couldn’t load this recording.'));
+      return;
+    }
     if (cat !== activeCategory) return;
     if (audio.dataset.blobFor !== cat) {
       if (audio.src.startsWith('blob:')) URL.revokeObjectURL(audio.src);
@@ -202,6 +205,7 @@ window.songbooksDecodable = function (buf) {
     try {
       audioBuffer = await ctx.decodeAudioData(arrayBuffer);
     } catch (e) {
+      if (root.dataset.state === 'loading') setState('');
       return; // unsupported/corrupt file — the player still works via <audio>, just no waveform
     } finally {
       ctx.close();
@@ -221,6 +225,7 @@ window.songbooksDecodable = function (buf) {
       out[i] = max;
     }
     peaks = out;
+    if (root.dataset.state === 'loading') setState('');
     detectBars(audioBuffer, cat);
     rebuildGrid();
     drawWaveform();
@@ -317,6 +322,7 @@ window.songbooksDecodable = function (buf) {
       }
     }
     refreshTimeline();
+    renderSync();
   }
   function timeAtBar(b) {
     if (!hasBars()) return null;
@@ -1258,6 +1264,7 @@ window.songbooksDecodable = function (buf) {
       cardMicEl.classList.toggle('is-off', prefs.voice === 0);
     }
     renderPartsPanel();
+    renderStems();
   }
 
   // The "Je joue" panel: the levels, what the split can't tell apart, the
@@ -1994,7 +2001,7 @@ window.songbooksDecodable = function (buf) {
       m: () => toggleClick(),
       i: toggleCountIn,
       s: togglePitch,
-      f: () => setSheet(!sheetOpen()),
+      f: () => (document.body.classList.contains('stage') ? false : setSheet(!sheetOpen())),
     },
     help: [
       [t('Play / pause'), ' ', 'k'],
@@ -2018,6 +2025,123 @@ window.songbooksDecodable = function (buf) {
     previous: () => stepSection(-1), next: () => stepSection(1),
   }) : null;
 
+  // ---- States (player-proposal.md §3.6) -----------------------------------
+  // The player says what it can do, in its readout and its tray, on
+  // #audio-player's data-state and data-sync:
+  //   data-state "loading"  the file decodes: a skeleton waveform; ▶
+  //                         already plays, streaming.
+  //              "error"    it can't be read (offline, a link expired, the
+  //                         pitch shifter not loaded): one line in the
+  //                         readout and "Réessayer"; the title stays.
+  //              "none"     no recording: ▶ runs the follow-along clock
+  //                         with the click on (song.js songbooksFollowClock);
+  //                         the tray is "+ Enregistrement" for an editor.
+  //   data-sync  "estimated"  bars the player found by listening (nothing
+  //                         saved): "≈ 21.1" and "synchro estimée", the
+  //                         ruler's ticks dashed; its line in the panel
+  //                         opens the Sync sheet (window.songbooksSyncSheet,
+  //                         when the page has it) or the Mixer.
+  //              "set"      saved bars or section starts.
+  //              "none"     no bars at all: a time readout, ←/→ 5 s.
+  // Stems still being split show as a greyed chip with a spinner
+  // ("séparation…"), live with the 20 s poll; failed, "Voix indisponible",
+  // with a retry for editors (renderStems).
+  const lcdError = $('audio-lcd-error'), retryBtn = $('audio-retry');
+  function setState(state, message) {
+    if (state) root.dataset.state = state; else delete root.dataset.state;
+    if (lcdError) lcdError.textContent = state === 'error' ? (message || t('Couldn’t play this file.')) : '';
+    if (retryBtn) retryBtn.hidden = state !== 'error';
+  }
+  retryBtn?.addEventListener('click', () => {
+    setState('loading');
+    if (!Object.keys(categories).length) { loadMeta(); return; }
+    audio.dataset.blobFor = '';
+    selectCategory(activeCategory);
+  });
+  audio.addEventListener('error', () => {
+    // A part of the recording that failed, or the recording itself.
+    if (!audio.src || audio.src === location.href) return;
+    setState('error', navigator.onLine === false ? t('Offline: this recording can’t be read.') : t('Couldn’t play this file.'));
+  });
+  audio.addEventListener('canplay', () => { if (root.dataset.state === 'error') setState(peaks ? '' : 'loading'); });
+  function syncState() {
+    const meta = categories[activeCategory] || {};
+    const saved = (meta.barSyncPoints && meta.barSyncPoints.length) || (meta.markers && meta.markers.length);
+    return !hasBars() ? 'none' : saved ? 'set' : 'estimated';
+  }
+  function renderSync() {
+    const s = duration ? syncState() : '';
+    if (s) root.dataset.sync = s; else delete root.dataset.sync;
+    const note = $('audio-sync-note');
+    if (note) note.hidden = s !== 'estimated';
+    const text = $('audio-sync-text');
+    if (text) {
+      text.textContent = s === 'estimated' ? t('Estimated: the player placed the bars by listening; they can be off by a beat or a section. Loops still snap to bars.')
+        : s === 'set' ? t('Set: the bars follow the sync saved for this recording.')
+        : t('No bars: the recording plays by time; ←/→ step 5 s.');
+    }
+  }
+  $('audio-sync-note')?.addEventListener('click', () => openLine('audio-line-sync'));
+  $('audio-sync-fix')?.addEventListener('click', () => {
+    if (window.songbooksSyncSheet && window.songbooksSyncSheet.open) { setSheet(false); window.songbooksSyncSheet.open(); return; }
+    setSheet(false);
+    document.querySelector('#mode-segmented button[data-value="mixer"]')?.click();
+  });
+  // Stems: pending, failed, there.
+  function renderStems() {
+    const meta = categories[activeCategory] || {};
+    const pending = meta.stemStatus === 'queued' || meta.stemStatus === 'running';
+    const failed = meta.stemStatus === 'failed' && !hasParts();
+    const chip = $('audio-parts-pending');
+    if (chip) {
+      chip.hidden = !(pending || failed) || hasParts();
+      chip.classList.toggle('is-failed', failed);
+      const label = chip.querySelector('span');
+      if (label) label.textContent = failed ? t('Voice unavailable') : t('Voice · splitting…');
+      chip.title = failed ? t('The recording couldn’t be split into its parts.') : t('The recording is being split into its parts; the voice comes in a few minutes, without a reload.');
+    }
+    const retry = $('audio-stems-retry');
+    if (retry) retry.hidden = !(failed && canEdit);
+    if (partsEl) partsEl.hidden = !hasParts() && !pending && !failed;
+  }
+  $('audio-stems-retry')?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const res = await fetch(`/api/songs/${variantId}/audio/${activeCategory}/stems`, { method: 'POST' }).catch(() => null);
+    if (res && res.ok && categories[activeCategory]) {
+      categories[activeCategory].stemStatus = 'queued';
+      renderStems();
+      watchSplit();
+    }
+  });
+  // No recording: the follow-along clock, the click on.
+  let noneTimer = null;
+  function enterNoRecording() {
+    setState('none');
+    if (playerBody) playerBody.hidden = false;
+    if (emptyState) emptyState.hidden = true;
+    const add = $('audio-add-recording');
+    if (add) add.hidden = !canEdit;
+    const fc = () => window.songbooksFollowClock;
+    playBtn?.addEventListener('click', (e) => {
+      if (root.dataset.state !== 'none' || !fc()) return;
+      e.stopImmediatePropagation();
+      fc().toggle(true);
+    }, true);
+    clearInterval(noneTimer);
+    noneTimer = setInterval(() => {
+      const c = fc() && fc().state();
+      if (!c) return;
+      const playing = !!c.running;
+      if (playBtn && playBtn.dataset.state !== String(playing)) { playBtn.innerHTML = playing ? iconPause : iconPlay; playBtn.dataset.state = String(playing); }
+      lcdPos.textContent = c.bar !== '' ? `${Number(c.bar) + 1}` : '1';
+      lcdSection.textContent = c.section || '';
+      if (timeLabel) timeLabel.textContent = t('click alone · %d bpm', Math.round(c.bpm || bpm));
+    }, 200);
+  }
+  $('audio-add-recording')?.addEventListener('click', () => {
+    document.querySelector('#mode-segmented button[data-value="reference"]')?.click();
+  });
+
   // ---- Category toggle / load -------------------------------------------
   function selectCategory(cat, remember) {
     activeCategory = cat;
@@ -2028,6 +2152,7 @@ window.songbooksDecodable = function (buf) {
     duration = 0;
     grid = [];
     detected = null;
+    setState('loading');
     decodeWaveform();
   }
 
@@ -2040,11 +2165,12 @@ window.songbooksDecodable = function (buf) {
     const available = Object.keys(categories);
 
     if (available.length === 0) {
-      if (emptyState) emptyState.hidden = false;
-      if (playerBody) playerBody.hidden = true;
       if (categoryToggle) categoryToggle.hidden = true;
+      enterNoRecording();
       return;
     }
+    clearInterval(noneTimer);
+    if (root.dataset.state === 'none') setState('');
     if (emptyState) emptyState.hidden = true;
     if (playerBody) playerBody.hidden = false;
 

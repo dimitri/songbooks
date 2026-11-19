@@ -7523,3 +7523,45 @@ a.singer-chip:hover { border-color: var(--border-strong); }
   display: inline-block; min-width: 1.4rem; margin: 0 0.1rem; padding: 0 0.35rem; border: 1px solid var(--border-strong);
   border-bottom-width: 2px; border-radius: 4px; background: var(--bg-sunken); font: 600 0.75rem/1.4rem var(--font-mono); text-align: center;
 }
+
+/* The player's states (audio-player.js "States", data-state / data-sync on
+   #audio-player). */
+.audio-lcd-error:empty, .audio-sync-note[hidden], .audio-retry[hidden], .audio-add-recording[hidden] { display: none; }
+.audio-lcd-error { color: var(--danger); font-size: 0.82rem; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.audio-player[data-state="error"] .audio-lcd :is(.audio-lcd-time, .audio-lcd-state, .audio-lcd-loop) { display: none; }
+.audio-player[data-state="error"] .audio-play-btn { opacity: 0.55; }
+.audio-retry { flex: none; }
+/* Loading: a skeleton waveform; ▶ already plays. */
+.audio-player[data-state="loading"] .audio-wave {
+  background: linear-gradient(90deg, transparent 0, color-mix(in srgb, var(--fg) 8%, transparent) 40%, transparent 80%) 0 0 / 40% 100% no-repeat,
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--fg-muted) 22%, transparent) 0 2px, transparent 2px 5px);
+  background-position: -40% 0, 0 0;
+  animation: audio-skeleton 1.4s linear infinite; border-radius: 4px;
+}
+@keyframes audio-skeleton { to { background-position: 140% 0, 0 0; } }
+@media (prefers-reduced-motion: reduce) { .audio-player[data-state="loading"] .audio-wave { animation: none; } }
+/* Estimated sync: "≈ 21.1", "synchro estimée", the ruler's ticks dashed. */
+.audio-player[data-sync="estimated"] .audio-lcd-pos::before { content: "≈ "; font-weight: 600; color: var(--warn); }
+.audio-sync-note {
+  flex: none; min-height: 0; height: auto; padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; font-size: 0.75rem; font-weight: 600; color: var(--warn); text-decoration: underline dotted; text-underline-offset: 3px;
+}
+.audio-player[data-sync="estimated"] .audio-ruler-section { border-left-style: dashed; }
+.audio-player[data-sync="estimated"] .audio-bargrid-tick.section { background: none; border-left: 1px dashed var(--accent); opacity: 0.7; }
+/* Stems still being split, or failed. */
+.audio-parts-pending[hidden] { display: none !important; }
+.audio-parts-pending:not([hidden]) { display: inline-flex; color: var(--fg-muted); background: var(--bg-sunken); cursor: default; opacity: 0.85; }
+.audio-parts-pending.is-failed { color: var(--danger); }
+.audio-spinner { width: 0.85rem; height: 0.85rem; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--fg-muted) 35%, transparent); border-top-color: var(--fg-muted); animation: audio-spin 0.9s linear infinite; }
+.audio-parts-pending.is-failed .audio-spinner { display: none; }
+@keyframes audio-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .audio-spinner { animation: none; } }
+/* No recording: the follow-along clock, the click on; nothing else. */
+.audio-player[data-state="none"] .audio-dock :is(.audio-waveform-wrap, .audio-opts, .audio-opts-btn, .audio-panel-btn, #audio-start-btn, #audio-prev-btn, #audio-next-btn, .audio-dock-line) { display: none !important; }
+.audio-player[data-state="none"] .audio-dock .audio-lcd-time { margin-left: 0.5rem; }
+.audio-player[data-state="none"] .audio-add-recording { margin-left: auto; }
+@media (min-width: 901px) { body:has(.audio-player[data-state="none"]) .content-main { padding-bottom: 6rem; } }
+
+/* The rec-player's error: one line with a retry; the title stays. */
+.rp-error { display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; margin: 0; color: var(--danger); font-size: 0.82rem; font-weight: 600; }
+.rp-error[hidden] { display: none; }
