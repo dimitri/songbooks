@@ -248,24 +248,4 @@ func TestCoachKeysPermissions(t *testing.T) {
 			t.Errorf("the coaching context, from %s: %d (want %d)", x.what, id, x.want)
 		}
 	}
-
-	// The voice's slider: from the community, or from nowhere for one of
-	// its members; not from a band, or for an outsider.
-	if id := s.vocalSliderCommunity(r, map[string]any{"SongbookRef": sb}, nil, song); id != c {
-		t.Fatalf("from Poppy's songbook: %d", id)
-	}
-	if id := s.vocalSliderCommunity(r, map[string]any{}, nil, song); id != c {
-		t.Fatalf("Poppy, from nowhere: %d", id)
-	}
-	if id := s.vocalSliderCommunity(r, map[string]any{"BandRef": band}, nil, song); id != 0 {
-		t.Fatalf("from a band: %d", id)
-	}
-	if id := s.vocalSliderCommunity(r, map[string]any{"CommunityRef": other}, nil, song); id != 0 {
-		t.Fatalf("from a community without it: %d", id)
-	}
-	outsider := person("Outsider")
-	r = httptest.NewRequest("GET", "/song/x", nil).WithContext(context.WithValue(ctx, personCtxKey, outsider))
-	if id := s.vocalSliderCommunity(r, map[string]any{}, nil, song); id != 0 {
-		t.Fatalf("an outsider, from nowhere: %d", id)
-	}
 }

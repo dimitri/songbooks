@@ -69,10 +69,6 @@
     <fieldset class="field-group" style="margin-top:1rem; gap:0.6rem">
       <legend>{{t "The song player, for singers"}}</legend>
       <div>
-        <label class="check"><input type="checkbox" id="vocal-slider-check" data-player-option="vocal-slider" aria-describedby="vocal-slider-hint"{{if .Community.PlayerVocalSlider}} checked{{end}}> <strong>{{t "Voice slider in the player"}}</strong></label>
-        <p class="field-hint" id="vocal-slider-hint">{{t "In the player of the community’s songs: a slider to turn the recorded voice down (karaoke), for coaches and students, in the “Voice & key” panel."}}</p>
-      </div>
-      <div>
         <label class="check"><input type="checkbox" id="coach-student-keys-check" data-player-option="coach-student-keys" aria-describedby="coach-student-keys-hint"{{if .Community.CoachStudentKeys}} checked{{end}}> <strong>{{t "Key per student"}}</strong></label>
         <p class="field-hint" id="coach-student-keys-hint">{{t "In the player of the songs opened from the community’s songbooks: the coach picks a student and saves their key, students with a lesson in the coming 7 days first. Coaches only."}}</p>
       </div>

@@ -1,5 +1,11 @@
 {
   "speed without changing pitch: back to 100 % or the last speed ([ slower, ] faster)": "vitesse sans changer la hauteur : retour à 100 % ou à la dernière vitesse ([ plus lent, ] plus rapide)",
   "the voice: down or back (V)": "la voix : baissée ou rétablie (V)",
-  "slower or faster, the pitch kept": "plus lent ou plus rapide, à la même hauteur"
+  "slower or faster, the pitch kept": "plus lent ou plus rapide, à la même hauteur",
+  "I play: my parts, a level each": "Je joue : mes parties, un niveau chacune",
+  "I play": "Je joue",
+  "the instruments I play": "les instruments que je joue",
+  "Other instruments…": "Autres instruments…",
+  "keep it": "garder ce choix",
+  "For this song": "Pour ce morceau"
 }

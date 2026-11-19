@@ -149,7 +149,6 @@ window.songbooksDecodable = function (buf) {
     semitones: 0, // the recording's key, up or down
     voice: 100, // the voice's volume, in %, when the recording has its parts
     voiceOff: 0, // what Voice's toggle turns it down to
-    voiceLast: 100, // what the "Voice & key" panel's mic brings it back to
   };
   try {
     const saved = JSON.parse(localStorage.getItem(optsKey) || '{}');
@@ -775,16 +774,21 @@ window.songbooksDecodable = function (buf) {
   voiceAudio.preload = 'auto';
   voiceAudio.preservesPitch = true;
   voiceAudio.webkitPreservesPitch = true;
-  let graph = null; // {ctx, bus, voiceGain, stretch}
+  let graph = null; // {ctx, bus, mainGain, gains: {vocals, drums, bass}, stretch}
   function ensureGraph() {
     if (graph) return graph;
     const ctx = clicker ? clicker._ensureCtx() : new (window.AudioContext || window.webkitAudioContext)();
     const bus = ctx.createGain();
-    const voiceGain = ctx.createGain();
-    ctx.createMediaElementSource(audio).connect(bus);
-    ctx.createMediaElementSource(voiceAudio).connect(voiceGain).connect(bus);
+    const mainGain = ctx.createGain();
+    ctx.createMediaElementSource(audio).connect(mainGain).connect(bus);
+    // The parts that play beside it ("My parts"), each at its level.
+    const gains = {};
+    for (const [stem, el] of Object.entries(followers)) {
+      gains[stem] = ctx.createGain();
+      ctx.createMediaElementSource(el).connect(gains[stem]).connect(bus);
+    }
     bus.connect(ctx.destination);
-    graph = { ctx, bus, voiceGain, stretch: null };
+    graph = { ctx, bus, mainGain, gains, voiceGain: gains.vocals, stretch: null };
     return graph;
   }
   let stretchLib = null;
@@ -846,13 +850,12 @@ window.songbooksDecodable = function (buf) {
   // being tried.
   const coachBox = $('audio-key-coach'), coachList = $('audio-key-targets');
   let coachTargets = null, coachKey = root.dataset.songKey || '';
-  // A coaching community's player options (play.html, the "Voice & key"
-  // panel; audio-player.js "Sing"): sing, the panel in place of Key;
-  // singVoiceOn, its voice slider; coachCommunity, its key per student —
+  // A coaching community's key per student (play.html, the key's panel;
+  // audio-player.js "Sing"): sing, the panel for the key;
+  // coachCommunity, its key per student —
   // that community's students, the coming week's lessons first, a name
   // picked, the key goes to theirs (singTarget).
   const sing = root.dataset.sing === '1';
-  const singVoiceOn = root.dataset.singVoice === '1';
   const coachCommunity = parseInt(root.dataset.coachCommunity || '0', 10);
   let singTarget = null, singSaved = null; // singSaved: whose key was just saved here
   // The song's key moved by n, named as the server does (chordsym.KeyName):
@@ -1043,101 +1046,315 @@ window.songbooksDecodable = function (buf) {
   $('audio-key-down')?.addEventListener('click', () => setSemitones(prefs.semitones - 1));
   $('audio-key-reset')?.addEventListener('click', () => setSemitones(0));
 
-  // Voice: shown once the recording's parts are there.
-  const voiceSplit = $('audio-voice-split');
-  const voiceBtn = $('audio-voice-btn');
-  const voiceLabel = $('audio-voice-label');
-  const voiceRange = $('audio-voice-volume');
-  const voiceOut = $('audio-voice-amount');
-  const hasParts = () => {
-    const st = (categories[activeCategory] || {}).stems || [];
-    return st.includes('no_vocals') && st.includes('vocals');
-  };
-  const voiceDown = () => hasParts() && prefs.voice < 100;
-  let voiceToken = 0;
-  async function applyVoice() {
-    const meta = categories[activeCategory] || {};
-    if (voiceSplit) {
-      // The chip: the mic, and while the voice is down, its slider.
-      voiceSplit.hidden = !hasParts();
-      const down = prefs.voice < 100;
-      if (voiceLabel) voiceLabel.textContent = prefs.voice === 0 ? t('No voice') : t('Voice');
-      voiceBtn?.classList.toggle('active', down);
-      voiceBtn?.classList.toggle('is-off', prefs.voice === 0);
-      voiceBtn?.setAttribute('aria-pressed', String(down));
-      voiceSplit.classList.toggle('is-on', down);
-      if (voiceRange) {
-        if (+voiceRange.value !== prefs.voice) voiceRange.value = String(prefs.voice);
-        voiceRange.setAttribute('aria-valuetext', prefs.voice === 0 ? t('No voice') : t('Voice %d%', prefs.voice));
-      }
-      if (voiceOut) voiceOut.textContent = pctText(prefs.voice);
+  // ---- My parts ("Je joue") ---------------------------------------------------
+  // A level for each part the reader plays here (play.html data-parts,
+  // httpapi/player_parts.go: this song's choice, this band's or
+  // community's, their profile's, else the voice), from the recording's
+  // parts as Demucs splits them (cmd/stemsd): vocals, drums, bass, other.
+  // An instrument is heard in one of these (internal/instruments): voice
+  // in vocals, bass in bass, drums in drums, guitar, piano, horns… in
+  // "other"; two in the same part (guitar and horns) share one level, and
+  // say so. 0 takes the part out, 100 leaves the recording as it is.
+  //
+  // How it plays: the recording as it is when every level is 100; with
+  // only the voice down, the backing (no_vocals) and the voice beside it
+  // at its level; with any other part down, the four parts side by side,
+  // each at its level. The parts keep with the recording that drives the
+  // clock (followParts): same play, pause, speed and place.
+  const STEMS = ['vocals', 'drums', 'bass', 'other'];
+  const partsData = (() => { try { return JSON.parse(root.dataset.parts || '{}'); } catch (e) { return {}; } })();
+  let myParts = Array.isArray(partsData.parts) ? partsData.parts : ['voice'];
+  let partsFrom = partsData.from || 'default';
+  const partsCtx = partsData.context || { kind: '' };
+  const allInstruments = partsData.all || [];
+  const instrument = (id) => allInstruments.find((x) => x.id === id) || { id, label: id, stem: id === 'voice' ? 'vocals' : 'other' };
+  prefs.levels = Object.assign({ drums: 100, bass: 100, other: 100 }, prefs.levels || {});
+  prefs.levelsOff = Object.assign({ drums: 0, bass: 0, other: 0 }, prefs.levelsOff || {});
+  const stemsHere = () => (categories[activeCategory] || {}).stems || [];
+  // The voice alone (the backing and the voice), or all four parts.
+  const hasParts = () => stemsHere().includes('no_vocals') && stemsHere().includes('vocals');
+  const hasFour = () => ['vocals', 'drums', 'bass', 'other'].every((s) => stemsHere().includes(s));
+  // My parts by the recording's part they're heard in, in Demucs's order.
+  function partGroups() {
+    const by = new Map();
+    for (const id of myParts) {
+      const stem = instrument(id).stem;
+      if (!by.has(stem)) by.set(stem, []);
+      by.get(stem).push(id);
     }
-    const cardMic = $('audio-card-mic');
-    if (cardMic) {
-      cardMic.hidden = !hasParts();
-      cardMic.setAttribute('aria-pressed', String(prefs.voice > 0));
-      cardMic.classList.toggle('is-off', prefs.voice === 0);
+    return STEMS.filter((s) => by.has(s)).map((stem) => ({
+      stem, ids: by.get(stem),
+      adjustable: stem === 'vocals' ? hasParts() : hasFour(),
+    }));
+  }
+  const groupLabel = (g) => (g.ids.length === 1 && g.ids[0] === 'voice' ? t('Voice') : g.ids.map((id) => instrument(id).label).join(' + '));
+  const levelOf = (stem) => (stem === 'vocals' ? prefs.voice : prefs.levels[stem]);
+  // A part's level as played: 100 for one I don't play here.
+  const playedLevel = (stem) => (partGroups().some((g) => g.stem === stem && g.adjustable) ? levelOf(stem) : 100);
+  const voiceOn = () => partGroups().some((g) => g.stem === 'vocals' && g.adjustable);
+  function engineMode() {
+    if (hasFour() && ['drums', 'bass', 'other'].some((s) => playedLevel(s) < 100)) {
+      return { main: 'other', mainLevel: playedLevel('other'), followers: ['vocals', 'drums', 'bass'] };
     }
+    if (hasParts() && playedLevel('vocals') < 100) return { main: 'no_vocals', mainLevel: 100, followers: ['vocals'] };
+    return { main: '', mainLevel: 100, followers: [] };
+  }
+  const followers = { vocals: voiceAudio };
+  for (const s of ['drums', 'bass']) {
+    const el = new Audio();
+    el.preload = 'auto';
+    el.preservesPitch = true;
+    el.webkitPreservesPitch = true;
+    followers[s] = el;
+  }
+  let playing = []; // the followers playing now
+  let partsToken = 0;
+  async function applyParts() {
+    renderParts();
     renderSing();
     renderDockState();
-    const cat = activeCategory, token = ++voiceToken;
-    const down = voiceDown();
-    if (down) ensureGraph();
-    if (graph) graph.voiceGain.gain.value = prefs.voice / 100;
-    // The accompaniment in place of the recording (the same length: the
-    // position carries over), or the recording back.
-    const tag = down ? `${cat}:no_vocals` : cat;
+    const meta = categories[activeCategory] || {};
+    const cat = activeCategory, token = ++partsToken;
+    const mode = engineMode();
+    if (mode.main) ensureGraph();
+    if (graph) {
+      graph.mainGain.gain.value = mode.mainLevel / 100;
+      for (const s of Object.keys(followers)) graph.gains[s].gain.value = playedLevel(s) / 100;
+    }
+    // The part that drives the clock in place of the recording (the same
+    // length: the position carries over), or the recording back.
+    const tag = mode.main ? `${cat}:${mode.main}` : cat;
     if (audio.dataset.blobFor && audio.dataset.blobFor !== tag) {
       let bytes;
-      try { bytes = await window.songbooksAudioBytes(variantId, cat, meta, down ? 'no_vocals' : ''); } catch (e) { return; }
-      if (token !== voiceToken) return;
+      try { bytes = await window.songbooksAudioBytes(variantId, cat, meta, mode.main); } catch (e) { return; }
+      if (token !== partsToken) return;
       swapSource(bytes, tag);
     }
-    if (down && prefs.voice > 0 && voiceAudio.dataset.blobFor !== `${cat}:vocals`) {
-      let bytes;
-      try { bytes = await window.songbooksAudioBytes(variantId, cat, meta, 'vocals'); } catch (e) { return; }
-      if (token !== voiceToken) return;
-      if (voiceAudio.src.startsWith('blob:')) URL.revokeObjectURL(voiceAudio.src);
-      voiceAudio.src = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
-      voiceAudio.dataset.blobFor = `${cat}:vocals`;
+    const want = mode.followers.filter((s) => playedLevel(s) > 0);
+    for (const s of Object.keys(followers)) if (!want.includes(s)) followers[s].pause();
+    playing = [];
+    for (const s of want) {
+      const el = followers[s];
+      if (el.dataset.blobFor !== `${cat}:${s}`) {
+        let bytes;
+        try { bytes = await window.songbooksAudioBytes(variantId, cat, meta, s); } catch (e) { return; }
+        if (token !== partsToken) return;
+        if (el.src.startsWith('blob:')) URL.revokeObjectURL(el.src);
+        el.src = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
+        el.dataset.blobFor = `${cat}:${s}`;
+      }
+      playing.push(s);
     }
-    if (!down || prefs.voice === 0) voiceAudio.pause();
+    // What plays, for whoever looks (tests, a bug report): "other+vocals+drums+bass".
+    root.dataset.mix = [mode.main || 'recording', ...playing].join('+');
   }
+  const applyVoice = applyParts;
   function swapSource(bytes, tag) {
-    const t = audio.currentTime, playing = !audio.paused;
+    const t = audio.currentTime, wasPlaying = !audio.paused;
     if (audio.src.startsWith('blob:')) URL.revokeObjectURL(audio.src);
     audio.src = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
     audio.dataset.blobFor = tag;
     audio.playbackRate = prefs.speed;
     audio.addEventListener('loadedmetadata', () => {
       audio.currentTime = t;
-      if (playing) audio.play().catch(() => {});
+      if (wasPlaying) audio.play().catch(() => {});
     }, { once: true });
   }
-  // The voice keeps with the accompaniment: same play, pause, speed and
-  // place (within 80 ms; closer, and it would keep jumping).
-  function followVoice() {
-    if (!voiceDown() || prefs.voice === 0 || !voiceAudio.src) return;
-    if (voiceAudio.playbackRate !== audio.playbackRate) voiceAudio.playbackRate = audio.playbackRate;
-    if (audio.paused) { if (!voiceAudio.paused) voiceAudio.pause(); return; }
-    if (Math.abs(voiceAudio.currentTime - audio.currentTime) > 0.08) voiceAudio.currentTime = audio.currentTime;
-    if (voiceAudio.paused) voiceAudio.play().catch(() => {});
+  // The parts keep with the part that drives the clock: same play, pause,
+  // speed and place (within 80 ms; closer, and they would keep jumping).
+  function followParts() {
+    for (const s of playing) {
+      const el = followers[s];
+      if (!el.src) continue;
+      if (el.playbackRate !== audio.playbackRate) el.playbackRate = audio.playbackRate;
+      if (audio.paused) { if (!el.paused) el.pause(); continue; }
+      if (Math.abs(el.currentTime - audio.currentTime) > 0.08) el.currentTime = audio.currentTime;
+      if (el.paused) el.play().catch(() => {});
+    }
   }
-  function setVoice(v) {
-    prefs.voice = Math.max(0, Math.min(100, Math.round(v)));
-    if (prefs.voice < 100) prefs.voiceOff = prefs.voice;
+  const followVoice = followParts;
+  function setLevel(stem, v) {
+    const n = Math.max(0, Math.min(100, Math.round(v)));
+    if (stem === 'vocals') {
+      prefs.voice = n;
+      if (n < 100) prefs.voiceOff = n;
+    } else {
+      prefs.levels[stem] = n;
+      if (n < 100) prefs.levelsOff[stem] = n;
+    }
     savePrefs();
-    applyVoice();
+    applyParts();
   }
+  // A tap on a part: out (or down to where it was last), and back.
+  function toggleLevel(stem) {
+    const off = stem === 'vocals' ? prefs.voiceOff : prefs.levelsOff[stem];
+    setLevel(stem, levelOf(stem) < 100 ? 100 : off);
+  }
+  const setVoice = (v) => setLevel('vocals', v);
   function toggleVoice() {
-    if (!hasParts()) return;
-    setVoice(prefs.voice < 100 ? 100 : prefs.voiceOff);
+    // V: the voice; for someone who doesn't sing here, their first part.
+    const g = partGroups().filter((x) => x.adjustable);
+    const mine = g.find((x) => x.stem === 'vocals') || g[0];
+    if (mine) toggleLevel(mine.stem);
   }
-  voiceBtn?.addEventListener('click', toggleVoice);
-  // The phone card's mic: with a coaching community's voice slider, the
-  // voice out and back (toggleMic, "Sing"); otherwise as the chip.
-  if (root.dataset.singVoice !== '1') $('audio-card-mic')?.addEventListener('click', toggleVoice);
-  voiceRange?.addEventListener('input', () => setVoice(+voiceRange.value));
+  const cardMicEl = $('audio-card-mic');
+  cardMicEl?.addEventListener('click', () => toggleLevel('vocals'));
+
+  // The chips (in the bar) and the levels (in the "Je joue" panel): one
+  // per part I play that the recording has.
+  const partsEl = $('audio-parts'), partsChips = $('audio-parts-chips'), partsLevels = $('audio-parts-levels');
+  const partIcon = (g) => {
+    const key = g.stem === 'other' ? (['guitar', 'keys'].find((k) => g.ids.includes(k)) || 'other') : g.stem;
+    return $('audio-part-icons')?.querySelector(`[data-stem="${key}"]`)?.innerHTML || '';
+  };
+  // The part's names as French says them, for the hints: « autres »…
+  const stemName = (s) => ({ vocals: t('stem|vocals'), drums: t('stem|drums'), bass: t('stem|bass'), other: t('stem|other') }[s]);
+  function partControl(g, big) {
+    const wrap = document.createElement('span');
+    wrap.className = 'audio-part' + (big ? ' audio-part-big' : '');
+    wrap.dataset.stem = g.stem;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'audio-toggle audio-chip';
+    btn.innerHTML = partIcon(g);
+    const label = document.createElement('span');
+    label.className = 'audio-part-label';
+    btn.append(label);
+    btn.addEventListener('click', () => toggleLevel(g.stem));
+    const range = document.createElement('input');
+    range.type = 'range';
+    range.min = '0'; range.max = '100'; range.step = '5';
+    range.addEventListener('input', () => setLevel(g.stem, +range.value));
+    const out = document.createElement('output');
+    wrap.append(btn, range, out);
+    return wrap;
+  }
+  let partsShape = '';
+  function renderParts() {
+    const groups = partGroups().filter((g) => g.adjustable);
+    if (partsEl) partsEl.hidden = !hasParts();
+    const shape = groups.map((g) => `${g.stem}:${g.ids.join('+')}`).join(',');
+    if (shape !== partsShape) {
+      partsShape = shape;
+      partsChips?.replaceChildren(...groups.map((g) => partControl(g, false)));
+      partsLevels?.replaceChildren(...groups.map((g) => partControl(g, true)));
+    }
+    document.querySelectorAll('.audio-part').forEach((wrap) => {
+      const g = groups.find((x) => x.stem === wrap.dataset.stem);
+      if (!g) return;
+      const v = levelOf(g.stem), name = groupLabel(g);
+      const down = v < 100;
+      const btn = wrap.querySelector('button'), range = wrap.querySelector('input'), out = wrap.querySelector('output');
+      wrap.classList.toggle('is-on', down);
+      btn.classList.toggle('active', down);
+      btn.classList.toggle('is-off', v === 0);
+      btn.setAttribute('aria-pressed', String(down));
+      btn.title = t('%s: out or back (the slider: anywhere between)', name);
+      wrap.querySelector('.audio-part-label').textContent = v === 0 ? t('%s out', name.toLowerCase()) : name;
+      if (+range.value !== v) range.value = String(v);
+      range.setAttribute('aria-label', t('Level: %s', name));
+      range.setAttribute('aria-valuetext', pctText(v));
+      out.textContent = pctText(v);
+    });
+    // The phone card's mic: the voice, when I sing here.
+    if (cardMicEl) {
+      cardMicEl.hidden = !voiceOn();
+      cardMicEl.setAttribute('aria-pressed', String(prefs.voice > 0));
+      cardMicEl.classList.toggle('is-off', prefs.voice === 0);
+    }
+    renderPartsPanel();
+  }
+
+  // The "Je joue" panel: the levels, what the split can't tell apart, the
+  // instruments to pick, for this song or for here, saved for the reader.
+  const COMMON = ['voice', 'guitar', 'bass', 'drums', 'keys', 'sax', 'trumpet', 'trombone', 'violin', 'other'];
+  let showAll = false;
+  let partsScope = partsFrom === 'song' ? 'song' : 'context';
+  let partsDirty = false;
+  const ctxName = () => (partsCtx.kind ? partsCtx.name || '' : '');
+  function renderPartsPanel() {
+    const pop = $('audio-pop-parts');
+    if (!pop) return;
+    const from = $('audio-parts-from');
+    if (from) {
+      from.textContent = partsDirty ? t('not saved yet')
+        : partsFrom === 'song' ? t('your choice for this song')
+        : partsFrom === 'context' ? (ctxName() ? t('your choice with %s', ctxName()) : t('your choice outside your bands and communities'))
+        : partsFrom === 'profile' ? t('from your profile')
+        : t('nothing said: the voice');
+    }
+    // What the split can't do: two instruments in one part, a recording
+    // split into the voice and the backing only, no part at all.
+    const notes = [];
+    for (const g of partGroups()) {
+      if (!g.adjustable && g.stem !== 'vocals' && hasParts()) notes.push(t('This recording is split into the voice and the backing only: %s can’t be set apart.', groupLabel(g)));
+      else if (g.adjustable && g.ids.length > 1) notes.push(t('%s are one part of the recording, “%s”: the split can’t tell them apart.', groupLabel(g), stemName(g.stem)));
+    }
+    if (!myParts.length) notes.push(t('Nothing: you listen, the recording plays as it is.'));
+    const note = $('audio-parts-note');
+    if (note) { note.hidden = !notes.length; note.textContent = notes.join(' '); }
+    const pick = $('audio-parts-pick');
+    if (pick) {
+      const ids = showAll ? allInstruments.map((x) => x.id) : [...new Set([...COMMON, ...myParts])].filter((id) => allInstruments.some((x) => x.id === id));
+      const shape = ids.join(',');
+      if (pick.dataset.shape !== shape) {
+        pick.dataset.shape = shape;
+        pick.replaceChildren(...ids.map((id) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'audio-pick';
+          b.dataset.id = id;
+          b.textContent = instrument(id).label;
+          b.addEventListener('click', () => {
+            myParts = myParts.includes(id) ? myParts.filter((x) => x !== id) : [...myParts, id].slice(-6);
+            partsDirty = true;
+            applyParts();
+          });
+          return b;
+        }));
+      }
+      pick.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(myParts.includes(b.dataset.id))));
+    }
+    const more = $('audio-parts-more');
+    if (more) { more.textContent = showAll ? t('Fewer instruments') : t('Other instruments…'); more.setAttribute('aria-expanded', String(showAll)); }
+    const scopeCtx = $('audio-parts-scope-context');
+    if (scopeCtx) scopeCtx.textContent = ctxName() ? t('With %s, all its songs', ctxName()) : t('All my other songs');
+    $('audio-parts-scope')?.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.v === partsScope);
+      b.setAttribute('aria-checked', String(b.dataset.v === partsScope));
+    });
+    const save = $('audio-parts-save');
+    if (save) save.disabled = !partsDirty && partsFrom === partsScope;
+    const reset = $('audio-parts-reset');
+    if (reset) {
+      reset.hidden = partsFrom !== partsScope;
+      reset.textContent = partsScope === 'song' ? t('Forget it for this song') : t('Back to my profile');
+    }
+  }
+  $('audio-parts-more')?.addEventListener('click', () => { showAll = !showAll; renderPartsPanel(); });
+  $('audio-parts-scope')?.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-v]');
+    if (!b) return;
+    partsScope = b.dataset.v;
+    renderPartsPanel();
+  });
+  async function putParts(body) {
+    const status = $('audio-parts-status');
+    if (status) status.textContent = '';
+    const res = await fetch(`/api/songs/${variantId}/parts`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ context: { kind: partsCtx.kind || '', id: partsCtx.id || 0 }, scope: partsScope }, body)),
+    }).catch(() => null);
+    if (!res || !res.ok) { if (status) status.textContent = t('Couldn’t save that.'); return; }
+    const d = await res.json();
+    myParts = d.parts || [];
+    partsFrom = d.from;
+    partsDirty = false;
+    if (status) status.textContent = t('Saved.');
+    applyParts();
+  }
+  $('audio-parts-save')?.addEventListener('click', () => putParts({ instruments: myParts }));
+  $('audio-parts-reset')?.addEventListener('click', () => putParts({ clear: true }));
   function wireSegLater(id, get, set) {
     const seg = $(id);
     if (!seg) return () => {};
@@ -1238,24 +1455,14 @@ window.songbooksDecodable = function (buf) {
     optsBtn?.setAttribute('aria-expanded', String(open));
   }
 
-  // ---- Sing: a coaching community's player options --------------------------
-  // play.html #audio-sing-btn and .sing-panel (handlers_pages.go): in the
-  // dock, one way in, the mic's state and the key with whose it is
-  // ("C#m −1 · Poppy"); it opens a panel, as the rehearsals' player opens
-  // (band_recordings.html rec-player): most of the screen, closed by its
-  // ×, Escape or a click beside it once the setup is right; on a phone, a
-  // sheet. In it, the voice's volume (singVoiceOn) — the mic turns it off
-  // and back to where it was, the slider anywhere between (0 the backing
-  // alone, 100 the recording as it is) — and the key, a semitone either
-  // way, with whose it is; for a coach, their students (coachCommunity:
-  // picked, the key goes to theirs, saved for them). The same voice and
-  // key as Voice and Key (setVoice, setSemitones, the same parts and the
-  // same Web Audio graph), remembered the same way.
+  // ---- Sing: a coaching community's key per student -------------------------
+  // play.html .sing-panel (handlers_pages.go), opened by the key's chip, as
+  // the rehearsals' player opens (band_recordings.html rec-player): most of
+  // the screen, closed by its ×, Escape or a click beside it; on a phone, a
+  // sheet. In it the key, a semitone either way, with whose it is, and the
+  // coach's students (coachCommunity: picked, the key goes to theirs,
+  // saved for them). The same key as the chip's (setSemitones).
   const singPanel = $('sing-panel'), singBtn = sing ? keyBtn : null;
-  const singBtnMic = null, singChip = null;
-  const singVoice = $('audio-sing-voice'), singMic = $('audio-sing-mic'), cardMic = singVoiceOn ? $('audio-card-mic') : null;
-  const singRange = $('audio-sing-volume'), singOut = $('audio-sing-amount');
-  const singVoiceHint = $('audio-sing-voice-hint'), singNoVoice = $('audio-sing-novoice');
   const singKeyName = $('audio-sing-keyname'), singFor = $('audio-sing-for');
   const singSave = $('audio-sing-save'), singReset = $('audio-sing-reset'), singOriginal = $('audio-sing-original');
   // −1, +2: a semitone count as a singer reads it (a real minus).
@@ -1283,23 +1490,6 @@ window.songbooksDecodable = function (buf) {
   }
   function renderSing() {
     if (!sing) return;
-    const parts = singVoiceOn && hasParts();
-    if (singVoice) singVoice.hidden = !parts;
-    if (singVoiceHint) singVoiceHint.hidden = !parts;
-    if (singNoVoice) singNoVoice.hidden = parts;
-    if (cardMic) cardMic.hidden = !parts;
-    if (singBtnMic) singBtnMic.hidden = !parts;
-    const v = prefs.voice;
-    [singMic, cardMic, singBtnMic].forEach((b) => {
-      if (!b) return;
-      if (b !== singBtnMic) b.setAttribute('aria-pressed', String(v > 0));
-      b.classList.toggle('is-off', v === 0);
-    });
-    if (singRange) {
-      if (+singRange.value !== v) singRange.value = String(v);
-      singRange.setAttribute('aria-valuetext', v === 0 ? t('No voice') : t('Voice %d%', v));
-    }
-    if (singOut) singOut.textContent = `${v}%`;
     // The key: its name and how far from the song's, then whose.
     const n = prefs.semitones;
     const name = keyIn(coachKey, n);
@@ -1342,16 +1532,6 @@ window.songbooksDecodable = function (buf) {
     singTarget = x;
     if (x.inSongbook && x.semitones !== prefs.semitones) setSemitones(x.semitones);
     else renderCoachKeys();
-  }
-  // The mic: the voice off, and back to where it was.
-  function toggleMic() {
-    if (!hasParts()) return;
-    if (prefs.voice > 0) {
-      prefs.voiceLast = prefs.voice;
-      setVoice(0);
-    } else {
-      setVoice(prefs.voiceLast || 100);
-    }
   }
   // The panel: opened from the dock, moved to the body (the dock's
   // backdrop-filter would hold a fixed panel inside it).
@@ -1403,12 +1583,6 @@ window.songbooksDecodable = function (buf) {
     card?.addEventListener('touchend', (e) => {
       if (y0 !== null && e.changedTouches[0].clientY - y0 > 80) setPanel(false);
       y0 = null;
-    });
-    singMic?.addEventListener('click', toggleMic);
-    cardMic?.addEventListener('click', toggleMic);
-    singRange?.addEventListener('input', () => setVoice(+singRange.value));
-    singRange?.addEventListener('change', () => {
-      if (+singRange.value > 0) { prefs.voiceLast = +singRange.value; savePrefs(); }
     });
     $('audio-sing-down')?.addEventListener('click', () => setSemitones(prefs.semitones - 1));
     $('audio-sing-up')?.addEventListener('click', () => setSemitones(prefs.semitones + 1));
@@ -1593,7 +1767,10 @@ window.songbooksDecodable = function (buf) {
     const pct = Math.round(prefs.speed * 100);
     if (pct !== 100) bits.push(pctText(pct));
     if (prefs.semitones) bits.push(semis(prefs.semitones));
-    if ($('audio-voice-split') && !$('audio-voice-split').hidden && prefs.voice < 100) bits.push(prefs.voice === 0 ? t('no voice') : t('voice %d%', prefs.voice));
+    for (const g of partGroups()) {
+      if (!g.adjustable || levelOf(g.stem) >= 100) continue;
+      bits.push(g.ids.length === 1 && g.ids[0] === 'voice' ? (prefs.voice === 0 ? t('no voice') : t('voice %d%', prefs.voice)) : `${groupLabel(g)} ${pctText(levelOf(g.stem))}`);
+    }
     if (prefs.click) bits.push(t('Click'));
     if (prefs.countIn) bits.push($('audio-countin-label')?.textContent);
     lcdState.textContent = bits.filter(Boolean).join(' · ');
@@ -1866,7 +2043,7 @@ window.songbooksDecodable = function (buf) {
       case 'ArrowRight': if (songNav && !e.altKey) handled = false; else if (e.altKey) stepSection(1); else stepBar(1); break;
       case 'c': case 'C': case 'l': case 'L': toggleCycle(); break;
       case 'k': case 'K': toggleClick(); break;
-      case 'v': case 'V': if (!hasParts()) handled = false; else if (singVoiceOn) toggleMic(); else toggleVoice(); break;
+      case 'v': case 'V': if (!hasParts()) handled = false; else toggleVoice(); break;
       case '[': setSpeed(prefs.speed - (e.shiftKey ? 0.01 : 0.05)); break;
       case ']': setSpeed(prefs.speed + (e.shiftKey ? 0.01 : 0.05)); break;
       default: handled = false;

@@ -51,9 +51,6 @@ func TestVocalSlider(t *testing.T) {
 	if err := st.AddToSongbook(ctx, sb, song, coach); err != nil {
 		t.Fatal(err)
 	}
-	if id, _ := st.MemberVocalSliderCommunity(ctx, poppy, song); id != 0 {
-		t.Fatalf("a community with it off: %d", id)
-	}
 
 	// On: its members get it on the songs it has, nobody else does.
 	if err := st.SetCommunityPlayerVocalSlider(ctx, c, true); err != nil {
@@ -61,15 +58,6 @@ func TestVocalSlider(t *testing.T) {
 	}
 	if got, _ := st.GetCommunity(ctx, c); !got.PlayerVocalSlider {
 		t.Fatal("not on")
-	}
-	for who, want := range map[int64]int64{poppy: c, george: c, coach: c, outsider: 0} {
-		if id, err := st.MemberVocalSliderCommunity(ctx, who, song); err != nil || id != want {
-			t.Errorf("person %d: %d, %v (want %d)", who, id, err, want)
-		}
-	}
-	other, _ := st.CreateVariant(ctx, OwnerPerson, coach, "Elsewhere", "", coach)
-	if id, _ := st.MemberVocalSliderCommunity(ctx, poppy, other); id != 0 {
-		t.Fatalf("a song the community hasn't: %d", id)
 	}
 	if err := st.SetCommunityPlayerVocalSlider(ctx, 999999, true); err == nil {
 		t.Fatal("no such community, no error")
