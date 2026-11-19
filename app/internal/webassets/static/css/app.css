@@ -7736,3 +7736,6 @@ a.singer-chip:hover { border-color: var(--border-strong); }
   .wu-panel-btn { display: inline-flex !important; padding: 0 0.6rem; }
   .warmup-practice { padding-bottom: 12rem; }
 }
+
+/* The Key line in the player panel: its students list fits a phone panel. */
+.audio-panel .audio-key-targets { min-width: 0; }
