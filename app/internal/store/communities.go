@@ -225,14 +225,18 @@ type CommunityCardRow struct {
 	MemberCount int
 	SongCount   int
 	MyRole      string
+	Kind        string // "community" or "coaching" (Community.Kind)
 }
+
+// IsCoaching reports whether the community is a coach's and their students'.
+func (r CommunityCardRow) IsCoaching() bool { return r.Kind == "coaching" }
 
 // ListCommunityCardsForPerson is ListCommunitiesForPerson plus the counts
 // a listing card shows — one query per community would N+1 on a person
 // in many communities, so this does it in a single round trip instead.
 func (st *Store) ListCommunityCardsForPerson(ctx context.Context, personID int64) ([]CommunityCardRow, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT sc.id, sc.name, my_role.name,
+		SELECT sc.id, sc.name, my_role.name, sc.kind,
 		       count(DISTINCT cm.person_id) FILTER (WHERE upper_inf(cm.validity)),
 		       count(DISTINCT se.variant_id)
 		FROM communities sc
@@ -241,7 +245,7 @@ func (st *Store) ListCommunityCardsForPerson(ctx context.Context, personID int64
 		LEFT JOIN community_members cm ON cm.community_id = sc.id
 		LEFT JOIN songbooks sb ON sb.owner_community_id = sc.id AND sb.is_default
 		LEFT JOIN songbook_entries se ON se.songbook_id = sb.id
-		GROUP BY sc.id, sc.name, my_role.name
+		GROUP BY sc.id, sc.name, my_role.name, sc.kind
 		ORDER BY sc.name`, personID)
 	if err != nil {
 		return nil, err
@@ -250,7 +254,7 @@ func (st *Store) ListCommunityCardsForPerson(ctx context.Context, personID int64
 	var out []CommunityCardRow
 	for rows.Next() {
 		var r CommunityCardRow
-		if err := rows.Scan(&r.ID, &r.Name, &r.MyRole, &r.MemberCount, &r.SongCount); err != nil {
+		if err := rows.Scan(&r.ID, &r.Name, &r.MyRole, &r.Kind, &r.MemberCount, &r.SongCount); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
