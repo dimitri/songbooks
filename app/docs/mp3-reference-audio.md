@@ -190,6 +190,16 @@ replaces (`song_audio_sync_history`, the last 20,
 It opens from the badge's panel and from the import wizard's step 5
 ("Adjust by ear…", with the wizard's proposal).
 
+### Lines in Lyrics only
+
+A chart has no time per lyric line. While the recording leads, Lyrics
+only lights the line the singer is on from the vocals part's phrases
+(`lyric-lines.js`): the phrases starting in the section's span are merged
+(shortest rest first) or split (longest phrase first) until there is one
+per line, and each line starts with its phrase. Without the voice (the
+recording not split yet, or the metronome leading), the section's lines
+are spread evenly over its bars, as before.
+
 ## 5. Build order
 
 1. `song_audio`/`song_audio_markers` tables + migration.

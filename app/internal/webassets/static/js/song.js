@@ -697,10 +697,17 @@ const ICONS = {
       const lineEls = sectionEl.querySelectorAll('.lyric-line');
       let lineEl = null;
       if (lineEls.length) {
-        const span = Math.max(1, curSec.barCount);
-        const offset = Math.max(0, bar - curSec.startBar);
-        const fraction = Math.min(0.999, offset / span);
-        lineEl = lineEls[Math.floor(fraction * lineEls.length)] || null;
+        // On the singer's phrases when the recording leads and its voice
+        // is known (lyric-lines.js); else spread evenly over the bars.
+        const voiced = ref && window.songbooksLyricLine ? window.songbooksLyricLine(curSec, lineEls.length) : null;
+        if (voiced !== null) {
+          lineEl = lineEls[voiced] || null;
+        } else {
+          const span = Math.max(1, curSec.barCount);
+          const offset = Math.max(0, bar - curSec.startBar);
+          const fraction = Math.min(0.999, offset / span);
+          lineEl = lineEls[Math.floor(fraction * lineEls.length)] || null;
+        }
       }
       if (lineEl !== currentLineEl) {
         currentLineEl?.classList.remove('current');
