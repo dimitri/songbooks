@@ -123,6 +123,15 @@ DOCKER_CONTEXT=ci-build docker save songbooks-prod-galene | DOCKER_CONTEXT=defau
 DOCKER_CONTEXT=default COMPOSE_PROFILES=stems,live docker compose up -d --no-build galene
 ```
 
+Production's `.env` has `COMPOSE_PROFILES=stems,live`: `deploy/rollout.sh`
+builds Galène with the app and keeps it running.
+
+To change the key: remove `SONGBOOKS_GALENE_KEY` from `.env`, run
+`galene/setup.sh` again (a new key, on both sides), then restart Galène
+and the app (`docker compose up -d --force-recreate --no-build galene
+app`). Join links signed with the old key stop working at once; they
+only last two minutes anyway.
+
 and in the Caddyfile, instead of the 503:
 
 ```
@@ -134,6 +143,14 @@ live.songbooks.fr {
 }
 ```
 
-Then the app side (docs/coaching.md): join links with tokens, in the
-Lessons page and the calendar feed; an event's group invite with a link
-to share on WhatsApp.
+The app side is in docs/coaching.md ("Join links"): the app reads
+`SONGBOOKS_GALENE_KEY` (and `SONGBOOKS_GALENE_URL`, production's by
+default) from `deploy/.env`, and signs the join tokens with it.
+
+To try it on a laptop: build the image (`docker build -t
+songbooks-galene-local deploy/galene`), give it a `data/config.json`
+with `"proxyURL": "http://localhost:8444/"` and no `canonicalHost`, and
+a `groups/lessons.json` from the example with a key of your own; run it
+with `-insecure -http 0.0.0.0:8444 -udp-range 40000 -turn ""`, ports
+8444 and 40000/udp published on 127.0.0.1; start the local app with the
+same key and `SONGBOOKS_GALENE_URL=http://localhost:8444`.

@@ -646,6 +646,18 @@ func (s *Server) handleCoachingLessonsPage(w http.ResponseWriter, r *http.Reques
 	}
 	data := s.coachingPageData(r, community, coach, "lessons")
 	data["Days"] = days
+	data["Now"] = time.Now()
+	for _, l := range lessons {
+		if l.Event.LessonMode == "online" && !l.Event.IsPast(time.Now()) {
+			data["HasOnline"] = true
+		}
+	}
+	if data["HasOnline"] != nil {
+		if data["Headphones"], err = s.store.LiveHeadphones(r.Context(), person.ID); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
 	if coach {
 		members, err := s.store.ListCommunityMembers(r.Context(), community.ID, false)
 		if err != nil {
@@ -826,6 +838,28 @@ func (s *Server) handlePutCoachingLessonStudents(w http.ResponseWriter, r *http.
 		return
 	}
 	if err := s.setLessonStudents(r, community.ID, eventID, req.Students); err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handlePutCoachingLessonMode is PUT /api/communities/{id}/lessons/{eventID}/mode
+// {"mode": "in_person" | "online"}: a lesson moved online, or back in
+// the room.
+func (s *Server) handlePutCoachingLessonMode(w http.ResponseWriter, r *http.Request) {
+	_, eventID, ok := s.coachLesson(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Mode string `json:"mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if err := s.store.SetLessonMode(r.Context(), eventID, req.Mode); err != nil {
 		httpError(w, http.StatusBadRequest, err.Error())
 		return
 	}

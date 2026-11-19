@@ -187,6 +187,34 @@ JWT tokens it checks against keys we give it.
 
 ### Join links, from the app and the calendar feed
 
+Built (internal/httpapi/live.go, migration 0083). What a coach and a
+student see:
+
+- **The coach** makes a lesson *Online* (the lesson form's *How*, or
+  later, the lesson's *Edit*: back in the room just as well). It's
+  tagged *Online* on the Lessons page, the student's page and the
+  calendar.
+- **On the Lessons page**, an online lesson to come has a *Join*
+  button, lit (*Join the lesson*) from 15 minutes before it starts to 30
+  minutes after it ends; earlier, the button leads to a page saying when
+  it opens. The coach's and each student's own.
+- **In the calendar app**, the lesson's link is the join link, carrying
+  the person's feed address (`?f=`): a tap on the phone goes straight in,
+  without logging in.
+- **Headphones**: a switch above the lessons, *I join online lessons
+  with headphones*, remembered per person (`people.live_headphones`);
+  `?headphones=1` or `0` on a join link changes it too. With it, Galène
+  sends the voice as it is, in high quality; without, its echo and noise
+  removal, right on laptop speakers. Everyone joins muted.
+- **In Galène**, the person's name is already filled in: one click on
+  *Connect* (with or without camera and microphone). The coach can mute
+  or remove someone and hand out a link of their own; a student shows
+  themselves and talks.
+- **A lesson's room** is made the first time someone joins
+  (`events.live_room`), so a lesson moved to another day keeps it.
+
+The design, as reviewed:
+
 - **The app signs the tokens**, Galène checks them: a JWT (HS256, our
   `kid`), `sub` the person's name, `aud`
   `https://live.songbooks.studio/group/lessons/<uuid>/` (exactly, trailing

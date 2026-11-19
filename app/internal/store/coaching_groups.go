@@ -221,6 +221,16 @@ func (st *Store) SetLessonDetails(ctx context.Context, eventID int64, mode strin
 	return err
 }
 
+// SetLessonMode changes how a lesson is given, in the room or online; an
+// online lesson keeps its room (live.go) whichever way it goes.
+func (st *Store) SetLessonMode(ctx context.Context, eventID int64, mode string) error {
+	if mode != "in_person" && mode != "online" {
+		return fmt.Errorf("invalid lesson mode %q", mode)
+	}
+	_, err := st.db.Exec(ctx, `UPDATE events SET lesson_mode = $2 WHERE id = $1 AND event_type = 'lesson'`, eventID, mode)
+	return err
+}
+
 // Teaching notes ------------------------------------------------------------
 
 // TeachingNote is what the coach wrote about a student, on a day, maybe

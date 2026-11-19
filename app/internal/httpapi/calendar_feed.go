@@ -2,7 +2,8 @@ package httpapi
 
 import (
 	"net/http"
-	"net/url"
+	neturl "net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,10 +45,13 @@ func (s *Server) handleCalendarFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	base := feedBase(r)
 	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
-	w.Write([]byte(buildFeed(items, base, now)))
+	w.Write([]byte(buildFeed(items, base, token, now)))
 }
 
-func buildFeed(items []store.CalendarItem, base string, now time.Time) string {
+// buildFeed writes the feed; token is its address's, which an online
+// lesson's join link carries so it works from the calendar app, without
+// logging in (live.go).
+func buildFeed(items []store.CalendarItem, base, token string, now time.Time) string {
 	stamp := func(t time.Time) string { return t.UTC().Format("20060102T150405Z") }
 	var b strings.Builder
 	line := func(s string) { b.WriteString(foldICS(s) + "\r\n") }
@@ -94,7 +98,13 @@ func buildFeed(items []store.CalendarItem, base string, now time.Time) string {
 			desc = append(desc, it.Description)
 		}
 		url := base + it.Link
-		desc = append(desc, url)
+		if it.Kind == "lesson" && it.LessonMode == "online" {
+			// The lesson's own join link, in place of the lessons page.
+			url = base + it.Link + "/" + strconv.FormatInt(it.EventID, 10) + "/join?f=" + neturl.QueryEscape(token)
+			desc = append(desc, "Join: "+url)
+		} else {
+			desc = append(desc, url)
+		}
 		if place != "" {
 			line("LOCATION:" + icsEscape(place))
 		}
@@ -140,7 +150,7 @@ func (s *Server) handleCalendarSubscribePage(w http.ResponseWriter, r *http.Requ
 		"Person":  person,
 		"FeedURL": feed,
 		"Webcal":  webcal,
-		"Google":  "https://calendar.google.com/calendar/r?cid=" + url.QueryEscape(webcal),
+		"Google":  "https://calendar.google.com/calendar/r?cid=" + neturl.QueryEscape(webcal),
 	})
 }
 
