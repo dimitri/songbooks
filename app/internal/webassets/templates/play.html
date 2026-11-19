@@ -1515,7 +1515,13 @@
          itself is stored in this browser's localStorage, per song, not
          shared/synced — it's a listening preference, not song data),
          and the waveform/transport/markers for whichever is selected. */}}
-    <div class="audio-player" id="audio-player" data-variant-id="{{.VariantID}}" data-can-edit="{{if .CanEdit}}true{{else}}false{{end}}"{{if .StudentKeySet}} data-student-key="{{.StudentKey}}"{{end}}>
+    {{/* A coaching community's player options (handlers_pages.go,
+         store/vocal_slider.go), in the dock's "Voice & key" panel
+         (audio-player.js "Sing"): data-sing, the panel in place of Key;
+         data-sing-voice, its voice slider, in place of Voice;
+         data-coach-community, its key per student, that community's
+         students to pick, the coming week's lessons first. */}}
+    <div class="audio-player{{if .SingPanel}} is-sing{{end}}{{if .VocalSlider}} is-sing-voice{{end}}" id="audio-player" data-variant-id="{{.VariantID}}" data-can-edit="{{if .CanEdit}}true{{else}}false{{end}}"{{if .StudentKeySet}} data-student-key="{{.StudentKey}}" data-key-for="{{.KeyContext}}"{{if .KeyMine}} data-key-mine="1"{{end}}{{with .SongbookRef}} data-key-songbook="{{.}}"{{end}}{{end}}{{if .SingPanel}} data-sing="1" data-song-key="{{.SongKeyName}}"{{end}}{{if .VocalSlider}} data-sing-voice="1"{{end}}{{with .CoachStudentKeys}} data-coach-community="{{.}}"{{end}}>
       <div id="audio-category-toggle" class="audio-category-toggle" hidden>
         <button type="button" data-category="gp">Guitar Pro</button>
         <button type="button" data-category="youtube">YouTube</button>
@@ -1548,6 +1554,23 @@
         <div class="audio-dock-title">{{$.Title}}</div>
         <div class="audio-dock-line" id="audio-dock-line" title="{{t "click to go there"}}"><i id="audio-dock-played"></i></div>
         <div class="audio-dock-sections" id="audio-dock-sections" hidden></div>
+        {{/* The recording's waveform, its sections ruled above it, in the
+             dock on a wide screen: where it is and what plays it, together
+             (on a phone, in the sheet the dock opens into). */}}
+        <div class="audio-waveform-wrap">
+          <div class="audio-ruler" id="audio-ruler" title="{{t "drag to set the cycle range; click it to switch cycling on or off"}}">
+            <div class="audio-ruler-marks" id="audio-ruler-marks"></div>
+            <div class="audio-cycle" id="audio-cycle" hidden><span class="audio-cycle-edge start"></span><span class="audio-cycle-edge end"></span></div>
+          </div>
+          <div class="audio-wave" id="audio-wave">
+            <canvas id="audio-waveform" class="audio-waveform"></canvas>
+            <div class="audio-played" id="audio-played"><canvas id="audio-waveform-played" class="audio-waveform"></canvas></div>
+            <div id="audio-bargrid" class="audio-bargrid"></div>
+            <div class="audio-cycle-shade" id="audio-cycle-shade" hidden></div>
+            <div id="audio-playhead" class="audio-playhead"></div>
+            <div id="audio-hover" class="audio-hover" hidden><span class="audio-hover-line"></span><span class="audio-hover-label" id="audio-hover-label"></span></div>
+          </div>
+        </div>
         <div class="audio-transport">
           <div class="audio-buttons">
             <button type="button" id="audio-start-btn" class="icon-btn" title="{{t "go to start (Home)"}}">{{template "icon-to-start"}}</button>
@@ -1561,6 +1584,11 @@
             <span class="audio-lcd-time" id="audio-time-label">0:00 / 0:00</span>
             <span class="audio-lcd-state" id="audio-lcd-state"></span>
           </div>
+          {{/* The "Voice & key" panel's way in: the mic's state (struck
+               through, the voice off) and the key with whose it is,
+               "C#m −1 · Poppy". On a phone, in the sheet. */}}
+          {{if .SingPanel}}<button type="button" id="audio-sing-btn" class="audio-sing-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="sing-panel" title="{{if .VocalSlider}}{{t "the voice’s volume and the key"}}{{else}}{{t "the key, and whose it is"}}{{end}}">{{if .VocalSlider}}<span class="audio-sing-btn-icon" id="audio-sing-btn-mic">{{template "icon-sing-mic"}}</span>{{else}}<span class="audio-sing-btn-icon">{{template "icon-tuner"}}</span>{{end}}<span class="audio-sing-btn-label">{{if .VocalSlider}}{{t "Voice & key"}}{{else}}{{t "Key"}}{{end}}</span><span class="audio-sing-chip" id="audio-sing-chip"></span></button>{{end}}
+          {{if .VocalSlider}}<button type="button" id="audio-card-mic" class="icon-btn audio-card-mic" aria-pressed="true" hidden title="{{t "the voice: off or back (V)"}}" aria-label="{{t "Voice on or off"}}">{{template "icon-sing-mic"}}</button>{{end}}
           <button type="button" id="audio-opts-btn" class="icon-btn audio-opts-btn" aria-expanded="false" aria-controls="audio-opts" title="{{t "practice options"}}">{{template "icon-more"}}</button>
           <div class="audio-opts" id="audio-opts">
             <button type="button" id="audio-cycle-btn" class="audio-toggle" aria-pressed="false" title="{{t "cycle: loop the yellow bar range — drag in the ruler to set it (C)"}}">{{template "icon-cycle"}}<span>{{t "Cycle"}}</span></button>
@@ -1581,6 +1609,7 @@
               <button type="button" id="audio-voice-btn" class="audio-toggle" aria-pressed="false" title="{{t "the voice: on or off (V)"}}">{{template "icon-instrument-vocals"}}<span id="audio-voice-label">{{t "Voice"}}</span></button>
               <button type="button" class="audio-caret" data-pop="audio-pop-voice" aria-expanded="false" title="{{t "the voice's volume"}}">{{template "icon-down"}}</button>
             </span>
+            <button type="button" id="audio-pitch-btn" class="audio-toggle" aria-pressed="false" hidden title="{{t "check my singing against the song’s voice (the microphone listens)"}}"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="7" y="2.5" width="6" height="10" rx="3"/><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5"/></svg> <span>{{t "Pitch"}}</span></button>
             <label class="audio-speed" title="{{t "speed without changing pitch ([ slower, ] faster)"}}">{{template "icon-speed"}}
               <select id="audio-speed" aria-label="{{t "Playback speed"}}"></select>
               <span id="audio-speed-bpm" class="audio-speed-bpm"></span>
@@ -1588,6 +1617,73 @@
             <button type="button" id="audio-trainer-btn" class="audio-toggle audio-trainer-btn" data-pop="audio-pop-trainer" aria-expanded="false" title="{{t "speed trainer: speed up a little every few loops"}}">{{template "icon-trainer"}}<span id="audio-trainer-label">{{t "Trainer"}}</span><span class="audio-trainer-meter" id="audio-trainer-meter"></span></button>
           </div>
         </div>
+        {{if .SingPanel}}
+        {{/* The "Voice & key" panel (a coaching community's player
+             options, audio-player.js "Sing"), as the rehearsals' player
+             opens (band_recordings.html rec-player): most of the screen,
+             closed by its ×, Escape or a click beside it once the setup is
+             right; on a phone, a sheet. Moved to the body when the page
+             loads (the dock's backdrop-filter would hold it in the dock).
+             The voice: a mic (off, and back to where it was) and a slider,
+             0 the backing alone (karaoke), 100 the recording as it is,
+             from the recording's parts. The key, with whose it is, a
+             semitone either way. A coach's students beside them: picked,
+             the key goes to theirs, saved for them (the coming week's
+             lessons first, with the key per student on). */}}
+        <div class="sing-panel" id="sing-panel" hidden>
+          <div class="sp-backdrop" data-sp-close></div>
+          <div class="sp-card" role="dialog" aria-modal="true" aria-labelledby="sp-title" tabindex="-1">
+            <button type="button" class="sp-grab" data-sp-close aria-label="{{t "Close"}}"></button>
+            <button type="button" class="sp-close" data-sp-close aria-label="{{t "Close"}}"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+            <div class="sp-main">
+              <header class="sp-head">
+                <h2 id="sp-title">{{if .VocalSlider}}{{t "Voice & key"}}{{else}}{{t "Key"}}{{end}}</h2>
+                <p class="hint">{{$.Title}}</p>
+              </header>
+              {{if .VocalSlider}}
+              <section class="sp-section" aria-labelledby="sp-voice-title">
+                <h3 id="sp-voice-title">{{t "Voice"}}</h3>
+                <div class="audio-sing-voice" id="audio-sing-voice" hidden>
+                  <button type="button" class="audio-sing-mic" id="audio-sing-mic" aria-pressed="true" title="{{t "the voice: off or back (V)"}}" aria-label="{{t "Voice on or off"}}">{{template "icon-sing-mic"}}</button>
+                  <input type="range" id="audio-sing-volume" min="0" max="100" step="5" value="100" aria-label="{{t "Voice volume"}}">
+                  <output id="audio-sing-amount" for="audio-sing-volume">100%</output>
+                </div>
+                <p class="hint" id="audio-sing-voice-hint" hidden>{{t "0: the backing alone, to sing over it (karaoke); 100: the recording as it is."}}</p>
+                <p class="hint" id="audio-sing-novoice">{{t "This recording isn’t split into its parts yet: its voice can’t be turned down."}}</p>
+              </section>
+              {{end}}
+              <section class="sp-section" aria-labelledby="sp-key-title">
+                <h3 id="sp-key-title">{{t "Key"}}</h3>
+                <div class="audio-sing-key" id="audio-sing-key" role="group" aria-labelledby="sp-key-title">
+                  <button type="button" class="audio-sing-step" id="audio-sing-down" aria-label="{{t "down a semitone"}}">−</button>
+                  <output class="audio-sing-keylabel" id="audio-sing-keylabel" aria-live="polite"><strong id="audio-sing-keyname"></strong><span class="audio-sing-for" id="audio-sing-for"></span></output>
+                  <button type="button" class="audio-sing-step" id="audio-sing-up" aria-label="{{t "up a semitone"}}">+</button>
+                </div>
+                <div class="sp-key-actions">
+                  <button type="button" class="audio-sing-save" id="audio-sing-save" hidden></button>
+                  <button type="button" class="audio-sing-reset" id="audio-sing-reset" hidden>{{t "Back to my key"}}</button>
+                  <button type="button" class="audio-pill-btn" id="audio-sing-original">{{t "Original key"}}</button>
+                </div>
+                <p class="hint">{{t "Beyond 3 semitones up or down, a voice starts to sound processed."}}</p>
+              </section>
+            </div>
+            {{/* A coach's students and groups (coach_keys.go): with the
+                 key per student on, that community's only, the coming
+                 week's lessons first and the others folded under "Other
+                 students"; a name picked, the key goes to theirs. Filled
+                 when the panel opens; hidden for anyone who coaches nobody
+                 who has this song. */}}
+            <section class="sp-students audio-key-coach" id="audio-key-coach" hidden aria-labelledby="sp-students-title">
+              {{if .CoachStudentKeys}}
+              <div class="audio-pop-head"><h3 id="sp-students-title">{{t "Students"}}</h3><span class="hint">{{t "pick one: the key goes to theirs; saved, the song opens in it for them"}}</span></div>
+              {{else}}
+              <div class="audio-pop-head"><h3 id="sp-students-title">{{t "Save this key for"}}</h3><span class="hint">{{t "the song then opens in it for them, the chart and the recording"}}</span></div>
+              {{end}}
+              <div class="audio-key-targets" id="audio-key-targets"></div>
+            </section>
+          </div>
+        </div>
+        {{end}}
         {{/* One panel per option, opened from its ▾ (or from Trainer),
              under the control bar; one open at a time. */}}
         <div class="audio-pop" id="audio-pop-countin" hidden>
@@ -1610,10 +1706,12 @@
                here, where the key is tried by ear (coach_keys.go). Filled
                when the panel first opens; stays hidden for anyone who
                coaches nobody who has this song. */}}
+          {{if not .SingPanel}}
           <div class="audio-key-coach" id="audio-key-coach" hidden>
             <div class="audio-pop-head"><strong>{{t "Save this key for"}}</strong><span class="hint">{{t "the song then opens in it for them, the chart and the recording"}}</span></div>
             <ul class="audio-key-targets" id="audio-key-targets"></ul>
           </div>
+          {{end}}
         </div>
         <div class="audio-pop" id="audio-pop-voice" hidden>
           <div class="audio-pop-head"><strong>{{t "Voice"}}</strong><span class="hint">{{t "the singer, from the recording split in its parts"}}</span></div>
@@ -1659,20 +1757,6 @@
           </div>
         </div>
         </div>{{/* .audio-dock */}}
-        <div class="audio-waveform-wrap">
-          <div class="audio-ruler" id="audio-ruler" title="{{t "drag to set the cycle range; click it to switch cycling on or off"}}">
-            <div class="audio-ruler-marks" id="audio-ruler-marks"></div>
-            <div class="audio-cycle" id="audio-cycle" hidden><span class="audio-cycle-edge start"></span><span class="audio-cycle-edge end"></span></div>
-          </div>
-          <div class="audio-wave" id="audio-wave">
-            <canvas id="audio-waveform" class="audio-waveform"></canvas>
-            <div class="audio-played" id="audio-played"><canvas id="audio-waveform-played" class="audio-waveform"></canvas></div>
-            <div id="audio-bargrid" class="audio-bargrid"></div>
-            <div class="audio-cycle-shade" id="audio-cycle-shade" hidden></div>
-            <div id="audio-playhead" class="audio-playhead"></div>
-            <div id="audio-hover" class="audio-hover" hidden><span class="audio-hover-line"></span><span class="audio-hover-label" id="audio-hover-label"></span></div>
-          </div>
-        </div>
       </div>
     </div>
     {{if .GPDrift}}

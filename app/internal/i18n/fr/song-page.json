@@ -457,5 +457,19 @@
   "zoom to two bars at the playhead (B)": "zoomer sur deux mesures à la tête de lecture (B)",
   "· a new version from Guitar Pro goes in through GP Import": "· une nouvelle version venue de Guitar Pro passe par Import GP",
   "— a free, anonymous Guitar Pro tab archive. Picking a result downloads that one file and continues below, same as choosing a file by hand.": "— une archive libre et anonyme de tablatures Guitar Pro. Choisir un résultat télécharge ce fichier et continue ci-dessous, comme si vous l’aviez choisi vous-même.",
-  "close the player": "fermer le lecteur"
+  "close the player": "fermer le lecteur",
+  "Pitch": "Justesse",
+  "check my singing against the song’s voice (the microphone listens)": "vérifier ma justesse sur la voix du morceau (le micro écoute)",
+  "the voice: off or back (V)": "la voix : coupée ou rétablie (V)",
+  "Voice on or off": "Voix activée ou coupée",
+  "Voice volume": "Volume de la voix",
+  "Back to my key": "Revenir à ma tonalité",
+  "the voice’s volume and the key": "le volume de la voix et la tonalité",
+  "the key, and whose it is": "la tonalité, et pour qui",
+  "Voice & key": "Voix & tonalité",
+  "Close": "Fermer",
+  "Students": "Élèves",
+  "0: the backing alone, to sing over it (karaoke); 100: the recording as it is.": "0 : l’accompagnement seul, pour chanter dessus (karaoké) ; 100 : l’enregistrement tel quel.",
+  "This recording isn’t split into its parts yet: its voice can’t be turned down.": "Cet enregistrement n’est pas encore séparé en pistes : sa voix ne peut pas encore être baissée.",
+  "pick one: the key goes to theirs; saved, the song opens in it for them": "choisissez un élève : la tonalité passe à la sienne ; enregistrée, le morceau s’ouvre dans cette tonalité pour lui"
 }

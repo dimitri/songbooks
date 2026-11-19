@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sort"
+	"strconv"
+	"time"
 
 	"app/internal/chordsym"
 	"app/internal/i18n"
@@ -50,10 +53,37 @@ func (s *Server) withKeys(ctx context.Context, songs []store.StudentSong) []stor
 type coachKeyTarget struct {
 	store.KeyTarget
 	KeyName string `json:"keyName"` // the song's key moved by Semitones, "" when it has none
+	// The student's (or group's) next lesson within sessionWindow, from
+	// the community's calendar: they come first, the soonest first, the
+	// date said ("jeu. 21 nov."). Nil for none that soon.
+	NextSession      *time.Time `json:"nextSession,omitempty"`
+	NextSessionLabel string     `json:"nextSessionLabel,omitempty"`
 }
 
-// coachKeyTargets lists what the person coaches for this song.
-func (s *Server) coachKeyTargets(r *http.Request, variantID int64) (string, []coachKeyTarget, error) {
+// sessionWindow is how far ahead a coach's calendar puts students first
+// when they give a song's key: the coming week's lessons.
+const sessionWindow = 7 * 24 * time.Hour
+
+// orderByCalendar puts the targets with a lesson coming first, the
+// soonest first, and keeps the others in their order (students by name,
+// then groups).
+func orderByCalendar(ts []coachKeyTarget) {
+	sort.SliceStable(ts, func(i, j int) bool {
+		a, b := ts[i].NextSession, ts[j].NextSession
+		if a == nil || b == nil {
+			return a != nil && b == nil
+		}
+		return a.Before(*b)
+	})
+}
+
+// coachKeyTargets lists what the person coaches for this song. With
+// lessonsIn, a coaching community with its key per student on
+// (store.PlayerOptions.CoachStudentKeys) whose songbook the song was
+// opened from: that community's students and groups only, the coming
+// week's lessons first. Else, everyone they coach for it, in the
+// communities' order, students by name, then groups.
+func (s *Server) coachKeyTargets(r *http.Request, variantID, lessonsIn int64) (string, []coachKeyTarget, error) {
 	ctx := r.Context()
 	person := personFromContext(r)
 	key := s.songKeyOf(ctx, variantID)
@@ -62,7 +92,12 @@ func (s *Server) coachKeyTargets(r *http.Request, variantID int64) (string, []co
 		return "", nil, err
 	}
 	out := []coachKeyTarget{}
+	lang := s.langOfRequest(r)
+	now := time.Now()
 	for _, c := range communities {
+		if lessonsIn != 0 && c.ID != lessonsIn {
+			continue
+		}
 		if !person.IsAdmin {
 			ok, err := s.store.HasAnyCommunityManagePrivilege(ctx, c.ID, person.ID)
 			if err != nil {
@@ -76,23 +111,49 @@ func (s *Server) coachKeyTargets(r *http.Request, variantID int64) (string, []co
 		if err != nil {
 			return "", nil, err
 		}
-		for _, t := range ts {
-			out = append(out, coachKeyTarget{KeyTarget: t, KeyName: chordsym.KeyIn(key, t.Semitones)})
+		var people, groups map[int64]time.Time
+		if lessonsIn != 0 {
+			if people, groups, err = s.store.UpcomingSessions(ctx, c.ID, now, now.Add(sessionWindow)); err != nil {
+				return "", nil, err
+			}
 		}
+		for _, t := range ts {
+			ct := coachKeyTarget{KeyTarget: t, KeyName: chordsym.KeyIn(key, t.Semitones)}
+			at, ok := people[t.PersonID]
+			if t.Kind == "group" {
+				at, ok = groups[t.GroupID]
+			}
+			if ok {
+				ct.NextSession, ct.NextSessionLabel = &at, i18n.Date(lang, at, "Mon 2 Jan")
+			}
+			out = append(out, ct)
+		}
+	}
+	if lessonsIn != 0 {
+		orderByCalendar(out)
 	}
 	return key, out, nil
 }
 
-// handleGetCoachKeys is GET /api/songs/{id}/coach-keys: whom the person
-// can give this song's key to, and the key each has; an empty list for
-// anyone who coaches none of them.
+// handleGetCoachKeys is GET /api/songs/{id}/coach-keys[?community=N]:
+// whom the person can give this song's key to, and the key each has; an
+// empty list for anyone who coaches none of them. ?community= is the
+// coaching community whose songbook the song page was opened from: with
+// its key per student on, its students only, the coming week's lessons
+// first (coachKeyTargets); else as without it.
 func (s *Server) handleGetCoachKeys(w http.ResponseWriter, r *http.Request) {
 	variantID, err := pathID(r, "id")
 	if err != nil {
 		httpError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	key, targets, err := s.coachKeyTargets(r, variantID)
+	var lessonsIn int64
+	if id, err := strconv.ParseInt(r.URL.Query().Get("community"), 10, 64); err == nil && id > 0 {
+		if o, err := s.store.CommunityPlayerOptions(r.Context(), id); err == nil && o.CoachStudentKeys {
+			lessonsIn = id
+		}
+	}
+	key, targets, err := s.coachKeyTargets(r, variantID, lessonsIn)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -124,7 +185,7 @@ func (s *Server) handlePostCoachKey(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "key out of range")
 		return
 	}
-	_, targets, err := s.coachKeyTargets(r, variantID)
+	_, targets, err := s.coachKeyTargets(r, variantID, 0)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return

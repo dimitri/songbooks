@@ -63,6 +63,56 @@ Turned down, the player plays no_vocals in place of the recording (same
 length: the position carries over) and the vocals beside it at that
 volume, kept within 80 ms of it. Full, the recording itself.
 
+### A coaching community's player options
+
+A coaching community has two options of its own for its songs' player,
+each its staff's to turn on or off on its admin page (*The song player,
+for singers*), each on for a coaching community only, and both on for
+Chloé Paul's coaching community only (id 7; Studio Lumen on the demo
+copy). `store/vocal_slider.go`:
+
+- *Voice slider in the player* (`communities.player_vocal_slider`,
+  migration 0093): the voice's volume as a mic (the voice off, and back
+  to where it was; V) and a slider, 0 the backing alone (karaoke), 100
+  the recording. A song page has it when opened from that community (a
+  songbook, set list or event of it, its page), or from nowhere in
+  particular by a member of it when it has the song, or when the
+  community owns the song; not from a band (`handlers_pages.go`
+  `vocalSliderCommunity`).
+- *Key per student* (`communities.coach_student_keys`, migration 0097):
+  in the songs opened from the community's songbooks (a student's, a
+  group's, its repertoire), its page or one of its events
+  (`songCoachingContext`), the coach picks a student and saves their key
+  from the player. The list is that community's students and groups, who
+  has a lesson in the coming 7 days first, the soonest first, its date
+  said, then the others folded under *Other students*
+  (`/api/songs/{id}/coach-keys?community=N`, coach_keys.go). Elsewhere,
+  or with it off, the Key panel lists everyone the coach coaches for the
+  song, by name, as it always did.
+
+With either on, Key (and Voice, with the slider) leave the dock's options
+for one way in, *Voice & key*, that shows the mic's state and the key with
+whose it is, *C#m −1 · Poppy*. It opens a panel as the rehearsals' player
+does (most of the screen, closed by its ×, Escape or a click beside it;
+on a phone, a sheet): the voice, the key a semitone either way, and for a
+coach the students. A name picked, the key goes to theirs, *Save for
+Poppy* keeps it. Opened from a student's songbook, that student is picked.
+On a phone the card also has the mic beside play. The same voice and key
+as above, the same parts and graph, kept per song in the browser.
+
+A student's key (*Your key: C#m*) is for the songs they practise in the
+coaching community: opened from their songbook there, its repertoire, a
+group's list, an assignment, an event. Opened from a band, a set list or
+anywhere else, the song is in its own key and says nothing of theirs. In
+the panel they see their key (*yours*), may try others without saving
+(*trying*, *Back to my key*).
+
+The dock's options are all on its line where they fit; where they don't,
+only their icons; where not even those do, folded into ⋯ as on a phone.
+`audio-player.js` `fitDock` measures it as laid out: a container query on
+the dock's width (70rem) folded them all away below it: a 1280px window, or a
+zoomed one, kept only the transport and ⋯.
+
 ### Lanes, in the Mixer
 
 A split recording has its four parts as lanes under it (Vocals, Drums,

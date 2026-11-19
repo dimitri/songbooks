@@ -721,6 +721,37 @@ func (s *Server) handleSetCommunityDefaultJoinRole(w http.ResponseWriter, r *htt
 	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
 }
 
+// A coaching community's song player options (store/vocal_slider.go),
+// {on} each, its staff's (manage_settings) to change:
+//
+//	PUT /api/communities/{id}/vocal-slider        the voice's slider
+//	PUT /api/communities/{id}/coach-student-keys  the coach's key per student
+//
+// A community that isn't a coaching one can't have either on (400).
+func (s *Server) handlePutCommunityVocalSlider(w http.ResponseWriter, r *http.Request) {
+	s.putPlayerOption(w, r, s.store.SetCommunityPlayerVocalSlider)
+}
+
+func (s *Server) handlePutCommunityCoachStudentKeys(w http.ResponseWriter, r *http.Request) {
+	s.putPlayerOption(w, r, s.store.SetCommunityCoachStudentKeys)
+}
+
+func (s *Server) putPlayerOption(w http.ResponseWriter, r *http.Request, set func(context.Context, int64, bool) error) {
+	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		On *bool `json:"on"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.On == nil {
+		httpError(w, http.StatusBadRequest, "missing on")
+		return
+	}
+	if err := set(r.Context(), communityID, *req.On); err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"on": *req.On})
+}
+
 // handleAddCommunityMember adds an existing person (by username, same
 // direct-add-stands-in-for-invite convention as handleAddBandMember) to
 // a community as instructor or student. Instructor-only.
