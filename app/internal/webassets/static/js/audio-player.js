@@ -418,9 +418,32 @@ window.songbooksDecodable = function (buf) {
         rulerMarks.appendChild(m);
       }
     });
+    tidyRuler();
     renderCycle();
     updateButtons();
     wireBarClickToPlay();
+  }
+
+  // The ruler's labels never overlap: a section's name stops short of the
+  // next section's ("Chorus 1" cut with "…"), and a bar number under a
+  // section's name gives way to it.
+  function tidyRuler() {
+    if (!rulerMarks || !rulerMarks.clientWidth) return;
+    const secs = [...rulerMarks.querySelectorAll('.audio-ruler-section')];
+    const left = (el) => el.offsetLeft;
+    secs.forEach((el, i) => {
+      const next = secs[i + 1];
+      const room = (next ? left(next) : rulerMarks.clientWidth) - left(el) - 3;
+      el.style.maxWidth = `${Math.max(0, room)}px`;
+      el.hidden = room < 14;
+    });
+    const boxes = secs.filter((el) => !el.hidden).map((el) => [left(el), left(el) + el.offsetWidth]);
+    let lastEnd = -Infinity;
+    rulerMarks.querySelectorAll('.audio-ruler-bar').forEach((el) => {
+      const a = left(el), b = a + el.offsetWidth;
+      el.hidden = a < lastEnd + 2 || boxes.some(([x, y]) => a < y + 3 && b > x - 3);
+      if (!el.hidden) lastEnd = b;
+    });
   }
 
   function renderCycle() {
@@ -495,6 +518,7 @@ window.songbooksDecodable = function (buf) {
     const pct = Math.round(Math.max(25, Math.min(150, v * 100)));
     prefs.speed = pct / 100;
     audio.playbackRate = prefs.speed;
+    speedSel?.closest('[data-tool]')?.classList.toggle('active', pct !== 100);
     if (speedSel) {
       const opts = [...new Set([...SPEEDS, pct])].sort((a, b) => a - b);
       if (speedSel.options.length !== opts.length || ![...speedSel.options].some((o) => +o.value === pct)) {
@@ -1092,28 +1116,49 @@ window.songbooksDecodable = function (buf) {
     return () => seg.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.v === String(get())));
   }
 
-  // ---- The dock's options: on one line, their icons only, or folded -------
-  // All of them on the bar's line where they fit; their icons only where
-  // that does (opts-compact); folded into ⋯ where not even that does
-  // (opts-fold), as on a phone (app.css). Measured, as laid out, whatever
-  // the browser and its zoom: a container query on the dock's width (70rem)
-  // folded them all away in a 1280px window.
+  // ---- The dock's tools: by priority, those that are on never fold ---------
+  // The tools sit in a fixed order on the bar's line (play.html): Cycle,
+  // Speed, Voice, Key, Click, Count-in, Pitch, Trainer. Where they don't
+  // all fit, those that are off show their icons only, then leave the bar
+  // from the right, one by one, into "+N" (#audio-opts-btn); a tool that is
+  // on keeps its place and its label. Measured as laid out, whatever the
+  // browser, its zoom and the labels' language: one container query on the
+  // dock's width (70rem) used to fold every option away at once, in a
+  // 1372px window or a zoomed one. On a phone the card has none of them:
+  // they are in its sheet.
   const dockTransport = dock ? dock.querySelector('.audio-transport') : null;
+  const moreMenu = $('audio-more-menu'), moreCount = $('audio-more-count');
+  const tools = optsEl ? [...optsEl.querySelectorAll(':scope > [data-tool]')] : [];
+  const toolOn = (el) => el.matches('.active, [aria-pressed="true"]') || !!el.querySelector('.active, [aria-pressed="true"]');
+  let fitObserver = null;
   function fitDock() {
-    if (!dock || !dockTransport) return;
-    const was = dock.classList.contains('opts-fold');
-    dock.classList.remove('opts-compact', 'opts-fold');
+    if (!dock || !dockTransport || moreOpen()) return;
+    dock.classList.remove('opts-compact', 'opts-tight', 'has-more');
+    tools.forEach((el) => { delete el.dataset.folded; el.classList.toggle('is-on', toolOn(el)); });
+    let n = 0;
     if (!phoneMQ.matches && !(playerBody && playerBody.hidden)) {
       const over = () => dockTransport.scrollWidth > dockTransport.clientWidth + 1;
       if (over()) {
         dock.classList.add('opts-compact');
-        if (over()) {
-          dock.classList.remove('opts-compact');
-          dock.classList.add('opts-fold');
+        for (const el of [...tools].reverse()) {
+          if (!over()) break;
+          if (el.hidden || el.classList.contains('is-on')) continue;
+          el.dataset.folded = '1';
+          n++;
+          dock.classList.add('has-more');
+          if (moreCount) moreCount.textContent = `+${n}`;
         }
+        // Still too wide with every tool that is off folded: the ones that
+        // are on lose their labels too.
+        if (over()) dock.classList.add('opts-tight');
       }
     }
-    if (was && !dock.classList.contains('opts-fold') && !phoneMQ.matches) setOptsOpen(false);
+    if (moreCount) moreCount.textContent = n ? `+${n}` : '';
+    if (optsBtn && !phoneMQ.matches) {
+      optsBtn.title = n ? tn(n, '%d more tool', '%d more tools') : t('practice options');
+      optsBtn.setAttribute('aria-label', optsBtn.title);
+    }
+    fitObserver?.takeRecords();
   }
   let fitQueued = false;
   function queueFit() {
@@ -1126,8 +1171,37 @@ window.songbooksDecodable = function (buf) {
     ro.observe(dock);
     if (optsEl) ro.observe(optsEl);
   }
+  // A tool switched on or off, or its label changed: fit again.
+  if (optsEl && window.MutationObserver) {
+    fitObserver = new MutationObserver(queueFit);
+    fitObserver.observe(optsEl, { subtree: true, attributes: true, attributeFilter: ['class', 'aria-pressed', 'hidden'], childList: true, characterData: true });
+  }
   phoneMQ.addEventListener?.('change', queueFit);
   queueFit();
+  // "+N" opens the tools that left the bar, in a menu above it: they move
+  // into it while it is open, and back to their places when it closes.
+  const moreOpen = () => !!moreMenu && !moreMenu.hidden;
+  const moreHome = new Map();
+  function setOptsOpen(open) {
+    if (!moreMenu || open === moreOpen()) return;
+    if (open) {
+      const folded = tools.filter((el) => el.dataset.folded && !el.hidden);
+      if (!folded.length) return;
+      folded.forEach((el) => {
+        const mark = document.createComment('tool');
+        el.before(mark);
+        moreHome.set(el, mark);
+        moreMenu.append(el);
+      });
+      moreMenu.hidden = false;
+    } else {
+      moreMenu.hidden = true;
+      moreHome.forEach((mark, el) => { mark.replaceWith(el); });
+      moreHome.clear();
+      queueFit();
+    }
+    optsBtn?.setAttribute('aria-expanded', String(open));
+  }
 
   // ---- Sing: a coaching community's player options --------------------------
   // play.html #audio-sing-btn and .sing-panel (handlers_pages.go): in the
@@ -1321,9 +1395,9 @@ window.songbooksDecodable = function (buf) {
     if (id === 'audio-pop-trainer') renderTrainer();
     // In the phone sheet the panel opens in place, under the options.
     if (sheetOpen()) { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
-    // From the ⋯ menu (a phone): the menu closes, the panel opens under ⋯.
+    // From the "+N" menu: the menu closes, the panel opens over "+N".
     let anchor = opener;
-    if (optsEl && optsEl.classList.contains('open') && optsEl.contains(opener)) {
+    if (moreMenu && moreOpen() && moreMenu.contains(opener)) {
       setOptsOpen(false);
       anchor = optsBtn;
     }
@@ -1357,15 +1431,10 @@ window.songbooksDecodable = function (buf) {
   document.addEventListener('pointerdown', (e) => {
     if (e.target.closest('#audio-player .audio-pop, #audio-player [data-pop]')) return;
     pops.forEach((p) => { p.hidden = true; });
-    if (!e.target.closest('#audio-opts, #audio-opts-btn')) setOptsOpen(false);
+    if (!e.target.closest('#audio-more-menu, #audio-opts-btn')) setOptsOpen(false);
   });
-  // On a phone the options fold into ⋯ (app.css): it opens them under the
-  // control bar.
-  function setOptsOpen(open) {
-    optsEl?.classList.toggle('open', open);
-    optsBtn?.setAttribute('aria-expanded', String(open));
-  }
-  optsBtn?.addEventListener('click', () => (phoneMQ.matches ? setSheet(!sheetOpen()) : setOptsOpen(!optsEl.classList.contains('open'))));
+  // "+N" opens the tools that left the bar; on a phone, ⋯ opens the sheet.
+  optsBtn?.addEventListener('click', () => (phoneMQ.matches ? setSheet(!sheetOpen()) : setOptsOpen(!moreOpen())));
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOptsOpen(false); });
 
   // ---- Phone sheet ----------------------------------------------------------

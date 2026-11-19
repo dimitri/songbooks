@@ -1589,33 +1589,39 @@
                "C#m −1 · Poppy". On a phone, in the sheet. */}}
           {{if .SingPanel}}<button type="button" id="audio-sing-btn" class="audio-sing-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="sing-panel" title="{{if .VocalSlider}}{{t "the voice’s volume and the key"}}{{else}}{{t "the key, and whose it is"}}{{end}}">{{if .VocalSlider}}<span class="audio-sing-btn-icon" id="audio-sing-btn-mic">{{template "icon-sing-mic"}}</span>{{else}}<span class="audio-sing-btn-icon">{{template "icon-tuner"}}</span>{{end}}<span class="audio-sing-btn-label">{{if .VocalSlider}}{{t "Voice & key"}}{{else}}{{t "Key"}}{{end}}</span><span class="audio-sing-chip" id="audio-sing-chip"></span></button>{{end}}
           {{if .VocalSlider}}<button type="button" id="audio-card-mic" class="icon-btn audio-card-mic" aria-pressed="true" hidden title="{{t "the voice: off or back (V)"}}" aria-label="{{t "Voice on or off"}}">{{template "icon-sing-mic"}}</button>{{end}}
-          <button type="button" id="audio-opts-btn" class="icon-btn audio-opts-btn" aria-expanded="false" aria-controls="audio-opts" title="{{t "practice options"}}">{{template "icon-more"}}</button>
+          {{/* The practice tools, in the order they leave the bar when it
+               narrows (audio-player.js fitDock): the last ones first, and
+               only those that are off; a tool that is on stays. Those
+               that left are behind "+N". */}}
           <div class="audio-opts" id="audio-opts">
-            <button type="button" id="audio-cycle-btn" class="audio-toggle" aria-pressed="false" title="{{t "cycle: loop the yellow bar range — drag in the ruler to set it (C)"}}">{{template "icon-cycle"}}<span>{{t "Cycle"}}</span></button>
-            <span class="audio-split">
-              <button type="button" id="audio-countin-btn" class="audio-toggle" aria-pressed="false" title="{{t "count-in before playing: off, 1 bar, 2 bars"}}">{{template "icon-count-in"}}<span id="audio-countin-label">{{t "Count-in"}}</span></button>
-              <button type="button" class="audio-caret" data-pop="audio-pop-countin" aria-expanded="false" title="{{t "count-in options"}}">{{template "icon-down"}}</button>
-            </span>
-            <span class="audio-split">
-              <button type="button" id="audio-click-btn" class="audio-toggle" aria-pressed="false" title="{{t "click on every beat, following the recording (K)"}}">{{template "icon-metronome"}}<span>{{t "Click"}}</span></button>
-              <button type="button" class="audio-caret" data-pop="audio-pop-click" aria-expanded="false" title="{{t "click sound and volume"}}">{{template "icon-down"}}</button>
-            </span>
-            {{/* Key: the recording in another key (the chords on screen
-                 follow); Voice: its voice turned down or off, from its
-                 parts (split in the background, cmd/stemsd). See
-                 audio-player.js "Key and voice". */}}
-            <button type="button" id="audio-key-btn" class="audio-toggle" data-pop="audio-pop-key" aria-expanded="false" title="{{t "play the recording in another key"}}">{{template "icon-tuner"}}<span id="audio-key-label">{{t "Key"}}</span></button>
-            <span class="audio-split" id="audio-voice-split" hidden>
-              <button type="button" id="audio-voice-btn" class="audio-toggle" aria-pressed="false" title="{{t "the voice: on or off (V)"}}">{{template "icon-instrument-vocals"}}<span id="audio-voice-label">{{t "Voice"}}</span></button>
-              <button type="button" class="audio-caret" data-pop="audio-pop-voice" aria-expanded="false" title="{{t "the voice's volume"}}">{{template "icon-down"}}</button>
-            </span>
-            <button type="button" id="audio-pitch-btn" class="audio-toggle" aria-pressed="false" hidden title="{{t "check my singing against the song’s voice (the microphone listens)"}}"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="7" y="2.5" width="6" height="10" rx="3"/><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5"/></svg> <span>{{t "Pitch"}}</span></button>
-            <label class="audio-speed" title="{{t "speed without changing pitch ([ slower, ] faster)"}}">{{template "icon-speed"}}
+            <button type="button" id="audio-cycle-btn" class="audio-toggle" data-tool="loop" aria-pressed="false" title="{{t "cycle: loop the yellow bar range — drag in the ruler to set it (C)"}}">{{template "icon-cycle"}}<span>{{t "Cycle"}}</span></button>
+            <label class="audio-speed" data-tool="speed" title="{{t "speed without changing pitch ([ slower, ] faster)"}}">{{template "icon-speed"}}
               <select id="audio-speed" aria-label="{{t "Playback speed"}}"></select>
               <span id="audio-speed-bpm" class="audio-speed-bpm"></span>
             </label>
-            <button type="button" id="audio-trainer-btn" class="audio-toggle audio-trainer-btn" data-pop="audio-pop-trainer" aria-expanded="false" title="{{t "speed trainer: speed up a little every few loops"}}">{{template "icon-trainer"}}<span id="audio-trainer-label">{{t "Trainer"}}</span><span class="audio-trainer-meter" id="audio-trainer-meter"></span></button>
+            {{/* Voice: its voice turned down or off, from its parts (split
+                 in the background, cmd/stemsd); Key: the recording in
+                 another key (the chords on screen follow). See
+                 audio-player.js "Key and voice". */}}
+            <span class="audio-split" id="audio-voice-split" data-tool="voice" hidden>
+              <button type="button" id="audio-voice-btn" class="audio-toggle" aria-pressed="false" title="{{t "the voice: on or off (V)"}}">{{template "icon-instrument-vocals"}}<span id="audio-voice-label">{{t "Voice"}}</span></button>
+              <button type="button" class="audio-caret" data-pop="audio-pop-voice" aria-expanded="false" title="{{t "the voice's volume"}}">{{template "icon-down"}}</button>
+            </span>
+            <button type="button" id="audio-key-btn" class="audio-toggle" data-tool="key" data-pop="audio-pop-key" aria-expanded="false" title="{{t "play the recording in another key"}}">{{template "icon-tuner"}}<span id="audio-key-label">{{t "Key"}}</span></button>
+            <span class="audio-split" data-tool="click">
+              <button type="button" id="audio-click-btn" class="audio-toggle" aria-pressed="false" title="{{t "click on every beat, following the recording (K)"}}">{{template "icon-metronome"}}<span>{{t "Click"}}</span></button>
+              <button type="button" class="audio-caret" data-pop="audio-pop-click" aria-expanded="false" title="{{t "click sound and volume"}}">{{template "icon-down"}}</button>
+            </span>
+            <span class="audio-split" data-tool="countin">
+              <button type="button" id="audio-countin-btn" class="audio-toggle" aria-pressed="false" title="{{t "count-in before playing: off, 1 bar, 2 bars"}}">{{template "icon-count-in"}}<span id="audio-countin-label">{{t "Count-in"}}</span></button>
+              <button type="button" class="audio-caret" data-pop="audio-pop-countin" aria-expanded="false" title="{{t "count-in options"}}">{{template "icon-down"}}</button>
+            </span>
+            <button type="button" id="audio-pitch-btn" class="audio-toggle" data-tool="pitch" aria-pressed="false" hidden title="{{t "check my singing against the song’s voice (the microphone listens)"}}"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="7" y="2.5" width="6" height="10" rx="3"/><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5"/></svg> <span>{{t "Pitch"}}</span></button>
+            <button type="button" id="audio-trainer-btn" class="audio-toggle audio-trainer-btn" data-tool="trainer" data-pop="audio-pop-trainer" aria-expanded="false" title="{{t "speed trainer: speed up a little every few loops"}}">{{template "icon-trainer"}}<span id="audio-trainer-label">{{t "Trainer"}}</span><span class="audio-trainer-meter" id="audio-trainer-meter"></span></button>
           </div>
+          {{/* "+N": the tools that left the bar; on a phone, the sheet. */}}
+          <button type="button" id="audio-opts-btn" class="icon-btn audio-opts-btn" aria-expanded="false" aria-controls="audio-more-menu" title="{{t "practice options"}}"><span class="audio-opts-icon">{{template "icon-more"}}</span><span class="audio-more-count" id="audio-more-count"></span></button>
+          <div class="audio-more-menu" id="audio-more-menu" hidden></div>
         </div>
         {{if .SingPanel}}
         {{/* The "Voice & key" panel (a coaching community's player
