@@ -373,6 +373,8 @@ window.songbooksDecodable = function (buf) {
     const bar = barAtTime(audio.currentTime);
     return bar === null ? null : { bar, playing: !audio.paused || countingIn, time: audio.currentTime, category: activeCategory };
   };
+  // When bar b starts in the recording (lyric-lines.js), null without a grid.
+  window.songbooksReferenceTimeAtBar = (b) => timeAtBar(b);
 
   // ---- Sync state: estimated or set ----------------------------------------
   // Three things place the chart on a recording: this player's own
