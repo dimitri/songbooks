@@ -62,6 +62,18 @@
       </div>
       <p id="community-locale-result" class="form-status" role="status"></p>
     </div>
+    {{/* Who sees the Members page (community_members.go). */}}
+    <div class="form-stack" style="margin-top:0.8rem">
+      <div class="field">
+        <label for="members-visibility-select">{{t "Member list visible to"}}</label>
+        <p class="field-hint" id="members-visibility-hint">{{t "Members see names, roles, instruments and join dates; changing roles, removing people and invites stay with admins."}}</p>
+        <select id="members-visibility-select" aria-describedby="members-visibility-hint">
+          <option value="members" {{if eq .MembersVisibility "members"}}selected{{end}}>{{t "All members"}}</option>
+          <option value="admins" {{if ne .MembersVisibility "members"}}selected{{end}}>{{t "Admins only"}}</option>
+        </select>
+      </div>
+      <p id="members-visibility-result" class="form-status" role="status"></p>
+    </div>
   </div>
 
   {{/* Roles: a name plus a chosen set of privileges from the fixed
@@ -236,30 +248,9 @@
   </table></div>
   {{end}}
 
+  {{/* The member list itself, its roles and removals: the Members page. */}}
   <h2>{{t "Members"}}</h2>
-  <label class="check"><input type="checkbox" id="show-past-toggle"> {{t "Show past members"}}</label>
-  <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>{{t "Username"}}</th><th>{{t "Name"}}</th><th>{{t "Role"}}</th><th>{{t "Joined"}}</th><th>{{t "Left"}}</th><th></th></tr></thead>
-    <tbody id="members-body">
-    {{range .Members}}
-      <tr data-person-id="{{.PersonID}}" data-current="{{if .IsCurrent}}1{{else}}0{{end}}" {{if not .IsCurrent}}class="past-member" style="display:none"{{end}}>
-        <td data-label="{{t "Username"}}">{{.Username}}</td>
-        <td data-label="{{t "Name"}}">{{.DisplayName}}</td>
-        <td data-label="{{t "Role"}}">
-          {{if .IsCurrent}}
-          {{$memberRole := .Role}}
-          <select class="role-select" data-person-id="{{.PersonID}}" aria-label="{{t "Role for %s" .DisplayName}}">
-            {{range $.Roles}}<option value="{{.Name}}" {{if eq $memberRole .Name}}selected{{end}}>{{t .Name}}</option>{{end}}
-          </select>
-          {{else}}{{t .Role}}{{end}}
-        </td>
-        <td data-label="{{t "Joined"}}">{{date .JoinedAt "2006-01-02"}}</td>
-        <td data-label="{{t "Left"}}">{{if .LeftAt}}{{date .LeftAt "2006-01-02"}}{{end}}</td>
-        <td>{{if .IsCurrent}}<button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>{{end}}</td>
-      </tr>
-    {{end}}
-    </tbody>
-  </table></div>
+  <p class="admin-links"><a class="dl-btn" href="/communities/{{.Community.ID}}/members">{{t "Members: roles, removals, past members"}} &rarr;</a></p>
   <p id="members-status" class="form-status" role="status"></p>
 
   <div class="card">
@@ -487,6 +478,10 @@ $('community-locale-select').addEventListener('change', (e) => {
     if (!res.ok) throw new Error(t('Couldn’t save that. Try again.'));
   });
 });
+// Who sees the Members page.
+$('members-visibility-select').addEventListener('change', (e) => {
+  saveInline($('members-visibility-result'), () => api(`/api/communities/${communityId}/members-visibility`, {visibility: e.target.value}, t('Couldn’t save that. Try again.'), 'PUT'));
+});
 
 // ---- Events ----
 const evTypeSel = $('ev-type');
@@ -533,11 +528,6 @@ document.querySelectorAll('.reject-btn').forEach(btn => {
 });
 
 // ---- Members ----
-$('show-past-toggle').addEventListener('change', (e) => {
-  document.querySelectorAll('.past-member').forEach(tr => {
-    tr.style.display = e.target.checked ? '' : 'none';
-  });
-});
 onSubmit($('quick-add-form'), async () => {
   const displayName = $('quick-add-name').value.trim();
   const role = $('quick-add-role').value;
@@ -569,21 +559,6 @@ onSubmit($('add-member-form'), async () => {
   const role = $('add-role').value;
   await api(`/api/communities/${communityId}/members`, {username, role}, t('Couldn’t add them. Check the username and try again.'));
   location.reload();
-});
-document.querySelectorAll('.role-select').forEach(sel => {
-  const original = sel.value;
-  sel.addEventListener('change', async () => {
-    const ok = await saveInline($('members-status'), () => api(`/api/communities/${communityId}/members/${sel.dataset.personId}/role`, {role: sel.value}, t('Couldn’t change that role. Try again.')));
-    if (!ok) sel.value = original;
-  });
-});
-document.querySelectorAll('.remove-member-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    if (!confirm(t('Remove %s from the community? They’ll move to past members.', btn.dataset.name))) return;
-    Forms.busy(btn, true);
-    const ok = await saveInline($('members-status'), () => api(`/api/communities/${communityId}/members/${btn.dataset.personId}`, undefined, t('Couldn’t remove them. Try again.'), 'DELETE'));
-    if (ok) location.reload(); else Forms.busy(btn, false);
-  });
 });
 
 // ---- Default songbook ----

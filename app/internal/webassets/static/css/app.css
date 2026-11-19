@@ -7203,3 +7203,36 @@ a.singer-chip:hover { border-color: var(--border-strong); }
 .students-lesson-kinds { font-size: 0.75rem; line-height: 1.35; margin-top: 0.15rem; }
 .key-down, .key-up { font-weight: 600; font-variant-numeric: tabular-nums; }
 .key-down { color: var(--accent-ink); }
+
+/* A community's Members page (community_members.html): one card per
+   member, two or three across on a wide screen, one on a phone. The
+   instrument and "hasn't joined yet" badges are the band roster's
+   (.roster-instrument-badge, .roster-pending-badge). */
+.members-visibility-note { margin: 0 0 1rem; }
+.members-filter { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.4rem; }
+.members-filter input[type="search"] { flex: 0 1 26rem; min-width: 0; }
+.members-filter select { flex: 0 1 auto; }
+#members-filter-status:empty { display: none; }
+.members-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr)); gap: 0.6rem; }
+.member-card { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.5rem 0.75rem; padding: 0.7rem 0.85rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); min-width: 0; }
+.member-card[hidden] { display: none; }
+.member-card.is-pending { background: var(--bg-sunken); border-style: dashed; }
+.member-card.is-past { opacity: 0.75; }
+.member-avatar { position: relative; flex: none; width: 2.6rem; height: 2.6rem; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--accent-bg); color: var(--accent-ink); font-weight: 700; font-size: 0.9rem; letter-spacing: 0.02em; }
+.member-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.member-main { flex: 1 1 10rem; min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.member-name { font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.45rem; overflow-wrap: anywhere; }
+.member-name a { color: inherit; text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
+.member-name a:hover { text-decoration-color: currentColor; }
+.member-name .hint { font-weight: 400; }
+.member-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.6rem; font-size: 0.82rem; }
+.member-role { font-size: 0.74rem; font-weight: 600; border-radius: 999px; padding: 0.1rem 0.55rem; background: var(--bg-sunken); color: var(--fg-muted); white-space: nowrap; }
+.member-role.is-staff { background: var(--accent-bg); color: var(--accent-ink); }
+.member-card.is-pending .member-role, .member-card.is-pending .roster-instrument-badge { background: var(--bg-raised); }
+.member-card .roster-instruments { display: flex; flex-wrap: wrap; gap: 0.3rem 0.4rem; }
+.member-actions { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+.member-actions select { flex: 1 1 8rem; min-width: 0; }
+.member-card > .form-status { flex-basis: 100%; margin: 0; font-size: 0.8rem; }
+.member-card > .form-status:empty { display: none; }
+.members-past { margin-top: 1.2rem; }
+.members-past summary { cursor: pointer; color: var(--fg-muted); font-size: 0.9rem; margin-bottom: 0.6rem; min-height: 2.2rem; display: flex; align-items: center; }
