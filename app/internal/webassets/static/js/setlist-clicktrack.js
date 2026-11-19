@@ -227,6 +227,8 @@
       playBtn.innerHTML = iconPlay;
     }
     compactEl.classList.toggle('playing', playing);
+    document.getElementById('ct-bar')?.classList.toggle('is-playing', playing);
+    try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = playing ? 'playing' : 'paused'; } catch (e) { /* none */ }
   }
   playBtn.addEventListener('click', () => setPlaying(!clock.running));
   applyMute();
@@ -349,10 +351,8 @@
     goTo(parseInt(btn.dataset.step, 10), true);
     // On a phone the list sits under the metronome: fold it and bring
     // the dots back into view.
-    if (!wide.matches) {
-      songsFold.open = false;
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    // On a phone the panel covers the dots: it closes on a pick.
+    if (!wide.matches) shell?.open(false);
   });
 
   // ---- Stepper: advance through the setlist, re-dialing the compact
@@ -375,6 +375,7 @@
       breakLabel.textContent = step.setLabel ? t('Before %s — take a break, then continue when ready.', step.setLabel) : t('Before the next set — take a break, then continue when ready.');
       prevBtn.disabled = cur === 0;
       nextBtn.disabled = false;
+      renderBar();
       return;
     }
 
@@ -396,6 +397,7 @@
 
     prevBtn.disabled = cur === 0;
     nextBtn.disabled = cur === steps.length - 1;
+    renderBar();
   }
 
   // Moving to another song while the click runs keeps it running, on
@@ -413,12 +415,69 @@
   nextBtn.addEventListener('click', () => goTo(cur + 1, false));
   breakContinue.addEventListener('click', () => goTo(cur + 1, true));
 
-  // Wide screens have room for the song list and options next to the
-  // metronome: open them there; a phone keeps them folded.
-  if (wide.matches) {
-    songsFold.open = true;
-    document.getElementById('clicktrack-options-fold').open = true;
+  // ---- The player's bar and panel (player-shell.js) ---------------------
+  // The bar: the song before, ▶, the song after, where you are with a copy
+  // of the beat dots, the tempo. Its "Running order" opens the panel: the
+  // songs and the display and sound options (open in it). The same keys
+  // as every player, and the lock screen's (Media Session): the track
+  // buttons go to the song before or after.
+  const barTitle = document.getElementById('ct-bar-title');
+  const barPos = document.getElementById('ct-bar-pos');
+  const barDots = document.getElementById('ct-bar-dots');
+  songsFold.open = true;
+  document.getElementById('clicktrack-options-fold').open = true;
+  const shell = window.PlayerShell ? window.PlayerShell.panel({
+    root: document.getElementById('ct-panel-wrap'),
+    card: document.getElementById('ct-panel'),
+    openers: [document.getElementById('ct-panel-btn')],
+    closers: document.querySelectorAll('[data-ct-close]'),
+    focus: () => document.querySelector(wide.matches ? '.ct-close' : '.ct-grab'),
+    swipeIgnore: '.clicktrack-songlist, input, textarea',
+    onChange: (on) => { if (on) songListEl.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest' }); },
+  }) : null;
+  document.getElementById('ct-panel-btn')?.addEventListener('click', () => shell?.open(!shell.isOpen()));
+  function renderBar() {
+    const step = steps[cur];
+    if (step.kind === 'break') {
+      barTitle.textContent = t('Break');
+      barPos.textContent = step.setLabel || '';
+    } else {
+      barTitle.textContent = step.song.title;
+      barPos.textContent = t('%d of %d', step.song.index + 1, totalSongs) + (steps[cur + 1] && steps[cur + 1].song ? ' · ' + t('next: %s', steps[cur + 1].song.title) : '');
+    }
+    media?.meta({ title: barTitle.textContent, artist: step.song ? step.song.artist || '' : '' });
   }
+  // The dots, copied as they light.
+  if (barDots && window.MutationObserver) {
+    const copy = () => { barDots.innerHTML = dotsEl.innerHTML; };
+    new MutationObserver(copy).observe(dotsEl, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+    copy();
+  }
+  const media = window.PlayerShell ? window.PlayerShell.media({
+    title: '', play: () => setPlaying(true), pause: () => setPlaying(false),
+    previous: () => goTo(cur - 1, false), next: () => goTo(cur + 1, false),
+  }) : null;
+  if (window.PlayerShell) window.PlayerShell.keys({
+    title: t('The click track’s keys'),
+    own: '#ct-bar, #ct-panel',
+    active: () => !document.querySelector('.clicktrack-clicknote-input:not([hidden]):focus'),
+    keys: {
+      ' ': () => setPlaying(!clock.running), k: () => setPlaying(!clock.running),
+      ArrowLeft: () => goTo(cur - 1, false), ArrowRight: () => goTo(cur + 1, false),
+      'Shift+ArrowLeft': () => goTo(cur - 1, false), 'Shift+ArrowRight': () => goTo(cur + 1, false),
+      '[': () => setBpm(bpm - 1), ']': () => setBpm(bpm + 1), '{': () => setBpm(bpm - 5), '}': () => setBpm(bpm + 5),
+      '\\': () => { if (steps[cur].song) setBpm(steps[cur].song.tempo); },
+      m: () => muteBtn.click(), t: () => tapBtn.click(),
+      f: () => shell?.open(!shell.isOpen()),
+    },
+    help: [
+      [t('Play / stop'), ' ', 'k'],
+      [t('Previous / next song'), 'ArrowLeft', 'ArrowRight'],
+      [t('Tempo −1 / +1 (⇧ for 5) · \\ back to the song’s'), '[', ']', '\\'],
+      [t('Mute · tap the tempo'), 'm', 't'],
+      [t('Open / close the running order · close · these shortcuts'), 'f', 'Escape', '?'],
+    ],
+  });
 
   renderSongList();
   render();

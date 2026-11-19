@@ -33,5 +33,13 @@
   "Correct the sync": "Corriger la synchro",
   "Try again": "Réessayer",
   "sync estimated": "synchro estimée",
-  "the bars were placed by listening: they may be off": "les mesures ont été placées à l’écoute : elles peuvent être décalées"
+  "the bars were placed by listening: they may be off": "les mesures ont été placées à l’écoute : elles peuvent être décalées",
+  "faster (])": "plus rapide (])",
+  "mute sound (M)": "couper le son (M)",
+  "next song (→)": "morceau suivant (→)",
+  "previous song (←)": "morceau précédent (←)",
+  "slower ([)": "plus lent ([)",
+  "start (Space)": "démarrer (Espace)",
+  "tap tempo (T)": "taper le tempo (T)",
+  "the running order and the options (F)": "l’ordre de passage et les options (F)"
 }

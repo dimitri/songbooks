@@ -7607,3 +7607,70 @@ a.singer-chip:hover { border-color: var(--border-strong); }
 /* The rec-player's error: one line with a retry; the title stays. */
 .rp-error { display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; margin: 0; color: var(--danger); font-size: 0.82rem; font-weight: 600; }
 .rp-error[hidden] { display: none; }
+
+/* The click track on the player shell (setlist_clicktrack.html): its bar
+   at the bottom — the song before, ▶, the song after, where you are with
+   the beat dots, the tempo — and its panel, the running order and the
+   options. */
+.clicktrack-page { padding-bottom: 7rem; }
+@media (min-width: 960px) { .clicktrack-layout { display: flex; max-width: 46rem; } }
+.ct-bar {
+  position: fixed; z-index: 58; left: 0; right: 0; bottom: calc(var(--context-h, 0px) + env(safe-area-inset-bottom, 0px));
+  padding: 0.5rem max(1rem, env(safe-area-inset-right, 0px)) 0.5rem max(1rem, env(safe-area-inset-left, 0px));
+  background: var(--bg-raised); border-top: 1px solid var(--border); box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.1);
+}
+@media (min-width: 901px) { .ct-bar { left: 220px; } }
+@media (max-width: 900px) { .ct-bar { bottom: calc(var(--context-h, 3.4rem) + env(safe-area-inset-bottom, 0px)); } }
+.ct-bar-row { display: flex; align-items: center; gap: 0.8rem; max-width: 90rem; margin: 0 auto; min-width: 0; }
+.ct-transport { flex: none; gap: 0.3rem; }
+.ct-transport .clicktrack-nav-btn { width: 2.6rem; height: 2.6rem; min-height: 0; padding: 0; justify-content: center; border-color: transparent; background: none; }
+.ct-transport #mc-play { width: 3rem; height: 3rem; min-width: 3rem; border-radius: 50%; }
+.ct-transport #mc-play .icon { width: 1.3rem; height: 1.3rem; }
+.ct-readout { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 0.7rem; padding: 0.3rem 0.7rem; border-radius: var(--radius); background: var(--bg-sunken); }
+.ct-now { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.ct-now strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-now small { color: var(--fg-muted); font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-dots { display: flex; flex: none; gap: 0.25rem; }
+.ct-dots .beat-dot { width: 0.7rem !important; height: 0.7rem !important; min-width: 0 !important; border-radius: 50%; background: color-mix(in srgb, var(--fg-muted) 30%, transparent); box-shadow: none !important; transform: none !important; }
+.ct-dots .beat-dot.lit { background: var(--accent); }
+.ct-dots .beat-dot.downbeat { background: color-mix(in srgb, var(--accent) 40%, transparent); }
+.ct-dots .beat-dot.downbeat.lit { background: var(--accent); }
+.ct-dots .beat-dot * { display: none; }
+.ct-tray { flex: none; padding: 0; border: 0; gap: 0.25rem; flex-wrap: nowrap; }
+.ct-tray button.icon-btn { width: 2.3rem; height: 2.3rem; min-width: 2.3rem; min-height: 2.3rem; }
+.ct-tray #mc-tap { margin-left: 0.3rem; }
+.ct-tray #mc-bpm-value { font-size: 1.15rem; }
+.ct-panel-btn { flex: none; }
+@media (max-width: 720px) {
+  .ct-bar { left: 0.5rem; right: 0.5rem; bottom: calc(var(--context-h, 3.4rem) + env(safe-area-inset-bottom, 0px) + 0.4rem); border: 1px solid var(--border); border-radius: 14px; padding: 0.4rem 0.5rem; }
+  .ct-bar-row { flex-wrap: wrap; gap: 0.4rem; }
+  .ct-readout { order: -1; flex-basis: 100%; }
+  .ct-tray { flex: 1; justify-content: center; }
+  .ct-panel-btn { display: inline-flex !important; padding: 0 0.6rem; }
+  .ct-panel-btn span { display: none; }
+  .clicktrack-page { padding-bottom: 12rem; }
+}
+/* The panel: a centred card on a wide screen, a sheet on a phone. */
+.ct-panel-wrap { display: none; }
+.ct-panel-wrap.is-open { display: block; position: fixed; inset: 0; z-index: 95; }
+.ct-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.4); }
+.ct-panel-wrap.is-open .ct-panel {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); box-sizing: border-box;
+  width: min(44rem, calc(100vw - 2rem)); max-height: min(88dvh, 52rem); overflow: auto; overscroll-behavior: contain;
+  display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); align-items: start; gap: 0.8rem;
+  padding: 1rem 1.2rem 1.3rem; border: 1px solid var(--border); border-radius: 18px; background: var(--bg-raised); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+}
+.ct-panel-head { grid-column: 1 / -1; display: flex; align-items: center; gap: 0.6rem; }
+.ct-panel-head strong { flex: 1; font-size: 1.05rem; }
+.ct-grab { display: none; }
+.ct-panel .clicktrack-fold { margin: 0; }
+@media (max-width: 720px) {
+  .ct-panel-wrap.is-open .ct-panel {
+    left: 0; right: 0; top: auto; bottom: 0; transform: none; width: auto; max-height: 88dvh; grid-template-columns: 1fr;
+    border-radius: 22px 22px 0 0; border-width: 1px 0 0; padding: 0.2rem 1rem calc(1.2rem + env(safe-area-inset-bottom, 0px)); animation: rp-up 0.22s ease-out;
+  }
+  .ct-panel-head { justify-content: center; }
+  .ct-panel-head :is(strong, kbd, .ct-close) { display: none; }
+  .ct-grab { display: block; position: relative; width: 3rem; height: 1.4rem; min-height: 0; border: 0; padding: 0; background: none; }
+  .ct-grab::before { content: ""; position: absolute; left: 0.6rem; right: 0.6rem; top: 0.5rem; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--fg) 25%, transparent); }
+}
