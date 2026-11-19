@@ -26,10 +26,10 @@ import (
 
 // communityMembersAccess is what one person may do with a community's
 // Members page: See it, see it as an admin (Manage: usernames, past
-// members, who hasn't joined yet) and change roles or remove people
-// (ManageMembers).
+// members, who hasn't joined yet), change roles or remove people
+// (ManageMembers) and change who sees it (ManageSettings).
 type communityMembersAccess struct {
-	See, Manage, ManageMembers bool
+	See, Manage, ManageMembers, ManageSettings bool
 }
 
 func (s *Server) communityMembersAccess(ctx context.Context, p *store.Person, communityID int64) (communityMembersAccess, error) {
@@ -37,7 +37,7 @@ func (s *Server) communityMembersAccess(ctx context.Context, p *store.Person, co
 		return communityMembersAccess{}, nil
 	}
 	if p.IsAdmin {
-		return communityMembersAccess{true, true, true}, nil
+		return communityMembersAccess{true, true, true, true}, nil
 	}
 	var a communityMembersAccess
 	var err error
@@ -45,6 +45,9 @@ func (s *Server) communityMembersAccess(ctx context.Context, p *store.Person, co
 		return a, err
 	}
 	if a.ManageMembers, err = s.store.HasCommunityPrivilege(ctx, communityID, p.ID, store.PrivManageMembers); err != nil {
+		return a, err
+	}
+	if a.ManageSettings, err = s.store.HasCommunityPrivilege(ctx, communityID, p.ID, store.PrivManageSettings); err != nil {
 		return a, err
 	}
 	a.See = a.Manage
@@ -184,8 +187,8 @@ func (s *Server) handleCommunityMembersPage(w http.ResponseWriter, r *http.Reque
 	s.render(w, "community_members", map[string]any{
 		"Me": person, "Person": person, "Community": community, "Tab": "members",
 		"IsStaff": access.Manage, "CanSeeMembers": true, "CanManageMembers": access.ManageMembers,
+		"CanManageSettings": access.ManageSettings, "Visibility": visibility,
 		"Members": current, "PastMembers": past, "RoleChoices": roleChoices, "Roles": roles,
-		"Visibility": visibility,
 	})
 }
 

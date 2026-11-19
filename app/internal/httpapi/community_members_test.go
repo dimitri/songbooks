@@ -188,6 +188,28 @@ func TestCommunityMembersPage(t *testing.T) {
 		student: {404, false, false},
 	})
 
+	// Who sees the list is a setting: its select on the Admin page, and
+	// the Members page's link to it, only for a role granting
+	// manage_settings (the events coordinator opens the Admin page for
+	// its other sections).
+	for who, settings := range map[int64]bool{siteAdmin: true, staff: true, coordinator: false} {
+		code, admin := do(who, "GET", fmt.Sprintf("/communities/%d/admin", jam), "")
+		if code != http.StatusOK {
+			t.Errorf("%s: GET admin %d", names[who], code)
+			continue
+		}
+		if strings.Contains(admin, `id="members-visibility-select"`) != settings {
+			t.Errorf("%s: who-sees-the-list select shown: %v, want %v", names[who], !settings, settings)
+		}
+		if !strings.Contains(admin, membersLink(jam)) {
+			t.Errorf("%s: no link from the Admin page to the Members page", names[who])
+		}
+		_, members := do(who, "GET", membersPath(jam), "")
+		if strings.Contains(members, fmt.Sprintf(`href="/communities/%d/admin#members"`, jam)) != settings {
+			t.Errorf("%s: Change who sees it link shown: %v, want %v", names[who], !settings, settings)
+		}
+	}
+
 	// The setting: manage_settings only.
 	for _, who := range []int64{member, coordinator, outsider, student} {
 		if code, _ := do(who, "PUT", fmt.Sprintf("/api/communities/%d/members-visibility", jam), `{"visibility":"members"}`); code != http.StatusForbidden {

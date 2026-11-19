@@ -26,20 +26,67 @@
     {{template "coaching-tab-links" .}}
     <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
     <a href="/communities/{{.Community.ID}}/events" class="band-tab active">{{t "Events"}}</a>
+    {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a>{{end}}
   </nav>
   {{end}}
-  {{/* Public page, no login required — anyone can see what's on and
-       register. Upcoming first (the common case), past kept below for
-       reference ("did we already do this jam?"). */}}
+
+  {{/* Whoever manages the community's events creates them here; each
+       event's own Manage page then holds its songbook, setlist and
+       managers. The listing is public, no login required — anyone can
+       see what's on and register. Upcoming first (the common case),
+       past kept below for reference ("did we already do this jam?"). */}}
+  {{if .CanManageEvents}}
+  <details class="card fold-card"{{if not .Upcoming}} open{{end}}>
+    <summary><h2>{{t "New event"}}</h2><span class="hint">{{t "a jam, a meetup, an open mic…"}}</span></summary>
+    <form class="form-stack" id="create-event-form">
+      <div class="field"><label for="ev-name">{{t "Event name"}}</label><input type="text" id="ev-name" name="name" required autocomplete="off" maxlength="120"></div>
+      <div class="field-row">
+        <div class="field"><label for="ev-type">{{t "Type"}}</label>
+          <select id="ev-type" name="eventType">
+            <option value="jam" selected>{{t "Jam"}}</option>
+            <option value="meetup">{{t "Meetup"}}</option>
+            <option value="listening_party">{{t "Listening party"}}</option>
+            <option value="dinner">{{t "Dinner"}}</option>
+            <option value="show_together">{{t "Going to a show together"}}</option>
+            <option value="open_mic">{{t "Open mic"}}</option>
+            <option value="masterclass">{{t "Master class, stage"}}</option>
+          </select>
+        </div>
+        <div class="field" id="ev-audience-field">
+          <label for="ev-audience">{{t "Open to"}}</label>
+          <select id="ev-audience" name="audienceScope">
+            <option value="members" selected>{{t "Musicians (members)"}}</option>
+            <option value="bands">{{t "Bands only (scène ouverte)"}}</option>
+            <option value="both">{{t "Both"}}</option>
+          </select>
+        </div>
+      </div>
+      {{/* The browser's own local time, sent as UTC (toISOString) — the
+           hint names the time zone so nobody types a time for the wrong
+           one. */}}
+      <div class="field">
+        <label for="ev-starts">{{t "Date and time"}}</label>
+        <p class="field-hint" id="ev-starts-hint">{{t "In your time zone"}}<span id="ev-starts-tz"></span>.</p>
+        <input type="datetime-local" id="ev-starts" name="startsAt" required aria-describedby="ev-starts-hint">
+      </div>
+      <div class="field"><label for="ev-location">{{t "Venue"}} <span class="field-optional">{{t "(optional)"}}</span></label><input type="text" id="ev-location" name="location" placeholder="{{t "e.g. The Blue Note, back room"}}" autocomplete="off"></div>
+      <div class="field"><label for="ev-description">{{t "Description"}} <span class="field-optional">{{t "(optional)"}}</span></label><textarea id="ev-description" name="description" rows="3" class="prose"></textarea></div>
+      <div class="form-actions"><button type="submit" id="create-event-btn" class="primary">{{t "Create event"}}</button></div>
+      <p id="create-event-result" class="form-status" role="status"></p>
+    </form>
+  </details>
+  {{end}}
+
   <div class="card">
     <h3>{{t "Upcoming"}}</h3>
-    <div class="form-stack">
+    <div class="form-stack event-list">
     {{range .Upcoming}}
       <div class="import-row">
         <div>
           <a href="/events/{{.ID}}"><strong>{{.Name}}</strong></a>
           <div class="hint">{{date .StartsAt "Mon 2 Jan 2006 · 15:04"}}{{if .Location}} — {{.Location}}{{end}}</div>
         </div>
+        {{if $.CanManageEvents}}<a class="chip-link" href="/events/{{.ID}}/manage">{{t "Manage"}}</a>{{end}}
       </div>
     {{else}}
       <p class="hint">{{t "Nothing scheduled yet."}}</p>
@@ -49,7 +96,7 @@
 
   <div class="card">
     <h3>{{t "Past"}}</h3>
-    <div class="form-stack">
+    <div class="form-stack event-list">
     {{range .Past}}
       <div class="import-row">
         <div>
@@ -63,6 +110,43 @@
     </div>
   </div>
 </main>
+{{if .CanManageEvents}}
+<script>
+(function () {
+  const communityId = {{.Community.ID}};
+  const $ = (id) => document.getElementById(id);
+  const form = $('create-event-form');
+  const typeSel = $('ev-type');
+  const audienceField = $('ev-audience-field');
+  // "Open to" only means something for a jam (members, bands, or both).
+  function syncAudience() { audienceField.hidden = typeSel.value !== 'jam'; }
+  typeSel.addEventListener('change', syncAudience);
+  syncAudience();
+  try { $('ev-starts-tz').textContent = ' (' + Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, ' ') + ')'; } catch {}
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    Forms.run(form, $('create-event-btn'), async () => {
+      const fallback = t('Couldn’t create the event. Check the details and try again.');
+      const body = {
+        name: $('ev-name').value.trim(),
+        eventType: typeSel.value,
+        audienceScope: $('ev-audience').value,
+        startsAt: new Date($('ev-starts').value).toISOString(),
+        location: $('ev-location').value.trim(),
+        description: $('ev-description').value.trim(),
+      };
+      let res;
+      try {
+        res = await fetch(`/api/communities/${communityId}/events`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+      } catch { throw new Error(fallback); }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(fallback);
+      location.href = `/events/${data.eventId}/manage`;
+    });
+  });
+})();
+</script>
+{{end}}
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
 </body>

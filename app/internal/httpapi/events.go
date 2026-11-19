@@ -211,10 +211,16 @@ func (s *Server) handleCommunityEventsPage(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	person := personFromContext(r)
-	staff, _ := s.store.HasAnyCommunityManagePrivilege(r.Context(), communityID, person.ID)
+	var staff, canManage bool
+	if person != nil {
+		staff, _ = s.store.HasAnyCommunityManagePrivilege(r.Context(), communityID, person.ID)
+		canManage, _ = s.store.HasCommunityPrivilege(r.Context(), communityID, person.ID, store.PrivManageEvents)
+		canManage = canManage || person.IsAdmin
+		staff = staff || person.IsAdmin
+	}
 	s.render(w, "community_events", map[string]any{
-		"Me": person, "Community": community, "Upcoming": upcoming, "Past": past,
-		"IsStaff": staff || person.IsAdmin,
+		"Me": person, "Person": person, "Community": community, "Upcoming": upcoming, "Past": past,
+		"IsStaff": staff, "CanManageEvents": canManage,
 	})
 }
 
@@ -699,9 +705,39 @@ func (s *Server) handleEventManagePage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// A community event's managers are assigned by whoever manages the
+	// community's events, here on the event's own page.
+	me := personFromContext(r)
+	var canAssign bool
+	var candidates []store.CommunityMember
+	if ev.OwnerKind == "community" {
+		canAssign, err = s.store.HasCommunityPrivilege(r.Context(), ev.OwnerCommunityID, me.ID, store.PrivManageEvents)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		canAssign = canAssign || me.IsAdmin
+		if canAssign {
+			members, err := s.store.ListCommunityMembers(r.Context(), ev.OwnerCommunityID, false)
+			if err != nil {
+				httpError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			assigned := map[int64]bool{}
+			for _, m := range managers {
+				assigned[m.PersonID] = true
+			}
+			for _, m := range members {
+				if m.IsCurrent() && !assigned[m.PersonID] {
+					candidates = append(candidates, m)
+				}
+			}
+		}
+	}
 	s.render(w, "event_manage", map[string]any{
-		"Me": personFromContext(r), "Event": ev, "SongRows": songRows, "Managers": managers,
+		"Me": me, "Event": ev, "SongRows": songRows, "Managers": managers,
 		"OwnerSongbooks": ownerSongbooks,
+		"CanAssignManagers": canAssign, "ManagerCandidates": candidates,
 	})
 }
 

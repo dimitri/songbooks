@@ -31,8 +31,8 @@
   {{if .IsStaff}}
   <p class="hint members-visibility-note">
     {{if eq .Visibility "members"}}{{t "Every member of the community can see this list."}}{{else}}{{t "Only the community’s admins can see this list."}}{{end}}
-    <a href="/communities/{{.Community.ID}}/admin#members-visibility-select">{{t "Change who sees it"}}</a>
-    {{if .CanManageMembers}} · <a href="/communities/{{.Community.ID}}/admin#quick-add-form">{{t "Invite people"}}</a>{{end}}
+    {{if .CanManageSettings}}<a href="/communities/{{.Community.ID}}/admin#members">{{t "Change who sees it"}}</a>{{end}}
+    {{if .CanManageMembers}}{{if .CanManageSettings}} · {{end}}<a href="/communities/{{.Community.ID}}/admin#joining">{{t "Invite people"}}</a>{{end}}
     {{if .Community.IsCoaching}}<br>{{t "Each student’s voice, notes and songs are on the Students tab."}}{{end}}
   </p>
   {{end}}

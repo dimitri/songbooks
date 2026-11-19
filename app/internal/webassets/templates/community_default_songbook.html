@@ -30,6 +30,33 @@
 
   <p class="hint">{{if not .CanEdit}}{{t "Read-only for your role."}} {{end}}{{t "The community's other books are under"}} <a href="/communities/{{.Community.ID}}/songbooks">{{t (shelfLabel "community" .Community.ID)}}</a>.</p>
 
+  {{/* Songs members sent in for this songbook (the "Review submissions"
+       privilege): accepting one adds it here. */}}
+  {{if and .CanReview .PendingSubmissions}}
+  <section class="card submissions-card" aria-labelledby="pending-title">
+    <h2 id="pending-title">{{t "Submissions to review"}} <span class="count">{{len .PendingSubmissions}}</span></h2>
+    <div class="table-scroll"><table class="table-stack" style="width:100%">
+      <thead><tr><th>{{t "Submitted by"}}</th><th>{{t "Kind"}}</th><th>{{t "Submitted"}}</th><th>{{t "Source"}}</th><th>{{t "Note"}}</th><th></th></tr></thead>
+      <tbody>
+      {{range .PendingSubmissions}}
+        <tr data-submission-id="{{.ID}}">
+          <td data-label="{{t "Submitted by"}}">{{.StudentUsername}}</td>
+          <td data-label="{{t "Kind"}}">{{if eq .Kind "new_song"}}{{t "New song"}}{{else if eq .Kind "edit"}}{{t "Edit"}}{{else}}{{.Kind}}{{end}}</td>
+          <td data-label="{{t "Submitted"}}"><a href="/song/{{.SubmittedVariantID}}">{{.SubmittedTitle}}</a></td>
+          <td data-label="{{t "Source"}}">{{if .SourceVariantID}}{{.SourceTitle}} (#{{deref64 .SourceVariantID}}){{end}}</td>
+          <td data-label="{{t "Note"}}">{{.Note}}</td>
+          <td class="row-actions">
+            <button type="button" class="reject-btn danger" data-id="{{.ID}}" data-title="{{.SubmittedTitle}}" data-who="{{.StudentUsername}}">{{t "Reject"}}</button>
+            <button type="button" class="accept-btn primary" data-id="{{.ID}}">{{t "Accept"}}</button>
+          </td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table></div>
+    <p id="submissions-status" class="form-status" role="status"></p>
+  </section>
+  {{end}}
+
   {{if not .Entries}}
   <div class="attention-empty" style="border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:1.2rem; font-size:0.95rem;">
     {{t "This songbook is empty."}}{{if .CanEdit}} {{t "Songs don't appear here automatically."}} <button type="button" class="link-button" id="open-add-song-empty">{{t "Add your first song"}}</button> {{t "to get started."}}{{end}}
@@ -65,6 +92,26 @@
   </div>
   <p class="hint repertoire-empty-filtered" id="repertoire-empty-filtered">{{t "No songs match that search."}}</p>
   <p class="form-status" id="entries-status" role="status"></p>
+
+  {{if and .CanReview .DecidedSubmissions}}
+  <details class="card fold-card submissions-card">
+    <summary><h2>{{t "Past submissions"}}</h2><span class="count">{{len .DecidedSubmissions}}</span></summary>
+    <div class="table-scroll"><table class="table-stack" style="width:100%">
+      <thead><tr><th>{{t "Submitted by"}}</th><th>{{t "Kind"}}</th><th>{{t "Submitted"}}</th><th>{{t "Status"}}</th><th>{{t "Decided by"}}</th></tr></thead>
+      <tbody>
+      {{range .DecidedSubmissions}}
+        <tr>
+          <td data-label="{{t "Submitted by"}}">{{.StudentUsername}}</td>
+          <td data-label="{{t "Kind"}}">{{if eq .Kind "new_song"}}{{t "New song"}}{{else if eq .Kind "edit"}}{{t "Edit"}}{{else}}{{.Kind}}{{end}}</td>
+          <td data-label="{{t "Submitted"}}">{{.SubmittedTitle}}</td>
+          <td data-label="{{t "Status"}}">{{t .Status}}</td>
+          <td data-label="{{t "Decided by"}}">{{.DecidedByUsername}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table></div>
+  </details>
+  {{end}}
 
   <dialog id="add-song-dialog">
     <h2>{{t "Add a song"}}</h2>
@@ -103,7 +150,7 @@
       <p id="add-result" class="form-status" role="status"></p>
     </div>
 
-    <div class="form-actions" style="margin-top:1rem;">
+    <div class="form-actions dialog-actions">
       <button type="button" id="close-add-song">{{t "Close"}}</button>
     </div>
   </dialog>
@@ -254,6 +301,26 @@ document.querySelectorAll('.remove-entry-btn').forEach(btn => {
       Forms.busy(btn, false);
       Forms.status(status, t('Couldn’t remove that song. Try again.'), 'error');
     }
+  });
+});
+
+// ---- Members' submissions: accept adds the song to this songbook. ----
+function decideSubmission(btn, verb, fallback) {
+  const status = document.getElementById('submissions-status');
+  Forms.busy(btn, true);
+  fetch(`/api/communities/${communityId}/submissions/${btn.dataset.id}/${verb}`, {method: 'POST'}).catch(() => null).then(res => {
+    if (res && res.ok) { location.reload(); return; }
+    Forms.busy(btn, false);
+    Forms.status(status, fallback, 'error');
+  });
+}
+document.querySelectorAll('.accept-btn').forEach(btn => {
+  btn.addEventListener('click', () => decideSubmission(btn, 'accept', t('Couldn’t accept that submission. Try again.')));
+});
+document.querySelectorAll('.reject-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (!confirm(t('Reject “%s” from %s?', btn.dataset.title, btn.dataset.who))) return;
+    decideSubmission(btn, 'reject', t('Couldn’t reject that submission. Try again.'));
   });
 });
 

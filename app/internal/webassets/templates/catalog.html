@@ -25,21 +25,21 @@
   {{/* Songs first on a phone: one search field, the rest folded into
        Filters (open when one of them is in use). */}}
   <form class="card catalog-filters" method="get" action="/catalog" role="search">
-    <div class="catalog-search">
+    <div class="catalog-search form-inline">
       <input type="search" name="q" value="{{.Filter.Query}}" placeholder="{{t "Title, artist or words from the song"}}" aria-label="{{t "Search songs"}}" enterkeyhint="search" autocomplete="off">
       <button type="submit">{{t "Search"}}</button>
     </div>
     <details class="catalog-more"{{if or .Filter.Artist .Filter.Genre (eq .Filter.Sort "artist")}} open{{end}}>
       <summary>{{t "Filters"}}{{if or .Filter.Artist .Filter.Genre}} &middot; {{t "on"}}{{end}}</summary>
-      <div class="catalog-more-fields">
-        <label>{{t "Artist"}} <input type="text" name="artist" value="{{.Filter.Artist}}" placeholder="{{t "e.g. Nina Simone"}}" autocomplete="off" enterkeyhint="search"></label>
-        <label>{{t "Genre"}}
+      <div class="catalog-more-fields form-grid">
+        <label class="field">{{t "Artist"}} <input type="text" name="artist" value="{{.Filter.Artist}}" placeholder="{{t "e.g. Nina Simone"}}" autocomplete="off" enterkeyhint="search"></label>
+        <label class="field">{{t "Genre"}}
           <select name="genre">
             <option value="" {{if eq .Filter.Genre ""}}selected{{end}}>{{t "All genres"}}</option>
             {{range .Genres}}<option value="{{.}}" {{if eq $.Filter.Genre .}}selected{{end}}>{{.}}</option>{{end}}
           </select>
         </label>
-        <label>{{t "Sort by"}}
+        <label class="field">{{t "Sort by"}}
           <select name="sort">
             <option value="" {{if ne .Filter.Sort "artist"}}selected{{end}}>{{t "Title"}}</option>
             <option value="artist" {{if eq .Filter.Sort "artist"}}selected{{end}}>{{t "Artist"}}</option>

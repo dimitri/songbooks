@@ -60,7 +60,7 @@
             <td data-label="{{t "Admin"}}">{{if .IsAdmin}}{{t "yes"}}{{else}}{{t "no"}}{{end}}</td>
             <td>
               {{if ne .ID $.Me.ID}}
-              <form method="post" action="/admin/people/{{.ID}}/admin" style="display:inline"{{if .IsAdmin}} onsubmit="return confirm('{{t "Remove site admin rights from %s?" .Username}}')"{{end}}>
+              <form method="post" action="/admin/people/{{.ID}}/admin" class="button-form"{{if .IsAdmin}} onsubmit="return confirm('{{t "Remove site admin rights from %s?" .Username}}')"{{end}}>
                 <input type="hidden" name="is_admin" value="{{if .IsAdmin}}0{{else}}1{{end}}">
                 <button type="submit">{{if .IsAdmin}}{{t "Remove admin"}}{{else}}{{t "Make admin"}}{{end}}</button>
               </form>
@@ -144,11 +144,11 @@
     <div class="card card--narrow">
       <h3>{{t "Plain signup invite"}}</h3>
       <p class="hint">{{t "No self-serve registration exists yet — this is the only way to let someone in with no project or band attached."}}</p>
-      <div class="form-actions" style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+      <div class="form-actions form-actions--start">
         <button type="button" id="create-plain-invite-btn" class="primary">{{t "Create invite link"}}</button>
         <button type="button" id="copy-plain-invite-btn" hidden>{{t "Copy link"}}</button>
       </div>
-      <p id="plain-invite-result" class="form-status" role="status" style="overflow-wrap:anywhere;"></p>
+      <p id="plain-invite-result" class="form-status" role="status"></p>
     </div>
 
     {{/* The gap a direct report flagged: no way to see who was invited,

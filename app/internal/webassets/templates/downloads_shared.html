@@ -5,13 +5,13 @@
 {{define "dl-upload-form"}}
 <form class="dl-upload" data-songbook="{{.ID}}" data-path="{{.Folder}}">
   <label class="dl-pick secondary">{{template "icon-plus"}} {{t "Add files or a zip"}}<input type="file" name="file" multiple hidden></label>
-  <label>{{t "Files go with"}}
+  <label class="field field--short">{{t "Files go with"}}
     <select name="song">
       <option value="">{{if .Folder}}{{t "no lesson"}}{{else}}{{t "the songbook itself"}}{{end}}</option>
       {{range .Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}
     </select>
   </label>
-  <span class="hint">{{if .Folder}}{{t "A zip is unpacked in this folder, and each of its files goes with its lesson."}}{{else}}{{t "A zip is unpacked, and each of its files goes with its lesson."}}{{end}}</span>
+  <span class="field-hint dl-upload-hint">{{if .Folder}}{{t "A zip is unpacked in this folder, and each of its files goes with its lesson."}}{{else}}{{t "A zip is unpacked, and each of its files goes with its lesson."}}{{end}}</span>
   <span class="form-status" role="status"></span>
   <div class="dl-report" hidden></div>
 </form>

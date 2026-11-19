@@ -371,9 +371,20 @@ func (s *Server) handleCommunitySongbooksPage(w http.ResponseWriter, r *http.Req
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// Members' submissions waiting on the default songbook, for whoever
+	// reviews them (they're reviewed on that songbook's page).
+	toReview := 0
+	if ok, _ := s.store.HasCommunityPrivilege(r.Context(), communityID, person.ID, store.PrivManageSubmissions); ok || person.IsAdmin {
+		pending, err := s.store.ListCommunitySubmissions(r.Context(), communityID, store.SubmissionFilter{Status: "pending"})
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		toReview = len(pending)
+	}
 	s.render(w, "community_songbooks", map[string]any{
 		"Me": person, "Community": community, "Songbooks": rows, "CanEdit": canEdit || person.IsAdmin,
-		"IsStaff": canManage || person.IsAdmin,
+		"IsStaff": canManage || person.IsAdmin, "ToReview": toReview,
 	})
 }
 
@@ -440,9 +451,34 @@ func (s *Server) handleCommunityDefaultSongbookPage(w http.ResponseWriter, r *ht
 	for i, e := range catalog {
 		ids[i] = e.VariantID
 	}
+	// Songs members sent in for this songbook, for whoever reviews them.
+	canReview, err := s.store.HasCommunityPrivilege(r.Context(), communityID, person.ID, store.PrivManageSubmissions)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	canReview = canReview || person.IsAdmin
+	var pending, decided []store.CommunitySubmission
+	if canReview {
+		if pending, err = s.store.ListCommunitySubmissions(r.Context(), communityID, store.SubmissionFilter{Status: "pending"}); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		all, err := s.store.ListCommunitySubmissions(r.Context(), communityID, store.SubmissionFilter{})
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		for _, sub := range all {
+			if sub.Status != "pending" {
+				decided = append(decided, sub)
+			}
+		}
+	}
 	s.render(w, "community_default_songbook", map[string]any{
 		"Me": person, "Community": community, "Entries": entries, "Badges": s.songBadgesFor(r.Context(), ids),
 		"IsStaff": canManage || person.IsAdmin, "CanEdit": canEdit || person.IsAdmin,
+		"CanReview": canReview, "PendingSubmissions": pending, "DecidedSubmissions": decided,
 		"ContextualGroup": webassets.ContextualGroup{
 			Label: "This community", PDFExportPath: fmt.Sprintf("/communities/%d/export-songbook.pdf", communityID),
 		},
@@ -608,9 +644,11 @@ func (s *Server) handleRevokeSongbookAccess(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]bool{"revoked": true})
 }
 
-// handleCommunityAdminPage is the instructor-only management page:
-// current+past members, the pending submissions queue, and the
-// community's catalog — everything an instructor needs to run the community.
+// handleCommunityAdminPage is the staff page for running the community
+// itself: its name and look, its members and their roles, how people
+// join, and the community-wide options. Songbooks are managed on the
+// Songbooks tab (submissions on the default songbook's page) and events
+// on the Events tab and each event's Manage page.
 func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	person := personFromContext(r)
@@ -628,45 +666,16 @@ func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	pending, err := s.store.ListCommunitySubmissions(r.Context(), communityID, store.SubmissionFilter{Status: "pending"})
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	decided, err := s.store.ListCommunitySubmissions(r.Context(), communityID, store.SubmissionFilter{})
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	entries, err := s.store.ListCommunityCatalog(r.Context(), communityID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
+	current := 0
+	for _, m := range members {
+		if m.IsCurrent() {
+			current++
+		}
 	}
 	shellPeople, err := s.store.ListShellPeopleForCommunity(r.Context(), communityID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
-	}
-	all, err := s.store.ListEventsForCommunity(r.Context(), communityID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	var events []store.Event
-	for _, ev := range all {
-		if ev.EventType != "lesson" { // the Lessons tab's
-			events = append(events, ev)
-		}
-	}
-	eventManagers := map[int64][]store.EventManager{}
-	for _, ev := range events {
-		mgrs, err := s.store.ListEventManagers(r.Context(), ev.ID)
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		eventManagers[ev.ID] = mgrs
 	}
 	roles, err := s.store.ListCommunityRoles(r.Context(), communityID)
 	if err != nil {
@@ -679,13 +688,19 @@ func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// Who sees the Members page is a setting: its select only for a role
+	// granting manage_settings (the PUT behind it checks that too).
+	access, err := s.communityMembersAccess(r.Context(), person, communityID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "community_admin", map[string]any{
-		"Me": person, "Community": community, "Members": members,
-		"PendingSubmissions": pending, "AllSubmissions": decided,
-		"Entries": entries, "ShellPeople": shellPeople,
-		"Events": events, "EventManagers": eventManagers,
+		"Me": person, "Person": person, "Community": community, "IsStaff": true,
+		"Members": members, "CurrentMembers": current, "ShellPeople": shellPeople,
 		"Roles": roles, "AllPrivileges": store.AllCommunityPrivileges,
 		"Locale": locale, "MembersVisibility": membersVisibility,
+		"CanManageSettings": access.ManageSettings,
 	})
 }
 

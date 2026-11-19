@@ -87,11 +87,11 @@
 
   <section class="wizard-panel" data-step="0">
     <p class="hint">{{t "Start from a title. A reference video is optional but makes the rest of this easier — the whole band pulls up the same version, and you can tap tempo along with it on the next step."}}</p>
-    <div class="wizard-fields">
-      <label>{{t "Title"}} <input type="text" id="wiz-title" required autocomplete="off" enterkeyhint="next"></label>
-      <label>{{t "Artist"}} <span class="field-optional">{{t "(optional)"}}</span> <input type="text" id="wiz-artist" autocomplete="off" enterkeyhint="next"></label>
+    <div class="wizard-fields field-row">
+      <label class="field">{{t "Title"}} <input type="text" id="wiz-title" required autocomplete="off" enterkeyhint="next"></label>
+      <label class="field">{{t "Artist"}} <span class="field-optional">{{t "(optional)"}}</span> <input type="text" id="wiz-artist" autocomplete="off" enterkeyhint="next"></label>
     </div>
-    <div class="wizard-fields">
+    <div class="wizard-fields field-row">
       <div class="field">
         <label for="wiz-reference-url">{{t "Reference video"}} <span class="field-optional">{{t "(optional)"}}</span></label>
         <p class="field-hint" id="wiz-reference-hint">{{t "A YouTube link, so everyone learns the same version."}}</p>
@@ -108,8 +108,8 @@
 
   <section class="wizard-panel" data-step="1" hidden>
     <p class="hint">{{t "Key and tempo — both optional, both editable later. Tap along with the reference video above if you set one."}}</p>
-    <div class="wizard-fields">
-      <label>{{t "Key"}} <span class="field-optional">{{t "(optional)"}}</span>
+    <div class="wizard-fields field-row">
+      <label class="field">{{t "Key"}} <span class="field-optional">{{t "(optional)"}}</span>
         <select id="wiz-key">
           <option value="">{{t "Not set"}}</option>
           <option>C</option><option>G</option><option>D</option><option>A</option><option>E</option><option>B</option>
@@ -118,15 +118,15 @@
           <option>Dm</option><option>Gm</option><option>Cm</option><option>Fm</option><option>Bbm</option>
         </select>
       </label>
-      <label>{{t "Tempo in bpm"}} <span class="field-optional">{{t "(optional)"}}</span> <input type="number" id="wiz-tempo" min="20" max="300" step="1" inputmode="numeric" placeholder="{{t "e.g. %s" "96"}}" enterkeyhint="next"></label>
+      <label class="field">{{t "Tempo in bpm"}} <span class="field-optional">{{t "(optional)"}}</span> <input type="number" id="wiz-tempo" min="20" max="300" step="1" inputmode="numeric" placeholder="{{t "e.g. %s" "96"}}" enterkeyhint="next"></label>
       <button type="button" id="wiz-tap-btn">{{template "icon-tap"}} {{t "Tap tempo"}}</button>
     </div>
   </section>
 
   <section class="wizard-panel" data-step="2" hidden>
     <p class="hint">{{t "Fetch lyrics from a URL, or just paste them below — either way, review/edit before creating."}}</p>
-    <div class="wizard-fields">
-      <label>{{t "Lyrics page address"}} <span class="field-optional">{{t "(optional)"}}</span>
+    <div class="wizard-fields field-row">
+      <label class="field">{{t "Lyrics page address"}} <span class="field-optional">{{t "(optional)"}}</span>
         <input type="url" id="wiz-lyrics-url" placeholder="{{t "e.g. %s" "https://genius.com/…"}}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
       </label>
     </div>
@@ -134,7 +134,7 @@
       <button type="button" id="wiz-lyrics-fetch">{{t "Fetch lyrics"}}</button>
       <span id="wiz-lyrics-status" class="hint" role="status"></span>
     </div>
-    <div class="wizard-fields">
+    <div class="wizard-fields field-row">
       <div class="field">
         <label for="wiz-lyrics-preview">{{t "Lyrics"}} <span class="field-optional">{{t "(optional)"}}</span></label>
         <p class="field-hint" id="wiz-lyrics-hint">{{t "Fetched lyrics land here; you can edit them before creating the song."}}</p>
@@ -150,8 +150,8 @@
     <div id="wiz-import-library-match"></div>
 
     <div class="ug-import-substep" id="ug-step-url">
-      <div class="wizard-fields">
-        <label>{{t "Ultimate Guitar page address"}} <span class="field-optional">{{t "(optional)"}}</span>
+      <div class="wizard-fields field-row">
+        <label class="field">{{t "Ultimate Guitar page address"}} <span class="field-optional">{{t "(optional)"}}</span>
           <input type="url" id="wiz-chords-url" placeholder="{{t "e.g. %s" "https://tabs.ultimate-guitar.com/tab/…"}}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
         </label>
       </div>
@@ -173,7 +173,7 @@
 
     <div class="ug-import-substep" id="ug-step-raw" hidden>
       <p class="hint">{{t "Paste chords+lyrics, or whatever the import above produced — this is the exact text that will be saved."}}</p>
-      <div class="wizard-fields">
+      <div class="wizard-fields field-row">
         <div class="field">
           <label for="wiz-chords-preview">{{t "Chords and lyrics"}}</label>
           <p class="field-hint" id="wiz-chords-hint">{{t "A [Chord] right before the word it falls on, and a [Section] line before each part."}}</p>

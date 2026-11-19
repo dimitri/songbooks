@@ -38,9 +38,9 @@
        — creating an extra personal songbook (beyond the one default
        every profile already has) belongs right here, not behind its
        own top-level destination. */}}
-  <form class="form-stack" id="create-songbook-form" style="margin-top:0.4rem; margin-bottom:1.2rem;">
+  <form class="create-row form-inline" id="create-songbook-form">
     <div class="field"><label for="new-songbook-name">{{t "New songbook name"}}</label><input type="text" id="new-songbook-name" name="name" placeholder="{{t "e.g. Wedding gigs"}}" required autocomplete="off"></div>
-    <div class="form-actions"><button type="submit" id="create-songbook-btn" class="primary">{{t "Create songbook"}}</button></div>
+    <button type="submit" id="create-songbook-btn" class="primary">{{t "Create songbook"}}</button>
     <p id="create-songbook-result" class="form-status" role="status"></p>
   </form>
 
