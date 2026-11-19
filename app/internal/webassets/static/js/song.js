@@ -606,47 +606,73 @@ const ICONS = {
   // - In every view, scrolling by hand while it plays takes the page back
   //   (as Apple Music's and Spotify's lyrics do): following holds until
   //   "Back to the current line" or the next time playback starts.
+  // - Stage mode is for performing, not practising: no karaoke line, and
+  //   the page turns a section at a time ("Stage mode", below). There the
+  //   switch reads "Follow the sections", and is a setting of its own.
   const lyricsFollowKey = `songbooks:lyrics-follow:${sheet.dataset.variantId || pageVariantId}`;
+  const stageFollowKey = `songbooks:stage-follow:${sheet.dataset.variantId || pageVariantId}`;
   let lyricsFollow = true;
+  let stageFollow = true;
   try { lyricsFollow = localStorage.getItem(lyricsFollowKey) !== 'off'; } catch (e) { /* on */ }
+  try { stageFollow = localStorage.getItem(stageFollowKey) !== 'off'; } catch (e) { /* on */ }
   let followHeld = false; // the reader scrolled away while it played
   let wasPlaying = false;
   let playingNow = false;
   const followBar = document.getElementById('follow-bar');
   const followToggle = document.getElementById('follow-toggle');
+  const followLabel = document.getElementById('follow-label');
   const followHint = document.getElementById('follow-hint');
   const followBack = document.getElementById('follow-back');
   const followBackLabel = document.getElementById('follow-back-label');
   const lyricsMode = () => sheet.dataset.renderMode === 'lyrics';
+  // Stage mode, in a view that turns a section at a time: the chart's own
+  // views; not the Score (alphaTab follows its systems), the Mixer or the
+  // Reference.
+  const stageOn = () => document.body.classList.contains('stage');
+  const stageSections = () => stageOn() && ['normal', 'jazz', 'lyrics', 'map', 'drummer'].includes(sheet.dataset.renderMode);
   // The chart lights and follows the music: always, except Lyrics only
-  // with its switch off.
-  const chartFollows = () => !(lyricsMode() && !lyricsFollow);
+  // with its switch off; in stage mode, as "Follow the sections" says.
+  const chartFollows = () => (stageSections() ? stageFollow : !(lyricsMode() && !lyricsFollow));
   function renderFollow() {
-    if (followToggle) followToggle.checked = lyricsFollow;
+    const stage = stageSections();
+    const on = stage ? stageFollow : lyricsFollow;
+    if (followToggle) followToggle.checked = on;
+    if (followLabel) followLabel.textContent = stage ? t('Follow the sections') : t('Follow the music');
     if (followHint) {
-      followHint.textContent = lyricsFollow
-        ? t('The line being sung lights up and the page scrolls with the recording.')
-        : t('Off: no line lit, you scroll yourself. The recording still plays.');
+      followHint.textContent = stage
+        ? (on ? t('The page turns a section at a time, as the recording reaches each one.')
+          : t('Off: you turn the page — pedal, arrow keys or a tap. The recording still plays.'))
+        : (on ? t('The line being sung lights up and the page scrolls with the recording.')
+          : t('Off: no line lit, you scroll yourself. The recording still plays.'));
     }
-    followBar?.classList.toggle('is-off', !lyricsFollow);
+    followBar?.classList.toggle('is-off', !on);
   }
-  function showFollowBar() { if (followBar) followBar.hidden = !lyricsMode(); }
-  renderFollow();
+  // Lyrics only's switch outside stage mode; in stage mode, every view
+  // that turns a section at a time has it.
+  function showFollowBar() {
+    if (followBar) followBar.hidden = !(stageSections() || (lyricsMode() && !stageOn()));
+    renderFollow();
+  }
   showFollowBar();
   new MutationObserver(showFollowBar).observe(sheet, { attributes: true, attributeFilter: ['data-render-mode'] });
+  new MutationObserver(showFollowBar).observe(document.body, { attributes: true, attributeFilter: ['class'] });
   followToggle?.addEventListener('change', () => {
-    lyricsFollow = followToggle.checked;
+    const stage = stageSections();
+    const on = followToggle.checked;
+    if (stage) stageFollow = on; else lyricsFollow = on;
     followHeld = false;
     try {
-      if (lyricsFollow) localStorage.removeItem(lyricsFollowKey);
-      else localStorage.setItem(lyricsFollowKey, 'off');
+      const key = stage ? stageFollowKey : lyricsFollowKey;
+      if (on) localStorage.removeItem(key);
+      else localStorage.setItem(key, 'off');
     } catch (e) { /* this page only */ }
     renderFollow();
     // Back on mid-song: go to where the music is now.
-    if (lyricsFollow && playingNow) requestAnimationFrame(() => requestAnimationFrame(scrollToNow));
+    if (on && playingNow) requestAnimationFrame(() => requestAnimationFrame(scrollToNow));
   });
   // Where the music is, brought into view at once.
   function scrollToNow() {
+    if (stageSections()) { stageKey = null; return; } // highlightTick turns to it
     if (currentLineEl) { currentLineEl.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
     const cursor = document.querySelector('.tab-cursor-bar:not([hidden])');
     if (cursor && cursor.offsetParent) { keepInView(cursor); return; }
@@ -680,6 +706,242 @@ const ICONS = {
     if (e.target === document.documentElement && e.clientX >= document.documentElement.clientWidth) scrolledByHand(e);
   });
 
+  // ---- Stage mode: a section at a time ---------------------------------------
+  // On stage the singer reads ahead, not along: a line lighting up and the
+  // page creeping under the words is a distraction (that's practice).
+  // So in stage mode, while the recording plays, the page holds still and
+  // turns once per section: the new section's heading goes to the top of
+  // the screen, a moment before the section starts (a beat, or half a
+  // second if that's longer) so its first line can be read in time. A
+  // section taller than the screen (a phone across a mic stand) turns its
+  // own pages the same way, when the music reaches its first line not on
+  // screen. With nothing playing (a band playing live, or the recording
+  // stopped) nothing moves: the singer turns the pages, with a pedal, the
+  // keys or a tap ("Turning by hand", below).
+  let stageKey = null; // the section (and page within it) the page is turned to
+  let stageAnim = 0;
+  let stageAt = null; // { y, page }: where the last turn left the page, and that page's start
+  let barRate = 0; // bars per second, measured while it plays
+  let lastPos = null, lastPosAt = 0;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const stageMargin = () => parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.6;
+  // What the page shows: under nothing, above the player's dock and the
+  // previous/next songs' names.
+  function stageViewBox() {
+    let bottom = window.innerHeight;
+    for (const el of document.querySelectorAll('#audio-dock, .stage-foot')) {
+      if (!el.offsetParent && getComputedStyle(el).position !== 'fixed') continue;
+      const r = el.getBoundingClientRect();
+      if (r.height > 0 && r.top > window.innerHeight / 2) bottom = Math.min(bottom, r.top);
+    }
+    return { top: 0, bottom };
+  }
+  function stageScrollTo(y) {
+    cancelAnimationFrame(stageAnim);
+    stageAnim = 0;
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    const to = Math.round(Math.max(0, Math.min(max, y)));
+    const from = window.scrollY;
+    if (Math.abs(to - from) < 2) return;
+    if (reducedMotion.matches) { window.scrollTo({ top: to, behavior: 'instant' }); return; }
+    // Quick and smooth, the same every time (a browser's own smooth scroll
+    // takes longer the further it goes).
+    const t0 = performance.now();
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / 300);
+      window.scrollTo({ top: from + (to - from) * (1 - Math.pow(1 - k, 3)), behavior: 'instant' });
+      stageAnim = k < 1 ? requestAnimationFrame(step) : 0;
+    };
+    stageAnim = requestAnimationFrame(step);
+  }
+  // A hand on the page stops a turn on its way.
+  for (const type of ['wheel', 'touchstart']) {
+    window.addEventListener(type, () => { if (stageAnim) { cancelAnimationFrame(stageAnim); stageAnim = 0; } }, { passive: true });
+  }
+  const sectionAt = (bar) => sections.find(s => s.startBar != null && (
+    s.barCount > 0 ? (bar >= s.startBar && bar < s.startBar + s.barCount) : bar === s.startBar
+  ));
+  // Where a section's pages start, top of the page coordinates: its
+  // heading, then, for a section taller than the screen, the first line
+  // (or row of bars) that didn't fit on the page before.
+  function sectionPages(sec) {
+    const head = sec.el.querySelector(':scope > h3') || sec.el;
+    const top = head.getBoundingClientRect().top + window.scrollY;
+    const pages = [top];
+    const box = stageViewBox();
+    const room = box.bottom - box.top - stageMargin() * 2;
+    const r = sec.el.getBoundingClientRect();
+    if (r.height <= room) return pages;
+    const units = [...sec.el.querySelectorAll('.lyric-line, .bar[data-global-bar], .multi-rest-row, .alphatab-row')]
+      .filter(u => u.offsetParent)
+      .map(u => { const ur = u.getBoundingClientRect(); return { top: ur.top + window.scrollY, bottom: ur.bottom + window.scrollY, el: u }; })
+      .sort((a, b) => a.top - b.top);
+    for (const u of units) {
+      const start = pages[pages.length - 1];
+      if (u.bottom > start + room && u.top > start + 1) pages.push(u.top);
+    }
+    return pages;
+  }
+  // Every page of the song, in the song's order.
+  function stagePages() {
+    const out = [];
+    for (const sec of sections) {
+      if (!sec.el.offsetParent) continue;
+      for (const y of sectionPages(sec)) out.push(y);
+    }
+    return out;
+  }
+  // Turn to where the music is about to be, if that's somewhere else.
+  function stageFollowTick(position) {
+    const beatsPerBarNow = clock.beatsPerBar || 4;
+    const rate = barRate || (clock.bpm / 60 / beatsPerBarNow);
+    const ahead = position + Math.max(1 / beatsPerBarNow, 0.5 * rate);
+    const sec = sectionAt(Math.floor(ahead));
+    if (!sec || !sec.el.offsetParent) return;
+    // Which line (Lyrics only, spread evenly over the section as the
+    // karaoke line is) or bar the music is about to reach.
+    let unit = null;
+    if (lyricsMode()) {
+      const lines = sec.el.querySelectorAll('.lyric-line');
+      if (lines.length && sec.barCount > 0) {
+        const f = Math.min(0.999, Math.max(0, (ahead - sec.startBar) / sec.barCount));
+        unit = lines[Math.floor(f * lines.length)];
+      }
+    } else {
+      const bar = Math.floor(ahead);
+      unit = bars.find(b => b.offsetParent && parseInt(b.dataset.globalBar, 10) === bar && sec.el.contains(b)) || null;
+    }
+    const unitKey = `${sec.index}:${unit ? [...sec.el.querySelectorAll(lyricsMode() ? '.lyric-line' : '.bar[data-global-bar]')].indexOf(unit) : -1}`;
+    if (unitKey === stageKey) return;
+    stageKey = unitKey;
+    const pages = sectionPages(sec);
+    let page = pages[0];
+    if (unit) {
+      const uTop = unit.getBoundingClientRect().top + window.scrollY;
+      for (const p of pages) if (p <= uTop + 1) page = p;
+    }
+    const target = page - stageMargin();
+    if (Math.abs(target - window.scrollY) < 2) return;
+    // A short section (a two-bar break, a turnaround) already on screen in
+    // full isn't worth a turn of its own: the page turns for the next one.
+    const box = stageViewBox();
+    const r = sec.el.getBoundingClientRect();
+    const short = sec.barCount > 0 && sec.barCount / rate < 4;
+    if (short && page === pages[0] && r.top >= box.top && r.bottom <= box.bottom) return;
+    stageScrollTo(target);
+    stageAt = { y: Math.round(Math.max(0, Math.min(document.documentElement.scrollHeight - window.innerHeight, target))), page };
+  }
+  // Bars per second, from the playhead itself: the recording's tempo at
+  // its speed, or the follow-along clock's. Over a second or more, since
+  // a media element's currentTime moves in steps; a seek starts over.
+  function measureRate(position, playing) {
+    const now = performance.now();
+    if (!playing) { lastPos = null; return; }
+    if (lastPos === null) { lastPos = position; lastPosAt = now; return; }
+    const dt = (now - lastPosAt) / 1000, dp = position - lastPos;
+    if (dp < 0 || dp > 4 || dt > 3) { lastPos = position; lastPosAt = now; return; }
+    if (dt < 1) return;
+    const r = dp / dt;
+    if (r > 0.05 && r < 5) barRate = barRate ? barRate * 0.5 + r * 0.5 : r;
+    lastPos = position; lastPosAt = now;
+  }
+
+  // ---- Turning by hand (stage mode) ------------------------------------------
+  // Next: PageDown, → or ↓, and Space when there's no recording to play
+  // (with one, Space stays the player's play/pause). Previous: PageUp, ←,
+  // ↑ (and Shift+Space). A page-turn pedal sends PageDown/PageUp or the
+  // arrows. Past the song's last page, "next" goes on to the next song of
+  // the set list, and before its top "previous" to the one before, as the
+  // pedal did in stage mode before. Alt+←/→ stay the player's section
+  // steps, and the player's other keys are untouched. A tap on the lower
+  // half of the screen turns forward, on the upper half back (touch only:
+  // a mouse click is left alone).
+  function stageTurn(dir) {
+    const pages = stagePages();
+    if (!pages.length) return;
+    const margin = stageMargin();
+    const y = window.scrollY;
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    // Where the page is now: where the last turn left it, if it's still
+    // there (the song's order, even when the chart is in two columns),
+    // otherwise the last page starting at or above the top of the screen.
+    let i = -1;
+    let fromTurn = false;
+    if (stageAt && Math.abs(stageAt.y - Math.round(y)) < 3) {
+      i = pages.findIndex(p => Math.abs(p - stageAt.page) < 2);
+      fromTurn = i >= 0;
+    }
+    if (!fromTurn) pages.forEach((p, k) => { if (p - margin <= y + 3) i = k; });
+    if (dir > 0) {
+      const next = fromTurn ? pages[i + 1] : pages.find(p => p - margin > y + 3);
+      if (next !== undefined && y < max - 2) {
+        stageScrollTo(next - margin);
+        stageAt = { y: Math.round(Math.max(0, Math.min(max, next - margin))), page: next };
+        return true;
+      }
+      return 'end';
+    }
+    if (i >= 0 && pages[i] - margin < y - 3) {
+      // Partway down a page: back to its start first.
+      stageScrollTo(pages[i] - margin);
+      stageAt = { y: Math.round(Math.max(0, pages[i] - margin)), page: pages[i] };
+      return true;
+    }
+    if (i > 0) {
+      stageScrollTo(pages[i - 1] - margin);
+      stageAt = { y: Math.round(Math.max(0, pages[i - 1] - margin)), page: pages[i - 1] };
+      return true;
+    }
+    if (y > 2) { stageScrollTo(0); stageAt = null; return true; }
+    return 'start';
+  }
+  // By hand while it plays and follows: the page is the singer's until
+  // "Back to the current section" or the next time it starts playing.
+  function turnedByHand() {
+    if (playingNow && chartFollows()) followHeld = true;
+  }
+  const recordingReady = () => {
+    const c = window.songbooksReferenceClock ? window.songbooksReferenceClock() : null;
+    const body = document.getElementById('audio-player-body');
+    return !!(c && c.duration && body && !body.hidden);
+  };
+  window.addEventListener('keydown', (e) => {
+    if (!stageSections() || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+    const el = document.activeElement;
+    if (el && (el.matches('input, textarea, select') || el.isContentEditable)) return;
+    const drawer = document.getElementById('edit-drawer');
+    if (drawer && !drawer.hidden) return;
+    let dir = 0;
+    if (['PageDown', 'ArrowRight', 'ArrowDown'].includes(e.key)) dir = 1;
+    else if (['PageUp', 'ArrowLeft', 'ArrowUp'].includes(e.key)) dir = -1;
+    else if (e.key === ' ' || e.key === 'Spacebar') {
+      // A focused button keeps its Space; with a recording, Space plays it.
+      if (recordingReady() || (el && el !== document.body && el.closest('button, a, summary, [role="button"], label'))) return;
+      dir = e.shiftKey ? -1 : 1;
+    }
+    if (!dir) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (e.repeat) return; // a pedal held down turns one page, not the whole song
+    const r = stageTurn(dir);
+    if (r === true) { turnedByHand(); return; }
+    // Off either end of the song: the set list's next or previous song.
+    const link = r && document.querySelector(r === 'end' ? '.setlist-nav-card.next' : '.setlist-nav-card.prev');
+    if (link) window.location.href = link.href;
+  }, true);
+  let lastPointer = 'mouse';
+  window.addEventListener('pointerdown', (e) => { lastPointer = e.pointerType || 'mouse'; }, true);
+  const notATurn = 'a, button, input, select, textarea, label, summary, details, [role="button"], [contenteditable], .bar[data-global-bar], .alphatab-row, .audio-dock, .stage-foot, .stage-exit, .follow-bar, .follow-back, .stack-sheet, .edit-drawer, .chord-diagram, .chord-diagrams';
+  document.addEventListener('click', (e) => {
+    if (!stageSections() || lastPointer === 'mouse' || e.defaultPrevented || e.button !== 0) return;
+    if (!(e.target instanceof Element) || e.target.closest(notATurn)) return;
+    if (!window.getSelection()?.isCollapsed) return;
+    const box = stageViewBox();
+    if (e.clientY > box.bottom) return;
+    const dir = e.clientY >= (box.top + box.bottom) / 2 ? 1 : -1;
+    if (stageTurn(dir) === true) turnedByHand();
+  });
+
   let currentBarEl = null;
   let currentSectionEl = null; // where the music is (↑/↓ step from it), lit or not
   let litSectionEl = null;
@@ -696,20 +958,25 @@ const ICONS = {
     wasPlaying = playing;
     playingNow = playing;
     const lit = chartFollows();
+    // Stage mode turns a section at a time (stageFollowTick), instead of
+    // the row-by-row and line-by-line scrolling below.
+    const stage = stageSections();
     // Scroll along only while it plays, the chart follows, and the reader
     // hasn't scrolled away by hand.
     const following = playing && lit && !followHeld;
+    measureRate(position, playing);
+    if (!following) stageKey = null; // following again turns to the music at once
+    else if (stage) stageFollowTick(position);
     if (followBack) {
       const show = playing && lit && followHeld;
-      if (followBack.hidden === show) {
-        followBack.hidden = !show;
-        if (show && followBackLabel) followBackLabel.textContent = lyricsMode() ? t('Back to the current line') : t('Back to where the music is');
-      }
+      const label = stage ? t('Back to the current section') : lyricsMode() ? t('Back to the current line') : t('Back to where the music is');
+      if (followBack.hidden === show) followBack.hidden = !show;
+      if (show && followBackLabel && followBackLabel.textContent !== label) followBackLabel.textContent = label;
     }
     const bar = Math.floor(position);
     // Tab rows (alphatab-tab.js) draw their own Guitar Pro style cursor.
     const started = playing || !!ref || clock.currentBeat() > 0;
-    const tabFollowed = window.songbooksTabCursor ? window.songbooksTabCursor(started && lit ? position : null, following) : false;
+    const tabFollowed = window.songbooksTabCursor ? window.songbooksTabCursor(started && lit ? position : null, following && !stage) : false;
     // Recomputed every tick, not cached at load — rebindSheet() (which
     // populates `sections`) can run after this point (e.g. on first
     // load, it's called at the very end of the script), so a one-time
@@ -732,7 +999,7 @@ const ICONS = {
       barEl?.classList.add('current');
       currentBarEl = barEl;
       // Keep the playing row on screen, turning the page a row early.
-      if (barEl && following && !tabFollowed && barEl.offsetParent) keepInView(barEl);
+      if (barEl && following && !stage && !tabFollowed && barEl.offsetParent) keepInView(barEl);
     }
     // Smooth (Guitar Pro style) line only for bars engraved at even
     // beat spacing: the pickup cell is a compact rest glyph.
@@ -787,7 +1054,7 @@ const ICONS = {
       // view before the reader had done anything. Highlighting (above)
       // still updates either way — it's only the forced scroll that's
       // playback-only now.
-      if (litSection && following && !tabFollowed && !(barEl && barEl.offsetParent)) litSection.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      if (litSection && following && !stage && !tabFollowed && !(barEl && barEl.offsetParent)) litSection.scrollIntoView({ block: 'start', behavior: 'smooth' });
       litSectionEl = litSection;
     }
     // Lyrics mode's own finer-grained position indicator: which LINE
@@ -803,8 +1070,9 @@ const ICONS = {
     // a genuinely dead/disconnected rule, a second bug alongside the
     // layout one.) Scoped to lyrics mode only: other modes already have
     // their own finer position cue (the current .bar highlight inside the
-    // chord grid), so this isn't needed there.
-    if (lyricsMode() && lit && curSec && sectionEl) {
+    // chord grid), so this isn't needed there. Not in stage mode either:
+    // on stage the singer reads ahead, and the page turns by section.
+    if (lyricsMode() && lit && !stage && curSec && sectionEl) {
       const lineEls = sectionEl.querySelectorAll('.lyric-line');
       let lineEl = null;
       if (lineEls.length) {
@@ -5003,6 +5271,7 @@ const ICONS = {
   // Bluetooth page-turn pedal is, to the browser, just a keyboard sending
   // one of these — AirTurn's common defaults are Left/Right or
   // PageUp/PageDown, both covered so a pedal works without reconfiguring it.
+  // In stage mode they turn the pages instead ("Turning by hand").
   document.addEventListener('keydown', e => {
     const t = document.activeElement;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
