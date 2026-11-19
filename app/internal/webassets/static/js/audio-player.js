@@ -1364,72 +1364,26 @@ window.songbooksDecodable = function (buf) {
 
   // ---- The dock's tools: by priority, those that are on never fold ---------
   // The tools sit in a fixed order on the bar's line (play.html): Cycle,
-  // Speed, Voice, Key, Click, Count-in, Pitch, Trainer. Where they don't
+  // Speed, my parts, Key, Click, Count-in, Pitch, Trainer. Where they don't
   // all fit, those that are off show their icons only, then leave the bar
   // from the right, one by one, into "+N" (#audio-opts-btn); a tool that is
-  // on keeps its place and its label. Measured as laid out, whatever the
-  // browser, its zoom and the labels' language: one container query on the
-  // dock's width (70rem) used to fold every option away at once, in a
-  // 1372px window or a zoomed one. On a phone the card has none of them:
-  // they are in its sheet.
+  // on keeps its place and its label (PlayerShell.fit, player-shell.js).
+  // Measured as laid out, whatever the browser, its zoom and the labels'
+  // language. On a phone the card has none of them: they are in its sheet.
   const dockTransport = dock ? dock.querySelector('.audio-transport') : null;
   const moreMenu = $('audio-more-menu'), moreCount = $('audio-more-count');
-  const tools = optsEl ? [...optsEl.querySelectorAll(':scope > [data-tool]')] : [];
-  const toolOn = (el) => el.matches('.active, [aria-pressed="true"]') || !!el.querySelector('.active, [aria-pressed="true"]');
-  let fitObserver = null;
-  function fitDock() {
-    if (!dock || !dockTransport || moreOpen()) return;
-    dock.classList.remove('opts-compact', 'opts-tight', 'opts-notime', 'has-more');
-    tools.forEach((el) => { delete el.dataset.folded; el.classList.remove('is-tight'); el.classList.toggle('is-on', toolOn(el)); });
-    let n = 0;
-    if (!phoneMQ.matches && !(playerBody && playerBody.hidden)) {
-      const over = () => dockTransport.scrollWidth > dockTransport.clientWidth + 1;
-      if (over()) {
-        dock.classList.add('opts-compact');
-        for (const el of [...tools].reverse()) {
-          if (!over()) break;
-          if (el.hidden || el.classList.contains('is-on')) continue;
-          el.dataset.folded = '1';
-          n++;
-          dock.classList.add('has-more');
-          if (moreCount) moreCount.textContent = `+${n}`;
-        }
-        // Still too wide with every tool that is off folded: the time goes,
-        // then the tools that are on lose their labels, the last first.
-        if (over()) dock.classList.add('opts-notime');
-        for (const el of [...tools].reverse()) {
-          if (!over()) break;
-          if (el.hidden || el.dataset.folded) continue;
-          el.classList.add('is-tight');
-          dock.classList.add('opts-tight');
-        }
+  const tools = () => (optsEl ? [...optsEl.querySelectorAll(':scope > [data-tool]')] : []);
+  const queueFit = dock && window.PlayerShell ? window.PlayerShell.fit({
+    bar: dock, row: dockTransport, tray: optsEl, count: moreCount,
+    skip: () => (moreOpen() ? 'keep' : phoneMQ.matches || (playerBody && playerBody.hidden)),
+    onFit: (n) => {
+      if (optsBtn && !phoneMQ.matches) {
+        optsBtn.title = n ? tn(n, '%d more tool', '%d more tools') : t('practice options');
+        optsBtn.setAttribute('aria-label', optsBtn.title);
       }
-    }
-    if (moreCount) moreCount.textContent = n ? `+${n}` : '';
-    if (optsBtn && !phoneMQ.matches) {
-      optsBtn.title = n ? tn(n, '%d more tool', '%d more tools') : t('practice options');
-      optsBtn.setAttribute('aria-label', optsBtn.title);
-    }
-    fitObserver?.takeRecords();
-  }
-  let fitQueued = false;
-  function queueFit() {
-    if (fitQueued) return;
-    fitQueued = true;
-    requestAnimationFrame(() => { fitQueued = false; fitDock(); });
-  }
-  if (dock && window.ResizeObserver) {
-    const ro = new ResizeObserver(queueFit);
-    ro.observe(dock);
-    if (optsEl) ro.observe(optsEl);
-  }
-  // A tool switched on or off, or its label changed: fit again.
-  if (optsEl && window.MutationObserver) {
-    fitObserver = new MutationObserver(queueFit);
-    fitObserver.observe(optsEl, { subtree: true, attributes: true, attributeFilter: ['class', 'aria-pressed', 'hidden'], childList: true, characterData: true });
-  }
+    },
+  }) : () => {};
   phoneMQ.addEventListener?.('change', queueFit);
-  queueFit();
   // "+N" opens the tools that left the bar, in a menu above it: they move
   // into it while it is open, and back to their places when it closes.
   const moreOpen = () => !!moreMenu && !moreMenu.hidden;
@@ -1437,7 +1391,7 @@ window.songbooksDecodable = function (buf) {
   function setOptsOpen(open) {
     if (!moreMenu || open === moreOpen()) return;
     if (open) {
-      const folded = tools.filter((el) => el.dataset.folded && !el.hidden);
+      const folded = tools().filter((el) => el.dataset.folded && !el.hidden);
       if (!folded.length) return;
       folded.forEach((el) => {
         const mark = document.createComment('tool');

@@ -55,6 +55,7 @@
      everything in it that opens into a panel (two columns, the player and
      the recordings, on a landscape screen). */}}
 {{define "rec-player"}}
+<script src="/static/js/player-shell.js?v={{staticVersion}}"></script>
 <div class="rec-player" id="rec-player" hidden>
   <div class="rp-backdrop" data-rp-close></div>
   <div class="rp-card" role="region" aria-label="{{t "Player"}}">
@@ -178,25 +179,17 @@
   document.addEventListener('rp:sources', () => { if (at >= 0) play(at); });
   seek.addEventListener('input', () => { if (isFinite(audio.duration)) audio.currentTime = (seek.value / 1000) * audio.duration; });
 
-  // On a phone the mini player opens into the full one; a wide screen
-  // shows it all at once.
+  // The bar opens into the full player (player-shell.js): a panel on a
+  // wide screen, a sheet on a phone; Escape, ×, the grab handle, a click
+  // beside it or a swipe down close it.
   const card = bar.querySelector('.rp-card');
-  const open = (on) => {
-    if (on === bar.classList.contains('is-open')) return;
-    bar.classList.toggle('is-open', on);
-    document.documentElement.classList.toggle('rp-locked', on);
-    $('rp-open').setAttribute('aria-expanded', on);
-    if (on) {
-      card.setAttribute('role', 'dialog');
-      card.setAttribute('aria-modal', 'true');
-      queue.querySelector('.is-current')?.scrollIntoView({block: 'nearest'});
-      bar.querySelector(matchMedia('(min-width: 901px)').matches ? '.rp-close' : '.rp-grab').focus();
-    } else {
-      card.setAttribute('role', 'region');
-      card.removeAttribute('aria-modal');
-      $('rp-open').focus();
-    }
-  };
+  const shell = PlayerShell.panel({
+    root: bar, card, openers: [$('rp-open')], closers: bar.querySelectorAll('[data-rp-close]'),
+    closedRole: 'region', swipeIgnore: 'input, select, .rec-stars, .rp-queue',
+    focus: () => bar.querySelector(matchMedia('(min-width: 901px)').matches ? '.rp-close' : '.rp-grab'),
+    onChange: (on) => { if (on) queue.querySelector('.is-current')?.scrollIntoView({block: 'nearest'}); },
+  });
+  const open = shell.open;
   // The recordings, to pick one from the open player.
   const queue = $('rp-queue');
   rows.forEach((row, i) => {
@@ -211,19 +204,9 @@
     li.append(b);
     queue.append(li);
   });
-  $('rp-open').addEventListener('click', () => open(!bar.classList.contains('is-open')));
-  bar.querySelectorAll('[data-rp-close]').forEach((el) => el.addEventListener('click', () => open(false)));
-  let y0 = null;
-  card.addEventListener('touchstart', (e) => { y0 = e.target.closest('input, select, .rec-stars, .rp-queue') ? null : e.touches[0].clientY; }, {passive: true});
-  card.addEventListener('touchend', (e) => { if (y0 !== null && bar.classList.contains('is-open') && e.changedTouches[0].clientY - y0 > 80) open(false); y0 = null; });
+  $('rp-open').addEventListener('click', () => open(!shell.isOpen()));
   document.addEventListener('keydown', (e) => {
     if (bar.hidden) return;
-    // Escape closes the open player wherever the focus is in it.
-    if (e.key === 'Escape' && bar.classList.contains('is-open')) {
-      e.preventDefault();
-      open(false);
-      return;
-    }
     if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest?.('input, select, textarea, .rec-stars, [contenteditable]')) return;
     const act = {' ': toggle, k: toggle, ArrowLeft: e.shiftKey ? prev : () => skip(-SKIP), ArrowRight: e.shiftKey ? actions.next : () => skip(SKIP), j: () => skip(-SKIP), l: () => skip(SKIP), '0': actions.restart}[e.key];
     if (!act) return;
