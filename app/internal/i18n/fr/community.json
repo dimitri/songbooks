@@ -714,5 +714,9 @@
   "%d thing to practise": "%d chose à travailler",
   "%d things to practise": "%d choses à travailler",
   "Nothing to practise right now": "Rien à travailler pour l’instant",
-  "Run by": "Animé par"
+  "Run by": "Animé par",
+  "Pitch": "Justesse",
+  "Rhythm": "Rythme",
+  "check my singing as I sing (the microphone listens)": "vérifier ma justesse en chantant (le micro écoute)",
+  "check my entries as I sing (the microphone listens)": "vérifier mes entrées en rythme en chantant (le micro écoute)"
 }
