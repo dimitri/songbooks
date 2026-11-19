@@ -6500,6 +6500,9 @@ body.stage .audio-dock .audio-transport { justify-content: center; }
 body.stage .audio-dock .audio-lcd { flex: 0 1 20rem; }
 body.stage:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 7.5rem; }
 body.stage .content-row, body.stage .content-main { padding-bottom: 3rem; }
+/* A tap turns the page (song.js "Turning by hand"): no double-tap zoom in
+   its way. */
+body.stage { touch-action: manipulation; }
 body.stage .stage-exit {
   display: inline-flex; position: fixed; z-index: 70;
   top: calc(env(safe-area-inset-top, 0px) + 0.4rem); right: 0.5rem;
