@@ -695,13 +695,18 @@ func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request
 		return
 	}
 	locale, _ := s.store.CommunityLocale(r.Context(), communityID) // "" automatic
+	membersVisibility, err := s.store.CommunityMembersVisibility(r.Context(), communityID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "community_admin", map[string]any{
 		"Me": person, "Community": community, "Members": members,
 		"PendingSubmissions": pending, "AllSubmissions": decided,
 		"Entries": entries, "ShellPeople": shellPeople,
 		"Events": events, "EventManagers": eventManagers,
 		"Roles": roles, "AllPrivileges": store.AllCommunityPrivileges,
-		"Locale": locale,
+		"Locale": locale, "MembersVisibility": membersVisibility,
 	})
 }
 

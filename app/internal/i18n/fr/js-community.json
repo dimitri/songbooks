@@ -101,5 +101,8 @@
   "Couldn’t make the link.": "Impossible de créer le lien.",
   "Your voice lessons on Songbooks: %s": "Vos cours de chant sur Songbooks : %s",
   "Pick a song, or say what to practise.": "Choisissez un morceau, ou dites quoi travailler.",
-  "Remove this from their practice? What they logged stays.": "Retirer ceci de son travail ? Ce qui a été noté reste."
+  "Remove this from their practice? What they logged stays.": "Retirer ceci de son travail ? Ce qui a été noté reste.",
+  "No member matches.": "Aucun membre ne correspond.",
+  "%d member shown": "%d membre affiché",
+  "%d members shown": "%d membres affichés"
 }

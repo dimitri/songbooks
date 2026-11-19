@@ -3,8 +3,9 @@
      songs in their key, groups, lessons — its groups and its lessons. */}}
 
 {{/* The community's tabs: a coaching community adds Students (the coach)
-     or My voice (a student), Groups and Lessons. Needs .Community,
-     .IsStaff, .Person, .Tab. */}}
+     or My voice (a student), Groups and Lessons. Members shows for whoever
+     may see the list (.CanSeeMembers, which render sets: see
+     community_members.go). Needs .Community, .IsStaff, .Person, .Tab. */}}
 {{define "community-tabs"}}
   <nav class="band-tabs band-tabs-row">
     <a href="/communities/{{.Community.ID}}" class="band-tab{{if eq .Tab "overview"}} active{{end}}">{{t "Overview"}}</a>
@@ -17,6 +18,7 @@
       <a class="band-tab{{if eq .Tab "warmups"}} active{{end}}" href="/communities/{{.Community.ID}}/warmups">{{t "Warm-ups"}}</a>
       <a class="band-tab{{if eq .Tab "lessons"}} active{{end}}" href="/communities/{{.Community.ID}}/lessons">{{t "Lessons"}}</a>
     {{end}}
+    {{if .CanSeeMembers}}<a class="band-tab{{if eq .Tab "members"}} active{{end}}" href="/communities/{{.Community.ID}}/members">{{t "Members"}}</a>{{end}}
     <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/events">{{t "Events"}}</a>
     {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a>{{end}}
@@ -24,12 +26,13 @@
 {{end}}
 
 {{/* The coaching tabs alone, for the community pages with their own tab
-     bar. Needs .Community, .IsStaff. */}}
+     bar, then Members (see community-tabs). Needs .Community, .IsStaff. */}}
 {{define "coaching-tab-links"}}{{if .Community.IsCoaching}}<a class="band-tab" href="/communities/{{.Community.ID}}/students">{{if .IsStaff}}{{t "Students"}}{{else}}{{t "My voice"}}{{end}}</a>
     {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/student-songs">{{t "Students’ songs"}}</a>{{end}}
     <a class="band-tab" href="/communities/{{.Community.ID}}/groups">{{template "coach-groups-label"}}</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/warmups">{{t "Warm-ups"}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/lessons">{{t "Lessons"}}</a>{{end}}{{end}}
+    <a class="band-tab" href="/communities/{{.Community.ID}}/lessons">{{t "Lessons"}}</a>{{end}}
+    {{if .CanSeeMembers}}<a class="band-tab" href="/communities/{{.Community.ID}}/members">{{t "Members"}}</a>{{end}}{{end}}
 
 {{define "coach-groups-label"}}{{t "coaching|Groups"}}{{end}}
 

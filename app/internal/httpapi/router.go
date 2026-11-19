@@ -409,6 +409,10 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /communities/{id}/admin/stats", s.requireCommunityAnyManagePrivilege(s.handleCommunityStatsPage))
 	mux.HandleFunc("GET /communities/{id}/admin/stats/members/{personID}", s.requireCommunityAnyManagePrivilege(s.handleCommunityMemberStatsPage))
 	mux.HandleFunc("GET /communities/{id}/admin", s.requireCommunityAnyManagePrivilege(s.handleCommunityAdminPage))
+	// The Members page: its admins always, its members when the
+	// community says so (community_members.go).
+	mux.HandleFunc("GET /communities/{id}/members", s.requireCommunityMember(s.handleCommunityMembersPage))
+	mux.HandleFunc("PUT /api/communities/{id}/members-visibility", s.requireCommunityPrivilege(store.PrivManageSettings, s.handlePutCommunityMembersVisibility))
 	// A coaching community (coaching.go, docs/coaching.md).
 	mux.HandleFunc("POST /api/communities/{id}/kind", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleSetCommunityKind))
 	mux.HandleFunc("GET /communities/{id}/students", s.requireCommunityMember(s.handleCoachingStudentsPage))
