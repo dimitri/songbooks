@@ -228,7 +228,8 @@ a:hover { text-decoration: underline; }
 }
 
 /* ---- Widgets: buttons, selects, segmented controls, cards --------------- */
-button, select, input { font-family: inherit; color: inherit; font-size: 0.9rem; }
+button { font-family: inherit; color: inherit; font-size: 0.9rem; }
+:where(select, input, textarea) { color: inherit; }
 button {
   cursor: pointer; background: var(--bg-raised); border: 1px solid var(--border);
   border-radius: 8px; padding: 0.45rem 0.8rem; transition: background 0.1s, border-color 0.1s;
@@ -297,37 +298,39 @@ button .icon { margin-right: 0.35em; }
 button.icon-btn .icon { margin-right: 0; width: 1.15em; height: 1.15em; }
 .back-link { display: inline-flex; align-items: center; gap: 0.3em; }
 .back-link .icon { margin-right: 0; }
-select {
-  background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border);
-  border-radius: 8px; padding: 0.4rem 0.6rem; min-height: 2.75rem;
-  /* A native <select> sizes to its LONGEST <option> text by default, with
-     no wrapping possible — a verbose option ("new song (add an existing
-     variant to the repertoire)", the band-proposal kind picker) can be
-     wider than an entire phone viewport on its own, pushing the whole
-     page into horizontal overflow with nothing else involved. max-width
-     caps it at its container's width instead; the select's own closed
-     state still shows as much of the text as fits (native truncation),
-     and the full option text is always there once it's opened. */
-  max-width: 100%;
+/* ---- Form controls ------------------------------------------------------
+   One look for every text field, select and textarea in the app: the
+   same height as a button (2.75rem, a touch target), the same padding,
+   the brand's corner shape (--radius-control: square, rounded or pill),
+   a border a shade stronger than a card's so an empty field still reads
+   as a field, and a focus ring in the accent. Written with :where() so
+   it weighs nothing: a component that draws its own control (the
+   metronome's tempo, the editors' cells) wins with any class rule. A
+   native <select> sizes to its longest option, so every control is
+   capped at its container's width. */
+:root { --field-border: color-mix(in srgb, var(--border) 55%, var(--fg-faint)); }
+:where(select, textarea, input:not([type]), input[type="text"], input[type="url"], input[type="date"],
+  input[type="number"], input[type="search"], input[type="email"], input[type="password"], input[type="tel"],
+  input[type="datetime-local"], input[type="time"], input[type="month"]) {
+  font-family: inherit; font-size: 0.95rem; line-height: 1.3;
+  background: var(--bg-raised); color: var(--fg);
+  border: 1px solid var(--field-border); border-radius: var(--radius-control, 8px);
+  padding: 0.45rem 0.75rem; min-height: 2.75rem; max-width: 100%;
+  transition: border-color 0.12s, box-shadow 0.12s;
 }
-/* input[type="search"] included here (it wasn't before — an oversight
-   that left every search box, e.g. a repertoire's search-this-list
-   field, with zero styling of its own: no border/background/radius,
-   and critically no min-height, so it sat visibly shorter than the
-   button beside it). min-height matches the base `button` rule's own
-   2.75rem touch-target floor, so an input/select next to a button in a
-   toolbar lines up instead of looking like two different widget sets. */
-/* email/password added here (they weren't before — the same oversight
-   as search above, just not caught yet: every account-creation and
-   login form's email/password boxes rendered with zero styling of
-   their own — default browser chrome, no border-radius, no
-   min-height — right next to a styled username field, which is what
-   made the invite/login forms look broken rather than merely plain). */
-input[type="text"], input[type="url"], input[type="date"], input[type="number"], input[type="search"], input[type="email"], input[type="password"] {
-  background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border);
-  border-radius: 8px; padding: 0.4rem 0.6rem; min-height: 2.75rem;
-  max-width: 100%; /* same reasoning as select's own max-width, above */
+:where(select) { padding-right: 0.5rem; cursor: pointer; }
+:where(textarea) { width: 100%; min-height: 5.5rem; resize: vertical; padding-top: 0.6rem; padding-bottom: 0.6rem; border-radius: min(var(--radius-control, 8px), 0.9rem); }
+:where(select, textarea, input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"])):where(:hover:not(:disabled, :focus)) {
+  border-color: color-mix(in srgb, var(--field-border) 45%, var(--fg));
 }
+:where(select, textarea, input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"])):focus-visible {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+::placeholder { color: var(--fg-faint); opacity: 1; }
+:where(select, textarea, input):disabled { background: var(--bg-sunken); color: var(--fg-muted); cursor: not-allowed; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); width: 1.15rem; height: 1.15rem; margin: 0; flex: none; cursor: pointer; }
+:where(input[type="color"]) { inline-size: 2.75rem; block-size: 2.75rem; padding: 0.2rem; border: 1px solid var(--field-border); border-radius: var(--radius-control, 8px); background: var(--bg-raised); cursor: pointer; }
 
 .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; background: var(--bg-raised); gap: 2px; }
 .segmented button {
@@ -379,81 +382,148 @@ table.card { padding: 0; }
    full-bleed one under the other. */
 .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1.25rem; align-items: start; margin-bottom: 1.5rem; }
 
-/* ---- Single-column forms ---------------------------------------------
-   Phase 29: a reusable stacked-label form layout, applied to every real
-   data-entry form in the app (invites, proposals, member management,
-   setlist creation...). Research-backed: single column over side-by-side
-   fields, a persistent <label> above its input rather than placeholder
-   text standing in for one (placeholder disappears the moment someone
-   types, which is both a readability and an accessibility problem).
-   Deliberately scoped to .form-stack rather than a global `label` rule —
-   this app also has plenty of inline checkbox/radio labels ("show past
-   members", instrument-icon toggles) that must stay inline, not stacked,
-   so this never touches bare <label> outside a form that opts in. */
-.form-stack { display: flex; flex-direction: column; gap: 1rem; max-width: 26rem; }
-.form-stack .field { display: flex; flex-direction: column; gap: 0.3rem; }
-.form-stack .field > label { font-size: 0.82rem; font-weight: 600; color: var(--fg-muted); }
-.form-stack .field input, .form-stack .field select, .form-stack .field textarea { width: 100%; }
-.form-stack .form-actions { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.1rem; }
-/* A form-stack that's one of several named subsections inside a single
-   wider card (e.g. band.html's "add people" card) — a small heading plus
-   a top border separating it from the previous subsection, instead of
-   each being its own full card (which read as unrelated actions rather
-   than alternative ways to do the same thing). */
-.form-subsection { padding-top: 1.1rem; margin-top: 1.1rem; border-top: 1px solid var(--border); }
-.form-subsection:first-of-type { padding-top: 0; margin-top: 0; border-top: none; }
-.form-subsection h3 { margin: 0 0 0.3rem; font-size: 0.95rem; }
-/* Two-column page layout for a page whose primary content is "a form to
-   create something" alongside "a list of what already exists" (band
-   proposals today) — form stays a fixed, readable single-column width;
-   the list gets the remaining space instead of the page sitting mostly
-   empty beside a narrow centered card. Collapses to one column under the
-   existing app-wide mobile breakpoint. */
-.form-with-list { display: grid; grid-template-columns: minmax(20rem, 26rem) 1fr; gap: 1.5rem; align-items: start; }
-.form-with-list .form-stack { max-width: none; }
-@media (max-width: 900px) {
-  .form-with-list { grid-template-columns: 1fr; }
-}
-
-/* ---- Form conventions (forms pass, Nov 2026) ----------------------------
+/* ---- Forms ---------------------------------------------------------------
    One pattern for every form, used with static/js/forms.js:
-   - a visible <label for> above each control; placeholders only ever show
-     an example, never stand in for the label;
+
+   <form class="form-stack">                one column, as wide as its content
+     <div class="field">                     label above, control, help below
+       <label for="x">Name <span class="field-optional">(optional)</span></label>
+       <input id="x" aria-describedby="x-hint">
+       <p class="field-hint" id="x-hint">Help, in muted small type.</p>
+     </div>
+     <div class="field-row"> two short related fields side by side </div>
+     <fieldset class="form-group"><legend>Heading</legend> fields </fieldset>
+     <label class="check"><input type="checkbox"> <span>Label
+       <small class="field-hint">help</small></span></label>
+     <div class="form-actions"> buttons: primary last </div>
+     <p class="form-status" role="status"></p>
+   </form>
+
+   - a visible <label for> for each control; placeholders only show an
+     example, never stand in for the label;
    - optional fields say "(optional)" in the label; required ones carry
      `required` and no asterisk;
-   - help text sits under the label (.field-hint, tied with
-     aria-describedby), the error under the control (.field-error, which
-     forms.js writes and ties the same way, with aria-invalid);
-   - one .form-status line per form for the outcome (role="status");
-   - related radios/checkboxes in a <fieldset class="field-group"> whose
-     <legend> reads like a label. */
+   - the help goes under the control (.field-hint, tied with
+     aria-describedby; wherever it sits in the markup, the field shows it
+     last), the error right under the control (.field-error, which
+     forms.js writes, with aria-invalid);
+   - widths fit what's typed: a form is at most 36rem wide, a number,
+     date or time field only as wide as its value, .field--short and
+     .field--xs for other short ones;
+   - .field-row puts two related short fields side by side, one column
+     under 720px;
+   - related radios/checkboxes go in a <fieldset class="field-group">
+     whose <legend> reads like a label; a part of a long form in a
+     <fieldset class="form-group"> whose <legend> is its heading;
+   - .form-actions ends the form: on a wide screen the buttons sit at the
+     right with the primary one last, a destructive one (.danger) apart
+     at the left; on a phone they're full width, primary on top,
+     destructive at the bottom;
+   - one .form-status line per form for the outcome (role="status"). */
+.form-stack { display: flex; flex-direction: column; gap: 1.1rem; max-width: 36rem; min-width: 0; }
+.form-stack > * { margin-top: 0; margin-bottom: 0; }
+.form-stack--wide { max-width: 48rem; }
+.field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; margin: 0; }
+.field > label, .field-label, fieldset.field-group > legend { font-size: 0.86rem; font-weight: 600; color: var(--fg); line-height: 1.3; }
+.field > :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]) { width: 100%; }
+.field > .field-error { order: 1; }
+.field > .field-hint { order: 2; }
 .field-optional { font-weight: 400; color: var(--fg-muted); }
-.field-hint { margin: 0; font-size: 0.82rem; color: var(--fg-muted); }
+.field-hint { margin: 0; font-size: 0.82rem; line-height: 1.4; color: var(--fg-muted); font-weight: 400; }
+/* Short values get short fields. */
+.field > input[type="number"] { max-width: 9rem; }
+.field > :is(input[type="date"], input[type="time"], input[type="month"]) { max-width: 12rem; }
+.field > input[type="datetime-local"] { max-width: 16rem; }
+.field--short > :is(input, select) { max-width: 16rem; }
+.field--xs > :is(input, select) { max-width: 8rem; }
+/* Two (or three) related short fields on one line; one column on a phone. */
+.field-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: 1.1rem 1rem; align-items: end; }
+.field-row > .field > :is(input, select) { max-width: none; }
+@media (max-width: 720px) {
+  .field-row { grid-template-columns: minmax(0, 1fr); }
+}
+/* A part of a long form, with its heading. */
+fieldset.form-group { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 1.1rem; }
+fieldset.form-group > legend { padding: 0; margin: 0 0 0.9rem; font-size: 1rem; font-weight: 700; color: var(--fg); }
+.form-stack > fieldset.form-group ~ fieldset.form-group { border-top: 1px solid var(--border); padding-top: 1.25rem; }
+/* Radios and checkboxes that answer one question, under its legend. */
+fieldset.field-group { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+fieldset.field-group > legend { padding: 0; margin-bottom: 0.35rem; }
+/* A checkbox or radio with its label (and its help): the box on the
+   first line of the text, the whole row the target, as tall as a button. */
+label.check { display: inline-flex; align-items: flex-start; gap: 0.6rem; min-height: 2.75rem; padding: 0.7rem 0 0.5rem; line-height: 1.35; cursor: pointer; }
+label.check > input { margin-top: 0.06rem; }
+label.check .field-hint { display: block; margin-top: 0.15rem; }
+.field-group > label.check, .form-stack > label.check { display: flex; }
+/* Two choices on one line (Shared / Private): some air between them. */
+label.check + label.check { margin-left: 1.5rem; }
+:is(.field-group, .form-stack, .check-grid) > label.check + label.check { margin-left: 0; }
+/* Help under a checkbox written as its own paragraph, lined up with the label text. */
+label.check + .field-hint, label.check + .field-error { margin: -0.45rem 0 0 1.75rem; }
+/* The end of a form. */
+.form-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.6rem; margin-top: 0.3rem; }
+.form-actions > .primary { order: 10; }
+.form-actions > .danger { order: -1; margin-right: auto; }
+.form-actions--start { justify-content: flex-start; }
+.dialog-actions { margin-top: 1.2rem; }
+/* A form that is only a button (a POST from a table row). */
+.button-form { display: inline; }
+@media (max-width: 720px) {
+  .form-actions { flex-direction: column-reverse; align-items: stretch; }
+  .form-actions > :is(button, a.button, .button) { width: 100%; justify-content: center; }
+  .form-actions > .danger { margin: 0.6rem 0 0; }
+}
+/* A one-line form: a search, a name and its button. Stacks on a phone. */
+.form-inline { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.6rem 0.75rem; max-width: 48rem; }
+.form-inline > .field { flex: 1 1 14rem; }
+.form-inline > :is(select, input:not([type="checkbox"]):not([type="radio"])) { flex: 1 1 14rem; min-width: 0; }
+.form-inline > .field--short { flex: 0 1 12rem; }
+.form-inline > .form-status, .form-inline > .field-error { flex-basis: 100%; }
+@media (max-width: 720px) {
+  .form-inline > :is(.field, .field--short) { flex: 1 1 100%; }
+  .form-inline > button { flex: 1 1 auto; }
+}
+/* A field written as a wrapping label: <label class="field">Name <input></label>. */
+label.field { display: block; font-size: 0.86rem; font-weight: 600; color: var(--fg); line-height: 1.3; }
+label.field > :is(input, select, textarea, output, .field-optional, .field-hint, .hint, .check-range) { font-weight: 400; }
+label.field > :is(input:not([type="range"]), select, textarea) { display: block; width: 100%; margin-top: 0.35rem; }
+label.field > :is(.field-hint, .field-error, .hint) { display: block; margin-top: 0.35rem; }
+/* Several short fields in a grid that fills the line (a lesson: when, how
+   long, how, where); a list of checkboxes, a fieldset and the actions take
+   the whole line. */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr)); gap: 1.1rem 1rem; align-items: start; max-width: 60rem; }
+.form-grid > :is(fieldset, .form-actions, .form-status, .field--full) { grid-column: 1 / -1; }
+.form-grid > .field > :is(input, select) { max-width: none; }
+/* Checkboxes for a list of people or things: in columns where there's room. */
+.check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); column-gap: 1rem; }
+.check-grid > label.check { display: flex; padding: 0.45rem 0 0.35rem; min-height: 2.5rem; }
+.form-stack[hidden], .form-grid[hidden], .form-inline[hidden], .field[hidden], .form-actions[hidden] { display: none; }
+
+/* Validation and outcome. */
 .field-error { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--danger); }
 .field-error:empty { display: none; }
-input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] {
-  border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger);
-}
+:where(input, select, textarea)[aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+:where(input, select, textarea)[aria-invalid="true"]:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 25%, transparent); }
 .form-status { margin: 0; font-size: 0.88rem; color: var(--fg-muted); }
 .form-status:empty { display: none; }
 .form-status.is-error { color: var(--danger); font-weight: 600; }
 .form-status.is-ok { color: var(--accent); font-weight: 600; }
-fieldset.field-group { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 0.3rem; }
-fieldset.field-group > legend { padding: 0; margin-bottom: 0.3rem; font-size: 0.82rem; font-weight: 600; color: var(--fg-muted); }
-/* An inline checkbox or radio with its label: the whole row is the
-   target, at least as tall as a button. */
-label.check { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; cursor: pointer; }
-input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); width: 1.1rem; height: 1.1rem; margin: 0; flex: none; }
-input[type="tel"], input[type="datetime-local"], input[type="time"] {
-  background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border);
-  border-radius: 8px; padding: 0.4rem 0.6rem; min-height: 2.75rem; max-width: 100%;
+/* A form that's one of several named ways to do the same thing inside
+   one card: a small heading and a line between them. */
+.form-subsection { padding-top: 1.1rem; margin-top: 1.1rem; border-top: 1px solid var(--border); }
+.form-subsection:first-of-type { padding-top: 0; margin-top: 0; border-top: none; }
+.form-subsection h3 { margin: 0 0 0.3rem; font-size: 0.95rem; }
+/* "A form to create something" beside "the list of what exists" (band
+   proposals): the form keeps its width, the list takes the rest. */
+.form-with-list { display: grid; grid-template-columns: minmax(20rem, 28rem) 1fr; gap: 1.5rem; align-items: start; }
+.form-with-list .form-stack { max-width: none; }
+@media (max-width: 900px) {
+  .form-with-list { grid-template-columns: 1fr; }
 }
-textarea { min-height: 5.5rem; resize: vertical; }
-textarea.prose { font-family: inherit; }
 /* iOS zooms the page into any field under 16px when it takes focus, and
-   doesn't zoom back out: on touch screens every field is 16px. */
-@media (pointer: coarse) {
-  input, select, textarea { font-size: 1rem; }
+   doesn't zoom back out: on touch screens and phones every field is 16px. */
+@media (pointer: coarse), (max-width: 720px) {
+  input, select, textarea { font-size: 16px; }
 }
 
 /* Every data table in the app (catalog, band/community rosters and
@@ -824,8 +894,7 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
 .stepper-step.done .stepper-num::after { content: "✓"; position: absolute; color: var(--accent); font-size: 1.05rem; }
 .stepper-step.suggested .stepper-num { border-style: dashed; border-color: var(--accent); }
 .stepper-caption { display: none; margin: -0.4rem 0 0.8rem; text-align: center; font-weight: 600; font-size: 0.9rem; }
-.wizard-fields { display: flex; gap: 0.8rem; margin: 0.8rem 0; flex-wrap: wrap; }
-.wizard-fields label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--fg-muted); flex: 1; min-width: 10rem; }
+.wizard-fields { margin: 0.8rem 0; }
 .wizard-preview { width: 100%; margin-top: 0.4rem; font-family: var(--font-mono); font-size: 0.82rem; }
 .wizard-actions { display: flex; align-items: center; gap: 0.7rem; margin-top: 1rem; }
 .wizard-actions .hint { margin-left: 0.2rem; }
@@ -4462,10 +4531,10 @@ ol.wizard-steps { list-style: none; padding: 0; }
   .import-wizard-actions #import-wiz-next { flex: 1; }
 }
 
-textarea {
-  width: 100%; font-family: var(--font-mono); font-size: 0.95rem;
-  background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem;
-}
+/* The song source and the import's draft chart are code: monospace, the
+   full width. Every other textarea is prose (the form controls rule). */
+:where(#raw-text, .import-review-text, #wiz-chords-preview, .block-lyrics) { width: 100%; font-family: var(--font-mono); padding: 0.75rem; }
+:where(.block-notes) { width: 100%; }
 
 /* ---- Syntax-highlighted raw editor (toolbar + textarea-over-<pre>) ------- */
 .code-toolbar { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.5rem; align-items: flex-start; position: relative; }
@@ -4613,7 +4682,6 @@ textarea {
 
 .chord-diagram-editor { display: flex; flex-direction: column; gap: 0.75rem; max-width: 32rem; }
 .cde-controls { display: flex; gap: 1rem; flex-wrap: wrap; }
-.cde-controls label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; color: var(--fg-muted); }
 .cde-controls input { width: 6rem; }
 .cde-grid { display: flex; gap: 0.3rem; }
 .cde-col { display: flex; flex-direction: column; gap: 0.2rem; }
@@ -5500,16 +5568,9 @@ input.matrix-slot:hover, input.matrix-slot:focus {
    top-right — the standard list-page layout, so "+ New band" stops
    competing with real bands for grid space as its own lopsided card. */
 .list-page-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
-.create-row {
-  display: flex; align-items: flex-end; gap: 0.8rem; flex-wrap: wrap; border: 1px solid var(--border);
-  border-radius: var(--radius); background: var(--bg-raised); padding: 1rem 1.1rem; margin-bottom: 1.2rem;
-}
-.create-row[hidden] { display: none; }
-.create-row .field { display: flex; flex-direction: column; gap: 0.3rem; }
-.create-row .field label { font-size: 0.78rem; font-weight: 600; color: var(--fg-muted); }
-.create-row .field input { min-width: 16rem; }
-.create-row-cancel { background: none; border: none; color: var(--fg-faint); cursor: pointer; font-size: 0.85rem; }
-.create-row #create-band-result { margin: 0; flex-basis: 100%; }
+/* "New band", "New community": a one-line form (.form-inline) in a card. */
+.create-row { max-width: none; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); padding: 1rem 1.1rem; margin-bottom: 1.2rem; }
+.create-row > .field { flex-basis: 18rem; max-width: 30rem; }
 
 /* Segmented-pill tab bar — shared by the bands-list page (My bands /
    All bands) and every band-detail sub-page (Overview / Repertoire /
@@ -5608,12 +5669,9 @@ input.matrix-slot:hover, input.matrix-slot:focus {
    forms, and a consistent min-width keeps short fields from feeling
    cramped at narrow desktop widths. */
 .catalog-filters { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.8rem 1rem; margin-bottom: 1.1rem; }
-.catalog-search { display: flex; gap: 0.5rem; }
-.catalog-search input { flex: 1; min-width: 0; }
-.catalog-filters button[type="submit"] { padding: 0.45rem 1.1rem; flex: none; }
+.catalog-search { max-width: none; flex-wrap: nowrap; }
 .catalog-more summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; color: var(--fg-muted); padding: 0.2rem 0; }
-.catalog-more-fields { display: flex; gap: 1.1em; align-items: end; flex-wrap: wrap; padding-top: 0.6rem; }
-.catalog-more-fields label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.82rem; font-weight: 600; color: var(--fg-muted); min-width: 9rem; flex: 1; }
+.catalog-more-fields { padding-top: 0.6rem; max-width: none; }
 
 .catalog-cards {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.9rem;
@@ -5906,10 +5964,11 @@ body.branded-dark img.logo-mark, body.branded-dark .logo-mark rect { filter: non
 .brand-website { display: inline-block; margin-top: 0.3rem; font-size: 0.85rem; color: inherit; opacity: 0.75; }
 
 /* Look & feel form (brand-editor.js). */
-.brand-colors { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.5rem 1rem; }
-.brand-color { display: grid; grid-template-columns: 2.4rem 1fr; grid-template-rows: auto auto; gap: 0.2rem 0.4rem; font-size: 0.85rem; color: var(--fg-muted); }
-.brand-color span { grid-column: 1 / -1; }
-.brand-color input[type=color] { width: 2.4rem; height: 2.2rem; padding: 0.1rem; border: 1px solid var(--border); background: none; }
+/* Each color: its name above, the swatch (a native color picker) and its
+   hex code side by side, both a field's height. */
+.brand-colors { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr)); gap: 0.9rem 1rem; }
+.brand-color { display: grid; grid-template-columns: 2.75rem minmax(0, 1fr); gap: 0.35rem 0.4rem; align-items: center; }
+.brand-color > label { grid-column: 1 / -1; font-size: 0.86rem; font-weight: 600; color: var(--fg); }
 .brand-color input[type=color].unset { opacity: 0.35; }
 .brand-color input[type=text] { font-family: var(--font-mono); }
 body.branded .sidebar-crumb, body.branded .sidebar-crumb a { color: var(--sidebar-fg); opacity: 0.75; }
@@ -6003,19 +6062,11 @@ body.stage .stage-foot {
 .song-pick-results button.attention-row:last-child { border-bottom: none; }
 /* Set lists page: the "New set list" form opens under its summary with a little air. */
 .setlist-new > .form-stack { margin-top: 0.6rem; }
-/* Look & feel: each color's name is now a real <label> (was a span), spanning the picker + hex field row. */
-.brand-color > label { grid-column: 1 / -1; }
 /* Look & feel: a bad hex code's error spans the color cell too. */
 .brand-color > .field-error { grid-column: 1 / -1; }
 
 /* ---- community group (forms pass) ---- */
 
-/* .create-row (communities.html, now a <form>): the outcome line takes its own row under the field + buttons. */
-.create-row .form-status { flex-basis: 100%; }
-/* On a phone the create-row's field takes the full row instead of holding a 16rem minimum beside the buttons. */
-@media (max-width: 600px) {
-  .create-row .field { flex: 1 1 100%; }
-  .create-row .field input { min-width: 0; width: 100%; }
 }
 
 /* datetime-local (community_admin event form): iOS gives it an intrinsic min width that can push past a 375px card, and centres the value; keep it inside the column and left-aligned like the other fields. */
@@ -6034,9 +6085,6 @@ input[type="datetime-local"]::-webkit-date-and-time-value { text-align: left; }
 /* song.js header fields: the genre "Saved." line sits in the chip row, vertically centred with the fields. */
 .song-meta-chips-row .form-status { align-self: center; }
 /* project.html new-song wizard: a field with help text (label, hint, control as siblings) stacks like the wrapping-label fields beside it. */
-.wizard-fields .field { display: flex; flex-direction: column; gap: 0.25rem; flex: 1; min-width: 10rem; }
-.wizard-fields .field > label { font-size: 0.85rem; color: var(--fg-muted); }
-.wizard-fields .field > input, .wizard-fields .field > textarea { width: 100%; }
 
 /* ==== Calendar, Next up, band overview (Nov 2026) ===================== */
 /* What kind of date it is, the same color everywhere: gigs in the
@@ -6118,9 +6166,6 @@ a.calendar-day:hover { text-decoration: none; background: var(--bg-sunken); }
 .recent-song-artist { font-size: 0.82rem; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .group-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 
-/* Fields side by side that belong together (a date and its times). */
-.field-row { display: flex; flex-wrap: wrap; gap: 0.75rem; }
-.field-row > .field { flex: 1 1 7rem; }
 /* A card whose form is folded away until asked for. */
 .fold-card > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.7rem; }
 .fold-card > summary::-webkit-details-marker { display: none; }
@@ -6376,9 +6421,10 @@ body.branded h1, body.branded h2, body.branded .brand-name { font-synthesis-weig
 .dl-book .dl-del svg { width: 0.9rem; height: 0.9rem; }
 .dl-play.on { color: var(--accent); background: var(--accent-bg); }
 .dl-del:hover:not(:disabled) { color: var(--danger); }
-.dl-upload { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--border); font-size: 0.88rem; }
-.dl-upload select { max-width: 16rem; }
-.dl-pick { display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; border: 1px solid var(--border-strong); border-radius: 8px; min-height: 2.75rem; padding: 0 0.8rem; }
+.dl-upload { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.6rem 0.9rem; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--border); font-size: 0.88rem; }
+.dl-upload > .field { flex: 0 1 16rem; }
+.dl-upload-hint { flex-basis: 100%; }
+.dl-pick { display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; border: 1px solid var(--border-strong); border-radius: var(--radius-control, 8px); min-height: 2.75rem; padding: 0 0.8rem; }
 .dl-pick svg { width: 1em; height: 1em; }
 .dl-empty { color: var(--fg-muted); padding: 2rem 0; text-align: center; }
 .dl-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.8rem; margin: 0 0 0.9rem; }
@@ -6402,7 +6448,6 @@ body.branded h1, body.branded h2, body.branded .brand-name { font-synthesis-weig
 .dl-row-actions .dl-play.on { color: var(--accent); background: var(--accent-bg); }
 .dl-report { flex-basis: 100%; font-size: 0.85rem; }
 .dl-report ul { margin: 0.2rem 0 0.6rem; padding-left: 1.2rem; max-height: 12rem; overflow: auto; }
-.admin-links { margin: 0 0 1rem; }
 .stat-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.6rem; margin: 0 0 0.8rem; }
 .stat-tile { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.8rem 0.9rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); }
 .stat-value { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -6430,15 +6475,10 @@ body.branded h1, body.branded h2, body.branded .brand-name { font-synthesis-weig
 .course-lesson-main .dl-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .course-state { flex: none; font-size: 0.78rem; color: var(--fg-faint); }
 .course-lesson.done .course-state { color: var(--ok); }
-.course-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.6rem 0.9rem; }
-.course-form .field { flex: 1 1 14rem; margin: 0; display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
-.course-form .field > label { font-size: 0.82rem; font-weight: 600; color: var(--fg-muted); }
-.course-form .field input, .course-form .field select, .course-form .field textarea { width: 100%; }
-.course-form .field .hint { margin: 0; }
-.course-form .form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
-.course-form .course-field-num { flex: 0 0 6rem; }
-.course-form .course-field-wide { flex-basis: 100%; }
-.course-form .form-status { flex-basis: 100%; margin: 0; }
+#lesson-add-song { margin-top: 1rem; }
+/* A lesson's number is short, its title takes the rest of the line. */
+.course-number-title { grid-template-columns: 7rem minmax(0, 1fr); }
+@media (max-width: 720px) { .course-number-title { grid-template-columns: 6rem minmax(0, 1fr); } }
 .course-from-files { margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--border); }
 .lesson-done { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0 0 1rem; }
 .lesson-video { position: relative; aspect-ratio: 16 / 9; max-width: 56rem; margin: 0 0 1.2rem; border-radius: var(--radius); overflow: hidden; background: #000; box-shadow: var(--shadow); }
@@ -6899,10 +6939,10 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 /* The Corrections page's names (band_recordings.html). */
 .rec-names code, .rec-own-templates code { font-size: 0.85rem; white-space: nowrap; }
 .rec-names small { color: var(--fg-muted); word-break: break-word; }
-.rec-template-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.6rem; margin-top: 1rem; }
-.rec-template-form .field { flex: 1 1 18rem; margin: 0; }
-.rec-template-form .field input { font-family: var(--font-mono, monospace); }
-.rec-template-form .form-status, .rec-template-try { flex-basis: 100%; }
+.rec-template-form { margin-top: 1rem; }
+.rec-template-form #template-text { font-family: var(--font-mono, monospace); }
+.rec-template-row { grid-template-columns: minmax(0, 1fr) 11rem; }
+@media (max-width: 720px) { .rec-template-row { grid-template-columns: minmax(0, 1fr); } }
 .rec-template-try { border-top: 1px solid var(--border); padding-top: 0.6rem; font-size: 0.85rem; }
 .rec-try-row { padding: 0.35rem 0; border-bottom: 1px dashed var(--border); }
 .rec-try-row div { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; }
@@ -6916,11 +6956,9 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .rec-template-actions { display: inline-flex; gap: 0.25rem; }
 .rec-template-actions .dl-btn { min-width: 2.5rem; justify-content: center; }
 .rec-template-actions .dl-btn:disabled { opacity: 0.35; }
-.rec-template-where { flex: 0 0 9rem !important; }
 .rec-builtins { margin-top: 1rem; }
 .rec-builtins summary { cursor: pointer; min-height: 2.75rem; display: flex; align-items: center; font-weight: 600; }
 .rec-files select { max-width: 16rem; }
-.rec-template-form .field input { width: 100%; }
 /* The lesson a song is in, at the top of its page (play.html): one row
    (the course and lesson, then Video, Files, Done), the video or the
    files opening under it. */
@@ -6991,8 +7029,6 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .voice-range label { display: inline-flex; align-items: center; gap: 0.35rem; }
 .voice-range select { min-height: 2.5rem; }
 .voice-range .voice-note { flex: 1 1 12rem; min-height: 2.5rem; }
-.coach-notes { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 1rem; font-weight: 600; }
-.coach-notes textarea { width: 100%; font: inherit; font-weight: 400; }
 .coach-songs { display: flex; flex-direction: column; }
 .coach-song { display: flex; align-items: center; gap: 0.6rem; min-height: 3rem; border-bottom: 1px solid var(--border); }
 .coach-song-title { flex: 1; min-width: 0; color: inherit; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -7002,29 +7038,20 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .coach-key output { min-width: 2.2rem; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
 .coach-key-label { color: var(--fg-muted); font-size: 0.88rem; white-space: nowrap; }
 .coach-song .icon-btn { width: 2.4rem; height: 2.4rem; min-width: 0; min-height: 0; }
-.coach-add-song { display: flex; gap: 0.5rem; margin-top: 0.8rem; }
-.coach-add-song select { flex: 1; min-width: 0; min-height: 2.5rem; }
+.coach-add-song { margin-top: 0.8rem; }
 .coach-new-lesson summary { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.75rem; cursor: pointer; font-weight: 600; }
-.coach-lesson-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.7rem; margin-top: 0.6rem; }
-.coach-lesson-form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.88rem; font-weight: 600; }
-.coach-lesson-form input, .coach-lesson-form select { min-height: 2.5rem; font: inherit; }
-.coach-lesson-form fieldset { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); }
-.coach-lesson-form fieldset label { flex-direction: row; align-items: center; font-weight: 400; }
-.coach-lesson-form button { grid-column: 1 / -1; justify-self: start; }
+.coach-new-lesson[open] > summary { margin-bottom: 0.6rem; }
 .coach-lesson { display: flex; gap: 1rem; padding: 0.7rem 0; border-bottom: 1px solid var(--border); }
 .coach-lesson-time { flex: none; width: 4.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .coach-lesson-time .hint { display: block; font-weight: 400; }
 .coach-lesson-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.35rem; }
 .coach-lesson-who { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .coach-lesson-edit summary { cursor: pointer; color: var(--fg-muted); font-size: 0.88rem; min-height: 2rem; display: flex; align-items: center; }
-.coach-lesson-students { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: 0.4rem 0; }
-.coach-lesson-actions { display: flex; gap: 0.5rem; }
+.coach-lesson-edit .check-grid { margin: 0.2rem 0 0.4rem; }
+.coach-lesson-edit .coach-lesson-mode { max-width: 16rem; margin-top: 0.6rem; }
 .lesson-tag { display: inline-flex; align-items: center; padding: 0.05rem 0.5rem; border: 1px solid var(--border); border-radius: 999px; color: var(--fg-muted); font-size: 0.75rem; font-weight: 600; white-space: nowrap; vertical-align: middle; }
 .lesson-tag.is-online { border-color: var(--accent); color: var(--accent-ink); }
-.teaching-note-form { display: flex; flex-direction: column; gap: 0.5rem; margin: 1rem 0 0.8rem; }
-.teaching-note-form textarea, .teaching-note textarea { width: 100%; font: inherit; }
-.teaching-note-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.teaching-note-row select { flex: 1 1 14rem; min-height: 2.5rem; }
+.teaching-note-form { margin: 1.2rem 0 0.8rem; }
 .teaching-notes { display: flex; flex-direction: column; }
 .teaching-note { padding: 0.6rem 0; border-top: 1px solid var(--border); }
 .teaching-note-head { display: flex; align-items: baseline; gap: 0.4rem; }
@@ -7037,8 +7064,8 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .coach-invite-way { margin: 0.4rem 0 1.2rem; }
 .coach-invite-way h4 { margin: 0 0 0.2rem; font-size: 1rem; }
 .coach-invite-way .hint { margin: 0 0 0.6rem; }
-.coach-invite-link, .coach-invite-one { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
-.coach-invite-link input, .coach-invite-one input { flex: 1 1 14rem; min-width: 0; min-height: 2.5rem; }
+.coach-invite-link { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.coach-invite-link input { flex: 1 1 14rem; min-width: 0; }
 .coach-invite-one + .coach-invite-link { margin-top: 0.6rem; }
 .coach-invite-link[hidden] { display: none; }
 /* Practice (practice.go): a student's or a group's assignments, the
@@ -7052,9 +7079,7 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .practice-week.is-met { border-color: var(--accent); color: var(--accent-ink); }
 .practice-actions { display: flex; gap: 0.8rem; margin-top: 0.4rem; align-items: center; }
 .practice-assign, .practice-log { margin-top: 0.6rem; }
-.practice-assign-form, .practice-log-form { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.6rem 0; max-width: 34rem; }
-.practice-assign-form label, .practice-log-form label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.9rem; }
-.practice-assign-row { display: flex; flex-wrap: wrap; gap: 0.8rem; }
+.practice-assign-form, .practice-log-form { margin: 0.6rem 0 1rem; }
 .practice-log-form[hidden] { display: none; }
 .practice-log-list { display: flex; flex-direction: column; margin-top: 0.4rem; }
 .practice-log-row { display: flex; flex-wrap: wrap; gap: 0.2rem 0.6rem; align-items: baseline; padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
@@ -7107,11 +7132,8 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .warmup-card { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.7rem 0.85rem; border: 1px solid var(--border); border-radius: var(--radius-card, 10px); color: var(--fg); text-decoration: none; background: var(--bg-raised, transparent); }
 .warmup-card:hover { border-color: var(--accent); }
 .warmup-card-notes { font-size: 0.85rem; color: var(--fg-muted); }
-.warmup-session-form, .warmup-form { display: flex; flex-direction: column; gap: 0.6rem; max-width: 46rem; margin-top: 0.6rem; }
-.warmup-session-form fieldset { display: flex; flex-direction: column; gap: 0.3rem; }
-.warmup-form > label, .warmup-form-row label, .warmup-own-words label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.9rem; }
-.warmup-form-row { display: flex; flex-wrap: wrap; gap: 0.8rem; }
-.warmup-form-row label[hidden] { display: none; }
+.warmup-session-form, .warmup-form { margin-top: 0.6rem; }
+.warmup-own-words > :not(summary) { margin-top: 1rem; }
 .warmup-preview-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
 .warmup-preview-play { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.5rem; padding: 0 0.9rem; border: 1px solid var(--border); border-radius: var(--radius-control, 6px); background: transparent; color: var(--fg); font-weight: 600; }
 
@@ -7147,10 +7169,9 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .warmup-coach { margin-top: 1.2rem; border: 1px dashed var(--border); border-radius: var(--radius-card, 10px); padding: 0.6rem 0.8rem; }
 .warmup-coach summary { font-weight: 700; cursor: pointer; }
 .warmup-coach-body { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 0.7rem; }
-.warmup-coach-body label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.9rem; }
+.warmup-coach-body > .field { max-width: 24rem; }
 .warmup-coach-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
 .warmup-record { min-height: 2.5rem; padding: 0 0.9rem; border: 1px solid var(--border); border-radius: var(--radius-control, 6px); background: transparent; color: var(--fg); font-weight: 600; cursor: pointer; }
-.warmup-path-form { display: flex; flex-direction: column; gap: 0.5rem; }
 .warmup-session-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; padding: 0.6rem 0.8rem; margin-bottom: var(--warmup-gap); border-radius: var(--radius-card, 10px); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .warmup-session-stars { font-weight: 700; color: #c99a10; }
 .warmup-session-next { margin-left: auto; font-weight: 700; }
@@ -7161,14 +7182,11 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .check-levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.8rem; }
 .check-level { border: 1px solid var(--border); border-radius: var(--radius-card, 10px); padding: 0.6rem 0.8rem 0.8rem; display: flex; flex-direction: column; gap: 0.5rem; }
 .check-level legend { font-weight: 700; padding: 0 0.3rem; }
-.check-level label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.9rem; }
 .check-range { display: flex; align-items: center; gap: 0.5rem; }
 .check-range input { flex: 1; }
 .check-range output { min-width: 2.2rem; text-align: right; font-weight: 700; }
 .check-messages { display: flex; flex-direction: column; gap: 0.8rem; }
-.check-message { display: flex; flex-direction: column; gap: 0.25rem; }
-.check-message-when { font-weight: 600; font-size: 0.9rem; }
-.check-message textarea { width: 100%; }
+.check-message-when { display: flex; align-items: center; gap: 0.4rem; }
 .check-message.is-custom textarea { border-color: var(--accent); }
 .check-save { position: sticky; bottom: 4.5rem; padding: 0.6rem 0; background: var(--bg); }
 @media (prefers-reduced-motion: reduce) { .take-stars .is-on, .take-party strong, .take-party i { animation: none; } .take-party i { display: none; } }
@@ -7177,8 +7195,7 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .live-join-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.4rem; }
 .live-join-btn { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.5rem; padding: 0 0.9rem; border: 1px solid var(--border); border-radius: var(--radius-control, 6px); color: var(--fg); text-decoration: none; font-weight: 600; }
 .live-join-btn.is-open { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
-.live-headphones { display: flex; align-items: flex-start; gap: 0.5rem; margin: 0 0 0.9rem; font-size: 0.9rem; color: var(--fg-muted); cursor: pointer; }
-.live-headphones input { margin-top: 0.2rem; }
+.live-headphones { margin: 0 0 0.6rem; font-size: 0.9rem; color: var(--fg-muted); }
 .live-join-when { font-size: 1.05rem; }
 .coach-subscribe a { display: inline-flex; align-items: center; gap: 0.35rem; }
 .calendar-subscribe-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 1rem 0; }
@@ -7215,11 +7232,9 @@ a.singer-chip:hover { border-color: var(--border-strong); }
 .program-plan-dialog { max-width: 28rem; width: calc(100vw - 2rem); border: 1px solid var(--border); border-radius: 14px; background: var(--bg-raised); color: var(--fg); padding: 1.2rem; }
 .program-plan-dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
 .program-plan-dialog h2 { margin: 0; font-size: 1.15rem; }
-.program-plan-events { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.35rem; }
-.program-plan-events legend { font-weight: 600; margin-bottom: 0.3rem; }
-.program-plan-choice { display: flex; align-items: center; gap: 0.55rem; padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.program-plan-events { gap: 0.35rem; }
+.program-plan-choice { display: flex; align-items: center; gap: 0.55rem; min-height: 2.75rem; padding: 0.45rem 0.7rem; border: 1px solid var(--field-border); border-radius: var(--radius-control, 8px); cursor: pointer; }
 .program-plan-choice:has(input:checked) { border-color: var(--accent); background: var(--accent-bg); }
-.program-plan-new[hidden] { display: none; }
 .program-events { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.6rem; }
 .program-event { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.7rem 0.9rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); color: inherit; text-decoration: none; }
 .program-event:hover { border-color: var(--border-strong); }

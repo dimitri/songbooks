@@ -27,7 +27,7 @@
       <tr><td class="hint">{{t "Email"}}</td><td>{{if .Person.Email}}{{.Person.Email}}{{else}}<em>{{t "none"}}</em>{{end}}</td></tr>
       <tr><td class="hint">{{t "Site admin"}}</td><td>
         {{if eq .Person.ID .Me.ID}}<em>{{t "you"}}</em>{{else}}
-        <form method="post" action="/admin/people/{{.Person.ID}}/admin" style="display:inline"{{if .Person.IsAdmin}} onsubmit="return confirm('{{t "Remove site admin rights from %s?" .Person.Username}}')"{{end}}>
+        <form method="post" action="/admin/people/{{.Person.ID}}/admin" class="button-form"{{if .Person.IsAdmin}} onsubmit="return confirm('{{t "Remove site admin rights from %s?" .Person.Username}}')"{{end}}>
           <input type="hidden" name="is_admin" value="{{if .Person.IsAdmin}}0{{else}}1{{end}}">
           <button type="submit">{{if .Person.IsAdmin}}{{t "Remove admin"}}{{else}}{{t "Make admin"}}{{end}}</button>
         </form>

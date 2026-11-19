@@ -58,12 +58,12 @@
     {{if and .IsCoach .Exercises}}
     <details class="warmup-session-new">
       <summary>{{template "icon-plus"}} {{t "A session"}}</summary>
-      <form class="warmup-session-form" autocomplete="off">
-        <label>{{t "Name"}} <input type="text" name="name" required placeholder="{{t "10-minute warm-up"}}"></label>
-        <fieldset><legend>{{t "Exercises, in the order you tick them"}}</legend>
-          {{range .Exercises}}<label><input type="checkbox" value="{{.ID}}"> {{.Name}}</label>{{end}}
+      <form class="warmup-session-form form-stack" autocomplete="off">
+        <label class="field">{{t "Name"}} <input type="text" name="name" required placeholder="{{t "10-minute warm-up"}}"></label>
+        <fieldset class="field-group"><legend>{{t "Exercises, in the order you tick them"}}</legend>
+          <div class="check-grid">{{range .Exercises}}<label class="check"><input type="checkbox" value="{{.ID}}"> {{.Name}}</label>{{end}}</div>
         </fieldset>
-        <button type="submit" class="primary">{{t "Make the session"}}</button>
+        <div class="form-actions form-actions--start"><button type="submit" class="primary">{{t "Make the session"}}</button></div>
       </form>
     </details>
     {{end}}
@@ -137,12 +137,12 @@
   <details class="warmup-coach"{{if .StudentID}} open{{end}}>
     <summary>{{t "Coach’s tools"}}</summary>
     <div class="warmup-coach-body">
-      <label>{{t "In the keys of"}} <select class="warmup-student">
+      <label class="field">{{t "In the keys of"}} <select class="warmup-student">
         <option value="0">{{t "a usual path"}}</option>
         {{range .Students}}<option value="{{.PersonID}}"{{if eq .PersonID $.StudentID}} selected{{end}}>{{.DisplayName}}</option>{{end}}
       </select></label>
-      <form class="warmup-path-form" autocomplete="off" hidden>
-        <label>{{t "Their path, in semitones from the written key"}} <input type="text" name="waypoints" placeholder="-2, +5, -2"></label>
+      <form class="warmup-path-form form-stack" autocomplete="off" hidden>
+        <label class="field">{{t "Their path, in semitones from the written key"}} <input type="text" name="waypoints" placeholder="-2, +5, -2"></label>
         <div class="warmup-coach-row"><button type="submit">{{t "Save their path"}}</button>
         <button type="button" class="link-btn warmup-path-default">{{t "the app’s, from their range"}}</button></div>
       </form>
@@ -176,26 +176,26 @@
   {{template "notif-bell"}}
 </header>
 <main class="index warmup-edit" data-community="{{.Community.ID}}"{{with .Exercise}} data-exercise="{{.ID}}"{{end}}>
-  <form class="warmup-form" autocomplete="off">
-    {{if not .Exercise}}<label>{{t "Start from"}} <select name="preset"><option value="">{{t "an empty one"}}</option></select></label>{{end}}
-    <label>{{t "Name"}} <input type="text" name="name" required></label>
-    <label>{{t "What it’s for"}} <select name="kind"><option value="pitch">{{t "pitch: the notes, in every key"}}</option><option value="rhythm">{{t "rhythm: the entries, on one note"}}</option></select></label>
-    <div class="warmup-form-row">
-      <label>{{t "Written in"}} <select name="tonic"></select></label>
-      <label>{{t "Scale"}} <select name="scale"><option value="major">{{t "major"}}</option><option value="minor">{{t "minor"}}</option><option value="chromatic">{{t "chromatic (semitones)"}}</option></select></label>
-      <label>{{t "Tempo"}} <input type="number" name="tempo" min="30" max="240"></label>
+  <form class="warmup-form form-stack form-stack--wide" autocomplete="off">
+    {{if not .Exercise}}<label class="field">{{t "Start from"}} <select name="preset"><option value="">{{t "an empty one"}}</option></select></label>{{end}}
+    <label class="field">{{t "Name"}} <input type="text" name="name" required></label>
+    <label class="field">{{t "What it’s for"}} <select name="kind"><option value="pitch">{{t "pitch: the notes, in every key"}}</option><option value="rhythm">{{t "rhythm: the entries, on one note"}}</option></select></label>
+    <div class="field-row">
+      <label class="field">{{t "Written in"}} <select name="tonic"></select></label>
+      <label class="field">{{t "Scale"}} <select name="scale"><option value="major">{{t "major"}}</option><option value="minor">{{t "minor"}}</option><option value="chromatic">{{t "chromatic (semitones)"}}</option></select></label>
+      <label class="field">{{t "Tempo"}} <input type="number" name="tempo" min="30" max="240"></label>
     </div>
-    <label>{{t "The notes, as degrees"}} <input type="text" name="notes" placeholder="1 2 3 4 5 4 3 2 1"><span class="hint">{{t "1 the key’s note, 8 its octave, r a rest; chromatic: semitones, 0 up."}}</span></label>
-    <label>{{t "Their lengths"}} <input type="text" name="lengths" placeholder="8 8 8 8 8 8 8 8 4"><span class="hint">{{t "4 a quarter, 8 an eighth, 2 a half, 16 a sixteenth, 4. dotted; the last one goes on."}}</span></label>
-    <label>{{t "Sung on"}} <input type="text" name="syllables" placeholder="ma me mi mo mu"><span class="hint">{{t "a syllable a note, round again when they run out."}}</span></label>
-    <div class="warmup-form-row">
-      <label>{{t "The piano"}} <select name="piano"><option value="double">{{t "plays the line"}}</option><option value="chords">{{t "holds the chord"}}</option><option value="none">{{t "silent"}}</option></select></label>
-      <label>{{t "Before each repeat"}} <select name="prep"><option value="I">{{t "the key’s chord"}}</option><option value="V7-I">{{t "V7 then the chord"}}</option><option value="none">{{t "nothing"}}</option></select></label>
-      <label>{{t "Breath after, beats"}} <input type="number" name="breath" min="0" max="8" step="0.5"></label>
-      <label class="warmup-step">{{t "Step between keys"}} <select name="step"><option value="1">{{t "a semitone"}}</option><option value="2">{{t "a tone"}}</option></select></label>
-      <label class="warmup-repeats" hidden>{{t "Repeats"}} <input type="number" name="repeats" min="1" max="20"></label>
+    <label class="field">{{t "The notes, as degrees"}} <input type="text" name="notes" placeholder="1 2 3 4 5 4 3 2 1"><span class="field-hint">{{t "1 the key’s note, 8 its octave, r a rest; chromatic: semitones, 0 up."}}</span></label>
+    <label class="field">{{t "Their lengths"}} <input type="text" name="lengths" placeholder="8 8 8 8 8 8 8 8 4"><span class="field-hint">{{t "4 a quarter, 8 an eighth, 2 a half, 16 a sixteenth, 4. dotted; the last one goes on."}}</span></label>
+    <label class="field">{{t "Sung on"}} <input type="text" name="syllables" placeholder="ma me mi mo mu"><span class="field-hint">{{t "a syllable a note, round again when they run out."}}</span></label>
+    <div class="field-row">
+      <label class="field">{{t "The piano"}} <select name="piano"><option value="double">{{t "plays the line"}}</option><option value="chords">{{t "holds the chord"}}</option><option value="none">{{t "silent"}}</option></select></label>
+      <label class="field">{{t "Before each repeat"}} <select name="prep"><option value="I">{{t "the key’s chord"}}</option><option value="V7-I">{{t "V7 then the chord"}}</option><option value="none">{{t "nothing"}}</option></select></label>
+      <label class="field">{{t "Breath after, beats"}} <input type="number" name="breath" min="0" max="8" step="0.5"></label>
+      <label class="field warmup-step">{{t "Step between keys"}} <select name="step"><option value="1">{{t "a semitone"}}</option><option value="2">{{t "a tone"}}</option></select></label>
+      <label class="field warmup-repeats" hidden>{{t "Repeats"}} <input type="number" name="repeats" min="1" max="20"></label>
     </div>
-    <label>{{t "A word for your students"}} <textarea name="notes_text" rows="2" placeholder="{{t "Shoulders down, the jaw free; lighter as it goes up."}}"></textarea></label>
+    <label class="field">{{t "A word for your students"}} <textarea name="notes_text" rows="2" placeholder="{{t "Shoulders down, the jaw free; lighter as it goes up."}}"></textarea></label>
 
     <div class="warmup-preview-bar"><button type="button" class="warmup-preview-play">{{template "icon-play"}} {{t "Listen"}}</button> <span class="hint warmup-preview-status"></span></div>
     <div class="warmup-score"><div class="warmup-score-canvas"></div></div>
@@ -203,14 +203,14 @@
     <details class="warmup-own-words">
       <summary>{{t "This exercise’s own level and words"}}</summary>
       <p class="hint">{{t "Left empty, your usual ones (Checking singing). Write here only what this exercise needs, as you would say it."}}</p>
-      <label>{{t "Level"}} <select name="level"><option value="">{{t "the one of each goal"}}</option>{{range .CheckLevels}}<option value="{{.Key}}">{{.Label}}</option>{{end}}</select></label>
+      <label class="field">{{t "Level"}} <select name="level"><option value="">{{t "the one of each goal"}}</option>{{range .CheckLevels}}<option value="{{.Key}}">{{.Label}}</option>{{end}}</select></label>
       {{range .Messages}}
-      <label class="check-message" data-key="{{.Key}}"><span class="check-message-when">{{.When}}</span>
+      <label class="field check-message" data-key="{{.Key}}"><span class="check-message-when">{{.When}}</span>
         <textarea rows="2" name="msg-{{.Key}}" placeholder="{{.Text}}"></textarea></label>
       {{end}}
     </details>
 
-    <div class="check-save">
+    <div class="check-save form-actions">
       <button type="submit" class="primary">{{t "Save"}}</button>
       {{if .Exercise}}<button type="button" class="link-btn danger warmup-delete">{{t "Remove the exercise"}}</button>{{end}}
       <span class="hint warmup-saved" aria-live="polite"></span>
