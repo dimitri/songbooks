@@ -1166,6 +1166,10 @@ const ICONS = {
   // "popup" layout (hidden header/sidebar, a floating exit button) on top
   // of that — removed: jazz is a view mode like song map or lyrics-only,
   // reusing the normal page chrome, not a separate full-screen app state.
+  // The view last picked for this very song (by a click, not by the
+  // restore at load), per device.
+  const songModeKey = `songbooks-mode:${sheet.dataset.variantId || pageVariantId}`;
+  let restoringMode = false;
   wireSegmented('mode-segmented', v => {
     // "edit" sits in this same segmented control (easiest place to find
     // it, next to the other ways of looking at the song) but it's an
@@ -1241,8 +1245,13 @@ const ICONS = {
     // opened next would replace the chart nobody asked to stop seeing.
     // Same reasoning edit's own early return above already applies, and
     // for the Mixer: a workbench opened for a task, not a way of reading.
-    if (v !== 'reference' && v !== 'mixer' && v !== 'score' && !document.body.classList.contains('embed-playlist')) {
+    // Picked, that is: not the view restored at load (a coaching
+    // community's Lyrics only must not become the default elsewhere).
+    if (!restoringMode && v !== 'reference' && v !== 'mixer' && v !== 'score' && !document.body.classList.contains('embed-playlist')) {
       try { localStorage.setItem('songbooks-default-mode', v); } catch (e) { /* ignore */ }
+      // And for this song: the view picked for it wins over a coaching
+      // community's default (Lyrics only, below) next time.
+      try { localStorage.setItem(songModeKey, v); } catch (e) { /* ignore */ }
     }
   });
   // Reflow before the jazz-mode fit search (applyPageBox): it decides how
@@ -1273,12 +1282,21 @@ const ICONS = {
     // song's Guitar Pro file, the score the lesson is practised on.
     const embedded = document.body.classList.contains('embed-playlist');
     const lesson = document.getElementById('lesson-panel') && sheet.dataset.gpFile;
-    const saved = embedded ? 'map' : sheet.dataset.gpOnly || lesson ? 'score' : localStorage.getItem('songbooks-default-mode');
+    // Opened in a vocal coaching community (one of its songbooks, its
+    // page, an event or an assignment: data-coaching, handlers_pages.go),
+    // a song opens on its lyrics, in practice mode, following the music
+    // (the "Follow the music" switch is on unless turned off for this
+    // song), unless the reader has picked another view for this song.
+    const coaching = sheet.dataset.coaching && document.querySelector('#mode-segmented button[data-value="lyrics"]');
+    const saved = embedded ? 'map' : sheet.dataset.gpOnly || lesson ? 'score'
+      : coaching ? (localStorage.getItem(songModeKey) || 'lyrics')
+      : localStorage.getItem('songbooks-default-mode');
     // Drummer view only for a song that has a drum part: on any other it
     // is a page of empty staves, so the song opens as a chart instead.
     const hasDrums = [...document.querySelectorAll('[data-realbars]')].some((e) => !e.dataset.restonly);
     if (saved && saved !== 'normal' && saved !== 'reference' && saved !== 'mixer' && (saved !== 'drummer' || hasDrums)) {
-      document.querySelector(`#mode-segmented button[data-value="${saved}"]`)?.click();
+      restoringMode = true;
+      try { document.querySelector(`#mode-segmented button[data-value="${saved}"]`)?.click(); } finally { restoringMode = false; }
     }
   } catch (e) { /* ignore */ }
 
