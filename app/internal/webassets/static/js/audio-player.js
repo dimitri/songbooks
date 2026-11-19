@@ -128,11 +128,16 @@ window.songbooksDecodable = function (buf) {
 
   function sections() {
     const out = [];
+    const seen = new Set();
     document.querySelectorAll('.sheet-section[data-start-bar]').forEach((el) => {
       const startBar = parseInt(el.dataset.startBar, 10);
       const barCount = parseInt(el.dataset.barCount, 10) || 0;
-      if (Number.isNaN(startBar) || barCount <= 0) return;
-      out.push({ index: parseInt(el.dataset.sectionIndex, 10), label: el.dataset.label || '', startBar, barCount });
+      const index = parseInt(el.dataset.sectionIndex, 10);
+      // A section can be on the page twice (a view's copy beside the
+      // chart's): once here.
+      if (Number.isNaN(startBar) || barCount <= 0 || seen.has(index)) return;
+      seen.add(index);
+      out.push({ index, label: el.dataset.label || '', startBar, barCount, hasLyrics: el.dataset.hasLyrics === 'true' });
     });
     return out.sort((a, b) => a.startBar - b.startBar);
   }
@@ -233,32 +238,50 @@ window.songbooksDecodable = function (buf) {
   // (mixer-autoalign.js) and follow that, in memory only: saving an
   // alignment stays an explicit choice in the Mixer.
   let detected = null; // [{barIndex, timeSeconds}] for the active category
-  function detectBars(audioBuffer, cat) {
-    detected = null;
-    const meta = categories[cat] || {};
-    if ((meta.barSyncPoints && meta.barSyncPoints.length) || (meta.markers && meta.markers.length)) return;
-    if (!window.SongbooksAutoAlign || !transportEl) return;
+  // The recording, mono at ~11 kHz, kept for the detection and for the
+  // Sync sheet's snapping (sync-sheet.js asks for the downbeats).
+  let analysisInput = null; // {x, sr, cat}
+  function keepAnalysisInput(audioBuffer, cat) {
+    const f = Math.max(1, Math.round(audioBuffer.sampleRate / 11025));
+    const c0 = audioBuffer.getChannelData(0);
+    const c1 = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : c0;
+    const x = new Float32Array(Math.floor(audioBuffer.length / f));
+    for (let i = 0, j = 0; i < x.length; i++) {
+      let sum = 0;
+      for (let k = 0; k < f; k++, j++) sum += c0[j] + c1[j];
+      x[i] = sum / (2 * f);
+    }
+    analysisInput = { x, sr: audioBuffer.sampleRate / f, cat };
+  }
+  // Where the chart's bars fall in the recording, found by ear (the
+  // Mixer's Auto-align): [time of bar 0, bar 1, …], or null.
+  let detectedFull = null;
+  function runDetection() {
+    if (detectedFull && detectedFull.cat === activeCategory) return detectedFull.times;
+    if (!window.SongbooksAutoAlign || !transportEl || !analysisInput || analysisInput.cat !== activeCategory) return null;
     const total = totalBars();
-    if (!total || !bpm) return;
+    if (!total || !bpm) return null;
     try {
-      const f = Math.max(1, Math.round(audioBuffer.sampleRate / 11025));
-      const c0 = audioBuffer.getChannelData(0);
-      const c1 = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : c0;
-      const x = new Float32Array(Math.floor(audioBuffer.length / f));
-      for (let i = 0, j = 0; i < x.length; i++) {
-        let sum = 0;
-        for (let k = 0; k < f; k++, j++) sum += c0[j] + c1[j];
-        x[i] = sum / (2 * f);
-      }
       const ticksPerBar = (timeNum * 3840) / timeDen;
       const barTicks = [];
       for (let b = 0; b <= total; b++) barTicks.push(b * ticksPerBar);
-      const res = window.SongbooksAutoAlign.analyze({ x, sr: audioBuffer.sampleRate / f }, {
+      const res = window.SongbooksAutoAlign.analyze(analysisInput, {
         tempo: bpm, barTicks, onsets: [], barChords: [],
         firstFull: hasPickup() ? 1 : 0,
       });
-      if (cat === activeCategory && res && res.barTimes) detected = res.barTimes.map((t, i) => ({ barIndex: i, timeSeconds: t }));
-    } catch (e) { /* no highlight beats a wrong one */ }
+      if (!res || !res.barTimes) return null;
+      detectedFull = { cat: activeCategory, times: res.barTimes };
+      return res.barTimes;
+    } catch (e) { return null; /* no highlight beats a wrong one */ }
+  }
+  function detectBars(audioBuffer, cat) {
+    detected = null;
+    detectedFull = null;
+    keepAnalysisInput(audioBuffer, cat);
+    const meta = categories[cat] || {};
+    if ((meta.barSyncPoints && meta.barSyncPoints.length) || (meta.markers && meta.markers.length)) return;
+    const times = cat === activeCategory ? runDetection() : null;
+    if (times) detected = times.map((t, i) => ({ barIndex: i, timeSeconds: t }));
   }
 
   // ---- The bar grid: grid[b] is when bar b starts in the recording, for
@@ -268,12 +291,15 @@ window.songbooksDecodable = function (buf) {
   // the LCD, the cycle range, the click, bar skipping — reads it.
   let grid = [];
   const hasBars = () => grid.length > 1;
-  function currentMarkers() { return (categories[activeCategory] && categories[activeCategory].markers) || []; }
+  // The Sync sheet's markers while it's open and not saved: the chart,
+  // the counter and the click follow them, so a tap can be heard.
+  let preview = null;
+  function currentMarkers() { return preview || (categories[activeCategory] && categories[activeCategory].markers) || []; }
   function rebuildGrid() {
     grid = [];
-    if (!duration) return refreshTimeline();
-    const synced = (categories[activeCategory] && categories[activeCategory].barSyncPoints) || [];
-    const pts = (synced.length ? synced : detected || []).slice().sort((a, b) => a.barIndex - b.barIndex);
+    if (!duration) { refreshTimeline(); renderSync(); return; }
+    const synced = preview ? [] : (categories[activeCategory] && categories[activeCategory].barSyncPoints) || [];
+    const pts = (synced.length ? synced : (!preview && detected) || []).slice().sort((a, b) => a.barIndex - b.barIndex);
     let at = null;
     if (pts.length > 1) {
       at = (b) => {
@@ -318,6 +344,7 @@ window.songbooksDecodable = function (buf) {
       }
     }
     refreshTimeline();
+    renderSync();
   }
   function timeAtBar(b) {
     if (!hasBars()) return null;
@@ -345,8 +372,148 @@ window.songbooksDecodable = function (buf) {
   window.songbooksReferencePosition = () => {
     if (!duration || (audio.paused && !countingIn && audio.currentTime === 0)) return null;
     const bar = barAtTime(audio.currentTime);
-    return bar === null ? null : { bar, playing: !audio.paused || countingIn };
+    return bar === null ? null : { bar, playing: !audio.paused || countingIn, time: audio.currentTime, category: activeCategory };
   };
+  // When bar b starts in the recording (lyric-lines.js), null without a grid.
+  window.songbooksReferenceTimeAtBar = (b) => timeAtBar(b);
+
+  // ---- Sync state: estimated or set ----------------------------------------
+  // Three things place the chart on a recording: this player's own
+  // detection (in memory), a program's proposal saved as markers (the
+  // import wizard, the Mixer's Auto-align) and a person (the Sync sheet,
+  // a flag dragged in the Mixer, a Guitar Pro file's own sync). The first
+  // two are estimates until someone checks them by ear: the badge by the
+  // counter says which, and its panel opens the Sync sheet to correct it.
+  const syncBadge = $('audio-sync-badge');
+  const syncPop = $('audio-pop-sync');
+  function syncInfo() {
+    const meta = categories[activeCategory] || {};
+    const points = meta.barSyncPoints || [];
+    const marks = preview || meta.markers || [];
+    if (!preview && points.length > 1) return { state: meta.syncOrigin === 'auto' ? 'auto' : 'set', source: 'points' };
+    if (marks.length) {
+      const auto = marks.filter((m) => m.origin === 'auto').length;
+      return { state: auto ? 'auto' : 'set', source: 'markers', auto, total: marks.length };
+    }
+    if (detected) return { state: 'auto', source: 'detected' };
+    return { state: 'none', source: '' };
+  }
+  // The tempo the section markers make the counter run at, against the
+  // chart's: the chart's bars are spread evenly between two markers, so
+  // a section with more bars written than the recording plays runs fast
+  // (song 334: 23 bars written, 17 played, the counter at 122 bpm over a
+  // 90 bpm recording). Per section, and the bar-weighted median.
+  function syncTempos() {
+    const secs = sections();
+    const marks = currentMarkers()
+      .map((m) => ({ t: m.timeSeconds, sec: secs.find((s) => s.index === m.sectionIndex) }))
+      .filter((m) => m.sec)
+      .sort((a, b) => a.sec.startBar - b.sec.startBar);
+    const per = [];
+    for (let i = 0; i + 1 < marks.length; i++) {
+      const bars = marks[i + 1].sec.startBar - marks[i].sec.startBar, dt = marks[i + 1].t - marks[i].t;
+      if (bars > 0 && dt > 0) per.push({ index: marks[i].sec.index, label: marks[i].sec.label, bars, bpm: (60 * beatsPerBar * bars) / dt });
+    }
+    let median = 0;
+    if (per.length) {
+      const sorted = per.slice().sort((a, b) => a.bpm - b.bpm);
+      const total = sorted.reduce((s, p) => s + p.bars, 0);
+      let acc = 0;
+      for (const p of sorted) { acc += p.bars; if (acc >= total / 2) { median = p.bpm; break; } }
+    }
+    const off = (v) => bpm > 0 && v > 0 && Math.abs(v / bpm - 1) > 0.08;
+    return { per: per.map((p) => ({ ...p, off: off(p.bpm) })), median, off: off(median) };
+  }
+  function renderSync() {
+    if (!syncBadge) return;
+    const info = syncInfo();
+    const tempos = info.source === 'markers' ? syncTempos() : { per: [], off: false };
+    syncBadge.hidden = info.state === 'none' || !duration;
+    syncBadge.dataset.state = info.state;
+    syncBadge.classList.toggle('warn', tempos.off);
+    syncBadge.querySelector('span').textContent = info.state === 'set' ? t('Sync set') : t('Sync estimated');
+    syncBadge.title = info.state === 'set' ? t('the chart follows a sync checked by ear') : t('the chart follows an estimated sync: check it by ear');
+    renderDockState();
+    if (!syncPop) return;
+    const say = (cls, text) => { const p = document.createElement('p'); p.className = cls; p.textContent = text; return p; };
+    const out = [];
+    const head = document.createElement('div');
+    head.className = 'audio-pop-head';
+    head.innerHTML = `<strong></strong>`;
+    head.querySelector('strong').textContent = info.state === 'set' ? t('Sync set') : t('Sync estimated');
+    out.push(head);
+    if (info.source === 'detected') out.push(say('hint', t('The player placed the bars by listening, just now; nothing is saved. They can be off by a beat or a section.')));
+    else if (info.source === 'points') out.push(say('hint', info.state === 'set' ? t('Every bar is placed: the Guitar Pro file’s own sync, or one checked by ear.') : t('Every bar is placed by Auto-align, not checked by ear yet.')));
+    else if (info.state === 'auto') out.push(say('hint', info.auto === info.total ? t('Each section’s start was placed automatically (the import wizard or Auto-align) and nobody has checked it by ear yet.') : t('%d of %d section starts are still automatic estimates, not checked by ear.', info.auto, info.total)));
+    else out.push(say('hint', t('Each section’s start was placed or checked by ear.')));
+    if (tempos.off) {
+      out.push(say('audio-sync-warn', t('Here the counter runs at about %d bpm, but the chart says %d bpm: some sections must have more or fewer bars in the chart than in the recording. Count them while listening, then fix the chart or the sync.', Math.round(tempos.median), Math.round(bpm))));
+      const odd = tempos.per.filter((p) => p.off).slice(0, 4).map((p) => t('%s: %d bpm', p.label, Math.round(p.bpm)));
+      if (odd.length) out.push(say('hint', odd.join(' · ')));
+    }
+    const row = document.createElement('div');
+    row.className = 'audio-pop-row';
+    if (canEdit && window.songbooksSyncSheet) {
+      const fix = document.createElement('button');
+      fix.type = 'button';
+      fix.className = 'primary';
+      fix.textContent = t('Correct the sync');
+      fix.addEventListener('click', () => { pops.forEach((p) => { p.hidden = true; }); setSheet(false); window.songbooksSyncSheet.open(); });
+      row.appendChild(fix);
+      if (info.state === 'auto' && info.source !== 'points') {
+        const ok = document.createElement('button');
+        ok.type = 'button';
+        ok.className = 'audio-pill-btn';
+        ok.textContent = t('It’s right: confirm');
+        ok.title = t('mark every section start as checked by ear, without moving it');
+        ok.addEventListener('click', confirmSync);
+        row.appendChild(ok);
+      }
+    } else if (!canEdit && info.state !== 'set') {
+      out.push(say('hint', t('Someone who can edit this song can correct it.')));
+    }
+    if (row.childNodes.length) out.push(row);
+    const status = document.createElement('span');
+    status.className = 'hint form-status';
+    status.setAttribute('role', 'status');
+    status.id = 'audio-sync-status';
+    out.push(status);
+    syncPop.replaceChildren(...out);
+  }
+  // The estimate is right: every section's start as it is, saved as set
+  // (the detection's too, which then stays put).
+  async function confirmSync() {
+    const marks = currentSyncMarkers().map((m) => ({ ...m, origin: 'set' }));
+    if (!marks.length) return;
+    const status = $('audio-sync-status');
+    const ok = await saveMarkers(marks);
+    if (status && window.Forms) Forms.status(status, ok ? t('Saved.') : t("Couldn't save. Try again."), ok ? 'ok' : 'error');
+  }
+  // Each section's start as the chart follows it now, with its origin.
+  function currentSyncMarkers() {
+    const meta = categories[activeCategory] || {};
+    if (!preview && meta.markers && meta.markers.length) return meta.markers.map((m) => ({ sectionIndex: m.sectionIndex, timeSeconds: m.timeSeconds, origin: m.origin || 'set' }));
+    if (!hasBars()) return preview ? preview.slice() : [];
+    return sections().map((s) => ({ sectionIndex: s.index, timeSeconds: Math.round(timeAtBar(s.startBar) * 1000) / 1000, origin: 'auto' }))
+      .filter((m) => m.timeSeconds >= 0 && m.timeSeconds < duration);
+  }
+  // One request for the whole sync (PUT …/markers); the player then
+  // reloads it.
+  async function saveMarkers(markers, cat = activeCategory) {
+    try {
+      const res = await fetch(`/api/songs/${variantId}/audio/${cat}/markers`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ markers }),
+      });
+      if (!res.ok) return false;
+      if (categories[cat]) {
+        categories[cat].markers = markers.map((m) => ({ ...m }));
+        categories[cat].syncOrigin = markers.some((m) => m.origin === 'auto') ? 'auto' : (markers.length ? 'set' : '');
+      }
+      if (cat === activeCategory) { preview = null; detected = null; rebuildGrid(); }
+      document.dispatchEvent(new CustomEvent('songbooks:sync-saved', { detail: { category: cat } }));
+      return true;
+    } catch (e) { return false; }
+  }
 
   // ---- Drawing ------------------------------------------------------------
   const pctOf = (t) => (duration ? (t / duration) * 100 : 0);
@@ -1398,6 +1565,7 @@ window.songbooksDecodable = function (buf) {
       dock.removeAttribute('aria-label');
       if (phoneMQ.matches) lcdEl?.focus({ preventScroll: true });
     }
+    renderDockState();
   }
   function syncLcdRole() {
     if (!lcdEl) return;
@@ -1482,6 +1650,7 @@ window.songbooksDecodable = function (buf) {
     if (prefs.cycle && prefs.cycle.on && hasBars()) bits.push(t('Cycle'));
     if (prefs.click) bits.push(t('Click'));
     if (prefs.countIn) bits.push($('audio-countin-label')?.textContent);
+    if (syncBadge && !syncBadge.hidden && syncBadge.dataset.state === 'auto' && !sheetOpen()) bits.unshift(t('Sync estimated'));
     lcdState.textContent = bits.filter(Boolean).join(' · ');
   }
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') pops.forEach((p) => { p.hidden = true; }); });
@@ -1960,6 +2129,37 @@ window.songbooksDecodable = function (buf) {
   // one when it starts, and reload markers/sync points it edited.
   document.addEventListener('songbooks:pause-reference', () => pause());
   document.addEventListener('songbooks:audio-changed', () => loadMeta());
+
+  // ---- For the Sync sheet (sync-sheet.js) ------------------------------------
+  window.songbooksPlayer = {
+    variantId,
+    canEdit,
+    audio,
+    category: () => activeCategory,
+    categories: () => Object.keys(categories),
+    selectCategory: (cat) => { if (categories[cat] && cat !== activeCategory) selectCategory(cat, true); },
+    meta: () => categories[activeCategory] || null,
+    duration: () => duration,
+    ready: () => !!duration && !!activeCategory && audio.dataset.blobFor === activeCategory,
+    isPlaying, play, pause,
+    seek: (t) => seek(t),
+    sections,
+    bpm, beatsPerBar, barLabel,
+    // Each section's start as the chart follows it now, with its origin
+    // ("auto" for the detection's).
+    syncMarkers: currentSyncMarkers,
+    syncInfo,
+    syncTempos,
+    // Downbeats found by ear, for snapping: [time of bar 0, …] or null.
+    detectBars: runDetection,
+    setPreview: (markers) => { preview = markers ? markers.map((m) => ({ ...m })) : null; rebuildGrid(); renderPosition(); },
+    saveMarkers,
+    click: () => prefs.click,
+    toggleClick,
+    speed: () => prefs.speed,
+    setSpeed: (v) => setSpeed(v),
+  };
+  document.dispatchEvent(new CustomEvent('songbooks:player-ready'));
 
 
   if (!canEdit) { loadMeta(); return; }

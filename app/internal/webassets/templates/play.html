@@ -427,6 +427,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+<link rel="stylesheet" href="/static/css/sync.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
 </head>
@@ -1591,6 +1592,9 @@
             <span class="audio-lcd-time" id="audio-time-label">0:00 / 0:00</span>
             <span class="audio-lcd-state" id="audio-lcd-state"></span>
           </div>
+          {{/* Estimated or set (audio-player.js "Sync state"): its panel
+               opens the Sync sheet (sync-sheet.js) to correct it. */}}
+          <button type="button" id="audio-sync-badge" class="audio-sync-badge" data-pop="audio-pop-sync" aria-expanded="false" hidden><i aria-hidden="true"></i><span>{{t "Sync estimated"}}</span></button>
           {{/* The "Voice & key" panel's way in: the mic's state (struck
                through, the voice off) and the key with whose it is,
                "C#m −1 · Poppy". On a phone, in the sheet. */}}
@@ -1695,6 +1699,7 @@
         {{end}}
         {{/* One panel per option, opened from its ▾ (or from Trainer),
              under the control bar; one open at a time. */}}
+        <div class="audio-pop audio-pop-sync" id="audio-pop-sync" hidden></div>
         <div class="audio-pop" id="audio-pop-countin" hidden>
           <div class="audio-pop-head"><strong>{{t "Count-in"}}</strong><span class="hint">{{t "clicks before the music starts, at its tempo"}}</span></div>
           <div class="audio-seg" id="audio-countin-seg" role="radiogroup" aria-label="{{t "count-in length"}}">
@@ -1768,6 +1773,52 @@
         </div>{{/* .audio-dock */}}
       </div>
     </div>
+    {{if .CanEdit}}
+    {{/* The Sync sheet (sync-sheet.js): tap along while listening, at the
+         start of each section; nudge, check, save in one go. A bottom
+         sheet on a phone, a side panel on a wide screen. */}}
+    <div class="sync-sheet" id="sync-sheet" hidden>
+      <div class="sync-sheet-backdrop" data-sync-close></div>
+      <section class="sync-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sync-sheet-title">
+        <header class="sync-sheet-head">
+          <button type="button" class="sync-sheet-grab" data-sync-close aria-label="{{t "close the sync"}}"></button>
+          <h2 id="sync-sheet-title">{{t "Sync"}}</h2>
+          <span class="sync-state-chip" id="sync-state-chip"></span>
+          <button type="button" class="icon-btn sync-sheet-close" data-sync-close aria-label="{{t "close the sync"}}">×</button>
+        </header>
+        <p class="hint sync-sheet-hint" id="sync-sheet-hint">{{t "Play, then tap the big button on the first beat of each section as you hear it. Check a start with ▶ 2 s before; nudge it with the arrows."}}</p>
+        <div class="sync-sheet-transport">
+          <button type="button" class="sync-btn" id="sync-back" aria-label="{{t "back 5 seconds"}}">−5 s</button>
+          <button type="button" class="sync-btn sync-play" id="sync-play" aria-label="{{t "play/pause (Space)"}}">{{template "icon-play"}}</button>
+          <span class="sync-time" id="sync-time">0:00.0</span>
+          <span class="sync-now" id="sync-now"></span>
+          <span class="sync-sheet-spacer"></span>
+          <div class="audio-seg sync-speed" id="sync-speed" role="radiogroup" aria-label="{{t "Playback speed"}}">
+            <button type="button" data-v="0.75">0.75×</button><button type="button" data-v="1">1×</button>
+          </div>
+          <button type="button" class="sync-btn sync-click" id="sync-click" aria-pressed="false" title="{{t "click on every beat, following the sync (K)"}}">{{template "icon-metronome"}}<span>{{t "Click"}}</span></button>
+        </div>
+        <button type="button" class="sync-tap" id="sync-tap"><span class="sync-tap-what" id="sync-tap-what"></span><span class="sync-tap-now">{{t "sync|now"}}</span></button>
+        <details class="sync-warn" id="sync-warn" hidden><summary id="sync-warn-sum"></summary><p id="sync-warn-text"></p></details>
+        <div class="sync-suggest-bar">
+          <button type="button" class="audio-pill-btn" id="sync-suggest-btn" title="{{t "where the singing starts, and the downbeats: each to accept or reject"}}">{{t "Suggest"}}</button>
+          <span class="hint" id="sync-suggest-count"></span>
+          <button type="button" class="audio-pill-btn" id="sync-accept-all" hidden>{{t "Accept all"}}</button>
+          <p class="hint sync-suggest-notes" id="sync-suggest-notes" hidden></p>
+        </div>
+        <ol class="sync-rows" id="sync-rows"></ol>
+        <footer class="sync-sheet-foot">
+          <label class="audio-check" title="{{t "a tap moves to the nearest downbeat or the voice coming in, within 0.15 s"}}"><input type="checkbox" id="sync-snap" checked> {{t "Snap to the beat and the voice"}}</label>
+          <span class="sync-sheet-spacer"></span>
+          <button type="button" class="audio-pill-btn" id="sync-history-btn" aria-expanded="false" title="{{t "Earlier syncs"}}">{{t "sync|History"}}</button>
+          <button type="button" class="audio-pill-btn" id="sync-undo" disabled>{{t "Undo"}}</button>
+          <button type="button" class="primary" id="sync-save" disabled>{{t "Save"}}</button>
+          <span class="hint form-status sync-status" id="sync-status" role="status"></span>
+          <ul class="sync-history" id="sync-history" hidden></ul>
+        </footer>
+      </section>
+    </div>
+    {{end}}
     {{if .GPDrift}}
     {{/* Where the song's text and its Guitar Pro file disagree (gpdrift.go,
          docs/gp-file-model.md §4): editors only, never fixed on its own. */}}
@@ -1970,7 +2021,8 @@
           </label>
           <span class="daw-tb-spacer"></span>
           {{if .CanEdit}}<button type="button" class="daw-btn-text" id="daw-autoalign" title="{{t "find the count-in and downbeats in the recording and place every bar automatically"}}">{{t "Auto-align"}}</button>
-          <button type="button" class="daw-btn-text" id="daw-align" aria-pressed="false" title="{{t "align the reference recording to the song's bars and sections by hand"}}">{{t "Align recording"}}</button>{{end}}
+          <button type="button" class="daw-btn-text" id="daw-align" aria-pressed="false" title="{{t "align the reference recording to the song's bars and sections by hand"}}">{{t "Align recording"}}</button>
+          <button type="button" class="daw-btn-text daw-sync-sheet" id="daw-sync-sheet" title="{{t "tap along while listening, at the start of each section (works on a phone)"}}">{{t "Sync by ear"}}</button>{{end}}
           <div class="daw-zoom" role="group" aria-label="{{t "zoom"}}">
             <button type="button" class="daw-btn-text" id="daw-zoom-fit" title="{{t "fit the whole song to the window (F)"}}">{{t "Fit"}}</button>
             <button type="button" class="daw-btn daw-btn-sm" id="daw-zoom-out" title="{{t "zoom out (−)"}}" aria-label="{{t "zoom out"}}">−</button>
@@ -1982,7 +2034,12 @@
         </div>
         <div class="daw-align-bar" id="daw-align-bar" hidden>
           <strong>{{t "Align recording"}}</strong>
-          <span>{{t "Drag the recording left or right to slide it against the bars. Drag a section (in Sections, or its flag on the recording) to where it really starts — it and everything after it follow, the previous one stretches;"}} <kbd>⌥</kbd> {{t "moves only that boundary,"}} <kbd>Shift</kbd> {{t "the whole grid. Or select a section and"}}</span>
+          {{/* Short, one idea each: how to drag, then the keys. */}}
+          <ul class="daw-align-help">
+            <li><span aria-hidden="true">⇆</span> {{t "drag the recording, or a section’s flag: what follows moves too"}}</li>
+            <li><kbd>⌥</kbd> {{t "that boundary only"}} · <kbd>⇧</kbd> {{t "the whole grid"}}</li>
+            <li><kbd>M</kbd> {{t "the selected section starts here, then the next"}} · <kbd>⌥</kbd><kbd>←</kbd><kbd>→</kbd> {{t "±10 ms"}} · <kbd>⇧</kbd><kbd>⌥</kbd><kbd>←</kbd><kbd>→</kbd> {{t "±1 beat"}}</li>
+          </ul>
           <button type="button" class="daw-btn-text" id="daw-align-here">{{t "set its start at the playhead"}}</button>
           <span class="daw-align-status" id="daw-align-status"></span>
           <button type="button" class="daw-btn-text" id="daw-align-undo" hidden>{{t "Undo"}}</button>
@@ -2003,6 +2060,8 @@
 {{end}}<script src="/static/js/clock.js?v={{staticVersion}}"></script>
 <script src="/static/js/song.js?v={{staticVersion}}"></script>
 <script src="/static/js/audio-player.js?v={{staticVersion}}"></script>
+<script src="/static/js/lyric-lines.js?v={{staticVersion}}"></script>
+{{if .CanEdit}}<script src="/static/js/sync-sheet.js?v={{staticVersion}}"></script>{{end}}
 <script src="/static/js/pitch-check.js?v={{staticVersion}}"></script>
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 <script src="/static/js/song-notes.js?v={{staticVersion}}"></script>
