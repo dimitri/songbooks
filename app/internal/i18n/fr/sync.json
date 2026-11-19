@@ -1,7 +1,9 @@
 {
+  "Accept all": "Tout accepter",
   "Earlier syncs": "Synchros précédentes",
   "Play, then tap the big button on the first beat of each section as you hear it. Check a start with ▶ 2 s before; nudge it with the arrows.": "Lancez la lecture, puis touchez le grand bouton sur le premier temps de chaque partie, à l’oreille. Vérifiez un début avec ▶ 2 s avant ; ajustez-le avec les flèches.",
   "Snap to the beat and the voice": "Aimanter aux temps et à la voix",
+  "Suggest": "Suggérer",
   "Sync estimated": "Synchro estimée",
   "a tap moves to the nearest downbeat or the voice coming in, within 0.15 s": "une frappe se cale sur le premier temps ou l’entrée de la voix la plus proche, à 0,15 s près",
   "back 5 seconds": "reculer de 5 secondes",
@@ -13,5 +15,6 @@
   "the chart's sections fit the singing only at %d bpm, while the recording plays at about %d bpm: in %d of its sections the chart has more or fewer bars than the recording plays, so the bar counter would run too fast or too slow there. Fix those sections' bars in the chart, then sync again": "les parties de la grille ne tombent sur le chant qu’à %d bpm, alors que l’enregistrement est à environ %d bpm : dans %d de ses parties, la grille a plus ou moins de mesures que l’enregistrement, et le compteur de mesures y irait trop vite ou trop lentement. Corrigez les mesures de ces parties dans la grille, puis synchronisez à nouveau",
   "the chart's tempo says %s, its sections fit the recording at %d: kept unless you replace it": "la grille dit %s au tempo, ses parties tombent sur l’enregistrement à %d : gardé, sauf si vous le remplacez",
   "the sung sections don't line up well with the voice: check the chart's sections and bar counts, then the markers by ear": "les parties chantées ne tombent pas bien sur la voix : vérifiez les parties de la grille et leur nombre de mesures, puis les repères à l’oreille",
-  "the voice isn't separated from the backing yet: sections are placed by tempo only, try again once it is": "la voix n’est pas encore séparée de l’accompagnement : les parties sont placées d’après le tempo seulement, réessayez quand elle le sera"
+  "the voice isn't separated from the backing yet: sections are placed by tempo only, try again once it is": "la voix n’est pas encore séparée de l’accompagnement : les parties sont placées d’après le tempo seulement, réessayez quand elle le sera",
+  "where the singing starts, and the downbeats: each to accept or reject": "où le chant commence, et les premiers temps : chacun à accepter ou refuser"
 }

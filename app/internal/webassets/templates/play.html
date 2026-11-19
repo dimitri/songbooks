@@ -1707,6 +1707,12 @@
         </div>
         <button type="button" class="sync-tap" id="sync-tap"><span class="sync-tap-what" id="sync-tap-what"></span><span class="sync-tap-now">{{t "sync|now"}}</span></button>
         <details class="sync-warn" id="sync-warn" hidden><summary id="sync-warn-sum"></summary><p id="sync-warn-text"></p></details>
+        <div class="sync-suggest-bar">
+          <button type="button" class="audio-pill-btn" id="sync-suggest-btn" title="{{t "where the singing starts, and the downbeats: each to accept or reject"}}">{{t "Suggest"}}</button>
+          <span class="hint" id="sync-suggest-count"></span>
+          <button type="button" class="audio-pill-btn" id="sync-accept-all" hidden>{{t "Accept all"}}</button>
+          <p class="hint sync-suggest-notes" id="sync-suggest-notes" hidden></p>
+        </div>
         <ol class="sync-rows" id="sync-rows"></ol>
         <footer class="sync-sheet-foot">
           <label class="audio-check" title="{{t "a tap moves to the nearest downbeat or the voice coming in, within 0.15 s"}}"><input type="checkbox" id="sync-snap" checked> {{t "Snap to the beat and the voice"}}</label>
