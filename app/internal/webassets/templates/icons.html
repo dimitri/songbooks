@@ -510,9 +510,7 @@
     <div class="field"><label for="brand-mark">{{t "Mark"}} <span class="field-optional">{{t "(optional)"}}</span></label>
       <p class="field-hint" id="brand-mark-hint">{{t "A letter or symbol shown beside the name when there's no logo."}}</p>
       <input type="text" id="brand-mark" name="mark" maxlength="3" placeholder="{{t "e.g. ☾"}}" aria-describedby="brand-mark-hint" autocomplete="off"></div>
-    <div class="field"><label for="brand-logo">{{t "Logo image"}} <span class="field-optional">{{t "(optional)"}}</span></label>
-      <p class="field-hint" id="brand-logo-hint">{{t "A link to an image that starts with https://."}}</p>
-      <input type="url" id="brand-logo" name="logoURL" placeholder="https://…" aria-describedby="brand-logo-hint" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+    {{template "brand-logo-field"}}
     <div class="field"><label for="brand-tagline">{{t "Tagline"}} <span class="field-optional">{{t "(optional)"}}</span></label><input type="text" id="brand-tagline" name="tagline" maxlength="140" autocomplete="off"></div>
     <div class="field"><label for="brand-website">{{t "Website"}} <span class="field-optional">{{t "(optional)"}}</span></label><input type="url" id="brand-website" name="website" placeholder="https://…" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
     <div class="form-actions"><button type="button" class="danger" id="brand-reset">{{t "Reset to the app's look"}}</button> <button type="submit" class="primary" id="brand-save">{{t "Save look"}}</button></div>
@@ -520,6 +518,25 @@
   </form>
 </div>
 <script src="/static/js/brand-editor.js?v={{staticVersion}}"></script>
+{{end}}
+{{/* The brand form's logo: an image uploaded to the app (PUT
+     {endpoint}/logo, brand-editor.js), shown with a Remove button, or
+     else an https address. */}}
+{{define "brand-logo-field"}}
+    <fieldset class="field-group brand-logo-field">
+      <legend>{{t "Logo image"}} <span class="field-optional">{{t "(optional)"}}</span></legend>
+      <p class="field-hint" id="brand-logo-hint">{{t "A PNG, JPEG or WebP image of up to 2 MB, best square: it’s kept here, at up to 512 pixels."}}</p>
+      <div class="brand-logo-upload">
+        <img class="brand-logo-preview" id="brand-logo-preview" alt="{{t "The logo"}}" hidden>
+        <input type="file" id="brand-logo-file" accept="image/png,image/jpeg,image/webp" aria-describedby="brand-logo-hint" hidden>
+        <button type="button" id="brand-logo-upload">{{t "Upload an image"}}</button>
+        <button type="button" class="danger" id="brand-logo-remove" hidden>{{t "Remove"}}</button>
+      </div>
+      <p class="field-hint" id="brand-logo-status" role="status"></p>
+      <label class="brand-logo-or" for="brand-logo">{{t "or an address"}}</label>
+      <p class="field-hint" id="brand-logo-url-hint">{{t "A link to an image that starts with https://. An uploaded image comes first."}}</p>
+      <input type="url" id="brand-logo" name="logoURL" placeholder="https://…" aria-describedby="brand-logo-url-hint" autocomplete="off" autocapitalize="none" spellcheck="false">
+    </fieldset>
 {{end}}
 {{/* Skip back / forward 15 seconds: the round arrow with its seconds in it. */}}
 {{define "icon-back15"}}<svg class="icon icon-skip" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.2 8.5A8 8 0 1 1 4 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4.6 3.8v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><text x="12.6" y="16.2" text-anchor="middle" font-size="8.4" font-weight="700" fill="currentColor" font-family="system-ui, sans-serif">15</text></svg>{{end}}

@@ -84,7 +84,7 @@
     {{range .Communities}}{{$c := .Community}}
       <a class="home-card" href="/communities/{{$c.ID}}" style="{{with .Look.Header}}--card-head: {{.}};{{end}}{{with .Look.Accent2}}--card-tag: {{.}};{{end}}">
         <div class="home-card-head">
-          <span class="home-card-mark" aria-hidden="true">{{if .Look.LogoURL}}<img src="{{.Look.LogoURL}}" alt="">{{else if .Look.Mark}}{{.Look.Mark}}{{else}}{{template "icon-community"}}{{end}}</span>
+          <span class="home-card-mark" aria-hidden="true">{{if .Look.Logo}}<img src="{{.Look.Logo}}" alt="">{{else if .Look.Mark}}{{.Look.Mark}}{{else}}{{template "icon-community"}}{{end}}</span>
           <span class="home-card-name"><b>{{$c.Name}}</b>{{with .Look.Tagline}}<span class="home-card-tag">{{.}}</span>{{end}}</span>
         </div>
         <ul class="home-card-facts">
@@ -103,7 +103,7 @@
     <div class="home-cards home-cards-small">
     {{range .Bands}}{{$b := .Band}}
       <a class="home-card home-card-band" href="/bands/{{$b.ID}}" style="{{with .Look.Header}}--card-head: {{.}};{{end}}{{with .Look.Accent}}--card-tag: {{.}};{{end}}">
-        <span class="home-card-mark" aria-hidden="true">{{if .Look.LogoURL}}<img src="{{.Look.LogoURL}}" alt="">{{else if .Look.Mark}}{{.Look.Mark}}{{else}}{{template "icon-bands"}}{{end}}</span>
+        <span class="home-card-mark" aria-hidden="true">{{if .Look.Logo}}<img src="{{.Look.Logo}}" alt="">{{else if .Look.Mark}}{{.Look.Mark}}{{else}}{{template "icon-bands"}}{{end}}</span>
         <span class="home-card-name"><b>{{$b.Name}}</b>
           <span class="home-card-line">{{if $b.HasNextGig}}{{t "Gig"}} {{date $b.NextGigDate "Mon 2 Jan"}}{{with $b.NextGigVenue}} &middot; {{.}}{{end}}{{else if $b.Digest}}{{$b.Digest}}{{else}}{{tn $b.Members "%d member" "%d members"}}{{end}}</span>
         </span>

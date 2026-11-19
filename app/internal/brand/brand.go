@@ -43,6 +43,12 @@ type Brand struct {
 	LogoURL     string `json:"logoURL,omitempty"`
 	Tagline     string `json:"tagline,omitempty"`
 	Website     string `json:"website,omitempty"`
+
+	// LogoImage is the uploaded logo's address in the app
+	// (/brand-logos/...), when there is one. It is never part of the
+	// stored JSON: the store fills it from brand_logos, and one sent with
+	// the form is ignored (see logo.go).
+	LogoImage string `json:"logoImage,omitempty"`
 }
 
 // Font is one choice of the curated list: its CSS stack and the Google
@@ -179,6 +185,9 @@ func Clean(b Brand) Brand {
 	b.Mark = clip(strings.TrimSpace(b.Mark), 3)
 	b.Tagline = clip(strings.TrimSpace(b.Tagline), 140)
 	b.LogoURL = httpsURL(b.LogoURL)
+	if !logoImagePath.MatchString(b.LogoImage) {
+		b.LogoImage = ""
+	}
 	b.Website = httpsURL(b.Website)
 	return b
 }
@@ -205,6 +214,15 @@ func Parse(raw []byte) Brand {
 		_ = json.Unmarshal(raw, &b)
 	}
 	return Clean(b)
+}
+
+// Logo is the logo to show: the uploaded image when there is one, else
+// the https address, else "".
+func (b Brand) Logo() string {
+	if b.LogoImage != "" {
+		return b.LogoImage
+	}
+	return b.LogoURL
 }
 
 // IsZero: nothing set at all, the app's own look.
@@ -238,6 +256,9 @@ func Resolve(b Brand, name string) *Theme {
 	if p, ok := Presets[b.Preset]; ok {
 		full = merge(p.Brand, b)
 	}
+	// On a Theme, LogoURL is the logo to show, so every template that
+	// draws it (the banner, cards, headers) shows an uploaded one first.
+	full.LogoURL = full.Logo()
 	t := &Theme{Brand: full, Name: name}
 	t.Dark = full.Background != "" && luminance(full.Background) < 0.35
 	t.Style = template.CSS(t.vars())
@@ -266,6 +287,7 @@ func merge(base, over Brand) Brand {
 		Shape:       pick(base.Shape, over.Shape),
 		Mark:        pick(base.Mark, over.Mark),
 		LogoURL:     pick(base.LogoURL, over.LogoURL),
+		LogoImage:   over.LogoImage,
 		Tagline:     pick(base.Tagline, over.Tagline),
 		Website:     pick(base.Website, over.Website),
 	}

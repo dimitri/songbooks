@@ -6407,6 +6407,15 @@ body.branded-dark img.logo-mark, body.branded-dark .logo-mark rect { filter: non
 .brand-color input[type=color] { width: 2.4rem; height: 2.2rem; padding: 0.1rem; border: 1px solid var(--border); background: none; }
 .brand-color input[type=color].unset { opacity: 0.35; }
 .brand-color input[type=text] { font-family: var(--font-mono); }
+.brand-logo-upload { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.brand-logo-preview {
+  width: 4.5rem; height: 4.5rem; object-fit: contain; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--brand-header, var(--bg-sunken));
+}
+#brand-logo-status:empty { display: none; }
+#brand-logo-status.brand-logo-error { color: var(--danger); font-weight: 600; }
+#brand-logo-status.brand-logo-ok { color: var(--accent); font-weight: 600; }
+.brand-logo-or { margin-top: 0.4rem; font-weight: 600; }
 body.branded .sidebar-crumb, body.branded .sidebar-crumb a { color: var(--sidebar-fg); opacity: 0.75; }
 
 /* ==== Stage mode (stage.js) ===============================================
