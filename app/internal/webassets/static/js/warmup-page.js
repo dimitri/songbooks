@@ -281,6 +281,52 @@
   }
   function escapeHTML(x) { return String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
+  // ---- The player's panel, keys and lock screen (player-shell.js) --------
+  // "Réglages" opens the octave and the tempo; the same keys as every
+  // player: Space/K train or pause, Home/0 the start, S the check, P the
+  // piano, [ ] the tempo, F the panel, ? the keys; the lock screen's play
+  // and pause (Media Session).
+  if (window.PlayerShell) {
+    const speedSel = page.querySelector('.warmup-speed');
+    const shell = window.PlayerShell.panel({
+      root: document.getElementById('wu-panel-wrap'), card: document.getElementById('wu-panel'),
+      openers: [document.getElementById('wu-panel-btn')], closers: document.querySelectorAll('[data-wu-close]'),
+      focus: () => document.querySelector(matchMedia('(min-width: 721px)').matches ? '#wu-panel .ct-close' : '#wu-panel .ct-grab'),
+    });
+    document.getElementById('wu-panel-btn')?.addEventListener('click', () => shell.open(!shell.isOpen()));
+    const speedBy = (d) => () => {
+      const opts = [...speedSel.options], i = opts.findIndex((o) => o.selected);
+      const j = Math.max(0, Math.min(opts.length - 1, i + d));
+      if (j !== i) { speedSel.selectedIndex = j; speedSel.dispatchEvent(new Event('change')); }
+    };
+    const toggle = () => { if (!play.disabled) play.click(); };
+    window.PlayerShell.keys({
+      own: '.warmup-player, #wu-panel',
+      title: t('The warm-up’s keys'),
+      keys: {
+        ' ': toggle, k: toggle,
+        Home: () => { if (!stop.disabled) stop.click(); }, 0: () => { if (!stop.disabled) stop.click(); },
+        s: () => (checkBtn && !checkBtn.hidden ? checkBtn.click() : false),
+        p: () => guide.click(),
+        '[': speedBy(-1), ']': speedBy(1),
+        f: () => shell.open(!shell.isOpen()),
+      },
+      help: [
+        [t('Train / pause'), ' ', 'k'],
+        [t('Back to the start'), 'Home', '0'],
+        [t('Check my singing · the piano'), 's', 'p'],
+        [t('Slower / faster'), '[', ']'],
+        [t('Open / close the settings · close · these shortcuts'), 'f', 'Escape', '?'],
+      ],
+    });
+    const media = window.PlayerShell.media({
+      title: ex.name || document.title,
+      play: () => { if (!page.classList.contains('is-playing')) toggle(); },
+      pause: () => { if (page.classList.contains('is-playing')) toggle(); },
+    });
+    setInterval(() => { if (built) { const c = player.clock(); media.position(built.duration, c.time, Number(speedSel.value) || 1, c.playing); } }, 1000);
+  }
+
   load();
   // for the page's tests and the curious: what's played, and where it is
   window.songbooksWarmupPage = { built: () => built, clock: () => player.clock() };

@@ -7721,3 +7721,38 @@ a.singer-chip:hover { border-color: var(--border-strong); }
   .ct-grab { display: block; position: relative; width: 3rem; height: 1.4rem; min-height: 0; border: 0; padding: 0; background: none; }
   .ct-grab::before { content: ""; position: absolute; left: 0.6rem; right: 0.6rem; top: 0.5rem; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--fg) 25%, transparent); }
 }
+
+/* The warm-up on the player shell (warmups.html): its card becomes the
+   bar at the bottom — ▶ ■, where it is, Pitch and Piano as chips,
+   "Réglages" — with the checker's lane over its row while checking; the
+   octave and the tempo in its panel. */
+.warmup-practice { padding-bottom: 8rem; }
+.warmup-practice .warmup-player.wu-bar {
+  position: fixed; z-index: 58; top: auto; left: 0; right: 0; bottom: calc(var(--context-h, 0px) + env(safe-area-inset-bottom, 0px));
+  max-height: 62dvh; overflow-y: auto; overscroll-behavior: contain;
+  padding: 0.5rem max(1rem, env(safe-area-inset-right, 0px)) 0.55rem max(1rem, env(safe-area-inset-left, 0px));
+  border: 0; border-top: 1px solid var(--border); border-radius: 0; box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.1); gap: 0.4rem;
+}
+@media (min-width: 901px) { .warmup-practice .warmup-player.wu-bar { left: 220px; } }
+@media (max-width: 900px) { .warmup-practice .warmup-player.wu-bar { bottom: calc(var(--context-h, 3.4rem) + env(safe-area-inset-bottom, 0px)); } }
+.wu-bar #warmup-check:empty { display: none; }
+.wu-bar #warmup-check { max-width: 90rem; width: 100%; margin: 0 auto; }
+.wu-bar-row { display: flex; align-items: center; gap: 0.8rem; max-width: 90rem; width: 100%; margin: 0 auto; min-width: 0; }
+.wu-transport { flex: none; flex-wrap: nowrap; }
+.wu-readout { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 0.3rem; padding: 0.35rem 0.7rem; border-radius: var(--radius); background: var(--bg-sunken); }
+.wu-readout .warmup-now-row { flex-wrap: nowrap; min-width: 0; }
+.wu-readout .warmup-now-row > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wu-tray { flex: none; }
+.wu-panel-btn { flex: none; }
+.wu-panel-wrap.is-open .wu-panel { width: min(30rem, calc(100vw - 2rem)); grid-template-columns: 1fr; }
+.wu-group .audio-line:first-child { border-top: 0; }
+.wu-group .warmup-octave button, .wu-group .warmup-speed { min-height: 2.4rem; }
+@media (max-width: 720px) {
+  .warmup-practice .warmup-player.wu-bar { left: 0.5rem; right: 0.5rem; bottom: calc(var(--context-h, 3.4rem) + env(safe-area-inset-bottom, 0px) + 0.4rem); border: 1px solid var(--border); border-radius: 14px; padding: 0.45rem 0.55rem; }
+  .wu-bar-row { flex-wrap: wrap; gap: 0.45rem; }
+  .wu-readout { order: -1; flex-basis: 100%; }
+  .wu-tray { flex: 1; }
+  .wu-panel-btn span { display: none; }
+  .wu-panel-btn { display: inline-flex !important; padding: 0 0.6rem; }
+  .warmup-practice { padding-bottom: 12rem; }
+}
