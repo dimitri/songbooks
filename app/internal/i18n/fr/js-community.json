@@ -99,5 +99,7 @@
   "Couldn’t plan it. Try again.": "Impossible de le prévoir. Réessayez.",
   "Pick an event, or a new one.": "Choisissez un événement, ou un nouveau.",
   "Couldn’t make the link.": "Impossible de créer le lien.",
-  "Your voice lessons on Songbooks: %s": "Vos cours de chant sur Songbooks : %s"
+  "Your voice lessons on Songbooks: %s": "Vos cours de chant sur Songbooks : %s",
+  "Pick a song, or say what to practise.": "Choisissez un morceau, ou dites quoi travailler.",
+  "Remove this from their practice? What they logged stays.": "Retirer ceci de son travail ? Ce qui a été noté reste."
 }

@@ -90,6 +90,28 @@ they are as a singer, goals), and dated notes, each maybe about a lesson
 (what was worked on, what to practise next), the latest first, edited in
 place.
 
+## Practice
+
+What a student works on between lessons (migration 0084, practice.go):
+
+- **An assignment**: one of the student's songs (or their group's), or
+  something in words ("lip trills, five minutes"), with what to work on,
+  so many days a week, until a date. The coach gives it on the student's
+  page (or the group's, for all its members), marks it done or removes
+  it.
+- **The student** sees *To practise* on *My voice*: each assignment, its
+  days this week against the target (2/3), until when, the last time.
+  The song opens from there in their key.
+- **Logged by itself**: a song opened from the student's songbook (or
+  their group's) counts the time its recording plays (practice-time.js,
+  one row a song a day), on the open assignment of that song. The coach
+  playing it counts nothing.
+- **Told**: *I practised*, so many minutes, a day of the last 30, how it
+  went; on an assignment, or something else.
+- **The coach** sees each student's last four weeks on their page, and in
+  the students table and cards: minutes and days in the last seven, what's
+  left to practise.
+
 ## Lessons
 
 `/communities/{id}/lessons`: the coach's calendar, day by day. A lesson
