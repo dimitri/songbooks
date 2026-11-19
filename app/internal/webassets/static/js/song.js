@@ -2395,7 +2395,7 @@ const ICONS = {
       if (k.ireal) out.push(t('iReal Pro: %s', k.ireal) + (k.irealAgrees ? ' ✓' : ' ✗'));
       if (k.audio) out.push(t('Recording: %s (%s% sure)', k.audio, Math.round((k.audioConfidence || 0) * 100)) + (k.audioAgrees ? ' ✓' : ' ✗'));
       if (k.shiftToAudio) out.push(t('Transpose the chart %s semitones to match the recording (Chart tab, Transpose).', (k.shiftToAudio > 0 ? '+' : '') + k.shiftToAudio));
-      (k.notes || []).forEach(n => out.push(n));
+      (k.notes || []).forEach(n => out.push(t(n)));
       return out;
     }
     $id('import-key-btn').addEventListener('click', async () => {
@@ -2659,10 +2659,23 @@ const ICONS = {
         const head = table.createTHead().insertRow();
         [t('Section'), t('Starts at'), ''].forEach(h => { const th = document.createElement('th'); th.textContent = h; head.appendChild(th); });
         const tbody = table.createTBody();
+        // "Verse ×10" says nothing: number a repeated name that has none.
+        const count = {}, seen = {};
+        (p.sections || []).forEach(s => { count[s.label] = (count[s.label] || 0) + 1; });
         (p.sections || []).forEach(s => {
           const tr = tbody.insertRow();
-          tr.insertCell().textContent = s.label;
-          tr.insertCell().textContent = `${fmtTime(s.time)} (${s.time.toFixed(2)}s)`;
+          seen[s.label] = (seen[s.label] || 0) + 1;
+          tr.insertCell().textContent = count[s.label] > 1 && !/\d\s*$/.test(s.label) ? `${s.label} ${seen[s.label]}` : s.label;
+          const when = tr.insertCell();
+          when.textContent = `${fmtTime(s.time)} (${s.time.toFixed(2)}s)`;
+          // The chart's bars don't fit here (songimport.ProposeSync): say
+          // how many the recording plays.
+          if (s.recordingBars) {
+            const warn = document.createElement('div');
+            warn.className = 'import-sync-bars';
+            warn.textContent = t('%d bars in the chart, about %d in the recording', s.chartBars, s.recordingBars);
+            when.appendChild(warn);
+          }
           const play = document.createElement('button');
           play.type = 'button'; play.className = 'icon-btn import-sync-play'; play.textContent = '▶';
           play.setAttribute('aria-label', t('Play %s from its start', s.label));
@@ -2670,6 +2683,20 @@ const ICONS = {
           tr.insertCell().appendChild(play);
         });
         syncResult.append(ul, table);
+        // Or place them by ear, starting from this proposal (sync-sheet.js).
+        if (window.songbooksSyncSheet && (p.sections || []).length) {
+          const byEar = document.createElement('button');
+          byEar.type = 'button';
+          byEar.className = 'audio-pill-btn import-sync-by-ear';
+          byEar.textContent = t('Adjust by ear…');
+          byEar.title = t('open the Sync sheet with this proposal: tap along, nudge, then save the section starts');
+          byEar.addEventListener('click', () => {
+            const proposal = p.sections.map(s => ({ sectionIndex: s.index, timeSeconds: s.time, origin: 'auto' }));
+            wizard.close();
+            window.songbooksSyncSheet.open({ category: 'youtube', proposal });
+          });
+          syncResult.appendChild(byEar);
+        }
         syncOverwriteLabel.hidden = false;
       } catch (err) {
         syncStatus.textContent = t("Couldn't analyse the recording: %s", err.message); syncStatus.className = 'err';
@@ -2686,7 +2713,10 @@ const ICONS = {
         busy(false, '');
         passed.add('sync');
         wizard.close();
-        Forms.status?.(document.getElementById('save-status'), t('Saved. Reload the page to play along with the synced chart.'), 'ok');
+        // The player picks the new sync up as it is (an estimate until
+        // checked by ear: its badge offers to correct it).
+        document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
+        Forms.status?.(document.getElementById('save-status'), t('Saved: the player follows the new sync. Check it by ear from its “Sync estimated” badge.'), 'ok');
       } catch (err) {
         busy(false);
         fail(t("Couldn't save: %s", err.message));

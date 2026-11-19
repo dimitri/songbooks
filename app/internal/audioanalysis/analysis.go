@@ -249,3 +249,58 @@ func vocalOnsets(act []bool, hop float64) []float64 {
 	}
 	return on
 }
+
+// VoiceCues is when the singer sings, from a vocals stem alone: its
+// phrases (runs of vocal activity, [start, end) in seconds, a phrase
+// ending at a rest of at least phraseGap) and their starts. The Sync
+// sheet snaps taps to the starts; the lyrics view puts a section's lines
+// on its phrases.
+type VoiceCues struct {
+	Duration float64      `json:"duration"`
+	Onsets   []float64    `json:"onsets"`
+	Phrases  [][2]float64 `json:"phrases"`
+}
+
+// AnalyzeVoice decodes a vocals stem and finds its phrases.
+func AnalyzeVoice(ctx context.Context, vocals []byte) (*VoiceCues, error) {
+	v, err := Decode(ctx, vocals)
+	if err != nil {
+		return nil, fmt.Errorf("vocals stem: %w", err)
+	}
+	return VoiceCuesOf(vocalActivity(frameLevelsDB(v)), Hop), nil
+}
+
+// VoiceCuesOf turns per-frame vocal activity into phrases.
+func VoiceCuesOf(act []bool, hop float64) *VoiceCues {
+	c := &VoiceCues{Duration: float64(len(act)) * hop, Onsets: vocalOnsets(act, hop), Phrases: [][2]float64{}}
+	if c.Onsets == nil {
+		c.Onsets = []float64{}
+	}
+	gap := int(math.Round(phraseGap / hop))
+	start, last := -1, -1
+	for i, v := range act {
+		if !v {
+			continue
+		}
+		if start < 0 || i-last-1 >= gap {
+			if start >= 0 {
+				c.Phrases = append(c.Phrases, [2]float64{float64(start) * hop, float64(last+1) * hop})
+			}
+			start = i
+		}
+		last = i
+	}
+	if start >= 0 {
+		c.Phrases = append(c.Phrases, [2]float64{float64(start) * hop, float64(last+1) * hop})
+	}
+	// Hundredths are plenty (a frame is 50 ms), and keep the JSON short.
+	r := func(x float64) float64 { return math.Round(x*100) / 100 }
+	for i := range c.Onsets {
+		c.Onsets[i] = r(c.Onsets[i])
+	}
+	for i := range c.Phrases {
+		c.Phrases[i] = [2]float64{r(c.Phrases[i][0]), r(c.Phrases[i][1])}
+	}
+	c.Duration = r(c.Duration)
+	return c
+}

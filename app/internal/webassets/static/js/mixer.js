@@ -425,6 +425,8 @@
     let sync = t('not aligned yet');
     if (meta && meta.barSyncPoints && meta.barSyncPoints.length) sync = tn(meta.barSyncPoints.length, 'aligned · %d bar sync point', 'aligned · %d bar sync points');
     else if (meta && meta.markers && meta.markers.length) sync = tn(meta.markers.length, 'aligned · %d section marker', 'aligned · %d section markers');
+    // Placed by Auto-align or the import wizard, not checked by ear yet.
+    if (meta && meta.syncOrigin === 'auto') sync += ' · ' + t('sync|estimated');
     return `${CAT_LABEL[refCat] || refCat}${dur} · ${sync}`;
   }
 
@@ -1494,6 +1496,7 @@
         for (let b = 0; b < N(); b++) points.push({ barIndex: b, timeSeconds: barTimes[b] });
         await put(`/api/songs/${variantId}/audio/gp/sync-points`, { points });
         meta.barSyncPoints = points;
+        meta.syncOrigin = 'set';
       } else {
         const shifted = data.sections.filter((s) => realBars.has(s.startBar) || s.startBar === a.bar);
         meta.markers = meta.markers || [];
@@ -1501,9 +1504,11 @@
           const t = barTimes[s.startBar];
           if (Math.abs(t - orig[s.startBar]) < 1e-6 && s.startBar !== a.bar) continue;
           await put(`/api/songs/${variantId}/audio/${refCat}/markers/${s.index}`, { timeSeconds: t });
+          // Placed by hand: set (the server says so too).
           const m = meta.markers.find((x) => x.sectionIndex === s.index);
-          if (m) m.timeSeconds = t; else meta.markers.push({ sectionIndex: s.index, timeSeconds: t });
+          if (m) Object.assign(m, { timeSeconds: t, origin: 'set' }); else meta.markers.push({ sectionIndex: s.index, timeSeconds: t, origin: 'set' });
         }
+        meta.syncOrigin = meta.markers.some((m) => m.origin === 'auto') ? 'auto' : 'set';
       }
       alignStatus.textContent = t('saved — %s at %s', a.label, fmtTime(barTimes[a.bar]));
       document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
@@ -1557,6 +1562,7 @@
       cat: refCat,
       sync: (meta.barSyncPoints || []).map((p) => ({ ...p })),
       markers: (meta.markers || []).map((m) => ({ ...m })),
+      origin: meta.syncOrigin || '',
     };
     const btn = $('daw-align-undo');
     if (btn) btn.hidden = false;
@@ -1626,21 +1632,21 @@
   // Saves the current barTimes as this recording's alignment: every bar for
   // the Guitar Pro recording (bar sync points), every section start for
   // any other recording (section markers).
+  // Auto-align's: an estimate ("auto") until checked by ear, saved in one
+  // request.
   async function saveAllAnchors() {
     const meta = audioCats[refCat];
     if (refCat === 'gp') {
       const points = [];
       for (let b = 0; b < N(); b++) points.push({ barIndex: b, timeSeconds: barTimes[b] });
-      await put(`/api/songs/${variantId}/audio/gp/sync-points`, { points });
+      await put(`/api/songs/${variantId}/audio/gp/sync-points`, { points, origin: 'auto' });
       meta.barSyncPoints = points;
     } else {
-      meta.markers = [];
-      for (const s of data.sections) {
-        const t = barTimes[s.startBar];
-        await put(`/api/songs/${variantId}/audio/${refCat}/markers/${s.index}`, { timeSeconds: t });
-        meta.markers.push({ sectionIndex: s.index, timeSeconds: t });
-      }
+      const markers = data.sections.map((s) => ({ sectionIndex: s.index, timeSeconds: barTimes[s.startBar], origin: 'auto' }));
+      await put(`/api/songs/${variantId}/audio/${refCat}/markers`, { markers });
+      meta.markers = markers;
     }
+    meta.syncOrigin = 'auto';
     document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
     computeBarTimes();
     rows.audio.hdr.querySelector('.daw-hdr-sub').textContent = refSubtitle();
@@ -1653,17 +1659,15 @@
     const meta = audioCats[refCat];
     try {
       if (refCat === 'gp') {
-        await put(`/api/songs/${variantId}/audio/gp/sync-points`, { points: snap.sync });
+        await put(`/api/songs/${variantId}/audio/gp/sync-points`, { points: snap.sync, origin: snap.origin === 'auto' ? 'auto' : 'set' });
         meta.barSyncPoints = snap.sync;
       }
       if (refCat !== 'gp' || snap.markers.length) {
-        for (const s of data.sections) {
-          const old = snap.markers.find((m) => m.sectionIndex === s.index);
-          if (old) await put(`/api/songs/${variantId}/audio/${refCat}/markers/${s.index}`, { timeSeconds: old.timeSeconds });
-          else if (refCat !== 'gp') await fetch(`/api/songs/${variantId}/audio/${refCat}/markers/${s.index}`, { method: 'DELETE' });
-        }
+        // Back as it was, origins too, in one request.
+        await put(`/api/songs/${variantId}/audio/${refCat}/markers`, { markers: snap.markers });
         meta.markers = snap.markers;
       }
+      meta.syncOrigin = snap.origin;
       undoSnapshot = null;
       $('daw-align-undo').hidden = true;
       alignStatus.textContent = t('Undone — back to the previous alignment.');
@@ -1675,6 +1679,19 @@
       alignStatus.textContent = t('Could not undo: %s', err.message);
     }
   }
+
+  // A sync saved from the Sync sheet (sync-sheet.js): follow it here too.
+  document.addEventListener('songbooks:sync-saved', async () => {
+    if (!built) return;
+    const res = await fetch(`/api/songs/${variantId}/audio`).catch(() => null);
+    if (!res || !res.ok) return;
+    ((await res.json()).categories || []).forEach((c) => {
+      if (audioCats[c.category]) Object.assign(audioCats[c.category], { markers: c.markers || [], barSyncPoints: c.barSyncPoints || [], syncOrigin: c.syncOrigin || '' });
+    });
+    computeBarTimes();
+    rows.audio.hdr.querySelector('.daw-hdr-sub').textContent = refSubtitle();
+    layout();
+  });
 
   $('daw-autoalign')?.addEventListener('click', autoAlign);
   $('daw-align-undo')?.addEventListener('click', undoAutoAlign);

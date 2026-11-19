@@ -427,6 +427,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+<link rel="stylesheet" href="/static/css/sync.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
 </head>
@@ -1561,6 +1562,9 @@
             <span class="audio-lcd-time" id="audio-time-label">0:00 / 0:00</span>
             <span class="audio-lcd-state" id="audio-lcd-state"></span>
           </div>
+          {{/* Estimated or set (audio-player.js "Sync state"): its panel
+               opens the Sync sheet (sync-sheet.js) to correct it. */}}
+          <button type="button" id="audio-sync-badge" class="audio-sync-badge" data-pop="audio-pop-sync" aria-expanded="false" hidden><i aria-hidden="true"></i><span>{{t "Sync estimated"}}</span></button>
           <button type="button" id="audio-opts-btn" class="icon-btn audio-opts-btn" aria-expanded="false" aria-controls="audio-opts" title="{{t "practice options"}}">{{template "icon-more"}}</button>
           <div class="audio-opts" id="audio-opts">
             <button type="button" id="audio-cycle-btn" class="audio-toggle" aria-pressed="false" title="{{t "cycle: loop the yellow bar range — drag in the ruler to set it (C)"}}">{{template "icon-cycle"}}<span>{{t "Cycle"}}</span></button>
@@ -1590,6 +1594,7 @@
         </div>
         {{/* One panel per option, opened from its ▾ (or from Trainer),
              under the control bar; one open at a time. */}}
+        <div class="audio-pop audio-pop-sync" id="audio-pop-sync" hidden></div>
         <div class="audio-pop" id="audio-pop-countin" hidden>
           <div class="audio-pop-head"><strong>{{t "Count-in"}}</strong><span class="hint">{{t "clicks before the music starts, at its tempo"}}</span></div>
           <div class="audio-seg" id="audio-countin-seg" role="radiogroup" aria-label="{{t "count-in length"}}">
@@ -1675,6 +1680,46 @@
         </div>
       </div>
     </div>
+    {{if .CanEdit}}
+    {{/* The Sync sheet (sync-sheet.js): tap along while listening, at the
+         start of each section; nudge, check, save in one go. A bottom
+         sheet on a phone, a side panel on a wide screen. */}}
+    <div class="sync-sheet" id="sync-sheet" hidden>
+      <div class="sync-sheet-backdrop" data-sync-close></div>
+      <section class="sync-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sync-sheet-title">
+        <header class="sync-sheet-head">
+          <button type="button" class="sync-sheet-grab" data-sync-close aria-label="{{t "close the sync"}}"></button>
+          <h2 id="sync-sheet-title">{{t "Sync"}}</h2>
+          <span class="sync-state-chip" id="sync-state-chip"></span>
+          <button type="button" class="icon-btn sync-sheet-close" data-sync-close aria-label="{{t "close the sync"}}">×</button>
+        </header>
+        <p class="hint sync-sheet-hint" id="sync-sheet-hint">{{t "Play, then tap the big button on the first beat of each section as you hear it. Check a start with ▶ 2 s before; nudge it with the arrows."}}</p>
+        <div class="sync-sheet-transport">
+          <button type="button" class="sync-btn" id="sync-back" aria-label="{{t "back 5 seconds"}}">−5 s</button>
+          <button type="button" class="sync-btn sync-play" id="sync-play" aria-label="{{t "play/pause (Space)"}}">{{template "icon-play"}}</button>
+          <span class="sync-time" id="sync-time">0:00.0</span>
+          <span class="sync-now" id="sync-now"></span>
+          <span class="sync-sheet-spacer"></span>
+          <div class="audio-seg sync-speed" id="sync-speed" role="radiogroup" aria-label="{{t "Playback speed"}}">
+            <button type="button" data-v="0.75">0.75×</button><button type="button" data-v="1">1×</button>
+          </div>
+          <button type="button" class="sync-btn sync-click" id="sync-click" aria-pressed="false" title="{{t "click on every beat, following the sync (K)"}}">{{template "icon-metronome"}}<span>{{t "Click"}}</span></button>
+        </div>
+        <button type="button" class="sync-tap" id="sync-tap"><span class="sync-tap-what" id="sync-tap-what"></span><span class="sync-tap-now">{{t "sync|now"}}</span></button>
+        <details class="sync-warn" id="sync-warn" hidden><summary id="sync-warn-sum"></summary><p id="sync-warn-text"></p></details>
+        <ol class="sync-rows" id="sync-rows"></ol>
+        <footer class="sync-sheet-foot">
+          <label class="audio-check" title="{{t "a tap moves to the nearest downbeat or the voice coming in, within 0.15 s"}}"><input type="checkbox" id="sync-snap" checked> {{t "Snap to the beat and the voice"}}</label>
+          <span class="sync-sheet-spacer"></span>
+          <button type="button" class="audio-pill-btn" id="sync-history-btn" aria-expanded="false" title="{{t "Earlier syncs"}}">{{t "sync|History"}}</button>
+          <button type="button" class="audio-pill-btn" id="sync-undo" disabled>{{t "Undo"}}</button>
+          <button type="button" class="primary" id="sync-save" disabled>{{t "Save"}}</button>
+          <span class="hint form-status sync-status" id="sync-status" role="status"></span>
+          <ul class="sync-history" id="sync-history" hidden></ul>
+        </footer>
+      </section>
+    </div>
+    {{end}}
     {{if .GPDrift}}
     {{/* Where the song's text and its Guitar Pro file disagree (gpdrift.go,
          docs/gp-file-model.md §4): editors only, never fixed on its own. */}}
@@ -1893,6 +1938,7 @@
 {{end}}<script src="/static/js/clock.js?v={{staticVersion}}"></script>
 <script src="/static/js/song.js?v={{staticVersion}}"></script>
 <script src="/static/js/audio-player.js?v={{staticVersion}}"></script>
+{{if .CanEdit}}<script src="/static/js/sync-sheet.js?v={{staticVersion}}"></script>{{end}}
 <script src="/static/js/pitch-check.js?v={{staticVersion}}"></script>
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 <script src="/static/js/mixer-autoalign.js?v={{staticVersion}}" defer></script>
