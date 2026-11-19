@@ -91,8 +91,8 @@ func communityRoleLabel(coaching bool, key, name string) string {
 	return name
 }
 
-// initials is a name's first letters, two at most: "Lucas Mercier" → "LM".
-func initials(name string) string {
+// personInitials is a name's first letters, two at most: "Lucas Mercier" → "LM".
+func personInitials(name string) string {
 	var out []rune
 	for _, word := range strings.Fields(name) {
 		for _, r := range word {
@@ -151,7 +151,7 @@ func (s *Server) handleCommunityMembersPage(w http.ResponseWriter, r *http.Reque
 		}
 		card := communityMemberCard{
 			CommunityRosterEntry: e,
-			Initials:             initials(e.DisplayName),
+			Initials:             personInitials(e.DisplayName),
 			RoleLabel:            communityRoleLabel(community.IsCoaching(), e.RoleKey, e.Role),
 			StudentPage:          access.Manage && community.IsCoaching() && e.RoleKey != "staff" && e.IsCurrent(),
 		}
