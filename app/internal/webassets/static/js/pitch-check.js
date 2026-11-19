@@ -11,16 +11,47 @@
 // A take's score, for a coaching student playing a song of their
 // songbook, joins their practice log (/api/practice/pitch, practice.go).
 (function () {
-  const root = document.getElementById('audio-player');
-  if (!root || !window.AudioContext || !navigator.mediaDevices || !window.indexedDB) return;
-  // The player sets its clock up as it starts: wait for it.
-  if (!window.songbooksReferenceClock) {
+  if (!window.AudioContext || !navigator.mediaDevices || !window.indexedDB) return;
+
+  // The song page: the recording's voice against the singer.
+  function songPage() {
+    const root = document.getElementById('audio-player');
+    if (!root) return;
+    const go = () => {
+      const ctx = window.songbooksPracticeContext;
+      create({
+        mount: (panel) => root.after(panel),
+        clock: () => window.songbooksReferenceClock(),
+        visible: () => { const c = window.songbooksReferenceClock(); return !!(c && c.category && c.stems.includes('vocals')); },
+        notesKey: (c) => `${c.variantId}:${c.category}`,
+        loadNotes: async (c, progress) => notesOf(await referenceLine(c, progress)),
+        loading: () => t('Listening to the song’s voice…'),
+        loadingAt: (pc) => t('Listening to the song’s voice… %d%', pc),
+        loadFailed: () => t('Couldn’t read the song’s voice.'),
+        ready: () => t('Sing along: headphones on, the voice down. Play the song.'),
+        key: () => (window.songbooksPlayerKey && window.songbooksPlayerKey.get()) || 0,
+        seek: (tm) => window.songbooksReferenceSeek(tm),
+        loadInfo: ctx ? async () => { const r = await fetch(`/api/practice/pitch?songbookId=${ctx.songbookId}&variantId=${ctx.variantId}`); return r.status === 200 ? r.json() : null; } : null,
+        postTake: ctx ? async (body) => {
+          const r = await fetch('/api/practice/pitch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ songbookId: ctx.songbookId, variantId: ctx.variantId }, body)) });
+          return r.status === 200 ? r.json() : null;
+        } : null,
+      });
+    };
+    // The player sets its clock up as it starts: wait for it.
     let tries = 0;
     const wait = setInterval(() => {
-      if (window.songbooksReferenceClock) { clearInterval(wait); init(); } else if (++tries > 40) clearInterval(wait);
+      if (window.songbooksReferenceClock) { clearInterval(wait); go(); } else if (++tries > 40) clearInterval(wait);
     }, 250);
-  } else init();
-  function init() {
+  }
+
+  // create(opts) puts a checker on a page: opts.mount(panel), clock() →
+  // {time, playing}, visible(), notesKey(clock), loadNotes(clock,
+  // progress) → notes ({start, end, midi, afterRest}), key() (semitones
+  // the notes move), seek(time), loadInfo() and postTake(body) → the
+  // progress (or null), info (the progress known already), anyPitch (a
+  // rhythm: entries only, any note), and its words (loading, ready…).
+  function create(opts) {
 
   // ---- Pitch tracking (YIN) ----------------------------------------------
   // In the worker too: its source is this function's.
@@ -224,8 +255,9 @@
       // the singer comes in: a voice near the note after at least 50 ms of
       // silence, around the note's start (legato through the rest: none)
       if (note.afterRest && onset === null && rt >= note.start - 0.3 && rt <= note.start + 0.4) {
-        if (isNaN(m) || Math.abs(fold(m)) > 200) quiet += 1;
-        else { if (quiet >= 3) onset = rt - note.start; quiet = 0; }
+        // a rhythm (anyPitch): any note, and a consonant's short break will do
+        if (isNaN(m) || (!opts.anyPitch && Math.abs(fold(m)) > 200)) quiet += 1;
+        else { if (quiet >= (opts.anyPitch ? 1 : 3)) onset = rt - note.start; quiet = 0; }
       }
       if (rt < note.start + trim || rt > note.end - trim) continue; // the note's middle: its edges carry its neighbours
       all++;
@@ -248,7 +280,8 @@
     // Pitch barely depends on a few hundred ms (notes last); only a big
     // device delay (Bluetooth headphones) moves the lag.
     let best = hitsAt(lag0), lag = lag0;
-    for (let l = lag0 - 0.4; l <= lag0 + 0.41; l += 0.05) { const h = hitsAt(l); if (h > best * 1.3 + 2) { best = h; lag = l; } }
+    // and only for a take mostly in tune there: a poor take's best lag is noise
+    for (let l = lag0 - 0.4; l <= lag0 + 0.41; l += 0.05) { const h = hitsAt(l); if (h > best * 1.3 + 2 && h >= inTake.length * 0.5) { best = h; lag = l; } }
     const judged = inTake.map((n) => ({ note: n, ...judge(n, frames, lag, key, lv) }));
     const sung = judged.filter((j) => j.sung);
     const hits = sung.filter((j) => j.hit).length;
@@ -267,6 +300,7 @@
       pitch: sung.length ? Math.round((100 * hits) / sung.length) : 0,
       rhythm: timed.length ? Math.round((100 * onTime) / timed.length) : 0,
       cents: near.length ? Math.round(near[near.length >> 1]) : 0,
+      near: near.length, // notes within twice the margin: their tendency says something
       ms: spread,
       lag,
     };
@@ -286,7 +320,7 @@
     <canvas class="pitch-check-lane" height="150" hidden></canvas>
     <div class="pitch-check-result" hidden></div>
     <div class="pitch-check-history" hidden></div>`;
-  root.after(panel);
+  opts.mount(panel);
   const $p = (sel) => panel.querySelector(sel);
   const toggle = $p('.pitch-check-toggle'), status = $p('.pitch-check-status'), lane = $p('.pitch-check-lane');
   const result = $p('.pitch-check-result'), goal = $p('.pitch-check-goal'), history = $p('.pitch-check-history'), levels = $p('.pitch-check-levels');
@@ -294,8 +328,7 @@
 
   // What the coach set for this song (a target, a level) and the takes so
   // far: a coaching student's song of their songbook, else nothing.
-  const ctx = window.songbooksPracticeContext;
-  let info = null;
+  let info = opts.info || null;
   let level = LEVELS[storedLevel()] ? storedLevel() : 'beginner';
   function renderLevels() {
     levels.innerHTML = '';
@@ -342,20 +375,22 @@
     history.hidden = false;
   }
   async function loadInfo() {
-    if (!ctx) return;
-    try {
-      const r = await fetch(`/api/practice/pitch?songbookId=${ctx.songbookId}&variantId=${ctx.variantId}`);
-      if (r.status === 200) { info = await r.json(); useCoachSettings(info.settings); }
-    } catch (e) { /* no info: still checks, keeps nothing */ }
+    if (opts.loadInfo) {
+      try {
+        const got = await opts.loadInfo();
+        if (got) info = got;
+      } catch (e) { /* no info: still checks, keeps nothing */ }
+    }
+    if (info) useCoachSettings(info.settings);
     renderLevels(); renderGoal(); renderHistory();
   }
+  if (info) useCoachSettings(info.settings);
   renderLevels();
 
   // Shown when the playing recording has its voice apart.
   let infoAsked = false;
   const refresh = () => {
-    const c = window.songbooksReferenceClock();
-    panel.hidden = !(c && c.category && c.stems.includes('vocals'));
+    panel.hidden = !opts.visible();
     if (!panel.hidden && !infoAsked) { infoAsked = true; loadInfo(); }
   };
   refresh();
@@ -366,20 +401,20 @@
   let wasPlaying = false, lag0 = 0.15;
 
   async function start() {
-    const clock = window.songbooksReferenceClock();
+    const clock = opts.clock();
     on = true;
     toggle.textContent = t('Stop checking');
     toggle.classList.add('is-on');
     result.hidden = true;
-    const key = `${clock.variantId}:${clock.category}`;
+    const key = opts.notesKey(clock);
     if (!line || lineKey !== key) {
-      status.textContent = t('Listening to the song’s voice…');
+      status.textContent = opts.loading();
       try {
-        line = await referenceLine(clock, (p) => { status.textContent = t('Listening to the song’s voice… %d%', Math.round(p * 100)); });
-        notes = notesOf(line);
+        notes = await opts.loadNotes(clock, (p) => { status.textContent = opts.loadingAt(Math.round(p * 100)); });
+        line = true;
         lineKey = key;
       } catch (e) {
-        status.textContent = t('Couldn’t read the song’s voice.');
+        status.textContent = opts.loadFailed();
         stop();
         return;
       }
@@ -397,7 +432,7 @@
     ac.createMediaStreamSource(mic).connect(analyser);
     lag0 = (ac.outputLatency || 0) + (ac.baseLatency || 0) + 0.05;
     lane.hidden = false;
-    status.textContent = t('Sing along: headphones on, the voice down. Play the song.');
+    status.textContent = opts.ready();
     frames = [];
     loop();
   }
@@ -427,8 +462,8 @@
 
   function loop() {
     raf = requestAnimationFrame(loop);
-    const clock = window.songbooksReferenceClock();
-    const key = (window.songbooksPlayerKey && window.songbooksPlayerKey.get()) || 0;
+    const clock = opts.clock();
+    const key = opts.key();
     const midi = micPitch();
     if (clock.playing) {
       if (frames.length && clock.time < frames[frames.length - 1][0] - 0.5) endTake(); // jumped back: a new take
@@ -489,21 +524,21 @@
     frames = [];
     live.clear();
     if (fr.length < 240 || !notes.length) return; // under ~4 s of singing: no score
-    const key = (window.songbooksPlayerKey && window.songbooksPlayerKey.get()) || 0;
+    const key = opts.key();
     const s = score(notes, fr, key, lv(), lag0);
     if (s.sung < 4) return;
     const target = info && info.pitchTarget;
-    const n = stars(s.pitch, target);
+    const n = opts.anyPitch ? stars(s.rhythm, info && info.rhythmTarget) : stars(s.pitch, target);
     coachSaid = false;
     const vars = { cents: Math.abs(s.cents), ms: s.ms, pitch: s.pitch, rhythm: s.rhythm };
-    const tendency = s.pitch < 40 ? say('far', vars) : Math.abs(s.cents) < 10 ? say('centre', vars) : say(s.cents < 0 ? 'flat' : 'sharp', vars);
+    const tendency = opts.anyPitch ? '' : s.near < s.sung / 2 ? say('far', vars) : Math.abs(s.cents) < 10 ? say('centre', vars) : say(s.cents < 0 ? 'flat' : 'sharp', vars);
     const half = lv().ms / 2;
     const timing = s.timed < 3 ? '' : say(s.ms <= half ? 'steady' : s.ms <= lv().ms ? 'uneven' : 'very_uneven', vars);
     const cheer = n === 3 ? say('three_stars', vars) : n === 0 ? say('keep_going', vars) : '';
     result.innerHTML = `
       <div class="take-stars" aria-label="${t('%d stars out of 3', n)}">${[0, 1, 2].map((i) => `<span class="${i < n ? 'is-on' : ''}">★</span>`).join('')}</div>
       <div class="take-scores">
-        <div><strong>${s.pitch}%</strong><span>${t('in tune')}</span><small>${t('%d of %d notes', s.hits, s.sung)}</small></div>
+        ${opts.anyPitch ? '' : `<div><strong>${s.pitch}%</strong><span>${t('in tune')}</span><small>${t('%d of %d notes', s.hits, s.sung)}</small></div>`}
         <div><strong>${s.rhythm}%</strong><span>${t('on time')}</span><small>${t('%d of %d notes', s.onTime, s.timed)}</small></div>
       </div>
       <p class="take-words">${cheer ? cheer + ' ' : ''}${tendency} ${timing}${coachSaid && info.coach ? ` <span class="take-coach">— ${escapeHTML(info.coach)}</span>` : ''}</p>`;
@@ -518,21 +553,18 @@
         const b = document.createElement('button');
         b.type = 'button'; b.className = 'link-btn';
         b.textContent = `${clockTime(s0)}–${clockTime(s0 + 5)}`;
-        b.addEventListener('click', () => window.songbooksReferenceSeek(Math.max(0, s0 - 2)));
+        b.addEventListener('click', () => opts.seek(Math.max(0, s0 - 2)));
         q.append(i ? ', ' : '', b);
       });
       result.append(q);
     }
     result.hidden = false;
-    if (!ctx) return;
+    if (!opts.postTake) return;
     try {
-      const r = await fetch('/api/practice/pitch', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ songbookId: ctx.songbookId, variantId: ctx.variantId, level: (info && info.level) || level, pitch: s.pitch, rhythm: s.rhythm, cents: s.cents, ms: s.ms, notes: s.sung, hits: s.hits, seconds: Math.round(fr.length / 60) }),
-      });
-      if (r.status !== 200) return;
+      const got = await opts.postTake({ level: (info && info.level) || level, pitch: opts.anyPitch ? 0 : s.pitch, rhythm: s.rhythm, cents: s.cents, ms: s.ms, notes: s.sung, hits: s.hits, seconds: Math.round(fr.length / 60) });
+      if (!got) return;
       const before = info;
-      info = await r.json();
+      info = got;
       useCoachSettings(info.settings);
       const best = !before || !before.best || s.pitch > (before.best.pitch || 0);
       const reached = info.reached && !(before && before.reached);
@@ -549,5 +581,10 @@
     result.prepend(box);
     setTimeout(() => box.remove(), 3200);
   }
+    refresh();
+    return { refresh, stop: () => { if (on) stop(); } };
   }
+
+  window.songbooksPitchCheck = { create };
+  songPage();
 })();

@@ -19,13 +19,14 @@ import (
 // song page, and what they tell besides.
 
 type assignmentRequest struct {
-	PersonID  int64  `json:"personId"`
-	GroupID   int64  `json:"groupId"`
-	VariantID int64  `json:"variantId"`
-	Title     string `json:"title"`
-	Notes     string `json:"notes"`
-	PerWeek   int    `json:"perWeek"`
-	DueOn     string `json:"dueOn"` // 2006-01-02, or ""
+	PersonID   int64  `json:"personId"`
+	GroupID    int64  `json:"groupId"`
+	VariantID  int64  `json:"variantId"`
+	ExerciseID int64  `json:"exerciseId"`
+	Title      string `json:"title"`
+	Notes      string `json:"notes"`
+	PerWeek    int    `json:"perWeek"`
+	DueOn      string `json:"dueOn"` // 2006-01-02, or ""
 	// A goal on a song: a level, and the % of notes in tune and on time.
 	Level        string `json:"level"`
 	PitchTarget  int    `json:"pitchTarget"`
@@ -64,6 +65,12 @@ func (s *Server) handlePostAssignment(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "a student or a group")
 		return
 	}
+	if req.ExerciseID != 0 {
+		if _, err := s.store.GetExercise(ctx, community.ID, req.ExerciseID); err != nil {
+			httpError(w, http.StatusBadRequest, "not an exercise of this community")
+			return
+		}
+	}
 	if req.VariantID != 0 {
 		if in, err := s.store.CommunityHasSong(ctx, community.ID, req.VariantID); err != nil || !in {
 			httpError(w, http.StatusBadRequest, "not a song of this community")
@@ -80,7 +87,7 @@ func (s *Server) handlePostAssignment(w http.ResponseWriter, r *http.Request) {
 		due = &d
 	}
 	id, err := s.store.CreatePracticeAssignment(ctx, store.NewPracticeAssignment{
-		CommunityID: community.ID, PersonID: req.PersonID, GroupID: req.GroupID, VariantID: req.VariantID,
+		CommunityID: community.ID, PersonID: req.PersonID, GroupID: req.GroupID, VariantID: req.VariantID, ExerciseID: req.ExerciseID,
 		Title: strings.TrimSpace(req.Title), Notes: strings.TrimSpace(req.Notes), PerWeek: req.PerWeek, DueOn: due,
 		By: personFromContext(r).ID, Level: req.Level, PitchTarget: req.PitchTarget, RhythmTarget: req.RhythmTarget,
 	})
@@ -309,6 +316,64 @@ func (s *Server) handleGetPitchProgress(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) writeSongProgress(w http.ResponseWriter, r *http.Request, personID, songbookID, variantID int64) {
 	p, err := s.store.SongProgressOf(r.Context(), personID, songbookID, variantID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if p == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
+}
+
+// handlePostExerciseTake is POST /api/practice/exercise-take: a take of an
+// exercise checked by pitch-check.js ({"exerciseId", "level", "pitch",
+// "rhythm", …}), kept for a student of its community; its progress back
+// (204 for anyone else).
+func (s *Server) handlePostExerciseTake(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ExerciseID int64  `json:"exerciseId"`
+		Level      string `json:"level"`
+		Pitch      int    `json:"pitch"`
+		Rhythm     int    `json:"rhythm"`
+		Cents      int    `json:"cents"`
+		Ms         int    `json:"ms"`
+		Notes      int    `json:"notes"`
+		Hits       int    `json:"hits"`
+		Seconds    int    `json:"seconds"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	me := personFromContext(r).ID
+	kept, err := s.store.RecordExerciseTake(r.Context(), me, req.ExerciseID, store.Take{
+		Level: req.Level, Pitch: req.Pitch, Rhythm: req.Rhythm, Cents: req.Cents, Ms: req.Ms, Notes: req.Notes, Hits: req.Hits, Seconds: req.Seconds,
+	})
+	if err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !kept {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	s.writeExerciseProgress(w, r, me, req.ExerciseID)
+}
+
+// handleGetExerciseProgress is GET /api/practice/exercise-progress?exerciseId=.
+func (s *Server) handleGetExerciseProgress(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.URL.Query().Get("exerciseId"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "exerciseId")
+		return
+	}
+	s.writeExerciseProgress(w, r, personFromContext(r).ID, id)
+}
+
+func (s *Server) writeExerciseProgress(w http.ResponseWriter, r *http.Request, personID, exerciseID int64) {
+	p, err := s.store.ExerciseProgressOf(r.Context(), personID, exerciseID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return

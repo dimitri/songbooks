@@ -7023,6 +7023,31 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 @keyframes take-float { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-5.5rem) rotate(25deg); opacity: 0; } }
 .take-words { line-height: 1.5; }
 .take-coach { font-style: italic; color: var(--fg-muted); white-space: nowrap; }
+/* Warm-ups (warmups.html, warmup-page.js, warmup-edit.js). */
+.warmup-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.6rem; }
+.warmup-card { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.7rem 0.85rem; border: 1px solid var(--border); border-radius: var(--radius-card, 10px); color: var(--fg); text-decoration: none; background: var(--bg-raised, transparent); }
+.warmup-card:hover { border-color: var(--accent); }
+.warmup-card-notes { font-size: 0.85rem; color: var(--fg-muted); }
+.warmup-session-form, .warmup-form { display: flex; flex-direction: column; gap: 0.6rem; max-width: 46rem; margin-top: 0.6rem; }
+.warmup-session-form fieldset { display: flex; flex-direction: column; gap: 0.3rem; }
+.warmup-form > label, .warmup-form-row label, .warmup-own-words label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.9rem; }
+.warmup-form-row { display: flex; flex-wrap: wrap; gap: 0.8rem; }
+.warmup-form-row label[hidden] { display: none; }
+.warmup-notes { margin: 0.2rem 0 0.8rem; white-space: pre-line; }
+.warmup-coach-bar, .warmup-demo, .warmup-path-line, .warmup-transport, .warmup-preview-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.5rem 0; }
+.warmup-listen, .warmup-record, .warmup-play, .warmup-stop, .warmup-preview-play { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.5rem; padding: 0 0.9rem; border: 1px solid var(--border); border-radius: var(--radius-control, 6px); background: transparent; color: var(--fg); font-weight: 600; cursor: pointer; }
+.warmup-play.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.warmup-listen[hidden], .warmup-path-form[hidden], .warmup-session-bar[hidden], .warmup-demo-remove[hidden] { display: none; }
+.warmup-path-text { font-weight: 600; }
+.warmup-octave { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.warmup-octave button { border: 0; background: transparent; padding: 0.25rem 0.6rem; color: var(--fg-muted); cursor: pointer; }
+.warmup-path-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; }
+.warmup-path-form label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; }
+.warmup-score { margin: 0.6rem 0; border: 1px solid var(--border); border-radius: var(--radius-card, 10px); background: #fff; overflow: hidden; }
+.warmup-session-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; padding: 0.6rem 0.8rem; margin-bottom: 0.6rem; border-radius: var(--radius-card, 10px); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.warmup-session-stars { font-weight: 700; color: #c99a10; }
+.warmup-session-next { margin-left: auto; font-weight: 700; }
+.warmup-session-done { margin-left: auto; font-weight: 700; color: var(--pitch-hit, #2e9e5b); }
 /* The coach's settings for checking singing (check_settings.go). */
 .check-levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.8rem; }
 .check-level { border: 1px solid var(--border); border-radius: var(--radius-card, 10px); padding: 0.6rem 0.8rem 0.8rem; display: flex; flex-direction: column; gap: 0.5rem; }

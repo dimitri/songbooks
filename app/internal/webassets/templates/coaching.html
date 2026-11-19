@@ -14,6 +14,7 @@
       {{else}}<a class="band-tab{{if eq .Tab "voice"}} active{{end}}" href="/communities/{{.Community.ID}}/students/{{.Person.ID}}">{{t "My voice"}}</a>{{end}}
       {{if .IsStaff}}<a class="band-tab{{if eq .Tab "repertoire"}} active{{end}}" href="/communities/{{.Community.ID}}/student-songs">{{t "Students’ songs"}}</a>{{end}}
       <a class="band-tab{{if eq .Tab "groups"}} active{{end}}" href="/communities/{{.Community.ID}}/groups">{{template "coach-groups-label"}}</a>
+      <a class="band-tab{{if eq .Tab "warmups"}} active{{end}}" href="/communities/{{.Community.ID}}/warmups">{{t "Warm-ups"}}</a>
       <a class="band-tab{{if eq .Tab "lessons"}} active{{end}}" href="/communities/{{.Community.ID}}/lessons">{{t "Lessons"}}</a>
     {{end}}
     <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
@@ -27,6 +28,7 @@
 {{define "coaching-tab-links"}}{{if .Community.IsCoaching}}<a class="band-tab" href="/communities/{{.Community.ID}}/students">{{if .IsStaff}}{{t "Students"}}{{else}}{{t "My voice"}}{{end}}</a>
     {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/student-songs">{{t "Students’ songs"}}</a>{{end}}
     <a class="band-tab" href="/communities/{{.Community.ID}}/groups">{{template "coach-groups-label"}}</a>
+    <a class="band-tab" href="/communities/{{.Community.ID}}/warmups">{{t "Warm-ups"}}</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/lessons">{{t "Lessons"}}</a>{{end}}{{end}}
 
 {{define "coach-groups-label"}}{{t "coaching|Groups"}}{{end}}
@@ -350,7 +352,7 @@
   {{range .Assignments}}{{if not .DoneAt}}
     <div class="practice-item{{if .Overdue $.Now}} is-overdue{{end}}" data-assignment="{{.ID}}">
       <div class="practice-item-head">
-        <strong>{{if .VariantID}}<a href="/song/{{.VariantID}}{{if .SongbookID}}?songbook={{.SongbookID}}{{end}}">{{.Label}}</a>{{else}}{{.Label}}{{end}}</strong>
+        <strong>{{if .ExerciseID}}<a href="/communities/{{$.Community.ID}}/warmups/{{.ExerciseID}}">{{.Label}}</a>{{else if .VariantID}}<a href="/song/{{.VariantID}}{{if .SongbookID}}?songbook={{.SongbookID}}{{end}}">{{.Label}}</a>{{else}}{{.Label}}{{end}}</strong>
         {{with .GroupName}}<span class="voice-tag">{{.}}</span>{{end}}
         {{if .PerWeek}}{{if $.PracticeGroupID}}<span class="practice-week">{{tn .PerWeek "%d day a week" "%d days a week"}}</span>{{else}}<span class="practice-week{{if ge .DaysThisWeek .PerWeek}} is-met{{end}}" title="{{t "days practised this week"}}">{{.DaysThisWeek}}/{{.PerWeek}} {{t "this week"}}</span>{{end}}{{end}}
       </div>
@@ -360,7 +362,7 @@
         <span class="practice-goal-title">{{if .ReachedAt}}{{t "Goal reached"}} ★{{else}}{{t "Goal"}}{{end}} <span class="hint">· {{index $.CheckLevelNames .Level}}</span></span>
         {{if .PitchTarget}}<span class="practice-goal-row"><span>{{t "In tune"}}</span><span class="goal-bar"><i style="width:{{pct .BestPitch .PitchTarget}}%"></i></span><span>{{with .BestPitch}}{{.}}{{else}}0{{end}} / {{.PitchTarget}} %</span></span>{{end}}
         {{if .RhythmTarget}}<span class="practice-goal-row"><span>{{t "On time"}}</span><span class="goal-bar"><i style="width:{{pct .BestRhythm .RhythmTarget}}%"></i></span><span>{{with .BestRhythm}}{{.}}{{else}}0{{end}} / {{.RhythmTarget}} %</span></span>{{end}}
-        {{if and (not $.IsCoach) (not .ReachedAt)}}<span class="hint">{{t "Open the song, then Check my singing: your best take counts."}}</span>{{end}}
+        {{if and (not $.IsCoach) (not .ReachedAt)}}<span class="hint">{{if .ExerciseID}}{{t "Open the exercise, then Check my singing: your best take counts."}}{{else}}{{t "Open the song, then Check my singing: your best take counts."}}{{end}}</span>{{end}}
       </div>
       {{end}}
       <div class="hint">{{with .DueOn}}{{t "until %s" (date . "Mon 2 Jan")}}{{end}}{{if not $.PracticeGroupID}}{{if .DueOn}} · {{end}}{{with .LastPracticed}}{{t "last practised %s" (date . "Mon 2 Jan")}}{{else}}{{t "not practised yet"}}{{end}}{{end}}</div>
@@ -384,10 +386,11 @@
   <details class="practice-assign">
     <summary>{{template "icon-plus"}} {{t "Something to practise"}}</summary>
     <form class="practice-assign-form" autocomplete="off">
-      <label>{{t "A song"}} <select name="variantId">
+      <label>{{t "A song or a warm-up"}} <select name="variantId">
         <option value="0">{{t "none: what I write below"}}</option>
         {{if .Songs}}<optgroup label="{{if .PracticeGroupID}}{{t "The group’s songs"}}{{else}}{{t "Their songs"}}{{end}}">{{range .Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}</optgroup>{{end}}
         {{range .Groups}}{{if .Songs}}<optgroup label="{{.Group.Name}}">{{range .Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}</optgroup>{{end}}{{end}}
+        {{if .Exercises}}<optgroup label="{{t "Warm-ups"}}">{{range .Exercises}}<option value="x{{.ID}}">{{.Name}}</option>{{end}}</optgroup>{{end}}
       </select></label>
       <label>{{t "Or in words"}} <input type="text" name="title" placeholder="{{t "Lip trills, 5 minutes a day"}}"></label>
       <label>{{t "What to work on"}} <textarea name="notes" rows="2" placeholder="{{t "the bridge, breathe before the long note…"}}"></textarea></label>
@@ -451,9 +454,10 @@
   box.querySelector('.practice-assign-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
-    const body = { personId: Number(box.dataset.student || 0), groupId: Number(box.dataset.group || 0), variantId: Number(f.get('variantId')), title: f.get('title'), notes: f.get('notes'), perWeek: Number(f.get('perWeek')), dueOn: f.get('dueOn'),
+    const pick = String(f.get('variantId'));
+    const body = { personId: Number(box.dataset.student || 0), groupId: Number(box.dataset.group || 0), variantId: pick.startsWith('x') ? 0 : Number(pick), exerciseId: pick.startsWith('x') ? Number(pick.slice(1)) : 0, title: f.get('title'), notes: f.get('notes'), perWeek: Number(f.get('perWeek')), dueOn: f.get('dueOn'),
       level: f.get('level'), pitchTarget: Number(f.get('pitchTarget') || 0), rhythmTarget: Number(f.get('rhythmTarget') || 0) };
-    if (!body.variantId && !body.title.trim()) { alert(t('Pick a song, or say what to practise.')); return; }
+    if (!body.variantId && !body.exerciseId && !body.title.trim()) { alert(t('Pick a song, or say what to practise.')); return; }
     send(`${api}/assignments`, 'POST', body).then(() => { e.target.reset(); location.reload(); }).catch(fail);
   });
   box.querySelectorAll('.practice-item').forEach((item) => {

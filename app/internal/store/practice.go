@@ -23,6 +23,8 @@ type PracticeAssignment struct {
 	GroupName   string
 	VariantID   *int64
 	SongTitle   string
+	ExerciseID  *int64 // or an exercise (warm-ups)
+	Exercise    string
 	SongbookID  int64 // where the student opens the song: theirs, or the group's
 	Title       string
 	Notes       string
@@ -53,6 +55,9 @@ func (a PracticeAssignment) Label() string {
 	if a.Title != "" {
 		return a.Title
 	}
+	if a.Exercise != "" {
+		return a.Exercise
+	}
 	return a.SongTitle
 }
 
@@ -70,7 +75,8 @@ type NewPracticeAssignment struct {
 	CommunityID int64
 	PersonID    int64 // a student's, or
 	GroupID     int64 // a group's
-	VariantID   int64 // a song of the community, or 0 with a Title
+	VariantID   int64 // a song of the community, or
+	ExerciseID  int64 // an exercise of it, or 0 with a Title
 	Title       string
 	Notes       string
 	PerWeek     int
@@ -87,13 +93,13 @@ var ErrBadAssignment = errors.New("an assignment needs a song or a title, and a 
 
 // CreatePracticeAssignment adds an assignment.
 func (st *Store) CreatePracticeAssignment(ctx context.Context, a NewPracticeAssignment) (int64, error) {
-	if (a.PersonID == 0) == (a.GroupID == 0) || (a.VariantID == 0 && a.Title == "") {
+	if (a.PersonID == 0) == (a.GroupID == 0) || (a.VariantID == 0 && a.ExerciseID == 0 && a.Title == "") || (a.VariantID != 0 && a.ExerciseID != 0) {
 		return 0, ErrBadAssignment
 	}
 	a.PerWeek = max(0, min(7, a.PerWeek))
 	a.PitchTarget, a.RhythmTarget = max(0, min(100, a.PitchTarget)), max(0, min(100, a.RhythmTarget))
 	var level *string
-	if a.VariantID != 0 && (a.PitchTarget > 0 || a.RhythmTarget > 0) {
+	if (a.VariantID != 0 || a.ExerciseID != 0) && (a.PitchTarget > 0 || a.RhythmTarget > 0) {
 		if !takeLevels[a.Level] {
 			a.Level = "beginner"
 		}
@@ -103,9 +109,9 @@ func (st *Store) CreatePracticeAssignment(ctx context.Context, a NewPracticeAssi
 	}
 	var id int64
 	err := st.db.QueryRow(ctx, `
-		INSERT INTO practice_assignments (community_id, person_id, group_id, variant_id, title, notes, per_week, due_on, created_by, level, pitch_target, rhythm_target)
-		VALUES ($1, nullif($2, 0::bigint), nullif($3, 0::bigint), nullif($4, 0::bigint), $5, $6, $7, $8, nullif($9, 0::bigint), $10, nullif($11, 0), nullif($12, 0))
-		RETURNING id`, a.CommunityID, a.PersonID, a.GroupID, a.VariantID, a.Title, a.Notes, a.PerWeek, a.DueOn, a.By, level, a.PitchTarget, a.RhythmTarget).Scan(&id)
+		INSERT INTO practice_assignments (community_id, person_id, group_id, variant_id, title, notes, per_week, due_on, created_by, level, pitch_target, rhythm_target, exercise_id)
+		VALUES ($1, nullif($2, 0::bigint), nullif($3, 0::bigint), nullif($4, 0::bigint), $5, $6, $7, $8, nullif($9, 0::bigint), $10, nullif($11, 0), nullif($12, 0), nullif($13, 0::bigint))
+		RETURNING id`, a.CommunityID, a.PersonID, a.GroupID, a.VariantID, a.Title, a.Notes, a.PerWeek, a.DueOn, a.By, level, a.PitchTarget, a.RhythmTarget, a.ExerciseID).Scan(&id)
 	return id, err
 }
 
@@ -162,7 +168,7 @@ func (st *Store) listAssignments(ctx context.Context, where string, forPerson in
 	args = append(args, forPerson)
 	p := len(args)
 	rows, err := st.db.Query(ctx, `
-		SELECT a.id, a.community_id, a.person_id, a.group_id, coalesce(g.name, ''), a.variant_id, coalesce(s.title, ''),
+		SELECT a.id, a.community_id, a.person_id, a.group_id, coalesce(g.name, ''), a.variant_id, coalesce(s.title, ''), a.exercise_id, coalesce(x.name, ''),
 		       coalesce(CASE WHEN a.group_id IS NOT NULL THEN g.songbook_id
 		                     ELSE (SELECT sb.id FROM songbooks sb WHERE sb.owner_community_id = a.community_id
 		                           AND sb.kind = 'student' AND sb.student_person_id = a.person_id LIMIT 1) END, 0),
@@ -171,13 +177,14 @@ func (st *Store) listAssignments(ctx context.Context, where string, forPerson in
 		        WHERE l.assignment_id = a.id AND l.person_id = $`+strconv.Itoa(p)+` AND l.practiced_on >= date_trunc('week', current_date)),
 		       (SELECT max(l.practiced_on)::timestamptz FROM practice_logs l WHERE l.assignment_id = a.id AND l.person_id = $`+strconv.Itoa(p)+`),
 		       coalesce(a.level, ''), coalesce(a.pitch_target, 0), coalesce(a.rhythm_target, 0), a.reached_at,
-		       (SELECT max(t.pitch) FROM practice_takes t WHERE t.person_id = $`+strconv.Itoa(p)+` AND t.variant_id = a.variant_id
+		       (SELECT max(t.pitch) FROM practice_takes t WHERE t.person_id = $`+strconv.Itoa(p)+` AND (t.variant_id = a.variant_id OR t.exercise_id = a.exercise_id)
 		        AND t.level = coalesce(a.level, 'beginner') AND t.created_at >= a.created_at),
-		       (SELECT max(t.rhythm) FROM practice_takes t WHERE t.person_id = $`+strconv.Itoa(p)+` AND t.variant_id = a.variant_id
+		       (SELECT max(t.rhythm) FROM practice_takes t WHERE t.person_id = $`+strconv.Itoa(p)+` AND (t.variant_id = a.variant_id OR t.exercise_id = a.exercise_id)
 		        AND t.level = coalesce(a.level, 'beginner') AND t.created_at >= a.created_at)
 		FROM practice_assignments a
 		LEFT JOIN coaching_groups g ON g.id = a.group_id
 		LEFT JOIN songs s ON s.id = a.variant_id
+		LEFT JOIN exercises x ON x.id = a.exercise_id
 		WHERE `+where+`
 		ORDER BY (a.done_at IS NOT NULL), a.due_on NULLS LAST, a.created_at DESC`, args...)
 	if err != nil {
@@ -187,7 +194,7 @@ func (st *Store) listAssignments(ctx context.Context, where string, forPerson in
 	var out []PracticeAssignment
 	for rows.Next() {
 		var a PracticeAssignment
-		if err := rows.Scan(&a.ID, &a.CommunityID, &a.PersonID, &a.GroupID, &a.GroupName, &a.VariantID, &a.SongTitle, &a.SongbookID,
+		if err := rows.Scan(&a.ID, &a.CommunityID, &a.PersonID, &a.GroupID, &a.GroupName, &a.VariantID, &a.SongTitle, &a.ExerciseID, &a.Exercise, &a.SongbookID,
 			&a.Title, &a.Notes, &a.PerWeek, &a.DueOn, &a.CreatedAt, &a.DoneAt, &a.DaysThisWeek, &a.LastPracticed,
 			&a.Level, &a.PitchTarget, &a.RhythmTarget, &a.ReachedAt, &a.BestPitch, &a.BestRhythm); err != nil {
 			return nil, err
@@ -286,59 +293,111 @@ func (st *Store) studentSongbookCommunity(ctx context.Context, personID, songboo
 // of its open assignment, reached when both scores are at the goal's
 // level and targets.
 func (st *Store) RecordTake(ctx context.Context, personID, songbookID, variantID int64, tk Take) (bool, error) {
-	if !takeLevels[tk.Level] {
-		return false, errors.New("invalid level")
-	}
-	clamp := func(v, lo, hi int) int { return max(lo, min(hi, v)) }
-	tk.Pitch, tk.Rhythm = clamp(tk.Pitch, 0, 100), clamp(tk.Rhythm, 0, 100)
-	tk.Cents, tk.Ms = clamp(tk.Cents, -1200, 1200), clamp(tk.Ms, -2000, 2000)
 	communityID, err := st.studentSongbookCommunity(ctx, personID, songbookID, variantID)
 	if err != nil || communityID == 0 {
 		return false, err
 	}
-	tx, err := st.db.Begin(ctx)
-	if err != nil {
+	return true, st.recordTake(ctx, personID, communityID, subject{col: "variant_id", id: variantID, songbookID: songbookID}, tk)
+}
+
+// RecordExerciseTake keeps a checked take of an exercise, for a student of
+// its community, as RecordTake does a song's.
+func (st *Store) RecordExerciseTake(ctx context.Context, personID, exerciseID int64, tk Take) (bool, error) {
+	communityID, err := st.exerciseStudentCommunity(ctx, personID, exerciseID)
+	if err != nil || communityID == 0 {
 		return false, err
 	}
-	defer tx.Rollback(ctx)
+	return true, st.recordTake(ctx, personID, communityID, subject{col: "exercise_id", id: exerciseID}, tk)
+}
+
+// subject is what a take is of: a song (variant_id) or an exercise
+// (exercise_id).
+type subject struct {
+	col        string
+	id         int64
+	songbookID int64
+}
+
+// exerciseStudentCommunity is an exercise's community when the person is
+// one of its students (current, not staff); 0 otherwise.
+func (st *Store) exerciseStudentCommunity(ctx context.Context, personID, exerciseID int64) (int64, error) {
+	var communityID int64
+	err := st.db.QueryRow(ctx, `
+		SELECT x.community_id FROM exercises x
+		JOIN community_members cm ON cm.community_id = x.community_id AND cm.person_id = $1 AND upper_inf(cm.validity)
+		LEFT JOIN community_roles r ON r.id = cm.role_id
+		WHERE x.id = $2 AND coalesce(r.name, '') <> 'staff'`, personID, exerciseID).Scan(&communityID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, nil
+	}
+	return communityID, err
+}
+
+func (st *Store) recordTake(ctx context.Context, personID, communityID int64, sub subject, tk Take) error {
+	if !takeLevels[tk.Level] {
+		return errors.New("invalid level")
+	}
+	clamp := func(v, lo, hi int) int { return max(lo, min(hi, v)) }
+	tk.Pitch, tk.Rhythm = clamp(tk.Pitch, 0, 100), clamp(tk.Rhythm, 0, 100)
+	tk.Cents, tk.Ms = clamp(tk.Cents, -1200, 1200), clamp(tk.Ms, -2000, 2000)
 	settings, err := st.GetCheckSettings(ctx, communityID)
 	if err != nil {
-		return false, err
+		return err
 	}
 	margin := settings.Level(tk.Level)
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO practice_takes (person_id, community_id, variant_id, songbook_id, level, pitch, rhythm, cents, ms, notes, hits, seconds, cents_margin, ms_margin)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-		personID, communityID, variantID, songbookID, tk.Level, tk.Pitch, tk.Rhythm, tk.Cents, tk.Ms, tk.Notes, tk.Hits, clamp(tk.Seconds, 0, 3600), margin.Cents, margin.Ms); err != nil {
-		return false, err
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var songbook *int64
+	if sub.songbookID != 0 {
+		songbook = &sub.songbookID
 	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO practice_logs (person_id, community_id, assignment_id, variant_id, practiced_on, seconds, source, pitch_takes, pitch_score, rhythm_score)
-		VALUES ($1, $2, `+openAssignmentOf+`, $3, current_date, 0, 'player', 1, $4, $5)
-		ON CONFLICT (person_id, community_id, variant_id, practiced_on) WHERE source = 'player'
+		INSERT INTO practice_takes (person_id, community_id, `+sub.col+`, songbook_id, level, pitch, rhythm, cents, ms, notes, hits, seconds, cents_margin, ms_margin)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+		personID, communityID, sub.id, songbook, tk.Level, tk.Pitch, tk.Rhythm, tk.Cents, tk.Ms, tk.Notes, tk.Hits, clamp(tk.Seconds, 0, 3600), margin.Cents, margin.Ms); err != nil {
+		return err
+	}
+	conflict := `(person_id, community_id, variant_id, practiced_on) WHERE source = 'player'`
+	if sub.col == "exercise_id" {
+		conflict = `(person_id, community_id, exercise_id, practiced_on) WHERE source = 'player' AND exercise_id IS NOT NULL`
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO practice_logs (person_id, community_id, assignment_id, `+sub.col+`, practiced_on, seconds, source, pitch_takes, pitch_score, rhythm_score)
+		VALUES ($1, $2, `+openAssignment(sub.col)+`, $3, current_date, $6, 'player', 1, $4, $5)
+		ON CONFLICT `+conflict+`
 		DO UPDATE SET assignment_id = coalesce(practice_logs.assignment_id, excluded.assignment_id),
+		              seconds = least(practice_logs.seconds + excluded.seconds, 6 * 3600),
 		              pitch_takes = practice_logs.pitch_takes + 1,
 		              pitch_score = excluded.pitch_score, rhythm_score = excluded.rhythm_score`,
-		personID, communityID, variantID, tk.Pitch, tk.Rhythm); err != nil {
-		return false, err
+		personID, communityID, sub.id, tk.Pitch, tk.Rhythm, map[bool]int{true: clamp(tk.Seconds, 0, 3600), false: 0}[sub.col == "exercise_id"]); err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE practice_assignments a SET reached_at = now()
-		WHERE a.id = `+openAssignmentOf+` AND a.reached_at IS NULL
+		WHERE a.id = `+openAssignment(sub.col)+` AND a.reached_at IS NULL
 		  AND (a.pitch_target IS NOT NULL OR a.rhythm_target IS NOT NULL)
 		  AND coalesce(a.level, 'beginner') = $6
 		  AND $4 >= coalesce(a.pitch_target, 0) AND $5 >= coalesce(a.rhythm_target, 0)`,
-		personID, communityID, variantID, tk.Pitch, tk.Rhythm, tk.Level); err != nil {
-		return false, err
+		personID, communityID, sub.id, tk.Pitch, tk.Rhythm, tk.Level); err != nil {
+		return err
 	}
-	return true, tx.Commit(ctx)
+	return tx.Commit(ctx)
 }
 
-// openAssignmentOf is the newest open assignment of a song ($3) for a
-// student ($1) in a community ($2), theirs or their group's.
-const openAssignmentOf = `(SELECT a.id FROM practice_assignments a WHERE a.community_id = $2 AND a.variant_id = $3 AND a.done_at IS NULL
+// openAssignment is the newest open assignment of a song or an exercise
+// (col, $3) for a student ($1) in a community ($2), theirs or their
+// group's.
+func openAssignment(col string) string {
+	return `(SELECT a.id FROM practice_assignments a WHERE a.community_id = $2 AND a.` + col + ` = $3 AND a.done_at IS NULL
 		AND (a.person_id = $1 OR a.group_id IN (SELECT group_id FROM coaching_group_members WHERE person_id = $1))
 		ORDER BY a.created_at DESC LIMIT 1)`
+}
+
+// openAssignmentOf is openAssignment of a song.
+var openAssignmentOf = openAssignment("variant_id")
 
 // TakeScore is a take's two scores, and when.
 type TakeScore struct {
@@ -371,12 +430,40 @@ func (st *Store) SongProgressOf(ctx context.Context, personID, songbookID, varia
 	if err != nil || communityID == 0 {
 		return nil, err
 	}
+	return st.progressOf(ctx, personID, communityID, subject{col: "variant_id", id: variantID})
+}
+
+// ExerciseProgressOf is a student's progress on an exercise of their
+// community (nil for anyone else), its own words over the community's.
+func (st *Store) ExerciseProgressOf(ctx context.Context, personID, exerciseID int64) (*SongProgress, error) {
+	communityID, err := st.exerciseStudentCommunity(ctx, personID, exerciseID)
+	if err != nil || communityID == 0 {
+		return nil, err
+	}
+	p, err := st.progressOf(ctx, personID, communityID, subject{col: "exercise_id", id: exerciseID})
+	if err != nil {
+		return nil, err
+	}
+	if e, err := st.GetExercise(ctx, communityID, exerciseID); err == nil {
+		for k, v := range e.Messages {
+			if v != "" {
+				p.Settings.Messages[k] = v
+			}
+		}
+		if p.Level == "" && e.Level != "" {
+			p.Level = e.Level
+		}
+	}
+	return p, nil
+}
+
+func (st *Store) progressOf(ctx context.Context, personID, communityID int64, sub subject) (*SongProgress, error) {
 	p := &SongProgress{Takes: []TakeScore{}}
 	var level *string
 	var pt, rt *int
 	var reached *time.Time
-	err = st.db.QueryRow(ctx, `SELECT a.level, a.pitch_target, a.rhythm_target, a.reached_at FROM practice_assignments a WHERE a.id = `+openAssignmentOf,
-		personID, communityID, variantID).Scan(&level, &pt, &rt, &reached)
+	err := st.db.QueryRow(ctx, `SELECT a.level, a.pitch_target, a.rhythm_target, a.reached_at FROM practice_assignments a WHERE a.id = `+openAssignment(sub.col),
+		personID, communityID, sub.id).Scan(&level, &pt, &rt, &reached)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
@@ -396,8 +483,8 @@ func (st *Store) SongProgressOf(ctx context.Context, personID, songbookID, varia
 	var best TakeScore
 	err = st.db.QueryRow(ctx, `
 		SELECT pitch, rhythm, created_at FROM practice_takes
-		WHERE person_id = $1 AND variant_id = $2 AND ($3 = '' OR level = $3)
-		ORDER BY pitch + rhythm DESC, created_at DESC LIMIT 1`, personID, variantID, p.Level).Scan(&best.Pitch, &best.Rhythm, &best.At)
+		WHERE person_id = $1 AND `+sub.col+` = $2 AND ($3 = '' OR level = $3)
+		ORDER BY pitch + rhythm DESC, created_at DESC LIMIT 1`, personID, sub.id, p.Level).Scan(&best.Pitch, &best.Rhythm, &best.At)
 	if err == nil {
 		p.Best = &best
 	} else if !errors.Is(err, pgx.ErrNoRows) {
@@ -405,8 +492,8 @@ func (st *Store) SongProgressOf(ctx context.Context, personID, songbookID, varia
 	}
 	rows, err := st.db.Query(ctx, `
 		SELECT pitch, rhythm, created_at FROM (
-		  SELECT pitch, rhythm, created_at FROM practice_takes WHERE person_id = $1 AND variant_id = $2
-		  ORDER BY created_at DESC LIMIT 20) t ORDER BY created_at`, personID, variantID)
+		  SELECT pitch, rhythm, created_at FROM practice_takes WHERE person_id = $1 AND `+sub.col+` = $2
+		  ORDER BY created_at DESC LIMIT 20) t ORDER BY created_at`, personID, sub.id)
 	if err != nil {
 		return nil, err
 	}
@@ -425,17 +512,11 @@ func (st *Store) SongProgressOf(ctx context.Context, personID, songbookID, varia
 	if p.Settings, err = st.GetCheckSettings(ctx, communityID); err != nil {
 		return nil, err
 	}
-	var name, coach string
-	err = st.db.QueryRow(ctx, `
-		SELECT (SELECT display_name FROM people WHERE id = $1),
-		       coalesce((SELECT p.display_name FROM community_members cm JOIN people p ON p.id = cm.person_id
-		                 JOIN community_roles r ON r.id = cm.role_id
-		                 WHERE cm.community_id = $2 AND upper_inf(cm.validity) AND r.name = 'staff' ORDER BY cm.id LIMIT 1),
-		                (SELECT name FROM communities WHERE id = $2))`, personID, communityID).Scan(&name, &coach)
-	if err != nil {
+	var name string
+	if err = st.db.QueryRow(ctx, `SELECT display_name FROM people WHERE id = $1`, personID).Scan(&name); err != nil {
 		return nil, err
 	}
-	p.Name, p.Coach = firstName(name), firstName(coach)
+	p.Name, p.Coach = firstName(name), firstName(st.CoachName(ctx, communityID))
 	return p, nil
 }
 
@@ -566,4 +647,16 @@ func firstName(s string) string {
 		}
 	}
 	return s
+}
+
+// CoachName is a coaching community's coach's name (its first staff
+// member's), else the community's.
+func (st *Store) CoachName(ctx context.Context, communityID int64) string {
+	var name string
+	st.db.QueryRow(ctx, `
+		SELECT coalesce((SELECT p.display_name FROM community_members cm JOIN people p ON p.id = cm.person_id
+		                 JOIN community_roles r ON r.id = cm.role_id
+		                 WHERE cm.community_id = $1 AND upper_inf(cm.validity) AND r.name = 'staff' ORDER BY cm.id LIMIT 1),
+		                (SELECT name FROM communities WHERE id = $1), '')`, communityID).Scan(&name)
+	return name
 }
