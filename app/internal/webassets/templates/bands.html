@@ -7,6 +7,8 @@
 <title>{{t "My bands"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
+{{/* The fonts of the cards' looks (each card wears its own). */}}
+{{with .BrandFonts}}<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>{{range .}}<link rel="stylesheet" href="{{.}}">{{end}}{{end}}
 </head>
 <body>
 {{template "desktop-sidebar" .}}
@@ -39,14 +41,11 @@
     <p id="create-band-result" class="form-status" role="status"></p>
   </form>
 
-  {{/* Same card language and the same per-band digest/vote data as the
-       home page's "Your bands" section (Phase 26/27) — this listing is
-       the full roster, that one's a short preview, but both read as one
-       consistent picture of band activity rather than two different
-       UIs. */}}
-  <div class="band-grid">
+  {{/* One card per row on a wide screen, stacked on a phone, each in
+       its own look: see cards.html "list-card-open". */}}
+  <div class="list-cards">
   {{range .Bands}}
-    {{template "band-card" .}}
+    {{template "band-list-card" .}}
   {{else}}
     <p class="hint">{{if eq .Tab "all"}}{{t "No bands on this instance yet."}}{{else}}{{t "You’re not in any bands yet."}}{{end}}</p>
   {{end}}

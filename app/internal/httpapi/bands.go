@@ -120,7 +120,14 @@ func (s *Server) handleBandsPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.render(w, "bands", map[string]any{"Me": person, "Bands": bandCards, "Tab": tab, "ShowAllTab": person.IsAdmin})
+	// My bands' own cards: each in its band's look, with its faces, its
+	// songbook's size, its next date and its last activity (list_cards.go).
+	list, fonts, err := s.bandListCards(r.Context(), s.langOf(w), person.ID, bandCards)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.render(w, "bands", map[string]any{"Me": person, "Bands": list, "BrandFonts": fonts, "Tab": tab, "ShowAllTab": person.IsAdmin})
 }
 
 // handleCreateBand makes a brand-new band, with the creator as its first

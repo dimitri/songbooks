@@ -7,6 +7,8 @@
 <title>{{t "My communities"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
+{{/* The fonts of the cards' looks (each card wears its own). */}}
+{{with .BrandFonts}}<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>{{range .}}<link rel="stylesheet" href="{{.}}">{{end}}{{end}}
 </head>
 <body>
 {{template "desktop-sidebar" .}}
@@ -32,12 +34,11 @@
     <p id="create-community-result" class="form-status" role="status"></p>
   </form>
 
-  {{/* Same card language as bands.html's own listing (member count,
-       repertoire size, next-upcoming-event teaser) — one consistent
-       picture across both group types, not two different UIs. */}}
-  <div class="band-grid">
+  {{/* One card per row on a wide screen, stacked on a phone, each in
+       its own look: see cards.html "list-card-open". */}}
+  <div class="list-cards">
   {{range .Communities}}
-    {{template "community-card" .}}
+    {{template "community-list-card" .}}
   {{else}}
     <p class="hint">{{t "You're not in any communities yet."}}</p>
   {{end}}

@@ -144,19 +144,27 @@ func (s *Server) requireCommunityAnyManagePrivilege(next http.HandlerFunc) http.
 	})
 }
 
-// communityCardView is store.CommunityCardRow plus the next upcoming
-// event's digest, same "what's coming up" cue bands.html's own card
-// shows via HasNextGig/NextGigDate.
+// communityCardView is store.CommunityCardRow plus the next date on the
+// viewer's calendar in that community (an event, or a lesson of theirs),
+// same "what's coming up" cue bands.html's own card shows via
+// HasNextGig/NextGigDate.
 type communityCardView struct {
 	store.CommunityCardRow
 	HasNextEvent  bool
-	NextEventID   int64
 	NextEventName string
 	NextEventDate time.Time
+	NextEventLink string
+	// Next is that date in full, for the My communities card; nil when
+	// nothing is coming up.
+	Next *store.CalendarItem
+	// LessonsThisWeek counts the viewer's lessons in the next 7 days (a
+	// coaching community's coach or student).
+	LessonsThisWeek int
 }
 
 // handleCommunitiesPage lists the logged-in person's own current communities
-// (either role), with a "start a community" action.
+// (either role), with a "start a community" action. Each card wears its
+// community's look (see list_cards.go).
 func (s *Server) handleCommunitiesPage(w http.ResponseWriter, r *http.Request) {
 	person := personFromContext(r)
 	cards, err := s.buildCommunityCards(r.Context(), person.ID)
@@ -164,33 +172,46 @@ func (s *Server) handleCommunitiesPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.render(w, "communities", map[string]any{"Me": person, "Communities": cards})
+	list, fonts, err := s.communityListCards(r.Context(), person.ID, cards)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.render(w, "communities", map[string]any{"Me": person, "Communities": list, "BrandFonts": fonts})
 }
 
 // buildCommunityCards is one card per community personID belongs to,
-// with its next upcoming event: shared by Home, My communities and Groups.
+// with the next date of personID's calendar there: shared by Home, My
+// communities and Groups. The calendar, not the community's whole event
+// list, so a coaching community's card shows the viewer's own lessons
+// and not another student's.
 func (s *Server) buildCommunityCards(ctx context.Context, personID int64) ([]communityCardView, error) {
 	rows, err := s.store.ListCommunityCardsForPerson(ctx, personID)
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now()
+	items, err := s.calendarAhead(ctx, personID, now)
+	if err != nil {
+		return nil, err
+	}
 	cards := make([]communityCardView, len(rows))
 	for i, row := range rows {
 		cards[i] = communityCardView{CommunityCardRow: row}
-		events, err := s.store.ListEventsForCommunity(ctx, row.ID)
-		if err != nil {
-			return nil, err
-		}
-		for _, e := range events {
-			if e.IsPast(now) {
+		for j := range items {
+			it := &items[j]
+			if it.CommunityID == nil || *it.CommunityID != row.ID {
 				continue
 			}
-			if !cards[i].HasNextEvent || e.StartsAt.Before(cards[i].NextEventDate) {
+			if it.Kind == "lesson" && it.Starts.Before(now.AddDate(0, 0, 7)) {
+				cards[i].LessonsThisWeek++
+			}
+			if cards[i].Next == nil {
+				cards[i].Next = it
 				cards[i].HasNextEvent = true
-				cards[i].NextEventID = e.ID
-				cards[i].NextEventName = e.Name
-				cards[i].NextEventDate = e.StartsAt
+				cards[i].NextEventName = it.Title
+				cards[i].NextEventDate = it.Starts
+				cards[i].NextEventLink = it.Link
 			}
 		}
 	}

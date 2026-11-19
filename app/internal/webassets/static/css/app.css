@@ -5538,6 +5538,128 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .band-card-actions a { font-size: 0.78rem; padding: 0.3rem 0.6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-raised); }
 .band-card-actions a.votes { border-color: var(--accent); background: var(--accent-bg); color: var(--accent-ink); }
 
+/* My bands / My communities cards (cards.html "band-list-card",
+   "community-list-card"). A branded card carries its brand's design
+   tokens inline (internal/brand vars: --bg, --fg, --accent,
+   --brand-header, --font-display, --radius-control...), so every rule
+   below reads them from the card itself and they stop at its edge; a
+   card with no brand reads the app's own, in either theme. Stacked on a
+   phone, one row per card once the list is wide enough (container
+   query: the desktop sidebar takes its share of the viewport). */
+.list-cards { display: grid; gap: 1rem; container-type: inline-size; }
+.list-card {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "head" "body" "next" "actions";
+  border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+  background: var(--bg-raised); color: var(--fg); font-family: var(--font-ui);
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.list-card:hover { border-color: var(--accent); box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08); }
+.list-card.is-branded { background: var(--bg); }
+.list-card.shape-square { border-radius: 0; }
+.list-card-head { grid-area: head; display: flex; align-items: center; gap: 0.8rem; min-width: 0; padding: 1rem 1.1rem 0.2rem; }
+.list-card.has-header .list-card-head { background: var(--brand-header); color: var(--brand-header-fg); padding-bottom: 1rem; }
+.list-card-mark {
+  flex: none; width: 2.6rem; height: 2.6rem; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent-bg); color: var(--accent-ink); font-weight: 700; font-size: 0.95rem; letter-spacing: 0.02em; line-height: 1;
+}
+.list-card.is-branded .list-card-mark { background: none; border: 1.5px solid currentColor; color: var(--accent); font-family: var(--font-display, var(--font-ui)); font-size: 1.1rem; }
+.list-card.has-header .list-card-mark { color: var(--accent-2, var(--brand-header-fg)); }
+img.list-card-mark { object-fit: cover; border: none; }
+.list-card-name { flex: 1; min-width: 0; }
+.list-card-name h2 { margin: 0; font-size: 1.15rem; line-height: 1.2; overflow-wrap: anywhere; }
+.list-card.is-branded .list-card-name h2 { font-family: var(--font-display, var(--font-ui)); font-size: 1.3rem; letter-spacing: -0.01em; font-synthesis-weight: none; }
+.list-card-link { color: var(--accent-ink); font-weight: 700; text-decoration: none; }
+.list-card.has-header .list-card-link { color: inherit; }
+/* Stretched link (same as .band-card-title-link): the whole card opens
+   the band or community; the links inside sit above it. */
+.list-card-link::after { content: ""; position: absolute; inset: 0; }
+.list-card-link:focus-visible { outline: none; }
+.list-card:has(.list-card-link:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.list-card-tagline {
+  margin: 0.2rem 0 0; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.list-card.has-header .list-card-tagline { color: var(--accent-2, var(--brand-header-fg)); }
+.list-card-role {
+  flex: none; align-self: flex-start; display: inline-block; font-size: 0.72rem; font-weight: 600; line-height: 1.2;
+  padding: 0.18rem 0.55rem; border: 1px solid currentColor; border-radius: 999px; opacity: 0.85;
+}
+.list-card-role::first-letter { text-transform: uppercase; }
+.list-card-body { grid-area: body; display: flex; flex-direction: column; gap: 0.65rem; min-width: 0; padding: 0.75rem 1.1rem 0; }
+.list-card-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; row-gap: 0.15rem; font-size: 0.82rem; color: var(--fg-muted); }
+.list-card-facts li:not(:last-child)::after { content: "·"; padding: 0 0.45rem; }
+.list-card-people { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; }
+.list-card-person { display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--fg-muted); }
+.list-card-person + .list-card-person { margin-left: -0.3rem; }
+.list-card-avatar {
+  flex: none; width: 1.8rem; height: 1.8rem; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent-bg); color: var(--accent-ink); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.02em;
+  box-shadow: 0 0 0 2px var(--bg-raised);
+}
+.list-card.is-branded .list-card-avatar { box-shadow: 0 0 0 2px var(--bg); }
+.list-card-person.is-guest .list-card-avatar { background: var(--bg-sunken); color: var(--fg-muted); }
+.list-card-person.is-more .list-card-avatar { background: var(--bg-sunken); color: var(--fg-muted); }
+.list-card-person-name { display: none; }
+.list-card-person:only-child .list-card-person-name { display: inline; }
+.list-card-digest { margin: 0; align-self: flex-start; font-size: 0.82rem; padding: 0.4rem 0.6rem; background: var(--bg-sunken); border-radius: 8px; }
+.list-card-practice { position: relative; z-index: 1; font-size: 0.84rem; }
+.list-card-practice-head { color: var(--accent-ink); font-weight: 600; }
+.list-card-practice-head.is-empty { color: var(--fg-muted); font-weight: 400; }
+.list-card-staff { display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem 0.6rem; }
+.list-card-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg-muted); }
+.list-card-practice ul { margin: 0.25rem 0 0; padding-left: 1.1rem; color: var(--fg-muted); }
+.list-card-practice li.is-more { list-style: none; margin-left: -1.1rem; font-size: 0.78rem; color: var(--fg-faint); }
+.list-card-next { grid-area: next; min-width: 0; padding: 0.8rem 1.1rem 0; }
+.list-card-when {
+  position: relative; z-index: 1; display: flex; align-items: center; gap: 0.75rem; min-width: 0;
+  padding: 0.55rem 0.65rem; border-radius: 10px; background: var(--bg-sunken); color: var(--fg); text-decoration: none;
+}
+.list-card-when:hover .list-card-when-title { text-decoration: underline; }
+.list-card-date {
+  flex: none; width: 2.9rem; height: 2.9rem; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--accent); color: var(--accent-contrast); font-weight: 700; line-height: 1.1;
+}
+.list-card.shape-square :is(.list-card-when, .list-card-date, .list-card-digest) { border-radius: 0; }
+.list-card-date .month { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.list-card-date .day { font-size: 1.2rem; }
+.list-card-when-text { display: flex; flex-direction: column; min-width: 0; }
+.list-card-when-kind { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg-muted); }
+.list-card-when-title, .list-card-when-place { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-card-when-title { font-size: 0.9rem; font-weight: 600; }
+.list-card-when-place { font-size: 0.78rem; color: var(--fg-muted); }
+.list-card-when-none { margin: 0; display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--fg-faint); }
+.list-card-actions { grid-area: actions; position: relative; z-index: 1; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; padding: 0.9rem 1.1rem 1rem; }
+.list-card-actions a {
+  font-size: 0.78rem; padding: 0.3rem 0.65rem; border: 1px solid var(--border); border-radius: var(--radius-control, 8px);
+  background: var(--bg-raised); color: var(--accent-ink);
+}
+.list-card-actions a.votes { border-color: var(--accent); background: var(--accent-bg); }
+/* Wide enough: the look's panel on the left, the rest beside it; wider
+   still, the next date gets its own column. */
+@container (min-width: 600px) {
+  .list-card { grid-template-columns: 13rem minmax(0, 1fr); grid-template-areas: "head body" "head next" "head actions"; grid-template-rows: auto auto 1fr; }
+  .list-card-head { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0.7rem; padding: 1.2rem; border-right: 1px solid var(--border); }
+  .list-card.has-header .list-card-head { padding-bottom: 1.2rem; border-right: none; }
+  .list-card-name { flex: none; width: 100%; }
+  .list-card-mark { width: 3.2rem; height: 3.2rem; font-size: 1.1rem; }
+  .list-card.is-branded .list-card-mark { font-size: 1.35rem; }
+  .list-card.is-branded .list-card-name h2 { font-size: 1.5rem; }
+  .list-card-tagline { white-space: normal; }
+  .list-card-body { padding: 1.1rem 1.2rem 0; }
+  .list-card-next { padding: 0.8rem 1.2rem 0; }
+  .list-card-when { max-width: 26rem; }
+  .list-card-actions { padding: 0.9rem 1.2rem 1.1rem; }
+  .list-card-people { gap: 0.4rem 0.75rem; }
+  .list-card-person + .list-card-person { margin-left: 0; }
+  .list-card-person-name { display: inline; }
+  .list-card-when-title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+}
+@container (min-width: 880px) {
+  .list-card { grid-template-columns: 15rem minmax(0, 1fr) 17rem; grid-template-areas: "head body next" "head actions actions"; grid-template-rows: 1fr auto; }
+  .list-card-next { padding: 1.1rem 1.2rem 0 0; }
+}
+
 /* Set list rows (cards.html "setlist-row"): the title opens the running
    order; Click track as a pill; exports folded. */
 .setlist-rows { list-style: none; margin: 0; padding: 0; }
