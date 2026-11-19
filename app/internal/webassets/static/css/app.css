@@ -3129,6 +3129,35 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
 
 .lyrics .lyric-line { margin: 0.25rem 0; }
 .lyric-line.current { background: var(--current-bg); color: var(--current-fg); border-radius: 3px; }
+/* Follow the music (play.html #follow-bar, song.js): Lyrics only's own
+   switch for the karaoke line and the scrolling, over the lyrics column.
+   Big enough to hit with a thumb on a music stand. */
+.follow-bar:not([hidden]) { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.3rem 0.9rem; margin: 0 auto 0.7rem; }
+.follow-switch { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; padding: 0 0.9rem 0 0.6rem; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-raised); color: var(--fg); font-weight: 600; cursor: pointer; user-select: none; position: relative; }
+.follow-switch:hover { border-color: var(--border-strong); }
+.follow-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.follow-switch-track { flex: none; width: 2.3rem; height: 1.3rem; border-radius: 999px; background: var(--border-strong); position: relative; transition: background 0.2s; }
+.follow-switch-track::after { content: ""; position: absolute; top: 2px; left: 2px; width: calc(1.3rem - 4px); height: calc(1.3rem - 4px); border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2); transition: transform 0.2s; }
+.follow-switch input:checked + .follow-switch-track { background: var(--accent); }
+.follow-switch input:checked + .follow-switch-track::after { transform: translateX(1rem); }
+.follow-switch input:focus-visible + .follow-switch-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+.follow-switch .icon { width: 1.05rem; height: 1.05rem; color: var(--fg-muted); }
+.follow-hint { font-size: 0.8rem; color: var(--fg-muted); max-width: 30rem; text-align: center; }
+.follow-bar.is-off .follow-switch { border-style: dashed; }
+/* Scrolled away while it plays: back to the music, floating over the page
+   above the player. */
+.follow-back:not([hidden]) {
+  display: inline-flex; align-items: center; gap: 0.45rem; position: fixed; z-index: 57;
+  left: 50%; transform: translateX(-50%); bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  min-height: 2.75rem; padding: 0 1.1rem; border-radius: 999px; border: 0;
+  background: var(--accent); color: var(--accent-contrast); font: inherit; font-weight: 600; white-space: nowrap;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25); cursor: pointer;
+}
+.follow-back .icon { width: 1.05rem; height: 1.05rem; }
+@media (min-width: 901px) { .follow-back:not([hidden]) { left: calc(50% + 110px); } }
+@media (max-width: 900px) { .follow-back:not([hidden]) { bottom: calc(var(--context-h, 3.4rem) + env(safe-area-inset-bottom, 0px) + 5rem); } }
+body.stage .follow-back:not([hidden]) { left: 50%; bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px)); }
+body:has(.edit-toggle.on) .follow-back { display: none; }
 /* A chord-bearing segment stacks its chord directly above the word it
    attaches to (two-row inline-flex column), matching both the PDF
    export's own placement (internal/pdfnative/lyrics.go's drawChordSymbol

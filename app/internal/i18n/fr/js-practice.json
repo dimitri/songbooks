@@ -101,6 +101,7 @@
   "No recording yet.": "Pas encore d’enregistrement.",
   "No reference recording and no score yet — add a recording from the Reference tab, or import a Guitar Pro file.": "Pas encore d’enregistrement de référence ni de partition — ajoutez un enregistrement depuis l’onglet Référence, ou importez un fichier Guitar Pro.",
   "No voice": "Sans voix",
+  "Voice only": "Voix seule",
   "Not set": "Non précisé",
   "Now %d% · loop %d of %d at this speed — target reached.": "En cours %d% · boucle %d sur %d à cette vitesse — objectif atteint.",
   "Now %d% · loop %d of %d at this speed, then %d%.": "En cours %d% · boucle %d sur %d à cette vitesse, puis %d%.",

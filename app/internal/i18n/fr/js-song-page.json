@@ -39,5 +39,9 @@
   "Note saved.": "Note enregistrée.",
   "Delete this note? This can’t be undone.": "Supprimer cette note ? C’est définitif.",
   "Couldn't delete that note. Try again.": "Impossible de supprimer la note. Réessayez.",
-  "Note deleted.": "Note supprimée."
+  "Note deleted.": "Note supprimée.",
+  "The line being sung lights up and the page scrolls with the recording.": "La ligne chantée s’allume et la page défile avec l’enregistrement.",
+  "Off: no line lit, you scroll yourself. The recording still plays.": "Désactivé : aucune ligne allumée, vous faites défiler vous-même. L’enregistrement continue.",
+  "Back to the current line": "Revenir à la ligne en cours",
+  "Back to where the music is": "Revenir où en est la musique"
 }
