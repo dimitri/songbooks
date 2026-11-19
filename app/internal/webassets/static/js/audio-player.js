@@ -94,7 +94,7 @@ window.songbooksDecodable = function (buf) {
   const countInBtn = $('audio-countin-btn');
   const countInLabel = $('audio-countin-label');
   const clickBtn = $('audio-click-btn');
-  const speedSel = $('audio-speed');
+
   const speedBpm = $('audio-speed-bpm');
   const trainerBtn = $('audio-trainer-btn');
   const trainerLabel = $('audio-trainer-label');
@@ -154,7 +154,6 @@ window.songbooksDecodable = function (buf) {
     semitones: 0, // the recording's key, up or down
     voice: 100, // the voice's volume, in %, when the recording has its parts
     voiceOff: 0, // what Voice's toggle turns it down to
-    voiceLast: 100, // what the "Voice & key" panel's mic brings it back to
   };
   try {
     const saved = JSON.parse(localStorage.getItem(optsKey) || '{}');
@@ -193,7 +192,10 @@ window.songbooksDecodable = function (buf) {
     peaks = null;
     const cat = activeCategory;
     let bytes;
-    try { bytes = await window.songbooksAudioBytes(variantId, cat, categories[cat]); } catch (e) { return; }
+    try { bytes = await window.songbooksAudioBytes(variantId, cat, categories[cat]); } catch (e) {
+      if (cat === activeCategory) setState('error', navigator.onLine === false ? t('Offline: this recording can’t be read.') : t('Couldn’t load this recording.'));
+      return;
+    }
     if (cat !== activeCategory) return;
     if (audio.dataset.blobFor !== cat) {
       if (audio.src.startsWith('blob:')) URL.revokeObjectURL(audio.src);
@@ -208,6 +210,7 @@ window.songbooksDecodable = function (buf) {
     try {
       audioBuffer = await ctx.decodeAudioData(arrayBuffer);
     } catch (e) {
+      if (root.dataset.state === 'loading') setState('');
       return; // unsupported/corrupt file — the player still works via <audio>, just no waveform
     } finally {
       ctx.close();
@@ -227,6 +230,7 @@ window.songbooksDecodable = function (buf) {
       out[i] = max;
     }
     peaks = out;
+    if (root.dataset.state === 'loading') setState('');
     detectBars(audioBuffer, cat);
     rebuildGrid();
     drawWaveform();
@@ -382,8 +386,8 @@ window.songbooksDecodable = function (buf) {
   // detection (in memory), a program's proposal saved as markers (the
   // import wizard, the Mixer's Auto-align) and a person (the Sync sheet,
   // a flag dragged in the Mixer, a Guitar Pro file's own sync). The first
-  // two are estimates until someone checks them by ear: the badge by the
-  // counter says which, and its panel opens the Sync sheet to correct it.
+  // two are estimates until someone checks them by ear: the badge in the
+  // readout says so, and the panel's Sync line opens the Sync sheet.
   const syncBadge = $('audio-sync-badge');
   const syncPop = $('audio-pop-sync');
   function syncInfo() {
@@ -424,62 +428,58 @@ window.songbooksDecodable = function (buf) {
     const off = (v) => bpm > 0 && v > 0 && Math.abs(v / bpm - 1) > 0.08;
     return { per: per.map((p) => ({ ...p, off: off(p.bpm) })), median, off: off(median) };
   }
+  // One indicator (player-proposal.md §3.6 with #74's states): the
+  // player's data-sync — "estimated" (detected, or saved by a program and
+  // not checked by ear: "≈ 21.1", the ruler's ticks dashed), "set", "none"
+  // (no bars) — and the badge in the readout, shown while estimated or
+  // while the counter runs off the recording's tempo. The badge opens the
+  // panel's Sync line: where the bars come from, what's off, and for an
+  // editor the Sync sheet (or the Mixer) and "It's right: confirm".
   function renderSync() {
-    if (!syncBadge) return;
     const info = syncInfo();
     const tempos = info.source === 'markers' ? syncTempos() : { per: [], off: false };
-    syncBadge.hidden = info.state === 'none' || !duration;
-    syncBadge.dataset.state = info.state;
-    syncBadge.classList.toggle('warn', tempos.off);
-    syncBadge.querySelector('span').textContent = info.state === 'set' ? t('Sync set') : t('Sync estimated');
-    syncBadge.title = info.state === 'set' ? t('the chart follows a sync checked by ear') : t('the chart follows an estimated sync: check it by ear');
-    renderDockState();
+    const s = !duration ? '' : !hasBars() ? 'none' : info.state === 'auto' ? 'estimated' : 'set';
+    if (s) root.dataset.sync = s; else delete root.dataset.sync;
+    if (syncBadge) {
+      syncBadge.hidden = !(s === 'estimated' || (s === 'set' && tempos.off));
+      syncBadge.dataset.state = info.state;
+      syncBadge.classList.toggle('warn', tempos.off);
+      syncBadge.textContent = s === 'estimated' ? t('sync estimated') : t('Sync set');
+      syncBadge.title = tempos.off ? t('Here the counter runs at about %d bpm, but the chart says %d bpm', Math.round(tempos.median), Math.round(bpm))
+        : s === 'estimated' ? t('the chart follows an estimated sync: check it by ear') : t('the chart follows a sync checked by ear');
+    }
+    const text = $('audio-sync-text');
+    if (text) {
+      text.textContent = s === 'none' || !s ? t('No bars: the recording plays by time; ←/→ step 5 s.')
+        : info.source === 'detected' ? t('Estimated: the player placed the bars by listening; they can be off by a beat or a section. Loops still snap to bars.')
+        : info.source === 'points' ? (info.state === 'set' ? t('Every bar is placed: the Guitar Pro file’s own sync, or one checked by ear.') : t('Every bar is placed by Auto-align, not checked by ear yet.'))
+        : info.state === 'auto' ? (info.auto === info.total ? t('Each section’s start was placed automatically (the import wizard or Auto-align) and nobody has checked it by ear yet.') : t('%d of %d section starts are still automatic estimates, not checked by ear.', info.auto, info.total))
+        : t('Each section’s start was placed or checked by ear.');
+    }
+    const fix = $('audio-sync-fix');
+    if (fix) fix.hidden = !canEdit;
+    const confirm = $('audio-sync-confirm');
+    if (confirm) confirm.hidden = !(canEdit && info.state === 'auto' && info.source !== 'points' && hasBars());
     if (!syncPop) return;
-    const say = (cls, text) => { const p = document.createElement('p'); p.className = cls; p.textContent = text; return p; };
+    const say = (cls, line) => { const p = document.createElement('p'); p.className = cls; p.textContent = line; return p; };
     const out = [];
-    const head = document.createElement('div');
-    head.className = 'audio-pop-head';
-    head.innerHTML = `<strong></strong>`;
-    head.querySelector('strong').textContent = info.state === 'set' ? t('Sync set') : t('Sync estimated');
-    out.push(head);
-    if (info.source === 'detected') out.push(say('hint', t('The player placed the bars by listening, just now; nothing is saved. They can be off by a beat or a section.')));
-    else if (info.source === 'points') out.push(say('hint', info.state === 'set' ? t('Every bar is placed: the Guitar Pro file’s own sync, or one checked by ear.') : t('Every bar is placed by Auto-align, not checked by ear yet.')));
-    else if (info.state === 'auto') out.push(say('hint', info.auto === info.total ? t('Each section’s start was placed automatically (the import wizard or Auto-align) and nobody has checked it by ear yet.') : t('%d of %d section starts are still automatic estimates, not checked by ear.', info.auto, info.total)));
-    else out.push(say('hint', t('Each section’s start was placed or checked by ear.')));
     if (tempos.off) {
       out.push(say('audio-sync-warn', t('Here the counter runs at about %d bpm, but the chart says %d bpm: some sections must have more or fewer bars in the chart than in the recording. Count them while listening, then fix the chart or the sync.', Math.round(tempos.median), Math.round(bpm))));
       const odd = tempos.per.filter((p) => p.off).slice(0, 4).map((p) => t('%s: %d bpm', p.label, Math.round(p.bpm)));
       if (odd.length) out.push(say('hint', odd.join(' · ')));
     }
-    const row = document.createElement('div');
-    row.className = 'audio-pop-row';
-    if (canEdit && window.songbooksSyncSheet) {
-      const fix = document.createElement('button');
-      fix.type = 'button';
-      fix.className = 'primary';
-      fix.textContent = t('Correct the sync');
-      fix.addEventListener('click', () => { pops.forEach((p) => { p.hidden = true; }); setSheet(false); window.songbooksSyncSheet.open(); });
-      row.appendChild(fix);
-      if (info.state === 'auto' && info.source !== 'points') {
-        const ok = document.createElement('button');
-        ok.type = 'button';
-        ok.className = 'audio-pill-btn';
-        ok.textContent = t('It’s right: confirm');
-        ok.title = t('mark every section start as checked by ear, without moving it');
-        ok.addEventListener('click', confirmSync);
-        row.appendChild(ok);
-      }
-    } else if (!canEdit && info.state !== 'set') {
-      out.push(say('hint', t('Someone who can edit this song can correct it.')));
-    }
-    if (row.childNodes.length) out.push(row);
-    const status = document.createElement('span');
-    status.className = 'hint form-status';
-    status.setAttribute('role', 'status');
-    status.id = 'audio-sync-status';
-    out.push(status);
+    if (!canEdit && s && s !== 'set') out.push(say('hint', t('Someone who can edit this song can correct it.')));
     syncPop.replaceChildren(...out);
+    syncPop.hidden = !out.length;
   }
+  syncBadge?.addEventListener('click', () => openLine('audio-line-sync'));
+  $('audio-sync-confirm')?.addEventListener('click', confirmSync);
+  // Correct it: the Sync sheet (#74) where the page has it, else the Mixer.
+  $('audio-sync-fix')?.addEventListener('click', () => {
+    setSheet(false);
+    if (window.songbooksSyncSheet && window.songbooksSyncSheet.open) { window.songbooksSyncSheet.open(); return; }
+    document.querySelector('#mode-segmented button[data-value="mixer"]')?.click();
+  });
   // The estimate is right: every section's start as it is, saved as set
   // (the detection's too, which then stays put).
   async function confirmSync() {
@@ -585,9 +585,32 @@ window.songbooksDecodable = function (buf) {
         rulerMarks.appendChild(m);
       }
     });
+    tidyRuler();
     renderCycle();
     updateButtons();
     wireBarClickToPlay();
+  }
+
+  // The ruler's labels never overlap: a section's name stops short of the
+  // next section's ("Chorus 1" cut with "…"), and a bar number under a
+  // section's name gives way to it.
+  function tidyRuler() {
+    if (!rulerMarks || !rulerMarks.clientWidth) return;
+    const secs = [...rulerMarks.querySelectorAll('.audio-ruler-section')];
+    const left = (el) => el.offsetLeft;
+    secs.forEach((el, i) => {
+      const next = secs[i + 1];
+      const room = (next ? left(next) : rulerMarks.clientWidth) - left(el) - 3;
+      el.style.maxWidth = `${Math.max(0, room)}px`;
+      el.hidden = room < 14;
+    });
+    const boxes = secs.filter((el) => !el.hidden).map((el) => [left(el), left(el) + el.offsetWidth]);
+    let lastEnd = -Infinity;
+    rulerMarks.querySelectorAll('.audio-ruler-bar').forEach((el) => {
+      const a = left(el), b = a + el.offsetWidth;
+      el.hidden = a < lastEnd + 2 || boxes.some(([x, y]) => a < y + 3 && b > x - 3);
+      if (!el.hidden) lastEnd = b;
+    });
   }
 
   function renderCycle() {
@@ -624,7 +647,8 @@ window.songbooksDecodable = function (buf) {
     }
     const b = Math.floor(pos);
     const beat = Math.min(beatsPerBar - 1, Math.floor((pos - b) * beatsPerBar));
-    lcdPos.textContent = b < 0 ? '–' : `${barLabel(b)}.${beat + 1}`;
+    // Before the first bar (a count, a silence): waiting at its start, not a dash.
+    lcdPos.textContent = b < 0 ? `${barLabel(0)}.1` : `${barLabel(b)}.${beat + 1}`;
     const sec = sectionAt(b);
     lcdSection.textContent = sec ? sec.label : '';
     syncDockSections();
@@ -639,6 +663,10 @@ window.songbooksDecodable = function (buf) {
     }
     const press = (btn, on) => { if (btn) { btn.classList.toggle('active', !!on); btn.setAttribute('aria-pressed', on ? 'true' : 'false'); } };
     press(cycleBtn, prefs.cycle && prefs.cycle.on);
+    // The loop's chip reads its bars: "Boucle 21–28".
+    const cyc = prefs.cycle && prefs.cycle.on && hasBars() ? prefs.cycle : null;
+    const cycleLabel = $('audio-cycle-label');
+    if (cycleLabel) cycleLabel.textContent = cyc ? t('Cycle %s–%s', barLabel(cyc.from), barLabel(cyc.to - 1)) : t('Cycle');
     press(countInBtn, prefs.countIn > 0);
     press(clickBtn, prefs.click);
     press(trainerBtn, prefs.trainer.on);
@@ -654,28 +682,41 @@ window.songbooksDecodable = function (buf) {
     renderTrainer();
     renderDockState();
     syncDockSections();
+    if (dock && dock.classList.contains('is-open')) renderLoopLine();
   }
 
   // ---- Speed (pitch kept) ---------------------------------------------------
-  const SPEEDS = [50, 60, 70, 75, 80, 90, 100, 110, 125];
+  // The chip reads "80 % · 119 bpm"; a tap goes back to 100 % and, again,
+  // to the last speed used (80 % the first time). Its ▾: a stepper, ±5 %,
+  // and 70 / 80 / 90 / 100 %.
+  const speedBtn = $('audio-speed-btn'), speedLabel = $('audio-speed-label'), speedAmount = $('audio-speed-amount');
+  // "80 %": a percentage as French writes it (a narrow no-break space).
+  const pctText = (p) => t('%d%', p);
   function setSpeed(v, save = true) {
     const pct = Math.round(Math.max(25, Math.min(150, v * 100)));
     prefs.speed = pct / 100;
+    if (pct !== 100) prefs.speedLast = prefs.speed;
     audio.playbackRate = prefs.speed;
-    if (speedSel) {
-      const opts = [...new Set([...SPEEDS, pct])].sort((a, b) => a - b);
-      if (speedSel.options.length !== opts.length || ![...speedSel.options].some((o) => +o.value === pct)) {
-        speedSel.innerHTML = '';
-        for (const p of opts) speedSel.add(new Option(`${p}%`, String(p)));
-      }
-      speedSel.value = String(pct);
-    }
-    if (speedBpm) speedBpm.textContent = bpm ? `${Math.round(bpm * prefs.speed)} bpm` : '';
+    const on = pct !== 100;
+    speedBtn?.classList.toggle('active', on);
+    speedBtn?.setAttribute('aria-pressed', String(on));
+    const bpmNow = bpm ? `${Math.round(bpm * prefs.speed)} bpm` : '';
+    if (speedLabel) speedLabel.textContent = on ? [pctText(pct), bpmNow].filter(Boolean).join(' · ') : t('Speed');
+    if (speedAmount) speedAmount.textContent = pctText(pct);
+    if (speedBpm) speedBpm.textContent = bpmNow;
+    syncSpeedSeg();
     resetClicks();
     if (save) savePrefs();
     updateButtons();
   }
-  speedSel?.addEventListener('change', () => setSpeed(+speedSel.value / 100));
+  const toggleSpeed = () => setSpeed(prefs.speed !== 1 ? 1 : (prefs.speedLast && prefs.speedLast !== 1 ? prefs.speedLast : 0.8));
+  speedBtn?.addEventListener('click', toggleSpeed);
+  $('audio-speed-down')?.addEventListener('click', () => setSpeed(prefs.speed - 0.05));
+  $('audio-speed-up')?.addEventListener('click', () => setSpeed(prefs.speed + 0.05));
+  function syncSpeedSeg() {
+    $('audio-speed-seg')?.querySelectorAll('button').forEach((b) => b.classList.toggle('active', +b.dataset.v === Math.round(prefs.speed * 100)));
+  }
+  $('audio-speed-seg')?.addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (b) setSpeed(+b.dataset.v / 100); });
 
   // ---- Click: the metronome's own sounds (clock.js), placed on the
   // recording's bar grid so it follows a live tempo, not a fixed BPM ----
@@ -826,6 +867,7 @@ window.songbooksDecodable = function (buf) {
     }
     followVoice();
     renderPosition();
+    if (duration) mediaSession?.position(duration, audio.currentTime, audio.playbackRate, isPlaying());
   }
   // A timer, not requestAnimationFrame: the cycle wrap and the click
   // scheduler must keep running when the tab is in the background.
@@ -902,16 +944,21 @@ window.songbooksDecodable = function (buf) {
   voiceAudio.preload = 'auto';
   voiceAudio.preservesPitch = true;
   voiceAudio.webkitPreservesPitch = true;
-  let graph = null; // {ctx, bus, voiceGain, stretch}
+  let graph = null; // {ctx, bus, mainGain, gains: {vocals, drums, bass}, stretch}
   function ensureGraph() {
     if (graph) return graph;
     const ctx = clicker ? clicker._ensureCtx() : new (window.AudioContext || window.webkitAudioContext)();
     const bus = ctx.createGain();
-    const voiceGain = ctx.createGain();
-    ctx.createMediaElementSource(audio).connect(bus);
-    ctx.createMediaElementSource(voiceAudio).connect(voiceGain).connect(bus);
+    const mainGain = ctx.createGain();
+    ctx.createMediaElementSource(audio).connect(mainGain).connect(bus);
+    // The parts that play beside it ("My parts"), each at its level.
+    const gains = {};
+    for (const [stem, el] of Object.entries(followers)) {
+      gains[stem] = ctx.createGain();
+      ctx.createMediaElementSource(el).connect(gains[stem]).connect(bus);
+    }
     bus.connect(ctx.destination);
-    graph = { ctx, bus, voiceGain, stretch: null };
+    graph = { ctx, bus, mainGain, gains, voiceGain: gains.vocals, stretch: null };
     return graph;
   }
   let stretchLib = null;
@@ -940,9 +987,8 @@ window.songbooksDecodable = function (buf) {
     const n = prefs.semitones;
     document.dispatchEvent(new CustomEvent('songbooks:key', { detail: { semitones: n } }));
     const sign = n > 0 ? '+' : '';
-    if (keyLabel) keyLabel.textContent = n ? t('Key %s', `${sign}${n}`) : t('Key');
-    keyBtn?.classList.toggle('active', !!n);
     renderSing();
+    renderKeyChip();
     renderDockState();
     if (keyAmount) keyAmount.textContent = `${sign}${n}`;
     if (keyName) keyName.textContent = $('key-transposed') && !$('key-transposed').hidden ? t('in %s', $('key-transposed').textContent) : '';
@@ -974,13 +1020,12 @@ window.songbooksDecodable = function (buf) {
   // being tried.
   const coachBox = $('audio-key-coach'), coachList = $('audio-key-targets');
   let coachTargets = null, coachKey = root.dataset.songKey || '';
-  // A coaching community's player options (play.html, the "Voice & key"
-  // panel; audio-player.js "Sing"): sing, the panel in place of Key;
-  // singVoiceOn, its voice slider; coachCommunity, its key per student —
+  // A coaching community's key per student (play.html, the key's panel;
+  // audio-player.js "Sing"): sing, the panel for the key;
+  // coachCommunity, its key per student —
   // that community's students, the coming week's lessons first, a name
   // picked, the key goes to theirs (singTarget).
   const sing = root.dataset.sing === '1';
-  const singVoiceOn = root.dataset.singVoice === '1';
   const coachCommunity = parseInt(root.dataset.coachCommunity || '0', 10);
   let singTarget = null, singSaved = null; // singSaved: whose key was just saved here
   // The song's key moved by n, named as the server does (chordsym.KeyName):
@@ -1102,13 +1147,6 @@ window.songbooksDecodable = function (buf) {
       }
       coachList.replaceChildren(...parts);
     }
-    // The list arrives after the Key panel opened: keep it on screen now
-    // that it is wider.
-    const pop = $('audio-pop-key');
-    if (pop && !pop.hidden && !sheetOpen()) {
-      const wrap = (pop.offsetParent || root).getBoundingClientRect(), r = pop.getBoundingClientRect();
-      if (r.right > wrap.right - 8) pop.style.setProperty('--pop-left', `${Math.max(8, wrap.width - pop.offsetWidth - 8)}px`);
-    }
   }
   let coachLoading = null;
   function loadCoachKeys() {
@@ -1171,149 +1209,345 @@ window.songbooksDecodable = function (buf) {
   $('audio-key-down')?.addEventListener('click', () => setSemitones(prefs.semitones - 1));
   $('audio-key-reset')?.addEventListener('click', () => setSemitones(0));
 
-  // Voice: shown once the recording's parts are there.
-  const voiceSplit = $('audio-voice-split');
-  const voiceBtn = $('audio-voice-btn');
-  const voiceLabel = $('audio-voice-label');
-  const voiceRange = $('audio-voice-volume');
-  const voiceOut = $('audio-voice-amount');
-  const hasParts = () => {
-    const st = (categories[activeCategory] || {}).stems || [];
-    return st.includes('no_vocals') && st.includes('vocals');
-  };
-  const voiceDown = () => hasParts() && prefs.voice < 100;
-  let voiceToken = 0;
-  async function applyVoice() {
-    const meta = categories[activeCategory] || {};
-    if (voiceSplit) {
-      voiceSplit.hidden = !hasParts();
-      if (voiceLabel) voiceLabel.textContent = prefs.voice >= 100 ? t('Voice') : prefs.voice === 0 ? t('No voice') : t('Voice %d%', prefs.voice);
-      voiceBtn?.classList.toggle('active', prefs.voice < 100);
-      voiceBtn?.setAttribute('aria-pressed', String(prefs.voice < 100));
-      if (voiceRange) voiceRange.value = String(prefs.voice);
-      if (voiceOut) voiceOut.textContent = `${prefs.voice}%`;
-      syncVoiceSeg();
+  // ---- My parts ("Je joue") ---------------------------------------------------
+  // A level for each part the reader plays here (play.html data-parts,
+  // httpapi/player_parts.go: this song's choice, this band's or
+  // community's, their profile's, else the voice), from the recording's
+  // parts as Demucs splits them (cmd/stemsd): vocals, drums, bass, other.
+  // An instrument is heard in one of these (internal/instruments): voice
+  // in vocals, bass in bass, drums in drums, guitar, piano, horns… in
+  // "other"; two in the same part (guitar and horns) share one level, and
+  // say so. 0 takes the part out, 100 leaves the recording as it is.
+  //
+  // How it plays: the recording as it is when every level is 100; with
+  // only the voice down, the backing (no_vocals) and the voice beside it
+  // at its level; with any other part down, the four parts side by side,
+  // each at its level. The parts keep with the recording that drives the
+  // clock (followParts): same play, pause, speed and place.
+  const STEMS = ['vocals', 'drums', 'bass', 'other'];
+  const partsData = (() => { try { return JSON.parse(root.dataset.parts || '{}'); } catch (e) { return {}; } })();
+  let myParts = Array.isArray(partsData.parts) ? partsData.parts : ['voice'];
+  let partsFrom = partsData.from || 'default';
+  const partsCtx = partsData.context || { kind: '' };
+  const allInstruments = partsData.all || [];
+  const instrument = (id) => allInstruments.find((x) => x.id === id) || { id, label: id, stem: id === 'voice' ? 'vocals' : 'other' };
+  prefs.levels = Object.assign({ drums: 100, bass: 100, other: 100 }, prefs.levels || {});
+  prefs.levelsOff = Object.assign({ drums: 0, bass: 0, other: 0 }, prefs.levelsOff || {});
+  const stemsHere = () => (categories[activeCategory] || {}).stems || [];
+  // The voice alone (the backing and the voice), or all four parts.
+  const hasParts = () => stemsHere().includes('no_vocals') && stemsHere().includes('vocals');
+  const hasFour = () => ['vocals', 'drums', 'bass', 'other'].every((s) => stemsHere().includes(s));
+  // My parts by the recording's part they're heard in, in Demucs's order.
+  function partGroups() {
+    const by = new Map();
+    for (const id of myParts) {
+      const stem = instrument(id).stem;
+      if (!by.has(stem)) by.set(stem, []);
+      by.get(stem).push(id);
     }
+    return STEMS.filter((s) => by.has(s)).map((stem) => ({
+      stem, ids: by.get(stem),
+      adjustable: stem === 'vocals' ? hasParts() : hasFour(),
+    }));
+  }
+  const groupLabel = (g) => (g.ids.length === 1 && g.ids[0] === 'voice' ? t('Voice') : g.ids.map((id) => instrument(id).label).join(' + '));
+  const levelOf = (stem) => (stem === 'vocals' ? prefs.voice : prefs.levels[stem]);
+  // A part's level as played: 100 for one I don't play here.
+  const playedLevel = (stem) => (partGroups().some((g) => g.stem === stem && g.adjustable) ? levelOf(stem) : 100);
+  const voiceOn = () => partGroups().some((g) => g.stem === 'vocals' && g.adjustable);
+  function engineMode() {
+    if (hasFour() && ['drums', 'bass', 'other'].some((s) => playedLevel(s) < 100)) {
+      return { main: 'other', mainLevel: playedLevel('other'), followers: ['vocals', 'drums', 'bass'] };
+    }
+    if (hasParts() && playedLevel('vocals') < 100) return { main: 'no_vocals', mainLevel: 100, followers: ['vocals'] };
+    return { main: '', mainLevel: 100, followers: [] };
+  }
+  const followers = { vocals: voiceAudio };
+  for (const s of ['drums', 'bass']) {
+    const el = new Audio();
+    el.preload = 'auto';
+    el.preservesPitch = true;
+    el.webkitPreservesPitch = true;
+    followers[s] = el;
+  }
+  let playing = []; // the followers playing now
+  let partsToken = 0;
+  async function applyParts() {
+    renderParts();
     renderSing();
     renderDockState();
-    const cat = activeCategory, token = ++voiceToken;
-    const down = voiceDown();
-    if (down) ensureGraph();
-    if (graph) graph.voiceGain.gain.value = prefs.voice / 100;
-    // The accompaniment in place of the recording (the same length: the
-    // position carries over), or the recording back.
-    const tag = down ? `${cat}:no_vocals` : cat;
+    const meta = categories[activeCategory] || {};
+    const cat = activeCategory, token = ++partsToken;
+    const mode = engineMode();
+    if (mode.main) ensureGraph();
+    if (graph) {
+      graph.mainGain.gain.value = mode.mainLevel / 100;
+      for (const s of Object.keys(followers)) graph.gains[s].gain.value = playedLevel(s) / 100;
+    }
+    // The part that drives the clock in place of the recording (the same
+    // length: the position carries over), or the recording back.
+    const tag = mode.main ? `${cat}:${mode.main}` : cat;
     if (audio.dataset.blobFor && audio.dataset.blobFor !== tag) {
       let bytes;
-      try { bytes = await window.songbooksAudioBytes(variantId, cat, meta, down ? 'no_vocals' : ''); } catch (e) { return; }
-      if (token !== voiceToken) return;
+      try { bytes = await window.songbooksAudioBytes(variantId, cat, meta, mode.main); } catch (e) { return; }
+      if (token !== partsToken) return;
       swapSource(bytes, tag);
     }
-    if (down && prefs.voice > 0 && voiceAudio.dataset.blobFor !== `${cat}:vocals`) {
-      let bytes;
-      try { bytes = await window.songbooksAudioBytes(variantId, cat, meta, 'vocals'); } catch (e) { return; }
-      if (token !== voiceToken) return;
-      if (voiceAudio.src.startsWith('blob:')) URL.revokeObjectURL(voiceAudio.src);
-      voiceAudio.src = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
-      voiceAudio.dataset.blobFor = `${cat}:vocals`;
+    const want = mode.followers.filter((s) => playedLevel(s) > 0);
+    for (const s of Object.keys(followers)) if (!want.includes(s)) followers[s].pause();
+    playing = [];
+    for (const s of want) {
+      const el = followers[s];
+      if (el.dataset.blobFor !== `${cat}:${s}`) {
+        let bytes;
+        try { bytes = await window.songbooksAudioBytes(variantId, cat, meta, s); } catch (e) { return; }
+        if (token !== partsToken) return;
+        if (el.src.startsWith('blob:')) URL.revokeObjectURL(el.src);
+        el.src = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
+        el.dataset.blobFor = `${cat}:${s}`;
+      }
+      playing.push(s);
     }
-    if (!down || prefs.voice === 0) voiceAudio.pause();
+    // What plays, for whoever looks (tests, a bug report): "other+vocals+drums+bass".
+    root.dataset.mix = [mode.main || 'recording', ...playing].join('+');
   }
+  const applyVoice = applyParts;
   function swapSource(bytes, tag) {
-    const t = audio.currentTime, playing = !audio.paused;
+    const t = audio.currentTime, wasPlaying = !audio.paused;
     if (audio.src.startsWith('blob:')) URL.revokeObjectURL(audio.src);
     audio.src = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
     audio.dataset.blobFor = tag;
     audio.playbackRate = prefs.speed;
     audio.addEventListener('loadedmetadata', () => {
       audio.currentTime = t;
-      if (playing) audio.play().catch(() => {});
+      if (wasPlaying) audio.play().catch(() => {});
     }, { once: true });
   }
-  // The voice keeps with the accompaniment: same play, pause, speed and
-  // place (within 80 ms; closer, and it would keep jumping).
-  function followVoice() {
-    if (!voiceDown() || prefs.voice === 0 || !voiceAudio.src) return;
-    if (voiceAudio.playbackRate !== audio.playbackRate) voiceAudio.playbackRate = audio.playbackRate;
-    if (audio.paused) { if (!voiceAudio.paused) voiceAudio.pause(); return; }
-    if (Math.abs(voiceAudio.currentTime - audio.currentTime) > 0.08) voiceAudio.currentTime = audio.currentTime;
-    if (voiceAudio.paused) voiceAudio.play().catch(() => {});
-  }
-  function setVoice(v) {
-    prefs.voice = Math.max(0, Math.min(100, Math.round(v)));
-    if (prefs.voice < 100) prefs.voiceOff = prefs.voice;
-    savePrefs();
-    applyVoice();
-  }
-  function toggleVoice() {
-    if (!hasParts()) return;
-    setVoice(prefs.voice < 100 ? 100 : prefs.voiceOff);
-  }
-  voiceBtn?.addEventListener('click', toggleVoice);
-  voiceRange?.addEventListener('input', () => setVoice(+voiceRange.value));
-  const syncVoiceSeg = wireSegLater('audio-voice-seg', () => prefs.voice, (v) => setVoice(+v));
-  function wireSegLater(id, get, set) {
-    const seg = $(id);
-    if (!seg) return () => {};
-    seg.addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (b) set(b.dataset.v); });
-    return () => seg.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.v === String(get())));
-  }
-
-  // ---- The dock's options: on one line, their icons only, or folded -------
-  // All of them on the bar's line where they fit; their icons only where
-  // that does (opts-compact); folded into ⋯ where not even that does
-  // (opts-fold), as on a phone (app.css). Measured, as laid out, whatever
-  // the browser and its zoom: a container query on the dock's width (70rem)
-  // folded them all away in a 1280px window.
-  const dockTransport = dock ? dock.querySelector('.audio-transport') : null;
-  function fitDock() {
-    if (!dock || !dockTransport) return;
-    const was = dock.classList.contains('opts-fold');
-    dock.classList.remove('opts-compact', 'opts-fold');
-    if (!phoneMQ.matches && !(playerBody && playerBody.hidden)) {
-      const over = () => dockTransport.scrollWidth > dockTransport.clientWidth + 1;
-      if (over()) {
-        dock.classList.add('opts-compact');
-        if (over()) {
-          dock.classList.remove('opts-compact');
-          dock.classList.add('opts-fold');
-        }
-      }
+  // The parts keep with the part that drives the clock: same play, pause,
+  // speed and place (within 80 ms; closer, and they would keep jumping).
+  function followParts() {
+    for (const s of playing) {
+      const el = followers[s];
+      if (!el.src) continue;
+      if (el.playbackRate !== audio.playbackRate) el.playbackRate = audio.playbackRate;
+      if (audio.paused) { if (!el.paused) el.pause(); continue; }
+      if (Math.abs(el.currentTime - audio.currentTime) > 0.08) el.currentTime = audio.currentTime;
+      if (el.paused) el.play().catch(() => {});
     }
-    if (was && !dock.classList.contains('opts-fold') && !phoneMQ.matches) setOptsOpen(false);
   }
-  let fitQueued = false;
-  function queueFit() {
-    if (fitQueued) return;
-    fitQueued = true;
-    requestAnimationFrame(() => { fitQueued = false; fitDock(); });
+  const followVoice = followParts;
+  function setLevel(stem, v) {
+    const n = Math.max(0, Math.min(100, Math.round(v)));
+    if (stem === 'vocals') {
+      prefs.voice = n;
+      if (n < 100) prefs.voiceOff = n;
+    } else {
+      prefs.levels[stem] = n;
+      if (n < 100) prefs.levelsOff[stem] = n;
+    }
+    savePrefs();
+    applyParts();
   }
-  if (dock && window.ResizeObserver) {
-    const ro = new ResizeObserver(queueFit);
-    ro.observe(dock);
-    if (optsEl) ro.observe(optsEl);
+  // A tap on a part: out (or down to where it was last), and back.
+  function toggleLevel(stem) {
+    const off = stem === 'vocals' ? prefs.voiceOff : prefs.levelsOff[stem];
+    setLevel(stem, levelOf(stem) < 100 ? 100 : off);
   }
-  phoneMQ.addEventListener?.('change', queueFit);
-  queueFit();
+  const setVoice = (v) => setLevel('vocals', v);
+  function toggleVoice() {
+    // V: the voice; for someone who doesn't sing here, their first part.
+    const g = partGroups().filter((x) => x.adjustable);
+    const mine = g.find((x) => x.stem === 'vocals') || g[0];
+    if (mine) toggleLevel(mine.stem);
+  }
+  const cardMicEl = $('audio-card-mic');
+  cardMicEl?.addEventListener('click', () => toggleLevel('vocals'));
 
-  // ---- Sing: a coaching community's player options --------------------------
-  // play.html #audio-sing-btn and .sing-panel (handlers_pages.go): in the
-  // dock, one way in, the mic's state and the key with whose it is
-  // ("C#m −1 · Poppy"); it opens a panel, as the rehearsals' player opens
-  // (band_recordings.html rec-player): most of the screen, closed by its
-  // ×, Escape or a click beside it once the setup is right; on a phone, a
-  // sheet. In it, the voice's volume (singVoiceOn) — the mic turns it off
-  // and back to where it was, the slider anywhere between (0 the backing
-  // alone, 100 the recording as it is) — and the key, a semitone either
-  // way, with whose it is; for a coach, their students (coachCommunity:
-  // picked, the key goes to theirs, saved for them). The same voice and
-  // key as Voice and Key (setVoice, setSemitones, the same parts and the
-  // same Web Audio graph), remembered the same way.
-  const singPanel = $('sing-panel'), singBtn = $('audio-sing-btn');
-  const singBtnMic = $('audio-sing-btn-mic'), singChip = $('audio-sing-chip');
-  const singVoice = $('audio-sing-voice'), singMic = $('audio-sing-mic'), cardMic = $('audio-card-mic');
-  const singRange = $('audio-sing-volume'), singOut = $('audio-sing-amount');
-  const singVoiceHint = $('audio-sing-voice-hint'), singNoVoice = $('audio-sing-novoice');
+  // The chips (in the bar) and the levels (in the "Je joue" panel): one
+  // per part I play that the recording has.
+  const partsEl = $('audio-parts'), partsChips = $('audio-parts-chips'), partsLevels = $('audio-parts-levels');
+  const partIcon = (g) => {
+    const key = g.stem === 'other' ? (['guitar', 'keys'].find((k) => g.ids.includes(k)) || 'other') : g.stem;
+    return $('audio-part-icons')?.querySelector(`[data-stem="${key}"]`)?.innerHTML || '';
+  };
+  // The part's names as French says them, for the hints: « autres »…
+  const stemName = (s) => ({ vocals: t('stem|vocals'), drums: t('stem|drums'), bass: t('stem|bass'), other: t('stem|other') }[s]);
+  function partControl(g, big) {
+    const wrap = document.createElement('span');
+    wrap.className = 'audio-part' + (big ? ' audio-part-big' : '');
+    wrap.dataset.stem = g.stem;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'audio-toggle audio-chip';
+    btn.innerHTML = partIcon(g);
+    const label = document.createElement('span');
+    label.className = 'audio-part-label';
+    btn.append(label);
+    btn.addEventListener('click', () => toggleLevel(g.stem));
+    const range = document.createElement('input');
+    range.type = 'range';
+    range.min = '0'; range.max = '100'; range.step = '5';
+    range.addEventListener('input', () => setLevel(g.stem, +range.value));
+    const out = document.createElement('output');
+    wrap.append(btn, range, out);
+    return wrap;
+  }
+  let partsShape = '';
+  function renderParts() {
+    const groups = partGroups().filter((g) => g.adjustable);
+    if (partsEl) partsEl.hidden = !hasParts();
+    const shape = groups.map((g) => `${g.stem}:${g.ids.join('+')}`).join(',');
+    if (shape !== partsShape) {
+      partsShape = shape;
+      partsChips?.replaceChildren(...groups.map((g) => partControl(g, false)));
+      partsLevels?.replaceChildren(...groups.map((g) => partControl(g, true)));
+    }
+    document.querySelectorAll('.audio-part').forEach((wrap) => {
+      const g = groups.find((x) => x.stem === wrap.dataset.stem);
+      if (!g) return;
+      const v = levelOf(g.stem), name = groupLabel(g);
+      const down = v < 100;
+      const btn = wrap.querySelector('button'), range = wrap.querySelector('input'), out = wrap.querySelector('output');
+      wrap.classList.toggle('is-on', down);
+      btn.classList.toggle('active', down);
+      btn.classList.toggle('is-off', v === 0);
+      btn.setAttribute('aria-pressed', String(down));
+      btn.title = t('%s: out or back (the slider: anywhere between)', name);
+      wrap.querySelector('.audio-part-label').textContent = v === 0 ? t('%s out', name.toLowerCase()) : name;
+      if (+range.value !== v) range.value = String(v);
+      range.setAttribute('aria-label', t('Level: %s', name));
+      range.setAttribute('aria-valuetext', pctText(v));
+      out.textContent = pctText(v);
+    });
+    // The phone card's mic: the voice, when I sing here.
+    if (cardMicEl) {
+      cardMicEl.hidden = !voiceOn();
+      cardMicEl.setAttribute('aria-pressed', String(prefs.voice > 0));
+      cardMicEl.classList.toggle('is-off', prefs.voice === 0);
+    }
+    renderPartsPanel();
+    renderStems();
+  }
+
+  // The "Je joue" panel: the levels, what the split can't tell apart, the
+  // instruments to pick, for this song or for here, saved for the reader.
+  const COMMON = ['voice', 'guitar', 'bass', 'drums', 'keys', 'sax', 'trumpet', 'trombone', 'violin', 'other'];
+  let showAll = false;
+  let partsScope = partsFrom === 'song' ? 'song' : 'context';
+  let partsDirty = false;
+  const ctxName = () => (partsCtx.kind ? partsCtx.name || '' : '');
+  function renderPartsPanel() {
+    if (!$('audio-line-parts')) return;
+    const from = $('audio-parts-from');
+    if (from) {
+      from.textContent = partsDirty ? t('not saved yet')
+        : partsFrom === 'song' ? t('your choice for this song')
+        : partsFrom === 'context' ? (ctxName() ? t('your choice with %s', ctxName()) : t('your choice outside your bands and communities'))
+        : partsFrom === 'profile' ? t('from your profile')
+        : t('nothing said: the voice');
+    }
+    // What the split can't do: two instruments in one part, a recording
+    // split into the voice and the backing only, no part at all.
+    const notes = [];
+    const apart = partGroups().filter((g) => !g.adjustable && g.stem !== 'vocals' && hasParts()).map(groupLabel);
+    if (apart.length) notes.push(t('This recording is split into the voice and the backing only: %s can’t be set apart.', apart.join(', ')));
+    for (const g of partGroups()) {
+      if (g.adjustable && g.ids.length > 1) notes.push(t('%s are one part of the recording, “%s”: the split can’t tell them apart.', groupLabel(g), stemName(g.stem)));
+    }
+    if (!myParts.length) notes.push(t('Nothing: you listen, the recording plays as it is.'));
+    const note = $('audio-parts-note');
+    if (note) { note.hidden = !notes.length; note.textContent = notes.join(' '); }
+    const pick = $('audio-parts-pick');
+    if (pick) {
+      const ids = showAll ? allInstruments.map((x) => x.id) : [...new Set([...COMMON, ...myParts])].filter((id) => allInstruments.some((x) => x.id === id));
+      const shape = ids.join(',');
+      if (pick.dataset.shape !== shape) {
+        pick.dataset.shape = shape;
+        pick.replaceChildren(...ids.map((id) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'audio-pick';
+          b.dataset.id = id;
+          b.textContent = instrument(id).label;
+          b.addEventListener('click', () => {
+            myParts = myParts.includes(id) ? myParts.filter((x) => x !== id) : [...myParts, id].slice(-6);
+            partsDirty = true;
+            applyParts();
+          });
+          return b;
+        }));
+      }
+      pick.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(myParts.includes(b.dataset.id))));
+    }
+    const more = $('audio-parts-more');
+    if (more) { more.textContent = showAll ? t('Fewer instruments') : t('Other instruments…'); more.setAttribute('aria-expanded', String(showAll)); }
+    const scopeCtx = $('audio-parts-scope-context');
+    if (scopeCtx) scopeCtx.textContent = ctxName() ? t('With %s, all its songs', ctxName()) : t('All my other songs');
+    $('audio-parts-scope')?.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.v === partsScope);
+      b.setAttribute('aria-checked', String(b.dataset.v === partsScope));
+    });
+    const save = $('audio-parts-save');
+    if (save) save.disabled = !partsDirty && partsFrom === partsScope;
+    const reset = $('audio-parts-reset');
+    if (reset) {
+      reset.hidden = partsFrom !== partsScope;
+      reset.textContent = partsScope === 'song' ? t('Forget it for this song') : t('Back to my profile');
+    }
+  }
+  $('audio-parts-more')?.addEventListener('click', () => { showAll = !showAll; renderPartsPanel(); });
+  $('audio-parts-scope')?.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-v]');
+    if (!b) return;
+    partsScope = b.dataset.v;
+    renderPartsPanel();
+  });
+  async function putParts(body) {
+    const status = $('audio-parts-status');
+    if (status) status.textContent = '';
+    const res = await fetch(`/api/songs/${variantId}/parts`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ context: { kind: partsCtx.kind || '', id: partsCtx.id || 0 }, scope: partsScope }, body)),
+    }).catch(() => null);
+    if (!res || !res.ok) { if (status) status.textContent = t('Couldn’t save that.'); return; }
+    const d = await res.json();
+    myParts = d.parts || [];
+    partsFrom = d.from;
+    partsDirty = false;
+    if (status) status.textContent = t('Saved.');
+    applyParts();
+  }
+  $('audio-parts-save')?.addEventListener('click', () => putParts({ instruments: myParts }));
+  $('audio-parts-reset')?.addEventListener('click', () => putParts({ clear: true }));
+
+  // ---- The dock's tools: by priority, those that are on never fold ---------
+  // The tools sit in a fixed order on the bar's line (play.html): Cycle,
+  // Speed, my parts, Key, Click, Count-in, Pitch, Trainer. Where they don't
+  // all fit, those that are off show their icons only, then leave the bar
+  // from the right, one by one, into "+N" (#audio-opts-btn); a tool that is
+  // on keeps its place and its label (PlayerShell.fit, player-shell.js).
+  // Measured as laid out, whatever the browser, its zoom and the labels'
+  // language. On a phone the card has none of them: they are in its sheet.
+  const dockTransport = dock ? dock.querySelector('.audio-transport') : null;
+  const moreCount = $('audio-more-count');
+  const tools = () => (optsEl ? [...optsEl.querySelectorAll(':scope > [data-tool]')] : []);
+  const queueFit = dock && window.PlayerShell ? window.PlayerShell.fit({
+    bar: dock, row: dockTransport, tray: optsEl, count: moreCount,
+    skip: () => phoneMQ.matches || (playerBody && playerBody.hidden) || sheetOpen(),
+    onFit: (n) => {
+      if (optsBtn && !phoneMQ.matches) {
+        optsBtn.title = n ? tn(n, '%d more tool', '%d more tools') : t('practice options');
+        optsBtn.setAttribute('aria-label', optsBtn.title);
+      }
+    },
+  }) : () => {};
+  phoneMQ.addEventListener?.('change', queueFit);
+
+  // ---- Sing: a coaching community's key per student -------------------------
+  // The panel's Key line (play.html, with the option on: handlers_pages.go),
+  // opened by the key's chip: the key, a semitone either way, with whose it
+  // is, and the coach's students (coachCommunity: picked, the key goes to
+  // theirs, saved for them). The same key as the chip's (setSemitones).
   const singKeyName = $('audio-sing-keyname'), singFor = $('audio-sing-for');
   const singSave = $('audio-sing-save'), singReset = $('audio-sing-reset'), singOriginal = $('audio-sing-original');
   // −1, +2: a semitone count as a singer reads it (a real minus).
@@ -1324,25 +1558,23 @@ window.songbooksDecodable = function (buf) {
     if (x.kind === 'group' || !first) return x.name;
     return (coachTargets || []).some((y) => y !== x && y.kind !== 'group' && (y.name || '').split(/\s+/)[0] === first) ? x.name : first;
   };
+  // The key's chip: "Tonalité −1 · C#m", and whose ("· Poppy", "· la vôtre").
+  let keyShort = '';
+  if (!sing && studentKey !== null) keyShort = root.dataset.keyMine ? t('key|yours') : (root.dataset.keyFor || '').split(/\s+/)[0];
+  function renderKeyChip() {
+    const keyLabel = $('audio-key-label');
+    if (!keyLabel) return;
+    const n = prefs.semitones;
+    const name = keyIn(coachKey, n);
+    const mine = studentKey !== null && n === studentKey;
+    const who = sing || mine ? keyShort : '';
+    const text = n ? [t('chip|Key %s', semis(n)), name, who] : who ? [name || t('Key'), who] : [t('Key')];
+    keyLabel.textContent = text.filter(Boolean).join(' · ');
+    keyBtn?.classList.toggle('active', !!n || !!who);
+    keyBtn?.setAttribute('aria-label', [t('Key'), name ? `${name} (${semis(n)})` : semis(n), who].filter(Boolean).join(', '));
+  }
   function renderSing() {
     if (!sing) return;
-    const parts = singVoiceOn && hasParts();
-    if (singVoice) singVoice.hidden = !parts;
-    if (singVoiceHint) singVoiceHint.hidden = !parts;
-    if (singNoVoice) singNoVoice.hidden = parts;
-    if (cardMic) cardMic.hidden = !parts;
-    if (singBtnMic) singBtnMic.hidden = !parts;
-    const v = prefs.voice;
-    [singMic, cardMic, singBtnMic].forEach((b) => {
-      if (!b) return;
-      if (b !== singBtnMic) b.setAttribute('aria-pressed', String(v > 0));
-      b.classList.toggle('is-off', v === 0);
-    });
-    if (singRange) {
-      if (+singRange.value !== v) singRange.value = String(v);
-      singRange.setAttribute('aria-valuetext', v === 0 ? t('No voice') : t('Voice %d%', v));
-    }
-    if (singOut) singOut.textContent = `${v}%`;
     // The key: its name and how far from the song's, then whose.
     const n = prefs.semitones;
     const name = keyIn(coachKey, n);
@@ -1376,15 +1608,8 @@ window.songbooksDecodable = function (buf) {
     if (singOriginal) singOriginal.disabled = n === 0;
     // The dock's way in: "C#m −1 · Poppy".
     const chip = [name ? (n ? `${name} ${semis(n)}` : name) : semis(n), short].filter(Boolean).join(' · ');
-    if (singChip && singChip.textContent !== chip) {
-      singChip.textContent = chip;
-      queueFit();
-    }
-    if (singBtn) {
-      const label = singBtn.querySelector('.audio-sing-btn-label')?.textContent || '';
-      const voice = parts ? (v === 0 ? t('No voice') : t('Voice %d%', v)) : '';
-      singBtn.setAttribute('aria-label', [label, voice, name ? `${name} (${semis(n)})` : semis(n), who].filter(Boolean).join(', '));
-    }
+    keyShort = short;
+    renderKeyChip();
   }
   // A coach picks whose key it is: the key goes to theirs when they have
   // the song, else stays as it is, to give it them.
@@ -1393,73 +1618,7 @@ window.songbooksDecodable = function (buf) {
     if (x.inSongbook && x.semitones !== prefs.semitones) setSemitones(x.semitones);
     else renderCoachKeys();
   }
-  // The mic: the voice off, and back to where it was.
-  function toggleMic() {
-    if (!hasParts()) return;
-    if (prefs.voice > 0) {
-      prefs.voiceLast = prefs.voice;
-      setVoice(0);
-    } else {
-      setVoice(prefs.voiceLast || 100);
-    }
-  }
-  // The panel: opened from the dock, moved to the body (the dock's
-  // backdrop-filter would hold a fixed panel inside it).
-  if (singPanel) document.body.append(singPanel);
-  const panelOpen = () => !!singPanel && !singPanel.hidden;
-  function setPanel(on) {
-    if (!singPanel || on === panelOpen()) return;
-    singPanel.hidden = !on;
-    singBtn?.setAttribute('aria-expanded', String(on));
-    document.documentElement.classList.toggle('rp-locked', on || sheetOpen());
-    if (on) {
-      setOptsOpen(false);
-      document.querySelectorAll('#audio-player .audio-pop').forEach((p) => { p.hidden = true; });
-      loadCoachKeys();
-      renderSing();
-      const card = singPanel.querySelector('.sp-card');
-      if (card) card.scrollTop = 0;
-      (phoneMQ.matches ? singPanel.querySelector('.sp-grab') : singPanel.querySelector('.sp-close'))?.focus({ preventScroll: true });
-    } else if (singBtn && singBtn.offsetParent) {
-      singBtn.focus({ preventScroll: true });
-    }
-  }
   if (sing) {
-    singBtn?.addEventListener('click', () => setPanel(!panelOpen()));
-    singPanel?.querySelectorAll('[data-sp-close]').forEach((el) => el.addEventListener('click', () => setPanel(false)));
-    // Escape closes the panel, before the dock's sheet and its panels
-    // hear it (window, capture phase); Tab stays in it.
-    window.addEventListener('keydown', (e) => {
-      if (!panelOpen()) return;
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        setPanel(false);
-      } else if (e.key === 'Tab') {
-        const els = [...singPanel.querySelectorAll('button, input, summary, [tabindex="0"]')].filter((el) => !el.disabled && el.offsetParent !== null);
-        if (!els.length) return;
-        const first = els[0], last = els[els.length - 1];
-        if (!singPanel.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
-        else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-      }
-    }, true);
-    // A swipe down from the top of the phone's sheet closes it.
-    const card = singPanel?.querySelector('.sp-card');
-    let y0 = null;
-    card?.addEventListener('touchstart', (e) => {
-      y0 = card.scrollTop <= 0 && !e.target.closest('input, .audio-key-targets') ? e.touches[0].clientY : null;
-    }, { passive: true });
-    card?.addEventListener('touchend', (e) => {
-      if (y0 !== null && e.changedTouches[0].clientY - y0 > 80) setPanel(false);
-      y0 = null;
-    });
-    singMic?.addEventListener('click', toggleMic);
-    cardMic?.addEventListener('click', toggleMic);
-    singRange?.addEventListener('input', () => setVoice(+singRange.value));
-    singRange?.addEventListener('change', () => {
-      if (+singRange.value > 0) { prefs.voiceLast = +singRange.value; savePrefs(); }
-    });
     $('audio-sing-down')?.addEventListener('click', () => setSemitones(prefs.semitones - 1));
     $('audio-sing-up')?.addEventListener('click', () => setSemitones(prefs.semitones + 1));
     singOriginal?.addEventListener('click', () => setSemitones(0));
@@ -1475,33 +1634,150 @@ window.songbooksDecodable = function (buf) {
   }
 
 
-  // ---- Option panels: one open at a time, under the control bar -------
-  const pops = [...document.querySelectorAll('#audio-player .audio-pop')];
-  function openPop(id, opener) {
-    const el = $(id);
-    const show = el.hidden;
-    pops.forEach((p) => { p.hidden = true; });
-    document.querySelectorAll('#audio-player [data-pop]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
-    if (!show) return;
-    el.hidden = false;
-    opener.setAttribute('aria-expanded', 'true');
-    if (id === 'audio-pop-trainer') renderTrainer();
-    // In the phone sheet the panel opens in place, under the options.
-    if (sheetOpen()) { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
-    // From the ⋯ menu (a phone): the menu closes, the panel opens under ⋯.
-    let anchor = opener;
-    if (optsEl && optsEl.classList.contains('open') && optsEl.contains(opener)) {
-      setOptsOpen(false);
-      anchor = optsBtn;
-    }
-    // Under its button where there's room; full width on a phone (CSS).
-    // In the dock (play.html) the panel opens above the bar (app.css):
-    // only its left is set, against the dock.
-    const wrap = (el.offsetParent || root).getBoundingClientRect(), r = anchor.getBoundingClientRect();
-    el.style.setProperty('--pop-top', `${r.bottom - wrap.top + 6}px`);
-    el.style.setProperty('--pop-left', `${Math.max(8, Math.min(wrap.width - el.offsetWidth - 8, r.right - wrap.left - el.offsetWidth))}px`);
+  // ---- The panel ----------------------------------------------------------
+  // The bar opens into the panel (play.html .audio-panel; app/reports/
+  // player-proposal.md §3.2–3.3), with PlayerShell.panel's mechanics. On a
+  // wide screen it rises from the bar over the lower two thirds of the
+  // screen: on the left where you are, big — the bar.beat, the waveform,
+  // the sections to loop, the transport; on the right the tools in three
+  // groups, Loop & tempo, Sound, Sing, each tool's settings on its line.
+  // On a phone the card opens into a sheet: the same, the groups as tabs
+  // (the last one used comes back). The chart above scrolls so the line
+  // being played stays in sight. Closed by Escape, ⌄, F, a click on the
+  // dimmed page, or a swipe down.
+  const panelBtn = $('audio-panel-btn');
+  const tabKey = 'songbooks:player-tab';
+  const shell = dock && window.PlayerShell ? window.PlayerShell.panel({
+    root: dock, card: dock,
+    openers: [panelBtn, optsBtn, lcdEl].filter(Boolean),
+    closers: document.querySelectorAll('[data-dock-close]'),
+    focus: () => (phoneMQ.matches ? $('audio-dock-grab') : dock.querySelector('.audio-panel-close')),
+    swipeIgnore: 'input, select, .audio-dock-line, .audio-dock-sections, .audio-stepper, .audio-seg, .audio-panel-tabs, .audio-parts-pick, .audio-wave, .audio-ruler',
+    onChange: (on) => {
+      if (dockBackdrop) dockBackdrop.hidden = !on;
+      if (on) {
+        dock.setAttribute('aria-label', t('Player'));
+        dock.scrollTop = 0;
+        dock.querySelector('.audio-panel')?.scrollTo?.(0, 0);
+        renderDockSections();
+        renderLoopLine();
+        loadCoachKeys();
+        renderSing();
+        renderTrainer();
+        if (!phoneMQ.matches) keepPlayingLineInSight();
+      }
+      // The waveform takes its new size.
+      requestAnimationFrame(() => { drawWaveform(); refreshTimeline(); queueFit(); });
+    },
+  }) : null;
+  function sheetOpen() { return !!shell && shell.isOpen(); }
+  function setSheet(on) { shell?.open(on); }
+  // The chart under a wide screen's panel: the bar being played moved up
+  // into the third of the screen the panel leaves.
+  function keepPlayingLineInSight() {
+    const el = document.querySelector('#sheet .bar.playing, #sheet .is-playing, #sheet .current-line, #sheet .lyric-line.current') || document.querySelector('#sheet .sheet-section.current, #sheet .sheet-section.playing');
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const room = dock.getBoundingClientRect().top;
+    if (r.top < 60 || r.bottom > room - 10) window.scrollBy({ top: r.top - Math.max(60, room / 3), behavior: 'smooth' });
   }
-  document.querySelectorAll('#audio-player [data-pop]').forEach((b) => b.addEventListener('click', () => openPop(b.dataset.pop, b)));
+  // The groups as tabs on a phone (all three side by side on a wide screen).
+  const groups = [...document.querySelectorAll('.audio-group')];
+  const tabs = [...document.querySelectorAll('.audio-panel-tabs [role="tab"]')];
+  function showGroup(name, remember) {
+    if (!groups.some((g) => g.dataset.group === name)) name = 'loop';
+    groups.forEach((g) => g.classList.toggle('is-active', g.dataset.group === name));
+    tabs.forEach((b) => {
+      const on = b.dataset.group === name;
+      b.setAttribute('aria-selected', String(on));
+      b.tabIndex = on ? 0 : -1;
+    });
+    if (remember) { try { localStorage.setItem(tabKey, name); } catch (e) { /* this page only */ } }
+  }
+  let lastTab = 'loop';
+  try { lastTab = localStorage.getItem(tabKey) || 'loop'; } catch (e) { /* loop */ }
+  showGroup(lastTab, false);
+  tabs.forEach((b) => b.addEventListener('click', () => showGroup(b.dataset.group, true)));
+  document.querySelector('.audio-panel-tabs')?.addEventListener('keydown', (e) => {
+    const i = tabs.findIndex((b) => b.getAttribute('aria-selected') === 'true');
+    const d = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+    if (d === undefined || i < 0) return;
+    e.preventDefault();
+    const next = tabs[(i + d + tabs.length) % tabs.length];
+    showGroup(next.dataset.group, true);
+    next.focus();
+  });
+  // A tool's line: the panel opens there, its group shown, the line lit.
+  function openLine(id) {
+    const line = $(id);
+    if (!line) { setSheet(true); return; }
+    const group = line.closest('.audio-group');
+    if (group) showGroup(group.dataset.group, true);
+    if (id === 'audio-line-parts') { const d = $('audio-parts-choose'); if (d && !myParts.length) d.open = true; }
+    setSheet(true);
+    requestAnimationFrame(() => {
+      line.scrollIntoView({ block: 'nearest' });
+      line.classList.remove('is-lit');
+      void line.offsetWidth;
+      line.classList.add('is-lit');
+    });
+  }
+  document.querySelectorAll('#audio-player [data-open-line]').forEach((b) => b.addEventListener('click', () => openLine(b.dataset.openLine)));
+  panelBtn?.addEventListener('click', () => setSheet(!sheetOpen()));
+  // "+N": the panel, at the first tool that left the bar; on a phone, ⋯
+  // opens the sheet.
+  optsBtn?.addEventListener('click', () => {
+    if (phoneMQ.matches) { setSheet(!sheetOpen()); return; }
+    const first = tools().find((el) => el.dataset.folded && !el.hidden);
+    if (first && first.dataset.line) openLine(first.dataset.line); else setSheet(true);
+  });
+  // The bar.beat display opens it too: the card on a phone, the readout on a wide screen.
+  lcdEl?.addEventListener('click', () => { if (!sheetOpen()) setSheet(true); });
+  lcdEl?.addEventListener('keydown', (e) => {
+    if (!sheetOpen() && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); setSheet(true); }
+  });
+  if (lcdEl) {
+    lcdEl.setAttribute('role', 'button');
+    lcdEl.tabIndex = 0;
+  }
+  // The panel's own switches mirror the bar's chips.
+  const loopSwitch = $('audio-loop-switch'), clickSwitch = $('audio-click-switch');
+  loopSwitch?.addEventListener('change', () => { if (!!(prefs.cycle && prefs.cycle.on) !== loopSwitch.checked) toggleCycle(); });
+  clickSwitch?.addEventListener('change', () => { if (prefs.click !== clickSwitch.checked) toggleClick(); });
+  $('audio-loop-section')?.addEventListener('click', () => {
+    const sec = sectionAt(Math.max(0, Math.floor(barAtTime(audio.currentTime) || 0)));
+    if (sec) { setCycle(sec.startBar, sec.startBar + sec.barCount); seekToBar(sec.startBar); }
+  });
+  function renderLoopLine() {
+    const c = prefs.cycle;
+    const loopSwitch = $('audio-loop-switch'), clickSwitch = $('audio-click-switch');
+    if (loopSwitch) { loopSwitch.checked = !!(c && c.on); loopSwitch.disabled = !hasBars(); }
+    if (clickSwitch) clickSwitch.checked = !!prefs.click;
+    const range = $('audio-loop-range');
+    if (range) range.textContent = c && hasBars() ? t('bars %s → %s', barLabel(c.from), barLabel(c.to - 1)) : t('drag in the ruler, or tap a section');
+    const lcdLoop = $('audio-lcd-loop');
+    if (lcdLoop) lcdLoop.textContent = c && c.on && hasBars() ? t('loop %s → %s', `${barLabel(c.from)}.1`, `${barLabel(c.to)}.1`) : '';
+    const stems = $('audio-line-stems');
+    if (stems) {
+      const names = { vocals: t('Voice'), drums: t('Drums'), bass: t('Bass'), other: t('Others') };
+      const here = STEMS.filter((s) => stemsHere().includes(s));
+      stems.textContent = here.length ? here.map((s) => names[s]).join(' · ') : t('not split into its parts');
+    }
+    const pitchBtn = $('audio-pitch-btn'), pitchPanel = $('audio-pitch-panel-btn');
+    if (pitchPanel && pitchBtn) {
+      pitchPanel.disabled = pitchBtn.hidden;
+      pitchPanel.setAttribute('aria-pressed', pitchBtn.getAttribute('aria-pressed') || 'false');
+      pitchPanel.classList.toggle('active', pitchBtn.getAttribute('aria-pressed') === 'true');
+      const hint = $('audio-pitch-panel-hint');
+      if (hint) hint.textContent = pitchBtn.hidden ? t('the recording’s voice isn’t split out yet') : t('headphones on; the microphone listens while it plays');
+    }
+  }
+  $('audio-pitch-panel-btn')?.addEventListener('click', () => { $('audio-pitch-btn')?.click(); requestAnimationFrame(renderLoopLine); });
+  if (window.MutationObserver && $('audio-pitch-btn')) new MutationObserver(renderLoopLine).observe($('audio-pitch-btn'), { attributes: true, attributeFilter: ['aria-pressed', 'hidden'] });
+  $('audio-open-mixer')?.addEventListener('click', () => {
+    setSheet(false);
+    document.querySelector('#mode-segmented button[data-value="mixer"]')?.click();
+  });
   // The dock's line: a click goes there; in the phone sheet, where it is
   // a scrubber, a drag too.
   if (dockLine) {
@@ -1521,98 +1797,23 @@ window.songbooksDecodable = function (buf) {
     dockLine.addEventListener('pointerup', stop);
     dockLine.addEventListener('pointercancel', stop);
   }
-  document.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('#audio-player .audio-pop, #audio-player [data-pop]')) return;
-    pops.forEach((p) => { p.hidden = true; });
-    if (!e.target.closest('#audio-opts, #audio-opts-btn')) setOptsOpen(false);
-  });
-  // On a phone the options fold into ⋯ (app.css): it opens them under the
-  // control bar.
-  function setOptsOpen(open) {
-    optsEl?.classList.toggle('open', open);
-    optsBtn?.setAttribute('aria-expanded', String(open));
-  }
-  optsBtn?.addEventListener('click', () => (phoneMQ.matches ? setSheet(!sheetOpen()) : setOptsOpen(!optsEl.classList.contains('open'))));
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOptsOpen(false); });
-
-  // ---- Phone sheet ----------------------------------------------------------
-  // On a phone the dock is a card over the bottom bar, like the set lists'
-  // player (app.css): the section and the bar, play, the bar either side.
-  // Tapping it, or ⋯, opens it into a sheet: the bar big, a scrubber, a
-  // large transport, the sections to loop, every option with its panel in
-  // place. Down, the grab handle, the backdrop or Escape close it.
-  function sheetOpen() { return !!dock?.classList.contains('is-open'); }
-  function setSheet(on) {
-    if (!dock || on === sheetOpen()) return;
-    dock.classList.toggle('is-open', on);
-    if (dockBackdrop) dockBackdrop.hidden = !on;
-    document.documentElement.classList.toggle('rp-locked', on);
-    optsBtn?.setAttribute('aria-expanded', String(on));
-    lcdEl?.setAttribute('aria-expanded', String(on));
-    if (on) {
-      setOptsOpen(false);
-      dock.setAttribute('role', 'dialog');
-      dock.setAttribute('aria-modal', 'true');
-      dock.setAttribute('aria-label', t('Player'));
-      dock.scrollTop = 0;
-      renderDockSections();
-      $('audio-dock-grab')?.focus();
-    } else {
-      pops.forEach((p) => { p.hidden = true; });
-      document.querySelectorAll('#audio-player [data-pop]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
-      dock.removeAttribute('role');
-      dock.removeAttribute('aria-modal');
-      dock.removeAttribute('aria-label');
-      if (phoneMQ.matches) lcdEl?.focus({ preventScroll: true });
-    }
-    renderDockState();
-  }
-  function syncLcdRole() {
-    if (!lcdEl) return;
-    if (phoneMQ.matches) {
-      lcdEl.setAttribute('role', 'button');
-      lcdEl.tabIndex = 0;
-      lcdEl.setAttribute('aria-expanded', String(sheetOpen()));
-    } else {
-      lcdEl.removeAttribute('role');
-      lcdEl.removeAttribute('tabindex');
-      lcdEl.removeAttribute('aria-expanded');
-    }
-  }
-  syncLcdRole();
-  phoneMQ.addEventListener?.('change', () => { if (!phoneMQ.matches) setSheet(false); syncLcdRole(); });
-  lcdEl?.addEventListener('click', () => { if (phoneMQ.matches && !sheetOpen()) setSheet(true); });
-  lcdEl?.addEventListener('keydown', (e) => {
-    if (phoneMQ.matches && !sheetOpen() && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); setSheet(true); }
-  });
-  document.querySelectorAll('[data-dock-close]').forEach((el) => el.addEventListener('click', () => setSheet(false)));
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sheetOpen() && !pops.some((p) => !p.hidden)) { e.preventDefault(); setSheet(false); }
-  }, true); // before the panels' own Escape: a first one closes the panel
-  // A swipe down from the top of the sheet closes it.
-  if (dock) {
-    let y0 = null;
-    dock.addEventListener('touchstart', (e) => {
-      y0 = sheetOpen() && dock.scrollTop <= 0 && !e.target.closest('input, select, .audio-dock-line, .audio-dock-sections, .audio-stepper, .audio-seg') ? e.touches[0].clientY : null;
-    }, { passive: true });
-    dock.addEventListener('touchend', (e) => {
-      if (y0 !== null && e.changedTouches[0].clientY - y0 > 80) setSheet(false);
-      y0 = null;
-    });
-  }
   // The sections, as chips: one tap loops that section from its start,
   // another stops the loop (as in the mixer on a phone).
   function renderDockSections() {
     if (!dockSections) return;
     const secs = hasBars() ? sections() : [];
     dockSections.hidden = secs.length < 2;
+    // "Verse 1, Verse 2": a name that comes back is numbered.
+    const seen = {}, count = {};
+    secs.forEach((sec) => { count[sec.label] = (count[sec.label] || 0) + 1; });
     dockSections.replaceChildren(...secs.map((sec) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'audio-sec-chip';
       b.dataset.from = String(sec.startBar);
       b.dataset.to = String(sec.startBar + sec.barCount);
-      b.textContent = sec.label;
+      seen[sec.label] = (seen[sec.label] || 0) + 1;
+      b.textContent = count[sec.label] > 1 && !/\d$/.test(sec.label) ? `${sec.label} ${seen[sec.label]}` : sec.label;
       b.addEventListener('click', () => {
         const c = prefs.cycle;
         if (c && c.on && c.from === sec.startBar && c.to === sec.startBar + sec.barCount) {
@@ -1640,20 +1841,23 @@ window.songbooksDecodable = function (buf) {
     });
   }
   // What's on, under the bar in the card: Key +2 · No voice · 80% · Cycle.
+  // What's on, in the phone card under the section: "⟲ 21–28 · 80 % · −1 · voix 40 %".
   function renderDockState() {
     if (!lcdState) return;
     const bits = [];
-    if (prefs.semitones) bits.push($('audio-key-label')?.textContent);
-    if ($('audio-voice-split') && !$('audio-voice-split').hidden && prefs.voice < 100) bits.push($('audio-voice-label')?.textContent);
+    const c = prefs.cycle;
+    if (c && c.on && hasBars()) bits.push(`⟲ ${barLabel(c.from)}–${barLabel(c.to - 1)}`);
     const pct = Math.round(prefs.speed * 100);
-    if (pct !== 100) bits.push(`${pct}%`);
-    if (prefs.cycle && prefs.cycle.on && hasBars()) bits.push(t('Cycle'));
+    if (pct !== 100) bits.push(pctText(pct));
+    if (prefs.semitones) bits.push(semis(prefs.semitones));
+    for (const g of partGroups()) {
+      if (!g.adjustable || levelOf(g.stem) >= 100) continue;
+      bits.push(g.ids.length === 1 && g.ids[0] === 'voice' ? (prefs.voice === 0 ? t('no voice') : t('voice %d%', prefs.voice)) : `${groupLabel(g)} ${pctText(levelOf(g.stem))}`);
+    }
     if (prefs.click) bits.push(t('Click'));
     if (prefs.countIn) bits.push($('audio-countin-label')?.textContent);
-    if (syncBadge && !syncBadge.hidden && syncBadge.dataset.state === 'auto' && !sheetOpen()) bits.unshift(t('Sync estimated'));
     lcdState.textContent = bits.filter(Boolean).join(' · ');
   }
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') pops.forEach((p) => { p.hidden = true; }); });
 
   function wireSeg(id, get, set) {
     const seg = $(id);
@@ -1703,7 +1907,7 @@ window.songbooksDecodable = function (buf) {
     return out;
   }
   function renderTrainer() {
-    const pop = $('audio-pop-trainer');
+    const pop = $('audio-line-trainer');
     if (!pop) return;
     const tr = prefs.trainer;
     pop.querySelectorAll('.audio-stepper').forEach((st) => {
@@ -1744,7 +1948,7 @@ window.songbooksDecodable = function (buf) {
         : t('%s, %s to reach %s%s, on %s.', tn(steps.length, '%d speed', '%d speeds'), tn(loops, '%d loop', '%d loops'), `${tr.end}%`, time, where);
     }
   }
-  $('audio-pop-trainer')?.addEventListener('click', (e) => {
+  $('audio-line-trainer')?.addEventListener('click', (e) => {
     const b = e.target.closest('.audio-stepper button[data-d]');
     const preset = e.target.closest('[data-preset]');
     const tr = prefs.trainer;
@@ -1778,7 +1982,7 @@ window.songbooksDecodable = function (buf) {
   $('audio-trainer-on')?.addEventListener('change', (e) => setTrainer(e.target.checked));
   $('audio-trainer-start')?.addEventListener('click', () => {
     setTrainer(true);
-    pops.forEach((p) => { p.hidden = true; });
+    if (phoneMQ.matches) setSheet(false);
     const cyc = cycleRange();
     if (cyc) seek(cyc.t0);
     if (!isPlaying()) play();
@@ -1891,43 +2095,194 @@ window.songbooksDecodable = function (buf) {
     waveEl.addEventListener('pointerup', onUp);
   });
 
-  // ---- Keyboard: GarageBand / Logic's, where they have one ---------------
-  // Caught before song.js's own page keys (capture phase): with a
+  // ---- Keyboard: one map for every player (player-proposal.md §3.5) -------
+  // PlayerShell.keys, caught before song.js's own page keys: with a
   // recording loaded, Space plays it rather than the silent follow-along
-  // clock. ←/→ step bars — unless the page has a setlist to step through,
+  // clock. ←/→ step bars — unless the page has a set list to step through,
   // where they stay the previous/next song (page-turn pedals send them);
-  // "," and "." step bars either way, as in Logic.
-  document.addEventListener('keydown', (e) => {
-    if (!duration || !playerBody || playerBody.hidden || e.metaKey || e.ctrlKey) return;
-    const t = e.target.closest ? e.target : document.body;
-    if (t.closest('input, select, textarea, [contenteditable]')) return;
-    // A focused button keeps Space and Enter, except the player's own:
-    // after clicking Cycle, Space still means play/pause.
-    if (t.closest('button, a') && !t.closest('#audio-player')) return;
-    const sheet = $('sheet');
-    if (sheet && sheet.dataset.renderMode === 'mixer') return; // the Mixer has its own
-    // So has the Score view, when it plays the file's own recording (gp-view.js).
-    if (sheet && sheet.dataset.renderMode === 'score' && document.body.classList.contains('gp-own-audio')) return;
-    const drawer = $('edit-drawer');
-    if (drawer && !drawer.hidden) return;
-    const songNav = !!document.querySelector('.setlist-nav-card');
-    let handled = true;
-    switch (e.key) {
-      case ' ': case 'Spacebar': isPlaying() ? pause() : play(); break;
-      case 'Home': $('audio-start-btn').click(); break;
-      case ',': stepBar(-1); break;
-      case '.': stepBar(1); break;
-      case 'ArrowLeft': if (songNav && !e.altKey) handled = false; else if (e.altKey) stepSection(-1); else stepBar(-1); break;
-      case 'ArrowRight': if (songNav && !e.altKey) handled = false; else if (e.altKey) stepSection(1); else stepBar(1); break;
-      case 'c': case 'C': case 'l': case 'L': toggleCycle(); break;
-      case 'k': case 'K': toggleClick(); break;
-      case 'v': case 'V': if (!hasParts()) handled = false; else if (singVoiceOn) toggleMic(); else toggleVoice(); break;
-      case '[': setSpeed(prefs.speed - (e.shiftKey ? 0.01 : 0.05)); break;
-      case ']': setSpeed(prefs.speed + (e.shiftKey ? 0.01 : 0.05)); break;
-      default: handled = false;
+  // "," and "." step bars either way. K plays and pauses, as on the
+  // rehearsals' player; the click moved to M (Metronome). L stays C's
+  // alias for one release.
+  const songNav = () => !!document.querySelector('.setlist-nav-card');
+  const goSong = (dir) => {
+    const a = document.querySelector(dir < 0 ? '.setlist-nav-card.prev, .topbar-prev[href]' : '.setlist-nav-card.next, .topbar-next[href]');
+    if (!a || !a.href) return false;
+    window.location.href = a.href;
+  };
+  const loopSection = () => {
+    if (!hasBars()) return false;
+    const sec = sectionAt(Math.max(0, Math.floor(barAtTime(audio.currentTime) || 0)));
+    if (!sec) return false;
+    setCycle(sec.startBar, sec.startBar + sec.barCount);
+  };
+  const toggleCountIn = () => {
+    prefs.countIn = (prefs.countIn + 1) % 3;
+    savePrefs();
+    syncCountInSeg();
+    updateButtons();
+  };
+  const togglePitch = () => { const b = $('audio-pitch-btn'); if (!b || b.hidden) return false; b.click(); };
+  const speedBy = (d) => () => setSpeed(prefs.speed + d);
+  if (window.PlayerShell) window.PlayerShell.keys({
+    own: '#audio-player',
+    title: t('The player’s keys'),
+    active: () => {
+      if (!duration || !playerBody || playerBody.hidden) return false;
+      const sheet = $('sheet');
+      if (sheet && sheet.dataset.renderMode === 'mixer') return false; // the Mixer has its own
+      // So has the Score view, when it plays the file's own recording (gp-view.js).
+      if (sheet && sheet.dataset.renderMode === 'score' && document.body.classList.contains('gp-own-audio')) return false;
+      // The Sync sheet (#74) has its own keys while it's open (Space, T,
+      // ←/→ nudge, K its click, Z undo), registered after these.
+      if (window.songbooksSyncSheet && window.songbooksSyncSheet.isOpen && window.songbooksSyncSheet.isOpen()) return false;
+      const drawer = $('edit-drawer');
+      return !(drawer && !drawer.hidden);
+    },
+    keys: {
+      ' ': () => (isPlaying() ? pause() : play()),
+      k: () => (isPlaying() ? pause() : play()),
+      ArrowLeft: () => (songNav() ? false : stepBar(-1)),
+      ArrowRight: () => (songNav() ? false : stepBar(1)),
+      ',': () => stepBar(-1),
+      '.': () => stepBar(1),
+      'Alt+ArrowLeft': () => stepSection(-1),
+      'Alt+ArrowRight': () => stepSection(1),
+      'Shift+ArrowLeft': () => goSong(-1),
+      'Shift+ArrowRight': () => goSong(1),
+      Home: () => $('audio-start-btn').click(),
+      0: () => $('audio-start-btn').click(),
+      c: () => toggleCycle(),
+      l: () => toggleCycle(),
+      'Shift+c': loopSection,
+      '[': speedBy(-0.05),
+      ']': speedBy(0.05),
+      '{': speedBy(-0.01),
+      '}': speedBy(0.01),
+      '\\': () => setSpeed(1),
+      '-': () => setSemitones(prefs.semitones - 1),
+      '=': () => setSemitones(prefs.semitones + 1),
+      '+': () => setSemitones(prefs.semitones + 1),
+      v: () => (hasParts() ? toggleVoice() : false),
+      m: () => toggleClick(),
+      i: toggleCountIn,
+      s: togglePitch,
+      f: () => (document.body.classList.contains('stage') ? false : setSheet(!sheetOpen())),
+    },
+    help: [
+      [t('Play / pause'), ' ', 'k'],
+      [t('Back / forward one bar (on a set list: the previous / next song; , and . step bars)'), 'ArrowLeft', 'ArrowRight'],
+      [t('Previous / next section'), 'Alt+ArrowLeft', 'Alt+ArrowRight'],
+      [t('Previous / next song'), 'Shift+ArrowLeft', 'Shift+ArrowRight'],
+      [t('Back to the start (of the loop, when looping)'), 'Home', '0'],
+      [t('Loop on / off · ⇧C loops this section'), 'c', 'Shift+c'],
+      [t('Speed −5 % / +5 % (⇧ for 1 %) · \\ back to 100 %'), '[', ']', '\\'],
+      [t('Key down / up a semitone'), '-', '='],
+      [t('Voice (my parts) · metronome click · count-in · check my singing'), 'v', 'm', 'i', 's'],
+      [t('Open / close the panel · close · these shortcuts'), 'f', 'Escape', '?'],
+    ],
+  });
+  // The lock screen, headphones and media keys (Media Session): play,
+  // pause, seek, and the previous / next section as the track buttons.
+  const mediaSession = window.PlayerShell ? window.PlayerShell.media({
+    title: lcdSection?.dataset.title || document.title,
+    play: () => play(), pause: () => pause(),
+    seekTo: (s) => seek(s), seekBy: (d) => seek(Math.max(0, audio.currentTime + d)),
+    previous: () => stepSection(-1), next: () => stepSection(1),
+  }) : null;
+
+  // ---- States (player-proposal.md §3.6) -----------------------------------
+  // The player says what it can do, in its readout and its tray, on
+  // #audio-player's data-state and data-sync:
+  //   data-state "loading"  the file decodes: a skeleton waveform; ▶
+  //                         already plays, streaming.
+  //              "error"    it can't be read (offline, a link expired, the
+  //                         pitch shifter not loaded): one line in the
+  //                         readout and "Réessayer"; the title stays.
+  //              "none"     no recording: ▶ runs the follow-along clock
+  //                         with the click on (song.js songbooksFollowClock);
+  //                         the tray is "+ Enregistrement" for an editor.
+  //   data-sync  "estimated"  bars the player found by listening (nothing
+  //                         saved): "≈ 21.1" and "synchro estimée", the
+  //                         ruler's ticks dashed; its line in the panel
+  //                         opens the Sync sheet (window.songbooksSyncSheet,
+  //                         when the page has it) or the Mixer.
+  //              "set"      saved bars or section starts.
+  //              "none"     no bars at all: a time readout, ←/→ 5 s.
+  // Stems still being split show as a greyed chip with a spinner
+  // ("séparation…"), live with the 20 s poll; failed, "Voix indisponible",
+  // with a retry for editors (renderStems).
+  const lcdError = $('audio-lcd-error'), retryBtn = $('audio-retry');
+  function setState(state, message) {
+    if (state) root.dataset.state = state; else delete root.dataset.state;
+    if (lcdError) lcdError.textContent = state === 'error' ? (message || t('Couldn’t play this file.')) : '';
+    if (retryBtn) retryBtn.hidden = state !== 'error';
+  }
+  retryBtn?.addEventListener('click', () => {
+    setState('loading');
+    if (!Object.keys(categories).length) { loadMeta(); return; }
+    audio.dataset.blobFor = '';
+    selectCategory(activeCategory);
+  });
+  audio.addEventListener('error', () => {
+    // A part of the recording that failed, or the recording itself.
+    if (!audio.src || audio.src === location.href) return;
+    setState('error', navigator.onLine === false ? t('Offline: this recording can’t be read.') : t('Couldn’t play this file.'));
+  });
+  audio.addEventListener('canplay', () => { if (root.dataset.state === 'error') setState(peaks ? '' : 'loading'); });
+  // Stems: pending, failed, there.
+  function renderStems() {
+    const meta = categories[activeCategory] || {};
+    const pending = meta.stemStatus === 'queued' || meta.stemStatus === 'running';
+    const failed = meta.stemStatus === 'failed' && !hasParts();
+    const chip = $('audio-parts-pending');
+    if (chip) {
+      chip.hidden = !(pending || failed) || hasParts();
+      chip.classList.toggle('is-failed', failed);
+      const label = chip.querySelector('span');
+      if (label) label.textContent = failed ? t('Voice unavailable') : t('Voice · splitting…');
+      chip.title = failed ? t('The recording couldn’t be split into its parts.') : t('The recording is being split into its parts; the voice comes in a few minutes, without a reload.');
     }
-    if (handled) { e.preventDefault(); e.stopImmediatePropagation(); }
-  }, true);
+    const retry = $('audio-stems-retry');
+    if (retry) retry.hidden = !(failed && canEdit);
+    if (partsEl) partsEl.hidden = !hasParts() && !pending && !failed;
+  }
+  $('audio-stems-retry')?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const res = await fetch(`/api/songs/${variantId}/audio/${activeCategory}/stems`, { method: 'POST' }).catch(() => null);
+    if (res && res.ok && categories[activeCategory]) {
+      categories[activeCategory].stemStatus = 'queued';
+      renderStems();
+      watchSplit();
+    }
+  });
+  // No recording: the follow-along clock, the click on.
+  let noneTimer = null;
+  function enterNoRecording() {
+    setState('none');
+    if (playerBody) playerBody.hidden = false;
+    if (emptyState) emptyState.hidden = true;
+    const add = $('audio-add-recording');
+    if (add) add.hidden = !canEdit;
+    const fc = () => window.songbooksFollowClock;
+    playBtn?.addEventListener('click', (e) => {
+      if (root.dataset.state !== 'none' || !fc()) return;
+      e.stopImmediatePropagation();
+      fc().toggle(true);
+    }, true);
+    clearInterval(noneTimer);
+    noneTimer = setInterval(() => {
+      const c = fc() && fc().state();
+      if (!c) return;
+      const playing = !!c.running;
+      if (playBtn && playBtn.dataset.state !== String(playing)) { playBtn.innerHTML = playing ? iconPause : iconPlay; playBtn.dataset.state = String(playing); }
+      lcdPos.textContent = c.bar !== '' ? `${Number(c.bar) + 1}` : '1';
+      lcdSection.textContent = c.section || '';
+      if (timeLabel) timeLabel.textContent = t('click alone · %d bpm', Math.round(c.bpm || bpm));
+    }, 200);
+  }
+  $('audio-add-recording')?.addEventListener('click', () => {
+    document.querySelector('#mode-segmented button[data-value="reference"]')?.click();
+  });
 
   // ---- Category toggle / load -------------------------------------------
   function selectCategory(cat, remember) {
@@ -1939,6 +2294,7 @@ window.songbooksDecodable = function (buf) {
     duration = 0;
     grid = [];
     detected = null;
+    setState('loading');
     decodeWaveform();
   }
 
@@ -1951,11 +2307,12 @@ window.songbooksDecodable = function (buf) {
     const available = Object.keys(categories);
 
     if (available.length === 0) {
-      if (emptyState) emptyState.hidden = false;
-      if (playerBody) playerBody.hidden = true;
       if (categoryToggle) categoryToggle.hidden = true;
+      enterNoRecording();
       return;
     }
+    clearInterval(noneTimer);
+    if (root.dataset.state === 'none') setState('');
     if (emptyState) emptyState.hidden = true;
     if (playerBody) playerBody.hidden = false;
 

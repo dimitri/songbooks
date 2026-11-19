@@ -297,7 +297,6 @@
           {{if .Community.IsCoaching}}
           <fieldset class="field-group">
             <legend>{{t "The song player, for singers"}}</legend>
-            <label class="check"><input type="checkbox" id="vocal-slider-check" data-player-option="vocal-slider" aria-describedby="vocal-slider-hint"{{if .Community.PlayerVocalSlider}} checked{{end}}> <span>{{t "Voice slider in the player"}}<small class="field-hint" id="vocal-slider-hint">{{t "In the player of the community’s songs: a slider to turn the recorded voice down (karaoke), for coaches and students, in the “Voice & key” panel."}}</small></span></label>
             <label class="check"><input type="checkbox" id="coach-student-keys-check" data-player-option="coach-student-keys" aria-describedby="coach-student-keys-hint"{{if .Community.CoachStudentKeys}} checked{{end}}> <span>{{t "Key per student"}}<small class="field-hint" id="coach-student-keys-hint">{{t "In the player of the songs opened from the community’s songbooks: the coach picks a student and saves their key, students with a lesson in the coming 7 days first. Coaches only."}}</small></span></label>
           </fieldset>
           <p id="player-options-result" class="form-status" role="status"></p>
@@ -431,8 +430,8 @@ $('community-locale-select').addEventListener('change', (e) => {
     if (!res.ok) throw new Error(t('Couldn’t save that. Try again.'));
   });
 });
-// A coaching community's song player options: the voice's slider, the
-// key per student (PUT /api/communities/{id}/<option> {on}).
+// A coaching community's song player option: the key per student
+// (the voice slider was retired by "Je joue", #84) (PUT /api/communities/{id}/<option> {on}).
 document.querySelectorAll('[data-player-option]').forEach((box) => box.addEventListener('change', async (e) => {
   const ok = await saveInline($('player-options-result'), () => api(`/api/communities/${communityId}/${box.dataset.playerOption}`, {on: e.target.checked}, t('Couldn’t save that. Try again.'), 'PUT'));
   if (!ok) e.target.checked = !e.target.checked;

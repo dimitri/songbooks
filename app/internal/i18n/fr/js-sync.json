@@ -80,5 +80,7 @@
   "−0.1 s": "−0,1 s",
   "−1 bar": "−1 mesure",
   "▶ 2 s before": "▶ 2 s avant",
-  "✓ Right": "✓ Juste"
+  "✓ Right": "✓ Juste",
+  "sync estimated": "synchro estimée",
+  "Here the counter runs at about %d bpm, but the chart says %d bpm": "Ici le compteur va à environ %d bpm, mais la grille dit %d bpm"
 }

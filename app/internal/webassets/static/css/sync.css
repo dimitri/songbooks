@@ -2,43 +2,22 @@
    state" and "The Sync sheet"): the player's badge, estimated or set, and
    the Sync sheet (sync-sheet.js). */
 
-/* ---- The badge by the counter ------------------------------------------- */
-.audio-sync-badge:not([hidden]) {
-  display: inline-flex; align-items: center; gap: 0.35rem; flex: none; white-space: nowrap;
-  height: 1.75rem; box-sizing: border-box; padding: 0 0.6rem; border-radius: 999px; min-height: 0;
-  border: 1px solid var(--border); background: var(--bg-raised); color: var(--fg-muted);
-  font-size: 0.75rem; font-weight: 600; cursor: pointer;
-}
-.audio-sync-badge i { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--fg-muted); }
-.audio-sync-badge[data-state="auto"] { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); background: var(--warn-bg); }
-.audio-sync-badge[data-state="auto"] i { background: var(--warn); }
-.audio-sync-badge[data-state="set"] i { background: var(--ok); }
-.audio-sync-badge.warn { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); background: var(--danger-bg, var(--warn-bg)); }
-.audio-sync-badge.warn i { background: var(--danger); }
-.audio-sync-badge:hover, .audio-sync-badge[aria-expanded="true"] { border-color: var(--border-strong); }
-/* The options fold into ⋯ a little sooner than app.css has them (70rem):
-   beside the sidebar at 1440 px they already ran off the dock's edge,
-   and the badge needs its room too. */
-@container audio-dock (max-width: 84rem) {
-  .audio-dock .audio-transport .audio-opts-btn { display: inline-flex; }
-  .audio-dock .audio-opts { display: none; }
-  .audio-dock .audio-opts.open {
-    display: flex; position: absolute; right: 0; top: auto; bottom: calc(100% + 0.6rem); z-index: 20;
-    flex-direction: column; align-items: stretch; gap: 0.4rem; padding: 0.6rem; max-height: 70dvh; overflow-y: auto;
-    background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
-  }
-}
-.audio-dock .audio-speed-bpm { white-space: nowrap; }
-.audio-pop-sync:not([hidden]), .audio-dock .audio-pop-sync:not([hidden]) { width: min(28rem, calc(100vw - 2rem)); max-width: calc(100vw - 2rem); box-sizing: border-box; }
-.audio-pop-sync p { margin: 0; line-height: 1.4; }
+/* ---- The badge in the player's readout ----------------------------------
+   One indicator with the player's states (app.css "The player's states":
+   .audio-sync-note, "≈ 21.1", the ruler's ticks dashed): "synchro
+   estimée" while the sync is an estimate; red when the counter runs off
+   the recording's tempo (song 334). It opens the panel's Sync line, where
+   #74's explanation, the Sync sheet and "It's right" are. */
+.audio-sync-badge.warn { color: var(--danger); }
+/* The panel's Sync line: what's off, under where the bars come from. */
+.audio-sync-detail { flex-basis: 100%; display: flex; flex-direction: column; gap: 0.25rem; }
+.audio-sync-detail[hidden] { display: none; }
+.audio-sync-detail p { margin: 0; line-height: 1.4; }
 .audio-sync-warn { color: var(--danger); font-weight: 600; }
-/* A phone's card has no room: the card's state line says "Sync
-   estimated" (audio-player.js renderDockState); the open sheet shows the
-   badge under the counter. */
-@media (max-width: 720px) {
-  .audio-dock:not(.is-open) .audio-sync-badge { display: none; }
-  .audio-dock.is-open .audio-sync-badge:not([hidden]) { order: 2; align-self: center; height: 2.4rem; padding: 0 1rem; font-size: 0.85rem; }
-}
+#audio-line-sync .form-status:empty { display: none; }
+/* A phone's card has no room for it: "≈ 1.1" says it there; the open
+   sheet shows it above the bar.beat. */
+@media (max-width: 720px) { .audio-dock:not(.is-open) .audio-sync-badge { display: none; } }
 
 /* ---- The wizard's step 5 ------------------------------------------------- */
 .import-sync-bars { font-size: 0.78rem; color: var(--danger); }

@@ -3091,6 +3091,11 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	// the coach's key per student are for the songs practised there, not
 	// for those played in a band, a set list or anywhere else.
 	coachCtx := s.songCoachingContext(r, data)
+	// There a song opens on its lyrics, following the music (song.js),
+	// unless the reader picked another view for it.
+	if coachCtx != 0 {
+		data["CoachingContext"] = coachCtx
+	}
 	// A student opening one of their songs from elsewhere in that
 	// community (its repertoire, a group's list, an assignment) gets it in
 	// their own key too.
@@ -3103,22 +3108,21 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		data["StudentKeyName"] = chordsym.KeyIn(songKeyName(sg), n)
 	}
 	data["BrandKind"], data["BrandID"] = s.songBrandContext(r, data, variant)
-	// A coaching community's player options (store/vocal_slider.go), in
-	// the dock's "Voice & key" panel: the voice's slider, and the coach's
-	// key per student (that community's students, the coming week's
-	// lessons first) when the song was opened in that community.
-	if id := s.vocalSliderCommunity(r, data, variant, variantID); id != 0 {
-		data["VocalSlider"] = true
-	}
+	// A coaching community's key per student (store/vocal_slider.go), in
+	// the key's panel: that community's students, the coming week's
+	// lessons first, when the song was opened in that community. (The
+	// voice's slider is no longer a community's option: everyone has a
+	// level per part they play, "Je joue", player_parts.go.)
 	if coachCtx != 0 {
 		if o, err := s.store.CommunityPlayerOptions(r.Context(), coachCtx); err == nil && o.CoachStudentKeys {
 			data["CoachStudentKeys"] = coachCtx
+			data["SingPanel"] = true
 		}
 	}
-	if data["VocalSlider"] != nil || data["CoachStudentKeys"] != nil {
-		data["SingPanel"] = true
-		data["SongKeyName"] = songKeyName(sg)
-	}
+	// The key's chip in the dock names the key: "Ton −1 · C#m".
+	data["SongKeyName"] = songKeyName(sg)
+	// "Je joue": the reader's parts here, a level each (player_parts.go).
+	data["PlayerParts"] = s.playerPartsData(r, data, variantID)
 	s.render(w, "song", data)
 }
 
@@ -3145,42 +3149,6 @@ func (s *Server) songCoachingContext(r *http.Request, data map[string]any) int64
 	}
 	if kind, id := s.songBrandContext(r, data, nil); kind == "community" {
 		return coaching(id)
-	}
-	return 0
-}
-
-// vocalSliderCommunity is the community whose voice slider a song
-// page has, 0 for none: the community it was opened from (one of its
-// songbooks, set lists, events, or its own page) when that has it on;
-// opened from nowhere in particular, a community with it on that the
-// reader belongs to and that has the song (a student, their coach), else
-// the community that owns the song.
-func (s *Server) vocalSliderCommunity(r *http.Request, data map[string]any, variant *store.CatalogVariant, variantID int64) int64 {
-	ctx := r.Context()
-	on := func(id int64) int64 {
-		if ok, err := s.store.CommunityPlayerVocalSlider(ctx, id); err == nil && ok {
-			return id
-		}
-		return 0
-	}
-	if id, ok := data["EventRef"].(int64); ok {
-		if ev, err := s.store.GetEvent(ctx, id); err == nil && ev.OwnerKind == "community" {
-			return on(ev.OwnerCommunityID)
-		}
-	}
-	switch kind, id := s.songBrandContext(r, data, nil); kind {
-	case "community":
-		return on(id)
-	case "band":
-		return 0
-	}
-	if p := personFromContext(r); p != nil {
-		if id, err := s.store.MemberVocalSliderCommunity(ctx, p.ID, variantID); err == nil && id != 0 {
-			return id
-		}
-	}
-	if variant != nil && variant.OwnerCommunityID != nil {
-		return on(*variant.OwnerCommunityID)
 	}
 	return 0
 }

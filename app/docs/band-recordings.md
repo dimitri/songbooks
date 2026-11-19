@@ -92,8 +92,9 @@ day's recordings to pick from. A wide screen shows it all in one bar, which
 opens (its title, or its ⤢ button) into the same full player as a panel in
 the middle of the screen: on a tablet in portrait, one column; on a
 landscape screen (an iPad held sideways, a desktop), the player and the
-recordings side by side. Escape, its × or a tap beside it closes it. Keys: space or K plays and pauses, ←/→ or J/L
-skip 15 s, shift ←/→ the recording before or after, 0 restarts.
+recordings side by side. Escape, its × or a tap beside it closes it. Keys (the same map as every player, player-shell.js): space or K plays and
+pauses, ←/→ skip 5 s and ⌥←/→ 15 s, shift ←/→ the recording before or after,
+Home or 0 restarts, C loops A–B, [ ] the speed, F opens it, ? lists them.
 
 The same player plays a set list (its running order page): each song's
 sound in the set's order, *Play all* or a song's own play button. A song
