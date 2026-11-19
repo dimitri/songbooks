@@ -29,5 +29,9 @@
   "click on every beat, following the recording (M)": "un clic sur chaque temps, qui suit l’enregistrement (M)",
   "count-in before playing: off, 1 bar, 2 bars (I)": "décompte avant de jouer : non, 1 mesure, 2 mesures (I)",
   "play the recording in another key (- and =)": "jouer l’enregistrement dans une autre tonalité (- et =)",
-  "play/pause (Space or K)": "lecture/pause (Espace ou K)"
+  "play/pause (Space or K)": "lecture/pause (Espace ou K)",
+  "Correct the sync": "Corriger la synchro",
+  "Try again": "Réessayer",
+  "sync estimated": "synchro estimée",
+  "the bars were placed by listening: they may be off": "les mesures ont été placées à l’écoute : elles peuvent être décalées"
 }

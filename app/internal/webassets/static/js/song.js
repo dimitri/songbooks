@@ -1154,6 +1154,22 @@ const ICONS = {
     playPauseBtn.classList.add('active');
   }
   playPauseBtn.addEventListener('click', () => setPlaying(!clock.running));
+  // The song player's bar for a song with no recording (audio-player.js
+  // "No recording"): ▶ runs this follow-along clock, the click on; its
+  // readout reads where it is.
+  window.songbooksFollowClock = {
+    toggle(withClick) {
+      setPlaying(!clock.running);
+      if (clock.running && withClick) metronome.enabled = true;
+      return clock.running;
+    },
+    state: () => ({
+      running: clock.running,
+      bpm: clock.bpm,
+      bar: currentBarEl ? currentBarEl.dataset.globalBar || '' : '',
+      section: currentSectionEl ? currentSectionEl.dataset.label || '' : '',
+    }),
+  };
 
   document.getElementById('mini-metro-fade').addEventListener('click', () => {
     if (clock.running) return; // a one-off cue only makes sense from a stop

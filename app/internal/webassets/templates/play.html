@@ -1591,7 +1591,14 @@
             <span class="audio-lcd-time" id="audio-time-label">0:00 / 0:00</span>
             <span class="audio-lcd-loop" id="audio-lcd-loop"></span>
             <span class="audio-lcd-state" id="audio-lcd-state"></span>
+            <span class="audio-lcd-error" id="audio-lcd-error" role="status"></span>
           </div>
+          {{/* The player's states (audio-player.js "States"): bars it only
+               estimated (opens the panel's Sync line), a file it can't read
+               (and try again), a song with no recording yet. */}}
+          <button type="button" class="audio-sync-note" id="audio-sync-note" hidden title="{{t "the bars were placed by listening: they may be off"}}">{{t "sync estimated"}}</button>
+          <button type="button" class="audio-pill-btn audio-retry" id="audio-retry" hidden>{{t "Try again"}}</button>
+          {{if .CanEdit}}<button type="button" class="audio-toggle audio-chip audio-add-recording" id="audio-add-recording" hidden>+ {{t "Recording"}}</button>{{end}}
           {{/* The phone card's mic, beside play: the voice out and back. */}}
           <button type="button" id="audio-card-mic" class="icon-btn audio-card-mic" aria-pressed="true" hidden title="{{t "the voice: off or back (V)"}}" aria-label="{{t "Voice on or off"}}">{{template "icon-sing-mic"}}</button>
           {{/* The tray: the practice tools as chips, in the order they
@@ -1615,6 +1622,7 @@
                  recorded); ▾ picks the instruments. Key: the recording in
                  another key, the chords on screen following. */}}
             <span class="audio-parts" id="audio-parts" data-tool="voice" data-line="audio-line-parts" hidden>
+              <span class="audio-toggle audio-chip audio-parts-pending" id="audio-parts-pending" hidden><i class="audio-spinner" aria-hidden="true"></i><span></span><button type="button" class="link-btn" id="audio-stems-retry" hidden>{{t "Try again"}}</button></span>
               <span class="audio-parts-chips" id="audio-parts-chips"></span>
               <button type="button" class="audio-caret audio-parts-caret" data-open-line="audio-line-parts" title="{{t "I play: my parts, a level each"}}"><span class="audio-parts-caret-label">{{t "I play"}}</span>{{template "icon-down"}}</button>
             </span>
@@ -1781,6 +1789,13 @@
                 </div>
                 <label class="audio-range">{{t "Volume"}} <input type="range" id="audio-click-volume" min="0" max="100" step="5"></label>
                 <button type="button" class="audio-pill-btn" id="audio-click-test">{{t "Test"}}</button>
+              </div>
+            </div>
+            <div class="audio-line" id="audio-line-sync">
+              <span class="audio-line-label">{{t "Sync"}}</span>
+              <div class="audio-line-body">
+                <span class="hint" id="audio-sync-text"></span>
+                <button type="button" class="audio-pill-btn" id="audio-sync-fix">{{t "Correct the sync"}}</button>
               </div>
             </div>
             <div class="audio-line" id="audio-line-mixer">
