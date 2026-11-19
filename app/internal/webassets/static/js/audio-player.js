@@ -514,6 +514,7 @@ window.songbooksDecodable = function (buf) {
     renderTrainer();
     renderDockState();
     syncDockSections();
+    if (dock && dock.classList.contains('is-open')) renderLoopLine();
   }
 
   // ---- Speed (pitch kept) ---------------------------------------------------
@@ -977,13 +978,6 @@ window.songbooksDecodable = function (buf) {
       }
       coachList.replaceChildren(...parts);
     }
-    // The list arrives after the Key panel opened: keep it on screen now
-    // that it is wider.
-    const pop = $('audio-pop-key');
-    if (pop && !pop.hidden && !sheetOpen()) {
-      const wrap = (pop.offsetParent || root).getBoundingClientRect(), r = pop.getBoundingClientRect();
-      if (r.right > wrap.right - 8) pop.style.setProperty('--pop-left', `${Math.max(8, wrap.width - pop.offsetWidth - 8)}px`);
-    }
   }
   let coachLoading = null;
   function loadCoachKeys() {
@@ -1273,8 +1267,7 @@ window.songbooksDecodable = function (buf) {
   let partsDirty = false;
   const ctxName = () => (partsCtx.kind ? partsCtx.name || '' : '');
   function renderPartsPanel() {
-    const pop = $('audio-pop-parts');
-    if (!pop) return;
+    if (!$('audio-line-parts')) return;
     const from = $('audio-parts-from');
     if (from) {
       from.textContent = partsDirty ? t('not saved yet')
@@ -1286,9 +1279,10 @@ window.songbooksDecodable = function (buf) {
     // What the split can't do: two instruments in one part, a recording
     // split into the voice and the backing only, no part at all.
     const notes = [];
+    const apart = partGroups().filter((g) => !g.adjustable && g.stem !== 'vocals' && hasParts()).map(groupLabel);
+    if (apart.length) notes.push(t('This recording is split into the voice and the backing only: %s can’t be set apart.', apart.join(', ')));
     for (const g of partGroups()) {
-      if (!g.adjustable && g.stem !== 'vocals' && hasParts()) notes.push(t('This recording is split into the voice and the backing only: %s can’t be set apart.', groupLabel(g)));
-      else if (g.adjustable && g.ids.length > 1) notes.push(t('%s are one part of the recording, “%s”: the split can’t tell them apart.', groupLabel(g), stemName(g.stem)));
+      if (g.adjustable && g.ids.length > 1) notes.push(t('%s are one part of the recording, “%s”: the split can’t tell them apart.', groupLabel(g), stemName(g.stem)));
     }
     if (!myParts.length) notes.push(t('Nothing: you listen, the recording plays as it is.'));
     const note = $('audio-parts-note');
@@ -1355,12 +1349,6 @@ window.songbooksDecodable = function (buf) {
   }
   $('audio-parts-save')?.addEventListener('click', () => putParts({ instruments: myParts }));
   $('audio-parts-reset')?.addEventListener('click', () => putParts({ clear: true }));
-  function wireSegLater(id, get, set) {
-    const seg = $(id);
-    if (!seg) return () => {};
-    seg.addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (b) set(b.dataset.v); });
-    return () => seg.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.v === String(get())));
-  }
 
   // ---- The dock's tools: by priority, those that are on never fold ---------
   // The tools sit in a fixed order on the bar's line (play.html): Cycle,
@@ -1371,11 +1359,11 @@ window.songbooksDecodable = function (buf) {
   // Measured as laid out, whatever the browser, its zoom and the labels'
   // language. On a phone the card has none of them: they are in its sheet.
   const dockTransport = dock ? dock.querySelector('.audio-transport') : null;
-  const moreMenu = $('audio-more-menu'), moreCount = $('audio-more-count');
+  const moreCount = $('audio-more-count');
   const tools = () => (optsEl ? [...optsEl.querySelectorAll(':scope > [data-tool]')] : []);
   const queueFit = dock && window.PlayerShell ? window.PlayerShell.fit({
     bar: dock, row: dockTransport, tray: optsEl, count: moreCount,
-    skip: () => (moreOpen() ? 'keep' : phoneMQ.matches || (playerBody && playerBody.hidden)),
+    skip: () => phoneMQ.matches || (playerBody && playerBody.hidden) || sheetOpen(),
     onFit: (n) => {
       if (optsBtn && !phoneMQ.matches) {
         optsBtn.title = n ? tn(n, '%d more tool', '%d more tools') : t('practice options');
@@ -1384,39 +1372,12 @@ window.songbooksDecodable = function (buf) {
     },
   }) : () => {};
   phoneMQ.addEventListener?.('change', queueFit);
-  // "+N" opens the tools that left the bar, in a menu above it: they move
-  // into it while it is open, and back to their places when it closes.
-  const moreOpen = () => !!moreMenu && !moreMenu.hidden;
-  const moreHome = new Map();
-  function setOptsOpen(open) {
-    if (!moreMenu || open === moreOpen()) return;
-    if (open) {
-      const folded = tools().filter((el) => el.dataset.folded && !el.hidden);
-      if (!folded.length) return;
-      folded.forEach((el) => {
-        const mark = document.createComment('tool');
-        el.before(mark);
-        moreHome.set(el, mark);
-        moreMenu.append(el);
-      });
-      moreMenu.hidden = false;
-    } else {
-      moreMenu.hidden = true;
-      moreHome.forEach((mark, el) => { mark.replaceWith(el); });
-      moreHome.clear();
-      queueFit();
-    }
-    optsBtn?.setAttribute('aria-expanded', String(open));
-  }
 
   // ---- Sing: a coaching community's key per student -------------------------
-  // play.html .sing-panel (handlers_pages.go), opened by the key's chip, as
-  // the rehearsals' player opens (band_recordings.html rec-player): most of
-  // the screen, closed by its ×, Escape or a click beside it; on a phone, a
-  // sheet. In it the key, a semitone either way, with whose it is, and the
-  // coach's students (coachCommunity: picked, the key goes to theirs,
-  // saved for them). The same key as the chip's (setSemitones).
-  const singPanel = $('sing-panel'), singBtn = sing ? keyBtn : null;
+  // The panel's Key line (play.html, with the option on: handlers_pages.go),
+  // opened by the key's chip: the key, a semitone either way, with whose it
+  // is, and the coach's students (coachCommunity: picked, the key goes to
+  // theirs, saved for them). The same key as the chip's (setSemitones).
   const singKeyName = $('audio-sing-keyname'), singFor = $('audio-sing-for');
   const singSave = $('audio-sing-save'), singReset = $('audio-sing-reset'), singOriginal = $('audio-sing-original');
   // −1, +2: a semitone count as a singer reads it (a real minus).
@@ -1487,57 +1448,7 @@ window.songbooksDecodable = function (buf) {
     if (x.inSongbook && x.semitones !== prefs.semitones) setSemitones(x.semitones);
     else renderCoachKeys();
   }
-  // The panel: opened from the dock, moved to the body (the dock's
-  // backdrop-filter would hold a fixed panel inside it).
-  if (singPanel) document.body.append(singPanel);
-  const panelOpen = () => !!singPanel && !singPanel.hidden;
-  function setPanel(on) {
-    if (!singPanel || on === panelOpen()) return;
-    singPanel.hidden = !on;
-    singBtn?.setAttribute('aria-expanded', String(on));
-    document.documentElement.classList.toggle('rp-locked', on || sheetOpen());
-    if (on) {
-      setOptsOpen(false);
-      document.querySelectorAll('#audio-player .audio-pop').forEach((p) => { p.hidden = true; });
-      loadCoachKeys();
-      renderSing();
-      const card = singPanel.querySelector('.sp-card');
-      if (card) card.scrollTop = 0;
-      (phoneMQ.matches ? singPanel.querySelector('.sp-grab') : singPanel.querySelector('.sp-close'))?.focus({ preventScroll: true });
-    } else if (singBtn && singBtn.offsetParent) {
-      singBtn.focus({ preventScroll: true });
-    }
-  }
   if (sing) {
-    singBtn?.addEventListener('click', () => setPanel(!panelOpen()));
-    singPanel?.querySelectorAll('[data-sp-close]').forEach((el) => el.addEventListener('click', () => setPanel(false)));
-    // Escape closes the panel, before the dock's sheet and its panels
-    // hear it (window, capture phase); Tab stays in it.
-    window.addEventListener('keydown', (e) => {
-      if (!panelOpen()) return;
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        setPanel(false);
-      } else if (e.key === 'Tab') {
-        const els = [...singPanel.querySelectorAll('button, input, summary, [tabindex="0"]')].filter((el) => !el.disabled && el.offsetParent !== null);
-        if (!els.length) return;
-        const first = els[0], last = els[els.length - 1];
-        if (!singPanel.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
-        else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-      }
-    }, true);
-    // A swipe down from the top of the phone's sheet closes it.
-    const card = singPanel?.querySelector('.sp-card');
-    let y0 = null;
-    card?.addEventListener('touchstart', (e) => {
-      y0 = card.scrollTop <= 0 && !e.target.closest('input, .audio-key-targets') ? e.touches[0].clientY : null;
-    }, { passive: true });
-    card?.addEventListener('touchend', (e) => {
-      if (y0 !== null && e.changedTouches[0].clientY - y0 > 80) setPanel(false);
-      y0 = null;
-    });
     $('audio-sing-down')?.addEventListener('click', () => setSemitones(prefs.semitones - 1));
     $('audio-sing-up')?.addEventListener('click', () => setSemitones(prefs.semitones + 1));
     singOriginal?.addEventListener('click', () => setSemitones(0));
@@ -1553,33 +1464,150 @@ window.songbooksDecodable = function (buf) {
   }
 
 
-  // ---- Option panels: one open at a time, under the control bar -------
-  const pops = [...document.querySelectorAll('#audio-player .audio-pop')];
-  function openPop(id, opener) {
-    const el = $(id);
-    const show = el.hidden;
-    pops.forEach((p) => { p.hidden = true; });
-    document.querySelectorAll('#audio-player [data-pop]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
-    if (!show) return;
-    el.hidden = false;
-    opener.setAttribute('aria-expanded', 'true');
-    if (id === 'audio-pop-trainer') renderTrainer();
-    // In the phone sheet the panel opens in place, under the options.
-    if (sheetOpen()) { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
-    // From the "+N" menu: the menu closes, the panel opens over "+N".
-    let anchor = opener;
-    if (moreMenu && moreOpen() && moreMenu.contains(opener)) {
-      setOptsOpen(false);
-      anchor = optsBtn;
-    }
-    // Under its button where there's room; full width on a phone (CSS).
-    // In the dock (play.html) the panel opens above the bar (app.css):
-    // only its left is set, against the dock.
-    const wrap = (el.offsetParent || root).getBoundingClientRect(), r = anchor.getBoundingClientRect();
-    el.style.setProperty('--pop-top', `${r.bottom - wrap.top + 6}px`);
-    el.style.setProperty('--pop-left', `${Math.max(8, Math.min(wrap.width - el.offsetWidth - 8, r.right - wrap.left - el.offsetWidth))}px`);
+  // ---- The panel ----------------------------------------------------------
+  // The bar opens into the panel (play.html .audio-panel; app/reports/
+  // player-proposal.md §3.2–3.3), with PlayerShell.panel's mechanics. On a
+  // wide screen it rises from the bar over the lower two thirds of the
+  // screen: on the left where you are, big — the bar.beat, the waveform,
+  // the sections to loop, the transport; on the right the tools in three
+  // groups, Loop & tempo, Sound, Sing, each tool's settings on its line.
+  // On a phone the card opens into a sheet: the same, the groups as tabs
+  // (the last one used comes back). The chart above scrolls so the line
+  // being played stays in sight. Closed by Escape, ⌄, F, a click on the
+  // dimmed page, or a swipe down.
+  const panelBtn = $('audio-panel-btn');
+  const tabKey = 'songbooks:player-tab';
+  const shell = dock && window.PlayerShell ? window.PlayerShell.panel({
+    root: dock, card: dock,
+    openers: [panelBtn, optsBtn, lcdEl].filter(Boolean),
+    closers: document.querySelectorAll('[data-dock-close]'),
+    focus: () => (phoneMQ.matches ? $('audio-dock-grab') : dock.querySelector('.audio-panel-close')),
+    swipeIgnore: 'input, select, .audio-dock-line, .audio-dock-sections, .audio-stepper, .audio-seg, .audio-panel-tabs, .audio-parts-pick, .audio-wave, .audio-ruler',
+    onChange: (on) => {
+      if (dockBackdrop) dockBackdrop.hidden = !on;
+      if (on) {
+        dock.setAttribute('aria-label', t('Player'));
+        dock.scrollTop = 0;
+        dock.querySelector('.audio-panel')?.scrollTo?.(0, 0);
+        renderDockSections();
+        renderLoopLine();
+        loadCoachKeys();
+        renderSing();
+        renderTrainer();
+        if (!phoneMQ.matches) keepPlayingLineInSight();
+      }
+      // The waveform takes its new size.
+      requestAnimationFrame(() => { drawWaveform(); refreshTimeline(); queueFit(); });
+    },
+  }) : null;
+  function sheetOpen() { return !!shell && shell.isOpen(); }
+  function setSheet(on) { shell?.open(on); }
+  // The chart under a wide screen's panel: the bar being played moved up
+  // into the third of the screen the panel leaves.
+  function keepPlayingLineInSight() {
+    const el = document.querySelector('#sheet .bar.playing, #sheet .is-playing, #sheet .current-line, #sheet .lyric-line.current') || document.querySelector('#sheet .sheet-section.current, #sheet .sheet-section.playing');
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const room = dock.getBoundingClientRect().top;
+    if (r.top < 60 || r.bottom > room - 10) window.scrollBy({ top: r.top - Math.max(60, room / 3), behavior: 'smooth' });
   }
-  document.querySelectorAll('#audio-player [data-pop]').forEach((b) => b.addEventListener('click', () => openPop(b.dataset.pop, b)));
+  // The groups as tabs on a phone (all three side by side on a wide screen).
+  const groups = [...document.querySelectorAll('.audio-group')];
+  const tabs = [...document.querySelectorAll('.audio-panel-tabs [role="tab"]')];
+  function showGroup(name, remember) {
+    if (!groups.some((g) => g.dataset.group === name)) name = 'loop';
+    groups.forEach((g) => g.classList.toggle('is-active', g.dataset.group === name));
+    tabs.forEach((b) => {
+      const on = b.dataset.group === name;
+      b.setAttribute('aria-selected', String(on));
+      b.tabIndex = on ? 0 : -1;
+    });
+    if (remember) { try { localStorage.setItem(tabKey, name); } catch (e) { /* this page only */ } }
+  }
+  let lastTab = 'loop';
+  try { lastTab = localStorage.getItem(tabKey) || 'loop'; } catch (e) { /* loop */ }
+  showGroup(lastTab, false);
+  tabs.forEach((b) => b.addEventListener('click', () => showGroup(b.dataset.group, true)));
+  document.querySelector('.audio-panel-tabs')?.addEventListener('keydown', (e) => {
+    const i = tabs.findIndex((b) => b.getAttribute('aria-selected') === 'true');
+    const d = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+    if (d === undefined || i < 0) return;
+    e.preventDefault();
+    const next = tabs[(i + d + tabs.length) % tabs.length];
+    showGroup(next.dataset.group, true);
+    next.focus();
+  });
+  // A tool's line: the panel opens there, its group shown, the line lit.
+  function openLine(id) {
+    const line = $(id);
+    if (!line) { setSheet(true); return; }
+    const group = line.closest('.audio-group');
+    if (group) showGroup(group.dataset.group, true);
+    if (id === 'audio-line-parts') { const d = $('audio-parts-choose'); if (d && !myParts.length) d.open = true; }
+    setSheet(true);
+    requestAnimationFrame(() => {
+      line.scrollIntoView({ block: 'nearest' });
+      line.classList.remove('is-lit');
+      void line.offsetWidth;
+      line.classList.add('is-lit');
+    });
+  }
+  document.querySelectorAll('#audio-player [data-open-line]').forEach((b) => b.addEventListener('click', () => openLine(b.dataset.openLine)));
+  panelBtn?.addEventListener('click', () => setSheet(!sheetOpen()));
+  // "+N": the panel, at the first tool that left the bar; on a phone, ⋯
+  // opens the sheet.
+  optsBtn?.addEventListener('click', () => {
+    if (phoneMQ.matches) { setSheet(!sheetOpen()); return; }
+    const first = tools().find((el) => el.dataset.folded && !el.hidden);
+    if (first && first.dataset.line) openLine(first.dataset.line); else setSheet(true);
+  });
+  // The bar.beat display opens it too: the card on a phone, the readout on a wide screen.
+  lcdEl?.addEventListener('click', () => { if (!sheetOpen()) setSheet(true); });
+  lcdEl?.addEventListener('keydown', (e) => {
+    if (!sheetOpen() && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); setSheet(true); }
+  });
+  if (lcdEl) {
+    lcdEl.setAttribute('role', 'button');
+    lcdEl.tabIndex = 0;
+  }
+  // The panel's own switches mirror the bar's chips.
+  const loopSwitch = $('audio-loop-switch'), clickSwitch = $('audio-click-switch');
+  loopSwitch?.addEventListener('change', () => { if (!!(prefs.cycle && prefs.cycle.on) !== loopSwitch.checked) toggleCycle(); });
+  clickSwitch?.addEventListener('change', () => { if (prefs.click !== clickSwitch.checked) toggleClick(); });
+  $('audio-loop-section')?.addEventListener('click', () => {
+    const sec = sectionAt(Math.max(0, Math.floor(barAtTime(audio.currentTime) || 0)));
+    if (sec) { setCycle(sec.startBar, sec.startBar + sec.barCount); seekToBar(sec.startBar); }
+  });
+  function renderLoopLine() {
+    const c = prefs.cycle;
+    const loopSwitch = $('audio-loop-switch'), clickSwitch = $('audio-click-switch');
+    if (loopSwitch) { loopSwitch.checked = !!(c && c.on); loopSwitch.disabled = !hasBars(); }
+    if (clickSwitch) clickSwitch.checked = !!prefs.click;
+    const range = $('audio-loop-range');
+    if (range) range.textContent = c && hasBars() ? t('bars %s → %s', barLabel(c.from), barLabel(c.to - 1)) : t('drag in the ruler, or tap a section');
+    const lcdLoop = $('audio-lcd-loop');
+    if (lcdLoop) lcdLoop.textContent = c && c.on && hasBars() ? t('loop %s → %s', `${barLabel(c.from)}.1`, `${barLabel(c.to)}.1`) : '';
+    const stems = $('audio-line-stems');
+    if (stems) {
+      const names = { vocals: t('Voice'), drums: t('Drums'), bass: t('Bass'), other: t('Others') };
+      const here = STEMS.filter((s) => stemsHere().includes(s));
+      stems.textContent = here.length ? here.map((s) => names[s]).join(' · ') : t('not split into its parts');
+    }
+    const pitchBtn = $('audio-pitch-btn'), pitchPanel = $('audio-pitch-panel-btn');
+    if (pitchPanel && pitchBtn) {
+      pitchPanel.disabled = pitchBtn.hidden;
+      pitchPanel.setAttribute('aria-pressed', pitchBtn.getAttribute('aria-pressed') || 'false');
+      pitchPanel.classList.toggle('active', pitchBtn.getAttribute('aria-pressed') === 'true');
+      const hint = $('audio-pitch-panel-hint');
+      if (hint) hint.textContent = pitchBtn.hidden ? t('the recording’s voice isn’t split out yet') : t('headphones on; the microphone listens while it plays');
+    }
+  }
+  $('audio-pitch-panel-btn')?.addEventListener('click', () => { $('audio-pitch-btn')?.click(); requestAnimationFrame(renderLoopLine); });
+  if (window.MutationObserver && $('audio-pitch-btn')) new MutationObserver(renderLoopLine).observe($('audio-pitch-btn'), { attributes: true, attributeFilter: ['aria-pressed', 'hidden'] });
+  $('audio-open-mixer')?.addEventListener('click', () => {
+    setSheet(false);
+    document.querySelector('#mode-segmented button[data-value="mixer"]')?.click();
+  });
   // The dock's line: a click goes there; in the phone sheet, where it is
   // a scrubber, a drag too.
   if (dockLine) {
@@ -1599,92 +1627,23 @@ window.songbooksDecodable = function (buf) {
     dockLine.addEventListener('pointerup', stop);
     dockLine.addEventListener('pointercancel', stop);
   }
-  document.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('#audio-player .audio-pop, #audio-player [data-pop]')) return;
-    pops.forEach((p) => { p.hidden = true; });
-    if (!e.target.closest('#audio-more-menu, #audio-opts-btn')) setOptsOpen(false);
-  });
-  // "+N" opens the tools that left the bar; on a phone, ⋯ opens the sheet.
-  optsBtn?.addEventListener('click', () => (phoneMQ.matches ? setSheet(!sheetOpen()) : setOptsOpen(!moreOpen())));
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOptsOpen(false); });
-
-  // ---- Phone sheet ----------------------------------------------------------
-  // On a phone the dock is a card over the bottom bar, like the set lists'
-  // player (app.css): the section and the bar, play, the bar either side.
-  // Tapping it, or ⋯, opens it into a sheet: the bar big, a scrubber, a
-  // large transport, the sections to loop, every option with its panel in
-  // place. Down, the grab handle, the backdrop or Escape close it.
-  function sheetOpen() { return !!dock?.classList.contains('is-open'); }
-  function setSheet(on) {
-    if (!dock || on === sheetOpen()) return;
-    dock.classList.toggle('is-open', on);
-    if (dockBackdrop) dockBackdrop.hidden = !on;
-    document.documentElement.classList.toggle('rp-locked', on);
-    optsBtn?.setAttribute('aria-expanded', String(on));
-    lcdEl?.setAttribute('aria-expanded', String(on));
-    if (on) {
-      setOptsOpen(false);
-      dock.setAttribute('role', 'dialog');
-      dock.setAttribute('aria-modal', 'true');
-      dock.setAttribute('aria-label', t('Player'));
-      dock.scrollTop = 0;
-      renderDockSections();
-      $('audio-dock-grab')?.focus();
-    } else {
-      pops.forEach((p) => { p.hidden = true; });
-      document.querySelectorAll('#audio-player [data-pop]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
-      dock.removeAttribute('role');
-      dock.removeAttribute('aria-modal');
-      dock.removeAttribute('aria-label');
-      if (phoneMQ.matches) lcdEl?.focus({ preventScroll: true });
-    }
-  }
-  function syncLcdRole() {
-    if (!lcdEl) return;
-    if (phoneMQ.matches) {
-      lcdEl.setAttribute('role', 'button');
-      lcdEl.tabIndex = 0;
-      lcdEl.setAttribute('aria-expanded', String(sheetOpen()));
-    } else {
-      lcdEl.removeAttribute('role');
-      lcdEl.removeAttribute('tabindex');
-      lcdEl.removeAttribute('aria-expanded');
-    }
-  }
-  syncLcdRole();
-  phoneMQ.addEventListener?.('change', () => { if (!phoneMQ.matches) setSheet(false); syncLcdRole(); });
-  lcdEl?.addEventListener('click', () => { if (phoneMQ.matches && !sheetOpen()) setSheet(true); });
-  lcdEl?.addEventListener('keydown', (e) => {
-    if (phoneMQ.matches && !sheetOpen() && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); setSheet(true); }
-  });
-  document.querySelectorAll('[data-dock-close]').forEach((el) => el.addEventListener('click', () => setSheet(false)));
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sheetOpen() && !pops.some((p) => !p.hidden)) { e.preventDefault(); setSheet(false); }
-  }, true); // before the panels' own Escape: a first one closes the panel
-  // A swipe down from the top of the sheet closes it.
-  if (dock) {
-    let y0 = null;
-    dock.addEventListener('touchstart', (e) => {
-      y0 = sheetOpen() && dock.scrollTop <= 0 && !e.target.closest('input, select, .audio-dock-line, .audio-dock-sections, .audio-stepper, .audio-seg') ? e.touches[0].clientY : null;
-    }, { passive: true });
-    dock.addEventListener('touchend', (e) => {
-      if (y0 !== null && e.changedTouches[0].clientY - y0 > 80) setSheet(false);
-      y0 = null;
-    });
-  }
   // The sections, as chips: one tap loops that section from its start,
   // another stops the loop (as in the mixer on a phone).
   function renderDockSections() {
     if (!dockSections) return;
     const secs = hasBars() ? sections() : [];
     dockSections.hidden = secs.length < 2;
+    // "Verse 1, Verse 2": a name that comes back is numbered.
+    const seen = {}, count = {};
+    secs.forEach((sec) => { count[sec.label] = (count[sec.label] || 0) + 1; });
     dockSections.replaceChildren(...secs.map((sec) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'audio-sec-chip';
       b.dataset.from = String(sec.startBar);
       b.dataset.to = String(sec.startBar + sec.barCount);
-      b.textContent = sec.label;
+      seen[sec.label] = (seen[sec.label] || 0) + 1;
+      b.textContent = count[sec.label] > 1 && !/\d$/.test(sec.label) ? `${sec.label} ${seen[sec.label]}` : sec.label;
       b.addEventListener('click', () => {
         const c = prefs.cycle;
         if (c && c.on && c.from === sec.startBar && c.to === sec.startBar + sec.barCount) {
@@ -1729,7 +1688,6 @@ window.songbooksDecodable = function (buf) {
     if (prefs.countIn) bits.push($('audio-countin-label')?.textContent);
     lcdState.textContent = bits.filter(Boolean).join(' · ');
   }
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') pops.forEach((p) => { p.hidden = true; }); });
 
   function wireSeg(id, get, set) {
     const seg = $(id);
@@ -1779,7 +1737,7 @@ window.songbooksDecodable = function (buf) {
     return out;
   }
   function renderTrainer() {
-    const pop = $('audio-pop-trainer');
+    const pop = $('audio-line-trainer');
     if (!pop) return;
     const tr = prefs.trainer;
     pop.querySelectorAll('.audio-stepper').forEach((st) => {
@@ -1820,7 +1778,7 @@ window.songbooksDecodable = function (buf) {
         : t('%s, %s to reach %s%s, on %s.', tn(steps.length, '%d speed', '%d speeds'), tn(loops, '%d loop', '%d loops'), `${tr.end}%`, time, where);
     }
   }
-  $('audio-pop-trainer')?.addEventListener('click', (e) => {
+  $('audio-line-trainer')?.addEventListener('click', (e) => {
     const b = e.target.closest('.audio-stepper button[data-d]');
     const preset = e.target.closest('[data-preset]');
     const tr = prefs.trainer;
@@ -1854,7 +1812,7 @@ window.songbooksDecodable = function (buf) {
   $('audio-trainer-on')?.addEventListener('change', (e) => setTrainer(e.target.checked));
   $('audio-trainer-start')?.addEventListener('click', () => {
     setTrainer(true);
-    pops.forEach((p) => { p.hidden = true; });
+    if (phoneMQ.matches) setSheet(false);
     const cyc = cycleRange();
     if (cyc) seek(cyc.t0);
     if (!isPlaying()) play();
