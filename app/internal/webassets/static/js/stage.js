@@ -1,7 +1,9 @@
 // Stage mode: the song page for playing it — larger type, none of the
-// page's chrome, the screen kept awake, and a swipe (or the pedal keys
-// song.js already handles) for the next or previous song of the set list
-// or songbook. It stays on from one song to the next for this tab
+// page's chrome, the screen kept awake, and a swipe for the next or
+// previous song of the set list or songbook. The page turns a section at
+// a time, with the recording or by hand (pedal, keys, a tap), and past the
+// song's last page the pedal goes on to the next song: song.js "Stage
+// mode". It stays on from one song to the next for this tab
 // (sessionStorage) until it's turned off.
 (function () {
   const KEY = 'songbooks-stage';
