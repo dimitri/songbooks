@@ -281,5 +281,17 @@
   "%d repeats": "%d reprises",
   "%d min %d s": "%d min %d s",
   "%d repeat · %d min %d s": "%d reprise · %d min %d s",
-  "repeat %d of %d": "reprise %d sur %d"
+  "repeat %d of %d": "reprise %d sur %d",
+  "Listen to %s’s example": "Écouter l’exemple de %s",
+  "Listen to the example": "Écouter l’exemple",
+  "on time within %d ms": "en place à %d ms près",
+  "within a quarter tone": "à un quart de ton près",
+  "as anyone hears it": "comme tout le monde l’entend",
+  "as a trained ear hears it": "comme l’entend une oreille exercée",
+  "Goal: %d% of the notes within ±%d cents": "Objectif : %d % des notes à ±%d cents",
+  "Goal: the notes within ±%d cents": "Objectif : les notes à ±%d cents près",
+  "Goal: %d% of the entries within ±%d ms": "Objectif : %d % des entrées à ±%d ms",
+  "Goal: the entries within ±%d ms": "Objectif : les entrées à ±%d ms près",
+  "Strictness": "Exigence",
+  "Strictness: %s, set by your coach": "Exigence : %s, fixée par votre coach"
 }
