@@ -24,5 +24,10 @@
   "the recording up or down, in semitones; the chords follow. Beyond 3 semitones, a voice starts to sound processed.": "l’enregistrement plus haut ou plus bas, en demi-tons ; les accords suivent. Au-delà de 3 demi-tons, une voix commence à sonner trafiquée.",
   "player|Practice": "Pratique",
   "Check my singing": "Vérifier ma justesse",
-  "Its settings": "Ses réglages"
+  "Its settings": "Ses réglages",
+  "check my singing against the song’s voice (the microphone listens) (S)": "vérifier ma justesse sur la voix du morceau (le micro écoute) (S)",
+  "click on every beat, following the recording (M)": "un clic sur chaque temps, qui suit l’enregistrement (M)",
+  "count-in before playing: off, 1 bar, 2 bars (I)": "décompte avant de jouer : non, 1 mesure, 2 mesures (I)",
+  "play the recording in another key (- and =)": "jouer l’enregistrement dans une autre tonalité (- et =)",
+  "play/pause (Space or K)": "lecture/pause (Espace ou K)"
 }

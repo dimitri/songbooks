@@ -1582,7 +1582,7 @@
           <div class="audio-buttons">
             <button type="button" id="audio-start-btn" class="icon-btn" title="{{t "go to start (Home)"}}">{{template "icon-to-start"}}</button>
             <button type="button" id="audio-prev-btn" class="icon-btn" title="{{t "previous bar (, or ←; ⌥← previous section)"}}">{{template "icon-prev-bar"}}</button>
-            <button type="button" id="audio-play-btn" class="icon-btn audio-play-btn" title="{{t "play/pause (Space)"}}">{{template "icon-play"}}</button>
+            <button type="button" id="audio-play-btn" class="icon-btn audio-play-btn" title="{{t "play/pause (Space or K)"}}">{{template "icon-play"}}</button>
             <button type="button" id="audio-next-btn" class="icon-btn" title="{{t "next bar (. or →; ⌥→ next section)"}}">{{template "icon-next-bar"}}</button>
           </div>
           <div class="audio-lcd" id="audio-lcd" title="{{t "bar.beat · section — time"}}" aria-controls="audio-dock">
@@ -1618,16 +1618,16 @@
               <span class="audio-parts-chips" id="audio-parts-chips"></span>
               <button type="button" class="audio-caret audio-parts-caret" data-open-line="audio-line-parts" title="{{t "I play: my parts, a level each"}}"><span class="audio-parts-caret-label">{{t "I play"}}</span>{{template "icon-down"}}</button>
             </span>
-            <button type="button" id="audio-key-btn" class="audio-toggle audio-chip" data-tool="key" data-line="audio-line-key" data-open-line="audio-line-key" title="{{t "play the recording in another key"}}">{{template "icon-tuner"}}<span id="audio-key-label">{{t "Key"}}</span></button>
+            <button type="button" id="audio-key-btn" class="audio-toggle audio-chip" data-tool="key" data-line="audio-line-key" data-open-line="audio-line-key" title="{{t "play the recording in another key (- and =)"}}">{{template "icon-tuner"}}<span id="audio-key-label">{{t "Key"}}</span></button>
             <span class="audio-split" data-tool="click" data-line="audio-line-click">
-              <button type="button" id="audio-click-btn" class="audio-toggle audio-chip" aria-pressed="false" title="{{t "click on every beat, following the recording (K)"}}">{{template "icon-metronome"}}<span>{{t "Click"}}</span></button>
+              <button type="button" id="audio-click-btn" class="audio-toggle audio-chip" aria-pressed="false" title="{{t "click on every beat, following the recording (M)"}}">{{template "icon-metronome"}}<span>{{t "Click"}}</span></button>
               <button type="button" class="audio-caret" data-open-line="audio-line-click" title="{{t "click sound and volume"}}">{{template "icon-down"}}</button>
             </span>
             <span class="audio-split" data-tool="countin" data-line="audio-line-countin">
-              <button type="button" id="audio-countin-btn" class="audio-toggle audio-chip" aria-pressed="false" title="{{t "count-in before playing: off, 1 bar, 2 bars"}}">{{template "icon-count-in"}}<span id="audio-countin-label">{{t "Count-in"}}</span></button>
+              <button type="button" id="audio-countin-btn" class="audio-toggle audio-chip" aria-pressed="false" title="{{t "count-in before playing: off, 1 bar, 2 bars (I)"}}">{{template "icon-count-in"}}<span id="audio-countin-label">{{t "Count-in"}}</span></button>
               <button type="button" class="audio-caret" data-open-line="audio-line-countin" title="{{t "count-in options"}}">{{template "icon-down"}}</button>
             </span>
-            <button type="button" id="audio-pitch-btn" class="audio-toggle audio-chip" data-tool="pitch" data-line="audio-line-pitch" aria-pressed="false" hidden title="{{t "check my singing against the song’s voice (the microphone listens)"}}"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 13.5c2-5 3.5-5 5 0s3 5 5 0 3.5-5 5 0"/></svg><span>{{t "Pitch"}}</span></button>
+            <button type="button" id="audio-pitch-btn" class="audio-toggle audio-chip" data-tool="pitch" data-line="audio-line-pitch" aria-pressed="false" hidden title="{{t "check my singing against the song’s voice (the microphone listens) (S)"}}"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 13.5c2-5 3.5-5 5 0s3 5 5 0 3.5-5 5 0"/></svg><span>{{t "Pitch"}}</span></button>
             <button type="button" id="audio-trainer-btn" class="audio-toggle audio-chip audio-trainer-btn" data-tool="trainer" data-line="audio-line-trainer" data-open-line="audio-line-trainer" title="{{t "speed trainer: speed up a little every few loops"}}">{{template "icon-trainer"}}<span id="audio-trainer-label">{{t "Trainer"}}</span><span class="audio-trainer-meter" id="audio-trainer-meter"></span></button>
           </div>
           {{/* "+N": the tools that left the bar, in the panel; on a phone, ⋯ opens the sheet. */}}
@@ -1956,7 +1956,7 @@
       <div class="gp-toolbar audio-transport">
         <div class="audio-buttons">
           <button type="button" class="icon-btn gp-stop" title="{{t "back to the start (Home)"}}">{{template "icon-to-start"}}</button>
-          <button type="button" class="icon-btn audio-play-btn gp-play" title="{{t "play/pause (Space)"}}" aria-label="{{t "Play"}}" disabled>{{template "icon-play"}}</button>
+          <button type="button" class="icon-btn audio-play-btn gp-play" title="{{t "play/pause (Space or K)"}}" aria-label="{{t "Play"}}" disabled>{{template "icon-play"}}</button>
         </div>
         <div class="audio-lcd gp-lcd" aria-live="off"><span class="audio-lcd-pos gp-bar" title="{{t "bar"}}">1</span><span class="audio-lcd-time gp-time"></span></div>
         <div class="gp-opts">
@@ -1997,7 +1997,7 @@
           {{/* Key: the recording and its parts up or down (one pitch
                shifter on their mix), the score tracks too; the same key
                as the song page's player. See mixer.js "Key". */}}
-          <label class="daw-speed daw-key" title="{{t "play the recording in another key"}}">
+          <label class="daw-speed daw-key" title="{{t "play the recording in another key (- and =)"}}">
             <select id="daw-key" aria-label="{{t "Key"}}"></select>
           </label>
           <label class="daw-speed" title="{{t "playback speed"}}">{{t "Speed"}}

@@ -7502,3 +7502,24 @@ a.singer-chip:hover { border-color: var(--border-strong); }
 .students-lesson-kinds { font-size: 0.75rem; line-height: 1.35; margin-top: 0.15rem; }
 .key-down, .key-up { font-weight: 600; font-variant-numeric: tabular-nums; }
 .key-down { color: var(--accent-ink); }
+
+/* The players' shortcuts ("?", player-shell.js PlayerShell.keys): one
+   table of keys over a dimmed page. */
+.ps-keys { position: fixed; inset: 0; z-index: 120; }
+.ps-keys[hidden] { display: none; }
+.ps-keys-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); }
+.ps-keys-card {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); box-sizing: border-box;
+  width: min(40rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto;
+  padding: 1.2rem 1.4rem 1.4rem; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-raised); color: var(--fg); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+}
+.ps-keys-card h2 { margin: 0 2.5rem 0.8rem 0; font-size: 1.15rem; }
+.ps-keys-close { position: absolute; top: 0.7rem; right: 0.7rem; }
+.ps-keys-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.ps-keys-table td { padding: 0.45rem 0.4rem; border-top: 1px solid var(--border); vertical-align: top; }
+.ps-keys-table td:first-child { white-space: nowrap; width: 1%; padding-right: 1rem; }
+.ps-keys-table kbd {
+  display: inline-block; min-width: 1.4rem; margin: 0 0.1rem; padding: 0 0.35rem; border: 1px solid var(--border-strong);
+  border-bottom-width: 2px; border-radius: 4px; background: var(--bg-sunken); font: 600 0.75rem/1.4rem var(--font-mono); text-align: center;
+}

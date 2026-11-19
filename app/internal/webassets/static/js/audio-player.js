@@ -699,6 +699,7 @@ window.songbooksDecodable = function (buf) {
     }
     followVoice();
     renderPosition();
+    if (duration) mediaSession?.position(duration, audio.currentTime, audio.playbackRate, isPlaying());
   }
   // A timer, not requestAnimationFrame: the cycle wrap and the click
   // scheduler must keep running when the tab is in the background.
@@ -1925,43 +1926,97 @@ window.songbooksDecodable = function (buf) {
     waveEl.addEventListener('pointerup', onUp);
   });
 
-  // ---- Keyboard: GarageBand / Logic's, where they have one ---------------
-  // Caught before song.js's own page keys (capture phase): with a
+  // ---- Keyboard: one map for every player (player-proposal.md §3.5) -------
+  // PlayerShell.keys, caught before song.js's own page keys: with a
   // recording loaded, Space plays it rather than the silent follow-along
-  // clock. ←/→ step bars — unless the page has a setlist to step through,
+  // clock. ←/→ step bars — unless the page has a set list to step through,
   // where they stay the previous/next song (page-turn pedals send them);
-  // "," and "." step bars either way, as in Logic.
-  document.addEventListener('keydown', (e) => {
-    if (!duration || !playerBody || playerBody.hidden || e.metaKey || e.ctrlKey) return;
-    const t = e.target.closest ? e.target : document.body;
-    if (t.closest('input, select, textarea, [contenteditable]')) return;
-    // A focused button keeps Space and Enter, except the player's own:
-    // after clicking Cycle, Space still means play/pause.
-    if (t.closest('button, a') && !t.closest('#audio-player')) return;
-    const sheet = $('sheet');
-    if (sheet && sheet.dataset.renderMode === 'mixer') return; // the Mixer has its own
-    // So has the Score view, when it plays the file's own recording (gp-view.js).
-    if (sheet && sheet.dataset.renderMode === 'score' && document.body.classList.contains('gp-own-audio')) return;
-    const drawer = $('edit-drawer');
-    if (drawer && !drawer.hidden) return;
-    const songNav = !!document.querySelector('.setlist-nav-card');
-    let handled = true;
-    switch (e.key) {
-      case ' ': case 'Spacebar': isPlaying() ? pause() : play(); break;
-      case 'Home': $('audio-start-btn').click(); break;
-      case ',': stepBar(-1); break;
-      case '.': stepBar(1); break;
-      case 'ArrowLeft': if (songNav && !e.altKey) handled = false; else if (e.altKey) stepSection(-1); else stepBar(-1); break;
-      case 'ArrowRight': if (songNav && !e.altKey) handled = false; else if (e.altKey) stepSection(1); else stepBar(1); break;
-      case 'c': case 'C': case 'l': case 'L': toggleCycle(); break;
-      case 'k': case 'K': toggleClick(); break;
-      case 'v': case 'V': if (!hasParts()) handled = false; else toggleVoice(); break;
-      case '[': setSpeed(prefs.speed - (e.shiftKey ? 0.01 : 0.05)); break;
-      case ']': setSpeed(prefs.speed + (e.shiftKey ? 0.01 : 0.05)); break;
-      default: handled = false;
-    }
-    if (handled) { e.preventDefault(); e.stopImmediatePropagation(); }
-  }, true);
+  // "," and "." step bars either way. K plays and pauses, as on the
+  // rehearsals' player; the click moved to M (Metronome). L stays C's
+  // alias for one release.
+  const songNav = () => !!document.querySelector('.setlist-nav-card');
+  const goSong = (dir) => {
+    const a = document.querySelector(dir < 0 ? '.setlist-nav-card.prev, .topbar-prev[href]' : '.setlist-nav-card.next, .topbar-next[href]');
+    if (!a || !a.href) return false;
+    window.location.href = a.href;
+  };
+  const loopSection = () => {
+    if (!hasBars()) return false;
+    const sec = sectionAt(Math.max(0, Math.floor(barAtTime(audio.currentTime) || 0)));
+    if (!sec) return false;
+    setCycle(sec.startBar, sec.startBar + sec.barCount);
+  };
+  const toggleCountIn = () => {
+    prefs.countIn = (prefs.countIn + 1) % 3;
+    savePrefs();
+    syncCountInSeg();
+    updateButtons();
+  };
+  const togglePitch = () => { const b = $('audio-pitch-btn'); if (!b || b.hidden) return false; b.click(); };
+  const speedBy = (d) => () => setSpeed(prefs.speed + d);
+  if (window.PlayerShell) window.PlayerShell.keys({
+    own: '#audio-player',
+    title: t('The player’s keys'),
+    active: () => {
+      if (!duration || !playerBody || playerBody.hidden) return false;
+      const sheet = $('sheet');
+      if (sheet && sheet.dataset.renderMode === 'mixer') return false; // the Mixer has its own
+      // So has the Score view, when it plays the file's own recording (gp-view.js).
+      if (sheet && sheet.dataset.renderMode === 'score' && document.body.classList.contains('gp-own-audio')) return false;
+      const drawer = $('edit-drawer');
+      return !(drawer && !drawer.hidden);
+    },
+    keys: {
+      ' ': () => (isPlaying() ? pause() : play()),
+      k: () => (isPlaying() ? pause() : play()),
+      ArrowLeft: () => (songNav() ? false : stepBar(-1)),
+      ArrowRight: () => (songNav() ? false : stepBar(1)),
+      ',': () => stepBar(-1),
+      '.': () => stepBar(1),
+      'Alt+ArrowLeft': () => stepSection(-1),
+      'Alt+ArrowRight': () => stepSection(1),
+      'Shift+ArrowLeft': () => goSong(-1),
+      'Shift+ArrowRight': () => goSong(1),
+      Home: () => $('audio-start-btn').click(),
+      0: () => $('audio-start-btn').click(),
+      c: () => toggleCycle(),
+      l: () => toggleCycle(),
+      'Shift+c': loopSection,
+      '[': speedBy(-0.05),
+      ']': speedBy(0.05),
+      '{': speedBy(-0.01),
+      '}': speedBy(0.01),
+      '\\': () => setSpeed(1),
+      '-': () => setSemitones(prefs.semitones - 1),
+      '=': () => setSemitones(prefs.semitones + 1),
+      '+': () => setSemitones(prefs.semitones + 1),
+      v: () => (hasParts() ? toggleVoice() : false),
+      m: () => toggleClick(),
+      i: toggleCountIn,
+      s: togglePitch,
+      f: () => setSheet(!sheetOpen()),
+    },
+    help: [
+      [t('Play / pause'), ' ', 'k'],
+      [t('Back / forward one bar (on a set list: the previous / next song; , and . step bars)'), 'ArrowLeft', 'ArrowRight'],
+      [t('Previous / next section'), 'Alt+ArrowLeft', 'Alt+ArrowRight'],
+      [t('Previous / next song'), 'Shift+ArrowLeft', 'Shift+ArrowRight'],
+      [t('Back to the start (of the loop, when looping)'), 'Home', '0'],
+      [t('Loop on / off · ⇧C loops this section'), 'c', 'Shift+c'],
+      [t('Speed −5 % / +5 % (⇧ for 1 %) · \\ back to 100 %'), '[', ']', '\\'],
+      [t('Key down / up a semitone'), '-', '='],
+      [t('Voice (my parts) · metronome click · count-in · check my singing'), 'v', 'm', 'i', 's'],
+      [t('Open / close the panel · close · these shortcuts'), 'f', 'Escape', '?'],
+    ],
+  });
+  // The lock screen, headphones and media keys (Media Session): play,
+  // pause, seek, and the previous / next section as the track buttons.
+  const mediaSession = window.PlayerShell ? window.PlayerShell.media({
+    title: lcdSection?.dataset.title || document.title,
+    play: () => play(), pause: () => pause(),
+    seekTo: (s) => seek(s), seekBy: (d) => seek(Math.max(0, audio.currentTime + d)),
+    previous: () => stepSection(-1), next: () => stepSection(1),
+  }) : null;
 
   // ---- Category toggle / load -------------------------------------------
   function selectCategory(cat, remember) {
