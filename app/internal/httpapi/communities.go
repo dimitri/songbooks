@@ -709,11 +709,19 @@ func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// Who sees the Members page is a setting: its select only for a role
+	// granting manage_settings (the PUT behind it checks that too).
+	access, err := s.communityMembersAccess(r.Context(), person, communityID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "community_admin", map[string]any{
 		"Me": person, "Person": person, "Community": community, "IsStaff": true,
 		"Members": members, "CurrentMembers": current, "ShellPeople": shellPeople,
 		"Roles": roles, "AllPrivileges": store.AllCommunityPrivileges,
 		"Locale": locale, "MembersVisibility": membersVisibility,
+		"CanManageSettings": access.ManageSettings,
 	})
 }
 
