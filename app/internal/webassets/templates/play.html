@@ -1700,9 +1700,26 @@
       </ul>
     </details>
     {{end}}
+    {{/* Lyrics only: "Follow the music", the karaoke line and the page
+         scrolling with the recording, on or off for this song (song.js
+         "Follow the music"). Off when the sync is wrong: the singer
+         scrolls, the recording still plays. Shown in Lyrics only, stage
+         mode included. */}}
+    <div class="follow-bar" id="follow-bar" hidden>
+      <label class="follow-switch">
+        <input type="checkbox" id="follow-toggle" role="switch" checked aria-describedby="follow-hint">
+        <span class="follow-switch-track" aria-hidden="true"></span>
+        {{template "icon-follow"}}
+        <span>{{t "Follow the music"}}</span>
+      </label>
+      <span class="follow-hint" id="follow-hint"></span>
+    </div>
     <main class="sheet" id="sheet" data-render-mode="normal" data-variant-id="{{.VariantID}}"{{if .GPFileName}} data-gp-file="/song/{{.VariantID}}/gp-file" data-gp-name="{{.GPFileName}}" data-gp-sha="{{.GPFileSHA}}"{{if .GPFactsMissing}} data-gp-facts-missing="1"{{end}}{{if .GPOnly}} data-gp-only="1"{{end}}{{with .PickerSectionsJSON}} data-picker-sections="{{.}}"{{end}}{{end}} data-key="{{.Key}}"{{if .StudentKeySet}} data-key-offset="{{.StudentKey}}"{{end}} data-flats="{{if .Flats}}1{{else}}0{{end}}" data-has-diagrams="{{if or .Chords (chordDiagramSets .Text)}}1{{end}}">
     {{template "sheet-body" .}}
     </main>
+    {{/* Scrolled away by hand while the music plays: following holds,
+         and this brings the page back to it (song.js "Follow the music"). */}}
+    <button type="button" class="follow-back" id="follow-back" hidden>{{template "icon-follow"}} <span id="follow-back-label">{{t "Back to the current line"}}</span></button>
     {{/* Chord diagrams entered for other keys ("chord[G]: ..." lines). Kept
          out of #sheet (live previews re-render it) and inert until the
          view-only transpose lands on one of these keys. */}}

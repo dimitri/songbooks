@@ -567,6 +567,8 @@ const ICONS = {
   function jumpToSection(i) {
     const sec = sections[i];
     if (!sec || sec.startBar == null) return;
+    // Going somewhere on purpose: the page follows the music again.
+    followHeld = false;
     // With a reference recording, play it from there (audio-player.js)
     // rather than starting the silent follow-along clock.
     if (window.songbooksReferenceSeekBar && window.songbooksReferenceSeekBar(sec.startBar)) return;
@@ -591,8 +593,96 @@ const ICONS = {
   };
   const keepInView = window.songbooksKeepInView;
 
+  // ---- Follow the music ----------------------------------------------------
+  // While the recording (or the follow-along clock) plays, the chart marks
+  // where it is and scrolls along with it; in Lyrics only, line by line,
+  // karaoke style. That is only as good as the sync behind it: a detected
+  // downbeat that's a bar off, or section markers set by hand a little
+  // early, light the wrong line and pull the page away from where the
+  // singer is. So:
+  // - Lyrics only has a "Follow the music" switch (#follow-bar, play.html),
+  //   remembered per song in this browser: off, no line or section is lit
+  //   and nothing scrolls; the singer scrolls, the recording still plays.
+  // - In every view, scrolling by hand while it plays takes the page back
+  //   (as Apple Music's and Spotify's lyrics do): following holds until
+  //   "Back to the current line" or the next time playback starts.
+  const lyricsFollowKey = `songbooks:lyrics-follow:${sheet.dataset.variantId || pageVariantId}`;
+  let lyricsFollow = true;
+  try { lyricsFollow = localStorage.getItem(lyricsFollowKey) !== 'off'; } catch (e) { /* on */ }
+  let followHeld = false; // the reader scrolled away while it played
+  let wasPlaying = false;
+  let playingNow = false;
+  const followBar = document.getElementById('follow-bar');
+  const followToggle = document.getElementById('follow-toggle');
+  const followHint = document.getElementById('follow-hint');
+  const followBack = document.getElementById('follow-back');
+  const followBackLabel = document.getElementById('follow-back-label');
+  const lyricsMode = () => sheet.dataset.renderMode === 'lyrics';
+  // The chart lights and follows the music: always, except Lyrics only
+  // with its switch off.
+  const chartFollows = () => !(lyricsMode() && !lyricsFollow);
+  function renderFollow() {
+    if (followToggle) followToggle.checked = lyricsFollow;
+    if (followHint) {
+      followHint.textContent = lyricsFollow
+        ? t('The line being sung lights up and the page scrolls with the recording.')
+        : t('Off: no line lit, you scroll yourself. The recording still plays.');
+    }
+    followBar?.classList.toggle('is-off', !lyricsFollow);
+  }
+  function showFollowBar() { if (followBar) followBar.hidden = !lyricsMode(); }
+  renderFollow();
+  showFollowBar();
+  new MutationObserver(showFollowBar).observe(sheet, { attributes: true, attributeFilter: ['data-render-mode'] });
+  followToggle?.addEventListener('change', () => {
+    lyricsFollow = followToggle.checked;
+    followHeld = false;
+    try {
+      if (lyricsFollow) localStorage.removeItem(lyricsFollowKey);
+      else localStorage.setItem(lyricsFollowKey, 'off');
+    } catch (e) { /* this page only */ }
+    renderFollow();
+    // Back on mid-song: go to where the music is now.
+    if (lyricsFollow && playingNow) requestAnimationFrame(() => requestAnimationFrame(scrollToNow));
+  });
+  // Where the music is, brought into view at once.
+  function scrollToNow() {
+    if (currentLineEl) { currentLineEl.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+    const cursor = document.querySelector('.tab-cursor-bar:not([hidden])');
+    if (cursor && cursor.offsetParent) { keepInView(cursor); return; }
+    if (currentBarEl && currentBarEl.offsetParent) { keepInView(currentBarEl); return; }
+    currentSectionEl?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+  function resumeFollow() {
+    followHeld = false;
+    if (followBack) followBack.hidden = true;
+    scrollToNow();
+  }
+  followBack?.addEventListener('click', resumeFollow);
+  // A scroll by hand: the wheel, a finger, or a scrolling key nobody else
+  // took. Not in the player, its sheet or the Mixer (they scroll or drag
+  // themselves), nor in a field.
+  const notThePage = 'input, textarea, select, [contenteditable], .audio-dock, .audio-dock-backdrop, .audio-waveform-wrap, .stack-sheet, .daw-scroll, .edit-drawer, .follow-back';
+  function scrolledByHand(e) {
+    if (!playingNow || followHeld || !chartFollows()) return;
+    if (e.target instanceof Element && e.target.closest(notThePage)) return;
+    if (sheet.dataset.renderMode === 'mixer' || sheet.dataset.renderMode === 'reference') return;
+    followHeld = true;
+  }
+  window.addEventListener('wheel', (e) => { if (!e.ctrlKey && Math.abs(e.deltaY) > Math.abs(e.deltaX)) scrolledByHand(e); }, { passive: true });
+  window.addEventListener('touchmove', scrolledByHand, { passive: true });
+  window.addEventListener('keydown', (e) => {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (['PageUp', 'PageDown', 'ArrowUp', 'ArrowDown', 'End'].includes(e.key)) scrolledByHand(e);
+  });
+  // Dragging the page's own scrollbar.
+  window.addEventListener('pointerdown', (e) => {
+    if (e.target === document.documentElement && e.clientX >= document.documentElement.clientWidth) scrolledByHand(e);
+  });
+
   let currentBarEl = null;
-  let currentSectionEl = null;
+  let currentSectionEl = null; // where the music is (↑/↓ step from it), lit or not
+  let litSectionEl = null;
   let currentLineEl = null;
   const structureFillEl = document.getElementById('structure-fill');
   function highlightTick() {
@@ -600,11 +690,26 @@ const ICONS = {
     // highlight; the metronome clock otherwise.
     const ref = !clock.running && window.songbooksReferencePosition ? window.songbooksReferencePosition() : null;
     const position = ref ? ref.bar : clock.currentBeat() / clock.beatsPerBar;
-    const following = clock.running || !!(ref && ref.playing);
+    const playing = clock.running || !!(ref && ref.playing);
+    // Starting to play again takes the page back to the music.
+    if (playing && !wasPlaying) followHeld = false;
+    wasPlaying = playing;
+    playingNow = playing;
+    const lit = chartFollows();
+    // Scroll along only while it plays, the chart follows, and the reader
+    // hasn't scrolled away by hand.
+    const following = playing && lit && !followHeld;
+    if (followBack) {
+      const show = playing && lit && followHeld;
+      if (followBack.hidden === show) {
+        followBack.hidden = !show;
+        if (show && followBackLabel) followBackLabel.textContent = lyricsMode() ? t('Back to the current line') : t('Back to where the music is');
+      }
+    }
     const bar = Math.floor(position);
     // Tab rows (alphatab-tab.js) draw their own Guitar Pro style cursor.
-    const started = following || !!ref || clock.currentBeat() > 0;
-    const tabFollowed = window.songbooksTabCursor ? window.songbooksTabCursor(started ? position : null, following) : false;
+    const started = playing || !!ref || clock.currentBeat() > 0;
+    const tabFollowed = window.songbooksTabCursor ? window.songbooksTabCursor(started && lit ? position : null, following) : false;
     // Recomputed every tick, not cached at load — rebindSheet() (which
     // populates `sections`) can run after this point (e.g. on first
     // load, it's called at the very end of the script), so a one-time
@@ -617,8 +722,9 @@ const ICONS = {
       }
     }
     // A reflowed row keeps its hidden original next to the visible copy:
-    // highlight the copy on screen.
-    const matches = bars.filter(b => parseInt(b.dataset.globalBar, 10) === bar);
+    // highlight the copy on screen. Nothing lit when the chart doesn't
+    // follow (Lyrics only, switched off).
+    const matches = lit ? bars.filter(b => parseInt(b.dataset.globalBar, 10) === bar) : [];
     const barEl = matches.find(b => b.offsetParent) || matches[0] || null;
     if (barEl && started) barEl.style.setProperty('--playhead', String(Math.min(1, position - bar)));
     if (barEl !== currentBarEl) {
@@ -657,17 +763,22 @@ const ICONS = {
     ));
     const sectionEl = curSec ? curSec.el : null;
     if (sectionEl !== currentSectionEl) {
-      currentSectionEl?.classList.remove('current-section');
-      sectionEl?.classList.add('current-section');
       const idx = sectionEl ? parseInt(sectionEl.dataset.sectionIndex, 10) : -1;
       // Dim sections already played, not just mark the current one — the
       // strip then reads as a progress bar through the song's structure,
-      // not just a static roadmap with one segment lit up.
+      // not just a static roadmap with one segment lit up. (The strip is
+      // the player's progress, so it moves even when the chart doesn't.)
       document.querySelectorAll('.structure-seg').forEach(c => {
         const i = parseInt(c.dataset.sectionIndex, 10);
         c.classList.toggle('current', i === idx);
         c.classList.toggle('done', idx >= 0 && i < idx);
       });
+      currentSectionEl = sectionEl;
+    }
+    const litSection = lit ? sectionEl : null;
+    if (litSection !== litSectionEl) {
+      litSectionEl?.classList.remove('current-section');
+      litSection?.classList.add('current-section');
       // Only auto-scroll while actually following along (clock running) —
       // this same "current section changed" branch also fires once on
       // page load (bar 0 → the Intro section becomes "current" the
@@ -676,8 +787,8 @@ const ICONS = {
       // view before the reader had done anything. Highlighting (above)
       // still updates either way — it's only the forced scroll that's
       // playback-only now.
-      if (sectionEl && following && !tabFollowed && !(barEl && barEl.offsetParent)) sectionEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
-      currentSectionEl = sectionEl;
+      if (litSection && following && !tabFollowed && !(barEl && barEl.offsetParent)) litSection.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      litSectionEl = litSection;
     }
     // Lyrics mode's own finer-grained position indicator: which LINE
     // within the current section, not just which section. The data model
@@ -693,7 +804,7 @@ const ICONS = {
     // layout one.) Scoped to lyrics mode only: other modes already have
     // their own finer position cue (the current .bar highlight inside the
     // chord grid), so this isn't needed there.
-    if (sheet.dataset.renderMode === 'lyrics' && curSec && sectionEl) {
+    if (lyricsMode() && lit && curSec && sectionEl) {
       const lineEls = sectionEl.querySelectorAll('.lyric-line');
       let lineEl = null;
       if (lineEls.length) {
