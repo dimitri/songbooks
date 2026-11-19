@@ -25,6 +25,7 @@
     {{template "coaching-tab-links" .}}
     <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/events">{{t "Events"}}</a>
+    {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a>{{end}}
   </nav>
 
   <p class="hint">{{t "A community can keep more than one songbook — the default one, plus any others you want: a seasonal set, a jam-night book, an event's own prep material (an event's own \"manage\" page can also create or attach one directly)."}}</p>
@@ -34,7 +35,7 @@
     <div style="position:relative;">
       <a class="catalog-book-card" href="{{if .IsDefault}}/communities/{{$.Community.ID}}/songbooks/default{{else}}/songbooks/{{.ID}}{{end}}">
         <div class="catalog-book-card-title">{{.Name}}{{if .IsDefault}} <span class="hint">{{t "(default)"}}</span>{{end}}{{if .RequiresGrant}} <span class="hint">&#128274; {{t "members need access"}}</span>{{end}}{{if not .Shared}} <span class="hint">{{t "private"}}</span>{{end}}{{if .IsCourse}} <span class="hint">{{t "course"}}</span>{{end}}</div>
-        <div class="catalog-book-card-meta">{{if .IsCourse}}{{tn .LessonCount "%d lesson" "%d lessons"}} · {{end}}{{tn .SongCount "%d song" "%d songs"}}</div>
+        <div class="catalog-book-card-meta">{{if .IsCourse}}{{tn .LessonCount "%d lesson" "%d lessons"}} · {{end}}{{tn .SongCount "%d song" "%d songs"}}{{if and .IsDefault $.ToReview}} · <strong class="is-due">{{tn $.ToReview "%d submission to review" "%d submissions to review"}}</strong>{{end}}</div>
       </a>
       {{if $.IsStaff}}<a class="hint" href="/communities/{{$.Community.ID}}/songbooks/{{.ID}}/access" style="display:block; margin-top:0.3rem;">{{t "Sharing and access"}} &rarr;</a>{{end}}
     </div>

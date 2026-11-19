@@ -501,6 +501,8 @@ textarea.prose { font-family: inherit; }
   }
   .passkeys-table tr:last-child, .table-stack tr:last-child { border-bottom: none; }
   .passkeys-table td, .table-stack td { padding: 0.2rem 0; }
+  /* A stacked table drawn as a card keeps the card's inner margin. */
+  table.card.table-stack tr { padding-left: 1rem; padding-right: 1rem; }
   .passkeys-table td[data-label]::before, .table-stack td[data-label]::before {
     content: attr(data-label); display: block;
     font-size: 0.8rem; font-weight: 600; color: var(--fg-muted); margin-bottom: 0.15rem;
@@ -6147,6 +6149,74 @@ a.calendar-day:hover { text-decoration: none; background: var(--bg-sunken); }
   .band-hub-state { font-size: 0.85rem; color: var(--fg-muted); }
   .band-hub-state.is-due { color: var(--accent); font-weight: 600; }
 }
+
+/* A community's admin page: its sections in a sidebar on a wide screen,
+   one shown at a time; on a phone the list of sections first, then one
+   section with a way back (community_admin.html). Without scripts every
+   section shows under the list. */
+.table-stack tr[hidden], .admin-section[hidden] { display: none; }
+.admin-layout { display: grid; grid-template-columns: minmax(13rem, 16rem) minmax(0, 1fr); gap: 1.5rem 2rem; align-items: start; margin-top: 1.25rem; }
+.admin-nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.admin-nav { position: sticky; top: 1rem; }
+.admin-nav a { display: grid; grid-template-columns: 1.2rem 1fr; column-gap: 0.7rem; align-items: center; padding: 0.55rem 0.75rem; border-radius: var(--radius-control, 8px); color: var(--fg); }
+.admin-nav a:hover { text-decoration: none; background: var(--bg-sunken); }
+.admin-nav a.active { background: var(--accent-bg); color: var(--accent-ink); }
+.admin-nav .icon { grid-row: span 2; width: 1.15rem; height: 1.15rem; color: var(--accent); }
+.admin-nav-label { font-weight: 600; }
+.admin-nav-state { grid-column: 2; font-size: 0.8rem; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-sections { min-width: 0; }
+.admin-section { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
+.admin-section + .admin-section { margin-top: 2.5rem; }
+.admin-section > * { margin-top: 0; margin-bottom: 0; }
+.admin-section .card { max-width: 46rem; }
+.admin-section .card-grid { margin-bottom: 0; max-width: 46rem; }
+.admin-section .table-scroll { max-width: none; }
+.admin-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
+.admin-section-title { font-size: 1.35rem; margin: 0; }
+.admin-subtitle { margin: 0.5rem 0 0; font-size: 1.05rem; }
+.admin-section-back { display: none; }
+.admin-section > .hint { margin-top: -0.6rem; max-width: 46rem; }
+.roles-table td:not(:first-child), .roles-table th:not(:first-child) { text-align: center; }
+.roles-table th { font-size: 0.8rem; vertical-align: bottom; }
+@media (min-width: 601px) {
+  .roles-table th, .roles-table td { padding: 0.55rem 0.6rem; }
+  .roles-table th:first-child, .roles-table td:first-child { padding-left: 1.1rem; text-align: left; }
+  .roles-table tbody tr + tr td { border-top: 1px solid var(--border); }
+}
+.roles-table .role-name-input { width: 12rem; }
+@media (max-width: 720px) {
+  .admin-layout { grid-template-columns: minmax(0, 1fr); margin-top: 0.75rem; }
+  .admin-nav { position: static; }
+  .admin-nav ul { gap: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; }
+  .admin-nav li + li { border-top: 1px solid var(--border); }
+  .admin-nav a { grid-template-columns: 1.2rem 1fr auto; min-height: 3.4rem; border-radius: 0; padding: 0.5rem 0.9rem; }
+  .admin-nav a::after { content: "›"; grid-column: 3; grid-row: 1 / span 2; color: var(--fg-faint); font-size: 1.3rem; line-height: 1; }
+  .admin-nav a.active { background: none; color: var(--fg); }
+  .admin-layout.has-section .admin-nav { display: none; }
+  .admin-layout.is-sectioned .admin-section-back { display: inline-flex; align-items: center; gap: 0.3rem; min-height: 2.75rem; align-self: flex-start; }
+  .admin-layout.is-sectioned .admin-section + .admin-section { margin-top: 0; }
+}
+@media (max-width: 600px) {
+  /* Stacked, a role is its name then one line per privilege: the
+     privilege on the left, its box on the right. */
+  .roles-table td:not(:first-child) { display: flex; align-items: center; justify-content: space-between; gap: 1rem; text-align: left; min-height: 2.5rem; }
+  .roles-table td:not(:first-child)::before { margin: 0; font-weight: 500; font-size: 0.9rem; color: var(--fg); }
+  .roles-table td:last-child:empty { display: none; }
+}
+
+/* Where the admin page's songbook and event tools went: a community's
+   default songbook reviews members' submissions, its Events tab lists
+   each event with Manage, an event's Manage page assigns its managers. */
+.catalog-book-card-meta .is-due { color: var(--accent); }
+.submissions-card { margin-bottom: 1.25rem; }
+.submissions-card h2 .count { font-size: 0.85rem; font-weight: 600; color: var(--accent-contrast); background: var(--accent); border-radius: 999px; padding: 0.05rem 0.5rem; vertical-align: 0.15em; }
+.submissions-card .row-actions { white-space: nowrap; text-align: right; }
+.submissions-card .row-actions button + button { margin-left: 0.4rem; }
+.event-list .import-row { justify-content: space-between; flex-wrap: nowrap; }
+.event-list .import-row > div { flex: 1; min-width: 0; }
+.manager-list { list-style: none; margin: 0 0 1rem; padding: 0; }
+.manager-list li { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.4rem 0; border-top: 1px solid var(--border); }
+.manager-list li:first-child { border-top: none; }
 
 /* Add songs to a set list: one row per song, its Add button at the end. */
 .add-songs-results { list-style: none; margin: 0.8rem 0 0; padding: 0; max-height: 22rem; overflow-y: auto; }
