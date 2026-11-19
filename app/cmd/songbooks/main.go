@@ -47,6 +47,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("connecting to database: %v", err)
 	}
+	// Instruments in the profile (migration 0101): what the app already
+	// knew people play, collected onto their profiles. Adds only what's
+	// missing, so it's a no-op once done.
+	if n, err := st.BackfillPersonInstruments(ctx); err != nil {
+		log.Printf("collecting instruments onto profiles: %v", err)
+	} else if n > 0 {
+		log.Printf("collected %d instruments onto profiles", n)
+	}
 	defer st.Close()
 
 	if *setPasswordUser != "" {

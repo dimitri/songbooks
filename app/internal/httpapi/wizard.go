@@ -3,7 +3,6 @@ package httpapi
 import (
 	"net/http"
 	"strconv"
-	"strings"
 
 	"app/internal/store"
 )
@@ -44,18 +43,10 @@ func (s *Server) handleWelcomePage(w http.ResponseWriter, r *http.Request) {
 		data["Passkeys"] = passkeys
 		data["AlreadyDone"] = len(passkeys) > 0
 	case 3:
-		checked := map[string]bool{}
-		var other []string
-		for _, inst := range person.Instruments {
-			if isCommonInstrument(inst) {
-				checked[inst] = true
-			} else {
-				other = append(other, inst)
-			}
-		}
+		checked, other := commonChecked(person.Instruments, s.langOfRequest(r))
 		data["CommonInstruments"] = commonInstruments
 		data["Checked"] = checked
-		data["Other"] = strings.Join(other, ", ")
+		data["Other"] = other
 		data["AlreadyDone"] = len(person.Instruments) > 0
 	case 4:
 		bands, err := s.store.ListBandsForPerson(r.Context(), person.ID)

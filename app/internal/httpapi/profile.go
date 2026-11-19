@@ -7,15 +7,35 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"app/internal/instruments"
 	"app/internal/store"
 )
 
-// commonInstruments is the icon-picker/profile vocabulary this phase
-// reuses everywhere an instrument is picked — the same four defaults
-// DefaultInstrumentLimits() starts a jam song's caps from. Anything else
-// a person plays (or a jam participant picks) is free text, not
-// validated against this list.
-var commonInstruments = []string{"drummer", "bassist", "guitarist", "singer"}
+// commonInstruments are the welcome wizard's instrument icons
+// (canonical IDs, internal/instruments); anything else is typed in its
+// "other" field and read with instruments.Parse.
+var commonInstruments = []string{"voice", "guitar", "bass", "drums", "keys"}
+
+// commonChecked splits a person's instruments (people.instruments, kept
+// as canonical IDs or their own words) into the common ones ticked and
+// the rest, named in lang, for the wizard's "other" field.
+func commonChecked(list []string, lang string) (map[string]bool, string) {
+	checked := map[string]bool{}
+	var other []string
+	for _, inst := range list {
+		ids := instruments.Normalize(inst)
+		if len(ids) == 1 && isCommonInstrument(ids[0]) {
+			checked[ids[0]] = true
+			continue
+		}
+		if instruments.Valid(inst) {
+			other = append(other, instruments.Label(inst, lang))
+		} else {
+			other = append(other, inst)
+		}
+	}
+	return checked, strings.Join(other, ", ")
+}
 
 // handleProfilePage is GET /profile — a logged-in person's own account
 // settings. The only setting this phase adds is "which instruments do
@@ -24,14 +44,10 @@ var commonInstruments = []string{"drummer", "bassist", "guitarist", "singer"}
 // a brand-new page, not an addition to an existing one.
 func (s *Server) handleProfilePage(w http.ResponseWriter, r *http.Request) {
 	p := personFromContext(r)
-	checked := map[string]bool{}
-	var other []string
-	for _, inst := range p.Instruments {
-		if isCommonInstrument(inst) {
-			checked[inst] = true
-		} else {
-			other = append(other, inst)
-		}
+	card, err := s.instrumentsCard(r, p.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 	passkeys, err := s.store.ListWebAuthnCredentials(r.Context(), p.ID)
 	if err != nil {
@@ -40,8 +56,7 @@ func (s *Server) handleProfilePage(w http.ResponseWriter, r *http.Request) {
 	}
 	locale, _ := s.store.PersonLocale(r.Context(), p.ID)
 	s.render(w, "profile", map[string]any{
-		"Me": p, "CommonInstruments": commonInstruments, "Checked": checked,
-		"Other":       strings.Join(other, ", "),
+		"Me": p, "Instruments": card,
 		"HasPassword": p.PasswordHash != "",
 		"PwError":     r.URL.Query().Get("pwerror"),
 		"PwSaved":     r.URL.Query().Get("pwsaved") != "",

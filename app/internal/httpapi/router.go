@@ -261,6 +261,13 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// used to pre-fill jam signup. See internal/httpapi/profile.go.
 	mux.HandleFunc("GET /profile", s.requireAuth(s.handleProfilePage))
 	mux.HandleFunc("POST /profile/instruments", s.requireAuth(s.handleUpdateInstruments))
+	// Instruments in the profile (instruments.go): each with a level and
+	// where it came from; who sees levels is decided in the store.
+	mux.HandleFunc("POST /profile/instruments/add", s.requireAuth(s.handleAddInstrument))
+	mux.HandleFunc("POST /profile/instruments/sharing", s.requireAuth(s.handleShareInstrumentLevels))
+	mux.HandleFunc("POST /profile/instruments/{iid}/level", s.requireAuth(s.handleSetInstrumentLevel))
+	mux.HandleFunc("POST /profile/instruments/{iid}/remove", s.requireAuth(s.handleRemoveInstrument))
+	mux.HandleFunc("GET /api/people/{id}/instruments", s.requireAuth(s.handlePersonInstruments))
 
 	// Getting-started wizard (phase 36): re-enterable at any time from
 	// /profile's "Setup" link, auto-offered once right after account
@@ -556,6 +563,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /calendar/subscribe", s.requireAuth(s.handleCalendarSubscribePage))
 	mux.HandleFunc("POST /api/calendar/feed/reset", s.requireAuth(s.handleResetCalendarFeed))
 	mux.HandleFunc("POST /events/{id}/register", s.optionalPerson(s.handleRegisterForEvent))
+	mux.HandleFunc("POST /events/{id}/instruments", s.requireAuth(s.handleSetEventInstruments))
 	mux.HandleFunc("POST /events/{id}/songs", s.requireAuth(s.handleRegisterSongForEvent))
 	mux.HandleFunc("DELETE /events/{id}/songs/{regID}", s.requireAuth(s.handleRemoveSongRegistration))
 	mux.HandleFunc("GET /events/{id}/manage", s.requireEventManager(s.handleEventManagePage))

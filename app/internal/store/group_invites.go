@@ -434,8 +434,24 @@ func (st *Store) claimSlotTx(ctx context.Context, tx pgx.Tx, groupInviteID, slot
 	if claimed {
 		return "", fmt.Errorf("this slot has already been claimed: %w", ErrConflict)
 	}
-	_, err = tx.Exec(ctx, `UPDATE group_invite_slots SET claimed_by_person_id = $1, claimed_at = now() WHERE id = $2`, personID, slotID)
-	return status, err
+	if _, err = tx.Exec(ctx, `UPDATE group_invite_slots SET claimed_by_person_id = $1, claimed_at = now() WHERE id = $2`, personID, slotID); err != nil {
+		return "", err
+	}
+	// A band roster slot's instrument goes on the claimer's profile.
+	var instrument string
+	var bandID int64
+	if err := tx.QueryRow(ctx, `
+		SELECT coalesce(s.instrument, ''), coalesce(gi.band_id, 0)
+		FROM group_invite_slots s JOIN group_invites gi ON gi.id = s.group_invite_id
+		WHERE s.id = $1`, slotID).Scan(&instrument, &bandID); err != nil {
+		return "", err
+	}
+	if instrument != "" && bandID != 0 {
+		if err := collectInstruments(ctx, tx, personID, []string{instrument}, InstrumentSource{InstrumentFromBand, bandID}, true); err != nil {
+			return "", err
+		}
+	}
+	return status, nil
 }
 
 // ClaimGroupInviteSlot is an already-logged-in person claiming a named
