@@ -906,6 +906,11 @@ window.songbooksDecodable = function (buf) {
     const c = categories[activeCategory] || {};
     return { time: audio.currentTime, playing: !audio.paused, duration, variantId, category: activeCategory, meta: c, stems: c.stems || [] };
   };
+  // The page keeps room for the dock, as tall as it is (the waveform,
+  // the pitch row when open): --dock-h on the body (app.css).
+  if (dock && window.ResizeObserver) {
+    new ResizeObserver(() => document.body.style.setProperty('--dock-h', dock.offsetHeight + 'px')).observe(dock);
+  }
   window.songbooksReferenceSeek = (t) => { if (duration) audio.currentTime = Math.max(0, Math.min(duration - 0.1, t)); };
   function shiftChords(delta) {
     if (window.songbooksShiftChords) { window.songbooksShiftChords(delta); return; }

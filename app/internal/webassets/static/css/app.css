@@ -1234,12 +1234,34 @@ body:has(.edit-toggle.on) .audio-dock { display: none; }
 body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5rem; }
 @media (min-width: 901px) {
   .audio-dock { left: 220px; }
+  /* The waveform rides in the dock, over the transport: where it is and
+     what plays it, together. The page keeps room for the dock's height
+     (--dock-h, audio-player.js). */
+  .audio-dock .audio-waveform-wrap { max-width: 72rem; margin: 0 auto 0.4rem; }
+  .audio-dock .audio-wave { height: 46px; }
+  .audio-dock .audio-dock-line { display: none; }
+  /* the dock now carries the waveform: opaque, the chart doesn't show through it */
+  .audio-dock { background: var(--bg-raised); }
+  body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: calc(var(--dock-h, 7rem) + 1.5rem); }
 }
+@media (max-width: 900px) {
+  /* A phone: the dock's card and its sheet have their own scrubber. */
+  .audio-dock .audio-waveform-wrap { display: none; }
+  .audio-dock:not(.is-open) .pitch-check { display: none !important; }
+  .audio-dock.is-open .pitch-check { order: 4; }
+}
+/* Checking one's singing, opened from the dock's Pitch option: a row of
+   the dock, over the waveform, closed again with it. */
+.audio-dock .pitch-check { max-width: 72rem; margin: 0 auto 0.5rem; padding: 0.4rem 0 0.2rem; border-bottom: 1px solid var(--border); }
+.audio-dock .pitch-check-lane { height: 110px; }
+.audio-dock .pitch-check-result, .audio-dock .pitch-check-history, .audio-dock .pitch-check-goal { max-height: 30vh; overflow-y: auto; }
 @media (max-width: 900px) {
   .audio-dock { bottom: calc(var(--context-h, 3.4rem) + env(safe-area-inset-bottom, 0px)); padding: 0.4rem 0.6rem; }
   body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: calc(var(--context-h, 3.4rem) + env(safe-area-inset-bottom, 0px) + 5rem); }
 }
 .audio-hover:not([hidden]) { position: absolute; top: 0; bottom: 0; pointer-events: none; z-index: 3; }
+/* what's left of the player in the page once its body moved to the dock: no box */
+#audio-player:has(#audio-player-body:not([hidden])) { border: 0; padding: 0; margin: 0; background: none; box-shadow: none; min-height: 0; }
 .audio-hover-line { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--fg-muted); opacity: 0.6; }
 .audio-hover-label {
   position: absolute; top: 2px; left: 5px; white-space: nowrap; font-size: 0.7rem; padding: 1px 5px;

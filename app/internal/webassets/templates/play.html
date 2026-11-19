@@ -1548,6 +1548,23 @@
         <div class="audio-dock-title">{{$.Title}}</div>
         <div class="audio-dock-line" id="audio-dock-line" title="{{t "click to go there"}}"><i id="audio-dock-played"></i></div>
         <div class="audio-dock-sections" id="audio-dock-sections" hidden></div>
+        {{/* The recording's waveform, its sections ruled above it, in the
+             dock on a wide screen: where it is and what plays it, together
+             (on a phone, in the sheet the dock opens into). */}}
+        <div class="audio-waveform-wrap">
+          <div class="audio-ruler" id="audio-ruler" title="{{t "drag to set the cycle range; click it to switch cycling on or off"}}">
+            <div class="audio-ruler-marks" id="audio-ruler-marks"></div>
+            <div class="audio-cycle" id="audio-cycle" hidden><span class="audio-cycle-edge start"></span><span class="audio-cycle-edge end"></span></div>
+          </div>
+          <div class="audio-wave" id="audio-wave">
+            <canvas id="audio-waveform" class="audio-waveform"></canvas>
+            <div class="audio-played" id="audio-played"><canvas id="audio-waveform-played" class="audio-waveform"></canvas></div>
+            <div id="audio-bargrid" class="audio-bargrid"></div>
+            <div class="audio-cycle-shade" id="audio-cycle-shade" hidden></div>
+            <div id="audio-playhead" class="audio-playhead"></div>
+            <div id="audio-hover" class="audio-hover" hidden><span class="audio-hover-line"></span><span class="audio-hover-label" id="audio-hover-label"></span></div>
+          </div>
+        </div>
         <div class="audio-transport">
           <div class="audio-buttons">
             <button type="button" id="audio-start-btn" class="icon-btn" title="{{t "go to start (Home)"}}">{{template "icon-to-start"}}</button>
@@ -1581,6 +1598,7 @@
               <button type="button" id="audio-voice-btn" class="audio-toggle" aria-pressed="false" title="{{t "the voice: on or off (V)"}}">{{template "icon-instrument-vocals"}}<span id="audio-voice-label">{{t "Voice"}}</span></button>
               <button type="button" class="audio-caret" data-pop="audio-pop-voice" aria-expanded="false" title="{{t "the voice's volume"}}">{{template "icon-down"}}</button>
             </span>
+            <button type="button" id="audio-pitch-btn" class="audio-toggle" aria-pressed="false" hidden title="{{t "check my singing against the song’s voice (the microphone listens)"}}"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="7" y="2.5" width="6" height="10" rx="3"/><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5"/></svg> <span>{{t "Pitch"}}</span></button>
             <label class="audio-speed" title="{{t "speed without changing pitch ([ slower, ] faster)"}}">{{template "icon-speed"}}
               <select id="audio-speed" aria-label="{{t "Playback speed"}}"></select>
               <span id="audio-speed-bpm" class="audio-speed-bpm"></span>
@@ -1659,20 +1677,6 @@
           </div>
         </div>
         </div>{{/* .audio-dock */}}
-        <div class="audio-waveform-wrap">
-          <div class="audio-ruler" id="audio-ruler" title="{{t "drag to set the cycle range; click it to switch cycling on or off"}}">
-            <div class="audio-ruler-marks" id="audio-ruler-marks"></div>
-            <div class="audio-cycle" id="audio-cycle" hidden><span class="audio-cycle-edge start"></span><span class="audio-cycle-edge end"></span></div>
-          </div>
-          <div class="audio-wave" id="audio-wave">
-            <canvas id="audio-waveform" class="audio-waveform"></canvas>
-            <div class="audio-played" id="audio-played"><canvas id="audio-waveform-played" class="audio-waveform"></canvas></div>
-            <div id="audio-bargrid" class="audio-bargrid"></div>
-            <div class="audio-cycle-shade" id="audio-cycle-shade" hidden></div>
-            <div id="audio-playhead" class="audio-playhead"></div>
-            <div id="audio-hover" class="audio-hover" hidden><span class="audio-hover-line"></span><span class="audio-hover-label" id="audio-hover-label"></span></div>
-          </div>
-        </div>
       </div>
     </div>
     {{if .GPDrift}}
