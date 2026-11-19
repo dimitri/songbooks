@@ -1549,9 +1549,16 @@
              practice option with its panel in place (audio-player.js
              "Phone sheet"). */}}
         <div class="audio-dock-backdrop" id="audio-dock-backdrop" data-dock-close hidden></div>
-        <div class="audio-dock" id="audio-dock">
-        <button type="button" class="audio-dock-grab" id="audio-dock-grab" data-dock-close aria-label="{{t "close the player"}}"></button>
-        <div class="audio-dock-title">{{$.Title}}</div>
+        <div class="audio-dock" id="audio-dock" aria-label="{{t "Player"}}">
+        {{/* The bar, and in the open panel its left side: where you are,
+             big, the waveform, the sections, the transport. */}}
+        <div class="audio-dock-main">
+        <div class="audio-panel-head">
+          <button type="button" class="audio-dock-grab" id="audio-dock-grab" data-dock-close aria-label="{{t "close the player"}}"></button>
+          <div class="audio-dock-title">{{$.Title}}</div>
+          <kbd class="audio-panel-esc" aria-hidden="true">Esc</kbd>
+          <button type="button" class="icon-btn audio-panel-close" data-dock-close aria-label="{{t "close the player"}}" title="{{t "close the player (Esc, F)"}}">{{template "icon-down"}}</button>
+        </div>
         <div class="audio-dock-line" id="audio-dock-line" title="{{t "click to go there"}}"><i id="audio-dock-played"></i></div>
         <div class="audio-dock-sections" id="audio-dock-sections" hidden></div>
         {{/* The recording's waveform, its sections ruled above it, in the
@@ -1582,76 +1589,154 @@
             <span class="audio-lcd-pos" id="audio-lcd-pos">1.1</span>
             <span class="audio-lcd-section" id="audio-lcd-section" data-title="{{$.Title}}"></span>
             <span class="audio-lcd-time" id="audio-time-label">0:00 / 0:00</span>
+            <span class="audio-lcd-loop" id="audio-lcd-loop"></span>
             <span class="audio-lcd-state" id="audio-lcd-state"></span>
           </div>
           {{/* The phone card's mic, beside play: the voice out and back. */}}
           <button type="button" id="audio-card-mic" class="icon-btn audio-card-mic" aria-pressed="true" hidden title="{{t "the voice: off or back (V)"}}" aria-label="{{t "Voice on or off"}}">{{template "icon-sing-mic"}}</button>
           {{/* The tray: the practice tools as chips, in the order they
-               leave the bar when it narrows (audio-player.js fitDock): the
-               last ones first, and only those that are off. A tool that is
-               on reads what it does ("Boucle 21–28", "80 % · 119 bpm",
-               "Ton −1 · C♯m", the voice's slider) and never folds; one that
-               is off is its icon. A tap turns it on or off; ▾ opens its
-               settings. Those that left are behind "+N". */}}
+               leave the bar when it narrows (PlayerShell.fit): the last
+               ones first, and only those that are off. A tool that is on
+               reads what it does ("Boucle 21–28", "80 % · 119 bpm", "Ton −1
+               · C♯m", a part's slider) and never folds; one that is off is
+               its icon. A tap turns it on or off; ▾ opens the panel at its
+               line. Those that left are behind "+N", which opens the panel
+               too. */}}
           <div class="audio-opts" id="audio-opts">
-            <button type="button" id="audio-cycle-btn" class="audio-toggle audio-chip audio-chip-loop" data-tool="loop" aria-pressed="false" title="{{t "cycle: loop the yellow bar range — drag in the ruler to set it (C)"}}">{{template "icon-cycle"}}<span id="audio-cycle-label">{{t "Cycle"}}</span></button>
-            <span class="audio-split" data-tool="speed">
+            <button type="button" id="audio-cycle-btn" class="audio-toggle audio-chip audio-chip-loop" data-tool="loop" data-line="audio-line-loop" aria-pressed="false" title="{{t "cycle: loop the yellow bar range — drag in the ruler to set it (C)"}}">{{template "icon-cycle"}}<span id="audio-cycle-label">{{t "Cycle"}}</span></button>
+            <span class="audio-split" data-tool="speed" data-line="audio-line-speed">
               <button type="button" id="audio-speed-btn" class="audio-toggle audio-chip" aria-pressed="false" title="{{t "speed without changing pitch: back to 100 % or the last speed ([ slower, ] faster)"}}">{{template "icon-speed"}}<span id="audio-speed-label">{{t "Speed"}}</span></button>
-              <button type="button" class="audio-caret" data-pop="audio-pop-speed" aria-expanded="false" title="{{t "Playback speed"}}">{{template "icon-down"}}</button>
+              <button type="button" class="audio-caret" data-open-line="audio-line-speed" title="{{t "Playback speed"}}">{{template "icon-down"}}</button>
             </span>
             {{/* My parts ("Je joue", audio-player.js "My parts"): a chip per
                  part the reader plays here, from the recording's parts
                  (split in the background, cmd/stemsd) — a tap takes it out
                  or back, the slider anywhere between (0 out, 100 as
-                 recorded); ▾ picks the instruments, for this song or this
-                 band or community. Key: the recording in another key, the
-                 chords on screen following. See audio-player.js "Key". */}}
-            <span class="audio-parts" id="audio-parts" data-tool="voice" hidden>
+                 recorded); ▾ picks the instruments. Key: the recording in
+                 another key, the chords on screen following. */}}
+            <span class="audio-parts" id="audio-parts" data-tool="voice" data-line="audio-line-parts" hidden>
               <span class="audio-parts-chips" id="audio-parts-chips"></span>
-              <button type="button" class="audio-caret audio-parts-caret" data-pop="audio-pop-parts" aria-expanded="false" title="{{t "I play: my parts, a level each"}}"><span class="audio-parts-caret-label">{{t "I play"}}</span>{{template "icon-down"}}</button>
+              <button type="button" class="audio-caret audio-parts-caret" data-open-line="audio-line-parts" title="{{t "I play: my parts, a level each"}}"><span class="audio-parts-caret-label">{{t "I play"}}</span>{{template "icon-down"}}</button>
             </span>
-            <button type="button" id="audio-key-btn" class="audio-toggle audio-chip" data-tool="key" {{if .SingPanel}}aria-haspopup="dialog" aria-controls="sing-panel"{{else}}data-pop="audio-pop-key"{{end}} aria-expanded="false" title="{{t "play the recording in another key"}}">{{template "icon-tuner"}}<span id="audio-key-label">{{t "Key"}}</span></button>
-            <span class="audio-split" data-tool="click">
+            <button type="button" id="audio-key-btn" class="audio-toggle audio-chip" data-tool="key" data-line="audio-line-key" data-open-line="audio-line-key" title="{{t "play the recording in another key"}}">{{template "icon-tuner"}}<span id="audio-key-label">{{t "Key"}}</span></button>
+            <span class="audio-split" data-tool="click" data-line="audio-line-click">
               <button type="button" id="audio-click-btn" class="audio-toggle audio-chip" aria-pressed="false" title="{{t "click on every beat, following the recording (K)"}}">{{template "icon-metronome"}}<span>{{t "Click"}}</span></button>
-              <button type="button" class="audio-caret" data-pop="audio-pop-click" aria-expanded="false" title="{{t "click sound and volume"}}">{{template "icon-down"}}</button>
+              <button type="button" class="audio-caret" data-open-line="audio-line-click" title="{{t "click sound and volume"}}">{{template "icon-down"}}</button>
             </span>
-            <span class="audio-split" data-tool="countin">
+            <span class="audio-split" data-tool="countin" data-line="audio-line-countin">
               <button type="button" id="audio-countin-btn" class="audio-toggle audio-chip" aria-pressed="false" title="{{t "count-in before playing: off, 1 bar, 2 bars"}}">{{template "icon-count-in"}}<span id="audio-countin-label">{{t "Count-in"}}</span></button>
-              <button type="button" class="audio-caret" data-pop="audio-pop-countin" aria-expanded="false" title="{{t "count-in options"}}">{{template "icon-down"}}</button>
+              <button type="button" class="audio-caret" data-open-line="audio-line-countin" title="{{t "count-in options"}}">{{template "icon-down"}}</button>
             </span>
-            <button type="button" id="audio-pitch-btn" class="audio-toggle audio-chip" data-tool="pitch" aria-pressed="false" hidden title="{{t "check my singing against the song’s voice (the microphone listens)"}}"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 13.5c2-5 3.5-5 5 0s3 5 5 0 3.5-5 5 0"/></svg><span>{{t "Pitch"}}</span></button>
-            <button type="button" id="audio-trainer-btn" class="audio-toggle audio-chip audio-trainer-btn" data-tool="trainer" data-pop="audio-pop-trainer" aria-expanded="false" title="{{t "speed trainer: speed up a little every few loops"}}">{{template "icon-trainer"}}<span id="audio-trainer-label">{{t "Trainer"}}</span><span class="audio-trainer-meter" id="audio-trainer-meter"></span></button>
+            <button type="button" id="audio-pitch-btn" class="audio-toggle audio-chip" data-tool="pitch" data-line="audio-line-pitch" aria-pressed="false" hidden title="{{t "check my singing against the song’s voice (the microphone listens)"}}"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 13.5c2-5 3.5-5 5 0s3 5 5 0 3.5-5 5 0"/></svg><span>{{t "Pitch"}}</span></button>
+            <button type="button" id="audio-trainer-btn" class="audio-toggle audio-chip audio-trainer-btn" data-tool="trainer" data-line="audio-line-trainer" data-open-line="audio-line-trainer" title="{{t "speed trainer: speed up a little every few loops"}}">{{template "icon-trainer"}}<span id="audio-trainer-label">{{t "Trainer"}}</span><span class="audio-trainer-meter" id="audio-trainer-meter"></span></button>
           </div>
-          {{/* "+N": the tools that left the bar; on a phone, the sheet. */}}
-          <button type="button" id="audio-opts-btn" class="icon-btn audio-opts-btn" aria-expanded="false" aria-controls="audio-more-menu" title="{{t "practice options"}}"><span class="audio-opts-icon">{{template "icon-more"}}</span><span class="audio-more-count" id="audio-more-count"></span></button>
-          <div class="audio-more-menu" id="audio-more-menu" hidden></div>
+          {{/* "+N": the tools that left the bar, in the panel; on a phone, ⋯ opens the sheet. */}}
+          <button type="button" id="audio-opts-btn" class="icon-btn audio-opts-btn" aria-expanded="false" aria-controls="audio-dock" title="{{t "practice options"}}"><span class="audio-opts-icon">{{template "icon-more"}}</span><span class="audio-more-count" id="audio-more-count"></span></button>
+          {{/* The panel: everything at once (F). */}}
+          <button type="button" id="audio-panel-btn" class="audio-panel-btn" aria-expanded="false" aria-controls="audio-dock" title="{{t "the player, open: all its tools (F)"}}"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.5 3.5h5v5M8.5 16.5h-5v-5M16.5 3.5l-5.5 5.5M3.5 16.5L9 11"/></svg><span>{{t "player|Practice"}}</span></button>
         </div>
-        {{if .SingPanel}}
-        {{/* The "Voice & key" panel (a coaching community's player
-             options, audio-player.js "Sing"), as the rehearsals' player
-             opens (band_recordings.html rec-player): most of the screen,
-             closed by its ×, Escape or a click beside it once the setup is
-             right; on a phone, a sheet. Moved to the body when the page
-             loads (the dock's backdrop-filter would hold it in the dock).
-             The voice: a mic (off, and back to where it was) and a slider,
-             0 the backing alone (karaoke), 100 the recording as it is,
-             from the recording's parts. The key, with whose it is, a
-             semitone either way. A coach's students beside them: picked,
-             the key goes to theirs, saved for them (the coming week's
-             lessons first, with the key per student on). */}}
-        <div class="sing-panel" id="sing-panel" hidden>
-          <div class="sp-backdrop" data-sp-close></div>
-          <div class="sp-card" role="dialog" aria-modal="true" aria-labelledby="sp-title" tabindex="-1">
-            <button type="button" class="sp-grab" data-sp-close aria-label="{{t "Close"}}"></button>
-            <button type="button" class="sp-close" data-sp-close aria-label="{{t "Close"}}"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
-            <div class="sp-main">
-              <header class="sp-head">
-                <h2 id="sp-title">{{t "Key"}}</h2>
-                <p class="hint">{{$.Title}}</p>
-              </header>
-              <section class="sp-section" aria-labelledby="sp-key-title">
-                <h3 id="sp-key-title">{{t "Key"}}</h3>
-                <div class="audio-sing-key" id="audio-sing-key" role="group" aria-labelledby="sp-key-title">
+        <p class="audio-panel-hint">{{t "Tap a section to loop it · drag in the ruler for any range ·"}} <kbd>?</kbd> {{t "shortcuts"}}</p>
+        </div>{{/* .audio-dock-main */}}
+        {{/* The panel's tools, in three groups (app/reports/player-
+             proposal.md §3.4): each tool's settings on its line, the bar's
+             chip being its switch. On a wide screen beside the player; on a
+             phone, as tabs under it (the last one used remembered). */}}
+        <div class="audio-panel" id="audio-panel">
+          <div class="audio-panel-tabs" role="tablist" aria-label="{{t "the player's tools"}}">
+            <button type="button" role="tab" id="audio-tab-loop" data-group="loop" aria-controls="audio-group-loop">{{t "Loop & tempo"}}</button>
+            <button type="button" role="tab" id="audio-tab-sound" data-group="sound" aria-controls="audio-group-sound">{{t "Sound"}}</button>
+            <button type="button" role="tab" id="audio-tab-sing" data-group="sing" aria-controls="audio-group-sing">{{t "Sing"}}</button>
+          </div>
+          <section class="audio-group" id="audio-group-loop" data-group="loop" role="tabpanel" aria-labelledby="audio-tab-loop">
+            <h3 class="audio-group-title">{{t "Loop & tempo"}} <kbd>C</kbd></h3>
+            <div class="audio-line" id="audio-line-loop">
+              <span class="audio-line-label">{{t "Loop"}}</span>
+              <div class="audio-line-body">
+                <label class="audio-switch audio-switch-left"><input type="checkbox" id="audio-loop-switch"><span></span></label>
+                <span class="audio-line-text" id="audio-loop-range"></span>
+                <button type="button" class="audio-pill-btn" id="audio-loop-section">{{t "This section"}}</button>
+              </div>
+            </div>
+            <div class="audio-line" id="audio-line-speed">
+              <span class="audio-line-label">{{t "Speed"}}</span>
+              <div class="audio-line-body">
+                <div class="audio-stepper audio-speed-stepper"><button type="button" id="audio-speed-down" aria-label="{{t "slower"}}">−</button><output id="audio-speed-amount">100 %</output><button type="button" id="audio-speed-up" aria-label="{{t "faster"}}">+</button></div>
+                <span id="audio-speed-bpm" class="hint audio-speed-bpm"></span>
+                <div class="audio-seg" id="audio-speed-seg" role="radiogroup" aria-label="{{t "Playback speed"}}">
+                  <button type="button" data-v="70">70</button><button type="button" data-v="80">80</button><button type="button" data-v="90">90</button><button type="button" data-v="100">100</button>
+                </div>
+              </div>
+            </div>
+            <div class="audio-line" id="audio-line-countin">
+              <span class="audio-line-label">{{t "Count-in"}}</span>
+              <div class="audio-line-body">
+                <div class="audio-seg" id="audio-countin-seg" role="radiogroup" aria-label="{{t "count-in length"}}">
+                  <button type="button" data-v="0">{{t "Off"}}</button><button type="button" data-v="1">{{t "1 bar"}}</button><button type="button" data-v="2">{{t "2 bars"}}</button>
+                </div>
+                <label class="audio-check"><input type="checkbox" id="audio-countin-each"> {{t "Also before every loop pass"}}</label>
+              </div>
+            </div>
+            <div class="audio-line audio-line-trainer" id="audio-line-trainer">
+              <span class="audio-line-label">{{t "Trainer"}}</span>
+              <div class="audio-line-body">
+                <label class="audio-switch audio-switch-left"><input type="checkbox" id="audio-trainer-on"><span></span></label>
+                <span class="hint">{{t "loops the cycle, a little faster every few passes"}}</span>
+                <p class="audio-trainer-summary" id="audio-trainer-summary"></p>
+                <details class="audio-trainer-more">
+                <summary>{{t "Its settings"}}</summary>
+                <div class="audio-trainer-grid">
+                  <div class="audio-stepper" data-key="start"><span class="audio-stepper-label">{{t "Start at"}}</span><button type="button" data-d="-5" aria-label="{{t "slower start"}}">−</button><output></output><button type="button" data-d="5" aria-label="{{t "faster start"}}">+</button></div>
+                  <div class="audio-stepper" data-key="step"><span class="audio-stepper-label">{{t "Speed up by"}}</span><button type="button" data-d="-1" aria-label="{{t "smaller step"}}">−</button><output></output><button type="button" data-d="1" aria-label="{{t "bigger step"}}">+</button></div>
+                  <div class="audio-stepper" data-key="every"><span class="audio-stepper-label">{{t "Every"}}</span><button type="button" data-d="-1" aria-label="{{t "fewer loops"}}">−</button><output></output><button type="button" data-d="1" aria-label="{{t "more loops"}}">+</button></div>
+                  <div class="audio-stepper" data-key="end"><span class="audio-stepper-label">{{t "Up to"}}</span><button type="button" data-d="-5" aria-label="{{t "lower target"}}">−</button><output></output><button type="button" data-d="5" aria-label="{{t "higher target"}}">+</button></div>
+                </div>
+                <div class="audio-stairs" id="audio-trainer-stairs" aria-hidden="true"></div>
+                </details>
+                <div class="audio-pop-row">
+                  <button type="button" class="audio-pill-btn" data-preset="60,5,2,100">{{t "Gentle"}}</button>
+                  <button type="button" class="audio-pill-btn" data-preset="70,5,1,100">{{t "Steady"}}</button>
+                  <button type="button" class="audio-pill-btn" data-preset="80,5,2,110">{{t "Push past"}}</button>
+                  <button type="button" class="primary" id="audio-trainer-start">{{t "Start practicing"}}</button>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section class="audio-group" id="audio-group-sound" data-group="sound" role="tabpanel" aria-labelledby="audio-tab-sound">
+            <h3 class="audio-group-title">{{t "Sound"}} <kbd>V</kbd> <kbd>M</kbd></h3>
+            {{/* "Je joue": the reader's parts here (internal/instruments, PUT
+                 /api/songs/{id}/parts), a level each; for this song, or for
+                 all the songs of this band or community (or elsewhere).
+                 Filled by audio-player.js "My parts". */}}
+            <div class="audio-line audio-line-parts" id="audio-line-parts">
+              <span class="audio-line-label">{{t "I play"}}</span>
+              <div class="audio-line-body">
+                <span class="hint" id="audio-parts-from"></span>
+                <div class="audio-parts-levels" id="audio-parts-levels"></div>
+                <p class="hint audio-pop-note" id="audio-parts-note" hidden></p>
+                <details class="audio-parts-choose" id="audio-parts-choose">
+                  <summary>{{t "Change the instruments I play"}}</summary>
+                  <div class="audio-parts-pick" id="audio-parts-pick" role="group" aria-label="{{t "the instruments I play"}}"></div>
+                  <button type="button" class="link-btn audio-parts-more" id="audio-parts-more" aria-expanded="false">{{t "Other instruments…"}}</button>
+                  <div class="audio-seg" id="audio-parts-scope" role="radiogroup" aria-label="{{t "keep it"}}">
+                    <button type="button" data-v="song" role="radio">{{t "For this song"}}</button><button type="button" data-v="context" role="radio" id="audio-parts-scope-context"></button>
+                  </div>
+                  <div class="audio-pop-row">
+                    <button type="button" class="primary" id="audio-parts-save">{{t "Save"}}</button>
+                    <button type="button" class="audio-pill-btn" id="audio-parts-reset" hidden></button>
+                    <span class="hint" id="audio-parts-status" role="status"></span>
+                  </div>
+                </details>
+              </div>
+            </div>
+            <div class="audio-line" id="audio-line-key">
+              <span class="audio-line-label">{{t "Key"}}</span>
+              <div class="audio-line-body">
+              {{if .SingPanel}}
+                {{/* A coaching community's key per student (audio-player.js
+                     "Sing"): the key with whose it is, a coach's students
+                     beside it — picked, the key goes to theirs, saved for
+                     them (the coming week's lessons first). */}}
+                <div class="audio-sing-key" id="audio-sing-key" role="group" aria-label="{{t "Key"}}">
                   <button type="button" class="audio-sing-step" id="audio-sing-down" aria-label="{{t "down a semitone"}}">−</button>
                   <output class="audio-sing-keylabel" id="audio-sing-keylabel" aria-live="polite"><strong id="audio-sing-keyname"></strong><span class="audio-sing-for" id="audio-sing-for"></span></output>
                   <button type="button" class="audio-sing-step" id="audio-sing-up" aria-label="{{t "up a semitone"}}">+</button>
@@ -1662,118 +1747,63 @@
                   <button type="button" class="audio-pill-btn" id="audio-sing-original">{{t "Original key"}}</button>
                 </div>
                 <p class="hint">{{t "Beyond 3 semitones up or down, a voice starts to sound processed."}}</p>
-              </section>
-            </div>
-            {{/* A coach's students and groups (coach_keys.go): with the
-                 key per student on, that community's only, the coming
-                 week's lessons first and the others folded under "Other
-                 students"; a name picked, the key goes to theirs. Filled
-                 when the panel opens; hidden for anyone who coaches nobody
-                 who has this song. */}}
-            <section class="sp-students audio-key-coach" id="audio-key-coach" hidden aria-labelledby="sp-students-title">
-              {{if .CoachStudentKeys}}
-              <div class="audio-pop-head"><h3 id="sp-students-title">{{t "Students"}}</h3><span class="hint">{{t "pick one: the key goes to theirs; saved, the song opens in it for them"}}</span></div>
+                <section class="sp-students audio-key-coach" id="audio-key-coach" hidden aria-labelledby="sp-students-title">
+                  {{if .CoachStudentKeys}}
+                  <div class="audio-pop-head"><h4 id="sp-students-title">{{t "Students"}}</h4><span class="hint">{{t "pick one: the key goes to theirs; saved, the song opens in it for them"}}</span></div>
+                  {{else}}
+                  <div class="audio-pop-head"><h4 id="sp-students-title">{{t "Save this key for"}}</h4><span class="hint">{{t "the song then opens in it for them, the chart and the recording"}}</span></div>
+                  {{end}}
+                  <div class="audio-key-targets" id="audio-key-targets"></div>
+                </section>
               {{else}}
-              <div class="audio-pop-head"><h3 id="sp-students-title">{{t "Save this key for"}}</h3><span class="hint">{{t "the song then opens in it for them, the chart and the recording"}}</span></div>
+                <div class="audio-stepper"><button type="button" id="audio-key-down" aria-label="{{t "down a semitone"}}">−</button><output id="audio-key-amount">0</output><button type="button" id="audio-key-up" aria-label="{{t "up a semitone"}}">+</button></div>
+                <span id="audio-key-name" class="hint"></span>
+                <button type="button" class="audio-pill-btn" id="audio-key-reset">{{t "Original key"}}</button>
+                <p class="hint audio-pop-note">{{t "the recording up or down, in semitones; the chords follow. Beyond 3 semitones, a voice starts to sound processed."}}</p>
+                {{/* For a coach: this key for a student or a group, saved
+                     from here, where the key is tried by ear (coach_keys.go).
+                     Filled when the panel opens; stays hidden for anyone who
+                     coaches nobody who has this song. */}}
+                <div class="audio-key-coach" id="audio-key-coach" hidden>
+                  <div class="audio-pop-head"><strong>{{t "Save this key for"}}</strong><span class="hint">{{t "the song then opens in it for them, the chart and the recording"}}</span></div>
+                  <ul class="audio-key-targets" id="audio-key-targets"></ul>
+                </div>
               {{end}}
-              <div class="audio-key-targets" id="audio-key-targets"></div>
-            </section>
-          </div>
-        </div>
-        {{end}}
-        {{/* One panel per option, opened from its ▾ (or from Trainer),
-             under the control bar; one open at a time. */}}
-        <div class="audio-pop" id="audio-pop-countin" hidden>
-          <div class="audio-pop-head"><strong>{{t "Count-in"}}</strong><span class="hint">{{t "clicks before the music starts, at its tempo"}}</span></div>
-          <div class="audio-seg" id="audio-countin-seg" role="radiogroup" aria-label="{{t "count-in length"}}">
-            <button type="button" data-v="0">{{t "Off"}}</button><button type="button" data-v="1">{{t "1 bar"}}</button><button type="button" data-v="2">{{t "2 bars"}}</button>
-          </div>
-          <label class="audio-check"><input type="checkbox" id="audio-countin-each"> {{t "Also before every loop pass"}}</label>
-        </div>
-        <div class="audio-pop" id="audio-pop-key" hidden>
-          <div class="audio-pop-head"><strong>{{t "Key"}}</strong><span class="hint">{{t "the recording up or down, in semitones; the chords follow"}}</span></div>
-          <div class="audio-pop-row">
-            <div class="audio-stepper"><button type="button" id="audio-key-down" aria-label="{{t "down a semitone"}}">−</button><output id="audio-key-amount">0</output><button type="button" id="audio-key-up" aria-label="{{t "up a semitone"}}">+</button></div>
-            <span id="audio-key-name" class="hint"></span>
-            <span class="audio-controls-spacer"></span>
-            <button type="button" class="audio-pill-btn" id="audio-key-reset">{{t "Original key"}}</button>
-          </div>
-          <p class="hint audio-pop-note">{{t "Beyond 3 semitones up or down, a voice starts to sound processed."}}</p>
-          {{/* For a coach: this key for a student or a group, saved from
-               here, where the key is tried by ear (coach_keys.go). Filled
-               when the panel first opens; stays hidden for anyone who
-               coaches nobody who has this song. */}}
-          {{if not .SingPanel}}
-          <div class="audio-key-coach" id="audio-key-coach" hidden>
-            <div class="audio-pop-head"><strong>{{t "Save this key for"}}</strong><span class="hint">{{t "the song then opens in it for them, the chart and the recording"}}</span></div>
-            <ul class="audio-key-targets" id="audio-key-targets"></ul>
-          </div>
-          {{end}}
-        </div>
-        <div class="audio-pop" id="audio-pop-speed" hidden>
-          <div class="audio-pop-head"><strong>{{t "Speed"}}</strong><span class="hint">{{t "slower or faster, the pitch kept"}}</span></div>
-          <div class="audio-pop-row">
-            <div class="audio-stepper audio-speed-stepper"><button type="button" id="audio-speed-down" aria-label="{{t "slower"}}">−</button><output id="audio-speed-amount">100 %</output><button type="button" id="audio-speed-up" aria-label="{{t "faster"}}">+</button></div>
-            <span id="audio-speed-bpm" class="hint audio-speed-bpm"></span>
-          </div>
-          <div class="audio-seg" id="audio-speed-seg" role="radiogroup" aria-label="{{t "Playback speed"}}">
-            <button type="button" data-v="70">70 %</button><button type="button" data-v="80">80 %</button><button type="button" data-v="90">90 %</button><button type="button" data-v="100">100 %</button>
-          </div>
-        </div>
-        {{/* "Je joue": the reader's parts here (internal/instruments, PUT
-             /api/songs/{id}/parts), a level each; for this song, or for
-             all the songs of this band or community (or elsewhere). Filled
-             by audio-player.js "My parts". */}}
-        <div class="audio-pop audio-pop-parts" id="audio-pop-parts" hidden>
-          <div class="audio-pop-head"><strong>{{t "I play"}}</strong><span class="hint" id="audio-parts-from"></span></div>
-          <div class="audio-parts-levels" id="audio-parts-levels"></div>
-          <p class="hint audio-pop-note" id="audio-parts-note" hidden></p>
-          <div class="audio-parts-pick" id="audio-parts-pick" role="group" aria-label="{{t "the instruments I play"}}"></div>
-          <button type="button" class="link-btn audio-parts-more" id="audio-parts-more" aria-expanded="false">{{t "Other instruments…"}}</button>
-          <div class="audio-seg" id="audio-parts-scope" role="radiogroup" aria-label="{{t "keep it"}}">
-            <button type="button" data-v="song" role="radio">{{t "For this song"}}</button><button type="button" data-v="context" role="radio" id="audio-parts-scope-context"></button>
-          </div>
-          <div class="audio-pop-row">
-            <button type="button" class="primary" id="audio-parts-save">{{t "Save"}}</button>
-            <button type="button" class="audio-pill-btn" id="audio-parts-reset" hidden></button>
-            <span class="hint" id="audio-parts-status" role="status"></span>
-          </div>
+              </div>
+            </div>
+            <div class="audio-line" id="audio-line-click">
+              <span class="audio-line-label">{{t "Click"}}</span>
+              <div class="audio-line-body">
+                <label class="audio-switch audio-switch-left"><input type="checkbox" id="audio-click-switch"><span></span></label>
+                <span class="hint">{{t "on every beat, following the recording"}}</span>
+                <div class="audio-seg" id="audio-click-sound-seg" role="radiogroup" aria-label="{{t "click sound"}}">
+                  <button type="button" data-v="click">{{t "Click"}}</button><button type="button" data-v="wood">{{t "Wood"}}</button><button type="button" data-v="beep">{{t "Beep"}}</button><button type="button" data-v="tick">{{t "Tick"}}</button>
+                </div>
+                <label class="audio-range">{{t "Volume"}} <input type="range" id="audio-click-volume" min="0" max="100" step="5"></label>
+                <button type="button" class="audio-pill-btn" id="audio-click-test">{{t "Test"}}</button>
+              </div>
+            </div>
+            <div class="audio-line" id="audio-line-mixer">
+              <span class="audio-line-label">{{t "Tracks"}}</span>
+              <div class="audio-line-body">
+                <span class="hint" id="audio-line-stems"></span>
+                <button type="button" class="audio-pill-btn" id="audio-open-mixer">{{t "Open the mixer"}}</button>
+              </div>
+            </div>
+          </section>
+          <section class="audio-group" id="audio-group-sing" data-group="sing" role="tabpanel" aria-labelledby="audio-tab-sing">
+            <h3 class="audio-group-title">{{t "Sing"}} <kbd>S</kbd></h3>
+            <div class="audio-line" id="audio-line-pitch">
+              <span class="audio-line-label">{{t "Pitch"}}</span>
+              <div class="audio-line-body">
+                <button type="button" class="audio-pill-btn audio-pitch-panel-btn" id="audio-pitch-panel-btn" aria-pressed="false">{{t "Check my singing"}}</button>
+                <span class="hint" id="audio-pitch-panel-hint">{{t "headphones on; the microphone listens while it plays"}}</span>
+              </div>
+            </div>
+          </section>
         </div>
         {{/* The parts' icons, for audio-player.js to copy. */}}
         <div id="audio-part-icons" hidden><span data-stem="vocals">{{template "icon-sing-mic"}}</span><span data-stem="drums">{{template "icon-instrument-drums"}}</span><span data-stem="bass">{{template "icon-instrument-bass"}}</span><span data-stem="other">{{template "icon-instrument-other"}}</span><span data-stem="guitar">{{template "icon-instrument-guitar"}}</span><span data-stem="keys">{{template "icon-instrument-keys"}}</span></div>
-        <div class="audio-pop" id="audio-pop-click" hidden>
-          <div class="audio-pop-head"><strong>{{t "Click"}}</strong><span class="hint">{{t "on every beat, following the recording"}}</span></div>
-          <div class="audio-seg" id="audio-click-sound-seg" role="radiogroup" aria-label="{{t "click sound"}}">
-            <button type="button" data-v="click">{{template "icon-sound-click"}} {{t "Click"}}</button><button type="button" data-v="wood">{{template "icon-sound-wood"}} {{t "Wood"}}</button><button type="button" data-v="beep">{{template "icon-sound-beep"}} {{t "Beep"}}</button><button type="button" data-v="tick">{{template "icon-sound-tick"}} {{t "Tick"}}</button>
-          </div>
-          <div class="audio-pop-row">
-            <label class="audio-range">{{t "Volume"}} <input type="range" id="audio-click-volume" min="0" max="100" step="5"></label>
-            <button type="button" class="audio-pill-btn" id="audio-click-test">{{t "Test"}}</button>
-          </div>
-        </div>
-        <div class="audio-pop audio-pop-trainer" id="audio-pop-trainer" hidden>
-          <div class="audio-pop-head">
-            <strong>{{t "Speed trainer"}}</strong>
-            <span class="hint">{{t "loops the cycle, a little faster every few passes"}}</span>
-            <label class="audio-switch"><input type="checkbox" id="audio-trainer-on"><span></span> {{t "On"}}</label>
-          </div>
-          <div class="audio-trainer-grid">
-            <div class="audio-stepper" data-key="start"><span class="audio-stepper-label">{{t "Start at"}}</span><button type="button" data-d="-5" aria-label="{{t "slower start"}}">−</button><output></output><button type="button" data-d="5" aria-label="{{t "faster start"}}">+</button></div>
-            <div class="audio-stepper" data-key="step"><span class="audio-stepper-label">{{t "Speed up by"}}</span><button type="button" data-d="-1" aria-label="{{t "smaller step"}}">−</button><output></output><button type="button" data-d="1" aria-label="{{t "bigger step"}}">+</button></div>
-            <div class="audio-stepper" data-key="every"><span class="audio-stepper-label">{{t "Every"}}</span><button type="button" data-d="-1" aria-label="{{t "fewer loops"}}">−</button><output></output><button type="button" data-d="1" aria-label="{{t "more loops"}}">+</button></div>
-            <div class="audio-stepper" data-key="end"><span class="audio-stepper-label">{{t "Up to"}}</span><button type="button" data-d="-5" aria-label="{{t "lower target"}}">−</button><output></output><button type="button" data-d="5" aria-label="{{t "higher target"}}">+</button></div>
-          </div>
-          <div class="audio-stairs" id="audio-trainer-stairs" aria-hidden="true"></div>
-          <p class="audio-trainer-summary" id="audio-trainer-summary"></p>
-          <div class="audio-pop-row">
-            <span class="hint">{{t "Presets"}}</span>
-            <button type="button" class="audio-pill-btn" data-preset="60,5,2,100">{{t "Gentle"}}</button>
-            <button type="button" class="audio-pill-btn" data-preset="70,5,1,100">{{t "Steady"}}</button>
-            <button type="button" class="audio-pill-btn" data-preset="80,5,2,110">{{t "Push past"}}</button>
-            <span class="audio-controls-spacer"></span>
-            <button type="button" class="primary" id="audio-trainer-start">{{t "Start practicing"}}</button>
-          </div>
-        </div>
         </div>{{/* .audio-dock */}}
       </div>
     </div>

@@ -7,5 +7,22 @@
   "the instruments I play": "les instruments que je joue",
   "Other instruments…": "Autres instruments…",
   "keep it": "garder ce choix",
-  "For this song": "Pour ce morceau"
+  "For this song": "Pour ce morceau",
+  "Change the instruments I play": "Changer les instruments que je joue",
+  "Loop & tempo": "Boucle & tempo",
+  "Open the mixer": "Ouvrir le mixage",
+  "Sing": "Chanter",
+  "Sound": "Son",
+  "Tap a section to loop it · drag in the ruler for any range ·": "Touchez une section pour la boucler · glissez dans la règle pour une autre plage ·",
+  "This section": "Cette section",
+  "click to go there": "cliquer pour y aller",
+  "close the player (Esc, F)": "réduire le lecteur (Échap, F)",
+  "headphones on; the microphone listens while it plays": "casque sur les oreilles ; le micro écoute pendant la lecture",
+  "shortcuts": "raccourcis",
+  "the player's tools": "les outils du lecteur",
+  "the player, open: all its tools (F)": "le lecteur ouvert : tous ses outils (F)",
+  "the recording up or down, in semitones; the chords follow. Beyond 3 semitones, a voice starts to sound processed.": "l’enregistrement plus haut ou plus bas, en demi-tons ; les accords suivent. Au-delà de 3 demi-tons, une voix commence à sonner trafiquée.",
+  "player|Practice": "Pratique",
+  "Check my singing": "Vérifier ma justesse",
+  "Its settings": "Ses réglages"
 }

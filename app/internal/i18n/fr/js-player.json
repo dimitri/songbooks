@@ -31,5 +31,15 @@
   "Forget it for this song": "Oublier pour ce morceau",
   "Back to my profile": "Revenir à mon profil",
   "Couldn’t save that.": "Impossible d’enregistrer.",
-  "Saved.": "Enregistré."
+  "Saved.": "Enregistré.",
+  "Voice": "Voix",
+  "Drums": "Batterie",
+  "Bass": "Basse",
+  "Others": "Autres",
+  "bars %s → %s": "mesures %s → %s",
+  "drag in the ruler, or tap a section": "glissez dans la règle, ou touchez une section",
+  "headphones on; the microphone listens while it plays": "casque sur les oreilles ; le micro écoute pendant la lecture",
+  "loop %s → %s": "boucle %s → %s",
+  "not split into its parts": "pas encore séparé en pistes",
+  "the recording’s voice isn’t split out yet": "la voix de l’enregistrement n’est pas encore séparée"
 }
