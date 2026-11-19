@@ -352,7 +352,7 @@
   {{range .Assignments}}{{if not .DoneAt}}
     <div class="practice-item{{if .Overdue $.Now}} is-overdue{{end}}" data-assignment="{{.ID}}">
       <div class="practice-item-head">
-        <strong>{{if .ExerciseID}}<a href="/communities/{{$.Community.ID}}/warmups/{{.ExerciseID}}">{{.Label}}</a>{{else if .VariantID}}<a href="/song/{{.VariantID}}{{if .SongbookID}}?songbook={{.SongbookID}}{{end}}">{{.Label}}</a>{{else}}{{.Label}}{{end}}</strong>
+        <strong>{{if .ExerciseID}}<a href="/communities/{{$.Community.ID}}/warmups/{{.ExerciseID}}">{{.Label}}</a>{{else if .VariantID}}<a href="/song/{{.VariantID}}{{if .SongbookID}}?songbook={{.SongbookID}}{{else}}?community={{$.Community.ID}}{{end}}">{{.Label}}</a>{{else}}{{.Label}}{{end}}</strong>
         {{with .GroupName}}<span class="voice-tag">{{.}}</span>{{end}}
         {{if .PerWeek}}{{if $.PracticeGroupID}}<span class="practice-week">{{tn .PerWeek "%d day a week" "%d days a week"}}</span>{{else}}<span class="practice-week{{if ge .DaysThisWeek .PerWeek}} is-met{{end}}" title="{{t "days practised this week"}}">{{.DaysThisWeek}}/{{.PerWeek}} {{t "this week"}}</span>{{end}}{{end}}
       </div>

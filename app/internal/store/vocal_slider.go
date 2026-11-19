@@ -9,33 +9,88 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// A community's player for singers (migration 0093): its songs' practice
-// player has the voice's volume beside play, a mic and a slider, and the
-// key out in the open with whose it is (play.html, audio-player.js
-// "Sing"). Its staff turn it on or off on the community's admin page.
+// A coaching community's song player has two options of its own, each
+// its staff's to turn on or off on the community's admin page, and on
+// only for a coaching community:
+//
+//   - player_vocal_slider (migration 0093): the voice's volume, a mic and
+//     a slider, in the player of the community's songs (play.html, the
+//     "Voice & key" panel; audio-player.js "Sing");
+//   - coach_student_keys (migration 0097): in the songs opened from its
+//     songbooks, the coach picks a student in that panel and saves their
+//     key, the coming week's lessons first (httpapi/coach_keys.go).
 
-// SetCommunityPlayerVocalSlider turns a community's player for singers on
-// or off.
-func (st *Store) SetCommunityPlayerVocalSlider(ctx context.Context, communityID int64, on bool) error {
-	tag, err := st.db.Exec(ctx, `UPDATE communities SET player_vocal_slider = $1 WHERE id = $2`, on, communityID)
+// ErrNotCoaching: a player option turned on for a community that isn't a
+// coaching one.
+var ErrNotCoaching = errors.New("not a coaching community")
+
+// setPlayerOption turns one of a coaching community's player options on
+// or off; on, for a coaching community only.
+func (st *Store) setPlayerOption(ctx context.Context, column string, communityID int64, on bool) error {
+	tag, err := st.db.Exec(ctx, `UPDATE communities SET `+column+` = $1 WHERE id = $2 AND (kind = 'coaching' OR NOT $1)`, on, communityID)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("no such community %d: %w", communityID, ErrNotFound)
+		if _, err := st.GetCommunity(ctx, communityID); err != nil {
+			return err
+		}
+		return fmt.Errorf("community %d: %w", communityID, ErrNotCoaching)
 	}
 	return nil
 }
 
-// CommunityPlayerVocalSlider reports whether a community has its player
-// for singers on (false for no such community).
-func (st *Store) CommunityPlayerVocalSlider(ctx context.Context, communityID int64) (bool, error) {
-	var on bool
-	err := st.db.QueryRow(ctx, `SELECT player_vocal_slider FROM communities WHERE id = $1`, communityID).Scan(&on)
+// SetCommunityPlayerVocalSlider turns a coaching community's voice
+// slider on or off.
+func (st *Store) SetCommunityPlayerVocalSlider(ctx context.Context, communityID int64, on bool) error {
+	return st.setPlayerOption(ctx, "player_vocal_slider", communityID, on)
+}
+
+// SetCommunityCoachStudentKeys turns a coaching community's key per
+// student on or off.
+func (st *Store) SetCommunityCoachStudentKeys(ctx context.Context, communityID int64, on bool) error {
+	return st.setPlayerOption(ctx, "coach_student_keys", communityID, on)
+}
+
+// PlayerOptions are a community's song player options: both off for a
+// community that isn't a coaching one, or no such community.
+type PlayerOptions struct {
+	VocalSlider      bool
+	CoachStudentKeys bool
+}
+
+// CommunityPlayerOptions reads a community's player options.
+func (st *Store) CommunityPlayerOptions(ctx context.Context, communityID int64) (PlayerOptions, error) {
+	var o PlayerOptions
+	err := st.db.QueryRow(ctx, `
+		SELECT player_vocal_slider, coach_student_keys FROM communities
+		WHERE id = $1 AND kind = 'coaching'`, communityID).Scan(&o.VocalSlider, &o.CoachStudentKeys)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
+		return PlayerOptions{}, nil
 	}
-	return on, err
+	return o, err
+}
+
+// CommunityPlayerVocalSlider reports whether a community has its voice
+// slider on (false for no such community, or not a coaching one).
+func (st *Store) CommunityPlayerVocalSlider(ctx context.Context, communityID int64) (bool, error) {
+	o, err := st.CommunityPlayerOptions(ctx, communityID)
+	return o.VocalSlider, err
+}
+
+// StudentKeyIn is StudentKeyOf within one community: the key the coach
+// gave the song in the student's songbook there. A student's key is for
+// the songs they practise in that community, not in a band or elsewhere.
+func (st *Store) StudentKeyIn(ctx context.Context, personID, communityID, variantID int64) (songbookID int64, semitones int, ok bool, err error) {
+	err = st.db.QueryRow(ctx, `
+		SELECT sb.id, e.semitones FROM songbooks sb
+		JOIN songbook_entries e ON e.songbook_id = sb.id
+		WHERE sb.kind = 'student' AND sb.student_person_id = $1 AND sb.owner_community_id = $2 AND e.variant_id = $3
+		ORDER BY sb.id LIMIT 1`, personID, communityID, variantID).Scan(&songbookID, &semitones)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, 0, false, nil
+	}
+	return songbookID, semitones, err == nil, err
 }
 
 // MemberVocalSliderCommunity is the community with its player for
@@ -49,7 +104,7 @@ func (st *Store) MemberVocalSliderCommunity(ctx context.Context, personID, varia
 	var id int64
 	err := st.db.QueryRow(ctx, `
 		SELECT c.id FROM communities c
-		WHERE c.player_vocal_slider
+		WHERE c.player_vocal_slider AND c.kind = 'coaching'
 		  AND EXISTS (SELECT 1 FROM community_members m
 		              WHERE m.community_id = c.id AND m.person_id = $1 AND upper_inf(m.validity))
 		  AND EXISTS (SELECT 1 FROM songbooks sb JOIN songbook_entries e ON e.songbook_id = sb.id
