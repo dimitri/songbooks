@@ -74,5 +74,13 @@
   "The recording is being split into its parts; the voice comes in a few minutes, without a reload.": "L’enregistrement est en cours de séparation ; la voix arrive dans quelques minutes, sans recharger.",
   "Voice unavailable": "Voix indisponible",
   "Voice · splitting…": "Voix · séparation…",
-  "click alone · %d bpm": "clic seul · %d bpm"
+  "click alone · %d bpm": "clic seul · %d bpm",
+  "%d of %d": "%d sur %d",
+  "Break": "Pause",
+  "Mute · tap the tempo": "Couper le son · taper le tempo",
+  "Open / close the running order · close · these shortcuts": "Ouvrir / fermer l’ordre de passage · fermer · ces raccourcis",
+  "Play / stop": "Lecture / arrêt",
+  "Tempo −1 / +1 (⇧ for 5) · \\ back to the song’s": "Tempo −1 / +1 (⇧ pour 5) · \\ retour à celui du morceau",
+  "The click track’s keys": "Les touches de la piste de clic",
+  "next: %s": "ensuite : %s"
 }

@@ -657,7 +657,8 @@ type clicktrackSong struct {
 	Key          string `json:"key"`
 	Tempo        int    `json:"tempo"`
 	TimeSig      string `json:"timeSig"`
-	Note         string `json:"note"`
+	Note         string `json:"note"`      // the set list entry's own note
+	ClickNote    string `json:"clickNote"` // the click-track note, shown large while it plays
 }
 
 // handleSetlistClicktrack is GET /setlists/{id}/clicktrack — the
@@ -690,6 +691,17 @@ func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	canEdit, err := s.store.CanEditSetlistByID(r.Context(), person.ID, id)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	clickNotes, err := s.store.ListClicktrackNotes(r.Context(), id)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	lang := s.langOf(w)
 	var songs []clicktrackSong
 	n := 0
@@ -712,7 +724,7 @@ func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request)
 				VariantID: e.VariantID,
 				Title:     orDefault(sg.Get("title"), i18n.T(lang, "untitled")), Artist: sg.Get("artist"),
 				Key: sg.Get("key"), Tempo: tempo, TimeSig: orDefault(sg.Get("time"), "4/4"),
-				Note: e.Note,
+				Note: e.Note, ClickNote: clickNotes[e.VariantID],
 			})
 			n++
 			first = false
@@ -726,6 +738,67 @@ func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request)
 
 	s.render(w, "setlist-clicktrack", map[string]any{
 		"Me": person, "SetlistID": id, "Title": orDefault(meta.Title, i18n.T(lang, "set list")), "Path": setlistPath(meta),
-		"SongsJSON": template.JS(songsJSON),
+		"SongsJSON": template.JS(songsJSON), "CanEdit": canEdit,
 	})
+}
+
+// handlePutClicktrackNote is PUT /api/setlists/{id}/clicktrack-notes/
+// {variantID}, body {"note": "..."}: saves the click-track note for one
+// song of the set list (an empty note removes it). Whoever may edit the
+// set list may edit its notes, and only for a song that is in it.
+func (s *Server) handlePutClicktrackNote(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid setlist id")
+		return
+	}
+	variantID, err := strconv.ParseInt(r.PathValue("variantID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid song id")
+		return
+	}
+	person := personFromContext(r)
+	canEdit, err := s.store.CanEditSetlistByID(r.Context(), person.ID, id)
+	if errors.Is(err, store.ErrNotFound) {
+		httpError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !canEdit {
+		httpError(w, http.StatusForbidden, "no edit rights on this setlist")
+		return
+	}
+	l, _, _, err := s.store.LoadSetlistByID(r.Context(), id)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	inList := false
+	for _, set := range l.Sets {
+		for _, e := range set.Entries {
+			if e.VariantID == variantID {
+				inList = true
+			}
+		}
+	}
+	if !inList {
+		httpError(w, http.StatusNotFound, "this song is not in the set list")
+		return
+	}
+	var req struct {
+		Note string `json:"note"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	note, err := s.store.SetClicktrackNote(r.Context(), id, variantID, req.Note, person.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"note": note})
 }

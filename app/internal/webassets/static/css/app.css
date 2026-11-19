@@ -1672,69 +1672,111 @@ body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5re
 .metro-section .metro-icon-row { flex-wrap: wrap; }
 .metro-beat-picker { display: flex; gap: 0.4rem; margin-top: 0.5rem; flex-wrap: wrap; }
 
-/* Setlist click-track mode (Phase 32): a "now playing" strip above the
-   same metronome widget, plus an explicit break step between sets. */
-.clicktrack-now-playing { text-align: center; }
-.clicktrack-position { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); margin-bottom: 0.3rem; }
-.clicktrack-now-playing h2 { margin: 0 0 0.3rem; }
-.clicktrack-meta { color: var(--fg-muted); font-size: 0.9rem; margin-bottom: 0.9rem; }
-.clicktrack-nav { display: flex; justify-content: center; gap: 0.8rem; }
+/* Setlist click-track mode: what a drummer glances at mid-song comes
+   first and big — the song, its click-track note, the beat dots, and
+   prev/play/next. Tempo nudging is a smaller row under them; the song
+   list and the display options fold away on a phone (open beside the
+   metronome on a wide screen). An explicit break step sits between
+   sets. */
+.clicktrack-page { padding-top: 0.5rem; }
+.clicktrack-layout { display: flex; flex-direction: column; max-width: 34rem; margin: 0 auto; }
+.clicktrack-stage, .clicktrack-side { min-width: 0; }
+.clicktrack-side { display: flex; flex-direction: column; gap: 0.7rem; }
+@media (min-width: 960px) {
+  .clicktrack-layout { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: 1.5rem; max-width: 64rem; align-items: start; }
+}
+.clicktrack-now-playing { text-align: center; padding: 0.1rem 0 0.2rem; }
+.clicktrack-position { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); margin-bottom: 0.15rem; }
+.clicktrack-now-playing h2 { margin: 0 0 0.15rem; font-size: 1.35rem; line-height: 1.2; }
+.clicktrack-meta { color: var(--fg-muted); font-size: 0.8rem; }
+.clicktrack-entry-note { margin: 0.3rem auto 0; max-width: 30rem; font-size: 0.82rem; font-style: italic; color: var(--fg-muted); }
+/* The click-track note: the one line to read while the song plays. */
+.clicktrack-clicknote {
+  display: block; box-sizing: border-box; width: 100%; max-width: 32rem; margin: 0.7rem auto 0; padding: 0.55rem 0.9rem;
+  font: inherit; font-size: 1.45rem; line-height: 1.3; font-weight: 650; color: var(--fg); text-align: center;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  background: var(--bg-sunken); border: 2px solid transparent; border-radius: var(--radius);
+}
+.clicktrack-clicknote[hidden] { display: none; }
+button.clicktrack-clicknote { height: auto; cursor: text; }
+button.clicktrack-clicknote:hover:not(:disabled), button.clicktrack-clicknote:focus-visible { border-color: var(--border-strong); }
+button.clicktrack-clicknote.empty { font-size: 0.95rem; font-weight: 400; color: var(--fg-muted); background: none; border: 2px dashed var(--border); }
+textarea.clicktrack-clicknote-input { min-height: 0; resize: none; border-color: var(--accent); outline: none; }
+.clicktrack-clicknote-status { min-height: 1rem; margin-top: 0.15rem; font-size: 0.75rem; color: var(--fg-muted); }
+@media (min-width: 960px) {
+  .clicktrack-now-playing h2 { font-size: 1.7rem; }
+  .clicktrack-clicknote { font-size: 1.8rem; }
+}
 .clicktrack-nav-btn {
-  display: inline-flex; align-items: center; gap: 0.35rem; width: auto; height: auto;
-  padding: 0.5rem 1.1rem; border-radius: 999px; border: 1px solid var(--border);
-  background: var(--bg-raised); color: inherit; font-size: 0.88rem; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; flex: 1; max-width: 9rem; height: 3.2rem;
+  padding: 0 0.9rem; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--bg-raised); color: inherit; font-size: 0.95rem; font-weight: 600;
 }
 .clicktrack-nav-btn:disabled { opacity: 0.4; }
-.clicktrack-nav-btn .icon { width: 1em; height: 1em; }
-.clicktrack-break { text-align: center; }
+.clicktrack-nav-btn .icon { width: 1.1em; height: 1.1em; }
+.clicktrack-break { text-align: center; margin-top: 0.8rem; }
 .clicktrack-break h2 { margin: 0 0 0.4rem; }
 .clicktrack-break .hint { margin-bottom: 1rem; }
-.clicktrack-note {
-  margin: 0 auto 0.9rem; max-width: 30rem; font-style: italic; color: var(--fg-muted);
-  background: var(--bg-sunken); border-radius: var(--radius); padding: 0.5rem 0.9rem;
-}
 
-/* ---- Click-track's own compact metronome — deliberately smaller than
-   the standalone tool's control surface (no practice-technique/accent/
-   sound-pattern tabs), but every control sits flat on the page: no
-   popup/menu/disclosure anywhere. A drummer glancing down at a phone
-   propped up mid-gig needs every option visible and one tap away, not
-   behind a "..." they'd have to stop playing to find and open.
-   data-size on the section scales the beat dots for across-the-room
-   visibility; .mc-landscape switches to a wide, row-based layout for a
-   phone propped sideways. */
-.metronome-compact { max-width: 30rem; margin: 1.2rem auto; padding: 1.3rem; display: flex; flex-direction: column; gap: 1rem; }
+/* ---- Click-track's own compact metronome. The beat dots are the page:
+   one dot per beat of one bar, each as wide as the row allows (--beats
+   is set by the script) up to the Size option's cap (--dot-max). The
+   downbeat is ringed rather than bigger, so every dot can be big.
+   .mc-landscape (a phone propped sideways) raises the caps. */
+.metronome-compact { max-width: 34rem; margin: 0.7rem auto 1rem; padding: 1.2rem 1rem 1rem; display: flex; flex-direction: column; gap: 1.2rem; }
 .mc-row { display: flex; align-items: center; justify-content: center; gap: 1rem; }
-.mc-bpm-display { display: flex; align-items: baseline; gap: 0.3rem; font-weight: 700; }
-#mc-bpm-value { font-size: 2.2rem; }
+.mc-beat-dots { --dot-max: 4.6rem; --dot-gap: 0.7rem; gap: var(--dot-gap); padding: 0.3rem 0; flex-wrap: nowrap; align-items: center; }
+.metronome-compact[data-size="sm"] .mc-beat-dots { --dot-max: 2.2rem; }
+.metronome-compact[data-size="lg"] .mc-beat-dots { --dot-max: 7rem; }
+.metronome-compact.mc-landscape { max-width: none; }
+.metronome-compact.mc-landscape[data-size="md"] .mc-beat-dots { --dot-max: 6.5rem; }
+.metronome-compact.mc-landscape[data-size="lg"] .mc-beat-dots { --dot-max: 10rem; }
+@media (min-width: 960px) {
+  .metronome-compact[data-size="md"] .mc-beat-dots { --dot-max: 6rem; }
+  .metronome-compact[data-size="sm"] .mc-beat-dots { --dot-max: 3rem; }
+}
+.mc-beat-dots .beat-dot, .mc-beat-dots .beat-dot.downbeat {
+  flex: 0 0 auto; height: auto; aspect-ratio: 1;
+  width: min(var(--dot-max), calc((100% - (var(--beats, 4) - 1) * var(--dot-gap)) / var(--beats, 4)));
+}
+.mc-beat-dots .beat-dot.downbeat { box-shadow: inset 0 0 0 0.22rem color-mix(in srgb, var(--accent) 55%, transparent); }
+.mc-beat-dots .beat-dot.lit { transform: scale(1.06); }
+.mc-beat-dots .beat-dot.downbeat.lit { box-shadow: 0 0 0 0.3rem color-mix(in srgb, var(--accent) 30%, transparent); }
+.clicktrack-transport { display: flex; align-items: center; justify-content: center; gap: 0.8rem; }
+.clicktrack-transport #mc-play { width: 4.6rem; height: 4.6rem; min-width: 4.6rem; flex: none; }
+.clicktrack-transport #mc-play .icon { width: 1.9rem; height: 1.9rem; }
+/* Tempo: secondary — smaller, under a rule. */
+.mc-tempo-row { gap: 0.35rem; padding-top: 0.8rem; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.mc-tempo-row button.icon-btn { width: 2.5rem; height: 2.5rem; min-width: 2.5rem; min-height: 2.5rem; font-size: 1.1rem; }
+.mc-tempo-row #mc-tap { margin-left: 0.7rem; }
+.mc-bpm-display { display: flex; align-items: baseline; justify-content: center; gap: 0.3rem; min-width: 5.2rem; font-weight: 700; }
+#mc-bpm-value { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
 .mc-bpm-display .bpm-unit { font-size: 0.8rem; color: var(--fg-muted); font-weight: 400; }
-.mc-row .icon-btn { width: 2.6rem; height: 2.6rem; font-size: 1.3rem; }
-.mc-beat-dots { gap: 0.5rem; padding: 0.2rem 0; flex-wrap: wrap; }
-.mc-beat-dots .beat-dot { width: 0.7rem; height: 0.7rem; }
-.mc-beat-dots .beat-dot.downbeat { width: 0.85rem; height: 0.85rem; }
-.metronome-compact[data-size="sm"] .mc-beat-dots .beat-dot { width: 0.45rem; height: 0.45rem; }
-.metronome-compact[data-size="sm"] .mc-beat-dots .beat-dot.downbeat { width: 0.58rem; height: 0.58rem; }
-.metronome-compact[data-size="lg"] .mc-beat-dots { gap: 0.8rem; }
-.metronome-compact[data-size="lg"] .mc-beat-dots .beat-dot { width: 1.3rem; height: 1.3rem; }
-.metronome-compact[data-size="lg"] .mc-beat-dots .beat-dot.downbeat { width: 1.6rem; height: 1.6rem; }
-/* Flat options: every row always rendered, always visible, no disclosure
-   — label on the left, segmented buttons filling the rest of the row so
-   each is still a large, easy-to-hit target. */
-.mc-options-flat { display: flex; flex-direction: column; gap: 0.5rem; padding-top: 0.3rem; border-top: 1px solid var(--border); }
-.mc-opt-row { display: flex; align-items: center; gap: 0.7rem; }
-.mc-opt-label { flex: 0 0 4rem; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); }
+
+/* Folded secondary panels: the song list, display/sound options. */
+.clicktrack-fold { margin: 0; padding: 0.7rem 1rem; }
+.clicktrack-fold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 0.45rem; min-height: 2.2rem; font-weight: 600; font-size: 0.92rem; color: var(--fg-muted); }
+.clicktrack-fold > summary::-webkit-details-marker { display: none; }
+.clicktrack-fold > summary::before { content: "+"; width: 0.8rem; color: var(--accent); font-weight: 700; }
+.clicktrack-fold[open] > summary::before { content: "−"; }
+.clicktrack-fold[open] > summary { margin-bottom: 0.5rem; }
+.clicktrack-fold-count { font-weight: 400; font-size: 0.8rem; }
+.clicktrack-songlist { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow-y: auto; }
+.clicktrack-songlist-set { padding: 0.55rem 0.4rem 0.15rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); }
+button.clicktrack-songlist-item {
+  display: flex; align-items: baseline; gap: 0.6rem; width: 100%; height: auto; padding: 0.55rem 0.5rem;
+  border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+button.clicktrack-songlist-item:hover { background: var(--bg-sunken); }
+button.clicktrack-songlist-item[aria-current="true"] { background: var(--accent-bg); color: var(--accent-ink, var(--accent)); font-weight: 600; }
+.clicktrack-songlist-num, .clicktrack-songlist-tempo { flex: none; font-size: 0.78rem; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.clicktrack-songlist-num { width: 1.4rem; text-align: right; }
+.clicktrack-songlist-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-options-flat { display: flex; flex-direction: column; gap: 0.7rem; }
+.mc-opt-row { display: flex; flex-direction: column; align-items: stretch; gap: 0.3rem; }
+.mc-opt-label { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); }
 .mc-opt-row .metro-icon-row { flex: 1; }
 .mc-opt-row .metro-icon-row button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.3rem; }
-/* Landscape layout: a phone propped sideways on a stand — the beat dots
-   become the whole point of the page, transport rides along a single
-   row beneath; the options rows stay stacked underneath, still fully
-   visible, just not competing with the dots for the top of the screen. */
-.metronome-compact.mc-landscape { max-width: none; }
-.metronome-compact.mc-landscape .mc-beat-dots { justify-content: center; }
-.metronome-compact.mc-landscape[data-size="md"] .mc-beat-dots .beat-dot,
-.metronome-compact.mc-landscape[data-size="sm"] .mc-beat-dots .beat-dot { width: 1.1rem; height: 1.1rem; }
-.metronome-compact.mc-landscape[data-size="md"] .mc-beat-dots .beat-dot.downbeat,
-.metronome-compact.mc-landscape[data-size="sm"] .mc-beat-dots .beat-dot.downbeat { width: 1.35rem; height: 1.35rem; }
 .metro-beat-picker button {
   width: 2.1rem; height: 2.1rem; border-radius: 50%; padding: 0; font-weight: 700;
 }
@@ -7565,3 +7607,70 @@ a.singer-chip:hover { border-color: var(--border-strong); }
 /* The rec-player's error: one line with a retry; the title stays. */
 .rp-error { display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; margin: 0; color: var(--danger); font-size: 0.82rem; font-weight: 600; }
 .rp-error[hidden] { display: none; }
+
+/* The click track on the player shell (setlist_clicktrack.html): its bar
+   at the bottom — the song before, ▶, the song after, where you are with
+   the beat dots, the tempo — and its panel, the running order and the
+   options. */
+.clicktrack-page { padding-bottom: 7rem; }
+@media (min-width: 960px) { .clicktrack-layout { display: flex; max-width: 46rem; } }
+.ct-bar {
+  position: fixed; z-index: 58; left: 0; right: 0; bottom: calc(var(--context-h, 0px) + env(safe-area-inset-bottom, 0px));
+  padding: 0.5rem max(1rem, env(safe-area-inset-right, 0px)) 0.5rem max(1rem, env(safe-area-inset-left, 0px));
+  background: var(--bg-raised); border-top: 1px solid var(--border); box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.1);
+}
+@media (min-width: 901px) { .ct-bar { left: 220px; } }
+@media (max-width: 900px) { .ct-bar { bottom: calc(var(--context-h, 3.4rem) + env(safe-area-inset-bottom, 0px)); } }
+.ct-bar-row { display: flex; align-items: center; gap: 0.8rem; max-width: 90rem; margin: 0 auto; min-width: 0; }
+.ct-transport { flex: none; gap: 0.3rem; }
+.ct-transport .clicktrack-nav-btn { width: 2.6rem; height: 2.6rem; min-height: 0; padding: 0; justify-content: center; border-color: transparent; background: none; }
+.ct-transport #mc-play { width: 3rem; height: 3rem; min-width: 3rem; border-radius: 50%; }
+.ct-transport #mc-play .icon { width: 1.3rem; height: 1.3rem; }
+.ct-readout { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 0.7rem; padding: 0.3rem 0.7rem; border-radius: var(--radius); background: var(--bg-sunken); }
+.ct-now { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.ct-now strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-now small { color: var(--fg-muted); font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-dots { display: flex; flex: none; gap: 0.25rem; }
+.ct-dots .beat-dot { width: 0.7rem !important; height: 0.7rem !important; min-width: 0 !important; border-radius: 50%; background: color-mix(in srgb, var(--fg-muted) 30%, transparent); box-shadow: none !important; transform: none !important; }
+.ct-dots .beat-dot.lit { background: var(--accent); }
+.ct-dots .beat-dot.downbeat { background: color-mix(in srgb, var(--accent) 40%, transparent); }
+.ct-dots .beat-dot.downbeat.lit { background: var(--accent); }
+.ct-dots .beat-dot * { display: none; }
+.ct-tray { flex: none; padding: 0; border: 0; gap: 0.25rem; flex-wrap: nowrap; }
+.ct-tray button.icon-btn { width: 2.3rem; height: 2.3rem; min-width: 2.3rem; min-height: 2.3rem; }
+.ct-tray #mc-tap { margin-left: 0.3rem; }
+.ct-tray #mc-bpm-value { font-size: 1.15rem; }
+.ct-panel-btn { flex: none; }
+@media (max-width: 720px) {
+  .ct-bar { left: 0.5rem; right: 0.5rem; bottom: calc(var(--context-h, 3.4rem) + env(safe-area-inset-bottom, 0px) + 0.4rem); border: 1px solid var(--border); border-radius: 14px; padding: 0.4rem 0.5rem; }
+  .ct-bar-row { flex-wrap: wrap; gap: 0.4rem; }
+  .ct-readout { order: -1; flex-basis: 100%; }
+  .ct-tray { flex: 1; justify-content: center; }
+  .ct-panel-btn { display: inline-flex !important; padding: 0 0.6rem; }
+  .ct-panel-btn span { display: none; }
+  .clicktrack-page { padding-bottom: 12rem; }
+}
+/* The panel: a centred card on a wide screen, a sheet on a phone. */
+.ct-panel-wrap { display: none; }
+.ct-panel-wrap.is-open { display: block; position: fixed; inset: 0; z-index: 95; }
+.ct-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.4); }
+.ct-panel-wrap.is-open .ct-panel {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); box-sizing: border-box;
+  width: min(44rem, calc(100vw - 2rem)); max-height: min(88dvh, 52rem); overflow: auto; overscroll-behavior: contain;
+  display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); align-items: start; gap: 0.8rem;
+  padding: 1rem 1.2rem 1.3rem; border: 1px solid var(--border); border-radius: 18px; background: var(--bg-raised); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+}
+.ct-panel-head { grid-column: 1 / -1; display: flex; align-items: center; gap: 0.6rem; }
+.ct-panel-head strong { flex: 1; font-size: 1.05rem; }
+.ct-grab { display: none; }
+.ct-panel .clicktrack-fold { margin: 0; }
+@media (max-width: 720px) {
+  .ct-panel-wrap.is-open .ct-panel {
+    left: 0; right: 0; top: auto; bottom: 0; transform: none; width: auto; max-height: 88dvh; grid-template-columns: 1fr;
+    border-radius: 22px 22px 0 0; border-width: 1px 0 0; padding: 0.2rem 1rem calc(1.2rem + env(safe-area-inset-bottom, 0px)); animation: rp-up 0.22s ease-out;
+  }
+  .ct-panel-head { justify-content: center; }
+  .ct-panel-head :is(strong, kbd, .ct-close) { display: none; }
+  .ct-grab { display: block; position: relative; width: 3rem; height: 1.4rem; min-height: 0; border: 0; padding: 0; background: none; }
+  .ct-grab::before { content: ""; position: absolute; left: 0.6rem; right: 0.6rem; top: 0.5rem; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--fg) 25%, transparent); }
+}
