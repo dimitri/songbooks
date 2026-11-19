@@ -534,5 +534,17 @@
   "With headphones, your microphone isn’t cleaned up and sends high-quality audio: your voice as it is, for singing. Without, it removes echo and noise, right for laptop speakers.": "Avec un casque, votre micro n’est pas retraité et envoie un son de haute qualité : votre voix telle qu’elle est, pour chanter. Sans, il retire l’écho et le bruit, ce qu’il faut avec les haut-parleurs d’un ordinateur.",
   "I join online lessons with headphones (my voice as it is, for singing)": "Je suis les cours en ligne avec un casque (ma voix telle qu’elle est, pour chanter)",
   "Join the lesson": "Rejoindre le cours",
-  "opens 15 minutes before": "ouvre 15 minutes avant"
+  "opens 15 minutes before": "ouvre 15 minutes avant",
+  "No students yet: invite them below.": "Pas encore d’élèves : invitez-les ci-dessous.",
+  "Invite students": "Inviter des élèves",
+  "One link for all your students": "Un lien pour tous vos élèves",
+  "Whoever opens it makes their account and becomes your student. Share it in a group, or show its QR code.": "Qui l’ouvre crée son compte et devient votre élève. Partagez-le dans un groupe, ou montrez son QR code.",
+  "The link": "Le lien",
+  "Share": "Partager",
+  "Make the link": "Créer le lien",
+  "A link for one student": "Un lien pour un élève",
+  "Type their name: they appear in your students right away, and finish their account from the link.": "Tapez son nom : l’élève apparaît tout de suite dans vos élèves, et termine son compte depuis le lien.",
+  "Their name": "Son nom",
+  "Make their link": "Créer son lien",
+  "%s’s songs": "Les morceaux de %s"
 }

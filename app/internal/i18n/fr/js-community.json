@@ -97,5 +97,7 @@
   "%d songs to add to the program.": "%d chansons à ajouter au programme.",
   "A new event needs a name, a date and a time.": "Un nouvel événement demande un nom, une date et une heure.",
   "Couldn’t plan it. Try again.": "Impossible de le prévoir. Réessayez.",
-  "Pick an event, or a new one.": "Choisissez un événement, ou un nouveau."
+  "Pick an event, or a new one.": "Choisissez un événement, ou un nouveau.",
+  "Couldn’t make the link.": "Impossible de créer le lien.",
+  "Your voice lessons on Songbooks: %s": "Vos cours de chant sur Songbooks : %s"
 }

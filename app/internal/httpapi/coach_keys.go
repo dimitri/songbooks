@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"app/internal/chordsym"
+	"app/internal/i18n"
 	"app/internal/song"
 	"app/internal/songimport"
 	"app/internal/store"
@@ -144,7 +145,7 @@ func (s *Server) handlePostCoachKey(w http.ResponseWriter, r *http.Request) {
 	me := personFromContext(r)
 	sbID := t.SongbookID
 	if sbID == 0 {
-		if sbID, err = s.store.StudentSongbook(ctx, t.CommunityID, t.PersonID, t.Name+"’s songs", me.ID); err != nil {
+		if sbID, err = s.store.StudentSongbook(ctx, t.CommunityID, t.PersonID, i18n.T(s.langOfRequest(r), "%s’s songs", t.Name), me.ID); err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

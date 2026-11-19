@@ -6954,6 +6954,13 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .coach-group-songs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.6rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
 .coach-group-song-list { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; font-size: 0.9rem; }
 .coach-subscribe { margin: 0.4rem 0 0.8rem; font-size: 0.9rem; }
+/* Inviting students, on the coach's Students tab. */
+.coach-invite-way { margin: 0.4rem 0 1.2rem; }
+.coach-invite-way h4 { margin: 0 0 0.2rem; font-size: 1rem; }
+.coach-invite-way .hint { margin: 0 0 0.6rem; }
+.coach-invite-link, .coach-invite-one { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.coach-invite-link input, .coach-invite-one input { flex: 1 1 14rem; min-width: 0; min-height: 2.5rem; }
+.coach-invite-one + .coach-invite-link { margin-top: 0.6rem; }
 /* Live lessons (live.go): an online lesson's Join, lit from 15 minutes
    before it starts; how the person joins, headphones or not. */
 .live-join-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.4rem; }
