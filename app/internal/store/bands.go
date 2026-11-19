@@ -43,6 +43,7 @@ type BandMember struct {
 	InvitedByPersonID *int64
 	InvitedByUsername string
 	Instruments       []string // p.instruments — see migration 0018
+	IsShell           bool     // p.is_shell: a placeholder who hasn't joined yet (see CreateShellPerson)
 }
 
 // IsCurrent reports whether m is an active (not left) membership row.
@@ -255,7 +256,7 @@ func (st *Store) ListBandMembers(ctx context.Context, bandID int64, includePast 
 	q := `
 		SELECT m.id, m.band_id, m.person_id, p.username, p.display_name, m.status::text,
 		       lower(m.validity), CASE WHEN upper_inf(m.validity) THEN NULL ELSE upper(m.validity) END,
-		       m.invited_by_person_id, coalesce(ip.username, ''), p.instruments
+		       m.invited_by_person_id, coalesce(ip.username, ''), p.instruments, p.is_shell
 		FROM band_members m
 		JOIN people p ON p.id = m.person_id
 		LEFT JOIN people ip ON ip.id = m.invited_by_person_id
@@ -273,7 +274,7 @@ func (st *Store) ListBandMembers(ctx context.Context, bandID int64, includePast 
 	for rows.Next() {
 		var m BandMember
 		if err := rows.Scan(&m.ID, &m.BandID, &m.PersonID, &m.Username, &m.DisplayName, &m.Status,
-			&m.JoinedAt, &m.LeftAt, &m.InvitedByPersonID, &m.InvitedByUsername, &m.Instruments); err != nil {
+			&m.JoinedAt, &m.LeftAt, &m.InvitedByPersonID, &m.InvitedByUsername, &m.Instruments, &m.IsShell); err != nil {
 			return nil, err
 		}
 		out = append(out, m)

@@ -5709,35 +5709,40 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .band-digest-card { max-width: 640px; margin-bottom: 1.5rem; }
 .band-digest-card ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
 
-/* One list for current members AND unclaimed roster slots — "who's in
-   this band" as a single coherent picture (the gap this phase fills:
-   previously a pending slot was invisible anywhere on the band page). */
+/* The band's roster: one row per person — name, instruments, role and,
+   for someone who hasn't joined yet, their invite link's actions on the
+   same row. A row wraps rather than squeezes: on a phone the actions
+   go under the name (see the max-width: 600px block). */
 .roster-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; margin-bottom: 0.4rem; }
-.roster-row { display: flex; align-items: center; gap: 0.8rem; padding: 0.45rem 1rem; border-bottom: 1px solid var(--border); min-height: 2.6rem; }
+.roster-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.8rem; padding: 0.45rem 1rem; border-bottom: 1px solid var(--border); min-height: 2.6rem; }
 .roster-row:last-child { border-bottom: none; }
 .roster-row-pending { background: var(--bg-sunken); }
-.roster-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
-.roster-name { font-weight: 500; }
-.roster-instruments { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.roster-row-main { flex: 1 1 14rem; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.roster-name { font-weight: 500; display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.4rem; }
+.roster-name .hint { font-weight: 400; }
+.roster-instruments { display: flex; gap: 0.4rem 0.6rem; flex-wrap: wrap; align-items: center; }
+.roster-instruments[hidden], .roster-instruments-form[hidden] { display: none; }
 .roster-instrument-badge { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--fg-muted); background: var(--bg-sunken); border-radius: 999px; padding: 0.15rem 0.55rem; }
 .roster-row-pending .roster-instrument-badge { background: var(--bg-raised); }
 .roster-pending-badge { font-size: 0.74rem; font-weight: 600; color: var(--fg-faint); background: var(--bg-raised); border: 1px dashed var(--border); border-radius: 999px; padding: 0.15rem 0.55rem; white-space: nowrap; flex: none; }
+/* Edit sits after the instruments as a quiet text button, still a full
+   touch target. */
+.roster-edit-btn { background: transparent; border-color: transparent; color: var(--accent); font-size: 0.8rem; padding: 0.2rem 0.5rem; min-height: 2.2rem; }
+.roster-edit-btn:hover:not(:disabled) { border-color: var(--border); }
+.roster-instruments-form { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.15rem; }
+.roster-instruments-form input { flex: 1 1 100%; min-width: 0; padding: 0.3rem 0.5rem; font-size: 0.88rem; }
+.roster-instruments-form button { font-size: 0.82rem; padding: 0.3rem 0.7rem; }
+.roster-invite, .roster-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; flex: none; }
+.roster-invite .roster-invite-until { font-size: 0.78rem; white-space: nowrap; }
+.new-link-btn { font-size: 0.8rem; padding: 0.3rem 0.65rem; }
 .roster-row select.status-select { flex: none; }
+.roster-row > .form-status { flex-basis: 100%; }
+.roster-row > .form-status:empty { display: none; }
 
-/* A pending (unclaimed) roster slot is editable inline — unlike a
-   current member's row — but stays ONE compact line like every other
-   roster row: a one-time column header (.roster-pending-header) above
-   the list supplies the Name/Instrument/Role labels instead of
-   repeating them per row, which is what made each row tall. The quick-
-   add form below reuses the exact same grid columns so it reads as the
-   list's own "next row," not a separate boxed-off widget. */
-.roster-pending-header, .roster-row-pending, .roster-quick-add {
-  display: grid; grid-template-columns: 1.3fr 1fr 6rem auto auto auto;
-  align-items: center; gap: 0.6rem;
-}
-.roster-pending-header { padding: 0.3rem 1rem; border-bottom: 1px solid var(--border); }
-.roster-pending-header span { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--fg-muted); }
-.roster-row-pending input, .roster-row-pending select,
+/* The quick-add form at the end of the roster: one compact line, its
+   labels for screen readers only (the placeholders say what goes
+   where), so it reads as the list's own "next row." */
+.roster-quick-add { display: grid; align-items: center; gap: 0.6rem; }
 .roster-quick-add input, .roster-quick-add select { padding: 0.3rem 0.5rem; font-size: 0.88rem; }
 .roster-quick-add { grid-template-columns: 1.3fr 1fr 6rem 1fr auto; background: none; }
 .roster-quick-add #roster-add-result { font-size: 0.8rem; justify-self: end; }
@@ -5898,13 +5903,12 @@ input.matrix-slot:hover, input.matrix-slot:focus {
   .app-header .notif-bell { flex: none; min-width: 2.2rem; min-height: 2.2rem; justify-content: center; }
   .app-header .song-nav a[href="/songbooks"], .app-header .song-nav a[href="/catalog"] { display: none; }
   .catalog-card-actions { align-items: center; }
-  /* Roster: a pending person and the quick-add form stack on a phone
-     instead of squeezing six grid columns into one line. */
-  .roster-pending-header { display: none; }
-  .roster-row-pending, .roster-quick-add { grid-template-columns: 1fr 1fr; row-gap: 0.4rem; padding-top: 0.6rem; padding-bottom: 0.6rem; }
-  .roster-row-pending .roster-name, .roster-row-pending .invite-link-row { grid-column: 1 / -1; }
-  .roster-row-pending .invite-link-row { margin: 0; }
-  .roster-row-pending .invite-link-url { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Roster: on a phone a row stacks — name and instruments, then the
+     invite link's actions, then role and Remove — and the quick-add
+     form takes two columns instead of five. */
+  .roster-row { padding-top: 0.6rem; padding-bottom: 0.6rem; }
+  .roster-row-main, .roster-invite, .roster-row-actions { flex-basis: 100%; }
+  .roster-quick-add { grid-template-columns: 1fr 1fr; row-gap: 0.4rem; padding-top: 0.6rem; padding-bottom: 0.6rem; }
   .roster-quick-add #roster-add-name { grid-column: 1 / -1; }
   .roster-quick-add #roster-add-result { grid-column: 1 / -1; justify-self: start; }
   .band-tabs-row { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; -webkit-overflow-scrolling: touch; }
@@ -6052,9 +6056,7 @@ body.stage .stage-foot {
 /* Roster quick-add: a field error (forms.js puts it after the input) goes on its own row under the form's grid instead of taking a column. */
 .roster-quick-add .field-error { grid-column: 1 / -1; order: 1; }
 /* Roster rows: the saved/failed line after a role change, remove or new link stays small. */
-.roster-row > .form-status { font-size: 0.8rem; }
-/* A not-yet-joined row is a grid: its status line takes a full row of its own. */
-.roster-row-pending > .form-status { grid-column: 1 / -1; }
+.roster-row > .form-status { font-size: 0.8rem; margin: 0; }
 /* Band header (it wraps): the music-type/rename status takes its own line under the title row. */
 .app-header #band-header-status { font-size: 0.8rem; flex-basis: 100%; order: 10; }
 /* Song picker (proposals, Discover): the result list only shows a box once it has results. */

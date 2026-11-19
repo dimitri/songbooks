@@ -511,19 +511,51 @@ func (st *Store) CreateShellPerson(ctx context.Context, displayName string) (int
 	return id, err
 }
 
-// CreatePersonalInvite makes a single-use token for personID (normally
-// a shell — see CreateShellPerson) to complete their own account.
-// Unlike CreatePlainInvite/CreateBandInvite, claiming it never creates
-// a new person row: ClaimPersonalInvite finishes the EXISTING one.
+// ErrNotShell is returned by CreatePersonalInvite when the person
+// already has a real account: a personal invite finishes a placeholder
+// (shell) account, and one for a real account would hand that account
+// to whoever opens the link.
+var ErrNotShell = errors.New("that person already has an account")
+
+// CreatePersonalInvite makes a single-use token for personID, a shell
+// (see CreateShellPerson), to complete their own account, and returns
+// it. It replaces any link the person had: one live link per person, so
+// "New link" always works and the old link stops working as soon as a
+// new one exists. ErrNotFound if there's no such person, ErrNotShell if
+// they already have an account. Unlike CreatePlainInvite/
+// CreateBandInvite, claiming it never creates a new person row:
+// ClaimPersonalInvite finishes the EXISTING one.
 func (st *Store) CreatePersonalInvite(ctx context.Context, personID, createdBy int64, ttl time.Duration) (string, error) {
 	token, err := randomToken()
 	if err != nil {
 		return "", err
 	}
-	_, err = st.db.Exec(ctx,
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback(ctx)
+
+	var isShell bool
+	err = tx.QueryRow(ctx, `SELECT is_shell FROM people WHERE id = $1 FOR UPDATE`, personID).Scan(&isShell)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("no such person id %d: %w", personID, ErrNotFound)
+	}
+	if err != nil {
+		return "", err
+	}
+	if !isShell {
+		return "", ErrNotShell
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM invites WHERE person_id = $1`, personID); err != nil {
+		return "", err
+	}
+	if _, err := tx.Exec(ctx,
 		`INSERT INTO invites (token, person_id, created_by_person_id, expires_at) VALUES ($1, $2, $3, $4)`,
-		token, personID, nullableID(createdBy), time.Now().Add(ttl))
-	return token, err
+		token, personID, nullableID(createdBy), time.Now().Add(ttl)); err != nil {
+		return "", err
+	}
+	return token, tx.Commit(ctx)
 }
 
 // PersonalInviteMembership is one band/community PersonalInviteView's
@@ -620,8 +652,11 @@ func (st *Store) ClaimPersonalInvite(ctx context.Context, token, username, email
 	}
 	defer tx.Rollback(ctx)
 
+	// Only a placeholder account can be claimed: a link left over for
+	// someone who has an account since must not hand it to anyone else.
 	err = tx.QueryRow(ctx, `
-		SELECT person_id FROM invites WHERE token = $1 AND expires_at > now() AND person_id IS NOT NULL`, token).
+		SELECT i.person_id FROM invites i JOIN people p ON p.id = i.person_id
+		WHERE i.token = $1 AND i.expires_at > now() AND p.is_shell`, token).
 		Scan(&personID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, fmt.Errorf("no such invite: %w", ErrNotFound)
@@ -663,7 +698,8 @@ type ShellPersonRow struct {
 	DisplayName     string
 	CreatedAt       time.Time
 	Memberships     []PersonalInviteMembership
-	OpenInviteToken string // "" if no still-valid invite exists
+	OpenInviteToken string    // "" if no still-valid invite exists
+	OpenInviteUntil time.Time // when OpenInviteToken expires (zero without one)
 	CreatedByName   string
 }
 
@@ -724,15 +760,18 @@ func (st *Store) listShellPeople(ctx context.Context, memberOfSQL string) ([]She
 
 		var token sql.NullString
 		var createdByName sql.NullString
+		var until sql.NullTime
 		err = st.db.QueryRow(ctx, `
-			SELECT i.token, p.display_name FROM invites i
+			SELECT i.token, p.display_name, i.expires_at FROM invites i
 			LEFT JOIN people p ON p.id = i.created_by_person_id
-			WHERE i.person_id = $1 AND i.expires_at > now() LIMIT 1`, out[i].PersonID).
-			Scan(&token, &createdByName)
+			WHERE i.person_id = $1 AND i.expires_at > now()
+			ORDER BY i.expires_at DESC LIMIT 1`, out[i].PersonID).
+			Scan(&token, &createdByName, &until)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, err
 		}
 		out[i].OpenInviteToken = token.String
+		out[i].OpenInviteUntil = until.Time
 		out[i].CreatedByName = createdByName.String
 	}
 	return out, nil
