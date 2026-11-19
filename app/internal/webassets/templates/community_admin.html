@@ -70,30 +70,32 @@
         <h2 class="admin-section-title" id="members-title">{{t "Members"}}</h2>
         <a class="chip-link" href="#joining">{{template "icon-plus"}} {{t "Add people"}}</a>
       </div>
-      <p class="hint">{{t "Change someone’s role here; what each role can do is under Roles and staff."}}</p>
-      <label class="check"><input type="checkbox" id="show-past-toggle"> {{t "Show past members"}}</label>
-      <div class="table-scroll"><table class="card table-stack" style="width:100%">
-        <thead><tr><th>{{t "Username"}}</th><th>{{t "Name"}}</th><th>{{t "Role"}}</th><th>{{t "Joined"}}</th><th>{{t "Left"}}</th><th></th></tr></thead>
-        <tbody id="members-body">
-        {{range .Members}}
-          <tr data-person-id="{{.PersonID}}" data-current="{{if .IsCurrent}}1{{else}}0{{end}}" {{if not .IsCurrent}}class="past-member" hidden{{end}}>
-            <td data-label="{{t "Username"}}">{{.Username}}</td>
-            <td data-label="{{t "Name"}}">{{.DisplayName}}</td>
-            <td data-label="{{t "Role"}}">
-              {{if .IsCurrent}}
-              {{$memberRole := .Role}}
-              <select class="role-select" data-person-id="{{.PersonID}}" aria-label="{{t "Role for %s" .DisplayName}}">
-                {{range $.Roles}}<option value="{{.Name}}" {{if eq $memberRole .Name}}selected{{end}}>{{t .Name}}</option>{{end}}
-              </select>
-              {{else}}{{t .Role}}{{end}}
-            </td>
-            <td data-label="{{t "Joined"}}">{{date .JoinedAt "2006-01-02"}}</td>
-            <td data-label="{{t "Left"}}">{{if .LeftAt}}{{date .LeftAt "2006-01-02"}}{{end}}</td>
-            <td>{{if .IsCurrent}}<button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>{{end}}</td>
-          </tr>
-        {{end}}
-        </tbody>
-      </table></div>
+      {{/* The member list itself, its roles, removals and past members: the
+           Members page (community_members.go). Here: who sees that page,
+           and the invites still waiting for someone to join. */}}
+      <div class="card">
+        <p class="hint">{{t "The member list, with each person’s role, removals and past members, is on the Members page."}}</p>
+        <div class="form-actions form-actions--start">
+          <a class="chip-link primary" href="/communities/{{.Community.ID}}/members">{{t "See and manage members"}} &rarr;</a>
+        </div>
+      </div>
+      {{/* Who sees the Members page: a setting, so only for a role that
+           grants manage_settings (the API checks it too). */}}
+      {{if .CanManageSettings}}
+      <div class="card">
+        <div class="form-stack">
+          <div class="field">
+            <label for="members-visibility-select">{{t "Member list visible to"}}</label>
+            <p class="field-hint" id="members-visibility-hint">{{t "Members see names, roles, instruments and join dates; changing roles, removing people and invites stay with admins."}}</p>
+            <select id="members-visibility-select" aria-describedby="members-visibility-hint">
+              <option value="members" {{if eq .MembersVisibility "members"}}selected{{end}}>{{t "All members"}}</option>
+              <option value="admins" {{if ne .MembersVisibility "members"}}selected{{end}}>{{t "Admins only"}}</option>
+            </select>
+          </div>
+          <p id="members-visibility-result" class="form-status" role="status"></p>
+        </div>
+      </div>
+      {{end}}
       <p id="members-status" class="form-status" role="status"></p>
 
       {{if .ShellPeople}}
@@ -141,7 +143,7 @@
 
       <div class="card">
         <h3>{{t "Group invite link"}}</h3>
-        <p class="hint">{{t "Type the names you expect, then get one link to share — on WhatsApp, say. Each person who opens it picks their name, then creates an account or logs in, and joins with the role below. You can change anyone's role afterwards in the members table."}}</p>
+        <p class="hint">{{t "Type the names you expect, then get one link to share — on WhatsApp, say. Each person who opens it picks their name, then creates an account or logs in, and joins with the role below. You can change anyone's role afterwards on the Members page."}}</p>
         <form class="form-stack" id="group-invite-form">
           <div id="group-invite-rows" class="form-stack">
             <div class="group-invite-row">
@@ -420,8 +422,9 @@ $('community-locale-select').addEventListener('change', (e) => {
 });
 
 // ---- Members ----
-$('show-past-toggle').addEventListener('change', (e) => {
-  document.querySelectorAll('.past-member').forEach(tr => { tr.hidden = !e.target.checked; });
+// Who sees the Members page (only there for manage_settings).
+$('members-visibility-select')?.addEventListener('change', (e) => {
+  saveInline($('members-visibility-result'), () => api(`/api/communities/${communityId}/members-visibility`, {visibility: e.target.value}, t('Couldn’t save that. Try again.'), 'PUT'));
 });
 onSubmit($('quick-add-form'), async () => {
   const displayName = $('quick-add-name').value.trim();
@@ -456,21 +459,6 @@ onSubmit($('add-member-form'), async () => {
   await api(`/api/communities/${communityId}/members`, {username, role}, t('Couldn’t add them. Check the username and try again.'));
   location.hash = 'members';
   location.reload();
-});
-document.querySelectorAll('.role-select').forEach(sel => {
-  const original = sel.value;
-  sel.addEventListener('change', async () => {
-    const ok = await saveInline($('members-status'), () => api(`/api/communities/${communityId}/members/${sel.dataset.personId}/role`, {role: sel.value}, t('Couldn’t change that role. Try again.')));
-    if (!ok) sel.value = original;
-  });
-});
-document.querySelectorAll('.remove-member-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    if (!confirm(t('Remove %s from the community? They’ll move to past members.', btn.dataset.name))) return;
-    Forms.busy(btn, true);
-    const ok = await saveInline($('members-status'), () => api(`/api/communities/${communityId}/members/${btn.dataset.personId}`, undefined, t('Couldn’t remove them. Try again.'), 'DELETE'));
-    if (ok) location.reload(); else Forms.busy(btn, false);
-  });
 });
 
 // ---- Group invite ----

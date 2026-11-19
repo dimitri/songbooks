@@ -23,16 +23,18 @@
   {{template "community-tabs" .}}
 
   {{/* ---- Members summary: staff names + total count, not a full
-       roster (that's the Admin page's job) — same "who runs this"
-       glance a band's overview gives via its member-symmetric note. ---- */}}
+       roster (that's the Members page's, for whoever may see it) — same
+       "who runs this" glance a band's overview gives via its
+       member-symmetric note. ---- */}}
   <section class="home-section">
     <div class="home-section-head">
       <h3>{{t "Members"}}</h3>
-      <span class="count">{{t "%d current" (len .Members)}}</span>
+      {{if .CanSeeMembers}}<a href="/communities/{{.Community.ID}}/members">{{t "%d current" (len .Members)}} &rarr;</a>
+      {{else}}<span class="count">{{t "%d current" (len .Members)}}</span>{{end}}
     </div>
     <p class="hint">
       {{if .StaffNames}}{{t "Staff:"}} {{range $i, $n := .StaffNames}}{{if $i}}, {{end}}{{$n}}{{end}}{{else}}{{t "No staff members currently."}}{{end}}
-      {{if .IsStaff}} — {{t "full roster and invites are on the"}} <a href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a> {{t "page."}}{{end}}
+      {{if .IsStaff}} — {{t "invites are on the"}} <a href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a> {{t "page."}}{{end}}
     </p>
   </section>
 
