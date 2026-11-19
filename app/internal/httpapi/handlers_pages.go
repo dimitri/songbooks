@@ -3087,6 +3087,11 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	// the coach's key per student are for the songs practised there, not
 	// for those played in a band, a set list or anywhere else.
 	coachCtx := s.songCoachingContext(r, data)
+	// There a song opens on its lyrics, following the music (song.js),
+	// unless the reader picked another view for it.
+	if coachCtx != 0 {
+		data["CoachingContext"] = coachCtx
+	}
 	// A student opening one of their songs from elsewhere in that
 	// community (its repertoire, a group's list, an assignment) gets it in
 	// their own key too.
