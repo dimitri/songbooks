@@ -485,7 +485,7 @@
 <div class="card brand-editor" id="brand-editor" data-endpoint="{{.}}">
   <h2>{{t "Look & feel"}}</h2>
   <p class="hint">{{t "How this space looks to everyone in it: its pages, its songbooks and setlists, and the songs opened from them. Start from a preset, then change what you like; leave a field empty to keep the preset's."}}</p>
-  <form class="form-stack" id="brand-form">
+  <form class="form-stack form-stack--wide" id="brand-form">
     <div class="field"><label for="brand-preset">{{t "Preset"}}</label>
       <select id="brand-preset" name="preset"><option value="">{{t "None (the app's own look)"}}</option>{{range brandPresets}}<option value="{{.}}">{{t (brandPreset .).Label}}</option>{{end}}</select></div>
     <div class="brand-from-songs">

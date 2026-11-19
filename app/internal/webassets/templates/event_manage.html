@@ -28,7 +28,7 @@
       <p><a href="/songbooks/{{.Event.SongbookID}}">{{t "Open this event's songbook"}}</a> — {{t "gather songs there before building the setlist below."}}</p>
     {{else}}
       <div class="attention-empty">{{t "No dedicated songbook yet."}}</div>
-      <div class="form-actions">
+      <div class="form-actions form-actions--start">
         <button type="button" id="create-songbook-btn" class="primary">{{t "Create a songbook for this event"}}</button>
       </div>
       <p id="songbook-result" class="form-status" role="status"></p>
@@ -54,7 +54,7 @@
       <p><a href="/setlists/{{.Event.SetlistID}}">{{t "Open and edit the running order"}}</a> — {{t "add or remove songs there; they'll show up on this event's own page for people to sign up to play."}}</p>
     {{else}}
       <div class="attention-empty">{{t "No setlist yet — create one to start building the bill."}}</div>
-      <div class="form-actions"><button type="button" id="create-setlist-btn" class="primary">{{t "Create setlist"}}</button></div>
+      <div class="form-actions form-actions--start"><button type="button" id="create-setlist-btn" class="primary">{{t "Create setlist"}}</button></div>
       <p id="setlist-result" class="form-status" role="status"></p>
     {{end}}
   </div>
@@ -90,10 +90,25 @@
   <div class="card">
     <h3>{{t "Event managers"}}</h3>
     {{if eq .Event.OwnerKind "community"}}
-    <ul>
-    {{range .Managers}}<li>{{.DisplayName}} <span class="hint">({{.Username}})</span></li>{{else}}<li class="hint">{{t "Nobody separately assigned — community staff can already manage this event."}}</li>{{end}}
+    <ul class="manager-list">
+    {{range .Managers}}<li><span>{{.DisplayName}} <span class="hint">({{.Username}})</span></span>{{if $.CanAssignManagers}} <button type="button" class="remove-manager-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>{{end}}</li>{{else}}<li class="hint">{{t "Nobody separately assigned — community staff can already manage this event."}}</li>{{end}}
     </ul>
-    <p class="hint">{{t "Assigning/removing managers is done from the community's own admin page."}}</p>
+    {{if .CanAssignManagers}}
+    <form class="form-stack" id="assign-manager-form">
+      <div class="field">
+        <label for="assign-manager-select">{{t "Add a manager"}}</label>
+        <p class="field-hint" id="assign-manager-hint">{{t "A member who runs this one event: its songbook and its setlist."}}</p>
+        <select id="assign-manager-select" name="personId" required aria-describedby="assign-manager-hint">
+          <option value="">{{t "Choose a member…"}}</option>
+          {{range .ManagerCandidates}}<option value="{{.PersonID}}">{{.DisplayName}}</option>{{end}}
+        </select>
+      </div>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Add manager"}}</button></div>
+      <p id="managers-status" class="form-status" role="status"></p>
+    </form>
+    {{else}}
+    <p class="hint">{{t "Whoever manages the community’s events assigns its managers."}}</p>
+    {{end}}
     {{else}}
     <p class="hint">{{t "Bands don't need separately assigned managers — any current band member can already manage this event."}}</p>
     {{end}}
@@ -133,6 +148,30 @@ document.getElementById('create-setlist-btn')?.addEventListener('click', (e) => 
     location.href = `/setlists/${data.setlistId}`;
   });
 });
+{{if .CanAssignManagers}}
+// Managers: assigned by the community's event staff (the routes check).
+const ownerCommunityId = {{.Event.OwnerCommunityID}};
+const managersURL = `/api/communities/${ownerCommunityId}/events/${eventId}/managers`;
+const assignForm = document.getElementById('assign-manager-form');
+assignForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  Forms.run(assignForm, assignForm.querySelector('button[type="submit"]'), async () => {
+    const personId = Number(document.getElementById('assign-manager-select').value);
+    await post(managersURL, {personId}, t('Couldn’t assign that manager. Try again.'));
+    location.reload();
+  });
+});
+document.querySelectorAll('.remove-manager-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm(t('Remove %s from this event’s managers?', btn.dataset.name))) return;
+    Forms.busy(btn, true);
+    const res = await fetch(`${managersURL}/${btn.dataset.personId}`, {method: 'DELETE'}).catch(() => null);
+    if (res && res.ok) { location.reload(); return; }
+    Forms.busy(btn, false);
+    Forms.status(document.getElementById('managers-status'), t('Couldn’t remove that manager. Try again.'), 'error');
+  });
+});
+{{end}}
 document.querySelectorAll('.song-reg-remove-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     if (!confirm(t('Take %s off “%s”?', btn.dataset.who, btn.dataset.song))) return;

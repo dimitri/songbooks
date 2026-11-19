@@ -72,12 +72,12 @@
     <form method="dialog" class="form-stack program-plan-form">
       <h2>{{t "Plan for an event"}}</h2>
       <p class="hint program-plan-what"></p>
-      <fieldset class="program-plan-events">
+      <fieldset class="program-plan-events field-group">
         <legend>{{t "Event"}}</legend>
         {{range .Events}}<label class="program-plan-choice"><input type="radio" name="event" value="{{.ID}}"> <span><strong>{{.Name}}</strong> <span class="hint">{{date .StartsAt "Mon 2 Jan"}}{{if .SongCount}} · {{tn .SongCount "%d song" "%d songs"}}{{end}}</span></span></label>{{end}}
         <label class="program-plan-choice"><input type="radio" name="event" value="new"{{if not .Events}} checked{{end}}> <span><strong>{{t "A new event"}}</strong></span></label>
       </fieldset>
-      <div class="program-plan-new"{{if .Events}} hidden{{end}}>
+      <div class="program-plan-new form-stack"{{if .Events}} hidden{{end}}>
         <div class="field"><label for="plan-name">{{t "Name"}}</label><input id="plan-name" name="name" placeholder="{{t "End-of-year concert"}}"></div>
         <div class="field"><label for="plan-type">{{t "Kind"}}</label>
           <select id="plan-type" name="type"><option value="concert">{{t "Concert"}}</option><option value="open_mic">{{t "Open mic"}}</option><option value="masterclass">{{t "Master class"}}</option></select></div>
@@ -227,7 +227,7 @@
     <p class="hint">{{t "No songs yet."}}{{if .IsCoach}} {{t "Pick them from your students’ songs, or add one below."}}{{end}}</p>
     {{end}}
     {{if and .IsCoach .AddSongs}}
-    <form class="coach-add-song program-add">
+    <form class="coach-add-song program-add form-inline">
       <select class="coach-add-variant" aria-label="{{t "A song to add"}}">{{range .AddSongs}}<option value="{{.VariantID}}">{{.Title}}{{with .Artist}} — {{.}}{{end}}</option>{{end}}</select>
       <button type="submit" class="primary">{{t "Add"}}</button>
     </form>

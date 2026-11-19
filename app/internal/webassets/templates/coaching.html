@@ -85,7 +85,7 @@
   {{end}}
 </div>
 {{if and .IsCoach .AddSongs}}
-<form class="coach-add-song">
+<form class="coach-add-song form-inline">
   <select class="coach-add-variant" aria-label="{{t "A song to add"}}">{{range .AddSongs}}<option value="{{.VariantID}}">{{.Title}}{{with .Artist}} — {{.}}{{end}}</option>{{end}}</select>
   <button type="submit" class="primary">{{t "Add"}}</button>
 </form>
@@ -240,8 +240,8 @@
     <div class="coach-invite-way">
       <h4>{{t "A link for one student"}}</h4>
       <p class="hint">{{t "Type their name: they appear in your students right away, and finish their account from the link."}}</p>
-      <form class="coach-invite-one" autocomplete="off">
-        <input type="text" name="name" placeholder="{{t "Their name"}}" required autocomplete="off">
+      <form class="coach-invite-one form-inline" autocomplete="off">
+        <div class="field"><label for="coach-invite-name">{{t "Their name"}}</label><input type="text" id="coach-invite-name" name="name" required autocomplete="off" autocapitalize="words"></div>
         <button type="submit">{{t "Make their link"}}</button>
       </form>
       <div class="coach-invite-link" hidden>
@@ -388,28 +388,28 @@
   {{if .IsCoach}}
   <details class="practice-assign">
     <summary>{{template "icon-plus"}} {{t "Something to practise"}}</summary>
-    <form class="practice-assign-form" autocomplete="off">
-      <label>{{t "A song or a warm-up"}} <select name="variantId">
+    <form class="practice-assign-form form-stack" autocomplete="off">
+      <label class="field">{{t "A song or a warm-up"}} <select name="variantId">
         <option value="0">{{t "none: what I write below"}}</option>
         {{if .Songs}}<optgroup label="{{if .PracticeGroupID}}{{t "The group’s songs"}}{{else}}{{t "Their songs"}}{{end}}">{{range .Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}</optgroup>{{end}}
         {{range .Groups}}{{if .Songs}}<optgroup label="{{.Group.Name}}">{{range .Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}</optgroup>{{end}}{{end}}
         {{if .Exercises}}<optgroup label="{{t "Warm-ups"}}">{{range .Exercises}}<option value="x{{.ID}}">{{.Name}}</option>{{end}}</optgroup>{{end}}
       </select></label>
-      <label>{{t "Or in words"}} <input type="text" name="title" placeholder="{{t "Lip trills, 5 minutes a day"}}"></label>
-      <label>{{t "What to work on"}} <textarea name="notes" rows="2" placeholder="{{t "the bridge, breathe before the long note…"}}"></textarea></label>
-      <fieldset class="practice-assign-goal">
+      <label class="field">{{t "Or in words"}} <input type="text" name="title" placeholder="{{t "Lip trills, 5 minutes a day"}}"></label>
+      <label class="field">{{t "What to work on"}} <textarea name="notes" rows="2" placeholder="{{t "the bridge, breathe before the long note…"}}"></textarea></label>
+      <fieldset class="practice-assign-goal form-group">
         <legend>{{t "A goal to reach, checking their singing (a song only)"}} · <a href="/communities/{{.Community.ID}}/checking">{{t "levels and your words"}} →</a></legend>
-        <div class="practice-assign-row">
-          <label>{{t "Level"}} <select name="level">{{range .CheckLevels}}<option value="{{.Key}}" title="{{t "in tune within %d cents, on time within %d ms" .Cents .Ms}}">{{.Label}}</option>{{end}}</select></label>
-          <label>{{t "In tune, %"}} <input type="number" name="pitchTarget" min="1" max="100" placeholder="70"></label>
-          <label>{{t "On time, %"}} <input type="number" name="rhythmTarget" min="1" max="100" placeholder="60"></label>
+        <div class="field-row">
+          <label class="field">{{t "Level"}} <select name="level">{{range .CheckLevels}}<option value="{{.Key}}" title="{{t "in tune within %d cents, on time within %d ms" .Cents .Ms}}">{{.Label}}</option>{{end}}</select></label>
+          <label class="field">{{t "In tune, %"}} <input type="number" name="pitchTarget" min="1" max="100" placeholder="70"></label>
+          <label class="field">{{t "On time, %"}} <input type="number" name="rhythmTarget" min="1" max="100" placeholder="60"></label>
         </div>
       </fieldset>
-      <div class="practice-assign-row">
-        <label>{{t "Days a week"}} <select name="perWeek"><option value="0">—</option><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
-        <label>{{t "Until"}} <input type="date" name="dueOn"></label>
+      <div class="field-row">
+        <label class="field">{{t "Days a week"}} <select name="perWeek"><option value="0">—</option><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
+        <label class="field">{{t "Until"}} <input type="date" name="dueOn"></label>
       </div>
-      <button type="submit" class="primary">{{t "Give it"}}</button>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Give it"}}</button></div>
     </form>
   </details>
   {{end}}
@@ -418,14 +418,14 @@
   <details class="practice-log"{{if and (not .IsCoach) .PracticeLogs}} open{{end}}>
     <summary>{{if .IsCoach}}{{t "Their practice, last four weeks"}}{{else}}{{t "My practice, last four weeks"}}{{end}} <span class="count">{{len .PracticeLogs}}</span></summary>
     {{if not .IsCoach}}
-    <form class="practice-log-form" autocomplete="off">
-      <label>{{t "What"}} <select name="assignmentId">{{range .Assignments}}{{if not .DoneAt}}<option value="{{.ID}}">{{.Label}}</option>{{end}}{{end}}<option value="0">{{t "Something else"}}</option></select></label>
-      <div class="practice-assign-row">
-        <label>{{t "Minutes"}} <input type="number" name="minutes" min="1" max="600" value="15" required></label>
-        <label>{{t "Day"}} <input type="date" name="day"></label>
+    <form class="practice-log-form form-stack" autocomplete="off">
+      <label class="field">{{t "What"}} <select name="assignmentId">{{range .Assignments}}{{if not .DoneAt}}<option value="{{.ID}}">{{.Label}}</option>{{end}}{{end}}<option value="0">{{t "Something else"}}</option></select></label>
+      <div class="field-row">
+        <label class="field">{{t "Minutes"}} <input type="number" name="minutes" min="1" max="600" value="15" required></label>
+        <label class="field">{{t "Day"}} <input type="date" name="day"></label>
       </div>
-      <label>{{t "How it went"}} <input type="text" name="note" placeholder="{{t "optional"}}"></label>
-      <button type="submit" class="primary">{{t "Log it"}}</button>
+      <label class="field">{{t "How it went"}} <span class="field-optional">{{t "(optional)"}}</span> <input type="text" name="note"></label>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Log it"}}</button></div>
     </form>
     {{end}}
     <div class="practice-log-list">
@@ -524,9 +524,9 @@
     {{range .Levels}}
       <fieldset class="check-level" data-key="{{.Key}}">
         <legend>{{.Label}}</legend>
-        <label>{{t "Name"}} <input type="text" name="name" value="{{.Name}}" placeholder="{{.Label}}" maxlength="30"></label>
-        <label>{{t "In tune within"}} <span class="check-range"><input type="range" name="cents" min="5" max="100" step="1" value="{{.Cents}}"><output>{{.Cents}}</output> {{t "cents"}}</span></label>
-        <label>{{t "On time within"}} <span class="check-range"><input type="range" name="ms" min="30" max="400" step="10" value="{{.Ms}}"><output>{{.Ms}}</output> ms</span></label>
+        <label class="field">{{t "Name"}} <input type="text" name="name" value="{{.Name}}" placeholder="{{.Label}}" maxlength="30"></label>
+        <label class="field">{{t "In tune within"}} <span class="check-range"><input type="range" name="cents" min="5" max="100" step="1" value="{{.Cents}}"><output>{{.Cents}}</output> {{t "cents"}}</span></label>
+        <label class="field">{{t "On time within"}} <span class="check-range"><input type="range" name="ms" min="30" max="400" step="10" value="{{.Ms}}"><output>{{.Ms}}</output> ms</span></label>
         <button type="button" class="link-btn check-level-reset" data-cents="{{.Default.Cents}}" data-ms="{{.Default.Ms}}">{{t "Back to the app’s (%d cents, %d ms)" .Default.Cents .Default.Ms}}</button>
       </fieldset>
     {{end}}
@@ -538,7 +538,7 @@
     <p class="hint">{{t "Here are the app’s, as examples: rewrite them as you would say them in a lesson. In braces, what the app fills in: {name} the student’s first name, {cents} how far from the notes, {ms} how uneven the entries, {pitch} and {rhythm} the scores."}}</p>
     <div class="check-messages">
     {{range .Messages}}
-      <label class="check-message{{if .Custom}} is-custom{{end}}" data-key="{{.Key}}" data-default="{{.Default}}">
+      <label class="field check-message{{if .Custom}} is-custom{{end}}" data-key="{{.Key}}" data-default="{{.Default}}">
         <span class="check-message-when">{{.When}} {{if .Custom}}<span class="voice-tag">{{t "yours"}}</span>{{end}}</span>
         <textarea rows="2" name="{{.Key}}">{{.Text}}</textarea>
         <span class="hint">{{.Vars}} · <button type="button" class="link-btn check-message-reset">{{t "the app’s words"}}</button></span>
@@ -547,7 +547,7 @@
     </div>
   </section>
 
-  <div class="check-save"><button type="button" class="primary check-save-btn">{{t "Save"}}</button> <span class="hint check-saved" aria-live="polite"></span></div>
+  <div class="check-save form-actions form-actions--start"><button type="button" class="primary check-save-btn">{{t "Save"}}</button> <span class="hint check-saved" aria-live="polite"></span></div>
 </main>
 </div>
 {{template "global-tabbar"}}
@@ -636,14 +636,14 @@
   {{if .IsCoach}}
   <section class="home-section">
     <div class="home-section-head"><h3>{{t "Teaching notes"}}</h3><span class="hint">{{t "only the coach sees them"}}</span></div>
-    <label class="coach-notes">{{t "About %s" .Student.DisplayName}}
+    <label class="field coach-notes">{{t "About %s" .Student.DisplayName}}
       <textarea id="coach-notes" rows="3" placeholder="{{t "who they are as a singer, goals, what to watch"}}">{{.Notes}}</textarea></label>
-    <form class="teaching-note-form">
-      <textarea name="body" rows="3" placeholder="{{t "What you worked on, what to practise next…"}}" required></textarea>
-      <div class="teaching-note-row">
-        <select name="eventId" aria-label="{{t "About a lesson"}}"><option value="0">{{t "No lesson in particular"}}</option>{{range .NoteLessons}}<option value="{{.Event.ID}}">{{date .Event.StartsAt "Mon 2 Jan, 15:04"}} · {{.Event.Name}}</option>{{end}}</select>
-        <button type="submit" class="primary">{{t "Add the note"}}</button>
-      </div>
+    <form class="teaching-note-form form-stack">
+      <div class="field"><label for="teaching-note-body">{{t "A new note"}}</label>
+      <textarea id="teaching-note-body" name="body" rows="3" placeholder="{{t "What you worked on, what to practise next…"}}" required></textarea></div>
+      <div class="field"><label for="teaching-note-event">{{t "About a lesson"}}</label>
+        <select id="teaching-note-event" name="eventId"><option value="0">{{t "No lesson in particular"}}</option>{{range .NoteLessons}}<option value="{{.Event.ID}}">{{date .Event.StartsAt "Mon 2 Jan, 15:04"}} · {{.Event.Name}}</option>{{end}}</select></div>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Add the note"}}</button></div>
     </form>
     <div class="teaching-notes">
       {{range .TeachingNotes}}
@@ -763,19 +763,19 @@
   <section class="home-section">
     <details class="coach-new-lesson"{{if not .Groups}} open{{end}}>
       <summary>{{template "icon-plus"}} {{t "A group"}}</summary>
-      <form id="coach-group-form" class="coach-lesson-form">
-        <label>{{t "Name"}} <input type="text" name="name" required placeholder="{{t "Tuesday group, summer stage…"}}"></label>
-        <label>{{t "For"}} <select name="kind">
+      <form id="coach-group-form" class="coach-lesson-form form-grid">
+        <label class="field">{{t "Name"}} <input type="text" name="name" required placeholder="{{t "Tuesday group, summer stage…"}}"></label>
+        <label class="field">{{t "For"}} <select name="kind">
           <option value="year">{{t "the year"}}</option>
           <option value="oneoff">{{t "a master class, a stage"}}</option>
         </select></label>
-        <label class="coach-group-dates">{{t "From"}} <input type="date" name="startsOn" value="{{.SeasonStart}}"></label>
-        <label class="coach-group-dates">{{t "to"}} <input type="date" name="endsOn" value="{{.SeasonEnd}}"></label>
-        {{if .Masterclasses}}<label class="coach-group-event" hidden>{{t "The event"}} <select name="eventId"><option value="0">{{t "none"}}</option>{{range .Masterclasses}}<option value="{{.ID}}">{{.Name}} · {{date .StartsAt "2 Jan"}}</option>{{end}}</select></label>{{end}}
-        <fieldset class="coach-lesson-students"><legend>{{t "Students"}}</legend>
-          {{range .Students}}<label><input type="checkbox" name="members" value="{{.PersonID}}"> {{.DisplayName}}</label>{{else}}<span class="hint">{{t "No students yet."}}</span>{{end}}
+        <label class="field coach-group-dates">{{t "From"}} <input type="date" name="startsOn" value="{{.SeasonStart}}"></label>
+        <label class="field coach-group-dates">{{t "to"}} <input type="date" name="endsOn" value="{{.SeasonEnd}}"></label>
+        {{if .Masterclasses}}<label class="field coach-group-event" hidden>{{t "The event"}} <select name="eventId"><option value="0">{{t "none"}}</option>{{range .Masterclasses}}<option value="{{.ID}}">{{.Name}} · {{date .StartsAt "2 Jan"}}</option>{{end}}</select></label>{{end}}
+        <fieldset class="coach-lesson-students field-group"><legend>{{t "Students"}}</legend><div class="check-grid">
+          {{range .Students}}<label class="check"><input type="checkbox" name="members" value="{{.PersonID}}"> {{.DisplayName}}</label>{{else}}<span class="hint">{{t "No students yet."}}</span>{{end}}</div>
         </fieldset>
-        <button type="submit" class="primary">{{t "Make the group"}}</button>
+        <div class="form-actions form-actions--start"><button type="submit" class="primary">{{t "Make the group"}}</button></div>
       </form>
     </details>
   </section>
@@ -854,8 +854,8 @@
       <span class="hint">{{with .Group.StartsOn}}{{date . "2 January 2006"}}{{end}}{{with .Group.EndsOn}} – {{date . "2 January 2006"}}{{end}}</span></div>
     {{with .Event}}<p>{{t "For"}} <a href="/events/{{.ID}}">{{.Name}}</a>, {{date .StartsAt "Monday 2 January"}}.</p>{{end}}
     {{if .IsCoach}}
-    <div class="coach-lesson-students coach-group-members">{{$g := .Group}}{{range .Students}}<label><input type="checkbox" value="{{.PersonID}}"{{if $g.HasMember .PersonID}} checked{{end}}> {{.DisplayName}}</label>{{end}}</div>
-    <div class="coach-lesson-actions"><button type="button" id="coach-group-save">{{t "Save the members"}}</button><button type="button" id="coach-group-delete" class="danger">{{t "Delete the group"}}</button></div>
+    <div class="coach-lesson-students coach-group-members check-grid">{{$g := .Group}}{{range .Students}}<label class="check"><input type="checkbox" value="{{.PersonID}}"{{if $g.HasMember .PersonID}} checked{{end}}> {{.DisplayName}}</label>{{end}}</div>
+    <div class="coach-lesson-actions form-actions"><button type="button" id="coach-group-save" class="primary">{{t "Save the members"}}</button><button type="button" id="coach-group-delete" class="danger">{{t "Delete the group"}}</button></div>
     {{else}}
     <div class="coach-lesson-who">{{range .Group.Members}}<span class="voice-tag">{{.DisplayName}}</span>{{end}}</div>
     {{end}}
@@ -931,7 +931,7 @@
   {{template "community-tabs" .}}
   <p class="coach-subscribe"><a href="/calendar/subscribe">{{template "icon-calendar"}} {{t "Your calendar in your calendar app"}}</a></p>
   {{if .HasOnline}}
-  <label class="live-headphones" title="{{t "With headphones, your microphone isn’t cleaned up and sends high-quality audio: your voice as it is, for singing. Without, it removes echo and noise, right for laptop speakers."}}">
+  <label class="check live-headphones" title="{{t "With headphones, your microphone isn’t cleaned up and sends high-quality audio: your voice as it is, for singing. Without, it removes echo and noise, right for laptop speakers."}}">
     <input type="checkbox" id="live-headphones"{{if .Headphones}} checked{{end}}> {{t "I join online lessons with headphones (my voice as it is, for singing)"}}
   </label>
   {{end}}
@@ -940,17 +940,17 @@
   <section class="home-section">
     <details class="coach-new-lesson"{{if not .Days}} open{{end}}>
       <summary>{{template "icon-plus"}} {{t "A lesson"}}</summary>
-      <form id="coach-lesson-form" class="coach-lesson-form">
-        <label>{{t "When"}} <input type="datetime-local" name="startsAt" value="{{.DefaultStart}}" required></label>
-        <label>{{t "For"}} <select name="minutes"><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>{{t "1 hour"}}</option><option value="90">1 h 30</option><option value="120">{{t "2 hours"}}</option><option value="180">{{t "3 hours"}}</option></select></label>
-        <label>{{t "How"}} <select name="mode"><option value="in_person">{{t "In the room"}}</option><option value="online">{{t "Online"}}</option></select></label>
-        <label>{{t "Where"}} <input type="text" name="location" placeholder="{{t "Studio, address…"}}"></label>
-        <label>{{t "Name"}} <input type="text" name="name" placeholder="{{t "Lesson"}}"></label>
-        {{if .Groups}}<label>{{t "A group"}} <select name="groupId"><option value="0">{{t "no, students one by one"}}</option>{{range .Groups}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>{{end}}
-        <fieldset class="coach-lesson-students"><legend>{{t "Students"}}</legend>
-          {{range .Students}}<label><input type="checkbox" name="students" value="{{.PersonID}}"> {{.DisplayName}}</label>{{else}}<span class="hint">{{t "No students yet."}}</span>{{end}}
+      <form id="coach-lesson-form" class="coach-lesson-form form-grid">
+        <label class="field">{{t "When"}} <input type="datetime-local" name="startsAt" value="{{.DefaultStart}}" required></label>
+        <label class="field">{{t "For"}} <select name="minutes"><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>{{t "1 hour"}}</option><option value="90">1 h 30</option><option value="120">{{t "2 hours"}}</option><option value="180">{{t "3 hours"}}</option></select></label>
+        <label class="field">{{t "How"}} <select name="mode"><option value="in_person">{{t "In the room"}}</option><option value="online">{{t "Online"}}</option></select></label>
+        <label class="field">{{t "Where"}} <input type="text" name="location" placeholder="{{t "Studio, address…"}}"></label>
+        <label class="field">{{t "Name"}} <input type="text" name="name" placeholder="{{t "Lesson"}}"></label>
+        {{if .Groups}}<label class="field">{{t "A group"}} <select name="groupId"><option value="0">{{t "no, students one by one"}}</option>{{range .Groups}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>{{end}}
+        <fieldset class="coach-lesson-students field-group"><legend>{{t "Students"}}</legend><div class="check-grid">
+          {{range .Students}}<label class="check"><input type="checkbox" name="students" value="{{.PersonID}}"> {{.DisplayName}}</label>{{else}}<span class="hint">{{t "No students yet."}}</span>{{end}}</div>
         </fieldset>
-        <button type="submit" class="primary">{{t "Put it on the calendar"}}</button>
+        <div class="form-actions form-actions--start"><button type="submit" class="primary">{{t "Put it on the calendar"}}</button></div>
       </form>
     </details>
   </section>
@@ -975,9 +975,9 @@
         <details class="coach-lesson-edit">
           <summary>{{t "Edit"}}</summary>
           {{$regs := .Students}}
-          <label class="coach-lesson-mode">{{t "How"}} <select data-was="{{.Event.LessonMode}}"><option value="in_person"{{if ne .Event.LessonMode "online"}} selected{{end}}>{{t "In the room"}}</option><option value="online"{{if eq .Event.LessonMode "online"}} selected{{end}}>{{t "Online"}}</option></select></label>
-          <div class="coach-lesson-students">{{range $.Students}}{{$id := .PersonID}}<label><input type="checkbox" value="{{.PersonID}}"{{range $regs}}{{if eq .PersonID $id}} checked{{end}}{{end}}> {{.DisplayName}}</label>{{end}}</div>
-          <div class="coach-lesson-actions"><button type="button" class="coach-lesson-save">{{t "Save"}}</button><button type="button" class="coach-lesson-delete danger">{{t "Cancel the lesson"}}</button></div>
+          <label class="field coach-lesson-mode">{{t "How"}} <select data-was="{{.Event.LessonMode}}"><option value="in_person"{{if ne .Event.LessonMode "online"}} selected{{end}}>{{t "In the room"}}</option><option value="online"{{if eq .Event.LessonMode "online"}} selected{{end}}>{{t "Online"}}</option></select></label>
+          <div class="coach-lesson-students check-grid">{{range $.Students}}{{$id := .PersonID}}<label class="check"><input type="checkbox" value="{{.PersonID}}"{{range $regs}}{{if eq .PersonID $id}} checked{{end}}{{end}}> {{.DisplayName}}</label>{{end}}</div>
+          <div class="coach-lesson-actions form-actions"><button type="button" class="coach-lesson-save primary">{{t "Save"}}</button><button type="button" class="coach-lesson-delete danger">{{t "Cancel the lesson"}}</button></div>
         </details>
         {{end}}
       </div>

@@ -72,6 +72,7 @@
 
   <section class="card book-card">
     <h3>{{t "Language"}}</h3>
+    <div class="form-stack">
     <div class="field">
       <label for="profile-locale">{{t "Language"}}</label>
       <select id="profile-locale">
@@ -81,6 +82,7 @@
       </select>
     </div>
     <p class="form-status" id="profile-locale-status" role="status"></p>
+    </div>
   </section>
 
   <section class="card book-card">
@@ -170,7 +172,7 @@
     {{else}}
     <p class="hint">{{t "No passkeys registered yet."}}</p>
     {{end}}
-    <div class="form-actions"><button type="button" id="webauthn-register-btn">{{t "Add a passkey"}}</button></div>
+    <div class="form-actions form-actions--start"><button type="button" id="webauthn-register-btn">{{t "Add a passkey"}}</button></div>
     <p class="form-status" id="webauthn-register-status" role="status"></p>
     <p class="hint" id="webauthn-register-unsupported" hidden>{{t "This browser can't use passkeys. Your password and login links still work."}}</p>
   </section>

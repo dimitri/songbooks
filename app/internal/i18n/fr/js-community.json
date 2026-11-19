@@ -104,5 +104,7 @@
   "Remove this from their practice? What they logged stays.": "Retirer ceci de son travail ? Ce qui a été noté reste.",
   "No member matches.": "Aucun membre ne correspond.",
   "%d member shown": "%d membre affiché",
-  "%d members shown": "%d membres affichés"
+  "%d members shown": "%d membres affichés",
+  "Remove %s from this event’s managers?": "Retirer %s des responsables de cet événement ?",
+  "Couldn’t remove that manager. Try again.": "Impossible de retirer ce responsable. Réessayez."
 }

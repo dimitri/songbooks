@@ -28,382 +28,312 @@
     <a href="/communities/{{.Community.ID}}/admin" class="band-tab active">{{t "Admin"}}</a>
   </nav>
 
-  <p class="admin-links"><a class="dl-btn" href="/communities/{{.Community.ID}}/admin/stats">{{t "Stats: who viewed and downloaded what"}} &rarr;</a></p>
+  {{/* Running the community itself, in sections: a sidebar of them on a
+       wide screen, a list to tap into on a phone (admin.js below shows
+       one at a time, by the URL's #hash; without scripts they all show).
+       Songbooks are run on the Songbooks tab (members' submissions on the
+       default songbook's page) and events on the Events tab and each
+       event's Manage page, not here. */}}
+  <div class="admin-layout" data-admin-layout>
+    <nav class="admin-nav" aria-label="{{t "Admin sections"}}">
+      <ul>
+        <li><a href="#identity" data-section-link="identity">{{template "icon-community"}}<span class="admin-nav-label">{{t "Name and look"}}</span><span class="admin-nav-state">{{.Community.Name}}</span></a></li>
+        <li><a href="#members" data-section-link="members">{{template "icon-bands"}}<span class="admin-nav-label">{{t "Members"}}</span><span class="admin-nav-state">{{tn .CurrentMembers "%d member" "%d members"}}{{with .ShellPeople}} · {{tn (len .) "%d invite pending" "%d invites pending"}}{{end}}</span></a></li>
+        <li><a href="#joining" data-section-link="joining">{{template "icon-plus"}}<span class="admin-nav-label">{{t "Joining and invites"}}</span><span class="admin-nav-state">{{t "links, QR codes, adding people"}}</span></a></li>
+        <li><a href="#roles" data-section-link="roles">{{template "icon-profile"}}<span class="admin-nav-label">{{t "Roles and staff"}}</span><span class="admin-nav-state">{{tn (len .Roles) "%d role" "%d roles"}}</span></a></li>
+        <li><a href="#options" data-section-link="options">{{template "icon-settings"}}<span class="admin-nav-label">{{t "Options"}}</span><span class="admin-nav-state">{{if eq .Locale "fr"}}Français{{else if eq .Locale "en"}}English{{else}}{{t "Language: automatic"}}{{end}}</span></a></li>
+        <li><a href="/communities/{{.Community.ID}}/admin/stats">{{template "icon-view"}}<span class="admin-nav-label">{{t "Activity"}}</span><span class="admin-nav-state">{{t "who viewed and downloaded what"}}</span></a></li>
+      </ul>
+    </nav>
 
-  <div class="card">
-    <h2>{{t "Community name"}}</h2>
-    <form class="form-stack" id="rename-form">
-      <div class="field"><label for="rename-input">{{t "Name"}}</label><input type="text" id="rename-input" name="name" value="{{.Community.Name}}" required autocomplete="off"></div>
-      <div class="form-actions"><button type="submit" class="primary">{{t "Save name"}}</button></div>
-      <p id="rename-result" class="form-status" role="status"></p>
-    </form>
-    {{/* Saves on change, like the other selects on this page. */}}
-    <div class="form-stack" style="margin-top:0.8rem">
-      <div class="field">
-        <label for="default-join-role-select">{{t "Role for people who join through an event"}}</label>
-        <p class="field-hint" id="default-join-role-hint">{{t "Someone who registers for one of your events without being a member joins with this role."}}</p>
-        <select id="default-join-role-select" aria-describedby="default-join-role-hint">
-          {{range .Roles}}<option value="{{.Name}}" {{if eq $.Community.DefaultJoinRole .Name}}selected{{end}}>{{t .Name}}</option>{{end}}
-        </select>
-      </div>
-      <p id="default-join-role-result" class="form-status" role="status"></p>
-    </div>
-    {{/* The community's language: its pages, songbooks and songs are in
-         it for whoever hasn't chosen their own (docs/i18n.md). */}}
-    <div class="form-stack" style="margin-top:0.8rem">
-      <div class="field">
-        <label for="community-locale-select">{{t "Language"}}</label>
-        <p class="field-hint" id="community-locale-hint">{{t "The language of the community’s pages, for members who haven’t chosen their own."}}</p>
-        <select id="community-locale-select" aria-describedby="community-locale-hint">
-          <option value="" {{if eq .Locale ""}}selected{{end}}>{{t "Automatic (from each member’s settings and browser)"}}</option>
-          <option value="en" {{if eq .Locale "en"}}selected{{end}}>English</option>
-          <option value="fr" {{if eq .Locale "fr"}}selected{{end}}>Français</option>
-        </select>
-      </div>
-      <p id="community-locale-result" class="form-status" role="status"></p>
-    </div>
-    {{/* A coaching community's song player options (store/vocal_slider.go,
-         migrations 0093 and 0097), each saved on change, like the selects
-         above. Self-contained: its markup and its script (data-player-option). */}}
-    {{if .Community.IsCoaching}}
-    <fieldset class="field-group" style="margin-top:1rem; gap:0.6rem">
-      <legend>{{t "The song player, for singers"}}</legend>
-      <div>
-        <label class="check"><input type="checkbox" id="vocal-slider-check" data-player-option="vocal-slider" aria-describedby="vocal-slider-hint"{{if .Community.PlayerVocalSlider}} checked{{end}}> <strong>{{t "Voice slider in the player"}}</strong></label>
-        <p class="field-hint" id="vocal-slider-hint">{{t "In the player of the community’s songs: a slider to turn the recorded voice down (karaoke), for coaches and students, in the “Voice & key” panel."}}</p>
-      </div>
-      <div>
-        <label class="check"><input type="checkbox" id="coach-student-keys-check" data-player-option="coach-student-keys" aria-describedby="coach-student-keys-hint"{{if .Community.CoachStudentKeys}} checked{{end}}> <strong>{{t "Key per student"}}</strong></label>
-        <p class="field-hint" id="coach-student-keys-hint">{{t "In the player of the songs opened from the community’s songbooks: the coach picks a student and saves their key, students with a lesson in the coming 7 days first. Coaches only."}}</p>
-      </div>
-      <p id="player-options-result" class="form-status" role="status"></p>
-    </fieldset>
-    {{end}}
-    {{/* Who sees the Members page (community_members.go). */}}
-    <div class="form-stack" style="margin-top:0.8rem">
-      <div class="field">
-        <label for="members-visibility-select">{{t "Member list visible to"}}</label>
-        <p class="field-hint" id="members-visibility-hint">{{t "Members see names, roles, instruments and join dates; changing roles, removing people and invites stay with admins."}}</p>
-        <select id="members-visibility-select" aria-describedby="members-visibility-hint">
-          <option value="members" {{if eq .MembersVisibility "members"}}selected{{end}}>{{t "All members"}}</option>
-          <option value="admins" {{if ne .MembersVisibility "members"}}selected{{end}}>{{t "Admins only"}}</option>
-        </select>
-      </div>
-      <p id="members-visibility-result" class="form-status" role="status"></p>
-    </div>
-  </div>
+    <div class="admin-sections">
 
-  {{/* Roles: a name plus a chosen set of privileges from the fixed
-       catalog (see internal/store/roles.go) — the 3 built-ins (staff,
-       member, guest) always exist and can't be renamed/deleted, but
-       their OWN privilege sets are editable here too, same as a custom
-       role's. A role's checkbox state saves immediately on toggle
-       (no separate "save" step per row) to match the rest of this
-       page's instant-save pattern. */}}
-  <div class="card">
-    <h2>{{t "Roles"}}</h2>
-    <p class="hint">{{t "A role is a name plus what it lets people do. The 3 built-in roles always exist; create more for anything in between. Changes here save straight away."}}</p>
-    <div class="table-scroll"><table class="table-stack" style="width:100%" id="roles-table">
-      <thead><tr><th>{{t "Role"}}</th>{{range $.AllPrivileges}}<th>{{template "community-priv-label" .}}</th>{{end}}<th></th></tr></thead>
-      <tbody>
-      {{range .Roles}}
-        {{$role := .}}
-        <tr data-role-id="{{.ID}}">
-          <td data-label="{{t "Role"}}">
-            {{if .IsBuiltin}}{{t .Name}}
-            {{else}}<input type="text" class="role-name-input" value="{{.Name}}" data-role-id="{{.ID}}" aria-label="{{t "Role name"}}" autocomplete="off">
-            {{end}}
-          </td>
-          {{range $.AllPrivileges}}
-          <td data-label="{{template "community-priv-label" .}}"><input type="checkbox" class="role-priv-checkbox" data-role-id="{{$role.ID}}" data-privilege="{{.}}" aria-label="{{t $role.Name}}: {{template "community-priv-label" .}}" {{if $role.HasPrivilege .}}checked{{end}}></td>
-          {{end}}
-          <td>{{if not .IsBuiltin}}<button type="button" class="delete-role-btn danger" data-role-id="{{.ID}}" data-role-name="{{.Name}}">{{t "Delete"}}</button>{{end}}</td>
-        </tr>
-      {{end}}
-      </tbody>
-    </table></div>
-    <p id="roles-status" class="form-status" role="status"></p>
-    <form class="form-stack" id="create-role-form" style="margin-top:0.8rem">
-      <div class="field"><label for="new-role-name">{{t "New role name"}}</label><input type="text" id="new-role-name" name="name" placeholder="{{t "e.g. Events coordinator"}}" required autocomplete="off"></div>
-      <div class="form-actions"><button type="submit" id="create-role-btn" class="primary">{{t "Create role"}}</button></div>
-      <p id="create-role-result" class="form-status" role="status"></p>
-    </form>
-  </div>
+    {{/* ---- Name and look ---- */}}
+    <section class="admin-section" id="identity" aria-labelledby="identity-title">
+      <a class="admin-section-back" href="#">{{template "icon-back"}} {{t "All sections"}}</a>
+      <h2 class="admin-section-title" id="identity-title">{{t "Name and look"}}</h2>
+      <div class="card">
+        <h3>{{t "Community name"}}</h3>
+        <form class="form-stack" id="rename-form">
+          <div class="field"><label for="rename-input">{{t "Name"}}</label><input type="text" id="rename-input" name="name" value="{{.Community.Name}}" required autocomplete="off" maxlength="120"></div>
+          <div class="form-actions"><button type="submit" class="primary">{{t "Save name"}}</button></div>
+          <p id="rename-result" class="form-status" role="status"></p>
+        </form>
+      </div>
+      {{template "brand-editor" (printf "/api/communities/%d/brand" .Community.ID)}}
+    </section>
 
-  {{/* Events: community-hosted jam/scène ouverte, meetup, listening
-       party, dinner, going-to-a-show-together — see internal/httpapi/
-       events.go's own doc comments. Public listing/registration lives
-       at /communities/{id}/events; this is the staff-only create/manage
-       surface, including assigning per-event managers (never delegated
-       to an existing manager — "assigned by the jam staff / community
-       staff," the user's own explicit spec). */}}
-  <div class="card">
-    <h2>{{t "Events"}} <a href="/communities/{{.Community.ID}}/events" class="hint">{{t "(public page)"}}</a></h2>
-    <form class="form-stack" id="create-event-form">
-      <div class="field"><label for="ev-name">{{t "Event name"}}</label><input type="text" id="ev-name" name="name" required autocomplete="off"></div>
-      <div class="field"><label for="ev-type">{{t "Type"}}</label>
-        <select id="ev-type" name="eventType">
-          <option value="jam" selected>{{t "Jam"}}</option>
-          <option value="meetup">{{t "Meetup"}}</option>
-          <option value="listening_party">{{t "Listening party"}}</option>
-          <option value="dinner">{{t "Dinner"}}</option>
-          <option value="show_together">{{t "Going to a show together"}}</option>
-          <option value="open_mic">{{t "Open mic"}}</option>
-          <option value="masterclass">{{t "Master class, stage"}}</option>
-        </select>
+    {{/* ---- Members ---- */}}
+    <section class="admin-section" id="members" aria-labelledby="members-title">
+      <a class="admin-section-back" href="#">{{template "icon-back"}} {{t "All sections"}}</a>
+      <div class="admin-section-head">
+        <h2 class="admin-section-title" id="members-title">{{t "Members"}}</h2>
+        <a class="chip-link" href="#joining">{{template "icon-plus"}} {{t "Add people"}}</a>
       </div>
-      <div class="field" id="ev-audience-field">
-        <label for="ev-audience">{{t "Open to"}}</label>
-        <select id="ev-audience" name="audienceScope">
-          <option value="members" selected>{{t "Musicians (members)"}}</option>
-          <option value="bands">{{t "Bands only (scène ouverte)"}}</option>
-          <option value="both">{{t "Both"}}</option>
-        </select>
+      {{/* The member list itself, its roles, removals and past members: the
+           Members page (community_members.go). Here: who sees that page,
+           and the invites still waiting for someone to join. */}}
+      <div class="card">
+        <p class="hint">{{t "The member list, with each person’s role, removals and past members, is on the Members page."}}</p>
+        <div class="form-actions form-actions--start">
+          <a class="chip-link primary" href="/communities/{{.Community.ID}}/members">{{t "See and manage members"}} &rarr;</a>
+        </div>
       </div>
-      {{/* The browser's own local time, sent as UTC (toISOString) — the
-           hint names the time zone so nobody types a time for the wrong
-           one. */}}
-      <div class="field">
-        <label for="ev-starts">{{t "Date and time"}}</label>
-        <p class="field-hint" id="ev-starts-hint">{{t "In your time zone"}}<span id="ev-starts-tz"></span>.</p>
-        <input type="datetime-local" id="ev-starts" name="startsAt" required aria-describedby="ev-starts-hint">
-      </div>
-      <div class="field"><label for="ev-location">{{t "Venue"}} <span class="field-optional">{{t "(optional)"}}</span></label><input type="text" id="ev-location" name="location" placeholder="{{t "e.g. The Blue Note, back room"}}" autocomplete="off"></div>
-      <div class="field"><label for="ev-description">{{t "Description"}} <span class="field-optional">{{t "(optional)"}}</span></label><textarea id="ev-description" name="description" rows="2" class="prose"></textarea></div>
-      <div class="form-actions"><button type="submit" id="create-event-btn" class="primary">{{t "Create event"}}</button></div>
-      <p id="create-event-result" class="form-status" role="status"></p>
-    </form>
-
-    <div class="form-stack" style="margin-top:1rem">
-    {{range .Events}}
-      <div class="import-row" data-event-id="{{.ID}}">
-        <div>
-          <a href="/events/{{.ID}}"><strong>{{.Name}}</strong></a>
-          <div class="hint">{{date .StartsAt "Mon 2 Jan 2006 · 15:04"}}{{if .Location}} — {{.Location}}{{end}} — {{template "community-event-type-label" .EventType}}</div>
-          <div class="hint">{{t "Managers:"}}
-          {{range index $.EventManagers .ID}}{{.DisplayName}} {{else}}<em>{{t "none assigned"}}</em>{{end}}
+      {{/* Who sees the Members page: a setting, so only for a role that
+           grants manage_settings (the API checks it too). */}}
+      {{if .CanManageSettings}}
+      <div class="card">
+        <div class="form-stack">
+          <div class="field">
+            <label for="members-visibility-select">{{t "Member list visible to"}}</label>
+            <p class="field-hint" id="members-visibility-hint">{{t "Members see names, roles, instruments and join dates; changing roles, removing people and invites stay with admins."}}</p>
+            <select id="members-visibility-select" aria-describedby="members-visibility-hint">
+              <option value="members" {{if eq .MembersVisibility "members"}}selected{{end}}>{{t "All members"}}</option>
+              <option value="admins" {{if ne .MembersVisibility "members"}}selected{{end}}>{{t "Admins only"}}</option>
+            </select>
           </div>
+          <p id="members-visibility-result" class="form-status" role="status"></p>
         </div>
-        <select class="assign-manager-select" data-event-id="{{.ID}}" aria-label="{{t "Assign a manager to %s" .Name}}">
-          <option value="">{{t "Assign a manager…"}}</option>
-          {{range $.Members}}{{if .IsCurrent}}<option value="{{.PersonID}}">{{.DisplayName}}</option>{{end}}{{end}}
-        </select>
       </div>
-    {{else}}
-      <div class="attention-empty">{{t "No events yet — create one above."}}</div>
-    {{end}}
-    <p id="events-status" class="form-status" role="status"></p>
-    </div>
-  </div>
+      {{end}}
+      <p id="members-status" class="form-status" role="status"></p>
 
-  <h2>{{t "Pending submissions"}}</h2>
-  <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>{{t "Submitted by"}}</th><th>{{t "Kind"}}</th><th>{{t "Submitted"}}</th><th>{{t "Source"}}</th><th>{{t "Note"}}</th><th></th></tr></thead>
-    <tbody id="pending-body">
-    {{range .PendingSubmissions}}
-      <tr data-submission-id="{{.ID}}">
-        <td data-label="{{t "Submitted by"}}">{{.StudentUsername}}</td>
-        <td data-label="{{t "Kind"}}">{{if eq .Kind "new_song"}}{{t "New song"}}{{else if eq .Kind "edit"}}{{t "Edit"}}{{else}}{{.Kind}}{{end}}</td>
-        <td data-label="{{t "Submitted"}}">{{.SubmittedTitle}}</td>
-        <td data-label="{{t "Source"}}">{{if .SourceVariantID}}{{.SourceTitle}} (#{{deref64 .SourceVariantID}}){{end}}</td>
-        <td data-label="{{t "Note"}}">{{.Note}}</td>
-        <td>
-          <button type="button" class="reject-btn danger" data-id="{{.ID}}" data-title="{{.SubmittedTitle}}" data-who="{{.StudentUsername}}">{{t "Reject"}}</button>
-          <button type="button" class="accept-btn primary" data-id="{{.ID}}">{{t "Accept"}}</button>
-        </td>
-      </tr>
-    {{else}}
-      <tr><td colspan="6" class="hint">{{t "No pending submissions."}}</td></tr>
-    {{end}}
-    </tbody>
-  </table></div>
-  <p id="submissions-status" class="form-status" role="status"></p>
+      {{if .ShellPeople}}
+      <h3 class="admin-subtitle">{{t "Invited, not joined yet"}}</h3>
+      <div class="table-scroll"><table class="card table-stack" style="width:100%">
+        <thead><tr><th>{{t "Name"}}</th><th>{{t "Role"}}</th><th>{{t "Invited by"}}</th><th>{{t "Added"}}</th><th></th></tr></thead>
+        <tbody>
+        {{range .ShellPeople}}
+          <tr data-person-id="{{.PersonID}}">
+            <td data-label="{{t "Name"}}">{{.DisplayName}}</td>
+            <td data-label="{{t "Role"}}">{{range .Memberships}}{{if eq .Kind "community"}}{{t .Status}}{{end}}{{end}}</td>
+            <td data-label="{{t "Invited by"}}">{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>{{t "unknown"}}</em>{{end}}</td>
+            <td data-label="{{t "Added"}}">{{date .CreatedAt "2006-01-02"}}</td>
+            <td>
+              {{if .OpenInviteToken}}
+              <span class="invite-link-row">
+                <code class="invite-link-url" data-url="/invite/{{.OpenInviteToken}}">/invite/{{.OpenInviteToken}}</code>
+                <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}">{{t "Copy link"}}</button>
+                <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}">{{t "QR code"}}</button>
+              </span>
+              {{else}}
+              <button type="button" class="create-shell-invite-btn" data-person-id="{{.PersonID}}">{{t "Get invite link"}}</button>
+              {{end}}
+            </td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table></div>
+      {{end}}
+    </section>
 
-  <h2>{{t "All submissions"}}</h2>
-  <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>{{t "Submitted by"}}</th><th>{{t "Kind"}}</th><th>{{t "Submitted"}}</th><th>{{t "Status"}}</th><th>{{t "Decided by"}}</th></tr></thead>
-    <tbody>
-    {{range .AllSubmissions}}
-      <tr>
-        <td data-label="{{t "Submitted by"}}">{{.StudentUsername}}</td>
-        <td data-label="{{t "Kind"}}">{{if eq .Kind "new_song"}}{{t "New song"}}{{else if eq .Kind "edit"}}{{t "Edit"}}{{else}}{{.Kind}}{{end}}</td>
-        <td data-label="{{t "Submitted"}}">{{.SubmittedTitle}}</td>
-        <td data-label="{{t "Status"}}">{{t .Status}}</td>
-        <td data-label="{{t "Decided by"}}">{{.DecidedByUsername}}</td>
-      </tr>
-    {{else}}
-      <tr><td colspan="5" class="hint">{{t "No submissions yet."}}</td></tr>
-    {{end}}
-    </tbody>
-  </table></div>
+    {{/* ---- Joining and invites ---- */}}
+    <section class="admin-section" id="joining" aria-labelledby="joining-title">
+      <a class="admin-section-back" href="#">{{template "icon-back"}} {{t "All sections"}}</a>
+      <h2 class="admin-section-title" id="joining-title">{{t "Joining and invites"}}</h2>
 
-  {{if .ShellPeople}}
-  <h2>{{t "Invited, not joined yet"}}</h2>
-  <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>{{t "Name"}}</th><th>{{t "Role"}}</th><th>{{t "Invited by"}}</th><th>{{t "Added"}}</th><th></th></tr></thead>
-    <tbody>
-    {{range .ShellPeople}}
-      <tr data-person-id="{{.PersonID}}">
-        <td data-label="{{t "Name"}}">{{.DisplayName}}</td>
-        <td data-label="{{t "Role"}}">{{range .Memberships}}{{if eq .Kind "community"}}{{t .Status}}{{end}}{{end}}</td>
-        <td data-label="{{t "Invited by"}}">{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>{{t "unknown"}}</em>{{end}}</td>
-        <td data-label="{{t "Added"}}">{{date .CreatedAt "2006-01-02"}}</td>
-        <td>
-          {{if .OpenInviteToken}}
-          <span class="invite-link-row">
-            <code class="invite-link-url" data-url="/invite/{{.OpenInviteToken}}">/invite/{{.OpenInviteToken}}</code>
-            <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}">{{t "Copy link"}}</button>
-            <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}">{{t "QR code"}}</button>
-          </span>
-          {{else}}
-          <button type="button" class="create-shell-invite-btn" data-person-id="{{.PersonID}}">{{t "Get invite link"}}</button>
-          {{end}}
-        </td>
-      </tr>
-    {{end}}
-    </tbody>
-  </table></div>
-  {{end}}
-
-  {{/* The member list itself, its roles and removals: the Members page. */}}
-  <h2>{{t "Members"}}</h2>
-  <p class="admin-links"><a class="dl-btn" href="/communities/{{.Community.ID}}/members">{{t "Members: roles, removals, past members"}} &rarr;</a></p>
-  <p id="members-status" class="form-status" role="status"></p>
-
-  <div class="card">
-    <h2>{{t "Add people to this community"}}</h2>
-
-    <div class="form-subsection">
-      <h3>{{t "Quick add (personal invite)"}}</h3>
-      <p class="hint">{{t "For someone who has no account yet: they're on the roster straight away, and the personal link you get lets them finish their account."}}</p>
-      <form class="form-stack" id="quick-add-form">
-        <div class="field">
-          <label for="quick-add-name">{{t "Name"}}</label>
-          <input type="text" id="quick-add-name" name="displayName" placeholder="{{t "e.g. Alex"}}" required autocomplete="off" autocapitalize="words">
+      <div class="card">
+        <h3>{{t "Community link or QR code"}}</h3>
+        <p class="hint">{{t "One open link, no names needed: anyone who follows it creates an account (or logs in) and joins straight away with the role on the link. Make one link per role rather than promoting people afterwards, so you never hand out a more powerful link by mistake. A \"guest\" link only lets people read — handy for a QR code on the door at a jam."}}</p>
+        <div class="form-actions form-actions--start">
+          {{range .Roles}}<button type="button" class="community-link-btn" data-role="{{.Name}}">{{t "Get %s link" (t .Name)}}</button>{{end}}
         </div>
-        <div class="field">
-          <label for="quick-add-role">{{t "Role"}}</label>
-          <select id="quick-add-role" name="role">
-            {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{t .Name}}</option>{{end}}
-          </select>
-        </div>
-        <div class="form-actions">
-          <button type="submit" id="quick-add-btn" class="primary">{{t "Add and get invite link"}}</button>
-        </div>
-        <p id="quick-add-result" class="form-status" role="status"></p>
-      </form>
-    </div>
+        <p id="community-link-result" class="form-status" role="status"></p>
+      </div>
 
-    <div class="form-subsection">
-      <h3>{{t "Add an existing account"}}</h3>
-      <form class="form-stack" id="add-member-form">
-        <div class="field">
-          <label for="add-username">{{t "Username"}}</label>
-          <p class="field-hint" id="add-username-hint">{{t "The username they log in with."}}</p>
-          <input type="text" id="add-username" name="username" placeholder="{{t "e.g. marcguitar"}}" required aria-describedby="add-username-hint" autocomplete="off" autocapitalize="none" spellcheck="false">
-        </div>
-        <div class="field">
-          <label for="add-role">{{t "Role"}}</label>
-          <select id="add-role" name="role">
-            {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{t .Name}}</option>{{end}}
-          </select>
-        </div>
-        <div class="form-actions">
-          <button type="submit" id="add-member-btn" class="primary">{{t "Add to community"}}</button>
-        </div>
-        <p id="add-member-result" class="form-status" role="status"></p>
-      </form>
-    </div>
-
-    <div class="form-subsection">
-      <h3>{{t "Group invite link"}}</h3>
-      <p class="hint">{{t "Type the names you expect, then get one link to share — on WhatsApp, say. Each person who opens it picks their name, then creates an account or logs in, and joins with the role below. You can change anyone's role afterwards in the members table."}}</p>
-      <form class="form-stack" id="group-invite-form">
-        <div id="group-invite-rows" class="form-stack">
-          <div class="group-invite-row">
-            <div class="field">
-              <label for="group-invite-name-1">{{t "Name"}}</label>
-              <input type="text" class="group-invite-name" id="group-invite-name-1" placeholder="{{t "e.g. Alex"}}" required autocomplete="off" autocapitalize="words">
+      <div class="card">
+        <h3>{{t "Group invite link"}}</h3>
+        <p class="hint">{{t "Type the names you expect, then get one link to share — on WhatsApp, say. Each person who opens it picks their name, then creates an account or logs in, and joins with the role below. You can change anyone's role afterwards on the Members page."}}</p>
+        <form class="form-stack" id="group-invite-form">
+          <div id="group-invite-rows" class="form-stack">
+            <div class="group-invite-row">
+              <div class="field">
+                <label for="group-invite-name-1">{{t "Name"}}</label>
+                <input type="text" class="group-invite-name" id="group-invite-name-1" placeholder="{{t "e.g. Alex"}}" required autocomplete="off" autocapitalize="words">
+              </div>
             </div>
           </div>
+          <div><button type="button" id="group-invite-add-row-btn">{{template "icon-plus"}} {{t "Add another name"}}</button></div>
+          <div class="field">
+            <label for="group-invite-role">{{t "Role"}}</label>
+            <select id="group-invite-role" name="role">
+              {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{t .Name}}</option>{{end}}
+            </select>
+          </div>
+          <div class="form-actions">
+            <button type="submit" id="create-group-invite-btn" class="primary">{{t "Create group invite link"}}</button>
+          </div>
+          <p id="group-invite-result" class="form-status" role="status"></p>
+          <div class="form-actions"><button type="button" id="close-group-invite-btn" class="danger" hidden>{{t "Close this link"}}</button></div>
+        </form>
+      </div>
+
+      <div class="card-grid">
+        <div class="card">
+          <h3>{{t "Quick add (personal invite)"}}</h3>
+          <p class="hint">{{t "For someone who has no account yet: they're on the roster straight away, and the personal link you get lets them finish their account."}}</p>
+          <form class="form-stack" id="quick-add-form">
+            <div class="field">
+              <label for="quick-add-name">{{t "Name"}}</label>
+              <input type="text" id="quick-add-name" name="displayName" placeholder="{{t "e.g. Alex"}}" required autocomplete="off" autocapitalize="words">
+            </div>
+            <div class="field">
+              <label for="quick-add-role">{{t "Role"}}</label>
+              <select id="quick-add-role" name="role">
+                {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{t .Name}}</option>{{end}}
+              </select>
+            </div>
+            <div class="form-actions">
+              <button type="submit" id="quick-add-btn" class="primary">{{t "Add and get invite link"}}</button>
+            </div>
+            <p id="quick-add-result" class="form-status" role="status"></p>
+          </form>
         </div>
-        <div class="field">
-          <label for="group-invite-role">{{t "Role"}}</label>
-          <select id="group-invite-role" name="role">
-            {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{t .Name}}</option>{{end}}
-          </select>
+
+        <div class="card">
+          <h3>{{t "Add an existing account"}}</h3>
+          <p class="hint">{{t "For someone who already uses Songbooks."}}</p>
+          <form class="form-stack" id="add-member-form">
+            <div class="field">
+              <label for="add-username">{{t "Username"}}</label>
+              <p class="field-hint" id="add-username-hint">{{t "The username they log in with."}}</p>
+              <input type="text" id="add-username" name="username" placeholder="{{t "e.g. marcguitar"}}" required aria-describedby="add-username-hint" autocomplete="off" autocapitalize="none" spellcheck="false">
+            </div>
+            <div class="field">
+              <label for="add-role">{{t "Role"}}</label>
+              <select id="add-role" name="role">
+                {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{t .Name}}</option>{{end}}
+              </select>
+            </div>
+            <div class="form-actions">
+              <button type="submit" id="add-member-btn" class="primary">{{t "Add to community"}}</button>
+            </div>
+            <p id="add-member-result" class="form-status" role="status"></p>
+          </form>
         </div>
-        <div class="form-actions" style="flex-wrap:wrap">
-          <button type="button" id="group-invite-add-row-btn">{{template "icon-plus"}} {{t "Add another name"}}</button>
-          <button type="submit" id="create-group-invite-btn" class="primary">{{t "Create group invite link"}}</button>
+      </div>
+
+      {{/* Saves on change, like the other selects on this page. */}}
+      <div class="card">
+        <h3>{{t "Joining through an event"}}</h3>
+        <div class="form-stack">
+          <div class="field">
+            <label for="default-join-role-select">{{t "Role for people who join through an event"}}</label>
+            <p class="field-hint" id="default-join-role-hint">{{t "Someone who registers for one of your events without being a member joins with this role."}}</p>
+            <select id="default-join-role-select" aria-describedby="default-join-role-hint">
+              {{range .Roles}}<option value="{{.Name}}" {{if eq $.Community.DefaultJoinRole .Name}}selected{{end}}>{{t .Name}}</option>{{end}}
+            </select>
+          </div>
+          <p id="default-join-role-result" class="form-status" role="status"></p>
         </div>
-        <p id="group-invite-result" class="form-status" role="status"></p>
-        <div class="form-actions"><button type="button" id="close-group-invite-btn" class="danger" hidden>{{t "Close this link"}}</button></div>
-      </form>
+      </div>
+    </section>
+
+    {{/* ---- Roles and staff ----
+         Roles: a name plus a chosen set of privileges from the fixed
+         catalog (see internal/store/roles.go) — the 3 built-ins (staff,
+         member, guest) always exist and can't be renamed/deleted, but
+         their OWN privilege sets are editable here too, same as a custom
+         role's. A role's checkbox state saves immediately on toggle. */}}
+    <section class="admin-section" id="roles" aria-labelledby="roles-title">
+      <a class="admin-section-back" href="#">{{template "icon-back"}} {{t "All sections"}}</a>
+      <h2 class="admin-section-title" id="roles-title">{{t "Roles and staff"}}</h2>
+      <p class="hint">{{t "A role is a name plus what it lets people do. The 3 built-in roles always exist; create more for anything in between. Changes here save straight away."}}</p>
+      <div class="table-scroll"><table class="card table-stack roles-table" style="width:100%" id="roles-table">
+        <thead><tr><th>{{t "Role"}}</th>{{range $.AllPrivileges}}<th>{{template "community-priv-label" .}}</th>{{end}}<th></th></tr></thead>
+        <tbody>
+        {{range .Roles}}
+          {{$role := .}}
+          <tr data-role-id="{{.ID}}">
+            <td data-label="{{t "Role"}}">
+              {{if .IsBuiltin}}<strong>{{t .Name}}</strong>
+              {{else}}<input type="text" class="role-name-input" value="{{.Name}}" data-role-id="{{.ID}}" aria-label="{{t "Role name"}}" autocomplete="off">
+              {{end}}
+            </td>
+            {{range $.AllPrivileges}}
+            <td data-label="{{template "community-priv-label" .}}"><input type="checkbox" class="role-priv-checkbox" data-role-id="{{$role.ID}}" data-privilege="{{.}}" aria-label="{{t $role.Name}}: {{template "community-priv-label" .}}" {{if $role.HasPrivilege .}}checked{{end}}></td>
+            {{end}}
+            <td>{{if not .IsBuiltin}}<button type="button" class="delete-role-btn danger" data-role-id="{{.ID}}" data-role-name="{{.Name}}">{{t "Delete"}}</button>{{end}}</td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table></div>
+      <p id="roles-status" class="form-status" role="status"></p>
+      <div class="card">
+        <h3>{{t "New role"}}</h3>
+        <form class="form-stack" id="create-role-form">
+          <div class="field"><label for="new-role-name">{{t "New role name"}}</label><input type="text" id="new-role-name" name="name" placeholder="{{t "e.g. Events coordinator"}}" required autocomplete="off" maxlength="60"></div>
+          <div class="form-actions"><button type="submit" id="create-role-btn" class="primary">{{t "Create role"}}</button></div>
+          <p id="create-role-result" class="form-status" role="status"></p>
+        </form>
+      </div>
+    </section>
+
+    {{/* ---- Options ----
+         Community-wide switches that save on change: the language here,
+         and the player options a coaching community turns on (each one a
+         .field or a label.check with its .field-hint, then its own
+         .form-status line, inside #community-options). */}}
+    <section class="admin-section" id="options" aria-labelledby="options-title">
+      <a class="admin-section-back" href="#">{{template "icon-back"}} {{t "All sections"}}</a>
+      <h2 class="admin-section-title" id="options-title">{{t "Options"}}</h2>
+      <div class="card">
+        <div class="form-stack" id="community-options">
+          {{/* The community's language: its pages, songbooks and songs are in
+               it for whoever hasn't chosen their own (docs/i18n.md). */}}
+          <div class="field">
+            <label for="community-locale-select">{{t "Language"}}</label>
+            <p class="field-hint" id="community-locale-hint">{{t "The language of the community’s pages, for members who haven’t chosen their own."}}</p>
+            <select id="community-locale-select" aria-describedby="community-locale-hint">
+              <option value="" {{if eq .Locale ""}}selected{{end}}>{{t "Automatic (from each member’s settings and browser)"}}</option>
+              <option value="en" {{if eq .Locale "en"}}selected{{end}}>English</option>
+              <option value="fr" {{if eq .Locale "fr"}}selected{{end}}>Français</option>
+            </select>
+          </div>
+          <p id="community-locale-result" class="form-status" role="status"></p>
+          {{/* A coaching community's song player options (store/vocal_slider.go,
+               migrations 0093 and 0097), each saved on change, like the
+               language: its markup and its script (data-player-option). */}}
+          {{if .Community.IsCoaching}}
+          <fieldset class="field-group">
+            <legend>{{t "The song player, for singers"}}</legend>
+            <label class="check"><input type="checkbox" id="vocal-slider-check" data-player-option="vocal-slider" aria-describedby="vocal-slider-hint"{{if .Community.PlayerVocalSlider}} checked{{end}}> <span>{{t "Voice slider in the player"}}<small class="field-hint" id="vocal-slider-hint">{{t "In the player of the community’s songs: a slider to turn the recorded voice down (karaoke), for coaches and students, in the “Voice & key” panel."}}</small></span></label>
+            <label class="check"><input type="checkbox" id="coach-student-keys-check" data-player-option="coach-student-keys" aria-describedby="coach-student-keys-hint"{{if .Community.CoachStudentKeys}} checked{{end}}> <span>{{t "Key per student"}}<small class="field-hint" id="coach-student-keys-hint">{{t "In the player of the songs opened from the community’s songbooks: the coach picks a student and saves their key, students with a lesson in the coming 7 days first. Coaches only."}}</small></span></label>
+          </fieldset>
+          <p id="player-options-result" class="form-status" role="status"></p>
+          {{end}}
+        </div>
+      </div>
+    </section>
+
     </div>
-
-    <div class="form-subsection">
-      <h3>{{t "Community link or QR code"}}</h3>
-      <p class="hint">{{t "One open link, no names needed: anyone who follows it creates an account (or logs in) and joins straight away with the role on the link. Make one link per role rather than promoting people afterwards, so you never hand out a more powerful link by mistake. A \"guest\" link only lets people read — handy for a QR code on the door at a jam."}}</p>
-      <div class="form-actions" style="flex-wrap:wrap">
-        {{range .Roles}}<button type="button" class="community-link-btn" data-role="{{.Name}}">{{t "Get %s link" (t .Name)}}</button>{{end}}
-      </div>
-      <p id="community-link-result" class="form-status" role="status"></p>
-    </div>
   </div>
-
-  <h2>{{t "Default songbook"}}</h2>
-  <div class="card">
-    <h3>{{t "Write a new original song"}}</h3>
-    <form class="form-stack" id="new-variant-form">
-      <div class="field"><label for="new-variant-title">{{t "Title"}}</label><input type="text" id="new-variant-title" name="title" required autocomplete="off"></div>
-      <div class="field"><label for="new-variant-artist">{{t "Artist"}} <span class="field-optional">{{t "(optional)"}}</span></label><input type="text" id="new-variant-artist" name="artist" autocomplete="off"></div>
-      {{/* "Already in the library" list, see library-match.js. */}}
-      <div id="new-variant-library-match"></div>
-      <div class="form-actions"><button type="submit" id="new-variant-btn" class="primary">{{t "Create song"}}</button></div>
-      <p id="new-variant-result" class="form-status" role="status"></p>
-    </form>
-  </div>
-
-  <div class="card">
-    <h3>{{t "Add a song by its number"}}</h3>
-    <form class="form-stack" id="add-existing-form">
-      <div class="field">
-        <label for="variant-id-input">{{t "Song number"}}</label>
-        <p class="field-hint" id="variant-id-hint">{{t "The number at the end of the song's address — the 123 in /song/123. \"Add\" links to the song as it is; a community copy can be edited without changing the original."}}</p>
-        <input type="number" id="variant-id-input" name="variantId" inputmode="numeric" min="1" step="1" required aria-describedby="variant-id-hint" enterkeyhint="done">
-      </div>
-      <div class="form-actions" style="flex-wrap:wrap">
-        <button type="button" id="fork-into-community-btn">{{t "Make a community copy"}}</button>
-        <button type="submit" id="add-existing-btn" class="primary">{{t "Add to songbook"}}</button>
-      </div>
-      <p id="add-result" class="form-status" role="status"></p>
-    </form>
-  </div>
-
-  <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>{{t "Title"}}</th><th>{{t "Artist"}}</th><th>{{t "Added by"}}</th><th></th></tr></thead>
-    <tbody>
-    {{range .Entries}}
-      <tr data-variant-id="{{.VariantID}}">
-        <td data-label="{{t "Title"}}"><a href="/song/{{.VariantID}}">{{.Title}}</a></td>
-        <td data-label="{{t "Artist"}}">{{.Artist}}</td>
-        <td data-label="{{t "Added by"}}">{{.AddedByUsername}}</td>
-        <td>
-          <a href="/variants/{{.VariantID}}/history">{{t "History"}}</a>
-          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">{{t "Remove"}}</button>
-        </td>
-      </tr>
-    {{else}}
-      <tr><td colspan="4" class="hint">{{t "No songs yet."}}</td></tr>
-    {{end}}
-    </tbody>
-  </table></div>
-  <p id="entries-status" class="form-status" role="status"></p>
-  {{template "brand-editor" (printf "/api/communities/%d/brand" .Community.ID)}}
 </main>
-<script src="/static/js/library-match.js?v={{staticVersion}}"></script>
 <script>
+// One section at a time, by the URL's #hash: the first one on a wide
+// screen when there's none, the list of sections on a phone.
+(function () {
+  const layout = document.querySelector('[data-admin-layout]');
+  const sections = [...layout.querySelectorAll('.admin-section')];
+  const links = [...layout.querySelectorAll('[data-section-link]')];
+  const phone = matchMedia('(max-width: 720px)');
+  function show() {
+    let id = decodeURIComponent(location.hash.slice(1));
+    if (!sections.some(s => s.id === id)) id = phone.matches ? '' : sections[0].id;
+    layout.classList.add('is-sectioned');
+    layout.classList.toggle('has-section', !!id);
+    sections.forEach(s => { s.hidden = s.id !== id; });
+    links.forEach(a => {
+      const on = a.dataset.sectionLink === id;
+      a.classList.toggle('active', on);
+      if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
+  }
+  window.addEventListener('hashchange', () => { show(); window.scrollTo(0, 0); });
+  phone.addEventListener('change', show);
+  show();
+})();
+
 // Scoped: the brand-editor partial shares this page's global scope.
 (function () {
 const communityId = {{.Community.ID}};
@@ -439,6 +369,14 @@ async function saveInline(statusEl, fn, okMsg) {
   try { await fn(); Forms.status(statusEl, okMsg || t('Saved.'), 'ok'); return true; }
   catch (e) { Forms.status(statusEl, e.message, 'error'); return false; }
 }
+
+// ---- Name ----
+onSubmit($('rename-form'), async () => {
+  const name = $('rename-input').value.trim();
+  await api(`/api/communities/${communityId}/rename`, {name}, t('Couldn’t save the name. Try again.'));
+  Forms.status($('rename-result'), t('Saved.'), 'ok');
+  document.title = t('%s — staff admin', name);
+});
 
 // ---- Roles: privilege checkboxes save immediately on toggle (collect
 // every currently-checked privilege for that role and PUT the whole
@@ -476,15 +414,13 @@ onSubmit($('create-role-form'), async () => {
   await api(`/api/communities/${communityId}/roles`, {name, privileges: []}, t('Couldn’t create that role. Try a different name.'));
   location.reload();
 });
-onSubmit($('rename-form'), async () => {
-  const name = $('rename-input').value.trim();
-  await api(`/api/communities/${communityId}/rename`, {name}, t('Couldn’t save the name. Try again.'));
-  Forms.status($('rename-result'), t('Saved.'), 'ok');
-  document.title = t('%s — staff admin', name);
-});
+
+// ---- Joining ----
 $('default-join-role-select').addEventListener('change', (e) => {
   saveInline($('default-join-role-result'), () => api(`/api/communities/${communityId}/default-join-role`, {role: e.target.value}, t('Couldn’t save that. Try again.')));
 });
+
+// ---- Options ----
 // The community's language: its pages follow it at the next load.
 $('community-locale-select').addEventListener('change', (e) => {
   saveInline($('community-locale-result'), async () => {
@@ -498,69 +434,20 @@ $('community-locale-select').addEventListener('change', (e) => {
 // A coaching community's song player options: the voice's slider, the
 // key per student (PUT /api/communities/{id}/<option> {on}).
 document.querySelectorAll('[data-player-option]').forEach((box) => box.addEventListener('change', async (e) => {
-  const ok = await saveInline($('player-options-result'), async () => {
-    let res;
-    try {
-      res = await fetch('/api/communities/' + communityId + '/' + box.dataset.playerOption, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({on: e.target.checked})});
-    } catch { throw new Error(t('Couldn’t save that. Try again.')); }
-    if (!res.ok) throw new Error(t('Couldn’t save that. Try again.'));
-  });
+  const ok = await saveInline($('player-options-result'), () => api(`/api/communities/${communityId}/${box.dataset.playerOption}`, {on: e.target.checked}, t('Couldn’t save that. Try again.'), 'PUT'));
   if (!ok) e.target.checked = !e.target.checked;
 }));
-// Who sees the Members page.
-$('members-visibility-select').addEventListener('change', (e) => {
-  saveInline($('members-visibility-result'), () => api(`/api/communities/${communityId}/members-visibility`, {visibility: e.target.value}, t('Couldn’t save that. Try again.'), 'PUT'));
-});
-
-// ---- Events ----
-const evTypeSel = $('ev-type');
-const evAudienceField = $('ev-audience-field');
-function syncEventAudienceVisibility() { evAudienceField.hidden = evTypeSel.value !== 'jam'; }
-evTypeSel.addEventListener('change', syncEventAudienceVisibility);
-syncEventAudienceVisibility();
-try { $('ev-starts-tz').textContent = ' (' + Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, ' ') + ')'; } catch {}
-onSubmit($('create-event-form'), async () => {
-  const body = {
-    name: $('ev-name').value.trim(),
-    eventType: evTypeSel.value,
-    audienceScope: $('ev-audience').value,
-    startsAt: new Date($('ev-starts').value).toISOString(),
-    location: $('ev-location').value.trim(),
-    description: $('ev-description').value.trim(),
-  };
-  const data = await api(`/api/communities/${communityId}/events`, body, t('Couldn’t create the event. Check the details and try again.'));
-  location.href = `/events/${data.eventId}`;
-});
-document.querySelectorAll('.assign-manager-select').forEach(sel => {
-  sel.addEventListener('change', async () => {
-    if (!sel.value) return;
-    const ok = await saveInline($('events-status'), () => api(`/api/communities/${communityId}/events/${sel.dataset.eventId}/managers`, {personId: parseInt(sel.value, 10)}, t('Couldn’t assign that manager. Try again.')));
-    if (ok) location.reload(); else sel.value = '';
-  });
-});
-
-// ---- Submissions ----
-document.querySelectorAll('.accept-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    Forms.busy(btn, true);
-    const ok = await saveInline($('submissions-status'), () => api(`/api/communities/${communityId}/submissions/${btn.dataset.id}/accept`, undefined, t('Couldn’t accept that submission. Try again.')));
-    if (ok) location.reload(); else Forms.busy(btn, false);
-  });
-});
-document.querySelectorAll('.reject-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    if (!confirm(t('Reject “%s” from %s?', btn.dataset.title, btn.dataset.who))) return;
-    Forms.busy(btn, true);
-    const ok = await saveInline($('submissions-status'), () => api(`/api/communities/${communityId}/submissions/${btn.dataset.id}/reject`, undefined, t('Couldn’t reject that submission. Try again.')));
-    if (ok) location.reload(); else Forms.busy(btn, false);
-  });
-});
 
 // ---- Members ----
+// Who sees the Members page (only there for manage_settings).
+$('members-visibility-select')?.addEventListener('change', (e) => {
+  saveInline($('members-visibility-result'), () => api(`/api/communities/${communityId}/members-visibility`, {visibility: e.target.value}, t('Couldn’t save that. Try again.'), 'PUT'));
+});
 onSubmit($('quick-add-form'), async () => {
   const displayName = $('quick-add-name').value.trim();
   const role = $('quick-add-role').value;
   await api(`/api/communities/${communityId}/personal-invites`, {displayName, role}, t('Couldn’t add them. Try again.'));
+  location.hash = 'members';
   location.reload();
 });
 document.querySelectorAll('.create-shell-invite-btn').forEach(btn => {
@@ -587,55 +474,8 @@ onSubmit($('add-member-form'), async () => {
   const username = $('add-username').value.trim();
   const role = $('add-role').value;
   await api(`/api/communities/${communityId}/members`, {username, role}, t('Couldn’t add them. Check the username and try again.'));
+  location.hash = 'members';
   location.reload();
-});
-
-// ---- Default songbook ----
-// As the title is typed, songs already in the library with that title,
-// each with one button that adds it to the default songbook instead of
-// writing a duplicate. "None of these" creates the new song.
-const communityLibrary = window.LibraryMatch ? LibraryMatch.attach({
-  title: $('new-variant-title'),
-  artist: $('new-variant-artist'),
-  host: $('new-variant-library-match'),
-  addLabel: t('Add to the default songbook'),
-  add: async (hit) => {
-    await api(`/api/communities/${communityId}/catalog`, {variantId: hit.variantId}, t('Couldn’t add “%s”. Try again.', hit.title));
-    location.href = `/song/${hit.variantId}?community=${communityId}`;
-  },
-  isInList: (id) => !!document.querySelector(`tr[data-variant-id="${id}"]`),
-  openHref: (hit) => `/song/${hit.variantId}?community=${communityId}`,
-  onNone: () => $('new-variant-form').requestSubmit(),
-}) : null;
-onSubmit($('new-variant-form'), async () => {
-  // Pressed Create before the list had a chance to show: show it first.
-  if (communityLibrary && !(await communityLibrary.guard())) return;
-  const title = $('new-variant-title').value.trim();
-  const artist = $('new-variant-artist').value.trim();
-  const data = await api(`/api/communities/${communityId}/variants`, {title, artist}, t('Couldn’t create the song. Try again.'));
-  location.href = `/song/${data.variantId}`;
-});
-const addExistingForm = $('add-existing-form');
-onSubmit(addExistingForm, async () => {
-  const variantId = Number($('variant-id-input').value);
-  await api(`/api/communities/${communityId}/catalog`, {variantId}, t('Couldn’t add that song. Check the number and try again.'));
-  location.reload();
-});
-$('fork-into-community-btn').addEventListener('click', (e) => {
-  if (!Forms.validate(addExistingForm)) return;
-  const variantId = Number($('variant-id-input').value);
-  Forms.run(addExistingForm, e.currentTarget, async () => {
-    await api(`/api/communities/${communityId}/catalog/fork/${variantId}`, undefined, t('Couldn’t copy that song. Check the number and try again.'));
-    location.reload();
-  });
-});
-document.querySelectorAll('.remove-entry-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    if (!confirm(t('Remove “%s” from the default songbook? The song itself isn’t deleted.', btn.dataset.title))) return;
-    Forms.busy(btn, true);
-    const ok = await saveInline($('entries-status'), () => api(`/api/communities/${communityId}/catalog/${btn.dataset.variantId}`, undefined, t('Couldn’t remove that song. Try again.'), 'DELETE'), t('Removed.'));
-    if (ok) btn.closest('tr').remove(); else Forms.busy(btn, false);
-  });
 });
 
 // ---- Group invite ----
@@ -716,4 +556,3 @@ document.querySelectorAll('.community-link-btn').forEach(btn => {
      an unknown key falls through as itself. */}}
 {{define "community-priv-label"}}{{if eq . "edit_repertoire"}}{{t "Edit songs"}}{{else if eq . "download_files"}}{{t "Download files"}}{{else if eq . "manage_files"}}{{t "Manage files"}}{{else if eq . "manage_members"}}{{t "Manage members"}}{{else if eq . "manage_events"}}{{t "Manage events"}}{{else if eq . "manage_submissions"}}{{t "Review submissions"}}{{else if eq . "manage_settings"}}{{t "Change settings"}}{{else}}{{.}}{{end}}{{end}}
 
-{{define "community-event-type-label"}}{{if eq . "jam"}}{{t "Jam"}}{{else if eq . "concert"}}{{t "Concert"}}{{else if eq . "meetup"}}{{t "Meetup"}}{{else if eq . "listening_party"}}{{t "Listening party"}}{{else if eq . "dinner"}}{{t "Dinner"}}{{else if eq . "show_together"}}{{t "Going to a show together"}}{{else if eq . "open_mic"}}{{t "Open mic"}}{{else if eq . "masterclass"}}{{t "Master class"}}{{else if eq . "lesson"}}{{t "Lesson"}}{{else}}{{.}}{{end}}{{end}}
