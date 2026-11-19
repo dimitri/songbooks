@@ -112,6 +112,40 @@ What a student works on between lessons (migration 0084, practice.go):
   the students table and cards: minutes and days in the last seven, what's
   left to practise.
 
+## Checking one's singing
+
+*Check my singing* under the song page's player (pitch-check.js), for
+any song whose recording has its voice apart:
+
+- **The line to sing** is the recording's own voice part, tracked note by
+  note (YIN) in the browser, once per recording (kept in IndexedDB), and
+  cut into notes: steady stretches of 0.12 s or more.
+- **The singer** sings over the recording, headphones on and the voice
+  down, in their key (the Key moves the line too); the microphone is
+  tracked the same way. Drawn as it's sung: the notes as bars, coloured
+  once passed, the singer's pitch as dots.
+- **Scored per note**, as research scores singing (a note in tune within
+  so many cents of its target, octave aside): its steady part's median
+  against the note. Three levels: *Beginner* within 100 cents (the
+  right note, give or take a semitone: past it research speaks of
+  "poor-pitch" singers, 10–20% of adults), *Intermediate* within 50
+  (research's "accurate"), *Advanced* within 25 (about what a listener
+  hears as out of tune).
+- **Placement**: each entry after a rest, against the take's own median
+  (the device's latency, which no browser reports exactly, cancels
+  out): on time within 200, 120 or 70 ms. Steadiness, not early or late.
+- **A take** ends at a pause: three stars, the notes in tune and on time,
+  the tendency (flat, sharp) and the steadiness in words, the passages
+  that slip (a click goes there).
+- **Kept** for a coaching student singing a song of their songbook
+  (migration 0085): every take (practice_takes), the day's last scores
+  on their practice log.
+- **The coach's goal**: on an assignment of a song, a level and the share
+  of notes in tune and on time to reach. The student sees it as two
+  bars filling with their best take; reaching it is marked on the
+  assignment (and celebrated). The panel shows the last takes as little
+  bar charts, the days of practice in a row, and a personal best.
+
 ## Lessons
 
 `/communities/{id}/lessons`: the coach's calendar, day by day. A lesson

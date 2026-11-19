@@ -340,6 +340,8 @@
      this week, and their log. The coach assigns, marks done, removes; the
      student says what they practised. Data: .Assignments, .PracticeLogs,
      .Now, .IsCoach, .Student, .Songs, .Groups. */}}
+{{define "pitch-level-name"}}{{if eq . "advanced"}}{{t "Advanced"}}{{else if eq . "intermediate"}}{{t "Intermediate"}}{{else}}{{t "Beginner"}}{{end}}{{end}}
+
 {{define "practice-section"}}
 <section class="home-section practice" id="practice" data-community="{{.Community.ID}}"{{with .Student}} data-student="{{.PersonID}}"{{end}}{{with .PracticeGroupID}} data-group="{{.}}"{{end}}>
   <div class="home-section-head"><h3>{{if .IsCoach}}{{t "Practice"}}{{else}}{{t "To practise"}}{{end}}</h3></div>
@@ -352,6 +354,14 @@
         {{if .PerWeek}}{{if $.PracticeGroupID}}<span class="practice-week">{{tn .PerWeek "%d day a week" "%d days a week"}}</span>{{else}}<span class="practice-week{{if ge .DaysThisWeek .PerWeek}} is-met{{end}}" title="{{t "days practised this week"}}">{{.DaysThisWeek}}/{{.PerWeek}} {{t "this week"}}</span>{{end}}{{end}}
       </div>
       {{with .Notes}}<p class="practice-notes">{{.}}</p>{{end}}
+      {{if .HasGoal}}
+      <div class="practice-goal{{if .ReachedAt}} is-reached{{end}}">
+        <span class="practice-goal-title">{{if .ReachedAt}}{{t "Goal reached"}} ★{{else}}{{t "Goal"}}{{end}} <span class="hint">· {{template "pitch-level-name" .Level}}</span></span>
+        {{if .PitchTarget}}<span class="practice-goal-row"><span>{{t "In tune"}}</span><span class="goal-bar"><i style="width:{{pct .BestPitch .PitchTarget}}%"></i></span><span>{{with .BestPitch}}{{.}}{{else}}0{{end}} / {{.PitchTarget}} %</span></span>{{end}}
+        {{if .RhythmTarget}}<span class="practice-goal-row"><span>{{t "On time"}}</span><span class="goal-bar"><i style="width:{{pct .BestRhythm .RhythmTarget}}%"></i></span><span>{{with .BestRhythm}}{{.}}{{else}}0{{end}} / {{.RhythmTarget}} %</span></span>{{end}}
+        {{if and (not $.IsCoach) (not .ReachedAt)}}<span class="hint">{{t "Open the song, then Check my singing: your best take counts."}}</span>{{end}}
+      </div>
+      {{end}}
       <div class="hint">{{with .DueOn}}{{t "until %s" (date . "Mon 2 Jan")}}{{end}}{{if not $.PracticeGroupID}}{{if .DueOn}} · {{end}}{{with .LastPracticed}}{{t "last practised %s" (date . "Mon 2 Jan")}}{{else}}{{t "not practised yet"}}{{end}}{{end}}</div>
       <div class="practice-actions">
         {{if $.IsCoach}}
@@ -380,6 +390,14 @@
       </select></label>
       <label>{{t "Or in words"}} <input type="text" name="title" placeholder="{{t "Lip trills, 5 minutes a day"}}"></label>
       <label>{{t "What to work on"}} <textarea name="notes" rows="2" placeholder="{{t "the bridge, breathe before the long note…"}}"></textarea></label>
+      <fieldset class="practice-assign-goal">
+        <legend>{{t "A goal to reach, checking their singing (a song only)"}}</legend>
+        <div class="practice-assign-row">
+          <label>{{t "Level"}} <select name="level"><option value="beginner" title="{{t "in tune within 100 cents, on time within 200 ms"}}">{{t "Beginner"}}</option><option value="intermediate" title="{{t "in tune within 50 cents, on time within 120 ms"}}">{{t "Intermediate"}}</option><option value="advanced" title="{{t "in tune within 25 cents, on time within 70 ms"}}">{{t "Advanced"}}</option></select></label>
+          <label>{{t "In tune, %"}} <input type="number" name="pitchTarget" min="1" max="100" placeholder="70"></label>
+          <label>{{t "On time, %"}} <input type="number" name="rhythmTarget" min="1" max="100" placeholder="60"></label>
+        </div>
+      </fieldset>
       <div class="practice-assign-row">
         <label>{{t "Days a week"}} <select name="perWeek"><option value="0">—</option><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
         <label>{{t "Until"}} <input type="date" name="dueOn"></label>
@@ -408,7 +426,7 @@
       <div class="practice-log-row" data-log="{{.ID}}">
         <span class="practice-log-day">{{date .PracticedOn "Mon 2 Jan"}}</span>
         <span>{{if .Label}}{{.Label}}{{else}}{{t "Practice"}}{{end}}</span>
-        <span class="hint">{{tn .Minutes "%d min" "%d min"}} · {{if eq .Source "player"}}{{t "played in the app"}}{{else}}{{t "told"}}{{end}}{{with .Note}} · {{.}}{{end}}</span>
+        <span class="hint">{{tn .Minutes "%d min" "%d min"}} · {{if eq .Source "player"}}{{t "played in the app"}}{{else}}{{t "told"}}{{end}}{{with .PitchScore}} · <strong>{{t "in tune %d%%" .}}</strong>{{end}}{{with .RhythmScore}} · <strong>{{t "on time %d%%" .}}</strong>{{end}}{{if gt .PitchTakes 1}} <span>({{tn .PitchTakes "%d take" "%d takes"}})</span>{{end}}{{with .Note}} · {{.}}{{end}}</span>
         {{if and (not $.IsCoach) (eq .Source "manual")}}<button type="button" class="link-btn practice-log-remove" aria-label="{{t "Remove"}}">×</button>{{end}}
       </div>
     {{else}}
@@ -432,7 +450,8 @@
   box.querySelector('.practice-assign-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
-    const body = { personId: Number(box.dataset.student || 0), groupId: Number(box.dataset.group || 0), variantId: Number(f.get('variantId')), title: f.get('title'), notes: f.get('notes'), perWeek: Number(f.get('perWeek')), dueOn: f.get('dueOn') };
+    const body = { personId: Number(box.dataset.student || 0), groupId: Number(box.dataset.group || 0), variantId: Number(f.get('variantId')), title: f.get('title'), notes: f.get('notes'), perWeek: Number(f.get('perWeek')), dueOn: f.get('dueOn'),
+      level: f.get('level'), pitchTarget: Number(f.get('pitchTarget') || 0), rhythmTarget: Number(f.get('rhythmTarget') || 0) };
     if (!body.variantId && !body.title.trim()) { alert(t('Pick a song, or say what to practise.')); return; }
     send(`${api}/assignments`, 'POST', body).then(() => { e.target.reset(); location.reload(); }).catch(fail);
   });

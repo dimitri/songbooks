@@ -68,8 +68,14 @@ func TestPractice(t *testing.T) {
 	if ok, _ := st.LogPlayed(ctx, leo, sb, song, 90); ok {
 		t.Fatal("someone else's songbook was logged")
 	}
+	for _, score := range []int{60, 72} {
+		if ok, err := st.RecordTake(ctx, emma, sb, song, Take{Level: "beginner", Pitch: score, Rhythm: score - 10, Cents: -18, Notes: 20, Hits: score / 5}); err != nil || !ok {
+			t.Fatalf("take: %v %v", ok, err)
+		}
+	}
 	logs, err := st.ListPracticeLogs(ctx, c, emma, time.Now().AddDate(0, 0, -7))
-	if err != nil || len(logs) != 1 || logs[0].Seconds != 180 || logs[0].AssignmentID == nil || *logs[0].AssignmentID != a || logs[0].Label != "A song" {
+	if err != nil || len(logs) != 1 || logs[0].Seconds != 180 || logs[0].AssignmentID == nil || *logs[0].AssignmentID != a || logs[0].Label != "A song" ||
+		logs[0].PitchTakes != 2 || logs[0].PitchScore == nil || *logs[0].PitchScore != 72 || *logs[0].RhythmScore != 62 {
 		t.Fatalf("logs: %+v %v", logs, err)
 	}
 
@@ -100,5 +106,30 @@ func TestPractice(t *testing.T) {
 	}
 	if ea, _ = st.ListStudentAssignments(ctx, c, emma, true); len(ea) != 1 || ea[0].DoneAt == nil {
 		t.Fatalf("done: %+v", ea)
+	}
+
+	// A goal: reached by a take at its level at or over both targets.
+	g2, err := st.CreatePracticeAssignment(ctx, NewPracticeAssignment{CommunityID: c, PersonID: emma, VariantID: song, Level: "intermediate", PitchTarget: 70, RhythmTarget: 50, By: coach})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := st.SongProgressOf(ctx, emma, sb, song)
+	if err != nil || p == nil || p.Level != "intermediate" || p.PitchTarget != 70 || p.Reached || len(p.Takes) != 2 || p.Best != nil || p.Streak != 1 {
+		t.Fatalf("progress: %+v %v", p, err)
+	}
+	st.RecordTake(ctx, emma, sb, song, Take{Level: "beginner", Pitch: 95, Rhythm: 90})     // another level: not the goal
+	st.RecordTake(ctx, emma, sb, song, Take{Level: "intermediate", Pitch: 75, Rhythm: 40}) // rhythm short
+	if p, _ = st.SongProgressOf(ctx, emma, sb, song); p.Reached || p.Best == nil || p.Best.Pitch != 75 {
+		t.Fatalf("not yet: %+v", p)
+	}
+	st.RecordTake(ctx, emma, sb, song, Take{Level: "intermediate", Pitch: 71, Rhythm: 55})
+	if p, _ = st.SongProgressOf(ctx, emma, sb, song); !p.Reached {
+		t.Fatalf("reached: %+v", p)
+	}
+	if list, _ := st.ListStudentAssignments(ctx, c, emma, false); len(list) != 1 || list[0].ID != g2 || list[0].ReachedAt == nil || *list[0].BestPitch != 75 {
+		t.Fatalf("assignment goal: %+v", list)
+	}
+	if ok, _ := st.RecordTake(ctx, leo, sb, song, Take{Level: "beginner", Pitch: 50}); ok {
+		t.Fatal("someone else's songbook kept a take")
 	}
 }

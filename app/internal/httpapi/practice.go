@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +26,10 @@ type assignmentRequest struct {
 	Notes     string `json:"notes"`
 	PerWeek   int    `json:"perWeek"`
 	DueOn     string `json:"dueOn"` // 2006-01-02, or ""
+	// A goal on a song: a level, and the % of notes in tune and on time.
+	Level        string `json:"level"`
+	PitchTarget  int    `json:"pitchTarget"`
+	RhythmTarget int    `json:"rhythmTarget"`
 }
 
 // handlePostAssignment is POST /api/communities/{id}/assignments: the
@@ -77,7 +82,7 @@ func (s *Server) handlePostAssignment(w http.ResponseWriter, r *http.Request) {
 	id, err := s.store.CreatePracticeAssignment(ctx, store.NewPracticeAssignment{
 		CommunityID: community.ID, PersonID: req.PersonID, GroupID: req.GroupID, VariantID: req.VariantID,
 		Title: strings.TrimSpace(req.Title), Notes: strings.TrimSpace(req.Notes), PerWeek: req.PerWeek, DueOn: due,
-		By: personFromContext(r).ID,
+		By: personFromContext(r).ID, Level: req.Level, PitchTarget: req.PitchTarget, RhythmTarget: req.RhythmTarget,
 	})
 	if errors.Is(err, store.ErrBadAssignment) {
 		httpError(w, http.StatusBadRequest, err.Error())
@@ -249,4 +254,68 @@ func (s *Server) handlePostPlayed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handlePostPitchTake is POST /api/practice/pitch: a take checked by
+// pitch-check.js ({"songbookId", "variantId", "level", "pitch", "rhythm",
+// "cents", "ms", "notes", "hits", "seconds"}), kept for a coaching student
+// singing a song of their songbook; the song's progress back (204 for
+// anyone else, nothing kept).
+func (s *Server) handlePostPitchTake(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SongbookID int64  `json:"songbookId"`
+		VariantID  int64  `json:"variantId"`
+		Level      string `json:"level"`
+		Pitch      int    `json:"pitch"`
+		Rhythm     int    `json:"rhythm"`
+		Cents      int    `json:"cents"`
+		Ms         int    `json:"ms"`
+		Notes      int    `json:"notes"`
+		Hits       int    `json:"hits"`
+		Seconds    int    `json:"seconds"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	me := personFromContext(r).ID
+	kept, err := s.store.RecordTake(r.Context(), me, req.SongbookID, req.VariantID, store.Take{
+		Level: req.Level, Pitch: req.Pitch, Rhythm: req.Rhythm, Cents: req.Cents, Ms: req.Ms, Notes: req.Notes, Hits: req.Hits, Seconds: req.Seconds,
+	})
+	if err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !kept {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	s.writeSongProgress(w, r, me, req.SongbookID, req.VariantID)
+}
+
+// handleGetPitchProgress is GET /api/practice/pitch?songbookId=&variantId=:
+// the coach's goal on the song, the best and last takes, the streak (204
+// when it isn't a coaching student's song of theirs).
+func (s *Server) handleGetPitchProgress(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	sb, err1 := strconv.ParseInt(q.Get("songbookId"), 10, 64)
+	v, err2 := strconv.ParseInt(q.Get("variantId"), 10, 64)
+	if err1 != nil || err2 != nil {
+		httpError(w, http.StatusBadRequest, "songbookId and variantId")
+		return
+	}
+	s.writeSongProgress(w, r, personFromContext(r).ID, sb, v)
+}
+
+func (s *Server) writeSongProgress(w http.ResponseWriter, r *http.Request, personID, songbookID, variantID int64) {
+	p, err := s.store.SongProgressOf(r.Context(), personID, songbookID, variantID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if p == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
 }

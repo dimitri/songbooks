@@ -94,6 +94,14 @@ func shelfLabel(kind string, id any) string {
 var BrandLookup func(kind string, id int64) *brand.Theme
 
 var funcMap = template.FuncMap{
+	// pct is how far a score (nil: none yet) is toward a target, 0–100,
+	// for a progress bar's width.
+	"pct": func(score *int, target int) int {
+		if score == nil || target <= 0 {
+			return 0
+		}
+		return min(100, *score*100/target)
+	},
 	// t, tn, date and lang are per language: see templatesByLang.
 	// chord renders one chord symbol in chart style (bold root, raised
 	// quality, triangle for maj7, real flat/sharp glyphs) — see
