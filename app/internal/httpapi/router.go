@@ -429,6 +429,11 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/communities/{id}/practice", s.requireCommunityMember(s.handlePostPractice))
 	mux.HandleFunc("DELETE /api/communities/{id}/practice/{logID}", s.requireCommunityMember(s.handleDeletePractice))
 	mux.HandleFunc("POST /api/practice/played", s.requireAuth(s.handlePostPlayed))
+	mux.HandleFunc("POST /api/practice/pitch", s.requireAuth(s.handlePostPitchTake))
+	mux.HandleFunc("GET /api/practice/pitch", s.requireAuth(s.handleGetPitchProgress))
+	// The coach's levels and words for checking singing (check_settings.go).
+	mux.HandleFunc("GET /communities/{id}/checking", s.requireCommunityMember(s.handleCheckSettingsPage))
+	mux.HandleFunc("PUT /api/communities/{id}/check-settings", s.requireCommunityMember(s.handlePutCheckSettings))
 	// An online lesson's join link (live.go): the logged-in coach or
 	// student, or one known by their calendar feed's address (?f=).
 	mux.HandleFunc("GET /communities/{id}/lessons/{eventID}/join", s.optionalPerson(s.handleLessonJoin))

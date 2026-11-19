@@ -6980,6 +6980,64 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .practice-log-list { display: flex; flex-direction: column; margin-top: 0.4rem; }
 .practice-log-row { display: flex; flex-wrap: wrap; gap: 0.2rem 0.6rem; align-items: baseline; padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
 .practice-log-day { min-width: 6.5rem; font-weight: 600; }
+/* Check my singing (pitch-check.js): under the player, the notes to sing
+   as bars and the singer's pitch as dots; a take's stars and scores; the
+   coach's goal and the takes so far; a little party at a best. */
+.pitch-check { margin: 0.6rem 0 0.8rem; --pitch-ref: color-mix(in srgb, var(--fg) 28%, transparent); --pitch-hit: #2e9e5b; --pitch-rhythm: #3d7bd9; }
+.pitch-check[hidden], .pitch-check [hidden] { display: none; }
+.pitch-check-head { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem; }
+.pitch-check-toggle { min-height: 2.5rem; padding: 0 0.9rem; border: 1px solid var(--border); border-radius: var(--radius-control, 6px); background: transparent; color: var(--fg); font-weight: 600; cursor: pointer; }
+.pitch-check-toggle.is-on { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.pitch-check-levels { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.pitch-check-levels button { border: 0; background: transparent; color: var(--fg-muted); padding: 0.3rem 0.7rem; font-size: 0.8rem; cursor: pointer; }
+.pitch-check-levels button[aria-pressed="true"] { background: var(--accent); color: var(--accent-contrast); }
+.pitch-level-fixed { padding: 0.3rem 0.7rem; font-size: 0.8rem; font-weight: 600; }
+.pitch-check-lane { display: block; width: 100%; height: 150px; margin-top: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-card, 10px); background: var(--bg-raised, transparent); }
+.pitch-check-goal, .pitch-check-history, .pitch-check-result { margin-top: 0.6rem; }
+.goal-title { margin: 0 0 0.3rem; font-weight: 600; }
+.goal-reached { color: var(--pitch-hit); }
+.goal-row, .practice-goal-row { display: grid; grid-template-columns: 5.5rem 1fr 5.5rem; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+.goal-bar { position: relative; height: 0.5rem; border-radius: 999px; background: color-mix(in srgb, var(--fg) 10%, transparent); overflow: hidden; }
+.goal-bar i { position: absolute; inset: 0 auto 0 0; background: var(--pitch-hit); border-radius: 999px; transition: width 0.6s ease; }
+.goal-bar b { display: none; }
+.practice-goal { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.4rem 0; padding: 0.5rem 0.6rem; border-radius: 8px; background: color-mix(in srgb, var(--fg) 4%, transparent); }
+.practice-goal.is-reached { background: color-mix(in srgb, var(--pitch-hit, #2e9e5b) 14%, transparent); }
+.practice-goal-title { font-weight: 600; font-size: 0.9rem; }
+.history-chart { display: grid; grid-template-columns: 5.5rem 1fr; align-items: end; gap: 0.5rem; font-size: 0.8rem; margin-bottom: 0.3rem; }
+.history-bars { display: flex; align-items: flex-end; gap: 3px; height: 2.4rem; }
+.history-bars i { flex: 1; max-width: 1.2rem; border-radius: 3px 3px 0 0; background: var(--pitch-hit); opacity: 0.85; }
+.history-bars i.is-rhythm { background: var(--pitch-rhythm); }
+.take-stars { font-size: 1.9rem; letter-spacing: 0.15rem; color: color-mix(in srgb, var(--fg) 18%, transparent); }
+.take-stars .is-on { color: #e8b923; animation: take-star 0.5s ease both; }
+.take-stars .is-on:nth-child(2) { animation-delay: 0.15s; }
+.take-stars .is-on:nth-child(3) { animation-delay: 0.3s; }
+@keyframes take-star { from { transform: scale(0.2); opacity: 0; } 70% { transform: scale(1.25); } to { transform: scale(1); opacity: 1; } }
+.take-scores { display: flex; gap: 1.2rem; margin: 0.3rem 0; }
+.take-scores div { display: flex; flex-direction: column; }
+.take-scores strong { font-size: 1.6rem; line-height: 1.1; }
+.take-scores small { color: var(--fg-muted); }
+.pitch-check-result p { margin: 0.4rem 0 0; }
+.take-party { position: relative; height: 2.6rem; overflow: visible; pointer-events: none; }
+.take-party strong { display: block; font-size: 1.2rem; color: var(--pitch-hit); animation: take-star 0.5s ease both; }
+.take-party i { position: absolute; bottom: 0; font-style: normal; font-size: 1.2rem; color: #e8b923; animation: take-float 2.6s ease-out both; }
+@keyframes take-float { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-5.5rem) rotate(25deg); opacity: 0; } }
+.take-words { line-height: 1.5; }
+.take-coach { font-style: italic; color: var(--fg-muted); white-space: nowrap; }
+/* The coach's settings for checking singing (check_settings.go). */
+.check-levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.8rem; }
+.check-level { border: 1px solid var(--border); border-radius: var(--radius-card, 10px); padding: 0.6rem 0.8rem 0.8rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.check-level legend { font-weight: 700; padding: 0 0.3rem; }
+.check-level label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.9rem; }
+.check-range { display: flex; align-items: center; gap: 0.5rem; }
+.check-range input { flex: 1; }
+.check-range output { min-width: 2.2rem; text-align: right; font-weight: 700; }
+.check-messages { display: flex; flex-direction: column; gap: 0.8rem; }
+.check-message { display: flex; flex-direction: column; gap: 0.25rem; }
+.check-message-when { font-weight: 600; font-size: 0.9rem; }
+.check-message textarea { width: 100%; }
+.check-message.is-custom textarea { border-color: var(--accent); }
+.check-save { position: sticky; bottom: 4.5rem; padding: 0.6rem 0; background: var(--bg); }
+@media (prefers-reduced-motion: reduce) { .take-stars .is-on, .take-party strong, .take-party i { animation: none; } .take-party i { display: none; } }
 /* Live lessons (live.go): an online lesson's Join, lit from 15 minutes
    before it starts; how the person joins, headphones or not. */
 .live-join-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.4rem; }

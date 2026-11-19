@@ -334,6 +334,10 @@ func (s *Server) handleCoachingStudentPage(w http.ResponseWriter, r *http.Reques
 	data["Lessons"] = lessons
 	data["NoteOptions"] = voiceNotes(s.langOfRequest(r))
 	data["Now"] = time.Now()
+	if err := s.checkLevelsData(r, community.ID, data); err != nil {
+		fail(err)
+		return
+	}
 	if data["Assignments"], err = s.store.ListStudentAssignments(ctx, community.ID, studentID, false); err != nil {
 		fail(err)
 		return

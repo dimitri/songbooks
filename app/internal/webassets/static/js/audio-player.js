@@ -900,6 +900,13 @@ window.songbooksDecodable = function (buf) {
   // The Mixer plays in the same key, and sets it here (mixer.js "Key"):
   // one key per song, whichever view it was set from.
   window.songbooksPlayerKey = { get: () => prefs.semitones, set: (n) => setSemitones(n) };
+  // The recording's clock and parts, for pitch-check.js: where it is in
+  // seconds, whether it plays, which recording and its parts; and a seek.
+  window.songbooksReferenceClock = () => {
+    const c = categories[activeCategory] || {};
+    return { time: audio.currentTime, playing: !audio.paused, duration, variantId, category: activeCategory, meta: c, stems: c.stems || [] };
+  };
+  window.songbooksReferenceSeek = (t) => { if (duration) audio.currentTime = Math.max(0, Math.min(duration - 0.1, t)); };
   function shiftChords(delta) {
     if (window.songbooksShiftChords) { window.songbooksShiftChords(delta); return; }
     const btn = $(delta > 0 ? 'transpose-up' : 'transpose-down');
