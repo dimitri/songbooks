@@ -93,29 +93,6 @@ func (st *Store) StudentKeyIn(ctx context.Context, personID, communityID, varian
 	return songbookID, semitones, err == nil, err
 }
 
-// MemberVocalSliderCommunity is the community with its player for
-// singers on that a person is a current member of and that has the song
-// in one of its songbooks (a student's, a group's, the repertoire): a
-// song a student or their coach opens from anywhere. 0 for none.
-func (st *Store) MemberVocalSliderCommunity(ctx context.Context, personID, variantID int64) (int64, error) {
-	if personID == 0 {
-		return 0, nil
-	}
-	var id int64
-	err := st.db.QueryRow(ctx, `
-		SELECT c.id FROM communities c
-		WHERE c.player_vocal_slider AND c.kind = 'coaching'
-		  AND EXISTS (SELECT 1 FROM community_members m
-		              WHERE m.community_id = c.id AND m.person_id = $1 AND upper_inf(m.validity))
-		  AND EXISTS (SELECT 1 FROM songbooks sb JOIN songbook_entries e ON e.songbook_id = sb.id
-		              WHERE sb.owner_community_id = c.id AND e.variant_id = $2)
-		ORDER BY c.id LIMIT 1`, personID, variantID).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, nil
-	}
-	return id, err
-}
-
 // UpcomingSessions is when each student and each group of a coaching
 // community next has a lesson between from and to (a lesson under way at
 // from counts): the soonest one's start, by person and by group.

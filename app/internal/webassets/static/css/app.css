@@ -1223,12 +1223,12 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .audio-dock.opts-notime .audio-lcd-time,
 .audio-dock .audio-opts > .is-tight .audio-toggle > span:not(.audio-trainer-meter),
 .audio-dock .audio-opts > .audio-toggle.is-tight > span:not(.audio-trainer-meter),
-.audio-dock .audio-opts > .audio-chip-voice.is-tight output,
-.audio-dock .audio-opts > [data-tool].audio-chip-voice:not(.is-on) .audio-chip > span { display: none; }
+.audio-dock .audio-opts > .audio-parts.is-tight output,
+.audio-dock .audio-opts > .audio-parts.is-tight .audio-part-label { display: none; }
 .audio-dock.opts-compact .audio-opts > [data-tool]:not(.is-on).audio-toggle,
 .audio-dock.opts-compact .audio-opts > [data-tool]:not(.is-on) .audio-toggle,
 .audio-dock .audio-opts > .is-tight .audio-toggle, .audio-dock .audio-opts > .audio-toggle.is-tight { padding: 0 0.45rem; }
-.audio-dock .audio-opts > .audio-chip-voice.is-tight input[type="range"] { width: 4.5rem; }
+.audio-dock .audio-opts > .audio-parts.is-tight input[type="range"] { width: 4.5rem; }
 .audio-dock .audio-opts > [data-folded] { display: none !important; }
 /* Nothing shrinks but the bar.beat display, so that what doesn't fit
    overflows, and fitDock sees it. */
@@ -1278,12 +1278,32 @@ body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5re
 .audio-dock .audio-split:has(.audio-chip.active) .audio-chip { border-right-color: transparent; }
 .audio-dock .audio-split .audio-caret:hover { color: var(--fg); background: var(--bg-sunken); }
 /* The voice: the mic, then while the voice is down, its slider and level. */
-.audio-chip-voice:not([hidden]) { display: inline-flex; align-items: center; gap: 0.35rem; border-radius: var(--radius-control, 999px); }
-.audio-chip-voice.is-on { background: var(--accent-bg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); padding-right: 0.7rem; }
-.audio-chip-voice.is-on .audio-chip { background: none; border-color: transparent; }
-.audio-chip-voice input[type="range"] { width: 5.5rem; margin: 0; accent-color: var(--accent); cursor: pointer; }
-.audio-chip-voice output { min-width: 2.8rem; text-align: right; font-size: 0.8rem; font-weight: 700; color: var(--accent-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.audio-chip-voice:not(.is-on):not(:focus-within) :is(input, output) { display: none; }
+/* My parts ("Je joue"): a chip per part I play, its slider and level
+   while it is down; ▾ picks the instruments. */
+.audio-parts:not([hidden]) { display: inline-flex; align-items: center; gap: 0.25rem; }
+.audio-parts-chips { display: inline-flex; align-items: center; gap: 0.3rem; }
+.audio-part { display: inline-flex; align-items: center; gap: 0.35rem; border-radius: var(--radius-control, 999px); }
+.audio-part.is-on { background: var(--accent-bg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); padding-right: 0.7rem; }
+.audio-part.is-on .audio-chip { background: none; border-color: transparent; }
+.audio-part input[type="range"] { width: 5.5rem; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.audio-part output { min-width: 2.8rem; text-align: right; font-size: 0.8rem; font-weight: 700; color: var(--accent-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.audio-part:not(.is-on):not(:focus-within) :is(input, output) { display: none; }
+.audio-dock .audio-parts .audio-parts-caret { height: 2rem; border-color: transparent; background: none; color: var(--fg-muted); border-radius: var(--radius-control, 999px); padding: 0 0.35rem; }
+.audio-dock.opts-compact .audio-opts > .audio-parts:not(.is-on) .audio-part-label { display: none; }
+.audio-parts-caret-label { display: none; font-size: 0.8rem; margin-right: 0.2rem; }
+.audio-parts-chips:empty + .audio-parts-caret .audio-parts-caret-label { display: inline; }
+/* The "Je joue" panel: the levels full width, the instruments to pick. */
+.audio-pop-parts { width: min(30rem, calc(100vw - 2rem)); }
+.audio-parts-levels { display: flex; flex-direction: column; gap: 0.4rem; }
+.audio-parts-levels:empty { display: none; }
+.audio-part-big { display: grid; grid-template-columns: minmax(8rem, auto) minmax(0, 1fr) 3rem; gap: 0.6rem; border-radius: var(--radius); }
+.audio-part-big:not(.is-on):not(:focus-within) :is(input, output) { display: initial; }
+.audio-part-big input[type="range"] { width: auto; height: 2rem; }
+.audio-part-big .audio-chip { justify-content: flex-start; height: 2.2rem; }
+.audio-parts-pick { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.audio-pick { min-height: 0; height: 1.9rem; padding: 0 0.7rem; border: 1px solid var(--border); border-radius: var(--radius-control, 999px); background: var(--bg-raised); color: var(--fg-muted); font: inherit; font-size: 0.8rem; cursor: pointer; }
+.audio-pick[aria-pressed="true"] { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.audio-parts-more { align-self: flex-start; font-size: 0.8rem; }
 .audio-dock .audio-pop .audio-speed-stepper output { min-width: 4.6rem; }
 .mic-slash { display: none; }
 .is-off .mic-slash { display: inline; }
@@ -1540,8 +1560,13 @@ body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5re
   .audio-dock.is-open .audio-opts .audio-toggle { min-width: 0; overflow: hidden; border-color: var(--border); }
   .audio-dock.is-open .audio-opts .audio-toggle > span { overflow: hidden; text-overflow: ellipsis; }
   .audio-dock.is-open .audio-split .audio-caret { border-color: var(--border); border-left-color: transparent; }
-  .audio-dock.is-open .audio-opts > .audio-chip-voice { grid-column: 1 / -1; border: 1px solid var(--border); border-radius: 10px; padding-right: 0.8rem; }
-  .audio-dock.is-open .audio-chip-voice input[type="range"] { flex: 1; width: auto; height: 2.75rem; }
+  .audio-dock.is-open .audio-opts > .audio-parts { grid-column: 1 / -1; display: flex; align-items: stretch; gap: 0.5rem; }
+  .audio-dock.is-open .audio-parts-chips { flex: 1; min-width: 0; flex-direction: column; align-items: stretch; gap: 0.5rem; }
+  .audio-dock.is-open .audio-part { min-width: 0; border: 1px solid var(--border); border-radius: 10px; padding-right: 0.8rem; }
+  .audio-dock.is-open .audio-part .audio-chip { flex: none; max-width: 45%; }
+  .audio-dock.is-open .audio-part input[type="range"] { flex: 1; min-width: 0; width: auto; height: 2.75rem; }
+  .audio-dock.is-open .audio-parts .audio-parts-caret { height: auto; min-height: 2.9rem; border: 1px solid var(--border); border-radius: 10px; padding: 0 0.7rem; }
+  .audio-dock.is-open .audio-parts-caret-label { display: inline; }
   .audio-dock.is-open .audio-pop:not([hidden]) { order: 7; position: static; width: auto; max-width: none; border: 0; box-shadow: none; background: var(--bg-sunken); }
 }
 
