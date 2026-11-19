@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sort"
+	"time"
 
 	"app/internal/chordsym"
 	"app/internal/i18n"
@@ -50,6 +52,28 @@ func (s *Server) withKeys(ctx context.Context, songs []store.StudentSong) []stor
 type coachKeyTarget struct {
 	store.KeyTarget
 	KeyName string `json:"keyName"` // the song's key moved by Semitones, "" when it has none
+	// The student's (or group's) next lesson within sessionWindow, from
+	// the community's calendar: they come first, the soonest first, the
+	// date said ("jeu. 21 nov."). Nil for none that soon.
+	NextSession      *time.Time `json:"nextSession,omitempty"`
+	NextSessionLabel string     `json:"nextSessionLabel,omitempty"`
+}
+
+// sessionWindow is how far ahead a coach's calendar puts students first
+// when they give a song's key: the coming week's lessons.
+const sessionWindow = 7 * 24 * time.Hour
+
+// orderByCalendar puts the targets with a lesson coming first, the
+// soonest first, and keeps the others in their order (students by name,
+// then groups).
+func orderByCalendar(ts []coachKeyTarget) {
+	sort.SliceStable(ts, func(i, j int) bool {
+		a, b := ts[i].NextSession, ts[j].NextSession
+		if a == nil || b == nil {
+			return a != nil && b == nil
+		}
+		return a.Before(*b)
+	})
 }
 
 // coachKeyTargets lists what the person coaches for this song.
@@ -62,6 +86,8 @@ func (s *Server) coachKeyTargets(r *http.Request, variantID int64) (string, []co
 		return "", nil, err
 	}
 	out := []coachKeyTarget{}
+	lang := s.langOfRequest(r)
+	now := time.Now()
 	for _, c := range communities {
 		if !person.IsAdmin {
 			ok, err := s.store.HasAnyCommunityManagePrivilege(ctx, c.ID, person.ID)
@@ -76,10 +102,23 @@ func (s *Server) coachKeyTargets(r *http.Request, variantID int64) (string, []co
 		if err != nil {
 			return "", nil, err
 		}
+		people, groups, err := s.store.UpcomingSessions(ctx, c.ID, now, now.Add(sessionWindow))
+		if err != nil {
+			return "", nil, err
+		}
 		for _, t := range ts {
-			out = append(out, coachKeyTarget{KeyTarget: t, KeyName: chordsym.KeyIn(key, t.Semitones)})
+			ct := coachKeyTarget{KeyTarget: t, KeyName: chordsym.KeyIn(key, t.Semitones)}
+			at, ok := people[t.PersonID]
+			if t.Kind == "group" {
+				at, ok = groups[t.GroupID]
+			}
+			if ok {
+				ct.NextSession, ct.NextSessionLabel = &at, i18n.Date(lang, at, "Mon 2 Jan")
+			}
+			out = append(out, ct)
 		}
 	}
+	orderByCalendar(out)
 	return key, out, nil
 }
 

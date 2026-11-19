@@ -742,6 +742,25 @@ func (s *Server) handleSetCommunityDefaultJoinRole(w http.ResponseWriter, r *htt
 	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
 }
 
+// handlePutCommunityVocalSlider is PUT /api/communities/{id}/vocal-slider
+// {on}: the community's songs' player with the voice's volume beside play
+// and the key out in the open (store/vocal_slider.go), or not.
+func (s *Server) handlePutCommunityVocalSlider(w http.ResponseWriter, r *http.Request) {
+	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		On *bool `json:"on"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.On == nil {
+		httpError(w, http.StatusBadRequest, "missing on")
+		return
+	}
+	if err := s.store.SetCommunityPlayerVocalSlider(r.Context(), communityID, *req.On); err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"on": *req.On})
+}
+
 // handleAddCommunityMember adds an existing person (by username, same
 // direct-add-stands-in-for-invite convention as handleAddBandMember) to
 // a community as instructor or student. Instructor-only.

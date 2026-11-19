@@ -296,5 +296,14 @@
   "Goal: %d% of the entries within ±%d ms": "Objectif : %d % des entrées à ±%d ms",
   "Goal: the entries within ±%d ms": "Objectif : les entrées à ±%d ms près",
   "Strictness": "Exigence",
-  "Strictness: %s, set by your coach": "Exigence : %s, fixée par votre coach"
+  "Strictness: %s, set by your coach": "Exigence : %s, fixée par votre coach",
+  "Their key, to try and save": "Sa tonalité, à essayer et enregistrer",
+  "Lessons in the coming week": "Cours dans les 7 prochains jours",
+  "Other students (%d)": "Autres élèves (%d)",
+  "for %s": "pour %s",
+  "Save for %s": "Enregistrer pour %s",
+  "choose a student": "choisir un élève",
+  "key|yours": "la vôtre",
+  "key|trying": "essai",
+  "Saved for %s": "Enregistrée pour %s"
 }

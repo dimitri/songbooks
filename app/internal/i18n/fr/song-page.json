@@ -462,5 +462,11 @@
   "notes|Shared": "Partagée",
   "Only you will see this note.": "Vous seul verrez cette note.",
   "Everyone who can see this song will see this note.": "Toute personne qui peut voir ce morceau verra cette note.",
-  "write a note on the section playing now": "écrire une note sur la partie en cours de lecture"
+  "write a note on the section playing now": "écrire une note sur la partie en cours de lecture",
+  "the voice: off or back (V)": "la voix : coupée ou rétablie (V)",
+  "Voice on or off": "Voix activée ou coupée",
+  "Voice volume": "Volume de la voix",
+  "Key:": "Tonalité :",
+  "the key: try one, or save it for a student": "la tonalité : en essayer une, ou l’enregistrer pour un élève",
+  "Back to my key": "Revenir à ma tonalité"
 }

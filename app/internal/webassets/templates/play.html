@@ -1522,7 +1522,10 @@
          itself is stored in this browser's localStorage, per song, not
          shared/synced — it's a listening preference, not song data),
          and the waveform/transport/markers for whichever is selected. */}}
-    <div class="audio-player" id="audio-player" data-variant-id="{{.VariantID}}" data-can-edit="{{if .CanEdit}}true{{else}}false{{end}}"{{if .StudentKeySet}} data-student-key="{{.StudentKey}}"{{end}}>
+    {{/* data-sing: a community's player for singers (handlers_pages.go
+         vocalSliderCommunity): the voice's volume beside play, the key out
+         in the open with whose it is (audio-player.js "Sing"). */}}
+    <div class="audio-player{{if .VocalSlider}} is-sing{{end}}" id="audio-player" data-variant-id="{{.VariantID}}" data-can-edit="{{if .CanEdit}}true{{else}}false{{end}}"{{if .StudentKeySet}} data-student-key="{{.StudentKey}}" data-key-for="{{.KeyContext}}"{{if .KeyMine}} data-key-mine="1"{{end}}{{with .SongbookRef}} data-key-songbook="{{.}}"{{end}}{{end}}{{if .VocalSlider}} data-sing="1" data-song-key="{{.SongKeyName}}"{{end}}>
       <div id="audio-category-toggle" class="audio-category-toggle" hidden>
         <button type="button" data-category="gp">Guitar Pro</button>
         <button type="button" data-category="youtube">YouTube</button>
@@ -1585,6 +1588,7 @@
             <span class="audio-lcd-time" id="audio-time-label">0:00 / 0:00</span>
             <span class="audio-lcd-state" id="audio-lcd-state"></span>
           </div>
+          {{if .VocalSlider}}<button type="button" id="audio-card-mic" class="icon-btn audio-card-mic" aria-pressed="true" hidden title="{{t "the voice: off or back (V)"}}" aria-label="{{t "Voice on or off"}}">{{template "icon-sing-mic"}}</button>{{end}}
           <button type="button" id="audio-opts-btn" class="icon-btn audio-opts-btn" aria-expanded="false" aria-controls="audio-opts" title="{{t "practice options"}}">{{template "icon-more"}}</button>
           <div class="audio-opts" id="audio-opts">
             <button type="button" id="audio-cycle-btn" class="audio-toggle" aria-pressed="false" title="{{t "cycle: loop the yellow bar range — drag in the ruler to set it (C)"}}">{{template "icon-cycle"}}<span>{{t "Cycle"}}</span></button>
@@ -1615,6 +1619,29 @@
             <button type="button" id="audio-note-btn" class="audio-toggle audio-note-btn" aria-haspopup="dialog" aria-controls="notes-sheet" title="{{t "write a note on the section playing now"}}">{{template "icon-notes"}}<span>{{t "Note"}}</span></button>
           </div>
         </div>
+        {{if .VocalSlider}}
+        {{/* A community's player for singers, as Apple Music sings: the
+             voice's volume, a mic (off and back) and a slider (0 the
+             backing alone, 100 the recording as it is), from the
+             recording's parts; and the key, with whose it is, a semitone
+             either way, saved for a student by their coach (the label
+             opens the Key panel and its students, the coming week's
+             lessons first). audio-player.js "Sing". */}}
+        <div class="audio-sing" id="audio-sing">
+          <div class="audio-sing-voice" id="audio-sing-voice" hidden>
+            <button type="button" class="audio-sing-mic" id="audio-sing-mic" aria-pressed="true" title="{{t "the voice: off or back (V)"}}" aria-label="{{t "Voice on or off"}}">{{template "icon-sing-mic"}}</button>
+            <input type="range" id="audio-sing-volume" min="0" max="100" step="5" value="100" aria-label="{{t "Voice volume"}}">
+            <output id="audio-sing-amount" for="audio-sing-volume">100%</output>
+          </div>
+          <div class="audio-sing-key" id="audio-sing-key" role="group" aria-label="{{t "Key"}}">
+            <button type="button" class="audio-sing-step" id="audio-sing-down" aria-label="{{t "down a semitone"}}">−</button>
+            <button type="button" class="audio-sing-keylabel" id="audio-sing-keylabel" data-pop="audio-pop-key" aria-expanded="false" aria-controls="audio-pop-key" title="{{t "the key: try one, or save it for a student"}}"><span class="audio-sing-keyword">{{t "Key:"}}</span> <strong id="audio-sing-keyname"></strong><span class="audio-sing-for" id="audio-sing-for"></span></button>
+            <button type="button" class="audio-sing-step" id="audio-sing-up" aria-label="{{t "up a semitone"}}">+</button>
+            <button type="button" class="audio-sing-save" id="audio-sing-save" hidden></button>
+            <button type="button" class="audio-sing-reset" id="audio-sing-reset" hidden>{{t "Back to my key"}}</button>
+          </div>
+        </div>
+        {{end}}
         {{/* One panel per option, opened from its ▾ (or from Trainer),
              under the control bar; one open at a time. */}}
         <div class="audio-pop" id="audio-pop-countin" hidden>
@@ -1639,7 +1666,9 @@
                coaches nobody who has this song. */}}
           <div class="audio-key-coach" id="audio-key-coach" hidden>
             <div class="audio-pop-head"><strong>{{t "Save this key for"}}</strong><span class="hint">{{t "the song then opens in it for them, the chart and the recording"}}</span></div>
-            <ul class="audio-key-targets" id="audio-key-targets"></ul>
+            {{/* The coming week's lessons first, the soonest first, their
+                 date said; everyone else folded under "Other students". */}}
+            <div class="audio-key-targets" id="audio-key-targets"></div>
           </div>
         </div>
         <div class="audio-pop" id="audio-pop-voice" hidden>

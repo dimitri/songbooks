@@ -718,5 +718,7 @@
   "Pitch": "Justesse",
   "Rhythm": "Rythme",
   "check my singing as I sing (the microphone listens)": "vérifier ma justesse en chantant (le micro écoute)",
-  "check my entries as I sing (the microphone listens)": "vérifier mes entrées en rythme en chantant (le micro écoute)"
+  "check my entries as I sing (the microphone listens)": "vérifier mes entrées en rythme en chantant (le micro écoute)",
+  "Voice volume and key in the song player": "Volume de la voix et tonalité dans le lecteur",
+  "A mic and a slider beside play turn the song’s voice down or up; the key says whose it is, and the coach sets it for each student.": "Un micro et un curseur, à côté de Lecture, baissent ou remontent la voix du morceau ; la tonalité dit pour quel élève elle est, et le coach la règle pour chacun."
 }
