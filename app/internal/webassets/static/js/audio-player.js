@@ -94,7 +94,7 @@ window.songbooksDecodable = function (buf) {
   const countInBtn = $('audio-countin-btn');
   const countInLabel = $('audio-countin-label');
   const clickBtn = $('audio-click-btn');
-  const speedSel = $('audio-speed');
+
   const speedBpm = $('audio-speed-bpm');
   const trainerBtn = $('audio-trainer-btn');
   const trainerLabel = $('audio-trainer-label');
@@ -480,7 +480,8 @@ window.songbooksDecodable = function (buf) {
     }
     const b = Math.floor(pos);
     const beat = Math.min(beatsPerBar - 1, Math.floor((pos - b) * beatsPerBar));
-    lcdPos.textContent = b < 0 ? '–' : `${barLabel(b)}.${beat + 1}`;
+    // Before the first bar (a count, a silence): waiting at its start, not a dash.
+    lcdPos.textContent = b < 0 ? `${barLabel(0)}.1` : `${barLabel(b)}.${beat + 1}`;
     const sec = sectionAt(b);
     lcdSection.textContent = sec ? sec.label : '';
     syncDockSections();
@@ -495,6 +496,10 @@ window.songbooksDecodable = function (buf) {
     }
     const press = (btn, on) => { if (btn) { btn.classList.toggle('active', !!on); btn.setAttribute('aria-pressed', on ? 'true' : 'false'); } };
     press(cycleBtn, prefs.cycle && prefs.cycle.on);
+    // The loop's chip reads its bars: "Boucle 21–28".
+    const cyc = prefs.cycle && prefs.cycle.on && hasBars() ? prefs.cycle : null;
+    const cycleLabel = $('audio-cycle-label');
+    if (cycleLabel) cycleLabel.textContent = cyc ? t('Cycle %s–%s', barLabel(cyc.from), barLabel(cyc.to - 1)) : t('Cycle');
     press(countInBtn, prefs.countIn > 0);
     press(clickBtn, prefs.click);
     press(trainerBtn, prefs.trainer.on);
@@ -513,26 +518,37 @@ window.songbooksDecodable = function (buf) {
   }
 
   // ---- Speed (pitch kept) ---------------------------------------------------
-  const SPEEDS = [50, 60, 70, 75, 80, 90, 100, 110, 125];
+  // The chip reads "80 % · 119 bpm"; a tap goes back to 100 % and, again,
+  // to the last speed used (80 % the first time). Its ▾: a stepper, ±5 %,
+  // and 70 / 80 / 90 / 100 %.
+  const speedBtn = $('audio-speed-btn'), speedLabel = $('audio-speed-label'), speedAmount = $('audio-speed-amount');
+  // "80 %": a percentage as French writes it (a narrow no-break space).
+  const pctText = (p) => t('%d%', p);
   function setSpeed(v, save = true) {
     const pct = Math.round(Math.max(25, Math.min(150, v * 100)));
     prefs.speed = pct / 100;
+    if (pct !== 100) prefs.speedLast = prefs.speed;
     audio.playbackRate = prefs.speed;
-    speedSel?.closest('[data-tool]')?.classList.toggle('active', pct !== 100);
-    if (speedSel) {
-      const opts = [...new Set([...SPEEDS, pct])].sort((a, b) => a - b);
-      if (speedSel.options.length !== opts.length || ![...speedSel.options].some((o) => +o.value === pct)) {
-        speedSel.innerHTML = '';
-        for (const p of opts) speedSel.add(new Option(`${p}%`, String(p)));
-      }
-      speedSel.value = String(pct);
-    }
-    if (speedBpm) speedBpm.textContent = bpm ? `${Math.round(bpm * prefs.speed)} bpm` : '';
+    const on = pct !== 100;
+    speedBtn?.classList.toggle('active', on);
+    speedBtn?.setAttribute('aria-pressed', String(on));
+    const bpmNow = bpm ? `${Math.round(bpm * prefs.speed)} bpm` : '';
+    if (speedLabel) speedLabel.textContent = on ? [pctText(pct), bpmNow].filter(Boolean).join(' · ') : t('Speed');
+    if (speedAmount) speedAmount.textContent = pctText(pct);
+    if (speedBpm) speedBpm.textContent = bpmNow;
+    syncSpeedSeg();
     resetClicks();
     if (save) savePrefs();
     updateButtons();
   }
-  speedSel?.addEventListener('change', () => setSpeed(+speedSel.value / 100));
+  const toggleSpeed = () => setSpeed(prefs.speed !== 1 ? 1 : (prefs.speedLast && prefs.speedLast !== 1 ? prefs.speedLast : 0.8));
+  speedBtn?.addEventListener('click', toggleSpeed);
+  $('audio-speed-down')?.addEventListener('click', () => setSpeed(prefs.speed - 0.05));
+  $('audio-speed-up')?.addEventListener('click', () => setSpeed(prefs.speed + 0.05));
+  function syncSpeedSeg() {
+    $('audio-speed-seg')?.querySelectorAll('button').forEach((b) => b.classList.toggle('active', +b.dataset.v === Math.round(prefs.speed * 100)));
+  }
+  $('audio-speed-seg')?.addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (b) setSpeed(+b.dataset.v / 100); });
 
   // ---- Click: the metronome's own sounds (clock.js), placed on the
   // recording's bar grid so it follows a live tempo, not a fixed BPM ----
@@ -797,9 +813,8 @@ window.songbooksDecodable = function (buf) {
     const n = prefs.semitones;
     document.dispatchEvent(new CustomEvent('songbooks:key', { detail: { semitones: n } }));
     const sign = n > 0 ? '+' : '';
-    if (keyLabel) keyLabel.textContent = n ? t('Key %s', `${sign}${n}`) : t('Key');
-    keyBtn?.classList.toggle('active', !!n);
     renderSing();
+    renderKeyChip();
     renderDockState();
     if (keyAmount) keyAmount.textContent = `${sign}${n}`;
     if (keyName) keyName.textContent = $('key-transposed') && !$('key-transposed').hidden ? t('in %s', $('key-transposed').textContent) : '';
@@ -1043,13 +1058,25 @@ window.songbooksDecodable = function (buf) {
   async function applyVoice() {
     const meta = categories[activeCategory] || {};
     if (voiceSplit) {
+      // The chip: the mic, and while the voice is down, its slider.
       voiceSplit.hidden = !hasParts();
-      if (voiceLabel) voiceLabel.textContent = prefs.voice >= 100 ? t('Voice') : prefs.voice === 0 ? t('No voice') : t('Voice %d%', prefs.voice);
-      voiceBtn?.classList.toggle('active', prefs.voice < 100);
-      voiceBtn?.setAttribute('aria-pressed', String(prefs.voice < 100));
-      if (voiceRange) voiceRange.value = String(prefs.voice);
-      if (voiceOut) voiceOut.textContent = `${prefs.voice}%`;
-      syncVoiceSeg();
+      const down = prefs.voice < 100;
+      if (voiceLabel) voiceLabel.textContent = prefs.voice === 0 ? t('No voice') : t('Voice');
+      voiceBtn?.classList.toggle('active', down);
+      voiceBtn?.classList.toggle('is-off', prefs.voice === 0);
+      voiceBtn?.setAttribute('aria-pressed', String(down));
+      voiceSplit.classList.toggle('is-on', down);
+      if (voiceRange) {
+        if (+voiceRange.value !== prefs.voice) voiceRange.value = String(prefs.voice);
+        voiceRange.setAttribute('aria-valuetext', prefs.voice === 0 ? t('No voice') : t('Voice %d%', prefs.voice));
+      }
+      if (voiceOut) voiceOut.textContent = pctText(prefs.voice);
+    }
+    const cardMic = $('audio-card-mic');
+    if (cardMic) {
+      cardMic.hidden = !hasParts();
+      cardMic.setAttribute('aria-pressed', String(prefs.voice > 0));
+      cardMic.classList.toggle('is-off', prefs.voice === 0);
     }
     renderSing();
     renderDockState();
@@ -1107,8 +1134,10 @@ window.songbooksDecodable = function (buf) {
     setVoice(prefs.voice < 100 ? 100 : prefs.voiceOff);
   }
   voiceBtn?.addEventListener('click', toggleVoice);
+  // The phone card's mic: with a coaching community's voice slider, the
+  // voice out and back (toggleMic, "Sing"); otherwise as the chip.
+  if (root.dataset.singVoice !== '1') $('audio-card-mic')?.addEventListener('click', toggleVoice);
   voiceRange?.addEventListener('input', () => setVoice(+voiceRange.value));
-  const syncVoiceSeg = wireSegLater('audio-voice-seg', () => prefs.voice, (v) => setVoice(+v));
   function wireSegLater(id, get, set) {
     const seg = $(id);
     if (!seg) return () => {};
@@ -1133,8 +1162,8 @@ window.songbooksDecodable = function (buf) {
   let fitObserver = null;
   function fitDock() {
     if (!dock || !dockTransport || moreOpen()) return;
-    dock.classList.remove('opts-compact', 'opts-tight', 'has-more');
-    tools.forEach((el) => { delete el.dataset.folded; el.classList.toggle('is-on', toolOn(el)); });
+    dock.classList.remove('opts-compact', 'opts-tight', 'opts-notime', 'has-more');
+    tools.forEach((el) => { delete el.dataset.folded; el.classList.remove('is-tight'); el.classList.toggle('is-on', toolOn(el)); });
     let n = 0;
     if (!phoneMQ.matches && !(playerBody && playerBody.hidden)) {
       const over = () => dockTransport.scrollWidth > dockTransport.clientWidth + 1;
@@ -1148,9 +1177,15 @@ window.songbooksDecodable = function (buf) {
           dock.classList.add('has-more');
           if (moreCount) moreCount.textContent = `+${n}`;
         }
-        // Still too wide with every tool that is off folded: the ones that
-        // are on lose their labels too.
-        if (over()) dock.classList.add('opts-tight');
+        // Still too wide with every tool that is off folded: the time goes,
+        // then the tools that are on lose their labels, the last first.
+        if (over()) dock.classList.add('opts-notime');
+        for (const el of [...tools].reverse()) {
+          if (!over()) break;
+          if (el.hidden || el.dataset.folded) continue;
+          el.classList.add('is-tight');
+          dock.classList.add('opts-tight');
+        }
       }
     }
     if (moreCount) moreCount.textContent = n ? `+${n}` : '';
@@ -1216,9 +1251,9 @@ window.songbooksDecodable = function (buf) {
   // picked, the key goes to theirs, saved for them). The same voice and
   // key as Voice and Key (setVoice, setSemitones, the same parts and the
   // same Web Audio graph), remembered the same way.
-  const singPanel = $('sing-panel'), singBtn = $('audio-sing-btn');
-  const singBtnMic = $('audio-sing-btn-mic'), singChip = $('audio-sing-chip');
-  const singVoice = $('audio-sing-voice'), singMic = $('audio-sing-mic'), cardMic = $('audio-card-mic');
+  const singPanel = $('sing-panel'), singBtn = sing ? keyBtn : null;
+  const singBtnMic = null, singChip = null;
+  const singVoice = $('audio-sing-voice'), singMic = $('audio-sing-mic'), cardMic = singVoiceOn ? $('audio-card-mic') : null;
   const singRange = $('audio-sing-volume'), singOut = $('audio-sing-amount');
   const singVoiceHint = $('audio-sing-voice-hint'), singNoVoice = $('audio-sing-novoice');
   const singKeyName = $('audio-sing-keyname'), singFor = $('audio-sing-for');
@@ -1231,6 +1266,21 @@ window.songbooksDecodable = function (buf) {
     if (x.kind === 'group' || !first) return x.name;
     return (coachTargets || []).some((y) => y !== x && y.kind !== 'group' && (y.name || '').split(/\s+/)[0] === first) ? x.name : first;
   };
+  // The key's chip: "Tonalité −1 · C#m", and whose ("· Poppy", "· la vôtre").
+  let keyShort = '';
+  if (!sing && studentKey !== null) keyShort = root.dataset.keyMine ? t('key|yours') : (root.dataset.keyFor || '').split(/\s+/)[0];
+  function renderKeyChip() {
+    const keyLabel = $('audio-key-label');
+    if (!keyLabel) return;
+    const n = prefs.semitones;
+    const name = keyIn(coachKey, n);
+    const mine = studentKey !== null && n === studentKey;
+    const who = sing || mine ? keyShort : '';
+    const text = n ? [t('chip|Key %s', semis(n)), name, who] : who ? [name || t('Key'), who] : [t('Key')];
+    keyLabel.textContent = text.filter(Boolean).join(' · ');
+    keyBtn?.classList.toggle('active', !!n || !!who);
+    keyBtn?.setAttribute('aria-label', [t('Key'), name ? `${name} (${semis(n)})` : semis(n), who].filter(Boolean).join(', '));
+  }
   function renderSing() {
     if (!sing) return;
     const parts = singVoiceOn && hasParts();
@@ -1283,15 +1333,8 @@ window.songbooksDecodable = function (buf) {
     if (singOriginal) singOriginal.disabled = n === 0;
     // The dock's way in: "C#m −1 · Poppy".
     const chip = [name ? (n ? `${name} ${semis(n)}` : name) : semis(n), short].filter(Boolean).join(' · ');
-    if (singChip && singChip.textContent !== chip) {
-      singChip.textContent = chip;
-      queueFit();
-    }
-    if (singBtn) {
-      const label = singBtn.querySelector('.audio-sing-btn-label')?.textContent || '';
-      const voice = parts ? (v === 0 ? t('No voice') : t('Voice %d%', v)) : '';
-      singBtn.setAttribute('aria-label', [label, voice, name ? `${name} (${semis(n)})` : semis(n), who].filter(Boolean).join(', '));
-    }
+    keyShort = short;
+    renderKeyChip();
   }
   // A coach picks whose key it is: the key goes to theirs when they have
   // the song, else stays as it is, to give it them.
@@ -1541,14 +1584,16 @@ window.songbooksDecodable = function (buf) {
     });
   }
   // What's on, under the bar in the card: Key +2 · No voice · 80% · Cycle.
+  // What's on, in the phone card under the section: "⟲ 21–28 · 80 % · −1 · voix 40 %".
   function renderDockState() {
     if (!lcdState) return;
     const bits = [];
-    if (prefs.semitones) bits.push($('audio-key-label')?.textContent);
-    if ($('audio-voice-split') && !$('audio-voice-split').hidden && prefs.voice < 100) bits.push($('audio-voice-label')?.textContent);
+    const c = prefs.cycle;
+    if (c && c.on && hasBars()) bits.push(`⟲ ${barLabel(c.from)}–${barLabel(c.to - 1)}`);
     const pct = Math.round(prefs.speed * 100);
-    if (pct !== 100) bits.push(`${pct}%`);
-    if (prefs.cycle && prefs.cycle.on && hasBars()) bits.push(t('Cycle'));
+    if (pct !== 100) bits.push(pctText(pct));
+    if (prefs.semitones) bits.push(semis(prefs.semitones));
+    if ($('audio-voice-split') && !$('audio-voice-split').hidden && prefs.voice < 100) bits.push(prefs.voice === 0 ? t('no voice') : t('voice %d%', prefs.voice));
     if (prefs.click) bits.push(t('Click'));
     if (prefs.countIn) bits.push($('audio-countin-label')?.textContent);
     lcdState.textContent = bits.filter(Boolean).join(' · ');

@@ -1,4 +1,11 @@
 {
   "%d more tool": "%d outil de plus",
-  "%d more tools": "%d outils de plus"
+  "%d more tools": "%d outils de plus",
+  "%d%": "%d %",
+  "Speed": "Vitesse",
+  "practice options": "options de travail",
+  "Cycle %s–%s": "Boucle %s–%s",
+  "chip|Key %s": "Ton %s",
+  "no voice": "sans voix",
+  "voice %d%": "voix %d %"
 }

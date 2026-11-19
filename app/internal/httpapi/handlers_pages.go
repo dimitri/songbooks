@@ -3118,8 +3118,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	}
 	if data["VocalSlider"] != nil || data["CoachStudentKeys"] != nil {
 		data["SingPanel"] = true
-		data["SongKeyName"] = songKeyName(sg)
 	}
+	// The key's chip in the dock names the key: "Ton −1 · C#m".
+	data["SongKeyName"] = songKeyName(sg)
 	s.render(w, "song", data)
 }
 
