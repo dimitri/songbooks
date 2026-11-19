@@ -6067,7 +6067,6 @@ body.stage .stage-foot {
 
 /* ---- community group (forms pass) ---- */
 
-}
 
 /* datetime-local (community_admin event form): iOS gives it an intrinsic min width that can push past a 375px card, and centres the value; keep it inside the column and left-aligned like the other fields. */
 .form-stack input[type="datetime-local"] { display: block; min-width: 0; }
