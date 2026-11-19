@@ -171,6 +171,7 @@
         <th><button type="button" data-col="6">{{t "Next lesson"}}</button></th>
         <th><button type="button" data-col="7">{{t "Last note"}}</button></th>
         <th><button type="button" data-col="8" title="{{t "lead and backing vocals in the programs of the events to come"}}">{{t "Events"}}</button></th>
+        <th class="num"><button type="button" data-col="9" title="{{t "minutes practised in the last seven days, on how many days, and what's left to practise"}}">{{t "Practice"}}</button></th>
       </tr></thead>
       <tbody>
       {{range .Students}}
@@ -184,6 +185,7 @@
         <td data-sort="{{with .NextLesson}}{{.StartsAt.Unix}}{{else}}9999999999{{end}}">{{with .NextLesson}}{{date .StartsAt "Mon 2 Jan, 15:04"}}{{else}}<span class="hint">—</span>{{end}}{{if .MoreToCome}} <span class="hint">{{tn .MoreToCome "+%d more lesson" "+%d more lessons"}}</span>{{end}}</td>
         <td data-sort="{{with .LastNote}}{{.Unix}}{{else}}0{{end}}">{{with .LastNote}}{{date . "2 Jan 2006"}}{{else}}<span class="hint">—</span>{{end}}</td>
         <td data-sort="{{.Leads}}">{{if or .Leads .Backings}}{{if .Leads}}{{tn .Leads "%d lead" "%d leads"}}{{end}}{{if and .Leads .Backings}} · {{end}}{{if .Backings}}{{tn .Backings "%d backing" "%d backing"}}{{end}}{{else}}<span class="hint">—</span>{{end}}</td>
+        <td class="num" data-sort="{{.Practice.Seconds}}">{{if .Practice.Seconds}}<strong>{{t "%d min" .Practice.Minutes}}</strong><div class="hint">{{tn .Practice.Days "%d day" "%d days"}}</div>{{else}}<span class="hint">—</span>{{end}}{{with .Practice.Open}}<div class="hint">{{tn . "%d to practise" "%d to practise"}}</div>{{end}}</td>
       </tr>
       {{end}}
       </tbody>
@@ -201,6 +203,7 @@
           {{range .Ranges}}{{if .LowName}}<span class="voice-tag is-{{.Register}}">{{t .Label}} {{.LowName}}–{{.HighName}}</span>{{end}}{{end}}
         </div>
         <div class="hint">{{with .NextLesson}}{{t "Next lesson %s" (date .StartsAt "Mon 2 Jan, 15:04")}}{{else}}{{t "No lesson planned"}}{{end}}</div>
+        <div class="hint">{{if .Practice.Seconds}}{{t "Practised %d min this week" .Practice.Minutes}}{{else if .Practice.Last}}{{t "Last practised %s" (date .Practice.Last "Mon 2 Jan")}}{{else if .Practice.Open}}{{t "Not practised yet"}}{{end}}</div>
       </a>
       {{end}}
     </div>
@@ -333,6 +336,136 @@
 </html>
 {{end}}
 
+{{/* Practice (practice.go): what the student has to work on, how often
+     this week, and their log. The coach assigns, marks done, removes; the
+     student says what they practised. Data: .Assignments, .PracticeLogs,
+     .Now, .IsCoach, .Student, .Songs, .Groups. */}}
+{{define "practice-section"}}
+<section class="home-section practice" id="practice" data-community="{{.Community.ID}}"{{with .Student}} data-student="{{.PersonID}}"{{end}}{{with .PracticeGroupID}} data-group="{{.}}"{{end}}>
+  <div class="home-section-head"><h3>{{if .IsCoach}}{{t "Practice"}}{{else}}{{t "To practise"}}{{end}}</h3></div>
+  <div class="practice-list">
+  {{range .Assignments}}{{if not .DoneAt}}
+    <div class="practice-item{{if .Overdue $.Now}} is-overdue{{end}}" data-assignment="{{.ID}}">
+      <div class="practice-item-head">
+        <strong>{{if .VariantID}}<a href="/song/{{.VariantID}}{{if .SongbookID}}?songbook={{.SongbookID}}{{end}}">{{.Label}}</a>{{else}}{{.Label}}{{end}}</strong>
+        {{with .GroupName}}<span class="voice-tag">{{.}}</span>{{end}}
+        {{if .PerWeek}}{{if $.PracticeGroupID}}<span class="practice-week">{{tn .PerWeek "%d day a week" "%d days a week"}}</span>{{else}}<span class="practice-week{{if ge .DaysThisWeek .PerWeek}} is-met{{end}}" title="{{t "days practised this week"}}">{{.DaysThisWeek}}/{{.PerWeek}} {{t "this week"}}</span>{{end}}{{end}}
+      </div>
+      {{with .Notes}}<p class="practice-notes">{{.}}</p>{{end}}
+      <div class="hint">{{with .DueOn}}{{t "until %s" (date . "Mon 2 Jan")}}{{end}}{{if not $.PracticeGroupID}}{{if .DueOn}} · {{end}}{{with .LastPracticed}}{{t "last practised %s" (date . "Mon 2 Jan")}}{{else}}{{t "not practised yet"}}{{end}}{{end}}</div>
+      <div class="practice-actions">
+        {{if $.IsCoach}}
+          <button type="button" class="link-btn practice-done">{{t "Done"}}</button>
+          <button type="button" class="link-btn danger practice-remove">{{t "Remove"}}</button>
+        {{else if $.PracticeGroupID}}
+          <a href="/communities/{{$.Community.ID}}/students/{{$.Person.ID}}#practice">{{t "Log my practice"}} &rarr;</a>
+        {{else}}
+          <button type="button" class="practice-log-open">{{t "I practised"}}</button>
+        {{end}}
+      </div>
+    </div>
+  {{end}}{{else}}
+    <p class="hint">{{if and .IsCoach .PracticeGroupID}}{{t "Nothing to practise yet: give the group one of its songs, or something in words, below."}}{{else if .IsCoach}}{{t "Nothing to practise yet: give %s a song of theirs or an exercise below." .Student.DisplayName}}{{else}}{{t "Nothing to practise for now: your coach adds it here."}}{{end}}</p>
+  {{end}}
+  </div>
+
+  {{if .IsCoach}}
+  <details class="practice-assign">
+    <summary>{{template "icon-plus"}} {{t "Something to practise"}}</summary>
+    <form class="practice-assign-form" autocomplete="off">
+      <label>{{t "A song"}} <select name="variantId">
+        <option value="0">{{t "none: what I write below"}}</option>
+        {{if .Songs}}<optgroup label="{{if .PracticeGroupID}}{{t "The group’s songs"}}{{else}}{{t "Their songs"}}{{end}}">{{range .Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}</optgroup>{{end}}
+        {{range .Groups}}{{if .Songs}}<optgroup label="{{.Group.Name}}">{{range .Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}</optgroup>{{end}}{{end}}
+      </select></label>
+      <label>{{t "Or in words"}} <input type="text" name="title" placeholder="{{t "Lip trills, 5 minutes a day"}}"></label>
+      <label>{{t "What to work on"}} <textarea name="notes" rows="2" placeholder="{{t "the bridge, breathe before the long note…"}}"></textarea></label>
+      <div class="practice-assign-row">
+        <label>{{t "Days a week"}} <select name="perWeek"><option value="0">—</option><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
+        <label>{{t "Until"}} <input type="date" name="dueOn"></label>
+      </div>
+      <button type="submit" class="primary">{{t "Give it"}}</button>
+    </form>
+  </details>
+  {{end}}
+
+  {{if not .PracticeGroupID}}
+  <details class="practice-log"{{if and (not .IsCoach) .PracticeLogs}} open{{end}}>
+    <summary>{{if .IsCoach}}{{t "Their practice, last four weeks"}}{{else}}{{t "My practice, last four weeks"}}{{end}} <span class="count">{{len .PracticeLogs}}</span></summary>
+    {{if not .IsCoach}}
+    <form class="practice-log-form" autocomplete="off">
+      <label>{{t "What"}} <select name="assignmentId">{{range .Assignments}}{{if not .DoneAt}}<option value="{{.ID}}">{{.Label}}</option>{{end}}{{end}}<option value="0">{{t "Something else"}}</option></select></label>
+      <div class="practice-assign-row">
+        <label>{{t "Minutes"}} <input type="number" name="minutes" min="1" max="600" value="15" required></label>
+        <label>{{t "Day"}} <input type="date" name="day"></label>
+      </div>
+      <label>{{t "How it went"}} <input type="text" name="note" placeholder="{{t "optional"}}"></label>
+      <button type="submit" class="primary">{{t "Log it"}}</button>
+    </form>
+    {{end}}
+    <div class="practice-log-list">
+    {{range .PracticeLogs}}
+      <div class="practice-log-row" data-log="{{.ID}}">
+        <span class="practice-log-day">{{date .PracticedOn "Mon 2 Jan"}}</span>
+        <span>{{if .Label}}{{.Label}}{{else}}{{t "Practice"}}{{end}}</span>
+        <span class="hint">{{tn .Minutes "%d min" "%d min"}} · {{if eq .Source "player"}}{{t "played in the app"}}{{else}}{{t "told"}}{{end}}{{with .Note}} · {{.}}{{end}}</span>
+        {{if and (not $.IsCoach) (eq .Source "manual")}}<button type="button" class="link-btn practice-log-remove" aria-label="{{t "Remove"}}">×</button>{{end}}
+      </div>
+    {{else}}
+      <p class="hint">{{t "No practice logged yet. Playing a song from the songbook counts by itself."}}</p>
+    {{end}}
+    </div>
+  </details>
+  {{end}}
+</section>
+{{end}}
+
+{{define "practice-script"}}
+<script>
+(() => {
+  const box = document.getElementById('practice');
+  if (!box) return;
+  const api = `/api/communities/${box.dataset.community}`;
+  const send = (url, method, body) => fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) })
+    .then((r) => { if (!r.ok) return r.text().then((m) => { throw new Error(m); }); return r; });
+  const fail = (err) => alert(t('Couldn’t save.') + (err && err.message ? ' ' + err.message : ''));
+  box.querySelector('.practice-assign-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const body = { personId: Number(box.dataset.student || 0), groupId: Number(box.dataset.group || 0), variantId: Number(f.get('variantId')), title: f.get('title'), notes: f.get('notes'), perWeek: Number(f.get('perWeek')), dueOn: f.get('dueOn') };
+    if (!body.variantId && !body.title.trim()) { alert(t('Pick a song, or say what to practise.')); return; }
+    send(`${api}/assignments`, 'POST', body).then(() => { e.target.reset(); location.reload(); }).catch(fail);
+  });
+  box.querySelectorAll('.practice-item').forEach((item) => {
+    const id = item.dataset.assignment;
+    item.querySelector('.practice-done')?.addEventListener('click', () => send(`${api}/assignments/${id}`, 'PUT', { done: true }).then(() => location.reload()).catch(fail));
+    item.querySelector('.practice-remove')?.addEventListener('click', () => {
+      if (!confirm(t('Remove this from their practice? What they logged stays.'))) return;
+      send(`${api}/assignments/${id}`, 'DELETE').then(() => location.reload()).catch(fail);
+    });
+    item.querySelector('.practice-log-open')?.addEventListener('click', () => {
+      const log = box.querySelector('.practice-log');
+      const form = box.querySelector('.practice-log-form');
+      form.assignmentId.value = id;
+      log.open = true;
+      form.scrollIntoView({ block: 'center' });
+      form.minutes.focus();
+    });
+  });
+  const form = box.querySelector('.practice-log-form');
+  form?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const f = new FormData(form);
+    send(`${api}/practice`, 'POST', { assignmentId: Number(f.get('assignmentId')), minutes: Number(f.get('minutes')), note: f.get('note'), day: f.get('day') })
+      .then(() => { form.reset(); location.reload(); }).catch(fail);
+  });
+  box.querySelectorAll('.practice-log-remove').forEach((b) => b.addEventListener('click', () => {
+    send(`${api}/practice/${b.closest('.practice-log-row').dataset.log}`, 'DELETE').then(() => location.reload()).catch(fail);
+  }));
+})();
+</script>
+{{end}}
+
 {{define "coaching_student"}}
 {{$brand := brandFor "community" .Community.ID}}
 <!doctype html>
@@ -374,6 +507,8 @@
       {{end}}
     </div>
   </section>
+
+  {{template "practice-section" .}}
 
   <section class="home-section">
     <div class="home-section-head"><h3>{{if .IsCoach}}{{t "Songs, in %s’s key" .Student.DisplayName}}{{else}}{{t "My songs"}}{{end}}</h3><span class="count">{{len .Songs}}</span></div>
@@ -435,6 +570,7 @@
 </div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
+{{template "practice-script"}}
 {{if .IsCoach}}
 {{template "coach-song-script"}}
 <script>
@@ -612,6 +748,8 @@
     {{template "coach-song-list" .}}
   </section>
 
+  {{template "practice-section" .}}
+
   <section class="home-section">
     <div class="home-section-head"><h3>{{t "Sessions"}}</h3><a href="/communities/{{.Community.ID}}/lessons">{{t "calendar"}} &rarr;</a></div>
     <div class="attention-list">
@@ -629,6 +767,7 @@
 </div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
+{{template "practice-script"}}
 {{if .IsCoach}}
 {{template "coach-song-script"}}
 <script>

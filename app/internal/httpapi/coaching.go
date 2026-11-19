@@ -108,6 +108,7 @@ type studentRow struct {
 	LastLesson        *store.Event
 	LastNote          *time.Time
 	Leads, Backings   int
+	Practice          store.PracticeSummary // the last seven days
 }
 
 // handleCoachingStudentsPage is GET /communities/{id}/students: the coach's
@@ -128,6 +129,11 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	now := time.Now()
+	practice, err := s.store.CommunityPracticeSummaries(r.Context(), community.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	lessons, err := s.store.ListCoachingLessons(r.Context(), community.ID, time.Time{}, 0)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
@@ -217,6 +223,7 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 		row.MoreToCome = max(0, row.LessonsToCome-1)
 		p := parts[m.PersonID]
 		row.Leads, row.Backings = p[0], p[1]
+		row.Practice = practice[m.PersonID]
 		rows = append(rows, row)
 	}
 	sort.Slice(rows, func(i, j int) bool { return store.FoldName(rows[i].Name) < store.FoldName(rows[j].Name) })
@@ -326,6 +333,15 @@ func (s *Server) handleCoachingStudentPage(w http.ResponseWriter, r *http.Reques
 	data["Groups"] = inGroups
 	data["Lessons"] = lessons
 	data["NoteOptions"] = voiceNotes(s.langOfRequest(r))
+	data["Now"] = time.Now()
+	if data["Assignments"], err = s.store.ListStudentAssignments(ctx, community.ID, studentID, false); err != nil {
+		fail(err)
+		return
+	}
+	if data["PracticeLogs"], err = s.store.ListPracticeLogs(ctx, community.ID, studentID, time.Now().AddDate(0, 0, -28)); err != nil {
+		fail(err)
+		return
+	}
 	if coach {
 		if data["Notes"], err = s.store.StudentNotes(ctx, community.ID, studentID); err != nil {
 			fail(err)

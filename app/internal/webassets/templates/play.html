@@ -1888,7 +1888,9 @@
 </div>
 </div><!-- /.app-content -->
 
-<script src="/static/js/clock.js?v={{staticVersion}}"></script>
+{{if .SongbookRef}}<script>window.songbooksPracticeContext = { songbookId: {{.SongbookRef}}, variantId: {{.VariantID}} };</script>
+<script src="/static/js/practice-time.js?v={{staticVersion}}"></script>
+{{end}}<script src="/static/js/clock.js?v={{staticVersion}}"></script>
 <script src="/static/js/song.js?v={{staticVersion}}"></script>
 <script src="/static/js/audio-player.js?v={{staticVersion}}"></script>
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>

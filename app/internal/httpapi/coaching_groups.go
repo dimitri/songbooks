@@ -128,6 +128,12 @@ func (s *Server) handleCoachingGroupPage(w http.ResponseWriter, r *http.Request)
 	data["Songs"] = s.withKeys(ctx, songs)
 	data["SongbookID"] = g.SongbookID
 	data["Lessons"] = lessons
+	data["PracticeGroupID"] = g.ID
+	data["Now"] = time.Now()
+	if data["Assignments"], err = s.store.ListGroupAssignments(ctx, g.ID, false); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	if g.EventID != nil {
 		if ev, err := s.store.GetEvent(ctx, *g.EventID); err == nil {
 			data["Event"] = ev

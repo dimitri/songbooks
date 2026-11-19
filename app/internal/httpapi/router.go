@@ -421,6 +421,14 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/communities/{id}/groups/{groupID}/members", s.requireCommunityMember(s.handlePutCoachingGroupMembers))
 	mux.HandleFunc("DELETE /api/communities/{id}/groups/{groupID}", s.requireCommunityMember(s.handleDeleteCoachingGroup))
 	mux.HandleFunc("GET /communities/{id}/lessons", s.requireCommunityMember(s.handleCoachingLessonsPage))
+	// Practice (practice.go): the coach's assignments, the student's log,
+	// and the song page's count of the time a song played.
+	mux.HandleFunc("POST /api/communities/{id}/assignments", s.requireCommunityMember(s.handlePostAssignment))
+	mux.HandleFunc("PUT /api/communities/{id}/assignments/{assignmentID}", s.requireCommunityMember(s.handlePutAssignment))
+	mux.HandleFunc("DELETE /api/communities/{id}/assignments/{assignmentID}", s.requireCommunityMember(s.handleDeleteAssignment))
+	mux.HandleFunc("POST /api/communities/{id}/practice", s.requireCommunityMember(s.handlePostPractice))
+	mux.HandleFunc("DELETE /api/communities/{id}/practice/{logID}", s.requireCommunityMember(s.handleDeletePractice))
+	mux.HandleFunc("POST /api/practice/played", s.requireAuth(s.handlePostPlayed))
 	// An online lesson's join link (live.go): the logged-in coach or
 	// student, or one known by their calendar feed's address (?f=).
 	mux.HandleFunc("GET /communities/{id}/lessons/{eventID}/join", s.optionalPerson(s.handleLessonJoin))
