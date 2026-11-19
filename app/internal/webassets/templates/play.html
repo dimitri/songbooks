@@ -1215,42 +1215,49 @@
   </div>
 </div>
 
-{{/* Notes editor (not gated on edit rights the way the edit-drawer above
-     is — any identified viewer may annotate a section: see
-     httpapi.canAnnotateVariant's doc comment). Per-section personal or
-     shared notes, independent of jam mode — the "build annotation editor
-     (take notes) with personal or shared notes" brief item. Rendered for
-     any book/stem use of this same "song" template, not
-     just the plain /b/{book}/{stem} page. */}}
-<div class="edit-drawer-backdrop" id="notes-drawer-backdrop" hidden></div>
-<div class="edit-drawer card" id="notes-drawer" role="dialog" aria-modal="true" aria-label="{{t "Notes on %s" .Title}}" hidden>
-  <div class="edit-drawer-head">
-    <h2>{{t "Notes"}}</h2>
-    <button id="notes-drawer-close" class="icon-btn" type="button" title="{{t "close"}}">{{template "icon-close"}}</button>
+{{/* Notes: per-section personal or shared notes, any viewer may write
+     them (not gated on edit rights the way the edit-drawer above is:
+     annotating never touches the song itself). One sheet for every way
+     in — the desktop sidebar's Notes row, the phone Song sheet's Notes
+     row, the phone's floating note button, and the player's Note option
+     — a bottom sheet on a phone that stays above the keyboard, a panel
+     beside the chart on a wide screen. The notes themselves are drawn
+     under their section's heading in the chart (song-notes.js). */}}
+{{if .VariantID}}
+<button type="button" class="notes-fab" id="notes-fab" aria-haspopup="dialog" aria-controls="notes-sheet" title="{{t "Add a note to this section"}}">{{template "icon-notes"}}<span class="notes-fab-plus">{{template "icon-plus"}}</span><span class="sr-only">{{t "Add a note"}}</span></button>
+<div class="notes-backdrop" id="notes-backdrop" hidden></div>
+<div class="notes-sheet" id="notes-sheet" role="dialog" aria-modal="true" aria-labelledby="notes-sheet-title" data-variant-id="{{.VariantID}}" hidden>
+  <div class="notes-sheet-head">
+    <h2 id="notes-sheet-title">{{t "Notes"}}</h2>
+    <button type="button" class="icon-btn" id="notes-sheet-close" aria-label="{{t "close"}}" title="{{t "close"}}">{{template "icon-close"}}</button>
   </div>
-  <div class="edit-drawer-body" id="notes-drawer-body" data-variant-id="{{.VariantID}}">
-    <p class="hint">{{t "Private notes are visible only to you; shared notes are visible to anyone who can view this song."}}</p>
-    {{range .Sections}}
-    <section class="prep-panel notes-section" data-section-index="{{.Index}}">
-      <h3>{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}</h3>
-      <ul class="notes-list" data-section-index="{{.Index}}"></ul>
-      <form class="note-add-form form-stack" data-section-index="{{.Index}}">
-        <div class="field">
-          <label for="note-body-{{.Index}}">{{t "New note"}}</label>
-          <textarea id="note-body-{{.Index}}" class="note-body prose" rows="2" required placeholder="{{t "e.g. watch the key change here"}}"></textarea>
-        </div>
-        <fieldset class="field-group">
-          <legend>{{t "Who can see it"}}</legend>
-          <label class="check"><input type="radio" name="visibility-{{.Index}}" value="private" checked> {{t "Only me"}}</label>
-          <label class="check"><input type="radio" name="visibility-{{.Index}}" value="shared"> {{t "Anyone who can view this song"}}</label>
-        </fieldset>
-        <p class="form-status" role="status"></p>
-        <div class="form-actions"><button type="submit">{{t "Add note"}}</button></div>
-      </form>
-    </section>
-    {{end}}
+  <div class="notes-sec-picker" id="notes-sec-picker" role="radiogroup" aria-label="{{t "Section"}}">
+    {{range .Sections}}<button type="button" class="notes-sec-chip" role="radio" aria-checked="false" data-section-index="{{.Index}}"><span class="notes-sec-name">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}</span><span class="notes-sec-count" hidden></span></button>{{end}}
   </div>
+  <ul class="notes-sheet-list" id="notes-sheet-list"></ul>
+  <p class="notes-empty hint" id="notes-empty" hidden>{{t "No notes on this section yet."}}</p>
+  <form class="notes-composer" id="notes-composer" data-novalidate-js>
+    <div class="notes-composer-head">
+      <label for="notes-text" id="notes-text-label"></label>
+      <button type="button" class="ghost-btn notes-cancel-edit" id="notes-cancel-edit" hidden>{{t "Cancel"}}</button>
+    </div>
+    <textarea id="notes-text" rows="3" maxlength="4000" enterkeyhint="done" placeholder="{{t "e.g. watch the key change here"}}"></textarea>
+    <div class="notes-vis" role="radiogroup" aria-label="{{t "Who can see it"}}" aria-describedby="notes-vis-hint">
+      <label><input type="radio" name="notes-vis" value="private" checked><span>{{template "icon-lock"}}{{t "Only me"}}</span></label>
+      <label><input type="radio" name="notes-vis" value="shared"><span>{{template "icon-bands"}}{{t "notes|Shared"}}</span></label>
+    </div>
+    <div class="notes-composer-row">
+      <p class="notes-vis-hint" id="notes-vis-hint" data-private="{{t "Only you will see this note."}}" data-shared="{{t "Everyone who can see this song will see this note."}}"></p>
+      <button type="submit" class="primary notes-save" id="notes-save">{{t "Save"}}</button>
+    </div>
+    <p class="form-status" role="status" id="notes-status"></p>
+  </form>
+  <template id="notes-icon-lock">{{template "icon-lock"}}</template>
+  <template id="notes-icon-shared">{{template "icon-bands"}}</template>
+  <template id="notes-icon-edit">{{template "icon-edit"}}</template>
+  <template id="notes-icon-trash">{{template "icon-trash"}}</template>
 </div>
+{{end}}
 
 <div class="content-row">
   {{/* The full transport/tempo/time-sig/key-transpose/click-sound panel
@@ -1604,6 +1611,8 @@
               <span id="audio-speed-bpm" class="audio-speed-bpm"></span>
             </label>
             <button type="button" id="audio-trainer-btn" class="audio-toggle audio-trainer-btn" data-pop="audio-pop-trainer" aria-expanded="false" title="{{t "speed trainer: speed up a little every few loops"}}">{{template "icon-trainer"}}<span id="audio-trainer-label">{{t "Trainer"}}</span><span class="audio-trainer-meter" id="audio-trainer-meter"></span></button>
+            {{/* A note on the section playing now (song-notes.js). */}}
+            <button type="button" id="audio-note-btn" class="audio-toggle audio-note-btn" aria-haspopup="dialog" aria-controls="notes-sheet" title="{{t "write a note on the section playing now"}}">{{template "icon-notes"}}<span>{{t "Note"}}</span></button>
           </div>
         </div>
         {{/* One panel per option, opened from its ▾ (or from Trainer),
@@ -1899,6 +1908,7 @@
 <script src="/static/js/audio-player.js?v={{staticVersion}}"></script>
 <script src="/static/js/pitch-check.js?v={{staticVersion}}"></script>
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
+<script src="/static/js/song-notes.js?v={{staticVersion}}"></script>
 <script src="/static/js/mixer-autoalign.js?v={{staticVersion}}" defer></script>
 <script src="/static/js/mixer.js?v={{staticVersion}}" defer></script>
 {{if or .HasAlphaTab .HasAnyScore .CanEdit .GPFileName}}
@@ -1924,77 +1934,6 @@
 <script src="/static/js/score-editor.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-import.js?v={{staticVersion}}"></script>
 {{end}}
-<script>
-// Notes editor: per-section personal/shared annotations, independent of
-// jam mode — usable on any variant this page's viewer can already view.
-(function() {
-  // Two triggers, one drawer: the desktop top-bar button and the mobile
-  // View stack's "Notes" row (there's no "view menu" on desktop to fold
-  // the button into, so it stays there — see .topbar-notes-btn in app.css).
-  const toggles = [document.getElementById('notes-toggle'), document.getElementById('notes-stack-row')].filter(Boolean);
-  const drawer = document.getElementById('notes-drawer');
-  const backdrop = document.getElementById('notes-drawer-backdrop');
-  if (!toggles.length || !drawer) return;
-  const body = document.getElementById('notes-drawer-body');
-  const variantId = Number(body.dataset.variantId);
-  let loaded = false;
-
-  function openDrawer() {
-    drawer.hidden = false;
-    backdrop.hidden = false;
-    if (!loaded) { loaded = true; loadNotes(); }
-  }
-  function closeDrawer() { drawer.hidden = true; backdrop.hidden = true; }
-  toggles.forEach((toggle) => toggle.addEventListener('click', openDrawer));
-  document.getElementById('notes-drawer-close').addEventListener('click', closeDrawer);
-  backdrop.addEventListener('click', closeDrawer);
-
-  function renderNote(n) {
-    const li = document.createElement('li');
-    const who = n.Nickname || n.PersonName || t('someone');
-    const vis = n.Visibility === 'shared' ? t('shared') : t('private (only you)');
-    li.textContent = `${n.Body} — ${who} (${vis})`;
-    return li;
-  }
-
-  async function loadNotes() {
-    if (!variantId) return;
-    const res = await fetch(`/api/variants/${variantId}/annotations`);
-    if (!res.ok) return;
-    const bySection = await res.json();
-    document.querySelectorAll('.notes-list').forEach(ul => {
-      ul.innerHTML = '';
-      const notes = bySection[ul.dataset.sectionIndex] || [];
-      notes.forEach(n => ul.appendChild(renderNote(n)));
-    });
-  }
-
-  document.querySelectorAll('.note-add-form').forEach(form => {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!variantId) return;
-      const sectionIndex = form.dataset.sectionIndex;
-      const box = form.querySelector('.note-body');
-      const bodyText = box.value.trim();
-      // Only spaces passes `required`; treat it the same as empty.
-      if (!bodyText) { Forms.fieldError(box, t('Write the note first.')); box.focus(); return; }
-      const visibility = form.querySelector('input[type=radio]:checked').value;
-      await Forms.run(form, form.querySelector('button[type=submit]'), async () => {
-        const res = await fetch(`/api/variants/${variantId}/sections/${sectionIndex}/annotations`, {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({body: bodyText, visibility}),
-        });
-        // The API's error strings are developer-facing ("missing body").
-        if (res.status === 401) throw new Error(t('Sign in again to add notes.'));
-        if (!res.ok) throw new Error(t("Couldn't save that note. Your text is still here; try again."));
-        box.value = '';
-        Forms.status(form, t('Note added.'), 'ok');
-        loadNotes();
-      });
-    });
-  });
-})();
-</script>
 <script>
 // Every non-#mode-segmented way to reach the Reference page (desktop
 // sidebar row, mobile Song-sheet row, the empty-state player's own link)
@@ -2087,7 +2026,7 @@
     // this sheet afterward, same shape as the View sheet's own rows.
     // "edit" goes to the standalone #edit-toggle (no longer part of the
     // #mode-segmented pill, see song.js's "Phase 46" comment); Notes is
-    // wired by its own toggles array, this only closes the sheet.
+    // wired by song-notes.js, this only closes the sheet.
     songSheet.querySelectorAll('.stack-sheet-row[data-forward]').forEach(function (row) {
       row.addEventListener('click', function () {
         var real = row.dataset.forward === 'edit'
