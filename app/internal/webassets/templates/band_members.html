@@ -23,21 +23,41 @@
 
   <p class="hint">{{t "Any member can add or remove people. Only core members change who is core or guest."}}</p>
 
-  {{/* Phase 27: one roster — current members (with instrument) AND every
-       unclaimed group-invite slot ("hasn't joined yet"), instead of two
-       disconnected tables. */}}
+  {{/* One roster, one row per person: name, instruments and role, and
+       for someone who hasn't joined yet their personal invite link on
+       that same row. */}}
   <section class="home-section">
     <div class="home-section-head"><h3>{{t "Roster"}}</h3></div>
     <div class="roster-list">
     {{range .Members}}
       {{if .IsCurrent}}
-      <div class="roster-row" data-person-id="{{.PersonID}}">
+      <div class="roster-row{{if .IsShell}} roster-row-pending{{end}}" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">
         <div class="roster-row-main">
-          <div class="roster-name">{{.DisplayName}} {{if not (hasPrefix .Username "pending-")}}<span class="hint">({{.Username}})</span>{{end}}</div>
+          <div class="roster-name">{{.DisplayName}}{{if not .IsShell}} <span class="hint">({{.Username}})</span>{{end}}{{if .IsShell}} <span class="roster-pending-badge">{{t "hasn’t joined yet"}}</span>{{end}}</div>
           <div class="roster-instruments">
           {{range .Instruments}}<span class="roster-instrument-badge">{{template "instrument-icon" .}} {{.}}</span>{{else}}<span class="hint">{{t "no instrument set"}}</span>{{end}}
+          {{if .CanEditInstruments}}<button type="button" class="roster-edit-btn" aria-expanded="false" aria-label="{{t "Edit instruments for %s" .DisplayName}}">{{t "Edit"}}</button>{{end}}
           </div>
+          {{if .CanEditInstruments}}
+          {{/* Inline: the instruments as a comma separated list. */}}
+          <form class="roster-instruments-form" hidden>
+            <input type="text" name="instruments" value="{{.InstrumentsText}}" placeholder="{{t "e.g. bass, vocals"}}" aria-label="{{t "Instruments for %s, separated by commas" .DisplayName}}" autocomplete="off" enterkeyhint="done">
+            <button type="submit" class="primary">{{t "Save"}}</button>
+            <button type="button" class="roster-edit-cancel">{{t "Cancel"}}</button>
+          </form>
+          {{end}}
         </div>
+        {{if .IsShell}}
+        {{/* Their personal link: copy it, show it as a QR code, or make a
+             new one (the old one stops working). */}}
+        <div class="roster-invite" data-person-id="{{.PersonID}}">
+          <button type="button" class="copy-link-btn" data-url="{{if .InviteToken}}/invite/{{.InviteToken}}{{end}}"{{if not .InviteToken}} hidden{{end}}>{{t "Copy link"}}</button>
+          <button type="button" class="qr-link-btn" data-url="{{if .InviteToken}}/invite/{{.InviteToken}}{{end}}"{{if not .InviteToken}} hidden{{end}}>{{t "QR code"}}</button>
+          <button type="button" class="new-link-btn" data-has-link="{{if .InviteToken}}1{{end}}">{{t "New link"}}</button>
+          <span class="hint roster-invite-until">{{if .InviteToken}}{{t "expires %s" (date .InviteUntil "2 January 2006")}}{{else}}{{t "no link yet"}}{{end}}</span>
+        </div>
+        {{end}}
+        <div class="roster-row-actions">
         {{if $.IsCore}}
         {{/* Saves as soon as it changes, so the row says whether it did. */}}
         <select class="status-select" data-person-id="{{.PersonID}}" aria-label="{{t "Role for %s" .DisplayName}}">
@@ -47,35 +67,11 @@
         {{else}}
         <span class="hint">{{t (printf "role|%s" .Status)}}</span>
         {{end}}
-        <span class="form-status" role="status"></span>
         <button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>
+        </div>
+        <span class="form-status" role="status"></span>
       </div>
       {{end}}
-    {{end}}
-    {{if .ShellPeople}}
-    <div class="roster-pending-header">
-      <span>{{t "Name"}}</span><span>{{t "Memberships"}}</span><span></span><span></span>
-    </div>
-    {{end}}
-    {{range .ShellPeople}}
-      <div class="roster-row roster-row-pending" data-person-id="{{.PersonID}}">
-        <div class="roster-name">{{.DisplayName}}</div>
-        <div class="roster-instruments">
-          {{range .Memberships}}<span class="roster-instrument-badge">{{.Name}} ({{t (printf "role|%s" .Status)}})</span>{{end}}
-        </div>
-        <span class="roster-pending-badge">{{t "hasn’t joined yet"}}</span>
-        {{if .OpenInviteToken}}
-        <span class="invite-link-row">
-          <code class="invite-link-url" data-url="/invite/{{.OpenInviteToken}}">/invite/{{.OpenInviteToken}}</code>
-          <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}">{{t "Copy"}}</button>
-          <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}">{{t "QR code"}}</button>
-        </span>
-        {{else}}
-        <button type="button" class="create-shell-invite-btn" data-person-id="{{.PersonID}}">{{t "Get invite link"}}</button>
-        {{end}}
-        <button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>
-        <span class="form-status" role="status"></span>
-      </div>
     {{end}}
     {{/* One table-like row, so the labels are for screen readers only;
          the placeholders show what goes where. */}}
@@ -239,7 +235,65 @@ document.querySelectorAll('.copy-link-btn').forEach(btn => {
     const url = location.origin + btn.dataset.url;
     const was = btn.textContent;
     const show = (text) => { btn.textContent = text; setTimeout(() => { btn.textContent = was; }, 1500); };
-    navigator.clipboard.writeText(url).then(() => show(t('Copied')), () => show(t('Couldn’t copy')));
+    // No clipboard (a plain-http page, a refused permission): show the
+    // link to copy by hand instead.
+    const byHand = () => { show(t('Couldn’t copy')); window.prompt(t('Copy this link:'), url); };
+    if (!navigator.clipboard) { byHand(); return; }
+    navigator.clipboard.writeText(url).then(() => show(t('Copied')), byHand);
+  });
+});
+// Edit a member's instruments in place: the row's badges swap for a
+// comma separated field; saving reloads the roster with the new ones.
+document.querySelectorAll('.roster-row').forEach(row => {
+  const editBtn = row.querySelector('.roster-edit-btn');
+  const form = row.querySelector('.roster-instruments-form');
+  if (!editBtn || !form) return;
+  const list = row.querySelector('.roster-instruments');
+  const input = form.querySelector('input');
+  const open = (on) => {
+    list.hidden = on;
+    form.hidden = !on;
+    editBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+    if (on) { input.focus(); input.select(); } else { input.value = input.defaultValue; editBtn.focus(); }
+  };
+  editBtn.addEventListener('click', () => open(true));
+  form.querySelector('.roster-edit-cancel').addEventListener('click', () => open(false));
+  input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); open(false); } });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const save = form.querySelector('button[type=submit]');
+    const instruments = input.value.split(',').map(s => s.trim()).filter(Boolean);
+    rowStatus(form, t('Saving…'), '');
+    Forms.busy(save, true);
+    const res = await fetch(`/api/bands/${bandId}/members/${row.dataset.personId}/instruments`, {
+      method: 'PUT', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({instruments}),
+    }).catch(() => null);
+    if (res && res.ok) { location.reload(); return; }
+    Forms.busy(save, false);
+    rowStatus(form, res && res.status === 403
+      ? t('Only a core member can change the instruments of someone who has joined.')
+      : t('Couldn’t save the instruments. Try again.'), 'error');
+  });
+});
+// A fresh 30-day link for someone who hasn't joined yet, whether or not
+// the old one expired; the old one stops working.
+document.querySelectorAll('.new-link-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const row = btn.closest('.roster-row');
+    const name = row.dataset.name;
+    if (btn.dataset.hasLink && !confirm(t('Make a new link for %s? The one you have now will stop working.', name))) return;
+    Forms.busy(btn, true);
+    // ?lang: the expiry date comes back in the page's own language.
+    const res = await fetch(`/api/bands/${bandId}/members/${row.dataset.personId}/invite-link?lang=${encodeURIComponent(document.documentElement.lang)}`, {method: 'POST'}).catch(() => null);
+    Forms.busy(btn, false);
+    if (!res || !res.ok) { rowStatus(btn, t('Couldn’t make a link. Try again.'), 'error'); return; }
+    const data = await res.json();
+    const box = btn.closest('.roster-invite');
+    box.querySelectorAll('.copy-link-btn, .qr-link-btn').forEach(b => { b.dataset.url = data.url; b.hidden = false; });
+    box.querySelector('.roster-invite-until').textContent = t('expires %s', data.expires);
+    btn.dataset.hasLink = '1';
+    rowStatus(btn, t('New link ready. Send it to %s.', name), 'ok');
   });
 });
 document.querySelectorAll('.qr-link-btn').forEach(btn => {
@@ -258,19 +312,6 @@ document.getElementById('roster-quick-add-form').addEventListener('submit', (e) 
     });
     if (!res.ok) throw new Error(t('Couldn’t add %s. Try again.', displayName));
     location.reload();
-  });
-});
-document.querySelectorAll('.create-shell-invite-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    // A shell added before this button existed (or one whose invite
-    // already expired) has no live token yet — re-run the same
-    // personal-invite creation against their existing membership
-    // rather than make the admin re-type the name/role from scratch.
-    Forms.busy(btn, true);
-    const res = await fetch(`/api/people/${btn.dataset.personId}/personal-invites`, {method: 'POST'}).catch(() => null);
-    if (res && res.ok) { location.reload(); return; }
-    Forms.busy(btn, false);
-    rowStatus(btn, t('Couldn’t make a link. Try again.'), 'error');
   });
 });
 </script>
