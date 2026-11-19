@@ -2690,11 +2690,11 @@ const ICONS = {
           byEar.type = 'button';
           byEar.className = 'audio-pill-btn import-sync-by-ear';
           byEar.textContent = t('Adjust by ear…');
-          byEar.title = t('open the Sync sheet with this proposal: tap along, nudge, then save the section starts');
+          byEar.title = t('open the Sync sheet with this proposal, to accept or correct section by section');
           byEar.addEventListener('click', () => {
-            const proposal = p.sections.map(s => ({ sectionIndex: s.index, timeSeconds: s.time, origin: 'auto' }));
+            const proposal = p.sections.map(s => ({ sectionIndex: s.index, timeSeconds: s.time }));
             wizard.close();
-            window.songbooksSyncSheet.open({ category: 'youtube', proposal });
+            window.songbooksSyncSheet.open({ category: 'youtube', proposal, source: 'voice', notes: p.notes || [] });
           });
           syncResult.appendChild(byEar);
         }

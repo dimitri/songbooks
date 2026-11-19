@@ -1602,7 +1602,11 @@
     if (!window.SongbooksAutoAlign) { setStatus(t('Auto-align did not load.')); return; }
     const existing = audioCats[refCat] || {};
     const authored = (existing.barSyncPoints || []).length || (existing.markers || []).length;
-    if (authored && !window.confirm(t('This recording is already aligned (%s). Replace that with an automatic alignment? You can undo it afterwards.', refSubtitle().split(' · ').pop()))) return;
+    // Section markers: a proposal, accepted or rejected section by section
+    // in the Sync sheet (sync-sheet.js), nothing overwritten. Guitar Pro
+    // sync points (every bar) are still replaced as a whole, with Undo.
+    const asProposal = refCat !== 'gp' && !!window.songbooksSyncSheet;
+    if (!asProposal && authored && !window.confirm(t('This recording is already aligned (%s). Replace that with an automatic alignment? You can undo it afterwards.', refSubtitle().split(' · ').pop()))) return;
     pause();
     btn.disabled = true;
     btn.textContent = t('Analysing…');
@@ -1611,6 +1615,13 @@
       if (!analysis) throw new Error(t('the recording could not be decoded'));
       await new Promise((r) => setTimeout(r, 30));
       const res = window.SongbooksAutoAlign.analyze(analysis, songForAlign());
+      if (asProposal) {
+        const proposal = data.sections.map((s) => ({ sectionIndex: s.index, timeSeconds: res.barTimes[s.startBar] }))
+          .filter((m) => isFinite(m.timeSeconds) && m.timeSeconds < audioDuration);
+        alignStatus.textContent = t('Auto-align: %s bpm (%s). Its section starts are in the Sync sheet, to accept or reject one by one.', res.bpm.toFixed(1), res.how);
+        window.songbooksSyncSheet.open({ category: refCat, proposal, source: 'beat' });
+        return;
+      }
       snapshotForUndo();
       barTimes = res.barTimes;
       await saveAllAnchors();

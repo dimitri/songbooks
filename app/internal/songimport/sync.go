@@ -36,6 +36,8 @@ type SectionTime struct {
 	// 0 when they agree, or when it can't be told.
 	ChartBars     int `json:"chartBars,omitempty"`
 	RecordingBars int `json:"recordingBars,omitempty"`
+	// HasLyrics: sung (the Sync sheet checks it against the voice).
+	HasLyrics bool `json:"hasLyrics,omitempty"`
 }
 
 // SyncProposal is what the recording says about the chart: its tempo,
@@ -254,12 +256,14 @@ func ProposeSync(a *audioanalysis.Analysis, stemsReady bool, body string, sectio
 	}
 	labels := map[int]string{}
 	bars := map[int]int{}
+	sung := map[int]bool{}
 	for _, s := range sections {
 		labels[s.Index] = s.Label
+		sung[s.Index] = s.HasLyrics
 		bars[s.Index] = s.BarCount
 	}
 	for _, m := range fit.Markers {
-		p.Sections = append(p.Sections, SectionTime{Index: m.SectionIndex, Label: labels[m.SectionIndex], Time: math.Round(m.Time*100) / 100})
+		p.Sections = append(p.Sections, SectionTime{Index: m.SectionIndex, Label: labels[m.SectionIndex], Time: math.Round(m.Time*100) / 100, HasLyrics: sung[m.SectionIndex]})
 	}
 	chartTempo, _ := strconv.ParseFloat(sg.Get("tempo"), 64)
 	// The sections are placed where the singing starts; the chart's bars

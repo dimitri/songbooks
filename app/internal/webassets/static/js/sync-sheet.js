@@ -14,6 +14,15 @@
 // checked as "set", the others staying estimates. Undo goes back step by
 // step; earlier saved syncs can be taken back from their history.
 //
+// "Suggest" asks both engines — the server's (where the singing starts,
+// the import wizard's) and the player's (the downbeats) — and shows each
+// section's suggestion, both when they disagree by more than a bar, to
+// hear (▶), take (✓) or leave (✗); nothing is applied on its own. The
+// wizard's proposal and the Mixer's Auto-align arrive the same way. A
+// section is flagged when the voice doesn't agree with it: a sung
+// section the voice comes into bars later, or not at all, singing over
+// one without lyrics, a start past the end of the recording.
+//
 // It works on the player's recording (audio-player.js,
 // window.songbooksPlayer); opened from the player's sync badge, or by
 // the import wizard with its proposal (songbooksSyncSheet.open).
@@ -48,9 +57,19 @@
   let dirty = false;
   let cat = null;
   let voice = []; // the voice's phrase starts
+  let phrases = []; // the voice's phrases, [start, end]
+  let voiceLoaded = false;
   let beats = []; // detected downbeats
   let lags = []; // tap − snapped target, seconds: the tap delay learnt
   let timer = null;
+  // Automatic suggestions, per section index: [{t, src}] — the server's
+  // proposal ("voice": placed where the singing starts), the player's
+  // detection ("beat": the downbeats), or one handed in (the wizard's,
+  // the Mixer's Auto-align). Each is accepted or rejected, never applied
+  // on its own.
+  let sugg = {};
+  let rejected = new Set();
+  let suggNotes = [];
 
   const say = (msg, kind) => { if (window.Forms) Forms.status(statusEl, msg, kind); else statusEl.textContent = msg; };
   function fmt(t) {
@@ -72,12 +91,117 @@
       // "Verse ×10" is no help: number a repeated name that has none.
       seen[s.label] = (seen[s.label] || 0) + 1;
       const label = count[s.label] > 1 && !/\d\s*$/.test(s.label) ? `${s.label} ${seen[s.label]}` : s.label;
-      return { index: s.index, label, startBar: s.startBar, barCount: s.barCount, t: m ? m.timeSeconds : null, origin: m ? (m.origin || 'set') : null };
+      return { index: s.index, label, startBar: s.startBar, barCount: s.barCount, hasLyrics: !!s.hasLyrics, t: m ? m.timeSeconds : null, origin: m ? (m.origin || 'set') : null };
     });
     cursor = 0;
     todoFrom = -1;
   }
-  const snapshot = () => JSON.stringify({ rows, cursor, todoFrom });
+
+  // ---- Suggestions and checks -------------------------------------------------
+  function addSuggestions(list, src) {
+    const dur = P.duration();
+    for (const m of list) {
+      // Past the end of the recording: the chart has more than it plays.
+      if (m.timeSeconds === null || !isFinite(m.timeSeconds) || (dur && m.timeSeconds >= dur - 0.05)) continue;
+      (sugg[m.sectionIndex] = sugg[m.sectionIndex] || []).push({ t: m.timeSeconds, src });
+    }
+  }
+  // What's still to decide for row i: the suggestions that differ from
+  // its time by more than a snap, two engines that agree within a bar
+  // shown once (the voice's first).
+  function pending(i) {
+    const r = rows[i];
+    if (rejected.has(r.index)) return [];
+    const order = { voice: 0, given: 1, beat: 2 };
+    const list = (sugg[r.index] || []).slice().sort((a, b) => order[a.src] - order[b.src]);
+    const out = [];
+    const near = (a, b) => Math.abs(a - b) < barLen(i) * 0.9;
+    for (const s of list) {
+      // One that agrees with the row as it is: nothing to decide (and an
+      // engine within a bar of it says the same).
+      if (r.t !== null && Math.abs(s.t - r.t) <= SNAP) continue;
+      if (out.some((o) => near(o.t, s.t))) continue;
+      out.push(s);
+    }
+    return out.filter((s) => r.t === null || !list.some((o) => o !== s && Math.abs(o.t - r.t) <= SNAP && near(o.t, s.t)));
+  }
+  function accept(i, s) {
+    change(() => {
+      const r = rows[i];
+      r.t = s.t;
+      r.origin = 'set';
+      delete sugg[r.index];
+    });
+  }
+  function acceptAll() {
+    change(() => {
+      rows.forEach((r, i) => {
+        const p = pending(i);
+        if (p.length) { r.t = p[0].t; r.origin = 'set'; }
+        delete sugg[r.index];
+      });
+      // Keep them in order: a start that lands before the previous one
+      // can't be right.
+      for (let i = 1; i < rows.length; i++) {
+        const prev = rows.slice(0, i).reverse().find((x) => x.t !== null);
+        if (rows[i].t !== null && prev && rows[i].t <= prev.t) rows[i].t = null;
+      }
+    });
+  }
+  function reject(i) {
+    rejected.add(rows[i].index);
+    render();
+  }
+  // What the recording says against row i's start: the voice coming in
+  // much later than a sung section starts (the review's "verse placed 15
+  // bars before the singing"), no voice at all in it, singing over a
+  // section without lyrics, a start past the end of the recording.
+  function flags(i) {
+    const r = rows[i];
+    if (r.t === null) return [];
+    const out = [];
+    const dur = P.duration();
+    if (dur && r.t >= dur - 0.05) return [t('after the end of the recording')];
+    if (!voiceLoaded || !phrases.length) return out;
+    const next = rows.slice(i + 1).find((x) => x.t !== null);
+    const len = barLen(i);
+    const end = next ? next.t : Math.min(dur || Infinity, r.t + r.barCount * len);
+    if (end - r.t < 2 * len) return out;
+    const sung = phrases.reduce((s, p) => s + Math.max(0, Math.min(end, p[1]) - Math.max(r.t, p[0])), 0);
+    if (r.hasLyrics) {
+      const first = voice.find((o) => o >= r.t - 0.3);
+      if (first === undefined || first >= end || sung < 0.5) out.push(t('no voice in this section'));
+      else if ((first - r.t) / len >= 3) out.push(t('the voice comes in %d bars later', Math.round((first - r.t) / len)));
+    } else if (sung / (end - r.t) > 0.6) {
+      out.push(t('the voice sings here, but the chart has no lyrics'));
+    }
+    return out;
+  }
+  async function suggest() {
+    const btn = $('sync-suggest-btn');
+    window.Forms?.busy?.(btn, true);
+    say(t('Listening to the recording… (a few seconds)'));
+    const forCat = cat;
+    // The player's: the downbeats, at the chart's tempo.
+    const bars = P.detectBars();
+    if (bars) addSuggestions(rows.map((r) => ({ sectionIndex: r.index, timeSeconds: bars[r.startBar] ?? null })).filter((m) => m.timeSeconds !== null && m.timeSeconds < P.duration()), 'beat');
+    // The server's: where the singing starts (the import wizard's).
+    try {
+      const lang = encodeURIComponent(document.documentElement.lang || '');
+      const res = await fetch(`/api/songs/${P.variantId}/audio/${forCat}/analyze?lang=${lang}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      if (res.ok && forCat === cat) {
+        const p = await res.json();
+        addSuggestions((p.sections || []).map((s) => ({ sectionIndex: s.index, timeSeconds: s.time })), 'voice');
+        suggNotes = p.notes || [];
+      }
+    } catch (e) { /* the player's alone */ }
+    window.Forms?.busy?.(btn, false);
+    rejected = new Set();
+    const n = rows.filter((_, i) => pending(i).length).length;
+    say(n ? tn(n, '%d section has a suggestion', '%d sections have a suggestion') : t('The suggestions agree with the sync as it is.'), 'ok');
+    render();
+  }
+  const snapshot = () => JSON.stringify({ rows, cursor, todoFrom, sugg });
   function change(fn) {
     history.push(snapshot());
     if (history.length > 200) history.shift();
@@ -88,7 +212,7 @@
   function undo() {
     const s = history.pop();
     if (!s) return;
-    ({ rows, cursor, todoFrom } = JSON.parse(s));
+    ({ rows, cursor, todoFrom, sugg } = JSON.parse(s));
     dirty = true;
     afterChange();
   }
@@ -228,9 +352,24 @@
       }
       main.addEventListener('click', () => select(i));
       li.appendChild(main);
+      const fl = flags(i);
+      if (fl.length) {
+        li.classList.add('is-flagged');
+        const p = document.createElement('p');
+        p.className = 'sync-row-flag';
+        p.textContent = fl.join(' · ');
+        li.appendChild(p);
+      }
+      for (const s of pending(i)) li.appendChild(suggestion(i, s));
       if (i === cursor) li.appendChild(tools(i));
       return li;
     }));
+    const waiting = rows.filter((_, i) => pending(i).length).length;
+    $('sync-accept-all').hidden = !waiting;
+    $('sync-suggest-count').textContent = waiting ? tn(waiting, '%d suggestion to check', '%d suggestions to check') : '';
+    const notes = $('sync-suggest-notes');
+    notes.hidden = !(waiting && suggNotes.length);
+    notes.textContent = suggNotes.join(' ');
     const r = rows[cursor];
     tapWhat.textContent = r ? t('Start of %s', r.label) : t('Every section is placed');
     tapBtn.disabled = !r;
@@ -248,6 +387,31 @@
       $('sync-warn-sum').textContent = t('The counter isn’t at the chart’s tempo: %d bpm, not %d', mid, Math.round(P.bpm));
       $('sync-warn-text').textContent = t('The counter runs at about %d bpm between these starts, the chart says %d: where a section is marked, the chart has more or fewer bars than the recording plays. Count its bars while listening and fix the chart.', mid, Math.round(P.bpm));
     }
+  }
+  // One suggestion for row i: its time and where it comes from, ▶ to
+  // hear it, ✓ to take it, ✗ to leave the row as it is.
+  function suggestion(i, s) {
+    const r = rows[i];
+    const div = document.createElement('div');
+    div.className = 'sync-suggest';
+    const what = document.createElement('span');
+    const from = { voice: t('where the singing starts'), beat: t('from the downbeats'), given: t('proposed') }[s.src];
+    const d = r.t === null ? '' : ` (${s.t > r.t ? '+' : '−'}${Math.abs(s.t - r.t).toFixed(1)} s)`;
+    what.textContent = t('Suggested: %s, %s', fmt(s.t) + d, from);
+    const btn = (cls, text, label, fn) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `sync-btn ${cls}`;
+      b.textContent = text;
+      b.setAttribute('aria-label', label);
+      b.addEventListener('click', fn);
+      return b;
+    };
+    div.append(what,
+      btn('', '▶', t('play the suggestion for %s from 2 seconds before', r.label), () => { P.seek(Math.max(0, s.t - 2)); if (!P.isPlaying()) P.play(); }),
+      btn('ok', '✓', t('take the suggestion for %s', r.label), () => accept(i, s)),
+      btn('no', '✗', t('keep %s as it is', r.label), () => reject(i)));
+    return div;
   }
   function tools(i) {
     const r = rows[i];
@@ -303,11 +467,19 @@
   // ---- Snap targets ------------------------------------------------------------
   async function loadTargets() {
     voice = [];
+    phrases = [];
+    voiceLoaded = false;
     beats = [];
     const forCat = cat;
     try {
       const res = await fetch(`/api/songs/${P.variantId}/audio/${forCat}/voice`);
-      if (res.ok && forCat === cat) voice = (await res.json()).onsets || [];
+      if (res.ok && forCat === cat) {
+        const c = await res.json();
+        voice = c.onsets || [];
+        phrases = c.phrases || [];
+        voiceLoaded = true;
+        if (isOpen()) render();
+      }
     } catch (e) { /* snapping to the beat only */ }
     // The detection takes a moment on a long song: after the sheet shows.
     setTimeout(() => { if (forCat === cat) beats = P.detectBars() || []; }, 50);
@@ -376,9 +548,14 @@
     statusEl.textContent = '';
     history = [];
     lags = [];
-    load(opts.proposal || P.syncMarkers());
-    dirty = !!opts.proposal;
-    if (opts.proposal) P.setPreview(markers());
+    load(P.syncMarkers());
+    dirty = false;
+    // A proposal handed in (the wizard's, Auto-align's) is a set of
+    // suggestions to accept or reject, not a new sync.
+    sugg = {};
+    rejected = new Set();
+    suggNotes = opts.notes || [];
+    if (opts.proposal) addSuggestions(opts.proposal, opts.source || 'given');
     // Start where the sync still needs a person.
     const first = rows.findIndex((r) => r.origin !== 'set');
     cursor = first >= 0 ? first : 0;
@@ -415,6 +592,8 @@
   undoBtn.addEventListener('click', undo);
   saveBtn.addEventListener('click', save);
   historyBtn.addEventListener('click', showHistory);
+  $('sync-suggest-btn').addEventListener('click', suggest);
+  $('sync-accept-all').addEventListener('click', acceptAll);
   sheet.querySelectorAll('[data-sync-close]').forEach((el) => el.addEventListener('click', close));
   // Keys while it's open, before the player's own (window, capture).
   window.addEventListener('keydown', (e) => {

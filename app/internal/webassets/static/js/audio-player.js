@@ -137,7 +137,7 @@ window.songbooksDecodable = function (buf) {
       // chart's): once here.
       if (Number.isNaN(startBar) || barCount <= 0 || seen.has(index)) return;
       seen.add(index);
-      out.push({ index, label: el.dataset.label || '', startBar, barCount });
+      out.push({ index, label: el.dataset.label || '', startBar, barCount, hasLyrics: el.dataset.hasLyrics === 'true' });
     });
     return out.sort((a, b) => a.startBar - b.startBar);
   }
