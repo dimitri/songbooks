@@ -108,50 +108,53 @@
   {{template "notif-bell"}}
 </header>
 <main class="index warmup-practice" data-community="{{.Community.ID}}">
-  {{with .Exercise.Notes}}<p class="warmup-notes">{{.}}</p>{{end}}
   <div class="warmup-session-bar" hidden></div>
-  {{if .IsCoach}}
-  <div class="warmup-coach-bar">
-    <label>{{t "In the keys of"}} <select class="warmup-student">
-      <option value="0">{{t "the written key"}}</option>
-      {{range .Students}}<option value="{{.PersonID}}"{{if eq .PersonID $.StudentID}} selected{{end}}>{{.DisplayName}}</option>{{end}}
-    </select></label>
-    <a href="/communities/{{.Community.ID}}/warmups/{{.Exercise.ID}}/edit">{{t "Edit the exercise"}}</a>
-  </div>
-  {{end}}
+  {{with .Exercise.Notes}}<p class="warmup-notes">{{.}}</p>{{end}}
+  <button type="button" class="warmup-listen" hidden>{{template "icon-play"}} <span></span></button>
 
-  <section class="warmup-demo">
-    <button type="button" class="warmup-listen" hidden>{{template "icon-play"}} <span></span></button>
-    {{if .IsCoach}}
-    <span class="warmup-record-tools">
-      <button type="button" class="warmup-record">{{t "Record my demo"}}</button>
-      <button type="button" class="link-btn danger warmup-demo-remove" hidden>{{t "Remove it"}}</button>
-      <span class="hint warmup-record-status" aria-live="polite"></span>
-    </span>
-    {{end}}
-  </section>
-
-  <section class="warmup-path">
-    <div class="warmup-path-line"><span class="warmup-path-text"></span>
-      <span class="warmup-octave"><button type="button" data-octave="-12" title="{{t "an octave lower"}}">−8ve</button><button type="button" data-octave="12" title="{{t "an octave higher"}}">+8ve</button></span></div>
-    {{if .IsCoach}}
-    <form class="warmup-path-form" autocomplete="off" hidden>
-      <label>{{t "Their path, in semitones from the written key"}} <input type="text" name="waypoints" placeholder="-2, +5, -2"></label>
-      <button type="submit">{{t "Save their path"}}</button>
-      <button type="button" class="link-btn warmup-path-default">{{t "the app’s, from their range"}}</button>
-    </form>
-    {{end}}
-  </section>
-
-  <div class="warmup-transport">
-    <button type="button" class="primary warmup-play" disabled>{{template "icon-play"}} <span>{{t "Train"}}</span></button>
-    <button type="button" class="warmup-stop" disabled>{{t "Stop"}}</button>
-    <label>{{t "Tempo"}} <select class="warmup-speed"><option value="0.75">75 %</option><option value="0.9">90 %</option><option value="1" selected>100 %</option><option value="1.1">110 %</option></select></label>
+  {{/* The player: where it is (the key, the repeat), and the controls. */}}
+  <section class="warmup-player">
+    <div class="warmup-now-row">
+      <span class="warmup-key" aria-live="polite"></span>
+      <span class="warmup-rep hint"></span>
+      <span class="warmup-time hint"></span>
+    </div>
+    <div class="warmup-progress" aria-hidden="true"></div>
+    <div class="warmup-controls">
+      <button type="button" class="warmup-play" disabled aria-label="{{t "Train"}}">{{template "icon-play"}}</button>
+      <button type="button" class="warmup-stop" disabled aria-label="{{t "Stop"}}"><svg class="icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="1.5"/></svg></button>
+      <span class="warmup-octave" role="group" aria-label="{{t "Octave"}}"><button type="button" data-octave="-12" title="{{t "an octave lower"}}">−8ve</button><button type="button" data-octave="12" title="{{t "an octave higher"}}">+8ve</button></span>
+      <select class="warmup-speed" aria-label="{{t "Tempo"}}"><option value="0.75">75 %</option><option value="0.9">90 %</option><option value="1" selected>100 %</option><option value="1.1">110 %</option></select>
+    </div>
     <label class="warmup-guide"><input type="checkbox" checked> {{t "the line on the piano"}}</label>
-    <span class="warmup-now hint" aria-live="polite"></span>
-  </div>
+  </section>
+  <p class="warmup-path-text hint"></p>
+
   <div class="warmup-score"><div class="warmup-score-canvas"></div></div>
   <div id="warmup-check"></div>
+
+  {{if .IsCoach}}
+  <details class="warmup-coach"{{if .StudentID}} open{{end}}>
+    <summary>{{t "Coach’s tools"}}</summary>
+    <div class="warmup-coach-body">
+      <label>{{t "In the keys of"}} <select class="warmup-student">
+        <option value="0">{{t "a usual path"}}</option>
+        {{range .Students}}<option value="{{.PersonID}}"{{if eq .PersonID $.StudentID}} selected{{end}}>{{.DisplayName}}</option>{{end}}
+      </select></label>
+      <form class="warmup-path-form" autocomplete="off" hidden>
+        <label>{{t "Their path, in semitones from the written key"}} <input type="text" name="waypoints" placeholder="-2, +5, -2"></label>
+        <div class="warmup-coach-row"><button type="submit">{{t "Save their path"}}</button>
+        <button type="button" class="link-btn warmup-path-default">{{t "the app’s, from their range"}}</button></div>
+      </form>
+      <div class="warmup-coach-row">
+        <button type="button" class="warmup-record">{{t "Record my demo"}}</button>
+        <button type="button" class="link-btn danger warmup-demo-remove" hidden>{{t "Remove it"}}</button>
+        <span class="hint warmup-record-status" aria-live="polite"></span>
+      </div>
+      <a href="/communities/{{.Community.ID}}/warmups/{{.Exercise.ID}}/edit">{{t "Edit the exercise"}} →</a>
+    </div>
+  </details>
+  {{end}}
 </main>
 </div>
 {{template "global-tabbar"}}

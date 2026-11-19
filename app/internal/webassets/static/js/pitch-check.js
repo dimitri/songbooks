@@ -420,6 +420,8 @@
       }
     }
     try {
+      // an iPhone keeps playing while it listens (and with the ring switch on silent)
+      try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) { /* not this browser */ }
       mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
     } catch (e) {
       status.textContent = t('The microphone isn’t allowed: allow it for this site, then try again.');
