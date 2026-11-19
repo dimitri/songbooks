@@ -13,18 +13,32 @@
 (function () {
   if (!window.AudioContext || !navigator.mediaDevices || !window.indexedDB) return;
 
-  // The song page: the recording's voice against the singer.
+  // The song page: the recording's voice against the singer. Opened from
+  // the dock's Pitch option (a row of the dock, over the waveform), which
+  // starts listening; closed again with it.
   function songPage() {
     const root = document.getElementById('audio-player');
     if (!root) return;
     const go = () => {
       const ctx = window.songbooksPracticeContext;
-      create({
-        mount: (panel) => root.after(panel),
+      const btn = document.getElementById('audio-pitch-btn');
+      const dock = document.getElementById('audio-dock');
+      const hasVoice = () => { const c = window.songbooksReferenceClock(); return !!(c && c.category && c.stems.includes('vocals')); };
+      let wanted = false;
+      const checker = create({
+        mount: (panel) => {
+          const wave = dock && dock.querySelector('.audio-waveform-wrap');
+          if (wave) wave.before(panel); else root.after(panel);
+        },
         clock: () => window.songbooksReferenceClock(),
-        visible: () => { const c = window.songbooksReferenceClock(); return !!(c && c.category && c.stems.includes('vocals')); },
+        visible: () => {
+          const ok = hasVoice();
+          if (btn) btn.hidden = !ok;
+          return ok && (wanted || !btn);
+        },
         notesKey: (c) => `${c.variantId}:${c.category}`,
-        loadNotes: async (c, progress) => notesOf(await referenceLine(c, progress)),
+        // the factory's own helpers: the recording's voice, cut into notes
+        loadNotes: async (c, progress, h) => h.notesOf(await h.referenceLine(c, progress)),
         loading: () => t('Listening to the song’s voice…'),
         loadingAt: (pc) => t('Listening to the song’s voice… %d%', pc),
         loadFailed: () => t('Couldn’t read the song’s voice.'),
@@ -36,6 +50,12 @@
           const r = await fetch('/api/practice/pitch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ songbookId: ctx.songbookId, variantId: ctx.variantId }, body)) });
           return r.status === 200 ? r.json() : null;
         } : null,
+      });
+      btn?.addEventListener('click', () => {
+        wanted = !wanted;
+        btn.setAttribute('aria-pressed', String(wanted)); btn.classList.toggle('active', wanted);
+        checker.refresh();
+        if (wanted) checker.start(); else checker.stop();
       });
     };
     // The player sets its clock up as it starts: wait for it.
@@ -410,10 +430,11 @@
     if (!line || lineKey !== key) {
       status.textContent = opts.loading();
       try {
-        notes = await opts.loadNotes(clock, (p) => { status.textContent = opts.loadingAt(Math.round(p * 100)); });
+        notes = await opts.loadNotes(clock, (p) => { status.textContent = opts.loadingAt(Math.round(p * 100)); }, { notesOf, referenceLine });
         line = true;
         lineKey = key;
       } catch (e) {
+        console.warn('pitch-check: the line to sing: ' + (e && (e.stack || e.message) || e));
         status.textContent = opts.loadFailed();
         stop();
         return;
@@ -584,7 +605,7 @@
     setTimeout(() => box.remove(), 3200);
   }
     refresh();
-    return { refresh, stop: () => { if (on) stop(); } };
+    return { refresh, start: () => { if (!on) start(); }, stop: () => { if (on) stop(); } };
   }
 
   window.songbooksPitchCheck = { create };
