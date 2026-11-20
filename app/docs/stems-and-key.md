@@ -41,12 +41,42 @@ vocals, drums, bass, other, and no_vocals (the three others summed).
   (`POST /api/songs/{id}/audio/{category}/stems`).
 - **Worker**: `cmd/stemsd`, in its own container (`deploy/Dockerfile.stems`:
   Python 3.11, PyTorch 2.5.1 CPU, Demucs 4.0.1, the `htdemucs` model built
-  in; about 1.8 GB). It takes the oldest job (`FOR UPDATE SKIP LOCKED`),
-  converts the recording to WAV, runs Demucs, encodes the parts to 128
-  kbit/s MP3 with ffmpeg, mixes no_vocals, stores them. A recording
-  replaced while it was split: the parts are dropped, the new one is
-  queued. Three failures and it stays failed, with the error. Capped at 8
-  cores and 8 GB in docker-compose.yml.
+  in; about 1.8 GB). It takes a job (`FOR UPDATE SKIP LOCKED`): the
+  recordings without parts first (added or replaced: someone is waiting),
+  then the oldest. It converts the recording to WAV, runs Demucs, encodes
+  the parts to 128 kbit/s MP3 with ffmpeg, mixes no_vocals, stores them,
+  and only then analyses the recording from the WAVs it still has (beats,
+  chords: migration 0106), its analysis job claimed with the parts so no
+  other worker takes it. A recording replaced while it was split: the
+  parts are dropped, the new one is queued. Three failures and it stays
+  failed, with the error.
+- **Lanes** (`--backlog-threads N`): an upload's split runs at once on the
+  worker's threads; the splits done again (a recording that has its parts:
+  a new model, an editor's "split again") and the analyses queued apart (a
+  backfill, "listen again") run beside it in a second lane, `nice -n 19`
+  on N threads, so an upload never waits behind a backfill. Without the
+  flag, one lane does everything, uploads first.
+- **Threads** (`--threads T --jobs J`): Demucs cuts a recording into 7.8 s
+  segments; `--jobs` separates J of them at once, each on T PyTorch
+  threads (`OMP_NUM_THREADS`). On the production host (2 × Xeon E5-2620
+  v2: 12 cores, 24 hardware threads, AVX but no AVX2, so PyTorch runs its
+  generic kernels) PyTorch's threads alone stop paying past 12, and 24
+  of them are slower than 8; segments side by side keep paying to 16 and
+  a little beyond. Splitting the file into chunks in separate
+  processes is slower than `--jobs` and takes twice the memory. Loading
+  the model takes 4 s: not worth a long-lived process. A 3:30 song,
+  Demucs alone (Nov. 2026, the host otherwise busy on 6–12 threads):
+
+  | cores | setting            | time  | memory |
+  |------:|--------------------|------:|-------:|
+  |     8 | 8 threads (before) | 5:53  | 2.1 GB |
+  |     8 | `--threads 2 --jobs 4` | 4:09 | 3.8 GB |
+  |    12 | `--threads 4 --jobs 3` | 3:45 | 3.4 GB |
+  |    16 | `--threads 4 --jobs 4` | 3:14 | 3.8 GB |
+  |    24 | `--threads 4 --jobs 6` | 2:59 | 4.9 GB |
+
+  One thread is the most work per core: for a backfill, one song per core
+  side by side, not one song on many.
 - **Measured** (4 threads on a laptop): a 2:49 song in 1 min 20 s, 13 MB of
   parts; a Guitar Pro recording in 21 s.
 - **Served** at `/song/{id}/audio.mp3?category=…&stem=vocals`, to who may

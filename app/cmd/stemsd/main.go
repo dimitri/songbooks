@@ -9,9 +9,16 @@
 // metre, tempo, chords and where the voice is, from Beat This! and
 // lv-chordia (deploy/analysis/sbanalyze.py) and internal/audioanalysis.
 // A recording split before, or whose analysis was queued again, is
-// analysed from its stored parts once no split is waiting.
+// analysed from its stored parts once no split is waiting. Its parts are
+// saved before it's listened to: the player has them a minute sooner.
 //
-//	stemsd --db URL [--model htdemucs] [--threads 8] [--bitrate 128]
+// A recording added or replaced (no parts: someone is waiting) goes
+// before one split again. With --backlog-threads, a second lane takes
+// the splits done again and the analyses queued apart, niced and on few
+// threads, so that an upload never waits behind a backfill; without, one
+// lane does everything, uploads first.
+//
+//	stemsd --db URL [--model htdemucs] [--threads 4 --jobs 4] [--backlog-threads 2] [--bitrate 128]
 //	stemsd --db URL --once            # split and analyse what's queued, then stop
 //	stemsd --db URL --reanalyze all   # queue every split recording's analysis again
 //	stemsd --db URL --reanalyze 42    # one recording (song_audio id)
@@ -22,7 +29,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -43,7 +49,9 @@ func main() {
 	dbURL := flag.String("db", os.Getenv("DATABASE_URL"), "database connection string")
 	demucs := flag.String("demucs", "demucs", "the command that runs Demucs (words split on spaces)")
 	model := flag.String("model", "htdemucs", "the Demucs model")
-	threads := flag.Int("threads", 0, "threads Demucs and the analysis may use (0: their default)")
+	threads := flag.Int("threads", 0, "PyTorch threads for Demucs and the analysis (0: OMP_NUM_THREADS, or one per core)")
+	jobs := flag.Int("jobs", 0, "segments Demucs separates at once (its --jobs), each on --threads threads (0: one at a time)")
+	backlogThreads := flag.Int("backlog-threads", 0, "if > 0, a second, niced lane on this many threads splits recordings again and runs the queued analyses")
 	bitrate := flag.Int("bitrate", 128, "the parts' MP3 bitrate, in kbit/s")
 	timeout := flag.Duration("timeout", 30*time.Minute, "the longest one recording may take")
 	once := flag.Bool("once", false, "split and analyse what's queued, then stop")
@@ -83,81 +91,122 @@ func main() {
 	if err := st.ResetRunningAnalysisJobs(ctx); err != nil {
 		log.Fatal(err)
 	}
-	split := stems.Splitter{Demucs: strings.Fields(*demucs), Model: *model, Threads: *threads, Bitrate: *bitrate}
-	analyzer := ""
+	split := stems.Splitter{Demucs: strings.Fields(*demucs), Model: *model, Threads: *threads, Jobs: *jobs, Bitrate: *bitrate}
+	w := worker{st: st, model: *model, split: split, an: an, timeout: *timeout, once: *once}
 	if len(an.Command) > 0 {
-		analyzer = "sbanalyze"
+		w.analyzer = "sbanalyze"
 	}
+	if *backlogThreads <= 0 || *once {
+		w.lane = store.LaneAll
+		w.run(ctx)
+		return
+	}
+	// Two lanes: uploads at once with every thread; the rest beside them,
+	// niced (the kernel gives an upload's split the cores it wants) and
+	// on few threads.
+	up := w
+	up.lane = store.LaneNew
+	back := w
+	back.lane = store.LaneBacklog
+	back.split.Demucs = niced(split.Demucs)
+	back.split.Threads, back.split.Jobs = *backlogThreads, 0
+	back.an.Command = niced(an.Command)
+	back.an.Threads = *backlogThreads
+	done := make(chan struct{})
+	go func() {
+		back.run(ctx)
+		close(done)
+	}()
+	up.run(ctx)
+	<-done
+}
 
+// niced runs a command at the lowest CPU priority.
+func niced(cmd []string) []string {
+	if len(cmd) == 0 {
+		return nil
+	}
+	return append([]string{"nice", "-n", "19"}, cmd...)
+}
+
+// worker is one lane: it takes its lane's splits, and, but for the
+// uploads' lane, the analyses queued apart.
+type worker struct {
+	st       *store.Store
+	lane     store.StemLane
+	model    string
+	split    stems.Splitter
+	an       stems.Analyzer
+	analyzer string // "" when there's no analysis
+	timeout  time.Duration
+	once     bool
+}
+
+func (w worker) run(ctx context.Context) {
 	for ctx.Err() == nil {
-		// Splits first: a new recording's parts shouldn't wait for a
-		// backfill of analyses.
-		job, err := st.ClaimStemJob(ctx, *model)
+		job, err := w.st.ClaimStemJob(ctx, w.model, w.lane)
 		if err != nil {
 			log.Printf("stemsd: claiming a job: %v", err)
 			sleep(ctx, 30*time.Second)
 			continue
 		}
 		if job != nil {
-			process(ctx, st, split, an, *job, *timeout)
+			w.process(ctx, *job)
 			continue
 		}
-		if len(an.Command) > 0 {
-			aj, err := st.ClaimAnalysisJob(ctx, analyzer)
+		// Splits first: a new recording's parts shouldn't wait for a
+		// backfill of analyses.
+		if w.analyzer != "" && w.lane != store.LaneNew {
+			aj, err := w.st.ClaimAnalysisJob(ctx, w.analyzer)
 			if err != nil {
 				log.Printf("stemsd: claiming an analysis: %v", err)
 				sleep(ctx, 30*time.Second)
 				continue
 			}
 			if aj != nil {
-				analyzeStored(ctx, st, an, *aj, *timeout)
+				w.analyzeStored(ctx, *aj)
 				continue
 			}
 		}
-		if *once {
+		if w.once {
 			return
 		}
-		if err := st.WaitForStemJob(ctx, time.Minute); err != nil && ctx.Err() == nil {
+		if err := w.st.WaitForStemJob(ctx, time.Minute); err != nil && ctx.Err() == nil {
 			log.Printf("stemsd: waiting: %v", err)
 			sleep(ctx, 30*time.Second)
 		}
 	}
 }
 
-func process(ctx context.Context, st *store.Store, split stems.Splitter, an stems.Analyzer, job store.StemJob, timeout time.Duration) {
+// process splits a recording and saves its parts, then, while it still
+// has the WAVs, analyses it (the job saving the parts queued).
+func (w worker) process(ctx context.Context, job store.StemJob) {
+	st := w.st
 	start := time.Now()
 	audio, _, err := st.GetSongAudioData(ctx, job.SongAudioID)
 	if err != nil {
 		fail(st, job, err)
 		return
 	}
-	jctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	var rec *chartalign.Recording
-	var then func(stems.WAVs) error
-	if len(an.Command) > 0 {
-		then = func(w stems.WAVs) error {
-			var err error
-			rec, err = an.Analyze(jctx, w)
-			return err
-		}
+	dir, err := os.MkdirTemp("", "stems-")
+	if err != nil {
+		fail(st, job, err)
+		return
 	}
-	parts, err := split.SplitThen(jctx, audio, then)
+	defer os.RemoveAll(dir)
+	jctx, cancel := context.WithTimeout(ctx, w.timeout)
+	defer cancel()
+	parts, wavs, err := w.split.SplitIn(jctx, dir, audio)
 	if ctx.Err() != nil {
 		return // stopping: the job goes back to the queue at the next start
-	}
-	var thenErr *stems.ThenError
-	if errors.As(err, &thenErr) {
-		// The parts are fine; the analysis is queued by their saving and
-		// will be tried again from them.
-		log.Printf("stemsd: recording %d: analysis: %v", job.SongAudioID, thenErr.Err)
-		err = nil
 	}
 	if err != nil {
 		fail(st, job, err)
 		return
 	}
-	saved, err := st.SaveStems(ctx, job, "audio/mpeg", parts)
+	// Saved first, the analysis claimed with them: the player has the
+	// parts while the recording is listened to.
+	saved, aj, err := st.SaveStemsClaimAnalysis(ctx, job, "audio/mpeg", parts, w.analyzer)
 	if err != nil {
 		fail(st, job, err)
 		return
@@ -170,66 +219,74 @@ func process(ctx context.Context, st *store.Store, split stems.Splitter, an stem
 	for _, p := range parts {
 		size += len(p)
 	}
-	log.Printf("stemsd: recording %d split in %s (%d KB)", job.SongAudioID, time.Since(start).Round(time.Second), size>>10)
-	if rec != nil {
-		if _, err := st.SaveAnalysis(ctx, job.SongAudioID, job.SHA256, rec); err != nil {
-			log.Printf("stemsd: recording %d: saving its analysis: %v", job.SongAudioID, err)
-		} else {
-			logAnalysis(job.SongAudioID, rec, time.Since(start))
-		}
+	log.Printf("stemsd: recording %d split in %s (%d KB, %s lane)", job.SongAudioID, time.Since(start).Round(time.Second), size>>10, w.lane)
+	if aj == nil {
+		return // no analysis here, or it wasn't queued
 	}
+	w.analyze(ctx, jctx, *aj, wavs, time.Now())
 }
 
 // analyzeStored analyses a recording split earlier, from its stored
 // recording and parts.
-func analyzeStored(ctx context.Context, st *store.Store, an stems.Analyzer, job store.AnalysisJob, timeout time.Duration) {
+func (w worker) analyzeStored(ctx context.Context, job store.AnalysisJob) {
+	st := w.st
 	start := time.Now()
-	failed := func(err error) {
-		log.Printf("stemsd: analysing recording %d (try %d): %v", job.SongAudioID, job.Attempts, err)
-		msg := err.Error()
-		if len(msg) > 4000 {
-			msg = msg[len(msg)-4000:]
-		}
-		if err := st.FailAnalysisJob(context.Background(), job.SongAudioID, job.SHA256, msg); err != nil {
-			log.Printf("stemsd: recording the failure: %v", err)
-		}
-	}
 	mix, _, err := st.GetSongAudioData(ctx, job.SongAudioID)
 	if err != nil {
-		failed(err)
+		failAnalysis(st, job, err)
 		return
 	}
 	backing, _, _, err := st.GetStemData(ctx, job.SongAudioID, "no_vocals")
 	if err != nil {
-		failed(fmt.Errorf("no backing part: %w", err))
+		failAnalysis(st, job, fmt.Errorf("no backing part: %w", err))
 		return
 	}
 	vocals, _, _, _ := st.GetStemData(ctx, job.SongAudioID, "vocals")
 	dir, err := os.MkdirTemp("", "analysis-")
 	if err != nil {
-		failed(err)
+		failAnalysis(st, job, err)
 		return
 	}
 	defer os.RemoveAll(dir)
-	jctx, cancel := context.WithTimeout(ctx, timeout)
+	jctx, cancel := context.WithTimeout(ctx, w.timeout)
 	defer cancel()
-	w, err := stems.DecodeWAVs(jctx, dir, mix, backing, vocals)
+	wavs, err := stems.DecodeWAVs(jctx, dir, mix, backing, vocals)
+	if err != nil {
+		if ctx.Err() == nil {
+			failAnalysis(st, job, err)
+		}
+		return
+	}
+	w.analyze(ctx, jctx, job, wavs, start)
+}
+
+// analyze runs the analysis of a claimed job on its WAVs and saves it.
+func (w worker) analyze(ctx, jctx context.Context, job store.AnalysisJob, wavs stems.WAVs, start time.Time) {
+	rec, err := w.an.Analyze(jctx, wavs)
 	if err == nil {
-		var rec *chartalign.Recording
-		if rec, err = an.Analyze(jctx, w); err == nil {
-			var saved bool
-			if saved, err = st.SaveAnalysis(ctx, job.SongAudioID, job.SHA256, rec); err == nil {
-				if saved {
-					logAnalysis(job.SongAudioID, rec, time.Since(start))
-				}
-				return
+		var saved bool
+		if saved, err = w.st.SaveAnalysis(ctx, job.SongAudioID, job.SHA256, rec); err == nil {
+			if saved {
+				logAnalysis(job.SongAudioID, rec, time.Since(start))
 			}
+			return
 		}
 	}
 	if ctx.Err() != nil {
-		return
+		return // stopping: the job goes back to the queue at the next start
 	}
-	failed(err)
+	failAnalysis(w.st, job, err)
+}
+
+func failAnalysis(st *store.Store, job store.AnalysisJob, err error) {
+	log.Printf("stemsd: analysing recording %d (try %d): %v", job.SongAudioID, job.Attempts, err)
+	msg := err.Error()
+	if len(msg) > 4000 {
+		msg = msg[len(msg)-4000:]
+	}
+	if err := st.FailAnalysisJob(context.Background(), job.SongAudioID, job.SHA256, msg); err != nil {
+		log.Printf("stemsd: recording the failure: %v", err)
+	}
 }
 
 func logAnalysis(id int64, r *chartalign.Recording, took time.Duration) {

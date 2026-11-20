@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"sync"
 )
 
 // Splitter runs Demucs and ffmpeg.
@@ -21,8 +22,14 @@ type Splitter struct {
 	// "demucs", or "python3 -m demucs".
 	Demucs []string
 	Model  string // "htdemucs"
-	// Threads Demucs may use (its --jobs), 0 for its default.
+	// Threads PyTorch may use in Demucs (OMP_NUM_THREADS), 0 for the
+	// environment's.
 	Threads int
+	// Jobs: how many of the recording's segments Demucs separates at
+	// once (its --jobs), each on Threads threads; 0 for one at a time.
+	// On a many-core CPU this is what scales, not Threads alone
+	// (docs/stems-and-key.md).
+	Jobs int
 	// Bitrate of the parts, in kbit/s.
 	Bitrate int
 }
@@ -33,82 +40,93 @@ var Parts = []string{"vocals", "drums", "bass", "other"}
 // Split returns the parts of the recording in audio (any format ffmpeg
 // reads), MP3 encoded, keyed by name.
 func (s Splitter) Split(ctx context.Context, audio []byte) (map[string][]byte, error) {
-	return s.SplitThen(ctx, audio, nil)
-}
-
-// SplitThen splits like Split and, before the WAVs are deleted, hands
-// them to then (the analysis stage reads them: no decoding the MP3s
-// again). An error from then doesn't lose the parts: it comes back
-// beside them as a *ThenError.
-func (s Splitter) SplitThen(ctx context.Context, audio []byte, then func(WAVs) error) (map[string][]byte, error) {
 	dir, err := os.MkdirTemp("", "stems-")
 	if err != nil {
 		return nil, err
 	}
 	defer os.RemoveAll(dir)
+	parts, _, err := s.SplitIn(ctx, dir, audio)
+	return parts, err
+}
 
+// SplitIn splits like Split, working in dir, and leaves there the WAVs
+// the analysis reads (no decoding the MP3s again): the caller removes
+// dir.
+func (s Splitter) SplitIn(ctx context.Context, dir string, audio []byte) (map[string][]byte, WAVs, error) {
 	// A WAV first: Demucs reads whatever ffmpeg gives it the same way
 	// every time, and a Guitar Pro recording's zero padding goes.
 	in := filepath.Join(dir, "in.mp3")
 	if err := os.WriteFile(in, audio, 0o600); err != nil {
-		return nil, err
+		return nil, WAVs{}, err
 	}
 	wav := filepath.Join(dir, "track.wav")
 	if err := run(ctx, "ffmpeg", "-nostdin", "-v", "error", "-i", in, "-ac", "2", "-ar", "44100", wav); err != nil {
-		return nil, fmt.Errorf("reading the recording: %w", err)
+		return nil, WAVs{}, fmt.Errorf("reading the recording: %w", err)
 	}
 
 	out := filepath.Join(dir, "out")
 	args := append([]string{}, s.Demucs[1:]...)
 	args = append(args, "-n", s.Model, "-d", "cpu", "-o", out)
-	if s.Threads > 0 {
-		args = append(args, "--jobs", strconv.Itoa(s.Threads))
+	if s.Jobs > 0 {
+		args = append(args, "--jobs", strconv.Itoa(s.Jobs))
 	}
 	args = append(args, wav)
-	if err := run(ctx, s.Demucs[0], args...); err != nil {
-		return nil, fmt.Errorf("demucs: %w", err)
+	if err := runEnv(ctx, threadsEnv(s.Threads), s.Demucs[0], args...); err != nil {
+		return nil, WAVs{}, fmt.Errorf("demucs: %w", err)
 	}
 	parts := filepath.Join(out, s.Model, "track")
 
+	// The five MP3s at once: one after the other they took half a minute
+	// on the production host, a single-threaded encoder each.
 	kbps := strconv.Itoa(s.Bitrate) + "k"
-	result := map[string][]byte{}
-	for _, p := range Parts {
-		mp3 := filepath.Join(dir, p+".mp3")
-		if err := run(ctx, "ffmpeg", "-nostdin", "-v", "error", "-i", filepath.Join(parts, p+".wav"), "-b:a", kbps, mp3); err != nil {
-			return nil, fmt.Errorf("encoding %s: %w", p, err)
-		}
-		if result[p], err = os.ReadFile(mp3); err != nil {
-			return nil, err
-		}
-	}
-	// no_vocals: the others summed as they are (no level change: they add
-	// back up to the recording).
 	nvWAV := filepath.Join(dir, "no_vocals.wav")
-	if err := run(ctx, "ffmpeg", "-nostdin", "-v", "error",
-		"-i", filepath.Join(parts, "drums.wav"), "-i", filepath.Join(parts, "bass.wav"), "-i", filepath.Join(parts, "other.wav"),
-		"-filter_complex", "amix=inputs=3:normalize=0", nvWAV); err != nil {
-		return nil, fmt.Errorf("mixing no_vocals: %w", err)
+	names := append(append([]string{}, Parts...), "no_vocals")
+	errs := make([]error, len(names))
+	var wg sync.WaitGroup
+	for i, p := range names {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			src := filepath.Join(parts, p+".wav")
+			if p == "no_vocals" {
+				// The others summed as they are (no level change: they
+				// add back up to the recording).
+				if err := run(ctx, "ffmpeg", "-nostdin", "-v", "error",
+					"-i", filepath.Join(parts, "drums.wav"), "-i", filepath.Join(parts, "bass.wav"), "-i", filepath.Join(parts, "other.wav"),
+					"-filter_complex", "amix=inputs=3:normalize=0", nvWAV); err != nil {
+					errs[i] = fmt.Errorf("mixing no_vocals: %w", err)
+					return
+				}
+				src = nvWAV
+			}
+			if err := run(ctx, "ffmpeg", "-nostdin", "-v", "error", "-i", src, "-b:a", kbps, filepath.Join(dir, p+".mp3")); err != nil {
+				errs[i] = fmt.Errorf("encoding %s: %w", p, err)
+			}
+		}()
 	}
-	nv := filepath.Join(dir, "no_vocals.mp3")
-	if err := run(ctx, "ffmpeg", "-nostdin", "-v", "error", "-i", nvWAV, "-b:a", kbps, nv); err != nil {
-		return nil, fmt.Errorf("encoding no_vocals: %w", err)
-	}
-	if result["no_vocals"], err = os.ReadFile(nv); err != nil {
-		return nil, err
-	}
-	if then != nil {
-		if err := then(WAVs{Mix: wav, Backing: nvWAV, Vocals: filepath.Join(parts, "vocals.wav")}); err != nil {
-			return result, &ThenError{err}
+	wg.Wait()
+	result := map[string][]byte{}
+	for i, p := range names {
+		if errs[i] != nil {
+			return nil, WAVs{}, errs[i]
+		}
+		var err error
+		if result[p], err = os.ReadFile(filepath.Join(dir, p+".mp3")); err != nil {
+			return nil, WAVs{}, err
 		}
 	}
-	return result, nil
+	return result, WAVs{Mix: wav, Backing: nvWAV, Vocals: filepath.Join(parts, "vocals.wav")}, nil
 }
 
-// ThenError is SplitThen's then failing: the parts are fine.
-type ThenError struct{ Err error }
-
-func (e *ThenError) Error() string { return e.Err.Error() }
-func (e *ThenError) Unwrap() error { return e.Err }
+// threadsEnv is the environment that holds PyTorch (OpenMP, MKL) to n
+// threads; nil (the worker's own) for n = 0.
+func threadsEnv(n int) []string {
+	if n <= 0 {
+		return nil
+	}
+	v := strconv.Itoa(n)
+	return []string{"OMP_NUM_THREADS=" + v, "MKL_NUM_THREADS=" + v}
+}
 
 // DecodeWAVs writes a stored recording and its parts as WAVs in dir, for
 // analysing a recording split earlier (the analysis jobs, the backfill).
@@ -143,7 +161,15 @@ func DecodeWAVs(ctx context.Context, dir string, mix, backing, vocals []byte) (W
 }
 
 func run(ctx context.Context, name string, args ...string) error {
+	return runEnv(ctx, nil, name, args...)
+}
+
+// runEnv runs a command with env added to the worker's environment.
+func runEnv(ctx context.Context, env []string, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {

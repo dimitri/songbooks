@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -45,16 +46,49 @@ func (st *Store) ResetRunningStemJobs(ctx context.Context) error {
 	return err
 }
 
-// ClaimStemJob takes the oldest queued job, marking it running, or
-// returns nil when there's none. Workers may run side by side: each job
-// goes to one (SKIP LOCKED).
-func (st *Store) ClaimStemJob(ctx context.Context, model string) (*StemJob, error) {
+// StemLane is which queued splits a worker takes (cmd/stemsd --lane).
+// Whatever the lane, the recordings without parts go first: someone just
+// added or replaced them and is waiting, while a recording split again
+// (a new model, an editor's "split again") has its parts to play meanwhile.
+type StemLane string
+
+const (
+	// LaneAll takes every split, and the analyses queued apart: one
+	// worker for everything.
+	LaneAll StemLane = "all"
+	// LaneNew takes only the recordings without parts for what they are
+	// now (added or replaced): the worker that answers an upload at once.
+	LaneNew StemLane = "new"
+	// LaneBacklog takes the rest: the recordings split again, and the
+	// analyses queued apart (a backfill, a new model, "listen again").
+	LaneBacklog StemLane = "backlog"
+)
+
+// ParseStemLane reads --lane.
+func ParseStemLane(s string) (StemLane, error) {
+	switch l := StemLane(s); l {
+	case LaneAll, LaneNew, LaneBacklog:
+		return l, nil
+	}
+	return "", fmt.Errorf(`lane: "all", "new" or "backlog", not %q`, s)
+}
+
+// ClaimStemJob takes the lane's next queued job, marking it running, or
+// returns nil when there's none: the recordings without parts first,
+// then the oldest. Workers may run side by side: each job goes to one
+// (SKIP LOCKED).
+func (st *Store) ClaimStemJob(ctx context.Context, model string, lane StemLane) (*StemJob, error) {
 	var j StemJob
 	err := st.db.QueryRow(ctx, `
 		UPDATE song_audio_stem_jobs SET status = 'running', model = $1, started_at = now(), attempts = attempts + 1
 		WHERE song_audio_id = (
-			SELECT song_audio_id FROM song_audio_stem_jobs WHERE status = 'queued'
-			ORDER BY queued_at LIMIT 1 FOR UPDATE SKIP LOCKED)
+			SELECT j.song_audio_id FROM song_audio_stem_jobs j
+			CROSS JOIN LATERAL (SELECT EXISTS (
+				SELECT 1 FROM song_audio_stems s
+				WHERE s.song_audio_id = j.song_audio_id AND s.source_sha256 = j.source_sha256)) p(has_parts)
+			WHERE j.status = 'queued'
+			  AND ($2 = 'all' OR ($2 = 'backlog') = p.has_parts)
+			ORDER BY p.has_parts, j.queued_at LIMIT 1 FOR UPDATE OF j SKIP LOCKED)
 		RETURNING song_audio_id, source_sha256, attempts,
 			CASE WHEN EXISTS (
 				SELECT 1 FROM song_audio a
@@ -62,7 +96,7 @@ func (st *Store) ClaimStemJob(ctx context.Context, model string) (*StemJob, erro
 				JOIN songbooks sb ON sb.id = se.songbook_id
 				JOIN communities c ON c.id = sb.owner_community_id
 				WHERE a.id = song_audio_stem_jobs.song_audio_id AND c.kind = 'coaching')
-			THEN 'voice' ELSE 'all' END`, model).Scan(&j.SongAudioID, &j.SHA256, &j.Attempts, &j.Parts)
+			THEN 'voice' ELSE 'all' END`, model, string(lane)).Scan(&j.SongAudioID, &j.SHA256, &j.Attempts, &j.Parts)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -76,21 +110,31 @@ func (st *Store) ClaimStemJob(ctx context.Context, model string) (*StemJob, erro
 // was replaced while it ran (its new job is queued already): then the
 // parts are dropped and false returned.
 func (st *Store) SaveStems(ctx context.Context, job StemJob, contentType string, stems map[string][]byte) (bool, error) {
+	saved, _, err := st.SaveStemsClaimAnalysis(ctx, job, contentType, stems, "")
+	return saved, err
+}
+
+// SaveStemsClaimAnalysis saves like SaveStems and, in the same
+// transaction, claims for analyzer the analysis that saving queues: the
+// worker that still has the WAVs analyses the recording, and no other
+// worker ever sees that analysis queued. A nil job when analyzer is "",
+// or the parts weren't saved.
+func (st *Store) SaveStemsClaimAnalysis(ctx context.Context, job StemJob, contentType string, stems map[string][]byte, analyzer string) (bool, *AnalysisJob, error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	defer tx.Rollback(ctx)
 	var sha string
 	err = tx.QueryRow(ctx, `SELECT sha256 FROM song_audio WHERE id = $1 FOR SHARE`, job.SongAudioID).Scan(&sha)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && sha != job.SHA256) {
-		return false, nil
+		return false, nil, nil
 	}
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM song_audio_stems WHERE song_audio_id = $1`, job.SongAudioID); err != nil {
-		return false, err
+		return false, nil, err
 	}
 	for _, name := range Stems {
 		data, ok := stems[name]
@@ -100,15 +144,30 @@ func (st *Store) SaveStems(ctx context.Context, job StemJob, contentType string,
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO song_audio_stems (song_audio_id, stem, source_sha256, content_type, byte_size, data)
 			VALUES ($1, $2, $3, $4, $5, $6)`, job.SongAudioID, name, job.SHA256, contentType, len(data), data); err != nil {
-			return false, err
+			return false, nil, err
 		}
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE song_audio_stem_jobs SET status = 'done', error = '', finished_at = now()
 		WHERE song_audio_id = $1 AND source_sha256 = $2 AND status = 'running'`, job.SongAudioID, job.SHA256); err != nil {
-		return false, err
+		return false, nil, err
 	}
-	return true, tx.Commit(ctx)
+	var aj *AnalysisJob
+	if analyzer != "" {
+		// The trigger has just queued it (migration 0106).
+		j := AnalysisJob{SongAudioID: job.SongAudioID, SHA256: job.SHA256}
+		err := tx.QueryRow(ctx, `
+			UPDATE song_audio_analysis_jobs SET status = 'running', analyzer = $3, started_at = now(), attempts = attempts + 1
+			WHERE song_audio_id = $1 AND source_sha256 = $2 AND status = 'queued'
+			RETURNING attempts`, job.SongAudioID, job.SHA256, analyzer).Scan(&j.Attempts)
+		switch {
+		case err == nil:
+			aj = &j
+		case !errors.Is(err, pgx.ErrNoRows):
+			return false, nil, err
+		}
+	}
+	return true, aj, tx.Commit(ctx)
 }
 
 // FailStemJob records why a job failed: queued again for another try,
