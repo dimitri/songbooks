@@ -150,10 +150,10 @@ func TestSearchEndpoints(t *testing.T) {
 	if w := do(me, "/new/lesson"); w.Code != http.StatusNotFound {
 		t.Errorf("me /new/lesson: %d", w.Code)
 	}
-	if w := do(me, fmt.Sprintf("/new/setlist?space=band:%d", mine)); w.Header().Get("Location") != fmt.Sprintf("/setlists#new-band-%d", mine) {
+	if w := do(me, fmt.Sprintf("/new/setlist?space=band:%d", mine)); w.Header().Get("Location") != fmt.Sprintf("/bands/%d/setlists#new-band-%d", mine, mine) {
 		t.Errorf("me /new/setlist in my band: %s", w.Header().Get("Location"))
 	}
-	if w := do(me, fmt.Sprintf("/new/setlist?space=band:%d", theirs)); w.Header().Get("Location") != "/setlists#new" {
+	if w := do(me, fmt.Sprintf("/new/setlist?space=band:%d", theirs)); w.Header().Get("Location") != "/catalog?view=setlists#new" {
 		t.Errorf("me /new/setlist in their band: %s", w.Header().Get("Location"))
 	}
 

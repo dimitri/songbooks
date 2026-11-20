@@ -299,15 +299,16 @@ func (s *Server) handleNewLesson(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, u, http.StatusFound)
 }
 
-// handleNewSetlist is GET /new/setlist, "New set list" (n s): the set
-// lists' page, open on a new one for the band the person is in (when
-// they're one of its members), else a personal one.
+// handleNewSetlist is GET /new/setlist, "New set list" (n s): inside a
+// band the person is a member of, that band's own Set lists section
+// with its "New set list" form open (menu proposal §3.6); elsewhere the
+// Library's Set lists, open on a personal one.
 func (s *Server) handleNewSetlist(w http.ResponseWriter, r *http.Request) {
 	person := personFromContext(r)
-	u := "/setlists#new"
+	u := "/catalog?view=setlists#new"
 	if sp := searchSpaceOf(r); sp.kind == "band" {
 		if ok, err := s.store.IsCurrentBandMember(r.Context(), sp.id, person.ID); err == nil && ok {
-			u = fmt.Sprintf("/setlists#new-band-%d", sp.id)
+			u = fmt.Sprintf("/bands/%d/setlists#new-band-%d", sp.id, sp.id)
 		}
 	}
 	http.Redirect(w, r, u, http.StatusFound)
