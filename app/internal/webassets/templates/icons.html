@@ -332,8 +332,8 @@
      one (ContextualGroup), the Tools, and the account chip, which opens
      the account menu. */}}
 {{define "desktop-sidebar"}}
-{{$sec := ""}}{{$me := .Me}}{{with .Nav}}{{$sec = .Section}}{{with .Me}}{{$me = .}}{{end}}{{end}}
-<nav class="desktop-sidebar" id="desktop-sidebar" aria-label="{{t "main navigation (desktop)"}}">
+{{$sec := ""}}{{$me := .Me}}{{$rail := false}}{{with .Nav}}{{$sec = .Section}}{{$rail = .Focused}}{{with .Me}}{{$me = .}}{{end}}{{end}}
+<nav class="desktop-sidebar{{if $rail}} is-rail{{end}}" id="desktop-sidebar" aria-label="{{t "main navigation (desktop)"}}">
   <a class="sidebar-brand" href="/home">{{template "icon-logo"}} <span class="sidebar-label">Songbooks</span></a>
   <div class="sidebar-primary">
     {{range navGlobal "sidebar"}}<a href="{{.Path}}"{{if navCurrent "sidebar" . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}" title="{{t .Label}}">{{template "nav-icon" .Icon}} <span class="sidebar-label">{{t .Label}}</span>{{with .Badge}}<span class="nav-badge" data-nav-badge="{{.}}" hidden></span>{{end}}</a>{{end}}

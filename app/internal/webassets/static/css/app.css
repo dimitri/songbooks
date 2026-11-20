@@ -4690,6 +4690,38 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
   }
 }
 
+/* ==== The focused pages' rail (menu proposal §3.2) ========================
+   On a song and a set list's click track (navState.Focused) the desktop
+   sidebar is a 64px rail of icons, so the chart gets the width. Hovering
+   it, or moving the keyboard focus into it, opens it over the page at its
+   usual width — the negative margin keeps its place in the row at 64px,
+   so nothing under it moves. While the song editor is open (drawer-open)
+   the sidebar holds the editor's toolbox and keeps its width. */
+@media (min-width: 901px) {
+  body:not(.drawer-open) .desktop-sidebar.is-rail {
+    flex: 0 0 64px; width: 64px; padding-left: 0.55rem; padding-right: 0.55rem;
+    overflow-x: hidden; z-index: 50;
+    transition: width 0.15s ease, flex-basis 0.15s ease, margin-right 0.15s ease, box-shadow 0.15s ease;
+  }
+  body:not(.drawer-open) .desktop-sidebar.is-rail:is(:hover, :focus-within) {
+    flex-basis: 236px; width: 236px; margin-right: -172px;
+    padding-left: 0.85rem; padding-right: 0.85rem; box-shadow: 0 0 28px rgb(0 0 0 / 0.28);
+  }
+  body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) :is(.sidebar-label, .sidebar-group-label, .sidebar-account-name, .account-menu-caret, .sidebar-space-count, .sidebar-space-pin, .sidebar-crumb span, .pdf-mode-select, .pdf-notes-label, .nav-badge) { display: none; }
+  body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) :is(a, button, summary) { font-size: 0; justify-content: center; gap: 0; }
+  body:not(.drawer-open) .desktop-sidebar.is-rail :is(a, button, summary) > .icon { width: 1.1rem; height: 1.1rem; flex: none; }
+  body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) .sidebar-brand { padding: 0; justify-content: center; }
+}
+@media (min-width: 901px) {
+  /* The bars fixed along the bottom start at the rail, not at the
+     sidebar's usual width. */
+  body:not(.drawer-open):has(.desktop-sidebar.is-rail) :is(.audio-dock, .ct-bar) { left: 64px; }
+}
+@media (min-width: 600px) and (max-width: 900px) {
+  /* …and at the tablet's rail (menu PR 9). */
+  body:not(:has(.song-context-bar)) :is(.audio-dock, .ct-bar, .warmup-practice .warmup-player.wu-bar) { left: var(--rail-w, 5.25rem); }
+}
+
 @media (min-width: 901px) {
   /* .site-nav-fullpage included here too: its only base rule is the
      mobile-breakpoint display:none (it has no .open-only trigger on
