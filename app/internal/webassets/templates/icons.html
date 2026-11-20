@@ -84,13 +84,11 @@
   {{template "account-menu" (dict "Me" $me "Section" $sec "Where" "topbar")}}
 </div>
 {{end}}
-{{if eq $page "song"}}{{template "site-nav-fullpage" .}}{{end}}
 {{end}}
 {{define "global-tabbar-script"}}
 {{template "nav-notifications-script"}}
 {{template "account-menu-script"}}
 {{template "space-switcher-script"}}
-{{template "site-nav-fullpage-script"}}
 {{end}}
 
 {{/* The account menu (§3.2 "Me"): Profile, Appearance, Language, Admin
@@ -102,7 +100,7 @@
      phone. Called with (dict "Me" person "Section" the page's NavSection
      "Where" "sidebar"|"topbar"). */}}
 {{define "account-menu"}}
-<details class="account-menu account-menu--{{.Where}}"{{if eq .Where "sheet"}} open{{end}}>
+<details class="account-menu account-menu--{{.Where}}">
   <summary class="{{if eq .Where "sidebar"}}sidebar-account{{else}}topbar-avatar{{end}}{{if eq .Section "profile"}} active{{end}}" aria-label="{{t "Your account: %s" .Me.DisplayName}}">
     <span class="sidebar-account-avatar" aria-hidden="true">{{initial .Me.DisplayName}}</span>
     {{if eq .Where "sidebar"}}<span class="sidebar-account-name">{{.Me.DisplayName}}</span><span class="account-menu-caret" aria-hidden="true">⌃</span>{{end}}
@@ -172,40 +170,7 @@
 })();</script>
 {{end}}
 
-{{/* The song page's "More" sheet on a phone (play.html's song bar opens
-     it with #site-nav-fullpage-btn): the global destinations, the tools
-     and the account menu, until the song page's own controls (menu PR
-     10) replace that button. No other page opens it: the tab bar has no
-     "More" any more. */}}
-{{define "site-nav-fullpage"}}
-{{$sec := ""}}{{$me := false}}{{with .}}{{with .Nav}}{{$sec = .Section}}{{with .Me}}{{$me = .}}{{end}}{{end}}{{end}}
-<div class="site-nav-fullpage" id="site-nav-fullpage" role="dialog" aria-label="{{t "Navigation"}}">
-  <div class="site-nav-fullpage-header">
-    <h2>Songbooks</h2>
-    <button type="button" id="site-nav-fullpage-close" class="icon-btn" title="{{t "close"}}">{{template "icon-close"}}</button>
-  </div>
-  {{range navGlobal "bar"}}<a class="site-nav-fullpage-row" href="{{.Path}}"{{if navCurrent "bar" . $sec}} aria-current="page"{{end}}>{{template "nav-icon" .Icon}} {{t .Label}}</a>{{end}}
-  {{range navGlobal "sidebarTools"}}<a class="site-nav-fullpage-row" href="{{.Path}}">{{template "nav-icon" .Icon}} {{t .Label}}</a>{{end}}
-  {{if $me}}{{template "account-menu" (dict "Me" $me "Section" $sec "Where" "sheet")}}{{end}}
-</div>
-{{end}}
-{{define "site-nav-fullpage-script"}}
-<script>(function () {
-  var navBtns = document.querySelectorAll('#site-nav-fullpage-btn');
-  var navPage = document.getElementById('site-nav-fullpage');
-  var navClose = document.getElementById('site-nav-fullpage-close');
-  if (!navBtns.length || !navPage) return;
-  function setNavOpen(open) {
-    navPage.classList.toggle('open', open);
-    navBtns.forEach(function (b) { b.classList.toggle('active', open); });
-  }
-  navBtns.forEach(function (b) { b.addEventListener('click', function () { setNavOpen(true); }); });
-  navClose && navClose.addEventListener('click', function () { setNavOpen(false); });
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && navPage.classList.contains('open')) setNavOpen(false);
-  });
-})();</script>
-{{end}}
+
 
 {{/* nav-icon dispatches a navGlobal entry's Icon (a plain string — a
      dynamic {{template .Icon}} isn't legal Go template syntax, the name

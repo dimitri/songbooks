@@ -646,22 +646,6 @@ label.field > :is(.field-hint, .field-error, .hint) { display: block; margin-top
   color: var(--sidebar-fg); font-weight: 700; font-size: 1.02rem; text-decoration: none;
 }
 .sidebar-brand .icon.logo-mark { width: 1.4rem; height: 1.4rem; opacity: 1; }
-.sidebar-crumb { padding: 0.3rem 0.3rem 0.1rem; }
-.sidebar-crumb a {
-  /* A long songbook/band/community name used to wrap onto 2+ lines
-     with the back-icon vertically centered against the WHOLE block —
-     the icon ends up floating at the midpoint between lines instead of
-     sitting next to the first one, and the extra wrapped lines compete
-     for attention with the primary nav right below. Truncating to one
-     line (title attr gives the full name back on hover) keeps this a
-     quiet, secondary "back" affordance the way every other sidebar row
-     already is, regardless of how long the destination's name is. */
-  display: flex; align-items: flex-start; gap: 0.4rem; text-decoration: none;
-  color: var(--accent); font-size: 0.82rem; font-weight: 600;
-  overflow: hidden;
-}
-.sidebar-crumb a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sidebar-crumb a .icon { width: 0.9rem; height: 0.9rem; flex: none; margin-top: 0.1rem; }
 .sidebar-primary, .sidebar-secondary { display: flex; flex-direction: column; gap: 0.15rem; }
 .sidebar-primary a, .sidebar-secondary a {
   display: flex; align-items: center; gap: 0.7rem;
@@ -686,9 +670,8 @@ label.field > :is(.field-hint, .field-error, .hint) { display: block; margin-top
   background: color-mix(in srgb, var(--sidebar-fg) 7%, transparent);
 }
 /* menu PR 1: the current page's own entry, rendered by the server
-   (aria-current="page"), on the account chip and the More sheet too. */
+   (aria-current="page"), on the account chip too. */
 .sidebar-account.active { background: var(--sidebar-active-bg); color: var(--sidebar-active-fg); font-weight: 600; }
-.site-nav-fullpage-row[aria-current="page"] { color: var(--accent); background: var(--accent-bg); }
 /* menu PR 8: the Library's segments (Morceaux · Songbooks · Set lists),
    links styled as the .segmented pill; full width on a phone. */
 .library-segments { margin: 0 0 1rem; }
@@ -731,34 +714,6 @@ label.field > :is(.field-hint, .field-error, .hint) { display: block; margin-top
    to miss). Cancel the auto-margin so it sits right under the primary
    nav list instead. */
 .sidebar-secondary.sidebar-song-group { margin-top: 0; }
-.sidebar-song-group #mode-segmented {
-  display: flex; flex-direction: column; gap: 0.15rem;
-  border: none; background: none; padding: 0; border-radius: 0; margin-bottom: 0.3rem;
-}
-.sidebar-song-group #mode-segmented button {
-  /* #mode-segmented button's own base rule (shared with the old desktop
-     icon pill, still used by nothing now but kept in case this group ever
-     needs the compact form again) fixes a 2.1rem square width/height for
-     its icon-only design — override both explicitly, a stretch/auto width
-     alone won't beat a sibling rule that already names this exact
-     property. */
-  display: flex; align-items: center; gap: 0.55rem; justify-content: flex-start;
-  width: 100%; height: auto; padding: 0.5rem 0.6rem; border-radius: 10px;
-  color: var(--sidebar-fg); font-size: 0.82rem; font-weight: 500; background: none; line-height: 1.25;
-  text-align: left;
-}
-.sidebar-song-group #mode-segmented button .icon { width: 1.1rem; height: 1.1rem; flex: none; }
-/* The topbar pill carried these labels as screen-reader-only (icon tooltip
-   was enough in a horizontal row); here, in a vertical sidebar list, the
-   label is exactly what a reader scans for — make it visible instead of
-   overriding the generic .sr-only utility itself (used elsewhere for
-   genuinely icon-only controls). */
-.sidebar-song-group #mode-segmented button .sr-only {
-  position: static; width: auto; height: auto; padding: 0; margin: 0;
-  overflow: visible; clip: auto; white-space: normal;
-}
-.sidebar-song-group #mode-segmented button.active { background: var(--sidebar-active-bg); color: var(--sidebar-active-fg); font-weight: 600; }
-.sidebar-song-group #mode-segmented button:not(.active):hover { background: color-mix(in srgb, var(--sidebar-fg) 10%, transparent); }
 .sidebar-song-row {
   display: flex; align-items: center; gap: 0.7rem; width: 100%;
   padding: 0.55rem 0.6rem; border-radius: 10px; border: none; background: none;
@@ -948,15 +903,6 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
    view-tabs) — ties the top panel visually to the sidebar's own dark
    column without the heavy contrast of actually matching its colour. */
 .song-topzone { background: var(--bg-sunken); border-bottom: 1px solid var(--border); }
-.topbar-utility-mobile { padding: 0.5rem 1.1rem 0; }
-.topbar-utility-mobile .back-link { padding: 0.2rem 0; font-size: 0.78rem; }
-/* Desktop has its own copy of this link in the sidebar (.sidebar-crumb);
-   mobile has its own copy now too — the Up entry in .song-context-bar's
-   bottom bar (clearer "go back a level" icon, at the bottom where the
-   rest of this page's navigation already lives, instead of a small text
-   link competing with the title at the very top). Showing this too would
-   be redundant on both. */
-.topbar-utility-mobile { display: none; }
 .song-topbar {
   display: grid; grid-template-columns: 1fr 2fr 1fr; grid-template-rows: auto; gap: 0.3rem 0.6rem;
   padding: 0.7rem 1.1rem 0.5rem;
@@ -972,10 +918,10 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
   background: var(--bg-raised); border: 1px solid var(--border); border-radius: 999px;
 }
 /* The parent needs text-align:center for an inline-flex child to actually
-   center itself; .song-topbar/.topbar-utility-mobile aren't centered text,
+   center itself; .song-topbar isn't centered text,
    so this rule is scoped to .song-topzone alone. */
 .song-topzone { text-align: center; }
-.song-topzone .song-topbar, .song-topzone .topbar-utility-mobile { text-align: left; }
+.song-topzone .song-topbar { text-align: left; }
 /* #mode-segmented.view-tabs, not just .view-tabs: the plain #mode-segmented
    button rule above (icon-only square touch targets, used on mobile's
    hidden copy of this same element) is an ID selector and would otherwise
@@ -4419,37 +4365,6 @@ body:has(.edit-toggle.on) .follow-back { display: none; }
   }
   .stack-sheet-row.pdf-mode-row .icon { width: 1.1rem; height: 1.1rem; }
 
-  /* ---- "..." full-page site navigation (Phase 41) -------------------
-     A genuine full-screen takeover, not another bottom sheet -- it has
-     no "closed resting position" transform math (unlike .stack-sheet):
-     plain display:none/.open, since it fills the whole viewport outright
-     rather than sliding up from an edge. Sits above everything else on
-     the page (z-index higher than .stack-sheet's 62). */
-  .site-nav-fullpage {
-    display: none; position: fixed; inset: 0; z-index: 80;
-    flex-direction: column; background: var(--bg);
-    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
-  }
-  .site-nav-fullpage.open { display: flex; }
-  .site-nav-fullpage-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 1rem 1.2rem; border-bottom: 1px solid var(--border);
-  }
-  .site-nav-fullpage-header h2 { margin: 0; font-size: 1.15rem; }
-  .site-nav-fullpage-row {
-    display: flex; align-items: center; gap: 1rem; width: 100%;
-    padding: 1.1rem 1.3rem; text-decoration: none; color: var(--fg);
-    font-size: 1.05rem; font-weight: 600; border-bottom: 1px solid var(--border);
-  }
-  .site-nav-fullpage-row .icon { width: 1.5rem; height: 1.5rem; flex: none; color: var(--accent); }
-  .site-nav-fullpage-row[hidden] { display: none; } /* its own display:flex would otherwise beat the [hidden] UA rule */
-  .site-nav-fullpage-theme {
-    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-    padding: 1rem 1.3rem; font-weight: 600; color: var(--fg);
-  }
-  .site-nav-fullpage-theme > span { display: flex; align-items: center; gap: 1rem; }
-  .site-nav-fullpage-theme > span .icon { width: 1.5rem; height: 1.5rem; color: var(--accent); }
-
   /* The transport FAB is retired on mobile -- its old role (open the
      .timeline sheet) is now the Metronome button in .song-context-bar,
      which sits in-flow in that bar rather than floating. */
@@ -4542,9 +4457,6 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
 .sidebar-tools .sidebar-group-label { margin-top: 0.1rem; }
 .topbar-actions { display: none; }
 
-/* The song page's More sheet shows the account menu open, as rows. */
-.account-menu--sheet > summary { display: none; }
-.account-menu--sheet .account-menu-panel { border: none; box-shadow: none; border-radius: 0; padding: 0.5rem 0.8rem; }
 
 /* The Tools page's cards. */
 .tools-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); }
@@ -4566,8 +4478,8 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
   .topbar-avatar .sidebar-account-avatar { width: 2rem; height: 2rem; font-size: 0.85rem; }
   .topbar-avatar.active .sidebar-account-avatar { box-shadow: 0 0 0 2px var(--accent); }
   .account-menu--topbar .account-menu-panel { position: absolute; right: 0; top: calc(100% + 0.35rem); width: 18rem; }
-  /* The song page has its own bars (play.html); its menu is the song
-     bar's More sheet. */
+  /* The song page is a focused view with its own bars (play.html): ‹
+     leaves it, and its toolbar's bell stays at the top right. */
   body:has(.song-context-bar) .topbar-actions { display: none; }
 }
 @media (max-width: 599px) {
@@ -4711,7 +4623,7 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
     flex-basis: 236px; width: 236px; margin-right: -172px;
     padding-left: 0.85rem; padding-right: 0.85rem; box-shadow: 0 0 28px rgb(0 0 0 / 0.28);
   }
-  body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) :is(.sidebar-label, .sidebar-group-label, .sidebar-account-name, .account-menu-caret, .sidebar-space-count, .sidebar-space-pin, .sidebar-crumb span, .pdf-mode-select, .pdf-notes-label, .nav-count) { display: none; }
+  body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) :is(.sidebar-label, .sidebar-group-label, .sidebar-account-name, .account-menu-caret, .sidebar-space-count, .sidebar-space-pin, .pdf-mode-select, .pdf-notes-label, .nav-count) { display: none; }
   body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) :is(a, button, summary) { font-size: 0; justify-content: center; gap: 0; }
   body:not(.drawer-open) .desktop-sidebar.is-rail :is(a, button, summary) > .icon { width: 1.1rem; height: 1.1rem; flex: none; }
   body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) .sidebar-brand { padding: 0; justify-content: center; }
@@ -4727,14 +4639,7 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
 }
 
 @media (min-width: 901px) {
-  /* .site-nav-fullpage included here too: its only base rule is the
-     mobile-breakpoint display:none (it has no .open-only trigger on
-     desktop, since .song-context-bar/the "..." button that opens it are
-     already hidden here) -- without an explicit desktop rule it fell
-     back to the browser's default display:block and showed permanently
-     on every Play page at desktop width, confirmed live before writing
-     this fix. */
-  .global-tabbar, .song-context-bar, .stack-sheet, .stack-backdrop, .site-nav-fullpage { display: none; }
+  .global-tabbar, .song-context-bar, .stack-sheet, .stack-backdrop { display: none; }
 
   /* ---- Desktop sidebar shell -------------------------------------------
      Every top-level authenticated page now renders {{template
@@ -4763,12 +4668,6 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
      duplicate and stays visible, so .app-header keeps working as each
      page's own slim utility strip above its content. */
   .back-link[href="/"] { display: none; }
-  .song-nav a[href="/metronome"],
-  .song-nav a[href="/setlists"],
-  .song-nav a[href="/catalog"],
-  .song-nav a[href="/bands"],
-  .song-nav a[href="/profile"],
-  .song-nav a[href="/admin"] { display: none; }
 }
 
 /* Editor sidebar coexistence: while the desktop editor is open
@@ -4790,7 +4689,6 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
    inline toolbar instead — see song.js's focusModeActive). */
 .sidebar-toolbox { display: none; }
 @media (min-width: 901px) {
-  body.drawer-open .sidebar-crumb,
   body.drawer-open .sidebar-primary,
   body.drawer-open .sidebar-secondary,
   body.drawer-open .sidebar-song-group,
@@ -6686,15 +6584,10 @@ img.list-card-mark { object-fit: cover; border: none; }
 .notation-pickers select { min-height: 0; padding: 0.2rem 0.4rem; font-size: 0.85rem; }
 
 /* ==== Phones (≤ 600px): the mobile review of Nov 2026 ====================
-   - the "More" sheet leaves out what the bottom tab bar already shows
-     (it keeps everything on the song page, whose own bar replaces it);
    - page headers drop the "Songbooks" home link (the tab bar's Home);
    - a section's tab row scrolls sideways on one line instead of wrapping
      into two rows of pills;
    - song rows keep the whole title, with tempo and badges underneath. */
-@media (max-width: 900px) {
-  body:not(:has(.song-context-bar)) .site-nav-fullpage-row.is-tab { display: none; }
-}
 @media (max-width: 600px) {
   .app-header > a.back-link[href="/home"] { display: none; }
   /* One header pattern on phones: back arrow · title on one line · the
@@ -6706,7 +6599,6 @@ img.list-card-mark { object-fit: cover; border: none; }
   .app-header h1, .app-header .band-name-row { flex: 1; min-width: 0; }
   .app-header h1 { font-size: 1.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .app-header .song-nav { flex: none; flex-wrap: nowrap; }
-  .app-header .song-nav a[href="/songbooks"], .app-header .song-nav a[href="/catalog"] { display: none; }
   .catalog-card-actions { align-items: center; }
   /* Roster: on a phone a row stacks — name and instruments, then the
      invite link's actions, then role and Remove — and the quick-add
@@ -6792,7 +6684,6 @@ body.branded-dark img.logo-mark, body.branded-dark .logo-mark rect { filter: non
 #brand-logo-status.brand-logo-error { color: var(--danger); font-weight: 600; }
 #brand-logo-status.brand-logo-ok { color: var(--accent); font-weight: 600; }
 .brand-logo-or { margin-top: 0.4rem; font-weight: 600; }
-body.branded .sidebar-crumb, body.branded .sidebar-crumb a { color: var(--sidebar-fg); opacity: 0.75; }
 
 /* ==== Stage mode (stage.js) ===============================================
    The song page for playing: no sidebar, bars or pickers; larger type; a
@@ -6803,7 +6694,7 @@ body.branded .sidebar-crumb, body.branded .sidebar-crumb a { color: var(--sideba
 html:has(body.stage) { font-size: 118%; }
 body.stage .desktop-sidebar, body.stage .song-context-bar, body.stage .global-tabbar,
 body.stage #song-structure-strip, body.stage .notation-pickers,
-body.stage #mode-segmented, body.stage #instrument-picker, body.stage .topbar-utility-mobile,
+body.stage #mode-segmented, body.stage #instrument-picker,
 body.stage .song-topbar .topbar-prev, body.stage .song-topbar .topbar-next,
 body.stage .stack-sheet, body.stage .stack-backdrop, body.stage .sidebar-transport { display: none !important; }
 body.stage .song-topzone { padding-top: 0.4rem; padding-bottom: 0.2rem; }
@@ -7475,7 +7366,7 @@ body.branded h1, body.branded h2, body.branded .brand-name { font-synthesis-weig
 /* The song page beside a playlist's player (?embed=playlist): the chart
    alone, the player around it doing the playing. */
 body.embed-playlist .desktop-sidebar, body.embed-playlist .global-tabbar, body.embed-playlist .song-context-bar,
-body.embed-playlist .topbar-utility-mobile, body.embed-playlist #audio-player, body.embed-playlist #mode-segmented,
+body.embed-playlist #audio-player, body.embed-playlist #mode-segmented,
 body.embed-playlist .topbar-prev, body.embed-playlist .topbar-next { display: none !important; }
 body.embed-playlist .app-content { margin: 0 !important; padding-bottom: 1rem !important; }
 .pl-h1-sub { font-weight: 400; color: var(--fg-muted); }

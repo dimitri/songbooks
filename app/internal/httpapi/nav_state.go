@@ -19,7 +19,7 @@ type navState struct {
 	Section string
 	Me      *store.Person
 	// Page is the page's template name ("song"…), for the menus' few
-	// page-specific turns: the song page's own "More" sheet.
+	// page-specific turns: the top bar's search on Accueil and the Library.
 	Page string
 	// Spaces is the space switcher: one's bands and communities (see
 	// spaces.go and the "space-switcher" template).
