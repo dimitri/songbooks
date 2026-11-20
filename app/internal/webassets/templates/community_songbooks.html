@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "%s — songbooks" .Community.Name}}</title>
+<title>{{docTitle (t (shelfLabel "community" .Community.ID)) .Community.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,7 +15,7 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{.Community.Name}} — {{t (shelfLabel "community" .Community.ID)}}</h1>
+  <h1>{{t (shelfLabel "community" .Community.ID)}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">

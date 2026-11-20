@@ -143,7 +143,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{t "Students"}} — {{.Community.Name}}</title>
+<title>{{docTitle (t "Students") .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -502,7 +502,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{t "Checking singing"}} — {{.Community.Name}}</title>
+<title>{{docTitle (t "Checking singing") .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -590,7 +590,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{.Student.DisplayName}} — {{.Community.Name}}</title>
+<title>{{docTitle .Student.DisplayName .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -744,7 +744,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{template "coach-groups-label"}} — {{.Community.Name}}</title>
+<title>{{docTitle (t "coaching|Groups") .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -835,7 +835,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{.Group.Name}} — {{.Community.Name}}</title>
+<title>{{docTitle .Group.Name .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -915,7 +915,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{t "Lessons"}} — {{.Community.Name}}</title>
+<title>{{docTitle (t "Lessons") .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -1040,7 +1040,7 @@ document.getElementById('live-headphones')?.addEventListener('change', (e) => {
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{.Event.Name}} — {{.Community.Name}}</title>
+<title>{{docTitle .Event.Name .Community.Name}}</title>
 </head>
 <body>
 {{template "desktop-sidebar" .}}
@@ -1072,7 +1072,7 @@ document.getElementById('live-headphones')?.addEventListener('change', (e) => {
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{t "Your calendar"}} — Songbooks</title>
+<title>{{docTitle (t "Your calendar")}}</title>
 </head>
 <body>
 {{template "desktop-sidebar" .}}

@@ -8,7 +8,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{with .Exercise}}{{.Name}}{{else}}{{t "Warm-ups"}}{{end}} — {{.Community.Name}}</title>
+<title>{{with .Exercise}}{{docTitle .Name (t "Warm-ups") $.Community.Name}}{{else}}{{docTitle (t "Warm-ups") .Community.Name}}{{end}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>

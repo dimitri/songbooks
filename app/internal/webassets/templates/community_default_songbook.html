@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Community.Name}} — Songbooks</title>
+<title>{{docTitle (t "Default songbook") .Community.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,7 +15,7 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}/songbooks">{{template "icon-back"}} {{t "Songbooks"}}</a>
-  <h1>{{t "%s — default songbook" .Community.Name}}</h1>
+  <h1>{{t "Default songbook"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">

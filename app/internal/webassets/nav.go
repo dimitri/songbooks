@@ -65,13 +65,15 @@ func NavCurrent(e NavEntry, section string) bool {
 }
 
 // navDesktopPrimary is the desktop sidebar's primary destination list.
+// One name per destination: Groups is the one entry for your bands and
+// communities (the "My groups" page, /groups), on desktop as on a phone;
+// the band and community lists are that page's own links.
 var navDesktopPrimary = []NavEntry{
 	{Label: "Home", Path: "/home", Icon: "icon-home", Section: NavHome, Covers: NavNotifications},
 	{Label: "Calendar", Path: "/calendar", Icon: "icon-calendar", Section: NavCalendar},
 	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog", Section: NavSongbooks},
 	{Label: "Library", Path: "/catalog", Icon: "icon-view", Section: NavLibrary},
-	{Label: "Bands", Path: "/bands", Icon: "icon-bands", Section: NavBands, Covers: NavGroups + " " + NavSetlists},
-	{Label: "Communities", Path: "/communities", Icon: "icon-community", Section: NavCommunities},
+	{Label: "Groups", Path: "/groups", Icon: "icon-bands", Section: NavGroups, Covers: NavBands + " " + NavCommunities + " " + NavSetlists},
 }
 
 // navMobileTab is the mobile bottom tab bar's fixed slots (icon-only;
@@ -102,8 +104,6 @@ var navMobileMore = []NavEntry{
 	{Label: "Library", Path: "/catalog", Icon: "icon-view", InTabBar: true, Section: NavLibrary},
 	{Label: "Groups", Path: "/groups", Icon: "icon-bands", InTabBar: true, Section: NavGroups},
 	{Label: "Calendar", Path: "/calendar", Icon: "icon-calendar", Section: NavCalendar},
-	{Label: "Bands", Path: "/bands", Icon: "icon-bands", Section: NavBands},
-	{Label: "Communities", Path: "/communities", Icon: "icon-community", Section: NavCommunities},
 	{Label: "Set lists", Path: "/setlists", Icon: "icon-setlists", Section: NavSetlists},
 	{Label: "Metronome", Path: "/metronome", Icon: "icon-metronome", Section: NavMetronome},
 	{Label: "Tuner", Path: "/tuner", Icon: "icon-tuner", Section: NavTuner},

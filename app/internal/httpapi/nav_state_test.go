@@ -105,7 +105,7 @@ func TestMenusMarkTheCurrentSection(t *testing.T) {
 	for _, c := range []struct{ tmpl, section, want string }{
 		{"desktop-sidebar", webassets.NavHome, "/home"},
 		{"desktop-sidebar", webassets.NavNotifications, "/home"},
-		{"desktop-sidebar", webassets.NavCommunities, "/communities"},
+		{"desktop-sidebar", webassets.NavCommunities, "/groups"},
 		{"desktop-sidebar", webassets.NavTuner, "/tuner"},
 		{"global-tabbar", webassets.NavBands, "/groups"},
 		{"global-tabbar", webassets.NavLibrary, "/catalog"},
