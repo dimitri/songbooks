@@ -4561,6 +4561,7 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
     position: absolute; top: 0.5rem; right: 0.6rem; z-index: 70;
   }
   body:has(> .topbar-actions) .app-header { padding-right: 6rem; }
+  body:has(> .topbar-actions .nav-search-button) .app-header { padding-right: 8.6rem; }
   .topbar-avatar { display: flex; align-items: center; justify-content: center; min-width: 2.2rem; min-height: 2.2rem; border-radius: 50%; }
   .topbar-avatar .sidebar-account-avatar { width: 2rem; height: 2rem; font-size: 0.85rem; }
   .topbar-avatar.active .sidebar-account-avatar { box-shadow: 0 0 0 2px var(--accent); }
@@ -8761,7 +8762,6 @@ body.stage #song-toolbar-notifications, body.embed-playlist #song-toolbar-notifi
     display: inline-flex; align-items: center; justify-content: center; flex: none; min-width: 2.4rem; min-height: 2.4rem; color: inherit;
   }
   .nav-search-button .icon { width: 1.25rem; height: 1.25rem; }
-  .app-header > .nav-search-button { order: 98; margin-left: auto; }
   .app-header > .nav-search-button ~ .notif-bell { margin-left: 0; }
 }
 

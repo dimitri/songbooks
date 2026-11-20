@@ -78,6 +78,7 @@
      Bibliothèque the search (§3.8), then the notifications bell with its
      count (§3.9), then the avatar. */}}
 <div class="topbar-actions" id="topbar-actions">
+  {{if or (eq $page "index") (eq $page "catalog") (eq $page "songbooks-index") (eq $page "setlists-index")}}{{template "nav-search-button"}}{{end}}
   {{if $nav.Spaces.Current}}{{template "space-switcher" (dict "Nav" $nav "Where" "topbar")}}{{end}}
   <span class="topbar-slot" data-topbar-slot="notifications">{{template "notif-bell" $unread}}</span>
   {{template "account-menu" (dict "Me" $me "Section" $sec "Where" "topbar")}}
