@@ -13,6 +13,7 @@
 <script>try { var t = localStorage.getItem('songbooks-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
 <script src="/i18n/{{lang}}.js?v={{staticVersion}}"></script>
 <script src="/static/js/forms.js?v={{staticVersion}}"></script>
+<script src="/static/js/search.js?v={{staticVersion}}"></script>
 {{end}}
 {{define "pwa-register"}}
 <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});</script>
@@ -84,6 +85,7 @@
 {{if eq $page "song"}}{{template "site-nav-fullpage" .}}{{end}}
 {{end}}
 {{define "global-tabbar-script"}}
+{{template "nav-notifications-script"}}
 {{template "account-menu-script"}}
 {{template "space-switcher-script"}}
 {{template "site-nav-fullpage-script"}}
@@ -335,6 +337,7 @@
 {{$sec := ""}}{{$me := .Me}}{{$rail := false}}{{with .Nav}}{{$sec = .Section}}{{$rail = .Focused}}{{with .Me}}{{$me = .}}{{end}}{{end}}
 <nav class="desktop-sidebar{{if $rail}} is-rail{{end}}" id="desktop-sidebar" aria-label="{{t "main navigation (desktop)"}}">
   <a class="sidebar-brand" href="/home">{{template "icon-logo"}} <span class="sidebar-label">Songbooks</span></a>
+  {{template "nav-search"}}
   <div class="sidebar-primary">
     {{range navGlobal "sidebar"}}<a href="{{.Path}}"{{if navCurrent "sidebar" . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}" title="{{t .Label}}">{{template "nav-icon" .Icon}} <span class="sidebar-label">{{t .Label}}</span>{{with .Badge}}<span class="nav-badge" data-nav-badge="{{.}}" hidden></span>{{end}}</a>{{end}}
   </div>
@@ -394,22 +397,6 @@
 {{define "icon-video"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5.5" width="10.5" height="9" rx="1.8"/><path d="m13 9 4.5-2.5v7L13 11"/></svg>{{end}}
 {{define "icon-bell"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8.5a5 5 0 0 1 10 0v2.8l1.3 2.2H3.7L5 11.3Z"/><path d="M8 15.8a2 2 0 0 0 4 0"/></svg>{{end}}
 
-{{/* notif-bell/notif-bell-script: the nav bell + unread-count badge,
-     shared across every page that includes it (currently just index.html
-     — see the phase brief's note that there's no single shared
-     base/layout template to hang this off of everywhere). Links to
-     /notifications; the script fills in the badge from
-     /api/notifications/unread-count after load. */}}
-{{define "notif-bell"}}<a href="/notifications" class="notif-bell" id="notif-bell-link" title="{{t "Notifications"}}">{{template "icon-bell"}}<span id="notif-badge" class="notif-badge" hidden>0</span></a>{{end}}
-{{define "notif-bell-script"}}<script>
-(function () {
-  fetch('/api/notifications/unread-count').then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
-    if (!data || !data.count) return;
-    var badge = document.getElementById('notif-badge');
-    if (badge) { badge.textContent = data.count; badge.hidden = false; }
-  }).catch(function () {});
-})();
-</script>{{end}}
 
 {{define "icon-plus"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>{{end}}
 

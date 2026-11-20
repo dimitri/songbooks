@@ -453,6 +453,7 @@
      completely untouched. */}}
 <nav class="desktop-sidebar{{if .Nav.Focused}} is-rail{{end}}" id="desktop-sidebar" aria-label="{{t "main navigation"}}">
   <a class="sidebar-brand" href="/home">{{template "icon-logo"}} Songbooks</a>
+  {{template "nav-search"}}
   {{/* Phase 45: while the desktop editor is open, this single row replaces
        the whole nav below (CSS, body.drawer-open) — "editor integrated
        into the website" means it shares the sidebar's real estate, not a
@@ -496,6 +497,10 @@
      the reference video. On a phone the song bar at the bottom has them
      (.song-context-bar); the header keeps only the title. */}}
 <div class="song-topzone">
+{{/* Notifications from the song (menu proposal §3.9): a bell with a dot
+     when something's unread, so a coach's comment isn't invisible while
+     you practise. Below 900px; the sidebar's entry has the count above. */}}
+<div class="song-notifications">{{template "nav-notifications-dot"}}</div>
 <div class="song-topbar">
   {{/* ‹ where the song was opened from, named (songBackFor). */}}
   <div class="topbar-cell topbar-back">

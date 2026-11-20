@@ -254,6 +254,12 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// scopes by the logged-in person's own id.
 	mux.HandleFunc("GET /notifications", s.requireAuth(s.handleNotificationsPage))
 	mux.HandleFunc("GET /api/notifications/unread-count", s.requireAuth(s.handleUnreadNotificationCount))
+	// Search (search.go): the palette's finds and commands, the same as a
+	// page, and the commands' "new …" shortcuts.
+	mux.HandleFunc("GET /api/search", s.requireAuth(s.handleSearchAPI))
+	mux.HandleFunc("GET /search", s.requireAuth(s.handleSearchPage))
+	mux.HandleFunc("GET /new/lesson", s.requireAuth(s.handleNewLesson))
+	mux.HandleFunc("GET /new/setlist", s.requireAuth(s.handleNewSetlist))
 	mux.HandleFunc("POST /notifications/{id}/read", s.requireAuth(s.handleMarkNotificationRead))
 	mux.HandleFunc("POST /notifications/read-all", s.requireAuth(s.handleMarkAllNotificationsRead))
 
