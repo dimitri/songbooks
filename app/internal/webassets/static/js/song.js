@@ -1163,13 +1163,23 @@ const ICONS = {
   playPauseBtn.addEventListener('click', () => setPlaying(!clock.running));
   // The song player's bar for a song with no recording (audio-player.js
   // "No recording"): ▶ runs this follow-along clock, the click on; its
-  // readout reads where it is.
+  // readout reads where it is. The player's panel sets that click there
+  // (its Click and Tempo lines): its sound and volume, the tempo, by tap.
   window.songbooksFollowClock = {
     toggle(withClick) {
       setPlaying(!clock.running);
       if (clock.running && withClick) metronome.enabled = true;
       return clock.running;
     },
+    setSound(sound) { if (sound) metronome.sound = sound; },
+    setVolume(v) { metronome.volume = Math.max(0, Number(v) || 0); },
+    setBpm(n) {
+      const v = Math.max(20, Math.min(300, Math.round(Number(n) || clock.bpm)));
+      clock.setBpm(v);
+      updateBpmDisplay();
+      return v;
+    },
+    tap() { document.getElementById('mini-metro-tap')?.click(); return Math.round(clock.bpm); },
     state: () => ({
       running: clock.running,
       bpm: clock.bpm,

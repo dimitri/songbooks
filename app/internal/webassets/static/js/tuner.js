@@ -344,4 +344,9 @@
   }
   startBtn.addEventListener('click', () => (stream ? stop() : start()));
   document.addEventListener('visibilitychange', () => { if (document.hidden && stream) stop(); });
+  // In the song page's dialog ("Accorder", play.html): closed, it stops.
+  root.addEventListener('tuner:stop', () => {
+    if (stream) stop();
+    if (ringing) { ringing.stop(); ringing = null; }
+  });
 })();

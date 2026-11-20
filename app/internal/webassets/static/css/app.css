@@ -8376,7 +8376,7 @@ a.singer-chip:hover { border-color: var(--border-strong); }
 @keyframes audio-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .audio-spinner { animation: none; } }
 /* No recording: the follow-along clock, the click on; nothing else. */
-.audio-player[data-state="none"] .audio-dock :is(.audio-waveform-wrap, .audio-opts, .audio-opts-btn, .audio-panel-btn, #audio-start-btn, #audio-prev-btn, #audio-next-btn, .audio-dock-line) { display: none !important; }
+.audio-player[data-state="none"] .audio-dock :is(.audio-waveform-wrap, .audio-opts, .audio-opts-btn, #audio-start-btn, #audio-prev-btn, #audio-next-btn, .audio-dock-line) { display: none !important; }
 .audio-player[data-state="none"] .audio-dock .audio-lcd-time { margin-left: 0.5rem; }
 .audio-player[data-state="none"] .audio-add-recording { margin-left: auto; }
 @media (min-width: 901px) { body:has(.audio-player[data-state="none"]) .content-main { padding-bottom: 6rem; } }
@@ -8489,3 +8489,172 @@ a.singer-chip:hover { border-color: var(--border-strong); }
 
 /* The Key line in the player panel: its students list fits a phone panel. */
 .audio-panel .audio-key-targets { min-width: 0; }
+
+/* ==== Song page controls (app/reports/menu-proposal.md §3.5, menu PR 10) ==
+   The song's own header and toolbar (play.html .song-topzone): ‹ where it
+   was opened from · the title, key and tempo · the list's next song; then
+   a switcher for the views and the actions on the song (Accorder,
+   Modifier, Notes, Mode scène, ⋯). They used to be the sidebar's "This
+   song" group and a row of tabs mixing views and tools. Wide screens only:
+   on a phone the song bar at the bottom has them (.song-context-bar). */
+.song-topbar { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr); align-items: center; }
+.topbar-back { justify-content: flex-start; }
+.song-back {
+  display: inline-flex; align-items: center; gap: 0.45rem; max-width: 100%; min-width: 0;
+  padding: 0.4rem 0.75rem 0.4rem 0.5rem; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg-raised); color: var(--fg); text-decoration: none;
+}
+.song-back:hover { border-color: var(--border-strong); text-decoration: none; }
+.song-back .icon { flex: none; width: 1rem; height: 1rem; }
+.song-back-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.song-back-text small { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--fg-muted); }
+.song-back-text strong { font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar-nav { justify-content: flex-end; gap: 0.4rem; }
+.topbar-nav a { border: 1px solid var(--border); border-radius: 8px; color: var(--fg); text-decoration: none; background: var(--bg-raised); }
+.topbar-nav a:hover { border-color: var(--border-strong); text-decoration: none; }
+.topbar-nav .topbar-prev { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 2.75rem; height: 2.75rem; color: var(--fg-muted); }
+.topbar-nav .topbar-next { display: flex; align-items: center; gap: 0.5rem; min-width: 0; padding: 0.4rem 0.7rem; }
+.topbar-key-open { display: none; }
+/* With a recording, the key is the player's (its Key line moves the
+   recording and the chords together): the header names it, and opens
+   that line, rather than a second stepper that only moved the chords. */
+body:has(#audio-player[data-recording="yes"]) .topbar-key .transpose-control { display: none; }
+body:has(#audio-player[data-recording="yes"]) .topbar-key-open {
+  display: inline-flex; align-items: center; margin-left: 0.35rem; min-height: 0; padding: 0.05rem 0.55rem;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--bg-raised);
+  color: var(--fg-muted); font-size: 0.78rem; text-decoration: none;
+}
+body:has(#audio-player[data-recording="yes"]) .topbar-key-open:hover { color: var(--fg); border-color: var(--border-strong); }
+.song-toolbar {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem 1rem;
+  padding: 0.1rem 1.1rem 0.7rem; text-align: left; container: song-toolbar / inline-size;
+}
+.song-toolbar #mode-segmented.view-tabs { margin: 0; flex-wrap: nowrap; }
+/* Drummer, Mixer, Reference: in the switcher only while they're shown. */
+#mode-segmented .view-extra:not(.active) { display: none; }
+/* The view on screen, filled (#mode-segmented.view-tabs button's
+   background: none outranked .view-tabs button.active's fill). */
+#mode-segmented.view-tabs button.active { background: var(--accent); color: var(--accent-contrast); font-weight: 600; }
+.song-actions { display: flex; align-items: center; gap: 0.35rem; margin-left: auto; }
+.song-action {
+  display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.5rem; padding: 0.35rem 0.8rem;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--bg-raised);
+  color: var(--fg); font-size: 0.85rem; text-decoration: none; white-space: nowrap; cursor: pointer;
+}
+a.song-action:hover { text-decoration: none; border-color: var(--border-strong); }
+.song-action .icon { width: 1rem; height: 1rem; flex: none; }
+.song-action[hidden] { display: none; }
+.song-more-btn { padding: 0.35rem 0.6rem; }
+.song-toolbar-slot:empty { display: none; }
+/* A narrow toolbar keeps the actions' icons; their names stay for screen
+   readers (and in their tooltips). */
+@container song-toolbar (max-width: 50rem) {
+  .song-action > span:not(.sr-only) {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .song-action { padding: 0.35rem 0.65rem; }
+}
+.song-more { position: relative; }
+.song-more-menu {
+  position: absolute; right: 0; top: calc(100% + 0.35rem); z-index: 45; min-width: 15rem;
+  display: flex; flex-direction: column; padding: 0.35rem; text-align: left;
+  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: var(--shadow-lg, var(--shadow));
+}
+.song-more-menu[hidden] { display: none; }
+.song-more-menu [role="menuitem"] {
+  display: flex; align-items: center; gap: 0.6rem; width: 100%; min-height: 2.5rem; padding: 0.5rem 0.7rem;
+  border: 0; border-radius: 6px; background: none; color: var(--fg); font-size: 0.9rem; text-align: left; text-decoration: none; cursor: pointer;
+}
+.song-more-menu [role="menuitem"]:hover, .song-more-menu [role="menuitem"]:focus-visible { background: var(--bg-sunken); text-decoration: none; }
+.song-more-menu .icon { width: 1rem; height: 1rem; flex: none; color: var(--fg-muted); }
+@media (max-width: 900px) {
+  .song-toolbar, .topbar-back, .topbar-nav { display: none; }
+  .song-topbar { grid-template-columns: 1fr; }
+}
+body.stage .song-toolbar, body.stage .topbar-back, body.stage .topbar-nav { display: none !important; }
+/* The stage's ✕ only on stage: button.icon-btn outranked .stage-exit's own
+   display:none, so it sat over every song page's top right corner. */
+body:not(.stage) .stage-exit { display: none; }
+
+/* "Exporter en PDF…": the layout, the notes, the download. */
+.song-pdf-dialog {
+  width: min(26rem, calc(100vw - 2rem)); padding: 0; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--bg-raised); color: var(--fg); box-shadow: var(--shadow-lg, var(--shadow));
+}
+.song-pdf-dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
+.song-pdf-form { display: flex; flex-direction: column; align-items: stretch; gap: 0.9rem; padding: 1.2rem 1.3rem; }
+.song-pdf-form h2 { margin: 0; font-size: 1.1rem; }
+.song-pdf-layouts { display: flex; flex-direction: column; gap: 0.35rem; margin: 0; padding: 0; border: 0; }
+.song-pdf-layouts legend { margin-bottom: 0.35rem; padding: 0; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-muted); }
+.song-pdf-layouts label { display: flex; align-items: baseline; gap: 0.5rem; padding: 0.5rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.song-pdf-layouts label:has(input:checked) { border-color: var(--accent); background: var(--accent-bg, var(--bg-sunken)); }
+.song-pdf-layouts small { margin-left: auto; font-size: 0.78rem; color: var(--fg-muted); text-align: right; }
+.song-pdf-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; }
+.song-pdf-actions .pdf-export-link {
+  display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.75rem; padding: 0.45rem 1rem;
+  border-radius: 8px; background: var(--accent); color: var(--accent-contrast); font-weight: 700; text-decoration: none;
+}
+.song-pdf-actions .pdf-export-link:hover { text-decoration: none; filter: brightness(1.05); }
+.song-pdf-actions .pdf-export-link .icon { width: 1rem; height: 1rem; }
+
+/* The player's panel, from the song's controls: the Drummer view and the
+   Mixer in its Sound group; without a recording, the click is the song's
+   metronome — the panel holds its Click and Tempo lines, the Drummer view
+   and (with a score) the Mixer, and nothing else. */
+.audio-line-tempo { display: none; }
+.audio-line[hidden] { display: none; }
+.audio-tempo-more { font-size: 0.82rem; }
+.audio-player[data-state="none"] .audio-dock:not(.is-open) .audio-panel-btn { display: inline-flex; margin-left: auto; }
+.audio-player[data-state="none"] .audio-panel-tabs,
+.audio-player[data-state="none"] .audio-group:not([data-group="sound"]),
+.audio-player[data-state="none"] .audio-group[data-group="sound"] .audio-line:not(#audio-line-click, #audio-line-tempo, #audio-line-drummer, #audio-line-mixer.has-score),
+.audio-player[data-state="none"] #audio-line-click :is(.hint, #audio-click-test),
+.audio-player[data-state="none"] #audio-line-mixer #audio-line-stems,
+.audio-player[data-state="none"] .audio-group-title kbd:first-of-type,
+.audio-player[data-state="none"] .audio-panel-hint { display: none !important; }
+.audio-player[data-state="none"] .audio-line-tempo { display: grid; }
+@media (max-width: 720px) {
+  .audio-player[data-state="none"] .audio-dock .audio-panel-btn { display: none !important; }
+}
+
+/* The song bar on a phone: five slots (‹ the place, Vue, Outils, Morceau,
+   Suivant or Mode scène), each an icon over a short label; a long place
+   name ("‹ Silver Tramline") is cut, never runs into its neighbour. */
+@media (max-width: 900px) {
+  .song-context-bar > a, .song-context-bar > button { min-width: 0; padding: 0 0.15rem; font-size: 0.64rem; min-height: 0; }
+  .song-context-bar > a > span, .song-context-bar > button > span { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; line-height: 1.15; }
+  .song-context-bar > a:focus-visible, .song-context-bar > button:focus-visible { outline-offset: -3px; }
+  .stack-sheet:focus { outline: none; }
+  .stack-sheet-hint { margin-left: auto; font-size: 0.78rem; color: var(--fg-muted); font-weight: 400; }
+  .stack-sheet-row[aria-pressed="true"] { color: var(--accent); font-weight: 600; }
+  /* The mixer has nothing to play without a recording or a score. */
+  body:has(#audio-player[data-recording="no"]:not([data-score])) .tools-mixer-row { display: none; }
+}
+
+/* "Accorder": the tuner in place (play.html #tuner-dialog) — a popover
+   under the song's toolbar on a wide screen, a sheet from the bottom on a
+   phone; the /tuner page's own card inside. */
+.tuner-dialog {
+  padding: 0; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--bg-raised); color: var(--fg); box-shadow: var(--shadow-lg, var(--shadow));
+  width: min(30rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow-y: auto; overscroll-behavior: contain;
+}
+.tuner-dialog::backdrop { background: rgba(0, 0, 0, 0.25); }
+.tuner-dialog-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 0.8rem 0 1.2rem; }
+.tuner-dialog-head h2 { flex: 1; min-width: 0; margin: 0; font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tuner-dialog-head h2 small { margin-left: 0.4rem; font-size: 0.85rem; font-weight: 500; color: var(--fg-muted); }
+.tuner-dialog-head form { margin: 0; }
+.tuner-dialog .tuner { border: 0; box-shadow: none; background: none; margin: 0; max-width: none; padding-top: 0.6rem; }
+.tuner-dialog .tuner-readout { min-height: 5rem; }
+.tuner-dialog .tuner-note { font-size: 4.4rem; }
+@media (min-width: 901px) {
+  .tuner-dialog { position: fixed; inset: 7.6rem 1.5rem auto auto; margin: 0; max-height: calc(100dvh - 9rem); }
+}
+@media (max-width: 900px) {
+  .tuner-dialog {
+    position: fixed; inset: auto 0 0 0; margin: 0; width: 100%; max-width: none;
+    border-radius: 16px 16px 0 0; border-width: 1px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .tuner-dialog .tuner { padding: 0.4rem 1rem 1rem; gap: 0.8rem; }
+}
