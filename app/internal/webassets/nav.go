@@ -1,5 +1,7 @@
 package webassets
 
+import "strings"
+
 // NavEntry is one destination in the app's global navigation — the
 // single source of truth both the desktop sidebar and the mobile tab
 // bar/"More" sheet render from, instead of each hand-rolling its own
@@ -14,19 +16,62 @@ type NavEntry struct {
 	RequiresAdmin bool
 	External      bool // opens in a new tab (target=_blank rel=noopener) — an external link, e.g. a songbook's playlist URL
 	InTabBar      bool // also a mobile tab bar slot: the "More" sheet leaves it out wherever that tab bar shows
-	// Also lists the other path prefixes this tab stands for, so it stays
-	// highlighted below them (Groups on a band's or community's pages).
-	Also string
+	// Section is the NavSection this entry is the destination of: the
+	// entry is current (highlighted, aria-current="page") on every page
+	// whose handler says it belongs to that section — see NavCurrent.
+	Section string
+	// Covers lists the other sections this entry stands for on a surface
+	// that has no entry of their own, space-separated: the phone's Groups
+	// tab is current on a band's or a community's pages too.
+	Covers string
+}
+
+// The global sections a page can belong to (its NavSection, which the
+// server works out per page: see navSectionFor in internal/httpapi). The
+// global menus mark the entry for the current one, server-side, instead
+// of guessing from the URL in the browser — a URL says nothing about
+// where an event was opened from, and most pages' URLs matched no entry.
+const (
+	NavHome          = "home"
+	NavCalendar      = "calendar"
+	NavSongbooks     = "songbooks"
+	NavLibrary       = "library"
+	NavBands         = "bands"
+	NavCommunities   = "communities"
+	NavGroups        = "groups"
+	NavSetlists      = "setlists"
+	NavMetronome     = "metronome"
+	NavTuner         = "tuner"
+	NavProfile       = "profile"
+	NavAdmin         = "admin"
+	NavNotifications = "notifications"
+)
+
+// NavCurrent reports whether e is the entry for section: its own section,
+// or one it covers.
+func NavCurrent(e NavEntry, section string) bool {
+	if section == "" {
+		return false
+	}
+	if e.Section == section {
+		return true
+	}
+	for _, c := range strings.Fields(e.Covers) {
+		if c == section {
+			return true
+		}
+	}
+	return false
 }
 
 // navDesktopPrimary is the desktop sidebar's primary destination list.
 var navDesktopPrimary = []NavEntry{
-	{Label: "Home", Path: "/home", Icon: "icon-home"},
-	{Label: "Calendar", Path: "/calendar", Icon: "icon-calendar"},
-	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog"},
-	{Label: "Library", Path: "/catalog", Icon: "icon-view"},
-	{Label: "Bands", Path: "/bands", Icon: "icon-bands"},
-	{Label: "Communities", Path: "/communities", Icon: "icon-community"},
+	{Label: "Home", Path: "/home", Icon: "icon-home", Section: NavHome, Covers: NavNotifications},
+	{Label: "Calendar", Path: "/calendar", Icon: "icon-calendar", Section: NavCalendar},
+	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog", Section: NavSongbooks},
+	{Label: "Library", Path: "/catalog", Icon: "icon-view", Section: NavLibrary},
+	{Label: "Bands", Path: "/bands", Icon: "icon-bands", Section: NavBands, Covers: NavGroups + " " + NavSetlists},
+	{Label: "Communities", Path: "/communities", Icon: "icon-community", Section: NavCommunities},
 }
 
 // navMobileTab is the mobile bottom tab bar's fixed slots (icon-only;
@@ -41,10 +86,10 @@ var navDesktopPrimary = []NavEntry{
 // as much "their" space as a band, and a band's next gig is the most
 // time-critical thing to reach.
 var navMobileTab = []NavEntry{
-	{Label: "Home", Path: "/home", Icon: "icon-home"},
-	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog"},
-	{Label: "Library", Path: "/catalog", Icon: "icon-view"},
-	{Label: "Groups", Path: "/groups", Icon: "icon-bands", Also: "/bands /communities /setlists /events"},
+	{Label: "Home", Path: "/home", Icon: "icon-home", Section: NavHome, Covers: NavNotifications},
+	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog", Section: NavSongbooks},
+	{Label: "Library", Path: "/catalog", Icon: "icon-view", Section: NavLibrary},
+	{Label: "Groups", Path: "/groups", Icon: "icon-bands", Section: NavGroups, Covers: NavBands + " " + NavCommunities + " " + NavSetlists},
 }
 
 // navMobileMore is the mobile "More" full-page sheet's row list —
@@ -52,18 +97,18 @@ var navMobileTab = []NavEntry{
 // items (Metronome, Profile) desktop reaches via its own secondary/
 // account areas rather than the primary list.
 var navMobileMore = []NavEntry{
-	{Label: "Home", Path: "/home", Icon: "icon-home", InTabBar: true},
-	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog", InTabBar: true},
-	{Label: "Library", Path: "/catalog", Icon: "icon-view", InTabBar: true},
-	{Label: "Groups", Path: "/groups", Icon: "icon-bands", InTabBar: true},
-	{Label: "Calendar", Path: "/calendar", Icon: "icon-calendar"},
-	{Label: "Bands", Path: "/bands", Icon: "icon-bands"},
-	{Label: "Communities", Path: "/communities", Icon: "icon-community"},
-	{Label: "Set lists", Path: "/setlists", Icon: "icon-setlists"},
-	{Label: "Metronome", Path: "/metronome", Icon: "icon-metronome"},
-	{Label: "Tuner", Path: "/tuner", Icon: "icon-tuner"},
-	{Label: "Profile", Path: "/profile", Icon: "icon-profile"},
-	{Label: "Admin", Path: "/admin", RequiresAdmin: true},
+	{Label: "Home", Path: "/home", Icon: "icon-home", InTabBar: true, Section: NavHome},
+	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog", InTabBar: true, Section: NavSongbooks},
+	{Label: "Library", Path: "/catalog", Icon: "icon-view", InTabBar: true, Section: NavLibrary},
+	{Label: "Groups", Path: "/groups", Icon: "icon-bands", InTabBar: true, Section: NavGroups},
+	{Label: "Calendar", Path: "/calendar", Icon: "icon-calendar", Section: NavCalendar},
+	{Label: "Bands", Path: "/bands", Icon: "icon-bands", Section: NavBands},
+	{Label: "Communities", Path: "/communities", Icon: "icon-community", Section: NavCommunities},
+	{Label: "Set lists", Path: "/setlists", Icon: "icon-setlists", Section: NavSetlists},
+	{Label: "Metronome", Path: "/metronome", Icon: "icon-metronome", Section: NavMetronome},
+	{Label: "Tuner", Path: "/tuner", Icon: "icon-tuner", Section: NavTuner},
+	{Label: "Profile", Path: "/profile", Icon: "icon-profile", Section: NavProfile},
+	{Label: "Admin", Path: "/admin", RequiresAdmin: true, Section: NavAdmin},
 }
 
 // ContextualGroup is a page's own "This band"/"This community"/etc.

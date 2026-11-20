@@ -70,7 +70,7 @@
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 {{if .IsCoach}}
 <script>
@@ -193,7 +193,7 @@
   {{end}}
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 <script type="application/json" id="warmup-data">{{.PageJSON}}</script>
 <script src="/static/js/vendor/alphatab/alphaTab.min.js?v={{staticVersion}}"></script>
@@ -255,7 +255,7 @@
   </form>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 {{with .ExerciseJSON}}<script type="application/json" id="warmup-exercise">{{.}}</script>{{end}}
 <script src="/static/js/vendor/alphatab/alphaTab.min.js?v={{staticVersion}}"></script>

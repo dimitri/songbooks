@@ -21,7 +21,7 @@
 <main class="index">
   <nav class="band-tabs band-tabs-row">
     <a class="band-tab" href="/communities/{{.Community.ID}}">{{t "Overview"}}</a>
-    <a href="/communities/{{.Community.ID}}/songbooks" class="band-tab active">{{t (shelfLabel "community" .Community.ID)}}</a>
+    <a href="/communities/{{.Community.ID}}/songbooks" class="band-tab active" aria-current="page">{{t (shelfLabel "community" .Community.ID)}}</a>
     {{template "coaching-tab-links" .}}
     <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/events">{{t "Events"}}</a>
@@ -69,7 +69,7 @@ createForm?.addEventListener('submit', (e) => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

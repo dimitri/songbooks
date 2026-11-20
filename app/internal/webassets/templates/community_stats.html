@@ -25,7 +25,7 @@
     {{template "coaching-tab-links" .}}
     <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/events">{{t "Events"}}</a>
-    <a href="/communities/{{.Community.ID}}/admin" class="band-tab active">{{t "Admin"}}</a>
+    <a href="/communities/{{.Community.ID}}/admin" class="band-tab active" aria-current="page">{{t "Admin"}}</a>
   </nav>
 
   {{with .Stats}}
@@ -143,7 +143,7 @@
   {{end}}
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>
@@ -240,7 +240,7 @@
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

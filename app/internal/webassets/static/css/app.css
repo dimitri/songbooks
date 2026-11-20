@@ -685,6 +685,10 @@ label.field > :is(.field-hint, .field-error, .hint) { display: block; margin-top
   border-radius: 10px; text-decoration: none; color: var(--sidebar-fg); font-size: 0.85rem;
   background: color-mix(in srgb, var(--sidebar-fg) 7%, transparent);
 }
+/* menu PR 1: the current page's own entry, rendered by the server
+   (aria-current="page"), on the account chip and the More sheet too. */
+.sidebar-account.active { background: var(--sidebar-active-bg); color: var(--sidebar-active-fg); font-weight: 600; }
+.site-nav-fullpage-row[aria-current="page"] { color: var(--accent); background: var(--accent-bg); }
 .sidebar-account-avatar {
   width: 1.7rem; height: 1.7rem; border-radius: 50%; flex: none;
   display: flex; align-items: center; justify-content: center;
