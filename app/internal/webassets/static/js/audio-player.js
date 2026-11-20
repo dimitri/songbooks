@@ -926,6 +926,9 @@ window.songbooksDecodable = function (buf) {
     updateButtons();
   });
   function toggleClick() {
+    // No recording: the click is the song's metronome (the follow-along
+    // clock), on or off — the panel's switch and M alike.
+    if (root.dataset.state === 'none') { toggleFollowClick(); return; }
     prefs.click = !prefs.click;
     resetClicks();
     savePrefs();
@@ -1686,6 +1689,9 @@ window.songbooksDecodable = function (buf) {
   const tabs = [...document.querySelectorAll('.audio-panel-tabs [role="tab"]')];
   function showGroup(name, remember) {
     if (!groups.some((g) => g.dataset.group === name)) name = 'loop';
+    // No recording: only the Sound group has anything (the click, its
+    // tempo, the Drummer view and the Mixer).
+    if (root.dataset.state === 'none') { name = 'sound'; remember = false; }
     groups.forEach((g) => g.classList.toggle('is-active', g.dataset.group === name));
     tabs.forEach((b) => {
       const on = b.dataset.group === name;
@@ -1724,6 +1730,10 @@ window.songbooksDecodable = function (buf) {
   }
   document.querySelectorAll('#audio-player [data-open-line]').forEach((b) => b.addEventListener('click', () => openLine(b.dataset.openLine)));
   panelBtn?.addEventListener('click', () => setSheet(!sheetOpen()));
+  // The page around the player opens it at a tool's line too: the header's
+  // key, the song bar's metronome (play.html), with data-open-line — or
+  // window.songbooksPlayer.openLine.
+  document.querySelectorAll('[data-player-line]').forEach((b) => b.addEventListener('click', () => openLine(b.dataset.playerLine)));
   // "+N": the panel, at the first tool that left the bar; on a phone, ⋯
   // opens the sheet.
   optsBtn?.addEventListener('click', () => {
@@ -1743,7 +1753,7 @@ window.songbooksDecodable = function (buf) {
   // The panel's own switches mirror the bar's chips.
   const loopSwitch = $('audio-loop-switch'), clickSwitch = $('audio-click-switch');
   loopSwitch?.addEventListener('change', () => { if (!!(prefs.cycle && prefs.cycle.on) !== loopSwitch.checked) toggleCycle(); });
-  clickSwitch?.addEventListener('change', () => { if (prefs.click !== clickSwitch.checked) toggleClick(); });
+  clickSwitch?.addEventListener('change', () => { if (clickOn() !== clickSwitch.checked) toggleClick(); });
   $('audio-loop-section')?.addEventListener('click', () => {
     const sec = sectionAt(Math.max(0, Math.floor(barAtTime(audio.currentTime) || 0)));
     if (sec) { setCycle(sec.startBar, sec.startBar + sec.barCount); seekToBar(sec.startBar); }
@@ -1752,7 +1762,8 @@ window.songbooksDecodable = function (buf) {
     const c = prefs.cycle;
     const loopSwitch = $('audio-loop-switch'), clickSwitch = $('audio-click-switch');
     if (loopSwitch) { loopSwitch.checked = !!(c && c.on); loopSwitch.disabled = !hasBars(); }
-    if (clickSwitch) clickSwitch.checked = !!prefs.click;
+    if (clickSwitch) clickSwitch.checked = clickOn();
+    renderViewLines();
     const range = $('audio-loop-range');
     if (range) range.textContent = c && hasBars() ? t('bars %s → %s', barLabel(c.from), barLabel(c.to - 1)) : t('drag in the ruler, or tap a section');
     const lcdLoop = $('audio-lcd-loop');
@@ -1774,10 +1785,39 @@ window.songbooksDecodable = function (buf) {
   }
   $('audio-pitch-panel-btn')?.addEventListener('click', () => { $('audio-pitch-btn')?.click(); requestAnimationFrame(renderLoopLine); });
   if (window.MutationObserver && $('audio-pitch-btn')) new MutationObserver(renderLoopLine).observe($('audio-pitch-btn'), { attributes: true, attributeFilter: ['aria-pressed', 'hidden'] });
-  $('audio-open-mixer')?.addEventListener('click', () => {
+  // ---- Views from the panel ----------------------------------------------
+  // The Drummer view and the Mixer are the song page's render modes
+  // (song.js, #mode-segmented), but tools rather than ways of reading it
+  // (menu-proposal.md §3.5): they open from the panel's Sound group, and
+  // the same button takes the page back to the view it was on.
+  const modeEl = document.getElementById('mode-segmented');
+  const extraViews = ['drummer', 'mixer', 'reference'];
+  let readingView = 'normal';
+  const currentView = () => (modeEl && modeEl.dataset.value) || 'normal';
+  const hasDrums = () => [...document.querySelectorAll('[data-realbars]')].some((e) => !e.dataset.restonly);
+  function showView(v) { document.querySelector(`#mode-segmented button[data-value="${v}"]`)?.click(); }
+  function renderViewLines() {
+    const drummer = $('audio-line-drummer');
+    if (drummer) drummer.hidden = !hasDrums();
+    const mixer = $('audio-line-mixer');
+    if (mixer) mixer.classList.toggle('has-score', root.dataset.score === '1');
+    document.querySelectorAll('#audio-player .audio-view-btn').forEach((b) => {
+      const on = currentView() === b.dataset.view;
+      b.setAttribute('aria-pressed', String(on));
+      b.textContent = on ? t('Back to the chart') : (b.dataset.view === 'mixer' ? t('Open the mixer') : t('Show the drums'));
+    });
+  }
+  if (modeEl) {
+    new MutationObserver(() => {
+      if (!extraViews.includes(currentView())) readingView = currentView();
+      renderViewLines();
+    }).observe(modeEl, { attributes: true, attributeFilter: ['data-value'] });
+  }
+  document.querySelectorAll('#audio-player .audio-view-btn').forEach((b) => b.addEventListener('click', () => {
     setSheet(false);
-    document.querySelector('#mode-segmented button[data-value="mixer"]')?.click();
-  });
+    showView(currentView() === b.dataset.view ? readingView : b.dataset.view);
+  }));
+  renderViewLines();
   // The dock's line: a click goes there; in the phone sheet, where it is
   // a scrubber, a drag too.
   if (dockLine) {
@@ -1881,11 +1921,11 @@ window.songbooksDecodable = function (buf) {
     countInEach.checked = !!prefs.countInEach;
     countInEach.addEventListener('change', () => { prefs.countInEach = countInEach.checked; savePrefs(); });
   }
-  wireSeg('audio-click-sound-seg', () => prefs.clickSound, (v) => { prefs.clickSound = v; testClick(); });
+  wireSeg('audio-click-sound-seg', () => prefs.clickSound, (v) => { prefs.clickSound = v; followClickPrefs(); testClick(); });
   const clickVolume = $('audio-click-volume');
   if (clickVolume) {
     clickVolume.value = prefs.clickVolume;
-    clickVolume.addEventListener('input', () => { prefs.clickVolume = Number(clickVolume.value); savePrefs(); });
+    clickVolume.addEventListener('input', () => { prefs.clickVolume = Number(clickVolume.value); followClickPrefs(); savePrefs(); });
     clickVolume.addEventListener('change', testClick);
   }
   function testClick() {
@@ -2269,6 +2309,7 @@ window.songbooksDecodable = function (buf) {
       e.stopImmediatePropagation();
       fc().toggle(true);
     }, true);
+    followClickPrefs();
     clearInterval(noneTimer);
     noneTimer = setInterval(() => {
       const c = fc() && fc().state();
@@ -2278,10 +2319,62 @@ window.songbooksDecodable = function (buf) {
       lcdPos.textContent = c.bar !== '' ? `${Number(c.bar) + 1}` : '1';
       lcdSection.textContent = c.section || '';
       if (timeLabel) timeLabel.textContent = t('click alone · %d bpm', Math.round(c.bpm || bpm));
+      const sw = $('audio-click-switch');
+      if (sw && sw.checked !== playing) sw.checked = playing;
+      const amount = $('audio-tempo-amount');
+      if (amount && amount.textContent !== String(Math.round(c.bpm))) amount.textContent = String(Math.round(c.bpm));
     }, 200);
   }
   $('audio-add-recording')?.addEventListener('click', () => {
     document.querySelector('#mode-segmented button[data-value="reference"]')?.click();
+  });
+  // Without a recording the click is the song's own metronome: the panel
+  // opens on its Click line (its sound, its volume) and a Tempo line (the
+  // song's tempo, or another, tapped or stepped), in place of the
+  // /metronome page the song used to send you to (menu-proposal.md §3.5).
+  // The switch is the metronome: on, it plays; off, it stops.
+  const followClock = () => window.songbooksFollowClock;
+  function clickOn() {
+    if (root.dataset.state !== 'none') return !!prefs.click;
+    const c = followClock() && followClock().state();
+    return !!(c && c.running);
+  }
+  function toggleFollowClick() {
+    const fc = followClock();
+    if (!fc) return;
+    followClickPrefs();
+    fc.toggle(true);
+    const sw = $('audio-click-switch');
+    if (sw) sw.checked = clickOn();
+  }
+  function followClickPrefs() {
+    const fc = followClock();
+    if (!fc || !fc.setSound) return;
+    fc.setSound(prefs.clickSound);
+    fc.setVolume((prefs.clickVolume === undefined ? 70 : prefs.clickVolume) / 70);
+  }
+  function stepTempo(d) {
+    const fc = followClock();
+    if (!fc || !fc.setBpm) return;
+    const v = fc.setBpm(Math.round(fc.state().bpm) + d);
+    const amount = $('audio-tempo-amount');
+    if (amount) amount.textContent = String(v);
+  }
+  $('audio-tempo-down')?.addEventListener('click', (e) => stepTempo(e.shiftKey ? -5 : -1));
+  $('audio-tempo-up')?.addEventListener('click', (e) => stepTempo(e.shiftKey ? 5 : 1));
+  $('audio-tempo-reset')?.addEventListener('click', (e) => {
+    const fc = followClock();
+    if (!fc || !fc.setBpm) return;
+    const amount = $('audio-tempo-amount');
+    const v = fc.setBpm(Number(e.currentTarget.dataset.bpm) || bpm);
+    if (amount) amount.textContent = String(v);
+  });
+  $('audio-tempo-tap')?.addEventListener('click', () => {
+    const fc = followClock();
+    if (!fc || !fc.tap) return;
+    const amount = $('audio-tempo-amount');
+    const v = fc.tap();
+    if (amount) amount.textContent = String(v);
   });
 
   // ---- Category toggle / load -------------------------------------------
@@ -2305,6 +2398,9 @@ window.songbooksDecodable = function (buf) {
     categories = {};
     (data.categories || []).forEach(c => { categories[c.category] = c; });
     const available = Object.keys(categories);
+    // Whether there is a recording at all, for the page around the player:
+    // with one, the key is the player's (play.html .topbar-key).
+    root.dataset.recording = available.length ? 'yes' : 'no';
 
     if (available.length === 0) {
       if (categoryToggle) categoryToggle.hidden = true;
@@ -2515,6 +2611,8 @@ window.songbooksDecodable = function (buf) {
     toggleClick,
     speed: () => prefs.speed,
     setSpeed: (v) => setSpeed(v),
+    // The panel, at a tool's line (the song bar's Outils, the header's key).
+    openLine,
   };
   document.dispatchEvent(new CustomEvent('songbooks:player-ready'));
 

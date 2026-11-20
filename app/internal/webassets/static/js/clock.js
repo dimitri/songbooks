@@ -157,7 +157,8 @@ class Metronome {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     let freq = { click: accent ? 1600 : 1100, beep: accent ? 1800 : 1200, wood: accent ? 500 : 350, tick: accent ? 2400 : 1800 }[this.sound] || 1000;
-    let vol = (accent ? 0.85 : 0.55) * volScale;
+    // volume: the song page's player sets it (its Click line); 1 elsewhere.
+    let vol = (accent ? 0.85 : 0.55) * volScale * (this.volume === undefined ? 1 : this.volume);
     if (soft) { freq *= 0.62; vol *= 0.5; }
     const dur = this.sound === 'wood' ? 0.035 : 0.05;
     osc.type = this.sound === 'wood' ? 'triangle' : (this.sound === 'beep' ? 'sine' : 'square');

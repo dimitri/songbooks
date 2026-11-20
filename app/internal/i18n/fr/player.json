@@ -42,5 +42,13 @@
   "start (Space)": "démarrer (Espace)",
   "tap tempo (T)": "taper le tempo (T)",
   "the running order and the options (F)": "l’ordre de passage et les options (F)",
-  "the octave and the tempo (F)": "l’octave et le tempo (F)"
+  "the octave and the tempo (F)": "l’octave et le tempo (F)",
+  "tap the beat, a few times": "tapez le temps, quelques fois",
+  "Tap": "Taper",
+  "The song’s tempo": "Le tempo du morceau",
+  "The full metronome": "Le métronome complet",
+  "the drum part, bar by bar": "la partie de batterie, mesure par mesure",
+  "Show the drums": "Voir la batterie",
+  "slower": "plus lent",
+  "faster": "plus rapide"
 }

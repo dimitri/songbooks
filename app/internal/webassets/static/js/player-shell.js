@@ -182,6 +182,9 @@
       if (opts.active && !opts.active(e)) return;
       const el = e.target && e.target.closest ? e.target : document.body;
       if (el.closest('input:not([type="range"]):not([type="checkbox"]), select, textarea, [contenteditable]')) return;
+      // A menu or a modal <dialog> that is open has the keys (the song
+      // page's ⋯ menu, its PDF dialog, its tuner).
+      if (el.closest('[role="menu"], dialog[open]')) return;
       const spec = specOf(e);
       // On a focused button, Space and Enter are the button's (the player's own excepted).
       if ((spec === ' ' || spec === 'Enter') && el.closest('button, a, summary, [role="button"], [role="tab"]') && !(opts.own && el.closest(opts.own))) return;
