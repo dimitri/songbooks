@@ -492,7 +492,7 @@
     <div class="toolbox-toolbar" id="toolbox-toolbar"></div>
   </div>
   <div class="sidebar-primary">
-    {{range navGlobal "desktop"}}<a href="{{.Path}}"{{if navCurrent . $.Nav.Section}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}">{{template "nav-icon" .Icon}} {{t .Label}}</a>{{end}}
+    {{range navGlobal "sidebar"}}<a href="{{.Path}}"{{if navCurrent "sidebar" . $.Nav.Section}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}" title="{{t .Label}}">{{template "nav-icon" .Icon}} <span class="sidebar-label">{{t .Label}}</span>{{with .Badge}}<span class="nav-badge" data-nav-badge="{{.}}" hidden></span>{{end}}</a>{{end}}
   </div>
   {{/* This song: every control that used to crowd the top bar, moved here
        — it's contextual to whichever song is open, the same pattern as a
@@ -534,20 +534,15 @@
     <button id="reference-toggle" class="sidebar-song-row" type="button" title="{{t "reference video"}}">{{template "icon-reference"}} {{t "Reference"}}</button>
     <button class="sidebar-song-row stage-mode-toggle" type="button" title="{{t "larger type, no menus, the screen kept awake"}}">{{template "icon-presentation"}} {{t "Stage mode"}}</button>
   </div>
-  <div class="sidebar-secondary">
-    {{if and .Me .Me.IsAdmin}}<a href="/admin" data-path="/admin">{{t "Admin"}}</a>{{end}}
-    <a href="/metronome" data-path="/metronome">{{t "Metronome"}}</a>
-    <a href="/catalog?view=songbooks">{{t "Songbooks"}}</a>
+  {{/* The global Tools, as in every page's sidebar (icons.html). */}}
+  <div class="sidebar-secondary sidebar-tools">
+    <div class="sidebar-group-label">{{t "Tools"}}</div>
+    {{range navGlobal "sidebarTools"}}<a href="{{.Path}}" title="{{t .Label}}">{{template "nav-icon" .Icon}} <span class="sidebar-label">{{t .Label}}</span></a>{{end}}
   </div>
   <div class="sidebar-song-group" style="border-top:none;padding-top:0;">
     <button id="theme-toggle" class="sidebar-song-row" type="button" title="{{t "theme: auto"}}">{{template "icon-theme"}} {{t "Theme"}}</button>
   </div>
-  {{if .Me}}
-  <a class="sidebar-account" href="/profile">
-    <span class="sidebar-account-avatar">{{slice .Me.DisplayName 0 1}}</span>
-    <span>{{.Me.DisplayName}}</span>
-  </a>
-  {{end}}
+  {{if .Me}}{{template "account-menu" (dict "Me" .Me "Section" .Nav.Section "Where" "sidebar")}}{{end}}
 </nav>
 <div class="app-content">
 {{/* Phase 46: the top panel is now two stacked rows sharing one "sunken"

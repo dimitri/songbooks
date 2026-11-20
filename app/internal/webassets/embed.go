@@ -147,15 +147,15 @@ var funcMap = template.FuncMap{
 	},
 	"add1": func(n int) int { return n + 1 },
 	// navGlobal returns the global nav's declared entry list for one
-	// surface ("desktop"/"mobileTab"/"mobileMore") — see nav.go, the
-	// single source of truth desktop-sidebar/global-tabbar/
-	// site-nav-fullpage all render from instead of each hardcoding its
-	// own list.
+	// surface ("sidebar"/"sidebarTools"/"bar") — see nav.go, the one
+	// list the sidebar, the phone's bar and the tablet's rail render
+	// from instead of each hardcoding its own.
 	"navGlobal": navGlobal,
-	// navCurrent: is this nav entry the current page's section (the
-	// .Nav.Section render puts in every page's data)? Marks it active
-	// and aria-current="page", server-side.
-	"navCurrent": NavCurrent,
+	// navCurrent: on this surface, is this nav entry the current page's
+	// section (the .Nav.Section render puts in every page's data)? Marks
+	// it active and aria-current="page", server-side:
+	// {{navCurrent "bar" . $sec}}.
+	"navCurrent": NavCurrentOn,
 	// brandFor is the look of the community or band a page is seen in
 	// ("community"/"band" and its id, an int64 or *int64), nil for the
 	// app's own — see internal/brand and the "brand-head"/"brand-body"
@@ -355,6 +355,14 @@ var funcMap = template.FuncMap{
 	// (section, space, app: the menu proposal's heading rule). Empty
 	// parts are left out.
 	"docTitle": DocTitle,
+	// initial is a name's first letter, for an avatar: "É" for "Élise"
+	// (a rune, where slicing the string would cut a byte in two).
+	"initial": func(name string) string {
+		for _, r := range strings.TrimSpace(name) {
+			return strings.ToUpper(string(r))
+		}
+		return "?"
+	},
 }
 
 // DocTitle joins a page's title parts with " — " and ends with the app's

@@ -2,28 +2,35 @@ package webassets
 
 import "strings"
 
-// NavEntry is one destination in the app's global navigation — the
-// single source of truth both the desktop sidebar and the mobile tab
-// bar/"More" sheet render from, instead of each hand-rolling its own
-// list (the drift this fixes: several page templates duplicated their
-// own copy of the sidebar's primary list and it had already gone stale
-// — e.g. one copy listed "Profile" where it should have listed
-// "Communities"). See the navigation IA research this implements.
+// NavEntry is one destination in the app's global navigation. navEntries
+// below is the single source of truth every surface renders from — the
+// desktop sidebar, the phone's tab bar and the tablet's rail — instead
+// of each hand-rolling its own list (several page templates once kept
+// their own copy of the sidebar and it went stale). Each entry says
+// which surfaces show it.
 type NavEntry struct {
 	Label         string
 	Path          string
-	Icon          string // an icon-* template name, dispatched via the "nav-icon" template below
+	Icon          string // an icon-* template name, dispatched via the "nav-icon" template
 	RequiresAdmin bool
 	External      bool // opens in a new tab (target=_blank rel=noopener) — an external link, e.g. a songbook's playlist URL
-	InTabBar      bool // also a mobile tab bar slot: the "More" sheet leaves it out wherever that tab bar shows
 	// Section is the NavSection this entry is the destination of: the
 	// entry is current (highlighted, aria-current="page") on every page
-	// whose handler says it belongs to that section — see NavCurrent.
+	// whose handler says it belongs to that section — see NavCurrentOn.
 	Section string
 	// Covers lists the other sections this entry stands for on a surface
 	// that has no entry of their own, space-separated: the phone's Groups
-	// tab is current on a band's or a community's pages too.
+	// tab is current on a band's or a community's pages, its Tools tab on
+	// the metronome's, its Home tab on the notifications.
 	Covers string
+	// The surfaces that show it: the desktop sidebar's main list
+	// (Sidebar) or its Tools group (SidebarTools), and the phone's tab
+	// bar, which is also the tablet's rail (Bar).
+	Sidebar, SidebarTools, Bar bool
+	// Badge names the count this entry may carry ("notifications"): the
+	// menus render an empty, hidden slot for it (data-nav-badge), which
+	// the notifications work fills.
+	Badge string
 }
 
 // The global sections a page can belong to (its NavSection, which the
@@ -38,6 +45,7 @@ const (
 	NavBands         = "bands"
 	NavCommunities   = "communities"
 	NavGroups        = "groups"
+	NavTools         = "tools"
 	NavMetronome     = "metronome"
 	NavTuner         = "tuner"
 	NavProfile       = "profile"
@@ -45,64 +53,68 @@ const (
 	NavNotifications = "notifications"
 )
 
-// NavCurrent reports whether e is the entry for section: its own section,
-// or one it covers.
-func NavCurrent(e NavEntry, section string) bool {
+// navEntries is the app's global navigation, in order (menu proposal
+// §3.2): Home, Library, Calendar, Notifications, Groups and the tools on
+// desktop; Home, Library, Calendar, Groups and Tools on a phone, five
+// tabs and no "More". The account (Profile, Appearance, Language, Admin,
+// Log out) is the avatar's menu, not a destination here: see the
+// "account-menu" template.
+var navEntries = []NavEntry{
+	{Label: "Home", Path: "/home", Icon: "icon-home", Section: NavHome, Covers: NavNotifications, Sidebar: true, Bar: true},
+	{Label: "Library", Path: "/catalog", Icon: "icon-catalog", Section: NavLibrary, Sidebar: true, Bar: true},
+	{Label: "Calendar", Path: "/calendar", Icon: "icon-calendar", Section: NavCalendar, Sidebar: true, Bar: true},
+	{Label: "Notifications", Path: "/notifications", Icon: "icon-bell", Section: NavNotifications, Sidebar: true, Badge: "notifications"},
+	{Label: "Groups", Path: "/groups", Icon: "icon-bands", Section: NavGroups, Covers: NavBands + " " + NavCommunities, Sidebar: true, Bar: true},
+	{Label: "Tools", Path: "/tools", Icon: "icon-tools", Section: NavTools, Covers: NavMetronome + " " + NavTuner, Bar: true},
+	{Label: "Metronome", Path: "/metronome", Icon: "icon-metronome", Section: NavMetronome, SidebarTools: true},
+	{Label: "Tuner", Path: "/tuner", Icon: "icon-tuner", Section: NavTuner, SidebarTools: true},
+}
+
+// navGlobal is the entries one surface shows, in order: "sidebar",
+// "sidebarTools" or "bar" (the phone's tab bar and the tablet's rail).
+func navGlobal(surface string) []NavEntry {
+	var out []NavEntry
+	for _, e := range navEntries {
+		if onSurface(e, surface) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func onSurface(e NavEntry, surface string) bool {
+	switch surface {
+	case "sidebar":
+		return e.Sidebar
+	case "sidebarTools":
+		return e.SidebarTools
+	case "bar":
+		return e.Bar
+	}
+	return false
+}
+
+// NavCurrentOn reports whether e is the entry for section on a surface:
+// its own section, or one it covers when that surface has no entry of
+// that section's own (Notifications has its own entry in the sidebar,
+// so Home only stands for it on the phone's bar). The sidebar's main
+// list and its Tools group count as one surface.
+func NavCurrentOn(surface string, e NavEntry, section string) bool {
 	if section == "" {
 		return false
 	}
 	if e.Section == section {
 		return true
 	}
-	for _, c := range strings.Fields(e.Covers) {
-		if c == section {
-			return true
+	if !strings.Contains(" "+e.Covers+" ", " "+section+" ") {
+		return false
+	}
+	for _, o := range navEntries {
+		if o.Section == section && (onSurface(o, surface) || (surface == "sidebar" && o.SidebarTools) || (surface == "sidebarTools" && o.Sidebar)) {
+			return false
 		}
 	}
-	return false
-}
-
-// navDesktopPrimary is the desktop sidebar's primary destination list.
-// One name per destination: Groups is the one entry for your bands and
-// communities (the "My groups" page, /groups), on desktop as on a phone;
-// the band and community lists are that page's own links.
-var navDesktopPrimary = []NavEntry{
-	{Label: "Home", Path: "/home", Icon: "icon-home", Section: NavHome, Covers: NavNotifications},
-	{Label: "Library", Path: "/catalog", Icon: "icon-catalog", Section: NavLibrary},
-	{Label: "Calendar", Path: "/calendar", Icon: "icon-calendar", Section: NavCalendar},
-	{Label: "Groups", Path: "/groups", Icon: "icon-bands", Section: NavGroups, Covers: NavBands + " " + NavCommunities},
-}
-
-// navMobileTab is the mobile bottom tab bar's fixed slots (icon-only;
-// Label is still used for the accessible data-label). Deliberately a
-// narrower set than navDesktopPrimary — Apple HIG/Material both treat
-// "fewer fixed items on a narrower surface, the rest in overflow" as
-// normal, not drift, as long as the full destination set (desktop
-// primary ∪ mobile tab ∪ mobile more) is declared once.
-//
-// The fourth slot is Groups (bands, communities and the gigs coming up
-// in one page) rather than Bands: on a phone a student's community is
-// as much "their" space as a band, and a band's next gig is the most
-// time-critical thing to reach.
-var navMobileTab = []NavEntry{
-	{Label: "Home", Path: "/home", Icon: "icon-home", Section: NavHome, Covers: NavNotifications},
-	{Label: "Library", Path: "/catalog", Icon: "icon-catalog", Section: NavLibrary},
-	{Label: "Groups", Path: "/groups", Icon: "icon-bands", Section: NavGroups, Covers: NavBands + " " + NavCommunities},
-}
-
-// navMobileMore is the mobile "More" full-page sheet's row list —
-// everything not in navMobileTab's 4 fixed slots, plus the handful of
-// items (Metronome, Profile) desktop reaches via its own secondary/
-// account areas rather than the primary list.
-var navMobileMore = []NavEntry{
-	{Label: "Home", Path: "/home", Icon: "icon-home", InTabBar: true, Section: NavHome},
-	{Label: "Library", Path: "/catalog", Icon: "icon-catalog", InTabBar: true, Section: NavLibrary},
-	{Label: "Groups", Path: "/groups", Icon: "icon-bands", InTabBar: true, Section: NavGroups},
-	{Label: "Calendar", Path: "/calendar", Icon: "icon-calendar", Section: NavCalendar},
-	{Label: "Metronome", Path: "/metronome", Icon: "icon-metronome", Section: NavMetronome},
-	{Label: "Tuner", Path: "/tuner", Icon: "icon-tuner", Section: NavTuner},
-	{Label: "Profile", Path: "/profile", Icon: "icon-profile", Section: NavProfile},
-	{Label: "Admin", Path: "/admin", RequiresAdmin: true, Section: NavAdmin},
+	return true
 }
 
 // ContextualGroup is a page's own "This band"/"This community"/etc.
@@ -126,19 +138,4 @@ type ContextualGroup struct {
 	// PDFExportLabel customizes the link text ("Export songbook (PDF)"
 	// by default when empty).
 	PDFExportLabel string
-}
-
-// navGlobal returns one of the three declared lists by name — the only
-// thing templates call; admin-gating (RequiresAdmin) is applied in the
-// template itself, which already has the viewer in scope.
-func navGlobal(surface string) []NavEntry {
-	switch surface {
-	case "desktop":
-		return navDesktopPrimary
-	case "mobileTab":
-		return navMobileTab
-	case "mobileMore":
-		return navMobileMore
-	}
-	return nil
 }
