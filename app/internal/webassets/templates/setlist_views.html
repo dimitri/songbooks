@@ -1,0 +1,14 @@
+{{/* A set list's views (menu proposal §3.6): its running order, its
+     click track, and listening to it all in the player. The same switcher
+     on both pages; its actions (Reorder, Export) sit apart from it. Called
+     with (dict "Path" the set list's page "Current" "order"|"click"
+     "Playable" whether any song has something to play). From the click
+     track, Listen opens the running order and starts it (?play=all). */}}
+{{define "setlist-views"}}
+<nav class="setlist-views" aria-label="{{t "Views of the set list"}}">
+  <a href="{{.Path}}"{{if eq .Current "order"}} class="active" aria-current="page"{{end}}>{{template "icon-setlists"}} <span>{{t "Running order"}}</span></a>
+  <a href="{{.Path}}/clicktrack"{{if eq .Current "click"}} class="active" aria-current="page"{{end}}>{{template "icon-metronome"}} <span>{{t "Click track"}}</span></a>
+  {{if .Playable}}{{if eq .Current "order"}}<button type="button" data-play-all>{{template "icon-play"}} <span>{{t "Listen"}}</span></button>
+  {{else}}<a href="{{.Path}}?play=all">{{template "icon-play"}} <span>{{t "Listen"}}</span></a>{{end}}{{end}}
+</nav>
+{{end}}

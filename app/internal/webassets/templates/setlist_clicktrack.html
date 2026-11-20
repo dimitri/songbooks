@@ -19,6 +19,7 @@
   </nav>
 </header>
 <main class="clicktrack-page">
+  <div class="setlist-toolbar">{{template "setlist-views" (dict "Path" .Path "Current" "click" "Playable" .Playable)}}</div>
   {{/* The metronome with the full set pre-loaded: each song's own
        tempo/time-signature drives the same clock.js engine the
        standalone metronome uses — a performance/rehearsal tool, not the
