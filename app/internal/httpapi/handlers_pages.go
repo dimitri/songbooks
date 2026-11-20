@@ -548,6 +548,11 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	upcoming := upcomingList(soon, now, 6)
+	todayCards, err := s.todayCards(r.Context(), lang, person, soon, now)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	// Each community and band in its own look (colours, mark, logo).
 	var communities []homeGroup
@@ -583,7 +588,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, "index", map[string]any{
-		"Me": person, "Greeting": homeGreeting(),
+		"Me": person, "Greeting": homeGreeting(), "Today": todayCards,
 		"Upcoming": upcoming, "Communities": communities, "Bands": bandsWithLook,
 		"Songbooks": songbooks, "Attention": attention,
 		"Recent": recent, "BandNews": bandNews,
