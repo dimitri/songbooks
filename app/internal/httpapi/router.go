@@ -247,6 +247,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 
 	mux.HandleFunc("GET /metronome", s.requireAuth(s.handleMetronomePage))
 	mux.HandleFunc("GET /tuner", s.requireAuth(s.handleTunerPage))
+	mux.HandleFunc("GET /tools", s.requireAuth(s.handleToolsPage))
 
 	// In-app notifications: a lightweight inbox, not email/push — see
 	// internal/store/notifications.go. requireAuth only; every store call

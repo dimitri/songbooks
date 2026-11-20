@@ -127,7 +127,9 @@ func TestMenusMarkTheCurrentSection(t *testing.T) {
 	current := regexp.MustCompile(`<a href="([^"]+)"[^>]*aria-current="page"`)
 	for _, c := range []struct{ tmpl, section, want string }{
 		{"desktop-sidebar", webassets.NavHome, "/home"},
-		{"desktop-sidebar", webassets.NavNotifications, "/home"},
+		{"desktop-sidebar", webassets.NavNotifications, "/notifications"},
+		{"global-tabbar", webassets.NavNotifications, "/home"},
+		{"global-tabbar", webassets.NavTuner, "/tools"},
 		{"desktop-sidebar", webassets.NavCommunities, "/groups"},
 		{"desktop-sidebar", webassets.NavTuner, "/tuner"},
 		{"global-tabbar", webassets.NavBands, "/groups"},
@@ -148,6 +150,6 @@ func TestMenusMarkTheCurrentSection(t *testing.T) {
 		t.Error("no section, yet an entry is current")
 	}
 	if out := render("global-tabbar", webassets.NavHome); !strings.Contains(out, `href="/admin"`) {
-		t.Error("the More sheet lacks Admin for a site admin")
+		t.Error("the account menu lacks Admin for a site admin")
 	}
 }

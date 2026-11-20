@@ -17,6 +17,9 @@ import (
 type navState struct {
 	Section string
 	Me      *store.Person
+	// Page is the page's template name ("song"…), for the menus' few
+	// page-specific turns: the song page's own "More" sheet.
+	Page string
 }
 
 // pageNavSections is the global section of each page, by template name.
@@ -86,6 +89,7 @@ var pageNavSections = map[string]string{
 	"course":                     webassets.NavCommunities,
 	"lesson":                     webassets.NavCommunities,
 
+	"tools":     webassets.NavTools,
 	"metronome": webassets.NavMetronome,
 	"tuner":     webassets.NavTuner,
 
@@ -238,5 +242,5 @@ func (s *Server) addNav(w http.ResponseWriter, name string, data any) {
 	if me == nil {
 		me, _ = m["Me"].(*store.Person)
 	}
-	m["Nav"] = navState{Section: navSectionFor(name, m), Me: me}
+	m["Nav"] = navState{Section: navSectionFor(name, m), Me: me, Page: name}
 }

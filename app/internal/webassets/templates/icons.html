@@ -46,148 +46,159 @@
 {{define "icon-view"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 10s2.8-5 8-5 8 5 8 5-2.8 5-8 5-8-5-8-5z"/><circle cx="10" cy="10" r="2.2"/></svg>{{end}}
 {{define "icon-community"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6.5" r="2.3"/><circle cx="14" cy="6.5" r="2.3"/><circle cx="10" cy="13" r="2.3"/></svg>{{end}}
 
-{{/* Global bottom tab bar: the app's one persistent, always-reachable
-     navigation surface on a phone (see the mobile-menu brief: "keep the
-     general navigation available" even on pages, like Play, that also
-     need their own icon-triggered stacks). Rendered on every top-level
-     page, right before </body>. Desktop is untouched — see the
-     max-width:900px .global-tabbar CSS; above that width this renders
-     nothing visible, the existing header nav is still the only nav. The
-     active tab is set client-side (global-tabbar-script, below) by
-     matching location.pathname, so this partial needs no per-page data. */}}
+{{/* ==== Global navigation (menu proposal §3.2) ==========================
+     One list, nav.go's navEntries, rendered on three surfaces:
+     - the desktop sidebar (901px and wider): desktop-sidebar;
+     - the phone's tab bar (below 600px) and the tablet's icon rail
+       (600–900px): global-tabbar, the same markup laid out by CSS;
+     - the account menu (account-menu): the sidebar's account chip on
+       desktop, the avatar at the top right of the page below 901px.
+     The current entry comes from the server (.Nav.Section, see
+     navSectionFor in internal/httpapi), marked active and
+     aria-current="page". Every top-level page renders desktop-sidebar
+     right after <body> and global-tabbar right before </body>, both with
+     the page's data. */}}
+
+{{/* The phone's tab bar, which is the tablet's rail: Home, Library,
+     Calendar, Groups, Tools — five tabs and no "More" (§3.2). Also the
+     avatar's account menu and the top bar's notification slot, at the
+     top right of the page below 901px. Both this nav and desktop-sidebar
+     are always in the DOM, CSS shows one, so they carry distinct
+     labels for a screen reader's landmarks list. */}}
 {{define "global-tabbar"}}
-{{/* Both this nav and desktop-sidebar below are always in the DOM —
-     CSS hides whichever doesn't match the current breakpoint, it's
-     never removed — so a screen-reader user navigating by landmark
-     saw two identically-named "main navigation" regions with no way
-     to tell them apart by name alone (audit, Nov 2026). Distinct
-     labels fix that without touching either one's actual behavior. */}}
-{{$sec := ""}}{{with .}}{{with .Nav}}{{$sec = .Section}}{{end}}{{end}}
+{{$sec := ""}}{{$me := false}}{{$page := ""}}{{with .}}{{with .Nav}}{{$sec = .Section}}{{$page = .Page}}{{with .Me}}{{$me = .}}{{end}}{{end}}{{end}}
 <nav class="tabbar global-tabbar" id="global-tabbar" aria-label="{{t "main navigation (mobile)"}}">
-  {{range navGlobal "mobileTab"}}<a href="{{.Path}}"{{if navCurrent . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}">{{template "nav-icon" .Icon}}</a>{{end}}
-  {{/* Replaces a standalone Profile tab — Profile moved into the shared
-       More sheet below (site-nav-fullpage) alongside Communities and
-       Metronome, neither of which fit in 5 fixed mobile slots and were
-       previously unreachable on mobile at all. Reuses the exact
-       #site-nav-fullpage-btn id play.html's own "..." toggle already
-       wires up — see site-nav-fullpage-script below, shared by every
-       page instead of being duplicated per-page. */}}
-  {{$inBar := false}}{{range navGlobal "mobileTab"}}{{if navCurrent . $sec}}{{$inBar = true}}{{end}}{{end}}
-  <button type="button" id="site-nav-fullpage-btn"{{if and $sec (not $inBar)}} class="active" data-current{{end}} data-label="{{t "More"}}">{{template "icon-more"}}</button>
+  {{range navGlobal "bar"}}<a href="{{.Path}}"{{if navCurrent "bar" . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}"{{with .Badge}} data-nav-badge-host="{{.}}"{{end}}>{{template "nav-icon" .Icon}}</a>{{end}}
 </nav>
-{{template "site-nav-fullpage" .}}
+{{if $me}}
+{{/* The top bar's right end below 901px: the slot for the notification
+     bell (the notifications work fills it) and the avatar. */}}
+<div class="topbar-actions" id="topbar-actions">
+  <span class="topbar-slot" data-topbar-slot="notifications"></span>
+  {{template "account-menu" (dict "Me" $me "Section" $sec "Where" "topbar")}}
+</div>
 {{end}}
-{{/* The tab bar's current tab is rendered by the server (.Nav.Section,
-     see global-tabbar); this only wires the More sheet. */}}
+{{if eq $page "song"}}{{template "site-nav-fullpage" .}}{{end}}
+{{end}}
 {{define "global-tabbar-script"}}
+{{template "account-menu-script"}}
 {{template "site-nav-fullpage-script"}}
 {{end}}
 
-{{/* Shared mobile "More" full-page navigation — a genuine full-screen
-     takeover (no backdrop to tap through, no sheet height limit), the
-     one place every destination not in .global-tabbar's 4 fixed icons
-     is reachable from on a phone: Communities and Metronome were
-     unreachable on mobile at all before this (desktop's
-     sidebar-secondary was the only way to them). Admin
-     is deliberately left off this shared sheet — every global-tabbar
-     call site renders with no per-page data (31 call sites), so gating
-     it on .Me.IsAdmin here would mean threading that context through
-     all of them; a non-admin opening /admin just gets the normal
-     403/redirect, same as typing the URL directly, so the omission
-     costs nothing but tidiness. Desktop's sidebar still shows Admin,
-     properly gated, since desktop-sidebar already receives .Me. */}}
+{{/* The account menu (§3.2 "Me"): Profile, Appearance, Language, Admin
+     for a site admin, Log out. A <details>, so it opens without a script
+     and from the keyboard; account-menu-script closes it on Escape or a
+     click elsewhere and wires the Appearance buttons. On desktop it opens
+     from the sidebar's account chip ("Where": "sidebar"), below 901px
+     from the avatar in the top bar ("topbar"), as a bottom sheet on a
+     phone. Called with (dict "Me" person "Section" the page's NavSection
+     "Where" "sidebar"|"topbar"). */}}
+{{define "account-menu"}}
+<details class="account-menu account-menu--{{.Where}}"{{if eq .Where "sheet"}} open{{end}}>
+  <summary class="{{if eq .Where "sidebar"}}sidebar-account{{else}}topbar-avatar{{end}}{{if eq .Section "profile"}} active{{end}}" aria-label="{{t "Your account: %s" .Me.DisplayName}}">
+    <span class="sidebar-account-avatar" aria-hidden="true">{{initial .Me.DisplayName}}</span>
+    {{if eq .Where "sidebar"}}<span class="sidebar-account-name">{{.Me.DisplayName}}</span><span class="account-menu-caret" aria-hidden="true">⌃</span>{{end}}
+  </summary>
+  <div class="account-menu-panel">
+    <div class="account-menu-head">
+      <span class="sidebar-account-avatar" aria-hidden="true">{{initial .Me.DisplayName}}</span>
+      <span><strong>{{.Me.DisplayName}}</strong><small>{{t "Profile, instruments, playing"}}</small></span>
+    </div>
+    <a class="account-menu-row" href="/profile"{{if eq .Section "profile"}} aria-current="page"{{end}}>{{template "icon-profile"}} {{t "Profile"}}</a>
+    <div class="account-menu-row account-menu-theme" role="group" aria-label="{{t "Appearance"}}">
+      <span>{{template "icon-theme"}} {{t "Appearance"}}</span>
+      <span class="segmented" data-theme-group>
+        <button type="button" data-theme-choice="">{{t "Auto"}}</button>
+        <button type="button" data-theme-choice="light">{{t "Light"}}</button>
+        <button type="button" data-theme-choice="dark">{{t "Dark"}}</button>
+      </span>
+    </div>
+    <a class="account-menu-row" href="/profile#language">{{template "icon-language"}} {{t "Language"}} <span class="account-menu-value">{{if eq lang "fr"}}Français{{else}}English{{end}}</span></a>
+    {{if .Me.IsAdmin}}<a class="account-menu-row" href="/admin"{{if eq .Section "admin"}} aria-current="page"{{end}}>{{template "icon-settings"}} {{t "Site admin"}}</a>{{end}}
+    <form method="post" action="/logout" class="account-menu-logout"><button type="submit" class="account-menu-row">{{t "Log out"}}</button></form>
+  </div>
+</details>
+{{end}}
+{{define "account-menu-script"}}
+<script>(function () {
+  if (window.accountMenuWired) return;
+  window.accountMenuWired = true;
+  var menus = document.querySelectorAll('details.account-menu:not([open])');
+  // One open at a time; Escape or a click outside closes it.
+  document.addEventListener('click', function (e) {
+    menus.forEach(function (m) { if (m.open && !m.contains(e.target)) m.open = false; });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    menus.forEach(function (m) { if (m.open) { m.open = false; m.querySelector('summary').focus(); } });
+  });
+  menus.forEach(function (m) {
+    m.addEventListener('toggle', function () {
+      document.documentElement.classList.toggle('account-menu-open', [].some.call(menus, function (x) { return x.open; }));
+    });
+  });
+  // Appearance: the same choice (and localStorage key) as the song
+  // page's theme button, applied to <html> and <body> right away.
+  var current = function () { return document.documentElement.dataset.theme || ''; };
+  var groups = document.querySelectorAll('[data-theme-group]');
+  var mark = function () {
+    groups.forEach(function (g) {
+      g.querySelectorAll('button').forEach(function (b) {
+        var on = b.dataset.themeChoice === current();
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    });
+  };
+  groups.forEach(function (g) {
+    g.addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-theme-choice]');
+      if (!b) return;
+      var th = b.dataset.themeChoice;
+      document.documentElement.dataset.theme = document.body.dataset.theme = th;
+      try { if (th) localStorage.setItem('songbooks-theme', th); else localStorage.removeItem('songbooks-theme'); } catch (err) {}
+      mark();
+    });
+  });
+  mark();
+})();</script>
+{{end}}
+
+{{/* The song page's "More" sheet on a phone (play.html's song bar opens
+     it with #site-nav-fullpage-btn): the global destinations, the tools
+     and the account menu, until the song page's own controls (menu PR
+     10) replace that button. No other page opens it: the tab bar has no
+     "More" any more. */}}
 {{define "site-nav-fullpage"}}
-{{$sec := ""}}{{$admin := false}}{{with .}}{{with .Nav}}{{$sec = .Section}}{{with .Me}}{{$admin = .IsAdmin}}{{end}}{{end}}{{end}}
+{{$sec := ""}}{{$me := false}}{{with .}}{{with .Nav}}{{$sec = .Section}}{{with .Me}}{{$me = .}}{{end}}{{end}}{{end}}
 <div class="site-nav-fullpage" id="site-nav-fullpage" role="dialog" aria-label="{{t "Navigation"}}">
   <div class="site-nav-fullpage-header">
     <h2>Songbooks</h2>
     <button type="button" id="site-nav-fullpage-close" class="icon-btn" title="{{t "close"}}">{{template "icon-close"}}</button>
   </div>
-  {{range navGlobal "mobileMore"}}
-  {{if or (not .RequiresAdmin) $admin}}
-  <a class="site-nav-fullpage-row{{if .InTabBar}} is-tab{{end}}" href="{{.Path}}"{{if navCurrent . $sec}} aria-current="page"{{end}}>{{if .Icon}}{{template "nav-icon" .Icon}}{{else}}{{template "icon-settings"}}{{end}} {{t .Label}}</a>
-  {{end}}
-  {{end}}
-  <div class="site-nav-fullpage-theme" role="group" aria-label="{{t "Appearance"}}">
-    <span>{{template "icon-theme"}} {{t "Appearance"}}</span>
-    <div class="segmented" id="site-nav-theme">
-      <button type="button" data-theme-choice="">{{t "Auto"}}</button>
-      <button type="button" data-theme-choice="light">{{t "Light"}}</button>
-      <button type="button" data-theme-choice="dark">{{t "Dark"}}</button>
-    </div>
-  </div>
+  {{range navGlobal "bar"}}<a class="site-nav-fullpage-row" href="{{.Path}}"{{if navCurrent "bar" . $sec}} aria-current="page"{{end}}>{{template "nav-icon" .Icon}} {{t .Label}}</a>{{end}}
+  {{range navGlobal "sidebarTools"}}<a class="site-nav-fullpage-row" href="{{.Path}}">{{template "nav-icon" .Icon}} {{t .Label}}</a>{{end}}
+  {{if $me}}{{template "account-menu" (dict "Me" $me "Section" $sec "Where" "sheet")}}{{end}}
 </div>
 {{end}}
 {{define "site-nav-fullpage-script"}}
 <script>(function () {
-  // querySelectorAll, not getElementById: play.html's own song-context-bar
-  // carries a second #site-nav-fullpage-btn (its "More" tool, same id on
-  // purpose so either page's trigger opens the one shared sheet) — only
-  // one is ever visible at a time (global-tabbar's copy is CSS-hidden on
-  // that page), but both get a working listener regardless of DOM order.
   var navBtns = document.querySelectorAll('#site-nav-fullpage-btn');
   var navPage = document.getElementById('site-nav-fullpage');
   var navClose = document.getElementById('site-nav-fullpage-close');
   if (!navBtns.length || !navPage) return;
   function setNavOpen(open) {
     navPage.classList.toggle('open', open);
-    navBtns.forEach(function (b) { b.classList.toggle('active', open || b.hasAttribute('data-current')); });
+    navBtns.forEach(function (b) { b.classList.toggle('active', open); });
   }
-  // Appearance: the same choice (and localStorage key) as the song
-  // page's theme button, applied to <html> and <body> right away.
-  var themeGroup = document.getElementById('site-nav-theme');
-  if (themeGroup) {
-    var current = function () { return document.documentElement.dataset.theme || ''; };
-    var mark = function () {
-      themeGroup.querySelectorAll('button').forEach(function (b) { b.classList.toggle('active', b.dataset.themeChoice === current()); });
-    };
-    themeGroup.addEventListener('click', function (e) {
-      var b = e.target.closest('button[data-theme-choice]');
-      if (!b) return;
-      var t = b.dataset.themeChoice;
-      document.documentElement.dataset.theme = document.body.dataset.theme = t;
-      try { if (t) localStorage.setItem('songbooks-theme', t); else localStorage.removeItem('songbooks-theme'); } catch (err) {}
-      mark();
-    });
-    mark();
-  }
-  navBtns.forEach(function (b) { b.addEventListener('click', () => setNavOpen(true)); });
-  navClose?.addEventListener('click', () => setNavOpen(false));
+  navBtns.forEach(function (b) { b.addEventListener('click', function () { setNavOpen(true); }); });
+  navClose && navClose.addEventListener('click', function () { setNavOpen(false); });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && navPage.classList.contains('open')) setNavOpen(false);
   });
 })();</script>
 {{end}}
 
-{{/* Desktop sidebar: the wide-screen counterpart to .global-tabbar below
-     900px. 2025/26 SaaS-nav research is consistent that past ~6-7
-     top-level sections a left sidebar reads better on a wide screen
-     than a top bar (items don't hide behind hover/overflow or wrap) --
-     Songbooks has 5 (Home, Songbooks, Catalog, Bands, Communities): per
-     direct feedback, Communities is "part of the main things now," not
-     a secondary utility link (Jam sessions, the sixth entry here until
-     the old no-login jam system was retired in favor of community
-     events, is gone — see migration 0051). Primary items mirror
-     .global-tabbar's first 4 destinations plus this one. "Songbooks" (the /catalog
-     route) is both the flat browse-every-song view AND, as of Phase 32,
-     the "by songbook" view — one nav entry, one destination, for "every
-     collection of songs I can open" (a project's book, or a band's
-     repertoire), see catalog.html's view toggle.
-     Below the primary list sits sidebar-tools (Metronome —
-     an actual tool/shortcut, not a site section), kept deliberately
-     separate from the account-level group at the very bottom (the
-     account chip + Admin): per direct feedback, "the bottom menu is a
-     strange concept" because it used to mix site navigation, a tool,
-     and account-level links in one undifferentiated list — Profile
-     itself was ALSO a redundant separate primary link when the account
-     chip already opens /profile from your own name, so it's dropped
-     here (mobile's shared site-nav-fullpage sheet still lists it
-     explicitly, since mobile has no persistent account chip to lean
-     on). Rendered on every top-level authenticated page, right after
-     <body>. The current entry comes from the server (.Nav.Section, see
-     navSectionFor in internal/httpapi), marked active and
-     aria-current="page". Hidden
-     entirely below 900px via CSS -- .global-tabbar is the only nav there. */}}
 {{/* nav-icon dispatches a navGlobal entry's Icon (a plain string — a
      dynamic {{template .Icon}} isn't legal Go template syntax, the name
      must be a literal) to the right icon-* define. Add a line here
@@ -200,6 +211,8 @@
 {{- else if eq . "icon-setlists"}}{{template "icon-setlists"}}
 {{- else if eq . "icon-metronome"}}{{template "icon-metronome"}}
 {{- else if eq . "icon-tuner"}}{{template "icon-tuner"}}
+{{- else if eq . "icon-tools"}}{{template "icon-tools"}}
+{{- else if eq . "icon-bell"}}{{template "icon-bell"}}
 {{- else if eq . "icon-calendar"}}{{template "icon-calendar"}}
 {{- else if eq . "icon-profile"}}{{template "icon-profile"}}
 {{- else if eq . "icon-plus"}}{{template "icon-plus"}}
@@ -208,23 +221,20 @@
 {{- else if eq . "icon-reference"}}{{template "icon-reference"}}
 {{- else if eq . "icon-download"}}{{template "icon-download"}}
 {{- end}}{{end}}
+{{define "icon-tools"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 2.8v6.4a3 3 0 0 0 6 0V2.8"/><path d="M10 12.2v5"/></svg>{{end}}
+{{define "icon-language"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2 2.2 2.8 4.6 2.8 7S12 14.8 10 17c-2-2.2-2.8-4.6-2.8-7S8 5.2 10 3z"/></svg>{{end}}
+
+{{/* The desktop sidebar (901px and wider): the brand, Home, Library,
+     Calendar, Notifications and Groups, the page's own group if it has
+     one (ContextualGroup), the Tools, and the account chip, which opens
+     the account menu. */}}
 {{define "desktop-sidebar"}}
 {{$sec := ""}}{{$me := .Me}}{{with .Nav}}{{$sec = .Section}}{{with .Me}}{{$me = .}}{{end}}{{end}}
 <nav class="desktop-sidebar" id="desktop-sidebar" aria-label="{{t "main navigation (desktop)"}}">
-  <a class="sidebar-brand" href="/home">{{template "icon-logo"}} Songbooks</a>
+  <a class="sidebar-brand" href="/home">{{template "icon-logo"}} <span class="sidebar-label">Songbooks</span></a>
   <div class="sidebar-primary">
-    {{range navGlobal "desktop"}}<a href="{{.Path}}"{{if navCurrent . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}">{{template "nav-icon" .Icon}} {{t .Label}}</a>{{end}}
+    {{range navGlobal "sidebar"}}<a href="{{.Path}}"{{if navCurrent "sidebar" . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}" title="{{t .Label}}">{{template "nav-icon" .Icon}} <span class="sidebar-label">{{t .Label}}</span>{{with .Badge}}<span class="nav-badge" data-nav-badge="{{.}}" hidden></span>{{end}}</a>{{end}}
   </div>
-  <div class="sidebar-secondary">
-    <a href="/metronome"{{if eq $sec "metronome"}} class="active" aria-current="page"{{end}}>{{template "icon-metronome"}} {{t "Metronome"}}</a>
-    <a href="/tuner"{{if eq $sec "tuner"}} class="active" aria-current="page"{{end}}>{{template "icon-tuner"}} {{t "Tuner"}}</a>
-  </div>
-  {{if $me}}
-  {{if $me.IsAdmin}}
-  <div class="sidebar-secondary">
-    <a href="/admin"{{if eq $sec "admin"}} class="active" aria-current="page"{{end}}>{{t "Admin"}}</a>
-  </div>
-  {{end}}
   {{with .ContextualGroup}}
   <div class="sidebar-secondary sidebar-song-group">
     <div class="sidebar-group-label">{{t .Label}}</div>
@@ -243,11 +253,11 @@
     {{end}}
   </div>
   {{end}}
-  <a class="sidebar-account{{if eq $sec "profile"}} active{{end}}" href="/profile"{{if eq $sec "profile"}} aria-current="page"{{end}}>
-    <span class="sidebar-account-avatar">{{slice $me.DisplayName 0 1}}</span>
-    <span>{{$me.DisplayName}}</span>
-  </a>
-  {{end}}
+  <div class="sidebar-secondary sidebar-tools">
+    <div class="sidebar-group-label">{{t "Tools"}}</div>
+    {{range navGlobal "sidebarTools"}}<a href="{{.Path}}"{{if navCurrent "sidebarTools" . $sec}} class="active" aria-current="page"{{end}} title="{{t .Label}}">{{template "nav-icon" .Icon}} <span class="sidebar-label">{{t .Label}}</span></a>{{end}}
+  </div>
+  {{if $me}}{{template "account-menu" (dict "Me" $me "Section" $sec "Where" "sidebar")}}{{end}}
 </nav>
 {{end}}
 

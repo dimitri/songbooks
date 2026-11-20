@@ -425,5 +425,11 @@
   "Remove the fixtures": "Retirer les données d’exemple",
   "After anonymizing or adding fixtures, restart the app where it signs you in automatically: it learned your name at start.": "Après une anonymisation ou un ajout, redémarrez l’appli là où elle vous connecte automatiquement : elle a appris votre nom au démarrage.",
   "My groups": "Mes groupes",
-  "groups|Bands": "Groupes de musique"
+  "groups|Bands": "Groupes de musique",
+  "Tools": "Outils",
+  "Log out": "Se déconnecter",
+  "Your account: %s": "Votre compte : %s",
+  "Profile, instruments, playing": "Profil, instruments, lecture",
+  "A click to play along with, at any tempo": "Un clic pour jouer en place, à n’importe quel tempo",
+  "A tuner that listens through the microphone": "Un accordeur qui écoute par le micro"
 }
