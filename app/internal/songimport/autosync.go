@@ -103,8 +103,15 @@ func ProposeAutoSync(rec *chartalign.Recording, body string, sections []SyncSect
 	} else if res.Tempo > 0 {
 		a.note("the tempo moves (about %d to %d bpm): no single tempo is proposed; the sync follows every bar", int(math.Round(res.TempoMin)), int(math.Round(res.TempoMax)))
 	}
-	if res.TimeSigConf >= 0.8 && res.TimeSig != "" && sg.Get("time") != res.TimeSig {
-		a.ProposeTime = res.TimeSig
+	// The metre, when the chart has none, or when the recording's bar
+	// isn't one the chart's can be written as: 2/4 against 4/4 (a
+	// downbeat every half bar), 12/8 against 4/4 (a shuffle) are the same
+	// music written two ways, and the chart's way stays.
+	if chart := sg.Get("time"); res.TimeSigConf >= 0.8 && res.TimeSig != "" && chart != res.TimeSig {
+		cb, rb := chartalign.BeatsOf(chart), chartalign.BeatsOf(res.TimeSig)
+		if chart == "" || (cb%rb != 0 && rb%cb != 0) {
+			a.ProposeTime = res.TimeSig
+		}
 	}
 	if res.Transpose != 0 {
 		a.note("the chart's chords fit the recording %d semitones higher: is it written for a capo, or is the recording in another key?", res.Transpose)

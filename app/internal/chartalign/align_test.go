@@ -248,3 +248,35 @@ func TestAlign81ShortIntro(t *testing.T) {
 		t.Errorf("state %s", res.State)
 	}
 }
+
+// A recording whose tracker hears a downbeat every half bar (2/4 against
+// the chart's 4/4, as on several demo songs): its bars are grouped in
+// fours, on the phase the chords fit, and nothing changes.
+func TestAlignHalfBars(t *testing.T) {
+	r := loadRecording(t, "song334.json")
+	first := 0
+	for i, p := range r.BeatPos {
+		if p == 1 {
+			first = i
+			break
+		}
+	}
+	// A downbeat every 2 beats.
+	for i := range r.BeatPos {
+		r.BeatPos[i] = ((i-first)%2+2)%2 + 1
+	}
+	r.BeatsPerBar, r.TimeSig = 2, "2/4"
+	_, secs := chartOf(t, "song334-new.chart")
+	res := Align(r, secs, 4, Hints{})
+	if res.TimeSig != "4/4" {
+		t.Errorf("metre %s", res.TimeSig)
+	}
+	for _, s := range res.Sections {
+		if s.Grid != "" {
+			t.Errorf("%s: written %d, played %d", s.Label, s.Written, s.Played)
+		}
+	}
+	if v := res.Sections[1]; math.Abs(v.Start-9.59) > 0.08 {
+		t.Errorf("Verse 1 at %.2f", v.Start)
+	}
+}

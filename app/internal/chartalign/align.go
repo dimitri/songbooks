@@ -75,6 +75,7 @@ type Result struct {
 	State      string  `json:"state"`
 	// The grid used, after hints (for drawing it and the click).
 	Downbeats []float64 `json:"downbeats"`
+	cost      float64
 }
 
 // IntroProposal is an [Intro] to add before the chart's first section.
@@ -323,10 +324,50 @@ func durations(n int) []durPen {
 	return out
 }
 
-// Align lays the chart on the recording.
+// Align lays the chart on the recording. beatsPerBar is the chart's.
 func Align(r *Recording, secs []Section, beatsPerBar int, h Hints) *Result {
 	g := applyHints(r, h)
-	res := &Result{TimeSig: r.TimeSig, TimeSigConf: r.TimeSigConf, BeatsPerBar: g.B, TempoMin: r.TempoMin, TempoMax: r.TempoMax, BarPoints: []BarPoint{}, ChordFixes: []ChordFix{}}
+	// A recording heard in shorter bars than the chart's (2 beats a bar
+	// against 4/4: a downbeat on every half bar): its bars are grouped in
+	// the chart's, on the phase the chords fit best.
+	if beatsPerBar > g.B && beatsPerBar%g.B == 0 && h.ShiftBeats == 0 && h.Bar1At == 0 {
+		var best *Result
+		for p := 0; p < beatsPerBar/g.B; p++ {
+			res := alignOn(r, groupBars(g, beatsPerBar, p), secs, h)
+			if best == nil || res.cost < best.cost {
+				best = res
+			}
+		}
+		if best != nil {
+			best.TimeSig = timeSigFor(beatsPerBar, "")
+			return best
+		}
+	}
+	return alignOn(r, g, secs, h)
+}
+
+// groupBars makes bars of B beats from a grid's shorter ones, starting
+// at its (phase)-th downbeat.
+func groupBars(g grid, B, phase int) grid {
+	out := grid{beats: g.beats, act: g.act, B: B, pos: make([]int, len(g.pos))}
+	first, n := 0, 0
+	for i, p := range g.pos {
+		if p == 1 {
+			if n == phase {
+				first = i
+				break
+			}
+			n++
+		}
+	}
+	for i := range out.pos {
+		out.pos[i] = ((i-first)%B+B)%B + 1
+	}
+	return out
+}
+
+func alignOn(r *Recording, g grid, secs []Section, h Hints) *Result {
+	res := &Result{TimeSig: r.TimeSig, TimeSigConf: r.TimeSigConf, BeatsPerBar: g.B, cost: math.Inf(1), TempoMin: r.TempoMin, TempoMax: r.TempoMax, BarPoints: []BarPoint{}, ChordFixes: []ChordFix{}}
 	res.Tempo = r.Tempo
 	if h.TempoFactor >= 1.5 {
 		res.Tempo, res.TempoMin, res.TempoMax = r.Tempo*2, r.TempoMin*2, r.TempoMax*2
@@ -398,6 +439,7 @@ func Align(r *Recording, secs []Section, beatsPerBar int, h Hints) *Result {
 		fixFirst = nearestBeat(g.beats[:M], h.Bar1At)
 	}
 	place, cost, end := dp(vectors(0), obs, g.pos, g.B, fixFirst)
+	defer func() { res.cost = cost }()
 	// A chart in another key than the recording (written for a capo, a
 	// recording a semitone off): the chords only fit transposed.
 	for s := 1; s < 12; s++ {
