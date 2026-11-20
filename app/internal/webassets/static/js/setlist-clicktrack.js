@@ -289,7 +289,6 @@
       const idx = clock.running ? Math.floor(clock.currentBeat()) % (n * BARS_SHOWN) : -1;
       for (let b = 0; b < BARS_SHOWN; b++) {
         const dots = bars[b].children;
-        bars[b].classList.toggle('current', idx >= 0 && Math.floor(idx / n) === b);
         for (let k = 0; k < n; k++) {
           const lit = b * n + k === idx && (prefs.clickMode !== 'beat1' || k === 0);
           dots[k].classList.toggle('lit', lit);
