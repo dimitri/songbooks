@@ -18,6 +18,28 @@ func (s *Server) handleNotificationsPage(w http.ResponseWriter, r *http.Request)
 	s.render(w, "notifications", map[string]any{"Me": person, "Notifications": notifs})
 }
 
+// addUnreadCount gives a page's data the signed-in person's unread
+// notification count (UnreadNotifications), for the sidebar's
+// Notifications entry (nav_notifications.html) to show without waiting
+// for a script. A page that set it itself, or has no person, is left as
+// it is.
+func (s *Server) addUnreadCount(w http.ResponseWriter, data any) {
+	m, ok := data.(map[string]any)
+	if !ok {
+		return
+	}
+	if _, set := m["UnreadNotifications"]; set {
+		return
+	}
+	lw, ok := w.(*langWriter)
+	if !ok || lw.person == nil {
+		return
+	}
+	if n, err := s.store.UnreadCount(lw.r.Context(), lw.person.ID); err == nil {
+		m["UnreadNotifications"] = n
+	}
+}
+
 // handleUnreadNotificationCount backs the nav bell's badge.
 func (s *Server) handleUnreadNotificationCount(w http.ResponseWriter, r *http.Request) {
 	person := personFromContext(r)
