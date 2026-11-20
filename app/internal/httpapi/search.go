@@ -89,7 +89,12 @@ func searchHitItem(lang string, h store.SearchHit, now time.Time) searchItem {
 			it.URL = fmt.Sprintf("/songbooks/%d", h.ID)
 		}
 	case "setlist":
-		it.URL = fmt.Sprintf("/setlists/%d", h.ID)
+		// A band's set list lives in the band (its one address, §3.6).
+		if h.BandID != 0 {
+			it.URL = fmt.Sprintf("/bands/%d/setlists/%d", h.BandID, h.ID)
+		} else {
+			it.URL = fmt.Sprintf("/setlists/%d", h.ID)
+		}
 	case "band":
 		it.URL = fmt.Sprintf("/bands/%d", h.ID)
 		it.Subtitle = i18n.T(lang, "Band")

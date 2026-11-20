@@ -23,7 +23,7 @@
     {{else}}
     <a href="/bands/{{.ID}}/setlists">{{t "set lists"}}</a>
     {{end}}
-    {{if .OpenVotes}}<a class="votes" href="/bands/{{.ID}}/proposals">{{t "%d to vote on" .OpenVotes}}</a>{{end}}
+    {{if .OpenVotes}}<a class="votes" href="/bands/{{.ID}}/catalog/vote">{{t "%d to vote on" .OpenVotes}}</a>{{end}}
   </div>
 </div>
 {{end}}
@@ -113,7 +113,7 @@
     {{else}}
     <a href="/bands/{{.ID}}/setlists">{{t "set lists"}}</a>
     {{end}}
-    {{if .OpenVotes}}<a class="votes" href="/bands/{{.ID}}/proposals">{{t "%d to vote on" .OpenVotes}}</a>{{end}}
+    {{if .OpenVotes}}<a class="votes" href="/bands/{{.ID}}/catalog/vote">{{t "%d to vote on" .OpenVotes}}</a>{{end}}
   </div>
 </article>
 {{end}}
