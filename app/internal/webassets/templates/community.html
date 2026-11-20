@@ -19,23 +19,28 @@
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  {{template "brand-banner" $brand}}
-  {{template "community-tabs" .}}
+  {{template "space-nav" .Space}}
+  {{template "space-hub" .Space}}
 
-  {{/* ---- Members summary: staff names + total count, not a full
-       roster (that's the Members page's, for whoever may see it) — same
-       "who runs this" glance a band's overview gives via its
-       member-symmetric note. ---- */}}
+  {{/* Its events first, as its sections: registering is what people come
+       for (menu proposal §3.3). */}}
+  {{/* ---- Events summary: soonest few upcoming, same teaser shape a
+       band's "Set lists" section uses for its next gig. ---- */}}
   <section class="home-section">
     <div class="home-section-head">
-      <h3>{{t "Members"}}</h3>
-      {{if .CanSeeMembers}}<a href="/communities/{{.Community.ID}}/members">{{t "%d current" (len .Members)}} &rarr;</a>
-      {{else}}<span class="count">{{t "%d current" (len .Members)}}</span>{{end}}
+      <h3>{{t "Events"}}</h3>
+      <a href="/communities/{{.Community.ID}}/events">{{t "all events"}} &rarr;</a>
     </div>
-    <p class="hint">
-      {{if .StaffNames}}{{t "Staff:"}} {{range $i, $n := .StaffNames}}{{if $i}}, {{end}}{{$n}}{{end}}{{else}}{{t "No staff members currently."}}{{end}}
-      {{if .IsStaff}} — {{t "invites are on the"}} <a href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a> {{t "page."}}{{end}}
-    </p>
+    <div class="attention-list">
+    {{range .UpcomingEvents}}
+      <a class="attention-row" href="/events/{{.ID}}">
+        <div class="attention-title">{{.Name}}</div>
+        <div class="attention-subtitle">{{date .StartsAt "Mon 2 Jan · 15:04"}}{{if .Location}} — {{.Location}}{{end}}</div>
+      </a>
+    {{else}}
+      <div class="attention-empty">{{t "No upcoming events."}}</div>
+    {{end}}
+    </div>
   </section>
 
   {{/* ---- Songbooks summary: this community can have more than one —
@@ -59,23 +64,20 @@
     </div>
   </section>
 
-  {{/* ---- Events summary: soonest few upcoming, same teaser shape a
-       band's "Set lists" section uses for its next gig. ---- */}}
+  {{/* ---- Members summary: staff names + total count, not a full
+       roster (that's the Members page's, for whoever may see it) — same
+       "who runs this" glance a band's overview gives via its
+       member-symmetric note. ---- */}}
   <section class="home-section">
     <div class="home-section-head">
-      <h3>{{t "Events"}}</h3>
-      <a href="/communities/{{.Community.ID}}/events">{{t "all events"}} &rarr;</a>
+      <h3>{{t "Members"}}</h3>
+      {{if .CanSeeMembers}}<a href="/communities/{{.Community.ID}}/members">{{t "%d current" (len .Members)}} &rarr;</a>
+      {{else}}<span class="count">{{t "%d current" (len .Members)}}</span>{{end}}
     </div>
-    <div class="attention-list">
-    {{range .UpcomingEvents}}
-      <a class="attention-row" href="/events/{{.ID}}">
-        <div class="attention-title">{{.Name}}</div>
-        <div class="attention-subtitle">{{date .StartsAt "Mon 2 Jan · 15:04"}}{{if .Location}} — {{.Location}}{{end}}</div>
-      </a>
-    {{else}}
-      <div class="attention-empty">{{t "No upcoming events."}}</div>
-    {{end}}
-    </div>
+    <p class="hint">
+      {{if .StaffNames}}{{t "Staff:"}} {{range $i, $n := .StaffNames}}{{if $i}}, {{end}}{{$n}}{{end}}{{else}}{{t "No staff members currently."}}{{end}}
+      {{if .IsStaff}} — {{t "invites are on the"}} <a href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a> {{t "page."}}{{end}}
+    </p>
   </section>
 </main>
 </div>

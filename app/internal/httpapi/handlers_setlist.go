@@ -13,7 +13,6 @@ import (
 	"app/internal/i18n"
 	"app/internal/setlist"
 	"app/internal/store"
-	"app/internal/webassets"
 )
 
 type jsonEntry struct {
@@ -286,11 +285,9 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 		"Title": orDefault(l.Get("title"), orDefault(meta.Title, i18n.T(lang, "Set list"))), "Date": l.Get("date"), "Venue": l.Get("venue"),
 		"IsEmpty": n == 0, "Repertoire": repertoire, "IsBand": meta.OwnerBandID != nil,
 		"Sets": sets, "BrandKind": brandKind, "BrandID": brandID,
+		// Its exports are in the page's own toolbar (Export ▾), not the
+		// sidebar: actions on the set list, not places to go.
 		"Band": band, "Playable": playable, "Choice": choice,
-		"ContextualGroup": webassets.ContextualGroup{Label: "This setlist", Entries: []webassets.NavEntry{
-			{Label: "Print one-pager", Path: fmt.Sprintf("/setlists/%d/export-setlist-page.pdf", id), Icon: "icon-download"},
-			{Label: "Export PDF", Path: fmt.Sprintf("/setlists/%d/export.pdf", id), Icon: "icon-download"},
-		}},
 	})
 }
 
@@ -704,7 +701,11 @@ func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request)
 
 	lang := s.langOf(w)
 	var songs []clicktrackSong
-	n := 0
+	n, playable := 0, 0
+	var bandID int64
+	if meta.OwnerBandID != nil {
+		bandID = *meta.OwnerBandID
+	}
 	for si, set := range l.Sets {
 		first := true
 		for _, e := range set.Entries {
@@ -728,6 +729,11 @@ func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request)
 			})
 			n++
 			first = false
+			// Listen, among the set list's views: only when a song has
+			// something to play.
+			if playable == 0 && s.soundFor(r.Context(), bandID, e.VariantID) != nil {
+				playable++
+			}
 		}
 	}
 	if len(songs) == 0 {
@@ -738,7 +744,7 @@ func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request)
 
 	s.render(w, "setlist-clicktrack", map[string]any{
 		"Me": person, "SetlistID": id, "Title": orDefault(meta.Title, i18n.T(lang, "set list")), "Path": setlistPath(meta),
-		"SongsJSON": template.JS(songsJSON), "CanEdit": canEdit,
+		"SongsJSON": template.JS(songsJSON), "CanEdit": canEdit, "Playable": playable > 0,
 	})
 }
 

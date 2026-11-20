@@ -11,7 +11,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{docTitle .PageTitle .Band.Name}}</title>
+<title>{{with .Space}}{{template "space-title" .}}{{else}}{{docTitle .PageTitle $.Band.Name}}{{end}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -332,15 +332,14 @@
 {{end}}
 
 {{define "band_recordings"}}
-{{$pt := t "Concerts"}}{{if eq .Kind "rehearsal"}}{{$pt = t "Rehearsals"}}{{end}}
-{{template "rec-head" (dict "Band" .Band "Me" .Me "Nav" .Nav "PageTitle" $pt)}}
+{{template "rec-head" (dict "Band" .Band "Me" .Me "Nav" .Nav "Space" .Space)}}
 <header class="app-header">
-  <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
-  <h1>{{if eq .Kind "rehearsal"}}{{t "Rehearsals"}}{{else}}{{t "Concerts"}}{{end}}</h1>
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index rec">
-  {{template "band-tabs" (bandTabs .Band.ID .Tab)}}
+  {{template "space-nav" .Space}}
 
   {{if not .Source}}
   <section class="card card--md">
@@ -477,7 +476,7 @@
 {{define "band_song_recordings"}}
 {{template "rec-head" (dict "Band" .Band "Me" .Me "Nav" .Nav "PageTitle" .Song.Title)}}
 <header class="app-header">
-  <a class="back-link" href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-back"}} {{t "Rehearsals"}}</a>
+  <a class="back-link" href="/bands/{{.Band.ID}}/recordings/rehearsals">{{template "icon-back"}} {{t "Recordings"}}</a>
   <h1>{{.Song.Title}}</h1>
   {{template "notif-bell"}}
 </header>
@@ -517,7 +516,7 @@
 {{define "band_recording_fixes"}}
 {{template "rec-head" (dict "Band" .Band "Me" .Me "Nav" .Nav "PageTitle" (t "Corrections"))}}
 <header class="app-header">
-  <a class="back-link" href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-back"}} {{t "Rehearsals"}}</a>
+  <a class="back-link" href="/bands/{{.Band.ID}}/recordings/rehearsals">{{template "icon-back"}} {{t "Recordings"}}</a>
   <h1>{{t "Corrections"}}</h1>
   {{template "notif-bell"}}
 </header>

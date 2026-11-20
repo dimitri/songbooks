@@ -20,13 +20,12 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
+  {{template "space-back" .Space}}
   <h1>{{t "Members"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  {{template "brand-banner" $brand}}
-  {{template "community-tabs" .}}
+  {{template "space-nav" .Space}}
 
   {{if .IsStaff}}
   <p class="hint members-visibility-note">

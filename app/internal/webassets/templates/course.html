@@ -46,14 +46,7 @@ async function courseApi(method, url, body) {
   {{template "notif-bell"}}
 </header>
 <main class="index course">
-  {{with .Community}}
-  <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/communities/{{.ID}}">{{t "Overview"}}</a>
-    <a class="band-tab active" aria-current="page" href="/communities/{{.ID}}/songbooks">{{t (shelfLabel "community" .ID)}}</a>
-    <a class="band-tab" href="/communities/{{.ID}}/downloads">{{t "Downloads"}}</a>
-    <a class="band-tab" href="/communities/{{.ID}}/events">{{t "Events"}}</a>
-  </nav>
-  {{end}}
+  {{template "space-nav" .Space}}
 
   {{if .Lessons}}
   <section class="course-progress card" aria-label="{{t "Your progress"}}">
@@ -118,7 +111,7 @@ async function courseApi(method, url, body) {
       <p class="form-status" role="status"></p>
     </div>
     {{end}}
-    <p class="hint"><a href="/songbooks/{{.Songbook.ID}}?view=songs">{{t "All the songs, as a list"}}</a>{{with .Community}} · <a href="/communities/{{.ID}}/downloads#songbook-{{$.Songbook.ID}}">{{t "Its files"}}</a>{{end}}</p>
+    <p class="hint"><a href="/songbooks/{{.Songbook.ID}}?view=songs">{{t "All the songs, as a list"}}</a>{{with .Community}} · <a href="/communities/{{.ID}}/resources#songbook-{{$.Songbook.ID}}">{{t "Its files"}}</a>{{end}}</p>
   </section>
   {{template "course-api"}}
   <script>

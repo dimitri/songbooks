@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{docTitle (t "Settings") .Band.Name}}</title>
+<title>{{template "space-title" .Space}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -14,12 +14,12 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
-  <h1>{{t "Settings"}}</h1>
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  {{template "band-tabs" (bandTabs .Band.ID "settings")}}
+  {{template "space-nav" .Space}}
 
   <div class="card card--md">
     <h2>{{t "The band"}}</h2>

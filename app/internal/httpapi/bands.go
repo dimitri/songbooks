@@ -13,7 +13,6 @@ import (
 
 	"app/internal/i18n"
 	"app/internal/store"
-	"app/internal/webassets"
 )
 
 // requireBandMember wraps requireAuth, then checks the logged-in person
@@ -229,21 +228,27 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contextual := webassets.ContextualGroup{Label: "This band", Entries: []webassets.NavEntry{
-		{Label: "Propose a song", Path: fmt.Sprintf("/bands/%d/proposals", bandID), Icon: "icon-plus"},
-		{Label: "Discover a song", Path: fmt.Sprintf("/bands/%d/listening-party", bandID), Icon: "icon-play"},
-	}}
-	if repertoireCount > 0 {
-		contextual.Entries = append(contextual.Entries, webassets.NavEntry{
-			Label: "Edit a song", Path: fmt.Sprintf("/bands/%d/catalog", bandID), Icon: "icon-edit",
-		})
+	// The sections' rows on a phone (space-hub): where each one stands.
+	lang := s.langOf(w)
+	hints := map[string]spaceHint{
+		"catalog":    {Text: i18n.N(lang, repertoireCount, "%d song", "%d songs")},
+		"setlists":   {Text: strconv.Itoa(len(setlists))},
+		"events":     {Text: i18n.T(lang, "plan a rehearsal")},
+		"recordings": {Text: i18n.T(lang, "rehearsals, concerts")},
+		"members":    {Text: strconv.Itoa(len(members))},
+		"settings":   {Text: i18n.T(lang, "name, look")},
 	}
-
+	if nextUp != nil {
+		hints["events"] = spaceHint{Text: dayHint(lang, nextUp.Starts)}
+	}
+	// The votes waiting are the Repertoire's: its To vote view.
+	if n := len(openProposals); n > 0 {
+		hints["catalog"] = spaceHint{Text: i18n.T(lang, "%d to vote on", n), Due: true}
+	}
 	s.render(w, "band", map[string]any{
-		"Me": person, "Band": band, "Changes": changes, "HasLastSeen": since != nil,
+		"Me": person, "SpaceHints": hints, "Band": band, "Changes": changes, "HasLastSeen": since != nil,
 		"OpenProposals": openProposals, "RepertoireCount": repertoireCount,
 		"Setlists": setlists, "MemberCount": len(members), "NextUp": nextUp,
-		"ContextualGroup": contextual,
 	})
 }
 
@@ -887,18 +892,19 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "band_catalog", map[string]any{
 		"Me": person, "Band": band, "Entries": rows, "Badges": s.songBadgesFor(r.Context(), ids),
 		"AlbumGroups": albumGroups,
-		"ContextualGroup": bandCatalogNav(r.Context(), s, bandID),
+		"Export":      bandCatalogExport(r.Context(), s, bandID),
 	})
 }
 
-// bandCatalogNav is the band repertoire page's own sidebar group: the
-// songbook PDF, and the playlist of its songs' recordings.
-func bandCatalogNav(ctx context.Context, s *Server, bandID int64) webassets.ContextualGroup {
-	g := webassets.ContextualGroup{Label: "This band", PDFExportPath: fmt.Sprintf("/bands/%d/export-songbook.pdf", bandID)}
+// bandCatalogExport is the Repertoire's Export menu (space-export): the
+// songbook PDF, and the playlist of its songs' recordings. Actions on
+// the repertoire, in its own toolbar rather than the sidebar.
+func bandCatalogExport(ctx context.Context, s *Server, bandID int64) spaceExport {
+	e := spaceExport{PDF: fmt.Sprintf("/bands/%d/export-songbook.pdf", bandID)}
 	if sbID, err := s.store.GetDefaultSongbook(ctx, "band", bandID); err == nil {
-		g.Entries = append(g.Entries, webassets.NavEntry{Label: "Playlist", Path: fmt.Sprintf("/songbooks/%d/playlist", sbID), Icon: "icon-play"})
+		e.Playlist = fmt.Sprintf("/songbooks/%d/playlist", sbID)
 	}
-	return g
+	return e
 }
 
 // bandCatalogRow is BandCatalogEntry plus the key/tempo badges the

@@ -297,8 +297,6 @@ var funcMap = template.FuncMap{
 		b, _ := json.Marshal(v)
 		return string(b)
 	},
-	// bandTabs is the band-tabs partial's argument: the band and which
-	// section is open.
 	// dict makes a map of its key, value pairs: a template's data when it
 	// needs several values.
 	"dict": func(kv ...any) map[string]any {
@@ -317,9 +315,6 @@ var funcMap = template.FuncMap{
 			return l
 		}
 		return "Recording"
-	},
-	"bandTabs": func(id int64, active string) map[string]any {
-		return map[string]any{"ID": id, "Active": active}
 	},
 	"contains": func(list []string, v string) bool {
 		for _, s := range list {

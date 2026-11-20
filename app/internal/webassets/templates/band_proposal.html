@@ -14,7 +14,7 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/bands/{{.Band.ID}}/proposals">{{template "icon-back"}} {{t "%s proposals" .Band.Name}}</a>
+  <a class="back-link" href="/bands/{{.Band.ID}}/catalog/vote">{{template "icon-back"}} {{t "To vote"}}</a>
   <h1>{{t "Proposal #%d" .Proposal.ID}}</h1>
   {{template "notif-bell"}}
 </header>

@@ -19,14 +19,7 @@
   {{template "notif-bell"}}
 </header>
 <main class="index stats">
-  <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/communities/{{.Community.ID}}">{{t "Overview"}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{t (shelfLabel "community" .Community.ID)}}</a>
-    {{template "coaching-tab-links" .}}
-    <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/events">{{t "Events"}}</a>
-    <a href="/communities/{{.Community.ID}}/admin" class="band-tab active" aria-current="page">{{t "Admin"}}</a>
-  </nav>
+  {{template "space-nav" .Space}}
 
   {{with .Stats}}
   <div class="stat-tiles">

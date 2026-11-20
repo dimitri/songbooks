@@ -1,0 +1,5 @@
+{{/* HOOK: the space switcher (menu PR 7). The space header calls this
+     with its SpaceNav (.Kind "band"/"community"/"coaching", .ID, .Name,
+     .Home). Replace this template's body with the switcher (▾ opening the
+     viewer's spaces); until then the name and ▾ lead to My groups. */}}
+{{define "space-switcher"}}<a class="space-name" href="/groups" title="{{t "My groups"}}"><span class="space-name-text">{{.Name}}</span><span class="space-caret" aria-hidden="true">▾</span></a>{{end}}

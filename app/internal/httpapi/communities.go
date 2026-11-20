@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"app/internal/i18n"
 	"app/internal/store"
-	"app/internal/webassets"
 )
 
 // requireCommunityMember wraps requireAuth, then checks the logged-in
@@ -319,8 +319,29 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// The sections' rows on a phone (space-hub): where each one stands.
+	lang := s.langOf(w)
+	hints := map[string]spaceHint{
+		"songbooks": {Text: i18n.N(lang, len(songbookRows), "%d songbook", "%d songbooks")},
+		"members":   {Text: i18n.T(lang, "%d current", len(members))},
+	}
+	if len(upcoming) > 0 {
+		hints["events"] = spaceHint{Text: dayHint(lang, upcoming[0].StartsAt)}
+	}
+	// A coaching studio's: its students, and its calendar (lessons and
+	// events) by the next event.
+	if community.IsCoaching() {
+		hints["agenda"] = hints["events"]
+		students := 0
+		for _, m := range members {
+			if !m.IsStaff() {
+				students++
+			}
+		}
+		hints["students"] = spaceHint{Text: i18n.N(lang, students, "%d student", "%d students")}
+	}
 	s.render(w, "community", map[string]any{
-		"Me": person, "Community": community, "Members": members, "StaffNames": staffNames,
+		"Me": person, "SpaceHints": hints, "Community": community, "Members": members, "StaffNames": staffNames,
 		"Songbooks": songbookRows, "UpcomingEvents": upcoming,
 		"IsStaff": canManage || person.IsAdmin, "Person": person, "Tab": "overview",
 	})
@@ -500,9 +521,7 @@ func (s *Server) handleCommunityDefaultSongbookPage(w http.ResponseWriter, r *ht
 		"Me": person, "Community": community, "Entries": entries, "Badges": s.songBadgesFor(r.Context(), ids),
 		"IsStaff": canManage || person.IsAdmin, "CanEdit": canEdit || person.IsAdmin,
 		"CanReview": canReview, "PendingSubmissions": pending, "DecidedSubmissions": decided,
-		"ContextualGroup": webassets.ContextualGroup{
-			Label: "This community", PDFExportPath: fmt.Sprintf("/communities/%d/export-songbook.pdf", communityID),
-		},
+		"Export": spaceExport{PDF: fmt.Sprintf("/communities/%d/export-songbook.pdf", communityID)},
 	})
 }
 

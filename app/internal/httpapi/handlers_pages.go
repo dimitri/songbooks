@@ -3402,6 +3402,7 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 func (s *Server) render(w http.ResponseWriter, name string, data any) {
 	s.addMembersTab(w, data)
 	s.addNav(w, name, data)
+	s.addSpaceNav(w, name, data)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := webassets.TemplatesFor(s.langOf(w)).ExecuteTemplate(w, name, data); err != nil {
 		log.Printf("render %s: %v", name, err)

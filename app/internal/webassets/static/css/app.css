@@ -6994,23 +6994,87 @@ a.calendar-day:hover { text-decoration: none; background: var(--bg-sunken); }
 .index > .card + .card, .index > .card + .fold-card, .index > section + .card { margin-top: 1.25rem; }
 .danger-zone { border-color: var(--danger); }
 
-/* The band's sections on a phone: a list on the overview instead of a
-   row of tabs that scrolls out of sight; each section's header leads
-   back. Desktop keeps the tabs and doesn't show the list. */
-.band-hub { display: none; }
+/* A space's sections (space_nav.html): tabs under its header on a wide
+   screen, one look for a band, a community and a coaching studio, which a
+   brand doesn't recolour (it colours the header). Below 900px there are no
+   tabs, which would scroll out of sight: the space's home lists its
+   sections instead (space-hub), each row saying where it stands, and each
+   section's header leads back to it. */
+.space-tabs { display: flex; flex-wrap: wrap; gap: 0 0.2rem; margin: 0 0 1.25rem; border-bottom: 1px solid var(--border); }
+.space-tab {
+  display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0.45rem 0.75rem; margin-bottom: -1px;
+  border-bottom: 2px solid transparent; color: var(--fg-muted); font-size: 0.9rem; font-weight: 500; white-space: nowrap;
+}
+.space-tab:hover { text-decoration: none; color: var(--fg); border-bottom-color: var(--border); }
+.space-tab.active { color: var(--fg); font-weight: 600; border-bottom-color: var(--fg); }
+.space-hub { display: none; }
+@media (max-width: 899px) {
+  .space-tabs { display: none; }
+  .space-hub { display: flex; flex-direction: column; gap: 0.9rem; margin-bottom: 1.4rem; }
+  .space-hub-group { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; }
+  .space-hub-group li + li { border-top: 1px solid var(--border); }
+  .space-hub-group a { display: flex; align-items: center; gap: 0.75rem; min-height: 3.1rem; padding: 0.5rem 0.9rem; color: var(--fg); }
+  .space-hub-group a:hover { text-decoration: none; background: var(--bg-sunken); }
+  .space-hub-group a::after { content: "›"; color: var(--fg-faint); font-size: 1.3rem; line-height: 1; }
+  .space-hub-group .icon { flex: none; width: 1.2rem; height: 1.2rem; color: var(--accent); }
+  .space-hub-label { flex: 1; min-width: 0; font-weight: 500; }
+  .space-hub-state { font-size: 0.85rem; color: var(--fg-muted); text-align: right; }
+  .space-hub-state.is-due { color: var(--accent); font-weight: 600; }
+}
 @media (max-width: 600px) {
-  .band-section-tabs { display: none; }
   .band-overview-wide { display: none; }
-  .band-hub { display: flex; flex-direction: column; gap: 0.9rem; margin-bottom: 1.4rem; }
-  .band-hub-group { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; }
-  .band-hub-group li + li { border-top: 1px solid var(--border); }
-  .band-hub-group a { display: flex; align-items: center; gap: 0.75rem; min-height: 3.1rem; padding: 0.5rem 0.9rem; color: var(--fg); }
-  .band-hub-group a:hover { text-decoration: none; background: var(--bg-sunken); }
-  .band-hub-group a::after { content: "›"; color: var(--fg-faint); font-size: 1.3rem; line-height: 1; }
-  .band-hub-group .icon { width: 1.2rem; height: 1.2rem; color: var(--accent); }
-  .band-hub-label { flex: 1; font-weight: 500; }
-  .band-hub-state { font-size: 0.85rem; color: var(--fg-muted); }
-  .band-hub-state.is-due { color: var(--accent); font-weight: 600; }
+  /* A section's page leads back to the space's home: its header is the
+     home's, not repeated above every section. */
+  .space-header:not(.is-home) { display: none; }
+  /* "‹ Space" written out above the section's name: the way back to the
+     list of sections names where it goes. */
+  .app-header:has(> a.space-back) { flex-wrap: wrap; row-gap: 0; padding-top: 0.3rem; }
+  .app-header > a.space-back { flex-basis: 100%; justify-content: flex-start; min-width: 0; min-height: 1.6rem; margin-left: -0.2rem; font-size: 0.8rem; opacity: 0.85; }
+  .app-header > a.space-back .icon { width: 1rem; height: 1rem; }
+}
+
+/* ==== A space's header (space_nav.html, httpapi/space_nav.go) ===========
+   Every page of a band or a community opens with its avatar, its name (▾:
+   the switcher) and, for whoever runs it, ⚙; its section tabs follow. A
+   brand colours this header, as it does the page's banner. */
+.space-header { display: flex; align-items: center; gap: 0.85rem; margin: 0 0 0.9rem; min-width: 0; }
+.space-avatar {
+  flex: none; width: 2.75rem; height: 2.75rem; display: grid; place-items: center; overflow: hidden;
+  border-radius: min(var(--radius-control, 10px), 0.75rem); background: var(--accent); color: var(--accent-contrast);
+  font-weight: 700; font-size: 1rem; letter-spacing: 0.02em;
+}
+.space-website { color: inherit; text-transform: none; letter-spacing: 0; font-weight: 500; opacity: 0.8; }
+.space-avatar:hover { text-decoration: none; }
+.space-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.space-mark { font-size: 1.35rem; line-height: 1; }
+.space-id { flex: 1; min-width: 0; }
+.space-name { display: inline-flex; align-items: baseline; gap: 0.4rem; max-width: 100%; color: inherit; font-size: 1.2rem; font-weight: 700; line-height: 1.25; }
+.space-name:hover { text-decoration: none; }
+.space-name:hover .space-name-text { text-decoration: underline; }
+.space-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.space-caret { flex: none; color: var(--fg-faint); font-size: 0.8rem; }
+.space-kind { margin-top: 0.1rem; color: var(--accent); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.space-gear {
+  flex: none; display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.25rem; padding: 0.35rem 0.75rem;
+  border: 1px solid var(--border); border-radius: var(--radius-control, 8px); background: var(--bg-raised);
+  color: var(--fg-muted); font-size: 0.85rem; font-weight: 500;
+}
+.space-gear:hover { text-decoration: none; color: var(--fg); }
+.space-gear.active { color: var(--fg); border-color: var(--accent); font-weight: 600; }
+.space-gear .icon { width: 1.05rem; height: 1.05rem; }
+body.branded .space-header {
+  padding: 0.75rem 0.9rem; background: var(--brand-header, var(--bg-raised)); color: var(--brand-header-fg, var(--fg));
+  border-radius: min(var(--radius-control, var(--radius)), 1.25rem);
+}
+body.branded .space-name { font-family: var(--font-display, var(--font-ui)); }
+body.branded .space-kind { color: var(--accent-2, var(--accent)); }
+body.branded .space-caret { color: inherit; opacity: 0.6; }
+@media (max-width: 600px) {
+  .space-header { gap: 0.65rem; }
+  .space-avatar { width: 2.35rem; height: 2.35rem; font-size: 0.9rem; }
+  .space-name { font-size: 1.05rem; }
+  .space-gear { padding: 0.35rem 0.55rem; }
+  .space-gear span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 
 /* A community's admin page: its sections in a sidebar on a wide screen,
@@ -7747,11 +7811,53 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 /* A set list's "Our recordings | Reference" (setlist_overview.html), as
    the playlist's choice. */
 .setlist-prefer { display: flex; width: fit-content; margin: 0 auto 0.8rem; }
-/* The set list's tabs, centred; auto margins rather than justify-content,
-   so a row wider than a phone still scrolls from its first tab. */
-.setlist-tabs { display: flex; margin-left: auto; margin-right: auto; width: fit-content; max-width: 100%; }
-.setlist-tabs > :first-child { margin-left: auto; }
-.setlist-tabs > :last-child { margin-right: auto; }
+/* A set list's toolbar (setlist_overview.html, setlist_clicktrack.html):
+   its views in a segmented control, its actions (Reorder, Export ▾) apart
+   on the right; on a phone the actions go under the views, each row
+   fitting the width rather than scrolling. */
+.setlist-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; margin: 0 0 1.1rem; }
+.setlist-views, .space-filters { display: inline-flex; align-items: center; gap: 0.15rem; padding: 0.2rem; border-radius: 10px; background: var(--bg-sunken); max-width: 100%; }
+.setlist-views > a, .setlist-views > button, .space-filters > a {
+  display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.25rem; padding: 0.4rem 0.85rem;
+  border: 0; border-radius: 7px; background: none; color: var(--fg-muted); font: inherit; font-size: 0.85rem; font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+.setlist-views > a:hover, .setlist-views > button:hover, .space-filters > a:hover { text-decoration: none; color: var(--fg); }
+.setlist-views > .active, .space-filters > .active { background: var(--bg-raised); color: var(--fg); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+.setlist-views .icon { width: 1.05em; height: 1.05em; }
+.setlist-actions { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+.setlist-action {
+  display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.25rem; padding: 0.35rem 0.8rem; cursor: pointer; list-style: none;
+  border: 1px solid var(--border); border-radius: var(--radius-control, 8px); background: var(--bg-raised); color: var(--fg); font: inherit; font-size: 0.85rem; font-weight: 500;
+}
+.setlist-action::-webkit-details-marker { display: none; }
+.setlist-action .icon { width: 1.05em; height: 1.05em; }
+#reorder-toggle.setlist-action[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.setlist-export, .space-export { position: relative; }
+.setlist-export[open] > summary, .space-export[open] > summary { border-color: var(--accent); }
+.setlist-export .row-menu-panel { min-width: 15rem; }
+/* A section's views (space-filters, space_nav.html): the same control,
+   under the space's tabs. Its Export menu (space-export) holds the PDF's
+   layout choices as well as the link. */
+.space-filters { margin: -0.4rem 0 1.1rem; }
+.space-export .row-menu-panel { min-width: 16rem; gap: 0.3rem; }
+.space-export .pdf-mode-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; padding: 0.2rem 0.2rem 0.5rem; border-bottom: 1px solid var(--border); }
+.space-export .pdf-mode-row .pdf-export-link { flex-basis: 100%; font-weight: 600; }
+.space-export .pdf-mode-select { flex: 1; min-width: 0; }
+.space-export .pdf-notes-label { font-size: 0.85rem; color: var(--fg-muted); }
+.setlist-export .row-menu-panel small { display: block; color: var(--fg-muted); font-size: 0.8rem; }
+/* "New set list", inside the band's Set lists section (band_setlists.html). */
+.band-setlist-new { margin: 0 0 1.2rem; }
+.band-setlist-new > summary { min-height: 2.25rem; padding: 0.35rem 0.85rem; border: 1px solid var(--accent); border-radius: var(--radius-control, 8px); color: var(--accent); font-weight: 600; list-style: none; }
+.band-setlist-new > summary::-webkit-details-marker { display: none; }
+.band-setlist-new[open] > summary { background: var(--accent-bg); }
+@media (max-width: 600px) {
+  .setlist-views, .space-filters { display: flex; width: 100%; }
+  .setlist-views > a, .setlist-views > button, .space-filters > a { flex: 1 1 auto; justify-content: center; padding: 0.4rem 0.5rem; min-width: 0; }
+  .setlist-views .icon { display: none; }
+  .setlist-actions { margin-left: 0; width: 100%; }
+  .setlist-actions > * { flex: 1 1 0; }
+  .setlist-action { width: 100%; justify-content: center; }
+}
 .setlist-prefer button { padding: 0.45rem 0.9rem; border: 0; border-radius: 999px; background: none; font: inherit; font-size: 0.85rem; color: var(--fg-muted); min-height: 2.25rem; cursor: pointer; }
 .setlist-prefer button[aria-pressed="true"] { background: var(--fg); color: var(--bg); font-weight: 600; }
 /* The Corrections page's names (band_recordings.html). */

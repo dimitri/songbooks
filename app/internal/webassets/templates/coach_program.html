@@ -11,20 +11,19 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{docTitle (t "Students’ songs") .Community.Name}}</title>
+<title>{{template "space-title" .Space}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
 <div class="app-content" data-community="{{.Community.ID}}">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{t "Students’ songs"}}</h1>
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  {{template "brand-banner" $brand}}
-  {{template "community-tabs" .}}
+  {{template "space-nav" .Space}}
   {{if .Events}}
   <section class="home-section">
     <div class="home-section-head"><h3>{{t "Coming up"}}</h3></div>

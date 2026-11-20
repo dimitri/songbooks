@@ -72,8 +72,7 @@
        still its own route/handler (real, separate server logic per
        section), so this is a tab-styled nav bar linking between full
        pages rather than one giant client-side-tabbed page. */}}
-  {{template "brand-banner" $brand}}
-  {{template "band-tabs" (bandTabs .Band.ID "")}}
+  {{template "space-nav" .Space}}
 
   {{with .NextUp}}
   <section class="home-section" aria-labelledby="band-next-title">
@@ -92,25 +91,8 @@
   {{end}}
 
   {{/* On a phone the band's sections are this list rather than tabs:
-       each row says where that section stands. Grouped by how often
-       they're used: playing, deciding, running the band. */}}
-  <nav class="band-hub" aria-label="{{t "Band sections"}}">
-    <ul class="band-hub-group">
-      <li><a href="/bands/{{.Band.ID}}/catalog">{{template "icon-catalog"}}<span class="band-hub-label">{{t "Repertoire"}}</span><span class="band-hub-state">{{tn .RepertoireCount "%d song" "%d songs"}}</span></a></li>
-      <li><a href="/bands/{{.Band.ID}}/setlists">{{template "icon-setlists"}}<span class="band-hub-label">{{t "Set lists"}}</span><span class="band-hub-state">{{len .Setlists}}</span></a></li>
-      <li><a href="/bands/{{.Band.ID}}/events">{{template "icon-presentation"}}<span class="band-hub-label">{{t "Calendar"}}</span><span class="band-hub-state">{{with .NextUp}}{{if eq .When "Today"}}{{t "Today"}}{{else if eq .When "Tomorrow"}}{{t "Tomorrow"}}{{else if eq .When (.Starts.Format "Monday 2 Jan")}}{{date .Starts "Monday 2 Jan"}}{{else}}{{date .Starts "Mon 2 Jan"}}{{end}}{{else}}{{t "plan a rehearsal"}}{{end}}</span></a></li>
-      <li><a href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-play"}}<span class="band-hub-label">{{t "Rehearsals"}}</span><span class="band-hub-state">{{t "recordings"}}</span></a></li>
-      <li><a href="/bands/{{.Band.ID}}/concerts">{{template "icon-play"}}<span class="band-hub-label">{{t "Concerts"}}</span><span class="band-hub-state">{{t "recordings"}}</span></a></li>
-    </ul>
-    <ul class="band-hub-group">
-      <li><a href="/bands/{{.Band.ID}}/proposals">{{template "icon-plus"}}<span class="band-hub-label">{{t "Proposals"}}</span><span class="band-hub-state{{if .OpenProposals}} is-due{{end}}">{{if .OpenProposals}}{{t "%d to vote on" (len .OpenProposals)}}{{else}}{{t "none open"}}{{end}}</span></a></li>
-      <li><a href="/bands/{{.Band.ID}}/listening-party">{{template "icon-play"}}<span class="band-hub-label">{{t "Discover"}}</span><span class="band-hub-state">{{t "listen and pick"}}</span></a></li>
-    </ul>
-    <ul class="band-hub-group">
-      <li><a href="/bands/{{.Band.ID}}/members">{{template "icon-bands"}}<span class="band-hub-label">{{t "Members"}}</span><span class="band-hub-state">{{.MemberCount}}</span></a></li>
-      <li><a href="/bands/{{.Band.ID}}/settings">{{template "icon-settings"}}<span class="band-hub-label">{{t "Settings"}}</span><span class="band-hub-state">{{t "name, look"}}</span></a></li>
-    </ul>
-  </nav>
+       each row says where that section stands. */}}
+  {{template "space-hub" .Space}}
 
   {{/* What changed since you last looked (edits, repertoire adds and
        removes, member changes, decisions — ListBandChanges), after the
