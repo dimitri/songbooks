@@ -1255,72 +1255,37 @@
   <div id="transport" data-bpm="{{.Tempo}}" data-beats-per-bar="{{.TimeBeats}}" data-time-num="{{.TimeNum}}" data-time-den="{{.TimeDen}}" hidden></div>
   <div id="beat-dots" hidden></div>
 
-  {{/* Mobile-only, Phase 41: FOUR "page tools" for this song, each opening
-       its own bottom sheet (a "stack") — View (5 modes), Metronome, Song
-       (export/versions/history, formerly stranded in the top bar where
-       the PDF mode-picker collided with the phone's own status bar — a
-       real reported bug, fixed by moving all of it down here), and "..."
-       (the site's general navigation — Home/Songbooks/Bands/Setlists/
-       Profile, today's .global-tabbar destinations — opened as a genuine
-       FULL-PAGE takeover, not another small sheet, since that's a
-       different kind of thing: leaving this song entirely, not a tool
-       about it). .global-tabbar itself no longer renders on THIS page at
-       mobile widths (see the body-scoped CSS rule) — "..." replaces it,
-       freeing a whole bar of permanent screen height. Hidden outside the
-       mobile breakpoint; every other page keeps .global-tabbar exactly
-       as it was, untouched. */}}
-  <div class="song-context-bar">
-    {{/* First entry, replacing the old top-of-page "< Mercy" breadcrumb
-         (.topbar-utility-mobile, now hidden on mobile — see its own
-         comment below) — same destination logic it already had (the
-         setlist in gig mode, else the book/catalogue), just
-         relocated into the bottom bar as a clear "up a level" icon
-         instead of a small text link competing with the title for the
-         very top of the screen. */}}
-    {{if .GigMode}}
-    <a href="/setlists/{{.SetlistRef}}/gig" title="{{t "back to set list"}}">{{template "icon-up"}} {{t "Up"}}</a>
-    {{else if .SetlistRef}}
-    <a href="{{.SetlistURL}}" title="{{t "back to set list"}}">{{template "icon-up"}} {{t "Up"}}</a>
-    {{else}}
-    {{if .LessonHref}}<a href="{{.LessonHref}}" title="{{t "back to %s" .LessonLabel}}">{{template "icon-up"}} {{t "Up"}}</a>{{else if .SongbookRef}}<a href="/songbooks/{{.SongbookRef}}" title="{{t "back to songbook"}}">{{template "icon-up"}} {{t "Up"}}</a>{{else if .BandRef}}<a href="/bands/{{.BandRef}}/catalog" title="{{t "back to %s" .BandName}}">{{template "icon-up"}} {{t "Up"}}</a>{{else}}<a href="/catalog" title="{{t "back to catalog"}}">{{template "icon-up"}} {{t "Up"}}</a>{{end}}
-    {{end}}
-    <button type="button" id="view-stack-btn">{{template "icon-view"}} {{t "View"}}</button>
-    {{/* A real page link, not a sheet toggle — the inline off-canvas
-         .timeline metronome panel was confusing/broken on mobile (two
-         separate reports this session), so mobile metronome access now
-         goes to the dedicated /metronome page instead, preloaded with
-         this song's own tempo/time signature and a link back here.
-         Desktop is untouched: the sidebar's own transport panel stays
-         in-flow exactly as before. */}}
-    <a id="metronome-stack-btn" href="/metronome?bpm={{.Tempo}}&amp;time={{printf "%s/%s" .TimeNum .TimeDen | urlquery}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-metronome"}} {{t "Metronome"}}</a>
-    <a href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-tuner"}} {{t "Tuner"}}</a>
-    <button type="button" id="song-stack-btn">{{template "icon-song-actions"}} {{t "Song"}}</button>
-    <button type="button" id="site-nav-fullpage-btn">{{template "icon-more"}} {{t "More"}}</button>
-    {{/* Last entry: next song in this same list (setlist step order, or
-         the book's own song order) — the desktop topbar-next card's own
-         link logic, reused as-is. No prev icon here: Up (above) already
-         covers "I'm done/lost, take me back a level"; forward-through-
-         the-list is the one direction mobile had no way to reach at all
-         before this. Disabled, not hidden, when there's no next song, so
-         the bar keeps its 6 even slots rather than reflowing. */}}
+  {{/* The song bar on a phone (app/reports/menu-proposal.md §3.5): five
+       slots under the player card, in place of the app's tab bar —
+       ‹ back to where the song was opened from (named), Vue (how it's
+       drawn), Outils (the tuner, the metronome, the drums: in place, never
+       a page away from the music), Morceau (what can be done to it), and
+       the list's next song, or Mode scène where there's none. The global
+       menu isn't here: a song is a focused view, left with ‹. Each sheet is
+       a dialog (song-controls.js). Hidden on a wide screen, where the
+       song's header and toolbar have the same (.song-topzone). */}}
+  <nav class="song-context-bar" aria-label="{{t "This song"}}">
+    <a class="song-bar-back" href="{{.Back.Href}}" title="{{.Back.Title}}" aria-label="{{.Back.Title}}">{{template "icon-back"}}<span>{{.Back.Short}}</span></a>
+    <button type="button" id="view-stack-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="view-stack">{{template "icon-view"}}<span>{{t "View"}}</span></button>
+    <button type="button" id="tools-stack-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="tools-stack">{{template "icon-tuner"}}<span>{{t "Tools"}}</span></button>
+    <button type="button" id="song-stack-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="song-stack">{{template "icon-song-actions"}}<span>{{t "Song"}}</span></button>
+    {{/* The list's next song (a set list, a songbook, a program): the
+         desktop's "Suivant ›", the same link. Without one, Mode scène. */}}
     {{if .Next}}
-    <a href="/song/{{.Next.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{else if $.SongbookRef}}?songbook={{$.SongbookRef}}{{else if $.EventRef}}?event={{$.EventRef}}{{end}}" title="{{t "next: %s" .Next.Title}}">{{template "icon-forward"}} {{t "Next"}}</a>
+    <a class="song-bar-next" href="/song/{{.Next.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{else if $.SongbookRef}}?songbook={{$.SongbookRef}}{{else if $.EventRef}}?event={{$.EventRef}}{{end}}" title="{{t "next: %s" .Next.Title}}" aria-label="{{t "next: %s" .Next.Title}}">{{template "icon-forward"}}<span>{{t "Next"}}</span></a>
     {{else}}
-    <span class="context-bar-disabled">{{template "icon-forward"}} {{t "Next"}}</span>
+    <button type="button" class="stage-mode-toggle" title="{{t "larger type, no menus, the screen kept awake"}}">{{template "icon-presentation"}}<span>{{t "Stage"}}</span></button>
     {{end}}
-  </div>
-  <div class="stack-backdrop" id="view-stack-backdrop"></div>
-  {{/* View: how the song is drawn, for this reader — the view, which
-       instrument's part, tab or staff, and stage mode. Doing things to
-       the song (edit, notes, exports, history) is the Song sheet's. */}}
-  <div class="stack-sheet" id="view-stack" role="dialog" aria-label="{{t "View"}}">
+  </nav>
+  <div class="stack-backdrop" id="view-stack-backdrop" data-stack="view-stack"></div>
+  {{/* Vue: how the song is drawn, for this reader — the view, which
+       instrument's part, tab or staff, and stage mode. */}}
+  <div class="stack-sheet" id="view-stack" role="dialog" aria-modal="true" aria-label="{{t "View"}}" tabindex="-1">
     <button type="button" class="stack-sheet-row" data-forward="normal">{{template "icon-mode-normal"}} {{t "Song"}}</button>
     <button type="button" class="stack-sheet-row" data-forward="jazz">{{template "icon-mode-jazz"}} {{t "Jazz chart"}}</button>
-    {{if .HasLyrics}}<button type="button" class="stack-sheet-row" data-forward="lyrics">{{template "icon-mode-lyrics"}} {{t "Lyrics only"}}</button>{{end}}
-    <button type="button" class="stack-sheet-row" data-forward="map">{{template "icon-mode-map"}} {{t "Song map"}}</button>
-    <button type="button" class="stack-sheet-row" data-forward="drummer">{{template "icon-mode-drummer"}} {{t "Drummer"}}</button>
+    <button type="button" class="stack-sheet-row" data-forward="map">{{template "icon-mode-map"}} {{t "Map"}}</button>
+    {{if .HasLyrics}}<button type="button" class="stack-sheet-row" data-forward="lyrics">{{template "icon-mode-lyrics"}} {{t "Lyrics"}}</button>{{end}}
     {{if .GPFileName}}<button type="button" class="stack-sheet-row" data-forward="score">{{template "icon-mode-score"}} {{t "Score"}}</button>{{end}}
-    <button type="button" class="stack-sheet-row" data-forward="mixer">{{template "icon-mode-mixer"}} {{t "Mixer"}}</button>
     {{if .Instruments}}
     <div class="stack-sheet-label">{{t "Part"}}</div>
     <div class="stack-sheet-chips" id="view-stack-instruments">
@@ -1332,49 +1297,31 @@
     <button type="button" class="stack-sheet-row stage-mode-toggle" id="stage-mode-row">{{template "icon-presentation"}} {{t "Stage mode"}}</button>
   </div>
 
-  {{/* Song-actions sheet: everything that used to crowd the mobile top
-       bar. Reuses the exact .pdf-mode-row markup/classes (pdf-export.js's
-       delegated `change` listener is wired on `document` and matches by
-       class, not by a single hardcoded element, so a second instance of
-       this row just works with no JS changes) alongside the versions/
-       history links, which lose their desktop-only hiding class here
-       since this IS their mobile home now. */}}
-  <div class="stack-backdrop" id="song-stack-backdrop"></div>
-  <div class="stack-sheet" id="song-stack" role="dialog" aria-label="{{t "Song"}}">
-    {{/* Per direct request: "on mobile the reference tab should be in
-         the song menu" — moved here from the View sheet (view-stack
-         above), which the mode-switch rows are a more natural home for;
-         "a video/audio reference for this song" reads closer to "things
-         about this song" (PDF export, versions, history, right below)
-         than "which chart rendering." Still forwards into the same real
-         #mode-segmented button, same data-forward mechanism every other
-         row below/above already uses — no special-casing needed now
-         that Reference is a real mode, not a drawer this row had its
-         own bespoke open logic for. */}}
+  {{/* Outils: what you practise with, here, without leaving the song (and
+       the music playing): the tuner, the metronome — the player's click,
+       its panel at Sound —, the drum part and the mixer, which are the
+       player's too. */}}
+  <div class="stack-backdrop" id="tools-stack-backdrop" data-stack="tools-stack"></div>
+  <div class="stack-sheet" id="tools-stack" role="dialog" aria-modal="true" aria-label="{{t "Tools"}}" tabindex="-1">
+    <a class="stack-sheet-row" id="tools-tuner-row" href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-tuner"}} {{t "Tuner"}}</a>
+    <button type="button" class="stack-sheet-row" data-player-line="audio-line-click">{{template "icon-metronome"}} {{t "Metronome"}} <small class="stack-sheet-hint">{{t "the player’s click"}}</small></button>
+    <button type="button" class="stack-sheet-row tools-drummer-row" data-forward="drummer" hidden>{{template "icon-mode-drummer"}} {{t "Drummer"}}</button>
+    <button type="button" class="stack-sheet-row tools-mixer-row" data-forward="mixer">{{template "icon-mode-mixer"}} {{t "Mixer"}}</button>
+  </div>
+
+  {{/* Morceau: what can be done to the song — edit it, its notes, its
+       reference recording, export it, its versions and history. */}}
+  <div class="stack-backdrop" id="song-stack-backdrop" data-stack="song-stack"></div>
+  <div class="stack-sheet" id="song-stack" role="dialog" aria-modal="true" aria-label="{{t "Song"}}" tabindex="-1">
     <button type="button" class="stack-sheet-row" data-forward="edit"{{if not (or .CanEdit .CanCopy)}} hidden{{end}}>{{template "icon-edit"}} {{t "Edit"}}</button>
     {{if .VariantID}}<button type="button" class="stack-sheet-row" id="notes-stack-row">{{template "icon-notes"}} {{t "Notes"}}</button>{{end}}
     <button type="button" class="stack-sheet-row" data-forward="reference">{{template "icon-reference"}} {{t "Reference"}}</button>
-    <div class="stack-sheet-row pdf-mode-row" style="flex-wrap:wrap;gap:0.6rem 0.9rem;">
-      <a class="pdf-export-link" href="/song/{{.VariantID}}/export.pdf" title="{{t "export PDF (chart)"}}" download>{{template "icon-download"}} {{t "Export PDF"}}</a>
-      <select class="pdf-mode-select" aria-label="{{t "PDF layout"}}">
-        <option value="">{{t "Song"}}</option>
-        <option value="jazz">{{t "Jazz chart"}}</option>
-        <option value="map">{{t "Song map"}}</option>
-        {{if $.HasLyrics}}<option value="lyrics">{{t "Lyrics only"}}</option>{{end}}
-      </select>
-      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> {{t "Include notes"}}</label>
-    </div>
+    <button type="button" class="stack-sheet-row" data-pdf-dialog aria-haspopup="dialog">{{template "icon-download"}} {{t "Export as PDF…"}}</button>
     {{if .GPFileName}}<a class="stack-sheet-row" href="/song/{{.VariantID}}/gp-file" title="{{t "download the original Guitar Pro file (%s)" .GPFileName}}" download>{{template "icon-download"}} {{t "Guitar Pro file"}}</a>{{end}}
     {{if .HasAnyScore}}<a class="stack-sheet-row gp-export-btn" href="#" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="{{t "the song as it is now, edits made here included, as a Guitar Pro file"}}">{{template "icon-download"}} {{t "Export as Guitar Pro"}}</a>{{end}}
-    {{if .WorkID}}<a class="stack-sheet-row" href="/works/{{.WorkID}}">{{template "icon-mode-map"}} {{t "All versions of this song"}}</a>{{end}}
-    {{if .VariantID}}<a class="stack-sheet-row" href="/variants/{{.VariantID}}/history">{{template "icon-notes"}} {{t "Revision history"}}</a>{{end}}
+    {{if .WorkID}}<a class="stack-sheet-row" href="/works/{{.WorkID}}">{{template "icon-mode-map"}} {{t "Versions"}}</a>{{end}}
+    {{if .VariantID}}<a class="stack-sheet-row" href="/variants/{{.VariantID}}/history">{{template "icon-notes"}} {{t "History"}}</a>{{end}}
   </div>
-
-  {{/* The "..." full-page site navigation used to be a local copy here;
-       it's now the shared site-nav-fullpage template (icons.html),
-       folded into every global-tabbar include so it's reachable from
-       every page, not just this one — see that template's own doc
-       comment. Removed to avoid a duplicate #site-nav-fullpage id. */}}
 
   <div class="content-main">
     {{with .LessonPanel}}
@@ -2170,116 +2117,7 @@
 <script src="/static/js/score-editor.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-import.js?v={{staticVersion}}"></script>
 {{end}}
-<script>
-// Every non-#mode-segmented way to reach the Reference page (desktop
-// sidebar row, mobile Song-sheet row, the empty-state player's own link)
-// just forwards to the real mode button now that Reference is a real
-// render mode — same pattern the mobile View/Song sheets' own
-// data-forward rows already use elsewhere in this file, not a drawer
-// open/close pair any more.
-(function() {
-  const toggles = [document.getElementById('reference-toggle'), document.getElementById('reference-stack-row'), document.getElementById('audio-empty-reference-link')].filter(Boolean);
-  const realBtn = document.querySelector('#mode-segmented button[data-value="reference"]');
-  if (!toggles.length || !realBtn) return;
-  toggles.forEach((toggle) => toggle.addEventListener('click', () => realBtn.click()));
-})();
-</script>
-<script>(function () {
-  var viewBtn = document.getElementById('view-stack-btn');
-  var viewSheet = document.getElementById('view-stack');
-  var viewBackdrop = document.getElementById('view-stack-backdrop');
-  if (!viewBtn || !viewSheet) return;
-
-  function setViewOpen(open) {
-    viewSheet.classList.toggle('open', open);
-    viewBackdrop.classList.toggle('open', open);
-    viewBtn.classList.toggle('active', open);
-  }
-  viewBtn.addEventListener('click', () => setViewOpen(!viewSheet.classList.contains('open')));
-  viewBackdrop.addEventListener('click', () => setViewOpen(false));
-
-  // Each row forwards a real click to the corresponding (hidden-on-mobile)
-  // #mode-segmented button, so the existing wireSegmented/save-default
-  // logic in song.js runs completely untouched. "edit" is the one
-  // exception: edit-toggle was later moved OUT of the #mode-segmented
-  // pill into its own standalone button (see song.js's "Phase 46"
-  // comment), so '#mode-segmented button[data-value="edit"]' no longer
-  // matches anything and this row silently did nothing — forward it to
-  // #edit-toggle directly instead, the same real desktop button Notes/
-  // Reference already forward to (see their own toggles-array wiring
-  // below) rather than reimplement the drawer-open logic here too.
-  viewSheet.querySelectorAll('.stack-sheet-row[data-forward]').forEach(function (row) {
-    row.addEventListener('click', function () {
-      var real = document.querySelector('#mode-segmented button[data-value="' + row.dataset.forward + '"]');
-      if (real) real.click();
-      setViewOpen(false);
-    });
-  });
-  // Part: the same server-rendered choice as the desktop #instrument-picker
-  // (hidden on phones), forwarded to it.
-  document.getElementById('view-stack-instruments')?.addEventListener('click', function (e) {
-    var b = e.target.closest('button[data-instrument]');
-    if (!b) return;
-    var real = document.querySelector('#instrument-picker button[data-instrument="' + b.dataset.instrument + '"]');
-    if (real) real.click();
-  });
-  document.getElementById('stage-mode-row')?.addEventListener('click', function () { setViewOpen(false); });
-  // Keep the sheet's own active row in sync with the real mode switcher,
-  // including the saved-default restore that runs on load.
-  var modeSegmented = document.getElementById('mode-segmented');
-  if (modeSegmented) {
-    var markView = function () {
-      var value = modeSegmented.dataset.value || 'normal';
-      viewSheet.querySelectorAll('.stack-sheet-row[data-forward]').forEach(function (row) {
-        row.classList.toggle('active', row.dataset.forward === value);
-      });
-    };
-    new MutationObserver(markView).observe(modeSegmented, {attributes: true, attributeFilter: ['data-value']});
-    markView();
-  }
-
-  // Metronome: a plain <a href="/metronome?..."> now (see the markup),
-  // not a sheet toggle — no JS wiring needed here any more.
-
-  // Song-actions sheet (PDF export/versions/history) -- same open/close
-  // shape as the View sheet above, its own button/backdrop.
-  var songBtn = document.getElementById('song-stack-btn');
-  var songSheet = document.getElementById('song-stack');
-  var songBackdrop = document.getElementById('song-stack-backdrop');
-  if (songBtn && songSheet) {
-    function setSongOpen(open) {
-      songSheet.classList.toggle('open', open);
-      songBackdrop.classList.toggle('open', open);
-      songBtn.classList.toggle('active', open);
-    }
-    songBtn.addEventListener('click', () => setSongOpen(!songSheet.classList.contains('open')));
-    songBackdrop.addEventListener('click', () => setSongOpen(false));
-    // A plain <a> row (versions/history) should just navigate, same as
-    // clicking it anywhere else -- no sheet-closing intercept needed.
-    // The Reference row (moved here from the View sheet, same
-    // data-forward mechanism) is the one BUTTON row here that still
-    // needs to forward into the real #mode-segmented switch and close
-    // this sheet afterward, same shape as the View sheet's own rows.
-    // "edit" goes to the standalone #edit-toggle (no longer part of the
-    // #mode-segmented pill, see song.js's "Phase 46" comment); Notes is
-    // wired by song-notes.js, this only closes the sheet.
-    songSheet.querySelectorAll('.stack-sheet-row[data-forward]').forEach(function (row) {
-      row.addEventListener('click', function () {
-        var real = row.dataset.forward === 'edit'
-          ? document.getElementById('edit-toggle')
-          : document.querySelector('#mode-segmented button[data-value="' + row.dataset.forward + '"]');
-        if (real) real.click();
-        setSongOpen(false);
-      });
-    });
-    document.getElementById('notes-stack-row')?.addEventListener('click', function () { setSongOpen(false); });
-  }
-
-  // "..." full-page site navigation is now wired by the shared
-  // site-nav-fullpage-script template (icons.html, folded into
-  // global-tabbar-script below) instead of a local copy here.
-})();
-</script>
+{{/* The song bar's sheets, the ⋯ menu, the PDF dialog: song-controls.js. */}}
 {{template "pwa-register"}}
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}
