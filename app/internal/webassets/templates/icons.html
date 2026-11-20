@@ -13,6 +13,7 @@
 <script>try { var t = localStorage.getItem('songbooks-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
 <script src="/i18n/{{lang}}.js?v={{staticVersion}}"></script>
 <script src="/static/js/forms.js?v={{staticVersion}}"></script>
+<script src="/static/js/search.js?v={{staticVersion}}"></script>
 {{end}}
 {{define "pwa-register"}}
 <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});</script>
@@ -235,6 +236,7 @@
 {{define "desktop-sidebar"}}
 <nav class="desktop-sidebar" id="desktop-sidebar" aria-label="{{t "main navigation (desktop)"}}">
   <a class="sidebar-brand" href="/home">{{template "icon-logo"}} Songbooks</a>
+  {{template "nav-search"}}
   <div class="sidebar-primary">
     {{range navGlobal "desktop"}}<a href="{{.Path}}" data-path="{{.Path}}" data-label="{{t .Label}}">{{template "nav-icon" .Icon}} {{t .Label}}</a>{{if eq .Path "/home"}}{{template "nav-notifications" $}}{{end}}{{end}}
   </div>
