@@ -330,8 +330,7 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 		hints["events"] = spaceHint{Text: dayHint(lang, upcoming[0].StartsAt)}
 	}
 	s.render(w, "community", map[string]any{
-		"SpaceHints": hints,
-		"Me": person, "Community": community, "Members": members, "StaffNames": staffNames,
+		"Me": person, "SpaceHints": hints, "Community": community, "Members": members, "StaffNames": staffNames,
 		"Songbooks": songbookRows, "UpcomingEvents": upcoming,
 		"IsStaff": canManage || person.IsAdmin, "Person": person, "Tab": "overview",
 	})
