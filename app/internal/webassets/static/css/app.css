@@ -6783,6 +6783,11 @@ a.calendar-day:hover { text-decoration: none; background: var(--bg-sunken); }
   /* A section's page leads back to the space's home: its header is the
      home's, not repeated above every section. */
   .space-header:not(.is-home) { display: none; }
+  /* "‹ Space" written out above the section's name: the way back to the
+     list of sections names where it goes. */
+  .app-header:has(> a.space-back) { flex-wrap: wrap; row-gap: 0; padding-top: 0.3rem; }
+  .app-header > a.space-back { flex-basis: 100%; justify-content: flex-start; min-width: 0; min-height: 1.6rem; margin-left: -0.2rem; font-size: 0.8rem; opacity: 0.85; }
+  .app-header > a.space-back .icon { width: 1rem; height: 1rem; }
 }
 
 /* ==== A space's header (space_nav.html, httpapi/space_nav.go) ===========
@@ -7568,13 +7573,13 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
    on the right; on a phone the actions go under the views, each row
    fitting the width rather than scrolling. */
 .setlist-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; margin: 0 0 1.1rem; }
-.setlist-views { display: inline-flex; align-items: center; gap: 0.15rem; padding: 0.2rem; border-radius: 10px; background: var(--bg-sunken); max-width: 100%; }
-.setlist-views > a, .setlist-views > button {
+.setlist-views, .space-filters { display: inline-flex; align-items: center; gap: 0.15rem; padding: 0.2rem; border-radius: 10px; background: var(--bg-sunken); max-width: 100%; }
+.setlist-views > a, .setlist-views > button, .space-filters > a {
   display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.25rem; padding: 0.4rem 0.85rem;
   border: 0; border-radius: 7px; background: none; color: var(--fg-muted); font: inherit; font-size: 0.85rem; font-weight: 500; cursor: pointer; white-space: nowrap;
 }
-.setlist-views > a:hover, .setlist-views > button:hover { text-decoration: none; color: var(--fg); }
-.setlist-views > .active { background: var(--bg-raised); color: var(--fg); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+.setlist-views > a:hover, .setlist-views > button:hover, .space-filters > a:hover { text-decoration: none; color: var(--fg); }
+.setlist-views > .active, .space-filters > .active { background: var(--bg-raised); color: var(--fg); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
 .setlist-views .icon { width: 1.05em; height: 1.05em; }
 .setlist-actions { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
 .setlist-action {
@@ -7584,9 +7589,18 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .setlist-action::-webkit-details-marker { display: none; }
 .setlist-action .icon { width: 1.05em; height: 1.05em; }
 #reorder-toggle.setlist-action[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
-.setlist-export { position: relative; }
-.setlist-export[open] > summary { border-color: var(--accent); }
+.setlist-export, .space-export { position: relative; }
+.setlist-export[open] > summary, .space-export[open] > summary { border-color: var(--accent); }
 .setlist-export .row-menu-panel { min-width: 15rem; }
+/* A section's views (space-filters, space_nav.html): the same control,
+   under the space's tabs. Its Export menu (space-export) holds the PDF's
+   layout choices as well as the link. */
+.space-filters { margin: -0.4rem 0 1.1rem; }
+.space-export .row-menu-panel { min-width: 16rem; gap: 0.3rem; }
+.space-export .pdf-mode-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; padding: 0.2rem 0.2rem 0.5rem; border-bottom: 1px solid var(--border); }
+.space-export .pdf-mode-row .pdf-export-link { flex-basis: 100%; font-weight: 600; }
+.space-export .pdf-mode-select { flex: 1; min-width: 0; }
+.space-export .pdf-notes-label { font-size: 0.85rem; color: var(--fg-muted); }
 .setlist-export .row-menu-panel small { display: block; color: var(--fg-muted); font-size: 0.8rem; }
 /* "New set list", inside the band's Set lists section (band_setlists.html). */
 .band-setlist-new { margin: 0 0 1.2rem; }
@@ -7594,8 +7608,8 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .band-setlist-new > summary::-webkit-details-marker { display: none; }
 .band-setlist-new[open] > summary { background: var(--accent-bg); }
 @media (max-width: 600px) {
-  .setlist-views { display: flex; width: 100%; }
-  .setlist-views > a, .setlist-views > button { flex: 1 1 auto; justify-content: center; padding: 0.4rem 0.5rem; min-width: 0; }
+  .setlist-views, .space-filters { display: flex; width: 100%; }
+  .setlist-views > a, .setlist-views > button, .space-filters > a { flex: 1 1 auto; justify-content: center; padding: 0.4rem 0.5rem; min-width: 0; }
   .setlist-views .icon { display: none; }
   .setlist-actions { margin-left: 0; width: 100%; }
   .setlist-actions > * { flex: 1 1 0; }

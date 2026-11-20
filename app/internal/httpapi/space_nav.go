@@ -3,6 +3,7 @@ package httpapi
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"app/internal/brand"
@@ -47,6 +48,10 @@ type SpaceSection struct {
 	Label string
 	Path  string
 	Icon  string // an icon-* template name, for the phone's list
+	// Filters are the section's own views (a band's Repertoire: its
+	// songs, those to vote on, those to discover), in a segmented
+	// control under the tabs; the first is where the section's tab goes.
+	Filters []SpaceSection
 }
 
 // spaceTabs is the one declared list of a kind of space's sections,
@@ -57,13 +62,20 @@ func spaceTabs(kind string, role spaceRole) []SpaceSection {
 	case spaceBand:
 		return []SpaceSection{
 			{Key: "overview", Label: "Overview", Icon: "icon-home"},
-			{Key: "catalog", Label: "Repertoire", Path: "/catalog", Icon: "icon-catalog"},
+			// The songs we might add are views of the repertoire, not
+			// sections of their own (the old Proposals and Discover).
+			{Key: "catalog", Label: "Repertoire", Path: "/catalog", Icon: "icon-catalog", Filters: []SpaceSection{
+				{Key: "all", Label: "Songs", Path: "/catalog"},
+				{Key: "vote", Label: "To vote", Path: "/catalog/vote"},
+				{Key: "discover", Label: "Discover", Path: "/catalog/discover"},
+			}},
 			{Key: "setlists", Label: "Set lists", Path: "/setlists", Icon: "icon-setlists"},
 			{Key: "events", Label: "Calendar", Path: "/events", Icon: "icon-calendar"},
-			{Key: "rehearsals", Label: "Rehearsals", Path: "/rehearsals", Icon: "icon-play"},
-			{Key: "concerts", Label: "Concerts", Path: "/concerts", Icon: "icon-play"},
-			{Key: "proposals", Label: "Proposals", Path: "/proposals", Icon: "icon-plus"},
-			{Key: "discover", Label: "Discover", Path: "/listening-party", Icon: "icon-play"},
+			// Rehearsals and concerts are both recordings.
+			{Key: "recordings", Label: "Recordings", Path: "/recordings/rehearsals", Icon: "icon-play", Filters: []SpaceSection{
+				{Key: "rehearsals", Label: "Rehearsals", Path: "/recordings/rehearsals"},
+				{Key: "concerts", Label: "Concerts", Path: "/recordings/concerts"},
+			}},
 			{Key: "members", Label: "Members", Path: "/members", Icon: "icon-bands"},
 		}
 	case spaceCommunity, spaceCoaching:
@@ -121,6 +133,10 @@ type SpaceNav struct {
 	Sections []SpaceTab
 	Gear     *SpaceTab
 	Current  string // the open section's Key
+	// Filters are the open section's views, the open one Current: a
+	// segmented control under the tabs (space-filters), nil when the
+	// section has none.
+	Filters []SpaceTab
 }
 
 // SpaceTab is a SpaceSection placed in one space: its full path, and
@@ -179,14 +195,24 @@ func (n *SpaceNav) KindLabel() string {
 
 // newSpaceNav places kind's sections, as role sees them, in the space id
 // with current open.
+// current is the open section's Key, or "section/filter" for one of its
+// views ("catalog/vote").
 func newSpaceNav(kind string, id int64, name string, role spaceRole, current string) *SpaceNav {
 	home := fmt.Sprintf("/communities/%d", id)
 	if kind == spaceBand {
 		home = fmt.Sprintf("/bands/%d", id)
 	}
+	current, filter, _ := strings.Cut(current, "/")
 	n := &SpaceNav{Kind: kind, ID: id, Name: name, Home: home, Current: current}
 	for _, sec := range spaceTabs(kind, role) {
 		n.Sections = append(n.Sections, SpaceTab{SpaceSection: sec, Href: home + sec.Path, Current: sec.Key == current})
+		if sec.Key != current {
+			continue
+		}
+		for i, f := range sec.Filters {
+			on := f.Key == filter || filter == "" && i == 0
+			n.Filters = append(n.Filters, SpaceTab{SpaceSection: f, Href: home + f.Path, Current: on})
+		}
 	}
 	if g := spaceGear(kind, role); g != nil {
 		n.Gear = &SpaceTab{SpaceSection: *g, Href: home + g.Path, Current: g.Key == current}
@@ -199,12 +225,12 @@ func newSpaceNav(kind string, id int64, name string, role spaceRole, current str
 // spaceSectionOf).
 var spacePages = map[string]string{
 	"band":            "overview",
-	"band_catalog":    "catalog",
+	"band_catalog":    "catalog/all",
 	"band_setlists":   "setlists",
 	"band_events":     "events",
 	"band_recordings": "",
-	"band_proposals":  "proposals",
-	"listening_party": "discover",
+	"band_proposals":  "catalog/vote",
+	"listening_party": "catalog/discover",
 	"band_members":    "members",
 	"band_settings":   "settings",
 
@@ -240,9 +266,9 @@ func spaceSectionOf(name string, m map[string]any) string {
 	switch name {
 	case "band_recordings":
 		if tab, _ := m["Tab"].(string); tab != "" {
-			return tab
+			return "recordings/" + tab
 		}
-		return "rehearsals"
+		return "recordings/rehearsals"
 	case "coaching_student":
 		if coach, _ := m["IsCoach"].(bool); coach {
 			return "students"
@@ -333,4 +359,26 @@ func dayHint(lang string, t time.Time) string {
 		return i18n.Date(lang, t, "Monday 2 Jan")
 	}
 	return i18n.Date(lang, t, "Mon 2 Jan")
+}
+
+// SectionLabel is the open section's name (its English key), for the
+// page's heading and its browser tab: "Repertoire". The home's is "".
+func (n *SpaceNav) SectionLabel() string {
+	if n.Gear != nil && n.Gear.Current {
+		return n.Gear.Label
+	}
+	for _, sec := range n.Sections {
+		if sec.Current && sec.Key != "overview" {
+			return sec.Label
+		}
+	}
+	return ""
+}
+
+// spaceExport is a space's songbook as files, for the Export menu in a
+// section's toolbar (the space-export template): its PDF (with the
+// layout and notes choices) and its playlist, "" when it has none.
+type spaceExport struct {
+	PDF      string
+	Playlist string
 }

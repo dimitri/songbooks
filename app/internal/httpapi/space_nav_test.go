@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -25,8 +26,10 @@ func TestSpaceTabsByRole(t *testing.T) {
 		want string
 		gear string
 	}{
-		{spaceBand, spaceRole{}, "overview catalog setlists events rehearsals concerts proposals discover members", "settings"},
-		{spaceBand, spaceRole{Staff: true}, "overview catalog setlists events rehearsals concerts proposals discover members", "settings"},
+		// A band has six sections: Proposals and Discover are views of its
+		// Repertoire, Rehearsals and Concerts of its Recordings.
+		{spaceBand, spaceRole{}, "overview catalog setlists events recordings members", "settings"},
+		{spaceBand, spaceRole{Staff: true}, "overview catalog setlists events recordings members", "settings"},
 		{spaceCommunity, spaceRole{}, "overview songbooks downloads events", ""},
 		{spaceCommunity, spaceRole{SeeMembers: true}, "overview songbooks members downloads events", ""},
 		{spaceCommunity, spaceRole{Staff: true, SeeMembers: true}, "overview songbooks members downloads events", "admin"},
@@ -59,9 +62,11 @@ func TestSpaceSectionOf(t *testing.T) {
 		want string
 	}{
 		{"band", nil, "overview"},
-		{"band_catalog", nil, "catalog"},
-		{"band_recordings", map[string]any{"Tab": "concerts"}, "concerts"},
-		{"band_recordings", map[string]any{}, "rehearsals"},
+		{"band_catalog", nil, "catalog/all"},
+		{"band_proposals", nil, "catalog/vote"},
+		{"listening_party", nil, "catalog/discover"},
+		{"band_recordings", map[string]any{"Tab": "concerts"}, "recordings/concerts"},
+		{"band_recordings", map[string]any{}, "recordings/rehearsals"},
 		{"band_settings", nil, "settings"},
 		{"community_downloads", nil, "downloads"},
 		{"community_stats", nil, "admin"},
@@ -133,5 +138,46 @@ func TestSpaceHub(t *testing.T) {
 	}
 	if strings.Contains(html, `href="/communities/3"`) {
 		t.Errorf("the home lists itself:\n%s", html)
+	}
+}
+
+// A section's views: the open one marked, the section's tab open for
+// each of them, and a section's own tab going to its first view.
+func TestSpaceFilters(t *testing.T) {
+	nav := newSpaceNav(spaceBand, 14, "Night Owls", spaceRole{}, "catalog/vote")
+	var on []string
+	for _, f := range nav.Filters {
+		if f.Current {
+			on = append(on, f.Key)
+		}
+	}
+	if len(nav.Filters) != 3 || strings.Join(on, ",") != "vote" {
+		t.Errorf("Repertoire's views: %+v", nav.Filters)
+	}
+	if nav.SectionLabel() != "Repertoire" || !nav.Sections[1].Current {
+		t.Errorf("To vote isn't in the Repertoire: %q", nav.SectionLabel())
+	}
+	nav = newSpaceNav(spaceBand, 14, "Night Owls", spaceRole{}, "recordings")
+	if len(nav.Filters) != 2 || !nav.Filters[0].Current || nav.Sections[4].Href != "/bands/14/recordings/rehearsals" {
+		t.Errorf("Recordings: %+v %+v", nav.Filters, nav.Sections[4])
+	}
+	if nav := newSpaceNav(spaceBand, 14, "Night Owls", spaceRole{}, "members"); nav.Filters != nil {
+		t.Errorf("Members has views: %+v", nav.Filters)
+	}
+}
+
+// Every old address of a consolidated section redirects to the page that
+// holds it now, the old query kept and the new view's own winning.
+func TestMovedTarget(t *testing.T) {
+	cases := []struct{ target, oldQuery, want string }{
+		{"/bands/3/catalog/vote", "", "/bands/3/catalog/vote"},
+		{"/bands/3/recordings/rehearsals", "date=2026-01-02", "/bands/3/recordings/rehearsals?date=2026-01-02"},
+		{"/communities/7/students?view=songs", "view=x&q=1", "/communities/7/students?q=1&view=songs"},
+	}
+	for _, c := range cases {
+		q, _ := url.ParseQuery(c.oldQuery)
+		if got := movedTarget(c.target, q); got != c.want {
+			t.Errorf("movedTarget(%q, %q) = %q, want %q", c.target, c.oldQuery, got, c.want)
+		}
 	}
 }
