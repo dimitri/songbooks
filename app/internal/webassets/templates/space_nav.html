@@ -1,0 +1,18 @@
+{{/* A space's header and section tabs (httpapi/space_nav.go): its avatar,
+     its name with the switcher, ⚙ for whoever runs it, then its sections,
+     the same on every page of the space. Called with .Space (a SpaceNav);
+     nothing when the page isn't a space's. */}}
+{{define "space-nav"}}{{with .}}
+<div class="space-header">
+  <a class="space-avatar" href="{{.Home}}" tabindex="-1" aria-hidden="true">{{with .Brand}}{{if .LogoURL}}<img src="{{.LogoURL}}" alt="">{{else if .Mark}}<span class="space-mark">{{.Mark}}</span>{{else}}{{$.Initials}}{{end}}{{else}}{{.Initials}}{{end}}</a>
+  <div class="space-id">
+    {{template "space-switcher" .}}
+    <div class="space-kind">{{with .Brand}}{{if .Tagline}}{{.Tagline}}{{else}}{{t $.KindLabel}}{{end}}{{else}}{{t .KindLabel}}{{end}}{{if eq .Current "overview"}}{{with .Brand}}{{if .Website}} · <a class="space-website" href="{{.Website}}" target="_blank" rel="noopener">{{.WebsiteHost}}</a>{{end}}{{end}}{{end}}</div>
+  </div>
+  {{with .Gear}}<a class="space-gear{{if .Current}} active{{end}}" href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{template "icon-settings"}}<span>{{t .Label}}</span></a>{{end}}
+</div>
+<nav class="space-tabs band-tabs band-tabs-row{{if eq .Kind "band"}} band-section-tabs{{end}}" aria-label="{{t "Sections of %s" .Name}}">
+  {{range .Sections}}<a class="band-tab{{if .Current}} active{{end}}" href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{if eq .Key "songbooks"}}{{t (shelfLabel "community" $.ID)}}{{else}}{{t .Label}}{{end}}</a>
+  {{end}}
+</nav>
+{{end}}{{end}}

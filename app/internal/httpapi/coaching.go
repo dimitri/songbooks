@@ -246,7 +246,9 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) coachingPageData(r *http.Request, community *store.Community, coach bool, tab string) map[string]any {
+	// Me: the sidebar's account chip and Admin, as on every other page.
 	return map[string]any{
+		"Me":        personFromContext(r),
 		"Person":    personFromContext(r),
 		"Community": community,
 		"IsStaff":   coach,

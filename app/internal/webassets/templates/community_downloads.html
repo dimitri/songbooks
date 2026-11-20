@@ -20,13 +20,7 @@
   {{template "notif-bell"}}
 </header>
 <main class="index dl{{if .Editing}} editing{{end}}">
-  <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/communities/{{.Community.ID}}">{{t "Overview"}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{t (shelfLabel "community" .Community.ID)}}</a>
-    {{template "coaching-tab-links" .}}
-    <a href="/communities/{{.Community.ID}}/downloads" class="band-tab active">{{t "Downloads"}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/events">{{t "Events"}}</a>
-  </nav>
+  {{template "space-nav" .Space}}
 
   {{if not .CanDownload}}
   <p class="dl-empty">{{t "Your role in this community doesn’t include downloads. Ask its staff if you should have them."}}</p>

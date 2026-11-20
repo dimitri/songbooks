@@ -21,7 +21,7 @@
   </nav>
 </header>
 <main class="index">
-  {{template "band-tabs" (bandTabs .Band.ID "catalog")}}
+  {{template "space-nav" .Space}}
 
   {{if not .Entries}}
   <div class="attention-empty" style="border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:1.2rem; font-size:0.95rem;">
