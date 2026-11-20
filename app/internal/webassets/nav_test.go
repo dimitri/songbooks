@@ -39,8 +39,8 @@ func TestNavSurfaces(t *testing.T) {
 			entries = append(entries, navGlobal("sidebarTools")...)
 		}
 		for _, sec := range sections {
-			if surface == "sidebar" && sec == NavTools {
-				continue // the sidebar lists the tools themselves
+			if surface == "sidebar" && (sec == NavTools || sec == NavGroups || sec == NavBands || sec == NavCommunities) {
+				continue // the sidebar lists the tools, and the groups (sidebar-spaces), themselves
 			}
 			n := 0
 			for _, e := range entries {

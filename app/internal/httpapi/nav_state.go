@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,6 +21,9 @@ type navState struct {
 	// Page is the page's template name ("song"…), for the menus' few
 	// page-specific turns: the song page's own "More" sheet.
 	Page string
+	// Spaces is the space switcher: one's bands and communities (see
+	// spaces.go and the "space-switcher" template).
+	Spaces navSpaces
 }
 
 // pageNavSections is the global section of each page, by template name.
@@ -242,5 +246,13 @@ func (s *Server) addNav(w http.ResponseWriter, name string, data any) {
 	if me == nil {
 		me, _ = m["Me"].(*store.Person)
 	}
-	m["Nav"] = navState{Section: navSectionFor(name, m), Me: me, Page: name}
+	nav := navState{Section: navSectionFor(name, m), Me: me, Page: name}
+	if me != nil {
+		ctx := context.Background()
+		if lw, ok := w.(*langWriter); ok {
+			ctx = lw.r.Context()
+		}
+		nav.Spaces = s.spacesFor(ctx, me, m)
+	}
+	m["Nav"] = nav
 }

@@ -494,6 +494,7 @@
   <div class="sidebar-primary">
     {{range navGlobal "sidebar"}}<a href="{{.Path}}"{{if navCurrent "sidebar" . $.Nav.Section}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}" title="{{t .Label}}">{{template "nav-icon" .Icon}} <span class="sidebar-label">{{t .Label}}</span>{{with .Badge}}<span class="nav-badge" data-nav-badge="{{.}}" hidden></span>{{end}}</a>{{end}}
   </div>
+  {{template "sidebar-spaces" .Nav}}
   {{/* This song: every control that used to crowd the top bar, moved here
        — it's contextual to whichever song is open, the same pattern as a
        settings group under a sidebar's global nav. The view-mode switcher

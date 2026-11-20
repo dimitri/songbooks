@@ -669,6 +669,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// Languages (i18n.go, docs/i18n.md).
 	mux.HandleFunc("GET /i18n/{file}", s.handleI18nJS)
 	mux.HandleFunc("PUT /api/me/locale", s.requireAuth(s.handlePutMyLocale))
+	mux.HandleFunc("PUT /api/me/spaces/{kind}/{id}/pin", s.requireAuth(s.handlePinSpace))
 	mux.HandleFunc("PUT /api/communities/{id}/locale", s.requireCommunityPrivilege(store.PrivManageSettings, s.handlePutCommunityLocale))
 
 	return withLang(mux)
