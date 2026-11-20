@@ -72,8 +72,7 @@
        still its own route/handler (real, separate server logic per
        section), so this is a tab-styled nav bar linking between full
        pages rather than one giant client-side-tabbed page. */}}
-  {{template "brand-banner" $brand}}
-  {{template "band-tabs" (bandTabs .Band.ID "")}}
+  {{template "space-nav" .Space}}
 
   {{with .NextUp}}
   <section class="home-section" aria-labelledby="band-next-title">

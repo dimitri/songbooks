@@ -19,16 +19,7 @@
   {{template "notif-bell"}}
 </header>
 <main class="index">
-  {{if .Me}}
-  <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/communities/{{.Community.ID}}">{{t "Overview"}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{t (shelfLabel "community" .Community.ID)}}</a>
-    {{template "coaching-tab-links" .}}
-    <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
-    <a href="/communities/{{.Community.ID}}/events" class="band-tab active">{{t "Events"}}</a>
-    {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a>{{end}}
-  </nav>
-  {{end}}
+  {{template "space-nav" .Space}}
 
   {{/* Whoever manages the community's events creates them here; each
        event's own Manage page then holds its songbook, setlist and

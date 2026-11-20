@@ -46,14 +46,7 @@ async function courseApi(method, url, body) {
   {{template "notif-bell"}}
 </header>
 <main class="index course">
-  {{with .Community}}
-  <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/communities/{{.ID}}">{{t "Overview"}}</a>
-    <a class="band-tab active" href="/communities/{{.ID}}/songbooks">{{t (shelfLabel "community" .ID)}}</a>
-    <a class="band-tab" href="/communities/{{.ID}}/downloads">{{t "Downloads"}}</a>
-    <a class="band-tab" href="/communities/{{.ID}}/events">{{t "Events"}}</a>
-  </nav>
-  {{end}}
+  {{template "space-nav" .Space}}
 
   {{if .Lessons}}
   <section class="course-progress card" aria-label="{{t "Your progress"}}">

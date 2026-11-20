@@ -25,8 +25,7 @@
   {{template "notif-bell"}}
 </header>
 <main class="index warmups-page" data-community="{{.Community.ID}}">
-  {{template "brand-banner" $brand}}
-  {{template "community-tabs" .}}
+  {{template "space-nav" .Space}}
   <section class="home-section">
     <div class="home-section-head"><h3>{{t "Exercises"}}</h3><span class="count">{{len .Exercises}}</span>
       {{if .IsCoach}}<a class="btn-small" href="/communities/{{.Community.ID}}/warmups/new">{{template "icon-plus"}} {{t "An exercise"}}</a>{{end}}</div>
