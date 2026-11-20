@@ -1,6 +1,39 @@
 package httpapi
 
-import "testing"
+import (
+	"testing"
+
+	"app/internal/gpfacts"
+)
+
+// TestSongTunings: the tuner's song tunings (the /tuner page's, and the
+// song page's "Accorder"): pitched tracks only, lowest string first, each
+// tuning and capo once, a name for an unnamed track; none without a file.
+func TestSongTunings(t *testing.T) {
+	if got := songTunings(nil, "fr"); got == nil || len(got) != 0 {
+		t.Fatalf("no file: %#v", got)
+	}
+	facts := &gpfacts.Facts{Tracks: []gpfacts.Track{
+		{N: 1, Name: "Guitare", Tuning: []int{64, 59, 55, 50, 45, 40}},
+		{N: 2, Name: "Guitare 2", Tuning: []int{40, 45, 50, 55, 59, 64}}, // the same strings: once
+		{N: 3, Name: "Batterie", Drums: true, Tuning: []int{1}},
+		{N: 4, Tuning: []int{43, 38, 33, 28}, Capo: 2},
+		{N: 5, Name: "Voix"}, // no tuning
+	}}
+	got := songTunings(facts, "fr")
+	if len(got) != 2 {
+		t.Fatalf("got %#v", got)
+	}
+	if got[0].Name != "Guitare" || got[0].Notes[0] != 40 || got[0].Notes[5] != 64 {
+		t.Errorf("first: %#v", got[0])
+	}
+	if got[1].Notes[0] != 28 || got[1].Capo != 2 || got[1].Name == "" {
+		t.Errorf("second: %#v", got[1])
+	}
+	if songCapo(" 3 ") != 3 || songCapo("") != 0 || songCapo("x") != 0 {
+		t.Error("songCapo")
+	}
+}
 
 // TestSongBackFor: a song page's "‹" goes back to the place it was opened
 // from, the most specific first, and names it; French labels.

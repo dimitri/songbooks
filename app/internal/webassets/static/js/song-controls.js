@@ -165,4 +165,31 @@
     dialog.addEventListener('keydown', (e) => e.stopPropagation());
     dialog.addEventListener('close', () => { if (opener && opener.offsetParent !== null) opener.focus(); });
   }
+
+  // ---- "Accorder": the tuner in place ----------------------------------------
+  // The toolbar's button and the Outils sheet's row open it here, the
+  // song's tunings first (tuner.js); the music pauses (the microphone
+  // would hear it), and closing it stops the microphone. Without this
+  // script the links go to /tuner.
+  const tuner = document.getElementById('tuner-dialog');
+  if (tuner && typeof tuner.showModal === 'function') {
+    let opener = null;
+    document.querySelectorAll('[data-tuner-open]').forEach((a) => a.addEventListener('click', (e) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      const sheet = a.closest('.stack-sheet');
+      opener = sheet ? document.getElementById(sheet.id + '-btn') : a;
+      document.dispatchEvent(new CustomEvent('songbooks:pause-reference'));
+      const clock = window.songbooksFollowClock;
+      if (clock && clock.state().running) clock.toggle(false);
+      tuner.showModal();
+      document.getElementById('tuner-start')?.focus();
+    }));
+    tuner.addEventListener('click', (e) => { if (e.target === tuner) tuner.close(); });
+    tuner.addEventListener('keydown', (e) => e.stopPropagation());
+    tuner.addEventListener('close', () => {
+      document.getElementById('tuner')?.dispatchEvent(new CustomEvent('tuner:stop'));
+      if (opener && opener.offsetParent !== null) opener.focus();
+    });
+  }
 })();
