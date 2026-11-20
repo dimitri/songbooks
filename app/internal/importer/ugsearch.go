@@ -9,6 +9,9 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 // UGSearchResult is one Ultimate Guitar search hit worth considering — a
@@ -167,8 +170,11 @@ func popularityScore(r UGSearchResult) float64 {
 	return r.Rating * math.Log10(float64(r.Votes)+1)
 }
 
-// wordRE splits normalized text into words for lyricsSimilarity/jaccard.
-var wordRE = regexp.MustCompile(`[a-z0-9']+`)
+// wordRE splits normalized text into words for lyricsSimilarity/jaccard:
+// letters and digits of any script. An apostrophe splits a word
+// ("m'aimes" → "m", "aimes"), as sites that drop it write the title
+// ("Pour que tu m aimes encore" on GProTab.net).
+var wordRE = regexp.MustCompile(`[\p{L}\p{N}]+`)
 
 // normalizeLyricsForCompare strips this app's/UG's own chord markup
 // ("[G]", "[ch]G[/ch]") and section labels, lowercases, and collapses to
@@ -183,8 +189,21 @@ func normalizeLyricsForCompare(s string) []string {
 
 // normalizeWords lowercases and splits plain text (a title, an artist
 // name — no chord markup to strip) into its word stream, for jaccard.
+// Accents are folded ("Céline" matches "Celine"), else the accented
+// letter split the word in two and the artist never matched.
 func normalizeWords(s string) []string {
-	return wordRE.FindAllString(strings.ToLower(s), -1)
+	return wordRE.FindAllString(foldAccents(strings.ToLower(s)), -1)
+}
+
+// foldAccents drops combining marks: "é" → "e", "à" → "a".
+func foldAccents(s string) string {
+	var b strings.Builder
+	for _, r := range norm.NFD.String(s) {
+		if !unicode.Is(unicode.Mn, r) {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // jaccard scores how much two word streams overlap, 0..1, as a Jaccard
