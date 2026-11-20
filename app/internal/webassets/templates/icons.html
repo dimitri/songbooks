@@ -269,7 +269,7 @@
 {{$cur := .Nav.Spaces.Current}}
 <details class="space-switcher space-switcher--{{.Where}}">
   <summary class="space-switcher-trigger" aria-label="{{t "Switch group"}}{{with $cur}}: {{.Name}}{{end}}">
-    {{with $cur}}{{template "space-avatar" .}}{{if ne $.Where "topbar"}}<span class="space-switcher-name">{{.Name}}</span>{{end}}{{else}}{{template "icon-bands"}}{{end}}<span class="space-switcher-caret" aria-hidden="true">▾</span>
+    {{with $cur}}{{if ne $.Where "header"}}{{template "space-avatar" .}}{{end}}{{if ne $.Where "topbar"}}<span class="space-switcher-name">{{.Name}}</span>{{end}}{{else}}{{template "icon-bands"}}{{end}}<span class="space-switcher-caret" aria-hidden="true">▾</span>
   </summary>
   <div class="space-switcher-panel">
     <div class="space-switcher-head">

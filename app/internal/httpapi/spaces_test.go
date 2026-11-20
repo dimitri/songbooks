@@ -115,3 +115,27 @@ func renderTemplate(t *testing.T, name string, data any) string {
 	}
 	return b.String()
 }
+
+// The space header's name is the switcher (one implementation, the
+// "space-switcher" template), and only when the space is among the
+// viewer's own; otherwise it is the name alone.
+func TestSpaceHeaderSwitcher(t *testing.T) {
+	me := &store.Person{ID: 1, DisplayName: "Lucas"}
+	spaces := []store.Space{{Kind: "community", ID: 7, Name: "Studio Lumen", CommunityKind: "coaching"}}
+	nav := navState{Section: "communities", Me: me, Spaces: buildNavSpaces(spaces, "community", 7)}
+	sn := newSpaceNav(spaceCoaching, 7, "Studio Lumen", spaceRole{Staff: true, PersonID: 1}, "overview")
+	sn.Switcher = &nav
+	h := renderTemplate(t, "space-nav", sn)
+	if !strings.Contains(h, `class="space-switcher space-switcher--header"`) || !strings.Contains(h, `space-switcher-name">Studio Lumen`) {
+		t.Errorf("the header's name isn't the switcher:\n%s", h)
+	}
+	if trigger, _, _ := strings.Cut(h, "</summary>"); strings.Contains(trigger, `space-av space-av`) {
+		t.Error("the header switcher repeats the space's avatar")
+	}
+	outsider := navState{Section: "communities", Me: me, Spaces: buildNavSpaces(nil, "community", 7)}
+	sn.Switcher = &outsider
+	h = renderTemplate(t, "space-nav", sn)
+	if strings.Contains(h, "space-switcher--header") || !strings.Contains(h, `space-name-text">Studio Lumen`) {
+		t.Errorf("outside one's spaces, the header should name the space alone:\n%s", h)
+	}
+}

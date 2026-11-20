@@ -4677,6 +4677,14 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
      page whose own space header holds the switcher doesn't need it. */
   body:has(.space-header .space-switcher) .topbar-actions .space-switcher { display: none; }
   body:has(> .topbar-actions .space-switcher):not(:has(.space-header .space-switcher)) .app-header { padding-right: 6.2rem; }
+}
+@media (max-width: 600px) {
+  /* A section page hides its space header below 601px (the space's home
+     has it), so the top bar's switcher is the one there. */
+  body:has(.space-header:not(.is-home) .space-switcher) .topbar-actions .space-switcher { display: block; }
+  body:has(> .topbar-actions .space-switcher):has(.space-header:not(.is-home) .space-switcher) .app-header { padding-right: 6.2rem; }
+}
+@media (max-width: 900px) {
   .space-switcher--topbar .space-av { width: 1.9rem; height: 1.9rem; font-size: 0.72rem; }
   .space-switcher--topbar .space-switcher-trigger { gap: 0.2rem; padding: 0.1rem 0.15rem; }
 }
@@ -7052,7 +7060,12 @@ a.calendar-day:hover { text-decoration: none; background: var(--bg-sunken); }
 .space-name:hover { text-decoration: none; }
 .space-name:hover .space-name-text { text-decoration: underline; }
 .space-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.space-caret { flex: none; color: var(--fg-faint); font-size: 0.8rem; }
+/* The name is the space switcher's trigger (icons.html "space-switcher",
+   "header"): the header's own avatar stays, the switcher adds the ▾. */
+.space-id .space-switcher { max-width: 100%; }
+.space-id .space-switcher-trigger { max-width: 100%; min-width: 0; margin-left: -0.35rem; font-size: 1.2rem; line-height: 1.25; }
+.space-id .space-switcher-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.space-id .space-switcher-caret { flex: none; color: var(--fg-faint); }
 .space-kind { margin-top: 0.1rem; color: var(--accent); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .space-gear {
   flex: none; display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.25rem; padding: 0.35rem 0.75rem;
@@ -7066,13 +7079,14 @@ body.branded .space-header {
   padding: 0.75rem 0.9rem; background: var(--brand-header, var(--bg-raised)); color: var(--brand-header-fg, var(--fg));
   border-radius: min(var(--radius-control, var(--radius)), 1.25rem);
 }
-body.branded .space-name { font-family: var(--font-display, var(--font-ui)); }
+body.branded .space-name, body.branded .space-id .space-switcher-name { font-family: var(--font-display, var(--font-ui)); }
+body.branded .space-id .space-switcher-trigger:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
 body.branded .space-kind { color: var(--accent-2, var(--accent)); }
-body.branded .space-caret { color: inherit; opacity: 0.6; }
+body.branded .space-id .space-switcher-caret { color: inherit; opacity: 0.6; }
 @media (max-width: 600px) {
   .space-header { gap: 0.65rem; }
   .space-avatar { width: 2.35rem; height: 2.35rem; font-size: 0.9rem; }
-  .space-name { font-size: 1.05rem; }
+  .space-name, .space-id .space-switcher-trigger { font-size: 1.05rem; }
   .space-gear { padding: 0.35rem 0.55rem; }
   .space-gear span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }

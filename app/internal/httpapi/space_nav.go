@@ -158,6 +158,11 @@ type SpaceNav struct {
 	// segmented control under the tabs (space-filters), nil when the
 	// section has none.
 	Filters []SpaceTab
+	// Switcher is the page's global navigation (navState), whose Spaces
+	// feed the header's space switcher ("space-switcher", its "header"
+	// variant). Nil, or no current space (one the viewer isn't a member
+	// of), and the header shows the space's name alone.
+	Switcher *navState
 }
 
 // SpaceTab is a SpaceSection placed in one space: its full path, and
@@ -356,6 +361,7 @@ func (s *Server) addSpaceNav(w http.ResponseWriter, name string, data any) {
 		if hints, ok := m["SpaceHints"].(map[string]spaceHint); ok {
 			nav.withHints(hints)
 		}
+		nav.Switcher = pageNavState(m)
 		m["Space"] = nav
 		return
 	}
@@ -393,7 +399,17 @@ func (s *Server) addSpaceNav(w http.ResponseWriter, name string, data any) {
 	if hints, ok := m["SpaceHints"].(map[string]spaceHint); ok {
 		nav.withHints(hints)
 	}
+	nav.Switcher = pageNavState(m)
 	m["Space"] = nav
+}
+
+// pageNavState is the navState that render's addNav put in a page's
+// data, for the space header's switcher; nil when the page has none.
+func pageNavState(m map[string]any) *navState {
+	if n, ok := m["Nav"].(navState); ok {
+		return &n
+	}
+	return nil
 }
 
 // dayHint says when t is in lang, as the Next up card does: today,

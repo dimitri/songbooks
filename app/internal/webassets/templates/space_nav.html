@@ -10,7 +10,10 @@
 <div class="space-header{{if .IsHome}} is-home{{end}}">
   <a class="space-avatar" href="{{.Home}}" tabindex="-1" aria-hidden="true">{{with .Brand}}{{if .LogoURL}}<img src="{{.LogoURL}}" alt="">{{else if .Mark}}<span class="space-mark">{{.Mark}}</span>{{else}}{{$.Initials}}{{end}}{{else}}{{.Initials}}{{end}}</a>
   <div class="space-id">
-    {{template "space-switcher" .}}
+    {{/* The name opens the space switcher (icons.html "space-switcher":
+         one implementation for this header, the phone's top bar and the
+         sidebar's list); outside one's own spaces, the name alone. */}}
+    {{with .Switcher}}{{if .Spaces.Current}}{{template "space-switcher" (dict "Nav" . "Where" "header")}}{{else}}<span class="space-name"><span class="space-name-text">{{$.Name}}</span></span>{{end}}{{else}}<span class="space-name"><span class="space-name-text">{{.Name}}</span></span>{{end}}
     <div class="space-kind">{{with .Brand}}{{if .Tagline}}{{.Tagline}}{{else}}{{t $.KindLabel}}{{end}}{{else}}{{t .KindLabel}}{{end}}{{if .IsHome}}{{with .Brand}}{{if .Website}} · <a class="space-website" href="{{.Website}}" target="_blank" rel="noopener">{{.WebsiteHost}}</a>{{end}}{{end}}{{end}}</div>
   </div>
   {{with .Gear}}<a class="space-gear{{if .Current}} active{{end}}" href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{template "icon-settings"}}<span>{{t .Label}}</span></a>{{end}}
