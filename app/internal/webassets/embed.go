@@ -23,6 +23,7 @@ import (
 	"app/internal/chorddiagram"
 	"app/internal/chordsym"
 	"app/internal/i18n"
+	"app/internal/instruments"
 	"app/internal/song"
 )
 
@@ -248,6 +249,22 @@ var funcMap = template.FuncMap{
 	// singer", "guitar/bass/singer") — a strict switch would silently
 	// fall through to "other" for most real band rosters.
 	"instrumentIcon": func(instrument string) string {
+		// A known instrument (internal/instruments) by its family first:
+		// "voice", "Chant", "double bass", "piano"…
+		if ids := instruments.Normalize(instrument); len(ids) > 0 {
+			switch ids[0] {
+			case "voice":
+				return "vocals"
+			case "drums", "percussion":
+				return "drums"
+			case "bass", "double_bass":
+				return "bass"
+			case "guitar", "ukulele", "banjo", "mandolin":
+				return "guitar"
+			case "keys", "organ", "synth":
+				return "keys"
+			}
+		}
 		v := strings.ToLower(instrument)
 		switch {
 		case strings.Contains(v, "drum"):
@@ -264,6 +281,10 @@ var funcMap = template.FuncMap{
 			return "other"
 		}
 	},
+	// instrumentChoices is every instrument (internal/instruments), in
+	// order, for a picker; instrumentLevels the self-assessed levels.
+	"instrumentChoices": func() []instruments.Instrument { return instruments.All },
+	"instrumentLevels":  func() []instruments.Level { return instruments.Levels },
 	// contains reports whether a string slice holds v — e.g. "is this
 	// instrument already checked on the person's profile."
 	"hasPrefix": strings.HasPrefix,
@@ -384,6 +405,24 @@ func init() {
 		}
 		// {{lang}}: the page's language, for <html lang> and the scripts.
 		funcs["lang"] = func() string { return l }
+		// {{instrumentName "bass"}}: an instrument's name in the page's
+		// language ("Basse"); anything not a canonical ID (someone's own
+		// word, older free text) as it is.
+		funcs["instrumentName"] = func(id string) string { return instruments.Label(id, l) }
+		// {{levelName "advanced"}}, {{levelSays "advanced"}}: a level's
+		// name and "can do" line in the page's language; "" for none.
+		funcs["levelName"] = func(id string) string {
+			if lv, ok := instruments.GetLevel(id); ok {
+				return i18n.T(l, "skill|"+lv.Name)
+			}
+			return ""
+		}
+		funcs["levelSays"] = func(id string) string {
+			if lv, ok := instruments.GetLevel(id); ok {
+				return i18n.T(l, lv.Says)
+			}
+			return ""
+		}
 		// fileSize in the page's language: "84.0 MB", "84,0 Mo".
 		funcs["fileSize"] = func(n int64) string { return fileSize(l, n) }
 		templatesByLang[lang] = template.Must(template.New("").Funcs(funcs).ParseFS(templatesFS, "templates/*.html"))

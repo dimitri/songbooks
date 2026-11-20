@@ -7,15 +7,31 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"app/internal/instruments"
 	"app/internal/store"
 )
 
-// commonInstruments is the icon-picker/profile vocabulary this phase
-// reuses everywhere an instrument is picked — the same four defaults
-// DefaultInstrumentLimits() starts a jam song's caps from. Anything else
-// a person plays (or a jam participant picks) is free text, not
-// validated against this list.
-var commonInstruments = []string{"drummer", "bassist", "guitarist", "singer"}
+// commonInstruments are the welcome wizard's instrument icons
+// (canonical IDs, internal/instruments); anything else is typed in its
+// "other" field and read with instruments.Parse.
+var commonInstruments = []string{"voice", "guitar", "bass", "drums", "keys"}
+
+// commonChecked splits a person's instruments (their profile rows) into
+// the common ones, ticked on the wizard's icons, and the names (in lang)
+// of the rest, which the wizard lists as already on the profile: it
+// never takes those off.
+func commonChecked(list []store.PersonInstrument, lang string) (map[string]bool, []string) {
+	checked := map[string]bool{}
+	var rest []string
+	for _, pi := range list {
+		if pi.Instrument != instruments.Other && isCommonInstrument(pi.Instrument) {
+			checked[pi.Instrument] = true
+			continue
+		}
+		rest = append(rest, pi.Name(lang))
+	}
+	return checked, rest
+}
 
 // handleProfilePage is GET /profile — a logged-in person's own account
 // settings. The only setting this phase adds is "which instruments do
@@ -24,14 +40,10 @@ var commonInstruments = []string{"drummer", "bassist", "guitarist", "singer"}
 // a brand-new page, not an addition to an existing one.
 func (s *Server) handleProfilePage(w http.ResponseWriter, r *http.Request) {
 	p := personFromContext(r)
-	checked := map[string]bool{}
-	var other []string
-	for _, inst := range p.Instruments {
-		if isCommonInstrument(inst) {
-			checked[inst] = true
-		} else {
-			other = append(other, inst)
-		}
+	card, err := s.instrumentsCard(r, p.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 	passkeys, err := s.store.ListWebAuthnCredentials(r.Context(), p.ID)
 	if err != nil {
@@ -40,8 +52,7 @@ func (s *Server) handleProfilePage(w http.ResponseWriter, r *http.Request) {
 	}
 	locale, _ := s.store.PersonLocale(r.Context(), p.ID)
 	s.render(w, "profile", map[string]any{
-		"Me": p, "CommonInstruments": commonInstruments, "Checked": checked,
-		"Other":       strings.Join(other, ", "),
+		"Me": p, "Instruments": card,
 		"HasPassword": p.PasswordHash != "",
 		"PwError":     r.URL.Query().Get("pwerror"),
 		"PwSaved":     r.URL.Query().Get("pwsaved") != "",
@@ -162,44 +173,47 @@ func isCommonInstrument(inst string) bool {
 	return false
 }
 
-// handleUpdateInstruments is POST /profile/instruments — saves the
-// checked common instruments plus any free-text "other" ones (comma
-// separated), replacing Person.Instruments wholesale (not a diff/merge —
-// simplest correct behavior for a small checkbox+text form).
+// handleUpdateInstruments is POST /profile/instruments, the welcome
+// wizard's "What do you play?": the ticked icons ("instrument") and the
+// comma-separated "other" field are added to the profile; an icon that
+// was ticked when the page was drawn ("had") and is now unticked is taken
+// off. Nothing else is: not the instruments the wizard listed as already
+// there, not ones collected from a band or an event in the meantime.
 func (s *Server) handleUpdateInstruments(w http.ResponseWriter, r *http.Request) {
 	p := personFromContext(r)
 	if err := r.ParseForm(); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid form")
 		return
 	}
-	var instruments []string
-	seen := map[string]bool{}
+	var add []string
+	ticked := map[string]bool{}
 	for _, inst := range r.Form["instrument"] {
 		inst = strings.TrimSpace(inst)
-		if inst == "" || seen[inst] {
+		if inst == "" || ticked[inst] {
 			continue
 		}
-		seen[inst] = true
-		instruments = append(instruments, inst)
+		ticked[inst] = true
+		add = append(add, inst)
 	}
 	for _, inst := range strings.Split(r.FormValue("other"), ",") {
-		inst = strings.TrimSpace(inst)
-		if inst == "" || seen[inst] {
-			continue
+		if inst = strings.TrimSpace(inst); inst != "" {
+			add = append(add, inst)
 		}
-		seen[inst] = true
-		instruments = append(instruments, inst)
 	}
-	if err := s.store.SetInstruments(r.Context(), p.ID, instruments); err != nil {
+	var takeOff []string
+	for _, inst := range r.Form["had"] {
+		if isCommonInstrument(inst) && !ticked[inst] {
+			takeOff = append(takeOff, inst)
+		}
+	}
+	if err := s.store.UpdateOwnInstruments(r.Context(), p.ID, add, takeOff); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	// "next" lets the getting-started wizard (wizard.go) reuse this same
-	// handler for its instrument step instead of a duplicate one —
-	// absent, this is just the plain /profile form.
+	// "next" brings the wizard (wizard.go) on to its next step.
 	dest := r.FormValue("next")
 	if dest == "" {
-		dest = "/profile"
+		dest = "/profile#instruments"
 	}
 	http.Redirect(w, r, dest, http.StatusFound)
 }

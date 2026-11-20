@@ -233,7 +233,7 @@ func (r *runner) importUsers(ctx context.Context, users []user) {
 			}
 		}
 		if len(u.Instruments) > 0 {
-			if err := r.st.SetInstruments(ctx, newID, u.Instruments); err != nil {
+			if err := r.st.UpdateOwnInstruments(ctx, newID, u.Instruments, nil); err != nil {
 				log.Fatalf("setting instruments for %s: %v", u.Username, err)
 			}
 		}

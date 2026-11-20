@@ -156,21 +156,9 @@ func (st *Store) scanPerson(ctx context.Context, query string, arg any) (*Person
 	return &p, nil
 }
 
-// SetInstruments replaces personID's set of instruments (see Person.Instruments).
-func (st *Store) SetInstruments(ctx context.Context, personID int64, instruments []string) error {
-	tag, err := st.db.Exec(ctx, `UPDATE people SET instruments = $1 WHERE id = $2`, instruments, personID)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("no such person id %d: %w", personID, ErrNotFound)
-	}
-	return nil
-}
-
 // SetPublicProfile replaces personID's public-profile fields wholesale
 // (see migration 0038 / Person's doc comment) — the "public profile" tab
-// on /profile, same "whole-form save" posture as SetInstruments.
+// on /profile, a whole-form save.
 func (st *Store) SetPublicProfile(ctx context.Context, personID int64, nickname, pictureURL, phone string, shareEmail, sharePhone, gravatarOptOut bool) error {
 	tag, err := st.db.Exec(ctx, `
 		UPDATE people SET nickname = $1, picture_url = $2, phone = $3, share_email = $4, share_phone = $5, gravatar_opt_out = $6
