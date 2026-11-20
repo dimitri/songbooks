@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"app/internal/store"
+	"app/internal/webassets"
 )
 
 // The space switcher (menu PR 7): the bands and communities one belongs
@@ -87,6 +88,18 @@ func pageSpace(data map[string]any) (string, int64) {
 	}
 	if id, ok := data["CommunityRef"].(int64); ok && id > 0 {
 		return "community", id
+	}
+	// An event is its band's or community's, unless it was opened from
+	// Accueil or the Agenda (its NavSection then says so).
+	if ev, ok := data["Event"].(*store.Event); ok && ev != nil {
+		if sec, _ := data["NavSection"].(string); sec == "" || sec == webassets.NavBands || sec == webassets.NavCommunities || sec == webassets.NavGroups {
+			switch {
+			case ev.OwnerKind == "band" && ev.OwnerBandID > 0:
+				return "band", ev.OwnerBandID
+			case ev.OwnerKind == "community" && ev.OwnerCommunityID > 0:
+				return "community", ev.OwnerCommunityID
+			}
+		}
 	}
 	return "", 0
 }

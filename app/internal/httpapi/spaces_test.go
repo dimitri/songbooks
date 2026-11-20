@@ -70,6 +70,11 @@ func TestPageSpace(t *testing.T) {
 		{map[string]any{"SetlistURL": "/bands/14/setlists/1"}, "band", 14},
 		{map[string]any{"SetlistURL": "/setlists/3"}, "", 0},
 		{map[string]any{"CommunityRef": int64(7)}, "community", 7},
+		// An event: its owner's, unless opened from Accueil or the Agenda.
+		{map[string]any{"Event": &store.Event{OwnerKind: "community", OwnerCommunityID: 3}, "NavSection": "communities"}, "community", 3},
+		{map[string]any{"Event": &store.Event{OwnerKind: "band", OwnerBandID: 14}}, "band", 14},
+		{map[string]any{"Event": &store.Event{OwnerKind: "community", OwnerCommunityID: 3}, "NavSection": "home"}, "", 0},
+		{map[string]any{"Event": &store.Event{OwnerKind: "community", OwnerCommunityID: 3}, "NavSection": "calendar"}, "", 0},
 		{map[string]any{}, "", 0},
 	} {
 		if k, id := pageSpace(c.data); k != c.kind || id != c.id {
