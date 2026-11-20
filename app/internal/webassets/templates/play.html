@@ -583,7 +583,7 @@
     <button type="button" class="view-extra" data-value="reference" title="{{t "reference"}}">{{template "icon-reference"}} {{t "Reference"}}</button>
   </div>
   <div class="song-actions" role="toolbar" aria-label="{{t "This song"}}">
-    <a class="song-action" id="song-tune" href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}" title="{{t "tune to this song"}}">{{template "icon-tuner"}}<span>{{t "Tune"}}</span></a>
+    <a class="song-action" id="song-tune" data-tuner-open aria-haspopup="dialog" href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}" title="{{t "tune to this song"}}">{{template "icon-tuner"}}<span>{{t "Tune"}}</span></a>
     <button type="button" id="edit-toggle" class="song-action" title="{{t "edit"}}"{{if not (or .CanEdit .CanCopy)}} hidden{{end}}>{{template "icon-edit"}}<span>{{t "Edit"}}</span></button>
     {{if .VariantID}}<button type="button" id="notes-toggle" class="song-action" title="{{t "notes: personal or shared, per section"}}">{{template "icon-notes"}}<span>{{t "Notes"}}</span></button>{{end}}
     <button type="button" class="song-action stage-mode-toggle" title="{{t "larger type, no menus, the screen kept awake"}}">{{template "icon-presentation"}}<span>{{t "Stage mode"}}</span></button>
@@ -623,6 +623,20 @@
 </div>
 {{end}}
 </div>
+
+{{/* "Accorder" (the toolbar, and the phone's Outils sheet): the tuner in
+     place, the song's own tunings first (tuner.html "tuner-card",
+     tuner.js), instead of the /tuner page — leaving the song stopped the
+     music and lost the player's place. A popover under the toolbar on a
+     wide screen, a sheet on a phone; closed, the microphone stops. The
+     links keep /tuner as their href for a page without its script. */}}
+<dialog class="tuner-dialog" id="tuner-dialog" aria-labelledby="tuner-dialog-title">
+  <div class="tuner-dialog-head">
+    <h2 id="tuner-dialog-title">{{t "Tune"}} <small>{{.Title}}</small></h2>
+    <form method="dialog"><button type="submit" class="icon-btn" aria-label="{{t "Close"}}" title="{{t "close"}}">{{template "icon-close"}}</button></form>
+  </div>
+  {{template "tuner-card" .}}
+</dialog>
 
 {{/* "Exporter en PDF…" (the ⋯ menu, and the phone's Morceau sheet): the
      layout and the notes, then the download. pdf-export.js rewrites the
@@ -1303,7 +1317,7 @@
        player's too. */}}
   <div class="stack-backdrop" id="tools-stack-backdrop" data-stack="tools-stack"></div>
   <div class="stack-sheet" id="tools-stack" role="dialog" aria-modal="true" aria-label="{{t "Tools"}}" tabindex="-1">
-    <a class="stack-sheet-row" id="tools-tuner-row" href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-tuner"}} {{t "Tuner"}}</a>
+    <a class="stack-sheet-row" id="tools-tuner-row" data-tuner-open aria-haspopup="dialog" href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-tuner"}} {{t "Tuner"}}</a>
     <button type="button" class="stack-sheet-row" data-player-line="audio-line-click">{{template "icon-metronome"}} {{t "Metronome"}} <small class="stack-sheet-hint">{{t "the player’s click"}}</small></button>
     <button type="button" class="stack-sheet-row tools-drummer-row" data-forward="drummer" hidden>{{template "icon-mode-drummer"}} {{t "Drummer"}}</button>
     <button type="button" class="stack-sheet-row tools-mixer-row" data-forward="mixer">{{template "icon-mode-mixer"}} {{t "Mixer"}}</button>
@@ -2087,6 +2101,7 @@
 {{if .CanEdit}}<script src="/static/js/sync-sheet.js?v={{staticVersion}}"></script>{{end}}
 <script src="/static/js/pitch-check.js?v={{staticVersion}}"></script>
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
+<script src="/static/js/tuner.js?v={{staticVersion}}"></script>
 <script src="/static/js/song-controls.js?v={{staticVersion}}"></script>
 {{/* Stage mode on every song, not only those with a score (it used to
      load with alphaTab, below, so a reader of a plain chart had a Mode

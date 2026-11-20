@@ -3129,6 +3129,11 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	data["PlayerParts"] = s.playerPartsData(r, data, variantID)
 	// Where the song's "‹" goes, on the desktop header and the phone's bar.
 	data["Back"] = songBackFor(data, s.langOf(w))
+	// "Accorder": the tuner, in place, the song's own tunings first (the
+	// /tuner page's, tuner.go).
+	data["SongTunings"] = songTunings(gp.Facts, s.langOf(w))
+	data["SongTitle"] = data["Title"]
+	data["SongCapo"] = songCapo(sg.Get("capo"))
 	s.render(w, "song", data)
 }
 
