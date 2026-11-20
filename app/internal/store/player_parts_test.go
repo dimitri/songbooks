@@ -54,7 +54,7 @@ func TestPlayerParts(t *testing.T) {
 	// Nothing said: the voice.
 	want("no profile", get(inBand, song), PartsFromDefault, "voice")
 	// The profile, messy as typed: normalised.
-	if err := st.SetInstruments(ctx, me, []string{"guitar & singer", "Basse"}); err != nil {
+	if err := st.UpdateOwnInstruments(ctx, me, []string{"guitar & singer", "Basse"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	want("the profile", get(inBand, song), PartsFromProfile, "voice", "guitar", "bass")

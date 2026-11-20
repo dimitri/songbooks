@@ -93,7 +93,7 @@ func TestCommunityMembersPage(t *testing.T) {
 	must(err)
 	_, err = st.AddCommunityMember(ctx, jam, member, "member", staff)
 	must(err)
-	must(st.SetInstruments(ctx, member, []string{"trombone"}))
+	must(st.UpdateOwnInstruments(ctx, member, []string{"trombone"}, nil))
 	shell, err := st.CreateShellPerson(ctx, "Carla Placeholder")
 	must(err)
 	_, err = st.AddCommunityMember(ctx, jam, shell, "member", staff)

@@ -38,7 +38,7 @@ func TestPlayerPartsAPI(t *testing.T) {
 			t.Fatal(err)
 		}
 		if len(instruments) > 0 {
-			if err := st.SetInstruments(ctx, id, instruments); err != nil {
+			if err := st.UpdateOwnInstruments(ctx, id, instruments, nil); err != nil {
 				t.Fatal(err)
 			}
 		}

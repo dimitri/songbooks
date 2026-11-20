@@ -91,7 +91,7 @@ func TestListCommunityRoster(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := st.SetInstruments(ctx, ana, []string{"bass", "vocals"}); err != nil {
+	if err := st.UpdateOwnInstruments(ctx, ana, []string{"bass", "vocals"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	shell, err := st.CreateShellPerson(ctx, "Carla")

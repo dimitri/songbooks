@@ -93,13 +93,13 @@ func TestSetBandMemberInstruments(t *testing.T) {
 			t.Errorf("%s: saved %q, stored %q, want %q", c.name, saved, instruments(c.target), want)
 		}
 		// Reset for the next case.
-		if err := st.SetInstruments(ctx, c.target, []string{}); err != nil {
+		if _, err := st.db.Exec(ctx, `UPDATE people SET instruments = '{}' WHERE id = $1`, c.target); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	// A refused edit leaves the instruments alone.
-	if err := st.SetInstruments(ctx, other, []string{"drums"}); err != nil {
+	if err := st.UpdateOwnInstruments(ctx, other, []string{"drums"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := st.SetBandMemberInstruments(ctx, bandID, guest, other, false, []string{"kazoo"}); !errors.Is(err, ErrForbidden) {
