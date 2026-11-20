@@ -3,6 +3,7 @@ package httpapi
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"app/internal/store"
 )
@@ -43,11 +44,20 @@ func (s *Server) handleWelcomePage(w http.ResponseWriter, r *http.Request) {
 		data["Passkeys"] = passkeys
 		data["AlreadyDone"] = len(passkeys) > 0
 	case 3:
-		checked, other := commonChecked(person.Instruments, s.langOfRequest(r))
+		// Read from the profile's rows, not people.instruments (which the
+		// start-up backfill doesn't rewrite), so the icons tick what's
+		// really there. Unticking one takes it off; the rest are listed,
+		// and changed on the profile, never here.
+		mine, err := s.store.ListPersonInstruments(r.Context(), person.ID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		checked, rest := commonChecked(mine, s.langOfRequest(r))
 		data["CommonInstruments"] = commonInstruments
 		data["Checked"] = checked
-		data["Other"] = other
-		data["AlreadyDone"] = len(person.Instruments) > 0
+		data["AlsoPlays"] = strings.Join(rest, ", ")
+		data["AlreadyDone"] = len(mine) > 0
 	case 4:
 		bands, err := s.store.ListBandsForPerson(r.Context(), person.ID)
 		if err != nil {

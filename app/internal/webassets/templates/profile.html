@@ -216,6 +216,17 @@ document.querySelectorAll('.profile-tab-btn').forEach(btn => {
   sync();
 })();
 
+// Sharing levels: saved as soon as it's ticked or unticked (its Save
+// button is for when there's no script).
+(function() {
+  const form = document.getElementById('instrument-sharing');
+  if (!form) return;
+  const box = form.querySelector('input[name=share]');
+  const save = form.querySelector('.my-instruments-sharing-save');
+  save.hidden = true;
+  box.addEventListener('change', () => form.requestSubmit(save));
+})();
+
 // Every settings form here is a plain POST that comes back to this page:
 // the submit button goes busy meanwhile (and back if the page is restored
 // from the back/forward cache), and a destructive one asks first.
@@ -243,7 +254,7 @@ window.addEventListener('pageshow', () => {
   });
 })();
 
-// The instruments card's forms come back with ?instsaved=1 (the
+// The instruments card's forms come back with ?instsaved= (the
 // template shows it), so the next reload doesn't say it again.
 if (new URLSearchParams(location.search).has('instsaved')) {
   history.replaceState(null, '', '/profile' + location.hash);

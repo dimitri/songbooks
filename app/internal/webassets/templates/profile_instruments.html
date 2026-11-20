@@ -1,12 +1,27 @@
-{{/* "My instruments" on /profile (httpapi/instruments.go): each
-     instrument with its level and where it came from, a level picker per
-     instrument, add and remove, and whether bandmates and organisers see
-     the levels. Plain forms that come back to /profile#instruments. */}}
+{{/* "My instruments" on /profile (httpapi/instruments.go): whether
+     bandmates and organisers see the levels, then each instrument with
+     its level and where it came from, a level picker per instrument,
+     add (from the list, or "other" in one's own words) and remove.
+     Plain forms that come back to /profile#instruments. */}}
 {{define "my-instruments"}}
 <section class="card book-card" id="instruments">
   <h3>{{t "My instruments"}}</h3>
-  <p class="hint">{{t "What you play, and how well, in your own words. Instruments from your bands and the jams you sign up for are added here; change or remove any of them."}}</p>
-  {{if .Saved}}<p class="form-status is-ok" role="status">{{t "Instruments saved."}}</p>{{end}}
+  <p class="hint">{{t "What you play, and how well, in your own words. Instruments from your bands and the jams you sign up for are added here and stay when you leave; add, change or remove any of them."}}</p>
+
+  {{/* Whether levels are shared is the person's choice, up front: on
+       (the default, people.share_instrument_levels), their bandmates and
+       the organisers of their communities and events see them; off,
+       nobody but them and the app's admins (store.levelsVisibleSQL). */}}
+  <form method="post" action="/profile/instruments/sharing" class="my-instruments-sharing" id="instrument-sharing">
+    <div class="my-instruments-sharing-text">
+      <label class="check"><input type="checkbox" name="share" value="on"{{if .Shared}} checked{{end}} aria-describedby="share-levels-hint"> <strong>{{t "Share my levels"}}</strong></label>
+      <p class="field-hint" id="share-levels-hint">{{t "On: your bandmates and the organisers of your communities and events see your levels. Off: nobody but you and the app's admins."}}</p>
+      {{if eq .Saved "sharing"}}<p class="form-status is-ok" role="status">{{if .Shared}}{{t "Saved: your bandmates and organisers see your levels."}}{{else}}{{t "Saved: only you and the app's admins see your levels."}}{{end}}</p>{{end}}
+    </div>
+    <button type="submit" class="my-instruments-sharing-save">{{t "Save"}}</button>
+  </form>
+
+  {{if and .Saved (ne .Saved "sharing")}}<p class="form-status is-ok" role="status">{{t "Instruments saved."}}</p>{{end}}
   {{if eq .Error "pick"}}<p class="form-status is-error" role="alert">{{t "Pick an instrument."}}</p>{{end}}
   {{if eq .Error "other"}}<p class="form-status is-error" role="alert">{{t "Say which instrument."}}</p>{{end}}
 
@@ -33,7 +48,7 @@
             <div class="form-actions"><button type="submit" class="primary">{{t "Save level"}}</button></div>
           </form>
         </details>
-        <form method="post" action="/profile/instruments/{{.ID}}/remove" data-confirm="{{t "Remove %s from your profile?" $name}}">
+        <form method="post" action="/profile/instruments/{{.ID}}/remove" data-confirm="{{t "Remove %s from your profile? It won't be added back from your bands or events; you can add it again yourself." $name}}">
           <button type="submit" class="danger">{{t "Remove"}}<span class="sr-only"> {{$name}}</span></button>
         </form>
       </div>
@@ -51,12 +66,12 @@
         <label for="add-instrument">{{t "Instrument"}}</label>
         <select id="add-instrument" name="instrument" required>
           <option value="">{{t "Choose…"}}</option>
-          {{range instrumentChoices}}<option value="{{.ID}}">{{instrumentName .ID}}</option>{{end}}
+          {{range instrumentChoices}}<option value="{{.ID}}">{{if eq .ID "other"}}{{t "Other (I'll type it)"}}{{else}}{{instrumentName .ID}}{{end}}</option>{{end}}
         </select>
       </div>
       <div class="field" id="add-instrument-other">
         <label for="add-instrument-other-name">{{t "Which one?"}}</label>
-        <p class="field-hint" id="add-instrument-other-hint">{{t "If you picked Other, e.g. theremin."}}</p>
+        <p class="field-hint" id="add-instrument-other-hint">{{t "For an instrument not in the list, e.g. theremin."}}</p>
         <input id="add-instrument-other-name" type="text" name="other_name" maxlength="40" autocomplete="off" aria-describedby="add-instrument-other-hint">
       </div>
       {{template "level-choices" (dict "Name" "level-new" "Current" "" "Legend" (t "Your level (optional)"))}}
@@ -64,14 +79,6 @@
     </form>
   </details>
 
-  <form method="post" action="/profile/instruments/sharing" class="form-stack my-instruments-sharing">
-    <fieldset class="field-group">
-      <legend>{{t "Who sees your levels"}}</legend>
-      <label class="check"><input type="checkbox" name="share"{{if .Shared}} checked{{end}} aria-describedby="share-levels-hint"> {{t "My bandmates, and the organisers of my communities and of the events I sign up for"}}</label>
-      <p class="field-hint" id="share-levels-hint">{{t "Unticked, only you see them. Your instruments themselves show to the people in your bands and communities, never on public pages."}}</p>
-    </fieldset>
-    <div class="form-actions"><button type="submit">{{t "Save"}}</button></div>
-  </form>
 </section>
 {{end}}
 

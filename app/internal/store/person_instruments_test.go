@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -214,33 +215,223 @@ func mustFind(t *testing.T, st *Store, personID int64, instrument string) int64 
 	return 0
 }
 
-func TestReplaceOwnInstruments(t *testing.T) {
+// The welcome wizard adds what's ticked or typed, and takes off only the
+// icons it showed ticked that the person unticked: never an "other",
+// never one collected from a band or an event, never one it didn't show.
+func TestUpdateOwnInstruments(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 	me, _ := st.CreatePerson(ctx, "me", "Me", "")
+	band, _ := st.CreateBand(ctx, "Mercy", me)
 	if _, err := st.AddInstrument(ctx, me, "bass", "", "advanced"); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.SetInstruments(ctx, me, []string{"bass", "drums", "Trompette, kazoo"}); err != nil {
+	if _, err := st.AddInstrument(ctx, me, "other", "theremin", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.CollectInstruments(ctx, me, []string{"drummer"}, InstrumentSource{InstrumentFromBand, band}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Ticked and typed: added; nothing taken off.
+	if err := st.UpdateOwnInstruments(ctx, me, []string{"bass", "guitar", "Trompette, kazoo"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	list, _ := st.ListPersonInstruments(ctx, me)
-	if got, want := instrumentIDs(list), []string{"bass", "drums", "trumpet", "other:kazoo"}; !reflect.DeepEqual(got, want) {
+	if got, want := instrumentIDs(list), []string{"guitar", "bass", "drums", "trumpet", "other:kazoo", "other:theremin"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("instruments = %q, want %q", got, want)
 	}
-	if list[0].Level != "advanced" {
-		t.Errorf("bass level lost: %+v", list[0])
+	if list[1].Level != "advanced" || list[1].Source != "self" {
+		t.Errorf("bass level or source lost: %+v", list[1])
 	}
-	if err := st.SetInstruments(ctx, me, []string{"bass"}); err != nil {
+
+	// An empty answer (nothing ticked, nothing had) changes nothing.
+	if err := st.UpdateOwnInstruments(ctx, me, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := st.ListPersonInstruments(ctx, me); len(list) != 6 {
+		t.Errorf("an empty answer took something off: %q", instrumentIDs(list))
+	}
+
+	// Unticking bass and guitar takes those two off, and only those:
+	// "other" and an instrument it didn't show (sax) are ignored, drums
+	// from the band and the typed ones stay. One both unticked and
+	// ticked stays (voice).
+	if err := st.UpdateOwnInstruments(ctx, me, []string{"voice"}, []string{"bass", "guitar", "other", "sax", "voice", "nope"}); err != nil {
 		t.Fatal(err)
 	}
 	list, _ = st.ListPersonInstruments(ctx, me)
-	if got := instrumentIDs(list); !reflect.DeepEqual(got, []string{"bass"}) {
-		t.Errorf("after unticking: %q", got)
+	if got, want := instrumentIDs(list), []string{"voice", "drums", "trumpet", "other:kazoo", "other:theremin"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("after unticking bass and guitar: %q, want %q", got, want)
 	}
-	if err := st.SetInstruments(ctx, 999999, []string{"bass"}); err == nil {
-		t.Error("SetInstruments on nobody")
+	if got, want := peopleInstruments(t, st, me), []string{"voice", "drums", "trumpet", "kazoo", "theremin"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("people.instruments = %q, want %q", got, want)
 	}
+	// Unticked is like removed: not collected again.
+	if err := st.CollectInstruments(ctx, me, []string{"bass"}, InstrumentSource{InstrumentFromBand, band}); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := st.ListPersonInstruments(ctx, me); len(list) != 5 {
+		t.Errorf("unticked bass collected again: %q", instrumentIDs(list))
+	}
+	// Ticked again, it's back with its level.
+	if err := st.UpdateOwnInstruments(ctx, me, []string{"bass"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if pi := find(t, st, me, "bass"); pi.Level != "advanced" {
+		t.Errorf("bass back without its level: %+v", pi)
+	}
+
+	if err := st.UpdateOwnInstruments(ctx, 999999, []string{"bass"}, nil); !errors.Is(err, ErrNotFound) {
+		t.Errorf("UpdateOwnInstruments on nobody: %v", err)
+	}
+}
+
+func find(t *testing.T, st *Store, personID int64, instrument string) PersonInstrument {
+	t.Helper()
+	list, _ := st.ListPersonInstruments(context.Background(), personID)
+	for _, pi := range list {
+		if pi.Instrument == instrument {
+			return pi
+		}
+	}
+	t.Fatalf("%d has no %s", personID, instrument)
+	return PersonInstrument{}
+}
+
+// Collected instruments stay on the profile when what they came from
+// goes: leaving the band, the roster slot changing, the registration
+// cancelled or changed, the event, band or community deleted, and the
+// start-up backfill run again. Only the person takes one off.
+func TestCollectedInstrumentsStay(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	admin, _ := st.CreatePerson(ctx, "admin", "Admin", "")
+	me, _ := st.CreatePerson(ctx, "me", "Me", "")
+
+	// A roster slot I claim: bass, from Mercy.
+	mercy, _ := st.CreateBand(ctx, "Mercy", admin)
+	gi, token, err := st.CreateGroupInvite(ctx, "band", mercy, admin, []GroupInviteSlotInput{{DisplayName: "Me", Instrument: "bass"}}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var slot int64
+	if err := st.db.QueryRow(ctx, `SELECT id FROM group_invite_slots WHERE group_invite_id = $1`, gi).Scan(&slot); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ClaimGroupInviteSlot(ctx, token, slot, me); err != nil {
+		t.Fatal(err)
+	}
+	// Keys from another band, which will be deleted.
+	velvet, _ := st.CreateBand(ctx, "Velvet Hour", admin)
+	if err := st.CollectInstruments(ctx, me, []string{"keys"}, InstrumentSource{InstrumentFromBand, velvet}); err != nil {
+		t.Fatal(err)
+	}
+	// Two jams: sax at the first (registration cancelled), harmonica at
+	// the second (what I'll play changed, then the event deleted).
+	comm, _ := st.CreateCommunity(ctx, "JamSpace", admin)
+	jam1, err := st.CreateEvent(ctx, "community", comm, "jam", "Jam du jeudi", "", "", time.Now().Add(24*time.Hour), nil, "members", admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jam2, err := st.CreateEvent(ctx, "community", comm, "jam", "Jam du vendredi", "", "", time.Now().Add(48*time.Hour), nil, "members", admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for ev, inst := range map[int64]string{jam1: "sax", jam2: "harmonica"} {
+		if err := st.RegisterForEvent(ctx, ev, me, 0); err != nil {
+			t.Fatal(err)
+		}
+		if err := st.SetEventRegistrationInstruments(ctx, ev, me, []string{inst}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Banjo from a community, which will be deleted.
+	other, _ := st.CreateCommunity(ctx, "Folk Club", admin)
+	if err := st.CollectInstruments(ctx, me, []string{"banjo"}, InstrumentSource{InstrumentFromCommunity, other}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"bass", "banjo", "keys", "sax", "harmonica"}
+	if got := instrumentIDs(mustList(t, st, me)); !reflect.DeepEqual(got, want) {
+		t.Fatalf("collected %q, want %q", got, want)
+	}
+
+	if err := st.RemoveBandMember(ctx, mercy, me, admin); err != nil {
+		t.Fatal(err)
+	}
+	// The claimed slot's instrument changes (a roster edit).
+	if _, err := st.db.Exec(ctx, `UPDATE group_invite_slots SET instrument = 'drums' WHERE id = $1`, slot); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UnregisterFromEvent(ctx, jam1, me); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetEventRegistrationInstruments(ctx, jam2, me, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DeleteEvent(ctx, jam2); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DeleteBand(ctx, velvet); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.db.Exec(ctx, `DELETE FROM communities WHERE id = $1`, other); err != nil {
+		t.Fatal(err)
+	}
+	if got := instrumentIDs(mustList(t, st, me)); !reflect.DeepEqual(got, want) {
+		t.Errorf("after leaving, cancelling and deleting: %q, want %q", got, want)
+	}
+	// The backfill only adds: drums from the changed slot.
+	if _, err := st.BackfillPersonInstruments(ctx); err != nil {
+		t.Fatal(err)
+	}
+	list := mustList(t, st, me)
+	if got, want := instrumentIDs(list), []string{"bass", "banjo", "drums", "keys", "sax", "harmonica"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("after the backfill: %q, want %q", got, want)
+	}
+	if got, want := peopleInstruments(t, st, me), []string{"bass", "banjo", "keys", "sax", "harmonica"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("people.instruments = %q, want %q", got, want)
+	}
+	// Where they came from: still named while it exists, "a band" or
+	// "an event" once it's gone.
+	for _, pi := range list {
+		switch pi.Instrument {
+		case "bass":
+			if pi.Source != "band" || pi.SourceName != "Mercy" {
+				t.Errorf("bass: %+v", pi)
+			}
+		case "keys":
+			if pi.Source != "band" || pi.SourceName != "" || pi.SourceID != 0 {
+				t.Errorf("keys, its band deleted: %+v", pi)
+			}
+		case "harmonica":
+			if pi.Source != "event" || pi.SourceName != "" || pi.SourceID != 0 {
+				t.Errorf("harmonica, its event deleted: %+v", pi)
+			}
+		case "sax":
+			if pi.Source != "event" || pi.SourceName != "Jam du jeudi" {
+				t.Errorf("sax, registration cancelled: %+v", pi)
+			}
+		case "banjo":
+			if pi.Source != "community" || pi.SourceName != "" {
+				t.Errorf("banjo, its community deleted: %+v", pi)
+			}
+		}
+	}
+	// No path deleted a row: the only way off is the person's own.
+	var rows int
+	if err := st.db.QueryRow(ctx, `SELECT count(*) FROM person_instruments WHERE person_id = $1 AND removed_at IS NULL`, me).Scan(&rows); err != nil || rows != 6 {
+		t.Errorf("rows = %d, %v; want 6", rows, err)
+	}
+}
+
+func mustList(t *testing.T, st *Store, personID int64) []PersonInstrument {
+	t.Helper()
+	list, err := st.ListPersonInstruments(context.Background(), personID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return list
 }
 
 func TestEventRegistrationAndProgramCollect(t *testing.T) {

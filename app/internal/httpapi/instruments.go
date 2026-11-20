@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"app/internal/instruments"
 	"app/internal/store"
@@ -30,7 +31,9 @@ type instrumentsCard struct {
 	Mine   []store.PersonInstrument
 	Shared bool
 	Error  string
-	Saved  bool
+	// Saved is "" (nothing just saved), "sharing" (the sharing choice)
+	// or "1" (an instrument).
+	Saved string
 }
 
 func (s *Server) instrumentsCard(r *http.Request, personID int64) (instrumentsCard, error) {
@@ -45,13 +48,19 @@ func (s *Server) instrumentsCard(r *http.Request, personID int64) (instrumentsCa
 	return instrumentsCard{
 		Mine: mine, Shared: shared,
 		Error: r.URL.Query().Get("insterror"),
-		Saved: r.URL.Query().Get("instsaved") != "",
+		Saved: r.URL.Query().Get("instsaved"),
 	}, nil
 }
 
 // backToInstruments is where the card's forms come back to.
 func backToInstruments(w http.ResponseWriter, r *http.Request, errMsg string) {
-	dest := "/profile?instsaved=1#instruments"
+	backToInstrumentsSaved(w, r, errMsg, "1")
+}
+
+// backToInstrumentsSaved is backToInstruments saying what was saved
+// (instrumentsCard.Saved).
+func backToInstrumentsSaved(w http.ResponseWriter, r *http.Request, errMsg, saved string) {
+	dest := "/profile?instsaved=" + saved + "#instruments"
 	if errMsg != "" {
 		dest = "/profile?insterror=" + errMsg + "#instruments"
 	}
@@ -71,11 +80,12 @@ func (s *Server) handleAddInstrument(w http.ResponseWriter, r *http.Request) {
 		backToInstruments(w, r, "pick")
 		return
 	}
-	if inst == instruments.Other && r.FormValue("other_name") == "" {
+	otherName := strings.TrimSpace(r.FormValue("other_name"))
+	if inst == instruments.Other && otherName == "" {
 		backToInstruments(w, r, "other")
 		return
 	}
-	if _, err := s.store.AddInstrument(r.Context(), p.ID, inst, r.FormValue("other_name"), r.FormValue("level")); err != nil {
+	if _, err := s.store.AddInstrument(r.Context(), p.ID, inst, otherName, r.FormValue("level")); err != nil {
 		httpError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -130,7 +140,8 @@ func (s *Server) handleRemoveInstrument(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleShareInstrumentLevels is POST /profile/instruments/sharing:
-// share=on lets bandmates and organisers see the levels.
+// share=on lets bandmates and organisers see the levels; without it,
+// only the person and the app's admins do.
 func (s *Server) handleShareInstrumentLevels(w http.ResponseWriter, r *http.Request) {
 	p := personFromContext(r)
 	if err := r.ParseForm(); err != nil {
@@ -141,7 +152,7 @@ func (s *Server) handleShareInstrumentLevels(w http.ResponseWriter, r *http.Requ
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	backToInstruments(w, r, "")
+	backToInstrumentsSaved(w, r, "", "sharing")
 }
 
 // personInstrumentJSON is one instrument in GET /api/people/{id}/instruments.

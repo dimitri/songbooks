@@ -7227,7 +7227,10 @@ a.singer-chip:hover { border-color: var(--border-strong); }
 .level-choice input { margin-top: 0.15rem; }
 .level-choice:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--bg-raised)); }
 .level-choice-text { display: flex; flex-direction: column; gap: 0.1rem; }
-.my-instruments-sharing { margin-top: 0.5rem; border-top: 1px solid var(--border); padding-top: 0.75rem; }
+.my-instruments-sharing { margin: 0.5rem 0 0.75rem; padding: 0.35rem 0.75rem 0.6rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-sunken); display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; align-items: center; justify-content: space-between; }
+.my-instruments-sharing-text { flex: 1 1 16rem; min-width: 0; }
+.my-instruments-sharing-text .field-hint { margin: 0; }
+.my-instruments-sharing-text .form-status { margin: 0.35rem 0 0; }
 .event-plays { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; margin-left: 0.35rem; }
 .event-plays-choices { display: flex; flex-wrap: wrap; gap: 0 1rem; }
 @media (max-width: 600px) {
