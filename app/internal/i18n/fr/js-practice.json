@@ -306,5 +306,16 @@
   "Goal: %d% of the entries within ±%d ms": "Objectif : %d % des entrées à ±%d ms",
   "Goal: the entries within ±%d ms": "Objectif : les entrées à ±%d ms près",
   "Strictness": "Exigence",
-  "Strictness: %s, set by your coach": "Exigence : %s, fixée par votre coach"
+  "Strictness: %s, set by your coach": "Exigence : %s, fixée par votre coach",
+  "back to the song’s tempo: %d bpm (\\)": "revenir au tempo du morceau : %d bpm (\\)",
+  "%d bpm for this performance only; the song stays at %d bpm.": "%d bpm pour cette fois seulement ; le morceau reste à %d bpm.",
+  "Back to %d bpm": "Revenir à %d bpm",
+  "%d bpm": "%d bpm",
+  "again…": "encore…",
+  "tempo": "tempo",
+  "Reset?": "À zéro ?",
+  "Screen stays on.": "Écran toujours allumé.",
+  "Screen stays on": "Écran toujours allumé",
+  "This browser may let the screen lock: keep it awake in its settings.": "Ce navigateur peut laisser l’écran se verrouiller : gardez-le allumé dans ses réglages.",
+  "The screen stays on while the click runs.": "L’écran reste allumé pendant le clic."
 }
