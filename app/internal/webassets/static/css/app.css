@@ -7548,11 +7548,44 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 /* A set list's "Our recordings | Reference" (setlist_overview.html), as
    the playlist's choice. */
 .setlist-prefer { display: flex; width: fit-content; margin: 0 auto 0.8rem; }
-/* The set list's tabs, centred; auto margins rather than justify-content,
-   so a row wider than a phone still scrolls from its first tab. */
-.setlist-tabs { display: flex; margin-left: auto; margin-right: auto; width: fit-content; max-width: 100%; }
-.setlist-tabs > :first-child { margin-left: auto; }
-.setlist-tabs > :last-child { margin-right: auto; }
+/* A set list's toolbar (setlist_overview.html, setlist_clicktrack.html):
+   its views in a segmented control, its actions (Reorder, Export ▾) apart
+   on the right; on a phone the actions go under the views, each row
+   fitting the width rather than scrolling. */
+.setlist-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; margin: 0 0 1.1rem; }
+.setlist-views { display: inline-flex; align-items: center; gap: 0.15rem; padding: 0.2rem; border-radius: 10px; background: var(--bg-sunken); max-width: 100%; }
+.setlist-views > a, .setlist-views > button {
+  display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.25rem; padding: 0.4rem 0.85rem;
+  border: 0; border-radius: 7px; background: none; color: var(--fg-muted); font: inherit; font-size: 0.85rem; font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+.setlist-views > a:hover, .setlist-views > button:hover { text-decoration: none; color: var(--fg); }
+.setlist-views > .active { background: var(--bg-raised); color: var(--fg); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+.setlist-views .icon { width: 1.05em; height: 1.05em; }
+.setlist-actions { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+.setlist-action {
+  display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.25rem; padding: 0.35rem 0.8rem; cursor: pointer; list-style: none;
+  border: 1px solid var(--border); border-radius: var(--radius-control, 8px); background: var(--bg-raised); color: var(--fg); font: inherit; font-size: 0.85rem; font-weight: 500;
+}
+.setlist-action::-webkit-details-marker { display: none; }
+.setlist-action .icon { width: 1.05em; height: 1.05em; }
+#reorder-toggle.setlist-action[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.setlist-export { position: relative; }
+.setlist-export[open] > summary { border-color: var(--accent); }
+.setlist-export .row-menu-panel { min-width: 15rem; }
+.setlist-export .row-menu-panel small { display: block; color: var(--fg-muted); font-size: 0.8rem; }
+/* "New set list", inside the band's Set lists section (band_setlists.html). */
+.band-setlist-new { margin: 0 0 1.2rem; }
+.band-setlist-new > summary { min-height: 2.25rem; padding: 0.35rem 0.85rem; border: 1px solid var(--accent); border-radius: var(--radius-control, 8px); color: var(--accent); font-weight: 600; list-style: none; }
+.band-setlist-new > summary::-webkit-details-marker { display: none; }
+.band-setlist-new[open] > summary { background: var(--accent-bg); }
+@media (max-width: 600px) {
+  .setlist-views { display: flex; width: 100%; }
+  .setlist-views > a, .setlist-views > button { flex: 1 1 auto; justify-content: center; padding: 0.4rem 0.5rem; min-width: 0; }
+  .setlist-views .icon { display: none; }
+  .setlist-actions { margin-left: 0; width: 100%; }
+  .setlist-actions > * { flex: 1 1 0; }
+  .setlist-action { width: 100%; justify-content: center; }
+}
 .setlist-prefer button { padding: 0.45rem 0.9rem; border: 0; border-radius: 999px; background: none; font: inherit; font-size: 0.85rem; color: var(--fg-muted); min-height: 2.25rem; cursor: pointer; }
 .setlist-prefer button[aria-pressed="true"] { background: var(--fg); color: var(--bg); font-weight: 600; }
 /* The Corrections page's names (band_recordings.html). */
