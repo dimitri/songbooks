@@ -111,7 +111,7 @@ async function courseApi(method, url, body) {
       <p class="form-status" role="status"></p>
     </div>
     {{end}}
-    <p class="hint"><a href="/songbooks/{{.Songbook.ID}}?view=songs">{{t "All the songs, as a list"}}</a>{{with .Community}} · <a href="/communities/{{.ID}}/downloads#songbook-{{$.Songbook.ID}}">{{t "Its files"}}</a>{{end}}</p>
+    <p class="hint"><a href="/songbooks/{{.Songbook.ID}}?view=songs">{{t "All the songs, as a list"}}</a>{{with .Community}} · <a href="/communities/{{.ID}}/resources#songbook-{{$.Songbook.ID}}">{{t "Its files"}}</a>{{end}}</p>
   </section>
   {{template "course-api"}}
   <script>

@@ -13,7 +13,6 @@ import (
 
 	"app/internal/i18n"
 	"app/internal/store"
-	"app/internal/webassets"
 )
 
 // requireCommunityMember wraps requireAuth, then checks the logged-in
@@ -510,9 +509,7 @@ func (s *Server) handleCommunityDefaultSongbookPage(w http.ResponseWriter, r *ht
 		"Me": person, "Community": community, "Entries": entries, "Badges": s.songBadgesFor(r.Context(), ids),
 		"IsStaff": canManage || person.IsAdmin, "CanEdit": canEdit || person.IsAdmin,
 		"CanReview": canReview, "PendingSubmissions": pending, "DecidedSubmissions": decided,
-		"ContextualGroup": webassets.ContextualGroup{
-			Label: "This community", PDFExportPath: fmt.Sprintf("/communities/%d/export-songbook.pdf", communityID),
-		},
+		"Export": spaceExport{PDF: fmt.Sprintf("/communities/%d/export-songbook.pdf", communityID)},
 	})
 }
 

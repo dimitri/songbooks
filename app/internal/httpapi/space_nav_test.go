@@ -30,13 +30,14 @@ func TestSpaceTabsByRole(t *testing.T) {
 		// Repertoire, Rehearsals and Concerts of its Recordings.
 		{spaceBand, spaceRole{}, "overview catalog setlists events recordings members", "settings"},
 		{spaceBand, spaceRole{Staff: true}, "overview catalog setlists events recordings members", "settings"},
-		{spaceCommunity, spaceRole{}, "overview songbooks downloads events", ""},
-		{spaceCommunity, spaceRole{SeeMembers: true}, "overview songbooks members downloads events", ""},
-		{spaceCommunity, spaceRole{Staff: true, SeeMembers: true}, "overview songbooks members downloads events", "admin"},
+		// A jam's community: its events first, then songbooks, resources.
+		{spaceCommunity, spaceRole{}, "overview events songbooks resources", ""},
+		{spaceCommunity, spaceRole{SeeMembers: true}, "overview events songbooks resources members", ""},
+		{spaceCommunity, spaceRole{Staff: true, SeeMembers: true}, "overview events songbooks resources members", "admin"},
 		// A coach never sees the student's "My voice", a student never
 		// sees Students or the students' songs.
-		{spaceCoaching, spaceRole{Staff: true, SeeMembers: true}, "overview songbooks students repertoire groups warmups lessons members downloads events", "admin"},
-		{spaceCoaching, spaceRole{PersonID: 42}, "overview songbooks voice groups warmups lessons downloads events", ""},
+		{spaceCoaching, spaceRole{Staff: true, SeeMembers: true}, "overview songbooks students repertoire groups warmups lessons members resources events", "admin"},
+		{spaceCoaching, spaceRole{PersonID: 42}, "overview songbooks voice groups warmups lessons resources events", ""},
 	}
 	for _, c := range cases {
 		if got := sectionKeys(spaceTabs(c.kind, c.role)); got != c.want {
@@ -68,7 +69,7 @@ func TestSpaceSectionOf(t *testing.T) {
 		{"band_recordings", map[string]any{"Tab": "concerts"}, "recordings/concerts"},
 		{"band_recordings", map[string]any{}, "recordings/rehearsals"},
 		{"band_settings", nil, "settings"},
-		{"community_downloads", nil, "downloads"},
+		{"community_downloads", nil, "resources"},
 		{"community_stats", nil, "admin"},
 		{"coaching_student", map[string]any{"IsCoach": true}, "students"},
 		{"coaching_student", map[string]any{"IsCoach": false}, "voice"},

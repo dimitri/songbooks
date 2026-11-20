@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "%s — staff admin" .Community.Name}}</title>
+<title>{{template "space-title" .Space}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -14,8 +14,8 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{t "%s — staff admin" .Community.Name}}</h1>
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
