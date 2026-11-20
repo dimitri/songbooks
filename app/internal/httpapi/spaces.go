@@ -65,6 +65,14 @@ func pageSpace(data map[string]any) (string, int64) {
 	case store.Community:
 		return "community", c.ID
 	}
+	// A band's set list pages say whose they are by their path
+	// (/bands/17/setlists/10/clicktrack).
+	if path, ok := data["Path"].(string); ok {
+		var id int64
+		if _, err := fmt.Sscanf(path, "/bands/%d/", &id); err == nil && id > 0 {
+			return "band", id
+		}
+	}
 	return "", 0
 }
 

@@ -63,6 +63,8 @@ func TestPageSpace(t *testing.T) {
 		{map[string]any{"Band": store.Band{ID: 3}}, "band", 3},
 		{map[string]any{"Community": &store.Community{ID: 7}}, "community", 7},
 		{map[string]any{"Band": none}, "", 0},
+		{map[string]any{"Path": "/bands/17/setlists/10"}, "band", 17},
+		{map[string]any{"Path": "/setlists/10"}, "", 0},
 		{map[string]any{}, "", 0},
 	} {
 		if k, id := pageSpace(c.data); k != c.kind || id != c.id {

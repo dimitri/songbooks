@@ -24,7 +24,15 @@ type navState struct {
 	// Spaces is the space switcher: one's bands and communities (see
 	// spaces.go and the "space-switcher" template).
 	Spaces navSpaces
+	// Focused: a page you work in rather than move through — a song, a
+	// set list's click track — whose desktop sidebar is a 64px rail, so
+	// the chart gets the width (menu proposal §3.2).
+	Focused bool
 }
+
+// focusedPages are the pages whose desktop sidebar is a rail (see
+// navState.Focused); the song page covers a set list's stage mode too.
+var focusedPages = map[string]bool{"song": true, "setlist-clicktrack": true}
 
 // pageNavSections is the global section of each page, by template name.
 // A handler that knows better (an event opened from Home) says so with
@@ -246,7 +254,7 @@ func (s *Server) addNav(w http.ResponseWriter, name string, data any) {
 	if me == nil {
 		me, _ = m["Me"].(*store.Person)
 	}
-	nav := navState{Section: navSectionFor(name, m), Me: me, Page: name}
+	nav := navState{Section: navSectionFor(name, m), Me: me, Page: name, Focused: focusedPages[name]}
 	if me != nil {
 		ctx := context.Background()
 		if lw, ok := w.(*langWriter); ok {

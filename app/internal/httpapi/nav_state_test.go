@@ -153,3 +153,17 @@ func TestMenusMarkTheCurrentSection(t *testing.T) {
 		t.Error("the account menu lacks Admin for a site admin")
 	}
 }
+
+// A song and a click track get the sidebar as a rail; other pages don't.
+func TestFocusedPagesRail(t *testing.T) {
+	for page, want := range map[string]bool{"song": true, "setlist-clicktrack": true, "setlist-overview": false, "catalog": false} {
+		var b strings.Builder
+		data := map[string]any{"Nav": navState{Page: page, Focused: focusedPages[page]}}
+		if err := webassets.TemplatesFor("fr").ExecuteTemplate(&b, "desktop-sidebar", data); err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Contains(b.String(), `class="desktop-sidebar is-rail"`); got != want {
+			t.Errorf("%s: rail %v, want %v", page, got, want)
+		}
+	}
+}

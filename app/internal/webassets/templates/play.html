@@ -450,7 +450,7 @@
      below 901px exactly like the shared partial (same base .desktop-sidebar
      CSS rule) — mobile keeps its own .song-context-bar/"..." nav below,
      completely untouched. */}}
-<nav class="desktop-sidebar" id="desktop-sidebar" aria-label="{{t "main navigation"}}">
+<nav class="desktop-sidebar{{if .Nav.Focused}} is-rail{{end}}" id="desktop-sidebar" aria-label="{{t "main navigation"}}">
   <a class="sidebar-brand" href="/home">{{template "icon-logo"}} Songbooks</a>
   {{/* Phase 46: the "where did I come from" breadcrumb used to live in the
        top panel (.topbar-utility) — it's site navigation, not something
