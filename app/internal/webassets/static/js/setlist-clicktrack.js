@@ -49,6 +49,8 @@
   const songListEl = document.getElementById('clicktrack-songlist');
   const songsFold = document.getElementById('clicktrack-songs-fold');
   const wide = window.matchMedia('(min-width: 960px)');
+  // The step shown (a song, or a break between sets).
+  let cur = 0;
 
   // ---- Compact metronome engine — same clock.js classes the standalone
   // page uses, own small control surface. ------------------------------
@@ -74,7 +76,32 @@
     bpm = Math.max(20, Math.min(300, v));
     bpmValueEl.textContent = String(Math.round(bpm));
     clock.setBpm(bpm);
+    showOwnTempo();
   }
+
+  // A tempo tapped or nudged (−/+, [ ]) is for this performance only:
+  // nothing is saved to the song, and changing song loads that song's
+  // own tempo. While it differs, the page says so and offers the way
+  // back (as does the bpm in the bar, and the \ key).
+  const ownTempoEl = document.getElementById('ct-tempo-own');
+  const ownTempoText = document.getElementById('ct-tempo-own-text');
+  const ownTempoBack = document.getElementById('ct-tempo-back');
+  const bpmResetBtn = document.getElementById('mc-bpm-reset');
+  function songTempo() { const st = steps[cur]; return st && st.kind === 'song' ? st.song.tempo : null; }
+  function backToSongTempo() { const v = songTempo(); if (v) setBpm(v); }
+  function showOwnTempo() {
+    const songBpm = songTempo();
+    const own = songBpm != null && Math.round(bpm) !== songBpm;
+    ownTempoEl.hidden = !own;
+    bpmResetBtn.disabled = !own;
+    bpmResetBtn.classList.toggle('is-own', own);
+    bpmResetBtn.title = own ? t('back to the song’s tempo: %d bpm (\\)', songBpm) : '';
+    if (!own) return;
+    ownTempoText.textContent = t('%d bpm for this performance only; the song stays at %d bpm.', Math.round(bpm), songBpm);
+    ownTempoBack.textContent = t('Back to %d bpm', songBpm);
+  }
+  ownTempoBack.addEventListener('click', backToSongTempo);
+  bpmResetBtn.addEventListener('click', backToSongTempo);
   function setTimeSig(sig) {
     clock.beatsPerBar = beatsForSig(sig);
     metronome.isCompound = isCompoundSig(sig);
@@ -84,9 +111,38 @@
 
   document.getElementById('mc-bpm-down').addEventListener('click', () => setBpm(bpm - 1));
   document.getElementById('mc-bpm-up').addEventListener('click', () => setBpm(bpm + 1));
+  // Tap: big, labelled, in the bar. Each tap flashes it; from the second
+  // tap it shows the tapped tempo, which the click takes at once. A touch
+  // counts on pointerdown (no wait for the finger to lift); the keyboard
+  // (T, or Enter on the focused button) through click.
+  const tapBpmEl = document.getElementById('ct-tap-bpm');
+  let tapPointerAt = -Infinity;
+  let tapIdleTimer;
+  function tap() {
+    const v = clock.tapDetermine();
+    tapBtn.classList.remove('is-hit');
+    void tapBtn.offsetWidth; // restart the flash
+    tapBtn.classList.add('is-hit', 'is-tapping');
+    if (v) {
+      setBpm(v);
+      tapBpmEl.textContent = t('%d bpm', Math.round(bpm));
+    } else {
+      tapBpmEl.textContent = t('again…');
+    }
+    clearTimeout(tapIdleTimer);
+    tapIdleTimer = setTimeout(() => {
+      tapBtn.classList.remove('is-tapping');
+      tapBpmEl.textContent = t('tempo');
+    }, 4000);
+  }
+  tapBtn.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    tapPointerAt = performance.now();
+    tap();
+  });
   tapBtn.addEventListener('click', () => {
-    const t = clock.tapDetermine();
-    if (t) setBpm(t);
+    if (performance.now() - tapPointerAt < 1500) return; // already counted on pointerdown
+    tap();
   });
 
   // ---- Display/sound preferences: size, portrait/landscape, every-beat/
@@ -96,8 +152,8 @@
   // case), a server copy (GET on load, debounced PUT on every change) is
   // what makes it "recall whatever I last set, on any device." No
   // explicit save action — every change writes through on its own.
-  // (The old 1/2/4-bar grouping of the dots is gone: the dots always
-  // show one bar, as big as the screen allows.)
+  // (The old 1/2/4-bar option box is gone: the dots always show two
+  // bars, as big as the screen allows; a saved "group" is dropped.)
   const PREF_DEFAULTS = { size: 'md', orientation: 'portrait', clickMode: 'every', muted: false };
   let prefs = { ...PREF_DEFAULTS };
   try { Object.assign(prefs, JSON.parse(localStorage.getItem('songbooks-clicktrack-prefs') || '{}')); } catch (e) { /* ignore */ }
@@ -185,30 +241,190 @@
     if (changed) { try { localStorage.setItem('songbooks-clicktrack-prefs', JSON.stringify(prefs)); } catch (e) { /* ignore */ } }
   }).catch(() => { /* offline/logged-out — local/default prefs already applied */ });
 
-  // One dot per beat of one bar; --beats lets the CSS size them to fill
-  // the width (capped by the Size option).
+  // Two bars of dots, always (the old 1/2/4-bar option box is gone; two
+  // bars was one of its choices, now the only view): odd bars light the
+  // first group, even bars the second, so the eye sees the phrase move.
+  // One dot per beat (per main pulse in 6/8, 9/8, 12/8); --beats lets the
+  // CSS size them to fill the width (capped by the Size option).
+  const BARS_SHOWN = 2;
   function renderDots() {
     dotsEl.innerHTML = '';
     const n = clock.beatsPerBar;
     dotsEl.style.setProperty('--beats', String(n));
-    for (let k = 0; k < n; k++) {
-      const d = document.createElement('span');
-      d.className = 'beat-dot' + (k === 0 ? ' downbeat' : '');
-      dotsEl.appendChild(d);
+    for (let b = 0; b < BARS_SHOWN; b++) {
+      const bar = document.createElement('span');
+      bar.className = 'mc-bar';
+      for (let k = 0; k < n; k++) {
+        const d = document.createElement('span');
+        d.className = 'beat-dot' + (k === 0 ? ' downbeat' : '');
+        bar.appendChild(d);
+      }
+      dotsEl.appendChild(bar);
     }
   }
   function tickDots() {
     const n = clock.beatsPerBar;
-    const dots = dotsEl.children;
-    if (dots.length === n) {
-      const idx = clock.running ? Math.floor(clock.currentBeat()) % n : -1;
-      for (let k = 0; k < dots.length; k++) {
-        const lit = k === idx && (prefs.clickMode !== 'beat1' || k === 0);
-        dots[k].classList.toggle('lit', lit);
+    const bars = dotsEl.children;
+    if (bars.length === BARS_SHOWN && bars[0].children.length === n) {
+      const idx = clock.running ? Math.floor(clock.currentBeat()) % (n * BARS_SHOWN) : -1;
+      for (let b = 0; b < BARS_SHOWN; b++) {
+        const dots = bars[b].children;
+        bars[b].classList.toggle('current', idx >= 0 && Math.floor(idx / n) === b);
+        for (let k = 0; k < n; k++) {
+          const lit = b * n + k === idx && (prefs.clickMode !== 'beat1' || k === 0);
+          dots[k].classList.toggle('lit', lit);
+        }
       }
     }
+    tickCounters();
     requestAnimationFrame(tickDots);
   }
+
+  // ---- Counters: bar.beat and the song's time since its click started
+  // (back to 1.1 and 0:00 on another song; Stop holds the song's time,
+  // Play goes on from it), and the set list's total time. The total
+  // starts with the first Play and keeps running while the click is
+  // stopped between songs (the gig goes on), until someone resets it; it
+  // lives in sessionStorage, so it survives a reload of the page during
+  // the gig (not a new tab).
+  const barBeatEl = document.getElementById('ct-barbeat');
+  const songTimeEl = document.getElementById('ct-song-time');
+  const setTimeEl = document.getElementById('ct-set-time');
+  const totalResetBtn = document.getElementById('ct-total-reset');
+  const countersEl = document.getElementById('ct-counters');
+  const TOTAL_KEY = 'songbooks-clicktrack-total-' + setlistId;
+  let totalStart = null; // Date.now() at the first start, or null
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(TOTAL_KEY) || 'null');
+    if (saved && typeof saved.start === 'number' && saved.start <= Date.now()) totalStart = saved.start;
+  } catch (e) { /* no storage: the total lasts as long as the page */ }
+  function saveTotal() {
+    try {
+      if (totalStart == null) sessionStorage.removeItem(TOTAL_KEY);
+      else sessionStorage.setItem(TOTAL_KEY, JSON.stringify({ start: totalStart }));
+    } catch (e) { /* ignore */ }
+  }
+  let songMs = 0; // the song's time before the current run
+  let songRunFrom = null; // performance.now() when the current run started
+  function songClockStart() {
+    if (songRunFrom == null) songRunFrom = performance.now();
+    if (totalStart == null) { totalStart = Date.now(); saveTotal(); }
+  }
+  function songClockStop() {
+    if (songRunFrom != null) { songMs += performance.now() - songRunFrom; songRunFrom = null; }
+  }
+  function songClockReset() { songMs = 0; songRunFrom = null; }
+  function fmtTime(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor(s / 60) % 60;
+    const ss = String(s % 60).padStart(2, '0');
+    return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+  }
+  function setText(el, v) { if (el.textContent !== v) el.textContent = v; }
+  function tickCounters() {
+    const n = clock.beatsPerBar;
+    const beat = Math.max(0, Math.floor(clock.currentBeat()));
+    setText(barBeatEl, `${Math.floor(beat / n) + 1}.${(beat % n) + 1}`);
+    setText(songTimeEl, fmtTime(songMs + (songRunFrom != null ? performance.now() - songRunFrom : 0)));
+    setText(setTimeEl, fmtTime(totalStart != null ? Date.now() - totalStart : 0));
+    countersEl.classList.toggle('is-running', clock.running);
+    countersEl.classList.toggle('is-total-running', totalStart != null);
+  }
+  // Reset: two taps, so a stray one mid-gig can't zero the total. After
+  // a reset the total waits for the next Play (or starts again now if
+  // the click is running).
+  let resetArmed = null;
+  function disarmReset() {
+    clearTimeout(resetArmed);
+    resetArmed = null;
+    totalResetBtn.textContent = '\u21BA';
+    totalResetBtn.classList.remove('is-armed');
+  }
+  totalResetBtn.addEventListener('click', () => {
+    if (!resetArmed) {
+      totalResetBtn.textContent = t('Reset?');
+      totalResetBtn.classList.add('is-armed');
+      resetArmed = setTimeout(disarmReset, 3000);
+      return;
+    }
+    disarmReset();
+    totalStart = clock.running ? Date.now() : null;
+    saveTotal();
+  });
+
+  // ---- Keep the screen on while the click runs: the Screen Wake Lock
+  // API where there is one (Chrome and Edge 84+, Safari 16.4+, Firefox
+  // 126+), asked for on Play and again when the page comes back into
+  // view (the browser drops it when the page is hidden); released on
+  // Stop and when leaving the page. Without it (iOS before 16.4, older
+  // browsers), or if the browser refuses it: a muted, looping, invisible
+  // inline video started from the same tap keeps the screen awake (the
+  // NoSleep.js way).
+  const awakeEl = document.getElementById('ct-awake');
+  const awakeLine = document.getElementById('ct-awake-line');
+  const KEEP_AWAKE_MP4 = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMrbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAB9AAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAlV0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAfQAAAAAAABAAAAAAHNbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAgABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABeG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAThzdGJsAAAAuHN0c2QAAAAAAAAAAQAAAKhhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2Mi4yOC4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAALmF2Y0MBQsAe/+EAFmdCwB7ZHsBEAAADAAQAAAMACDxYuSABAAVoy4PEyAAAABBwYXNwAAAAAQAAAAEAAAAUYnRydAAAAAAAAApQAAAAAAAAABhzdHRzAAAAAAAAAAEAAAACAABAAAAAABRzdHNzAAAAAAAAAAEAAAABAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAACAAAAAQAAABxzdHN6AAAAAAAAAAAAAAACAAACiQAAAAsAAAAUc3RjbwAAAAAAAAABAAADWwAAAGJ1ZHRhAAAAWm1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNjIuMTIuMTAyAAAACGZyZWUAAAKcbWRhdAAAAnIGBf//btxF6b3m2Ui3lizYINkj7u94MjY0IC0gY29yZSAxNjUgcjMyMjIgYjM1NjA1YSAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMjUgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0wIHJlZj0zIGRlYmxvY2s9MTotMzotMyBhbmFseXNlPTB4MToweDExMSBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9Mi4wMDowLjcwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MCBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tNCB0aHJlYWRzPTEgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0wIHdlaWdodHA9MCBrZXlpbnQ9MjUwIGtleWludF9taW49MSBzY2VuZWN1dD00MCBpbnRyYV9yZWZyZXNoPTAgcmNfbG9va2FoZWFkPTQwIHJjPWNyZiBtYnRyZWU9MSBjcmY9MjMuMCBxY29tcD0wLjYwIHFwbWluPTAgcXBtYXg9NjkgcXBzdGVwPTQgaXBfcmF0aW89MS40MCBhcT0xOjEuMjAAgAAAAA9liIQF85///w9FAAFXn4AAAAAHQZo4C+c6gA==';
+  const awake = (() => {
+    let want = false;
+    let lock = null;
+    let video = null;
+    let mode = ''; // 'lock', 'video', or '' (nothing holds the screen)
+    function show() {
+      const on = want && mode !== '';
+      awakeEl.textContent = on ? t('Screen stays on.')
+        : want ? t('This browser may let the screen lock: keep it awake in its settings.')
+          : t('The screen stays on while the click runs.');
+      awakeLine.hidden = !on;
+      awakeLine.textContent = on ? t('Screen stays on') : '';
+    }
+    function playVideo() {
+      if (!video) {
+        video = document.createElement('video');
+        video.setAttribute('playsinline', '');
+        video.setAttribute('muted', '');
+        video.setAttribute('aria-hidden', 'true');
+        video.muted = true;
+        video.loop = true;
+        video.src = KEEP_AWAKE_MP4; // not in the page: never seen
+      }
+      const ok = () => { if (want) { mode = 'video'; show(); } else video.pause(); };
+      const no = () => { mode = ''; show(); };
+      try {
+        const p = video.play();
+        if (p && p.then) p.then(ok, no); else ok();
+      } catch (e) { no(); }
+    }
+    function acquire() {
+      if (!want || document.visibilityState !== 'visible' || mode !== '') return;
+      if (!('wakeLock' in navigator)) { playVideo(); return; }
+      navigator.wakeLock.request('screen').then(l => {
+        if (!want) { l.release().catch(() => {}); return; }
+        lock = l;
+        mode = 'lock';
+        l.addEventListener('release', () => {
+          if (lock !== l) return;
+          lock = null;
+          mode = '';
+          show();
+        });
+        show();
+      }, () => playVideo());
+    }
+    function release() {
+      want = false;
+      if (lock) { const l = lock; lock = null; l.release().catch(() => {}); }
+      if (video) video.pause();
+      mode = '';
+      show();
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && want) acquire();
+    });
+    window.addEventListener('pagehide', release);
+    window.addEventListener('pageshow', e => { if (e.persisted && clock.running) { want = true; acquire(); } });
+    show();
+    return { start() { want = true; acquire(); }, stop: release, mode: () => mode };
+  })();
 
   const iconPlay = playBtn.innerHTML;
   const iconPause = '<svg class="icon" viewBox="0 0 20 20" fill="currentColor"><rect x="5" y="4" width="3.4" height="12" rx="1"/><rect x="11.6" y="4" width="3.4" height="12" rx="1"/></svg>';
@@ -217,12 +433,16 @@
       metronome._ensureCtx();
       clock.start();
       metronome.start();
+      songClockStart();
+      awake.start();
       playBtn.title = t('stop');
       playBtn.innerHTML = iconPause;
     } else {
       clock.pause();
       metronome.stop();
       clock.seekToBeat(0);
+      songClockStop();
+      awake.stop();
       playBtn.title = t('start');
       playBtn.innerHTML = iconPlay;
     }
@@ -349,8 +569,6 @@
     const btn = e.target.closest('.clicktrack-songlist-item');
     if (!btn) return;
     goTo(parseInt(btn.dataset.step, 10), true);
-    // On a phone the list sits under the metronome: fold it and bring
-    // the dots back into view.
     // On a phone the panel covers the dots: it closes on a pick.
     if (!wide.matches) shell?.open(false);
   });
@@ -358,16 +576,21 @@
   // ---- Stepper: advance through the setlist, re-dialing the compact
   // engine to each song's own tempo/time-signature. ---------------------
   const totalSongs = songs.length;
-  let cur = 0;
 
+  // Nothing here counts the song's bars or stops on its own: the click
+  // runs on the current song until someone stops it or moves (Previous,
+  // Next, a pick in the running order). Moving onto a break step stops.
   function render() {
     const step = steps[cur];
     if (clock.running) setPlaying(false);
+    songClockReset();
     songListEl.querySelectorAll('.clicktrack-songlist-item').forEach(b => {
       if (parseInt(b.dataset.step, 10) === cur) b.setAttribute('aria-current', 'true');
       else b.removeAttribute('aria-current');
     });
 
+    countersEl.classList.toggle('is-break', step.kind === 'break');
+    showOwnTempo();
     if (step.kind === 'break') {
       nowPlayingCard.hidden = true;
       metronomeWrap.hidden = true;
@@ -466,7 +689,7 @@
       ArrowLeft: () => goTo(cur - 1, false), ArrowRight: () => goTo(cur + 1, false),
       'Shift+ArrowLeft': () => goTo(cur - 1, false), 'Shift+ArrowRight': () => goTo(cur + 1, false),
       '[': () => setBpm(bpm - 1), ']': () => setBpm(bpm + 1), '{': () => setBpm(bpm - 5), '}': () => setBpm(bpm + 5),
-      '\\': () => { if (steps[cur].song) setBpm(steps[cur].song.tempo); },
+      '\\': backToSongTempo,
       m: () => muteBtn.click(), t: () => tapBtn.click(),
       f: () => shell?.open(!shell.isOpen()),
     },

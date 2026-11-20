@@ -141,6 +141,12 @@ class Metronome {
     return false;
   }
 
+  // Where the clicks go: while running, a gain node of this run, which
+  // stop() cuts and drops, so the clicks already scheduled ahead (up to
+  // the lookahead) don't sound after Stop, or on top of the next song's
+  // first beat; one-off clicks (countIn, playBarThenFade) go straight out.
+  _dest() { return this._out || this._ctx.destination; }
+
   _ensureCtx() {
     if (!this._ctx) this._ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (this._ctx.state === 'suspended') this._ctx.resume();
@@ -165,7 +171,7 @@ class Metronome {
     osc.frequency.value = freq;
     gain.gain.setValueAtTime(vol, atTime);
     gain.gain.exponentialRampToValueAtTime(0.0001, atTime + dur);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain).connect(this._dest());
     osc.start(atTime);
     osc.stop(atTime + dur);
   }
@@ -183,7 +189,7 @@ class Metronome {
     osc.frequency.exponentialRampToValueAtTime(45, atTime + 0.1);
     gain.gain.setValueAtTime(vol, atTime);
     gain.gain.exponentialRampToValueAtTime(0.0001, atTime + 0.12);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain).connect(this._dest());
     osc.start(atTime);
     osc.stop(atTime + 0.13);
   }
@@ -206,7 +212,7 @@ class Metronome {
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(vol, atTime);
     gain.gain.exponentialRampToValueAtTime(0.0001, atTime + 0.018);
-    noise.connect(hp).connect(gain).connect(ctx.destination);
+    noise.connect(hp).connect(gain).connect(this._dest());
     noise.start(atTime);
     noise.stop(atTime + 0.03);
   }
@@ -296,6 +302,10 @@ class Metronome {
 
   start() {
     this._ensureCtx();
+    // Started again while running (e.g. a lock-screen Play): one timer.
+    this.stop();
+    this._out = this._ctx.createGain();
+    this._out.connect(this._ctx.destination);
     this._nextBeat = Math.ceil(this.clock.currentBeat());
     // Lookahead scheduler: tick every ~25ms, schedule any beat boundary in
     // the next ~100ms against AudioContext.currentTime — immune to JS
@@ -306,14 +316,30 @@ class Metronome {
   stop() {
     if (this._timer) clearInterval(this._timer);
     this._timer = null;
+    const out = this._out;
+    this._out = null;
+    if (out) {
+      out.gain.setValueAtTime(0, this._ctx.currentTime);
+      setTimeout(() => out.disconnect(), 200);
+    }
   }
 
   _tick() {
-    if (!this.enabled || !this.clock.running) return;
+    if (!this.clock.running) return;
     const ctx = this._ctx;
     const lookaheadMs = 100;
     const nowBeat = this.clock.currentBeat();
     const horizonBeat = this.clock.currentBeat(performance.now() + lookaheadMs);
+    // A beat already more than ~30 ms gone is skipped, not played late:
+    // after a mute (beats go by unscheduled) or a throttled background
+    // tab, catching up would fire every missed click at once, as one
+    // loud burst.
+    if ((nowBeat - this._nextBeat) * this.clock.beatDurationMs() > 30) this._nextBeat = Math.ceil(nowBeat);
+    if (!this.enabled) {
+      // Muted: the beats go by silently, so unmuting picks up on the next one.
+      if (this._nextBeat <= horizonBeat) this._nextBeat = Math.floor(horizonBeat) + 1;
+      return;
+    }
     while (this._nextBeat <= horizonBeat) {
       const beat = this._nextBeat;
       const beatIndexInBar = ((beat % this.clock.beatsPerBar) + this.clock.beatsPerBar) % this.clock.beatsPerBar;
