@@ -109,24 +109,35 @@ window.songbooksDecodable = function (buf) {
   audio.webkitPreservesPitch = true;
   let peaks = null; // Float32Array of per-bucket peak amplitudes, 0..1
   let duration = 0;
-  let categories = {}; // {gp|youtube|band: {markers, barSyncPoints, byteSize}}
+  let categories = {}; // {gp|youtube|band|synth: {markers, barSyncPoints, byteSize}}
   let activeCategory = null;
+  // The Guitar Pro file played by alphaTab's synthesizer, when the song has
+  // no recording (offerSynth below, gp-view.js): {bytes, type, beats,
+  // sections, bpm, ownBars}.
+  let synth = null;
 
   // ---- The song: tempo, metre, sections (from the page) -------------------
   const transportEl = $('transport');
-  const bpm = transportEl ? parseFloat(transportEl.dataset.bpm) || 0 : 0;
+  // The song's tempo; the Guitar Pro file's when its synthesizer plays
+  // (offerSynth below).
+  let bpm = transportEl ? parseFloat(transportEl.dataset.bpm) || 0 : 0;
   const beatsPerBar = transportEl ? parseInt(transportEl.dataset.beatsPerBar, 10) || 4 : 4;
   const timeNum = transportEl ? parseInt(transportEl.dataset.timeNum, 10) || 4 : 4;
   const timeDen = transportEl ? parseInt(transportEl.dataset.timeDen, 10) || 4 : 4;
   // 6/8, 9/8, 12/8: each main pulse is a dotted quarter, clicked with its
   // two softer eighths like the metronome does.
   const isCompound = timeDen === 8 && [6, 9, 12].includes(timeNum);
-  const secondsPerBar = bpm > 0 ? (60 / bpm) * beatsPerBar : 0;
+  let secondsPerBar = bpm > 0 ? (60 / bpm) * beatsPerBar : 0;
+  // The beats in bar b: the song's metre, or the Guitar Pro file's own,
+  // bar by bar, when its synthesizer plays.
+  const beatsIn = (b) => (activeCategory === 'synth' && synth && synth.beats[b]) || beatsPerBar;
   // A song opening with a pickup numbers it 0, so the first full bar is 1.
   const hasPickup = () => !!document.querySelector('#sheet .bar-pickup');
   const barLabel = (b) => String(hasPickup() ? b : b + 1);
 
   function sections() {
+    // The synthesizer's own sections, when the song's bars aren't the file's.
+    if (activeCategory === 'synth' && synth && synth.ownBars) return synth.sections;
     const out = [];
     document.querySelectorAll('.sheet-section[data-start-bar]').forEach((el) => {
       const startBar = parseInt(el.dataset.startBar, 10);
@@ -187,14 +198,14 @@ window.songbooksDecodable = function (buf) {
     peaks = null;
     const cat = activeCategory;
     let bytes;
-    try { bytes = await window.songbooksAudioBytes(variantId, cat, categories[cat]); } catch (e) {
+    try { bytes = cat === 'synth' ? synth.bytes : await window.songbooksAudioBytes(variantId, cat, categories[cat]); } catch (e) {
       if (cat === activeCategory) setState('error', navigator.onLine === false ? t('Offline: this recording can’t be read.') : t('Couldn’t load this recording.'));
       return;
     }
     if (cat !== activeCategory) return;
     if (audio.dataset.blobFor !== cat) {
       if (audio.src.startsWith('blob:')) URL.revokeObjectURL(audio.src);
-      audio.src = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
+      audio.src = URL.createObjectURL(new Blob([bytes], { type: cat === 'synth' ? synth.type : 'audio/mpeg' }));
       audio.dataset.blobFor = cat;
       audio.playbackRate = prefs.speed;
       applyVoice();
@@ -349,6 +360,9 @@ window.songbooksDecodable = function (buf) {
   // playing or hasn't been started.
   window.songbooksReferencePosition = () => {
     if (!duration || (audio.paused && !countingIn && audio.currentTime === 0)) return null;
+    // The synthesizer's bars are the file's: only the Score view follows them
+    // when the song's chart counts its bars otherwise.
+    if (activeCategory === 'synth' && synth && synth.ownBars && $('sheet')?.dataset.renderMode !== 'score') return null;
     const bar = barAtTime(audio.currentTime);
     return bar === null ? null : { bar, playing: !audio.paused || countingIn };
   };
@@ -484,7 +498,8 @@ window.songbooksDecodable = function (buf) {
       return;
     }
     const b = Math.floor(pos);
-    const beat = Math.min(beatsPerBar - 1, Math.floor((pos - b) * beatsPerBar));
+    const beats = beatsIn(b);
+    const beat = Math.min(beats - 1, Math.floor((pos - b) * beats));
     // Before the first bar (a count, a silence): waiting at its start, not a dash.
     lcdPos.textContent = b < 0 ? `${barLabel(0)}.1` : `${barLabel(b)}.${beat + 1}`;
     const sec = sectionAt(b);
@@ -574,8 +589,9 @@ window.songbooksDecodable = function (buf) {
     for (let bar = first; bar < first + 64; bar++) {
       const t0 = timeAtBar(bar), t1 = timeAtBar(bar + 1);
       if (t0 >= b) break;
-      const beatDur = (t1 - t0) / beatsPerBar;
-      for (let k = 0; k < beatsPerBar; k++) {
+      const beats = beatsIn(bar);
+      const beatDur = (t1 - t0) / beats;
+      for (let k = 0; k < beats; k++) {
         const subs = isCompound ? 3 : 1;
         for (let s = 0; s < subs; s++) {
           const t = t0 + (k + s / subs) * beatDur;
@@ -616,10 +632,11 @@ window.songbooksDecodable = function (buf) {
     const b = Math.round(barAtTime(Math.max(t, grid[0])));
     const rate = audio.playbackRate || 1;
     const barDur = (timeAtBar(b + 1) - timeAtBar(b)) / rate;
-    const beatDur = barDur / beatsPerBar;
+    const beats = beatsIn(b);
+    const beatDur = barDur / beats;
     const t0 = ctx.currentTime + 0.12;
-    for (let i = 0; i < bars * beatsPerBar; i++) {
-      clickAt(t0 + i * beatDur, i % beatsPerBar, false);
+    for (let i = 0; i < bars * beats; i++) {
+      clickAt(t0 + i * beatDur, i % beats, false);
       if (isCompound) for (let s = 1; s < 3; s++) clickAt(t0 + (i + s / 3) * beatDur, 1, true);
     }
     // A start before 0 (a pickup bar starting before the recording does)
@@ -1968,8 +1985,6 @@ window.songbooksDecodable = function (buf) {
       if (!duration || !playerBody || playerBody.hidden) return false;
       const sheet = $('sheet');
       if (sheet && sheet.dataset.renderMode === 'mixer') return false; // the Mixer has its own
-      // So has the Score view, when it plays the file's own recording (gp-view.js).
-      if (sheet && sheet.dataset.renderMode === 'score' && document.body.classList.contains('gp-own-audio')) return false;
       const drawer = $('edit-drawer');
       return !(drawer && !drawer.hidden);
     },
@@ -2075,7 +2090,11 @@ window.songbooksDecodable = function (buf) {
     const note = $('audio-sync-note');
     if (note) note.hidden = s !== 'estimated';
     const text = $('audio-sync-text');
-    if (text) {
+    if (text && activeCategory === 'synth') {
+      text.textContent = t('The Guitar Pro file, played by the synthesizer: the bars are the file’s.');
+      $('audio-sync-fix')?.setAttribute('hidden', '');
+    } else if (text) {
+      $('audio-sync-fix')?.removeAttribute('hidden');
       text.textContent = s === 'estimated' ? t('Estimated: the player placed the bars by listening; they can be off by a beat or a section. Loops still snap to bars.')
         : s === 'set' ? t('Set: the bars follow the sync saved for this recording.')
         : t('No bars: the recording plays by time; ←/→ step 5 s.');
@@ -2167,8 +2186,10 @@ window.songbooksDecodable = function (buf) {
     if (available.length === 0) {
       if (categoryToggle) categoryToggle.hidden = true;
       enterNoRecording();
+      readyResolve({ recorded: false });
       return;
     }
+    readyResolve({ recorded: true });
     clearInterval(noneTimer);
     if (root.dataset.state === 'none') setState('');
     if (emptyState) emptyState.hidden = true;
@@ -2199,6 +2220,87 @@ window.songbooksDecodable = function (buf) {
     watchSplit();
   }
   let keyRestored = false;
+
+  // ---- The Guitar Pro file, played by the synthesizer ----------------------
+  // A song with a Guitar Pro file and no recording: the Score view
+  // (gp-view.js) renders the file with alphaTab's synthesizer, once, and
+  // hands the sound here, where it plays as a recording would ("synth"):
+  // the waveform, bar.beat, loops, speed, key, click, count-in, the keys
+  // and the lock screen. Its bars are the file's, as played (repeats
+  // unfolded); when the song's chart counts as many, they are the chart's
+  // too, else the player shows the file's own sections (ownBars).
+  //
+  //   window.songbooksPlayer.ready          → {recorded}: once the
+  //                                          recordings are known;
+  //   .synthProgress(text)                 the readout while it renders;
+  //   .offerSynth({bytes, type, barTimes, beats, sections, bpm})
+  //                                        barTimes[p]: when played bar p
+  //                                        starts, in seconds (one more for
+  //                                        the end);
+  //   .seekBar(x, play)                    to a bar, fractional (2.5 =
+  //                                        halfway through the third);
+  //   .setCycle(from, to)                  loop bars [from, to);
+  //   .speed(), .playing(), .cycle() → {from, to} or null
+  let readyResolve;
+  const ready = new Promise((r) => { readyResolve = r; });
+  window.songbooksPlayer = {
+    ready,
+    synthProgress(text) {
+      if (Object.keys(categories).length) return;
+      clearInterval(noneTimer);
+      setState('loading');
+      if (timeLabel) timeLabel.textContent = text;
+    },
+    synthFailed(text) {
+      if (activeCategory === 'synth' || Object.keys(categories).length) return;
+      enterNoRecording();
+      if (timeLabel && text) timeLabel.title = text;
+    },
+    offerSynth(src) {
+      if (Object.keys(categories).length) return;
+      const fc = window.songbooksFollowClock;
+      if (fc && fc.state().running) fc.toggle(false);
+      clearInterval(noneTimer);
+      const chartBars = sections().reduce((m, s) => Math.max(m, s.startBar + s.barCount), 0);
+      const bars = src.barTimes.length - 1;
+      synth = { ...src, ownBars: chartBars !== bars };
+      if (src.bpm) { bpm = src.bpm; secondsPerBar = (60 / bpm) * beatsPerBar; }
+      categories.synth = {
+        category: 'synth', markers: [], stems: [],
+        barSyncPoints: src.barTimes.map((t, i) => ({ barIndex: i, timeSeconds: t })),
+      };
+      root.dataset.source = 'synth';
+      $('audio-add-recording')?.setAttribute('hidden', '');
+      if (playerBody) playerBody.hidden = false;
+      setSpeed(prefs.speed, false);
+      selectCategory('synth');
+      // A key kept from the last visit, as loadMeta does for a recording.
+      if (prefs.semitones && !keyRestored) {
+        keyRestored = true;
+        if (studentKey === null) shiftChords(prefs.semitones);
+        applyKey();
+      }
+    },
+    seekBar(x, andPlay) {
+      if (!duration || !hasBars()) return false;
+      const c = prefs.cycle;
+      if (c && c.on && (x < c.from || x >= c.to)) {
+        c.on = false;
+        savePrefs();
+        renderCycle();
+        updateButtons();
+      }
+      const t = timeAtBar(x);
+      if (t === null) return false;
+      seek(t);
+      if (andPlay && !isPlaying()) play();
+      return true;
+    },
+    setCycle(from, to) { if (duration && hasBars()) setCycle(from, to); },
+    speed: () => prefs.speed,
+    playing: () => isPlaying(),
+    cycle: () => (prefs.cycle && prefs.cycle.on && hasBars() ? { from: prefs.cycle.from, to: prefs.cycle.to } : null),
+  };
 
   // A recording being split (just added, or replaced): its parts show up
   // here when they're ready, without a reload.
@@ -2455,7 +2557,7 @@ window.songbooksDecodable = function (buf) {
   const kindList = $('audio-kind-list');
   function renderKinds() {
     if (!kindList) return;
-    const cats = Object.keys(categories);
+    const cats = Object.keys(categories).filter((c) => c !== 'synth');
     if (!cats.length) { kindList.innerHTML = `<span class="hint">${t('No recording yet.')}</span>`; return; }
     const names = { gp: t('Guitar Pro recording'), youtube: t('YouTube recording'), band: t('Band recording') };
     kindList.innerHTML = '';
