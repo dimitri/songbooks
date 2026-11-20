@@ -582,6 +582,14 @@ type lessonPanelData struct {
 	Percent    int // that, of all its lessons
 	Files      []lessonFile
 	Prev, Next *lessonLink // the lessons before and after it
+	Steps      []lessonStep // every lesson of the course, in order, for its progress meter
+}
+
+// lessonStep is one lesson of a course on the lesson panel's meter: done
+// or not, and whether it is the one shown.
+type lessonStep struct {
+	Label         string
+	Done, Current bool
 }
 
 // lessonLink is a link to another lesson: its page, which opens on its
@@ -617,6 +625,7 @@ func (s *Server) lessonPanel(r *http.Request, sb *store.Songbook, lesson *store.
 		if progress[l.ID].Done {
 			panel.DoneCount++
 		}
+		panel.Steps = append(panel.Steps, lessonStep{Label: l.Label(lang), Done: progress[l.ID].Done, Current: l.ID == lesson.ID})
 		if l.ID == lesson.ID {
 			if i > 0 {
 				panel.Prev = link(lessons[i-1])

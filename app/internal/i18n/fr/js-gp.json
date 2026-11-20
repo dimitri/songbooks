@@ -441,5 +441,10 @@
   "Add": "Ajouter",
   "Couldn’t add “%s”. Try again.": "Impossible d’ajouter « %s ». Réessayez.",
   "None of these — create a new song": "Aucun de ceux-ci : créer un nouveau morceau",
-  "notation|Staff": "Portée"
+  "notation|Staff": "Portée",
+  "Preparing the sound…": "Préparation du son…",
+  "Preparing the sound… %d%": "Préparation du son… %d %",
+  "Couldn’t prepare the sound of this file.": "Impossible de préparer le son de ce fichier.",
+  "%d page": "%d page",
+  "%d pages": "%d pages"
 }

@@ -496,5 +496,11 @@
   "previous: %s": "précédent : %s",
   "Tools": "Outils",
   "Stage": "Scène",
-  "the player’s click": "le clic du lecteur"
+  "the player’s click": "le clic du lecteur",
+  "As I read it": "Comme je lis",
+  "how the parts are written": "comment les parties sont écrites",
+  "edit the notes on the web": "modifier les notes sur le web",
+  "Click a note to go there; drag across bars to loop them.": "Cliquez sur une note pour y aller ; glissez sur des mesures pour les jouer en boucle.",
+  "Got it": "Compris",
+  "Previous lesson": "Cours précédent"
 }

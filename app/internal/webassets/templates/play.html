@@ -1340,9 +1340,13 @@
          page is where it's practised — its score, playback and audio —
          with the lesson's name, its video and files folded away, and done. */}}
     <section class="lesson-panel" id="lesson-panel" data-songbook="{{.SongbookID}}" data-lesson="{{.Lesson.ID}}">
+      {{/* Its head: the course and where this lesson is in it, the
+           lesson's name, then how far along the viewer is (a mark per
+           lesson: done, this one); its actions on the right, as the
+           song's own tools look (pills). */}}
       <div class="lesson-panel-head">
         <a class="lesson-panel-title" href="{{.Href}}">
-          <span class="lesson-panel-kicker">{{.Course}}{{with .Lesson.Number}} · {{if $.LessonPanel.Of}}{{t "Lesson %s of %d" (deref .) $.LessonPanel.Of}}{{else}}{{t "Lesson %s" (deref .)}}{{end}}{{end}}</span>
+          <span class="lesson-panel-kicker"><span class="lesson-panel-course">{{.Course}}</span>{{with .Lesson.Number}}<span class="lesson-panel-of">{{if $.LessonPanel.Of}}{{t "Lesson %s of %d" (deref .) $.LessonPanel.Of}}{{else}}{{t "Lesson %s" (deref .)}}{{end}}</span>{{end}}</span>
           <span class="lesson-panel-name">{{.Lesson.Title}}</span>
         </a>
         <div class="lesson-panel-actions">
@@ -1350,18 +1354,22 @@
           {{if .Files}}<button type="button" class="lesson-panel-btn" aria-expanded="false" aria-controls="lesson-panel-files">{{template "icon-download"}}<span>{{t "Files"}} <small>{{len .Files}}</small></span></button>{{end}}
           <button type="button" id="lesson-panel-done" class="lesson-panel-btn lesson-panel-done" aria-pressed="{{if .Done}}true{{else}}false{{end}}"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10.5l3.5 3.5 7.5-8"/></svg><span>{{if .Done}}{{t "Done"}}{{else}}{{t "Mark as done"}}{{end}}</span></button>
         </div>
+        {{if .Of}}<div class="lesson-panel-progress" data-done="{{.DoneCount}}" data-of="{{.Of}}" title="{{t "%d of %d lessons done" .DoneCount .Of}}">
+          <span class="lesson-panel-meter" role="progressbar" aria-label="{{t "lessons done"}}" aria-valuemin="0" aria-valuemax="{{.Of}}" aria-valuenow="{{.DoneCount}}" style="--n: {{.Of}}">{{range .Steps}}<i class="{{if .Done}}is-done{{end}}{{if .Current}} is-current{{end}}" title="{{.Label}}"></i>{{end}}</span>
+          <small class="lesson-panel-count">{{t "%d/%d done" .DoneCount .Of}}</small>
+        </div>{{end}}
       </div>
       {{/* The video stays in view while the score scrolls: docked in a
            corner once its place is out of sight (the script below). */}}
       {{with .VideoID}}<div class="lesson-panel-video" id="lesson-panel-video" data-video="{{.}}" hidden><div class="lesson-video"><button type="button" class="lesson-video-close icon-btn" aria-label="{{t "Close the video"}}">{{template "icon-close"}}</button></div></div>{{end}}
       {{with .Files}}<ul class="lesson-panel-files" id="lesson-panel-files" hidden>{{range .}}<li><a href="{{.Href}}" download><span class="dl-ext">{{if eq .Kind "gp"}}GP{{else}}{{or .Ext (t "FILE")}}{{end}}</span><span class="lesson-panel-file">{{.Filename}}</span><small>{{fileSize .ByteSize}}</small></a></li>{{end}}</ul>{{end}}
-      {{/* The course around it: the lessons before and after, and how
-           far along the viewer is. Done makes "next" the way on. */}}
-      <nav class="lesson-panel-nav" aria-label="{{t "Lessons"}}">
-        {{with .Prev}}<a class="lesson-panel-prev" href="{{.Href}}" title="{{.Label}}">{{template "icon-back"}}<span>{{.Label}}</span></a>{{else}}<span></span>{{end}}
-        <span class="lesson-panel-progress" title="{{t "%d of %d lessons done" .DoneCount .Of}}"><span class="lesson-panel-meter" style="--done: {{.Percent}}%"></span><small>{{t "%d/%d done" .DoneCount .Of}}</small></span>
-        {{with .Next}}<a class="lesson-panel-next" href="{{.Href}}" title="{{.Label}}"><span>{{.Label}}</span>{{template "icon-forward"}}</a>{{else}}<span></span>{{end}}
-      </nav>
+      {{/* The lessons before and after: which way, then which, each on its
+           own line so a long name stays readable. Done makes "next" the
+           way on. */}}
+      {{if or .Prev .Next}}<nav class="lesson-panel-nav" aria-label="{{t "Lessons"}}">
+        {{with .Prev}}<a class="lesson-panel-prev" href="{{.Href}}" title="{{.Label}}">{{template "icon-back"}}<span><small>{{t "Previous lesson"}}</small><span class="lesson-panel-link">{{.Label}}</span></span></a>{{else}}<span></span>{{end}}
+        {{with .Next}}<a class="lesson-panel-next" href="{{.Href}}" title="{{.Label}}"><span><small>{{t "Next lesson"}}</small><span class="lesson-panel-link">{{.Label}}</span></span>{{template "icon-forward"}}</a>{{else}}<span></span>{{end}}
+      </nav>{{end}}
     </section>
     <script>
     (() => {
@@ -1409,11 +1417,14 @@
         done.setAttribute('aria-pressed', String(now));
         done.querySelector('span').textContent = now ? t('Done') : t('Mark as done');
         const progress = panel.querySelector('.lesson-panel-progress');
-        const [n, of] = progress.querySelector('small').textContent.split(/[/ ]/).map(Number);
-        const count = n + (now ? 1 : -1);
-        progress.querySelector('small').textContent = t('%d/%d done', count, of);
+        if (!progress) return;
+        const of = Number(progress.dataset.of), count = Number(progress.dataset.done) + (now ? 1 : -1);
+        progress.dataset.done = String(count);
+        progress.querySelector('.lesson-panel-count').textContent = t('%d/%d done', count, of);
         progress.title = t('%d of %d lessons done', count, of);
-        progress.querySelector('.lesson-panel-meter').style.setProperty('--done', `${Math.floor(count * 100 / of)}%`);
+        const meter = progress.querySelector('.lesson-panel-meter');
+        meter.setAttribute('aria-valuenow', String(count));
+        meter.querySelector('.is-current')?.classList.toggle('is-done', now);
       });
     })();
     </script>
@@ -1992,31 +2003,20 @@
     {{/* The Score view: the whole Guitar Pro file, drawn and played by
          gp-view.js. Same sibling-of-#sheet convention as the Mixer. */}}
     <div class="gp-score-page" id="gp-score-page">
-      {{/* The same control bar as the practice player above (audio-
-           player.js), which it replaces in this view when the file has
-           its own recording (body.gp-own-audio): that recording plays
-           here, under the score's cursor. */}}
-      <div class="gp-toolbar audio-transport">
-        <div class="audio-buttons">
-          <button type="button" class="icon-btn gp-stop" title="{{t "back to the start (Home)"}}">{{template "icon-to-start"}}</button>
-          <button type="button" class="icon-btn audio-play-btn gp-play" title="{{t "play/pause (Space or K)"}}" aria-label="{{t "Play"}}" disabled>{{template "icon-play"}}</button>
-        </div>
-        <div class="audio-lcd gp-lcd" aria-live="off"><span class="audio-lcd-pos gp-bar" title="{{t "bar"}}">1</span><span class="audio-lcd-time gp-time"></span></div>
-        <div class="gp-opts">
-          <label class="audio-speed" title="{{t "playback speed"}}">{{template "icon-speed"}}<select class="gp-speed" aria-label="{{t "Speed"}}"><option value="0.25">25%</option><option value="0.4">40%</option><option value="0.5">50%</option><option value="0.6">60%</option><option value="0.75">75%</option><option value="0.9">90%</option><option value="1" selected>100%</option><option value="1.1">110%</option></select></label>
-          <button type="button" class="audio-toggle gp-loop" aria-pressed="false" title="{{t "loop: the bars selected in the score (drag across them), else the whole song"}}">{{template "icon-cycle"}}<span>{{t "Loop"}}</span></button>
-          <button type="button" class="audio-toggle gp-metronome" aria-pressed="false" title="{{t "metronome click"}}">{{template "icon-metronome"}}<span>{{t "Click"}}</span></button>
-          <button type="button" class="audio-toggle gp-countin" aria-pressed="false" title="{{t "a bar of clicks before playing"}}">{{template "icon-count-in"}}<span>{{t "Count-in"}}</span></button>
-        </div>
-      </div>
-      <div class="gp-view-opts">
+      {{/* It plays in the song's player, the dock (audio-player.js): the
+           song's recording, else the file through the synthesizer. Above
+           the sheet, what it shows: the tracks, the notation, the file. */}}
+      <div class="gp-sheet-bar">
         <div class="gp-tracks" role="group" aria-label="{{t "Tracks shown"}}"></div>
-        <span class="gp-hint">{{t "Click the score to start there, drag across bars to loop them."}}</span>
-        <label class="gp-opt">{{t "Show"}} <select class="gp-notation"><option value="">{{t "as I read it"}}</option><option value="tab">{{t "Tab"}}</option><option value="staff">{{t "notation|Staff"}}</option><option value="both">{{t "Staff + tab"}}</option></select></label>
-        {{if .CanEdit}}<a class="gp-link gp-edit-link" href="/song/{{.VariantID}}/gp-edit">{{template "icon-edit"}} {{t "Edit the file"}}</a>{{end}}
-        <a class="gp-link" href="/song/{{.VariantID}}/gp-file" download>{{template "icon-download"}} {{t "Guitar Pro file"}}</a>
+        <span class="gp-sheet-count"></span>
+        <p class="gp-tip" hidden><span>{{t "Click a note to go there; drag across bars to loop them."}}</span> <button type="button" class="icon-btn gp-tip-close" aria-label="{{t "Got it"}}" title="{{t "Got it"}}">{{template "icon-close"}}</button></p>
+        <div class="gp-sheet-tools">
+          <label class="gp-tool gp-tool-select" title="{{t "how the parts are written"}}">{{template "icon-mode-score"}}<span class="sr-only">{{t "Notation"}}</span><select class="gp-notation" aria-label="{{t "Notation"}}"><option value="">{{t "As I read it"}}</option><option value="tab">{{t "Tab"}}</option><option value="staff">{{t "notation|Staff"}}</option><option value="both">{{t "Staff + tab"}}</option></select></label>
+          {{if .CanEdit}}<a class="gp-tool gp-edit-link" href="/song/{{.VariantID}}/gp-edit" title="{{t "edit the notes on the web"}}">{{template "icon-edit"}}<span>{{t "Edit"}}</span></a>{{end}}
+          <a class="gp-tool" href="/song/{{.VariantID}}/gp-file" download title="{{t "download the original Guitar Pro file (%s)" .GPFileName}}">{{template "icon-download"}}<span>Guitar Pro</span></a>
+        </div>
       </div>
-      <div class="gp-score-viewport"><div class="gp-score-canvas"></div></div>
+      <div class="gp-sheet-wrap"><div class="gp-sheet"><div class="gp-pages" aria-hidden="true"></div><div class="gp-score-canvas"></div></div></div>
     </div>
     {{end}}
     <div class="mixer-page" id="mixer-page" data-variant-id="{{.VariantID}}" data-can-edit="{{if .CanEdit}}true{{else}}false{{end}}">

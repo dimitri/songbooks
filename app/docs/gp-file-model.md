@@ -151,11 +151,17 @@ with the facts and stores the differences.
   (one load of the file per page; each section renders its range with
   `display.startBar`/`barCount` and the chosen tracks), in the same
   place `score[...]` voices are drawn today.
-- **`content: gp` songs open on the score**: the whole file in alphaTab,
-  the Guitar Pro way — track picker, tab/staff, playback with the
-  cursor, the file's backing track and its sync points, the speed and
-  loop controls the Mixer already has. The song view stays one tap away
-  when the text has anything to show.
+- **`content: gp` songs open on the score** (and so does a course
+  lesson's song with a file): the whole file in alphaTab, as a sheet of
+  music — A4 pages, four bars a line where they fit — with a track
+  picker and tab/staff. It plays in the song's player, the dock, like
+  every other view: the song's recording (the file's backing track is
+  one, `gp`), else the file through alphaTab's synthesizer, rendered
+  once in the browser (`exportAudio`) and handed to the dock as its
+  sound, waveform and all. alphaTab's player follows the dock
+  (`PlayerMode.EnabledExternalMedia`): the cursor, a click on a note,
+  bars dragged across as the dock's loop. The song view stays one tap
+  away when the text has anything to show.
 - **Score**, a new view, is there for any song with a file.
 - Stage mode, the Drummer view and set lists work for both kinds.
 - **Mixer:** a song with a file plays the file itself (every track, every
