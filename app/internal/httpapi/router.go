@@ -293,7 +293,9 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// requireRole — a variant's visibility ('global' vs 'user') governs
 	// what's visible/editable here, not project membership; see
 	// internal/store/catalog.go and internal/store/revisions.go.
-	mux.HandleFunc("GET /songbooks", s.requireAuth(s.handleSongbooksIndexPage))
+	// The Library absorbed the Songbooks and Set lists pages (menu PR 8):
+	// their old addresses open its segments.
+	mux.HandleFunc("GET /songbooks", libraryRedirect(libraryViewSongbooks))
 	mux.HandleFunc("GET /catalog", s.requireAuth(s.handleCatalogPage))
 	mux.HandleFunc("GET /api/catalog/search", s.requireAuth(s.handleCatalogSearch))
 	mux.HandleFunc("GET /api/catalog/match", s.requireAuth(s.handleCatalogMatch))
@@ -590,7 +592,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /admin/people/{personID}/memberships/{kind}/{targetID}/role", s.requireAdmin(s.handleAdminSetMembershipRole))
 	mux.HandleFunc("POST /admin/people/{personID}/memberships/{kind}/{targetID}/remove", s.requireAdmin(s.handleAdminRemoveMembership))
 
-	mux.HandleFunc("GET /setlists", s.requireAuth(s.handleSetlistsPage))
+	mux.HandleFunc("GET /setlists", libraryRedirect(libraryViewSetlists))
 
 	// Person/band-scoped setlists, addressed by their own id (see
 	// internal/store/setlists.go's SetlistMeta/CreateSetlist/

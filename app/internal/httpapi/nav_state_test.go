@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"strings"
@@ -29,10 +30,16 @@ func TestNavSectionFor(t *testing.T) {
 		{"handler beats page", "catalog", map[string]any{"NavSection": webassets.NavCalendar}, webassets.NavCalendar},
 		{"unknown page in a band", "something_new", map[string]any{"Band": band}, webassets.NavBands},
 		{"unknown page, typed nil band", "something_new", map[string]any{"Band": noBand}, ""},
-		{"song from a set list", "song", map[string]any{"SetlistRef": int64(4), "BandRef": int64(3)}, webassets.NavSetlists},
+		{"song from a band's set list", "song", map[string]any{"SetlistRef": int64(4), "SetlistURL": "/bands/3/setlists/4", "BandRef": int64(3)}, webassets.NavBands},
+		{"song from my set list", "song", map[string]any{"SetlistRef": int64(4), "SetlistURL": "/setlists/4"}, webassets.NavLibrary},
+		{"a band's set list", "setlist-overview", map[string]any{"IsBand": true, "Path": "/setlists/4"}, webassets.NavBands},
+		{"my set list", "setlist-overview", map[string]any{"IsBand": false, "Path": "/setlists/4"}, webassets.NavLibrary},
+		{"a band's click track", "setlist-clicktrack", map[string]any{"Path": "/bands/3/setlists/4"}, webassets.NavBands},
+		{"songbooks segment", "songbooks-index", nil, webassets.NavLibrary},
+		{"a songbook", "songbook", nil, webassets.NavLibrary},
 		{"song from a band", "song", map[string]any{"BandRef": int64(3)}, webassets.NavBands},
 		{"song from a lesson", "song", map[string]any{"LessonHref": "/x"}, webassets.NavCommunities},
-		{"song from a songbook", "song", map[string]any{"SongbookRef": int64(2)}, webassets.NavSongbooks},
+		{"song from a songbook", "song", map[string]any{"SongbookRef": int64(2)}, webassets.NavLibrary},
 		{"song on its own", "song", map[string]any{}, webassets.NavLibrary},
 	}
 	for _, c := range cases {
@@ -49,10 +56,26 @@ func TestNavSectionFor(t *testing.T) {
 // Every page that renders the global menus has a section.
 func TestEveryNavPageHasASection(t *testing.T) {
 	for _, page := range []string{"index", "calendar_page", "songbooks-index", "my-songbooks", "songbook", "catalog",
-		"groups", "bands", "band", "communities", "community", "setlists-index", "setlist-overview",
+		"groups", "bands", "band", "communities", "community", "setlists-index",
 		"metronome", "tuner", "profile", "admin", "notifications"} {
 		if navSectionFor(page, map[string]any{}) == "" {
 			t.Errorf("%s has no nav section", page)
+		}
+	}
+}
+
+// /songbooks and /setlists open the Library's segments, keeping their
+// query; their pages below (/songbooks/2) don't move.
+func TestLibraryRedirects(t *testing.T) {
+	for _, c := range []struct{ view, url, want string }{
+		{libraryViewSongbooks, "/songbooks", "/catalog?view=songbooks"},
+		{libraryViewSetlists, "/setlists", "/catalog?view=setlists"},
+		{libraryViewSetlists, "/setlists?lang=fr", "/catalog?lang=fr&view=setlists"},
+	} {
+		rec := httptest.NewRecorder()
+		libraryRedirect(c.view)(rec, httptest.NewRequest("GET", c.url, nil))
+		if rec.Code != http.StatusFound || rec.Header().Get("Location") != c.want {
+			t.Errorf("%s: %d %s, want 302 %s", c.url, rec.Code, rec.Header().Get("Location"), c.want)
 		}
 	}
 }

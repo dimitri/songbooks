@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "Set lists"}} — Songbooks</title>
+<title>{{docTitle (t "Set lists") (t "Library")}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,10 +13,11 @@
 <div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
-  <h1>{{t "Set lists"}}</h1>
+  <h1>{{t "Library"}}</h1>
   {{template "notif-bell"}}
 </header>
-<main>
+<main class="index">
+  {{template "library-segments" "setlists"}}
   {{range .Bands}}
   <section class="card book-card">
     <h2><a href="/bands/{{.Band.ID}}">{{.Band.Name}}</a></h2>

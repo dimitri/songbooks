@@ -34,12 +34,10 @@ type NavEntry struct {
 const (
 	NavHome          = "home"
 	NavCalendar      = "calendar"
-	NavSongbooks     = "songbooks"
 	NavLibrary       = "library"
 	NavBands         = "bands"
 	NavCommunities   = "communities"
 	NavGroups        = "groups"
-	NavSetlists      = "setlists"
 	NavMetronome     = "metronome"
 	NavTuner         = "tuner"
 	NavProfile       = "profile"
@@ -70,10 +68,9 @@ func NavCurrent(e NavEntry, section string) bool {
 // the band and community lists are that page's own links.
 var navDesktopPrimary = []NavEntry{
 	{Label: "Home", Path: "/home", Icon: "icon-home", Section: NavHome, Covers: NavNotifications},
+	{Label: "Library", Path: "/catalog", Icon: "icon-catalog", Section: NavLibrary},
 	{Label: "Calendar", Path: "/calendar", Icon: "icon-calendar", Section: NavCalendar},
-	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog", Section: NavSongbooks},
-	{Label: "Library", Path: "/catalog", Icon: "icon-view", Section: NavLibrary},
-	{Label: "Groups", Path: "/groups", Icon: "icon-bands", Section: NavGroups, Covers: NavBands + " " + NavCommunities + " " + NavSetlists},
+	{Label: "Groups", Path: "/groups", Icon: "icon-bands", Section: NavGroups, Covers: NavBands + " " + NavCommunities},
 }
 
 // navMobileTab is the mobile bottom tab bar's fixed slots (icon-only;
@@ -89,9 +86,8 @@ var navDesktopPrimary = []NavEntry{
 // time-critical thing to reach.
 var navMobileTab = []NavEntry{
 	{Label: "Home", Path: "/home", Icon: "icon-home", Section: NavHome, Covers: NavNotifications},
-	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog", Section: NavSongbooks},
-	{Label: "Library", Path: "/catalog", Icon: "icon-view", Section: NavLibrary},
-	{Label: "Groups", Path: "/groups", Icon: "icon-bands", Section: NavGroups, Covers: NavBands + " " + NavCommunities + " " + NavSetlists},
+	{Label: "Library", Path: "/catalog", Icon: "icon-catalog", Section: NavLibrary},
+	{Label: "Groups", Path: "/groups", Icon: "icon-bands", Section: NavGroups, Covers: NavBands + " " + NavCommunities},
 }
 
 // navMobileMore is the mobile "More" full-page sheet's row list —
@@ -100,11 +96,9 @@ var navMobileTab = []NavEntry{
 // account areas rather than the primary list.
 var navMobileMore = []NavEntry{
 	{Label: "Home", Path: "/home", Icon: "icon-home", InTabBar: true, Section: NavHome},
-	{Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog", InTabBar: true, Section: NavSongbooks},
-	{Label: "Library", Path: "/catalog", Icon: "icon-view", InTabBar: true, Section: NavLibrary},
+	{Label: "Library", Path: "/catalog", Icon: "icon-catalog", InTabBar: true, Section: NavLibrary},
 	{Label: "Groups", Path: "/groups", Icon: "icon-bands", InTabBar: true, Section: NavGroups},
 	{Label: "Calendar", Path: "/calendar", Icon: "icon-calendar", Section: NavCalendar},
-	{Label: "Set lists", Path: "/setlists", Icon: "icon-setlists", Section: NavSetlists},
 	{Label: "Metronome", Path: "/metronome", Icon: "icon-metronome", Section: NavMetronome},
 	{Label: "Tuner", Path: "/tuner", Icon: "icon-tuner", Section: NavTuner},
 	{Label: "Profile", Path: "/profile", Icon: "icon-profile", Section: NavProfile},

@@ -18,7 +18,19 @@ import (
 // song.MetaKeys in internal/song/song.go), so there's nothing to group or
 // filter by; "by project" is the closest grouping concept that actually
 // exists in the data.
+//
+// It is the Library (menu PR 8): its Songs segment, and ?view=songbooks
+// or ?view=setlists for the other two (the old /songbooks and /setlists
+// pages, which redirect here).
 func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
+	switch r.URL.Query().Get("view") {
+	case libraryViewSongbooks:
+		s.handleSongbooksIndexPage(w, r)
+		return
+	case libraryViewSetlists:
+		s.handleSetlistsPage(w, r)
+		return
+	}
 	person := personFromContext(r)
 	filter := store.CatalogFilter{
 		Query:  r.URL.Query().Get("q"),

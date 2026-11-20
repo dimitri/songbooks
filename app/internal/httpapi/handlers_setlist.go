@@ -213,7 +213,7 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 	}
 	brandKind, brandID := setlistOwner(meta)
 	canEdit, _ := s.store.CanEditSetlistByID(r.Context(), person.ID, id)
-	backURL, backLabel := "/setlists", "Set lists"
+	backURL, backLabel := "/catalog?view=setlists", "Set lists"
 	var band *store.Band
 	var bandID int64
 	if meta.OwnerBandID != nil {

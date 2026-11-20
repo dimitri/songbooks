@@ -689,6 +689,19 @@ label.field > :is(.field-hint, .field-error, .hint) { display: block; margin-top
    (aria-current="page"), on the account chip and the More sheet too. */
 .sidebar-account.active { background: var(--sidebar-active-bg); color: var(--sidebar-active-fg); font-weight: 600; }
 .site-nav-fullpage-row[aria-current="page"] { color: var(--accent); background: var(--accent-bg); }
+/* menu PR 8: the Library's segments (Morceaux · Songbooks · Set lists),
+   links styled as the .segmented pill; full width on a phone. */
+.library-segments { margin: 0 0 1rem; }
+.library-segments a {
+  border-radius: 999px; padding: 0.35rem 0.95rem; font-size: 0.88rem;
+  color: var(--fg-muted); text-decoration: none; text-align: center;
+}
+.library-segments a:hover { color: var(--fg); }
+.library-segments a.active { background: var(--fg); color: var(--bg); font-weight: 600; }
+@media (max-width: 600px) {
+  .library-segments { display: flex; }
+  .library-segments a { flex: 1 1 0; padding: 0.45rem 0.4rem; }
+}
 .sidebar-account-avatar {
   width: 1.7rem; height: 1.7rem; border-radius: 50%; flex: none;
   display: flex; align-items: center; justify-content: center;
