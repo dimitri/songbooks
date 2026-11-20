@@ -85,7 +85,16 @@ func ProposeAutoSync(rec *chartalign.Recording, body string, sections []SyncSect
 			a.Markers = append(a.Markers, Marker{s.Index, s.Start})
 		}
 	}
+	// Only what the recording is sure of is proposed for the chart: a
+	// section's grid where its chords fit (0.5 or more), nothing when the
+	// beat itself is unclear.
+	for i := range res.Sections {
+		if res.Sections[i].Confidence < 0.5 || res.State == "unsure" {
+			res.Sections[i].Grid = ""
+		}
+	}
 	if res.State == "unsure" {
+		res.Intro, res.ChordFixes = nil, []chartalign.ChordFix{}
 		a.note("the recording's beat is unclear (rubato, live, no drums?): nothing is proposed for the tempo, place the sections by ear")
 		return a
 	}
