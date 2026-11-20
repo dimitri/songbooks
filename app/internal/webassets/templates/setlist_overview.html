@@ -30,7 +30,7 @@
 
 <main class="index">
   <nav class="band-tabs band-tabs-row setlist-tabs">
-    <a href="{{.Path}}" class="band-tab active">{{template "icon-setlists"}} {{t "Running order"}}</a>
+    <a href="{{.Path}}" class="band-tab active" aria-current="page">{{template "icon-setlists"}} {{t "Running order"}}</a>
     <a href="{{.Path}}/clicktrack" class="band-tab">{{template "icon-metronome"}} {{t "Metronome"}}</a>
     {{if .Playable}}<button type="button" class="band-tab" data-play-all>{{template "icon-play"}} {{t "Play all"}}</button>{{end}}
     <details class="band-tab-menu">
@@ -125,9 +125,8 @@
 {{template "rec-player" .}}
 {{end}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
-{{template "desktop-sidebar-script"}}
 {{if .CanEdit}}
 <script>
 (function () {

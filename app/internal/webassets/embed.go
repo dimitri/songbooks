@@ -152,6 +152,10 @@ var funcMap = template.FuncMap{
 	// site-nav-fullpage all render from instead of each hardcoding its
 	// own list.
 	"navGlobal": navGlobal,
+	// navCurrent: is this nav entry the current page's section (the
+	// .Nav.Section render puts in every page's data)? Marks it active
+	// and aria-current="page", server-side.
+	"navCurrent": NavCurrent,
 	// brandFor is the look of the community or band a page is seen in
 	// ("community"/"band" and its id, an int64 or *int64), nil for the
 	// app's own — see internal/brand and the "brand-head"/"brand-body"

@@ -368,7 +368,7 @@ func (s *Server) handleEventPage(w http.ResponseWriter, r *http.Request) {
 
 	choices := playChoices(myPlays)
 	s.render(w, "event", map[string]any{
-		"Me": person, "Event": ev, "Attendees": attendees, "AlreadyRegistered": alreadyRegistered,
+		"Me": person, "Event": ev, "NavSection": eventNavSection(r, ev), "Attendees": attendees, "AlreadyRegistered": alreadyRegistered,
 		"SongRows": songRows, "MyBands": myBands,
 		"Playing": playing, "Plays": plays, "PlayChoices": choices, "PlayChoiceSet": stringSet(choices), "MyPlays": stringSet(myPlays),
 	})
@@ -773,7 +773,7 @@ func (s *Server) handleEventManagePage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.render(w, "event_manage", map[string]any{
-		"Me": me, "Event": ev, "SongRows": songRows, "Managers": managers,
+		"Me": me, "Event": ev, "NavSection": ownerNavSection(ev.OwnerKind), "SongRows": songRows, "Managers": managers,
 		"OwnerSongbooks": ownerSongbooks,
 		"CanAssignManagers": canAssign, "ManagerCandidates": candidates,
 	})

@@ -62,8 +62,9 @@
      saw two identically-named "main navigation" regions with no way
      to tell them apart by name alone (audit, Nov 2026). Distinct
      labels fix that without touching either one's actual behavior. */}}
+{{$sec := ""}}{{with .}}{{with .Nav}}{{$sec = .Section}}{{end}}{{end}}
 <nav class="tabbar global-tabbar" id="global-tabbar" aria-label="{{t "main navigation (mobile)"}}">
-  {{range navGlobal "mobileTab"}}<a href="{{.Path}}" data-path="{{.Path}}"{{with .Also}} data-also="{{.}}"{{end}} data-label="{{t .Label}}">{{template "nav-icon" .Icon}}</a>{{end}}
+  {{range navGlobal "mobileTab"}}<a href="{{.Path}}"{{if navCurrent . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}">{{template "nav-icon" .Icon}}</a>{{end}}
   {{/* Replaces a standalone Profile tab — Profile moved into the shared
        More sheet below (site-nav-fullpage) alongside Communities and
        Metronome, neither of which fit in 5 fixed mobile slots and were
@@ -71,24 +72,14 @@
        #site-nav-fullpage-btn id play.html's own "..." toggle already
        wires up — see site-nav-fullpage-script below, shared by every
        page instead of being duplicated per-page. */}}
-  <button type="button" id="site-nav-fullpage-btn" data-label="{{t "More"}}">{{template "icon-more"}}</button>
+  {{$inBar := false}}{{range navGlobal "mobileTab"}}{{if navCurrent . $sec}}{{$inBar = true}}{{end}}{{end}}
+  <button type="button" id="site-nav-fullpage-btn"{{if and $sec (not $inBar)}} class="active" data-current{{end}} data-label="{{t "More"}}">{{template "icon-more"}}</button>
 </nav>
-{{template "site-nav-fullpage"}}
+{{template "site-nav-fullpage" .}}
 {{end}}
+{{/* The tab bar's current tab is rendered by the server (.Nav.Section,
+     see global-tabbar); this only wires the More sheet. */}}
 {{define "global-tabbar-script"}}
-<script>(function () {
-  var bar = document.getElementById('global-tabbar');
-  if (!bar) return;
-  var path = location.pathname;
-  var best = null;
-  var bestLen = 0;
-  bar.querySelectorAll('a').forEach(function (a) {
-    [a.dataset.path].concat((a.dataset.also || '').split(' ').filter(Boolean)).forEach(function (p) {
-      if ((path === p || (p !== '/' && path.indexOf(p) === 0)) && p.length > bestLen) { best = a; bestLen = p.length; }
-    });
-  });
-  if (best) best.classList.add('active');
-})();</script>
 {{template "site-nav-fullpage-script"}}
 {{end}}
 
@@ -106,23 +97,17 @@
      costs nothing but tidiness. Desktop's sidebar still shows Admin,
      properly gated, since desktop-sidebar already receives .Me. */}}
 {{define "site-nav-fullpage"}}
+{{$sec := ""}}{{$admin := false}}{{with .}}{{with .Nav}}{{$sec = .Section}}{{with .Me}}{{$admin = .IsAdmin}}{{end}}{{end}}{{end}}
 <div class="site-nav-fullpage" id="site-nav-fullpage" role="dialog" aria-label="{{t "Navigation"}}">
   <div class="site-nav-fullpage-header">
     <h2>Songbooks</h2>
     <button type="button" id="site-nav-fullpage-close" class="icon-btn" title="{{t "close"}}">{{template "icon-close"}}</button>
   </div>
   {{range navGlobal "mobileMore"}}
-  {{if not .RequiresAdmin}}
-  <a class="site-nav-fullpage-row{{if .InTabBar}} is-tab{{end}}" href="{{.Path}}">{{template "nav-icon" .Icon}} {{t .Label}}</a>
+  {{if or (not .RequiresAdmin) $admin}}
+  <a class="site-nav-fullpage-row{{if .InTabBar}} is-tab{{end}}" href="{{.Path}}"{{if navCurrent . $sec}} aria-current="page"{{end}}>{{if .Icon}}{{template "nav-icon" .Icon}}{{else}}{{template "icon-settings"}}{{end}} {{t .Label}}</a>
   {{end}}
   {{end}}
-  {{/* The one admin-gated entry is still rendered hidden-by-default and
-       shown via site-nav-fullpage-script, not a template condition here —
-       no per-page .Me is threaded through global-tabbar's many call
-       sites (see its own doc comment), so this mirrors desktop-sidebar's
-       own already-correctly-gated Admin link's presence in the DOM
-       instead of needing new data plumbing. */}}
-  <a class="site-nav-fullpage-row" href="/admin" id="site-nav-fullpage-admin-row" hidden>{{template "icon-settings"}} {{t "Admin"}}</a>
   <div class="site-nav-fullpage-theme" role="group" aria-label="{{t "Appearance"}}">
     <span>{{template "icon-theme"}} {{t "Appearance"}}</span>
     <div class="segmented" id="site-nav-theme">
@@ -146,16 +131,7 @@
   if (!navBtns.length || !navPage) return;
   function setNavOpen(open) {
     navPage.classList.toggle('open', open);
-    navBtns.forEach(function (b) { b.classList.toggle('active', open); });
-  }
-  // Mirror #desktop-sidebar's own already-correctly-gated Admin link
-  // into the mobile sheet — that link is server-rendered into every
-  // page regardless of viewport (just CSS-hidden below 900px), so its
-  // mere presence in the DOM is a free, always-fresh "is this viewer
-  // an admin" signal with no new per-page data or API call needed.
-  var adminRow = document.getElementById('site-nav-fullpage-admin-row');
-  if (adminRow && document.querySelector('#desktop-sidebar a[href="/admin"]')) {
-    adminRow.hidden = false;
+    navBtns.forEach(function (b) { b.classList.toggle('active', open || b.hasAttribute('data-current')); });
   }
   // Appearance: the same choice (and localStorage key) as the song
   // page's theme button, applied to <html> and <body> right away.
@@ -208,8 +184,9 @@
      here (mobile's shared site-nav-fullpage sheet still lists it
      explicitly, since mobile has no persistent account chip to lean
      on). Rendered on every top-level authenticated page, right after
-     <body> (see desktop-sidebar-script for the active-item logic, the
-     same pathname-matching approach as global-tabbar-script). Hidden
+     <body>. The current entry comes from the server (.Nav.Section, see
+     navSectionFor in internal/httpapi), marked active and
+     aria-current="page". Hidden
      entirely below 900px via CSS -- .global-tabbar is the only nav there. */}}
 {{/* nav-icon dispatches a navGlobal entry's Icon (a plain string — a
      dynamic {{template .Icon}} isn't legal Go template syntax, the name
@@ -232,19 +209,20 @@
 {{- else if eq . "icon-download"}}{{template "icon-download"}}
 {{- end}}{{end}}
 {{define "desktop-sidebar"}}
+{{$sec := ""}}{{$me := .Me}}{{with .Nav}}{{$sec = .Section}}{{with .Me}}{{$me = .}}{{end}}{{end}}
 <nav class="desktop-sidebar" id="desktop-sidebar" aria-label="{{t "main navigation (desktop)"}}">
   <a class="sidebar-brand" href="/home">{{template "icon-logo"}} Songbooks</a>
   <div class="sidebar-primary">
-    {{range navGlobal "desktop"}}<a href="{{.Path}}" data-path="{{.Path}}" data-label="{{t .Label}}">{{template "nav-icon" .Icon}} {{t .Label}}</a>{{end}}
+    {{range navGlobal "desktop"}}<a href="{{.Path}}"{{if navCurrent . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}">{{template "nav-icon" .Icon}} {{t .Label}}</a>{{end}}
   </div>
   <div class="sidebar-secondary">
-    <a href="/metronome" data-path="/metronome">{{template "icon-metronome"}} {{t "Metronome"}}</a>
-    <a href="/tuner" data-path="/tuner">{{template "icon-tuner"}} {{t "Tuner"}}</a>
+    <a href="/metronome"{{if eq $sec "metronome"}} class="active" aria-current="page"{{end}}>{{template "icon-metronome"}} {{t "Metronome"}}</a>
+    <a href="/tuner"{{if eq $sec "tuner"}} class="active" aria-current="page"{{end}}>{{template "icon-tuner"}} {{t "Tuner"}}</a>
   </div>
-  {{if .Me}}
-  {{if .Me.IsAdmin}}
+  {{if $me}}
+  {{if $me.IsAdmin}}
   <div class="sidebar-secondary">
-    <a href="/admin" data-path="/admin">{{t "Admin"}}</a>
+    <a href="/admin"{{if eq $sec "admin"}} class="active" aria-current="page"{{end}}>{{t "Admin"}}</a>
   </div>
   {{end}}
   {{with .ContextualGroup}}
@@ -265,27 +243,12 @@
     {{end}}
   </div>
   {{end}}
-  <a class="sidebar-account" href="/profile">
-    <span class="sidebar-account-avatar">{{slice .Me.DisplayName 0 1}}</span>
-    <span>{{.Me.DisplayName}}</span>
+  <a class="sidebar-account{{if eq $sec "profile"}} active{{end}}" href="/profile"{{if eq $sec "profile"}} aria-current="page"{{end}}>
+    <span class="sidebar-account-avatar">{{slice $me.DisplayName 0 1}}</span>
+    <span>{{$me.DisplayName}}</span>
   </a>
   {{end}}
 </nav>
-{{end}}
-{{define "desktop-sidebar-script"}}
-<script>(function () {
-  var bar = document.getElementById('desktop-sidebar');
-  if (!bar) return;
-  var path = location.pathname;
-  var best = null;
-  bar.querySelectorAll('a[data-path]').forEach(function (a) {
-    var p = a.dataset.path;
-    if (path === p || (p !== '/' && path.indexOf(p) === 0)) {
-      if (!best || p.length > best.dataset.path.length) best = a;
-    }
-  });
-  if (best) best.classList.add('active');
-})();</script>
 {{end}}
 
 {{define "icon-play"}}<svg class="icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M6 4.5v11l9-5.5-9-5.5z"/></svg>{{end}}

@@ -444,10 +444,9 @@
      signature — every other page that calls it passes a bare *Person, and
      making it accept a "this song" extra-content slot would mean
      threading a new argument shape through 25+ call sites for a feature
-     only this one page needs. Reuses the exact same #desktop-sidebar id
-     and data-path attributes, so {{template "desktop-sidebar-script"}}
-     (pure id/class based, no knowledge of which template produced the
-     markup) still drives the active-link highlighting unchanged. Hidden
+     only this one page needs. Reuses the exact same #desktop-sidebar id;
+     its current entry comes from the server (.Nav.Section) as on every
+     other page. Hidden
      below 901px exactly like the shared partial (same base .desktop-sidebar
      CSS rule) — mobile keeps its own .song-context-bar/"..." nav below,
      completely untouched. */}}
@@ -493,7 +492,7 @@
     <div class="toolbox-toolbar" id="toolbox-toolbar"></div>
   </div>
   <div class="sidebar-primary">
-    {{range navGlobal "desktop"}}<a href="{{.Path}}" data-path="{{.Path}}" data-label="{{t .Label}}">{{template "nav-icon" .Icon}} {{t .Label}}</a>{{end}}
+    {{range navGlobal "desktop"}}<a href="{{.Path}}"{{if navCurrent . $.Nav.Section}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}">{{template "nav-icon" .Icon}} {{t .Label}}</a>{{end}}
   </div>
   {{/* This song: every control that used to crowd the top bar, moved here
        — it's contextual to whichever song is open, the same pattern as a
@@ -2278,9 +2277,8 @@
 })();
 </script>
 {{template "pwa-register"}}
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
-{{template "desktop-sidebar-script"}}
 </body>
 </html>
 {{end}}

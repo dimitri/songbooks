@@ -25,7 +25,7 @@
     <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{t (shelfLabel "community" .Community.ID)}}</a>
     {{template "coaching-tab-links" .}}
     <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
-    <a href="/communities/{{.Community.ID}}/events" class="band-tab active">{{t "Events"}}</a>
+    <a href="/communities/{{.Community.ID}}/events" class="band-tab active" aria-current="page">{{t "Events"}}</a>
     {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a>{{end}}
   </nav>
   {{end}}
@@ -147,7 +147,7 @@
 })();
 </script>
 {{end}}
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

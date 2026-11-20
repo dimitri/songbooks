@@ -24,7 +24,7 @@
     <a class="band-tab" href="/communities/{{.Community.ID}}">{{t "Overview"}}</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{t (shelfLabel "community" .Community.ID)}}</a>
     {{template "coaching-tab-links" .}}
-    <a href="/communities/{{.Community.ID}}/downloads" class="band-tab active">{{t "Downloads"}}</a>
+    <a href="/communities/{{.Community.ID}}/downloads" class="band-tab active" aria-current="page">{{t "Downloads"}}</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/events">{{t "Events"}}</a>
   </nav>
 
@@ -99,7 +99,7 @@
 </main>
 </div>
 {{template "dl-script" .Community.ID}}
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

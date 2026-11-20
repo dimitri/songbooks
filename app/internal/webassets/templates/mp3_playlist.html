@@ -43,9 +43,8 @@
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
-{{template "desktop-sidebar-script"}}
 <script>
 (function () {
   const rowEls = [...document.querySelectorAll('#playlist-rows .gig-row[data-variant-id]')];
