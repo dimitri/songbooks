@@ -4603,6 +4603,93 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
   }
 }
 
+/* ==== menu PR 7: the space switcher ======================================
+   The sidebar's "My groups" list (icons.html "sidebar-spaces") and the
+   switcher's trigger and panel ("space-switcher"): a popover under its
+   trigger, a bottom sheet on a phone (its backdrop is the summary's
+   ::before, as the account menu's). */
+.space-av {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 1.55rem; height: 1.55rem; border-radius: 7px;
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.02em; color: #fff;
+  background: hsl(var(--space-hue, 20) 32% 38%);
+}
+.space-av--0 { --space-hue: 18; }
+.space-av--1 { --space-hue: 150; }
+.space-av--2 { --space-hue: 280; }
+.space-av--3 { --space-hue: 212; }
+.space-av--4 { --space-hue: 38; }
+.space-av--5 { --space-hue: 330; }
+.space-av--6 { --space-hue: 180; }
+.space-av--7 { --space-hue: 95; }
+.sidebar-spaces { display: flex; flex-direction: column; gap: 0.1rem; }
+.sidebar-space {
+  display: flex; align-items: center; gap: 0.6rem; padding: 0.38rem 0.6rem; border-radius: 10px;
+  color: var(--sidebar-fg); text-decoration: none; font-size: 0.86rem; font-weight: 500; min-width: 0;
+}
+.sidebar-space .sidebar-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-space:not(.active):hover { background: color-mix(in srgb, var(--sidebar-fg) 10%, transparent); }
+.sidebar-space.active { background: var(--sidebar-active-bg); color: var(--sidebar-active-fg); font-weight: 600; }
+.sidebar-space-all { color: color-mix(in srgb, var(--sidebar-fg) 72%, transparent); }
+.sidebar-space-all .icon { width: 1.1rem; height: 1.1rem; margin: 0 0.22rem; flex: none; }
+.sidebar-space-count { font-size: 0.72rem; opacity: 0.75; }
+.sidebar-space-pin { font-size: 0.7rem; opacity: 0.6; }
+
+.space-switcher { position: relative; }
+.space-switcher > summary { list-style: none; cursor: pointer; }
+.space-switcher > summary::-webkit-details-marker { display: none; }
+.space-switcher-trigger {
+  display: inline-flex; align-items: center; gap: 0.45rem; min-height: 2.2rem;
+  padding: 0.15rem 0.35rem; border-radius: 10px; color: inherit;
+}
+.space-switcher-trigger:hover { background: var(--bg-sunken); }
+.space-switcher-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.space-switcher-trigger .icon { width: 1.3rem; height: 1.3rem; }
+.space-switcher-name { font-weight: 700; }
+.space-switcher-caret { color: var(--fg-muted); font-size: 0.8rem; }
+.space-switcher-panel {
+  position: absolute; top: calc(100% + 0.35rem); left: 0; z-index: 95; width: 20rem; max-height: 70vh; overflow-y: auto;
+  background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: var(--shadow-lg, var(--shadow)); padding: 0.5rem; font-size: 0.9rem;
+}
+.space-switcher--topbar .space-switcher-panel { left: auto; right: 0; }
+.space-switcher-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; padding: 0.3rem 0.45rem 0.5rem; }
+.space-switcher-head a { font-size: 0.85rem; white-space: nowrap; }
+.space-switcher-filter { width: 100%; box-sizing: border-box; margin: 0 0 0.4rem; }
+.space-switcher-list { list-style: none; margin: 0; padding: 0; }
+.space-switcher-row { display: flex; align-items: center; gap: 0.2rem; border-radius: 10px; }
+.space-switcher-row[hidden] { display: none; }
+.space-switcher-row > a { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem; border-radius: 10px; color: var(--fg); text-decoration: none; }
+.space-switcher-row > a:hover { background: var(--bg-sunken); }
+.space-switcher-row > a[aria-current="page"] { background: var(--accent-bg); }
+.space-switcher-row > a .space-av { width: 2rem; height: 2rem; font-size: 0.75rem; }
+.space-switcher-row > a > span:last-child { min-width: 0; }
+.space-switcher-row strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.space-switcher-row small { display: block; color: var(--fg-muted); font-size: 0.78rem; }
+.space-pin {
+  flex: none; min-width: 2.4rem; min-height: 2.4rem; border: none; background: none; border-radius: 8px;
+  color: var(--fg-faint); font-size: 1rem; cursor: pointer; opacity: 0.55;
+}
+.space-pin:hover { background: var(--bg-sunken); opacity: 1; }
+.space-pin[aria-pressed="true"] { color: var(--accent); opacity: 1; }
+@media (max-width: 900px) {
+  /* The compact switcher sits in the top bar, left of the avatar; a
+     page whose own space header holds the switcher doesn't need it. */
+  body:has(.space-header .space-switcher) .topbar-actions .space-switcher { display: none; }
+  body:has(> .topbar-actions .space-switcher):not(:has(.space-header .space-switcher)) .app-header { padding-right: 6.2rem; }
+  .space-switcher--topbar .space-av { width: 1.9rem; height: 1.9rem; font-size: 0.72rem; }
+  .space-switcher--topbar .space-switcher-trigger { gap: 0.2rem; padding: 0.1rem 0.15rem; }
+}
+@media (max-width: 599px) {
+  .space-switcher[open] > summary::before {
+    content: ""; position: fixed; inset: 0; z-index: 94; background: rgb(0 0 0 / 0.38); cursor: default;
+  }
+  .space-switcher > .space-switcher-panel {
+    position: fixed; left: 0; right: 0; top: auto; bottom: 0; width: auto; max-height: 80vh;
+    border-radius: 18px 18px 0 0; padding: 0.6rem 0.8rem calc(0.8rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 @media (min-width: 901px) {
   /* .site-nav-fullpage included here too: its only base rule is the
      mobile-breakpoint display:none (it has no .open-only trigger on

@@ -64,7 +64,7 @@ var navEntries = []NavEntry{
 	{Label: "Library", Path: "/catalog", Icon: "icon-catalog", Section: NavLibrary, Sidebar: true, Bar: true},
 	{Label: "Calendar", Path: "/calendar", Icon: "icon-calendar", Section: NavCalendar, Sidebar: true, Bar: true},
 	{Label: "Notifications", Path: "/notifications", Icon: "icon-bell", Section: NavNotifications, Sidebar: true, Badge: "notifications"},
-	{Label: "Groups", Path: "/groups", Icon: "icon-bands", Section: NavGroups, Covers: NavBands + " " + NavCommunities, Sidebar: true, Bar: true},
+	{Label: "Groups", Path: "/groups", Icon: "icon-bands", Section: NavGroups, Covers: NavBands + " " + NavCommunities, Bar: true},
 	{Label: "Tools", Path: "/tools", Icon: "icon-tools", Section: NavTools, Covers: NavMetronome + " " + NavTuner, Bar: true},
 	{Label: "Metronome", Path: "/metronome", Icon: "icon-metronome", Section: NavMetronome, SidebarTools: true},
 	{Label: "Tuner", Path: "/tuner", Icon: "icon-tuner", Section: NavTuner, SidebarTools: true},

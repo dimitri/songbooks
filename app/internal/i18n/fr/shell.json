@@ -431,5 +431,14 @@
   "Your account: %s": "Votre compte : %s",
   "Profile, instruments, playing": "Profil, instruments, lecture",
   "A click to play along with, at any tempo": "Un clic pour jouer en place, à n’importe quel tempo",
-  "A tuner that listens through the microphone": "Un accordeur qui écoute par le micro"
+  "A tuner that listens through the microphone": "Un accordeur qui écoute par le micro",
+  "All my groups": "Tous mes groupes",
+  "Pinned": "Épinglé",
+  "Switch group": "Changer de groupe",
+  "Find a group": "Chercher un groupe",
+  "Pin %s": "Épingler %s",
+  "Pin to the top": "Épingler en haut de la liste",
+  "space|Band": "Groupe de musique",
+  "space|Community": "Communauté",
+  "space|Coaching": "Coaching"
 }

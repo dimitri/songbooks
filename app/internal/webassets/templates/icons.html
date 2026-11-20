@@ -66,14 +66,17 @@
      are always in the DOM, CSS shows one, so they carry distinct
      labels for a screen reader's landmarks list. */}}
 {{define "global-tabbar"}}
-{{$sec := ""}}{{$me := false}}{{$page := ""}}{{with .}}{{with .Nav}}{{$sec = .Section}}{{$page = .Page}}{{with .Me}}{{$me = .}}{{end}}{{end}}{{end}}
+{{$sec := ""}}{{$me := false}}{{$page := ""}}{{$last := ""}}{{$nav := false}}{{with .}}{{with .Nav}}{{$nav = .}}{{$sec = .Section}}{{$page = .Page}}{{$last = .Spaces.LastURL}}{{with .Me}}{{$me = .}}{{end}}{{end}}{{end}}
 <nav class="tabbar global-tabbar" id="global-tabbar" aria-label="{{t "main navigation (mobile)"}}">
-  {{range navGlobal "bar"}}<a href="{{.Path}}"{{if navCurrent "bar" . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}"{{with .Badge}} data-nav-badge-host="{{.}}"{{end}}>{{template "nav-icon" .Icon}}</a>{{end}}
+  {{/* Groups reopens the space used last (menu PR 7); "All my groups" is
+       at the top of its switcher. */}}
+  {{range navGlobal "bar"}}<a href="{{if and (eq .Section "groups") $last}}{{$last}}{{else}}{{.Path}}{{end}}"{{if navCurrent "bar" . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}"{{with .Badge}} data-nav-badge-host="{{.}}"{{end}}>{{template "nav-icon" .Icon}}</a>{{end}}
 </nav>
 {{if $me}}
 {{/* The top bar's right end below 901px: the slot for the notification
      bell (the notifications work fills it) and the avatar. */}}
 <div class="topbar-actions" id="topbar-actions">
+  {{if $nav.Spaces.Current}}{{template "space-switcher" (dict "Nav" $nav "Where" "topbar")}}{{end}}
   <span class="topbar-slot" data-topbar-slot="notifications"></span>
   {{template "account-menu" (dict "Me" $me "Section" $sec "Where" "topbar")}}
 </div>
@@ -82,6 +85,7 @@
 {{end}}
 {{define "global-tabbar-script"}}
 {{template "account-menu-script"}}
+{{template "space-switcher-script"}}
 {{template "site-nav-fullpage-script"}}
 {{end}}
 
@@ -224,6 +228,105 @@
 {{define "icon-tools"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 2.8v6.4a3 3 0 0 0 6 0V2.8"/><path d="M10 12.2v5"/></svg>{{end}}
 {{define "icon-language"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2 2.2 2.8 4.6 2.8 7S12 14.8 10 17c-2-2.2-2.8-4.6-2.8-7S8 5.2 10 3z"/></svg>{{end}}
 
+{{/* The sidebar's "My groups" (menu PR 7): one's bands and communities,
+     pinned first, then the last used, at most six, then "All my groups"
+     (/groups) — the desktop's space switcher, one click from any page to
+     any space. The space the page is in is marked current. Called with
+     the page's .Nav. */}}
+{{define "sidebar-spaces"}}
+{{$sec := .Section}}{{$sp := .Spaces}}
+<div class="sidebar-spaces" role="group" aria-labelledby="sidebar-spaces-label">
+  <div class="sidebar-group-label" id="sidebar-spaces-label">{{t "My groups"}}</div>
+  {{range $sp.Shown}}<a href="{{.URL}}" class="sidebar-space{{if .Current}} active{{end}}"{{if .Current}} aria-current="page"{{end}} title="{{.Name}}">{{template "space-avatar" .}}<span class="sidebar-label">{{.Name}}</span>{{if .Pinned}}<span class="sidebar-space-pin" title="{{t "Pinned"}}" aria-label="{{t "Pinned"}}">★</span>{{end}}</a>{{end}}
+  {{$all := and (not $sp.Current) (or (eq $sec "groups") (eq $sec "bands") (eq $sec "communities"))}}
+  <a href="/groups" class="sidebar-space sidebar-space-all{{if $all}} active{{end}}"{{if $all}} aria-current="page"{{end}} title="{{t "All my groups"}}">{{template "icon-bands"}}<span class="sidebar-label">{{t "All my groups"}}</span>{{if $sp.More}}<span class="sidebar-space-count">{{len $sp.All}}</span>{{end}}</a>
+</div>
+{{end}}
+
+{{/* A space's avatar: its initials on its colour. */}}
+{{define "space-avatar"}}<span class="space-av space-av--{{.Tone}}" aria-hidden="true">{{.Initials}}</span>{{end}}
+
+{{/* space-switcher (menu PR 7): the space's switcher — a trigger, and a
+     panel listing one's spaces: "All my groups" at the top, a filter when
+     there are more than six, each space with its kind and a pin. A
+     <details>: it opens without a script and from the keyboard;
+     space-switcher-script (in global-tabbar-script, on every page)
+     closes it on Escape or a click elsewhere, filters, and pins.
+     On a phone the panel is a bottom sheet; wider, a popover under the
+     trigger.
+
+     Inputs, as (dict "Nav" .Nav "Where" …):
+     - "Nav": the page's .Nav (render puts it in every page's data); its
+       .Spaces.All is the list (pinned first, then the last used) and
+       .Spaces.Current the space the page is in (nil outside one).
+     - "Where": "header" for the space's header (avatar · name ▾, the
+       name is the trigger), "topbar" for the compact one (avatar ▾) at
+       the top right below 901px, which hides itself on a page whose
+       .space-header holds a "header" switcher. */}}
+{{define "space-switcher"}}
+{{$cur := .Nav.Spaces.Current}}
+<details class="space-switcher space-switcher--{{.Where}}">
+  <summary class="space-switcher-trigger" aria-label="{{t "Switch group"}}{{with $cur}}: {{.Name}}{{end}}">
+    {{with $cur}}{{template "space-avatar" .}}{{if ne $.Where "topbar"}}<span class="space-switcher-name">{{.Name}}</span>{{end}}{{else}}{{template "icon-bands"}}{{end}}<span class="space-switcher-caret" aria-hidden="true">▾</span>
+  </summary>
+  <div class="space-switcher-panel">
+    <div class="space-switcher-head">
+      <strong>{{t "My groups"}}</strong>
+      <a href="/groups">{{t "All my groups"}} ({{len .Nav.Spaces.All}}) ›</a>
+    </div>
+    {{if gt (len .Nav.Spaces.All) 6}}<input type="search" class="space-switcher-filter" placeholder="{{t "Find a group"}}" aria-label="{{t "Find a group"}}" autocomplete="off">{{end}}
+    <ul class="space-switcher-list">
+      {{range .Nav.Spaces.All}}
+      <li class="space-switcher-row" data-name="{{.Name}}">
+        <a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{template "space-avatar" .}}<span><strong>{{.Name}}</strong><small>{{t (printf "space|%s" .Sub)}}</small></span></a>
+        <button type="button" class="space-pin" data-kind="{{.Kind}}" data-id="{{.ID}}" aria-pressed="{{if .Pinned}}true{{else}}false{{end}}" aria-label="{{t "Pin %s" .Name}}" title="{{t "Pin to the top"}}">★</button>
+      </li>
+      {{end}}
+    </ul>
+  </div>
+</details>
+{{end}}
+{{define "space-switcher-script"}}
+<script>(function () {
+  if (window.spaceSwitcherWired) return;
+  window.spaceSwitcherWired = true;
+  var boxes = document.querySelectorAll('details.space-switcher');
+  if (!boxes.length) return;
+  document.addEventListener('click', function (e) {
+    boxes.forEach(function (d) { if (d.open && !d.contains(e.target)) d.open = false; });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    boxes.forEach(function (d) { if (d.open) { d.open = false; d.querySelector('summary').focus(); } });
+  });
+  var fold = function (s) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); };
+  boxes.forEach(function (d) {
+    var filter = d.querySelector('.space-switcher-filter');
+    d.addEventListener('toggle', function () { if (d.open && filter && matchMedia('(pointer: fine)').matches) filter.focus(); });
+    if (filter) filter.addEventListener('input', function () {
+      var q = fold(filter.value.trim());
+      d.querySelectorAll('.space-switcher-row').forEach(function (row) {
+        row.hidden = q !== '' && fold(row.dataset.name).indexOf(q) < 0;
+      });
+    });
+    d.querySelectorAll('.space-pin').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var pinned = b.getAttribute('aria-pressed') !== 'true';
+        b.disabled = true;
+        fetch('/api/me/spaces/' + b.dataset.kind + '/' + b.dataset.id + '/pin', {
+          method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pinned: pinned})
+        }).then(function (r) {
+          if (!r.ok) throw new Error();
+          document.querySelectorAll('.space-pin[data-kind="' + b.dataset.kind + '"][data-id="' + b.dataset.id + '"]').forEach(function (x) {
+            x.setAttribute('aria-pressed', pinned ? 'true' : 'false');
+          });
+        }).catch(function () { alert(t('Couldn’t save that.')); }).finally(function () { b.disabled = false; });
+      });
+    });
+  });
+})();</script>
+{{end}}
+
 {{/* The desktop sidebar (901px and wider): the brand, Home, Library,
      Calendar, Notifications and Groups, the page's own group if it has
      one (ContextualGroup), the Tools, and the account chip, which opens
@@ -235,6 +338,7 @@
   <div class="sidebar-primary">
     {{range navGlobal "sidebar"}}<a href="{{.Path}}"{{if navCurrent "sidebar" . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}" title="{{t .Label}}">{{template "nav-icon" .Icon}} <span class="sidebar-label">{{t .Label}}</span>{{with .Badge}}<span class="nav-badge" data-nav-badge="{{.}}" hidden></span>{{end}}</a>{{end}}
   </div>
+  {{with .Nav}}{{template "sidebar-spaces" .}}{{end}}
   {{with .ContextualGroup}}
   <div class="sidebar-secondary sidebar-song-group">
     <div class="sidebar-group-label">{{t .Label}}</div>
