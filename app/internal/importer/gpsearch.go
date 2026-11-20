@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // GPSearchResult is one GProTab.net search hit — a tab page, not yet a
@@ -61,7 +62,7 @@ func SearchGP(title, artist string) ([]GPSearchResult, error) {
 	if q == "" {
 		return nil, fmt.Errorf("title is required")
 	}
-	searchURL := "https://www.gprotab.net/en/search?q=" + url.QueryEscape(q)
+	searchURL := "https://www.gprotab.net/en/search?q=" + url.QueryEscape(gpSearchQuery(q))
 	body, err := fetch(searchURL)
 	if err != nil {
 		return nil, err
@@ -85,6 +86,15 @@ func SearchGP(title, artist string) ([]GPSearchResult, error) {
 		return gpQueryScore(title, artist, results[i]) > gpQueryScore(title, artist, results[j])
 	})
 	return results, nil
+}
+
+// gpSearchQuery is the title as GProTab.net's search finds it: its
+// titles have no apostrophes ("m aimes"), and a query with one ("m'aimes",
+// "m’aimes") finds nothing. Accents don't matter to it ("café" = "cafe").
+func gpSearchQuery(title string) string {
+	return strings.Join(strings.FieldsFunc(title, func(r rune) bool {
+		return unicode.IsSpace(r) || r == '\'' || r == '’' || r == '‘' || r == '`'
+	}), " ")
 }
 
 // matchesGPQuery/gpQueryScore reuse the exact same Jaccard word-overlap
