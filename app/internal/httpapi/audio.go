@@ -58,6 +58,9 @@ type audioCategoryMeta struct {
 	// "done", "failed").
 	Stems      []string `json:"stems,omitempty"`
 	StemStatus string   `json:"stemStatus,omitempty"`
+	// AnalysisStatus: where the recording's own analysis (beats, bars,
+	// chords: migration 0106) is, "done" once there's one.
+	AnalysisStatus string `json:"analysisStatus,omitempty"`
 	// SyncOrigin: "" when nothing is synced, "auto" when any of the sync
 	// was placed by a program and not checked yet, "set" otherwise.
 	SyncOrigin string `json:"syncOrigin,omitempty"`
@@ -116,7 +119,15 @@ func (s *Server) handleGetSongAudioMeta(w http.ResponseWriter, r *http.Request) 
 			cm.Markers = append(cm.Markers, jsonAudioMark{SectionIndex: m.SectionIndex, TimeSeconds: m.TimeSeconds, Origin: m.Origin})
 			cm.SyncOrigin = mergeOrigin(cm.SyncOrigin, m.Origin)
 		}
-		if a.Category == store.AudioGP {
+		if as, err := s.store.GetAnalysis(r.Context(), a.ID); err == nil {
+			cm.AnalysisStatus = as.Status
+			if as.Analysis != nil {
+				cm.AnalysisStatus = "done"
+			}
+		}
+		// Every bar's time: a Guitar Pro file's own, or the recording's
+		// analysis accepted (any category).
+		{
 			points, err := s.store.ListGPBarSyncPoints(r.Context(), a.ID)
 			if err != nil {
 				httpError(w, http.StatusInternalServerError, err.Error())
@@ -473,6 +484,10 @@ func (s *Server) handlePutAudioMarkers(w http.ResponseWriter, r *http.Request) {
 		markers = append(markers, store.AudioMarker{SectionIndex: m.SectionIndex, TimeSeconds: m.TimeSeconds, Origin: m.Origin})
 	}
 	if err := s.store.ReplaceAudioMarkers(r.Context(), meta.ID, markers, actorID(r)); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := s.reconcileBarPoints(r, meta, markers); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
