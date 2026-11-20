@@ -92,29 +92,37 @@ func spaceTabs(kind string, role spaceRole) []SpaceSection {
 		}
 		return out
 	case spaceCoaching:
-		out := []SpaceSection{
-			{Key: "overview", Label: "Overview", Icon: "icon-home"},
+		// A coach's studio. The coach sees their students (cards, a table,
+		// song by song, by class), the calendar of lessons and events, then
+		// what they teach with; members, invitations and settings are
+		// behind ⚙ Admin. A student sees their week, their progress, the
+		// same calendar and the same material. Never reordered.
+		agenda := SpaceSection{Key: "agenda", Label: "Calendar", Path: "/lessons", Icon: "icon-calendar", Filters: []SpaceSection{
+			{Key: "lessons", Label: "Lessons", Path: "/lessons"},
+			{Key: "events", Label: "Events", Path: "/events"},
+		}}
+		material := []SpaceSection{
 			{Key: "songbooks", Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog"},
+			{Key: "warmups", Label: "Warm-ups", Path: "/warmups", Icon: "icon-metronome"},
+			{Key: "resources", Label: "Resources", Path: "/resources", Icon: "icon-download"},
 		}
-		{
-			if role.Staff {
-				out = append(out,
-					SpaceSection{Key: "students", Label: "Students", Path: "/students", Icon: "icon-bands"},
-					SpaceSection{Key: "repertoire", Label: "Students’ songs", Path: "/student-songs", Icon: "icon-catalog"})
-			} else {
-				out = append(out, SpaceSection{Key: "voice", Label: "My voice", Path: fmt.Sprintf("/students/%d", role.PersonID), Icon: "icon-profile"})
-			}
-			out = append(out,
-				SpaceSection{Key: "groups", Label: "coaching|Groups", Path: "/groups", Icon: "icon-bands"},
-				SpaceSection{Key: "warmups", Label: "Warm-ups", Path: "/warmups", Icon: "icon-metronome"},
-				SpaceSection{Key: "lessons", Label: "Lessons", Path: "/lessons", Icon: "icon-calendar"})
+		if role.Staff {
+			return append([]SpaceSection{
+				{Key: "overview", Label: "Overview", Icon: "icon-home"},
+				{Key: "students", Label: "Students", Path: "/students", Icon: "icon-bands", Filters: []SpaceSection{
+					{Key: "cards", Label: "Cards", Path: "/students?view=cards"},
+					{Key: "table", Label: "Table", Path: "/students?view=table"},
+					{Key: "songs", Label: "By song", Path: "/student-songs"},
+					{Key: "classes", Label: "coaching|Groups", Path: "/groups"},
+				}},
+				agenda,
+			}, material...)
 		}
-		if role.SeeMembers {
-			out = append(out, SpaceSection{Key: "members", Label: "Members", Path: "/members", Icon: "icon-bands"})
-		}
-		return append(out,
-			SpaceSection{Key: "resources", Label: "Resources", Path: "/resources", Icon: "icon-download"},
-			SpaceSection{Key: "events", Label: "Events", Path: "/events", Icon: "icon-calendar"})
+		return append([]SpaceSection{
+			{Key: "overview", Label: "My week", Icon: "icon-home"},
+			{Key: "progress", Label: "My progress", Path: fmt.Sprintf("/students/%d", role.PersonID), Icon: "icon-profile"},
+			agenda,
+		}, material...)
 	}
 	return nil
 }
@@ -222,6 +230,9 @@ func newSpaceNav(kind string, id int64, name string, role spaceRole, current str
 		if sec.Key != current {
 			continue
 		}
+		if filter == "-" {
+			continue // a page inside the section (one student, one class): no views
+		}
 		for i, f := range sec.Filters {
 			on := f.Key == filter || filter == "" && i == 0
 			n.Filters = append(n.Filters, SpaceTab{SpaceSection: f, Href: home + f.Path, Current: on})
@@ -256,13 +267,20 @@ var spacePages = map[string]string{
 	"community_members":          "members",
 	"community_admin":            "admin",
 	"community_stats":            "admin",
-	"coaching_students":          "students",
+	"coaching_students":          "",
 	"coaching_student":           "",
-	"coaching_repertoire":        "repertoire",
-	"coaching_groups":            "groups",
-	"coaching_group":             "groups",
-	"coaching_lessons":           "lessons",
+	"coaching_repertoire":        "students/songs",
+	"coaching_groups":            "students/classes",
+	"coaching_group":             "students/-",
+	"coaching_lessons":           "agenda/lessons",
 	"coaching_warmups":           "warmups",
+}
+
+// coachingSections are where a coaching studio keeps the pages every
+// community has: its events in its calendar, its members with its Admin.
+var coachingSections = map[string]string{
+	"events":  "agenda/events",
+	"members": "admin",
 }
 
 // spaceSectionOf is the section the page name shows: its entry in
@@ -282,11 +300,18 @@ func spaceSectionOf(name string, m map[string]any) string {
 			return "recordings/" + tab
 		}
 		return "recordings/rehearsals"
-	case "coaching_student":
-		if coach, _ := m["IsCoach"].(bool); coach {
-			return "students"
+	case "coaching_students":
+		if v, _ := m["StudentsView"].(string); v != "" {
+			return "students/" + v
 		}
-		return "voice"
+		return "students"
+	case "coaching_student":
+		// One student's page: the coach's, under Students (no view of its
+		// own); the student's own progress.
+		if coach, _ := m["IsCoach"].(bool); coach {
+			return "students/-"
+		}
+		return "progress"
 	}
 	return ""
 }
@@ -352,6 +377,16 @@ func (s *Server) addSpaceNav(w http.ResponseWriter, name string, data any) {
 	kind := spaceCommunity
 	if community.IsCoaching() {
 		kind = spaceCoaching
+	}
+	if kind == spaceCoaching {
+		if moved, ok := coachingSections[section]; ok {
+			section = moved
+		}
+		// A student has no Students section: their classes (the only
+		// ones they see) are part of their progress.
+		if !staff && strings.HasPrefix(section, "students") {
+			section = "progress"
+		}
 	}
 	nav := newSpaceNav(kind, community.ID, community.Name, spaceRole{Staff: staff, SeeMembers: see, PersonID: person.ID}, section)
 	nav.Brand = webassets.BrandLookupFor("community", community.ID)

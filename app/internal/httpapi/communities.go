@@ -328,6 +328,18 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 	if len(upcoming) > 0 {
 		hints["events"] = spaceHint{Text: dayHint(lang, upcoming[0].StartsAt)}
 	}
+	// A coaching studio's: its students, and its calendar (lessons and
+	// events) by the next event.
+	if community.IsCoaching() {
+		hints["agenda"] = hints["events"]
+		students := 0
+		for _, m := range members {
+			if !m.IsStaff() {
+				students++
+			}
+		}
+		hints["students"] = spaceHint{Text: i18n.N(lang, students, "%d student", "%d students")}
+	}
 	s.render(w, "community", map[string]any{
 		"Me": person, "SpaceHints": hints, "Community": community, "Members": members, "StaffNames": staffNames,
 		"Songbooks": songbookRows, "UpcomingEvents": upcoming,
