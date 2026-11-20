@@ -34,7 +34,7 @@ func TestAnalysisJobs(t *testing.T) {
 	if j, _ := st.ClaimAnalysisJob(ctx, "test"); j != nil {
 		t.Fatalf("claimed before the split: %+v", j)
 	}
-	job, err := st.ClaimStemJob(ctx, "htdemucs")
+	job, err := st.ClaimStemJob(ctx, "htdemucs", LaneAll)
 	if err != nil || job == nil {
 		t.Fatalf("claim stems: %v %v", job, err)
 	}
