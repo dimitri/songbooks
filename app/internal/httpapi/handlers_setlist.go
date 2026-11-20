@@ -656,6 +656,9 @@ type clicktrackSong struct {
 	TimeSig      string `json:"timeSig"`
 	Note         string `json:"note"`      // the set list entry's own note
 	ClickNote    string `json:"clickNote"` // the click-track note, shown large while it plays
+
+	// How the click counts this time signature (clicktrack_meter.go).
+	Meter clickMeter `json:"meter"`
 }
 
 // handleSetlistClicktrack is GET /setlists/{id}/clicktrack — the
@@ -726,6 +729,7 @@ func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request)
 				Title:     orDefault(sg.Get("title"), i18n.T(lang, "untitled")), Artist: sg.Get("artist"),
 				Key: sg.Get("key"), Tempo: tempo, TimeSig: orDefault(sg.Get("time"), "4/4"),
 				Note: e.Note, ClickNote: clickNotes[e.VariantID],
+				Meter: clickMeterFor(orDefault(sg.Get("time"), "4/4")),
 			})
 			n++
 			first = false

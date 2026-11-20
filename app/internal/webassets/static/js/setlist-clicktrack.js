@@ -61,11 +61,16 @@
   const tapBtn = document.getElementById('mc-tap');
   const muteBtn = document.getElementById('mc-mute');
 
-  function beatsForSig(sig) {
-    const table = { '2/4': 2, '3/4': 3, '4/4': 4, '5/4': 5, '6/8': 2, '9/8': 3, '12/8': 4 };
-    return table[sig] || 4;
-  }
-  function isCompoundSig(sig) { return sig === '6/8' || sig === '9/8' || sig === '12/8'; }
+  // Each song's meter comes worked out from the server (clickMeter in
+  // clicktrack_meter.go): the clicks a bar (every eighth in 6/8, 9/8,
+  // 12/8 and in odd meters like 7/8), its groups of eighths (5/8 = 3+2,
+  // 7/8 = 2+2+3, 12/8 = 3+3+3+3), the clicks with the lighter accent (4
+  // in 6/8, 7 in 12/8, 4 and 7 in 9/8, each group's start in 7/8), and
+  // how many clicks make one beat of the bpm: 3 in 6/8, 9/8, 12/8, whose
+  // bpm is in dotted quarters (so Tap taps the dotted quarter), 1
+  // elsewhere.
+  const METER_44 = { beats: 4, perBpm: 1, unit: 'quarter', known: true };
+  let meter = METER_44;
 
   let bpm = 120;
   const clock = new Clock(bpm, 4);
@@ -75,7 +80,7 @@
   function setBpm(v) {
     bpm = Math.max(20, Math.min(300, v));
     bpmValueEl.textContent = String(Math.round(bpm));
-    clock.setBpm(bpm);
+    clock.setBpm(bpm * (meter.perBpm || 1));
     showOwnTempo();
   }
 
@@ -102,9 +107,14 @@
   }
   ownTempoBack.addEventListener('click', backToSongTempo);
   bpmResetBtn.addEventListener('click', backToSongTempo);
-  function setTimeSig(sig) {
-    clock.beatsPerBar = beatsForSig(sig);
-    metronome.isCompound = isCompoundSig(sig);
+  function setMeter(m) {
+    meter = m && m.beats > 0 ? m : METER_44;
+    clock.beatsPerBar = meter.beats;
+    clock.setBpm(bpm * (meter.perBpm || 1));
+    // Accent on 1 (customAccents, above); the lighter ones as the meter says.
+    metronome.midAccents = meter.accents && meter.accents.length ? new Set(meter.accents) : null;
+    // Every eighth is its own click: no subdivision clicks.
+    metronome.isCompound = false;
     applyClickMode();
     renderDots();
   }
@@ -241,22 +251,32 @@
     if (changed) { try { localStorage.setItem('songbooks-clicktrack-prefs', JSON.stringify(prefs)); } catch (e) { /* ignore */ } }
   }).catch(() => { /* offline/logged-out — local/default prefs already applied */ });
 
-  // Two bars of dots, always (the old 1/2/4-bar option box is gone; two
-  // bars was one of its choices, now the only view): odd bars light the
-  // first group, even bars the second, so the eye sees the phrase move.
-  // One dot per beat (per main pulse in 6/8, 9/8, 12/8); --beats lets the
-  // CSS size them to fill the width (capped by the Size option).
+  // Two bars of dots on one row, always (the old 1/2/4-bar option box is
+  // gone; two bars was one of its choices, now the only view): odd bars
+  // light the left one, even bars the right one, a bar line between
+  // them. One dot per click (per eighth in 6/8, 12/8, 7/8…), a space
+  // before each group of eighths and a lighter ring on the lighter
+  // accents; --beats, --groups and --dot-gap let the CSS size them to
+  // fill the width (capped by the Size option), 24 dots (12/8) still
+  // fitting a phone.
   const BARS_SHOWN = 2;
   function renderDots() {
     dotsEl.innerHTML = '';
     const n = clock.beatsPerBar;
+    const accents = metronome.midAccents || new Set();
+    const starts = new Set();
+    let at = 0;
+    (meter.groups || []).forEach(g => { if (at > 0) starts.add(at); at += g; });
     dotsEl.style.setProperty('--beats', String(n));
+    dotsEl.style.setProperty('--groups', String(starts.size + 1));
+    dotsEl.style.setProperty('--dot-gap', n <= 4 ? '0.7rem' : n <= 7 ? '0.4rem' : n <= 9 ? '0.22rem' : '0.12rem');
     for (let b = 0; b < BARS_SHOWN; b++) {
       const bar = document.createElement('span');
       bar.className = 'mc-bar';
+      if (n > 6) bar.dataset.many = '';
       for (let k = 0; k < n; k++) {
         const d = document.createElement('span');
-        d.className = 'beat-dot' + (k === 0 ? ' downbeat' : '');
+        d.className = 'beat-dot' + (k === 0 ? ' downbeat' : '') + (starts.has(k) ? ' group-start' : '') + (accents.has(k) ? ' mid-accent' : '');
         bar.appendChild(d);
       }
       dotsEl.appendChild(bar);
@@ -609,18 +629,33 @@
     const song = step.song;
     posEl.textContent = `${song.setLabel || t('Set')} · ${t('song %d of %d', song.index + 1, totalSongs)}`;
     titleEl.textContent = song.title;
-    metaEl.textContent = [song.artist, song.key ? t('key %s', song.key) : '', `${song.tempo} bpm`, song.timeSig]
+    metaEl.textContent = [song.artist, song.key ? t('key %s', song.key) : '', tempoLabel(song), song.timeSig + meterLabel(song.meter)]
       .filter(Boolean).join(' · ');
     if (song.note) { entryNoteEl.textContent = song.note; entryNoteEl.hidden = false; }
     else { entryNoteEl.hidden = true; }
     showNote(song);
 
     setBpm(song.tempo);
-    setTimeSig(song.timeSig);
+    setMeter(song.meter);
 
     prevBtn.disabled = cur === 0;
     nextBtn.disabled = cur === steps.length - 1;
     renderBar();
+  }
+
+  // What the bpm counts, when it isn't a quarter note; a meter the click
+  // can't read says it clicks in 4.
+  function tempoLabel(song) {
+    const unit = song.meter && song.meter.unit;
+    if (unit === 'dotted-quarter') return t('%d bpm (dotted quarter)', song.tempo);
+    if (unit === 'eighth') return t('%d bpm (eighth)', song.tempo);
+    if (unit === 'half') return t('%d bpm (half note)', song.tempo);
+    return `${song.tempo} bpm`;
+  }
+  function meterLabel(m) {
+    if (!m || !m.known) return ' ' + t('(clicked in 4/4)');
+    if (m.unit === 'eighth' && m.groups && m.groups.length > 1) return ` (${m.groups.join('+')})`;
+    return '';
   }
 
   // Moving to another song while the click runs keeps it running, on
@@ -688,6 +723,10 @@
       ' ': () => setPlaying(!clock.running), k: () => setPlaying(!clock.running),
       ArrowLeft: () => goTo(cur - 1, false), ArrowRight: () => goTo(cur + 1, false),
       'Shift+ArrowLeft': () => goTo(cur - 1, false), 'Shift+ArrowRight': () => goTo(cur + 1, false),
+      // Page-turn pedals send PageUp/PageDown (as in stage mode); a pedal
+      // held down moves one song, not the whole set.
+      PageUp: (e) => { if (!e.repeat) goTo(cur - 1, false); },
+      PageDown: (e) => { if (!e.repeat) goTo(cur + 1, false); },
       '[': () => setBpm(bpm - 1), ']': () => setBpm(bpm + 1), '{': () => setBpm(bpm - 5), '}': () => setBpm(bpm + 5),
       '\\': backToSongTempo,
       m: () => muteBtn.click(), t: () => tapBtn.click(),
@@ -696,6 +735,7 @@
     help: [
       [t('Play / stop'), ' ', 'k'],
       [t('Previous / next song'), 'ArrowLeft', 'ArrowRight'],
+      [t('Previous / next song (pedal)'), 'PageUp', 'PageDown'],
       [t('Tempo −1 / +1 (⇧ for 5) · \\ back to the song’s'), '[', ']', '\\'],
       [t('Mute · tap the tempo'), 'm', 't'],
       [t('Open / close the running order · close · these shortcuts'), 'f', 'Escape', '?'],
