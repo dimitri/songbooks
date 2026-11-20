@@ -112,7 +112,7 @@
   function pending(i) {
     const r = rows[i];
     if (rejected.has(r.index)) return [];
-    const order = { voice: 0, given: 1, beat: 2 };
+    const order = { analysis: 0, voice: 1, given: 2, beat: 3 };
     const list = (sugg[r.index] || []).slice().sort((a, b) => order[a.src] - order[b.src]);
     const out = [];
     const near = (a, b) => Math.abs(a - b) < barLen(i) * 0.9;
@@ -191,7 +191,7 @@
       const res = await fetch(`/api/songs/${P.variantId}/audio/${forCat}/analyze?lang=${lang}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       if (res.ok && forCat === cat) {
         const p = await res.json();
-        addSuggestions((p.sections || []).map((s) => ({ sectionIndex: s.index, timeSeconds: s.time })), 'voice');
+        addSuggestions((p.sections || []).map((s) => ({ sectionIndex: s.index, timeSeconds: s.time })), p.downbeats ? 'analysis' : 'voice');
         suggNotes = p.notes || [];
       }
     } catch (e) { /* the player's alone */ }
@@ -361,6 +361,13 @@
         li.appendChild(p);
       }
       for (const s of pending(i)) li.appendChild(suggestion(i, s));
+      // The analysis: this section plays another number of bars than
+      // the chart writes.
+      const as = anaSection(r.index);
+      if (as && !as.last && as.played && as.played !== as.written) {
+        li.classList.add('has-bars');
+        li.appendChild(el('p', 'sync-row-bars', t('written %d · played %d', as.written, as.played)));
+      }
       if (i === cursor) li.appendChild(tools(i));
       return li;
     }));
@@ -395,7 +402,7 @@
     const div = document.createElement('div');
     div.className = 'sync-suggest';
     const what = document.createElement('span');
-    const from = { voice: t('where the singing starts'), beat: t('from the downbeats'), given: t('proposed') }[s.src];
+    const from = { analysis: t('on the recording’s downbeat'), voice: t('where the singing starts'), beat: t('from the downbeats'), given: t('proposed') }[s.src];
     const d = r.t === null ? '' : ` (${s.t > r.t ? '+' : '−'}${Math.abs(s.t - r.t).toFixed(1)} s)`;
     what.textContent = t('Suggested: %s, %s', fmt(s.t) + d, from);
     const btn = (cls, text, label, fn) => {
@@ -530,6 +537,259 @@
     }));
   }
 
+  // ---- The recording's own analysis ------------------------------------------------
+  // Its beats, bars and chords (the stems worker's analysis stage), laid
+  // on the chart by the server (POST …/analysis): a sync to take in one
+  // tap (every section on its downbeat, every bar placed, saved as
+  // estimates), one-tap fixes for when the beat grid is wrong (×2, ÷2, the
+  // downbeat a beat off, "bar 1 is here"), and the chart's proposals —
+  // the tempo and metre, an intro it lacks, sections whose bar count
+  // isn't what's played, chords the recording contradicts — reviewed as
+  // the lines they change before being saved as a revision.
+  const anaEl = $('sync-analysis');
+  const anaBody = $('sync-analysis-body');
+  let ana = null; // the last response
+  let hints = { tempoFactor: 0, shiftBeats: 0, bar1At: 0 };
+  let picks = { tempo: false, time: false, intro: false, sections: new Set(), chords: new Set() };
+  let review = null; // {changes} while reviewing
+  let anaBusy = false;
+  const pct = (x) => Math.round((x || 0) * 100);
+  const fixKey = (f) => `${f.defSection}:${f.measure}:${f.slot}`;
+  async function loadAnalysis() {
+    const forCat = cat;
+    if (!anaEl) return;
+    try {
+      const res = await fetch(`/api/songs/${P.variantId}/audio/${forCat}/analysis?lang=${encodeURIComponent(document.documentElement.lang || '')}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hints }),
+      });
+      if (!res.ok || forCat !== cat) return;
+      ana = await res.json();
+    } catch (e) { return; }
+    const p = ana.proposal;
+    if (p) {
+      // Snap taps to the analysis' downbeats rather than the player's guess.
+      if (p.downbeats && p.downbeats.length) beats = p.downbeats;
+      // Picks that no longer exist go.
+      const secs = new Set((p.sections || []).filter((s) => s.grid).map((s) => s.index));
+      picks.sections.forEach((i) => { if (!secs.has(i)) picks.sections.delete(i); });
+      const keys = new Set((p.chordFixes || []).map(fixKey));
+      picks.chords.forEach((k) => { if (!keys.has(k)) picks.chords.delete(k); });
+      if (!p.intro) picks.intro = false;
+      if (!p.proposeTempo) picks.tempo = false;
+      if (!p.proposeTime) picks.time = false;
+    }
+    renderAnalysis();
+    render();
+  }
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+  function anaBtn(text, title, fn, cls = 'sync-btn') {
+    const b = el('button', cls, text);
+    b.type = 'button';
+    if (title) { b.title = title; b.setAttribute('aria-label', title); }
+    b.addEventListener('click', fn);
+    return b;
+  }
+  const listen = (tm) => anaBtn('▶', t('listen from 2 seconds before'), () => { P.seek(Math.max(0, tm - 2)); if (!P.isPlaying()) P.play(); }, 'sync-btn sync-ana-play');
+  function renderAnalysis() {
+    if (!anaEl) return;
+    anaEl.hidden = !ana;
+    if (!ana) return;
+    const dot = $('sync-analysis-dot'), sum = $('sync-analysis-sum');
+    const p = ana.proposal;
+    if (!p) {
+      dot.dataset.state = 'none';
+      const waiting = ana.stemStatus && ana.stemStatus !== 'done';
+      sum.textContent = ana.status === 'failed' ? t('analysis failed')
+        : waiting ? t('after the split into parts')
+          : (ana.status === 'queued' || ana.status === 'running') ? t('being analysed…') : t('not analysed yet');
+      const msg = ana.status === 'failed' ? t('The recording couldn’t be analysed.')
+        : waiting ? t('The recording is analysed (its beats, bars and chords) once it’s split into its parts.')
+          : (ana.status === 'queued' || ana.status === 'running') ? t('The recording is being analysed: its beats, bars and chords. Come back in a minute.')
+            : t('The recording hasn’t been analysed yet.');
+      const kids = [el('p', 'hint', msg)];
+      if (!waiting && ana.status !== 'queued' && ana.status !== 'running') kids.push(anaBtn(t('Analyse the recording'), '', queueAnalysis, 'audio-pill-btn'));
+      anaBody.replaceChildren(...kids);
+      return;
+    }
+    dot.dataset.state = p.state;
+    $('sync-analysis-title').textContent = t('Analysed');
+    sum.textContent = p.state === 'unsure'
+      ? t('the beat is unclear')
+      : t('%d bpm · %s · bar 1 at %s · %s sure', Math.round(p.tempo), p.timeSig, fmt(p.firstDownbeat), `${pct(p.confidence)}%`);
+    if (review) { renderReview(); return; }
+    const out = [];
+    // The beat grid's one-tap fixes.
+    const fixes = el('div', 'sync-ana-fixes');
+    fixes.append(
+      anaBtn(t('×2'), t('the beat is twice as fast'), () => setHint({ tempoFactor: hints.tempoFactor === 0.5 ? 0 : 2 })),
+      anaBtn(t('÷2'), t('the beat is half as fast'), () => setHint({ tempoFactor: hints.tempoFactor === 2 ? 0 : 0.5 })),
+      anaBtn(t('−1 beat'), t('the downbeat is one beat earlier'), () => setHint({ shiftBeats: hints.shiftBeats - 1 })),
+      anaBtn(t('+1 beat'), t('the downbeat is one beat later'), () => setHint({ shiftBeats: hints.shiftBeats + 1 })),
+      anaBtn(t('Bar 1 here'), t('the chart’s first bar starts where the recording is now'), () => setHint({ bar1At: Math.max(0.01, P.audio.currentTime) })),
+    );
+    if (hints.tempoFactor || hints.shiftBeats || hints.bar1At) {
+      fixes.append(anaBtn(t('As detected'), t('forget these fixes'), () => { hints = { tempoFactor: 0, shiftBeats: 0, bar1At: 0 }; loadAnalysis(); }, 'sync-btn sync-ana-reset'));
+    }
+    out.push(fixes);
+    (p.notes || []).forEach((n) => out.push(el('p', 'hint sync-ana-note', n)));
+    // The sync, in one tap.
+    const use = el('div', 'sync-ana-use');
+    use.append(anaBtn(t('Use this sync'), t('every section on its downbeat and every bar placed, saved as estimates to check by ear'), useSync, 'primary'),
+      el('span', 'hint', tn((p.barPoints || []).length, '%d bar placed', '%d bars placed')));
+    out.push(use);
+    // The chart's proposals.
+    const props = el('ul', 'sync-ana-props');
+    const item = (checked, onchange, text, extra, at) => {
+      const li = el('li', 'sync-ana-prop');
+      const lab = el('label');
+      const box = el('input');
+      box.type = 'checkbox';
+      box.checked = checked;
+      box.addEventListener('change', () => { onchange(box.checked); renderAnalysis(); });
+      lab.append(box, el('span', '', text));
+      li.append(lab);
+      if (at !== undefined && at !== null && at >= 0) li.append(listen(at));
+      if (extra) li.append(el('code', 'sync-ana-grid', extra));
+      props.append(li);
+    };
+    if (p.proposeTempo) item(picks.tempo, (v) => { picks.tempo = v; }, t('Tempo: %s → %d bpm', p.chartTempo || t('none'), p.proposeTempo));
+    if (p.proposeTime) item(picks.time, (v) => { picks.time = v; }, t('Time signature: %s → %s', p.chartTimeSig || t('none'), p.proposeTime));
+    if (p.intro) item(picks.intro, (v) => { picks.intro = v; }, tn(p.intro.bars, 'Add an intro of %d bar before the first section', 'Add an intro of %d bars before the first section'), p.intro.grid, p.firstDownbeat);
+    for (const s of p.sections || []) {
+      if (!s.grid) continue;
+      item(picks.sections.has(s.index), (v) => { if (v) picks.sections.add(s.index); else picks.sections.delete(s.index); },
+        t('%s: written %d · played %d bars: use the played ones', p.labels[s.index] || s.label, s.written, s.played), s.grid, s.start);
+    }
+    for (const f of p.chordFixes || []) {
+      const k = fixKey(f);
+      const alt = f.alternatives && f.alternatives.length ? ` ${t('(or %s)', f.alternatives.join(', '))}` : '';
+      item(picks.chords.has(k), (v) => { if (v) picks.chords.add(k); else picks.chords.delete(k); },
+        t('%s, bar %d: the chart says %s, the recording plays %s (%s sure)', p.labels[f.section] || '', f.secBar, f.chart, f.heard, `${pct(f.confidence)}%`) + alt, '', f.time);
+    }
+    if (props.children.length) {
+      out.push(el('p', 'sync-ana-props-head', t('The chart, against the recording')));
+      out.push(props);
+      const n = picks.sections.size + picks.chords.size + (picks.tempo ? 1 : 0) + (picks.time ? 1 : 0) + (picks.intro ? 1 : 0);
+      const row = el('div', 'sync-ana-use');
+      const rv = anaBtn(n ? tn(n, 'Review %d change', 'Review %d changes') : t('Review the changes'), t('see the lines of the chart this changes before saving them'), startReview, 'audio-pill-btn');
+      rv.disabled = !n;
+      row.append(rv);
+      out.push(row);
+    } else {
+      out.push(el('p', 'hint', t('The chart’s bars and chords agree with the recording.')));
+    }
+    anaBody.replaceChildren(...out);
+  }
+  function setHint(h) {
+    hints = { ...hints, ...h };
+    if (h.tempoFactor !== undefined || h.shiftBeats !== undefined) hints.bar1At = h.bar1At || 0;
+    loadAnalysis();
+  }
+  async function queueAnalysis() {
+    try {
+      await fetch(`/api/songs/${P.variantId}/audio/${cat}/analysis/queue`, { method: 'POST' });
+    } catch (e) { /* shown as before */ }
+    loadAnalysis();
+  }
+  function fixBody() {
+    return { tempo: picks.tempo, time: picks.time, intro: picks.intro, sections: [...picks.sections], chords: [...picks.chords] };
+  }
+  async function apply(body) {
+    const res = await fetch(`/api/songs/${P.variantId}/audio/${cat}/analysis/apply?lang=${encodeURIComponent(document.documentElement.lang || '')}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hints, ...body }),
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    return res.json();
+  }
+  // The sync as the analysis places it, saved as estimates; the rows then
+  // show it, to check by ear and confirm.
+  async function useSync(e) {
+    if (anaBusy) return;
+    if (dirty && !window.confirm(t('Replace your unsaved changes with the recording’s sync?'))) return;
+    anaBusy = true;
+    window.Forms?.busy?.(e.currentTarget, true);
+    try {
+      const r = await apply({ sync: true, fix: {} });
+      const marks = ((r.proposal && r.proposal.markers) || []).map((m) => ({ ...m, origin: 'auto' }));
+      // The player reloads the recording's sync (markers and every bar).
+      document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
+      history = [];
+      load(marks);
+      dirty = false;
+      afterChange();
+      P.setPreview(null);
+      say(t('The recording’s sync is saved, as an estimate: check it by ear, then confirm each start (✓).'), 'ok');
+    } catch (err) {
+      say(t("Couldn't save. Try again."), 'error');
+    }
+    window.Forms?.busy?.(e.currentTarget, false);
+    anaBusy = false;
+  }
+  async function startReview() {
+    try {
+      const r = await apply({ fix: fixBody(), dryRun: true });
+      review = { changes: r.changes || [] };
+    } catch (e) {
+      say(t("Couldn't prepare the changes. Try again."), 'error');
+      return;
+    }
+    renderAnalysis();
+  }
+  function renderReview() {
+    const out = [el('p', 'sync-ana-props-head', t('These lines of the chart change:'))];
+    const list = el('ul', 'sync-ana-diff');
+    for (const c of review.changes) {
+      const li = el('li');
+      li.append(el('strong', '', c.where));
+      if (c.before) li.append(el('code', 'sync-ana-before', c.before));
+      li.append(el('code', 'sync-ana-after', c.after || t('(removed)')));
+      list.append(li);
+    }
+    out.push(list);
+    const resync = el('label', 'audio-check');
+    const box = el('input');
+    box.type = 'checkbox';
+    box.checked = true;
+    box.id = 'sync-ana-resync';
+    resync.append(box, document.createTextNode(` ${t('and place the sync from the recording')}`));
+    out.push(resync);
+    const row = el('div', 'sync-ana-use');
+    row.append(
+      anaBtn(t('Save as a revision'), t('save the chart with these changes, like an edit'), saveReview, 'primary'),
+      anaBtn(t('Back'), '', () => { review = null; renderAnalysis(); }, 'audio-pill-btn'),
+    );
+    out.push(row);
+    anaBody.replaceChildren(...out);
+  }
+  async function saveReview(e) {
+    const editor = document.getElementById('editor');
+    if (document.documentElement.classList.contains('is-dirty') || (window.songbooksEditorDirty && window.songbooksEditorDirty())) {
+      say(t('Save or discard your edits to the song first.'), 'error');
+      return;
+    }
+    window.Forms?.busy?.(e.currentTarget, true);
+    try {
+      const r = await apply({ fix: fixBody(), sync: !!$('sync-ana-resync')?.checked, version: editor ? editor.dataset.version : '' });
+      say(t('Saved. Reloading the song…'), 'ok');
+      try { sessionStorage.setItem('songbooks:reopen-sync', cat); } catch (err) { /* reopen by hand */ }
+      dirty = false;
+      if (r.saved || r.proposal) window.location.reload();
+    } catch (err) {
+      window.Forms?.busy?.(e.currentTarget, false);
+      say(t('Couldn’t save: the song changed meanwhile? Reload and try again.'), 'error');
+    }
+  }
+  // A row's section, as the analysis has it.
+  function anaSection(index) {
+    const p = ana && ana.proposal;
+    return p ? (p.sections || []).find((s) => s.index === index) : null;
+  }
+
   // ---- Opening, closing ----------------------------------------------------------
   let lastFocus = null;
   async function open(opts = {}) {
@@ -550,6 +810,11 @@
     lags = [];
     load(P.syncMarkers());
     dirty = false;
+    ana = null;
+    review = null;
+    hints = { tempoFactor: 0, shiftBeats: 0, bar1At: 0 };
+    picks = { tempo: false, time: false, intro: false, sections: new Set(), chords: new Set() };
+    renderAnalysis();
     // A proposal handed in (the wizard's, Auto-align's) is a set of
     // suggestions to accept or reject, not a new sync.
     sugg = {};
@@ -561,6 +826,7 @@
     cursor = first >= 0 ? first : 0;
     render();
     loadTargets();
+    loadAnalysis();
     clearInterval(timer);
     timer = setInterval(tick, 50);
     tick();
@@ -617,4 +883,14 @@
   window.addEventListener('beforeunload', (e) => { if (isOpen() && dirty) { e.preventDefault(); e.returnValue = ''; } });
 
   window.songbooksSyncSheet = { open, close, isOpen };
+  // Reopened after its chart fixes were saved (the page reloads with the
+  // new chart).
+  try {
+    const again = sessionStorage.getItem('songbooks:reopen-sync');
+    if (again) {
+      sessionStorage.removeItem('songbooks:reopen-sync');
+      const go = () => open({ category: again });
+      if (P.ready()) go(); else setTimeout(go, 300);
+    }
+  } catch (e) { /* not reopened */ }
 })();
