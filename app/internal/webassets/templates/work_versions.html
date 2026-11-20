@@ -14,7 +14,6 @@
 <header class="app-header">
   <a class="back-link" href="/catalog">{{template "icon-back"}} {{t "Catalog"}}</a>
   <h1>{{t "All versions"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   {{range .Variants}}
@@ -92,7 +91,7 @@ document.querySelectorAll('.annotate-form').forEach(form => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

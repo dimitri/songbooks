@@ -16,9 +16,6 @@
 <header class="app-header">
   <a class="back-link" href="{{.BackURL}}">{{template "icon-back"}} {{if eq .BackLabel "Set lists"}}{{t "Set lists"}}{{else}}{{.BackLabel}}{{end}}</a>
   <h1>{{.Title}}</h1>
-  <nav class="song-nav">
-    {{template "notif-bell"}}
-  </nav>
 </header>
 
 {{if or .Date .Venue}}
@@ -29,19 +26,23 @@
 {{end}}
 
 <main class="index">
-  <nav class="band-tabs band-tabs-row setlist-tabs">
-    <a href="{{.Path}}" class="band-tab active">{{template "icon-setlists"}} {{t "Running order"}}</a>
-    <a href="{{.Path}}/clicktrack" class="band-tab">{{template "icon-metronome"}} {{t "Metronome"}}</a>
-    {{if .Playable}}<button type="button" class="band-tab" data-play-all>{{template "icon-play"}} {{t "Play all"}}</button>{{end}}
-    <details class="band-tab-menu">
-      <summary title="{{t "export PDF"}}">{{template "icon-download"}} PDF</summary>
-      <div class="row-menu-panel">
-        <a href="/setlists/{{.SetlistID}}/export-setlist-page.pdf" download>{{t "One-pager setlist"}}</a>
-        <a href="/setlists/{{.SetlistID}}/export.pdf" download>{{t "Full setlist songbook"}}</a>
-      </div>
-    </details>
-    {{if .CanEdit}}<button type="button" id="reorder-toggle" class="band-tab">{{template "icon-edit"}} <span id="reorder-toggle-label">{{t "Reorder"}}</span></button>{{end}}
-  </nav>
+  {{/* The set list's toolbar: its views (how to look at it) apart from
+       its actions (what to do to it), menu proposal §3.6. Écouter plays
+       the whole list in the player, so it is a view of this page rather
+       than a page of its own. */}}
+  <div class="setlist-toolbar">
+    {{template "setlist-views" (dict "Path" .Path "Current" "order" "Playable" .Playable)}}
+    <div class="setlist-actions">
+      {{if .CanEdit}}<button type="button" id="reorder-toggle" class="setlist-action" aria-pressed="false">{{template "icon-edit"}} <span id="reorder-toggle-label">{{t "Reorder"}}</span></button>{{end}}
+      <details class="setlist-export">
+        <summary class="setlist-action">{{template "icon-download"}} {{t "Export"}} <span aria-hidden="true">▾</span></summary>
+        <div class="row-menu-panel">
+          <a href="/setlists/{{.SetlistID}}/export-setlist-page.pdf" download>{{t "Running sheet"}}<small>{{t "the set list on one page (PDF)"}}</small></a>
+          <a href="/setlists/{{.SetlistID}}/export.pdf" download>{{t "Full songbook"}}<small>{{t "every song of the set list (PDF)"}}</small></a>
+        </div>
+      </details>
+    </div>
+  </div>
   {{if .Choice}}
   <div class="pl-prefer setlist-prefer" role="group" aria-label="{{t "Play first"}}">
     <button type="button" data-prefer="rec" aria-pressed="true">{{t "Our recordings"}}</button>
@@ -123,11 +124,20 @@
 })();
 </script>
 {{template "rec-player" .}}
+<script>
+// Listen, from the click track (?play=all): start the whole list.
+(() => {
+  const u = new URL(location.href);
+  if (u.searchParams.get('play') !== 'all') return;
+  u.searchParams.delete('play');
+  history.replaceState(null, '', u.pathname + u.search + u.hash);
+  document.querySelector('[data-play-all]')?.click();
+})();
+</script>
 {{end}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
-{{template "desktop-sidebar-script"}}
 {{if .CanEdit}}
 <script>
 (function () {
@@ -145,6 +155,7 @@
     reordering = !reordering;
     toggleLabel.textContent = reordering ? t('Done') : t('Reorder');
     toggleBtn.classList.toggle('active', reordering);
+    toggleBtn.setAttribute('aria-pressed', reordering);
     setRowButtonsVisible(reordering);
   });
 

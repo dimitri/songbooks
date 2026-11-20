@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Variant.Title}} — {{t "revision history"}}</title>
+<title>{{docTitle (t "Revision history") .Variant.Title}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -14,7 +14,6 @@
 <header class="app-header">
   <a class="back-link" href="/song/{{.Variant.VariantID}}">{{template "icon-back"}} {{.Variant.Title}}</a>
   <h1>{{t "Revision history"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   {{if not .CanEdit}}<p class="hint">{{t "You can't edit this song, so you can look at its history but not restore an earlier version."}}</p>{{end}}
@@ -87,7 +86,7 @@ document.querySelectorAll('.revert-btn').forEach(btn => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

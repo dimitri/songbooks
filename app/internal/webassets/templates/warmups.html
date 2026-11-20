@@ -8,7 +8,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{with .Exercise}}{{.Name}}{{else}}{{t "Warm-ups"}}{{end}} — {{.Community.Name}}</title>
+<title>{{with .Exercise}}{{.Name}} — {{end}}{{template "space-title" .Space}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -20,13 +20,11 @@
 {{template "warmup-page-top" .}}
 {{$brand := brandFor "community" .Community.ID}}
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{t "Warm-ups"}}</h1>
-  {{template "notif-bell"}}
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
 </header>
 <main class="index warmups-page" data-community="{{.Community.ID}}">
-  {{template "brand-banner" $brand}}
-  {{template "community-tabs" .}}
+  {{template "space-nav" .Space}}
   <section class="home-section">
     <div class="home-section-head"><h3>{{t "Exercises"}}</h3><span class="count">{{len .Exercises}}</span>
       {{if .IsCoach}}<a class="btn-small" href="/communities/{{.Community.ID}}/warmups/new">{{template "icon-plus"}} {{t "An exercise"}}</a>{{end}}</div>
@@ -70,7 +68,7 @@
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 {{if .IsCoach}}
 <script>
@@ -105,7 +103,6 @@
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}/warmups">{{template "icon-back"}} {{t "Warm-ups"}}</a>
   <h1>{{.Exercise.Name}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index warmup-practice" data-community="{{.Community.ID}}">
   <div class="warmup-session-bar" hidden></div>
@@ -193,7 +190,7 @@
   {{end}}
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 <script type="application/json" id="warmup-data">{{.PageJSON}}</script>
 <script src="/static/js/vendor/alphatab/alphaTab.min.js?v={{staticVersion}}"></script>
@@ -210,7 +207,6 @@
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}/warmups{{with .Exercise}}/{{.ID}}{{end}}">{{template "icon-back"}} {{with .Exercise}}{{.Name}}{{else}}{{t "Warm-ups"}}{{end}}</a>
   <h1>{{if .Exercise}}{{t "Edit the exercise"}}{{else}}{{t "An exercise"}}{{end}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index warmup-edit" data-community="{{.Community.ID}}"{{with .Exercise}} data-exercise="{{.ID}}"{{end}}>
   <form class="warmup-form form-stack form-stack--wide" autocomplete="off">
@@ -255,7 +251,7 @@
   </form>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 {{with .ExerciseJSON}}<script type="application/json" id="warmup-exercise">{{.}}</script>{{end}}
 <script src="/static/js/vendor/alphatab/alphaTab.min.js?v={{staticVersion}}"></script>

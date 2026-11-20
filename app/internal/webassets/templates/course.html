@@ -11,7 +11,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{with .Lesson}}{{template "lesson-label" .}} — {{end}}{{.Songbook.Name}} — Songbooks</title>
+<title>{{with .Lesson}}{{template "lesson-label" .}} — {{end}}{{docTitle .Songbook.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -43,17 +43,9 @@ async function courseApi(method, url, body) {
   {{if .Community}}<a class="back-link" href="/communities/{{.Community.ID}}/songbooks">{{template "icon-back"}} {{t "Songbooks"}}</a>{{else}}{{template "home-link"}}{{end}}
   <h1>{{.Songbook.Name}}</h1>
   {{if .CanEdit}}{{template "edit-toggle" .Editing}}{{end}}
-  {{template "notif-bell"}}
 </header>
 <main class="index course">
-  {{with .Community}}
-  <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/communities/{{.ID}}">{{t "Overview"}}</a>
-    <a class="band-tab active" href="/communities/{{.ID}}/songbooks">{{t (shelfLabel "community" .ID)}}</a>
-    <a class="band-tab" href="/communities/{{.ID}}/downloads">{{t "Downloads"}}</a>
-    <a class="band-tab" href="/communities/{{.ID}}/events">{{t "Events"}}</a>
-  </nav>
-  {{end}}
+  {{template "space-nav" .Space}}
 
   {{if .Lessons}}
   <section class="course-progress card" aria-label="{{t "Your progress"}}">
@@ -118,7 +110,7 @@ async function courseApi(method, url, body) {
       <p class="form-status" role="status"></p>
     </div>
     {{end}}
-    <p class="hint"><a href="/songbooks/{{.Songbook.ID}}?view=songs">{{t "All the songs, as a list"}}</a>{{with .Community}} · <a href="/communities/{{.ID}}/downloads#songbook-{{$.Songbook.ID}}">{{t "Its files"}}</a>{{end}}</p>
+    <p class="hint"><a href="/songbooks/{{.Songbook.ID}}?view=songs">{{t "All the songs, as a list"}}</a>{{with .Community}} · <a href="/communities/{{.ID}}/resources#songbook-{{$.Songbook.ID}}">{{t "Its files"}}</a>{{end}}</p>
   </section>
   {{template "course-api"}}
   <script>
@@ -153,7 +145,7 @@ async function courseApi(method, url, body) {
   {{end}}
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>
@@ -165,7 +157,6 @@ async function courseApi(method, url, body) {
   <a class="back-link" href="/songbooks/{{.Songbook.ID}}">{{template "icon-back"}} {{.Songbook.Name}}</a>
   <h1>{{template "lesson-label" .Lesson}}</h1>
   {{if .CanEdit}}{{template "edit-toggle" .Editing}}{{end}}
-  {{template "notif-bell"}}
 </header>
 <main class="index course lesson">
   <div class="lesson-done">
@@ -316,7 +307,7 @@ async function courseApi(method, url, body) {
   {{end}}
 })();
 </script>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

@@ -11,7 +11,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Band.Name}} — {{.PageTitle}}</title>
+<title>{{with .Space}}{{template "space-title" .}}{{else}}{{docTitle .PageTitle $.Band.Name}}{{end}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -332,14 +332,13 @@
 {{end}}
 
 {{define "band_recordings"}}
-{{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" (t (printf "%ss" .Kind)))}}
+{{template "rec-head" (dict "Band" .Band "Me" .Me "Nav" .Nav "Space" .Space)}}
 <header class="app-header">
-  <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
-  <h1>{{if eq .Kind "rehearsal"}}{{t "Rehearsals"}}{{else}}{{t "Concerts"}}{{end}}</h1>
-  {{template "notif-bell"}}
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
 </header>
 <main class="index rec">
-  {{template "band-tabs" (bandTabs .Band.ID .Tab)}}
+  {{template "space-nav" .Space}}
 
   {{if not .Source}}
   <section class="card card--md">
@@ -467,18 +466,17 @@
 </main>
 {{template "rec-player" .}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>
 {{end}}
 
 {{define "band_song_recordings"}}
-{{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" .Song.Title)}}
+{{template "rec-head" (dict "Band" .Band "Me" .Me "Nav" .Nav "PageTitle" .Song.Title)}}
 <header class="app-header">
-  <a class="back-link" href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-back"}} {{t "Rehearsals"}}</a>
+  <a class="back-link" href="/bands/{{.Band.ID}}/recordings/rehearsals">{{template "icon-back"}} {{t "Recordings"}}</a>
   <h1>{{.Song.Title}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index rec">
   <p class="hint">{{t "The band’s recordings of the song, the best rated first. The one chosen as the reference is what the band’s playlist plays."}} <a href="/song/{{.Song.VariantID}}">{{t "Open the song"}}</a></p>
@@ -507,18 +505,17 @@
 </main>
 {{template "rec-player" .}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>
 {{end}}
 
 {{define "band_recording_fixes"}}
-{{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" (t "corrections"))}}
+{{template "rec-head" (dict "Band" .Band "Me" .Me "Nav" .Nav "PageTitle" (t "Corrections"))}}
 <header class="app-header">
-  <a class="back-link" href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-back"}} {{t "Rehearsals"}}</a>
+  <a class="back-link" href="/bands/{{.Band.ID}}/recordings/rehearsals">{{template "icon-back"}} {{t "Recordings"}}</a>
   <h1>{{t "Corrections"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index rec rec-fixes">
   <p class="hint">{{t "What the recordings’ names get wrong, corrected once: every reading of the folder applies it again."}}</p>
@@ -743,7 +740,7 @@
   });
 })();
 </script>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

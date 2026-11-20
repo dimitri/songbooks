@@ -16,7 +16,6 @@
 <div class="app-content">
 <header class="app-header">
   <h1>{{t "Calendar"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index calendar-page">
   <div class="calendar-page-head">
@@ -26,10 +25,9 @@
   <p class="hint">{{t "Rehearsals, gigs, lessons and events of all your bands and communities."}}</p>
   {{template "calendar-month" .Calendar}}
 </main>
-{{template "notif-bell-script"}}
 {{template "pwa-register"}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

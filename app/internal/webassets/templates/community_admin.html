@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "%s — staff admin" .Community.Name}}</title>
+<title>{{template "space-title" .Space}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -14,19 +14,11 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{t "%s — staff admin" .Community.Name}}</h1>
-  {{template "notif-bell"}}
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
 </header>
 <main class="index">
-  <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/communities/{{.Community.ID}}">{{t "Overview"}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{t (shelfLabel "community" .Community.ID)}}</a>
-    {{template "coaching-tab-links" .}}
-    <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/events">{{t "Events"}}</a>
-    <a href="/communities/{{.Community.ID}}/admin" class="band-tab active">{{t "Admin"}}</a>
-  </nav>
+  {{template "space-nav" .Space}}
 
   {{/* Running the community itself, in sections: a sidebar of them on a
        wide screen, a list to tap into on a phone (admin.js below shows
@@ -374,7 +366,7 @@ onSubmit($('rename-form'), async () => {
   const name = $('rename-input').value.trim();
   await api(`/api/communities/${communityId}/rename`, {name}, t('Couldn’t save the name. Try again.'));
   Forms.status($('rename-result'), t('Saved.'), 'ok');
-  document.title = t('%s — staff admin', name);
+  document.title = [t('Admin'), name, 'Songbooks'].join(' — ');
 });
 
 // ---- Roles: privilege checkboxes save immediately on toggle (collect
@@ -545,7 +537,7 @@ document.querySelectorAll('.community-link-btn').forEach(btn => {
 </script>
 <script src="/static/js/qr.js?v={{staticVersion}}"></script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

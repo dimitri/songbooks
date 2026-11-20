@@ -646,22 +646,6 @@ label.field > :is(.field-hint, .field-error, .hint) { display: block; margin-top
   color: var(--sidebar-fg); font-weight: 700; font-size: 1.02rem; text-decoration: none;
 }
 .sidebar-brand .icon.logo-mark { width: 1.4rem; height: 1.4rem; opacity: 1; }
-.sidebar-crumb { padding: 0.3rem 0.3rem 0.1rem; }
-.sidebar-crumb a {
-  /* A long songbook/band/community name used to wrap onto 2+ lines
-     with the back-icon vertically centered against the WHOLE block —
-     the icon ends up floating at the midpoint between lines instead of
-     sitting next to the first one, and the extra wrapped lines compete
-     for attention with the primary nav right below. Truncating to one
-     line (title attr gives the full name back on hover) keeps this a
-     quiet, secondary "back" affordance the way every other sidebar row
-     already is, regardless of how long the destination's name is. */
-  display: flex; align-items: flex-start; gap: 0.4rem; text-decoration: none;
-  color: var(--accent); font-size: 0.82rem; font-weight: 600;
-  overflow: hidden;
-}
-.sidebar-crumb a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sidebar-crumb a .icon { width: 0.9rem; height: 0.9rem; flex: none; margin-top: 0.1rem; }
 .sidebar-primary, .sidebar-secondary { display: flex; flex-direction: column; gap: 0.15rem; }
 .sidebar-primary a, .sidebar-secondary a {
   display: flex; align-items: center; gap: 0.7rem;
@@ -684,6 +668,22 @@ label.field > :is(.field-hint, .field-error, .hint) { display: block; margin-top
   display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.6rem;
   border-radius: 10px; text-decoration: none; color: var(--sidebar-fg); font-size: 0.85rem;
   background: color-mix(in srgb, var(--sidebar-fg) 7%, transparent);
+}
+/* menu PR 1: the current page's own entry, rendered by the server
+   (aria-current="page"), on the account chip too. */
+.sidebar-account.active { background: var(--sidebar-active-bg); color: var(--sidebar-active-fg); font-weight: 600; }
+/* menu PR 8: the Library's segments (Morceaux · Songbooks · Set lists),
+   links styled as the .segmented pill; full width on a phone. */
+.library-segments { margin: 0 0 1rem; }
+.library-segments a {
+  border-radius: 999px; padding: 0.35rem 0.95rem; font-size: 0.88rem;
+  color: var(--fg-muted); text-decoration: none; text-align: center;
+}
+.library-segments a:hover { color: var(--fg); }
+.library-segments a.active { background: var(--fg); color: var(--bg); font-weight: 600; }
+@media (max-width: 600px) {
+  .library-segments { display: flex; }
+  .library-segments a { flex: 1 1 0; padding: 0.45rem 0.4rem; }
 }
 .sidebar-account-avatar {
   width: 1.7rem; height: 1.7rem; border-radius: 50%; flex: none;
@@ -714,34 +714,6 @@ label.field > :is(.field-hint, .field-error, .hint) { display: block; margin-top
    to miss). Cancel the auto-margin so it sits right under the primary
    nav list instead. */
 .sidebar-secondary.sidebar-song-group { margin-top: 0; }
-.sidebar-song-group #mode-segmented {
-  display: flex; flex-direction: column; gap: 0.15rem;
-  border: none; background: none; padding: 0; border-radius: 0; margin-bottom: 0.3rem;
-}
-.sidebar-song-group #mode-segmented button {
-  /* #mode-segmented button's own base rule (shared with the old desktop
-     icon pill, still used by nothing now but kept in case this group ever
-     needs the compact form again) fixes a 2.1rem square width/height for
-     its icon-only design — override both explicitly, a stretch/auto width
-     alone won't beat a sibling rule that already names this exact
-     property. */
-  display: flex; align-items: center; gap: 0.55rem; justify-content: flex-start;
-  width: 100%; height: auto; padding: 0.5rem 0.6rem; border-radius: 10px;
-  color: var(--sidebar-fg); font-size: 0.82rem; font-weight: 500; background: none; line-height: 1.25;
-  text-align: left;
-}
-.sidebar-song-group #mode-segmented button .icon { width: 1.1rem; height: 1.1rem; flex: none; }
-/* The topbar pill carried these labels as screen-reader-only (icon tooltip
-   was enough in a horizontal row); here, in a vertical sidebar list, the
-   label is exactly what a reader scans for — make it visible instead of
-   overriding the generic .sr-only utility itself (used elsewhere for
-   genuinely icon-only controls). */
-.sidebar-song-group #mode-segmented button .sr-only {
-  position: static; width: auto; height: auto; padding: 0; margin: 0;
-  overflow: visible; clip: auto; white-space: normal;
-}
-.sidebar-song-group #mode-segmented button.active { background: var(--sidebar-active-bg); color: var(--sidebar-active-fg); font-weight: 600; }
-.sidebar-song-group #mode-segmented button:not(.active):hover { background: color-mix(in srgb, var(--sidebar-fg) 10%, transparent); }
 .sidebar-song-row {
   display: flex; align-items: center; gap: 0.7rem; width: 100%;
   padding: 0.55rem 0.6rem; border-radius: 10px; border: none; background: none;
@@ -931,15 +903,6 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
    view-tabs) — ties the top panel visually to the sidebar's own dark
    column without the heavy contrast of actually matching its colour. */
 .song-topzone { background: var(--bg-sunken); border-bottom: 1px solid var(--border); }
-.topbar-utility-mobile { padding: 0.5rem 1.1rem 0; }
-.topbar-utility-mobile .back-link { padding: 0.2rem 0; font-size: 0.78rem; }
-/* Desktop has its own copy of this link in the sidebar (.sidebar-crumb);
-   mobile has its own copy now too — the Up entry in .song-context-bar's
-   bottom bar (clearer "go back a level" icon, at the bottom where the
-   rest of this page's navigation already lives, instead of a small text
-   link competing with the title at the very top). Showing this too would
-   be redundant on both. */
-.topbar-utility-mobile { display: none; }
 .song-topbar {
   display: grid; grid-template-columns: 1fr 2fr 1fr; grid-template-rows: auto; gap: 0.3rem 0.6rem;
   padding: 0.7rem 1.1rem 0.5rem;
@@ -955,10 +918,10 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
   background: var(--bg-raised); border: 1px solid var(--border); border-radius: 999px;
 }
 /* The parent needs text-align:center for an inline-flex child to actually
-   center itself; .song-topbar/.topbar-utility-mobile aren't centered text,
+   center itself; .song-topbar isn't centered text,
    so this rule is scoped to .song-topzone alone. */
 .song-topzone { text-align: center; }
-.song-topzone .song-topbar, .song-topzone .topbar-utility-mobile { text-align: left; }
+.song-topzone .song-topbar { text-align: left; }
 /* #mode-segmented.view-tabs, not just .view-tabs: the plain #mode-segmented
    button rule above (icon-only square touch targets, used on mobile's
    hidden copy of this same element) is an ID selector and would otherwise
@@ -4402,37 +4365,6 @@ body:has(.edit-toggle.on) .follow-back { display: none; }
   }
   .stack-sheet-row.pdf-mode-row .icon { width: 1.1rem; height: 1.1rem; }
 
-  /* ---- "..." full-page site navigation (Phase 41) -------------------
-     A genuine full-screen takeover, not another bottom sheet -- it has
-     no "closed resting position" transform math (unlike .stack-sheet):
-     plain display:none/.open, since it fills the whole viewport outright
-     rather than sliding up from an edge. Sits above everything else on
-     the page (z-index higher than .stack-sheet's 62). */
-  .site-nav-fullpage {
-    display: none; position: fixed; inset: 0; z-index: 80;
-    flex-direction: column; background: var(--bg);
-    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
-  }
-  .site-nav-fullpage.open { display: flex; }
-  .site-nav-fullpage-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 1rem 1.2rem; border-bottom: 1px solid var(--border);
-  }
-  .site-nav-fullpage-header h2 { margin: 0; font-size: 1.15rem; }
-  .site-nav-fullpage-row {
-    display: flex; align-items: center; gap: 1rem; width: 100%;
-    padding: 1.1rem 1.3rem; text-decoration: none; color: var(--fg);
-    font-size: 1.05rem; font-weight: 600; border-bottom: 1px solid var(--border);
-  }
-  .site-nav-fullpage-row .icon { width: 1.5rem; height: 1.5rem; flex: none; color: var(--accent); }
-  .site-nav-fullpage-row[hidden] { display: none; } /* its own display:flex would otherwise beat the [hidden] UA rule */
-  .site-nav-fullpage-theme {
-    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-    padding: 1rem 1.3rem; font-weight: 600; color: var(--fg);
-  }
-  .site-nav-fullpage-theme > span { display: flex; align-items: center; gap: 1rem; }
-  .site-nav-fullpage-theme > span .icon { width: 1.5rem; height: 1.5rem; color: var(--accent); }
-
   /* The transport FAB is retired on mobile -- its old role (open the
      .timeline sheet) is now the Metronome button in .song-context-bar,
      which sits in-flow in that bar rather than floating. */
@@ -4479,15 +4411,239 @@ body:has(.edit-toggle.on) .follow-back { display: none; }
   body:not(:has(#sheet)) { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); }
 }
 
+/* ==== menu PR 9: the account menu, the top bar's avatar, the tablet's
+   rail (menu proposal §3.2) ==============================================
+   - The account menu is a <details> (icons.html "account-menu"): on
+     desktop it opens upward from the sidebar's account chip; below 901px
+     from the avatar at the top right of the page — a dropdown on a
+     tablet, a bottom sheet on a phone (its backdrop is the summary's
+     ::before, so a tap on it closes the menu without a script).
+   - 600–900px: the phone's tab bar becomes a rail of icons down the left
+     edge, Material style, with the same five entries. */
+.account-menu { position: relative; }
+.account-menu > summary { list-style: none; cursor: pointer; }
+.account-menu > summary::-webkit-details-marker { display: none; }
+.account-menu--sidebar > summary.sidebar-account { width: 100%; box-sizing: border-box; }
+.sidebar-account-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-menu-caret { opacity: 0.6; font-size: 0.8rem; }
+.sidebar-account:focus-visible, .topbar-avatar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.account-menu-panel {
+  display: flex; flex-direction: column; gap: 0.1rem;
+  background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 14px; box-shadow: var(--shadow-lg, var(--shadow)); padding: 0.45rem;
+  font-size: 0.9rem; z-index: 95;
+}
+/* fixed, not absolute: the sidebar scrolls (overflow-y), which would
+   clip a panel wider than itself. */
+.account-menu--sidebar .account-menu-panel {
+  position: fixed; left: 0.85rem; bottom: 4.3rem; width: 19rem;
+}
+.account-menu-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0.55rem 0.6rem; border-bottom: 1px solid var(--border); margin-bottom: 0.25rem; }
+.account-menu-head strong { display: block; }
+.account-menu-head small { display: block; color: var(--fg-muted); font-size: 0.78rem; }
+.account-menu-row {
+  display: flex; align-items: center; gap: 0.6rem; width: 100%; box-sizing: border-box;
+  padding: 0.55rem 0.55rem; border-radius: 9px; color: var(--fg); text-decoration: none;
+  background: none; border: none; font: inherit; text-align: left; min-height: 2.6rem;
+}
+.account-menu-row .icon { width: 1.1rem; height: 1.1rem; flex: none; color: var(--fg-muted); }
+a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-sunken); }
+.account-menu-row[aria-current="page"] { color: var(--accent); background: var(--accent-bg); }
+.account-menu-theme { justify-content: space-between; flex-wrap: wrap; }
+.account-menu-theme > span:first-child { display: flex; align-items: center; gap: 0.6rem; }
+.account-menu-value { margin-left: auto; color: var(--fg-muted); }
+.account-menu-logout { margin: 0.25rem 0 0; padding-top: 0.25rem; border-top: 1px solid var(--border); }
+.account-menu-logout .account-menu-row { color: var(--fg-muted); cursor: pointer; }
+.sidebar-tools .sidebar-group-label { margin-top: 0.1rem; }
+.topbar-actions { display: none; }
+
+
+/* The Tools page's cards. */
+.tools-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); }
+.tools-card { display: flex; align-items: center; gap: 1rem; padding: 1.1rem 1.2rem; color: var(--fg); text-decoration: none; }
+.tools-card .icon { width: 1.8rem; height: 1.8rem; color: var(--accent); flex: none; }
+.tools-card strong { display: block; font-size: 1.05rem; }
+.tools-card small { display: block; color: var(--fg-muted); }
+
+@media (max-width: 900px) {
+  /* The avatar (and the notifications' slot) at the top right, in the
+     page header's row: the header leaves it room. */
+  .topbar-actions {
+    display: flex; align-items: center; gap: 0.35rem;
+    position: absolute; top: 0.5rem; right: 0.6rem; z-index: 70;
+  }
+  body:has(> .topbar-actions) .app-header { padding-right: 6rem; }
+  body:has(> .topbar-actions .nav-search-button) .app-header { padding-right: 8.6rem; }
+  .topbar-avatar { display: flex; align-items: center; justify-content: center; min-width: 2.2rem; min-height: 2.2rem; border-radius: 50%; }
+  .topbar-avatar .sidebar-account-avatar { width: 2rem; height: 2rem; font-size: 0.85rem; }
+  .topbar-avatar.active .sidebar-account-avatar { box-shadow: 0 0 0 2px var(--accent); }
+  .account-menu--topbar .account-menu-panel { position: absolute; right: 0; top: calc(100% + 0.35rem); width: 18rem; }
+  /* The song page is a focused view with its own bars (play.html): ‹
+     leaves it, and its toolbar's bell stays at the top right. */
+  body:has(.song-context-bar) .topbar-actions { display: none; }
+}
+@media (max-width: 599px) {
+  .account-menu--topbar[open] > summary::before {
+    content: ""; position: fixed; inset: 0; z-index: 94; background: rgb(0 0 0 / 0.38); cursor: default;
+  }
+  .account-menu--topbar .account-menu-panel {
+    position: fixed; left: 0; right: 0; top: auto; bottom: 0; width: auto;
+    border-radius: 18px 18px 0 0; max-height: 85vh; overflow-y: auto;
+    padding: 0.6rem 0.8rem calc(0.8rem + env(safe-area-inset-bottom, 0px));
+  }
+  .account-menu--topbar .account-menu-panel::before {
+    content: ""; align-self: center; width: 2.4rem; height: 0.25rem; border-radius: 999px;
+    background: var(--border-strong); opacity: 0.35; margin: 0 0 0.4rem;
+  }
+}
+@media (min-width: 600px) and (max-width: 900px) {
+  /* The rail: the tab bar's entries, stacked down the left edge. */
+  body:not(:has(.song-context-bar)) { --tabbar-h: 0px; --rail-w: 5.25rem; padding-left: var(--rail-w); }
+  .global-tabbar {
+    top: 0; bottom: 0; left: 0; right: auto; width: var(--rail-w, 5.25rem); height: auto;
+    flex-direction: column; justify-content: flex-start; gap: 0.35rem;
+    padding: 0.9rem 0 env(safe-area-inset-bottom, 0px);
+    border-top: none; border-right: 1px solid var(--border); box-shadow: none;
+  }
+  .global-tabbar > a { flex: 0 0 auto; height: 3.7rem; font-size: 0.68rem; }
+  .global-tabbar > a.active::before {
+    top: 50%; left: 0; transform: translateY(-50%); width: 0.2rem; height: 1.8rem; border-radius: 0 999px 999px 0;
+  }
+}
+
+/* ==== menu PR 7: the space switcher ======================================
+   The sidebar's "My groups" list (icons.html "sidebar-spaces") and the
+   switcher's trigger and panel ("space-switcher"): a popover under its
+   trigger, a bottom sheet on a phone (its backdrop is the summary's
+   ::before, as the account menu's). */
+.space-av {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 1.55rem; height: 1.55rem; border-radius: 7px;
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.02em; color: #fff;
+  background: hsl(var(--space-hue, 20) 32% 38%);
+}
+.space-av--0 { --space-hue: 18; }
+.space-av--1 { --space-hue: 150; }
+.space-av--2 { --space-hue: 280; }
+.space-av--3 { --space-hue: 212; }
+.space-av--4 { --space-hue: 38; }
+.space-av--5 { --space-hue: 330; }
+.space-av--6 { --space-hue: 180; }
+.space-av--7 { --space-hue: 95; }
+.sidebar-spaces { display: flex; flex-direction: column; gap: 0.1rem; }
+.sidebar-space {
+  display: flex; align-items: center; gap: 0.6rem; padding: 0.38rem 0.6rem; border-radius: 10px;
+  color: var(--sidebar-fg); text-decoration: none; font-size: 0.86rem; font-weight: 500; min-width: 0;
+}
+.sidebar-space .sidebar-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-space:not(.active):hover { background: color-mix(in srgb, var(--sidebar-fg) 10%, transparent); }
+.sidebar-space.active { background: var(--sidebar-active-bg); color: var(--sidebar-active-fg); font-weight: 600; }
+.sidebar-space-all { color: color-mix(in srgb, var(--sidebar-fg) 72%, transparent); }
+.sidebar-space-all .icon { width: 1.1rem; height: 1.1rem; margin: 0 0.22rem; flex: none; }
+.sidebar-space-count { font-size: 0.72rem; opacity: 0.75; }
+.sidebar-space-pin { font-size: 0.7rem; opacity: 0.6; }
+
+.space-switcher { position: relative; }
+.space-switcher > summary { list-style: none; cursor: pointer; }
+.space-switcher > summary::-webkit-details-marker { display: none; }
+.space-switcher-trigger {
+  display: inline-flex; align-items: center; gap: 0.45rem; min-height: 2.2rem;
+  padding: 0.15rem 0.35rem; border-radius: 10px; color: inherit;
+}
+.space-switcher-trigger:hover { background: var(--bg-sunken); }
+.space-switcher-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.space-switcher-trigger .icon { width: 1.3rem; height: 1.3rem; }
+.space-switcher-name { font-weight: 700; }
+.space-switcher-caret { color: var(--fg-muted); font-size: 0.8rem; }
+.space-switcher-panel {
+  position: absolute; top: calc(100% + 0.35rem); left: 0; z-index: 95; width: 20rem; max-height: 70vh; overflow-y: auto;
+  background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: var(--shadow-lg, var(--shadow)); padding: 0.5rem; font-size: 0.9rem;
+}
+.space-switcher--topbar .space-switcher-panel { left: auto; right: 0; }
+.space-switcher-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; padding: 0.3rem 0.45rem 0.5rem; }
+.space-switcher-head a { font-size: 0.85rem; white-space: nowrap; }
+.space-switcher-filter { width: 100%; box-sizing: border-box; margin: 0 0 0.4rem; }
+.space-switcher-list { list-style: none; margin: 0; padding: 0; }
+.space-switcher-row { display: flex; align-items: center; gap: 0.2rem; border-radius: 10px; }
+.space-switcher-row[hidden] { display: none; }
+.space-switcher-row > a { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem; border-radius: 10px; color: var(--fg); text-decoration: none; }
+.space-switcher-row > a:hover { background: var(--bg-sunken); }
+.space-switcher-row > a[aria-current="page"] { background: var(--accent-bg); }
+.space-switcher-row > a .space-av { width: 2rem; height: 2rem; font-size: 0.75rem; }
+.space-switcher-row > a > span:last-child { min-width: 0; }
+.space-switcher-row strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.space-switcher-row small { display: block; color: var(--fg-muted); font-size: 0.78rem; }
+.space-pin {
+  flex: none; min-width: 2.4rem; min-height: 2.4rem; border: none; background: none; border-radius: 8px;
+  color: var(--fg-faint); font-size: 1rem; cursor: pointer; opacity: 0.55;
+}
+.space-pin:hover { background: var(--bg-sunken); opacity: 1; }
+.space-pin[aria-pressed="true"] { color: var(--accent); opacity: 1; }
+@media (max-width: 900px) {
+  /* The compact switcher sits in the top bar, left of the avatar; a
+     page whose own space header holds the switcher doesn't need it. */
+  body:has(.space-header .space-switcher) .topbar-actions .space-switcher { display: none; }
+  body:has(> .topbar-actions .space-switcher):not(:has(.space-header .space-switcher)) .app-header { padding-right: 8.6rem; }
+}
+@media (max-width: 600px) {
+  /* A section page hides its space header below 601px (the space's home
+     has it), so the top bar's switcher is the one there. */
+  body:has(.space-header:not(.is-home) .space-switcher) .topbar-actions .space-switcher { display: block; }
+  body:has(> .topbar-actions .space-switcher):has(.space-header:not(.is-home) .space-switcher) .app-header { padding-right: 8.6rem; }
+}
+@media (max-width: 900px) {
+  .space-switcher--topbar .space-av { width: 1.9rem; height: 1.9rem; font-size: 0.72rem; }
+  .space-switcher--topbar .space-switcher-trigger { gap: 0.2rem; padding: 0.1rem 0.15rem; }
+}
+@media (max-width: 599px) {
+  .space-switcher[open] > summary::before {
+    content: ""; position: fixed; inset: 0; z-index: 94; background: rgb(0 0 0 / 0.38); cursor: default;
+  }
+  .space-switcher > .space-switcher-panel {
+    position: fixed; left: 0; right: 0; top: auto; bottom: 0; width: auto; max-height: 80vh;
+    border-radius: 18px 18px 0 0; padding: 0.6rem 0.8rem calc(0.8rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ==== The focused pages' rail (menu proposal §3.2) ========================
+   On a song and a set list's click track (navState.Focused) the desktop
+   sidebar is a 64px rail of icons, so the chart gets the width. Hovering
+   it, or moving the keyboard focus into it, opens it over the page at its
+   usual width — the negative margin keeps its place in the row at 64px,
+   so nothing under it moves. While the song editor is open (drawer-open)
+   the sidebar holds the editor's toolbox and keeps its width. */
 @media (min-width: 901px) {
-  /* .site-nav-fullpage included here too: its only base rule is the
-     mobile-breakpoint display:none (it has no .open-only trigger on
-     desktop, since .song-context-bar/the "..." button that opens it are
-     already hidden here) -- without an explicit desktop rule it fell
-     back to the browser's default display:block and showed permanently
-     on every Play page at desktop width, confirmed live before writing
-     this fix. */
-  .global-tabbar, .song-context-bar, .stack-sheet, .stack-backdrop, .site-nav-fullpage { display: none; }
+  body:not(.drawer-open) .desktop-sidebar.is-rail {
+    flex: 0 0 64px; width: 64px; padding-left: 0.55rem; padding-right: 0.55rem;
+    overflow-x: hidden; z-index: 50;
+    transition: width 0.15s ease, flex-basis 0.15s ease, margin-right 0.15s ease, box-shadow 0.15s ease;
+  }
+  body:not(.drawer-open) .desktop-sidebar.is-rail:is(:hover, :focus-within) {
+    flex-basis: 236px; width: 236px; margin-right: -172px;
+    padding-left: 0.85rem; padding-right: 0.85rem; box-shadow: 0 0 28px rgb(0 0 0 / 0.28);
+  }
+  body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) :is(.sidebar-label, .sidebar-group-label, .sidebar-account-name, .account-menu-caret, .sidebar-space-count, .sidebar-space-pin, .pdf-mode-select, .pdf-notes-label, .nav-count) { display: none; }
+  body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) :is(a, button, summary) { font-size: 0; justify-content: center; gap: 0; }
+  body:not(.drawer-open) .desktop-sidebar.is-rail :is(a, button, summary) > .icon { width: 1.1rem; height: 1.1rem; flex: none; }
+  body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) .sidebar-brand { padding: 0; justify-content: center; }
+  /* The search field folds to its icon; hovering the rail (or tabbing
+     into it) opens the rail, field and all. */
+  body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) .nav-search { justify-content: center; padding: 0.55rem 0; margin: 0; }
+  body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) .nav-search :is(input, .nav-search-kbd) { display: none; }
+}
+@media (min-width: 901px) {
+  /* The bars fixed along the bottom start at the rail, not at the
+     sidebar's usual width. */
+  body:not(.drawer-open):has(.desktop-sidebar.is-rail) :is(.audio-dock, .ct-bar) { left: 64px; }
+}
+@media (min-width: 600px) and (max-width: 900px) {
+  /* …and at the tablet's rail (menu PR 9). */
+  body:not(:has(.song-context-bar)) :is(.audio-dock, .ct-bar, .warmup-practice .warmup-player.wu-bar) { left: var(--rail-w, 5.25rem); }
+}
+
+@media (min-width: 901px) {
+  .global-tabbar, .song-context-bar, .stack-sheet, .stack-backdrop { display: none; }
 
   /* ---- Desktop sidebar shell -------------------------------------------
      Every top-level authenticated page now renders {{template
@@ -4516,12 +4672,6 @@ body:has(.edit-toggle.on) .follow-back { display: none; }
      duplicate and stays visible, so .app-header keeps working as each
      page's own slim utility strip above its content. */
   .back-link[href="/"] { display: none; }
-  .song-nav a[href="/metronome"],
-  .song-nav a[href="/setlists"],
-  .song-nav a[href="/catalog"],
-  .song-nav a[href="/bands"],
-  .song-nav a[href="/profile"],
-  .song-nav a[href="/admin"] { display: none; }
 }
 
 /* Editor sidebar coexistence: while the desktop editor is open
@@ -4543,7 +4693,6 @@ body:has(.edit-toggle.on) .follow-back { display: none; }
    inline toolbar instead — see song.js's focusModeActive). */
 .sidebar-toolbox { display: none; }
 @media (min-width: 901px) {
-  body.drawer-open .sidebar-crumb,
   body.drawer-open .sidebar-primary,
   body.drawer-open .sidebar-secondary,
   body.drawer-open .sidebar-song-group,
@@ -6439,15 +6588,10 @@ img.list-card-mark { object-fit: cover; border: none; }
 .notation-pickers select { min-height: 0; padding: 0.2rem 0.4rem; font-size: 0.85rem; }
 
 /* ==== Phones (≤ 600px): the mobile review of Nov 2026 ====================
-   - the "More" sheet leaves out what the bottom tab bar already shows
-     (it keeps everything on the song page, whose own bar replaces it);
    - page headers drop the "Songbooks" home link (the tab bar's Home);
    - a section's tab row scrolls sideways on one line instead of wrapping
      into two rows of pills;
    - song rows keep the whole title, with tempo and badges underneath. */
-@media (max-width: 900px) {
-  body:not(:has(.song-context-bar)) .site-nav-fullpage-row.is-tab { display: none; }
-}
 @media (max-width: 600px) {
   .app-header > a.back-link[href="/home"] { display: none; }
   /* One header pattern on phones: back arrow · title on one line · the
@@ -6459,8 +6603,6 @@ img.list-card-mark { object-fit: cover; border: none; }
   .app-header h1, .app-header .band-name-row { flex: 1; min-width: 0; }
   .app-header h1 { font-size: 1.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .app-header .song-nav { flex: none; flex-wrap: nowrap; }
-  .app-header .notif-bell { flex: none; min-width: 2.2rem; min-height: 2.2rem; justify-content: center; }
-  .app-header .song-nav a[href="/songbooks"], .app-header .song-nav a[href="/catalog"] { display: none; }
   .catalog-card-actions { align-items: center; }
   /* Roster: on a phone a row stacks — name and instruments, then the
      invite link's actions, then role and Remove — and the quick-add
@@ -6546,7 +6688,6 @@ body.branded-dark img.logo-mark, body.branded-dark .logo-mark rect { filter: non
 #brand-logo-status.brand-logo-error { color: var(--danger); font-weight: 600; }
 #brand-logo-status.brand-logo-ok { color: var(--accent); font-weight: 600; }
 .brand-logo-or { margin-top: 0.4rem; font-weight: 600; }
-body.branded .sidebar-crumb, body.branded .sidebar-crumb a { color: var(--sidebar-fg); opacity: 0.75; }
 
 /* ==== Stage mode (stage.js) ===============================================
    The song page for playing: no sidebar, bars or pickers; larger type; a
@@ -6557,7 +6698,7 @@ body.branded .sidebar-crumb, body.branded .sidebar-crumb a { color: var(--sideba
 html:has(body.stage) { font-size: 118%; }
 body.stage .desktop-sidebar, body.stage .song-context-bar, body.stage .global-tabbar,
 body.stage #song-structure-strip, body.stage .notation-pickers,
-body.stage #mode-segmented, body.stage #instrument-picker, body.stage .topbar-utility-mobile,
+body.stage #mode-segmented, body.stage #instrument-picker,
 body.stage .song-topbar .topbar-prev, body.stage .song-topbar .topbar-next,
 body.stage .stack-sheet, body.stage .stack-backdrop, body.stage .sidebar-transport { display: none !important; }
 body.stage .song-topzone { padding-top: 0.4rem; padding-bottom: 0.2rem; }
@@ -6751,23 +6892,93 @@ a.calendar-day:hover { text-decoration: none; background: var(--bg-sunken); }
 .index > .card + .card, .index > .card + .fold-card, .index > section + .card { margin-top: 1.25rem; }
 .danger-zone { border-color: var(--danger); }
 
-/* The band's sections on a phone: a list on the overview instead of a
-   row of tabs that scrolls out of sight; each section's header leads
-   back. Desktop keeps the tabs and doesn't show the list. */
-.band-hub { display: none; }
+/* A space's sections (space_nav.html): tabs under its header on a wide
+   screen, one look for a band, a community and a coaching studio, which a
+   brand doesn't recolour (it colours the header). Below 900px there are no
+   tabs, which would scroll out of sight: the space's home lists its
+   sections instead (space-hub), each row saying where it stands, and each
+   section's header leads back to it. */
+.space-tabs { display: flex; flex-wrap: wrap; gap: 0 0.2rem; margin: 0 0 1.25rem; border-bottom: 1px solid var(--border); }
+.space-tab {
+  display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0.45rem 0.75rem; margin-bottom: -1px;
+  border-bottom: 2px solid transparent; color: var(--fg-muted); font-size: 0.9rem; font-weight: 500; white-space: nowrap;
+}
+.space-tab:hover { text-decoration: none; color: var(--fg); border-bottom-color: var(--border); }
+.space-tab.active { color: var(--fg); font-weight: 600; border-bottom-color: var(--fg); }
+.space-hub { display: none; }
+@media (max-width: 899px) {
+  .space-tabs { display: none; }
+  .space-hub { display: flex; flex-direction: column; gap: 0.9rem; margin-bottom: 1.4rem; }
+  .space-hub-group { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; }
+  .space-hub-group li + li { border-top: 1px solid var(--border); }
+  .space-hub-group a { display: flex; align-items: center; gap: 0.75rem; min-height: 3.1rem; padding: 0.5rem 0.9rem; color: var(--fg); }
+  .space-hub-group a:hover { text-decoration: none; background: var(--bg-sunken); }
+  .space-hub-group a::after { content: "›"; color: var(--fg-faint); font-size: 1.3rem; line-height: 1; }
+  .space-hub-group .icon { flex: none; width: 1.2rem; height: 1.2rem; color: var(--accent); }
+  .space-hub-label { flex: 1; min-width: 0; font-weight: 500; }
+  .space-hub-state { font-size: 0.85rem; color: var(--fg-muted); text-align: right; }
+  .space-hub-state.is-due { color: var(--accent); font-weight: 600; }
+}
 @media (max-width: 600px) {
-  .band-section-tabs { display: none; }
   .band-overview-wide { display: none; }
-  .band-hub { display: flex; flex-direction: column; gap: 0.9rem; margin-bottom: 1.4rem; }
-  .band-hub-group { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; }
-  .band-hub-group li + li { border-top: 1px solid var(--border); }
-  .band-hub-group a { display: flex; align-items: center; gap: 0.75rem; min-height: 3.1rem; padding: 0.5rem 0.9rem; color: var(--fg); }
-  .band-hub-group a:hover { text-decoration: none; background: var(--bg-sunken); }
-  .band-hub-group a::after { content: "›"; color: var(--fg-faint); font-size: 1.3rem; line-height: 1; }
-  .band-hub-group .icon { width: 1.2rem; height: 1.2rem; color: var(--accent); }
-  .band-hub-label { flex: 1; font-weight: 500; }
-  .band-hub-state { font-size: 0.85rem; color: var(--fg-muted); }
-  .band-hub-state.is-due { color: var(--accent); font-weight: 600; }
+  /* A section's page leads back to the space's home: its header is the
+     home's, not repeated above every section. */
+  .space-header:not(.is-home) { display: none; }
+  /* "‹ Space" written out above the section's name: the way back to the
+     list of sections names where it goes. */
+  .app-header:has(> a.space-back) { flex-wrap: wrap; row-gap: 0; padding-top: 0.3rem; }
+  .app-header > a.space-back { flex-basis: 100%; justify-content: flex-start; min-width: 0; min-height: 1.6rem; margin-left: -0.2rem; font-size: 0.8rem; opacity: 0.85; }
+  .app-header > a.space-back .icon { width: 1rem; height: 1rem; }
+}
+
+/* ==== A space's header (space_nav.html, httpapi/space_nav.go) ===========
+   Every page of a band or a community opens with its avatar, its name (▾:
+   the switcher) and, for whoever runs it, ⚙; its section tabs follow. A
+   brand colours this header, as it does the page's banner. */
+.space-header { display: flex; align-items: center; gap: 0.85rem; margin: 0 0 0.9rem; min-width: 0; }
+.space-avatar {
+  flex: none; width: 2.75rem; height: 2.75rem; display: grid; place-items: center; overflow: hidden;
+  border-radius: min(var(--radius-control, 10px), 0.75rem); background: var(--accent); color: var(--accent-contrast);
+  font-weight: 700; font-size: 1rem; letter-spacing: 0.02em;
+}
+.space-website { color: inherit; text-transform: none; letter-spacing: 0; font-weight: 500; opacity: 0.8; }
+.space-avatar:hover { text-decoration: none; }
+.space-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.space-mark { font-size: 1.35rem; line-height: 1; }
+.space-id { flex: 1; min-width: 0; }
+.space-name { display: inline-flex; align-items: baseline; gap: 0.4rem; max-width: 100%; color: inherit; font-size: 1.2rem; font-weight: 700; line-height: 1.25; }
+.space-name:hover { text-decoration: none; }
+.space-name:hover .space-name-text { text-decoration: underline; }
+.space-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The name is the space switcher's trigger (icons.html "space-switcher",
+   "header"): the header's own avatar stays, the switcher adds the ▾. */
+.space-id .space-switcher { max-width: 100%; }
+.space-id .space-switcher-trigger { max-width: 100%; min-width: 0; margin-left: -0.35rem; font-size: 1.2rem; line-height: 1.25; }
+.space-id .space-switcher-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.space-id .space-switcher-caret { flex: none; color: var(--fg-faint); }
+.space-kind { margin-top: 0.1rem; color: var(--accent); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.space-gear {
+  flex: none; display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.25rem; padding: 0.35rem 0.75rem;
+  border: 1px solid var(--border); border-radius: var(--radius-control, 8px); background: var(--bg-raised);
+  color: var(--fg-muted); font-size: 0.85rem; font-weight: 500;
+}
+.space-gear:hover { text-decoration: none; color: var(--fg); }
+.space-gear.active { color: var(--fg); border-color: var(--accent); font-weight: 600; }
+.space-gear .icon { width: 1.05rem; height: 1.05rem; }
+body.branded .space-header {
+  padding: 0.75rem 0.9rem; background: var(--brand-header, var(--bg-raised)); color: var(--brand-header-fg, var(--fg));
+  border-radius: min(var(--radius-control, var(--radius)), 1.25rem);
+}
+body.branded .space-name, body.branded .space-id .space-switcher-name { font-family: var(--font-display, var(--font-ui)); }
+body.branded .space-id .space-switcher-trigger:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+body.branded .space-kind { color: var(--accent-2, var(--accent)); }
+body.branded .space-id .space-switcher-caret { color: inherit; opacity: 0.6; }
+@media (max-width: 600px) {
+  .space-header { gap: 0.65rem; }
+  .space-avatar { width: 2.35rem; height: 2.35rem; font-size: 0.9rem; }
+  .space-name, .space-id .space-switcher-trigger { font-size: 1.05rem; }
+  .space-gear { padding: 0.35rem 0.55rem; }
+  .space-gear span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 
 /* A community's admin page: its sections in a sidebar on a wide screen,
@@ -7159,7 +7370,7 @@ body.branded h1, body.branded h2, body.branded .brand-name { font-synthesis-weig
 /* The song page beside a playlist's player (?embed=playlist): the chart
    alone, the player around it doing the playing. */
 body.embed-playlist .desktop-sidebar, body.embed-playlist .global-tabbar, body.embed-playlist .song-context-bar,
-body.embed-playlist .topbar-utility-mobile, body.embed-playlist #audio-player, body.embed-playlist #mode-segmented,
+body.embed-playlist #audio-player, body.embed-playlist #mode-segmented,
 body.embed-playlist .topbar-prev, body.embed-playlist .topbar-next { display: none !important; }
 body.embed-playlist .app-content { margin: 0 !important; padding-bottom: 1rem !important; }
 .pl-h1-sub { font-weight: 400; color: var(--fg-muted); }
@@ -7504,11 +7715,53 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 /* A set list's "Our recordings | Reference" (setlist_overview.html), as
    the playlist's choice. */
 .setlist-prefer { display: flex; width: fit-content; margin: 0 auto 0.8rem; }
-/* The set list's tabs, centred; auto margins rather than justify-content,
-   so a row wider than a phone still scrolls from its first tab. */
-.setlist-tabs { display: flex; margin-left: auto; margin-right: auto; width: fit-content; max-width: 100%; }
-.setlist-tabs > :first-child { margin-left: auto; }
-.setlist-tabs > :last-child { margin-right: auto; }
+/* A set list's toolbar (setlist_overview.html, setlist_clicktrack.html):
+   its views in a segmented control, its actions (Reorder, Export ▾) apart
+   on the right; on a phone the actions go under the views, each row
+   fitting the width rather than scrolling. */
+.setlist-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; margin: 0 0 1.1rem; }
+.setlist-views, .space-filters { display: inline-flex; align-items: center; gap: 0.15rem; padding: 0.2rem; border-radius: 10px; background: var(--bg-sunken); max-width: 100%; }
+.setlist-views > a, .setlist-views > button, .space-filters > a {
+  display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.25rem; padding: 0.4rem 0.85rem;
+  border: 0; border-radius: 7px; background: none; color: var(--fg-muted); font: inherit; font-size: 0.85rem; font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+.setlist-views > a:hover, .setlist-views > button:hover, .space-filters > a:hover { text-decoration: none; color: var(--fg); }
+.setlist-views > .active, .space-filters > .active { background: var(--bg-raised); color: var(--fg); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+.setlist-views .icon { width: 1.05em; height: 1.05em; }
+.setlist-actions { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+.setlist-action {
+  display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.25rem; padding: 0.35rem 0.8rem; cursor: pointer; list-style: none;
+  border: 1px solid var(--border); border-radius: var(--radius-control, 8px); background: var(--bg-raised); color: var(--fg); font: inherit; font-size: 0.85rem; font-weight: 500;
+}
+.setlist-action::-webkit-details-marker { display: none; }
+.setlist-action .icon { width: 1.05em; height: 1.05em; }
+#reorder-toggle.setlist-action[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.setlist-export, .space-export { position: relative; }
+.setlist-export[open] > summary, .space-export[open] > summary { border-color: var(--accent); }
+.setlist-export .row-menu-panel { min-width: 15rem; }
+/* A section's views (space-filters, space_nav.html): the same control,
+   under the space's tabs. Its Export menu (space-export) holds the PDF's
+   layout choices as well as the link. */
+.space-filters { margin: -0.4rem 0 1.1rem; }
+.space-export .row-menu-panel { min-width: 16rem; gap: 0.3rem; }
+.space-export .pdf-mode-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; padding: 0.2rem 0.2rem 0.5rem; border-bottom: 1px solid var(--border); }
+.space-export .pdf-mode-row .pdf-export-link { flex-basis: 100%; font-weight: 600; }
+.space-export .pdf-mode-select { flex: 1; min-width: 0; }
+.space-export .pdf-notes-label { font-size: 0.85rem; color: var(--fg-muted); }
+.setlist-export .row-menu-panel small { display: block; color: var(--fg-muted); font-size: 0.8rem; }
+/* "New set list", inside the band's Set lists section (band_setlists.html). */
+.band-setlist-new { margin: 0 0 1.2rem; }
+.band-setlist-new > summary { min-height: 2.25rem; padding: 0.35rem 0.85rem; border: 1px solid var(--accent); border-radius: var(--radius-control, 8px); color: var(--accent); font-weight: 600; list-style: none; }
+.band-setlist-new > summary::-webkit-details-marker { display: none; }
+.band-setlist-new[open] > summary { background: var(--accent-bg); }
+@media (max-width: 600px) {
+  .setlist-views, .space-filters { display: flex; width: 100%; }
+  .setlist-views > a, .setlist-views > button, .space-filters > a { flex: 1 1 auto; justify-content: center; padding: 0.4rem 0.5rem; min-width: 0; }
+  .setlist-views .icon { display: none; }
+  .setlist-actions { margin-left: 0; width: 100%; }
+  .setlist-actions > * { flex: 1 1 0; }
+  .setlist-action { width: 100%; justify-content: center; }
+}
 .setlist-prefer button { padding: 0.45rem 0.9rem; border: 0; border-radius: 999px; background: none; font: inherit; font-size: 0.85rem; color: var(--fg-muted); min-height: 2.25rem; cursor: pointer; }
 .setlist-prefer button[aria-pressed="true"] { background: var(--fg); color: var(--bg); font-weight: 600; }
 /* The Corrections page's names (band_recordings.html). */
@@ -8027,7 +8280,7 @@ a.singer-chip:hover { border-color: var(--border-strong); }
 @keyframes audio-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .audio-spinner { animation: none; } }
 /* No recording: the follow-along clock, the click on; nothing else. */
-.audio-player[data-state="none"] .audio-dock :is(.audio-waveform-wrap, .audio-opts, .audio-opts-btn, .audio-panel-btn, #audio-start-btn, #audio-prev-btn, #audio-next-btn, .audio-dock-line) { display: none !important; }
+.audio-player[data-state="none"] .audio-dock :is(.audio-waveform-wrap, .audio-opts, .audio-opts-btn, #audio-start-btn, #audio-prev-btn, #audio-next-btn, .audio-dock-line) { display: none !important; }
 .audio-player[data-state="none"] .audio-dock .audio-lcd-time { margin-left: 0.5rem; }
 .audio-player[data-state="none"] .audio-add-recording { margin-left: auto; }
 @media (min-width: 901px) { body:has(.audio-player[data-state="none"]) .content-main { padding-bottom: 6rem; } }
@@ -8140,3 +8393,324 @@ a.singer-chip:hover { border-color: var(--border-strong); }
 
 /* The Key line in the player panel: its students list fits a phone panel. */
 .audio-panel .audio-key-targets { min-width: 0; }
+
+/* ==== Song page controls (app/reports/menu-proposal.md §3.5, menu PR 10) ==
+   The song's own header and toolbar (play.html .song-topzone): ‹ where it
+   was opened from · the title, key and tempo · the list's next song; then
+   a switcher for the views and the actions on the song (Accorder,
+   Modifier, Notes, Mode scène, ⋯). They used to be the sidebar's "This
+   song" group and a row of tabs mixing views and tools. Wide screens only:
+   on a phone the song bar at the bottom has them (.song-context-bar). */
+.song-topbar { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr); align-items: center; }
+.topbar-back { justify-content: flex-start; }
+.song-back {
+  display: inline-flex; align-items: center; gap: 0.45rem; max-width: 100%; min-width: 0;
+  padding: 0.4rem 0.75rem 0.4rem 0.5rem; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg-raised); color: var(--fg); text-decoration: none;
+}
+.song-back:hover { border-color: var(--border-strong); text-decoration: none; }
+.song-back .icon { flex: none; width: 1rem; height: 1rem; }
+.song-back-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.song-back-text small { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--fg-muted); }
+.song-back-text strong { font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar-nav { justify-content: flex-end; gap: 0.4rem; }
+.topbar-nav a { border: 1px solid var(--border); border-radius: 8px; color: var(--fg); text-decoration: none; background: var(--bg-raised); }
+.topbar-nav a:hover { border-color: var(--border-strong); text-decoration: none; }
+.topbar-nav .topbar-prev { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 2.75rem; height: 2.75rem; color: var(--fg-muted); }
+.topbar-nav .topbar-next { display: flex; align-items: center; gap: 0.5rem; min-width: 0; padding: 0.4rem 0.7rem; }
+.topbar-key-open { display: none; }
+/* With a recording, the key is the player's (its Key line moves the
+   recording and the chords together): the header names it, and opens
+   that line, rather than a second stepper that only moved the chords. */
+body:has(#audio-player[data-recording="yes"]) .topbar-key .transpose-control { display: none; }
+body:has(#audio-player[data-recording="yes"]) .topbar-key-open {
+  display: inline-flex; align-items: center; margin-left: 0.35rem; min-height: 0; padding: 0.05rem 0.55rem;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--bg-raised);
+  color: var(--fg-muted); font-size: 0.78rem; text-decoration: none;
+}
+body:has(#audio-player[data-recording="yes"]) .topbar-key-open:hover { color: var(--fg); border-color: var(--border-strong); }
+.song-toolbar {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem 1rem;
+  padding: 0.1rem 1.1rem 0.7rem; text-align: left; container: song-toolbar / inline-size;
+}
+.song-toolbar #mode-segmented.view-tabs { margin: 0; flex-wrap: nowrap; }
+/* Drummer, Mixer, Reference: in the switcher only while they're shown. */
+#mode-segmented .view-extra:not(.active) { display: none; }
+/* The view on screen, filled (#mode-segmented.view-tabs button's
+   background: none outranked .view-tabs button.active's fill). */
+#mode-segmented.view-tabs button.active { background: var(--accent); color: var(--accent-contrast); font-weight: 600; }
+.song-actions { display: flex; align-items: center; gap: 0.35rem; margin-left: auto; }
+.song-action {
+  display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.5rem; padding: 0.35rem 0.8rem;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--bg-raised);
+  color: var(--fg); font-size: 0.85rem; text-decoration: none; white-space: nowrap; cursor: pointer;
+}
+a.song-action:hover { text-decoration: none; border-color: var(--border-strong); }
+.song-action .icon { width: 1rem; height: 1rem; flex: none; }
+.song-action[hidden] { display: none; }
+.song-more-btn { padding: 0.35rem 0.6rem; }
+.song-toolbar-slot:empty { display: none; }
+/* A narrow toolbar keeps the actions' icons; their names stay for screen
+   readers (and in their tooltips). */
+@container song-toolbar (max-width: 50rem) {
+  .song-action > span:not(.sr-only) {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .song-action { padding: 0.35rem 0.65rem; }
+}
+.song-more { position: relative; }
+.song-more-menu {
+  position: absolute; right: 0; top: calc(100% + 0.35rem); z-index: 45; min-width: 15rem;
+  display: flex; flex-direction: column; padding: 0.35rem; text-align: left;
+  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: var(--shadow-lg, var(--shadow));
+}
+.song-more-menu[hidden] { display: none; }
+.song-more-menu [role="menuitem"] {
+  display: flex; align-items: center; gap: 0.6rem; width: 100%; min-height: 2.5rem; padding: 0.5rem 0.7rem;
+  border: 0; border-radius: 6px; background: none; color: var(--fg); font-size: 0.9rem; text-align: left; text-decoration: none; cursor: pointer;
+}
+.song-more-menu [role="menuitem"]:hover, .song-more-menu [role="menuitem"]:focus-visible { background: var(--bg-sunken); text-decoration: none; }
+.song-more-menu .icon { width: 1rem; height: 1rem; flex: none; color: var(--fg-muted); }
+@media (max-width: 900px) {
+  .song-toolbar, .topbar-back, .topbar-nav { display: none; }
+  .song-topbar { grid-template-columns: 1fr; }
+}
+body.stage .song-toolbar, body.stage .topbar-back, body.stage .topbar-nav { display: none !important; }
+/* The stage's ✕ only on stage: button.icon-btn outranked .stage-exit's own
+   display:none, so it sat over every song page's top right corner. */
+body:not(.stage) .stage-exit { display: none; }
+
+/* "Exporter en PDF…": the layout, the notes, the download. */
+.song-pdf-dialog {
+  width: min(26rem, calc(100vw - 2rem)); padding: 0; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--bg-raised); color: var(--fg); box-shadow: var(--shadow-lg, var(--shadow));
+}
+.song-pdf-dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
+.song-pdf-form { display: flex; flex-direction: column; align-items: stretch; gap: 0.9rem; padding: 1.2rem 1.3rem; }
+.song-pdf-form h2 { margin: 0; font-size: 1.1rem; }
+.song-pdf-layouts { display: flex; flex-direction: column; gap: 0.35rem; margin: 0; padding: 0; border: 0; }
+.song-pdf-layouts legend { margin-bottom: 0.35rem; padding: 0; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-muted); }
+.song-pdf-layouts label { display: flex; align-items: baseline; gap: 0.5rem; padding: 0.5rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.song-pdf-layouts label:has(input:checked) { border-color: var(--accent); background: var(--accent-bg, var(--bg-sunken)); }
+.song-pdf-layouts small { margin-left: auto; font-size: 0.78rem; color: var(--fg-muted); text-align: right; }
+.song-pdf-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; }
+.song-pdf-actions .pdf-export-link {
+  display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.75rem; padding: 0.45rem 1rem;
+  border-radius: 8px; background: var(--accent); color: var(--accent-contrast); font-weight: 700; text-decoration: none;
+}
+.song-pdf-actions .pdf-export-link:hover { text-decoration: none; filter: brightness(1.05); }
+.song-pdf-actions .pdf-export-link .icon { width: 1rem; height: 1rem; }
+
+/* The player's panel, from the song's controls: the Drummer view and the
+   Mixer in its Sound group; without a recording, the click is the song's
+   metronome — the panel holds its Click and Tempo lines, the Drummer view
+   and (with a score) the Mixer, and nothing else. */
+.audio-line-tempo { display: none; }
+.audio-line[hidden] { display: none; }
+.audio-tempo-more { font-size: 0.82rem; }
+.audio-player[data-state="none"] .audio-dock:not(.is-open) .audio-panel-btn { display: inline-flex; margin-left: auto; }
+.audio-player[data-state="none"] .audio-panel-tabs,
+.audio-player[data-state="none"] .audio-group:not([data-group="sound"]),
+.audio-player[data-state="none"] .audio-group[data-group="sound"] .audio-line:not(#audio-line-click, #audio-line-tempo, #audio-line-drummer, #audio-line-mixer.has-score),
+.audio-player[data-state="none"] #audio-line-click :is(.hint, #audio-click-test),
+.audio-player[data-state="none"] #audio-line-mixer #audio-line-stems,
+.audio-player[data-state="none"] .audio-group-title kbd:first-of-type,
+.audio-player[data-state="none"] .audio-panel-hint { display: none !important; }
+.audio-player[data-state="none"] .audio-line-tempo { display: grid; }
+@media (max-width: 720px) {
+  .audio-player[data-state="none"] .audio-dock .audio-panel-btn { display: none !important; }
+}
+
+/* The song bar on a phone: five slots (‹ the place, Vue, Outils, Morceau,
+   Suivant or Mode scène), each an icon over a short label; a long place
+   name ("‹ Silver Tramline") is cut, never runs into its neighbour. */
+@media (max-width: 900px) {
+  .song-context-bar > a, .song-context-bar > button { min-width: 0; padding: 0 0.15rem; font-size: 0.64rem; min-height: 0; }
+  .song-context-bar > a > span, .song-context-bar > button > span { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; line-height: 1.15; }
+  .song-context-bar > a:focus-visible, .song-context-bar > button:focus-visible { outline-offset: -3px; }
+  .stack-sheet:focus { outline: none; }
+  .stack-sheet-hint { margin-left: auto; font-size: 0.78rem; color: var(--fg-muted); font-weight: 400; }
+  .stack-sheet-row[aria-pressed="true"] { color: var(--accent); font-weight: 600; }
+  /* The mixer has nothing to play without a recording or a score. */
+  body:has(#audio-player[data-recording="no"]:not([data-score])) .tools-mixer-row { display: none; }
+}
+
+/* "Accorder": the tuner in place (play.html #tuner-dialog) — a popover
+   under the song's toolbar on a wide screen, a sheet from the bottom on a
+   phone; the /tuner page's own card inside. */
+.tuner-dialog {
+  padding: 0; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--bg-raised); color: var(--fg); box-shadow: var(--shadow-lg, var(--shadow));
+  width: min(30rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow-y: auto; overscroll-behavior: contain;
+}
+.tuner-dialog::backdrop { background: rgba(0, 0, 0, 0.25); }
+.tuner-dialog-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 0.8rem 0 1.2rem; }
+.tuner-dialog-head h2 { flex: 1; min-width: 0; margin: 0; font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tuner-dialog-head h2 small { margin-left: 0.4rem; font-size: 0.85rem; font-weight: 500; color: var(--fg-muted); }
+.tuner-dialog-head form { margin: 0; }
+.tuner-dialog .tuner { border: 0; box-shadow: none; background: none; margin: 0; max-width: none; padding-top: 0.6rem; }
+.tuner-dialog .tuner-readout { min-height: 5rem; }
+.tuner-dialog .tuner-note { font-size: 4.4rem; }
+@media (min-width: 901px) {
+  .tuner-dialog { position: fixed; inset: 7.6rem 1.5rem auto auto; margin: 0; max-height: calc(100dvh - 9rem); }
+}
+@media (max-width: 900px) {
+  .tuner-dialog {
+    position: fixed; inset: auto 0 0 0; margin: 0; width: 100%; max-width: none;
+    border-radius: 16px 16px 0 0; border-width: 1px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .tuner-dialog .tuner { padding: 0.4rem 1rem 1rem; gap: 0.8rem; }
+}
+/* ---- Menu redesign §3.4: Accueil's "Aujourd'hui" cards (today.go) ----
+   One card a role, the most time-critical first: dark, in the band's or
+   community's own header colour when it has one. */
+.today-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0.8rem; margin: 0 0 2rem; }
+.today-card {
+  --today-bg: #3b2e3a; --today-accent: #e7b06c;
+  display: flex; flex-direction: column; gap: 0.3rem; min-width: 0;
+  padding: 0.95rem 1.05rem; border-radius: var(--radius); background: var(--today-bg); color: #f3e8d8; box-shadow: var(--shadow);
+}
+.today-card.kind-band { --today-bg: #2f3b33; }
+.today-card.kind-jam { --today-bg: #2e3346; }
+.today-eyebrow { margin: 0; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--today-accent); filter: brightness(1.25); overflow-wrap: anywhere; }
+.today-title { margin: 0; font-size: 1.15rem; line-height: 1.3; font-weight: 700; overflow-wrap: anywhere; }
+.today-title a { color: inherit; }
+.today-meta { margin: 0; font-size: 0.86rem; opacity: 0.88; overflow-wrap: anywhere; }
+.today-progress { height: 6px; margin-top: 0.25rem; border-radius: 4px; background: rgba(255, 255, 255, 0.16); overflow: hidden; }
+.today-progress i { display: block; height: 100%; border-radius: 4px; background: var(--today-accent); }
+.today-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.9rem; margin-top: 0.45rem; }
+.today-register { display: contents; }
+.today-register[hidden] { display: none; }
+.today-go {
+  display: inline-flex; align-items: center; min-height: 2.25rem; padding: 0.35rem 0.9rem; border: 0; border-radius: 8px;
+  background: var(--accent); color: var(--accent-contrast); font: inherit; font-weight: 600; cursor: pointer;
+}
+.today-go:hover { text-decoration: none; filter: brightness(1.08); }
+.today-go:focus-visible, .today-secondary:focus-visible, .today-title a:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.today-secondary { color: inherit; font-size: 0.86rem; text-decoration: underline; text-underline-offset: 2px; opacity: 0.9; }
+.today-done { margin: 0; font-weight: 600; }
+/* ---- end Aujourd'hui cards ---- */
+
+/* ---- Menu redesign §3.9: notifications in one place (nav_notifications.html) ----
+   Desktop: the sidebar's entry under Accueil, with the unread count.
+   Phone: the bell top-right in the top bar, a dot on the Accueil tab.
+   The song page: a bell with a dot in its toolbar. */
+.nav-count {
+  margin-left: auto; min-width: 1.35rem; padding: 0.05rem 0.4rem; border-radius: 999px;
+  background: var(--accent); color: var(--accent-contrast); font-size: 0.72rem; font-weight: 700; line-height: 1.35; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.nav-count[hidden] { display: none; }
+.nav-unread-dot {
+  position: absolute; width: 0.55rem; height: 0.55rem; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 0 2px var(--bg-raised);
+}
+.nav-unread-dot[hidden] { display: none; }
+.global-tabbar a > .nav-unread-dot { top: 0.45rem; left: calc(50% + 0.45rem); }
+.nav-notifications-dot { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 2.4rem; min-height: 2.4rem; color: var(--fg-muted); }
+.nav-notifications-dot .icon { width: 1.3rem; height: 1.3rem; }
+.nav-notifications-dot .nav-unread-dot { top: 0.45rem; right: 0.5rem; box-shadow: 0 0 0 2px var(--bg-sunken); }
+.global-tabbar > a { position: relative; }
+/* The top bar's bell (icons.html, data-topbar-slot), below 901px only:
+   the sidebar's entry is the one above. */
+.topbar-slot { display: inline-flex; }
+.topbar-actions .notif-bell { flex: none; min-width: 2.4rem; min-height: 2.4rem; justify-content: center; }
+.topbar-actions .notif-bell .icon { width: 1.3rem; height: 1.3rem; }
+.topbar-actions .notif-badge { top: 0.1rem; right: -0.1rem; }
+/* The top bar's actions sit over the page header: on a branded page,
+   in its colours. */
+body.branded .topbar-actions { color: var(--brand-header-fg, var(--fg)); }
+/* The song toolbar's bell (play.html #song-toolbar-notifications). Below
+   901px the toolbar's views and actions are the song bar's; the bell
+   alone stays, at the top right of the song's header. */
+.song-toolbar-slot { display: inline-flex; }
+@media (max-width: 900px) {
+  .song-topzone { position: relative; }
+  .song-toolbar:has(#song-toolbar-notifications) { display: contents; }
+  .song-toolbar > :not(.song-actions), .song-actions > :not(#song-toolbar-notifications) { display: none; }
+  .song-actions { display: contents; }
+  #song-toolbar-notifications { position: absolute; top: 0.25rem; right: 0.3rem; z-index: 2; }
+}
+body.stage #song-toolbar-notifications, body.embed-playlist #song-toolbar-notifications { display: none; }
+/* ---- end notifications ---- */
+
+/* ---- Menu redesign §3.8: search (nav_search.html, static/js/search.js) ----
+   The sidebar's field, the phone's 🔍, the palette, the /search page. */
+.nav-search {
+  position: relative; display: flex; align-items: center; gap: 0.45rem; margin: -0.6rem 0 -0.4rem;
+  padding: 0 0.55rem; border-radius: 9px; background: color-mix(in srgb, var(--sidebar-fg) 9%, transparent);
+  color: color-mix(in srgb, var(--sidebar-fg) 70%, transparent);
+}
+.nav-search .icon { width: 1rem; height: 1rem; flex: none; }
+.nav-search input {
+  flex: 1; min-width: 0; padding: 0.5rem 0; border: 0; background: none; box-shadow: none; color: var(--sidebar-fg);
+  font: inherit; font-size: 0.86rem; outline: none;
+}
+.nav-search input::placeholder { color: color-mix(in srgb, var(--sidebar-fg) 62%, transparent); opacity: 1; }
+.nav-search:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.nav-search-kbd, .search-keys kbd, .search-palette-foot kbd {
+  font: 600 0.7rem/1 var(--font-ui); padding: 0.18rem 0.35rem; border-radius: 5px;
+  border: 1px solid currentColor; opacity: 0.75; white-space: nowrap;
+}
+.nav-search-kbd { flex: none; border-color: color-mix(in srgb, var(--sidebar-fg) 35%, transparent); }
+.nav-search-button { display: none; }
+@media (max-width: 900px) {
+  .nav-search-button {
+    display: inline-flex; align-items: center; justify-content: center; flex: none; min-width: 2.4rem; min-height: 2.4rem; color: inherit;
+  }
+  .nav-search-button .icon { width: 1.25rem; height: 1.25rem; }
+  .app-header > .nav-search-button ~ .notif-bell { margin-left: 0; }
+}
+
+.search-palette {
+  width: min(40rem, calc(100vw - 2rem)); max-height: min(36rem, calc(100vh - 6rem)); margin: 10vh auto auto; padding: 0;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--bg-raised); color: var(--fg); box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.search-palette[open] { display: flex; }
+.search-palette::backdrop { background: rgba(20, 15, 10, 0.45); }
+.search-palette-box { display: flex; flex-direction: column; width: 100%; min-height: 0; }
+.search-palette-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.8rem 1rem; border-bottom: 1px solid var(--border); }
+.search-palette-head > .icon { width: 1.2rem; height: 1.2rem; flex: none; color: var(--fg-muted); }
+.search-palette-input {
+  flex: 1; min-width: 0; padding: 0.3rem 0; border: 0; background: none; box-shadow: none; color: var(--fg); font: inherit; font-size: 1.05rem; outline: none;
+}
+.search-palette-close { flex: none; min-height: 2.2rem; padding: 0.3rem 0.6rem; border: 0; border-radius: 8px; background: none; box-shadow: none; color: var(--fg-muted); font-size: 0.85rem; cursor: pointer; }
+.search-palette-close:hover { background: var(--bg-sunken); color: var(--fg); }
+.search-palette-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0.35rem 0.45rem 0.5rem; }
+.search-palette-group-label { padding: 0.6rem 0.6rem 0.25rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-faint); }
+.search-palette-row, .search-row {
+  display: flex; align-items: center; gap: 0.7rem; padding: 0.5rem 0.6rem; border-radius: 9px; color: var(--fg); text-decoration: none; cursor: pointer;
+}
+.search-palette-row[aria-selected="true"] { background: var(--accent-bg); color: var(--accent-ink); }
+.search-palette-row-main, .search-row { min-width: 0; }
+.search-palette-row-main { flex: 1; display: flex; flex-direction: column; }
+.search-palette-row-title, .search-row-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-palette-row-sub, .search-row-sub { font-size: 0.8rem; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-palette-row[aria-selected="true"] .search-palette-row-sub { color: inherit; opacity: 0.8; }
+.search-here { flex: none; font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 999px; background: var(--current-bg); color: var(--current-fg); }
+.search-keys { flex: none; display: inline-flex; gap: 0.2rem; margin-left: auto; color: var(--fg-muted); }
+.search-palette-status { margin: 0; padding: 0 1rem 0.4rem; font-size: 0.8rem; color: var(--fg-muted); min-height: 1rem; }
+.search-palette-status:empty { display: none; }
+.search-palette-foot { display: flex; gap: 1rem; padding: 0.55rem 1rem; border-top: 1px solid var(--border); font-size: 0.75rem; color: var(--fg-faint); }
+@media (max-width: 600px) {
+  /* Full screen on a phone. */
+  .search-palette { width: 100vw; max-width: none; height: 100dvh; max-height: none; margin: 0; border: 0; border-radius: 0; }
+  .search-palette-foot { display: none; }
+  .search-palette-input { font-size: 1rem; }
+  .search-palette-row { min-height: 2.75rem; }
+}
+html.search-open { overflow: hidden; }
+
+.search-page-form { display: flex; gap: 0.5rem; margin: 0 0 1.4rem; }
+.search-page-form input { flex: 1; min-width: 0; }
+.search-group { margin: 0 0 1.5rem; }
+.search-group h2 { margin: 0 0 0.4rem; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-faint); }
+.search-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); }
+.search-list li + li { border-top: 1px solid var(--border); }
+.search-row { border-radius: 0; flex-wrap: wrap; column-gap: 0.7rem; row-gap: 0; }
+.search-row:hover { text-decoration: none; background: var(--accent-bg); }
+.search-row-title { flex: 0 1 auto; }
+/* ---- end search ---- */
+.search-keys kbd { text-transform: uppercase; }

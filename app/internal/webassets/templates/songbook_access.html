@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "%s — sharing and access" .Songbook.Name}} — Songbooks</title>
+<title>{{docTitle (t "%s — sharing and access" .Songbook.Name)}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -16,7 +16,6 @@
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}/songbooks">{{template "icon-back"}} {{t "Songbooks"}}</a>
   <h1>{{t "%s — sharing and access" .Songbook.Name}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   <div class="card">
@@ -135,7 +134,7 @@ document.querySelectorAll('.grant-checkbox').forEach(cb => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

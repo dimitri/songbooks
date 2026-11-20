@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Community.Name}} — Songbooks</title>
+<title>{{docTitle (t "Default songbook") .Community.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,18 +15,10 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}/songbooks">{{template "icon-back"}} {{t "Songbooks"}}</a>
-  <h1>{{t "%s — default songbook" .Community.Name}}</h1>
-  {{template "notif-bell"}}
+  <h1>{{t "Default songbook"}}</h1>
 </header>
 <main class="index">
-  <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/communities/{{.Community.ID}}">{{t "Overview"}}</a>
-    <a href="/communities/{{.Community.ID}}/songbooks" class="band-tab active">{{t (shelfLabel "community" .Community.ID)}}</a>
-    {{template "coaching-tab-links" .}}
-    <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/events">{{t "Events"}}</a>
-    {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a>{{end}}
-  </nav>
+  {{template "space-nav" .Space}}
 
   <p class="hint">{{if not .CanEdit}}{{t "Read-only for your role."}} {{end}}{{t "The community's other books are under"}} <a href="/communities/{{.Community.ID}}/songbooks">{{t (shelfLabel "community" .Community.ID)}}</a>.</p>
 
@@ -65,6 +57,7 @@
   <div class="repertoire-toolbar">
     <input type="search" id="repertoire-search" placeholder="{{t "Search this songbook…"}}" aria-label="{{t "Search this songbook"}}" autocomplete="off" enterkeyhint="search">
     {{if .CanEdit}}<button type="button" id="open-add-song">{{template "icon-plus"}} {{t "Add song"}}</button>{{end}}
+    {{template "space-export" .Export}}
   </div>
   {{end}}
 
@@ -362,9 +355,8 @@ document.querySelectorAll('.reject-btn').forEach(btn => {
 </script>
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
-{{template "desktop-sidebar-script"}}
 </body>
 </html>
 {{end}}

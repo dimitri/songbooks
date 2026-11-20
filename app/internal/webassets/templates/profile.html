@@ -14,7 +14,6 @@
 <header class="app-header">
   {{template "home-link"}}
   <h1>{{t "Profile"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main>
   <h2 style="margin:0 0 0.3rem">{{.Me.DisplayName}} <span class="song-link-sub">@{{.Me.Username}}</span></h2>
@@ -44,7 +43,7 @@
 
   {{template "my-instruments" .Instruments}}
 
-  <section class="card book-card">
+  <section class="card book-card" id="language">
     <h3>{{t "Language"}}</h3>
     <div class="form-stack">
     <div class="field">
@@ -361,7 +360,7 @@ if (new URLSearchParams(location.search).has('instsaved')) {
 <script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
 {{template "pwa-register"}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

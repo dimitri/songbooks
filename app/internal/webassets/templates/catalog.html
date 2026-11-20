@@ -1,10 +1,22 @@
+{{/* The Library's three segments (menu PR 8): its songs, the songbooks
+     and the set lists you can open — one destination for "every
+     collection of songs", where Songbooks and Set lists used to be pages
+     of their own (/songbooks and /setlists redirect here). Called with
+     the current one: "songs", "songbooks" or "setlists". */}}
+{{define "library-segments"}}
+<nav class="segmented library-segments" aria-label="{{t "Library"}}">
+  <a href="/catalog"{{if eq . "songs"}} class="active" aria-current="page"{{end}}>{{t "Songs"}}</a>
+  <a href="/catalog?view=songbooks"{{if eq . "songbooks"}} class="active" aria-current="page"{{end}}>{{t "Songbooks"}}</a>
+  <a href="/catalog?view=setlists"{{if eq . "setlists"}} class="active" aria-current="page"{{end}}>{{t "Set lists"}}</a>
+</nav>
+{{end}}
 {{define "catalog"}}
 <!doctype html>
 <html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "Library"}} — Songbooks</title>
+<title>{{docTitle (t "Library")}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -14,12 +26,9 @@
 <header class="app-header">
   {{template "home-link"}}
   <h1>{{t "Library"}}</h1>
-  <nav class="song-nav">
-    <a href="/songbooks">{{t "songbooks"}}</a>
-    {{template "notif-bell"}}
-  </nav>
 </header>
 <main class="index">
+  {{template "library-segments" "songs"}}
   <p class="catalog-intro">{{t "Every public song, plus your own. A band's or community's private songs are in its own songbooks."}}</p>
 
   {{/* Songs first on a phone: one search field, the rest folded into
@@ -102,7 +111,7 @@ document.querySelectorAll('.fork-btn').forEach(btn => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

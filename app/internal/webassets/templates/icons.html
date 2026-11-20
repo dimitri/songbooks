@@ -13,6 +13,7 @@
 <script>try { var t = localStorage.getItem('songbooks-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
 <script src="/i18n/{{lang}}.js?v={{staticVersion}}"></script>
 <script src="/static/js/forms.js?v={{staticVersion}}"></script>
+<script src="/static/js/search.js?v={{staticVersion}}"></script>
 {{end}}
 {{define "pwa-register"}}
 <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});</script>
@@ -46,171 +47,131 @@
 {{define "icon-view"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 10s2.8-5 8-5 8 5 8 5-2.8 5-8 5-8-5-8-5z"/><circle cx="10" cy="10" r="2.2"/></svg>{{end}}
 {{define "icon-community"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6.5" r="2.3"/><circle cx="14" cy="6.5" r="2.3"/><circle cx="10" cy="13" r="2.3"/></svg>{{end}}
 
-{{/* Global bottom tab bar: the app's one persistent, always-reachable
-     navigation surface on a phone (see the mobile-menu brief: "keep the
-     general navigation available" even on pages, like Play, that also
-     need their own icon-triggered stacks). Rendered on every top-level
-     page, right before </body>. Desktop is untouched — see the
-     max-width:900px .global-tabbar CSS; above that width this renders
-     nothing visible, the existing header nav is still the only nav. The
-     active tab is set client-side (global-tabbar-script, below) by
-     matching location.pathname, so this partial needs no per-page data. */}}
-{{define "global-tabbar"}}
-{{/* Both this nav and desktop-sidebar below are always in the DOM —
-     CSS hides whichever doesn't match the current breakpoint, it's
-     never removed — so a screen-reader user navigating by landmark
-     saw two identically-named "main navigation" regions with no way
-     to tell them apart by name alone (audit, Nov 2026). Distinct
-     labels fix that without touching either one's actual behavior. */}}
-<nav class="tabbar global-tabbar" id="global-tabbar" aria-label="{{t "main navigation (mobile)"}}">
-  {{range navGlobal "mobileTab"}}<a href="{{.Path}}" data-path="{{.Path}}"{{with .Also}} data-also="{{.}}"{{end}} data-label="{{t .Label}}">{{template "nav-icon" .Icon}}</a>{{end}}
-  {{/* Replaces a standalone Profile tab — Profile moved into the shared
-       More sheet below (site-nav-fullpage) alongside Communities and
-       Metronome, neither of which fit in 5 fixed mobile slots and were
-       previously unreachable on mobile at all. Reuses the exact
-       #site-nav-fullpage-btn id play.html's own "..." toggle already
-       wires up — see site-nav-fullpage-script below, shared by every
-       page instead of being duplicated per-page. */}}
-  <button type="button" id="site-nav-fullpage-btn" data-label="{{t "More"}}">{{template "icon-more"}}</button>
-</nav>
-{{template "site-nav-fullpage"}}
-{{end}}
-{{define "global-tabbar-script"}}
-<script>(function () {
-  var bar = document.getElementById('global-tabbar');
-  if (!bar) return;
-  var path = location.pathname;
-  var best = null;
-  var bestLen = 0;
-  bar.querySelectorAll('a').forEach(function (a) {
-    [a.dataset.path].concat((a.dataset.also || '').split(' ').filter(Boolean)).forEach(function (p) {
-      if ((path === p || (p !== '/' && path.indexOf(p) === 0)) && p.length > bestLen) { best = a; bestLen = p.length; }
-    });
-  });
-  if (best) best.classList.add('active');
-})();</script>
-{{template "site-nav-fullpage-script"}}
-{{end}}
+{{/* ==== Global navigation (menu proposal §3.2) ==========================
+     One list, nav.go's navEntries, rendered on three surfaces:
+     - the desktop sidebar (901px and wider): desktop-sidebar;
+     - the phone's tab bar (below 600px) and the tablet's icon rail
+       (600–900px): global-tabbar, the same markup laid out by CSS;
+     - the account menu (account-menu): the sidebar's account chip on
+       desktop, the avatar at the top right of the page below 901px.
+     The current entry comes from the server (.Nav.Section, see
+     navSectionFor in internal/httpapi), marked active and
+     aria-current="page". Every top-level page renders desktop-sidebar
+     right after <body> and global-tabbar right before </body>, both with
+     the page's data. */}}
 
-{{/* Shared mobile "More" full-page navigation — a genuine full-screen
-     takeover (no backdrop to tap through, no sheet height limit), the
-     one place every destination not in .global-tabbar's 4 fixed icons
-     is reachable from on a phone: Communities and Metronome were
-     unreachable on mobile at all before this (desktop's
-     sidebar-secondary was the only way to them). Admin
-     is deliberately left off this shared sheet — every global-tabbar
-     call site renders with no per-page data (31 call sites), so gating
-     it on .Me.IsAdmin here would mean threading that context through
-     all of them; a non-admin opening /admin just gets the normal
-     403/redirect, same as typing the URL directly, so the omission
-     costs nothing but tidiness. Desktop's sidebar still shows Admin,
-     properly gated, since desktop-sidebar already receives .Me. */}}
-{{define "site-nav-fullpage"}}
-<div class="site-nav-fullpage" id="site-nav-fullpage" role="dialog" aria-label="{{t "Navigation"}}">
-  <div class="site-nav-fullpage-header">
-    <h2>Songbooks</h2>
-    <button type="button" id="site-nav-fullpage-close" class="icon-btn" title="{{t "close"}}">{{template "icon-close"}}</button>
-  </div>
-  {{range navGlobal "mobileMore"}}
-  {{if not .RequiresAdmin}}
-  <a class="site-nav-fullpage-row{{if .InTabBar}} is-tab{{end}}" href="{{.Path}}">{{template "nav-icon" .Icon}} {{t .Label}}</a>
-  {{end}}
-  {{end}}
-  {{/* The one admin-gated entry is still rendered hidden-by-default and
-       shown via site-nav-fullpage-script, not a template condition here —
-       no per-page .Me is threaded through global-tabbar's many call
-       sites (see its own doc comment), so this mirrors desktop-sidebar's
-       own already-correctly-gated Admin link's presence in the DOM
-       instead of needing new data plumbing. */}}
-  <a class="site-nav-fullpage-row" href="/admin" id="site-nav-fullpage-admin-row" hidden>{{template "icon-settings"}} {{t "Admin"}}</a>
-  <div class="site-nav-fullpage-theme" role="group" aria-label="{{t "Appearance"}}">
-    <span>{{template "icon-theme"}} {{t "Appearance"}}</span>
-    <div class="segmented" id="site-nav-theme">
-      <button type="button" data-theme-choice="">{{t "Auto"}}</button>
-      <button type="button" data-theme-choice="light">{{t "Light"}}</button>
-      <button type="button" data-theme-choice="dark">{{t "Dark"}}</button>
-    </div>
-  </div>
+{{/* The phone's tab bar, which is the tablet's rail: Home, Library,
+     Calendar, Groups, Tools — five tabs and no "More" (§3.2). Also the
+     avatar's account menu and the top bar's notification slot, at the
+     top right of the page below 901px. Both this nav and desktop-sidebar
+     are always in the DOM, CSS shows one, so they carry distinct
+     labels for a screen reader's landmarks list. */}}
+{{define "global-tabbar"}}
+{{$sec := ""}}{{$me := false}}{{$page := ""}}{{$last := ""}}{{$nav := false}}{{$unread := 0}}{{with .}}{{with .Nav}}{{$nav = .}}{{$sec = .Section}}{{$page = .Page}}{{$last = .Spaces.LastURL}}{{$unread = .Unread}}{{with .Me}}{{$me = .}}{{end}}{{end}}{{end}}
+<nav class="tabbar global-tabbar" id="global-tabbar" aria-label="{{t "main navigation (mobile)"}}">
+  {{/* Groups reopens the space used last (menu PR 7); "All my groups" is
+       at the top of its switcher. */}}
+  {{range navGlobal "bar"}}<a href="{{if and (eq .Section "groups") $last}}{{$last}}{{else}}{{.Path}}{{end}}"{{if navCurrent "bar" . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}">{{template "nav-icon" .Icon}}{{if and $me (eq .Dot "notifications")}}<span class="nav-unread-dot" data-unread-dot aria-hidden="true"{{if not $unread}} hidden{{end}}></span>{{end}}</a>{{end}}
+</nav>
+{{if $me}}
+{{/* The top bar's right end below 901px: on Accueil and the
+     Bibliothèque the search (§3.8), then the notifications bell with its
+     count (§3.9), then the avatar. */}}
+<div class="topbar-actions" id="topbar-actions">
+  {{if or (eq $page "index") (eq $page "catalog") (eq $page "songbooks-index") (eq $page "setlists-index")}}{{template "nav-search-button"}}{{end}}
+  {{if $nav.Spaces.Current}}{{template "space-switcher" (dict "Nav" $nav "Where" "topbar")}}{{end}}
+  <span class="topbar-slot" data-topbar-slot="notifications">{{template "notif-bell" $unread}}</span>
+  {{template "account-menu" (dict "Me" $me "Section" $sec "Where" "topbar")}}
 </div>
 {{end}}
-{{define "site-nav-fullpage-script"}}
+{{end}}
+{{define "global-tabbar-script"}}
+{{template "nav-notifications-script"}}
+{{template "account-menu-script"}}
+{{template "space-switcher-script"}}
+{{end}}
+
+{{/* The account menu (§3.2 "Me"): Profile, Appearance, Language, Admin
+     for a site admin, Log out. A <details>, so it opens without a script
+     and from the keyboard; account-menu-script closes it on Escape or a
+     click elsewhere and wires the Appearance buttons. On desktop it opens
+     from the sidebar's account chip ("Where": "sidebar"), below 901px
+     from the avatar in the top bar ("topbar"), as a bottom sheet on a
+     phone. Called with (dict "Me" person "Section" the page's NavSection
+     "Where" "sidebar"|"topbar"). */}}
+{{define "account-menu"}}
+<details class="account-menu account-menu--{{.Where}}">
+  <summary class="{{if eq .Where "sidebar"}}sidebar-account{{else}}topbar-avatar{{end}}{{if eq .Section "profile"}} active{{end}}" aria-label="{{t "Your account: %s" .Me.DisplayName}}">
+    <span class="sidebar-account-avatar" aria-hidden="true">{{initial .Me.DisplayName}}</span>
+    {{if eq .Where "sidebar"}}<span class="sidebar-account-name">{{.Me.DisplayName}}</span><span class="account-menu-caret" aria-hidden="true">⌃</span>{{end}}
+  </summary>
+  <div class="account-menu-panel">
+    <div class="account-menu-head">
+      <span class="sidebar-account-avatar" aria-hidden="true">{{initial .Me.DisplayName}}</span>
+      <span><strong>{{.Me.DisplayName}}</strong><small>{{t "Profile, instruments, playing"}}</small></span>
+    </div>
+    <a class="account-menu-row" href="/profile"{{if eq .Section "profile"}} aria-current="page"{{end}}>{{template "icon-profile"}} {{t "Profile"}}</a>
+    <div class="account-menu-row account-menu-theme" role="group" aria-label="{{t "Appearance"}}">
+      <span>{{template "icon-theme"}} {{t "Appearance"}}</span>
+      <span class="segmented" data-theme-group>
+        <button type="button" data-theme-choice="">{{t "Auto"}}</button>
+        <button type="button" data-theme-choice="light">{{t "Light"}}</button>
+        <button type="button" data-theme-choice="dark">{{t "Dark"}}</button>
+      </span>
+    </div>
+    <a class="account-menu-row" href="/profile#language">{{template "icon-language"}} {{t "Language"}} <span class="account-menu-value">{{if eq lang "fr"}}Français{{else}}English{{end}}</span></a>
+    {{if .Me.IsAdmin}}<a class="account-menu-row" href="/admin"{{if eq .Section "admin"}} aria-current="page"{{end}}>{{template "icon-settings"}} {{t "Site admin"}}</a>{{end}}
+    <form method="post" action="/logout" class="account-menu-logout"><button type="submit" class="account-menu-row">{{t "Log out"}}</button></form>
+  </div>
+</details>
+{{end}}
+{{define "account-menu-script"}}
 <script>(function () {
-  // querySelectorAll, not getElementById: play.html's own song-context-bar
-  // carries a second #site-nav-fullpage-btn (its "More" tool, same id on
-  // purpose so either page's trigger opens the one shared sheet) — only
-  // one is ever visible at a time (global-tabbar's copy is CSS-hidden on
-  // that page), but both get a working listener regardless of DOM order.
-  var navBtns = document.querySelectorAll('#site-nav-fullpage-btn');
-  var navPage = document.getElementById('site-nav-fullpage');
-  var navClose = document.getElementById('site-nav-fullpage-close');
-  if (!navBtns.length || !navPage) return;
-  function setNavOpen(open) {
-    navPage.classList.toggle('open', open);
-    navBtns.forEach(function (b) { b.classList.toggle('active', open); });
-  }
-  // Mirror #desktop-sidebar's own already-correctly-gated Admin link
-  // into the mobile sheet — that link is server-rendered into every
-  // page regardless of viewport (just CSS-hidden below 900px), so its
-  // mere presence in the DOM is a free, always-fresh "is this viewer
-  // an admin" signal with no new per-page data or API call needed.
-  var adminRow = document.getElementById('site-nav-fullpage-admin-row');
-  if (adminRow && document.querySelector('#desktop-sidebar a[href="/admin"]')) {
-    adminRow.hidden = false;
-  }
+  if (window.accountMenuWired) return;
+  window.accountMenuWired = true;
+  var menus = document.querySelectorAll('details.account-menu:not([open])');
+  // One open at a time; Escape or a click outside closes it.
+  document.addEventListener('click', function (e) {
+    menus.forEach(function (m) { if (m.open && !m.contains(e.target)) m.open = false; });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    menus.forEach(function (m) { if (m.open) { m.open = false; m.querySelector('summary').focus(); } });
+  });
+  menus.forEach(function (m) {
+    m.addEventListener('toggle', function () {
+      document.documentElement.classList.toggle('account-menu-open', [].some.call(menus, function (x) { return x.open; }));
+    });
+  });
   // Appearance: the same choice (and localStorage key) as the song
   // page's theme button, applied to <html> and <body> right away.
-  var themeGroup = document.getElementById('site-nav-theme');
-  if (themeGroup) {
-    var current = function () { return document.documentElement.dataset.theme || ''; };
-    var mark = function () {
-      themeGroup.querySelectorAll('button').forEach(function (b) { b.classList.toggle('active', b.dataset.themeChoice === current()); });
-    };
-    themeGroup.addEventListener('click', function (e) {
+  var current = function () { return document.documentElement.dataset.theme || ''; };
+  var groups = document.querySelectorAll('[data-theme-group]');
+  var mark = function () {
+    groups.forEach(function (g) {
+      g.querySelectorAll('button').forEach(function (b) {
+        var on = b.dataset.themeChoice === current();
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    });
+  };
+  groups.forEach(function (g) {
+    g.addEventListener('click', function (e) {
       var b = e.target.closest('button[data-theme-choice]');
       if (!b) return;
-      var t = b.dataset.themeChoice;
-      document.documentElement.dataset.theme = document.body.dataset.theme = t;
-      try { if (t) localStorage.setItem('songbooks-theme', t); else localStorage.removeItem('songbooks-theme'); } catch (err) {}
+      var th = b.dataset.themeChoice;
+      document.documentElement.dataset.theme = document.body.dataset.theme = th;
+      try { if (th) localStorage.setItem('songbooks-theme', th); else localStorage.removeItem('songbooks-theme'); } catch (err) {}
       mark();
     });
-    mark();
-  }
-  navBtns.forEach(function (b) { b.addEventListener('click', () => setNavOpen(true)); });
-  navClose?.addEventListener('click', () => setNavOpen(false));
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && navPage.classList.contains('open')) setNavOpen(false);
   });
+  mark();
 })();</script>
 {{end}}
 
-{{/* Desktop sidebar: the wide-screen counterpart to .global-tabbar below
-     900px. 2025/26 SaaS-nav research is consistent that past ~6-7
-     top-level sections a left sidebar reads better on a wide screen
-     than a top bar (items don't hide behind hover/overflow or wrap) --
-     Songbooks has 5 (Home, Songbooks, Catalog, Bands, Communities): per
-     direct feedback, Communities is "part of the main things now," not
-     a secondary utility link (Jam sessions, the sixth entry here until
-     the old no-login jam system was retired in favor of community
-     events, is gone — see migration 0051). Primary items mirror
-     .global-tabbar's first 4 destinations plus this one. "Songbooks" (the /catalog
-     route) is both the flat browse-every-song view AND, as of Phase 32,
-     the "by songbook" view — one nav entry, one destination, for "every
-     collection of songs I can open" (a project's book, or a band's
-     repertoire), see catalog.html's view toggle.
-     Below the primary list sits sidebar-tools (Metronome —
-     an actual tool/shortcut, not a site section), kept deliberately
-     separate from the account-level group at the very bottom (the
-     account chip + Admin): per direct feedback, "the bottom menu is a
-     strange concept" because it used to mix site navigation, a tool,
-     and account-level links in one undifferentiated list — Profile
-     itself was ALSO a redundant separate primary link when the account
-     chip already opens /profile from your own name, so it's dropped
-     here (mobile's shared site-nav-fullpage sheet still lists it
-     explicitly, since mobile has no persistent account chip to lean
-     on). Rendered on every top-level authenticated page, right after
-     <body> (see desktop-sidebar-script for the active-item logic, the
-     same pathname-matching approach as global-tabbar-script). Hidden
-     entirely below 900px via CSS -- .global-tabbar is the only nav there. */}}
+
+
 {{/* nav-icon dispatches a navGlobal entry's Icon (a plain string — a
      dynamic {{template .Icon}} isn't legal Go template syntax, the name
      must be a literal) to the right icon-* define. Add a line here
@@ -223,6 +184,8 @@
 {{- else if eq . "icon-setlists"}}{{template "icon-setlists"}}
 {{- else if eq . "icon-metronome"}}{{template "icon-metronome"}}
 {{- else if eq . "icon-tuner"}}{{template "icon-tuner"}}
+{{- else if eq . "icon-tools"}}{{template "icon-tools"}}
+{{- else if eq . "icon-bell"}}{{template "icon-bell"}}
 {{- else if eq . "icon-calendar"}}{{template "icon-calendar"}}
 {{- else if eq . "icon-profile"}}{{template "icon-profile"}}
 {{- else if eq . "icon-plus"}}{{template "icon-plus"}}
@@ -231,22 +194,121 @@
 {{- else if eq . "icon-reference"}}{{template "icon-reference"}}
 {{- else if eq . "icon-download"}}{{template "icon-download"}}
 {{- end}}{{end}}
+{{define "icon-tools"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 2.8v6.4a3 3 0 0 0 6 0V2.8"/><path d="M10 12.2v5"/></svg>{{end}}
+{{define "icon-language"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2 2.2 2.8 4.6 2.8 7S12 14.8 10 17c-2-2.2-2.8-4.6-2.8-7S8 5.2 10 3z"/></svg>{{end}}
+
+{{/* The sidebar's "My groups" (menu PR 7): one's bands and communities,
+     pinned first, then the last used, at most six, then "All my groups"
+     (/groups) — the desktop's space switcher, one click from any page to
+     any space. The space the page is in is marked current. Called with
+     the page's .Nav. */}}
+{{define "sidebar-spaces"}}
+{{$sec := .Section}}{{$sp := .Spaces}}
+<div class="sidebar-spaces" role="group" aria-labelledby="sidebar-spaces-label">
+  <div class="sidebar-group-label" id="sidebar-spaces-label">{{t "My groups"}}</div>
+  {{range $sp.Shown}}<a href="{{.URL}}" class="sidebar-space{{if .Current}} active{{end}}"{{if .Current}} aria-current="page"{{end}} title="{{.Name}}">{{template "space-avatar" .}}<span class="sidebar-label">{{.Name}}</span>{{if .Pinned}}<span class="sidebar-space-pin" title="{{t "Pinned"}}" aria-label="{{t "Pinned"}}">★</span>{{end}}</a>{{end}}
+  {{$all := and (not $sp.Current) (or (eq $sec "groups") (eq $sec "bands") (eq $sec "communities"))}}
+  <a href="/groups" class="sidebar-space sidebar-space-all{{if $all}} active{{end}}"{{if $all}} aria-current="page"{{end}} title="{{t "All my groups"}}">{{template "icon-bands"}}<span class="sidebar-label">{{t "All my groups"}}</span>{{if $sp.More}}<span class="sidebar-space-count">{{len $sp.All}}</span>{{end}}</a>
+</div>
+{{end}}
+
+{{/* A space's avatar: its initials on its colour. */}}
+{{define "space-avatar"}}<span class="space-av space-av--{{.Tone}}" aria-hidden="true">{{.Initials}}</span>{{end}}
+
+{{/* space-switcher (menu PR 7): the space's switcher — a trigger, and a
+     panel listing one's spaces: "All my groups" at the top, a filter when
+     there are more than six, each space with its kind and a pin. A
+     <details>: it opens without a script and from the keyboard;
+     space-switcher-script (in global-tabbar-script, on every page)
+     closes it on Escape or a click elsewhere, filters, and pins.
+     On a phone the panel is a bottom sheet; wider, a popover under the
+     trigger.
+
+     Inputs, as (dict "Nav" .Nav "Where" …):
+     - "Nav": the page's .Nav (render puts it in every page's data); its
+       .Spaces.All is the list (pinned first, then the last used) and
+       .Spaces.Current the space the page is in (nil outside one).
+     - "Where": "header" for the space's header (avatar · name ▾, the
+       name is the trigger), "topbar" for the compact one (avatar ▾) at
+       the top right below 901px, which hides itself on a page whose
+       .space-header holds a "header" switcher. */}}
+{{define "space-switcher"}}
+{{$cur := .Nav.Spaces.Current}}
+<details class="space-switcher space-switcher--{{.Where}}">
+  <summary class="space-switcher-trigger" aria-label="{{t "Switch group"}}{{with $cur}}: {{.Name}}{{end}}">
+    {{with $cur}}{{if ne $.Where "header"}}{{template "space-avatar" .}}{{end}}{{if ne $.Where "topbar"}}<span class="space-switcher-name">{{.Name}}</span>{{end}}{{else}}{{template "icon-bands"}}{{end}}<span class="space-switcher-caret" aria-hidden="true">▾</span>
+  </summary>
+  <div class="space-switcher-panel">
+    <div class="space-switcher-head">
+      <strong>{{t "My groups"}}</strong>
+      <a href="/groups">{{t "All my groups"}} ({{len .Nav.Spaces.All}}) ›</a>
+    </div>
+    {{if gt (len .Nav.Spaces.All) 6}}<input type="search" class="space-switcher-filter" placeholder="{{t "Find a group"}}" aria-label="{{t "Find a group"}}" autocomplete="off">{{end}}
+    <ul class="space-switcher-list">
+      {{range .Nav.Spaces.All}}
+      <li class="space-switcher-row" data-name="{{.Name}}">
+        <a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{template "space-avatar" .}}<span><strong>{{.Name}}</strong><small>{{t (printf "space|%s" .Sub)}}</small></span></a>
+        <button type="button" class="space-pin" data-kind="{{.Kind}}" data-id="{{.ID}}" aria-pressed="{{if .Pinned}}true{{else}}false{{end}}" aria-label="{{t "Pin %s" .Name}}" title="{{t "Pin to the top"}}">★</button>
+      </li>
+      {{end}}
+    </ul>
+  </div>
+</details>
+{{end}}
+{{define "space-switcher-script"}}
+<script>(function () {
+  if (window.spaceSwitcherWired) return;
+  window.spaceSwitcherWired = true;
+  var boxes = document.querySelectorAll('details.space-switcher');
+  if (!boxes.length) return;
+  document.addEventListener('click', function (e) {
+    boxes.forEach(function (d) { if (d.open && !d.contains(e.target)) d.open = false; });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    boxes.forEach(function (d) { if (d.open) { d.open = false; d.querySelector('summary').focus(); } });
+  });
+  var fold = function (s) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); };
+  boxes.forEach(function (d) {
+    var filter = d.querySelector('.space-switcher-filter');
+    d.addEventListener('toggle', function () { if (d.open && filter && matchMedia('(pointer: fine)').matches) filter.focus(); });
+    if (filter) filter.addEventListener('input', function () {
+      var q = fold(filter.value.trim());
+      d.querySelectorAll('.space-switcher-row').forEach(function (row) {
+        row.hidden = q !== '' && fold(row.dataset.name).indexOf(q) < 0;
+      });
+    });
+    d.querySelectorAll('.space-pin').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var pinned = b.getAttribute('aria-pressed') !== 'true';
+        b.disabled = true;
+        fetch('/api/me/spaces/' + b.dataset.kind + '/' + b.dataset.id + '/pin', {
+          method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pinned: pinned})
+        }).then(function (r) {
+          if (!r.ok) throw new Error();
+          document.querySelectorAll('.space-pin[data-kind="' + b.dataset.kind + '"][data-id="' + b.dataset.id + '"]').forEach(function (x) {
+            x.setAttribute('aria-pressed', pinned ? 'true' : 'false');
+          });
+        }).catch(function () { alert(t('Couldn’t save that.')); }).finally(function () { b.disabled = false; });
+      });
+    });
+  });
+})();</script>
+{{end}}
+
+{{/* The desktop sidebar (901px and wider): the brand, Home, Library,
+     Calendar, Notifications and Groups, the page's own group if it has
+     one (ContextualGroup), the Tools, and the account chip, which opens
+     the account menu. */}}
 {{define "desktop-sidebar"}}
-<nav class="desktop-sidebar" id="desktop-sidebar" aria-label="{{t "main navigation (desktop)"}}">
-  <a class="sidebar-brand" href="/home">{{template "icon-logo"}} Songbooks</a>
+{{$sec := ""}}{{$me := .Me}}{{$rail := false}}{{$unread := 0}}{{with .Nav}}{{$sec = .Section}}{{$rail = .Focused}}{{$unread = .Unread}}{{with .Me}}{{$me = .}}{{end}}{{end}}
+<nav class="desktop-sidebar{{if $rail}} is-rail{{end}}" id="desktop-sidebar" aria-label="{{t "main navigation (desktop)"}}">
+  <a class="sidebar-brand" href="/home">{{template "icon-logo"}} <span class="sidebar-label">Songbooks</span></a>
+  {{template "nav-search"}}
   <div class="sidebar-primary">
-    {{range navGlobal "desktop"}}<a href="{{.Path}}" data-path="{{.Path}}" data-label="{{t .Label}}">{{template "nav-icon" .Icon}} {{t .Label}}</a>{{end}}
+    {{range navGlobal "sidebar"}}<a href="{{.Path}}"{{if navCurrent "sidebar" . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}" title="{{t .Label}}">{{template "nav-icon" .Icon}} <span class="sidebar-label">{{t .Label}}</span>{{if eq .Badge "notifications"}}{{template "nav-notifications" $unread}}{{end}}</a>{{end}}
   </div>
-  <div class="sidebar-secondary">
-    <a href="/metronome" data-path="/metronome">{{template "icon-metronome"}} {{t "Metronome"}}</a>
-    <a href="/tuner" data-path="/tuner">{{template "icon-tuner"}} {{t "Tuner"}}</a>
-  </div>
-  {{if .Me}}
-  {{if .Me.IsAdmin}}
-  <div class="sidebar-secondary">
-    <a href="/admin" data-path="/admin">{{t "Admin"}}</a>
-  </div>
-  {{end}}
+  {{with .Nav}}{{template "sidebar-spaces" .}}{{end}}
   {{with .ContextualGroup}}
   <div class="sidebar-secondary sidebar-song-group">
     <div class="sidebar-group-label">{{t .Label}}</div>
@@ -265,27 +327,12 @@
     {{end}}
   </div>
   {{end}}
-  <a class="sidebar-account" href="/profile">
-    <span class="sidebar-account-avatar">{{slice .Me.DisplayName 0 1}}</span>
-    <span>{{.Me.DisplayName}}</span>
-  </a>
-  {{end}}
+  <div class="sidebar-secondary sidebar-tools">
+    <div class="sidebar-group-label">{{t "Tools"}}</div>
+    {{range navGlobal "sidebarTools"}}<a href="{{.Path}}"{{if navCurrent "sidebarTools" . $sec}} class="active" aria-current="page"{{end}} title="{{t .Label}}">{{template "nav-icon" .Icon}} <span class="sidebar-label">{{t .Label}}</span></a>{{end}}
+  </div>
+  {{if $me}}{{template "account-menu" (dict "Me" $me "Section" $sec "Where" "sidebar")}}{{end}}
 </nav>
-{{end}}
-{{define "desktop-sidebar-script"}}
-<script>(function () {
-  var bar = document.getElementById('desktop-sidebar');
-  if (!bar) return;
-  var path = location.pathname;
-  var best = null;
-  bar.querySelectorAll('a[data-path]').forEach(function (a) {
-    var p = a.dataset.path;
-    if (path === p || (p !== '/' && path.indexOf(p) === 0)) {
-      if (!best || p.length > best.dataset.path.length) best = a;
-    }
-  });
-  if (best) best.classList.add('active');
-})();</script>
 {{end}}
 
 {{define "icon-play"}}<svg class="icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M6 4.5v11l9-5.5-9-5.5z"/></svg>{{end}}
@@ -317,22 +364,6 @@
 {{define "icon-video"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5.5" width="10.5" height="9" rx="1.8"/><path d="m13 9 4.5-2.5v7L13 11"/></svg>{{end}}
 {{define "icon-bell"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8.5a5 5 0 0 1 10 0v2.8l1.3 2.2H3.7L5 11.3Z"/><path d="M8 15.8a2 2 0 0 0 4 0"/></svg>{{end}}
 
-{{/* notif-bell/notif-bell-script: the nav bell + unread-count badge,
-     shared across every page that includes it (currently just index.html
-     — see the phase brief's note that there's no single shared
-     base/layout template to hang this off of everywhere). Links to
-     /notifications; the script fills in the badge from
-     /api/notifications/unread-count after load. */}}
-{{define "notif-bell"}}<a href="/notifications" class="notif-bell" id="notif-bell-link" title="{{t "Notifications"}}">{{template "icon-bell"}}<span id="notif-badge" class="notif-badge" hidden>0</span></a>{{end}}
-{{define "notif-bell-script"}}<script>
-(function () {
-  fetch('/api/notifications/unread-count').then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
-    if (!data || !data.count) return;
-    var badge = document.getElementById('notif-badge');
-    if (badge) { badge.textContent = data.count; badge.hidden = false; }
-  }).catch(function () {});
-})();
-</script>{{end}}
 
 {{define "icon-plus"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>{{end}}
 

@@ -106,5 +106,6 @@
   "%d member shown": "%d membre affiché",
   "%d members shown": "%d membres affichés",
   "Remove %s from this event’s managers?": "Retirer %s des responsables de cet événement ?",
-  "Couldn’t remove that manager. Try again.": "Impossible de retirer ce responsable. Réessayez."
+  "Couldn’t remove that manager. Try again.": "Impossible de retirer ce responsable. Réessayez.",
+  "Admin": "Admin"
 }

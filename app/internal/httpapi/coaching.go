@@ -229,6 +229,11 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 	sort.Slice(rows, func(i, j int) bool { return store.FoldName(rows[i].Name) < store.FoldName(rows[j].Name) })
 	data := s.coachingPageData(r, community, coach, "students")
 	data["Students"] = rows
+	// Cards or the table, the Students section's first two views.
+	data["StudentsView"] = ""
+	if v := r.URL.Query().Get("view"); v == "cards" || v == "table" {
+		data["StudentsView"] = v
+	}
 	// The open link that makes students (role member, no names): the
 	// newest one still open, if the coach made one.
 	invites, err := s.store.ListGroupInvitesForTarget(r.Context(), "community", community.ID)
@@ -246,7 +251,9 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) coachingPageData(r *http.Request, community *store.Community, coach bool, tab string) map[string]any {
+	// Me: the sidebar's account chip and Admin, as on every other page.
 	return map[string]any{
+		"Me":        personFromContext(r),
 		"Person":    personFromContext(r),
 		"Community": community,
 		"IsStaff":   coach,

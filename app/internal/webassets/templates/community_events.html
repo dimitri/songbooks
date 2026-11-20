@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "%s — Events" .Community.Name}}</title>
+<title>{{with .Space}}{{template "space-title" .}}{{else}}{{t "%s — Events" $.Community.Name}}{{end}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -14,21 +14,11 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{t "%s — Events" .Community.Name}}</h1>
-  {{template "notif-bell"}}
+  {{with .Space}}{{template "space-back" .}}{{else}}<a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>{{end}}
+  <h1>{{with .Space}}{{template "space-section-name" .}}{{else}}{{t "%s — Events" $.Community.Name}}{{end}}</h1>
 </header>
 <main class="index">
-  {{if .Me}}
-  <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/communities/{{.Community.ID}}">{{t "Overview"}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{t (shelfLabel "community" .Community.ID)}}</a>
-    {{template "coaching-tab-links" .}}
-    <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
-    <a href="/communities/{{.Community.ID}}/events" class="band-tab active">{{t "Events"}}</a>
-    {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a>{{end}}
-  </nav>
-  {{end}}
+  {{template "space-nav" .Space}}
 
   {{/* Whoever manages the community's events creates them here; each
        event's own Manage page then holds its songbook, setlist and
@@ -147,7 +137,7 @@
 })();
 </script>
 {{end}}
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

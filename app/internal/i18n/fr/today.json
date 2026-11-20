@@ -1,0 +1,23 @@
+{
+  "today|tonight": "ce soir",
+  "today|today": "aujourd’hui",
+  "today|tomorrow": "demain",
+  "today|This week": "Cette semaine",
+  "today|Start": "Commencer",
+  "Prepare": "Préparer",
+  "online": "en ligne",
+  "%d student": "%d élève",
+  "%d students": "%d élèves",
+  "%d song in their key": "%d morceau dans sa tonalité",
+  "%d songs in their key": "%d morceaux dans sa tonalité",
+  "%d student not heard from in 2 weeks": "%d élève sans nouvelles depuis 2 semaines",
+  "%d students not heard from in 2 weeks": "%d élèves sans nouvelles depuis 2 semaines",
+  "No lesson this week": "Pas de cours cette semaine",
+  "lesson %s": "cours %s",
+  "Lesson %s": "Cours %s",
+  "See my lessons": "Voir mes cours",
+  "%d/%d this week": "%d/%d cette semaine",
+  "+%d other": "+%d autre",
+  "+%d others": "+%d autres",
+  "See the event": "Voir l’événement"
+}

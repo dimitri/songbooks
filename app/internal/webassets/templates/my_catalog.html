@@ -12,9 +12,8 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/songbooks">{{template "icon-back"}} Songbooks</a>
+  <a class="back-link" href="/catalog?view=songbooks">{{template "icon-back"}} {{t "Library"}}</a>
   <h1>{{t "My songbooks"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   <p class="hint">{{t "Every profile has a default songbook (can't be deleted, can be renamed) — create more if you want separate collections."}}</p>
@@ -48,7 +47,7 @@ createForm.addEventListener('submit', (e) => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 )
 
@@ -115,7 +116,11 @@ func TestListCommunityRoster(t *testing.T) {
 	if len(roster) != 3 || names[0] != "Zoé Martin" || names[1] != "ana Lopez" || names[2] != "Carla" {
 		t.Fatalf("current roster: %q", names)
 	}
-	if roster[0].RoleKey != "staff" || roster[1].Role != "member" || len(roster[1].Instruments) != 2 || roster[1].Instruments[0] != "bass" {
+	// A member's instruments come in the instruments' display order
+	// (instruments.Sort: voice first), not in the order they were typed,
+	// and "vocals" is read as voice: people.instruments is rewritten from
+	// person_instruments on every change (syncPeopleInstruments).
+	if roster[0].RoleKey != "staff" || roster[1].Role != "member" || !reflect.DeepEqual(roster[1].Instruments, []string{"voice", "bass"}) {
 		t.Errorf("rows: %+v", roster[:2])
 	}
 	if !roster[2].IsShell || roster[2].RoleKey != "guest" || roster[0].IsShell {

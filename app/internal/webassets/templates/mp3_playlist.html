@@ -14,7 +14,6 @@
 <header class="app-header">
   <a class="back-link" href="/songbooks/{{.SongbookID}}">{{template "icon-back"}} {{t "songbook"}}</a>
   <h1>{{t "MP3 playlist"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="gig-sets">
   <div class="audio-player" id="playlist-player" style="margin:1rem;">
@@ -43,9 +42,8 @@
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
-{{template "desktop-sidebar-script"}}
 <script>
 (function () {
   const rowEls = [...document.querySelectorAll('#playlist-rows .gig-row[data-variant-id]')];

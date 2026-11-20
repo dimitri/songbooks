@@ -1,0 +1,88 @@
+{{/* A space's header and section tabs (httpapi/space_nav.go): its avatar,
+     its name with the switcher, ⚙ for whoever runs it, then its sections,
+     the same on every page of the space and the same look for every kind
+     of space (a brand colours the header, not the tabs). Below 900px the
+     tabs give way to the home's list of sections (space-hub) and each
+     section's "‹ space" back link. The open section's views, if it has
+     any, follow on every width. Called with .Space (a SpaceNav); nothing
+     when the page isn't a space's. */}}
+{{define "space-nav"}}{{with .}}
+<div class="space-header{{if .IsHome}} is-home{{end}}">
+  <a class="space-avatar" href="{{.Home}}" tabindex="-1" aria-hidden="true">{{with .Brand}}{{if .LogoURL}}<img src="{{.LogoURL}}" alt="">{{else if .Mark}}<span class="space-mark">{{.Mark}}</span>{{else}}{{$.Initials}}{{end}}{{else}}{{.Initials}}{{end}}</a>
+  <div class="space-id">
+    {{/* The name opens the space switcher (icons.html "space-switcher":
+         one implementation for this header, the phone's top bar and the
+         sidebar's list); outside one's own spaces, the name alone. */}}
+    {{with .Switcher}}{{if .Spaces.Current}}{{template "space-switcher" (dict "Nav" . "Where" "header")}}{{else}}<span class="space-name"><span class="space-name-text">{{$.Name}}</span></span>{{end}}{{else}}<span class="space-name"><span class="space-name-text">{{.Name}}</span></span>{{end}}
+    <div class="space-kind">{{with .Brand}}{{if .Tagline}}{{.Tagline}}{{else}}{{t $.KindLabel}}{{end}}{{else}}{{t .KindLabel}}{{end}}{{if .IsHome}}{{with .Brand}}{{if .Website}} · <a class="space-website" href="{{.Website}}" target="_blank" rel="noopener">{{.WebsiteHost}}</a>{{end}}{{end}}{{end}}</div>
+  </div>
+  {{with .Gear}}<a class="space-gear{{if .Current}} active{{end}}" href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{template "icon-settings"}}<span>{{t .Label}}</span></a>{{end}}
+</div>
+<nav class="space-tabs" aria-label="{{t "Sections of %s" .Name}}">
+  {{range .Sections}}<a class="space-tab{{if .Current}} active{{end}}" href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{template "space-section-label" (dict "S" . "ID" $.ID)}}</a>
+  {{end}}
+</nav>
+{{template "space-filters" .}}
+{{end}}{{end}}
+
+{{/* The open section's views (a band's Repertoire: Songs, To vote,
+     Discover), a segmented control under the tabs. Called with .Space. */}}
+{{define "space-filters"}}{{with .Filters}}
+<nav class="space-filters" aria-label="{{t "Views"}}">
+  {{range .}}<a href="{{.Href}}"{{if .Current}} class="active" aria-current="page"{{end}}>{{t .Label}}</a>
+  {{end}}
+</nav>
+{{end}}{{end}}
+
+{{/* The space's sections as a list, on its home below 900px: each row
+     with where it stands, ⚙ apart at the end. Called with .Space. */}}
+{{define "space-hub"}}{{with .}}
+<nav class="space-hub" aria-label="{{t "Sections of %s" .Name}}">
+  <ul class="space-hub-group">
+    {{range .Sections}}{{if ne .Key "overview"}}<li><a href="{{.Href}}">{{template "space-icon" .Icon}}<span class="space-hub-label">{{template "space-section-label" (dict "S" . "ID" $.ID)}}</span>{{if .Hint}}<span class="space-hub-state{{if .Due}} is-due{{end}}">{{.Hint}}</span>{{end}}</a></li>
+    {{end}}{{end}}
+  </ul>
+  {{with .Gear}}<ul class="space-hub-group">
+    <li><a href="{{.Href}}">{{template "space-icon" .Icon}}<span class="space-hub-label">{{t .Label}}</span>{{with .Hint}}<span class="space-hub-state">{{.}}</span>{{end}}</a></li>
+  </ul>{{end}}
+</nav>
+{{end}}{{end}}
+
+{{/* A section's name: a community's songbooks are named by what it has
+     (Songbooks, Courses). (dict "S" the section "ID" the space's id) */}}
+{{define "space-section-label"}}{{if eq .S.Key "songbooks"}}{{t (shelfLabel "community" .ID)}}{{else}}{{t .S.Label}}{{end}}{{end}}
+
+{{define "space-icon"}}{{if eq . "icon-settings"}}{{template "icon-settings"}}{{else}}{{template "nav-icon" .}}{{end}}{{end}}
+
+{{/* A section's way back to its space's home, "‹ Space" (menu proposal
+     §3.10): on a phone it stays written out, above the section's name,
+     since the home is where the sections are. Called with .Space. */}}
+{{define "space-back"}}{{with .}}<a class="back-link space-back" href="{{.Home}}">{{template "icon-back"}} {{.Name}}</a>{{end}}{{end}}
+
+{{/* A space page's browser tab, "Section — Space — Songbooks" (the
+     home's "Space — Songbooks"), and its heading, the open section's name
+     (menu proposal §3.7). Called with .Space. */}}
+{{define "space-title"}}{{with .}}{{if .SectionLabel}}{{template "space-section-name" .}} — {{end}}{{.Name}} — {{end}}Songbooks{{end}}
+{{define "space-section-name"}}{{with .}}{{if eq .Current "songbooks"}}{{t (shelfLabel "community" .ID)}}{{else}}{{t .SectionLabel}}{{end}}{{end}}{{end}}
+
+{{/* A section's Export menu (a spaceExport): the space's songbook as a
+     PDF, laid out as chosen (pdf-export.js), and its playlist. */}}
+{{define "space-export"}}{{with .}}
+<details class="space-export">
+  <summary class="setlist-action">{{template "icon-download"}} {{t "Export"}} <span aria-hidden="true">▾</span></summary>
+  <div class="row-menu-panel">
+    <div class="pdf-mode-row">
+      <a class="pdf-export-link" href="{{.PDF}}" download>{{t "Songbook (PDF)"}}</a>
+      <select class="pdf-mode-select" aria-label="{{t "PDF layout"}}">
+        <option value="">{{t "Song"}}</option>
+        <option value="jazz">{{t "Jazz chart"}}</option>
+        <option value="map">{{t "Song map"}}</option>
+        <option value="lyrics">{{t "Lyrics only"}}</option>
+      </select>
+      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> {{t "Include notes"}}</label>
+    </div>
+    {{with .Playlist}}<a href="{{.}}">{{template "icon-play"}} {{t "Playlist"}}</a>{{end}}
+  </div>
+</details>
+<script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
+{{end}}{{end}}

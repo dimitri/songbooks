@@ -548,6 +548,11 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	upcoming := upcomingList(soon, now, 6)
+	todayCards, err := s.todayCards(r.Context(), lang, person, soon, now)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	// Each community and band in its own look (colours, mark, logo).
 	var communities []homeGroup
@@ -583,7 +588,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, "index", map[string]any{
-		"Me": person, "Greeting": homeGreeting(),
+		"Me": person, "Greeting": homeGreeting(), "Today": todayCards,
 		"Upcoming": upcoming, "Communities": communities, "Bands": bandsWithLook,
 		"Songbooks": songbooks, "Attention": attention,
 		"Recent": recent, "BandNews": bandNews,
@@ -2986,6 +2991,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		if id, err := strconv.ParseInt(setlistRef, 10, 64); err == nil {
 			if _, meta, _, err := s.store.LoadSetlistByID(r.Context(), id); err == nil {
 				data["SetlistURL"] = setlistPath(meta)
+				data["SetlistName"] = meta.Title
 			}
 		}
 		data["Prev"], data["Next"] = s.setlistNeighbors(r.Context(), setlistRef, variantID)
@@ -2999,6 +3005,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		if songbookID, err := strconv.ParseInt(songbookParam, 10, 64); err == nil {
 			data["SongbookRef"] = songbookID
 			data["Prev"], data["Next"] = s.songbookNeighbors(r.Context(), songbookID, variantID)
+			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil {
+				data["SongbookName"] = sb.Name
+			}
 			// A student's or a group's songbook (coaching.go): the song
 			// opens in the key the coach gave it there — the chart, the
 			// recording — for the coach as for the student, and says whose.
@@ -3123,6 +3132,13 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	data["SongKeyName"] = songKeyName(sg)
 	// "Je joue": the reader's parts here, a level each (player_parts.go).
 	data["PlayerParts"] = s.playerPartsData(r, data, variantID)
+	// Where the song's "‹" goes, on the desktop header and the phone's bar.
+	data["Back"] = songBackFor(data, s.langOf(w))
+	// "Accorder": the tuner, in place, the song's own tunings first (the
+	// /tuner page's, tuner.go).
+	data["SongTunings"] = songTunings(gp.Facts, s.langOf(w))
+	data["SongTitle"] = data["Title"]
+	data["SongCapo"] = songCapo(sg.Get("capo"))
 	s.render(w, "song", data)
 }
 
@@ -3401,6 +3417,9 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) render(w http.ResponseWriter, name string, data any) {
 	s.addMembersTab(w, data)
+	s.addUnreadCount(w, data)
+	s.addNav(w, name, data)
+	s.addSpaceNav(w, name, data)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := webassets.TemplatesFor(s.langOf(w)).ExecuteTemplate(w, name, data); err != nil {
 		log.Printf("render %s: %v", name, err)

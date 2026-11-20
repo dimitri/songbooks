@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "%s — discover" .Band.Name}}</title>
+<title>{{template "space-title" .Space}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -14,14 +14,13 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
-  <h1>{{t "%s — discover" .Band.Name}}</h1>
-  {{template "notif-bell"}}
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
 </header>
 <main class="index">
-  {{template "band-tabs" (bandTabs .Band.ID "discover")}}
+  {{template "space-nav" .Space}}
 
-  <p class="hint">{{t "Throw in songs you’d like the band to check out, then vote right here — these are the band’s open song proposals on their own (see"}} <a href="/bands/{{.Band.ID}}/proposals">{{t "all proposals"}}</a>{{t "), so a session doesn’t get lost in the full list. A single veto rejects a song immediately; otherwise it auto-accepts into the repertoire once more than half of the band’s %d current members vote yes." .MemberCount}}</p>
+  <p class="hint">{{t "Throw in songs you’d like the band to check out, then vote right here — these are the band’s open song proposals on their own (see"}} <a href="/bands/{{.Band.ID}}/catalog/vote">{{t "all proposals"}}</a>{{t "), so a session doesn’t get lost in the full list. A single veto rejects a song immediately; otherwise it auto-accepts into the repertoire once more than half of the band’s %d current members vote yes." .MemberCount}}</p>
 
   <div class="card" style="max-width:520px">
     <h2>{{t "Throw in a song"}}</h2>
@@ -159,7 +158,7 @@ document.querySelectorAll('.vote-btn').forEach(btn => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

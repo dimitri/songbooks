@@ -14,7 +14,6 @@
 <header class="app-header">
   {{template "home-link"}}
   <h1>{{t "Admin"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   {{/* Quick-glance counts — the three tabs below used to be three cards
@@ -313,7 +312,7 @@ document.querySelectorAll('.qr-link-btn').forEach(btn => {
 </script>
 <script src="/static/js/qr.js?v={{staticVersion}}"></script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

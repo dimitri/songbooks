@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "Groups"}} — Songbooks</title>
+<title>{{docTitle (t "My groups")}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,21 +13,20 @@
 <div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
-  <h1>{{t "Groups"}}</h1>
-  {{template "notif-bell"}}
+  <h1>{{t "My groups"}}</h1>
 </header>
 <main class="index">
   <section class="home-section">
-    <div class="home-section-head"><h3>{{t "Coming up"}}</h3><a href="/setlists">{{t "set lists"}} &rarr;</a></div>
+    <div class="home-section-head"><h3>{{t "Coming up"}}</h3><a href="/catalog?view=setlists">{{t "set lists"}} &rarr;</a></div>
     {{range .Gigs}}
       {{template "gig-card" .}}
     {{else}}
-      <a class="coming-up-card empty" href="/setlists">{{t "No gig scheduled — open set lists to plan one"}} &rarr;</a>
+      <a class="coming-up-card empty" href="/catalog?view=setlists">{{t "No gig scheduled — open set lists to plan one"}} &rarr;</a>
     {{end}}
   </section>
 
   <section class="home-section">
-    <div class="home-section-head"><h3>{{t "Bands"}}</h3><a href="/bands">{{t "all bands"}} &rarr;</a></div>
+    <div class="home-section-head"><h3>{{t "groups|Bands"}}</h3><a href="/bands">{{t "all bands"}} &rarr;</a></div>
     <div class="band-grid">
     {{range .Bands}}
       {{template "band-card" .}}
@@ -48,10 +47,9 @@
     </div>
   </section>
 </main>
-{{template "notif-bell-script"}}
 {{template "pwa-register"}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

@@ -147,11 +147,15 @@ var funcMap = template.FuncMap{
 	},
 	"add1": func(n int) int { return n + 1 },
 	// navGlobal returns the global nav's declared entry list for one
-	// surface ("desktop"/"mobileTab"/"mobileMore") — see nav.go, the
-	// single source of truth desktop-sidebar/global-tabbar/
-	// site-nav-fullpage all render from instead of each hardcoding its
-	// own list.
+	// surface ("sidebar"/"sidebarTools"/"bar") — see nav.go, the one
+	// list the sidebar, the phone's bar and the tablet's rail render
+	// from instead of each hardcoding its own.
 	"navGlobal": navGlobal,
+	// navCurrent: on this surface, is this nav entry the current page's
+	// section (the .Nav.Section render puts in every page's data)? Marks
+	// it active and aria-current="page", server-side:
+	// {{navCurrent "bar" . $sec}}.
+	"navCurrent": NavCurrentOn,
 	// brandFor is the look of the community or band a page is seen in
 	// ("community"/"band" and its id, an int64 or *int64), nil for the
 	// app's own — see internal/brand and the "brand-head"/"brand-body"
@@ -293,8 +297,6 @@ var funcMap = template.FuncMap{
 		b, _ := json.Marshal(v)
 		return string(b)
 	},
-	// bandTabs is the band-tabs partial's argument: the band and which
-	// section is open.
 	// dict makes a map of its key, value pairs: a template's data when it
 	// needs several values.
 	"dict": func(kv ...any) map[string]any {
@@ -313,9 +315,6 @@ var funcMap = template.FuncMap{
 			return l
 		}
 		return "Recording"
-	},
-	"bandTabs": func(id int64, active string) map[string]any {
-		return map[string]any{"ID": id, "Active": active}
 	},
 	"contains": func(list []string, v string) bool {
 		for _, s := range list {
@@ -346,6 +345,31 @@ var funcMap = template.FuncMap{
 	// pathSegment escapes a file name for its place in a URL's path.
 	"pathSegment":   url.PathEscape,
 	"staticVersion": func() string { return staticVersion },
+	// docTitle is a page's browser-tab title: its parts, most specific
+	// first, then the app's name — "Agenda — Velvet Hour — Songbooks"
+	// (section, space, app: the menu proposal's heading rule). Empty
+	// parts are left out.
+	"docTitle": DocTitle,
+	// initial is a name's first letter, for an avatar: "É" for "Élise"
+	// (a rune, where slicing the string would cut a byte in two).
+	"initial": func(name string) string {
+		for _, r := range strings.TrimSpace(name) {
+			return strings.ToUpper(string(r))
+		}
+		return "?"
+	},
+}
+
+// DocTitle joins a page's title parts with " — " and ends with the app's
+// name: see the "docTitle" template func.
+func DocTitle(parts ...string) string {
+	var out []string
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return strings.Join(append(out, "Songbooks"), " — ")
 }
 
 // fileSize shows a byte count the way a download list does, in lang:

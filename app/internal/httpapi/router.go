@@ -247,12 +247,19 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 
 	mux.HandleFunc("GET /metronome", s.requireAuth(s.handleMetronomePage))
 	mux.HandleFunc("GET /tuner", s.requireAuth(s.handleTunerPage))
+	mux.HandleFunc("GET /tools", s.requireAuth(s.handleToolsPage))
 
 	// In-app notifications: a lightweight inbox, not email/push — see
 	// internal/store/notifications.go. requireAuth only; every store call
 	// scopes by the logged-in person's own id.
 	mux.HandleFunc("GET /notifications", s.requireAuth(s.handleNotificationsPage))
 	mux.HandleFunc("GET /api/notifications/unread-count", s.requireAuth(s.handleUnreadNotificationCount))
+	// Search (search.go): the palette's finds and commands, the same as a
+	// page, and the commands' "new …" shortcuts.
+	mux.HandleFunc("GET /api/search", s.requireAuth(s.handleSearchAPI))
+	mux.HandleFunc("GET /search", s.requireAuth(s.handleSearchPage))
+	mux.HandleFunc("GET /new/lesson", s.requireAuth(s.handleNewLesson))
+	mux.HandleFunc("GET /new/setlist", s.requireAuth(s.handleNewSetlist))
 	mux.HandleFunc("POST /notifications/{id}/read", s.requireAuth(s.handleMarkNotificationRead))
 	mux.HandleFunc("POST /notifications/read-all", s.requireAuth(s.handleMarkAllNotificationsRead))
 
@@ -293,7 +300,9 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// requireRole — a variant's visibility ('global' vs 'user') governs
 	// what's visible/editable here, not project membership; see
 	// internal/store/catalog.go and internal/store/revisions.go.
-	mux.HandleFunc("GET /songbooks", s.requireAuth(s.handleSongbooksIndexPage))
+	// The Library absorbed the Songbooks and Set lists pages (menu PR 8):
+	// their old addresses open its segments.
+	mux.HandleFunc("GET /songbooks", libraryRedirect(libraryViewSongbooks))
 	mux.HandleFunc("GET /catalog", s.requireAuth(s.handleCatalogPage))
 	mux.HandleFunc("GET /api/catalog/search", s.requireAuth(s.handleCatalogSearch))
 	mux.HandleFunc("GET /api/catalog/match", s.requireAuth(s.handleCatalogMatch))
@@ -372,13 +381,17 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// notification judgment calls. The listening-party page is a focused
 	// UI over this same data (open 'new_song' proposals), not a separate
 	// system.
-	mux.HandleFunc("GET /bands/{id}/proposals", s.requireBandMember(s.handleBandProposalsPage))
+	// The band's Repertoire holds the songs to vote on and to discover
+	// (menu PR 5a); their old addresses lead there.
+	mux.HandleFunc("GET /bands/{id}/catalog/vote", s.requireBandMember(s.handleBandProposalsPage))
+	mux.HandleFunc("GET /bands/{id}/catalog/discover", s.requireBandMember(s.handleListeningPartyPage))
+	mux.HandleFunc("GET /bands/{id}/proposals", s.movedInBand("/catalog/vote"))
+	mux.HandleFunc("GET /bands/{id}/listening-party", s.movedInBand("/catalog/discover"))
 	mux.HandleFunc("POST /api/bands/{id}/proposals", s.requireBandMember(s.handleCreateProposal))
 	mux.HandleFunc("GET /bands/{id}/proposals/{proposalID}", s.requireBandMember(s.handleBandProposalDetailPage))
 	mux.HandleFunc("POST /api/bands/{id}/proposals/{proposalID}/accept", s.requireBandMember(s.handleAcceptProposal))
 	mux.HandleFunc("POST /api/bands/{id}/proposals/{proposalID}/reject", s.requireBandMember(s.handleRejectProposal))
 	mux.HandleFunc("POST /api/bands/{id}/proposals/{proposalID}/votes", s.requireBandMember(s.handleCastVote))
-	mux.HandleFunc("GET /bands/{id}/listening-party", s.requireBandMember(s.handleListeningPartyPage))
 
 	// Community mode: a close structural cousin of bands (same history-
 	// preserving membership shape, same catalog pointer mechanism), but
@@ -407,9 +420,13 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("DELETE /api/communities/{id}/songbooks/{sbID}/grants/{personID}", s.requireCommunityAnyManagePrivilege(s.handleRevokeSongbookAccess))
 	// The download area (downloads.go): one listing of the files of every
 	// songbook the viewer has access to; staff add and remove files.
-	mux.HandleFunc("GET /communities/{id}/downloads", s.requireCommunityMember(s.handleCommunityDownloadsPage))
+	// A community's files are its Resources (menu PR 5b): the pages moved
+	// to /resources, the files themselves keep their addresses.
+	mux.HandleFunc("GET /communities/{id}/resources", s.requireCommunityMember(s.handleCommunityDownloadsPage))
+	mux.HandleFunc("GET /communities/{id}/resources/songbooks/{sbID}", s.requireCommunityMember(s.handleCommunityDownloadsPage))
+	mux.HandleFunc("GET /communities/{id}/downloads", s.movedInCommunity("/resources"))
 	mux.HandleFunc("GET /communities/{id}/downloads/{fileID}/{name}", s.requireCommunityMember(s.handleDownloadSongbookFile))
-	mux.HandleFunc("GET /communities/{id}/downloads/songbooks/{sbID}", s.requireCommunityMember(s.handleCommunityDownloadsPage))
+	mux.HandleFunc("GET /communities/{id}/downloads/songbooks/{sbID}", s.movedResources)
 	mux.HandleFunc("GET /communities/{id}/downloads/songbooks/{sbID}/zip/{name}", s.requireCommunityMember(s.handleDownloadSongbookZip))
 	mux.HandleFunc("GET /communities/{id}/downloads/songbooks/{sbID}/browse/{path...}", s.requireCommunityMember(s.handleBrowseSongbookFiles))
 	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/files", s.requireCommunityPrivilege(store.PrivManageFiles, s.handleUploadSongbookFiles))
@@ -543,8 +560,12 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("DELETE /api/communities/{id}/events/{eventID}/managers/{personID}", s.requireCommunityPrivilege(store.PrivManageEvents, s.handleRemoveEventManager))
 	mux.HandleFunc("GET /bands/{id}/events", s.requireBandMember(s.handleBandEventsPage))
 	// A band's recordings, from the folder it shares (band_recordings.go).
-	mux.HandleFunc("GET /bands/{id}/rehearsals", s.requireBandMember(s.handleBandRehearsalsPage))
-	mux.HandleFunc("GET /bands/{id}/concerts", s.requireBandMember(s.handleBandConcertsPage))
+	// Rehearsals and concerts are the band's Recordings (menu PR 5a).
+	mux.HandleFunc("GET /bands/{id}/recordings/rehearsals", s.requireBandMember(s.handleBandRehearsalsPage))
+	mux.HandleFunc("GET /bands/{id}/recordings/concerts", s.requireBandMember(s.handleBandConcertsPage))
+	mux.HandleFunc("GET /bands/{id}/recordings", s.movedInBand("/recordings/rehearsals"))
+	mux.HandleFunc("GET /bands/{id}/rehearsals", s.movedInBand("/recordings/rehearsals"))
+	mux.HandleFunc("GET /bands/{id}/concerts", s.movedInBand("/recordings/concerts"))
 	mux.HandleFunc("GET /bands/{id}/recordings/songs/{variantID}", s.requireBandMember(s.handleBandSongRecordingsPage))
 	mux.HandleFunc("GET /bands/{id}/recordings/fixes", s.requireBandMember(s.handleBandRecordingFixesPage))
 	mux.HandleFunc("POST /api/bands/{id}/recordings/source", s.requireBandMember(s.handleSetBandRecordingSource))
@@ -590,7 +611,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /admin/people/{personID}/memberships/{kind}/{targetID}/role", s.requireAdmin(s.handleAdminSetMembershipRole))
 	mux.HandleFunc("POST /admin/people/{personID}/memberships/{kind}/{targetID}/remove", s.requireAdmin(s.handleAdminRemoveMembership))
 
-	mux.HandleFunc("GET /setlists", s.requireAuth(s.handleSetlistsPage))
+	mux.HandleFunc("GET /setlists", libraryRedirect(libraryViewSetlists))
 
 	// Person/band-scoped setlists, addressed by their own id (see
 	// internal/store/setlists.go's SetlistMeta/CreateSetlist/
@@ -666,6 +687,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// Languages (i18n.go, docs/i18n.md).
 	mux.HandleFunc("GET /i18n/{file}", s.handleI18nJS)
 	mux.HandleFunc("PUT /api/me/locale", s.requireAuth(s.handlePutMyLocale))
+	mux.HandleFunc("PUT /api/me/spaces/{kind}/{id}/pin", s.requireAuth(s.handlePinSpace))
 	mux.HandleFunc("PUT /api/communities/{id}/locale", s.requireCommunityPrivilege(store.PrivManageSettings, s.handlePutCommunityLocale))
 
 	return withLang(mux)
