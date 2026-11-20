@@ -42,5 +42,11 @@
   "start (Space)": "démarrer (Espace)",
   "tap tempo (T)": "taper le tempo (T)",
   "the running order and the options (F)": "l’ordre de passage et les options (F)",
-  "the octave and the tempo (F)": "l’octave et le tempo (F)"
+  "the octave and the tempo (F)": "l’octave et le tempo (F)",
+  "Original voice": "Voix originale",
+  "voice|On": "Activée",
+  "voice|Off": "Coupée",
+  "Voice level": "Niveau de la voix",
+  "the key down a semitone (-)": "la tonalité un demi-ton plus bas (-)",
+  "the key up a semitone (=)": "la tonalité un demi-ton plus haut (=)"
 }
