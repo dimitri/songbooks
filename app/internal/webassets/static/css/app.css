@@ -8268,3 +8268,17 @@ body:not(.stage) .stage-exit { display: none; }
 @media (max-width: 720px) {
   .audio-player[data-state="none"] .audio-dock .audio-panel-btn { display: none !important; }
 }
+
+/* The song bar on a phone: five slots (‹ the place, Vue, Outils, Morceau,
+   Suivant or Mode scène), each an icon over a short label; a long place
+   name ("‹ Silver Tramline") is cut, never runs into its neighbour. */
+@media (max-width: 900px) {
+  .song-context-bar > a, .song-context-bar > button { min-width: 0; padding: 0 0.15rem; font-size: 0.64rem; min-height: 0; }
+  .song-context-bar > a > span, .song-context-bar > button > span { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; line-height: 1.15; }
+  .song-context-bar > a:focus-visible, .song-context-bar > button:focus-visible { outline-offset: -3px; }
+  .stack-sheet:focus { outline: none; }
+  .stack-sheet-hint { margin-left: auto; font-size: 0.78rem; color: var(--fg-muted); font-weight: 400; }
+  .stack-sheet-row[aria-pressed="true"] { color: var(--accent); font-weight: 600; }
+  /* The mixer has nothing to play without a recording or a score. */
+  body:has(#audio-player[data-recording="no"]:not([data-score])) .tools-mixer-row { display: none; }
+}
