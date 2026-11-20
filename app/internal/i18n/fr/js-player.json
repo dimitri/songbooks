@@ -92,5 +92,17 @@
   "Back to the chart": "Revenir à la grille",
   "Open the mixer": "Ouvrir le mixage",
   "Show the drums": "Voir la batterie",
-  "The Guitar Pro file, played by the synthesizer: the bars are the file’s.": "Le fichier Guitar Pro, joué par le synthétiseur : les mesures sont celles du fichier."
+  "The Guitar Pro file, played by the synthesizer: the bars are the file’s.": "Le fichier Guitar Pro, joué par le synthétiseur : les mesures sont celles du fichier.",
+  "Original voice": "Voix originale",
+  "Original voice: on": "Voix originale : activée",
+  "Original voice: off": "Voix originale : coupée",
+  "V: the voice on or off, to sing it yourself": "V : la voix, coupée ou rétablie, pour chanter vous-même",
+  "The voice couldn’t be loaded: the recording plays as it is.": "La voix n’a pas pu être chargée : l’enregistrement joue tel quel.",
+  "Loading the voice…": "Chargement de la voix…",
+  "This recording isn’t split into its parts.": "Cet enregistrement n’est pas séparé en pistes.",
+  "Off: the recording without its lead voice, to sing it yourself.": "Coupée : l’enregistrement sans sa voix principale, pour la chanter vous-même.",
+  "Off: sing it yourself. On again: the voice comes back at %s.": "Coupée : chantez-la vous-même. Rétablie, elle revient à %s.",
+  "Original voice on / off (sing it yourself)": "Voix originale coupée / rétablie (pour chanter vous-même)",
+  "Metronome click · count-in · check my singing": "Clic du métronome · décompte · vérifier ma justesse",
+  "Key": "Tonalité"
 }
