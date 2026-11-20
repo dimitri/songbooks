@@ -60,10 +60,13 @@ type SyncProposal struct {
 	// spread between them); TempoMismatch: it isn't the recording's own
 	// (FitTempo is then not proposed for the chart, and the sections
 	// whose bar counts differ say so).
-	FitTempo      int      `json:"fitTempo,omitempty"`
-	TempoMismatch bool     `json:"tempoMismatch,omitempty"`
-	Notes         []string `json:"notes,omitempty"`
-	notes         []note
+	FitTempo      int  `json:"fitTempo,omitempty"`
+	TempoMismatch bool `json:"tempoMismatch,omitempty"`
+	// Downbeats: the sections are placed on the recording's downbeats,
+	// from its own analysis (UseAutoSync), not where the voice comes in.
+	Downbeats bool     `json:"downbeats,omitempty"`
+	Notes     []string `json:"notes,omitempty"`
+	notes     []note
 }
 
 // note is one of a proposal's notes, kept as its English format and
@@ -407,4 +410,55 @@ func ApplySync(ctx context.Context, st *store.Store, variantID int64, category s
 		return "", "", err
 	}
 	return nb, version, nil
+}
+
+// UseAutoSync replaces the proposal's section starts, tempo and metre
+// with the recording analysis' (on its downbeats, the voice only
+// choosing which), when it has one it's sure enough of.
+func (p *SyncProposal) UseAutoSync(a *AutoSync) {
+	if a == nil || a.State == "unsure" {
+		return
+	}
+	at := map[int]int{}
+	for i, s := range a.Sections {
+		at[s.Index] = i
+	}
+	for i := range p.Sections {
+		k, ok := at[p.Sections[i].Index]
+		if !ok || a.Sections[k].Start < 0 {
+			continue
+		}
+		sr := a.Sections[k]
+		p.Sections[i].Time = sr.Start
+		p.Sections[i].ChartBars, p.Sections[i].RecordingBars = 0, 0
+		if sr.Played != sr.Written && !sr.Last {
+			p.Sections[i].ChartBars, p.Sections[i].RecordingBars = sr.Written, sr.Played
+		}
+	}
+	switch {
+	case a.ProposeTempo > 0:
+		p.Tempo = a.ProposeTempo
+	case a.ChartTempo != "":
+		if t, err := strconv.Atoi(a.ChartTempo); err == nil {
+			p.Tempo = t
+		}
+	}
+	if a.ProposeTime != "" && p.TimeSigFrom == "audio" {
+		p.TimeSig = a.ProposeTime
+	}
+	p.TempoMismatch, p.Downbeats = false, true
+	p.notes, p.Notes = nil, nil
+	p.note("placed on the recording's downbeats (its own analysis), the voice choosing which")
+	wrong := 0
+	for _, s := range p.Sections {
+		if s.RecordingBars > 0 {
+			wrong++
+		}
+	}
+	if wrong > 0 {
+		p.note("in %d sections the chart has more or fewer bars than the recording plays: the Sync sheet proposes their grids", wrong)
+	}
+	for _, n := range a.notes {
+		p.note(n.msg, n.args...)
+	}
 }

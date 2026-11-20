@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"app/internal/chartalign"
 	"app/internal/importer"
 	"app/internal/song"
 	"app/internal/songimport"
@@ -140,6 +141,13 @@ func (s *Server) proposeSync(r *http.Request, variantID int64, category store.Au
 	p, err := songimport.ProposeSync(a, ready, text, SyncSections(sg), irealSig, irealKey)
 	if err != nil {
 		return nil, http.StatusUnprocessableEntity, err
+	}
+	// The recording's own analysis, when the stems worker has made one:
+	// sections on its downbeats.
+	if meta, err := s.store.GetSongAudioMeta(r.Context(), variantID, category); err == nil {
+		if st, err := s.store.GetAnalysis(r.Context(), meta.ID); err == nil && st.Analysis != nil {
+			p.UseAutoSync(songimport.ProposeAutoSync(st.Analysis, text, SyncSections(sg), chartalign.Hints{}))
+		}
 	}
 	lang := s.langOfRequest(r)
 	p.Localize(func(msg string, args ...any) string { return i18n.T(lang, msg, args...) })

@@ -227,6 +227,11 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/songs/{id}/audio/{category}/markers/{sectionIndex}", s.requireVariantRole("editor", s.handlePutAudioMarker))
 	mux.HandleFunc("DELETE /api/songs/{id}/audio/{category}/markers/{sectionIndex}", s.requireVariantRole("editor", s.handleDeleteAudioMarker))
 	mux.HandleFunc("PUT /api/songs/{id}/audio/gp/sync-points", s.requireVariantRole("editor", s.handlePutGPBarSyncPoints))
+	mux.HandleFunc("PUT /api/songs/{id}/audio/{category}/sync-points", s.requireVariantRole("editor", s.handlePutBarSyncPoints))
+	// The recording's own analysis laid on the chart (autosync.go).
+	mux.HandleFunc("POST /api/songs/{id}/audio/{category}/analysis", s.requireVariantRole("editor", s.handlePostAudioAnalysis))
+	mux.HandleFunc("POST /api/songs/{id}/audio/{category}/analysis/queue", s.requireVariantRole("editor", s.handlePostAudioAnalysisQueue))
+	mux.HandleFunc("POST /api/songs/{id}/audio/{category}/analysis/apply", s.requireVariantRole("editor", s.handlePostAudioAnalysisApply))
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file", s.requireVariantRole("editor", s.handlePutSongGPFile))
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file/facts", s.requireVariantRole("viewer", s.handlePutSongGPFileFacts))
 	mux.HandleFunc("PUT /api/songs/{id}/sections/{index}/gp", s.requireVariantRole("editor", s.handlePutSectionGP))

@@ -157,3 +157,46 @@ html.sync-sheet-open { overflow: hidden; }
 @media (max-width: 720px) {
   #daw-sync-sheet { display: none; }
 }
+
+/* ---- The recording's own analysis (sync-sheet.js, "From the recording") ---- */
+.sync-analysis:not([hidden]) { flex: none; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+.sync-analysis[open] { max-height: 46dvh; overflow-y: auto; overscroll-behavior: contain; }
+.sync-analysis-head {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.7rem; cursor: pointer; list-style: none;
+  position: sticky; top: 0; background: var(--bg); border-radius: 10px; z-index: 1;
+}
+.sync-analysis-head::-webkit-details-marker { display: none; }
+.sync-analysis-head::after { content: "▾"; margin-left: auto; color: var(--fg-muted); }
+.sync-analysis:not([open]) .sync-analysis-head::after { content: "▸"; }
+.sync-analysis-sum { font-size: 0.8rem; color: var(--fg-muted); font-variant-numeric: tabular-nums; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sync-analysis-dot { flex: none; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--fg-muted); }
+.sync-analysis-dot[data-state="good"] { background: var(--ok); }
+.sync-analysis-dot[data-state="check"] { background: var(--warn); }
+.sync-analysis-dot[data-state="unsure"] { background: var(--danger); }
+.sync-analysis-body { display: flex; flex-direction: column; gap: 0.5rem; padding: 0 0.7rem 0.7rem; font-size: 0.82rem; }
+.sync-analysis-body p { margin: 0; line-height: 1.35; }
+.sync-ana-fixes, .sync-ana-use { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.sync-ana-fixes .sync-btn { min-height: 2.2rem; padding: 0 0.55rem; font-size: 0.8rem; }
+.sync-ana-reset { color: var(--fg-muted); }
+.sync-ana-use .primary { min-height: 2.4rem; padding: 0 1rem; }
+.sync-ana-props-head { font-weight: 700; }
+.sync-ana-props, .sync-ana-diff { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.sync-ana-prop { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.2rem 0.4rem; padding: 0.35rem 0.45rem; border-radius: 8px; background: color-mix(in srgb, var(--accent) 6%, var(--bg)); }
+.sync-ana-prop label { display: flex; align-items: flex-start; gap: 0.45rem; cursor: pointer; line-height: 1.35; }
+.sync-ana-prop input { margin-top: 0.15rem; flex: none; }
+.sync-ana-play { min-height: 2rem; min-width: 2rem; padding: 0; }
+.sync-ana-grid { grid-column: 1 / -1; font-size: 0.76rem; overflow-wrap: anywhere; color: var(--fg-muted); }
+.sync-ana-grid:empty { display: none; }
+.sync-ana-diff li { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.35rem 0.45rem; border-radius: 8px; background: var(--bg-sunken, var(--bg)); }
+.sync-ana-diff code { font-size: 0.76rem; overflow-wrap: anywhere; }
+.sync-ana-before { color: var(--danger); text-decoration: line-through; }
+.sync-ana-before::before { content: "− "; }
+.sync-ana-after { color: var(--ok); }
+.sync-ana-after::before { content: "+ "; }
+.sync-row-bars { margin: -0.2rem 0.7rem 0.45rem; font-size: 0.76rem; font-weight: 600; color: var(--warn); }
+@media (max-width: 720px) {
+  .sync-analysis[open] { max-height: 40dvh; }
+  .sync-analysis-head { flex-wrap: wrap; row-gap: 0.15rem; }
+  .sync-analysis-sum { white-space: normal; flex-basis: 100%; order: 3; }
+  .sync-ana-fixes .sync-btn { flex: 1 1 auto; }
+}

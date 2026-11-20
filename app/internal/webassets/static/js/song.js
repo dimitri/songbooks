@@ -1885,6 +1885,8 @@ const ICONS = {
     if (dirtyIndicator) dirtyIndicator.hidden = true;
     if (discardBtn) discardBtn.disabled = true;
   }
+  // The Sync sheet saves chart fixes as a revision: not over unsaved edits.
+  window.songbooksEditorDirty = () => isDirty;
   // A native confirm() is the same idiom this file already uses for other
   // destructive choices (redo-song-btn) — OK means "discard and proceed",
   // Cancel means "stay, let me hit Save instead." Every exit path funnels

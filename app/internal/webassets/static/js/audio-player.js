@@ -476,14 +476,14 @@ window.songbooksDecodable = function (buf) {
     } else if (text) {
       text.textContent = s === 'none' || !s ? t('No bars: the recording plays by time; ←/→ step 5 s.')
         : info.source === 'detected' ? t('Estimated: the player placed the bars by listening; they can be off by a beat or a section. Loops still snap to bars.')
-        : info.source === 'points' ? (info.state === 'set' ? t('Every bar is placed: the Guitar Pro file’s own sync, or one checked by ear.') : t('Every bar is placed by Auto-align, not checked by ear yet.'))
+        : info.source === 'points' ? (info.state === 'set' ? t('Every bar is placed: the Guitar Pro file’s own sync, or one checked by ear.') : t('Every bar is placed from the recording’s analysis or by Auto-align, not checked by ear yet.'))
         : info.state === 'auto' ? (info.auto === info.total ? t('Each section’s start was placed automatically (the import wizard or Auto-align) and nobody has checked it by ear yet.') : t('%d of %d section starts are still automatic estimates, not checked by ear.', info.auto, info.total))
         : t('Each section’s start was placed or checked by ear.');
     }
     const fix = $('audio-sync-fix');
     if (fix) fix.hidden = !canEdit || synth;
     const confirm = $('audio-sync-confirm');
-    if (confirm) confirm.hidden = synth || !(canEdit && info.state === 'auto' && info.source !== 'points' && hasBars());
+    if (confirm) confirm.hidden = synth || !(canEdit && info.state === 'auto' && (info.source !== 'points' || (categories[activeCategory] || {}).markers?.length) && hasBars());
     if (!syncPop) return;
     const say = (cls, line) => { const p = document.createElement('p'); p.className = cls; p.textContent = line; return p; };
     const out = [];
