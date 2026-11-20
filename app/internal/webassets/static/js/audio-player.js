@@ -442,7 +442,7 @@ window.songbooksDecodable = function (buf) {
     head.querySelector('strong').textContent = info.state === 'set' ? t('Sync set') : t('Sync estimated');
     out.push(head);
     if (info.source === 'detected') out.push(say('hint', t('The player placed the bars by listening, just now; nothing is saved. They can be off by a beat or a section.')));
-    else if (info.source === 'points') out.push(say('hint', info.state === 'set' ? t('Every bar is placed: the Guitar Pro file’s own sync, or one checked by ear.') : t('Every bar is placed by Auto-align, not checked by ear yet.')));
+    else if (info.source === 'points') out.push(say('hint', info.state === 'set' ? t('Every bar is placed: the Guitar Pro file’s own sync, or one checked by ear.') : t('Every bar is placed from the recording’s analysis or by Auto-align, not checked by ear yet.')));
     else if (info.state === 'auto') out.push(say('hint', info.auto === info.total ? t('Each section’s start was placed automatically (the import wizard or Auto-align) and nobody has checked it by ear yet.') : t('%d of %d section starts are still automatic estimates, not checked by ear.', info.auto, info.total)));
     else out.push(say('hint', t('Each section’s start was placed or checked by ear.')));
     if (tempos.off) {
@@ -459,7 +459,7 @@ window.songbooksDecodable = function (buf) {
       fix.textContent = t('Correct the sync');
       fix.addEventListener('click', () => { pops.forEach((p) => { p.hidden = true; }); setSheet(false); window.songbooksSyncSheet.open(); });
       row.appendChild(fix);
-      if (info.state === 'auto' && info.source !== 'points') {
+      if (info.state === 'auto' && (info.source !== 'points' || (categories[activeCategory] || {}).markers?.length)) {
         const ok = document.createElement('button');
         ok.type = 'button';
         ok.className = 'audio-pill-btn';

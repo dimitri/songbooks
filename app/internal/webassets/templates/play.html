@@ -1694,6 +1694,13 @@
           <button type="button" class="icon-btn sync-sheet-close" data-sync-close aria-label="{{t "close the sync"}}">×</button>
         </header>
         <p class="hint sync-sheet-hint" id="sync-sheet-hint">{{t "Play, then tap the big button on the first beat of each section as you hear it. Check a start with ▶ 2 s before; nudge it with the arrows."}}</p>
+        {{/* What the recording's own analysis says (beats, bars, chords:
+             sync-sheet.js, POST …/analysis): its sync to take in one tap,
+             the fixes to its beat grid, and the chart's proposals. */}}
+        <details class="sync-analysis" id="sync-analysis" hidden>
+          <summary class="sync-analysis-head"><i class="sync-analysis-dot" id="sync-analysis-dot"></i><strong id="sync-analysis-title">{{t "From the recording"}}</strong><span class="sync-analysis-sum" id="sync-analysis-sum"></span></summary>
+          <div class="sync-analysis-body" id="sync-analysis-body"></div>
+        </details>
         <div class="sync-sheet-transport">
           <button type="button" class="sync-btn" id="sync-back" aria-label="{{t "back 5 seconds"}}">−5 s</button>
           <button type="button" class="sync-btn sync-play" id="sync-play" aria-label="{{t "play/pause (Space)"}}">{{template "icon-play"}}</button>
