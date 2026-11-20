@@ -8,7 +8,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{with .Exercise}}{{.Name}}{{else}}{{t "Warm-ups"}}{{end}} — {{.Community.Name}}</title>
+<title>{{with .Exercise}}{{.Name}} — {{end}}{{template "space-title" .Space}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -20,8 +20,8 @@
 {{template "warmup-page-top" .}}
 {{$brand := brandFor "community" .Community.ID}}
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{t "Warm-ups"}}</h1>
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index warmups-page" data-community="{{.Community.ID}}">

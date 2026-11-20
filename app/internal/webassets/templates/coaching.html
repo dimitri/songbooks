@@ -111,15 +111,15 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{t "Students"}} — {{.Community.Name}}</title>
+<title>{{template "space-title" .Space}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{t "Students"}}</h1>
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
@@ -127,12 +127,12 @@
   <section class="home-section">
     <p class="coach-subscribe"><a href="/communities/{{.Community.ID}}/checking">{{t "Checking singing: your levels and your words"}} →</a></p>
     <div class="home-section-head"><h3>{{t "Your students"}}</h3><span class="count">{{len .Students}}</span>
-      {{if .Students}}<span class="seg students-view" role="group" aria-label="{{t "Show as"}}"><button type="button" data-view="cards">{{t "Cards"}}</button><button type="button" data-view="table">{{t "Table"}}</button></span>{{end}}</div>
+</div>
     {{if .Students}}
     {{/* The table: one row a student, every column sortable (a click on
          its head): range, songs and their keys, lessons so far by kind,
          the last and the next, the last note, parts in coming events. */}}
-    <div class="students-table-wrap" hidden>
+    <div class="students-table-wrap"{{if ne .StudentsView "table"}} hidden{{end}}>
     <table class="students-table">
       <thead><tr>
         <th><button type="button" data-col="0">{{t "Student"}}</button></th>
@@ -164,7 +164,7 @@
       </tbody>
     </table>
     </div>
-    <div class="coach-students">
+    <div class="coach-students"{{if eq .StudentsView "table"}} hidden{{end}}>
       {{range .Students}}
       <a class="coach-student" href="/communities/{{$.Community.ID}}/students/{{.PersonID}}">
         <div class="coach-student-head">
@@ -224,26 +224,27 @@
 {{template "global-tabbar-script"}}
 <script>
 (() => {
-  // Cards or the table, remembered in this browser; the table first on a
-  // wide screen.
+  // Cards or the table: the Students views (?view=), the one picked last
+  // remembered in this browser for the Students tab's plain address.
   const wrap = document.querySelector('.students-table-wrap');
   const cards = document.querySelector('.coach-students');
-  const seg = document.querySelector('.students-view');
-  if (!wrap || !cards || !seg) return;
-  let view = null;
-  try { view = localStorage.getItem('songbooks:students-view'); } catch (e) { /* none */ }
-  const show = (v) => {
-    wrap.hidden = v !== 'table';
-    cards.hidden = v === 'table';
-    seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
-  };
-  show(view || (matchMedia('(min-width: 900px)').matches ? 'table' : 'cards'));
-  seg.addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-view]');
-    if (!b) return;
-    show(b.dataset.view);
-    try { localStorage.setItem('songbooks:students-view', b.dataset.view); } catch (err) { /* ignore */ }
-  });
+  if (!wrap || !cards) return;
+  const key = 'songbooks:students-view';
+  let view = new URLSearchParams(location.search).get('view');
+  if (view === 'cards' || view === 'table') {
+    try { localStorage.setItem(key, view); } catch (e) { /* ignore */ }
+  } else {
+    try { view = localStorage.getItem(key); } catch (e) { /* none */ }
+    if (view === 'table') {
+      wrap.hidden = false;
+      cards.hidden = true;
+      document.querySelectorAll('.space-filters a').forEach((a) => {
+        const on = a.getAttribute('href').endsWith('view=table');
+        a.classList.toggle('active', on);
+        if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+      });
+    }
+  }
   // A click on a column's head sorts by it; another, the other way.
   const body = wrap.querySelector('tbody');
   let by = 0, dir = 1;
@@ -557,15 +558,15 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{.Student.DisplayName}} — {{.Community.Name}}</title>
+<title>{{if .IsCoach}}{{.Student.DisplayName}} — {{.Community.Name}} — Songbooks{{else}}{{template "space-title" .Space}}{{end}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}{{if .IsCoach}}/students{{end}}">{{template "icon-back"}} {{if .IsCoach}}{{t "Students"}}{{else}}{{.Community.Name}}{{end}}</a>
-  <h1>{{if .IsCoach}}{{.Student.DisplayName}}{{else}}{{t "My voice"}}{{end}}</h1>
+  {{if .IsCoach}}<a class="back-link" href="/communities/{{.Community.ID}}/students">{{template "icon-back"}} {{t "Students"}}</a>{{else}}{{template "space-back" .Space}}{{end}}
+  <h1>{{if .IsCoach}}{{.Student.DisplayName}}{{else}}{{t "My progress"}}{{end}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index coach-student-page" data-community="{{.Community.ID}}" data-student="{{.Student.PersonID}}">
@@ -710,15 +711,15 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{template "coach-groups-label"}} — {{.Community.Name}}</title>
+<title>{{template "space-title" .Space}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{template "coach-groups-label"}}</h1>
+  {{template "space-back" .Space}}
+  <h1>{{if .IsCoach}}{{template "space-section-name" .Space}}{{else}}{{template "coach-groups-label"}}{{end}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index coach-groups-page" data-community="{{.Community.ID}}">
@@ -879,15 +880,15 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{t "Lessons"}} — {{.Community.Name}}</title>
+<title>{{template "space-title" .Space}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{t "Lessons"}}</h1>
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index coach-lessons-page" data-community="{{.Community.ID}}">

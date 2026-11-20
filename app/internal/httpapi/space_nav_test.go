@@ -34,10 +34,13 @@ func TestSpaceTabsByRole(t *testing.T) {
 		{spaceCommunity, spaceRole{}, "overview events songbooks resources", ""},
 		{spaceCommunity, spaceRole{SeeMembers: true}, "overview events songbooks resources members", ""},
 		{spaceCommunity, spaceRole{Staff: true, SeeMembers: true}, "overview events songbooks resources members", "admin"},
-		// A coach never sees the student's "My voice", a student never
-		// sees Students or the students' songs.
-		{spaceCoaching, spaceRole{Staff: true, SeeMembers: true}, "overview songbooks students repertoire groups warmups lessons members resources events", "admin"},
-		{spaceCoaching, spaceRole{PersonID: 42}, "overview songbooks voice groups warmups lessons resources events", ""},
+		// A coaching studio has six sections either way: the coach's
+		// Students (their songs and classes among its views) and Calendar
+		// (lessons and events), Members behind ⚙ Admin; the student's
+		// progress instead of Students, never Students nor Admin.
+		{spaceCoaching, spaceRole{Staff: true, SeeMembers: true}, "overview students agenda songbooks warmups resources", "admin"},
+		{spaceCoaching, spaceRole{PersonID: 42}, "overview progress agenda songbooks warmups resources", ""},
+		{spaceCoaching, spaceRole{PersonID: 42, SeeMembers: true}, "overview progress agenda songbooks warmups resources", ""},
 	}
 	for _, c := range cases {
 		if got := sectionKeys(spaceTabs(c.kind, c.role)); got != c.want {
@@ -51,7 +54,7 @@ func TestSpaceTabsByRole(t *testing.T) {
 			t.Errorf("spaceGear(%s, %+v) = %q, want %q", c.kind, c.role, gear, c.gear)
 		}
 	}
-	if p := spaceTabs(spaceCoaching, spaceRole{PersonID: 42})[2].Path; p != "/students/42" {
+	if p := spaceTabs(spaceCoaching, spaceRole{PersonID: 42})[1].Path; p != "/students/42" {
 		t.Errorf("a student's My voice goes to %q, want their own page", p)
 	}
 }
@@ -71,8 +74,13 @@ func TestSpaceSectionOf(t *testing.T) {
 		{"band_settings", nil, "settings"},
 		{"community_downloads", nil, "resources"},
 		{"community_stats", nil, "admin"},
-		{"coaching_student", map[string]any{"IsCoach": true}, "students"},
-		{"coaching_student", map[string]any{"IsCoach": false}, "voice"},
+		{"coaching_student", map[string]any{"IsCoach": true}, "students/-"},
+		{"coaching_student", map[string]any{"IsCoach": false}, "progress"},
+		{"coaching_students", map[string]any{"StudentsView": "table"}, "students/table"},
+		{"coaching_students", map[string]any{"StudentsView": ""}, "students"},
+		{"coaching_repertoire", nil, "students/songs"},
+		{"coaching_groups", nil, "students/classes"},
+		{"coaching_lessons", nil, "agenda/lessons"},
 		{"community", map[string]any{"SpaceSection": "events"}, "events"},
 	}
 	for _, c := range cases {
@@ -88,7 +96,7 @@ func TestSpaceSectionOf(t *testing.T) {
 // The header and tabs mark the open section (aria-current), put Admin
 // behind ⚙ rather than among the tabs, and link the name to the switcher.
 func TestSpaceNavRenders(t *testing.T) {
-	nav := newSpaceNav(spaceCoaching, 7, "Studio Lumen", spaceRole{Staff: true, SeeMembers: true, PersonID: 1}, "lessons")
+	nav := newSpaceNav(spaceCoaching, 7, "Studio Lumen", spaceRole{Staff: true, SeeMembers: true, PersonID: 1}, "agenda/lessons")
 	var buf bytes.Buffer
 	if err := webassets.TemplatesFor("fr").ExecuteTemplate(&buf, "space-nav", nav); err != nil {
 		t.Fatal(err)
@@ -103,8 +111,13 @@ func TestSpaceNavRenders(t *testing.T) {
 			t.Errorf("space-nav lacks %q:\n%s", want, html)
 		}
 	}
-	if strings.Count(html, `aria-current="page"`) != 1 {
+	tabs := html[strings.Index(html, `class="space-tabs"`):]
+	tabs = tabs[:strings.Index(tabs, "</nav>")]
+	if strings.Count(tabs, `aria-current="page"`) != 1 {
 		t.Errorf("want one open section:\n%s", html)
+	}
+	if !strings.Contains(html, `class="space-filters"`) || !strings.Contains(html, `href="/communities/7/events"`) {
+		t.Errorf("the calendar's views aren't there:\n%s", html)
 	}
 	if strings.Contains(html, "Ma voix") {
 		t.Errorf("a coach is shown the student's tab:\n%s", html)
@@ -180,5 +193,22 @@ func TestMovedTarget(t *testing.T) {
 		if got := movedTarget(c.target, q); got != c.want {
 			t.Errorf("movedTarget(%q, %q) = %q, want %q", c.target, c.oldQuery, got, c.want)
 		}
+	}
+}
+
+// A coaching studio's pages every community has: its events are a view of
+// its Calendar, its members its Admin's; a student or class page shows
+// no views.
+func TestCoachingSections(t *testing.T) {
+	if coachingSections["events"] != "agenda/events" || coachingSections["members"] != "admin" {
+		t.Errorf("coachingSections: %v", coachingSections)
+	}
+	nav := newSpaceNav(spaceCoaching, 7, "Studio", spaceRole{Staff: true}, "students/-")
+	if nav.Filters != nil || !nav.Sections[1].Current {
+		t.Errorf("a student's page: %+v, %+v", nav.Filters, nav.Sections[1])
+	}
+	nav = newSpaceNav(spaceCoaching, 7, "Studio", spaceRole{PersonID: 9}, "overview")
+	if nav.SectionLabel() != "" || nav.Sections[0].Label != "My week" {
+		t.Errorf("a student's home: %q %q", nav.SectionLabel(), nav.Sections[0].Label)
 	}
 }

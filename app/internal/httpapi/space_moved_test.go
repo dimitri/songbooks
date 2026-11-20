@@ -147,3 +147,117 @@ func TestCommunitySections(t *testing.T) {
 		}
 	}
 }
+
+// TestCoachingStudioSections: the coach's six sections and the student's,
+// each page of the studio under the right one, with the right view.
+func TestCoachingStudioSections(t *testing.T) {
+	st, h := newTestServer(t)
+	ctx := context.Background()
+	coach, err := st.CreatePerson(ctx, "studiocoach", "Cora Coach", "cora@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	student, err := st.CreatePerson(ctx, "studiostudent", "Stan Student", "stan@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	studio, err := st.CreateCommunity(ctx, "Studio", coach)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetCommunityKind(ctx, studio, "coaching"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.AddCommunityMember(ctx, studio, student, "member", coach); err != nil {
+		t.Fatal(err)
+	}
+	c := fmt.Sprintf("/communities/%d", studio)
+	tabsOf := func(body string) string {
+		i := strings.Index(body, `class="space-tabs"`)
+		if i < 0 {
+			return ""
+		}
+		tabs := body[i:]
+		return tabs[:strings.Index(tabs, "</nav>")]
+	}
+	open := func(body string) string {
+		tabs := tabsOf(body)
+		i := strings.Index(tabs, `aria-current="page"`)
+		if i < 0 {
+			return ""
+		}
+		j := strings.LastIndex(tabs[:i], `href="`)
+		return tabs[j+len(`href="`) : i-2]
+	}
+	view := func(body string) string {
+		i := strings.Index(body, `class="space-filters"`)
+		if i < 0 {
+			return ""
+		}
+		f := body[i:]
+		f = f[:strings.Index(f, "</nav>")]
+		j := strings.Index(f, `class="active" aria-current="page"`)
+		if j < 0 {
+			return "none"
+		}
+		k := strings.LastIndex(f[:j], `href="`)
+		return f[k+len(`href="`) : j-2]
+	}
+	tok, _ := st.CreateSession(ctx, coach)
+	get := spaceClient(t, h, tok)
+	for path, want := range map[string][2]string{
+		c + "/students":            {c + "/students", c + "/students?view=cards"},
+		c + "/students?view=table": {c + "/students", c + "/students?view=table"},
+		c + "/student-songs":       {c + "/students", c + "/student-songs"},
+		c + "/groups":              {c + "/students", c + "/groups"},
+		c + "/lessons":             {c + "/lessons", c + "/lessons"},
+		c + "/events":              {c + "/lessons", c + "/events"},
+		c + "/warmups":             {c + "/warmups", ""},
+		c + "/members":             {"", ""},
+	} {
+		w := get(path)
+		if w.Code != http.StatusOK {
+			t.Errorf("coach, GET %s: %d", path, w.Code)
+			continue
+		}
+		body := w.Body.String()
+		if got := open(body); got != want[0] {
+			t.Errorf("coach, GET %s: open tab %q, want %q", path, got, want[0])
+		}
+		if got := view(body); got != want[1] {
+			t.Errorf("coach, GET %s: open view %q, want %q", path, got, want[1])
+		}
+		if n := strings.Count(tabsOf(body), "<a "); n != 6 {
+			t.Errorf("coach, GET %s: %d sections, want 6", path, n)
+		}
+		if strings.Contains(tabsOf(body), "/members") || !strings.Contains(body, `class="space-gear`) {
+			t.Errorf("coach, GET %s: Members isn't behind ⚙ Admin", path)
+		}
+	}
+	if w := get(c + "/members"); !strings.Contains(w.Body.String(), `class="space-gear active"`) {
+		t.Errorf("coach: the members page isn't under ⚙ Admin")
+	}
+
+	tok, _ = st.CreateSession(ctx, student)
+	get = spaceClient(t, h, tok)
+	mine := fmt.Sprintf("%s/students/%d", c, student)
+	for path, want := range map[string]string{
+		c:             c,
+		mine:          mine,
+		c + "/events": c + "/lessons",
+	} {
+		w := get(path)
+		if w.Code != http.StatusOK {
+			t.Errorf("student, GET %s: %d", path, w.Code)
+			continue
+		}
+		body := w.Body.String()
+		if got := open(body); got != want {
+			t.Errorf("student, GET %s: open tab %q, want %q", path, got, want)
+		}
+		tabs := tabsOf(body)
+		if strings.Count(tabs, "<a ") != 6 || strings.Contains(tabs, `href="`+c+`/students"`) || strings.Contains(body, `class="space-gear`) {
+			t.Errorf("student, GET %s: sections %s", path, tabs)
+		}
+	}
+}
