@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Songbooks</title>
+<title>{{docTitle (t "Today")}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -12,7 +12,7 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <h1>Songbooks</h1>
+  <h1>{{t "Today"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">

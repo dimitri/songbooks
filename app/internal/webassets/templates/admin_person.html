@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Person.DisplayName}} — {{t "Admin"}} — Songbooks</title>
+<title>{{docTitle .Person.DisplayName (t "Admin")}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>

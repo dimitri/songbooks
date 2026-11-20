@@ -350,6 +350,23 @@ var funcMap = template.FuncMap{
 	// pathSegment escapes a file name for its place in a URL's path.
 	"pathSegment":   url.PathEscape,
 	"staticVersion": func() string { return staticVersion },
+	// docTitle is a page's browser-tab title: its parts, most specific
+	// first, then the app's name — "Agenda — Velvet Hour — Songbooks"
+	// (section, space, app: the menu proposal's heading rule). Empty
+	// parts are left out.
+	"docTitle": DocTitle,
+}
+
+// DocTitle joins a page's title parts with " — " and ends with the app's
+// name: see the "docTitle" template func.
+func DocTitle(parts ...string) string {
+	var out []string
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return strings.Join(append(out, "Songbooks"), " — ")
 }
 
 // fileSize shows a byte count the way a download list does, in lang:
