@@ -17,7 +17,6 @@
   {{template "space-back" .Space}}
   <h1>{{if and .One .Songbooks}}{{with index .Songbooks 0}}{{.Name}}{{end}}{{else}}{{template "space-section-name" .Space}}{{end}}</h1>
   {{if .CanEditToggle}}{{template "edit-toggle" .Editing}}{{end}}
-  {{template "notif-bell"}}
 </header>
 <main class="index dl{{if .Editing}} editing{{end}}">
   {{template "space-nav" .Space}}

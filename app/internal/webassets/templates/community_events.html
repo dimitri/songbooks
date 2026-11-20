@@ -16,7 +16,6 @@
 <header class="app-header">
   {{with .Space}}{{template "space-back" .}}{{else}}<a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>{{end}}
   <h1>{{with .Space}}{{template "space-section-name" .}}{{else}}{{t "%s — Events" $.Community.Name}}{{end}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   {{template "space-nav" .Space}}

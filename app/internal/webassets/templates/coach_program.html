@@ -20,7 +20,6 @@
 <header class="app-header">
   {{template "space-back" .Space}}
   <h1>{{template "space-section-name" .Space}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   {{template "space-nav" .Space}}
@@ -169,7 +168,6 @@
   {{if .IsCoach}}<a class="back-link" href="/communities/{{.Community.ID}}/student-songs">{{template "icon-back"}} {{t "Students’ songs"}}</a>
   {{else}}<a class="back-link" href="/events/{{.Event.ID}}">{{template "icon-back"}} {{.Event.Name}}</a>{{end}}
   <h1>{{.Event.Name}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   {{template "brand-banner" $brand}}

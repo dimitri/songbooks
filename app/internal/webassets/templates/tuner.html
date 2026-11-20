@@ -17,7 +17,6 @@
 <header class="app-header">
   {{if .BackURL}}<a href="{{.BackURL}}" class="back-link">{{template "icon-back"}} {{if .BackTitle}}{{.BackTitle}}{{else}}{{t "back"}}{{end}}</a>{{else}}{{template "home-link"}}{{end}}
   <h1>{{t "Tuner"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main>
   {{template "tuner-card" .}}

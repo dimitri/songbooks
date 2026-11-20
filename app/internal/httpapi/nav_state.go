@@ -28,6 +28,10 @@ type navState struct {
 	// set list's click track — whose desktop sidebar is a 64px rail, so
 	// the chart gets the width (menu proposal §3.2).
 	Focused bool
+	// Unread is the signed-in person's unread notifications (render's
+	// addUnreadCount): the sidebar entry's count, the top bar bell's,
+	// the Home tab's dot.
+	Unread int
 }
 
 // focusedPages are the pages whose desktop sidebar is a rail (see
@@ -262,5 +266,6 @@ func (s *Server) addNav(w http.ResponseWriter, name string, data any) {
 		}
 		nav.Spaces = s.spacesFor(ctx, me, m)
 	}
+	nav.Unread, _ = m["UnreadNotifications"].(int)
 	m["Nav"] = nav
 }

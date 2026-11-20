@@ -14,7 +14,6 @@
 <header class="app-header">
   <a class="back-link" href="/song/{{.Variant.VariantID}}">{{template "icon-back"}} {{.Variant.Title}}</a>
   <h1>{{t "Revision history"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   {{if not .CanEdit}}<p class="hint">{{t "You can't edit this song, so you can look at its history but not restore an earlier version."}}</p>{{end}}

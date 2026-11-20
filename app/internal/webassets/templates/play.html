@@ -473,7 +473,7 @@
     <div class="toolbox-toolbar" id="toolbox-toolbar"></div>
   </div>
   <div class="sidebar-primary">
-    {{range navGlobal "sidebar"}}<a href="{{.Path}}"{{if navCurrent "sidebar" . $.Nav.Section}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}" title="{{t .Label}}">{{template "nav-icon" .Icon}} <span class="sidebar-label">{{t .Label}}</span>{{with .Badge}}<span class="nav-badge" data-nav-badge="{{.}}" hidden></span>{{end}}</a>{{end}}
+    {{range navGlobal "sidebar"}}<a href="{{.Path}}"{{if navCurrent "sidebar" . $.Nav.Section}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}" title="{{t .Label}}">{{template "nav-icon" .Icon}} <span class="sidebar-label">{{t .Label}}</span>{{if eq .Badge "notifications"}}{{template "nav-notifications" $.Nav.Unread}}{{end}}</a>{{end}}
   </div>
   {{template "sidebar-spaces" .Nav}}
   {{/* The global Tools, as in every page's sidebar (icons.html). */}}
@@ -497,10 +497,6 @@
      the reference video. On a phone the song bar at the bottom has them
      (.song-context-bar); the header keeps only the title. */}}
 <div class="song-topzone">
-{{/* Notifications from the song (menu proposal §3.9): a bell with a dot
-     when something's unread, so a coach's comment isn't invisible while
-     you practise. Below 900px; the sidebar's entry has the count above. */}}
-<div class="song-notifications">{{template "nav-notifications-dot"}}</div>
 <div class="song-topbar">
   {{/* ‹ where the song was opened from, named (songBackFor). */}}
   <div class="topbar-cell topbar-back">
@@ -587,9 +583,10 @@
     <button type="button" id="edit-toggle" class="song-action" title="{{t "edit"}}"{{if not (or .CanEdit .CanCopy)}} hidden{{end}}>{{template "icon-edit"}}<span>{{t "Edit"}}</span></button>
     {{if .VariantID}}<button type="button" id="notes-toggle" class="song-action" title="{{t "notes: personal or shared, per section"}}">{{template "icon-notes"}}<span>{{t "Notes"}}</span></button>{{end}}
     <button type="button" class="song-action stage-mode-toggle" title="{{t "larger type, no menus, the screen kept awake"}}">{{template "icon-presentation"}}<span>{{t "Stage mode"}}</span></button>
-    {{/* Kept free for a notification dot (menu-proposal.md §3.9): a coach's
-         comment shouldn't go unseen while practising. Empty until then. */}}
-    <span class="song-toolbar-slot" id="song-toolbar-notifications" hidden></span>
+    {{/* The notification dot (menu-proposal.md §3.9): a coach's comment
+         shouldn't go unseen while practising. On a phone, where the
+         toolbar's actions are the song bar's, it stays at the top right. */}}
+    {{if .Me}}<span class="song-toolbar-slot" id="song-toolbar-notifications">{{template "nav-notifications-dot" .Nav.Unread}}</span>{{end}}
     <div class="song-more">
       <button type="button" class="song-action song-more-btn" id="song-more-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="song-more-menu" title="{{t "more about this song"}}">{{template "icon-more"}}<span class="sr-only">{{t "More"}}</span></button>
       <div class="song-more-menu" id="song-more-menu" role="menu" aria-labelledby="song-more-btn" hidden>

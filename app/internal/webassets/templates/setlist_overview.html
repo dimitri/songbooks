@@ -16,9 +16,6 @@
 <header class="app-header">
   <a class="back-link" href="{{.BackURL}}">{{template "icon-back"}} {{if eq .BackLabel "Set lists"}}{{t "Set lists"}}{{else}}{{.BackLabel}}{{end}}</a>
   <h1>{{.Title}}</h1>
-  <nav class="song-nav">
-    {{template "notif-bell"}}
-  </nav>
 </header>
 
 {{if or .Date .Venue}}

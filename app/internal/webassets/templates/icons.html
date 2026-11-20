@@ -67,18 +67,19 @@
      are always in the DOM, CSS shows one, so they carry distinct
      labels for a screen reader's landmarks list. */}}
 {{define "global-tabbar"}}
-{{$sec := ""}}{{$me := false}}{{$page := ""}}{{$last := ""}}{{$nav := false}}{{with .}}{{with .Nav}}{{$nav = .}}{{$sec = .Section}}{{$page = .Page}}{{$last = .Spaces.LastURL}}{{with .Me}}{{$me = .}}{{end}}{{end}}{{end}}
+{{$sec := ""}}{{$me := false}}{{$page := ""}}{{$last := ""}}{{$nav := false}}{{$unread := 0}}{{with .}}{{with .Nav}}{{$nav = .}}{{$sec = .Section}}{{$page = .Page}}{{$last = .Spaces.LastURL}}{{$unread = .Unread}}{{with .Me}}{{$me = .}}{{end}}{{end}}{{end}}
 <nav class="tabbar global-tabbar" id="global-tabbar" aria-label="{{t "main navigation (mobile)"}}">
   {{/* Groups reopens the space used last (menu PR 7); "All my groups" is
        at the top of its switcher. */}}
-  {{range navGlobal "bar"}}<a href="{{if and (eq .Section "groups") $last}}{{$last}}{{else}}{{.Path}}{{end}}"{{if navCurrent "bar" . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}"{{with .Badge}} data-nav-badge-host="{{.}}"{{end}}>{{template "nav-icon" .Icon}}</a>{{end}}
+  {{range navGlobal "bar"}}<a href="{{if and (eq .Section "groups") $last}}{{$last}}{{else}}{{.Path}}{{end}}"{{if navCurrent "bar" . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}">{{template "nav-icon" .Icon}}{{if and $me (eq .Dot "notifications")}}<span class="nav-unread-dot" data-unread-dot aria-hidden="true"{{if not $unread}} hidden{{end}}></span>{{end}}</a>{{end}}
 </nav>
 {{if $me}}
-{{/* The top bar's right end below 901px: the slot for the notification
-     bell (the notifications work fills it) and the avatar. */}}
+{{/* The top bar's right end below 901px: on Accueil and the
+     Bibliothèque the search (§3.8), then the notifications bell with its
+     count (§3.9), then the avatar. */}}
 <div class="topbar-actions" id="topbar-actions">
   {{if $nav.Spaces.Current}}{{template "space-switcher" (dict "Nav" $nav "Where" "topbar")}}{{end}}
-  <span class="topbar-slot" data-topbar-slot="notifications"></span>
+  <span class="topbar-slot" data-topbar-slot="notifications">{{template "notif-bell" $unread}}</span>
   {{template "account-menu" (dict "Me" $me "Section" $sec "Where" "topbar")}}
 </div>
 {{end}}
@@ -334,12 +335,12 @@
      one (ContextualGroup), the Tools, and the account chip, which opens
      the account menu. */}}
 {{define "desktop-sidebar"}}
-{{$sec := ""}}{{$me := .Me}}{{$rail := false}}{{with .Nav}}{{$sec = .Section}}{{$rail = .Focused}}{{with .Me}}{{$me = .}}{{end}}{{end}}
+{{$sec := ""}}{{$me := .Me}}{{$rail := false}}{{$unread := 0}}{{with .Nav}}{{$sec = .Section}}{{$rail = .Focused}}{{$unread = .Unread}}{{with .Me}}{{$me = .}}{{end}}{{end}}
 <nav class="desktop-sidebar{{if $rail}} is-rail{{end}}" id="desktop-sidebar" aria-label="{{t "main navigation (desktop)"}}">
   <a class="sidebar-brand" href="/home">{{template "icon-logo"}} <span class="sidebar-label">Songbooks</span></a>
   {{template "nav-search"}}
   <div class="sidebar-primary">
-    {{range navGlobal "sidebar"}}<a href="{{.Path}}"{{if navCurrent "sidebar" . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}" title="{{t .Label}}">{{template "nav-icon" .Icon}} <span class="sidebar-label">{{t .Label}}</span>{{with .Badge}}<span class="nav-badge" data-nav-badge="{{.}}" hidden></span>{{end}}</a>{{end}}
+    {{range navGlobal "sidebar"}}<a href="{{.Path}}"{{if navCurrent "sidebar" . $sec}} class="active" aria-current="page"{{end}} data-label="{{t .Label}}" title="{{t .Label}}">{{template "nav-icon" .Icon}} <span class="sidebar-label">{{t .Label}}</span>{{if eq .Badge "notifications"}}{{template "nav-notifications" $unread}}{{end}}</a>{{end}}
   </div>
   {{with .Nav}}{{template "sidebar-spaces" .}}{{end}}
   {{with .ContextualGroup}}

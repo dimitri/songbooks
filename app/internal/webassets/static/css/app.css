@@ -4539,11 +4539,6 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
 .account-menu-value { margin-left: auto; color: var(--fg-muted); }
 .account-menu-logout { margin: 0.25rem 0 0; padding-top: 0.25rem; border-top: 1px solid var(--border); }
 .account-menu-logout .account-menu-row { color: var(--fg-muted); cursor: pointer; }
-.nav-badge {
-  margin-left: auto; min-width: 1.2rem; padding: 0.05rem 0.4rem; border-radius: 999px;
-  background: var(--accent); color: var(--accent-contrast); font-size: 0.7rem; font-weight: 700; text-align: center;
-}
-.nav-badge[hidden] { display: none; }
 .sidebar-tools .sidebar-group-label { margin-top: 0.1rem; }
 .topbar-actions { display: none; }
 
@@ -4565,7 +4560,7 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
     display: flex; align-items: center; gap: 0.35rem;
     position: absolute; top: 0.5rem; right: 0.6rem; z-index: 70;
   }
-  body:has(> .topbar-actions) .app-header { padding-right: 3.4rem; }
+  body:has(> .topbar-actions) .app-header { padding-right: 6rem; }
   .topbar-avatar { display: flex; align-items: center; justify-content: center; min-width: 2.2rem; min-height: 2.2rem; border-radius: 50%; }
   .topbar-avatar .sidebar-account-avatar { width: 2rem; height: 2rem; font-size: 0.85rem; }
   .topbar-avatar.active .sidebar-account-avatar { box-shadow: 0 0 0 2px var(--accent); }
@@ -4676,13 +4671,13 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
   /* The compact switcher sits in the top bar, left of the avatar; a
      page whose own space header holds the switcher doesn't need it. */
   body:has(.space-header .space-switcher) .topbar-actions .space-switcher { display: none; }
-  body:has(> .topbar-actions .space-switcher):not(:has(.space-header .space-switcher)) .app-header { padding-right: 6.2rem; }
+  body:has(> .topbar-actions .space-switcher):not(:has(.space-header .space-switcher)) .app-header { padding-right: 8.6rem; }
 }
 @media (max-width: 600px) {
   /* A section page hides its space header below 601px (the space's home
      has it), so the top bar's switcher is the one there. */
   body:has(.space-header:not(.is-home) .space-switcher) .topbar-actions .space-switcher { display: block; }
-  body:has(> .topbar-actions .space-switcher):has(.space-header:not(.is-home) .space-switcher) .app-header { padding-right: 6.2rem; }
+  body:has(> .topbar-actions .space-switcher):has(.space-header:not(.is-home) .space-switcher) .app-header { padding-right: 8.6rem; }
 }
 @media (max-width: 900px) {
   .space-switcher--topbar .space-av { width: 1.9rem; height: 1.9rem; font-size: 0.72rem; }
@@ -4715,7 +4710,7 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
     flex-basis: 236px; width: 236px; margin-right: -172px;
     padding-left: 0.85rem; padding-right: 0.85rem; box-shadow: 0 0 28px rgb(0 0 0 / 0.28);
   }
-  body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) :is(.sidebar-label, .sidebar-group-label, .sidebar-account-name, .account-menu-caret, .sidebar-space-count, .sidebar-space-pin, .sidebar-crumb span, .pdf-mode-select, .pdf-notes-label, .nav-badge) { display: none; }
+  body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) :is(.sidebar-label, .sidebar-group-label, .sidebar-account-name, .account-menu-caret, .sidebar-space-count, .sidebar-space-pin, .sidebar-crumb span, .pdf-mode-select, .pdf-notes-label, .nav-count) { display: none; }
   body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) :is(a, button, summary) { font-size: 0; justify-content: center; gap: 0; }
   body:not(.drawer-open) .desktop-sidebar.is-rail :is(a, button, summary) > .icon { width: 1.1rem; height: 1.1rem; flex: none; }
   body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) .sidebar-brand { padding: 0; justify-content: center; }
@@ -6710,7 +6705,6 @@ img.list-card-mark { object-fit: cover; border: none; }
   .app-header h1, .app-header .band-name-row { flex: 1; min-width: 0; }
   .app-header h1 { font-size: 1.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .app-header .song-nav { flex: none; flex-wrap: nowrap; }
-  .app-header .notif-bell { flex: none; min-width: 2.2rem; min-height: 2.2rem; justify-content: center; }
   .app-header .song-nav a[href="/songbooks"], .app-header .song-nav a[href="/catalog"] { display: none; }
   .catalog-card-actions { align-items: center; }
   /* Roster: on a phone a row stacks — name and instruments, then the
@@ -8721,18 +8715,25 @@ body:not(.stage) .stage-exit { display: none; }
 .nav-notifications-dot { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 2.4rem; min-height: 2.4rem; color: var(--fg-muted); }
 .nav-notifications-dot .icon { width: 1.3rem; height: 1.3rem; }
 .nav-notifications-dot .nav-unread-dot { top: 0.45rem; right: 0.5rem; box-shadow: 0 0 0 2px var(--bg-sunken); }
-.song-notifications { display: none; }
-@media (min-width: 901px) {
-  /* The sidebar's entry is the one entry point here. */
-  .app-header .notif-bell { display: none; }
-}
+.global-tabbar > a { position: relative; }
+/* The top bar's bell (icons.html, data-topbar-slot), below 901px only:
+   the sidebar's entry is the one above. */
+.topbar-slot { display: inline-flex; }
+.topbar-actions .notif-bell { flex: none; min-width: 2.4rem; min-height: 2.4rem; justify-content: center; }
+.topbar-actions .notif-bell .icon { width: 1.3rem; height: 1.3rem; }
+.topbar-actions .notif-badge { top: 0.1rem; right: -0.1rem; }
+/* The song toolbar's bell (play.html #song-toolbar-notifications). Below
+   901px the toolbar's views and actions are the song bar's; the bell
+   alone stays, at the top right of the song's header. */
+.song-toolbar-slot { display: inline-flex; }
 @media (max-width: 900px) {
-  .app-header .notif-bell { order: 99; margin-left: auto; flex: none; min-width: 2.4rem; min-height: 2.4rem; justify-content: center; }
-  .app-header .notif-bell .notif-badge { top: 0; right: -0.1rem; }
   .song-topzone { position: relative; }
-  .song-notifications { display: block; position: absolute; top: 0.25rem; right: 0.3rem; z-index: 2; }
-  body.stage .song-notifications, body.embed-playlist .song-notifications { display: none; }
+  .song-toolbar:has(#song-toolbar-notifications) { display: contents; }
+  .song-toolbar > :not(.song-actions), .song-actions > :not(#song-toolbar-notifications) { display: none; }
+  .song-actions { display: contents; }
+  #song-toolbar-notifications { position: absolute; top: 0.25rem; right: 0.3rem; z-index: 2; }
 }
+body.stage #song-toolbar-notifications, body.embed-playlist #song-toolbar-notifications { display: none; }
 /* ---- end notifications ---- */
 
 /* ---- Menu redesign §3.8: search (nav_search.html, static/js/search.js) ----

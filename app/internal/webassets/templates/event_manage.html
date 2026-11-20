@@ -14,7 +14,6 @@
 <header class="app-header">
   <a class="back-link" href="/events/{{.Event.ID}}">{{template "icon-back"}} {{.Event.Name}}</a>
   <h1>{{t "Manage %s" .Event.Name}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   <p class="hint">{{t "Event managers run this one event's songbook and setlist — see the event's own page for attendees and who's registered to play what."}}</p>

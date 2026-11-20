@@ -16,7 +16,6 @@
 <header class="app-header">
   {{template "space-back" .Space}}
   <h1>{{template "space-section-name" .Space}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   {{template "space-nav" .Space}}
@@ -112,7 +111,6 @@ document.getElementById('delete-band-btn').addEventListener('click', async (e) =
   Forms.status(document.getElementById('delete-band-result'), t('Couldn’t delete %s. Try again.', bandName), 'error');
 });
 </script>
-{{template "notif-bell-script"}}
 </div>
 {{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}

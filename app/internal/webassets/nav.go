@@ -27,10 +27,13 @@ type NavEntry struct {
 	// (Sidebar) or its Tools group (SidebarTools), and the phone's tab
 	// bar, which is also the tablet's rail (Bar).
 	Sidebar, SidebarTools, Bar bool
-	// Badge names the count this entry may carry ("notifications"): the
-	// menus render an empty, hidden slot for it (data-nav-badge), which
-	// the notifications work fills.
+	// Badge names the count this entry carries in the sidebar
+	// ("notifications": the unread count, nav_notifications.html's
+	// "nav-notifications", data-nav-badge).
 	Badge string
+	// Dot names the unread dot this entry carries on the phone's bar
+	// ("notifications": the Home tab's, §3.9).
+	Dot string
 }
 
 // The global sections a page can belong to (its NavSection, which the
@@ -54,16 +57,16 @@ const (
 )
 
 // navEntries is the app's global navigation, in order (menu proposal
-// §3.2): Home, Library, Calendar, Notifications, Groups and the tools on
-// desktop; Home, Library, Calendar, Groups and Tools on a phone, five
+// §3.2; Notifications right under Home, §3.9): Home, Notifications,
+// Library, Calendar, the spaces and the tools on desktop; Home, Library, Calendar, Groups and Tools on a phone, five
 // tabs and no "More". The account (Profile, Appearance, Language, Admin,
 // Log out) is the avatar's menu, not a destination here: see the
 // "account-menu" template.
 var navEntries = []NavEntry{
-	{Label: "Home", Path: "/home", Icon: "icon-home", Section: NavHome, Covers: NavNotifications, Sidebar: true, Bar: true},
+	{Label: "Home", Path: "/home", Icon: "icon-home", Section: NavHome, Covers: NavNotifications, Sidebar: true, Bar: true, Dot: NavNotifications},
+	{Label: "Notifications", Path: "/notifications", Icon: "icon-bell", Section: NavNotifications, Sidebar: true, Badge: NavNotifications},
 	{Label: "Library", Path: "/catalog", Icon: "icon-catalog", Section: NavLibrary, Sidebar: true, Bar: true},
 	{Label: "Calendar", Path: "/calendar", Icon: "icon-calendar", Section: NavCalendar, Sidebar: true, Bar: true},
-	{Label: "Notifications", Path: "/notifications", Icon: "icon-bell", Section: NavNotifications, Sidebar: true, Badge: "notifications"},
 	{Label: "Groups", Path: "/groups", Icon: "icon-bands", Section: NavGroups, Covers: NavBands + " " + NavCommunities, Bar: true},
 	{Label: "Tools", Path: "/tools", Icon: "icon-tools", Section: NavTools, Covers: NavMetronome + " " + NavTuner, Bar: true},
 	{Label: "Metronome", Path: "/metronome", Icon: "icon-metronome", Section: NavMetronome, SidebarTools: true},

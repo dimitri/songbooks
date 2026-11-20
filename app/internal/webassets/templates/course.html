@@ -43,7 +43,6 @@ async function courseApi(method, url, body) {
   {{if .Community}}<a class="back-link" href="/communities/{{.Community.ID}}/songbooks">{{template "icon-back"}} {{t "Songbooks"}}</a>{{else}}{{template "home-link"}}{{end}}
   <h1>{{.Songbook.Name}}</h1>
   {{if .CanEdit}}{{template "edit-toggle" .Editing}}{{end}}
-  {{template "notif-bell"}}
 </header>
 <main class="index course">
   {{template "space-nav" .Space}}
@@ -158,7 +157,6 @@ async function courseApi(method, url, body) {
   <a class="back-link" href="/songbooks/{{.Songbook.ID}}">{{template "icon-back"}} {{.Songbook.Name}}</a>
   <h1>{{template "lesson-label" .Lesson}}</h1>
   {{if .CanEdit}}{{template "edit-toggle" .Editing}}{{end}}
-  {{template "notif-bell"}}
 </header>
 <main class="index course lesson">
   <div class="lesson-done">

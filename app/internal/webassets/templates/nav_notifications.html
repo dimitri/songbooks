@@ -1,14 +1,16 @@
-{{/* Notifications, one entry point on each surface (menu proposal §3.9):
+{{/* Notifications, one entry point on each surface (menu proposal §3.9),
+     in the global navigation's slots (icons.html):
 
-     - desktop: "nav-notifications", an entry in the sidebar right under
-       Accueil, with the unread count (server-rendered from the page's
-       .UnreadNotifications, which render() fills in for the signed-in
+     - desktop: the sidebar's Notifications entry, right under Accueil,
+       carries "nav-notifications", the unread count (server-rendered
+       from .Nav.Unread, which render() fills in for the signed-in
        person; kept fresh by the script below);
-     - phone: "notif-bell", the bell top-right in the top bar, with the
-       count, and a dot on the Accueil tab (added by the script, so the
-       tab bar's own markup doesn't change);
+     - phone and tablet: "notif-bell", the bell in the top bar's
+       notifications slot next to the avatar, with the count, and the
+       Accueil tab's dot (global-tabbar, from the entry's Dot);
      - the song page: "nav-notifications-dot", a bell with a dot in its
-       toolbar, so a coach's comment isn't invisible while you practise.
+       toolbar's slot, so a coach's comment isn't invisible while you
+       practise.
 
      Badges count unread notifications only. Every badge and dot carries
      data-unread-count or data-unread-dot, and nav-notifications-script
@@ -17,11 +19,14 @@
      window.SongbooksUnread.refresh(). The partials are self-contained so
      the global navigation's layout can move them without changes here. */}}
 
-{{define "nav-notifications"}}{{$n := .UnreadNotifications}}<a class="nav-notifications" href="/notifications" data-path="/notifications" data-label="{{t "Notifications"}}">{{template "icon-bell"}} {{t "Notifications"}}<span class="nav-count" data-unread-count{{if not $n}} hidden{{end}}>{{if $n}}{{$n}}{{end}}</span><span class="sr-only" data-unread-label{{if not $n}} hidden{{end}}>{{t "unread"}}</span></a>{{end}}
+{{/* The sidebar entry's count; called with the number unread. */}}
+{{define "nav-notifications"}}<span class="nav-count" data-nav-badge="notifications" data-unread-count{{if not .}} hidden{{end}}>{{if .}}{{.}}{{end}}</span><span class="sr-only" data-unread-label{{if not .}} hidden{{end}}>{{t "unread"}}</span>{{end}}
 
-{{define "notif-bell"}}<a href="/notifications" class="notif-bell" id="notif-bell-link" title="{{t "Notifications"}}">{{template "icon-bell"}}<span class="sr-only">{{t "Notifications"}}</span><span id="notif-badge" class="notif-badge" data-unread-count hidden>0</span><span class="sr-only" data-unread-label hidden>{{t "unread"}}</span></a>{{end}}
+{{/* The top bar's bell; called with the number unread. */}}
+{{define "notif-bell"}}<a href="/notifications" class="notif-bell" id="notif-bell-link" title="{{t "Notifications"}}">{{template "icon-bell"}}<span class="sr-only">{{t "Notifications"}}</span><span id="notif-badge" class="notif-badge" data-unread-count{{if not .}} hidden{{end}}>{{if .}}{{.}}{{end}}</span><span class="sr-only" data-unread-label{{if not .}} hidden{{end}}>{{t "unread"}}</span></a>{{end}}
 
-{{define "nav-notifications-dot"}}<a href="/notifications" class="nav-notifications-dot" title="{{t "Notifications"}}">{{template "icon-bell"}}<span class="sr-only">{{t "Notifications"}}</span><span class="nav-unread-dot" data-unread-dot hidden></span><span class="sr-only" data-unread-label hidden>{{t "unread"}}</span></a>{{end}}
+{{/* The song toolbar's bell with a dot; called with the number unread. */}}
+{{define "nav-notifications-dot"}}<a href="/notifications" class="nav-notifications-dot" title="{{t "Notifications"}}">{{template "icon-bell"}}<span class="sr-only">{{t "Notifications"}}</span><span class="nav-unread-dot" data-unread-dot{{if not .}} hidden{{end}}></span><span class="sr-only" data-unread-label{{if not .}} hidden{{end}}>{{t "unread"}}</span></a>{{end}}
 
 {{define "notif-bell-script"}}{{template "nav-notifications-script"}}{{end}}
 {{define "nav-notifications-script"}}<script>(function () {
@@ -34,17 +39,9 @@
     });
     document.querySelectorAll('[data-unread-label]').forEach(function (el) { el.hidden = !n; });
     document.querySelectorAll('[data-unread-dot]').forEach(function (el) { el.hidden = !n; });
-    // The Accueil tab's dot, on a phone: added here so the tab bar's
-    // markup stays the global navigation's own.
-    document.querySelectorAll('.global-tabbar a[href="/home"]').forEach(function (a) {
-      var dot = a.querySelector('.nav-unread-dot');
-      if (!dot) {
-        dot = document.createElement('span');
-        dot.className = 'nav-unread-dot';
-        dot.setAttribute('aria-hidden', 'true');
-        a.appendChild(dot);
-      }
-      dot.hidden = !n;
+    // The Accueil tab's dot (global-tabbar renders it): its tab says why.
+    document.querySelectorAll('.global-tabbar [data-unread-dot]').forEach(function (dot) {
+      var a = dot.closest('a');
       if (n) a.setAttribute('title', label.replace('%d', n)); else a.removeAttribute('title');
     });
   }

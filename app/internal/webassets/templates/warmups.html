@@ -22,7 +22,6 @@
 <header class="app-header">
   {{template "space-back" .Space}}
   <h1>{{template "space-section-name" .Space}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index warmups-page" data-community="{{.Community.ID}}">
   {{template "space-nav" .Space}}
@@ -104,7 +103,6 @@
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}/warmups">{{template "icon-back"}} {{t "Warm-ups"}}</a>
   <h1>{{.Exercise.Name}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index warmup-practice" data-community="{{.Community.ID}}">
   <div class="warmup-session-bar" hidden></div>
@@ -209,7 +207,6 @@
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}/warmups{{with .Exercise}}/{{.ID}}{{end}}">{{template "icon-back"}} {{with .Exercise}}{{.Name}}{{else}}{{t "Warm-ups"}}{{end}}</a>
   <h1>{{if .Exercise}}{{t "Edit the exercise"}}{{else}}{{t "An exercise"}}{{end}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index warmup-edit" data-community="{{.Community.ID}}"{{with .Exercise}} data-exercise="{{.ID}}"{{end}}>
   <form class="warmup-form form-stack form-stack--wide" autocomplete="off">
