@@ -1269,7 +1269,7 @@ body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5re
 .audio-part.is-on .audio-chip { background: none; border-color: transparent; }
 .audio-part input[type="range"] { width: 5.5rem; margin: 0; accent-color: var(--accent); cursor: pointer; }
 .audio-part output { min-width: 2.8rem; text-align: right; font-size: 0.8rem; font-weight: 700; color: var(--accent-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.audio-part:not(.is-on):not(:focus-within) :is(input, output) { display: none; }
+.audio-part:not(.is-on):not(.is-held):not(:focus-within) :is(input, output) { display: none; }
 .audio-dock .audio-parts .audio-parts-caret { height: 2rem; border-color: transparent; background: none; color: var(--fg-muted); border-radius: var(--radius-control, 999px); padding: 0 0.35rem; }
 .audio-dock.opts-compact .audio-opts > .audio-parts:not(.is-on) .audio-part-label { display: none; }
 .audio-parts-caret-label { display: none; font-size: 0.8rem; margin-right: 0.2rem; }
@@ -1289,6 +1289,56 @@ body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5re
 .mic-slash { display: none; }
 .is-off .mic-slash { display: inline; }
 .audio-transport .audio-card-mic { display: none; } /* the phone card's (below) */
+
+/* The bar's main tools (audio-player.js "The bar"): two, by context —
+   the voice and the key in a coaching community (data-bar="sing"), the
+   loop and the speed elsewhere ("play"). The others are in the panel, and
+   come to the bar only while they are on. */
+.audio-dock .audio-opts > [data-bar="more"]:not(.is-on) { display: none; }
+/* The original voice: a switch, its state plain to see — on, the mic and
+   "Voice"; off, the mic struck through on the accent, "No voice" (as a
+   karaoke player's lead-vocal button). Greyed with a spinner while the
+   recording is being split or its voice loads. */
+.audio-voice:not([hidden]) { display: inline-flex; align-items: center; gap: 0.2rem; }
+.audio-dock .audio-voice-btn { color: var(--fg); border-color: var(--border); }
+.audio-dock .audio-voice-btn.is-off { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); font-weight: 700; }
+.audio-dock .audio-voice-btn.is-off:hover { background: color-mix(in srgb, var(--accent) 85%, var(--fg)); color: var(--accent-contrast); }
+.audio-dock .audio-voice-btn:disabled { opacity: 0.8; cursor: default; color: var(--fg-muted); background: var(--bg-sunken); }
+.audio-voice-btn .audio-spinner { display: none; }
+.audio-voice-btn:is(.is-pending, .is-loading) .audio-spinner { display: inline-block; }
+.audio-voice-btn:is(.is-pending, .is-loading) .icon { display: none; }
+.audio-dock .audio-voice-btn.is-failed { color: var(--danger); }
+.audio-voice-switch {
+  display: inline-flex; align-items: center; gap: 0.45rem; height: 2.4rem; min-height: 0; padding: 0 0.95rem 0 0.75rem;
+  border: 1px solid var(--border); border-radius: var(--radius-control, 999px); background: var(--bg-raised); color: var(--fg);
+  font: inherit; font-size: 0.85rem; font-weight: 700; cursor: pointer;
+}
+.audio-voice-switch .icon { width: 1.2rem; height: 1.2rem; }
+.audio-voice-switch.is-off { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.audio-voice-switch:disabled { opacity: 0.6; cursor: default; }
+.audio-voice-switch .audio-voice-off, .audio-voice-switch.is-off .audio-voice-on { display: none; }
+.audio-voice-switch.is-off .audio-voice-off { display: inline; }
+.audio-voice-range { flex: 1 1 5rem; min-width: 5rem; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.audio-voice-out { min-width: 3rem; text-align: right; font-size: 0.85rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent-ink); }
+/* The key from the bar, in a coaching community: − Key +. */
+.audio-keystep { display: inline-flex; align-items: center; gap: 0.15rem; }
+.audio-keystep-btn { display: none; }
+.audio-dock[data-bar="sing"] .audio-keystep-btn {
+  display: inline-flex; align-items: center; justify-content: center; flex: none; width: 2rem; height: 2rem; min-height: 0; padding: 0;
+  border: 1px solid var(--border); border-radius: 50%; background: var(--bg-raised); color: var(--fg); font: inherit; font-size: 1.05rem; font-weight: 700; line-height: 1; cursor: pointer;
+}
+.audio-dock[data-bar="sing"] .audio-keystep-btn:hover { background: var(--bg-sunken); }
+.audio-dock[data-bar="sing"] .audio-keystep-btn:disabled { opacity: 0.4; cursor: default; }
+.audio-dock[data-bar="sing"] #audio-key-btn:not(.active) { color: var(--fg); }
+/* The sync note: small, and off the bar when the bar is short of room
+   (the readout's "≈" and the panel's Sync line still say it). */
+.audio-dock .audio-sync-note { font-size: 0.7rem; font-weight: 500; }
+.audio-dock.opts-compact .audio-sync-note { display: none; }
+/* In a coaching community the panel opens on the voice and the key. */
+.audio-dock[data-bar="sing"] #audio-tab-sound { order: -1; }
+@media (min-width: 721px) { .audio-dock[data-bar="sing"].is-open #audio-group-sound { order: -1; } }
+/* The phone card's key, in a coaching community. */
+.audio-card-key { display: none; }
 
 /* The phone card's mic: the voice out and back. */
 .audio-card-mic {
@@ -1353,7 +1403,19 @@ body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5re
   /* The card: the mic beside play; the sheet: the way into the panel,
      with the options. The panel: a sheet from the bottom. */
   .audio-dock:not(.is-open) .audio-card-mic:not([hidden]) { display: inline-flex; order: 2; width: 2.75rem; height: 2.75rem; border-color: transparent; background: none; }
-  .audio-dock:not(.is-open) .audio-card-mic.is-off { color: var(--fg-muted); }
+  .audio-dock:not(.is-open) .audio-card-mic.is-off { color: var(--accent-ink); background: var(--accent-bg); border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); border-radius: 50%; width: 2.5rem; height: 2.5rem; margin: 0 0.1rem; }
+  /* The card is short of room: the readout's "≈" says the sync is
+     estimated (the sheet says it in full); in a coaching community the
+     voice and the key take the place of the bar back (in the sheet). */
+  .audio-dock:not(.is-open) .audio-sync-note { display: none; }
+  .audio-dock[data-bar="sing"]:not(.is-open) #audio-prev-btn { display: none; }
+  .audio-dock[data-bar="sing"]:not(.is-open) .audio-card-key:not([hidden]) {
+    display: inline-flex; order: 2; align-items: center; gap: 0.15rem; flex: none; height: 2.6rem; min-height: 0; padding: 0 0.35rem;
+    border: 0; border-radius: 999px; background: none; color: var(--fg); font: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer;
+  }
+  .audio-dock[data-bar="sing"]:not(.is-open) .audio-card-key.active { color: var(--accent-ink); background: var(--accent-bg); }
+  .audio-card-key .icon { width: 1.2rem; height: 1.2rem; }
+  .audio-card-key span:empty { display: none; }
   .sp-key-actions > * { flex: 1 1 auto; }
   .sp-students .audio-key-targets li > .audio-pill-btn, .sp-students .audio-key-targets button.who { min-height: 2.75rem; }
 }

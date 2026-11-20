@@ -118,7 +118,8 @@
           bar.classList.add('opts-compact');
           for (const el of [...list].reverse()) {
             if (!over()) break;
-            if (el.hidden || el.classList.contains('is-on')) continue;
+            // Hidden, or not on the bar at all (a tool kept for the panel): nothing to fold.
+            if (el.hidden || el.classList.contains('is-on') || !el.getClientRects().length) continue;
             el.dataset.folded = '1';
             n++;
             bar.classList.add('has-more');

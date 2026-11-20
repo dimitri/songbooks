@@ -148,11 +148,17 @@ window.songbooksDecodable = function (buf) {
     cycle: null, // {from, to, on}: bars [from, to)
     semitones: 0, // the recording's key, up or down
     voice: 100, // the voice's volume, in %, when the recording has its parts
-    voiceOff: 0, // what Voice's toggle turns it down to
+    voiceBack: 100, // the level the voice's switch brings back (player-mix.js)
   };
   try {
     const saved = JSON.parse(localStorage.getItem(optsKey) || '{}');
     Object.assign(prefs, saved, { trainer: { ...prefs.trainer, ...(saved.trainer || {}), on: false }, cycle: null });
+    // The voice on or off, kept with the song (an older save's voiceOff,
+    // the last level under 100, is dropped: player-mix.js voiceFromSaved).
+    const v = window.SongbooksMix.voiceFromSaved(saved);
+    prefs.voice = v.voice;
+    prefs.voiceBack = v.back;
+    delete prefs.voiceOff;
   } catch (e) { /* defaults */ }
   // A loop — the cycle range, and the trainer that runs on it — is for
   // this sitting only: every visit starts playing the song straight.
@@ -642,6 +648,8 @@ window.songbooksDecodable = function (buf) {
     resetClicks();
     document.dispatchEvent(new CustomEvent('songbooks:reference-playing'));
     audio.play().catch(() => {});
+    // The parts beside it start in the same gesture (Safari lets them).
+    followParts();
   }
 
   function play() {
@@ -1090,16 +1098,16 @@ window.songbooksDecodable = function (buf) {
   }
   const groupLabel = (g) => (g.ids.length === 1 && g.ids[0] === 'voice' ? t('Voice') : g.ids.map((id) => instrument(id).label).join(' + '));
   const levelOf = (stem) => (stem === 'vocals' ? prefs.voice : prefs.levels[stem]);
-  // A part's level as played: 100 for one I don't play here.
-  const playedLevel = (stem) => (partGroups().some((g) => g.stem === stem && g.adjustable) ? levelOf(stem) : 100);
-  const voiceOn = () => partGroups().some((g) => g.stem === 'vocals' && g.adjustable);
-  function engineMode() {
-    if (hasFour() && ['drums', 'bass', 'other'].some((s) => playedLevel(s) < 100)) {
-      return { main: 'other', mainLevel: playedLevel('other'), followers: ['vocals', 'drums', 'bass'] };
-    }
-    if (hasParts() && playedLevel('vocals') < 100) return { main: 'no_vocals', mainLevel: 100, followers: ['vocals'] };
-    return { main: '', mainLevel: 100, followers: [] };
-  }
+  // A part's level as played: the voice's, whenever the recording has it
+  // apart (the karaoke switch is everyone's, singing here or not); another
+  // part's, when I play it here; else 100.
+  const playedLevel = (stem) => {
+    if (stem === 'vocals') return hasParts() ? prefs.voice : 100;
+    return partGroups().some((g) => g.stem === stem && g.adjustable) ? levelOf(stem) : 100;
+  };
+  const voiceOn = () => hasParts();
+  const Mix = window.SongbooksMix;
+  const engineMode = () => Mix.mode(stemsHere(), playedLevel);
   const followers = { vocals: voiceAudio };
   for (const s of ['drums', 'bass']) {
     const el = new Audio();
@@ -1108,69 +1116,130 @@ window.songbooksDecodable = function (buf) {
     el.webkitPreservesPitch = true;
     followers[s] = el;
   }
+  // Where each follower was last sent (followParts), and whether it is
+  // getting there.
+  for (const el of Object.values(followers)) {
+    el.addEventListener('seeking', () => { el.dataset.seeking = '1'; });
+    el.addEventListener('seeked', () => { delete el.dataset.seeking; });
+  }
   let playing = []; // the followers playing now
   let partsToken = 0;
+  // Loading a part: the voice's control says so (a spinner), and a part
+  // that can't be loaded leaves the recording as it is (partsFailed).
+  let partsLoading = false, partsFailed = false;
   async function applyParts() {
     renderParts();
     renderSing();
     renderDockState();
     const meta = categories[activeCategory] || {};
     const cat = activeCategory, token = ++partsToken;
-    const mode = engineMode();
+    let mode = engineMode();
+    // Everything the new mix needs, fetched before anything changes: the
+    // recording (and its voice) keeps playing as it is until the parts
+    // are there, never a gap with no voice at all; and if a part can't be
+    // had, the recording stays as it is.
+    const tag = mode.main ? `${cat}:${mode.main}` : cat;
+    const swap = !!(audio.dataset.blobFor && audio.dataset.blobFor !== tag);
+    const need = mode.followers.filter((s) => followers[s].dataset.blobFor !== `${cat}:${s}`);
+    let mainBytes = null, partBytes = {};
+    // (Set each time: a call overtaken while it loaded leaves it to this one.)
+    partsLoading = !!(swap || need.length);
+    if (!partsLoading) partsFailed = false;
+    if (partsLoading) {
+      renderVoice();
+      try {
+        const got = await Promise.all([
+          swap ? window.songbooksAudioBytes(variantId, cat, meta, mode.main) : null,
+          ...need.map((s) => window.songbooksAudioBytes(variantId, cat, meta, s)),
+        ]);
+        mainBytes = got[0];
+        need.forEach((s, i) => { partBytes[s] = got[i + 1]; });
+        partsFailed = false;
+      } catch (e) {
+        if (token !== partsToken) return;
+        // The parts can't be had (offline, a server error): the recording
+        // as it is, and the voice's control says so.
+        partsFailed = true;
+        partsLoading = false;
+        mode = { main: '', mainLevel: 100, followers: [] };
+        if (audio.dataset.blobFor && audio.dataset.blobFor !== cat) {
+          try { mainBytes = await window.songbooksAudioBytes(variantId, cat, meta, ''); } catch (e2) { return; }
+          if (token !== partsToken) return;
+          swapSource(mainBytes, cat);
+        }
+        for (const s of Object.keys(followers)) followers[s].pause();
+        playing = [];
+        if (graph) graph.mainGain.gain.value = 1;
+        root.dataset.mix = 'recording';
+        renderVoice();
+        return;
+      }
+      if (token !== partsToken) return;
+      partsLoading = false;
+    }
     if (mode.main) ensureGraph();
     if (graph) {
       graph.mainGain.gain.value = mode.mainLevel / 100;
       for (const s of Object.keys(followers)) graph.gains[s].gain.value = playedLevel(s) / 100;
     }
-    // The part that drives the clock in place of the recording (the same
-    // length: the position carries over), or the recording back.
-    const tag = mode.main ? `${cat}:${mode.main}` : cat;
-    if (audio.dataset.blobFor && audio.dataset.blobFor !== tag) {
-      let bytes;
-      try { bytes = await window.songbooksAudioBytes(variantId, cat, meta, mode.main); } catch (e) { return; }
-      if (token !== partsToken) return;
-      swapSource(bytes, tag);
-    }
-    const want = mode.followers.filter((s) => playedLevel(s) > 0);
-    for (const s of Object.keys(followers)) if (!want.includes(s)) followers[s].pause();
-    playing = [];
-    for (const s of want) {
+    if (mainBytes) swapSource(mainBytes, tag);
+    for (const s of Object.keys(followers)) if (!mode.followers.includes(s)) followers[s].pause();
+    for (const s of need) {
       const el = followers[s];
-      if (el.dataset.blobFor !== `${cat}:${s}`) {
-        let bytes;
-        try { bytes = await window.songbooksAudioBytes(variantId, cat, meta, s); } catch (e) { return; }
-        if (token !== partsToken) return;
-        if (el.src.startsWith('blob:')) URL.revokeObjectURL(el.src);
-        el.src = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
-        el.dataset.blobFor = `${cat}:${s}`;
-      }
-      playing.push(s);
+      if (el.src.startsWith('blob:')) URL.revokeObjectURL(el.src);
+      el.src = URL.createObjectURL(new Blob([partBytes[s]], { type: 'audio/mpeg' }));
+      el.dataset.blobFor = `${cat}:${s}`;
+      delete el.dataset.sentAt;
     }
-    // What plays, for whoever looks (tests, a bug report): "other+vocals+drums+bass".
+    playing = mode.followers.slice();
+    // Started from here, in the same turn as the slider or the switch (a
+    // user gesture: Safari lets a part start then).
+    followParts();
+    renderVoice();
+    // What plays, for whoever looks (tests, a bug report): "no_vocals+vocals".
     root.dataset.mix = [mode.main || 'recording', ...playing].join('+');
   }
   const applyVoice = applyParts;
+  // A new source for the recording's element, at the same place, playing
+  // if it was. Two swaps in a row (a slider dragged across 100 and back):
+  // the second keeps the first one's place and state, not the element's
+  // in between (paused, at 0, while it loads).
+  let swapping = null;
   function swapSource(bytes, tag) {
-    const t = audio.currentTime, wasPlaying = !audio.paused;
+    const state = swapping || { t: audio.currentTime, wasPlaying: !audio.paused };
+    swapping = state;
     if (audio.src.startsWith('blob:')) URL.revokeObjectURL(audio.src);
     audio.src = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
     audio.dataset.blobFor = tag;
     audio.playbackRate = prefs.speed;
+    const src = audio.src;
     audio.addEventListener('loadedmetadata', () => {
-      audio.currentTime = t;
-      if (wasPlaying) audio.play().catch(() => {});
+      if (audio.src !== src) return; // another swap since: its own listener
+      swapping = null;
+      audio.currentTime = state.t;
+      if (state.wasPlaying) audio.play().catch(() => {});
+      followParts();
     }, { once: true });
+    audio.addEventListener('error', () => { if (audio.src === src) swapping = null; }, { once: true });
   }
   // The parts keep with the part that drives the clock: same play, pause,
-  // speed and place (within 80 ms; closer, and they would keep jumping).
+  // speed and place (Mix.shouldSeek: within 80 ms, and not again while
+  // one is still getting to the last place it was sent).
   function followParts() {
+    const now = performance.now();
     for (const s of playing) {
       const el = followers[s];
       if (!el.src) continue;
       if (el.playbackRate !== audio.playbackRate) el.playbackRate = audio.playbackRate;
-      if (audio.paused) { if (!el.paused) el.pause(); continue; }
-      if (Math.abs(el.currentTime - audio.currentTime) > 0.08) el.currentTime = audio.currentTime;
-      if (el.paused) el.play().catch(() => {});
+      if (audio.paused || swapping) { if (!el.paused) el.pause(); continue; }
+      if (Mix.shouldSeek({ time: el.currentTime, seeking: !!el.dataset.seeking, sentAt: +el.dataset.sentAt || 0 }, audio.currentTime, now)) {
+        el.currentTime = audio.currentTime;
+        el.dataset.sentAt = String(now);
+      }
+      if (el.paused) {
+        el.dataset.sentAt = String(now);
+        el.play().catch(() => { delete el.dataset.sentAt; });
+      }
     }
   }
   const followVoice = followParts;
@@ -1178,7 +1247,6 @@ window.songbooksDecodable = function (buf) {
     const n = Math.max(0, Math.min(100, Math.round(v)));
     if (stem === 'vocals') {
       prefs.voice = n;
-      if (n < 100) prefs.voiceOff = n;
     } else {
       prefs.levels[stem] = n;
       if (n < 100) prefs.levelsOff[stem] = n;
@@ -1188,18 +1256,26 @@ window.songbooksDecodable = function (buf) {
   }
   // A tap on a part: out (or down to where it was last), and back.
   function toggleLevel(stem) {
-    const off = stem === 'vocals' ? prefs.voiceOff : prefs.levelsOff[stem];
+    if (stem === 'vocals') { toggleVoice(); return; }
+    const off = prefs.levelsOff[stem];
     setLevel(stem, levelOf(stem) < 100 ? 100 : off);
   }
-  const setVoice = (v) => setLevel('vocals', v);
+  // The voice: on or off, its level kept for when it comes back
+  // (Mix.toggleVoice); the slider sets the level, and once let go, the
+  // level the switch comes back to.
+  function setVoice(v, committed) {
+    const next = Mix.setVoice({ voice: prefs.voice, back: prefs.voiceBack }, v, committed);
+    prefs.voiceBack = next.back;
+    setLevel('vocals', next.voice);
+  }
   function toggleVoice() {
-    // V: the voice; for someone who doesn't sing here, their first part.
-    const g = partGroups().filter((x) => x.adjustable);
-    const mine = g.find((x) => x.stem === 'vocals') || g[0];
-    if (mine) toggleLevel(mine.stem);
+    if (!hasParts()) return false;
+    const next = Mix.toggleVoice({ voice: prefs.voice, back: prefs.voiceBack });
+    prefs.voiceBack = next.back;
+    setLevel('vocals', next.voice);
   }
   const cardMicEl = $('audio-card-mic');
-  cardMicEl?.addEventListener('click', () => toggleLevel('vocals'));
+  cardMicEl?.addEventListener('click', () => toggleVoice());
 
   // The chips (in the bar) and the levels (in the "Je joue" panel): one
   // per part I play that the recording has.
@@ -1226,14 +1302,22 @@ window.songbooksDecodable = function (buf) {
     range.type = 'range';
     range.min = '0'; range.max = '100'; range.step = '5';
     range.addEventListener('input', () => setLevel(g.stem, +range.value));
+    // Held, the slider stays where it is, whatever the level (at 100 the
+    // bar's would hide under the pointer: Safari doesn't focus it).
+    range.addEventListener('pointerdown', () => {
+      wrap.classList.add('is-held');
+      window.addEventListener('pointerup', () => wrap.classList.remove('is-held'), { once: true });
+    });
     const out = document.createElement('output');
     wrap.append(btn, range, out);
     return wrap;
   }
   let partsShape = '';
   function renderParts() {
-    const groups = partGroups().filter((g) => g.adjustable);
-    if (partsEl) partsEl.hidden = !hasParts();
+    // The voice has its own switch and line (renderVoice): here, the
+    // other parts I play.
+    const groups = partGroups().filter((g) => g.adjustable && g.stem !== 'vocals');
+    if (partsEl) partsEl.hidden = !groups.length;
     const shape = groups.map((g) => `${g.stem}:${g.ids.join('+')}`).join(',');
     if (shape !== partsShape) {
       partsShape = shape;
@@ -1251,21 +1335,73 @@ window.songbooksDecodable = function (buf) {
       btn.classList.toggle('is-off', v === 0);
       btn.setAttribute('aria-pressed', String(down));
       btn.title = t('%s: out or back (the slider: anywhere between)', name);
-      wrap.querySelector('.audio-part-label').textContent = v === 0 ? t('%s out', name.toLowerCase()) : name;
+      // The name stays as it is (out: the icon struck through, "0 %"), so
+      // the slider beside it doesn't move under the pointer.
+      wrap.querySelector('.audio-part-label').textContent = name;
       if (+range.value !== v) range.value = String(v);
       range.setAttribute('aria-label', t('Level: %s', name));
       range.setAttribute('aria-valuetext', pctText(v));
       out.textContent = pctText(v);
     });
-    // The phone card's mic: the voice, when I sing here.
-    if (cardMicEl) {
-      cardMicEl.hidden = !voiceOn();
-      cardMicEl.setAttribute('aria-pressed', String(prefs.voice > 0));
-      cardMicEl.classList.toggle('is-off', prefs.voice === 0);
-    }
+    renderVoice();
     renderPartsPanel();
     renderStems();
   }
+
+  // ---- The voice: the karaoke switch ------------------------------------------
+  // The recording's lead voice, on or off, for anyone, whenever the
+  // recording has it apart (cmd/stemsd): the bar's mic (#audio-voice-btn,
+  // a switch: on, the voice is heard), the phone card's, V; the panel's
+  // Voice line has the same switch and a slider for anything between.
+  // Off keeps the level for when it comes back (player-mix.js), with the
+  // song's other settings (this browser, per song).
+  const voiceBtn = $('audio-voice-btn'), voiceLabel = $('audio-voice-label');
+  const voiceSwitch = $('audio-voice-switch'), voiceRange = $('audio-voice-range'), voiceOut = $('audio-voice-out');
+  const voiceTool = $('audio-voice');
+  function renderVoice() {
+    const meta = categories[activeCategory] || {};
+    const pending = meta.stemStatus === 'queued' || meta.stemStatus === 'running';
+    const failed = meta.stemStatus === 'failed';
+    const there = hasParts();
+    const v = there ? prefs.voice : 100;
+    const heard = v > 0;
+    const state = !there ? (pending ? t('Voice · splitting…') : failed ? t('Voice unavailable') : '')
+      : partsFailed ? t('Voice unavailable')
+      : v === 0 ? t('No voice') : v < 100 ? t('Voice %d%', v) : t('Voice');
+    const name = heard ? t('Original voice: on') : t('Original voice: off');
+    for (const b of [voiceBtn, voiceSwitch, cardMicEl]) {
+      if (!b) continue;
+      b.disabled = !there;
+      b.setAttribute('aria-checked', String(heard));
+      b.classList.toggle('is-off', !heard);
+      b.classList.toggle('active', there && v < 100);
+      b.classList.toggle('is-loading', partsLoading);
+      b.classList.toggle('is-pending', !there && pending);
+      b.classList.toggle('is-failed', (!there && failed) || partsFailed);
+      b.title = there ? `${name} · ${t('V: the voice on or off, to sing it yourself')}` : state;
+    }
+    if (voiceBtn) voiceBtn.setAttribute('aria-label', there ? t('Original voice') : state);
+    if (cardMicEl) { cardMicEl.hidden = !there; cardMicEl.setAttribute('aria-label', t('Original voice')); }
+    if (voiceTool) voiceTool.hidden = !there && !pending && !failed;
+    if (voiceLabel) voiceLabel.textContent = state;
+    if (voiceRange) {
+      voiceRange.disabled = !there;
+      if (+voiceRange.value !== v && !voiceRange.matches(':active')) voiceRange.value = String(v);
+      voiceRange.setAttribute('aria-valuetext', pctText(v));
+    }
+    if (voiceOut) voiceOut.textContent = pctText(v);
+    const vs = $('audio-voice-state');
+    if (vs) {
+      vs.textContent = partsFailed ? t('The voice couldn’t be loaded: the recording plays as it is.')
+        : partsLoading ? t('Loading the voice…')
+        : !there ? (pending ? t('The recording is being split into its parts; the voice comes in a few minutes, without a reload.') : failed ? t('The recording couldn’t be split into its parts.') : t('This recording isn’t split into its parts.'))
+        : heard ? t('Off: the recording without its lead voice, to sing it yourself.') : t('Off: sing it yourself. On again: the voice comes back at %s.', pctText(prefs.voiceBack || 100));
+    }
+  }
+  voiceBtn?.addEventListener('click', () => toggleVoice());
+  voiceSwitch?.addEventListener('click', () => toggleVoice());
+  voiceRange?.addEventListener('input', () => setVoice(+voiceRange.value, false));
+  voiceRange?.addEventListener('change', () => setVoice(+voiceRange.value, true));
 
   // The "Je joue" panel: the levels, what the split can't tell apart, the
   // instruments to pick, for this song or for here, saved for the reader.
@@ -1358,17 +1494,36 @@ window.songbooksDecodable = function (buf) {
   $('audio-parts-save')?.addEventListener('click', () => putParts({ instruments: myParts }));
   $('audio-parts-reset')?.addEventListener('click', () => putParts({ clear: true }));
 
-  // ---- The dock's tools: by priority, those that are on never fold ---------
-  // The tools sit in a fixed order on the bar's line (play.html): Cycle,
-  // Speed, my parts, Key, Click, Count-in, Pitch, Trainer. Where they don't
-  // all fit, those that are off show their icons only, then leave the bar
+  // ---- The bar: the main tools, the others in the panel --------------------
+  // The bar keeps the transport, where you are, and two tools; every other
+  // tool is in the panel (Practice, F), and shows on the bar only while it
+  // is on (a click, a count-in, a part turned down...: what's on stays in
+  // sight, and a tap turns it off). Which two (data-bar on the dock):
+  //   "sing"  a coaching community (#sheet data-coaching): the original
+  //           voice, on or off (karaoke), and the key, a semitone either
+  //           way — what a singer and their coach change most;
+  //   "play"  anywhere else: the loop and the speed — a band musician
+  //           works a passage over and over, slower, then up to tempo
+  //           (Soundslice, Moises and Capo keep these two on their bar).
+  // Then, where they don't all fit (a narrow window, a zoom, French
+  // labels), those that are off show their icons only, then leave the bar
   // from the right, one by one, into "+N" (#audio-opts-btn); a tool that is
   // on keeps its place and its label (PlayerShell.fit, player-shell.js).
-  // Measured as laid out, whatever the browser, its zoom and the labels'
-  // language. On a phone the card has none of them: they are in its sheet.
+  // On a phone the card has the voice (and in a coaching community the
+  // key); everything else is in its sheet.
   const dockTransport = dock ? dock.querySelector('.audio-transport') : null;
   const moreCount = $('audio-more-count');
   const tools = () => (optsEl ? [...optsEl.querySelectorAll(':scope > [data-tool]')] : []);
+  const coaching = !!$('sheet')?.dataset.coaching;
+  const mainTools = coaching ? ['voice', 'key'] : ['loop', 'speed'];
+  if (dock) dock.dataset.bar = coaching ? 'sing' : 'play';
+  for (const name of [...mainTools].reverse()) {
+    const el = optsEl?.querySelector(`:scope > [data-tool="${name}"]`);
+    if (el) optsEl.prepend(el);
+  }
+  tools().forEach((el) => { el.dataset.bar = mainTools.includes(el.dataset.tool) ? 'main' : 'more'; });
+  $('audio-key-bar-down')?.addEventListener('click', () => setSemitones(prefs.semitones - 1));
+  $('audio-key-bar-up')?.addEventListener('click', () => setSemitones(prefs.semitones + 1));
   const queueFit = dock && window.PlayerShell ? window.PlayerShell.fit({
     bar: dock, row: dockTransport, tray: optsEl, count: moreCount,
     skip: () => phoneMQ.matches || (playerBody && playerBody.hidden) || sheetOpen(),
@@ -1406,8 +1561,19 @@ window.songbooksDecodable = function (buf) {
     const name = keyIn(coachKey, n);
     const mine = studentKey !== null && n === studentKey;
     const who = sing || mine ? keyShort : '';
-    const text = n ? [t('chip|Key %s', semis(n)), name, who] : who ? [name || t('Key'), who] : [t('Key')];
+    // In a coaching community the bar reads the key even unchanged: "Key · D".
+    const text = n ? [t('chip|Key %s', semis(n)), name, who] : who ? [name || t('Key'), who] : coaching && name ? [t('Key'), name] : [t('Key')];
     keyLabel.textContent = text.filter(Boolean).join(' · ');
+    const cardKey = $('audio-card-key');
+    if (cardKey) {
+      cardKey.hidden = !coaching;
+      $('audio-card-key-label').textContent = n ? semis(n) : (name || '');
+      cardKey.setAttribute('aria-label', [t('Key'), name ? `${name} (${semis(n)})` : semis(n)].filter(Boolean).join(', '));
+      cardKey.classList.toggle('active', !!n);
+    }
+    const down = $('audio-key-bar-down'), up = $('audio-key-bar-up');
+    if (down) down.disabled = n <= -7;
+    if (up) up.disabled = n >= 7;
     keyBtn?.classList.toggle('active', !!n || !!who);
     keyBtn?.setAttribute('aria-label', [t('Key'), name ? `${name} (${semis(n)})` : semis(n), who].filter(Boolean).join(', '));
   }
@@ -1532,8 +1698,8 @@ window.songbooksDecodable = function (buf) {
     });
     if (remember) { try { localStorage.setItem(tabKey, name); } catch (e) { /* this page only */ } }
   }
-  let lastTab = 'loop';
-  try { lastTab = localStorage.getItem(tabKey) || 'loop'; } catch (e) { /* loop */ }
+  let lastTab = coaching ? 'sound' : 'loop';
+  try { lastTab = localStorage.getItem(tabKey) || lastTab; } catch (e) { /* the default */ }
   showGroup(lastTab, false);
   tabs.forEach((b) => b.addEventListener('click', () => showGroup(b.dataset.group, true)));
   document.querySelector('.audio-panel-tabs')?.addEventListener('keydown', (e) => {
@@ -1688,9 +1854,10 @@ window.songbooksDecodable = function (buf) {
     const pct = Math.round(prefs.speed * 100);
     if (pct !== 100) bits.push(pctText(pct));
     if (prefs.semitones) bits.push(semis(prefs.semitones));
+    if (hasParts() && prefs.voice < 100) bits.push(prefs.voice === 0 ? t('no voice') : t('voice %d%', prefs.voice));
     for (const g of partGroups()) {
-      if (!g.adjustable || levelOf(g.stem) >= 100) continue;
-      bits.push(g.ids.length === 1 && g.ids[0] === 'voice' ? (prefs.voice === 0 ? t('no voice') : t('voice %d%', prefs.voice)) : `${groupLabel(g)} ${pctText(levelOf(g.stem))}`);
+      if (!g.adjustable || g.stem === 'vocals' || levelOf(g.stem) >= 100) continue;
+      bits.push(`${groupLabel(g)} ${pctText(levelOf(g.stem))}`);
     }
     if (prefs.click) bits.push(t('Click'));
     if (prefs.countIn) bits.push($('audio-countin-label')?.textContent);
@@ -2012,7 +2179,8 @@ window.songbooksDecodable = function (buf) {
       [t('Loop on / off · ⇧C loops this section'), 'c', 'Shift+c'],
       [t('Speed −5 % / +5 % (⇧ for 1 %) · \\ back to 100 %'), '[', ']', '\\'],
       [t('Key down / up a semitone'), '-', '='],
-      [t('Voice (my parts) · metronome click · count-in · check my singing'), 'v', 'm', 'i', 's'],
+      [t('Original voice on / off (sing it yourself)'), 'v'],
+      [t('Metronome click · count-in · check my singing'), 'm', 'i', 's'],
       [t('Open / close the panel · close · these shortcuts'), 'f', 'Escape', '?'],
     ],
   });
@@ -2043,9 +2211,9 @@ window.songbooksDecodable = function (buf) {
   //                         when the page has it) or the Mixer.
   //              "set"      saved bars or section starts.
   //              "none"     no bars at all: a time readout, ←/→ 5 s.
-  // Stems still being split show as a greyed chip with a spinner
+  // Stems still being split: the voice's switch greyed with a spinner
   // ("séparation…"), live with the 20 s poll; failed, "Voix indisponible",
-  // with a retry for editors (renderStems).
+  // with a retry for editors (renderStems, renderVoice).
   const lcdError = $('audio-lcd-error'), retryBtn = $('audio-retry');
   function setState(state, message) {
     if (state) root.dataset.state = state; else delete root.dataset.state;
@@ -2090,19 +2258,10 @@ window.songbooksDecodable = function (buf) {
   // Stems: pending, failed, there.
   function renderStems() {
     const meta = categories[activeCategory] || {};
-    const pending = meta.stemStatus === 'queued' || meta.stemStatus === 'running';
     const failed = meta.stemStatus === 'failed' && !hasParts();
-    const chip = $('audio-parts-pending');
-    if (chip) {
-      chip.hidden = !(pending || failed) || hasParts();
-      chip.classList.toggle('is-failed', failed);
-      const label = chip.querySelector('span');
-      if (label) label.textContent = failed ? t('Voice unavailable') : t('Voice · splitting…');
-      chip.title = failed ? t('The recording couldn’t be split into its parts.') : t('The recording is being split into its parts; the voice comes in a few minutes, without a reload.');
-    }
     const retry = $('audio-stems-retry');
     if (retry) retry.hidden = !(failed && canEdit);
-    if (partsEl) partsEl.hidden = !hasParts() && !pending && !failed;
+    renderVoice();
   }
   $('audio-stems-retry')?.addEventListener('click', async (e) => {
     e.stopPropagation();
