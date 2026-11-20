@@ -493,7 +493,7 @@
     <div class="toolbox-toolbar" id="toolbox-toolbar"></div>
   </div>
   <div class="sidebar-primary">
-    {{range navGlobal "desktop"}}<a href="{{.Path}}" data-path="{{.Path}}" data-label="{{t .Label}}">{{template "nav-icon" .Icon}} {{t .Label}}</a>{{end}}
+    {{range navGlobal "desktop"}}<a href="{{.Path}}" data-path="{{.Path}}" data-label="{{t .Label}}">{{template "nav-icon" .Icon}} {{t .Label}}</a>{{if eq .Path "/home"}}{{template "nav-notifications" $}}{{end}}{{end}}
   </div>
   {{/* This song: every control that used to crowd the top bar, moved here
        — it's contextual to whichever song is open, the same pattern as a
@@ -561,6 +561,10 @@
      to open this bar now lives in the sidebar (.sidebar-crumb) since it's
      site navigation, not something about this specific song. */}}
 <div class="song-topzone">
+{{/* Notifications from the song (menu proposal §3.9): a bell with a dot
+     when something's unread, so a coach's comment isn't invisible while
+     you practise. Below 900px; the sidebar's entry has the count above. */}}
+<div class="song-notifications">{{template "nav-notifications-dot"}}</div>
 {{/* Mobile has no left sidebar, so the breadcrumb that moved there for
      desktop (.sidebar-crumb) needs its own copy here — hidden on desktop
      (CSS, min-width:901px) where the sidebar's own copy takes over. */}}

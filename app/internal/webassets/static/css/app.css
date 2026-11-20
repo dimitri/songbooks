@@ -8170,3 +8170,36 @@ a.singer-chip:hover { border-color: var(--border-strong); }
 .today-secondary { color: inherit; font-size: 0.86rem; text-decoration: underline; text-underline-offset: 2px; opacity: 0.9; }
 .today-done { margin: 0; font-weight: 600; }
 /* ---- end Aujourd'hui cards ---- */
+
+/* ---- Menu redesign §3.9: notifications in one place (nav_notifications.html) ----
+   Desktop: the sidebar's entry under Accueil, with the unread count.
+   Phone: the bell top-right in the top bar, a dot on the Accueil tab.
+   The song page: a bell with a dot in its toolbar. */
+.nav-count {
+  margin-left: auto; min-width: 1.35rem; padding: 0.05rem 0.4rem; border-radius: 999px;
+  background: var(--accent); color: var(--accent-contrast); font-size: 0.72rem; font-weight: 700; line-height: 1.35; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.nav-count[hidden] { display: none; }
+.nav-unread-dot {
+  position: absolute; width: 0.55rem; height: 0.55rem; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 0 2px var(--bg-raised);
+}
+.nav-unread-dot[hidden] { display: none; }
+.global-tabbar a > .nav-unread-dot { top: 0.45rem; left: calc(50% + 0.45rem); }
+.nav-notifications-dot { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 2.4rem; min-height: 2.4rem; color: var(--fg-muted); }
+.nav-notifications-dot .icon { width: 1.3rem; height: 1.3rem; }
+.nav-notifications-dot .nav-unread-dot { top: 0.45rem; right: 0.5rem; box-shadow: 0 0 0 2px var(--bg-sunken); }
+.song-notifications { display: none; }
+@media (min-width: 901px) {
+  /* The sidebar's entry is the one entry point here. */
+  .app-header .notif-bell { display: none; }
+}
+@media (max-width: 900px) {
+  .app-header .notif-bell { order: 99; margin-left: auto; flex: none; min-width: 2.4rem; min-height: 2.4rem; justify-content: center; }
+  .app-header .notif-bell .notif-badge { top: 0; right: -0.1rem; }
+  .song-topzone { position: relative; }
+  .song-notifications { display: block; position: absolute; top: 0.25rem; right: 0.3rem; z-index: 2; }
+  body.stage .song-notifications, body.embed-playlist .song-notifications { display: none; }
+}
+/* ---- end notifications ---- */
