@@ -6751,23 +6751,38 @@ a.calendar-day:hover { text-decoration: none; background: var(--bg-sunken); }
 .index > .card + .card, .index > .card + .fold-card, .index > section + .card { margin-top: 1.25rem; }
 .danger-zone { border-color: var(--danger); }
 
-/* The band's sections on a phone: a list on the overview instead of a
-   row of tabs that scrolls out of sight; each section's header leads
-   back. Desktop keeps the tabs and doesn't show the list. */
-.band-hub { display: none; }
+/* A space's sections (space_nav.html): tabs under its header on a wide
+   screen, one look for a band, a community and a coaching studio, which a
+   brand doesn't recolour (it colours the header). Below 900px there are no
+   tabs, which would scroll out of sight: the space's home lists its
+   sections instead (space-hub), each row saying where it stands, and each
+   section's header leads back to it. */
+.space-tabs { display: flex; flex-wrap: wrap; gap: 0 0.2rem; margin: 0 0 1.25rem; border-bottom: 1px solid var(--border); }
+.space-tab {
+  display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0.45rem 0.75rem; margin-bottom: -1px;
+  border-bottom: 2px solid transparent; color: var(--fg-muted); font-size: 0.9rem; font-weight: 500; white-space: nowrap;
+}
+.space-tab:hover { text-decoration: none; color: var(--fg); border-bottom-color: var(--border); }
+.space-tab.active { color: var(--fg); font-weight: 600; border-bottom-color: var(--fg); }
+.space-hub { display: none; }
+@media (max-width: 899px) {
+  .space-tabs { display: none; }
+  .space-hub { display: flex; flex-direction: column; gap: 0.9rem; margin-bottom: 1.4rem; }
+  .space-hub-group { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; }
+  .space-hub-group li + li { border-top: 1px solid var(--border); }
+  .space-hub-group a { display: flex; align-items: center; gap: 0.75rem; min-height: 3.1rem; padding: 0.5rem 0.9rem; color: var(--fg); }
+  .space-hub-group a:hover { text-decoration: none; background: var(--bg-sunken); }
+  .space-hub-group a::after { content: "›"; color: var(--fg-faint); font-size: 1.3rem; line-height: 1; }
+  .space-hub-group .icon { flex: none; width: 1.2rem; height: 1.2rem; color: var(--accent); }
+  .space-hub-label { flex: 1; min-width: 0; font-weight: 500; }
+  .space-hub-state { font-size: 0.85rem; color: var(--fg-muted); text-align: right; }
+  .space-hub-state.is-due { color: var(--accent); font-weight: 600; }
+}
 @media (max-width: 600px) {
-  .band-section-tabs { display: none; }
   .band-overview-wide { display: none; }
-  .band-hub { display: flex; flex-direction: column; gap: 0.9rem; margin-bottom: 1.4rem; }
-  .band-hub-group { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; }
-  .band-hub-group li + li { border-top: 1px solid var(--border); }
-  .band-hub-group a { display: flex; align-items: center; gap: 0.75rem; min-height: 3.1rem; padding: 0.5rem 0.9rem; color: var(--fg); }
-  .band-hub-group a:hover { text-decoration: none; background: var(--bg-sunken); }
-  .band-hub-group a::after { content: "›"; color: var(--fg-faint); font-size: 1.3rem; line-height: 1; }
-  .band-hub-group .icon { width: 1.2rem; height: 1.2rem; color: var(--accent); }
-  .band-hub-label { flex: 1; font-weight: 500; }
-  .band-hub-state { font-size: 0.85rem; color: var(--fg-muted); }
-  .band-hub-state.is-due { color: var(--accent); font-weight: 600; }
+  /* A section's page leads back to the space's home: its header is the
+     home's, not repeated above every section. */
+  .space-header:not(.is-home) { display: none; }
 }
 
 /* ==== A space's header (space_nav.html, httpapi/space_nav.go) ===========

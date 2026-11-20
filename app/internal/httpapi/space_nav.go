@@ -3,8 +3,10 @@ package httpapi
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"app/internal/brand"
+	"app/internal/i18n"
 	"app/internal/store"
 	"app/internal/webassets"
 )
@@ -127,7 +129,36 @@ type SpaceTab struct {
 	SpaceSection
 	Href    string
 	Current bool
+	// On the space's home on a phone, each section's row says where it
+	// stands ("43 songs", "Saturday"); Due when it waits on the viewer.
+	Hint string
+	Due  bool
 }
+
+// spaceHint is what a space's home says of one of its sections, in the
+// viewer's language: data["SpaceHints"], by section Key.
+type spaceHint struct {
+	Text string
+	Due  bool
+}
+
+// withHints puts the home page's word on each section (and ⚙).
+func (n *SpaceNav) withHints(hints map[string]spaceHint) {
+	for i := range n.Sections {
+		if h, ok := hints[n.Sections[i].Key]; ok {
+			n.Sections[i].Hint, n.Sections[i].Due = h.Text, h.Due
+		}
+	}
+	if n.Gear != nil {
+		if h, ok := hints[n.Gear.Key]; ok {
+			n.Gear.Hint, n.Gear.Due = h.Text, h.Due
+		}
+	}
+}
+
+// IsHome reports whether the page is the space's home (its overview),
+// the page that lists its sections on a phone.
+func (n *SpaceNav) IsHome() bool { return n.Current == "overview" }
 
 // Initials are the avatar's letters when the space has no logo or mark
 // (the same as its card's: list_cards.go).
@@ -258,6 +289,9 @@ func (s *Server) addSpaceNav(w http.ResponseWriter, name string, data any) {
 		}
 		nav := newSpaceNav(spaceBand, band.ID, band.Name, spaceRole{Staff: core, SeeMembers: true, PersonID: person.ID}, section)
 		nav.Brand = webassets.BrandLookupFor("band", band.ID)
+		if hints, ok := m["SpaceHints"].(map[string]spaceHint); ok {
+			nav.withHints(hints)
+		}
 		m["Space"] = nav
 		return
 	}
@@ -282,5 +316,21 @@ func (s *Server) addSpaceNav(w http.ResponseWriter, name string, data any) {
 	}
 	nav := newSpaceNav(kind, community.ID, community.Name, spaceRole{Staff: staff, SeeMembers: see, PersonID: person.ID}, section)
 	nav.Brand = webassets.BrandLookupFor("community", community.ID)
+	if hints, ok := m["SpaceHints"].(map[string]spaceHint); ok {
+		nav.withHints(hints)
+	}
 	m["Space"] = nav
+}
+
+// dayHint says when t is in lang, as the Next up card does: today,
+// tomorrow, a weekday within the week, a short date after that.
+func dayHint(lang string, t time.Time) string {
+	now := time.Now()
+	switch w := humanDay(t, now); w {
+	case "Today", "Tomorrow":
+		return i18n.T(lang, w)
+	case t.In(now.Location()).Format("Monday 2 Jan"):
+		return i18n.Date(lang, t, "Monday 2 Jan")
+	}
+	return i18n.Date(lang, t, "Mon 2 Jan")
 }

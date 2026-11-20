@@ -112,3 +112,26 @@ func TestSpaceNavRenders(t *testing.T) {
 		t.Errorf("the band's ⚙ isn't the open section on its settings:\n%s", buf.String())
 	}
 }
+
+// On a phone a space's home lists its sections, each with where it
+// stands, ⚙ apart; the overview itself isn't one of the rows.
+func TestSpaceHub(t *testing.T) {
+	nav := newSpaceNav(spaceCommunity, 3, "Jam du Canal", spaceRole{Staff: true, SeeMembers: true}, "overview")
+	nav.withHints(map[string]spaceHint{"events": {Text: "samedi", Due: true}, "admin": {Text: "3 to review"}})
+	var buf bytes.Buffer
+	if err := webassets.TemplatesFor("fr").ExecuteTemplate(&buf, "space-hub", nav); err != nil {
+		t.Fatal(err)
+	}
+	html := buf.String()
+	for _, want := range []string{
+		`href="/communities/3/events"`, `<span class="space-hub-state is-due">samedi</span>`,
+		`href="/communities/3/admin"`, `3 to review`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("space-hub lacks %q:\n%s", want, html)
+		}
+	}
+	if strings.Contains(html, `href="/communities/3"`) {
+		t.Errorf("the home lists itself:\n%s", html)
+	}
+}

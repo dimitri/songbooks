@@ -239,7 +239,27 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// The sections' rows on a phone (space-hub): where each one stands.
+	lang := s.langOf(w)
+	hints := map[string]spaceHint{
+		"catalog":    {Text: i18n.N(lang, repertoireCount, "%d song", "%d songs")},
+		"setlists":   {Text: strconv.Itoa(len(setlists))},
+		"events":     {Text: i18n.T(lang, "plan a rehearsal")},
+		"rehearsals": {Text: i18n.T(lang, "recordings")},
+		"concerts":   {Text: i18n.T(lang, "recordings")},
+		"proposals":  {Text: i18n.T(lang, "none open")},
+		"discover":   {Text: i18n.T(lang, "listen and pick")},
+		"members":    {Text: strconv.Itoa(len(members))},
+		"settings":   {Text: i18n.T(lang, "name, look")},
+	}
+	if nextUp != nil {
+		hints["events"] = spaceHint{Text: dayHint(lang, nextUp.Starts)}
+	}
+	if n := len(openProposals); n > 0 {
+		hints["proposals"] = spaceHint{Text: i18n.T(lang, "%d to vote on", n), Due: true}
+	}
 	s.render(w, "band", map[string]any{
+		"SpaceHints": hints,
 		"Me": person, "Band": band, "Changes": changes, "HasLastSeen": since != nil,
 		"OpenProposals": openProposals, "RepertoireCount": repertoireCount,
 		"Setlists": setlists, "MemberCount": len(members), "NextUp": nextUp,
