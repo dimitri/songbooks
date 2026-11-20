@@ -1,9 +1,11 @@
 # syntax=docker/dockerfile:1
 
 # stemsd: splits reference recordings into their parts with Demucs, in
-# the background (cmd/stemsd, docs/audio-cast-transpose-stems.md). Its own
-# image, apart from the app's: PyTorch and the model weigh about 1.5 GB,
-# and the CPU it takes is capped in docker-compose.yml.
+# the background (cmd/stemsd, docs/audio-cast-transpose-stems.md), then
+# listens to them: beats, bars and chords (deploy/analysis/sbanalyze.py,
+# Beat This! and lv-chordia). Its own image, apart from the app's:
+# PyTorch and the models weigh about 1.6 GB, and the CPU it takes is
+# capped in docker-compose.yml.
 
 FROM golang:1.26-bookworm AS builder
 WORKDIR /src
@@ -20,8 +22,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
         torch==2.5.1 torchaudio==2.5.1 \
     && pip install --no-cache-dir demucs==4.0.1 "numpy<2"
-# The model, fetched once at build rather than at the first recording.
+# The analysis models, both MIT (code and weights): Beat This! (CPJKU)
+# for beats and downbeats, lv-chordia (Music X Lab, ISMIR 2019) for
+# chords. Held to Demucs' torch and NumPy by the constraints, so nothing
+# here upgrades them. No madmom, no Essentia (non-commercial models).
+RUN printf 'torch==2.5.1\ntorchaudio==2.5.1\nnumpy<2\n' > /tmp/pins.txt \
+    && pip install --no-cache-dir -c /tmp/pins.txt beat-this==1.1.0 lv-chordia==1.1.0 soundfile \
+    && rm /tmp/pins.txt
+# The models, fetched once at build rather than at the first recording.
 ENV TORCH_HOME=/opt/torch
 RUN python -c "from demucs.pretrained import get_model; get_model('htdemucs')"
+COPY deploy/analysis/sbanalyze.py /opt/sbanalyze/sbanalyze.py
+RUN python /opt/sbanalyze/sbanalyze.py --warm && python /opt/sbanalyze/sbanalyze.py --name
 COPY --from=builder /out/stemsd /usr/local/bin/stemsd
-ENTRYPOINT ["/usr/local/bin/stemsd", "--demucs", "python -m demucs"]
+ENTRYPOINT ["/usr/local/bin/stemsd", "--demucs", "python -m demucs", "--analyze", "python /opt/sbanalyze/sbanalyze.py"]
