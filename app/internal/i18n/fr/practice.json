@@ -77,5 +77,18 @@
   "songbook": "songbook",
   "start": "lancer",
   "tap tempo": "taper le tempo",
-  "toggle light/dark": "basculer clair/sombre"
+  "toggle light/dark": "basculer clair/sombre",
+  "back to the song’s tempo (\\)": "revenir au tempo du morceau (\\)",
+  "bar.beat since the click started on this song": "mesure.temps depuis le début du clic sur ce morceau",
+  "time since the click started on this song": "temps écoulé depuis le début du clic sur ce morceau",
+  "Bar": "Mesure",
+  "Song": "Morceau",
+  "Total": "Total",
+  "time since the first start of this set list; it keeps running between songs until you reset it": "temps écoulé depuis le premier lancement de cette set list ; il continue entre les morceaux jusqu’à sa remise à zéro",
+  "Reset the total time": "Remettre le temps total à zéro",
+  "tap the tempo (T): for this performance only, the song keeps its own": "taper le tempo (T) : pour cette fois seulement, le morceau garde le sien",
+  "Tap": "Taper",
+  "tempo": "tempo",
+  "Screen": "Écran",
+  "The screen stays on while the click runs.": "L’écran reste allumé pendant le clic."
 }

@@ -1699,13 +1699,29 @@ textarea.clicktrack-clicknote-input { min-height: 0; resize: none; border-color:
 .clicktrack-break .hint { margin-bottom: 1rem; }
 
 /* ---- Click-track's own compact metronome. The beat dots are the page:
-   one dot per beat of one bar, each as wide as the row allows (--beats
-   is set by the script) up to the Size option's cap (--dot-max). The
-   downbeat is ringed rather than bigger, so every dot can be big.
-   .mc-landscape (a phone propped sideways) raises the caps. */
+   two bars of dots on one row (.mc-bar each, a bar line between them),
+   one dot per click, each as wide as its bar allows (--beats, --groups
+   and --dot-gap are set by the script) up to the Size option's cap
+   (--dot-max). The downbeat is ringed rather than bigger, so every dot
+   can be big; a lighter accent (4 in 6/8, 7 in 12/8, a group's start in
+   7/8) gets a lighter ring, and a group of eighths a space before it. .mc-landscape (a phone propped sideways) raises the
+   caps. */
 .metronome-compact { max-width: 34rem; margin: 0.7rem auto 1rem; padding: 1.2rem 1rem 1rem; display: flex; flex-direction: column; gap: 1.2rem; }
 .mc-row { display: flex; align-items: center; justify-content: center; gap: 1rem; }
-.mc-beat-dots { --dot-max: 4.6rem; --dot-gap: 0.7rem; gap: var(--dot-gap); padding: 0.3rem 0; flex-wrap: nowrap; align-items: center; }
+.mc-beat-dots { --dot-max: 4.6rem; --dot-gap: 0.7rem; --group-gap: calc(var(--dot-gap) * 1.6); flex-wrap: nowrap; gap: 1.1rem; padding: 0.3rem 0; align-items: stretch; justify-content: center; }
+.mc-beat-dots .mc-bar {
+  position: relative; display: flex; justify-content: center; align-items: center; gap: var(--dot-gap); box-sizing: border-box;
+  flex: 1 1 0; min-width: 0; max-width: calc(var(--beats, 4) * (var(--dot-max) + var(--dot-gap)) + var(--groups, 1) * var(--group-gap) + 0.8rem);
+  padding: 0.4rem;
+}
+/* The bar line between the two bars. */
+.mc-beat-dots .mc-bar + .mc-bar::before {
+  content: ""; position: absolute; left: -0.65rem; top: 12%; bottom: 12%; width: 3px; border-radius: 2px;
+  background: color-mix(in srgb, var(--fg) 45%, transparent);
+}
+.mc-beat-dots .beat-dot.group-start { margin-left: calc(var(--group-gap) - var(--dot-gap)); }
+.mc-beat-dots .beat-dot.mid-accent { box-shadow: inset 0 0 0 max(2px, 0.14rem) color-mix(in srgb, var(--accent) 40%, transparent); }
+.mc-beat-dots .mc-bar[data-many] { padding: 0.4rem 0.25rem; }
 .metronome-compact[data-size="sm"] .mc-beat-dots { --dot-max: 2.2rem; }
 .metronome-compact[data-size="lg"] .mc-beat-dots { --dot-max: 7rem; }
 .metronome-compact.mc-landscape { max-width: none; }
@@ -1717,7 +1733,7 @@ textarea.clicktrack-clicknote-input { min-height: 0; resize: none; border-color:
 }
 .mc-beat-dots .beat-dot, .mc-beat-dots .beat-dot.downbeat {
   flex: 0 0 auto; height: auto; aspect-ratio: 1;
-  width: min(var(--dot-max), calc((100% - (var(--beats, 4) - 1) * var(--dot-gap)) / var(--beats, 4)));
+  width: min(var(--dot-max), calc((100% - (var(--beats, 4) - 1) * var(--dot-gap) - (var(--groups, 1) - 1) * (var(--group-gap) - var(--dot-gap))) / var(--beats, 4)));
 }
 .mc-beat-dots .beat-dot.downbeat { box-shadow: inset 0 0 0 0.22rem color-mix(in srgb, var(--accent) 55%, transparent); }
 .mc-beat-dots .beat-dot.lit { transform: scale(1.06); }
@@ -7700,6 +7716,86 @@ a.singer-chip:hover { border-color: var(--border-strong); }
   .ct-panel-head :is(strong, kbd, .ct-close) { display: none; }
   .ct-grab { display: block; position: relative; width: 3rem; height: 1.4rem; min-height: 0; border: 0; padding: 0; background: none; }
   .ct-grab::before { content: ""; position: absolute; left: 0.6rem; right: 0.6rem; top: 0.5rem; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--fg) 25%, transparent); }
+}
+
+/* The click track live (clicktrack-live): the counters (bar.beat, the
+   song's time, the set list's total), the line that says a tempo is
+   for this performance only, a big Tap in the bar, the bpm as the way
+   back to the song's tempo, two bars of dots in the bar too. */
+.ct-counters { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 0.45rem; max-width: 34rem; margin: 0.8rem auto 0; text-align: center; }
+.ct-counters.is-break { grid-template-columns: minmax(0, 1fr); max-width: 16rem; }
+.ct-counters.is-break .ct-counter-song { display: none; }
+.ct-counter { display: flex; flex-direction: column; align-items: center; min-width: 0; padding: 0.35rem 0.3rem 0.45rem; border-radius: var(--radius); background: var(--bg-sunken); }
+.ct-counter-label { display: flex; align-items: center; justify-content: center; gap: 0.35rem; min-height: 2rem; font-size: 0.72rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg-muted); }
+.ct-counter-value { font-size: 1.6rem; font-weight: 750; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ct-counter-value.ct-barbeat { font-size: 1.9rem; }
+.ct-counters.is-running .ct-barbeat { color: var(--accent-ink, var(--accent)); }
+.ct-counters:not(.is-running) .ct-counter-song .ct-counter-value,
+.ct-counters:not(.is-total-running) .ct-counter-total .ct-counter-value { color: var(--fg-muted); }
+button.ct-reset { min-height: 0; height: 2rem; padding: 0 0.6rem; border-radius: 999px; font-size: 0.7rem; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--fg-muted); background: var(--bg-raised); }
+button.ct-reset.is-armed { color: var(--danger); border-color: var(--danger); }
+@media (min-width: 960px) {
+  .ct-counters { max-width: 40rem; gap: 0.7rem; }
+  .ct-counter-label { font-size: 0.8rem; }
+  .ct-counter-value { font-size: 2.5rem; }
+  .ct-counter-value.ct-barbeat { font-size: 3rem; }
+}
+.ct-awake-line { margin: 0.35rem 0 0; text-align: center; font-size: 0.75rem; color: var(--fg-muted); }
+.ct-awake-line[hidden] { display: none; }
+.ct-awake { margin: 0; font-size: 0.85rem; color: var(--fg-muted); }
+.ct-tempo-own { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.35rem 0.6rem; margin: 0.5rem auto 0; max-width: 32rem; font-size: 0.9rem; font-weight: 600; color: var(--accent-ink, var(--accent)); }
+.ct-tempo-own[hidden] { display: none; }
+button.ct-tempo-back { min-height: 2.5rem; padding: 0 1rem; border-radius: 999px; border: 2px solid var(--accent); color: var(--accent-ink, var(--accent)); font-weight: 700; }
+/* The bpm in the bar: the way back to the song's tempo while it differs. */
+button.mc-bpm-display { min-height: 0; height: 2.3rem; padding: 0 0.35rem; border: 2px solid transparent; border-radius: 10px; background: none; }
+button.mc-bpm-display:disabled { opacity: 1; cursor: default; }
+button.mc-bpm-display.is-own { border-color: var(--accent); color: var(--accent-ink, var(--accent)); }
+button.mc-bpm-display.is-own::after { content: "\21BA"; font-size: 0.95rem; font-weight: 700; }
+/* Tap: labelled, big, flashing on each tap. */
+button.ct-tap {
+  flex: none; order: 0; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.05rem;
+  min-width: 5.6rem; height: 3.2rem; padding: 0 0.9rem; border-radius: 14px; border: 2px solid var(--accent);
+  background: var(--accent-bg); color: var(--accent-ink, var(--accent)); line-height: 1.05;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+}
+.ct-tap-label { font-size: 1.15rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+.ct-tap-bpm { font-size: 0.72rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ct-tap.is-tapping .ct-tap-bpm { font-size: 0.85rem; font-weight: 800; }
+button.ct-tap.is-hit { animation: ct-tap-flash 0.25s ease-out; }
+@keyframes ct-tap-flash {
+  from { background: var(--accent); color: var(--accent-contrast); transform: scale(0.95); }
+  to { background: var(--accent-bg); color: var(--accent-ink, var(--accent)); transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes ct-tap-flash { from { background: var(--accent); color: var(--accent-contrast); } to { background: var(--accent-bg); color: var(--accent-ink, var(--accent)); } }
+}
+.ct-dots { gap: 0.55rem; }
+.ct-dots .mc-bar { display: flex; gap: 0.25rem; }
+.ct-dots .mc-bar[data-many] { gap: 0.15rem; }
+.ct-dots .mc-bar[data-many] .beat-dot { width: 0.42rem !important; height: 0.42rem !important; }
+/* The dots size from the width they're given: the column takes it all. */
+.clicktrack-layout, .clicktrack-stage, #clicktrack-metronome-wrap { width: 100%; box-sizing: border-box; }
+.metronome-compact { box-sizing: border-box; width: 100%; }
+@media (min-width: 960px) { .metronome-compact { max-width: 46rem; } }
+@media (max-width: 720px) {
+  /* The phone's bar: where you are, the panel and Tap on top; the song
+     before, play, the song after and the tempo below. The big dots are
+     right above it, so the bar's small copy goes. */
+  .ct-bar .ct-readout { order: -3; flex: 1 1 calc(100% - 9.6rem); }
+  .ct-bar .ct-panel-btn { order: -2; }
+  .ct-bar .ct-tap { order: -1; min-width: 0; width: 5.8rem; height: 3rem; padding: 0 0.4rem; }
+  .ct-bar .ct-dots { display: none; }
+  .ct-bar .ct-transport { margin-left: auto; }
+  .ct-bar .ct-tray { flex: 0 1 auto; margin-right: auto; }
+  .ct-bar .ct-tray button.mc-bpm-display { width: 4.4rem; min-width: 0; }
+  .ct-bar .ct-tray button.mc-bpm-display.is-own .bpm-unit { display: none; }
+  .ct-counters { margin-top: 0.6rem; }
+  .ct-counter-value { font-size: 1.5rem; }
+  .ct-counter-value.ct-barbeat { font-size: 1.8rem; }
+  .ct-tempo-own { flex-wrap: nowrap; text-align: left; font-size: 0.8rem; }
+  button.ct-tempo-back { flex: none; min-height: 2.4rem; padding: 0 0.7rem; }
+  .metronome-compact[data-size="md"]:not(.mc-landscape) .mc-beat-dots { --dot-max: 3.6rem; }
+  .metronome-compact { gap: 0.8rem; padding: 0.9rem 0.8rem 0.8rem; }
 }
 
 /* The warm-up on the player shell (warmups.html): its card becomes the
