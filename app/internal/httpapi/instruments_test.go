@@ -127,10 +127,22 @@ func TestProfileInstruments(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("profile: %d", code)
 	}
-	for _, want := range []string{"Mes instruments", "Guitare", "Contrebasse", "Confirmé", "Niveau non précisé", "Débutant", "Je tiens ma partie", "Qui voit vos niveaux"} {
+	for _, want := range []string{"Mes instruments", "Guitare", "Contrebasse", "Confirmé", "Niveau non précisé", "Débutant", "Je tiens ma partie", "Partager mes niveaux", "Autre (je le précise)"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("profile page lacks %q", want)
 		}
+	}
+
+	// Sharing levels is on by default, and says who sees them.
+	if !strings.Contains(page, `name="share" value="on" checked`) || !strings.Contains(page, "Désactivé : personne d’autre que vous et les administrateurs") {
+		t.Error("the sharing choice isn't shown ticked, or isn't explained")
+	}
+	// "Other" with only spaces asks which one.
+	if code, _ := asMe.do("POST", "/profile/instruments/add", url.Values{"instrument": {"other"}, "other_name": {"   "}}); code != http.StatusSeeOther {
+		t.Errorf("blank other: %d", code)
+	}
+	if mine, _ := st.ListPersonInstruments(ctx, me); len(mine) != 2 {
+		t.Errorf("blank other added something: %+v", mine)
 	}
 
 	// Only I change or remove my instruments.
@@ -164,6 +176,9 @@ func TestProfileInstruments(t *testing.T) {
 	}
 	if code, _ := asMe.do("POST", "/profile/instruments/sharing", url.Values{}); code != http.StatusSeeOther {
 		t.Fatalf("sharing off: %d", code)
+	}
+	if _, page := asMe.do("GET", "/profile?instsaved=sharing", nil); strings.Contains(page, `name="share" value="on" checked`) || !strings.Contains(page, "Enregistré : seuls vous et les administrateurs") {
+		t.Error("sharing off isn't shown, or not confirmed")
 	}
 	if code, v := get(asMate); code != 200 || len(v.Instruments) != 2 || v.Instruments[0].Level != "" {
 		t.Errorf("bandmate sees levels I don't share: %d %+v", code, v)
@@ -231,8 +246,82 @@ func TestJamRegistrationCollectsInstruments(t *testing.T) {
 	if len(regs) != 1 || strings.Join(regs[0].Instruments, ",") != "bass" {
 		t.Errorf("registration now: %+v", regs)
 	}
+	// The profile keeps what was collected.
+	if mine, _ := st.ListPersonInstruments(ctx, me); len(mine) != 3 {
+		t.Errorf("profile after changing what I'll play: %+v", mine)
+	}
 	stranger, _ := st.CreatePerson(ctx, "stranger", "Stranger", "")
 	if code, _ := newAsPerson(t, st, srv, stranger).do("POST", path+"/instruments", url.Values{"instrument": {"drums"}}); code != http.StatusForbidden {
 		t.Errorf("unregistered: %d, want 403", code)
+	}
+}
+
+// The welcome wizard ticks what's on the profile, lists the rest, and
+// takes off only an icon that was ticked and is now unticked.
+func TestWizardInstrumentsKeepCollected(t *testing.T) {
+	st := instrumentsTestStore(t)
+	ctx := context.Background()
+	srv := httptest.NewServer(NewServer(st, mailer.NewConsoleMailer(st), nil, "", ""))
+	defer srv.Close()
+
+	me, _ := st.CreatePerson(ctx, "me", "Me", "")
+	band, _ := st.CreateBand(ctx, "Mercy", me)
+	if _, err := st.AddInstrument(ctx, me, "voice", "", "beginner"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.AddInstrument(ctx, me, "other", "Thérémine", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.CollectInstruments(ctx, me, []string{"bass", "sax"}, store.InstrumentSource{Kind: store.InstrumentFromBand, ID: band}); err != nil {
+		t.Fatal(err)
+	}
+	// As the start-up backfill leaves it: people.instruments not in step.
+	conn := os.Getenv("SONGBOOKS_TEST_DATABASE_URL")
+	if conn == "" {
+		conn = "postgres://localhost/songbooks_test?sslmode=disable"
+	}
+	db, err := pgx.Connect(ctx, conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close(ctx)
+	if _, err := db.Exec(ctx, `UPDATE people SET instruments = '{}' WHERE id = $1`, me); err != nil {
+		t.Fatal(err)
+	}
+	asMe := newAsPerson(t, st, srv, me)
+
+	code, page := asMe.do("GET", "/welcome?step=3", nil)
+	if code != 200 {
+		t.Fatalf("wizard: %d", code)
+	}
+	for _, want := range []string{`value="voice" checked`, `value="bass" checked`, `name="had" value="voice"`, `name="had" value="bass"`, "Aussi sur votre profil : Saxophone, Thérémine."} {
+		if !strings.Contains(page, want) {
+			t.Errorf("wizard lacks %q", want)
+		}
+	}
+	if strings.Contains(page, `name="had" value="guitar"`) {
+		t.Error("an unticked icon posted as had")
+	}
+
+	// Untick bass, keep voice, tick guitar, type ukulele.
+	form := url.Values{"had": {"voice", "bass"}, "instrument": {"voice", "guitar"}, "other": {"ukulele"}, "next": {"/welcome?step=4"}}
+	if code, _ := asMe.do("POST", "/profile/instruments", form); code != http.StatusFound {
+		t.Fatalf("wizard post: %d", code)
+	}
+	mine, _ := st.ListPersonInstruments(ctx, me)
+	var got []string
+	for _, pi := range mine {
+		got = append(got, pi.Name("fr"))
+	}
+	if strings.Join(got, ",") != "Chant,Guitare,Ukulélé,Saxophone,Thérémine" {
+		t.Errorf("after the wizard: %q", got)
+	}
+	// A post without "had" (an old page, a form without JS state) takes
+	// nothing off.
+	if code, _ := asMe.do("POST", "/profile/instruments", url.Values{}); code != http.StatusFound {
+		t.Fatalf("empty wizard post: %d", code)
+	}
+	if mine, _ := st.ListPersonInstruments(ctx, me); len(mine) != 5 {
+		t.Errorf("an empty wizard post took something off: %+v", mine)
 	}
 }

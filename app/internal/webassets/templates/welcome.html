@@ -57,6 +57,10 @@
     {{if .AlreadyDone}}<p class="hint">{{t "Already set — pick again any time, or just move on."}}</p>{{end}}
     <form method="post" action="/profile/instruments" class="form-stack">
       <input type="hidden" name="next" value="/welcome?step=4{{if .Next}}&amp;next={{.Next}}{{end}}">
+      {{/* "had": the icons ticked when the page was drawn. Only those the
+           person unticks come off (handleUpdateInstruments); everything
+           else on the profile stays. */}}
+      {{range .CommonInstruments}}{{if index $.Checked .}}<input type="hidden" name="had" value="{{.}}">{{end}}{{end}}
       {{/* sr-only, not display:none, so each icon is still a checkbox a
            keyboard can reach (the label shows its focus ring). */}}
       <fieldset class="field-group">
@@ -71,10 +75,11 @@
           {{end}}
         </div>
       </fieldset>
+      {{if .AlsoPlays}}<p class="hint">{{t "Also on your profile: %s." .AlsoPlays}} <a href="/profile#instruments">{{t "Change them on your profile"}}</a></p>{{end}}
       <div class="field">
         <label for="wizard-other-instruments">{{t "Other instruments"}} <span class="field-optional">{{t "(optional)"}}</span></label>
-        <p class="field-hint" id="wizard-other-instruments-hint">{{t "Separate them with commas, e.g. keyboard, sax."}}</p>
-        <input id="wizard-other-instruments" type="text" name="other" value="{{.Other}}" aria-describedby="wizard-other-instruments-hint">
+        <p class="field-hint" id="wizard-other-instruments-hint">{{t "Separate them with commas, e.g. sax, ukulele."}}</p>
+        <input id="wizard-other-instruments" type="text" name="other" value="" aria-describedby="wizard-other-instruments-hint">
       </div>
       <div class="wizard-actions">
         <button type="submit" class="primary">{{t "Continue"}}</button>

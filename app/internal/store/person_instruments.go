@@ -285,14 +285,18 @@ func collectInstruments(ctx context.Context, q dbtx, personID int64, texts []str
 	return nil
 }
 
-// ReplaceOwnInstruments makes personID's profile hold exactly the
-// instruments in texts (free text), as the welcome wizard's checkboxes
-// say: the ones listed are added (or brought back), the others taken
-// off. Levels stay.
-func (st *Store) ReplaceOwnInstruments(ctx context.Context, personID int64, texts []string) error {
+// UpdateOwnInstruments is the welcome wizard's "What do you play?":
+// add is what the person ticked or typed (free text, read with
+// instruments.Parse), put on the profile or brought back; takeOff is the
+// canonical instruments the wizard showed ticked that the person
+// unticked, and only those are taken off. Nothing else on the profile
+// changes: an instrument the wizard didn't show ticked (an "other", one
+// collected from a band or an event since the page was drawn) stays, and
+// so do levels. ErrNotFound if there's no such person.
+func (st *Store) UpdateOwnInstruments(ctx context.Context, personID int64, add, takeOff []string) error {
 	type entry struct{ id, other, text string }
 	var want []entry
-	for _, text := range texts {
+	for _, text := range add {
 		text = strings.TrimSpace(text)
 		ids, unknown := instruments.Parse(text)
 		for _, id := range ids {
@@ -309,24 +313,41 @@ func (st *Store) ReplaceOwnInstruments(ctx context.Context, personID int64, text
 		return err
 	}
 	defer tx.Rollback(ctx)
-	keep := []int64{}
+	var exists bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM people WHERE id = $1)`, personID).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("no such person id %d: %w", personID, ErrNotFound)
+	}
+	added := map[string]bool{}
 	for _, e := range want {
-		var id int64
-		if err := tx.QueryRow(ctx, `
+		if _, err := tx.Exec(ctx, `
 			INSERT INTO person_instruments (person_id, instrument, other_name, source, original)
 			VALUES ($1, $2, $3, 'self', $4)
 			ON CONFLICT (person_id, instrument, lower(other_name)) DO UPDATE
 			   SET removed_at = NULL,
-			       updated_at = CASE WHEN person_instruments.removed_at IS NULL THEN person_instruments.updated_at ELSE now() END
-			RETURNING id`, personID, e.id, e.other, e.text).Scan(&id); err != nil {
+			       updated_at = CASE WHEN person_instruments.removed_at IS NULL THEN person_instruments.updated_at ELSE now() END`,
+			personID, e.id, e.other, e.text); err != nil {
 			return err
 		}
-		keep = append(keep, id)
+		if e.other == "" {
+			added[e.id] = true
+		}
 	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE person_instruments SET removed_at = now(), updated_at = now()
-		WHERE person_id = $1 AND removed_at IS NULL AND NOT (id = ANY($2))`, personID, keep); err != nil {
-		return err
+	var drop []string
+	for _, id := range takeOff {
+		if instruments.Valid(id) && id != instruments.Other && !added[id] {
+			drop = append(drop, id)
+		}
+	}
+	if len(drop) > 0 {
+		if _, err := tx.Exec(ctx, `
+			UPDATE person_instruments SET removed_at = now(), updated_at = now()
+			WHERE person_id = $1 AND instrument = ANY($2) AND other_name = '' AND removed_at IS NULL`,
+			personID, drop); err != nil {
+			return err
+		}
 	}
 	if err := syncPeopleInstruments(ctx, tx, personID); err != nil {
 		return err
