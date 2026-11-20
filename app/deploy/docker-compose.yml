@@ -83,8 +83,9 @@ services:
 
   # Splits reference recordings into their parts (Demucs) in the
   # background: cmd/stemsd, deploy/Dockerfile.stems,
-  # docs/audio-cast-transpose-stems.md. One recording at a time, capped
-  # at 8 of the host's cores so the app and the other stacks keep theirs.
+  # docs/stems-and-key.md. An upload at a time, at once, and the backlog
+  # beside it niced, capped at 16 of the host's 24 hardware threads so the
+  # app and the other stacks keep theirs.
   stems:
     # Production's only (COMPOSE_PROFILES=stems in its .env): one worker
     # for the host is enough, and staging's recordings can wait.
@@ -98,14 +99,25 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-songbooks}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-songbooks}?sslmode=disable
-      # One Demucs process, PyTorch on as many threads as cores it gets:
-      # left alone, PyTorch starts a thread per core of the host (24),
-      # and Demucs' --jobs as many processes, all fighting over 8 cores
-      # (a first recording took 9 minutes, 2 on a laptop).
-      OMP_NUM_THREADS: "8"
-      MKL_NUM_THREADS: "8"
-    cpus: 8
-    mem_limit: 8g
+      # Left alone, PyTorch starts a thread per core of the host (24), all
+      # fighting over the cores the container gets; stemsd sets its own
+      # (--threads) for each Demucs it runs.
+      OMP_NUM_THREADS: "4"
+      MKL_NUM_THREADS: "4"
+    # Two lanes (cmd/stemsd, docs/stems-and-key.md): an upload is split at
+    # once, 4 of its segments side by side on 4 threads each (on this
+    # host's 12 cores, PyTorch's threads alone stop paying past 12, side
+    # by side segments keep paying to 16: Demucs splits a 3:30 song in
+    # 3:15, 5:55 on 8 threads); the splits done again run beside it,
+    # niced, on 2 threads.
+    command: ["--threads", "4", "--jobs", "4", "--backlog-threads", "2"]
+    # Never more than 16 of the 24 hardware threads, and below the app,
+    # the database and the videoconference when the host is busy (its
+    # whole cap when it isn't: the weight only counts under contention).
+    cpus: 16
+    cpu_shares: 512
+    # An upload's split peaks near 4 GB, the backlog's beside it near 1.5.
+    mem_limit: 10g
 
   # Live lessons' videoconference server (docs/live-lessons.md): production
   # only (COMPOSE_PROFILES=stems,live), its configuration from
