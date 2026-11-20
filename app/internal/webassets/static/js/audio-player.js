@@ -2627,7 +2627,7 @@ window.songbooksDecodable = function (buf) {
   // unfolded); when the song's chart counts as many, they are the chart's
   // too, else the player shows the file's own sections (ownBars).
   //
-  //   window.songbooksPlayer.ready          → {recorded}: once the
+  //   window.songbooksPlayer.recordings     → {recorded}: once the
   //                                          recordings are known;
   //   .synthProgress(text)                 the readout while it renders;
   //   .offerSynth({bytes, type, barTimes, beats, sections, bpm})
@@ -2640,8 +2640,8 @@ window.songbooksDecodable = function (buf) {
   //   .speed(), .playing(), .cycle() → {from, to} or null
   let readyResolve;
   const ready = new Promise((r) => { readyResolve = r; });
-  window.songbooksPlayer = {
-    ready,
+  window.songbooksPlayer = Object.assign(window.songbooksPlayer || {}, {
+    recordings: ready,
     synthProgress(text) {
       if (Object.keys(categories).length) return;
       clearInterval(noneTimer);
@@ -2697,7 +2697,7 @@ window.songbooksDecodable = function (buf) {
     speed: () => prefs.speed,
     playing: () => isPlaying(),
     cycle: () => (prefs.cycle && prefs.cycle.on && hasBars() ? { from: prefs.cycle.from, to: prefs.cycle.to } : null),
-  };
+   });
 
   // A recording being split (just added, or replaced): its parts show up
   // here when they're ready, without a reload.
@@ -2845,7 +2845,8 @@ window.songbooksDecodable = function (buf) {
   document.addEventListener('songbooks:audio-changed', () => loadMeta());
 
   // ---- For the Sync sheet (sync-sheet.js) ------------------------------------
-  window.songbooksPlayer = {
+  // Added to the Score view's (above), not in place of it.
+  window.songbooksPlayer = Object.assign(window.songbooksPlayer || {}, {
     variantId,
     canEdit,
     audio,
@@ -2874,7 +2875,7 @@ window.songbooksDecodable = function (buf) {
     setSpeed: (v) => setSpeed(v),
     // The panel, at a tool's line (the song bar's Outils, the header's key).
     openLine,
-  };
+   });
   document.dispatchEvent(new CustomEvent('songbooks:player-ready'));
 
 

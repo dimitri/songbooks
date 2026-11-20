@@ -316,7 +316,7 @@
     const P = window.songbooksPlayer;
     if (!P || full.synthStarted) return;
     full.synthStarted = true;
-    const { recorded } = await P.ready;
+    const { recorded } = await P.recordings;
     if (recorded) return;
     const api = full.api, score = full.score;
     P.synthProgress(t('Preparing the sound…'));
