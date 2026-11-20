@@ -8140,3 +8140,33 @@ a.singer-chip:hover { border-color: var(--border-strong); }
 
 /* The Key line in the player panel: its students list fits a phone panel. */
 .audio-panel .audio-key-targets { min-width: 0; }
+
+/* ---- Menu redesign §3.4: Accueil's "Aujourd'hui" cards (today.go) ----
+   One card a role, the most time-critical first: dark, in the band's or
+   community's own header colour when it has one. */
+.today-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0.8rem; margin: 0 0 2rem; }
+.today-card {
+  --today-bg: #3b2e3a; --today-accent: #e7b06c;
+  display: flex; flex-direction: column; gap: 0.3rem; min-width: 0;
+  padding: 0.95rem 1.05rem; border-radius: var(--radius); background: var(--today-bg); color: #f3e8d8; box-shadow: var(--shadow);
+}
+.today-card.kind-band { --today-bg: #2f3b33; }
+.today-card.kind-jam { --today-bg: #2e3346; }
+.today-eyebrow { margin: 0; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--today-accent); filter: brightness(1.25); overflow-wrap: anywhere; }
+.today-title { margin: 0; font-size: 1.15rem; line-height: 1.3; font-weight: 700; overflow-wrap: anywhere; }
+.today-title a { color: inherit; }
+.today-meta { margin: 0; font-size: 0.86rem; opacity: 0.88; overflow-wrap: anywhere; }
+.today-progress { height: 6px; margin-top: 0.25rem; border-radius: 4px; background: rgba(255, 255, 255, 0.16); overflow: hidden; }
+.today-progress i { display: block; height: 100%; border-radius: 4px; background: var(--today-accent); }
+.today-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.9rem; margin-top: 0.45rem; }
+.today-register { display: contents; }
+.today-register[hidden] { display: none; }
+.today-go {
+  display: inline-flex; align-items: center; min-height: 2.25rem; padding: 0.35rem 0.9rem; border: 0; border-radius: 8px;
+  background: var(--accent); color: var(--accent-contrast); font: inherit; font-weight: 600; cursor: pointer;
+}
+.today-go:hover { text-decoration: none; filter: brightness(1.08); }
+.today-go:focus-visible, .today-secondary:focus-visible, .today-title a:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.today-secondary { color: inherit; font-size: 0.86rem; text-decoration: underline; text-underline-offset: 2px; opacity: 0.9; }
+.today-done { margin: 0; font-weight: 600; }
+/* ---- end Aujourd'hui cards ---- */
