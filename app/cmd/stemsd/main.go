@@ -49,7 +49,7 @@ func main() {
 	dbURL := flag.String("db", os.Getenv("DATABASE_URL"), "database connection string")
 	demucs := flag.String("demucs", "demucs", "the command that runs Demucs (words split on spaces)")
 	model := flag.String("model", "htdemucs", "the Demucs model")
-	threads := flag.Int("threads", 0, "PyTorch threads for Demucs and the analysis (0: OMP_NUM_THREADS, or one per core)")
+	threads := flag.Int("threads", 0, "PyTorch threads per Demucs segment; the analysis gets threads x jobs (0: OMP_NUM_THREADS, or one per core)")
 	jobs := flag.Int("jobs", 0, "segments Demucs separates at once (its --jobs), each on --threads threads (0: one at a time)")
 	backlogThreads := flag.Int("backlog-threads", 0, "if > 0, a second, niced lane on this many threads splits recordings again and runs the queued analyses")
 	bitrate := flag.Int("bitrate", 128, "the parts' MP3 bitrate, in kbit/s")
@@ -61,7 +61,9 @@ func main() {
 	rawOut := flag.String("raw", "", "with --analyze-files: read the models' output from this file instead of running them")
 	flag.Parse()
 
-	an := stems.Analyzer{Command: strings.Fields(*analyze), Threads: *threads}
+	// The analysis runs once Demucs is done: it may have all its threads
+	// (on 16, a 3:30 song's in 75 s; 103 s on 4).
+	an := stems.Analyzer{Command: strings.Fields(*analyze), Threads: *threads * max(*jobs, 1)}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
