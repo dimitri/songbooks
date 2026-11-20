@@ -78,12 +78,25 @@ func spaceTabs(kind string, role spaceRole) []SpaceSection {
 			}},
 			{Key: "members", Label: "Members", Path: "/members", Icon: "icon-bands"},
 		}
-	case spaceCommunity, spaceCoaching:
+	case spaceCommunity:
+		// A jam's or a course's community: registering for its events is
+		// what people come for, then its songbooks and its files.
+		out := []SpaceSection{
+			{Key: "overview", Label: "Overview", Icon: "icon-home"},
+			{Key: "events", Label: "Events", Path: "/events", Icon: "icon-calendar"},
+			{Key: "songbooks", Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog"},
+			{Key: "resources", Label: "Resources", Path: "/resources", Icon: "icon-download"},
+		}
+		if role.SeeMembers {
+			out = append(out, SpaceSection{Key: "members", Label: "Members", Path: "/members", Icon: "icon-bands"})
+		}
+		return out
+	case spaceCoaching:
 		out := []SpaceSection{
 			{Key: "overview", Label: "Overview", Icon: "icon-home"},
 			{Key: "songbooks", Label: "Songbooks", Path: "/songbooks", Icon: "icon-catalog"},
 		}
-		if kind == spaceCoaching {
+		{
 			if role.Staff {
 				out = append(out,
 					SpaceSection{Key: "students", Label: "Students", Path: "/students", Icon: "icon-bands"},
@@ -100,7 +113,7 @@ func spaceTabs(kind string, role spaceRole) []SpaceSection {
 			out = append(out, SpaceSection{Key: "members", Label: "Members", Path: "/members", Icon: "icon-bands"})
 		}
 		return append(out,
-			SpaceSection{Key: "downloads", Label: "Downloads", Path: "/downloads", Icon: "icon-download"},
+			SpaceSection{Key: "resources", Label: "Resources", Path: "/resources", Icon: "icon-download"},
 			SpaceSection{Key: "events", Label: "Events", Path: "/events", Icon: "icon-calendar"})
 	}
 	return nil
@@ -239,7 +252,7 @@ var spacePages = map[string]string{
 	"community_default_songbook": "songbooks",
 	"course":                     "songbooks",
 	"community_events":           "events",
-	"community_downloads":        "downloads",
+	"community_downloads":        "resources",
 	"community_members":          "members",
 	"community_admin":            "admin",
 	"community_stats":            "admin",

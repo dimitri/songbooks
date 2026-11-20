@@ -81,3 +81,69 @@ func TestBandSections(t *testing.T) {
 		}
 	}
 }
+
+// TestCommunitySections: a jam's community has its events first, its
+// Downloads are its Resources (the old addresses redirect), and its Admin
+// is behind ⚙ for its staff only.
+func TestCommunitySections(t *testing.T) {
+	st, h := newTestServer(t)
+	ctx := context.Background()
+	staff, err := st.CreatePerson(ctx, "jamstaff", "Jo Staff", "jo@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	member, err := st.CreatePerson(ctx, "jammember", "Max Member", "max@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jam, err := st.CreateCommunity(ctx, "Jam", staff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.AddCommunityMember(ctx, jam, member, "member", staff); err != nil {
+		t.Fatal(err)
+	}
+	c := fmt.Sprintf("/communities/%d", jam)
+	tokens := map[int64]string{}
+	for _, p := range []int64{staff, member} {
+		if tokens[p], err = st.CreateSession(ctx, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	get := spaceClient(t, h, tokens[member])
+	for from, to := range map[string]string{
+		c + "/downloads":                  c + "/resources",
+		c + "/downloads/songbooks/12":     c + "/resources/songbooks/12",
+		c + "/downloads/songbooks/12?x=1": c + "/resources/songbooks/12?x=1",
+	} {
+		w := get(from)
+		if w.Code != http.StatusMovedPermanently || w.Header().Get("Location") != to {
+			t.Errorf("GET %s: %d to %q, want 301 to %q", from, w.Code, w.Header().Get("Location"), to)
+		}
+	}
+	for who, gear := range map[int64]bool{staff: true, member: false} {
+		get := spaceClient(t, h, tokens[who])
+		for _, path := range []string{c, c + "/events", c + "/songbooks", c + "/resources"} {
+			w := get(path)
+			if w.Code != http.StatusOK {
+				t.Errorf("GET %s: %d", path, w.Code)
+				continue
+			}
+			body := w.Body.String()
+			if !strings.Contains(body, `class="space-tab active" href="`+path+`" aria-current="page"`) {
+				t.Errorf("GET %s: its tab isn't the open one", path)
+			}
+			tabs := body[strings.Index(body, `class="space-tabs"`):]
+			tabs = tabs[:strings.Index(tabs, "</nav>")]
+			if strings.Index(tabs, `href="`+c+`/events"`) > strings.Index(tabs, `href="`+c+`/songbooks"`) {
+				t.Errorf("GET %s: Events isn't before Songbooks", path)
+			}
+			if strings.Contains(body, `class="space-gear`) != gear || strings.Contains(tabs, "/admin") {
+				t.Errorf("GET %s: Admin behind the gear %v, want %v (and never a tab)", path, !gear, gear)
+			}
+			if strings.Contains(body, "sidebar-song-group") {
+				t.Errorf("GET %s: a sidebar group of the community's own", path)
+			}
+		}
+	}
+}

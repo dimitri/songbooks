@@ -58,6 +58,7 @@
   <div class="repertoire-toolbar">
     <input type="search" id="repertoire-search" placeholder="{{t "Search this songbook…"}}" aria-label="{{t "Search this songbook"}}" autocomplete="off" enterkeyhint="search">
     {{if .CanEdit}}<button type="button" id="open-add-song">{{template "icon-plus"}} {{t "Add song"}}</button>{{end}}
+    {{template "space-export" .Export}}
   </div>
   {{end}}
 

@@ -411,9 +411,13 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("DELETE /api/communities/{id}/songbooks/{sbID}/grants/{personID}", s.requireCommunityAnyManagePrivilege(s.handleRevokeSongbookAccess))
 	// The download area (downloads.go): one listing of the files of every
 	// songbook the viewer has access to; staff add and remove files.
-	mux.HandleFunc("GET /communities/{id}/downloads", s.requireCommunityMember(s.handleCommunityDownloadsPage))
+	// A community's files are its Resources (menu PR 5b): the pages moved
+	// to /resources, the files themselves keep their addresses.
+	mux.HandleFunc("GET /communities/{id}/resources", s.requireCommunityMember(s.handleCommunityDownloadsPage))
+	mux.HandleFunc("GET /communities/{id}/resources/songbooks/{sbID}", s.requireCommunityMember(s.handleCommunityDownloadsPage))
+	mux.HandleFunc("GET /communities/{id}/downloads", s.movedInCommunity("/resources"))
 	mux.HandleFunc("GET /communities/{id}/downloads/{fileID}/{name}", s.requireCommunityMember(s.handleDownloadSongbookFile))
-	mux.HandleFunc("GET /communities/{id}/downloads/songbooks/{sbID}", s.requireCommunityMember(s.handleCommunityDownloadsPage))
+	mux.HandleFunc("GET /communities/{id}/downloads/songbooks/{sbID}", s.movedResources)
 	mux.HandleFunc("GET /communities/{id}/downloads/songbooks/{sbID}/zip/{name}", s.requireCommunityMember(s.handleDownloadSongbookZip))
 	mux.HandleFunc("GET /communities/{id}/downloads/songbooks/{sbID}/browse/{path...}", s.requireCommunityMember(s.handleBrowseSongbookFiles))
 	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/files", s.requireCommunityPrivilege(store.PrivManageFiles, s.handleUploadSongbookFiles))

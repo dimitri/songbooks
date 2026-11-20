@@ -53,3 +53,15 @@ func movedTarget(target string, old url.Values) string {
 	}
 	return path + "?" + q.Encode()
 }
+
+// movedResources is GET /communities/{id}/downloads/songbooks/{sbID}: one
+// songbook's files, now at /resources/songbooks/{sbID}.
+func (s *Server) movedResources(w http.ResponseWriter, r *http.Request) {
+	id, err1 := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	sb, err2 := strconv.ParseInt(r.PathValue("sbID"), 10, 64)
+	if err1 != nil || err2 != nil {
+		http.NotFound(w, r)
+		return
+	}
+	http.Redirect(w, r, movedTarget(fmt.Sprintf("/communities/%d/resources/songbooks/%d", id, sb), r.URL.Query()), http.StatusMovedPermanently)
+}

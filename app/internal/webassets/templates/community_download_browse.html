@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{if .Folder}}{{.Folder}} — {{end}}{{.Songbook.Name}} — {{t "downloads"}}</title>
+<title>{{if .Folder}}{{.Folder}} — {{end}}{{.Songbook.Name}} — {{t "Resources"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -14,7 +14,7 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}/downloads#songbook-{{.Songbook.ID}}">{{template "icon-back"}} {{t "Downloads"}}</a>
+  <a class="back-link" href="/communities/{{.Community.ID}}/resources#songbook-{{.Songbook.ID}}">{{template "icon-back"}} {{t "Resources"}}</a>
   <h1>{{.Songbook.Name}}</h1>
   {{if .CanEditToggle}}{{template "edit-toggle" .Editing}}{{end}}
   {{template "notif-bell"}}
