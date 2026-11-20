@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"sync"
 )
 
 // Splitter runs Demucs and ffmpeg.
@@ -21,8 +22,14 @@ type Splitter struct {
 	// "demucs", or "python3 -m demucs".
 	Demucs []string
 	Model  string // "htdemucs"
-	// Threads Demucs may use (its --jobs), 0 for its default.
+	// Threads PyTorch may use in Demucs (OMP_NUM_THREADS), 0 for the
+	// environment's.
 	Threads int
+	// Jobs: how many of the recording's segments Demucs separates at
+	// once (its --jobs), each on Threads threads; 0 for one at a time.
+	// On a many-core CPU this is what scales, not Threads alone
+	// (docs/stems-and-key.md).
+	Jobs int
 	// Bitrate of the parts, in kbit/s.
 	Bitrate int
 }
@@ -53,42 +60,74 @@ func (s Splitter) Split(ctx context.Context, audio []byte) (map[string][]byte, e
 	out := filepath.Join(dir, "out")
 	args := append([]string{}, s.Demucs[1:]...)
 	args = append(args, "-n", s.Model, "-d", "cpu", "-o", out)
-	if s.Threads > 0 {
-		args = append(args, "--jobs", strconv.Itoa(s.Threads))
+	if s.Jobs > 0 {
+		args = append(args, "--jobs", strconv.Itoa(s.Jobs))
 	}
 	args = append(args, wav)
-	if err := run(ctx, s.Demucs[0], args...); err != nil {
+	if err := runEnv(ctx, threadsEnv(s.Threads), s.Demucs[0], args...); err != nil {
 		return nil, fmt.Errorf("demucs: %w", err)
 	}
 	parts := filepath.Join(out, s.Model, "track")
 
+	// The five MP3s at once: one after the other they took half a minute
+	// on the production host, a single-threaded encoder each.
 	kbps := strconv.Itoa(s.Bitrate) + "k"
+	names := append(append([]string{}, Parts...), "no_vocals")
+	errs := make([]error, len(names))
+	var wg sync.WaitGroup
+	for i, p := range names {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			mp3 := filepath.Join(dir, p+".mp3")
+			if p == "no_vocals" {
+				// The others summed as they are (no level change: they
+				// add back up to the recording).
+				if err := run(ctx, "ffmpeg", "-nostdin", "-v", "error",
+					"-i", filepath.Join(parts, "drums.wav"), "-i", filepath.Join(parts, "bass.wav"), "-i", filepath.Join(parts, "other.wav"),
+					"-filter_complex", "amix=inputs=3:normalize=0", "-b:a", kbps, mp3); err != nil {
+					errs[i] = fmt.Errorf("mixing no_vocals: %w", err)
+				}
+				return
+			}
+			if err := run(ctx, "ffmpeg", "-nostdin", "-v", "error", "-i", filepath.Join(parts, p+".wav"), "-b:a", kbps, mp3); err != nil {
+				errs[i] = fmt.Errorf("encoding %s: %w", p, err)
+			}
+		}()
+	}
+	wg.Wait()
 	result := map[string][]byte{}
-	for _, p := range Parts {
-		mp3 := filepath.Join(dir, p+".mp3")
-		if err := run(ctx, "ffmpeg", "-nostdin", "-v", "error", "-i", filepath.Join(parts, p+".wav"), "-b:a", kbps, mp3); err != nil {
-			return nil, fmt.Errorf("encoding %s: %w", p, err)
+	for i, p := range names {
+		if errs[i] != nil {
+			return nil, errs[i]
 		}
-		if result[p], err = os.ReadFile(mp3); err != nil {
+		if result[p], err = os.ReadFile(filepath.Join(dir, p+".mp3")); err != nil {
 			return nil, err
 		}
-	}
-	// no_vocals: the others summed as they are (no level change: they add
-	// back up to the recording).
-	nv := filepath.Join(dir, "no_vocals.mp3")
-	if err := run(ctx, "ffmpeg", "-nostdin", "-v", "error",
-		"-i", filepath.Join(parts, "drums.wav"), "-i", filepath.Join(parts, "bass.wav"), "-i", filepath.Join(parts, "other.wav"),
-		"-filter_complex", "amix=inputs=3:normalize=0", "-b:a", kbps, nv); err != nil {
-		return nil, fmt.Errorf("mixing no_vocals: %w", err)
-	}
-	if result["no_vocals"], err = os.ReadFile(nv); err != nil {
-		return nil, err
 	}
 	return result, nil
 }
 
+// threadsEnv is the environment that holds PyTorch (OpenMP, MKL) to n
+// threads; nil (the worker's own) for n = 0.
+func threadsEnv(n int) []string {
+	if n <= 0 {
+		return nil
+	}
+	v := strconv.Itoa(n)
+	return []string{"OMP_NUM_THREADS=" + v, "MKL_NUM_THREADS=" + v}
+}
+
 func run(ctx context.Context, name string, args ...string) error {
+	return runEnv(ctx, nil, name, args...)
+}
+
+// runEnv runs a command with env added to the worker's environment.
+func runEnv(ctx context.Context, env []string, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
