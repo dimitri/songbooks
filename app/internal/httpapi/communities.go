@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"app/internal/i18n"
 	"app/internal/store"
 	"app/internal/webassets"
 )
@@ -319,7 +320,17 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// The sections' rows on a phone (space-hub): where each one stands.
+	lang := s.langOf(w)
+	hints := map[string]spaceHint{
+		"songbooks": {Text: i18n.N(lang, len(songbookRows), "%d songbook", "%d songbooks")},
+		"members":   {Text: i18n.T(lang, "%d current", len(members))},
+	}
+	if len(upcoming) > 0 {
+		hints["events"] = spaceHint{Text: dayHint(lang, upcoming[0].StartsAt)}
+	}
 	s.render(w, "community", map[string]any{
+		"SpaceHints": hints,
 		"Me": person, "Community": community, "Members": members, "StaffNames": staffNames,
 		"Songbooks": songbookRows, "UpcomingEvents": upcoming,
 		"IsStaff": canManage || person.IsAdmin, "Person": person, "Tab": "overview",

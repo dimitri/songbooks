@@ -1,18 +1,41 @@
 {{/* A space's header and section tabs (httpapi/space_nav.go): its avatar,
      its name with the switcher, ⚙ for whoever runs it, then its sections,
-     the same on every page of the space. Called with .Space (a SpaceNav);
+     the same on every page of the space and the same look for every kind
+     of space (a brand colours the header, not the tabs). Below 900px the
+     tabs give way to the home's list of sections (space-hub) and each
+     section's "‹ space" back link. Called with .Space (a SpaceNav);
      nothing when the page isn't a space's. */}}
 {{define "space-nav"}}{{with .}}
-<div class="space-header">
+<div class="space-header{{if .IsHome}} is-home{{end}}">
   <a class="space-avatar" href="{{.Home}}" tabindex="-1" aria-hidden="true">{{with .Brand}}{{if .LogoURL}}<img src="{{.LogoURL}}" alt="">{{else if .Mark}}<span class="space-mark">{{.Mark}}</span>{{else}}{{$.Initials}}{{end}}{{else}}{{.Initials}}{{end}}</a>
   <div class="space-id">
     {{template "space-switcher" .}}
-    <div class="space-kind">{{with .Brand}}{{if .Tagline}}{{.Tagline}}{{else}}{{t $.KindLabel}}{{end}}{{else}}{{t .KindLabel}}{{end}}{{if eq .Current "overview"}}{{with .Brand}}{{if .Website}} · <a class="space-website" href="{{.Website}}" target="_blank" rel="noopener">{{.WebsiteHost}}</a>{{end}}{{end}}{{end}}</div>
+    <div class="space-kind">{{with .Brand}}{{if .Tagline}}{{.Tagline}}{{else}}{{t $.KindLabel}}{{end}}{{else}}{{t .KindLabel}}{{end}}{{if .IsHome}}{{with .Brand}}{{if .Website}} · <a class="space-website" href="{{.Website}}" target="_blank" rel="noopener">{{.WebsiteHost}}</a>{{end}}{{end}}{{end}}</div>
   </div>
   {{with .Gear}}<a class="space-gear{{if .Current}} active{{end}}" href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{template "icon-settings"}}<span>{{t .Label}}</span></a>{{end}}
 </div>
-<nav class="space-tabs band-tabs band-tabs-row{{if eq .Kind "band"}} band-section-tabs{{end}}" aria-label="{{t "Sections of %s" .Name}}">
-  {{range .Sections}}<a class="band-tab{{if .Current}} active{{end}}" href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{if eq .Key "songbooks"}}{{t (shelfLabel "community" $.ID)}}{{else}}{{t .Label}}{{end}}</a>
+<nav class="space-tabs" aria-label="{{t "Sections of %s" .Name}}">
+  {{range .Sections}}<a class="space-tab{{if .Current}} active{{end}}" href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{template "space-section-label" (dict "S" . "ID" $.ID)}}</a>
   {{end}}
 </nav>
 {{end}}{{end}}
+
+{{/* The space's sections as a list, on its home below 900px: each row
+     with where it stands, ⚙ apart at the end. Called with .Space. */}}
+{{define "space-hub"}}{{with .}}
+<nav class="space-hub" aria-label="{{t "Sections of %s" .Name}}">
+  <ul class="space-hub-group">
+    {{range .Sections}}{{if ne .Key "overview"}}<li><a href="{{.Href}}">{{template "space-icon" .Icon}}<span class="space-hub-label">{{template "space-section-label" (dict "S" . "ID" $.ID)}}</span>{{if .Hint}}<span class="space-hub-state{{if .Due}} is-due{{end}}">{{.Hint}}</span>{{end}}</a></li>
+    {{end}}{{end}}
+  </ul>
+  {{with .Gear}}<ul class="space-hub-group">
+    <li><a href="{{.Href}}">{{template "space-icon" .Icon}}<span class="space-hub-label">{{t .Label}}</span>{{with .Hint}}<span class="space-hub-state">{{.}}</span>{{end}}</a></li>
+  </ul>{{end}}
+</nav>
+{{end}}{{end}}
+
+{{/* A section's name: a community's songbooks are named by what it has
+     (Songbooks, Courses). (dict "S" the section "ID" the space's id) */}}
+{{define "space-section-label"}}{{if eq .S.Key "songbooks"}}{{t (shelfLabel "community" .ID)}}{{else}}{{t .S.Label}}{{end}}{{end}}
+
+{{define "space-icon"}}{{if eq . "icon-settings"}}{{template "icon-settings"}}{{else}}{{template "nav-icon" .}}{{end}}{{end}}
