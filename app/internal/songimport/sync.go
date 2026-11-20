@@ -104,6 +104,24 @@ func recordingTempo(a *audioanalysis.Analysis, want float64) float64 {
 	return t
 }
 
+// tempoContradicts: the recording's own tempo rec (already in the
+// chart's octave, see recordingTempo) says the chart's tempo is wrong.
+// More than 8% apart, and not 3:2, 2:3, 4:3 or 3:4 (within 4%): a beat
+// tracker can count a compound or shuffled beat in thirds, and a chart
+// another beat than it, without either being wrong. 0 (no estimate)
+// contradicts nothing.
+func tempoContradicts(chart, rec float64) bool {
+	if chart <= 0 || rec <= 0 || math.Abs(chart/rec-1) <= 0.08 {
+		return false
+	}
+	for _, r := range []float64{1.5, 2.0 / 3, 4.0 / 3, 0.75} {
+		if math.Abs(chart/rec/r-1) <= 0.04 {
+			return false
+		}
+	}
+	return true
+}
+
 // beatsPerBar counts a time signature's beats the way the player does
 // (compound metres count dotted quarters).
 func beatsPerBar(sig string) int {
@@ -269,10 +287,16 @@ func ProposeSync(a *audioanalysis.Analysis, stemsReady bool, body string, sectio
 	// The sections are placed where the singing starts; the chart's bars
 	// are then spread between them. When that asks for a tempo the
 	// recording doesn't play at (or for one past the edge of what was
-	// searched), the chart's bar counts are what's wrong, not the tempo:
-	// spreading 23 written bars over 17 played ones makes the bar.beat
-	// counter run a third fast. Say so, section by section, and leave
-	// the chart's tempo alone.
+	// searched), the chart's bar counts are what's wrong, not the fitted
+	// tempo: spreading 23 written bars over 16 played ones makes the
+	// bar.beat counter run a third fast. Say so, section by section, and
+	// don't propose the fitted tempo.
+	//
+	// The chart's own tempo can be wrong too: song 334's "tempo: 104" was
+	// an earlier wizard's fit, stopped at the edge of its ±15% search
+	// around the recording's 90. Kept, it would be proposed again on
+	// every sync. The recording's own tempo replaces it when it
+	// contradicts it (tempoContradicts).
 	ref := chartTempo
 	if ref <= 0 {
 		ref = float64(p.FitTempo)
@@ -280,10 +304,15 @@ func ProposeSync(a *audioanalysis.Analysis, stemsReady bool, body string, sectio
 	rec := recordingTempo(a, ref)
 	if p.FitTempo > 0 && len(a.VocalOnsets) > 0 && (fit.Clamped || (rec > 0 && math.Abs(float64(p.FitTempo)/rec-1) > 0.08)) {
 		p.TempoMismatch = true
-		if chartTempo > 0 {
+		chartWrong := false
+		switch {
+		case chartTempo > 0 && !tempoContradicts(chartTempo, rec):
 			p.Tempo = int(math.Round(chartTempo))
-		} else if rec > 0 {
+		case rec > 0:
 			p.Tempo = int(math.Round(rec))
+			chartWrong = chartTempo > 0
+		default:
+			p.Tempo = int(math.Round(chartTempo))
 		}
 		if rec > 0 {
 			recBar := 60 / rec * float64(beats)
@@ -303,6 +332,9 @@ func ProposeSync(a *audioanalysis.Analysis, stemsReady bool, body string, sectio
 			p.note("the chart's sections fit the singing only at %d bpm, while the recording plays at about %d bpm: in %d of its sections the chart has more or fewer bars than the recording plays, so the bar counter would run too fast or too slow there. Fix those sections' bars in the chart, then sync again", p.FitTempo, int(math.Round(rec)), wrong)
 		} else {
 			p.note("the chart's sections fit the singing only at %d bpm, far from the chart's tempo: check the sections' bar counts", p.FitTempo)
+		}
+		if chartWrong {
+			p.note("the chart's tempo says %s, but the recording plays at about %d bpm: %d is proposed instead", sg.Get("tempo"), p.Tempo, p.Tempo)
 		}
 	} else if chartTempo > 0 && p.Tempo > 0 && math.Abs(float64(p.Tempo)-chartTempo)/chartTempo > 0.05 {
 		p.note("the chart's tempo says %s, its sections fit the recording at %d: kept unless you replace it", sg.Get("tempo"), p.Tempo)
