@@ -4627,6 +4627,10 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
   body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) :is(a, button, summary) { font-size: 0; justify-content: center; gap: 0; }
   body:not(.drawer-open) .desktop-sidebar.is-rail :is(a, button, summary) > .icon { width: 1.1rem; height: 1.1rem; flex: none; }
   body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) .sidebar-brand { padding: 0; justify-content: center; }
+  /* The search field folds to its icon; hovering the rail (or tabbing
+     into it) opens the rail, field and all. */
+  body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) .nav-search { justify-content: center; padding: 0.55rem 0; margin: 0; }
+  body:not(.drawer-open) .desktop-sidebar.is-rail:not(:hover):not(:focus-within) .nav-search :is(input, .nav-search-kbd) { display: none; }
 }
 @media (min-width: 901px) {
   /* The bars fixed along the bottom start at the rail, not at the
@@ -8614,6 +8618,9 @@ body:not(.stage) .stage-exit { display: none; }
 .topbar-actions .notif-bell { flex: none; min-width: 2.4rem; min-height: 2.4rem; justify-content: center; }
 .topbar-actions .notif-bell .icon { width: 1.3rem; height: 1.3rem; }
 .topbar-actions .notif-badge { top: 0.1rem; right: -0.1rem; }
+/* The top bar's actions sit over the page header: on a branded page,
+   in its colours. */
+body.branded .topbar-actions { color: var(--brand-header-fg, var(--fg)); }
 /* The song toolbar's bell (play.html #song-toolbar-notifications). Below
    901px the toolbar's views and actions are the song bar's; the bell
    alone stays, at the top right of the song's header. */

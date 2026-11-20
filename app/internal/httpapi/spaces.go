@@ -73,6 +73,21 @@ func pageSpace(data map[string]any) (string, int64) {
 			return "band", id
 		}
 	}
+	// A song opened from a space's material — its repertoire (?band=),
+	// one of a band's set lists, a community's songbook (?community=) —
+	// is in that space, as its "‹" says.
+	if id, ok := data["BandRef"].(int64); ok && id > 0 {
+		return "band", id
+	}
+	if u, ok := data["SetlistURL"].(string); ok {
+		var id int64
+		if _, err := fmt.Sscanf(u, "/bands/%d/", &id); err == nil && id > 0 {
+			return "band", id
+		}
+	}
+	if id, ok := data["CommunityRef"].(int64); ok && id > 0 {
+		return "community", id
+	}
 	return "", 0
 }
 

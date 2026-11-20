@@ -65,6 +65,11 @@ func TestPageSpace(t *testing.T) {
 		{map[string]any{"Band": none}, "", 0},
 		{map[string]any{"Path": "/bands/17/setlists/10"}, "band", 17},
 		{map[string]any{"Path": "/setlists/10"}, "", 0},
+		// A song, by where it was opened from.
+		{map[string]any{"BandRef": int64(14)}, "band", 14},
+		{map[string]any{"SetlistURL": "/bands/14/setlists/1"}, "band", 14},
+		{map[string]any{"SetlistURL": "/setlists/3"}, "", 0},
+		{map[string]any{"CommunityRef": int64(7)}, "community", 7},
 		{map[string]any{}, "", 0},
 	} {
 		if k, id := pageSpace(c.data); k != c.kind || id != c.id {
