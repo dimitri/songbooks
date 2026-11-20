@@ -114,7 +114,7 @@
   {{end}}
 
   <section class="home-section" aria-labelledby="songbooks-title">
-    <div class="home-section-head"><h3 id="songbooks-title">{{t "Your songbooks"}}</h3><a href="/songbooks">{{t "All songbooks"}} &rarr;</a></div>
+    <div class="home-section-head"><h3 id="songbooks-title">{{t "Your songbooks"}}</h3><a href="/catalog?view=songbooks">{{t "All songbooks"}} &rarr;</a></div>
     {{if .Recent}}
     <div class="home-recent"><span class="home-recent-label">{{t "Recently played"}}</span>
     {{range .Recent}}<a class="chip-link" href="/song/{{.SongID}}{{if .Query}}?{{.Query}}{{end}}">{{.Title}}</a>{{end}}

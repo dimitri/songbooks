@@ -18,11 +18,11 @@
 </header>
 <main class="index">
   <section class="home-section">
-    <div class="home-section-head"><h3>{{t "Coming up"}}</h3><a href="/setlists">{{t "set lists"}} &rarr;</a></div>
+    <div class="home-section-head"><h3>{{t "Coming up"}}</h3><a href="/catalog?view=setlists">{{t "set lists"}} &rarr;</a></div>
     {{range .Gigs}}
       {{template "gig-card" .}}
     {{else}}
-      <a class="coming-up-card empty" href="/setlists">{{t "No gig scheduled — open set lists to plan one"}} &rarr;</a>
+      <a class="coming-up-card empty" href="/catalog?view=setlists">{{t "No gig scheduled — open set lists to plan one"}} &rarr;</a>
     {{end}}
   </section>
 

@@ -31,17 +31,18 @@ var pageNavSections = map[string]string{
 	"calendar_page":      webassets.NavCalendar,
 	"calendar_subscribe": webassets.NavCalendar,
 
-	"songbooks-index":    webassets.NavSongbooks,
-	"my-songbooks":       webassets.NavSongbooks,
-	"songbook":           webassets.NavSongbooks,
-	"playlist":           webassets.NavSongbooks,
-	"mp3-playlist":       webassets.NavSongbooks,
-	"metronome-playlist": webassets.NavSongbooks,
-
-	"catalog":         webassets.NavLibrary,
-	"work_versions":   webassets.NavLibrary,
-	"variant_history": webassets.NavLibrary,
-	"gp-edit":         webassets.NavLibrary,
+	// The Library: songs, songbooks and set lists (menu PR 8).
+	"catalog":            webassets.NavLibrary,
+	"songbooks-index":    webassets.NavLibrary,
+	"setlists-index":     webassets.NavLibrary,
+	"my-songbooks":       webassets.NavLibrary,
+	"songbook":           webassets.NavLibrary,
+	"playlist":           webassets.NavLibrary,
+	"mp3-playlist":       webassets.NavLibrary,
+	"metronome-playlist": webassets.NavLibrary,
+	"work_versions":      webassets.NavLibrary,
+	"variant_history":    webassets.NavLibrary,
+	"gp-edit":            webassets.NavLibrary,
 
 	"groups": webassets.NavGroups,
 
@@ -58,10 +59,6 @@ var pageNavSections = map[string]string{
 	"band_recordings":      webassets.NavBands,
 	"band_song_recordings": webassets.NavBands,
 	"band_recording_fixes": webassets.NavBands,
-
-	"setlists-index":     webassets.NavSetlists,
-	"setlist-overview":   webassets.NavSetlists,
-	"setlist-clicktrack": webassets.NavSetlists,
 
 	"communities":                webassets.NavCommunities,
 	"community":                  webassets.NavCommunities,
@@ -106,8 +103,11 @@ func navSectionFor(name string, data map[string]any) string {
 	if s, ok := data["NavSection"].(string); ok && s != "" {
 		return s
 	}
-	if name == "song" {
+	switch name {
+	case "song":
 		return songNavSection(data)
+	case "setlist-overview", "setlist-clicktrack":
+		return setlistNavSection(data)
 	}
 	if s, ok := pageNavSections[name]; ok {
 		return s
@@ -121,21 +121,49 @@ func navSectionFor(name string, data map[string]any) string {
 	return ""
 }
 
-// songNavSection: a song belongs where it was opened from — its set
-// list, band, lesson or community, songbook — and to the Library
-// otherwise (the handler records that context: SetlistRef, BandRef…).
+// songNavSection: a song belongs where it was opened from — a band's
+// set list or repertoire, a lesson or a community — and to the Library
+// otherwise: your songbooks and set lists are in it (the handler records
+// that context: SetlistURL, BandRef…).
 func songNavSection(data map[string]any) string {
 	switch {
 	case data["SetlistRef"] != nil:
-		return webassets.NavSetlists
+		url, _ := data["SetlistURL"].(string)
+		return setlistNavSection(map[string]any{"Path": url})
 	case data["BandRef"] != nil:
 		return webassets.NavBands
 	case data["LessonHref"] != nil, data["CommunityRef"] != nil:
 		return webassets.NavCommunities
-	case data["SongbookRef"] != nil:
-		return webassets.NavSongbooks
 	}
 	return webassets.NavLibrary
+}
+
+// setlistNavSection: a band's set list is the band's; your own is in the
+// Library.
+func setlistNavSection(data map[string]any) string {
+	path, _ := data["Path"].(string)
+	if isBand, _ := data["IsBand"].(bool); isBand || strings.HasPrefix(path, "/bands/") {
+		return webassets.NavBands
+	}
+	return webassets.NavLibrary
+}
+
+// The Library's segments besides its songs: /catalog?view=…
+const (
+	libraryViewSongbooks = "songbooks"
+	libraryViewSetlists  = "setlists"
+)
+
+// libraryRedirect sends an old Library page's address (/songbooks,
+// /setlists) to its segment, keeping its other query parameters. A 302,
+// not a 301, while the new layout settles: a browser caches a 301 for
+// good.
+func libraryRedirect(view string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		q.Set("view", view)
+		http.Redirect(w, r, "/catalog?"+q.Encode(), http.StatusFound)
+	}
 }
 
 // present: v is a non-nil value (a typed nil pointer in an any is nil
