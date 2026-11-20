@@ -317,5 +317,10 @@
   "Screen stays on.": "Écran toujours allumé.",
   "Screen stays on": "Écran toujours allumé",
   "This browser may let the screen lock: keep it awake in its settings.": "Ce navigateur peut laisser l’écran se verrouiller : gardez-le allumé dans ses réglages.",
-  "The screen stays on while the click runs.": "L’écran reste allumé pendant le clic."
+  "The screen stays on while the click runs.": "L’écran reste allumé pendant le clic.",
+  "%d bpm (dotted quarter)": "%d bpm (noire pointée)",
+  "%d bpm (eighth)": "%d bpm (croche)",
+  "%d bpm (half note)": "%d bpm (blanche)",
+  "(clicked in 4/4)": "(clic en 4/4)",
+  "Previous / next song (pedal)": "Morceau précédent / suivant (pédalier)"
 }

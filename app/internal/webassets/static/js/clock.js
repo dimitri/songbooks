@@ -158,12 +158,15 @@ class Metronome {
   // the main pulse: quieter AND duller (lower pitch), not just quieter.
   // "Brighter" in a click sound is mostly its pitch/harmonic content, so
   // "less bright" means pulling the frequency down, not only the gain.
-  _click(atTime, accent, soft, volScale = 1) {
+  // mid: a lighter accent, between the downbeat's and a plain beat's (the
+  // start of each group in 7/8 and other odd meters, midAccents).
+  _click(atTime, accent, soft, volScale = 1, mid = false) {
     const ctx = this._ctx;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     let freq = { click: accent ? 1600 : 1100, beep: accent ? 1800 : 1200, wood: accent ? 500 : 350, tick: accent ? 2400 : 1800 }[this.sound] || 1000;
     let vol = (accent ? 0.85 : 0.55) * volScale;
+    if (mid && !accent) { freq *= 1.2; vol = 0.72 * volScale; }
     if (soft) { freq *= 0.62; vol *= 0.5; }
     const dur = this.sound === 'wood' ? 0.035 : 0.05;
     osc.type = this.sound === 'wood' ? 'triangle' : (this.sound === 'beep' ? 'sine' : 'square');
@@ -230,7 +233,7 @@ class Metronome {
   // sensibly to any other beatsPerBar (3/4, 9/8, 5/4, ...) the same way.
   // Backbeat mode is the same parity rule with the even (kick) slot
   // silenced instead of voiced.
-  _patternClick(atTime, beatIndexInBar, accent, volScale = 1) {
+  _patternClick(atTime, beatIndexInBar, accent, volScale = 1, mid = false) {
     if (this.pattern === 'kick-hihat') {
       if (beatIndexInBar % 2 === 0) this._kick(atTime, volScale);
       else this._hihat(atTime, 0.5 * volScale);
@@ -241,7 +244,7 @@ class Metronome {
       // Even pulses are silent by design — not quieter, absent.
       return;
     }
-    this._click(atTime, accent, false, volScale);
+    this._click(atTime, accent, false, volScale, mid);
   }
 
   // A "flam" (a quiet extra tick just before the real beat) — the
@@ -368,7 +371,7 @@ class Metronome {
       // something time-critical.
       if (toChange === 1) this._pickup(atTime, beatIndexInBar, accent, 45);
       else if (toChange === 2) this._pickup(atTime, beatIndexInBar, accent, 80);
-      else if (!this._muteMainBeat(beat)) this._patternClick(atTime, beatIndexInBar, accent);
+      else if (!this._muteMainBeat(beat)) this._patternClick(atTime, beatIndexInBar, accent, 1, !!(this.midAccents && this.midAccents.has(beatIndexInBar)));
       // Compound meter (6/8, 9/8, 12/8): each "beat" here is a dotted
       // quarter — three eighth notes — and the visual beat-dots already
       // show that subdivision as 3 sub-ticks. The audio should actually
