@@ -22,7 +22,8 @@ document.addEventListener('change', (e) => {
   // rewritten (already-query-stringed) href.
   if (!link.dataset.baseHref) link.dataset.baseHref = link.getAttribute('href');
 
-  const mode = row.querySelector('.pdf-mode-select')?.value || '';
+  // A <select>, or radio buttons (the song page's "Export as PDF…" dialog).
+  const mode = (row.querySelector('.pdf-mode-select') || row.querySelector('.pdf-mode-radio:checked'))?.value || '';
   const notesCb = row.querySelector('.pdf-notes-toggle');
   const notesOn = notesCb ? notesCb.checked : true;
 

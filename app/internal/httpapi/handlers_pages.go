@@ -2986,6 +2986,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		if id, err := strconv.ParseInt(setlistRef, 10, 64); err == nil {
 			if _, meta, _, err := s.store.LoadSetlistByID(r.Context(), id); err == nil {
 				data["SetlistURL"] = setlistPath(meta)
+				data["SetlistName"] = meta.Title
 			}
 		}
 		data["Prev"], data["Next"] = s.setlistNeighbors(r.Context(), setlistRef, variantID)
@@ -2999,6 +3000,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		if songbookID, err := strconv.ParseInt(songbookParam, 10, 64); err == nil {
 			data["SongbookRef"] = songbookID
 			data["Prev"], data["Next"] = s.songbookNeighbors(r.Context(), songbookID, variantID)
+			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil {
+				data["SongbookName"] = sb.Name
+			}
 			// A student's or a group's songbook (coaching.go): the song
 			// opens in the key the coach gave it there — the chart, the
 			// recording — for the coach as for the student, and says whose.
@@ -3123,6 +3127,8 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	data["SongKeyName"] = songKeyName(sg)
 	// "Je joue": the reader's parts here, a level each (player_parts.go).
 	data["PlayerParts"] = s.playerPartsData(r, data, variantID)
+	// Where the song's "‹" goes, on the desktop header and the phone's bar.
+	data["Back"] = songBackFor(data, s.langOf(w))
 	s.render(w, "song", data)
 }
 
