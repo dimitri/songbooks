@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Event.Name}} — Songbooks</title>
+<title>{{docTitle .Event.Name .Event.OwnerName}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -195,7 +195,7 @@ document.querySelectorAll('.event-song-register-btn').forEach(btn => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

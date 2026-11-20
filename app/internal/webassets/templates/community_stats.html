@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "%s — stats" .Community.Name}}</title>
+<title>{{docTitle (t "Stats") .Community.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,7 +15,7 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}/admin">{{template "icon-back"}} {{t "Admin"}}</a>
-  <h1>{{t "%s — stats" .Community.Name}}</h1>
+  <h1>{{t "Stats"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index stats">
@@ -25,7 +25,7 @@
     {{template "coaching-tab-links" .}}
     <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/events">{{t "Events"}}</a>
-    <a href="/communities/{{.Community.ID}}/admin" class="band-tab active">{{t "Admin"}}</a>
+    <a href="/communities/{{.Community.ID}}/admin" class="band-tab active" aria-current="page">{{t "Admin"}}</a>
   </nav>
 
   {{with .Stats}}
@@ -143,7 +143,7 @@
   {{end}}
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>
@@ -156,7 +156,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{or .Member.DisplayName .Member.Username}} — {{t "%s — stats" .Community.Name}}</title>
+<title>{{docTitle (or .Member.DisplayName .Member.Username) (t "Stats") .Community.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -240,7 +240,7 @@
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

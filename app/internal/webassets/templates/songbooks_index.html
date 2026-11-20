@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Songbooks</title>
+<title>{{docTitle (t "Songbooks") (t "Library")}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,13 +13,11 @@
 <div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
-  <h1>Songbooks</h1>
-  <nav class="song-nav">
-    <a href="/catalog">{{t "catalog"}}</a>
-    {{template "notif-bell"}}
-  </nav>
+  <h1>{{t "Library"}}</h1>
+  {{template "notif-bell"}}
 </header>
 <main class="index">
+  {{template "library-segments" "songbooks"}}
   <p class="catalog-intro">{{t "Every songbook you can open: your own personal collections, and your bands' shared repertoires."}}</p>
 
   <h2 class="catalog-books-heading">{{t "My songbooks"}}</h2>
@@ -89,7 +87,7 @@ createForm.addEventListener('submit', (e) => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

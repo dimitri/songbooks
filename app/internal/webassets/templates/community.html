@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Community.Name}} — Songbooks</title>
+<title>{{docTitle .Community.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -79,7 +79,7 @@
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

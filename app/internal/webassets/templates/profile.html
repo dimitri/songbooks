@@ -44,7 +44,7 @@
 
   {{template "my-instruments" .Instruments}}
 
-  <section class="card book-card">
+  <section class="card book-card" id="language">
     <h3>{{t "Language"}}</h3>
     <div class="form-stack">
     <div class="field">
@@ -361,7 +361,7 @@ if (new URLSearchParams(location.search).has('instsaved')) {
 <script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
 {{template "pwa-register"}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

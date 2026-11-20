@@ -11,7 +11,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Band.Name}} — {{.PageTitle}}</title>
+<title>{{docTitle .PageTitle .Band.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -332,7 +332,8 @@
 {{end}}
 
 {{define "band_recordings"}}
-{{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" (t (printf "%ss" .Kind)))}}
+{{$pt := t "Concerts"}}{{if eq .Kind "rehearsal"}}{{$pt = t "Rehearsals"}}{{end}}
+{{template "rec-head" (dict "Band" .Band "Me" .Me "Nav" .Nav "PageTitle" $pt)}}
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
   <h1>{{if eq .Kind "rehearsal"}}{{t "Rehearsals"}}{{else}}{{t "Concerts"}}{{end}}</h1>
@@ -467,14 +468,14 @@
 </main>
 {{template "rec-player" .}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>
 {{end}}
 
 {{define "band_song_recordings"}}
-{{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" .Song.Title)}}
+{{template "rec-head" (dict "Band" .Band "Me" .Me "Nav" .Nav "PageTitle" .Song.Title)}}
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-back"}} {{t "Rehearsals"}}</a>
   <h1>{{.Song.Title}}</h1>
@@ -507,14 +508,14 @@
 </main>
 {{template "rec-player" .}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>
 {{end}}
 
 {{define "band_recording_fixes"}}
-{{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" (t "corrections"))}}
+{{template "rec-head" (dict "Band" .Band "Me" .Me "Nav" .Nav "PageTitle" (t "Corrections"))}}
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-back"}} {{t "Rehearsals"}}</a>
   <h1>{{t "Corrections"}}</h1>
@@ -743,7 +744,7 @@
   });
 })();
 </script>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

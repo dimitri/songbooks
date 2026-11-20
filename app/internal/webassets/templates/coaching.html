@@ -8,17 +8,17 @@
      community_members.go). Needs .Community, .IsStaff, .Person, .Tab. */}}
 {{define "community-tabs"}}
   <nav class="band-tabs band-tabs-row">
-    <a href="/communities/{{.Community.ID}}" class="band-tab{{if eq .Tab "overview"}} active{{end}}">{{t "Overview"}}</a>
+    <a href="/communities/{{.Community.ID}}" class="band-tab{{if eq .Tab "overview"}} active{{end}}"{{if eq .Tab "overview"}} aria-current="page"{{end}}>{{t "Overview"}}</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{t (shelfLabel "community" .Community.ID)}}</a>
     {{if .Community.IsCoaching}}
-      {{if .IsStaff}}<a class="band-tab{{if eq .Tab "students"}} active{{end}}" href="/communities/{{.Community.ID}}/students">{{t "Students"}}</a>
-      {{else}}<a class="band-tab{{if eq .Tab "voice"}} active{{end}}" href="/communities/{{.Community.ID}}/students/{{.Person.ID}}">{{t "My voice"}}</a>{{end}}
-      {{if .IsStaff}}<a class="band-tab{{if eq .Tab "repertoire"}} active{{end}}" href="/communities/{{.Community.ID}}/student-songs">{{t "Students’ songs"}}</a>{{end}}
-      <a class="band-tab{{if eq .Tab "groups"}} active{{end}}" href="/communities/{{.Community.ID}}/groups">{{template "coach-groups-label"}}</a>
-      <a class="band-tab{{if eq .Tab "warmups"}} active{{end}}" href="/communities/{{.Community.ID}}/warmups">{{t "Warm-ups"}}</a>
-      <a class="band-tab{{if eq .Tab "lessons"}} active{{end}}" href="/communities/{{.Community.ID}}/lessons">{{t "Lessons"}}</a>
+      {{if .IsStaff}}<a class="band-tab{{if eq .Tab "students"}} active{{end}}"{{if eq .Tab "students"}} aria-current="page"{{end}} href="/communities/{{.Community.ID}}/students">{{t "Students"}}</a>
+      {{else}}<a class="band-tab{{if eq .Tab "voice"}} active{{end}}"{{if eq .Tab "voice"}} aria-current="page"{{end}} href="/communities/{{.Community.ID}}/students/{{.Person.ID}}">{{t "My voice"}}</a>{{end}}
+      {{if .IsStaff}}<a class="band-tab{{if eq .Tab "repertoire"}} active{{end}}"{{if eq .Tab "repertoire"}} aria-current="page"{{end}} href="/communities/{{.Community.ID}}/student-songs">{{t "Students’ songs"}}</a>{{end}}
+      <a class="band-tab{{if eq .Tab "groups"}} active{{end}}"{{if eq .Tab "groups"}} aria-current="page"{{end}} href="/communities/{{.Community.ID}}/groups">{{template "coach-groups-label"}}</a>
+      <a class="band-tab{{if eq .Tab "warmups"}} active{{end}}"{{if eq .Tab "warmups"}} aria-current="page"{{end}} href="/communities/{{.Community.ID}}/warmups">{{t "Warm-ups"}}</a>
+      <a class="band-tab{{if eq .Tab "lessons"}} active{{end}}"{{if eq .Tab "lessons"}} aria-current="page"{{end}} href="/communities/{{.Community.ID}}/lessons">{{t "Lessons"}}</a>
     {{end}}
-    {{if .CanSeeMembers}}<a class="band-tab{{if eq .Tab "members"}} active{{end}}" href="/communities/{{.Community.ID}}/members">{{t "Members"}}</a>{{end}}
+    {{if .CanSeeMembers}}<a class="band-tab{{if eq .Tab "members"}} active{{end}}"{{if eq .Tab "members"}} aria-current="page"{{end}} href="/communities/{{.Community.ID}}/members">{{t "Members"}}</a>{{end}}
     <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
     <a class="band-tab" href="/communities/{{.Community.ID}}/events">{{t "Events"}}</a>
     {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a>{{end}}
@@ -143,7 +143,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{t "Students"}} — {{.Community.Name}}</title>
+<title>{{docTitle (t "Students") .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -253,7 +253,7 @@
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 <script>
 (() => {
@@ -502,7 +502,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{t "Checking singing"}} — {{.Community.Name}}</title>
+<title>{{docTitle (t "Checking singing") .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -550,7 +550,7 @@
   <div class="check-save form-actions form-actions--start"><button type="button" class="primary check-save-btn">{{t "Save"}}</button> <span class="hint check-saved" aria-live="polite"></span></div>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 <script>
 (() => {
@@ -590,7 +590,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{.Student.DisplayName}} — {{.Community.Name}}</title>
+<title>{{docTitle .Student.DisplayName .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -686,7 +686,7 @@
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 {{template "practice-script"}}
 {{if .IsCoach}}
@@ -744,7 +744,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{template "coach-groups-label"}} — {{.Community.Name}}</title>
+<title>{{docTitle (t "coaching|Groups") .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -796,7 +796,7 @@
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 {{if .IsCoach}}
 <script>
@@ -835,7 +835,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{.Group.Name}} — {{.Community.Name}}</title>
+<title>{{docTitle .Group.Name .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -883,7 +883,7 @@
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 {{template "practice-script"}}
 {{if .IsCoach}}
@@ -915,7 +915,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{t "Lessons"}} — {{.Community.Name}}</title>
+<title>{{docTitle (t "Lessons") .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -989,7 +989,7 @@
   {{end}}
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 <script>
 document.getElementById('live-headphones')?.addEventListener('change', (e) => {
@@ -1040,7 +1040,7 @@ document.getElementById('live-headphones')?.addEventListener('change', (e) => {
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{.Event.Name}} — {{.Community.Name}}</title>
+<title>{{docTitle .Event.Name .Community.Name}}</title>
 </head>
 <body>
 {{template "desktop-sidebar" .}}
@@ -1061,7 +1061,7 @@ document.getElementById('live-headphones')?.addEventListener('change', (e) => {
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>
@@ -1072,7 +1072,7 @@ document.getElementById('live-headphones')?.addEventListener('change', (e) => {
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{t "Your calendar"}} — Songbooks</title>
+<title>{{docTitle (t "Your calendar")}}</title>
 </head>
 <body>
 {{template "desktop-sidebar" .}}
@@ -1096,7 +1096,7 @@ document.getElementById('live-headphones')?.addEventListener('change', (e) => {
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 <script>
 (() => {

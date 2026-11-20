@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "%s — proposals" .Band.Name}}</title>
+<title>{{docTitle (t "Proposals") .Band.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,7 +15,7 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
-  <h1>{{t "%s — proposals" .Band.Name}}</h1>
+  <h1>{{t "Proposals"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
@@ -209,7 +209,7 @@ document.querySelectorAll('.reject-btn').forEach(btn => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

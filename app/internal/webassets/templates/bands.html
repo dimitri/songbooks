@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "My bands"}} — Songbooks</title>
+<title>{{docTitle (t "My bands")}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{/* The fonts of the cards' looks (each card wears its own). */}}
@@ -22,8 +22,8 @@
   <div class="list-page-head">
     {{if .ShowAllTab}}
     <nav class="band-tabs">
-      <a href="/bands" class="band-tab{{if eq .Tab "mine"}} active{{end}}">{{t "My bands"}}</a>
-      <a href="/bands?tab=all" class="band-tab{{if eq .Tab "all"}} active{{end}}">{{t "All bands"}}</a>
+      <a href="/bands" class="band-tab{{if eq .Tab "mine"}} active{{end}}"{{if eq .Tab "mine"}} aria-current="page"{{end}}>{{t "My bands"}}</a>
+      <a href="/bands?tab=all" class="band-tab{{if eq .Tab "all"}} active{{end}}"{{if eq .Tab "all"}} aria-current="page"{{end}}>{{t "All bands"}}</a>
     </nav>
     {{else}}
     <div></div>
@@ -76,7 +76,7 @@ document.getElementById('new-band-row').addEventListener('submit', (e) => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

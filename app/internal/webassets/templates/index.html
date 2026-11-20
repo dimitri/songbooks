@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Songbooks</title>
+<title>{{docTitle (t "Today")}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -12,7 +12,7 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <h1>Songbooks</h1>
+  <h1>{{t "Today"}}</h1>
   {{template "notif-bell"}}
 </header>
 <main class="index">
@@ -114,7 +114,7 @@
   {{end}}
 
   <section class="home-section" aria-labelledby="songbooks-title">
-    <div class="home-section-head"><h3 id="songbooks-title">{{t "Your songbooks"}}</h3><a href="/songbooks">{{t "All songbooks"}} &rarr;</a></div>
+    <div class="home-section-head"><h3 id="songbooks-title">{{t "Your songbooks"}}</h3><a href="/catalog?view=songbooks">{{t "All songbooks"}} &rarr;</a></div>
     {{if .Recent}}
     <div class="home-recent"><span class="home-recent-label">{{t "Recently played"}}</span>
     {{range .Recent}}<a class="chip-link" href="/song/{{.SongID}}{{if .Query}}?{{.Query}}{{end}}">{{.Title}}</a>{{end}}
@@ -155,7 +155,7 @@ document.getElementById('attention-filters')?.addEventListener('click', (e) => {
 {{template "notif-bell-script"}}
 {{template "pwa-register"}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Variant.Title}} — {{t "revision history"}}</title>
+<title>{{docTitle (t "Revision history") .Variant.Title}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -87,7 +87,7 @@ document.querySelectorAll('.revert-btn').forEach(btn => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

@@ -11,7 +11,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{t "Students’ songs"}} — {{.Community.Name}}</title>
+<title>{{docTitle (t "Students’ songs") .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -93,7 +93,7 @@
   </dialog>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 <script>
 (() => {
@@ -160,7 +160,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{.Event.Name}} — {{t "Program"}}</title>
+<title>{{docTitle (t "Program") .Event.Name .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -243,7 +243,7 @@
   {{end}}
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 {{if .IsCoach}}
 <script>
