@@ -103,7 +103,7 @@
       <li class="member-card is-past">
         <span class="member-avatar" aria-hidden="true">{{.Initials}}</span>
         <div class="member-main">
-          <div class="member-name"><span>{{.DisplayName}}</span>{{if .Username}} <span class="hint">({{.Username}})</span>{{end}}</div>
+          <div class="member-name"><span>{{.DisplayName}}</span>{{if and .Username (not .IsShell)}} <span class="hint">({{.Username}})</span>{{end}}</div>
           <div class="member-meta">
             <span class="member-role">{{t .RoleLabel}}</span>
             <span class="hint">{{t "from %s to %s" (date .JoinedAt "2 January 2006") (date .LeftAt "2 January 2006")}}</span>

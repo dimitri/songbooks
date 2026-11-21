@@ -1,12 +1,23 @@
 {
+  "%d hasn’t joined yet": "%d n’a pas encore rejoint",
+  "%d haven’t joined yet": "%d n’ont pas encore rejoint",
+  "Invited by name": "Invités par leur nom",
+  "Link with names": "Lien avec des noms",
   "Link with names · %s": "Lien avec des noms · %s",
-  "Links that still let people in: a role’s link, and the links with names. Close one once everyone’s in.": "Les liens qui laissent encore entrer : le lien d’un rôle, et les liens avec des noms. Fermez-en un une fois tout le monde inscrit.",
-  "No open link right now: make one below, under “Add people to this community”.": "Aucun lien ouvert pour l’instant : créez-en un plus bas, sous « Ajouter des personnes à cette communauté ».",
+  "Make one under Joining and invites": "En créer un dans Arrivées et invitations",
+  "No open link right now.": "Aucun lien ouvert pour l’instant.",
+  "Nobody invited by name is waiting to join.": "Personne invité par son nom n’attend de rejoindre la communauté.",
   "Open invite links": "Liens d’invitation ouverts",
+  "Open link": "Lien ouvert",
   "Open link · %s": "Lien ouvert · %s",
   "Pending invites": "Invitations en attente",
+  "People you’ve invited who haven’t joined yet, and the links that still let people in.": "Les personnes invitées qui n’ont pas encore rejoint la communauté, et les liens qui laissent encore entrer.",
   "Still waiting for:": "Encore attendus :",
+  "invited %s": "invitation du %s",
+  "invited by %s · %s": "invitation de %s · %s",
+  "link expires %s": "le lien expire le %s",
   "made %s": "créé le %s",
-  "made by %s, %s": "créé par %s, le %s",
-  "made just now": "créé à l’instant"
+  "made by %s · %s": "créé par %s · %s",
+  "made just now": "créé à l’instant",
+  "no working invite link": "aucun lien d’invitation valide"
 }

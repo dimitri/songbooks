@@ -71,19 +71,22 @@
         <a class="chip-link" href="#joining">{{template "icon-plus"}} {{t "Add people"}}</a>
       </div>
       {{/* The member list itself, its roles, removals and past members: the
-           Members page (community_members.go). Here: who sees that page,
-           and the invites still waiting for someone to join. */}}
-      <div class="card">
-        <p class="hint">{{t "The member list, with each person’s role, removals and past members, is on the Members page."}}</p>
-        <div class="form-actions form-actions--start">
+           Members page (community_members.go). Here: a summary of it (a
+           few faces, the count), who sees it, then the invites still
+           waiting for someone to join. */}}
+      <div class="card members-summary">
+        <div class="members-summary-head">
+          {{with .MemberFaces}}<span class="member-faces" aria-hidden="true">{{range .}}<span class="member-avatar">{{.Initials}}{{if .PictureURL}}<img src="{{.PictureURL}}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{{end}}</span>{{end}}</span>{{end}}
+          <div class="members-summary-text">
+            <strong>{{tn .CurrentMembers "%d member" "%d members"}}</strong>
+            {{with .ShellPeople}}<span class="hint">{{tn (len .) "%d hasn’t joined yet" "%d haven’t joined yet"}}</span>{{end}}
+          </div>
           <a class="chip-link primary" href="/communities/{{.Community.ID}}/members">{{t "See and manage members"}} &rarr;</a>
         </div>
-      </div>
-      {{/* Who sees the Members page: a setting, so only for a role that
-           grants manage_settings (the API checks it too). */}}
-      {{if .CanManageSettings}}
-      <div class="card">
-        <div class="form-stack">
+        {{/* Who sees the Members page: a setting, so only for a role that
+             grants manage_settings (the API checks it too). */}}
+        {{if .CanManageSettings}}
+        <div class="members-summary-setting form-stack">
           <div class="field">
             <label for="members-visibility-select">{{t "Member list visible to"}}</label>
             <p class="field-hint" id="members-visibility-hint">{{t "Members see names, roles, instruments and join dates; changing roles, removing people and invites stay with admins."}}</p>
@@ -94,43 +97,57 @@
           </div>
           <p id="members-visibility-result" class="form-status" role="status"></p>
         </div>
+        {{end}}
       </div>
-      {{end}}
-      <p id="members-status" class="form-status" role="status"></p>
 
       {{/* Pending invites: people invited by name who haven't joined yet,
-           then the community's open links (community_pending_links.html). */}}
+           then the community's open links (community_pending_links.html),
+           in the same rows: who, a role chip, a muted line of who invited
+           them and when, and the link's buttons (never the link itself:
+           Copy and QR code carry it). */}}
       {{if or .ShellPeople .CanManageMembers}}
-      <h3 class="admin-subtitle" id="pending-invites">{{t "Pending invites"}}</h3>
+      <div class="pending-invites" aria-labelledby="pending-invites">
+        <div class="pending-invites-head">
+          <h3 class="admin-subtitle" id="pending-invites">{{t "Pending invites"}}</h3>
+          <p class="hint">{{t "People you’ve invited who haven’t joined yet, and the links that still let people in."}}</p>
+        </div>
+
+        <section class="invite-group" aria-labelledby="invited-by-name-title">
+          <h4 class="invite-group-title" id="invited-by-name-title">{{t "Invited by name"}} <span class="count">{{len .ShellPeople}}</span></h4>
+          {{if .ShellPeople}}
+          <ul class="roster-list invite-list">
+          {{range .ShellPeople}}
+            <li class="roster-row invite-row" data-person-id="{{.PersonID}}">
+              <span class="member-avatar" aria-hidden="true">{{.Initials}}</span>
+              <div class="invite-main">
+                <div class="invite-name"><strong id="invitee-{{.PersonID}}">{{.DisplayName}}</strong>{{if .RoleLabel}} <span class="member-role{{if .RoleKey}} is-{{.RoleKey}}{{end}}">{{t .RoleLabel}}</span>{{end}}</div>
+                <p class="invite-meta">
+                  <span>{{if .CreatedByName}}{{t "invited by %s · %s" .CreatedByName (date .CreatedAt .DateLayout)}}{{else}}{{t "invited %s" (date .CreatedAt .DateLayout)}}{{end}}</span>
+                  {{with .OpenInviteExpiresAt}}<span>{{t "link expires %s" (date . "2 Jan")}}</span>{{else}}<span>{{t "no working invite link"}}</span>{{end}}
+                </p>
+              </div>
+              <div class="invite-actions">
+                {{if .OpenInviteToken}}
+                <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}" aria-describedby="invitee-{{.PersonID}}">{{t "Copy link"}}</button>
+                <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}" aria-describedby="invitee-{{.PersonID}}">{{t "QR code"}}</button>
+                {{else if $.CanManageMembers}}
+                <button type="button" class="create-shell-invite-btn" data-person-id="{{.PersonID}}" aria-describedby="invitee-{{.PersonID}}">{{t "Get invite link"}}</button>
+                {{end}}
+              </div>
+            </li>
+          {{end}}
+          </ul>
+          {{else}}
+          <p class="invite-empty">{{t "Nobody invited by name is waiting to join."}}</p>
+          {{end}}
+          <p id="members-status" class="form-status" role="status"></p>
+        </section>
+
+        {{template "community-pending-links" .}}
+      </div>
+      {{else}}
+      <p id="members-status" class="form-status" role="status"></p>
       {{end}}
-      {{if .ShellPeople}}
-      <h4 class="admin-subtitle">{{t "Invited, not joined yet"}}</h4>
-      <div class="table-scroll"><table class="card table-stack" style="width:100%">
-        <thead><tr><th>{{t "Name"}}</th><th>{{t "Role"}}</th><th>{{t "Invited by"}}</th><th>{{t "Added"}}</th><th></th></tr></thead>
-        <tbody>
-        {{range .ShellPeople}}
-          <tr data-person-id="{{.PersonID}}">
-            <td data-label="{{t "Name"}}">{{.DisplayName}}</td>
-            <td data-label="{{t "Role"}}">{{range .Memberships}}{{if eq .Kind "community"}}{{t .Status}}{{end}}{{end}}</td>
-            <td data-label="{{t "Invited by"}}">{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>{{t "unknown"}}</em>{{end}}</td>
-            <td data-label="{{t "Added"}}">{{date .CreatedAt "2006-01-02"}}</td>
-            <td>
-              {{if .OpenInviteToken}}
-              <span class="invite-link-row">
-                <code class="invite-link-url" data-url="/invite/{{.OpenInviteToken}}">/invite/{{.OpenInviteToken}}</code>
-                <button type="button" class="copy-link-btn" data-url="/invite/{{.OpenInviteToken}}">{{t "Copy link"}}</button>
-                <button type="button" class="qr-link-btn" data-url="/invite/{{.OpenInviteToken}}">{{t "QR code"}}</button>
-              </span>
-              {{else}}
-              <button type="button" class="create-shell-invite-btn" data-person-id="{{.PersonID}}">{{t "Get invite link"}}</button>
-              {{end}}
-            </td>
-          </tr>
-        {{end}}
-        </tbody>
-      </table></div>
-      {{end}}
-      {{template "community-pending-links" .}}
     </section>
 
     {{/* ---- Joining and invites ---- */}}
@@ -142,7 +159,7 @@
         <h3>{{t "Community link or QR code"}}</h3>
         <p class="hint">{{t "One open link, no names needed: anyone who follows it creates an account (or logs in) and joins straight away with the role on the link. Make one link per role rather than promoting people afterwards, so you never hand out a more powerful link by mistake. A \"guest\" link only lets people read — handy for a QR code on the door at a jam."}}</p>
         <div class="form-actions form-actions--start">
-          {{range .Roles}}<button type="button" class="community-link-btn" data-role="{{.Name}}">{{t "Get %s link" (t .Name)}}</button>{{end}}
+          {{range .Roles}}<button type="button" class="community-link-btn" data-role="{{.Name}}" data-role-key="{{.BuiltinKey}}" data-role-label="{{t (index $.RoleLabels .Name)}}">{{t "Get %s link" (t .Name)}}</button>{{end}}
         </div>
         <p id="community-link-result" class="form-status" role="status"></p>
       </div>
@@ -163,7 +180,7 @@
           <div class="field">
             <label for="group-invite-role">{{t "Role"}}</label>
             <select id="group-invite-role" name="role">
-              {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{t .Name}}</option>{{end}}
+              {{range .Roles}}<option value="{{.Name}}" data-role-key="{{.BuiltinKey}}" data-role-label="{{t (index $.RoleLabels .Name)}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{t (index $.RoleLabels .Name)}}</option>{{end}}
             </select>
           </div>
           <div class="form-actions">
@@ -485,11 +502,13 @@ onSubmit(groupInviteForm, async () => {
     const displayName = inp.value.trim();
     if (displayName) slots.push({displayName});
   });
-  const role = $('group-invite-role').value;
+  const roleSelect = $('group-invite-role');
+  const role = roleSelect.value;
+  const roleOption = roleSelect.selectedOptions[0];
   const closeBtn = $('close-group-invite-btn');
   closeBtn.hidden = true;
   const data = await api(`/api/communities/${communityId}/group-invites`, {slots, role}, t('Couldn’t create the link. Try again.'));
-  document.dispatchEvent(new CustomEvent('invite-link-made', {detail: {id: data.id, url: data.url, label: t('Link with names · %s', t(role)), waiting: slots.map(s => s.displayName)}}));
+  document.dispatchEvent(new CustomEvent('invite-link-made', {detail: {id: data.id, url: data.url, named: true, role, roleKey: roleOption.dataset.roleKey, roleLabel: roleOption.dataset.roleLabel, label: t('Link with names · %s', t(role)), waiting: slots.map(s => s.displayName)}}));
   const url = location.origin + data.url;
   const out = $('group-invite-result');
   out.className = 'form-status is-ok';
@@ -518,7 +537,7 @@ document.querySelectorAll('.community-link-btn').forEach(btn => {
     Forms.busy(btn, true);
     try {
       const data = await api(`/api/communities/${communityId}/community-link`, {role: btn.dataset.role}, t('Couldn’t create the link. Try again.'));
-      document.dispatchEvent(new CustomEvent('invite-link-made', {detail: {id: data.id, url: data.url, label: t('Open link · %s', t(data.role))}}));
+      document.dispatchEvent(new CustomEvent('invite-link-made', {detail: {id: data.id, url: data.url, named: false, role: data.role, roleKey: btn.dataset.roleKey, roleLabel: btn.dataset.roleLabel, label: t('Open link · %s', t(data.role))}}));
       const url = location.origin + data.url;
       out.className = 'form-status is-ok';
       out.textContent = t('%s link (copied): ', t(data.role));

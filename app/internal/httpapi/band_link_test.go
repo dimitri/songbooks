@@ -378,7 +378,7 @@ func TestCommunityOpenLinks(t *testing.T) {
 	}
 
 	page := e.do("GET", fmt.Sprintf("/communities/%d/admin", communityID), "", staff).Body.String()
-	for _, want := range []string{"Pending invites", "Open invite links", first.URL, named.URL, "Joined with it: Joiner Person", "Still waiting for: Awaited Name", "made by Staffer"} {
+	for _, want := range []string{"Pending invites", "Open invite links", first.URL, named.URL, "Joined with it: Joiner Person", "Still waiting for: Awaited Name", "made by Staffer ·", "Link with names", "Open link"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("admin page: missing %q", want)
 		}
@@ -404,5 +404,20 @@ func TestCommunityOpenLinks(t *testing.T) {
 	}
 	if w := e.do("POST", p, "", staff); w.Code != http.StatusOK {
 		t.Errorf("staff couldn't make a new link for a placeholder: %d %s", w.Code, w.Body)
+	}
+
+	// The placeholder is a row under "Invited by name": their name, their
+	// role, who invited them, Copy link and QR code; never their internal
+	// username, nor the link spelled out (the buttons carry it).
+	page = e.do("GET", fmt.Sprintf("/communities/%d/admin", communityID), "", staff).Body.String()
+	for _, want := range []string{"Invited by name", fmt.Sprintf(`class="roster-row invite-row" data-person-id="%d"`, shell.PersonID), ">Waiting One</strong>", "invited by Staffer ·", "link expires", "copy-link-btn", "qr-link-btn"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("admin page: missing %q", want)
+		}
+	}
+	for _, unwanted := range []string{">pending-", "(pending-", ">/invite/", ">/join/"} {
+		if strings.Contains(page, unwanted) {
+			t.Errorf("admin page: shows %q", unwanted)
+		}
 	}
 }

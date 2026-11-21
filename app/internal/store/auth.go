@@ -664,7 +664,10 @@ type ShellPersonRow struct {
 	CreatedAt       time.Time
 	Memberships     []PersonalInviteMembership
 	OpenInviteToken string // "" if no still-valid invite exists
-	CreatedByName   string
+	// OpenInviteExpiresAt is when that invite stops working, nil
+	// without one.
+	OpenInviteExpiresAt *time.Time
+	CreatedByName       string
 }
 
 // ListShellPeople lists every not-yet-claimed shell person on the
@@ -724,15 +727,17 @@ func (st *Store) listShellPeople(ctx context.Context, memberOfSQL string) ([]She
 
 		var token sql.NullString
 		var createdByName sql.NullString
+		var expiresAt *time.Time
 		err = st.db.QueryRow(ctx, `
-			SELECT i.token, p.display_name FROM invites i
+			SELECT i.token, p.display_name, i.expires_at FROM invites i
 			LEFT JOIN people p ON p.id = i.created_by_person_id
 			WHERE i.person_id = $1 AND i.expires_at > now() LIMIT 1`, out[i].PersonID).
-			Scan(&token, &createdByName)
+			Scan(&token, &createdByName, &expiresAt)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, err
 		}
 		out[i].OpenInviteToken = token.String
+		out[i].OpenInviteExpiresAt = expiresAt
 		out[i].CreatedByName = createdByName.String
 	}
 	return out, nil
