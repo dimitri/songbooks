@@ -198,7 +198,7 @@ func (c *canvas) drawQuarterNote(x, baselineY, size float64, dotted bool, col rg
 	return w
 }
 
-func (c *canvas) barRow(measures []song.Measure, slots int, size float64, jazz bool, firstStaff bool, tempo, timeNum, timeDen string) {
+func (c *canvas) barRow(measures []song.Measure, slots int, pickup bool, size float64, jazz bool, firstStaff bool, tempo, timeNum, timeDen string) {
 	if len(measures) == 0 {
 		return
 	}
@@ -230,12 +230,12 @@ func (c *canvas) barRow(measures []song.Measure, slots int, size float64, jazz b
 		tsW = timeSigCellWidth(size)
 	}
 	barsX0 := x0 + tsW
-	n := float64(len(measures))
-	// slots: how many bars wide the row is drawn — its own bar count, or
-	// more for a short last row, whose bars stay as wide as a full row's
-	// and whose staff ends at its last bar (rowEnd).
-	boxW := (c.colW - tsW) / math.Max(n, float64(slots))
-	rowEnd := barsX0 + boxW*n
+	// slots: how many bars wide the row's regular bars are drawn — its
+	// own count, or more for a short last row, whose bars stay as wide as
+	// a full row's and whose staff ends at its last bar (rowEnd); a pickup
+	// takes half a bar's width beside them (barGeometry).
+	xs, ws := barGeometry(len(measures), slots, pickup, c.colW-tsW)
+	rowEnd := barsX0 + xs[len(xs)-1] + ws[len(ws)-1]
 	baseline := c.y + chordH
 	ruleY := baseline + ruleGap*0.5
 	barTop := baseline - chordH*0.92
@@ -264,7 +264,7 @@ func (c *canvas) barRow(measures []song.Measure, slots int, size float64, jazz b
 
 	pendingRepeatCount := 0
 	for i, m := range measures {
-		bx := barsX0 + float64(i)*boxW
+		bx, boxW := barsX0+xs[i], ws[i]
 
 		// A divider between bars — not a box, just the one edge that
 		// actually separates two measures (the row's own left/right
@@ -369,7 +369,7 @@ func (c *canvas) barRow(measures []song.Measure, slots int, size float64, jazz b
 // and size, line weight) are carried over from the web CSS's own tuned
 // values, not re-guessed — matching an already-approved design beats a
 // fresh attempt at the same idea.
-func (c *canvas) staffBarRow(measures []song.Measure, slots int, riffBars []*tab.Bar, tuning []int, size float64, beatsPerBar int, firstStaff bool, tempo, timeNum, timeDen string) {
+func (c *canvas) staffBarRow(measures []song.Measure, slots int, pickup bool, riffBars []*tab.Bar, tuning []int, size float64, beatsPerBar int, firstStaff bool, tempo, timeNum, timeDen string) {
 	if len(measures) == 0 {
 		return
 	}
@@ -419,12 +419,12 @@ func (c *canvas) staffBarRow(measures []song.Measure, slots int, riffBars []*tab
 		tsW = timeSigCellWidth(size)
 	}
 	barsX0 := x0 + tsW
-	n := float64(len(measures))
-	// slots: how many bars wide the row is drawn — its own bar count, or
-	// more for a short last row, whose bars stay as wide as a full row's
-	// and whose staff ends at its last bar (rowEnd).
-	boxW := (c.colW - tsW) / math.Max(n, float64(slots))
-	rowEnd := barsX0 + boxW*n
+	// slots: how many bars wide the row's regular bars are drawn — its
+	// own count, or more for a short last row, whose bars stay as wide as
+	// a full row's and whose staff ends at its last bar (rowEnd); a pickup
+	// takes half a bar's width beside them (barGeometry).
+	xs, ws := barGeometry(len(measures), slots, pickup, c.colW-tsW)
+	rowEnd := barsX0 + xs[len(xs)-1] + ws[len(ws)-1]
 	baseline := c.y + chordH
 	staffTop := baseline + size*0.18
 	staffBottom := staffTop + staffH
@@ -450,7 +450,7 @@ func (c *canvas) staffBarRow(measures []song.Measure, slots int, riffBars []*tab
 
 	pendingRepeatCount := 0
 	for i, m := range measures {
-		bx := barsX0 + float64(i)*boxW
+		bx, boxW := barsX0+xs[i], ws[i]
 
 		if i < len(riffBars) && riffBars[i] != nil {
 			c.drawTabBar(riffBars[i], tuning, bx, boxW, rowTop, tabH, size)
@@ -637,20 +637,30 @@ func (c *canvas) repeatDots(x, top, h float64) {
 	c.filledDot(x, top+h*0.67, r)
 }
 
-// barsPerLineFor applies the section's own override (song.Section.
-// BarsPerLine); a section without one is split by phraseRows instead.
-func barsPerLineFor(sec song.Section, lineIdx int) int {
-	switch len(sec.BarsPerLine) {
-	case 0:
-		return phraseBars
-	case 1:
-		return sec.BarsPerLine[0]
-	default:
-		if lineIdx < len(sec.BarsPerLine) {
-			return sec.BarsPerLine[lineIdx]
-		}
-		return sec.BarsPerLine[len(sec.BarsPerLine)-1]
+// pickupWidth is a pickup bar's width, in regular bars: it holds a beat or
+// two, or a count-in's rest (the web's .bar-pickup is narrow too).
+const pickupWidth = 0.5
+
+// barGeometry places a row's n bars across width: each one's offset and
+// width, its regular bars slots to the width (more than n for a short
+// row), a pickup (the first bar, when pickup) pickupWidth of one.
+func barGeometry(n, slots int, pickup bool, width float64) (xs, ws []float64) {
+	pk := 0.0
+	if pickup && n > 1 {
+		pk = 1
 	}
+	regular := float64(n) - pk
+	unit := width / (math.Max(regular, float64(slots)) + pk*pickupWidth)
+	x := 0.0
+	for i := 0; i < n; i++ {
+		w := unit
+		if i == 0 && pk > 0 {
+			w = unit * pickupWidth
+		}
+		xs, ws = append(xs, x), append(ws, w)
+		x += w
+	}
+	return xs, ws
 }
 
 // phraseBars is the print chart's default row: 4 bars, the lead-sheet
@@ -660,23 +670,6 @@ func barsPerLineFor(sec song.Section, lineIdx int) int {
 // wraps as 2 rows, a 12-bar blues as 3 — real sheet music convention —
 // rather than one long uneven row.
 const phraseBars = 4
-
-// phraseRows splits the n bars of a section with no "bars:" line into
-// rows the way the web Song view does (static/js/bar-rows.js): 4-bar
-// phrases from the first bar, a lone last bar joining the row before it
-// (5 → one row of 5, 9 → 4 + 5), a last row of 2 or 3 left short (drawn
-// phraseBars wide, see barRow's slots).
-func phraseRows(n int) []int {
-	var out []int
-	for rest := n; rest > 0; rest -= phraseBars {
-		out = append(out, min(phraseBars, rest))
-	}
-	if k := len(out); k > 1 && out[k-1] == 1 {
-		out[k-2]++
-		out = out[:k-1]
-	}
-	return out
-}
 
 // measureSection draws (or measures) every bar-row and lyric line a
 // section carries, in source order — grid rows first mirrors how a real
@@ -693,7 +686,7 @@ func phraseRows(n int) []int {
 // timeNum/timeDen: when firstStaff is true, the row's own FIRST printed
 // line gets the tempo+time-signature cell before its opening barline —
 // see renderSongBody's one-shot firstStaffDrawn tracking.
-func (c *canvas) measureSection(sec song.Section, riff *tab.Riff, bodySize float64, mode Mode, hideNotes bool, globalBeats int, firstStaff bool, tempo, timeNum, timeDen string) {
+func (c *canvas) measureSection(sec song.Section, riff *tab.Riff, bodySize float64, mode Mode, hideNotes bool, globalBeats int, firstStaff, pickup bool, tempo, timeNum, timeDen string) {
 	if mode != ModeLyrics && len(sec.Measures) > 0 {
 		beatsPerBar := globalBeats
 		if sec.Time != "" {
@@ -714,36 +707,24 @@ func (c *canvas) measureSection(sec song.Section, riff *tab.Riff, bodySize float
 				}
 			}
 		}
-		// Each row's bar count, and how many bars wide it's drawn: the
-		// author's "bars:" rows as written, or phraseRows — a short last
-		// row either way keeping a full row's bar width.
-		var rowBars, rowSlots []int
-		if len(sec.BarsPerLine) == 0 {
-			for _, n := range phraseRows(len(sec.Measures)) {
-				rowBars = append(rowBars, n)
-				rowSlots = append(rowSlots, max(n, phraseBars))
-			}
-		} else {
-			for start, li := 0, 0; start < len(sec.Measures); li++ {
-				want := max(barsPerLineFor(sec, li), 1)
-				n := min(want, len(sec.Measures)-start)
-				rowBars = append(rowBars, n)
-				rowSlots = append(rowSlots, want)
-				start += n
-			}
-		}
+		// Each row's bar count, and how many bars wide its regular bars
+		// are drawn: the web Song view's rows (sectionBarRows, the Go twin
+		// of bar-rows.js) — 4-bar phrases or the author's "bars:" rows, a
+		// pickup riding on the first row, a short last row keeping a full
+		// row's bar width.
 		start := 0
-		for lineIdx, n := range rowBars {
-			end := start + n
+		for lineIdx, row := range sectionBarRows(sec.BarsPerLine, len(sec.Measures), pickup) {
+			end := min(start+row.Bars, len(sec.Measures))
 			showTS := firstStaff && lineIdx == 0
+			rowPickup := pickup && lineIdx == 0
 			if mode == ModeJazz {
-				c.barRow(sec.Measures[start:end], rowSlots[lineIdx], bodySize, true, showTS, tempo, timeNum, timeDen)
+				c.barRow(sec.Measures[start:end], row.Cap, rowPickup, bodySize, true, showTS, tempo, timeNum, timeDen)
 			} else {
 				var rowRiffBars []*tab.Bar
 				if riffBars != nil {
 					rowRiffBars = riffBars[start:end]
 				}
-				c.staffBarRow(sec.Measures[start:end], rowSlots[lineIdx], rowRiffBars, tuning, bodySize, beatsPerBar, showTS, tempo, timeNum, timeDen)
+				c.staffBarRow(sec.Measures[start:end], row.Cap, rowPickup, rowRiffBars, tuning, bodySize, beatsPerBar, showTS, tempo, timeNum, timeDen)
 			}
 			start = end
 		}
