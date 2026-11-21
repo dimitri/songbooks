@@ -1,4 +1,5 @@
 {
+  "Any member can remove people. Only core members invite people and change who is core or guest.": "Tout membre peut retirer des personnes. Seuls les membres permanents invitent et décident qui est permanent ou invité.",
   "Band link or QR code": "Lien ou QR code du groupe",
   "Close link": "Fermer le lien",
   "Core link": "Lien « permanent »",
@@ -10,5 +11,6 @@
   "Get a guest link": "Obtenir un lien « invité »",
   "Guest link": "Lien « invité »",
   "Joined with it:": "L’ont utilisé :",
-  "Nobody has joined with it yet.": "Personne ne l’a encore utilisé."
+  "Nobody has joined with it yet.": "Personne ne l’a encore utilisé.",
+  "Only core members can invite people.": "Seuls les membres permanents peuvent inviter."
 }

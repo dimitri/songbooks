@@ -1,0 +1,119 @@
+{{/* The community's open invite links, on its admin page under "Pending
+     invites", for whoever may make and close them (manage_members): the
+     role links ("Community link or QR code", handleCreateCommunityLink)
+     and the links with names ("Group invite link"). Each says its role,
+     who made it and when, who joined with it and, for a link with names,
+     who it's still waiting for; with Copy, QR code and Close link, the
+     same look as a band's "Band link or QR code" card. The admin page's
+     scripts announce a link they make with an "invite-link-made" event
+     (detail: id, url, label, waiting names), and one they close with
+     "invite-link-closed" (detail: id). Its markup and script stay in
+     this one block. Needs qr.js on the page. */}}
+{{define "community-pending-links"}}
+{{if .CanManageMembers}}
+<div class="card band-link-card" id="community-open-links" data-community-id="{{.Community.ID}}">
+  <h3>{{t "Open invite links"}}</h3>
+  <p class="hint">{{t "Links that still let people in: a role’s link, and the links with names. Close one once everyone’s in."}}</p>
+  <ul class="band-link-list">
+  {{range .OpenLinks}}
+    {{$role := .DefaultStatus}}{{if not $role}}{{$role = "member"}}{{end}}
+    {{$waiting := false}}{{range .Slots}}{{if not .ClaimedByPersonID}}{{$waiting = true}}{{end}}{{end}}
+    <li class="band-link-row" data-id="{{.ID}}" data-url="/join/{{.Token}}">
+      <div class="band-link-head">
+        <strong>{{if $waiting}}{{t "Link with names · %s" (t $role)}}{{else}}{{t "Open link · %s" (t $role)}}{{end}}</strong>
+        <span class="hint">{{if .CreatedByName}}{{t "made by %s, %s" .CreatedByName (date .CreatedAt "2 January 2006")}}{{else}}{{t "made %s" (date .CreatedAt "2 January 2006")}}{{end}}</span>
+      </div>
+      {{$joined := 0}}{{range .Slots}}{{if .ClaimedByPersonID}}{{$joined = 1}}{{end}}{{end}}
+      <p class="hint band-link-joined">{{if $joined}}{{t "Joined with it:"}} {{$first := true}}{{range .Slots}}{{if .ClaimedByPersonID}}{{if not $first}}, {{end}}{{$first = false}}{{.ClaimedByName}}{{end}}{{end}}{{else}}{{t "Nobody has joined with it yet."}}{{end}}</p>
+      {{if $waiting}}<p class="hint band-link-waiting">{{t "Still waiting for:"}} {{$first := true}}{{range .Slots}}{{if not .ClaimedByPersonID}}{{if not $first}}, {{end}}{{$first = false}}{{.DisplayName}}{{end}}{{end}}</p>{{end}}
+      <div class="invite-link-row">
+        <code class="invite-link-url">/join/{{.Token}}</code>
+        <button type="button" class="band-link-copy">{{t "Copy"}}</button>
+        <button type="button" class="band-link-qr">{{t "QR code"}}</button>
+        <button type="button" class="band-link-close danger">{{t "Close link"}}</button>
+      </div>
+    </li>
+  {{end}}
+  </ul>
+  <p class="hint open-links-empty"{{if .OpenLinks}} hidden{{end}}>{{t "No open link right now: make one below, under “Add people to this community”."}}</p>
+  <template id="open-link-row-tpl">
+    <li class="band-link-row">
+      <div class="band-link-head">
+        <strong class="band-link-role"></strong>
+        <span class="hint">{{t "made just now"}}</span>
+      </div>
+      <p class="hint band-link-joined">{{t "Nobody has joined with it yet."}}</p>
+      <p class="hint band-link-waiting" hidden>{{t "Still waiting for:"}} <span class="band-link-waiting-names"></span></p>
+      <div class="invite-link-row">
+        <code class="invite-link-url"></code>
+        <button type="button" class="band-link-copy">{{t "Copy"}}</button>
+        <button type="button" class="band-link-qr">{{t "QR code"}}</button>
+        <button type="button" class="band-link-close danger">{{t "Close link"}}</button>
+      </div>
+    </li>
+  </template>
+  <p class="form-status band-link-status" role="status"></p>
+  <script>
+  (function () {
+    const card = document.getElementById('community-open-links');
+    const list = card.querySelector('.band-link-list');
+    const empty = card.querySelector('.open-links-empty');
+    const statusEl = card.querySelector('.band-link-status');
+    const say = (msg, kind) => Forms.status(statusEl, msg, kind);
+    const sync = () => { empty.hidden = !!list.querySelector('.band-link-row'); };
+    // No clipboard (a plain-http page, a refused permission): show the
+    // link to copy by hand instead.
+    const copy = (url) => navigator.clipboard
+      ? navigator.clipboard.writeText(url).then(() => true, () => false)
+      : Promise.resolve(false);
+    function wire(row) {
+      const url = () => location.origin + row.dataset.url;
+      const copyBtn = row.querySelector('.band-link-copy');
+      copyBtn.addEventListener('click', async () => {
+        const was = copyBtn.textContent;
+        if (await copy(url())) {
+          copyBtn.textContent = t('Copied');
+          setTimeout(() => { copyBtn.textContent = was; }, 1500);
+        } else {
+          window.prompt(t('Copy this link:'), url());
+        }
+      });
+      row.querySelector('.band-link-qr').addEventListener('click', () => showQR(url()));
+      const closeBtn = row.querySelector('.band-link-close');
+      closeBtn.addEventListener('click', async () => {
+        if (!confirm(t('Close this link? Nobody new can join with it; those who already did stay in the community.'))) return;
+        Forms.busy(closeBtn, true);
+        const res = await fetch(`/api/communities/${card.dataset.communityId}/group-invites/${row.dataset.id}/close`, {method: 'POST'}).catch(() => null);
+        Forms.busy(closeBtn, false);
+        if (!res || !res.ok) { say(t('Couldn’t close the link. Try again.'), 'error'); return; }
+        row.remove();
+        sync();
+        say(t('Link closed.'), 'ok');
+      });
+    }
+    list.querySelectorAll('.band-link-row').forEach(wire);
+    document.addEventListener('invite-link-made', (e) => {
+      const d = e.detail;
+      if (list.querySelector(`.band-link-row[data-id="${d.id}"]`)) return;
+      const row = document.getElementById('open-link-row-tpl').content.firstElementChild.cloneNode(true);
+      row.dataset.id = d.id;
+      row.dataset.url = d.url;
+      row.querySelector('.band-link-role').textContent = d.label;
+      row.querySelector('.invite-link-url').textContent = d.url;
+      if (d.waiting && d.waiting.length) {
+        row.querySelector('.band-link-waiting-names').textContent = d.waiting.join(', ');
+        row.querySelector('.band-link-waiting').hidden = false;
+      }
+      list.prepend(row);
+      wire(row);
+      sync();
+    });
+    document.addEventListener('invite-link-closed', (e) => {
+      list.querySelector(`.band-link-row[data-id="${e.detail.id}"]`)?.remove();
+      sync();
+    });
+  })();
+  </script>
+</div>
+{{end}}
+{{end}}

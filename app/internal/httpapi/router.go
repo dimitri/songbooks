@@ -351,27 +351,26 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/bands/{id}/locale", s.requireBandCore(s.handlePutBandLocale))
 	mux.HandleFunc("GET /api/bands/{id}/brand/from-songs", s.requireBandMember(s.handleBrandFromSongs("band")))
 	mux.HandleFunc("POST /api/bands/{id}/music-type", s.requireBandMember(s.handleSetBandMusicType))
-	mux.HandleFunc("POST /api/bands/{id}/members", s.requireBandMember(s.handleAddBandMember))
+	mux.HandleFunc("POST /api/bands/{id}/members", s.requireBandInviter(s.handleAddBandMember))
 	mux.HandleFunc("POST /api/bands/{id}/members/{personID}/status", s.requireBandCore(s.handleSetBandMemberStatus))
 	mux.HandleFunc("DELETE /api/bands/{id}/members/{personID}", s.requireBandMember(s.handleRemoveBandMember))
 	// Who may edit whose instruments is checked inside (store.MayEditMemberInstruments).
 	mux.HandleFunc("PUT /api/bands/{id}/members/{personID}/instruments", s.requireBandMember(s.handleSetBandMemberInstruments))
-	mux.HandleFunc("POST /api/bands/{id}/members/{personID}/invite-link", s.requireBandMember(s.handleNewBandMemberInviteLink))
-	mux.HandleFunc("POST /api/bands/{id}/invites", s.requireBandMember(s.handleCreateBandInvite))
+	mux.HandleFunc("POST /api/bands/{id}/members/{personID}/invite-link", s.requireBandInviter(s.handleNewBandMemberInviteLink))
+	mux.HandleFunc("POST /api/bands/{id}/invites", s.requireBandInviter(s.handleCreateBandInvite))
 	// Group invites (roster link, multi-use — see
-	// internal/store/group_invites.go and join.go): any current band
-	// member may create or close one, same "no hierarchy" rule as every
-	// other band-scoped mutation above.
-	mux.HandleFunc("POST /api/bands/{id}/personal-invites", s.requireBandMember(s.handleCreateBandPersonalInvite))
+	// internal/store/group_invites.go and join.go). Inviting someone, in
+	// any of these ways, is for core members (requireBandInviter).
+	mux.HandleFunc("POST /api/bands/{id}/personal-invites", s.requireBandInviter(s.handleCreateBandPersonalInvite))
 	mux.HandleFunc("POST /api/people/{personID}/personal-invites", s.requireAuth(s.handleCreatePersonalInviteForPerson))
-	mux.HandleFunc("POST /api/bands/{id}/group-invites", s.requireBandMember(s.handleCreateBandGroupInvite))
-	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/close", s.requireBandMember(s.handleCloseBandGroupInvite))
+	mux.HandleFunc("POST /api/bands/{id}/group-invites", s.requireBandInviter(s.handleCreateBandGroupInvite))
+	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/close", s.requireBandInviter(s.handleCloseBandGroupInvite))
 	// The band's open link, one per status (no names, see
 	// handleCreateBandLink); closed with the route just above.
-	mux.HandleFunc("POST /api/bands/{id}/band-link", s.requireBandMember(s.handleCreateBandLink))
-	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/slots", s.requireBandMember(s.handleAddGroupInviteSlot))
-	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/slots/{slotID}", s.requireBandMember(s.handleUpdateGroupInviteSlot))
-	mux.HandleFunc("DELETE /api/bands/{id}/group-invites/{groupInviteID}/slots/{slotID}", s.requireBandMember(s.handleRemoveGroupInviteSlot))
+	mux.HandleFunc("POST /api/bands/{id}/band-link", s.requireBandInviter(s.handleCreateBandLink))
+	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/slots", s.requireBandInviter(s.handleAddGroupInviteSlot))
+	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/slots/{slotID}", s.requireBandInviter(s.handleUpdateGroupInviteSlot))
+	mux.HandleFunc("DELETE /api/bands/{id}/group-invites/{groupInviteID}/slots/{slotID}", s.requireBandInviter(s.handleRemoveGroupInviteSlot))
 	mux.HandleFunc("GET /bands/{id}/members", s.requireBandMember(s.handleBandMembersPage))
 	mux.HandleFunc("GET /bands/{id}/settings", s.requireBandMember(s.handleBandSettingsPage))
 	mux.HandleFunc("GET /bands/{id}/setlists", s.requireBandMember(s.handleBandSetlistsPage))

@@ -210,3 +210,199 @@ func TestBandLink(t *testing.T) {
 		t.Errorf("a closed link was handed out again")
 	}
 }
+
+// inviteEnv is a test database and the app's handler, with helpers to
+// make uniquely named people and to call the app as one of them.
+type inviteEnv struct {
+	t   *testing.T
+	st  *store.Store
+	h   http.Handler
+	sfx string
+}
+
+func newInviteEnv(t *testing.T) *inviteEnv {
+	st := newTestStore(t)
+	return &inviteEnv{t: t, st: st, h: NewServer(st, nil, nil, "", ""), sfx: fmt.Sprint(time.Now().UnixNano())}
+}
+
+func (e *inviteEnv) person(name string) (int64, *http.Cookie) {
+	e.t.Helper()
+	ctx := context.Background()
+	id, err := e.st.CreatePerson(ctx, name+e.sfx, name, name+e.sfx+"@example.test")
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	tok, err := e.st.CreateSession(ctx, id)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	return id, &http.Cookie{Name: sessionCookie, Value: tok}
+}
+
+func (e *inviteEnv) do(method, path, body string, cookie *http.Cookie) *httptest.ResponseRecorder {
+	e.t.Helper()
+	r := httptest.NewRequest(method, path, strings.NewReader(body))
+	if strings.HasPrefix(body, "{") {
+		r.Header.Set("Content-Type", "application/json")
+	} else if body != "" {
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
+	if cookie != nil {
+		r.AddCookie(cookie)
+	}
+	w := httptest.NewRecorder()
+	e.h.ServeHTTP(w, r)
+	return w
+}
+
+// TestBandInvitesAreCoreOnly: every way of inviting someone to a band,
+// and closing a band link, is for core members; a guest gets 403 on
+// each, and a core member gets through.
+func TestBandInvitesAreCoreOnly(t *testing.T) {
+	e := newInviteEnv(t)
+	ctx := context.Background()
+	coreID, core := e.person("Core")
+	guestID, guest := e.person("Guest")
+	e.person("Someone") // an account to add by username
+	bandID, err := e.st.CreateBand(ctx, "Core Band "+e.sfx, coreID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.st.AddBandMember(ctx, bandID, guestID, "guest", coreID); err != nil {
+		t.Fatal(err)
+	}
+	b := fmt.Sprintf("/api/bands/%d", bandID)
+
+	// call makes the request as the guest (403 expected), then as the
+	// core member (200 expected), and returns the core member's answer.
+	call := func(name, method, path, body string) map[string]any {
+		t.Helper()
+		if w := e.do(method, path, body, guest); w.Code != http.StatusForbidden {
+			t.Errorf("%s as a guest: %d %s", name, w.Code, w.Body)
+		} else if !strings.Contains(w.Body.String(), "core members") {
+			t.Errorf("%s as a guest: unclear 403 %q", name, w.Body)
+		}
+		w := e.do(method, path, body, core)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s as core: %d %s", name, w.Code, w.Body)
+		}
+		var out map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &out)
+		return out
+	}
+
+	call("add by username", "POST", b+"/members", `{"username":"Someone`+e.sfx+`","status":"guest"}`)
+	call("one-off link", "POST", b+"/invites", "status=guest")
+	shell := call("personal invite", "POST", b+"/personal-invites", `{"displayName":"Placeholder","status":"guest"}`)
+	shellID := int64(shell["personId"].(float64))
+	call("new link for a placeholder", "POST", fmt.Sprintf("/api/people/%d/personal-invites", shellID), "")
+	roster := call("roster link", "POST", b+"/group-invites", `{"slots":[{"displayName":"Ana"}]}`)
+	gi := fmt.Sprintf("%s/group-invites/%d", b, int64(roster["id"].(float64)))
+	slot := call("add a name", "POST", gi+"/slots", `{"displayName":"Bo"}`)
+	sl := fmt.Sprintf("%s/slots/%d", gi, int64(slot["slotId"].(float64)))
+	call("fix a name", "POST", sl, `{"displayName":"Bob"}`)
+	call("remove a name", "DELETE", sl, "")
+	call("close the roster link", "POST", gi+"/close", "")
+	for _, status := range []string{"core", "guest"} {
+		link := call(status+" band link", "POST", b+"/band-link", `{"status":"`+status+`"}`)
+		call("close the "+status+" band link", "POST", fmt.Sprintf("%s/group-invites/%d/close", b, int64(link["id"].(float64))), "")
+	}
+
+	// The members page: a guest sees no way of inviting.
+	page := e.do("GET", fmt.Sprintf("/bands/%d/members", bandID), "", guest).Body.String()
+	for _, form := range []string{`id="roster-quick-add-form"`, `id="add-member-form"`, `id="band-link"`} {
+		if strings.Contains(page, form) {
+			t.Errorf("a guest's members page has %s", form)
+		}
+	}
+	if !strings.Contains(page, "Only core members can invite people.") {
+		t.Errorf("a guest's members page doesn't say why")
+	}
+	page = e.do("GET", fmt.Sprintf("/bands/%d/members", bandID), "", core).Body.String()
+	if !strings.Contains(page, `id="band-link"`) || !strings.Contains(page, `id="roster-quick-add-form"`) {
+		t.Errorf("a core member's members page has no way of inviting")
+	}
+}
+
+// TestCommunityOpenLinks: asking twice for a role's link gives the same
+// link; the admin page lists the open links (role links and links with
+// names) for staff who manage members, with who made them, who joined
+// and who's still awaited; a new link for a community placeholder needs
+// manage_members.
+func TestCommunityOpenLinks(t *testing.T) {
+	e := newInviteEnv(t)
+	ctx := context.Background()
+	staffID, staff := e.person("Staffer")
+	memberID, member := e.person("Plain")
+	communityID, err := e.st.CreateCommunity(ctx, "Link Community "+e.sfx, staffID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.st.AddCommunityMember(ctx, communityID, memberID, "member", staffID); err != nil {
+		t.Fatal(err)
+	}
+	c := fmt.Sprintf("/api/communities/%d", communityID)
+	type link struct {
+		ID  int64  `json:"id"`
+		URL string `json:"url"`
+	}
+	get := func(path, body string) link {
+		t.Helper()
+		w := e.do("POST", path, body, staff)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", path, w.Code, w.Body)
+		}
+		var l link
+		_ = json.Unmarshal(w.Body.Bytes(), &l)
+		return l
+	}
+	first := get(c+"/community-link", `{"role":"member"}`)
+	if again := get(c+"/community-link", `{"role":"member"}`); again.ID != first.ID || first.ID == 0 {
+		t.Errorf("asking twice for the member link: %+v then %+v", first, again)
+	}
+	if guestLink := get(c+"/community-link", `{"role":"guest"}`); guestLink.ID == first.ID {
+		t.Errorf("the guest link is the member link")
+	}
+	named := get(c+"/group-invites", `{"slots":[{"displayName":"Awaited Name"}],"role":"member"}`)
+	if again := get(c+"/community-link", `{"role":"member"}`); again.ID != first.ID {
+		t.Errorf("a link with names was handed out as the member link")
+	}
+
+	// Someone joins through the member link.
+	form := url.Values{
+		"slot_id": {"unlisted"}, "username": {"joiner" + e.sfx}, "display_name": {"Joiner Person"},
+		"email": {"joiner" + e.sfx + "@example.test"}, "password": {"long enough"}, "confirm": {"long enough"},
+	}
+	if w := e.do("POST", first.URL, form.Encode(), nil); w.Code != http.StatusFound {
+		t.Fatalf("joining: %d %s", w.Code, w.Body)
+	}
+
+	page := e.do("GET", fmt.Sprintf("/communities/%d/admin", communityID), "", staff).Body.String()
+	for _, want := range []string{"Pending invites", "Open invite links", first.URL, named.URL, "Joined with it: Joiner Person", "Still waiting for: Awaited Name", "made by Staffer"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("admin page: missing %q", want)
+		}
+	}
+	if w := e.do("POST", fmt.Sprintf("%s/group-invites/%d/close", c, named.ID), "", staff); w.Code != http.StatusOK {
+		t.Fatalf("closing: %d", w.Code)
+	}
+	if page = e.do("GET", fmt.Sprintf("/communities/%d/admin", communityID), "", staff).Body.String(); strings.Contains(page, named.URL) {
+		t.Errorf("a closed link is still listed")
+	}
+
+	// A community placeholder's new link: manage_members, not just any member.
+	w := e.do("POST", c+"/personal-invites", `{"displayName":"Waiting One","role":"member"}`, staff)
+	var shell struct {
+		PersonID int64 `json:"personId"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &shell); err != nil || shell.PersonID == 0 {
+		t.Fatalf("community personal invite: %d %s", w.Code, w.Body)
+	}
+	p := fmt.Sprintf("/api/people/%d/personal-invites", shell.PersonID)
+	if w := e.do("POST", p, "", member); w.Code != http.StatusForbidden {
+		t.Errorf("a plain member made a new link for a placeholder: %d", w.Code)
+	}
+	if w := e.do("POST", p, "", staff); w.Code != http.StatusOK {
+		t.Errorf("staff couldn't make a new link for a placeholder: %d %s", w.Code, w.Body)
+	}
+}

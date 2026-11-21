@@ -26,7 +26,7 @@ func TestBandMembersRosterRows(t *testing.T) {
 		{BandMember: store.BandMember{PersonID: 4, Username: "pending-def", DisplayName: "Lea", Status: "guest", IsShell: true},
 			CanEditInstruments: true},
 	}
-	data := map[string]any{"Me": me, "Band": &store.Band{ID: 7, Name: "The Band"}, "Members": rows, "IsCore": false}
+	data := map[string]any{"Me": me, "Band": &store.Band{ID: 7, Name: "The Band"}, "Members": rows, "IsCore": true}
 
 	for _, lang := range []string{"en", "fr"} {
 		var buf bytes.Buffer
@@ -55,6 +55,16 @@ func TestBandMembersRosterRows(t *testing.T) {
 		if strings.Contains(page, "roster-pending-header") {
 			t.Errorf("%s: the second table is back", lang)
 		}
+	}
+	// A guest sees the roster but can't invite: no quick-add row, no
+	// "New link" on a placeholder's row.
+	guest := map[string]any{"Me": me, "Band": data["Band"], "Members": rows, "IsCore": false}
+	var gbuf bytes.Buffer
+	if err := webassets.TemplatesFor("en").ExecuteTemplate(&gbuf, "band_members", guest); err != nil {
+		t.Fatal(err)
+	}
+	if g := gbuf.String(); strings.Contains(g, `id="roster-quick-add-form"`) || strings.Contains(g, `class="new-link-btn"`) {
+		t.Errorf("guest: invite controls shown")
 	}
 	var buf bytes.Buffer
 	_ = webassets.TemplatesFor("fr").ExecuteTemplate(&buf, "band_members", data)

@@ -1,0 +1,12 @@
+{
+  "Link with names · %s": "Lien avec des noms · %s",
+  "Links that still let people in: a role’s link, and the links with names. Close one once everyone’s in.": "Les liens qui laissent encore entrer : le lien d’un rôle, et les liens avec des noms. Fermez-en un une fois tout le monde inscrit.",
+  "No open link right now: make one below, under “Add people to this community”.": "Aucun lien ouvert pour l’instant : créez-en un plus bas, sous « Ajouter des personnes à cette communauté ».",
+  "Open invite links": "Liens d’invitation ouverts",
+  "Open link · %s": "Lien ouvert · %s",
+  "Pending invites": "Invitations en attente",
+  "Still waiting for:": "Encore attendus :",
+  "made %s": "créé le %s",
+  "made by %s, %s": "créé par %s, le %s",
+  "made just now": "créé à l’instant"
+}

@@ -20,7 +20,9 @@
 <main class="index">
   {{template "space-nav" .Space}}
 
-  <p class="hint">{{t "Any member can add or remove people. Only core members change who is core or guest."}}</p>
+  {{/* band-members-not-core also hides the placeholder rows' link
+       buttons for a guest (app.css). */}}
+  <p class="hint{{if not .IsCore}} band-members-not-core{{end}}">{{t "Any member can remove people. Only core members invite people and change who is core or guest."}}</p>
 
   {{/* One roster, one row per person: name, instruments and role, and
        for someone who hasn't joined yet their personal invite link on
@@ -52,7 +54,7 @@
         <div class="roster-invite" data-person-id="{{.PersonID}}">
           <button type="button" class="copy-link-btn" data-url="{{if .InviteToken}}/invite/{{.InviteToken}}{{end}}"{{if not .InviteToken}} hidden{{end}}>{{t "Copy link"}}</button>
           <button type="button" class="qr-link-btn" data-url="{{if .InviteToken}}/invite/{{.InviteToken}}{{end}}"{{if not .InviteToken}} hidden{{end}}>{{t "QR code"}}</button>
-          <button type="button" class="new-link-btn" data-has-link="{{if .InviteToken}}1{{end}}">{{t "New link"}}</button>
+          {{if $.IsCore}}<button type="button" class="new-link-btn" data-has-link="{{if .InviteToken}}1{{end}}">{{t "New link"}}</button>{{end}}
           <span class="hint roster-invite-until">{{if .InviteToken}}{{t "expires %s" (date .InviteUntil "2 January 2006")}}{{else}}{{t "no link yet"}}{{end}}</span>
         </div>
         {{end}}
@@ -75,6 +77,7 @@
     {{end}}
     {{/* One table-like row, so the labels are for screen readers only;
          the placeholders show what goes where. */}}
+    {{if .IsCore}}
     <form class="roster-row roster-quick-add" id="roster-quick-add-form">
       <label for="roster-add-name" class="sr-only">{{t "Name"}}</label>
       <input type="text" id="roster-add-name" placeholder="{{t "+ Add someone by name"}}" autocomplete="off" enterkeyhint="done" required>
@@ -88,8 +91,9 @@
       <span id="roster-add-result" class="form-status" role="status"></span>
       <button type="submit" id="roster-add-btn" class="primary">{{t "Add to roster"}}</button>
     </form>
+    {{end}}
     </div>
-    <p class="hint">{{t "They’re on the roster right away, with a personal invite link to send them."}}</p>
+    {{if .IsCore}}<p class="hint">{{t "They’re on the roster right away, with a personal invite link to send them."}}</p>{{end}}
   </section>
 
   <label class="check"><input type="checkbox" id="show-past-toggle"> {{t "Show past members"}}</label>
@@ -111,6 +115,7 @@
   </table></div>
 
   <div class="home-section-head" style="margin-top:0.4rem;"><h3>{{t "Add people to this band"}}</h3></div>
+  {{if .IsCore}}
   <p class="hint">{{t "For someone who already has an account, a link anyone can use once, or one open link for a rehearsal or a gig."}}</p>
   <div class="card-grid">
     <div class="card">
@@ -258,6 +263,9 @@
       </script>
     </div>
   </div>
+  {{else}}
+  <p class="hint">{{t "Only core members can invite people."}}</p>
+  {{end}}
 
   <p class="hint">{{t "The band’s name, look and deletion are in"}} <a href="/bands/{{.Band.ID}}/settings">{{t "Settings"}}</a>.</p>
 </main>
@@ -280,6 +288,7 @@ document.getElementById('show-past-toggle').addEventListener('change', (e) => {
 // makes a one-time link instead. The button says which it's about to do.
 (function () {
   const form = document.getElementById('add-member-form');
+  if (!form) return; // a guest: no inviting
   const userInput = document.getElementById('add-username');
   const btn = document.getElementById('add-member-btn');
   const label = () => { btn.textContent = userInput.value.trim() ? t('Add to band') : t('Create invite link'); };
@@ -413,7 +422,7 @@ document.querySelectorAll('.new-link-btn').forEach(btn => {
 document.querySelectorAll('.qr-link-btn').forEach(btn => {
   btn.addEventListener('click', () => showQR(location.origin + btn.dataset.url));
 });
-document.getElementById('roster-quick-add-form').addEventListener('submit', (e) => {
+document.getElementById('roster-quick-add-form')?.addEventListener('submit', (e) => {
   e.preventDefault();
   const form = e.target;
   const displayName = document.getElementById('roster-add-name').value.trim();
