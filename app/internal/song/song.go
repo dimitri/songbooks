@@ -22,6 +22,9 @@ var MetaKeys = []string{
 	"title", "artist", "key", "tempo", "time", "capo",
 	"transpose", "map", "idiom", "flats", "reference",
 	"cover", "cover-credit", "swing",
+	// style: the tune's style or feel ("Medium Swing", "Bossa Nova"),
+	// as an iReal Pro chart prints it; the Jazz chart shows it.
+	"style",
 	// gp_source: the original Guitar Pro filename this song's score[...]
 	// voices were imported from (see internal/httpapi/gpfile.go's
 	// song_gp_source_file table for the actual file bytes) — kept here
