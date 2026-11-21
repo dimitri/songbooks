@@ -12,22 +12,44 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"app/internal/store"
 )
 
 // newTestStore opens the Postgres test database, same as the store
 // package's own tests (SONGBOOKS_TEST_DATABASE_URL, else a local
-// songbooks_test), and skips when there's none. It doesn't empty any
-// table: callers make their own uniquely named people and bands.
+// songbooks_test), and skips when there's none. Its tables live in
+// their own schema, httpapi_test: the store tests empty the public one
+// while `go test ./...` runs this package alongside. Nothing is emptied
+// here: callers make their own uniquely named people and bands.
 func newTestStore(t *testing.T) *store.Store {
 	t.Helper()
+	ctx := context.Background()
 	connString := os.Getenv("SONGBOOKS_TEST_DATABASE_URL")
 	if connString == "" {
 		connString = "postgres://localhost/songbooks_test?sslmode=disable"
 	}
-	st, err := store.New(context.Background(), connString)
+	conn, err := pgx.Connect(ctx, connString)
 	if err != nil {
 		t.Skipf("no test database available at %s (set SONGBOOKS_TEST_DATABASE_URL to run these tests): %v", connString, err)
+	}
+	_, err = conn.Exec(ctx, `CREATE SCHEMA IF NOT EXISTS httpapi_test`)
+	conn.Close(ctx)
+	if err != nil {
+		t.Fatalf("creating the httpapi_test schema: %v", err)
+	}
+	switch {
+	case !strings.Contains(connString, "://"):
+		connString += " search_path=httpapi_test"
+	case strings.Contains(connString, "?"):
+		connString += "&search_path=httpapi_test"
+	default:
+		connString += "?search_path=httpapi_test"
+	}
+	st, err := store.New(ctx, connString)
+	if err != nil {
+		t.Fatalf("opening the test database: %v", err)
 	}
 	t.Cleanup(st.Close)
 	return st

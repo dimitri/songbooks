@@ -13,7 +13,8 @@
   <div class="hero">
     <div>
       <h2>{{t "Join %s" .TargetName}}</h2>
-      {{if .Open}}
+      {{if .Closed}}{{/* the card below says so */}}
+      {{else if .Open}}
         <p>{{if eq .Kind "band"}}{{t "Create your account, or log in, and you’re in the band."}}{{else}}{{t "Create your account, or log in, and you’re in the community."}}{{end}}</p>
       {{else if eq .Kind "band"}}
         <p>{{t "Pick your name below, or \"Someone else\" if you're not on the list."}}</p>
