@@ -6321,6 +6321,8 @@ a.calendar-day:hover { text-decoration: none; background: var(--bg-sunken); }
   /* The role's own name heads its block: no "Role" label over it. */
   .roles-table td:first-child::before { display: none; }
   .roles-table td:first-child { font-size: 1.05rem; padding-bottom: 0.3rem; }
+  /* Its rows line up with the New role card's content under it. */
+  table.card.roles-table tr { padding-left: 1.5rem; padding-right: 1.5rem; }
 }
 
 /* Where the admin page's songbook and event tools went: a community's
