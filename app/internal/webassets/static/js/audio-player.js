@@ -1782,6 +1782,23 @@ window.songbooksDecodable = function (buf) {
     setSheet(false);
     document.querySelector('#mode-segmented button[data-value="mixer"]')?.click();
   });
+  // The bar's Mixer button: the mixer, or (on) back to the view it left.
+  {
+    const mixerBtn = $('audio-mixer-btn'), modeSeg = $('mode-segmented');
+    let backTo = 'normal';
+    const isMixer = () => modeSeg?.dataset.value === 'mixer';
+    const syncMixerBtn = () => {
+      if (!isMixer()) backTo = modeSeg?.dataset.value || 'normal';
+      mixerBtn?.setAttribute('aria-pressed', String(isMixer()));
+      mixerBtn?.classList.toggle('active', isMixer());
+    };
+    mixerBtn?.addEventListener('click', () => {
+      setSheet(false);
+      document.querySelector(`#mode-segmented button[data-value="${isMixer() ? backTo : 'mixer'}"]`)?.click();
+    });
+    if (mixerBtn && modeSeg && window.MutationObserver) new MutationObserver(syncMixerBtn).observe(modeSeg, { attributes: true, attributeFilter: ['data-value'] });
+    syncMixerBtn();
+  }
   // The dock's line: a click goes there; in the phone sheet, where it is
   // a scrubber, a drag too.
   if (dockLine) {
