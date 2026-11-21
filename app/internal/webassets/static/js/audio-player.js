@@ -509,9 +509,24 @@ window.songbooksDecodable = function (buf) {
         categories[cat].syncOrigin = markers.some((m) => m.origin === 'auto') ? 'auto' : (markers.length ? 'set' : '');
       }
       if (cat === activeCategory) { preview = null; detected = null; rebuildGrid(); }
+      // The save may have dropped or confirmed the per-bar points (which
+      // the grid follows first): the server's sync, as saved.
+      await refreshSync(cat);
       document.dispatchEvent(new CustomEvent('songbooks:sync-saved', { detail: { category: cat } }));
       return true;
     } catch (e) { return false; }
+  }
+  // A recording's sync (markers, per-bar points, their origin) read again
+  // from the server, without reloading the recording itself.
+  async function refreshSync(cat = activeCategory) {
+    try {
+      const res = await fetch(`/api/songs/${variantId}/audio`);
+      if (!res.ok) return;
+      const c = ((await res.json()).categories || []).find((x) => x.category === cat);
+      if (!c || !categories[cat]) return;
+      Object.assign(categories[cat], { markers: c.markers || [], barSyncPoints: c.barSyncPoints || [], syncOrigin: c.syncOrigin || '' });
+      if (cat === activeCategory) { detected = null; rebuildGrid(); renderPosition(); }
+    } catch (e) { /* kept as it was */ }
   }
 
   // ---- Drawing ------------------------------------------------------------
@@ -1155,6 +1170,7 @@ window.songbooksDecodable = function (buf) {
     if (prefs.voice < 100) prefs.voiceOff = prefs.voice;
     savePrefs();
     applyVoice();
+    document.dispatchEvent(new CustomEvent('songbooks:voice-changed'));
   }
   function toggleVoice() {
     if (!hasParts()) return;
@@ -1196,6 +1212,15 @@ window.songbooksDecodable = function (buf) {
     el.style.setProperty('--pop-top', `${r.bottom - wrap.top + 6}px`);
     el.style.setProperty('--pop-left', `${Math.max(8, Math.min(wrap.width - el.offsetWidth - 8, r.right - wrap.left - el.offsetWidth))}px`);
   }
+  // The sync badge, for someone who can edit the song, opens the Sync
+  // sheet itself: correcting is what it's for.
+  syncBadge?.addEventListener('click', (e) => {
+    if (!canEdit || !window.songbooksSyncSheet) return;
+    e.stopImmediatePropagation();
+    pops.forEach((p) => { p.hidden = true; });
+    setSheet(false);
+    window.songbooksSyncSheet.open();
+  });
   document.querySelectorAll('#audio-player [data-pop]').forEach((b) => b.addEventListener('click', () => openPop(b.dataset.pop, b)));
   // The dock's line: a click goes there; in the phone sheet, where it is
   // a scrubber, a drag too.
@@ -1856,6 +1881,10 @@ window.songbooksDecodable = function (buf) {
     detectBars: runDetection,
     setPreview: (markers) => { preview = markers ? markers.map((m) => ({ ...m })) : null; rebuildGrid(); renderPosition(); },
     saveMarkers,
+    refreshSync,
+    // The voice turned down (the accompaniment plays), and the toggle.
+    voiceDown: () => voiceDown(),
+    toggleVoice,
     // The Sync sheet's waveform (sync-wave.js): the recording, mono at
     // ~11 kHz ({x, sr}, or null before it's decoded), and when each bar
     // starts as the chart follows it now ([time of bar 0, …]).
