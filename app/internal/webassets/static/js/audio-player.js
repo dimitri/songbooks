@@ -2119,6 +2119,20 @@ window.songbooksDecodable = function (buf) {
     showView(currentView() === b.dataset.view ? readingView : b.dataset.view);
   }));
   renderViewLines();
+  // The bar's Mixer button: the mixer, or (on) back to the view it left.
+  {
+    const mixerBtn = $('audio-mixer-btn');
+    const syncMixerBtn = () => {
+      mixerBtn?.setAttribute('aria-pressed', String(currentView() === 'mixer'));
+      mixerBtn?.classList.toggle('active', currentView() === 'mixer');
+    };
+    mixerBtn?.addEventListener('click', () => {
+      setSheet(false);
+      showView(currentView() === 'mixer' ? readingView : 'mixer');
+    });
+    if (mixerBtn && modeEl) new MutationObserver(syncMixerBtn).observe(modeEl, { attributes: true, attributeFilter: ['data-value'] });
+    syncMixerBtn();
+  }
   // The dock's line: a click goes there; in the phone sheet, where it is
   // a scrubber, a drag too.
   if (dockLine) {

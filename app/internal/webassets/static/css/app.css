@@ -1547,7 +1547,7 @@ body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5re
   .audio-dock.is-open .audio-dock-grab { display: block; position: relative; width: 3rem; height: 1.4rem; min-height: 0; border: 0; padding: 0; background: none; cursor: pointer; }
   .audio-dock.is-open .audio-dock-grab::before { content: ""; position: absolute; left: 0.6rem; right: 0.6rem; top: 0.5rem; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--fg) 25%, transparent); }
   .audio-dock.is-open .audio-lcd-section:empty::before { content: attr(data-title); }
-  .audio-dock.is-open :is(.audio-opts, .audio-opts-btn, .audio-panel-btn, .audio-card-mic) { display: none !important; }
+  .audio-dock.is-open :is(.audio-opts, .audio-opts-btn, .audio-panel-btn, .audio-mixer-btn, .audio-card-mic) { display: none !important; }
   .audio-dock.is-open .audio-panel { display: block; order: 6; margin: 0 -1.2rem; }
   .audio-panel-tabs { display: flex; gap: 0.2rem; padding: 0 1.2rem; border-bottom: 1px solid var(--border); }
   .audio-panel-tabs [role="tab"] { flex: 1; min-height: 2.75rem; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--fg-muted); font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
@@ -1630,6 +1630,11 @@ body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5re
 .audio-panel-btn:hover { background: color-mix(in srgb, var(--fg) 85%, var(--accent)); }
 .audio-dock.opts-tight .audio-panel-btn span { display: none; }
 @media (max-width: 720px) { .audio-panel-btn { display: none; } }
+/* The bar's way into the mixer, beside Pratique: never folded; its
+   label goes when the bar is tight. A phone has it in Outils. */
+.audio-mixer-btn { flex: none; }
+.audio-dock.opts-tight .audio-mixer-btn span { display: none; }
+@media (max-width: 720px) { .audio-mixer-btn { display: none; } }
 .audio-lcd[role="button"] { cursor: pointer; }
 /* A wide screen: the panel rises from the bar over the lower two thirds of
    the screen — where you are on the left, the tools on the right — over
@@ -1674,7 +1679,7 @@ body:has(#audio-player-body:not([hidden])) .content-main { padding-bottom: 5.5re
   .audio-dock.is-open .audio-buttons .audio-play-btn { width: 3.8rem !important; height: 3.8rem !important; border-radius: 50%; background: var(--accent); color: var(--accent-contrast); }
   .audio-dock.is-open .audio-buttons .audio-play-btn .icon { width: 1.5rem; height: 1.5rem; }
   .audio-dock.is-open .audio-panel-hint { display: block; order: 5; margin: 0; text-align: center; font-size: 0.78rem; color: var(--fg-muted); }
-  .audio-dock.is-open :is(.audio-opts, .audio-opts-btn, .audio-panel-btn, .audio-card-mic, .audio-dock-line) { display: none !important; }
+  .audio-dock.is-open :is(.audio-opts, .audio-opts-btn, .audio-panel-btn, .audio-mixer-btn, .audio-card-mic, .audio-dock-line) { display: none !important; }
   .audio-sec-chip { flex: none; min-height: 2rem; padding: 0 0.8rem; border-radius: var(--radius-control, 999px); border: 1px solid var(--border); background: var(--bg-raised); color: var(--fg-muted); font: inherit; font-size: 0.8rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
   .audio-sec-chip.current { color: var(--fg); border-color: var(--border-strong); }
   .audio-sec-chip.looped { background: color-mix(in srgb, var(--cycle) 30%, var(--bg-raised)); border-color: var(--cycle); color: var(--fg); }
@@ -6512,7 +6517,7 @@ body.stage .stack-sheet, body.stage .stack-backdrop, body.stage .sidebar-transpo
 body.stage .song-topzone { padding-top: 0.4rem; padding-bottom: 0.2rem; }
 body.stage #audio-player { margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
 body.stage #audio-player > :not(#audio-player-body), body.stage #audio-player-body > :not(.audio-dock),
-body.stage .audio-dock :is(.audio-opts, .audio-opts-btn, .audio-panel-btn, .audio-panel) { display: none !important; }
+body.stage .audio-dock :is(.audio-opts, .audio-opts-btn, .audio-panel-btn, .audio-mixer-btn, .audio-panel) { display: none !important; }
 body.stage .audio-dock { left: 0; bottom: calc(2.3rem + env(safe-area-inset-bottom, 0px)); padding-bottom: 0.4rem; }
 body.stage .audio-dock .audio-transport { justify-content: center; }
 body.stage .audio-dock .audio-lcd { flex: 0 1 20rem; }
@@ -8114,7 +8119,7 @@ a.singer-chip:hover { border-color: var(--border-strong); }
 @keyframes audio-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .audio-spinner { animation: none; } }
 /* No recording: the follow-along clock, the click on; nothing else. */
-.audio-player[data-state="none"] .audio-dock :is(.audio-waveform-wrap, .audio-opts, .audio-opts-btn, #audio-start-btn, #audio-prev-btn, #audio-next-btn, .audio-dock-line) { display: none !important; }
+.audio-player[data-state="none"] .audio-dock :is(.audio-waveform-wrap, .audio-opts, .audio-opts-btn, .audio-mixer-btn, #audio-start-btn, #audio-prev-btn, #audio-next-btn, .audio-dock-line) { display: none !important; }
 .audio-player[data-state="none"] .audio-dock .audio-lcd-time { margin-left: 0.5rem; }
 .audio-player[data-state="none"] .audio-add-recording { margin-left: auto; }
 @media (min-width: 901px) { body:has(.audio-player[data-state="none"]) .content-main { padding-bottom: 6rem; } }
