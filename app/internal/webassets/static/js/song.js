@@ -2820,6 +2820,8 @@ const ICONS = {
         const m = rawTextarea.value.match(/^reference:.*$/m);
         setText(rawTextarea, m ? rawTextarea.value.replace(/^reference:.*$/m, `reference: ${c.url}`) : rawTextarea.value.replace(/^(title:.*\n(?:[a-z][\w-]*:.*\n)*)/, `$1reference: ${c.url}\n`));
         currentURL = c.url;
+        // The player picks the new recording up (the Sync sheet opens on it).
+        document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
         busy(false, t('Downloaded: its voice and backing are being split, then the sync can place the sections.'));
         await showRecording();
         renderCandidates();

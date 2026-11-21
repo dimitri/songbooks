@@ -42,9 +42,27 @@
     const dur = () => o.duration() || 0;
     const pxPerSec = () => W / view.span;
 
+    // A colour as the canvas takes it: a custom property can hold a
+    // color-mix() a canvas can't read (it would keep the last fill), so
+    // each is resolved by the page into rgb() through a probe's color.
+    let probe = null;
+    function resolve(value, fallback) {
+      if (!value) return fallback;
+      if (!probe) {
+        probe = document.createElement('span');
+        probe.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;visibility:hidden;pointer-events:none';
+        probe.setAttribute('aria-hidden', 'true');
+      }
+      if (!probe.isConnected) cv.parentNode?.appendChild(probe);
+      probe.style.color = '';
+      probe.style.color = value;
+      if (!probe.style.color) return fallback; // not a colour this browser knows
+      const c = getComputedStyle(probe).color;
+      return c || fallback;
+    }
     function readColors() {
       const s = getComputedStyle(cv);
-      const v = (n, d) => s.getPropertyValue(n).trim() || d;
+      const v = (n, d) => resolve(s.getPropertyValue(n).trim(), d);
       colors = {
         fg: v('--fg', '#241e18'), muted: v('--fg-muted', '#5f554a'), bg: v('--bg', '#f6f1e7'), raised: v('--bg-raised', '#fff'),
         accent: v('--accent', '#af4e39'), accentInk: v('--accent-ink', '#8a3d2c'), contrast: v('--accent-contrast', '#fff'),
@@ -402,10 +420,10 @@
       if (drag.kind === 'marker') {
         if (Math.abs(p.x - drag.x0) > 2) drag.moved = true;
         if (!drag.moved) return;
+        drag.x = p.x;
+        drag.free = e.altKey;
         o.dragMove(drag.i, M.xToT(Math.max(0, Math.min(W, p.x)), view, W), { free: e.altKey, pxPerSec: pxPerSec() });
-        // Near an edge: the view scrolls along.
-        if (p.x < 24) setView({ start: view.start - view.span * 0.02, span: view.span }, true);
-        else if (p.x > W - 24) setView({ start: view.start + view.span * 0.02, span: view.span }, true);
+        edgeScroll();
         invalidate();
         return;
       }
@@ -414,6 +432,25 @@
         if (drag.moved) setView({ start: drag.start0 - ((p.x - drag.x0) / W) * view.span, span: view.span }, true);
       }
     });
+    // A marker held near an edge: the view keeps scrolling, and the marker
+    // along with it, until it's moved away or let go.
+    let edgeFrame = 0;
+    function edgeScroll() {
+      if (edgeFrame) return;
+      const step = () => {
+        edgeFrame = 0;
+        if (!drag || drag.kind !== 'marker' || !drag.moved || drag.x === undefined) return;
+        const dir = drag.x < 24 ? -1 : drag.x > W - 24 ? 1 : 0;
+        if (!dir) return;
+        const before = view.start;
+        setView({ start: view.start + dir * view.span * 0.015, span: view.span }, true);
+        if (view.start === before) return; // at an end
+        o.dragMove(drag.i, M.xToT(Math.max(0, Math.min(W, drag.x)), view, W), { free: drag.free, pxPerSec: pxPerSec() });
+        invalidate();
+        edgeFrame = requestAnimationFrame(step);
+      };
+      edgeFrame = requestAnimationFrame(step);
+    }
     function end(e) {
       const p = local(e);
       pointers.delete(e.pointerId);
@@ -441,24 +478,29 @@
 
     // Wheel: Ctrl/⌘ (and a trackpad's pinch, which comes as Ctrl + wheel)
     // zooms around the pointer, otherwise it scrolls, either direction.
+    // A plain vertical wheel scrolls the sheet (a mouse has no other way
+    // over it); a sideways one, or Shift + wheel, scrolls the waveform.
     cv.addEventListener('wheel', (e) => {
-      e.preventDefault();
       const p = local(e);
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? W : 1;
       if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
         const f = Math.exp(-e.deltaY * unit * 0.01);
         setView(M.zoomAt(view, f, M.xToT(p.x, view, W), dur()), true);
-      } else {
-        const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-        setView(M.pan(view, dx * unit, W, dur()), true);
+        return;
       }
+      const sideways = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+      if (!sideways && !e.shiftKey) return;
+      e.preventDefault();
+      setView(M.pan(view, (sideways ? e.deltaX : e.deltaY) * unit, W, dur()), true);
     }, { passive: false });
-    // Safari's own trackpad pinch.
+    // Safari's own trackpad pinch (on an iPhone, two fingers are already
+    // the pointers' pinch: not applied twice).
     let g0 = null;
-    cv.addEventListener('gesturestart', (e) => { e.preventDefault(); const p = local(e); g0 = { at: M.xToT(p.x, view, W), span: view.span, x: p.x }; });
+    cv.addEventListener('gesturestart', (e) => { e.preventDefault(); if (pointers.size >= 2) return; const p = local(e); g0 = { at: M.xToT(p.x, view, W), span: view.span, x: p.x }; });
     cv.addEventListener('gesturechange', (e) => {
       e.preventDefault();
-      if (!g0) return;
+      if (!g0 || pointers.size >= 2) return;
       const span = M.clampView({ start: 0, span: g0.span / (e.scale || 1) }, dur()).span;
       setView({ start: g0.at - (g0.x / W) * span, span }, true);
     });

@@ -156,6 +156,12 @@ def analyze(mix, backing, threads=0, beats_model=None, chords_model=None):
         if bx is None or float(np.mean(mx[2]) if len(mx[2]) else 0) > float(np.mean(bx[2]) if len(bx[2]) else 0):
             bx, source = mx, "mix"
     beats, downs, act = bx
+    # A silent or very short recording can give NaNs: beats that aren't
+    # numbers go (with their activation), so Go reads what's left.
+    keep = [i for i, b in enumerate(beats) if np.isfinite(b)]
+    beats = np.asarray([beats[i] for i in keep], dtype=float)
+    act = np.asarray([act[i] if i < len(act) and np.isfinite(act[i]) else 0.0 for i in keep], dtype=float)
+    downs = np.asarray([d for d in downs if np.isfinite(d)], dtype=float)
     t2 = time.time()
     segments, per_beat = chords_model(os.path.abspath(mix), beats)
     t3 = time.time()
@@ -171,6 +177,18 @@ def analyze(mix, backing, threads=0, beats_model=None, chords_model=None):
         "beat_chords": per_beat,
         "timing": {"load": round(t1 - t0, 2), "beats": round(t2 - t1, 2), "chords": round(t3 - t2, 2)},
     }
+
+
+def finite(v):
+    """v with every number that isn't finite (NaN, ±inf) made null."""
+    if isinstance(v, dict):
+        return {k: finite(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [finite(x) for x in v]
+    if isinstance(v, (float, np.floating)):
+        f = float(v)
+        return f if np.isfinite(f) else None
+    return v
 
 
 def analyzer_name(beats_model):
@@ -202,7 +220,8 @@ def main(argv=None):
         return 0
     if not args.mix:
         ap.error("--mix is required")
-    json.dump(analyze(args.mix, args.backing, args.threads), sys.stdout)
+    # Strict JSON: Go rejects NaN, which json.dump writes by default.
+    json.dump(finite(analyze(args.mix, args.backing, args.threads)), sys.stdout, allow_nan=False)
     sys.stdout.write("\n")
     return 0
 

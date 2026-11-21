@@ -4,8 +4,9 @@
 // recordings already there were queued when it ran. It runs in its own
 // container, which has Python, PyTorch and Demucs (deploy/Dockerfile.stems).
 //
-// Right after a split, while it still has the WAVs, it listens to the
-// recording (the analysis stage, migration 0106): beats, downbeats,
+// Right after a split, its parts saved, while it still has the WAVs, it
+// listens to the recording (the analysis stage, migration 0106, on its
+// own --analysis-timeout): beats, downbeats,
 // metre, tempo, chords and where the voice is, from Beat This! and
 // lv-chordia (deploy/analysis/sbanalyze.py) and internal/audioanalysis.
 // A recording split before, or whose analysis was queued again, is
@@ -22,7 +23,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -45,7 +45,8 @@ func main() {
 	model := flag.String("model", "htdemucs", "the Demucs model")
 	threads := flag.Int("threads", 0, "threads Demucs and the analysis may use (0: their default)")
 	bitrate := flag.Int("bitrate", 128, "the parts' MP3 bitrate, in kbit/s")
-	timeout := flag.Duration("timeout", 30*time.Minute, "the longest one recording may take")
+	timeout := flag.Duration("timeout", 30*time.Minute, "the longest one recording's split may take")
+	flag.DurationVar(&analysisTimeout, "analysis-timeout", analysisTimeout, "the longest one recording's analysis may take")
 	once := flag.Bool("once", false, "split and analyse what's queued, then stop")
 	analyze := flag.String("analyze", "", "the command that runs sbanalyze.py (words split on spaces); empty: no analysis")
 	reanalyze := flag.String("reanalyze", "", `queue analyses again: "all" (every split recording not analysed by the current models), "force" (every one), or a song_audio id; then stop`)
@@ -110,7 +111,7 @@ func main() {
 				continue
 			}
 			if aj != nil {
-				analyzeStored(ctx, st, an, *aj, *timeout)
+				analyzeStored(ctx, st, an, *aj, analysisTimeout)
 				continue
 			}
 		}
@@ -133,50 +134,80 @@ func process(ctx context.Context, st *store.Store, split stems.Splitter, an stem
 	}
 	jctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	var rec *chartalign.Recording
-	var then func(stems.WAVs) error
-	if len(an.Command) > 0 {
-		then = func(w stems.WAVs) error {
-			var err error
-			rec, err = an.Analyze(jctx, w)
-			return err
+	// The parts are saved as soon as they're made (the player shows them,
+	// and their saving queues the analysis); then, while the WAVs are
+	// still there, the recording is analysed, on its own clock: a hung
+	// analysis never holds the parts back.
+	var saveErr error
+	saved := false
+	then := func(parts map[string][]byte, w stems.WAVs) error {
+		if saved, saveErr = st.SaveStems(ctx, job, "audio/mpeg", parts); saveErr != nil || !saved {
+			return nil
 		}
+		size := 0
+		for _, p := range parts {
+			size += len(p)
+		}
+		log.Printf("stemsd: recording %d split in %s (%d KB)", job.SongAudioID, time.Since(start).Round(time.Second), size>>10)
+		if len(an.Command) > 0 {
+			analyzeSplit(ctx, st, an, job, w, analysisTimeout)
+		}
+		return nil
 	}
-	parts, err := split.SplitThen(jctx, audio, then)
+	_, err = split.SplitThen(jctx, audio, then)
 	if ctx.Err() != nil {
 		return // stopping: the job goes back to the queue at the next start
 	}
-	var thenErr *stems.ThenError
-	if errors.As(err, &thenErr) {
-		// The parts are fine; the analysis is queued by their saving and
-		// will be tried again from them.
-		log.Printf("stemsd: recording %d: analysis: %v", job.SongAudioID, thenErr.Err)
-		err = nil
+	if err == nil {
+		err = saveErr
 	}
-	if err != nil {
-		fail(st, job, err)
-		return
-	}
-	saved, err := st.SaveStems(ctx, job, "audio/mpeg", parts)
 	if err != nil {
 		fail(st, job, err)
 		return
 	}
 	if !saved {
 		log.Printf("stemsd: recording %d was replaced while it was split; its new version is queued", job.SongAudioID)
-		return
 	}
-	size := 0
-	for _, p := range parts {
-		size += len(p)
-	}
-	log.Printf("stemsd: recording %d split in %s (%d KB)", job.SongAudioID, time.Since(start).Round(time.Second), size>>10)
-	if rec != nil {
-		if _, err := st.SaveAnalysis(ctx, job.SongAudioID, job.SHA256, rec); err != nil {
-			log.Printf("stemsd: recording %d: saving its analysis: %v", job.SongAudioID, err)
-		} else {
-			logAnalysis(job.SongAudioID, rec, time.Since(start))
+}
+
+// analysisTimeout is the longest one recording's analysis may take
+// (--analysis-timeout): a few minutes for Beat This! and lv-chordia on a
+// song; a hung one is failed and tried again from the stored parts.
+var analysisTimeout = 5 * time.Minute
+
+// analyzeSplit analyses a recording just split, from its WAVs: its job
+// (queued by the parts' saving) is taken as running, done or failed.
+func analyzeSplit(ctx context.Context, st *store.Store, an stems.Analyzer, job store.StemJob, w stems.WAVs, timeout time.Duration) {
+	start := time.Now()
+	ok, err := st.StartAnalysisJob(ctx, job.SongAudioID, job.SHA256, "sbanalyze")
+	if err != nil || !ok {
+		if err != nil {
+			log.Printf("stemsd: recording %d: starting its analysis: %v", job.SongAudioID, err)
 		}
+		return // another worker has it, or it's done
+	}
+	actx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	rec, err := an.Analyze(actx, w)
+	if err == nil {
+		var saved bool
+		if saved, err = st.SaveAnalysis(ctx, job.SongAudioID, job.SHA256, rec); err == nil {
+			if saved {
+				logAnalysis(job.SongAudioID, rec, time.Since(start))
+			}
+			return
+		}
+	}
+	if ctx.Err() != nil {
+		return // stopping: put back in the queue at the next start
+	}
+	log.Printf("stemsd: recording %d: analysis: %v", job.SongAudioID, err)
+	msg := err.Error()
+	if len(msg) > 4000 {
+		msg = msg[len(msg)-4000:]
+	}
+	if err := st.FailAnalysisJob(context.Background(), job.SongAudioID, job.SHA256, msg); err != nil {
+		log.Printf("stemsd: recording the failure: %v", err)
 	}
 }
 

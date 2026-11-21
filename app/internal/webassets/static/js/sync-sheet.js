@@ -83,6 +83,11 @@
   let rejected = new Set();
   let suggNotes = [];
 
+  // tn with more values than the count.
+  const tnx = (n, one, other, ...args) => {
+    const single = window.SB_LANG === 'fr' ? n === 0 || n === 1 : n === 1;
+    return t(single ? one : other, n, ...args);
+  };
   const say = (msg, kind) => { if (window.Forms) Forms.status(statusEl, msg, kind); else statusEl.textContent = msg; };
   function fmt(t) {
     if (t === null || !isFinite(t)) return '–';
@@ -137,30 +142,39 @@
     }
     return out.filter((s) => r.t === null || !list.some((o) => o !== s && Math.abs(o.t - r.t) <= SNAP && near(o.t, s.t)));
   }
+  // A suggestion is taken only between the starts around it: one that
+  // lands past the next start would run the grid backwards.
   function accept(i, s) {
+    const r = WM.acceptPicks(rows, { [i]: s.t }, { strict: true });
+    if (r.refused.length) {
+      const prev = rows.slice(0, i).reverse().find((x) => x.t !== null);
+      const next = rows.slice(i + 1).find((x) => x.t !== null);
+      const before = prev && s.t <= prev.t + 0.2;
+      const other = before ? prev : next;
+      say(!other ? t('That suggestion is out of order.')
+        : before ? t('That suggestion comes before %s’s start: move that one first, or leave it.', other.label)
+          : t('That suggestion comes after %s’s start: move that one first, or leave it.', other.label), 'error');
+      return;
+    }
     change(() => {
-      const r = rows[i];
-      r.t = s.t;
-      r.origin = 'set';
-      delete sugg[r.index];
+      rows = rows.map((x, k) => ({ ...x, t: r.rows[k].t, origin: r.rows[k].origin }));
+      delete sugg[rows[i].index];
     });
   }
+  // Every pending suggestion, in order: a start set by ear never goes;
+  // a suggestion that would land past one is left out instead.
   function acceptAll() {
+    const picks = {};
+    rows.forEach((r, i) => { const p = pending(i); if (p.length) picks[i] = p[0].t; });
+    const r = WM.acceptPicks(rows, picks);
     change(() => {
-      rows.forEach((r, i) => {
-        const p = pending(i);
-        if (p.length) { r.t = p[0].t; r.origin = 'set'; }
-        delete sugg[r.index];
-      });
-      // Keep them in order: a start that lands before the previous one
-      // can't be right.
-      for (let i = 1; i < rows.length; i++) {
-        const prev = rows.slice(0, i).reverse().find((x) => x.t !== null);
-        if (rows[i].t !== null && prev && rows[i].t <= prev.t) rows[i].t = null;
-      }
+      rows = rows.map((x, k) => ({ ...x, t: r.rows[k].t, origin: r.rows[k].origin }));
+      Object.keys(picks).forEach((i) => { delete sugg[rows[i].index]; });
     });
+    if (r.refused.length) say(tn(r.refused.length, '%d suggestion was left out: it didn’t fit between the starts set by ear.', '%d suggestions were left out: they didn’t fit between the starts set by ear.'), 'error');
   }
   function reject(i) {
+    history.push(snapshot());
     rejected.add(rows[i].index);
     render();
   }
@@ -213,19 +227,28 @@
     say(n ? tn(n, '%d section has a suggestion', '%d sections have a suggestion') : t('The suggestions agree with the sync as it is.'), 'ok');
     render();
   }
-  const snapshot = () => JSON.stringify({ rows, cursor, todoFrom, sugg });
+  const snapshot = () => JSON.stringify({ rows, cursor, todoFrom, sugg, rejected: [...rejected] });
+  function restore(s) {
+    let rej;
+    ({ rows, cursor, todoFrom, sugg, rejected: rej } = JSON.parse(s));
+    rejected = new Set(rej || []);
+  }
+  // Unsaved: the starts aren't the ones last saved (or loaded).
+  let savedMarks = '[]';
+  const markSaved = () => { savedMarks = JSON.stringify(markers()); dirty = false; };
+  const updateDirty = () => { dirty = JSON.stringify(markers()) !== savedMarks; };
   function change(fn) {
     history.push(snapshot());
     if (history.length > 200) history.shift();
     fn();
-    dirty = true;
+    updateDirty();
     afterChange();
   }
   function undo() {
     const s = history.pop();
     if (!s) return;
-    ({ rows, cursor, todoFrom, sugg } = JSON.parse(s));
-    dirty = true;
+    restore(s);
+    updateDirty();
     afterChange();
   }
   function markers() {
@@ -350,7 +373,20 @@
   // The list: one line per section, its state as a dot, its start, and
   // what needs a look (a suggestion, a flag, a tempo or bar count off);
   // the section the next tap sets gets the card beside it, with its tools.
-  function render() {
+  // Rebuilding the list and the card mustn't drop a keyboard's focus:
+  // every button made here has a data-focus key, and the one focused
+  // before is focused again (or, gone or disabled, the cursor's row).
+  function keepFocus(fn) {
+    const a = document.activeElement;
+    const key = a && sheet.contains(a) && a.dataset ? a.dataset.focus : null;
+    fn();
+    if (!key || (document.activeElement && document.activeElement !== document.body && sheet.contains(document.activeElement))) return;
+    let b = sheet.querySelector(`[data-focus="${CSS.escape(key)}"]`);
+    if (!b || b.disabled || b.closest('[hidden]')) b = key.startsWith('ana') ? anaEl?.querySelector('summary') : rowsEl.querySelector(`[data-focus="row:${cursor}"]`);
+    b?.focus({ preventScroll: true });
+  }
+  function render() { keepFocus(renderNow); }
+  function renderNow() {
     const tempos = rows.map((_, i) => rowBpm(i));
     rowsEl.replaceChildren(...rows.map((r, i) => {
       const li = document.createElement('li');
@@ -359,6 +395,7 @@
       const main = document.createElement('button');
       main.type = 'button';
       main.className = 'sync-row-main';
+      main.dataset.focus = `row:${i}`;
       main.setAttribute('aria-current', i === cursor ? 'true' : 'false');
       main.innerHTML = '<i class="sync-row-dot"></i><span class="sync-row-label"></span><span class="sync-row-notes"></span><span class="sync-row-time"></span>';
       main.querySelector('.sync-row-dot').title = stateText(r);
@@ -385,7 +422,8 @@
     notesEl.hidden = !(waiting && suggNotes.length);
     notesEl.textContent = suggNotes.join(' ');
     undoBtn.disabled = !history.length;
-    saveBtn.disabled = !dirty;
+    saveBtn.disabled = !dirty || gpOwnSync();
+    $('sync-gp-note').hidden = !gpOwnSync();
     // Where you are: how many starts are checked by ear, how many to go.
     const set = rows.filter((x) => x.t !== null && x.origin === 'set').length;
     const placed = rows.filter((x) => x.t !== null).length;
@@ -440,6 +478,7 @@
       const b = document.createElement('button');
       b.type = 'button';
       b.className = `sync-btn ${cls}`;
+      b.dataset.focus = `sugg:${i}:${s.src}:${cls || 'play'}`;
       b.textContent = text;
       b.setAttribute('aria-label', label);
       b.title = label;
@@ -461,6 +500,7 @@
       b.type = 'button';
       b.className = 'sync-btn';
       b.dataset.act = act;
+      b.dataset.focus = `tool:${act}`;
       b.textContent = text;
       if (label) { b.setAttribute('aria-label', label); b.title = label; }
       b.disabled = !!disabled;
@@ -553,7 +593,7 @@
       data: () => waveData || { bars: [], sections: [], chords: [], beats: [], downbeats: [], voice: [], ghosts: [], fixes: [], chartBars: 0, barLabel: String },
       seek: (tm) => P.seek(Math.max(0, tm)),
       select: (i) => select(i, true),
-      dragStart: (i) => { dragFrom = snapshot(); dragLocal = true; select(i, true); },
+      dragStart: (i) => { dragFrom = snapshot(); dragLocal = true; setLive(false); select(i, true); },
       dragMove: (i, tm, o) => dragTo(i, tm, o),
       dragEnd: (i, cancelled) => dragDone(i, cancelled),
       pickGhost: (g) => {
@@ -588,15 +628,24 @@
     dragFrom = null;
     dragLocal = false;
     if (!before) return;
+    setLive(true);
     if (cancelled || before === snapshot()) {
-      ({ rows, cursor, todoFrom, sugg } = JSON.parse(before));
+      restore(before);
       render();
       return;
     }
     history.push(before);
     if (history.length > 200) history.shift();
-    dirty = true;
+    updateDirty();
     afterChange();
+    const r = rows[i];
+    if (r) say(`${r.label} ${fmt(r.t)}`, 'ok');
+  }
+  // While a marker is dragged, the card and the status don't announce
+  // every position: only where it's let go.
+  function setLive(on) {
+    $('sync-here').setAttribute('aria-live', on ? 'polite' : 'off');
+    statusEl.setAttribute('aria-live', on ? 'polite' : 'off');
   }
   // A chord check flagged on the waveform: open the analysis there.
   function showFix(key) {
@@ -649,9 +698,16 @@
     nowEl.textContent = cur ? (bar !== null && bar >= cur.startBar ? t('%s · bar %d', cur.label, Math.floor(bar) - cur.startBar + 1) : cur.label) : '';
     const playing = P.isPlaying();
     if (wave) {
-      if (!peaksFor) loadPeaks();
+      // Another recording (a category switched, a part swapped in): its
+      // peaks when they're there, none meanwhile — never the last one's.
+      const s = P.samples();
+      if (s !== peaksFor) {
+        if (s) loadPeaks();
+        else if (peaksFor) { peaksFor = null; wave.setPeaks(null); }
+      }
       if (at !== lastTickAt || playing) wave.invalidate();
     }
+    if (detectWanted && P.samples() && P.samples() !== beatsFor) scheduleDetect();
     lastTickAt = at;
     if (playBtn.dataset.state !== String(playing)) { playBtn.innerHTML = playing ? iconPause : iconPlay; playBtn.dataset.state = String(playing); }
     clickBtn.setAttribute('aria-pressed', String(!!P.click()));
@@ -676,21 +732,40 @@
         if (isOpen()) render();
       }
     } catch (e) { /* snapping to the beat only */ }
-    // The detection takes a moment on a long song: after the sheet shows.
-    setTimeout(() => {
-      if (forCat !== cat) return;
-      if (!(ana && ana.proposal && ana.proposal.downbeats && ana.proposal.downbeats.length)) beats = P.detectBars() || [];
-      if (isOpen()) waveChanged();
-    }, 50);
+  }
+  // The player's own downbeats, for snapping, only when the analysis has
+  // none: it takes a moment on a long song, so once the analysis has
+  // answered, when the page is idle, and again for another recording.
+  let detectWanted = false;
+  let beatsFor = null; // the samples the downbeats were found in
+  let detectTimer = null;
+  const hasAnaBeats = () => !!(ana && ana.proposal && ana.proposal.downbeats && ana.proposal.downbeats.length);
+  function scheduleDetect() {
+    if (detectTimer || hasAnaBeats()) return;
+    const forCat = cat;
+    const run = () => {
+      detectTimer = null;
+      if (!isOpen() || forCat !== cat || hasAnaBeats()) return;
+      const s = P.samples();
+      if (!s || s === beatsFor) return;
+      beatsFor = s;
+      beats = P.detectBars() || [];
+      waveChanged();
+    };
+    detectTimer = window.requestIdleCallback ? requestIdleCallback(run, { timeout: 1500 }) : setTimeout(run, 200);
   }
 
   // ---- Saving, history -----------------------------------------------------------
+  // A Guitar Pro file's own sync places every bar: section starts placed
+  // here don't change what the chart follows.
+  const gpOwnSync = () => cat === 'gp' && ((P.meta() || {}).barSyncPoints || []).length > 1;
   async function save() {
+    if (gpOwnSync()) return;
     window.Forms?.busy?.(saveBtn, true);
     const ok = await P.saveMarkers(markers(), cat);
     window.Forms?.busy?.(saveBtn, false);
     if (ok) {
-      dirty = false;
+      markSaved();
       say(t('Saved: the chart follows this sync.'), 'ok');
       render();
     } else {
@@ -782,58 +857,114 @@
   function anaBtn(text, title, fn, cls = 'sync-btn') {
     const b = el('button', cls, text);
     b.type = 'button';
+    b.dataset.focus = `ana:${text}`;
     if (title) { b.title = title; b.setAttribute('aria-label', title); }
     b.addEventListener('click', fn);
     return b;
   }
+  // How long ago, roughly: "3 min", "2 h".
+  function ago(iso) {
+    const s = (Date.now() - Date.parse(iso)) / 1000;
+    if (!isFinite(s) || s < 0) return '';
+    if (s < 90) return t('just now');
+    if (s < 5400) return t('%d min ago', Math.round(s / 60));
+    if (s < 129600) return t('%d h ago', Math.round(s / 3600));
+    return t('%d days ago', Math.round(s / 86400));
+  }
+  // Why the analysis is less sure than its chords' fit says.
+  const whyText = (p) => ({
+    'too-long': t('the chart has far more bars than the recording plays'),
+    bars: t('the chart’s bars and the recording’s are far apart'),
+    section: t('a section’s bar count is far off'),
+    unplaced: t('many of the chart’s bars aren’t heard'),
+  }[p.why] || '');
   const listen = (tm) => anaBtn('▶', t('listen from 2 seconds before'), () => { P.seek(Math.max(0, tm - 2)); if (!P.isPlaying()) play(); }, 'sync-btn sync-ana-play');
-  function renderAnalysis() {
+  function renderAnalysis() { keepFocus(renderAnalysisNow); }
+  // The header's chip: the analysis' state where a phone sees it, a tap
+  // away from its panel (under the list there).
+  function renderAnaChip(state, text) {
+    const c = $('sync-ana-chip');
+    if (!c) return;
+    c.hidden = !ana;
+    c.dataset.state = state;
+    c.querySelector('span').textContent = text;
+  }
+  function renderAnalysisNow() {
     if (!anaEl) return;
     anaEl.hidden = !ana;
-    if (!ana) return;
+    if (!ana) { renderAnaChip('none', ''); return; }
     const dot = $('sync-analysis-dot'), sum = $('sync-analysis-sum');
     const p = ana.proposal;
     if (!p) {
       dot.dataset.state = 'none';
       const waiting = ana.stemStatus && ana.stemStatus !== 'done';
+      const since = ana.since ? ago(ana.since) : '';
       sum.textContent = ana.status === 'failed' ? t('analysis failed')
         : waiting ? t('after the split into parts')
-          : (ana.status === 'queued' || ana.status === 'running') ? t('being analysed…') : t('not analysed yet');
+          : ana.status === 'running' ? t('being analysed…')
+            : ana.status === 'queued' ? (ana.ahead ? tn(ana.ahead, 'queued, %d ahead', 'queued, %d ahead') : t('queued'))
+              : t('not analysed yet');
       const msg = ana.status === 'failed' ? t('The recording couldn’t be analysed.')
         : waiting ? t('The recording is analysed (its beats, bars and chords) once it’s split into its parts.')
-          : (ana.status === 'queued' || ana.status === 'running') ? t('The recording is being analysed: its beats, bars and chords. Come back in a minute.')
-            : t('The recording hasn’t been analysed yet.');
+          : ana.status === 'running' ? t('The recording is being analysed (its beats, bars and chords) since %s: a minute or two.', since || t('just now'))
+            : ana.status === 'queued' ? (ana.ahead ? tnx(ana.ahead, 'The recording waits for its analysis behind %d other one (queued %s).', 'The recording waits for its analysis behind %d others (queued %s).', since || t('just now')) : t('The recording waits for its analysis (queued %s).', since || t('just now')))
+              : t('The recording hasn’t been analysed yet.');
       const kids = [el('p', 'hint', msg)];
-      if (!waiting && ana.status !== 'queued' && ana.status !== 'running') kids.push(anaBtn(t('Analyse the recording'), '', queueAnalysis, 'audio-pill-btn'));
+      if (ana.status === 'failed' && ana.error) kids.push(el('p', 'hint sync-ana-error', ana.error.split('\n').filter(Boolean).pop() || ''));
+      if (!waiting && ana.status !== 'queued' && ana.status !== 'running') kids.push(anaBtn(ana.status === 'failed' ? t('Listen again') : t('Analyse the recording'), '', queueAnalysis, 'audio-pill-btn'));
       anaBody.replaceChildren(...kids);
+      renderAnaChip('none', sum.textContent);
       return;
     }
     dot.dataset.state = p.state;
     $('sync-analysis-title').textContent = t('Analysed');
+    const why = whyText(p);
     sum.textContent = p.state === 'unsure'
-      ? t('the beat is unclear')
+      ? (why || t('the beat is unclear'))
       : t('%d bpm · %s · bar 1 at %s · %s sure', Math.round(p.tempo), p.timeSig, fmt(p.firstDownbeat), `${pct(p.confidence)}%`);
+    renderAnaChip(p.state, p.state === 'good' ? t('analysis|good') : p.state === 'check' ? t('analysis|to check') : t('analysis|unsure'));
     if (review) { renderReview(); return; }
     const out = [];
-    // The beat grid's one-tap fixes.
+    // Why to trust it, or not: the chart's bars against the recording's.
+    if (p.writtenBars || p.chartBars) {
+      const totals = p.writtenBars ? t('chart %d bars · recording %d bars', p.writtenBars, p.playedBars) : tn(p.chartBars, 'chart %d bar', 'chart %d bars');
+      out.push(el('p', `sync-ana-totals${why ? ' is-off' : ''}`, why ? `${totals} · ${why}` : totals));
+    }
+    // The beat grid's one-tap fixes: ×2 or ÷2 first when the bars say
+    // the recording is counted in another octave.
     const fixes = el('div', 'sync-ana-fixes');
+    const tf = hints.tempoFactor || p.autoTempoFactor || 0;
+    const x2 = anaBtn(t('×2'), t('the beat is twice as fast'), () => setHint({ tempoFactor: tf && tf < 1 ? 1 : 2 }));
+    const d2 = anaBtn(t('÷2'), t('the beat is half as fast'), () => setHint({ tempoFactor: tf > 1 ? 1 : 0.5 }));
+    x2.setAttribute('aria-pressed', String(tf === 2));
+    d2.setAttribute('aria-pressed', String(tf > 0 && tf < 1));
+    if (p.suggestTempoFactor === 2) x2.classList.add('is-suggested');
+    if (p.suggestTempoFactor === 0.5) d2.classList.add('is-suggested');
     fixes.append(
-      anaBtn(t('×2'), t('the beat is twice as fast'), () => setHint({ tempoFactor: hints.tempoFactor === 0.5 ? 0 : 2 })),
-      anaBtn(t('÷2'), t('the beat is half as fast'), () => setHint({ tempoFactor: hints.tempoFactor === 2 ? 0 : 0.5 })),
+      ...(p.suggestTempoFactor === 0.5 ? [d2, x2] : [x2, d2]),
       anaBtn(t('−1 beat'), t('the downbeat is one beat earlier'), () => setHint({ shiftBeats: hints.shiftBeats - 1 })),
       anaBtn(t('+1 beat'), t('the downbeat is one beat later'), () => setHint({ shiftBeats: hints.shiftBeats + 1 })),
       anaBtn(t('Bar 1 here'), t('the chart’s first bar starts where the recording is now'), () => setHint({ bar1At: Math.max(0.01, P.audio.currentTime) })),
     );
-    if (hints.tempoFactor || hints.shiftBeats || hints.bar1At) {
-      fixes.append(anaBtn(t('As detected'), t('forget these fixes'), () => { hints = { tempoFactor: 0, shiftBeats: 0, bar1At: 0 }; loadAnalysis(); }, 'sync-btn sync-ana-reset'));
+    if ((hints.tempoFactor && hints.tempoFactor !== 1) || hints.shiftBeats || hints.bar1At || p.autoTempoFactor) {
+      // "As detected" is the beats as the tracker heard them, without the
+      // reading the analysis took on its own either (tempoFactor 1).
+      fixes.append(anaBtn(t('As detected'), t('forget these fixes'), () => { hints = { tempoFactor: p.autoTempoFactor ? 1 : 0, shiftBeats: 0, bar1At: 0 }; loadAnalysis(); }, 'sync-btn sync-ana-reset'));
     }
     out.push(fixes);
     (p.notes || []).forEach((n) => out.push(el('p', 'hint sync-ana-note', n)));
-    // The sync, in one tap.
-    const use = el('div', 'sync-ana-use');
-    use.append(anaBtn(t('Use this sync'), t('every section on its downbeat and every bar placed, saved as estimates to check by ear'), useSync, 'primary'),
-      el('span', 'hint', tn((p.barPoints || []).length, '%d bar placed', '%d bars placed')));
-    out.push(use);
+    // The sync, in one tap (never over a Guitar Pro file's own, nor when
+    // the analysis is unsure): the starts set by ear stay.
+    if (!gpOwnSync() && cat !== 'gp' && p.state !== 'unsure') {
+      const setN = rows.filter((r) => r.t !== null && r.origin === 'set').length;
+      const use = el('div', 'sync-ana-use');
+      const btn = anaBtn(setN ? t('Place the others') : t('Use this sync'),
+        setN ? tn(setN, 'the %d start set by ear stays; the others on their downbeats and every bar placed, as estimates to check by ear', 'the %d starts set by ear stay; the others on their downbeats and every bar placed, as estimates to check by ear') : t('every section on its downbeat and every bar placed, saved as estimates to check by ear'),
+        useSync, 'primary');
+      btn.disabled = setN === rows.length && rows.length > 0;
+      use.append(btn, el('span', 'hint', btn.disabled ? t('every start is set by ear') : tn((p.barPoints || []).length, '%d bar placed', '%d bars placed')));
+      out.push(use);
+    }
     // The chart's proposals.
     const props = el('ul', 'sync-ana-props');
     const item = (checked, onchange, text, extra, at, key) => {
@@ -842,6 +973,7 @@
       const lab = el('label');
       const box = el('input');
       box.type = 'checkbox';
+      box.dataset.focus = `ana-pick:${key || text}`;
       box.checked = checked;
       box.addEventListener('change', () => { onchange(box.checked); renderAnalysis(); });
       lab.append(box, el('span', '', text));
@@ -874,7 +1006,7 @@
       row.append(rv);
       out.push(row);
     } else {
-      out.push(el('p', 'hint', t('The chart’s bars and chords agree with the recording.')));
+      out.push(el('p', 'hint', p.suggestTempoFactor || p.why ? t('No change to the chart is proposed until its bars and the recording’s agree.') : t('The chart’s bars and chords agree with the recording.')));
     }
     anaBody.replaceChildren(...out);
   }
@@ -901,26 +1033,32 @@
   }
   // The sync as the analysis places it, saved as estimates; the rows then
   // show it, to check by ear and confirm.
+  // The starts set by ear stay (the server keeps them); what it replaces
+  // can be undone (Undo, then Save) or taken back from the History.
   async function useSync(e) {
+    const btn = e.currentTarget;
     if (anaBusy) return;
     if (dirty && !window.confirm(t('Replace your unsaved changes with the recording’s sync?'))) return;
     anaBusy = true;
-    window.Forms?.busy?.(e.currentTarget, true);
+    window.Forms?.busy?.(btn, true);
     try {
       const r = await apply({ sync: true, fix: {} });
-      const marks = ((r.proposal && r.proposal.markers) || []).map((m) => ({ ...m, origin: 'auto' }));
-      // The player reloads the recording's sync (markers and every bar).
-      document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
-      history = [];
-      load(marks);
-      dirty = false;
+      const before = snapshot();
+      const keep = rows;
+      load(r.markers || []);
+      rows.forEach((x, i) => { x.label = keep[i]?.label || x.label; });
+      history.push(before);
+      markSaved();
+      // The player follows the sync saved (markers and every bar).
+      await P.refreshSync?.(cat);
       afterChange();
       P.setPreview(null);
-      say(t('The recording’s sync is saved, as an estimate: check it by ear, then confirm each start (✓).'), 'ok');
+      say(r.kept ? tn(r.kept, 'The recording’s sync is saved as an estimate, the %d start set by ear kept: check the others by ear, then confirm each (✓).', 'The recording’s sync is saved as an estimate, the %d starts set by ear kept: check the others by ear, then confirm each (✓).')
+        : t('The recording’s sync is saved, as an estimate: check it by ear, then confirm each start (✓).'), 'ok');
     } catch (err) {
       say(t("Couldn't save. Try again."), 'error');
     }
-    window.Forms?.busy?.(e.currentTarget, false);
+    window.Forms?.busy?.(btn, false);
     anaBusy = false;
   }
   async function startReview() {
@@ -965,15 +1103,24 @@
       say(t('Save or discard your edits to the song first.'), 'error');
       return;
     }
-    window.Forms?.busy?.(e.currentTarget, true);
+    const btn = e.currentTarget;
+    window.Forms?.busy?.(btn, true);
     try {
       const r = await apply({ fix: fixBody(), sync: !!$('sync-ana-resync')?.checked, version: editor ? editor.dataset.version : '' });
-      say(t('Saved. Reloading the song…'), 'ok');
-      try { sessionStorage.setItem('songbooks:reopen-sync', cat); } catch (err) { /* reopen by hand */ }
-      dirty = false;
-      if (r.saved || r.proposal) window.location.reload();
+      if (r.saved || r.proposal) {
+        // The page reloads with the new chart, and the sheet opens again.
+        say(t('Saved. Reloading the song…'), 'ok');
+        try { sessionStorage.setItem('songbooks:reopen-sync', cat); } catch (err) { /* reopen by hand */ }
+        dirty = false;
+        window.location.reload();
+        return;
+      }
+      window.Forms?.busy?.(btn, false);
+      review = null;
+      renderAnalysis();
+      say(t('Nothing to save: the chart already says this.'), 'ok');
     } catch (err) {
-      window.Forms?.busy?.(e.currentTarget, false);
+      window.Forms?.busy?.(btn, false);
       say(t('Couldn’t save: the song changed meanwhile? Reload and try again.'), 'error');
     }
   }
@@ -985,24 +1132,40 @@
 
   // ---- Opening, closing ----------------------------------------------------------
   let lastFocus = null;
+  let openToken = 0; // a newer open, or a close, ends an open still waiting
   async function open(opts = {}) {
-    if (opts.category && opts.category !== P.category()) P.selectCategory(opts.category);
+    const token = ++openToken;
+    const want = opts.category || null;
+    if (want && want !== P.category()) P.selectCategory(want);
     sheet.hidden = false;
     document.documentElement.classList.add('sync-sheet-open');
     lastFocus = document.activeElement;
     statusEl.textContent = '';
     historyEl.hidden = true;
-    // Wait for the recording (a category just switched to decodes first).
-    for (let i = 0; !P.ready() && i < 100; i++) {
+    clearInterval(timer);
+    // Wait for the recording: a category just switched to decodes first,
+    // and one just added (the wizard's download) comes with the player's
+    // next look at the song's recordings. Never another one's.
+    const here = () => P.ready() && (!want || P.category() === want);
+    for (let i = 0; !here() && i < 300; i++) {
       say(t('Loading the recording…'));
+      if (want && P.category() !== want && P.categories().includes(want)) P.selectCategory(want);
       await new Promise((r) => setTimeout(r, 100));
+      if (token !== openToken || !isOpen()) return;
     }
-    if (!P.ready()) { say(t("The recording didn't load."), 'error'); return; }
+    if (!here()) {
+      rows = [];
+      rowsEl.replaceChildren();
+      say(t("The recording didn’t load: close this and try again in a moment."), 'error');
+      return;
+    }
     statusEl.textContent = '';
     history = [];
     lags = [];
     load(P.syncMarkers());
-    dirty = false;
+    markSaved();
+    beatsFor = null;
+    detectWanted = false;
     ana = null;
     review = null;
     hints = { tempoFactor: 0, shiftBeats: 0, bar1At: 0 };
@@ -1029,8 +1192,13 @@
     // A wide screen has a column for the analysis: open.
     if (anaEl && window.matchMedia?.('(min-width: 1101px)').matches) anaEl.open = true;
     render();
+    renderVoice();
     loadTargets();
-    loadAnalysis();
+    loadAnalysis().finally(() => {
+      if (token !== openToken) return;
+      detectWanted = !hasAnaBeats();
+      scheduleDetect();
+    });
     loadChords();
     clearInterval(timer);
     timer = setInterval(tick, 50);
@@ -1040,12 +1208,23 @@
   }
   function close() {
     if (dirty && !window.confirm(t('Leave without saving the sync?'))) return;
+    openToken++;
     dirty = false;
     sheet.hidden = true;
     document.documentElement.classList.remove('sync-sheet-open');
     clearInterval(timer);
+    detectWanted = false;
     P.setPreview(null);
     lastFocus?.focus?.({ preventScroll: true });
+  }
+  // With the voice turned down the player plays the accompaniment: the
+  // sung starts are placed without hearing the singer. Say so, with the
+  // voice a tap away.
+  function renderVoice() {
+    const b = $('sync-voice');
+    if (!b) return;
+    const off = !!P.voiceDown?.();
+    b.hidden = !off;
   }
 
   // ---- Wiring --------------------------------------------------------------------
@@ -1077,16 +1256,47 @@
   const themed = new MutationObserver(() => wave && isOpen() && wave.restyle());
   themed.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   themed.observe(document.body, { attributes: true, attributeFilter: ['data-theme'] });
+  $('sync-voice')?.addEventListener('click', () => { P.toggleVoice?.(); renderVoice(); });
+  document.addEventListener('songbooks:voice-changed', () => { if (isOpen()) renderVoice(); });
+  $('sync-ana-chip')?.addEventListener('click', () => {
+    if (!anaEl) return;
+    anaEl.open = true;
+    anaEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    anaEl.querySelector('summary')?.focus({ preventScroll: true });
+  });
+  // Typing goes to a text field; a checkbox (Snap, a proposal) doesn't
+  // take the sheet's keys away.
+  const typing = (el) => !!el.closest?.('select, textarea, [contenteditable]') || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'range'].includes(el.type));
+  // Enter and Space are a control's own on a button, a summary, a link, a
+  // checkbox, the waveform: elsewhere they tap and play.
+  const ownsKeys = (el) => el !== tapBtn && !!el.closest?.('button, summary, a[href], input, canvas, [role="button"]');
+  function focusables() {
+    return [...sheet.querySelectorAll('button, [href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')]
+      .filter((x) => !x.disabled && !x.closest('[hidden]') && x.getClientRects().length && !(x.closest('details:not([open])') && x.tagName !== 'SUMMARY' && !x.closest('summary')));
+  }
   // Keys while it's open, before the player's own (window, capture).
   window.addEventListener('keydown', (e) => {
-    if (!isOpen() || e.target.closest?.('input, select, textarea, [contenteditable]')) return;
+    if (!isOpen() || typing(e.target)) return;
     let handled = true;
     const k = e.key;
+    if (k === 'Tab') {
+      // A modal dialog: Tab stays inside it.
+      const f = focusables();
+      if (!f.length) return;
+      const i = f.indexOf(document.activeElement);
+      if (e.shiftKey && i <= 0) f[f.length - 1].focus();
+      else if (!e.shiftKey && (i === f.length - 1 || i < 0)) f[0].focus();
+      else return;
+      e.preventDefault();
+      return;
+    }
     if ((e.metaKey || e.ctrlKey) && (k === 'z' || k === 'Z')) undo();
     else if (e.metaKey || e.ctrlKey || e.altKey) handled = false;
+    else if (k === 'Escape' && !historyEl.hidden) { historyEl.hidden = true; historyBtn.setAttribute('aria-expanded', 'false'); historyBtn.focus(); }
     else if (k === 'Escape') close();
-    else if (k === ' ' || k === 'Spacebar') { if (e.target.closest?.('button') && e.target !== tapBtn) handled = false; else (P.isPlaying() ? P.pause() : play()); }
-    else if (k === 't' || k === 'T' || (k === 'Enter' && !e.target.closest?.('button'))) tap();
+    else if (k === ' ' || k === 'Spacebar') { if (ownsKeys(e.target)) handled = false; else (P.isPlaying() ? P.pause() : play()); }
+    else if (k === 'Enter') { if (ownsKeys(e.target) || e.target === tapBtn) handled = false; else tap(); }
+    else if (k === 't' || k === 'T') tap();
     else if (k === 'ArrowLeft') nudge(cursor, e.shiftKey ? -barLen(Math.max(0, cursor - 1)) : -0.1);
     else if (k === 'ArrowRight') nudge(cursor, e.shiftKey ? barLen(cursor) : 0.1);
     else if (k === 'ArrowUp') select(cursor - 1);

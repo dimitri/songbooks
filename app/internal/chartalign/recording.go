@@ -314,6 +314,20 @@ func (r *Recording) chordAt(t float64) string {
 	return r.Chords[i].C
 }
 
+// beatChordsAt is the recogniser's likeliest chords for the recording's
+// beat interval holding time t (BeatChords is indexed by the recording's
+// own beats, not by a grid an editor's hint split or merged).
+func (r *Recording) beatChordsAt(t float64) []ChordGuess {
+	i := sort.SearchFloat64s(r.Beats, t)
+	if i >= len(r.Beats) || r.Beats[i] > t {
+		i--
+	}
+	if i < 0 || i >= len(r.BeatChords) {
+		return nil
+	}
+	return r.BeatChords[i]
+}
+
 // regularize repairs the two slips a beat tracker makes that throw a
 // bar count out: a beat it missed (a gap of two or three beats gets the
 // missing ones back, evenly spaced) and a downbeat on the wrong beat on

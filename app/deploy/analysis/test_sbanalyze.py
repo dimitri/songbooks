@@ -75,5 +75,29 @@ class BeatSource(unittest.TestCase):
         self.assertEqual(self.run_with(0.1)["beat_source"], "mix")
 
 
+class StrictJSON(unittest.TestCase):
+    def test_no_nan(self):
+        import json
+
+        out = sbanalyze.finite({"duration": float("nan"), "beats": [1.0, np.float32("inf"), 2.0], "c": "C:maj", "n": 3})
+        self.assertEqual(out, {"duration": None, "beats": [1.0, None, 2.0], "c": "C:maj", "n": 3})
+        json.dumps(out, allow_nan=False)
+
+    def test_nan_beats_dropped(self):
+        import tempfile
+
+        import soundfile as sf
+
+        d = tempfile.mkdtemp()
+        mix = os.path.join(d, "mix.wav")
+        sf.write(mix, np.zeros(1000, dtype="float32"), 1000)
+        beats = np.array([0.0, 1.0, float("nan"), 3.0] + list(range(4, 12)), dtype=float)
+        fake = FakeBeats({1000: (beats, np.array([0.0, float("nan"), 4.0]), np.full(len(beats), 0.9))})
+        out = sbanalyze.analyze(mix, "", beats_model=fake, chords_model=FakeChords())
+        self.assertNotIn(2.0, out["beats"])
+        self.assertEqual(len(out["beats"]), len(out["beat_act"]))
+        self.assertEqual(out["downbeats"], [0.0, 4.0])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -36,11 +36,12 @@ func (s Splitter) Split(ctx context.Context, audio []byte) (map[string][]byte, e
 	return s.SplitThen(ctx, audio, nil)
 }
 
-// SplitThen splits like Split and, before the WAVs are deleted, hands
-// them to then (the analysis stage reads them: no decoding the MP3s
+// SplitThen splits like Split and, before the WAVs are deleted, hands the
+// parts and the WAVs to then (the stems worker saves the parts, then its
+// analysis stage reads the WAVs: no decoding the MP3s
 // again). An error from then doesn't lose the parts: it comes back
 // beside them as a *ThenError.
-func (s Splitter) SplitThen(ctx context.Context, audio []byte, then func(WAVs) error) (map[string][]byte, error) {
+func (s Splitter) SplitThen(ctx context.Context, audio []byte, then func(map[string][]byte, WAVs) error) (map[string][]byte, error) {
 	dir, err := os.MkdirTemp("", "stems-")
 	if err != nil {
 		return nil, err
@@ -97,7 +98,7 @@ func (s Splitter) SplitThen(ctx context.Context, audio []byte, then func(WAVs) e
 		return nil, err
 	}
 	if then != nil {
-		if err := then(WAVs{Mix: wav, Backing: nvWAV, Vocals: filepath.Join(parts, "vocals.wav")}); err != nil {
+		if err := then(result, WAVs{Mix: wav, Backing: nvWAV, Vocals: filepath.Join(parts, "vocals.wav")}); err != nil {
 			return result, &ThenError{err}
 		}
 	}

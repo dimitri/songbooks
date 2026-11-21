@@ -77,3 +77,17 @@ func TestRegularize(t *testing.T) {
 		t.Errorf("downbeats %v", nd)
 	}
 }
+
+// With a ×2 hint the grid has twice the beats: a chord's evidence is
+// still read where it's heard, by time.
+func TestBeatChordsAtTime(t *testing.T) {
+	r := &Recording{Beats: []float64{0, 1, 2, 3}, BeatChords: [][]ChordGuess{{{"C:maj", 1}}, {{"F:maj", 1}}, {{"G:maj", 1}}}}
+	for at, want := range map[float64]string{0.25: "C:maj", 0.75: "C:maj", 1.25: "F:maj", 2: "G:maj", 2.9: "G:maj"} {
+		if got := r.beatChordsAt(at); len(got) == 0 || got[0].C != want {
+			t.Errorf("at %.2f: %v, want %s", at, got, want)
+		}
+	}
+	if got := r.beatChordsAt(3.5); got != nil {
+		t.Errorf("past the last beat: %v", got)
+	}
+}

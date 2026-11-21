@@ -1881,6 +1881,8 @@
           <button type="button" class="sync-sheet-grab" data-sync-close aria-label="{{t "close the sync"}}"></button>
           <h2 id="sync-sheet-title">{{t "Sync"}}</h2>
           <span class="sync-state-chip" id="sync-state-chip"></span>
+          <button type="button" class="sync-ana-chip" id="sync-ana-chip" hidden title="{{t "what the recording’s analysis says: open it"}}"><i aria-hidden="true"></i><span></span></button>
+          <button type="button" class="sync-voice" id="sync-voice" hidden title="{{t "the voice is turned down: you hear the accompaniment, not the singer. Tap to hear the voice."}}">{{t "Voice off · turn on"}}</button>
           <span class="hint form-status sync-status" id="sync-status" role="status"></span>
         </header>
         <button type="button" class="icon-btn sync-sheet-close" data-sync-close aria-label="{{t "close the sync"}}">×</button>
@@ -1920,6 +1922,7 @@
             <div class="sync-here-more" id="sync-here-more"></div>
           </section>
           <div class="sync-list">
+            <p class="hint sync-gp-note" id="sync-gp-note" hidden>{{t "The Guitar Pro file places every bar itself: section starts placed here don’t change what the chart follows."}}</p>
             <details class="sync-warn" id="sync-warn" hidden><summary id="sync-warn-sum"></summary><p id="sync-warn-text"></p></details>
             <ol class="sync-rows" id="sync-rows"></ol>
             <div class="sync-suggest-bar">

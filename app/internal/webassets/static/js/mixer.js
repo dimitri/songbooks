@@ -1737,10 +1737,14 @@
     const orig = barTimes.slice();
     snapshotForUndo();
     barTimes = movedTimes(orig, a, position, 'ripple');
-    selected = Math.min(data.sections.length - 1, selected + 1);
+    // On to the next section; after the last, done (M again doesn't move
+    // the last one's start).
+    const last = selected >= data.sections.length - 1;
+    selected = last ? -1 : selected + 1;
     layout(true);
     await saveAlignment({ ...a, label: s.label }, orig);
     updateAlignStatus();
+    if (last && aligning) alignStatus.textContent = t('Every section is placed: select one to place it again.');
   }
   let nudgeTimer = null;
   let nudgeFrom = null;
@@ -1787,6 +1791,9 @@
 
   // ---- Keyboard ------------------------------------------------------------
   document.addEventListener('keydown', (e) => {
+    // The Sync sheet open over the Mixer has the keys: M or Alt + arrows
+    // here would save markers behind it.
+    if (window.songbooksSyncSheet?.isOpen?.()) return;
     if (!isActive() || e.target.closest('input, select, textarea, [contenteditable]')) return;
     if (e.code === 'Space') { e.preventDefault(); playing ? pause() : play(); }
     else if (e.key === 'Home') { e.preventDefault(); seek(barTimes[0] || 0); followPlayhead(); }

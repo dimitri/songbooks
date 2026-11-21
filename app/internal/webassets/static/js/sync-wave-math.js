@@ -174,5 +174,40 @@
     return Math.max(0, Math.min(dur || Infinity, x));
   }
 
-  return { MIN_SPAN, clampView, fit, tToX, xToT, zoomAt, pan, pinch, follow, reveal, buildPeaks, levelFor, columns, barTimes, timeAt, barAt, labelEvery, snap, between, REACH };
+  // The Sync sheet's suggestions taken: rows [{t, origin}] in the
+  // chart's order, picks {row: time}. A pick is taken only between the
+  // start placed before it and the next one that stays (a start set by
+  // ear; with strict, any start placed): otherwise it's refused and the
+  // row stays as it was. A start set by ear is never dropped; an
+  // estimate the picks leave out of order is (set to null). Returns the
+  // new rows and the refused row indices.
+  function acceptPicks(rows, picks, { strict = false, gap = 0.2 } = {}) {
+    const out = rows.map((r) => ({ ...r }));
+    const refused = [];
+    const nextFixed = (i) => {
+      for (let j = i + 1; j < out.length; j++) {
+        if (out[j].t === null || out[j].t === undefined) continue;
+        if (strict || (out[j].origin === 'set' && picks[j] === undefined)) return out[j].t;
+      }
+      return Infinity;
+    };
+    let prev = -Infinity;
+    for (let i = 0; i < out.length; i++) {
+      const p = picks[i];
+      if (p !== undefined && p !== null) {
+        if (p > prev + gap && p < nextFixed(i) - gap) { out[i].t = p; out[i].origin = 'set'; }
+        else refused.push(i);
+      }
+      const r = out[i];
+      if (r.t === null || r.t === undefined) continue;
+      if (r.t <= prev) {
+        if (r.origin !== 'set') { r.t = null; r.origin = null; }
+      } else {
+        prev = r.t;
+      }
+    }
+    return { rows: out, refused };
+  }
+
+  return { MIN_SPAN, clampView, fit, tToX, xToT, zoomAt, pan, pinch, follow, reveal, buildPeaks, levelFor, columns, barTimes, timeAt, barAt, labelEvery, snap, between, acceptPicks, REACH };
 });
