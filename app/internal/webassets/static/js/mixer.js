@@ -678,6 +678,10 @@
       playerApi.changeTrackTranspositionPitch(playerApi.score.tracks, n);
     }
     if (!n && !keyGraph) return;
+    // No context at load for a key kept from the song page: made when the
+    // Mixer plays (a click, play() below), never outside one, where Safari
+    // would leave it suspended and the Mixer's parts routed into it silent.
+    if (!keyGraph && !playing) return;
     if (!keyGraph) {
       const ctx = clicker ? clicker._ensureCtx() : new (window.AudioContext || window.webkitAudioContext)();
       const bus = ctx.createGain();
@@ -1134,7 +1138,9 @@
     clicksUntil = null;
     playStartPos = position;
     playBtn.innerHTML = ICON_PAUSE;
-    if (keyGraph && keyGraph.ctx.state === 'suspended') keyGraph.ctx.resume().catch(() => {});
+    // The key's context and routing, made here in the click (applyKey).
+    if (semitones && !keyGraph) applyKey(semitones);
+    if (keyGraph && keyGraph.ctx.state !== 'running') keyGraph.ctx.resume().catch(() => {});
     if (hasAudio()) {
       audio.playbackRate = speed;
       audio.preservesPitch = true;

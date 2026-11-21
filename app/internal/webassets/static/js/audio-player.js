@@ -594,6 +594,7 @@ window.songbooksDecodable = function (buf) {
   function scheduleClicks() {
     if (!prefs.click || !clicker || !hasBars() || audio.paused) return;
     const ctx = clicker._ensureCtx();
+    watchCtx(ctx);
     const now = audio.currentTime, rate = audio.playbackRate || 1;
     const until = now + 0.12 * rate;
     const from = clicksUntil === null ? now : Math.max(clicksUntil, now);
@@ -617,6 +618,7 @@ window.songbooksDecodable = function (buf) {
   // (and the current speed), then starts the recording at t, on the beat.
   function countInThen(t) {
     const ctx = clicker ? clicker._ensureCtx() : null;
+    watchCtx(ctx);
     const bars = prefs.countIn;
     if (!ctx || !bars || !hasBars()) { startAt(t); return; }
     const b = Math.round(barAtTime(Math.max(t, grid[0])));
@@ -644,16 +646,26 @@ window.songbooksDecodable = function (buf) {
   }
   function startAt(t, already) {
     if (!already) audio.currentTime = Math.max(0, t);
-    if (graph) graph.ctx.resume();
     resetClicks();
     document.dispatchEvent(new CustomEvent('songbooks:reference-playing'));
-    audio.play().catch(() => {});
+    // The click's context made now, in the click, not later in a tick.
+    if (prefs.click && clicker) watchCtx(clicker._ensureCtx());
+    // Routed, the recording is heard only while its context runs: resumed
+    // here (a click, or the count-in's), and if it still isn't running a
+    // moment later, the player stops and says so rather than run silent.
+    const ctx = graph ? graph.ctx : null;
+    if (ctx && ctx.state !== 'running') {
+      ctx.resume().catch(() => {});
+      setTimeout(() => { if (graph && graph.ctx.state !== 'running' && isPlaying()) refusedResume(); }, 1500);
+    }
+    playOrSay(audio);
     // The parts beside it start in the same gesture (Safari lets them).
     followParts();
   }
 
   function play() {
     if (!duration || countingIn) return;
+    clearNotice();
     const cyc = cycleRange();
     let t = audio.currentTime;
     if (cyc && (t < cyc.t0 - 0.05 || t >= cyc.t1 - 0.05)) t = cyc.t0;
@@ -773,6 +785,9 @@ window.songbooksDecodable = function (buf) {
   });
   function toggleClick() {
     prefs.click = !prefs.click;
+    // Its context made in this click, not later in a tick (Safari would
+    // keep that one suspended).
+    if (prefs.click && clicker) watchCtx(clicker._ensureCtx());
     resetClicks();
     savePrefs();
     updateButtons();
@@ -791,9 +806,75 @@ window.songbooksDecodable = function (buf) {
   voiceAudio.preservesPitch = true;
   voiceAudio.webkitPreservesPitch = true;
   let graph = null; // {ctx, bus, mainGain, gains: {vocals, drums, bass}, stretch}
+
+  // ---- Sound that can't silently vanish (Safari) ----------------------------
+  // Once routed through Web Audio (createMediaElementSource, for good: an
+  // element can't be unrouted), the recording is heard only while its
+  // context runs. Safari starts a context made outside a click suspended,
+  // and may suspend or interrupt a running one, while the <audio> plays
+  // on, silent. So the recording is routed only from a click, while
+  // paused, or into a context already running (else it waits: routeLater);
+  // the context is resumed on the next click or key; and when it stops
+  // while the recording plays, the player pauses and says so.
+  let lastGesture = -Infinity;
+  const inGesture = () => !!(navigator.userActivation && navigator.userActivation.isActive) || performance.now() - lastGesture < 1000;
+  const playerCtx = () => (graph ? graph.ctx : clicker && clicker._ctx) || null;
+  const canRoute = () => audio.paused || inGesture() || (playerCtx() || {}).state === 'running';
+  const routeLater = { parts: false, key: false };
+  function routeNow() {
+    if (routeLater.parts) { routeLater.parts = false; applyParts(); }
+    if (routeLater.key) { routeLater.key = false; applyKey(); }
+  }
+  function onGesture() {
+    lastGesture = performance.now();
+    const ctx = playerCtx();
+    if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') ctx.resume().catch(() => {});
+    routeNow();
+  }
+  for (const type of ['pointerdown', 'keydown', 'touchend']) window.addEventListener(type, onGesture, true);
+  audio.addEventListener('pause', routeNow);
+  // A short line in the readout, until the recording plays again.
+  function notice(msg) { if (lcdError) lcdError.textContent = msg; }
+  // Gone when Play is pressed again (play() below), not on the element's
+  // own "playing", which can come after a refusal it raced.
+  const clearNotice = () => { if (lcdError && root.dataset.state !== 'error') lcdError.textContent = ''; };
+  function refused(msg) { pause(); resetClicks(); notice(msg); }
+  // Play pressed, the context asked to run, and still not running.
+  const refusedResume = () => refused(t('This browser won’t play the sound right now: press Play again, or reload the page.'));
+  // play() refused (no click to start it: the count-in's timer, a part
+  // catching up, a swapped source): stopped and said, not swallowed. An
+  // AbortError (paused or swapped meanwhile) is no refusal.
+  function playOrSay(el, after) {
+    el.play().then(() => {}, (e) => {
+      if (after) after();
+      if (e && e.name === 'NotAllowedError' && (el === audio || !audio.paused)) refused(t('The browser blocked the sound: press Play again.'));
+    });
+  }
+  const watchedCtx = new WeakSet();
+  function watchCtx(ctx) {
+    if (!ctx || watchedCtx.has(ctx)) return;
+    watchedCtx.add(ctx);
+    ctx.addEventListener('statechange', () => {
+      if (ctx.state === 'running') return;
+      // Suspended, interrupted or closed: the routed recording (or the
+      // count-in) would go on unheard.
+      if (countingIn || (graph && graph.ctx === ctx && !audio.paused)) refused(t('The browser stopped the sound: press Play to go on.'));
+    });
+  }
+  // The levels the mix plays at, on the graph's gains (set again when the
+  // graph comes after the mix).
+  let mainLevel = 100;
+  function setGains() {
+    if (!graph) return;
+    graph.mainGain.gain.value = mainLevel / 100;
+    for (const s of Object.keys(followers)) graph.gains[s].gain.value = playedLevel(s) / 100;
+  }
+
   function ensureGraph() {
     if (graph) return graph;
+    if (!canRoute()) return null;
     const ctx = clicker ? clicker._ensureCtx() : new (window.AudioContext || window.webkitAudioContext)();
+    watchCtx(ctx);
     const bus = ctx.createGain();
     const mainGain = ctx.createGain();
     ctx.createMediaElementSource(audio).connect(mainGain).connect(bus);
@@ -805,6 +886,7 @@ window.songbooksDecodable = function (buf) {
     }
     bus.connect(ctx.destination);
     graph = { ctx, bus, mainGain, gains, voiceGain: gains.vocals, stretch: null };
+    setGains();
     return graph;
   }
   let stretchLib = null;
@@ -840,6 +922,8 @@ window.songbooksDecodable = function (buf) {
     if (keyName) keyName.textContent = $('key-transposed') && !$('key-transposed').hidden ? t('in %s', $('key-transposed').textContent) : '';
     if (!n && !graph) return;
     const g = ensureGraph();
+    // Playing, with no click to route it in: on the next one, or at pause.
+    if (!g) { routeLater.key = true; return; }
     if (n && !g.stretch) {
       try {
         const make = await loadStretch();
@@ -1169,7 +1253,8 @@ window.songbooksDecodable = function (buf) {
         }
         for (const s of Object.keys(followers)) followers[s].pause();
         playing = [];
-        if (graph) graph.mainGain.gain.value = 1;
+        mainLevel = 100;
+        setGains();
         root.dataset.mix = 'recording';
         renderVoice();
         return;
@@ -1177,11 +1262,19 @@ window.songbooksDecodable = function (buf) {
       if (token !== partsToken) return;
       partsLoading = false;
     }
-    if (mode.main) ensureGraph();
-    if (graph) {
-      graph.mainGain.gain.value = mode.mainLevel / 100;
-      for (const s of Object.keys(followers)) graph.gains[s].gain.value = playedLevel(s) / 100;
+    // Web Audio only for levels between 0 and 100: the accompaniment alone
+    // (the voice off) or parts at full level play as plain <audio>, which
+    // no suspended context can silence. Routing waits for a click, or a
+    // pause, when the recording plays and the context doesn't run yet: the
+    // mix stays as it is until then.
+    const needsGraph = mode.mainLevel < 100 || mode.followers.some((s) => playedLevel(s) < 100);
+    if (needsGraph && !ensureGraph()) {
+      routeLater.parts = true;
+      renderVoice();
+      return;
     }
+    mainLevel = mode.mainLevel;
+    setGains();
     if (mainBytes) swapSource(mainBytes, tag);
     for (const s of Object.keys(followers)) if (!mode.followers.includes(s)) followers[s].pause();
     for (const s of need) {
@@ -1217,7 +1310,7 @@ window.songbooksDecodable = function (buf) {
       if (audio.src !== src) return; // another swap since: its own listener
       swapping = null;
       audio.currentTime = state.t;
-      if (state.wasPlaying) audio.play().catch(() => {});
+      if (state.wasPlaying) playOrSay(audio);
       followParts();
     }, { once: true });
     audio.addEventListener('error', () => { if (audio.src === src) swapping = null; }, { once: true });
@@ -1238,7 +1331,7 @@ window.songbooksDecodable = function (buf) {
       }
       if (el.paused) {
         el.dataset.sentAt = String(now);
-        el.play().catch(() => { delete el.dataset.sentAt; });
+        playOrSay(el, () => { delete el.dataset.sentAt; });
       }
     }
   }

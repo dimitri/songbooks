@@ -100,5 +100,8 @@
   "Off: sing it yourself. On again: the voice comes back at %s.": "Coupée : chantez-la vous-même. Rétablie, elle revient à %s.",
   "Original voice on / off (sing it yourself)": "Voix originale coupée / rétablie (pour chanter vous-même)",
   "Metronome click · count-in · check my singing": "Clic du métronome · décompte · vérifier ma justesse",
-  "Key": "Tonalité"
+  "Key": "Tonalité",
+  "The browser stopped the sound: press Play to go on.": "Le navigateur a coupé le son : appuyez sur Lecture pour reprendre.",
+  "The browser blocked the sound: press Play again.": "Le navigateur a bloqué le son : appuyez de nouveau sur Lecture.",
+  "This browser won’t play the sound right now: press Play again, or reload the page.": "Ce navigateur ne joue pas le son pour l’instant : appuyez de nouveau sur Lecture, ou rechargez la page."
 }
