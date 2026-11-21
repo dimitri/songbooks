@@ -13,6 +13,8 @@
 <script>try { var t = localStorage.getItem('songbooks-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
 <script src="/i18n/{{lang}}.js?v={{staticVersion}}"></script>
 <script src="/static/js/forms.js?v={{staticVersion}}"></script>
+{{/* The mini player: what was playing goes on on the next page. */}}
+<script src="/static/js/mini-player.js?v={{staticVersion}}"></script>
 {{end}}
 {{define "pwa-register"}}
 <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});</script>

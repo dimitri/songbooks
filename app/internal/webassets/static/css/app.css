@@ -6693,6 +6693,57 @@ body.embed-playlist .app-content { margin: 0 !important; padding-bottom: 1rem !i
 @keyframes rp-in { from { transform: translate(-50%, -46%); opacity: 0; } to { transform: translate(-50%, -50%); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .rec-player.is-open .rp-card { animation: none; } }
 html.rp-locked { overflow: hidden; }
+
+/* The mini player (mini-player.js): what was playing on another page goes
+   on here. A card over the content: play/pause (Resume, with its words,
+   when the browser waits for a tap), the title (a link to its page) over
+   its band or song, the time, ×, and a thin scrubber under them. A
+   phone: the width of the screen, over the tab bar. A wide screen: at the
+   bottom right, beside the sidebar. The page keeps room for it. */
+.mini-player {
+  position: fixed; z-index: 57; left: 0.5rem; right: 0.5rem;
+  bottom: calc(var(--tabbar-h, 0px) + env(safe-area-inset-bottom, 0px) + 0.5rem);
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "play text time close" "track track track track";
+  align-items: center; column-gap: 0.6rem; row-gap: 0;
+  padding: 0.45rem 0.3rem 0.2rem 0.45rem;
+  background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+}
+.mini-player[hidden] { display: none; }
+body:not(:has(.tabbar)) .mini-player { bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem); }
+html.has-mini-player .app-content { padding-bottom: 6rem; }
+.mp-play { grid-area: play; display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; min-width: 2.75rem; height: 2.75rem; padding: 0; border: 0; border-radius: 999px;
+  background: var(--accent); color: var(--accent-contrast); font: inherit; font-size: 0.88rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+@media (hover: hover) { .mp-play:hover { filter: brightness(1.06); } }
+.mp-play .icon { width: 1.15rem; height: 1.15rem; }
+.mini-player.is-blocked .mp-play { padding: 0 1rem 0 0.8rem; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+.mp-resume:empty { display: none; }
+.mp-text { grid-area: text; min-width: 0; display: flex; flex-direction: column; gap: 0.05rem; line-height: 1.25; }
+.mp-title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; text-decoration: none; }
+a.mp-title:hover { text-decoration: underline; }
+.mp-sub, .mp-status { font-size: 0.78rem; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-status { color: var(--danger); }
+.mp-sub[hidden], .mp-status[hidden] { display: none; }
+.mp-time { grid-area: time; font-size: 0.78rem; color: var(--fg-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mp-close { grid-area: close; flex: none; width: 2.75rem; height: 2.75rem; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 50%;
+  background: none; color: var(--fg-muted); cursor: pointer; }
+@media (hover: hover) { .mp-close:hover { background: color-mix(in srgb, var(--fg) 8%, transparent); color: var(--fg); } }
+.mp-close .icon { width: 1.05rem; height: 1.05rem; }
+.mp-track { grid-area: track; position: relative; height: 1.25rem; margin: 0 0.4rem 0 0.2rem; display: flex; align-items: center; --p: 0; }
+.mp-track::before { content: ""; position: absolute; left: 0; right: 0; height: 3px; border-radius: 2px; pointer-events: none;
+  background: linear-gradient(to right, var(--accent) calc(var(--p) * 100%), color-mix(in srgb, var(--fg) 16%, transparent) 0); }
+.mp-seek { position: relative; width: 100%; height: 1.25rem; margin: 0; background: none; -webkit-appearance: none; appearance: none; cursor: pointer; }
+.mp-seek::-webkit-slider-runnable-track { height: 3px; background: none; }
+.mp-seek::-moz-range-track { height: 3px; background: none; }
+.mp-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4.5px; border-radius: 50%; background: var(--fg); border: 0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); }
+.mp-seek::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--fg); border: 0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); }
+.mini-player :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (min-width: 901px) {
+  .mini-player { left: auto; right: 1.25rem; bottom: 1.25rem; width: min(30rem, calc(100vw - 220px - 2.5rem)); }
+}
+/* A phone waiting for the tap: Resume takes the time's room (it says it). */
+@media (max-width: 600px) { .mini-player.is-blocked .mp-time { display: none; } }
+@media print { .mini-player { display: none; } }
 .rec-reference { border: 0; padding: 0; margin: 0; }
 .rec-reference legend { font-weight: 700; margin-bottom: 0.4rem; }
 .rec-pick { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 2.2rem; min-height: 2.75rem; }

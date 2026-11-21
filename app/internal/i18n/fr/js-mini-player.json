@@ -1,0 +1,12 @@
+{
+  "Close the player": "Fermer le lecteur",
+  "Couldn’t play it: %s": "Impossible de le lire : %s",
+  "Go to its page": "Aller à sa page",
+  "Now playing": "En cours de lecture",
+  "Pause": "Pause",
+  "Play": "Lire",
+  "Position in the recording": "Position dans l’enregistrement",
+  "Resume": "Reprendre",
+  "Resume at %s": "Reprendre à %s",
+  "the file didn’t load": "le fichier ne s’est pas chargé"
+}
