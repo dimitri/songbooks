@@ -1656,6 +1656,31 @@ window.songbooksDecodable = function (buf) {
   document.addEventListener('songbooks:pause-reference', () => pause());
   document.addEventListener('songbooks:audio-changed', () => loadMeta());
 
+  // The mini player (mini-player.js): leaving the page, the recording
+  // playing goes on on the next one, as its plain URL — there, the
+  // recording as it is: no parts, no key, no count-in. Back on this song
+  // (or a recording of it kept from another page), this player takes it
+  // over from the same place.
+  const songURL = (cat) => `/song/${variantId}/audio.mp3?category=${cat}&v=${(categories[cat] && categories[cat].byteSize) || ''}`;
+  let kept = null;
+  function takeOver() {
+    if (!kept || !duration) return;
+    const cat = new URLSearchParams(kept.state.key.split('?')[1] || '').get('category');
+    if (cat && cat !== activeCategory && categories[cat]) { selectCategory(cat); return; }
+    const { state, play: go } = kept;
+    kept = null;
+    seek(state.pos);
+    if (go) play();
+  }
+  audio.addEventListener('loadedmetadata', takeOver);
+  window.SongbooksNowPlaying?.register({
+    media: audio,
+    info: () => (activeCategory
+      ?{ key: songURL(activeCategory), src: songURL(activeCategory), title: document.title.replace(/ — Songbooks$/, ''), page: location.pathname + location.search }
+      : null),
+    owns: (key) => key.startsWith(`/song/${variantId}/audio.mp3?`),
+    resume: (state, from) => { kept = { state, play: from.play }; takeOver(); },
+  });
 
   if (!canEdit) { loadMeta(); return; }
 

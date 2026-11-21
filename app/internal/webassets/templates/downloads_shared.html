@@ -32,9 +32,30 @@
   audio.addEventListener('pause', stop);
   document.querySelectorAll('.dl-play').forEach((b) => b.addEventListener('click', () => {
     if (playing === b) { audio.pause(); return; }
-    audio.src = b.dataset.src;
+    // The same track again goes on from where it was paused.
+    if (audio.getAttribute('src') !== b.dataset.src) audio.src = b.dataset.src;
     audio.play().then(() => { stop(); playing = b; b.classList.add('on'); }).catch(() => {});
   }));
+  // The mini player (mini-player.js): the backing track playing here goes
+  // on on the next page; one kept from another page that is on this one
+  // is taken over here, from the same place.
+  const button = (key) => [...document.querySelectorAll('.dl-play')].find((b) => SongbooksNowPlaying.same(b.dataset.src, key));
+  const fileName = (src) => { try { return decodeURIComponent(src.split('?')[0].split('/').pop()); } catch (e) { return src; } };
+  window.SongbooksNowPlaying?.register({
+    media: audio,
+    info: () => {
+      const src = audio.getAttribute('src');
+      return src ? {key: src, src, title: fileName(src), subtitle: document.querySelector('h1')?.textContent.trim() || '', page: location.pathname + location.search} : null;
+    },
+    owns: (key) => !!button(key),
+    resume: (state, from) => {
+      const b = button(state.key);
+      if (!b) return false;
+      audio.src = b.dataset.src;
+      SongbooksNowPlaying.startAt(audio, from.at, from.play).then((r) => { if (r === 'playing') { stop(); playing = b; b.classList.add('on'); } }).catch(() => {});
+      return true;
+    },
+  });
 
   document.querySelectorAll('.dl-del').forEach((b) => b.addEventListener('click', async () => {
     if (!confirm(t('Remove %s from the downloads?', b.dataset.name))) return;
