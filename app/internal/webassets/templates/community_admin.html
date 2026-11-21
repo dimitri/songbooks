@@ -203,7 +203,7 @@
             <div class="field">
               <label for="quick-add-role">{{t "Role"}}</label>
               <select id="quick-add-role" name="role">
-                {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{t .Name}}</option>{{end}}
+                {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{t (index $.RoleLabels .Name)}}</option>{{end}}
               </select>
             </div>
             <div class="form-actions">
@@ -225,7 +225,7 @@
             <div class="field">
               <label for="add-role">{{t "Role"}}</label>
               <select id="add-role" name="role">
-                {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{t .Name}}</option>{{end}}
+                {{range .Roles}}<option value="{{.Name}}" {{if eq .BuiltinKey "member"}}selected{{end}}>{{t (index $.RoleLabels .Name)}}</option>{{end}}
               </select>
             </div>
             <div class="form-actions">
@@ -244,7 +244,7 @@
             <label for="default-join-role-select">{{t "Role for people who join through an event"}}</label>
             <p class="field-hint" id="default-join-role-hint">{{t "Someone who registers for one of your events without being a member joins with this role."}}</p>
             <select id="default-join-role-select" aria-describedby="default-join-role-hint">
-              {{range .Roles}}<option value="{{.Name}}" {{if eq $.Community.DefaultJoinRole .Name}}selected{{end}}>{{t .Name}}</option>{{end}}
+              {{range .Roles}}<option value="{{.Name}}" {{if eq $.Community.DefaultJoinRole .Name}}selected{{end}}>{{t (index $.RoleLabels .Name)}}</option>{{end}}
             </select>
           </div>
           <p id="default-join-role-result" class="form-status" role="status"></p>
@@ -269,7 +269,7 @@
           {{$role := .}}
           <tr data-role-id="{{.ID}}">
             <td data-label="{{t "Role"}}">
-              {{if .IsBuiltin}}<strong>{{t .Name}}</strong>
+              {{if .IsBuiltin}}<strong>{{t (index $.RoleLabels .Name)}}</strong>
               {{else}}<input type="text" class="role-name-input" value="{{.Name}}" data-role-id="{{.ID}}" aria-label="{{t "Role name"}}" autocomplete="off">
               {{end}}
             </td>
@@ -306,9 +306,9 @@
                it for whoever hasn't chosen their own (docs/i18n.md). */}}
           <div class="field">
             <label for="community-locale-select">{{t "Language"}}</label>
-            <p class="field-hint" id="community-locale-hint">{{t "The language of the community’s pages, for members who haven’t chosen their own."}}</p>
+            <p class="field-hint" id="community-locale-hint">{{t "The language of the community’s pages, for members who haven’t chosen their own. Automatic: each member’s settings, then their browser’s."}}</p>
             <select id="community-locale-select" aria-describedby="community-locale-hint">
-              <option value="" {{if eq .Locale ""}}selected{{end}}>{{t "Automatic (from each member’s settings and browser)"}}</option>
+              <option value="" {{if eq .Locale ""}}selected{{end}}>{{t "Automatic"}}</option>
               <option value="en" {{if eq .Locale "en"}}selected{{end}}>English</option>
               <option value="fr" {{if eq .Locale "fr"}}selected{{end}}>Français</option>
             </select>

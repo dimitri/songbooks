@@ -6237,6 +6237,10 @@ a.calendar-day:hover { text-decoration: none; background: var(--bg-sunken); }
 .admin-section-title { font-size: 1.35rem; margin: 0; }
 .admin-subtitle { margin: 0.5rem 0 0; font-size: 1.05rem; }
 .admin-section-back { display: none; }
+/* Under a section's title every card is headed alike: the Look & feel
+   card's h2 (a partial shared with bands) looks like the others' h3, not
+   like a second section title in the community's display font. */
+.admin-section .card > h2 { font-family: inherit; font-size: 1.1rem; letter-spacing: normal; text-transform: none; }
 .admin-section > .hint { margin-top: -0.6rem; max-width: 46rem; }
 .roles-table td:not(:first-child), .roles-table th:not(:first-child) { text-align: center; }
 .roles-table th { font-size: 0.8rem; vertical-align: bottom; }
@@ -6314,6 +6318,9 @@ a.calendar-day:hover { text-decoration: none; background: var(--bg-sunken); }
   .roles-table td:not(:first-child) { display: flex; align-items: center; justify-content: space-between; gap: 1rem; text-align: left; min-height: 2.5rem; }
   .roles-table td:not(:first-child)::before { margin: 0; font-weight: 500; font-size: 0.9rem; color: var(--fg); }
   .roles-table td:last-child:empty { display: none; }
+  /* The role's own name heads its block: no "Role" label over it. */
+  .roles-table td:first-child::before { display: none; }
+  .roles-table td:first-child { font-size: 1.05rem; padding-bottom: 0.3rem; }
 }
 
 /* Where the admin page's songbook and event tools went: a community's
