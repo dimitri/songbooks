@@ -5712,6 +5712,10 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .band-link-get-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-top: 0.9rem; }
 .band-link-status:not(:empty) { margin-top: 0.6rem; }
 .band-link-get-actions:not(:has(button:not([hidden]))) { display: none; }
+/* Inviting is for core members: a guest on the members page doesn't get
+   the placeholder rows' buttons that make a new invite link. */
+.band-members-not-core ~ .home-section .create-shell-invite-btn,
+.band-members-not-core ~ .home-section .new-link-btn { display: none; }
 
 .qr-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 500; padding: 1rem; }
 .qr-modal { background: var(--bg); border-radius: 12px; padding: 1.2rem; display: flex; flex-direction: column; align-items: center; gap: 0.7rem; max-width: 90vw; }

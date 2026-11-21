@@ -208,8 +208,13 @@
     </tbody>
   </table></div>
 
+  {{/* Pending invites: people invited by name who haven't joined yet,
+       then the community's open links. */}}
+  {{if or .ShellPeople .CanManageMembers}}
+  <h2 id="pending-invites">{{t "Pending invites"}}</h2>
+  {{end}}
   {{if .ShellPeople}}
-  <h2>{{t "Invited, not joined yet"}}</h2>
+  <h3>{{t "Invited, not joined yet"}}</h3>
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>{{t "Name"}}</th><th>{{t "Role"}}</th><th>{{t "Invited by"}}</th><th>{{t "Added"}}</th><th></th></tr></thead>
     <tbody>
@@ -235,6 +240,7 @@
     </tbody>
   </table></div>
   {{end}}
+  {{template "community-pending-links" .}}
 
   <h2>{{t "Members"}}</h2>
   <label class="check"><input type="checkbox" id="show-past-toggle"> {{t "Show past members"}}</label>
@@ -656,6 +662,7 @@ onSubmit(groupInviteForm, async () => {
   const closeBtn = $('close-group-invite-btn');
   closeBtn.hidden = true;
   const data = await api(`/api/communities/${communityId}/group-invites`, {slots, role}, t('Couldn’t create the link. Try again.'));
+  document.dispatchEvent(new CustomEvent('invite-link-made', {detail: {id: data.id, url: data.url, label: t('Link with names · %s', t(role)), waiting: slots.map(s => s.displayName)}}));
   const url = location.origin + data.url;
   const out = $('group-invite-result');
   out.className = 'form-status is-ok';
@@ -669,6 +676,7 @@ onSubmit(groupInviteForm, async () => {
     if (!confirm(t('Close this group invite link? Anyone who hasn’t used it yet won’t be able to join with it.'))) return;
     await Forms.run(groupInviteForm, closeBtn, async () => {
       await api(`/api/communities/${communityId}/group-invites/${data.id}/close`, undefined, t('Couldn’t close the link. Try again.'));
+      document.dispatchEvent(new CustomEvent('invite-link-closed', {detail: {id: data.id}}));
       Forms.status(groupInviteForm, t('Link closed.'), 'ok');
       closeBtn.hidden = true;
     });
@@ -683,6 +691,7 @@ document.querySelectorAll('.community-link-btn').forEach(btn => {
     Forms.busy(btn, true);
     try {
       const data = await api(`/api/communities/${communityId}/community-link`, {role: btn.dataset.role}, t('Couldn’t create the link. Try again.'));
+      document.dispatchEvent(new CustomEvent('invite-link-made', {detail: {id: data.id, url: data.url, label: t('Open link · %s', t(data.role))}}));
       const url = location.origin + data.url;
       out.className = 'form-status is-ok';
       out.textContent = t('%s link (copied): ', t(data.role));
