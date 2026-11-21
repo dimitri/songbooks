@@ -503,5 +503,18 @@
   "Click a note to go there; drag across bars to loop them.": "Cliquez sur une note pour y aller ; glissez sur des mesures pour les jouer en boucle.",
   "Got it": "Compris",
   "Previous lesson": "Cours précédent",
-  "with repeats": "avec les reprises"
+  "with repeats": "avec les reprises",
+  "chord|flat": "bémol",
+  "chord|sharp": "dièse",
+  "chord|over": "sur",
+  "chord|minor": "mineur",
+  "chord|major": "majeur",
+  "chord|half-diminished": "demi-diminué",
+  "chord|diminished": "diminué",
+  "chord|augmented": "augmenté",
+  "chord|no chord": "pas d’accord",
+  "Segno": "Segno",
+  "Coda": "Coda",
+  "To Coda": "Vers la coda",
+  "Whole-bar rest": "Pause d’une mesure"
 }

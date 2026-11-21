@@ -34,6 +34,9 @@ type jazzChart struct {
 	Tempo                  string
 	Compound               bool // 6/8, 9/8, 12/8: the tempo's beat is a dotted quarter
 	Key                    template.HTML
+	// The key spoken: its root ("B", "flat") apart from the rest ("minor"),
+	// for the page's transpose.
+	KeySayRoot, KeySayRest []jzWord
 	Lines                  []jzLine
 	// Compact: the form is written with repeats/endings/D.S.; false when
 	// the chart fell back to printing every section as written.
@@ -57,8 +60,9 @@ type jzCellView struct {
 
 	Left, Right string // barline kinds: single, sec-start, sec-end, final, rep-start, rep-end, rep-both
 
-	Mark, Name string // rehearsal mark and the section's name, at a section's first bar
-	JumpTo     int    // the played bar the mark jumps to
+	Mark, Name string   // rehearsal mark and the section's name, at a section's first bar
+	MarkParts  []string // the marks of a box for several names (In, V), to wrap after each "/"
+	JumpTo     int      // the played bar the mark jumps to
 
 	TSNum, TSDen string // a time signature drawn before this bar
 	TSMid        bool
@@ -87,7 +91,11 @@ type jzChordView struct {
 	X     string // start, as a fraction of the bar (0..1)
 	Pad   string // em
 	HTML  template.HTML
-	Title string
+	Title string // the chord as written, without its duration ("Dm7")
+	Q     string // the quality and extension as written, for the title after a transpose
+	// The chord spoken (aria-label): the root, the quality, the bass —
+	// apart so that the page's transpose can say the moved root and bass.
+	SayRoot, SayQ, SayBass []jzWord
 }
 
 // buildJazzChart builds the Jazz chart for sg, whose sections were built
@@ -261,6 +269,14 @@ func layoutJazzChart(sg *song.Song, sections []viewerSection, measures map[int][
 	num, den := timeSigParts(globalTime)
 	ch.Compound = den == "8" && (num == "6" || num == "9" || num == "12")
 	ch.Key = jzKeyHTML(sg.Get("key"))
+	if k, ok := chordsym.ParseKey(sg.Get("key")); ok {
+		ch.KeySayRoot = jzNoteWords(k.Root)
+		if k.Minor {
+			ch.KeySayRest = []jzWord{{Key: "chord|minor"}}
+		}
+	} else if key := strings.TrimSpace(sg.Get("key")); key != "" {
+		ch.KeySayRoot = []jzWord{{Text: key}}
+	}
 
 	// Played bars per cell.
 	played := make([][]int, len(cells))
@@ -282,22 +298,36 @@ func layoutJazzChart(sg *song.Song, sections []viewerSection, measures map[int][
 		}
 		blockOf[i] = b
 	}
-	// The names a printed section is played under: every section whose
-	// first played bar is read from it, in the order they come.
+	// The block an occurrence is read from: the first printed section of
+	// its played bars that prints its own grid. An outro whose first bars
+	// are read from the chorus (a D.S. to a coda) is the coda's, not the
+	// chorus's. -1 when none does (its bars are all read from others).
+	ownBlock := func(o jzOcc, bar int) int {
+		for k := bar; k < bar+o.bars && k < len(res.played); k++ {
+			ci := res.played[k]
+			if blk := blockOf[ci]; blk >= 0 && cells[blk].sec == o.grid {
+				return blk
+			}
+		}
+		return -1
+	}
+	// The names a printed section is played under: every section read
+	// from it, in the order they come; and how many occurrences are.
 	type blockName struct{ norm, label string }
 	names := map[int][]blockName{}
+	readers := map[int]int{}
 	{
 		bar := 0
 		for _, o := range res.occs {
-			if bar < len(res.played) {
-				blk := blockOf[res.played[bar]]
+			if blk := ownBlock(o, bar); blk >= 0 {
+				readers[blk]++
 				known := false
 				for _, n := range names[blk] {
 					if n.norm == o.norm {
 						known = true
 					}
 				}
-				if !known && blk >= 0 {
+				if !known {
 					names[blk] = append(names[blk], blockName{o.norm, o.label})
 				}
 			}
@@ -320,16 +350,29 @@ func layoutJazzChart(sg *song.Song, sections []viewerSection, measures map[int][
 		}
 	}
 
+	// A note goes under the printed section its occurrence is read from;
+	// when several occurrences are read from it (a verse played on two
+	// passes of a repeat, two names over one grid), each note says whose
+	// it is: "Verse 2: loud".
 	notes := map[int][]string{}
 	{
 		bar := 0
 		for _, o := range res.occs {
 			vs := sections[o.sec]
 			if len(vs.Notes) > 0 && bar < len(res.played) {
-				blk := blockOf[res.played[bar]]
+				blk := ownBlock(o, bar)
+				if blk < 0 {
+					blk = blockOf[res.played[bar]]
+				}
+				own := false
+				for _, n := range names[blk] {
+					if n.norm == o.norm {
+						own = true
+					}
+				}
 				for _, note := range vs.Notes {
 					text := note
-					if blk >= 0 && (len(names[blk]) > 1 || len(res.units[jzUnitOfOcc(res.units, o)].occs) > 1) {
+					if blk >= 0 && (readers[blk] > 1 || len(names[blk]) > 1 || !own) {
 						name := unescapeLabel(vs.Label)
 						if vs.LabelNumber > 0 {
 							name = fmt.Sprintf("%s %d", name, vs.LabelNumber)
@@ -387,16 +430,33 @@ func layoutJazzChart(sg *song.Song, sections []viewerSection, measures map[int][
 	for i := range runOf {
 		runOf[i] = -1
 	}
+	// The last ending, the one no repeat sign closes, has no written end:
+	// it runs on to the next sign as the form reads it, but its bracket is
+	// iReal's short open one, over its first bar or two (no longer than
+	// the ending before it), not over the rest of the section.
+	prevLen := 0
 	for i, c := range cells {
-		if c.endStart {
-			for k := i; k <= c.endRunEnd && k < len(cells); k++ {
-				runOf[k] = i
+		if !c.endStart {
+			continue
+		}
+		end := c.endRunEnd
+		if end >= len(cells) {
+			end = len(cells) - 1
+		}
+		if !cells[end].close {
+			span := 2
+			if prevLen > 0 && prevLen < span {
+				span = prevLen
 			}
+			end = min(end, i+span-1)
+		}
+		prevLen = c.endRunEnd - i + 1
+		for k := i; k <= end; k++ {
+			runOf[k] = i
 		}
 	}
 
 	curTime := ""
-	meterRestore := ""
 	for li, ln := range lines {
 		line := jzLine{}
 		first := ln[0].cell
@@ -465,26 +525,26 @@ func layoutJazzChart(sg *song.Song, sections []viewerSection, measures map[int][
 					ms[k], ls[k] = marks.mark(n.norm), n.label
 				}
 				v.Mark, v.Name = strings.Join(ms, "/"), strings.Join(ls, " / ")
+				v.MarkParts = ms
 			}
 			if c.blockStart && v.HasPlayed {
 				v.JumpTo = v.First
 			}
 			v.Segno, v.Coda, v.ToCoda = c.segno, c.coda, c.toCoda
 			// Time signatures.
-			secTime := orDefault(sg.Sections[c.sec].Time, globalTime)
-			if i == 0 || (c.blockStart && secTime != curTime) {
-				v.TSNum, v.TSDen = timeSigParts(secTime)
-			}
-			curTime = secTime
+			// A time signature is drawn where the meter changes, in reading
+			// order: a section's own time, a bar's {2/4}, and the section's
+			// time again after it — once, not on every bar of a {3/4} run,
+			// and never over the next section's own time.
+			meter := orDefault(sg.Sections[c.sec].Time, globalTime)
 			if m.Meter != "" {
-				v.TSNum, v.TSDen = timeSigParts(m.Meter)
-				v.TSMid = ci > 0
-				meterRestore = secTime
-			} else if meterRestore != "" {
-				v.TSNum, v.TSDen = timeSigParts(meterRestore)
-				v.TSMid = ci > 0
-				meterRestore = ""
+				meter = m.Meter
 			}
+			if i == 0 || meter != curTime {
+				v.TSNum, v.TSDen = timeSigParts(meter)
+				v.TSMid = ci > 0
+			}
+			curTime = meter
 			// Endings: one bracket per run per line.
 			if r := runOf[i]; r >= 0 && (i == r || !prevOnLine || runOf[i-1] != r) {
 				span := 1
@@ -694,11 +754,23 @@ func jzFillContent(v *jzCellView, c jzCell, measures map[int][]song.Measure, cel
 		if starts[k] == 0 {
 			pad = firstPad
 		}
+		sym := strings.TrimSpace(tks[k].text)
+		sayRoot, sayQ, sayBass := jzChordSpoken(sym)
+		p := chordsym.Split(sym)
+		title := sym
+		if p.Root != "" {
+			title = chordsym.Glyphs(p.Root) + p.Quality
+			if p.Bass != "" {
+				title += "/" + chordsym.Glyphs(p.Bass)
+			}
+		}
 		v.Chords = append(v.Chords, jzChordView{
-			X:     strconv.FormatFloat(starts[k], 'f', 4, 64),
-			Pad:   strconv.FormatFloat(pad, 'f', 2, 64),
-			HTML:  jzChordHTML(tks[k].text),
-			Title: tokens[k],
+			X:       strconv.FormatFloat(starts[k], 'f', 4, 64),
+			Pad:     strconv.FormatFloat(pad, 'f', 2, 64),
+			HTML:    jzChordHTML(sym),
+			Title:   title,
+			Q:       p.Quality,
+			SayRoot: sayRoot, SayQ: sayQ, SayBass: sayBass,
 		})
 	}
 }
@@ -729,7 +801,9 @@ func jzNoteHTML(name, class string) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString(`<span class="` + class + `" data-jz="1" data-pc="` + strconv.Itoa(chordsym.PitchClass(name)) + `">`)
+	// data-name: the note as written (B♭), what the chord's tooltip and
+	// spoken name are put back together from after a transpose.
+	b.WriteString(`<span class="` + class + `" data-jz="1" data-pc="` + strconv.Itoa(chordsym.PitchClass(name)) + `" data-name="` + html.EscapeString(chordsym.Glyphs(name)) + `">`)
 	b.WriteString(`<span class="jz-l">` + html.EscapeString(name[:1]) + `</span>`)
 	if len(name) > 1 {
 		switch name[1] {
@@ -776,9 +850,173 @@ func jzExtHTML(ext string) string {
 	return b.String()
 }
 
+// jzQual is a chord's quality as the chart writes it: its signs, in
+// order (minor, then major 7 for a minor-major chord), and the extension.
+type jzQual struct {
+	minor, maj, halfDim, dim, aug bool
+	ext                           string
+}
+
+// jzQuality reads a chord quality the iReal Pro way, on top of
+// chordsym.DecomposeQualityJazz: minor is "−" and "m7b5" stays a minor
+// chord with a ♭5 (−7♭5, as iReal prints it) while a written ø or iReal's
+// "h" is half-diminished; iReal's "^" and "M7"/"Maj7" are the major-7
+// triangle, after a minor sign too (−△7); a leading "+" is augmented.
+func jzQuality(q string) jzQual {
+	q = strings.TrimSpace(q)
+	var out jzQual
+	switch {
+	case strings.HasPrefix(q, "ø"):
+		out.halfDim, out.ext = true, q[len("ø"):]
+	case strings.HasPrefix(q, "h") && (len(q) == 1 || (q[1] >= '0' && q[1] <= '9')):
+		out.halfDim, out.ext = true, q[1:]
+	case strings.HasPrefix(q, "+"):
+		out.aug, out.ext = true, q[1:]
+	default:
+		dq := chordsym.DecomposeQualityJazz(q)
+		out.ext = dq.Ext
+		switch dq.Marker {
+		case chordsym.MarkerMajor7:
+			out.maj = true
+		case chordsym.MarkerMinor:
+			out.minor = true
+		case chordsym.MarkerHalfDim:
+			out.halfDim = true
+		case chordsym.MarkerDim:
+			out.dim = true
+		case chordsym.MarkerAug:
+			out.aug = true
+		}
+	}
+	if !out.maj && !out.halfDim && !out.dim {
+		if rest, ok := jzMajPrefix(out.ext); ok {
+			out.maj, out.ext = true, rest
+		}
+	}
+	if out.halfDim && out.ext == "" {
+		out.ext = "7"
+	}
+	return out
+}
+
+// jzMajPrefix reads a major-7 sign at the start of an extension: "maj7",
+// "Maj7", "MA7", "M7", "^7", "△", "(maj7)" — "M" alone (a major triad,
+// in some books) is not one.
+func jzMajPrefix(ext string) (string, bool) {
+	s := ext
+	paren := strings.HasPrefix(s, "(")
+	if paren {
+		s = s[1:]
+	}
+	for _, p := range []string{"maj", "Maj", "MAJ", "MA", "ma", "^", "△", "Δ", "M"} {
+		if !strings.HasPrefix(s, p) {
+			continue
+		}
+		rest := s[len(p):]
+		if p == "M" && (rest == "" || rest[0] < '0' || rest[0] > '9') {
+			return ext, false
+		}
+		if paren {
+			rest = strings.Replace(rest, ")", "", 1)
+		}
+		if rest == "" && p != "^" && p != "△" && p != "Δ" && !paren {
+			// "Cmaj": a major triad written out, the triangle alone.
+			return "", true
+		}
+		return rest, true
+	}
+	return ext, false
+}
+
+// jzWord is a piece of a chord's spoken name: a catalog key (translated
+// by the template) or literal text.
+type jzWord struct{ Key, Text string }
+
+// jzNoteWords is a note name spoken: "B", "flat".
+func jzNoteWords(name string) []jzWord {
+	if name == "" {
+		return nil
+	}
+	out := []jzWord{{Text: name[:1]}}
+	if len(name) > 1 {
+		switch name[1] {
+		case 'b':
+			out = append(out, jzWord{Text: " "}, jzWord{Key: "chord|flat"})
+		case '#':
+			out = append(out, jzWord{Text: " "}, jzWord{Key: "chord|sharp"})
+		}
+	}
+	return out
+}
+
+// jzQualWords is a quality spoken: "minor major 7", "half-diminished",
+// "7 flat 9" — what a screen reader says in place of the music glyphs.
+func jzQualWords(q jzQual) []jzWord {
+	var out []jzWord
+	add := func(w jzWord) {
+		if len(out) > 0 {
+			out = append(out, jzWord{Text: " "})
+		}
+		out = append(out, w)
+	}
+	switch {
+	case q.halfDim:
+		add(jzWord{Key: "chord|half-diminished"})
+	case q.dim:
+		add(jzWord{Key: "chord|diminished"})
+	case q.aug:
+		add(jzWord{Key: "chord|augmented"})
+	}
+	if q.minor {
+		add(jzWord{Key: "chord|minor"})
+	}
+	if q.maj {
+		add(jzWord{Key: "chord|major"})
+		if q.ext == "" {
+			add(jzWord{Text: "7"})
+		}
+	}
+	ext := q.ext
+	if q.halfDim && ext == "7" {
+		ext = ""
+	}
+	// The extension, its "b"/"#" before a number said as words.
+	var buf strings.Builder
+	flush := func() {
+		if s := strings.Trim(buf.String(), " ()"); s != "" {
+			add(jzWord{Text: s})
+		}
+		buf.Reset()
+	}
+	for i := 0; i < len(ext); i++ {
+		c := ext[i]
+		next := byte(0)
+		if i+1 < len(ext) {
+			next = ext[i+1]
+		}
+		prevLetter := i > 0 && ((ext[i-1] >= 'a' && ext[i-1] <= 'z') || (ext[i-1] >= 'A' && ext[i-1] <= 'Z'))
+		if (c == 'b' || c == '#') && next >= '0' && next <= '9' && !(c == 'b' && prevLetter) {
+			flush()
+			if c == 'b' {
+				add(jzWord{Key: "chord|flat"})
+			} else {
+				add(jzWord{Key: "chord|sharp"})
+			}
+			continue
+		}
+		if c == '(' || c == ')' || c == ',' {
+			flush()
+			continue
+		}
+		buf.WriteByte(c)
+	}
+	flush()
+	return out
+}
+
 // jzChordHTML draws one chord symbol the fake-book way: a big root, its
 // quality raised (− △ ø ° +, then the extension), a slash bass smaller
-// and below the quality. Half-diminished is ø7; minor is "−".
+// and below the quality.
 func jzChordHTML(sym string) template.HTML {
 	sym = strings.TrimSpace(sym)
 	switch strings.ToUpper(strings.TrimRight(sym, ".")) {
@@ -793,30 +1031,45 @@ func jzChordHTML(sym string) template.HTML {
 	b.WriteString(`<span class="jz-ch">`)
 	b.WriteString(jzNoteHTML(p.Root, "jz-root"))
 	b.WriteString(`<span class="jz-qb"><span class="jz-q">`)
-	dq := chordsym.DecomposeQuality(p.Quality)
-	ext := dq.Ext
-	switch dq.Marker {
-	case chordsym.MarkerMajor7:
-		b.WriteString(`<span class="jz-g">` + jzGlyphMaj + `</span>`)
-	case chordsym.MarkerMinor:
-		b.WriteString(`<span class="jz-g jz-min">` + jzGlyphMin + `</span>`)
-	case chordsym.MarkerHalfDim:
+	q := jzQuality(p.Quality)
+	switch {
+	case q.halfDim:
 		b.WriteString(`<span class="jz-g">` + jzGlyphHalfDim + `</span>`)
-		if ext == "" {
-			ext = "7"
-		}
-	case chordsym.MarkerDim:
+	case q.dim:
 		b.WriteString(`<span class="jz-g">` + jzGlyphDim + `</span>`)
-	case chordsym.MarkerAug:
+	case q.aug:
 		b.WriteString(`<span class="jz-g">` + jzGlyphAug + `</span>`)
 	}
-	b.WriteString(jzExtHTML(ext))
+	if q.minor {
+		b.WriteString(`<span class="jz-g jz-min">` + jzGlyphMin + `</span>`)
+	}
+	if q.maj {
+		b.WriteString(`<span class="jz-g">` + jzGlyphMaj + `</span>`)
+	}
+	b.WriteString(jzExtHTML(q.ext))
 	b.WriteString(`</span>`)
 	if p.Bass != "" {
 		b.WriteString(`<span class="jz-b">/` + jzNoteHTML(p.Bass, "jz-root jz-broot") + `</span>`)
 	}
 	b.WriteString(`</span></span>`)
 	return template.HTML(b.String())
+}
+
+// jzChordSpoken is a chord's name for a screen reader, in three parts the
+// page's transpose can put back together around a moved root and bass:
+// the root, the quality ("minor 7"), the bass. A symbol with no root
+// (N.C., a word) is said as written, all in the root's part.
+func jzChordSpoken(sym string) (root, qual, bass []jzWord) {
+	sym = strings.TrimSpace(sym)
+	switch strings.ToUpper(strings.TrimRight(sym, ".")) {
+	case "N.C", "NC":
+		return []jzWord{{Key: "chord|no chord"}}, nil, nil
+	}
+	p := chordsym.Split(sym)
+	if p.Root == "" {
+		return []jzWord{{Text: sym}}, nil, nil
+	}
+	return jzNoteWords(p.Root), jzQualWords(jzQuality(p.Quality)), jzNoteWords(p.Bass)
 }
 
 // jzKeyHTML is the key under the composer, its root transposable.

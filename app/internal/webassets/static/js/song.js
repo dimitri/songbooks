@@ -1516,6 +1516,34 @@ const ICONS = {
       if (own) own.after(node); else sheet.prepend(node);
     }
 
+    // The Jazz chart's chords are music-font glyphs: each says its name
+    // (aria-label, built by the server: root, quality, bass) and shows it
+    // as its tooltip. A transpose moves the root and the bass, so both are
+    // put back together around them, as is the spoken key.
+    function relabelJazzChart() {
+      const chart = sheet.querySelector('.jazz-chart');
+      if (!chart) return;
+      const flatW = chart.dataset.sayFlat || 'flat';
+      const sharpW = chart.dataset.saySharp || 'sharp';
+      const overW = chart.dataset.sayOver || 'over';
+      const say = (n) => (n ? n[0] + (n[1] === '♭' ? ' ' + flatW : n[1] === '♯' ? ' ' + sharpW : '') : '');
+      chart.querySelectorAll('.jz-at').forEach((at) => {
+        const rootEl = at.querySelector('.jz-root[data-name]:not(.jz-broot)');
+        if (!rootEl) return;
+        const bassEl = at.querySelector('.jz-broot[data-name]');
+        const root = rootEl.dataset.name;
+        const bass = bassEl ? bassEl.dataset.name : '';
+        const q = at.dataset.sayQ || '';
+        at.setAttribute('aria-label', say(root) + (q ? ' ' + q : '') + (bass ? ` ${overW} ${say(bass)}` : ''));
+        at.title = root + (at.dataset.q || '') + (bass ? '/' + bass : '');
+      });
+      const keySay = chart.querySelector('.jz-key-say');
+      const keyRoot = chart.querySelector('.jz-keyroot[data-name]');
+      if (keySay && keyRoot) {
+        const rest = keySay.dataset.sayRest || '';
+        keySay.textContent = say(keyRoot.dataset.name) + (rest ? ' ' + rest : '');
+      }
+    }
     function applyTranspose() {
       if (transposeAmount) transposeAmount.textContent = (offset > 0 ? '+' : '') + offset;
       sheet.querySelectorAll('[data-pc]').forEach(el => {
@@ -1523,9 +1551,15 @@ const ICONS = {
         if (pc < 0 || Number.isNaN(pc)) return;
         // Untransposed, chords read as the song writes them.
         if (el.dataset.orig === undefined) el.dataset.orig = el.innerHTML;
-        if (((offset % 12) + 12) % 12 === 0) { el.innerHTML = el.dataset.orig; return; }
+        if (el.dataset.jz && el.dataset.name0 === undefined) el.dataset.name0 = el.dataset.name || '';
+        if (((offset % 12) + 12) % 12 === 0) {
+          el.innerHTML = el.dataset.orig;
+          if (el.dataset.jz) el.dataset.name = el.dataset.name0;
+          return;
+        }
         const name = spellIn(pc + offset);
         if (el.dataset.jz) {
+          el.dataset.name = name;
           // The Jazz chart: a letter and a music-font accidental.
           const acc = name[1] === '♭' ? '\uE260' : name[1] === '♯' ? '\uE262' : '';
           el.innerHTML = `<span class="jz-l">${name[0]}</span>` + (acc ? `<span class="jz-acc">${acc}</span>` : '');
@@ -1533,6 +1567,10 @@ const ICONS = {
         }
         el.textContent = name;
       });
+      relabelJazzChart();
+      // A moved chord can be wider than the one it replaced (C → D♭):
+      // squeeze the Jazz chart's crowded bars again.
+      fitJazzChords();
       if (offset === 0 || !origKey || !keyTransposed) {
         if (keyTransposed) keyTransposed.hidden = true;
         if (keyTransposed) keyTransposed.textContent = '';
@@ -1558,11 +1596,12 @@ const ICONS = {
     // (audio-player.js), −/+ or not.
     window.songbooksShiftChords = (d) => { offset += d; applyTranspose(); };
     // The Mixer's chord row (mixer.js) names its chords as the page does.
+    // Spelled for the key the song is moved to, as the chart is (spellIn).
     window.songbooksChordInView = (name) => {
       if (!offset || !name) return name;
       const m = name.match(/^([A-G][b#]?)(.*?)(?:\/([A-G][b#]?))?$/);
       if (!m || rootPitchClass(m[1]) < 0) return name;
-      return spell(rootPitchClass(m[1]) + offset) + m[2] + (m[3] ? '/' + spell(rootPitchClass(m[3]) + offset) : '');
+      return spellIn(rootPitchClass(m[1]) + offset) + m[2] + (m[3] ? '/' + spellIn(rootPitchClass(m[3]) + offset) : '');
     };
   }
 

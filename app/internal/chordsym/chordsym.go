@@ -42,7 +42,9 @@ var (
 	// "aug5", "aug7", "+5", already-correct "+"
 	augRE = regexp.MustCompile(`(?i)^aug(\d*)`)
 
-	minorRE = regexp.MustCompile(`^(m|min|mi|-)`)
+	// Longest first: Go's alternation takes the first that matches, and
+	// "m" would leave "in7" of "min7" as the extension.
+	minorRE = regexp.MustCompile(`^(min|mi|m|-)`)
 )
 
 // Parts is a chord symbol split into root/quality/bass, mirroring

@@ -65,6 +65,18 @@ func TestHalfDimAndDim(t *testing.T) {
 	}
 }
 
+// Every way of writing minor leaves the same extension: "min7" is minor
+// with a 7, not "m" with an "in7".
+func TestMinorSpellings(t *testing.T) {
+	for _, q := range []string{"m7", "mi7", "min7", "-7"} {
+		for name, dq := range map[string]QualityParts{"DecomposeQuality": DecomposeQuality(q), "DecomposeQualityJazz": DecomposeQualityJazz(q)} {
+			if dq.Marker != MarkerMinor || dq.Ext != "7" {
+				t.Errorf("%s(%q) = %+v, want minor with extension 7", name, q, dq)
+			}
+		}
+	}
+}
+
 func TestTranspose(t *testing.T) {
 	cases := []struct {
 		sym       string
