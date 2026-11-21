@@ -85,7 +85,7 @@ html.sync-sheet-open { overflow: hidden; }
 .sync-wave { grid-area: wave; display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
 .sync-wave-canvas {
   display: block; width: 100%; height: 11.5rem; border-radius: 10px; border: 1px solid var(--border); background: var(--bg);
-  box-sizing: border-box; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none;
+  box-sizing: border-box; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
 .sync-wave-canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sync-wave-overview { display: block; width: 100%; height: 1.4rem; border-radius: 6px; background: var(--bg-sunken, var(--bg)); touch-action: none; cursor: pointer; }
@@ -272,6 +272,26 @@ html.sync-sheet-open { overflow: hidden; }
 .sync-ana-before::before { content: "− "; }
 .sync-ana-after { color: var(--ok); }
 .sync-ana-after::before { content: "+ "; }
+/* Why to trust it: the chart's bars against the recording's. */
+.sync-ana-totals { font-variant-numeric: tabular-nums; color: var(--fg-muted); }
+.sync-ana-totals.is-off { color: var(--warn); font-weight: 600; }
+.sync-ana-error { color: var(--danger); overflow-wrap: anywhere; }
+/* ×2 or ÷2 first, when the bars say so. */
+.sync-ana-fixes .sync-btn.is-suggested { border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.sync-ana-fixes .sync-btn[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); }
+/* In the header: the analysis' state (its panel is under the list on a
+   phone) and the voice turned off. */
+.sync-ana-chip, .sync-voice {
+  flex: none; display: inline-flex; align-items: center; gap: 0.3rem; min-height: 1.7rem; padding: 0.1rem 0.6rem;
+  border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); font-size: 0.75rem; font-weight: 600; cursor: pointer;
+}
+.sync-ana-chip i { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--fg-muted); }
+.sync-ana-chip[data-state="good"] i { background: var(--ok); }
+.sync-ana-chip[data-state="check"] i { background: var(--warn); }
+.sync-ana-chip[data-state="unsure"] i { background: var(--danger); }
+.sync-voice { border-color: var(--warn); color: var(--warn); }
+.sync-ana-chip:focus-visible, .sync-voice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sync-gp-note { margin: 0 0 0.4rem; }
 /* A chord check picked on the waveform. */
 .sync-ana-prop.flash { animation: sync-prop-flash 1.2s ease-out; }
 @keyframes sync-prop-flash { from { box-shadow: 0 0 0 2px var(--accent); } to { box-shadow: 0 0 0 2px transparent; } }
