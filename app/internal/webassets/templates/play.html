@@ -310,7 +310,10 @@
   {{else if .GridDuplicateOf}}
   <div class="grid-duplicate-note"><span class="repeat-barline">&#x1D106;</span> {{t "same as %s" .GridDuplicateOf}} <span class="repeat-barline">&#x1D107;</span></div>
   {{else if .Lines}}
-  <div class="grid spans-full">
+  {{/* data-bars="author": the source wrote a "bars:" line, so song.js's
+       reflow keeps these rows; otherwise it regroups the whole section in
+       4-bar phrases (bar-rows.js). */}}
+  <div class="grid spans-full"{{if .ExplicitBarsPerLine}} data-bars="author"{{end}}>
     {{range .Lines}}
     {{if .TabOnly}}
     {{/* The whole row is riff-covered — rendered by the vendored
@@ -2148,6 +2151,7 @@
 {{if .SongbookRef}}<script>window.songbooksPracticeContext = { songbookId: {{.SongbookRef}}, variantId: {{.VariantID}} };</script>
 <script src="/static/js/practice-time.js?v={{staticVersion}}"></script>
 {{end}}<script src="/static/js/clock.js?v={{staticVersion}}"></script>
+<script src="/static/js/bar-rows.js?v={{staticVersion}}"></script>
 <script src="/static/js/song.js?v={{staticVersion}}"></script>
 <script src="/static/js/player-shell.js?v={{staticVersion}}"></script>
 <script src="/static/js/player-mix.js?v={{staticVersion}}"></script>
