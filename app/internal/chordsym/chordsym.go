@@ -295,7 +295,6 @@ func DecomposeQualityJazz(q string) QualityParts {
 	return QualityParts{Ext: q}
 }
 
-
 // matchRest tries re against q; on a match it replaces *rest with whatever
 // the match's capture group(s) left over (so e.g. "m9b5" -> quality kind
 // half-dim, with "9" surviving as the extension still to render) and

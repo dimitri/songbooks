@@ -111,18 +111,55 @@ grid: |: F | G | C | C :|
 `, "[Chorus]|:....:|4x")
 }
 
-// Two sections with the same chords under different names stay two
-// printed sections: the names are what the band calls out (and what the
-// player lights up), and one repeat sign can't carry two rehearsal marks.
+// Sections with the same chords are one printed section, whatever they
+// are called: its box carries every name ("In/V"), and the form repeats
+// it like any section — here twice in a row, then (as A and V taking
+// turns over one grid) five times, its own repeat raised to 10x.
 func TestJazzFormSameChordsDifferentNames(t *testing.T) {
-	wantForm(t, jzHead+`
+	src := jzHead + `
 [Intro]
 grid: | Am | F | C | G |
 [Verse]
 grid: | Am | F | C | G |
 [Chorus]
-grid: | F | G | C | C |
-`, "[Intro].... [Verse].... [Chorus]....")
+grid: |: F | G | C | C :|
+[Verse]
+grid: |: F | G | C | C :|
+[Chorus] (repeat)
+[Verse]
+[Chorus]
+`
+	wantForm(t, src, "[Intro]|:....:| [Chorus]|:....:|10x")
+	sg := song.Parse(src)
+	ch := buildJazzChart(sg, buildSections(sg))
+	var marks []string
+	for _, l := range ch.Lines {
+		for _, c := range l.Cells {
+			if c.Mark != "" {
+				marks = append(marks, c.Mark+" "+c.Name)
+			}
+		}
+	}
+	if got := strings.Join(marks, ", "); got != "In/V Intro / Verse, A/V Chorus / Verse" {
+		t.Errorf("marks: %s", got)
+	}
+}
+
+// A section with its own endings can't sit inside another repeat sign:
+// played twice in a row it's printed once, "2x" by its closing barline,
+// and read back as the whole section twice.
+func TestJazzFormSectionRepeatOverEndings(t *testing.T) {
+	res := wantForm(t, jzHead+`
+[Intro]
+grid: |: Dm | Gm | (1.) A7 | Dm :| (2.) Gm | A7 |
+[Verse]
+grid: |: Dm | Gm | (1.) A7 | Dm :| (2.) Gm | A7 |
+[Chorus]
+grid: | F | C | Gm | A7 |
+`, "[Intro]|:..(1.)..:|(2.)..‖2x [Chorus]....")
+	if got := len(res.played); got != 2*8+4 {
+		t.Errorf("%d bars played, want 20", got)
+	}
 }
 
 // The last chorus is the outro: it starts like the chorus and ends its

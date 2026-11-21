@@ -132,3 +132,32 @@ func TestKeyIn(t *testing.T) {
 		}
 	}
 }
+
+// Moved from A to C, the borrowed chords read flat (bIII, bVI, bVII) and
+// the #IV sharp; to E, sharps throughout; minor keys too.
+func TestTransposedSpellings(t *testing.T) {
+	names, keys, ok := TransposedSpellings("A", false)
+	if !ok {
+		t.Fatal("A is a key")
+	}
+	if keys[3] != "C" || keys[1] != "Bb" || keys[7] != "E" {
+		t.Errorf("keys: %v", keys)
+	}
+	for pc, want := range map[int]string{3: "Eb", 8: "Ab", 10: "Bb", 6: "F#", 11: "B", 4: "E"} {
+		if got := names[3][pc]; got != want {
+			t.Errorf("in C, pc %d = %s, want %s", pc, got, want)
+		}
+	}
+	for pc, want := range map[int]string{8: "G#", 1: "C#", 3: "D#", 6: "F#"} {
+		if got := names[7][pc]; got != want {
+			t.Errorf("in E, pc %d = %s, want %s", pc, got, want)
+		}
+	}
+	names, keys, _ = TransposedSpellings("Am", false)
+	if keys[3] != "Cm" || names[3][3] != "Eb" || names[3][8] != "Ab" || names[3][10] != "Bb" {
+		t.Errorf("A minor up 3: key %s, %s %s %s", keys[3], names[3][3], names[3][8], names[3][10])
+	}
+	if _, _, ok := TransposedSpellings("", false); ok {
+		t.Error("no key is not a key")
+	}
+}

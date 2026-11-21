@@ -2657,6 +2657,20 @@ func nearestDefiningSectionLabeled(sections []viewerSection, before int, wantLab
 	return nearestDefiningSection(sections, before)
 }
 
+// transposeSpellJSON is the page's spelling table for the view-only
+// transpose (chordsym.TransposedSpellings), "" for a song with no key.
+func transposeSpellJSON(sg *song.Song) string {
+	names, keys, ok := chordsym.TransposedSpellings(sg.Get("key"), sg.Get("flats") == "yes")
+	if !ok {
+		return ""
+	}
+	b, err := json.Marshal(map[string]any{"names": names, "keys": keys})
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
 // handleSongRedirect keeps old /play and /prep links working — both modes
 // now live on one page (an Edit toggle switches between them), so there's
 // nothing separate left to route to.
@@ -2773,7 +2787,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "CanCopy": canCopy, "Genre": genre,
 		"Embed": r.URL.Query().Get("embed") == "playlist",
 		"Title": orDefault(sg.Get("title"), "untitled"), "Artist": sg.Get("artist"),
-		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
+		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "SpellJSON": transposeSpellJSON(sg), "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
 		"TimeNum": num, "TimeDen": den,
 		"Capo": sg.Get("capo"), "Reference": sg.Get("reference"), "GPSource": sg.Get("gp_source"),
 		"TimeBeats":          timeSigBeats(sg.Get("time")),

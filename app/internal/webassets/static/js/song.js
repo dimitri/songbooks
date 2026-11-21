@@ -1529,6 +1529,17 @@ const ICONS = {
       const arr = flats ? FLAT_NAMES : SHARP_NAMES;
       return arr[((pc % 12) + 12) % 12];
     }
+    // The server's spelling table (chordsym.TransposedSpellings): every
+    // pitch class as the key the song is moved to reads it — flats in F
+    // or in C for a bIII/bVI/bVII, sharps in E. Without a key, spell().
+    let spellTable = null;
+    try { spellTable = sheet.dataset.spell ? JSON.parse(sheet.dataset.spell) : null; } catch (e) { spellTable = null; }
+    const glyphs = (n) => n[0] + n.slice(1).replace('b', '♭').replace('#', '♯');
+    function spellIn(pc) {
+      const o = ((offset % 12) + 12) % 12;
+      if (!spellTable) return spell(pc);
+      return glyphs(spellTable.names[o][((pc % 12) + 12) % 12]);
+    }
     function rootPitchClass(root) {
       if (!root) return -1;
       let pc = PC[root[0]];
@@ -1578,16 +1589,17 @@ const ICONS = {
       sheet.querySelectorAll('[data-pc]').forEach(el => {
         const pc = parseInt(el.dataset.pc, 10);
         if (pc < 0 || Number.isNaN(pc)) return;
+        // Untransposed, chords read as the song writes them.
+        if (el.dataset.orig === undefined) el.dataset.orig = el.innerHTML;
+        if (((offset % 12) + 12) % 12 === 0) { el.innerHTML = el.dataset.orig; return; }
+        const name = spellIn(pc + offset);
         if (el.dataset.jz) {
-          // Untransposed, the chart keeps the song's own spelling.
-          if (el.dataset.orig === undefined) el.dataset.orig = el.innerHTML;
-          if (((offset % 12) + 12) % 12 === 0) { el.innerHTML = el.dataset.orig; return; }
-          const name = spell(pc + offset);
+          // The Jazz chart: a letter and a music-font accidental.
           const acc = name[1] === '♭' ? '\uE260' : name[1] === '♯' ? '\uE262' : '';
           el.innerHTML = `<span class="jz-l">${name[0]}</span>` + (acc ? `<span class="jz-acc">${acc}</span>` : '');
           return;
         }
-        el.textContent = spell(pc + offset);
+        el.textContent = name;
       });
       if (offset === 0 || !origKey || !keyTransposed) {
         if (keyTransposed) keyTransposed.hidden = true;
@@ -1602,7 +1614,7 @@ const ICONS = {
       if (!m) { keyTransposed.hidden = true; applyDiagrams(''); return; }
       const pc = rootPitchClass(m[1]);
       if (pc < 0) { keyTransposed.hidden = true; applyDiagrams(''); return; }
-      keyTransposed.textContent = spell(pc + offset) + m[2];
+      keyTransposed.textContent = spellTable ? glyphs(spellTable.keys[((offset % 12) + 12) % 12]) : spell(pc + offset) + m[2];
       keyTransposed.hidden = false;
       applyDiagrams(keyTransposed.textContent);
     }

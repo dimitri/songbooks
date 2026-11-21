@@ -30,9 +30,14 @@ type jzCell struct {
 	open, close bool // repeat barlines: "|:" at the start, ":|" at the end
 	times       int  // on a close: how many passes its bracket is played
 	countText   int  // "3x" under a close (passes > 2, no endings to say it)
-	endStart    bool // the first bar of an ending (volta)
-	endLabels   []int
-	endRunEnd   int // on endStart: index of the ending's last cell
+	// secTimes, on a printed section's last bar: the whole section is
+	// played that many times ("2x" by its closing barline) — for a section
+	// whose own repeats and endings can't take another repeat sign around
+	// them.
+	secTimes  int
+	endStart  bool // the first bar of an ending (volta)
+	endLabels []int
+	endRunEnd int // on endStart: index of the ending's last cell
 
 	segno, coda  bool   // signs at the start of the bar
 	toCoda, fine bool   // signs at the end of the bar
@@ -71,6 +76,16 @@ func jzSimulate(cells []jzCell) []int {
 			coda = i
 		}
 	}
+	blockOf := make([]int, len(cells))
+	for i, c := range cells {
+		switch {
+		case c.blockStart || i == 0:
+			blockOf[i] = i
+		default:
+			blockOf[i] = blockOf[i-1]
+		}
+	}
+	secDone := map[int]int{}
 	pos, curOpen, pass := 0, -1, 1
 	jumped, dsTaken := false, false
 	for steps := 0; pos >= 0 && pos < len(cells) && steps < 100000; steps++ {
@@ -88,6 +103,14 @@ func jzSimulate(cells []jzCell) []int {
 			pass++
 			pos, jumped = curOpen, true
 			continue
+		}
+		if c.secTimes > 1 {
+			secDone[pos]++
+			if secDone[pos] < c.secTimes {
+				pos, curOpen, pass = blockOf[pos], -1, 1
+				continue
+			}
+			secDone[pos] = 0
 		}
 		if c.fine && dsTaken {
 			break
@@ -503,10 +526,8 @@ func (f *jzForm) unitCost(u int) float64 {
 	switch {
 	case un.reps <= 1:
 		return float64(un.n)
-	case un.plain || un.whole:
-		return float64(un.n) + jzCostUnitRepeat
 	default:
-		return float64(un.n * un.reps)
+		return float64(un.n) + jzCostUnitRepeat
 	}
 }
 
@@ -802,27 +823,26 @@ func (em *jzEmitter) node(n jzNode) (first, last int) {
 			}
 			return first, last
 		}
-		copies := 1
-		if !un.whole {
-			copies = un.reps
-		}
 		first = len(em.cells)
-		for c := 0; c < copies; c++ {
-			base := len(em.cells)
-			for _, wc := range jzWrittenCells(un.grid, gridOf(em.f, n.u)) {
-				if wc.endStart {
-					wc.endRunEnd += base
-				}
-				em.cells = append(em.cells, wc)
+		for _, wc := range jzWrittenCells(un.grid, gridOf(em.f, n.u)) {
+			if wc.endStart {
+				wc.endRunEnd += first
 			}
-			em.cells[base].blockStart, em.cells[base].unit = true, n.u
-			if un.whole && un.reps > 1 {
-				lc := &em.cells[len(em.cells)-1]
+			em.cells = append(em.cells, wc)
+		}
+		em.cells[first].blockStart, em.cells[first].unit = true, n.u
+		last = len(em.cells) - 1
+		if un.reps > 1 {
+			lc := &em.cells[last]
+			if un.whole {
 				lc.times = un.wholePasses * un.reps
 				lc.countText = lc.times
+			} else {
+				// Its own repeats and endings, played again as a whole.
+				lc.secTimes = un.reps
 			}
 		}
-		return first, len(em.cells) - 1
+		return first, last
 	}
 	// A group.
 	first = len(em.cells)
@@ -1018,6 +1038,9 @@ func (r jzFormResult) describe() string {
 			if c.countText > 0 {
 				fmt.Fprintf(&b, "%dx", c.countText)
 			}
+		}
+		if c.secTimes > 1 {
+			fmt.Fprintf(&b, "‖%dx", c.secTimes)
 		}
 		if c.fine {
 			b.WriteString("Fine")

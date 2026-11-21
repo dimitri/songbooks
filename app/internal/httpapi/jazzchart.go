@@ -163,7 +163,9 @@ func jazzFormFor(sg *song.Song, sections []viewerSection) *jazzForm {
 			reps = 1
 		}
 		norm := jzNormLabel(vs.Label)
-		ck := norm + "\x00" + strconv.Itoa(canon[g])
+		// One printed section per grid, whatever the sections playing it
+		// are called: its box carries every name (In/V).
+		ck := strconv.Itoa(canon[g])
 		cl, ok := classes[ck]
 		if !ok {
 			cl = len(classes)
@@ -270,14 +272,6 @@ func layoutJazzChart(sg *song.Song, sections []viewerSection, measures map[int][
 		played[ci] = append(played[ci], g)
 	}
 
-	// Marks: in the order the printed sections come.
-	var marks jzMarks
-	for _, c := range cells {
-		if c.blockStart && c.unit >= 0 {
-			marks.mark(res.units[c.unit].norm)
-		}
-	}
-
 	// Notes: each played section's "note:" lines, under the printed
 	// section it is read from; a later pass's notes say whose they are.
 	blockOf := make([]int, len(cells))
@@ -288,16 +282,54 @@ func layoutJazzChart(sg *song.Song, sections []viewerSection, measures map[int][
 		}
 		blockOf[i] = b
 	}
+	// The names a printed section is played under: every section whose
+	// first played bar is read from it, in the order they come.
+	type blockName struct{ norm, label string }
+	names := map[int][]blockName{}
+	{
+		bar := 0
+		for _, o := range res.occs {
+			if bar < len(res.played) {
+				blk := blockOf[res.played[bar]]
+				known := false
+				for _, n := range names[blk] {
+					if n.norm == o.norm {
+						known = true
+					}
+				}
+				if !known && blk >= 0 {
+					names[blk] = append(names[blk], blockName{o.norm, o.label})
+				}
+			}
+			bar += o.bars
+		}
+	}
+	// Marks: in the order the printed sections come.
+	var marks jzMarks
+	for i, c := range cells {
+		if !c.blockStart {
+			continue
+		}
+		if len(names[i]) == 0 && c.unit >= 0 {
+			names[i] = []blockName{{res.units[c.unit].norm, res.units[c.unit].label}}
+		}
+		if !c.codaLine || c.unit >= 0 {
+			for _, n := range names[i] {
+				marks.mark(n.norm)
+			}
+		}
+	}
+
 	notes := map[int][]string{}
 	{
 		bar := 0
-		for oi, o := range res.occs {
+		for _, o := range res.occs {
 			vs := sections[o.sec]
 			if len(vs.Notes) > 0 && bar < len(res.played) {
 				blk := blockOf[res.played[bar]]
 				for _, note := range vs.Notes {
 					text := note
-					if blk >= 0 && cells[blk].unit >= 0 && res.units[cells[blk].unit].occs[0] != oi {
+					if blk >= 0 && (len(names[blk]) > 1 || len(res.units[jzUnitOfOcc(res.units, o)].occs) > 1) {
 						name := unescapeLabel(vs.Label)
 						if vs.LabelNumber > 0 {
 							name = fmt.Sprintf("%s %d", name, vs.LabelNumber)
@@ -426,10 +458,13 @@ func layoutJazzChart(sg *song.Song, sections []viewerSection, measures map[int][
 				v.Right = "single"
 			}
 			// Rehearsal mark, signs.
-			if c.blockStart && c.unit >= 0 {
-				u := res.units[c.unit]
-				v.Mark = marks.mark(u.norm)
-				v.Name = u.label
+			if c.blockStart && (c.unit >= 0 || !c.codaLine) && len(names[i]) > 0 {
+				ms := make([]string, len(names[i]))
+				ls := make([]string, len(names[i]))
+				for k, n := range names[i] {
+					ms[k], ls[k] = marks.mark(n.norm), n.label
+				}
+				v.Mark, v.Name = strings.Join(ms, "/"), strings.Join(ls, " / ")
 			}
 			if c.blockStart && v.HasPlayed {
 				v.JumpTo = v.First
@@ -467,6 +502,9 @@ func layoutJazzChart(sg *song.Song, sections []viewerSection, measures map[int][
 			// Texts under the bar.
 			if c.countText > 0 {
 				v.Texts = append(v.Texts, jzText{S: strconv.Itoa(c.countText) + "x"})
+			}
+			if c.secTimes > 1 {
+				v.Texts = append(v.Texts, jzText{S: strconv.Itoa(c.secTimes) + "x"})
 			}
 			if c.fine {
 				v.Texts = append(v.Texts, jzText{S: "Fine"})

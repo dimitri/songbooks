@@ -564,7 +564,5 @@
   "wrapper. For anything the shortcut can't express (an unusual tuning, an explicit minimum fret), fall back to the full form, same as the guitar example above:": ". Pour ce que ce raccourci ne permet pas d’exprimer (un accordage inhabituel, une case minimale explicite), revenez à la forme complète, comme dans l’exemple de guitare ci-dessus :",
   "— a dedicated view, the whole song as one continuous drum staff with chord names floating above it, same as a real drummer's chart.": "— une vue dédiée, tout le morceau sur une seule portée de batterie continue avec les noms d’accords au-dessus, comme la vraie partition d’un batteur.",
   "— just written the way a": "— simplement écrit comme le contient réellement un bloc",
-  "— those are implicit in a": "— ils sont implicites dans un bloc",
-  "The style or feel, e.g.": "Le style ou le groove, par ex.",
-  ". Printed at the top of the Jazz chart, above the tempo.": ". Affiché en haut de la grille jazz, au-dessus du tempo."
+  "— those are implicit in a": "— ils sont implicites dans un bloc"
 }
