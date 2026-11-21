@@ -66,6 +66,7 @@
         {{else}}
         <span class="hint">{{t (printf "role|%s" .Status)}}</span>
         {{end}}
+        {{template "login-link-btn" (dict "Me" $.Me "Person" . "Shell" .IsShell)}}
         <button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>
         </div>
         <span class="form-status" role="status"></span>
@@ -314,6 +315,7 @@ document.getElementById('roster-quick-add-form').addEventListener('submit', (e) 
   });
 });
 </script>
+{{template "login-link-script" .Me}}
 </div>
 {{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}

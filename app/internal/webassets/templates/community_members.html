@@ -82,6 +82,7 @@
           <select class="member-role-select" data-person-id="{{.PersonID}}" aria-label="{{t "Role for %s" .DisplayName}}">
             {{range $.Roles}}<option value="{{.Name}}" {{if eq $role .Name}}selected{{end}}>{{t .Label}}</option>{{end}}
           </select>
+          {{template "login-link-btn" (dict "Me" $.Me "Person" . "Shell" .IsShell)}}
           <button type="button" class="member-remove-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>
         </div>
         <p class="form-status" role="status"></p>
@@ -188,6 +189,7 @@ document.querySelectorAll('.member-remove-btn').forEach(btn => {
 });
 })();
 </script>
+{{template "login-link-script" .Me}}
 </div>
 {{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
