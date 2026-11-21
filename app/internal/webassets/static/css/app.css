@@ -5700,6 +5700,17 @@ input.matrix-slot:hover, input.matrix-slot:focus {
    content. */
 .table-scroll .invite-link-url { white-space: nowrap; overflow-wrap: normal; display: inline-block; }
 .copy-link-btn, .qr-link-btn { flex: none; font-size: 0.8rem; padding: 0.3rem 0.65rem; }
+/* The members page's band link (band_members.html, "Band link or QR
+   code"): one row per open link, its role and who joined with it above
+   the link and its buttons. */
+.band-link-list { list-style: none; margin: 0.6rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.8rem; }
+.band-link-list:not(:has(li)) { display: none; }
+.band-link-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.6rem; }
+.band-link-row .invite-link-row { margin: 0.35rem 0 0; }
+.band-link-row .invite-link-url { flex-basis: 100%; }
+.band-link-row button { flex: none; font-size: 0.8rem; padding: 0.3rem 0.65rem; }
+.band-link-get-actions { flex-wrap: wrap; }
+.band-link-get-actions:not(:has(button:not([hidden]))) { display: none; }
 
 .qr-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 500; padding: 1rem; }
 .qr-modal { background: var(--bg); border-radius: 12px; padding: 1.2rem; display: flex; flex-direction: column; align-items: center; gap: 0.7rem; max-width: 90vw; }

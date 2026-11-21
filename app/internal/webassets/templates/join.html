@@ -13,7 +13,9 @@
   <div class="hero">
     <div>
       <h2>{{t "Join %s" .TargetName}}</h2>
-      {{if eq .Kind "band"}}
+      {{if .Open}}
+        <p>{{if eq .Kind "band"}}{{t "Create your account, or log in, and you’re in the band."}}{{else}}{{t "Create your account, or log in, and you’re in the community."}}{{end}}</p>
+      {{else if eq .Kind "band"}}
         <p>{{t "Pick your name below, or \"Someone else\" if you're not on the list."}}</p>
       {{else}}
         <p>{{t "Pick your name below, or \"Someone else\" if you're not on the list."}} {{t "You'll join this community."}}</p>
@@ -26,6 +28,7 @@
       <p>{{if eq .Kind "band"}}{{t "This invite link has been closed by the band — no further claims are possible. Ask for a fresh link."}}{{else}}{{t "This invite link has been closed by the community — no further claims are possible. Ask for a fresh link."}}{{end}}</p>
     </div>
   {{else}}
+  {{if not .Open}}
   <div class="card card--narrow">
     <fieldset class="field-group">
       <legend>{{t "Who are you?"}}</legend>
@@ -39,6 +42,7 @@
       <label class="check"><input type="radio" name="slot_choice" value="unlisted" checked> {{t "Someone else (not on this list)"}}</label>
     </fieldset>
   </div>
+  {{end}}
 
   {{if .LoggedIn}}
     <form class="card card--narrow" method="post" action="/join/{{.Token}}" id="claim-form">
