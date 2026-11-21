@@ -376,3 +376,130 @@ grid: | F | G | C | C7 |
 		t.Errorf("%d played bars mapped, want 24", len(byBar))
 	}
 }
+
+// jzMarksOf is a chart's rehearsal marks with their names, in print order.
+func jzMarksOf(ch *jazzChart) string {
+	var marks []string
+	for _, l := range ch.Lines {
+		for _, c := range l.Cells {
+			if c.Mark != "" {
+				marks = append(marks, c.Mark+" "+c.Name)
+			}
+		}
+	}
+	return strings.Join(marks, ", ")
+}
+
+// An outro whose first bars are the chorus's, played from a D.C. to the
+// coda, doesn't lend its name to the chorus: no "Chorus / Outro" box,
+// the outro named once (on the coda), and the marks in print order.
+func TestJazzChartOutroNamedOnItsCoda(t *testing.T) {
+	sg := song.Parse(jzHead + `
+[Verse]
+grid: | Am | F | C | G | Am | F | C | G |
+[Chorus]
+grid: | F | G | C | Am | F | G | C | C |
+[Bridge]
+grid: | Dm | Em | F | G | Dm | Em | F | G |
+[Verse]
+[Outro]
+grid: | F | G | C | Am | F | G | Am | Am |
+note: slowing down
+`)
+	ch := buildJazzChart(sg, buildSections(sg))
+	if got := jzMarksOf(ch); got != "V Verse, A Chorus, B Bridge, C Outro" {
+		t.Errorf("marks: %s", got)
+	}
+	// The outro's note is the coda's.
+	found := false
+	for _, l := range ch.Lines {
+		for _, n := range l.Notes {
+			found = true
+			if n != "slowing down" || !l.Coda {
+				t.Errorf("note %q on a line (coda %v)", n, l.Coda)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("the outro's note is lost")
+	}
+}
+
+// Notes from each pass of a repeated verse say which verse they are.
+func TestJazzChartNotesSayWhichPass(t *testing.T) {
+	sg := song.Parse(jzHead + `
+[Verse]
+grid: | Am | F | C | G |
+note: softly
+[Chorus]
+grid: | F | G | C | C |
+[Verse]
+note: loud
+[Chorus]
+`)
+	ch := buildJazzChart(sg, buildSections(sg))
+	var notes []string
+	for _, l := range ch.Lines {
+		notes = append(notes, l.Notes...)
+	}
+	if got := strings.Join(notes, " | "); got != "Verse 1: softly | Verse 2: loud" {
+		t.Errorf("notes: %s", got)
+	}
+}
+
+// A one-bar meter change is followed by the section's time again, never
+// by the previous section's over the next one's own; a run of {3/4} bars
+// shows its time once.
+func TestJazzChartMeterChanges(t *testing.T) {
+	ts := func(src string) string {
+		sg := song.Parse(src)
+		ch := buildJazzChart(sg, buildSections(sg))
+		var out []string
+		for _, l := range ch.Lines {
+			for _, c := range l.Cells {
+				if c.Pad {
+					continue
+				}
+				s := "."
+				if c.TSNum != "" {
+					s = c.TSNum + "/" + c.TSDen
+				}
+				out = append(out, s)
+			}
+		}
+		return strings.Join(out, " ")
+	}
+	if got := ts(jzHead + "[A]\ngrid: | C | {2/4} G |\n[B]\ntime: 3/4\ngrid: | F | F |\n"); got != "4/4 2/4 3/4 ." {
+		t.Errorf("after {2/4}, B's own 3/4: %s", got)
+	}
+	if got := ts(jzHead + "[A]\ngrid: | C | {2/4} G | C | C |\n"); got != "4/4 2/4 4/4 ." {
+		t.Errorf("{2/4} then back to 4/4: %s", got)
+	}
+	if got := ts(jzHead + "[A]\ngrid: | {3/4} C | {3/4} G | {3/4} C | {3/4} F |\n"); got != "3/4 . . ." {
+		t.Errorf("a run of {3/4}: %s", got)
+	}
+}
+
+// The last ending, after the ":|", gets iReal's short open bracket — not
+// one over the rest of the section — while the form still plays every bar.
+func TestJazzChartLastEndingShortBracket(t *testing.T) {
+	src := jzHead + "[A]\ngrid: |: C | F |(1.) G | G :|(2.) C | C | Am | Am | Dm | G |\n"
+	res := jazzFormOf(t, src)
+	if got := fmt.Sprint(jzExpand(song.Parse(src).Sections[0].Measures)); got != "[0 1 2 3 0 1 4 5 6 7 8 9]" {
+		t.Errorf("played %s", got)
+	}
+	_ = res
+	sg := song.Parse(src)
+	ch := buildJazzChart(sg, buildSections(sg))
+	var brackets []string
+	for _, l := range ch.Lines {
+		for _, c := range l.Cells {
+			if c.VoltaSpan > 0 {
+				brackets = append(brackets, fmt.Sprintf("%s%d%v", c.Volta, c.VoltaSpan, c.VoltaClosed))
+			}
+		}
+	}
+	if got := strings.Join(brackets, " "); got != "1.2true 2.2false" {
+		t.Errorf("brackets: %s", got)
+	}
+}

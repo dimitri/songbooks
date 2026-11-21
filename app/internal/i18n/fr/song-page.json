@@ -474,5 +474,18 @@
   "pick one: the key goes to theirs; saved, the song opens in it for them": "choisissez un élève : la tonalité passe à la sienne ; enregistrée, le morceau s’ouvre dans cette tonalité pour lui",
   "Follow the music": "Suivre la musique",
   "Back to the current line": "Revenir à la ligne en cours",
-  "with repeats": "avec les reprises"
+  "with repeats": "avec les reprises",
+  "chord|flat": "bémol",
+  "chord|sharp": "dièse",
+  "chord|over": "sur",
+  "chord|minor": "mineur",
+  "chord|major": "majeur",
+  "chord|half-diminished": "demi-diminué",
+  "chord|diminished": "diminué",
+  "chord|augmented": "augmenté",
+  "chord|no chord": "pas d’accord",
+  "Segno": "Segno",
+  "Coda": "Coda",
+  "To Coda": "Vers la coda",
+  "Whole-bar rest": "Pause d’une mesure"
 }

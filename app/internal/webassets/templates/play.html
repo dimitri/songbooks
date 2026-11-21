@@ -150,29 +150,29 @@
      bar it is read from (data-played), so the player lights it on each
      pass; data-global-bar is the first, for a click to play from. The
      music symbols are SMuFL code points in the Petaluma font. */}}
-<div class="jazz-chart">
+<div class="jazz-chart" data-say-flat="{{t "chord|flat"}}" data-say-sharp="{{t "chord|sharp"}}" data-say-over="{{t "chord|over"}}">
   <div class="jz-paper">
     <div class="jz-chart">
       <div class="jz-head">
-        <div class="jz-style">{{with .Style}}<span class="jz-style-name">{{.}}</span>{{end}}{{with .Tempo}}<span class="jz-sub"><span class="jz-bpm">{{if $.Compound}}&#xE1D5;&#xE1E7;{{else}}&#xE1D5;{{end}}</span> = {{.}}</span>{{end}}</div>
+        <div class="jz-style">{{with .Style}}<span class="jz-style-name">{{.}}</span>{{end}}{{with .Tempo}}<span class="jz-sub"><span class="sr-only">{{t "Tempo"}}</span><span class="jz-bpm" aria-hidden="true">{{if $.Compound}}&#xE1D5;&#xE1E7;{{else}}&#xE1D5;{{end}}</span> = {{.}}</span>{{end}}</div>
         <div class="jz-title">{{.Title}}</div>
-        <div class="jz-composer">{{.Composer}}{{with .Key}}<span class="jz-sub">{{t "Key"}}: <span class="jz-key">{{.}}</span></span>{{end}}</div>
+        <div class="jz-composer">{{.Composer}}{{with .Key}}<span class="jz-sub">{{t "Key"}}: <span class="sr-only jz-key-say" data-say-rest="{{range $.KeySayRest}}{{if .Key}}{{t .Key}}{{else}}{{.Text}}{{end}}{{end}}">{{range $.KeySayRoot}}{{if .Key}}{{t .Key}}{{else}}{{.Text}}{{end}}{{end}}{{range $.KeySayRest}} {{if .Key}}{{t .Key}}{{else}}{{.Text}}{{end}}{{end}}</span><span class="jz-key" aria-hidden="true">{{.}}</span></span>{{end}}</div>
       </div>
       {{range .Lines}}
       <div class="jz-sys{{if .Gap}} gap{{end}}{{if .Coda}} coda{{end}}">
         {{range .Cells}}{{if .Pad}}<div class="jz-bar jz-pad"></div>{{else}}<div class="jz-bar"{{if .HasPlayed}} data-global-bar="{{.First}}" data-played="{{.Played}}"{{end}}>
-          {{if .Left}}<div class="jz-lineL{{if ne .Left "single"}} wide{{end}}{{if eq .Left "rep-both"}} both{{end}}">{{template "jz-barline" .Left}}</div>{{end}}
-          {{if .Right}}<div class="jz-lineR{{if ne .Right "single"}} wide{{end}}">{{template "jz-barline" .Right}}</div>{{end}}
-          {{if .Segno}}<div class="jz-sym jz-segno" title="Segno">&#xE047;</div>{{end}}
-          {{if .Mark}}<button type="button" class="jz-rm"{{if .HasPlayed}} data-jump-bar="{{.JumpTo}}"{{end}} title="{{label .Name}}">{{.Mark}}</button><span class="jz-name">{{label .Name}}</span>{{end}}
-          {{if .Coda}}<div class="jz-sym jz-coda" title="Coda">&#xE048;</div>{{end}}
-          {{if .ToCoda}}<div class="jz-sym jz-tocoda" title="To Coda">&#xE048;</div>{{end}}
+          {{if .Left}}<div class="jz-lineL{{if ne .Left "single"}} wide{{end}}{{if eq .Left "rep-both"}} both{{end}}"{{if eq .Left "rep-start" "rep-both"}} role="img" aria-label="{{t "Repeat start"}}"{{end}}>{{template "jz-barline" .Left}}</div>{{end}}
+          {{if .Right}}<div class="jz-lineR{{if ne .Right "single"}} wide{{end}}"{{if eq .Right "rep-end"}} role="img" aria-label="{{t "Repeat close"}}"{{end}}>{{template "jz-barline" .Right}}</div>{{end}}
+          {{if .Segno}}<div class="jz-sym jz-segno" role="img" aria-label="{{t "Segno"}}" title="{{t "Segno"}}">&#xE047;</div>{{end}}
+          {{if .Mark}}<button type="button" class="jz-rm{{if gt (len .MarkParts) 1}} many{{end}}"{{if .HasPlayed}} data-jump-bar="{{.JumpTo}}"{{end}} title="{{label .Name}}">{{range $i, $m := .MarkParts}}{{if $i}}/<wbr>{{end}}{{$m}}{{end}}</button><span class="jz-name">{{label .Name}}</span>{{end}}
+          {{if .Coda}}<div class="jz-sym jz-coda" role="img" aria-label="{{t "Coda"}}" title="{{t "Coda"}}">&#xE048;</div>{{end}}
+          {{if .ToCoda}}<div class="jz-sym jz-tocoda" role="img" aria-label="{{t "To Coda"}}" title="{{t "To Coda"}}">&#xE048;</div>{{end}}
           {{if .TSNum}}<div class="jz-ts{{if .TSMid}} mid{{end}}"><span>{{.TSNum}}</span><span>{{.TSDen}}</span></div>{{end}}
           {{if .VoltaSpan}}<div class="jz-volta{{if .VoltaClosed}} closed{{end}}{{if .VoltaCont}} cont{{end}}" style="--span: {{.VoltaSpan}}">{{with .Volta}}<span class="n">{{.}}</span>{{end}}</div>{{end}}
-          {{if .Rest}}<div class="jz-rest" title="R">&#xE4F4;</div>{{end}}
-          {{if eq .Simile 1}}<div class="jz-rep1" title="%">&#xE500;</div>{{else if eq .Simile 2}}<div class="jz-rep1" title="%%">&#xE500;<sup>2</sup></div>{{end}}
-          {{if .Pair2}}<div class="jz-rep2" title="%%">&#xE501;</div>{{end}}
-          {{range .Chords}}<span class="jz-at" style="--x: {{.X}}; --pad: {{.Pad}}" title="{{.Title}}">{{.HTML}}</span>{{end}}
+          {{if .Rest}}<div class="jz-rest" role="img" aria-label="{{t "Whole-bar rest"}}" title="{{t "Whole-bar rest"}}">&#xE4F4;</div>{{end}}
+          {{if eq .Simile 1}}<div class="jz-rep1" role="img" aria-label="{{t "Repeat the previous bar"}}" title="{{t "Repeat the previous bar"}}">&#xE500;</div>{{else if eq .Simile 2}}<div class="jz-rep1" role="img" aria-label="{{t "Repeat the previous two bars"}}" title="{{t "Repeat the previous two bars"}}">&#xE500;<sup>2</sup></div>{{end}}
+          {{if .Pair2}}<div class="jz-rep2" role="img" aria-label="{{t "Repeat the previous two bars"}}" title="{{t "Repeat the previous two bars"}}">&#xE501;</div>{{end}}
+          {{range .Chords}}<span class="jz-at" style="--x: {{.X}}; --pad: {{.Pad}}" role="img" aria-label="{{range .SayRoot}}{{if .Key}}{{t .Key}}{{else}}{{.Text}}{{end}}{{end}}{{with .SayQ}} {{range .}}{{if .Key}}{{t .Key}}{{else}}{{.Text}}{{end}}{{end}}{{end}}{{with .SayBass}} {{t "chord|over"}} {{range .}}{{if .Key}}{{t .Key}}{{else}}{{.Text}}{{end}}{{end}}{{end}}" data-say-q="{{range .SayQ}}{{if .Key}}{{t .Key}}{{else}}{{.Text}}{{end}}{{end}}" data-q="{{.Q}}" title="{{.Title}}">{{.HTML}}</span>{{end}}
           {{with .Texts}}<div class="jz-stx">{{range $i, $x := .}}{{if $i}} · {{end}}{{$x.S}}{{if $x.WithRepeats}} ({{t "with repeats"}}){{end}}{{end}}</div>{{end}}
         </div>{{end}}{{end}}
       </div>

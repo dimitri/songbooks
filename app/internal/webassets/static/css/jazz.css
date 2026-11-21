@@ -128,6 +128,10 @@
   border-radius: .06em; background: var(--jz-paper); cursor: pointer;
   min-height: 0; height: auto; transition: none;
 }
+/* A box for several names (In/V/A) wraps after a "/" (a <wbr>) rather
+   than run off the page's left edge, growing upwards, clear of the
+   time signature below it. */
+.jz-rm.many { white-space: normal; width: max-content; max-width: 3.4em; top: auto; bottom: calc(100% - 1em); }
 .jz-rm:hover:not(:disabled) { border-color: var(--jz-mark); }
 .jz-rm:hover { background: var(--jz-hl); }
 .jz-name { position: absolute; left: .3em; top: -.22em; font-size: .3em; color: var(--jz-ink-soft); white-space: nowrap; max-width: 380%; overflow: hidden; text-overflow: ellipsis; }
@@ -161,7 +165,16 @@
   .jz-composer { grid-column: 2; grid-row: 2; }
   .jz-sys { margin-left: 1.35em; }
   .jz-rm { right: calc(100% + .15em); }
-  .jz-notes { font-size: .4em; }
+  .jz-rm.many { max-width: 3.3em; }
+  .jz-notes { font-size: max(.4em, 11px); }
+  /* The small lettering keeps a readable size on a phone (the chart's
+     em is about 18px there: .3em would be 5px): the section's name, an
+     ending's number, the texts under a bar ("3x", "D.S. al Coda"), which
+     wrap rather than run across the bars before them. */
+  .jz-name { font-size: max(.3em, 10px); top: min(-.22em, -9px); }
+  .jz-volta .n { font-size: max(.36em, 10px); }
+  .jz-stx { font-size: max(.4em, 10px); white-space: normal; width: max-content; max-width: 190%; text-align: right; line-height: 1.05; }
+  .jz-sys > .jz-bar:first-child .jz-stx { max-width: calc(100% - .2em); }
 }
 @media (max-width: 600px) {
   .jz-paper { padding: 12px 8px 18px; box-shadow: none; }
