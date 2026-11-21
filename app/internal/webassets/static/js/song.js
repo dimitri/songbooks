@@ -1175,9 +1175,14 @@ const ICONS = {
   // "popup" layout (hidden header/sidebar, a floating exit button) on top
   // of that — removed: jazz is a view mode like song map or lyrics-only,
   // reusing the normal page chrome, not a separate full-screen app state.
-  // The view last picked for this very song (by a click, not by the
-  // restore at load), per device.
-  const songModeKey = `songbooks-mode:${sheet.dataset.variantId || pageVariantId}`;
+  // The view last picked for this very song in this coaching community
+  // (by a click, not by the restore at load), per device. Only there: a
+  // view picked for the song anywhere else (a band, the library) is the
+  // reader's default elsewhere, never a reason to skip the community's
+  // Lyrics only.
+  const songModeKey = sheet.dataset.coaching
+    ? `songbooks-mode:c${sheet.dataset.coaching}:${sheet.dataset.variantId || pageVariantId}`
+    : '';
   let restoringMode = false;
   wireSegmented('mode-segmented', v => {
     // "edit" sits in this same segmented control (easiest place to find
@@ -1263,9 +1268,9 @@ const ICONS = {
     // community's Lyrics only must not become the default elsewhere).
     if (!restoringMode && v !== 'reference' && v !== 'mixer' && v !== 'score' && !document.body.classList.contains('embed-playlist')) {
       try { localStorage.setItem('songbooks-default-mode', v); } catch (e) { /* ignore */ }
-      // And for this song: the view picked for it wins over a coaching
-      // community's default (Lyrics only, below) next time.
-      try { localStorage.setItem(songModeKey, v); } catch (e) { /* ignore */ }
+      // And for this song in this coaching community: the view picked
+      // there wins over its default (Lyrics only, below) next time.
+      if (songModeKey) { try { localStorage.setItem(songModeKey, v); } catch (e) { /* ignore */ } }
     }
   });
   // Reflow before the jazz-mode fit search (applyPageBox): it decides how
