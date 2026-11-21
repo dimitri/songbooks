@@ -207,3 +207,23 @@ func KeyIn(key string, semitones int) string {
 	}
 	return KeyName(k.PitchClass()+semitones, k.Minor, false)
 }
+
+// TransposedSpellings is, for each move of 0-11 semitones, the name of
+// the key the song lands in and every pitch class spelled the way that
+// key reads it (Key.Spell): the page's view-only transpose looks chords
+// up here instead of spelling them all with sharps or all with flats.
+// ok is false when key isn't one.
+func TransposedSpellings(key string, flatsPref bool) (names [12][12]string, keys [12]string, ok bool) {
+	k, ok := ParseKey(key)
+	if !ok {
+		return names, keys, false
+	}
+	for off := 0; off < 12; off++ {
+		to := k.Transpose(off, flatsPref)
+		keys[off] = to.String()
+		for pc := 0; pc < 12; pc++ {
+			names[off][pc] = to.Spell(pc, flatsPref)
+		}
+	}
+	return names, keys, true
+}

@@ -27,6 +27,7 @@ const ICONS = {
 
   const sheet = document.getElementById('sheet');
   let bars = [];
+  let barsByPlayed = new Map(); // played bar -> its bar elements (refreshBarsCache)
   let sections = [];
 
   // ---- Chart reflow: real per-viewport line wrapping ------------------
@@ -173,57 +174,6 @@ const ICONS = {
     mapScore.replaceChildren(...newLines);
     resolveLabelCollisions(mapScore);
   }
-  // Greedy, real-width row packing for jazz mode's variable-width bars —
-  // see the call site's own comment in reflowStaffLines() for why a
-  // fixed bar-count-per-row assumption doesn't work here. Measures every
-  // bar's ACTUAL rendered width (can't predict it from a formula — chord
-  // text length varies bar to bar) by laying them all out, once, in one
-  // temporary non-wrapping row attached to the real grid (so real font/
-  // layout metrics apply), reading back each bar's width, then discarding
-  // that scratch row — the real rows below are built fresh from those
-  // numbers, not reused from it.
-  function packJazzLinesByRealWidth(grid, originalLines, availW, clefPx, newLines) {
-    const allBars = originalLines.flatMap(l => [...l.template.querySelectorAll(':scope > .bar')]);
-    if (!allBars.length) return;
-    const hasClefAll = originalLines[0].hasClef;
-    const clefEl = hasClefAll ? originalLines[0].template.querySelector(':scope > .staff-timesig-cell') : null;
-
-    const measure = document.createElement('div');
-    measure.className = 'staff-line';
-    measure.style.cssText = 'position:absolute; visibility:hidden; flex-wrap:nowrap; width:auto; left:0; top:0;';
-    if (clefEl) measure.appendChild(clefEl.cloneNode(true));
-    const measureBars = allBars.map(b => { const c = b.cloneNode(true); measure.appendChild(c); return c; });
-    grid.appendChild(measure);
-    const clefW = clefEl ? measure.firstElementChild.getBoundingClientRect().width : 0;
-    const widths = measureBars.map(b => b.getBoundingClientRect().width);
-    measure.remove();
-
-    // Greedy pack: keep adding bars to the current row until the next
-    // one would overflow its real budget, then start a new row. Only
-    // the very first row (if this section opens with the song's own
-    // clef/time-sig cell) loses clefW from its budget.
-    let current = [];
-    let currentW = 0;
-    let isFirstRow = true;
-    const flushRow = () => {
-      if (!current.length) return;
-      const line = document.createElement('div');
-      line.className = 'staff-line';
-      if (isFirstRow && clefEl) line.appendChild(clefEl.cloneNode(true));
-      for (const bar of current) line.appendChild(bar.cloneNode(true));
-      newLines.push(line);
-      isFirstRow = false;
-      current = []; currentW = 0;
-    };
-    for (let i = 0; i < allBars.length; i++) {
-      const w = widths[i];
-      const budget = isFirstRow ? availW - clefW : availW;
-      if (current.length && currentW + w > budget) flushRow();
-      current.push(allBars[i]);
-      currentW += w;
-    }
-    flushRow();
-  }
   function reflowStaffLines() {
     if (!staffLineOriginals) return;
     // Resolved from the live em value at #sheet's CURRENT font-size —
@@ -264,29 +214,6 @@ const ICONS = {
       const availW = grid.clientWidth;
       if (!availW) continue; // hidden in this mode (e.g. a compact section's unused grid) — nothing to reflow
       const newLines = [];
-      // Jazz: real width-based row packing, not a fixed bar-count-per-row
-      // assumption. Jazz bars are intentionally variable width (CSS:
-      // flex:0 0 auto — a plain "G-" bar is narrower than a packed "E7
-      // A7" bar, matching real iReal Pro). The cap-based chunking below
-      // (shared with the other modes) assumes every bar in a row is the
-      // SAME width — it measures the single widest bar anywhere in the
-      // chart, picks one font-size from that, then assigns every row the
-      // same fixed bar count. When a specific row's real bars didn't fit
-      // at that assumed uniform width, CSS flex-wrap silently spilled the
-      // overflow onto new lines, one or two bars at a time, wherever the
-      // cumulative width happened to break — confirmed live: a 5-bar row
-      // rendering as one bar, a wall of blank space, then another lone
-      // bar stranded on its own line, not randomness, just this
-      // assumption failing on a row with mixed narrow/wide bars. Packing
-      // each row by its OWN bars' real measured width removes the
-      // assumption: a row holds exactly as many bars as actually fit,
-      // full stop — flex-wrap is never relied on to bail out mid-row.
-      if (sheet.dataset.renderMode === 'jazz') {
-        packJazzLinesByRealWidth(grid, originalLines, availW, clefPx, newLines);
-        grid.replaceChildren(...newLines);
-        resolveLabelCollisions(grid);
-        continue;
-      }
       // Jazz: flatten this section's ORIGINAL server-authored rows into
       // one pool before regrouping. The per-line loop below can only ever
       // SPLIT an original line that's too big for useCap — it has no way
@@ -516,7 +443,21 @@ const ICONS = {
   // needs this refreshed, not a full rebindSheet(): `sections` and
   // everything rebindSheet() otherwise rebuilds live outside the bar grid
   // itself (the .sheet-section wrapper, not its contents) and stay valid.
-  function refreshBarsCache() { bars = [...sheet.querySelectorAll('.bar')]; }
+  function refreshBarsCache() {
+    bars = [...sheet.querySelectorAll('.bar, .jz-bar[data-global-bar]')];
+    barsByPlayed = new Map();
+    for (const b of bars) {
+      // A Jazz chart bar is read on every pass through a repeat or a
+      // D.S. (data-played lists them all); every other bar, once.
+      const list = b.dataset.played ? b.dataset.played.split(' ') : [b.dataset.globalBar];
+      for (const v of list) {
+        const n = parseInt(v, 10);
+        if (Number.isNaN(n)) continue;
+        if (!barsByPlayed.has(n)) barsByPlayed.set(n, []);
+        barsByPlayed.get(n).push(b);
+      }
+    }
+  }
 
   // Rebind DOM references after #sheet's innerHTML changes (live preview
   // while editing, or restoring the saved view when closing the editor) —
@@ -556,6 +497,11 @@ const ICONS = {
     document.querySelectorAll('.structure-seg').forEach(btn => {
       btn.onclick = () => jumpToSection(parseInt(btn.dataset.sectionIndex, 10));
     });
+    // The Jazz chart's rehearsal marks: play from that section's bar.
+    sheet.querySelectorAll('.jz-rm[data-jump-bar]').forEach(btn => {
+      btn.onclick = (e) => { e.stopPropagation(); jumpToBar(parseInt(btn.dataset.jumpBar, 10)); };
+    });
+    fitJazzChords();
     // New DOM from a raw-text save/preview starts back at the untransposed
     // pitch classes the server rendered — reapply whatever transpose was
     // already dialed in (see the Transpose section below, which sets this
@@ -567,16 +513,20 @@ const ICONS = {
   function jumpToSection(i) {
     const sec = sections[i];
     if (!sec || sec.startBar == null) return;
+    jumpToBar(sec.startBar);
+  }
+  function jumpToBar(bar) {
+    if (Number.isNaN(bar)) return;
     // Going somewhere on purpose: the page follows the music again.
     followHeld = false;
     // With a reference recording, play it from there (audio-player.js)
     // rather than starting the silent follow-along clock.
-    if (window.songbooksReferenceSeekBar && window.songbooksReferenceSeekBar(sec.startBar)) return;
+    if (window.songbooksReferenceSeekBar && window.songbooksReferenceSeekBar(bar)) return;
     // No count-in, no click — the in-page quick player is always "no
     // click" now (see metronome.enabled = false above), so a reader
     // clicking a section to follow along moves there immediately instead
     // of waiting through an un-asked-for count-in.
-    clock.seekToBar(sec.startBar);
+    clock.seekToBar(bar);
     clock.start();
     metronome.start();
     playPauseBtn.innerHTML = iconPause;
@@ -629,7 +579,7 @@ const ICONS = {
   // views; not the Score (alphaTab follows its systems), the Mixer or the
   // Reference.
   const stageOn = () => document.body.classList.contains('stage');
-  const stageSections = () => stageOn() && ['normal', 'jazz', 'lyrics', 'map', 'drummer'].includes(sheet.dataset.renderMode);
+  const stageSections = () => stageOn() && ['normal', 'lyrics', 'map', 'drummer'].includes(sheet.dataset.renderMode);
   // The chart lights and follows the music: always, except Lyrics only
   // with its switch off; in stage mode, as "Follow the sections" says.
   const chartFollows = () => (stageSections() ? stageFollow : !(lyricsMode() && !lyricsFollow));
@@ -809,7 +759,7 @@ const ICONS = {
       }
     } else {
       const bar = Math.floor(ahead);
-      unit = bars.find(b => b.offsetParent && parseInt(b.dataset.globalBar, 10) === bar && sec.el.contains(b)) || null;
+      unit = (barsByPlayed.get(bar) || []).find(b => b.offsetParent && sec.el.contains(b)) || null;
     }
     const unitKey = `${sec.index}:${unit ? [...sec.el.querySelectorAll(lyricsMode() ? '.lyric-line' : '.bar[data-global-bar]')].indexOf(unit) : -1}`;
     if (unitKey === stageKey) return;
@@ -943,6 +893,7 @@ const ICONS = {
   });
 
   let currentBarEl = null;
+  let currentPlayedBar = 0; // the played bar currentBarEl lights (a Jazz chart bar has several)
   let currentSectionEl = null; // where the music is (↑/↓ step from it), lit or not
   let litSectionEl = null;
   let currentLineEl = null;
@@ -991,8 +942,9 @@ const ICONS = {
     // A reflowed row keeps its hidden original next to the visible copy:
     // highlight the copy on screen. Nothing lit when the chart doesn't
     // follow (Lyrics only, switched off).
-    const matches = lit ? bars.filter(b => parseInt(b.dataset.globalBar, 10) === bar) : [];
+    const matches = lit ? (barsByPlayed.get(bar) || []) : [];
     const barEl = matches.find(b => b.offsetParent) || matches[0] || null;
+    currentPlayedBar = bar;
     if (barEl && started) barEl.style.setProperty('--playhead', String(Math.min(1, position - bar)));
     if (barEl !== currentBarEl) {
       currentBarEl?.classList.remove('current', 'playhead');
@@ -1166,7 +1118,7 @@ const ICONS = {
     state: () => ({
       running: clock.running,
       bpm: clock.bpm,
-      bar: currentBarEl ? currentBarEl.dataset.globalBar || '' : '',
+      bar: currentBarEl ? (currentBarEl.dataset.played ? String(currentPlayedBar) : currentBarEl.dataset.globalBar || '') : '',
       section: currentSectionEl ? currentSectionEl.dataset.label || '' : '',
     }),
   };
@@ -1231,16 +1183,9 @@ const ICONS = {
     requestAnimationFrame(tickBeatDots);
   }
   requestAnimationFrame(tickBeatDots);
-  // Jazz is the one "must fit, never scroll" reading mode — hands are on an
-  // instrument, not a scrollbar. Rather than shrinking font size forever
-  // (unreadable) or forcing a single column (needless scrolling once a tune
-  // has more sections than one column can hold), this searches column count
-  // 1-3 and, within each, the largest font size that fits — the same move a
-  // real fake book makes for a longer tune: add a column, not a second page.
-  // Lyrics-only is a reading mode, not a performance one: scrolling while
-  // singing is fine, so it gets no page-box/fit search at all — see the
-  // CSS (#sheet[data-render-mode="lyrics"]) for its column-width approach.
-  const A4_RATIO = 210 / 297; // width / height, portrait
+  // Per-mode page sizing. Lyrics-only is a reading mode: one centered
+  // column as wide as its longest line (scrolling while singing is fine).
+  // The Jazz chart sizes itself in CSS, 4 bars a line at any width.
   function applyPageBox() {
     sheet.style.fontSize = '';
     sheet.style.height = '';
@@ -1281,168 +1226,26 @@ const ICONS = {
     // design, left explicit rather than silently falling through.
     if (mode === 'map') return;
     if (mode !== 'jazz') return;
-
-    // Jazz: a real printed fake-book page, deliberately narrow (A4
-    // portrait proportions) even on a wide monitor — the point is to look
-    // like a page, not to fill the screen — AND it must never need
-    // scrolling, since hands are on an instrument, not a scrollbar. Fit
-    // the largest A4-ratio box inside the available height first, THEN,
-    // only inside that fixed shape, search column count (1-3) and font
-    // size so a longer tune fits without the page itself changing shape.
-    const bottomMargin = 24; // breathing room below the page box, same idea as the other modes
-    const floor = 9;
-    // Shared by both the mobile and desktop paths below — moved up here
-    // (used to live only in the desktop half) after a real bug: mobile's
-    // own safety-net loop called this before its declaration further
-    // down the function, a temporal-dead-zone ReferenceError that
-    // silently aborted applyPageBox mid-way through on every single
-    // mobile/jazz run, BEFORE it reached the re-reflow call that
-    // regroups bars-per-row at the final settled font size — the actual
-    // reason density still looked unfixed on some songs even after the
-    // font-size computation itself was correct (confirmed live via the
-    // console: "Cannot access 'labelsCollide' before initialization",
-    // thrown every time, caught by nothing, breaking silently).
-    // .chord-label is position:absolute (so it can float above the
-    // staff line), which means it never contributes to flex/scrollWidth
-    // sizing at all — bars could get squeezed arbitrarily narrow with no
-    // overflow ever being reported, while the absolutely-positioned
-    // chord text visibly collided with its neighbors. So also check real
-    // label-vs-label collisions directly, left-to-right within each
-    // staff line.
-    const labelsCollide = () => {
-      let prevRight = null, prevLine = null;
-      for (const el of sheet.querySelectorAll('.chord-label')) {
-        const line = el.closest('.staff-line');
-        const r = el.getBoundingClientRect();
-        if (line === prevLine && prevRight != null && r.left < prevRight - 0.5) return true;
-        prevLine = line; prevRight = r.right;
-      }
-      return false;
-    };
-    // Mobile: a DIFFERENT fit strategy entirely, not a narrower version of
-    // desktop's — see the long comment on `overflows()` below for why.
-    // Short version: content-sized bars (flex:0 0 auto, added for real-
-    // iReal-Pro fidelity) wrap on mobile instead of overflowing, and
-    // wrapped content never registers as the kind of overflow a trial-
-    // and-error shrink loop can detect — it just produces more, shorter
-    // rows, invisible to a scrollWidth/scrollHeight check. The genuinely
-    // bad case this caused in practice: 2 real bars per row, each row
-    // ~83px tall from an oversized font the loop never got a signal to
-    // shrink, a 22-bar Intro alone costing 473px of scroll. Rather than
-    // keep trying to coax a width/height-overflow loop into also solving
-    // "how many bars fit per row" (a different question it was never
-    // built to answer), this computes the font size DIRECTLY from a
-    // target bar count — same idea reflowStaffLines() already uses for
-    // the other modes' own mobile floor (MIN_BARS_PER_LINE), just solved
-    // by measurement instead of trial groupings, since jazz bars don't
-    // have a fixed per-mode width to re-group.
-    if (!window.matchMedia('(min-width: 901px)').matches) {
-      sheet.style.height = '';
-      sheet.style.width = availW + 'px';
-      sheet.style.margin = '0 auto';
-      sheet.style.columnCount = '1';
-      const TARGET_BARS_PER_ROW = 4;
-      // Measure at a clean, known reference size — a leftover font-size
-      // from a previous pass (e.g. the old 15px fallback) would make the
-      // scale computation below measure against the WRONG starting
-      // width. Real CSS text width scales close enough to linearly with
-      // font-size over this range for bar widths (driven by chord-label
-      // text, not bar borders/padding, which are themselves em-based and
-      // scale the same way) that a single measure-and-compute pass is
-      // accurate without needing a trial loop at all.
-      const REF_SIZE = 16;
-      sheet.style.fontSize = REF_SIZE + 'px';
-      const bars = [...sheet.querySelectorAll('.bar:not(.bar-recall)')];
-      const widestAtRef = bars.reduce((m, b) => Math.max(m, b.getBoundingClientRect().width), 0);
-      // The REAL per-row width, not availW (the outer page box) — a grid
-      // can be narrower than the page box (padding, the row's own
-      // width:fit-content on some modes' CSS), and using the wrong,
-      // larger number here was the actual reason this still under-
-      // shrank (confirmed live: availW=340 but the real grid was
-      // 269px — the formula targeted 4 bars at 340/4=85px each, which
-      // is genuinely too wide once squeezed into the real 269px row,
-      // landing back at 3 bars, not 4).
-      const realRowW = sheet.querySelector('.grid.spans-full')?.clientWidth || availW;
-      if (widestAtRef > 0) {
-        const targetBarWidth = realRowW / TARGET_BARS_PER_ROW;
-        const scale = targetBarWidth / widestAtRef;
-        let size = Math.max(floor, Math.min(22, REF_SIZE * scale));
-        sheet.style.fontSize = size + 'px';
-        // Safety net: the linear-scale estimate can still slightly
-        // undershoot for an unusually dense bar (many sub-beat chord
-        // changes) — nudge down toward the floor if real labels still
-        // collide at the computed size, same collision check the desktop
-        // path already relies on.
-        let guard = 0;
-        while (size > floor && labelsCollide() && guard++ < 40) {
-          size -= 0.5;
-          sheet.style.fontSize = size + 'px';
-        }
-      }
-      // reflowStaffLines() already ran once before applyPageBox (see the
-      // call order comment on the resize handler below) — but at
-      // whatever font-size was left over from the PREVIOUS render, not
-      // the size just computed above. Its own row-grouping (--cap) is
-      // frozen from that earlier pass, so without re-running it now, the
-      // bars-per-row grouping stays stuck at what an earlier, usually
-      // larger, font implied room for — exactly the "font shrank but the
-      // row still only holds 3 bars" symptom confirmed live. Re-running
-      // it here, after the font has actually settled, lets it regroup at
-      // the real final size.
-      reflowStaffLines();
-      refreshBarsCache();
-      return;
-    }
-    const availH = Math.max(200, window.innerHeight - sheet.getBoundingClientRect().top - bottomMargin);
-    let h = availH, w = h * A4_RATIO;
-    if (w > availW) { w = availW; h = w / A4_RATIO; }
-    sheet.style.height = h + 'px';
-    sheet.style.width = w + 'px';
-    sheet.style.margin = '0 auto';
-    const maxCols = 3;
-    // With an explicit column-count AND a fixed height, CSS multicol does
-    // NOT grow scrollHeight when content doesn't fit — it silently spills
-    // into extra implicit columns off the right edge instead (scrollWidth
-    // grows, scrollHeight doesn't). So "does it fit" has to check width,
-    // not height, once columns are in play.
-    //
-    // scrollWidth alone isn't enough, though: .chord-label is
-    // position:absolute (so it can float above the staff line), which
-    // Desktop only from here down — mobile returns earlier above (see its
-    // own comment: a width/height-overflow loop like this one can't
-    // answer "how many bars fit per row" once rows wrap, which is why
-    // mobile uses a direct computed-font-size pass instead of this trial
-    // search). Desktop jazz never wraps, so this is unchanged.
-    const overflows = () => sheet.scrollWidth > sheet.clientWidth + 1 || labelsCollide();
-    for (let cols = 1; cols <= maxCols; cols++) {
-      sheet.style.columnCount = String(cols);
-      let size = 22;
-      sheet.style.fontSize = size + 'px';
-      let guard = 0;
-      while (size > floor && overflows() && guard++ < 60) {
-        size -= 0.5;
-        sheet.style.fontSize = size + 'px';
-      }
-      if (!overflows() || cols === maxCols) break;
-    }
-    // Even at the font floor and max columns, a long enough tune still
-    // doesn't fit the fixed "one page" box — and forcing it anyway is
-    // exactly the bug this guards against: a fixed-height multicol box
-    // silently grows EXTRA implicit columns to hold the vertical overflow
-    // CSS can't show any other way, squeezing every bar/label far below
-    // readable width (what read as "jazz/lyrics mode is broken, chords
-    // all overlap"). Match the Typst pipeline's own one-page stance —
-    // report, don't paper over — by giving up on one page for this song
-    // and falling back to a normal scrollable single column instead.
-    if (overflows()) {
-      // Give up on fitting ONE page, but keep the page-shaped WIDTH — the
-      // narrow proportion is a deliberate print-page look, not an
-      // accident, so a long tune should scroll a tall page, not snap back
-      // to full browser width and stop looking like sheet music.
-      sheet.style.height = '';
-      sheet.style.columnCount = '1';
-      sheet.style.fontSize = '15px';
-    }
+    // The Jazz chart sizes itself in CSS (jazz.css): 4 bars a line at any
+    // width. All that's left is a copyist's squeeze for a crowded bar.
+    fitJazzChords();
+  }
+  // Squeeze a chord horizontally when it would run into the next one (four
+  // chords in a bar, a long quality), the way a hand-copied chart does.
+  function fitJazzChords() {
+    if (sheet.dataset.renderMode !== 'jazz') return;
+    sheet.querySelectorAll('.jazz-chart .jz-bar').forEach((bar) => {
+      const chs = [...bar.querySelectorAll(':scope > .jz-at')];
+      if (!chs.length) return;
+      chs.forEach((c) => { c.style.transform = ''; });
+      const right = bar.getBoundingClientRect().right;
+      chs.forEach((c, i) => {
+        const r = c.getBoundingClientRect();
+        const limit = (chs[i + 1] ? chs[i + 1].getBoundingClientRect().left : right) - 2;
+        const avail = limit - r.left;
+        if (r.width > avail && avail > 0) c.style.transform = `scaleX(${Math.max(0.55, avail / r.width).toFixed(3)})`;
+      });
+    });
   }
   // Layout (single column vs. the two-page-column spread) is automatic —
   // pure CSS media queries on viewport width, no toggle to get wrong or to
@@ -1547,7 +1350,7 @@ const ICONS = {
   // continuously while dragging/rotating, and rebuilding every .staff-line
   // from scratch on every single event is needless churn.
   // Lyrics-only measures its lines: again once the web fonts are in.
-  document.fonts?.ready.then(() => { if (sheet.dataset.renderMode === 'lyrics') applyPageBox(); });
+  document.fonts?.ready.then(() => { if (sheet.dataset.renderMode === 'lyrics' || sheet.dataset.renderMode === 'jazz') applyPageBox(); });
   let resizeTimer = null;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
@@ -1726,6 +1529,17 @@ const ICONS = {
       const arr = flats ? FLAT_NAMES : SHARP_NAMES;
       return arr[((pc % 12) + 12) % 12];
     }
+    // The server's spelling table (chordsym.TransposedSpellings): every
+    // pitch class as the key the song is moved to reads it — flats in F
+    // or in C for a bIII/bVI/bVII, sharps in E. Without a key, spell().
+    let spellTable = null;
+    try { spellTable = sheet.dataset.spell ? JSON.parse(sheet.dataset.spell) : null; } catch (e) { spellTable = null; }
+    const glyphs = (n) => n[0] + n.slice(1).replace('b', '♭').replace('#', '♯');
+    function spellIn(pc) {
+      const o = ((offset % 12) + 12) % 12;
+      if (!spellTable) return spell(pc);
+      return glyphs(spellTable.names[o][((pc % 12) + 12) % 12]);
+    }
     function rootPitchClass(root) {
       if (!root) return -1;
       let pc = PC[root[0]];
@@ -1775,7 +1589,17 @@ const ICONS = {
       sheet.querySelectorAll('[data-pc]').forEach(el => {
         const pc = parseInt(el.dataset.pc, 10);
         if (pc < 0 || Number.isNaN(pc)) return;
-        el.textContent = spell(pc + offset);
+        // Untransposed, chords read as the song writes them.
+        if (el.dataset.orig === undefined) el.dataset.orig = el.innerHTML;
+        if (((offset % 12) + 12) % 12 === 0) { el.innerHTML = el.dataset.orig; return; }
+        const name = spellIn(pc + offset);
+        if (el.dataset.jz) {
+          // The Jazz chart: a letter and a music-font accidental.
+          const acc = name[1] === '♭' ? '\uE260' : name[1] === '♯' ? '\uE262' : '';
+          el.innerHTML = `<span class="jz-l">${name[0]}</span>` + (acc ? `<span class="jz-acc">${acc}</span>` : '');
+          return;
+        }
+        el.textContent = name;
       });
       if (offset === 0 || !origKey || !keyTransposed) {
         if (keyTransposed) keyTransposed.hidden = true;
@@ -1790,7 +1614,7 @@ const ICONS = {
       if (!m) { keyTransposed.hidden = true; applyDiagrams(''); return; }
       const pc = rootPitchClass(m[1]);
       if (pc < 0) { keyTransposed.hidden = true; applyDiagrams(''); return; }
-      keyTransposed.textContent = spell(pc + offset) + m[2];
+      keyTransposed.textContent = spellTable ? glyphs(spellTable.keys[((offset % 12) + 12) % 12]) : spell(pc + offset) + m[2];
       keyTransposed.hidden = false;
       applyDiagrams(keyTransposed.textContent);
     }

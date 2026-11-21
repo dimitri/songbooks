@@ -65,7 +65,7 @@
            tab staff below IS the notation now, not an annotation on
            top of one. */}}
       <span class="tab-only-chords">
-        {{range .Beats}}<span class="beat-slot tab-only-slot{{if .IsTie}} tie{{end}}" style="--span: {{.Span}}">{{if not .IsTie}}<span class="chord-label"><span class="chord-std">{{chord .Text}}</span><span class="chord-jazz">{{chordJazz .Text}}</span></span>{{end}}</span>{{end}}
+        {{range .Beats}}<span class="beat-slot tab-only-slot{{if .IsTie}} tie{{end}}" style="--span: {{.Span}}">{{if not .IsTie}}<span class="chord-label"><span class="chord-std">{{chord .Text}}</span></span>{{end}}</span>{{end}}
       </span>
       <span class="tab-block tab-replaces-staff" style="--strings: {{.Tab.Strings}}">
         {{range $i := seq .Tab.Strings}}<span class="tab-line" style="--string: {{$i}}"></span>{{end}}
@@ -104,7 +104,7 @@
     {{else if .IsRest}}
       <span class="rest-mark" title="{{t "full bar rest"}}" aria-hidden="true"></span>
     {{else}}
-      {{range .Beats}}<span class="beat-slot{{if .IsTie}} tie{{end}}" style="--span: {{.Span}}">{{if not .IsTie}}<span class="chord-label"><span class="chord-std">{{chord .Text}}</span><span class="chord-jazz">{{chordJazz .Text}}</span></span>{{end}}<span class="slash">&#8260;</span></span>{{end}}
+      {{range .Beats}}<span class="beat-slot{{if .IsTie}} tie{{end}}" style="--span: {{.Span}}">{{if not .IsTie}}<span class="chord-label"><span class="chord-std">{{chord .Text}}</span></span>{{end}}<span class="slash">&#8260;</span></span>{{end}}
     {{end}}
   </span>
   {{if .Close}}<span class="repeat-dots" title="{{t "repeat ends"}}"></span>{{end}}
@@ -140,6 +140,49 @@
 {{end}}
 {{end}}
 
+{{define "jz-barline"}}{{if eq . "single"}}<span class="bl-thin"></span>{{else if eq . "sec-start"}}<span class="bl-thick"></span><span class="bl-thin"></span>{{else if or (eq . "sec-end") (eq . "final")}}<span class="bl-thin"></span><span class="bl-thick"></span>{{else if eq . "rep-start"}}<span class="bl-thick"></span><span class="bl-thin m"></span><span class="bl-dots"></span>{{else if eq . "rep-end"}}<span class="bl-dots"></span><span class="bl-thin m"></span><span class="bl-thick"></span>{{else if eq . "rep-both"}}<span class="bl-dots"></span><span class="bl-thin m"></span><span class="bl-thick"></span><span class="bl-thin m"></span><span class="bl-dots"></span>{{end}}{{end}}
+
+{{define "jazz-chart"}}
+{{/* The Jazz chart (jazzchart.go): an iReal-Pro-style page — 4 bars a
+     line, chords on their beat cells, boxed rehearsal marks, the form in
+     the chart's own signs (repeats, endings, segno/coda, D.S./D.C.).
+     Shown only in jazz mode (jazz.css). Each bar carries every played
+     bar it is read from (data-played), so the player lights it on each
+     pass; data-global-bar is the first, for a click to play from. The
+     music symbols are SMuFL code points in the Petaluma font. */}}
+<div class="jazz-chart">
+  <div class="jz-paper">
+    <div class="jz-chart">
+      <div class="jz-head">
+        <div class="jz-style">{{with .Style}}<span class="jz-style-name">{{.}}</span>{{end}}{{with .Tempo}}<span class="jz-sub"><span class="jz-bpm">{{if $.Compound}}&#xE1D5;&#xE1E7;{{else}}&#xE1D5;{{end}}</span> = {{.}}</span>{{end}}</div>
+        <div class="jz-title">{{.Title}}</div>
+        <div class="jz-composer">{{.Composer}}{{with .Key}}<span class="jz-sub">{{t "Key"}}: <span class="jz-key">{{.}}</span></span>{{end}}</div>
+      </div>
+      {{range .Lines}}
+      <div class="jz-sys{{if .Gap}} gap{{end}}{{if .Coda}} coda{{end}}">
+        {{range .Cells}}{{if .Pad}}<div class="jz-bar jz-pad"></div>{{else}}<div class="jz-bar"{{if .HasPlayed}} data-global-bar="{{.First}}" data-played="{{.Played}}"{{end}}>
+          {{if .Left}}<div class="jz-lineL{{if ne .Left "single"}} wide{{end}}{{if eq .Left "rep-both"}} both{{end}}">{{template "jz-barline" .Left}}</div>{{end}}
+          {{if .Right}}<div class="jz-lineR{{if ne .Right "single"}} wide{{end}}">{{template "jz-barline" .Right}}</div>{{end}}
+          {{if .Segno}}<div class="jz-sym jz-segno" title="Segno">&#xE047;</div>{{end}}
+          {{if .Mark}}<button type="button" class="jz-rm"{{if .HasPlayed}} data-jump-bar="{{.JumpTo}}"{{end}} title="{{label .Name}}">{{.Mark}}</button><span class="jz-name">{{label .Name}}</span>{{end}}
+          {{if .Coda}}<div class="jz-sym jz-coda" title="Coda">&#xE048;</div>{{end}}
+          {{if .ToCoda}}<div class="jz-sym jz-tocoda" title="To Coda">&#xE048;</div>{{end}}
+          {{if .TSNum}}<div class="jz-ts{{if .TSMid}} mid{{end}}"><span>{{.TSNum}}</span><span>{{.TSDen}}</span></div>{{end}}
+          {{if .VoltaSpan}}<div class="jz-volta{{if .VoltaClosed}} closed{{end}}{{if .VoltaCont}} cont{{end}}" style="--span: {{.VoltaSpan}}">{{with .Volta}}<span class="n">{{.}}</span>{{end}}</div>{{end}}
+          {{if .Rest}}<div class="jz-rest" title="R">&#xE4F4;</div>{{end}}
+          {{if eq .Simile 1}}<div class="jz-rep1" title="%">&#xE500;</div>{{else if eq .Simile 2}}<div class="jz-rep1" title="%%">&#xE500;<sup>2</sup></div>{{end}}
+          {{if .Pair2}}<div class="jz-rep2" title="%%">&#xE501;</div>{{end}}
+          {{range .Chords}}<span class="jz-at" style="--x: {{.X}}; --pad: {{.Pad}}" title="{{.Title}}">{{.HTML}}</span>{{end}}
+          {{with .Texts}}<div class="jz-stx">{{range $i, $x := .}}{{if $i}} · {{end}}{{$x.S}}{{if $x.WithRepeats}} ({{t "with repeats"}}){{end}}{{end}}</div>{{end}}
+        </div>{{end}}{{end}}
+      </div>
+      {{with .Notes}}<div class="jz-notes">{{range .}}<p>{{.}}</p>{{end}}</div>{{end}}
+      {{end}}
+    </div>
+  </div>
+</div>
+{{end}}
+
 {{define "sheet-body"}}
 {{if .Chords}}
 {{/* Chord-diagram legend row, under the title and above the chart —
@@ -153,6 +196,7 @@
   {{end}}
 </div>
 {{end}}
+{{with .Jazz}}{{template "jazz-chart" .}}{{end}}
 {{/* ---- Song map: ONE continuous engraved score, not one independent
      chart per section — bars from one section flow straight into the
      next section's bars on the same staff-line row; section names ride
@@ -246,33 +290,11 @@
      count" case a bare Verse repeat already is, inconsistent with how
      every other non-defining section renders. Dropping the "(not .Lines)"
      condition for the InferredNote case fixes that. */}}
-<section class="sheet-section{{if or .InferredNote .Repeat .IsReference .Compact}} is-compact{{end}}{{if .JazzSegno}} jazz-segno{{end}}{{if .JazzDSAlCoda}} jazz-ds{{end}}{{if .JazzCoda}} jazz-coda{{end}}{{if .JazzHidden}} jazz-hidden{{end}}" id="section-{{.Index}}" data-section-index="{{.Index}}" data-label="{{label .Label}}" data-start-bar="{{.StartBar}}" data-bar-count="{{.BarCount}}" data-has-lyrics="{{if .Lyrics}}true{{else}}false{{end}}" data-has-note="{{if .InferredNote}}true{{else}}false{{end}}" data-is-solo="{{if .IsSolo}}true{{else}}false{{end}}" style="--bars: {{.BarCount}}">
-  {{/* Segno/D.S. al Coda/Coda — jazz mode only (CSS below scopes all
-       three to #sheet[data-render-mode="jazz"]; every other mode's CSS
-       simply never shows them, same technique the recall chip/multi-
-       rest-row pair already uses elsewhere on this element). Modeled on
-       LilyPond's \repeat segno, not just the iReal Pro PDF's visual
-       appearance — see viewerSection's own doc comment (handlers_pages.go)
-       for the semantics each glyph/marker represents. */}}
-  {{/* Hand-drawn SVG icons, not the real U+1D10B/U+1D10C glyphs — those
-       measured as true tofu (no glyph at all) against this app's actual
-       font stack; see icon-segno/icon-coda's own doc comments in
-       icons.html for how that was confirmed and why these are a direct,
-       not approximated, substitute. */}}
-  {{if .JazzSegno}}<span class="jazz-segno-mark" title="Segno">{{template "icon-segno"}}</span>{{end}}
-  {{if .JazzCoda}}<span class="jazz-coda-mark" title="Coda">{{template "icon-coda"}}</span>{{end}}
+<section class="sheet-section{{if or .InferredNote .Repeat .IsReference .Compact}} is-compact{{end}}" id="section-{{.Index}}" data-section-index="{{.Index}}" data-label="{{label .Label}}" data-start-bar="{{.StartBar}}" data-bar-count="{{.BarCount}}" data-has-lyrics="{{if .Lyrics}}true{{else}}false{{end}}" data-has-note="{{if .InferredNote}}true{{else}}false{{end}}" data-is-solo="{{if .IsSolo}}true{{else}}false{{end}}" style="--bars: {{.BarCount}}">
   <h3>
     <button class="section-jump" type="button" data-section-index="{{.Index}}" title="{{t "jump here"}}">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if or .Repeat .IsReference}} <span class="repeat-suffix">&middot; {{t "repeat"}}</span>{{end}}</button>
     {{if .InferredNote}}<span class="inferred-note">{{tn .SoloBars "%d bar" "%d bars"}} — {{t "%s changes" .SoloOf}}{{if gt .SoloTimes 1}}, x{{.SoloTimes}}{{end}}</span>{{end}}
   </h3>
-  {{if .JazzDSAlCoda}}
-  {{/* The whole later repeated run (this section plus the JazzHidden
-       ones right after it) collapses to this one marker in jazz mode —
-       its own normal content (chip/grid/multi-rest-row below) still
-       renders unconditionally for every OTHER mode, just hidden here by
-       the same CSS that shows this instead. */}}
-  <div class="jazz-ds-mark">D.S. al Coda</div>
-  {{end}}
   <div class="section-map-chip">
     {{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}
     <span class="chip-label">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}</span>
@@ -329,7 +351,7 @@
       <span class="bar{{if .TabOnly}} tab-only{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}" style="--slots: {{len .Beats}}">
         <span class="bar-body bar-body-tab-only">
           <span class="tab-only-chords">
-            {{range .Beats}}<span class="beat-slot tab-only-slot{{if .IsTie}} tie{{end}}" style="--span: {{.Span}}">{{if not .IsTie}}<span class="chord-label"><span class="chord-std">{{chord .Text}}</span><span class="chord-jazz">{{chordJazz .Text}}</span></span>{{end}}</span>{{end}}
+            {{range .Beats}}<span class="beat-slot tab-only-slot{{if .IsTie}} tie{{end}}" style="--span: {{.Span}}">{{if not .IsTie}}<span class="chord-label"><span class="chord-std">{{chord .Text}}</span></span>{{end}}</span>{{end}}
           </span>
         </span>
       </span>
@@ -427,6 +449,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+<link rel="stylesheet" href="/static/css/jazz.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
 </head>
@@ -1863,7 +1886,7 @@
       </label>
       <span class="follow-hint" id="follow-hint"></span>
     </div>
-    <main class="sheet" id="sheet" data-render-mode="normal" data-variant-id="{{.VariantID}}"{{with .CoachingContext}} data-coaching="{{.}}"{{end}}{{if .GPFileName}} data-gp-file="/song/{{.VariantID}}/gp-file" data-gp-name="{{.GPFileName}}" data-gp-sha="{{.GPFileSHA}}"{{if .GPFactsMissing}} data-gp-facts-missing="1"{{end}}{{if .GPOnly}} data-gp-only="1"{{end}}{{with .PickerSectionsJSON}} data-picker-sections="{{.}}"{{end}}{{end}} data-key="{{.Key}}"{{if .StudentKeySet}} data-key-offset="{{.StudentKey}}"{{end}} data-flats="{{if .Flats}}1{{else}}0{{end}}" data-has-diagrams="{{if or .Chords (chordDiagramSets .Text)}}1{{end}}">
+    <main class="sheet" id="sheet" data-render-mode="normal" data-variant-id="{{.VariantID}}"{{with .CoachingContext}} data-coaching="{{.}}"{{end}}{{if .GPFileName}} data-gp-file="/song/{{.VariantID}}/gp-file" data-gp-name="{{.GPFileName}}" data-gp-sha="{{.GPFileSHA}}"{{if .GPFactsMissing}} data-gp-facts-missing="1"{{end}}{{if .GPOnly}} data-gp-only="1"{{end}}{{with .PickerSectionsJSON}} data-picker-sections="{{.}}"{{end}}{{end}} data-key="{{.Key}}"{{if .StudentKeySet}} data-key-offset="{{.StudentKey}}"{{end}} data-flats="{{if .Flats}}1{{else}}0{{end}}"{{with .SpellJSON}} data-spell="{{.}}"{{end}} data-has-diagrams="{{if or .Chords (chordDiagramSets .Text)}}1{{end}}">
     {{template "sheet-body" .}}
     </main>
     {{/* Scrolled away by hand while the music plays: following holds,
