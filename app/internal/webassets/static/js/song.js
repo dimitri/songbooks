@@ -238,27 +238,14 @@ const ICONS = {
     const fontPx = parseFloat(getComputedStyle(sheet).fontSize) || 16;
     const clefPx = 2.5 * fontPx;
     // The server groups every mode's rows at ONE shared target (8 bars/
-    // line — iReal Pro's own continuous, denser convention, picked for
-    // jazz mode specifically) because all four modes render from the same
-    // server-sent Lines: there's no second request to re-group them
-    // server-side when the reader flips the mode dropdown. Jazz mode
-    // wants that 8-bar density; chords+lyrics and lyrics-only are read at
-    // a normal, print-style density instead — the same 4-bar-per-line
-    // convention the PDF/file-format default already uses — so an 8-bar
-    // row there reads as a single, overly dense line with its chord
-    // labels visually crowding past the row's own width, even though the
-    // row's own CSS width still matches the lyric column exactly (a real
-    // user mistook that crowding for the two no longer sharing a width at
-    // all). Capped here, not server-side, so jazz mode keeps its own
-    // density untouched. Song Map no longer goes through this per-section
-    // reflow path at all — it renders its own pre-grouped continuous
-    // score (.map-score, built server-side from .MapLines — see
-    // buildMapLines in handlers_pages.go) instead of the per-section
-    // .grid.spans-full rows this function operates on; that old grid
-    // stays in the DOM for map mode (shared markup, every mode) but
-    // hidden (display:none), so its clientWidth is 0 and the loop below
-    // skips it on its own.
-    const modeCap = sheet.dataset.renderMode === 'jazz' ? 8 : 4;
+    // line, iReal Pro's denser convention, for jazz mode) because all
+    // modes render from the same server-sent Lines; each mode regroups
+    // them here, against the real width: jazz by its bars' real widths,
+    // the others in 4-bar phrases (below). Song Map doesn't go through this
+    // per-section pass at all — it renders its own continuous score
+    // (.map-score, reflowMapLines above); the per-section grids stay in
+    // the DOM there but hidden (display:none), so their clientWidth is 0
+    // and the loop below skips them on its own.
     for (const { grid, lines: originalLines } of staffLineOriginals) {
       if (!grid.isConnected) continue;
       const availW = grid.clientWidth;
@@ -287,154 +274,69 @@ const ICONS = {
         resolveLabelCollisions(grid);
         continue;
       }
-      // Jazz: flatten this section's ORIGINAL server-authored rows into
-      // one pool before regrouping. The per-line loop below can only ever
-      // SPLIT an original line that's too big for useCap — it has no way
-      // to MERGE several already-small original lines back together, so
-      // a song authored with "bars: 2" (a print/PDF-export density
-      // choice) stayed stuck at exactly 2 bars/row in jazz mode forever,
-      // no matter how much width or how small a font was available
-      // (confirmed live: useCap correctly computed as 8, but
-      // useCap >= actualBarCount(2) took the "already fits, don't
-      // touch it" branch every time). One synthetic line containing
-      // every bar from every original line lets the existing split-to-
-      // fit logic below do the real regrouping, from scratch, at jazz's
-      // own target density — exactly the "ignore the author's print
-      // density, this is a maximum-density view" intent already decided
-      // for `useCap` itself, just not reachable before because of this
-      // separate per-original-line structure.
-      let lines = originalLines;
-      if (sheet.dataset.renderMode === 'jazz' && originalLines.length > 1) {
-        const allBars = originalLines.flatMap(l => [...l.template.querySelectorAll(':scope > .bar')]);
-        const maxSlotsAll = originalLines.reduce((m, l) => Math.max(m, l.maxSlots), 3);
-        const hasClefAll = originalLines[0].hasClef;
-        const clefEl = hasClefAll ? originalLines[0].template.querySelector(':scope > .staff-timesig-cell') : null;
-        const synthetic = document.createElement('div');
-        synthetic.className = 'staff-line';
-        if (clefEl) synthetic.appendChild(clefEl.cloneNode(true));
-        for (const b of allBars) synthetic.appendChild(b.cloneNode(true));
-        lines = [{ cap: allBars.length, hasClef: hasClefAll, maxSlots: maxSlotsAll, template: synthetic }];
-      }
-      // Jazz mode still stretches bars to 100%/--cap (its own base-rule
-      // behavior, untouched), so its capacity floor stays the old flat
-      // 2.6em readable minimum. The other three modes now give every bar
-      // a flat --bar-w typeset width (CSS, see .bar's own comment) instead
-      // of shrinking to content, so their capacity math has to use that
-      // SAME 7.2em here — using the old 2.6em floor would let more bars
-      // fit per row than the CSS actually has room to draw at their real
-      // (wider) fixed width, overflowing the row again.
-      const flatFloorEm = sheet.dataset.renderMode === 'jazz' ? 2.6 : 7.2;
-      // Chords+lyrics/lyrics-only must never drop below 4 bars/line, even
-      // on a narrow phone where the flat 7.2em bar width would otherwise
-      // only fit 2-3 — on a screen that narrow, bars shrink (a per-row
-      // --bar-w override, below) rather than the row showing fewer of
-      // them. Jazz already targets 8 and has its own narrower 2.6em
-      // floor, so it's never at risk of landing under 4 — left alone.
-      const MIN_BARS_PER_LINE = sheet.dataset.renderMode === 'jazz' ? null : 4;
-      for (const { cap, hasClef, maxSlots, template } of lines) {
-        const minBarPx = Math.max(flatFloorEm * fontPx, maxSlots * 0.9 * fontPx);
-        const budget = hasClef ? availW - clefPx : availW;
-        const effCap = Math.max(1, Math.floor(budget / minBarPx));
-        // Never split a row that already fits — and never grow PAST the
-        // author's own intended capacity even when more would physically
-        // fit, so a wide desktop/tablet screen renders exactly what the
-        // "bars:" hint asked for, same as today. Jazz mode is the one
-        // exception: it drops `cap` from this ceiling entirely. The
-        // author's "bars:" hint is a PRINT/PDF-export density choice —
-        // honoring it here is exactly what silently capped every row at
-        // 2 bars for a song authored with "bars: 2", regardless of
-        // screen size or font-size search below, since cap is the FIRST
-        // term in this min() (confirmed live: effCap/modeCap were both
-        // large, but useCap still came out 2 — the author's own
-        // historical per-line choice, not a real space constraint).
-        // Jazz is an always-maximum-density view by design (the whole
-        // point of matching a real iReal Pro chart); it has no business
-        // reusing a density number chosen for a different output format.
-        let useCap = sheet.dataset.renderMode === 'jazz' ? Math.min(effCap, modeCap) : Math.min(cap, effCap, modeCap);
-        // lineBarWpx stays null (use the flat CSS default) unless the
-        // 4-bar floor above actually had to kick in — most rows, on most
-        // screens, never touch this.
-        let lineBarWpx = null;
-        if (MIN_BARS_PER_LINE && useCap < MIN_BARS_PER_LINE) {
-          useCap = Math.min(cap, modeCap, MIN_BARS_PER_LINE);
-          // Divide the row's real budget evenly across the forced bar
-          // count instead of leaving them at the flat (too-wide-to-fit)
-          // default — floored at the same absolute minimum jazz mode
-          // already uses, so a bar never shrinks past genuine legibility.
-          lineBarWpx = Math.max(2.6 * fontPx, budget / useCap);
-        }
-        const cells = [...template.children]; // clef cell (maybe) + .bar elements, in order
-        const actualBarCount = cells.filter(el => el.classList.contains('bar')).length;
-        // A pickup bar (.bar-pickup — an anacrusis or count-in bar the song
-        // opens with, see viewerMeasure.Pickup) rides along in the first row
-        // on top of its usual count, so the grid keeps its phrasing: a
-        // 16-bar blues reads 5 / 4 / 4 / 4.
-        const pickup = cells.find(el => el.classList.contains('bar'))?.classList.contains('bar-pickup') ? 1 : 0;
-        if (useCap + pickup >= actualBarCount) {
-          const line = template.cloneNode(true);
-          if (lineBarWpx) line.style.setProperty('--bar-w', lineBarWpx + 'px');
-          // The ORIGINAL authored `cap` can itself already be larger than
-          // this particular line's actual bar count (the server's own
-          // short-trailing-row for a section whose bar count doesn't
-          // divide evenly by its bars-per-line — the exact same root
-          // pattern as the chunking loop below, just baked in server-side
-          // instead of produced by a client-side split). Blindly reusing
-          // `cap` here reproduced the unexplained-blank-gap bug even when
-          // no reflow was needed at all — confirmed with a real 7-bar
-          // test section. Only fall back to the line's own bar count when
-          // it's genuinely short; a full line (actualBarCount === cap)
-          // keeps rendering at exactly the declared "bars:" hint, unchanged.
-          line.style.setProperty('--cap', String(Math.max(1, (actualBarCount < cap ? actualBarCount : cap) - pickup)));
-          newLines.push(line);
-          continue;
-        }
-        // Split into chunks of useCap bars each (last chunk may be
-        // shorter — it keeps the SAME --cap as its siblings, not its own
-        // shorter count, so its bars stay the same width as every other
-        // bar in this reflowed group rather than stretching to fill the
-        // row, per the same reasoning the server's own short-trailing-row
-        // convention already uses for --cap). Only the very first chunk
-        // ever carries the clef cell, since it's only ever the first
-        // child of the very first original line.
-        const clefEl = hasClef ? cells.find(el => el.classList.contains('staff-timesig-cell')) : null;
-        const barEls = cells.filter(el => el.classList.contains('bar'));
-        // Prefer a capacity that divides the bar count evenly, within
-        // budget. A short trailing chunk rendered at the SAME --cap as
-        // its full siblings leaves an unexplained blank gap: .bar's width
-        // is 100%/--cap, so fewer bars than --cap don't fill the row, but
-        // .staff-line::before still paints the 5-line staff background
-        // across the row's FULL width — a real user mistook the resulting
-        // empty, staff-lined gap for a rendering bug, not deliberate
-        // "every bar the same width" consistency. Search downward from
-        // useCap for the largest divisor >1; only when none exists (e.g.
-        // a 7-bar section) does the original short-last-row case still
-        // happen — and even then, that lone chunk gets its OWN --cap
-        // (its own bar count) below, so it fills its row instead of
-        // leaving blank staff behind it.
-        const body = barEls.length - pickup;
-        let effUseCap = useCap;
-        if (body % useCap !== 0) {
-          for (let d = useCap - 1; d > 1; d--) {
-            if (body % d === 0) { effUseCap = d; break; }
-          }
-        }
-        for (let i = 0, row = 0; i < barEls.length; row++) {
-          const size = effUseCap + (row === 0 ? pickup : 0);
-          const chunk = barEls.slice(i, i + size);
-          i += size;
-          const line = document.createElement('div');
-          line.className = 'staff-line';
-          // --cap counts the row's regular bars: a pickup has its own
-          // narrow width (.bar-pickup, app.css), so the four bars next to
-          // it stay as wide as every other row's.
-          const regular = chunk.length - (row === 0 ? pickup : 0);
-          line.style.setProperty('--cap', String(regular < effUseCap ? Math.max(1, regular) : effUseCap));
-          if (lineBarWpx) line.style.setProperty('--bar-w', lineBarWpx + 'px');
-          if (row === 0 && clefEl) line.appendChild(clefEl.cloneNode(true));
-          for (const bar of chunk) line.appendChild(bar.cloneNode(true));
-          newLines.push(line);
-        }
-      }
+      // Every other mode: rows of 4-bar phrases, decided per SECTION (its
+      // server rows pooled back into one run of bars) by bar-rows.js — the
+      // server's own 8-bars/row chunks are only the page's first shape,
+      // and splitting each of them on its own broke a section's phrasing
+      // wherever its bar count wasn't a multiple of 8 (10 bars → 8 + 2 →
+      // 4 + 4 + 2 was fine, but 9 → 8 + 1 → 4 + 4 + 1, and a 5-bar Intro
+      // came out as 4 bars and then 1 bar stretched across the line). A
+      // section whose author wrote "bars:" (data-bars="author") keeps the
+      // author's rows; bar-rows.js only splits one that holds more than a
+      // screen row. A lone last bar joins the row before it (5 → 5,
+      // 9 → 4 + 5) where that row can still hold it at the bars' legibility
+      // floor; a last row of 2 or 3 stays short, its bars as wide as a full
+      // row's (--cap 4) and its staff ending at its last bar (the staff is
+      // drawn per bar, .bar-body::before, so no blank staff follows it).
+      //
+      // 4 to a row whatever the width (a phone squeezes its bars, a
+      // per-row --bar-w, rather than holding fewer of them): the
+      // lead-sheet phrase, the PDF's own default too. The flat 7.2em is the
+      // typeset bar width lyrics-only mode draws (.bar's --bar-w, app.css):
+      // a row whose bars don't fit at it gets a narrower --bar-w, floored
+      // at 2.6em (.bar's min-width). Whether a lone last bar still fits on
+      // the row before it is decided against what a bar's content really
+      // needs: its beat-slots' 0.9em each plus its own 1em of padding
+      // (.bar's min-width leaves the padding out, so a row squeezed to it
+      // spills its slashes into the next bar); where it doesn't — a phone,
+      // or the first row beside the clef and a pickup — the bar stays a
+      // short row of its own.
+      const PHRASE = 4;
+      const allBars = originalLines.flatMap(l => [...l.template.querySelectorAll(':scope > .bar')]);
+      if (!allBars.length) { grid.replaceChildren(...originalLines.map(l => l.template.cloneNode(true))); continue; }
+      const hasClef = originalLines[0].hasClef;
+      const clefEl = hasClef ? originalLines[0].template.querySelector(':scope > .staff-timesig-cell') : null;
+      const maxSlots = originalLines.reduce((m, l) => Math.max(m, l.maxSlots), 3);
+      const pickup = allBars[0].classList.contains('bar-pickup');
+      const minBarPx = Math.max(7.2 * fontPx, maxSlots * 0.9 * fontPx);
+      const floorPx = Math.max(2.6, maxSlots * 0.9 + 1) * fontPx;
+      const firstBudget = availW - (hasClef ? clefPx : 0) - (pickup ? 3.4 * fontPx : 0);
+      const plan = window.SongbooksBarRows.plan(
+        originalLines.map(l => l.template.querySelectorAll(':scope > .bar').length),
+        {
+          perRow: PHRASE,
+          pickup,
+          explicit: grid.dataset.bars === 'author',
+          fit: Math.floor(availW / floorPx),
+          fitFirst: Math.floor(firstBudget / floorPx),
+        },
+      );
+      let i = 0;
+      plan.forEach(({ bars: size, cap }, row) => {
+        const chunk = allBars.slice(i, i + size);
+        i += size;
+        const line = document.createElement('div');
+        line.className = 'staff-line';
+        // --cap counts the row's regular bars: a pickup has its own narrow
+        // width (.bar-pickup, app.css), so the bars next to it stay as wide
+        // as every other row's.
+        line.style.setProperty('--cap', String(cap));
+        const budget = row === 0 ? firstBudget : availW;
+        if (cap * minBarPx > budget) line.style.setProperty('--bar-w', Math.max(2.6 * fontPx, budget / cap) + 'px');
+        if (row === 0 && clefEl) line.appendChild(clefEl.cloneNode(true));
+        for (const bar of chunk) line.appendChild(bar.cloneNode(true));
+        newLines.push(line);
+      });
       grid.replaceChildren(...newLines);
       resolveLabelCollisions(grid);
     }
@@ -495,12 +397,13 @@ const ICONS = {
       const replacement = groups.map((g, gi) => {
         const l = document.createElement('div');
         l.className = 'staff-line';
-        // Same fix as reflowStaffLines' own chunking loop: the trailing
-        // group here can be SHORTER than newCap too (e.g. 3 bars split at
-        // newCap=2 gives groups of [2,1]) — give it its own --cap (its
-        // own bar count) rather than newCap, or it leaves the exact same
-        // unexplained blank gap this whole pass exists to get rid of.
-        l.style.setProperty('--cap', String(g.length < newCap ? g.length : newCap));
+        // The trailing group here can be SHORTER than newCap (a 5-bar row
+        // split at 4 gives [4, 1]): it keeps newCap, its bars as wide as
+        // its sibling's, the same as reflowStaffLines' own short last row
+        // — the staff is drawn per bar (.bar-body::before), so the row
+        // simply ends at its last bar instead of stretching that bar
+        // across the line.
+        l.style.setProperty('--cap', String(newCap));
         if (gi === 0 && clefEl) l.appendChild(clefEl);
         for (const b of g) l.appendChild(b);
         return l;
@@ -1095,6 +998,11 @@ const ICONS = {
     reflowMapLines();
     refreshBarsCache();
     applyPageBox();
+    // The pass above ran at the PREVIOUS mode's page box (jazz's narrow
+    // A4 width until applyPageBox clears it), and whether a lone last bar
+    // fits on the row before it depends on that width: once more at the
+    // real one. Jazz re-runs it inside its own fit search already.
+    if (v !== 'jazz') { reflowStaffLines(); refreshBarsCache(); }
     // Drummer view's own continuous chart (.drum-map — buildDrumMap,
     // handlers_pages.go) is hidden by CSS in every other mode — the same
     // "width=0, invisible" trap a hidden .grid/.map-score row would hit,
