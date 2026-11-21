@@ -167,9 +167,9 @@ func chordFixes(r *Recording, g grid, secs []Section, all []flatBar, place []pla
 					continue
 				}
 				ph, pc := 0.6, 0.0
-				if j < len(r.BeatChords) && len(r.BeatChords[j]) > 0 {
+				if bc := r.beatChordsAt((g.beats[j] + g.beats[j+1]) / 2); len(bc) > 0 {
 					ph, pc = 0, 0
-					for _, gss := range r.BeatChords[j] {
+					for _, gss := range bc {
 						c, ok := ParseHarte(gss.C)
 						if !ok {
 							continue
@@ -208,8 +208,8 @@ func chordFixes(r *Recording, g grid, secs []Section, all []flatBar, place []pla
 				Confidence: round2((pH / float64(n)) * (1 - pC/float64(n))),
 				DefSection: f.bar.DefSection, Measure: f.bar.Measure, Slot: s.slot,
 			}
-			if j0 < len(r.BeatChords) {
-				for _, gss := range r.BeatChords[j0] {
+			if j0+1 < len(g.beats) {
+				for _, gss := range r.beatChordsAt((g.beats[j0] + g.beats[j0+1]) / 2) {
 					sp := Spell(gss.C, 0, flats)
 					if sp != fix.Heard && sp != "N.C." && len(fix.Alternatives) < 2 {
 						fix.Alternatives = append(fix.Alternatives, sp)
