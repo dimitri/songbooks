@@ -111,7 +111,7 @@
   </table></div>
 
   <div class="home-section-head" style="margin-top:0.4rem;"><h3>{{t "Add people to this band"}}</h3></div>
-  <p class="hint">{{t "For someone who already has an account, or a link anyone can use once."}}</p>
+  <p class="hint">{{t "For someone who already has an account, a link anyone can use once, or one open link for a rehearsal or a gig."}}</p>
   <div class="card-grid">
     <div class="card">
       <h2>{{t "Add an existing account, or send a one-off link"}}</h2>
@@ -142,6 +142,120 @@
         </div>
         <p id="add-member-result" class="form-status" role="status"></p>
       </form>
+    </div>
+    {{/* The band link: one open link per role, no names, for a rehearsal
+         or a gig (handleCreateBandLink). Its markup and script stay in
+         this one block. */}}
+    {{$hasCore := false}}{{$hasGuest := false}}
+    {{range .BandLinks}}{{if eq .DefaultStatus "core"}}{{$hasCore = true}}{{else}}{{$hasGuest = true}}{{end}}{{end}}
+    <div class="card band-link-card" id="band-link" data-band-id="{{.Band.ID}}">
+      <h2>{{t "Band link or QR code"}}</h2>
+      <p class="hint">{{t "For a rehearsal or a gig: one open link, no names needed. Anyone who follows it creates an account (or logs in) and joins the band straight away, with the role on the link. A guest link is the safer choice for people you don’t know yet. Close it once everyone’s in."}}</p>
+      <ul class="band-link-list">
+      {{range .BandLinks}}
+        <li class="band-link-row" data-id="{{.ID}}" data-url="/join/{{.Token}}" data-status="{{.DefaultStatus}}">
+          <div class="band-link-head">
+            <strong>{{if eq .DefaultStatus "core"}}{{t "Core link"}}{{else}}{{t "Guest link"}}{{end}}</strong>
+            <span class="hint band-link-joined">{{if .Slots}}{{t "Joined with it:"}} {{range $i, $s := .Slots}}{{if $i}}, {{end}}{{$s.ClaimedByName}}{{end}}{{else}}{{t "Nobody has joined with it yet."}}{{end}}</span>
+          </div>
+          <div class="invite-link-row">
+            <code class="invite-link-url">/join/{{.Token}}</code>
+            <button type="button" class="band-link-copy">{{t "Copy"}}</button>
+            <button type="button" class="band-link-qr">{{t "QR code"}}</button>
+            <button type="button" class="band-link-close danger">{{t "Close link"}}</button>
+          </div>
+        </li>
+      {{end}}
+      </ul>
+      <template id="band-link-row-tpl">
+        <li class="band-link-row">
+          <div class="band-link-head">
+            <strong class="band-link-role"></strong>
+            <span class="hint band-link-joined">{{t "Nobody has joined with it yet."}}</span>
+          </div>
+          <div class="invite-link-row">
+            <code class="invite-link-url"></code>
+            <button type="button" class="band-link-copy">{{t "Copy"}}</button>
+            <button type="button" class="band-link-qr">{{t "QR code"}}</button>
+            <button type="button" class="band-link-close danger">{{t "Close link"}}</button>
+          </div>
+        </li>
+      </template>
+      <div class="form-actions band-link-get-actions">
+        <button type="button" class="band-link-get" data-status="core" data-label="{{t "Core link"}}"{{if $hasCore}} hidden{{end}}>{{t "Get a core link"}}</button>
+        <button type="button" class="band-link-get" data-status="guest" data-label="{{t "Guest link"}}"{{if $hasGuest}} hidden{{end}}>{{t "Get a guest link"}}</button>
+      </div>
+      <p class="form-status band-link-status" role="status"></p>
+      <script>
+      (function () {
+        const card = document.getElementById('band-link');
+        const list = card.querySelector('.band-link-list');
+        const statusEl = card.querySelector('.band-link-status');
+        const say = (msg, kind) => Forms.status(statusEl, msg, kind);
+        const syncButtons = () => card.querySelectorAll('.band-link-get').forEach(b => {
+          b.hidden = !!list.querySelector(`.band-link-row[data-status="${b.dataset.status}"]`);
+        });
+        // No clipboard (a plain-http page, a refused permission): show
+        // the link to copy by hand instead.
+        const copy = (url) => navigator.clipboard
+          ? navigator.clipboard.writeText(url).then(() => true, () => false)
+          : Promise.resolve(false);
+        function wire(row) {
+          const url = () => location.origin + row.dataset.url;
+          const copyBtn = row.querySelector('.band-link-copy');
+          copyBtn.addEventListener('click', async () => {
+            const was = copyBtn.textContent;
+            if (await copy(url())) {
+              copyBtn.textContent = t('Copied');
+              setTimeout(() => { copyBtn.textContent = was; }, 1500);
+            } else {
+              window.prompt(t('Copy this link:'), url());
+            }
+          });
+          row.querySelector('.band-link-qr').addEventListener('click', () => showQR(url()));
+          const closeBtn = row.querySelector('.band-link-close');
+          closeBtn.addEventListener('click', async () => {
+            if (!confirm(t('Close this link? Nobody new can join with it; those who already did stay in the band.'))) return;
+            Forms.busy(closeBtn, true);
+            const res = await fetch(`/api/bands/${card.dataset.bandId}/group-invites/${row.dataset.id}/close`, {method: 'POST'}).catch(() => null);
+            Forms.busy(closeBtn, false);
+            if (!res || !res.ok) { say(t('Couldn’t close the link. Try again.'), 'error'); return; }
+            row.remove();
+            syncButtons();
+            say(t('Link closed.'), 'ok');
+          });
+        }
+        list.querySelectorAll('.band-link-row').forEach(wire);
+        card.querySelectorAll('.band-link-get').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            say('');
+            Forms.busy(btn, true);
+            const res = await fetch(`/api/bands/${card.dataset.bandId}/band-link`, {
+              method: 'POST', headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({status: btn.dataset.status}),
+            }).catch(() => null);
+            Forms.busy(btn, false);
+            if (!res || !res.ok) { say(t('Couldn’t create the link. Try again.'), 'error'); return; }
+            const data = await res.json();
+            let row = list.querySelector(`.band-link-row[data-id="${data.id}"]`);
+            if (!row) {
+              row = document.getElementById('band-link-row-tpl').content.firstElementChild.cloneNode(true);
+              row.dataset.id = data.id;
+              row.dataset.url = data.url;
+              row.dataset.status = data.status;
+              row.querySelector('.band-link-role').textContent = btn.dataset.label;
+              row.querySelector('.invite-link-url').textContent = data.url;
+              list.appendChild(row);
+              wire(row);
+            }
+            syncButtons();
+            const copied = await copy(location.origin + data.url);
+            say(copied ? t('Link ready, and copied. Share it, or show its QR code.') : t('Link ready. Share it, or show its QR code.'), 'ok');
+            row.querySelector('.band-link-qr').focus();
+          });
+        });
+      })();
+      </script>
     </div>
   </div>
 

@@ -357,10 +357,19 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 		rows = append(rows, row)
 	}
 
+	// The band's open links ("Band link or QR code"): group invites
+	// with no names on them.
+	groupInvites, err := s.store.ListGroupInvitesForTarget(r.Context(), "band", bandID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	s.render(w, "band_members", map[string]any{
 		"Me": person, "Band": band, "Members": rows,
 		"OpenInvites": openInvites,
 		"IsCore":      isCore,
+		"BandLinks":   bandLinks(groupInvites),
 	})
 }
 
@@ -718,6 +727,75 @@ func (s *Server) handleCreateBandGroupInvite(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": groupInviteID, "url": "/join/" + token})
+}
+
+// handleCreateBandLink returns the band's open link for one status —
+// the "Band link or QR code" card on the members page, for a rehearsal
+// or a gig where handing out personal links one by one isn't practical.
+// No names: anyone who follows it creates an account (or logs in) and
+// joins straight away with the link's status, core or guest (see
+// store.grantGroupInviteMembershipTx). Internally a GroupInvite with no
+// slots and DefaultStatus set, same as a community link
+// (handleCreateCommunityLink). One link per status: an open one is
+// handed back rather than minting another, so the members page lists
+// at most two, each closable; closing one and asking again makes a
+// fresh link. Any current band member may do this, same as every other
+// band invite (handleCreateBandInvite, handleCreateBandPersonalInvite).
+func (s *Server) handleCreateBandLink(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if req.Status != "core" && req.Status != "guest" {
+		httpError(w, http.StatusBadRequest, "status must be \"core\" or \"guest\"")
+		return
+	}
+	invites, err := s.store.ListGroupInvitesForTarget(r.Context(), "band", bandID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for _, gi := range bandLinks(invites) {
+		if gi.DefaultStatus == req.Status {
+			writeJSON(w, http.StatusOK, map[string]any{"id": gi.ID, "url": "/join/" + gi.Token, "status": req.Status})
+			return
+		}
+	}
+	actor := personFromContext(r)
+	id, token, err := s.store.CreateGroupInvite(r.Context(), "band", bandID, actor.ID, nil, req.Status)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "url": "/join/" + token, "status": req.Status})
+}
+
+// bandLinks keeps the band's still-open open links (handleCreateBandLink)
+// out of all its group invites: open, with a status on the link, and no
+// named slot left to pick — what the members page lists under "Band
+// link or QR code". A slot on such a link is someone who joined through
+// it (ClaimGroupInviteUnlisted records one per join).
+func bandLinks(invites []store.GroupInviteView) []store.GroupInviteView {
+	var out []store.GroupInviteView
+	for _, gi := range invites {
+		if gi.ClosedAt != nil || (gi.DefaultStatus != "core" && gi.DefaultStatus != "guest") {
+			continue
+		}
+		named := false
+		for _, sl := range gi.Slots {
+			if sl.ClaimedByPersonID == nil {
+				named = true
+			}
+		}
+		if !named {
+			out = append(out, gi)
+		}
+	}
+	return out
 }
 
 // handleAddGroupInviteSlot appends one more named roster slot to an

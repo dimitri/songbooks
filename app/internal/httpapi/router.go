@@ -366,6 +366,9 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/people/{personID}/personal-invites", s.requireAuth(s.handleCreatePersonalInviteForPerson))
 	mux.HandleFunc("POST /api/bands/{id}/group-invites", s.requireBandMember(s.handleCreateBandGroupInvite))
 	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/close", s.requireBandMember(s.handleCloseBandGroupInvite))
+	// The band's open link, one per status (no names, see
+	// handleCreateBandLink); closed with the route just above.
+	mux.HandleFunc("POST /api/bands/{id}/band-link", s.requireBandMember(s.handleCreateBandLink))
 	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/slots", s.requireBandMember(s.handleAddGroupInviteSlot))
 	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/slots/{slotID}", s.requireBandMember(s.handleUpdateGroupInviteSlot))
 	mux.HandleFunc("DELETE /api/bands/{id}/group-invites/{groupInviteID}/slots/{slotID}", s.requireBandMember(s.handleRemoveGroupInviteSlot))

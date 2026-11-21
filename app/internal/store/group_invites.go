@@ -363,16 +363,22 @@ func (st *Store) lockOpenGroupInviteTx(ctx context.Context, tx pgx.Tx, token str
 }
 
 // grantGroupInviteMembershipTx grants personID the membership a group
-// invite's target promises — band status='guest' (a casually roster-
-// invited person isn't automatically "core"), community role='student'
-// (inviting someone AS an instructor stays a deliberate direct-add, see
-// handleAddCommunityMember, not a roster claim) — and is a no-op if
+// invite's target promises — band: the claimed slot's status, or for an
+// unlisted join (status "") the link's own DefaultStatus, 'guest' when
+// it has none (a casually roster-invited person isn't automatically
+// "core"); community: the link's role (DefaultStatus) — and is a no-op if
 // personID is already a CURRENT member of that band/community (an existing
 // account claiming a slot should never get a duplicate membership row
 // or an error just because they're already in).
 func (st *Store) grantGroupInviteMembershipTx(ctx context.Context, tx pgx.Tx, gi *GroupInvite, personID int64, status string) (dest string, err error) {
 	switch gi.TargetKind {
 	case "band":
+		// An unlisted join (status "") gets the link's own status: a
+		// band link minted as "core" or "guest" (handleCreateBandLink),
+		// or 'guest' for a roster link made before links carried one.
+		if status == "" {
+			status = gi.DefaultStatus
+		}
 		already, err := isCurrentBandMember(ctx, tx, gi.BandID, personID)
 		if err != nil {
 			return "", err
@@ -496,7 +502,7 @@ func (st *Store) ClaimGroupInviteUnlisted(ctx context.Context, token string, per
 	if err != nil {
 		return "", err
 	}
-	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, "guest")
+	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, "")
 	if err != nil {
 		return "", err
 	}
@@ -561,7 +567,7 @@ func (st *Store) CreatePersonAndClaimGroupInviteUnlisted(ctx context.Context, to
 	if err != nil {
 		return 0, "", err
 	}
-	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, "guest")
+	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, "")
 	if err != nil {
 		return 0, "", err
 	}
