@@ -42,28 +42,36 @@
     return ps.map((p) => p[0]);
   }
 
-  let cues = null; // {cat, phrases}
+  let cues = null; // {cat, phrases, at}
   let loading = null;
+  // No phrases yet (the recording not split: a 404) is asked again a
+  // minute later: the split may have finished meanwhile.
+  const RETRY = 60000;
+  const fresh = (cat) => cues && cues.cat === cat && (cues.phrases.length || Date.now() - cues.at < RETRY);
   function load(cat) {
-    if (!variantId || !cat || (cues && cues.cat === cat) || loading === cat) return;
+    if (!variantId || !cat || fresh(cat) || loading === cat) return;
     loading = cat;
+    const done = (phrases) => { cues = { cat, phrases, at: Date.now() }; cache.clear(); };
     fetch(`/api/songs/${variantId}/audio/${cat}/voice`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((c) => { cues = { cat, phrases: (c && c.phrases) || [] }; })
-      .catch(() => { cues = { cat, phrases: [] }; })
+      .then((c) => done((c && c.phrases) || []))
+      .catch(() => done([]))
       .finally(() => { loading = null; });
   }
   document.addEventListener('songbooks:reference-playing', () => {
     const pos = window.songbooksReferencePosition && window.songbooksReferencePosition();
     if (pos && pos.category) load(pos.category);
   });
+  // A recording added, replaced or just split: its voice is another.
+  document.addEventListener('songbooks:audio-changed', () => { cues = null; cache.clear(); });
 
   const cache = new Map(); // key → line starts
   window.songbooksLyricLine = (sec, n) => {
     const pos = window.songbooksReferencePosition && window.songbooksReferencePosition();
     const at = window.songbooksReferenceTimeAtBar;
     if (!pos || pos.time === undefined || !at || !n) return null;
-    if (!cues || cues.cat !== pos.category) { load(pos.category); return null; }
+    if (!fresh(pos.category)) load(pos.category);
+    if (!cues || cues.cat !== pos.category) return null;
     const t0 = at(sec.startBar), t1 = at(sec.startBar + Math.max(1, sec.barCount));
     if (t0 === null || t1 === null || !(t1 > t0)) return null;
     const key = `${pos.category}|${sec.startBar}|${n}|${t0.toFixed(2)}|${t1.toFixed(2)}`;
