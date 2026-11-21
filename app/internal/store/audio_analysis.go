@@ -28,13 +28,53 @@ type AnalysisStatus struct {
 	Analysis  *chartalign.Recording
 	Analyzer  string
 	CreatedAt time.Time
+	// Since: when the job was queued (queued) or started (running);
+	// Ahead: the queued analyses a worker takes before this one.
+	Since time.Time
+	Ahead int
+}
+
+// GetAnalysisState is a recording's analysis status alone ("done" when
+// there's an analysis for the recording as it is now), without reading
+// the analysis: the player asks it for every recording on every song.
+func (st *Store) GetAnalysisState(ctx context.Context, songAudioID int64) (string, error) {
+	var s string
+	err := st.db.QueryRow(ctx, `
+		SELECT CASE WHEN x.song_audio_id IS NOT NULL THEN 'done' ELSE coalesce(j.status, '') END
+		FROM song_audio a
+		LEFT JOIN song_audio_analysis_jobs j ON j.song_audio_id = a.id AND j.source_sha256 = a.sha256
+		LEFT JOIN song_audio_analysis x ON x.song_audio_id = a.id AND x.source_sha256 = a.sha256
+		WHERE a.id = $1`, songAudioID).Scan(&s)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return s, err
 }
 
 // ResetRunningAnalysisJobs puts back in the queue the analyses a worker
-// was on when it stopped.
+// was on when it stopped, at the back of it: a recording that crashes
+// the worker mustn't be taken first after every restart. Its claim
+// counted as an attempt; one that has used them all stays failed.
 func (st *Store) ResetRunningAnalysisJobs(ctx context.Context) error {
-	_, err := st.db.Exec(ctx, `UPDATE song_audio_analysis_jobs SET status = 'queued', started_at = NULL WHERE status = 'running'`)
+	_, err := st.db.Exec(ctx, `
+		UPDATE song_audio_analysis_jobs
+		SET status = CASE WHEN attempts >= $1 THEN 'failed' ELSE 'queued' END,
+		    error = 'the worker stopped during the analysis', started_at = NULL, queued_at = now()
+		WHERE status = 'running'`, maxStemAttempts)
 	return err
+}
+
+// StartAnalysisJob marks a recording's analysis running, for the worker
+// that analyses it right after its split (the split's saving queued it):
+// counted as an attempt, and not claimed by another worker meanwhile.
+func (st *Store) StartAnalysisJob(ctx context.Context, songAudioID int64, sha, analyzer string) (bool, error) {
+	tag, err := st.db.Exec(ctx, `
+		UPDATE song_audio_analysis_jobs SET status = 'running', analyzer = $3, started_at = now(), attempts = attempts + 1
+		WHERE song_audio_id = $1 AND source_sha256 = $2 AND status = 'queued'`, songAudioID, sha, analyzer)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
 }
 
 // ClaimAnalysisJob takes the oldest queued analysis whose recording is
@@ -46,10 +86,10 @@ func (st *Store) ClaimAnalysisJob(ctx context.Context, analyzer string) (*Analys
 		WHERE song_audio_id = (
 			SELECT j.song_audio_id FROM song_audio_analysis_jobs j
 			JOIN song_audio a ON a.id = j.song_audio_id AND a.sha256 = j.source_sha256
-			WHERE j.status = 'queued'
+			WHERE j.status = 'queued' AND j.attempts < $2
 			  AND EXISTS (SELECT 1 FROM song_audio_stems s WHERE s.song_audio_id = a.id AND s.source_sha256 = a.sha256 AND s.stem = 'no_vocals')
 			ORDER BY j.queued_at LIMIT 1 FOR UPDATE OF j SKIP LOCKED)
-		RETURNING song_audio_id, source_sha256, attempts`, analyzer).Scan(&j.SongAudioID, &j.SHA256, &j.Attempts)
+		RETURNING song_audio_id, source_sha256, attempts`, analyzer, maxStemAttempts).Scan(&j.SongAudioID, &j.SHA256, &j.Attempts)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -164,13 +204,18 @@ func (st *Store) QueueAllAnalysisJobs(ctx context.Context, analyzer string) (int
 func (st *Store) GetAnalysis(ctx context.Context, songAudioID int64) (AnalysisStatus, error) {
 	var s AnalysisStatus
 	var data []byte
-	var at *time.Time
+	var at, since *time.Time
 	err := st.db.QueryRow(ctx, `
-		SELECT coalesce(j.status, ''), coalesce(j.error, ''), x.data, coalesce(x.analyzer, ''), x.created_at
+		SELECT coalesce(j.status, ''), coalesce(j.error, ''), x.data, coalesce(x.analyzer, ''), x.created_at,
+			CASE j.status WHEN 'running' THEN j.started_at WHEN 'queued' THEN j.queued_at END,
+			CASE WHEN j.status = 'queued' THEN (
+				SELECT count(*) FROM song_audio_analysis_jobs q
+				WHERE q.status IN ('queued', 'running') AND q.song_audio_id <> a.id
+				  AND (q.status = 'running' OR q.queued_at < j.queued_at)) ELSE 0 END
 		FROM song_audio a
 		LEFT JOIN song_audio_analysis_jobs j ON j.song_audio_id = a.id AND j.source_sha256 = a.sha256
 		LEFT JOIN song_audio_analysis x ON x.song_audio_id = a.id AND x.source_sha256 = a.sha256
-		WHERE a.id = $1`, songAudioID).Scan(&s.Status, &s.Error, &data, &s.Analyzer, &at)
+		WHERE a.id = $1`, songAudioID).Scan(&s.Status, &s.Error, &data, &s.Analyzer, &at, &since, &s.Ahead)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return s, ErrNotFound
 	}
@@ -179,6 +224,9 @@ func (st *Store) GetAnalysis(ctx context.Context, songAudioID int64) (AnalysisSt
 	}
 	if at != nil {
 		s.CreatedAt = *at
+	}
+	if since != nil {
+		s.Since = *since
 	}
 	if len(data) > 0 {
 		var r chartalign.Recording
