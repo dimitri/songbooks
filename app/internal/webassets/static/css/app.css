@@ -6275,7 +6275,9 @@ a.calendar-day:hover { text-decoration: none; background: var(--bg-sunken); }
 .invite-group-title .count { min-width: 1.5rem; padding: 0.05rem 0.45rem; border-radius: 999px; background: var(--bg-sunken); color: var(--fg-muted); font-size: 0.74rem; text-align: center; letter-spacing: 0; }
 .invite-list { list-style: none; margin: 0; padding: 0; }
 .invite-list[hidden] { display: none; }
-.invite-row { gap: 0.6rem 0.85rem; padding: 0.7rem 1rem; }
+/* The buttons wrap under the name when the column is too narrow for both
+   (a tablet, a long name), staying on the right. */
+.invite-row { flex-wrap: wrap; gap: 0.6rem 0.85rem; padding: 0.7rem 1rem; }
 .invite-row .member-avatar, .invite-icon { width: 2.4rem; height: 2.4rem; }
 .invite-icon { flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--bg-sunken); color: var(--accent-ink); }
 .invite-icon .icon { width: 1.15rem; height: 1.15rem; }
@@ -6283,20 +6285,18 @@ a.calendar-day:hover { text-decoration: none; background: var(--bg-sunken); }
 .invite-name { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.5rem; overflow-wrap: anywhere; }
 .invite-name strong { font-weight: 600; }
 .invite-name .member-role[hidden] { display: none; }
-.invite-meta { margin: 0; display: flex; flex-wrap: wrap; gap: 0 0.45rem; font-size: 0.82rem; color: var(--fg-muted); }
+/* One fact a line: side by side, a wrapped one would start a line with
+   its "·". */
+.invite-meta { margin: 0; display: flex; flex-direction: column; font-size: 0.82rem; color: var(--fg-muted); }
 .invite-meta[hidden] { display: none; }
-.invite-meta > span + span::before { content: "·"; margin-right: 0.45rem; color: var(--fg-faint); }
-.invite-actions { flex: none; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.4rem; }
+.invite-actions { flex: none; margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.4rem; }
 .invite-actions:empty { display: none; }
 .invite-actions button { min-height: 2.25rem; padding: 0.3rem 0.75rem; font-size: 0.85rem; white-space: nowrap; }
 .invite-empty { margin: 0; padding: 0.85rem 1rem; border: 1px dashed var(--border); border-radius: var(--radius); color: var(--fg-muted); font-size: 0.88rem; }
 .invite-empty[hidden], .invite-group > .form-status:empty { display: none; }
 @media (max-width: 720px) {
-  .invite-row { flex-wrap: wrap; align-items: flex-start; padding: 0.8rem 0.9rem; }
-  /* One fact a line: a wrapped "·" would start the next one. */
-  .invite-meta { flex-direction: column; }
-  .invite-meta > span + span::before { content: none; }
-  .invite-actions { flex: 1 1 100%; justify-content: stretch; }
+  .invite-row { align-items: flex-start; padding: 0.8rem 0.9rem; }
+  .invite-actions { flex: 1 1 100%; margin-left: 0; justify-content: stretch; }
   .invite-actions button { flex: 1 1 0; min-height: 2.75rem; padding: 0.4rem 0.5rem; }
   .members-summary-head .chip-link { flex: 1 1 100%; justify-content: center; min-height: 2.75rem; }
 }
