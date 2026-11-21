@@ -48,8 +48,6 @@ type jzCell struct {
 	alignWith  int // -1: none
 }
 
-var jzDebug = false
-
 const (
 	jzDSCoda = "D.S. al Coda"
 	jzDSFine = "D.S. al Fine"
@@ -952,9 +950,6 @@ func buildJazzForm(measures map[int][]song.Measure, occs []jzOcc, expected [][2]
 		cells := em.plan(p)
 		if played, ok := check(cells); ok {
 			return jzFormResult{cells: cells, played: played, units: f.units, occs: occs, compact: true}
-		}
-		if jzDebug {
-			fmt.Println("  rejected:", jzFormResult{cells: cells, units: f.units}.describe(), len(jzSimulate(cells)), len(expected))
 		}
 	}
 	// Fallback: every occurrence as written, in order.
