@@ -3000,7 +3000,7 @@ window.songbooksDecodable = function (buf) {
     saveMarkers,
     refreshSync,
     // The voice turned down (the accompaniment plays), and the toggle.
-    voiceDown: () => voiceDown(),
+    voiceDown: () => hasParts() && prefs.voice < 100,
     toggleVoice,
     // The Sync sheet's waveform (sync-wave.js): the recording, mono at
     // ~11 kHz ({x, sr}, or null before it's decoded), and when each bar
