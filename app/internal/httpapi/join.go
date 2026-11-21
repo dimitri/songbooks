@@ -51,9 +51,21 @@ func (s *Server) handleJoinPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// An open link (a band or community link, handleCreateBandLink /
+	// handleCreateCommunityLink) has no name left to pick: the page
+	// skips "Who are you?" and goes straight to joining. Its slots are
+	// only the people who already joined through it, which a public
+	// page has no business listing.
+	open := true
+	for _, sl := range gi.Slots {
+		if sl.ClaimedAt == nil {
+			open = false
+		}
+	}
+
 	s.render(w, "join", map[string]any{
 		"Token": token, "Kind": gi.TargetKind, "TargetName": gi.TargetName,
-		"Slots": gi.Slots, "Closed": gi.ClosedAt != nil,
+		"Slots": gi.Slots, "Closed": gi.ClosedAt != nil, "Open": open,
 		"LoggedIn": loggedIn, "LoggedInAs": loggedInAs,
 	})
 }

@@ -19,12 +19,11 @@ import (
 // is a CURRENT member of the band identified by the {id} path param —
 // the gate on every band-scoped page/mutation. No band "owner"/"admin"
 // role exists (see internal/store/bands.go's Band doc comment), so this
-// one check also covers add/remove member, band-catalog add/fork/
+// one check also covers removing a member, band-catalog add/fork/
 // remove, and deleting the whole band — any current member (core or
-// guest alike) may do all of those. The one exception is assigning a
-// member's core/guest status itself, gated on requireBandCore instead
-// (below) — "core members may assign privileges, guests may not" is the
-// only asymmetry between the two tiers.
+// guest alike) may do all of those. Assigning a member's core/guest
+// status and inviting anyone are core-only instead (requireBandCore,
+// requireBandInviter, below).
 //
 // A non-member and a bad/missing band id both get the same 403, same
 // "don't leak whether it exists" reasoning requireRole uses for project
@@ -55,11 +54,22 @@ func (s *Server) requireBandMember(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // requireBandCore wraps requireAuth, then checks the logged-in person is
-// a CURRENT CORE member of the band — the one privilege asymmetry bands
-// have (see requireBandMember's own doc comment): assigning another
-// member's core/guest status is core-only, everything else stays
-// member-symmetric.
+// a CURRENT CORE member of the band (or a site admin): assigning another
+// member's core/guest status, the band's look and language, and
+// inviting people (requireBandInviter) are core-only.
 func (s *Server) requireBandCore(next http.HandlerFunc) http.HandlerFunc {
+	return s.requireBandCoreSaying("must be a current core member of this band", next)
+}
+
+// requireBandInviter is requireBandCore for every way of inviting
+// someone to a band — the band link, a one-off link, adding an account
+// by username, a personal invite, a roster link and its names — with a
+// 403 that says so.
+func (s *Server) requireBandInviter(next http.HandlerFunc) http.HandlerFunc {
+	return s.requireBandCoreSaying("only core members can invite people to this band", next)
+}
+
+func (s *Server) requireBandCoreSaying(forbidden string, next http.HandlerFunc) http.HandlerFunc {
 	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		bandID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 		if err != nil {
@@ -77,7 +87,7 @@ func (s *Server) requireBandCore(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		if !isCore {
-			httpError(w, http.StatusForbidden, "must be a current core member of this band")
+			httpError(w, http.StatusForbidden, forbidden)
 			return
 		}
 		next(w, r)
@@ -352,7 +362,7 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 		"Me": person, "Band": band, "Members": members,
 		"GroupInvites": groupInvites, "OpenInvites": openInvites,
 		"HasPendingSlots": hasPendingSlots, "ShellPeople": shellPeople,
-		"IsCore": isCore || person.IsAdmin,
+		"IsCore": isCore || person.IsAdmin, "BandLinks": bandLinks(groupInvites),
 	})
 }
 
@@ -381,8 +391,8 @@ func (s *Server) handleBandSetlistsPage(w http.ResponseWriter, r *http.Request) 
 
 // handleAddBandMember adds an existing person (by username — this is a
 // local single-instance app, so a direct add action stands in for an
-// email-invite flow) to a band as core or guest. Any current band member
-// may do this.
+// email-invite flow) to a band as core or guest. Core members only
+// (requireBandInviter), like every other way of inviting someone.
 func (s *Server) handleAddBandMember(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
@@ -507,8 +517,8 @@ func (s *Server) handleCreateBandInvite(w http.ResponseWriter, r *http.Request) 
 
 // handleCreateBandGroupInvite makes a brand-new, reusable group invite
 // for this band — the "type a roster, get one shareable link" action
-// (see internal/store/group_invites.go). Any current band member may
-// create one, same as any other band-scoped mutation; every claimed
+// (see internal/store/group_invites.go). Core members only
+// (requireBandInviter); every claimed
 // slot grants the claiming person band status "guest" (see
 // store.grantGroupInviteMembershipTx's doc comment for why guest, not
 // core, is the default here).
@@ -564,10 +574,10 @@ func (s *Server) handleCreateBandPersonalInvite(w http.ResponseWriter, r *http.R
 // link for an existing shell person — their memberships don't change,
 // only a fresh token is minted (the "Get invite link" / "resend"
 // action for a shell added before this existed, or whose link
-// expired). Gated on the caller sharing at least one current band or
-// community with the target, the same "any current member can manage
-// this" boundary CreateBandPersonalInvite's own route already uses,
-// generalized since this endpoint isn't scoped to one band's URL.
+// expired). Allowed when the caller may invite people where the target
+// is waiting: core in one of their bands, or holding manage_members in
+// one of their communities (store.CanInvitePerson) — the same rules as
+// the band and community routes that made the invite — or a site admin.
 func (s *Server) handleCreatePersonalInviteForPerson(w http.ResponseWriter, r *http.Request) {
 	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)
 	if err != nil {
@@ -575,13 +585,16 @@ func (s *Server) handleCreatePersonalInviteForPerson(w http.ResponseWriter, r *h
 		return
 	}
 	actor := personFromContext(r)
-	shared, err := s.store.SharesMembershipWith(r.Context(), actor.ID, personID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
+	allowed := actor.IsAdmin
+	if !allowed {
+		allowed, err = s.store.CanInvitePerson(r.Context(), actor.ID, personID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
-	if !shared {
-		httpError(w, http.StatusForbidden, "you don't share a band or community with this person")
+	if !allowed {
+		httpError(w, http.StatusForbidden, "only a band's core members, or a community's staff who manage members, can make a new invite link for this person")
 		return
 	}
 	token, err := s.store.CreatePersonalInvite(r.Context(), personID, actor.ID, 30*24*time.Hour)
@@ -616,6 +629,81 @@ func (s *Server) handleCreateBandGroupInvite(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": groupInviteID, "url": "/join/" + token})
+}
+
+// handleCreateBandLink returns the band's open link for one status —
+// the "Band link or QR code" card on the members page, for a rehearsal
+// or a gig where handing out personal links one by one isn't practical.
+// No names: anyone who follows it creates an account (or logs in) and
+// joins straight away with the link's status, core or guest (see
+// store.grantGroupInviteMembershipTx). Internally a GroupInvite with no
+// slots and DefaultStatus set, same as a community link
+// (handleCreateCommunityLink). One link per status: an open one is
+// handed back rather than minting another, so the members page lists
+// at most two, each closable; closing one and asking again makes a
+// fresh link. Core members only (requireBandInviter), like every other
+// band invite.
+func (s *Server) handleCreateBandLink(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if req.Status != "core" && req.Status != "guest" {
+		httpError(w, http.StatusBadRequest, "status must be \"core\" or \"guest\"")
+		return
+	}
+	invites, err := s.store.ListGroupInvitesForTarget(r.Context(), "band", bandID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for _, gi := range bandLinks(invites) {
+		if gi.DefaultStatus == req.Status {
+			writeJSON(w, http.StatusOK, map[string]any{"id": gi.ID, "url": "/join/" + gi.Token, "status": req.Status})
+			return
+		}
+	}
+	actor := personFromContext(r)
+	id, token, err := s.store.CreateGroupInvite(r.Context(), "band", bandID, actor.ID, nil, req.Status)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "url": "/join/" + token, "status": req.Status})
+}
+
+// bandLinks keeps the band's still-open open links (handleCreateBandLink)
+// out of all its group invites: open, with a status on the link, and no
+// named slot left to pick — what the members page lists under "Band
+// link or QR code". A slot on such a link is someone who joined through
+// it (ClaimGroupInviteUnlisted records one per join).
+func bandLinks(invites []store.GroupInviteView) []store.GroupInviteView {
+	var out []store.GroupInviteView
+	for _, gi := range invites {
+		if gi.ClosedAt != nil || (gi.DefaultStatus != "core" && gi.DefaultStatus != "guest") {
+			continue
+		}
+		if !hasWaitingSlot(gi) {
+			out = append(out, gi)
+		}
+	}
+	return out
+}
+
+// hasWaitingSlot reports whether gi still has a name nobody has claimed
+// yet: a link with names, not an open link (whose slots are only the
+// people who joined through it).
+func hasWaitingSlot(gi store.GroupInviteView) bool {
+	for _, sl := range gi.Slots {
+		if sl.ClaimedByPersonID == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // handleAddGroupInviteSlot appends one more named roster slot to an
@@ -712,8 +800,8 @@ func (s *Server) handleRemoveGroupInviteSlot(w http.ResponseWriter, r *http.Requ
 
 // handleCloseBandGroupInvite explicitly closes a still-open band group
 // invite (see this phase's lifecycle note: slot-exhaustion alone never
-// auto-closes one, only this action does). Any current band member may
-// close it, same "no hierarchy" rule as every other band-scoped action.
+// auto-closes one, only this action does). Core members only
+// (requireBandInviter), like making one.
 func (s *Server) handleCloseBandGroupInvite(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	groupInviteID, err := strconv.ParseInt(r.PathValue("groupInviteID"), 10, 64)

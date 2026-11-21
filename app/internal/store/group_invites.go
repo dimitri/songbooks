@@ -22,6 +22,9 @@ type GroupInvite struct {
 	BandID     int64
 	CommunityID   int64
 	CreatedBy  int64
+	// CreatedByName is the creator's display name, "" when unknown;
+	// only ListGroupInvitesForTarget fills it in.
+	CreatedByName string
 	CreatedAt  time.Time
 	ClosedAt   *time.Time
 	// DefaultStatus is the fixed role every claim through this invite
@@ -177,9 +180,11 @@ func (st *Store) ListGroupInvitesForTarget(ctx context.Context, targetKind strin
 		col = "community_id"
 	}
 	rows, err := st.db.Query(ctx, `
-		SELECT id, token, target_kind, band_id, community_id, created_by_person_id, created_at, closed_at, coalesce(default_status, '')
-		FROM group_invites WHERE `+col+` = $1
-		ORDER BY (closed_at IS NULL) DESC, created_at DESC`, targetID)
+		SELECT gi.id, gi.token, gi.target_kind, gi.band_id, gi.community_id, gi.created_by_person_id, gi.created_at, gi.closed_at, coalesce(gi.default_status, ''),
+		       coalesce(p.display_name, '')
+		FROM group_invites gi LEFT JOIN people p ON p.id = gi.created_by_person_id
+		WHERE gi.`+col+` = $1
+		ORDER BY (gi.closed_at IS NULL) DESC, gi.created_at DESC`, targetID)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +194,7 @@ func (st *Store) ListGroupInvitesForTarget(ctx context.Context, targetKind strin
 		var gi GroupInvite
 		var bandID, communityID, createdBy sql.NullInt64
 		var closedAt sql.NullTime
-		if err := rows.Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &communityID, &createdBy, &gi.CreatedAt, &closedAt, &gi.DefaultStatus); err != nil {
+		if err := rows.Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &communityID, &createdBy, &gi.CreatedAt, &closedAt, &gi.DefaultStatus, &gi.CreatedByName); err != nil {
 			return nil, err
 		}
 		gi.BandID, gi.CommunityID, gi.CreatedBy = bandID.Int64, communityID.Int64, createdBy.Int64
@@ -231,6 +236,28 @@ func (st *Store) SharesMembershipWith(ctx context.Context, actorID, targetID int
 			SELECT 1 FROM community_members a JOIN community_members b ON a.community_id = b.community_id
 			WHERE a.person_id = $1 AND upper_inf(a.validity) AND b.person_id = $2 AND upper_inf(b.validity)
 		)`, actorID, targetID).Scan(&ok)
+	return ok, err
+}
+
+// CanInvitePerson reports whether actorID may make a new invite link for
+// targetID (a shell waiting to join): actorID is a current core member
+// of a band targetID currently belongs to, or holds manage_members in a
+// community targetID currently belongs to — the same rules as the band
+// and community routes that invite people.
+func (st *Store) CanInvitePerson(ctx context.Context, actorID, targetID int64) (bool, error) {
+	var ok bool
+	err := st.db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM band_members a JOIN band_members b ON a.band_id = b.band_id
+			WHERE a.person_id = $1 AND upper_inf(a.validity) AND a.status = 'core'
+			  AND b.person_id = $2 AND upper_inf(b.validity)
+			UNION ALL
+			SELECT 1 FROM community_members a
+			JOIN community_role_privileges crp ON crp.role_id = a.role_id AND crp.privilege = $3
+			JOIN community_members b ON a.community_id = b.community_id
+			WHERE a.person_id = $1 AND upper_inf(a.validity)
+			  AND b.person_id = $2 AND upper_inf(b.validity)
+		)`, actorID, targetID, PrivManageMembers).Scan(&ok)
 	return ok, err
 }
 
@@ -363,16 +390,22 @@ func (st *Store) lockOpenGroupInviteTx(ctx context.Context, tx pgx.Tx, token str
 }
 
 // grantGroupInviteMembershipTx grants personID the membership a group
-// invite's target promises — band status='guest' (a casually roster-
-// invited person isn't automatically "core"), community role='student'
-// (inviting someone AS an instructor stays a deliberate direct-add, see
-// handleAddCommunityMember, not a roster claim) — and is a no-op if
+// invite's target promises — band: the claimed slot's status, or for an
+// unlisted join (status "") the link's own DefaultStatus, 'guest' when
+// it has none (a casually roster-invited person isn't automatically
+// "core"); community: the link's role (DefaultStatus) — and is a no-op if
 // personID is already a CURRENT member of that band/community (an existing
 // account claiming a slot should never get a duplicate membership row
 // or an error just because they're already in).
 func (st *Store) grantGroupInviteMembershipTx(ctx context.Context, tx pgx.Tx, gi *GroupInvite, personID int64, status string) (dest string, err error) {
 	switch gi.TargetKind {
 	case "band":
+		// An unlisted join (status "") gets the link's own status: a
+		// band link minted as "core" or "guest" (handleCreateBandLink),
+		// or 'guest' for a roster link made before links carried one.
+		if status == "" {
+			status = gi.DefaultStatus
+		}
 		already, err := isCurrentBandMember(ctx, tx, gi.BandID, personID)
 		if err != nil {
 			return "", err
@@ -480,7 +513,7 @@ func (st *Store) ClaimGroupInviteUnlisted(ctx context.Context, token string, per
 	if err != nil {
 		return "", err
 	}
-	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, "guest")
+	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, "")
 	if err != nil {
 		return "", err
 	}
@@ -545,7 +578,7 @@ func (st *Store) CreatePersonAndClaimGroupInviteUnlisted(ctx context.Context, to
 	if err != nil {
 		return 0, "", err
 	}
-	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, "guest")
+	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, "")
 	if err != nil {
 		return 0, "", err
 	}

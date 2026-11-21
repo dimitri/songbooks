@@ -695,12 +695,35 @@ func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// Pending invites: the community's open links (role links and links
+	// with names), for whoever may make and close them.
+	canManageMembers := person.IsAdmin
+	if !canManageMembers {
+		if canManageMembers, err = s.store.HasCommunityPrivilege(r.Context(), communityID, person.ID, store.PrivManageMembers); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	var openLinks []store.GroupInviteView
+	if canManageMembers {
+		invites, err := s.store.ListGroupInvitesForTarget(r.Context(), "community", communityID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		for _, gi := range invites {
+			if gi.ClosedAt == nil {
+				openLinks = append(openLinks, gi)
+			}
+		}
+	}
 	s.render(w, "community_admin", map[string]any{
 		"Me": person, "Person": person, "Community": community, "IsStaff": true,
 		"Members": members, "CurrentMembers": current, "ShellPeople": shellPeople,
 		"Roles": roles, "AllPrivileges": store.AllCommunityPrivileges,
 		"Locale": locale, "MembersVisibility": membersVisibility,
 		"CanManageSettings": access.ManageSettings,
+		"CanManageMembers":  canManageMembers, "OpenLinks": openLinks,
 	})
 }
 
@@ -925,13 +948,26 @@ func (s *Server) handleCreateCommunityLink(w http.ResponseWriter, r *http.Reques
 	if role == "" {
 		role = "member"
 	}
-	actor := personFromContext(r)
-	_, token, err := s.store.CreateGroupInvite(r.Context(), "community", communityID, actor.ID, nil, role)
+	// One open link per role: the open one is handed back rather than
+	// minting another (a link with names still waiting isn't one).
+	invites, err := s.store.ListGroupInvitesForTarget(r.Context(), "community", communityID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"url": "/join/" + token, "role": role})
+	for _, gi := range invites {
+		if gi.ClosedAt == nil && gi.DefaultStatus == role && !hasWaitingSlot(gi) {
+			writeJSON(w, http.StatusOK, map[string]any{"id": gi.ID, "url": "/join/" + gi.Token, "role": role})
+			return
+		}
+	}
+	actor := personFromContext(r)
+	id, token, err := s.store.CreateGroupInvite(r.Context(), "community", communityID, actor.ID, nil, role)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "url": "/join/" + token, "role": role})
 }
 
 // handleCloseCommunityGroupInvite explicitly closes a still-open community
