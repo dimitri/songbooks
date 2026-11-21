@@ -255,7 +255,7 @@
         </td>
         <td data-label="{{t "Joined"}}">{{date .JoinedAt "2006-01-02"}}</td>
         <td data-label="{{t "Left"}}">{{if .LeftAt}}{{date .LeftAt "2006-01-02"}}{{end}}</td>
-        <td>{{if .IsCurrent}}<button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>{{end}}</td>
+        <td>{{if .IsCurrent}}{{template "login-link-btn" (dict "Me" $.Me "Person" . "Shell" (hasPrefix .Username "pending-"))}} <button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>{{end}}</td>
       </tr>
     {{end}}
     </tbody>
@@ -701,6 +701,7 @@ document.querySelectorAll('.community-link-btn').forEach(btn => {
 })();
 </script>
 <script src="/static/js/qr.js?v={{staticVersion}}"></script>
+{{template "login-link-script" .Me}}
 </div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}

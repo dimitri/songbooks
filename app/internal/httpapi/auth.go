@@ -185,16 +185,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if email != "" {
 		if p, err := s.store.GetPersonByEmail(r.Context(), email); err == nil {
 			if token, err := s.store.CreateLoginToken(r.Context(), p.ID); err == nil {
-				link := s.loginLinkURL(r, token)
-				// In the recipient's language: their own choice, else the
-				// browser's that asked for the link.
-				lang, _ := s.store.PersonLocale(r.Context(), p.ID)
-				if lang == "" {
-					lang = s.langOfRequest(r)
-				}
-				subject := i18n.T(lang, "Your Songbooks login link")
-				body := i18n.T(lang, "Hi %s,\n\nClick this link to log in to Songbooks (expires in 15 minutes):\n\n%s\n\nIf you didn't request this, you can ignore this email.", p.DisplayName, link)
-				if err := s.mailer.Send(r.Context(), p.Email, subject, body); err != nil {
+				if err := s.sendLoginEmail(r, p, s.loginLinkURL(r, token)); err != nil {
 					log.Printf("sending login email: %v", err)
 				}
 			} else {
@@ -285,6 +276,20 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		MaxAge: 30 * 24 * 60 * 60,
 	})
 	http.Redirect(w, r, "/home", http.StatusFound)
+}
+
+// sendLoginEmail mails p the login email with link in it: the one the
+// login page sends, and the one an admin sends from a members page (see
+// handleAdminSendLoginLink). In the recipient's language: their own
+// choice, else the language of the request that asked for it.
+func (s *Server) sendLoginEmail(r *http.Request, p *store.Person, link string) error {
+	lang, _ := s.store.PersonLocale(r.Context(), p.ID)
+	if lang == "" {
+		lang = s.langOfRequest(r)
+	}
+	subject := i18n.T(lang, "Your Songbooks login link")
+	body := i18n.T(lang, "Hi %s,\n\nClick this link to log in to Songbooks (expires in 15 minutes):\n\n%s\n\nIf you didn't request this, you can ignore this email.", p.DisplayName, link)
+	return s.mailer.Send(r.Context(), p.Email, subject, body)
 }
 
 // loginLinkURL builds the magic-link URL embedded in the login email,

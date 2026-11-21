@@ -48,6 +48,7 @@
         <span class="hint">{{t (printf "role|%s" .Status)}}</span>
         {{end}}
         <span class="form-status" role="status"></span>
+        {{template "login-link-btn" (dict "Me" $.Me "Person" . "Shell" (hasPrefix .Username "pending-"))}}
         <button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>
       </div>
       {{end}}
@@ -274,6 +275,7 @@ document.querySelectorAll('.create-shell-invite-btn').forEach(btn => {
   });
 });
 </script>
+{{template "login-link-script" .Me}}
 </div>
 {{template "global-tabbar"}}
 {{template "global-tabbar-script"}}

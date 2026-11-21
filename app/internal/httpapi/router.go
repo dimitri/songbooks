@@ -554,6 +554,10 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /admin/people/{personID}/admin", s.requireAdmin(s.handleSetAdmin))
 	mux.HandleFunc("GET /admin/files/{name}", s.requireAdmin(s.handleAdminFile))
 	mux.HandleFunc("POST /admin/people/{personID}/remove", s.requireAdmin(s.handleAdminRemovePerson))
+	// A login link for one member, from the members pages (admin_login_link.go).
+	mux.HandleFunc("POST /api/admin/people/{personID}/login-link", s.requireAdmin(s.handleAdminCreateLoginLink))
+	mux.HandleFunc("POST /api/admin/people/{personID}/login-link/email", s.requireAdmin(s.handleAdminSendLoginLink))
+	mux.HandleFunc("POST /api/admin/people/{personID}/login-link/status", s.requireAdmin(s.handleAdminLoginLinkStatus))
 	// Per-person profile review: memberships across every band/community,
 	// with role adjustment, all from one page — see handlers_admin.go's
 	// handleAdminPersonPage doc comment.
