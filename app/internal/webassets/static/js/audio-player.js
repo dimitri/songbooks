@@ -1826,6 +1826,13 @@ window.songbooksDecodable = function (buf) {
   document.addEventListener('songbooks:audio-changed', () => loadMeta());
 
   // ---- For the Sync sheet (sync-sheet.js) ------------------------------------
+  // The element holds the category's recording, or one of its parts: with
+  // the voice turned down it plays the accompaniment, tagged "youtube:no_vocals"
+  // (swapSource), the same length and timeline as the recording.
+  const holdsCategory = (cat) => {
+    const f = audio.dataset.blobFor || '';
+    return !!cat && (f === cat || f.startsWith(`${cat}:`));
+  };
   window.songbooksPlayer = {
     variantId,
     canEdit,
@@ -1835,7 +1842,7 @@ window.songbooksDecodable = function (buf) {
     selectCategory: (cat) => { if (categories[cat] && cat !== activeCategory) selectCategory(cat, true); },
     meta: () => categories[activeCategory] || null,
     duration: () => duration,
-    ready: () => !!duration && !!activeCategory && audio.dataset.blobFor === activeCategory,
+    ready: () => !!duration && holdsCategory(activeCategory),
     isPlaying, play, pause,
     seek: (t) => seek(t),
     sections,
