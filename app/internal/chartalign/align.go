@@ -18,6 +18,10 @@ type Section struct {
 	// Intro: the chart calls it an intro (it's then aligned like any
 	// other section; no intro is proposed).
 	Intro bool `json:"-"`
+	// Cut: the chart has more bars than MaxBars and this section's were
+	// not all read; Count: its bars as the player counts them.
+	Cut   bool `json:"-"`
+	Count int  `json:"-"`
 }
 
 // Bar is one played bar of the chart: a chord per beat ("" none, "N.C.").
@@ -35,7 +39,11 @@ type Bar struct {
 // wrong is always the same few things.
 type Hints struct {
 	// TempoFactor 2: the tracker heard half the beats (every beat is
-	// split in two); 0.5: twice too many. 0 or 1: as detected.
+	// split in two); 0.5: twice too many; 1/3: it counts the eighths of a
+	// compound metre (12/8 heard as 3/4), three to the chart's beat. 0:
+	// as detected, unless the chart's own tempo says the recording is
+	// counted in another octave (songimport.ProposeAutoSync); 1: as
+	// detected, always.
 	TempoFactor float64 `json:"tempoFactor,omitempty"`
 	// ShiftBeats moves every downbeat by this many beats.
 	ShiftBeats int `json:"shiftBeats,omitempty"`
@@ -73,6 +81,18 @@ type Result struct {
 	// "unsure" (no number is worth showing).
 	Confidence float64 `json:"confidence"`
 	State      string  `json:"state"`
+	// WrittenBars and PlayedBars: the chart's bars and the recording's,
+	// over the sections found but the last (which runs into a fade or an
+	// ending); ChartBars: all the chart's bars, as the player counts them.
+	WrittenBars int `json:"writtenBars"`
+	PlayedBars  int `json:"playedBars"`
+	ChartBars   int `json:"chartBars"`
+	// Why the state is lower than the chords' fit alone says:
+	// "too-long" (the chart has far more bars than the recording plays,
+	// not aligned), "bars" (in all, the recording plays a very different
+	// number of bars than written), "section" (a section's is far off),
+	// "unplaced" (many of the chart's bars aren't heard). "" otherwise.
+	Why string `json:"why,omitempty"`
 	// The grid used, after hints (for drawing it and the click): its
 	// downbeats, and every beat (the Sync sheet's waveform draws them).
 	Downbeats []float64 `json:"downbeats"`
@@ -171,6 +191,18 @@ func applyHints(r *Recording, h Hints) grid {
 		return 0
 	}
 	switch {
+	case h.TempoFactor > 0 && h.TempoFactor <= 0.4:
+		// Every third beat, from the first downbeat: a bar of the
+		// recording's (3 or 6 eighths) becomes one or two of the chart's
+		// dotted-quarter beats; Align groups them in the chart's bars.
+		fd := firstDown()
+		var nb []float64
+		for i := fd % 3; i < len(g.beats); i += 3 {
+			nb = append(nb, g.beats[i])
+		}
+		g.beats, g.pos, g.act = nb, make([]int, len(nb)), nil
+		g.B = max(1, g.B/3)
+		rephase(fd / 3)
 	case h.TempoFactor >= 1.5:
 		fd := firstDown()
 		var nb []float64
@@ -368,22 +400,35 @@ func groupBars(g grid, B, phase int) grid {
 	return out
 }
 
+// tempoScale is what a hint's TempoFactor does to the tempo.
+func tempoScale(f float64) float64 {
+	switch {
+	case f > 0 && f <= 0.4:
+		return 1.0 / 3
+	case f > 0 && f <= 0.75:
+		return 0.5
+	case f >= 1.5:
+		return 2
+	}
+	return 1
+}
+
 func alignOn(r *Recording, g grid, secs []Section, h Hints) *Result {
 	res := &Result{TimeSig: r.TimeSig, TimeSigConf: r.TimeSigConf, BeatsPerBar: g.B, cost: math.Inf(1), TempoMin: r.TempoMin, TempoMax: r.TempoMax, BarPoints: []BarPoint{}, ChordFixes: []ChordFix{}}
-	res.Tempo = r.Tempo
-	if h.TempoFactor >= 1.5 {
-		res.Tempo, res.TempoMin, res.TempoMax = r.Tempo*2, r.TempoMin*2, r.TempoMax*2
-	} else if h.TempoFactor > 0 && h.TempoFactor <= 0.75 {
-		res.Tempo, res.TempoMin, res.TempoMax = r.Tempo/2, r.TempoMin/2, r.TempoMax/2
-	}
-	res.Tempo = round2(res.Tempo)
-	res.TempoSteady = r.TempoCV > 0 && r.TempoCV < 0.04
+	k := tempoScale(h.TempoFactor)
+	res.Tempo, res.TempoMin, res.TempoMax = round2(r.Tempo*k), round2(r.TempoMin*k), round2(r.TempoMax*k)
 	for i, p := range g.pos {
 		if p == 1 {
 			res.Downbeats = append(res.Downbeats, g.beats[i])
 		}
 	}
+	// Steady: the beat period hardly moves (a drum machine's or a Guitar
+	// Pro render's doesn't at all), over enough bars to tell.
+	res.TempoSteady = r.TempoCV >= 0 && r.TempoCV < 0.04 && len(res.Downbeats) >= 8
 	res.Beats = g.beats
+	for _, s := range secs {
+		res.ChartBars += s.count()
+	}
 	M := len(g.beats) - 1
 	if M < 4 {
 		res.State = "unsure"
@@ -409,6 +454,17 @@ func alignOn(r *Recording, g grid, secs []Section, h Hints) *Result {
 	}
 	if len(all) == 0 {
 		res.State = "unsure"
+		return res
+	}
+	// A chart far longer than the recording (a "|:2000000", a section of
+	// 1,160 bars) isn't aligned: it costs bars × beats, on a request, and
+	// can't come out right.
+	cut := false
+	for _, s := range secs {
+		cut = cut || s.Cut
+	}
+	if cut || len(all) > 4*len(res.Downbeats)+64 {
+		res.State, res.Why = "unsure", "too-long"
 		return res
 	}
 	vectors := func(shift int) [][][13]float64 {
@@ -444,8 +500,11 @@ func alignOn(r *Recording, g grid, secs []Section, h Hints) *Result {
 	place, cost, end := dp(vectors(0), obs, g.pos, g.B, fixFirst)
 	defer func() { res.cost = cost }()
 	// A chart in another key than the recording (written for a capo, a
-	// recording a semitone off): the chords only fit transposed.
-	for s := 1; s < 12; s++ {
+	// recording a semitone off): the chords only fit transposed. The
+	// shifts tried are the two whose pitch classes, over the whole song,
+	// fit the recording's better than the chart's as written: aligning
+	// costs bars × beats, twelve times would be too dear.
+	for _, s := range keyShifts(all, heard) {
 		p2, c2, e2 := dp(vectors(s), obs, g.pos, g.B, fixFirst)
 		if c2 < 0.75*cost {
 			place, cost, end, res.Transpose = p2, c2, e2, s
@@ -508,6 +567,9 @@ func alignOn(r *Recording, g grid, secs []Section, h Hints) *Result {
 		// whose words aren't written in yet).
 		sung := s.HasLyrics || voiceShare(r.VoicePhrases, g.beats[sp[si].raw], rawEnd(si)) > 0.5
 		st := chooseDownbeat(g, sp[si].raw, sung, r.VoiceOnsets, beatLen, prevStart)
+		if st < 0 {
+			continue // no beat left after the previous section's
+		}
 		sp[si].start = st
 		prevStart = st
 	}
@@ -613,7 +675,37 @@ func alignOn(r *Recording, g grid, secs []Section, h Hints) *Result {
 	if beatConf == 0 {
 		beatConf = 0.7
 	}
-	res.Confidence = round2(fit * clamp01(beatConf/0.9) * clamp01(0.4+0.6*r.TimeSigConf))
+	conf := fit * clamp01(beatConf/0.9) * clamp01(0.4+0.6*r.TimeSigConf)
+	// The chords can fit well on the beats they're matched to while the
+	// chart as a whole doesn't: most of its bars not heard, or far more
+	// or fewer bars written than played.
+	placed := 0
+	for _, p := range place {
+		if p.d > 0 {
+			placed++
+		}
+	}
+	why := ""
+	if share := float64(placed) / float64(len(place)); share < 0.7 {
+		conf *= share / 0.7
+		why = "unplaced"
+	}
+	offSection := false
+	for _, s := range res.Sections {
+		if s.Start < 0 || s.Last {
+			continue
+		}
+		res.WrittenBars += s.Written
+		res.PlayedBars += s.Played
+		offSection = offSection || s.Played > 2*s.Written+8 || s.Written > 2*s.Played+8
+	}
+	if res.WrittenBars > 0 && res.PlayedBars > 0 {
+		if f := clamp01(1.5 - math.Abs(math.Log2(float64(res.PlayedBars)/float64(res.WrittenBars)))); f < 1 {
+			conf *= f
+			why = "bars"
+		}
+	}
+	res.Confidence = round2(conf)
 	switch {
 	case res.Confidence >= 0.7:
 		res.State = "good"
@@ -622,7 +714,76 @@ func alignOn(r *Recording, g grid, secs []Section, h Hints) *Result {
 	default:
 		res.State = "unsure"
 	}
+	if offSection && res.State == "good" {
+		res.State, why = "check", "section"
+	}
+	// Longer than the recording by half again: it can't be laid on it.
+	if barLen := 60 / math.Max(1, res.Tempo) * float64(g.B); r.Duration > 0 && float64(res.ChartBars)*barLen > 1.5*r.Duration {
+		res.State, why = "unsure", "too-long"
+	}
+	if res.State != "good" {
+		res.Why = why
+	}
 	return res
+}
+
+// keyShifts are the transpositions worth aligning the chart at: the two
+// whose pitch classes, summed over every beat, fit what's heard better
+// than the chart's as written.
+func keyShifts(all []flatBar, heard []Chord) []int {
+	var chart, rec [12]float64
+	add := func(p *[12]float64, c Chord) {
+		if c.NC {
+			return
+		}
+		for i := 0; i < 12; i++ {
+			if c.PCs&(1<<uint(i)) != 0 {
+				p[i]++
+			}
+		}
+	}
+	for _, f := range all {
+		for _, sym := range f.bar.Beats {
+			if c, ok := ParseSymbol(sym); ok {
+				add(&chart, c)
+			}
+		}
+	}
+	for _, c := range heard {
+		add(&rec, c)
+	}
+	fit := func(s int) float64 {
+		v := 0.0
+		for i := 0; i < 12; i++ {
+			v += chart[i] * rec[(i+s)%12]
+		}
+		return v
+	}
+	base := fit(0)
+	type cand struct {
+		s int
+		v float64
+	}
+	var cs []cand
+	for s := 1; s < 12; s++ {
+		if v := fit(s); v > base {
+			cs = append(cs, cand{s, v})
+		}
+	}
+	sort.Slice(cs, func(i, j int) bool { return cs[i].v > cs[j].v })
+	var out []int
+	for i := 0; i < len(cs) && i < 2; i++ {
+		out = append(out, cs[i].s)
+	}
+	return out
+}
+
+// count is the section's bars as the player counts them.
+func (s Section) count() int {
+	if s.Count > 0 {
+		return s.Count
+	}
+	return len(s.Bars)
 }
 
 func (g grid) isDown(j int) bool { return j >= 0 && j < len(g.pos) && g.pos[j] == 1 }
@@ -680,7 +841,10 @@ func chooseDownbeat(g grid, raw int, sung bool, onsets []float64, beatLen float6
 		if raw > after {
 			return raw
 		}
-		return after + 1
+		if after+1 < len(g.beats)-1 {
+			return after + 1
+		}
+		return -1 // the previous section took the last beat
 	}
 	if !sung || len(onsets) == 0 {
 		return valid[0]

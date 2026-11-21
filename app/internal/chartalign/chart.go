@@ -34,17 +34,33 @@ func BeatsOf(sig string) int {
 	return num
 }
 
+// MaxBars is the most bars of a chart that are laid on a recording: a
+// song is a few hundred. Past it (a "|:2000000" typed in, a "times:
+// 100000"), the chart isn't read further and the alignment says it's too
+// long rather than unrolling it.
+const MaxBars = 2000
+
 // Chart reads the song's sections as they're played: every bar in order
-// (repeats and endings unrolled, "times:" applied, a bare section given
-// the bars of the earlier one of the same name), a chord per beat. The
-// bars of each section number from info's StartBar, as in the player.
+// (repeats and endings unrolled as the song's bar count reads them,
+// song.PlayOrder; "times:" applied; a bare section given the bars of the
+// earlier one of the same name), a chord per beat. The bars of each
+// section number from info's StartBar, as in the player. No more than
+// MaxBars bars are read in all: a section cut short says so (Cut).
 func Chart(sg *song.Song, info []SectionInfo) []Section {
 	global := BeatsOf(orDefault(sg.Get("time"), "4/4"))
 	var out []Section
+	budget := MaxBars
 	for _, in := range info {
 		if in.Index < 0 || in.Index >= len(sg.Sections) {
 			continue
 		}
+		// The bars this section may take: the player's count, within what's
+		// left of MaxBars.
+		want := in.BarCount
+		if want <= 0 {
+			want = MaxBars
+		}
+		limit := min(want, budget)
 		sec := sg.Sections[in.Index]
 		def := in.Index
 		if len(sec.Measures) == 0 {
@@ -71,7 +87,10 @@ func Chart(sg *song.Song, info []SectionInfo) []Section {
 				// to: the changes of the nearest grid of that length.
 				for j := in.Index - 1; j >= 0; j-- {
 					d := sg.Sections[j]
-					if len(d.Measures) > 0 && len(unroll(d.Measures, j, global))*max(1, sec.Times) == in.BarCount {
+					if len(d.Measures) == 0 {
+						continue
+					}
+					if len(unroll(d.Measures, j, global, in.BarCount+1))*max(1, sec.Times) == in.BarCount {
 						def = j
 						break
 					}
@@ -86,21 +105,18 @@ func Chart(sg *song.Song, info []SectionInfo) []Section {
 				}
 			}
 		}
-		s := Section{Index: in.Index, Label: in.Label, StartBar: in.StartBar, HasLyrics: in.HasLyrics,
+		s := Section{Index: in.Index, Label: in.Label, StartBar: in.StartBar, HasLyrics: in.HasLyrics, Count: max(0, in.BarCount),
 			Intro: strings.Contains(strings.ToLower(sec.Label), "intro")}
-		if def >= 0 {
+		if def >= 0 && limit > 0 {
 			d := sg.Sections[def]
 			B := global
 			if d.Time != "" {
 				B = BeatsOf(d.Time)
 			}
-			once := unroll(d.Measures, def, B)
-			times := sec.Times
-			if times < 1 {
-				times = 1
-			}
-			for t := 0; t < times; t++ {
-				s.Bars = append(s.Bars, once...)
+			once := unroll(d.Measures, def, B, limit)
+			// "times:" plays it again, as far as the limit.
+			for t := 0; t < max(1, sec.Times) && len(once) > 0 && len(s.Bars) < limit; t++ {
+				s.Bars = append(s.Bars, once[:min(len(once), limit-len(s.Bars))]...)
 			}
 		}
 		// The player's count wins: past it, bar numbers would be wrong;
@@ -109,10 +125,15 @@ func Chart(sg *song.Song, info []SectionInfo) []Section {
 			if len(s.Bars) > in.BarCount {
 				s.Bars = s.Bars[:in.BarCount]
 			}
-			for len(s.Bars) < in.BarCount {
+			for len(s.Bars) < limit {
 				s.Bars = append(s.Bars, Bar{Beats: make([]string, global), DefSection: -1, Measure: -1})
 			}
 		}
+		if len(s.Bars) > limit {
+			s.Bars = s.Bars[:limit]
+		}
+		s.Cut = (in.BarCount > 0 && in.BarCount > limit) || (in.BarCount <= 0 && limit > 0 && len(s.Bars) >= limit)
+		budget -= len(s.Bars)
 		out = append(out, s)
 	}
 	return out
@@ -125,23 +146,14 @@ func orDefault(s, d string) string {
 	return s
 }
 
-// unroll plays a grid's measures: repeats, their counts and endings,
-// "%" and "%%".
-func unroll(ms []song.Measure, def, B int) []Bar {
-	var out []Bar
-	open, pass, total := -1, 1, 2
-	for i := 0; i < len(ms); {
+// unroll plays a grid's measures, at most limit bars: repeats, their
+// counts and endings in song.PlayOrder's order, "%" and "%%" the bars
+// played just before.
+func unroll(ms []song.Measure, def, B, limit int) []Bar {
+	order := song.PlayOrder(ms, limit)
+	out := make([]Bar, 0, len(order))
+	for _, i := range order {
 		m := ms[i]
-		if m.Open && open != i {
-			open, pass, total = i, 1, m.RepeatCount
-			if total <= 0 {
-				total = 2
-			}
-		}
-		if m.Volta != "" && !voltaHas(m.Volta, pass) {
-			i++
-			continue
-		}
 		switch {
 		case len(m.Tokens) == 1 && m.Tokens[0] == "%" && len(out) > 0:
 			out = append(out, out[len(out)-1])
@@ -155,23 +167,11 @@ func unroll(ms []song.Measure, def, B int) []Bar {
 			beats, slots := expand(m.Tokens, bb)
 			out = append(out, Bar{Beats: beats, Slots: slots, DefSection: def, Measure: i})
 		}
-		if m.Close && open >= 0 && pass < total {
-			pass++
-			i = open
-			continue
-		}
-		i++
+	}
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
 	}
 	return out
-}
-
-func voltaHas(v string, pass int) bool {
-	for _, f := range strings.FieldsFunc(v, func(r rune) bool { return r == ',' || r == '.' || r == ' ' || r == '-' }) {
-		if n, err := strconv.Atoi(f); err == nil && n == pass {
-			return true
-		}
-	}
-	return false
 }
 
 // expand gives a measure's chord on each beat and the token it comes
