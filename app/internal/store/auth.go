@@ -688,7 +688,9 @@ type ShellPersonRow struct {
 	Memberships     []PersonalInviteMembership
 	OpenInviteToken string    // "" if no still-valid invite exists
 	OpenInviteUntil time.Time // when OpenInviteToken expires (zero without one)
-	CreatedByName   string
+	// OpenInviteExpiresAt is the same expiry, nil without one.
+	OpenInviteExpiresAt *time.Time
+	CreatedByName       string
 }
 
 // ListShellPeople lists every not-yet-claimed shell person on the
@@ -760,6 +762,10 @@ func (st *Store) listShellPeople(ctx context.Context, memberOfSQL string) ([]She
 		}
 		out[i].OpenInviteToken = token.String
 		out[i].OpenInviteUntil = until.Time
+		if until.Valid {
+			t := until.Time
+			out[i].OpenInviteExpiresAt = &t
+		}
 		out[i].CreatedByName = createdByName.String
 	}
 	return out, nil

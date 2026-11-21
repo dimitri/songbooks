@@ -6824,6 +6824,10 @@ body.branded .space-id .space-switcher-caret { color: inherit; opacity: 0.6; }
 .admin-section-title { font-size: 1.35rem; margin: 0; }
 .admin-subtitle { margin: 0.5rem 0 0; font-size: 1.05rem; }
 .admin-section-back { display: none; }
+/* Under a section's title every card is headed alike: the Look & feel
+   card's h2 (a partial shared with bands) looks like the others' h3, not
+   like a second section title in the community's display font. */
+.admin-section .card > h2 { font-family: inherit; font-size: 1.1rem; letter-spacing: normal; text-transform: none; }
 .admin-section > .hint { margin-top: -0.6rem; max-width: 46rem; }
 .roles-table td:not(:first-child), .roles-table th:not(:first-child) { text-align: center; }
 .roles-table th { font-size: 0.8rem; vertical-align: bottom; }
@@ -6833,6 +6837,56 @@ body.branded .space-id .space-switcher-caret { color: inherit; opacity: 0.6; }
   .roles-table tbody tr + tr td { border-top: 1px solid var(--border); }
 }
 .roles-table .role-name-input { width: 12rem; }
+/* The admin page's Members section: a summary card of the Members page,
+   then the pending invites (people invited by name, the open links) as
+   rows of the band roster's list (.roster-list, .roster-row) with the
+   Members page's avatar and role chip (.member-avatar, .member-role):
+   the name and its chip, a muted line of who and when, the buttons on
+   the right; on a phone the buttons wrap under, a full row of 44px
+   targets. */
+.members-summary { display: flex; flex-direction: column; gap: 1rem; }
+.members-summary-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; }
+.members-summary-text { flex: 1 1 14rem; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.members-summary-text strong { font-size: 1.05rem; }
+.members-summary-text .hint { margin: 0; }
+.members-summary-head .chip-link { flex: none; }
+.member-faces { display: flex; flex: none; padding-left: 0.4rem; }
+.member-faces .member-avatar { width: 2.3rem; height: 2.3rem; font-size: 0.78rem; margin-left: -0.4rem; box-shadow: 0 0 0 2px var(--bg-raised); }
+.members-summary-setting { max-width: none; padding-top: 1rem; border-top: 1px solid var(--border); }
+.members-summary-setting > * { max-width: 36rem; }
+.pending-invites { display: flex; flex-direction: column; gap: 1.25rem; max-width: 46rem; }
+.pending-invites-head .admin-subtitle { margin: 0; }
+.pending-invites-head .hint { margin: 0.25rem 0 0; }
+.invite-group { display: flex; flex-direction: column; gap: 0.5rem; }
+.invite-group-title { margin: 0; display: flex; align-items: center; gap: 0.45rem; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); }
+.invite-group-title .count { min-width: 1.5rem; padding: 0.05rem 0.45rem; border-radius: 999px; background: var(--bg-sunken); color: var(--fg-muted); font-size: 0.74rem; text-align: center; letter-spacing: 0; }
+.invite-list { list-style: none; margin: 0; padding: 0; }
+.invite-list[hidden] { display: none; }
+/* The buttons wrap under the name when the column is too narrow for both
+   (a tablet, a long name), staying on the right. */
+.invite-row { flex-wrap: wrap; gap: 0.6rem 0.85rem; padding: 0.7rem 1rem; }
+.invite-row .member-avatar, .invite-icon { width: 2.4rem; height: 2.4rem; }
+.invite-icon { flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--bg-sunken); color: var(--accent-ink); }
+.invite-icon .icon { width: 1.15rem; height: 1.15rem; }
+.invite-main { flex: 1 1 12rem; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.invite-name { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.5rem; overflow-wrap: anywhere; }
+.invite-name strong { font-weight: 600; }
+.invite-name .member-role[hidden] { display: none; }
+/* One fact a line: side by side, a wrapped one would start a line with
+   its "·". */
+.invite-meta { margin: 0; display: flex; flex-direction: column; font-size: 0.82rem; color: var(--fg-muted); }
+.invite-meta[hidden] { display: none; }
+.invite-actions { flex: none; margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.4rem; }
+.invite-actions:empty { display: none; }
+.invite-actions button { min-height: 2.25rem; padding: 0.3rem 0.75rem; font-size: 0.85rem; white-space: nowrap; }
+.invite-empty { margin: 0; padding: 0.85rem 1rem; border: 1px dashed var(--border); border-radius: var(--radius); color: var(--fg-muted); font-size: 0.88rem; }
+.invite-empty[hidden], .invite-group > .form-status:empty { display: none; }
+@media (max-width: 720px) {
+  .invite-row { align-items: flex-start; padding: 0.8rem 0.9rem; }
+  .invite-actions { flex: 1 1 100%; margin-left: 0; justify-content: stretch; }
+  .invite-actions button { flex: 1 1 0; min-height: 2.75rem; padding: 0.4rem 0.5rem; }
+  .members-summary-head .chip-link { flex: 1 1 100%; justify-content: center; min-height: 2.75rem; }
+}
 @media (max-width: 720px) {
   .admin-layout { grid-template-columns: minmax(0, 1fr); margin-top: 0.75rem; }
   .admin-nav { position: static; }
@@ -6851,6 +6905,11 @@ body.branded .space-id .space-switcher-caret { color: inherit; opacity: 0.6; }
   .roles-table td:not(:first-child) { display: flex; align-items: center; justify-content: space-between; gap: 1rem; text-align: left; min-height: 2.5rem; }
   .roles-table td:not(:first-child)::before { margin: 0; font-weight: 500; font-size: 0.9rem; color: var(--fg); }
   .roles-table td:last-child:empty { display: none; }
+  /* The role's own name heads its block: no "Role" label over it. */
+  .roles-table td:first-child::before { display: none; }
+  .roles-table td:first-child { font-size: 1.05rem; padding-bottom: 0.3rem; }
+  /* Its rows line up with the New role card's content under it. */
+  table.card.roles-table tr { padding-left: 1.5rem; padding-right: 1.5rem; }
 }
 
 /* Where the admin page's songbook and event tools went: a community's

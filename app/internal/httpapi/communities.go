@@ -684,6 +684,51 @@ func (s *Server) handleRevokeSongbookAccess(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]bool{"revoked": true})
 }
 
+// The admin page's Members section: a summary of who's in (a few faces,
+// the count), then the pending invites, one row each, in the Members
+// page's language (community_members.html): initials, the name, a role
+// chip and a muted line of who, when and what's next.
+
+// communityMemberFace is one of the few faces on the Members summary.
+type communityMemberFace struct {
+	Name, Initials, PictureURL string
+}
+
+// pendingInvitee is someone invited by name who hasn't made their
+// account yet (a placeholder, store.ShellPersonRow), with their role in
+// this community: never their internal "pending-…" username.
+type pendingInvitee struct {
+	store.ShellPersonRow
+	Initials  string
+	Role      string // the role's name, as the API takes it
+	RoleKey   string // "staff", "member", "guest" or "" for a custom role
+	RoleLabel string // see communityRoleLabel
+	// DateLayout is for the day the invite was made: no year when it's
+	// this year's.
+	DateLayout string
+}
+
+// openInviteLink is one of the community's open links: a role's link, or
+// a link with names (Named) still waiting for some of them.
+type openInviteLink struct {
+	store.GroupInviteView
+	Named      bool
+	Role       string
+	RoleKey    string
+	RoleLabel  string
+	DateLayout string
+	Joined     []string // who joined with it
+	Waiting    []string // the names it's still waiting for
+}
+
+// shortDateLayout is "5 Nov" for a date this year, "5 Nov 2025" otherwise.
+func shortDateLayout(t time.Time) string {
+	if t.Year() == time.Now().Year() {
+		return "2 Jan"
+	}
+	return "2 Jan 2006"
+}
+
 // handleCommunityAdminPage is the staff page for running the community
 // itself: its name and look, its members and their roles, how people
 // join, and the community-wide options. Songbooks are managed on the
@@ -712,7 +757,7 @@ func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request
 			current++
 		}
 	}
-	shellPeople, err := s.store.ListShellPeopleForCommunity(r.Context(), communityID)
+	shells, err := s.store.ListShellPeopleForCommunity(r.Context(), communityID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -721,6 +766,40 @@ func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	coaching := community.IsCoaching()
+	// Each role's key and label (communityRoleLabel), by name: the chips
+	// on the pending invites, and the labels the page's scripts give a
+	// link they make.
+	roleKey, roleLabels := map[string]string{}, map[string]string{}
+	for _, role := range roles {
+		roleKey[role.Name] = role.BuiltinKey
+		roleLabels[role.Name] = communityRoleLabel(coaching, role.BuiltinKey, role.Name)
+	}
+	shellPeople := make([]pendingInvitee, 0, len(shells))
+	for _, sp := range shells {
+		v := pendingInvitee{ShellPersonRow: sp, Initials: personInitials(sp.DisplayName), DateLayout: shortDateLayout(sp.CreatedAt)}
+		for _, m := range sp.Memberships {
+			if m.Kind == "community" && m.ID == communityID {
+				v.Role, v.RoleKey = m.Status, roleKey[m.Status]
+				v.RoleLabel = communityRoleLabel(coaching, v.RoleKey, v.Role)
+			}
+		}
+		shellPeople = append(shellPeople, v)
+	}
+	// A few faces for the Members summary: people who have joined,
+	// staff first (the roster's order).
+	roster, err := s.store.ListCommunityRoster(r.Context(), communityID, false)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var faces []communityMemberFace
+	for _, e := range roster {
+		if e.IsShell || !e.IsCurrent() || len(faces) == 5 {
+			continue
+		}
+		faces = append(faces, communityMemberFace{Name: e.DisplayName, Initials: personInitials(e.DisplayName), PictureURL: e.PictureURL})
 	}
 	locale, _ := s.store.CommunityLocale(r.Context(), communityID) // "" automatic
 	membersVisibility, err := s.store.CommunityMembersVisibility(r.Context(), communityID)
@@ -744,7 +823,7 @@ func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request
 			return
 		}
 	}
-	var openLinks []store.GroupInviteView
+	var openLinks []openInviteLink
 	if canManageMembers {
 		invites, err := s.store.ListGroupInvitesForTarget(r.Context(), "community", communityID)
 		if err != nil {
@@ -752,15 +831,30 @@ func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request
 			return
 		}
 		for _, gi := range invites {
-			if gi.ClosedAt == nil {
-				openLinks = append(openLinks, gi)
+			if gi.ClosedAt != nil {
+				continue
 			}
+			l := openInviteLink{GroupInviteView: gi, Role: gi.DefaultStatus, DateLayout: shortDateLayout(gi.CreatedAt)}
+			if l.Role == "" {
+				l.Role = "member"
+			}
+			l.RoleKey = roleKey[l.Role]
+			l.RoleLabel = communityRoleLabel(coaching, l.RoleKey, l.Role)
+			for _, slot := range gi.Slots {
+				if slot.ClaimedByPersonID != nil {
+					l.Joined = append(l.Joined, slot.ClaimedByName)
+				} else {
+					l.Waiting = append(l.Waiting, slot.DisplayName)
+				}
+			}
+			l.Named = len(l.Waiting) > 0
+			openLinks = append(openLinks, l)
 		}
 	}
 	s.render(w, "community_admin", map[string]any{
 		"Me": person, "Person": person, "Community": community, "IsStaff": true,
-		"Members": members, "CurrentMembers": current, "ShellPeople": shellPeople,
-		"Roles": roles, "AllPrivileges": store.AllCommunityPrivileges,
+		"Members": members, "CurrentMembers": current, "ShellPeople": shellPeople, "MemberFaces": faces,
+		"Roles": roles, "AllPrivileges": store.AllCommunityPrivileges, "RoleLabels": roleLabels,
 		"Locale": locale, "MembersVisibility": membersVisibility,
 		"CanManageSettings": access.ManageSettings,
 		"CanManageMembers":  canManageMembers, "OpenLinks": openLinks,
