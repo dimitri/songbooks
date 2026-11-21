@@ -199,6 +199,13 @@ func (st *Store) SetAudioMarker(ctx context.Context, songAudioID int64, sectionI
 // is kept in song_audio_sync_history (the last syncHistoryKeep of them)
 // when anything changed. savedBy 0 is unknown.
 func (st *Store) ReplaceAudioMarkers(ctx context.Context, songAudioID int64, markers []AudioMarker, savedBy int64) error {
+	return st.ReplaceSync(ctx, songAudioID, markers, savedBy, nil)
+}
+
+// ReplaceSync is ReplaceAudioMarkers and, when points isn't nil, the
+// recording's per-bar points replaced by *points (none: dropped), in the
+// same transaction: a sync's starts and its bars are never half saved.
+func (st *Store) ReplaceSync(ctx context.Context, songAudioID int64, markers []AudioMarker, savedBy int64, points *[]GPBarSyncPoint) error {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return err
@@ -208,6 +215,11 @@ func (st *Store) ReplaceAudioMarkers(ctx context.Context, songAudioID int64, mar
 	// mustn't interleave their rows.
 	if _, err := tx.Exec(ctx, `SELECT 1 FROM song_audio WHERE id = $1 FOR UPDATE`, songAudioID); err != nil {
 		return err
+	}
+	if points != nil {
+		if err := setBarSyncPointsTx(ctx, tx, songAudioID, *points); err != nil {
+			return err
+		}
 	}
 	var old string
 	if err := tx.QueryRow(ctx, `
@@ -346,6 +358,13 @@ func (st *Store) SetGPBarSyncPoints(ctx context.Context, songAudioID int64, poin
 		return err
 	}
 	defer tx.Rollback(ctx)
+	if err := setBarSyncPointsTx(ctx, tx, songAudioID, points); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func setBarSyncPointsTx(ctx context.Context, tx pgx.Tx, songAudioID int64, points []GPBarSyncPoint) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM gp_bar_sync_point WHERE song_audio_id = $1`, songAudioID); err != nil {
 		return err
 	}
@@ -355,5 +374,5 @@ func (st *Store) SetGPBarSyncPoints(ctx context.Context, songAudioID int64, poin
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }

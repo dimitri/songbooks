@@ -119,11 +119,8 @@ func (s *Server) handleGetSongAudioMeta(w http.ResponseWriter, r *http.Request) 
 			cm.Markers = append(cm.Markers, jsonAudioMark{SectionIndex: m.SectionIndex, TimeSeconds: m.TimeSeconds, Origin: m.Origin})
 			cm.SyncOrigin = mergeOrigin(cm.SyncOrigin, m.Origin)
 		}
-		if as, err := s.store.GetAnalysis(r.Context(), a.ID); err == nil {
-			cm.AnalysisStatus = as.Status
-			if as.Analysis != nil {
-				cm.AnalysisStatus = "done"
-			}
+		if as, err := s.store.GetAnalysisState(r.Context(), a.ID); err == nil {
+			cm.AnalysisStatus = as
 		}
 		// Every bar's time: a Guitar Pro file's own, or the recording's
 		// analysis accepted (any category).
@@ -483,15 +480,35 @@ func (s *Server) handlePutAudioMarkers(w http.ResponseWriter, r *http.Request) {
 		seen[m.SectionIndex] = true
 		markers = append(markers, store.AudioMarker{SectionIndex: m.SectionIndex, TimeSeconds: m.TimeSeconds, Origin: m.Origin})
 	}
-	if err := s.store.ReplaceAudioMarkers(r.Context(), meta.ID, markers, actorID(r)); err != nil {
+	// The sections play in their order: a later one starting before an
+	// earlier one runs the bar grid backwards.
+	if !markersInOrder(markers) {
+		httpError(w, http.StatusBadRequest, "the sections' starts are out of order")
+		return
+	}
+	points, err := s.reconcileBarPoints(r, meta, markers)
+	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if err := s.reconcileBarPoints(r, meta, markers); err != nil {
+	if err := s.store.ReplaceSync(r.Context(), meta.ID, markers, actorID(r), points); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "count": len(markers)})
+}
+
+// markersInOrder: by section, the starts never go back in time (two at
+// the same time are allowed: a section with no bars).
+func markersInOrder(markers []store.AudioMarker) bool {
+	ms := slices.Clone(markers)
+	slices.SortFunc(ms, func(a, b store.AudioMarker) int { return a.SectionIndex - b.SectionIndex })
+	for i := 1; i < len(ms); i++ {
+		if ms[i].TimeSeconds < ms[i-1].TimeSeconds {
+			return false
+		}
+	}
+	return true
 }
 
 // handleGetAudioMarkersHistory is GET /api/songs/{id}/audio/{category}/markers/history:

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"net/http"
+	"slices"
 	"strings"
 
 	"app/internal/chartalign"
@@ -29,6 +30,9 @@ type analysisRequest struct {
 	Sync    bool   `json:"sync"`
 	DryRun  bool   `json:"dryRun"`
 	Version string `json:"version"`
+	// Replace: with sync, the starts set by ear go too (otherwise they
+	// stay and only the others are placed).
+	Replace bool `json:"replace"`
 }
 
 type analysisResponse struct {
@@ -40,6 +44,10 @@ type analysisResponse struct {
 	Analyzer   string               `json:"analyzer,omitempty"`
 	CreatedAt  string               `json:"createdAt,omitempty"`
 	Proposal   *songimport.AutoSync `json:"proposal,omitempty"`
+	// While it waits: since when (queued or running), and how many
+	// analyses come before it.
+	Since string `json:"since,omitempty"`
+	Ahead int    `json:"ahead,omitempty"`
 }
 
 // analysisOf loads the recording and its analysis; ok false when the
@@ -77,7 +85,10 @@ func (s *Server) handlePostAudioAnalysis(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	out := analysisResponse{Status: st.Status, Error: st.Error, Analyzer: st.Analyzer}
+	out := analysisResponse{Status: st.Status, Error: st.Error, Analyzer: st.Analyzer, Ahead: st.Ahead}
+	if !st.Since.IsZero() {
+		out.Since = st.Since.UTC().Format("2006-01-02T15:04:05Z")
+	}
 	if ss, err := s.store.GetStemStatus(r.Context(), meta.ID); err == nil {
 		out.StemStatus = ss.Status
 	}
@@ -133,6 +144,12 @@ func (s *Server) handlePostAudioAnalysisApply(w http.ResponseWriter, r *http.Req
 		httpError(w, http.StatusConflict, "the recording isn't analysed yet")
 		return
 	}
+	// A Guitar Pro file has its own sync for every bar: the analysis'
+	// never replaces it.
+	if req.Sync && meta.Category == store.AudioGP {
+		httpError(w, http.StatusBadRequest, "a Guitar Pro file has its own sync for every bar")
+		return
+	}
 	title, artist, ref, body, err := s.store.VariantContent(r.Context(), meta.VariantID)
 	if err != nil {
 		httpError(w, http.StatusNotFound, err.Error())
@@ -146,52 +163,166 @@ func (s *Server) handlePostAudioAnalysisApply(w http.ResponseWriter, r *http.Req
 		writeJSON(w, http.StatusOK, map[string]any{"text": text, "changes": changes})
 		return
 	}
+	// The sync is the text's as it will be saved; an unsure alignment is
+	// never written, not even as estimates.
+	var p *songimport.AutoSync
+	if req.Sync {
+		p = songimport.ProposeAutoSync(st.Analysis, text, s.syncSectionsOf(text), req.Hints)
+		if p.State == "unsure" {
+			httpError(w, http.StatusConflict, "the recording's analysis is unsure of this chart: place the sections by ear")
+			return
+		}
+	}
 	version := req.Version
 	if text != body {
+		if req.Version == "" {
+			httpError(w, http.StatusBadRequest, "version is required to save the chart")
+			return
+		}
 		if version, err = s.store.SaveVariantByID(r.Context(), meta.VariantID, title, artist, ref, text, req.Version, actorID(r)); err != nil {
 			httpError(w, http.StatusConflict, err.Error())
 			return
 		}
 	}
-	var p *songimport.AutoSync
+	var saved []jsonAudioMark
+	kept := 0
 	if req.Sync {
-		p = songimport.ProposeAutoSync(st.Analysis, text, s.syncSectionsOf(text), req.Hints)
-		markers := make([]store.AudioMarker, 0, len(p.Markers))
-		for _, m := range p.Markers {
-			markers = append(markers, store.AudioMarker{SectionIndex: m.SectionIndex, TimeSeconds: m.TimeSeconds, Origin: store.SyncAuto})
-		}
-		if err := s.store.ReplaceAudioMarkers(r.Context(), meta.ID, markers, actorID(r)); err != nil {
+		markers, points, k, err := s.mergeAutoSync(r, meta, p, req.Replace)
+		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		points := make([]store.GPBarSyncPoint, 0, len(p.BarPoints))
-		for _, b := range p.BarPoints {
-			points = append(points, store.GPBarSyncPoint{BarIndex: b.Bar, TimeSeconds: b.Time, Origin: store.SyncAuto})
+		if err := s.store.ReplaceSync(r.Context(), meta.ID, markers, actorID(r), points); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
 		}
-		if meta.Category != store.AudioGP || len(points) > 0 {
-			if err := s.store.SetGPBarSyncPoints(r.Context(), meta.ID, points); err != nil {
-				httpError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
+		kept = k
+		saved = make([]jsonAudioMark, 0, len(markers))
+		for _, m := range markers {
+			saved = append(saved, jsonAudioMark{SectionIndex: m.SectionIndex, TimeSeconds: m.TimeSeconds, Origin: m.Origin})
 		}
 		s.localizeAuto(r, p)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"text": text, "version": version, "changes": changes, "proposal": p, "saved": text != body})
+	writeJSON(w, http.StatusOK, map[string]any{"text": text, "version": version, "changes": changes, "proposal": p, "saved": text != body, "markers": saved, "kept": kept})
+}
+
+// mergeAutoSync is the sync "Use this sync" writes: the analysis' starts
+// as estimates, except (unless replace) the starts a person set, which
+// stay — the analysis' starts out of order with them go — and the
+// analysis' every bar, unless the per-bar points are already set by
+// ear (then they stay) or a start kept disagrees with them (then the
+// starts alone place the bars). kept: how many starts set by ear stayed.
+func (s *Server) mergeAutoSync(r *http.Request, meta *store.SongAudio, p *songimport.AutoSync, replace bool) ([]store.AudioMarker, *[]store.GPBarSyncPoint, int, error) {
+	if replace {
+		m, pts, k := mergeSync(nil, nil, p)
+		return m, pts, k, nil
+	}
+	old, err := s.store.ListAudioMarkers(r.Context(), meta.ID)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	pts, err := s.store.ListGPBarSyncPoints(r.Context(), meta.ID)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	m, out, k := mergeSync(old, pts, p)
+	return m, out, k, nil
+}
+
+// mergeSync is mergeAutoSync on the recording's sync as it is (old
+// markers and points).
+func mergeSync(old []store.AudioMarker, oldPoints []store.GPBarSyncPoint, p *songimport.AutoSync) ([]store.AudioMarker, *[]store.GPBarSyncPoint, int) {
+	set := map[int]store.AudioMarker{}
+	pointsSet := false
+	for _, m := range old {
+		if m.Origin == store.SyncSet {
+			set[m.SectionIndex] = m
+		}
+	}
+	for _, pt := range oldPoints {
+		pointsSet = pointsSet || pt.Origin == store.SyncSet
+	}
+	proposed := map[int]float64{}
+	for _, m := range p.Markers {
+		proposed[m.SectionIndex] = m.TimeSeconds
+	}
+	var idx []int
+	for i := range set {
+		idx = append(idx, i)
+	}
+	for i := range proposed {
+		if _, ok := set[i]; !ok {
+			idx = append(idx, i)
+		}
+	}
+	slices.Sort(idx)
+	var markers []store.AudioMarker
+	agree := true
+	for _, i := range idx {
+		if m, ok := set[i]; ok {
+			markers = append(markers, m)
+			if t, ok := proposed[i]; ok && math.Abs(t-m.TimeSeconds) > 0.06 {
+				agree = false
+			}
+			continue
+		}
+		markers = append(markers, store.AudioMarker{SectionIndex: i, TimeSeconds: proposed[i], Origin: store.SyncAuto})
+	}
+	// An estimate between two starts set by ear that doesn't fit between
+	// them goes.
+	var out []store.AudioMarker
+	for k, m := range markers {
+		if m.Origin != store.SyncSet {
+			prev, next := math.Inf(-1), math.Inf(1)
+			for j := k - 1; j >= 0; j-- {
+				if markers[j].Origin == store.SyncSet {
+					prev = markers[j].TimeSeconds
+					break
+				}
+			}
+			for j := k + 1; j < len(markers); j++ {
+				if markers[j].Origin == store.SyncSet {
+					next = markers[j].TimeSeconds
+					break
+				}
+			}
+			if m.TimeSeconds <= prev || m.TimeSeconds >= next {
+				continue
+			}
+		}
+		out = append(out, m)
+	}
+	switch {
+	case pointsSet:
+		return out, nil, len(set)
+	case !agree:
+		none := []store.GPBarSyncPoint{}
+		return out, &none, len(set)
+	}
+	points := make([]store.GPBarSyncPoint, 0, len(p.BarPoints))
+	for _, b := range p.BarPoints {
+		points = append(points, store.GPBarSyncPoint{BarIndex: b.Bar, TimeSeconds: b.Time, Origin: store.SyncAuto})
+	}
+	return out, &points, len(set)
 }
 
 // reconcileBarPoints keeps a recording's per-bar points (which the
 // player follows before its markers) in step with markers saved from the
 // Sync sheet: estimated points the new markers contradict are dropped
-// (the markers win), and markers all confirmed by ear at the points'
-// own times confirm the points too. A Guitar Pro file's own sync is
-// never touched.
-func (s *Server) reconcileBarPoints(r *http.Request, meta *store.SongAudio, markers []store.AudioMarker) error {
+// (the markers win), markers all confirmed by ear at the points' own
+// times confirm the points too, and a sync cleared of every start drops
+// them. It returns the points to save with the markers (nil: as they
+// are). A Guitar Pro file's own sync is never touched.
+func (s *Server) reconcileBarPoints(r *http.Request, meta *store.SongAudio, markers []store.AudioMarker) (*[]store.GPBarSyncPoint, error) {
 	if meta.Category == store.AudioGP {
-		return nil
+		return nil, nil
 	}
 	points, err := s.store.ListGPBarSyncPoints(r.Context(), meta.ID)
 	if err != nil || len(points) == 0 {
-		return err
+		return nil, err
+	}
+	if len(markers) == 0 {
+		return reconcile(points, nil, nil, nil), nil
 	}
 	// A marker agrees with the points when it's on its own section's
 	// first bar, or where the analysis puts that section (the voice can
@@ -199,7 +330,7 @@ func (s *Server) reconcileBarPoints(r *http.Request, meta *store.SongAudio, mark
 	// a person's correction, and the markers win.
 	_, _, _, body, err := s.store.VariantContent(r.Context(), meta.VariantID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	sections := s.syncSectionsOf(body)
 	start := map[int]int{}
@@ -211,6 +342,21 @@ func (s *Server) reconcileBarPoints(r *http.Request, meta *store.SongAudio, mark
 		for _, m := range songimport.ProposeAutoSync(st.Analysis, body, sections, chartalign.Hints{}).Markers {
 			proposed[m.SectionIndex] = m.TimeSeconds
 		}
+	}
+	return reconcile(points, markers, start, proposed), nil
+}
+
+// reconcile is reconcileBarPoints' decision: points as they are, the
+// markers saved, each section's first bar (start) and where the analysis
+// puts each section (proposed).
+func reconcile(points []store.GPBarSyncPoint, markers []store.AudioMarker, start map[int]int, proposed map[int]float64) *[]store.GPBarSyncPoint {
+	none := []store.GPBarSyncPoint{}
+	if len(points) == 0 {
+		return nil
+	}
+	// No start left: no sync, and the bars don't stay "set" on their own.
+	if len(markers) == 0 {
+		return &none
 	}
 	at := map[int]float64{}
 	auto := false
@@ -228,12 +374,13 @@ func (s *Server) reconcileBarPoints(r *http.Request, meta *store.SongAudio, mark
 	}
 	switch {
 	case !agree:
-		return s.store.SetGPBarSyncPoints(r.Context(), meta.ID, nil)
+		return &none
 	case allSet && auto:
-		for i := range points {
-			points[i].Origin = store.SyncSet
+		out := slices.Clone(points)
+		for i := range out {
+			out[i].Origin = store.SyncSet
 		}
-		return s.store.SetGPBarSyncPoints(r.Context(), meta.ID, points)
+		return &out
 	}
 	return nil
 }
