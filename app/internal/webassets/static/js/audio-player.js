@@ -2752,17 +2752,25 @@ window.songbooksDecodable = function (buf) {
   // extends the cycle to that bar. Chord-grid bars and tab rows alike.
   const sheetEl = $('sheet');
   function chartBarAt(e) {
-    const el = e.target && e.target.closest ? e.target.closest('.bar[data-global-bar]') : null;
-    if (el && el.offsetParent) return Number(el.dataset.globalBar);
+    const el = e.target && e.target.closest ? e.target.closest('.bar[data-global-bar], .jz-bar[data-global-bar]') : null;
+    if (el && el.offsetParent) return playedBarOf(el);
     return window.songbooksTabBarAt ? window.songbooksTabBarAt(e.clientX, e.clientY) : null;
+  }
+  // A Jazz chart bar is read on every pass through a repeat or a D.S.
+  // (data-played): a click means the pass nearest where the music is.
+  function playedBarOf(el) {
+    if (!el.dataset.played) return Number(el.dataset.globalBar);
+    const all = el.dataset.played.split(' ').map(Number);
+    const cur = hasBars() ? barAtTime(audio.currentTime) || 0 : 0;
+    return all.reduce((best, b) => (Math.abs(b - cur) < Math.abs(best - cur) ? b : best), all[0]);
   }
   // kind: 'cycle' (the loop, kept on screen) or 'select' (a drag in progress).
   function markChartRange(from, to, kind) {
-    document.querySelectorAll(`#sheet .bar.range-${kind}`).forEach((el) => el.classList.remove(`range-${kind}`));
+    document.querySelectorAll(`#sheet .bar.range-${kind}, #sheet .jz-bar.range-${kind}`).forEach((el) => el.classList.remove(`range-${kind}`));
     if (from !== null && to > from) {
-      document.querySelectorAll('#sheet .bar[data-global-bar]').forEach((el) => {
-        const b = Number(el.dataset.globalBar);
-        if (b >= from && b < to) el.classList.add(`range-${kind}`);
+      document.querySelectorAll('#sheet .bar[data-global-bar], #sheet .jz-bar[data-global-bar]').forEach((el) => {
+        const played = el.dataset.played ? el.dataset.played.split(' ').map(Number) : [Number(el.dataset.globalBar)];
+        if (played.some((b) => b >= from && b < to)) el.classList.add(`range-${kind}`);
       });
     }
     if (window.songbooksTabMarkRange) window.songbooksTabMarkRange(from, to, kind);

@@ -1880,26 +1880,10 @@ type viewerSection struct {
 	// it: iReal's single-letter convention plus this app's real section
 	// names, rather than picking one over the other.
 	Mark string
-	// JazzSegno/JazzDSAlCoda/JazzCoda/JazzHidden drive jazz-mode-ONLY
-	// Segno/Dal Segno al Coda/Coda navigation signs (see
-	// detectSegnoRepeat) — modeled on LilyPond's own \repeat segno
-	// semantics (checked against the LilyPond Notation Reference's
-	// "Segno repeat structure" section, not approximated from the iReal
-	// Pro PDF images alone): Segno marks the jump-BACK target, D.S. al
-	// Coda marks the jump-FROM point (where a later, genuinely
-	// multi-section repeated run gets collapsed into one marker instead
-	// of being re-rendered section by section), and Coda marks where
-	// play resumes afterward. This is deliberately a DIFFERENT, bigger
-	// structure than \repeat volta — the bracket-repeat convention this
-	// app already uses (GridDuplicateOf/IsReference) for a single
-	// repeated section, which stays exactly as it is. Every other view
-	// mode ignores these fields and renders each section's own content
-	// normally; only jazz mode's CSS/template branch (data-render-
-	// mode="jazz") acts on them.
-	JazzSegno    bool
-	JazzDSAlCoda bool // this section's own content is replaced by a "D.S. al Coda" marker
-	JazzCoda     bool // a Coda (𝄌, U+1D10C) mark renders before this section
-	JazzHidden   bool // part of the collapsed repeated run (after its first section) — fully hidden in jazz mode
+	// GridFrom is the section whose grid this one plays: itself when it
+	// writes one, the earlier section a bare repeat, a "chords continue"
+	// section or an inferred Solo borrows its bars from; -1 for none.
+	GridFrom int
 }
 
 // viewerLine is one chart "system" (row) within a section's grid: its bars,
@@ -2092,41 +2076,7 @@ func groupMapCells(cells []mapCell, perLine int) []mapLine {
 //     time to play through, and the metronome needs to wait that long
 //     before moving on to the next section, not just 8.
 func realBarCount(measures []song.Measure) int {
-	n := 0
-	firstVoltaLabel := ""
-	inRepeat := false
-	repeatMult := 1
-	for _, m := range measures {
-		counts := true
-		if m.Volta != "" {
-			if firstVoltaLabel == "" {
-				firstVoltaLabel = m.Volta
-			} else if m.Volta != firstVoltaLabel {
-				counts = false
-			}
-		} else {
-			firstVoltaLabel = ""
-		}
-		if m.Open {
-			inRepeat = true
-			repeatMult = m.RepeatCount
-			if repeatMult <= 0 {
-				repeatMult = 2
-			}
-		}
-		mult := 1
-		if inRepeat {
-			mult = repeatMult
-		}
-		if counts {
-			n += mult
-		}
-		if m.Close {
-			inRepeat = false
-			repeatMult = 1
-		}
-	}
-	return n
+	return len(jzExpand(measures))
 }
 
 // simpleRepeatSpan reports whether measures is wholly one "|: ... :|"
@@ -2243,7 +2193,7 @@ func measureIRsEqual(a, b measureIR) bool {
 // splitting, and identical Open/Close/Volta repeat-barline flags; this
 // drove every "is this section the same as an earlier one" decision in
 // the app (Song Map's compact recall chip, Chords+lyrics' "same as X"
-// note, Jazz mode's repeat brackets and Segno/D.S. detection below), so
+// note, the Jazz chart's form, jazzchart.go), so
 // two sections voiced identically but typed or repeat-bracketed
 // differently used to wrongly compare unequal. beatsPerBarA/B are each
 // section's OWN beats-per-bar (its "time:" override, or the song's
@@ -2258,102 +2208,6 @@ func measuresEqual(a, b []song.Measure, beatsPerBarA, beatsPerBarB int) bool {
 		}
 	}
 	return true
-}
-
-// sectionsEqual reports whether two RAW song sections (not the built
-// viewerSection) are the same musical content, for Segno/D.S. detection.
-// Same label (the song author's own structural claim — "Verse" recurring
-// IS the author saying "this is the Verse again") and, when both wrote a
-// grid of their own, semantically equal measures (measuresEqual). A
-// section with no grid (an explicit repeat marker, or an empty
-// placeholder) is taken at the label's word: two same-labeled sections
-// where at least one has no grid to check content against are treated as
-// the same section recurring — the same label+emptiness inference this
-// file's IsReference/Compact detection already leans on elsewhere.
-func sectionsEqual(a, b song.Section, beatsA, beatsB int) bool {
-	if a.Label != b.Label {
-		return false
-	}
-	if len(a.Measures) > 0 && len(b.Measures) > 0 {
-		return measuresEqual(a.Measures, b.Measures, beatsA, beatsB)
-	}
-	return true
-}
-
-// segnoMatch is a detected Segno/D.S. al Coda structure: the earlier run
-// of sections [SegnoAt, SegnoAt+Len) is verbatim-repeated (sectionsEqual,
-// pairwise, in order) by the later run [DSAt, DSAt+Len).
-type segnoMatch struct {
-	SegnoAt, DSAt, Len int
-}
-
-// detectSegnoRepeat looks for the real-notation Segno/D.S. al Coda
-// pattern in a song's section ordering — modeled on LilyPond's own
-// \repeat segno (checked against the LilyPond Notation Reference's
-// "Segno repeat structure" documentation, not approximated from the
-// iReal Pro PDF images alone): Segno marks an earlier point to jump BACK
-// to, D.S. (dal segno) marks the jump-FROM point, and whatever follows
-// the repeated material is the Coda, reached after the second pass. This
-// is a genuinely different, BIGGER structure than \repeat volta (a
-// bracket repeat of ONE section, already handled by
-// GridDuplicateOf/IsReference — untouched by this function).
-//
-// Deliberately conservative:
-//   - requires a real gap between the two runs (j > i+k) — an
-//     IMMEDIATELY adjacent repeat is \repeat volta territory (the
-//     existing bracket treatment), not Segno; Segno exists specifically
-//     for a long-distance callback, not "play this twice in a row".
-//   - requires an exact, unambiguous match of at least 2 sections —
-//     returns ok=false rather than guessing at a partial/fuzzy one.
-//   - prefers the LONGEST such match, and among equal lengths the one
-//     whose later run reaches closest to the song's end, so what remains
-//     after it reads as a real Coda tail, not most of the song.
-//
-// O(n^4) worst case in the section count, which is always tiny (a real
-// song's section count is in the tens, not hundreds).
-func detectSegnoRepeat(sg *song.Song, globalBeats int) (segnoMatch, bool) {
-	n := len(sg.Sections)
-	if n < 4 { // need room for a 2-section run twice, with a gap between
-		return segnoMatch{}, false
-	}
-	beats := make([]int, n)
-	for i, sec := range sg.Sections {
-		beats[i] = sectionBeatsPerBar(sec, globalBeats)
-	}
-	var best segnoMatch
-	found := false
-	for k := n / 2; k >= 2; k-- {
-		for i := 0; i+k <= n; i++ {
-			for j := i + k + 1; j+k <= n; j++ { // j > i+k: a real gap, not back-to-back
-				match := true
-				for d := 0; d < k; d++ {
-					if !sectionsEqual(sg.Sections[i+d], sg.Sections[j+d], beats[i+d], beats[j+d]) {
-						match = false
-						break
-					}
-				}
-				if !match {
-					continue
-				}
-				cand := segnoMatch{SegnoAt: i, DSAt: j, Len: k}
-				if !found || segnoMatchBetter(cand, best, n) {
-					best, found = cand, true
-				}
-			}
-		}
-	}
-	return best, found
-}
-
-// segnoMatchBetter reports whether a is a better Segno/D.S. candidate
-// than b: longer wins outright; among equal lengths, the one whose later
-// (D.S.) run ends closer to the song's end wins, leaving a shorter, more
-// plausible Coda tail rather than most of the song past the repeat.
-func segnoMatchBetter(a, b segnoMatch, n int) bool {
-	if a.Len != b.Len {
-		return a.Len > b.Len
-	}
-	return (n - (a.DSAt + a.Len)) < (n - (b.DSAt + b.Len))
 }
 
 func buildSections(sg *song.Song) []viewerSection {
@@ -2373,7 +2227,10 @@ func buildSections(sg *song.Song) []viewerSection {
 	// once numbering is known, without re-running the comparison.
 	var dupSrc []int
 	for si, sec := range sg.Sections {
-		vs := viewerSection{Index: si, Label: sec.Label, Repeat: sec.Repeat, Notes: sec.Notes, Times: sec.Times}
+		vs := viewerSection{Index: si, Label: sec.Label, Repeat: sec.Repeat, Notes: sec.Notes, Times: sec.Times, GridFrom: -1}
+		if len(sec.Measures) > 0 {
+			vs.GridFrom = si
+		}
 		beatsPerBar := sectionBeatsPerBar(sec, globalBeats)
 		// A stated repeat count ("|:4 ...") is recorded on the OPEN
 		// measure (see song.Measure.RepeatCount's doc comment — that's
@@ -2558,16 +2415,6 @@ func buildSections(sg *song.Song) []viewerSection {
 		}
 		globalBar += sec.BarCount
 	}
-	if m, ok := detectSegnoRepeat(sg, globalBeats); ok {
-		sections[m.SegnoAt].JazzSegno = true
-		sections[m.DSAt].JazzDSAlCoda = true
-		for d := 1; d < m.Len; d++ {
-			sections[m.DSAt+d].JazzHidden = true
-		}
-		if codaAt := m.DSAt + m.Len; codaAt < len(sections) {
-			sections[codaAt].JazzCoda = true
-		}
-	}
 	return sections
 }
 
@@ -2659,6 +2506,7 @@ func annotateStructure(sections []viewerSection) {
 					}
 					sec.InferredNote = note
 					sec.SoloBars, sec.SoloOf, sec.SoloTimes = bars*times, sections[j].Label, times
+					sec.GridFrom = sections[j].GridFrom
 					// Give the solo real (placeholder) bars, not just a text
 					// note — otherwise it reads as a quick aside instead of
 					// the chunk of the song it actually is, and a long solo
@@ -2694,6 +2542,7 @@ func annotateStructure(sections []viewerSection) {
 			for j := i - 1; j >= 0; j-- {
 				if strings.EqualFold(strings.TrimSpace(sections[j].Label), label) && (len(sections[j].Measures) != 0 || len(sections[j].Lyrics) != 0) {
 					sec.IsReference = true
+					sec.GridFrom = sections[j].GridFrom
 					times := sec.Times
 					if times < 1 {
 						times = 1
@@ -2738,6 +2587,7 @@ func annotateStructure(sections []viewerSection) {
 		if len(sec.Measures) == 0 {
 			if j := nearestDefiningSection(sections, i); j >= 0 {
 				sec.Compact = true
+				sec.GridFrom = sections[j].GridFrom
 				times := sec.Times
 				if times < 1 {
 					times = 1
@@ -2816,6 +2666,20 @@ func nearestDefiningSectionLabeled(sections []viewerSection, before int, wantLab
 	return nearestDefiningSection(sections, before)
 }
 
+// transposeSpellJSON is the page's spelling table for the view-only
+// transpose (chordsym.TransposedSpellings), "" for a song with no key.
+func transposeSpellJSON(sg *song.Song) string {
+	names, keys, ok := chordsym.TransposedSpellings(sg.Get("key"), sg.Get("flats") == "yes")
+	if !ok {
+		return ""
+	}
+	b, err := json.Marshal(map[string]any{"names": names, "keys": keys})
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
 // handleSongRedirect keeps old /play and /prep links working — both modes
 // now live on one page (an Edit toggle switches between them), so there's
 // nothing separate left to route to.
@@ -2862,6 +2726,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	}
 	gp := s.loadSongGP(r.Context(), variantID)
 	sections := buildSections(withGPOnlyBars(sg, gp.Facts))
+	jazz := buildJazzChart(withGPOnlyBars(sg, gp.Facts), sections)
 	attachGPRefs(sections, sg, gp)
 	for i := range sections {
 		sections[i].ChordBars = sectionChordBars(&sections[i])
@@ -2931,12 +2796,13 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "CanCopy": canCopy, "Genre": genre,
 		"Embed": r.URL.Query().Get("embed") == "playlist",
 		"Title": orDefault(sg.Get("title"), "untitled"), "Artist": sg.Get("artist"),
-		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
+		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "SpellJSON": transposeSpellJSON(sg), "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
 		"TimeNum": num, "TimeDen": den,
 		"Capo": sg.Get("capo"), "Reference": sg.Get("reference"), "GPSource": sg.Get("gp_source"),
 		"TimeBeats":          timeSigBeats(sg.Get("time")),
 		"Sections":           sections,
 		"MapLines":           buildMapLines(sections),
+		"Jazz":               jazz,
 		"DrumMap":            drumMap,
 		"Instruments":        collectInstrumentNames(riffs),
 		"SelectedInstrument": instrument,
@@ -3408,6 +3274,7 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 	if err := webassets.TemplatesFor(s.langOf(w)).ExecuteTemplate(w, "sheet-body", map[string]any{
 		"Sections":  sections,
 		"MapLines":  buildMapLines(sections),
+		"Jazz":      buildJazzChart(sg, sections),
 		"DrumMap":   drumMap,
 		"VariantID": int64(0), // unsaved preview — no real variant to re-fetch drummer-rows against; alphatab-tab.js skips the re-fetch when this is absent/zero
 	}); err != nil {

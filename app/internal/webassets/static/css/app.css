@@ -2711,17 +2711,6 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
    bars themselves stopped being 100%/--cap-wide and switched to
    content-sized (see the jazz .bar override below). */
 .tab-only-chords-fallback { display: flex; align-items: flex-end; padding-top: 3.3em; position: relative; width: 100%; }
-/* Real chord rows (reflowStaffLines' output) get one .staff-line PER
-   visual row, each carrying its own 3.3em padding-top — originally
-   sized for a floating .chord-label, but in jazz mode (.chord-label is
-   position:static there) it's mostly unused slack that happens to
-   double as row spacing. This fallback is ONE flex-wrap container for
-   all its bars, not one element per row, so that padding-top only ever
-   applies once, above the first row — every wrapped row after it had
-   zero spacing, so taller glyphs (jazz's bold root + superscript
-   extension) visibly bled into the row below. row-gap gives every
-   wrapped row the same breathing room a real .staff-line gets. */
-#sheet[data-render-mode="jazz"] .tab-only-chords-fallback { flex-wrap: wrap; row-gap: 1.2em; }
 /* ---- One staff-drawing engine, reused everywhere a chart actually wants
    a 5-line staff (normal/chords+lyrics mode and Song Map; jazz is
    deliberately staff-less by its own real-iReal-Pro-fidelity convention,
@@ -3395,7 +3384,6 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
 .section-note {
   margin: 0.1em 0; font-size: 0.82em; font-style: italic; color: var(--fg-muted);
 }
-#sheet[data-render-mode="jazz"] .section-note { font-size: 0.8em; }
 #sheet[data-render-mode="map"] .section-notes,
 #sheet[data-render-mode="map"] .section-note { display: none; } /* an overview chart has no room for prose */
 
@@ -3466,11 +3454,9 @@ body:has(.edit-toggle.on) .follow-back { display: none; }
 }
 .chip-bars { font-size: 1.9rem; font-weight: 800; line-height: 1.15; margin-top: 0.15rem; }
 
-/* ---- View modes: jazz chart / lyrics-only / song map ---------------------- */
-#sheet[data-render-mode="jazz"] .lyrics,
+/* ---- View modes: lyrics-only / song map (the Jazz chart: jazz.css) ------- */
 #sheet[data-render-mode="lyrics"] .grid,
 #sheet[data-render-mode="map"] .lyrics { display: none; }
-#sheet[data-render-mode="jazz"] .sheet-section,
 #sheet[data-render-mode="lyrics"] .sheet-section { display: block; }
 /* Song Map renders its own separate continuous-score block (.map-score,
    built from .MapLines) instead of one independent chart per section —
@@ -3565,93 +3551,6 @@ body:has(.edit-toggle.on) .follow-back { display: none; }
 .chord-diagram-open { fill: none; stroke: var(--fg); stroke-width: 1.5; }
 .chord-diagram-muted line { stroke: var(--fg); stroke-width: 1.5; }
 .chord-diagram-fretnum { font: 0.7rem/1 inherit; fill: var(--fg-muted); }
-#sheet[data-render-mode="jazz"] .bar { padding: 0.25em 0.7em; }
-#sheet[data-render-mode="jazz"] .csym-root { font-size: 1.2em; }
-/* Chord symbols, sans-serif and bold — verified against real iReal Pro
-   screenshots (irealpro.com marketing/learn pages: "Chelsea Bridge",
-   the Editor screenshot on /learn/edit-a-song): iReal's chord font is a
-   clean bold sans digit-and-letter face, never the serif/italic
-   "engraved" treatment this chart's other modes use on purpose. Scoped
-   to jazz only — normal/map/lyrics keep their own look. */
-#sheet[data-render-mode="jazz"] .csym { font-family: var(--font-ui); font-weight: 700; }
-#sheet[data-render-mode="jazz"] .csym-plain { font-style: normal; }
-/* Two chord-symbol renderings sit in the DOM for every beat (chart-bar,
-   play.html: .chord-std from {{chord}}, .chord-jazz from {{chordJazz}})
-   — CSS picks the right one per mode instead of threading a mode flag
-   through the shared chart-bar template every other mode also uses.
-   Verified against real iReal Pro PDF exports (not memory): minor is
-   always "-" (never "m", never dropped below the baseline the way the
-   other modes' engraved style does it), and a half-diminished chord is
-   spelled out literally ("B-7♭5"), never substituted with a ø glyph —
-   RenderJazz (internal/chordsym) implements that distinct decomposition. */
-.chord-jazz { display: none; }
-#sheet[data-render-mode="jazz"] .chord-std { display: none; }
-#sheet[data-render-mode="jazz"] .chord-jazz { display: inline-block; position: relative; }
-/* Bass note stacked below-right of the main symbol, smaller — not
-   inline ("D-7/G" as one run of text) the way the other modes render a
-   slash chord. Confirmed against Still Got The Blues' real export
-   ("D-7" over "/G", "A-" over "/B"/"/C"). */
-#sheet[data-render-mode="jazz"] .chord-jazz .csym { position: relative; padding-bottom: 0.3em; }
-#sheet[data-render-mode="jazz"] .chord-jazz .csym-bass {
-  position: absolute; left: 0.05em; bottom: -0.15em;
-  font-size: 0.62em; font-weight: 700;
-}
-#sheet[data-render-mode="jazz"] .chord-jazz .csym-bass > span { font-weight: 700; }
-/* Section marker: REVERSES an earlier explicit choice in this codebase
-   to keep the full Verse/Chorus/Bridge word next to the letter in jazz
-   mode (see the removed comment this replaced) — confirmed against the
-   same real iReal Pro screenshots that a rehearsal mark there is NEVER
-   more than the bare boxed letter (A/B/C), sitting tight against the
-   corner of the staff, no section name spelled out anywhere on the
-   chart itself. Flagging this reversal explicitly since it was a
-   previous deliberate call, not an oversight — the user's current,
-   explicit ask ("exactly like iReal Pro", for real interop with
-   bandmates still on iReal Pro) is more specific and more recent, so
-   this fork follows it, but it's worth the user confirming they're
-   fine overriding that earlier decision.
-   font-size:0 / reset-on-the-span is the standard "keep one inline
-   child visible, collapse the rest of this element's own text" trick —
-   .section-jump's template unconditionally prints the label as plain
-   text after .rehearsal-mark with no wrapping span of its own to
-   target directly. */
-#sheet[data-render-mode="jazz"] .section-jump {
-  font-size: 0; background: none; color: inherit;
-  border: none; border-radius: 0; padding: 0; font-style: normal;
-  font-variant: normal; letter-spacing: 0;
-}
-#sheet[data-render-mode="jazz"] .section-jump .rehearsal-mark {
-  font-size: 0.78rem; margin-right: 0;
-}
-#sheet[data-render-mode="jazz"] .sheet-section.current-section > h3 .section-jump .rehearsal-mark {
-  background: var(--accent); color: var(--accent-contrast); filter: brightness(1.15);
-}
-#sheet[data-render-mode="jazz"] .sheet-section.is-compact .section-jump .rehearsal-mark {
-  background: var(--fg-muted);
-}
-/* Section chrome (padding, header margin) also needs to shrink with the
-   fit loop's font-size, same reasoning as the staff geometry above — these
-   repeat once per section and add up across a long song. Scoped to jazz
-   mode only; the normal reading view keeps its fixed rem spacing. */
-#sheet[data-render-mode="jazz"] .sheet-section { padding-top: 0.6em; padding-bottom: 0.6em; }
-/* Badge sits at the LEFT MARGIN of the section's own first row, not as a
-   separate heading line above the chart — confirmed in all four real
-   exports (the boxed letter sits tight against the left edge, inline
-   with that row's top, never on its own line). .sheet-section reserves
-   a left gutter the same width as the badge would otherwise take, and
-   h3 is pulled into it via position:absolute — same "overlay the real
-   chart, zero footprint on its own layout" technique already used for
-   Song Map's .map-sec-badge. */
-#sheet[data-render-mode="jazz"] .sheet-section { position: relative; padding-left: 1.6em; }
-#sheet[data-render-mode="jazz"] .sheet-section h3 {
-  position: absolute; left: 0; top: 0.6em; margin: 0; z-index: 1;
-}
-/* A section with no grid and nothing inferred about it (no repeat
-   reference, no Solo duration note) really is just noise on a chords-only
-   chart — hide it. A compact one (.is-compact: an inferred repeat
-   reference, or the Solo duration note) carries real structural
-   information instead, so it stays — see the compact-reference styling
-   below for how little room it actually takes. */
-#sheet[data-render-mode="jazz"] .sheet-section:not(.is-compact):not(:has(.grid)) { display: none; }
 /* is-compact now also covers a Solo whose grid is only inferred
    placeholder bars (see the template comment) — it should read exactly
    like any other "nothing new, N bars" section (the multi-rest bar
@@ -3662,36 +3561,6 @@ body:has(.edit-toggle.on) .follow-back { display: none; }
    shows chords at all. */
 #sheet:not([data-render-mode="lyrics"]) .sheet-section.is-compact .grid { display: none; }
 
-/* Jazz chart: NO staff. A real printed "chords only" fake-book page never
-   draws a 5-line staff for a rhythm-slash-only chart — it's chord symbols
-   over a plain grid, exactly the swiss-jazz.ch / Real Book references this
-   mode is modeled on. The shared staff engine (.bar::before/
-   .staff-timesig-cell::before, see --staff-5lines above) is only ever
-   defined for normal/map in the first place, so jazz simply never draws
-   one — nothing to hide here. */
-#sheet[data-render-mode="jazz"] .staff-timesig-cell {
-  border: none; height: auto; width: auto; margin-right: 0.6em; align-self: center;
-}
-#sheet[data-render-mode="jazz"] .tsnum, #sheet[data-render-mode="jazz"] .tsden { font-size: 0.85em; }
-/* .section-jump (the h3 button above, already styled as a solid accent
-   pill — the real "boxed letter" iReal Pro convention) is jazz mode's
-   ONE section header; .section-map-chip (built for song-map/normal's
-   own "label + bar count" summary row) duplicated it entirely — same
-   letter, same name, rendered a second time directly underneath,
-   reading as a garbled double layout (confirmed live, both desktop and
-   mobile widths; not a mobile-only bug). Jazz keeps only .chip-bars
-   from that chip — the one piece of information .section-jump doesn't
-   already carry, needed so a compact/reference section's multi-rest
-   row (below) still shows its bar count. */
-#sheet[data-render-mode="jazz"] .section-map-chip {
-  display: flex; align-items: baseline; gap: 0.4em; margin-bottom: 0.3em;
-}
-#sheet[data-render-mode="jazz"] .section-map-chip .rehearsal-mark,
-#sheet[data-render-mode="jazz"] .section-map-chip .chip-label {
-  display: none;
-}
-#sheet[data-render-mode="jazz"] .chip-bars { font-size: 1.1em; margin-top: 0; }
-#sheet[data-render-mode="jazz"] .sheet-section.is-compact .chip-bars { color: var(--fg-muted); }
 /* Normal mode's compact sections get the same "label + bar count" chip
    as jazz/map — the multi-rest bar alone said "there are some bars here"
    but not how many; non-compact sections keep just their plain heading,
@@ -3754,47 +3623,6 @@ body:has(.edit-toggle.on) .follow-back { display: none; }
   display: none;
 }
 
-/* ---- Jazz chart, iReal Pro style — a plain vertical divider between
-   bars, NOT a bordered box.
-   A previous pass here claimed real iReal Pro draws a complete 4-sided
-   grid cell per bar and cited its own marketing screenshots for that —
-   checked directly against four real iReal Pro PDF EXPORTS the user
-   supplied (Banshee, Ticket To Ride 3, Still Got The Blues, Whisper in
-   a Hurricane — actual exported output, not a marketing page) and that
-   claim doesn't hold: there is no border-top or border-bottom anywhere
-   on the chart at all, only a single thin vertical line between bars
-   (and the row's own left/right outer edges) — reverted. */
-#sheet[data-render-mode="jazz"] .bar:first-of-type { border-left: 1px solid var(--fg-muted); }
-#sheet[data-render-mode="jazz"] .bar:last-of-type { border-right: 1px solid var(--fg-muted); }
-/* Repeat bracket — iReal Pro's own swirled-bracket-with-dots convention
-   (confirmed in all four real exports), not the LilyPond thick/thin
-   barline-with-dots this app's other modes correctly use (that one stays
-   untouched there). Reuses the exact 𝄆/𝄇 glyphs (U+1D106/U+1D107,
-   MUSICAL SYMBOL REPEAT LEFT/RIGHT WING) this codebase already renders
-   elsewhere for the same semantic ("repeat this span") — see
-   .grid-duplicate-note's &#x1D106;/&#x1D107; in play.html — rather than
-   hand-drawing a new shape. No repeat-count ("4x") label: the measure
-   data model (open/close/volta) carries no repeat-count field to read
-   one from, so this doesn't fabricate a number. */
-#sheet[data-render-mode="jazz"] .bar-open,
-#sheet[data-render-mode="jazz"] .bar-close {
-  border-left: none !important; border-right: none !important;
-}
-#sheet[data-render-mode="jazz"] .bar-open::before,
-#sheet[data-render-mode="jazz"] .bar-close::after {
-  background: none; width: auto; top: 50%; transform: translateY(-50%);
-  font-size: 1.5em; line-height: 1; color: var(--fg);
-}
-#sheet[data-render-mode="jazz"] .bar-open::before { content: "𝄆"; left: -0.5em; }
-#sheet[data-render-mode="jazz"] .bar-close::after { content: "𝄇"; right: -0.5em; }
-#sheet[data-render-mode="jazz"] .repeat-dots { display: none; }
-#sheet[data-render-mode="jazz"] .slash { display: none; }
-/* A tied (sustained) beat-slot carries no chord of its own — collapsing
-   it out of the flex row instead of just hiding its slash is what makes
-   the real chord(s) fill the cell evenly rather than being squeezed into
-   one of four fixed quarter-beat slots regardless of how many chords the
-   bar actually has. */
-#sheet[data-render-mode="jazz"] .beat-slot.tie { display: none; }
 /* Bars are a FIXED 100%/--cap share of the row everywhere else (base
    .bar rule) — right for a chart where every bar holds one sustained
    chord, wrong for jazz: a bar with two or three real chords genuinely
@@ -3806,58 +3634,6 @@ body:has(.edit-toggle.on) .follow-back { display: none; }
    live: multi-chord bars rendered as illegibly overlapping text) that
    building against desktop-only screenshots hadn't caught the first
    time, not just a stylistic choice. */
-/* A TabOnly bar's chord content lives in .tab-only-chords, which is
-   position:absolute (see its own rule below) so it can overlay several
-   beat-slots — meaning it never contributes to this bar's auto-width
-   sizing the way a real jazz bar's in-flow .chord-label does just above.
-   Zeroing the floor the same way for these bars collapsed every one of
-   them to ~0 width, piling all their chord text on top of itself at the
-   row's left edge (confirmed live on a GP-imported single-track song).
-   Keep the base .bar rule's real min-width floor for them specifically. */
-#sheet[data-render-mode="jazz"] .bar:not(.tab-only) { flex: 0 0 auto; width: auto; min-width: 0; }
-#sheet[data-render-mode="jazz"] .bar.tab-only { flex: 0 0 auto; width: auto; }
-#sheet[data-render-mode="jazz"] .beat-slot { flex: 0 0 auto; padding: 0 0.3em; }
-#sheet[data-render-mode="jazz"] .beat-slot:first-child { padding-left: 0; }
-#sheet[data-render-mode="jazz"] .beat-slot:last-child { padding-right: 0; }
-#sheet[data-render-mode="jazz"] .chord-label {
-  position: static; transform: none; margin: 0; bottom: auto; left: auto;
-}
-/* The shared .csym-minor treatment (0.6em, dropped below the baseline)
-   is sized for the letter "m" — at that size a plain dash is nearly
-   invisible, confirmed live (rendered as a barely-visible dot, not a
-   readable "-"). iReal Pro's minor dash sits close to full root height,
-   just slightly raised, not shrunk-and-dropped. */
-#sheet[data-render-mode="jazz"] .chord-jazz .csym-minor {
-  font-size: 0.85em; vertical-align: 0.1em; margin: 0 0.02em;
-}
-/* Bigger, more dominant repeat sign — iReal's own "%" reads as the single
-   thing in the cell, not a small notation detail sharing space with a
-   staff that no longer exists here. */
-#sheet[data-render-mode="jazz"] .simile-mark { width: 2.3em; height: 1.7em; }
-#sheet[data-render-mode="jazz"] .simile-slash { width: 0.24em; height: 1.34em; }
-#sheet[data-render-mode="jazz"] .simile-dot { width: 0.24em; height: 0.24em; }
-/* Same ratios as the base .simile-dot-a/-b, scaled by the 1.7/1.4 mark
-   height bump above. */
-#sheet[data-render-mode="jazz"] .simile-dot-a { left: calc(50% - 0.42em); top: calc(50% - 0.27em); }
-#sheet[data-render-mode="jazz"] .simile-dot-b { left: calc(50% + 0.42em); top: calc(50% + 0.27em); }
-
-/* Jazz: a centered, print-page-proportioned "page" (short width, tall —
-   actual A4 proportions, not just whatever fills the window) that must
-   never need scrolling — hands are on an instrument, not a scrollbar.
-   JS (applyPageBox in song.js) fits that A4-ratio box into the available
-   height first, THEN, only inside that fixed shape, searches column count
-   (1-3) and font size so a longer tune fits without the page itself
-   changing shape — the same move a real fake book makes for a longer
-   tune: page columns, not a wider page. This is deliberately narrow even
-   on a wide monitor — the point is to look like a printed page, not to
-   fill the screen. */
-#sheet[data-render-mode="jazz"] {
-  overflow: auto; background: var(--bg-raised); border: 1px solid var(--border);
-  border-radius: 4px; box-shadow: var(--shadow); padding: 1.6rem 1.4rem;
-  column-gap: 1.6rem; column-count: 1; /* JS (applyPageBox) raises this as needed */
-}
-#sheet[data-render-mode="jazz"] .sheet-section { break-inside: avoid; }
-
 /* Lyrics-only: a reading mode, not a performance one — scrolling while
    singing is normal, so no page-box/fit search here (see applyPageBox).
    Structure headers + proportional section height (below) are what make
@@ -4064,58 +3840,12 @@ body:has(.edit-toggle.on) .follow-back { display: none; }
 .multi-rest-bar::before { left: 0; }
 .multi-rest-bar::after { right: 0; }
 
-/* Jazz chart: lean entirely on real repeat/structure notation (the chip's
-   own bar count, plus simile/repeat marks inside a grid) rather than ALSO
-   drawing a multi-rest bar for every compact/reference section — jazz
-   notation already treats the song's own structure as the repeat, so a
-   second "N bars, nothing new" bar is redundant weight that costs the
-   vertical space this mode most needs to stay on one page. */
-#sheet[data-render-mode="jazz"] .sheet-section.is-compact .multi-rest-row { display: none; }
-
 /* ---- Segno / D.S. al Coda / Coda — jazz mode only. A genuinely
    multi-section repeated run (detectSegnoRepeat, handlers_pages.go,
    modeled on LilyPond's \repeat segno — see that function's own doc
    comment) collapses to one "D.S. al Coda" marker instead of being
    re-rendered section by section; a single repeated SECTION still gets
    the existing 𝄆𝄇 bracket treatment above, untouched. */
-/* The run's own later occurrences (every JazzHidden section after the
-   first) are fully hidden — their content isn't wrong to render, it's
-   just redundant once the marker names the whole span. Every other
-   mode ignores .jazz-hidden entirely and shows these sections normally. */
-#sheet[data-render-mode="jazz"] .sheet-section.jazz-hidden { display: none; }
-/* The jazz-ds section's own normal content (chip/grid/multi-rest-row)
-   still renders in the DOM (every other mode needs it) — hidden here,
-   replaced by .jazz-ds-mark below. */
-#sheet[data-render-mode="jazz"] .sheet-section.jazz-ds > .section-map-chip,
-#sheet[data-render-mode="jazz"] .sheet-section.jazz-ds > .grid,
-#sheet[data-render-mode="jazz"] .sheet-section.jazz-ds > .grid-duplicate-note,
-#sheet[data-render-mode="jazz"] .sheet-section.jazz-ds > .multi-rest-row {
-  display: none;
-}
-.jazz-ds-mark { display: none; }
-#sheet[data-render-mode="jazz"] .jazz-ds-mark {
-  display: block; font-family: var(--font-ui); font-weight: 700; font-style: italic;
-  font-size: 1.1em; margin: 0.3em 0;
-}
-/* Segno and Coda — hand-drawn SVG (icon-segno/icon-coda, icons.html),
-   not the real Unicode glyphs (U+1D10B/U+1D10C). Those were the first
-   choice here (same Musical Symbols block as the 𝄆/𝄇 repeat-bracket
-   glyphs already used above and confirmed rendering) but measured
-   directly against this app's own font stack as TRUE tofu — rendered
-   width identical to a guaranteed-unassigned codepoint, confirmed live
-   (a solid striped box, not even an ugly fallback character) — so an
-   SVG icon is the only reliable option, same as every other icon in
-   this app. */
-.jazz-segno-mark, .jazz-coda-mark { display: none; }
-#sheet[data-render-mode="jazz"] .jazz-segno-mark,
-#sheet[data-render-mode="jazz"] .jazz-coda-mark {
-  display: inline-flex; align-items: center; margin-right: 0.3em; color: var(--fg);
-}
-#sheet[data-render-mode="jazz"] .jazz-segno-mark .icon,
-#sheet[data-render-mode="jazz"] .jazz-coda-mark .icon {
-  width: 1.5em; height: 1.5em;
-}
-
 /* ---- Compact section reference — the "call site, not re-inlined" case:
    a bare section whose content was already written out once earlier (an
    inferred or explicit repeat) renders as a single slim line, not a
@@ -4125,11 +3855,6 @@ body:has(.edit-toggle.on) .follow-back { display: none; }
 .sheet-section.is-compact { padding: 0.35rem 0 0.35rem 0.8rem; }
 .sheet-section.is-compact h3 { margin: 0; }
 .sheet-section.is-compact .section-jump { font-size: 0.72rem; padding: 0.15rem 0.6rem; }
-
-/* ---- Jazz mode: an inline view like any other, not a full-screen popup —
-   the header, sidebar/timeline and view-mode tabs all stay exactly where
-   they are; only #sheet itself changes (narrow print-page box, no staff —
-   see the data-render-mode="jazz" rules above). */
 
 /* ---- Structure timeline: a vertical rail, not an inline PDF-style strip -
    this is a web app, so "where am I in the song" gets a persistent,
@@ -4351,23 +4076,6 @@ body:has(.edit-toggle.on) .follow-back { display: none; }
      math) instead of a separate CSS-only flex-wrap fallback: every row is
      already rebuilt, client-side, at exactly the bar count this viewport
      can hold, so there is nothing left for mobile-only CSS to do here. */
-
-  /* Jazz chart: bars are content-sized now (flex:0 0 auto, see the real-
-     iReal-Pro-fidelity pass — a bar with 3 chords is genuinely wider
-     than a 1-chord bar), which applyPageBox's own font-shrink/column-
-     search (song.js) can't always resolve down to zero overflow on a
-     narrow phone — its own documented fallback at that point is
-     overflow-x:auto on #sheet itself, i.e. a horizontally-scrollable
-     ROW inside the card. That's a bad touch interaction on mobile
-     (confirmed live: a row visibly cut off mid-bar, scrollable only by
-     noticing and swiping sideways within the card) — real iReal Pro's
-     own mobile app just shows fewer bars on that line instead. Letting
-     the row wrap here means a line that doesn't fit continues onto its
-     own next line within the card, same fallback already used for Song
-     Map, rather than hiding content behind a silent side-scroll. */
-  #sheet[data-render-mode="jazz"] .staff-line {
-    flex-wrap: wrap;
-  }
 
   /* ---- Song context bar: View + Metronome + Song + More, THE bottom bar
      on this page — .global-tabbar is hidden here (see body:has() rule
