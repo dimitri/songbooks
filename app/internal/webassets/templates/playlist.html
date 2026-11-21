@@ -286,6 +286,31 @@
     try { ms.setActionHandler('seekto', (d) => { if (!isVideo()) audio.currentTime = d.seekTime; }); } catch (e) {}
   }
 
+  // The mini player (mini-player.js): the recording playing here goes on
+  // on the next page; one kept from another page that is in this playlist
+  // is taken over here, from the same place. Not a video: it can't play
+  // in an <audio>.
+  const keyOf = (tr) => (tr.source === 'video' ? '' : tr.remote ? `pcloud:${tr.remote.file}` : tr.audio || '');
+  window.SongbooksNowPlaying?.register({
+    media: audio,
+    info: () => {
+      const tr = track();
+      if (isVideo() || !audio.src) return null;
+      return {
+        key: keyOf(tr), src: tr.remote ? audio.currentSrc : tr.audio,
+        title: tr.title, subtitle: tr.artist || album, page: location.pathname + location.search,
+        resolve: tr.remote ? {kind: 'pcloud', file: tr.remote.file, host: tr.remote.host, code: tr.remote.code} : null,
+      };
+    },
+    owns: (key) => tracks.some((tr) => SongbooksNowPlaying.same(keyOf(tr), key)),
+    resume: (state, from) => {
+      const i = tracks.findIndex((tr) => SongbooksNowPlaying.same(keyOf(tr), state.key));
+      if (i < 0) return false;
+      load(i, from.play, from.at);
+      return true;
+    },
+  });
+
   load(index, false, resume && resume.i === index ? resume.t : 0);
 })();
 </script>

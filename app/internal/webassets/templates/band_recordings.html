@@ -125,7 +125,9 @@
     links.set(fileId, {url, until: Date.now() + 60 * 60 * 1000});
     return url;
   }
-  async function play(i) {
+  // from: {at, play, rate}, a recording taken over from another page
+  // (the mini player, below).
+  async function play(i, from) {
     if (i < 0 || i >= rows.length) return;
     at = i;
     loop = null;
@@ -147,8 +149,13 @@
     $('rp-stars').querySelectorAll('.rec-stars').forEach(wireStars);
     try {
       audio.src = row.dataset.rpSrc || await linkFor(row.dataset.file || row.dataset.rpFile, row.dataset.rpHost || host, row.dataset.rpCode || code);
+      const rate = from && [...speed.options].find((o) => Number(o.value) === from.rate);
+      if (rate) speed.value = rate.value;
       audio.playbackRate = Number(speed.value);
-      await audio.play();
+      // From where it was, playing if the browser lets it; where it wants
+      // a tap first (Safari), the Play button is that tap.
+      if (from) await SongbooksNowPlaying.startAt(audio, from.at, from.play);
+      else await audio.play();
       $('rp-error').hidden = true;
     } catch (e) {
       // One line with a retry, under the title and its date, which stay
@@ -281,6 +288,32 @@
     ms.setActionHandler('previoustrack', prev);
     try { ms.setActionHandler('seekto', (d) => { audio.currentTime = d.seekTime; }); } catch (e) {}
   }
+
+  // The mini player (mini-player.js): what plays here goes on on the next
+  // page; a recording kept from another page that is one of these is
+  // taken over here, from the same place.
+  const keyOf = (row) => row.dataset.rpSrc || `pcloud:${row.dataset.file || row.dataset.rpFile}`;
+  window.SongbooksNowPlaying?.register({
+    media: audio,
+    info: () => {
+      const row = rows[at];
+      if (!row) return null;
+      const file = row.dataset.rpSrc ? '' : row.dataset.file || row.dataset.rpFile;
+      return {
+        key: keyOf(row), src: row.dataset.rpSrc || audio.currentSrc,
+        title: row.dataset.title, subtitle: [artist, row.dataset.detail].filter(Boolean).join(' · '),
+        page: location.pathname + location.search,
+        resolve: file ? {kind: 'pcloud', file, host: row.dataset.rpHost || host, code: row.dataset.rpCode || code} : null,
+      };
+    },
+    owns: (key) => rows.some((r) => SongbooksNowPlaying.same(keyOf(r), key)),
+    resume: (state, from) => {
+      const i = rows.findIndex((r) => SongbooksNowPlaying.same(keyOf(r), state.key));
+      if (i < 0) return false;
+      play(i, {...from, rate: state.rate});
+      return true;
+    },
+  });
 
   // Stars: tap where on the five, by halves; arrows step by half; tapping
   // your stars again takes them back. The player shows a copy of the
