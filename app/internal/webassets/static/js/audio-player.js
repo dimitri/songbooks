@@ -1849,6 +1849,13 @@ window.songbooksDecodable = function (buf) {
     detectBars: runDetection,
     setPreview: (markers) => { preview = markers ? markers.map((m) => ({ ...m })) : null; rebuildGrid(); renderPosition(); },
     saveMarkers,
+    // The Sync sheet's waveform (sync-wave.js): the recording, mono at
+    // ~11 kHz ({x, sr}, or null before it's decoded), and when each bar
+    // starts as the chart follows it now ([time of bar 0, …]).
+    samples: () => (analysisInput && analysisInput.cat === activeCategory ? analysisInput : null),
+    barTimes: () => grid.slice(),
+    totalBars,
+    hasPickup,
     click: () => prefs.click,
     toggleClick,
     speed: () => prefs.speed,

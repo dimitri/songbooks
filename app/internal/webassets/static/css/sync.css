@@ -45,23 +45,52 @@
 .import-sync-by-ear { margin-top: 0.6rem; }
 
 /* ---- The Sync sheet -------------------------------------------------------- */
-.sync-sheet:not([hidden]) { position: fixed; inset: 0; z-index: 120; display: flex; justify-content: flex-end; }
+/* A wide screen: a panel across the bottom, under the chart (which follows
+   the sync as it's edited, so it stays in sight), the waveform on top;
+   below it the section to set, the list of sections, the analysis.
+   A phone: a sheet from the bottom, the waveform on top, Save at the
+   bottom within thumb's reach. */
+.sync-sheet:not([hidden]) { position: fixed; inset: 0; z-index: 120; display: flex; align-items: flex-end; }
 html.sync-sheet-open { overflow: hidden; }
-.sync-sheet-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); }
+.sync-sheet-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.12); }
 .sync-sheet-panel {
-  position: relative; display: flex; flex-direction: column; gap: 0.7rem;
-  width: min(30rem, 100%); height: 100%; box-sizing: border-box; overflow: hidden;
-  padding: 0.9rem 1rem calc(0.9rem + env(safe-area-inset-bottom, 0px));
-  background: var(--bg-raised); border-left: 1px solid var(--border); box-shadow: -10px 0 30px rgba(0, 0, 0, 0.18);
+  --sync-wave: color-mix(in srgb, var(--accent) 35%, var(--fg-muted));
+  --sync-band: color-mix(in srgb, var(--accent) 7%, transparent);
+  --sync-band-alt: color-mix(in srgb, var(--accent) 16%, transparent);
+  position: relative; box-sizing: border-box; width: 100%; height: min(42rem, 64dvh); overflow: hidden;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-areas: "head actions close" "wave wave wave" "transport transport transport" "body body body";
+  gap: 0.55rem 0.8rem; padding: 0.7rem 1.2rem calc(0.8rem + env(safe-area-inset-bottom, 0px));
+  background: var(--bg-raised); border-top: 1px solid var(--border); box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.18);
 }
-.sync-sheet-head { display: flex; align-items: center; gap: 0.6rem; }
+.sync-sheet-head { grid-area: head; display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
 .sync-sheet-head h2 { margin: 0; font-size: 1.15rem; }
 .sync-sheet-grab { display: none; }
-.sync-sheet-close { margin-left: auto; font-size: 1.4rem; line-height: 1; }
-.sync-state-chip { font-size: 0.75rem; font-weight: 600; padding: 0.15rem 0.55rem; border-radius: 999px; background: var(--warn-bg); color: var(--warn); }
+.sync-sheet-close { grid-area: close; align-self: center; font-size: 1.4rem; line-height: 1; }
+.sync-state-chip { flex: none; font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 999px; background: var(--warn-bg); color: var(--warn); font-variant-numeric: tabular-nums; }
 .sync-state-chip[data-state="set"] { background: var(--ok-bg, var(--bg-sunken)); color: var(--ok); }
-.sync-sheet-hint { margin: 0; font-size: 0.82rem; line-height: 1.4; }
-.sync-sheet-transport { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+.sync-status { flex: 1; min-width: 0; margin: 0; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sync-sheet-actions { grid-area: actions; display: flex; align-items: center; gap: 0.45rem; position: relative; }
+.sync-sheet-actions .audio-pill-btn { min-height: 2.3rem; display: inline-flex; align-items: center; gap: 0.3rem; }
+.sync-sheet-actions .audio-pill-btn .icon { width: 1rem; height: 1rem; }
+.sync-sheet-actions .primary { min-height: 2.3rem; padding: 0 1.3rem; }
+.sync-history:not([hidden]) {
+  position: absolute; top: calc(100% + 0.4rem); right: 0; width: min(24rem, 90vw); z-index: 3; max-height: 16rem; overflow-y: auto;
+  list-style: none; margin: 0; padding: 0.5rem; display: flex; flex-direction: column; gap: 0.3rem;
+  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
+}
+.sync-history li { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; font-size: 0.82rem; }
+
+/* The waveform (sync-wave.js) and its overview strip. */
+.sync-wave { grid-area: wave; display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.sync-wave-canvas {
+  display: block; width: 100%; height: 11.5rem; border-radius: 10px; border: 1px solid var(--border); background: var(--bg);
+  box-sizing: border-box; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none;
+}
+.sync-wave-canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sync-wave-overview { display: block; width: 100%; height: 1.4rem; border-radius: 6px; background: var(--bg-sunken, var(--bg)); touch-action: none; cursor: pointer; }
+
+.sync-sheet-transport { grid-area: transport; display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; min-width: 0; }
 .sync-sheet-spacer { flex: 1; }
 .sync-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; white-space: nowrap;
@@ -71,101 +100,131 @@ html.sync-sheet-open { overflow: hidden; }
 }
 .sync-btn:hover:not(:disabled) { border-color: var(--border-strong); }
 .sync-btn:disabled { opacity: 0.4; cursor: default; }
-.sync-btn.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.sync-btn.active, .sync-btn[aria-pressed="true"] { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .sync-btn .icon { width: 1rem; height: 1rem; }
-.sync-play { width: 3rem; height: 3rem; border-radius: 50%; background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.sync-snap input { position: absolute; opacity: 0; pointer-events: none; }
+.sync-snap:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sync-zoom { display: inline-flex; }
+.sync-zoom .sync-btn { border-radius: 0; margin-left: -1px; }
+.sync-zoom .sync-btn:first-child { border-radius: 8px 0 0 8px; margin-left: 0; }
+.sync-zoom .sync-btn:last-child { border-radius: 0 8px 8px 0; }
+.sync-zoom #sync-zoom-in, .sync-zoom #sync-zoom-out { font-size: 1.1rem; font-weight: 700; }
+.sync-play { width: 2.9rem; height: 2.9rem; border-radius: 50%; background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
 .sync-play:hover:not(:disabled) { background: var(--accent-ink); }
 .sync-time { font-size: 1.2rem; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 4.2ch; }
-.sync-now { font-size: 0.85rem; font-weight: 600; color: var(--accent-ink); max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sync-now { font-size: 0.85rem; font-weight: 600; color: var(--accent-ink); max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sync-speed button { min-height: 2.4rem; }
+
+/* Below: the section to set | the sections | the analysis, each scrolling. */
+.sync-sheet-body { grid-area: body; display: grid; grid-template-columns: minmax(19rem, 1.15fr) minmax(15rem, 0.85fr) minmax(19rem, 1.1fr); gap: 0.8rem; min-height: 0; }
+.sync-sheet-body > * { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.sync-here { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.6rem 0.7rem; border: 1px solid var(--accent); border-radius: 10px; background: var(--bg); }
+.sync-here-head { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
+.sync-here-label { font-size: 1.05rem; }
+.sync-here-meta { font-size: 0.8rem; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.sync-here[data-state="auto"] .sync-here-meta { color: var(--warn); }
+.sync-here[data-state="set"] .sync-here-meta { color: var(--ok); }
+.sync-here-more { display: flex; flex-direction: column; gap: 0.45rem; }
+.sync-here-more p { margin: 0; }
 /* The big one: tapped on the first beat of each section. */
 .sync-tap {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.1rem; flex: none;
-  min-height: 4.6rem; width: 100%; border-radius: 14px; border: 0; cursor: pointer;
+  min-height: 3.8rem; width: 100%; border-radius: 12px; border: 0; cursor: pointer;
   background: var(--accent); color: var(--accent-contrast); font: inherit;
   touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
   box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .sync-tap:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
-.sync-tap-what { font-size: 1.15rem; font-weight: 700; }
-.sync-tap-now { font-size: 0.8rem; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.06em; }
+.sync-tap-what { font-size: 1.1rem; font-weight: 700; }
+.sync-tap-now { font-size: 0.75rem; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.06em; }
 .sync-tap:disabled .sync-tap-now { display: none; }
 .sync-tap.flash { animation: sync-flash 0.25s ease-out; }
 @keyframes sync-flash { from { transform: scale(0.97); filter: brightness(1.25); } to { transform: none; filter: none; } }
-.sync-warn:not([hidden]) { flex: none; font-size: 0.8rem; line-height: 1.4; color: var(--danger); padding: 0.45rem 0.65rem; border-radius: 8px; background: var(--danger-bg, var(--warn-bg)); }
-.sync-warn summary { font-weight: 700; cursor: pointer; }
-.sync-warn p { margin: 0.35rem 0 0; }
-/* The sections, each with its start; the cursor's row has its tools. */
-.sync-rows { list-style: none; margin: 0 -0.3rem; padding: 0 0.3rem; flex: 1 1 auto; min-height: 6rem; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 0.3rem; }
-.sync-row { border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
-.sync-row.is-cursor { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.sync-row.is-todo:not(.is-cursor) { opacity: 0.6; }
-.sync-row-main {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "label time origin" "label bpm bpm";
-  align-items: baseline; gap: 0 0.6rem; width: 100%; min-height: 2.75rem; padding: 0.4rem 0.7rem; box-sizing: border-box;
-  border: 0; background: none; color: var(--fg); font: inherit; text-align: left; cursor: pointer;
-}
-.sync-row-label { grid-area: label; align-self: center; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sync-row-time { grid-area: time; font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
-.sync-row-origin { grid-area: origin; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--fg-muted); min-width: 5.2em; text-align: right; }
-.sync-row.is-auto .sync-row-origin { color: var(--warn); }
-.sync-row.is-set .sync-row-origin { color: var(--ok); }
-.sync-row-bpm { grid-area: bpm; font-size: 0.72rem; color: var(--fg-muted); text-align: right; font-variant-numeric: tabular-nums; }
-.sync-row-bpm.warn { color: var(--danger); font-weight: 700; }
-.sync-row-tools { display: flex; flex-wrap: wrap; gap: 0.35rem; padding: 0 0.6rem 0.6rem; }
-/* Automatic suggestions (R3): each one accepted or rejected. */
-.sync-suggest-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: none; }
-.sync-suggest-bar .audio-pill-btn { min-height: 2.2rem; }
-.sync-suggest-notes:not([hidden]) { flex-basis: 100%; margin: 0; font-size: 0.78rem; line-height: 1.35; }
+.sync-row-tools { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.sync-row-tools [data-act="ok"] { color: var(--ok); }
+.sync-row-tools [data-act="redo"] { margin-left: auto; }
+.sync-row-flag { font-size: 0.8rem; font-weight: 600; color: var(--danger); }
+.sync-row-bars { font-size: 0.8rem; font-weight: 600; color: var(--warn); }
+.sync-row-bpm { font-size: 0.8rem; color: var(--danger); }
+/* Automatic suggestions: each one accepted or rejected. */
 .sync-suggest {
-  display: flex; align-items: center; gap: 0.35rem; margin: 0 0.6rem 0.5rem; padding: 0.3rem 0.3rem 0.3rem 0.6rem;
-  border-radius: 8px; background: color-mix(in srgb, var(--accent) 8%, var(--bg)); font-size: 0.8rem;
+  display: flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.3rem 0.3rem 0.6rem;
+  border-radius: 8px; background: color-mix(in srgb, var(--accent) 9%, var(--bg)); font-size: 0.8rem;
 }
 .sync-suggest span { flex: 1; min-width: 0; }
 .sync-suggest .sync-btn { min-height: 2.2rem; min-width: 2.2rem; padding: 0; }
 .sync-suggest .ok { color: var(--ok); font-weight: 700; }
 .sync-suggest .no { color: var(--danger); }
-.sync-row.is-flagged { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
-.sync-row-flag { margin: -0.2rem 0.7rem 0.45rem; font-size: 0.78rem; font-weight: 600; color: var(--danger); }
-.sync-row-tools [data-act="ok"] { color: var(--ok); }
-.sync-row-tools [data-act="redo"] { margin-left: auto; }
-.sync-sheet-foot { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; position: relative; }
-.sync-sheet-foot .audio-check { font-size: 0.82rem; }
-.sync-sheet-foot .primary { min-height: 2.4rem; padding: 0 1.1rem; }
-.sync-sheet-foot .audio-pill-btn { min-height: 2.4rem; }
-.sync-status { flex-basis: 100%; min-height: 1.2em; font-size: 0.8rem; }
-.sync-history:not([hidden]) {
-  position: absolute; bottom: calc(100% + 0.4rem); left: 0; right: 0; z-index: 2; max-height: 16rem; overflow-y: auto;
-  list-style: none; margin: 0; padding: 0.5rem; display: flex; flex-direction: column; gap: 0.3rem;
-  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
-}
-.sync-history li { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; font-size: 0.82rem; }
 
-/* A phone: a sheet from the bottom, the tap button within thumb's reach. */
+/* The sections: a dot for each one's state, its start, what to look at. */
+.sync-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.sync-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.sync-row-main {
+  display: grid; grid-template-columns: 0.6rem minmax(0, 1fr) auto auto; align-items: center; gap: 0.5rem;
+  width: 100%; min-height: 2.2rem; padding: 0.25rem 0.5rem; box-sizing: border-box; border-radius: 7px;
+  border: 0; background: none; color: var(--fg); font: inherit; font-size: 0.86rem; text-align: left; cursor: pointer;
+}
+.sync-row-main:hover { background: var(--bg-sunken, var(--bg)); }
+.sync-row.is-cursor .sync-row-main { background: var(--accent-bg); font-weight: 700; }
+.sync-row.is-todo:not(.is-cursor) { opacity: 0.6; }
+.sync-row-dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; box-sizing: border-box; border: 1.5px solid var(--fg-muted); }
+.sync-row.is-auto .sync-row-dot { background: var(--warn); border-color: var(--warn); }
+.sync-row.is-set .sync-row-dot { background: var(--ok); border-color: var(--ok); }
+.sync-row-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sync-row-time { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+.sync-row-notes { display: inline-flex; gap: 0.3rem; font-size: 0.72rem; font-weight: 700; }
+.sync-row-note.sugg { color: var(--accent); }
+.sync-row-note.flag { color: var(--danger); }
+.sync-row-note.bars { color: var(--warn); }
+.sync-row-note.bpm { color: var(--danger); }
+.sync-warn:not([hidden]) { flex: none; font-size: 0.8rem; line-height: 1.4; color: var(--danger); padding: 0.45rem 0.65rem; border-radius: 8px; background: var(--danger-bg, var(--warn-bg)); }
+.sync-warn summary { font-weight: 700; cursor: pointer; }
+.sync-warn p { margin: 0.35rem 0 0; }
+.sync-suggest-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: none; }
+.sync-suggest-bar .audio-pill-btn { min-height: 2.2rem; }
+.sync-suggest-notes:not([hidden]) { flex-basis: 100%; margin: 0; font-size: 0.78rem; line-height: 1.35; }
+
+/* Between a phone and a wide screen: the analysis under the other two. */
+@media (min-width: 721px) and (max-width: 1100px) {
+  .sync-sheet-panel { height: min(46rem, 72dvh); }
+  .sync-sheet-body { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-content: start; align-items: start; overflow-y: auto; overscroll-behavior: contain; }
+  .sync-sheet-body > * { overflow: visible; }
+  .sync-sheet-body > .sync-analysis { grid-column: 1 / -1; max-height: none; }
+}
+
+/* A phone: a sheet from the bottom. */
 @media (max-width: 720px) {
-  .sync-sheet:not([hidden]) { align-items: flex-end; }
   .sync-sheet-panel {
-    width: 100%; height: auto; max-height: 94dvh; border-left: 0; border-top: 1px solid var(--border);
-    border-radius: 20px 20px 0 0; padding-top: 0.3rem; gap: 0.55rem; box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.22);
+    height: auto; max-height: 94dvh; border-radius: 20px 20px 0 0; padding: 0.3rem 0.8rem calc(0.7rem + env(safe-area-inset-bottom, 0px)); gap: 0.45rem;
+    grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "head close" "wave wave" "transport transport" "body body" "actions actions";
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.22);
   }
-  .sync-sheet-head { flex-wrap: wrap; }
-  .sync-sheet-grab { display: block; flex-basis: 100%; height: 1.2rem; min-height: 0; border: 0; padding: 0; background: none; position: relative; cursor: pointer; }
-  .sync-sheet-grab::before { content: ""; position: absolute; left: calc(50% - 1.2rem); width: 2.4rem; top: 0.4rem; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--fg) 25%, transparent); }
-  /* The tap button says what to do; the help is for a wider screen. */
-  .sync-sheet-hint { display: none; }
-  .sync-tap { min-height: 5rem; order: 10; }
-  .sync-rows { order: 5; max-height: 42dvh; }
-  .sync-warn { order: 6; }
-  .sync-sheet-foot { order: 11; }
-  .sync-sheet-foot .audio-check { flex-basis: 100%; }
-  .sync-sheet-foot .sync-sheet-spacer { display: none; }
-  .sync-sheet-foot .primary { flex: 1; }
-  .sync-sheet-transport { flex-wrap: nowrap; gap: 0.3rem; }
+  .sync-sheet-head { flex-wrap: wrap; row-gap: 0.1rem; }
+  .sync-sheet-grab { display: block; flex-basis: 100%; height: 1.1rem; min-height: 0; border: 0; padding: 0; background: none; position: relative; cursor: pointer; }
+  .sync-sheet-grab::before { content: ""; position: absolute; left: calc(50% - 1.2rem); width: 2.4rem; top: 0.35rem; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--fg) 25%, transparent); }
+  .sync-status { order: 11; flex-basis: 100%; white-space: normal; min-height: 1.1em; }
+  .sync-sheet-close { align-self: start; margin-top: 1.1rem; }
+  .sync-wave-canvas { height: 9.5rem; }
+  .sync-sheet-transport { gap: 0.3rem; }
+  .sync-time { font-size: 1.05rem; }
   .sync-click span { display: none; }
   .sync-speed button { padding: 0.3rem 0.45rem; }
-  .sync-btn { min-height: 2.75rem; min-width: 2.75rem; }
-  .sync-row-tools .sync-btn { flex: 1 1 auto; padding: 0 0.45rem; }
-  .sync-now { display: none; }
+  .sync-btn { min-height: 2.6rem; min-width: 2.6rem; padding: 0 0.5rem; }
+  .sync-play { width: 2.75rem; height: 2.75rem; }
+  .sync-now { max-width: 8rem; font-size: 0.8rem; }
+  .sync-sheet-body { display: flex; flex-direction: column; gap: 0.55rem; overflow-y: auto; overscroll-behavior: contain; }
+  .sync-sheet-body > * { overflow: visible; flex: none; }
+  .sync-tap { min-height: 4.4rem; }
+  .sync-row-tools .sync-btn { flex: 1 1 auto; padding: 0 0.4rem; }
+  .sync-sheet-actions .audio-pill-btn { min-height: 2.75rem; }
+  .sync-sheet-actions .primary { flex: 1; min-height: 2.75rem; }
+  .sync-history:not([hidden]) { top: auto; bottom: calc(100% + 0.4rem); left: 0; right: 0; width: auto; }
+}
+/* A phone held flat or a short window: the list scrolls, the rest stays. */
+@media (max-width: 720px) and (max-height: 700px) {
+  .sync-wave-canvas { height: 8rem; }
+  .sync-wave-overview { height: 1.1rem; }
 }
 
 /* ---- The Mixer's "Align recording" (mixer.js) ------------------------------ */
@@ -180,8 +239,7 @@ html.sync-sheet-open { overflow: hidden; }
 }
 
 /* ---- The recording's own analysis (sync-sheet.js, "From the recording") ---- */
-.sync-analysis:not([hidden]) { flex: none; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
-.sync-analysis[open] { max-height: 46dvh; overflow-y: auto; overscroll-behavior: contain; }
+.sync-analysis:not([hidden]) { border: 1px solid var(--border); border-radius: 10px; background: var(--bg); align-self: start; max-height: 100%; }
 .sync-analysis-head {
   display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.7rem; cursor: pointer; list-style: none;
   position: sticky; top: 0; background: var(--bg); border-radius: 10px; z-index: 1;
@@ -214,9 +272,11 @@ html.sync-sheet-open { overflow: hidden; }
 .sync-ana-before::before { content: "− "; }
 .sync-ana-after { color: var(--ok); }
 .sync-ana-after::before { content: "+ "; }
-.sync-row-bars { margin: -0.2rem 0.7rem 0.45rem; font-size: 0.76rem; font-weight: 600; color: var(--warn); }
+/* A chord check picked on the waveform. */
+.sync-ana-prop.flash { animation: sync-prop-flash 1.2s ease-out; }
+@keyframes sync-prop-flash { from { box-shadow: 0 0 0 2px var(--accent); } to { box-shadow: 0 0 0 2px transparent; } }
 @media (max-width: 720px) {
-  .sync-analysis[open] { max-height: 40dvh; }
+  .sync-analysis:not([hidden]) { max-height: none; }
   .sync-analysis-head { flex-wrap: wrap; row-gap: 0.15rem; }
   .sync-analysis-sum { white-space: normal; flex-basis: 100%; order: 3; }
   .sync-ana-fixes .sync-btn { flex: 1 1 auto; }
