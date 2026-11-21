@@ -5707,6 +5707,7 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .band-link-list:not(:has(li)) { display: none; }
 .band-link-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.6rem; }
 .band-link-row .invite-link-row { margin: 0.35rem 0 0; }
+.band-link-row > .hint { margin: 0.2rem 0 0; }
 .band-link-row .invite-link-url { flex-basis: 100%; }
 .band-link-row button { flex: none; font-size: 0.8rem; padding: 0.3rem 0.65rem; }
 .band-link-get-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-top: 0.9rem; }

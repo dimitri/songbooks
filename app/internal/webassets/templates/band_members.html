@@ -97,7 +97,7 @@
     </form>
     {{end}}
     </div>
-    <p class="hint">{{if .IsCore}}{{t "They’re on the roster right away, with a personal invite link to send them."}}{{else}}{{t "Only core members can invite people."}}{{end}}</p>
+    {{if .IsCore}}<p class="hint">{{t "They’re on the roster right away, with a personal invite link to send them."}}</p>{{end}}
   </section>
 
   <label class="check"><input type="checkbox" id="show-past-toggle"> {{t "Show past members"}}</label>
