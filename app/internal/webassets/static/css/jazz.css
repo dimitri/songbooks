@@ -147,6 +147,7 @@
 .jz-segno { top: 1.2em; left: -1.97em; font-size: .72em; }
 .jz-coda { top: -1.25em; left: -2.1em; font-size: .72em; }
 .jz-tocoda { top: .1em; right: .3em; font-size: .62em; }
+.jz-bar:has(.jz-volta) .jz-tocoda { top: -.6em; }
 
 /* a section's "note:" directions */
 .jz-notes { margin: .1em 0 .2em 1.5em; font-family: var(--font-ui); font-size: .3em; font-style: italic; color: var(--jz-ink-soft); }
