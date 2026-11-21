@@ -377,7 +377,17 @@ func Align(r *Recording, secs []Section, beatsPerBar int, h Hints) *Result {
 			return best
 		}
 	}
-	return alignOn(r, g, secs, h)
+	res := alignOn(r, g, secs, h)
+	// Beats read in pairs (÷2): the tracker's downbeats came every half
+	// bar of the new grid, and the bar may start on either.
+	if tempoScale(h.TempoFactor) == 0.5 && h.ShiftBeats == 0 && h.Bar1At == 0 && g.B%2 == 0 {
+		h2 := h
+		h2.ShiftBeats = g.B / 2
+		if alt := alignOn(r, applyHints(r, h2), secs, h); alt.cost < res.cost {
+			res = alt
+		}
+	}
+	return res
 }
 
 // groupBars makes bars of B beats from a grid's shorter ones, starting
