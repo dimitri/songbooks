@@ -435,19 +435,33 @@ func (p *SyncProposal) UseAutoSync(a *AutoSync) {
 			p.Sections[i].ChartBars, p.Sections[i].RecordingBars = sr.Written, sr.Played
 		}
 	}
-	switch {
-	case a.ProposeTempo > 0:
-		p.Tempo = a.ProposeTempo
-	case a.ChartTempo != "":
-		if t, err := strconv.Atoi(a.ChartTempo); err == nil {
-			p.Tempo = t
+	// The tempo and the notes about it are the analysis' only when it
+	// says something about the tempo: a tempo of its own, or the chart's
+	// confirmed (within 8% of the recording's). An unsteady recording
+	// proposes none, and then what the voice's fit found stays: song
+	// 334's chart tempo, contradicted by the recording, isn't put back.
+	chartF, _ := strconv.ParseFloat(a.ChartTempo, 64)
+	chart := int(math.Round(chartF))
+	confirmed := chart > 0 && a.Tempo > 0 && math.Abs(float64(chart)/a.Tempo-1) <= 0.08
+	if a.ProposeTempo > 0 || confirmed {
+		if a.ProposeTempo > 0 {
+			p.Tempo = a.ProposeTempo
+		} else {
+			p.Tempo = chart
+		}
+		p.TempoMismatch = false
+		p.notes, p.Notes = nil, nil
+	} else {
+		kept := p.notes
+		p.notes, p.Notes = nil, nil
+		for _, n := range kept {
+			p.note(n.msg, n.args...)
 		}
 	}
 	if a.ProposeTime != "" && p.TimeSigFrom == "audio" {
 		p.TimeSig = a.ProposeTime
 	}
-	p.TempoMismatch, p.Downbeats = false, true
-	p.notes, p.Notes = nil, nil
+	p.Downbeats = true
 	p.note("placed on the recording's downbeats (its own analysis), the voice choosing which")
 	wrong := 0
 	for _, s := range p.Sections {
