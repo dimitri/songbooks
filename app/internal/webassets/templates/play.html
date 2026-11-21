@@ -1681,9 +1681,11 @@
       </div>
     </div>
     {{if .CanEdit}}
-    {{/* The Sync sheet (sync-sheet.js): tap along while listening, at the
-         start of each section; nudge, check, save in one go. A bottom
-         sheet on a phone, a side panel on a wide screen. */}}
+    {{/* The Sync sheet (sync-sheet.js): the recording's waveform to zoom
+         and scroll (sync-wave.js), the chart drawn on it, each section's
+         start a marker to drag; tap along while listening; nudge, check,
+         save in one go. A bottom sheet on a phone, the waveform on top; a
+         panel across the bottom of a wide screen, under the chart. */}}
     <div class="sync-sheet" id="sync-sheet" hidden>
       <div class="sync-sheet-backdrop" data-sync-close></div>
       <section class="sync-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sync-sheet-title">
@@ -1691,16 +1693,19 @@
           <button type="button" class="sync-sheet-grab" data-sync-close aria-label="{{t "close the sync"}}"></button>
           <h2 id="sync-sheet-title">{{t "Sync"}}</h2>
           <span class="sync-state-chip" id="sync-state-chip"></span>
-          <button type="button" class="icon-btn sync-sheet-close" data-sync-close aria-label="{{t "close the sync"}}">×</button>
+          <span class="hint form-status sync-status" id="sync-status" role="status"></span>
         </header>
-        <p class="hint sync-sheet-hint" id="sync-sheet-hint">{{t "Play, then tap the big button on the first beat of each section as you hear it. Check a start with ▶ 2 s before; nudge it with the arrows."}}</p>
-        {{/* What the recording's own analysis says (beats, bars, chords:
-             sync-sheet.js, POST …/analysis): its sync to take in one tap,
-             the fixes to its beat grid, and the chart's proposals. */}}
-        <details class="sync-analysis" id="sync-analysis" hidden>
-          <summary class="sync-analysis-head"><i class="sync-analysis-dot" id="sync-analysis-dot"></i><strong id="sync-analysis-title">{{t "From the recording"}}</strong><span class="sync-analysis-sum" id="sync-analysis-sum"></span></summary>
-          <div class="sync-analysis-body" id="sync-analysis-body"></div>
-        </details>
+        <button type="button" class="icon-btn sync-sheet-close" data-sync-close aria-label="{{t "close the sync"}}">×</button>
+        <div class="sync-sheet-actions">
+          <button type="button" class="audio-pill-btn" id="sync-history-btn" aria-expanded="false" title="{{t "Earlier syncs"}}">{{t "sync|History"}}</button>
+          <button type="button" class="audio-pill-btn" id="sync-undo" disabled title="{{t "Undo (Z)"}}">{{template "icon-undo"}}<span>{{t "Undo"}}</span></button>
+          <button type="button" class="primary" id="sync-save" disabled>{{t "Save"}}</button>
+          <ul class="sync-history" id="sync-history" hidden></ul>
+        </div>
+        <div class="sync-wave" id="sync-wave">
+          <canvas class="sync-wave-canvas" id="sync-wave-canvas" tabindex="0" role="img" aria-label="{{t "The recording: drag a section’s marker to move its start (Alt: without snapping); pinch or Ctrl + wheel to zoom, drag or wheel to scroll, click to play from there."}}" title="{{t "Drag a section’s marker to move its start (Alt: without snapping). Pinch or Ctrl + wheel: zoom. Drag or wheel: scroll. Click: play from there."}}"></canvas>
+          <canvas class="sync-wave-overview" id="sync-wave-overview" aria-hidden="true"></canvas>
+        </div>
         <div class="sync-sheet-transport">
           <button type="button" class="sync-btn" id="sync-back" aria-label="{{t "back 5 seconds"}}">−5 s</button>
           <button type="button" class="sync-btn sync-play" id="sync-play" aria-label="{{t "play/pause (Space)"}}">{{template "icon-play"}}</button>
@@ -1711,25 +1716,40 @@
             <button type="button" data-v="0.75">0.75×</button><button type="button" data-v="1">1×</button>
           </div>
           <button type="button" class="sync-btn sync-click" id="sync-click" aria-pressed="false" title="{{t "click on every beat, following the sync (K)"}}">{{template "icon-metronome"}}<span>{{t "Click"}}</span></button>
+          <label class="sync-btn sync-snap" title="{{t "a tap or a dragged marker moves to the nearest downbeat, beat or the voice coming in"}}"><input type="checkbox" id="sync-snap" checked><span>{{t "Snap"}}</span></label>
+          <div class="sync-zoom" role="group" aria-label="{{t "Zoom"}}">
+            <button type="button" class="sync-btn" id="sync-zoom-out" aria-label="{{t "zoom out (−)"}}" title="{{t "zoom out (−)"}}">−</button>
+            <button type="button" class="sync-btn" id="sync-zoom-fit" title="{{t "the whole recording (0)"}}">{{t "sync|Fit"}}</button>
+            <button type="button" class="sync-btn" id="sync-zoom-in" aria-label="{{t "zoom in (+)"}}" title="{{t "zoom in (+)"}}">+</button>
+          </div>
+          <button type="button" class="sync-btn sync-follow" id="sync-follow" aria-pressed="true" title="{{t "the waveform follows the playhead while playing (F)"}}">{{t "Follow"}}</button>
         </div>
-        <button type="button" class="sync-tap" id="sync-tap"><span class="sync-tap-what" id="sync-tap-what"></span><span class="sync-tap-now">{{t "sync|now"}}</span></button>
-        <details class="sync-warn" id="sync-warn" hidden><summary id="sync-warn-sum"></summary><p id="sync-warn-text"></p></details>
-        <div class="sync-suggest-bar">
-          <button type="button" class="audio-pill-btn" id="sync-suggest-btn" title="{{t "where the singing starts, and the downbeats: each to accept or reject"}}">{{t "Suggest"}}</button>
-          <span class="hint" id="sync-suggest-count"></span>
-          <button type="button" class="audio-pill-btn" id="sync-accept-all" hidden>{{t "Accept all"}}</button>
-          <p class="hint sync-suggest-notes" id="sync-suggest-notes" hidden></p>
+        <div class="sync-sheet-body">
+          {{/* The section the next tap sets, and its tools. */}}
+          <section class="sync-here" id="sync-here" aria-live="polite">
+            <div class="sync-here-head"><strong class="sync-here-label" id="sync-here-label"></strong><span class="sync-here-meta" id="sync-here-meta"></span></div>
+            <button type="button" class="sync-tap" id="sync-tap"><span class="sync-tap-what" id="sync-tap-what"></span><span class="sync-tap-now">{{t "sync|now"}}</span></button>
+            <div class="sync-here-more" id="sync-here-more"></div>
+          </section>
+          <div class="sync-list">
+            <details class="sync-warn" id="sync-warn" hidden><summary id="sync-warn-sum"></summary><p id="sync-warn-text"></p></details>
+            <ol class="sync-rows" id="sync-rows"></ol>
+            <div class="sync-suggest-bar">
+              <button type="button" class="audio-pill-btn" id="sync-suggest-btn" title="{{t "where the singing starts, and the downbeats: each to accept or reject"}}">{{t "Suggest"}}</button>
+              <span class="hint" id="sync-suggest-count"></span>
+              <button type="button" class="audio-pill-btn" id="sync-accept-all" hidden>{{t "Accept all"}}</button>
+              <p class="hint sync-suggest-notes" id="sync-suggest-notes" hidden></p>
+            </div>
+          </div>
+          {{/* What the recording's own analysis says (beats, bars, chords:
+               sync-sheet.js, POST …/analysis): its sync to take in one tap,
+               the fixes to its beat grid, and the chart's proposals, also
+               drawn on the waveform where they apply. */}}
+          <details class="sync-analysis" id="sync-analysis" hidden>
+            <summary class="sync-analysis-head"><i class="sync-analysis-dot" id="sync-analysis-dot"></i><strong id="sync-analysis-title">{{t "From the recording"}}</strong><span class="sync-analysis-sum" id="sync-analysis-sum"></span></summary>
+            <div class="sync-analysis-body" id="sync-analysis-body"></div>
+          </details>
         </div>
-        <ol class="sync-rows" id="sync-rows"></ol>
-        <footer class="sync-sheet-foot">
-          <label class="audio-check" title="{{t "a tap moves to the nearest downbeat or the voice coming in, within 0.15 s"}}"><input type="checkbox" id="sync-snap" checked> {{t "Snap to the beat and the voice"}}</label>
-          <span class="sync-sheet-spacer"></span>
-          <button type="button" class="audio-pill-btn" id="sync-history-btn" aria-expanded="false" title="{{t "Earlier syncs"}}">{{t "sync|History"}}</button>
-          <button type="button" class="audio-pill-btn" id="sync-undo" disabled>{{t "Undo"}}</button>
-          <button type="button" class="primary" id="sync-save" disabled>{{t "Save"}}</button>
-          <span class="hint form-status sync-status" id="sync-status" role="status"></span>
-          <ul class="sync-history" id="sync-history" hidden></ul>
-        </footer>
       </section>
     </div>
     {{end}}
@@ -1958,7 +1978,9 @@
 <script src="/static/js/song.js?v={{staticVersion}}"></script>
 <script src="/static/js/audio-player.js?v={{staticVersion}}"></script>
 <script src="/static/js/lyric-lines.js?v={{staticVersion}}"></script>
-{{if .CanEdit}}<script src="/static/js/sync-sheet.js?v={{staticVersion}}"></script>{{end}}
+{{if .CanEdit}}<script src="/static/js/sync-wave-math.js?v={{staticVersion}}"></script>
+<script src="/static/js/sync-wave.js?v={{staticVersion}}"></script>
+<script src="/static/js/sync-sheet.js?v={{staticVersion}}"></script>{{end}}
 <script src="/static/js/pitch-check.js?v={{staticVersion}}"></script>
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 <script src="/static/js/mixer-autoalign.js?v={{staticVersion}}" defer></script>

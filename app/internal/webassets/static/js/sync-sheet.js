@@ -23,6 +23,13 @@
 // section the voice comes into bars later, or not at all, singing over
 // one without lyrics, a start past the end of the recording.
 //
+// Over it all, the recording's waveform (sync-wave.js): zoomed from the
+// whole song to a few beats, scrolled, following the playhead, with the
+// sections, bar lines, bar numbers and chords on it, the analysis' beats
+// faintly, its suggestions and chord checks where they apply, and each
+// section's start a marker to drag (snapping to a downbeat, a beat or
+// the voice; Alt to place it freely), the bars between following.
+//
 // It works on the player's recording (audio-player.js,
 // window.songbooksPlayer); opened from the player's sync badge, or by
 // the import wizard with its proposal (songbooksSyncSheet.open).
@@ -31,9 +38,14 @@
   const P = window.songbooksPlayer;
   if (!sheet || !P) return;
   const $ = (id) => document.getElementById(id);
+  const WM = window.SyncWaveMath;
   const rowsEl = $('sync-rows');
   const tapBtn = $('sync-tap');
   const tapWhat = $('sync-tap-what');
+  const hereLabel = $('sync-here-label');
+  const hereMeta = $('sync-here-meta');
+  const hereMore = $('sync-here-more');
+  const followBtn = $('sync-follow');
   const playBtn = $('sync-play');
   const timeEl = $('sync-time');
   const nowEl = $('sync-now');
@@ -315,76 +327,71 @@
     change(() => { cursor = i; todoFrom = i; });
     const from = rows[i].t !== null ? rows[i].t : (rows.slice(0, i).reverse().find((x) => x.t !== null) || {}).t;
     P.seek(Math.max(0, (from ?? 0) - 4));
-    if (!P.isPlaying()) P.play();
+    if (!P.isPlaying()) play();
   }
   function audition(i) {
     const r = rows[i];
     if (!r || r.t === null) return;
     P.seek(Math.max(0, r.t - 2));
-    if (!P.isPlaying()) P.play();
+    if (!P.isPlaying()) play();
   }
-  function select(i) {
+  // The section the next tap sets; the waveform shows its start.
+  function select(i, fromWave) {
     cursor = Math.max(0, Math.min(rows.length - 1, i));
     render();
-    rowsEl.children[cursor]?.scrollIntoView({ block: 'nearest' });
+    // A phone scrolls the card and the list as one: the card (and its
+    // tap button) stays in sight; a wide screen scrolls the list to it.
+    if (window.matchMedia?.('(max-width: 720px)').matches) $('sync-here').scrollIntoView({ block: 'nearest' });
+    else rowsEl.children[cursor]?.scrollIntoView({ block: 'nearest' });
+    if (wave && !fromWave && rows[cursor]) wave.reveal(rows[cursor].t);
   }
 
   // ---- Drawing -----------------------------------------------------------------
+  // The list: one line per section, its state as a dot, its start, and
+  // what needs a look (a suggestion, a flag, a tempo or bar count off);
+  // the section the next tap sets gets the card beside it, with its tools.
   function render() {
     const tempos = rows.map((_, i) => rowBpm(i));
     rowsEl.replaceChildren(...rows.map((r, i) => {
       const li = document.createElement('li');
-      li.className = `sync-row ${r.t === null ? 'is-unset' : r.origin === 'set' ? 'is-set' : 'is-auto'}${i === cursor ? ' is-cursor' : ''}${todoFrom >= 0 && i >= todoFrom && i >= cursor ? ' is-todo' : ''}`;
+      const state = r.t === null ? 'unset' : r.origin === 'set' ? 'set' : 'auto';
+      li.className = `sync-row is-${state}${i === cursor ? ' is-cursor' : ''}${todoFrom >= 0 && i >= todoFrom && i >= cursor ? ' is-todo' : ''}`;
       const main = document.createElement('button');
       main.type = 'button';
       main.className = 'sync-row-main';
       main.setAttribute('aria-current', i === cursor ? 'true' : 'false');
-      const bpmOff = offTempo(tempos[i]);
-      main.innerHTML = '<span class="sync-row-label"></span><span class="sync-row-time"></span><span class="sync-row-origin"></span><span class="sync-row-bpm"></span>';
+      main.innerHTML = '<i class="sync-row-dot"></i><span class="sync-row-label"></span><span class="sync-row-notes"></span><span class="sync-row-time"></span>';
+      main.querySelector('.sync-row-dot').title = stateText(r);
       main.querySelector('.sync-row-label').textContent = r.label;
       main.querySelector('.sync-row-time').textContent = fmt(r.t);
-      main.querySelector('.sync-row-origin').textContent = r.t === null ? t('sync|not placed') : r.origin === 'set' ? t('sync|set') : t('sync|estimated');
-      const b = main.querySelector('.sync-row-bpm');
-      if (tempos[i]) {
-        b.textContent = t('%d bpm', Math.round(tempos[i]));
-        b.classList.toggle('warn', bpmOff);
-        if (bpmOff) b.title = t('the chart’s %d bars here make the counter run at %d bpm; the chart says %d', r.barCount, Math.round(tempos[i]), Math.round(P.bpm));
-      }
+      main.setAttribute('aria-label', `${r.label}, ${fmt(r.t)}, ${stateText(r)}`);
+      const notes = main.querySelector('.sync-row-notes');
+      const note = (cls, text, title) => { const s = el('span', `sync-row-note ${cls}`, text); if (title) s.title = title; notes.append(s); };
+      if (pending(i).length) note('sugg', '●', t('a suggestion to check'));
+      const fl = flags(i);
+      if (fl.length) { li.classList.add('is-flagged'); note('flag', '⚑', fl.join(' · ')); }
+      const as = anaSection(r.index);
+      if (as && !as.last && as.played && as.played !== as.written) note('bars', t('%d → %d bars', as.written, as.played), t('written %d · played %d', as.written, as.played));
+      if (offTempo(tempos[i])) note('bpm', t('%d bpm', Math.round(tempos[i])), t('the chart’s %d bars here make the counter run at %d bpm; the chart says %d', r.barCount, Math.round(tempos[i]), Math.round(P.bpm)));
       main.addEventListener('click', () => select(i));
       li.appendChild(main);
-      const fl = flags(i);
-      if (fl.length) {
-        li.classList.add('is-flagged');
-        const p = document.createElement('p');
-        p.className = 'sync-row-flag';
-        p.textContent = fl.join(' · ');
-        li.appendChild(p);
-      }
-      for (const s of pending(i)) li.appendChild(suggestion(i, s));
-      // The analysis: this section plays another number of bars than
-      // the chart writes.
-      const as = anaSection(r.index);
-      if (as && !as.last && as.played && as.played !== as.written) {
-        li.classList.add('has-bars');
-        li.appendChild(el('p', 'sync-row-bars', t('written %d · played %d', as.written, as.played)));
-      }
-      if (i === cursor) li.appendChild(tools(i));
       return li;
     }));
+    renderHere(tempos);
     const waiting = rows.filter((_, i) => pending(i).length).length;
     $('sync-accept-all').hidden = !waiting;
     $('sync-suggest-count').textContent = waiting ? tn(waiting, '%d suggestion to check', '%d suggestions to check') : '';
-    const notes = $('sync-suggest-notes');
-    notes.hidden = !(waiting && suggNotes.length);
-    notes.textContent = suggNotes.join(' ');
-    const r = rows[cursor];
-    tapWhat.textContent = r ? t('Start of %s', r.label) : t('Every section is placed');
-    tapBtn.disabled = !r;
+    const notesEl = $('sync-suggest-notes');
+    notesEl.hidden = !(waiting && suggNotes.length);
+    notesEl.textContent = suggNotes.join(' ');
     undoBtn.disabled = !history.length;
     saveBtn.disabled = !dirty;
-    const set = rows.filter((x) => x.t !== null && x.origin === 'set').length, placed = rows.filter((x) => x.t !== null).length;
-    chip.textContent = placed && set === placed ? t('Sync set') : placed ? t('%d of %d checked', set, rows.length) : t('Not synced');
-    chip.dataset.state = placed && set === placed ? 'set' : 'auto';
+    // Where you are: how many starts are checked by ear, how many to go.
+    const set = rows.filter((x) => x.t !== null && x.origin === 'set').length;
+    const placed = rows.filter((x) => x.t !== null).length;
+    chip.textContent = set === rows.length && rows.length ? t('Sync set')
+      : placed ? t('%d of %d set · %d to check', set, rows.length, rows.length - set) : t('Not synced');
+    chip.dataset.state = set === rows.length && rows.length ? 'set' : 'auto';
     const off = tempos.filter(offTempo);
     warnEl.hidden = !off.length;
     if (off.length) {
@@ -394,28 +401,53 @@
       $('sync-warn-sum').textContent = t('The counter isn’t at the chart’s tempo: %d bpm, not %d', mid, Math.round(P.bpm));
       $('sync-warn-text').textContent = t('The counter runs at about %d bpm between these starts, the chart says %d: where a section is marked, the chart has more or fewer bars than the recording plays. Count its bars while listening and fix the chart.', mid, Math.round(P.bpm));
     }
+    waveChanged();
+  }
+  const stateText = (r) => (r.t === null ? t('sync|not placed') : r.origin === 'set' ? t('sync|set') : t('sync|estimated'));
+  // The card: the section the next tap sets, its start, its tools, what
+  // the recording says about it and the suggestions for it.
+  function renderHere(tempos) {
+    const r = rows[cursor];
+    tapWhat.textContent = r ? t('Start of %s', r.label) : t('Every section is placed');
+    tapBtn.disabled = !r;
+    hereLabel.textContent = r ? r.label : t('Every section is placed');
+    hereMeta.textContent = r ? [fmt(r.t), stateText(r), t('bar %s', P.barLabel(r.startBar))].join(' · ') : '';
+    $('sync-here').dataset.state = !r ? '' : r.t === null ? 'unset' : r.origin === 'set' ? 'set' : 'auto';
+    if (!r) { hereMore.replaceChildren(); return; }
+    // What to decide first: the suggestions; then the tools.
+    const out = pending(cursor).map((s) => suggestion(cursor, s));
+    out.push(tools(cursor));
+    const fl = flags(cursor);
+    if (fl.length) out.push(el('p', 'sync-row-flag', fl.join(' · ')));
+    const as = anaSection(r.index);
+    if (as && !as.last && as.played && as.played !== as.written) out.push(el('p', 'sync-row-bars', t('written %d · played %d', as.written, as.played)));
+    if (offTempo(tempos[cursor])) out.push(el('p', 'sync-row-bpm', t('the chart’s %d bars here make the counter run at %d bpm; the chart says %d', r.barCount, Math.round(tempos[cursor]), Math.round(P.bpm))));
+    hereMore.replaceChildren(...out);
   }
   // One suggestion for row i: its time and where it comes from, ▶ to
   // hear it, ✓ to take it, ✗ to leave the row as it is.
+  // On the waveform's chips.
+  const srcShort = (src) => ({ analysis: t('sync|analysis'), voice: t('sync|voice'), beat: t('sync|downbeat'), given: t('sync|proposed') }[src]);
+  const srcText = (src) =>({ analysis: t('on the recording’s downbeat'), voice: t('where the singing starts'), beat: t('from the downbeats'), given: t('proposed') }[src]);
   function suggestion(i, s) {
     const r = rows[i];
     const div = document.createElement('div');
     div.className = 'sync-suggest';
     const what = document.createElement('span');
-    const from = { analysis: t('on the recording’s downbeat'), voice: t('where the singing starts'), beat: t('from the downbeats'), given: t('proposed') }[s.src];
     const d = r.t === null ? '' : ` (${s.t > r.t ? '+' : '−'}${Math.abs(s.t - r.t).toFixed(1)} s)`;
-    what.textContent = t('Suggested: %s, %s', fmt(s.t) + d, from);
+    what.textContent = t('Suggested: %s, %s', fmt(s.t) + d, srcText(s.src));
     const btn = (cls, text, label, fn) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = `sync-btn ${cls}`;
       b.textContent = text;
       b.setAttribute('aria-label', label);
+      b.title = label;
       b.addEventListener('click', fn);
       return b;
     };
     div.append(what,
-      btn('', '▶', t('play the suggestion for %s from 2 seconds before', r.label), () => { P.seek(Math.max(0, s.t - 2)); if (!P.isPlaying()) P.play(); }),
+      btn('', '▶', t('play the suggestion for %s from 2 seconds before', r.label), () => { P.seek(Math.max(0, s.t - 2)); if (!P.isPlaying()) play(); }),
       btn('ok', '✓', t('take the suggestion for %s', r.label), () => accept(i, s)),
       btn('no', '✗', t('keep %s as it is', r.label), () => reject(i)));
     return div;
@@ -430,17 +462,17 @@
       b.className = 'sync-btn';
       b.dataset.act = act;
       b.textContent = text;
-      if (label) b.setAttribute('aria-label', label);
+      if (label) { b.setAttribute('aria-label', label); b.title = label; }
       b.disabled = !!disabled;
       return b;
     };
     const none = r.t === null;
     div.append(
       btn('audition', t('▶ 2 s before'), t('play %s from 2 seconds before', r.label), none),
-      btn('bar-', t('−1 bar'), t('one bar earlier'), none),
-      btn('ms-', t('−0.1 s'), t('0.1 second earlier'), none),
-      btn('ms+', t('+0.1 s'), t('0.1 second later'), none),
-      btn('bar+', t('+1 bar'), t('one bar later'), none),
+      btn('bar-', t('−1 bar'), t('one bar earlier (Shift ←)'), none),
+      btn('ms-', t('−0.1 s'), t('0.1 second earlier (←)'), none),
+      btn('ms+', t('+0.1 s'), t('0.1 second later (→)'), none),
+      btn('bar+', t('+1 bar'), t('one bar later (Shift →)'), none),
       btn('ok', t('✓ Right'), t('%s starts right there', r.label), none || r.origin === 'set'),
       btn('redo', t('Redo from here'), t('tap again from %s on', r.label)),
     );
@@ -458,13 +490,169 @@
     });
     return div;
   }
+
+  // ---- The waveform --------------------------------------------------------------
+  // What it draws, rebuilt when the rows or the analysis change; while a
+  // marker is dragged, the bars between the starts are worked out here
+  // (the player's grid follows on release).
+  let wave = null;
+  let waveData = null;
+  let chordBars = []; // [{bar, name, first}] from the chart, by performed bar
+  let peaksFor = null; // the samples the peaks were built from
+  let dragFrom = null; // the drag's snapshot, for undo
+  let dragLocal = false;
+  let lastGhost = { key: '', at: 0 };
+  const waveTargets = { downbeat: [], beat: [], voice: [], suggestion: [] };
+  function localBars() {
+    const secs = P.sections();
+    const marks = rows.filter((r) => r.t !== null).map((r) => ({ start: r.startBar, t: r.t }));
+    return WM.barTimes(marks, P.bpm > 0 ? (60 / P.bpm) * P.beatsPerBar : 0, P.duration()).slice(0, Math.max(2, secs.reduce((m, s) => Math.max(m, s.startBar + s.barCount), 0) + 64));
+  }
+  function waveChanged() {
+    if (!wave) return;
+    const p = ana && ana.proposal;
+    const bars = dragLocal ? localBars() : P.barTimes();
+    const sectionsOut = rows.map((r, i) => {
+      const as = anaSection(r.index);
+      const badge = as && !as.last && as.played && as.played !== as.written ? t('%d → %d bars', as.written, as.played) : '';
+      const end = bars.length > r.startBar + r.barCount ? bars[r.startBar + r.barCount] : null;
+      return { i, label: r.label, t: r.t, startBar: r.startBar, state: r.t === null ? 'unset' : r.origin === 'set' ? 'set' : 'auto', cursor: i === cursor, badge, end };
+    });
+    // Where each chip was last drawn stays its own until the next frame
+    // (a second click on it may come first).
+    const boxes = new Map(((waveData && waveData.ghosts) || []).map((g) => [g.key, g._box]));
+    const ghosts = [];
+    rows.forEach((r, i) => {
+      for (const s of pending(i)) {
+        const key = `${i}:${s.t}`;
+        ghosts.push({ i, t: s.t, s, key, label: `${r.label} · ${srcShort(s.src)}`, _box: boxes.get(key) || null });
+      }
+    });
+    const fixes = ((p && p.chordFixes) || []).map((f) => ({ t: f.time, label: `${f.chart} → ${f.heard}`, key: fixKey(f) }));
+    const beatList = (p && p.beats && p.beats.length ? p.beats : []);
+    const downs = (p && p.downbeats && p.downbeats.length ? p.downbeats : beats) || [];
+    waveTargets.downbeat = downs;
+    waveTargets.beat = beatList;
+    waveTargets.voice = voice;
+    waveTargets.suggestion = ghosts.map((g) => g.t).sort((a, b) => a - b);
+    waveData = {
+      bars, sections: sectionsOut, chords: chordBars, beats: beatList, downbeats: downs, voice,
+      ghosts, fixes, chartBars: P.totalBars(), pickup: P.hasPickup(), barLabel: P.barLabel,
+    };
+    wave.invalidate();
+  }
+  function ensureWave() {
+    if (wave || !window.SongbooksSyncWave) return;
+    wave = window.SongbooksSyncWave.create({
+      canvas: $('sync-wave-canvas'),
+      overview: $('sync-wave-overview'),
+      now: () => P.audio.currentTime,
+      playing: () => P.isPlaying(),
+      duration: () => P.duration(),
+      isOpen,
+      data: () => waveData || { bars: [], sections: [], chords: [], beats: [], downbeats: [], voice: [], ghosts: [], fixes: [], chartBars: 0, barLabel: String },
+      seek: (tm) => P.seek(Math.max(0, tm)),
+      select: (i) => select(i, true),
+      dragStart: (i) => { dragFrom = snapshot(); dragLocal = true; select(i, true); },
+      dragMove: (i, tm, o) => dragTo(i, tm, o),
+      dragEnd: (i, cancelled) => dragDone(i, cancelled),
+      pickGhost: (g) => {
+        // Once: that section, its suggestion in the card; twice: taken.
+        const now = Date.now();
+        if (lastGhost.key === g.key && now - lastGhost.at < 600) { accept(g.i, g.s); lastGhost = { key: '', at: 0 }; return; }
+        lastGhost = { key: g.key, at: now };
+        select(g.i);
+      },
+      pickFix: (f) => showFix(f.key),
+      onView: (_, on) => { followBtn.setAttribute('aria-pressed', String(on)); followBtn.classList.toggle('active', on); },
+    });
+  }
+  function dragTo(i, raw, o) {
+    const r = rows[i];
+    if (!r) return;
+    let at = raw;
+    let kind = null;
+    if (!o.free && snapBox.checked) ({ t: at, kind } = WM.snap(raw, waveTargets, o.pxPerSec));
+    const prev = rows.slice(0, i).reverse().find((x) => x.t !== null);
+    const next = rows.slice(i + 1).find((x) => x.t !== null);
+    at = WM.between(at, prev ? prev.t : null, next ? next.t : null, P.duration());
+    r.t = at;
+    r.origin = 'set';
+    const snapText = { downbeat: t('on a downbeat'), beat: t('on a beat'), voice: t('where the voice comes in'), suggestion: t('on the suggestion') }[kind];
+    say(snapText ? `${r.label} ${fmt(at)} · ${snapText}` : `${r.label} ${fmt(at)}`);
+    hereMeta.textContent = [fmt(r.t), stateText(r), t('bar %s', P.barLabel(r.startBar))].join(' · ');
+    waveChanged();
+  }
+  function dragDone(i, cancelled) {
+    const before = dragFrom;
+    dragFrom = null;
+    dragLocal = false;
+    if (!before) return;
+    if (cancelled || before === snapshot()) {
+      ({ rows, cursor, todoFrom, sugg } = JSON.parse(before));
+      render();
+      return;
+    }
+    history.push(before);
+    if (history.length > 200) history.shift();
+    dirty = true;
+    afterChange();
+  }
+  // A chord check flagged on the waveform: open the analysis there.
+  function showFix(key) {
+    if (!anaEl) return;
+    anaEl.open = true;
+    const li = anaBody.querySelector(`[data-fix="${CSS.escape(key)}"]`);
+    if (li) {
+      li.scrollIntoView({ block: 'nearest' });
+      li.classList.remove('flash');
+      void li.offsetWidth;
+      li.classList.add('flash');
+    }
+  }
+  // The chart's chords, by performed bar (the Mixer's timeline: every
+  // section in the order played, its chords per bar).
+  async function loadChords() {
+    chordBars = [];
+    try {
+      const res = await fetch(`/api/songs/${P.variantId}/mixer`);
+      if (!res.ok) return;
+      const m = await res.json();
+      for (const s of m.sections || []) {
+        (s.chords || []).forEach((bar, j) => {
+          (bar || []).forEach((c, k) => chordBars.push({ bar: s.startBar + j + (c.pos || 0), name: c.name, first: j === 0 && k === 0 }));
+        });
+      }
+      chordBars.sort((a, b) => a.bar - b.bar);
+      waveChanged();
+    } catch (e) { /* drawn without chords */ }
+  }
+  // The recording's peaks, built once per recording (sync-wave-math.js).
+  function loadPeaks() {
+    const s = P.samples();
+    if (!wave || !s || s === peaksFor) return;
+    peaksFor = s;
+    wave.setPeaks(WM.buildPeaks(s.x, s.sr));
+  }
+  function play() {
+    if (wave) wave.setFollow(true);
+    P.play();
+  }
+  let lastTickAt = -1;
   function tick() {
     const at = P.audio.currentTime;
     timeEl.textContent = fmt(at);
     let cur = null;
     rows.forEach((r) => { if (r.t !== null && r.t <= at + 0.02) cur = r; });
-    nowEl.textContent = cur ? cur.label : '';
+    // Where you are: the section and the bar in it.
+    const bar = waveData && waveData.bars.length > 1 ? WM.barAt(waveData.bars, at) : null;
+    nowEl.textContent = cur ? (bar !== null && bar >= cur.startBar ? t('%s · bar %d', cur.label, Math.floor(bar) - cur.startBar + 1) : cur.label) : '';
     const playing = P.isPlaying();
+    if (wave) {
+      if (!peaksFor) loadPeaks();
+      if (at !== lastTickAt || playing) wave.invalidate();
+    }
+    lastTickAt = at;
     if (playBtn.dataset.state !== String(playing)) { playBtn.innerHTML = playing ? iconPause : iconPlay; playBtn.dataset.state = String(playing); }
     clickBtn.setAttribute('aria-pressed', String(!!P.click()));
     clickBtn.classList.toggle('active', !!P.click());
@@ -489,7 +677,11 @@
       }
     } catch (e) { /* snapping to the beat only */ }
     // The detection takes a moment on a long song: after the sheet shows.
-    setTimeout(() => { if (forCat === cat) beats = P.detectBars() || []; }, 50);
+    setTimeout(() => {
+      if (forCat !== cat) return;
+      if (!(ana && ana.proposal && ana.proposal.downbeats && ana.proposal.downbeats.length)) beats = P.detectBars() || [];
+      if (isOpen()) waveChanged();
+    }, 50);
   }
 
   // ---- Saving, history -----------------------------------------------------------
@@ -594,7 +786,7 @@
     b.addEventListener('click', fn);
     return b;
   }
-  const listen = (tm) => anaBtn('▶', t('listen from 2 seconds before'), () => { P.seek(Math.max(0, tm - 2)); if (!P.isPlaying()) P.play(); }, 'sync-btn sync-ana-play');
+  const listen = (tm) => anaBtn('▶', t('listen from 2 seconds before'), () => { P.seek(Math.max(0, tm - 2)); if (!P.isPlaying()) play(); }, 'sync-btn sync-ana-play');
   function renderAnalysis() {
     if (!anaEl) return;
     anaEl.hidden = !ana;
@@ -644,8 +836,9 @@
     out.push(use);
     // The chart's proposals.
     const props = el('ul', 'sync-ana-props');
-    const item = (checked, onchange, text, extra, at) => {
+    const item = (checked, onchange, text, extra, at, key) => {
       const li = el('li', 'sync-ana-prop');
+      if (key) li.dataset.fix = key;
       const lab = el('label');
       const box = el('input');
       box.type = 'checkbox';
@@ -669,7 +862,7 @@
       const k = fixKey(f);
       const alt = f.alternatives && f.alternatives.length ? ` ${t('(or %s)', f.alternatives.join(', '))}` : '';
       item(picks.chords.has(k), (v) => { if (v) picks.chords.add(k); else picks.chords.delete(k); },
-        t('%s, bar %d: the chart says %s, the recording plays %s (%s sure)', p.labels[f.section] || '', f.secBar, f.chart, f.heard, `${pct(f.confidence)}%`) + alt, '', f.time);
+        t('%s, bar %d: the chart says %s, the recording plays %s (%s sure)', p.labels[f.section] || '', f.secBar, f.chart, f.heard, `${pct(f.confidence)}%`) + alt, '', f.time, k);
     }
     if (props.children.length) {
       out.push(el('p', 'sync-ana-props-head', t('The chart, against the recording')));
@@ -824,14 +1017,26 @@
     // Start where the sync still needs a person.
     const first = rows.findIndex((r) => r.origin !== 'set');
     cursor = first >= 0 ? first : 0;
+    // The waveform: the whole recording first, following the playhead.
+    ensureWave();
+    if (wave) {
+      wave.restyle();
+      wave.resize();
+      wave.setView(WM.fit(P.duration()));
+      wave.setFollow(true);
+      loadPeaks();
+    }
+    // A wide screen has a column for the analysis: open.
+    if (anaEl && window.matchMedia?.('(min-width: 1101px)').matches) anaEl.open = true;
     render();
     loadTargets();
     loadAnalysis();
+    loadChords();
     clearInterval(timer);
     timer = setInterval(tick, 50);
     tick();
     tapBtn.focus({ preventScroll: true });
-    rowsEl.children[cursor]?.scrollIntoView({ block: 'nearest' });
+    if (!window.matchMedia?.('(max-width: 720px)').matches) rowsEl.children[cursor]?.scrollIntoView({ block: 'nearest' });
   }
   function close() {
     if (dirty && !window.confirm(t('Leave without saving the sync?'))) return;
@@ -851,7 +1056,7 @@
     tap();
   });
   tapBtn.addEventListener('click', (e) => { if (e.detail === 0) tap(); }); // Enter / Space on it
-  playBtn.addEventListener('click', () => (P.isPlaying() ? P.pause() : P.play()));
+  playBtn.addEventListener('click', () => (P.isPlaying() ? P.pause() : play()));
   $('sync-back').addEventListener('click', () => P.seek(Math.max(0, P.audio.currentTime - 5)));
   clickBtn.addEventListener('click', () => { P.toggleClick(); tick(); });
   $('sync-speed').addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (b) { P.setSpeed(+b.dataset.v); tick(); } });
@@ -861,6 +1066,17 @@
   $('sync-suggest-btn').addEventListener('click', suggest);
   $('sync-accept-all').addEventListener('click', acceptAll);
   sheet.querySelectorAll('[data-sync-close]').forEach((el) => el.addEventListener('click', close));
+  $('sync-zoom-in').addEventListener('click', () => wave && wave.zoom(2));
+  $('sync-zoom-out').addEventListener('click', () => wave && wave.zoom(0.5));
+  $('sync-zoom-fit').addEventListener('click', () => wave && wave.fit());
+  followBtn.addEventListener('click', () => wave && wave.setFollow(!wave.following()));
+  snapBox.addEventListener('change', () => snapBox.closest('label')?.classList.toggle('active', snapBox.checked));
+  snapBox.closest('label')?.classList.toggle('active', snapBox.checked);
+  // A theme switched while it's open: the waveform's colours follow.
+  window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', () => wave && wave.restyle());
+  const themed = new MutationObserver(() => wave && isOpen() && wave.restyle());
+  themed.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  themed.observe(document.body, { attributes: true, attributeFilter: ['data-theme'] });
   // Keys while it's open, before the player's own (window, capture).
   window.addEventListener('keydown', (e) => {
     if (!isOpen() || e.target.closest?.('input, select, textarea, [contenteditable]')) return;
@@ -869,7 +1085,7 @@
     if ((e.metaKey || e.ctrlKey) && (k === 'z' || k === 'Z')) undo();
     else if (e.metaKey || e.ctrlKey || e.altKey) handled = false;
     else if (k === 'Escape') close();
-    else if (k === ' ' || k === 'Spacebar') { if (e.target.closest?.('button') && e.target !== tapBtn) handled = false; else (P.isPlaying() ? P.pause() : P.play()); }
+    else if (k === ' ' || k === 'Spacebar') { if (e.target.closest?.('button') && e.target !== tapBtn) handled = false; else (P.isPlaying() ? P.pause() : play()); }
     else if (k === 't' || k === 'T' || (k === 'Enter' && !e.target.closest?.('button'))) tap();
     else if (k === 'ArrowLeft') nudge(cursor, e.shiftKey ? -barLen(Math.max(0, cursor - 1)) : -0.1);
     else if (k === 'ArrowRight') nudge(cursor, e.shiftKey ? barLen(cursor) : 0.1);
@@ -877,6 +1093,10 @@
     else if (k === 'ArrowDown') select(cursor + 1);
     else if (k === 'k' || k === 'K') { P.toggleClick(); tick(); }
     else if (k === 'z' || k === 'Z') undo();
+    else if (wave && (k === '+' || k === '=')) wave.zoom(2);
+    else if (wave && (k === '-' || k === '_')) wave.zoom(0.5);
+    else if (wave && k === '0') wave.fit();
+    else if (wave && (k === 'f' || k === 'F')) wave.setFollow(!wave.following());
     else handled = false;
     if (handled) { e.preventDefault(); e.stopImmediatePropagation(); }
   }, true);
