@@ -1647,15 +1647,6 @@ window.songbooksDecodable = function (buf) {
   setSpeed(prefs.speed, false);
   updateButtons();
 
-  // ---- Reference-drawer upload controls (YouTube download + band file
-  // upload) — moved here from the main player per direct request. Both
-  // just call loadMeta() again afterward so the player above picks up
-  // the new category without a full page reload. --------------------------
-  // The Mixer (mixer.js) plays its own copy of the recording: stop this
-  // one when it starts, and reload markers/sync points it edited.
-  document.addEventListener('songbooks:pause-reference', () => pause());
-  document.addEventListener('songbooks:audio-changed', () => loadMeta());
-
   // The mini player (mini-player.js): leaving the page, the recording
   // playing goes on on the next one, as its plain URL — there, the
   // recording as it is: no parts, no key, no count-in. Back on this song
@@ -1676,11 +1667,21 @@ window.songbooksDecodable = function (buf) {
   window.SongbooksNowPlaying?.register({
     media: audio,
     info: () => (activeCategory
-      ?{ key: songURL(activeCategory), src: songURL(activeCategory), title: document.title.replace(/ — Songbooks$/, ''), page: location.pathname + location.search }
+      ? { key: songURL(activeCategory), src: songURL(activeCategory), title: document.title.replace(/ — Songbooks$/, ''), page: location.pathname + location.search }
       : null),
     owns: (key) => key.startsWith(`/song/${variantId}/audio.mp3?`),
     resume: (state, from) => { kept = { state, play: from.play }; takeOver(); },
   });
+
+  // ---- Reference-drawer upload controls (YouTube download + band file
+  // upload) — moved here from the main player per direct request. Both
+  // just call loadMeta() again afterward so the player above picks up
+  // the new category without a full page reload. --------------------------
+  // The Mixer (mixer.js) plays its own copy of the recording: stop this
+  // one when it starts, and reload markers/sync points it edited.
+  document.addEventListener('songbooks:pause-reference', () => pause());
+  document.addEventListener('songbooks:audio-changed', () => loadMeta());
+
 
   if (!canEdit) { loadMeta(); return; }
 
