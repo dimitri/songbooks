@@ -73,8 +73,10 @@ type Result struct {
 	// "unsure" (no number is worth showing).
 	Confidence float64 `json:"confidence"`
 	State      string  `json:"state"`
-	// The grid used, after hints (for drawing it and the click).
+	// The grid used, after hints (for drawing it and the click): its
+	// downbeats, and every beat (the Sync sheet's waveform draws them).
 	Downbeats []float64 `json:"downbeats"`
+	Beats     []float64 `json:"beats"`
 	cost      float64
 }
 
@@ -381,6 +383,7 @@ func alignOn(r *Recording, g grid, secs []Section, h Hints) *Result {
 			res.Downbeats = append(res.Downbeats, g.beats[i])
 		}
 	}
+	res.Beats = g.beats
 	M := len(g.beats) - 1
 	if M < 4 {
 		res.State = "unsure"

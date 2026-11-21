@@ -190,6 +190,25 @@ replaces (`song_audio_sync_history`, the last 20,
 It opens from the badge's panel and from the import wizard's step 5
 ("Adjust by ear…", with the wizard's proposal).
 
+Its top is the recording's waveform (`sync-wave.js`, its arithmetic in
+`sync-wave-math.js`, tested by `internal/webassets/jstest`), drawn on a
+canvas from peaks at several resolutions (built from the player's ~11 kHz
+mono copy), zoomed from the whole song to a few beats: trackpad pinch,
+Ctrl/⌘ + wheel, a phone's two fingers, − / Fit / + (keys − 0 +). The
+wheel or a drag scrolls, a click plays from there, and while playing it
+follows the playhead until you scroll or zoom (Follow, F, brings it back);
+an overview strip under it shows the window and moves it. On it: the
+sections as a band, the bar lines with their numbers, the chart's chords
+(`GET /api/songs/{id}/mixer`), the analysis' beats and downbeats faintly,
+its suggestions as dashed lines with a chip (once: that section; twice:
+taken), its chord checks as flags (they open the analysis there). Each
+section's start is a marker to drag, snapping to the nearest downbeat,
+beat or voice onset within a few pixels (`Alt` places it freely), the bars
+between the starts following. Below it: the section the next tap sets
+with its tools, the list of sections (a dot for each one's state, notes
+for what needs a look), and the analysis. A phone stacks them, the
+waveform on top and Save at the bottom.
+
 ### Lines in Lyrics only
 
 A chart has no time per lyric line. While the recording leads, Lyrics
