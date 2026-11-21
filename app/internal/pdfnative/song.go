@@ -120,6 +120,12 @@ func renderSongBody(c *canvas, s *song.Song, scores map[int]*tab.Riff, bodySize 
 		}
 	}
 	firstStaffDrawn := false
+	// The song's pickup bar, when its first grid opens with one: on the
+	// first row on top of its 4-bar phrase, as the web chart has it.
+	pickupSec := tab.FirstGridSection(s)
+	if !tab.StartsWithPickup(s, pickupSec) {
+		pickupSec = -1
+	}
 	marks := map[string]string{}
 	next := 'A'
 	for si, sec := range s.Sections {
@@ -137,7 +143,7 @@ func renderSongBody(c *canvas, s *song.Song, scores map[int]*tab.Riff, bodySize 
 			// only its label, no measures/lyrics of its own.
 		}
 		isFirst := !firstStaffDrawn && len(sec.Measures) > 0 && mode != ModeLyrics
-		c.measureSection(sec, scores[si], bodySize, mode, hideNotes, globalBeats, isFirst, tempo, timeNum, timeDen)
+		c.measureSection(sec, scores[si], bodySize, mode, hideNotes, globalBeats, isFirst, si == pickupSec, tempo, timeNum, timeDen)
 		if isFirst {
 			firstStaffDrawn = true
 		}

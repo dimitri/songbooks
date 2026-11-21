@@ -10,11 +10,17 @@
 //   - 2 or 3 bars make a short last row (10 → 4 + 4 + 2) whose bars are as
 //     wide as a full row's, its staff ending at its last bar.
 // A section whose author wrote "bars:" keeps the author's rows, each one
-// split the same way only when it holds more than a screen row does.
+// split the same way only when it holds more than a screen row does; a
+// lone bar such a split leaves where it can't join its row shares the row
+// before it instead (bars: 5 on a phone: 3 + 2, not 4 + 1).
+//
+// pdfnative/bar_rows.go is this file's Go twin, for the PDF: both are
+// checked against one table, jstest/bar-rows-cases.json.
 (function (root) {
   // The bar count of each row for n bars, perRow to a row. fitFirst/fit:
-  // the most bars the first row / any other row can hold.
-  function sizes(n, perRow, fitFirst, fit) {
+  // the most bars the first row / any other row can hold. balance: a lone
+  // last bar that can't join its row takes one from it (4 + 1 → 3 + 2).
+  function sizes(n, perRow, fitFirst, fit, balance) {
     const P = Math.max(1, Math.floor(perRow) || 1);
     const out = [];
     for (let rest = n; rest > 0; rest -= P) out.push(Math.min(P, rest));
@@ -24,6 +30,9 @@
       if (P + 1 <= room) {
         out[k - 2] += 1;
         out.pop();
+      } else if (balance && out[k - 2] >= 3) {
+        out[k - 2] -= 1;
+        out[k - 1] = 2;
       }
     }
     return out;
@@ -59,7 +68,7 @@
     const Pe = Math.min(P, Math.max(...counts));
     const out = [];
     counts.forEach((r, i) => {
-      sizes(r, Pe, i === 0 ? fitFirst + pickup : fit, fit).forEach((b, j) => {
+      sizes(r, Pe, i === 0 ? fitFirst + pickup : fit, fit, true).forEach((b, j) => {
         const pk = i === 0 && j === 0 ? pickup : 0;
         out.push({ bars: b, cap: b >= Pe ? Math.max(1, b - pk) : Pe });
       });
@@ -67,7 +76,18 @@
     return out;
   }
 
-  const api = { sizes, plan };
+  // A row whose chord labels collide (song.js' resolveLabelCollisions)
+  // splits in halves, the first the longer: [{bars, cap}], both rows'
+  // bars as wide as the longer one's. A 4-bar phrase reads as 2 + 2, a
+  // 5-bar row as 3 + 2 — never 3 + 1, a bar alone on its row; only a
+  // 3-bar row can't avoid it (2 + 1), and 1 bar can't be split.
+  function split(n) {
+    if (n <= 1) return [{ bars: n, cap: n }];
+    const a = Math.ceil(n / 2);
+    return [{ bars: a, cap: a }, { bars: n - a, cap: a }];
+  }
+
+  const api = { sizes, plan, split };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SongbooksBarRows = api;
 })(typeof window !== 'undefined' ? window : globalThis);

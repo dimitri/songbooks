@@ -104,3 +104,34 @@ test('nothing to lay out', () => {
   assert.deepEqual(Rows.plan([], { perRow: 4 }), []);
   assert.deepEqual(Rows.plan([0], { perRow: 4 }), []);
 });
+
+// The table the PDF's rows (pdfnative/bar_rows.go) are checked against too.
+test('the rows shared with the PDF', () => {
+  const { cases } = require('./bar-rows-cases.json');
+  for (const c of cases) {
+    assert.deepEqual(Rows.plan(c.rows, c.opts), c.want, c.name);
+  }
+});
+
+test('an author row that no screen row holds: no lone bar', () => {
+  // bars: 5 on a phone (4 fit): 3 + 2, not 4 + 1.
+  assert.deepEqual(bars(Rows.plan([5, 5], { perRow: 4, explicit: true, fit: 4 })), [3, 2, 3, 2]);
+  // A phrase row stays a phrase: 9 bars on a phone, 4 + 4 + 1.
+  assert.deepEqual(bars(Rows.plan([9], { perRow: 4, fit: 4 })), [4, 4, 1]);
+});
+
+test('a colliding row splits in halves, never leaving a bar alone', () => {
+  const split = (n) => Rows.split(n).map((r) => r.bars);
+  assert.deepEqual(split(4), [2, 2]);
+  assert.deepEqual(split(5), [3, 2]);
+  assert.deepEqual(split(6), [3, 3]);
+  assert.deepEqual(split(8), [4, 4]);
+  assert.deepEqual(split(2), [1, 1]);
+  assert.deepEqual(split(3), [2, 1]);
+  assert.deepEqual(split(1), [1]);
+  // Both halves' bars as wide as the longer one's.
+  assert.deepEqual(Rows.split(5).map((r) => r.cap), [3, 3]);
+  for (let n = 4; n <= 12; n++) {
+    assert.ok(Rows.split(n).every((r) => r.bars >= 2), `${n}: no half of one bar`);
+  }
+});

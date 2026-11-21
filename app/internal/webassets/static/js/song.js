@@ -371,7 +371,10 @@ const ICONS = {
       if (!line) return;
       const barEls = [...line.querySelectorAll(':scope > .bar')];
       const curCap = parseInt(line.style.getPropertyValue('--cap'), 10) || barEls.length;
-      if (barEls.length <= 1) {
+      // A pickup rides on the first half: it has its own narrow width and
+      // isn't counted in --cap.
+      const pickup = barEls[0].classList.contains('bar-pickup') ? 1 : 0;
+      if (barEls.length - pickup <= 1) {
         // A lone bar (already the shortest possible row — typically a
         // short trailing/volta row) can't be split further, but it may
         // still be rendered NARROWER than the row it's in: --cap usually
@@ -384,26 +387,31 @@ const ICONS = {
         // there's truly nothing left to try. Only once --cap already
         // matches its own bar count (full width, no narrowing left to
         // undo) is this really the end of the line.
-        if (curCap > barEls.length) { line.style.setProperty('--cap', String(barEls.length)); continue; }
+        const own = barEls.length - pickup;
+        if (curCap > own) { line.style.setProperty('--cap', String(Math.max(1, own))); continue; }
         return;
       }
       const clefEl = line.querySelector(':scope > .staff-timesig-cell');
-      const newCap = barEls.length - 1;
-      const groups = [];
-      for (let i = 0; i < barEls.length; i += newCap) groups.push(barEls.slice(i, i + newCap));
+      // Split in halves (bar-rows.js' split): a 4-bar phrase as 2 + 2, a
+      // 5-bar row as 3 + 2 — taking one bar off the end (3 + 1) left a bar
+      // alone on its row, the very thing the rows avoid elsewhere. Each
+      // half recollides on its own if it still has to.
+      let at = 0;
       // Moves the live bar nodes (not clones) into the replacement rows —
       // `line` itself is discarded right after, so there's no need to
       // leave its children intact.
-      const replacement = groups.map((g, gi) => {
+      const replacement = window.SongbooksBarRows.split(barEls.length - pickup).map(({ bars: size, cap }, gi) => {
+        const n = size + (gi === 0 ? pickup : 0);
+        const g = barEls.slice(at, at + n);
+        at += n;
         const l = document.createElement('div');
         l.className = 'staff-line';
-        // The trailing group here can be SHORTER than newCap (a 5-bar row
-        // split at 4 gives [4, 1]): it keeps newCap, its bars as wide as
-        // its sibling's, the same as reflowStaffLines' own short last row
-        // — the staff is drawn per bar (.bar-body::before), so the row
-        // simply ends at its last bar instead of stretching that bar
-        // across the line.
-        l.style.setProperty('--cap', String(newCap));
+        // The shorter half (5 → 3 + 2) keeps the longer one's cap, its
+        // bars as wide as its sibling's, the same as reflowStaffLines' own
+        // short last row — the staff is drawn per bar (.bar-body::before),
+        // so the row simply ends at its last bar instead of stretching
+        // that bar across the line.
+        l.style.setProperty('--cap', String(cap));
         if (gi === 0 && clefEl) l.appendChild(clefEl);
         for (const b of g) l.appendChild(b);
         return l;
