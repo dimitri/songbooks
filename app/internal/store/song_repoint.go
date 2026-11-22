@@ -147,6 +147,9 @@ func (st *Store) repointSong(ctx context.Context, tx pgx.Tx, from, to int64, act
 	if _, err := tx.Exec(ctx, `UPDATE songs SET forked_from_id = NULL WHERE id = $2 AND forked_from_id = $1`, from, to); err != nil {
 		return c, err
 	}
+	if err := resyncVersions(ctx, tx, to); err != nil {
+		return c, err
+	}
 
 	// Everything else.
 	cols, err := songRefColumns(ctx, tx)

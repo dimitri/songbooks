@@ -671,6 +671,7 @@
              who may (SongRights). */}}
         {{if .CanNewVersion}}<button type="button" role="menuitem" id="new-version-open" data-new-version-open aria-haspopup="dialog" title="{{t "another version of this song, beside it"}}">{{template "icon-duplicate"}} {{t "New version from this…"}}</button>{{end}}
         {{if .CanPublish}}<button type="button" role="menuitem" id="song-publish-toggle" data-song-publish="{{.SongPublic}}" title="{{if .SongPublic}}{{t "only its owner’s members see it then"}}{{else}}{{t "everyone signed in sees it then, and can link it or make their own version"}}{{end}}">{{if .SongPublic}}{{template "icon-lock"}}{{else}}{{template "icon-community"}}{{end}} {{if .SongPublic}}{{t "Make private"}}{{else}}{{t "Make public"}}{{end}}</button>{{end}}
+        {{if .CanDelete}}<button type="button" role="menuitem" data-song-delete title="{{t "says first who links it: they keep a frozen copy"}}">{{template "icon-trash"}} {{t "Delete this song…"}}</button>{{end}}
       </div>
     </div>
   </div>
@@ -1494,6 +1495,7 @@
     {{if .VariantID}}<a class="stack-sheet-row" href="/variants/{{.VariantID}}/history">{{template "icon-notes"}} {{t "History"}}</a>{{end}}
     {{if .CanNewVersion}}<button type="button" class="stack-sheet-row" data-new-version-open aria-haspopup="dialog">{{template "icon-duplicate"}} {{t "New version from this…"}}</button>{{end}}
     {{if .CanPublish}}<button type="button" class="stack-sheet-row" data-song-publish="{{.SongPublic}}">{{if .SongPublic}}{{template "icon-lock"}} {{t "Make private"}}{{else}}{{template "icon-community"}} {{t "Make public"}}{{end}}</button>{{end}}
+    {{if .CanDelete}}<button type="button" class="stack-sheet-row" data-song-delete>{{template "icon-trash"}} {{t "Delete this song…"}}</button>{{end}}
   </div>
 
   <div class="content-main">
@@ -2141,6 +2143,12 @@
          (store.BandVersionOf): the band plays and changes that one. */}}
     {{/* A band's song made from another: where it came from, quietly. */}}
     {{with .BasedOn}}<p class="based-on">{{t "Based on:"}} <a href="/song/{{.VariantID}}">{{.Title}}{{with .Artist}} — {{.}}{{end}}</a>{{if eq .Kind "global"}} ({{t "the catalogue’s"}}){{else if .Owner}} ({{.Owner}}){{end}}</p>{{end}}
+    {{/* Steps 6 and 7 of the ownership model (versions_sync.go): a
+         frozen copy says what of; a public song, which bands' recordings
+         everyone hears; a version, what its original changed since. */}}
+    {{with .Frozen}}<p class="based-on frozen-note">{{template "icon-lock"}} {{if .OriginalID}}{{t "Frozen from"}} <a href="/song/{{.OriginalID}}">{{.From}}</a>{{else}}{{t "Frozen from %s" .From}}{{end}}, {{date .At "2 Jan 2006"}}{{t ": a copy kept as it was when it went private or was deleted."}}</p>{{end}}
+    {{with .PlayedBy}}<p class="played-by">{{t "played by:"}} {{range $i, $b := .}}{{if $i}}, {{end}}<a href="/song/{{$.VariantID}}/recordings#band-{{$b.BandID}}">{{$b.BandName}}</a> ({{tn $b.Recordings "%d recording" "%d recordings"}}){{end}}</p>{{end}}
+    {{with .OriginalChange}}{{template "original-change" .}}{{end}}
     {{with .BandVersion}}<p class="band-version-notice">{{t "%s has its own version of this song" .BandName}} — <a href="/song/{{.BandVariantID}}?band={{.BandID}}">{{t "Open the band’s version"}}</a></p>{{end}}
     <main class="sheet" id="sheet" data-render-mode="normal" data-variant-id="{{.VariantID}}"{{with .CoachingContext}} data-coaching="{{.}}"{{end}}{{if .GPFileName}} data-gp-file="/song/{{.VariantID}}/gp-file" data-gp-name="{{.GPFileName}}" data-gp-sha="{{.GPFileSHA}}"{{if .GPFactsMissing}} data-gp-facts-missing="1"{{end}}{{if .GPOnly}} data-gp-only="1"{{end}}{{with .PickerSectionsJSON}} data-picker-sections="{{.}}"{{end}}{{end}} data-key="{{.Key}}"{{if .StudentKeySet}} data-key-offset="{{.StudentKey}}"{{end}} data-flats="{{if .Flats}}1{{else}}0{{end}}"{{with .SpellJSON}} data-spell="{{.}}"{{end}} data-has-diagrams="{{if or .Chords (chordDiagramSets .Text)}}1{{end}}">
     {{template "sheet-body" .}}

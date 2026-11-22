@@ -585,6 +585,8 @@ func (st *Store) SaveVariantByID(ctx context.Context, variantID int64, title, ar
 	if err := tx.Commit(ctx); err != nil {
 		return "", err
 	}
+	// Its versions are told when its chart changed (version_sync.go).
+	st.songSaved(ctx, variantID, curBody, body, actorPersonID)
 	return strconv.Itoa(newVersion), nil
 }
 

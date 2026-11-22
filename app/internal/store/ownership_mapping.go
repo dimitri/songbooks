@@ -476,7 +476,19 @@ func replaceChart(ctx context.Context, st *Store, tx pgx.Tx, from, to int64) err
 	}); err != nil {
 		return err
 	}
-	_, err := tx.Exec(ctx, `UPDATE songs SET body = $2, reference_url = $3, version = version + 1 WHERE id = $1`, to, fromBody, newRef)
+	if _, err := tx.Exec(ctx, `UPDATE songs SET body = $2, reference_url = $3, version = version + 1 WHERE id = $1`, to, fromBody, newRef); err != nil {
+		return err
+	}
+	return resyncVersions(ctx, tx, to)
+}
+
+// resyncVersions counts songID's versions synced with it as it is now
+// (migration 0117): a chart the mapping changed or moved is nobody's edit
+// to offer them.
+func resyncVersions(ctx context.Context, tx pgx.Tx, songID int64) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE songs v SET base_body = o.body, base_version = o.version, base_synced_at = now()
+		FROM songs o WHERE o.id = $1 AND v.forked_from_id = o.id AND v.base_body IS NOT NULL AND v.frozen_at IS NULL`, songID)
 	return err
 }
 

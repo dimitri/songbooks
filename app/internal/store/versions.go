@@ -109,10 +109,11 @@ func (st *Store) MakeVersion(ctx context.Context, personID, songID int64, owner 
 
 	var workID int64
 	var title, artist, referenceURL, body string
+	var srcVersion int
 	err = tx.QueryRow(ctx, `
-		SELECT work_id, title, artist, reference_url, body
+		SELECT work_id, title, artist, reference_url, body, version
 		FROM songs WHERE id = $1 FOR UPDATE`, songID).
-		Scan(&workID, &title, &artist, &referenceURL, &body)
+		Scan(&workID, &title, &artist, &referenceURL, &body, &srcVersion)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, fmt.Errorf("no such song %d: %w", songID, ErrNotFound)
 	}
@@ -144,10 +145,11 @@ func (st *Store) MakeVersion(ctx context.Context, personID, songID int64, owner 
 	if newID == 0 {
 		if err := tx.QueryRow(ctx, `
 			INSERT INTO songs (title, artist, reference_url, body, work_id, version_name,
-			                   owner_person_id, owner_band_id, owner_community_id, forked_from_id, created_by_person_id)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			                   owner_person_id, owner_band_id, owner_community_id, forked_from_id, created_by_person_id,
+			                   base_body, base_version, base_synced_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $4, $12, now())
 			RETURNING id`,
-			title, artist, referenceURL, body, workID, name, personCol, bandCol, communityCol, songID, personID).Scan(&newID); err != nil {
+			title, artist, referenceURL, body, workID, name, personCol, bandCol, communityCol, songID, personID, srcVersion).Scan(&newID); err != nil {
 			return 0, err
 		}
 		if err := copySongMedia(ctx, tx, songID, newID); err != nil {
@@ -395,8 +397,24 @@ func (st *Store) SetSongPublic(ctx context.Context, personID, songID int64, publ
 	if !r.Publish {
 		return fmt.Errorf("person %d may not publish song %d: %w", personID, songID, ErrForbidden)
 	}
-	_, err = st.db.Exec(ctx, `UPDATE songs SET public = $2 WHERE id = $1`, songID, public)
-	return err
+	if public || !r.Public {
+		_, err = st.db.Exec(ctx, `UPDATE songs SET public = $2 WHERE id = $1`, songID, public)
+		return err
+	}
+	// Private again: whoever linked it and can't see it any more keeps a
+	// frozen copy (frozen.go).
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `UPDATE songs SET public = false WHERE id = $1`, songID); err != nil {
+		return err
+	}
+	if _, err := st.freezeLinks(ctx, tx, songID, false, personID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // SetSongbookPublic makes songbookID public (everyone signed in opens it)

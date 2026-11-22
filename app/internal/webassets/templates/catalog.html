@@ -66,9 +66,11 @@
         <div class="catalog-card-title">{{.Title}}</div>
         <div class="catalog-card-meta">{{.Artist}}{{if .Genre}} &middot; {{.Genre}}{{end}}{{with .BandName}} <span class="band-version-tag">{{t "%s’s version" .}}</span>{{end}}</div>
         {{template "song-badges" (index $.Badges .VariantID)}}
+        {{with index $.PlayedBy .VariantID}}<div class="played-by">{{t "played by:"}} {{range $i, $b := .}}{{if $i}}, {{end}}{{$b.BandName}} ({{tn $b.Recordings "%d recording" "%d recordings"}}){{end}}</div>{{end}}
       </a>
       <div class="catalog-card-actions">
         <a href="/works/{{.WorkID}}">{{t "All versions"}}</a>
+        {{if index $.PlayedBy .VariantID}}<a href="/song/{{.VariantID}}/recordings">{{t "Listen"}}</a>{{end}}
         <button type="button" class="add-catalog-btn" data-variant-id="{{.VariantID}}">{{t "Add to my songbook"}}</button>
         <button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">{{t "Make my version"}}</button>
       </div>

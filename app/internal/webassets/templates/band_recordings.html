@@ -513,6 +513,9 @@
 </header>
 <main class="index rec">
   <p class="hint">{{t "The band’s recordings of the song, the best rated first. The one chosen as the reference is what the band’s playlist plays."}} <a href="/song/{{.Song.VariantID}}">{{t "Open the song"}}</a></p>
+  {{/* Public recordings (docs/ownership-model.md §8). */}}
+  {{if and .OwnSong .Song.Public}}<p class="hint rec-public-note">{{template "icon-community"}} {{t "This song is public: everyone signed in hears its recordings."}} <a href="/song/{{.Song.VariantID}}/recordings#band-{{.Band.ID}}">{{t "As they see them"}}</a></p>
+  {{else if and (not .OwnSong) .Song.Public}}<p class="hint rec-public-note">{{template "icon-community"}} {{if .IsCore}}{{t "A public song the band links: a recording made public here is heard by everyone signed in, on the song’s page. It plays from the band’s pCloud folder, through the folder’s shared link."}}{{else}}{{t "A public song the band links: the band’s core members can make a recording of it public."}}{{end}}</p>{{end}}
   {{if .Recordings}}
   <fieldset class="rec-reference">
     <legend>{{t "The band’s reference"}}</legend>
@@ -523,8 +526,9 @@
         <button type="button" class="rec-play" aria-label="{{t "Play"}}">{{template "icon-play"}}</button>
         <span class="rec-text">
           <strong>{{t (recKind .Kind)}} {{with .SessionDate}}{{date . "2 Jan 2006"}}{{end}}{{with .Take}} · {{t "recording|take"}} {{.}}{{end}}</strong>
-          <small>{{.Name}} · {{fileSize .Size}}</small>
+          {{$rec := .}}<small>{{.Name}} · {{fileSize .Size}}{{with index $.Publicity .ID}}{{if and .Public (not .Allowed)}} · <span class="rec-public">{{t "public"}}</span>{{end}}{{end}}</small>
         </span>
+        {{with index $.Publicity .ID}}{{if and .Allowed $.IsCore}}<label class="rec-public-toggle" title="{{t "everyone signed in hears it, on the song’s page"}}"><input type="checkbox" class="rec-public-box" value="{{$rec.ID}}"{{if .Public}} checked{{end}}> {{t "public"}}</label>{{else if and .Allowed .Public}}<span class="rec-public">{{t "public"}}</span>{{end}}{{end}}
         {{template "rec-stars" .}}
       </li>
       {{end}}
@@ -536,6 +540,18 @@
   <p class="dl-empty">{{t "No recording of this song in the band’s folder."}}</p>
   {{end}}
 </main>
+{{if .IsCore}}<script>
+// A recording made public, or not, one by one (docs/ownership-model.md §8).
+const recBand = {{.Band.ID}};
+document.querySelectorAll('.rec-public-box').forEach((box) => box.addEventListener('change', async () => {
+  const out = document.getElementById('reference-status');
+  const res = await fetch(`/api/bands/${recBand}/recordings/${box.value}/public`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({public: box.checked}),
+  }).catch(() => null);
+  if (!res || !res.ok) box.checked = !box.checked;
+  Forms.status(out, res && res.ok ? (box.checked ? t('Public: everyone signed in hears it.') : t('Only the band hears it now.')) : t('Couldn’t save that.'), res && res.ok ? 'ok' : 'error');
+}));
+</script>{{end}}
 {{template "rec-player" .}}
 </div>
 {{template "global-tabbar" $}}

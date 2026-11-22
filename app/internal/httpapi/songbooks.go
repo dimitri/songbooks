@@ -461,14 +461,15 @@ func (s *Server) handleRemoveSongbookEntry(w http.ResponseWriter, r *http.Reques
 
 // handleDeleteSong permanently deletes a variant (not just a songbook
 // pointer to it) — gated at the router by requireVariantRole("editor",
-// ...), same bar as editing it.
+// ...), same bar as editing it. Every other owner linking it keeps a
+// frozen copy (store.DeleteSong).
 func (s *Server) handleDeleteSong(w http.ResponseWriter, r *http.Request) {
 	id, err := pathID(r, "id")
 	if err != nil {
 		httpError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if err := s.store.DeleteVariant(id); err != nil {
+	if err := s.store.DeleteSong(r.Context(), id, personFromContext(r).ID); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

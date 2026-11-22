@@ -9323,3 +9323,30 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 /* A band's song made from another (play.html): where it came from. */
 .based-on { margin: 0 0 0.6rem; font-size: 0.82rem; color: var(--fg-muted); }
 .based-on a { color: inherit; text-decoration: underline; text-decoration-color: var(--border-strong); }
+
+/* The ownership model, steps 6 and 7 (versions_sync.go): the original's
+   changes offered to a version, a frozen copy's note, the bands whose
+   recordings of a public song everyone hears. */
+.original-change { margin: 0.4rem 0 0.8rem; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 6px; padding: 0.5rem 0.8rem; background: var(--bg-raised, var(--bg)); }
+.original-change > summary { cursor: pointer; }
+.original-change > summary a { color: inherit; }
+.original-change .hint { margin: 0.4rem 0 0.2rem; }
+.original-change-list { margin: 0.2rem 0 0.4rem; padding-left: 1.1rem; font-size: 0.9rem; }
+.original-change-list li { margin: 0.1rem 0; }
+.original-change-parts { border: 0; margin: 0.4rem 0 0; padding: 0; display: grid; gap: 0.15rem; }
+.original-change-parts legend { font-weight: 600; font-size: 0.9rem; padding: 0; margin-bottom: 0.2rem; }
+.original-change-part { display: flex; align-items: baseline; gap: 0.5rem; font-size: 0.9rem; min-height: 1.9rem; }
+.original-change-part input { flex: none; }
+.original-change-name { font-weight: 600; }
+.original-change-what { color: var(--fg-muted); font-size: 0.85rem; }
+.original-change-part.is-conflict .original-change-name { color: var(--fg-muted); font-weight: 500; }
+.original-change-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+.frozen-note .icon { width: 0.9em; height: 0.9em; vertical-align: -0.1em; }
+.played-by { margin: 0 0 0.6rem; font-size: 0.85rem; color: var(--fg-muted); }
+.played-by a { color: var(--accent-ink, var(--accent)); font-weight: 600; }
+.catalog-card .played-by { margin: 0.2rem 0 0; font-size: 0.8rem; }
+.played-by-band h2 { font-size: 1.05rem; margin: 1rem 0 0.3rem; }
+.played-by-band h2 small { font-weight: 400; color: var(--fg-muted); font-size: 0.85rem; }
+.rec-public-note .icon { width: 1em; height: 1em; vertical-align: -0.15em; }
+.rec-public-toggle { flex: none; display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; color: var(--fg-muted); }
+.rec-public { color: var(--accent-ink, var(--accent)); }

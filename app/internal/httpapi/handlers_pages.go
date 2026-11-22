@@ -2764,7 +2764,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	// CanNewVersion (the song is the viewer's to edit, not the
 	// catalogue's): "New version from this", named, beside it. CanPublish:
 	// make it public or private.
-	var canEdit, canCopy, canNewVersion, canPublish bool
+	var canEdit, canCopy, canNewVersion, canPublish, canDelete bool
 	var bandOffer *store.BandHold
 	var communityOffer *songCommunityOffer
 	var editOwner *store.VariantOwner
@@ -2776,6 +2776,10 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 			canEdit = rights.Edit
 			canPublish = rights.Publish
 			canNewVersion = rights.Edit && !rights.Catalogue && !rights.Closed
+			// Delete this song… (the More menu): who edits and publishes
+			// it, never the catalogue's from here; a confirmation says who
+			// links it first (versions_sync.go).
+			canDelete = rights.Edit && rights.Publish && !rights.Catalogue
 		}
 		if variant != nil && rights != nil {
 			// The page's own songbook first: a community's songbook
@@ -2826,6 +2830,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "CanCopy": canCopy, "Genre": genre,
 		"BandOffer": bandOffer, "CommunityOffer": communityOffer, "EditOwner": editOwner, "BandVersion": bandVersion, "BasedOn": basedOn, "SongVisibility": variantVisibility(variant),
 		"CanNewVersion": canNewVersion, "CanPublish": canPublish, "SongPublic": variant != nil && variant.Public, "VersionName": variantVersionName(variant),
+		"CanDelete": canDelete,
 		"Embed": r.URL.Query().Get("embed") == "playlist",
 		"Title": orDefault(sg.Get("title"), "untitled"), "Artist": sg.Get("artist"),
 		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "SpellJSON": transposeSpellJSON(sg), "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
@@ -2875,6 +2880,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	}
 	data["RefHead"] = refHead
 	data["RefTitle"] = refHead.Title
+	s.songOwnershipData(r, data, variantID, variant)
 	if gp.Meta != nil {
 		data["GPFileName"] = gp.Meta.Filename
 		data["GPFileSHA"] = gp.Meta.SHA256
