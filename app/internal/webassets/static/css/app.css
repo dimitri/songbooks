@@ -7782,6 +7782,7 @@ button.icon-btn.setlist-rename-btn:hover, button.icon-btn.setlist-rename-btn:foc
   .setlist-actions > * { flex: 1 1 0; }
   .setlist-action { width: 100%; justify-content: center; }
   .songbook-head input[type="search"] { flex-basis: 100%; max-width: none; }
+  .songbook-actions { align-items: stretch; } /* a label on two lines (Ajouter un morceau) keeps the row even */
   .space-views { width: 100%; }
 }
 .setlist-prefer button { padding: 0.45rem 0.9rem; border: 0; border-radius: 999px; background: none; font: inherit; font-size: 0.85rem; color: var(--fg-muted); min-height: 2.25rem; cursor: pointer; }
