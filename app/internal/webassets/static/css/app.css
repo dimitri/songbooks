@@ -1022,7 +1022,7 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 }
 .topbar-ref[data-kind="link"] .is-link, .topbar-ref[data-kind="band"] .is-band, .topbar-ref[data-kind=""] .is-add { display: inline-flex; }
 /* Nothing to listen to yet: an editor's discreet way in. */
-.topbar-ref[data-kind=""] .topbar-ref-btn { border-style: dashed; background: none; }
+.topbar-ref[data-kind=""] .topbar-ref-btn { border-style: dashed; border-color: var(--border-strong); background: none; }
 /* A phone: the thumbnail says it, its label goes (the button keeps its
    aria-label). */
 @media (max-width: 480px) {
