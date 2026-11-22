@@ -1914,7 +1914,11 @@
     if (typeof alphaTab === 'undefined' || !data.gpOrder) return;
     const res = await fetch(`/song/${variantId}/gp-file`);
     if (!res.ok) throw new Error(t('could not load the Guitar Pro file'));
-    const file = alphaTab.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(await res.arrayBuffer()), new alphaTab.Settings());
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const file = alphaTab.importer.ScoreLoader.loadScoreFromBytes(bytes, new alphaTab.Settings());
+    // Each track at its level in the file (gp-levels.js: Guitar Pro 8's
+    // own, which alphaTab reads as silence).
+    if (window.GPLevels) GPLevels.apply(file, await GPLevels.read(bytes));
     if (window.GPInstruments) GPInstruments.knowFile(variantId, file);
     data.tracks.forEach((t, i) => { if (file.tracks[i]) t.fileTrack = i; });
     const obj = JSON.parse(alphaTab.model.JsonConverter.scoreToJson(file));

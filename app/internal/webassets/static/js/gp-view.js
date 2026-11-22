@@ -30,11 +30,18 @@
     }
     return bytesPromise;
   }
+  // Each track's level as Guitar Pro plays it (gp-levels.js): a Guitar
+  // Pro 8 file keeps it where alphaTab doesn't read it, and its score then
+  // sounds silent (no waveform in the player, nothing to hear) — and would
+  // be saved silent.
+  let levelsPromise = null;
+  const fileLevels = () => (levelsPromise ||= fileBytes().then((b) => (window.GPLevels ? GPLevels.read(b) : [])));
   // Guitar Pro files often mark chords "show diagram" with no fingering
   // at all (only the name was wanted): drawn, those are empty boxes. raw
   // leaves the model as the file has it, for editing and saving.
   async function loadScore(raw) {
     const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(await fileBytes(), new alphaTab.Settings());
+    if (window.GPLevels) GPLevels.apply(score, await fileLevels());
     if (raw) return score;
     for (const t of score.tracks) {
       for (const st of t.staves) {
