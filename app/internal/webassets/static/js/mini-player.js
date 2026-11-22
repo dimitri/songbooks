@@ -7,6 +7,10 @@
 // kept in sessionStorage: a URL to play it again, its title, the page it
 // came from, where it was, whether it was playing, its speed and volume.
 //
+// A page with <body data-mini-player="off"> (the click track, where a
+// recording would play over the click) shows none: what was kept stops
+// and is forgotten.
+//
 // The next page shows a mini player for it, over its content: the title
 // (a link back to its page), play/pause, where it is (a scrubber and the
 // time) and × (forget it). Unless one of that page's own players has the
@@ -145,9 +149,13 @@
   }
 
   // What the page does with a kept state: {show}, or {owner} when one of
-  // its players has that recording.
-  function decide(state, players) {
+  // its players has that recording, or {stop} on a page that wants
+  // silence (<body data-mini-player="off">: the click track, where a
+  // recording would play over the click) — what was playing stops there
+  // and is forgotten.
+  function decide(state, players, off) {
     if (!state) return {show: false};
+    if (off) return {show: false, stop: true};
     for (const p of players) {
       let mine = false;
       try { mine = !!(p.owns && p.owns(state.key)); } catch (e) {}
@@ -481,10 +489,12 @@
   // ---- On each page ---------------------------------------------------------
   // What's kept: taken over by the page's player that has it, or the mini
   // player for it.
+  const silent = () => !!(document.body && document.body.dataset.miniPlayer === 'off');
   function boot() {
     const state = load();
     if (!state) { teardown(); return; }
-    const d = decide(state, players);
+    const d = decide(state, players, silent());
+    if (d.stop) { close(); return; }
     if (d.owner) {
       teardown();
       let r;

@@ -134,6 +134,11 @@ test('a page whose player has the recording takes it over: no mini player', () =
   assert.deepEqual(NP.decide(state, [other, broken, {}]), { show: true });
   assert.deepEqual(NP.decide(state, []), { show: true });
   assert.deepEqual(NP.decide(null, [mine]), { show: false });
+  // A page that wants silence (the click track): what plays stops, even
+  // when one of its players has it.
+  assert.deepEqual(NP.decide(state, [mine], true), { show: false, stop: true });
+  assert.deepEqual(NP.decide(state, [], true), { show: false, stop: true });
+  assert.deepEqual(NP.decide(null, [], true), { show: false });
 });
 
 test('time as m:ss', () => {
