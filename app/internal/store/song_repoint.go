@@ -4,11 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 
 	"github.com/jackc/pgx/v5"
-
-	"app/internal/setlist"
 )
 
 // RepointCounts is what repointSong moved from one song to another.
@@ -155,7 +152,7 @@ func (st *Store) repointSong(ctx context.Context, tx pgx.Tx, from, to int64, act
 	}
 	for _, col := range cols {
 		switch col.table + "." + col.column {
-		case "songbook_entries.variant_id", "songs.forked_from_id",
+		case "songbook_entries.variant_id", "songs.forked_from_id", "setlist_items.variant_id",
 			"song_audio.variant_id", "song_gp_source_file.variant_id",
 			"song_gp_source_file_version.variant_id", "gp_drift_ack.variant_id":
 			continue // done above; or the media `to` has its own of, which go with `from`
@@ -302,63 +299,11 @@ func repointSongOrders(ctx context.Context, tx pgx.Tx, from, to int64) error {
 	return nil
 }
 
-// repointSetlists changes the lines of every set list that are the song
+// repointSetlists changes the rows of every set list that are the song
 // `from` to the song `to`, a revision recorded for each set list changed,
-// and says how many lines changed.
+// and says how many rows changed.
 func (st *Store) repointSetlists(ctx context.Context, tx pgx.Tx, from, to int64, actor *int64) (int, error) {
-	rows, err := tx.Query(ctx, `
-		SELECT id, scope::text, title, notes, body, owner_person_id, owner_band_id
-		FROM setlists WHERE body ~ ('variant:\s*' || $1::bigint::text || '(\D|$)')
-		ORDER BY id FOR UPDATE`, from)
-	if err != nil {
-		return 0, err
-	}
-	type slRow struct {
-		id                        int64
-		scope, title, notes, body string
-		ownerPerson, ownerBand    *int64
-	}
-	var lists []slRow
-	for rows.Next() {
-		var r slRow
-		if err := rows.Scan(&r.id, &r.scope, &r.title, &r.notes, &r.body, &r.ownerPerson, &r.ownerBand); err != nil {
-			rows.Close()
-			return 0, err
-		}
-		lists = append(lists, r)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return 0, err
-	}
-	n := 0
-	for _, r := range lists {
-		l := setlist.Parse(r.body)
-		lines := 0
-		for i := range l.Sets {
-			for j := range l.Sets[i].Entries {
-				if l.Sets[i].Entries[j].VariantID == from {
-					l.Sets[i].Entries[j].VariantID = to
-					lines++
-				}
-			}
-		}
-		if lines == 0 {
-			continue
-		}
-		if err := st.RecordRevision(ctx, tx, "setlist", strconv.FormatInt(r.id, 10), actor, SetlistSnapshot{
-			Exists: true, Scope: r.scope, Title: r.title, Notes: r.notes,
-			Body: r.body, OwnerPersonID: r.ownerPerson, OwnerBandID: r.ownerBand,
-		}); err != nil {
-			return n, err
-		}
-		if _, err := tx.Exec(ctx, `UPDATE setlists SET body = $1, version = version + 1 WHERE id = $2`,
-			setlist.Write(l), r.id); err != nil {
-			return n, err
-		}
-		n += lines
-	}
-	return n, nil
+	return st.repointSetlistItems(ctx, tx, from, to, actor, "", nil)
 }
 
 // deleteSong removes a song repointSong has emptied.

@@ -17,7 +17,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"app/internal/importer"
-	"app/internal/setlist"
 	"app/internal/store"
 )
 
@@ -663,42 +662,21 @@ func withFacts(raw []byte, title, artist string) []byte {
 // setlists: invented titles and venues, no notes; a gig's venue too.
 func (a *anonymizer) setlists(ctx context.Context, tx pgx.Tx) error {
 	// fixtures' set lists are invented already.
-	rows, err := tx.Query(ctx, `SELECT id, body FROM setlists WHERE title <> ALL($1) ORDER BY id`, fixtureSetlists)
+	rows, err := tx.Query(ctx, `SELECT id FROM setlists WHERE title <> ALL($1) ORDER BY id`, fixtureSetlists)
 	if err != nil {
 		return err
 	}
-	type sl struct {
-		id   int64
-		body string
-	}
-	var sls []sl
-	for rows.Next() {
-		var s sl
-		if err := rows.Scan(&s.id, &s.body); err != nil {
-			return err
-		}
-		sls = append(sls, s)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[int64])
+	if err != nil {
 		return err
 	}
-	for i, s := range sls {
-		title := SetlistTitle(i)
-		l := setlist.Parse(s.body)
-		if l.Get("title") != "" {
-			l.Set("title", title)
+	for i, id := range ids {
+		if err := exec(ctx, tx, a.c, "setlists", `
+			UPDATE setlists SET title = $2, notes = '', venue = CASE WHEN venue = '' THEN '' ELSE $3 END WHERE id = $1`,
+			id, SetlistTitle(i), Venue(int(id))); err != nil {
+			return err
 		}
-		if l.Get("venue") != "" {
-			l.Set("venue", Venue(int(s.id)))
-		}
-		for si := range l.Sets {
-			for ei := range l.Sets[si].Entries {
-				l.Sets[si].Entries[ei].Note = ""
-			}
-		}
-		if err := exec(ctx, tx, a.c, "setlists", `UPDATE setlists SET title = $2, notes = '', body = $3 WHERE id = $1`,
-			s.id, title, setlist.Write(l)); err != nil {
+		if err := exec(ctx, tx, a.c, "setlist_items", `UPDATE setlist_items SET note = '' WHERE setlist_id = $1 AND note <> ''`, id); err != nil {
 			return err
 		}
 	}

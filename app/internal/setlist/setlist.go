@@ -28,7 +28,11 @@ type MetaField struct {
 // VariantID reference instead. Exactly one of (Book+Stem) or VariantID is
 // set on any given Entry — never both, never neither (Parse never
 // produces such a row).
+//
+// ID is the entry's row in the store (setlist_items.id), 0 for an entry
+// not read from it (parsed from text, or made to be saved).
 type Entry struct {
+	ID        int64
 	Book      string
 	Stem      string
 	VariantID int64
