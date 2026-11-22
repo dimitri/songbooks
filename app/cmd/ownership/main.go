@@ -163,7 +163,9 @@ func report(w io.Writer, r *store.OwnershipReport) {
 		strings.Join(closed, ", "), r.PublicSongbooks)
 
 	fmt.Fprintln(w, "setlist, jam: the values are gone (migration 0114)")
-	fmt.Fprintln(w, "set list bodies → setlist_items: step 3 (not this command)")
+	sl := r.Setlists
+	fmt.Fprintf(w, "set list bodies → setlist_items (migration 0115): %d set lists, %s in %d sets (%d with a note); %s not in the owner's songbooks\n",
+		sl.Lists, songs(sl.Songs), sl.Sections, sl.Notes, songs(sl.Outside))
 
 	switch {
 	case r.Nothing():

@@ -665,6 +665,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/setlists/{id}/gigs", s.requireAuth(s.handleAddSetlistGig))
 	mux.HandleFunc("DELETE /api/setlists/{id}/gigs/{gigID}", s.requireAuth(s.handleRemoveSetlistGig))
 	mux.HandleFunc("PUT /api/setlists/{id}/clicktrack-notes/{variantID}", s.requireAuth(s.handlePutClicktrackNote))
+	// A song row's version for this set list (ownership model, step 3).
+	mux.HandleFunc("PUT /api/setlists/{id}/items/{itemID}", s.requireAuth(s.handlePutSetlistItemVersion))
 	mux.HandleFunc("GET /setlists/{id}", s.requireAuth(s.handleSetlistOverview))
 	mux.HandleFunc("GET /setlists/{id}/practice", s.handleSetlistOldStep)
 	mux.HandleFunc("GET /setlists/{id}/listening", s.handleSetlistOldStep)

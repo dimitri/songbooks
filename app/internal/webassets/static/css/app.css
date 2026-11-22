@@ -5817,6 +5817,11 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .gig-row.playing .gig-title { color: var(--accent); }
 .gig-row .rec-play { justify-self: end; }
 .setlist-overview-reorder-btns:not([hidden]) { display: flex; gap: 0.15rem; }
+/* A set list row's title, and the version it plays when the songbook has
+   several of the song (ownership model, step 3). */
+.setlist-title-cell { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.setlist-title-cell .gig-title .song-version-name { font-size: 0.9em; }
+.setlist-version { align-self: flex-start; max-width: 100%; font-size: 0.85rem; padding: 0.15rem 0.4rem; }
 #reorder-toggle.active { background: var(--accent); color: var(--bg); }
 
 /* The band Repertoire tab's own row — same visual language as the gig

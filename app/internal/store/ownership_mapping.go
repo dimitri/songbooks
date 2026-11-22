@@ -123,6 +123,9 @@ type OwnershipReport struct {
 	ClosedSongbooks []OwnerCount // ID, Name (the songbook's), N: its songs
 	PublicSongbooks int
 
+	// Set lists: their rows (setlist_items, migration 0115).
+	Setlists SetlistCounts
+
 	// Lines are every song's line, for -v.
 	Lines []string
 }
@@ -163,6 +166,7 @@ func (st *Store) MapOwnership(ctx context.Context, opts OwnershipOptions) (*Owne
 		st.mapCatalogueCommunities,
 		st.mapCounts,
 		st.mapSongbooks,
+		st.mapSetlists,
 	}
 	for _, step := range steps {
 		if err := step(ctx, tx, r, opts); err != nil {
@@ -552,6 +556,34 @@ func (st *Store) mapSongbooks(ctx context.Context, tx pgx.Tx, r *OwnershipReport
 		return err
 	}
 	return tx.QueryRow(ctx, `SELECT count(*) FROM songbooks WHERE public`).Scan(&r.PublicSongbooks)
+}
+
+// SetlistCounts is what the set lists hold: Lists set lists, Songs song
+// rows (Notes of them with a note), Sections sets; Outside is the song
+// rows whose song isn't in one of the set list's owner's songbooks (a set
+// list lists its owner's songs, §4: a band's set list adds what it lists
+// to the band's songbook; a person's may list any song they see).
+type SetlistCounts struct {
+	Lists, Songs, Sections, Notes, Outside int
+}
+
+// mapSetlists counts the set lists' rows; nothing to change: migration
+// 0115 moved their bodies into setlist_items.
+func (st *Store) mapSetlists(ctx context.Context, tx pgx.Tx, r *OwnershipReport, _ OwnershipOptions) error {
+	c := &r.Setlists
+	return tx.QueryRow(ctx, `
+		SELECT (SELECT count(*) FROM setlists),
+		       count(*) FILTER (WHERE i.variant_id IS NOT NULL),
+		       count(*) FILTER (WHERE i.section IS NOT NULL),
+		       count(*) FILTER (WHERE i.note <> ''),
+		       count(*) FILTER (WHERE i.variant_id IS NOT NULL AND NOT EXISTS (
+		         SELECT 1 FROM songbook_entries se JOIN songbooks sb ON sb.id = se.songbook_id
+		         WHERE se.variant_id = i.variant_id
+		           AND sb.owner_person_id IS NOT DISTINCT FROM sl.owner_person_id
+		           AND sb.owner_band_id IS NOT DISTINCT FROM sl.owner_band_id
+		           AND sb.owner_community_id IS NOT DISTINCT FROM sl.owner_community_id))
+		FROM setlist_items i JOIN setlists sl ON sl.id = i.setlist_id`).
+		Scan(&c.Lists, &c.Songs, &c.Sections, &c.Notes, &c.Outside)
 }
 
 // String is "N songbook entries, N set list lines, N recordings, ...".

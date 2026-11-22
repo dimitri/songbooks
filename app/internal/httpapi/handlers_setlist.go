@@ -16,6 +16,7 @@ import (
 )
 
 type jsonEntry struct {
+	ID        int64  `json:"id,omitempty"` // its setlist_items row; ignored on a save
 	Book      string `json:"book"`
 	Stem      string `json:"stem"`
 	VariantID int64  `json:"variant_id,omitempty"`
@@ -40,7 +41,7 @@ func setlistToJSON(l *setlist.Setlist) jsonSetlist {
 	for _, s := range l.Sets {
 		js := jsonSet{Label: s.Label}
 		for _, e := range s.Entries {
-			js.Entries = append(js.Entries, jsonEntry{Book: e.Book, Stem: e.Stem, VariantID: e.VariantID, Note: e.Note})
+			js.Entries = append(js.Entries, jsonEntry{ID: e.ID, Book: e.Book, Stem: e.Stem, VariantID: e.VariantID, Note: e.Note})
 		}
 		out.Sets = append(out.Sets, js)
 	}
@@ -120,6 +121,54 @@ type gigRow struct {
 	VariantID                          int64
 	Title, Tempo, Key, Note, Reference string
 	Sound                              *setlistSound // nil: nothing to play here
+
+	// The set list's own page: its setlist_items row, the version's name
+	// ("psychedelic"), and the versions the owner's songbook has of the
+	// song, for the editor to pick the one for this gig (none: nothing to
+	// pick).
+	ItemID      int64
+	VersionName string
+	Versions    []versionChoice
+}
+
+// versionChoice is one version a set list row may play, labelled so the
+// versions of one song tell apart: "Bad Spell", "Bad Spell — psychedelic".
+type versionChoice struct {
+	VariantID int64
+	Label     string
+	Current   bool
+}
+
+// versionChoices labels vs for the picker of a row playing current: the
+// title and version name, then the artist when two read the same, then
+// the song's number.
+func versionChoices(vs []store.SetlistVersion, current int64) []versionChoice {
+	label := func(v store.SetlistVersion) string {
+		if v.VersionName != "" {
+			return v.Title + " — " + v.VersionName
+		}
+		return v.Title
+	}
+	seen := map[string]int{}
+	for _, v := range vs {
+		seen[label(v)]++
+	}
+	withArtist := map[string]int{}
+	out := make([]versionChoice, 0, len(vs))
+	for _, v := range vs {
+		l := label(v)
+		if seen[l] > 1 && v.Artist != "" {
+			l += " · " + v.Artist
+		}
+		withArtist[l]++
+		out = append(out, versionChoice{VariantID: v.VariantID, Label: l, Current: v.VariantID == current})
+	}
+	for i := range out {
+		if withArtist[out[i].Label] > 1 {
+			out[i].Label += fmt.Sprintf(" (%d)", out[i].VariantID)
+		}
+	}
+	return out
 }
 
 // setlistSound is what a set list's player can play for a song: our
@@ -226,6 +275,20 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 	playable, choice := 0, false
 	var sets []gigSet
 	n := 0
+	// Which version each row plays, and, for whoever edits the set list,
+	// the others its owner's songbook has (docs/ownership-model.md §5).
+	versionNames, err := s.store.VersionNames(r.Context(), store.SetlistVariantIDs(l))
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var choices map[int64][]store.SetlistVersion
+	if canEdit {
+		if choices, err = s.store.SetlistVersionChoices(r.Context(), id); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
 	for _, set := range l.Sets {
 		var rows []gigRow
 		for _, e := range set.Entries {
@@ -240,7 +303,11 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 				key = sg.Get("key")
 				reference = sg.Get("reference")
 			}
-			row := gigRow{Num: n, VariantID: e.VariantID, Title: title, Tempo: tempo, Key: key, Note: e.Note, Reference: reference}
+			row := gigRow{Num: n, VariantID: e.VariantID, Title: title, Tempo: tempo, Key: key, Note: e.Note, Reference: reference,
+				ItemID: e.ID, VersionName: versionNames[e.VariantID]}
+			if vs := choices[e.ID]; len(vs) > 1 {
+				row.Versions = versionChoices(vs, e.VariantID)
+			}
 			if row.Sound = s.soundFor(r.Context(), bandID, e.VariantID); row.Sound != nil {
 				playable++
 				choice = choice || row.Sound.Rec != nil && row.Sound.Ref != nil
@@ -276,7 +343,11 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 			if artist == bandName {
 				artist = "" // the band's own songs: the artist says nothing
 			}
-			repertoire = append(repertoire, map[string]any{"variantId": e.VariantID, "title": e.Title, "artist": artist})
+			title := e.Title
+			if e.VersionName != "" {
+				title += " — " + e.VersionName // one row per version: which one
+			}
+			repertoire = append(repertoire, map[string]any{"variantId": e.VariantID, "title": title, "artist": artist})
 		}
 	}
 	s.render(w, "setlist-overview", map[string]any{
@@ -492,6 +563,62 @@ func (s *Server) handlePutSetlistByID(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"version": newVersion})
+}
+
+// handlePutSetlistItemVersion is PUT /api/setlists/{id}/items/{itemID},
+// body {"variant_id": N, "version": "7"}: the song row itemID plays the
+// version N for this set list — one of the versions its owner's songbook
+// has of that song (SetlistVersionChoices; anything else is a 400). Whoever
+// may edit the set list may; a set list changed since "version" is a 409.
+func (s *Server) handlePutSetlistItemVersion(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid setlist id")
+		return
+	}
+	itemID, err := strconv.ParseInt(r.PathValue("itemID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid set list row id")
+		return
+	}
+	person := personFromContext(r)
+	canEdit, err := s.store.CanEditSetlistByID(r.Context(), person.ID, id)
+	if errors.Is(err, store.ErrNotFound) {
+		httpError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !canEdit {
+		httpError(w, http.StatusForbidden, "no edit rights on this setlist")
+		return
+	}
+	var req struct {
+		VariantID int64  `json:"variant_id"`
+		Version   string `json:"version"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	version, err := s.store.ChooseSetlistVersion(r.Context(), person.ID, id, itemID, req.VariantID, req.Version)
+	switch {
+	case errors.Is(err, store.ErrConflict):
+		httpError(w, http.StatusConflict, err.Error())
+		return
+	case errors.Is(err, store.ErrInvalid):
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	case errors.Is(err, store.ErrNotFound):
+		httpError(w, http.StatusNotFound, err.Error())
+		return
+	case err != nil:
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"version": version})
 }
 
 // linkSetlistAdditions puts each song a save added to bandID's set list
