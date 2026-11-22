@@ -1418,13 +1418,22 @@ const ICONS = {
     }
     editBtn.addEventListener('click', () => setEditOpen(editRow.hidden));
 
-    // The reference in the header's meta line (play.html "song-ref-head"):
-    // opens this view, the ⋯ menu's Reference; "+ Reference" opens it on
-    // the link field. Kept in step with the link saved below and with the
-    // recordings (a band recording is the reference when there's no link).
+    // The reference in the header's third column (play.html
+    // "song-ref-head"): opens this view, the ⋯ menu's Reference;
+    // "+ Reference" opens it on the link field. Kept in step with the link
+    // saved below and with the recordings (a band recording is the
+    // reference when there's no link). Its name is the link's site, as
+    // the server names it (song_ref_head.go refLinkName).
     const head = document.getElementById('topbar-ref');
     const headBtn = document.getElementById('topbar-ref-btn');
+    const headName = document.getElementById('topbar-ref-name');
     let hasBand = head?.dataset.kind === 'band';
+    function refSiteName(url) {
+      try {
+        const host = new URL(url).hostname.toLowerCase().replace(/^(www|m)\./, '');
+        return /^(youtube\.com|youtu\.be|music\.youtube\.com)$/.test(host) ? 'YouTube' : host || url;
+      } catch (e) { return url; }
+    }
     function renderHead() {
       if (!head) return;
       const url = block.dataset.url || '';
@@ -1435,6 +1444,7 @@ const ICONS = {
       const label = kind ? headBtn.dataset.openLabel : headBtn.dataset.addLabel;
       headBtn.title = label;
       headBtn.setAttribute('aria-label', label);
+      if (headName) headName.textContent = kind === 'band' ? (head.dataset.bandLabel || '') : url ? refSiteName(url.trim()) : '';
       const thumb = head.querySelector('.topbar-ref-thumb');
       let img = thumb.querySelector('img');
       if (kind !== 'youtube') { img?.remove(); return; }
@@ -1443,7 +1453,7 @@ const ICONS = {
       if (!img) {
         img = document.createElement('img');
         img.alt = '';
-        img.width = 40; img.height = 22;
+        img.width = 96; img.height = 54;
         img.loading = 'lazy';
         img.decoding = 'async';
         img.referrerPolicy = 'no-referrer';

@@ -71,3 +71,33 @@ func TestSongRefHeadTemplate(t *testing.T) {
 		t.Errorf("none, a reader:\n%s", none)
 	}
 }
+
+// The reference's name: the app keeps no video title, so its site.
+func TestRefLinkName(t *testing.T) {
+	for in, want := range map[string]string{
+		"https://www.youtube.com/watch?v=dQw4w9WgXcQ": "YouTube",
+		"https://youtu.be/dQw4w9WgXcQ":                "YouTube",
+		"https://m.youtube.com/watch?v=dQw4w9WgXcQ":   "YouTube",
+		"https://open.spotify.com/track/1":            "open.spotify.com",
+		"https://www.Example.com/a":                   "example.com",
+		"not a link":                                  "not a link",
+	} {
+		if got := refLinkName(in); got != want {
+			t.Errorf("refLinkName(%q) = %q, want %q", in, got, want)
+		}
+	}
+	var b strings.Builder
+	if err := webassets.TemplatesFor("fr").ExecuteTemplate(&b, "song-ref-head", songRefHeadFor("https://youtu.be/dQw4w9WgXcQ", false, false)); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(b.String(), `id="topbar-ref-name">YouTube<`) || !strings.Contains(b.String(), `width="96" height="54"`) {
+		t.Errorf("YouTube's name and thumbnail:\n%s", b.String())
+	}
+	b.Reset()
+	if err := webassets.TemplatesFor("fr").ExecuteTemplate(&b, "song-ref-head", songRefHeadFor("", true, false)); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(b.String(), `id="topbar-ref-name">Enregistrement du groupe<`) {
+		t.Errorf("a band recording's name:\n%s", b.String())
+	}
+}

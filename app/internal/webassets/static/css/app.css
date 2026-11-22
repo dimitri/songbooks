@@ -976,7 +976,7 @@ button.remove-song-btn, .catalog-drag-handle { display: none; }
 a.topbar-cell { padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid var(--border); }
 a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none; }
 .topbar-next { justify-content: flex-end; text-align: right; }
-.topbar-nav-info { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.topbar-nav-info { display: flex; flex-direction: column; min-width: 0; overflow: hidden; line-height: 1.25; }
 .topbar-nav-info small { color: var(--fg-muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.03em; }
 .topbar-nav-info strong { font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topbar-current {
@@ -984,6 +984,11 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
   text-align: center; padding: 0.3rem 0;
 }
 .topbar-current h1 { margin: 0; font-size: 1.3rem; font-weight: 700; line-height: 1.2; }
+/* A long title wraps, two lines at most. */
+.topbar-current h1 {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; overflow-wrap: anywhere; max-width: 100%;
+}
 .topbar-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem; font-size: 0.88rem; color: var(--fg-muted); }
 .topbar-artist { font-weight: 500; }
 /* A separator before every meta item except whichever one happens to be
@@ -993,50 +998,44 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .gp-source-badge { display: inline-flex; align-items: center; gap: 0.3em; color: var(--fg-muted); }
 .gp-source-badge:hover { color: var(--fg); }
 .gp-source-badge .icon { width: 0.85rem; height: 0.85rem; }
-/* The song's reference (play.html "song-ref-head"): a pill after the
-   artist, the YouTube video's thumbnail in it, or an icon (a link, a band
-   recording, "+" to add one); it opens the Reference view. */
-.topbar-ref { display: inline-flex; align-items: center; }
+/* The song's reference (play.html "song-ref-head"), the header's third
+   column: the YouTube video's thumbnail (16:9), or a tile with an icon (a
+   link, a band recording), "Reference" over its name; "+ Reference" for
+   an editor of a song without one. It opens the Reference view. */
+.topbar-ref { display: flex; min-width: 0; }
 .topbar-ref[hidden] { display: none; }
-.topbar-meta > .topbar-ref[hidden]:first-child + *::before { content: none; }
 .topbar-ref-btn {
-  display: inline-flex; align-items: center; gap: 0.35rem; min-height: 1.75rem; padding: 0.1rem 0.6rem 0.1rem 0.45rem;
-  border: 1px solid var(--border); border-radius: 999px; background: var(--bg-raised);
-  color: var(--fg-muted); font-size: 0.8rem; line-height: 1.2; white-space: nowrap;
+  display: flex; align-items: center; gap: 0.6rem; min-width: 0; max-width: 15rem; min-height: 0;
+  padding: 0.3rem 0.75rem 0.3rem 0.3rem; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg-raised); color: var(--fg); font: inherit; line-height: 1.25; text-align: left; cursor: pointer;
 }
-.topbar-ref-btn:hover:not(:disabled) { color: var(--fg); border-color: var(--border-strong); }
+.topbar-ref-btn:hover:not(:disabled) { border-color: var(--border-strong); }
 .topbar-ref-btn .icon { margin-right: 0; }
 .topbar-ref-thumb, .topbar-ref-icon { display: none; }
-.topbar-ref-icon { align-items: center; justify-content: center; flex: none; width: 0.95rem; height: 0.95rem; }
-.topbar-ref-icon .icon { width: 0.95rem; height: 0.95rem; }
-.topbar-ref-icon.is-add { font-size: 1rem; font-weight: 600; line-height: 1; }
-.topbar-ref[data-kind="youtube"] .topbar-ref-btn { padding-left: 0.2rem; }
-.topbar-ref[data-kind="youtube"] .topbar-ref-thumb {
-  position: relative; display: block; flex: none; width: 40px; height: 22px; overflow: hidden;
-  border-radius: 999px 4px 4px 999px; background: var(--bg-sunken);
+.topbar-ref-thumb, .topbar-ref-icon {
+  position: relative; flex: none; width: 96px; aspect-ratio: 16 / 9; overflow: hidden;
+  border-radius: 6px; background: var(--bg-sunken);
 }
+.topbar-ref-icon { align-items: center; justify-content: center; color: var(--fg-muted); }
+.topbar-ref-icon .icon { width: 1.3rem; height: 1.3rem; }
+.topbar-ref[data-kind="youtube"] .topbar-ref-thumb { display: block; }
 .topbar-ref-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .topbar-ref-thumb .icon {
-  position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; padding: 2px; transform: translate(-50%, -50%);
+  position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; padding: 4px; transform: translate(-50%, -50%);
   border-radius: 50%; background: rgba(0, 0, 0, 0.6); color: #fff; box-sizing: border-box;
 }
 .topbar-ref[data-kind="link"] .is-link, .topbar-ref[data-kind="band"] .is-band, .topbar-ref[data-kind=""] .is-add { display: inline-flex; }
+.topbar-ref-text { display: flex; flex-direction: column; min-width: 0; }
+.topbar-ref-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--fg-muted); }
+.topbar-ref-name { font-size: 0.88rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar-ref-name:empty { display: none; }
 /* Nothing to listen to yet: an editor's discreet way in. */
-.topbar-ref[data-kind=""] .topbar-ref-btn { border-style: dashed; border-color: var(--border-strong); background: none; }
-/* A phone: the thumbnail says it, its label goes (the button keeps its
-   aria-label). */
-@media (max-width: 480px) {
-  .topbar-ref[data-kind="youtube"] .topbar-ref-label { display: none; }
-  .topbar-ref[data-kind="youtube"] .topbar-ref-btn { padding: 0.1rem 0.2rem; }
-  .topbar-ref[data-kind="youtube"] .topbar-ref-thumb { border-radius: 999px; width: 44px; }
-}
+.topbar-ref[data-kind=""] .topbar-ref-btn { padding: 0.45rem 0.85rem; border-style: dashed; border-color: var(--border-strong); background: none; color: var(--fg-muted); }
+.topbar-ref[data-kind=""] .topbar-ref-btn:hover { color: var(--fg); }
+.topbar-ref[data-kind=""] .topbar-ref-icon.is-add { width: auto; aspect-ratio: auto; overflow: visible; background: none; color: inherit; font-size: 1rem; font-weight: 600; line-height: 1; }
+.topbar-ref[data-kind=""] .topbar-ref-label { font-size: 0.85rem; text-transform: none; letter-spacing: 0; color: inherit; }
 body.stage .topbar-ref { display: none !important; }
-body.stage .topbar-meta > .topbar-ref:first-child + *::before { content: none; }
 .topbar-current .segmented { margin-top: 0.5rem; flex-wrap: wrap; justify-content: center; }
-@media (max-width: 640px) {
-  .song-topbar { grid-template-columns: 1fr; }
-  .topbar-prev, .topbar-next { display: none; }
-}
 
 /* ---- Song structure strip — a minimal tick timeline: one thin progress
    line, one tick + label per section (weighted by its own bar count,
@@ -7534,7 +7533,7 @@ button.gpimport-twin-block { cursor: pointer; }
    alone, the player around it doing the playing. */
 body.embed-playlist .desktop-sidebar, body.embed-playlist .global-tabbar, body.embed-playlist .song-context-bar,
 body.embed-playlist #audio-player, body.embed-playlist #mode-segmented,
-body.embed-playlist .topbar-prev, body.embed-playlist .topbar-next { display: none !important; }
+body.embed-playlist .topbar-prev, body.embed-playlist .topbar-next, body.embed-playlist .song-crumb { display: none !important; }
 body.embed-playlist .app-content { margin: 0 !important; padding-bottom: 1rem !important; }
 .pl-h1-sub { font-weight: 400; color: var(--fg-muted); }
 /* A course's playlist on a wide screen: the lesson's video in place of the map. */
@@ -8837,23 +8836,37 @@ button.ct-tap.is-hit { animation: ct-tap-flash 0.25s ease-out; }
    Modifier, Notes, Mode scène, ⋯). They used to be the sidebar's "This
    song" group and a row of tabs mixing views and tools. Wide screens only:
    on a phone the song bar at the bottom has them (.song-context-bar). */
-.song-topbar { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr); align-items: center; }
-.topbar-back { justify-content: flex-start; }
-.song-back {
-  display: inline-flex; align-items: center; gap: 0.45rem; max-width: 100%; min-width: 0;
-  padding: 0.4rem 0.75rem 0.4rem 0.5rem; border: 1px solid var(--border); border-radius: 8px;
+.song-topbar {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2.2fr) auto minmax(0, 1fr);
+  grid-template-areas: "prev current ref next"; align-items: center;
+}
+.topbar-prev-cell { grid-area: prev; justify-content: flex-start; }
+.topbar-current { grid-area: current; }
+.topbar-ref-cell { grid-area: ref; justify-content: center; }
+.topbar-next-cell { grid-area: next; justify-content: flex-end; }
+/* The list's previous and next songs (play.html "song-nav-card"):
+   "Previous"/"Next" and the title, ellipsised; greyed at either end. */
+.topbar-prev, .topbar-next {
+  display: flex; align-items: center; gap: 0.55rem; min-width: 0; max-width: 15rem;
+  padding: 0.45rem 0.75rem; border: 1px solid var(--border); border-radius: 10px;
   background: var(--bg-raised); color: var(--fg); text-decoration: none;
 }
-.song-back:hover { border-color: var(--border-strong); text-decoration: none; }
-.song-back .icon { flex: none; width: 1rem; height: 1rem; }
-.song-back-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
-.song-back-text small { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--fg-muted); }
-.song-back-text strong { font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.topbar-nav { justify-content: flex-end; gap: 0.4rem; }
-.topbar-nav a { border: 1px solid var(--border); border-radius: 8px; color: var(--fg); text-decoration: none; background: var(--bg-raised); }
-.topbar-nav a:hover { border-color: var(--border-strong); text-decoration: none; }
-.topbar-nav .topbar-prev { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 2.75rem; height: 2.75rem; color: var(--fg-muted); }
-.topbar-nav .topbar-next { display: flex; align-items: center; gap: 0.5rem; min-width: 0; padding: 0.4rem 0.7rem; }
+a.topbar-prev:hover, a.topbar-next:hover { border-color: var(--border-strong); text-decoration: none; }
+.topbar-prev > .icon, .topbar-next > .icon { flex: none; width: 1rem; height: 1rem; margin: 0; color: var(--fg-muted); }
+.topbar-prev.is-disabled, .topbar-next.is-disabled { border-style: dashed; background: none; opacity: 0.5; }
+/* Above the header: ‹ where the song was opened from · 4 of 15, one
+   line, the place's name ellipsised (play.html "song-crumb"). */
+.song-crumb {
+  display: flex; align-items: center; gap: 0.45rem; min-width: 0; padding: 0.55rem 1.1rem 0;
+  font-size: 0.85rem; line-height: 1.3; color: var(--fg-muted); text-align: left; white-space: nowrap;
+}
+.song-crumb-link { display: inline-flex; align-items: center; gap: 0.3rem; min-width: 0; color: var(--fg-muted); text-decoration: none; }
+.song-crumb-link:hover { color: var(--fg); text-decoration: none; }
+.song-crumb-link:hover .song-crumb-name { text-decoration: underline; }
+.song-crumb-link .icon { flex: none; width: 0.95rem; height: 0.95rem; margin: 0; }
+.song-crumb-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: var(--fg); }
+.song-crumb-pos { flex: none; }
+.song-crumb-pos::before { content: "\00b7"; margin-right: 0.45rem; }
 .topbar-key-open { display: none; }
 /* With a recording, the key is the player's (its Key line moves the
    recording and the chords together): the header names it, and opens
@@ -8909,10 +8922,49 @@ a.song-action:hover { text-decoration: none; border-color: var(--border-strong);
 .song-more-menu [role="menuitem"]:hover, .song-more-menu [role="menuitem"]:focus-visible { background: var(--bg-sunken); text-decoration: none; }
 .song-more-menu .icon { width: 1rem; height: 1rem; flex: none; color: var(--fg-muted); }
 @media (max-width: 900px) {
-  .song-toolbar, .topbar-back, .topbar-nav { display: none; }
-  .song-topbar { grid-template-columns: 1fr; }
+  .song-toolbar { display: none; }
+  /* The bell sits at the top right (#song-toolbar-notifications). */
+  .song-crumb { padding-right: 3rem; }
 }
-body.stage .song-toolbar, body.stage .topbar-back, body.stage .topbar-nav { display: none !important; }
+/* A tablet: the reference's thumbnail alone (its name stays in its
+   label), the room going to the previous and next songs' titles. */
+@media (min-width: 601px) and (max-width: 900px) {
+  .topbar-ref:not([data-kind=""]) .topbar-ref-text { display: none; }
+  .topbar-ref:not([data-kind=""]) .topbar-ref-btn { padding: 0.3rem; }
+}
+/* A phone: ‹ the title (its artist and key under it) › on one row, the
+   reference under them as a strip. */
+@media (max-width: 600px) {
+  .song-crumb { padding-left: 0.85rem; }
+  .song-topbar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "prev current next" "ref ref ref";
+    gap: 0.4rem 0.5rem; padding: 0.45rem 0.75rem 0.6rem;
+  }
+  .topbar-prev, .topbar-next { justify-content: center; width: 2.75rem; height: 2.75rem; padding: 0; }
+  .topbar-prev .topbar-nav-info, .topbar-next .topbar-nav-info {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .topbar-current h1 { font-size: 1.15rem; }
+  /* The artist, then the key, one under the other: no dots, nothing
+     left dangling at the start of a wrapped line. */
+  .topbar-meta { flex-direction: column; gap: 0.1rem; font-size: 0.82rem; }
+  .topbar-meta > * + *::before { content: none; }
+  .topbar-meta > .topbar-tempo, .topbar-meta > .topbar-time { display: none; }
+  .topbar-ref-cell { justify-content: stretch; }
+  .topbar-ref-cell:not(:has(.topbar-ref:not([hidden]))) { display: none; }
+  .topbar-ref, .topbar-ref-btn { width: 100%; max-width: none; }
+  .topbar-ref-thumb, .topbar-ref-icon { width: 72px; }
+  .topbar-ref-text { flex-direction: row; align-items: baseline; gap: 0.35rem; }
+  .topbar-ref-label { flex: none; }
+  .topbar-ref-label:has(+ .topbar-ref-name:not(:empty))::after { content: " \00b7"; }
+  .topbar-ref[data-kind=""] .topbar-ref-btn { justify-content: center; }
+}
+/* On stage, the title alone (stage.js puts the previous and next songs'
+   names at the bottom). */
+body.stage .song-toolbar, body.stage .song-crumb,
+body.stage .topbar-prev-cell, body.stage .topbar-ref-cell, body.stage .topbar-next-cell { display: none !important; }
+body.stage .song-topbar { grid-template-columns: minmax(0, 1fr); grid-template-areas: "current"; }
 /* The stage's ✕ only on stage: button.icon-btn outranked .stage-exit's own
    display:none, so it sat over every song page's top right corner. */
 body:not(.stage) .stage-exit { display: none; }

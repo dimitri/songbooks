@@ -444,21 +444,54 @@
 {{end}}
 
 {{define "song-ref-head"}}
-{{/* The song's reference in the header's meta line (songRefHead,
-     song_ref_head.go): a YouTube video's thumbnail, or an icon for any
-     other link or a band recording, and "Reference". It opens the
-     Reference view, the ⋯ menu's (song.js initReference keeps it in step
-     when the link changes there). No reference: "+ Reference" for the
-     song's editors (it opens the link field), nothing for others. */}}
-<span class="topbar-meta-item topbar-ref" id="topbar-ref" data-kind="{{.Kind}}"{{if .CanEdit}} data-can-edit="1"{{end}}{{if and (not .Kind) (not .CanEdit)}} hidden{{end}}>
+{{/* The song's reference, the header's third column (songRefHead,
+     song_ref_head.go): a YouTube video's thumbnail, or a tile with an icon
+     for any other link or a band recording, "Reference" and its name (the
+     link's site; a band recording). It opens the Reference view, the ⋯
+     menu's (song.js initReference keeps it in step when the link changes
+     there). No reference: "+ Reference" for the song's editors (it opens
+     the link field), nothing for others. */}}
+<div class="topbar-ref" id="topbar-ref" data-band-label="{{t "Band recording"}}" data-kind="{{.Kind}}"{{if .CanEdit}} data-can-edit="1"{{end}}{{if and (not .Kind) (not .CanEdit)}} hidden{{end}}>
   <button type="button" class="topbar-ref-btn" id="topbar-ref-btn" data-add-label="{{t "Add a reference"}}" data-open-label="{{t "Open the song's reference"}}" aria-label="{{if .Kind}}{{t "Open the song's reference"}}{{else}}{{t "Add a reference"}}{{end}}" title="{{if .Kind}}{{t "Open the song's reference"}}{{else}}{{t "Add a reference"}}{{end}}">
-    <span class="topbar-ref-thumb">{{if .YouTubeID}}<img src="https://i.ytimg.com/vi/{{.YouTubeID}}/mqdefault.jpg" alt="" width="40" height="22" loading="lazy" referrerpolicy="no-referrer" decoding="async">{{end}}{{template "icon-play"}}</span>
+    <span class="topbar-ref-thumb">{{if .YouTubeID}}<img src="https://i.ytimg.com/vi/{{.YouTubeID}}/mqdefault.jpg" alt="" width="96" height="54" loading="lazy" referrerpolicy="no-referrer" decoding="async">{{end}}{{template "icon-play"}}</span>
     <span class="topbar-ref-icon is-link">{{template "icon-ref-link"}}</span>
     <span class="topbar-ref-icon is-band">{{template "icon-speaker"}}</span>
     <span class="topbar-ref-icon is-add" aria-hidden="true">+</span>
-    <span class="topbar-ref-label">{{t "Reference"}}</span>
+    <span class="topbar-ref-text"><span class="topbar-ref-label">{{t "Reference"}}</span><span class="topbar-ref-name" id="topbar-ref-name">{{if eq .Kind "band"}}{{t "Band recording"}}{{else}}{{.Name}}{{end}}</span></span>
   </button>
+</div>
+{{end}}
+
+{{define "song-crumb"}}
+{{/* Above the song's header (songCrumbFor, song_controls.go): where the
+     song was opened from, a link back, and its position in that list;
+     opened from nowhere in particular, its owner's page. One line. */}}
+<div class="song-crumb">
+  <a class="song-back song-crumb-link" href="{{.Href}}" title="{{.Title}}">{{template "icon-back"}}<span class="song-crumb-name">{{.Name}}</span></a>
+  {{- if .Total}}<span class="song-crumb-pos">{{t "%d of %d" .Pos .Total}}</span>{{end}}
+</div>
+{{end}}
+
+{{define "song-nav-card"}}
+{{/* The list's previous or next song in the header (Dir "prev" or
+     "next"): "Previous"/"Next" and its title. In a list, at its first or
+     last song, the card is there, greyed. Both links keep
+     .setlist-nav-card and .topbar-nav-info strong: the pedal keys, the
+     arrow keys, stage mode's swipe and its foot (stage.js, song.js,
+     audio-player.js) read them. */}}
+{{if .Song}}
+<a class="topbar-{{.Dir}} setlist-nav-card {{.Dir}}" href="/song/{{.Song.VariantID}}{{.Query}}" title="{{if eq .Dir "prev"}}{{t "previous: %s" .Song.Title}}{{else}}{{t "next: %s" .Song.Title}}{{end}}">
+  {{if eq .Dir "prev"}}{{template "icon-back"}}{{end}}
+  <span class="topbar-nav-info"><small>{{if eq .Dir "prev"}}{{t "Previous"}}{{else}}{{t "Next"}}{{end}}</small><strong>{{.Song.Title}}</strong></span>
+  {{if eq .Dir "next"}}{{template "icon-forward"}}{{end}}
+</a>
+{{else if .InList}}
+<span class="topbar-{{.Dir}} is-disabled" aria-hidden="true">
+  {{if eq .Dir "prev"}}{{template "icon-back"}}{{end}}
+  <span class="topbar-nav-info"><small>{{if eq .Dir "prev"}}{{t "Previous"}}{{else}}{{t "Next"}}{{end}}</small></span>
+  {{if eq .Dir "next"}}{{template "icon-forward"}}{{end}}
 </span>
+{{end}}
 {{end}}
 
 {{define "song"}}
@@ -541,17 +574,21 @@
      the reference video. On a phone the song bar at the bottom has them
      (.song-context-bar); the header keeps only the title. */}}
 <div class="song-topzone">
+{{/* ‹ where the song was opened from, named, and "4 of 15" (songCrumbFor). */}}
+{{with .Crumb}}{{template "song-crumb" .}}{{end}}
 <div class="song-topbar">
-  {{/* ‹ where the song was opened from, named (songBackFor). */}}
-  <div class="topbar-cell topbar-back">
-    <a class="song-back" href="{{.Back.Href}}" title="{{.Back.Title}}">{{template "icon-back"}}<span class="song-back-text">{{if ne .Back.Short .Back.Name}}<small>{{.Back.Short}}</small>{{end}}<strong>{{.Back.Name}}</strong></span></a>
-  </div>
+  {{/* Four columns: the previous song · the title and its facts · the
+       reference · the next song. On a phone: ‹ the title › on one row,
+       the reference under them. */}}
+  {{$inList := and .Crumb .Crumb.Total}}
+  <div class="topbar-cell topbar-prev-cell">{{template "song-nav-card" (dict "Dir" "prev" "Song" .Prev "Query" .NavQuery "InList" $inList)}}</div>
 
   <div class="topbar-cell topbar-current">
     <h1>{{.Title}}</h1>
     <div class="topbar-meta">
       {{if .Artist}}<span class="topbar-artist">{{.Artist}}</span>{{end}}
-      {{if .RefHead}}{{template "song-ref-head" .RefHead}}{{end}}
+      {{if .Tempo}}<span class="topbar-meta-item topbar-tempo">{{.Tempo}} bpm</span>{{end}}
+      {{if and .Time (ne .Time "4/4")}}<span class="topbar-meta-item topbar-time">{{.Time}}</span>{{end}}
       {{if .Key}}<span class="topbar-meta-item topbar-key">
         {{/* View-only transpose: shifts the chords on screen for tonight,
              never the saved song (Edit → Source → Transpose does that).
@@ -569,7 +606,6 @@
         </span>
         <button type="button" class="link-btn topbar-key-open" id="topbar-key-open" data-player-line="audio-line-key" aria-controls="audio-line-key" title="{{t "the key, in the player: the recording and the chords together (- and =)"}}">{{t "Change"}}</button>
       </span>{{end}}
-      {{if .Tempo}}<span class="topbar-meta-item">{{.Tempo}} bpm</span>{{end}}
       {{/* Opened from a coaching student's or group's songbook: the key the
            coach gave it there (data-key-offset), and whose it is. */}}
       {{if and .StudentKeySet (not .SongbookKey)}}<span class="topbar-meta-item key-context" title="{{t "the key this song was given for them"}}">{{if .KeyMine}}{{if .StudentKeyName}}{{t "Your key: %s" .StudentKeyName}}{{else if .StudentKey}}{{t "Your key: %s" (printf "%+d" .StudentKey)}}{{else}}{{t "Your key: original"}}{{end}}{{else if .StudentKey}}{{if .StudentKeyName}}{{t "%s’s key: %s" .KeyContext (printf "%s (%+d)" .StudentKeyName .StudentKey)}}{{else}}{{t "%s’s key: %s" .KeyContext (printf "%+d" .StudentKey)}}{{end}}{{else}}{{t "%s’s key: original" .KeyContext}}{{end}}</span>{{end}}
@@ -589,24 +625,9 @@
     </div>
   </div>
 
-  {{/* The list's previous and next songs (a set list, a songbook, a
-       program): "Suivant ›" named, top right; the previous one beside it,
-       an arrow. Both keep .setlist-nav-card: the pedal keys, stage mode's
-       swipe and its foot (stage.js, song.js) read them. */}}
-  <div class="topbar-cell topbar-nav">
-  {{if .Prev}}
-  <a class="topbar-prev setlist-nav-card prev" href="/song/{{.Prev.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{else if $.SongbookRef}}?songbook={{$.SongbookRef}}{{else if $.EventRef}}?event={{$.EventRef}}{{end}}" title="{{t "previous: %s" .Prev.Title}}" aria-label="{{t "previous: %s" .Prev.Title}}">
-    {{template "icon-back"}}
-    <span class="topbar-nav-info sr-only"><strong>{{.Prev.Title}}</strong></span>
-  </a>
-  {{end}}
-  {{if .Next}}
-  <a class="topbar-next setlist-nav-card next" href="/song/{{.Next.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{else if $.SongbookRef}}?songbook={{$.SongbookRef}}{{else if $.EventRef}}?event={{$.EventRef}}{{end}}">
-    <span class="topbar-nav-info"><small>{{t "next"}}</small><strong>{{.Next.Title}}</strong><small>{{if .Next.Tempo}}{{.Next.Tempo}} bpm{{end}}{{if and .Next.Tempo .Next.Key}} &middot; {{end}}{{.Next.Key}}</small></span>
-    {{template "icon-forward"}}
-  </a>
-  {{end}}
-  </div>
+  <div class="topbar-cell topbar-ref-cell">{{if .RefHead}}{{template "song-ref-head" .RefHead}}{{end}}</div>
+
+  <div class="topbar-cell topbar-next-cell">{{template "song-nav-card" (dict "Dir" "next" "Song" .Next "Query" .NavQuery "InList" $inList)}}</div>
 </div>
 
 <div class="song-toolbar">
@@ -1416,7 +1437,7 @@
     {{/* The list's next song (a set list, a songbook, a program): the
          desktop's "Suivant ›", the same link. Without one, Mode scène. */}}
     {{if .Next}}
-    <a class="song-bar-next" href="/song/{{.Next.VariantID}}{{if $.SetlistRef}}?setlist={{$.SetlistRef}}{{if $.GigMode}}&amp;gig=1{{end}}{{else if $.BandRef}}?band={{$.BandRef}}{{else if $.SongbookRef}}?songbook={{$.SongbookRef}}{{else if $.EventRef}}?event={{$.EventRef}}{{end}}" title="{{t "next: %s" .Next.Title}}" aria-label="{{t "next: %s" .Next.Title}}">{{template "icon-forward"}}<span>{{t "Next"}}</span></a>
+    <a class="song-bar-next" href="/song/{{.Next.VariantID}}{{$.NavQuery}}" title="{{t "next: %s" .Next.Title}}" aria-label="{{t "next: %s" .Next.Title}}">{{template "icon-forward"}}<span>{{t "Next"}}</span></a>
     {{else}}
     <button type="button" class="stage-mode-toggle" title="{{t "larger type, no menus, the screen kept awake"}}">{{template "icon-presentation"}}<span>{{t "Stage"}}</span></button>
     {{end}}
