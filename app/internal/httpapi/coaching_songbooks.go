@@ -87,9 +87,10 @@ type coachBookCard struct {
 	// A student's voice, lowest to highest noted ("do3–la4"), "" when
 	// none is.
 	Voice string
-	// VoiceType: the coach's assessment (store.VoiceTypes), its English
-	// label, "" when not classified.
-	VoiceType string
+	// Comfort: the comfortable zone ("sol2–la3"); Label: the coach's
+	// working label in words ("leaning baritone"), "" when not classified.
+	Comfort string
+	Label   string
 	// A group's: a year's class or a one-off, and how many students.
 	IsYear  bool
 	Members int
@@ -327,7 +328,7 @@ func (s *Server) coachBookCards(r *http.Request, community *store.Community, req
 	if err != nil {
 		return nil, err
 	}
-	types, err := s.store.CommunityVoiceTypes(ctx, community.ID)
+	profiles, err := s.store.CommunityVoiceProfiles(ctx, community.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +387,9 @@ func (s *Server) coachBookCards(r *http.Request, community *store.Community, req
 			return nil, err
 		}
 		c.Voice = voiceSpan(rs, lang)
-		c.VoiceType = voiceTypeLabels[types[m.PersonID]]
+		p := profiles[m.PersonID]
+		c.Comfort = spanName(p.TessituraLow, p.TessituraHigh, lang)
+		c.Label = voiceLabelText(lang, p.VoiceType, p.Leaning)
 		if w, ok := worked[m.PersonID]; ok {
 			c.LastSong = &w
 		}

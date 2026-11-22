@@ -213,8 +213,25 @@ func TestSeeAsAndVoiceTypes(t *testing.T) {
 	if strings.Contains(body, `class="voice-assess form-stack"`) {
 		t.Error("Stan's page: the coach's assessment form")
 	}
-	if _, body := do(coach, "GET", books, ""); !strings.Contains(body, `<span class="voice-tag is-type" title="Voice type">Tenor</span>`) {
-		t.Error("the coach's card doesn't show Stan's voice type")
+	if _, body := do(coach, "GET", books, ""); !strings.Contains(body, `<span class="cbook-card-label" title="Working label">Tenor</span>`) || !strings.Contains(body, "comfortable D3–E4") {
+		t.Error("the coach's card doesn't show Stan's comfortable zone and working label")
+	}
+	// The label as a working opinion, with the descriptors: the range
+	// leads, then "leaning tenor · Nov 2026", the timbre, the passages.
+	if code, _ := do(coach, "PUT", voice, `{"voiceType":"tenor","leaning":true,"tessituraLow":50,"tessituraHigh":64,"timbre":"warm","passaggioLow":52,"passaggioHigh":64,"note":"THE-ASSESSMENT"}`); code != http.StatusNoContent {
+		t.Fatalf("the label leaning: %d", code)
+	}
+	if code, _ := do(coach, "PUT", voice, `{"timbre":"shiny"}`); code != http.StatusBadRequest {
+		t.Errorf("an unknown timbre: %d", code)
+	}
+	_, body = do(stan, "GET", stanPage, "")
+	for _, want := range []string{`<strong class="voice-type-name">leaning tenor</strong>`, "warm timbre", "passages at E3 and E4", "comfortable D3–E4", "Working label"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Stan's voice: no %q", want)
+		}
+	}
+	if strings.Index(body, `class="voice-range-line"`) > strings.Index(body, `class="voice-label-line"`) {
+		t.Error("the working label comes before the range")
 	}
 
 	// Notes: private (the coach's and the staff's) or shared (Stan reads
