@@ -8546,6 +8546,9 @@ a.song-action:hover { text-decoration: none; border-color: var(--border-strong);
   .topbar-meta { gap: 0.4rem; font-size: 0.82rem; }
   .topbar-meta > * + *::before { margin-right: 0.4rem; }
   .topbar-meta > .topbar-tempo, .topbar-meta > .topbar-time { display: none; }
+  /* A dot between the items left, none before the first of them. */
+  .topbar-meta > * + *::before { content: none; }
+  .topbar-meta > :not(.topbar-tempo, .topbar-time) ~ :not(.topbar-tempo, .topbar-time)::before { content: "\00b7"; margin-right: 0.4rem; }
   .topbar-ref-cell { justify-content: stretch; }
   .topbar-ref-cell:not(:has(.topbar-ref:not([hidden]))) { display: none; }
   .topbar-ref, .topbar-ref-btn { width: 100%; max-width: none; }
